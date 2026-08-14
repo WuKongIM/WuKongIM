@@ -44,8 +44,15 @@ node RPC adapter performs the compatibility conversion.
    samples and are never metric labels.
 8. `Runtime.Stop` closes admission, waits for in-flight enqueue senders, and
    drains every accepted plan from every worker shard within the caller's
-   context. A successful stop leaves the runtime restartable for maintenance
-   restore.
+   context. A successful stop resets transient ACK state and leaves the runtime
+   restartable for maintenance restore.
+9. `Runtime.Quiesce` is the terminal evidence variant: it closes plan admission,
+   drains accepted enqueue senders, plan workers, and owner pushes, then keeps
+   the owner-local ACK tracker alive until `PendingAckCount()==0`. A caller
+   deadline only stops waiting; the same detached drain continues and a later
+   `Quiesce` joins it. Quiesce never resets ACK state, does not prove transport
+   flush, and must be followed by the gateway/client marker proof rather than
+   treated as a remote delivery acknowledgement.
 
 `RuntimeOptions.QueueSize` remains the node-wide accepted-plan capacity.
 `RuntimeOptions.Workers` is both the maximum plan-processing concurrency and

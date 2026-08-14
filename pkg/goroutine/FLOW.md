@@ -42,6 +42,11 @@ Message batch permission helpers use one fixed Message burst task identity;
 UIDs, channels, sessions, and item indexes never become labels.
 Message person-directory batch helpers use a distinct fixed Message burst task
 identity; canonical Channel IDs and batch indexes remain ordinary data.
+The benchmark terminal prepare pipeline uses one fixed App burst identity;
+run, assignment, epoch, capability, and session values remain ordinary secret
+or high-cardinality data and never become registry labels.
+Gateway accepted-SEND drain and mailbox-release waiters use one fixed Gateway
+burst identity outside the registered dispatch pool.
 Slot-grouped permission metadata reads use one fixed Slot burst task identity;
 physical Slot IDs and permission keys remain ordinary data.
 

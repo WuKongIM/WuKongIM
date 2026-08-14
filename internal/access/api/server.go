@@ -15,6 +15,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/access/api/demoui"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -54,6 +55,12 @@ type ChannelRuntimeBenchController interface {
 // PresenceBenchController exposes benchmark-only presence route diagnostics.
 type PresenceBenchController interface {
 	Snapshot(context.Context) (model.PresenceSnapshot, error)
+}
+
+// TerminalFenceBenchController closes and drains one benchmark product
+// generation before issuing its owner-local session fence grant.
+type TerminalFenceBenchController interface {
+	Prepare(context.Context, benchterminal.PrepareRequest) (benchterminal.Grant, error)
 }
 
 // DiagnosticsReader queries node-local diagnostics events for debug API routes.
@@ -218,6 +225,8 @@ type Options struct {
 	BenchRuntime ChannelRuntimeBenchController
 	// BenchPresence controls benchmark-only presence route diagnostics when configured.
 	BenchPresence PresenceBenchController
+	// BenchTerminalFence controls the one-shot product-generation terminal cut.
+	BenchTerminalFence TerminalFenceBenchController
 	// BenchData stores benchmark channel/subscriber setup when configured.
 	BenchData BenchData
 	// Top provides the node-local read-only operations snapshot for wkcli top.
@@ -273,6 +282,7 @@ type Server struct {
 	gateway              GatewayAddresses
 	benchRuntime         ChannelRuntimeBenchController
 	benchPresence        PresenceBenchController
+	benchTerminalFence   TerminalFenceBenchController
 	benchData            BenchData
 	top                  TopSnapshotProvider
 	channels             ChannelUsecase
@@ -315,6 +325,7 @@ func New(opts Options) *Server {
 		gateway:              opts.Gateway,
 		benchRuntime:         opts.BenchRuntime,
 		benchPresence:        opts.BenchPresence,
+		benchTerminalFence:   opts.BenchTerminalFence,
 		benchData:            opts.BenchData,
 		top:                  opts.Top,
 		channels:             opts.Channels,
@@ -520,6 +531,9 @@ func (s *Server) registerRoutes() {
 	bench.GET("/capacity-target", s.handleBenchCapacityTarget)
 	bench.GET("/snapshot", s.handleBenchSnapshot)
 	bench.GET("/presence/snapshot", s.handleBenchPresenceSnapshot)
+	if s.benchTerminalFence != nil && s.benchToken != "" {
+		bench.POST("/terminal-fence/prepare", s.handleBenchTerminalFencePrepare)
+	}
 	bench.GET("/channel-runtime/snapshot", s.handleBenchChannelRuntimeSnapshot)
 	bench.POST("/channel-runtime/probe", s.handleBenchChannelRuntimeProbe)
 	bench.POST("/channel-runtime/evict", s.handleBenchChannelRuntimeEvict)
@@ -640,8 +654,11 @@ type capabilitiesSupports struct {
 	// ChannelRuntimeFaults indicates support for runtime fault injection controls.
 	ChannelRuntimeFaults bool `json:"channel_runtime_faults"`
 	// ChannelRuntimeActivate indicates support for server-side diagnostic activation.
-	ChannelRuntimeActivate bool     `json:"channel_runtime_activate"`
-	ChannelTypes           []string `json:"channel_types"`
+	ChannelRuntimeActivate bool `json:"channel_runtime_activate"`
+	// TerminalFencePrepare indicates support for the authenticated one-shot
+	// product-generation terminal cut.
+	TerminalFencePrepare bool     `json:"terminal_fence_prepare"`
+	ChannelTypes         []string `json:"channel_types"`
 }
 
 type capabilitiesLimits struct {
@@ -665,6 +682,7 @@ func (s *Server) handleBenchCapabilities(c *gin.Context) {
 			ChannelRuntimeEvict:            s.benchRuntime != nil,
 			ChannelRuntimeFaults:           false,
 			ChannelRuntimeActivate:         false,
+			TerminalFencePrepare:           s.benchTerminalFence != nil && s.benchToken != "",
 			ChannelTypes:                   []string{"person", "group"},
 		},
 		Limits: capabilitiesLimits{

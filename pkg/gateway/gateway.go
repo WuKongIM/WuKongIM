@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/core"
@@ -42,6 +43,16 @@ func (g *Gateway) Stop() error {
 		return nil
 	}
 	return g.server.Stop()
+}
+
+// DrainSends closes new SEND admission and waits for all previously accepted
+// SEND mailbox work. A canceled caller only stops waiting; the gateway keeps
+// draining the same accepted work for a later caller or Stop.
+func (g *Gateway) DrainSends(ctx context.Context) error {
+	if g == nil || g.server == nil {
+		return ErrGatewayClosed
+	}
+	return g.server.DrainSends(ctx)
 }
 
 func (g *Gateway) ListenerAddr(name string) string {

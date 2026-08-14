@@ -789,6 +789,7 @@ func (a *App) wireAPI() {
 			Gateway:                  apiGatewayAddresses(a.cfg.API, a.cfg.Gateway.Listeners),
 			BenchRuntime:             a.benchRuntimeController(),
 			BenchPresence:            a.benchPresenceController(),
+			BenchTerminalFence:       a.benchTerminalController(),
 			BenchData:                a.deliveryMeta,
 			Channels:                 a.channels,
 			Users:                    a.users,

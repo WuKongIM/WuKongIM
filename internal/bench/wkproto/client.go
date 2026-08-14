@@ -63,8 +63,13 @@ type Client struct {
 	readBufferSize    int
 	frameBufferSize   int
 
-	mu      sync.Mutex
-	session *clientSession
+	// connectMu orders adapter session replacement against terminal fencing.
+	connectMu sync.Mutex
+	mu        sync.Mutex
+	session   *clientSession
+	// terminal permanently prevents traffic admission and session replacement
+	// once the grant-bound fence starts, including when the fence later fails.
+	terminal bool
 }
 
 // QueueSnapshot is a bounded numeric view of one client's receive queues.
@@ -74,6 +79,9 @@ type QueueSnapshot struct {
 	InnerRecvDepth int
 	// InnerRecvCapacity is the configured pkg/client inbound RECV bound.
 	InnerRecvCapacity int
+	// InnerRecvHandoffs counts pkg/client RECV packets between bounded queue
+	// ownership and acceptance by this adapter.
+	InnerRecvHandoffs int
 	// AdapterDepth is the total number of results queued by the bench adapter.
 	AdapterDepth int
 	// AdapterCapacity is the total fixed capacity of the bench adapter queues.
@@ -82,6 +90,9 @@ type QueueSnapshot struct {
 	RecvDepth int
 	// RecvCapacity is the fixed adapter RECV capacity.
 	RecvCapacity int
+	// AdapterHandoffs counts RECV, SENDACK, or error results between adapter
+	// queue ownership and acceptance by the matching consumer.
+	AdapterHandoffs int
 	// SendackDepth is the number of SENDACK frames waiting for consumers.
 	SendackDepth int
 	// SendackCapacity is the fixed adapter SENDACK capacity.
@@ -101,6 +112,12 @@ type QueueSnapshot struct {
 	// AdmissionRejected is the cumulative number of non-waiting SEND attempts
 	// rejected by adapter or inner-client local capacity.
 	AdmissionRejected uint64
+}
+
+// FrameLease preserves adapter receive ownership across a queue handoff.
+// Release is idempotent and MUST follow acceptance by the next processing stage.
+type FrameLease interface {
+	Release()
 }
 
 type clientSession struct {
@@ -124,6 +141,8 @@ type clientSession struct {
 	terminalDelivered bool
 	// drainCh wakes a terminal publisher when a consumer frees queue capacity.
 	drainCh chan struct{}
+	// resultPending includes queued, blocked-publisher, and leased adapter results.
+	resultPending atomic.Int64
 	// publicationPermit bounds SEND future publisher goroutines before admission.
 	publicationPermit chan struct{}
 	// publicationCurrent counts admitted SEND future publishers.
@@ -147,6 +166,18 @@ type errorResult struct {
 	terminal    bool
 	clientSeq   uint64
 	clientMsgNo string
+}
+
+type adapterFrameLease struct {
+	once    sync.Once
+	session *clientSession
+}
+
+func (l *adapterFrameLease) Release() {
+	if l == nil || l.session == nil {
+		return
+	}
+	l.once.Do(func() { l.session.resultPending.Add(-1) })
 }
 
 // ReadErrorKind is the closed disposition of an asynchronous error delivered
@@ -236,6 +267,14 @@ func (c *Client) Connect(ctx context.Context, uid, deviceID string) error {
 	if c == nil {
 		return errClientNotConnected
 	}
+	c.connectMu.Lock()
+	defer c.connectMu.Unlock()
+	c.mu.Lock()
+	terminal := c.terminal
+	c.mu.Unlock()
+	if terminal {
+		return wkclient.ErrTerminalFenceActive
+	}
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
 
@@ -273,7 +312,7 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	session, err := c.currentSession()
+	session, err := c.currentTrafficSession()
 	if err != nil {
 		return err
 	}
@@ -297,7 +336,7 @@ func (c *Client) TrySend(pkt *frame.SendPacket) error {
 	if pkt == nil {
 		return fmt.Errorf("wkproto client: send packet is nil")
 	}
-	session, err := c.currentSession()
+	session, err := c.currentTrafficSession()
 	if err != nil {
 		return err
 	}
@@ -336,17 +375,28 @@ func clientMessage(pkt *frame.SendPacket) wkclient.Message {
 
 // ReadFrame reads one SENDACK or RECV frame from the connected client stream.
 func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	f, lease, err := c.ReadFrameWithLease(ctx)
+	if lease != nil {
+		lease.Release()
+	}
+	return f, err
+}
+
+// ReadFrameWithLease reads one frame while retaining adapter ownership for a
+// RECV packet. The caller MUST release a non-nil lease after making the frame
+// observable in its next processing stage.
+func (c *Client) ReadFrameWithLease(ctx context.Context) (frame.Frame, FrameLease, error) {
 	if c == nil {
-		return nil, errClientNotConnected
+		return nil, nil, errClientNotConnected
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	session, err := c.currentSession()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return session.readFrame(ctx)
+	return session.readFrameWithLease(ctx)
 }
 
 // QueueSnapshot reports fixed-capacity receive queue occupancy for observability.
@@ -363,18 +413,23 @@ func (c *Client) QueueSnapshot() QueueSnapshot {
 	innerSnapshot := c.session.inner.InboundQueueSnapshot()
 	snapshot.InnerRecvDepth = innerSnapshot.Depth
 	snapshot.InnerRecvCapacity = innerSnapshot.Capacity
+	snapshot.InnerRecvHandoffs = innerSnapshot.Handoffs
 	snapshot.RecvDepth = len(c.session.recvCh)
 	snapshot.RecvCapacity = cap(c.session.recvCh)
 	snapshot.SendackDepth = len(c.session.sendackCh)
 	snapshot.SendackCapacity = cap(c.session.sendackCh)
 	snapshot.ErrorDepth = len(c.session.errCh)
 	snapshot.ErrorCapacity = cap(c.session.errCh)
+	snapshot.AdapterDepth = snapshot.RecvDepth + snapshot.SendackDepth + snapshot.ErrorDepth
+	snapshot.AdapterHandoffs = int(c.session.resultPending.Load()) - snapshot.AdapterDepth
+	if snapshot.AdapterHandoffs < 0 {
+		snapshot.AdapterHandoffs = 0
+	}
 	snapshot.PublicationCurrent = int(c.session.publicationCurrent.Load())
 	snapshot.PublicationCapacity = cap(c.session.publicationPermit)
 	snapshot.PublicationPeak = int(c.session.publicationPeak.Load())
 	snapshot.PublicationBlocked = int(c.session.publicationBlocked.Load())
 	snapshot.AdmissionRejected = c.session.admissionRejected.Load()
-	snapshot.AdapterDepth = snapshot.RecvDepth + snapshot.SendackDepth + snapshot.ErrorDepth
 	snapshot.AdapterCapacity = snapshot.RecvCapacity + snapshot.SendackCapacity + snapshot.ErrorCapacity
 	return snapshot
 }
@@ -392,7 +447,7 @@ func (c *Client) RecvAck(ctx context.Context, messageID int64, messageSeq uint64
 
 // Ping sends a WKProto heartbeat ping frame on the active connection.
 func (c *Client) Ping(ctx context.Context) error {
-	session, err := c.currentSession()
+	session, err := c.currentTrafficSession()
 	if err != nil {
 		return err
 	}
@@ -417,10 +472,58 @@ func (c *Client) Close() error {
 	return session.close()
 }
 
+// SealIngress preserves the legacy no-grant seam. It returns the shared
+// client's typed unsupported error without mutating the live session.
+func (c *Client) SealIngress(ctx context.Context) error {
+	if c == nil {
+		return errClientNotConnected
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.inner.SealIngress(ctx)
+}
+
+// SealIngressWithFence requests the grant-bound, server-confirmed terminal
+// fence. Capability and nonce remain inside the shared client/protocol types
+// and must never be logged or used as metric labels by this adapter.
+func (c *Client) SealIngressWithFence(ctx context.Context, grant frame.TerminalFenceGrant) error {
+	if c == nil {
+		return errClientNotConnected
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := grant.Validate(); err != nil {
+		return fmt.Errorf("%w: invalid grant", wkclient.ErrTerminalFenceProtocol)
+	}
+	c.connectMu.Lock()
+	defer c.connectMu.Unlock()
+	c.mu.Lock()
+	if c.session == nil {
+		c.mu.Unlock()
+		return errClientNotConnected
+	}
+	c.terminal = true
+	session := c.session
+	c.mu.Unlock()
+	return session.inner.SealIngressWithFence(ctx, grant)
+}
+
 func (c *Client) forwardReadFrames(session *clientSession) {
 	for {
-		f, err := session.inner.ReadFrame(context.Background())
+		f, lease, err := session.inner.ReadFrameWithLease(context.Background())
 		if err != nil {
+			if lease != nil {
+				lease.Release()
+			}
 			if !session.waitPendingSendacks() {
 				return
 			}
@@ -431,7 +534,13 @@ func (c *Client) forwardReadFrames(session *clientSession) {
 			return
 		}
 		if !session.publishRecv(f) {
+			if lease != nil {
+				lease.Release()
+			}
 			return
+		}
+		if lease != nil {
+			lease.Release()
 		}
 	}
 }
@@ -457,100 +566,132 @@ func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFut
 }
 
 func (s *clientSession) publishRecv(f frame.Frame) bool {
+	s.resultPending.Add(1)
 	select {
 	case s.recvCh <- f:
 		return true
 	case <-s.stopCh:
+		s.resultPending.Add(-1)
 		return false
 	}
 }
 
 func (s *clientSession) publishSendack(ack *frame.SendackPacket) bool {
+	s.resultPending.Add(1)
 	select {
 	case s.sendackCh <- ack:
 		return true
 	case <-s.stopCh:
+		s.resultPending.Add(-1)
 		return false
 	}
 }
 
 func (s *clientSession) publishError(result errorResult) bool {
+	s.resultPending.Add(1)
 	select {
 	case s.errCh <- result:
 		return true
 	case <-s.stopCh:
+		s.resultPending.Add(-1)
 		return false
 	}
 }
 
 func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
+	f, lease, err := s.readFrameWithLease(ctx)
+	if lease != nil {
+		lease.Release()
+	}
+	return f, err
+}
+
+func (s *clientSession) readFrameWithLease(ctx context.Context) (frame.Frame, FrameLease, error) {
 	if err := s.acquireReadPermit(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer s.releaseReadPermit()
 	for {
 		if s.terminalDelivered {
-			return nil, errClientNotConnected
+			return nil, nil, errClientNotConnected
 		}
 		if s.isStopped() {
-			return nil, errClientNotConnected
+			return nil, nil, errClientNotConnected
 		}
 
 		if s.priorityBurst < priorityResultQuota {
 			select {
 			case result := <-s.errCh:
-				return s.consumeError(result)
+				f, err := s.consumeError(result)
+				return f, s.newResultLease(), err
 			default:
 			}
 			select {
 			case ack := <-s.sendackCh:
-				return s.consumeSendack(ack)
+				f, err := s.consumeSendack(ack)
+				return f, s.newResultLease(), err
 			default:
 			}
 		}
 		select {
 		case recv := <-s.recvCh:
-			return s.consumeRecv(recv)
+			f, err := s.consumeRecv(recv)
+			return f, s.newResultLease(), err
 		default:
 		}
 		select {
 		case result := <-s.errCh:
-			return s.consumeError(result)
+			f, err := s.consumeError(result)
+			return f, s.newResultLease(), err
 		default:
 		}
 		select {
 		case ack := <-s.sendackCh:
-			return s.consumeSendack(ack)
+			f, err := s.consumeSendack(ack)
+			return f, s.newResultLease(), err
 		default:
 		}
 
 		if s.priorityBurst >= priorityResultQuota {
 			select {
 			case recv := <-s.recvCh:
-				return s.consumeRecv(recv)
+				f, err := s.consumeRecv(recv)
+				return f, s.newResultLease(), err
 			case ack := <-s.sendackCh:
-				return s.consumeSendack(ack)
+				f, err := s.consumeSendack(ack)
+				return f, s.newResultLease(), err
 			case result := <-s.errCh:
-				return s.consumeError(result)
+				f, err := s.consumeError(result)
+				return f, s.newResultLease(), err
 			case <-s.stopCh:
-				return nil, errClientNotConnected
+				return nil, nil, errClientNotConnected
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return nil, nil, ctx.Err()
 			}
 		}
 		select {
 		case ack := <-s.sendackCh:
-			return s.consumeSendack(ack)
+			f, err := s.consumeSendack(ack)
+			return f, s.newResultLease(), err
 		case recv := <-s.recvCh:
-			return s.consumeRecv(recv)
+			f, err := s.consumeRecv(recv)
+			return f, s.newResultLease(), err
 		case result := <-s.errCh:
-			return s.consumeError(result)
+			f, err := s.consumeError(result)
+			return f, s.newResultLease(), err
 		case <-s.stopCh:
-			return nil, errClientNotConnected
+			return nil, nil, errClientNotConnected
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, nil, ctx.Err()
 		}
 	}
+}
+
+func (s *clientSession) newResultLease() FrameLease {
+	if s == nil || s.resultPending.Load() <= 0 {
+		return nil
+	}
+	return &adapterFrameLease{session: s}
 }
 
 func (s *clientSession) acquireReadPermit(ctx context.Context) error {
@@ -792,6 +933,21 @@ func (c *Client) currentSession() (*clientSession, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.session == nil {
+		return nil, errClientNotConnected
+	}
+	return c.session, nil
+}
+
+func (c *Client) currentTrafficSession() (*clientSession, error) {
+	if c == nil {
+		return nil, errClientNotConnected
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.terminal {
+		return nil, wkclient.ErrTerminalFenceActive
+	}
 	if c.session == nil {
 		return nil, errClientNotConnected
 	}

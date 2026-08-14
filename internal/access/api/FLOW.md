@@ -58,6 +58,7 @@ GET  /bench/v1/presence/snapshot
 GET  /bench/v1/channel-runtime/snapshot
 POST /bench/v1/channel-runtime/probe
 POST /bench/v1/channel-runtime/evict
+POST /bench/v1/terminal-fence/prepare
 POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
@@ -106,6 +107,17 @@ The `/bench/v1/*` routes are enabled only when the composition root passes
 `BenchEnabled=true`. When `bench.api_token` is non-empty they require the exact
 bearer capability described above; an empty token retains the explicit local
 benchmark compatibility mode and must be used only in controlled environments.
+
+`POST /bench/v1/terminal-fence/prepare` is registered and advertised only when
+the composition root supplies the complete one-shot product terminal controller
+and a non-empty benchmark bearer token. Unlike read/setup compatibility routes,
+this irreversible drain never has an unauthenticated compatibility mode. It accepts a
+strict JSON document bounded to 4 KiB and binds one exact `run_id`,
+`assignment_id`, and `expected_sessions` tuple. A successful response uses the
+shared `pkg/bench/model` terminal-fence schema and returns its opaque capability
+only to the authenticated caller. Logs and error responses contain only closed
+result classes, request method/path, and expected-session count; they never
+contain either benchmark identity, the capability, or a raw adapter error.
 
 `GET /top/v1/snapshot` is a read-only, node-local operations snapshot used by
 `wkcli top`. It is independent of Prometheus metrics and remains disabled unless

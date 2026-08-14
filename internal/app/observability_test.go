@@ -2530,6 +2530,11 @@ func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T
 		PostCommitRetryQueueDepth: 3,
 		PostCommitRetryContended:  true,
 	})
+	observer.ObserveChannelAppendIdempotencyRecovery(channelappend.IdempotencyRecoveryObservation{
+		RecoveredItems:   4,
+		UnresolvedItems:  2,
+		LookupErrorItems: 1,
+	})
 
 	families, err := reg.Gather()
 	if err != nil {
@@ -2548,6 +2553,12 @@ func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T
 	assertGauge("wukongim_channelappend_post_commit_retry_contended", 1)
 	assertGauge("wukongim_channelappend_router_group_inflight", 13)
 	assertGauge("wukongim_channelappend_router_group_capacity", 192)
+	recovery := requireAppMetricFamily(t, families, "wukongim_channelappend_idempotency_recovery_items_total")
+	for result, want := range map[string]float64{"recovered": 4, "unresolved": 2, "lookup_error": 1} {
+		if got := findAppMetricByLabels(t, recovery, map[string]string{"result": result}).GetCounter().GetValue(); got != want {
+			t.Fatalf("idempotency recovery %s = %v, want %v", result, got, want)
+		}
+	}
 }
 
 func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T) {

@@ -35,6 +35,80 @@ func TestBuildHardLimitFailureSetsFailedStatusAndExitCode3(t *testing.T) {
 	}
 }
 
+func TestBuildRedactsControlPlaneTokensWithoutMutatingRuntimeInput(t *testing.T) {
+	input := Input{
+		Target: model.Target{
+			BenchAPI: model.BenchAPIConfig{Enabled: true, Token: "bench-api-canary"},
+		},
+		Workers: model.WorkerSet{Workers: []model.Worker{{
+			ID: "worker-a", ControlToken: "worker-control-canary",
+		}}},
+	}
+
+	rep := Build(input)
+	if rep.Target.BenchAPI.Token != "" {
+		t.Fatalf("report target retained bench API token: %q", rep.Target.BenchAPI.Token)
+	}
+	if len(rep.Workers.Workers) != 1 || rep.Workers.Workers[0].ControlToken != "" {
+		t.Fatalf("report workers retained control token: %+v", rep.Workers.Workers)
+	}
+	if input.Target.BenchAPI.Token != "bench-api-canary" || input.Workers.Workers[0].ControlToken != "worker-control-canary" {
+		t.Fatalf("Build mutated runtime input: target=%q worker=%q", input.Target.BenchAPI.Token, input.Workers.Workers[0].ControlToken)
+	}
+	body, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+	for _, secret := range []string{"bench-api-canary", "worker-control-canary"} {
+		if strings.Contains(string(body), secret) {
+			t.Fatalf("report JSON retained secret %q", secret)
+		}
+	}
+}
+
+func TestWriteDirRemovesNestedCredentialLikeFieldsFromWorkerReports(t *testing.T) {
+	const (
+		benchToken   = "canary-bench-token-493857"
+		controlToken = "canary-control-token-291734"
+		authority    = "Bearer canary-authorization-875104"
+	)
+	workerPayload, err := json.Marshal(map[string]any{
+		"run_id": "run-1",
+		"nested": map[string]any{
+			"Bench_API_Token": benchToken,
+			"deeper": []any{map[string]any{
+				"control-token": controlToken,
+				"Authorization": authority,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := WriteDir(dir, Report{
+		RunID: "run-1",
+		WorkerReports: []WorkerReport{{
+			WorkerID: "worker-1",
+			Report:   workerPayload,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, relative := range []string{"report.json", "workers/worker-1.report.json"} {
+		data, err := os.ReadFile(filepath.Join(dir, relative))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{benchToken, controlToken, authority} {
+			if strings.Contains(string(data), secret) {
+				t.Fatalf("%s retained nested worker credential %q: %s", relative, secret, data)
+			}
+		}
+	}
+}
+
 func TestBuildClassifiesStandardStabilityEvidence(t *testing.T) {
 	standard := model.Scenario{
 		Run:        model.RunConfig{Duration: 48 * time.Hour},
@@ -427,6 +501,103 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	}
 	if !strings.Contains(encoded, `"violations": []`) || !strings.Contains(encoded, `"warnings": []`) {
 		t.Fatalf("diagnostic summary must encode empty collections as arrays: %s", encoded)
+	}
+}
+
+func TestDiagnosticSummaryEncodesEmptyFailureCollectionAsArray(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteDir(dir, Report{
+		RunID:            "run-1",
+		Status:           StatusPassed,
+		ExitCode:         ExitSuccess,
+		StabilityVerdict: VerdictPassed,
+	}); err != nil {
+		t.Fatalf("WriteDir: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "diagnostic-summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"failed_workers": []`) {
+		t.Fatalf("diagnostic summary must encode an empty failed_workers array: %s", data)
+	}
+}
+
+func TestRetainedReportArtifactsNeverContainWorkloadIdentityFromErrors(t *testing.T) {
+	const (
+		uid         = "canary-uid-493857"
+		channelID   = "canary-channel-291734"
+		clientMsgNo = "canary-client-msg-875104"
+	)
+	unsafeMessage := "uid=" + uid + " channel=" + channelID + " client_msg_no=" + clientMsgNo
+	unsafeSample := metrics.ErrorSample{Name: "group_send_error-" + uid, Message: unsafeMessage}
+	unsafeSnapshot := metrics.SnapshotData{
+		Counters: map[string]uint64{
+			"send_attempt_total{phase=run}":       1,
+			"send_attempt_total{uid=" + uid + "}": 1,
+		},
+		Gauges: map[string]float64{
+			"queue_depth{channel_id=" + channelID + "}": 1,
+		},
+		Histograms: map[string]metrics.HistogramSummary{
+			"latency{client_msg_no=" + clientMsgNo + "}": {Count: 1},
+		},
+		Errors: []metrics.ErrorSample{unsafeSample},
+	}
+	workerPayload, err := json.Marshal(map[string]any{
+		"run_id": "run-1", "assignment_id": "assignment-1", "worker_id": "worker-1", "phase": "stopped",
+		"metrics": unsafeSnapshot,
+		"legacy_error": map[string]any{
+			"name": "group_send_error-" + uid, "message": unsafeMessage, "at": "malformed-legacy-time",
+		},
+		"last_error": unsafeMessage,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	rep := Build(Input{
+		RunID:         "run-1",
+		Metrics:       unsafeSnapshot,
+		WorkerMetrics: []metrics.WorkerSnapshot{{WorkerID: "worker-1", Metrics: unsafeSnapshot}},
+		ErrorSamples:  []metrics.ErrorSample{unsafeSample},
+		WorkerReports: []WorkerReport{{WorkerID: "worker-1", Report: workerPayload}},
+		WorkerFailures: []WorkerFailure{
+			{WorkerID: "worker-1", Phase: "run", ReasonCode: "phase_hook_failed", Operation: "group_sendack", Detail: unsafeMessage},
+			{WorkerID: "worker-1", Phase: "run", ReasonCode: "unknown-" + uid, Operation: "operation-" + channelID, Detail: unsafeMessage},
+		},
+		CoordinatorLog: unsafeMessage,
+	})
+	if err := WriteDir(dir, rep); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, rel := range []string{
+		"report.json", "diagnostic-summary.json", "metrics/worker-1s.jsonl", "errors/samples.jsonl", "workers/worker-1.report.json", "coordinator.log",
+	} {
+		data, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{uid, channelID, clientMsgNo} {
+			if strings.Contains(string(data), secret) {
+				t.Fatalf("%s retained workload identity %q: %s", rel, secret, data)
+			}
+		}
+	}
+	reportData, err := os.ReadFile(filepath.Join(dir, "report.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var retained Report
+	if err := json.Unmarshal(reportData, &retained); err != nil {
+		t.Fatal(err)
+	}
+	if len(retained.WorkerFailures) != 2 || retained.WorkerFailures[0].Operation != "group_sendack" ||
+		retained.WorkerFailures[1].ReasonCode != "worker_failure" || retained.WorkerFailures[1].Operation != "" ||
+		len(retained.ErrorSamples) != 1 || retained.ErrorSamples[0].Message != "operation_failed" ||
+		retained.Metrics.Counters["send_attempt_total{phase=run}"] != 1 {
+		t.Fatalf("report lost safe operation/reason evidence: %s", reportData)
 	}
 }
 

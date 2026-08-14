@@ -254,6 +254,50 @@ func TestVerifierReleasedLogicalSendConsumesRegisteredSiblingAttempts(t *testing
 	assertVerificationCode(t, verifier.HandleSendack(&unknown), FailureCodeUnknownSendack)
 }
 
+func TestVerifierReleasedAttemptRetentionStartsAtLogicalCompletion(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
+	logical := mustLogicalSend(t, model, 0, 45, TrafficGroup, "sender", "group")
+	registeredAt := time.Unix(200, 0)
+	if err := verifier.RegisterSend(logical, registeredAt); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	policy := newTestRetryPolicy(t, model)
+	for attemptNumber, clientSeq := range []uint64{201, 202} {
+		attempt, err := policy.Attempt(logical, uint8(attemptNumber))
+		if err != nil {
+			t.Fatalf("Attempt(%d): %v", attemptNumber, err)
+		}
+		if err := verifier.ObserveAttempt(logical, attempt, clientSeq); err != nil {
+			t.Fatalf("ObserveAttempt(%d, %d): %v", attemptNumber, clientSeq, err)
+		}
+	}
+	first := &frame.SendackPacket{
+		ClientSeq: 201, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: 701, MessageSeq: 801, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(first); err != nil {
+		t.Fatalf("HandleSendack(first): %v", err)
+	}
+	completedAt := registeredAt.Add(9 * time.Second)
+	if err := verifier.ReleaseSendAt(logical, completedAt); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
+	if expired := verifier.ExpireCorrelations(registeredAt.Add(11 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations() = %d, want no sampled correlation", expired)
+	}
+	second := &frame.SendackPacket{
+		ClientSeq: 202, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: 701, MessageSeq: 801, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(second); err != nil {
+		t.Fatalf("HandleSendack(late released sibling): %v", err)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.ReleasedAttemptCurrent != 0 || snapshot.UnknownSendacks != 0 || snapshot.ConflictingCompletions != 0 {
+		t.Fatalf("released sibling snapshot = %+v", snapshot)
+	}
+}
+
 func TestVerifierRejectsUnknownDuplicateAndConflictingSendacks(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
 	logical := mustLogicalSend(t, model, 0, 7, TrafficPerson, "sender-secret", "target-secret")

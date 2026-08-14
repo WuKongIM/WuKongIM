@@ -46,6 +46,7 @@ type CleanupConfig = model.CleanupConfig
 type MessagesConfig = model.MessagesConfig
 type PayloadConfig = model.PayloadConfig
 type TrafficConfig = model.TrafficConfig
+type TrafficRetryConfig = model.TrafficRetryConfig
 type VerifyConfig = model.VerifyConfig
 type RecvVerifyConfig = model.RecvVerifyConfig
 

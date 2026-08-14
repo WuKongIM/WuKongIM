@@ -64,7 +64,6 @@ func TestWorkloadSummarySourceParsesReportProducerOutput(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteDir() error = %v", err)
 	}
-
 	result, err := newWorkloadSummarySource(reportDir).inspect(context.Background(), "run-1")
 	if err != nil {
 		t.Fatalf("inspect producer output error = %v", err)

@@ -99,3 +99,31 @@ func TestWukongIMSingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
 		t.Fatalf("single-node config should not reuse three-node node1 data dir:\n%s", config)
 	}
 }
+
+func TestWukongIMSingleNodeScriptRejectsBroadManagedCleanupTargets(t *testing.T) {
+	root := repoRoot(t)
+	for _, test := range []struct {
+		name string
+		path string
+	}{
+		{name: "filesystem root", path: "/"},
+		{name: "repository root", path: root},
+		{name: "shared repository data", path: filepath.Join(root, "data")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
+				"--clean", "--no-build", "--data-dir", test.path,
+				"--bin", filepath.Join(t.TempDir(), "unused-wukongim"),
+				"--log-dir", filepath.Join(t.TempDir(), "logs"),
+			)
+			cmd.Dir = root
+			output, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("broad cleanup target must fail closed:\n%s", output)
+			}
+			if !strings.Contains(string(output), "data directory is too broad for managed cleanup") {
+				t.Fatalf("unexpected broad-target failure:\n%s", output)
+			}
+		})
+	}
+}

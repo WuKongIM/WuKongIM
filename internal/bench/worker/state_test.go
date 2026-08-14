@@ -188,14 +188,25 @@ func TestStateStopFromIdleConflicts(t *testing.T) {
 func TestStatePersistsAssignmentWhenWorkDirIsSet(t *testing.T) {
 	workDir := t.TempDir()
 	state := NewState(workDir)
+	const token = "bench-api-token-canary"
 
-	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
+	require.NoError(t, state.Assign(Assignment{
+		RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a",
+		Target: model.Target{BenchAPI: model.BenchAPIConfig{Enabled: true, Token: token}},
+	}))
 
-	data, err := os.ReadFile(filepath.Join(workDir, "current-run.json"))
+	path := filepath.Join(workDir, "current-run.json")
+	data, err := os.ReadFile(path)
 	require.NoError(t, err)
+	require.NotContains(t, string(data), token)
 	var persisted Assignment
 	require.NoError(t, json.Unmarshal(data, &persisted))
 	require.Equal(t, "run-a", persisted.RunID)
 	require.Equal(t, "generation-a", persisted.AssignmentID)
 	require.Equal(t, "worker-a", persisted.WorkerID)
+	require.Empty(t, persisted.Target.BenchAPI.Token)
+	require.Equal(t, token, state.Status().Assignment.Target.BenchAPI.Token)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }

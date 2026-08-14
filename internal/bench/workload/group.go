@@ -120,6 +120,8 @@ type GroupConfig struct {
 	CooldownDuration time.Duration
 	// AckTimeout bounds the wait for a sendack after one send request.
 	AckTimeout time.Duration
+	// RetryEnabled applies the fixed bounded SEND/SENDACK retry policy.
+	RetryEnabled bool
 	// RecvTimeout bounds the wait for a delivered recv frame when verification is enabled.
 	RecvTimeout time.Duration
 	// VerifyRecvMode enables receive verification when set to "full" or "sampled".
@@ -144,6 +146,9 @@ type GroupConfig struct {
 	Channels []GroupChannel
 	// Metrics stores counters, latencies, and error samples for this workload.
 	Metrics *metrics.Registry
+	// FanoutProof records the exact recipient multiset implied by each
+	// successful logical group SENDACK. Nil preserves generic workloads.
+	FanoutProof *GroupFanoutProof
 
 	sleep func(context.Context, time.Duration) error
 }
@@ -156,6 +161,9 @@ type GroupRunConfig struct {
 	Duration time.Duration
 	// Rate is the worker-local send rate for this workload execution.
 	Rate model.Rate
+	// admissionDeadline, when set, is the shared absolute instant after which
+	// no new SEND operation may enter this window.
+	admissionDeadline time.Time
 }
 
 // GroupWorkload executes deterministic group-channel benchmark traffic.
@@ -354,9 +362,21 @@ func (w *GroupWorkload) Run(ctx context.Context) error {
 	return nil
 }
 
+// RunUntil emits the configured measured traffic while sharing one absolute
+// SEND-admission deadline with every workload shard on the worker.
+func (w *GroupWorkload) RunUntil(ctx context.Context, deadline time.Time) error {
+	return w.RunWindow(ctx, GroupRunConfig{Phase: "run", Duration: w.cfg.RunDuration, Rate: w.cfg.LocalRate, admissionDeadline: deadline})
+}
+
 // RunMeasuredWindow sends one uniquely named window at the configured measured rate.
 func (w *GroupWorkload) RunMeasuredWindow(ctx context.Context, duration time.Duration, window int) error {
 	return w.RunWindow(ctx, GroupRunConfig{Phase: fmt.Sprintf("run-window-%d", window), Duration: duration, Rate: w.cfg.LocalRate})
+}
+
+// RunMeasuredWindowUntil emits one churn window up to a shared absolute
+// SEND-admission deadline without canceling operations already admitted.
+func (w *GroupWorkload) RunMeasuredWindowUntil(ctx context.Context, duration time.Duration, window int, deadline time.Time) error {
+	return w.RunWindow(ctx, GroupRunConfig{Phase: fmt.Sprintf("run-window-%d", window), Duration: duration, Rate: w.cfg.LocalRate, admissionDeadline: deadline})
 }
 
 // Cooldown waits for the configured drain period without emitting new sends.
@@ -381,7 +401,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	phase := w.cfg.phaseName(cfg.Phase)
 	if w.cfg.MaxConcurrency > 1 {
 		stats := &scheduledMessageStats{}
-		err := runScheduledMessagesByKeyWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(localOffset int) string {
+		err := runScheduledMessagesByKeyUntilWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, cfg.admissionDeadline, func(localOffset int) string {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 			return w.senderUID(ch, messageIndex)
@@ -401,7 +421,14 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	if strings.EqualFold(strings.TrimSpace(cfg.Phase), "warmup") {
 		windowDuration = 0
 	}
-	return runSequentialMessagesWithinWindow(ctx, windowDuration, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, localOffset int) error {
+	stats := &scheduledMessageStats{Planned: uint64(totalMessages)}
+	stopAt := cfg.admissionDeadline
+	if stopAt.IsZero() && windowDuration > 0 {
+		stopAt = time.Now().Add(windowDuration)
+	}
+	err := runSequentialMessagesUntil(ctx, stopAt, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, localOffset int) error {
+		stats.Enqueued++
+		stats.Dispatched++
 		ch := w.channels[localOffset%len(w.channels)]
 		messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 		if err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex); err != nil {
@@ -411,6 +438,8 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 		}
 		return nil
 	})
+	recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+	return err
 }
 
 // SendOne sends one deterministic group-channel message.
@@ -432,10 +461,8 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 	senderUID := w.senderUID(ch, messageIndex)
 	sender := w.clients[senderUID]
 	payload := w.buildPayload(phase, channelIndex, messageIndex)
-	clientSeq := nextSendClientSeq(sender, uint64(messageIndex))
 	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
 	pkt := &frame.SendPacket{
-		ClientSeq:   clientSeq,
 		ClientMsgNo: clientMsgNo,
 		ChannelID:   ch.ChannelID,
 		ChannelType: frame.ChannelTypeGroup,
@@ -453,29 +480,31 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		return sessionOperationError(senderUID, "group sendack lock", err)
 	}
 	defer unlockSendack()
-	if err := sender.Send(ctx, pkt); err != nil {
-		if shouldRecordPhaseOperationError(ctx, err) {
-			w.recordError("group_send_error", err)
-			w.metrics.IncCounter("group_send_error_total", sendLabels)
-		}
-		return sessionOperationError(senderUID, "group send", err)
-	}
-	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
+	ack, err := sendPacketWithRetry(ctx, sendRetryOptions{
+		enabled: w.cfg.RetryEnabled, operation: "group", fallbackSeq: uint64(messageIndex),
+		client: sender, packet: pkt, metrics: w.metrics, labels: sendLabels, sleep: w.cfg.sleep,
+		withTimeout: func(ctx context.Context) (context.Context, context.CancelFunc) {
+			return w.withTimeout(ctx, w.cfg.AckTimeout)
+		},
+	})
 	if err != nil {
 		if shouldRecordPhaseOperationError(ctx, err) {
 			w.recordError("group_send_error", err)
 			w.metrics.IncCounter("group_send_error_total", sendLabels)
 		}
-		return sessionOperationError(senderUID, "group sendack", err)
+		return sessionOperationError(senderUID, sendFailureOperation("group", err), err)
 	}
-	if ack.ReasonCode != frame.ReasonSuccess {
+	if !w.cfg.RetryEnabled && ack.ReasonCode != frame.ReasonSuccess {
 		err := fmt.Errorf("group workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
 		w.recordError("group_send_error", err)
 		w.metrics.IncCounter("group_send_error_total", sendLabels)
 		return sessionOperationError(senderUID, "group sendack", err)
 	}
-	w.metrics.IncCounter("group_send_success_total", sendLabels)
+	if !w.cfg.RetryEnabled {
+		w.metrics.IncCounter("group_send_success_total", sendLabels)
+	}
 	w.metrics.ObserveLatency("group_send_latency_seconds", sendLabels, time.Since(sendStart))
+	w.cfg.FanoutProof.ExpectGroup(clientMsgNo, ch.ChannelID, senderUID, ch.OnlineMembers)
 
 	recipients := w.verificationMembers(ch, senderUID)
 	if len(recipients) == 0 {
@@ -1004,8 +1033,10 @@ func (w *GroupWorkload) useWarmupTimeouts() func() {
 	ackTimeout := w.cfg.AckTimeout
 	recvTimeout := w.cfg.RecvTimeout
 	deadline := w.warmupOperationDeadline
-	w.warmupOperationDeadline = time.Now().Add(w.cfg.WarmupDuration + warmupOperationTailTimeout(ackTimeout, recvTimeout))
-	w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
+	w.warmupOperationDeadline = time.Now().Add(w.cfg.WarmupDuration + warmupOperationTailTimeout(ackTimeout, recvTimeout, w.cfg.RetryEnabled))
+	if !w.cfg.RetryEnabled {
+		w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
+	}
 	w.cfg.RecvTimeout = warmupOperationTimeout(w.cfg.RecvTimeout, w.cfg.WarmupDuration)
 	return func() {
 		w.cfg.AckTimeout = ackTimeout

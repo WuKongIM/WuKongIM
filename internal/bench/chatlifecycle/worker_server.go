@@ -1583,7 +1583,10 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			Primary: generated.PrimaryReleased, Person: generated.Person, Group: generated.Group,
 			Canary: generated.Canaries, PayloadBytes: generated.PayloadBytes,
 		},
-		MetaCreate: WorkerMetaCreateSnapshot{PersonByHashSlot: engine.MetaCreatePersonByHashSlot},
+		MetaCreate: WorkerMetaCreateSnapshot{
+			PersonByHashSlot: engine.MetaCreatePersonByHashSlot,
+			GroupByHashSlot:  engine.MetaCreateGroupByHashSlot,
+		},
 		Messages: WorkerMessageSnapshot{
 			Sent: verification.Sent, SendAttempts: verification.Attempts, SendAcknowledged: verification.Acknowledged,
 			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: firstAttemptFailures,

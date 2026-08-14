@@ -370,6 +370,19 @@ func (s *Server) Stop() error {
 	return firstErr
 }
 
+// DrainSends closes new SEND admission and waits for already accepted SEND
+// mailbox work to finish. Caller cancellation stops only this wait; accepted
+// work continues in the background and a later call resumes the same drain.
+func (s *Server) DrainSends(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.asyncRuntime().drainSends(ctx)
+}
+
 func (s *Server) asyncRuntime() *asyncRuntime {
 	if s == nil {
 		return nil

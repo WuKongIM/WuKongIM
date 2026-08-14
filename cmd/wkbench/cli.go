@@ -90,6 +90,18 @@ func newReportCommand() *cobra.Command {
 			return commandExit{code: exitConfig}
 		},
 	}
-	cmd.AddCommand(newLocalChatLifecycleStepReportCommand())
+	cmd.AddCommand(
+		newLocalChatLifecycleStepReportCommand(),
+		newLocalSingleNodeStepReportCommand(),
+		newLocalSingleNodeStepClosureCommand(),
+		newLocalSingleNodeBaselineReportCommand(),
+		newLocalSingleNodeProfileThresholdCommand(),
+		newLocalTerminalQueueConvergenceCommand(),
+		newLocalSingleNodePublishCommand(),
+		newLocalSingleNodeCompletionCommand(),
+		newLocalChatLifecycleTimelineReportCommand(),
+		newLocalChatLifecycleCutQueryCommand(),
+		newDiagnosticConfigRedactionCommand(),
+	)
 	return cmd
 }

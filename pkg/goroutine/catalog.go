@@ -74,6 +74,7 @@ const (
 	TaskAppTaskAudit                     TaskID = "app/task_audit"
 	TaskAppPrometheusWait                TaskID = "app/prometheus_wait"
 	TaskAppDeliveryMetadata              TaskID = "app/delivery_metadata"
+	TaskAppBenchTerminalPrepare          TaskID = "app/bench_terminal_prepare"
 	TaskAPIHTTPServe                     TaskID = "api/http_serve"
 	TaskManagerHTTPServe                 TaskID = "manager/http_serve"
 	TaskManagerSnapshotFanout            TaskID = "manager/goroutine_snapshot_fanout"
@@ -85,6 +86,7 @@ const (
 	TaskGatewayIdleMonitor               TaskID = "gateway/idle_monitor"
 	TaskGatewayTransportActor            TaskID = "gateway/transport_actor"
 	TaskGatewayTransportServe            TaskID = "gateway/transport_serve"
+	TaskGatewayAsyncDrain                TaskID = "gateway/async_drain"
 	TaskDeliveryManagerAsync             TaskID = "delivery/manager_async"
 	TaskOnlineDeliveryWorker             TaskID = "delivery/worker"
 	TaskOnlineDeliveryLifecycle          TaskID = "delivery/lifecycle"
@@ -162,6 +164,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskAppTaskAudit, Module: ModuleApp, Name: "task_audit", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskAppPrometheusWait, Module: ModuleApp, Name: "prometheus_wait", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRecover, Expected: 1},
 	{ID: TaskAppDeliveryMetadata, Module: ModuleApp, Name: "delivery_metadata", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskAppBenchTerminalPrepare, Module: ModuleApp, Name: "bench_terminal_prepare", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskAPIHTTPServe, Module: ModuleAPI, Name: "http_serve", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskManagerHTTPServe, Module: ModuleManager, Name: "http_serve", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskManagerSnapshotFanout, Module: ModuleManager, Name: "goroutine_snapshot_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
@@ -173,6 +176,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskGatewayIdleMonitor, Module: ModuleGateway, Name: "idle_monitor", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskGatewayTransportActor, Module: ModuleGateway, Name: "transport_actor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskGatewayTransportServe, Module: ModuleGateway, Name: "transport_serve", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskGatewayAsyncDrain, Module: ModuleGateway, Name: "async_drain", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskDeliveryManagerAsync, Module: ModuleDelivery, Name: "manager_async", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskOnlineDeliveryWorker, Module: ModuleDelivery, Name: "worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskOnlineDeliveryLifecycle, Module: ModuleDelivery, Name: "lifecycle", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},

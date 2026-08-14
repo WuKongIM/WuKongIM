@@ -292,6 +292,28 @@ func TestChannelAppenderLogsAppendChannelBatchError(t *testing.T) {
 	requireLogField(t, entry.fields, "error", channelruntime.ErrNotReady)
 }
 
+func TestChannelAppenderDefersGenericAppendFailureLoggingUntilRecoveryOutcome(t *testing.T) {
+	logger := &recordingClusterLogger{}
+	appender := NewChannelAppender(&recordingNode{
+		err: errors.New("db: conflict: idempotency key already stored at seq 7"),
+	}, logger)
+
+	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID: channelappend.ChannelID{ID: "room", Type: 2},
+		Messages: []channelappend.Message{{
+			MessageID:   10,
+			FromUID:     "u1",
+			ClientMsgNo: "client-retry",
+		}},
+	})
+	if !errors.Is(err, channelappend.ErrAppendFailed) {
+		t.Fatalf("AppendBatch() error = %v, want append failed", err)
+	}
+	if entry, ok := logger.find("ERROR", "internal.infra.cluster.channel_append_batch_failed"); ok {
+		t.Fatalf("generic append failure logged before idempotency recovery outcome: %#v", entry)
+	}
+}
+
 func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *testing.T) {
 	sink := &recordingSendtraceSink{}
 	restore := sendtrace.SetSink(sink)

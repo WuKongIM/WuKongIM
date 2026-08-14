@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	benchwkproto "github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -84,6 +84,8 @@ type PersonConfig struct {
 	CooldownDuration time.Duration
 	// AckTimeout bounds the wait for a sendack after one send request.
 	AckTimeout time.Duration
+	// RetryEnabled applies the fixed bounded SEND/SENDACK retry policy.
+	RetryEnabled bool
 	// RecvTimeout bounds the wait for a delivered recv frame when verification is enabled.
 	RecvTimeout time.Duration
 	// VerifyRecvMode enables receive verification when set to "full".
@@ -104,6 +106,9 @@ type PersonRunConfig struct {
 	Duration time.Duration
 	// Rate is the per-channel send rate for this workload execution.
 	Rate model.Rate
+	// admissionDeadline, when set, is the shared absolute instant after which
+	// no new SEND operation may enter this window.
+	admissionDeadline time.Time
 }
 
 // PersonWorkload executes deterministic person-channel benchmark traffic.
@@ -187,12 +192,24 @@ func (w *PersonWorkload) Metrics() *metrics.Registry {
 
 // WrapPersonClientsForConcurrentReads serializes ReadFrame access per UID and replays unmatched frames.
 func WrapPersonClientsForConcurrentReads(clients map[string]PersonClient) map[string]PersonClient {
+	return WrapPersonClientsForConcurrentReadsWithFanoutProof(clients, nil)
+}
+
+// WrapPersonClientsForConcurrentReadsWithFanoutProof binds each socket reader
+// to its recipient UID so one assignment-level proof can distinguish exact
+// group-recipient delivery. A nil proof preserves the generic wrapper path.
+func WrapPersonClientsForConcurrentReadsWithFanoutProof(clients map[string]PersonClient, proof *GroupFanoutProof) map[string]PersonClient {
 	wrapped := make(map[string]PersonClient, len(clients))
 	for uid, client := range clients {
 		if client == nil {
 			continue
 		}
-		wrapped[uid] = &matchingPersonClient{client: client, bufferLimit: defaultMatchingBufferLimit}
+		wrapped[uid] = &matchingPersonClient{
+			client:       client,
+			recipientUID: uid,
+			fanoutProof:  proof,
+			bufferLimit:  defaultMatchingBufferLimit,
+		}
 	}
 	return wrapped
 }
@@ -210,8 +227,26 @@ type AutoRecvAckOptions struct {
 
 // AutoRecvAckHandle controls one group of background receive drains.
 type AutoRecvAckHandle struct {
-	cancel context.CancelFunc
-	done   <-chan struct{}
+	cancel  context.CancelFunc
+	done    <-chan struct{}
+	clients []receiveDrainClient
+
+	mu   sync.Mutex
+	last model.ReceiveDrainSnapshot
+	// receiveDrainNow is an injectable monotonic clock used only to qualify
+	// separated receive-drain observations. Nil uses time.Now.
+	receiveDrainNow func() time.Time
+	// receiveDrainLastZero is the normalized identity of the last qualifying
+	// healthy zero cut; receiveDrainLastZeroAt records when it qualified.
+	receiveDrainLastZero   model.ReceiveDrainSnapshot
+	receiveDrainLastZeroAt time.Time
+	receiveDrainStableZero uint8
+	// receiveDrainProofEnabled becomes true only after WaitDrained has switched
+	// every client into terminal receive mode.
+	receiveDrainProofEnabled bool
+	// receiveDrainProofInvalid permanently latches incomplete evidence or a
+	// receive/read failure for this handle generation.
+	receiveDrainProofInvalid bool
 }
 
 // Cancel requests cancellation for every receive drain owned by the handle.
@@ -249,15 +284,15 @@ func StartAutoRecvAckWithOptions(clients map[string]PersonClient, opts AutoRecvA
 func StartAutoRecvAckHandleWithOptions(clients map[string]PersonClient, opts AutoRecvAckOptions) *AutoRecvAckHandle {
 	ctx, cancel := context.WithCancel(context.Background())
 	drains := make([]<-chan struct{}, 0, len(clients))
+	drainClients := make([]receiveDrainClient, 0, len(clients))
 	for _, client := range clients {
-		starter, ok := client.(interface {
-			startAutoRecvAckWithOptions(context.Context, AutoRecvAckOptions) <-chan struct{}
-		})
+		starter, ok := client.(receiveDrainClient)
 		if !ok || starter == nil {
 			continue
 		}
 		if done := starter.startAutoRecvAckWithOptions(ctx, opts); done != nil {
 			drains = append(drains, done)
+			drainClients = append(drainClients, starter)
 		}
 	}
 	done := make(chan struct{})
@@ -267,7 +302,7 @@ func StartAutoRecvAckHandleWithOptions(clients map[string]PersonClient, opts Aut
 		}
 		close(done)
 	}()
-	return &AutoRecvAckHandle{cancel: cancel, done: done}
+	return &AutoRecvAckHandle{cancel: cancel, done: done, clients: drainClients}
 }
 
 // Connect opens the sender and recipient sessions for all assigned person pairs.
@@ -306,9 +341,21 @@ func (w *PersonWorkload) Run(ctx context.Context) error {
 	return w.RunWindow(ctx, PersonRunConfig{Phase: "run", Duration: w.cfg.RunDuration, Rate: w.cfg.Rate})
 }
 
+// RunUntil emits the configured measured traffic while sharing one absolute
+// SEND-admission deadline with every workload shard on the worker.
+func (w *PersonWorkload) RunUntil(ctx context.Context, deadline time.Time) error {
+	return w.RunWindow(ctx, PersonRunConfig{Phase: "run", Duration: w.cfg.RunDuration, Rate: w.cfg.Rate, admissionDeadline: deadline})
+}
+
 // RunMeasuredWindow sends one uniquely named window at the configured measured rate.
 func (w *PersonWorkload) RunMeasuredWindow(ctx context.Context, duration time.Duration, window int) error {
 	return w.RunWindow(ctx, PersonRunConfig{Phase: fmt.Sprintf("run-window-%d", window), Duration: duration, Rate: w.cfg.Rate})
+}
+
+// RunMeasuredWindowUntil emits one churn window up to a shared absolute
+// SEND-admission deadline without canceling operations already admitted.
+func (w *PersonWorkload) RunMeasuredWindowUntil(ctx context.Context, duration time.Duration, window int, deadline time.Time) error {
+	return w.RunWindow(ctx, PersonRunConfig{Phase: fmt.Sprintf("run-window-%d", window), Duration: duration, Rate: w.cfg.Rate, admissionDeadline: deadline})
 }
 
 // Cooldown waits for the configured drain period without emitting new sends.
@@ -341,7 +388,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	phase := w.cfg.phaseName(cfg.Phase)
 	if w.cfg.MaxConcurrency > 1 {
 		stats := &scheduledMessageStats{}
-		err := runScheduledMessagesByKeyWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(messageOffset int) string {
+		err := runScheduledMessagesByKeyUntilWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, cfg.admissionDeadline, func(messageOffset int) string {
 			pair := w.pairs[messageOffset%len(w.pairs)]
 			return pair.SenderUID
 		}, func(ctx context.Context, messageOffset int) error {
@@ -359,7 +406,14 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	if strings.EqualFold(strings.TrimSpace(cfg.Phase), "warmup") {
 		windowDuration = 0
 	}
-	return runSequentialMessagesWithinWindow(ctx, windowDuration, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, messageOffset int) error {
+	stats := &scheduledMessageStats{Planned: uint64(totalMessages)}
+	stopAt := cfg.admissionDeadline
+	if stopAt.IsZero() && windowDuration > 0 {
+		stopAt = time.Now().Add(windowDuration)
+	}
+	err := runSequentialMessagesUntil(ctx, stopAt, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, messageOffset int) error {
+		stats.Enqueued++
+		stats.Dispatched++
 		pair := w.pairs[messageOffset%len(w.pairs)]
 		if err := w.sendPairInPhase(ctx, pair, phase, messageOffset); err != nil {
 			if !shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
@@ -368,6 +422,8 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 		}
 		return nil
 	})
+	recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+	return err
 }
 
 // SendOne sends one deterministic person-channel message for the assigned pair at messageIndex.
@@ -393,10 +449,8 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		channelIndex = messageIndex
 	}
 	payload := w.buildPayload(phase, channelIndex, messageIndex)
-	clientSeq := nextSendClientSeq(sender, uint64(messageIndex))
 	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
 	pkt := &frame.SendPacket{
-		ClientSeq:   clientSeq,
 		ClientMsgNo: clientMsgNo,
 		ChannelID:   encodeBenchPersonChannel(pair.SenderUID, pair.RecipientUID),
 		ChannelType: frame.ChannelTypePerson,
@@ -414,28 +468,29 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		return sessionOperationError(pair.SenderUID, "person sendack lock", err)
 	}
 	defer unlockSendack()
-	if err := sender.Send(ctx, pkt); err != nil {
-		if shouldRecordPhaseOperationError(ctx, err) {
-			w.recordError("person_send_error", err)
-			w.metrics.IncCounter("person_send_error_total", sendLabels)
-		}
-		return sessionOperationError(pair.SenderUID, "person send", err)
-	}
-	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
+	ack, err := sendPacketWithRetry(ctx, sendRetryOptions{
+		enabled: w.cfg.RetryEnabled, operation: "person", fallbackSeq: uint64(messageIndex),
+		client: sender, packet: pkt, metrics: w.metrics, labels: sendLabels, sleep: w.cfg.sleep,
+		withTimeout: func(ctx context.Context) (context.Context, context.CancelFunc) {
+			return w.withTimeout(ctx, w.cfg.AckTimeout)
+		},
+	})
 	if err != nil {
 		if shouldRecordPhaseOperationError(ctx, err) {
 			w.recordError("person_send_error", err)
 			w.metrics.IncCounter("person_send_error_total", sendLabels)
 		}
-		return sessionOperationError(pair.SenderUID, "person sendack", err)
+		return sessionOperationError(pair.SenderUID, sendFailureOperation("person", err), err)
 	}
-	if ack.ReasonCode != frame.ReasonSuccess {
-		err := fmt.Errorf("person workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
+	if !w.cfg.RetryEnabled && ack.ReasonCode != frame.ReasonSuccess {
+		err := fmt.Errorf("person workload: sendack rejected with reason %s", ack.ReasonCode)
 		w.recordError("person_send_error", err)
 		w.metrics.IncCounter("person_send_error_total", sendLabels)
 		return sessionOperationError(pair.SenderUID, "person sendack", err)
 	}
-	w.metrics.IncCounter("person_send_success_total", sendLabels)
+	if !w.cfg.RetryEnabled {
+		w.metrics.IncCounter("person_send_success_total", sendLabels)
+	}
 	w.metrics.ObserveLatency("person_send_latency_seconds", sendLabels, time.Since(sendStart))
 
 	if !strings.EqualFold(w.cfg.VerifyRecvMode, verifyRecvModeFull) {
@@ -455,7 +510,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		return sessionOperationError(pair.RecipientUID, "person recv", err)
 	}
 	if string(recv.Payload) != string(payload) {
-		err := fmt.Errorf("person workload: recv payload mismatch for %q", clientMsgNo)
+		err := errors.New("person workload: recv payload mismatch")
 		w.recordError("person_recv_error", err)
 		w.metrics.IncCounter("person_recv_error_total", sendLabels)
 		return sessionOperationError(pair.RecipientUID, "person recv", err)
@@ -533,7 +588,7 @@ func (w *PersonWorkload) waitForSendack(ctx context.Context, client PersonClient
 		return ok && matchesExpectedSendack(ack, clientSeq, clientMsgNo)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("person workload: sendack not received for %q: %w", clientMsgNo, err)
+		return nil, fmt.Errorf("person workload: sendack not received: %w", err)
 	}
 	return f.(*frame.SendackPacket), nil
 }
@@ -559,7 +614,7 @@ func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, c
 	})
 	if err != nil {
 		if err == io.EOF {
-			return nil, fmt.Errorf("person workload: recv not received for %q: %w", clientMsgNo, err)
+			return nil, fmt.Errorf("person workload: recv not received: %w", err)
 		}
 		return nil, err
 	}
@@ -624,6 +679,10 @@ type matchingFrameReader interface {
 	readFrameMatching(context.Context, func(frame.Frame) bool) (frame.Frame, error)
 }
 
+type leasedPersonFrameReader interface {
+	ReadFrameWithLease(context.Context) (frame.Frame, benchwkproto.FrameLease, error)
+}
+
 type sendackOperationLocker interface {
 	lockSendackOperation(context.Context) (func(), error)
 }
@@ -633,13 +692,20 @@ type sendClientSeqAllocator interface {
 }
 
 type matchingPersonClient struct {
-	client      PersonClient
-	bufferLimit int
-	mu          sync.Mutex
-	clientSeq   atomic.Uint64
-	buffer      []frame.Frame
-	reading     bool
-	notify      chan struct{}
+	client       PersonClient
+	recipientUID string
+	fanoutProof  *GroupFanoutProof
+	bufferLimit  int
+	mu           sync.Mutex
+	clientSeq    atomic.Uint64
+	buffer       []frame.Frame
+	// fanoutReceipts retains only opaque projections for physical group RECVs
+	// returned before a direct RecvAck call. Auto-ack consumes its receipt in
+	// the socket-read path and never enters this map.
+	fanoutReceipts     map[fanoutRecvACKKey][]FanoutReceipt
+	fanoutReceiptCount int
+	reading            bool
+	notify             chan struct{}
 	// foregroundMatchers tracks explicit matchers that should own socket reads until they return.
 	foregroundMatchers int
 	// foregroundWaiters tracks explicit matchers blocked behind the active read.
@@ -652,12 +718,26 @@ type matchingPersonClient struct {
 	autoRecvAckReader         bool
 	autoRecvAckReadErr        error
 	autoRecvAckDone           <-chan struct{}
+	terminalReceiveDrain      bool
+	readFramesInFlight        uint64
+	recvACKsInFlight          uint64
+	recvACKFailures           uint64
+	recvACKSuccesses          uint64
+	recvACKSuccessOverflow    bool
+	readFailures              uint64
+	receiveFramesObserved     uint64
+	bufferedFramesDrained     uint64
 	debugReadFrames           uint64
 	debugReadSendacks         uint64
 	debugReadRecvs            uint64
 	debugDroppedSendacks      uint64
 	debugDroppedRecvs         uint64
 	debugLastFrames           []string
+}
+
+type fanoutRecvACKKey struct {
+	messageID  int64
+	messageSeq uint64
 }
 
 func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -684,12 +764,14 @@ func (c *matchingPersonClient) RecvAck(ctx context.Context, messageID int64, mes
 	c.mu.Lock()
 	autoAck := c.autoRecvAck
 	disableAck := c.autoRecvAckDisableAck
-	c.mu.Unlock()
 	if autoAck && !disableAck {
+		c.mu.Unlock()
 		// The matching reader sends the ack when it returns or buffers a recv frame.
 		return nil
 	}
-	return c.client.RecvAck(ctx, messageID, messageSeq)
+	receipt := c.takeFanoutReceiptLocked(messageID, messageSeq)
+	c.mu.Unlock()
+	return c.writeRecvACK(ctx, messageID, messageSeq, receipt, false)
 }
 
 func (c *matchingPersonClient) Close() error {
@@ -703,6 +785,7 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 	defer func() {
 		c.mu.Lock()
 		c.foregroundMatchers--
+		c.drainTerminalBufferLocked()
 		c.signalLocked()
 		c.mu.Unlock()
 	}()
@@ -766,25 +849,44 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 		c.reading = true
 		c.mu.Unlock()
 
-		f, err := c.client.ReadFrame(ctx)
+		f, lease, err := readPersonFrameWithLease(ctx, c.client)
 		c.mu.Lock()
 		c.reading = false
 		if err != nil {
+			if lease != nil {
+				c.mu.Unlock()
+				lease.Release()
+				c.mu.Lock()
+			}
 			err = c.debugReadErrorLocked(err)
 			c.signalLocked()
 			c.mu.Unlock()
 			return nil, err
 		}
-		c.observeReadFrameLocked(f)
+		c.readFramesInFlight++
+		if lease != nil {
+			c.mu.Unlock()
+			lease.Release()
+			c.mu.Lock()
+		}
+		receipt := c.observeReadFrameLocked(f)
 		autoAck := c.autoRecvAck
 		ackRecv := autoAck && !c.autoRecvAckDisableAck
+		if !ackRecv {
+			c.retainFanoutReceiptLocked(f, receipt)
+		}
 		if match(f) {
 			c.signalLocked()
 			c.mu.Unlock()
-			c.autoAckRecvFrame(ctx, f, ackRecv)
+			ackErr := c.autoAckRecvFrame(ctx, f, receipt, ackRecv, false)
+			c.finishReadFrame()
+			if ackErr != nil {
+				return nil, ackErr
+			}
 			return f, nil
 		}
 		if _, ok := f.(*frame.PongPacket); ok {
+			c.readFramesInFlight--
 			c.signalLocked()
 			c.mu.Unlock()
 			continue
@@ -793,12 +895,16 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 		if _, ok := f.(*frame.RecvPacket); ok && autoAck && !c.shouldBufferRecvFrameLocked(f) {
 			dropUnverifiedRecv = true
 		}
-		if !dropUnverifiedRecv {
+		if !dropUnverifiedRecv && (!c.terminalReceiveDrain || c.foregroundMatchers > 0) {
 			c.bufferFrameLocked(f)
 		}
 		c.signalLocked()
 		c.mu.Unlock()
-		c.autoAckRecvFrame(ctx, f, ackRecv)
+		ackErr := c.autoAckRecvFrame(ctx, f, receipt, ackRecv, false)
+		c.finishReadFrame()
+		if ackErr != nil {
+			return nil, ackErr
+		}
 	}
 }
 
@@ -821,6 +927,7 @@ func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, 
 	c.autoRecvAckReader = true
 	c.autoRecvAckReadErr = nil
 	c.autoRecvAckDone = done
+	c.terminalReceiveDrain = false
 	c.mu.Unlock()
 	go func() {
 		defer func() {
@@ -845,10 +952,10 @@ func (c *matchingPersonClient) autoRecvAckLoop(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
-			if isAutoRecvAckIdleTimeout(err) {
-				continue
-			}
 			c.mu.Lock()
+			if !errors.Is(err, errReceiveACKWrite) {
+				c.readFailures++
+			}
 			c.autoRecvAckReadErr = err
 			c.signalLocked()
 			c.mu.Unlock()
@@ -878,16 +985,28 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 	c.reading = true
 	c.mu.Unlock()
 
-	f, err := c.client.ReadFrame(ctx)
+	f, lease, err := readPersonFrameWithLease(ctx, c.client)
 	c.mu.Lock()
 	c.reading = false
 	if err != nil {
+		if lease != nil {
+			c.mu.Unlock()
+			lease.Release()
+			c.mu.Lock()
+		}
 		c.signalLocked()
 		c.mu.Unlock()
 		return err
 	}
-	c.observeReadFrameLocked(f)
+	c.readFramesInFlight++
+	if lease != nil {
+		c.mu.Unlock()
+		lease.Release()
+		c.mu.Lock()
+	}
+	receipt := c.observeReadFrameLocked(f)
 	if _, ok := f.(*frame.PongPacket); ok {
+		c.readFramesInFlight--
 		yield := c.shouldYieldToForegroundLocked()
 		if yield {
 			c.autoRecvAckReader = false
@@ -900,6 +1019,9 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 		return nil
 	}
 	ackRecv := c.autoRecvAck && !c.autoRecvAckDisableAck
+	if !ackRecv {
+		c.retainFanoutReceiptLocked(f, receipt)
+	}
 	if _, ok := f.(*frame.RecvPacket); ok && !c.shouldBufferRecvFrameLocked(f) {
 		yield := c.shouldYieldToForegroundLocked()
 		if yield {
@@ -907,20 +1029,30 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 		}
 		c.signalLocked()
 		c.mu.Unlock()
-		c.autoAckRecvFrame(ctx, f, ackRecv)
+		ackErr := c.autoAckRecvFrame(ctx, f, receipt, ackRecv, true)
+		c.finishReadFrame()
+		if ackErr != nil {
+			return ackErr
+		}
 		if yield {
 			return c.finishAutoRecvAckYield(ctx)
 		}
 		return nil
 	}
-	c.bufferFrameLocked(f)
+	if !c.terminalReceiveDrain || c.foregroundMatchers > 0 {
+		c.bufferFrameLocked(f)
+	}
 	yield := c.shouldYieldToForegroundLocked()
 	if yield {
 		c.autoRecvAckReader = false
 	}
 	c.signalLocked()
 	c.mu.Unlock()
-	c.autoAckRecvFrame(ctx, f, ackRecv)
+	ackErr := c.autoAckRecvFrame(ctx, f, receipt, ackRecv, true)
+	c.finishReadFrame()
+	if ackErr != nil {
+		return ackErr
+	}
 	if yield {
 		return c.finishAutoRecvAckYield(ctx)
 	}
@@ -928,6 +1060,9 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 }
 
 func (c *matchingPersonClient) shouldBufferRecvFrameLocked(f frame.Frame) bool {
+	if c.terminalReceiveDrain && c.foregroundMatchers == 0 {
+		return false
+	}
 	if !c.autoRecvAckBufferRecv {
 		return false
 	}
@@ -991,15 +1126,62 @@ func waitAutoRecvAckYield(ctx context.Context) error {
 	}
 }
 
-func (c *matchingPersonClient) autoAckRecvFrame(ctx context.Context, f frame.Frame, enabled bool) {
+var errReceiveACKWrite = errors.New("receive ack write failed")
+
+func (c *matchingPersonClient) autoAckRecvFrame(ctx context.Context, f frame.Frame, receipt FanoutReceipt, enabled, plannedCancel bool) error {
 	if !enabled {
-		return
+		return nil
 	}
 	recv, ok := f.(*frame.RecvPacket)
 	if !ok {
-		return
+		return nil
 	}
-	_ = c.client.RecvAck(ctx, recv.MessageID, recv.MessageSeq)
+	if err := c.writeRecvACK(ctx, recv.MessageID, recv.MessageSeq, receipt, plannedCancel); err != nil {
+		return fmt.Errorf("%w: %v", errReceiveACKWrite, err)
+	}
+	return nil
+}
+
+func (c *matchingPersonClient) writeRecvACK(ctx context.Context, messageID int64, messageSeq uint64, receipt FanoutReceipt, plannedCancel bool) error {
+	c.mu.Lock()
+	c.recvACKsInFlight++
+	c.signalLocked()
+	c.mu.Unlock()
+	err := c.client.RecvAck(ctx, messageID, messageSeq)
+	if receipt.valid {
+		c.fanoutProof.ObserveRecvACK(receipt, err == nil)
+	}
+	c.mu.Lock()
+	c.recvACKsInFlight--
+	if err == nil {
+		if c.recvACKSuccesses == ^uint64(0) {
+			c.recvACKSuccessOverflow = true
+		} else {
+			c.recvACKSuccesses++
+		}
+	} else if !(plannedCancel && operationCanceledByCaller(ctx, err)) {
+		c.recvACKFailures++
+	}
+	c.signalLocked()
+	c.mu.Unlock()
+	return err
+}
+
+func operationCanceledByCaller(ctx context.Context, err error) bool {
+	if ctx == nil || err == nil {
+		return false
+	}
+	ctxErr := ctx.Err()
+	return ctxErr != nil && errors.Is(err, ctxErr)
+}
+
+func (c *matchingPersonClient) finishReadFrame() {
+	c.mu.Lock()
+	if c.readFramesInFlight > 0 {
+		c.readFramesInFlight--
+	}
+	c.signalLocked()
+	c.mu.Unlock()
 }
 
 func (c *matchingPersonClient) bufferFrameLocked(f frame.Frame) {
@@ -1020,6 +1202,7 @@ func (c *matchingPersonClient) dropBufferedFrameLocked() {
 	for idx, f := range c.buffer {
 		if _, ok := f.(*frame.RecvPacket); ok {
 			c.debugDroppedRecvs++
+			c.discardFanoutReceiptLocked(f)
 			c.buffer = append(c.buffer[:idx], c.buffer[idx+1:]...)
 			return
 		}
@@ -1030,25 +1213,93 @@ func (c *matchingPersonClient) dropBufferedFrameLocked() {
 	c.buffer = c.buffer[1:]
 }
 
-func (c *matchingPersonClient) observeReadFrameLocked(f frame.Frame) {
+func (c *matchingPersonClient) drainTerminalBufferLocked() {
+	if !c.terminalReceiveDrain || c.foregroundMatchers != 0 || len(c.buffer) == 0 {
+		return
+	}
+	c.bufferedFramesDrained += uint64(len(c.buffer))
+	for _, f := range c.buffer {
+		c.discardFanoutReceiptLocked(f)
+	}
+	c.buffer = nil
+}
+
+func (c *matchingPersonClient) observeReadFrameLocked(f frame.Frame) FanoutReceipt {
 	c.debugReadFrames++
-	switch f.(type) {
+	var receipt FanoutReceipt
+	switch typed := f.(type) {
 	case *frame.SendackPacket:
 		c.debugReadSendacks++
 	case *frame.RecvPacket:
 		c.debugReadRecvs++
+		c.receiveFramesObserved++
+		if c.fanoutProof != nil && typed != nil && typed.ChannelType == frame.ChannelTypeGroup {
+			receipt = c.fanoutProof.ObserveGroupRecv(c.recipientUID, typed)
+		}
 	}
 	summary := debugFrameSummary(f)
 	if summary == "" {
-		return
+		return receipt
 	}
 	const limit = 8
 	if len(c.debugLastFrames) >= limit {
 		copy(c.debugLastFrames, c.debugLastFrames[1:])
 		c.debugLastFrames[len(c.debugLastFrames)-1] = summary
-		return
+		return receipt
 	}
 	c.debugLastFrames = append(c.debugLastFrames, summary)
+	return receipt
+}
+
+func (c *matchingPersonClient) retainFanoutReceiptLocked(f frame.Frame, receipt FanoutReceipt) {
+	if !receipt.valid {
+		return
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		return
+	}
+	limit := c.bufferLimit
+	if limit <= 0 {
+		limit = defaultMatchingBufferLimit
+	}
+	if c.fanoutReceiptCount >= limit {
+		// The proof may never silently lose the receipt needed to bind a later
+		// successful ACK. Invalidating through its public receipt contract keeps
+		// retained memory fixed and makes the terminal evidence fail closed.
+		c.fanoutProof.ObserveRecvACK(FanoutReceipt{}, true)
+		return
+	}
+	if c.fanoutReceipts == nil {
+		c.fanoutReceipts = make(map[fanoutRecvACKKey][]FanoutReceipt)
+	}
+	key := fanoutRecvACKKey{messageID: recv.MessageID, messageSeq: recv.MessageSeq}
+	c.fanoutReceipts[key] = append(c.fanoutReceipts[key], receipt)
+	c.fanoutReceiptCount++
+}
+
+func (c *matchingPersonClient) takeFanoutReceiptLocked(messageID int64, messageSeq uint64) FanoutReceipt {
+	key := fanoutRecvACKKey{messageID: messageID, messageSeq: messageSeq}
+	receipts := c.fanoutReceipts[key]
+	if len(receipts) == 0 {
+		return FanoutReceipt{}
+	}
+	receipt := receipts[0]
+	if len(receipts) == 1 {
+		delete(c.fanoutReceipts, key)
+	} else {
+		c.fanoutReceipts[key] = receipts[1:]
+	}
+	c.fanoutReceiptCount--
+	return receipt
+}
+
+func (c *matchingPersonClient) discardFanoutReceiptLocked(f frame.Frame) {
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		return
+	}
+	_ = c.takeFanoutReceiptLocked(recv.MessageID, recv.MessageSeq)
 }
 
 func (c *matchingPersonClient) debugReadErrorLocked(err error) error {
@@ -1086,9 +1337,9 @@ func (c *matchingPersonClient) debugReadErrorLocked(err error) error {
 func debugFrameSummary(f frame.Frame) string {
 	switch pkt := f.(type) {
 	case *frame.SendackPacket:
-		return fmt.Sprintf("sendack(seq=%d,msg=%s,reason=%s)", pkt.ClientSeq, pkt.ClientMsgNo, pkt.ReasonCode)
+		return fmt.Sprintf("sendack(reason=%s)", pkt.ReasonCode)
 	case *frame.RecvPacket:
-		return fmt.Sprintf("recv(seq=%d,msg=%s,ch=%s)", pkt.MessageSeq, pkt.ClientMsgNo, pkt.ChannelID)
+		return fmt.Sprintf("recv(channel_type=%d)", pkt.ChannelType)
 	case *frame.PongPacket:
 		return "pong"
 	default:
@@ -1097,17 +1348,6 @@ func debugFrameSummary(f frame.Frame) string {
 		}
 		return fmt.Sprintf("%T", f)
 	}
-}
-
-func isAutoRecvAckIdleTimeout(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	var netErr net.Error
-	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func (c *matchingPersonClient) notifyLocked() <-chan struct{} {
@@ -1138,6 +1378,14 @@ func readFrameMatching(ctx context.Context, client PersonClient, match func(fram
 			return f, nil
 		}
 	}
+}
+
+func readPersonFrameWithLease(ctx context.Context, client PersonClient) (frame.Frame, benchwkproto.FrameLease, error) {
+	if reader, ok := client.(leasedPersonFrameReader); ok {
+		return reader.ReadFrameWithLease(ctx)
+	}
+	f, err := client.ReadFrame(ctx)
+	return f, nil, err
 }
 
 func lockSendackOperation(ctx context.Context, client PersonClient) (func(), error) {
@@ -1184,8 +1432,10 @@ func (w *PersonWorkload) useWarmupTimeouts() func() {
 	ackTimeout := w.cfg.AckTimeout
 	recvTimeout := w.cfg.RecvTimeout
 	deadline := w.warmupOperationDeadline
-	w.warmupOperationDeadline = time.Now().Add(w.cfg.WarmupDuration + warmupOperationTailTimeout(ackTimeout, recvTimeout))
-	w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
+	w.warmupOperationDeadline = time.Now().Add(w.cfg.WarmupDuration + warmupOperationTailTimeout(ackTimeout, recvTimeout, w.cfg.RetryEnabled))
+	if !w.cfg.RetryEnabled {
+		w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
+	}
 	w.cfg.RecvTimeout = warmupOperationTimeout(w.cfg.RecvTimeout, w.cfg.WarmupDuration)
 	return func() {
 		w.cfg.AckTimeout = ackTimeout
@@ -1194,7 +1444,13 @@ func (w *PersonWorkload) useWarmupTimeouts() func() {
 	}
 }
 
-func warmupOperationTailTimeout(ackTimeout, recvTimeout time.Duration) time.Duration {
+func warmupOperationTailTimeout(ackTimeout, recvTimeout time.Duration, retryEnabled bool) time.Duration {
+	if ackTimeout <= 0 {
+		ackTimeout = defaultWorkloadTimeout
+	}
+	if retryEnabled {
+		ackTimeout = time.Duration(model.TrafficRetryMaximumAttempts)*ackTimeout + model.TrafficRetryDelayBudget()
+	}
 	maximum := defaultWorkloadTimeout
 	for _, timeout := range []time.Duration{ackTimeout, recvTimeout} {
 		if timeout <= 0 {

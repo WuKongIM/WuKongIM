@@ -67,7 +67,11 @@ append admission, and final results retain original item order.
 `permission`, `pre_append`, and `submitter` stage. It carries only result class,
 item count, and duration—never UID, Channel, Slot, or entry-protocol data. The
 stages distinguish authoritative permission fanout from hooks/directory work
-and channelappend routing without changing synchronous ordering.
+and channelappend routing without changing synchronous ordering. A submitter
+deadline failure also wraps the original error with these three bounded stage
+durations and the deadline budget that remained when submission began. Entry
+adapters may project that diagnostic into the one existing failure record;
+`errors.Is` still observes the original deadline cause.
 Prometheus attributes each stage duration to every input item so its quantiles
 have the same per-message weighting as gateway handler and SENDACK latency;
 slow large batches must not be underweighted as one sample.

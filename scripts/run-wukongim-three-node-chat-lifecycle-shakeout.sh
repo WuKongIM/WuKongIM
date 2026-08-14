@@ -11,16 +11,49 @@ SEND_RATE=100
 MEASURE_SECONDS=0
 WARMUP_SECONDS=60
 MINIMUM_THROUGHPUT_PERCENT=90
-METRICS_SAMPLE_SECONDS=5
+# Full Prometheus snapshots are deliberately less frequent than the product's
+# own five-second observation loop. Each service snapshot is roughly 750 KiB
+# in a realistic lifecycle run; scraping all three nodes every five seconds
+# can make the diagnostic collector interfere with the evidence it measures.
+METRICS_SAMPLE_SECONDS=30
 DRY_RUN=0
 CLEANUP_TIMEOUT=15
 GRACEFUL_STOP_TIMEOUT=90
+RUN_ID=local-chat-lifecycle-shakeout
+PPROF_CPU_SECONDS=10
 
 PIDS=()
 NAMES=()
 COORDINATOR_PID=""
 STOP_SENT=0
 GRACEFUL_STOP_DEADLINE=0
+PPROF_PID=""
+PPROF_TRIGGERED=0
+PPROF_EXIT_STATUS=0
+PPROF_TRIGGER_KIND=""
+PPROF_TRIGGER_PREVIOUS_UTC=""
+PPROF_TRIGGER_CURRENT_UTC=""
+CUT_CURSOR=0
+CUT_QUERY_READY=0
+OPERATOR_SIGNAL_STATUS=0
+OPERATOR_STOP_PENDING=0
+DRAIN_BOUNDARY_RECORDED=0
+HARNESS_FAILURE_REASON=""
+COORDINATOR_JOINED=0
+COORDINATOR_STATUS=0
+WAIT_CHILD_STATUS=0
+SOURCE_REVISION=unknown
+SOURCE_DIRTY=true
+SOURCE_REBUILDABLE_FROM_REVISION=false
+SOURCE_CAPTURE=binary_identity_only
+SOURCE_BUILD_START_REVISION=unknown
+SOURCE_BUILD_START_DIRTY=true
+SOURCE_BUILD_END_REVISION=unknown
+SOURCE_BUILD_END_DIRTY=true
+HOST_OVERLAP_MONITOR_PID=""
+HOST_OVERLAP_MONITOR_STARTED=0
+HOST_OVERLAP_MONITOR_JOINED=0
+HOST_CONFOUNDED=0
 
 usage() {
   sed -n '/^# Usage:/,/^#   -h, --help/p' "$0" | sed 's/^# \{0,1\}//'
@@ -134,6 +167,20 @@ REPORT_DIR="$RUN_DIR/report"
 EVIDENCE_DIR="$RUN_DIR/evidence"
 METRICS_DIR="$RUN_DIR/metrics"
 LIFECYCLE_CONFIG="$RUN_DIR/chat-lifecycle.yaml"
+PHASE_STATE_FILE="$EVIDENCE_DIR/phase-state"
+CUT_QUERY_FILE="$EVIDENCE_DIR/worker-cut-query.json"
+CUT_QUERY_NEXT="$EVIDENCE_DIR/worker-cut-query.json.next"
+FROZEN_WORKER_LOG="$EVIDENCE_DIR/coordinator-worker-cuts.log"
+UNIFIED_TIMELINE_JSON="$EVIDENCE_DIR/unified-timeline.json"
+UNIFIED_TIMELINE_TSV="$EVIDENCE_DIR/unified-timeline.tsv"
+PPROF_DIR="$EVIDENCE_DIR/threshold-pprof"
+PPROF_STATUS_FILE="$EVIDENCE_DIR/threshold-pprof-status.json"
+GRACEFUL_STOP_STATUS_FILE="$EVIDENCE_DIR/graceful-stop-status.json"
+GRACEFUL_STOP_SNAPSHOT_DIR="$EVIDENCE_DIR/graceful-stop-timeout"
+HOST_OVERLAP_STATUS_FILE="$EVIDENCE_DIR/measured-host-overlap.tsv"
+HOST_OVERLAP_DETECTOR="$ROOT_DIR/scripts/chat-lifecycle/detect-local-workload-overlap.sh"
+STORAGE_OVERLAP_FILE="$EVIDENCE_DIR/storage-overlap.tsv"
+STORAGE_OVERLAP_CAPTURE="$ROOT_DIR/scripts/chat-lifecycle/capture-local-storage-overlap.sh"
 
 print_plan() {
   printf 'run_dir=%s\n' "$RUN_DIR"
@@ -147,6 +194,7 @@ print_plan() {
   printf 'measured_duration_seconds=%s\n' "$MEASURE_SECONDS"
   printf 'warmup_seconds=%s\n' "$WARMUP_SECONDS"
   printf 'drain_timeout_seconds=%s\n' "$GRACEFUL_STOP_TIMEOUT"
+  printf 'raw_metrics_sample_seconds=%s\n' "$METRICS_SAMPLE_SECONDS"
   printf 'commit_coordinator_flush_window=200us\n'
   printf 'commit_coordinator_shards=1\n'
   printf 'sync_commit=true\n'
@@ -170,23 +218,56 @@ fi
 command -v go >/dev/null 2>&1 || die 'go is required'
 command -v curl >/dev/null 2>&1 || die 'curl is required'
 command -v awk >/dev/null 2>&1 || die 'awk is required'
+command -v jq >/dev/null 2>&1 || die 'jq is required'
 command -v ps >/dev/null 2>&1 || die 'ps is required'
+[[ -x "$HOST_OVERLAP_DETECTOR" ]] || die "local workload overlap detector is unavailable: $HOST_OVERLAP_DETECTOR"
+[[ -x "$STORAGE_OVERLAP_CAPTURE" ]] || die "local storage-overlap capture is unavailable: $STORAGE_OVERLAP_CAPTURE"
 [[ -n "${WK_BENCH_API_TOKEN:-}" ]] || die 'WK_BENCH_API_TOKEN is required'
 [[ -n "${WK_BENCH_WORKER_TOKEN:-}" ]] || die 'WK_BENCH_WORKER_TOKEN is required'
 if [[ -e "$RUN_DIR" ]] && [[ -n "$(find "$RUN_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
   die "--run-dir must be absent or empty: $RUN_DIR"
 fi
 
-overlap="$(ps -axo pid=,comm= | awk -v self="$$" '
-  {
-    command = $2
-    sub(/^.*\//, "", command)
-    if ($1 != self && (command == "wukongim" || command == "wkbench")) print $0
-  }
-')"
+overlap="$("$HOST_OVERLAP_DETECTOR")" || die 'host_confounded: local workload overlap preflight was unavailable'
 [[ -z "$overlap" ]] || die "host_confounded: another wukongim or wkbench process is active: $overlap"
 
-mkdir -p "$RUN_DIR/bin" "$CONFIG_DIR" "$DATA_DIR/load" "$LOG_DIR" "$PID_DIR" "$WORKER_DIR" "$REPORT_DIR" "$EVIDENCE_DIR" "$METRICS_DIR"
+SOURCE_BUILD_START_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
+SOURCE_REVISION="$SOURCE_BUILD_START_REVISION"
+source_untracked=""
+if [[ "$SOURCE_BUILD_START_REVISION" != unknown ]] &&
+  git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null &&
+  source_untracked="$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" &&
+  [[ -z "$source_untracked" ]]; then
+  SOURCE_BUILD_START_DIRTY=false
+fi
+
+finalize_source_rebuildability_after_builds() {
+  local source_untracked=""
+  SOURCE_BUILD_END_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
+  SOURCE_BUILD_END_DIRTY=true
+  if [[ "$SOURCE_BUILD_END_REVISION" != unknown ]] &&
+    git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null &&
+    source_untracked="$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" &&
+    [[ -z "$source_untracked" ]]; then
+    SOURCE_BUILD_END_DIRTY=false
+  fi
+
+  # A binary can be reconstructed from source_revision only when the same
+  # clean revision bounded both builds. Any dirty state, Git read failure, or
+  # revision movement makes the sealed binaries the sole source identity.
+  SOURCE_DIRTY=true
+  SOURCE_REBUILDABLE_FROM_REVISION=false
+  SOURCE_CAPTURE=binary_identity_only
+  if [[ "$SOURCE_BUILD_START_REVISION" != unknown && "$SOURCE_BUILD_START_DIRTY" == false &&
+    "$SOURCE_BUILD_END_REVISION" == "$SOURCE_BUILD_START_REVISION" && "$SOURCE_BUILD_END_DIRTY" == false ]]; then
+    SOURCE_DIRTY=false
+    SOURCE_REBUILDABLE_FROM_REVISION=true
+    SOURCE_CAPTURE=git_revision
+  fi
+}
+
+mkdir -p "$RUN_DIR/bin" "$CONFIG_DIR" "$DATA_DIR/load" "$LOG_DIR" "$PID_DIR" "$WORKER_DIR" "$REPORT_DIR" \
+  "$EVIDENCE_DIR/snapshot-inventory" "$METRICS_DIR"
 for node in 1 2 3; do
   mkdir -p "$DATA_DIR/node$node" "$LOG_DIR/node$node" "$WORKER_DIR/node$node"
   cp "$ROOT_DIR/scripts/wukongim/wukongim-node$node.toml" "$CONFIG_DIR/node$node.toml"
@@ -195,6 +276,7 @@ done
 log 'building service and benchmark binaries'
 (cd "$ROOT_DIR" && GOWORK=off go build -o "$WUKONGIM_BIN" ./cmd/wukongim)
 (cd "$ROOT_DIR" && GOWORK=off go build -o "$WKBENCH_BIN" ./cmd/wkbench)
+finalize_source_rebuildability_after_builds
 
 sed \
   -e "s/15001/$(api_port 1)/g" -e "s/15002/$(api_port 2)/g" -e "s/15003/$(api_port 3)/g" \
@@ -210,7 +292,13 @@ sed \
 if (( MEASURE_SECONDS > 0 )); then
   checkpoint_milliseconds=$((WARMUP_SECONDS * 1000 + 1))
   final_seconds=$((WARMUP_SECONDS + MEASURE_SECONDS + GRACEFUL_STOP_TIMEOUT + 60))
-  sed -e "s/timeline: {warmup: 10m, checkpoint: 20m, final: 30m}/timeline: {warmup: ${WARMUP_SECONDS}s, checkpoint: ${checkpoint_milliseconds}ms, final: ${final_seconds}s}/" \
+  # The local staircase owns its post-drain rate verdict. Recovered first-attempt
+  # failures remain in evidence but must not trigger the formal evaluator's
+  # immediate terminal decision before the fixed measured interval completes.
+  sed \
+    -e "s/timeline: {warmup: 10m, checkpoint: 20m, final: 30m}/timeline: {warmup: ${WARMUP_SECONDS}s, checkpoint: ${checkpoint_milliseconds}ms, final: ${final_seconds}s}/" \
+    -e 's/overall_first_attempt_failure: {max_failures: 1, per_attempts: 10000, operator: "<"}/overall_first_attempt_failure: {max_failures: 1, per_attempts: 1, operator: "<="}/' \
+    -e 's/any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}/any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1, operator: "<="}/' \
     "$LIFECYCLE_CONFIG" >"$LIFECYCLE_CONFIG.next"
   mv "$LIFECYCLE_CONFIG.next" "$LIFECYCLE_CONFIG"
 fi
@@ -224,20 +312,23 @@ sha256_file() {
 }
 
 record_evidence_identity() {
-  local revision dirty config_sha
-  revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
-  if git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null &&
-    [[ -z "$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" ]]; then
-    dirty=false
-  else
-    dirty=true
-  fi
+  local config_sha wukongim_sha wkbench_sha
   config_sha="$(sha256_file "$LIFECYCLE_CONFIG")"
+  wukongim_sha="$(sha256_file "$WUKONGIM_BIN")"
+  wkbench_sha="$(sha256_file "$WKBENCH_BIN")"
   {
     printf 'schema\twukongim/chat-lifecycle-local-evidence/v1\n'
-    printf 'source_revision\t%s\n' "$revision"
-    printf 'source_dirty\t%s\n' "$dirty"
+    printf 'source_revision\t%s\n' "$SOURCE_REVISION"
+    printf 'source_dirty\t%s\n' "$SOURCE_DIRTY"
+    printf 'source_rebuildable_from_revision\t%s\n' "$SOURCE_REBUILDABLE_FROM_REVISION"
+    printf 'source_capture\t%s\n' "$SOURCE_CAPTURE"
+    printf 'source_revision_before_build\t%s\n' "$SOURCE_BUILD_START_REVISION"
+    printf 'source_dirty_before_build\t%s\n' "$SOURCE_BUILD_START_DIRTY"
+    printf 'source_revision_after_build\t%s\n' "$SOURCE_BUILD_END_REVISION"
+    printf 'source_dirty_after_build\t%s\n' "$SOURCE_BUILD_END_DIRTY"
     printf 'config_sha256\t%s\n' "$config_sha"
+    printf 'wukongim_binary_sha256\t%s\n' "$wukongim_sha"
+    printf 'wkbench_binary_sha256\t%s\n' "$wkbench_sha"
     printf 'online_connections\t2500\n'
     printf 'offered_send_rate_per_second\t%s\n' "$SEND_RATE"
     printf 'measured_duration_seconds\t%s\n' "$MEASURE_SECONDS"
@@ -262,12 +353,34 @@ record_pid() {
   printf '%s\n' "$pid" >"$PID_DIR/$name.pid"
 }
 
-terminate_recorded() {
-  local original_status=$? pid deadline alive
+# wait may return 128+signal while its child is still alive when the wrapper's
+# first operator trap runs. Keep ownership until the exact child is reaped; the
+# second operator signal remains the explicit force-exit escape hatch.
+wait_child_uninterrupted() {
+  local pid="$1" status
+  WAIT_CHILD_STATUS=0
+  while true; do
+    status=0
+    wait "$pid" 2>/dev/null || status=$?
+    if ! kill -0 "$pid" 2>/dev/null; then
+      WAIT_CHILD_STATUS="$status"
+      return 0
+    fi
+  done
+}
+
+stop_recorded_processes() {
+  local pid deadline alive
+  if [[ -n "$PPROF_PID" ]]; then
+    kill -TERM "$PPROF_PID" 2>/dev/null || true
+    wait_child_uninterrupted "$PPROF_PID"
+    PPROF_PID=""
+  fi
   if [[ "${#PIDS[@]}" -eq 0 ]]; then
-    return "$original_status"
+    return 0
   fi
   for pid in "${PIDS[@]}"; do
+    [[ -n "$pid" ]] || continue
     if kill -0 "$pid" 2>/dev/null; then
       kill -TERM "$pid" 2>/dev/null || true
     fi
@@ -276,37 +389,193 @@ terminate_recorded() {
   while (( SECONDS < deadline )); do
     alive=0
     for pid in "${PIDS[@]}"; do
+      [[ -n "$pid" ]] || continue
       kill -0 "$pid" 2>/dev/null && alive=1
     done
     [[ "$alive" -eq 0 ]] && break
     sleep 1
   done
   for pid in "${PIDS[@]}"; do
+    [[ -n "$pid" ]] || continue
     if kill -0 "$pid" 2>/dev/null; then
       kill -KILL "$pid" 2>/dev/null || true
     fi
-    wait "$pid" 2>/dev/null || true
+    wait_child_uninterrupted "$pid"
   done
+}
+
+terminate_recorded() {
+  local original_status=$?
+  stop_recorded_processes
   return "$original_status"
+}
+
+mark_recorded_stopped() {
+  local wanted="$1" index
+  for index in "${!NAMES[@]}"; do
+    if [[ "${NAMES[$index]}" == "$wanted" ]]; then
+      PIDS[$index]=""
+      return 0
+    fi
+  done
+  return 1
+}
+
+write_measured_host_overlap_status() {
+  local status="$1" started="$2" observed="$3" samples="$4" pid="$5" command="$6"
+  local temporary="$HOST_OVERLAP_STATUS_FILE.next.$BASHPID"
+  {
+    printf 'schema\twukongim/chat-lifecycle-measured-host-overlap/v1\n'
+    printf 'status\t%s\n' "$status"
+    printf 'started_at_utc\t%s\n' "$started"
+    printf 'completed_at_utc\t%s\n' "$observed"
+    printf 'samples\t%s\n' "$samples"
+    printf 'pid\t%s\n' "$pid"
+    printf 'command\t%s\n' "$command"
+    printf 'sample_seconds\t1\n'
+  } >"$temporary"
+  mv "$temporary" "$HOST_OVERLAP_STATUS_FILE"
+}
+
+start_measured_host_overlap_monitor() {
+  local pid
+  local -a owned_pids=("${PIDS[@]}")
+  (( HOST_OVERLAP_MONITOR_STARTED == 0 )) || return 0
+  HOST_OVERLAP_MONITOR_STARTED=1
+  (
+    local overlap="" first="" foreign_pid="" foreign_command="" observed=""
+    local started samples=0 monitor_status=0
+    started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    trap 'monitor_status=143' INT TERM
+    while [[ -s "$PHASE_STATE_FILE" ]] && [[ "$(<"$PHASE_STATE_FILE")" == measurement ]]; do
+      observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      if ! overlap="$("$HOST_OVERLAP_DETECTOR" "${owned_pids[@]}")"; then
+        write_measured_host_overlap_status observer_error "$started" "$observed" "$samples" 0 unavailable
+        exit 0
+      fi
+      samples=$((samples + 1))
+      if [[ -n "$overlap" ]]; then
+        first="${overlap%%$'\n'*}"
+        IFS=$'\t' read -r foreign_pid foreign_command <<<"$first"
+        write_measured_host_overlap_status overlap "$started" "$observed" "$samples" "$foreign_pid" "$foreign_command"
+        exit 0
+      fi
+      sleep 1 || true
+    done
+    if (( monitor_status != 0 )); then
+      write_measured_host_overlap_status observer_error "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$samples" 0 unavailable
+    else
+      write_measured_host_overlap_status clear "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$samples" 0 none
+    fi
+  ) >"$LOG_DIR/measured-host-overlap.log" 2>&1 &
+  pid=$!
+  HOST_OVERLAP_MONITOR_PID="$pid"
+  record_pid measured-host-overlap-monitor "$pid"
+}
+
+check_measured_host_overlap() {
+  local monitor_status=0 status="" samples=""
+  (( HOST_OVERLAP_MONITOR_STARTED != 0 )) || return 0
+  (( HOST_OVERLAP_MONITOR_JOINED == 0 )) || return 0
+  if [[ -n "$HOST_OVERLAP_MONITOR_PID" ]]; then
+    wait_child_uninterrupted "$HOST_OVERLAP_MONITOR_PID"
+    monitor_status="$WAIT_CHILD_STATUS"
+    mark_recorded_stopped measured-host-overlap-monitor || true
+    HOST_OVERLAP_MONITOR_PID=""
+  fi
+  HOST_OVERLAP_MONITOR_JOINED=1
+  if (( monitor_status != 0 )) || [[ ! -s "$HOST_OVERLAP_STATUS_FILE" ]] ||
+    ! status="$(awk -F '\t' '$1 == "status" { print $2 }' "$HOST_OVERLAP_STATUS_FILE" 2>/dev/null)"; then
+    write_measured_host_overlap_status observer_error "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 0 0 unavailable
+    status=observer_error
+  fi
+  samples="$(awk -F '\t' '$1 == "samples" { print $2 }' "$HOST_OVERLAP_STATUS_FILE" 2>/dev/null)"
+  case "$status" in
+    clear|overlap)
+      if ! [[ "$samples" =~ ^[1-9][0-9]*$ ]]; then
+        write_measured_host_overlap_status observer_error "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 0 0 unavailable
+        status=observer_error
+      fi
+      ;;
+    observer_error)
+      if ! [[ "$samples" =~ ^[0-9]+$ ]]; then
+        write_measured_host_overlap_status observer_error "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 0 0 unavailable
+      fi
+      ;;
+    *)
+      write_measured_host_overlap_status observer_error "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 0 0 unavailable
+      status=observer_error
+      ;;
+  esac
+  case "$status" in
+    clear) ;;
+    overlap)
+      HOST_CONFOUNDED=1
+      log 'measured interval overlapped another wukongim or wkbench process; result will be host_confounded'
+      ;;
+    *)
+      HOST_CONFOUNDED=1
+      log 'measured host-overlap observation was incomplete; result will fail closed as host_confounded'
+      ;;
+  esac
+}
+
+stop_process_metrics_collector() {
+  local index pid=""
+  for index in "${!NAMES[@]}"; do
+    if [[ "${NAMES[$index]}" == process-metrics-collector ]]; then
+      pid="${PIDS[$index]}"
+      break
+    fi
+  done
+  [[ -n "$pid" ]] || return 0
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -TERM "$pid" 2>/dev/null || true
+  fi
+  wait_child_uninterrupted "$pid"
+  PIDS[$index]=""
 }
 
 request_coordinator_stop() {
   local reason="$1"
+  (( STOP_SENT == 0 )) || return 0
   [[ -n "$COORDINATOR_PID" ]] && kill -0 "$COORDINATOR_PID" 2>/dev/null || return 1
-  log "$reason: forwarding one TERM to the coordinator"
-  kill -TERM "$COORDINATOR_PID" 2>/dev/null || return 1
+  # Fence the request before signaling so a trap between shell commands cannot
+  # send a second TERM to wkbench's force-stop handler.
   STOP_SENT=1
   GRACEFUL_STOP_DEADLINE=$((SECONDS + GRACEFUL_STOP_TIMEOUT))
+  log "$reason: forwarding one TERM to the coordinator"
+  kill -TERM "$COORDINATOR_PID" 2>/dev/null || return 1
 }
 
 handle_signal() {
   local signal_name="$1" exit_status="$2"
-  if [[ "$STOP_SENT" -eq 0 ]] && request_coordinator_stop "received $signal_name"; then
+  if (( OPERATOR_SIGNAL_STATUS == 0 )); then
+    OPERATOR_SIGNAL_STATUS="$exit_status"
+    OPERATOR_STOP_PENDING=1
+    if (( STOP_SENT != 0 )); then
+      log "received $signal_name while the coordinator is already draining; preserving the first graceful stop"
+    else
+      log "received $signal_name; queued one graceful coordinator stop"
+    fi
     return
   fi
-  log "received $signal_name after graceful stop was unavailable or already requested; forcing cleanup"
+  log "received a second operator signal ($signal_name); forcing cleanup"
   trap - INT TERM
   exit "$exit_status"
+}
+
+request_pending_operator_stop() {
+  (( OPERATOR_STOP_PENDING != 0 && STOP_SENT == 0 )) || return 0
+  [[ -n "$COORDINATOR_PID" ]] && kill -0 "$COORDINATOR_PID" 2>/dev/null || return 1
+  close_operator_phase_if_needed
+  request_coordinator_stop 'operator signal pending' || return 1
+  OPERATOR_STOP_PENDING=0
 }
 
 trap terminate_recorded EXIT
@@ -517,9 +786,290 @@ done
 wait_url host-metrics-load "http://127.0.0.1:$(load_host_metrics_port)/healthz"
 
 printf 'observed_at_utc\tphase\tnode\tstatus\n' >"$EVIDENCE_DIR/timeline.tsv"
+printf 'observed_at_utc\trun_id\tsample\tnode\tstatus\tcompaction_count\tcompactions_in_progress\tsnapshot_files\tsnapshot_bytes\tsnapshot_identity\tsnapshot_inventory\n' >"$STORAGE_OVERLAP_FILE"
 
 record_timeline_boundary() {
   printf '%s\t%s\tboundary\tcomplete\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$EVIDENCE_DIR/timeline.tsv"
+}
+
+record_timeline_boundary_at() {
+  local observed_at_utc="$1" boundary="$2"
+  [[ "$observed_at_utc" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$ ]] || return 1
+  printf '%s\t%s\tboundary\tcomplete\n' "$observed_at_utc" "$boundary" >>"$EVIDENCE_DIR/timeline.tsv"
+}
+
+close_terminal_drain_boundary() {
+  local terminal_at
+  terminal_at="$(jq -er '
+    select(.terminal_cut_present == true and .latest_cut.cut == "terminal") |
+    .latest_cut.at
+  ' "$CUT_QUERY_FILE" 2>/dev/null)" || return 1
+  record_timeline_boundary_at "$terminal_at" drain_end
+  record_timeline_boundary_at "$terminal_at" shutdown_start
+  write_phase_state shutdown
+}
+
+write_phase_state() {
+  local phase="$1" temporary="$PHASE_STATE_FILE.next.$$" current=""
+  case "$phase" in warmup|measurement|drain|shutdown) ;; *) return 1 ;; esac
+  if [[ -f "$PHASE_STATE_FILE" ]]; then
+    current="$(<"$PHASE_STATE_FILE")"
+    [[ "$current" == "$phase" ]] && return 0
+  fi
+  printf '%s\n' "$phase" >"$temporary"
+  mv "$temporary" "$PHASE_STATE_FILE"
+}
+
+start_threshold_pprof_capture() {
+  local trigger_kind="$1" previous_utc="$2" current_utc="$3"
+  # Never expose the inherited bearer token if the wrapper itself was invoked
+  # with shell xtrace enabled.
+  set +x
+  (( PPROF_TRIGGERED == 0 )) || return 0
+  PPROF_TRIGGERED=1
+  PPROF_TRIGGER_KIND="$trigger_kind"
+  PPROF_TRIGGER_PREVIOUS_UTC="$previous_utc"
+  PPROF_TRIGGER_CURRENT_UTC="$current_utc"
+  WK_BENCH_API_TOKEN="$WK_BENCH_API_TOKEN" \
+    bash "$ROOT_DIR/scripts/capture-wukongim-local-threshold-pprof.sh" \
+    --out-dir "$PPROF_DIR" \
+    --phase-state-file "$PHASE_STATE_FILE" \
+    --trigger-kind "$trigger_kind" \
+    --trigger-observed-phase measurement \
+    --previous-utc "$previous_utc" \
+    --current-utc "$current_utc" \
+    --node "http://127.0.0.1:$(api_port 1)" \
+    --node "http://127.0.0.1:$(api_port 2)" \
+    --node "http://127.0.0.1:$(api_port 3)" \
+    --cpu-seconds "$PPROF_CPU_SECONDS" >"$LOG_DIR/threshold-pprof.log" 2>&1 &
+  PPROF_PID=$!
+  log "measured $trigger_kind threshold crossed; started bounded three-node pprof capture"
+}
+
+refresh_live_cut_query() {
+  local next_cursor phase trigger
+  local -a query=(
+    "$WKBENCH_BIN" report chat-lifecycle-cut-query
+    --worker-log "$LOG_DIR/coordinator.log"
+    --run-id "$RUN_ID"
+    --cursor "$CUT_CURSOR"
+    --offered-rate "$SEND_RATE"
+    --minimum-throughput-percent "$MINIMUM_THROUGHPUT_PERCENT"
+    --output "$CUT_QUERY_NEXT"
+  )
+  if (( CUT_QUERY_READY == 1 )); then
+    query+=(--previous-query "$CUT_QUERY_FILE")
+  fi
+  if ! "${query[@]}"; then
+    rm -f "$CUT_QUERY_NEXT"
+    return 1
+  fi
+  if ! jq -e '.schema == "wukongim/chat-lifecycle-worker-cut-query/v1" and (.next_cursor | type == "number" and . >= 0 and . == floor)' \
+    "$CUT_QUERY_NEXT" >/dev/null 2>&1; then
+    rm -f "$CUT_QUERY_NEXT"
+    return 1
+  fi
+  next_cursor="$(jq -er '.next_cursor' "$CUT_QUERY_NEXT")" || return 1
+  mv "$CUT_QUERY_NEXT" "$CUT_QUERY_FILE"
+  CUT_CURSOR="$next_cursor"
+  CUT_QUERY_READY=1
+  phase="$(<"$PHASE_STATE_FILE")"
+  if [[ "$phase" == measurement && "$PPROF_TRIGGERED" -eq 0 ]]; then
+    trigger="$(jq -er '
+      first(.transitions[] | select(
+        .measurement_eligible == true and
+        (.trigger_kind == "actual_offered_ratio" or .trigger_kind == "terminal_product_failure")
+      )) | [.trigger_kind, .previous_at, .current_at] | @tsv
+    ' "$CUT_QUERY_FILE" 2>/dev/null)" || trigger=""
+    if [[ -n "$trigger" ]]; then
+      local trigger_kind previous_utc current_utc
+      IFS=$'\t' read -r trigger_kind previous_utc current_utc <<<"$trigger"
+      start_threshold_pprof_capture "$trigger_kind" "$previous_utc" "$current_utc"
+    fi
+  fi
+}
+
+close_operator_phase_if_needed() {
+  local phase
+  (( OPERATOR_SIGNAL_STATUS != 0 )) || return 0
+  [[ -s "$PHASE_STATE_FILE" ]] || return 0
+  phase="$(<"$PHASE_STATE_FILE")"
+  case "$phase" in
+    measurement)
+      refresh_live_cut_query || log 'operator-stop measured worker-cut query was unavailable'
+      record_timeline_boundary measurement_end
+      record_timeline_boundary drain_start
+      write_phase_state drain
+      DRAIN_BOUNDARY_RECORDED=1
+      ;;
+    warmup)
+      record_timeline_boundary warmup_end
+      record_timeline_boundary drain_start
+      write_phase_state drain
+      DRAIN_BOUNDARY_RECORDED=1
+      ;;
+  esac
+}
+
+join_threshold_pprof_capture() {
+  [[ -n "$PPROF_PID" ]] || return 0
+  wait_child_uninterrupted "$PPROF_PID"
+  PPROF_EXIT_STATUS="$WAIT_CHILD_STATUS"
+  PPROF_PID=""
+}
+
+write_threshold_pprof_status() {
+  local status reason valid trigger_kind metadata_relative temporary node kind profile_status profile_path
+  temporary="$PPROF_STATUS_FILE.next.$$"
+  if (( PPROF_TRIGGERED == 0 )); then
+    if ! jq -e '
+      .schema == "wukongim/chat-lifecycle-unified-timeline/v1" and
+      .measured_first_breach.observed == false
+    ' "$UNIFIED_TIMELINE_JSON" >/dev/null 2>&1; then
+      jq -n '{
+        schema:"wukongim/chat-lifecycle-threshold-pprof-status/v1",
+        status:"operational_error", evidence_complete:false, capture_valid:false,
+        reason:"measured_threshold_was_not_captured", trigger_kind:"",
+        trigger_previous_utc:"", trigger_current_utc:"", metadata:""
+      }' >"$temporary"
+      mv "$temporary" "$PPROF_STATUS_FILE"
+      return 0
+    fi
+    jq -n '{
+      schema:"wukongim/chat-lifecycle-threshold-pprof-status/v1",
+      status:"not_triggered", evidence_complete:true, capture_valid:true,
+      reason:"no_measured_threshold", trigger_kind:"",
+      trigger_previous_utc:"", trigger_current_utc:"", metadata:""
+    }' >"$temporary"
+    mv "$temporary" "$PPROF_STATUS_FILE"
+    return 0
+  fi
+  metadata_relative="threshold-pprof/metadata.json"
+  if (( PPROF_EXIT_STATUS != 0 )) || ! jq -e \
+    --arg trigger_kind "$PPROF_TRIGGER_KIND" \
+    --arg previous_utc "$PPROF_TRIGGER_PREVIOUS_UTC" \
+    --arg current_utc "$PPROF_TRIGGER_CURRENT_UTC" '
+    def exact_keys($expected): (keys | sort) == ($expected | sort);
+    .schema == "wukongim.local_threshold_pprof/v1" and
+    exact_keys(["schema","trigger","capture","nodes"]) and
+    (.trigger | exact_keys(["kind","observed_phase","previous_utc","current_utc"])) and
+    .trigger.kind == $trigger_kind and .trigger.observed_phase == "measurement" and
+    .trigger.previous_utc == $previous_utc and
+    .trigger.current_utc == $current_utc and
+    (.capture | exact_keys(["status","valid","reason","start_phase","end_phase","started_at_utc","completed_at_utc","cpu_seconds"])) and
+    (.capture.status == "complete" or .capture.status == "partial" or .capture.status == "invalid") and
+    (.capture.valid | type == "boolean") and
+    ((.capture.status == "complete" and .capture.valid == true) or
+     (.capture.status != "complete" and .capture.valid == false)) and
+    (.capture.reason | type == "string" and length > 0) and
+    (.capture.start_phase == "warmup" or .capture.start_phase == "measurement" or
+     .capture.start_phase == "drain" or .capture.start_phase == "shutdown" or
+     .capture.start_phase == "missing" or .capture.start_phase == "invalid") and
+    (.capture.end_phase == "warmup" or .capture.end_phase == "measurement" or
+     .capture.end_phase == "drain" or .capture.end_phase == "shutdown" or
+     .capture.end_phase == "missing" or .capture.end_phase == "invalid") and
+    (.capture.started_at_utc | type == "string" and length > 0) and
+    (.capture.completed_at_utc | type == "string" and length > 0) and
+    (.capture.cpu_seconds | type == "number" and . >= 1 and . <= 30 and . == floor) and
+    (.nodes | type == "array" and length == 3) and
+    [.nodes[].node] == ["node-1","node-2","node-3"] and
+    all(.nodes[];
+      exact_keys(["node","cpu","heap","goroutine"]) and
+      all([.cpu,.heap,.goroutine][]; . == "complete" or . == "missing"))
+  ' "$PPROF_DIR/metadata.json" >/dev/null 2>&1; then
+    jq -n --argjson helper_exit "$PPROF_EXIT_STATUS" \
+      --arg trigger_kind "$PPROF_TRIGGER_KIND" \
+      --arg previous_utc "$PPROF_TRIGGER_PREVIOUS_UTC" \
+      --arg current_utc "$PPROF_TRIGGER_CURRENT_UTC" '{
+      schema:"wukongim/chat-lifecycle-threshold-pprof-status/v1",
+      status:"operational_error", evidence_complete:false, capture_valid:false,
+      reason:"missing_or_invalid_helper_metadata", trigger_kind:$trigger_kind,
+      trigger_previous_utc:$previous_utc, trigger_current_utc:$current_utc, metadata:"",
+      helper_exit_status:$helper_exit
+    }' >"$temporary"
+    mv "$temporary" "$PPROF_STATUS_FILE"
+    return 0
+  fi
+  for node in 1 2 3; do
+    for kind in cpu heap goroutine; do
+      profile_status="$(jq -er --arg node "node-$node" --arg kind "$kind" \
+        '.nodes[] | select(.node == $node) | .[$kind]' "$PPROF_DIR/metadata.json")" || profile_status=""
+      case "$kind" in
+        cpu) profile_path="$PPROF_DIR/profiles/node-$node-cpu.pb.gz" ;;
+        heap) profile_path="$PPROF_DIR/profiles/node-$node-heap.pb.gz" ;;
+        goroutine) profile_path="$PPROF_DIR/profiles/node-$node-goroutine.txt" ;;
+      esac
+      if [[ "$profile_status" == complete ]]; then
+        [[ -f "$profile_path" && ! -L "$profile_path" && -s "$profile_path" ]] || profile_status=invalid
+      elif [[ "$profile_status" == missing ]]; then
+        [[ ! -e "$profile_path" ]] || profile_status=invalid
+      else
+        profile_status=invalid
+      fi
+      if [[ "$profile_status" == invalid ]]; then
+        jq -n --argjson helper_exit "$PPROF_EXIT_STATUS" \
+          --arg trigger_kind "$PPROF_TRIGGER_KIND" \
+          --arg previous_utc "$PPROF_TRIGGER_PREVIOUS_UTC" \
+          --arg current_utc "$PPROF_TRIGGER_CURRENT_UTC" '{
+          schema:"wukongim/chat-lifecycle-threshold-pprof-status/v1",
+          status:"operational_error", evidence_complete:false, capture_valid:false,
+          reason:"profile_blob_disagrees_with_metadata", trigger_kind:$trigger_kind,
+          trigger_previous_utc:$previous_utc, trigger_current_utc:$current_utc, metadata:"",
+          helper_exit_status:$helper_exit
+        }' >"$temporary"
+        mv "$temporary" "$PPROF_STATUS_FILE"
+        return 0
+      fi
+    done
+  done
+  if ! jq -e --arg trigger_kind "$PPROF_TRIGGER_KIND" \
+    --arg previous_utc "$PPROF_TRIGGER_PREVIOUS_UTC" \
+    --arg current_utc "$PPROF_TRIGGER_CURRENT_UTC" '
+      .schema == "wukongim/chat-lifecycle-unified-timeline/v1" and
+      .measured_first_breach.observed == true and
+      .measured_first_breach.trigger_kind == $trigger_kind and
+      .measured_first_breach.previous_at == $previous_utc and
+      .measured_first_breach.current_at == $current_utc
+    ' "$UNIFIED_TIMELINE_JSON" >/dev/null 2>&1; then
+    jq -n --argjson helper_exit "$PPROF_EXIT_STATUS" \
+      --arg trigger_kind "$PPROF_TRIGGER_KIND" \
+      --arg previous_utc "$PPROF_TRIGGER_PREVIOUS_UTC" \
+      --arg current_utc "$PPROF_TRIGGER_CURRENT_UTC" '{
+      schema:"wukongim/chat-lifecycle-threshold-pprof-status/v1",
+      status:"operational_error", evidence_complete:false, capture_valid:false,
+      reason:"profile_trigger_disagrees_with_unified_timeline", trigger_kind:$trigger_kind,
+      trigger_previous_utc:$previous_utc, trigger_current_utc:$current_utc, metadata:"",
+      helper_exit_status:$helper_exit
+    }' >"$temporary"
+    mv "$temporary" "$PPROF_STATUS_FILE"
+    return 0
+  fi
+  status="$(jq -r '.capture.status' "$PPROF_DIR/metadata.json")"
+  reason="$(jq -r '.capture.reason' "$PPROF_DIR/metadata.json")"
+  valid="$(jq -r '.capture.valid' "$PPROF_DIR/metadata.json")"
+  trigger_kind="$(jq -r '.trigger.kind' "$PPROF_DIR/metadata.json")"
+  jq -n --arg status "$status" --arg reason "$reason" --arg trigger_kind "$trigger_kind" \
+    --arg previous_utc "$PPROF_TRIGGER_PREVIOUS_UTC" --arg current_utc "$PPROF_TRIGGER_CURRENT_UTC" \
+    --arg metadata "$metadata_relative" --argjson capture_valid "$valid" '{
+      schema:"wukongim/chat-lifecycle-threshold-pprof-status/v1", status:$status,
+      evidence_complete:true, capture_valid:$capture_valid, reason:$reason,
+      trigger_kind:$trigger_kind, trigger_previous_utc:$previous_utc,
+      trigger_current_utc:$current_utc, metadata:$metadata
+    }' >"$temporary"
+  mv "$temporary" "$PPROF_STATUS_FILE"
+}
+
+build_unified_timeline() {
+  cp "$LOG_DIR/coordinator.log" "$FROZEN_WORKER_LOG"
+  "$WKBENCH_BIN" report chat-lifecycle-timeline \
+    --worker-log "$FROZEN_WORKER_LOG" \
+    --boundary-timeline "$EVIDENCE_DIR/timeline.tsv" \
+    --storage-overlap "$STORAGE_OVERLAP_FILE" \
+    --run-id "$RUN_ID" \
+    --offered-rate "$SEND_RATE" \
+    --minimum-throughput-percent "$MINIMUM_THROUGHPUT_PERCENT" \
+    --output-json "$UNIFIED_TIMELINE_JSON" \
+    --output-tsv "$UNIFIED_TIMELINE_TSV"
 }
 
 capture_metric_target() {
@@ -534,8 +1084,8 @@ capture_metric_target() {
 }
 
 capture_service_metrics() {
-  local phase="$1" node destination observed status host_name index
-  local -a capture_pids=() capture_names=()
+  local phase="$1" node destination observed status host_name index storage_observed row_file
+  local -a capture_pids=() capture_names=() storage_pids=()
   observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   for node in 1 2 3; do
     destination="$METRICS_DIR/node-$node-$phase.prom"
@@ -556,8 +1106,30 @@ capture_service_metrics() {
   capture_names+=(host-load)
   for index in "${!capture_pids[@]}"; do
     status=complete
-    wait "${capture_pids[$index]}" || status=missing
+    wait_child_uninterrupted "${capture_pids[$index]}"
+    (( WAIT_CHILD_STATUS == 0 )) || status=missing
     printf '%s\t%s\t%s\t%s\n' "$observed" "$phase" "${capture_names[$index]}" "$status" >>"$EVIDENCE_DIR/timeline.tsv"
+  done
+  storage_observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  for node in 1 2 3; do
+    row_file="$EVIDENCE_DIR/snapshot-inventory/$phase-node-$node.row"
+    "$STORAGE_OVERLAP_CAPTURE" \
+      --metrics "$METRICS_DIR/node-$node-$phase.prom" \
+      --snapshot-root "$DATA_DIR/node$node/slotraft-snapshots" \
+      --inventory "$EVIDENCE_DIR/snapshot-inventory/$phase-node-$node.tsv" \
+      --observed-at "$storage_observed" --run-id "$RUN_ID" --sample "$phase" --node "node-$node" \
+      >"$row_file" &
+    storage_pids+=("$!")
+  done
+  for node in 1 2 3; do
+    row_file="$EVIDENCE_DIR/snapshot-inventory/$phase-node-$node.row"
+    wait_child_uninterrupted "${storage_pids[$((node - 1))]}"
+    if (( WAIT_CHILD_STATUS != 0 )) || [[ ! -s "$row_file" ]]; then
+      printf '%s\t%s\t%s\tnode-%s\tmissing\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\n' \
+        "$storage_observed" "$RUN_ID" "$phase" "$node" >"$row_file"
+    fi
+    cat "$row_file" >>"$STORAGE_OVERLAP_FILE"
+    rm -f "$row_file"
   done
 }
 
@@ -573,9 +1145,136 @@ capture_product_queue_metrics() {
   done
   for index in "${!capture_pids[@]}"; do
     status=complete
-    wait "${capture_pids[$index]}" || status=missing
+    wait_child_uninterrupted "${capture_pids[$index]}"
+    (( WAIT_CHILD_STATUS == 0 )) || status=missing
     printf '%s\t%s\t%s\t%s\n' "$observed" "$phase" "${capture_names[$index]}" "$status" >>"$EVIDENCE_DIR/timeline.tsv"
   done
+}
+
+write_worker_authorization_header() {
+  set +x
+  printf 'Authorization: Bearer %s\n' "$WK_BENCH_WORKER_TOKEN"
+}
+
+capture_graceful_stop_worker_snapshot() {
+  local node="$1"
+  local raw="$GRACEFUL_STOP_SNAPSHOT_DIR/node-$1.json"
+  local entry="$GRACEFUL_STOP_SNAPSHOT_DIR/.node-$1-entry.json"
+  local temporary="$GRACEFUL_STOP_SNAPSHOT_DIR/node-$1.json.next.$$"
+  local relative="graceful-stop-timeout/node-$1.json" worker_id=$((node - 1))
+  set +x
+  if curl -fsS --connect-timeout 2 --max-time 4 \
+    --header @<(write_worker_authorization_header) \
+    "http://127.0.0.1:$(worker_port "$node")/v1/chat-lifecycle/snapshot" >"$temporary" 2>/dev/null &&
+    jq -e --arg run_id "$RUN_ID" --argjson worker_id "$worker_id" '
+      def uint: type == "number" and . >= 0 and . == floor;
+      .run_id == $run_id and .worker_id == $worker_id and
+      (.phase == "running" or .phase == "stopping" or .phase == "final") and
+      (.sessions.online | uint) and (.sessions.starting | uint) and (.sessions.closing | uint) and
+      (.messages.sent | uint) and (.messages.send_acknowledged | uint) and
+      (.messages.retry_attempts | uint) and (.messages.terminal | uint) and
+      (.correlation.pending_unfinished | uint) and (.correlation.outstanding | uint) and
+      (.queues.work_current | uint) and (.queues.retry_current | uint) and
+      (.queues.inflight_current | uint) and (.queues.transport_current | uint)
+    ' "$temporary" >/dev/null 2>&1; then
+    mv "$temporary" "$raw"
+    jq --arg node "node-$node" --arg snapshot "$relative" '{
+      node:$node, capture_status:"complete", snapshot:$snapshot, phase:.phase,
+      sessions:{online:.sessions.online, starting:.sessions.starting, closing:.sessions.closing},
+      messages:{sent:.messages.sent, send_acknowledged:.messages.send_acknowledged,
+        retry_attempts:.messages.retry_attempts, terminal:.messages.terminal},
+      remaining_work:{pending_unfinished:.correlation.pending_unfinished,
+        outstanding:.correlation.outstanding, work_current:.queues.work_current,
+        retry_current:.queues.retry_current, inflight_current:.queues.inflight_current,
+        transport_current:.queues.transport_current}
+    }' "$raw" >"$entry"
+    return 0
+  fi
+  rm -f "$temporary"
+  jq -n --arg node "node-$node" '{
+    node:$node, capture_status:"missing", snapshot:"", phase:"",
+    sessions:null, messages:null, remaining_work:null
+  }' >"$entry"
+  return 1
+}
+
+capture_graceful_stop_timeout_evidence() {
+  local observed terminal_cut_present=false evidence_complete=false node status
+  local -a snapshot_pids=()
+  mkdir -p "$GRACEFUL_STOP_SNAPSHOT_DIR"
+  observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if [[ -s "$CUT_QUERY_FILE" ]] && jq -e '.terminal_cut_present == true' "$CUT_QUERY_FILE" >/dev/null 2>&1; then
+    terminal_cut_present=true
+  fi
+  for node in 1 2 3; do
+    capture_graceful_stop_worker_snapshot "$node" &
+    snapshot_pids+=("$!")
+  done
+  for node in 1 2 3; do
+    wait_child_uninterrupted "${snapshot_pids[$((node - 1))]}"
+  done
+  if jq -s -e 'length == 3 and all(.[]; .capture_status == "complete")' \
+    "$GRACEFUL_STOP_SNAPSHOT_DIR"/.node-*-entry.json >/dev/null 2>&1; then
+    evidence_complete=true
+  fi
+  jq -s --arg observed "$observed" --argjson timeout_seconds "$GRACEFUL_STOP_TIMEOUT" \
+    --argjson terminal_cut_present "$terminal_cut_present" --argjson evidence_complete "$evidence_complete" '{
+      schema:"wukongim/chat-lifecycle-graceful-stop-status/v1", status:"timeout",
+      reason:"coordinator_graceful_stop_timeout", observed_at_utc:$observed,
+      timeout_seconds:$timeout_seconds, terminal_cut_present:$terminal_cut_present,
+      evidence_complete:$evidence_complete, nodes:sort_by(.node)
+    }' "$GRACEFUL_STOP_SNAPSHOT_DIR"/.node-*-entry.json >"$GRACEFUL_STOP_STATUS_FILE.next"
+  mv "$GRACEFUL_STOP_STATUS_FILE.next" "$GRACEFUL_STOP_STATUS_FILE"
+  rm -f "$GRACEFUL_STOP_SNAPSHOT_DIR"/.node-*-entry.json
+}
+
+write_graceful_stop_status_if_absent() {
+  [[ ! -e "$GRACEFUL_STOP_STATUS_FILE" ]] || return 0
+  jq -n '{
+    schema:"wukongim/chat-lifecycle-graceful-stop-status/v1", status:"not_triggered",
+    reason:"", observed_at_utc:"", timeout_seconds:0, terminal_cut_present:false,
+    evidence_complete:true, nodes:[]
+  }' >"$GRACEFUL_STOP_STATUS_FILE.next"
+  mv "$GRACEFUL_STOP_STATUS_FILE.next" "$GRACEFUL_STOP_STATUS_FILE"
+}
+
+record_coordinator_stop_request_failure() {
+  local observed terminal_cut_present=false
+  HARNESS_FAILURE_REASON=coordinator_exited_before_stop_request
+  observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if [[ -s "$CUT_QUERY_FILE" ]] && jq -e '.terminal_cut_present == true' "$CUT_QUERY_FILE" >/dev/null 2>&1; then
+    terminal_cut_present=true
+  fi
+  jq -n --arg observed "$observed" --argjson terminal_cut_present "$terminal_cut_present" '{
+    schema:"wukongim/chat-lifecycle-graceful-stop-status/v1", status:"request_failed",
+    reason:"coordinator_exited_before_stop_request", observed_at_utc:$observed,
+    timeout_seconds:0, terminal_cut_present:$terminal_cut_present,
+    evidence_complete:true, nodes:[]
+  }' >"$GRACEFUL_STOP_STATUS_FILE.next"
+  mv "$GRACEFUL_STOP_STATUS_FILE.next" "$GRACEFUL_STOP_STATUS_FILE"
+}
+
+force_stop_and_join_coordinator() {
+  local reason="$1" deadline
+  if kill -0 "$COORDINATOR_PID" 2>/dev/null; then
+    log "$reason; forwarding a final TERM to the coordinator"
+    kill -TERM "$COORDINATOR_PID" 2>/dev/null || true
+    deadline=$((SECONDS + CLEANUP_TIMEOUT))
+    while kill -0 "$COORDINATOR_PID" 2>/dev/null && (( SECONDS < deadline )); do
+      sleep 1 || true
+    done
+    if kill -0 "$COORDINATOR_PID" 2>/dev/null; then
+      kill -KILL "$COORDINATOR_PID" 2>/dev/null || true
+    fi
+  fi
+  wait_child_uninterrupted "$COORDINATOR_PID"
+  COORDINATOR_STATUS="$WAIT_CHILD_STATUS"
+  COORDINATOR_JOINED=1
+  mark_recorded_stopped coordinator || true
+}
+
+force_stop_timed_out_coordinator() {
+  force_stop_and_join_coordinator 'graceful-stop timeout evidence closed'
 }
 
 write_product_queue_summary() {
@@ -696,18 +1395,44 @@ record_process_continuity() {
 
 write_artifact_checksums() {
   local output="$EVIDENCE_DIR/checksums.sha256" path digest
+  local -a artifact_roots=(
+    "$WUKONGIM_BIN" "$WKBENCH_BIN" "$LIFECYCLE_CONFIG" "$CONFIG_DIR" "$LOG_DIR"
+    "$REPORT_DIR" "$EVIDENCE_DIR" "$METRICS_DIR"
+  )
+  for path in \
+    "$RUN_DIR/storage_metrics_summary.tsv" "$RUN_DIR/host_io_summary.tsv" \
+    "$RUN_DIR/product_queue_summary.tsv" "$RUN_DIR/local-step.json"; do
+    [[ -e "$path" ]] && artifact_roots+=("$path")
+  done
   : >"$output"
   while IFS= read -r path; do
     [[ "$path" == "$output" ]] && continue
     digest="$(sha256_file "$path")"
     printf '%s  %s\n' "$digest" "${path#"$RUN_DIR"/}" >>"$output"
-  done < <(find "$CONFIG_DIR" "$REPORT_DIR" "$EVIDENCE_DIR" "$METRICS_DIR" \
-    "$RUN_DIR/storage_metrics_summary.tsv" "$RUN_DIR/host_io_summary.tsv" "$RUN_DIR/product_queue_summary.tsv" "$RUN_DIR/local-step.json" \
-    -type f -print | LC_ALL=C sort)
+  done < <(find "${artifact_roots[@]}" -type f -print | LC_ALL=C sort)
+}
+
+finalize_unmeasured_harness_failure() {
+  summarize_storage_metrics
+  summarize_host_io
+  record_process_continuity
+  stop_process_metrics_collector
+  join_threshold_pprof_capture
+  write_threshold_pprof_status
+  write_graceful_stop_status_if_absent
+  # No measured local-step schema applies to the legacy --stop-after mode.
+  # Join every mutable writer and seal the typed wrapper failure plus raw
+  # evidence instead of fabricating a zero-duration classifier result.
+  stop_recorded_processes
+  write_artifact_checksums
+  log "unmeasured harness failure sealed without local-step.json: $HARNESS_FAILURE_REASON"
+  exit 6
 }
 
 log 'starting coordinator'
+write_phase_state warmup
 record_timeline_boundary warmup_start
+capture_service_metrics warmup-before
 "$WKBENCH_BIN" soak chat-lifecycle --config "$LIFECYCLE_CONFIG" --output-dir "$REPORT_DIR" \
   >"$LOG_DIR/coordinator.log" 2>&1 &
 COORDINATOR_PID=$!
@@ -720,19 +1445,33 @@ measurement_deadline=0
 next_metrics_at=0
 metrics_sequence=0
 while kill -0 "$COORDINATOR_PID" 2>/dev/null; do
-  if (( MEASURE_SECONDS > 0 && qualification_seen == 0 )) && [[ -s "$REPORT_DIR/qualification.json" ]]; then
+  request_pending_operator_stop || true
+  if (( MEASURE_SECONDS > 0 && qualification_seen == 0 && STOP_SENT == 0 )) && [[ -s "$REPORT_DIR/qualification.json" ]]; then
     measurement_deadline=$((SECONDS + MEASURE_SECONDS))
     record_timeline_boundary warmup_end
     record_timeline_boundary measurement_start
+    write_phase_state measurement
+    start_measured_host_overlap_monitor
     capture_service_metrics before
     qualification_seen=1
     next_metrics_at=$((SECONDS + METRICS_SAMPLE_SECONDS))
     log "warmup evidence complete; measuring ${MEASURE_SECONDS}s at ${SEND_RATE} offered SEND/s"
   fi
   if (( qualification_seen == 1 && STOP_SENT == 0 && SECONDS >= measurement_deadline )); then
+    # Consume the last complete measured cut before closing admission. This is
+    # the final opportunity to begin causal profiles while phase=measurement.
+    refresh_live_cut_query || log 'final measured worker-cut query was unavailable'
     record_timeline_boundary measurement_end
     record_timeline_boundary drain_start
-    request_coordinator_stop 'measured interval elapsed' || die 'coordinator exited before measured stop request'
+    write_phase_state drain
+    DRAIN_BOUNDARY_RECORDED=1
+    if ! request_coordinator_stop 'measured interval elapsed'; then
+      log 'coordinator exited before the measured stop request could be delivered; closing typed harness evidence'
+      record_coordinator_stop_request_failure
+      force_stop_and_join_coordinator 'coordinator stop-request race recorded'
+      break
+    fi
+    check_measured_host_overlap
     metrics_sequence=$((metrics_sequence + 1))
     capture_service_metrics "sample-$metrics_sequence"
   elif (( qualification_seen == 1 && STOP_SENT == 0 && SECONDS >= next_metrics_at &&
@@ -742,39 +1481,115 @@ while kill -0 "$COORDINATOR_PID" 2>/dev/null; do
     next_metrics_at=$((SECONDS + METRICS_SAMPLE_SECONDS))
   fi
   if (( STOP_AFTER > 0 && STOP_SENT == 0 && SECONDS - started_at >= STOP_AFTER )); then
-    request_coordinator_stop '--stop-after elapsed' || die 'coordinator exited before graceful stop request'
+    if ! request_coordinator_stop '--stop-after elapsed'; then
+      log 'coordinator exited before the bounded stop request could be delivered; closing typed harness evidence'
+      record_coordinator_stop_request_failure
+      force_stop_and_join_coordinator 'coordinator stop-request race recorded'
+      break
+    fi
   fi
   if (( GRACEFUL_STOP_DEADLINE > 0 && SECONDS >= GRACEFUL_STOP_DEADLINE )); then
-    die "coordinator did not finish graceful stop within ${GRACEFUL_STOP_TIMEOUT}s"
+    HARNESS_FAILURE_REASON=coordinator_graceful_stop_timeout
+    log "coordinator did not finish graceful stop within ${GRACEFUL_STOP_TIMEOUT}s; closing typed timeout evidence"
+    refresh_live_cut_query || log 'graceful-stop timeout worker-cut query was unavailable'
+    capture_graceful_stop_timeout_evidence
+    force_stop_timed_out_coordinator
+    break
   fi
+  close_operator_phase_if_needed
+  refresh_live_cut_query || log 'typed live worker-cut query will retry'
   sleep 1 || true
 done
 
 coordinator_status=0
-wait "$COORDINATOR_PID" || coordinator_status=$?
+if (( COORDINATOR_JOINED == 0 )); then
+  wait_child_uninterrupted "$COORDINATOR_PID"
+  COORDINATOR_STATUS="$WAIT_CHILD_STATUS"
+  COORDINATOR_JOINED=1
+  mark_recorded_stopped coordinator || true
+fi
+coordinator_status="$COORDINATOR_STATUS"
+close_operator_phase_if_needed
+refresh_live_cut_query || log 'terminal typed worker-cut query was unavailable'
+if (( MEASURE_SECONDS == 0 )) && [[ -n "$HARNESS_FAILURE_REASON" ]]; then
+  finalize_unmeasured_harness_failure
+fi
 if (( MEASURE_SECONDS > 0 )); then
-  wait_for_product_queue_convergence || true
+  if (( DRAIN_BOUNDARY_RECORDED == 0 )); then
+    if (( qualification_seen == 1 )); then
+      record_timeline_boundary measurement_end
+    else
+      record_timeline_boundary warmup_end
+    fi
+    record_timeline_boundary drain_start
+    write_phase_state drain
+    DRAIN_BOUNDARY_RECORDED=1
+  fi
+  check_measured_host_overlap
+  if ! close_terminal_drain_boundary; then
+    log 'typed terminal cut was unavailable; drain/shutdown boundaries remain incomplete'
+    write_phase_state shutdown
+  fi
+  if [[ -n "$HARNESS_FAILURE_REASON" ]]; then
+    log 'graceful-stop timeout: capturing one non-converged product queue cut'
+    capture_product_queue_metrics product-drain-timeout
+    write_product_queue_summary product-drain-timeout || true
+  elif (( qualification_seen == 1 )); then
+    wait_for_product_queue_convergence || true
+  else
+    log 'qualification evidence was not reached; capturing one non-converged product queue cut'
+    capture_product_queue_metrics product-drain-unqualified
+    write_product_queue_summary product-drain-unqualified || true
+  fi
   capture_service_metrics after
-  record_timeline_boundary drain_end
-  record_timeline_boundary shutdown_start
   summarize_storage_metrics
   summarize_host_io
   record_process_continuity
+  stop_process_metrics_collector
+  join_threshold_pprof_capture
+  timeline_status=0
+  build_unified_timeline || timeline_status=$?
+  if (( timeline_status != 0 )); then
+    log "unified timeline evidence failed closed with status $timeline_status"
+    rm -f "$UNIFIED_TIMELINE_JSON" "$UNIFIED_TIMELINE_TSV"
+  fi
+  write_threshold_pprof_status
+  write_graceful_stop_status_if_absent
   classifier_status=0
-  "$WKBENCH_BIN" report local-chat-lifecycle-step \
+  classifier_args=(report local-chat-lifecycle-step \
     --before "$REPORT_DIR/qualification.json" \
     --after "$REPORT_DIR/final.json" \
     --storage-summary "$RUN_DIR/storage_metrics_summary.tsv" \
     --host-io-summary "$RUN_DIR/host_io_summary.tsv" \
     --product-queue-summary "$RUN_DIR/product_queue_summary.tsv" \
     --process-continuity "$EVIDENCE_DIR/process-continuity.tsv" \
+    --timeline "$UNIFIED_TIMELINE_JSON" \
+    --profile-status "$PPROF_STATUS_FILE" \
+    --run-id "$RUN_ID" \
     --output "$RUN_DIR/local-step.json" \
     --offered-rate "$SEND_RATE" \
     --measured-duration "${MEASURE_SECONDS}s" \
-    --minimum-throughput-percent "$MINIMUM_THROUGHPUT_PERCENT" || classifier_status=$?
+    --minimum-throughput-percent "$MINIMUM_THROUGHPUT_PERCENT")
+  if (( OPERATOR_SIGNAL_STATUS != 0 )); then
+    classifier_args+=(--operator-interrupted)
+  fi
+  if [[ -n "$HARNESS_FAILURE_REASON" ]]; then
+    classifier_args+=(--harness-failure-reason "$HARNESS_FAILURE_REASON")
+  fi
+  if (( HOST_CONFOUNDED != 0 )); then
+    classifier_args+=(--host-confounded)
+  fi
+  "$WKBENCH_BIN" "${classifier_args[@]}" || classifier_status=$?
+  # The coordinator, service, worker, and sampler processes all own files under
+  # logs/. Join every writer before computing the immutable step seal.
+  stop_recorded_processes
   write_artifact_checksums
   if [[ -s "$RUN_DIR/local-step.json" ]]; then
     log "local diagnostic result: $RUN_DIR/local-step.json (status $classifier_status)"
+    if (( OPERATOR_SIGNAL_STATUS != 0 )) && [[ -z "$HARNESS_FAILURE_REASON" ]]; then
+      log "operator signal completed bounded evidence sealing; propagating status $OPERATOR_SIGNAL_STATUS"
+      exit "$OPERATOR_SIGNAL_STATUS"
+    fi
     exit "$classifier_status"
   fi
   die "local diagnostic classifier did not write local-step.json; coordinator status $coordinator_status"

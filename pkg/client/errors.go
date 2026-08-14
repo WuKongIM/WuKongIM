@@ -14,6 +14,16 @@ var (
 	ErrNotConnected = errors.New("client: not connected")
 	// ErrClosed reports an operation after the client has closed.
 	ErrClosed = errors.New("client: closed")
+	// ErrIngressSealUnsupported reports that the current WKProto transport has
+	// no server-confirmed flush fence and therefore cannot prove a clean
+	// pre-close receive boundary.
+	ErrIngressSealUnsupported = errors.New("client: ingress seal unsupported")
+	// ErrTerminalFenceActive reports a SEND, PING, or reconnect attempted after
+	// terminal quiescing began. RECVACK remains allowed until shutdown.
+	ErrTerminalFenceActive = errors.New("client: terminal fence active")
+	// ErrTerminalFenceProtocol reports a missing, malformed, mismatched, or
+	// violated terminal fence acknowledgement.
+	ErrTerminalFenceProtocol = errors.New("client: terminal fence protocol violation")
 	// ErrPayloadTooLarge reports a SEND payload larger than the configured batch limit.
 	ErrPayloadTooLarge = errors.New("client: payload too large")
 	// ErrSendQueueFull reports a SEND admission failure because the local queue is full.

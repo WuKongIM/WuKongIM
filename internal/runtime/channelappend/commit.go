@@ -34,10 +34,11 @@ type commitEffect struct {
 }
 
 type commitCompletedEvent struct {
-	key     string
-	seq     uint64
-	attempt int
-	items   []commitCompletedItem
+	key      string
+	seq      uint64
+	attempt  int
+	duration time.Duration
+	items    []commitCompletedItem
 	// committed aliases the immutable effect records and carries exact
 	// reservation ownership into completion validation without another copy.
 	committed []committedPostCommit
@@ -55,11 +56,6 @@ type commitCompletedItem struct {
 }
 
 func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitCompletedEvent {
-	startedAt := time.Now()
-	result := channelAppendResultOK
-	defer func() {
-		observeEffect(ports.observer, EffectObservation{Stage: "post_commit", Result: result, Items: len(e.events), Duration: elapsedSince(startedAt)})
-	}()
 	completion := commitCompletedEvent{
 		key:             e.key,
 		seq:             e.seq,
@@ -68,13 +64,6 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 		committed:       e.events,
 		failures:        make([]commitCompletedItem, 0, len(e.events)),
 		subscriberCache: e.subscriberCache,
-	}
-	recordResult := func(itemResult string) {
-		if result == channelAppendResultOK {
-			result = itemResult
-		} else if result != itemResult {
-			result = channelAppendResultMixed
-		}
 	}
 	cache := e.subscriberCache
 	for _, committed := range e.events {
@@ -87,7 +76,6 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 		dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, event, cache, ports)
 		if err != nil {
 			itemResult := errorClass(err)
-			recordResult(itemResult)
 			detail := postCommitFailureDetailFromError(err)
 			completion.items = append(completion.items, commitCompletedItem{
 				err:    fmt.Errorf("%w: %w", ErrCommitEffectFailed, err),
@@ -127,7 +115,7 @@ func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFail
 		committed: effect.events,
 	}
 	itemErr := fmt.Errorf("%w: %w", ErrCommitEffectFailed, err)
-	result := errorClass(err)
+	result := errorClass(itemErr)
 	for _, committed := range effect.events {
 		completion.items = append(completion.items, commitCompletedItem{
 			err:    itemErr,
@@ -137,6 +125,25 @@ func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFail
 		})
 	}
 	return completion
+}
+
+func commitCompletionResult(event commitCompletedEvent) string {
+	result := ""
+	for _, item := range event.items {
+		itemResult := item.result
+		if itemResult == "" {
+			itemResult = errorClass(item.err)
+		}
+		if result == "" {
+			result = itemResult
+		} else if result != itemResult {
+			return channelAppendResultMixed
+		}
+	}
+	if result == "" {
+		return channelAppendResultOther
+	}
+	return result
 }
 
 // postCommitFailureFromEvent maps a failed commit completion to its observation.

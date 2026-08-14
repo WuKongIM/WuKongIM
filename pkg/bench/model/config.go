@@ -155,6 +155,9 @@ type RunConfig struct {
 	Warmup time.Duration `json:"warmup" yaml:"warmup"`
 	// Cooldown is the period after active load for draining and final metrics.
 	Cooldown time.Duration `json:"cooldown" yaml:"cooldown"`
+	// ExternalTerminalCut keeps drained sessions open until an authenticated
+	// observer binds the exact assignment to its pre-close product evidence.
+	ExternalTerminalCut bool `json:"external_terminal_cut" yaml:"external_terminal_cut"`
 	// RandomSeed makes generated scenario data reproducible when non-zero.
 	RandomSeed int64 `json:"random_seed" yaml:"random_seed"`
 	// FailFast stops the run after the first unrecoverable worker error.
@@ -399,12 +402,41 @@ type TrafficConfig struct {
 	AckTimeout time.Duration `json:"ack_timeout" yaml:"ack_timeout"`
 	// RecvTimeout bounds one recv verification wait for this traffic stream; zero uses the worker default.
 	RecvTimeout time.Duration `json:"recv_timeout" yaml:"recv_timeout"`
+	// Retry explicitly enables the fixed bounded SEND/SENDACK retry policy.
+	Retry TrafficRetryConfig `json:"retry" yaml:"retry"`
 	// SenderPick selects how senders are chosen.
 	SenderPick string `json:"sender_pick" yaml:"sender_pick"`
 	// RecvAck controls whether simulated clients send receive acknowledgements.
 	RecvAck bool `json:"recv_ack" yaml:"recv_ack"`
 	// Verify controls receive verification sampling.
 	Verify VerifyConfig `json:"verify" yaml:"verify"`
+}
+
+// TrafficRetryConfig opts one traffic stream into the reviewed fixed retry
+// contract. The policy is intentionally not configurable: enabling it means
+// exactly three retries after 100ms, 500ms, and 2s.
+type TrafficRetryConfig struct {
+	// Enabled applies the fixed retry policy. Omission preserves legacy behavior.
+	Enabled bool `json:"enabled" yaml:"enabled"`
+}
+
+const (
+	// TrafficRetryMaximumRetries is the immutable number of retries in the
+	// reviewed generic SEND policy.
+	TrafficRetryMaximumRetries = 3
+	// TrafficRetryMaximumAttempts includes the initial SEND plus all retries.
+	TrafficRetryMaximumAttempts = TrafficRetryMaximumRetries + 1
+	// TrafficRetryFirstDelay is the delay before retry one.
+	TrafficRetryFirstDelay = 100 * time.Millisecond
+	// TrafficRetrySecondDelay is the delay before retry two.
+	TrafficRetrySecondDelay = 500 * time.Millisecond
+	// TrafficRetryThirdDelay is the delay before retry three.
+	TrafficRetryThirdDelay = 2 * time.Second
+)
+
+// TrafficRetryDelayBudget is the fixed 100ms + 500ms + 2s retry delay tail.
+func TrafficRetryDelayBudget() time.Duration {
+	return TrafficRetryFirstDelay + TrafficRetrySecondDelay + TrafficRetryThirdDelay
 }
 
 // VerifyConfig groups traffic verification settings.

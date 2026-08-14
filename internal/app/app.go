@@ -24,6 +24,7 @@ import (
 	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -95,6 +96,9 @@ type App struct {
 	channelAppends        *channelappend.Group
 	channelAppendRouter   *channelappend.Router
 	channelAppendMetadata *clusterinfra.ChannelAppendMetadataCache
+	// benchTerminal owns the one-shot terminal drain and opaque grant for one
+	// benchmark product-process generation.
+	benchTerminal *benchterminal.Controller
 	// messageIDs owns the node-scoped allocator so activated restore fences can
 	// be installed before ordinary traffic starts.
 	messageIDs *nodeMessageIDs
@@ -270,12 +274,13 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireCMDSync()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
-	app.wireAPI()
-	app.wireManager()
-	app.wirePrometheus()
 	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}
+	app.wireBenchTerminal()
+	app.wireAPI()
+	app.wireManager()
+	app.wirePrometheus()
 
 	constructionOK = true
 	return app, nil

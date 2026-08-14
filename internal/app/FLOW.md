@@ -70,6 +70,10 @@ New(Config)
      queue/admission/process metrics plus configured worker capacity and current
      in-flight command gauges, and owner-local ACK batch bind/finish shape,
      rejection, rollback, and duration metrics,
+     plus explicitly materialized closed terminal-result counter partitions for
+     accepted Online Delivery plans and channelappend post-commit completions,
+     so native evidence can distinguish a true zero failure delta from a missing
+     Prometheus series,
      plugin PersistAfter and Receive hook enqueue/invoke counters and
      histograms, and synchronous plugin Send hook invoke counters and histograms
      plus node lifecycle gauges/counters from control snapshots and scale-in
@@ -295,6 +299,15 @@ New(Config)
   -> when the cluster exposes CMD memberships and CMD Channel committed reads,
      create internal/usecase/cmdsync with infra/cluster CMDSyncStore
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
+  -> create pkg/gateway.Gateway with WKProto CONNECT authentication when listeners are configured
+  -> when the benchmark API is enabled and the real Gateway SEND drainer,
+     channelappend Group, and Online Delivery runtime are all present, create
+     one internal/usecase/benchterminal Controller only when a non-empty
+     benchmark bearer token is configured, with the fixed 2,500-session
+     and 90-second drain bounds; bind that same controller pointer once to the
+     already-constructed gateway handler before any listener starts, then pass
+     it to the API prepare route; partial compositions do not advertise or
+     accept a terminal-fence capability
   -> create access/api.Server with the embedded chat Demo, channel, user,
      message, CMD sync, and conversation usecases, legacy route address lookup
      derived from gateway listeners and
@@ -379,7 +392,6 @@ New(Config)
      aggregate audit reader, and target pprof RPC share one registered typed
      node RPC; every Manager mounts `/mcp`, while only the Controller-selected
      owner executes tools
-  -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
 ## Product Runtime Details
@@ -424,6 +436,8 @@ Any App construction failure
   -> restore the diagnostics sink and close construction-time audit resources
 
 Stop(ctx)
+  -> fence the gateway handler as planned shutdown so only cancellations after
+     this boundary suppress per-send identity-bearing warnings
   -> restore diagnostics sendtrace sink
   -> when Start never completed, stop constructor-owned ChannelAppend pools
      and wait only for post-baseline managed activity before returning

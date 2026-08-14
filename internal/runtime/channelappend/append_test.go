@@ -395,6 +395,7 @@ func TestAppendBatchRouteErrorsFailWithoutRetry(t *testing.T) {
 func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 	appender := newRecordingAppenderForAppendTest()
 	appender.err = fmt.Errorf("%w: channel: corrupt state: db: conflict: idempotency key already stored at seq 7", ErrAppendFailed)
+	observer := &recordingAppendObserverForTest{}
 	idempotency := &sequencedIdempotencyForAppendTest{
 		results: []idempotencyResultForAppendTest{
 			{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
@@ -405,6 +406,7 @@ func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 		MessageID:   newSequenceIDsForPrepare(300),
 		Appender:    appender,
 		Idempotency: idempotency,
+		Observer:    observer,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -425,12 +427,17 @@ func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 	} else if gotQueries[0] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "u1-payload", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
 		t.Fatalf("recovery query = %#v, want canonical sender/client/channel", gotQueries[0])
 	}
+	recoveryEvents := observer.IdempotencyRecoveryEvents()
+	if len(recoveryEvents) != 1 || recoveryEvents[0] != (IdempotencyRecoveryObservation{RecoveredItems: 1}) {
+		t.Fatalf("idempotency recovery events = %#v, want one recovered item", recoveryEvents)
+	}
 }
 
 func TestAppendBatchRetriesFreshItemAfterCommittedIdempotencyConflict(t *testing.T) {
 	conflict := fmt.Errorf("%w: channel: corrupt state: db: conflict: idempotency key already stored at seq 7", ErrAppendFailed)
 	appender := newRecordingAppenderForAppendTest()
 	appender.errs = []error{conflict, nil}
+	observer := &recordingAppendObserverForTest{}
 	persistAfter := &recordingPersistAfterEnqueuerForCommitTest{}
 	idempotency := &sequencedIdempotencyForAppendTest{
 		results: []idempotencyResultForAppendTest{
@@ -444,6 +451,7 @@ func TestAppendBatchRetriesFreshItemAfterCommittedIdempotencyConflict(t *testing
 		Appender:             appender,
 		Idempotency:          idempotency,
 		PersistAfterEnqueuer: persistAfter,
+		Observer:             observer,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -475,12 +483,50 @@ func TestAppendBatchRetriesFreshItemAfterCommittedIdempotencyConflict(t *testing
 	if got := persistAfter.callCount(); got != 1 {
 		t.Fatalf("PersistAfter calls = %d, want only the fresh retry's durable side effect", got)
 	}
+	recoveryEvents := observer.IdempotencyRecoveryEvents()
+	if len(recoveryEvents) != 1 || recoveryEvents[0] != (IdempotencyRecoveryObservation{RecoveredItems: 1}) {
+		t.Fatalf("idempotency recovery events = %#v, want only the committed retry recovered", recoveryEvents)
+	}
+}
+
+func TestAppendBatchCountsIdempotencyRecoveryLookupError(t *testing.T) {
+	appendErr := fmt.Errorf("%w: storage failure", ErrAppendFailed)
+	lookupErr := errors.New("idempotency lookup unavailable")
+	appender := newRecordingAppenderForAppendTest()
+	appender.err = appendErr
+	observer := &recordingAppendObserverForTest{}
+	idempotency := &sequencedIdempotencyForAppendTest{
+		results: []idempotencyResultForAppendTest{{err: lookupErr}},
+	}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(310),
+		Appender:    appender,
+		Idempotency: idempotency,
+		Observer:    observer,
+	})
+
+	future, err := group.SubmitLocal(context.Background(), localTargetForAppendTest("room"), []SendBatchItem{
+		appendSendItemForTest("u1", "room", "lookup-error"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	results := waitFutureForTest(t, future)
+	if !errors.Is(results[0].Err, lookupErr) {
+		t.Fatalf("result error = %v, want lookup error", results[0].Err)
+	}
+	recoveryEvents := observer.IdempotencyRecoveryEvents()
+	if len(recoveryEvents) != 1 || recoveryEvents[0] != (IdempotencyRecoveryObservation{LookupErrorItems: 1}) {
+		t.Fatalf("idempotency recovery events = %#v, want one lookup error", recoveryEvents)
+	}
 }
 
 func TestAppendBatchDoesNotRetryWhenNoCommittedSiblingIsRecovered(t *testing.T) {
 	appendErr := fmt.Errorf("%w: storage unavailable", ErrAppendFailed)
 	appender := newRecordingAppenderForAppendTest()
 	appender.errs = []error{appendErr, nil}
+	observer := &recordingAppendObserverForTest{}
 	idempotency := &sequencedIdempotencyForAppendTest{
 		results: []idempotencyResultForAppendTest{{ok: false}, {ok: false}},
 	}
@@ -489,6 +535,7 @@ func TestAppendBatchDoesNotRetryWhenNoCommittedSiblingIsRecovered(t *testing.T) 
 		MessageID:   newSequenceIDsForPrepare(320),
 		Appender:    appender,
 		Idempotency: idempotency,
+		Observer:    observer,
 	})
 
 	future, err := group.SubmitLocal(context.Background(), localTargetForAppendTest("room"), []SendBatchItem{
@@ -506,12 +553,17 @@ func TestAppendBatchDoesNotRetryWhenNoCommittedSiblingIsRecovered(t *testing.T) 
 	if got := appender.Calls(); got != 1 {
 		t.Fatalf("append calls = %d, want no retry without a committed recovery hit", got)
 	}
+	recoveryEvents := observer.IdempotencyRecoveryEvents()
+	if len(recoveryEvents) != 1 || recoveryEvents[0] != (IdempotencyRecoveryObservation{UnresolvedItems: 2}) {
+		t.Fatalf("idempotency recovery events = %#v, want two unresolved items", recoveryEvents)
+	}
 }
 
 func TestAppendBatchFreshItemRetryIsBoundedToOneAttempt(t *testing.T) {
 	conflict := fmt.Errorf("%w: idempotency conflict", ErrAppendFailed)
 	appender := newRecordingAppenderForAppendTest()
 	appender.errs = []error{conflict, conflict, nil}
+	observer := &recordingAppendObserverForTest{}
 	idempotency := &sequencedIdempotencyForAppendTest{
 		results: []idempotencyResultForAppendTest{
 			{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
@@ -524,6 +576,7 @@ func TestAppendBatchFreshItemRetryIsBoundedToOneAttempt(t *testing.T) {
 		MessageID:   newSequenceIDsForPrepare(340),
 		Appender:    appender,
 		Idempotency: idempotency,
+		Observer:    observer,
 	})
 
 	future, err := group.SubmitLocal(context.Background(), localTargetForAppendTest("room"), []SendBatchItem{
@@ -540,6 +593,135 @@ func TestAppendBatchFreshItemRetryIsBoundedToOneAttempt(t *testing.T) {
 	}
 	if got := appender.Calls(); got != 2 {
 		t.Fatalf("append calls = %d, want initial attempt plus one bounded retry", got)
+	}
+	recoveryEvents := observer.IdempotencyRecoveryEvents()
+	wantRecovery := IdempotencyRecoveryObservation{RecoveredItems: 1, UnresolvedItems: 1}
+	if len(recoveryEvents) != 1 || recoveryEvents[0] != wantRecovery {
+		t.Fatalf("idempotency recovery events = %#v, want %#v", recoveryEvents, wantRecovery)
+	}
+}
+
+func TestAppendBatchFreshRetryTerminalBatchErrorsCountUnresolved(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		retryErr error
+	}{
+		{name: "route", retryErr: ErrRouteNotReady},
+		{name: "canceled", retryErr: context.Canceled},
+		{name: "ordinary", retryErr: errors.New("storage transport closed")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			conflict := fmt.Errorf("%w: idempotency conflict", ErrAppendFailed)
+			lookupErr := errors.New("idempotency lookup unavailable")
+			appender := newRecordingAppenderForAppendTest()
+			appender.errs = []error{conflict, test.retryErr}
+			observer := &recordingAppendObserverForTest{}
+			idempotency := &sequencedIdempotencyForAppendTest{results: []idempotencyResultForAppendTest{
+				{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
+				{err: lookupErr},
+				{ok: false},
+			}}
+			group := newStartedTestGroup(t, Options{
+				LocalNodeID: 1, MessageID: newSequenceIDsForPrepare(345), Appender: appender,
+				Idempotency: idempotency, Observer: observer,
+			})
+
+			future, err := group.SubmitLocal(context.Background(), localTargetForAppendTest("room"), []SendBatchItem{
+				appendSendItemForTest("u1", "room", "committed-retry"),
+				appendSendItemForTest("u2", "room", "lookup-error"),
+				appendSendItemForTest("u3", "room", "fresh-terminal-failure"),
+			})
+			if err != nil {
+				t.Fatalf("SubmitLocal() error = %v", err)
+			}
+			results := waitFutureForTest(t, future)
+			requireAppendSuccess(t, results, 0, 42, 7)
+			if !errors.Is(results[1].Err, lookupErr) {
+				t.Fatalf("lookup item error = %v, want %v", results[1].Err, lookupErr)
+			}
+			if !errors.Is(results[2].Err, test.retryErr) {
+				t.Fatalf("fresh item error = %v, want retry error %v", results[2].Err, test.retryErr)
+			}
+			if got := appender.Calls(); got != 2 {
+				t.Fatalf("append calls = %d, want initial attempt plus one bounded retry", got)
+			}
+			if got := len(idempotency.queriesSnapshot()); got != 3 {
+				t.Fatalf("idempotency lookup calls = %d, want only the initial aligned recovery lookups", got)
+			}
+			want := IdempotencyRecoveryObservation{RecoveredItems: 1, UnresolvedItems: 1, LookupErrorItems: 1}
+			if events := observer.IdempotencyRecoveryEvents(); len(events) != 1 || events[0] != want {
+				t.Fatalf("idempotency recovery events = %#v, want %#v", events, want)
+			}
+		})
+	}
+}
+
+func TestAppendBatchFreshRetryCountsItemErrorAsUnresolved(t *testing.T) {
+	conflict := fmt.Errorf("%w: idempotency conflict", ErrAppendFailed)
+	itemErr := errors.New("retry item failed")
+	appender := newRecordingAppenderForAppendTest()
+	appender.errs = []error{conflict, nil}
+	appender.itemErrs = []error{itemErr}
+	observer := &recordingAppendObserverForTest{}
+	idempotency := &sequencedIdempotencyForAppendTest{results: []idempotencyResultForAppendTest{
+		{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
+		{ok: false},
+	}}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1, MessageID: newSequenceIDsForPrepare(350), Appender: appender,
+		Idempotency: idempotency, Observer: observer,
+	})
+
+	future, err := group.SubmitLocal(context.Background(), localTargetForAppendTest("room"), []SendBatchItem{
+		appendSendItemForTest("u1", "room", "committed-retry"),
+		appendSendItemForTest("u2", "room", "fresh-item-error"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	results := waitFutureForTest(t, future)
+	requireAppendSuccess(t, results, 0, 42, 7)
+	if results[1].Result.Reason == ReasonSuccess {
+		t.Fatalf("fresh retry item reason = %v, want terminal error", results[1].Result.Reason)
+	}
+	want := IdempotencyRecoveryObservation{RecoveredItems: 1, UnresolvedItems: 1}
+	if events := observer.IdempotencyRecoveryEvents(); len(events) != 1 || events[0] != want {
+		t.Fatalf("idempotency recovery events = %#v, want %#v", events, want)
+	}
+}
+
+func TestAppendBatchFreshRetryCountsShortResultAsUnresolved(t *testing.T) {
+	conflict := fmt.Errorf("%w: idempotency conflict", ErrAppendFailed)
+	appender := newRecordingAppenderForAppendTest()
+	appender.errs = []error{conflict, nil}
+	appender.resultLimit = 1
+	observer := &recordingAppendObserverForTest{}
+	idempotency := &sequencedIdempotencyForAppendTest{results: []idempotencyResultForAppendTest{
+		{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
+		{ok: false},
+		{ok: false},
+	}}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1, MessageID: newSequenceIDsForPrepare(360), Appender: appender,
+		Idempotency: idempotency, Observer: observer,
+	})
+
+	future, err := group.SubmitLocal(context.Background(), localTargetForAppendTest("room"), []SendBatchItem{
+		appendSendItemForTest("u1", "room", "committed-retry"),
+		appendSendItemForTest("u2", "room", "fresh-ok"),
+		appendSendItemForTest("u3", "room", "fresh-missing"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	results := waitFutureForTest(t, future)
+	requireAppendSuccess(t, results, 0, 42, 7)
+	if !errors.Is(results[2].Err, ErrAppendResultMissing) {
+		t.Fatalf("short retry result error = %v, want missing append result", results[2].Err)
+	}
+	want := IdempotencyRecoveryObservation{RecoveredItems: 1, UnresolvedItems: 1}
+	if events := observer.IdempotencyRecoveryEvents(); len(events) != 1 || events[0] != want {
+		t.Fatalf("idempotency recovery events = %#v, want %#v", events, want)
 	}
 }
 
@@ -1079,8 +1261,9 @@ type appendObservationForTest struct {
 }
 
 type recordingAppendObserverForTest struct {
-	mu     sync.Mutex
-	events []appendObservationForTest
+	mu             sync.Mutex
+	events         []appendObservationForTest
+	recoveryEvents []IdempotencyRecoveryObservation
 }
 
 func (o *recordingAppendObserverForTest) AppendFinished(path string, err error, dur time.Duration) {
@@ -1093,6 +1276,18 @@ func (o *recordingAppendObserverForTest) Events() []appendObservationForTest {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]appendObservationForTest(nil), o.events...)
+}
+
+func (o *recordingAppendObserverForTest) ObserveChannelAppendIdempotencyRecovery(event IdempotencyRecoveryObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recoveryEvents = append(o.recoveryEvents, event)
+}
+
+func (o *recordingAppendObserverForTest) IdempotencyRecoveryEvents() []IdempotencyRecoveryObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]IdempotencyRecoveryObservation(nil), o.recoveryEvents...)
 }
 
 type recordingSendtraceSinkForAppendTest struct {

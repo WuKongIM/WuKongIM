@@ -569,6 +569,7 @@ func (w *channelWriter) runCommit(effect *commitEffect) {
 		return
 	}
 	err := w.ports.postCommitPool.submitWithCompletion(func() {
+		startedAt := time.Now()
 		completion := func() (completion commitCompletedEvent) {
 			defer func() {
 				if recovered := recover(); recovered != nil {
@@ -577,6 +578,7 @@ func (w *channelWriter) runCommit(effect *commitEffect) {
 			}()
 			return snapshot.run(w.ports.runtimeCtx, w.ports.commit)
 		}()
+		completion.duration = elapsedSince(startedAt)
 		w.applyCommitCompletion(completion)
 		w.rescheduleIfNeeded()
 	}, w.ports.commitRetries.notifyCapacity)
@@ -658,12 +660,14 @@ func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
 	if !w.state.matchesCommitCompletion(event.seq, event.attempt) {
 		w.mu.Unlock()
 		observeEffect(w.ports.append.observer, EffectObservation{
-			Stage:  effectStagePostCommit,
-			Result: channelAppendResultStaleCompletion,
-			Items:  len(event.items),
+			Stage:    effectStagePostCommit,
+			Result:   channelAppendResultStaleCompletion,
+			Items:    len(event.items),
+			Duration: event.duration,
 		})
 		return
 	}
+	result := commitCompletionResult(event)
 	releaseCount := len(event.items)
 	if releaseCount > len(event.committed) {
 		releaseCount = len(event.committed)
@@ -683,6 +687,9 @@ func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
 	w.ports.metrics.addPostCommitBacklog(w.state.commitBacklog() - backlogBefore)
 	w.mu.Unlock()
 	w.ports.metrics.observePressure()
+	observeEffect(w.ports.append.observer, EffectObservation{
+		Stage: effectStagePostCommit, Result: result, Items: len(event.items), Duration: event.duration,
+	})
 	failures := append([]commitCompletedItem(nil), event.failures...)
 	for _, item := range event.items {
 		if item.err != nil {

@@ -28,16 +28,16 @@ type ProductionMetaControllerOptions struct {
 	Accounting *MetaCreateAccounting
 }
 
-// ProductionMetaController reconciles deterministic worker/catalog create
+// ProductionMetaController reconciles successful first-SEND worker create
 // expectations with one same-round scrape from each service node.
 type ProductionMetaController struct {
 	mu sync.Mutex
 
 	runID       string
 	workerCount uint64
+	groupLimit  uint64
 	metrics     [coordinatorWorkerCount]ProductionMetaMetricsSource
 	accounting  *MetaCreateAccounting
-	groups      MetaCreateHashSlotCounts
 	settleWait  func(context.Context) error
 
 	initialized  bool
@@ -45,6 +45,7 @@ type ProductionMetaController struct {
 	generation   uint64
 	sequences    [coordinatorWorkerCount]uint64
 	person       [coordinatorWorkerCount]MetaCreateHashSlotCounts
+	groups       [coordinatorWorkerCount]MetaCreateHashSlotCounts
 }
 
 // NewProductionMetaController validates immutable expectation inputs without
@@ -58,13 +59,10 @@ func NewProductionMetaController(options ProductionMetaControllerOptions) (*Prod
 			return nil, ErrLifecycleHarnessInvalid
 		}
 	}
-	groups, err := productionMetaGroupExpectation(options.Config)
-	if err != nil {
-		return nil, err
-	}
 	return &ProductionMetaController{
 		runID: options.Config.RunID, workerCount: uint64(options.Config.Workload.Workers),
-		metrics: options.Metrics, accounting: options.Accounting, groups: groups,
+		groupLimit: productionMetaGroupLimit(options.Config),
+		metrics:    options.Metrics, accounting: options.Accounting,
 		settleWait: waitProductionMetaSettle,
 	}, nil
 }
@@ -87,37 +85,39 @@ func (c *ProductionMetaController) Checkpoint(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	person, ordered, assignmentID, generation, sequences, err := productionMetaPersonExpectation(c.runID, c.workerCount, workers)
+	expectation, err := collectProductionMetaExpectation(c.runID, c.workerCount, c.groupLimit, workers)
 	if err != nil {
 		return err
 	}
 	if c.initialized {
-		if assignmentID != c.assignmentID || generation != c.generation {
+		if expectation.assignmentID != c.assignmentID || expectation.generation != c.generation {
 			return ErrLifecycleHarnessInvalid
 		}
-		for workerID := range ordered {
-			if sequences[workerID] <= c.sequences[workerID] {
+		for workerID := range expectation.personByWorker {
+			if expectation.sequences[workerID] <= c.sequences[workerID] {
 				return ErrLifecycleHarnessInvalid
 			}
-			for hashSlot := range ordered[workerID] {
-				if ordered[workerID][hashSlot] < c.person[workerID][hashSlot] {
+			for hashSlot := range expectation.personByWorker[workerID] {
+				if expectation.personByWorker[workerID][hashSlot] < c.person[workerID][hashSlot] ||
+					expectation.groupByWorker[workerID][hashSlot] < c.groups[workerID][hashSlot] {
 					return ErrLifecycleHarnessInvalid
 				}
 			}
 		}
 	}
-	metrics, err := c.collectSettledMetrics(ctx, person, assignment)
+	metrics, err := c.collectSettledMetrics(ctx, expectation.person, expectation.groups, assignment)
 	if err != nil {
 		return err
 	}
-	if err := c.accounting.Checkpoint(person, c.groups, assignment, metrics, reheat); err != nil {
+	if err := c.accounting.Checkpoint(expectation.person, expectation.groups, assignment, metrics, reheat); err != nil {
 		return err
 	}
 	c.initialized = true
-	c.assignmentID = assignmentID
-	c.generation = generation
-	c.sequences = sequences
-	c.person = ordered
+	c.assignmentID = expectation.assignmentID
+	c.generation = expectation.generation
+	c.sequences = expectation.sequences
+	c.person = expectation.personByWorker
+	c.groups = expectation.groupByWorker
 	return nil
 }
 
@@ -127,6 +127,7 @@ func (c *ProductionMetaController) Checkpoint(
 func (c *ProductionMetaController) collectSettledMetrics(
 	ctx context.Context,
 	person MetaCreateHashSlotCounts,
+	groups MetaCreateHashSlotCounts,
 	assignment LifecycleSlotAssignment,
 ) ([coordinatorWorkerCount]target.MetricsSnapshot, error) {
 	for attempt := 0; attempt < productionMetaSettleAttempts; attempt++ {
@@ -135,7 +136,7 @@ func (c *ProductionMetaController) collectSettledMetrics(
 			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
 		}
 		preview := NewMetaCreateAccounting()
-		previewErr := preview.Checkpoint(person, c.groups, assignment, metrics, false)
+		previewErr := preview.Checkpoint(person, groups, assignment, metrics, false)
 		switch {
 		case previewErr == nil:
 			return metrics, nil
@@ -169,90 +170,86 @@ func productionMetaExpectation(cfg Config, workers []WorkerSnapshot) (MetaCreate
 	if cfg.Validate() != nil || cfg.Workload.Workers != coordinatorWorkerCount {
 		return MetaCreateHashSlotCounts{}, MetaCreateHashSlotCounts{}, ErrLifecycleHarnessInvalid
 	}
-	person, _, _, _, _, err := productionMetaPersonExpectation(cfg.RunID, uint64(cfg.Workload.Workers), workers)
+	expectation, err := collectProductionMetaExpectation(
+		cfg.RunID, uint64(cfg.Workload.Workers), productionMetaGroupLimit(cfg), workers,
+	)
 	if err != nil {
 		return MetaCreateHashSlotCounts{}, MetaCreateHashSlotCounts{}, err
 	}
-	groups, err := productionMetaGroupExpectation(cfg)
-	if err != nil {
-		return MetaCreateHashSlotCounts{}, MetaCreateHashSlotCounts{}, err
-	}
-	return person, groups, nil
+	return expectation.person, expectation.groups, nil
 }
 
-func productionMetaPersonExpectation(
+type productionMetaExpectationSnapshot struct {
+	person         MetaCreateHashSlotCounts
+	groups         MetaCreateHashSlotCounts
+	personByWorker [coordinatorWorkerCount]MetaCreateHashSlotCounts
+	groupByWorker  [coordinatorWorkerCount]MetaCreateHashSlotCounts
+	assignmentID   string
+	generation     uint64
+	sequences      [coordinatorWorkerCount]uint64
+}
+
+func collectProductionMetaExpectation(
 	runID string,
 	workerCount uint64,
+	groupLimit uint64,
 	workers []WorkerSnapshot,
-) (
-	MetaCreateHashSlotCounts,
-	[coordinatorWorkerCount]MetaCreateHashSlotCounts,
-	string,
-	uint64,
-	[coordinatorWorkerCount]uint64,
-	error,
-) {
-	var total MetaCreateHashSlotCounts
-	var ordered [coordinatorWorkerCount]MetaCreateHashSlotCounts
-	var sequences [coordinatorWorkerCount]uint64
-	if runID == "" || workerCount != coordinatorWorkerCount || len(workers) != coordinatorWorkerCount {
-		return total, ordered, "", 0, sequences, ErrLifecycleHarnessInvalid
+) (productionMetaExpectationSnapshot, error) {
+	var expectation productionMetaExpectationSnapshot
+	if runID == "" || workerCount != coordinatorWorkerCount || groupLimit == 0 || len(workers) != coordinatorWorkerCount {
+		return expectation, ErrLifecycleHarnessInvalid
 	}
 	var seen [coordinatorWorkerCount]bool
-	assignmentID := ""
-	var generation uint64
+	var groupTotal uint64
 	for _, snapshot := range workers {
 		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 ||
 			snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
 			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) || seen[snapshot.WorkerID] {
-			return MetaCreateHashSlotCounts{}, [coordinatorWorkerCount]MetaCreateHashSlotCounts{}, "", 0, sequences, ErrLifecycleHarnessInvalid
+			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
 		}
-		if assignmentID == "" {
-			assignmentID, generation = snapshot.AssignmentID, snapshot.Generation
-		} else if snapshot.AssignmentID != assignmentID || snapshot.Generation != generation {
-			return MetaCreateHashSlotCounts{}, [coordinatorWorkerCount]MetaCreateHashSlotCounts{}, "", 0, sequences, ErrLifecycleHarnessInvalid
+		if expectation.assignmentID == "" {
+			expectation.assignmentID, expectation.generation = snapshot.AssignmentID, snapshot.Generation
+		} else if snapshot.AssignmentID != expectation.assignmentID || snapshot.Generation != expectation.generation {
+			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
 		}
 		workerID := int(snapshot.WorkerID)
 		seen[workerID] = true
-		sequences[workerID] = snapshot.SnapshotSequence
-		ordered[workerID] = snapshot.MetaCreate.PersonByHashSlot
+		expectation.sequences[workerID] = snapshot.SnapshotSequence
+		expectation.personByWorker[workerID] = snapshot.MetaCreate.PersonByHashSlot
+		expectation.groupByWorker[workerID] = snapshot.MetaCreate.GroupByHashSlot
 		for hashSlot, count := range snapshot.MetaCreate.PersonByHashSlot {
 			var ok bool
-			if total[hashSlot], ok = checkedUint64Add(total[hashSlot], count); !ok {
-				return MetaCreateHashSlotCounts{}, [coordinatorWorkerCount]MetaCreateHashSlotCounts{}, "", 0, sequences, ErrLifecycleHarnessInvalid
+			if expectation.person[hashSlot], ok = checkedUint64Add(expectation.person[hashSlot], count); !ok {
+				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
 			}
+			if expectation.groups[hashSlot], ok = checkedUint64Add(
+				expectation.groups[hashSlot], snapshot.MetaCreate.GroupByHashSlot[hashSlot],
+			); !ok {
+				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+			}
+		}
+		workerGroups := uint64(0)
+		for _, count := range snapshot.MetaCreate.GroupByHashSlot {
+			var ok bool
+			if workerGroups, ok = checkedUint64Add(workerGroups, count); !ok {
+				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+			}
+		}
+		var ok bool
+		if groupTotal, ok = checkedUint64Add(groupTotal, workerGroups); !ok || groupTotal > groupLimit {
+			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
 		}
 	}
 	for _, present := range seen {
 		if !present {
-			return MetaCreateHashSlotCounts{}, [coordinatorWorkerCount]MetaCreateHashSlotCounts{}, "", 0, sequences, ErrLifecycleHarnessInvalid
+			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
 		}
 	}
-	return total, ordered, assignmentID, generation, sequences, nil
+	return expectation, nil
 }
 
-func productionMetaGroupExpectation(cfg Config) (MetaCreateHashSlotCounts, error) {
-	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
-	if err != nil {
-		return MetaCreateHashSlotCounts{}, ErrLifecycleHarnessInvalid
-	}
-	catalog, err := NewGroupCatalog(identity, cfg.Workload.Groups)
-	if err != nil {
-		return MetaCreateHashSlotCounts{}, ErrLifecycleHarnessInvalid
-	}
-	var groups MetaCreateHashSlotCounts
-	for index := 0; index < catalog.Count(); index++ {
-		group, err := catalog.Group(uint64(index))
-		if err != nil {
-			return MetaCreateHashSlotCounts{}, ErrLifecycleHarnessInvalid
-		}
-		hashSlot := lifecycleHashSlotForKey(group.ID, formalHashSlots)
-		if groups[hashSlot] == ^uint64(0) {
-			return MetaCreateHashSlotCounts{}, ErrLifecycleHarnessInvalid
-		}
-		groups[hashSlot]++
-	}
-	return groups, nil
+func productionMetaGroupLimit(cfg Config) uint64 {
+	return uint64(cfg.Workload.Groups.Small + cfg.Workload.Groups.Medium + cfg.Workload.Groups.Large + cfg.Workload.Groups.VeryLarge)
 }
 
 func collectProductionMetaMetrics(

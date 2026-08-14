@@ -25,11 +25,32 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"--process-metrics-path", "start_process_metrics_collector", "process-metrics-collector",
 		"WK_PLUGIN_SOCKET_PATH",
 		"soak chat-lifecycle", "request_coordinator_stop", "handle_signal", "GRACEFUL_STOP_DEADLINE",
+		"OPERATOR_SIGNAL_STATUS", "request_pending_operator_stop", "--operator-interrupted",
+		"detect-local-workload-overlap.sh", "check_measured_host_overlap", "--host-confounded",
+		"finalize_source_rebuildability_after_builds",
+		"DRAIN_BOUNDARY_RECORDED",
+		"coordinator_graceful_stop_timeout", "capture_graceful_stop_timeout_evidence",
+		"coordinator_exited_before_stop_request", "record_coordinator_stop_request_failure",
+		"finalize_unmeasured_harness_failure",
+		"artifact_roots", `[[ -e "$path" ]] && artifact_roots+=("$path")`,
+		"force_stop_timed_out_coordinator", "--harness-failure-reason",
+		"graceful-stop-status.json", "wait_child_uninterrupted",
 		"capture_service_metrics", "storage-metrics-summary.awk", "storage_metrics_summary.tsv",
+		"capture-local-storage-overlap.sh", "storage-overlap.tsv", "--storage-overlap",
 		"record_timeline_boundary warmup_end", "record_timeline_boundary measurement_end",
-		"record_timeline_boundary drain_start", "record_timeline_boundary drain_end",
+		"capture_service_metrics warmup-before",
+		"record_timeline_boundary drain_start", "record_timeline_boundary_at \"$terminal_at\" drain_end",
+		"write_phase_state warmup", "write_phase_state measurement", "write_phase_state drain", "write_phase_state shutdown",
+		"report chat-lifecycle-cut-query", "report chat-lifecycle-timeline",
+		"unified-timeline.json", "unified-timeline.tsv", "threshold-pprof-status.json",
+		`WK_BENCH_API_TOKEN="$WK_BENCH_API_TOKEN"`,
+		"capture-wukongim-local-threshold-pprof.sh", "join_threshold_pprof_capture",
+		"stop_process_metrics_collector", "actual_offered_ratio", "terminal_product_failure",
+		`overall_first_attempt_failure: {max_failures: 1, per_attempts: 1, operator: "<="}`,
+		`any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1, operator: "<="}`,
 		"host-io-summary.awk", "host_io_summary.tsv",
 		"product-queue-snapshot.awk", "product_queue_summary.tsv", "wait_for_product_queue_convergence",
+		"qualification evidence was not reached; capturing one non-converged product queue cut",
 		"--host-io-summary", "--product-queue-summary", "process-continuity.tsv", "report local-chat-lifecycle-step", "local-step.json",
 		"kill -TERM", "kill -KILL", "pids", "final.json",
 	} {
@@ -43,8 +64,90 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 	if strings.Contains(script, "RUN_ID=$(date") {
 		t.Fatal("shakeout script must retain the fixed local run ID for reproducible workload decisions")
 	}
+	if strings.LastIndex(script, "record_process_continuity") > strings.LastIndex(script, "stop_process_metrics_collector") ||
+		strings.LastIndex(script, "stop_process_metrics_collector") > strings.LastIndex(script, "write_artifact_checksums") {
+		t.Fatal("process continuity must be captured before the mutable collector is joined and checksums are written")
+	}
+	if strings.Index(script, "write_phase_state drain") > strings.Index(script, "request_coordinator_stop 'measured interval elapsed'") {
+		t.Fatal("the measured phase must close before the coordinator stop request")
+	}
+	if !strings.Contains(script, "if (( DRAIN_BOUNDARY_RECORDED == 0 )); then") {
+		t.Fatal("measured finalization must not duplicate already-recorded drain boundaries after a stop-request race")
+	}
+	unmeasuredFinalize := strings.Index(script, "finalize_unmeasured_harness_failure()")
+	if unmeasuredFinalize < 0 {
+		t.Fatal("legacy stop-request race must have a typed artifact-only finalizer")
+	}
+	unmeasuredBody := script[unmeasuredFinalize:]
+	for _, want := range []string{"stop_recorded_processes", "write_artifact_checksums", "exit 6"} {
+		if !strings.Contains(unmeasuredBody, want) {
+			t.Fatalf("legacy stop-request race finalizer missing %q", want)
+		}
+	}
+	if strings.Contains(script, `die "coordinator did not finish graceful stop`) {
+		t.Fatal("graceful-stop timeout must enter typed evidence finalization instead of die/EXIT cleanup")
+	}
+	loopStart := strings.Index(script, `while kill -0 "$COORDINATOR_PID" 2>/dev/null; do`)
+	loopEnd := -1
+	if loopStart >= 0 {
+		loopEnd = strings.Index(script[loopStart:], "\ndone\n")
+	}
+	if loopStart < 0 || loopEnd < 0 || !strings.Contains(script[loopStart:loopStart+loopEnd], "check_measured_host_overlap") {
+		t.Fatal("measured coordinator loop must periodically check for foreign WuKongIM workloads")
+	}
+	buildEnd := strings.LastIndex(script, `(cd "$ROOT_DIR" && GOWORK=off go build`)
+	identityWrite := strings.Index(script, "\nrecord_evidence_identity\n")
+	sourceFinalize := strings.Index(script, "\nfinalize_source_rebuildability_after_builds\n")
+	if buildEnd < 0 || identityWrite < 0 || sourceFinalize <= buildEnd || sourceFinalize >= identityWrite {
+		t.Fatal("source rebuildability must be finalized after both builds and before identity is recorded")
+	}
+	for _, forbidden := range []string{
+		`request_coordinator_stop 'measured interval elapsed' || die`,
+		`request_coordinator_stop '--stop-after elapsed' || die`,
+	} {
+		if strings.Contains(script, forbidden) {
+			t.Fatalf("coordinator stop-request race must enter typed evidence finalization instead of die: %q", forbidden)
+		}
+	}
+	timeoutCapture := strings.Index(script, "capture_graceful_stop_timeout_evidence")
+	timeoutForceStop := strings.Index(script, "force_stop_timed_out_coordinator")
+	if timeoutCapture < 0 || timeoutForceStop < 0 || timeoutCapture > timeoutForceStop {
+		t.Fatal("graceful-stop timeout must close worker evidence before forcing and joining the coordinator")
+	}
 	if output, err := exec.Command("bash", "-n", scriptPath).CombinedOutput(); err != nil {
 		t.Fatalf("bash syntax failed: %v\n%s", err, output)
+	}
+}
+
+func TestChatLifecycleShakeoutIntegrationRunsBeforeParallelPhase(t *testing.T) {
+	root := repoRoot(t)
+	source := readFile(t, filepath.Join(root, "scripts", "wukongim_three_node_chat_lifecycle_script_integration_test.go"))
+	start := strings.Index(source, "func TestChatLifecycleShakeoutScriptIntegration(t *testing.T) {")
+	if start < 0 {
+		t.Fatal("real shakeout integration test is missing")
+	}
+	end := strings.Index(source[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("real shakeout integration test body is not closed")
+	}
+	body := source[start : start+end]
+	exclusive := strings.Index(body, "runTimingSensitiveShellScriptTestBeforeParallelPhase(t)")
+	repository := strings.Index(body, "repoRoot(t)")
+	if exclusive < 0 || repository < 0 || exclusive > repository {
+		t.Fatal("real shakeout must stay in the serial phase before repoRoot installs the ordinary parallel gate")
+	}
+	helperSource := readFile(t, filepath.Join(root, "scripts", "script_test_helpers_integration_test.go"))
+	helperStart := strings.Index(helperSource, "func runTimingSensitiveShellScriptTestBeforeParallelPhase(t *testing.T) {")
+	if helperStart < 0 {
+		t.Fatal("timing-sensitive serial gate is missing")
+	}
+	helperEnd := strings.Index(helperSource[helperStart:], "\n}")
+	if helperEnd < 0 {
+		t.Fatal("timing-sensitive serial gate body is not closed")
+	}
+	helperBody := helperSource[helperStart : helperStart+helperEnd]
+	if strings.Contains(helperBody, "t.Parallel()") || !strings.Contains(helperBody, "parallelizedShellTests.LoadOrStore(t") {
+		t.Fatal("timing-sensitive serial gate must mark the test without entering Go's parallel phase")
 	}
 }
 
@@ -96,6 +199,7 @@ func TestChatLifecycleShakeoutScriptDryRunIsReadOnlyAndRejectsBroadRunDirs(t *te
 	for _, want := range []string{
 		"run_dir=" + canonicalRunDir, "logical_slot_groups=12", "hash_slots=256", "replicas=3/3",
 		"online_connections=2500", "offered_send_rate_per_second=400", "measured_duration_seconds=120",
+		"raw_metrics_sample_seconds=30",
 		"commit_coordinator_flush_window=200us", "commit_coordinator_shards=1", "sync_commit=true",
 		"service_1=http://127.0.0.1:24001", "worker_3=http://127.0.0.1:24053",
 		"host_metrics_2=http://127.0.0.1:24062", "host_metrics_load=http://127.0.0.1:24060",
@@ -128,6 +232,7 @@ func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {
 		"run-wukongim-three-node-chat-lifecycle-shakeout.sh", "--send-rate", "--measure-seconds",
 		"first_failing_rate", "highest_clean_rate", "storage_confounded", "host_confounded",
 		"local-baseline.json", "steps.tsv", "refine", "filesystem-preflight.txt", "checksums.sha256",
+		"prune_step_runtime_state", "runtime-state-pruned.txt", `find "$path" -xdev -depth -delete`,
 		`"online_connections": 2500`, `"logical_slot_groups": 12`, `"hash_slots": 256`,
 		`"slot_replicas": 3`, `"channel_replicas": 3`, `"sync_commit": true`,
 	} {

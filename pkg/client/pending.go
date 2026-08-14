@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -42,6 +43,12 @@ type pendingTracker struct {
 	closed bool
 	// entries stores unresolved SENDs by client sequence and optional message number.
 	entries map[pendingKey]*pendingEntry
+	// empty is allocated only by the terminal fence slow path and closes when
+	// the currently admitted entries reach zero.
+	empty chan struct{}
+	// terminalFailure records the first admitted SEND that ended without a
+	// decoded SENDACK. A terminal fence must fail closed after such a gap.
+	terminalFailure error
 }
 
 func newPendingTracker() *pendingTracker {
@@ -72,7 +79,6 @@ func (t *pendingTracker) addWithTarget(key pendingKey, timeout time.Duration, do
 		t.mu.Unlock()
 		return nil, ErrDuplicatePendingSend
 	}
-
 	entry := &pendingEntry{
 		key:        key,
 		done:       done,
@@ -139,6 +145,15 @@ func (t *pendingTracker) close(err error) {
 	t.closed = true
 	entries := t.entries
 	t.entries = make(map[pendingKey]*pendingEntry)
+	if len(entries) > 0 {
+		if t.terminalFailure == nil {
+			t.terminalFailure = err
+		}
+		if t.empty != nil {
+			close(t.empty)
+			t.empty = nil
+		}
+	}
 	t.mu.Unlock()
 
 	for _, entry := range entries {
@@ -147,9 +162,23 @@ func (t *pendingTracker) close(err error) {
 }
 
 func (t *pendingTracker) fail(entry *pendingEntry, err error) {
-	if entry == nil || !t.takeEntry(entry) {
+	if entry == nil {
 		return
 	}
+	t.mu.Lock()
+	if t.entries[entry.key] != entry {
+		t.mu.Unlock()
+		return
+	}
+	delete(t.entries, entry.key)
+	if t.terminalFailure == nil {
+		t.terminalFailure = err
+	}
+	if len(t.entries) == 0 && t.empty != nil {
+		close(t.empty)
+		t.empty = nil
+	}
+	t.mu.Unlock()
 	entry.finish(sendOutcome{err: err})
 }
 
@@ -158,20 +187,45 @@ func (t *pendingTracker) take(key pendingKey) *pendingEntry {
 	entry := t.entries[key]
 	if entry != nil {
 		delete(t.entries, key)
+		if len(t.entries) == 0 && t.empty != nil {
+			close(t.empty)
+			t.empty = nil
+		}
 	}
 	t.mu.Unlock()
 	return entry
 }
 
-func (t *pendingTracker) takeEntry(entry *pendingEntry) bool {
-	t.mu.Lock()
-	if t.entries[entry.key] != entry {
-		t.mu.Unlock()
-		return false
+// waitEmpty joins every SEND admitted to this session before the terminal
+// fence cut. Client.sendMu serializes the cut itself; terminal state prevents
+// new admissions after that lock is released.
+func (t *pendingTracker) waitEmpty(ctx context.Context) error {
+	if t == nil {
+		return nil
 	}
-	delete(t.entries, entry.key)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	t.mu.Lock()
+	if len(t.entries) == 0 {
+		err := t.terminalFailure
+		t.mu.Unlock()
+		return err
+	}
+	if t.empty == nil {
+		t.empty = make(chan struct{})
+	}
+	empty := t.empty
 	t.mu.Unlock()
-	return true
+	select {
+	case <-empty:
+		t.mu.Lock()
+		err := t.terminalFailure
+		t.mu.Unlock()
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (t *pendingTracker) expire(entry *pendingEntry) {

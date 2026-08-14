@@ -8,6 +8,7 @@ import (
 	"time"
 
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -477,6 +478,117 @@ func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
 		t.Fatalf("recvack command = %#v", cmd)
 	}
 }
+
+func TestTerminalFenceEventSealsExactSessionAndRejectsAllLaterBusinessFramesBeforeUsecases(t *testing.T) {
+	terminal, grant := readyGatewayTerminalController(t, 1)
+	messages := &recordingMessages{sendResult: message.SendResult{Reason: message.ReasonSuccess}}
+	deliveryUsecase := &recordingDelivery{}
+	handler := New(Options{Messages: messages, Delivery: deliveryUsecase, BenchTerminalFence: terminal})
+	var writes []frame.Frame
+	sess := session.New(session.Config{ID: 101, WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+		writes = append(writes, f)
+		return nil
+	}})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	nonce := frame.TerminalFenceNonce{1}
+	event, err := frame.NewTerminalFenceRequest(frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: grant.Capability}, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := coregateway.Context{Session: sess, RequestContext: context.Background()}
+	if err := handler.OnFrame(ctx, event); err != nil {
+		t.Fatalf("terminal OnFrame() error = %v", err)
+	}
+	if len(writes) != 1 {
+		t.Fatalf("terminal writes = %d, want one exact ACK", len(writes))
+	}
+	ack, err := frame.ParseTerminalFenceAck(writes[0].(*frame.EventPacket))
+	if err != nil || !ack.Matches(grant.Epoch, nonce) {
+		t.Fatalf("terminal ACK = %#v, %v", ack, err)
+	}
+
+	for _, late := range []frame.Frame{
+		&frame.SendPacket{ClientSeq: 1, ClientMsgNo: "late", ChannelID: "c", ChannelType: 1},
+		&frame.RecvackPacket{MessageID: 7, MessageSeq: 1},
+		&frame.PingPacket{},
+	} {
+		if err := handler.OnFrame(ctx, late); !errors.Is(err, ErrTerminalSessionSealed) {
+			t.Fatalf("late %T error = %v, want %v", late, err, ErrTerminalSessionSealed)
+		}
+	}
+	if len(messages.batchItems) != 0 || len(deliveryUsecase.recvackCommands) != 0 {
+		t.Fatalf("late frames reached usecases: sends=%d recvacks=%d", len(messages.batchItems), len(deliveryUsecase.recvackCommands))
+	}
+	if status := terminal.Status(); status.Stage != benchterminal.StageFailed || status.Failure != benchterminal.FailureProtocolViolation {
+		t.Fatalf("terminal status after late frame = %#v, want permanent protocol failure", status)
+	}
+}
+
+func TestTerminalFenceEventWrongProofPermanentlyFailsEpochWithoutSealingSession(t *testing.T) {
+	terminal, grant := readyGatewayTerminalController(t, 1)
+	handler := New(Options{BenchTerminalFence: terminal})
+	var writes []frame.Frame
+	sess := newTestSession(t, &writes)
+	nonce := frame.TerminalFenceNonce{2}
+	wrongCapability := grant.Capability[:len(grant.Capability)-1] + "x"
+	event, err := frame.NewTerminalFenceRequest(frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: wrongCapability}, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := coregateway.Context{Session: sess, RequestContext: context.Background()}
+	if err := handler.OnFrame(ctx, event); !errors.Is(err, benchterminal.ErrGrantRejected) {
+		t.Fatalf("wrong proof error = %v, want %v", err, benchterminal.ErrGrantRejected)
+	}
+	if ctx.OutboundSealed() || len(writes) != 0 {
+		t.Fatalf("wrong proof changed session: sealed=%v writes=%d", ctx.OutboundSealed(), len(writes))
+	}
+
+	valid, err := frame.NewTerminalFenceRequest(frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: grant.Capability}, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := handler.OnFrame(ctx, valid); !errors.Is(err, benchterminal.ErrPreparationFailed) {
+		t.Fatalf("valid proof after rejection error = %v, want permanent failure", err)
+	}
+	if ctx.OutboundSealed() || len(writes) != 0 {
+		t.Fatalf("failed epoch changed session: sealed=%v writes=%d", ctx.OutboundSealed(), len(writes))
+	}
+	if status := terminal.Status(); status.Stage != benchterminal.StageFailed || status.Failure != benchterminal.FailureProtocolViolation {
+		t.Fatalf("terminal status = %#v, want permanent protocol failure", status)
+	}
+}
+
+func readyGatewayTerminalController(t *testing.T, expectedSessions int) (*benchterminal.Controller, benchterminal.Grant) {
+	t.Helper()
+	controller := benchterminal.New(benchterminal.Options{
+		Gateway:       terminalDrainFunc(func(context.Context) error { return nil }),
+		ChannelAppend: terminalStopFunc(func(context.Context) error { return nil }),
+		Delivery:      terminalQuiesceFunc(func(context.Context) error { return nil }),
+		MaxSessions:   expectedSessions,
+		DrainTimeout:  time.Second,
+	})
+	grant, err := controller.Prepare(context.Background(), benchterminal.PrepareRequest{
+		RunID:            "run-a",
+		AssignmentID:     "assignment-a",
+		ExpectedSessions: expectedSessions,
+	})
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	return controller, grant
+}
+
+type terminalDrainFunc func(context.Context) error
+
+func (f terminalDrainFunc) DrainSends(ctx context.Context) error { return f(ctx) }
+
+type terminalStopFunc func(context.Context) error
+
+func (f terminalStopFunc) Stop(ctx context.Context) error { return f(ctx) }
+
+type terminalQuiesceFunc func(context.Context) error
+
+func (f terminalQuiesceFunc) Quiesce(ctx context.Context) error { return f(ctx) }
 
 func TestOnFrameUnauthenticatedSessionWritesAuthFailSendack(t *testing.T) {
 	var written []frame.Frame

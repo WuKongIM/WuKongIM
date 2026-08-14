@@ -11,12 +11,15 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 )
 
-func TestProductionMetaExpectationUsesWorkerVectorsAndDeterministicGroupCatalog(t *testing.T) {
+func TestProductionMetaExpectationUsesOnlySuccessfulWorkerVectors(t *testing.T) {
 	cfg := FormalConfig()
 	workers := productionMetaWorkerSnapshots(cfg)
 	workers[0].MetaCreate.PersonByHashSlot[0] = 7
 	workers[1].MetaCreate.PersonByHashSlot[127] = 11
 	workers[2].MetaCreate.PersonByHashSlot[255] = 13
+	workers[0].MetaCreate.GroupByHashSlot[3] = 2
+	workers[1].MetaCreate.GroupByHashSlot[129] = 3
+	workers[2].MetaCreate.GroupByHashSlot[254] = 5
 
 	person, groups, err := productionMetaExpectation(cfg, workers)
 	if err != nil {
@@ -25,15 +28,15 @@ func TestProductionMetaExpectationUsesWorkerVectorsAndDeterministicGroupCatalog(
 	if person[0] != 7 || person[127] != 11 || person[255] != 13 {
 		t.Fatalf("person expectation lost physical hash slots: [0]=%d [127]=%d [255]=%d", person[0], person[127], person[255])
 	}
-	var groupTotal uint64
-	for hashSlot, count := range groups {
-		groupTotal += count
-		if count == 0 {
-			t.Fatalf("formal deterministic group catalog did not cover hash slot %d", hashSlot)
-		}
+	if groups[3] != 2 || groups[129] != 3 || groups[254] != 5 {
+		t.Fatalf("group expectation lost successful physical hash slots: [3]=%d [129]=%d [254]=%d", groups[3], groups[129], groups[254])
 	}
-	if groupTotal != uint64(cfg.Workload.Groups.Small+cfg.Workload.Groups.Medium+cfg.Workload.Groups.Large+cfg.Workload.Groups.VeryLarge) {
-		t.Fatalf("group total = %d, want fixed catalog total", groupTotal)
+	var groupTotal uint64
+	for _, count := range groups {
+		groupTotal += count
+	}
+	if groupTotal != 10 {
+		t.Fatalf("group total = %d, want only 10 successful first group SENDs, not the prepared catalog", groupTotal)
 	}
 }
 
@@ -43,6 +46,9 @@ func TestProductionMetaControllerCheckpointsThreeNodeMetricsAcrossTwelveLogicalS
 	workers[0].MetaCreate.PersonByHashSlot[0] = 5
 	workers[1].MetaCreate.PersonByHashSlot[127] = 7
 	workers[2].MetaCreate.PersonByHashSlot[255] = 9
+	workers[0].MetaCreate.GroupByHashSlot[3] = 2
+	workers[1].MetaCreate.GroupByHashSlot[129] = 3
+	workers[2].MetaCreate.GroupByHashSlot[254] = 5
 	assignment := productionMetaInitialAssignment(t)
 	person, groups, err := productionMetaExpectation(cfg, workers)
 	if err != nil {
@@ -93,6 +99,7 @@ func TestProductionMetaControllerCheckpointsThreeNodeMetricsAcrossTwelveLogicalS
 func TestProductionMetaControllerRescrapesTransientCreateDeficit(t *testing.T) {
 	cfg := LocalConfig()
 	workers := productionMetaWorkerSnapshots(cfg)
+	workers[0].MetaCreate.GroupByHashSlot[3] = 1
 	assignment := productionMetaInitialAssignment(t)
 	person, groups, err := productionMetaExpectation(cfg, workers)
 	if err != nil {
@@ -112,7 +119,7 @@ func TestProductionMetaControllerRescrapesTransientCreateDeficit(t *testing.T) {
 		}
 	}
 	if staleSlot < 0 {
-		t.Fatal("local group catalog produced no metadata expectation")
+		t.Fatal("successful worker vectors produced no metadata expectation")
 	}
 	staleNode := staleSlot % coordinatorWorkerCount
 	stale[staleNode].MetaCreatedTotal = cloneFloatMap(stale[staleNode].MetaCreatedTotal)
@@ -152,6 +159,7 @@ func TestProductionMetaControllerRescrapesTransientCreateDeficit(t *testing.T) {
 func TestProductionMetaControllerRetainsStableCreateDeficit(t *testing.T) {
 	cfg := LocalConfig()
 	workers := productionMetaWorkerSnapshots(cfg)
+	workers[0].MetaCreate.GroupByHashSlot[3] = 1
 	assignment := productionMetaInitialAssignment(t)
 	person, groups, err := productionMetaExpectation(cfg, workers)
 	if err != nil {
@@ -170,7 +178,7 @@ func TestProductionMetaControllerRetainsStableCreateDeficit(t *testing.T) {
 		}
 	}
 	if deficitSlot < 0 {
-		t.Fatal("local group catalog produced no metadata expectation")
+		t.Fatal("successful worker vectors produced no metadata expectation")
 	}
 	deficitNode := deficitSlot % coordinatorWorkerCount
 	deficit[deficitNode].MetaCreatedBySlot[deficitSlot].Created--
@@ -200,6 +208,7 @@ func TestProductionMetaControllerRejectsWorkerRegressionAndOverflowBeforeMetrics
 	assignment := productionMetaInitialAssignment(t)
 	workers := productionMetaWorkerSnapshots(cfg)
 	workers[0].MetaCreate.PersonByHashSlot[17] = 2
+	workers[0].MetaCreate.GroupByHashSlot[23] = 3
 	person, groups, err := productionMetaExpectation(cfg, workers)
 	if err != nil {
 		t.Fatal(err)
@@ -235,9 +244,23 @@ func TestProductionMetaControllerRejectsWorkerRegressionAndOverflowBeforeMetrics
 		t.Fatalf("regression mutated accounting: %+v", snapshot)
 	}
 
+	groupRegressed := append([]WorkerSnapshot(nil), workers...)
+	groupRegressed[0].MetaCreate.GroupByHashSlot[23]--
+	for index := range groupRegressed {
+		groupRegressed[index].SnapshotSequence++
+	}
+	if err := controller.Checkpoint(context.Background(), groupRegressed, assignment, false); !errors.Is(err, ErrLifecycleHarnessInvalid) {
+		t.Fatalf("group regression error = %v, want harness invalid", err)
+	}
+	for index, source := range sources {
+		if source.(*recordingProductionMetaMetricsSource).calls != 1 {
+			t.Fatalf("group regression called metrics source %d %d times", index, source.(*recordingProductionMetaMetricsSource).calls)
+		}
+	}
+
 	overflow := productionMetaWorkerSnapshots(cfg)
-	overflow[0].MetaCreate.PersonByHashSlot[255] = math.MaxUint64
-	overflow[1].MetaCreate.PersonByHashSlot[255] = 1
+	overflow[0].MetaCreate.GroupByHashSlot[255] = math.MaxUint64
+	overflow[1].MetaCreate.GroupByHashSlot[255] = 1
 	if _, _, err := productionMetaExpectation(cfg, overflow); !errors.Is(err, ErrLifecycleHarnessInvalid) {
 		t.Fatalf("overflow error = %v, want harness invalid", err)
 	}

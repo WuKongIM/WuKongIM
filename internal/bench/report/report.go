@@ -39,18 +39,20 @@ const (
 )
 
 var diagnosticFailureDetail = map[string]string{
-	"worker_assignment_failed":   "worker assignment failed",
-	"phase_hook_failed":          "worker phase hook failed",
-	"phase_start_failed":         "worker phase request failed",
-	"phase_wait_failed":          "worker phase status failed",
-	"phase_timeout":              "worker phase timed out",
-	"tcp_source_pool_exhausted":  "tcp source pool exhausted",
-	"tcp_source_unavailable":     "tcp source unavailable",
-	"target_unavailable":         "target unavailable",
-	"worker_status_mismatch":     "worker status assignment mismatch",
-	"worker_metrics_unavailable": "worker metrics unavailable",
-	"worker_report_unavailable":  "worker report unavailable",
-	"worker_stop_failed":         "worker terminal stop failed",
+	"worker_failure":               "worker operation failed",
+	"worker_assignment_failed":     "worker assignment failed",
+	"phase_hook_failed":            "worker phase hook failed",
+	"phase_start_failed":           "worker phase request failed",
+	"phase_wait_failed":            "worker phase status failed",
+	"phase_timeout":                "worker phase timed out",
+	"tcp_source_pool_exhausted":    "tcp source pool exhausted",
+	"tcp_source_unavailable":       "tcp source unavailable",
+	"target_unavailable":           "target unavailable",
+	"worker_status_mismatch":       "worker status assignment mismatch",
+	"worker_metrics_unavailable":   "worker metrics unavailable",
+	"worker_report_unavailable":    "worker report unavailable",
+	"worker_stop_failed":           "worker terminal stop failed",
+	"terminal_receive_seal_failed": "worker terminal receive seal failed",
 }
 
 var diagnosticSessionFailureOperations = map[string]struct{}{
@@ -325,18 +327,17 @@ func Build(in Input) Report {
 		ExitCode:          ExitSuccess,
 		Summary:           summary,
 		Scenario:          in.Scenario,
-		Target:            in.Target,
-		Workers:           in.Workers,
+		Target:            reportSafeTarget(in.Target),
+		Workers:           reportSafeWorkers(in.Workers),
 		Plan:              in.Plan,
-		Metrics:           in.Metrics,
-		WorkerReports:     append([]WorkerReport(nil), in.WorkerReports...),
+		Metrics:           metrics.SanitizeSnapshot(in.Metrics),
+		WorkerReports:     reportSafeWorkerReports(in.WorkerReports),
 		PhaseWindows:      append([]PhaseWindow(nil), in.PhaseWindows...),
-		WorkerFailures:    append([]WorkerFailure(nil), in.WorkerFailures...),
-		WorkerMetrics:     append([]metrics.WorkerSnapshot(nil), in.WorkerMetrics...),
+		WorkerFailures:    reportSafeWorkerFailures(in.WorkerFailures),
+		WorkerMetrics:     reportSafeWorkerMetrics(in.WorkerMetrics),
 		TargetSnapshots:   append([]json.RawMessage(nil), in.TargetSnapshots...),
 		PresenceSnapshots: append([]model.PresenceSnapshot(nil), in.PresenceSnapshots...),
-		ErrorSamples:      append([]metrics.ErrorSample(nil), in.ErrorSamples...),
-		CoordinatorLog:    in.CoordinatorLog,
+		ErrorSamples:      metrics.SanitizeErrorSamples(in.ErrorSamples),
 	}
 	rep.Violations = append(rep.Violations, hardLimitViolations(limits.Hard, summary)...)
 	if objectiveEvidenceComplete(in.Classification) {
@@ -357,6 +358,263 @@ func Build(in Input) Report {
 	}
 	rep.StabilityVerdict = classifyStability(in.Scenario, rep.Violations, in.Classification)
 	return rep
+}
+
+// reportSafeTarget copies the effective target while removing credentials
+// that are needed only by the live coordinator. Reports are retained evidence
+// and must never become a second secret store.
+func reportSafeTarget(source model.Target) model.Target {
+	target := source
+	target.API.Addrs = append([]string(nil), source.API.Addrs...)
+	target.Gateway.TCP.Addrs = append([]string(nil), source.Gateway.TCP.Addrs...)
+	target.Metrics.Addrs = append([]string(nil), source.Metrics.Addrs...)
+	target.BenchAPI.Addrs = append([]string(nil), source.BenchAPI.Addrs...)
+	target.BenchAPI.Token = ""
+	return target
+}
+
+// reportSafeWorkers deep-copies worker configuration and clears control-plane
+// tokens without mutating the live worker set used by the coordinator.
+func reportSafeWorkers(source model.WorkerSet) model.WorkerSet {
+	workers := model.WorkerSet{Workers: append([]model.Worker(nil), source.Workers...)}
+	for index := range workers.Workers {
+		worker := &workers.Workers[index]
+		worker.ControlToken = ""
+		worker.Tags = append([]string(nil), source.Workers[index].Tags...)
+		if source.Workers[index].Client != nil {
+			client := *source.Workers[index].Client
+			worker.Client = &client
+		}
+		if source.Workers[index].TCPSource != nil {
+			tcpSource := *source.Workers[index].TCPSource
+			tcpSource.IPv4Addrs = append([]string(nil), source.Workers[index].TCPSource.IPv4Addrs...)
+			worker.TCPSource = &tcpSource
+		}
+	}
+	return workers
+}
+
+func reportSafeWorkerMetrics(source []metrics.WorkerSnapshot) []metrics.WorkerSnapshot {
+	if len(source) == 0 {
+		return nil
+	}
+	workers := make([]metrics.WorkerSnapshot, len(source))
+	for index := range source {
+		workers[index] = metrics.WorkerSnapshot{
+			WorkerID: source[index].WorkerID,
+			Metrics:  metrics.SanitizeSnapshot(source[index].Metrics),
+		}
+	}
+	return workers
+}
+
+func reportSafeWorkerFailures(source []WorkerFailure) []WorkerFailure {
+	if len(source) == 0 {
+		return nil
+	}
+	failures := append([]WorkerFailure(nil), source...)
+	for index := range failures {
+		failures[index].ReasonCode = safeFailureReasonCode(failures[index].ReasonCode)
+		failures[index].Operation = safeFailureOperation(failures[index].ReasonCode, failures[index].Operation)
+		failures[index].Detail = safeFailureDetail(failures[index].ReasonCode)
+	}
+	return failures
+}
+
+func safeFailureReasonCode(reasonCode string) string {
+	reasonCode = strings.TrimSpace(reasonCode)
+	if _, ok := diagnosticFailureDetail[reasonCode]; ok {
+		return reasonCode
+	}
+	return "worker_failure"
+}
+
+func reportSafeWorkerReports(source []WorkerReport) []WorkerReport {
+	if len(source) == 0 {
+		return nil
+	}
+	reports := make([]WorkerReport, len(source))
+	for index := range source {
+		reports[index] = WorkerReport{
+			WorkerID: source[index].WorkerID,
+			Report:   reportSafeWorkerJSON(source[index].Report),
+		}
+	}
+	return reports
+}
+
+func reportSafeWorkerJSON(raw json.RawMessage) json.RawMessage {
+	var value any
+	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil {
+		return json.RawMessage(`{"error":"worker report unavailable"}`)
+	}
+	safe := reportSafeJSONValue(value)
+	data, err := json.Marshal(safe)
+	if err != nil {
+		return json.RawMessage(`{"error":"worker report unavailable"}`)
+	}
+	return json.RawMessage(data)
+}
+
+func reportSafeJSONValue(value any) any {
+	switch typed := value.(type) {
+	case []any:
+		result := make([]any, len(typed))
+		for index := range typed {
+			result[index] = reportSafeJSONValue(typed[index])
+		}
+		return result
+	case map[string]any:
+		name, hasName := typed["name"].(string)
+		message, hasMessage := typed["message"].(string)
+		if hasName && hasMessage {
+			safe := metrics.SanitizeErrorSamples([]metrics.ErrorSample{{Name: name, Message: message}})[0]
+			result := make(map[string]any, len(typed))
+			for key, child := range typed {
+				if credentialLikeJSONKey(key) {
+					continue
+				}
+				switch strings.ToLower(strings.TrimSpace(key)) {
+				case "name":
+					result[key] = safe.Name
+				case "message":
+					result[key] = safe.Message
+				default:
+					result[key] = reportSafeJSONValue(child)
+				}
+			}
+			return result
+		}
+		result := make(map[string]any, len(typed))
+		for key, child := range typed {
+			if credentialLikeJSONKey(key) {
+				continue
+			}
+			switch strings.ToLower(strings.TrimSpace(key)) {
+			case "uid", "from_uid", "sender_uid", "recipient_uid", "channel_id", "client_msg_no":
+				result[key] = "[redacted]"
+			case "counters", "gauges", "histograms":
+				result[key] = reportSafeMetricSeriesMap(child)
+			case "error", "last_error", "detail", "message":
+				result[key] = reportSafeErrorText(child)
+			default:
+				result[key] = reportSafeJSONValue(child)
+			}
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func credentialLikeJSONKey(key string) bool {
+	var compact strings.Builder
+	for _, character := range strings.ToLower(strings.TrimSpace(key)) {
+		if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') {
+			compact.WriteRune(character)
+		}
+	}
+	normalized := compact.String()
+	if normalized == "" {
+		return false
+	}
+	if normalized == "authorization" || normalized == "proxyauthorization" ||
+		normalized == "cookie" || normalized == "setcookie" || normalized == "bearer" ||
+		normalized == "passwd" || normalized == "apikey" || normalized == "accesskey" ||
+		normalized == "accesskeyid" || normalized == "secretaccesskey" {
+		return true
+	}
+	for _, suffix := range []string{"token", "password", "secret", "credential", "credentials"} {
+		if strings.HasSuffix(normalized, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func reportSafeMetricSeriesMap(value any) map[string]any {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return map[string]any{}
+	}
+	result := make(map[string]any, len(typed))
+	for series, child := range typed {
+		if _, _, err := metrics.ParseSeries(series); err != nil {
+			continue
+		}
+		result[series] = reportSafeJSONValue(child)
+	}
+	return result
+}
+
+func reportSafeErrorText(value any) string {
+	text, _ := value.(string)
+	switch strings.TrimSpace(text) {
+	case "worker report unavailable", "worker metrics unavailable", "worker phase hook failed",
+		"tcp source unavailable", "tcp source pool exhausted", "target unavailable",
+		"operation_failed", "timeout", "canceled", "connection_closed", "identity_mismatch",
+		"payload_mismatch", "queue_full", "retry_exhausted", "send_rejected", "[redacted]":
+		return strings.TrimSpace(text)
+	default:
+		return "[redacted]"
+	}
+}
+
+func retainedSafeReport(rep Report) Report {
+	rep.Target = reportSafeTarget(rep.Target)
+	rep.Workers = reportSafeWorkers(rep.Workers)
+	rep.Metrics = metrics.SanitizeSnapshot(rep.Metrics)
+	rep.WorkerReports = reportSafeWorkerReports(rep.WorkerReports)
+	rep.WorkerFailures = reportSafeWorkerFailures(rep.WorkerFailures)
+	rep.WorkerMetrics = reportSafeWorkerMetrics(rep.WorkerMetrics)
+	rep.ErrorSamples = metrics.SanitizeErrorSamples(rep.ErrorSamples)
+	// Coordinator failures are retained structurally in WorkerFailures. Free-form
+	// coordinator text is intentionally omitted from durable report artifacts.
+	rep.CoordinatorLog = ""
+	return rep
+}
+
+// ValidateRetainedCredentials rejects a report that still contains a live
+// control-plane credential or a credential-shaped field inside an opaque
+// worker report. It is used by retained-evidence consumers after JSON decode;
+// report writers independently remove these fields before persistence.
+func ValidateRetainedCredentials(rep Report) error {
+	if strings.TrimSpace(rep.Target.BenchAPI.Token) != "" {
+		return fmt.Errorf("retained target contains a benchmark API credential")
+	}
+	for _, worker := range rep.Workers.Workers {
+		if strings.TrimSpace(worker.ControlToken) != "" {
+			return fmt.Errorf("retained worker contains a control credential")
+		}
+	}
+	for _, workerReport := range rep.WorkerReports {
+		var value any
+		if len(workerReport.Report) == 0 || json.Unmarshal(workerReport.Report, &value) != nil {
+			return fmt.Errorf("retained worker report is invalid")
+		}
+		if containsCredentialLikeJSONField(value) {
+			return fmt.Errorf("retained worker report contains a credential-shaped field")
+		}
+	}
+	return nil
+}
+
+func containsCredentialLikeJSONField(value any) bool {
+	switch typed := value.(type) {
+	case []any:
+		for _, child := range typed {
+			if containsCredentialLikeJSONField(child) {
+				return true
+			}
+		}
+	case map[string]any:
+		for key, child := range typed {
+			if credentialLikeJSONKey(key) || containsCredentialLikeJSONField(child) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func classifyStability(scenario model.Scenario, violations []Violation, classification *StabilityClassification) StabilityVerdict {
@@ -388,6 +646,7 @@ func WriteDir(dir string, rep Report) error {
 	if strings.TrimSpace(dir) == "" {
 		return nil
 	}
+	rep = retainedSafeReport(rep)
 	if err := os.MkdirAll(filepath.Join(dir, "workers"), 0o755); err != nil {
 		return err
 	}
@@ -437,7 +696,10 @@ func WriteDir(dir string, rep Report) error {
 }
 
 func diagnosticSummary(rep Report) DiagnosticSummary {
-	failures := append([]WorkerFailure{}, rep.WorkerFailures...)
+	// The diagnostic-summary contract requires collections to remain JSON arrays
+	// even when there are no failures. reportSafeWorkerFailures intentionally
+	// returns nil for an empty source, so normalize the retained projection here.
+	failures := append([]WorkerFailure{}, reportSafeWorkerFailures(rep.WorkerFailures)...)
 	sort.SliceStable(failures, func(i, j int) bool {
 		if failures[i].WorkerID != failures[j].WorkerID {
 			return failures[i].WorkerID < failures[j].WorkerID
@@ -456,10 +718,6 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 	truncated := len(failures) > maxDiagnosticFailures
 	if truncated {
 		failures = failures[:maxDiagnosticFailures]
-	}
-	for i := range failures {
-		failures[i].Operation = safeFailureOperation(failures[i].ReasonCode, failures[i].Operation)
-		failures[i].Detail = safeFailureDetail(failures[i].ReasonCode)
 	}
 	return DiagnosticSummary{
 		Schema: DiagnosticSummarySchema, RunID: rep.RunID, Status: rep.Status, ExitCode: rep.ExitCode,

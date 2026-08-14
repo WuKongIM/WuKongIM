@@ -260,6 +260,23 @@ type EffectObserver interface {
 	ObserveChannelAppendEffect(EffectObservation)
 }
 
+// IdempotencyRecoveryObservation describes the final outcome of durable
+// idempotency recovery after a generic append failure.
+type IdempotencyRecoveryObservation struct {
+	// RecoveredItems is the number of items completed from matching durable state.
+	RecoveredItems int
+	// UnresolvedItems is the number of lookup misses that remained terminal.
+	UnresolvedItems int
+	// LookupErrorItems is the number of items whose durable lookup itself failed.
+	LookupErrorItems int
+}
+
+// IdempotencyRecoveryObserver receives low-cardinality final recovery outcomes.
+type IdempotencyRecoveryObserver interface {
+	// ObserveChannelAppendIdempotencyRecovery records one failed append batch's recovery summary.
+	ObserveChannelAppendIdempotencyRecovery(IdempotencyRecoveryObservation)
+}
+
 // SubscriberSource pages channel subscribers for post-commit recipient selection.
 type SubscriberSource interface {
 	// NextSubscriberPage returns one bounded subscriber page for the requested channel.

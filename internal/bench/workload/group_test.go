@@ -279,6 +279,69 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 	require.Len(t, clients["u-2"].(*recordingPersonClient).recvAckCalls, 1)
 }
 
+func TestGroupWorkloadSuccessfulSendACKRecordsExpectedFanoutWithoutRecvVerification(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 3)
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	clients := map[string]PersonClient{
+		"u-0": sender,
+		"u-1": newRecordingPersonClient(),
+		"u-2": newRecordingPersonClient(),
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "huge-group",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "none",
+		FanoutProof:     proof,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-huge-group-0",
+			OnlineMembers: []string{"u-0", "u-1", "u-2"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, clients)
+	require.NoError(t, err)
+
+	require.NoError(t, workload.SendOne(context.Background(), 0, 0))
+
+	snapshot := proof.Snapshot()
+	require.True(t, snapshot.Complete(), "%+v", snapshot)
+	require.Equal(t, uint64(1), snapshot.LogicalSendACKs)
+	require.Equal(t, uint64(2), snapshot.Expected.Count)
+	require.Zero(t, snapshot.Received.Count)
+}
+
+func TestGroupWorkloadRejectedSendACKDoesNotRecordExpectedFanout(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	sender := newRecordingPersonClient()
+	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
+		ClientMsgNo: "bench-msg-run-a-huge-group-group-send-run-ch0-msg0",
+		ReasonCode:  frame.ReasonRateLimit,
+	})
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "huge-group",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		FanoutProof:     proof,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-huge-group-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender, "u-1": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	require.Error(t, workload.SendOne(context.Background(), 0, 0))
+
+	snapshot := proof.Snapshot()
+	require.Zero(t, snapshot.LogicalSendACKs)
+	require.Zero(t, snapshot.Expected.Count)
+}
+
 func TestGroupWorkloadRecvMetricsAreSeparatedByPhase(t *testing.T) {
 	sender := newRecordingPersonClient()
 	sender.autoSendack = true
@@ -412,7 +475,8 @@ func TestGroupWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testing
 
 	err = workload.Run(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "sendack not received")
+	require.Equal(t, "group sendack: session operation failed", err.Error())
+	require.Equal(t, []string{"u-0"}, SessionErrorUIDs(err))
 }
 
 func TestGroupWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
@@ -614,10 +678,11 @@ func TestGroupWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Equal(t, []string{"u-0"}, SessionErrorUIDs(err))
-	require.Contains(t, err.Error(), "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
+	require.NotContains(t, err.Error(), "u-0")
+	require.NotContains(t, err.Error(), "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
 	require.True(t, workload.Metrics().CounterValue("group_send_error_total", groupSendLabels("run", "group-profile", "group-send")) > 0)
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
-	require.Contains(t, workload.Metrics().ErrorSamples()[0].Message, "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
+	require.Equal(t, "timeout", workload.Metrics().ErrorSamples()[0].Message)
 }
 
 func TestGroupWorkloadRecvReadErrorIdentifiesFailedSession(t *testing.T) {

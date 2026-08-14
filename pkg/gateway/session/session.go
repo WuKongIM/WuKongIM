@@ -8,7 +8,16 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-var ErrSessionClosed = errors.New("gateway/session: session is closed")
+var (
+	ErrSessionClosed = errors.New("gateway/session: session is closed")
+	// ErrOutboundSealed reports a write attempted after the terminal frame was
+	// admitted. A sealed session never reopens, including when that admission
+	// returned an error.
+	ErrOutboundSealed = errors.New("gateway/session: outbound is sealed")
+	// ErrOutboundSealUnsupported reports a Session implementation that does not
+	// provide the optional atomic terminal-write capability.
+	ErrOutboundSealUnsupported = errors.New("gateway/session: outbound seal unsupported")
+)
 
 type Session interface {
 	ID() uint64
@@ -21,6 +30,17 @@ type Session interface {
 
 	SetValue(key string, value any)
 	Value(key string) any
+}
+
+// OutboundSealer atomically closes ordinary outbound admission and admits one
+// final frame through the same ordering lock used by WriteFrame.
+type OutboundSealer interface {
+	SealOutboundAndWrite(f frame.Frame, opts ...WriteOption) error
+}
+
+// OutboundSealState exposes only the terminal business-admission gate.
+type OutboundSealState interface {
+	OutboundSealed() bool
 }
 
 type WriteOption interface {
@@ -70,10 +90,11 @@ type session struct {
 	hotValues atomic.Pointer[sessionHotValues]
 	values    sync.Map
 
-	writeMu      sync.Mutex
-	closing      atomic.Bool
-	closed       atomic.Bool
-	writeFrameFn WriteFrameFn
+	writeMu        sync.Mutex
+	outboundSealed atomic.Bool
+	closing        atomic.Bool
+	closed         atomic.Bool
+	writeFrameFn   WriteFrameFn
 }
 
 // These keys mirror gateway/types session value keys without importing that package.
@@ -159,10 +180,16 @@ func (s *session) WriteFrame(f frame.Frame, opts ...WriteOption) error {
 	if s.closing.Load() || s.closed.Load() {
 		return ErrSessionClosed
 	}
+	if s.outboundSealed.Load() {
+		return ErrOutboundSealed
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.closing.Load() || s.closed.Load() {
 		return ErrSessionClosed
+	}
+	if s.outboundSealed.Load() {
+		return ErrOutboundSealed
 	}
 
 	meta := OutboundMeta{}
@@ -175,6 +202,48 @@ func (s *session) WriteFrame(f frame.Frame, opts ...WriteOption) error {
 		return nil
 	}
 	return s.writeFrameFn(f, meta)
+}
+
+// SealOutboundAndWrite is the final ordered session write. It marks the
+// session sealed before invoking the transport enqueue callback, so callback
+// failure cannot accidentally reopen ordinary outbound admission.
+func (s *session) SealOutboundAndWrite(f frame.Frame, opts ...WriteOption) error {
+	if s == nil {
+		return ErrSessionClosed
+	}
+	if s.closing.Load() || s.closed.Load() {
+		return ErrSessionClosed
+	}
+	if s.outboundSealed.Load() {
+		return ErrOutboundSealed
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.closing.Load() || s.closed.Load() {
+		return ErrSessionClosed
+	}
+	if s.outboundSealed.Load() {
+		return ErrOutboundSealed
+	}
+	s.outboundSealed.Store(true)
+
+	meta := OutboundMeta{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt.apply(&meta)
+		}
+	}
+	if s.writeFrameFn == nil {
+		return nil
+	}
+	return s.writeFrameFn(f, meta)
+}
+
+// OutboundSealed reports the terminal admission state. Entry adapters use it
+// to reject every later ordinary inbound frame before invoking any use case;
+// relying on a later response write failure would allow post-fence work.
+func (s *session) OutboundSealed() bool {
+	return s != nil && s.outboundSealed.Load()
 }
 
 func (s *session) Close() error {

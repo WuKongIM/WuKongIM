@@ -3,6 +3,7 @@ package target
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,66 @@ func TestCapabilities404FailsPreflight(t *testing.T) {
 	client := NewClient(Config{APIAddrs: []string{ts.URL}})
 	_, err := client.Capabilities(context.Background())
 	require.ErrorContains(t, err, "bench api")
+}
+
+func TestPrepareTerminalFenceBindsExactSingleTargetGeneration(t *testing.T) {
+	var authorization string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/terminal-fence/prepare", r.URL.Path)
+		authorization = r.Header.Get("Authorization")
+		var request TerminalFencePrepareRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		require.Equal(t, TerminalFencePrepareRequest{RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500}, request)
+		writeJSON(t, w, TerminalFenceGrant{
+			Version: TerminalFenceVersion, RunID: request.RunID, AssignmentID: request.AssignmentID,
+			ExpectedSessions: request.ExpectedSessions, Epoch: 7, Capability: "bounded-terminal-capability",
+		})
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}, Token: "bench-secret"})
+
+	grant, err := client.PrepareTerminalFence(context.Background(), TerminalFencePrepareRequest{
+		RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "Bearer bench-secret", authorization)
+	require.Equal(t, uint64(7), grant.Epoch)
+	require.Equal(t, "bounded-terminal-capability", grant.Capability)
+}
+
+func TestPrepareTerminalFenceRejectsAmbiguousTargetsAndMismatchedGrant(t *testing.T) {
+	client := NewClient(Config{APIAddrs: []string{"http://node-a", "http://node-b"}})
+	_, err := client.PrepareTerminalFence(context.Background(), TerminalFencePrepareRequest{
+		RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500,
+	})
+	require.ErrorContains(t, err, "exactly one target")
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, TerminalFenceGrant{
+			Version: TerminalFenceVersion, RunID: "different-run", AssignmentID: "generation-a",
+			ExpectedSessions: 2500, Epoch: 7, Capability: "bounded-terminal-capability",
+		})
+	}))
+	defer ts.Close()
+	client = NewClient(Config{APIAddrs: []string{ts.URL}})
+	_, err = client.PrepareTerminalFence(context.Background(), TerminalFencePrepareRequest{
+		RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500,
+	})
+	require.ErrorContains(t, err, "does not match request")
+}
+
+func TestTerminalFenceGrantFormattingRedactsCapability(t *testing.T) {
+	grant := TerminalFenceGrant{
+		Version: TerminalFenceVersion, RunID: "run-a", AssignmentID: "generation-a",
+		ExpectedSessions: 2500, Epoch: 7, Capability: "bounded-terminal-capability",
+	}
+	for _, rendered := range []string{fmt.Sprintf("%v", grant), fmt.Sprintf("%#v", grant)} {
+		if strings.Contains(rendered, grant.Capability) || !strings.Contains(rendered, "[redacted]") {
+			t.Fatalf("formatted grant = %q, want redacted capability", rendered)
+		}
+	}
 }
 
 func TestCapabilitiesTriesAPIAddrsInOrder(t *testing.T) {

@@ -1,6 +1,7 @@
 package chatlifecycle
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -487,6 +488,8 @@ func TestProductionObservationMarksCadenceGapAsMissingEvidence(t *testing.T) {
 	start := time.Date(2030, time.March, 17, 19, 45, 0, 0, time.UTC)
 	targets, disks := validProductionObservationFakes(cfg)
 	source := newProductionObservationFakeSource(t, cfg, targets, disks)
+	var diagnostics bytes.Buffer
+	source.diagnosticLog = &diagnostics
 	if err := source.Begin(start); err != nil {
 		t.Fatal(err)
 	}
@@ -498,6 +501,301 @@ func TestProductionObservationMarksCadenceGapAsMissingEvidence(t *testing.T) {
 	evidence := source.Snapshot().ResourceEvidence.Capacity
 	if evidence.MissingSamples != 1 || !evidence.Complete || evidence.Samples != 2 {
 		t.Fatalf("gap evidence = %+v", evidence)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"event":"wkbench.chat_lifecycle.observation_cadence_gap"`,
+		`"source":"product_resources"`, `"gap_ms":15000`, `"cadence_ms":5000`, `"missing_samples":1`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("cadence gap diagnostic missing %q: %s", want, line)
+		}
+	}
+}
+
+func TestProductionObservationRetriesTransientIncompleteHostResources(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 47, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	complete := disks[0].filesystem
+	incomplete := complete
+	incomplete.HostResourcesObserved = false
+	disks[0].filesystems = []DataFilesystem{incomplete, complete}
+	var diagnostics bytes.Buffer
+	var retryDelay time.Duration
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+		ResourceRetryWait: func(_ context.Context, delay time.Duration) error {
+			retryDelay = delay
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+		t.Fatal(err)
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if retryDelay != 500*time.Millisecond || disks[0].reads != 2 || disks[1].reads != 1 ||
+		disks[2].reads != 1 || disks[3].reads != 1 ||
+		!evidence.Complete || evidence.Samples != 1 || evidence.MissingSamples != 0 {
+		t.Fatalf("retried evidence = %+v, disk reads = %d", evidence, disks[0].reads)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"event":"wkbench.chat_lifecycle.observation_resource_retry"`,
+		`"at":"2030-03-17T19:47:00Z"`, `"initial_disk_mask":1`, `"remaining_disk_mask":0`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("resource retry diagnostic missing %q: %s", want, line)
+		}
+	}
+}
+
+func TestProductionObservationPersistentIncompleteHostResourcesRemainMissing(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 48, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	disks[0].filesystem.HostResourcesObserved = false
+	var diagnostics bytes.Buffer
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory:     func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:       func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+		ResourceRetryWait: func(context.Context, time.Duration) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+		t.Fatal(err)
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if disks[0].reads != 2 || evidence.Complete || evidence.Samples != 0 || evidence.MissingSamples != 1 {
+		t.Fatalf("persistent incomplete evidence = %+v, disk reads = %d", evidence, disks[0].reads)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"event":"wkbench.chat_lifecycle.observation_resource_incomplete"`,
+		`"at":"2030-03-17T19:48:00Z"`, `"missing_samples":1`,
+		`"host_resource_missing_mask":1`, `"service_queue_invalid_mask":0`,
+		`"load_watched_directory_missing":false`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("incomplete resource diagnostic missing %q: %s", want, line)
+		}
+	}
+}
+
+func TestProductionObservationLocalProcessGapRemainsMissingAfterRecovery(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 48, 15, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	complete := disks[0].filesystem
+	incomplete := complete
+	incomplete.ProcessResourcesObserved = false
+	disks[0].filesystems = []DataFilesystem{incomplete, complete}
+	var diagnostics bytes.Buffer
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []time.Time{start, start.Add(cfg.Observation.Cadence)} {
+		if err := source.Observe(context.Background(), healthyProductionObserverSample(at)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if !evidence.Complete || !evidence.ProcessesComplete || evidence.Samples != 1 || evidence.MissingSamples != 1 {
+		t.Fatalf("recovered local process evidence = %+v", evidence)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"event":"wkbench.chat_lifecycle.observation_resource_incomplete"`,
+		`"at":"2030-03-17T19:48:15Z"`, `"host_resource_missing_mask":0`,
+		`"process_resource_missing_mask":1`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("local process diagnostic missing %q: %s", want, line)
+		}
+	}
+}
+
+func TestProductionObservationLogsEveryIncompleteResourceSource(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 48, 30, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	targets[1].metrics.ChannelWorkerQueueMaxPercent = 101
+	disks[coordinatorWorkerCount].filesystem.WatchedDirectoryObserved = false
+	var diagnostics bytes.Buffer
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+		t.Fatal(err)
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if evidence.Complete || evidence.Samples != 0 || evidence.MissingSamples != 1 {
+		t.Fatalf("multi-source incomplete evidence = %+v", evidence)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"event":"wkbench.chat_lifecycle.observation_resource_incomplete"`,
+		`"at":"2030-03-17T19:48:30Z"`, `"host_resource_missing_mask":0`,
+		`"process_resource_missing_mask":0`, `"service_queue_invalid_mask":8`,
+		`"load_watched_directory_missing":true`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("multi-source diagnostic missing %q: %s", want, line)
+		}
+	}
+}
+
+func TestProductionObservationBoundsIncompleteResourceDiagnostics(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 48, 45, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	disks[0].filesystem.ProcessResourcesObserved = false
+	var diagnostics bytes.Buffer
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	for sample := 0; sample < 65; sample++ {
+		at := start.Add(time.Duration(sample) * cfg.Observation.Cadence)
+		if err := source.Observe(context.Background(), healthyProductionObserverSample(at)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if evidence.Samples != 0 || evidence.MissingSamples != 65 {
+		t.Fatalf("bounded diagnostic evidence = %+v", evidence)
+	}
+	if lines := strings.Count(diagnostics.String(), "\n"); lines != 64 {
+		t.Fatalf("diagnostic lines = %d, want 64", lines)
+	}
+}
+
+func TestProductionObservationCanceledResourceRetryCommitsNoEvidence(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 49, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	disks[0].filesystem.HostResourcesObserved = false
+	ctx, cancel := context.WithCancel(context.Background())
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token",
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+		ResourceRetryWait: func(context.Context, time.Duration) error {
+			cancel()
+			return context.Canceled
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(ctx, healthyProductionObserverSample(start)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Observe error = %v, want context canceled", err)
+	}
+	if snapshot := source.Snapshot(); snapshot.Sequence != 0 || snapshot.ResourceEvidence.Capacity.Samples != 0 ||
+		snapshot.ResourceEvidence.Capacity.MissingSamples != 0 || disks[0].reads != 1 {
+		t.Fatalf("canceled retry evidence = %+v, disk reads = %d", snapshot, disks[0].reads)
+	}
+}
+
+func TestProductionObservationLogsBoundedCollectionFailureDetails(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 50, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	targets[1].err = context.DeadlineExceeded
+	var diagnostics bytes.Buffer
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); !errors.Is(err, errProductionObservation) {
+		t.Fatalf("Observe error = %v", err)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"event":"wkbench.chat_lifecycle.observation_failed"`, `"stage":"collection"`,
+		`"error_class":"deadline_exceeded"`, `"metric_failure_mask":2`, `"disk_failure_mask":0`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("collection diagnostic missing %q: %s", want, line)
+		}
+	}
+}
+
+func TestProductionObservationLogsCommitValidationStage(t *testing.T) {
+	cfg := LocalConfig()
+	start := time.Date(2030, time.March, 17, 19, 55, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	targets[2].metrics.RuntimeInflight = -1
+	var diagnostics bytes.Buffer
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token", DiagnosticLog: &diagnostics,
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); !errors.Is(err, errProductionObservation) {
+		t.Fatalf("Observe error = %v", err)
+	}
+	line := diagnostics.String()
+	for _, want := range []string{
+		`"stage":"commit"`, `"commit_stage":"node_metrics_or_filesystem"`,
+		`"error_class":"invalid_observation"`, `"metric_failure_mask":0`, `"disk_failure_mask":0`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("commit diagnostic missing %q: %s", want, line)
+		}
 	}
 }
 
@@ -575,13 +873,21 @@ func (f *fakeProductionObservationTarget) Metrics(context.Context) (target.Metri
 }
 
 type fakeProductionObservationDisk struct {
-	filesystem DataFilesystem
-	err        error
-	reads      int
+	filesystem  DataFilesystem
+	filesystems []DataFilesystem
+	err         error
+	reads       int
 }
 
 func (f *fakeProductionObservationDisk) Filesystem(context.Context) (DataFilesystem, error) {
+	index := f.reads
 	f.reads++
+	if len(f.filesystems) > 0 {
+		if index >= len(f.filesystems) {
+			index = len(f.filesystems) - 1
+		}
+		return f.filesystems[index], f.err
+	}
 	return f.filesystem, f.err
 }
 

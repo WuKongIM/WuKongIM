@@ -2,6 +2,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -75,7 +76,8 @@ func TestPersonWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testin
 
 	err = workload.SendOne(context.Background(), 7)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "sendack not received")
+	require.Equal(t, "person sendack: session operation failed", err.Error())
+	require.Equal(t, []string{"u1"}, SessionErrorUIDs(err))
 }
 
 func TestPersonWorkloadSendackRejectionIdentifiesFailedSession(t *testing.T) {
@@ -349,10 +351,11 @@ func TestPersonWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Equal(t, []string{"u1"}, SessionErrorUIDs(err))
-	require.Contains(t, err.Error(), "bench-msg-run-a-profile-a-traffic-a-run-ch1-msg1")
+	require.NotContains(t, err.Error(), "u1")
+	require.NotContains(t, err.Error(), "bench-msg-run-a-profile-a-traffic-a-run-ch1-msg1")
 	require.True(t, workload.Metrics().CounterValue("person_send_error_total", personSendLabels("run", "profile-a", "traffic-a")) > 0)
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
-	require.Contains(t, workload.Metrics().ErrorSamples()[0].Message, "bench-msg-run-a-profile-a-traffic-a-run-ch1-msg1")
+	require.Equal(t, "timeout", workload.Metrics().ErrorSamples()[0].Message)
 }
 
 func TestPersonWorkloadRecvReadErrorIdentifiesFailedSession(t *testing.T) {
@@ -469,6 +472,7 @@ type recordingPersonClient struct {
 	sendacks     []*frame.SendackPacket
 	recvFrames   []frame.Frame
 	readErrors   []error
+	sendErrors   []error
 	recvAckCalls []recvAckCall
 	autoSendack  bool
 }
@@ -505,6 +509,11 @@ func (c *recordingPersonClient) Connect(ctx context.Context, uid, deviceID strin
 func (c *recordingPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(c.sendErrors) > 0 {
+		err := c.sendErrors[0]
+		c.sendErrors = c.sendErrors[1:]
+		return err
+	}
 	cloned := *pkt
 	c.sentFrames = append(c.sentFrames, &cloned)
 	if c.autoSendack {
@@ -880,24 +889,142 @@ func TestAutoRecvAckSuppressesDuplicateExplicitRecvAck(t *testing.T) {
 	require.Equal(t, []recvAckCall{{messageID: 44, messageSeq: 9}}, raw.recvAckCalls)
 }
 
-func TestAutoRecvAckContinuesAfterIdleReadTimeout(t *testing.T) {
-	raw := newRecordingPersonClient()
-	raw.readErrors = append(raw.readErrors, context.DeadlineExceeded)
-	raw.recvFrames = append(raw.recvFrames, &frame.RecvPacket{
-		MessageID:   43,
-		MessageSeq:  8,
-		ClientMsgNo: "msg-after-timeout",
+func TestMatchingPersonClientFanoutProofBindsRecipientAndSuccessfulRecvACK(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	proof.ExpectGroup("group-message", "group-a", "sender", []string{"recipient", "sender"})
+	raw := &orderedPersonClient{frames: []frame.Frame{&frame.RecvPacket{
+		MessageID:   50,
+		MessageSeq:  13,
+		ClientMsgNo: "group-message",
+		FromUID:     "sender",
+		ChannelID:   "group-a",
+		ChannelType: frame.ChannelTypeGroup,
+	}}}
+	wrapped := WrapPersonClientsForConcurrentReadsWithFanoutProof(
+		map[string]PersonClient{"recipient": raw}, proof,
+	)["recipient"]
+
+	got, err := wrapped.ReadFrame(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "group-message", got.(*frame.RecvPacket).ClientMsgNo)
+	require.Equal(t, uint64(1), proof.Snapshot().Received.Count)
+	require.Zero(t, proof.Snapshot().RecvACKed.Count)
+
+	require.NoError(t, wrapped.RecvAck(context.Background(), 50, 13))
+	require.Equal(t, []recvAckCall{{messageID: 50, messageSeq: 13}}, raw.recvAckCalls)
+	require.True(t, proof.Snapshot().Matches(), "%+v", proof.Snapshot())
+}
+
+func TestMatchingPersonClientFanoutProofDoesNotReobserveBufferedRecv(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	proof.ExpectGroup("group-message", "group-a", "sender", []string{"recipient", "sender"})
+	raw := &orderedPersonClient{frames: []frame.Frame{
+		&frame.RecvPacket{
+			MessageID:   50,
+			MessageSeq:  13,
+			ClientMsgNo: "group-message",
+			FromUID:     "sender",
+			ChannelID:   "group-a",
+			ChannelType: frame.ChannelTypeGroup,
+		},
+		&frame.SendackPacket{ClientMsgNo: "outbound-message", ReasonCode: frame.ReasonSuccess},
+	}}
+	wrapped := WrapPersonClientsForConcurrentReadsWithFanoutProof(
+		map[string]PersonClient{"recipient": raw}, proof,
+	)["recipient"]
+
+	_, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+		ack, ok := f.(*frame.SendackPacket)
+		return ok && ack.ClientMsgNo == "outbound-message"
 	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), proof.Snapshot().Received.Count)
+
+	got, err := wrapped.ReadFrame(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "group-message", got.(*frame.RecvPacket).ClientMsgNo)
+	require.Equal(t, uint64(1), proof.Snapshot().Received.Count,
+		"replaying an already observed buffer entry must not add another physical RECV")
+	require.NoError(t, wrapped.RecvAck(context.Background(), 50, 13))
+	require.True(t, proof.Snapshot().Matches(), "%+v", proof.Snapshot())
+}
+
+func TestMatchingPersonClientFanoutProofRecordsFailedRecvACKAsShortSet(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	proof.ExpectGroup("group-message", "group-a", "sender", []string{"recipient", "sender"})
+	raw := &recvAckErrorPersonClient{
+		orderedPersonClient: orderedPersonClient{frames: []frame.Frame{&frame.RecvPacket{
+			MessageID:   50,
+			MessageSeq:  13,
+			ClientMsgNo: "group-message",
+			FromUID:     "sender",
+			ChannelID:   "group-a",
+			ChannelType: frame.ChannelTypeGroup,
+		}}},
+		err: errors.New("recvack failed"),
+	}
+	wrapped := WrapPersonClientsForConcurrentReadsWithFanoutProof(
+		map[string]PersonClient{"recipient": raw}, proof,
+	)["recipient"]
+
+	_, err := wrapped.ReadFrame(context.Background())
+	require.NoError(t, err)
+	require.ErrorContains(t, wrapped.RecvAck(context.Background(), 50, 13), "recvack failed")
+	snapshot := proof.Snapshot()
+	require.Equal(t, uint64(1), snapshot.Received.Count)
+	require.Zero(t, snapshot.RecvACKed.Count)
+	require.False(t, snapshot.Matches())
+}
+
+func TestMatchingPersonClientAutoRecvACKNoopDoesNotDoubleCountFanoutProof(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	proof.ExpectGroup("group-message", "group-a", "sender", []string{"recipient", "sender"})
+	raw := &orderedPersonClient{frames: []frame.Frame{&frame.RecvPacket{
+		MessageID:   50,
+		MessageSeq:  13,
+		ClientMsgNo: "group-message",
+		FromUID:     "sender",
+		ChannelID:   "group-a",
+		ChannelType: frame.ChannelTypeGroup,
+	}}}
+	wrapped := WrapPersonClientsForConcurrentReadsWithFanoutProof(
+		map[string]PersonClient{"recipient": raw}, proof,
+	)["recipient"].(*matchingPersonClient)
+	wrapped.autoRecvAck = true
+	wrapped.autoRecvAckBufferRecv = true
+
+	_, err := wrapped.ReadFrame(context.Background())
+	require.NoError(t, err)
+	require.True(t, proof.Snapshot().Matches(), "%+v", proof.Snapshot())
+	require.NoError(t, wrapped.RecvAck(context.Background(), 50, 13))
+	require.Equal(t, []recvAckCall{{messageID: 50, messageSeq: 13}}, raw.recvAckCalls)
+	require.Equal(t, uint64(1), proof.Snapshot().RecvACKed.Count)
+}
+
+type recvAckErrorPersonClient struct {
+	orderedPersonClient
+	err error
+}
+
+func (c *recvAckErrorPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	c.recvAckCalls = append(c.recvAckCalls, recvAckCall{messageID: messageID, messageSeq: messageSeq})
+	return c.err
+}
+
+func TestAutoRecvAckPreservesUnexpectedReadTimeoutAsPermanentFailure(t *testing.T) {
+	raw := newDrainProofClient()
+	raw.pushReadError(context.DeadlineExceeded)
 	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
-	stop := StartAutoRecvAck(map[string]PersonClient{"u1": wrapped})
-	defer stop()
+	handle := StartAutoRecvAckHandleWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	defer func() {
+		handle.Cancel()
+		handle.Wait()
+	}()
 
 	require.Eventually(t, func() bool {
-		raw.mu.Lock()
-		defer raw.mu.Unlock()
-		return len(raw.recvAckCalls) == 1
-	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, []recvAckCall{{messageID: 43, messageSeq: 8}}, raw.recvAckCalls)
+		return handle.Snapshot().ReadFailures == 1
+	}, 100*time.Millisecond, time.Millisecond)
+	require.False(t, handle.Snapshot().TerminalProofComplete())
 }
 
 func TestAutoRecvAckIdleReadDoesNotInjectReadDeadline(t *testing.T) {
@@ -920,7 +1047,7 @@ func TestAutoRecvAckIdleReadDoesNotInjectReadDeadline(t *testing.T) {
 		done <- err
 	}()
 
-	raw.completeRead(context.DeadlineExceeded)
+	raw.completeRead(nil)
 	require.Equal(t, readStart{count: 2, hasDeadline: false}, raw.waitReadStart(t, time.Second))
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
@@ -1155,6 +1282,9 @@ func (c *countingBlockingReadPersonClient) ReadFrame(ctx context.Context) (frame
 	if count == 1 {
 		select {
 		case err := <-c.complete:
+			if err == nil {
+				return &frame.PongPacket{}, nil
+			}
 			return nil, err
 		case <-ctx.Done():
 			return nil, ctx.Err()

@@ -107,9 +107,10 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	cancel()
 	completion.duration = appendDur
 	if err != nil {
-		unique, retryDur := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports)
+		unique, retryDur, recovery := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports)
 		completion.duration += retryDur
 		completion.items = append(completion.items, batch.expandCompletions(unique)...)
+		observeIdempotencyRecovery(ports.observer, recovery)
 		effectResult = appendCompletionsResultClass(completion.items)
 		return completion
 	}
@@ -389,29 +390,36 @@ func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appe
 	return out
 }
 
-func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []preparedSend, err error, ports appendPorts) []appendItemCompletion {
-	if !errors.Is(err, ErrAppendFailed) || ports.idempotency == nil {
-		return appendBatchErrorCompletions(items, err)
+func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []preparedSend, err error, ports appendPorts) ([]appendItemCompletion, IdempotencyRecoveryObservation) {
+	if ports.idempotency == nil {
+		return appendBatchErrorCompletions(items, err), IdempotencyRecoveryObservation{}
+	}
+	if !errors.Is(err, ErrAppendFailed) {
+		return appendBatchErrorCompletions(items, err), IdempotencyRecoveryObservation{UnresolvedItems: len(items)}
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	out := make([]appendItemCompletion, 0, len(items))
+	recovery := IdempotencyRecoveryObservation{}
 	for _, item := range items {
 		result, ok, lookupErr := lookupIdempotentSend(ctx, item.Command, preparePorts{idempotency: ports.idempotency})
 		switch {
 		case lookupErr != nil:
+			recovery.LookupErrorItems++
 			out = append(out, appendItemErrorCompletion(item, lookupErr))
 		case ok:
+			recovery.RecoveredItems++
 			out = append(out, appendItemCompletion{
 				item:   item,
 				result: SendBatchItemResult{Result: result},
 			})
 		default:
+			recovery.UnresolvedItems++
 			out = append(out, appendItemErrorCompletion(item, err))
 		}
 	}
-	return out
+	return out, recovery
 }
 
 // appendBatchErrorCompletionsOrRecoveriesAndRetry retries only durable lookup
@@ -423,9 +431,9 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	items []preparedSend,
 	err error,
 	ports appendPorts,
-) ([]appendItemCompletion, time.Duration) {
+) ([]appendItemCompletion, time.Duration, IdempotencyRecoveryObservation) {
 	if !errors.Is(err, ErrAppendFailed) || ports.idempotency == nil {
-		return appendBatchErrorCompletions(items, err), 0
+		return appendBatchErrorCompletions(items, err), 0, IdempotencyRecoveryObservation{}
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -435,13 +443,16 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	misses := make([]preparedSend, 0, len(items))
 	missIndexes := make([]int, 0, len(items))
 	recovered := false
+	recovery := IdempotencyRecoveryObservation{}
 	for index, item := range items {
 		result, ok, lookupErr := lookupIdempotentSend(ctx, item.Command, preparePorts{idempotency: ports.idempotency})
 		switch {
 		case lookupErr != nil:
+			recovery.LookupErrorItems++
 			out[index] = appendItemErrorCompletion(item, lookupErr)
 		case ok:
 			recovered = true
+			recovery.RecoveredItems++
 			out[index] = appendItemCompletion{
 				item:   item,
 				result: SendBatchItemResult{Result: result},
@@ -456,7 +467,8 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 		for offset, item := range misses {
 			out[missIndexes[offset]] = appendItemErrorCompletion(item, err)
 		}
-		return out, 0
+		recovery.UnresolvedItems += len(misses)
+		return out, 0, recovery
 	}
 
 	retryItems := misses[:0]
@@ -464,13 +476,14 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	for offset, item := range misses {
 		if itemErr := appendItemError(item); itemErr != nil {
 			out[missIndexes[offset]] = appendItemErrorCompletion(item, itemErr)
+			recovery.UnresolvedItems++
 			continue
 		}
 		retryItems = append(retryItems, item)
 		retryIndexes = append(retryIndexes, missIndexes[offset])
 	}
 	if len(retryItems) == 0 {
-		return out, 0
+		return out, 0, recovery
 	}
 
 	req := appendRequest(target, retryItems, appendIdempotencyRecoveryAttempt)
@@ -482,14 +495,27 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 
 	var retryCompletions []appendItemCompletion
 	if retryErr != nil {
-		retryCompletions = appendBatchErrorCompletionsOrRecoveries(ctx, retryItems, retryErr, ports)
+		var retryRecovery IdempotencyRecoveryObservation
+		retryCompletions, retryRecovery = appendBatchErrorCompletionsOrRecoveries(ctx, retryItems, retryErr, ports)
+		recovery.RecoveredItems += retryRecovery.RecoveredItems
+		recovery.UnresolvedItems += retryRecovery.UnresolvedItems
+		recovery.LookupErrorItems += retryRecovery.LookupErrorItems
 	} else {
 		retryCompletions = appendResultCompletions(retryItems, res)
+		// A nil batch error does not prove every retried item committed: the
+		// appender may return an item-local error or a short result vector. Both
+		// are final, unresolved recovery outcomes and must remain visible in the
+		// low-cardinality recovery accounting.
+		for _, completion := range retryCompletions {
+			if !completion.committed {
+				recovery.UnresolvedItems++
+			}
+		}
 	}
 	for offset, index := range retryIndexes {
 		out[index] = retryCompletions[offset]
 	}
-	return out, retryDur
+	return out, retryDur, recovery
 }
 
 func appendCompletionsResultClass(items []appendItemCompletion) string {

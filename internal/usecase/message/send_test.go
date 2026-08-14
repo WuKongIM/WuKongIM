@@ -62,6 +62,31 @@ func TestSendBatchObservesBoundedStages(t *testing.T) {
 	}
 }
 
+func TestSendBatchAnnotatesSubmitterTimeoutWithConsumedDeadlineBudget(t *testing.T) {
+	deadline := time.Now().Add(100 * time.Millisecond)
+	app := New(Options{
+		PersonDirectory: delayedPersonDirectoryEnsurer{delay: 20 * time.Millisecond},
+		Submitter: &recordingSubmitter{batchResults: []SendBatchItemResult{{
+			Err: context.DeadlineExceeded,
+		}}},
+	})
+
+	results := app.SendBatch([]SendBatchItem{{
+		Context: context.Background(), Deadline: deadline,
+		Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson},
+	}})
+
+	if len(results) != 1 || !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("SendBatch() = %#v, want wrapped deadline", results)
+	}
+	diagnostics, ok := SendBatchFailureDiagnosticsFromError(results[0].Err)
+	if !ok || diagnostics.FailedStage != sendBatchStageSubmitter ||
+		diagnostics.PreAppend < 15*time.Millisecond || diagnostics.DeadlineBudgetBeforeSubmit <= 0 ||
+		diagnostics.DeadlineBudgetBeforeSubmit >= 95*time.Millisecond {
+		t.Fatalf("failure diagnostics = %#v/%v", diagnostics, ok)
+	}
+}
+
 func TestSendBatchBoundsConcurrentPermissionChecksAndPreservesOrder(t *testing.T) {
 	const itemCount = sendBatchPermissionWorkers * 2
 	store := &blockingBatchPermissionStore{
@@ -1032,6 +1057,19 @@ type recordingPersonDirectoryEnsurer struct {
 	channelIDs []string
 	err        error
 	errs       map[string]error
+}
+
+type delayedPersonDirectoryEnsurer struct{ delay time.Duration }
+
+func (e delayedPersonDirectoryEnsurer) EnsurePersonChannelDirectory(ctx context.Context, _ string, _ int64) error {
+	timer := time.NewTimer(e.delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 type blockingPersonDirectoryEnsurer struct {

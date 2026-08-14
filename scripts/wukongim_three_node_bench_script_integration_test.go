@@ -983,12 +983,14 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 		scriptPath string
 		prefix     string
 		oldPrefix  string
+		wantExit   int
 	}{
 		{
 			name:       "single-node",
 			scriptPath: "scripts/bench-wukongim-single-node-1000ch.sh",
 			prefix:     "[bench-single-10ch]",
 			oldPrefix:  "[bench-single-1000ch]",
+			wantExit:   6,
 		},
 		{
 			name:       "three-node",
@@ -1044,8 +1046,14 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 				)
 			}
 			output, err := cmd.CombinedOutput()
-			if err != nil {
+			if tc.wantExit == 0 && err != nil {
 				t.Fatalf("script failed: %v\n%s", err, output)
+			}
+			if tc.wantExit != 0 {
+				exitErr, ok := err.(*exec.ExitError)
+				if !ok || exitErr.ExitCode() != tc.wantExit {
+					t.Fatalf("script exit = %v, want %d\n%s", err, tc.wantExit, output)
+				}
 			}
 			text := string(output)
 			if !strings.Contains(text, tc.prefix) {
@@ -2528,6 +2536,131 @@ func writeFakeThreeNode1000Wkbench(t *testing.T, path string, callsDir string, l
 set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '` + label + ` %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "report" && "${2:-}" == "redact-config" ]]; then
+  input="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --input) input="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) echo "unexpected redact-config args: $*" >&2; exit 2 ;;
+    esac
+  done
+  [[ -f "$input" && -n "$output" && ! -e "$output" ]]
+  cat > "$output" <<'TOML'
+[manager]
+users = []
+jwt_secret = "******"
+[bench]
+api_token = "******"
+TOML
+  chmod 0600 "$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-step" ]]; then
+  output="" result="" closure=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --output) output="$2"; shift 2 ;;
+      --result-output) result="$2"; shift 2 ;;
+      --closure-output) closure="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$output" && -n "$result" && -n "$closure" ]]
+  mkdir -p "$(dirname "$output")" "$(dirname "$result")" "$(dirname "$closure")"
+  printf '{}\n' >"$output"
+  printf '{}\n' >"$result"
+  printf '{}\n' >"$closure"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-step-closure" ]]; then
+  output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$output" ]]
+  mkdir -p "$(dirname "$output")"
+  printf '{"schema":"wukongim/chat-lifecycle-local-single-node-step-result/v1","offered_send_qps":100,"outcome":"clean","clean":true,"reasons":[]}\n' >"$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-queue-convergence" ]]; then
+  candidate="" run_id="" assignment_id="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --candidate) candidate="$2"; shift 2 ;;
+      --run-id) run_id="$2"; shift 2 ;;
+      --assignment-id) assignment_id="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -f "$candidate" && -n "$run_id" && -n "$assignment_id" && -n "$output" ]]
+  digest="$(shasum -a 256 "$candidate" | awk '{print $1}')"
+  observed_at="$(awk 'index($0, "# wkbench_local_single_node_cut ") == 1 { print substr($0, length("# wkbench_local_single_node_cut ") + 1); exit }' "$candidate" | jq -r '.observed_at')"
+  printf '{"schema":"wukongim/chat-lifecycle-local-single-node-queue-convergence/v1","run_id":"%s","assignment_id":"%s","evidence_complete":true,"converged":true,"reason":"ok","candidate_sha256":"%s","candidate_cut":{"run_id":"%s","assignment_id":"%s","phase":"run","active_phase":"cooldown","observed_at":"%s"}}\n' \
+    "$run_id" "$assignment_id" "$digest" "$run_id" "$assignment_id" "$observed_at" >"$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-baseline" ]]; then
+  evidence="" sealed="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --evidence) evidence="$2"; shift 2 ;;
+      --sealed-evidence-output) sealed="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$evidence" && -n "$sealed" && -n "$output" ]]
+  mkdir -p "$(dirname "$sealed")" "$(dirname "$output")"
+  cp "$evidence" "$sealed"
+  if [[ "$(jq -r '.seal.payload_complete == true and .settings.owned_cluster == true' "$evidence")" == true ]]; then
+    outcome=clean reason=complete exit_code=0
+  else
+    outcome=insufficient_evidence reason=artifact_seal_verification_failed exit_code=6
+  fi
+  printf '{"schema":"wukongim/chat-lifecycle-local-single-node-authorization/v1","reviewed_contract_satisfied":false,"authorizes_three_node_diagnostic":false,"outcome":"%s","reason":"%s","exit_code":%s,"highest_clean_rate":0,"first_failing_rate":0,"completion_generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]}\n' "$outcome" "$reason" "$exit_code" >"$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-publish" ]]; then
+  draft="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --draft) draft="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$draft" && -n "$output" ]]
+  temporary="$(dirname "$output")/.completion.next.$$"
+  cp "$draft" "$temporary"
+  mv "$temporary" "$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-completion" ]]; then
+  marker=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --marker) marker="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$marker" ]]
+  if [[ "$(jq -r '.outcome' "$marker")" == insufficient_evidence ]]; then
+    exit 6
+  fi
+  exit 0
+fi
 if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
   echo 'classification: ` + label + `'
   exit 0
@@ -2576,6 +2709,27 @@ if [[ "${1:-}" == "run" ]]; then
 			echo 'timed out waiting for profile end-status handshake' >&2
 			exit 2
 		fi
+		publish_state done
+	fi
+  if [[ "${WK_FAKE_SINGLE_NODE_TERMINAL_CUT:-0}" == "1" ]]; then
+		publish_state() {
+			local tmp="` + callsDir + `/wkbench.state.tmp.$$.$RANDOM"
+			printf '%s\t%s\n' "$run_id" "$1" >"$tmp"
+			mv -f "$tmp" "` + callsDir + `/wkbench.state"
+		}
+		publish_state run
+		for ((attempt = 0; attempt < 300; attempt++)); do
+			if find "$report_dir/evidence" -maxdepth 1 -name 'storage-overlap.tsv' -type f -exec grep -q $'\tpost-warmup\t' {} \; 2>/dev/null; then
+				break
+			fi
+			sleep 0.01
+		done
+		publish_state cooldown
+		for ((attempt = 0; attempt < 300; attempt++)); do
+			[[ -f "$report_dir/evidence/terminal-cut-binding.json" ]] && break
+			sleep 0.01
+		done
+		[[ -f "$report_dir/evidence/terminal-cut-binding.json" ]] || exit 2
 		publish_state done
 	fi
   if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
@@ -2717,10 +2871,10 @@ case "$url" in
 		fi
 			case "$state" in
 				run)
-					printf '{"phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					printf '{"observed_at":"2026-08-14T01:02:03Z","phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"},"lifecycle":{"active_connections":%s,"receive_drain_sha256":"%s"}}\n' "$run_id" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "$(printf 'a%.0s' {1..64})"
 					;;
 				cooldown)
-					printf '{"phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					printf '{"observed_at":"2026-08-14T01:02:04Z","phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"},"lifecycle":{"active_connections":%s,"terminal_cut_required":true,"terminal_cut_ready":true,"terminal_cut_ready_at":"2026-08-14T01:02:04Z","terminal_cut_deadline_at":"2099-08-14T01:03:34Z","receive_drain_sha256":"%s","receive_drain":{"required":true,"evidence_complete":true,"drain_complete":true,"client_count":%s,"active_drains":%s,"queue_snapshot_clients":%s,"fanout_proof":{"version":"wukongim/group-fanout-proof/v1","required":true,"evidence_complete":true}}}}\n' "$run_id" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "$(printf 'a%.0s' {1..64})" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}"
 					;;
 				done)
 					printf '{"phase":"run","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
@@ -2733,6 +2887,16 @@ case "$url" in
 			touch "` + callsDir + `/profile.${run_id}.end_checked"
 		fi
 		;;
+	  http://127.0.0.1:19130/v1/terminal-cut)
+	    payload="$(cat)"
+	    jq -cn --argjson payload "$payload" '
+	      $payload + {
+	        ready_at:"2026-08-14T01:02:04Z",
+	        deadline_at:"2099-08-14T01:03:34Z",
+	        acknowledged_at:"2026-08-14T01:02:05Z"
+	      }
+	    '
+	    ;;
 	  http://127.0.0.1:501*/metrics)
 	    if [[ "$*" == *"X-WK-Bench-Evidence: append-effect-"* ]]; then
 	      if [[ "${WK_FAKE_APPEND_EFFECT_MISSING_NODE:-0}" == "1" && "$url" == "http://127.0.0.1:5012/metrics" ]]; then
@@ -2830,8 +2994,20 @@ OUT
 wukongim_storage_commit_queue_depth{store="message"} 0
 wukongim_storage_commit_batch_requests_count{store="message"} 10
 wukongim_storage_commit_batch_requests_sum{store="message"} 100
+wukongim_storage_commit_batch_requests_bucket{store="message",le="1"} 1
+wukongim_storage_commit_batch_requests_bucket{store="message",le="4"} 4
+wukongim_storage_commit_batch_requests_bucket{store="message",le="16"} 10
+wukongim_storage_commit_batch_requests_bucket{store="message",le="+Inf"} 10
 wukongim_storage_commit_batch_records_sum{store="message"} 100
+wukongim_storage_commit_batch_records_bucket{store="message",le="1"} 1
+wukongim_storage_commit_batch_records_bucket{store="message",le="4"} 4
+wukongim_storage_commit_batch_records_bucket{store="message",le="16"} 10
+wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 10
 wukongim_storage_commit_batch_bytes_sum{store="message"} 12800
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="256"} 1
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="1024"} 4
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="4096"} 10
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="+Inf"} 10
 wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="collect"} 10
 wukongim_storage_commit_batch_duration_seconds_sum{store="message",result="ok",stage="collect"} 0.01
 wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="build"} 10
@@ -3098,6 +3274,11 @@ func writeFakeActivatePS(t *testing.T, path string, callsDir string) {
 set -euo pipefail
 mkdir -p "` + callsDir + `"
 echo "$*" >> "` + callsDir + `/ps.calls"
+if [[ "$*" == *"pid=,stat=,comm="* ]]; then
+  # The shared overlap detector uses this shape. This fixture owns every fake
+  # process it starts, so report no foreign local workload.
+  exit 0
+fi
 pid=""
 while [[ $# -gt 0 ]]; do
   if [[ "$1" == "-p" ]]; then

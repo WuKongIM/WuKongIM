@@ -48,10 +48,48 @@ and `history_sync: false`. Bench capabilities separately advertise batched
 subscriber adds and removals so identity-swap workers can keep group membership
 aligned without growing long-run group cardinality.
 
+`TrafficConfig.Retry.Enabled` is an explicit opt-in for generic traffic. When
+enabled it selects one immutable policy: the initial SEND plus at most three
+retries after 100ms, 500ms, and 2s. The model deliberately exposes no tunable
+retry count or delay list, so a scenario cannot resemble the reviewed local
+baseline while silently weakening its retry and drain budget. Omission keeps
+the legacy no-retry behavior.
+
 `ShardConfig.HashSlotSpread` is a group-profile contract: `HashSlotCount` must
 be positive and equal the profile channel count. It means channel index `n`
 must be generated into physical hash slot `n`, not merely distributed by the
 ordinary worker shard strategy.
+
+`ReceiveDrainSnapshot` is the fixed-size worker/client convergence contract
+used by lifecycle status. A terminal proof requires two separated healthy
+zero-work cuts, one live background drain and one bounded WKProto queue source
+per required client, no matching/client queue depth, no unreleased inner or
+adapter handoff lease, no frame or RECVACK work in flight, and no read or
+RECVACK failure. A socket read blocked waiting for a future frame is not counted
+as in-flight work. The snapshot also carries cumulative physical RECV
+observations and successful protocol RECVACK writes. Success increments only
+after the client writer completes the RECVACK frame; the protocol has no
+RECVACK-of-RECVACK, so target consumption is established separately by the
+product delivery-ACK binding and terminal-fence proof.
+
+Reviewed group runs additionally embed a versioned `FanoutProofSnapshot` in
+the receive-drain cut. It compares three fixed-size anonymous multisets:
+recipient occurrences expected after successful logical SENDACKs, physical
+group RECV occurrences, and RECV occurrences whose protocol RECVACK write
+succeeded. Two independently keyed 256-bit projections preserve multiplicity,
+so an equal-count missing-recipient plus duplicate-recipient pair does not
+cancel. The assignment-local keys and all user, channel, and message identities
+remain in memory; only counts and opaque digests enter status or artifacts. A
+zero-value proof is incomplete. Traffic that does not require this reviewed
+group proof uses the single canonical `FanoutProofNotRequired` value.
+
+`TerminalFencePrepareRequest` and `TerminalFenceGrant` are the shared,
+versioned `/bench/v1/terminal-fence/prepare` DTOs. The grant binds one exact
+run/assignment/session cardinality to a non-zero epoch and an opaque
+capability. Formatting the grant always redacts that capability.
+Targets advertise this endpoint independently through
+`BenchCapabilitiesSupports.TerminalFencePrepare`; a local reviewed run must
+fail closed when the capability is absent.
 
 The restricted Channel runtime probe DTO has two mutually exclusive selector
 modes. Existing clients retain the generated `run_id`, `profile`,

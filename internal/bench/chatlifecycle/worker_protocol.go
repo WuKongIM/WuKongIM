@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 4
+	workerProtocolVersion  uint64 = 5
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -297,6 +297,7 @@ type WorkerGeneratedSnapshot struct {
 // SEND expectation used to reconcile authoritative metadata-create metrics.
 type WorkerMetaCreateSnapshot struct {
 	PersonByHashSlot MetaCreateHashSlotCounts `json:"person_by_hash_slot"`
+	GroupByHashSlot  MetaCreateHashSlotCounts `json:"group_by_hash_slot"`
 }
 
 // WorkerMessageSnapshot exposes end-to-end aggregate correctness counters.

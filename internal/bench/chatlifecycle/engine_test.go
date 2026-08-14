@@ -1473,6 +1473,66 @@ func TestEngineSuccessfulFirstPersonSendCountsOneExactMetaCreateHashSlot(t *test
 	}
 }
 
+func TestEngineSuccessfulFirstGroupSendCountsOneExactMetaCreateHashSlot(t *testing.T) {
+	t.Parallel()
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	uid := fixture.identity.UID(0)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 0, LoginOrdinal: 0}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	group, err := fixture.engine.generator.catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group: %v", err)
+	}
+	failedGroup, err := fixture.engine.generator.catalog.Group(1)
+	if err != nil {
+		t.Fatalf("failed Group: %v", err)
+	}
+	send := func(target string, ordinal uint64, reason frame.ReasonCode) {
+		t.Helper()
+		intent := fixture.intent(t, uid, target, ordinal, TrafficGroup)
+		if err := fixture.engine.SubmitGranted(intent, fixture.clock.Now()); err != nil {
+			t.Fatalf("SubmitGranted(%d): %v", ordinal, err)
+		}
+		if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
+			t.Fatalf("Advance(%d): %v", ordinal, err)
+		}
+		packets := fixture.factory.sentPackets()
+		packet := packets[len(packets)-1]
+		ack := &frame.SendackPacket{
+			ClientSeq: packet.ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
+			MessageID: int64(900 + ordinal), MessageSeq: 70 + ordinal, ReasonCode: reason,
+		}
+		verificationErr := fixture.verifier.HandleSendack(ack)
+		if err := fixture.engine.ObserveSendack(uid, ack, verificationErr); err != nil && reason == frame.ReasonSuccess {
+			t.Fatalf("ObserveSendack(%d): %v", ordinal, err)
+		}
+	}
+
+	send(group.ID, 1, frame.ReasonSuccess)
+	send(group.ID, 2, frame.ReasonSuccess)
+	send(failedGroup.ID, 3, frame.ReasonAuthFail)
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	hashSlot := lifecycleHashSlotForKey(group.ID, formalHashSlots)
+	for index, count := range snapshot.MetaCreateGroupByHashSlot {
+		want := uint64(0)
+		if index == int(hashSlot) {
+			want = 1
+		}
+		if count != want {
+			t.Fatalf("group meta create hash slot %d = %d, want %d", index, count, want)
+		}
+	}
+}
+
 func TestEngineNonRetriableSendackFailsWithoutRetry(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{})
@@ -2373,9 +2433,8 @@ func TestEngineAdvanceExpiresSessionUnderFullCompletionBackpressure(t *testing.T
 		select {
 		case <-publishReturned:
 			return
-		default:
+		case <-fixture.engine.completions:
 		}
-		<-fixture.engine.completions
 		<-publishReturned
 		_, _ = fixture.engine.Snapshot()
 	}

@@ -52,9 +52,15 @@ Gateway.ListenerAddr(name string) string
 Gateway.SetAcceptingNewSessions(accepting bool)
 Gateway.AcceptingNewSessions() bool
 Gateway.SessionSummary() core.SessionSummary
+Gateway.DrainSends(ctx) error
 ```
 
 `ListenerAddr` 会去掉 `http://` / `https://` 前缀，便于 app readyz 和测试直接使用 host:port。
+
+`DrainSends` 是一次性 terminal admission fence：它先拒绝新的 SEND，再等待此前已经进入
+gateway mailbox 的 SEND 分发完成。调用方 context 取消只结束本次等待，绝不会取消、reset 或丢弃
+已接纳任务；之后的 `DrainSends` 会等待同一个后台 drain，`Stop` 以其 release budget 复用该 drain。
+它不代表 channelappend、delivery、transport buffer 或客户端已接收，因此不能单独作为 receive proof。
 
 ### 4.2 入口配置
 
@@ -171,7 +177,7 @@ Build([]transport.ListenerSpec) ([]transport.Listener, error)
 | `asyncRuntime` | `core/async_runtime.go` | Server 持有的异步运行时，统一管理 CONNECT auth 和 SEND dispatch 两类 workqueue-backed executor 的创建、提交和关闭 |
 | `authExecutor` | `core/async_auth.go` | WKProto CONNECT 异步认证与激活执行器，使用 `workqueue.BoundedPool` 处理有界 admission、worker 执行与关闭等待，满队列时写出 SystemError CONNACK 后关闭当前 session |
 | `sendExecutor` | `core/async_send.go` | SEND 帧异步分发执行器，使用全局有界 backlog、按 gateway session 分片的 `workqueue.ShardedMailbox` 和 gateway-owned payload clone / bytes split 策略，满队列时关闭当前 session 形成背压 |
-| `session.Session` | `session/session.go` | 会话抽象，持有 values，并通过 WriteFrameFn 直接写 transport |
+| `session.Session` | `session/session.go` | 会话抽象，持有 values，并通过 WriteFrameFn 直接写 transport；可选 `OutboundSealer` 在同一写锁下先封闭普通出站 admission 再写最终 marker |
 | `transport.Conn` | `transport/transport.go` | 底层连接抽象；gnet Conn.Write 使用 transport 管理的异步写与出站字节限制 |
 | `WKProtoAuthOptions` | `auth.go` | WKProto 认证、访客、封禁、版本协商和加密配置 |
 
@@ -231,6 +237,27 @@ OnOpen:
 
 `gnet` transport 会让同一个 factory.Build 调用中的多个逻辑 listener 共享一个 engine group；每条连接固定分配到 actor shard，避免每连接 goroutine。
 
+Bench 终态 fence 通过可选 `session.OutboundSealer` / `OutboundSealState`
+与 `types.Context`
+能力落在会话写入顺序边界。`SealOutboundAndWrite` 与普通 `WriteFrame`
+共用 `writeMu`，先永久设置 sealed 再 enqueue 唯一 ACK；enqueue 失败也不
+重新开放，之后普通写返回 `ErrOutboundSealed`。`OutboundSealed` 是入口
+适配器的低耦合 admission gate：ACK admission 后收到的任何普通
+入站帧（包括 SEND、PING 和 RECVACK）都必须在进入任何 use case 前
+拒绝；不能等到业务已持久化、回写
+SENDACK 时才发现 sealed。该 seam 只证明会话内的最终写顺序，不把
+gnet `AsyncWrite` callback 或 `OutboundBuffered` 当成客户端 transport
+确认；只有客户端成功 decode 精确 ACK 才是远端证明。
+入口适配器严格解析请求后，只能通过 `TerminalFenceRequest.Proof` 取得固定
+长度的 epoch/SHA-256 capability proof 交给 use case 做 constant-time 验证，
+原始 capability 没有读取 accessor。验证通过后，只能通过
+`TerminalFenceRequest.CopyNonce` 把 nonce 显式复制到定长的
+frame-independent session marker。每次调用的
+session sealer 必须捕获同一个当前 `Context` 和 `request.AckEvent()`，先校验
+marker 的 `SessionID` 等于当前 Session，再调用 `SealOutboundAndWrite`。
+request、proof、marker、ACK Data、capability、digest 和 nonce 都不得进入
+日志或 metric。
+
 ### 6.3 入站 Decode 与 Frame 分发
 
 入口: `core.Server.onData`
@@ -256,7 +283,7 @@ OnData:
   ⑦ 认证完成后的业务 frame:
      - 若 OnSessionOpen 已开始但尚未返回，先等待 open lifecycle gate，保证 OnSessionOpen 先于 OnFrame
      - 记录 OnFrameIn
-     - SEND: 浅拷贝 packet 元数据后提交到 `asyncRuntime.send`；`sendExecutor` 先占用全局有界 backlog，再按 gateway session 选择 `workqueue.ShardedMailbox` shard。若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；workqueue 在 shard 内按条数/等待时间收集微批，gateway 再按 payload bytes 拆分批次，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
+     - SEND: 浅拷贝 packet 元数据后提交到 `asyncRuntime.send`；`sendExecutor` 先在线性 admission gate 中取得 accepted-work ownership，再占用全局有界 backlog，并按 gateway session 选择 `workqueue.ShardedMailbox` shard。若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；workqueue 在 shard 内按条数/等待时间收集微批，gateway 再按 payload bytes 拆分批次，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
        - 每个 shard mailbox 容量由 `AsyncSendQueueCapacity` 按 worker/shard 数切分，避免 worker 数扩张导致启动期常驻内存线性放大
        - `AsyncSendBatchMaxRecords` 产品默认值为 128；该上限已通过 4,500 QPS、5,000 Channel、30 分钟持续负载验证，用于抑制同 session 大批次对下游的突发放大
      - SEND 微批只作为入口批处理 hint；gateway 不按业务 channel 分组。个人频道归一化、权限检查、按 canonical channel 分组和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
@@ -339,6 +366,10 @@ sessionState.close:
 `CloseOnHandlerError` 默认为 true。为 true 时 handler 返回错误会关闭 session；显式设为 false 时只调用 `OnSessionError`，连接继续保留。
 
 Drain 由 `Gateway.SetAcceptingNewSessions(false)` 控制，只拒绝新连接，不主动踢出现有连接。`Gateway.SessionSummary` 会统计所有仍被 core 跟踪的 session，包括尚未认证的连接，供节点 drain 安全判断使用。
+
+`Gateway.DrainSends(ctx)` 是另一条、一次性的 SEND admission fence；它不改变新连接 admission。
+当 `Stop` 的内部 release budget 先到期时，Stop 仅停止本次等待，已接纳 SEND 仍在后台完成，随后才释放
+mailbox。Stop 不会通过取消 mailbox worker 来换取快速返回。
 
 ## 7. 协议与传输要点
 

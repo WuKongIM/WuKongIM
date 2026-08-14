@@ -10,6 +10,7 @@ import (
 	"time"
 
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -29,6 +30,12 @@ var (
 	ErrSendBatchResultCountMismatch = errors.New("internal/access/gateway: send batch result count mismatch")
 	// ErrPresenceRequired reports an activation request without a presence usecase.
 	ErrPresenceRequired = errors.New("internal/access/gateway: presence usecase required")
+	// ErrTerminalSessionSealed reports ordinary inbound work received after the
+	// exact terminal marker was admitted for this session.
+	ErrTerminalSessionSealed = errors.New("internal/access/gateway: terminal session is sealed")
+	// ErrTerminalFenceRequired reports a reserved terminal EVENT without the
+	// benchmark-only controller wired by the composition root.
+	ErrTerminalFenceRequired = errors.New("internal/access/gateway: terminal fence controller required")
 )
 
 const defaultSendTimeout = 5 * time.Second
@@ -56,6 +63,13 @@ type DeliveryUsecase interface {
 	SessionClosed(context.Context, delivery.SessionClosedCommand) error
 }
 
+// TerminalFenceUsecase authenticates and admits one exact owner-local session
+// marker after the target-side product drains have completed.
+type TerminalFenceUsecase interface {
+	SealAndEnqueue(context.Context, benchterminal.Proof, benchterminal.SessionFence, benchterminal.SessionSealer) (benchterminal.SealResult, error)
+	FailProtocolViolation()
+}
+
 // Options configures the internal gateway handler.
 type Options struct {
 	// Messages processes gateway SEND batches.
@@ -64,6 +78,9 @@ type Options struct {
 	Presence PresenceUsecase
 	// Delivery receives client recvacks and session close cleanup events.
 	Delivery DeliveryUsecase
+	// BenchTerminalFence owns the benchmark-only terminal epoch. Production
+	// composition may bind it once after the gateway runtime is constructed.
+	BenchTerminalFence TerminalFenceUsecase
 	// OwnerNodeID is the local gateway owner node id stamped on SEND commands.
 	OwnerNodeID uint64
 	// SendTimeout bounds each gateway SEND request.
@@ -81,11 +98,17 @@ type Handler struct {
 	messages         MessageUsecase
 	presence         PresenceUsecase
 	delivery         DeliveryUsecase
+	terminalFence    atomic.Pointer[terminalFenceBinding]
 	ownerNodeID      uint64
 	sendTimeout      time.Duration
 	sendackObserver  SendackObserver
 	traceIDGenerator TraceIDGenerator
 	logger           wklog.Logger
+	plannedShutdown  atomic.Bool
+}
+
+type terminalFenceBinding struct {
+	usecase TerminalFenceUsecase
 }
 
 // New creates a gateway Handler.
@@ -99,7 +122,7 @@ func New(opts Options) *Handler {
 	if opts.TraceIDGenerator == nil {
 		opts.TraceIDGenerator = defaultTraceIDGenerator
 	}
-	return &Handler{
+	h := &Handler{
 		messages:         opts.Messages,
 		presence:         opts.Presence,
 		delivery:         opts.Delivery,
@@ -109,6 +132,35 @@ func New(opts Options) *Handler {
 		traceIDGenerator: opts.TraceIDGenerator,
 		logger:           opts.Logger,
 	}
+	h.BindBenchTerminalFence(opts.BenchTerminalFence)
+	return h
+}
+
+// BindBenchTerminalFence installs the benchmark terminal controller exactly
+// once. App construction calls this before any listener starts because the
+// concrete gateway runtime must exist before its drain port can be composed.
+// It returns false for nil or a repeated binding.
+func (h *Handler) BindBenchTerminalFence(usecase TerminalFenceUsecase) bool {
+	if h == nil || usecase == nil {
+		return false
+	}
+	return h.terminalFence.CompareAndSwap(nil, &terminalFenceBinding{usecase: usecase})
+}
+
+// BeginPlannedShutdown fences cancellation logging before the gateway closes
+// its listeners and in-flight sessions. Runtime cancellations observed before
+// this boundary remain warning-worthy evidence.
+func (h *Handler) BeginPlannedShutdown() {
+	if h == nil {
+		return
+	}
+	h.plannedShutdown.Store(true)
+}
+
+// IsPlannedShutdown reports whether the app lifecycle crossed the explicit
+// shutdown fence. It is read-only so gateway runtimes cannot move the fence.
+func (h *Handler) IsPlannedShutdown() bool {
+	return h != nil && h.plannedShutdown.Load()
 }
 
 // defaultTraceIDGenerator returns a random trace id with a monotonic time fallback.
@@ -206,6 +258,10 @@ func (h *Handler) OnSessionError(ctx coregateway.Context, err error) {
 }
 
 func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
+	if ctx.OutboundSealed() {
+		h.failTerminalProtocol()
+		return ErrTerminalSessionSealed
+	}
 	switch pkt := f.(type) {
 	case *frame.PingPacket:
 		h.touchPresence(&ctx, time.Now())
@@ -214,9 +270,79 @@ func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 		return h.handleSend(&ctx, pkt)
 	case *frame.RecvackPacket:
 		return h.handleRecvack(&ctx, pkt)
+	case *frame.EventPacket:
+		return h.handleTerminalFence(&ctx, pkt)
 	default:
 		return ErrUnsupportedFrame
 	}
+}
+
+func (h *Handler) handleTerminalFence(ctx *coregateway.Context, pkt *frame.EventPacket) error {
+	if pkt == nil || pkt.Type != frame.TerminalFenceEventType {
+		return ErrUnsupportedFrame
+	}
+	binding := h.terminalFence.Load()
+	if binding == nil || binding.usecase == nil {
+		return ErrTerminalFenceRequired
+	}
+	request, err := frame.ParseTerminalFenceRequest(pkt)
+	if err != nil {
+		h.failTerminalProtocol()
+		return err
+	}
+	proof, err := request.Proof()
+	if err != nil {
+		h.failTerminalProtocol()
+		return err
+	}
+	var nonce frame.TerminalFenceNonce
+	if err := request.CopyNonce(&nonce); err != nil {
+		h.failTerminalProtocol()
+		return err
+	}
+	ack, err := request.AckEvent()
+	if err != nil {
+		h.failTerminalProtocol()
+		return err
+	}
+	if ctx == nil || ctx.Session == nil || ctx.Session.ID() == 0 {
+		h.failTerminalProtocol()
+		return benchterminal.ErrInvalidSessionFence
+	}
+	_, err = binding.usecase.SealAndEnqueue(requestContextFromContext(ctx), benchterminal.Proof{
+		Epoch:            proof.Epoch,
+		CapabilitySHA256: proof.CapabilitySHA256,
+	}, benchterminal.SessionFence{
+		SessionID: ctx.Session.ID(),
+		Epoch:     request.Epoch,
+		Nonce:     [frame.TerminalFenceNonceBytes]byte(nonce),
+	}, terminalSessionSealer{gatewayContext: *ctx, ack: ack})
+	return err
+}
+
+func (h *Handler) failTerminalProtocol() {
+	binding := h.terminalFence.Load()
+	if binding != nil && binding.usecase != nil {
+		binding.usecase.FailProtocolViolation()
+	}
+}
+
+type terminalSessionSealer struct {
+	gatewayContext coregateway.Context
+	ack            *frame.EventPacket
+}
+
+func (s terminalSessionSealer) SealAndEnqueue(ctx context.Context, fence benchterminal.SessionFence) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.gatewayContext.Session == nil || fence.SessionID == 0 || fence.SessionID != s.gatewayContext.Session.ID() {
+		return benchterminal.ErrInvalidSessionFence
+	}
+	return s.gatewayContext.SealOutboundAndWrite(s.ack)
 }
 
 func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
@@ -360,7 +486,8 @@ func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, 
 }
 
 func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, err error) {
-	if err == nil || !shouldLogSendErrorClass(class) {
+	if err == nil || !shouldLogSendErrorClass(class) ||
+		(class == sendackErrorClassCanceled && h.plannedShutdown.Load()) {
 		return
 	}
 	fields := []wklog.Field{
@@ -375,6 +502,15 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 	}
 	if cmd.ClientMsgNo != "" {
 		fields = append(fields, wklog.ClientMsgNo(cmd.ClientMsgNo))
+	}
+	if diagnostics, ok := message.SendBatchFailureDiagnosticsFromError(err); ok {
+		fields = append(fields,
+			wklog.String("failedStage", diagnostics.FailedStage),
+			wklog.Duration("permissionDuration", diagnostics.Permission),
+			wklog.Duration("preAppendDuration", diagnostics.PreAppend),
+			wklog.Duration("submitterDuration", diagnostics.Submitter),
+			wklog.Duration("deadlineBudgetBeforeSubmit", diagnostics.DeadlineBudgetBeforeSubmit),
+		)
 	}
 	h.frameLogger().Warn("gateway send failed", fields...)
 }
@@ -422,7 +558,7 @@ func (h *Handler) logSendBatchResultCountMismatch(items, validItems, results int
 func shouldLogSendErrorClass(class string) bool {
 	switch class {
 	case sendackErrorClassNotLeader, sendackErrorClassStaleRoute, sendackErrorClassRouteNotReady,
-		sendackErrorClassCanceled, sendackErrorClassTimeout, sendackErrorClassOther,
+		sendackErrorClassTimeout, sendackErrorClassCanceled, sendackErrorClassOther,
 		sendackErrorClassMissingRequestContext:
 		return true
 	default:

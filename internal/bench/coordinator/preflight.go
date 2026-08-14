@@ -25,12 +25,16 @@ type PreflightConfig struct {
 	HTTPClient *http.Client
 	// GatewayChecker verifies target gateway addresses; nil uses a no-op checker.
 	GatewayChecker GatewayChecker
+	// RequireTerminalFence makes the reviewed single-target/single-worker
+	// topology and terminal-fence capability hard preflight requirements.
+	RequireTerminalFence bool
 }
 
 // Preflight validates target and worker reachability before orchestration.
 type Preflight struct {
-	http           *http.Client
-	gatewayChecker GatewayChecker
+	http                 *http.Client
+	gatewayChecker       GatewayChecker
+	requireTerminalFence bool
 }
 
 // NewPreflight builds a coordinator preflight checker.
@@ -43,7 +47,7 @@ func NewPreflight(cfg PreflightConfig) *Preflight {
 	if checker == nil {
 		checker = noopGatewayChecker{}
 	}
-	return &Preflight{http: hc, gatewayChecker: checker}
+	return &Preflight{http: hc, gatewayChecker: checker, requireTerminalFence: cfg.RequireTerminalFence}
 }
 
 // Check runs black-box target API, capability, worker, and gateway preflight checks.
@@ -54,6 +58,12 @@ func (p *Preflight) Check(ctx context.Context, tgt model.Target, workers model.W
 	apiAddrs := tgt.BenchAPI.Addrs
 	if len(apiAddrs) == 0 {
 		apiAddrs = tgt.API.Addrs
+	}
+	if p.requireTerminalFence && len(apiAddrs) != 1 {
+		return fmt.Errorf("external terminal cut requires exactly one effective bench API address (got %d)", len(apiAddrs))
+	}
+	if p.requireTerminalFence && len(workers.Workers) != 1 {
+		return fmt.Errorf("external terminal cut requires exactly one worker (got %d)", len(workers.Workers))
 	}
 	client := target.NewClient(target.Config{APIAddrs: apiAddrs, Token: tgt.BenchAPI.Token, HTTPClient: p.http})
 	if err := client.Healthz(ctx); err != nil {
@@ -66,7 +76,7 @@ func (p *Preflight) Check(ctx context.Context, tgt model.Target, workers model.W
 	if err != nil {
 		return fmt.Errorf("target capabilities preflight failed: %w", err)
 	}
-	if err := validateCapabilities(caps); err != nil {
+	if err := validateCapabilities(caps, p.requireTerminalFence); err != nil {
 		return err
 	}
 	for _, worker := range workers.Workers {
@@ -80,7 +90,7 @@ func (p *Preflight) Check(ctx context.Context, tgt model.Target, workers model.W
 	return nil
 }
 
-func validateCapabilities(caps model.BenchCapabilities) error {
+func validateCapabilities(caps model.BenchCapabilities, requireTerminalFence bool) error {
 	var missing []string
 	if caps.Version != "bench/v1" {
 		missing = append(missing, fmt.Sprintf("version bench/v1 (got %q)", caps.Version))
@@ -99,6 +109,9 @@ func validateCapabilities(caps model.BenchCapabilities) error {
 	}
 	if !caps.Supports.Snapshot {
 		missing = append(missing, "snapshot")
+	}
+	if requireTerminalFence && !caps.Supports.TerminalFencePrepare {
+		missing = append(missing, "terminal_fence_prepare")
 	}
 	if !contains(caps.Supports.ChannelTypes, model.ChannelTypeGroup) {
 		missing = append(missing, "channel_types group")

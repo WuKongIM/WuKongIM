@@ -74,6 +74,10 @@ type deliveryAckBatchSeries struct {
 	duration prometheus.Observer
 }
 
+var deliveryRecipientProcessResults = [...]string{
+	"ok", "panic", "timeout", "canceled", "error", "retry_exhausted", "unknown",
+}
+
 func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels) *DeliveryMetrics {
 	m := &DeliveryMetrics{
 		resolveDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -244,6 +248,11 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"phase", "outcome"}),
 	}
+	// Materialize the closed accepted-plan terminal partition. Native baseline
+	// evidence must distinguish a real zero from an omitted result series.
+	for _, result := range deliveryRecipientProcessResults {
+		m.recipientProcessTotal.WithLabelValues(result).Add(0)
+	}
 
 	registry.MustRegister(
 		m.resolveDuration,
@@ -403,13 +412,22 @@ func (m *DeliveryMetrics) ObserveRecipientWorkerProcess(result string, recipient
 	if m == nil {
 		return
 	}
-	result = normalizeDeliveryLabel(result, "unknown")
+	result = normalizeDeliveryRecipientProcessResult(result)
 	if dur < 0 {
 		dur = 0
 	}
 	m.recipientProcessTotal.WithLabelValues(result).Inc()
 	m.recipientProcessDuration.WithLabelValues(result).Observe(dur.Seconds())
 	m.recipientProcessRecipients.WithLabelValues(result).Observe(float64(nonNegative(recipients)))
+}
+
+func normalizeDeliveryRecipientProcessResult(result string) string {
+	switch result {
+	case "ok", "panic", "timeout", "canceled", "error", "retry_exhausted":
+		return result
+	default:
+		return "unknown"
+	}
 }
 
 // ObserveRecipientAuthorityResolve records one recipient authority batch resolution.

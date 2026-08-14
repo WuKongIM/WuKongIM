@@ -277,9 +277,14 @@ for all 12 logical Slot groups, while the parser retains absent-as-zero
 compatibility. Accounting
 accepts exactly three service-node scrapes and uses checked integer arithmetic
 to reconcile their fixed 12-Slot vectors. It folds separate bounded 256-hash-slot
-person-edge and prepared-group expectations through the current immutable
-assignment, then requires every logical Slot's `created` counter to cover its
-marked expectation. A provisional product mismatch is rescraped at most five
+successful-first-person and successful-first-fixed-group expectations through
+the current immutable assignment, then requires every logical Slot's `created`
+counter to cover its marked expectation. Group setup writes business channel
+and subscriber metadata but does not create Channel runtime metadata, so an
+untouched prepared group never enters this expectation. Each owning worker
+retains only one fixed 2,000-entry catalog fence and one 256-counter group vector;
+the vector advances only after the group's first successful SENDACK and must be
+monotonic at both worker and controller boundaries. A provisional product mismatch is rescraped at most five
 times across a 100-millisecond context-bounded settle window before the
 accounting snapshot is committed; malformed metrics fail immediately and a
 stable deficit remains product failure. Per-Slot counters may not regress, `error` must remain zero,
@@ -295,8 +300,9 @@ schema v3; the strict reader intentionally rejects legacy report schemas. The me
 and all fixed-array aggregate snapshots remain low-cardinality and carry no
 channel label.
 
-Worker snapshots contain only scalar aggregates, including the fixed terminal
-SEND and retry-exhaustion reason breakdown, fixed arrays, and the verifier's
+Worker protocol v5 snapshots contain only scalar aggregates, including the
+fixed successful-first person/group metadata-create vectors, terminal SEND and
+retry-exhaustion reason breakdown, fixed arrays, and the verifier's
 at-most-four evidence classes with at most 64
 first and 64 last redacted examples per class. No snapshot, checkpoint, report,
 or durable evidence enumerates a UID or channel. Raw candidate identities exist
@@ -487,8 +493,10 @@ rejected SENDACK as a retry decision input only when both server identity fields
 are zero; nonzero identity on rejection is invalid product evidence. Once a
 SEND is acknowledged, another registered overlapping attempt may resolve once
 without duplicate/conflict evidence. `ReleaseSend` retains only those unresolved
-sibling attempt identities through the existing correlation deadline in a
-bounded grace index; unknown sequence values remain product evidence. Explicit
+sibling attempt identities for one correlation window after logical completion
+in a bounded grace index; using the original registration deadline can expire a
+slow sibling immediately after a successful full retry window. Unknown sequence
+values remain product evidence. Explicit
 terminal completion is also a product failure. Unknown, duplicate, and
 conflicting completions use fixed reason codes and redacted message fingerprints.
 
@@ -779,6 +787,9 @@ timeout, rejection, or asynchronous transport error; stale outcomes leave it
 unchanged. A successful ACK from any registered attempt completes the logical
 send exactly once, cancels current timeout/future retry work, and moves
 unresolved sibling attempt identities into the verifier's bounded grace index.
+That grace deadline starts when the engine observes logical completion, not at
+initial registration, so a valid overlapping wire attempt may finish after a
+long retry sequence without becoming an unknown SENDACK.
 The ordinary loaded-hot first-attempt deadline is the configured hot SENDACK
 p99.9 bound. A deterministic first person-channel create or an all-node-proven
 cold reheat instead uses the configured cold p99.9 bound, so a valid cold
@@ -963,12 +974,31 @@ failure only when the whole measured window has complete four-host resource
 evidence and no threshold-high sample; missing or mixed evidence is
 insufficient evidence.
 
+The local staircase does not downgrade a validated terminal product or
+correctness failure merely because it happened before the warmup qualification
+cut. In that case the typed local result explicitly records that qualification
+was not reached, retains cumulative final message counts without inventing a
+measured rate, and leaves the missing normalized before/after evidence false.
+The final report must still prove the reviewed topology, target population,
+process continuity, and a valid filesystem observation; low free space remains
+storage-confounded rather than product evidence.
+
 After preflight, the target observer immediately polls and then repeats at the
 configured cadence, which is five seconds in the reviewed defaults, using
 bounded state. Each round starts exactly one goroutine per service node, shares
 one context bounded by the smaller of that cadence and five seconds across the
 node's ordered health/readiness/cluster calls, joins the fixed result slice in
 node order, and only then reads the clock for continuous-window accounting.
+The complete production sample reuses the remainder of that same strict round
+context, so host-metrics handlers must not synchronously wait for interval-based
+platform commands. When a successful host-metrics response contains its system
+filesystem but omits the required host-resource aggregate, the source waits 500
+milliseconds inside that same context and rereads only the affected endpoint
+once. A canceled wait commits no round, while a second incomplete response
+remains missing evidence. Darwin physical-I/O collection returns its cached
+bounded sample immediately and single-flights a background `iostat` refresh;
+unavailable physical-I/O fields do not erase the filesystem, CPU, memory,
+network, or process evidence from that host round.
 Parent cancellation releases the shared round and ticker. The observer requires
 complete stable reports for all 12 logical Slot groups, one leader, three
 desired replicas, three live voters, and leader-only progress. Hot Slot groups
@@ -1304,15 +1334,48 @@ persisted verdict vocabulary. A qualification cut immediately after warmup is
 the counter baseline; an operator stop after the fixed measured interval first
 closes SEND grant admission and then uses the existing bounded worker drain.
 The separate local-step classifier requires at least 2,500 online sessions at
-the baseline, exact SEND/SENDACK delta equality, at least 90 percent of offered
+the baseline, exact measured SEND/SENDACK equality, at least 90 percent of offered
 throughput, zero terminal/correctness failures, empty correlation and worker
 queues after drain, complete product/storage evidence, and continuous service,
 worker, host-metrics, and local process-sampler processes. Product evidence is
-complete only when host/process rounds and worker-queue cuts have no missing
-samples. Less than ten percent filesystem free is
+complete only when both boundary cuts are closed, their sample counters
+advance, and neither the host/process nor worker-queue missing-sample counter
+increases across the measured interval. A warmup-only cumulative gap therefore
+does not poison a later complete interval, while a new measured gap still fails
+closed. Raw full-registry Prometheus snapshots run every 30 seconds instead of
+competing with the product's own five-second observation loop; before, periodic,
+after, and post-drain snapshots remain preserved. Every successfully committed
+round that omits a required host or process surface advances the same cumulative
+missing-sample counter in both local and formal profiles; a later complete round
+cannot erase that measured gap. One shared budget emits at most 64 identity-free
+observation JSON lines. A cadence gap uses
+`wkbench.chat_lifecycle.observation_cadence_gap` with the source,
+previous/current timestamps, gap, cadence, and cumulative missing count. A
+partial-host retry uses `wkbench.chat_lifecycle.observation_resource_retry` with
+only its initial and remaining four-bit masks. An incomplete committed round
+uses `wkbench.chat_lifecycle.observation_resource_incomplete` with four-bit host
+and process masks, a six-bit service-queue mask, the load-directory bit, and the
+cumulative missing count. A terminal observation-source error emits
+`wkbench.chat_lifecycle.observation_failed` with a fixed collection/validation/
+commit stage, optional fixed commit substage, stable error class, three-bit
+service-metrics and four-bit host-read failure masks, and remaining deadline;
+it never includes an address or raw error. If the coordinator fails before its
+qualification cut, the wrapper captures one explicitly non-converged queue cut
+instead of polling against a nonexistent baseline for the full drain timeout.
+Once a staircase step has closed its typed result and checksum evidence,
+the baseline wrapper deletes only reproducible step-local binaries, node data,
+and worker state; reports, logs, configs, raw metrics, summaries, and evidence
+remain available. Less than ten percent filesystem free is
 `storage_confounded`, overlapping WuKongIM work is `host_confounded`, and
 missing evidence is `insufficient_evidence`; none is a product-capacity or
-formal verdict.
+formal verdict. The qualification cut may still contain warmup SENDs awaiting
+SENDACK. Because final drain proves every pre-cut SEND terminal, the measured
+acknowledgement delta subtracts the qualification SEND boundary rather than the
+qualification SENDACK counter; late warmup SENDACKs cannot inflate the measured
+rate. Measured local steps also make the formal first-attempt-rate thresholds
+non-terminal. Recovered attempts remain visible in the final evidence, while
+the local post-drain classifier owns the rate decision and terminal or
+correctness failures retain their normal product-failure classification.
 
 Capacity admission accepts only a validated final passing formal-stage Soak report of
 at least 72 hours whose persisted dataset-reference digest still matches a

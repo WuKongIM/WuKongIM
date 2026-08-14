@@ -236,6 +236,39 @@ func TestRunScheduledMessagesStopsSchedulingWhenWindowExpires(t *testing.T) {
 	require.Equal(t, 0, <-started)
 }
 
+func TestRunScheduledMessagesUsesCallerOwnedAdmissionDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	deadline := time.Now().Add(30 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	started := make(chan int, 3)
+	err := runScheduledMessagesByKeyUntilWithStats(ctx, 3, 20*time.Millisecond, 1, deadline, nil, func(ctx context.Context, offset int) error {
+		started <- offset
+		select {
+		case <-time.After(20 * time.Millisecond):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}, nil)
+
+	require.NoError(t, err)
+	close(started)
+	require.Equal(t, []int{0}, drainStartedOffsets(started))
+}
+
+func TestRunSequentialMessagesDoesNotAdmitAtExpiredCallerDeadline(t *testing.T) {
+	started := 0
+	err := runSequentialMessagesUntil(context.Background(), time.Now().Add(-time.Millisecond), 1, 0, nil, func(context.Context, int) error {
+		started++
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Zero(t, started)
+}
+
 func TestRunScheduledMessagesCatchesUpAfterBlockedDispatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

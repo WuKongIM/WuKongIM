@@ -1784,6 +1784,47 @@ func TestRegistryExposesIdleChannelAppendWriterState(t *testing.T) {
 	}).GetHistogram().GetSampleSum())
 }
 
+func TestRegistryExposesClosedTerminalResultPartitions(t *testing.T) {
+	reg := New(12, "node-12")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	delivery := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_process_total")
+	for _, result := range []string{"ok", "panic", "timeout", "canceled", "error", "retry_exhausted", "unknown"} {
+		require.Equal(t, float64(0), findMetricByLabels(t, delivery, map[string]string{
+			"node_id": "12", "node_name": "node-12", "result": result,
+		}).GetCounter().GetValue())
+	}
+	postCommit := requireMetricFamily(t, families, "wukongim_channelappend_effect_total")
+	for _, result := range []string{
+		"ok", "mixed", "canceled", "timeout", "backpressured", "channel_busy", "route_not_ready",
+		"stale_route", "stale_completion", "not_authority", "not_leader", "channel_not_found",
+		"append_result_missing", "append_failed", "commit_failed", "invalid_subscribers", "invalid_cursor",
+		"unsupported", "auth_fail", "invalid_request", "system_error", "other",
+	} {
+		require.Equal(t, float64(0), findMetricByLabels(t, postCommit, map[string]string{
+			"node_id": "12", "node_name": "node-12", "stage": "post_commit", "result": result,
+		}).GetCounter().GetValue())
+	}
+}
+
+func TestRegistryNormalizesTerminalResultPartitions(t *testing.T) {
+	reg := New(12, "node-12")
+	reg.Delivery.ObserveRecipientWorkerProcess("unbounded-result", 1, time.Millisecond)
+	reg.ChannelAppend.ObserveEffect("post_commit", "unbounded-result", 1, time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	delivery := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_process_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, delivery, map[string]string{
+		"node_id": "12", "node_name": "node-12", "result": "unknown",
+	}).GetCounter().GetValue())
+	postCommit := requireMetricFamily(t, families, "wukongim_channelappend_effect_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, postCommit, map[string]string{
+		"node_id": "12", "node_name": "node-12", "stage": "post_commit", "result": "other",
+	}).GetCounter().GetValue())
+}
+
 func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 	reg := New(12, "node-12")
 	reg.ChannelAppend.ObserveRouter("local", "ok", 8, 3*time.Millisecond)
@@ -1797,6 +1838,7 @@ func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 	reg.ChannelAppend.ObserveEffectPool("append", "full", 16, 16, true)
 	reg.ChannelAppend.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
 	reg.ChannelAppend.ObserveEffect("post_commit", "route_not_ready", 1, 6*time.Millisecond)
+	reg.ChannelAppend.ObserveIdempotencyRecovery(5, 2, 1)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -1895,7 +1937,18 @@ func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 		"stage":     "append",
 	}).GetGauge().GetValue())
 
-	for _, family := range []*dto.MetricFamily{router, admission, state, handoffDepth, handoffCapacity, retryQueue, retryContended, effect, poolSubmit, poolInflight, poolCapacity, poolSaturated} {
+	idempotencyRecovery := requireMetricFamily(t, families, "wukongim_channelappend_idempotency_recovery_items_total")
+	require.Equal(t, float64(5), findMetricByLabels(t, idempotencyRecovery, map[string]string{
+		"node_id": "12", "node_name": "node-12", "result": "recovered",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(2), findMetricByLabels(t, idempotencyRecovery, map[string]string{
+		"node_id": "12", "node_name": "node-12", "result": "unresolved",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, idempotencyRecovery, map[string]string{
+		"node_id": "12", "node_name": "node-12", "result": "lookup_error",
+	}).GetCounter().GetValue())
+
+	for _, family := range []*dto.MetricFamily{router, admission, state, handoffDepth, handoffCapacity, retryQueue, retryContended, effect, poolSubmit, poolInflight, poolCapacity, poolSaturated, idempotencyRecovery} {
 		for _, metric := range family.GetMetric() {
 			requireNoMetricLabel(t, metric, "uid")
 			requireNoMetricLabel(t, metric, "channel_id")

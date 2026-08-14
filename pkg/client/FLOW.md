@@ -26,9 +26,33 @@ New(Config)
 `Client` represents one authenticated WKProto TCP session. Reconnect is allowed by calling `Connect` again; the new connection gets a fresh pending tracker and reader loop, and the old connection is closed after the new session is published.
 
 Synchronous CONNECT reads and writes use `OperationTimeout` and clear socket deadlines before the background reader takes over. `Close` is terminal for a `Client`; use a new `Client` or `Pool` entry after a terminal close.
-`ReadFrame` and `Recv` are streaming waits: they have no implicit
+`ReadFrame`, `ReadFrameWithLease`, and `Recv` are streaming waits: they have no implicit
 `OperationTimeout` and return only for a frame, session transition, close, or
 their caller context. Short control operations retain the configured timeout.
+EOF with an incomplete buffered frame is a typed unexpected-EOF failure; it is
+never accepted as a clean session boundary.
+
+The legacy no-grant `SealIngress` seam remains fail-closed and returns
+`ErrIngressSealUnsupported` without changing the live TCP session.
+`SealIngressWithFence` requires a target-published `TerminalFenceGrant`. Under
+the same admission lock as SEND/PING it permanently enters terminal quiescing,
+then waits for every previously admitted SEND to receive a decoded SENDACK. A
+missing, timed-out, or locally failed SEND fails the cut before the marker is
+written; a decoded non-success SENDACK remains visible to the workload's
+existing correctness verdict.
+It writes one strictly bounded `_wk.bench.terminal_fence.v1` EVENT containing
+only version, epoch, opaque capability, and a random 128-bit nonce, and succeeds
+only when the reader decodes the exact
+`_wk.bench.terminal_fence_ack.v1` epoch/nonce pair. Capability and nonce are not
+logged or used as metric labels. SEND, PING, and reconnect reject promptly once
+quiescing begins; RECVACK remains allowed. EOF before the ACK, a malformed or
+stale ACK, or any current-session frame decoded after the ACK is a fail-closed
+protocol violation. A decoded ACK first enters an internal observed state; it is
+published as success only after the reader consumes the current socket-read
+batch with no trailing bytes. Thus a complete or partial post-ACK frame already
+coalesced with that ACK cannot race a false successful return. TCP half-close,
+a local write callback, or transport-buffer state is never accepted as remote
+proof.
 
 ## SEND Flow
 
@@ -71,15 +95,18 @@ reader loop
 The inbound RECV queue is bounded and lossless. When it is full, the reader
 backpressures the socket until a consumer frees capacity. Client close or
 session replacement releases a blocked publisher, so bounded delivery cannot
-strand an old reader loop. `InboundQueueSnapshot` exposes only the current
-queue depth and capacity for bounded saturation observation.
+strand an old reader loop. `InboundQueueSnapshot` exposes only bounded numeric
+queue depth, capacity, and handoff ownership. `ReadFrameWithLease` keeps one
+dequeued RECV observable in that handoff count until the next processing stage
+accepts it and releases the idempotent lease; ordinary `ReadFrame` releases the
+lease before returning for compatibility.
 Send-only tools that do not consume delivered payloads may set
 `DiscardInboundRecv`; RECV frames then bypass payload decryption and the queue,
 so they cannot block SENDACK progress or retain fanout payloads in memory.
 
 ## Control Flow
 
-`Ping` and `RecvAck` share the writer loop with SENDs so control frames and SEND frames are serialized on the same TCP stream. Control writes use `OperationTimeout` or the caller's shorter context deadline.
+`Ping` and `RecvAck` share the writer loop with SENDs so control frames and SEND frames are serialized on the same TCP stream. Control writes use `OperationTimeout` or the caller's shorter context deadline. The terminal marker is admitted under the same SEND/PING ordering lock; RECVACK intentionally remains an allowed independent control write while the remote ACK is pending.
 
 ## Pool Flow
 

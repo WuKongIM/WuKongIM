@@ -32,6 +32,9 @@ var localStepStorageHeader = []string{
 	"flush_bytes_delta", "flush_count_delta", "compaction_bytes_read_delta",
 	"compaction_bytes_written_delta", "compaction_count_delta", "sstable_size_max",
 	"compaction_debt_max", "compactions_in_progress_max", "read_amplification_max", "disk_usage_max",
+	"avg_bytes_per_commit", "requests_per_commit_p50", "requests_per_commit_p95", "requests_per_commit_p99",
+	"records_per_commit_p50", "records_per_commit_p95", "records_per_commit_p99",
+	"bytes_per_commit_p50", "bytes_per_commit_p95", "bytes_per_commit_p99",
 }
 
 var localStepProcessHeader = []string{"name", "alive"}
@@ -60,6 +63,27 @@ const (
 	localChatLifecycleStepInsufficientEvidence localChatLifecycleStepOutcome = "insufficient_evidence"
 )
 
+// localChatLifecycleHarnessFailureReason is a closed wrapper-failure
+// vocabulary. These failures never become product or local-capacity verdicts.
+type localChatLifecycleHarnessFailureReason string
+
+const (
+	localChatLifecycleHarnessFailureNone                               localChatLifecycleHarnessFailureReason = ""
+	localChatLifecycleHarnessFailureCoordinatorGracefulStopTimeout     localChatLifecycleHarnessFailureReason = "coordinator_graceful_stop_timeout"
+	localChatLifecycleHarnessFailureCoordinatorExitedBeforeStopRequest localChatLifecycleHarnessFailureReason = "coordinator_exited_before_stop_request"
+)
+
+func validLocalChatLifecycleHarnessFailureReason(reason localChatLifecycleHarnessFailureReason) bool {
+	switch reason {
+	case localChatLifecycleHarnessFailureNone,
+		localChatLifecycleHarnessFailureCoordinatorGracefulStopTimeout,
+		localChatLifecycleHarnessFailureCoordinatorExitedBeforeStopRequest:
+		return true
+	default:
+		return false
+	}
+}
+
 // localChatLifecycleStepOptions declares the measured rate contract for one step.
 type localChatLifecycleStepOptions struct {
 	OfferedRatePerSecond     uint64
@@ -69,42 +93,96 @@ type localChatLifecycleStepOptions struct {
 
 // localChatLifecycleStepEvidence records whether every required evidence cut is closed.
 type localChatLifecycleStepEvidence struct {
+	QualificationReportComplete  bool
+	FinalReportComplete          bool
 	StorageComplete              bool
 	HostIOComplete               bool
 	ProductMetricsComplete       bool
 	ProductQueueEvidenceComplete bool
 	ProductQueuesConverged       bool
 	ProcessesContinuous          bool
+	TimelineComplete             bool
+	ProfileEvidenceComplete      bool
+	OperatorInterrupted          bool
+	HarnessFailureReason         localChatLifecycleHarnessFailureReason
 	HostConfounded               bool
 }
 
 // localChatLifecycleStepResult is the non-formal typed result consumed by the staircase.
 type localChatLifecycleStepResult struct {
-	Schema                       string                        `json:"schema"`
-	Outcome                      localChatLifecycleStepOutcome `json:"outcome"`
-	Reason                       string                        `json:"reason"`
-	OfferedRatePerSecond         uint64                        `json:"offered_rate_per_second"`
-	ActualRatePerSecond          float64                       `json:"actual_rate_per_second"`
-	MinimumThroughputPercent     uint64                        `json:"minimum_throughput_percent"`
-	MeasuredDurationSeconds      float64                       `json:"measured_duration_seconds"`
-	OnlineConnections            int                           `json:"online_connections"`
-	Sent                         uint64                        `json:"sent"`
-	Acknowledged                 uint64                        `json:"acknowledged"`
-	Expected                     uint64                        `json:"expected"`
-	MinimumFilesystemFreePct     float64                       `json:"minimum_filesystem_free_percent"`
-	StorageEvidenceComplete      bool                          `json:"storage_evidence_complete"`
-	HostIOEvidenceComplete       bool                          `json:"host_io_evidence_complete"`
-	ProductMetricsComplete       bool                          `json:"product_metrics_complete"`
-	ProductQueueEvidenceComplete bool                          `json:"product_queue_evidence_complete"`
-	ProductQueuesConverged       bool                          `json:"product_queues_converged"`
-	ProcessContinuityComplete    bool                          `json:"process_continuity_complete"`
+	Schema                       string                                 `json:"schema"`
+	Outcome                      localChatLifecycleStepOutcome          `json:"outcome"`
+	Reason                       string                                 `json:"reason"`
+	OfferedRatePerSecond         uint64                                 `json:"offered_rate_per_second"`
+	ActualRatePerSecond          float64                                `json:"actual_rate_per_second"`
+	MinimumThroughputPercent     uint64                                 `json:"minimum_throughput_percent"`
+	MeasuredDurationSeconds      float64                                `json:"measured_duration_seconds"`
+	QualificationReached         bool                                   `json:"qualification_reached"`
+	TargetConnections            int                                    `json:"target_connections"`
+	OnlineConnections            int                                    `json:"online_connections"`
+	Sent                         uint64                                 `json:"sent"`
+	Acknowledged                 uint64                                 `json:"acknowledged"`
+	Expected                     uint64                                 `json:"expected"`
+	MinimumFilesystemFreePct     float64                                `json:"minimum_filesystem_free_percent"`
+	StorageEvidenceComplete      bool                                   `json:"storage_evidence_complete"`
+	HostIOEvidenceComplete       bool                                   `json:"host_io_evidence_complete"`
+	ProductMetricsComplete       bool                                   `json:"product_metrics_complete"`
+	ProductQueueEvidenceComplete bool                                   `json:"product_queue_evidence_complete"`
+	ProductQueuesConverged       bool                                   `json:"product_queues_converged"`
+	ProcessContinuityComplete    bool                                   `json:"process_continuity_complete"`
+	TimelineEvidenceComplete     bool                                   `json:"timeline_evidence_complete"`
+	ProfileEvidenceComplete      bool                                   `json:"profile_evidence_complete"`
+	OperatorInterrupted          bool                                   `json:"operator_interrupted"`
+	HarnessFailureReason         localChatLifecycleHarnessFailureReason `json:"harness_failure_reason"`
+}
+
+const localChatLifecycleProfileStatusSchemaV1 = "wukongim/chat-lifecycle-threshold-pprof-status/v1"
+
+type localChatLifecycleProfileStatus struct {
+	Schema             string                   `json:"schema"`
+	Status             string                   `json:"status"`
+	EvidenceComplete   bool                     `json:"evidence_complete"`
+	CaptureValid       bool                     `json:"capture_valid"`
+	Reason             string                   `json:"reason"`
+	TriggerKind        localTimelineTriggerKind `json:"trigger_kind"`
+	TriggerPreviousUTC string                   `json:"trigger_previous_utc"`
+	TriggerCurrentUTC  string                   `json:"trigger_current_utc"`
+	Metadata           string                   `json:"metadata"`
+	HelperExitStatus   *int                     `json:"helper_exit_status,omitempty"`
+}
+
+type localThresholdPprofMetadata struct {
+	Schema  string `json:"schema"`
+	Trigger struct {
+		Kind          localTimelineTriggerKind `json:"kind"`
+		ObservedPhase string                   `json:"observed_phase"`
+		PreviousUTC   time.Time                `json:"previous_utc"`
+		CurrentUTC    time.Time                `json:"current_utc"`
+	} `json:"trigger"`
+	Capture struct {
+		Status         string    `json:"status"`
+		Valid          bool      `json:"valid"`
+		Reason         string    `json:"reason"`
+		StartPhase     string    `json:"start_phase"`
+		EndPhase       string    `json:"end_phase"`
+		StartedAtUTC   time.Time `json:"started_at_utc"`
+		CompletedAtUTC time.Time `json:"completed_at_utc"`
+		CPUSeconds     int       `json:"cpu_seconds"`
+	} `json:"capture"`
+	Nodes []struct {
+		Node      string `json:"node"`
+		CPU       string `json:"cpu"`
+		Heap      string `json:"heap"`
+		Goroutine string `json:"goroutine"`
+	} `json:"nodes"`
 }
 
 func newLocalChatLifecycleStepReportCommand() *cobra.Command {
-	var beforePath, afterPath, storagePath, hostIOPath, productQueuePath, processPath, outputPath string
+	var beforePath, afterPath, storagePath, hostIOPath, productQueuePath, processPath, timelinePath, profileStatusPath, runID, outputPath string
 	var offeredRate, minimumThroughput uint64
 	var measuredDuration time.Duration
-	var hostConfounded bool
+	var hostConfounded, operatorInterrupted bool
+	var harnessFailureReason string
 	cmd := &cobra.Command{
 		Use:   "local-chat-lifecycle-step",
 		Short: "Classify one non-formal local chat-lifecycle rate step",
@@ -114,6 +192,10 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 				minimumThroughput == 0 || minimumThroughput > 100 {
 				return commandExit{code: exitConfig, message: "--offered-rate, whole-second --measured-duration, and --minimum-throughput-percent are required"}
 			}
+			typedHarnessFailure := localChatLifecycleHarnessFailureReason(harnessFailureReason)
+			if !validLocalChatLifecycleHarnessFailureReason(typedHarnessFailure) {
+				return commandExit{code: exitConfig, message: "--harness-failure-reason is unsupported"}
+			}
 			before, beforeErr := chatlifecycle.ReadReport(beforePath)
 			after, afterErr := chatlifecycle.ReadReport(afterPath)
 			expectedTag := "rate-" + strconv.FormatUint(offeredRate, 10)
@@ -121,12 +203,24 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 			hostIOComplete, hostIOErr := readLocalStepHostIOEvidence(hostIOPath, expectedTag)
 			productQueueComplete, productQueuesConverged, productQueueErr := readLocalStepProductQueueEvidence(productQueuePath, expectedTag)
 			processesContinuous, processErr := readLocalStepProcessContinuity(processPath)
+			timeline, timelineComplete, timelineErr := readLocalStepTimelineEvidence(
+				timelinePath, runID, offeredRate, minimumThroughput, measuredDuration,
+			)
+			if timelineComplete && (beforeErr == nil) != timeline.QualificationCutPresent {
+				timelineComplete = false
+				timelineErr = errors.New("local timeline qualification disagrees with the report")
+			}
+			profileComplete, profileErr := readLocalStepProfileEvidence(profileStatusPath, timeline)
 			evidence := localChatLifecycleStepEvidence{
+				QualificationReportComplete: beforeErr == nil, FinalReportComplete: afterErr == nil,
 				StorageComplete: storageComplete, HostIOComplete: hostIOComplete,
 				ProductMetricsComplete: beforeErr == nil && afterErr == nil &&
-					localChatLifecycleProductMetricsComplete(before) && localChatLifecycleProductMetricsComplete(after),
+					localChatLifecycleProductMetricsComplete(before, after),
 				ProductQueueEvidenceComplete: productQueueComplete, ProductQueuesConverged: productQueuesConverged,
 				ProcessesContinuous: processesContinuous, HostConfounded: hostConfounded,
+				TimelineComplete: timelineComplete, ProfileEvidenceComplete: profileComplete,
+				OperatorInterrupted:  operatorInterrupted,
+				HarnessFailureReason: typedHarnessFailure,
 			}
 			if storageErr != nil {
 				evidence.StorageComplete = false
@@ -139,6 +233,12 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 			}
 			if processErr != nil {
 				evidence.ProcessesContinuous = false
+			}
+			if timelineErr != nil {
+				evidence.TimelineComplete = false
+			}
+			if profileErr != nil {
+				evidence.ProfileEvidenceComplete = false
 			}
 			result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
 				OfferedRatePerSecond: offeredRate, MeasuredDuration: measuredDuration,
@@ -156,17 +256,312 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 	cmd.Flags().StringVar(&hostIOPath, "host-io-summary", "", "normalized four-host physical I/O summary TSV")
 	cmd.Flags().StringVar(&productQueuePath, "product-queue-summary", "", "normalized post-drain product queue summary TSV")
 	cmd.Flags().StringVar(&processPath, "process-continuity", "", "closed process continuity TSV")
+	cmd.Flags().StringVar(&timelinePath, "timeline", "", "versioned unified chat-lifecycle timeline JSON")
+	cmd.Flags().StringVar(&profileStatusPath, "profile-status", "", "versioned threshold pprof status JSON")
+	cmd.Flags().StringVar(&runID, "run-id", "", "exact local chat-lifecycle run ID")
 	cmd.Flags().StringVar(&outputPath, "output", "", "typed local step JSON output")
 	cmd.Flags().Uint64Var(&offeredRate, "offered-rate", 0, "offered SEND rate per second")
 	cmd.Flags().DurationVar(&measuredDuration, "measured-duration", 0, "post-warmup measured interval")
 	cmd.Flags().Uint64Var(&minimumThroughput, "minimum-throughput-percent", 90, "minimum actual/offered SENDACK percentage")
 	cmd.Flags().BoolVar(&hostConfounded, "host-confounded", false, "mark overlapping WuKongIM workload evidence")
-	for _, name := range []string{"before", "after", "storage-summary", "host-io-summary", "product-queue-summary", "process-continuity", "output", "offered-rate", "measured-duration"} {
+	cmd.Flags().BoolVar(&operatorInterrupted, "operator-interrupted", false, "record that an operator signal ended the measured step")
+	cmd.Flags().StringVar(&harnessFailureReason, "harness-failure-reason", "", "closed local wrapper failure reason")
+	for _, name := range []string{"before", "after", "storage-summary", "host-io-summary", "product-queue-summary", "process-continuity", "timeline", "profile-status", "run-id", "output", "offered-rate", "measured-duration"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			panic(err)
 		}
 	}
 	return cmd
+}
+
+func readLocalStepTimelineEvidence(
+	path string,
+	runID string,
+	offeredRate uint64,
+	minimumThroughput uint64,
+	measuredDuration time.Duration,
+) (localChatLifecycleUnifiedTimeline, bool, error) {
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return localChatLifecycleUnifiedTimeline{}, false, err
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(io.LimitReader(file, 8<<20))
+	decoder.DisallowUnknownFields()
+	var timeline localChatLifecycleUnifiedTimeline
+	if err := decoder.Decode(&timeline); err != nil {
+		return localChatLifecycleUnifiedTimeline{}, false, err
+	}
+	if decoder.Decode(&struct{}{}) != io.EOF {
+		return localChatLifecycleUnifiedTimeline{}, false, errors.New("local timeline has trailing JSON")
+	}
+	complete := strings.TrimSpace(runID) != "" && timeline.Schema == localChatLifecycleUnifiedTimelineSchemaV1 &&
+		timeline.RunID == runID && timeline.OfferedRatePerSecond == offeredRate &&
+		timeline.MinimumThroughputPercent == minimumThroughput &&
+		timeline.SourceCompleteness.WorkerStatusCutsComplete && timeline.SourceCompleteness.BoundaryTimelineComplete &&
+		localChatLifecycleTimelineStorageOverlapComplete(timeline) &&
+		timeline.SourceCompleteness.TerminalCutPresent && !timeline.SourceCompleteness.PartialWorkerLogLine &&
+		timeline.SourceCompleteness.FirstBreachObservable && len(timeline.Points) > 0 &&
+		localChatLifecycleTimelineWindowsComplete(timeline, measuredDuration)
+	if !complete {
+		return timeline, false, errors.New("local timeline evidence is incomplete")
+	}
+	return timeline, true, nil
+}
+
+func localChatLifecycleTimelineStorageOverlapComplete(timeline localChatLifecycleUnifiedTimeline) bool {
+	if !timeline.SourceCompleteness.StorageOverlapComplete {
+		return false
+	}
+	for _, evidence := range []localTimelineOverlapEvidence{timeline.Overlap.Compaction, timeline.Overlap.Snapshot} {
+		if !evidence.SourceComplete || evidence.Status != "observed" && evidence.Status != "not_observed" ||
+			evidence.Status == "observed" && len(evidence.Windows) == 0 ||
+			evidence.Status == "not_observed" && len(evidence.Windows) != 0 {
+			return false
+		}
+		var previousCurrent time.Time
+		for _, window := range evidence.Windows {
+			if window.Phase == "" || !window.CurrentAt.After(window.PreviousAt) ||
+				!previousCurrent.IsZero() && window.CurrentAt.Before(previousCurrent) || len(window.Nodes) == 0 {
+				return false
+			}
+			previousCurrent = window.CurrentAt
+			previousNode := ""
+			for _, node := range window.Nodes {
+				if !validLocalStorageNode(node) || node <= previousNode {
+					return false
+				}
+				previousNode = node
+			}
+		}
+	}
+	return true
+}
+
+func localChatLifecycleTimelineWindowsComplete(timeline localChatLifecycleUnifiedTimeline, measuredDuration time.Duration) bool {
+	if measuredDuration < time.Second || measuredDuration%time.Second != 0 {
+		return false
+	}
+	required := []string{"warmup", "drain", "shutdown"}
+	if timeline.QualificationCutPresent {
+		required = append(required, "measured")
+	}
+	for _, name := range required {
+		window, ok := timeline.Windows[name]
+		if !ok || !window.Complete || window.StartAt == nil || window.EndAt == nil || window.EndAt.Before(*window.StartAt) {
+			return false
+		}
+	}
+	if timeline.QualificationCutPresent {
+		window := timeline.Windows["measured"]
+		// Wrapper boundaries are second precision while the monotonic deadline
+		// can begin late within that second. A two-second tolerance detects early
+		// termination without inventing sub-second precision the evidence lacks.
+		minimum := measuredDuration - 2*time.Second
+		if minimum < 0 {
+			minimum = 0
+		}
+		if window.EndAt.Sub(*window.StartAt) < minimum {
+			return false
+		}
+	} else if measured, ok := timeline.Windows["measured"]; ok && measured.Complete {
+		return false
+	}
+	requiredBoundaryCounts := map[string]int{
+		"warmup_start": 0, "warmup_end": 0, "drain_start": 0, "drain_end": 0, "shutdown_start": 0,
+	}
+	if timeline.QualificationCutPresent {
+		requiredBoundaryCounts["measurement_start"] = 0
+		requiredBoundaryCounts["measurement_end"] = 0
+	}
+	for _, point := range timeline.Points {
+		if point.Source != "boundary" || point.BoundaryNode != "boundary" {
+			continue
+		}
+		if _, required := requiredBoundaryCounts[point.Kind]; required {
+			requiredBoundaryCounts[point.Kind]++
+		}
+	}
+	for _, count := range requiredBoundaryCounts {
+		if count != 1 {
+			return false
+		}
+	}
+	warmup, drain, shutdown := timeline.Windows["warmup"], timeline.Windows["drain"], timeline.Windows["shutdown"]
+	if warmup.EndAt.After(*drain.StartAt) || drain.EndAt.After(*shutdown.StartAt) {
+		return false
+	}
+	if timeline.QualificationCutPresent {
+		measured := timeline.Windows["measured"]
+		if warmup.EndAt.After(*measured.StartAt) || measured.EndAt.After(*drain.StartAt) {
+			return false
+		}
+	}
+	return true
+}
+
+func readLocalStepProfileEvidence(path string, timeline localChatLifecycleUnifiedTimeline) (bool, error) {
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(io.LimitReader(file, 64<<10))
+	decoder.DisallowUnknownFields()
+	var status localChatLifecycleProfileStatus
+	if err := decoder.Decode(&status); err != nil {
+		return false, err
+	}
+	if decoder.Decode(&struct{}{}) != io.EOF || status.Schema != localChatLifecycleProfileStatusSchemaV1 ||
+		!status.EvidenceComplete || strings.TrimSpace(status.Reason) == "" {
+		return false, errors.New("local threshold profile evidence is incomplete")
+	}
+	measured := timeline.MeasuredFirstBreach
+	switch status.Status {
+	case "not_triggered":
+		if !status.CaptureValid || status.TriggerKind != "" || status.TriggerPreviousUTC != "" ||
+			status.TriggerCurrentUTC != "" || status.Metadata != "" || measured.Observed {
+			return false, errors.New("local threshold profile evidence contradicts the measured timeline")
+		}
+	case "complete", "partial":
+		if !measured.Observed || measured.PreviousAt == nil || measured.CurrentAt == nil ||
+			status.TriggerKind != measured.TriggerKind || status.Metadata != "threshold-pprof/metadata.json" {
+			return false, errors.New("local threshold profile evidence contradicts the measured timeline")
+		}
+		previous, previousErr := time.Parse(time.RFC3339Nano, status.TriggerPreviousUTC)
+		current, currentErr := time.Parse(time.RFC3339Nano, status.TriggerCurrentUTC)
+		if previousErr != nil || currentErr != nil || !previous.Equal(measured.PreviousAt.UTC()) ||
+			!current.Equal(measured.CurrentAt.UTC()) || !current.After(previous) {
+			return false, errors.New("local threshold profile trigger bracket is invalid")
+		}
+		if (status.Status == "complete" && !status.CaptureValid) || (status.Status != "complete" && status.CaptureValid) {
+			return false, errors.New("local threshold profile validity is inconsistent")
+		}
+		if err := validateLocalThresholdPprofMetadata(path, status, previous, current); err != nil {
+			return false, err
+		}
+	case "invalid":
+		return false, errors.New("local threshold profile capture did not start in the measured phase")
+	default:
+		return false, errors.New("local threshold profile status is invalid")
+	}
+	return true, nil
+}
+
+func validateLocalThresholdPprofMetadata(
+	statusPath string,
+	status localChatLifecycleProfileStatus,
+	previous time.Time,
+	current time.Time,
+) error {
+	metadataPath := filepath.Join(filepath.Dir(filepath.Clean(statusPath)), filepath.FromSlash(status.Metadata))
+	metadataInfo, err := os.Lstat(metadataPath)
+	if err != nil || !metadataInfo.Mode().IsRegular() || metadataInfo.Size() <= 0 {
+		return errors.New("local threshold profile metadata is missing or unsafe")
+	}
+	file, err := os.Open(metadataPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(io.LimitReader(file, 64<<10))
+	decoder.DisallowUnknownFields()
+	var metadata localThresholdPprofMetadata
+	if err := decoder.Decode(&metadata); err != nil {
+		return err
+	}
+	if decoder.Decode(&struct{}{}) != io.EOF {
+		return errors.New("local threshold profile metadata has trailing JSON")
+	}
+	if metadata.Schema != "wukongim.local_threshold_pprof/v1" || metadata.Trigger.Kind != status.TriggerKind ||
+		metadata.Trigger.ObservedPhase != "measurement" ||
+		!metadata.Trigger.PreviousUTC.Equal(previous) || !metadata.Trigger.CurrentUTC.Equal(current) ||
+		metadata.Capture.Status != status.Status || metadata.Capture.Valid != status.CaptureValid ||
+		metadata.Capture.Reason != status.Reason || metadata.Capture.StartedAtUTC.IsZero() ||
+		metadata.Capture.CompletedAtUTC.Before(metadata.Capture.StartedAtUTC) ||
+		metadata.Capture.CPUSeconds < 1 || metadata.Capture.CPUSeconds > 30 || len(metadata.Nodes) != 3 {
+		return errors.New("local threshold profile metadata identity is inconsistent")
+	}
+	validPhase := func(phase string) bool {
+		switch phase {
+		case "warmup", "measurement", "drain", "shutdown", "missing", "invalid":
+			return true
+		default:
+			return false
+		}
+	}
+	if !validPhase(metadata.Capture.StartPhase) || !validPhase(metadata.Capture.EndPhase) {
+		return errors.New("local threshold profile phase is invalid")
+	}
+	allComplete, allMissing := true, true
+	profilesDir := filepath.Join(filepath.Dir(metadataPath), "profiles")
+	for index, node := range metadata.Nodes {
+		if node.Node != "node-"+strconv.Itoa(index+1) {
+			return errors.New("local threshold profile node identity is invalid")
+		}
+		profiles := []struct {
+			status string
+			path   string
+		}{
+			{node.CPU, filepath.Join(profilesDir, node.Node+"-cpu.pb.gz")},
+			{node.Heap, filepath.Join(profilesDir, node.Node+"-heap.pb.gz")},
+			{node.Goroutine, filepath.Join(profilesDir, node.Node+"-goroutine.txt")},
+		}
+		for _, profile := range profiles {
+			switch profile.status {
+			case "complete":
+				allMissing = false
+				info, statErr := os.Lstat(profile.path)
+				if statErr != nil || !info.Mode().IsRegular() || info.Size() <= 0 {
+					return errors.New("local threshold profile blob is missing or unsafe")
+				}
+			case "missing":
+				allComplete = false
+				if _, statErr := os.Lstat(profile.path); !os.IsNotExist(statErr) {
+					return errors.New("local threshold profile blob contradicts missing metadata")
+				}
+			default:
+				return errors.New("local threshold profile blob status is invalid")
+			}
+		}
+	}
+	switch metadata.Capture.Status {
+	case "complete":
+		if metadata.Capture.Reason != "ok" || metadata.Capture.StartPhase != "measurement" ||
+			metadata.Capture.EndPhase != "measurement" || !allComplete {
+			return errors.New("complete local threshold profile metadata is inconsistent")
+		}
+	case "partial":
+		switch metadata.Capture.Reason {
+		case "phase_changed_during_capture":
+			if metadata.Capture.StartPhase != "measurement" || metadata.Capture.EndPhase == "measurement" {
+				return errors.New("cross-phase local threshold profile metadata is inconsistent")
+			}
+		case "profile_capture_missing":
+			if metadata.Capture.StartPhase != "measurement" || metadata.Capture.EndPhase != "measurement" || allComplete {
+				return errors.New("partial local threshold profile metadata is inconsistent")
+			}
+		case "capture_start_missed_measurement":
+			if metadata.Capture.StartPhase == "measurement" || metadata.Capture.EndPhase != metadata.Capture.StartPhase || !allMissing {
+				return errors.New("missed-start local threshold profile metadata is inconsistent")
+			}
+		case "interrupted", "internal_error":
+		default:
+			return errors.New("partial local threshold profile reason is invalid")
+		}
+	case "invalid":
+		if metadata.Capture.StartPhase == "measurement" || !allMissing {
+			return errors.New("invalid local threshold profile metadata is inconsistent")
+		}
+		switch metadata.Capture.Reason {
+		case "phase_state_missing_at_start", "phase_state_invalid_at_start", "phase_not_measurement_at_start":
+		default:
+			return errors.New("invalid local threshold profile reason is invalid")
+		}
+	default:
+		return errors.New("local threshold profile capture status is invalid")
+	}
+	return nil
 }
 
 func readLocalStepProductQueueEvidence(path, expectedTag string) (complete, converged bool, err error) {
@@ -205,11 +600,18 @@ func readLocalStepProductQueueEvidence(path, expectedTag string) (complete, conv
 	return true, converged, nil
 }
 
-func localChatLifecycleProductMetricsComplete(report chatlifecycle.Report) bool {
-	resources := report.Resources.Capacity
-	return resources.Complete && resources.ProcessesComplete && resources.Samples > 0 && resources.MissingSamples == 0 &&
-		resources.WorkerQueuesComplete && resources.WorkerQueueSamples > 0 && resources.WorkerQueueMissingSamples == 0 &&
-		(report.Cluster.HealthySamples > 0 || report.Cluster.UnhealthySamples > 0)
+func localChatLifecycleProductMetricsComplete(before, after chatlifecycle.Report) bool {
+	beforeResources, afterResources := before.Resources.Capacity, after.Resources.Capacity
+	beforeClusterSamples := before.Cluster.HealthySamples + before.Cluster.UnhealthySamples
+	afterClusterSamples := after.Cluster.HealthySamples + after.Cluster.UnhealthySamples
+	return beforeResources.Complete && afterResources.Complete &&
+		beforeResources.ProcessesComplete && afterResources.ProcessesComplete &&
+		beforeResources.WorkerQueuesComplete && afterResources.WorkerQueuesComplete &&
+		beforeResources.Samples > 0 && afterResources.Samples > beforeResources.Samples &&
+		beforeResources.WorkerQueueSamples > 0 && afterResources.WorkerQueueSamples > beforeResources.WorkerQueueSamples &&
+		afterResources.MissingSamples == beforeResources.MissingSamples &&
+		afterResources.WorkerQueueMissingSamples == beforeResources.WorkerQueueMissingSamples &&
+		beforeClusterSamples > 0 && afterClusterSamples > beforeClusterSamples
 }
 
 func readLocalStepHostIOEvidence(path, expectedTag string) (bool, error) {
@@ -392,21 +794,64 @@ func classifyLocalChatLifecycleStep(
 		Schema: localChatLifecycleStepSchemaV1, Outcome: localChatLifecycleStepInsufficientEvidence,
 		Reason: "invalid_or_missing_evidence", OfferedRatePerSecond: options.OfferedRatePerSecond,
 		MinimumThroughputPercent: options.MinimumThroughputPercent,
-		MeasuredDurationSeconds:  options.MeasuredDuration.Seconds(), OnlineConnections: before.Sessions.Online,
+		MeasuredDurationSeconds:  options.MeasuredDuration.Seconds(), QualificationReached: evidence.QualificationReportComplete,
+		TargetConnections: before.Sessions.Target, OnlineConnections: before.Sessions.Online,
 		StorageEvidenceComplete: evidence.StorageComplete, ProductMetricsComplete: evidence.ProductMetricsComplete,
 		ProductQueueEvidenceComplete: evidence.ProductQueueEvidenceComplete, ProductQueuesConverged: evidence.ProductQueuesConverged,
 		HostIOEvidenceComplete: evidence.HostIOComplete, ProcessContinuityComplete: evidence.ProcessesContinuous,
+		TimelineEvidenceComplete: evidence.TimelineComplete, ProfileEvidenceComplete: evidence.ProfileEvidenceComplete,
+		OperatorInterrupted:  evidence.OperatorInterrupted,
+		HarnessFailureReason: evidence.HarnessFailureReason,
 	}
 	if options.OfferedRatePerSecond == 0 || options.MeasuredDuration < time.Second || options.MeasuredDuration%time.Second != 0 ||
 		options.MinimumThroughputPercent == 0 || options.MinimumThroughputPercent > 100 {
+		return result
+	}
+	if !validLocalChatLifecycleHarnessFailureReason(evidence.HarnessFailureReason) {
+		return result
+	}
+	if evidence.HarnessFailureReason != localChatLifecycleHarnessFailureNone {
+		result.Reason = string(evidence.HarnessFailureReason)
+		return result
+	}
+	if evidence.OperatorInterrupted {
+		result.Reason = "operator_interrupted"
 		return result
 	}
 	if evidence.HostConfounded {
 		result.Outcome, result.Reason = localChatLifecycleStepHostConfounded, "overlapping_wukongim_workload"
 		return result
 	}
+	if !evidence.QualificationReportComplete && evidence.FinalReportComplete &&
+		evidence.ProcessesContinuous && evidence.TimelineComplete && evidence.ProfileEvidenceComplete &&
+		validLocalChatLifecycleTerminalReport(after) &&
+		localChatLifecycleProductFailure(after) {
+		minimumFree, ok := minimumLocalChatLifecycleFilesystemFreePercent(after)
+		if !ok {
+			return result
+		}
+		result.MinimumFilesystemFreePct = minimumFree
+		result.TargetConnections = after.Sessions.Target
+		// The terminal report is sampled after worker shutdown, so this field
+		// must retain the actual terminal online count rather than presenting
+		// the configured target as observed connectivity. Earlier online cuts
+		// remain in the bounded worker-status diagnostics and unified timeline.
+		result.OnlineConnections = after.Sessions.Online
+		result.Sent = after.Messages.Sent
+		result.Acknowledged = after.Messages.SendAcknowledged
+		// Qualification never established a measured window. Retain only the
+		// cumulative terminal counters; Expected and ActualRatePerSecond must
+		// remain zero rather than manufacturing a rate from warmup traffic.
+		if minimumFree < 10 {
+			result.Outcome, result.Reason = localChatLifecycleStepStorageConfounded, "filesystem_free_below_10_percent"
+			return result
+		}
+		result.Outcome, result.Reason = localChatLifecycleStepProductFailure, "terminal_product_failure_before_qualification"
+		return result
+	}
 	if !evidence.StorageComplete || !evidence.HostIOComplete || !evidence.ProductMetricsComplete ||
-		!evidence.ProductQueueEvidenceComplete || !evidence.ProcessesContinuous {
+		!evidence.ProductQueueEvidenceComplete || !evidence.ProcessesContinuous || !evidence.TimelineComplete ||
+		!evidence.ProfileEvidenceComplete {
 		return result
 	}
 	if !sameLocalChatLifecycleStep(before, after) || !after.Final || !after.Verdict.Terminal ||
@@ -422,8 +867,15 @@ func classifyLocalChatLifecycleStep(
 		result.Outcome, result.Reason = localChatLifecycleStepStorageConfounded, "filesystem_free_below_10_percent"
 		return result
 	}
+	if before.Messages.SendAcknowledged > before.Messages.Sent {
+		return result
+	}
 	sent, sentOK := localStepCounterDelta(before.Messages.Sent, after.Messages.Sent)
-	acknowledged, acknowledgedOK := localStepCounterDelta(before.Messages.SendAcknowledged, after.Messages.SendAcknowledged)
+	// A qualification cut may contain warmup SENDs whose SENDACK arrives during
+	// the measured interval. Final drain makes those warmup SENDs exact, so the
+	// measured acknowledgement population starts after the warmup SEND boundary,
+	// not after the earlier acknowledgement counter value.
+	acknowledged, acknowledgedOK := localStepCounterDelta(before.Messages.Sent, after.Messages.SendAcknowledged)
 	if !sentOK || !acknowledgedOK || options.OfferedRatePerSecond > math.MaxUint64/uint64(options.MeasuredDuration/time.Second) {
 		return result
 	}
@@ -456,6 +908,13 @@ func sameLocalChatLifecycleStep(before, after chatlifecycle.Report) bool {
 		before.Fence == after.Fence && before.Topology == after.Topology && before.Topology.Validated &&
 		before.Topology.LogicalSlotGroups == 12 && before.Topology.HashSlots == 256 &&
 		before.Topology.SlotReplicas == 3 && before.Topology.ChannelReplicas == 3
+}
+
+func validLocalChatLifecycleTerminalReport(report chatlifecycle.Report) bool {
+	return report.Final && report.Verdict.Terminal && report.ConfigDigest != "" && report.Topology.Validated &&
+		report.Topology.LogicalSlotGroups == 12 && report.Topology.HashSlots == 256 &&
+		report.Topology.SlotReplicas == 3 && report.Topology.ChannelReplicas == 3 &&
+		report.Sessions.Target >= 2500
 }
 
 func minimumLocalChatLifecycleFilesystemFreePercent(report chatlifecycle.Report) (float64, bool) {

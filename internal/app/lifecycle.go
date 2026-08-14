@@ -356,6 +356,9 @@ func (a *App) Stop(ctx context.Context) error {
 	defer a.lifecycleMu.Unlock()
 
 	a.stopped = true
+	if a.handler != nil {
+		a.handler.BeginPlannedShutdown()
+	}
 	if a.goroutines != nil {
 		a.goroutines.SetReady(false)
 	}

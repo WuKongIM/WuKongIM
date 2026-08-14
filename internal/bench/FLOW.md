@@ -18,6 +18,9 @@ Shared wkbench schema, plan, report, and bench/v1 API DTOs live in `pkg/bench/mo
 - `wkproto`: benchmark WKProto client implementation.
 - `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.
+- `localbaseline`: strict bounded parsing, raw-evidence classification, and the
+  fail-closed four-step authorization gate for the native single-node cluster
+  diagnostic. It does not start workloads or infer missing evidence.
 
 Reviewed stability scenarios separate the full generated identity pool from
 the connected online prefix. Group preparation writes the requested total
@@ -30,8 +33,8 @@ During measured scheduled churn, the worker runs traffic in bounded windows.
 At each boundary it reconnects the same-UID share, replaces the identity-swap
 share from deterministic offline lanes, refreshes bench tokens, adds replacement
 UIDs to every affected group, removes the replaced UIDs, and builds the next
-person/group workload generation. A successful generation swap joins the old
-receive drains, then atomically archives the completed generation and installs
+person/group workload generation. A successful generation swap proves and
+joins the old receive drains, then atomically archives the completed generation and installs
 the replacement; a failed rebuild leaves the old generation active and
 unarchived. Archived workload counters and histograms accumulate across
 generations, gauges retain their temporal maximum, and the runner keeps one
@@ -72,7 +75,13 @@ stop. A future releases its permit only after its ACK/error enters a fixed queue
 or stop aborts publication. Published frames and SEND results drain before the
 original remote terminal error returns once. The numeric queue snapshot exposes
 the inner and adapter depths/capacities plus publication current, capacity,
-monotonic peak, and currently blocked Send callers. Worker clients are created
+monotonic peak, and currently blocked Send callers. Both receive queue
+boundaries use idempotent ownership leases. `pkg/client` retains ownership
+after a RECV dequeue until the adapter accepts it; the adapter retains every
+RECV, SENDACK, or error result until the matching reader registers its
+in-flight ownership. Receive snapshots sample upstream queues before downstream
+matching state, so work cannot disappear between a queue decrement and
+downstream registration. Worker clients are created
 from an optional worker-local `client`
 profile. Its send queue, maximum inflight SEND count, socket read buffer, and
 frame buffer capacities flow from the selected worker assignment through the
@@ -189,7 +198,11 @@ cmd/wkbench run
   -> config.ValidateStaticConfig / ValidateTargetScenario
   -> planner.Build
   -> coordinator.Preflight.Check
+       -> when scenario.run.external_terminal_cut=true, require exactly one
+          effective Bench API address and exactly one worker before any network probe
        -> target /healthz, /readyz, /bench/v1/capabilities
+       -> when scenario.run.external_terminal_cut=true, require the target's
+          terminal_fence_prepare capability before assigning any worker
        -> worker /v1/info
        -> gateway checker
   -> coordinator.assignWorkers
@@ -234,11 +247,26 @@ reported as passed.
 It also records connection attempt, success, and error counts so a failed
 connect phase can be diagnosed without reconstructing integers from a rounded
 error rate.
+The retained report deep-copies effective target and worker configuration and
+removes Bench API and worker-control credentials. Reviewed local single-node
+closures reject any report that retains those credentials, require canonical
+numeric loopback API, metrics, Gateway, and worker endpoints, and bind the
+sealed target to the effective single-node cluster listeners during completion
+verification; a foreign endpoint cannot borrow local process evidence.
 `report.WriteDir` additionally writes `diagnostic-summary.json`, a bounded,
 redacted machine contract with actual coordinator phase windows and structured
 worker failures. Typed person/group session failures retain an optional
 low-cardinality `operation` such as `group_sendack`; unknown values are omitted,
 and raw UIDs, URLs, paths, and error text never enter this projection.
+The same retention rule applies to `report.json`, worker report payloads,
+worker-metrics JSONL, and bounded error-sample JSONL. Error samples contain
+only a closed operation name and a closed reason such as `timeout` or
+`operation_failed`; legacy or caller-supplied free text is normalized at
+aggregation and again at report write. Metric snapshots keep only series whose
+labels belong to the fixed low-cardinality registry contract; legacy series
+with UID, channel, or message labels are omitted from worker and retained
+report JSON. Free-form coordinator text is not retained because structured
+worker failures already carry phase, reason, and safe operation evidence.
 `summary.md` remains human-readable and is not the analysis machine contract.
 
 Explicit TCP source pool errors are worker-local configuration or capacity
@@ -264,9 +292,64 @@ worker-local online member shard rather than the global member count. A churned
 run adds that tail for every sequential measured window, because each window
 joins its active operations before reconnect maintenance and the next window
 begins. Measured traffic with zero or one configured concurrency checks
-the window after every settled operation and never starts another operation
-after it closes, so only one operation tail can remain instead of an entire
-overloaded schedule.
+the window before every operation and never starts another operation after it
+closes, so only one operation tail can remain instead of an entire overloaded
+schedule. All workload shards on one worker share one runner-owned absolute
+SEND-admission deadline. `Run` completes at that boundary while a runner-owned
+task retains operations already admitted; `Cooldown` joins that task within the
+configured drain budget, then uses only the remaining portion of that same
+budget to require two separated healthy zero-work cuts across the matching
+reader, bounded WKProto receive/adapter queues, publication work, and RECVACK
+writes. A blocked socket read waiting for a future frame is idle, while any
+non-idle read or RECVACK failure permanently invalidates the assignment proof.
+A drain observes all clients at an adaptive bounded cadence: the 2,500-client
+baseline uses at most four full cuts per second and still completes two already
+empty cuts in under one second. Live status snapshots share the same per-handle
+stable-zero state machine: after late work changes any counter or coverage, one
+healthy zero cut starts a new proof and only an identical cut after the bounded
+interval completes it. High-frequency status requests cannot advance time or
+forge the second cut; incomplete evidence or a real read/RECVACK failure
+permanently invalidates that generation. A planned churn replacement uses
+`DrainAndStop`: it first establishes the live two-cut proof, then cancels and
+joins the old generation and returns both boundary snapshots. Cancellation
+owned by that planned stop is not a synthetic read or RECVACK failure, while
+incomplete evidence on either side remains permanently incomplete. Any new
+frame, failure, counter change, or pending work between the live proof and the
+joined snapshot invalidates that stop boundary.
+A drain deadline cancels the measured task, preserves the last bounded receive
+snapshot, and fails the phase. Successful `Cooldown` does not close sessions:
+exact-assignment stop may freeze one `terminal_pre_close` lifecycle cut only
+when both SEND remaining work and the receive-drain proof are complete, then
+`EndAssignment` closes sessions. The stop response and later stopped status
+reads expose that immutable, provenance-marked cut; a new assignment clears it.
+An externally captured terminal cut additionally requires a grant-bound,
+server-confirmed ingress fence before receive readers are joined. The WKProto
+adapter preserves the legacy no-grant `SealIngress` typed unsupported seam and
+also exposes `SealIngressWithFence(TerminalFenceGrant)`: the shared client
+quiesces SEND/PING, joins previously admitted SENDACKs, writes the bounded
+request marker, and waits for the exact peer-decoded epoch/128-bit-nonce ACK.
+The adapter orders session replacement against this cut and permanently rejects
+later `Connect`, `Send`, `TrySend`, and `Ping` admission. Low-level `ReadFrame`
+and `RecvAck` remain callable for compatibility, but the reviewed manager flow
+must finish its receive proof and all RECVACK writes, join heartbeat, and wait
+for target Delivery Quiesce before the grant is published; therefore no
+RECVACK is legal after the marker.
+Capability and nonce never enter logs or metric labels. A missing grant or
+server handler keeps the stop fail-closed without `terminal_pre_close`, and
+ordinary teardown still runs. TCP half-close, gateway async-write callbacks,
+and local buffer state are explicitly not accepted as proof.
+
+Before the server admits that ACK, the product-side two-cut convergence proof
+must include the complete delivery runtime, not only channel append: fixed
+families include `wukongim_delivery_recipient_worker_queue_depth`,
+`wukongim_delivery_recipient_worker_inflight`,
+`wukongim_delivery_actor_inflight_routes`,
+`wukongim_delivery_ack_bindings`, and
+`wukongim_delivery_retry_queue_depth` in addition to the existing typed queue
+set. After every target session is fenced, one final product cut must prove no
+new drop/result failure and no new queued/in-flight work before the benchmark
+accepts a clean terminal boundary. The client/protocol seam alone cannot prove
+that product convergence.
 If a status request itself reaches that child deadline, the coordinator reports
 `phase_timeout` instead of the ambiguous `phase_wait_failed` fallback. A worker
 whose status endpoint never produced a valid response is attributed to the
@@ -534,6 +617,174 @@ preserves those codes instead of classifying failures from human-readable text.
 Duplicate phase requests are idempotent when the requested phase is already
 active or complete for the same assignment generation.
 
+When a worker work directory is configured, `current-run.json` is only a
+recovery hint. Persistence serializes a value copy with the Bench API token
+removed and private file permissions; the live in-memory assignment retains
+the credential needed by the runner. The native single-node cluster wrapper
+stops and joins its owned worker, then removes that exact recovery file and its
+now-empty `worker-state` directory before computing the final artifact
+manifest. Worker runtime state therefore cannot become retained benchmark
+evidence or a secondary credential store.
+
+`GET /v1/status` stamps each live response with server UTC time and may include
+one fixed-size `lifecycle` projection. The projection contains the current
+active-session gauge, reconnect churn, and aggregate SEND, SENDACK,
+terminal-error, remaining-work, and retry evidence. It never contains per-user
+or per-message identities. A runner that cannot prove the retry lifecycle
+leaves that part incomplete, so local authorization remains closed.
+
+The native single-node cluster diagnostic samples that projection throughout
+warmup, measured traffic, cooldown, and one stopped-assignment terminal cut.
+Each sample is joined to independently observed server and worker PID start
+tokens. The typed evaluator requires strictly increasing sample times,
+monotonic aggregate traffic counters, a non-empty measured projection, and an
+exact match between the stopped cut and the final traffic record. Its
+reviewed group-fanout gate reconciles the entire warmup-plus-measured logical
+population without retaining a per-message set. Strict `phase=warmup` SENDACK
+successes plus measured SENDACK successes are multiplied by
+`group_members - 1`; physical RECV observations and successfully written
+RECVACK frames must both equal that value. In addition, one assignment-local
+fixed-memory witness compares the exact expected, received, and acknowledged
+`(ClientMsgNo, group channel, sender UID, recipient UID)` multisets through two
+independently keyed anonymous projections. Retry attempts retain one logical
+SEND identity and do not increase the denominator. A duplicate delivery cannot
+compensate for a different missing recipient merely because total counts are
+equal. Every well-formed physical group RECV remains actual evidence, including
+an unexpected delivery back to the sender, and a successful RECVACK joins that
+same actual tuple to the acknowledged multiset. Missing, malformed, or
+overflowing proof state is insufficient evidence, while complete unequal
+multisets are a product failure. Product-side
+zero ACK bindings and the server-confirmed terminal fence separately prove
+consumption after the client writer accepted each RECVACK.
+Its post-warmup and terminal product-queue snapshots embed the exact
+worker-observed UTC time, run, assignment generation, completed phase, and
+active phase before scraping metrics; a timestamp-only shell cut cannot
+authorize the result. Required queue families cover Gateway SEND admission,
+Channel runtime and channelappend state, storage commit, the canonical Online
+Delivery plan queue and in-flight workers, and owner-local pending RECVACK
+bindings. Missing delivery families or a terminal delivery depth above its
+post-warmup baseline fail closed, so an empty append queue cannot hide
+recipient work that has not reached or been acknowledged by clients. The same
+two Prometheus cuts retain separate, closed cumulative result partitions for
+accepted Online Delivery plan terminals and channelappend post-commit final
+completions. Every fixed result series must exist exactly once at both
+boundaries, counters must remain monotonic, and every non-`ok` total must equal
+its post-warmup value. Successful `ok` work may grow. Unknown labels, counter
+resets, a post-warmup delivery failure, or a post-warmup post-commit failure
+fail closed; cumulative counters are never represented as queue depths. The
+same measured timeline retains bounded Slot snapshot
+inventories and Pebble compaction counters through the shared local-storage
+capture helper. `localbaseline` strictly verifies every inventory digest,
+file/byte total, monotonic compaction counter, measured boundary/cadence, and
+post-drain terminal sample. Missing rows, counter resets, unsafe inventory
+paths, or cadence gaps fail closed. Measured snapshot inventory changes and
+compaction activity are emitted as separate additive typed observations. They
+remain explanatory tail-latency correlations and do not change a clean step or
+four-step authorization by themselves; neither observation asserts the
+original bottleneck. Each step also retains immutable header-plus-one-row
+storage and physical-device I/O summaries extracted from the append-only global
+tables. Their exact AWK schemas, rate tag, node/host identity, and full-row
+digests are typed closure inputs. A clean storage row must have complete
+evidence; non-zero physical commits, logical requests, records, bytes, request
+samples, and WAL input/output; result and request-lane partitions equal to the
+request total; and complete positive ordered commit-size distributions. Host
+I/O must be either explicitly complete with at least one available physical
+device signal or explicitly platform-unavailable with none; absent, malformed,
+or contradictory availability fails closed.
+
+Every rate step is published as one closure manifest after its raw checksum
+manifest, reconstructed typed evidence, and derived result are durable. The
+staircase and baseline gate consume only that closure; they never trust a
+caller-authored result. Checksum verification streams every potentially large
+raw payload and retains only its relative path and digest. Bounded typed inputs
+are reopened through the same no-follow artifact-root descriptor and rehashed
+immediately before parsing, so verification memory does not grow with retained
+metrics, logs, or binaries and a changed input cannot cross the check/use
+boundary. The raw closure also binds the coordinator-emitted canonical
+scenario, deterministic plan, and run report. Replay requires their run
+identity and report verdict projection to match the diagnostic summary, rejects
+hash-Slot-spread variants, and requires the reviewed single target and exact
+one-worker report/plan shape.
+
+One native baseline invocation creates exactly one random 128-bit lowercase
+hex identity after validating its dedicated output directory and before any
+preflight result is published. Every step run ID, typed step execution seal,
+baseline evidence, artifact identity, and completion marker bind that same
+identity. Each execution seal also authenticates the frozen source
+configuration, exact effective configuration, and tested WuKongIM and wkbench
+binary digests. Authorization
+requires all four seals to agree, requires four distinct server PID/start-token
+generations in strictly non-overlapping chronological order, and deliberately
+allows the same owned worker generation to serve all four steps. Completion
+replays those seals and requires their config/binary digests to equal the
+global artifact identity, including equality between the attested source digest
+and `original_config_sha256`, so closures from another invocation, source
+configuration, or tested binary set cannot be transplanted into a newly sealed
+result.
+
+Before any owned product generation starts, the wrapper copies the exact
+external WuKongIM TOML into a private directory outside the artifact root. The
+source digest before and after copying and the destination digest must agree;
+all generations, startup dry runs, structured redaction, and original-config
+identity then use only that immutable snapshot. Product helpers run with an
+empty inherited environment plus a fixed allowlist, and every reviewed product
+performance setting is a literal rather than an inherited `WK_*` override.
+The source path is authorizing only when typed baseline setting
+`canonical_source_config` is true, which the wrapper derives only for the canonical repository
+`scripts/wukongim/wukongim.toml` and its snapshot digest equals that file at
+the frozen source revision; custom TOML remains diagnostic-only. Each rate
+step retains a bounded executable attestation binding its rate/generation,
+snapshot digest, and equal pre-spawn, post-stop, and sealed WuKongIM binary
+digests. The plaintext snapshot is precisely removed after all product writers
+stop and before either preflight or measured artifact checksums are published;
+EXIT cleanup removes the same private file on failure.
+
+After all closed steps, the wrapper publishes sealed baseline evidence and its
+recomputed authorization, then a global checksum inventory, and finally one
+exclusive atomic `local-baseline.json` marker outside that inventory. The same
+path publishes terminal preflight denials, which can never authorize because
+they contain no reviewed step closures. The completion consumer verifies the
+identity and effective configuration, then branches on the parsed identity
+`seal_scope`. A preflight completion must have no step closures and does not
+require measured summary, storage, or host artifacts. A measured completion
+replays every nested closure from the global inventory and requires the
+marker's exact canonical `summary.tsv`, `storage_metrics_summary.tsv`, and
+`host_io_summary.tsv` paths to be no-follow manifest members. It strictly
+validates the three schemas and ordered row set;
+the global storage and host rows must equal their per-step typed evidence by
+value and full-row digest. Baseline evidence, artifact identity, and completion
+marker also bind the absolute cleaned effective `WK_NODE_DATA_DIR` plus the
+observed filesystem/device identity, total blocks, and block size. This binding
+is independent of a superseded source-TOML `node.data_dir`. The consumer
+recomputes authorization and requires deep equality before returning the typed
+exit status. Before any output-directory side effect, the wrapper rejects
+inherited node identity, static membership, and seed topology overrides. Its
+redacted effective configuration appends the actual fixed runtime scalar
+overrides used at startup; completion requires a non-zero `node.id`, exactly one
+`cluster.nodes` member with that same ID, no seeds, and the sealed runtime
+projection to equal the reviewed settings. The wrapper's final process status
+is that consumer status.
+
+Cooldown sampling retains the worker's bounded receive-drain snapshot in every
+lifecycle cut. A drain no longer than the maximum sample gap may have zero or
+one periodic sample only when the exact terminal pre-close identity, traffic,
+receive-drain, and bounded-gap proof is present. Longer drains still require
+periodic coverage; neither rule fabricates a missing observation.
+
+The same single-node cluster timeline drives an optional bounded diagnostic
+profile without parsing logs or error prose. A snapshot-safe typed reducer
+selects only the first threshold bracket formed by two adjacent complete
+measured samples: either actual SENDACK/offered throughput below 90 percent or
+a new terminal/correctness failure. The wrapper then invokes the shared local
+CPU/heap/goroutine helper once for node 1. No threshold produces an explicit
+`not_triggered` status and no profile blobs. A trigger that starts too late,
+crosses into drain, is interrupted, or has missing metadata, blob, or checksum
+evidence closes the step as `insufficient_evidence`; a complete capture is
+additive evidence and never changes the existing rate/product attribution.
+The helper receives the benchmark bearer token only through its environment,
+and the parent closes the live phase at SEND-admission completion before it
+joins the bounded capture and seals the step payload.
+
 The in-process dev simulator also uses the worker runner's traffic recovery hook after a runtime traffic error. This repairs only failed WKProto sessions when the workload can identify them, then rebuilds person/group workload objects with a new client message prefix while preserving healthy sessions. This avoids full online-user churn for a single send/recv failure.
 
 The monotonic phase order is:
@@ -562,6 +813,17 @@ release. A stopped worker may accept only a distinct assignment identity,
 including a new generation of the same run, which clears the old stopping gate
 and stop task.
 
+For an acknowledged external terminal cut, stop first rebuilds the live receive
+proof and joins its readers, then always runs `EndAssignment`. A failed receive
+seal cannot publish `terminal_pre_close`: the assignment still becomes stopped
+after successful cleanup, while `/v1/stop` and exact retries retain the fixed
+`terminal_receive_seal_failed` reason. The coordinator preserves that reason
+instead of replacing it with the final retry timeout. Its default 15-second
+stop budget matches the native single-node wrapper's reserved final 15 seconds
+of the reviewed at-most-90-second cooldown, leaving bounded time for receive
+reproof, reader join, and closing up to 2,500 sessions without extending SEND
+admission.
+
 The coordinator sends exact-assignment stop requests to all assigned workers
 before terminal report collection on both successful and failed runs. It
 requires matching `run_id` and `assignment_id`, `phase=stopped`, and an empty
@@ -569,7 +831,8 @@ requires matching `run_id` and `assignment_id`, `phase=stopped`, and an empty
 rejected after another generation starts, even when it reuses the run ID. If
 stop is not confirmed, the coordinator does not read moving worker
 metrics/reports and writes only a minimal harness-invalid result with
-`phase=stop`, `reason_code=worker_stop_failed`.
+`phase=stop` and either the generic `worker_stop_failed` reason or the narrower
+`terminal_receive_seal_failed` reason returned by the worker.
 
 ## Dev-Sim Flow
 
@@ -603,6 +866,8 @@ The default runner is assembled by `worker.NewDefaultWorkloadRunner`. The privat
 
 ```text
 Prepare
+  -> when external_terminal_cut=true, reject an assignment without any
+     receive-drain traffic or recv_ack traffic before target mutation
   -> prepareBenchTokens when identity.token.mode == bench_api
   -> prepareGroupData
        -> group channel upsert batches
@@ -640,7 +905,26 @@ When any traffic stream sets `recv_ack: true`, the runner starts a background re
 Receive-drain handles support both cancellation and joining. Traffic generation
 replacement starts new readers only after old readers exit, while terminal
 teardown cancels drains, closes their owning connections to unblock reads, and
-waits for every drain before acknowledging stop.
+waits for every drain before acknowledging stop. Their bounded snapshots carry
+only aggregate counts: active readers, queue-source coverage and depth,
+queue-to-consumer handoffs, matching/in-flight work, cumulative receive
+progress, and cumulative read or RECVACK failures. An assignment with no receive workload emits the explicit
+canonical not-required proof; an omitted zero-value snapshot never authorizes a
+terminal cut. Receive progress includes one count per physical RECV and one
+count only after the corresponding protocol RECVACK write succeeds; overflow
+permanently marks the generation incomplete. These counters are merged across
+planned churn generations and participate in the stopped-boundary fingerprint,
+so late delivery, duplicate delivery, or late acknowledgement invalidates the
+previous zero-work proof.
+
+For the reviewed single-worker group scenario, the runner creates one fanout
+witness per assignment and reuses it across any traffic-generation rebuild.
+Each successful logical group SENDACK contributes the current channel's exact
+online recipient set minus its sender. The matching client binds its connected
+UID to each physical group RECV and reuses the resulting opaque receipt only
+after the bottom client writer completes RECVACK. The witness snapshot is part
+of every receive-drain fingerprint; a new assignment creates a new secret and
+an empty witness, while churn never resets the current assignment's history.
 
 The shared `pkg/client` session owns WKProto CONNECT reads, socket decoding,
 crypto, pending SENDACK matching, and a bounded lossless RECV queue. The
@@ -654,7 +938,14 @@ queued.
 
 ### Warmup, Run, Cooldown
 
-Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup raises per-message sendack/recv waits to at least the warmup duration so early cold bootstrap work is not cut off by the shorter measured-run timeout, but every wait shares a final deadline at `warmup end + the traffic's original operation timeout`; late messages therefore cannot extend the phase by another full warmup duration. Every send, sendack, recv, and recvack failure is bound to its session and low-cardinality operation, including explicit SENDACK rejection and receive payload mismatch; a typed per-session warmup operation failure is recorded and does not terminate the hook, so the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed run windows stop scheduling new messages when the window expires and then wait only for already-started send operations to finish; overloaded attempts therefore report lower actual QPS instead of extending the measured window to drain the full original schedule. The zero/one-concurrency path enforces the same hard window between sequential operations and cannot accumulate every planned SENDACK/RECV timeout after the deadline. Cooldown waits for the configured drain period without new sends.
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup raises per-message sendack/recv waits to at least the warmup duration so early cold bootstrap work is not cut off by the shorter measured-run timeout, but every wait shares a final deadline at `warmup end + the traffic's original operation timeout`; late messages therefore cannot extend the phase by another full warmup duration. Every send, sendack, recv, and recvack failure is bound to its session and low-cardinality operation, including explicit SENDACK rejection and receive payload mismatch; a typed per-session warmup operation failure is recorded and does not terminate the hook, so the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed measured run windows stop scheduling new messages at one shared absolute deadline and move only already-admitted operations into the bounded cooldown drain. Overloaded attempts therefore report lower actual QPS instead of extending measured admission. The zero/one-concurrency path enforces the same hard window between sequential operations and cannot accumulate every planned SENDACK/RECV timeout after the deadline. Cooldown starts no sends, returns immediately after exact admitted-work convergence, and fails if that work has not settled by its configured upper bound. Connections and background receive processing stay active through the post-drain lifecycle cut and close only at exact-assignment stop.
+
+The typed session error keeps its UID only as private in-process recovery state;
+its `Error` text exposes only an allowlisted operation. Worker phase responses
+and `/v1/status` likewise map failures to closed reason and operation codes.
+Raw UID, ChannelID, ClientMsgNo, frame summaries, or nested transport text must
+not cross those JSON boundaries, while `errors.Is`/`errors.As` and
+`SessionErrorUIDs` continue to support exact retry and session repair.
 
 Timed measured run windows record individual send, SENDACK, receive-verification,
 and RECVACK failures in workload metrics and continue scheduling. Warmup does
@@ -663,6 +954,31 @@ fail-fast. The declared error-rate limits own the final verdict; one operation
 failure must not turn the worker into a `phase_hook_failed` harness result.
 Parent phase cancellation never contributes send or receive error counters.
 Untimed direct operations remain fail-fast.
+
+Generic person and group traffic keeps its historical one-attempt behavior
+unless `traffic.retry.enabled` is explicit. An enabled stream owns each logical
+SEND through an initial attempt and no more than three retries at the fixed
+100ms, 500ms, and 2s delays. Every retry allocates a fresh connection-local
+`ClientSeq` while reusing the exact logical `client_msg_no`. The matcher accepts
+a success SENDACK from any issued attempt, ignores a delayed retriable rejection
+from an older attempt while the current one is pending, and terminates on any
+non-retriable rejection. Its low-cardinality phase/profile/traffic counters
+separate logical identities, physical attempts, retries, SENDACKs, exhaustion,
+terminal failures, planned-shutdown cancellations, identity mismatches, and
+exact remaining work; no UID,
+channel, or message identity becomes a label. Sequential and concurrent
+schedulers both publish planned and dispatched counts.
+
+The default worker's bounded `LifecycleStatus` projects those counters only
+from `run` and `run-window-*` phases. It derives stable-identity and evidence
+completeness from exact counter invariants rather than fixed booleans, and
+retains maximum-attempt policy/observation gauges as maxima across workload
+streams. Warmup evidence is excluded. Coordinator warmup and measured phase
+budgets include four ACK waits plus the three fixed delays when retry is enabled,
+so a valid final attempt cannot be cut off by the outer phase deadline. Unlike
+legacy one-attempt warmup traffic, retry-enabled warmup retains the configured
+per-attempt ACK timeout instead of expanding each of four attempts to the full
+warmup duration; all four share the explicit warmup-plus-retry-tail boundary.
 
 ## Planner Flow
 

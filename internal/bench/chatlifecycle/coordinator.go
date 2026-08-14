@@ -2565,6 +2565,9 @@ func coordinatorSnapshotRegressed(
 		if current.MetaCreate.PersonByHashSlot[hashSlot] < previous.MetaCreate.PersonByHashSlot[hashSlot] {
 			return true
 		}
+		if current.MetaCreate.GroupByHashSlot[hashSlot] < previous.MetaCreate.GroupByHashSlot[hashSlot] {
+			return true
+		}
 	}
 	if current.Queues.WorkPeak < previous.Queues.WorkPeak ||
 		current.Queues.RetryPeak < previous.Queues.RetryPeak ||

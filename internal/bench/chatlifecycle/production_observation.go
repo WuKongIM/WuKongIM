@@ -2,7 +2,9 @@ package chatlifecycle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -13,6 +15,20 @@ import (
 )
 
 var errProductionObservation = errors.New("chat lifecycle production observation failed")
+
+const (
+	maxProductionObservationDiagnostics     = 64
+	productionObservationResourceRetryDelay = 500 * time.Millisecond
+)
+
+type productionObservationCommitError struct{ stage string }
+
+func (e productionObservationCommitError) Error() string { return errProductionObservation.Error() }
+func (e productionObservationCommitError) Unwrap() error { return errProductionObservation }
+
+func observationCommitError(stage string) error {
+	return productionObservationCommitError{stage: stage}
+}
 
 // ProductionObservationTarget is the protected service-node resource boundary.
 type ProductionObservationTarget interface {
@@ -27,6 +43,13 @@ type ProductionObservationOptions struct {
 	HTTPClient *http.Client
 	// RuntimeSafety enforces the sealed formal budget and immutable Lease expiry.
 	RuntimeSafety RuntimeSafetyGuard
+	// DiagnosticLog receives bounded identity-free JSON lines for cadence gaps,
+	// resource retries/incomplete masks, and failed stages/target masks.
+	// Logging is best effort and never changes observation outcomes.
+	DiagnosticLog io.Writer
+	// ResourceRetryWait bounds the single retry delay used when a successful
+	// host-metrics scrape omitted required resource series. Nil uses a timer.
+	ResourceRetryWait func(context.Context, time.Duration) error
 
 	TargetFactory func(int, EndpointDeclaration, string) ProductionObservationTarget
 	DiskFactory   func(int, EndpointDeclaration) DiskReader
@@ -53,15 +76,18 @@ type ProductionObservationSnapshot struct {
 // ProductionObservationSource enriches validated Observer samples with one
 // same-round service-metrics and host-filesystem collection.
 type ProductionObservationSource struct {
-	cfg           Config
-	targets       [coordinatorWorkerCount]ProductionObservationTarget
-	disks         [productionHostCount]DiskReader
-	runtimeSafety RuntimeSafetyGuard
+	cfg               Config
+	targets           [coordinatorWorkerCount]ProductionObservationTarget
+	disks             [productionHostCount]DiskReader
+	runtimeSafety     RuntimeSafetyGuard
+	diagnosticLog     io.Writer
+	resourceRetryWait func(context.Context, time.Duration) error
 
 	// observeMu prevents overlapping external rounds; mu protects snapshots and
 	// the monotonic baselines read concurrently by Snapshot.
 	observeMu             sync.Mutex
 	mu                    sync.RWMutex
+	diagnosticMu          sync.Mutex
 	begun                 bool
 	start                 time.Time
 	nextGC                time.Time
@@ -77,6 +103,7 @@ type ProductionObservationSource struct {
 	workerQueueSince      [coordinatorWorkerCount][workerBoundedQueueCount]time.Time
 	workerQueueFired      [coordinatorWorkerCount][workerBoundedQueueCount]bool
 	lastWorkerQueueAt     time.Time
+	diagnosticLines       uint64
 }
 
 var _ ObserverSampleSink = (*ProductionObservationSource)(nil)
@@ -104,10 +131,16 @@ func NewProductionObservationSource(options ProductionObservationOptions) (*Prod
 			return newNodeExporterDiskReader(endpoint, options.HTTPClient)
 		}
 	}
+	if options.ResourceRetryWait == nil {
+		options.ResourceRetryWait = waitProductionObservationResourceRetry
+	}
 	cfg := options.Config
 	cfg.Observation.ServiceNodes = append([]EndpointDeclaration(nil), options.Config.Observation.ServiceNodes...)
 	cfg.Observation.HostMetrics = append([]EndpointDeclaration(nil), options.Config.Observation.HostMetrics...)
-	source := &ProductionObservationSource{cfg: cfg, runtimeSafety: options.RuntimeSafety}
+	source := &ProductionObservationSource{
+		cfg: cfg, runtimeSafety: options.RuntimeSafety, diagnosticLog: options.DiagnosticLog,
+		resourceRetryWait: options.ResourceRetryWait,
+	}
 	for index := 0; index < coordinatorWorkerCount; index++ {
 		source.targets[index] = options.TargetFactory(index, cfg.Observation.ServiceNodes[index], options.BenchToken)
 		source.disks[index] = options.DiskFactory(index, cfg.Observation.HostMetrics[index])
@@ -146,6 +179,9 @@ func (s *ProductionObservationSource) Begin(start time.Time) error {
 	s.workerQueueSince = [coordinatorWorkerCount][workerBoundedQueueCount]time.Time{}
 	s.workerQueueFired = [coordinatorWorkerCount][workerBoundedQueueCount]bool{}
 	s.lastWorkerQueueAt = time.Time{}
+	s.diagnosticMu.Lock()
+	s.diagnosticLines = 0
+	s.diagnosticMu.Unlock()
 	return nil
 }
 
@@ -175,6 +211,7 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 	}
 	if !validProductionObserverSample(sample, s.cfg) || sample.At.Before(start) ||
 		(!lastAt.IsZero() && !sample.At.After(lastAt)) {
+		s.writeObservationFailureDiagnostic(ctx, sample.At, "sample_validation", errProductionObservation, nil)
 		return errProductionObservation
 	}
 	forcedGC := !sample.At.Before(nextGC)
@@ -185,13 +222,16 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 			min(s.cfg.Observation.Cadence, observerMaxRoundTimeout),
 		)
 		if !ok {
+			s.writeObservationFailureDiagnostic(ctx, sample.At, "forced_gc_alignment", errProductionObservation, nil)
 			return errProductionObservation
 		}
 		alignmentTolerance, ok = checkedAddPositiveDuration(alignmentTolerance, s.cfg.Thresholds.Cluster.UnhealthyFailAfter)
 		if !ok {
+			s.writeObservationFailureDiagnostic(ctx, sample.At, "forced_gc_alignment", errProductionObservation, nil)
 			return errProductionObservation
 		}
 		if sample.At.Sub(nextGC) > alignmentTolerance || !sample.At.Before(nextGC.Add(time.Hour)) {
+			s.writeObservationFailureDiagnostic(ctx, sample.At, "forced_gc_alignment", errProductionObservation, nil)
 			return errProductionObservation
 		}
 		observationAt = nextGC
@@ -222,15 +262,75 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 	}
 	joined.Wait()
 	if err := productionObservationRoundError(ctx, round); err != nil {
+		s.writeObservationFailureDiagnostic(ctx, sample.At, "collection", err, &round)
 		return err
 	}
+	initialRetryMask := productionObservationResourceRetryMask(round)
+	if initialRetryMask != 0 {
+		if err := s.resourceRetryWait(ctx, productionObservationResourceRetryDelay); err != nil {
+			s.writeObservationFailureDiagnostic(ctx, sample.At, "resource_retry_wait", err, &round)
+			return err
+		}
+		var retried sync.WaitGroup
+		for index := 0; index < productionHostCount; index++ {
+			if initialRetryMask&(1<<index) == 0 {
+				continue
+			}
+			index := index
+			retried.Add(1)
+			go func() {
+				defer retried.Done()
+				round.disks[index], round.diskErrs[index] = s.disks[index].Filesystem(ctx)
+			}()
+		}
+		retried.Wait()
+		if err := productionObservationRoundError(ctx, round); err != nil {
+			s.writeObservationFailureDiagnostic(ctx, sample.At, "resource_retry_collection", err, &round)
+			return err
+		}
+		s.writeResourceRetryDiagnostic(
+			sample.At, initialRetryMask, productionObservationResourceRetryMask(round),
+		)
+	}
 	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			s.writeObservationFailureDiagnostic(ctx, sample.At, "post_collection_context", err, &round)
+		}
 		return err
 	}
 	if err := s.commitRound(ctx, sample, observationAt, forcedGC, round); err != nil {
+		s.writeObservationFailureDiagnostic(ctx, sample.At, "commit", err, &round)
 		return err
 	}
 	return nil
+}
+
+func waitProductionObservationResourceRetry(ctx context.Context, delay time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func productionObservationResourceRetryMask(round productionObservationRound) uint8 {
+	var mask uint8
+	for index, filesystem := range round.disks {
+		// A populated system-filesystem pair with a missing aggregate means the
+		// exporter returned a partial host-resource scrape (most commonly a
+		// consumptive CPU sample racing another evidence reader). A wholly absent
+		// optional resource surface remains fail-closed without repeated I/O.
+		if !filesystem.HostResourcesObserved && filesystem.SystemSizeBytes > 0 {
+			mask |= 1 << index
+		}
+	}
+	return mask
 }
 
 func (s *ProductionObservationSource) commitRound(
@@ -253,7 +353,7 @@ func (s *ProductionObservationSource) commitRound(
 		if !queueOK || !inflightOK || !activationOK || !heapOK || !goroutinesOK ||
 			filesystem.SizeBytes < s.cfg.Thresholds.MinimumDataFilesystemBytes || filesystem.SizeBytes <= 0 ||
 			filesystem.AvailableBytes < 0 || filesystem.AvailableBytes > filesystem.SizeBytes {
-			return errProductionObservation
+			return observationCommitError("node_metrics_or_filesystem")
 		}
 		rejected[index] = activation
 		resources[index] = NodeResourceSample{
@@ -268,18 +368,18 @@ func (s *ProductionObservationSource) commitRound(
 	loadFilesystem := round.disks[coordinatorWorkerCount]
 	if loadFilesystem.SizeBytes < s.cfg.Thresholds.Resource.MinimumLoadFilesystemBytes || loadFilesystem.SizeBytes <= 0 ||
 		loadFilesystem.AvailableBytes < 0 || loadFilesystem.AvailableBytes > loadFilesystem.SizeBytes {
-		return errProductionObservation
+		return observationCommitError("load_filesystem")
 	}
 	if s.cfg.Profile == ProfileFormal {
 		for _, filesystem := range round.disks {
 			if !filesystem.HostResourcesObserved || filesystem.SystemSizeBytes <= 0 || filesystem.SystemAvailableBytes < 0 ||
 				filesystem.SystemAvailableBytes > filesystem.SystemSizeBytes {
-				return errProductionObservation
+				return observationCommitError("formal_host_resources")
 			}
 		}
 		if !loadFilesystem.WatchedDirectoryObserved || loadFilesystem.WatchedDirectoryBytes < 0 ||
 			!loadFilesystem.NetworkTransmitObserved {
-			return errProductionObservation
+			return observationCommitError("formal_load_resources")
 		}
 	}
 	var runtimeSafety RuntimeSafetySnapshot
@@ -287,18 +387,18 @@ func (s *ProductionObservationSource) commitRound(
 		var safetyErr error
 		runtimeSafety, safetyErr = s.runtimeSafety.Observe(ctx, sample.At, loadFilesystem.NetworkTransmitBytes)
 		if safetyErr != nil || runtimeSafety.AccruedCostMicros < 0 || runtimeSafety.NetworkTransmitBytes != loadFilesystem.NetworkTransmitBytes {
-			return errProductionObservation
+			return observationCommitError("runtime_safety")
 		}
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.begun || s.start.IsZero() || (!s.lastAt.IsZero() && !sample.At.After(s.lastAt)) {
-		return errProductionObservation
+		return observationCommitError("source_fence")
 	}
 	next := cloneProductionObservationSnapshot(s.snapshot)
 	if next.Sequence == math.MaxUint64 {
-		return errProductionObservation
+		return observationCommitError("sequence_overflow")
 	}
 	next.Sequence++
 	next.At = observationAt
@@ -309,7 +409,7 @@ func (s *ProductionObservationSource) commitRound(
 		nodeID := sample.Nodes[index].NodeID
 		if s.nodeIDs[index] != 0 && s.nodeIDs[index] != nodeID || s.rejSeen && rejected[index] < s.lastRej[index] ||
 			math.MaxUint64-activationTotal < rejected[index] {
-			return errProductionObservation
+			return observationCommitError("node_or_counter_monotonicity")
 		}
 		activationTotal += rejected[index]
 	}
@@ -329,7 +429,7 @@ func (s *ProductionObservationSource) commitRound(
 		}
 		if forcedGC {
 			if node.ForcedGCSamples == math.MaxUint64 {
-				return errProductionObservation
+				return observationCommitError("forced_gc_counter")
 			}
 			node.ForcedGCSamples++
 			heap, goroutines := uint64(resource.HeapBytes), uint64(resource.Goroutines)
@@ -343,7 +443,7 @@ func (s *ProductionObservationSource) commitRound(
 	if cluster.HealthySamples == math.MaxUint64 || cluster.UnhealthySamples == math.MaxUint64 ||
 		math.MaxUint64-cluster.HotReplicaLagBreaches < sample.HotReplicaLagBreaches ||
 		sample.LeaderImbalanced && cluster.LeaderImbalanceWarnings == math.MaxUint64 {
-		return errProductionObservation
+		return observationCommitError("cluster_counter")
 	}
 	if sample.ServiceHealthy && sample.ClusterHealthy {
 		cluster.HealthySamples++
@@ -393,7 +493,7 @@ func (s *ProductionObservationSource) commitRound(
 			next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseLeaseExpiry})
 		case RuntimeSafetyOK:
 		default:
-			return errProductionObservation
+			return observationCommitError("runtime_safety_cause")
 		}
 	}
 	s.lastAt = sample.At
@@ -445,6 +545,9 @@ func (s *ProductionObservationSource) ObserveWorkerQueues(
 		s.workerQueueSince = [coordinatorWorkerCount][workerBoundedQueueCount]time.Time{}
 		s.workerQueueFired = [coordinatorWorkerCount][workerBoundedQueueCount]bool{}
 		evidence.WorkerQueueMissingSamples++
+		s.writeCadenceGapDiagnosticLocked(
+			"worker_queues", s.lastWorkerQueueAt, at, evidence.WorkerQueueMissingSamples,
+		)
 	}
 	complete := true
 	for worker, snapshot := range snapshots {
@@ -554,10 +657,15 @@ func (s *ProductionObservationSource) updateCapacityResourcesLocked(next *Produc
 	evidence := &next.ResourceEvidence.Capacity
 	evidence.SustainedWindow = s.cfg.Thresholds.Resource.SustainedSaturationWindow
 	complete := true
+	var hostResourceMissingMask uint8
+	var processResourceMissingMask uint8
+	var serviceQueueInvalidMask uint8
+	loadWatchedDirectoryMissing := false
 	if !s.lastAt.IsZero() && at.Sub(s.lastAt) > s.cfg.Observation.Cadence*2 {
 		s.cpuSince, s.memorySince, s.queueSince = [productionHostCount]time.Time{}, [productionHostCount]time.Time{}, [coordinatorWorkerCount][serviceBoundedQueueCount]time.Time{}
 		s.cpuFired, s.memoryFired, s.queueFired = [productionHostCount]bool{}, [productionHostCount]bool{}, [coordinatorWorkerCount][serviceBoundedQueueCount]bool{}
 		evidence.MissingSamples++
+		s.writeCadenceGapDiagnosticLocked("product_resources", s.lastAt, at, evidence.MissingSamples)
 	}
 	for index, filesystem := range round.disks {
 		evidence.DataFilesystemBytes[index] = nonNegativeUint64(filesystem.SizeBytes)
@@ -568,11 +676,15 @@ func (s *ProductionObservationSource) updateCapacityResourcesLocked(next *Produc
 		evidence.ProcessCPUJiffies[index] = filesystem.ProcessCPUJiffies
 		evidence.ProcessResidentMemoryBytes[index] = filesystem.ProcessResidentMemoryBytes
 		if !filesystem.HostResourcesObserved {
+			hostResourceMissingMask |= 1 << index
 			complete = false
-			continue
 		}
-		if s.cfg.Profile == ProfileFormal && !filesystem.ProcessResourcesObserved {
+		if !filesystem.ProcessResourcesObserved {
+			processResourceMissingMask |= 1 << index
 			complete = false
+		}
+		if !filesystem.HostResourcesObserved {
+			continue
 		}
 		evidence.HostCPUPercentBasisPoints[index] = percentBasisPoints(filesystem.CPUPercent)
 		evidence.HostMemoryPercentBasisPoints[index] = percentBasisPoints(filesystem.MemoryPercent)
@@ -610,6 +722,7 @@ func (s *ProductionObservationSource) updateCapacityResourcesLocked(next *Produc
 		for queue, values := range queues {
 			depth, capacity := values[0], values[1]
 			if capacity <= 0 || depth < 0 || depth > capacity {
+				serviceQueueInvalidMask |= 1 << (index*serviceBoundedQueueCount + queue)
 				complete = false
 				continue
 			}
@@ -635,6 +748,7 @@ func (s *ProductionObservationSource) updateCapacityResourcesLocked(next *Produc
 	if round.disks[coordinatorWorkerCount].WatchedDirectoryObserved {
 		evidence.PrometheusBytes = nonNegativeUint64(round.disks[coordinatorWorkerCount].WatchedDirectoryBytes)
 	} else {
+		loadWatchedDirectoryMissing = true
 		complete = false
 	}
 	evidence.Complete = complete
@@ -642,7 +756,176 @@ func (s *ProductionObservationSource) updateCapacityResourcesLocked(next *Produc
 		evidence.Samples++
 	} else {
 		evidence.MissingSamples++
+		s.writeResourceIncompleteDiagnostic(
+			at,
+			evidence.MissingSamples,
+			hostResourceMissingMask,
+			processResourceMissingMask,
+			serviceQueueInvalidMask,
+			loadWatchedDirectoryMissing,
+		)
 	}
+}
+
+func (s *ProductionObservationSource) writeCadenceGapDiagnosticLocked(
+	source string,
+	previous time.Time,
+	current time.Time,
+	missingSamples uint64,
+) {
+	s.writeObservationDiagnostic(struct {
+		Event          string    `json:"event"`
+		Source         string    `json:"source"`
+		PreviousAt     time.Time `json:"previous_at"`
+		ObservedAt     time.Time `json:"observed_at"`
+		GapMillis      int64     `json:"gap_ms"`
+		CadenceMillis  int64     `json:"cadence_ms"`
+		MissingSamples uint64    `json:"missing_samples"`
+	}{
+		Event: "wkbench.chat_lifecycle.observation_cadence_gap", Source: source,
+		PreviousAt: previous, ObservedAt: current, GapMillis: current.Sub(previous).Milliseconds(),
+		CadenceMillis: s.cfg.Observation.Cadence.Milliseconds(), MissingSamples: missingSamples,
+	})
+}
+
+func (s *ProductionObservationSource) writeResourceRetryDiagnostic(at time.Time, initialMask, remainingMask uint8) {
+	s.writeObservationDiagnostic(struct {
+		Event             string    `json:"event"`
+		At                time.Time `json:"at"`
+		InitialDiskMask   uint8     `json:"initial_disk_mask"`
+		RemainingDiskMask uint8     `json:"remaining_disk_mask"`
+	}{
+		Event: "wkbench.chat_lifecycle.observation_resource_retry", At: at,
+		InitialDiskMask: initialMask, RemainingDiskMask: remainingMask,
+	})
+}
+
+func (s *ProductionObservationSource) writeResourceIncompleteDiagnostic(
+	at time.Time,
+	missingSamples uint64,
+	hostResourceMissingMask uint8,
+	processResourceMissingMask uint8,
+	serviceQueueInvalidMask uint8,
+	loadWatchedDirectoryMissing bool,
+) {
+	s.writeObservationDiagnostic(struct {
+		Event                       string    `json:"event"`
+		At                          time.Time `json:"at"`
+		MissingSamples              uint64    `json:"missing_samples"`
+		HostResourceMissingMask     uint8     `json:"host_resource_missing_mask"`
+		ProcessResourceMissingMask  uint8     `json:"process_resource_missing_mask"`
+		ServiceQueueInvalidMask     uint8     `json:"service_queue_invalid_mask"`
+		LoadWatchedDirectoryMissing bool      `json:"load_watched_directory_missing"`
+	}{
+		Event: "wkbench.chat_lifecycle.observation_resource_incomplete", At: at,
+		MissingSamples: missingSamples, HostResourceMissingMask: hostResourceMissingMask,
+		ProcessResourceMissingMask: processResourceMissingMask, ServiceQueueInvalidMask: serviceQueueInvalidMask,
+		LoadWatchedDirectoryMissing: loadWatchedDirectoryMissing,
+	})
+}
+
+func (s *ProductionObservationSource) writeObservationFailureDiagnostic(
+	ctx context.Context,
+	at time.Time,
+	stage string,
+	err error,
+	round *productionObservationRound,
+) {
+	var metricFailureMask, diskFailureMask uint8
+	if round != nil {
+		for index, targetErr := range round.metricErrs {
+			if targetErr != nil {
+				metricFailureMask |= 1 << index
+			}
+		}
+		for index, diskErr := range round.diskErrs {
+			if diskErr != nil {
+				diskFailureMask |= 1 << index
+			}
+		}
+	}
+	commitStage := ""
+	var commitErr productionObservationCommitError
+	if errors.As(err, &commitErr) {
+		commitStage = commitErr.stage
+	}
+	errorClass := productionObservationErrorClass(err)
+	if stage == "collection" && round != nil {
+		errorClass = productionObservationCollectionErrorClass(*round)
+	}
+	deadlineRemainingMillis := int64(-1)
+	if deadline, ok := ctx.Deadline(); ok {
+		deadlineRemainingMillis = max(int64(0), time.Until(deadline).Milliseconds())
+	}
+	s.writeObservationDiagnostic(struct {
+		Event                   string    `json:"event"`
+		At                      time.Time `json:"at"`
+		Stage                   string    `json:"stage"`
+		CommitStage             string    `json:"commit_stage,omitempty"`
+		ErrorClass              string    `json:"error_class"`
+		MetricFailureMask       uint8     `json:"metric_failure_mask"`
+		DiskFailureMask         uint8     `json:"disk_failure_mask"`
+		DeadlineRemainingMillis int64     `json:"deadline_remaining_ms"`
+	}{
+		Event: "wkbench.chat_lifecycle.observation_failed", At: at, Stage: stage,
+		CommitStage: commitStage, ErrorClass: errorClass,
+		MetricFailureMask: metricFailureMask, DiskFailureMask: diskFailureMask,
+		DeadlineRemainingMillis: deadlineRemainingMillis,
+	})
+}
+
+func productionObservationCollectionErrorClass(round productionObservationRound) string {
+	hasCanceled, hasExternal := false, false
+	for _, targetErrs := range [][]error{round.metricErrs[:], round.diskErrs[:]} {
+		for _, targetErr := range targetErrs {
+			switch {
+			case errors.Is(targetErr, context.DeadlineExceeded):
+				return "deadline_exceeded"
+			case errors.Is(targetErr, context.Canceled):
+				hasCanceled = true
+			case targetErr != nil:
+				hasExternal = true
+			}
+		}
+	}
+	if hasCanceled {
+		return "canceled"
+	}
+	if hasExternal {
+		return "external_error"
+	}
+	return "invalid_observation"
+}
+
+func productionObservationErrorClass(err error) string {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, errProductionObservation):
+		return "invalid_observation"
+	default:
+		return "external_error"
+	}
+}
+
+func (s *ProductionObservationSource) writeObservationDiagnostic(value any) {
+	if s == nil || s.diagnosticLog == nil {
+		return
+	}
+	body, err := json.Marshal(value)
+	if err != nil {
+		return
+	}
+	body = append(body, '\n')
+	s.diagnosticMu.Lock()
+	defer s.diagnosticMu.Unlock()
+	if s.diagnosticLines >= maxProductionObservationDiagnostics {
+		return
+	}
+	s.diagnosticLines++
+	_, _ = s.diagnosticLog.Write(body)
 }
 
 func sustainedResourceEvent(at time.Time, high bool, since *time.Time, fired *bool, window time.Duration) bool {

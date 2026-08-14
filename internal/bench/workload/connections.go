@@ -2,6 +2,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	benchwkproto "github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const (
@@ -26,6 +28,20 @@ type ConnectionClient interface {
 	Connect(ctx context.Context, uid, deviceID string) error
 	// Close releases the underlying gateway connection.
 	Close() error
+}
+
+// IngressSealer is the optional terminal receive boundary for clients with a
+// server-confirmed flush fence. Current production WKProto clients expose the
+// seam but return a typed unsupported error until that wire contract exists.
+type IngressSealer interface {
+	SealIngress(context.Context) error
+}
+
+// GrantBoundIngressSealer establishes the reviewed server-confirmed terminal
+// fence for one live session. The opaque capability remains inside protocol
+// types and must never be logged by the manager.
+type GrantBoundIngressSealer interface {
+	SealIngressWithFence(context.Context, frame.TerminalFenceGrant) error
 }
 
 // HeartbeatClient is implemented by clients that can send gateway heartbeat frames.
@@ -333,6 +349,95 @@ func (m *ConnectionManager) ActiveCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.sessions)
+}
+
+// SealIngress requests a fence for every assignment-owned session without
+// removing it from the manager. All heartbeats join before the first request;
+// missing support or any failed fence makes the aggregate boundary fail closed.
+func (m *ConnectionManager) SealIngress(ctx context.Context) error {
+	return m.sealIngressSessions(ctx, func(ctx context.Context, client ConnectionClient) error {
+		sealer, ok := client.(IngressSealer)
+		if !ok || sealer == nil {
+			return fmt.Errorf("client does not support ingress sealing")
+		}
+		return sealer.SealIngress(ctx)
+	})
+}
+
+// SealIngressWithFence establishes the exact target-published fence on every
+// assignment-owned session while keeping all sessions installed for the final
+// receive and product cuts.
+func (m *ConnectionManager) SealIngressWithFence(ctx context.Context, grant frame.TerminalFenceGrant) error {
+	if err := grant.Validate(); err != nil {
+		return fmt.Errorf("connection manager: invalid terminal fence grant")
+	}
+	return m.sealIngressSessions(ctx, func(ctx context.Context, client ConnectionClient) error {
+		sealer, ok := client.(GrantBoundIngressSealer)
+		if !ok || sealer == nil {
+			return fmt.Errorf("client does not support grant-bound ingress sealing")
+		}
+		return sealer.SealIngressWithFence(ctx, grant)
+	})
+}
+
+func (m *ConnectionManager) sealIngressSessions(ctx context.Context, seal func(context.Context, ConnectionClient) error) error {
+	if m == nil {
+		return fmt.Errorf("connection manager: nil manager")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	sessions := m.Sessions()
+	if len(sessions) == 0 {
+		return fmt.Errorf("connection manager: no active sessions to seal")
+	}
+	for _, session := range sessions {
+		cancelSessionHeartbeat(session)
+	}
+	// No heartbeat write may race the TCP write-half boundary. Join every
+	// assignment heartbeat before allowing the first client to seal.
+	for _, session := range sessions {
+		if session == nil || session.heartbeatDone == nil {
+			continue
+		}
+		select {
+		case <-session.heartbeatDone:
+			session.heartbeatDone = nil
+		case <-ctx.Done():
+			return fmt.Errorf("connection manager: join heartbeat before ingress seal: %w", ctx.Err())
+		}
+	}
+
+	const maxParallelSeals = 64
+	workers := len(sessions)
+	if workers > maxParallelSeals {
+		workers = maxParallelSeals
+	}
+	jobs := make(chan *ConnectionSession)
+	errs := make(chan error, len(sessions))
+	var wg sync.WaitGroup
+	for index := 0; index < workers; index++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for session := range jobs {
+				if err := seal(ctx, session.Client); err != nil {
+					errs <- fmt.Errorf("connection manager: seal ingress: %w", err)
+				}
+			}
+		}()
+	}
+	for _, session := range sessions {
+		jobs <- session
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+	var sealErr error
+	for err := range errs {
+		sealErr = errors.Join(sealErr, err)
+	}
+	return sealErr
 }
 
 // MetricsSnapshot returns connection lifecycle counters recorded by the manager.

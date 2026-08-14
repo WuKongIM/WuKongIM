@@ -195,7 +195,7 @@ format = "console"
 
 [gateway]
 # Client-facing gateway listeners. Use TOML arrays here; WK_ environment overrides use one JSON string value.
-listeners = [{ address = "0.0.0.0:5100", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }, { address = "0.0.0.0:5200", name = "ws-gateway", network = "websocket", protocol = "wsmux", transport = "gnet" }]
+listeners = [{ address = "127.0.0.1:5100", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }, { address = "0.0.0.0:5200", name = "ws-gateway", network = "websocket", protocol = "wsmux", transport = "gnet" }]
 
 # Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
 gnet_multicore = true

@@ -165,11 +165,14 @@ can be retried after the cluster regains enough schedulable data nodes.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.
-When `ChannelAppendNode.AppendChannelBatch` returns a batch-level error, the
-adapter logs `internal.infra.cluster.channel_append_batch_failed` at ERROR
-level with the channel identity, authority fence, attempt, record count,
-mapped error result, and raw source error before returning the mapped
-channelappend error.
+When `ChannelAppendNode.AppendChannelBatch` returns a route, fence, timeout, or
+other specifically mapped batch-level error, the adapter logs
+`internal.infra.cluster.channel_append_batch_failed` at ERROR with the channel
+identity, authority fence, attempt, record count, mapped result, and raw source
+error. A generic `ErrAppendFailed` is returned without an adapter ERROR because
+the channelappend runtime may still resolve it through durable idempotency
+lookup. The runtime's final per-item completion owns terminal error logging and
+its recovery observer owns recovered/unresolved counting.
 `ChannelIdempotencyStore` adapts the node-local Channel runtime idempotency lookup
 facade for the channelappend runtime. It only returns a prior successful send
 when the sender UID, client message number, canonical channel, and raw payload

@@ -145,7 +145,8 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 			break
 		}
 	}
-	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, len(items), time.Since(permissionStartedAt))
+	permissionDuration := time.Since(permissionStartedAt)
+	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, len(items), permissionDuration)
 
 	preAppendStartedAt := time.Now()
 	preAppendResult := sendBatchStageResultOK
@@ -204,19 +205,24 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		allowed = append(allowed, item)
 		indexes = append(indexes, i)
 	}
-	a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, len(items), time.Since(preAppendStartedAt))
+	preAppendDuration := time.Since(preAppendStartedAt)
+	a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, len(items), preAppendDuration)
 	if len(allowed) == 0 {
 		return results
 	}
 	submitterStartedAt := time.Now()
 	if a == nil || a.submitter == nil {
-		for _, index := range indexes {
-			results[index].Err = ErrRouteNotReady
+		for allowedIndex, index := range indexes {
+			results[index].Err = annotateSendBatchTimeout(ErrRouteNotReady, SendBatchFailureDiagnostics{
+				FailedStage: sendBatchStageSubmitter, Permission: permissionDuration, PreAppend: preAppendDuration,
+				DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(allowed[allowedIndex].Deadline, submitterStartedAt),
+			})
 		}
 		a.observeSendBatchStage(sendBatchStageSubmitter, sendBatchStageResultErr, len(allowed), time.Since(submitterStartedAt))
 		return results
 	}
 	delegated := a.submitter.SendBatch(allowed)
+	submitterDuration := time.Since(submitterStartedAt)
 	submitterResult := sendBatchStageResultOK
 	if len(delegated) != len(allowed) {
 		submitterResult = sendBatchStageResultErr
@@ -228,14 +234,26 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 			}
 		}
 	}
-	a.observeSendBatchStage(sendBatchStageSubmitter, submitterResult, len(allowed), time.Since(submitterStartedAt))
+	a.observeSendBatchStage(sendBatchStageSubmitter, submitterResult, len(allowed), submitterDuration)
 	for i, result := range delegated {
 		if i >= len(indexes) {
 			break
 		}
+		result.Err = annotateSendBatchTimeout(result.Err, SendBatchFailureDiagnostics{
+			FailedStage: sendBatchStageSubmitter, Permission: permissionDuration, PreAppend: preAppendDuration,
+			Submitter:                  submitterDuration,
+			DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(allowed[i].Deadline, submitterStartedAt),
+		})
 		results[indexes[i]] = result
 	}
 	return results
+}
+
+func sendBatchDeadlineBudget(deadline, submitterStartedAt time.Time) time.Duration {
+	if deadline.IsZero() {
+		return 0
+	}
+	return deadline.Sub(submitterStartedAt)
 }
 
 func (a *App) observeSendBatchStage(stage, result string, items int, duration time.Duration) {

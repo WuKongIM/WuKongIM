@@ -288,7 +288,16 @@ complete from their stored results and only active lookup misses enter one
 bounded second append attempt. A failed second attempt may perform one final
 recovery lookup but never triggers a third append. Recovered idempotency hits
 do not enqueue post-commit side effects because they are not new commits from
-either append attempt; successful fresh-item retries do. Short append results
+either append attempt; successful fresh-item retries do. The optional recovery
+observer records one batch summary containing only recovered, unresolved, and
+lookup-error item counts. It carries no UID, Channel, client-message, or payload
+identity. A recovered item therefore increments a bounded-cardinality counter
+without producing an ERROR; lookup errors and unresolved items keep their
+terminal completion errors. Every fresh item admitted to the bounded retry is
+counted as unresolved when that retry does not commit it, including a second
+route, cancellation, or ordinary batch error, an item-local error, or a short
+result. These outcomes retain their original item-aligned completion errors and
+are not counted again as recovered or lookup errors. Short append results
 complete missing items with `ErrAppendResultMissing`; per-item append errors map to SENDACK reasons;
 successful append results complete `SENDACK` futures immediately with
 `ReasonSuccess`, message id, and channel sequence. Newly successful append items also
@@ -317,7 +326,13 @@ Success prunes the payload-bearing envelope from the backlog. Recipient route or
 delivery enqueue failure is logged through `PostCommitFailureObserver`, counted
 through effect metrics, and then the envelope reaches its terminal attempt
 without retry so one bad recipient side effect cannot block later messages on
-the same channel.
+the same channel. Each admitted post-commit effect publishes exactly one final
+result observation only after its completion is matched back to the owning
+writer state. Normal item errors fold into one closed low-cardinality result,
+mixed batches use `mixed`, an isolated effect panic uses `commit_failed`, and a
+completion that no longer matches the current attempt uses `stale_completion`.
+The observer is not called from inside the effect body, so panic recovery cannot
+first publish a false `ok` or double-count the same effect.
 Failure observations carry a precise post-commit phase plus sampled recipient,
 target, and dispatch context so route-resolution and delivery-enqueue failures
 remain distinguishable in logs. Each channel keeps only one committed envelope in flight at a

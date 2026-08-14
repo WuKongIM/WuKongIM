@@ -41,6 +41,14 @@ type linuxBlockDeviceCounters struct {
 	ioMilliseconds                            uint64
 }
 
+const (
+	darwinHostDeviceIORefreshInterval = 4 * time.Second
+	darwinHostDeviceIOCollectTimeout  = 4 * time.Second
+	// darwinHostDeviceIOMaxSampleAge lets one cached observation cover a
+	// complete bounded refresh, but never outlive that refresh's deadline.
+	darwinHostDeviceIOMaxSampleAge = darwinHostDeviceIORefreshInterval + darwinHostDeviceIOCollectTimeout
+)
+
 // hostDeviceIOSampler normalizes platform-specific block-device observations.
 type hostDeviceIOSampler interface {
 	Sample() hostDeviceIOSample
@@ -66,11 +74,16 @@ type linuxHostDeviceIOSampler struct {
 }
 
 // darwinHostDeviceIOSampler caches the bounded two-sample iostat observation.
+// Sample must never wait for iostat because host metrics share the observer's
+// strict round deadline with product evidence collection.
 type darwinHostDeviceIOSampler struct {
-	mu     sync.Mutex
-	device string
-	last   hostDeviceIOSample
-	at     time.Time
+	mu         sync.Mutex
+	device     string
+	last       hostDeviceIOSample
+	at         time.Time
+	refreshing bool
+	collect    func() (hostDeviceIOSample, error)
+	now        func() time.Time
 }
 
 func newHostDeviceIOSampler(path string) hostDeviceIOSampler {
@@ -90,7 +103,14 @@ func newHostDeviceIOSampler(path string) hostDeviceIOSampler {
 		if !ok {
 			return unavailableHostDeviceIOSampler{}
 		}
-		return &darwinHostDeviceIOSampler{device: device}
+		return &darwinHostDeviceIOSampler{
+			device: device,
+			last:   hostDeviceIOSample{Device: device},
+			now:    time.Now,
+			collect: func() (hostDeviceIOSample, error) {
+				return collectDarwinHostDeviceIOSample(device)
+			},
+		}
 	default:
 		return unavailableHostDeviceIOSampler{}
 	}
@@ -143,22 +163,57 @@ func (s *darwinHostDeviceIOSampler) Sample() hostDeviceIOSample {
 		return unavailableHostDeviceIOSampler{}.Sample()
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.at.IsZero() && time.Since(s.at) < 4*time.Second {
-		return s.last
+	if s.last.Device == "" {
+		s.last.Device = s.device
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-	body, err := exec.CommandContext(ctx, "iostat", "-Id", s.device, "1", "2").CombinedOutput()
-	if err != nil {
-		return hostDeviceIOSample{Device: s.device}
+	now := s.currentTime()
+	sample := s.last
+	age := now.Sub(s.at)
+	if s.at.IsZero() || age >= darwinHostDeviceIOMaxSampleAge {
+		sample = hostDeviceIOSample{Device: s.device}
 	}
-	sample, parseErr := parseDarwinIostatDeviceSample(s.device, string(body), time.Second)
-	if parseErr != nil {
-		return hostDeviceIOSample{Device: s.device}
+	stale := s.at.IsZero() || age >= darwinHostDeviceIORefreshInterval
+	if stale && !s.refreshing && s.collect != nil {
+		s.refreshing = true
+		go s.refresh()
 	}
-	s.last, s.at = sample, time.Now()
+	s.mu.Unlock()
 	return sample
+}
+
+func (s *darwinHostDeviceIOSampler) refresh() {
+	sample, err := s.collect()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err == nil {
+		sample.Device = s.device
+		s.last = sample
+		s.at = s.currentTime()
+	} else {
+		s.last = hostDeviceIOSample{Device: s.device}
+	}
+	s.refreshing = false
+}
+
+func (s *darwinHostDeviceIOSampler) currentTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+func collectDarwinHostDeviceIOSample(device string) (hostDeviceIOSample, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), darwinHostDeviceIOCollectTimeout)
+	defer cancel()
+	body, err := exec.CommandContext(ctx, "iostat", "-Id", device, "1", "2").CombinedOutput()
+	if err != nil {
+		return hostDeviceIOSample{}, err
+	}
+	sample, parseErr := parseDarwinIostatDeviceSample(device, string(body), time.Second)
+	if parseErr != nil {
+		return hostDeviceIOSample{}, parseErr
+	}
+	return sample, nil
 }
 
 func resolveLinuxPhysicalBlockDevice(path string) (string, string, bool) {

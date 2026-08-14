@@ -287,6 +287,7 @@ run:
   duration: 10m
   warmup: 30s
   cooldown: 15s
+  external_terminal_cut: true
   random_seed: 42
   fail_fast: true
   report_dir: ./reports
@@ -364,6 +365,8 @@ messages:
       rate_per_channel: 5/s
       ack_timeout: 10s
       recv_timeout: 11s
+      retry:
+        enabled: true
       sender_pick: random_online
       recv_ack: true
       verify:
@@ -379,6 +382,7 @@ messages:
 	require.Equal(t, 10*time.Minute, scenario.Run.Duration)
 	require.Equal(t, 30*time.Second, scenario.Run.Warmup)
 	require.Equal(t, 15*time.Second, scenario.Run.Cooldown)
+	require.True(t, scenario.Run.ExternalTerminalCut)
 	require.Equal(t, int64(42), scenario.Run.RandomSeed)
 	require.True(t, scenario.Limits.FailOnSoft)
 	require.Equal(t, 1, scenario.Limits.Hard.MaxWorkerFailed)
@@ -407,7 +411,21 @@ messages:
 	require.Equal(t, 5.0, scenario.Messages.Traffic[0].RatePerChannel.PerSecond)
 	require.Equal(t, 10*time.Second, scenario.Messages.Traffic[0].AckTimeout)
 	require.Equal(t, 11*time.Second, scenario.Messages.Traffic[0].RecvTimeout)
+	require.True(t, scenario.Messages.Traffic[0].Retry.Enabled)
 	require.Equal(t, 3, scenario.Messages.Traffic[0].Verify.Recv.SampleSizePerMessage)
+}
+
+func TestLoadScenarioDefaultsExternalTerminalCutToDisabled(t *testing.T) {
+	path := writeTempYAML(t, `
+version: wkbench/v1
+run:
+  id: generic-run
+`)
+
+	scenario, err := LoadScenario(path)
+
+	require.NoError(t, err)
+	require.False(t, scenario.Run.ExternalTerminalCut)
 }
 
 func TestLoadScenarioDefaultsOmittedHardErrorRatesToDisabledSentinel(t *testing.T) {

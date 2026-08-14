@@ -1023,14 +1023,31 @@ func (v *Verifier) completeTerminal(logical LogicalSend, code TerminalSendCode, 
 	return v.recordSendFailureLocked(FailureCodeTerminalSend, logical.LogicalSend, messageFingerprint(logical.ClientMsgNo), EvidenceStageSend, uint64(code))
 }
 
-// ReleaseSend physically removes a completed pending identity while retaining
-// only its unresolved sibling wire attempts until the existing verifier
-// deadline. The retained set is bounded by pending capacity times MaxAttempts.
+// ReleaseSend physically removes a completed pending identity using the legacy
+// registration-relative retention boundary. Runtime owners with an explicit
+// completion clock should use ReleaseSendAt.
 func (v *Verifier) ReleaseSend(logical LogicalSend) error {
+	return v.releaseSendAt(logical, time.Time{})
+}
+
+// ReleaseSendAt physically removes a completed pending identity while retaining
+// unresolved sibling wire attempts for one bounded correlation window after
+// logical completion. The retained set is bounded by pending capacity times
+// MaxAttempts.
+func (v *Verifier) ReleaseSendAt(logical LogicalSend, completedAt time.Time) error {
+	return v.releaseSendAt(logical, completedAt)
+}
+
+func (v *Verifier) releaseSendAt(logical LogicalSend, completedAt time.Time) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
 	if pending == nil || pending.logical != logical || pending.completion == sendIncomplete {
+		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
+	}
+	if completedAt.IsZero() {
+		completedAt = pending.registeredAt
+	} else if completedAt.Before(pending.registeredAt) {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
 	}
 	unresolved := 0
@@ -1044,7 +1061,7 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 	if unresolved > capacity-len(v.releasedAttempts) {
 		return v.recordHarnessLocked(FailureCodePendingCapacity, logical, EvidenceStageCapacity, uint64(capacity))
 	}
-	deadline := pending.registeredAt.Add(v.config.CorrelationDeadline)
+	deadline := completedAt.Add(v.config.CorrelationDeadline)
 	for index := uint8(0); index < pending.attemptCount; index++ {
 		attempt := pending.attempts[index]
 		if !attempt.outstanding || attempt.clientSeq == pending.completionClientSeq {

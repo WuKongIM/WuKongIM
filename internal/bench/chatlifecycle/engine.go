@@ -102,6 +102,9 @@ type EngineSnapshot struct {
 	// MetaCreatePersonByHashSlot counts successful unique first person SENDs
 	// without retaining channel identities or history-sized state.
 	MetaCreatePersonByHashSlot MetaCreateHashSlotCounts
+	// MetaCreateGroupByHashSlot counts fixed-catalog groups after their first
+	// successful SEND proves that runtime metadata was actually required.
+	MetaCreateGroupByHashSlot  MetaCreateHashSlotCounts
 	QueueCurrent               int
 	FutureCurrent              int
 	ActivityCurrent            int
@@ -782,6 +785,8 @@ type Engine struct {
 	activityPlannedCanceled    uint64
 	plannedShutdown            bool
 	metaCreatePersonByHashSlot MetaCreateHashSlotCounts
+	metaCreateGroupByHashSlot  MetaCreateHashSlotCounts
+	metaCreateGroupSeen        [maxGroupCatalogCount]bool
 	now                        time.Time
 }
 
@@ -946,6 +951,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.bootstrapActivityBarrier = time.Time{}
 	e.bootstrapActivityOrigin = time.Time{}
 	e.metaCreatePersonByHashSlot = MetaCreateHashSlotCounts{}
+	e.metaCreateGroupByHashSlot = MetaCreateHashSlotCounts{}
+	e.metaCreateGroupSeen = [maxGroupCatalogCount]bool{}
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
 	e.scheduler.reset(e.now)
@@ -3072,7 +3079,7 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		logical := inflight.intent.Logical
 		e.completeMetaCreate(inflight.intent, false)
 		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
-		_ = e.verifier.ReleaseSend(logical)
+		_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		delete(e.inflight, logical.ClientMsgNo)
 		e.finalFailures++
 		return terminalErr
@@ -3106,7 +3113,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			e.retries.cancel(ack.ClientMsgNo)
 			e.completeMetaCreate(inflight.intent, false)
 			terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
-			_ = e.verifier.ReleaseSend(logical)
+			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 			delete(e.inflight, ack.ClientMsgNo)
 			e.finalFailures++
 			return terminalErr
@@ -3116,6 +3123,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
 		var lifecycleErr error
+		lifecycleErr = errors.Join(lifecycleErr, e.completeGroupMetaCreate(inflight.intent))
 		if inflight.intent.ColdAttempt {
 			e.markActiveWarmed(inflight.intent.ChannelID)
 		}
@@ -3155,7 +3163,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(ack.ClientMsgNo)
 		delete(e.inflight, ack.ClientMsgNo)
-		return errors.Join(verificationErr, lifecycleErr, e.verifier.ReleaseSend(logical))
+		return errors.Join(verificationErr, lifecycleErr, e.verifier.ReleaseSendAt(logical, e.clock.Now()))
 	}
 	if ack.ClientSeq != inflight.currentClientSeq {
 		return verificationErr
@@ -3164,10 +3172,39 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	e.retries.cancel(ack.ClientMsgNo)
 	e.completeMetaCreate(inflight.intent, false)
 	terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
-	releaseErr := e.verifier.ReleaseSend(logical)
+	releaseErr := e.verifier.ReleaseSendAt(logical, e.clock.Now())
 	delete(e.inflight, ack.ClientMsgNo)
 	e.finalFailures++
 	return errors.Join(verificationErr, terminalErr, releaseErr)
+}
+
+// completeGroupMetaCreate closes the expected runtime-metadata create only
+// after the first successful SENDACK for one fixed-catalog group. Synthetic
+// direct-test group IDs are outside the production catalog and are ignored.
+func (e *Engine) completeGroupMetaCreate(intent TrafficIntent) error {
+	if intent.Kind != TrafficGroup || intent.ChannelID == "" {
+		return nil
+	}
+	groupIndex, ok := e.generator.catalog.IndexFromGroupID(intent.ChannelID)
+	if !ok {
+		return nil
+	}
+	owner, err := e.generator.catalog.GroupOwner(groupIndex)
+	if err != nil || owner != e.workerID || intent.Logical.WorkerID != uint32(e.workerID) || groupIndex >= maxGroupCatalogCount {
+		e.harnessInvalid++
+		return errEngineConfig
+	}
+	if e.metaCreateGroupSeen[groupIndex] {
+		return nil
+	}
+	hashSlot := lifecycleHashSlotForKey(intent.ChannelID, formalHashSlots)
+	if e.metaCreateGroupByHashSlot[hashSlot] == math.MaxUint64 {
+		e.harnessInvalid++
+		return errEngineConfig
+	}
+	e.metaCreateGroupSeen[groupIndex] = true
+	e.metaCreateGroupByHashSlot[hashSlot]++
+	return nil
 }
 
 func retriableSendackReason(reason frame.ReasonCode) bool {
@@ -3717,7 +3754,7 @@ func (e *Engine) cleanupInflight() {
 		if err := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed); err != nil {
 			_ = e.verifier.abortSendHarness(logical)
 		} else {
-			_ = e.verifier.ReleaseSend(logical)
+			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		}
 		delete(e.inflight, clientMsgNo)
 	}
@@ -3807,6 +3844,7 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		GatewayConnectLatency: sessions.GatewayConnectLatency, ConversationSyncLatency: sessions.ConversationSyncLatency,
 		ConversationSyncThresholds: sessions.ConversationSyncThresholds,
 		MetaCreatePersonByHashSlot: e.metaCreatePersonByHashSlot,
+		MetaCreateGroupByHashSlot:  e.metaCreateGroupByHashSlot,
 		QueueCurrent:               e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
 		ActivityUnderDelivered:  e.activityUnderDelivered,
 		ActivityFutureCanceled:  e.activityFutureCanceled,

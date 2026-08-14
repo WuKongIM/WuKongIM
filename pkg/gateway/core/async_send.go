@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,12 +32,26 @@ type sendExecutor struct {
 	shardQueued []atomic.Int64
 	// closed prevents new send admission after shutdown.
 	closed atomic.Bool
+	// admissionMu linearizes closing SEND admission with accepted task ownership.
+	admissionMu sync.Mutex
+	// admitted owns every caller that crossed SEND admission until its task has
+	// completed dispatch or the mailbox rejects it before ownership transfer.
+	admitted sync.WaitGroup
+	// drainOnce starts the non-cancelable accepted-work drain at most once.
+	drainOnce sync.Once
+	// drained closes after every SEND admitted before closure completes dispatch.
+	drained chan struct{}
+	// closeOnce releases the mailbox only after the accepted-work drain. It
+	// prevents Stop callers with expired release budgets from canceling work.
+	closeOnce sync.Once
 	// mailbox owns shard-local scheduling and worker execution.
 	mailbox *workqueue.ShardedMailbox[asyncDispatchTask]
 	// releaseTimeout bounds graceful mailbox pool release.
 	releaseTimeout time.Duration
 	// panicC records worker panics for package tests and diagnostics.
 	panicC chan any
+	// goroutines owns the bounded drain/release waiters outside the mailbox pool.
+	goroutines *goruntimeregistry.Registry
 }
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
@@ -49,6 +64,8 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 		shardQueued:    make([]atomic.Int64, opts.AsyncSendWorkers),
 		releaseTimeout: opts.AsyncPoolReleaseTimeout,
 		panicC:         make(chan any, 1),
+		drained:        make(chan struct{}),
+		goroutines:     opts.Goroutines,
 	}
 
 	limits := gatewaySendBatchLimits(s)
@@ -92,15 +109,24 @@ func asyncSendShardCapacity(totalCapacity, shards int) int {
 }
 
 func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {
-	if e == nil || e.mailbox == nil || send == nil || e.closed.Load() || e.workers <= 0 {
+	if e == nil || e.mailbox == nil || send == nil || e.workers <= 0 {
 		return false
 	}
+	e.admissionMu.Lock()
+	if e.closed.Load() {
+		e.admissionMu.Unlock()
+		return false
+	}
+	e.admitted.Add(1)
+	e.admissionMu.Unlock()
 	shard := asyncSendShardIndex(state, send, e.workers)
 	if !e.reserve() {
+		e.completeAdmission()
 		return false
 	}
 	if !e.reserveShard(shard) {
 		e.consume(1)
+		e.completeAdmission()
 		return false
 	}
 
@@ -113,6 +139,7 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	if err := e.mailbox.SubmitHash(context.Background(), uint64(shard), task); err != nil {
 		e.consumeShard(shard, 1)
 		e.consume(1)
+		e.completeAdmission()
 		return false
 	}
 	return true
@@ -122,12 +149,64 @@ func (e *sendExecutor) stop() {
 	if e == nil || e.mailbox == nil {
 		return
 	}
-	e.closed.Store(true)
+	// Stop reuses the terminal drain: accepted SEND work is never dropped just
+	// because a caller's earlier deadline elapsed.
 	ctx, cancel := context.WithTimeout(context.Background(), e.releaseTimeout)
-	defer cancel()
-	if err := e.mailbox.Close(ctx); err != nil {
-		e.resetDepths()
+	err := e.drain(ctx)
+	cancel()
+	if err != nil {
+		e.closeMailboxAfterDrain()
+		return
 	}
+	e.closeMailboxAfterDrain()
+}
+
+func (e *sendExecutor) closeMailboxAfterDrain() {
+	if e == nil || e.mailbox == nil {
+		return
+	}
+	e.closeOnce.Do(func() {
+		goruntimeregistry.SafeGo(e.goroutines, goruntimeregistry.TaskGatewayAsyncDrain, func() {
+			<-e.drained
+			_ = e.mailbox.Close(context.Background())
+			e.resetDepths()
+		})
+	})
+}
+
+// drain closes SEND admission and waits for every already accepted mailbox
+// task. The background drain is deliberately independent from caller context:
+// a timeout stops only that caller's wait, so a later DrainSends call can
+// observe the same accepted work finishing without a reset or drop.
+func (e *sendExecutor) drain(ctx context.Context) error {
+	if e == nil || e.mailbox == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.admissionMu.Lock()
+	e.closed.Store(true)
+	e.admissionMu.Unlock()
+	e.drainOnce.Do(func() {
+		goruntimeregistry.SafeGo(e.goroutines, goruntimeregistry.TaskGatewayAsyncDrain, func() {
+			e.admitted.Wait()
+			close(e.drained)
+		})
+	})
+	select {
+	case <-e.drained:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (e *sendExecutor) completeAdmission() {
+	if e == nil {
+		return
+	}
+	e.admitted.Done()
 }
 
 func (e *sendExecutor) depth() int {
@@ -180,6 +259,11 @@ func (e *sendExecutor) handleMailboxBatch(_ context.Context, batch workqueue.Mai
 	}
 	e.consumeShard(batch.Shard, len(batch.Items))
 	e.consume(len(batch.Items))
+	defer func() {
+		for range batch.Items {
+			e.completeAdmission()
+		}
+	}()
 	e.dispatchMailboxBatch(batch.Items)
 	return nil
 }

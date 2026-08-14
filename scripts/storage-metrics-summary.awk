@@ -14,7 +14,10 @@ BEGIN {
       "flush_bytes_delta", "flush_count_delta", "compaction_bytes_read_delta", \
       "compaction_bytes_written_delta", "compaction_count_delta", "sstable_size_max", \
       "compaction_debt_max", "compactions_in_progress_max", "read_amplification_max", \
-      "disk_usage_max"
+      "disk_usage_max", "avg_bytes_per_commit", \
+      "requests_per_commit_p50", "requests_per_commit_p95", "requests_per_commit_p99", \
+      "records_per_commit_p50", "records_per_commit_p95", "records_per_commit_p99", \
+      "bytes_per_commit_p50", "bytes_per_commit_p95", "bytes_per_commit_p99"
     exit
   }
   evidence = "complete"
@@ -24,10 +27,35 @@ function has_label(line, name, value) {
   return index(line, name "=\"" value "\"") > 0
 }
 
+function label_value(line, name, marker, start, rest, finish) {
+  marker = "{" name "=\""
+  start = index(line, marker)
+  if (start == 0) {
+    marker = "," name "=\""
+    start = index(line, marker)
+    if (start == 0) {
+      return ""
+    }
+  }
+  rest = substr(line, start + length(marker))
+  finish = index(rest, "\"")
+  if (finish == 0) {
+    return ""
+  }
+  return substr(rest, 1, finish - 1)
+}
+
 function add_value(key, amount, compound) {
   compound = file_index SUBSEP key
   values[compound] += amount
   seen[compound] = 1
+}
+
+function add_histogram_value(key, bound, amount, compound) {
+  compound = file_index SUBSEP key SUBSEP bound
+  histogram_values[compound] += amount
+  histogram_seen[compound] = 1
+  histogram_family_seen[file_index SUBSEP key] = 1
 }
 
 function observe_max(key, amount) {
@@ -102,6 +130,120 @@ function ratio(numerator, denominator) {
   return numerator / denominator
 }
 
+function absolute(value) {
+  return value < 0 ? -value : value
+}
+
+# histogram_quantile applies Prometheus' linear interpolation to the delta of
+# one cumulative histogram. A histogram may appear lazily after the first
+# snapshot, but a partially missing boundary or a non-monotonic delta fails the
+# evidence closed.
+function histogram_quantile(key, quantile, bounds, parts, compound, bound_count, bound, i, j, swap, \
+                            first_family, last_family, first_value, last_value, cumulative, total, \
+                            rank, previous_count, previous_bound, bucket_count, fraction) {
+  first_family = 1 SUBSEP key
+  last_family = file_index SUBSEP key
+  histogram_total_value = 0
+  histogram_valid_value = 0
+  if (!(last_family in histogram_family_seen)) {
+    mark_evidence("missing")
+    return 0
+  }
+
+  bound_count = 0
+  for (compound in histogram_seen) {
+    split(compound, parts, SUBSEP)
+    if ((parts[1] + 0) == file_index && parts[2] == key) {
+      bounds[++bound_count] = parts[3]
+    }
+  }
+  if (bound_count == 0) {
+    mark_evidence("missing")
+    return 0
+  }
+  for (i = 2; i <= bound_count; i++) {
+    swap = bounds[i]
+    j = i - 1
+    while (j >= 1 && (bounds[j] == "+Inf" || (swap != "+Inf" && bounds[j] + 0 > swap + 0))) {
+      bounds[j + 1] = bounds[j]
+      j--
+    }
+    bounds[j + 1] = swap
+  }
+  if (bounds[bound_count] != "+Inf") {
+    mark_evidence("missing")
+    return 0
+  }
+
+  if (first_family in histogram_family_seen) {
+    for (compound in histogram_seen) {
+      split(compound, parts, SUBSEP)
+      if ((parts[1] + 0) == 1 && parts[2] == key &&
+          !((file_index SUBSEP key SUBSEP parts[3]) in histogram_seen)) {
+        mark_evidence("missing")
+        return 0
+      }
+    }
+  }
+
+  previous_count = 0
+  for (i = 1; i <= bound_count; i++) {
+    bound = bounds[i]
+    compound = file_index SUBSEP key SUBSEP bound
+    first_value = 0
+    if (first_family in histogram_family_seen) {
+      if (!((1 SUBSEP key SUBSEP bound) in histogram_seen)) {
+        mark_evidence("missing")
+        return 0
+      }
+      first_value = histogram_values[1 SUBSEP key SUBSEP bound]
+    }
+    last_value = histogram_values[compound]
+    if (last_value < first_value) {
+      mark_evidence("counter_reset")
+      return 0
+    }
+    cumulative = last_value - first_value
+    if (cumulative < previous_count) {
+      mark_evidence("counter_reset")
+      return 0
+    }
+    histogram_deltas[i] = cumulative
+    previous_count = cumulative
+  }
+
+  total = histogram_deltas[bound_count]
+  histogram_total_value = total
+  histogram_valid_value = 1
+  if (total <= 0) {
+    return 0
+  }
+  rank = quantile * total
+  previous_count = 0
+  previous_bound = 0
+  for (i = 1; i <= bound_count; i++) {
+    cumulative = histogram_deltas[i]
+    bound = bounds[i]
+    if (cumulative < rank) {
+      previous_count = cumulative
+      if (bound != "+Inf") {
+        previous_bound = bound + 0
+      }
+      continue
+    }
+    if (bound == "+Inf") {
+      return previous_bound
+    }
+    bucket_count = cumulative - previous_count
+    if (bucket_count <= 0) {
+      return bound + 0
+    }
+    fraction = (rank - previous_count) / bucket_count
+    return previous_bound + ((bound + 0) - previous_bound) * fraction
+  }
+  return previous_bound
+}
+
 FNR == 1 {
   file_index++
 }
@@ -127,10 +269,31 @@ FNR == 1 {
     add_value("batch_count", amount)
   } else if (metric == "wukongim_storage_commit_batch_requests_sum") {
     add_value("batch_requests_sum", amount)
+  } else if (metric == "wukongim_storage_commit_batch_requests_bucket") {
+    bound = label_value($0, "le")
+    if (bound == "") {
+      mark_evidence("missing")
+    } else {
+      add_histogram_value("batch_requests", bound, amount)
+    }
   } else if (metric == "wukongim_storage_commit_batch_records_sum") {
     add_value("batch_records_sum", amount)
+  } else if (metric == "wukongim_storage_commit_batch_records_bucket") {
+    bound = label_value($0, "le")
+    if (bound == "") {
+      mark_evidence("missing")
+    } else {
+      add_histogram_value("batch_records", bound, amount)
+    }
   } else if (metric == "wukongim_storage_commit_batch_bytes_sum") {
     add_value("batch_bytes_sum", amount)
+  } else if (metric == "wukongim_storage_commit_batch_bytes_bucket") {
+    bound = label_value($0, "le")
+    if (bound == "") {
+      mark_evidence("missing")
+    } else {
+      add_histogram_value("batch_bytes", bound, amount)
+    }
   } else if (metric == "wukongim_storage_commit_batch_duration_seconds_count" ||
              metric == "wukongim_storage_commit_batch_duration_seconds_sum") {
     suffix = metric ~ /_count$/ ? "count" : "sum"
@@ -204,6 +367,26 @@ END {
   logical_requests = lazy_delta("batch_requests_sum")
   records = lazy_delta("batch_records_sum")
   bytes = lazy_delta("batch_bytes_sum")
+  requests_p50 = histogram_quantile("batch_requests", 0.50)
+  requests_histogram_count = histogram_total_value
+  requests_histogram_valid = histogram_valid_value
+  requests_p95 = histogram_quantile("batch_requests", 0.95)
+  requests_p99 = histogram_quantile("batch_requests", 0.99)
+  records_p50 = histogram_quantile("batch_records", 0.50)
+  records_histogram_count = histogram_total_value
+  records_histogram_valid = histogram_valid_value
+  records_p95 = histogram_quantile("batch_records", 0.95)
+  records_p99 = histogram_quantile("batch_records", 0.99)
+  bytes_p50 = histogram_quantile("batch_bytes", 0.50)
+  bytes_histogram_count = histogram_total_value
+  bytes_histogram_valid = histogram_valid_value
+  bytes_p95 = histogram_quantile("batch_bytes", 0.95)
+  bytes_p99 = histogram_quantile("batch_bytes", 0.99)
+  if ((requests_histogram_valid && absolute(requests_histogram_count - commit_count) > 0.000001) ||
+      (records_histogram_valid && absolute(records_histogram_count - commit_count) > 0.000001) ||
+      (bytes_histogram_valid && absolute(bytes_histogram_count - commit_count) > 0.000001)) {
+    mark_evidence("missing")
+  }
   collect_count = lazy_delta("collect_count")
   collect_sum = lazy_delta("collect_sum")
   build_count = lazy_delta("build_count")
@@ -247,7 +430,7 @@ END {
   read_amplification_max = required_max("read_amplification")
   disk_usage_max = required_max("disk_usage")
 
-  printf "%s\t%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.0f\t%.6f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\n", \
+  printf "%s\t%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.6f\t%.0f\t%.0f\t%.6f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f", \
     tag, node, evidence, queue_max, commit_count, logical_requests, records, bytes, \
     ratio(logical_requests, commit_count), ratio(records, commit_count), \
     ratio(collect_sum * 1000, collect_count), ratio(build_sum * 1000, build_count), \
@@ -263,4 +446,7 @@ END {
     wal_in, wal_written, ratio(wal_written, wal_in), \
     flush_bytes, flush_count, compaction_read, compaction_written, compaction_count, sstable_max, debt_max, \
     compactions_max, read_amplification_max, disk_usage_max
+  printf "\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\n", \
+    ratio(bytes, commit_count), requests_p50, requests_p95, requests_p99, \
+    records_p50, records_p95, records_p99, bytes_p50, bytes_p95, bytes_p99
 }

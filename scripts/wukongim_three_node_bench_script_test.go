@@ -65,9 +65,98 @@ func TestStorageMetricsSummaryReportsCommitAndPebbleEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("storage summary failed: %v\n%s", err, output)
 	}
-	want := "001000\tnode-1\tcomplete\t9\t10\t50\t100\t10000\t5.000000\t10.000000\t2.000000\t3.000000\t8.000000\t2.000000\t15.000000\t52\t7.307692\t49\t6.122449\t1\t50.000000\t1\t10.000000\t1\t20.000000\t52\t7.307692\t0\t0.000000\t0\t0.000000\t4000\t10000\t2.500000\t700\t4\t1600\t2500\t5\t12000\t900\t3\t7\t130\n"
+	want := "001000\tnode-1\tcomplete\t9\t10\t50\t100\t10000\t5.000000\t10.000000\t2.000000\t3.000000\t8.000000\t2.000000\t15.000000\t52\t7.307692\t49\t6.122449\t1\t50.000000\t1\t10.000000\t1\t20.000000\t52\t7.307692\t0\t0.000000\t0\t0.000000\t4000\t10000\t2.500000\t700\t4\t1600\t2500\t5\t12000\t900\t3\t7\t130\t1000.000000\t3.250000\t14.500000\t15.700000\t3.250000\t14.500000\t15.700000\t832.000000\t3712.000000\t4019.200000\n"
 	if string(output) != want {
 		t.Fatalf("storage summary:\n%s\nwant:\n%s", output, want)
+	}
+}
+
+func TestStorageMetricsSummaryReportsBatchSizeDistributionForFixedNodes(t *testing.T) {
+	root := repoRoot(t)
+	headerOutput, err := exec.Command("awk", "-v", "header=1", "-f",
+		filepath.Join(root, "scripts", "storage-metrics-summary.awk"), "/dev/null").CombinedOutput()
+	if err != nil {
+		t.Fatalf("storage summary header failed: %v\n%s", err, headerOutput)
+	}
+	header := strings.Split(strings.TrimSpace(string(headerOutput)), "\t")
+
+	testdata := filepath.Join(root, "scripts", "testdata", "storage_metrics_summary")
+	for _, test := range []struct {
+		node string
+		want map[string]string
+	}{
+		{
+			node: "node-1",
+			want: map[string]string{
+				"evidence":                "complete",
+				"commit_queue_depth_max":  "9",
+				"physical_commits_delta":  "10",
+				"logical_requests_delta":  "50",
+				"records_delta":           "100",
+				"commit_avg_ms":           "8.000000",
+				"wal_bytes_in_delta":      "4000",
+				"wal_bytes_written_delta": "10000",
+				"flush_count_delta":       "4",
+				"compaction_count_delta":  "5",
+				"avg_bytes_per_commit":    "1000.000000",
+				"requests_per_commit_p50": "3.333333",
+				"requests_per_commit_p95": "12.000000",
+				"requests_per_commit_p99": "15.200000",
+				"records_per_commit_p50":  "10.000000",
+				"records_per_commit_p95":  "52.000000",
+				"records_per_commit_p99":  "61.600000",
+				"bytes_per_commit_p50":    "3072.000000",
+				"bytes_per_commit_p95":    "14336.000000",
+				"bytes_per_commit_p99":    "15974.400000",
+			},
+		},
+		{
+			node: "node-2",
+			want: map[string]string{
+				"evidence":                "missing",
+				"physical_commits_delta":  "4",
+				"requests_per_commit_p50": "1.000000",
+				"requests_per_commit_p95": "1.900000",
+				"bytes_per_commit_p50":    "512.000000",
+			},
+		},
+		{
+			node: "node-3",
+			want: map[string]string{
+				"evidence":                "counter_reset",
+				"physical_commits_delta":  "4",
+				"requests_per_commit_p99": "1.980000",
+				"records_per_commit_p99":  "15.760000",
+			},
+		},
+	} {
+		t.Run(test.node, func(t *testing.T) {
+			arguments := []string{"-v", "tag=fixed", "-v", "node=" + test.node, "-f",
+				filepath.Join(root, "scripts", "storage-metrics-summary.awk"),
+				filepath.Join(testdata, test.node+"-before.prom"),
+				filepath.Join(testdata, test.node+"-sample.prom"),
+				filepath.Join(testdata, test.node+"-after.prom")}
+			output, err := exec.Command("awk", arguments...).CombinedOutput()
+			if err != nil {
+				t.Fatalf("storage summary failed: %v\n%s", err, output)
+			}
+			fields := strings.Split(strings.TrimSpace(string(output)), "\t")
+			if len(fields) != len(header) {
+				t.Fatalf("storage summary fields = %d, header fields = %d\nheader=%s\nrow=%s", len(fields), len(header), headerOutput, output)
+			}
+			byName := make(map[string]string, len(header))
+			for index, name := range header {
+				byName[name] = fields[index]
+			}
+			if got := byName["node"]; got != test.node {
+				t.Errorf("node = %q, want %q", got, test.node)
+			}
+			for name, want := range test.want {
+				if got := byName[name]; got != want {
+					t.Errorf("%s = %q, want %q", name, got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -262,8 +351,20 @@ func writeStorageMetricsFixture(t *testing.T, path string, f storageMetricsFixtu
 wukongim_storage_commit_queue_depth{store="message"} %g
 wukongim_storage_commit_batch_requests_count{store="message"} %g
 wukongim_storage_commit_batch_requests_sum{store="message"} %g
+wukongim_storage_commit_batch_requests_bucket{store="message",le="1"} %g
+wukongim_storage_commit_batch_requests_bucket{store="message",le="4"} %g
+wukongim_storage_commit_batch_requests_bucket{store="message",le="16"} %g
+wukongim_storage_commit_batch_requests_bucket{store="message",le="+Inf"} %g
 wukongim_storage_commit_batch_records_sum{store="message"} %g
+wukongim_storage_commit_batch_records_bucket{store="message",le="1"} %g
+wukongim_storage_commit_batch_records_bucket{store="message",le="4"} %g
+wukongim_storage_commit_batch_records_bucket{store="message",le="16"} %g
+wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} %g
 wukongim_storage_commit_batch_bytes_sum{store="message"} %g
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="256"} %g
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="1024"} %g
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="4096"} %g
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="+Inf"} %g
 wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="collect",result="ok"} %g
 wukongim_storage_commit_batch_duration_seconds_sum{store="message",stage="collect",result="ok"} %g
 wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="build",result="ok"} %g
@@ -294,7 +395,10 @@ wukongim_storage_pebble_compaction_estimated_debt_bytes{store="channel_log"} %g
 wukongim_storage_pebble_compactions_in_progress{store="channel_log"} %g
 wukongim_storage_pebble_read_amplification{store="channel_log"} %g
 wukongim_storage_pebble_disk_usage_bytes{store="channel_log"} %g`,
-		f.queue, f.batches, f.requests, f.records, f.bytes,
+		f.queue, f.batches, f.requests,
+		f.batches*.2, f.batches*.6, f.batches, f.batches,
+		f.records, f.batches*.2, f.batches*.6, f.batches, f.batches,
+		f.bytes, f.batches*.2, f.batches*.6, f.batches, f.batches,
 		f.batches, f.collectSum, f.batches, f.buildSum, f.batches, f.commitSum,
 		f.batches, f.publishSum, f.batches, f.totalSum,
 		f.requestOKCount, f.requestOKSum, f.requestTimeoutCount, f.requestTimeoutSum,
@@ -487,20 +591,21 @@ func TestSingleNodeBenchUsesReviewedLocalThroughputBaseline(t *testing.T) {
 		`DURATION="${WK_BENCH_DURATION:-5m}"`,
 		`WARMUP="${WK_BENCH_WARMUP:-60s}"`,
 		`COOLDOWN="${WK_BENCH_COOLDOWN:-90s}"`,
-		`WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}"`,
-		`WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-256}"`,
+		`env -i`,
+		`WK_CLUSTER_INITIAL_SLOT_COUNT=12`,
+		`WK_CLUSTER_HASH_SLOT_COUNT=256`,
 		`WK_CLUSTER_SLOT_REPLICA_N=1`,
 		`WK_CLUSTER_CHANNEL_REPLICA_N=1`,
-		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"`,
-		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1`,
 		`MINIMUM_FREE_PERCENT="${WK_BENCH_MINIMUM_FREE_PERCENT:-10}"`,
 		`storage_confounded`,
 		`host_confounded`,
 		`local-baseline.json`,
 		`online_users=$USERS`,
 		`send_concurrency=$CONCURRENCY`,
-		`logical_slot_groups=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}`,
-		`hash_slots=${WK_CLUSTER_HASH_SLOT_COUNT:-256}`,
+		`logical_slot_groups=12`,
+		`hash_slots=256`,
 		`objectives:`,
 		`scale: small`,
 		`ingress_qps: ${qps}/s`,

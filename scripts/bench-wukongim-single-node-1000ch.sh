@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
+# Do not allow an inherited xtrace setting to expose the benchmark API token
+# when the threshold helper receives it through its environment.
+set +x
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_BENCH_SINGLE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
@@ -14,6 +18,21 @@ START_CLUSTER=1
 CLEAN_CLUSTER=1
 START_SCRIPT="${WK_BENCH_SINGLE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongim-single-node.sh}"
 READY_TIMEOUT="${WK_BENCH_SINGLE_NODE_READY_TIMEOUT:-90}"
+WUKONGIM_CONFIG_SOURCE="${WK_WUKONGIM_SINGLE_NODE_CONFIG:-$ROOT_DIR/scripts/wukongim/wukongim.toml}"
+WUKONGIM_CONFIG="$WUKONGIM_CONFIG_SOURCE"
+WUKONGIM_CONFIG_SOURCE_CANONICAL=""
+WUKONGIM_CONFIG_SOURCE_REVIEWED=false
+RUNTIME_CONFIG_DIR=""
+RUNTIME_CONFIG_SNAPSHOT=""
+RUNTIME_CONFIG_SHA256=""
+WUKONGIM_BIN="${WK_WUKONGIM_SINGLE_NODE_BIN:-$ROOT_DIR/data/wukongim-single-node/wukongim}"
+WUKONGIM_LOG_ROOT="${WK_WUKONGIM_SINGLE_NODE_LOG_DIR:-$ROOT_DIR/data/wukongim-single-node-logs}"
+WUKONGIM_LOG_DIR="$WUKONGIM_LOG_ROOT"
+ACTIVE_CLUSTER_TAG=""
+ACTIVE_CLUSTER_START_LOG=""
+CLUSTER_GENERATION_INDEX=0
+SEALED_WUKONGIM_RELATIVE=bin/wukongim
+SEALED_WKBENCH_RELATIVE=bin/wkbench
 
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
 USERS="${WK_BENCH_USERS:-2500}"
@@ -28,15 +47,48 @@ ACTUAL_QPS_MIN_RATIO="${WK_BENCH_ACTUAL_QPS_MIN_RATIO:-0.90}"
 ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
 RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
 HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
-PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
+PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-10}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
 RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
+LIFECYCLE_SAMPLE_INTERVAL="${WK_BENCH_LIFECYCLE_SAMPLE_INTERVAL:-1}"
+TERMINAL_CUT_POLL_INTERVAL="${WK_BENCH_TERMINAL_CUT_POLL_INTERVAL:-1}"
+# Reserve the final 15 seconds of the reviewed 90-second cooldown for the
+# post-ACK receive reproof, reader join, and 2,500-session stop sequence.
+TERMINAL_CUT_ACK_SAFETY_SECONDS="${WK_BENCH_TERMINAL_CUT_ACK_SAFETY_SECONDS:-15}"
+STORAGE_OVERLAP_SAMPLE_INTERVAL="${WK_BENCH_STORAGE_OVERLAP_SAMPLE_INTERVAL:-20}"
+HOST_OVERLAP_DETECTOR="$ROOT_DIR/scripts/chat-lifecycle/detect-local-workload-overlap.sh"
+STORAGE_OVERLAP_CAPTURE="$ROOT_DIR/scripts/chat-lifecycle/capture-local-storage-overlap.sh"
+THRESHOLD_PROFILE_HELPER="$ROOT_DIR/scripts/capture-wukongim-local-threshold-pprof.sh"
+MAIN_SHELL_PID="$$"
 MINIMUM_FREE_PERCENT="${WK_BENCH_MINIMUM_FREE_PERCENT:-10}"
 HOST_METRICS_LISTEN="${WK_BENCH_SINGLE_NODE_HOST_METRICS_LISTEN:-127.0.0.1:19131}"
 HOST_METRICS_ADDR="${WK_BENCH_SINGLE_NODE_HOST_METRICS_ADDR:-http://$HOST_METRICS_LISTEN}"
 SINGLE_NODE_DATA_DIR="${WK_WUKONGIM_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongim-single-node-data}"
+CANONICAL_SINGLE_NODE_DATA_DIR=""
+DATA_FILESYSTEM_DEVICE=unavailable
+DATA_FILESYSTEM_TOTAL_BLOCKS=0
+DATA_FILESYSTEM_BLOCK_SIZE=0
+
+WKBENCH_BUILT_FROM_CURRENT_SOURCE=false
+WUKONGIM_BUILT_FROM_CURRENT_SOURCE=false
+SOURCE_INITIAL_VALID=false
+SOURCE_INITIAL_REVISION=unknown
+SOURCE_INITIAL_CLEAN=false
+SOURCE_POST_BUILD_VALID=false
+SOURCE_POST_BUILD_REVISION=unknown
+SOURCE_POST_BUILD_CLEAN=false
+SOURCE_FINAL_VALID=false
+SOURCE_FINAL_REVISION=unknown
+SOURCE_FINAL_CLEAN=false
+WK_BENCH_BUILD_DIR=""
+SOURCE_STATE_DIR=""
+BASELINE_INVOCATION_ID=""
+SEALED_WUKONGIM_SHA256=""
+ACTIVE_CLUSTER_GENERATION_NUMBER=0
+ACTIVE_CLUSTER_PRESPAWN_SHA256=""
+ACTIVE_CLUSTER_PRESPAWN_STAGE=""
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5001}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5100}"
@@ -56,12 +108,12 @@ Options:
   --worker-addr URL      Worker control URL. Default: http://127.0.0.1:19130.
   --worker-listen ADDR   Temporary worker listen address. Default: 127.0.0.1:19130.
   --no-worker            Do not start a temporary worker; require --worker-addr to be reachable.
-  --no-start             Do not start or stop the single-node cluster; use an already-running cluster.
+  --no-start             Use an already-running single-node cluster for exactly one --qps value.
   --no-clean             When starting the cluster, keep existing node data.
   --start-script PATH    Single-node startup script. Default: scripts/start-wukongim-single-node.sh.
   --ready-timeout SECS   Cluster ready wait timeout. Default: 90.
   --channels N           Fixed group channel count. Default: 1000.
-  --users N              Online connection population. Default: 2500.
+  --users N              Online connection population, range 1..2500. Default: 2500.
   --members N            Members per group channel. Default: 10.
   --concurrency N        wkbench send concurrency. Default: 2800.
   --duration DURATION    Measured run duration. Default: 5m.
@@ -72,8 +124,9 @@ Options:
   --ack-timeout DURATION Per-SEND sendack wait timeout in generated traffic. Default: 15s.
   --phase-poll-timeout DURATION
                          Base wkbench worker phase poll timeout. Default: 30s.
-  --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
-  --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
+  --profile-seconds N    Bounded CPU profile duration after the first typed measured threshold. Default: 10; range: 1..30.
+  --recv-ack BOOL        Must be true: the reviewed external terminal cut requires
+                         delivery ACK convergence. Default: true.
   --heartbeat BOOL       Whether benchmark clients send heartbeat pings. Default: true.
   --sender-pick MODE     Group sender selection: round_robin or first_online. Default: round_robin.
   --api LIST             Comma-separated API base URLs. Default: node 5001.
@@ -86,8 +139,8 @@ Options:
 Example:
   scripts/bench-wukongim-single-node-1000ch.sh --qps 2000,2400,2500
 
-  # Reuse an already-running cluster:
-  scripts/bench-wukongim-single-node-1000ch.sh --no-start --qps 2000,2500
+  # Reuse an already-running cluster for one diagnostic rate:
+  scripts/bench-wukongim-single-node-1000ch.sh --no-start --qps 2000
 USAGE
 }
 
@@ -139,6 +192,62 @@ split_csv() {
   for item in "${values[@]}"; do
     [[ -n "${item//[[:space:]]/}" ]] || die "comma-separated list contains an empty item: $raw"
     eval "$var_name+=(\"\$item\")"
+  done
+}
+
+initialize_baseline_invocation_id() {
+  local generated
+  command -v od >/dev/null 2>&1 || die 'od is required to create the baseline invocation identity'
+  generated="$(LC_ALL=C od -An -N16 -tx1 /dev/urandom | tr -d ' \n')" || \
+    die 'failed to create the baseline invocation identity'
+  [[ "$generated" =~ ^[0-9a-f]{32}$ ]] || die 'baseline invocation identity is invalid'
+  BASELINE_INVOCATION_ID="$generated"
+}
+
+reject_topology_environment_overrides() {
+  local name
+  for name in \
+    WK_NODE_ID \
+    WK_CLUSTER_ID \
+    WK_CLUSTER_LISTEN_ADDR \
+    WK_CLUSTER_ADVERTISE_ADDR \
+    WK_CLUSTER_SEEDS \
+    WK_CLUSTER_JOIN_TOKEN \
+    WK_CLUSTER_NODES \
+    WK_API_LISTEN_ADDR \
+    WK_EXTERNAL_TCPADDR \
+    WK_GATEWAY_LISTENERS \
+    WK_METRICS_ENABLE \
+    WK_BENCH_API_ENABLE \
+    WK_WUKONGIM_SINGLE_NODE_READY_URL \
+    WK_DEBUG_API_ENABLE \
+    WK_CLUSTER_INITIAL_SLOT_COUNT \
+    WK_CLUSTER_HASH_SLOT_COUNT \
+    WK_CLUSTER_SLOT_REPLICA_N \
+    WK_CLUSTER_CHANNEL_REPLICA_N \
+    WK_CLUSTER_CHANNEL_REACTOR_COUNT \
+    WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS \
+    WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS \
+    WK_CLUSTER_CHANNEL_RPC_WORKERS \
+    WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS \
+    WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT \
+    WK_CHANNEL_APPEND_SHARD_COUNT \
+    WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE \
+    WK_CHANNEL_APPEND_EFFECT_POOL_SIZE \
+    WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY \
+    WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW \
+    WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS \
+    WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS \
+    WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES \
+    WK_CLUSTER_COMMIT_COORDINATOR_SHARDS \
+    WK_CLUSTER_COMMIT_COORDINATOR_SYNC \
+    WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS \
+    WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT \
+    WK_GATEWAY_SEND_TIMEOUT
+  do
+    if declare -p "$name" >/dev/null 2>&1; then
+      die "the reviewed single-node cluster rejects inherited topology override or endpoint override: $name"
+    fi
   done
 }
 
@@ -291,26 +400,37 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Reject product/runtime overrides before the dedicated evidence directory is
+# created. Harness-only WK_BENCH_* inputs remain governed by their own bounds.
+reject_topology_environment_overrides
+
 require_positive_int '--channels' "$CHANNELS"
 require_positive_int '--users' "$USERS"
+(( USERS <= 2500 )) || die "--users must not exceed terminal fence capacity 2500: $USERS"
 require_positive_int '--members' "$GROUP_MEMBERS"
 (( GROUP_MEMBERS > 1 )) || die '--members must be greater than one for the reviewed fanout objective'
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
+require_nonnegative_number 'WK_BENCH_LIFECYCLE_SAMPLE_INTERVAL' "$LIFECYCLE_SAMPLE_INTERVAL"
+awk -v interval="$LIFECYCLE_SAMPLE_INTERVAL" 'BEGIN {exit !(interval > 0 && interval <= 30)}' || \
+  die 'WK_BENCH_LIFECYCLE_SAMPLE_INTERVAL must be within 0..30 seconds'
+require_nonnegative_number 'WK_BENCH_TERMINAL_CUT_POLL_INTERVAL' "$TERMINAL_CUT_POLL_INTERVAL"
+awk -v interval="$TERMINAL_CUT_POLL_INTERVAL" 'BEGIN {exit !(interval > 0 && interval <= 5)}' || \
+  die 'WK_BENCH_TERMINAL_CUT_POLL_INTERVAL must be within 0..5 seconds'
+require_positive_int 'WK_BENCH_TERMINAL_CUT_ACK_SAFETY_SECONDS' "$TERMINAL_CUT_ACK_SAFETY_SECONDS"
+(( TERMINAL_CUT_ACK_SAFETY_SECONDS >= 15 )) || \
+  die 'WK_BENCH_TERMINAL_CUT_ACK_SAFETY_SECONDS must be at least 15 seconds'
+require_positive_int 'WK_BENCH_STORAGE_OVERLAP_SAMPLE_INTERVAL' "$STORAGE_OVERLAP_SAMPLE_INTERVAL"
+(( STORAGE_OVERLAP_SAMPLE_INTERVAL <= 20 )) || \
+  die 'WK_BENCH_STORAGE_OVERLAP_SAMPLE_INTERVAL must be within 1..20 seconds'
 require_nonnegative_number 'WK_BENCH_ACTUAL_QPS_MIN_RATIO' "$ACTUAL_QPS_MIN_RATIO"
 awk -v ratio="$ACTUAL_QPS_MIN_RATIO" 'BEGIN {exit !(ratio >= 0.90 && ratio <= 1)}' || \
   die 'WK_BENCH_ACTUAL_QPS_MIN_RATIO must be within 0.90..1.00 for the reviewed local baseline'
 require_positive_int 'WK_BENCH_MINIMUM_FREE_PERCENT' "$MINIMUM_FREE_PERCENT"
 (( MINIMUM_FREE_PERCENT <= 100 )) || die "WK_BENCH_MINIMUM_FREE_PERCENT must not exceed 100: $MINIMUM_FREE_PERCENT"
-[[ "${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}" == 12 && "${WK_CLUSTER_HASH_SLOT_COUNT:-256}" == 256 ]] || \
-  die 'the reviewed local baseline requires 12 logical Slot Raft Groups and 256 hash slots'
-[[ "${WK_CLUSTER_SLOT_REPLICA_N:-1}" == 1 && "${WK_CLUSTER_CHANNEL_REPLICA_N:-1}" == 1 ]] || \
-  die 'the single-node cluster baseline requires Slot and Channel replica counts of one'
-[[ "${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}" == 200us && "${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}" == 1 ]] || \
-  die 'the reviewed local baseline requires a 200us commit window and one coordinator shard'
-[[ "${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}" == true ]] || die 'the reviewed local baseline requires synchronous commit'
-[[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
+[[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] && (( PROFILE_SECONDS >= 1 && PROFILE_SECONDS <= 30 )) || \
+  die "--profile-seconds must be an integer from 1 through 30: $PROFILE_SECONDS"
 case "$SENDER_PICK" in
   first_online|round_robin)
     ;;
@@ -319,7 +439,10 @@ case "$SENDER_PICK" in
     ;;
 esac
 case "$RECV_ACK" in
-  true|false)
+  true)
+    ;;
+  false)
+    die '--recv-ack must be true for the reviewed external terminal cut'
     ;;
   *)
     die "--recv-ack must be true or false: $RECV_ACK"
@@ -335,6 +458,9 @@ esac
 
 declare -a QPS_VALUES API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
+if [[ "$START_CLUSTER" -eq 0 && "${#QPS_VALUES[@]}" -ne 1 ]]; then
+  die '--no-start cannot be combined with multiple --qps values; use one rate per invocation'
+fi
 split_csv "$API_ADDRS" API_VALUES
 split_csv "$GATEWAY_ADDRS" GATEWAY_VALUES
 split_csv "$METRICS_ADDRS" METRICS_VALUES
@@ -344,7 +470,18 @@ CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
 RUNTIME_POOL_SAMPLER_PID=""
 RUNTIME_POOL_SAMPLER_STOP_FILE=""
+LIFECYCLE_SAMPLER_PID=""
+LIFECYCLE_SAMPLER_STOP_FILE=""
+THRESHOLD_PROFILE_WATCHER_PID=""
+THRESHOLD_PROFILE_WATCHER_STOP_FILE=""
+TERMINAL_CUT_OBSERVER_PID=""
+TERMINAL_CUT_OBSERVER_STOP_FILE=""
+WAIT_CHILD_STATUS=0
+OPERATOR_SIGNAL_STATUS=0
 HOST_METRICS_PID=""
+WORKER_WRITER_STOPPED=0
+OWNED_WORKER_STARTED=0
+OWNED_CLUSTER_STARTED=0
 
 stop_worker_exact_from_status() {
   local reason="${1:-cleanup}"
@@ -387,76 +524,278 @@ stop_worker_exact_from_status() {
   fi
 }
 
+wait_child_uninterrupted() {
+  local pid="$1" status
+  WAIT_CHILD_STATUS=0
+  while true; do
+    status=0
+    wait "$pid" 2>/dev/null || status=$?
+    if ! kill -0 "$pid" 2>/dev/null; then
+      WAIT_CHILD_STATUS="$status"
+      return 0
+    fi
+  done
+}
+
+operator_signal_exit() {
+  local status="$1"
+  OPERATOR_SIGNAL_STATUS="$status"
+  exit "$status"
+}
+
 cleanup() {
   local original_status=$?
-  if declare -F stop_runtime_pool_sampler >/dev/null 2>&1; then
-    stop_runtime_pool_sampler
+  # A further operator signal may interrupt wait(1), but must not abandon a
+  # child owned by this wrapper while EXIT cleanup is joining it.
+  trap 'OPERATOR_SIGNAL_STATUS=130' INT
+  trap 'OPERATOR_SIGNAL_STATUS=143' TERM
+  if declare -F terminate_terminal_cut_observer >/dev/null 2>&1; then
+    terminate_terminal_cut_observer || true
   fi
-  stop_server_resource_sampler
+  if declare -F terminate_threshold_profile_watcher >/dev/null 2>&1; then
+    terminate_threshold_profile_watcher || true
+  fi
+  if declare -F stop_runtime_pool_sampler >/dev/null 2>&1; then
+    stop_runtime_pool_sampler || true
+  fi
+  if declare -F stop_lifecycle_sampler >/dev/null 2>&1; then
+    stop_lifecycle_sampler || true
+  fi
+  stop_server_resource_sampler || true
+  stop_worker_writer "script cleanup" || true
+  if declare -F discard_owned_worker_runtime_state >/dev/null 2>&1; then
+    discard_owned_worker_runtime_state || true
+  fi
+  stop_host_metrics_writer || true
+  stop_cluster_writer || true
+  if declare -F discard_owned_wkbench_build >/dev/null 2>&1; then
+    discard_owned_wkbench_build || true
+  fi
+  if declare -F discard_runtime_config_snapshot >/dev/null 2>&1; then
+    discard_runtime_config_snapshot || true
+  fi
+  return "$original_status"
+}
+
+stop_host_metrics_writer() {
   if [[ -n "$HOST_METRICS_PID" ]]; then
     log "stopping host metrics pid=$HOST_METRICS_PID"
     kill "$HOST_METRICS_PID" >/dev/null 2>&1 || true
     wait "$HOST_METRICS_PID" 2>/dev/null || true
     HOST_METRICS_PID=""
   fi
+}
+
+stop_worker_writer() {
+  local reason="${1:-cleanup}" stop_status=0
+  [[ "$WORKER_WRITER_STOPPED" -eq 0 ]] || return 0
+  if worker_ready; then
+    stop_worker_exact_from_status "$reason" || stop_status=1
+  elif [[ -n "$WORKER_PID" ]]; then
+    stop_status=1
+  fi
   if [[ -n "$WORKER_PID" ]]; then
     log "stopping temporary worker pid=$WORKER_PID"
-    stop_worker_exact_from_status "script cleanup" || true
     kill "$WORKER_PID" >/dev/null 2>&1 || true
     wait "$WORKER_PID" 2>/dev/null || true
+    WORKER_PID=""
   fi
+  if [[ "$stop_status" -eq 0 ]]; then
+    WORKER_WRITER_STOPPED=1
+  fi
+  return "$stop_status"
+}
+
+discard_owned_worker_runtime_state() {
+  local state_dir="$OUT_DIR/worker-state" state_file="$OUT_DIR/worker-state/current-run.json"
+  [[ "$OWNED_WORKER_STARTED" -eq 1 ]] || return 0
+  [[ ! -L "$state_dir" ]] || return 1
+  [[ -d "$state_dir" ]] || return 0
+  if [[ -e "$state_file" || -L "$state_file" ]]; then
+    [[ -f "$state_file" && ! -L "$state_file" ]] || return 1
+    rm -f -- "$state_file" || return 1
+  fi
+  rmdir "$state_dir"
+}
+
+stop_cluster_writer() {
   if [[ -n "$CLUSTER_PID" ]]; then
     log "stopping single-node cluster pid=$CLUSTER_PID"
     kill "$CLUSTER_PID" >/dev/null 2>&1 || true
     wait "$CLUSTER_PID" 2>/dev/null || true
+    CLUSTER_PID=""
   fi
-  return "$original_status"
 }
 
+trap 'operator_signal_exit 130' INT
+trap 'operator_signal_exit 143' TERM
 trap cleanup EXIT
 
-start_cluster() {
+start_cluster_generation() {
+  local qps="$1" tag generation_dir current_binary_sha
+  tag="$(qps_tag "$qps")"
+  verify_runtime_config_snapshot || die "private runtime config snapshot changed before qps=$qps"
   if [[ "$START_CLUSTER" -eq 0 ]]; then
     log "cluster startup disabled; using existing cluster"
+    ACTIVE_CLUSTER_TAG="$tag"
+    ACTIVE_CLUSTER_START_LOG="$OUT_DIR/cluster-start.log"
     return
   fi
   [[ -x "$START_SCRIPT" ]] || die "start script is not executable: $START_SCRIPT"
-  mkdir -p "$OUT_DIR/logs"
-  local clean_arg=()
-  if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
-    clean_arg=(--clean)
+  [[ -z "$CLUSTER_PID" ]] || die "previous product generation is still running before qps=$qps"
+  ACTIVE_CLUSTER_GENERATION_NUMBER=$((CLUSTER_GENERATION_INDEX + 1))
+  ACTIVE_CLUSTER_PRESPAWN_SHA256=""
+  ACTIVE_CLUSTER_PRESPAWN_STAGE=pre_spawn
+  if [[ "$CLUSTER_GENERATION_INDEX" -gt 0 ]]; then
+    [[ -n "$SEALED_WUKONGIM_SHA256" && -f "$WUKONGIM_BIN" && ! -L "$WUKONGIM_BIN" && -x "$WUKONGIM_BIN" ]] || \
+      die "sealed product executable is unavailable before generation=$tag"
+    current_binary_sha="$(sha256_file "$WUKONGIM_BIN")" || \
+      die "cannot hash product executable before generation=$tag"
+    [[ "$current_binary_sha" == "$SEALED_WUKONGIM_SHA256" ]] || \
+      die "product executable changed before generation=$tag"
+    ACTIVE_CLUSTER_PRESPAWN_SHA256="$current_binary_sha"
   fi
-  log "starting single-node cluster with $START_SCRIPT"
+  generation_dir="$OUT_DIR/cluster-generations/${tag}"
+  WUKONGIM_LOG_DIR="$generation_dir/logs"
+  ACTIVE_CLUSTER_TAG="$tag"
+  ACTIVE_CLUSTER_START_LOG="$OUT_DIR/cluster-start.log"
+  mkdir -p "$OUT_DIR/logs" "$generation_dir"
+  set -- --ready-timeout "$READY_TIMEOUT"
+  if [[ "$CLUSTER_GENERATION_INDEX" -eq 0 && "$CLEAN_CLUSTER" -eq 1 ]]; then
+    set -- --clean "$@"
+  fi
+  if [[ "$CLUSTER_GENERATION_INDEX" -gt 0 ]]; then
+    set -- --no-build "$@"
+  fi
+  local canonical_start default_start
+  canonical_start="$(realpath -q "$START_SCRIPT" 2>/dev/null || true)"
+  default_start="$(realpath -q "$ROOT_DIR/scripts/start-wukongim-single-node.sh" 2>/dev/null || true)"
+  if [[ "$CLUSTER_GENERATION_INDEX" -eq 0 && -n "$canonical_start" && "$canonical_start" == "$default_start" ]]; then
+    WUKONGIM_BUILT_FROM_CURRENT_SOURCE=true
+  fi
+  log "starting single-node cluster generation=$tag with $START_SCRIPT"
   # Preserve synchronous commits; the wider window only improves durable group-commit batching.
   # Keep server send timeout below the 15s client ACK wait so recovery can still write SENDACK.
-  WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
-  WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}" \
-  WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-256}" \
+  env -i \
+  PATH="$PATH" \
+  HOME="${HOME:-/tmp}" \
+  TMPDIR="${TMPDIR:-/tmp}" \
+  GOWORK="${GOWORK:-off}" \
+  LC_ALL=C \
+  WK_DEBUG_API_ENABLE=true \
+  WK_CLUSTER_INITIAL_SLOT_COUNT=12 \
+  WK_CLUSTER_HASH_SLOT_COUNT=256 \
   WK_CLUSTER_SLOT_REPLICA_N=1 \
   WK_CLUSTER_CHANNEL_REPLICA_N=1 \
-  WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
-  WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
-  WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
-  WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}" \
-  WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}" \
-  WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}" \
-  WK_CHANNEL_APPEND_SHARD_COUNT="${WK_CHANNEL_APPEND_SHARD_COUNT:-0}" \
-  WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE="${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}" \
-  WK_CHANNEL_APPEND_EFFECT_POOL_SIZE="${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}" \
-  WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY="${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}" \
-  WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS="${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}" \
-  WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}" \
-  WK_GATEWAY_SEND_TIMEOUT="${WK_GATEWAY_SEND_TIMEOUT:-14s}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_SYNC="${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}" \
+  WK_CLUSTER_CHANNEL_REACTOR_COUNT=128 \
+  WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 \
+  WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=500 \
+  WK_CLUSTER_CHANNEL_RPC_WORKERS=500 \
+  WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=128 \
+  WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=250us \
+  WK_CHANNEL_APPEND_SHARD_COUNT=0 \
+  WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE=0 \
+  WK_CHANNEL_APPEND_EFFECT_POOL_SIZE=0 \
+  WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=0 \
+  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us \
+  WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0 \
+  WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0 \
+  WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=131072 \
+  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1 \
+  WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=2048 \
+  WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=500us \
+  WK_GATEWAY_SEND_TIMEOUT=14s \
+  WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true \
+  WK_PROMETHEUS_ENABLE=true \
+  WK_BENCH_API_TOKEN="$WK_BENCH_API_TOKEN" \
+  WK_WUKONGIM_SINGLE_NODE_BIN="$WUKONGIM_BIN" \
+  WK_WUKONGIM_SINGLE_NODE_CONFIG="$WUKONGIM_CONFIG" \
+  WK_WUKONGIM_SINGLE_NODE_LOG_DIR="$WUKONGIM_LOG_DIR" \
   WK_WUKONGIM_SINGLE_NODE_DATA_DIR="$SINGLE_NODE_DATA_DIR" \
-    "$START_SCRIPT" "${clean_arg[@]}" --ready-timeout "$READY_TIMEOUT" \
-      >"$OUT_DIR/cluster-start.log" 2>&1 &
+  WK_NODE_DATA_DIR="$SINGLE_NODE_DATA_DIR" \
+    "$START_SCRIPT" "$@" \
+      >"$ACTIVE_CLUSTER_START_LOG" 2>&1 &
   CLUSTER_PID="$!"
+  OWNED_CLUSTER_STARTED=1
+  CLUSTER_GENERATION_INDEX=$((CLUSTER_GENERATION_INDEX + 1))
+}
+
+attest_cluster_generation_ready() {
+  local qps="$1" tag current_binary_sha deadline
+  [[ "$START_CLUSTER" -eq 1 ]] || return 0
+  tag="$(qps_tag "$qps")"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while [[ ! -f "$WUKONGIM_BIN" || -L "$WUKONGIM_BIN" || ! -x "$WUKONGIM_BIN" ]]; do
+    if [[ -n "$CLUSTER_PID" ]] && ! kill -0 "$CLUSTER_PID" 2>/dev/null; then
+      break
+    fi
+    (( SECONDS <= deadline )) || break
+    sleep 0.05
+  done
+  if [[ ! -f "$WUKONGIM_BIN" || -L "$WUKONGIM_BIN" || ! -x "$WUKONGIM_BIN" ]]; then
+    tail -n 120 "$ACTIVE_CLUSTER_START_LOG" >&2 || true
+    die "product executable is unavailable after readiness for generation=$tag"
+  fi
+  current_binary_sha="$(sha256_file "$WUKONGIM_BIN")" || \
+    die "cannot hash product executable after readiness for generation=$tag"
+  if [[ -z "$SEALED_WUKONGIM_SHA256" ]]; then
+    SEALED_WUKONGIM_SHA256="$current_binary_sha"
+    ACTIVE_CLUSTER_PRESPAWN_SHA256="$current_binary_sha"
+    ACTIVE_CLUSTER_PRESPAWN_STAGE=post_ready_first_generation
+  fi
+  [[ "$current_binary_sha" == "$SEALED_WUKONGIM_SHA256" &&
+    "$ACTIVE_CLUSTER_PRESPAWN_SHA256" == "$SEALED_WUKONGIM_SHA256" ]] || \
+    die "product executable changed at readiness for generation=$tag"
+}
+
+write_cluster_generation_executable_attestation() {
+  local qps="$1" tag report_dir output temporary post_stop_sha
+  [[ "$START_CLUSTER" -eq 1 ]] || return 0
+  tag="$(qps_tag "$qps")"
+  report_dir="$OUT_DIR/reports/${tag}-qps/evidence"
+  output="$report_dir/product-executable.tsv"
+  temporary="$report_dir/.product-executable.tsv.next.$$"
+  [[ -n "$SEALED_WUKONGIM_SHA256" && -n "$ACTIVE_CLUSTER_PRESPAWN_SHA256" &&
+    -f "$WUKONGIM_BIN" && ! -L "$WUKONGIM_BIN" && -x "$WUKONGIM_BIN" ]] || return 1
+  post_stop_sha="$(sha256_file "$WUKONGIM_BIN")" || return 1
+  [[ "$post_stop_sha" == "$SEALED_WUKONGIM_SHA256" &&
+    "$ACTIVE_CLUSTER_PRESPAWN_SHA256" == "$SEALED_WUKONGIM_SHA256" ]] || return 1
+  mkdir -p "$report_dir" || return 1
+  {
+    printf 'schema\twukongim/chat-lifecycle-local-single-node-product-executable/v1\n'
+    printf 'baseline_invocation_id\t%s\n' "$BASELINE_INVOCATION_ID"
+    printf 'rate_tag\t%s\n' "$tag"
+    printf 'generation\t%s\n' "$ACTIVE_CLUSTER_GENERATION_NUMBER"
+    printf 'binary\t%s\n' "$SEALED_WUKONGIM_RELATIVE"
+    printf 'source_config_sha256\t%s\n' "$RUNTIME_CONFIG_SHA256"
+    printf 'pre_spawn_stage\t%s\n' "$ACTIVE_CLUSTER_PRESPAWN_STAGE"
+    printf 'pre_spawn_sha256\t%s\n' "$ACTIVE_CLUSTER_PRESPAWN_SHA256"
+    printf 'post_stop_sha256\t%s\n' "$post_stop_sha"
+    printf 'sealed_binary_sha256\t%s\n' "$SEALED_WUKONGIM_SHA256"
+  } >"$temporary" || { rm -f "$temporary"; return 1; }
+  mv "$temporary" "$output"
+}
+
+stop_cluster_generation() {
+  local qps="$1" tag report_dir
+  tag="$(qps_tag "$qps")"
+  [[ -z "$ACTIVE_CLUSTER_TAG" || "$ACTIVE_CLUSTER_TAG" == "$tag" ]] || \
+    die "active product generation $ACTIVE_CLUSTER_TAG does not match qps=$qps"
+  if [[ "$START_CLUSTER" -eq 1 ]]; then
+    stop_cluster_writer
+    write_cluster_generation_executable_attestation "$qps" || \
+      die "product executable attestation failed for qps=$qps"
+  fi
+  report_dir="$OUT_DIR/reports/${tag}-qps/logs/product"
+  mkdir -p "$report_dir"
+  if ! cp "$WUKONGIM_LOG_DIR/node1.log" "$report_dir/node1.log" 2>/dev/null; then
+    printf 'log_unavailable source=%s\n' "$WUKONGIM_LOG_DIR/node1.log" >"$report_dir/node1.log"
+  fi
+  if [[ -f "$ACTIVE_CLUSTER_START_LOG" ]]; then
+    cp "$ACTIVE_CLUSTER_START_LOG" "$report_dir/cluster-start.log" 2>/dev/null || true
+  fi
+  ACTIVE_CLUSTER_TAG=""
+  ACTIVE_CLUSTER_START_LOG=""
 }
 
 start_host_metrics() {
@@ -479,21 +818,20 @@ start_host_metrics() {
 }
 
 ensure_wkbench_binary() {
-  if [[ -x "$WK_BENCH_BIN" ]]; then
-    local newer_source
-    newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"
-    if [[ -z "$newer_source" ]]; then
-      return
-    fi
-    log "rebuilding stale wkbench: $WK_BENCH_BIN"
-  else
-    log "building wkbench: $WK_BENCH_BIN"
+  if [[ "$START_WORKER" -eq 1 ]]; then
+    WK_BENCH_BUILD_DIR="$(mktemp -d "$OUT_DIR/.wkbench-build.XXXXXX")" || \
+      die 'cannot create dedicated wkbench build directory'
+    WK_BENCH_BIN="$WK_BENCH_BUILD_DIR/wkbench"
+    log "building owned wkbench from current source into dedicated OUT_DIR"
+    (
+      cd "$ROOT_DIR"
+      GOWORK="${GOWORK:-off}" go build -o "$WK_BENCH_BIN" ./cmd/wkbench
+    )
+    WKBENCH_BUILT_FROM_CURRENT_SOURCE=true
+    return
   fi
-  mkdir -p "$(dirname "$WK_BENCH_BIN")"
-  (
-    cd "$ROOT_DIR"
-    GOWORK="${GOWORK:-off}" go build -o "$WK_BENCH_BIN" ./cmd/wkbench
-  )
+  [[ -f "$WK_BENCH_BIN" && ! -L "$WK_BENCH_BIN" && -x "$WK_BENCH_BIN" ]] || \
+    die "external wkbench binary is not a regular executable: $WK_BENCH_BIN"
 }
 
 worker_ready() {
@@ -512,18 +850,23 @@ gateway_ready() {
 
 ensure_worker() {
   if worker_ready; then
+    # The reachable worker was not started from the binary sealed by this run.
+    # Preserve its usefulness for explicitly external diagnostics, but never
+    # claim that the complete measured process set is rebuildable from source.
+    WKBENCH_BUILT_FROM_CURRENT_SOURCE=false
     log "using existing worker: $WORKER_ADDR"
     return
   fi
   if [[ "$START_WORKER" -eq 0 ]]; then
     die "worker is not reachable at $WORKER_ADDR"
   fi
-  ensure_wkbench_binary
   local worker_dir="$OUT_DIR/worker-state"
   mkdir -p "$worker_dir"
   log "starting temporary worker: $WORKER_LISTEN"
-  "$WK_BENCH_BIN" worker --listen "$WORKER_LISTEN" --work-dir "$worker_dir" --insecure-control >/dev/null 2>&1 &
+  "$WK_BENCH_BIN" worker --listen "$WORKER_LISTEN" --work-dir "$worker_dir" --insecure-control \
+    >"$OUT_DIR/logs/worker.log" 2>&1 &
   WORKER_PID="$!"
+  OWNED_WORKER_STARTED=1
   local deadline=$((SECONDS + 15))
   while (( SECONDS <= deadline )); do
     if worker_ready; then
@@ -533,6 +876,22 @@ ensure_worker() {
     sleep 1
   done
   die "timed out waiting for worker at $WORKER_ADDR"
+}
+
+ensure_local_bench_api_token() {
+  local generated
+  if [[ -n "${WK_BENCH_API_TOKEN:-}" ]]; then
+    [[ "$WK_BENCH_API_TOKEN" != *$'\n'* && "$WK_BENCH_API_TOKEN" != *$'\r'* ]] || return 1
+    [[ "$WK_BENCH_API_TOKEN" == "${WK_BENCH_API_TOKEN#${WK_BENCH_API_TOKEN%%[![:space:]]*}}" ]] || return 1
+    [[ "$WK_BENCH_API_TOKEN" == "${WK_BENCH_API_TOKEN%${WK_BENCH_API_TOKEN##*[![:space:]]}}" ]] || return 1
+    export WK_BENCH_API_TOKEN
+    return 0
+  fi
+  command -v od >/dev/null 2>&1 || return 1
+  generated="$(LC_ALL=C od -An -N32 -tx1 /dev/urandom | tr -d ' \n')" || return 1
+  [[ "$generated" =~ ^[0-9a-f]{64}$ ]] || return 1
+  WK_BENCH_API_TOKEN="$generated"
+  export WK_BENCH_API_TOKEN
 }
 
 check_cluster_ready() {
@@ -599,7 +958,8 @@ bench_api:
 YAML
     yaml_list API_VALUES
     cat <<'YAML'
-  token: ""
+  # Expanded in-memory by wkbench; the evidence file never contains the token.
+  token: "\${WK_BENCH_API_TOKEN}"
 metrics:
   enabled: true
   addrs:
@@ -646,10 +1006,11 @@ write_scenario() {
   cat >"$OUT_DIR/scenario-${tag}.yaml" <<YAML
 version: wkbench/v1
 run:
-  id: single-node-fixed-${CHANNELS}ch-${tag}-qps
+  id: single-node-${BASELINE_INVOCATION_ID}-fixed-${CHANNELS}ch-${tag}-qps
   duration: $DURATION
   warmup: $WARMUP
   cooldown: $COOLDOWN
+  external_terminal_cut: true
   random_seed: 0
   fail_fast: true
   report_dir: $report_dir
@@ -709,6 +1070,8 @@ messages:
       rate_per_channel: ${rate}/s
       concurrency: $CONCURRENCY
       ack_timeout: $ACK_TIMEOUT
+      retry:
+        enabled: true
       sender_pick: $SENDER_PICK
       recv_ack: $RECV_ACK
       verify:
@@ -741,15 +1104,59 @@ metric_file_id() {
   printf '%s' "$raw" | tr -c 'A-Za-z0-9' '_'
 }
 
+product_queue_cut_metadata() {
+  local status
+  status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status")" || return 1
+  jq -ce '
+    if type == "object" and
+      ((.observed_at | type) == "string") and ((.observed_at | length) > 0) and
+      ((.phase | type) == "string") and (((.active_phase // "") | type) == "string") and
+      ((.assignment | type) == "object") and
+      ((.assignment.run_id | type) == "string") and ((.assignment.run_id | length) > 0) and
+      ((.assignment.assignment_id | type) == "string") and ((.assignment.assignment_id | length) > 0) and
+      ((.lifecycle.receive_drain_sha256 | type) == "string") and
+      (.lifecycle.receive_drain_sha256 | test("^[0-9a-f]{64}$"))
+    then {
+      schema:"wukongim/chat-lifecycle-local-single-node-product-queue-cut/v1",
+      observed_at:.observed_at,
+      run_id:.assignment.run_id,
+      assignment_id:.assignment.assignment_id,
+      phase:.phase,
+      active_phase:(.active_phase // ""),
+      receive_drain_sha256:.lifecycle.receive_drain_sha256
+    } else error("worker status is not an exact lifecycle cut") end
+  ' <<<"$status"
+}
+
+product_queue_cut_from_metrics() {
+  local metrics_file="$1"
+  awk '
+    index($0, "# wkbench_local_single_node_cut ") == 1 {
+      print substr($0, length("# wkbench_local_single_node_cut ") + 1)
+      exit
+    }
+  ' "$metrics_file"
+}
+
 scrape_metrics() {
   local tag="$1"
   local phase="$2"
   local metrics_dir="$OUT_DIR/metrics/$tag"
   mkdir -p "$metrics_dir"
-  local addr id
+  local addr id cut temporary
   for addr in "${METRICS_VALUES[@]}"; do
     id="$(metric_file_id "$addr")"
-    curl -fsS "${addr%/}/metrics" >"$metrics_dir/${id}-${phase}.prom"
+    cut="$(product_queue_cut_metadata 2>/dev/null || true)"
+    temporary="$metrics_dir/.${id}-${phase}.next.$$"
+    {
+      if [[ -n "$cut" ]]; then
+        printf '# wkbench_local_single_node_cut %s\n' "$cut"
+      fi
+      curl -fsS "${addr%/}/metrics"
+    } >"$temporary" && mv "$temporary" "$metrics_dir/${id}-${phase}.prom" || {
+      rm -f "$temporary"
+      return 1
+    }
   done
   curl -fsS --max-time 6 "${HOST_METRICS_ADDR%/}/metrics" >"$metrics_dir/host-$phase.prom"
 }
@@ -769,25 +1176,12 @@ collect_node_logs() {
   local phase="$1"
   local dest="$OUT_DIR/logs/$phase"
   mkdir -p "$dest"
-  cp "$ROOT_DIR"/data/wukongim-single-node-logs/node1.log "$dest/" 2>/dev/null || true
+  if ! cp "$WUKONGIM_LOG_DIR/node1.log" "$dest/node1.log" 2>/dev/null; then
+    printf 'log_unavailable source=%s\n' "$WUKONGIM_LOG_DIR/node1.log" >"$dest/node1.log"
+  fi
   if [[ -f "$OUT_DIR/cluster-start.log" ]]; then
     cp "$OUT_DIR/cluster-start.log" "$dest/cluster-start.log" 2>/dev/null || true
   fi
-}
-
-capture_node_pprof() {
-  local phase="$1"
-  local pprof_dir="$OUT_DIR/pprof/$phase"
-  mkdir -p "$pprof_dir"
-  local addr id
-  for addr in "${API_VALUES[@]}"; do
-    id="$(metric_file_id "$addr")"
-    curl -fsS "${addr%/}/debug/pprof/goroutine?debug=2" >"$pprof_dir/${id}-goroutine.txt" || true
-    curl -fsS "${addr%/}/debug/pprof/heap" >"$pprof_dir/${id}-heap.pb.gz" || true
-    if (( PROFILE_SECONDS > 0 )); then
-      curl -fsS "${addr%/}/debug/pprof/profile?seconds=${PROFILE_SECONDS}" >"$pprof_dir/${id}-cpu.pb.gz" || true
-    fi
-  done
 }
 
 json_escape() {
@@ -845,6 +1239,456 @@ server_pid_for_node() {
     pid="$(server_pid_from_process_table "$node")"
   fi
   printf '%s' "$pid"
+}
+
+process_start_token() {
+  local pid="$1" stat tail token
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  if [[ -r "/proc/$pid/stat" ]]; then
+    stat="$(LC_ALL=C command cat "/proc/$pid/stat" 2>/dev/null)" || return 1
+    [[ "$stat" == *') '* ]] || return 1
+    tail="${stat##*) }"
+    token="$(awk '{print $20}' <<<"$tail")"
+  else
+    token="$(LC_ALL=C ps -p "$pid" -o lstart= 2>/dev/null | awk '{$1=$1; print}')"
+  fi
+  [[ -n "$token" ]] || return 1
+  printf '%s\n' "$token"
+}
+
+process_evidence_json() {
+  local pid="$1" token=""
+  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    token="$(process_start_token "$pid" 2>/dev/null || true)"
+  fi
+  if [[ -n "$token" ]]; then
+    jq -cn --argjson pid "$pid" --arg token "$token" '{pid:$pid,start_token:$token,alive:true}'
+    return
+  fi
+  jq -cn '{pid:0,start_token:"",alive:false}'
+}
+
+write_lifecycle_capture_error() {
+  local tag="$1" reason="$2" output sampled_at
+  output="$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl"
+  sampled_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  jq -cn --arg sampled_at "$sampled_at" --arg reason "$reason" '
+    {schema:"wukongim/chat-lifecycle-local-single-node-lifecycle-sample/v1",sampled_at:$sampled_at,error:$reason,
+     server:{pid:0,start_token:"",alive:false},worker:{pid:0,start_token:"",alive:false}}
+  ' >>"$output" || true
+}
+
+capture_lifecycle_sample() {
+  local tag="$1" status sampled_at server_pid server_json worker_json output temporary phase active_phase overlap pid
+  local status_run_id status_assignment_id expected_run_id
+  local -a owned_pids=()
+  output="$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl"
+  sampled_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  if ! status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status")"; then
+    write_lifecycle_capture_error "$tag" worker_status_unavailable
+    return 1
+  fi
+  server_pid="$(server_pid_for_node 1)"
+  active_phase="$(jq -r '.active_phase // ""' <<<"$status" 2>/dev/null || true)"
+  if [[ "$active_phase" == run ]]; then
+    for pid in "$server_pid" "$WORKER_PID" "$HOST_METRICS_PID"; do
+      [[ "$pid" =~ ^[1-9][0-9]*$ ]] && owned_pids+=("$pid")
+    done
+    if command -v pgrep >/dev/null 2>&1; then
+      while IFS= read -r pid; do
+        [[ "$pid" =~ ^[1-9][0-9]*$ ]] && owned_pids+=("$pid")
+      done < <(pgrep -P "$MAIN_SHELL_PID" 2>/dev/null || true)
+    fi
+    if [[ ! -x "$HOST_OVERLAP_DETECTOR" ]] || ! overlap="$("$HOST_OVERLAP_DETECTOR" "${owned_pids[@]}")"; then
+      : >"$OUT_DIR/reports/${tag}-qps/host-overlap.detected"
+      write_lifecycle_capture_error "$tag" host_overlap_observer_error
+      return 1
+    fi
+    if [[ -n "$overlap" ]]; then
+      : >"$OUT_DIR/reports/${tag}-qps/host-overlap.detected"
+      write_lifecycle_capture_error "$tag" host_overlap_detected
+      return 1
+    fi
+  fi
+  server_json="$(process_evidence_json "$server_pid")"
+  worker_json="$(process_evidence_json "$WORKER_PID")"
+  temporary="$OUT_DIR/reports/${tag}-qps/.lifecycle-status.next.$$"
+  if ! jq -c \
+    --arg sampled_at "$sampled_at" \
+    --argjson server "$server_json" \
+    --argjson worker "$worker_json" '
+      {
+        schema:"wukongim/chat-lifecycle-local-single-node-lifecycle-sample/v1",
+        sampled_at:$sampled_at,
+        status:{
+          phase:(.phase // ""), active_phase:(.active_phase // ""),
+          completed_phase:(.completed_phase // ""), last_error:(.last_error // ""),
+          observed_at:(.observed_at // ""),
+          lifecycle:(if (.lifecycle | type) == "object" then ({
+            active_connections:(.lifecycle.active_connections // 0),
+            terminal_pre_close:(.lifecycle.terminal_pre_close // false),
+            terminal_cut_required:(.lifecycle.terminal_cut_required // false),
+            terminal_cut_ready:(.lifecycle.terminal_cut_ready // false),
+            receive_drain_sha256:(.lifecycle.receive_drain_sha256 // ""),
+            terminal_cut:(if (.lifecycle.terminal_cut | type) == "object" then {
+              run_id:(.lifecycle.terminal_cut.run_id // ""),
+              assignment_id:(.lifecycle.terminal_cut.assignment_id // ""),
+              ready_at:.lifecycle.terminal_cut.ready_at,
+              deadline_at:.lifecycle.terminal_cut.deadline_at,
+              observed_at:.lifecycle.terminal_cut.observed_at,
+              receive_drain_sha256:(.lifecycle.terminal_cut.receive_drain_sha256 // ""),
+              product_metrics_sha256:(.lifecycle.terminal_cut.product_metrics_sha256 // ""),
+              storage_overlap_sha256:(.lifecycle.terminal_cut.storage_overlap_sha256 // ""),
+              acknowledged_at:.lifecycle.terminal_cut.acknowledged_at
+            } else null end),
+            traffic:(.lifecycle.traffic // {}),
+            receive_drain:(if (.lifecycle.receive_drain | type) == "object" then {
+              required:(.lifecycle.receive_drain.required // false),
+              evidence_complete:(.lifecycle.receive_drain.evidence_complete // false),
+              drain_complete:(.lifecycle.receive_drain.drain_complete // false),
+              client_count:(.lifecycle.receive_drain.client_count // 0),
+              active_drains:(.lifecycle.receive_drain.active_drains // 0),
+              queue_snapshot_clients:(.lifecycle.receive_drain.queue_snapshot_clients // 0),
+              inner_recv_depth:(.lifecycle.receive_drain.inner_recv_depth // 0),
+              inner_recv_handoffs:(.lifecycle.receive_drain.inner_recv_handoffs // 0),
+              adapter_queue_depth:(.lifecycle.receive_drain.adapter_queue_depth // 0),
+              adapter_handoffs:(.lifecycle.receive_drain.adapter_handoffs // 0),
+              matching_buffer_depth:(.lifecycle.receive_drain.matching_buffer_depth // 0),
+              foreground_matchers:(.lifecycle.receive_drain.foreground_matchers // 0),
+              read_frames_inflight:(.lifecycle.receive_drain.read_frames_inflight // 0),
+              recvacks_inflight:(.lifecycle.receive_drain.recvacks_inflight // 0),
+              publications_inflight:(.lifecycle.receive_drain.publications_inflight // 0),
+              publication_waiters:(.lifecycle.receive_drain.publication_waiters // 0),
+              recvack_failures:(.lifecycle.receive_drain.recvack_failures // 0),
+              recvack_successes:(.lifecycle.receive_drain.recvack_successes // 0),
+	              read_failures:(.lifecycle.receive_drain.read_failures // 0),
+	              receive_frames_observed:(.lifecycle.receive_drain.receive_frames_observed // 0),
+	              buffered_frames_drained:(.lifecycle.receive_drain.buffered_frames_drained // 0),
+	              fanout_proof:(if (.lifecycle.receive_drain.fanout_proof | type) == "object" then {
+	                version:(.lifecycle.receive_drain.fanout_proof.version // ""),
+	                required:(.lifecycle.receive_drain.fanout_proof.required // false),
+	                evidence_complete:(.lifecycle.receive_drain.fanout_proof.evidence_complete // false),
+	                logical_sendacks:(.lifecycle.receive_drain.fanout_proof.logical_sendacks // 0),
+	                expected:(.lifecycle.receive_drain.fanout_proof.expected // {}),
+	                received:(.lifecycle.receive_drain.fanout_proof.received // {}),
+	                recvacked:(.lifecycle.receive_drain.fanout_proof.recvacked // {})
+	              } else {} end),
+	              stable_zero_observations:(.lifecycle.receive_drain.stable_zero_observations // 0)
+            } else {} end)
+          }
+          + (if ((.lifecycle.terminal_cut_ready_at // "") | type) == "string" and
+                    ((.lifecycle.terminal_cut_ready_at // "") | length) > 0
+             then {terminal_cut_ready_at:.lifecycle.terminal_cut_ready_at} else {} end)
+          + (if ((.lifecycle.terminal_cut_deadline_at // "") | type) == "string" and
+                    ((.lifecycle.terminal_cut_deadline_at // "") | length) > 0
+             then {terminal_cut_deadline_at:.lifecycle.terminal_cut_deadline_at} else {} end))
+          else null end),
+          assignment:{run_id:(.assignment.run_id // ""),assignment_id:(.assignment.assignment_id // "")}
+        },
+        server:$server,
+        worker:$worker
+      }
+    ' <<<"$status" >"$temporary"; then
+    rm -f "$temporary"
+    write_lifecycle_capture_error "$tag" worker_status_invalid
+    return 1
+  fi
+  command cat "$temporary" >>"$output"
+  rm -f "$temporary"
+  status_run_id="$(jq -r '.assignment.run_id // ""' <<<"$status" 2>/dev/null || true)"
+  status_assignment_id="$(jq -r '.assignment.assignment_id // ""' <<<"$status" 2>/dev/null || true)"
+  expected_run_id="single-node-${BASELINE_INVOCATION_ID}-fixed-${CHANNELS}ch-${tag}-qps"
+  if [[ "$status_run_id" != "$expected_run_id" || -z "$status_assignment_id" ]]; then
+    return 0
+  fi
+  phase="$(jq -r '.phase // ""' <<<"$status" 2>/dev/null || true)"
+  case "$active_phase" in
+    run) write_threshold_profile_phase "$tag" measurement || true ;;
+    cooldown) write_threshold_profile_phase "$tag" drain || true ;;
+    *)
+      if [[ "$phase" == stopped ]]; then
+        write_threshold_profile_phase "$tag" shutdown || true
+      fi
+      ;;
+  esac
+}
+
+lifecycle_sampler_stop_file() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/lifecycle-sampler.stop"
+}
+
+lifecycle_sampler_loop() {
+  local tag="$1" stop_file="$2"
+  while [[ ! -f "$stop_file" ]]; do
+    capture_lifecycle_sample "$tag" || true
+    sleep "$LIFECYCLE_SAMPLE_INTERVAL" || true
+  done
+}
+
+start_lifecycle_sampler() {
+  local tag="$1"
+  LIFECYCLE_SAMPLER_STOP_FILE="$(lifecycle_sampler_stop_file "$tag")"
+  rm -f "$LIFECYCLE_SAMPLER_STOP_FILE"
+  : >"$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl"
+  lifecycle_sampler_loop "$tag" "$LIFECYCLE_SAMPLER_STOP_FILE" >/dev/null 2>&1 &
+  LIFECYCLE_SAMPLER_PID="$!"
+}
+
+stop_lifecycle_sampler() {
+  [[ -n "$LIFECYCLE_SAMPLER_PID" ]] || return 0
+  touch "$LIFECYCLE_SAMPLER_STOP_FILE"
+  wait_child_uninterrupted "$LIFECYCLE_SAMPLER_PID"
+  rm -f "$LIFECYCLE_SAMPLER_STOP_FILE"
+  LIFECYCLE_SAMPLER_PID=""
+  LIFECYCLE_SAMPLER_STOP_FILE=""
+}
+
+threshold_profile_evidence_dir() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/evidence"
+}
+
+threshold_profile_phase_file() {
+  printf '%s\n' "$(threshold_profile_evidence_dir "$1")/threshold-pprof-phase"
+}
+
+write_threshold_profile_phase() {
+  local tag="$1" phase="$2" phase_file temporary current=""
+  case "$phase" in
+    warmup|measurement|drain|shutdown) ;;
+    *) return 1 ;;
+  esac
+  phase_file="$(threshold_profile_phase_file "$tag")"
+  mkdir -p "$(dirname "$phase_file")" || return 1
+  if [[ -f "$phase_file" && ! -L "$phase_file" ]]; then
+    current="$(LC_ALL=C head -c 65 "$phase_file" 2>/dev/null || true)"
+  fi
+  # A stale worker cut must never move a parent-closed admission phase back to
+  # measurement while a bounded profile is still completing.
+  if [[ "$current" == drain || "$current" == shutdown ]]; then
+    if [[ "$phase" == warmup || "$phase" == measurement ]]; then
+      return 0
+    fi
+  fi
+  temporary="$(mktemp "${phase_file}.next.XXXXXX")" || return 1
+  if ! printf '%s' "$phase" >"$temporary" || ! mv "$temporary" "$phase_file"; then
+    rm -f "$temporary"
+    return 1
+  fi
+}
+
+write_threshold_profile_operational_status() {
+  local status_file="$1" query_file="$2" reason="$3" helper_exit="${4:-}" temporary
+  temporary="$(mktemp "${status_file}.next.XXXXXX")" || return 1
+  if [[ -f "$query_file" && ! -L "$query_file" ]] && jq -e '
+    .schema == "wukongim/chat-lifecycle-local-single-node-profile-threshold/v1" and
+    (.triggered | type == "boolean")
+  ' "$query_file" >/dev/null 2>&1; then
+    jq -n --slurpfile query "$query_file" --arg reason "$reason" --arg helper_exit "$helper_exit" '
+      ($query[0]) as $q |
+      {
+        schema:"wukongim/chat-lifecycle-local-single-node-threshold-pprof/v1",
+        status:"operational_error", evidence_complete:false, capture_valid:false,
+        reason:$reason, triggered:$q.triggered,
+        trigger:(if $q.triggered then $q.trigger else null end), metadata:""
+      }
+      + (if ($helper_exit | length) > 0 then {helper_exit_status:($helper_exit | tonumber)} else {} end)
+    ' >"$temporary" || { rm -f "$temporary"; return 1; }
+  else
+    jq -n --arg reason "$reason" --arg helper_exit "$helper_exit" '
+      {
+        schema:"wukongim/chat-lifecycle-local-single-node-threshold-pprof/v1",
+        status:"operational_error", evidence_complete:false, capture_valid:false,
+        reason:$reason, triggered:false, metadata:""
+      }
+      + (if ($helper_exit | length) > 0 then {helper_exit_status:($helper_exit | tonumber)} else {} end)
+    ' >"$temporary" || { rm -f "$temporary"; return 1; }
+  fi
+  mv "$temporary" "$status_file"
+}
+
+write_threshold_profile_status() {
+  local tag="$1" helper_exit="${2:-}" evidence_dir query_file status_file profile_dir metadata_file temporary
+  evidence_dir="$(threshold_profile_evidence_dir "$tag")"
+  query_file="$evidence_dir/threshold-pprof-query.json"
+  status_file="$evidence_dir/threshold-pprof-status.json"
+  profile_dir="$evidence_dir/threshold-pprof"
+  metadata_file="$profile_dir/metadata.json"
+  if ! jq -e '
+    .schema == "wukongim/chat-lifecycle-local-single-node-profile-threshold/v1" and
+    .evidence_complete == true and (.triggered | type == "boolean") and
+    (.reason | type == "string" and length > 0)
+  ' "$query_file" >/dev/null 2>&1; then
+    write_threshold_profile_operational_status "$status_file" "$query_file" threshold_query_incomplete "$helper_exit"
+    return
+  fi
+  if jq -e '.triggered == false' "$query_file" >/dev/null 2>&1; then
+    if [[ -e "$profile_dir" || -L "$profile_dir" ]]; then
+      write_threshold_profile_operational_status "$status_file" "$query_file" untriggered_capture_artifacts_present "$helper_exit"
+      return
+    fi
+    temporary="$(mktemp "${status_file}.next.XXXXXX")" || return 1
+    jq -n '{
+      schema:"wukongim/chat-lifecycle-local-single-node-threshold-pprof/v1",
+      status:"not_triggered", evidence_complete:true, capture_valid:true,
+      reason:"no_measured_threshold", triggered:false, metadata:""
+    }' >"$temporary" || { rm -f "$temporary"; return 1; }
+    mv "$temporary" "$status_file"
+    return
+  fi
+  if [[ ! "$helper_exit" =~ ^[0-9]+$ || "$helper_exit" -ne 0 ||
+    ! -f "$metadata_file" || -L "$metadata_file" ]]; then
+    write_threshold_profile_operational_status "$status_file" "$query_file" missing_or_invalid_helper_metadata "${helper_exit:-70}"
+    return
+  fi
+  if ! jq -e '
+    .schema == "wukongim.local_threshold_pprof/v1" and
+    (.capture.status == "complete" or .capture.status == "partial") and
+    (.capture.valid | type == "boolean") and
+    (.capture.reason | type == "string" and length > 0)
+  ' "$metadata_file" >/dev/null 2>&1; then
+    write_threshold_profile_operational_status "$status_file" "$query_file" missing_or_invalid_helper_metadata "$helper_exit"
+    return
+  fi
+  temporary="$(mktemp "${status_file}.next.XXXXXX")" || return 1
+  if ! jq -n --slurpfile query "$query_file" --slurpfile metadata "$metadata_file" --argjson helper_exit "$helper_exit" '
+    ($query[0]) as $q | ($metadata[0]) as $m |
+    {
+      schema:"wukongim/chat-lifecycle-local-single-node-threshold-pprof/v1",
+      status:$m.capture.status,
+      evidence_complete:($m.capture.status == "complete" and $m.capture.valid == true),
+      capture_valid:$m.capture.valid, reason:$m.capture.reason,
+      triggered:true, trigger:$q.trigger,
+      metadata:"threshold-pprof/metadata.json", helper_exit_status:$helper_exit
+    }
+  ' >"$temporary"; then
+    rm -f "$temporary"
+    return 1
+  fi
+  mv "$temporary" "$status_file"
+}
+
+threshold_profile_watcher_loop() {
+  local tag="$1" offered_qps="$2" run_id="$3" stop_file="$4"
+  local evidence_dir query_file log_file phase_file watcher_child_pid="" watcher_child_kind="" helper_exit="" child_status=0
+  local live_phase trigger trigger_kind previous_utc current_utc
+  evidence_dir="$(threshold_profile_evidence_dir "$tag")"
+  query_file="$evidence_dir/threshold-pprof-query.json"
+  log_file="$evidence_dir/threshold-pprof.log"
+  phase_file="$(threshold_profile_phase_file "$tag")"
+
+  threshold_profile_watcher_signal() {
+    trap - HUP INT TERM
+    if [[ -n "$watcher_child_pid" ]]; then
+      kill "$watcher_child_pid" >/dev/null 2>&1 || true
+      child_status=0
+      wait "$watcher_child_pid" 2>/dev/null || child_status=$?
+      if [[ "$watcher_child_kind" == helper ]]; then
+        helper_exit="$child_status"
+      fi
+      watcher_child_pid=""
+      watcher_child_kind=""
+    fi
+    write_threshold_profile_status "$tag" "${helper_exit:-}" || true
+    exit 0
+  }
+  trap threshold_profile_watcher_signal HUP INT TERM
+
+  while true; do
+    child_status=0
+    "$WK_BENCH_BIN" report local-single-node-profile-threshold \
+      --lifecycle "$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl" \
+      --run-id "$run_id" \
+      --offered-qps "$offered_qps" \
+      --minimum-throughput-percent 90 \
+      --output "$query_file" >>"$log_file" 2>&1 &
+    watcher_child_pid="$!"
+    watcher_child_kind=query
+    wait "$watcher_child_pid" || child_status=$?
+    watcher_child_pid=""
+    watcher_child_kind=""
+    if (( child_status == 0 )) && jq -e '
+      .schema == "wukongim/chat-lifecycle-local-single-node-profile-threshold/v1" and
+      .evidence_complete == true and
+      (.live_phase == "warmup" or .live_phase == "measurement" or
+       .live_phase == "drain" or .live_phase == "shutdown" or .live_phase == "unknown")
+    ' "$query_file" >/dev/null 2>&1; then
+      live_phase="$(jq -r '.live_phase' "$query_file")"
+      if jq -e '(.assignment_id | type == "string" and length > 0)' "$query_file" >/dev/null 2>&1 &&
+        [[ "$live_phase" != unknown ]]; then
+        write_threshold_profile_phase "$tag" "$live_phase" || true
+      fi
+      if jq -e '
+        .triggered == true and
+        (.trigger.kind == "actual_offered_ratio" or .trigger.kind == "terminal_product_failure") and
+        (.trigger.previous_at | type == "string" and length > 0) and
+        (.trigger.current_at | type == "string" and length > 0)
+      ' "$query_file" >/dev/null 2>&1; then
+        trigger="$(jq -r '[.trigger.kind,.trigger.previous_at,.trigger.current_at] | @tsv' "$query_file")"
+        IFS=$'\t' read -r trigger_kind previous_utc current_utc <<<"$trigger"
+        helper_exit=0
+        WK_BENCH_API_TOKEN="${WK_BENCH_API_TOKEN:-}" "$THRESHOLD_PROFILE_HELPER" \
+          --out-dir "$evidence_dir/threshold-pprof" \
+          --phase-state-file "$phase_file" \
+          --trigger-kind "$trigger_kind" \
+          --trigger-observed-phase measurement \
+          --previous-utc "$previous_utc" \
+          --current-utc "$current_utc" \
+          --node "${API_VALUES[0]}" \
+          --cpu-seconds "$PROFILE_SECONDS" >>"$log_file" 2>&1 &
+        watcher_child_pid="$!"
+        watcher_child_kind=helper
+        wait "$watcher_child_pid" || helper_exit=$?
+        watcher_child_pid=""
+        watcher_child_kind=""
+        write_threshold_profile_status "$tag" "$helper_exit" || true
+        trap - HUP INT TERM
+        return 0
+      fi
+    fi
+    [[ ! -f "$stop_file" ]] || break
+    sleep "$LIFECYCLE_SAMPLE_INTERVAL" &
+    watcher_child_pid="$!"
+    watcher_child_kind=sleep
+    wait "$watcher_child_pid" 2>/dev/null || true
+    watcher_child_pid=""
+    watcher_child_kind=""
+  done
+  write_threshold_profile_status "$tag" || true
+  trap - HUP INT TERM
+}
+
+start_threshold_profile_watcher() {
+  local tag="$1" offered_qps="$2" run_id="$3" evidence_dir
+  evidence_dir="$(threshold_profile_evidence_dir "$tag")"
+  mkdir -p "$evidence_dir" || return 1
+  [[ ! -e "$evidence_dir/threshold-pprof-status.json" && ! -e "$evidence_dir/threshold-pprof" ]] || return 1
+  THRESHOLD_PROFILE_WATCHER_STOP_FILE="$evidence_dir/threshold-pprof-watcher.stop"
+  rm -f "$THRESHOLD_PROFILE_WATCHER_STOP_FILE"
+  : >"$evidence_dir/threshold-pprof.log"
+  write_threshold_profile_phase "$tag" warmup || return 1
+  threshold_profile_watcher_loop "$tag" "$offered_qps" "$run_id" "$THRESHOLD_PROFILE_WATCHER_STOP_FILE" &
+  THRESHOLD_PROFILE_WATCHER_PID="$!"
+}
+
+stop_threshold_profile_watcher() {
+  local tag="$1" status_file
+  [[ -n "$THRESHOLD_PROFILE_WATCHER_PID" ]] || return 0
+  touch "$THRESHOLD_PROFILE_WATCHER_STOP_FILE"
+  wait_child_uninterrupted "$THRESHOLD_PROFILE_WATCHER_PID"
+  rm -f "$THRESHOLD_PROFILE_WATCHER_STOP_FILE"
+  THRESHOLD_PROFILE_WATCHER_PID=""
+  THRESHOLD_PROFILE_WATCHER_STOP_FILE=""
+  status_file="$(threshold_profile_evidence_dir "$tag")/threshold-pprof-status.json"
+  [[ -f "$status_file" && ! -L "$status_file" ]]
+}
+
+terminate_threshold_profile_watcher() {
+  [[ -n "$THRESHOLD_PROFILE_WATCHER_PID" ]] || return 0
+  kill "$THRESHOLD_PROFILE_WATCHER_PID" >/dev/null 2>&1 || true
+  wait_child_uninterrupted "$THRESHOLD_PROFILE_WATCHER_PID"
+  [[ -z "$THRESHOLD_PROFILE_WATCHER_STOP_FILE" ]] || rm -f "$THRESHOLD_PROFILE_WATCHER_STOP_FILE"
+  THRESHOLD_PROFILE_WATCHER_PID=""
+  THRESHOLD_PROFILE_WATCHER_STOP_FILE=""
 }
 
 sample_node_goroutines() {
@@ -1031,22 +1875,445 @@ runtime_pool_sampler_stop_file() {
   printf '%s\n' "$OUT_DIR/metrics/$1/runtime-pool-sampler.stop"
 }
 
+storage_overlap_evidence_path() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/evidence/storage-overlap.tsv"
+}
+
+storage_overlap_lock_dir() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/evidence/storage-overlap.lock"
+}
+
+storage_overlap_closed_file() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/evidence/storage-overlap.closed"
+}
+
+acquire_storage_overlap_lock() {
+  local tag="$1" deadline_epoch="${2:-0}" lock_dir now_epoch
+  lock_dir="$(storage_overlap_lock_dir "$tag")"
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    if [[ "$deadline_epoch" =~ ^[0-9]+$ && "$deadline_epoch" -gt 0 ]]; then
+      now_epoch="$(date -u '+%s')"
+      (( now_epoch < deadline_epoch - TERMINAL_CUT_ACK_SAFETY_SECONDS )) || return 1
+    fi
+    sleep 0.05 || true
+  done
+}
+
+release_storage_overlap_lock() {
+  rmdir "$(storage_overlap_lock_dir "$1")" 2>/dev/null || true
+}
+
+initialize_storage_overlap_evidence() {
+  local tag="$1" evidence_dir output
+  evidence_dir="$OUT_DIR/reports/${tag}-qps/evidence"
+  output="$(storage_overlap_evidence_path "$tag")"
+  mkdir -p "$evidence_dir/snapshot-inventory"
+  rm -f "$(storage_overlap_closed_file "$tag")"
+  rmdir "$(storage_overlap_lock_dir "$tag")" 2>/dev/null || true
+  printf 'observed_at_utc\trun_id\tsample\tnode\tstatus\tcompaction_count\tcompactions_in_progress\tsnapshot_files\tsnapshot_bytes\tsnapshot_identity\tsnapshot_inventory\n' >"$output"
+}
+
+capture_storage_overlap_cut() {
+  local tag="$1" metrics_file="$2" cut="$3" sample="$4" deadline_epoch="${5:-0}"
+  local observed_at run_id inventory output row closed_file terminal=false capture_status=0
+  observed_at="$(jq -er '.observed_at' <<<"$cut" 2>/dev/null || true)"
+  run_id="$(jq -er '.run_id' <<<"$cut" 2>/dev/null || true)"
+  [[ -n "$observed_at" && "$run_id" =~ ^[A-Za-z0-9_-]{1,128}$ && "$sample" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || return 1
+  output="$(storage_overlap_evidence_path "$tag")"
+  closed_file="$(storage_overlap_closed_file "$tag")"
+  [[ "$sample" == terminal ]] && terminal=true
+  acquire_storage_overlap_lock "$tag" "$deadline_epoch" || return 1
+  if [[ -f "$closed_file" ]]; then
+    release_storage_overlap_lock "$tag"
+    if [[ "$terminal" == false ]]; then
+      return 0
+    fi
+    return 1
+  fi
+  inventory="$(dirname "$output")/snapshot-inventory/${sample}-node-1.tsv"
+  if [[ -x "$STORAGE_OVERLAP_CAPTURE" ]] && row="$(
+    "$STORAGE_OVERLAP_CAPTURE" \
+      --metrics "$metrics_file" \
+      --snapshot-root "$SINGLE_NODE_DATA_DIR/slotraft-snapshots" \
+      --inventory "$inventory" \
+      --observed-at "$observed_at" \
+      --run-id "$run_id" \
+      --sample "$sample" \
+      --node node-1
+  )"; then
+    printf '%s\n' "$row" >>"$output"
+  else
+    printf '%s\t%s\t%s\tnode-1\tmissing\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\tunavailable\n' \
+      "$observed_at" "$run_id" "$sample" >>"$output"
+    capture_status=1
+  fi
+  if [[ "$terminal" == true ]]; then
+    : >"$closed_file"
+  fi
+  release_storage_overlap_lock "$tag"
+  return "$capture_status"
+}
+
 runtime_pool_sampler_loop() {
   local tag="$1"
   local stop_file="$2"
   local metrics_dir="$OUT_DIR/metrics/$tag"
   local seq=0
-  local addr id
+  local storage_seq=0 last_storage_epoch=0
+  local addr id observed_epoch temporary cut sample_name first_metrics_id first_metrics_file
   mkdir -p "$metrics_dir"
+  first_metrics_id="$(metric_file_id "${METRICS_VALUES[0]:-missing}")"
   while [[ ! -f "$stop_file" ]]; do
+    cut="$(product_queue_cut_metadata 2>/dev/null || true)"
     for addr in "${METRICS_VALUES[@]}"; do
       id="$(metric_file_id "$addr")"
-      curl -fsS --max-time 2 "${addr%/}/metrics" >"$metrics_dir/${id}-sample-${seq}.prom" 2>/dev/null || true
+      observed_epoch="$(date -u '+%s')"
+      temporary="$metrics_dir/.${id}-sample-${seq}.next.$$"
+      {
+        printf '# wkbench_sampled_at_unix %s\n' "$observed_epoch"
+        if [[ -n "$cut" ]]; then
+          printf '# wkbench_local_single_node_cut %s\n' "$cut"
+        fi
+        curl -fsS --max-time 2 "${addr%/}/metrics"
+      } >"$temporary" 2>/dev/null && mv "$temporary" "$metrics_dir/${id}-sample-${seq}.prom" || rm -f "$temporary"
     done
+    first_metrics_file="$metrics_dir/${first_metrics_id}-sample-${seq}.prom"
+    if [[ -f "$first_metrics_file" && -n "$cut" ]] && jq -e '
+      (.phase == "warmup") and (.active_phase == "run") and
+      ((.run_id | type) == "string") and ((.run_id | length) > 0) and
+      ((.assignment_id | type) == "string") and ((.assignment_id | length) > 0)
+    ' >/dev/null <<<"$cut"; then
+      observed_epoch="$(date -u '+%s')"
+      if (( last_storage_epoch == 0 || observed_epoch - last_storage_epoch >= STORAGE_OVERLAP_SAMPLE_INTERVAL )); then
+        sample_name=post-warmup
+        if (( storage_seq > 0 )); then
+          printf -v sample_name 'periodic-%06d' "$storage_seq"
+        fi
+        capture_storage_overlap_cut "$tag" "$first_metrics_file" "$cut" "$sample_name" || true
+        last_storage_epoch="$observed_epoch"
+        storage_seq=$((storage_seq + 1))
+      fi
+    fi
     curl -fsS --max-time 6 "${HOST_METRICS_ADDR%/}/metrics" >"$metrics_dir/host-sample-${seq}.prom" 2>/dev/null || true
     seq=$((seq + 1))
     sleep "$RUNTIME_POOL_SAMPLE_INTERVAL" || true
   done
+}
+
+select_post_warmup_metrics_cut() {
+  local tag="$1" run_id="$2" assignment_id="$3" metrics_dir addr id sample sample_seq cut best_seq best_sample temporary
+  metrics_dir="$OUT_DIR/metrics/$tag"
+  [[ "$run_id" =~ ^[A-Za-z0-9_-]{1,128}$ && "$assignment_id" =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    best_seq=9223372036854775807
+    best_sample=""
+    for sample in "$metrics_dir/${id}-sample-"*.prom; do
+      [[ -f "$sample" ]] || continue
+      sample_seq="${sample##*-sample-}"
+      sample_seq="${sample_seq%.prom}"
+      [[ "$sample_seq" =~ ^[0-9]+$ ]] || continue
+      cut="$(product_queue_cut_from_metrics "$sample")"
+      if jq -e --arg run_id "$run_id" --arg assignment_id "$assignment_id" '
+        (.schema == "wukongim/chat-lifecycle-local-single-node-product-queue-cut/v1") and
+        (.run_id == $run_id) and
+        (.assignment_id == $assignment_id) and
+        (.phase == "warmup") and (.active_phase == "run")
+      ' >/dev/null <<<"$cut" && (( sample_seq < best_seq )); then
+        best_seq="$sample_seq"
+        best_sample="$sample"
+      fi
+    done
+    [[ -n "$best_sample" ]] || return 1
+    temporary="$metrics_dir/.${id}-post-warmup.next.$$"
+    cp "$best_sample" "$temporary" && mv "$temporary" "$metrics_dir/${id}-post-warmup.prom" || {
+      rm -f "$temporary"
+      return 1
+    }
+  done
+}
+
+terminal_cut_observer_stop_file() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/terminal-cut-observer.stop"
+}
+
+write_terminal_cut_observer_result() {
+  local tag="$1" status="$2" reason="$3" run_id="${4:-}" assignment_id="${5:-}"
+  local output temporary observed_at
+  output="$OUT_DIR/reports/${tag}-qps/evidence/terminal-cut-observer.json"
+  temporary="${output}.next.$$"
+  observed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  mkdir -p "$(dirname "$output")"
+  if jq -n \
+    --arg status "$status" --arg reason "$reason" --arg observed_at "$observed_at" \
+    --arg run_id "$run_id" --arg assignment_id "$assignment_id" '
+      {
+        schema:"wukongim/chat-lifecycle-local-single-node-terminal-cut-observer/v1",
+        status:$status,reason:$reason,observed_at:$observed_at,
+        run_id:$run_id,assignment_id:$assignment_id
+      }
+    ' >"$temporary"; then
+    mv "$temporary" "$output"
+  else
+    rm -f "$temporary"
+    return 1
+  fi
+}
+
+terminal_cut_deadline_epoch() {
+  local deadline="$1"
+  jq -ner --arg deadline "$deadline" '
+    $deadline
+    | select(type == "string" and test("^[-0-9]{10}T[0-9:.]+Z$"))
+    | sub("\\.[0-9]+Z$"; "Z")
+    | fromdateiso8601
+  '
+}
+
+capture_terminal_queue_candidate() {
+  local tag="$1" run_id="$2" assignment_id="$3" destination="$4"
+  local status cut addr temporary
+  addr="${METRICS_VALUES[0]:-}"
+  [[ -n "$addr" ]] || return 1
+  status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status")" || return 1
+  if ! jq -e --arg run_id "$run_id" --arg assignment_id "$assignment_id" --argjson clients "$USERS" '
+    (.phase == "run") and (.active_phase == "cooldown") and
+    (.assignment.run_id == $run_id) and (.assignment.assignment_id == $assignment_id) and
+    (.lifecycle.active_connections == $clients) and
+    (.lifecycle.terminal_cut_required == true) and (.lifecycle.terminal_cut_ready == true) and
+    ((.lifecycle.receive_drain_sha256 | type) == "string") and
+    (.lifecycle.receive_drain_sha256 | test("^[0-9a-f]{64}$")) and
+    ((.lifecycle.terminal_cut_ready_at | type) == "string") and
+    ((.lifecycle.terminal_cut_deadline_at | type) == "string") and
+    ((.lifecycle.terminal_cut // null) == null) and
+	    (.lifecycle.receive_drain.required == true) and
+	    (.lifecycle.receive_drain.evidence_complete == true) and
+	    (.lifecycle.receive_drain.fanout_proof.version == "wukongim/group-fanout-proof/v1") and
+	    (.lifecycle.receive_drain.fanout_proof.required == true) and
+	    (.lifecycle.receive_drain.fanout_proof.evidence_complete == true) and
+	    (.lifecycle.receive_drain.drain_complete == true) and
+    (.lifecycle.receive_drain.client_count == $clients) and
+    (.lifecycle.receive_drain.active_drains == $clients) and
+    (.lifecycle.receive_drain.queue_snapshot_clients == $clients)
+  ' >/dev/null <<<"$status"; then
+    return 1
+  fi
+  cut="$(jq -ce '
+    {
+      schema:"wukongim/chat-lifecycle-local-single-node-product-queue-cut/v1",
+      observed_at:.observed_at,
+      run_id:.assignment.run_id,
+      assignment_id:.assignment.assignment_id,
+      phase:.phase,
+      active_phase:.active_phase,
+      receive_drain_sha256:.lifecycle.receive_drain_sha256
+    }
+  ' <<<"$status")" || return 1
+  temporary="${destination}.next.$$"
+  {
+    printf '# wkbench_local_single_node_cut %s\n' "$cut"
+    curl -fsS --connect-timeout 1 --max-time 3 "${addr%/}/metrics"
+  } >"$temporary" && mv "$temporary" "$destination" || {
+    rm -f "$temporary"
+    return 1
+  }
+}
+
+terminal_cut_observer_loop() {
+  local tag="$1" run_id="$2" stop_file="$3"
+  local report_dir metrics_dir metrics_id baseline candidate query_result terminal_metrics storage_evidence
+  local status assignment_id ready_at deadline_at deadline_epoch now_epoch query_status=0
+  local cut observed_at receive_drain_digest product_digest storage_digest payload response_tmp response
+  report_dir="$OUT_DIR/reports/${tag}-qps"
+  metrics_dir="$OUT_DIR/metrics/$tag"
+  metrics_id="$(metric_file_id "${METRICS_VALUES[0]:-missing}")"
+  baseline="$metrics_dir/${metrics_id}-post-warmup.prom"
+  candidate="$metrics_dir/.${metrics_id}-terminal-candidate.prom"
+  query_result="$report_dir/evidence/terminal-queue-convergence.json"
+  terminal_metrics="$metrics_dir/${metrics_id}-terminal-pre-close.prom"
+  storage_evidence="$(storage_overlap_evidence_path "$tag")"
+  rm -f "$candidate" "$query_result" "$terminal_metrics"
+
+  assignment_id=""
+  ready_at=""
+  deadline_at=""
+  while [[ ! -f "$stop_file" ]]; do
+    status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status" 2>/dev/null || true)"
+    if jq -e --arg run_id "$run_id" --argjson clients "$USERS" '
+      (.phase == "run") and (.active_phase == "cooldown") and
+      (.assignment.run_id == $run_id) and
+      ((.assignment.assignment_id | type) == "string") and ((.assignment.assignment_id | length) > 0) and
+      (.lifecycle.active_connections == $clients) and
+      (.lifecycle.terminal_cut_required == true) and (.lifecycle.terminal_cut_ready == true) and
+      ((.lifecycle.receive_drain_sha256 | type) == "string") and
+      (.lifecycle.receive_drain_sha256 | test("^[0-9a-f]{64}$")) and
+      ((.lifecycle.terminal_cut_ready_at | type) == "string") and
+      ((.lifecycle.terminal_cut_deadline_at | type) == "string") and
+      ((.lifecycle.terminal_cut // null) == null) and
+	      (.lifecycle.receive_drain.required == true) and
+	      (.lifecycle.receive_drain.evidence_complete == true) and
+	      (.lifecycle.receive_drain.fanout_proof.version == "wukongim/group-fanout-proof/v1") and
+	      (.lifecycle.receive_drain.fanout_proof.required == true) and
+	      (.lifecycle.receive_drain.fanout_proof.evidence_complete == true) and
+	      (.lifecycle.receive_drain.drain_complete == true) and
+      (.lifecycle.receive_drain.client_count == $clients) and
+      (.lifecycle.receive_drain.active_drains == $clients) and
+      (.lifecycle.receive_drain.queue_snapshot_clients == $clients)
+    ' >/dev/null 2>&1 <<<"$status"; then
+      assignment_id="$(jq -r '.assignment.assignment_id' <<<"$status")"
+      ready_at="$(jq -r '.lifecycle.terminal_cut_ready_at' <<<"$status")"
+      deadline_at="$(jq -r '.lifecycle.terminal_cut_deadline_at' <<<"$status")"
+      break
+    fi
+    sleep "$TERMINAL_CUT_POLL_INTERVAL" || true
+  done
+
+  if [[ -f "$stop_file" ]]; then
+    write_terminal_cut_observer_result "$tag" interrupted observer_stopped "$run_id" "$assignment_id" || true
+    return 130
+  fi
+  if ! deadline_epoch="$(terminal_cut_deadline_epoch "$deadline_at")"; then
+    write_terminal_cut_observer_result "$tag" failed terminal_cut_deadline_invalid "$run_id" "$assignment_id" || true
+    return 6
+  fi
+  if ! select_post_warmup_metrics_cut "$tag" "$run_id" "$assignment_id"; then
+    write_terminal_cut_observer_result "$tag" failed post_warmup_queue_cut_unavailable "$run_id" "$assignment_id" || true
+    return 6
+  fi
+
+  while [[ ! -f "$stop_file" ]]; do
+    now_epoch="$(date -u '+%s')"
+    if (( now_epoch >= deadline_epoch - TERMINAL_CUT_ACK_SAFETY_SECONDS )); then
+      write_terminal_cut_observer_result "$tag" failed terminal_cut_deadline_elapsed "$run_id" "$assignment_id" || true
+      return 6
+    fi
+    if ! capture_terminal_queue_candidate "$tag" "$run_id" "$assignment_id" "$candidate"; then
+      sleep "$TERMINAL_CUT_POLL_INTERVAL" || true
+      continue
+    fi
+    query_status=0
+    "$WK_BENCH_BIN" report local-single-node-queue-convergence \
+      --post-warmup "$baseline" \
+      --candidate "$candidate" \
+      --run-id "$run_id" \
+      --assignment-id "$assignment_id" \
+      --output "$query_result" >/dev/null 2>&1 || query_status=$?
+    if [[ "$query_status" -ne 0 ]]; then
+      if [[ "$query_status" -eq 3 ]] && jq -e '
+        (.schema == "wukongim/chat-lifecycle-local-single-node-queue-convergence/v1") and
+        (.evidence_complete == true) and (.converged == false) and
+        (.reason == "product_failure_counter_increased")
+      ' "$query_result" >/dev/null 2>&1; then
+        write_terminal_cut_observer_result "$tag" failed product_failure_counter_increased "$run_id" "$assignment_id" || true
+        return 3
+      fi
+      sleep "$TERMINAL_CUT_POLL_INTERVAL" || true
+      continue
+    fi
+    product_digest="$(sha256_file "$candidate" 2>/dev/null || true)"
+    if ! jq -e --arg run_id "$run_id" --arg assignment_id "$assignment_id" --arg digest "$product_digest" '
+      (.schema == "wukongim/chat-lifecycle-local-single-node-queue-convergence/v1") and
+      (.run_id == $run_id) and (.assignment_id == $assignment_id) and
+      (.evidence_complete == true) and (.converged == true) and (.reason == "ok") and
+      (.candidate_sha256 == $digest) and
+      (.candidate_cut.run_id == $run_id) and (.candidate_cut.assignment_id == $assignment_id) and
+      (.candidate_cut.phase == "run") and (.candidate_cut.active_phase == "cooldown")
+    ' "$query_result" >/dev/null; then
+      write_terminal_cut_observer_result "$tag" failed typed_queue_convergence_invalid "$run_id" "$assignment_id" || true
+      return 6
+    fi
+    cut="$(product_queue_cut_from_metrics "$candidate")"
+    observed_at="$(jq -er '.observed_at' <<<"$cut" 2>/dev/null || true)"
+    receive_drain_digest="$(jq -er '.receive_drain_sha256 | select(test("^[0-9a-f]{64}$"))' <<<"$cut" 2>/dev/null || true)"
+    [[ -n "$observed_at" && "$receive_drain_digest" =~ ^[0-9a-f]{64}$ ]] || {
+      write_terminal_cut_observer_result "$tag" failed terminal_cut_observed_at_missing "$run_id" "$assignment_id" || true
+      return 6
+    }
+    if ! capture_storage_overlap_cut "$tag" "$candidate" "$cut" terminal "$deadline_epoch"; then
+      write_terminal_cut_observer_result "$tag" failed terminal_storage_overlap_incomplete "$run_id" "$assignment_id" || true
+      return 6
+    fi
+    storage_digest="$(sha256_file "$storage_evidence" 2>/dev/null || true)"
+    if [[ ! "$product_digest" =~ ^[0-9a-f]{64}$ || ! "$storage_digest" =~ ^[0-9a-f]{64}$ ]]; then
+      write_terminal_cut_observer_result "$tag" failed terminal_cut_digest_unavailable "$run_id" "$assignment_id" || true
+      return 6
+    fi
+    mv "$candidate" "$terminal_metrics" || {
+      write_terminal_cut_observer_result "$tag" failed terminal_cut_publication_failed "$run_id" "$assignment_id" || true
+      return 6
+    }
+    payload="$(jq -cn \
+      --arg run_id "$run_id" --arg assignment_id "$assignment_id" --arg observed_at "$observed_at" \
+      --arg receive_drain_digest "$receive_drain_digest" \
+      --arg product_digest "$product_digest" --arg storage_digest "$storage_digest" '
+        {
+          run_id:$run_id,assignment_id:$assignment_id,observed_at:$observed_at,
+          receive_drain_sha256:$receive_drain_digest,
+          product_metrics_sha256:$product_digest,storage_overlap_sha256:$storage_digest
+        }
+      ')" || return 6
+    response_tmp="$report_dir/evidence/.terminal-cut-binding.next.$$"
+    if ! curl -fsS --connect-timeout 1 --max-time 2 -X POST -H 'Content-Type: application/json' \
+      --data "$payload" "${WORKER_ADDR%/}/v1/terminal-cut" >"$response_tmp"; then
+      rm -f "$response_tmp"
+      write_terminal_cut_observer_result "$tag" failed terminal_cut_ack_failed "$run_id" "$assignment_id" || true
+      return 6
+    fi
+    response="$(command cat "$response_tmp")"
+    if ! jq -e --arg run_id "$run_id" --arg assignment_id "$assignment_id" --arg ready_at "$ready_at" \
+      --arg deadline_at "$deadline_at" --arg observed_at "$observed_at" \
+      --arg receive_drain_digest "$receive_drain_digest" \
+      --arg product_digest "$product_digest" --arg storage_digest "$storage_digest" '
+      (.run_id == $run_id) and (.assignment_id == $assignment_id) and
+      (.ready_at == $ready_at) and (.deadline_at == $deadline_at) and (.observed_at == $observed_at) and
+      (.receive_drain_sha256 == $receive_drain_digest) and
+      (.product_metrics_sha256 == $product_digest) and (.storage_overlap_sha256 == $storage_digest) and
+      ((.acknowledged_at | type) == "string") and ((.acknowledged_at | length) > 0)
+    ' >/dev/null <<<"$response"; then
+      rm -f "$response_tmp"
+      write_terminal_cut_observer_result "$tag" failed terminal_cut_ack_response_invalid "$run_id" "$assignment_id" || true
+      return 6
+    fi
+    mv "$response_tmp" "$report_dir/evidence/terminal-cut-binding.json" || return 6
+    write_terminal_cut_observer_result "$tag" complete acknowledged "$run_id" "$assignment_id" || true
+    return 0
+  done
+
+  write_terminal_cut_observer_result "$tag" interrupted observer_stopped "$run_id" "$assignment_id" || true
+  return 130
+}
+
+start_terminal_cut_observer() {
+  local tag="$1" run_id="$2"
+  TERMINAL_CUT_OBSERVER_STOP_FILE="$(terminal_cut_observer_stop_file "$tag")"
+  rm -f "$TERMINAL_CUT_OBSERVER_STOP_FILE"
+  terminal_cut_observer_loop "$tag" "$run_id" "$TERMINAL_CUT_OBSERVER_STOP_FILE" \
+    >"$OUT_DIR/reports/${tag}-qps/terminal-cut-observer.log" 2>&1 &
+  TERMINAL_CUT_OBSERVER_PID="$!"
+}
+
+stop_terminal_cut_observer() {
+  local observer_status=0
+  [[ -n "$TERMINAL_CUT_OBSERVER_PID" ]] || return 0
+  touch "$TERMINAL_CUT_OBSERVER_STOP_FILE"
+  wait_child_uninterrupted "$TERMINAL_CUT_OBSERVER_PID"
+  observer_status="$WAIT_CHILD_STATUS"
+  rm -f "$TERMINAL_CUT_OBSERVER_STOP_FILE"
+  TERMINAL_CUT_OBSERVER_PID=""
+  TERMINAL_CUT_OBSERVER_STOP_FILE=""
+  return "$observer_status"
+}
+
+terminate_terminal_cut_observer() {
+  local observer_status=0
+  [[ -n "$TERMINAL_CUT_OBSERVER_PID" ]] || return 0
+  touch "$TERMINAL_CUT_OBSERVER_STOP_FILE" 2>/dev/null || true
+  wait_child_uninterrupted "$TERMINAL_CUT_OBSERVER_PID"
+  observer_status="$WAIT_CHILD_STATUS"
+  rm -f "$TERMINAL_CUT_OBSERVER_STOP_FILE" 2>/dev/null || true
+  TERMINAL_CUT_OBSERVER_PID=""
+  TERMINAL_CUT_OBSERVER_STOP_FILE=""
+  return "$observer_status"
 }
 
 host_io_summary() {
@@ -1064,6 +2331,7 @@ host_io_summary() {
 start_runtime_pool_sampler() {
   local tag="$1"
   local stop_file
+  initialize_storage_overlap_evidence "$tag"
   stop_file="$(runtime_pool_sampler_stop_file "$tag")"
   rm -f "$stop_file"
   runtime_pool_sampler_loop "$tag" "$stop_file" >/dev/null 2>&1 &
@@ -1074,7 +2342,7 @@ start_runtime_pool_sampler() {
 stop_runtime_pool_sampler() {
   [[ -n "$RUNTIME_POOL_SAMPLER_PID" ]] || return 0
   touch "$RUNTIME_POOL_SAMPLER_STOP_FILE"
-  wait "$RUNTIME_POOL_SAMPLER_PID" 2>/dev/null || true
+  wait_child_uninterrupted "$RUNTIME_POOL_SAMPLER_PID"
   rm -f "$RUNTIME_POOL_SAMPLER_STOP_FILE"
   RUNTIME_POOL_SAMPLER_PID=""
   RUNTIME_POOL_SAMPLER_STOP_FILE=""
@@ -1171,6 +2439,30 @@ storage_metrics_summary() {
   done
 }
 
+# write_immutable_step_summaries copies the one closed row for a rate step out
+# of the append-only run summaries before the step checksum manifest is made.
+write_immutable_step_summaries() {
+  local qps="$1" tag report_dir source destination temporary
+  tag="$(qps_tag "$qps")"
+  report_dir="$OUT_DIR/reports/${tag}-qps"
+  [[ -d "$report_dir" && ! -L "$report_dir" ]] || return 1
+  mkdir -p "$report_dir/evidence" || return 1
+  for source in "$OUT_DIR/storage_metrics_summary.tsv" "$OUT_DIR/host_io_summary.tsv"; do
+    [[ -f "$source" && ! -L "$source" ]] || return 1
+    case "$source" in
+      "$OUT_DIR/storage_metrics_summary.tsv") destination="$report_dir/evidence/storage-summary.tsv" ;;
+      "$OUT_DIR/host_io_summary.tsv") destination="$report_dir/evidence/host-io-summary.tsv" ;;
+      *) return 1 ;;
+    esac
+    [[ ! -e "$destination" && ! -L "$destination" ]] || return 1
+    temporary="${destination}.next.$$"
+    [[ ! -e "$temporary" && ! -L "$temporary" ]] || return 1
+    awk -F '\t' -v tag="$tag" 'NR == 1 || $1 == tag { print }' "$source" >"$temporary" || return 1
+    [[ -s "$temporary" && ! -L "$temporary" ]] || return 1
+    mv "$temporary" "$destination" || return 1
+  done
+}
+
 runtime_pool_pressure_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -1236,9 +2528,10 @@ cluster_transport_peak_summary() {
 
 run_attempt() {
   local qps="$1"
-  local tag report_dir exit_status duration
+  local tag report_dir run_id exit_status observer_status duration
   tag="$(qps_tag "$qps")"
   report_dir="$OUT_DIR/reports/${tag}-qps"
+  run_id="single-node-${BASELINE_INVOCATION_ID}-fixed-${CHANNELS}ch-${tag}-qps"
   duration="$(duration_seconds "$DURATION")"
   mkdir -p "$report_dir"
 
@@ -1247,7 +2540,10 @@ run_attempt() {
 
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
+  start_lifecycle_sampler "$tag"
+  start_threshold_profile_watcher "$tag" "$qps" "$run_id" || die "failed to start typed threshold profile watcher for qps=$qps"
   start_runtime_pool_sampler "$tag"
+  start_terminal_cut_observer "$tag" "$run_id"
   exit_status=0
   "$WK_BENCH_BIN" run \
     --target "$OUT_DIR/target.yaml" \
@@ -1255,6 +2551,19 @@ run_attempt() {
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
+  # SEND admission is now closed. Never let a stale measured worker cut move
+  # the helper back into measurement while a bounded capture is completing.
+  write_threshold_profile_phase "$tag" drain || true
+  observer_status=0
+  stop_terminal_cut_observer "$tag" || observer_status=$?
+  if [[ "$exit_status" -eq 0 && "$observer_status" -ne 0 ]]; then
+    exit_status="$observer_status"
+  fi
+  # Join the only lifecycle writer before the foreground terminal capture; a
+  # subshell shares $$ and must never race the same temporary/JSONL append.
+  stop_lifecycle_sampler
+  capture_lifecycle_sample "$tag" || true
+  stop_threshold_profile_watcher "$tag" || true
   stop_runtime_pool_sampler
   scrape_metrics "$tag" after
   classify_metrics "$tag"
@@ -1309,6 +2618,7 @@ write_run_metadata() {
   } >"$OUT_DIR/git.txt"
   cat >"$OUT_DIR/env.txt" <<EOF
 QPS_LIST=$QPS_LIST
+BASELINE_INVOCATION_ID=$BASELINE_INVOCATION_ID
 CHANNELS=$CHANNELS
 USERS=$USERS
 online_users=$USERS
@@ -1332,105 +2642,294 @@ METRICS_ADDRS=$METRICS_ADDRS
 WORKER_ADDR=$WORKER_ADDR
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
-CLUSTER_INITIAL_SLOT_COUNT=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}
-logical_slot_groups=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}
-CLUSTER_HASH_SLOT_COUNT=${WK_CLUSTER_HASH_SLOT_COUNT:-256}
-hash_slots=${WK_CLUSTER_HASH_SLOT_COUNT:-256}
-CHANNEL_APPEND_SHARD_COUNT=${WK_CHANNEL_APPEND_SHARD_COUNT:-0}
-CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
-CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
-CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
-CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
-CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
-CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}
-CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}
-CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
-CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
-CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}
-CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}
-CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}
-CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}
-CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}
-CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}
+CLUSTER_INITIAL_SLOT_COUNT=12
+logical_slot_groups=12
+CLUSTER_HASH_SLOT_COUNT=256
+hash_slots=256
+CHANNEL_APPEND_SHARD_COUNT=0
+CHANNEL_APPEND_ADVANCE_POOL_SIZE=0
+CHANNEL_APPEND_EFFECT_POOL_SIZE=0
+CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=0
+CLUSTER_CHANNEL_REACTOR_COUNT=128
+CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500
+CLUSTER_CHANNEL_STORE_APPLY_WORKERS=500
+CLUSTER_CHANNEL_RPC_WORKERS=500
+CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=128
+CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=250us
+CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
+CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
+CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0
+CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=131072
+CLUSTER_COMMIT_COORDINATOR_SHARDS=1
+CLUSTER_COMMIT_COORDINATOR_SYNC=true
 HOST_METRICS_ADDR=$HOST_METRICS_ADDR
 SINGLE_NODE_DATA_DIR=$SINGLE_NODE_DATA_DIR
-GATEWAY_ASYNC_SEND_WORKERS=${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}
-GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}
-GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}
+GATEWAY_ASYNC_SEND_WORKERS=2048
+GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=500us
+GATEWAY_SEND_TIMEOUT=14s
 START_SCRIPT=$START_SCRIPT
+WUKONGIM_CONFIG_SOURCE=$WUKONGIM_CONFIG_SOURCE_CANONICAL
+WUKONGIM_CONFIG_SOURCE_REVIEWED=$WUKONGIM_CONFIG_SOURCE_REVIEWED
+WUKONGIM_BIN=$WUKONGIM_BIN
+WUKONGIM_LOG_DIR=$WUKONGIM_LOG_DIR
 READY_TIMEOUT=$READY_TIMEOUT
 PROFILE_SECONDS=$PROFILE_SECONDS
 RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
 RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 EOF
-  mkdir -p "$OUT_DIR/config"
-  cp "$ROOT_DIR"/scripts/wukongim/wukongim.toml "$OUT_DIR/config/" 2>/dev/null || true
+  write_redacted_effective_config
   if [[ -x "$START_SCRIPT" ]]; then
-    "$START_SCRIPT" --dry-run >"$OUT_DIR/start-plan.txt" 2>&1 || true
+    verify_runtime_config_snapshot || die 'private runtime config snapshot changed before dry-run'
+    WK_WUKONGIM_SINGLE_NODE_BIN="$WUKONGIM_BIN" \
+    WK_WUKONGIM_SINGLE_NODE_CONFIG="$WUKONGIM_CONFIG" \
+    WK_WUKONGIM_SINGLE_NODE_LOG_DIR="$WUKONGIM_LOG_DIR" \
+      "$START_SCRIPT" --dry-run >"$OUT_DIR/start-plan.txt" 2>&1 || true
   fi
   collect_node_logs before
   scrape_metrics_snapshot before
-  capture_node_pprof before
+}
+
+write_redacted_effective_config() {
+  local source="$WUKONGIM_CONFIG"
+  local destination="$OUT_DIR/config/effective-wukongim.toml"
+  local temporary="$OUT_DIR/config/.effective-wukongim.toml.next.$$"
+  verify_runtime_config_snapshot || return 1
+  [[ -f "$source" && ! -L "$source" ]] || return 1
+  mkdir -p "$OUT_DIR/config"
+  rm -f "$temporary"
+  # wkbench delegates to internal/config.RedactDiagnosticTOML, which parses
+  # TOML and applies SchemaFields().DiagnosticSensitive fail-closed.
+  "$WK_BENCH_BIN" report redact-config --input "$source" --output "$temporary" || {
+    rm -f "$temporary"
+    return 1
+  }
+  [[ -f "$temporary" && ! -L "$temporary" ]] || { rm -f "$temporary"; return 1; }
+  cat >>"$temporary" <<EOF
+
+[local_single_node_runtime]
+topology_environment_overrides_rejected = true
+endpoint_environment_overrides_rejected = true
+product_environment_hermetic = true
+initial_slot_count = 12
+hash_slot_count = 256
+slot_replica_n = 1
+channel_replica_n = 1
+commit_coordinator_flush_window = "200us"
+commit_coordinator_shards = 1
+commit_coordinator_sync = true
+EOF
+  mv "$temporary" "$destination"
+}
+
+discard_owned_wkbench_build() {
+  [[ -n "$WK_BENCH_BUILD_DIR" ]] || return 0
+  rm -f "$WK_BENCH_BUILD_DIR/wkbench" || return 1
+  rmdir "$WK_BENCH_BUILD_DIR" || return 1
+  WK_BENCH_BUILD_DIR=""
+}
+
+prepare_preflight_verifier_binary() {
+  local destination="$OUT_DIR/bin" temporary
+  [[ ! -e "$destination" && ! -L "$destination" ]] || return 1
+  temporary="$(mktemp -d "$OUT_DIR/.preflight-bin.next.XXXXXX")" || return 1
+  if ! copy_regular_binary "$WK_BENCH_BIN" "$temporary/wkbench"; then
+    rm -rf "$temporary"
+    return 1
+  fi
+  if ! mv "$temporary" "$destination"; then
+    rm -rf "$temporary"
+    return 1
+  fi
+  WK_BENCH_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
+  discard_owned_wkbench_build
+}
+
+capture_source_state() {
+  local label="$1" revision status_text valid=true clean=false output
+  if ! revision="$(git -C "$ROOT_DIR" rev-parse --verify HEAD 2>/dev/null)" ||
+    [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+    revision=unknown
+    valid=false
+  fi
+  if ! status_text="$(git -C "$ROOT_DIR" status --porcelain=v1 --untracked-files=normal --ignore-submodules=none 2>/dev/null)"; then
+    valid=false
+    status_text=source-observation-failed
+  elif [[ -z "$status_text" ]]; then
+    clean=true
+  fi
+  mkdir -p "$SOURCE_STATE_DIR" || return 1
+  output="$SOURCE_STATE_DIR/$label.tsv"
+  {
+    printf 'schema\twukongim/chat-lifecycle-local-source-state/v1\n'
+    printf 'checkpoint\t%s\n' "$label"
+    printf 'observation_valid\t%s\n' "$valid"
+    printf 'revision\t%s\n' "$revision"
+    printf 'clean\t%s\n' "$clean"
+  } >"$output" || return 1
+  case "$label" in
+    initial)
+      SOURCE_INITIAL_VALID="$valid"
+      SOURCE_INITIAL_REVISION="$revision"
+      SOURCE_INITIAL_CLEAN="$clean"
+      ;;
+    post_build)
+      SOURCE_POST_BUILD_VALID="$valid"
+      SOURCE_POST_BUILD_REVISION="$revision"
+      SOURCE_POST_BUILD_CLEAN="$clean"
+      ;;
+    final)
+      SOURCE_FINAL_VALID="$valid"
+      SOURCE_FINAL_REVISION="$revision"
+      SOURCE_FINAL_CLEAN="$clean"
+      ;;
+    *)
+      return 2
+      ;;
+  esac
+  [[ "$valid" == true ]]
+}
+
+source_result_revision() {
+  if [[ "$SOURCE_FINAL_VALID" == true ]]; then
+    printf '%s' "$SOURCE_FINAL_REVISION"
+  elif [[ "$SOURCE_INITIAL_VALID" == true ]]; then
+    printf '%s' "$SOURCE_INITIAL_REVISION"
+  else
+    printf unknown
+  fi
+}
+
+source_result_dirty() {
+  if [[ "$SOURCE_FINAL_VALID" == true ]]; then
+    [[ "$SOURCE_FINAL_CLEAN" == true ]] && printf false || printf true
+  elif [[ "$SOURCE_INITIAL_VALID" == true ]]; then
+    [[ "$SOURCE_INITIAL_CLEAN" == true ]] && printf false || printf true
+  else
+    printf true
+  fi
+}
+
+PREFLIGHT_OUTCOME=insufficient_evidence
+PREFLIGHT_REASON=preflight_not_completed
+PREFLIGHT_FREE_PERCENT=0
+PREFLIGHT_FILESYSTEM_OBSERVATION_COMPLETE=false
+
+resolve_single_node_data_dir() {
+  local requested="$SINGLE_NODE_DATA_DIR" parent base canonical_parent
+  [[ "$requested" == /* && "$requested" != *$'\n'* && "$requested" != *$'\r'* ]] || \
+    die "single-node data directory must be an absolute single-line path: $requested"
+  [[ ! -L "$requested" ]] || die "single-node data directory must not be a symlink: $requested"
+  if [[ -e "$requested" ]]; then
+    [[ -d "$requested" ]] || die "single-node data directory must be a directory: $requested"
+    CANONICAL_SINGLE_NODE_DATA_DIR="$(cd "$requested" && pwd -P)" || \
+      die "cannot canonicalize single-node data directory: $requested"
+  else
+    parent="$(dirname "$requested")"
+    base="$(basename "$requested")"
+    [[ "$base" != . && "$base" != .. && -d "$parent" ]] || \
+      die "single-node data directory parent must already exist: $parent"
+    canonical_parent="$(cd "$parent" && pwd -P)" || \
+      die "cannot canonicalize single-node data directory parent: $parent"
+    CANONICAL_SINGLE_NODE_DATA_DIR="$canonical_parent/$base"
+  fi
+  case "$CANONICAL_SINGLE_NODE_DATA_DIR" in
+    /|"$HOME"|"$ROOT_DIR"|"$ROOT_DIR/data")
+      die "single-node data directory is too broad for managed cleanup: $CANONICAL_SINGLE_NODE_DATA_DIR"
+      ;;
+  esac
+  SINGLE_NODE_DATA_DIR="$CANONICAL_SINGLE_NODE_DATA_DIR"
+}
+
+# capture_data_filesystem_observation samples the filesystem actually selected
+# for WK_NODE_DATA_DIR. If a future data directory is not present yet, df is
+# run against its existing parent; both paths resolve to the same target mount.
+capture_data_filesystem_observation() {
+  local output="$1" observed_path="$SINGLE_NODE_DATA_DIR" parent device blocks available
+  DATA_FILESYSTEM_DEVICE=unavailable
+  DATA_FILESYSTEM_TOTAL_BLOCKS=0
+  DATA_FILESYSTEM_BLOCK_SIZE=0
+  while [[ ! -e "$observed_path" && "$observed_path" != / ]]; do
+    parent="$(dirname "$observed_path")"
+    [[ "$parent" != "$observed_path" ]] || break
+    observed_path="$parent"
+  done
+  [[ -e "$observed_path" ]] || return 1
+  df -Pk "$observed_path" >"$output" || return 1
+  read -r device blocks available < <(awk 'NR == 2 {print $1, $2, $4}' "$output")
+  if [[ -z "${device:-}" || ! "${blocks:-}" =~ ^[0-9]+$ || ! "${available:-}" =~ ^[0-9]+$ ||
+    "$blocks" -le 0 || "$available" -gt "$blocks" ]]; then
+    return 1
+  fi
+  DATA_FILESYSTEM_DEVICE="$device"
+  DATA_FILESYSTEM_TOTAL_BLOCKS="$blocks"
+  # POSIX df -Pk reports total and available capacity in 1024-byte blocks.
+  DATA_FILESYSTEM_BLOCK_SIZE=1024
 }
 
 write_local_preflight_result() {
-  local outcome="$1" reason="$2" free_percent="$3" revision dirty
-  revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
-  dirty=false
-  if ! git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null ||
-    [[ -n "$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" ]]; then
-    dirty=true
+  PREFLIGHT_OUTCOME="$1"
+  PREFLIGHT_REASON="$2"
+  PREFLIGHT_FREE_PERCENT="$3"
+  printf 'schema\twukongim/chat-lifecycle-local-single-node-preflight/v1\noutcome\t%s\nreason\t%s\nobserved_filesystem_free_percent\t%s\n' \
+    "$PREFLIGHT_OUTCOME" "$PREFLIGHT_REASON" "$PREFLIGHT_FREE_PERCENT" >"$OUT_DIR/preflight-result.tsv"
+}
+
+finalize_local_preflight_result() {
+  local requested_status="$1" typed_status=0 published_status=0
+  if ! write_redacted_effective_config; then
+    PREFLIGHT_OUTCOME=insufficient_evidence
+    PREFLIGHT_REASON=artifact_seal_verification_failed
+    mkdir -p "$OUT_DIR/config" || return 6
+    # Preserve a secret-free typed artifact even when structured source
+    # redaction fails closed. It records unavailability, never source content.
+    printf '# effective config unavailable: structured redaction failed\n' \
+      >"$OUT_DIR/config/effective-wukongim.toml" || return 6
+    write_local_preflight_result "$PREFLIGHT_OUTCOME" "$PREFLIGHT_REASON" "$PREFLIGHT_FREE_PERCENT" || return 6
   fi
-  {
-    printf '{\n'
-    printf '  "schema": "wukongim/chat-lifecycle-local-single-node-baseline/v1",\n'
-    printf '  "outcome": "%s",\n' "$outcome"
-    printf '  "reason": "%s",\n' "$reason"
-    printf '  "online_connections": %s,\n' "$USERS"
-    printf '  "qps_list": "%s",\n' "$QPS_LIST"
-    printf '  "logical_slot_groups": %s,\n' "${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}"
-    printf '  "hash_slots": %s,\n' "${WK_CLUSTER_HASH_SLOT_COUNT:-256}"
-    printf '  "slot_replicas": 1,\n'
-    printf '  "channel_replicas": 1,\n'
-    printf '  "commit_coordinator_flush_window": "%s",\n' "${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"
-    printf '  "commit_coordinator_shards": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"
-    printf '  "sync_commit": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"
-    printf '  "minimum_filesystem_free_percent": %s,\n' "$MINIMUM_FREE_PERCENT"
-    printf '  "observed_filesystem_free_percent": %s,\n' "$free_percent"
-    printf '  "source_revision": "%s",\n' "$revision"
-    printf '  "source_dirty": %s\n' "$dirty"
-    printf '}\n'
-  } >"$OUT_DIR/local-baseline.json"
+  discard_runtime_config_snapshot || return 6
+  # The verifier that derives and consumes the denial is itself sealed. The
+  # server binary is deliberately absent because no server was started.
+  prepare_preflight_verifier_binary || return 6
+  write_local_artifact_identity preflight || return 6
+  mkdir -p "$OUT_DIR/reports" || return 6
+  write_typed_local_baseline_evidence "$PREFLIGHT_OUTCOME" false false "$PREFLIGHT_REASON" \
+    "$PREFLIGHT_FREE_PERCENT" "$PREFLIGHT_FILESYSTEM_OBSERVATION_COMPLETE" || return 6
+  derive_typed_local_baseline_authorization || typed_status=$?
+  [[ "$typed_status" -eq "$requested_status" || "$typed_status" -eq 6 ]] || return 6
+  if ! write_local_artifact_checksums || ! verify_local_artifact_checksums preflight; then
+    return 6
+  fi
+  write_local_baseline_result "$PREFLIGHT_OUTCOME" "$PREFLIGHT_REASON" 0 0 false true || published_status=$?
+  [[ -f "$OUT_DIR/local-baseline.json" && ! -L "$OUT_DIR/local-baseline.json" ]] || return 6
+  "$WK_BENCH_BIN" report local-single-node-completion \
+    --root "$OUT_DIR" --marker "$OUT_DIR/local-baseline.json" >/dev/null 2>&1 || published_status=$?
+  [[ "$published_status" -eq "$requested_status" || "$published_status" -eq 6 ]] || return 6
+  return "$published_status"
 }
 
 local_baseline_preflight() {
-  local overlap blocks available free_percent
-  if [[ "$START_CLUSTER" -eq 1 ]]; then
-    overlap="$(ps -axo pid=,comm= | awk -v self="$$" '
-      {
-        command = $2
-        sub(/^.*\//, "", command)
-        if ($1 != self && (command == "wukongim" || command == "wkbench" || command == "wkbench-test")) print $0
-      }
-    ')"
-    if [[ -n "$overlap" ]]; then
-      write_local_preflight_result host_confounded overlapping_wukongim_workload 0
-      return 2
-    fi
-  fi
-  df -Pk "$OUT_DIR" >"$OUT_DIR/filesystem-preflight.txt" || {
+  local overlap available free_percent
+  capture_data_filesystem_observation "$OUT_DIR/filesystem-preflight.txt" || {
     write_local_preflight_result insufficient_evidence filesystem_preflight_unavailable 0
     return 6
   }
-  read -r blocks available < <(awk 'NR == 2 {print $2, $4}' "$OUT_DIR/filesystem-preflight.txt")
-  if [[ -z "${blocks:-}" || "$blocks" -le 0 ]]; then
-    write_local_preflight_result insufficient_evidence filesystem_preflight_unavailable 0
-    return 6
-  fi
-  free_percent=$((available * 100 / blocks))
+  available="$(awk 'NR == 2 {print $4}' "$OUT_DIR/filesystem-preflight.txt")"
+  free_percent=$((available * 100 / DATA_FILESYSTEM_TOTAL_BLOCKS))
+  PREFLIGHT_FREE_PERCENT="$free_percent"
+  PREFLIGHT_FILESYSTEM_OBSERVATION_COMPLETE=true
   if (( free_percent < MINIMUM_FREE_PERCENT )); then
     write_local_preflight_result storage_confounded filesystem_free_below_10_percent "$free_percent"
     return 2
+  fi
+  if [[ "$START_CLUSTER" -eq 1 ]]; then
+    if [[ ! -x "$HOST_OVERLAP_DETECTOR" ]] || ! overlap="$("$HOST_OVERLAP_DETECTOR")"; then
+      write_local_preflight_result insufficient_evidence host_overlap_observation_failed "$free_percent"
+      return 6
+    fi
+    if [[ -n "$overlap" ]]; then
+      write_local_preflight_result host_confounded overlapping_wukongim_workload "$free_percent"
+      return 2
+    fi
   fi
   return 0
 }
@@ -1441,7 +2940,7 @@ LATEST_EXIT_STATUS=0
 
 classify_latest_local_step() {
   local qps="$1" tag row status exit_status actual success errors connected planned dispatched dropped
-  local blocks available free_percent addr
+  local available free_percent addr
   tag="$(qps_tag "$qps")"
   row="$(awk -F '\t' -v tag="$tag" '$1 == tag {line=$0} END {print line}' "$OUT_DIR/summary.tsv")"
   if [[ -z "$row" ]]; then
@@ -1451,6 +2950,10 @@ classify_latest_local_step() {
   IFS=$'\t' read -r _ _ status exit_status actual success errors _ _ _ _ _ _ connected planned dispatched dropped <<<"$row"
   if [[ -z "${dropped:-}" ]]; then
     LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=incomplete_summary_row; LATEST_EXIT_STATUS=6
+    return
+  fi
+  if [[ -f "$OUT_DIR/reports/${tag}-qps/host-overlap.detected" ]]; then
+    LATEST_OUTCOME=host_confounded; LATEST_REASON=measured_host_overlap; LATEST_EXIT_STATUS=2
     return
   fi
   if ! awk -F '\t' -v tag="$tag" '$1 == tag {seen++; if ($3 != "complete") bad=1} END {exit !(seen == 1 && !bad)}' \
@@ -1477,12 +2980,12 @@ classify_latest_local_step() {
       return
     fi
   done
-  read -r blocks available < <(df -Pk "$OUT_DIR" | awk 'NR == 2 {print $2, $4}')
-  if [[ -z "${blocks:-}" || "$blocks" -le 0 ]]; then
+  if ! capture_data_filesystem_observation "$OUT_DIR/metrics/$tag/filesystem-step.txt"; then
     LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=filesystem_observation_missing; LATEST_EXIT_STATUS=6
     return
   fi
-  free_percent=$((available * 100 / blocks))
+  available="$(awk 'NR == 2 {print $4}' "$OUT_DIR/metrics/$tag/filesystem-step.txt")"
+  free_percent=$((available * 100 / DATA_FILESYSTEM_TOTAL_BLOCKS))
   if (( free_percent < MINIMUM_FREE_PERCENT )); then
     LATEST_OUTCOME=storage_confounded; LATEST_REASON=filesystem_free_below_10_percent; LATEST_EXIT_STATUS=2
     return
@@ -1498,58 +3001,690 @@ classify_latest_local_step() {
   LATEST_OUTCOME=clean; LATEST_REASON=complete; LATEST_EXIT_STATUS=0
 }
 
-write_local_artifact_checksums() {
-  local output="$OUT_DIR/checksums.sha256" path digest
-  : >"$output"
+sha256_file() {
+  local path="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  else
+    shasum -a 256 "$path" | awk '{print $1}'
+  fi
+}
+
+sha256_text() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
+freeze_runtime_config() {
+  local source="$WUKONGIM_CONFIG_SOURCE" source_dir source_base canonical_source
+  local default_source="$ROOT_DIR/scripts/wukongim/wukongim.toml" default_dir canonical_default
+  local temp_parent before_sha after_sha snapshot_sha head_sha temporary
+  [[ "$source" != *$'\n'* && "$source" != *$'\r'* && "$source" != *$'\t'* ]] || return 1
+  [[ -f "$source" && ! -L "$source" ]] || return 1
+  source_dir="$(cd "$(dirname "$source")" && pwd -P)" || return 1
+  source_base="$(basename "$source")"
+  canonical_source="$source_dir/$source_base"
+  [[ -f "$canonical_source" && ! -L "$canonical_source" ]] || return 1
+  default_dir="$(cd "$(dirname "$default_source")" && pwd -P)" || return 1
+  canonical_default="$default_dir/$(basename "$default_source")"
+
+  temp_parent="${TMPDIR:-/tmp}"
+  [[ "$temp_parent" == /* && -d "$temp_parent" && ! -L "$temp_parent" ]] || return 1
+  temp_parent="$(cd "$temp_parent" && pwd -P)" || return 1
+  [[ "$temp_parent" != "$OUT_DIR" && "$temp_parent" != "$OUT_DIR/"* ]] || return 1
+  RUNTIME_CONFIG_DIR="$(mktemp -d "$temp_parent/wukongim-single-node-config.XXXXXX")" || return 1
+  [[ "$RUNTIME_CONFIG_DIR" == /* && ! -L "$RUNTIME_CONFIG_DIR" && -d "$RUNTIME_CONFIG_DIR" ]] || return 1
+  chmod 0700 "$RUNTIME_CONFIG_DIR" || return 1
+  temporary="$RUNTIME_CONFIG_DIR/config.toml.next"
+  RUNTIME_CONFIG_SNAPSHOT="$RUNTIME_CONFIG_DIR/config.toml"
+
+  before_sha="$(sha256_file "$canonical_source")" || return 1
+  cp "$canonical_source" "$temporary" || return 1
+  chmod 0600 "$temporary" || return 1
+  [[ -f "$canonical_source" && ! -L "$canonical_source" ]] || return 1
+  after_sha="$(sha256_file "$canonical_source")" || return 1
+  snapshot_sha="$(sha256_file "$temporary")" || return 1
+  [[ "$before_sha" =~ ^[0-9a-f]{64}$ && "$before_sha" == "$after_sha" && "$before_sha" == "$snapshot_sha" ]] || return 1
+  mv "$temporary" "$RUNTIME_CONFIG_SNAPSHOT" || return 1
+  [[ -f "$RUNTIME_CONFIG_SNAPSHOT" && ! -L "$RUNTIME_CONFIG_SNAPSHOT" ]] || return 1
+
+  WUKONGIM_CONFIG_SOURCE_CANONICAL="$canonical_source"
+  WUKONGIM_CONFIG_SOURCE_REVIEWED=false
+  if [[ "$canonical_source" == "$canonical_default" ]]; then
+    head_sha="$(git -C "$ROOT_DIR" show HEAD:scripts/wukongim/wukongim.toml 2>/dev/null | sha256_text)" || return 1
+    [[ "$head_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ "$snapshot_sha" == "$head_sha" ]] && WUKONGIM_CONFIG_SOURCE_REVIEWED=true
+  fi
+  RUNTIME_CONFIG_SHA256="$snapshot_sha"
+  WUKONGIM_CONFIG="$RUNTIME_CONFIG_SNAPSHOT"
+}
+
+verify_runtime_config_snapshot() {
+  local actual
+  [[ -n "$RUNTIME_CONFIG_DIR" && -n "$RUNTIME_CONFIG_SNAPSHOT" &&
+    -d "$RUNTIME_CONFIG_DIR" && ! -L "$RUNTIME_CONFIG_DIR" &&
+    -f "$RUNTIME_CONFIG_SNAPSHOT" && ! -L "$RUNTIME_CONFIG_SNAPSHOT" &&
+    "$RUNTIME_CONFIG_SHA256" =~ ^[0-9a-f]{64}$ ]] || return 1
+  actual="$(sha256_file "$RUNTIME_CONFIG_SNAPSHOT")" || return 1
+  [[ "$actual" == "$RUNTIME_CONFIG_SHA256" ]]
+}
+
+discard_runtime_config_snapshot() {
+  local directory="$RUNTIME_CONFIG_DIR"
+  [[ -n "$directory" ]] || return 0
+  [[ "$directory" == /* && "$(basename "$directory")" == wukongim-single-node-config.* &&
+    -d "$directory" && ! -L "$directory" ]] || return 1
+  rm -f -- "$directory/config.toml.next" "$directory/config.toml" || return 1
+  rmdir "$directory" || return 1
+  RUNTIME_CONFIG_DIR=""
+  RUNTIME_CONFIG_SNAPSHOT=""
+  WUKONGIM_CONFIG=""
+}
+
+copy_regular_binary() {
+  local source="$1" destination="$2"
+  [[ -f "$source" && ! -L "$source" && -x "$source" ]] || return 1
+  cp "$source" "$destination" || return 1
+  chmod 0700 "$destination" || return 1
+  [[ -f "$destination" && ! -L "$destination" && -x "$destination" ]]
+}
+
+prepare_sealed_test_binaries() {
+  local destination="$OUT_DIR/bin" temporary
+  [[ ! -e "$destination" && ! -L "$destination" ]] || return 1
+  temporary="$(mktemp -d "$OUT_DIR/.bin.next.XXXXXX")" || return 1
+  if ! copy_regular_binary "$WK_BENCH_BIN" "$temporary/wkbench"; then
+    rm -rf "$temporary"
+    return 1
+  fi
+  if ! mv "$temporary" "$destination"; then
+    rm -rf "$temporary"
+    return 1
+  fi
+  WK_BENCH_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
+  discard_owned_wkbench_build || return 1
+  if [[ "$START_CLUSTER" -eq 1 ]]; then
+    WUKONGIM_BIN="$OUT_DIR/$SEALED_WUKONGIM_RELATIVE"
+  fi
+}
+
+seal_local_binaries() {
+  local path current_wukongim_sha
+  for path in "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE" "$OUT_DIR/$SEALED_WKBENCH_RELATIVE"; do
+    [[ -f "$path" && ! -L "$path" && -x "$path" ]] || return 1
+    chmod 0700 "$path" || return 1
+  done
+  [[ "$SEALED_WUKONGIM_SHA256" =~ ^[0-9a-f]{64}$ ]] || return 1
+  current_wukongim_sha="$(sha256_file "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE")" || return 1
+  [[ "$current_wukongim_sha" == "$SEALED_WUKONGIM_SHA256" ]]
+}
+
+write_local_artifact_identity() {
+  local seal_scope="${1:-measured}"
+  local output="$OUT_DIR/artifact-identity.tsv"
+  local revision dirty source_rebuildable source_capture original_config_sha config_sha wukongim_sha wkbench_sha
+  revision="$(source_result_revision)"
+  dirty="$(source_result_dirty)"
+  source_rebuildable=false
+  source_capture=binary_identity_only
+  if [[ "$seal_scope" == measured ]] &&
+    [[ "$WUKONGIM_CONFIG_SOURCE_REVIEWED" == true ]] &&
+    [[ "$WKBENCH_BUILT_FROM_CURRENT_SOURCE" == true ]] &&
+    [[ "$WUKONGIM_BUILT_FROM_CURRENT_SOURCE" == true ]] &&
+    [[ "$SOURCE_INITIAL_VALID" == true && "$SOURCE_INITIAL_CLEAN" == true ]] &&
+    [[ "$SOURCE_POST_BUILD_VALID" == true && "$SOURCE_POST_BUILD_CLEAN" == true ]] &&
+    [[ "$SOURCE_FINAL_VALID" == true && "$SOURCE_FINAL_CLEAN" == true ]] &&
+    [[ "$SOURCE_INITIAL_REVISION" == "$SOURCE_POST_BUILD_REVISION" ]] &&
+    [[ "$SOURCE_INITIAL_REVISION" == "$SOURCE_FINAL_REVISION" ]] &&
+    [[ "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+    source_rebuildable=true
+    source_capture=revision_and_binary_identity
+  fi
+  original_config_sha=unavailable
+  config_sha=unavailable
+  wukongim_sha=unavailable
+  wkbench_sha=unavailable
+  if [[ "$RUNTIME_CONFIG_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+    original_config_sha="$RUNTIME_CONFIG_SHA256"
+  fi
+  if [[ -f "$OUT_DIR/config/effective-wukongim.toml" && ! -L "$OUT_DIR/config/effective-wukongim.toml" ]]; then
+    config_sha="$(sha256_file "$OUT_DIR/config/effective-wukongim.toml")"
+  fi
+  if [[ -f "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE" && ! -L "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE" ]]; then
+    wukongim_sha="$(sha256_file "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE")"
+  fi
+  if [[ -f "$OUT_DIR/$SEALED_WKBENCH_RELATIVE" && ! -L "$OUT_DIR/$SEALED_WKBENCH_RELATIVE" ]]; then
+    wkbench_sha="$(sha256_file "$OUT_DIR/$SEALED_WKBENCH_RELATIVE")"
+  fi
+  {
+    printf 'schema\twukongim/chat-lifecycle-local-single-node-artifact-identity/v1\n'
+    printf 'baseline_invocation_id\t%s\n' "$BASELINE_INVOCATION_ID"
+    printf 'source_revision\t%s\n' "$revision"
+    printf 'source_dirty\t%s\n' "$dirty"
+    printf 'source_rebuildable_from_revision\t%s\n' "$source_rebuildable"
+    printf 'source_capture\t%s\n' "$source_capture"
+    printf 'seal_scope\t%s\n' "$seal_scope"
+    printf 'canonical_data_dir\t%s\n' "$CANONICAL_SINGLE_NODE_DATA_DIR"
+    printf 'data_filesystem_device\t%s\n' "$DATA_FILESYSTEM_DEVICE"
+    printf 'data_filesystem_total_blocks\t%s\n' "$DATA_FILESYSTEM_TOTAL_BLOCKS"
+    printf 'data_filesystem_block_size\t%s\n' "$DATA_FILESYSTEM_BLOCK_SIZE"
+    printf 'original_config_sha256\t%s\n' "$original_config_sha"
+    printf 'effective_config\tconfig/effective-wukongim.toml\n'
+    printf 'effective_config_sha256\t%s\n' "$config_sha"
+    printf 'wukongim_binary\t%s\n' "$SEALED_WUKONGIM_RELATIVE"
+    printf 'wukongim_binary_sha256\t%s\n' "$wukongim_sha"
+    printf 'wkbench_binary\t%s\n' "$SEALED_WKBENCH_RELATIVE"
+    printf 'wkbench_binary_sha256\t%s\n' "$wkbench_sha"
+  } >"$output"
+}
+
+local_artifact_payload_ready() {
+  local identity="$OUT_DIR/artifact-identity.tsv"
+  local expected actual relative
+  for required in \
+    "$OUT_DIR/config/effective-wukongim.toml" \
+    "$OUT_DIR/logs/after/node1.log" \
+    "$identity" \
+    "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE" \
+    "$OUT_DIR/$SEALED_WKBENCH_RELATIVE"; do
+    [[ -f "$required" && ! -L "$required" ]] || return 1
+  done
+  expected="$(awk -F '\t' '$1 == "effective_config_sha256" { print $2 }' "$identity")"
+  actual="$(sha256_file "$OUT_DIR/config/effective-wukongim.toml")" || return 1
+  [[ "$expected" == "$actual" ]] || return 1
+  expected="$(awk -F '\t' '$1 == "wukongim_binary_sha256" { print $2 }' "$identity")"
+  relative="$(awk -F '\t' '$1 == "wukongim_binary" { print $2 }' "$identity")"
+  [[ "$relative" == "$SEALED_WUKONGIM_RELATIVE" ]] || return 1
+  actual="$(sha256_file "$OUT_DIR/$relative")" || return 1
+  [[ "$expected" == "$actual" ]] || return 1
+  expected="$(awk -F '\t' '$1 == "wkbench_binary_sha256" { print $2 }' "$identity")"
+  relative="$(awk -F '\t' '$1 == "wkbench_binary" { print $2 }' "$identity")"
+  [[ "$relative" == "$SEALED_WKBENCH_RELATIVE" ]] || return 1
+  actual="$(sha256_file "$OUT_DIR/$relative")" || return 1
+  [[ "$expected" == "$actual" ]] || return 1
+}
+
+reviewed_contract_defaults_satisfied() {
+  [[ "$WUKONGIM_CONFIG_SOURCE_REVIEWED" == true ]] || return 1
+  [[ "$QPS_LIST" == "250,500,750,1000" ]] || return 1
+  [[ "$CHANNELS" -eq 1000 ]] || return 1
+  [[ "$USERS" -eq 2500 ]] || return 1
+  [[ "$GROUP_MEMBERS" -eq 10 ]] || return 1
+  [[ "$CONCURRENCY" -eq 2800 ]] || return 1
+  [[ "$PAYLOAD_BYTES" -eq 128 ]] || return 1
+  [[ "$DURATION" == 5m ]] || return 1
+  [[ "$WARMUP" == 60s ]] || return 1
+	[[ "$COOLDOWN" == 90s ]] || return 1
+	[[ "$TERMINAL_CUT_ACK_SAFETY_SECONDS" -eq 15 ]] || return 1
+  [[ "$PROFILE_SECONDS" == 10 ]] || return 1
+  [[ "$STORAGE_OVERLAP_SAMPLE_INTERVAL" == 20 ]] || return 1
+  [[ "$ACK_TIMEOUT" == 15s ]] || return 1
+  [[ "$RECV_ACK" == true ]] || return 1
+  [[ "$HEARTBEAT_ENABLED" == true ]] || return 1
+  [[ "$SENDER_PICK" == round_robin ]] || return 1
+  [[ "$START_CLUSTER" -eq 1 ]] || return 1
+  [[ "$START_WORKER" -eq 1 ]] || return 1
+  [[ "$CLEAN_CLUSTER" -eq 1 ]] || return 1
+  [[ "$MINIMUM_FREE_PERCENT" -eq 10 ]] || return 1
+  [[ "$RUNTIME_CONFIG_SHA256" =~ ^[0-9a-f]{64}$ ]] || return 1
+}
+
+write_typed_local_step_evidence() {
+  local qps="$1"
+  local tag report_dir metrics_id warmup_seconds measured_seconds drain_seconds output result_output closure_output step_manifest exit_status=0
+  tag="$(qps_tag "$qps")"
+  report_dir="$OUT_DIR/reports/${tag}-qps"
+  metrics_id="$(metric_file_id "${METRICS_VALUES[0]:-missing}")"
+  warmup_seconds="$(duration_seconds "$WARMUP")"
+  measured_seconds="$(duration_seconds "$DURATION")"
+  drain_seconds="$(duration_seconds "$COOLDOWN")"
+  output="$report_dir/typed-step-evidence.json"
+  result_output="$report_dir/typed-step-result.json"
+  closure_output="$report_dir/evidence/step-closure.json"
+  step_manifest="$report_dir/evidence/step-checksums.sha256"
+  [[ -d "$report_dir" ]] || return 1
+  "$WK_BENCH_BIN" report local-single-node-step \
+    --offered-qps "$qps" \
+    --required-active-connections "$USERS" \
+    --group-members "$GROUP_MEMBERS" \
+    --warmup-seconds "$warmup_seconds" \
+    --measured-seconds "$measured_seconds" \
+    --drain-budget-seconds "$drain_seconds" \
+    --maximum-sample-gap-seconds 30 \
+    --scenario "$report_dir/scenario.yaml" \
+    --plan "$report_dir/plan.json" \
+    --run-report "$report_dir/report.json" \
+    --diagnostic-summary "$report_dir/diagnostic-summary.json" \
+    --lifecycle "$report_dir/lifecycle-status.jsonl" \
+    --post-warmup-metrics "$OUT_DIR/metrics/$tag/${metrics_id}-post-warmup.prom" \
+    --terminal-metrics "$OUT_DIR/metrics/$tag/${metrics_id}-terminal-pre-close.prom" \
+    --storage-overlap "$report_dir/evidence/storage-overlap.tsv" \
+    --storage-summary "$report_dir/evidence/storage-summary.tsv" \
+    --host-io-summary "$report_dir/evidence/host-io-summary.tsv" \
+    --profile-status "$report_dir/evidence/threshold-pprof-status.json" \
+    --payload-root "$OUT_DIR" \
+    --payload-manifest "$step_manifest" \
+    --output "$output" \
+    --result-output "$result_output" \
+    --closure-output "$closure_output" >/dev/null 2>&1 || exit_status=$?
+  [[ -f "$output" && ! -L "$output" && -f "$result_output" && ! -L "$result_output" &&
+    -f "$closure_output" && ! -L "$closure_output" ]] || return 6
+  return "$exit_status"
+}
+
+local_step_manifest_path() {
+  printf '%s\n' "$OUT_DIR/reports/$(qps_tag "$1")-qps/evidence/step-checksums.sha256"
+}
+
+write_local_step_checksums() {
+  local qps="$1" tag report_dir metrics_dir manifest temporary path digest relative
+  tag="$(qps_tag "$qps")"
+  report_dir="$OUT_DIR/reports/${tag}-qps"
+  metrics_dir="$OUT_DIR/metrics/$tag"
+  manifest="$(local_step_manifest_path "$qps")"
+  temporary="${manifest}.tmp.$$"
+  [[ -d "$report_dir" && -d "$metrics_dir" && ! -L "$report_dir" && ! -L "$metrics_dir" ]] || return 1
+  mkdir -p "$(dirname "$manifest")" || return 1
+  : >"$temporary" || return 1
   while IFS= read -r path; do
-    [[ "$path" == "$output" || "$path" == "$OUT_DIR/local-baseline.json" ]] && continue
-    if command -v sha256sum >/dev/null 2>&1; then
-      digest="$(sha256sum "$path" | awk '{print $1}')"
-    else
-      digest="$(shasum -a 256 "$path" | awk '{print $1}')"
+    [[ "$path" == "$manifest" || "$path" == "$temporary" ||
+      "$path" == "$report_dir/typed-step-evidence.json" ||
+      "$path" == "$report_dir/typed-step-result.json" ||
+      "$path" == "$report_dir/evidence/step-closure.json" ||
+      "$path" == "$report_dir/evidence/typed-step-consumer.json" ]] && continue
+    digest="$(sha256_file "$path")" || { rm -f "$temporary"; return 1; }
+    relative="${path#"$OUT_DIR"/}"
+    printf '%s  %s\n' "$digest" "$relative" >>"$temporary" || { rm -f "$temporary"; return 1; }
+  done < <(
+    {
+      find "$report_dir" "$metrics_dir" -type f -print
+      printf '%s\n' \
+        "$OUT_DIR/config/effective-wukongim.toml" \
+        "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE" \
+        "$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
+    } | LC_ALL=C sort -u
+  )
+  [[ -s "$temporary" ]] || { rm -f "$temporary"; return 1; }
+  mv "$temporary" "$manifest"
+}
+
+verify_local_step_checksums() {
+  local qps="$1" tag report_dir metrics_dir manifest digest relative extra path actual
+  tag="$(qps_tag "$qps")"
+  report_dir="$OUT_DIR/reports/${tag}-qps"
+  metrics_dir="$OUT_DIR/metrics/$tag"
+  manifest="$(local_step_manifest_path "$qps")"
+  [[ -s "$manifest" && -f "$manifest" && ! -L "$manifest" ]] || return 1
+  while read -r digest relative extra; do
+    [[ -z "${extra:-}" && "$digest" =~ ^[0-9a-f]{64}$ && -n "$relative" ]] || return 1
+    [[ "$relative" != /* && "$relative" != ../* && "$relative" != */../* && "$relative" != */.. ]] || return 1
+    path="$OUT_DIR/$relative"
+    [[ -f "$path" && ! -L "$path" ]] || return 1
+    actual="$(sha256_file "$path")" || return 1
+    [[ "$actual" == "$digest" ]] || return 1
+  done <"$manifest"
+  while IFS= read -r path; do
+    [[ "$path" == "$manifest" || "$path" == "$report_dir/typed-step-evidence.json" ||
+      "$path" == "$report_dir/typed-step-result.json" ||
+      "$path" == "$report_dir/evidence/step-closure.json" ||
+      "$path" == "$report_dir/evidence/typed-step-consumer.json" ]] && continue
+    relative="${path#"$OUT_DIR"/}"
+    awk -v expected="$relative" '$2 == expected { found = 1 } END { exit !found }' "$manifest" || return 1
+  done < <(find "$report_dir" "$metrics_dir" -type f -print | LC_ALL=C sort)
+}
+
+read_typed_local_step_result() {
+  local qps="$1" tag result closure consumer outcome reason consumer_status=0 expected_status
+  tag="$(qps_tag "$qps")"
+  closure="$OUT_DIR/reports/${tag}-qps/evidence/step-closure.json"
+  consumer="$OUT_DIR/reports/${tag}-qps/evidence/typed-step-consumer.json"
+  [[ -f "$closure" && ! -L "$closure" ]] || return 1
+  "$WK_BENCH_BIN" report local-single-node-step-closure \
+    --root "$OUT_DIR" --closure "$closure" --output "$consumer" >/dev/null 2>&1 || consumer_status=$?
+  [[ -f "$consumer" && ! -L "$consumer" ]] || return 1
+  jq -e --argjson qps "$qps" '
+    .schema == "wukongim/chat-lifecycle-local-single-node-step-result/v1" and
+    .offered_send_qps == $qps and
+    ((.reasons | type) == "array") and
+    ((.outcome == "clean" and .clean == true and (.reasons | length) == 0) or
+     (.outcome != "clean" and .clean == false and (.reasons | length) > 0))
+  ' "$consumer" >/dev/null 2>&1 || return 1
+  outcome="$(jq -r '.outcome' "$consumer")"
+  reason="$(jq -r 'if (.reasons | length) > 0 then .reasons[0] else "complete" end' "$consumer")"
+  case "$outcome" in
+    clean)
+      LATEST_OUTCOME=clean; LATEST_REASON=complete; LATEST_EXIT_STATUS=0
+      ;;
+    rate_failed|product_failure)
+      LATEST_OUTCOME="$outcome"; LATEST_REASON="$reason"; LATEST_EXIT_STATUS=3
+      ;;
+    insufficient_evidence)
+      LATEST_OUTCOME=insufficient_evidence; LATEST_REASON="$reason"; LATEST_EXIT_STATUS=6
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  expected_status="$LATEST_EXIT_STATUS"
+  [[ "$consumer_status" -eq "$expected_status" ]] || return 1
+}
+
+write_typed_local_baseline_evidence() {
+  local diagnostic_outcome="$1" payload_complete="$2" checksums_verified="$3"
+  local revision dirty rebuildable warmup_seconds measured_seconds drain_seconds ack_timeout_seconds clean_cluster
+  local diagnostic_reason="${4:-$diagnostic_outcome}"
+  local observed_filesystem_free_percent="${5:-0}"
+  local filesystem_observation_complete="${6:-false}"
+  revision="$(source_result_revision)"
+  dirty="$(source_result_dirty)"
+  rebuildable="$(awk -F '\t' '$1 == "source_rebuildable_from_revision" {print $2}' "$OUT_DIR/artifact-identity.tsv")"
+  warmup_seconds="$(duration_seconds "$WARMUP")"
+  measured_seconds="$(duration_seconds "$DURATION")"
+  drain_seconds="$(duration_seconds "$COOLDOWN")"
+  ack_timeout_seconds="$(duration_seconds "$ACK_TIMEOUT")"
+  clean_cluster=false
+  [[ "$CLEAN_CLUSTER" -eq 1 ]] && clean_cluster=true
+  jq -n \
+    --arg outcome "$diagnostic_outcome" \
+    --arg baseline_invocation_id "$BASELINE_INVOCATION_ID" \
+    --arg diagnostic_reason "$diagnostic_reason" \
+    --argjson observed_filesystem_free_percent "$observed_filesystem_free_percent" \
+    --argjson filesystem_observation_complete "$filesystem_observation_complete" \
+    --arg canonical_data_dir "$CANONICAL_SINGLE_NODE_DATA_DIR" \
+    --arg data_filesystem_device "$DATA_FILESYSTEM_DEVICE" \
+    --argjson data_filesystem_total_blocks "$DATA_FILESYSTEM_TOTAL_BLOCKS" \
+    --argjson data_filesystem_block_size "$DATA_FILESYSTEM_BLOCK_SIZE" \
+    --arg revision "$revision" \
+    --argjson dirty "$dirty" \
+    --argjson rebuildable "${rebuildable:-false}" \
+    --argjson canonical_source_config "$WUKONGIM_CONFIG_SOURCE_REVIEWED" \
+    --argjson active_connections "$USERS" \
+    --argjson channels "$CHANNELS" \
+    --argjson group_members "$GROUP_MEMBERS" \
+    --argjson send_concurrency "$CONCURRENCY" \
+    --argjson payload_bytes "$PAYLOAD_BYTES" \
+    --argjson warmup_seconds "$warmup_seconds" \
+    --argjson measured_seconds "$measured_seconds" \
+    --argjson drain_seconds "$drain_seconds" \
+    --argjson ack_timeout_seconds "$ack_timeout_seconds" \
+    --argjson receive_ack "$RECV_ACK" \
+    --argjson heartbeat_enabled "$HEARTBEAT_ENABLED" \
+    --argjson sender_pick_round_robin "$([[ "$SENDER_PICK" == round_robin ]] && printf true || printf false)" \
+    --argjson minimum_free_percent "$MINIMUM_FREE_PERCENT" \
+    --argjson logical_slot_groups 12 \
+    --argjson hash_slots 256 \
+    --argjson commit_shards 1 \
+    --argjson sync_commit true \
+    --argjson clean_cluster "$clean_cluster" \
+    --argjson owned_cluster "$([[ "$OWNED_CLUSTER_STARTED" -eq 1 ]] && printf true || printf false)" \
+    --argjson owned_worker "$([[ "$OWNED_WORKER_STARTED" -eq 1 ]] && printf true || printf false)" \
+    --argjson metrics_endpoint_count "${#METRICS_VALUES[@]}" \
+    --argjson payload_complete "$payload_complete" \
+    --argjson checksums_verified "$checksums_verified" '
+      {
+        schema:"wukongim/chat-lifecycle-local-single-node-baseline-evidence/v1",
+        completion_generation:"",
+        baseline_invocation_id:$baseline_invocation_id,
+        diagnostic_outcome:$outcome,
+        diagnostic_reason:$diagnostic_reason,
+        filesystem_observation_complete:$filesystem_observation_complete,
+        observed_filesystem_free_percent:$observed_filesystem_free_percent,
+        canonical_data_dir:$canonical_data_dir,
+        data_filesystem_device:$data_filesystem_device,
+        data_filesystem_total_blocks:$data_filesystem_total_blocks,
+        data_filesystem_block_size:$data_filesystem_block_size,
+        settings:{
+          canonical_source_config:$canonical_source_config,
+          channels:$channels,active_connections:$active_connections,group_members:$group_members,
+          send_concurrency:$send_concurrency,payload_bytes:$payload_bytes,warmup_seconds:$warmup_seconds,
+          measured_seconds:$measured_seconds,drain_budget_seconds:$drain_seconds,
+          ack_timeout_seconds:$ack_timeout_seconds,receive_ack:$receive_ack,
+          heartbeat_enabled:$heartbeat_enabled,sender_pick_round_robin:$sender_pick_round_robin,
+          minimum_filesystem_free_percent:$minimum_free_percent,
+          logical_slot_groups:$logical_slot_groups,hash_slots:$hash_slots,
+          slot_replicas:1,channel_replicas:1,commit_flush_window_micros:200,
+          commit_coordinator_shards:$commit_shards,sync_commit:$sync_commit,
+          clean_cluster:$clean_cluster,owned_cluster:$owned_cluster,owned_worker:$owned_worker,
+          metrics_endpoint_count:$metrics_endpoint_count
+        },
+        source:{revision:$revision,dirty:$dirty,rebuildable_from_revision:$rebuildable},
+        seal:{payload_complete:$payload_complete,checksums_verified:$checksums_verified},
+        step_closures:[]
+      }
+    ' >"$OUT_DIR/reports/local-baseline-draft.json"
+}
+
+derive_typed_local_baseline_authorization() {
+  local qps closure exit_status=0
+  local -a args=(
+    report local-single-node-baseline
+    --root "$OUT_DIR"
+    --evidence "$OUT_DIR/reports/local-baseline-draft.json"
+    --sealed-evidence-output "$OUT_DIR/reports/local-baseline-evidence.json"
+    --output "$OUT_DIR/reports/local-baseline-authorization.json"
+  )
+  for qps in "${QPS_VALUES[@]}"; do
+    closure="$OUT_DIR/reports/$(qps_tag "$qps")-qps/evidence/step-closure.json"
+    if [[ -f "$closure" && ! -L "$closure" ]]; then
+      args+=(--step-closure "$closure")
     fi
-    printf '%s  %s\n' "$digest" "${path#"$OUT_DIR"/}" >>"$output"
+  done
+  "$WK_BENCH_BIN" "${args[@]}" >/dev/null 2>&1 || exit_status=$?
+  [[ -f "$OUT_DIR/reports/local-baseline-evidence.json" && ! -L "$OUT_DIR/reports/local-baseline-evidence.json" &&
+    -f "$OUT_DIR/reports/local-baseline-authorization.json" && ! -L "$OUT_DIR/reports/local-baseline-authorization.json" ]] || return 6
+  return "$exit_status"
+}
+
+validate_and_prepare_out_dir() {
+  local requested="$OUT_DIR" parent base canonical repo_canonical user_home_canonical existed=false first_entry
+  [[ -n "$requested" ]] || die 'OUT_DIR must not be empty'
+  while [[ "$requested" != / && "$requested" == */ ]]; do requested="${requested%/}"; done
+  [[ ! -L "$requested" ]] || die "OUT_DIR must not be a symlink: $requested"
+
+  if [[ -e "$requested" ]]; then
+    [[ -d "$requested" ]] || die "OUT_DIR must be a directory: $requested"
+    canonical="$(cd "$requested" && pwd -P)" || die "cannot canonicalize OUT_DIR: $requested"
+    existed=true
+  else
+    parent="$(dirname "$requested")"
+    base="$(basename "$requested")"
+    [[ "$base" != . && "$base" != .. && -n "$base" ]] || die "invalid OUT_DIR basename: $requested"
+    [[ -d "$parent" ]] || die "OUT_DIR parent must already exist: $parent"
+    canonical="$(cd "$parent" && pwd -P)/$base" || die "cannot canonicalize OUT_DIR parent: $parent"
+  fi
+
+  repo_canonical="$(cd "$ROOT_DIR" && pwd -P)" || die 'cannot canonicalize repository root'
+  user_home_canonical=""
+  if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
+    user_home_canonical="$(cd "$HOME" && pwd -P)" || die 'cannot canonicalize user home'
+  fi
+  [[ "$canonical" != / ]] || die 'OUT_DIR must not be filesystem root'
+  [[ "$canonical" != "$repo_canonical" ]] || die 'OUT_DIR must not be repository root'
+  [[ -z "$user_home_canonical" || "$canonical" != "$user_home_canonical" ]] || die 'OUT_DIR must not be HOME'
+
+  if [[ "$existed" == true ]]; then
+    if ! first_entry="$(find "$canonical" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)"; then
+      die "cannot inspect OUT_DIR contents: $canonical"
+    fi
+    [[ -z "$first_entry" ]] || die "OUT_DIR directory_not_empty: $canonical"
+  fi
+
+  if [[ ! -e "$canonical" ]]; then
+    mkdir "$canonical" || die "cannot create dedicated OUT_DIR: $canonical"
+  fi
+  chmod 0700 "$canonical" || die "cannot protect OUT_DIR: $canonical"
+  OUT_DIR="$canonical"
+  SOURCE_STATE_DIR="$OUT_DIR/source-state"
+}
+
+write_local_artifact_checksums() {
+  local output="$OUT_DIR/checksums.sha256" temporary="$OUT_DIR/.checksums.sha256.tmp.$$"
+  local path digest
+  : >"$temporary"
+  while IFS= read -r path; do
+    [[ "$path" == "$output" || "$path" == "$temporary" || "$path" == "$OUT_DIR/local-baseline.json" ]] && continue
+    digest="$(sha256_file "$path")" || { rm -f "$temporary"; return 1; }
+    printf '%s  %s\n' "$digest" "${path#"$OUT_DIR"/}" >>"$temporary" || {
+      rm -f "$temporary"
+      return 1
+    }
+  done < <(find "$OUT_DIR" -type f -print | LC_ALL=C sort)
+  mv "$temporary" "$output"
+}
+
+verify_local_artifact_checksums() {
+  local seal_scope="${1:-measured}"
+  local manifest="$OUT_DIR/checksums.sha256" identity="$OUT_DIR/artifact-identity.tsv"
+  local digest relative extra actual path expected
+  [[ -s "$manifest" && -f "$manifest" && ! -L "$manifest" ]] || return 1
+  while read -r digest relative extra; do
+    [[ -z "${extra:-}" && "$digest" =~ ^[0-9a-f]{64}$ && -n "$relative" ]] || return 1
+    [[ "$relative" != /* && "$relative" != ../* && "$relative" != */../* && "$relative" != */.. ]] || return 1
+    path="$OUT_DIR/$relative"
+    [[ -f "$path" && ! -L "$path" ]] || return 1
+    actual="$(sha256_file "$path")" || return 1
+    [[ "$actual" == "$digest" ]] || return 1
+  done <"$manifest"
+  for relative in \
+    config/effective-wukongim.toml \
+    artifact-identity.tsv; do
+    awk -v expected="$relative" '$2 == expected { found = 1 } END { exit !found }' "$manifest" || return 1
+  done
+  [[ "$(awk -F '\t' '$1 == "seal_scope" { print $2 }' "$identity")" == "$seal_scope" ]] || return 1
+  expected="$(awk -F '\t' '$1 == "original_config_sha256" { print $2 }' "$identity")"
+  [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || return 1
+  expected="$(awk -F '\t' '$1 == "effective_config_sha256" { print $2 }' "$identity")"
+  actual="$(sha256_file "$OUT_DIR/config/effective-wukongim.toml")" || return 1
+  [[ "$expected" == "$actual" ]] || return 1
+  if [[ "$seal_scope" == measured ]]; then
+    for relative in logs/after/node1.log bin/wukongim bin/wkbench; do
+      awk -v expected="$relative" '$2 == expected { found = 1 } END { exit !found }' "$manifest" || return 1
+    done
+    [[ "$(awk -F '\t' '$1 == "wukongim_binary" { print $2 }' "$identity")" == "$SEALED_WUKONGIM_RELATIVE" ]] || return 1
+    [[ "$(awk -F '\t' '$1 == "wkbench_binary" { print $2 }' "$identity")" == "$SEALED_WKBENCH_RELATIVE" ]] || return 1
+    expected="$(awk -F '\t' '$1 == "wukongim_binary_sha256" { print $2 }' "$identity")"
+    actual="$(sha256_file "$OUT_DIR/$SEALED_WUKONGIM_RELATIVE")" || return 1
+    [[ "$expected" == "$actual" ]] || return 1
+    expected="$(awk -F '\t' '$1 == "wkbench_binary_sha256" { print $2 }' "$identity")"
+    actual="$(sha256_file "$OUT_DIR/$SEALED_WKBENCH_RELATIVE")" || return 1
+    [[ "$expected" == "$actual" ]] || return 1
+  elif [[ "$seal_scope" != preflight ]]; then
+    return 1
+  fi
+  while IFS= read -r path; do
+    [[ "$path" == "$manifest" || "$path" == "$OUT_DIR/local-baseline.json" ]] && continue
+    relative="${path#"$OUT_DIR"/}"
+    awk -v expected="$relative" '$2 == expected { found = 1 } END { exit !found }' "$manifest" || return 1
   done < <(find "$OUT_DIR" -type f -print | LC_ALL=C sort)
 }
 
+FINAL_FILESYSTEM_FREE_PERCENT=0
+FINAL_FILESYSTEM_OBSERVATION_COMPLETE=false
+
+capture_final_filesystem_observation() {
+  local available
+  FINAL_FILESYSTEM_FREE_PERCENT=0
+  FINAL_FILESYSTEM_OBSERVATION_COMPLETE=false
+  if ! capture_data_filesystem_observation "$OUT_DIR/filesystem-final.txt"; then
+    return 1
+  fi
+  available="$(awk 'NR == 2 {print $4}' "$OUT_DIR/filesystem-final.txt")"
+  FINAL_FILESYSTEM_FREE_PERCENT=$((available * 100 / DATA_FILESYSTEM_TOTAL_BLOCKS))
+  FINAL_FILESYSTEM_OBSERVATION_COMPLETE=true
+}
+
 write_local_baseline_result() {
-  local outcome="$1" reason="$2" highest="$3" first_failing="$4" revision dirty blocks available free_percent authorizes
-  revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
-  dirty=false
-  if ! git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null ||
-    [[ -n "$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" ]]; then dirty=true; fi
-  read -r blocks available < <(df -Pk "$OUT_DIR" | awk 'NR == 2 {print $2, $4}')
-  free_percent=0
-  if [[ -n "${blocks:-}" && "$blocks" -gt 0 ]]; then free_percent=$((available * 100 / blocks)); fi
-  authorizes=false
-  if [[ "$outcome" == clean ]] && awk -v highest="$highest" 'BEGIN {exit !(highest >= 1000)}'; then authorizes=true; fi
+  local outcome="$1" reason="$2" highest="$3" first_failing="$4"
+  local source_seal_valid="$5" artifact_seal_valid="$6"
+  local revision dirty free_percent filesystem_observation_complete authorizes reviewed_contract_satisfied typed_evidence_complete
+  local completion_generation manifest_digest authorization_digest temporary publish_status=0
+  local authorization="$OUT_DIR/reports/local-baseline-authorization.json"
+  local evidence="$OUT_DIR/reports/local-baseline-evidence.json"
+  revision="$(source_result_revision)"
+  dirty="$(source_result_dirty)"
+  [[ -f "$authorization" && ! -L "$authorization" && -f "$evidence" && ! -L "$evidence" ]] || return 6
+  free_percent="$(jq -er '.observed_filesystem_free_percent | select(type == "number" and . >= 0 and . <= 100)' "$evidence" 2>/dev/null || true)"
+  [[ -n "$free_percent" ]] || return 6
+  filesystem_observation_complete="$(jq -er '.filesystem_observation_complete | select(type == "boolean")' "$evidence" 2>/dev/null || true)"
+  [[ "$filesystem_observation_complete" == true || "$filesystem_observation_complete" == false ]] || return 6
+  jq -e '
+    .schema == "wukongim/chat-lifecycle-local-single-node-authorization/v1" and
+    (.outcome | type == "string") and (.reason | type == "string") and
+    (.exit_code | type == "number") and (.highest_clean_rate | type == "number") and
+    (.first_failing_rate | type == "number") and (.steps | type == "array") and
+    (.completion_generation | test("^[0-9a-f]{64}$"))
+  ' "$authorization" >/dev/null 2>&1 || return 6
+  outcome="$(jq -r '.outcome' "$authorization")"
+  reason="$(jq -r '.reason' "$authorization")"
+  highest="$(jq -r '.highest_clean_rate' "$authorization")"
+  first_failing="$(jq -r '.first_failing_rate' "$authorization")"
+  reviewed_contract_satisfied="$(jq -r '.reviewed_contract_satisfied == true' "$authorization")"
+  authorizes="$(jq -r '.authorizes_three_node_diagnostic == true' "$authorization")"
+  completion_generation="$(jq -r '.completion_generation' "$authorization")"
+  typed_evidence_complete="$(jq -r '
+    .seal.payload_complete == true and .seal.checksums_verified == true and (.step_closures | length) == 4
+  ' "$evidence")"
+  manifest_digest="$(sha256_file "$OUT_DIR/checksums.sha256")" || return 6
+  authorization_digest="$(sha256_file "$authorization")" || return 6
+  if [[ ! "$completion_generation" =~ ^[0-9a-f]{64}$ || ! "$manifest_digest" =~ ^[0-9a-f]{64}$ ||
+    ! "$authorization_digest" =~ ^[0-9a-f]{64}$ ]]; then
+    return 6
+  fi
+  temporary="$OUT_DIR/completion-draft.json"
+  [[ ! -e "$temporary" && ! -e "$OUT_DIR/local-baseline.json" ]] || return 6
   {
     printf '{\n'
     printf '  "schema": "wukongim/chat-lifecycle-local-single-node-baseline/v1",\n'
+		printf '  "completion_marker": true,\n'
+    printf '  "completion_generation": "%s",\n' "$completion_generation"
+		printf '  "baseline_invocation_id": "%s",\n' "$BASELINE_INVOCATION_ID"
+		printf '  "artifact_manifest_sha256": "%s",\n' "$manifest_digest"
+		printf '  "typed_authorization_sha256": "%s",\n' "$authorization_digest"
     printf '  "outcome": "%s",\n' "$outcome"
     printf '  "reason": "%s",\n' "$reason"
+    printf '  "reviewed_contract": %s,\n' "$reviewed_contract_satisfied"
+    printf '  "reviewed_contract_satisfied": %s,\n' "$reviewed_contract_satisfied"
+    printf '  "reviewed_typed_lifecycle_evidence_complete": %s,\n' "$typed_evidence_complete"
     printf '  "online_connections": %s,\n' "$USERS"
     printf '  "highest_clean_rate": %s,\n' "$highest"
     printf '  "first_failing_rate": %s,\n' "$first_failing"
     printf '  "authorizes_three_node_diagnostic": %s,\n' "$authorizes"
     printf '  "qps_list": "%s",\n' "$QPS_LIST"
-    printf '  "logical_slot_groups": %s,\n' "${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}"
-    printf '  "hash_slots": %s,\n' "${WK_CLUSTER_HASH_SLOT_COUNT:-256}"
+    printf '  "logical_slot_groups": 12,\n'
+    printf '  "hash_slots": 256,\n'
     printf '  "slot_replicas": 1,\n'
     printf '  "channel_replicas": 1,\n'
-    printf '  "commit_coordinator_flush_window": "%s",\n' "${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"
-    printf '  "commit_coordinator_shards": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"
-    printf '  "sync_commit": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"
+    printf '  "commit_coordinator_flush_window": "200us",\n'
+    printf '  "commit_coordinator_shards": 1,\n'
+    printf '  "sync_commit": true,\n'
     printf '  "minimum_filesystem_free_percent": %s,\n' "$MINIMUM_FREE_PERCENT"
+    printf '  "filesystem_observation_complete": %s,\n' "$filesystem_observation_complete"
     printf '  "observed_filesystem_free_percent": %s,\n' "$free_percent"
+    printf '  "canonical_data_dir": %s,\n' "$(jq -n --arg value "$CANONICAL_SINGLE_NODE_DATA_DIR" '$value')"
+    printf '  "data_filesystem_device": %s,\n' "$(jq -n --arg value "$DATA_FILESYSTEM_DEVICE" '$value')"
+    printf '  "data_filesystem_total_blocks": %s,\n' "$DATA_FILESYSTEM_TOTAL_BLOCKS"
+    printf '  "data_filesystem_block_size": %s,\n' "$DATA_FILESYSTEM_BLOCK_SIZE"
     printf '  "source_revision": "%s",\n' "$revision"
     printf '  "source_dirty": %s,\n' "$dirty"
+    printf '  "source_seal_valid": %s,\n' "$source_seal_valid"
+    printf '  "artifact_seal_valid": %s,\n' "$artifact_seal_valid"
+    printf '  "artifact_identity": "artifact-identity.tsv",\n'
+    printf '  "typed_evidence": "reports/local-baseline-evidence.json",\n'
+    printf '  "typed_authorization": "reports/local-baseline-authorization.json",\n'
+    printf '  "effective_config": "config/effective-wukongim.toml",\n'
     printf '  "summary": "summary.tsv",\n'
     printf '  "storage_summary": "storage_metrics_summary.tsv",\n'
     printf '  "host_io_summary": "host_io_summary.tsv",\n'
     printf '  "artifact_checksums": "checksums.sha256"\n'
     printf '}\n'
-  } >"$OUT_DIR/local-baseline.json"
+  } >"$temporary"
+  "$WK_BENCH_BIN" report local-single-node-publish \
+    --root "$OUT_DIR" --draft "$temporary" --output "$OUT_DIR/local-baseline.json" >/dev/null 2>&1 || publish_status=$?
+  rm -f "$temporary"
+  return "$publish_status"
 }
 
 write_display_summary() {
@@ -2479,23 +4614,25 @@ EOF
 
 main() {
   cd "$ROOT_DIR"
+  validate_and_prepare_out_dir
+  initialize_baseline_invocation_id
+  freeze_runtime_config || die 'failed to create a stable private runtime config snapshot'
+  resolve_single_node_data_dir
+  capture_source_state initial || true
+  ensure_wkbench_binary
   mkdir -p "$OUT_DIR/metrics" "$OUT_DIR/reports"
 
   local preflight_status=0
   local_baseline_preflight || preflight_status=$?
   if (( preflight_status != 0 )); then
+    local finalized_preflight_status=0
+    finalize_local_preflight_result "$preflight_status" || finalized_preflight_status=$?
     log "local baseline preflight result: $OUT_DIR/local-baseline.json"
-    exit "$preflight_status"
+    exit "$finalized_preflight_status"
   fi
 
-  ensure_wkbench_binary
-  start_cluster
-  check_cluster_ready
-  start_host_metrics
-  ensure_worker
-  write_target_and_workers
-  write_run_metadata
-  start_server_resource_sampler
+  prepare_sealed_test_binaries || die "failed to prepare tested binaries under $OUT_DIR/bin"
+	ensure_local_bench_api_token || die "failed to create a process-local benchmark API token"
 
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
 tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	connect_success	scheduler_planned	scheduler_dispatched	scheduler_dropped
@@ -2522,11 +4659,34 @@ EOF
 tag	node	sample_points	sample_pairs	peak_internal_mib_s	peak_out_mib_s	peak_in_mib_s	peak_duplex_mib_s	peak_from_seq	peak_to_seq
 EOF
 
-  local qps highest_clean_rate=0 first_failing_rate=0 final_outcome=clean final_reason=complete final_status=0
+  local qps runtime_harness_started=false highest_clean_rate=0 first_failing_rate=0 final_outcome=clean final_reason=complete final_status=0
   for qps in "${QPS_VALUES[@]}"; do
     [[ "$qps" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "invalid qps value: $qps"
+    start_cluster_generation "$qps"
+    check_cluster_ready
+    attest_cluster_generation_ready "$qps"
+    if [[ "$runtime_harness_started" == false ]]; then
+      capture_source_state post_build || true
+      start_host_metrics
+      ensure_worker
+      write_target_and_workers
+      write_run_metadata
+      runtime_harness_started=true
+    fi
+    start_server_resource_sampler
     run_attempt "$qps"
-    classify_latest_local_step "$qps"
+    sample_server_resources after || true
+    stop_server_resource_sampler
+    stop_cluster_generation "$qps"
+    write_immutable_step_summaries "$qps" || true
+    write_local_step_checksums "$qps" || true
+    verify_local_step_checksums "$qps" || true
+    write_typed_local_step_evidence "$qps" || true
+    if ! read_typed_local_step_result "$qps"; then
+      LATEST_OUTCOME=insufficient_evidence
+      LATEST_REASON=typed_step_result_unavailable
+      LATEST_EXIT_STATUS=6
+    fi
     if [[ "$LATEST_OUTCOME" == clean ]]; then
       highest_clean_rate="$qps"
       continue
@@ -2538,16 +4698,52 @@ EOF
     break
   done
 
-  stop_server_resource_sampler
-  sample_server_resources after || true
-  write_server_resource_summary || true
-  collect_node_logs after
+  local artifact_writers_stopped=true binary_seal_valid=true source_seal_valid=false artifact_seal_valid=false artifact_seal_scope=measured
+  stop_terminal_cut_observer || artifact_writers_stopped=false
+  stop_server_resource_sampler || artifact_writers_stopped=false
   scrape_metrics_snapshot after
-  capture_node_pprof after
+  stop_lifecycle_sampler || artifact_writers_stopped=false
+  stop_runtime_pool_sampler || artifact_writers_stopped=false
+  stop_worker_writer "artifact seal" || artifact_writers_stopped=false
+  discard_owned_worker_runtime_state || artifact_writers_stopped=false
+  stop_host_metrics_writer || artifact_writers_stopped=false
+  stop_cluster_writer || artifact_writers_stopped=false
+  discard_runtime_config_snapshot || artifact_writers_stopped=false
+  collect_node_logs after
+  write_server_resource_summary || true
   print_summary
-  write_local_artifact_checksums
-  write_local_baseline_result "$final_outcome" "$final_reason" "$highest_clean_rate" "$first_failing_rate"
-  return "$final_status"
+  if [[ "$OWNED_CLUSTER_STARTED" -eq 1 ]]; then
+    seal_local_binaries || binary_seal_valid=false
+  else
+    artifact_seal_scope=preflight
+    binary_seal_valid=false
+  fi
+  capture_source_state final || true
+  capture_final_filesystem_observation || true
+  write_local_artifact_identity "$artifact_seal_scope"
+  source_seal_valid="$(awk -F '\t' '$1 == "source_rebuildable_from_revision" { print $2 }' "$OUT_DIR/artifact-identity.tsv")"
+  if [[ "$artifact_writers_stopped" == true && "$binary_seal_valid" == true ]] && local_artifact_payload_ready; then
+    artifact_seal_valid=true
+  fi
+  write_typed_local_baseline_evidence "$final_outcome" "$artifact_seal_valid" true "$final_reason" \
+    "$FINAL_FILESYSTEM_FREE_PERCENT" "$FINAL_FILESYSTEM_OBSERVATION_COMPLETE" || true
+  derive_typed_local_baseline_authorization || true
+  if ! write_local_artifact_checksums; then
+    log 'failed to write final artifact checksum manifest'
+    return 6
+  fi
+  if ! verify_local_artifact_checksums "$artifact_seal_scope"; then
+    log 'failed to verify final artifact checksum manifest'
+    return 6
+  fi
+  local publication_status=0 consumer_status=0
+  write_local_baseline_result "$final_outcome" "$final_reason" "$highest_clean_rate" "$first_failing_rate" \
+    "$source_seal_valid" "$artifact_seal_valid" || publication_status=$?
+  [[ -f "$OUT_DIR/local-baseline.json" && ! -L "$OUT_DIR/local-baseline.json" ]] || return 6
+  "$WK_BENCH_BIN" report local-single-node-completion \
+    --root "$OUT_DIR" --marker "$OUT_DIR/local-baseline.json" >/dev/null 2>&1 || consumer_status=$?
+  [[ "$consumer_status" -eq "$publication_status" ]] || return 6
+  return "$consumer_status"
 }
 
 main "$@"

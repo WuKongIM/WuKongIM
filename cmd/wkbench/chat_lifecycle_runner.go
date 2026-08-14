@@ -104,6 +104,7 @@ func composeProductionChatLifecycleRuntime(
 	}
 	observation, err := chatlifecycle.NewProductionObservationSource(chatlifecycle.ProductionObservationOptions{
 		Config: cfg, BenchToken: credentials.BenchToken(), HTTPClient: httpClient, RuntimeSafety: runtimeSafety,
+		DiagnosticLog: os.Stderr,
 	})
 	if err != nil {
 		return nil, errors.New("chat-lifecycle production composition failed")
