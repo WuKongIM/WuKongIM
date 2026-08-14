@@ -72,6 +72,13 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 	if strings.Index(script, "write_phase_state drain") > strings.Index(script, "request_coordinator_stop 'measured interval elapsed'") {
 		t.Fatal("the measured phase must close before the coordinator stop request")
 	}
+	terminalBoundary := strings.LastIndex(script, "if ! close_terminal_drain_boundary; then")
+	finalServiceSample := strings.LastIndex(script, `capture_service_metrics "sample-$metrics_sequence"`)
+	afterServiceSample := strings.LastIndex(script, "capture_service_metrics after")
+	if terminalBoundary < 0 || finalServiceSample < terminalBoundary ||
+		afterServiceSample < 0 || finalServiceSample > afterServiceSample {
+		t.Fatal("the final service sample must follow the exact terminal boundary and precede the after sample")
+	}
 	if !strings.Contains(script, "if (( DRAIN_BOUNDARY_RECORDED == 0 )); then") {
 		t.Fatal("measured finalization must not duplicate already-recorded drain boundaries after a stop-request race")
 	}

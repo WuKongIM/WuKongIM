@@ -1472,8 +1472,6 @@ while kill -0 "$COORDINATOR_PID" 2>/dev/null; do
       break
     fi
     check_measured_host_overlap
-    metrics_sequence=$((metrics_sequence + 1))
-    capture_service_metrics "sample-$metrics_sequence"
   elif (( qualification_seen == 1 && STOP_SENT == 0 && SECONDS >= next_metrics_at &&
     SECONDS + METRICS_SAMPLE_SECONDS * 2 < measurement_deadline )); then
     metrics_sequence=$((metrics_sequence + 1))
@@ -1530,6 +1528,8 @@ if (( MEASURE_SECONDS > 0 )); then
     log 'typed terminal cut was unavailable; drain/shutdown boundaries remain incomplete'
     write_phase_state shutdown
   fi
+  metrics_sequence=$((metrics_sequence + 1))
+  capture_service_metrics "sample-$metrics_sequence"
   if [[ -n "$HARNESS_FAILURE_REASON" ]]; then
     log 'graceful-stop timeout: capturing one non-converged product queue cut'
     capture_product_queue_metrics product-drain-timeout
