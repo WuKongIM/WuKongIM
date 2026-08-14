@@ -132,6 +132,57 @@ func TestProviderRunsCompleteIdempotentLeaseLifecycle(t *testing.T) {
 	}
 }
 
+func TestProviderReturnsDetachedQuoteAndReceiptState(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	provider := fake.New(fake.Options{Now: func() time.Time { return now }, EstimatedCostMicros: 4_000_000})
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	plan := lifecyclePlan(now)
+	ctx := context.Background()
+
+	firstQuote, err := controller.Quote(ctx, plan)
+	if err != nil {
+		t.Fatalf("Quote(first) error = %v", err)
+	}
+	firstQuote.LineItems[0].CostMicros = -1
+	firstQuote.Selection["zone"] = "mutated"
+	quote, err := controller.Quote(ctx, plan)
+	if err != nil {
+		t.Fatalf("Quote(second) error = %v", err)
+	}
+	if quote.LineItems[0].CostMicros != 4_000_000 || quote.Selection["zone"] != "fake-zone-a" {
+		t.Fatalf("Quote(second) shares caller mutation: %#v", quote)
+	}
+
+	receipt, err := controller.Acquire(ctx, plan, quote)
+	if err != nil {
+		t.Fatalf("Acquire() error = %v", err)
+	}
+	selector := selectorForPlan(plan, quote.PlanDigest)
+	wantResourceID := receipt.Resources[0].ID
+	wantResourceTag := receipt.Resources[0].Tags[cloudlease.TagLeaseID]
+	wantGrantID := receipt.AccessGrants[0].ID
+
+	receipt.Tags[cloudlease.TagLeaseID] = "mutated"
+	receipt.Resources[0].ID = "mutated"
+	receipt.Resources[0].Tags[cloudlease.TagLeaseID] = "mutated"
+	receipt.AccessGrants[0].ID = "mutated"
+	receipt.Quote.LineItems[0].CostMicros = -1
+	receipt.Quote.Selection["zone"] = "mutated"
+
+	inspected, err := provider.Inspect(ctx, selector)
+	if err != nil {
+		t.Fatalf("Inspect() error = %v", err)
+	}
+	if inspected.Tags[cloudlease.TagLeaseID] != plan.LeaseID ||
+		inspected.Resources[0].ID != wantResourceID ||
+		inspected.Resources[0].Tags[cloudlease.TagLeaseID] != wantResourceTag ||
+		inspected.AccessGrants[0].ID != wantGrantID ||
+		inspected.Quote.LineItems[0].CostMicros != 4_000_000 ||
+		inspected.Quote.Selection["zone"] != "fake-zone-a" {
+		t.Fatalf("Inspect() observed caller mutation: %#v", inspected)
+	}
+}
+
 func TestProviderRetainsPartialAcquireForExactCleanup(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
 	provider := fake.New(fake.Options{

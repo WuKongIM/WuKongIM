@@ -1,3 +1,6 @@
+// Package messageevents defines dependency-light immutable event DTOs shared
+// across usecase and runtime seams.
+// It must not import access, app, gateway, or cluster packages.
 package messageevents
 
 // MessageCommitted is emitted after a durable channel append succeeds.

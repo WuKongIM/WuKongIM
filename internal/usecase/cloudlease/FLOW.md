@@ -40,6 +40,8 @@ It contains no WuKongIM deployment, Slot, Channel, worker, or workload logic.
   same exact Lease is retried rather than assumed deleted.
 - A cleanup selector is derivable from admitted Plan and Quote before paid
   dispatch.
+- Fake-provider output is contract-test evidence only; it cannot prove real
+  capacity, price, permission, or zero inventory.
 
 ## Read First
 

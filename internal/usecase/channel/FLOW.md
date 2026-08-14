@@ -29,9 +29,9 @@ It does not own entry protocols, concrete storage, cluster transport, or caches.
 2. Ordinary subscriber mutation updates durable membership, projects the same
    logical version into the UID membership index, refreshes the large-group
    flag, then notifies the observer with cloned final state.
-3. Allowlist, denylist, and temporary members use stable derived channel IDs;
-   counted mutations require the parent and return exact requested and durable
-   set-change counts.
+3. Allowlist, denylist, and temporary members use stable derived channel IDs
+   that preserve the legacy internal namespace; counted mutations require the
+   parent and return exact requested and durable set-change counts.
 
 ## Invariants and Failure Semantics
 
