@@ -18,6 +18,44 @@ func TestSingleNodeBaselineArtifactFixturesUseBoundedParallelGate(t *testing.T) 
 	}
 }
 
+func TestLocalWorkloadOverlapDetectorTreatsOwnedDescendantsAsOwned(t *testing.T) {
+	binDir := t.TempDir()
+	fakePS := filepath.Join(binDir, "ps")
+	if err := os.WriteFile(fakePS, []byte(`#!/bin/sh
+case "$*" in
+  *ppid*)
+    cat <<'EOF'
+100 1 S bash
+101 100 S threshold-helper
+102 101 S wkbench
+200 1 S wukongim
+EOF
+    ;;
+  *)
+    cat <<'EOF'
+100 S bash
+101 S threshold-helper
+102 S wkbench
+200 S wukongim
+EOF
+    ;;
+esac
+`), 0o700); err != nil {
+		t.Fatalf("write fake ps: %v", err)
+	}
+
+	detector := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "detect-local-workload-overlap.sh")
+	command := exec.Command("/bin/bash", detector, "100")
+	command.Env = append(os.Environ(), "PATH="+binDir+":"+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("overlap detector failed: %v\n%s", err, output)
+	}
+	if got, want := string(output), "200\twukongim\n"; got != want {
+		t.Fatalf("overlap detector output = %q, want only foreign workload %q", got, want)
+	}
+}
+
 func TestSingleNodeBaselineAuthorizationRequiresReviewedContractAndFinalSeal(t *testing.T) {
 	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "bench-wukongim-single-node-1000ch.sh"))
 
@@ -41,12 +79,13 @@ func TestSingleNodeBaselineAuthorizationRequiresReviewedContractAndFinalSeal(t *
 		`--storage-overlap`,
 		`process_start_token`,
 		`detect-local-workload-overlap.sh`,
+		`for pid in "$MAIN_SHELL_PID" "$server_pid" "$WORKER_PID" "$HOST_METRICS_PID"`,
 		`host-overlap.detected`,
 		`typed-step-evidence.json`,
 		`local-baseline-authorization.json`,
 		`retry:
         enabled: true`,
-		`token: "\${WK_BENCH_API_TOKEN}"`,
+		`token: "${WK_BENCH_API_TOKEN}"`,
 		`ensure_local_bench_api_token`,
 		`od -An -N32 -tx1 /dev/urandom`,
 		`report local-single-node-step-closure`,

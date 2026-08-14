@@ -49,6 +49,25 @@ Group `sender_pick: weighted_80_20` emits four of each five deterministic
 messages from the first 20% of online members and the fifth from the remaining
 80%. This distribution is per channel and does not change channel rate.
 
+High-concurrency group `sender_pick: round_robin` keeps each message's stable
+channel, index, identity, due instant, and preferred member, but it does not
+bind the message to a busy member while waiting in the admission queue. At each
+due cut, the group-specific exact-window owner matches pending intents to idle
+members in cyclic member order. The due watermark and one pending/admitted
+ledger per channel retain `O(channel_count)` state rather than one object per
+logical message; a 64-channel augmenting frontier avoids a greedy choice
+stranding another simultaneously due intent. All round-robin group workloads
+built for one assignment generation share 256-sharded sender credits. A credit
+is retained through the complete SEND/SENDACK/retry/verification operation, so
+concurrent traffic streams never admit overlapping operations for the same
+simulated client, and its release directly wakes blocked windows. With no
+contention the physical sender sequence remains the historical
+`message_index % online_members` order. At the hard admission deadline, pending
+and unstarted intents enter the existing exact drop accounting and therefore
+produce a rate verdict; they are never sent during cooldown and never become a
+worker hook failure. `first_online`, `weighted_80_20`, person traffic, and the
+generic keyed scheduler retain their existing semantics.
+
 The WKProto bench client is a thin adapter over `pkg/client`. The shared client
 owns CONNECT/CONNACK, optional payload encryption, socket decoding, SENDACK
 matching, RECV decryption, and the single writer/reader pumps. The bench adapter
@@ -113,11 +132,14 @@ transport-rejection evidence. Checked attribution prevents local simulator
 pressure from becoming a false product failure without hiding it.
 Scheduled traffic uses per-key pending queues plus a ready-key queue when a
 workload supplies a serialization key. That keeps one busy client or channel
-from forcing a linear scan across a large pending list. Person/group timed
-traffic supplies the sender UID as the key in high-concurrency mode, preserving
-one in-flight `Send -> Sendack` operation per simulated TCP client. Wrapped
-clients allocate connection-local monotonic ClientSeq values so each waiter
-matches by ClientSeq plus ClientMsgNo.
+from forcing a linear scan across a large pending list. Person traffic and the
+fixed-sender group policies supply the sender UID as that key. High-concurrency
+group round-robin traffic instead uses the group exact-window owner described
+above, which chooses an idle member only when the logical message is ready to
+enter SEND admission. Both paths preserve one in-flight `Send -> Sendack`
+operation per selected simulated client. Wrapped clients allocate
+connection-local monotonic ClientSeq values so each waiter matches by ClientSeq
+plus ClientMsgNo.
 
 Adapter `Close` publishes the session stop signal before closing the shared
 client. This releases blocked publication admission, queue publishers, and
@@ -635,6 +657,20 @@ leaves that part incomplete, so local authorization remains closed.
 
 The native single-node cluster diagnostic samples that projection throughout
 warmup, measured traffic, cooldown, and one stopped-assignment terminal cut.
+The parent shell owns and joins that sampler, retains its stderr in the step,
+and atomically publishes a bounded sampler status containing the PID/start
+token, capture attempts/completions, exit status, and a closed reason. An
+attempt without a matching completion identifies a capture that is still
+blocked and cannot publish a clean stopped status. The asynchronous sampler
+appends each validated one-line projection with Bash builtins; invoking an
+external writer through `command` there can replace the background shell on
+Bash 3.2 before its completion counter and loop advance. Any unexpected
+sampler exit appends a lifecycle capture error and forces local exit 6, so the
+typed step evaluator cannot authorize partial sampling evidence.
+During measured sampling the local workload-overlap observer treats the main
+wrapper shell as an owned process root and closes ownership over its complete
+descendant tree. This includes short-lived typed `wkbench evidence` helpers;
+unrelated WuKongIM or wkbench process trees remain host-confounding evidence.
 Each sample is joined to independently observed server and worker PID start
 tokens. The typed evaluator requires strictly increasing sample times,
 monotonic aggregate traffic counters, a non-empty measured projection, and an
@@ -665,6 +701,11 @@ Delivery plan queue and in-flight workers, and owner-local pending RECVACK
 bindings. Missing delivery families or a terminal delivery depth above its
 post-warmup baseline fail closed, so an empty append queue cannot hide
 recipient work that has not reached or been acknowledged by clients. The same
+channelappend worker-pool boundary uses the production-wired
+`wukongim_ants_pool_running{component="channelappend"}` family, summing its
+fixed pool partitions. It does not substitute the dormant legacy effect-pool
+family or manufacture a zero series, so an absent production pool observation
+still fails closed. The same
 two Prometheus cuts retain separate, closed cumulative result partitions for
 accepted Online Delivery plan terminals and channelappend post-commit final
 completions. Every fixed result series must exist exactly once at both
@@ -938,7 +979,7 @@ queued.
 
 ### Warmup, Run, Cooldown
 
-Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup raises per-message sendack/recv waits to at least the warmup duration so early cold bootstrap work is not cut off by the shorter measured-run timeout, but every wait shares a final deadline at `warmup end + the traffic's original operation timeout`; late messages therefore cannot extend the phase by another full warmup duration. Every send, sendack, recv, and recvack failure is bound to its session and low-cardinality operation, including explicit SENDACK rejection and receive payload mismatch; a typed per-session warmup operation failure is recorded and does not terminate the hook, so the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed measured run windows stop scheduling new messages at one shared absolute deadline and move only already-admitted operations into the bounded cooldown drain. Overloaded attempts therefore report lower actual QPS instead of extending measured admission. The zero/one-concurrency path enforces the same hard window between sequential operations and cannot accumulate every planned SENDACK/RECV timeout after the deadline. Cooldown starts no sends, returns immediately after exact admitted-work convergence, and fails if that work has not settled by its configured upper bound. Connections and background receive processing stay active through the post-drain lifecycle cut and close only at exact-assignment stop.
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. After the last scheduled warmup admission settles, each workload keeps the phase open until the configured warmup boundary; the coordinator therefore records the full declared window rather than ending one scheduler interval early. Warmup raises per-message sendack/recv waits to at least the warmup duration so early cold bootstrap work is not cut off by the shorter measured-run timeout, but every wait shares a final deadline at `warmup end + the traffic's original operation timeout`; late messages therefore cannot extend the phase by another full warmup duration. The worker owns these deadlines on the process monotonic clock. Retained cross-process timestamps use wall time, so the typed timeline accepts only the fixed coordinator boundary tolerance for wall-clock slew at a proven minimum deadline; larger under-runs remain incomplete. Every send, sendack, recv, and recvack failure is bound to its session and low-cardinality operation, including explicit SENDACK rejection and receive payload mismatch; a typed per-session warmup operation failure is recorded and does not terminate the hook, so the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed measured run windows stop scheduling new messages at one shared absolute deadline and move only already-admitted operations into the bounded cooldown drain. Overloaded attempts therefore report lower actual QPS instead of extending measured admission. The zero/one-concurrency path enforces the same hard window between sequential operations and cannot accumulate every planned SENDACK/RECV timeout after the deadline. Cooldown starts no sends, returns immediately after exact admitted-work convergence, and fails if that work has not settled by its configured upper bound. Connections and background receive processing stay active through the post-drain lifecycle cut and close only at exact-assignment stop.
 
 The typed session error keeps its UID only as private in-process recovery state;
 its `Error` text exposes only an allowlisted operation. Worker phase responses
@@ -967,7 +1008,10 @@ separate logical identities, physical attempts, retries, SENDACKs, exhaustion,
 terminal failures, planned-shutdown cancellations, identity mismatches, and
 exact remaining work; no UID,
 channel, or message identity becomes a label. Sequential and concurrent
-schedulers both publish planned and dispatched counts.
+schedulers publish the immutable planned count before first SEND admission can
+block, then publish dispatched and bounded-window outcome counts when the
+scheduler returns. This keeps periodic lifecycle evidence truthful during the
+measured window instead of first exposing its denominator in cooldown.
 
 The default worker's bounded `LifecycleStatus` projects those counters only
 from `run` and `run-window-*` phases. It derives stable-identity and evidence
@@ -1037,7 +1081,8 @@ Person channel IDs are encoded deterministically from both UIDs. The workload do
 ```text
 GroupWorkload.RunWindow
   -> pick deterministic group channel and message index
-  -> first online member sends to frame.ChannelTypeGroup
+  -> apply sender_pick; high-concurrency round_robin matches an idle member at admission
+  -> selected online member sends to frame.ChannelTypeGroup
   -> wait for matching sendack
   -> optionally verify full or sampled recipients
   -> optionally send recvack

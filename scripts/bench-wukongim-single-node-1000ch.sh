@@ -472,6 +472,10 @@ RUNTIME_POOL_SAMPLER_PID=""
 RUNTIME_POOL_SAMPLER_STOP_FILE=""
 LIFECYCLE_SAMPLER_PID=""
 LIFECYCLE_SAMPLER_STOP_FILE=""
+LIFECYCLE_SAMPLER_START_FILE=""
+LIFECYCLE_SAMPLER_STATUS_FILE=""
+LIFECYCLE_SAMPLER_LOG_FILE=""
+LIFECYCLE_SAMPLER_START_TOKEN=""
 THRESHOLD_PROFILE_WATCHER_PID=""
 THRESHOLD_PROFILE_WATCHER_STOP_FILE=""
 TERMINAL_CUT_OBSERVER_PID=""
@@ -959,7 +963,7 @@ YAML
     yaml_list API_VALUES
     cat <<'YAML'
   # Expanded in-memory by wkbench; the evidence file never contains the token.
-  token: "\${WK_BENCH_API_TOKEN}"
+  token: "${WK_BENCH_API_TOKEN}"
 metrics:
   enabled: true
   addrs:
@@ -1279,7 +1283,8 @@ write_lifecycle_capture_error() {
 }
 
 capture_lifecycle_sample() {
-  local tag="$1" status sampled_at server_pid server_json worker_json output temporary phase active_phase overlap pid
+  local tag="$1" status sampled_at server_pid server_json worker_json output temporary lifecycle_line projected_line phase active_phase overlap pid
+  local lifecycle_line_count=0
   local status_run_id status_assignment_id expected_run_id
   local -a owned_pids=()
   output="$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl"
@@ -1291,7 +1296,7 @@ capture_lifecycle_sample() {
   server_pid="$(server_pid_for_node 1)"
   active_phase="$(jq -r '.active_phase // ""' <<<"$status" 2>/dev/null || true)"
   if [[ "$active_phase" == run ]]; then
-    for pid in "$server_pid" "$WORKER_PID" "$HOST_METRICS_PID"; do
+    for pid in "$MAIN_SHELL_PID" "$server_pid" "$WORKER_PID" "$HOST_METRICS_PID"; do
       [[ "$pid" =~ ^[1-9][0-9]*$ ]] && owned_pids+=("$pid")
     done
     if command -v pgrep >/dev/null 2>&1; then
@@ -1393,7 +1398,21 @@ capture_lifecycle_sample() {
     write_lifecycle_capture_error "$tag" worker_status_invalid
     return 1
   fi
-  command cat "$temporary" >>"$output"
+  while IFS= read -r projected_line; do
+    lifecycle_line_count=$((lifecycle_line_count + 1))
+    lifecycle_line="$projected_line"
+    [[ "$lifecycle_line_count" -eq 1 ]] || break
+  done <"$temporary"
+  if [[ "$lifecycle_line_count" -ne 1 || -z "$lifecycle_line" ]]; then
+    rm -f "$temporary"
+    write_lifecycle_capture_error "$tag" worker_status_invalid
+    return 1
+  fi
+  if ! printf '%s\n' "$lifecycle_line" >>"$output"; then
+    rm -f "$temporary"
+    write_lifecycle_capture_error "$tag" lifecycle_capture_write_failed
+    return 1
+  fi
   rm -f "$temporary"
   status_run_id="$(jq -r '.assignment.run_id // ""' <<<"$status" 2>/dev/null || true)"
   status_assignment_id="$(jq -r '.assignment.assignment_id // ""' <<<"$status" 2>/dev/null || true)"
@@ -1417,30 +1436,179 @@ lifecycle_sampler_stop_file() {
   printf '%s\n' "$OUT_DIR/reports/$1-qps/lifecycle-sampler.stop"
 }
 
+lifecycle_sampler_start_file() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/.lifecycle-sampler.start"
+}
+
+lifecycle_sampler_status_file() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/lifecycle-sampler-status.json"
+}
+
+lifecycle_sampler_log_file() {
+  printf '%s\n' "$OUT_DIR/reports/$1-qps/lifecycle-sampler.log"
+}
+
+write_lifecycle_sampler_status() {
+  local status_file="$1" pid="$2" start_token="$3" attempts="$4" completions="$5" exit_status="$6" reason="$7" temporary
+  [[ "$pid" =~ ^[1-9][0-9]*$ && -n "$start_token" ]] || return 1
+  [[ "$attempts" =~ ^[0-9]+$ && "$completions" =~ ^[0-9]+$ && "$exit_status" =~ ^[0-9]+$ ]] || return 1
+  (( completions <= attempts && exit_status <= 255 )) || return 1
+  case "$reason" in
+    starting|running|capturing|capture_failed|stopping|stopped|unexpected_exit) ;;
+    *) return 1 ;;
+  esac
+  temporary="$(mktemp "${status_file}.next.XXXXXX")" || return 1
+  if ! jq -cn \
+    --arg schema 'wukongim/chat-lifecycle-local-single-node-sampler-status/v1' \
+    --argjson pid "$pid" \
+    --arg start_token "$start_token" \
+    --argjson attempts "$attempts" \
+    --argjson completions "$completions" \
+    --argjson exit_status "$exit_status" \
+    --arg reason "$reason" \
+    '{schema:$schema,pid:$pid,start_token:$start_token,attempts:$attempts,completions:$completions,exit_status:$exit_status,reason:$reason}' \
+    >"$temporary" || ! mv "$temporary" "$status_file"; then
+    rm -f "$temporary"
+    return 1
+  fi
+}
+
 lifecycle_sampler_loop() {
   local tag="$1" stop_file="$2"
+  local capture_status reason
+  write_lifecycle_sampler_status "$LIFECYCLE_SAMPLER_CHILD_STATUS_FILE" \
+    "$LIFECYCLE_SAMPLER_CHILD_PID" "$LIFECYCLE_SAMPLER_CHILD_START_TOKEN" 0 0 0 running || return 70
   while [[ ! -f "$stop_file" ]]; do
-    capture_lifecycle_sample "$tag" || true
+    LIFECYCLE_SAMPLER_CHILD_ATTEMPTS=$((LIFECYCLE_SAMPLER_CHILD_ATTEMPTS + 1))
+    write_lifecycle_sampler_status "$LIFECYCLE_SAMPLER_CHILD_STATUS_FILE" \
+      "$LIFECYCLE_SAMPLER_CHILD_PID" "$LIFECYCLE_SAMPLER_CHILD_START_TOKEN" \
+      "$LIFECYCLE_SAMPLER_CHILD_ATTEMPTS" "$LIFECYCLE_SAMPLER_CHILD_COMPLETIONS" 0 capturing || return 70
+    capture_status=0
+    capture_lifecycle_sample "$tag" || capture_status=$?
+    LIFECYCLE_SAMPLER_CHILD_COMPLETIONS=$((LIFECYCLE_SAMPLER_CHILD_COMPLETIONS + 1))
+    reason=running
+    [[ "$capture_status" -eq 0 ]] || reason=capture_failed
+    write_lifecycle_sampler_status "$LIFECYCLE_SAMPLER_CHILD_STATUS_FILE" \
+      "$LIFECYCLE_SAMPLER_CHILD_PID" "$LIFECYCLE_SAMPLER_CHILD_START_TOKEN" \
+      "$LIFECYCLE_SAMPLER_CHILD_ATTEMPTS" "$LIFECYCLE_SAMPLER_CHILD_COMPLETIONS" 0 "$reason" || return 70
     sleep "$LIFECYCLE_SAMPLE_INTERVAL" || true
   done
+  write_lifecycle_sampler_status "$LIFECYCLE_SAMPLER_CHILD_STATUS_FILE" \
+    "$LIFECYCLE_SAMPLER_CHILD_PID" "$LIFECYCLE_SAMPLER_CHILD_START_TOKEN" \
+    "$LIFECYCLE_SAMPLER_CHILD_ATTEMPTS" "$LIFECYCLE_SAMPLER_CHILD_COMPLETIONS" 0 stopping || return 70
+}
+
+lifecycle_sampler_process() {
+  local tag="$1" stop_file="$2" start_file="$3" status_file="$4"
+  local identity loop_status=0 reason=unexpected_exit
+  while [[ ! -f "$start_file" ]]; do
+    if [[ -f "$stop_file" ]] || ! kill -0 "$MAIN_SHELL_PID" 2>/dev/null; then
+      return 70
+    fi
+    sleep 0.01 || true
+  done
+  rm -f "$start_file"
+  if ! identity="$(jq -er \
+    'select(.schema == "wukongim/chat-lifecycle-local-single-node-sampler-status/v1" and (.pid | type) == "number" and .pid > 0 and (.start_token | type) == "string" and (.start_token | length) > 0) | [.pid,.start_token] | @tsv' \
+    "$status_file")"; then
+    printf 'lifecycle sampler start status is unavailable\n' >&2
+    return 70
+  fi
+  IFS=$'\t' read -r LIFECYCLE_SAMPLER_CHILD_PID LIFECYCLE_SAMPLER_CHILD_START_TOKEN <<<"$identity"
+  LIFECYCLE_SAMPLER_CHILD_STATUS_FILE="$status_file"
+  LIFECYCLE_SAMPLER_CHILD_ATTEMPTS=0
+  LIFECYCLE_SAMPLER_CHILD_COMPLETIONS=0
+  lifecycle_sampler_loop "$tag" "$stop_file" || loop_status=$?
+  if [[ "$LIFECYCLE_SAMPLER_CHILD_ATTEMPTS" -ne "$LIFECYCLE_SAMPLER_CHILD_COMPLETIONS" ]]; then
+    loop_status=70
+  elif [[ "$loop_status" -eq 0 && -f "$stop_file" ]]; then
+    reason=stopped
+  elif [[ "$loop_status" -eq 0 ]]; then
+    loop_status=70
+  fi
+  if ! write_lifecycle_sampler_status "$status_file" \
+    "$LIFECYCLE_SAMPLER_CHILD_PID" "$LIFECYCLE_SAMPLER_CHILD_START_TOKEN" \
+    "$LIFECYCLE_SAMPLER_CHILD_ATTEMPTS" "$LIFECYCLE_SAMPLER_CHILD_COMPLETIONS" "$loop_status" "$reason"; then
+    printf 'lifecycle sampler final status write failed\n' >&2
+    [[ "$loop_status" -ne 0 ]] || loop_status=70
+  fi
+  return "$loop_status"
 }
 
 start_lifecycle_sampler() {
-  local tag="$1"
+  local tag="$1" start_token start_status=0
   LIFECYCLE_SAMPLER_STOP_FILE="$(lifecycle_sampler_stop_file "$tag")"
-  rm -f "$LIFECYCLE_SAMPLER_STOP_FILE"
+  LIFECYCLE_SAMPLER_START_FILE="$(lifecycle_sampler_start_file "$tag")"
+  LIFECYCLE_SAMPLER_STATUS_FILE="$(lifecycle_sampler_status_file "$tag")"
+  LIFECYCLE_SAMPLER_LOG_FILE="$(lifecycle_sampler_log_file "$tag")"
+  rm -f "$LIFECYCLE_SAMPLER_STOP_FILE" "$LIFECYCLE_SAMPLER_START_FILE"
   : >"$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl"
-  lifecycle_sampler_loop "$tag" "$LIFECYCLE_SAMPLER_STOP_FILE" >/dev/null 2>&1 &
+  : >"$LIFECYCLE_SAMPLER_LOG_FILE"
+  lifecycle_sampler_process "$tag" "$LIFECYCLE_SAMPLER_STOP_FILE" \
+    "$LIFECYCLE_SAMPLER_START_FILE" "$LIFECYCLE_SAMPLER_STATUS_FILE" \
+    >>"$LIFECYCLE_SAMPLER_LOG_FILE" 2>&1 &
   LIFECYCLE_SAMPLER_PID="$!"
+  if ! start_token="$(process_start_token "$LIFECYCLE_SAMPLER_PID")"; then
+    start_status=70
+  elif ! write_lifecycle_sampler_status "$LIFECYCLE_SAMPLER_STATUS_FILE" \
+    "$LIFECYCLE_SAMPLER_PID" "$start_token" 0 0 0 starting; then
+    start_status=70
+  elif ! touch "$LIFECYCLE_SAMPLER_START_FILE"; then
+    start_status=70
+  fi
+  LIFECYCLE_SAMPLER_START_TOKEN="$start_token"
+  if [[ "$start_status" -ne 0 ]]; then
+    touch "$LIFECYCLE_SAMPLER_STOP_FILE" "$LIFECYCLE_SAMPLER_START_FILE" 2>/dev/null || true
+    wait_child_uninterrupted "$LIFECYCLE_SAMPLER_PID"
+    rm -f "$LIFECYCLE_SAMPLER_STOP_FILE" "$LIFECYCLE_SAMPLER_START_FILE"
+    LIFECYCLE_SAMPLER_PID=""
+    LIFECYCLE_SAMPLER_STOP_FILE=""
+    LIFECYCLE_SAMPLER_START_FILE=""
+    LIFECYCLE_SAMPLER_START_TOKEN=""
+    return "$start_status"
+  fi
 }
 
 stop_lifecycle_sampler() {
+  local child_status=0 status_values attempts=0 completions=0 recorded_exit_status=0 recorded_reason="" reason=stopped
   [[ -n "$LIFECYCLE_SAMPLER_PID" ]] || return 0
   touch "$LIFECYCLE_SAMPLER_STOP_FILE"
   wait_child_uninterrupted "$LIFECYCLE_SAMPLER_PID"
-  rm -f "$LIFECYCLE_SAMPLER_STOP_FILE"
+  child_status="$WAIT_CHILD_STATUS"
+  if status_values="$(jq -er \
+    --argjson pid "$LIFECYCLE_SAMPLER_PID" \
+    --arg start_token "$LIFECYCLE_SAMPLER_START_TOKEN" '
+      select(.schema == "wukongim/chat-lifecycle-local-single-node-sampler-status/v1" and
+             .pid == $pid and .start_token == $start_token and
+             (.attempts | type) == "number" and .attempts >= 0 and .attempts == (.attempts | floor) and
+             (.completions | type) == "number" and .completions >= 0 and .completions == (.completions | floor) and
+             .completions <= .attempts and
+             (.exit_status | type) == "number" and .exit_status >= 0 and .exit_status <= 255 and
+             .exit_status == (.exit_status | floor) and (.reason | type) == "string") |
+      [.attempts,.completions,.exit_status,.reason] | @tsv
+    ' "$LIFECYCLE_SAMPLER_STATUS_FILE")"; then
+    IFS=$'\t' read -r attempts completions recorded_exit_status recorded_reason <<<"$status_values"
+  elif [[ "$child_status" -eq 0 ]]; then
+    child_status=70
+  fi
+  if [[ "$child_status" -eq 0 ]] && \
+    [[ "$attempts" -ne "$completions" || "$recorded_exit_status" -ne 0 || "$recorded_reason" != stopped ]]; then
+    child_status=70
+  fi
+  if [[ "$child_status" -ne 0 ]]; then
+    reason=unexpected_exit
+  fi
+  if ! write_lifecycle_sampler_status "$LIFECYCLE_SAMPLER_STATUS_FILE" \
+    "$LIFECYCLE_SAMPLER_PID" "$LIFECYCLE_SAMPLER_START_TOKEN" \
+    "$attempts" "$completions" "$child_status" "$reason"; then
+    [[ "$child_status" -ne 0 ]] || child_status=70
+  fi
+  rm -f "$LIFECYCLE_SAMPLER_STOP_FILE" "$LIFECYCLE_SAMPLER_START_FILE"
   LIFECYCLE_SAMPLER_PID=""
   LIFECYCLE_SAMPLER_STOP_FILE=""
+  LIFECYCLE_SAMPLER_START_FILE=""
+  LIFECYCLE_SAMPLER_START_TOKEN=""
+  return "$child_status"
 }
 
 threshold_profile_evidence_dir() {
@@ -2528,7 +2696,8 @@ cluster_transport_peak_summary() {
 
 run_attempt() {
   local qps="$1"
-  local tag report_dir run_id exit_status observer_status duration
+  local tag report_dir run_id exit_status wkbench_status observer_status duration
+  local lifecycle_sampler_status lifecycle_sampler_stop_status
   tag="$(qps_tag "$qps")"
   report_dir="$OUT_DIR/reports/${tag}-qps"
   run_id="single-node-${BASELINE_INVOCATION_ID}-fixed-${CHANNELS}ch-${tag}-qps"
@@ -2540,17 +2709,19 @@ run_attempt() {
 
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
-  start_lifecycle_sampler "$tag"
+  lifecycle_sampler_status=0
+  start_lifecycle_sampler "$tag" || lifecycle_sampler_status=$?
   start_threshold_profile_watcher "$tag" "$qps" "$run_id" || die "failed to start typed threshold profile watcher for qps=$qps"
   start_runtime_pool_sampler "$tag"
   start_terminal_cut_observer "$tag" "$run_id"
-  exit_status=0
+  wkbench_status=0
   "$WK_BENCH_BIN" run \
     --target "$OUT_DIR/target.yaml" \
     --scenario "$OUT_DIR/scenario-${tag}.yaml" \
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
-    >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
+    >"$report_dir/wkbench-console.txt" 2>&1 || wkbench_status=$?
+  exit_status="$wkbench_status"
   # SEND admission is now closed. Never let a stale measured worker cut move
   # the helper back into measurement while a bounded capture is completing.
   write_threshold_profile_phase "$tag" drain || true
@@ -2561,7 +2732,16 @@ run_attempt() {
   fi
   # Join the only lifecycle writer before the foreground terminal capture; a
   # subshell shares $$ and must never race the same temporary/JSONL append.
-  stop_lifecycle_sampler
+  lifecycle_sampler_stop_status=0
+  stop_lifecycle_sampler || lifecycle_sampler_stop_status=$?
+  if [[ "$lifecycle_sampler_status" -eq 0 && "$lifecycle_sampler_stop_status" -ne 0 ]]; then
+    lifecycle_sampler_status="$lifecycle_sampler_stop_status"
+  fi
+  if [[ "$lifecycle_sampler_status" -ne 0 ]]; then
+    log "lifecycle sampler failed closed for qps=$qps status=$lifecycle_sampler_status"
+    exit_status=6
+    write_lifecycle_capture_error "$tag" lifecycle_sampler_failed
+  fi
   capture_lifecycle_sample "$tag" || true
   stop_threshold_profile_watcher "$tag" || true
   stop_runtime_pool_sampler
@@ -2635,6 +2815,7 @@ ACK_TIMEOUT=$ACK_TIMEOUT
 RECV_ACK=$RECV_ACK
 HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
+LIFECYCLE_SAMPLE_INTERVAL=$LIFECYCLE_SAMPLE_INTERVAL
 SENDER_PICK=$SENDER_PICK
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
