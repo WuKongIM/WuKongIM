@@ -940,6 +940,23 @@ func TestWorkerDefaultRunnerHoldsConnectionOnlyRunForDuration(t *testing.T) {
 	require.NoError(t, <-done)
 }
 
+func TestWorkerDefaultRunnerHoldsWarmupThroughConfiguredDuration(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := personShardAssignment()
+	assignment.Scenario.Run.Warmup = 50 * time.Millisecond
+	assignment.Scenario.Messages.Traffic[0].RatePerChannel = model.Rate{PerSecond: 100}
+	assignment.Scenario.Messages.Traffic[0].Concurrency = 2
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+	t.Cleanup(func() { require.NoError(t, runner.(AssignmentStopper).EndAssignment(assignment)) })
+
+	startedAt := time.Now()
+	require.NoError(t, runner.Warmup(context.Background(), assignment))
+
+	require.GreaterOrEqual(t, time.Since(startedAt), 40*time.Millisecond,
+		"worker warmup must not end at the final scheduled admission before its configured boundary")
+}
+
 func TestWorkerDefaultRunnerCooldownReturnsEarlyWhenNoMeasuredWorkRemains(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	runner := NewDefaultWorkloadRunner(pool.newClient)
@@ -1693,6 +1710,64 @@ func TestBuildGroupWorkloadsUsesTrafficRatePerStream(t *testing.T) {
 		require.NoError(t, wl.Run(context.Background()))
 	}
 	require.Len(t, clients["bench-u-0"].(*workerPersonClient).sentFrames, 2)
+}
+
+func TestBuildGroupWorkloadsSharesRoundRobinSenderCreditsAcrossTrafficStreams(t *testing.T) {
+	assignment := groupShardAssignment("http://target.invalid")
+	assignment.Scenario.Run.Duration = time.Second
+	assignment.Scenario.Messages.Traffic = []model.TrafficConfig{
+		{Name: "stream-a", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 1}, Concurrency: 2, SenderPick: "round_robin"},
+		{Name: "stream-b", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 1}, Concurrency: 2, SenderPick: "round_robin"},
+	}
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name: "huge-group", ChannelType: model.ChannelTypeGroup,
+		ChannelRange: model.Range{Start: 0, End: 1}, MemberRange: model.Range{Start: 0, End: 4},
+		GlobalRate: model.Rate{PerSecond: 2}, LocalRate: model.Rate{PerSecond: 2},
+		TrafficPartitionCount: 4, OwnedTrafficPartitions: []int{0, 1},
+	}
+	tracker := newAssignmentCreditTracker()
+	t.Cleanup(tracker.releaseAll)
+	clients := make(map[string]benchworkload.PersonClient, 4)
+	for index := range 4 {
+		uid := fmt.Sprintf("bench-u-%d", index)
+		clients[uid] = &assignmentCreditProbeClient{
+			workerPersonClient: workerPersonClient{uid: uid},
+			tracker:            tracker,
+		}
+	}
+
+	bundles := groupBundlesForTest(t, assignment)
+	require.Len(t, bundles, 2)
+	require.GreaterOrEqual(t, len(bundles[0].channels[0].OnlineMembers), 2)
+	workloads, err := buildGroupWorkloads(assignment, bundles, clients, nil)
+	require.NoError(t, err)
+	require.Len(t, workloads, 2)
+
+	done := make(chan error, len(workloads))
+	for _, workload := range workloads {
+		go func(wl *benchworkload.GroupWorkload) { done <- wl.Run(context.Background()) }(workload)
+	}
+	waitStarted := func() string {
+		select {
+		case uid := <-tracker.started:
+			return uid
+		case <-time.After(time.Second):
+			t.Fatal("round-robin traffic stream did not acquire a sender credit")
+			return ""
+		}
+	}
+	first := waitStarted()
+	second := waitStarted()
+	require.NotEqual(t, first, second, "assignment-shared credits must redirect the second stream to an idle member")
+	tracker.releaseAll()
+	for range workloads {
+		require.NoError(t, <-done)
+	}
+	tracker.mu.Lock()
+	defer tracker.mu.Unlock()
+	for uid, maximum := range tracker.maxInFlight {
+		require.LessOrEqual(t, maximum, 1, "sender %s held multiple assignment credits", uid)
+	}
 }
 
 func TestBuildGroupWorkloadsAppliesTrafficAckTimeout(t *testing.T) {
@@ -2910,6 +2985,54 @@ type workerPersonClient struct {
 	closeErr           error
 	ingressSealed      bool
 	terminalFenceGrant frame.TerminalFenceGrant
+}
+
+type assignmentCreditTracker struct {
+	mu          sync.Mutex
+	inFlight    map[string]int
+	maxInFlight map[string]int
+	started     chan string
+	release     chan struct{}
+	releaseOnce sync.Once
+}
+
+func newAssignmentCreditTracker() *assignmentCreditTracker {
+	return &assignmentCreditTracker{
+		inFlight:    make(map[string]int),
+		maxInFlight: make(map[string]int),
+		started:     make(chan string, 4),
+		release:     make(chan struct{}),
+	}
+}
+
+func (t *assignmentCreditTracker) releaseAll() {
+	t.releaseOnce.Do(func() { close(t.release) })
+}
+
+type assignmentCreditProbeClient struct {
+	workerPersonClient
+	tracker *assignmentCreditTracker
+}
+
+func (c *assignmentCreditProbeClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	c.tracker.mu.Lock()
+	c.tracker.inFlight[c.uid]++
+	if c.tracker.inFlight[c.uid] > c.tracker.maxInFlight[c.uid] {
+		c.tracker.maxInFlight[c.uid] = c.tracker.inFlight[c.uid]
+	}
+	c.tracker.mu.Unlock()
+	defer func() {
+		c.tracker.mu.Lock()
+		c.tracker.inFlight[c.uid]--
+		c.tracker.mu.Unlock()
+	}()
+	c.tracker.started <- c.uid
+	select {
+	case <-c.tracker.release:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return c.workerPersonClient.Send(ctx, pkt)
 }
 
 type blockingSendWorkerClient struct {

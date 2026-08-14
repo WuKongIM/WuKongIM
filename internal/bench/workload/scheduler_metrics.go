@@ -7,11 +7,21 @@ const (
 	schedulerDropUnstartedWindowExpired = "unstarted_window_expired"
 )
 
+// recordSchedulerPlan publishes the immutable admission denominator before
+// the first SEND can block. Lifecycle observers therefore see the configured
+// measured plan while the window is still active rather than only after the
+// scheduler returns and cooldown has started.
+func recordSchedulerPlan(registry *metrics.Registry, labels metrics.Labels, planned uint64) {
+	if registry == nil || planned == 0 {
+		return
+	}
+	registry.AddCounter("workload_scheduler_planned_total", labels, planned)
+}
+
 func recordSchedulerStats(registry *metrics.Registry, labels metrics.Labels, stats *scheduledMessageStats) {
 	if registry == nil || stats == nil {
 		return
 	}
-	registry.AddCounter("workload_scheduler_planned_total", labels, stats.Planned)
 	registry.AddCounter("workload_scheduler_enqueued_total", labels, stats.Enqueued)
 	registry.AddCounter("workload_scheduler_dispatched_total", labels, stats.Dispatched)
 	registry.AddCounter("workload_scheduler_busy_key_stall_total", labels, stats.BusyKeyStalls)

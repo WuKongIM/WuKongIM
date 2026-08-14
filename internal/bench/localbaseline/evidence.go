@@ -18,8 +18,9 @@ const (
 	ClosedStepResultSchema = "wukongim/chat-lifecycle-local-single-node-step-result/v1"
 	// ReviewedMaximumSampleGap is the largest periodic lifecycle gap accepted by the reviewed baseline.
 	ReviewedMaximumSampleGap = 30 * time.Second
-	// reviewedCoordinatorBoundaryTolerance covers control polling around an exact
-	// worker-owned phase deadline; it does not extend the configured workload.
+	// reviewedCoordinatorBoundaryTolerance covers control polling and serialized
+	// wall-clock slew around an exact worker-owned monotonic phase deadline; it
+	// does not extend the configured workload.
 	reviewedCoordinatorBoundaryTolerance = time.Second
 	// ProductQueueCutSchema identifies metadata embedded in one retained raw
 	// Prometheus queue cut before the scrape is performed.
@@ -109,7 +110,7 @@ const (
 	QueuePostCommitHandoff = "post_commit_handoff"
 	// QueuePostCommitRetry is the de-duplicated post-commit retry queue.
 	QueuePostCommitRetry = "post_commit_retry"
-	// QueueEffectPoolInflight is Channel append effect work currently executing.
+	// QueueEffectPoolInflight is work executing in the fixed Channel append worker pools.
 	QueueEffectPoolInflight = "effect_pool_inflight"
 	// QueueStorageCommit is the durable message-store commit queue.
 	QueueStorageCommit = "storage_commit"
@@ -782,7 +783,12 @@ func evaluateTimeline(evidence StepEvidence) (serverContinuous, workerContinuous
 			}
 			continue
 		}
-		if item.minimum > 0 && duration < item.minimum {
+		// The workload owns the exact monotonic deadline, while retained phase
+		// windows and lifecycle samples use wall-clock timestamps so they can be
+		// correlated across processes. Accept only the existing bounded boundary
+		// tolerance for wall-clock slew around that proven deadline; a larger
+		// under-run remains incomplete evidence.
+		if item.minimum > 0 && duration+reviewedCoordinatorBoundaryTolerance < item.minimum {
 			complete = false
 		}
 		if item.maximum > 0 && duration > item.maximum+reviewedCoordinatorBoundaryTolerance {

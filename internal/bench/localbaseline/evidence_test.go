@@ -22,6 +22,32 @@ func TestEvaluateSingleNodeClusterStepAcceptsCompleteEvidence(t *testing.T) {
 	}
 }
 
+func TestEvaluateSingleNodeClusterStepAcceptsSubsecondWallClockSlewAtMeasuredDeadline(t *testing.T) {
+	evidence := completeStepEvidence(1000)
+	shortfall := reviewedCoordinatorBoundaryTolerance / 2
+	evidence.Timeline.Measured.EndedAt = evidence.Timeline.Measured.EndedAt.Add(-shortfall)
+	evidence.Timeline.Measured.Samples[len(evidence.Timeline.Measured.Samples)-1].ObservedAt = evidence.Timeline.Measured.EndedAt
+
+	result := EvaluateStep(evidence)
+
+	if !result.Clean || result.Outcome != OutcomeClean {
+		t.Fatalf("result = %+v, want subsecond serialized-clock slew accepted around the worker-owned deadline", result)
+	}
+}
+
+func TestEvaluateSingleNodeClusterStepRejectsMeasuredWindowShorterThanBoundaryTolerance(t *testing.T) {
+	evidence := completeStepEvidence(1000)
+	shortfall := reviewedCoordinatorBoundaryTolerance + time.Millisecond
+	evidence.Timeline.Measured.EndedAt = evidence.Timeline.Measured.EndedAt.Add(-shortfall)
+	evidence.Timeline.Measured.Samples[len(evidence.Timeline.Measured.Samples)-1].ObservedAt = evidence.Timeline.Measured.EndedAt
+
+	result := EvaluateStep(evidence)
+
+	if result.Clean || !containsReason(result.Reasons, ReasonTimelineIncomplete) {
+		t.Fatalf("result = %+v, want a measured window below the bounded deadline tolerance rejected", result)
+	}
+}
+
 func TestEvaluateSingleNodeClusterStepAllowsSuccessfulResultCounterGrowth(t *testing.T) {
 	evidence := completeStepEvidence(1000)
 	for index := range evidence.ProductQueues.ResultCounters {

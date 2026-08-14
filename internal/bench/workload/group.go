@@ -2,6 +2,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"hash/fnv"
@@ -149,8 +150,15 @@ type GroupConfig struct {
 	// FanoutProof records the exact recipient multiset implied by each
 	// successful logical group SENDACK. Nil preserves generic workloads.
 	FanoutProof *GroupFanoutProof
+	// SenderCredits is shared by all high-concurrency round-robin group
+	// workloads in one assignment generation. Nil creates a private domain for
+	// direct callers and tests.
+	SenderCredits *AssignmentSenderCredits
 
 	sleep func(context.Context, time.Duration) error
+	// windowClock is the deterministic test seam for round-robin admission.
+	// Production leaves it nil and uses the process monotonic clock.
+	windowClock exactGroupWindowClock
 }
 
 // GroupRunConfig controls one timed group workload execution.
@@ -294,6 +302,9 @@ func NewGroupWorkload(cfg GroupConfig, clients map[string]PersonClient) (*GroupW
 	if cfg.sleep == nil {
 		cfg.sleep = sleepContext
 	}
+	if cfg.SenderCredits == nil {
+		cfg.SenderCredits = NewAssignmentSenderCredits()
+	}
 	channels, err := normalizeGroupChannels(cfg)
 	if err != nil {
 		return nil, err
@@ -335,9 +346,17 @@ func (w *GroupWorkload) Warmup(ctx context.Context) error {
 	if w.cfg.WarmupDuration <= 0 {
 		return nil
 	}
+	deadline := time.Now().Add(w.cfg.WarmupDuration)
 	restore := w.useWarmupTimeouts()
 	defer restore()
-	return w.RunWindow(ctx, GroupRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.LocalRate, w.cfg.WarmupDuration)})
+	if err := w.RunWindow(ctx, GroupRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.LocalRate, w.cfg.WarmupDuration)}); err != nil {
+		return err
+	}
+	// The scheduler admits its final warmup SEND one interval before the window
+	// boundary. Keep the worker phase open for the remaining interval so the
+	// coordinator records the configured warmup duration rather than the final
+	// admission timestamp.
+	return w.cfg.sleep(ctx, time.Until(deadline))
 }
 
 // Run sends rate-limited group traffic for the configured measured duration.
@@ -399,8 +418,42 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	}
 	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
 	phase := w.cfg.phaseName(cfg.Phase)
+	labels := w.sendMetricLabels(phase)
+	recordSchedulerPlan(w.metrics, labels, uint64(totalMessages))
 	if w.cfg.MaxConcurrency > 1 {
 		stats := &scheduledMessageStats{}
+		if strings.EqualFold(w.cfg.SenderPick, groupSenderPickRoundRobin) {
+			err := runExactGroupWindow(ctx, exactGroupWindowConfig{
+				totalMessages:  totalMessages,
+				streamCount:    len(w.channels),
+				interval:       interval,
+				duration:       cfg.Duration,
+				maxConcurrency: w.cfg.MaxConcurrency,
+				stopAt:         cfg.admissionDeadline,
+				clock:          w.cfg.windowClock,
+				credits:        w.cfg.SenderCredits,
+				intent: func(localOffset int) exactGroupWindowIntent {
+					ch := w.channels[localOffset%len(w.channels)]
+					messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
+					return exactGroupWindowIntent{senders: ch.OnlineMembers, preferred: messageIndex}
+				},
+				send: func(ctx context.Context, localOffset int, senderUID string) error {
+					ch := w.channels[localOffset%len(w.channels)]
+					messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
+					err := w.sendChannelFromSenderInPhase(ctx, phase, ch, messageIndex, senderUID)
+					if shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
+						return nil
+					}
+					return err
+				},
+				stats: stats,
+			})
+			recordSchedulerStats(w.metrics, labels, stats)
+			if errors.Is(err, ErrExactGroupWindowInfeasible) {
+				return nil
+			}
+			return err
+		}
 		err := runScheduledMessagesByKeyUntilWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, cfg.admissionDeadline, func(localOffset int) string {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
@@ -414,7 +467,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 			}
 			return err
 		}, stats)
-		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+		recordSchedulerStats(w.metrics, labels, stats)
 		return err
 	}
 	windowDuration := cfg.Duration
@@ -438,7 +491,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 		}
 		return nil
 	})
-	recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+	recordSchedulerStats(w.metrics, labels, stats)
 	return err
 }
 
@@ -459,9 +512,18 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		return err
 	}
 	senderUID := w.senderUID(ch, messageIndex)
+	return w.sendChannelFromSenderInPhase(ctx, phase, ch, messageIndex, senderUID)
+}
+
+func (w *GroupWorkload) sendChannelFromSenderInPhase(ctx context.Context, phase string, ch GroupChannel, messageIndex int, senderUID string) error {
 	sender := w.clients[senderUID]
-	payload := w.buildPayload(phase, channelIndex, messageIndex)
-	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
+	if sender == nil {
+		err := fmt.Errorf("group workload: selected sender is unavailable")
+		w.recordError("group_send_error", err)
+		return err
+	}
+	payload := w.buildPayload(phase, ch.ChannelIndex, messageIndex)
+	clientMsgNo := w.clientMsgNo(phase, ch.ChannelIndex, messageIndex)
 	pkt := &frame.SendPacket{
 		ClientMsgNo: clientMsgNo,
 		ChannelID:   ch.ChannelID,

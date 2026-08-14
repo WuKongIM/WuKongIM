@@ -1117,6 +1117,29 @@ func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T)
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", personSendLabels("warmup", "profile-a", "person-send")))
 }
 
+func TestPersonWorkloadWarmupHoldsTheConfiguredWindowAfterTheLastScheduledSend(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "person-send",
+		ClientMsgPrefix: "bench-msg",
+		Pairs:           []PersonPair{{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"}},
+		Rate:            model.Rate{PerSecond: 100},
+		MaxConcurrency:  2,
+		WarmupDuration:  50 * time.Millisecond,
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	startedAt := time.Now()
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	require.GreaterOrEqual(t, time.Since(startedAt), 40*time.Millisecond,
+		"warmup must retain the configured phase window after its final scheduled admission")
+}
+
 func TestBoundedWarmupOperationTimeoutCapsAtPhaseTail(t *testing.T) {
 	startedAt := time.Unix(100, 0)
 	warmup := 10 * time.Minute

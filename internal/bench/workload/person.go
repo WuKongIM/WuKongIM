@@ -331,9 +331,17 @@ func (w *PersonWorkload) Warmup(ctx context.Context) error {
 	if w.cfg.WarmupDuration <= 0 {
 		return nil
 	}
+	deadline := time.Now().Add(w.cfg.WarmupDuration)
 	restore := w.useWarmupTimeouts()
 	defer restore()
-	return w.RunWindow(ctx, PersonRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.Rate, w.cfg.WarmupDuration)})
+	if err := w.RunWindow(ctx, PersonRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.Rate, w.cfg.WarmupDuration)}); err != nil {
+		return err
+	}
+	// The scheduler admits its final warmup SEND one interval before the window
+	// boundary. Keep the worker phase open for the remaining interval so the
+	// coordinator records the configured warmup duration rather than the final
+	// admission timestamp.
+	return w.cfg.sleep(ctx, time.Until(deadline))
 }
 
 // Run sends rate-limited person traffic for the configured measured duration.
@@ -386,6 +394,8 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	}
 	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
 	phase := w.cfg.phaseName(cfg.Phase)
+	labels := w.sendMetricLabels(phase)
+	recordSchedulerPlan(w.metrics, labels, uint64(totalMessages))
 	if w.cfg.MaxConcurrency > 1 {
 		stats := &scheduledMessageStats{}
 		err := runScheduledMessagesByKeyUntilWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, cfg.admissionDeadline, func(messageOffset int) string {
@@ -399,7 +409,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 			}
 			return err
 		}, stats)
-		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+		recordSchedulerStats(w.metrics, labels, stats)
 		return err
 	}
 	windowDuration := cfg.Duration
@@ -422,7 +432,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 		}
 		return nil
 	})
-	recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+	recordSchedulerStats(w.metrics, labels, stats)
 	return err
 }
 

@@ -166,6 +166,7 @@ func buildGroupExecutionPlan(assignment Assignment) (groupExecutionPlan, error) 
 
 func buildGroupWorkloads(assignment Assignment, bundles []groupWorkloadBundle, clients map[string]benchworkload.PersonClient, fanoutProof *benchworkload.GroupFanoutProof) ([]*benchworkload.GroupWorkload, error) {
 	workloads := make([]*benchworkload.GroupWorkload, 0, len(bundles))
+	senderCredits := benchworkload.NewAssignmentSenderCredits()
 	for _, bundle := range bundles {
 		wl, err := benchworkload.NewGroupWorkload(benchworkload.GroupConfig{
 			RunID:                  assignment.RunID,
@@ -191,6 +192,7 @@ func buildGroupWorkloads(assignment Assignment, bundles []groupWorkloadBundle, c
 			Channels:               bundle.channels,
 			Metrics:                metrics.NewRegistry(),
 			FanoutProof:            fanoutProof,
+			SenderCredits:          senderCredits,
 		}, clients)
 		if err != nil {
 			return nil, err
