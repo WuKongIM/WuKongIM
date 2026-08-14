@@ -134,6 +134,9 @@ type Coordinator struct {
 	cfg        Config
 	commitFunc func(batch *engine.Batch) error
 	deferred   []pendingRequest
+	// queueObservationMu linearizes absolute queue-depth publications without
+	// holding the physical queue state lock across the external observer.
+	queueObservationMu sync.Mutex
 
 	requests chan pendingRequest
 	stopCh   chan struct{}
@@ -513,6 +516,8 @@ func (c *Coordinator) observeQueueDepth() {
 	if c == nil || c.cfg.Observer == nil {
 		return
 	}
+	c.queueObservationMu.Lock()
+	defer c.queueObservationMu.Unlock()
 	c.mu.Lock()
 	depth := len(c.deferred)
 	c.mu.Unlock()
@@ -587,9 +592,10 @@ func partitionShard(partition string, shards int) int {
 }
 
 type shardedObserver struct {
-	observer Observer
-	mu       sync.Mutex
-	depths   []int
+	observer      Observer
+	mu            sync.Mutex
+	depths        []int
+	publicationMu sync.Mutex
 }
 
 type shardObserver struct {
@@ -616,6 +622,14 @@ func (o shardObserver) SetQueueDepth(depth int) {
 	if o.index >= 0 && o.index < len(o.parent.depths) {
 		o.parent.depths[o.index] = depth
 	}
+	o.parent.mu.Unlock()
+
+	// Serialize absolute aggregate publications, then refresh the total after
+	// acquiring the publication lock. A delayed shard callback must publish the
+	// newest aggregate rather than overwrite a later zero with a stale total.
+	o.parent.publicationMu.Lock()
+	defer o.parent.publicationMu.Unlock()
+	o.parent.mu.Lock()
 	total := 0
 	for _, value := range o.parent.depths {
 		total += value

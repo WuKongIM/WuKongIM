@@ -111,7 +111,10 @@ Current flow:
     measurements, splitting leader append and follower apply lanes, without
     changing durable commit semantics. The coordinator can optionally route
     requests across partition-hashed shards; the default is one shard, and
-    each shard still uses synchronous physical commits. Batch helpers reject
+    each shard still uses synchronous physical commits. Absolute queue-depth
+    publication is linearized both within a shard and across the aggregate;
+    delayed observer callbacks refresh the latest total and cannot overwrite a
+    terminal zero with stale queued work. Batch helpers reject
     duplicate canonical entries before writes, group work by `Engine` in
     request order, and never hold channel locks from different physical engines
     simultaneously. If caller cancellation leaves an admitted group running to

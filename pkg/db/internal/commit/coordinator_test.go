@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -196,6 +197,131 @@ func TestCoordinatorObservesSubmitRequest(t *testing.T) {
 	if event.Err != nil {
 		t.Fatalf("request err = %v, want nil", event.Err)
 	}
+}
+
+func TestCoordinatorQueueDepthDoesNotRegressAfterPhysicalDrain(t *testing.T) {
+	db := openTestDB(t)
+	observer := newBlockingQueueDepthObserver()
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: time.Millisecond,
+		QueueSize:   8,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	firstCommitStarted := make(chan struct{})
+	releaseFirstCommit := make(chan struct{})
+	var commits atomic.Int64
+	c.SetCommitFunc(func(*engine.Batch) error {
+		if commits.Add(1) == 1 {
+			close(firstCommitStarted)
+			<-releaseFirstCommit
+		}
+		return nil
+	})
+
+	results := make(chan error, 2)
+	go func() {
+		results <- c.Submit(context.Background(), commit.Request{
+			Build: func(*engine.Batch) error { return nil },
+		})
+	}()
+	waitSignal(t, firstCommitStarted, "first commit")
+	waitSignal(t, observer.initialObservationsDone, "initial queue observations")
+	observer.arm(1)
+
+	go func() {
+		results <- c.Submit(context.Background(), commit.Request{
+			Build: func(*engine.Batch) error { return nil },
+		})
+	}()
+	waitSignal(t, observer.olderDepthBlocked, "older non-zero queue depth")
+	close(releaseFirstCommit)
+
+	for range 2 {
+		if err := waitResult(t, results, "commit request"); err != nil {
+			t.Fatalf("Submit() error = %v", err)
+		}
+	}
+	if got := observer.lastDepth(); got != 0 {
+		t.Fatalf("final observed queue depth = %d, want 0 after every request completed", got)
+	}
+}
+
+func TestShardedCoordinatorQueueDepthDoesNotRegressAfterPhysicalDrain(t *testing.T) {
+	db := openTestDB(t)
+	observer := newBlockingQueueDepthObserver()
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: time.Millisecond,
+		QueueSize:   8,
+		Shards:      2,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	firstPartition, secondPartition := distinctCommitShardPartitions(t, 2)
+	commitStarted := []chan struct{}{make(chan struct{}), make(chan struct{})}
+	releaseCommit := []chan struct{}{make(chan struct{}), make(chan struct{})}
+	var commits atomic.Int64
+	c.SetCommitFunc(func(*engine.Batch) error {
+		index := int(commits.Add(1)) - 1
+		if index < len(commitStarted) {
+			close(commitStarted[index])
+			<-releaseCommit[index]
+		}
+		return nil
+	})
+
+	results := make(chan error, 4)
+	submit := func(partition string) {
+		go func() {
+			results <- c.Submit(context.Background(), commit.Request{
+				Partition: partition,
+				Build:     func(*engine.Batch) error { return nil },
+			})
+		}()
+	}
+	submit(firstPartition)
+	waitSignal(t, commitStarted[0], "first shard commit")
+	submit(secondPartition)
+	waitSignal(t, commitStarted[1], "second shard commit")
+
+	submit(firstPartition)
+	submit(secondPartition)
+	waitForExactQueueDepth(t, observer.depthObserved, 2)
+	observer.arm(1)
+	close(releaseCommit[0])
+	waitSignal(t, observer.olderDepthBlocked, "older aggregate queue depth")
+	close(releaseCommit[1])
+
+	for range 4 {
+		if err := waitResult(t, results, "sharded commit request"); err != nil {
+			t.Fatalf("Submit() error = %v", err)
+		}
+	}
+	if got := observer.lastDepth(); got != 0 {
+		t.Fatalf("final sharded queue depth = %d, want 0 after every request completed", got)
+	}
+}
+
+func distinctCommitShardPartitions(t *testing.T, shards int) (string, string) {
+	t.Helper()
+	first := "partition-0"
+	firstShard := commitPartitionShardForTest(first, shards)
+	for index := 1; index < 100; index++ {
+		candidate := fmt.Sprintf("partition-%d", index)
+		if commitPartitionShardForTest(candidate, shards) != firstShard {
+			return first, candidate
+		}
+	}
+	t.Fatal("could not find partitions routed to distinct commit shards")
+	return "", ""
+}
+
+func commitPartitionShardForTest(partition string, shards int) int {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(partition))
+	return int(hash.Sum32() % uint32(shards))
 }
 
 func TestCoordinatorShardsCommitDifferentPartitionsConcurrently(t *testing.T) {
@@ -865,6 +991,97 @@ type recordingObserver struct {
 	requests []commit.RequestEvent
 	depths   []int
 	depthCh  chan int
+}
+
+type blockingQueueDepthObserver struct {
+	armed                   atomic.Bool
+	initialObservationsDone chan struct{}
+	olderDepthBlocked       chan struct{}
+	newerZeroObserved       chan struct{}
+	depthObserved           chan int
+
+	mu            sync.Mutex
+	initial       int
+	depths        []int
+	initialOnce   sync.Once
+	olderOnce     sync.Once
+	newerZeroOnce sync.Once
+	targetDepth   atomic.Int64
+}
+
+func newBlockingQueueDepthObserver() *blockingQueueDepthObserver {
+	return &blockingQueueDepthObserver{
+		initialObservationsDone: make(chan struct{}),
+		olderDepthBlocked:       make(chan struct{}),
+		newerZeroObserved:       make(chan struct{}),
+		depthObserved:           make(chan int, 32),
+	}
+}
+
+func (o *blockingQueueDepthObserver) arm(depth int) {
+	o.targetDepth.Store(int64(depth))
+	o.armed.Store(true)
+}
+
+func (o *blockingQueueDepthObserver) SetQueueDepth(depth int) {
+	if !o.armed.Load() {
+		o.mu.Lock()
+		o.initial++
+		initial := o.initial
+		o.depths = append(o.depths, depth)
+		o.mu.Unlock()
+		select {
+		case o.depthObserved <- depth:
+		default:
+		}
+		if initial >= 2 {
+			o.initialOnce.Do(func() { close(o.initialObservationsDone) })
+		}
+		return
+	}
+	if depth == int(o.targetDepth.Load()) {
+		o.olderOnce.Do(func() { close(o.olderDepthBlocked) })
+		select {
+		case <-o.newerZeroObserved:
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	o.mu.Lock()
+	o.depths = append(o.depths, depth)
+	o.mu.Unlock()
+	select {
+	case o.depthObserved <- depth:
+	default:
+	}
+	if depth == 0 {
+		o.newerZeroOnce.Do(func() { close(o.newerZeroObserved) })
+	}
+}
+
+func waitForExactQueueDepth(t *testing.T, depths <-chan int, want int) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case depth := <-depths:
+			if depth == want {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for exact queue depth %d", want)
+		}
+	}
+}
+
+func (o *blockingQueueDepthObserver) ObserveBatch(commit.BatchEvent) {}
+
+func (o *blockingQueueDepthObserver) lastDepth() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.depths) == 0 {
+		return -1
+	}
+	return o.depths[len(o.depths)-1]
 }
 
 func (o *recordingObserver) SetQueueDepth(depth int) {
