@@ -1,5 +1,5 @@
-101 S /tmp/owned/wukongim
-202 S /opt/foreign/wkbench
-303 S /opt/foreign/wkbench-test
-404 S /bin/bash
-505 ZE /tmp/exited/wkbench-test
+101 1 S /tmp/owned/wukongim
+202 1 S /opt/foreign/wkbench
+303 202 S /opt/foreign/wkbench-test
+404 101 S /tmp/owned/wkbench
+505 1 ZE /tmp/exited/wkbench-test

@@ -373,6 +373,31 @@ printf 'signal_seen=%s\npprof_pid=%s\npprof_exit_status=%s\n' \
 	}
 }
 
+func TestChatLifecycleMeasuredHostOverlapStatusSupportsBashWithoutBASHPID(t *testing.T) {
+	root := repoRoot(t)
+	testDir := t.TempDir()
+	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	harness := `#!/usr/bin/env bash
+set -euo pipefail
+HOST_OVERLAP_STATUS_FILE="$TEST_DIR/measured-host-overlap.tsv"
+unset BASHPID 2>/dev/null || true
+` + extractBashFunction(t, script, "write_measured_host_overlap_status") + `
+write_measured_host_overlap_status clear \
+  2026-08-14T16:00:00Z 2026-08-14T16:00:01Z 1 0 none
+test -s "$HOST_OVERLAP_STATUS_FILE"
+test "$(awk -F '\t' '$1 == "status" { print $2 }' "$HOST_OVERLAP_STATUS_FILE")" = clear
+`
+	harnessPath := filepath.Join(testDir, "bash-without-bashpid.sh")
+	if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("bash", harnessPath)
+	command.Env = append(os.Environ(), "TEST_DIR="+testDir)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("measured host-overlap status is not Bash 3.2 compatible: %v\n%s", err, output)
+	}
+}
+
 func TestChatLifecycleGracefulStopTimeoutCapturesAuthenticatedSnapshotsAndJoinsCoordinator(t *testing.T) {
 	root := repoRoot(t)
 	testDir := t.TempDir()

@@ -423,7 +423,7 @@ mark_recorded_stopped() {
 
 write_measured_host_overlap_status() {
   local status="$1" started="$2" observed="$3" samples="$4" pid="$5" command="$6"
-  local temporary="$HOST_OVERLAP_STATUS_FILE.next.$BASHPID"
+  local temporary="$HOST_OVERLAP_STATUS_FILE.next.$$"
   {
     printf 'schema\twukongim/chat-lifecycle-measured-host-overlap/v1\n'
     printf 'status\t%s\n' "$status"
