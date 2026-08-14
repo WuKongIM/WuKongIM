@@ -741,7 +741,9 @@ raw payload and retains only its relative path and digest. Bounded typed inputs
 are reopened through the same no-follow artifact-root descriptor and rehashed
 immediately before parsing, so verification memory does not grow with retained
 metrics, logs, or binaries and a changed input cannot cross the check/use
-boundary. The raw closure also binds the coordinator-emitted canonical
+boundary. The aggregate baseline document has an 8 MiB bound so all periodic
+lifecycle samples from the four reviewed five-minute steps fit without making
+the parser unbounded. The raw closure also binds the coordinator-emitted canonical
 scenario, deterministic plan, and run report. Replay requires their run
 identity and report verdict projection to match the diagnostic summary, rejects
 hash-Slot-spread variants, and requires the reviewed single target and exact

@@ -17,8 +17,9 @@ const (
 	BaselineEvidenceSchema = "wukongim/chat-lifecycle-local-single-node-baseline-evidence/v1"
 	// AuthorizationResultSchema identifies the derived next-diagnostic gate result.
 	AuthorizationResultSchema = "wukongim/chat-lifecycle-local-single-node-authorization/v1"
-	// MaximumEvidenceBytes bounds one typed baseline document consumed by the parser.
-	MaximumEvidenceBytes = 4 << 20
+	// MaximumEvidenceBytes bounds one typed baseline document while retaining
+	// every reviewed lifecycle sample from all four five-minute rate steps.
+	MaximumEvidenceBytes = 8 << 20
 )
 
 // ReviewedOfferedSendQPS is the exact ordered single-node cluster staircase.

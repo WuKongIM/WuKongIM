@@ -431,6 +431,37 @@ func TestParseBaselineEvidenceIsStrictAndBounded(t *testing.T) {
 	}
 }
 
+func TestParseBaselineEvidenceAcceptsReviewedLifecycleVolume(t *testing.T) {
+	const legacyMaximumEvidenceBytes = 4 << 20
+	evidence := completeBaselineEvidence()
+	sample := evidence.StepClosures[0].Evidence.Timeline.Terminal
+	sampleData, err := json.Marshal(sample)
+	if err != nil {
+		t.Fatalf("marshal lifecycle sample: %v", err)
+	}
+	samplesPerStep := legacyMaximumEvidenceBytes/(len(sampleData)*len(evidence.StepClosures)) + 32
+	for index := range evidence.StepClosures {
+		samples := make([]RuntimeSample, samplesPerStep)
+		for sampleIndex := range samples {
+			samples[sampleIndex] = sample
+		}
+		evidence.StepClosures[index].Evidence.Timeline.Measured.Samples = samples
+	}
+	data, err := json.Marshal(evidence)
+	if err != nil {
+		t.Fatalf("marshal reviewed lifecycle volume: %v", err)
+	}
+	if len(data) <= legacyMaximumEvidenceBytes {
+		t.Fatalf("fixture size = %d, want above legacy %d-byte bound", len(data), legacyMaximumEvidenceBytes)
+	}
+	if len(data) > MaximumEvidenceBytes {
+		t.Fatalf("fixture size = %d, want at most parser bound %d", len(data), MaximumEvidenceBytes)
+	}
+	if _, err := ParseBaselineEvidence(bytes.NewReader(data)); err != nil {
+		t.Fatalf("ParseBaselineEvidence() reviewed lifecycle error = %v", err)
+	}
+}
+
 func completeBaselineEvidence() BaselineEvidence {
 	closures := make([]StepClosure, 0, len(ReviewedOfferedSendQPS))
 	for index, qps := range ReviewedOfferedSendQPS {
