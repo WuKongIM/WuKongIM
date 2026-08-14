@@ -957,7 +957,11 @@ func TestCloudSimulationAnalyzeRecoversCorrelatedCloseAfterLocalGitHubErrors(t *
 			}
 			writeAnalyzeFakes(t, bin)
 			writeSetupExecutable(t, filepath.Join(bin, "sleep"), `#!/usr/bin/env bash
-exit 0
+set -euo pipefail
+if [[ "${1:-}" == 2 ]]; then
+	exit 0
+fi
+exec /bin/sleep "$@"
 `)
 
 			command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),

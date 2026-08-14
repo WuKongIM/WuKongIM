@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -61,10 +62,14 @@ func (runner *ProcessRunner) Run(
 	home := filepath.Join(runner.temporaryRoot, "home")
 	temporary := filepath.Join(runner.temporaryRoot, "tmp")
 	goCache := filepath.Join(runner.temporaryRoot, "go-build")
-	for _, directory := range []string{home, temporary, goCache} {
+	configHome := filepath.Join(runner.temporaryRoot, "config")
+	for _, directory := range []string{home, temporary, goCache, configHome} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return VerificationCommandResult{}, errors.New("prepare Verifier process directory")
 		}
+	}
+	if err := disableGoTelemetry(home, configHome); err != nil {
+		return VerificationCommandResult{}, errors.New("prepare Verifier telemetry mode")
 	}
 	command := exec.CommandContext(
 		commandContext,
@@ -78,6 +83,7 @@ func (runner *ProcessRunner) Run(
 		"LC_ALL=C.UTF-8",
 		"HOME=" + home,
 		"TMPDIR=" + temporary,
+		"XDG_CONFIG_HOME=" + configHome,
 		"GOCACHE=" + goCache,
 		"GOWORK=off",
 	}
@@ -112,6 +118,20 @@ func (runner *ProcessRunner) Run(
 		Stderr:   bytes.Clone(stderr.buffer.Bytes()),
 		Duration: duration,
 	}, nil
+}
+
+// disableGoTelemetry prevents verifier commands from spawning a telemetry
+// sidecar that can outlive the direct command and mutate its disposable HOME.
+func disableGoTelemetry(home string, configHome string) error {
+	telemetryHome := configHome
+	if runtime.GOOS == "darwin" {
+		telemetryHome = filepath.Join(home, "Library", "Application Support")
+	}
+	modeFile := filepath.Join(telemetryHome, "go", "telemetry", "mode")
+	if err := os.MkdirAll(filepath.Dir(modeFile), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(modeFile, []byte("off\n"), 0o600)
 }
 
 func (runner *ProcessRunner) workingDirectory(relative string) (string, error) {

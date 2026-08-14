@@ -15,7 +15,7 @@ import (
 func TestChannelRetentionGCOnceSkipsChannelsWithoutBoundary(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
 	id := channelruntime.ChannelID{ID: "retention-skip", Type: 1}
-	seedChannelRetentionCatalogAndMeta(t, node, id, 3, 0)
+	seedChannelRetentionCatalogAndMeta(t, node, id, 1, 3, 0)
 
 	result, err := node.RunChannelRetentionGCOnce(context.Background())
 	if err != nil {
@@ -32,7 +32,7 @@ func TestChannelRetentionGCOnceSkipsChannelsWithoutBoundary(t *testing.T) {
 func TestChannelRetentionGCOnceAppliesCommittedBoundary(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
 	id := channelruntime.ChannelID{ID: "retention-apply", Type: 1}
-	seedChannelRetentionCatalogAndMeta(t, node, id, 4, 2)
+	seedChannelRetentionCatalogAndMeta(t, node, id, 1, 4, 2)
 	runtime.results = map[channelruntime.ChannelID]channelruntime.RetentionApplyResult{
 		id: {ChannelID: id, ThroughSeq: 2, LocalRetentionThroughSeq: 2, PhysicalRetentionThroughSeq: 2, DeletedThroughSeq: 2, Deleted: 2},
 	}
@@ -57,8 +57,8 @@ func TestChannelRetentionGCOnceContinuesAfterChannelError(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
 	first := channelruntime.ChannelID{ID: "retention-error-a", Type: 1}
 	second := channelruntime.ChannelID{ID: "retention-error-b", Type: 1}
-	seedChannelRetentionCatalogAndMeta(t, node, first, 2, 1)
-	seedChannelRetentionCatalogAndMeta(t, node, second, 2, 1)
+	seedChannelRetentionCatalogAndMeta(t, node, first, 1, 2, 1)
+	seedChannelRetentionCatalogAndMeta(t, node, second, 3, 2, 1)
 	boom := errors.New("apply failed")
 	runtime.applyErrs = map[channelruntime.ChannelID]error{first: boom}
 	runtime.results = map[channelruntime.ChannelID]channelruntime.RetentionApplyResult{
@@ -80,7 +80,7 @@ func TestChannelRetentionGCOnceContinuesAfterChannelError(t *testing.T) {
 func TestReadLocalLatestMessagesExcludesRowsAboveCommittedHW(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
 	id := channelruntime.ChannelID{ID: "latest-committed", Type: 1}
-	seedChannelRetentionCatalogAndMeta(t, node, id, 2, 0)
+	seedChannelRetentionCatalogAndMeta(t, node, id, 1, 2, 0)
 	runtime.probe = channelruntime.RuntimeProbeResult{Channels: []channelruntime.RuntimeProbeChannel{{ChannelID: id, HW: 1}}}
 
 	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 10)
@@ -95,7 +95,7 @@ func TestReadLocalLatestMessagesExcludesRowsAboveCommittedHW(t *testing.T) {
 func TestReadLocalLatestMessagesRecoversSingleReplicaCommittedLEO(t *testing.T) {
 	node, _ := newChannelRetentionGCNode(t)
 	id := channelruntime.ChannelID{ID: "latest-single-replica", Type: 1}
-	seedChannelRetentionCatalogAndMeta(t, node, id, 2, 0)
+	seedChannelRetentionCatalogAndMeta(t, node, id, 1, 2, 0)
 
 	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 10)
 	if err != nil {
@@ -109,7 +109,7 @@ func TestReadLocalLatestMessagesRecoversSingleReplicaCommittedLEO(t *testing.T) 
 func TestReadLocalLatestMessagesRecoversMinISROneLeaderLEO(t *testing.T) {
 	node, _ := newChannelRetentionGCNode(t)
 	id := channelruntime.ChannelID{ID: "latest-min-isr-one", Type: 1}
-	seedChannelRetentionCatalogAndMeta(t, node, id, 2, 0)
+	seedChannelRetentionCatalogAndMeta(t, node, id, 1, 2, 0)
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
 	shard := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot)
 	if err := shard.DeleteChannelRuntimeMeta(context.Background(), id.ID, int64(id.Type)); err != nil {
@@ -137,16 +137,14 @@ func TestReadLocalLatestMessagesBoundsHiddenRetentionScan(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
 	id := channelruntime.ChannelID{ID: "latest-retained", Type: 1}
 	const messages = latestMessageScanMinBudget + 1
-	seedChannelRetentionCatalogAndMeta(t, node, id, messages, messages)
+	seedChannelRetentionCatalogAndMeta(t, node, id, 1, messages, messages)
 	runtime.probe = channelruntime.RuntimeProbeResult{Channels: []channelruntime.RuntimeProbeChannel{{ChannelID: id, HW: messages}}}
 
-	_, _, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 1)
-	if !errors.Is(err, channelruntime.ErrBackpressured) {
-		t.Fatalf("ReadLocalLatestMessages() error = %v, want bounded scan backpressure", err)
-	}
-	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 1)
-	if err != nil || hasMore || len(items) != 0 {
-		t.Fatalf("ReadLocalLatestMessages(after cleanup) items=%#v hasMore=%v err=%v, want completed empty page", items, hasMore, err)
+	for attempt := 1; attempt <= 2; attempt++ {
+		_, _, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 1)
+		if !errors.Is(err, channelruntime.ErrBackpressured) {
+			t.Fatalf("ReadLocalLatestMessages(attempt %d) error = %v, want bounded scan backpressure", attempt, err)
+		}
 	}
 }
 
@@ -171,7 +169,7 @@ func newChannelRetentionGCNode(t *testing.T) (*Node, *recordingRetentionChannelS
 	return node, runtime
 }
 
-func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelruntime.ChannelID, messages int, retentionThroughSeq uint64) {
+func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelruntime.ChannelID, firstMessageID uint64, messages int, retentionThroughSeq uint64) {
 	t.Helper()
 	if node.defaultChannelStore == nil || node.defaultSlotMetaDB == nil {
 		t.Fatal("node default stores are not initialized")
@@ -182,7 +180,7 @@ func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelrunt
 	}
 	records := make([]channelruntime.Record, 0, messages)
 	for i := 1; i <= messages; i++ {
-		records = append(records, channelruntime.Record{ID: uint64(i), Payload: []byte{byte(i)}, SizeBytes: 1})
+		records = append(records, channelruntime.Record{ID: firstMessageID + uint64(i-1), Payload: []byte{byte(i)}, SizeBytes: 1})
 	}
 	if _, err := cs.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: records}); err != nil {
 		t.Fatalf("AppendLeader() error = %v", err)

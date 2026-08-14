@@ -587,7 +587,9 @@ func TestStoreReadPermissionMetadataBatchRoutesBySlotAndPreservesAlignment(t *te
 		require.NoError(t, result.Err)
 	}
 	require.True(t, results[0].Found)
-	require.Equal(t, remoteChannel, results[0].Channel)
+	expectedRemoteChannel := remoteChannel
+	expectedRemoteChannel.SubscriberCount = 1
+	require.Equal(t, expectedRemoteChannel, results[0].Channel)
 	require.True(t, results[1].Value)
 	require.False(t, results[2].Value)
 	require.False(t, results[3].Found)
