@@ -103,6 +103,9 @@
 - `pkg/channel` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
+- Presence authority changes must not scan or replay all owner-local active
+  sessions. Route reconstruction is driven by bounded dirty-touch batches so
+  authority handoff work does not scale with the node's total online sessions.
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - Online Delivery must preserve complete plan execution order per canonical Channel so clients cannot observe a later `message_seq` first. Keep one globally bounded preallocated queue, hash Channel type/ID to a stable worker shard, and scale across Channel shards; multiple consumers must not race plans from one shared FIFO.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, membership state, or owner delivery.

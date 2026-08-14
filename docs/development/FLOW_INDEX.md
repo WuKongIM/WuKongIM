@@ -13,7 +13,6 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [cmd/wkcloudlease/FLOW.md](../../cmd/wkcloudlease/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 40 | ok |
 | [cmd/wkcloudleaseoidc/FLOW.md](../../cmd/wkcloudleaseoidc/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 20 | ok |
 | [docs-site/FLOW.md](../../docs-site/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 129 | warning |
-| [internal/FLOW.md](../../internal/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 207 | error |
 | [internal/access/api/FLOW.md](../../internal/access/api/FLOW.md) | `package` | Adapts product, benchmark, debug, and compatibility HTTP requests to internal use cases. | 76 | ok |
 | [internal/access/cloudanalysismcp/FLOW.md](../../internal/access/cloudanalysismcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 41 | ok |
 | [internal/access/cloudview/FLOW.md](../../internal/access/cloudview/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
