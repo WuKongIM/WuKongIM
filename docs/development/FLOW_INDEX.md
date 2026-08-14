@@ -14,19 +14,19 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [cmd/wkcloudleaseoidc/FLOW.md](../../cmd/wkcloudleaseoidc/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 20 | ok |
 | [docs-site/FLOW.md](../../docs-site/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 129 | warning |
 | [internal/FLOW.md](../../internal/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 207 | error |
-| [internal/access/api/FLOW.md](../../internal/access/api/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 266 | error |
+| [internal/access/api/FLOW.md](../../internal/access/api/FLOW.md) | `package` | Adapts product, benchmark, debug, and compatibility HTTP requests to internal use cases. | 76 | ok |
 | [internal/access/cloudanalysismcp/FLOW.md](../../internal/access/cloudanalysismcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 41 | ok |
 | [internal/access/cloudview/FLOW.md](../../internal/access/cloudview/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
 | [internal/access/gateway/FLOW.md](../../internal/access/gateway/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 100 | ok |
 | [internal/access/issueagentcli/FLOW.md](../../internal/access/issueagentcli/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 20 | ok |
-| [internal/access/manager/FLOW.md](../../internal/access/manager/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 655 | error |
-| [internal/access/node/FLOW.md](../../internal/access/node/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 595 | error |
+| [internal/access/manager/FLOW.md](../../internal/access/manager/FLOW.md) | `package` | Adapts authenticated Manager HTTP and UI operations to bounded management use cases. | 79 | ok |
+| [internal/access/node/FLOW.md](../../internal/access/node/FLOW.md) | `package` | Adapts versioned node RPC frames to local authority, runtime, and management ports. | 79 | ok |
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 32 | ok |
 | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 25 | ok |
 | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 23 | ok |
-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 709 | error |
-| [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 768 | error |
-| [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 1267 | error |
+| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 80 | ok |
+| [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 78 | ok |
+| [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 84 | ok |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 77 | ok |
 | [internal/contracts/channelappend/FLOW.md](../../internal/contracts/channelappend/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
 | [internal/contracts/channelmembers/FLOW.md](../../internal/contracts/channelmembers/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 11 | ok |
@@ -41,14 +41,14 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 124 | warning |
 | [internal/infra/cloudlease/fake/FLOW.md](../../internal/infra/cloudlease/fake/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 25 | ok |
 | [internal/infra/cloudsim/fake/FLOW.md](../../internal/infra/cloudsim/fake/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 14 | ok |
-| [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 835 | error |
+| [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 74 | ok |
 | [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 38 | ok |
 | [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 52 | ok |
 | [internal/infra/reviewagentgithub/FLOW.md](../../internal/infra/reviewagentgithub/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
 | [internal/log/FLOW.md](../../internal/log/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 54 | ok |
 | [internal/observability/taskaudit/FLOW.md](../../internal/observability/taskaudit/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 31 | ok |
 | [internal/runtime/backup/FLOW.md](../../internal/runtime/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 53 | ok |
-| [internal/runtime/channelappend/FLOW.md](../../internal/runtime/channelappend/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 489 | error |
+| [internal/runtime/channelappend/FLOW.md](../../internal/runtime/channelappend/FLOW.md) | `package` | Owns routed local Channel append admission, ordered durable writes, item futures, and bounded post-commit delivery handoff. | 76 | ok |
 | [internal/runtime/cloudviewstate/FLOW.md](../../internal/runtime/cloudviewstate/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 18 | ok |
 | [internal/runtime/delivery/FLOW.md](../../internal/runtime/delivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 83 | ok |
 | [internal/runtime/issueagentverify/FLOW.md](../../internal/runtime/issueagentverify/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 29 | ok |
@@ -67,28 +67,28 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/usecase/conversation/FLOW.md](../../internal/usecase/conversation/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 94 | ok |
 | [internal/usecase/delivery/FLOW.md](../../internal/usecase/delivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 46 | ok |
 | [internal/usecase/issueagent/FLOW.md](../../internal/usecase/issueagent/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 24 | ok |
-| [internal/usecase/management/FLOW.md](../../internal/usecase/management/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 820 | error |
-| [internal/usecase/message/FLOW.md](../../internal/usecase/message/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 182 | error |
+| [internal/usecase/management/FLOW.md](../../internal/usecase/management/FLOW.md) | `package` | Builds entry-independent Manager read models and safety-gated orchestration over narrow cluster, runtime, and diagnostic ports. | 73 | ok |
+| [internal/usecase/message/FLOW.md](../../internal/usecase/message/FLOW.md) | `package` | Owns entry-independent message permission policy, send orchestration, committed sync, and message-event projection contracts. | 71 | ok |
 | [internal/usecase/opsobserve/FLOW.md](../../internal/usecase/opsobserve/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 42 | ok |
-| [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 241 | error |
+| [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `package` | Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping. | 73 | ok |
 | [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 107 | warning |
 | [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 41 | ok |
 | [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 39 | ok |
 | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 61 | ok |
 | [pkg/bench/model/FLOW.md](../../pkg/bench/model/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 65 | ok |
-| [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 415 | error |
-| [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 510 | error |
+| [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 72 | ok |
+| [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 71 | ok |
 | [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 144 | warning |
 | [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 108 | warning |
-| [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 890 | error |
-| [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 213 | error |
+| [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 77 | ok |
+| [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 78 | ok |
 | [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 44 | ok |
-| [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 155 | error |
+| [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 76 | ok |
 | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 83 | ok |
 | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 50 | ok |
-| [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 401 | error |
+| [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 76 | ok |
 | [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 94 | ok |
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 14 | ok |
-| [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 396 | error |
+| [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 82 | ok |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 110 | warning |
 | [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 93 | ok |
