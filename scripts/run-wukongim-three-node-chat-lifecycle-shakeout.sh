@@ -38,6 +38,7 @@ CUT_QUERY_READY=0
 OPERATOR_SIGNAL_STATUS=0
 OPERATOR_STOP_PENDING=0
 DRAIN_BOUNDARY_RECORDED=0
+TERMINAL_BOUNDARY_AT=""
 HARNESS_FAILURE_REASON=""
 COORDINATOR_JOINED=0
 COORDINATOR_STATUS=0
@@ -804,9 +805,24 @@ close_terminal_drain_boundary() {
     select(.terminal_cut_present == true and .latest_cut.cut == "terminal") |
     .latest_cut.at
   ' "$CUT_QUERY_FILE" 2>/dev/null)" || return 1
+  TERMINAL_BOUNDARY_AT="$terminal_at"
   record_timeline_boundary_at "$terminal_at" drain_end
   record_timeline_boundary_at "$terminal_at" shutdown_start
   write_phase_state shutdown
+}
+
+wait_for_service_sample_after_terminal_boundary() {
+  local boundary_second current deadline LC_ALL=C
+  [[ "$TERMINAL_BOUNDARY_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$ ]] || return 1
+  boundary_second="${TERMINAL_BOUNDARY_AT%Z}"
+  boundary_second="${boundary_second%%.*}Z"
+  deadline=$((SECONDS + 3))
+  while true; do
+    current="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    [[ "$current" > "$boundary_second" ]] && return 0
+    (( SECONDS < deadline )) || return 1
+    sleep 0.1
+  done
 }
 
 write_phase_state() {
@@ -1279,8 +1295,10 @@ force_stop_timed_out_coordinator() {
 
 write_product_queue_summary() {
   local phase="$1" output="$RUN_DIR/product_queue_summary.tsv" temporary="$RUN_DIR/product_queue_summary.tsv.next"
-  local node baseline_status baseline_queue baseline_inflight drained_status drained_queue drained_inflight converged all_converged
-  all_converged=true
+  local node baseline_status baseline_queue baseline_inflight drained_status drained_queue drained_inflight cluster_converged all_complete
+  local baseline_queue_total=0 baseline_inflight_total=0 drained_queue_total=0 drained_inflight_total=0
+  local -a evidence_statuses=() baseline_queues=() baseline_inflights=() drained_queues=() drained_inflights=()
+  all_complete=true
   printf 'tag\tnode\tevidence\tbaseline_queue\tbaseline_inflight\tdrained_queue\tdrained_inflight\tconverged\n' >"$temporary"
   for node in 1 2 3; do
     baseline_status=missing
@@ -1295,21 +1313,32 @@ write_product_queue_summary() {
     read -r drained_status drained_queue drained_inflight < <(
       awk -f "$ROOT_DIR/scripts/product-queue-snapshot.awk" "$METRICS_DIR/node-$node-$phase.prom" 2>/dev/null || true
     ) || true
-    converged=false
-    if [[ "$baseline_status" == complete && "$drained_status" == complete ]] &&
-      (( drained_queue <= baseline_queue && drained_inflight <= baseline_inflight )); then
-      converged=true
-    fi
     if [[ "$baseline_status" != complete || "$drained_status" != complete ]]; then
       drained_status=missing
+      all_complete=false
     fi
-    [[ "$converged" == true ]] || all_converged=false
+    evidence_statuses[$node]="$drained_status"
+    baseline_queues[$node]="$baseline_queue"
+    baseline_inflights[$node]="$baseline_inflight"
+    drained_queues[$node]="$drained_queue"
+    drained_inflights[$node]="$drained_inflight"
+    baseline_queue_total=$((baseline_queue_total + baseline_queue))
+    baseline_inflight_total=$((baseline_inflight_total + baseline_inflight))
+    drained_queue_total=$((drained_queue_total + drained_queue))
+    drained_inflight_total=$((drained_inflight_total + drained_inflight))
+  done
+  cluster_converged=false
+  if [[ "$all_complete" == true ]] &&
+    (( drained_queue_total <= baseline_queue_total && drained_inflight_total <= baseline_inflight_total )); then
+    cluster_converged=true
+  fi
+  for node in 1 2 3; do
     printf 'rate-%s\tnode-%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$SEND_RATE" "$node" "$drained_status" "$baseline_queue" "$baseline_inflight" \
-      "$drained_queue" "$drained_inflight" "$converged" >>"$temporary"
+      "$SEND_RATE" "$node" "${evidence_statuses[$node]}" "${baseline_queues[$node]}" "${baseline_inflights[$node]}" \
+      "${drained_queues[$node]}" "${drained_inflights[$node]}" "$cluster_converged" >>"$temporary"
   done
   mv "$temporary" "$output"
-  [[ "$all_converged" == true ]]
+  [[ "$cluster_converged" == true ]]
 }
 
 wait_for_product_queue_convergence() {
@@ -1527,6 +1556,8 @@ if (( MEASURE_SECONDS > 0 )); then
   if ! close_terminal_drain_boundary; then
     log 'typed terminal cut was unavailable; drain/shutdown boundaries remain incomplete'
     write_phase_state shutdown
+  elif ! wait_for_service_sample_after_terminal_boundary; then
+    log 'wall clock did not advance beyond the exact terminal boundary; timeline will fail closed'
   fi
   metrics_sequence=$((metrics_sequence + 1))
   capture_service_metrics "sample-$metrics_sequence"

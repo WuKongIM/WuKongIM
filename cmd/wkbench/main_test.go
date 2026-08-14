@@ -718,7 +718,27 @@ func TestLocalChatLifecycleStepEvidenceReadersRequireCompleteClosedRows(t *testi
 	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || !converged {
 		t.Fatalf("product queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
 	}
-	notConverged := strings.Replace(productQueue.String(), "\t40\t80\ttrue\n", "\t70\t80\tfalse\n", 1)
+	redistributed := strings.Join([]string{
+		strings.Join(localStepProductQueueHeader, "\t"),
+		"rate-100\tnode-1\tcomplete\t0\t60\t2\t30\ttrue",
+		"rate-100\tnode-2\tcomplete\t4\t60\t0\t30\ttrue",
+		"rate-100\tnode-3\tcomplete\t0\t60\t1\t30\ttrue",
+		"",
+	}, "\n")
+	if err := os.WriteFile(productQueuePath, []byte(redistributed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || !converged {
+		t.Fatalf("redistributed cluster queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+	dishonest := strings.Replace(redistributed, "\t1\t30\ttrue\n", "\t5\t30\ttrue\n", 1)
+	if err := os.WriteFile(productQueuePath, []byte(dishonest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err == nil || complete || converged {
+		t.Fatalf("dishonest cluster queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+	notConverged := strings.ReplaceAll(productQueue.String(), "\t40\t80\ttrue\n", "\t70\t80\tfalse\n")
 	if err := os.WriteFile(productQueuePath, []byte(notConverged), 0o600); err != nil {
 		t.Fatal(err)
 	}

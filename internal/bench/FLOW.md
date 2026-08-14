@@ -187,8 +187,11 @@ cut is missing.
 qualification report, one drained terminal report, complete normalized
 storage and host-I/O evidence, a normalized post-drain service queue cut, and
 a closed process-continuity cut. The local wrapper samples that queue cut after
-the coordinator's bounded worker drain/stop completes and waits for the three
-service nodes to return below their post-warmup baselines. The terminal
+the coordinator's bounded worker drain/stop completes and waits for the
+cluster-wide queue and inflight totals to return below their sealed
+post-warmup totals. Cluster aggregation permits ordinary ownership work to
+migrate between service nodes without hiding any work from the fixed total.
+The terminal
 report's service-resource projection is the last active observation before
 worker shutdown; it must not be reused as post-drain queue evidence. The
 command emits only the

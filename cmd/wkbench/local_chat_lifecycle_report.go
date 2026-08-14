@@ -575,26 +575,38 @@ func readLocalStepProductQueueEvidence(path, expectedTag string) (complete, conv
 		return false, false, errors.New("local product queue evidence is incomplete")
 	}
 	seen := map[string]bool{}
-	converged = true
+	var totals [4]uint64
+	rowConvergence := make([]bool, 0, len(rows))
 	for _, row := range rows {
 		if row[0] != expectedTag || row[2] != "complete" || seen[row[1]] {
 			return false, false, errors.New("local product queue evidence is incomplete")
 		}
-		for _, column := range []int{3, 4, 5, 6} {
-			if _, parseErr := strconv.ParseUint(row[column], 10, 64); parseErr != nil {
+		for index, column := range []int{3, 4, 5, 6} {
+			value, parseErr := strconv.ParseUint(row[column], 10, 64)
+			if parseErr != nil || value > ^uint64(0)-totals[index] {
 				return false, false, errors.New("local product queue evidence is incomplete")
 			}
+			totals[index] += value
 		}
 		rowConverged, parseErr := strconv.ParseBool(row[7])
 		if parseErr != nil {
 			return false, false, errors.New("local product queue evidence is incomplete")
 		}
-		converged = converged && rowConverged
+		rowConvergence = append(rowConvergence, rowConverged)
 		seen[row[1]] = true
 	}
 	for _, node := range []string{"node-1", "node-2", "node-3"} {
 		if !seen[node] {
 			return false, false, errors.New("local product queue evidence is incomplete")
+		}
+	}
+	// Queue work can migrate between service nodes while the cluster remains
+	// healthy. Compare the sealed cluster totals instead of requiring three
+	// independent instantaneous node snapshots to fall below their own cuts.
+	converged = totals[2] <= totals[0] && totals[3] <= totals[1]
+	for _, rowConverged := range rowConvergence {
+		if rowConverged != converged {
+			return false, false, errors.New("local product queue convergence does not match sealed cluster totals")
 		}
 	}
 	return true, converged, nil

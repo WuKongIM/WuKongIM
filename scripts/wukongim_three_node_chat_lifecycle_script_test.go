@@ -79,6 +79,11 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		afterServiceSample < 0 || finalServiceSample > afterServiceSample {
 		t.Fatal("the final service sample must follow the exact terminal boundary and precede the after sample")
 	}
+	terminalSampleWait := strings.LastIndex(script, "wait_for_service_sample_after_terminal_boundary")
+	if terminalSampleWait < terminalBoundary || terminalSampleWait > finalServiceSample ||
+		!strings.Contains(script, `TERMINAL_BOUNDARY_AT="$terminal_at"`) {
+		t.Fatal("the final second-resolution service sample must wait beyond the exact terminal boundary second")
+	}
 	if !strings.Contains(script, "if (( DRAIN_BOUNDARY_RECORDED == 0 )); then") {
 		t.Fatal("measured finalization must not duplicate already-recorded drain boundaries after a stop-request race")
 	}
