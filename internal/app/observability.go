@@ -265,7 +265,7 @@ func (o gatewayMetricsObserver) OnTransportPressure(event accessgateway.Transpor
 	}
 	pool := fallbackRuntimePressureLabel(event.Name, "gnet")
 	queue := fallbackRuntimePressureLabel(event.Queue, "transport")
-	o.metrics.RuntimePressure.SetQueue("gateway", pool, queue, "none", obsmetrics.RuntimePressureQueueObservation{
+	o.metrics.RuntimePressure.SetQueueRevisioned("gateway", pool, queue, "none", event.Revision, obsmetrics.RuntimePressureQueueObservation{
 		Depth:         event.Depth,
 		Capacity:      event.Capacity,
 		Bytes:         event.Bytes,

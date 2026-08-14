@@ -554,6 +554,50 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	}
 }
 
+func TestGatewayTransportPressureKeepsLatestGaugeWhileCountingLateAdmission(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := gatewayMetricsObserver{metrics: reg}
+	observer.OnTransportPressure(gateway.TransportPressureEvent{
+		Name:     "actor_ready",
+		Queue:    "ready",
+		Depth:    0,
+		Capacity: 1024,
+		Revision: 2,
+	})
+	observer.OnTransportPressure(gateway.TransportPressureEvent{
+		Name:     "actor_ready",
+		Queue:    "ready",
+		Depth:    2,
+		Capacity: 1024,
+		Result:   "ok",
+		Revision: 1,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	depth := findAppMetricByLabels(t, requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth"), map[string]string{
+		"component": "gateway",
+		"pool":      "actor_ready",
+		"queue":     "ready",
+		"priority":  "none",
+	})
+	if got := depth.GetGauge().GetValue(); got != 0 {
+		t.Fatalf("gateway actor_ready depth = %v, want latest depth 0", got)
+	}
+	admission := findAppMetricByLabels(t, requireAppMetricFamily(t, families, "wukongim_runtime_pool_admission_total"), map[string]string{
+		"component": "gateway",
+		"pool":      "actor_ready",
+		"queue":     "ready",
+		"priority":  "none",
+		"result":    "ok",
+	})
+	if got := admission.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("gateway actor_ready ok admissions = %v, want 1", got)
+	}
+}
+
 func TestMultiChannelObserverForwardsOptionalPullObservations(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}

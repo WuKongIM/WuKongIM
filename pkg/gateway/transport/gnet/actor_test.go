@@ -2,6 +2,7 @@ package gnet
 
 import (
 	goruntime "runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -56,6 +57,33 @@ func TestActorShardReportsReadyPressure(t *testing.T) {
 	}
 	if got := events[1].Result; got != "closed" {
 		t.Fatalf("second pressure result = %q, want closed", got)
+	}
+}
+
+func TestActorPressureRevisionRemainsMonotonicAcrossPoolRestart(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
+	var revision atomic.Uint64
+
+	first := newActorPoolWithRevision(1, &revision)
+	firstState := &connState{runtime: runtime}
+	if !first.shards[0].schedule(firstState) {
+		t.Fatal("first actor pool rejected schedule")
+	}
+	first.shards[0].drainReady()
+
+	second := newActorPoolWithRevision(1, &revision)
+	secondState := &connState{runtime: runtime}
+	if !second.shards[0].schedule(secondState) {
+		t.Fatal("restarted actor pool rejected schedule")
+	}
+
+	events := observer.snapshot()
+	if len(events) == 0 {
+		t.Fatal("actor pools published no pressure observations")
+	}
+	if last := events[len(events)-1]; last.Name != "actor_ready" || last.Depth != 1 {
+		t.Fatalf("restarted actor pressure = %+v, want ready depth 1", last)
 	}
 }
 

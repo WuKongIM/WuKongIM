@@ -24,7 +24,7 @@ type listenerRuntime struct {
 	generation uint64
 	conns      map[*connState]struct{}
 
-	pressure *transportPressureAggregator
+	pressure atomic.Pointer[transportPressureAggregator]
 }
 
 func (r *listenerRuntime) addr() string {
@@ -138,8 +138,9 @@ type engineGroup struct {
 	bootRuntimes  []*listenerRuntime
 	stopEngineFn  func(engine gnetv2.Engine, cycle *engineCycle) error
 
-	nextConnID atomic.Uint64
-	actors     atomic.Pointer[actorPool] // active actor pool for the running engine.
+	nextConnID            atomic.Uint64
+	actors                atomic.Pointer[actorPool] // active actor pool for the running engine.
+	actorPressureRevision atomic.Uint64             // monotonic across engine restarts for shared actor pressure sources.
 }
 
 func newEngineGroup(specs []transport.ListenerSpec) *engineGroup {
@@ -150,12 +151,13 @@ func newEngineGroupWithOptions(specs []transport.ListenerSpec, options Options) 
 	runtimes := make([]*listenerRuntime, 0, len(specs))
 	pressure := newTransportPressureAggregator()
 	for _, spec := range specs {
-		runtimes = append(runtimes, &listenerRuntime{
-			opts:     spec.Options,
-			handler:  spec.Handler,
-			conns:    make(map[*connState]struct{}),
-			pressure: pressure,
-		})
+		runtime := &listenerRuntime{
+			opts:    spec.Options,
+			handler: spec.Handler,
+			conns:   make(map[*connState]struct{}),
+		}
+		runtime.pressure.Store(pressure)
+		runtimes = append(runtimes, runtime)
 	}
 
 	return &engineGroup{
@@ -303,7 +305,7 @@ func (g *engineGroup) stop(runtime *listenerRuntime) error {
 
 func (g *engineGroup) startEngine(runtimes []*listenerRuntime) error {
 	cycle := newEngineCycle()
-	actors := newActorPool(0)
+	actors := newActorPoolWithRevision(0, &g.actorPressureRevision)
 	actors.start()
 	g.actors.Store(actors)
 

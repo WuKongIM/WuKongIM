@@ -30,6 +30,8 @@ type connEvent struct {
 // ErrPendingBytesExceeded indicates that transport-owned inbound buffering exceeded its configured limit.
 var ErrPendingBytesExceeded = errors.New("gateway/transport/gnet: pending inbound bytes limit exceeded")
 
+var errOutboundSubmissionClosed = errors.New("gateway/transport/gnet: outbound submission is closed")
+
 type connMode uint8
 
 const (
@@ -50,12 +52,15 @@ type connState struct {
 	mu               sync.Mutex
 	queue            []connEvent
 	pendingBytes     int
+	inboundRevision  uint64
 	maxPendingBytes  int
 	maxOutboundBytes int64
 	owner            *actorShard // owner serializes handler callbacks for this connection.
 	scheduled        atomic.Bool
 	closing          bool
 	notifyClose      bool
+	pressureMu       sync.Mutex
+	pressureClosed   bool
 
 	mode       connMode
 	wsInbound  []byte
@@ -65,12 +70,24 @@ type connState struct {
 	wsWriteOp   atomic.Uint32
 	wsCloseSent atomic.Bool
 
+	// outboundSubmitMu preserves raw submission order and fences later writes
+	// after an ambiguous asynchronous trigger error.
+	outboundSubmitMu       sync.Mutex
+	outboundSubmitErr      error
 	outboundMu             sync.Mutex
 	outboundPendingBytes   int64
 	outboundBufferedBytes  int64
+	outboundRevision       uint64
 	outboundWriteFrameFree []*wsWritevFrame
-	outboundWriteFrames    []*wsWritevFrame
-	outboundWriteSizes     []int
+	outboundWrites         []outboundWrite
+}
+
+// outboundWrite owns one raw gnet submission until that submission's callback.
+// frame is non-nil only for vector WebSocket writes whose header slice must not
+// be reset or reused while gnet can still reference it.
+type outboundWrite struct {
+	size  int
+	frame *wsWritevFrame
 }
 
 func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connState {
@@ -133,12 +150,22 @@ func (s *connState) enqueueDataWithOpcode(opcode byte, data []byte) bool {
 	}
 	s.pendingBytes += len(data)
 	s.queue = append(s.queue, connEvent{kind: connEventData, data: data, op: opcode})
+	s.inboundRevision++
 	depth := len(s.queue)
 	bytes := int64(s.pendingBytes)
 	bytesCapacity := int64(s.maxPendingBytes)
+	snapshot := transportPressureSnapshot{
+		name:          "inbound_pending",
+		queue:         "inbound",
+		depth:         depth,
+		bytes:         bytes,
+		bytesCapacity: bytesCapacity,
+		result:        "ok",
+		revision:      s.inboundRevision,
+	}
 	s.mu.Unlock()
 	s.signal()
-	s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "ok")
+	s.observeTransportSnapshot(snapshot)
 	return true
 }
 
@@ -160,12 +187,22 @@ func (s *connState) enqueueCopiedData(data []byte) bool {
 	payload := append([]byte(nil), data...)
 	s.pendingBytes += len(payload)
 	s.queue = append(s.queue, connEvent{kind: connEventData, data: payload})
+	s.inboundRevision++
 	depth := len(s.queue)
 	bytes := int64(s.pendingBytes)
 	bytesCapacity := int64(s.maxPendingBytes)
+	snapshot := transportPressureSnapshot{
+		name:          "inbound_pending",
+		queue:         "inbound",
+		depth:         depth,
+		bytes:         bytes,
+		bytesCapacity: bytesCapacity,
+		result:        "ok",
+		revision:      s.inboundRevision,
+	}
 	s.mu.Unlock()
 	s.signal()
-	s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "ok")
+	s.observeTransportSnapshot(snapshot)
 	return true
 }
 
@@ -231,12 +268,21 @@ func (s *connState) releaseEvent(event connEvent) {
 	if s.pendingBytes < 0 {
 		s.pendingBytes = 0
 	}
+	s.inboundRevision++
 	depth := len(s.queue)
 	bytes := int64(s.pendingBytes)
 	bytesCapacity := int64(s.maxPendingBytes)
+	snapshot := transportPressureSnapshot{
+		name:          "inbound_pending",
+		queue:         "inbound",
+		depth:         depth,
+		bytes:         bytes,
+		bytesCapacity: bytesCapacity,
+		revision:      s.inboundRevision,
+	}
 	s.mu.Unlock()
 	if s.maxPendingBytes > 0 {
-		s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "")
+		s.observeTransportSnapshot(snapshot)
 	}
 }
 
@@ -291,7 +337,8 @@ func (s *connState) handleEvent(event connEvent) bool {
 		if s.runtime.handler != nil && s.shouldNotifyClose() {
 			s.runtime.handler.OnClose(s.transport, event.err)
 		}
-		s.runtime.clearTransportPressureSource(connPressureSource(s.id))
+		s.abandonOutboundWrites()
+		s.closeTransportPressure()
 		return true
 	}
 	return false
@@ -532,22 +579,25 @@ func (c *stateConn) writeWebSocketVector(data []byte, messageType transport.WebS
 		c.state.releaseOutboundWriteFrame(framed)
 		return err
 	}
-	size := len(framed.bufs[0]) + len(framed.bufs[1])
-	var snapshot transportPressureSnapshot
-	if c.state.maxOutboundBytes > 0 {
-		var admitted bool
-		snapshot, admitted = c.state.beginOutboundWrite(size)
-		if !admitted {
-			c.state.releaseOutboundWriteFrame(framed)
-			return transport.ErrOutboundBytesExceeded
-		}
+	c.state.outboundSubmitMu.Lock()
+	defer c.state.outboundSubmitMu.Unlock()
+	if c.state.outboundSubmitErr != nil {
+		c.state.releaseOutboundWriteFrame(framed)
+		return c.state.outboundSubmitErr
 	}
-	c.state.queueOutboundWriteFrame(framed)
+	size := len(framed.bufs[0]) + len(framed.bufs[1])
+	snapshot, admitted := c.state.beginOutboundWrite(size, framed)
+	if !admitted {
+		c.state.releaseOutboundWriteFrame(framed)
+		return transport.ErrOutboundBytesExceeded
+	}
 	err = c.state.raw.AsyncWritev(framed.bufs[:], releaseOutboundWriteCallback)
+	c.state.observeTransportSnapshot(snapshot)
 	if err != nil {
-		c.state.rollbackOutboundWriteFrame(framed, size)
-	} else {
-		c.state.observeTransportSnapshot(snapshot)
+		// gnet may have queued the callback-owned frame before its wake syscall
+		// reported an error. Keep ownership with that callback (or connection
+		// close) and reject later submissions so FIFO reservations cannot skew.
+		c.state.outboundSubmitErr = err
 	}
 	return err
 }
@@ -567,54 +617,67 @@ func (c *stateConn) webSocketWriteOpcode(messageType transport.WebSocketMessageT
 }
 
 func (c *stateConn) asyncWriteWithOutboundLimit(size int, write func(gnetv2.AsyncCallback) error) error {
+	c.state.outboundSubmitMu.Lock()
+	defer c.state.outboundSubmitMu.Unlock()
+	if c.state.outboundSubmitErr != nil {
+		return c.state.outboundSubmitErr
+	}
 	if c.state.maxOutboundBytes <= 0 || size <= 0 {
 		return write(nil)
 	}
-	snapshot, admitted := c.state.beginOutboundWrite(size)
+	snapshot, admitted := c.state.beginOutboundWrite(size, nil)
 	if !admitted {
 		return transport.ErrOutboundBytesExceeded
 	}
 	err := write(releaseOutboundWriteCallback)
+	c.state.observeTransportSnapshot(snapshot)
 	if err != nil {
-		c.state.finishNextOutboundWrite(nil, err)
-	} else {
-		c.state.observeTransportSnapshot(snapshot)
+		// A non-nil gnet Trigger result is ambiguous: the callback task may
+		// already be queued. Preserve its FIFO reservation until callback/close.
+		c.state.outboundSubmitErr = err
 	}
 	return err
 }
 
-func (s *connState) beginOutboundWrite(size int) (transportPressureSnapshot, bool) {
-	if s.maxOutboundBytes <= 0 || size <= 0 {
-		return transportPressureSnapshot{}, true
-	}
-
+func (s *connState) beginOutboundWrite(size int, frame *wsWritevFrame) (transportPressureSnapshot, bool) {
 	s.outboundMu.Lock()
-
-	if s.outboundPendingBytes+s.outboundBufferedBytes+int64(size) > s.maxOutboundBytes {
-		depth := len(s.outboundWriteSizes)
+	if s.maxOutboundBytes > 0 && size > 0 && s.outboundPendingBytes+s.outboundBufferedBytes+int64(size) > s.maxOutboundBytes {
+		depth := len(s.outboundWrites)
 		bytes := s.outboundPendingBytes + s.outboundBufferedBytes + int64(size)
 		bytesCapacity := s.maxOutboundBytes
 		s.outboundMu.Unlock()
 		s.observeTransport("outbound_pending", "outbound", depth, 0, bytes, bytesCapacity, "full")
 		return transportPressureSnapshot{}, false
 	}
-	s.outboundPendingBytes += int64(size)
-	s.outboundWriteSizes = append(s.outboundWriteSizes, size)
-	depth := len(s.outboundWriteSizes)
+	reservedSize := 0
+	if s.maxOutboundBytes > 0 && size > 0 {
+		reservedSize = size
+		s.outboundPendingBytes += int64(size)
+	}
+	s.outboundWrites = append(s.outboundWrites, outboundWrite{size: reservedSize, frame: frame})
+	if s.maxOutboundBytes <= 0 {
+		s.outboundMu.Unlock()
+		return transportPressureSnapshot{}, true
+	}
+	s.outboundRevision++
+	revision := s.outboundRevision
+	depth := len(s.outboundWrites)
 	bytes := s.outboundPendingBytes + s.outboundBufferedBytes
 	bytesCapacity := s.maxOutboundBytes
 	s.outboundMu.Unlock()
-	return transportPressureSnapshot{name: "outbound_pending", queue: "outbound", depth: depth, bytes: bytes, bytesCapacity: bytesCapacity, result: "ok"}, true
+	return transportPressureSnapshot{name: "outbound_pending", queue: "outbound", depth: depth, bytes: bytes, bytesCapacity: bytesCapacity, result: "ok", revision: revision}, true
 }
 
 type transportPressureSnapshot struct {
-	name          string
-	queue         string
-	depth         int
-	capacity      int
-	bytes         int64
-	bytesCapacity int64
-	result        string
+	name                string
+	queue               string
+	depth               int
+	capacity            int
+	bytes               int64
+	bytesCapacity       int64
+	result              string
+	revision            uint64
+	publicationRevision uint64
 }
 
 type transportPressureSourceKey struct {
@@ -629,37 +692,46 @@ type transportPressureGroupKey struct {
 }
 
 type transportPressureAggregator struct {
-	mu       sync.Mutex
-	bySource map[transportPressureSourceKey]transportPressureSnapshot
-	totals   map[transportPressureGroupKey]transportPressureSnapshot
+	mu                  sync.Mutex
+	publicationRevision *atomic.Uint64
+	bySource            map[transportPressureSourceKey]transportPressureSnapshot
+	totals              map[transportPressureGroupKey]transportPressureSnapshot
 }
 
+var transportPressurePublicationRevision atomic.Uint64
+
 func newTransportPressureAggregator() *transportPressureAggregator {
+	return newTransportPressureAggregatorWithRevision(&transportPressurePublicationRevision)
+}
+
+func newTransportPressureAggregatorWithRevision(revision *atomic.Uint64) *transportPressureAggregator {
+	if revision == nil {
+		revision = &atomic.Uint64{}
+	}
 	return &transportPressureAggregator{
-		bySource: make(map[transportPressureSourceKey]transportPressureSnapshot),
-		totals:   make(map[transportPressureGroupKey]transportPressureSnapshot),
+		publicationRevision: revision,
+		bySource:            make(map[transportPressureSourceKey]transportPressureSnapshot),
+		totals:              make(map[transportPressureGroupKey]transportPressureSnapshot),
 	}
 }
 
 func (s *connState) observeTransportSnapshot(snapshot transportPressureSnapshot) {
-	if snapshot.name == "" {
+	if snapshot.name == "" || s == nil || s.runtime == nil || s.runtime.opts.Observer == nil {
 		return
 	}
-	s.observeTransport(snapshot.name, snapshot.queue, snapshot.depth, snapshot.capacity, snapshot.bytes, snapshot.bytesCapacity, snapshot.result)
+	s.pressureMu.Lock()
+	defer s.pressureMu.Unlock()
+	if s.pressureClosed {
+		return
+	}
+	s.runtime.observeTransportPressure(connPressureSource(s.id), snapshot)
 }
 
 func (s *connState) observeTransport(name, queue string, depth, capacity int, bytes, bytesCapacity int64, result string) {
 	if s == nil || s.runtime == nil || s.runtime.opts.Observer == nil {
 		return
 	}
-	s.observeTransportForSource(connPressureSource(s.id), name, queue, depth, capacity, bytes, bytesCapacity, result)
-}
-
-func (s *connState) observeTransportForSource(source, name, queue string, depth, capacity int, bytes, bytesCapacity int64, result string) {
-	if s == nil || s.runtime == nil {
-		return
-	}
-	s.runtime.observeTransportPressure(source, transportPressureSnapshot{
+	s.observeTransportSnapshot(transportPressureSnapshot{
 		name:          name,
 		queue:         queue,
 		depth:         depth,
@@ -670,6 +742,25 @@ func (s *connState) observeTransportForSource(source, name, queue string, depth,
 	})
 }
 
+func (s *connState) observeTransportForSource(source, name, queue string, depth, capacity int, bytes, bytesCapacity int64, result string) {
+	s.observeTransportSnapshotForSource(source, transportPressureSnapshot{
+		name:          name,
+		queue:         queue,
+		depth:         depth,
+		capacity:      capacity,
+		bytes:         bytes,
+		bytesCapacity: bytesCapacity,
+		result:        result,
+	})
+}
+
+func (s *connState) observeTransportSnapshotForSource(source string, snapshot transportPressureSnapshot) {
+	if s == nil || s.runtime == nil {
+		return
+	}
+	s.runtime.observeTransportPressure(source, snapshot)
+}
+
 func (r *listenerRuntime) observeTransportPressure(source string, snapshot transportPressureSnapshot) {
 	if r == nil || r.opts.Observer == nil || snapshot.name == "" {
 		return
@@ -677,7 +768,8 @@ func (r *listenerRuntime) observeTransportPressure(source string, snapshot trans
 	if source == "" {
 		source = "unknown"
 	}
-	event := r.transportPressureAggregator().apply(source, snapshot)
+	pressure := r.transportPressureAggregator()
+	event := pressure.apply(source, snapshot)
 	r.emitTransportPressureSnapshot(event)
 }
 
@@ -693,6 +785,7 @@ func (r *listenerRuntime) emitTransportPressureSnapshot(event transportPressureS
 		Bytes:         event.bytes,
 		BytesCapacity: event.bytesCapacity,
 		Result:        event.result,
+		Revision:      event.publicationRevision,
 	})
 }
 
@@ -706,12 +799,15 @@ func (a *transportPressureAggregator) apply(source string, snapshot transportPre
 	next := previous
 	next.name = snapshot.name
 	next.queue = snapshot.queue
-	if snapshot.result == "" || snapshot.result == "ok" {
+	gaugeUpdate := snapshot.result == "" || snapshot.result == "ok"
+	acceptGauge := gaugeUpdate && ((snapshot.revision == 0 && previous.revision == 0) || snapshot.revision > previous.revision)
+	if acceptGauge {
 		next.depth = snapshot.depth
 		next.capacity = snapshot.capacity
 		next.bytes = snapshot.bytes
 		next.bytesCapacity = snapshot.bytesCapacity
-	} else {
+		next.revision = snapshot.revision
+	} else if !gaugeUpdate {
 		if snapshot.capacity > 0 || next.capacity == 0 {
 			next.capacity = snapshot.capacity
 		}
@@ -728,6 +824,7 @@ func (a *transportPressureAggregator) apply(source string, snapshot transportPre
 	total.bytes += next.bytes - previous.bytes
 	total.bytesCapacity += next.bytesCapacity - previous.bytesCapacity
 	total = clampTransportPressureSnapshot(total)
+	total.publicationRevision = a.publicationRevision.Add(1)
 	a.bySource[sourceKey] = next
 	a.totals[groupKey] = total
 	total.result = snapshot.result
@@ -738,7 +835,8 @@ func (r *listenerRuntime) clearTransportPressureSource(source string) {
 	if r == nil || source == "" {
 		return
 	}
-	events := r.transportPressureAggregator().clear(source)
+	pressure := r.transportPressureAggregator()
+	events := pressure.clear(source)
 	for _, event := range events {
 		r.emitTransportPressureSnapshot(event)
 	}
@@ -760,6 +858,7 @@ func (a *transportPressureAggregator) clear(source string) []transportPressureSn
 		total.bytes -= previous.bytes
 		total.bytesCapacity -= previous.bytesCapacity
 		total = clampTransportPressureSnapshot(total)
+		total.publicationRevision = a.publicationRevision.Add(1)
 		a.totals[groupKey] = total
 		delete(a.bySource, key)
 		events = append(events, total)
@@ -768,16 +867,28 @@ func (a *transportPressureAggregator) clear(source string) []transportPressureSn
 	return events
 }
 
+func (s *connState) closeTransportPressure() {
+	if s == nil || s.runtime == nil {
+		return
+	}
+	s.pressureMu.Lock()
+	defer s.pressureMu.Unlock()
+	if s.pressureClosed {
+		return
+	}
+	s.pressureClosed = true
+	s.runtime.clearTransportPressureSource(connPressureSource(s.id))
+}
+
 func (r *listenerRuntime) transportPressureAggregator() *transportPressureAggregator {
-	if r.pressure != nil {
-		return r.pressure
+	if pressure := r.pressure.Load(); pressure != nil {
+		return pressure
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.pressure == nil {
-		r.pressure = newTransportPressureAggregator()
+	pressure := newTransportPressureAggregator()
+	if r.pressure.CompareAndSwap(nil, pressure) {
+		return pressure
 	}
-	return r.pressure
+	return r.pressure.Load()
 }
 
 func clampTransportPressureSnapshot(snapshot transportPressureSnapshot) transportPressureSnapshot {
@@ -833,41 +944,6 @@ func (s *connState) releaseOutboundWriteFrame(frame *wsWritevFrame) {
 	s.outboundMu.Unlock()
 }
 
-func (s *connState) queueOutboundWriteFrame(frame *wsWritevFrame) {
-	if frame == nil {
-		return
-	}
-
-	s.outboundMu.Lock()
-	s.outboundWriteFrames = append(s.outboundWriteFrames, frame)
-	s.outboundMu.Unlock()
-}
-
-func (s *connState) rollbackOutboundWriteFrame(frame *wsWritevFrame, size int) {
-	if frame == nil {
-		return
-	}
-
-	s.outboundMu.Lock()
-	if n := len(s.outboundWriteFrames); n > 0 && s.outboundWriteFrames[n-1] == frame {
-		s.outboundWriteFrames[n-1] = nil
-		s.outboundWriteFrames = s.outboundWriteFrames[:n-1]
-	}
-	if s.maxOutboundBytes > 0 && size > 0 && len(s.outboundWriteSizes) > 0 {
-		last := len(s.outboundWriteSizes) - 1
-		if s.outboundWriteSizes[last] == size {
-			s.outboundPendingBytes -= int64(size)
-			if s.outboundPendingBytes < 0 {
-				s.outboundPendingBytes = 0
-			}
-			s.outboundWriteSizes[last] = 0
-			s.outboundWriteSizes = s.outboundWriteSizes[:last]
-		}
-	}
-	s.outboundMu.Unlock()
-	s.releaseOutboundWriteFrame(frame)
-}
-
 func releaseOutboundWriteCallback(conn gnetv2.Conn, err error) error {
 	if conn == nil {
 		return nil
@@ -878,28 +954,41 @@ func releaseOutboundWriteCallback(conn gnetv2.Conn, err error) error {
 	return nil
 }
 
+func (s *connState) abandonOutboundWrites() {
+	if s == nil {
+		return
+	}
+	s.outboundSubmitMu.Lock()
+	defer s.outboundSubmitMu.Unlock()
+	if s.outboundSubmitErr == nil {
+		s.outboundSubmitErr = errOutboundSubmissionClosed
+	}
+	s.outboundMu.Lock()
+	for i := range s.outboundWrites {
+		// Do not reset or recycle an in-flight WebSocket frame: a gnet task may
+		// still own its buffer slices after an ambiguous Trigger error.
+		s.outboundWrites[i] = outboundWrite{}
+	}
+	s.outboundWrites = s.outboundWrites[:0]
+	s.outboundPendingBytes = 0
+	s.outboundBufferedBytes = 0
+	s.outboundMu.Unlock()
+}
+
 func (s *connState) finishNextOutboundWrite(conn gnetv2.Conn, err error) {
 	s.outboundMu.Lock()
-	var frame *wsWritevFrame
-	if conn != nil && len(s.outboundWriteFrames) > 0 {
-		frame = s.outboundWriteFrames[0]
-		s.outboundWriteFrames[0] = nil
-		if len(s.outboundWriteFrames) == 1 {
-			s.outboundWriteFrames = s.outboundWriteFrames[:0]
+	var write outboundWrite
+	if conn != nil && len(s.outboundWrites) > 0 {
+		write = s.outboundWrites[0]
+		s.outboundWrites[0] = outboundWrite{}
+		if len(s.outboundWrites) == 1 {
+			s.outboundWrites = s.outboundWrites[:0]
 		} else {
-			s.outboundWriteFrames = s.outboundWriteFrames[1:]
+			s.outboundWrites = s.outboundWrites[1:]
 		}
 	}
-	size := 0
-	if s.maxOutboundBytes > 0 && len(s.outboundWriteSizes) > 0 {
-		size = s.outboundWriteSizes[0]
-		s.outboundWriteSizes[0] = 0
-		if len(s.outboundWriteSizes) == 1 {
-			s.outboundWriteSizes = s.outboundWriteSizes[:0]
-		} else {
-			s.outboundWriteSizes = s.outboundWriteSizes[1:]
-		}
-		s.outboundPendingBytes -= int64(size)
+	if s.maxOutboundBytes > 0 && write.size > 0 {
+		s.outboundPendingBytes -= int64(write.size)
 		if s.outboundPendingBytes < 0 {
 			s.outboundPendingBytes = 0
 		}
@@ -908,13 +997,22 @@ func (s *connState) finishNextOutboundWrite(conn gnetv2.Conn, err error) {
 	if conn != nil && err == nil {
 		s.outboundBufferedBytes = int64(conn.OutboundBuffered())
 	}
-	depth := len(s.outboundWriteSizes)
+	s.outboundRevision++
+	depth := len(s.outboundWrites)
 	bytes := s.outboundPendingBytes + s.outboundBufferedBytes
 	bytesCapacity := s.maxOutboundBytes
+	snapshot := transportPressureSnapshot{
+		name:          "outbound_pending",
+		queue:         "outbound",
+		depth:         depth,
+		bytes:         bytes,
+		bytesCapacity: bytesCapacity,
+		revision:      s.outboundRevision,
+	}
 	s.outboundMu.Unlock()
-	s.releaseOutboundWriteFrame(frame)
+	s.releaseOutboundWriteFrame(write.frame)
 	if s.maxOutboundBytes > 0 {
-		s.observeTransport("outbound_pending", "outbound", depth, 0, bytes, bytesCapacity, "")
+		s.observeTransportSnapshot(snapshot)
 	}
 }
 

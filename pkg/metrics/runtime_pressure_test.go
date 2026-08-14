@@ -6,7 +6,19 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
+
+func TestRuntimePressureRevisionedQueueRejectsOlderAbsoluteGauge(t *testing.T) {
+	m := newRuntimePressureMetrics(prometheus.NewRegistry(), nil)
+	m.SetQueueRevisioned("gateway", "actor_ready", "ready", "none", 2, RuntimePressureQueueObservation{Depth: 0, Capacity: 1024})
+	m.SetQueueRevisioned("gateway", "actor_ready", "ready", "none", 1, RuntimePressureQueueObservation{Depth: 2, Capacity: 1024})
+
+	series := m.boundQueueSeries("gateway", "actor_ready", "ready", "none")
+	if got := testutil.ToFloat64(series.depth); got != 0 {
+		t.Fatalf("revisioned queue depth = %v, want latest depth 0", got)
+	}
+}
 
 func TestRuntimePressureUpdatesReuseBoundSeries(t *testing.T) {
 	m := newRuntimePressureMetrics(prometheus.NewRegistry(), nil)

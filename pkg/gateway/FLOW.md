@@ -397,6 +397,7 @@ mailbox。Stop 不会通过取消 mailbox worker 来换取快速返回。
 
 - `gnet` 是唯一内置 transport，支持 TCP 与 WebSocket，并让多个逻辑 listener 共享一个 engine group。
 - gnet callbacks 只做协议前置处理并把 open/data/close 事件入 conn queue；固定 actor shard 执行 handler 回调，避免每连接 goroutine。
+- actor、入站队列和出站异步写的 pressure snapshot 在各自物理状态锁内取得单调 source revision。共享 aggregator 仍按低基数 source 求和，会忽略 actor、callback 或 admission 并发提交时晚到的旧 source revision，并给每个 aggregate 绝对 snapshot 分配进程内单调 publication revision；绝对 gauge sink 在设置 gauge 的同一临界区拒绝旧 publication revision，因此 apply 后被延迟的旧 callback 也不能回退外部 gauge，且 observer 不会反向阻塞 actor drain。`ok`/拒绝结果仍各自只计一次。连接关闭通过 connection-local pressure fence 串行化最后一次 snapshot 与 source clear，clear 也发布更高 publication revision，关闭后的 callback 不能重新打开已清除的 gauge。actor source revision 由 engine group 持有并跨 transport restart 单调递增。每次带 callback 的 raw submission 都在同一 FIFO entry 中保存 byte reservation 和可选 WebSocket vector frame，callback 只释放与它精确对应的 entry；compact/TCP 与 vector 写混排时不会提前回收后一个 vector buffer。异步写 trigger 的非空返回不等于 callback 未入队；该 entry 只由 callback 或连接关闭释放，且连接拒绝后续提交，避免 FIFO ownership 偏移。由此空物理队列不会被旧的非零绝对 snapshot 覆盖，同时可选观测不会延迟 actor 唤醒或底层异步提交，也不在指标中增加 connection label。
 - `gnet` WebSocket 实现包含 handshake 校验、masked client frame 校验、ping/pong/close、fragment reassembly 和写出 frame 封装。
 - transport 层只负责 bytes 与 conn lifecycle，不应依赖 gateway handler 之外的业务对象。
 

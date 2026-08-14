@@ -36,6 +36,8 @@ type AsyncSendAdmissionObserver interface {
 }
 
 // TransportPressureObserver receives optional gateway transport pressure observations.
+// Implementations that retain absolute gauges must ignore an event whose non-zero
+// Revision is not newer than the last event retained for the same Name and Queue.
 type TransportPressureObserver interface {
 	OnTransportPressure(event TransportPressureEvent)
 }
@@ -133,6 +135,9 @@ type TransportPressureEvent struct {
 	BytesCapacity int64
 	// Result is a low-cardinality admission outcome such as ok, full, closed, or too_large.
 	Result string
+	// Revision monotonically orders aggregate absolute gauges for one transport runtime.
+	// Result observations remain independent and must still be counted exactly once.
+	Revision uint64
 }
 
 // AsyncSendBatchEvent reports one asynchronous SEND batch flush.

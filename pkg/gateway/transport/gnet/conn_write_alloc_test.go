@@ -3,6 +3,7 @@ package gnet
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
@@ -247,8 +248,61 @@ func TestStateConnWebSocketWriteReusesWritevFrame(t *testing.T) {
 	}
 }
 
-func TestStateConnWebSocketWritevRollbackPreservesEarlierInFlightWrite(t *testing.T) {
-	raw := &errorAfterFirstWritevConn{err: errors.New("boom")}
+func TestStateConnWebSocketWritevTriggerErrorRetainsCallbackOwnership(t *testing.T) {
+	errTrigger := errors.New("trigger failed after enqueue")
+	raw := &queuedAsyncWriteConn{writevErrors: []error{errTrigger}}
+	observer := &recordingTransportPressureObserver{}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 1 << 20,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network:  "websocket",
+			Observer: observer,
+		}},
+	}
+	raw.ctx = state
+	conn := &stateConn{state: state}
+	payload := bytes.Repeat([]byte("x"), 1024)
+
+	err := conn.WriteWebSocketMessage(payload, transport.WebSocketMessageText)
+	if !errors.Is(err, errTrigger) {
+		t.Fatalf("Write() error = %v, want %v", err, errTrigger)
+	}
+
+	state.outboundMu.Lock()
+	if got, want := len(state.outboundWrites), 1; got != want {
+		t.Fatalf("in-flight writes = %d, want %d", got, want)
+	}
+	if state.outboundWrites[0].frame == nil || state.outboundWrites[0].size == 0 {
+		t.Fatalf("in-flight vector write = %+v, want frame and byte reservation", state.outboundWrites[0])
+	}
+	if got := len(state.outboundWriteFrameFree); got != 0 {
+		t.Fatalf("free frames before callback = %d, want 0", got)
+	}
+	state.outboundMu.Unlock()
+	if got := len(raw.writevData); got != 1 {
+		t.Fatalf("queued writev payloads = %d, want 1", got)
+	}
+	if _, _, err := decodeWSFrame(bytes.Join(raw.writevData[0], nil)); err != nil {
+		t.Fatalf("queued websocket frame was mutated after trigger error: %v", err)
+	}
+	raw.completeWritev(t, 0)
+	state.outboundMu.Lock()
+	if len(state.outboundWrites) != 0 {
+		t.Fatalf("callback retained %d outbound writes", len(state.outboundWrites))
+	}
+	if got := len(state.outboundWriteFrameFree); got != 1 {
+		t.Fatalf("free frames after callback = %d, want 1", got)
+	}
+	state.outboundMu.Unlock()
+	events := observer.snapshot()
+	if last := events[len(events)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last websocket pressure after callback = %+v, want zero", last)
+	}
+}
+
+func TestStateConnWebSocketCompactCallbackDoesNotReleaseFollowingVector(t *testing.T) {
+	raw := &queuedAsyncWriteConn{}
 	state := &connState{
 		raw:              raw,
 		maxOutboundBytes: 1 << 20,
@@ -258,40 +312,178 @@ func TestStateConnWebSocketWritevRollbackPreservesEarlierInFlightWrite(t *testin
 	}
 	raw.ctx = state
 	conn := &stateConn{state: state}
-	payload := bytes.Repeat([]byte("x"), 1024)
+	vectorPayload := bytes.Repeat([]byte("v"), wsWritevPayloadThreshold)
 
-	if err := conn.WriteWebSocketMessage(payload, transport.WebSocketMessageText); err != nil {
-		t.Fatalf("first Write() error = %v", err)
+	if err := conn.WriteWebSocketMessage([]byte("compact"), transport.WebSocketMessageText); err != nil {
+		t.Fatalf("compact WriteWebSocketMessage() error = %v", err)
+	}
+	if err := conn.WriteWebSocketMessage(vectorPayload, transport.WebSocketMessageBinary); err != nil {
+		t.Fatalf("vector WriteWebSocketMessage() error = %v", err)
+	}
+
+	raw.completeWrite(t, 0)
+	frame, _, err := decodeWSFrame(bytes.Join(raw.writevData[0], nil))
+	if err != nil {
+		t.Fatalf("vector frame after compact callback: %v", err)
+	}
+	if !bytes.Equal(frame.payload, vectorPayload) {
+		t.Fatalf("vector payload after compact callback has length %d, want %d", len(frame.payload), len(vectorPayload))
 	}
 	state.outboundMu.Lock()
-	firstFrame := state.outboundWriteFrames[0]
-	firstSize := state.outboundWriteSizes[0]
+	if got := len(state.outboundWriteFrameFree); got != 0 {
+		state.outboundMu.Unlock()
+		t.Fatalf("free vector frames before vector callback = %d, want 0", got)
+	}
 	state.outboundMu.Unlock()
-	if firstFrame == nil || firstSize == 0 {
-		t.Fatal("first websocket write was not tracked")
-	}
 
-	err := conn.WriteWebSocketMessage(payload, transport.WebSocketMessageText)
-	if !errors.Is(err, raw.err) {
-		t.Fatalf("second Write() error = %v, want %v", err, raw.err)
-	}
-
+	raw.completeWritev(t, 0)
 	state.outboundMu.Lock()
 	defer state.outboundMu.Unlock()
-	if got, want := len(state.outboundWriteFrames), 1; got != want {
-		t.Fatalf("in-flight write frames = %d, want %d", got, want)
+	if got := len(state.outboundWriteFrameFree); got != 1 {
+		t.Fatalf("free vector frames after vector callback = %d, want 1", got)
 	}
-	if state.outboundWriteFrames[0] != firstFrame {
-		t.Fatal("earlier in-flight write frame was replaced")
+}
+
+func TestStateConnWebSocketCompactCallbackDoesNotReleaseReusedFollowingVector(t *testing.T) {
+	raw := &queuedAsyncWriteConn{}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 1 << 20,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network: "websocket",
+		}},
 	}
-	if got, want := len(state.outboundWriteSizes), 1; got != want {
-		t.Fatalf("in-flight write sizes = %d, want %d", got, want)
+	raw.ctx = state
+	conn := &stateConn{state: state}
+	firstVector := bytes.Repeat([]byte("a"), wsWritevPayloadThreshold)
+	secondVector := bytes.Repeat([]byte("b"), wsWritevPayloadThreshold)
+
+	if err := conn.WriteWebSocketMessage(firstVector, transport.WebSocketMessageBinary); err != nil {
+		t.Fatalf("first vector WriteWebSocketMessage() error = %v", err)
 	}
-	if state.outboundWriteSizes[0] != firstSize {
-		t.Fatalf("in-flight write size = %d, want %d", state.outboundWriteSizes[0], firstSize)
+	if err := conn.WriteWebSocketMessage([]byte("compact"), transport.WebSocketMessageText); err != nil {
+		t.Fatalf("compact WriteWebSocketMessage() error = %v", err)
 	}
-	if got, want := len(state.outboundWriteFrameFree), 1; got != want {
-		t.Fatalf("free frames = %d, want %d", got, want)
+	raw.completeWritev(t, 0)
+	if err := conn.WriteWebSocketMessage(secondVector, transport.WebSocketMessageBinary); err != nil {
+		t.Fatalf("second vector WriteWebSocketMessage() error = %v", err)
+	}
+
+	raw.completeWrite(t, 0)
+	frame, _, err := decodeWSFrame(bytes.Join(raw.writevData[1], nil))
+	if err != nil {
+		t.Fatalf("second vector frame after compact callback: %v", err)
+	}
+	if !bytes.Equal(frame.payload, secondVector) {
+		t.Fatalf("second vector payload after compact callback has length %d, want %d", len(frame.payload), len(secondVector))
+	}
+	state.outboundMu.Lock()
+	if got := len(state.outboundWriteFrameFree); got != 0 {
+		state.outboundMu.Unlock()
+		t.Fatalf("free vector frames before second vector callback = %d, want 0", got)
+	}
+	state.outboundMu.Unlock()
+
+	raw.completeWritev(t, 1)
+	state.outboundMu.Lock()
+	defer state.outboundMu.Unlock()
+	if got := len(state.outboundWriteFrameFree); got != 1 {
+		t.Fatalf("free vector frames after second vector callback = %d, want 1", got)
+	}
+}
+
+func TestStateConnWebSocketTriggerErrorKeepsFollowingVectorUntilLateCallback(t *testing.T) {
+	errTrigger := errors.New("trigger failed after enqueue")
+	raw := &queuedAsyncWriteConn{writevErrors: []error{errTrigger}}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 1 << 20,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network: "websocket",
+		}},
+	}
+	raw.ctx = state
+	conn := &stateConn{state: state}
+	vectorPayload := bytes.Repeat([]byte("e"), wsWritevPayloadThreshold)
+
+	if err := conn.WriteWebSocketMessage([]byte("compact"), transport.WebSocketMessageText); err != nil {
+		t.Fatalf("compact WriteWebSocketMessage() error = %v", err)
+	}
+	if err := conn.WriteWebSocketMessage(vectorPayload, transport.WebSocketMessageBinary); !errors.Is(err, errTrigger) {
+		t.Fatalf("vector WriteWebSocketMessage() error = %v, want %v", err, errTrigger)
+	}
+
+	raw.completeWrite(t, 0)
+	frame, _, err := decodeWSFrame(bytes.Join(raw.writevData[0], nil))
+	if err != nil {
+		t.Fatalf("error-owned vector frame after compact callback: %v", err)
+	}
+	if !bytes.Equal(frame.payload, vectorPayload) {
+		t.Fatalf("error-owned vector payload after compact callback has length %d, want %d", len(frame.payload), len(vectorPayload))
+	}
+	state.outboundMu.Lock()
+	if got := len(state.outboundWriteFrameFree); got != 0 {
+		state.outboundMu.Unlock()
+		t.Fatalf("free vector frames before late error callback = %d, want 0", got)
+	}
+	state.outboundMu.Unlock()
+
+	raw.completeWritev(t, 0)
+	state.outboundMu.Lock()
+	defer state.outboundMu.Unlock()
+	if got := len(state.outboundWriteFrameFree); got != 1 {
+		t.Fatalf("free vector frames after late error callback = %d, want 1", got)
+	}
+}
+
+func TestConnStateCloseDoesNotRecycleCallbackOwnedVectorFrame(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	raw := &queuedAsyncWriteConn{}
+	state := &connState{
+		id:               91,
+		raw:              raw,
+		maxOutboundBytes: 1 << 20,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network:  "websocket",
+			Observer: observer,
+		}},
+	}
+	raw.ctx = state
+	conn := &stateConn{state: state}
+	vectorPayload := bytes.Repeat([]byte("c"), wsWritevPayloadThreshold)
+
+	if err := conn.WriteWebSocketMessage([]byte("compact"), transport.WebSocketMessageText); err != nil {
+		t.Fatalf("compact WriteWebSocketMessage() error = %v", err)
+	}
+	if err := conn.WriteWebSocketMessage(vectorPayload, transport.WebSocketMessageBinary); err != nil {
+		t.Fatalf("vector WriteWebSocketMessage() error = %v", err)
+	}
+	if done := state.handleEvent(connEvent{kind: connEventClose}); !done {
+		t.Fatal("close event did not terminate connection processing")
+	}
+
+	frame, _, err := decodeWSFrame(bytes.Join(raw.writevData[0], nil))
+	if err != nil {
+		t.Fatalf("callback-owned vector frame after close: %v", err)
+	}
+	if !bytes.Equal(frame.payload, vectorPayload) {
+		t.Fatalf("callback-owned vector payload after close has length %d, want %d", len(frame.payload), len(vectorPayload))
+	}
+	raw.completeWrite(t, 0)
+	raw.completeWritev(t, 0)
+	state.outboundMu.Lock()
+	if got := len(state.outboundWrites); got != 0 {
+		state.outboundMu.Unlock()
+		t.Fatalf("outbound writes after close callbacks = %d, want 0", got)
+	}
+	if got := len(state.outboundWriteFrameFree); got != 0 {
+		state.outboundMu.Unlock()
+		t.Fatalf("recycled callback-owned vector frames after close = %d, want 0", got)
+	}
+	state.outboundMu.Unlock()
+	events := observer.snapshot()
+	if last := events[len(events)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last pressure after close callbacks = %+v, want cleared zero", last)
 	}
 }
 
@@ -321,20 +513,52 @@ func TestStateConnWebSocketVectorWriteDirectAllocBreakdown(t *testing.T) {
 	}
 }
 
-type errorAfterFirstWritevConn struct {
+type queuedAsyncWriteConn struct {
 	allocTestGnetConn
-	err         error
-	writevCalls int
+	writeErrors     []error
+	writevErrors    []error
+	writeCallbacks  []gnetv2.AsyncCallback
+	writevCallbacks []gnetv2.AsyncCallback
+	writevData      [][][]byte
 }
 
-func (c *errorAfterFirstWritevConn) AsyncWritev(bs [][]byte, callback gnetv2.AsyncCallback) error {
-	c.writevCalls++
-	if c.writevCalls == 1 {
-		c.lastAsyncWritev = bs
-		c.lastAsyncWrite = nil
-		return nil
+func (c *queuedAsyncWriteConn) AsyncWrite(_ []byte, callback gnetv2.AsyncCallback) error {
+	index := len(c.writeCallbacks)
+	c.writeCallbacks = append(c.writeCallbacks, callback)
+	if index < len(c.writeErrors) {
+		return c.writeErrors[index]
 	}
-	return c.err
+	return nil
+}
+
+func (c *queuedAsyncWriteConn) AsyncWritev(data [][]byte, callback gnetv2.AsyncCallback) error {
+	index := len(c.writevCallbacks)
+	c.writevCallbacks = append(c.writevCallbacks, callback)
+	c.writevData = append(c.writevData, data)
+	if index < len(c.writevErrors) {
+		return c.writevErrors[index]
+	}
+	return nil
+}
+
+func (c *queuedAsyncWriteConn) completeWrite(t *testing.T, index int) {
+	t.Helper()
+	if index < 0 || index >= len(c.writeCallbacks) || c.writeCallbacks[index] == nil {
+		t.Fatalf("write callback %d is unavailable", index)
+	}
+	if err := c.writeCallbacks[index](c, nil); err != nil {
+		t.Fatalf("write callback %d: %v", index, err)
+	}
+}
+
+func (c *queuedAsyncWriteConn) completeWritev(t *testing.T, index int) {
+	t.Helper()
+	if index < 0 || index >= len(c.writevCallbacks) || c.writevCallbacks[index] == nil {
+		t.Fatalf("writev callback %d is unavailable", index)
+	}
+	if err := c.writevCallbacks[index](c, nil); err != nil {
+		t.Fatalf("writev callback %d: %v", index, err)
+	}
 }
 
 func TestStateConnWebSocketWriteDefaultsBinaryWithoutHint(t *testing.T) {
@@ -405,12 +629,14 @@ func TestStateConnRejectsWriteOverOutboundByteLimit(t *testing.T) {
 }
 
 func TestStateConnReleasesOutboundReservationAfterAsyncCallback(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
 	raw := &allocTestGnetConn{autoAsyncCallback: true}
 	state := &connState{
 		raw:              raw,
 		maxOutboundBytes: 4,
 		runtime: &listenerRuntime{opts: transport.ListenerOptions{
-			Network: "tcp",
+			Network:  "tcp",
+			Observer: observer,
 		}},
 	}
 	raw.ctx = state
@@ -419,8 +645,98 @@ func TestStateConnReleasesOutboundReservationAfterAsyncCallback(t *testing.T) {
 	if err := conn.Write([]byte("1234")); err != nil {
 		t.Fatalf("first Write() error = %v", err)
 	}
+	firstEvents := observer.snapshot()
+	if last := firstEvents[len(firstEvents)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last pressure after inline callback = %+v, want released zero", last)
+	}
 	if err := conn.Write([]byte("1234")); err != nil {
 		t.Fatalf("second Write() error = %v", err)
+	}
+	secondEvents := observer.snapshot()
+	if last := secondEvents[len(secondEvents)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last pressure after second inline callback = %+v, want released zero", last)
+	}
+}
+
+func TestStateConnAsyncWriteTriggerErrorRetainsFIFOCallbackOwnership(t *testing.T) {
+	errTrigger := errors.New("trigger failed after enqueue")
+	raw := &queuedAsyncWriteConn{writeErrors: []error{nil, errTrigger}}
+	observer := &recordingTransportPressureObserver{}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 16,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network:  "tcp",
+			Observer: observer,
+		}},
+	}
+	raw.ctx = state
+	conn := &stateConn{state: state}
+
+	if err := conn.Write([]byte("ab")); err != nil {
+		t.Fatalf("first Write() error = %v", err)
+	}
+	if err := conn.Write([]byte("wxyz")); !errors.Is(err, errTrigger) {
+		t.Fatalf("second Write() error = %v, want %v", err, errTrigger)
+	}
+	state.outboundMu.Lock()
+	if got, want := outboundWriteSizesLocked(state), []int{2, 4}; !slices.Equal(got, want) {
+		state.outboundMu.Unlock()
+		t.Fatalf("reservations after trigger error = %v, want %v", got, want)
+	}
+	state.outboundMu.Unlock()
+	if err := conn.Write([]byte("late")); !errors.Is(err, errTrigger) {
+		t.Fatalf("write after ambiguous trigger error = %v, want original failure", err)
+	}
+	if got := len(raw.writeCallbacks); got != 2 {
+		t.Fatalf("raw AsyncWrite calls = %d, want no submission after failure", got)
+	}
+
+	raw.completeWrite(t, 0)
+	state.outboundMu.Lock()
+	if got, want := outboundWriteSizesLocked(state), []int{4}; !slices.Equal(got, want) {
+		state.outboundMu.Unlock()
+		t.Fatalf("reservations after first callback = %v, want %v", got, want)
+	}
+	state.outboundMu.Unlock()
+	raw.completeWrite(t, 1)
+	events := observer.snapshot()
+	if last := events[len(events)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last pressure after queued error callback = %+v, want zero", last)
+	}
+}
+
+func outboundWriteSizesLocked(state *connState) []int {
+	sizes := make([]int, len(state.outboundWrites))
+	for i := range state.outboundWrites {
+		sizes[i] = state.outboundWrites[i].size
+	}
+	return sizes
+}
+
+func TestStateConnWebSocketReleasesOutboundReservationAfterInlineCallback(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	raw := &allocTestGnetConn{autoAsyncCallback: true}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 1 << 20,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network:  "websocket",
+			Observer: observer,
+		}},
+	}
+	raw.ctx = state
+	conn := &stateConn{state: state}
+
+	if err := conn.WriteWebSocketMessage(bytes.Repeat([]byte("x"), 1024), transport.WebSocketMessageBinary); err != nil {
+		t.Fatalf("WriteWebSocketMessage() error = %v", err)
+	}
+	events := observer.snapshot()
+	if len(events) == 0 {
+		t.Fatal("websocket write published no outbound pressure observations")
+	}
+	if last := events[len(events)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last websocket pressure after inline callback = %+v, want released zero", last)
 	}
 }
 
