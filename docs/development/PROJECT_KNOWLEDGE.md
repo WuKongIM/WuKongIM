@@ -349,6 +349,21 @@
 
 ## Development Workflow
 
+### Agent context navigation
+- `AGENTS.md` contains mandatory scoped rules; executable code, schemas, and
+  tests remain authoritative behavior facts. Accepted ADRs and stable project
+  knowledge explain cross-module decisions.
+- `FLOW.md` is advisory just-in-time navigation for complex modules, not a
+  second policy or implementation manual. Deep analysis or changes must read
+  the applicable exact-directory and ancestor FLOW candidates; broad discovery
+  searches alone do not trigger loading.
+- Explicit `scope: package` applies only to the FLOW directory, while
+  `scope: subtree` applies recursively. Front-matter-free legacy files
+  temporarily retain subtree behavior during migration.
+- Conflicts resolve in this order: `AGENTS.md`, executable facts, accepted ADR
+  or stable project knowledge, `FLOW.md`, generated FLOW index. Report stale
+  FLOW guidance instead of silently following it.
+
 ### Public documentation
 - The public WuKongIM v3 documentation application lives in `docs-site/`; the repository-level `docs/` tree remains the engineering knowledge base.
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.

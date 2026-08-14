@@ -188,6 +188,8 @@ func TestReviewAgentPolicy(t *testing.T) {
 		"unresolved_uncertainty",
 		"must not modify",
 		"Check MCP",
+		"advisory `FLOW.md`",
+		"higher-authority source",
 	} {
 		require.Contains(t, string(prompt), required)
 	}

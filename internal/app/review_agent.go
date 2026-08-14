@@ -382,7 +382,7 @@ func buildReviewContext(
 			paths = append(paths, file.PreviousPath)
 		}
 	}
-	instructions, err := client.ReadBaseInstructions(
+	contextDocuments, err := client.ReadBaseContextDocuments(
 		ctx,
 		request.Generation.BaseSHA,
 		paths,
@@ -415,7 +415,7 @@ func buildReviewContext(
 		LinkedIssues: snapshot.LinkedIssues, ReviewThreads: threads,
 		Discussion:    discussion,
 		PriorFindings: request.PriorFindings,
-		Inventory:     snapshot.Inventory, Instructions: instructions,
+		Inventory:     snapshot.Inventory, ContextDocuments: contextDocuments,
 		MandatoryChecks: checks,
 	}, policy.Limits.MaxContextBytes)
 	if err != nil {

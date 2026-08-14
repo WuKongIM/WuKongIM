@@ -33,7 +33,7 @@ type AuthorizationRecord struct {
 	Command    string `json:"command"`
 }
 
-// FileDigest freezes one exact repository instruction blob.
+// FileDigest freezes one exact repository context-document blob.
 type FileDigest struct {
 	Path       string `json:"path"`
 	GitBlobSHA string `json:"git_blob_sha"`
@@ -47,14 +47,14 @@ type EngineerLimits struct {
 
 // TrustedContext is derived only from protected policy and authenticated reads.
 type TrustedContext struct {
-	Authorization      AuthorizationRecord `json:"authorization"`
-	Labels             []string            `json:"labels"`
-	RequiredTests      []string            `json:"required_tests"`
-	RiskCeiling        []string            `json:"risk_ceiling"`
-	InstructionDigests []FileDigest        `json:"instruction_digests"`
-	KnowledgePaths     []string            `json:"knowledge_paths"`
-	OutputSchemaDigest string              `json:"output_schema_digest"`
-	Limits             EngineerLimits      `json:"limits"`
+	Authorization          AuthorizationRecord `json:"authorization"`
+	Labels                 []string            `json:"labels"`
+	RequiredTests          []string            `json:"required_tests"`
+	RiskCeiling            []string            `json:"risk_ceiling"`
+	ContextDocumentDigests []FileDigest        `json:"context_document_digests"`
+	KnowledgePaths         []string            `json:"knowledge_paths"`
+	OutputSchemaDigest     string              `json:"output_schema_digest"`
+	Limits                 EngineerLimits      `json:"limits"`
 }
 
 // IssueSnapshot is untrusted GitHub Issue content with immutable object facts.
@@ -187,7 +187,7 @@ func validateTrustedContext(context TrustedContext) error {
 		!strictContextStrings(context.RiskCeiling, 256, true) {
 		return errors.New("invalid trusted Context Bundle lists")
 	}
-	if err := validateInstructionDigests(context.InstructionDigests); err != nil {
+	if err := validateContextDocumentDigests(context.ContextDocumentDigests); err != nil {
 		return err
 	}
 	if !strictContextPaths(context.KnowledgePaths) ||
@@ -292,9 +292,9 @@ func strictContextPaths(paths []string) bool {
 	return true
 }
 
-func validateInstructionDigests(digests []FileDigest) error {
+func validateContextDocumentDigests(digests []FileDigest) error {
 	if len(digests) == 0 || len(digests) > maxContextItems {
-		return errors.New("instruction digests are empty or oversized")
+		return errors.New("context document digests are empty or oversized")
 	}
 	for index, digest := range digests {
 		if err := validateRepositoryPath(digest.Path); err != nil {
@@ -303,7 +303,7 @@ func validateInstructionDigests(digests []FileDigest) error {
 		if !gitSHAPattern.MatchString(digest.GitBlobSHA) ||
 			index > 0 && digest.Path <= digests[index-1].Path {
 			return errors.New(
-				"instruction digests must be valid and strictly sorted",
+				"context document digests must be valid and strictly sorted",
 			)
 		}
 	}

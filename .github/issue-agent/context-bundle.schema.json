@@ -124,7 +124,7 @@
             "type": "string"
           }
         },
-        "instruction_digests": {
+        "context_document_digests": {
           "type": [
             "null",
             "array"
@@ -185,7 +185,7 @@
         "labels",
         "required_tests",
         "risk_ceiling",
-        "instruction_digests",
+        "context_document_digests",
         "knowledge_paths",
         "output_schema_digest",
         "limits"

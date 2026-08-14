@@ -6,7 +6,7 @@ GitHub REST and GraphQL calls.
 ```text
 read token
   -> Issue, comments, permissions, unresolved Review threads
-  -> exact-source recursive tree for AGENTS.md and FLOW.md blob identities
+  -> exact-source recursive tree for mandatory AGENTS.md and advisory FLOW.md identities
   -> credential-free ContextBundle
 
 protected Publisher App credential

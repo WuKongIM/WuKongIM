@@ -112,13 +112,13 @@ type PullRequestSnapshot struct {
 	CommentPatches map[string]string
 }
 
-// ReadBaseInstructions freezes every applicable AGENTS.md and FLOW.md from
+// ReadBaseContextDocuments freezes applicable AGENTS.md and FLOW.md documents from
 // the exact trusted control/base tree.
-func (client *Client) ReadBaseInstructions(
+func (client *Client) ReadBaseContextDocuments(
 	ctx context.Context,
 	baseSHA string,
 	changedPaths []string,
-) ([]contract.InstructionBlob, error) {
+) ([]contract.ContextDocumentBlob, error) {
 	if client == nil || !gitSHAPattern.MatchString(baseSHA) {
 		return nil, errors.New("base instruction identity is invalid")
 	}
@@ -126,18 +126,18 @@ func (client *Client) ReadBaseInstructions(
 	if err != nil {
 		return nil, err
 	}
-	type instructionEntry struct {
+	type contextDocumentEntry struct {
 		path  string
 		entry treeEntry
 	}
-	entries := make([]instructionEntry, 0)
+	entries := make([]contextDocumentEntry, 0)
 	for repositoryPath, entry := range tree {
 		if path.Base(repositoryPath) != "AGENTS.md" &&
 			path.Base(repositoryPath) != "FLOW.md" {
 			continue
 		}
 		if entry.Type != "blob" || entry.Mode != "100644" {
-			return nil, errors.New("base instruction tree entry is invalid")
+			return nil, errors.New("base context document tree entry is invalid")
 		}
 		scope := path.Dir(repositoryPath)
 		if !slices.ContainsFunc(changedPaths, func(changedPath string) bool {
@@ -147,28 +147,28 @@ func (client *Client) ReadBaseInstructions(
 		}) {
 			continue
 		}
-		entries = append(entries, instructionEntry{
+		entries = append(entries, contextDocumentEntry{
 			path: repositoryPath, entry: entry,
 		})
 	}
-	if len(entries) > contract.MaxInstructions {
-		return nil, errors.New("base instruction budget exceeded")
+	if len(entries) > contract.MaxContextDocuments {
+		return nil, errors.New("base context document budget exceeded")
 	}
-	slices.SortFunc(entries, func(left, right instructionEntry) int {
+	slices.SortFunc(entries, func(left, right contextDocumentEntry) int {
 		return strings.Compare(left.path, right.path)
 	})
-	catalog := make([]verify.BaseInstruction, 0, len(entries))
+	catalog := make([]verify.BaseContextDocument, 0, len(entries))
 	for _, candidate := range entries {
 		content, readErr := client.readBlob(ctx, candidate.entry.SHA)
 		if readErr != nil {
 			return nil, readErr
 		}
-		catalog = append(catalog, verify.BaseInstruction{
+		catalog = append(catalog, verify.BaseContextDocument{
 			Path: candidate.path, BlobSHA: candidate.entry.SHA,
 			Content: content,
 		})
 	}
-	return verify.DiscoverInstructions(changedPaths, catalog)
+	return verify.DiscoverContextDocuments(changedPaths, catalog)
 }
 
 // ReadPullRequest performs complete bounded reads. The event payload supplies

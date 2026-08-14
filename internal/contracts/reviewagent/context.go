@@ -19,11 +19,11 @@ const (
 	// MaxContextBytes bounds the canonical encoded Context Bundle.
 	MaxContextBytes int64 = 2 << 20
 
-	MaxInstructions    = 128
-	MaxMandatoryChecks = 128
-	MaxLinkedIssues    = 128
-	MaxReviewThreads   = 10000
-	MaxDiscussionItems = 30000
+	MaxContextDocuments = 128
+	MaxMandatoryChecks  = 128
+	MaxLinkedIssues     = 128
+	MaxReviewThreads    = 10000
+	MaxDiscussionItems  = 30000
 )
 
 // FileStatus is GitHub's normalized operation for one complete inventory item.
@@ -52,8 +52,9 @@ type ChangedFile struct {
 	Deletions     uint64     `json:"deletions"`
 }
 
-// InstructionBlob freezes one applicable base/control-tree instruction.
-type InstructionBlob struct {
+// ContextDocumentBlob freezes one applicable base/control-tree context document.
+// AGENTS content is mandatory; FLOW content is advisory navigation.
+type ContextDocumentBlob struct {
 	Path       string `json:"path"`
 	Scope      string `json:"scope"`
 	BlobSHA    string `json:"blob_sha"`
@@ -124,12 +125,12 @@ type ReviewContext struct {
 	Discussion         []DiscussionItem      `json:"discussion"`
 	PriorFindings      []PriorFindingContext `json:"prior_findings"`
 	ChangedFiles       []ChangedFile         `json:"changed_files"`
-	Instructions       []InstructionBlob     `json:"instructions"`
+	ContextDocuments   []ContextDocumentBlob `json:"context_documents"`
 	MandatoryChecks    []string              `json:"mandatory_checks"`
 }
 
-// ValidateReviewContext rejects incomplete inventories and untrusted
-// instruction identities.
+// ValidateReviewContext rejects incomplete inventories and untrusted context
+// document identities.
 func ValidateReviewContext(context ReviewContext) error {
 	if context.SchemaVersion != 1 {
 		return errors.New("unsupported Review context schema version")
@@ -225,23 +226,23 @@ func ValidateReviewContext(context ReviewContext) error {
 		}
 		paths[file.Path] = struct{}{}
 	}
-	if len(context.Instructions) > MaxInstructions {
-		return errors.New("too many Review context instructions")
+	if len(context.ContextDocuments) > MaxContextDocuments {
+		return errors.New("too many Review context documents")
 	}
-	instructionPaths := make(map[string]struct{}, len(context.Instructions))
-	for _, instruction := range context.Instructions {
-		if !validRepositoryPath(instruction.Path) ||
-			(instruction.Scope != "." &&
-				!validRepositoryPath(instruction.Scope)) ||
-			!validSHA(instruction.BlobSHA) ||
-			!validDigest(instruction.BlobDigest) ||
-			!validText(instruction.Content, 1<<20, true) {
-			return errors.New("invalid Review context instruction")
+	documentPaths := make(map[string]struct{}, len(context.ContextDocuments))
+	for _, document := range context.ContextDocuments {
+		if !validRepositoryPath(document.Path) ||
+			(document.Scope != "." &&
+				!validRepositoryPath(document.Scope)) ||
+			!validSHA(document.BlobSHA) ||
+			!validDigest(document.BlobDigest) ||
+			!validText(document.Content, 1<<20, true) {
+			return errors.New("invalid Review context document")
 		}
-		if _, exists := instructionPaths[instruction.Path]; exists {
-			return errors.New("duplicate Review context instruction")
+		if _, exists := documentPaths[document.Path]; exists {
+			return errors.New("duplicate Review context document")
 		}
-		instructionPaths[instruction.Path] = struct{}{}
+		documentPaths[document.Path] = struct{}{}
 	}
 	if !validUniqueStrings(
 		context.MandatoryChecks,

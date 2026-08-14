@@ -49,7 +49,7 @@ func TestContextBuilderKeepsUntrustedCommandsOutOfAuthorization(t *testing.T) {
 			},
 			RequiredTests: []string{"unit", "focused"},
 			RiskCeiling:   []string{"low"},
-			InstructionDigests: []contract.FileDigest{{
+			ContextDocumentDigests: []contract.FileDigest{{
 				Path:       "AGENTS.md",
 				GitBlobSHA: "dddddddddddddddddddddddddddddddddddddddd",
 			}},

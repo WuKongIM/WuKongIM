@@ -3,6 +3,7 @@ package reviewagent_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func TestReviewDocumentsShareOneGenerationIdentity(t *testing.T) {
 			Additions:     7,
 			Deletions:     2,
 		}},
-		Instructions: []reviewagent.InstructionBlob{{
+		ContextDocuments: []reviewagent.ContextDocumentBlob{{
 			Path:       "AGENTS.md",
 			Scope:      ".",
 			BlobSHA:    strings.Repeat("f", 40),
@@ -74,6 +75,10 @@ func TestReviewDocumentsShareOneGenerationIdentity(t *testing.T) {
 	}
 
 	require.NoError(t, reviewagent.ValidateReviewContext(context))
+	contextJSON, err := json.Marshal(context)
+	require.NoError(t, err)
+	require.Contains(t, string(contextJSON), `"context_documents"`)
+	require.NotContains(t, string(contextJSON), `"instructions"`)
 	require.NoError(t, reviewagent.ValidateReviewEvidence(evidence))
 	require.NoError(t, reviewagent.ValidateReviewState(state))
 

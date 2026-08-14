@@ -112,7 +112,7 @@ func validPublicationInput(t *testing.T) issueagent.CandidatePublicationInput {
 			},
 			Labels: []string{"bug"}, RequiredTests: []string{"focused"},
 			RiskCeiling: []string{"low"},
-			InstructionDigests: []contract.FileDigest{{
+			ContextDocumentDigests: []contract.FileDigest{{
 				Path:       "AGENTS.md",
 				GitBlobSHA: "dddddddddddddddddddddddddddddddddddddddd",
 			}},

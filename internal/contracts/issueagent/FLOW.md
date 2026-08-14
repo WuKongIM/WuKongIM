@@ -6,7 +6,7 @@ or model logic.
 
 ```text
 fresh GitHub reads + protected policy
-  -> ContextBundle (trusted authority + exact-source instruction blobs
+  -> ContextBundle (trusted authority + exact-source context-document blobs
      + untrusted conversation)
   -> Codex Engineer
   -> advisory EngineerResult
