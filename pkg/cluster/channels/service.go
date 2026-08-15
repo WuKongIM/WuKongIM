@@ -376,8 +376,17 @@ func (s *Service) InvalidateAppendAuthority(id ch.ChannelID, leader ch.NodeID, e
 // Tick advances Channel background work.
 func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 
-// Close closes the Channel runtime.
-func (s *Service) Close() error { return s.runtime.Close() }
+// Close stops metadata-create admission before closing the Channel runtime.
+func (s *Service) Close() error {
+	var errs []error
+	if closer, ok := s.metaSource.(interface{ Close() error }); ok {
+		errs = append(errs, closer.Close())
+	}
+	if s.runtime != nil {
+		errs = append(errs, s.runtime.Close())
+	}
+	return errors.Join(errs...)
+}
 
 // ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
 func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, visibleAfterSeq uint64) (ch.Message, bool, error) {

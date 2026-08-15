@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -20,11 +21,10 @@ const (
 
 // SlotMetaSource resolves Channel metadata from Slot authoritative runtime metadata.
 type SlotMetaSource struct {
-	reader RuntimeMetaReader
-	// creator owns initial create-only proposals; ordinary runtime-meta upsert
-	// must remain outside this append-admission path.
-	creator RuntimeMetaCreator
-	opts    SlotMetaSourceOptions
+	reader   RuntimeMetaReader
+	batcher  *metaCreateBatcher
+	batchErr error
+	opts     SlotMetaSourceOptions
 }
 
 // NewSlotMetaSource creates a Slot-backed ChannelMetaSource.
@@ -33,14 +33,23 @@ func NewSlotMetaSource(reader RuntimeMetaReader, opts ...SlotMetaSourceOptions) 
 	if len(opts) > 0 {
 		cfg = opts[0]
 	}
-	creator := cfg.Creator
-	if creator == nil {
-		if c, ok := reader.(RuntimeMetaCreator); ok {
-			creator = c
-		}
-	}
 	cfg.DefaultReplicas = append([]ch.NodeID(nil), cfg.DefaultReplicas...)
-	return &SlotMetaSource{reader: reader, creator: creator, opts: cfg}
+	source := &SlotMetaSource{reader: reader, opts: cfg}
+	if cfg.Router != nil && cfg.BatchStore != nil {
+		source.batcher = newMetaCreateBatcher(cfg.Router, cfg.BatchStore, cfg.BatchObserver, source.buildRuntimeMetaBatch)
+	} else if cfg.Router != nil || cfg.BatchStore != nil {
+		source.batchErr = fmt.Errorf("%w: runtime metadata batch router/store must be configured together", ch.ErrInvalidConfig)
+	}
+	return source
+}
+
+// Close stops new metadata-create admission, cancels queued entries, and joins
+// the bounded in-flight Slot batches owned by this source.
+func (s *SlotMetaSource) Close() error {
+	if s == nil || s.batcher == nil {
+		return nil
+	}
+	return s.batcher.close()
 }
 
 // ResolveChannelMeta returns metadata for id from authoritative Slot storage.
@@ -74,29 +83,60 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	if !errors.Is(err, metadb.ErrNotFound) {
 		return ch.Meta{}, err
 	}
-	if s.creator == nil {
-		return ch.Meta{}, fmt.Errorf("%w: missing slot metadata creator", ch.ErrChannelNotFound)
+	if s.batchErr != nil {
+		return ch.Meta{}, s.batchErr
+	}
+	if s.batcher == nil {
+		return ch.Meta{}, fmt.Errorf("%w: missing runtime metadata batch router/store", ch.ErrInvalidConfig)
 	}
 	started = time.Now()
-	buildStarted := time.Now()
-	candidate, err := s.initialRuntimeMeta(ctx, id)
-	s.observeMetaStage(channelMetaStageCreateBuild, metaStageResult(err), time.Since(buildStarted))
-	if err == nil {
-		proposeStarted := time.Now()
-		_, err = s.creator.CreateChannelRuntimeMeta(ctx, candidate)
-		s.observeMetaStage(channelMetaStageCreatePropose, metaStageResult(err), time.Since(proposeStarted))
+	proposeStarted := time.Now()
+	outcome := s.batcher.ensure(ctx, id)
+	meta, err = outcome.meta, outcome.err
+	s.observeMetaStage(channelMetaStageCreateBuild, metaStageResult(outcome.buildErr), 0)
+	s.observeMetaStage(channelMetaStageCreatePropose, metaStageResult(outcome.createErr), time.Since(proposeStarted))
+	if outcome.readObserved {
+		s.observeMetaStage(channelMetaStageFinalRead, metaStageResult(outcome.readErr), 0)
 	}
 	s.observeMetaStage(channelMetaStageCreateWrite, metaStageResult(err), time.Since(started))
 	if err != nil {
 		return ch.Meta{}, err
 	}
-	started = time.Now()
-	meta, err = s.readRuntimeMeta(ctx, id)
-	s.observeMetaStage(channelMetaStageFinalRead, metaStageResult(err), time.Since(started))
-	if err != nil {
-		return ch.Meta{}, err
-	}
 	return projectRuntimeMeta(meta), nil
+}
+
+func (s *SlotMetaSource) buildRuntimeMetaBatch(ctx context.Context, plans []runtimeMetaCreatePlanItem) ([]RuntimeMetaCreateItem, error) {
+	ids := make([]ch.ChannelID, len(plans))
+	routes := make([]routing.Route, len(plans))
+	for i, plan := range plans {
+		ids[i], routes[i] = plan.id, plan.route
+	}
+	placements := make([]ChannelPlacement, len(plans))
+	if s.opts.Placement != nil {
+		var err error
+		placements, err = s.opts.Placement.ResolveChannelPlacementBatch(ctx, ids, routes)
+		if err != nil {
+			return nil, err
+		}
+		if len(placements) != len(plans) {
+			return nil, fmt.Errorf("%w: aligned channel placement batch", ch.ErrInvalidConfig)
+		}
+	} else {
+		for i := range placements {
+			placements[i] = ChannelPlacement{
+				Leader: firstNodeID(s.opts.DefaultReplicas), Replicas: append([]ch.NodeID(nil), s.opts.DefaultReplicas...), MinISR: s.opts.DefaultMinISR,
+			}
+		}
+	}
+	items := make([]RuntimeMetaCreateItem, len(plans))
+	for i, plan := range plans {
+		meta, err := runtimeMetaFromPlacement(plan.id, placements[i])
+		if err != nil {
+			return nil, err
+		}
+		items[i] = RuntimeMetaCreateItem{HashSlot: plan.route.HashSlot, Meta: meta}
+	}
+	return items, nil
 }
 
 func (s *SlotMetaSource) readRuntimeMeta(ctx context.Context, id ch.ChannelID) (metadb.ChannelRuntimeMeta, error) {
@@ -113,11 +153,7 @@ func (s *SlotMetaSource) readRuntimeMeta(ctx context.Context, id ch.ChannelID) (
 	return meta, nil
 }
 
-func (s *SlotMetaSource) initialRuntimeMeta(ctx context.Context, id ch.ChannelID) (metadb.ChannelRuntimeMeta, error) {
-	placement, err := s.initialPlacement(ctx, id)
-	if err != nil {
-		return metadb.ChannelRuntimeMeta{}, err
-	}
+func runtimeMetaFromPlacement(id ch.ChannelID, placement ChannelPlacement) (metadb.ChannelRuntimeMeta, error) {
 	replicas := projectUint64NodeIDs(placement.Replicas)
 	if len(replicas) == 0 {
 		return metadb.ChannelRuntimeMeta{}, fmt.Errorf("%w: empty initial channel replicas", ch.ErrInvalidConfig)
@@ -144,22 +180,6 @@ func (s *SlotMetaSource) initialRuntimeMeta(ctx context.Context, id ch.ChannelID
 		MinISR:       int64(minISR),
 		Status:       uint8(ch.StatusActive),
 	}), nil
-}
-
-func (s *SlotMetaSource) initialPlacement(ctx context.Context, id ch.ChannelID) (ChannelPlacement, error) {
-	if s.opts.Placement != nil {
-		placement, err := s.opts.Placement.ResolveChannelPlacement(ctx, id)
-		if err != nil {
-			return ChannelPlacement{}, err
-		}
-		placement.Replicas = append([]ch.NodeID(nil), placement.Replicas...)
-		return placement, nil
-	}
-	return ChannelPlacement{
-		Leader:   firstNodeID(s.opts.DefaultReplicas),
-		Replicas: append([]ch.NodeID(nil), s.opts.DefaultReplicas...),
-		MinISR:   s.opts.DefaultMinISR,
-	}, nil
 }
 
 func (s *SlotMetaSource) observeMetaStage(stage string, result string, d time.Duration) {

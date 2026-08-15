@@ -722,6 +722,27 @@ func (o channelMetricsObserver) ObserveChannelMetaCreate(slotID uint32, result c
 	o.metrics.ChannelRuntime.ObserveMetaCreate(slotID, string(result))
 }
 
+func (o channelMetricsObserver) SetChannelMetaCreateQueueDepth(slotID uint32, depth int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.SetMetaCreateQueueDepth(slotID, depth)
+}
+
+func (o channelMetricsObserver) ObserveChannelMetaCreateCoalesced(slotID uint32) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveMetaCreateCoalesced(slotID)
+}
+
+func (o channelMetricsObserver) ObserveChannelMetaCreateBatch(slotID uint32, result string, items int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveMetaCreateBatch(slotID, result, items)
+}
+
 func (o channelMetricsObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	if o.metrics == nil {
 		return
@@ -1984,6 +2005,33 @@ func (o multiChannelObserver) ObserveChannelMetaCreate(slotID uint32, result clu
 		metaCreateObserver, ok := observer.(clusterchannels.MetaCreateObserver)
 		if ok {
 			metaCreateObserver.ObserveChannelMetaCreate(slotID, result)
+		}
+	}
+}
+
+func (o multiChannelObserver) SetChannelMetaCreateQueueDepth(slotID uint32, depth int) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(clusterchannels.MetaCreateBatchObserver)
+		if ok {
+			batchObserver.SetChannelMetaCreateQueueDepth(slotID, depth)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveChannelMetaCreateCoalesced(slotID uint32) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(clusterchannels.MetaCreateBatchObserver)
+		if ok {
+			batchObserver.ObserveChannelMetaCreateCoalesced(slotID)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveChannelMetaCreateBatch(slotID uint32, result string, items int) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(clusterchannels.MetaCreateBatchObserver)
+		if ok {
+			batchObserver.ObserveChannelMetaCreateBatch(slotID, result, items)
 		}
 	}
 }

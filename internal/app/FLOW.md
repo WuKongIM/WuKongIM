@@ -57,6 +57,10 @@ New(Config)
      physical-hash-slot ceiling, so strict preflight can distinguish an
      observed zero from a missing family without recording a metadata-create
      event;
+     the same Channel observer publishes the Slot-owned create coalescer's
+     bounded unique queue depth, duplicate-waiter count, physical batch count,
+     and batch-size histogram; Slot ID is the only partition label and batch
+     results collapse to `ok|recovered|error`;
      the combined Channel observer forwards this hook once to each capable child
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus canonical Online Delivery local and remote owner-push attempts on the

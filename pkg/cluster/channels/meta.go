@@ -34,15 +34,46 @@ type RuntimeMetaWriter interface {
 
 // RuntimeMetaCreateResult reports whether the authoritative create inserted the row.
 type RuntimeMetaCreateResult struct {
+	// HashSlot and identity bind Created to one requested row.
+	HashSlot    uint16
+	ChannelID   string
+	ChannelType int64
 	// Created is true only when the authoritative Slot apply inserted the row;
 	// false is a successful concurrent-create loser result.
 	Created bool
 }
 
-// RuntimeMetaCreator creates initial ChannelRuntimeMeta without overwriting an existing row.
-type RuntimeMetaCreator interface {
-	// CreateChannelRuntimeMeta creates meta and returns the authoritative apply result.
-	CreateChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) (RuntimeMetaCreateResult, error)
+// RuntimeMetaCreateItem is one logical create owned by a physical Slot batch.
+type RuntimeMetaCreateItem struct {
+	// HashSlot is the logical shard owning Meta.
+	HashSlot uint16
+	// Meta is the normalized create-only candidate.
+	Meta metadb.ChannelRuntimeMeta
+}
+
+// RuntimeMetaReadResult is one aligned authoritative batch reread outcome.
+type RuntimeMetaReadResult struct {
+	Meta metadb.ChannelRuntimeMeta
+	Err  error
+}
+
+// RuntimeMetaBatchRouter supplies one-snapshot routes for bounded create batches.
+type RuntimeMetaBatchRouter interface {
+	RouteKey(string) (routing.Route, error)
+	RouteKeys([]string) ([]routing.Route, error)
+}
+
+// RuntimeMetaBatchStore commits and rereads one physical Slot metadata batch.
+type RuntimeMetaBatchStore interface {
+	CreateChannelRuntimeMetaBatch(context.Context, routing.Route, []RuntimeMetaCreateItem) ([]RuntimeMetaCreateResult, error)
+	BatchGetChannelRuntimeMetas(context.Context, routing.Route, []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error)
+}
+
+// MetaCreateBatchObserver receives bounded coalescer state and batch outcomes.
+type MetaCreateBatchObserver interface {
+	ObserveChannelMetaCreateCoalesced(slotID uint32)
+	SetChannelMetaCreateQueueDepth(slotID uint32, depth int)
+	ObserveChannelMetaCreateBatch(slotID uint32, result string, items int)
 }
 
 // MetaCreateResult is the closed authoritative outcome vocabulary for initial metadata creation.
@@ -79,6 +110,12 @@ type ChannelPlacementResolver interface {
 	ResolveChannelPlacement(context.Context, ch.ChannelID) (ChannelPlacement, error)
 }
 
+// ChannelPlacementBatchResolver derives aligned placements from the exact
+// one-snapshot routes selected for a submitted create batch.
+type ChannelPlacementBatchResolver interface {
+	ResolveChannelPlacementBatch(context.Context, []ch.ChannelID, []routing.Route) ([]ChannelPlacement, error)
+}
+
 // PlacementRouter routes channel IDs to their authoritative Slot placement.
 type PlacementRouter interface {
 	// RouteKey returns the current route for key.
@@ -96,11 +133,15 @@ type SlotMetaSourceOptions struct {
 	DefaultReplicas []ch.NodeID
 	// DefaultMinISR is the initial write quorum; defaults to 1 when replicas exist.
 	DefaultMinISR int
-	// Placement resolves initial Channel data replicas after Slot route readiness.
-	Placement ChannelPlacementResolver
-	// Creator persists missing metadata with create-only semantics; when nil,
-	// reader is used if it implements RuntimeMetaCreator.
-	Creator RuntimeMetaCreator
+	// Placement resolves an entire submitted create batch from one current
+	// data-node/control snapshot after Slot route revalidation.
+	Placement ChannelPlacementBatchResolver
+	// Router and BatchStore enable the node-owned bounded create coalescer.
+	// They must be supplied together for any create-capable source.
+	Router     RuntimeMetaBatchRouter
+	BatchStore RuntimeMetaBatchStore
+	// BatchObserver receives low-cardinality coalescer metrics.
+	BatchObserver MetaCreateBatchObserver
 	// Observer receives low-cardinality metadata resolve stage metrics.
 	Observer AppendStageObserver
 }

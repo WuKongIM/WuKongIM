@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -10,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
@@ -262,13 +264,18 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 		return nil
 	}
 	var observer channels.AppendStageObserver
+	var batchObserver channels.MetaCreateBatchObserver
 	if n.cfg.Channel.Observer != nil {
 		observer, _ = n.cfg.Channel.Observer.(channels.AppendStageObserver)
+		batchObserver, _ = n.cfg.Channel.Observer.(channels.MetaCreateBatchObserver)
 	}
 	store := defaultChannelRuntimeMetaStore{node: n, observer: observer}
 	return channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
-		Placement: channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount)),
-		Observer:  observer,
+		Placement:     channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount)),
+		Router:        n.router,
+		BatchStore:    store,
+		BatchObserver: batchObserver,
+		Observer:      observer,
 	})
 }
 
@@ -291,48 +298,134 @@ type defaultChannelRuntimeMetaStore struct {
 	observer channels.AppendStageObserver
 }
 
-// CreateChannelRuntimeMeta submits command 59 and decodes its authoritative apply result.
-func (s defaultChannelRuntimeMetaStore) CreateChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (channels.RuntimeMetaCreateResult, error) {
+// CreateChannelRuntimeMetaBatch submits one bounded command-59 proposal and
+// returns authoritative identity-bound outcomes aligned to items.
+func (s defaultChannelRuntimeMetaStore) CreateChannelRuntimeMetaBatch(ctx context.Context, expected routing.Route, items []channels.RuntimeMetaCreateItem) ([]channels.RuntimeMetaCreateResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channels.RuntimeMetaCreateResult{}, err
+		return nil, err
 	}
 	if s.node == nil {
-		return channels.RuntimeMetaCreateResult{}, ErrNotStarted
+		return nil, ErrNotStarted
 	}
-	route, err := s.node.RouteKey(meta.ChannelID)
-	if err != nil {
-		return channels.RuntimeMetaCreateResult{}, err
+	if err := s.validateRuntimeMetaBatchRoute(items, expected); err != nil {
+		return nil, err
 	}
-	command, err := metafsm.EncodeCreateChannelRuntimeMetaBatchCommandChecked([]metafsm.CreateChannelRuntimeMetaBatchItem{{
-		HashSlot: route.HashSlot,
-		Meta:     meta,
-	}})
+	fsmItems := make([]metafsm.CreateChannelRuntimeMetaBatchItem, len(items))
+	for i, item := range items {
+		fsmItems[i] = metafsm.CreateChannelRuntimeMetaBatchItem{HashSlot: item.HashSlot, Meta: item.Meta}
+	}
+	command, err := metafsm.EncodeCreateChannelRuntimeMetaBatchCommandChecked(fsmItems)
 	if err != nil {
-		return channels.RuntimeMetaCreateResult{}, err
+		return nil, err
 	}
 	ctx = propose.WithStageObserver(ctx, s.observer)
 	data, err := s.node.ProposeResult(ctx, ProposeRequest{
 		Command: command,
 		Target: ProposeTarget{
-			HashSlot: route.HashSlot, HasHashSlot: true,
-			SlotID: route.SlotID, HasSlotID: true,
+			HashSlot: items[0].HashSlot, HasHashSlot: true,
+			SlotID: expected.SlotID, HasSlotID: true,
 		},
 	})
 	if err != nil {
-		return channels.RuntimeMetaCreateResult{}, err
+		return nil, err
 	}
-	results, err := metafsm.DecodeCreateChannelRuntimeMetaBatchResult(data)
-	if err != nil || len(results) != 1 {
-		if err == nil {
-			err = metadb.ErrCorruptValue
+	decoded, err := metafsm.DecodeCreateChannelRuntimeMetaBatchResult(data)
+	if err != nil || len(decoded) != len(items) {
+		if err != nil {
+			return nil, err
 		}
-		return channels.RuntimeMetaCreateResult{}, err
+		return nil, fmt.Errorf("%w: runtime metadata batch result count", metadb.ErrCorruptValue)
 	}
-	result := results[0]
-	if result.HashSlot != route.HashSlot || result.ChannelID != meta.ChannelID || result.ChannelType != meta.ChannelType {
-		return channels.RuntimeMetaCreateResult{}, metadb.ErrCorruptValue
+	type identity struct {
+		hashSlot    uint16
+		channelID   string
+		channelType int64
 	}
-	return channels.RuntimeMetaCreateResult{Created: result.Created}, nil
+	byIdentity := make(map[identity]metafsm.CreateChannelRuntimeMetaBatchResult, len(decoded))
+	for _, result := range decoded {
+		key := identity{hashSlot: result.HashSlot, channelID: result.ChannelID, channelType: result.ChannelType}
+		if _, exists := byIdentity[key]; exists {
+			return nil, fmt.Errorf("%w: duplicate runtime metadata batch result", metadb.ErrCorruptValue)
+		}
+		byIdentity[key] = result
+	}
+	results := make([]channels.RuntimeMetaCreateResult, len(items))
+	for i, item := range items {
+		key := identity{hashSlot: item.HashSlot, channelID: item.Meta.ChannelID, channelType: item.Meta.ChannelType}
+		result, ok := byIdentity[key]
+		if !ok {
+			return nil, fmt.Errorf("%w: missing runtime metadata batch result", metadb.ErrCorruptValue)
+		}
+		delete(byIdentity, key)
+		results[i] = channels.RuntimeMetaCreateResult{
+			HashSlot: result.HashSlot, ChannelID: result.ChannelID, ChannelType: result.ChannelType, Created: result.Created,
+		}
+	}
+	if len(byIdentity) != 0 {
+		return nil, fmt.Errorf("%w: extra runtime metadata batch result", metadb.ErrCorruptValue)
+	}
+	return results, nil
+}
+
+// BatchGetChannelRuntimeMetas performs one aligned authoritative reread after
+// the command-59 future has resolved.
+func (s defaultChannelRuntimeMetaStore) BatchGetChannelRuntimeMetas(ctx context.Context, expected routing.Route, items []channels.RuntimeMetaCreateItem) ([]channels.RuntimeMetaReadResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if s.node == nil || s.node.defaultSlotProxy == nil {
+		return nil, ErrNotStarted
+	}
+	if err := s.validateRuntimeMetaBatchRoute(items, expected); err != nil {
+		return nil, err
+	}
+	keys := make([]metadb.ChannelKey, len(items))
+	for i, item := range items {
+		keys[i] = metadb.ChannelKey{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
+	}
+	metas, err := s.node.defaultSlotProxy.BatchGetChannelRuntimeMetas(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]channels.RuntimeMetaReadResult, len(keys))
+	for i, key := range keys {
+		meta, ok := metas[key]
+		if !ok {
+			results[i].Err = metadb.ErrNotFound
+			continue
+		}
+		if meta.ChannelID != key.ChannelID || meta.ChannelType != key.ChannelType {
+			results[i].Err = metadb.ErrCorruptValue
+			continue
+		}
+		results[i].Meta = meta
+	}
+	return results, nil
+}
+
+func (s defaultChannelRuntimeMetaStore) validateRuntimeMetaBatchRoute(items []channels.RuntimeMetaCreateItem, expected routing.Route) error {
+	if len(items) == 0 || len(items) > metafsm.MaxCreateChannelRuntimeMetaBatchItems {
+		return metadb.ErrInvalidArgument
+	}
+	keys := make([]string, len(items))
+	for i, item := range items {
+		keys[i] = item.Meta.ChannelID
+	}
+	routes, err := s.node.RouteKeys(keys)
+	if err != nil {
+		return err
+	}
+	if len(routes) != len(items) {
+		return fmt.Errorf("%w: aligned runtime metadata batch routes", metadb.ErrCorruptValue)
+	}
+	for i, route := range routes {
+		if route.HashSlot != items[i].HashSlot || route.SlotID != expected.SlotID ||
+			route.Leader != expected.Leader || route.LeaderTerm != expected.LeaderTerm ||
+			route.ConfigEpoch != expected.ConfigEpoch || route.Revision != expected.Revision {
+			return fmt.Errorf("%w: runtime metadata batch route changed", metadb.ErrStaleMeta)
+		}
+	}
+	return nil
 }
 
 func (s defaultChannelRuntimeMetaStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
@@ -360,7 +453,7 @@ func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Con
 }
 
 var _ channels.RuntimeMetaReader = defaultChannelRuntimeMetaStore{}
-var _ channels.RuntimeMetaCreator = defaultChannelRuntimeMetaStore{}
+var _ channels.RuntimeMetaBatchStore = defaultChannelRuntimeMetaStore{}
 var _ channels.RuntimeMetaWriter = defaultChannelRuntimeMetaStore{}
 
 // defaultChannelMigrationStore adapts Slot-owned migration commands to Node.Propose.

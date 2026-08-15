@@ -337,7 +337,7 @@ func TestDefaultSlotProposerDoesNotObserveNonCreateProposal(t *testing.T) {
 	}
 }
 
-func TestDefaultChannelRuntimeMetaStoreCreatesWithAuthoritativeResult(t *testing.T) {
+func TestDefaultChannelRuntimeMetaStoreCreatesBatchWithAuthoritativeResults(t *testing.T) {
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID: "create-result", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
@@ -358,18 +358,25 @@ func TestDefaultChannelRuntimeMetaStoreCreatesWithAuthoritativeResult(t *testing
 	node.started.Store(true)
 	store := defaultChannelRuntimeMetaStore{node: node}
 
-	result, err := store.CreateChannelRuntimeMeta(context.Background(), meta)
+	results, err := store.CreateChannelRuntimeMetaBatch(context.Background(), route, []clusterchannels.RuntimeMetaCreateItem{{
+		HashSlot: route.HashSlot,
+		Meta:     meta,
+	}})
 	if err != nil {
-		t.Fatalf("CreateChannelRuntimeMeta() error = %v", err)
+		t.Fatalf("CreateChannelRuntimeMetaBatch() error = %v", err)
 	}
-	if result.Created {
-		t.Fatal("CreateChannelRuntimeMeta() Created = true, want authoritative already-existing result")
+	if len(results) != 1 || results[0].Created {
+		t.Fatalf("CreateChannelRuntimeMetaBatch() results = %#v, want authoritative already-existing result", results)
 	}
 	if proposer.resultCalls != 1 || proposer.proposeCalls != 0 {
 		t.Fatalf("resultCalls=%d proposeCalls=%d, want result proposal only", proposer.resultCalls, proposer.proposeCalls)
 	}
 	if !metafsm.IsCreateChannelRuntimeMetaCommand(proposer.last.Command) {
 		t.Fatalf("command = %x, want create-only runtime metadata command", proposer.last.Command)
+	}
+	if proposer.last.Target.HashSlot != route.HashSlot || proposer.last.Target.SlotID != route.SlotID ||
+		!proposer.last.Target.HasHashSlot || !proposer.last.Target.HasSlotID {
+		t.Fatalf("proposal target = %#v, want exact route %#v", proposer.last.Target, route)
 	}
 }
 

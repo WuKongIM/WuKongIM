@@ -660,6 +660,40 @@ func TestMultiChannelObserverForwardsMetaCreateOncePerChild(t *testing.T) {
 	}
 }
 
+func TestMultiChannelObserverPublishesMetaCreateBatchStateOncePerChild(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	recorder := &recordingChannelMetaCreateObserver{}
+	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}, recorder}
+
+	observer.SetChannelMetaCreateQueueDepth(3, 7)
+	observer.ObserveChannelMetaCreateCoalesced(3)
+	observer.ObserveChannelMetaCreateBatch(3, "recovered", 11)
+
+	if recorder.queueDepthCalls != 1 || recorder.queueDepth != 7 || recorder.coalescedCalls != 1 || recorder.batchCalls != 1 || recorder.batchResult != "recovered" || recorder.batchItems != 11 {
+		t.Fatalf("recorder = %#v, want one aligned queue/coalesced/batch observation", recorder)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	queue := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_queue_depth")
+	if got := findAppMetricByLabels(t, queue, map[string]string{"slot_id": "3"}).GetGauge().GetValue(); got != 7 {
+		t.Fatalf("meta create queue depth = %v, want 7", got)
+	}
+	coalesced := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_coalesced_total")
+	if got := findAppMetricByLabels(t, coalesced, map[string]string{"slot_id": "3"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("meta create coalesced total = %v, want 1", got)
+	}
+	batches := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_batch_total")
+	if got := findAppMetricByLabels(t, batches, map[string]string{"slot_id": "3", "result": "recovered"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("meta create recovered batch total = %v, want 1", got)
+	}
+	items := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_batch_items")
+	if got := findAppMetricByLabels(t, items, map[string]string{"slot_id": "3", "result": "recovered"}).GetHistogram().GetSampleSum(); got != 11 {
+		t.Fatalf("meta create recovered batch items = %v, want 11", got)
+	}
+}
+
 func TestComposedChannelObserverReheatExistingMetaDoesNotCountCreate(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}
@@ -675,8 +709,8 @@ func TestComposedChannelObserverReheatExistingMetaDoesNotCountCreate(t *testing.
 	if err != nil {
 		t.Fatalf("EnsureChannelMeta() error = %v", err)
 	}
-	if meta.ID != id || store.creates != 0 {
-		t.Fatalf("meta=%#v creates=%d, want existing reheat without create", meta, store.creates)
+	if meta.ID != id {
+		t.Fatalf("meta=%#v, want existing reheat without create", meta)
 	}
 	families, err := reg.Gather()
 	if err != nil {
@@ -724,29 +758,47 @@ type sampledLeaderPullObserver struct {
 
 type recordingChannelMetaCreateObserver struct {
 	reactor.Observer
-	calls  int
-	slotID uint32
-	result clusterchannels.MetaCreateResult
+	calls           int
+	slotID          uint32
+	result          clusterchannels.MetaCreateResult
+	queueDepthCalls int
+	queueDepth      int
+	coalescedCalls  int
+	batchCalls      int
+	batchResult     string
+	batchItems      int
 }
 
 type existingRuntimeMetaStore struct {
-	meta    metadb.ChannelRuntimeMeta
-	creates int
+	meta metadb.ChannelRuntimeMeta
 }
 
 func (s *existingRuntimeMetaStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
 	return s.meta, nil
 }
 
-func (s *existingRuntimeMetaStore) CreateChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) (clusterchannels.RuntimeMetaCreateResult, error) {
-	s.creates++
-	return clusterchannels.RuntimeMetaCreateResult{Created: true}, nil
-}
-
 func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreate(slotID uint32, result clusterchannels.MetaCreateResult) {
 	o.calls++
 	o.slotID = slotID
 	o.result = result
+}
+
+func (o *recordingChannelMetaCreateObserver) SetChannelMetaCreateQueueDepth(slotID uint32, depth int) {
+	o.slotID = slotID
+	o.queueDepthCalls++
+	o.queueDepth = depth
+}
+
+func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreateCoalesced(slotID uint32) {
+	o.slotID = slotID
+	o.coalescedCalls++
+}
+
+func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreateBatch(slotID uint32, result string, items int) {
+	o.slotID = slotID
+	o.batchCalls++
+	o.batchResult = result
+	o.batchItems = items
 }
 
 func (o *sampledLeaderPullObserver) LeaderPullObservationSampleEvery() uint64 {

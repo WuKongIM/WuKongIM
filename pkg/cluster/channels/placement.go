@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 )
 
 // SlotPlacementResolver derives initial channel placement from Slot-routed data nodes.
@@ -37,20 +38,46 @@ func (r *SlotPlacementResolver) ResolveChannelPlacement(ctx context.Context, id 
 	if err != nil {
 		return ChannelPlacement{}, err
 	}
-	candidates := r.dataNodes.DataNodes()
-	selected, err := selectChannelReplicas(string(ch.ChannelKeyForID(id)), candidates, r.replicaCount)
+	placements, err := r.resolveChannelPlacements([]ch.ChannelID{id}, []routing.Route{route}, r.dataNodes.DataNodes())
 	if err != nil {
 		return ChannelPlacement{}, err
 	}
-	replicas := make([]ch.NodeID, 0, len(selected))
-	for _, node := range selected {
-		replicas = append(replicas, ch.NodeID(node))
+	return placements[0], nil
+}
+
+// ResolveChannelPlacementBatch derives every placement in one submitted batch
+// from one current data-node snapshot and the batch's revalidated Slot routes.
+func (r *SlotPlacementResolver) ResolveChannelPlacementBatch(ctx context.Context, ids []ch.ChannelID, routes []routing.Route) ([]ChannelPlacement, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
 	}
-	leader := replicas[0]
-	if route.PreferredLeader != 0 && uint64NodeIn(selected, route.PreferredLeader) {
-		leader = ch.NodeID(route.PreferredLeader)
+	if r == nil || r.dataNodes == nil {
+		return nil, fmt.Errorf("%w: data node provider is nil", ch.ErrInvalidConfig)
 	}
-	return ChannelPlacement{Leader: leader, Replicas: replicas, MinISR: len(replicas)/2 + 1}, nil
+	return r.resolveChannelPlacements(ids, routes, r.dataNodes.DataNodes())
+}
+
+func (r *SlotPlacementResolver) resolveChannelPlacements(ids []ch.ChannelID, routes []routing.Route, candidates []uint64) ([]ChannelPlacement, error) {
+	if len(ids) != len(routes) {
+		return nil, fmt.Errorf("%w: aligned channel placement routes", ch.ErrInvalidConfig)
+	}
+	placements := make([]ChannelPlacement, len(ids))
+	for i, id := range ids {
+		selected, err := selectChannelReplicas(string(ch.ChannelKeyForID(id)), candidates, r.replicaCount)
+		if err != nil {
+			return nil, err
+		}
+		replicas := make([]ch.NodeID, 0, len(selected))
+		for _, node := range selected {
+			replicas = append(replicas, ch.NodeID(node))
+		}
+		leader := replicas[0]
+		if routes[i].PreferredLeader != 0 && uint64NodeIn(selected, routes[i].PreferredLeader) {
+			leader = ch.NodeID(routes[i].PreferredLeader)
+		}
+		placements[i] = ChannelPlacement{Leader: leader, Replicas: replicas, MinISR: len(replicas)/2 + 1}
+	}
+	return placements, nil
 }
 
 type scoredNode struct {
