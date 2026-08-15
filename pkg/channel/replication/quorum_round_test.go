@@ -44,6 +44,8 @@ func TestDurableRoundStartsLocalAndFollowerDurabilityBeforeEitherCompletes(t *te
 	if !got.result.localDurable || got.result.durableVotes < 2 {
 		t.Fatalf("runDurableRound() = %+v, want local plus write quorum durable", got.result)
 	}
+	close(writer.replicaRelease[3])
+	waitForSignal(t, writer.replicaReturned[3], "owned trailing follower durability")
 }
 
 func TestDurableRoundDoesNotSubstituteTwoFollowersForLocalDurability(t *testing.T) {
@@ -74,9 +76,51 @@ func TestDurableRoundRejectsDuplicateVotersBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestDurableRoundPreservesOutcomeUnknown(t *testing.T) {
+	dispatcher := immediateDurabilityDispatcher{localErr: errPeerOutcomeUnknown}
+
+	result, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2}, 2, durableProposal{first: 1, last: 1}, dispatcher)
+
+	if !errors.Is(err, errDurableQuorumUnavailable) {
+		t.Fatalf("runDurableRound() error = %v, want quorum unavailable", err)
+	}
+	if result.outcome != ch.AppendOutcomeUnknown {
+		t.Fatalf("runDurableRound() outcome = %v, want outcome unknown", result.outcome)
+	}
+}
+
+func TestDurableRoundCallerCancellationStopsWaitingButNotOwnedDurability(t *testing.T) {
+	dispatcher := newGatedDurabilityWriter(2)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct {
+		result durableRoundResult
+		err    error
+	}, 1)
+	go func() {
+		result, err := runDurableRound(ctx, 1, []ch.NodeID{1, 2}, 2, durableProposal{first: 1, last: 1}, dispatcher)
+		done <- struct {
+			result durableRoundResult
+			err    error
+		}{result: result, err: err}
+	}()
+	waitForSignal(t, dispatcher.localStarted, "owned local durability")
+	waitForSignal(t, dispatcher.replicaStarted[2], "owned follower durability")
+	cancel()
+	got := <-done
+	if !errors.Is(got.err, context.Canceled) || got.result.outcome != ch.AppendOutcomeUnknown {
+		t.Fatalf("canceled wait = %+v, %v, want typed outcome unknown", got.result, got.err)
+	}
+
+	close(dispatcher.localRelease)
+	close(dispatcher.replicaRelease[2])
+	waitForSignal(t, dispatcher.localReturned, "local durability after caller cancellation")
+	waitForSignal(t, dispatcher.replicaReturned[2], "follower durability after caller cancellation")
+}
+
 type gatedDurabilityWriter struct {
-	localStarted chan struct{}
-	localRelease chan struct{}
+	localStarted  chan struct{}
+	localRelease  chan struct{}
+	localReturned chan struct{}
 
 	mu              sync.Mutex
 	replicaStarted  map[ch.NodeID]chan struct{}
@@ -88,6 +132,7 @@ func newGatedDurabilityWriter(nodes ...ch.NodeID) *gatedDurabilityWriter {
 	w := &gatedDurabilityWriter{
 		localStarted:    make(chan struct{}),
 		localRelease:    make(chan struct{}),
+		localReturned:   make(chan struct{}),
 		replicaStarted:  make(map[ch.NodeID]chan struct{}, len(nodes)),
 		replicaRelease:  make(map[ch.NodeID]chan struct{}, len(nodes)),
 		replicaReturned: make(map[ch.NodeID]chan struct{}, len(nodes)),
@@ -100,20 +145,21 @@ func newGatedDurabilityWriter(nodes ...ch.NodeID) *gatedDurabilityWriter {
 	return w
 }
 
-func (w *gatedDurabilityWriter) submitLocal(ctx context.Context, _ durableProposal, complete func(error)) error {
+func (w *gatedDurabilityWriter) submitLocal(ctx context.Context, _ durableProposal, complete func(durabilityCompletion)) error {
 	close(w.localStarted)
 	go func() {
 		select {
 		case <-w.localRelease:
-			complete(nil)
+			close(w.localReturned)
+			complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
 		case <-ctx.Done():
-			complete(ctx.Err())
+			complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: ctx.Err()})
 		}
 	}()
 	return nil
 }
 
-func (w *gatedDurabilityWriter) submitReplica(ctx context.Context, node ch.NodeID, _ durableProposal, complete func(error)) error {
+func (w *gatedDurabilityWriter) submitReplica(ctx context.Context, node ch.NodeID, _ durableProposal, complete func(durabilityCompletion)) error {
 	w.mu.Lock()
 	started := w.replicaStarted[node]
 	release := w.replicaRelease[node]
@@ -124,9 +170,9 @@ func (w *gatedDurabilityWriter) submitReplica(ctx context.Context, node ch.NodeI
 		select {
 		case <-release:
 			close(returned)
-			complete(nil)
+			complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
 		case <-ctx.Done():
-			complete(ctx.Err())
+			complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: ctx.Err()})
 		}
 	}()
 	return nil
@@ -145,13 +191,19 @@ type immediateDurabilityDispatcher struct {
 	localErr error
 }
 
-func (d immediateDurabilityDispatcher) submitLocal(_ context.Context, _ durableProposal, complete func(error)) error {
-	complete(d.localErr)
+func (d immediateDurabilityDispatcher) submitLocal(_ context.Context, _ durableProposal, complete func(durabilityCompletion)) error {
+	if d.localErr == nil {
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
+	} else if errors.Is(d.localErr, errPeerOutcomeUnknown) {
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: d.localErr})
+	} else {
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: d.localErr})
+	}
 	return nil
 }
 
-func (immediateDurabilityDispatcher) submitReplica(_ context.Context, _ ch.NodeID, _ durableProposal, complete func(error)) error {
-	complete(nil)
+func (immediateDurabilityDispatcher) submitReplica(_ context.Context, _ ch.NodeID, _ durableProposal, complete func(durabilityCompletion)) error {
+	complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
 	return nil
 }
 
@@ -159,12 +211,12 @@ type countingDurabilityDispatcher struct {
 	submissions int
 }
 
-func (d *countingDurabilityDispatcher) submitLocal(_ context.Context, _ durableProposal, _ func(error)) error {
+func (d *countingDurabilityDispatcher) submitLocal(_ context.Context, _ durableProposal, _ func(durabilityCompletion)) error {
 	d.submissions++
 	return nil
 }
 
-func (d *countingDurabilityDispatcher) submitReplica(_ context.Context, _ ch.NodeID, _ durableProposal, _ func(error)) error {
+func (d *countingDurabilityDispatcher) submitReplica(_ context.Context, _ ch.NodeID, _ durableProposal, _ func(durabilityCompletion)) error {
 	d.submissions++
 	return nil
 }

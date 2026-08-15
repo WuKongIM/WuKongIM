@@ -268,9 +268,30 @@ immutable manifest. MessageDB persists both manifest indexes plus every entry's 
 predecessor, command, and content-derived digest in the same synchronous
 physical commit as the rows, so exact replay remains safe after retention and
 reopen; suffix truncation removes whole identities and cannot split one
-proposal. Bounded recovery inspection, data-bearing peer
-exchange, and removal of the PullHint hot path must still land before production
-wiring. The design is recorded in
+proposal. Bounded recovery inspection, production peer-adapter wiring, and
+removal of the PullHint hot path must still land before production wiring. The
+data-bearing exchange foundation now lives in `replication`: one
+versioned `ReplicateRequest` carries the exact manifest and owned record payload
+to a follower, whose `ExchangeServer` acknowledges only a closed durable result
+from `ReplicaStore.Sync`. A durable response echoes the exact Channel,
+leader/follower authority, command, range, and digest manifest; a mismatched
+proof cannot vote. The leader durability round freezes one immutable record
+payload copy shared by local storage and every follower submission. The peer
+batcher only borrows that frozen proposal, bounds queued items and bytes both
+globally and independently per target, reserves at least one complete batch of
+global headroom for another follower, and drains work already ready for the
+same target into bounded batches without a second collection timer. A follower
+gap remains typed `{follower, need_from}` repair evidence and is not collapsed
+into a content conflict. The peer completion transfers that exact gap to a
+lifecycle-owned, membership-bounded coalescing repair sink before notifying the
+round, so a slow follower's trailing `NeedFrom` cannot be lost after a faster
+quorum returns. Accepted peer work runs under an owner lifecycle context plus a bounded exchange
+deadline, not the submitting caller context; caller cancellation stops waiting
+but cannot revoke admitted durability. Response correlation is by request ID;
+malformed, duplicate, missing, panicking, timed-out, or transport-lost
+responses remain typed outcome-unknown so exact retry can resolve them. This
+peer/store seam is not wired into the transitional reactor yet. The design is
+recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,
 `Group.Submit` reuses the event's tick timestamp slot to capture admission time
