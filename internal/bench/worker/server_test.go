@@ -3692,9 +3692,10 @@ func TestWorkerHTTPAppliesWeightedEightyTwentyGroupSenders(t *testing.T) {
 			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}},
 		},
 		Scenario: model.Scenario{
-			// Keep a real wall-clock window now that sequential measured traffic
-			// refuses to start work after the configured duration expires.
-			Run:      model.RunConfig{ID: "run-weighted-senders", Duration: 50 * time.Millisecond},
+			// Keep five messages while leaving a bounded 50ms tail after the last
+			// due token; a 50ms window made this wall-clock fixture flaky
+			// under concurrent package load.
+			Run:      model.RunConfig{ID: "run-weighted-senders", Duration: 250 * time.Millisecond},
 			Identity: model.IdentityConfig{TotalUsers: 5, UIDPrefix: "bench-u", DevicePrefix: "bench-d"},
 			Online:   model.OnlineConfig{TotalUsers: 5, GatewayBalance: "round_robin"},
 			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
@@ -3704,7 +3705,7 @@ func TestWorkerHTTPAppliesWeightedEightyTwentyGroupSenders(t *testing.T) {
 			}}},
 			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{
 				Name: "group-send", ChannelRef: "group-a", SenderPick: "weighted_80_20",
-				RatePerChannel: model.Rate{PerSecond: 100},
+				RatePerChannel: model.Rate{PerSecond: 20},
 			}}},
 		},
 		Plan: model.WorkerPlan{
