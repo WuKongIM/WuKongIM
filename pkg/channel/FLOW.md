@@ -309,9 +309,29 @@ ignores a minority-only higher tail, and treats identity disagreement among
 the quorum that certifies a committed cut as corruption. Any selected suffix
 above that cut must include a complete probed page whose quorum identities form
 one predecessor hash chain from the certified identity; a missing page remains
-incomplete and a detached chain is corruption. The leader-side
-probe owner, suffix fetch/replace, current-term barrier, and `Install` readiness
-transition must still land before reactor wiring. The design is
+incomplete and a detached chain is corruption. The leader-side probe owner
+reads one frontier round and then streams immutable identity pages of at most
+256 entries until it proves the recoverable prefix or its caller deadline
+expires. It retains only one page, so page memory and in-flight work remain
+bounded without imposing a permanent maximum recoverable log distance. Voter
+fanout is rejected above a fixed defensive topology bound before allocation,
+and only voters whose exact frontier remains unchanged across every consumed
+page participate in the proof; removed voters are not queried on later pages.
+If one bounded attempt ends, a frontier-bound continuation retains only the
+proven prefix identity, next index, and the exact voter states that supported
+that boundary so any still-available supporter quorum resumes without
+rescanning prior pages. A later page that loses quorum returns the preceding
+continuation rather than discarding prior proof. Local reads use a bounded
+executor plus an owner-owned timeout; remote reads share the peer owner's global
+and per-target ownership limits. A single-node cluster uses the same proof path
+without requiring a peer owner. Every remote probe result echoes the exact Channel,
+leader, follower, and requested indexes; the peer owner rejects a cross-request
+response before it can count as recovery evidence. Probe and replication items
+for one target may share the owner but are emitted in separate batches, so a
+Channel never mixes recovery reads with writes in one follower storage call.
+Suffix fetch/replace, the current-term
+barrier, and the `Install` readiness transition must still land before reactor
+wiring. The design is
 recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,

@@ -122,6 +122,121 @@ func TestPeerBatcherCarriesRecordsAndCoalescesReadyWorkForOneTarget(t *testing.T
 	}
 }
 
+func TestPeerBatcherCarriesBoundedRecoveryProbes(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	link := &recordingPeerLink{}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 4, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	firstIdentity := recoveryIdentity(1, 1)
+	secondIdentity := recoveryIdentityAfter(firstIdentity, 2, 2)
+	link.probes = map[ch.ChannelKey]ProbeResult{
+		"1:probe-a": recoveryReport(2, 2, 1, []EntryProbe{
+			{Index: 2, Present: true, Identity: secondIdentity},
+			{Index: 1, Present: true, Identity: firstIdentity},
+		}).Result,
+		"1:probe-b": recoveryReport(2, 1, 1, []EntryProbe{
+			{Index: 2},
+			{Index: 1, Present: true, Identity: firstIdentity},
+		}).Result,
+	}
+
+	results := make([]ProbeResult, 0, 2)
+	for _, key := range []ch.ChannelKey{"1:probe-a", "1:probe-b"} {
+		request := ProbeRequest{
+			ChannelKey: key, ChannelID: ch.ChannelID{ID: string(key), Type: 1},
+			Leader: 1, Follower: 2, Indexes: []uint64{2, 1},
+		}
+		if err := batcher.submitProbe(context.Background(), 2, request, func(result ProbeResult, err error) {
+			if err != nil {
+				t.Errorf("probe completion error = %v", err)
+			}
+			results = append(results, result)
+		}); err != nil {
+			t.Fatalf("submitProbe(%s) error = %v", key, err)
+		}
+	}
+
+	executor.RunNext()
+
+	if len(link.batches) != 1 || len(link.batches[0].Items) != 2 {
+		t.Fatalf("probe batches = %+v, want one bounded two-item batch", link.batches)
+	}
+	for index, item := range link.batches[0].Items {
+		if item.Kind != ExchangeProbe || item.Probe == nil || item.Replicate != nil {
+			t.Fatalf("probe item[%d] = %+v, want probe-only item", index, item)
+		}
+	}
+	if len(results) != 2 || results[0].State.LEO != 2 || results[1].State.LEO != 1 {
+		t.Fatalf("probe completions = %+v, want position-correlated frontiers [2 1]", results)
+	}
+}
+
+func TestPeerBatcherRejectsProbeProofForAnotherChannel(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: swappedProbeProofPeerLink{}, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 2, MaxBatchBytes: 4096,
+		MaxQueuedItems: 4, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 2, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	request := ProbeRequest{
+		ChannelKey: "1:proof-a", ChannelID: ch.ChannelID{ID: "proof-a", Type: 1},
+		Leader: 1, Follower: 2, Indexes: []uint64{1},
+	}
+	done := make(chan error, 1)
+	if err := batcher.submitProbe(context.Background(), 2, request, func(_ ProbeResult, err error) { done <- err }); err != nil {
+		t.Fatalf("submitProbe() error = %v", err)
+	}
+	executor.RunNext()
+	if err := <-done; !errors.Is(err, errInvalidExchangeResult) {
+		t.Fatalf("probe completion error = %v, want invalid cross-Channel proof", err)
+	}
+}
+
+func TestPeerBatcherSeparatesReadAndWriteForSameChannel(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	identity := recoveryIdentity(1, 1)
+	probeResult := recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: identity}}).Result
+	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:mixed": probeResult}}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 4, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	replicate := testReplicateRequest(t, "1:mixed", "mixed", 1, []byte("payload"))
+	if err := batcher.submit(context.Background(), 2, replicate, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit replicate error = %v", err)
+	}
+	probe := ProbeRequest{
+		ChannelKey: replicate.ChannelKey, ChannelID: replicate.ChannelID,
+		Leader: 1, Follower: 2, Indexes: []uint64{1},
+	}
+	if err := batcher.submitProbe(context.Background(), 2, probe, func(ProbeResult, error) {}); err != nil {
+		t.Fatalf("submit probe error = %v", err)
+	}
+
+	executor.RunNext()
+
+	if len(link.batches) != 2 || len(link.batches[0].Items) != 1 || len(link.batches[1].Items) != 1 ||
+		link.batches[0].Items[0].Kind != ExchangeReplicate || link.batches[1].Items[0].Kind != ExchangeProbe {
+		t.Fatalf("mixed channel batches = %+v, want separate write then read batches", link.batches)
+	}
+}
+
 func TestDurableRoundOwnsOneImmutablePayloadCopyAcrossFollowers(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 2)}
 	link := &recordingPeerLink{}
@@ -554,6 +669,7 @@ func (e *manualPeerExecutor) RunNext() {
 
 type recordingPeerLink struct {
 	batches []ExchangeBatch
+	probes  map[ch.ChannelKey]ProbeResult
 }
 
 type reorderingPeerLink struct {
@@ -561,6 +677,8 @@ type reorderingPeerLink struct {
 }
 
 type wrongProofPeerLink struct{}
+
+type swappedProbeProofPeerLink struct{}
 
 type blockingPeerLink struct {
 	started chan struct{}
@@ -608,6 +726,18 @@ func (*wrongProofPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch Exchan
 	}}}, nil
 }
 
+func (swappedProbeProofPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
+	request := *batch.Items[0].Probe
+	proof := probeProofFor(request)
+	proof.ChannelKey = "1:proof-b"
+	identity := recoveryIdentity(1, 1)
+	return ExchangeBatchResult{Version: ExchangeVersion, Items: []ExchangeItemResult{{
+		RequestID: batch.Items[0].RequestID,
+		Probe: ProbeResult{Proof: proof, State: recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: identity}}).Result.State,
+			Entries: []EntryProbe{{Index: 1, Present: true, Identity: identity}}},
+	}}}, nil
+}
+
 func (l *reorderingPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
 	first := batch.Items[1]
 	if l.duplicate {
@@ -623,7 +753,14 @@ func (l *recordingPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch Excha
 	l.batches = append(l.batches, batch)
 	results := make([]ExchangeItemResult, len(batch.Items))
 	for index, item := range batch.Items {
-		results[index] = durableExchangeResult(item)
+		switch item.Kind {
+		case ExchangeReplicate:
+			results[index] = durableExchangeResult(item)
+		case ExchangeProbe:
+			probe := l.probes[item.Probe.ChannelKey]
+			probe.Proof = probeProofFor(*item.Probe)
+			results[index] = ExchangeItemResult{RequestID: item.RequestID, Probe: probe}
+		}
 	}
 	return ExchangeBatchResult{Version: ExchangeVersion, Items: results}, nil
 }

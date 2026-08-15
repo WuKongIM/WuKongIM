@@ -51,17 +51,25 @@ type peerBatcher struct {
 }
 
 type peerTargetQueue struct {
-	queued     []queuedReplicate
+	queued     []queuedPeerItem
 	scheduled  bool
 	ownedItems int
 	ownedBytes int
 }
 
-type queuedReplicate struct {
-	requestID uint64
-	request   ReplicateRequest
-	bytes     int
-	complete  func(ReplicateResult, error)
+type queuedPeerItem struct {
+	requestID         uint64
+	kind              ExchangeKind
+	replicate         ReplicateRequest
+	probe             ProbeRequest
+	bytes             int
+	completeReplicate func(ReplicateResult, error)
+	completeProbe     func(ProbeResult, error)
+}
+
+type peerExchangeResult struct {
+	replicate ReplicateResult
+	probe     ProbeResult
 }
 
 func newPeerBatcher(cfg peerBatcherConfig) (*peerBatcher, error) {
@@ -82,14 +90,33 @@ func (b *peerBatcher) submit(ctx context.Context, node ch.NodeID, request Replic
 	if b == nil || ctx == nil || node == 0 || complete == nil || !request.Valid() || request.Follower != node {
 		return ch.ErrInvalidConfig
 	}
+	return b.enqueue(ctx, node, queuedPeerItem{
+		kind: ExchangeReplicate, replicate: request,
+		bytes: estimateReplicateRequestBytes(request), completeReplicate: complete,
+	})
+}
+
+// submitProbe admits one immutable read-only recovery probe under the same
+// per-target and global ownership bounds as data-bearing replication.
+func (b *peerBatcher) submitProbe(ctx context.Context, node ch.NodeID, request ProbeRequest, complete func(ProbeResult, error)) error {
+	if b == nil || ctx == nil || node == 0 || complete == nil || !request.Valid() || request.Follower != node {
+		return ch.ErrInvalidConfig
+	}
+	request.Indexes = append([]uint64(nil), request.Indexes...)
+	return b.enqueue(ctx, node, queuedPeerItem{
+		kind: ExchangeProbe, probe: request,
+		bytes: estimateProbeRequestBytes(request), completeProbe: complete,
+	})
+}
+
+func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPeerItem) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if b.cfg.OwnerContext.Err() != nil {
 		return ch.ErrClosed
 	}
-	bytes := estimateReplicateRequestBytes(request)
-	if bytes > b.cfg.MaxBatchBytes || bytes > b.cfg.MaxQueuedBytes {
+	if item.bytes > b.cfg.MaxBatchBytes || item.bytes > b.cfg.MaxQueuedBytes {
 		return ch.ErrBackpressured
 	}
 
@@ -106,16 +133,16 @@ func (b *peerBatcher) submit(ctx context.Context, node ch.NodeID, request Replic
 		target = &peerTargetQueue{}
 		b.targets[node] = target
 	}
-	if b.ownedItems >= b.cfg.MaxQueuedItems || b.ownedBytes+bytes > b.cfg.MaxQueuedBytes ||
-		target.ownedItems >= b.cfg.MaxTargetQueuedItems || target.ownedBytes+bytes > b.cfg.MaxTargetQueuedBytes {
+	if b.ownedItems >= b.cfg.MaxQueuedItems || b.ownedBytes+item.bytes > b.cfg.MaxQueuedBytes ||
+		target.ownedItems >= b.cfg.MaxTargetQueuedItems || target.ownedBytes+item.bytes > b.cfg.MaxTargetQueuedBytes {
 		return ch.ErrBackpressured
 	}
-	item := queuedReplicate{requestID: b.nextID.Add(1), request: request, bytes: bytes, complete: complete}
+	item.requestID = b.nextID.Add(1)
 	target.queued = append(target.queued, item)
 	target.ownedItems++
-	target.ownedBytes += bytes
+	target.ownedBytes += item.bytes
 	b.ownedItems++
-	b.ownedBytes += bytes
+	b.ownedBytes += item.bytes
 	if target.scheduled {
 		return nil
 	}
@@ -123,9 +150,9 @@ func (b *peerBatcher) submit(ctx context.Context, node ch.NodeID, request Replic
 	if err := b.cfg.Executor.Submit(func() { b.drainTarget(node) }); err != nil {
 		target.queued = target.queued[:len(target.queued)-1]
 		target.ownedItems--
-		target.ownedBytes -= bytes
+		target.ownedBytes -= item.bytes
 		b.ownedItems--
-		b.ownedBytes -= bytes
+		b.ownedBytes -= item.bytes
 		target.scheduled = false
 		if target.ownedItems == 0 {
 			delete(b.targets, node)
@@ -144,12 +171,17 @@ func (b *peerBatcher) drainTarget(node ch.NodeID) {
 		results, errs := b.exchange(node, items)
 		b.release(node, items)
 		for index := range items {
-			items[index].complete(results[index], errs[index])
+			switch items[index].kind {
+			case ExchangeReplicate:
+				items[index].completeReplicate(results[index].replicate, errs[index])
+			case ExchangeProbe:
+				items[index].completeProbe(results[index].probe, errs[index])
+			}
 		}
 	}
 }
 
-func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedReplicate {
+func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedPeerItem {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]
@@ -164,7 +196,11 @@ func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedReplicate {
 	}
 	count := 0
 	bytes := 0
+	kind := target.queued[0].kind
 	for count < len(target.queued) && count < b.cfg.MaxBatchItems {
+		if target.queued[count].kind != kind {
+			break
+		}
 		next := target.queued[count].bytes
 		if count > 0 && bytes+next > b.cfg.MaxBatchBytes {
 			break
@@ -172,49 +208,70 @@ func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedReplicate {
 		bytes += next
 		count++
 	}
-	items := append([]queuedReplicate(nil), target.queued[:count]...)
+	items := append([]queuedPeerItem(nil), target.queued[:count]...)
 	copy(target.queued, target.queued[count:])
 	target.queued = target.queued[:len(target.queued)-count]
 	return items
 }
 
-func (b *peerBatcher) exchange(node ch.NodeID, items []queuedReplicate) ([]ReplicateResult, []error) {
-	results := make([]ReplicateResult, len(items))
+func (b *peerBatcher) exchange(node ch.NodeID, items []queuedPeerItem) ([]peerExchangeResult, []error) {
+	results := make([]peerExchangeResult, len(items))
 	errs := make([]error, len(items))
 	batch := ExchangeBatch{Version: ExchangeVersion, Items: make([]ExchangeItem, len(items))}
 	for index, item := range items {
-		request := item.request
-		batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeReplicate, Replicate: &request}
+		switch item.kind {
+		case ExchangeReplicate:
+			request := item.replicate
+			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeReplicate, Replicate: &request}
+		case ExchangeProbe:
+			request := item.probe
+			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeProbe, Probe: &request}
+		}
 	}
 	ctx, cancel := context.WithTimeout(b.cfg.OwnerContext, b.cfg.ExchangeTimeout)
 	response, err := callPeerExchange(ctx, b.cfg.Link, node, batch)
 	cancel()
 	if err != nil {
 		for index := range items {
-			results[index] = ReplicateResult{Status: ReplicateOutcomeUnknown}
+			if items[index].kind == ExchangeReplicate {
+				results[index].replicate = ReplicateResult{Status: ReplicateOutcomeUnknown}
+			}
 			errs[index] = errors.Join(errPeerOutcomeUnknown, err)
 		}
 		return results, errs
 	}
 	if response.Version != ExchangeVersion || len(response.Items) != len(items) {
-		return invalidExchangeResults(results, errs)
+		return invalidExchangeResults(items, results, errs)
 	}
-	byID := make(map[uint64]ReplicateResult, len(response.Items))
+	byID := make(map[uint64]ExchangeItemResult, len(response.Items))
 	for _, item := range response.Items {
-		if item.RequestID == 0 || !item.Replicate.Status.Valid() {
-			return invalidExchangeResults(results, errs)
+		if item.RequestID == 0 {
+			return invalidExchangeResults(items, results, errs)
 		}
 		if _, exists := byID[item.RequestID]; exists {
-			return invalidExchangeResults(results, errs)
+			return invalidExchangeResults(items, results, errs)
 		}
-		byID[item.RequestID] = item.Replicate
+		byID[item.RequestID] = item
 	}
 	for index, item := range items {
 		result, ok := byID[item.requestID]
-		if !ok || !validReplicateResult(item.request, result) {
-			return invalidExchangeResults(results, errs)
+		if !ok {
+			return invalidExchangeResults(items, results, errs)
 		}
-		results[index] = result
+		switch item.kind {
+		case ExchangeReplicate:
+			if !zeroProbeResult(result.Probe) || !validReplicateResult(item.replicate, result.Replicate) {
+				return invalidExchangeResults(items, results, errs)
+			}
+			results[index].replicate = result.Replicate
+		case ExchangeProbe:
+			if result.Replicate != (ReplicateResult{}) || !validPeerProbeResult(item.probe, result.Probe) {
+				return invalidExchangeResults(items, results, errs)
+			}
+			results[index].probe = result.Probe
+		default:
+			return invalidExchangeResults(items, results, errs)
+		}
 	}
 	return results, errs
 }
@@ -240,15 +297,27 @@ func validReplicateResult(request ReplicateRequest, result ReplicateResult) bool
 	}
 }
 
-func invalidExchangeResults(results []ReplicateResult, errs []error) ([]ReplicateResult, []error) {
+func validPeerProbeResult(request ProbeRequest, result ProbeResult) bool {
+	return sameProbeProof(result.Proof, probeProofFor(request)) && validRecoveryProbeResult(result) &&
+		sameRecoveryProbeIndexes(request.Indexes, result.Entries)
+}
+
+func zeroProbeResult(result ProbeResult) bool {
+	return zeroProbeProof(result.Proof) && result.State == (ReplicaState{}) && len(result.Entries) == 0
+}
+
+func invalidExchangeResults(items []queuedPeerItem, results []peerExchangeResult, errs []error) ([]peerExchangeResult, []error) {
 	for index := range results {
-		results[index] = ReplicateResult{Status: ReplicateOutcomeUnknown}
+		results[index] = peerExchangeResult{}
+		if items[index].kind == ExchangeReplicate {
+			results[index].replicate = ReplicateResult{Status: ReplicateOutcomeUnknown}
+		}
 		errs[index] = errInvalidExchangeResult
 	}
 	return results, errs
 }
 
-func (b *peerBatcher) release(node ch.NodeID, items []queuedReplicate) {
+func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]

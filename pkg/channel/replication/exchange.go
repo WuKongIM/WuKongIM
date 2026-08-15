@@ -104,6 +104,43 @@ type ProbeRequest struct {
 	Indexes    []uint64
 }
 
+// ProbeProof binds one read result to the exact Channel, participants, and
+// requested positions that produced it. Indexes are frozen by the producer.
+type ProbeProof struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Leader     ch.NodeID
+	Follower   ch.NodeID
+	Indexes    []uint64
+}
+
+func probeProofFor(request ProbeRequest) ProbeProof {
+	return ProbeProof{
+		ChannelKey: request.ChannelKey,
+		ChannelID:  request.ChannelID,
+		Leader:     request.Leader,
+		Follower:   request.Follower,
+		Indexes:    append([]uint64(nil), request.Indexes...),
+	}
+}
+
+func sameProbeProof(first, second ProbeProof) bool {
+	if first.ChannelKey != second.ChannelKey || first.ChannelID != second.ChannelID ||
+		first.Leader != second.Leader || first.Follower != second.Follower || len(first.Indexes) != len(second.Indexes) {
+		return false
+	}
+	for index := range first.Indexes {
+		if first.Indexes[index] != second.Indexes[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func zeroProbeProof(proof ProbeProof) bool {
+	return proof.ChannelKey == "" && proof.ChannelID == (ch.ChannelID{}) && proof.Leader == 0 && proof.Follower == 0 && len(proof.Indexes) == 0
+}
+
 // Valid reports whether the probe is one bounded, identity-safe request.
 func (r ProbeRequest) Valid() bool {
 	return r.ChannelKey != "" && r.ChannelID.ID != "" && r.Leader != 0 && r.Follower != 0 &&
@@ -112,6 +149,7 @@ func (r ProbeRequest) Valid() bool {
 
 // ProbeResult is one exact follower recovery view.
 type ProbeResult struct {
+	Proof   ProbeProof
 	State   ReplicaState
 	Entries []EntryProbe
 }

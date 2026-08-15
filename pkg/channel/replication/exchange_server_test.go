@@ -85,7 +85,7 @@ func TestExchangeServerReturnsBoundedPositionAlignedRecoveryProbe(t *testing.T) 
 		t.Fatalf("mutation batches = %d, want read-only probe", len(store.batches))
 	}
 	if result.Version != ExchangeVersion || len(result.Items) != 1 || result.Items[0].RequestID != 21 ||
-		!reflect.DeepEqual(result.Items[0].Probe, ProbeResult{State: store.loadResult.Items[0].State, Entries: store.loadResult.Items[0].Entries}) {
+		!reflect.DeepEqual(result.Items[0].Probe, ProbeResult{Proof: probeProofFor(request), State: store.loadResult.Items[0].State, Entries: store.loadResult.Items[0].Entries}) {
 		t.Fatalf("Handle() result = %+v, want position-aligned probe", result)
 	}
 }

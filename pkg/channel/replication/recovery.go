@@ -24,6 +24,7 @@ type recoverySelection struct {
 	Index              uint64
 	Identity           ch.EntryIdentity
 	CertifiedCommitted uint64
+	Continuation       *recoveryContinuation
 }
 
 func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProbeReport) (recoverySelection, error) {
@@ -110,7 +111,7 @@ func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProb
 }
 
 func validateRecoveryTopology(voters []ch.NodeID, quorum int) (map[ch.NodeID]struct{}, error) {
-	if len(voters) == 0 || quorum <= 0 || quorum > len(voters) || quorum*2 <= len(voters) {
+	if len(voters) == 0 || len(voters) > maxRecoveryProbeVoters || quorum <= 0 || quorum > len(voters) || quorum*2 <= len(voters) {
 		return nil, ch.ErrInvalidConfig
 	}
 	configured := make(map[ch.NodeID]struct{}, len(voters))
@@ -127,7 +128,11 @@ func validateRecoveryTopology(voters []ch.NodeID, quorum int) (map[ch.NodeID]str
 }
 
 func validRecoveryProbeResult(result ProbeResult) bool {
-	if !validReplicaState(result.State) || len(result.Entries) > maxRecoveryProbeIndexes {
+	return validRecoveryProofResult(result, maxRecoveryProbeIndexes)
+}
+
+func validRecoveryProofResult(result ProbeResult, maxEntries int) bool {
+	if maxEntries < 0 || !validReplicaState(result.State) || len(result.Entries) > maxEntries {
 		return false
 	}
 	seen := make(map[uint64]struct{}, len(result.Entries))

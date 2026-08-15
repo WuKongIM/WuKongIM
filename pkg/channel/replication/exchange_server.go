@@ -152,7 +152,7 @@ func mapProbeResult(request ProbeRequest, result LoadResult) (ProbeResult, bool)
 	if !validProbeEntryChain(entries) {
 		return ProbeResult{}, false
 	}
-	return ProbeResult{State: result.State, Entries: entries}, true
+	return ProbeResult{Proof: probeProofFor(request), State: result.State, Entries: entries}, true
 }
 
 func validReplicaState(state ReplicaState) bool {

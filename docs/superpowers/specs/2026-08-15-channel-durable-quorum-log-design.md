@@ -211,6 +211,17 @@ barrier, and only then becomes ready. Minority-only uncommitted suffixes may be
 truncated. A conflict at or below a quorum-certified committed cut is corruption
 and blocks readiness.
 
+Recovery streams fixed-size identity pages under the caller's bounded recovery
+deadline. Page memory, voter fanout, and local/remote execution are bounded,
+but recoverable log distance has no static page-count ceiling; retries therefore
+make progress for an arbitrarily long durable prefix instead of restarting at a
+permanent limit. They resume from a compact continuation bound to the unchanged
+frontier, proven prefix identity, and its exact supporter set; any available
+supporter quorum can resume, failed voters leave subsequent page fanout, and a
+later incomplete page preserves the preceding proof. Every peer probe response
+is bound to its exact Channel, participants, and requested positions before it
+contributes recovery evidence.
+
 Membership changes require an intersecting joint quorum or an explicit durable
 cutover proof. Arbitrary non-intersecting `MinISR` configurations are invalid.
 
