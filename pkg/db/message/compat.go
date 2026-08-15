@@ -150,6 +150,21 @@ type DurableFrontier struct {
 	TailIdentity quorumlog.EntryIdentity
 }
 
+// DurableEntryProbe is one position-aligned exact identity lookup used by
+// bounded quorum recovery.
+type DurableEntryProbe struct {
+	Index    uint64
+	Present  bool
+	Identity quorumlog.EntryIdentity
+}
+
+// DurableRecoveryState is one append/checkpoint-consistent frontier and entry
+// identity view.
+type DurableRecoveryState struct {
+	DurableFrontier
+	Entries []DurableEntryProbe
+}
+
 // AppendBatchItem is one channel append request in a cross-channel batch.
 type AppendBatchItem struct {
 	// Store is the channel-scoped store that owns Records.
@@ -1185,15 +1200,22 @@ func (s *ChannelStore) LEOWithError() (uint64, error) {
 // LoadDurableFrontier reads the exact proposal and entry identity at the
 // durable local tail under the canonical append/checkpoint locks.
 func (s *ChannelStore) LoadDurableFrontier(ctx context.Context) (DurableFrontier, error) {
+	recovery, err := s.LoadDurableRecovery(ctx, nil)
+	return recovery.DurableFrontier, err
+}
+
+// LoadDurableRecovery reads one exact frontier plus requested entry identities
+// under the canonical append/checkpoint locks.
+func (s *ChannelStore) LoadDurableRecovery(ctx context.Context, indexes []uint64) (DurableRecoveryState, error) {
 	if ctx == nil {
-		return DurableFrontier{}, channel.ErrInvalidArgument
+		return DurableRecoveryState{}, channel.ErrInvalidArgument
 	}
 	if err := s.beginUse(); err != nil {
-		return DurableFrontier{}, err
+		return DurableRecoveryState{}, err
 	}
 	defer s.endUse()
 	if err := ctx.Err(); err != nil {
-		return DurableFrontier{}, err
+		return DurableRecoveryState{}, err
 	}
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
@@ -1202,42 +1224,62 @@ func (s *ChannelStore) LoadDurableFrontier(ctx context.Context) (DurableFrontier
 
 	leo, err := s.log.loadLEOLocked(ctx)
 	if err != nil {
-		return DurableFrontier{}, toChannelError(err)
+		return DurableRecoveryState{}, toChannelError(err)
 	}
-	frontier := DurableFrontier{LEO: leo}
+	result := DurableRecoveryState{
+		DurableFrontier: DurableFrontier{LEO: leo},
+		Entries:         make([]DurableEntryProbe, len(indexes)),
+	}
 	checkpoint, present, err := s.log.loadCheckpoint(ctx)
 	if err != nil {
-		return DurableFrontier{}, toChannelError(err)
+		return DurableRecoveryState{}, toChannelError(err)
 	}
 	if present {
 		if checkpoint.HW > leo {
-			return DurableFrontier{}, channel.ErrCorruptState
+			return DurableRecoveryState{}, channel.ErrCorruptState
 		}
-		frontier.Committed = checkpoint.HW
+		result.Committed = checkpoint.HW
 	}
-	if leo == 0 {
-		return frontier, nil
+	if leo > 0 {
+		proposal, present, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, leo)
+		if err != nil {
+			return DurableRecoveryState{}, toChannelError(err)
+		}
+		if !present {
+			return DurableRecoveryState{}, channel.ErrCorruptState
+		}
+		entry, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, leo)
+		if err != nil {
+			return DurableRecoveryState{}, toChannelError(err)
+		}
+		manifest := proposal.manifest
+		if !present || manifest.LastOffset != leo || manifest.Digest != entry.Digest ||
+			manifest.ChannelEpoch != entry.ChannelEpoch || manifest.LeaderTerm != entry.LeaderTerm ||
+			manifest.FenceVersion != entry.FenceVersion || manifest.CommandID != entry.CommandID {
+			return DurableRecoveryState{}, channel.ErrCorruptState
+		}
+		result.Manifest = manifest
+		result.TailIdentity = entry
 	}
-	proposal, present, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, leo)
-	if err != nil {
-		return DurableFrontier{}, toChannelError(err)
+	for position, index := range indexes {
+		if index == 0 {
+			return DurableRecoveryState{}, channel.ErrInvalidArgument
+		}
+		probe := DurableEntryProbe{Index: index}
+		if index <= leo {
+			identity, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, index)
+			if err != nil {
+				return DurableRecoveryState{}, toChannelError(err)
+			}
+			if !present || identity.Index != index {
+				return DurableRecoveryState{}, channel.ErrCorruptState
+			}
+			probe.Present = true
+			probe.Identity = identity
+		}
+		result.Entries[position] = probe
 	}
-	if !present {
-		return DurableFrontier{}, channel.ErrCorruptState
-	}
-	entry, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, leo)
-	if err != nil {
-		return DurableFrontier{}, toChannelError(err)
-	}
-	manifest := proposal.manifest
-	if !present || manifest.LastOffset != leo || manifest.Digest != entry.Digest ||
-		manifest.ChannelEpoch != entry.ChannelEpoch || manifest.LeaderTerm != entry.LeaderTerm ||
-		manifest.FenceVersion != entry.FenceVersion || manifest.CommandID != entry.CommandID {
-		return DurableFrontier{}, channel.ErrCorruptState
-	}
-	frontier.Manifest = manifest
-	frontier.TailIdentity = entry
-	return frontier, nil
+	return result, nil
 }
 
 // Truncate removes message rows after to while preserving retention state.

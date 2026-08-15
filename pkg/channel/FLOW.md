@@ -276,8 +276,9 @@ closed. `Sync` reuses the MessageDB batch surface for both adjacent proposals
 of one Channel and different Channels, retains positional per-proposal
 outcomes, and reports the follower's exact `NeedFrom` offset for a gap. A
 follower's monotonic committed HW is persisted atomically with its exact
-proposal rather than through a second checkpoint commit. Bounded quorum probing and
-removal of the PullHint hot path must still land before production wiring. The
+proposal rather than through a second checkpoint commit. The leader-side
+bounded quorum probe owner and removal of the PullHint hot path must still land
+before production wiring. The
 data-bearing exchange foundation now lives in `replication`: one
 versioned `ReplicateRequest` carries the exact manifest and owned record payload
 to a follower, whose `ExchangeServer` acknowledges only a closed durable result
@@ -298,7 +299,19 @@ deadline, not the submitting caller context; caller cancellation stops waiting
 but cannot revoke admitted durability. Response correlation is by request ID;
 malformed, duplicate, missing, panicking, timed-out, or transport-lost
 responses remain typed outcome-unknown so exact retry can resolve them. This
-peer/store seam is not wired into the transitional reactor yet. The design is
+peer/store seam is not wired into the transitional reactor yet. Recovery now
+has a read-only `Probe` exchange item. One bounded store load returns the exact
+frontier and at most 256 requested entry identities from the same
+append/checkpoint-consistent view; results remain request-position aligned and
+mixed read/write work for the same Channel is rejected before storage access.
+The recovery selector accepts only an intersecting current-voter quorum,
+ignores a minority-only higher tail, and treats identity disagreement among
+the quorum that certifies a committed cut as corruption. Any selected suffix
+above that cut must include a complete probed page whose quorum identities form
+one predecessor hash chain from the certified identity; a missing page remains
+incomplete and a detached chain is corruption. The leader-side
+probe owner, suffix fetch/replace, current-term barrier, and `Install` readiness
+transition must still land before reactor wiring. The design is
 recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,

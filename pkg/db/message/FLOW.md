@@ -103,9 +103,12 @@ Current flow:
    retain separate outcomes while sharing that commit; a gap returns the
    follower's exact next offset. `LoadDurableFrontier` takes the same lock
    order and returns one append/checkpoint-consistent LEO, committed HW, paired
-   tail manifest, and tail entry identity. A non-empty log without the complete
-   exact tail proof, or any checkpoint above LEO, is corrupt rather than a
-   legacy recovery mode.
+   tail manifest, and tail entry identity. `LoadDurableRecovery` takes those
+   same locks and adds a position-aligned set of requested entry identities;
+   an identity missing at or below LEO is corruption, while an index above LEO
+   is an explicit absent result. A non-empty log without the complete exact
+   tail proof, or any checkpoint above LEO, is corrupt rather than a legacy
+   recovery mode.
 9. Truncate and retention deletes remove primary rows and secondary indexes
    together. Suffix truncation atomically deletes every proposal manifest at
    or above the new LEO and rejects a cut through the middle of one proposal;

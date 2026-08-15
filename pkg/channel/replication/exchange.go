@@ -15,6 +15,8 @@ type ExchangeKind uint8
 const (
 	// ExchangeReplicate carries an immutable proposal to one follower.
 	ExchangeReplicate ExchangeKind = iota + 1
+	// ExchangeProbe reads one bounded exact recovery view from a follower.
+	ExchangeProbe
 )
 
 // ReplicateStatus is the closed durable result of one follower replication.
@@ -92,11 +94,34 @@ type ReplicateResult struct {
 	NeedFrom uint64
 }
 
+// ProbeRequest asks one follower for its exact frontier and selected entry
+// identities. It is read-only and cannot install authority.
+type ProbeRequest struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Leader     ch.NodeID
+	Follower   ch.NodeID
+	Indexes    []uint64
+}
+
+// Valid reports whether the probe is one bounded, identity-safe request.
+func (r ProbeRequest) Valid() bool {
+	return r.ChannelKey != "" && r.ChannelID.ID != "" && r.Leader != 0 && r.Follower != 0 &&
+		r.Leader != r.Follower && len(r.Indexes) <= maxRecoveryProbeIndexes && validProbeIndexes(r.Indexes)
+}
+
+// ProbeResult is one exact follower recovery view.
+type ProbeResult struct {
+	State   ReplicaState
+	Entries []EntryProbe
+}
+
 // ExchangeItem is one correlated request in a peer batch.
 type ExchangeItem struct {
 	RequestID uint64
 	Kind      ExchangeKind
 	Replicate *ReplicateRequest
+	Probe     *ProbeRequest
 }
 
 // ExchangeBatch carries ready work for one target without another collection timer.
@@ -109,6 +134,7 @@ type ExchangeBatch struct {
 type ExchangeItemResult struct {
 	RequestID uint64
 	Replicate ReplicateResult
+	Probe     ProbeResult
 }
 
 // ExchangeBatchResult returns exactly one correlated result per input item.
@@ -129,4 +155,9 @@ func estimateReplicateRequestBytes(request ReplicateRequest) int {
 		total += 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
 	}
 	return total
+}
+
+func estimateProbeRequestBytes(request ProbeRequest) int {
+	const fixedBytes = 192
+	return fixedBytes + len(request.ChannelKey) + len(request.ChannelID.ID) + len(request.Indexes)*192
 }

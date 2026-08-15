@@ -8,6 +8,8 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
+const maxRecoveryProbeIndexes = 256
+
 // StoreAdapterConfig bounds one local ReplicaStore adapter.
 type StoreAdapterConfig struct {
 	// Factory opens exact per-Channel durable state handles.
@@ -40,7 +42,14 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 	}
 	bytes := 0
 	for _, item := range batch.Items {
-		itemBytes, ok := boundedByteSize(a.cfg.MaxBatchBytes, 64, len(item.ChannelKey), len(item.ChannelID.ID))
+		if len(item.ProbeIndexes) > maxRecoveryProbeIndexes || !validProbeIndexes(item.ProbeIndexes) {
+			return LoadBatchResult{}, ch.ErrInvalidConfig
+		}
+		probeBytes, ok := boundedProduct(a.cfg.MaxBatchBytes, len(item.ProbeIndexes), 192)
+		if !ok {
+			return LoadBatchResult{}, ch.ErrBackpressured
+		}
+		itemBytes, ok := boundedByteSize(a.cfg.MaxBatchBytes, 64, len(item.ChannelKey), len(item.ChannelID.ID), probeBytes)
 		if !ok || bytes > a.cfg.MaxBatchBytes-itemBytes {
 			return LoadBatchResult{}, ch.ErrBackpressured
 		}
@@ -57,13 +66,7 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 			result.Items[index].Err = err
 			continue
 		}
-		loader, ok := store.(channelstore.ExactStateLoader)
-		if !ok {
-			result.Items[index].Err = ch.ErrInvalidConfig
-			_ = store.Close()
-			continue
-		}
-		state, loadErr := loader.LoadExactState(ctx)
+		state, entries, loadErr := loadExactRecoveryState(ctx, store, item.ProbeIndexes)
 		closeErr := store.Close()
 		if loadErr == nil && closeErr != nil {
 			loadErr = closeErr
@@ -79,8 +82,91 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 			LEO: state.LEO, Committed: state.HW,
 			Manifest: state.Manifest, TailIdentity: state.TailIdentity,
 		}
+		result.Items[index].Entries = entries
 	}
 	return result, nil
+}
+
+func loadExactRecoveryState(ctx context.Context, store channelstore.ChannelStore, indexes []uint64) (channelstore.ExactState, []EntryProbe, error) {
+	if len(indexes) == 0 {
+		loader, ok := store.(channelstore.ExactStateLoader)
+		if !ok {
+			return channelstore.ExactState{}, nil, ch.ErrInvalidConfig
+		}
+		state, err := loader.LoadExactState(ctx)
+		return state, nil, err
+	}
+	loader, ok := store.(channelstore.ExactRecoveryStateLoader)
+	if !ok {
+		return channelstore.ExactState{}, nil, ch.ErrInvalidConfig
+	}
+	recovery, err := loader.LoadExactRecoveryState(ctx, indexes)
+	if err != nil {
+		return channelstore.ExactState{}, nil, err
+	}
+	if len(recovery.Entries) != len(indexes) {
+		return channelstore.ExactState{}, nil, ch.ErrLogConflict
+	}
+	entries := make([]EntryProbe, len(indexes))
+	for position, entry := range recovery.Entries {
+		if entry.Index != indexes[position] || entry.Present != (entry.Identity != (ch.EntryIdentity{})) ||
+			(entry.Present && entry.Identity.Index != entry.Index) ||
+			(entry.Present && !validEntryIdentity(entry.Identity)) ||
+			(entry.Index <= recovery.LEO && !entry.Present) || (entry.Index > recovery.LEO && entry.Present) {
+			return channelstore.ExactState{}, nil, ch.ErrLogConflict
+		}
+		entries[position] = EntryProbe{Index: entry.Index, Present: entry.Present, Identity: entry.Identity}
+	}
+	if !validProbeEntryChain(entries) {
+		return channelstore.ExactState{}, nil, ch.ErrLogConflict
+	}
+	return recovery.ExactState, entries, nil
+}
+
+func validProbeIndexes(indexes []uint64) bool {
+	seen := make(map[uint64]struct{}, len(indexes))
+	for _, index := range indexes {
+		if index == 0 {
+			return false
+		}
+		if _, exists := seen[index]; exists {
+			return false
+		}
+		seen[index] = struct{}{}
+	}
+	return true
+}
+
+func validEntryIdentity(identity ch.EntryIdentity) bool {
+	if identity.Version != ch.ProposalManifestVersion || identity.ChannelEpoch == 0 || identity.LeaderTerm == 0 ||
+		identity.FenceVersion == 0 || identity.Index == 0 || identity.PreviousIndex+1 != identity.Index ||
+		identity.CommandID == (ch.CommandID{}) || identity.Digest == (ch.EntryDigest{}) {
+		return false
+	}
+	if identity.PreviousIndex == 0 {
+		return identity.PreviousTerm == 0 && identity.PreviousDigest == (ch.EntryDigest{})
+	}
+	return identity.PreviousTerm != 0 && identity.PreviousDigest != (ch.EntryDigest{})
+}
+
+func validProbeEntryChain(entries []EntryProbe) bool {
+	byIndex := make(map[uint64]ch.EntryIdentity, len(entries))
+	for _, entry := range entries {
+		if entry.Present {
+			byIndex[entry.Index] = entry.Identity
+		}
+	}
+	for index, identity := range byIndex {
+		if index <= 1 {
+			continue
+		}
+		previous, probed := byIndex[index-1]
+		if probed && (identity.PreviousIndex != previous.Index || identity.PreviousTerm != previous.LeaderTerm ||
+			identity.PreviousDigest != previous.Digest) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []MutationResult {
@@ -194,6 +280,13 @@ func boundedByteSize(limit int, values ...int) (int, bool) {
 	return total, true
 }
 
+func boundedProduct(limit, left, right int) (int, bool) {
+	if limit < 0 || left < 0 || right < 0 || (left != 0 && right > limit/left) {
+		return 0, false
+	}
+	return left * right, true
+}
+
 func validateExactState(state channelstore.ExactState) error {
 	if state.LEO == 0 {
 		if state.HW != 0 || state.CheckpointHW != 0 || state.Manifest != (ch.ProposalManifest{}) ||
@@ -205,7 +298,7 @@ func validateExactState(state channelstore.ExactState) error {
 	manifest := state.Manifest
 	tail := state.TailIdentity
 	if state.HW > state.LEO || state.CheckpointHW != state.HW || !manifest.StructurallyValid() ||
-		manifest.LastOffset != state.LEO || tail.Version != manifest.Version || tail.Index != state.LEO ||
+		manifest.LastOffset != state.LEO || !validEntryIdentity(tail) || tail.Version != manifest.Version || tail.Index != state.LEO ||
 		tail.ChannelEpoch != manifest.ChannelEpoch || tail.LeaderTerm != manifest.LeaderTerm ||
 		tail.FenceVersion != manifest.FenceVersion || tail.CommandID != manifest.CommandID || tail.Digest != manifest.Digest {
 		return ch.ErrLogConflict

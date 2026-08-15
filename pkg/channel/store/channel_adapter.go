@@ -549,6 +549,33 @@ func (a *messageDBChannelStoreAdapter) LoadExactState(ctx context.Context) (Exac
 	}, nil
 }
 
+// LoadExactRecoveryState returns one append/checkpoint-consistent frontier and
+// the requested exact entry identities from MessageDB.
+func (a *messageDBChannelStoreAdapter) LoadExactRecoveryState(ctx context.Context, indexes []uint64) (ExactRecoveryState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactRecoveryState{}, err
+	}
+	recovery, err := a.store.LoadDurableRecovery(ctx, indexes)
+	if err != nil {
+		return ExactRecoveryState{}, a.mapError(err)
+	}
+	result := ExactRecoveryState{
+		ExactState: ExactState{
+			InitialState: InitialState{
+				LEO: recovery.LEO, HW: recovery.Committed, CheckpointHW: recovery.Committed,
+			},
+			Manifest: recovery.Manifest, TailIdentity: recovery.TailIdentity,
+		},
+		Entries: make([]ExactEntryProbe, len(recovery.Entries)),
+	}
+	for index, entry := range recovery.Entries {
+		result.Entries[index] = ExactEntryProbe{
+			Index: entry.Index, Present: entry.Present, Identity: entry.Identity,
+		}
+	}
+	return result, nil
+}
+
 func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := a.ensureOpen(); err != nil {
 		return appendLeaderErrorResult(err), err

@@ -3,6 +3,7 @@ package replication_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -76,6 +77,51 @@ func TestStoreAdapterLoadsExactDurableTailAfterSync(t *testing.T) {
 	}
 	if len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State != want {
 		t.Fatalf("Load(durable) = %+v, want %+v", loaded, want)
+	}
+}
+
+func TestStoreAdapterLoadReturnsPositionAlignedRecoveryIdentities(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:recovery-identities")
+	id := ch.ChannelID{ID: "recovery-identities", Type: 1}
+	first := sealedMutationAt(t, key, id, 111, 0, ch.EntryIdentity{})
+	firstEntries, ok := ch.DeriveProposalEntries(first.Manifest, len(first.Records), func(index int) ch.Record { return first.Records[index] })
+	if !ok {
+		t.Fatal("DeriveProposalEntries(first) failed")
+	}
+	second := sealedMutationAt(t, key, id, 112, 1, firstEntries[0])
+	secondEntries, ok := ch.DeriveProposalEntries(second.Manifest, len(second.Records), func(index int) ch.Record { return second.Records[index] })
+	if !ok {
+		t.Fatal("DeriveProposalEntries(second) failed")
+	}
+	results := adapter.Sync(context.Background(), []replication.Mutation{first, second})
+	if len(results) != 2 || !results[0].Outcome.Durable() || !results[1].Outcome.Durable() {
+		t.Fatalf("Sync() = %+v, want two durable proposals", results)
+	}
+
+	loaded, err := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id, ProbeIndexes: []uint64{1, 2, 3},
+	}}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load() = %+v, want one successful result", loaded)
+	}
+	want := []replication.EntryProbe{
+		{Index: 1, Present: true, Identity: firstEntries[0]},
+		{Index: 2, Present: true, Identity: secondEntries[0]},
+		{Index: 3},
+	}
+	if !reflect.DeepEqual(loaded.Items[0].Entries, want) {
+		t.Fatalf("Load() entries = %+v, want %+v", loaded.Items[0].Entries, want)
 	}
 }
 
@@ -234,7 +280,7 @@ func TestStoreAdapterLoadsExactDurableTailAfterMessageDBReopen(t *testing.T) {
 		t.Fatalf("NewStoreAdapter(reopened) error = %v", err)
 	}
 	loaded, err := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
-		ChannelKey: key, ChannelID: id,
+		ChannelKey: key, ChannelID: id, ProbeIndexes: []uint64{1, 2},
 	}}})
 	if err != nil {
 		t.Fatalf("Load(reopened) error = %v", err)
@@ -242,6 +288,10 @@ func TestStoreAdapterLoadsExactDurableTailAfterMessageDBReopen(t *testing.T) {
 	want := replication.ReplicaState{LEO: 1, Committed: 1, Manifest: manifest, TailIdentity: entries[0]}
 	if len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State != want {
 		t.Fatalf("Load(reopened) = %+v, want %+v", loaded, want)
+	}
+	wantEntries := []replication.EntryProbe{{Index: 1, Present: true, Identity: entries[0]}, {Index: 2}}
+	if !reflect.DeepEqual(loaded.Items[0].Entries, wantEntries) {
+		t.Fatalf("Load(reopened) entries = %+v, want %+v", loaded.Items[0].Entries, wantEntries)
 	}
 }
 
@@ -348,6 +398,27 @@ func TestStoreAdapterLoadRejectsOversizedIdentityBatch(t *testing.T) {
 	}}})
 	if !errors.Is(err, ch.ErrBackpressured) {
 		t.Fatalf("Load(oversized) error = %v, want backpressured", err)
+	}
+}
+
+func TestStoreAdapterLoadRejectsUnboundedRecoveryIdentityPage(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 1, MaxBatchBytes: 1 << 20,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	indexes := make([]uint64, 257)
+	for index := range indexes {
+		indexes[index] = uint64(index + 1)
+	}
+	_, err = adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: "1:unbounded-probe", ChannelID: ch.ChannelID{ID: "unbounded-probe", Type: 1}, ProbeIndexes: indexes,
+	}}})
+	if !errors.Is(err, ch.ErrInvalidConfig) {
+		t.Fatalf("Load(unbounded probe) error = %v, want invalid config", err)
 	}
 }
 

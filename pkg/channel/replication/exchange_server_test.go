@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -45,6 +46,93 @@ func TestExchangeServerAcknowledgesOnlyExactDurableStoreResults(t *testing.T) {
 	}
 	if result.Items[0].Replicate.Proof != replicateProofFor(first) || result.Items[1].Replicate.Proof != replicateProofFor(second) {
 		t.Fatalf("durable proofs = %+v, %+v, want exact request manifests", result.Items[0].Replicate.Proof, result.Items[1].Replicate.Proof)
+	}
+}
+
+func TestExchangeServerReturnsBoundedPositionAlignedRecoveryProbe(t *testing.T) {
+	replicate := testReplicateRequest(t, "1:probe", "probe", 1, []byte("probe"))
+	identities, ok := ch.DeriveProposalEntries(replicate.Manifest, len(replicate.Records), func(index int) ch.Record {
+		return replicate.Records[index]
+	})
+	if !ok {
+		t.Fatal("DeriveProposalEntries() failed")
+	}
+	identity := identities[0]
+	store := &recordingReplicaStore{loadResult: LoadBatchResult{Items: []LoadResult{{
+		State:   ReplicaState{LEO: 1, Committed: 1, Manifest: replicate.Manifest, TailIdentity: identity},
+		Entries: []EntryProbe{{Index: 1, Present: true, Identity: identity}, {Index: 2}},
+	}}}}
+	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 4, MaxBatchBytes: 4096})
+	if err != nil {
+		t.Fatalf("NewExchangeServer() error = %v", err)
+	}
+	request := ProbeRequest{
+		ChannelKey: "1:probe", ChannelID: ch.ChannelID{ID: "probe", Type: 1},
+		Leader: 1, Follower: 2, Indexes: []uint64{1, 2},
+	}
+
+	result, err := server.Handle(context.Background(), 1, ExchangeBatch{Version: ExchangeVersion, Items: []ExchangeItem{{
+		RequestID: 21, Kind: ExchangeProbe, Probe: &request,
+	}}})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(store.loadBatches) != 1 || len(store.loadBatches[0].Items) != 1 ||
+		!reflect.DeepEqual(store.loadBatches[0].Items[0].ProbeIndexes, request.Indexes) {
+		t.Fatalf("load batches = %+v, want one exact probe", store.loadBatches)
+	}
+	if len(store.batches) != 0 {
+		t.Fatalf("mutation batches = %d, want read-only probe", len(store.batches))
+	}
+	if result.Version != ExchangeVersion || len(result.Items) != 1 || result.Items[0].RequestID != 21 ||
+		!reflect.DeepEqual(result.Items[0].Probe, ProbeResult{State: store.loadResult.Items[0].State, Entries: store.loadResult.Items[0].Entries}) {
+		t.Fatalf("Handle() result = %+v, want position-aligned probe", result)
+	}
+}
+
+func TestExchangeServerRejectsMixedReadWriteForSameChannelBeforeStoreAccess(t *testing.T) {
+	store := &recordingReplicaStore{}
+	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 4, MaxBatchBytes: 8192})
+	if err != nil {
+		t.Fatalf("NewExchangeServer() error = %v", err)
+	}
+	replicate := testReplicateRequest(t, "1:mixed", "mixed", 1, []byte("payload"))
+	probe := ProbeRequest{
+		ChannelKey: replicate.ChannelKey, ChannelID: replicate.ChannelID,
+		Leader: replicate.Leader, Follower: replicate.Follower, Indexes: []uint64{1},
+	}
+
+	_, err = server.Handle(context.Background(), 1, ExchangeBatch{Version: ExchangeVersion, Items: []ExchangeItem{
+		{RequestID: 31, Kind: ExchangeReplicate, Replicate: &replicate},
+		{RequestID: 32, Kind: ExchangeProbe, Probe: &probe},
+	}})
+	if !errors.Is(err, ch.ErrInvalidConfig) {
+		t.Fatalf("Handle() error = %v, want invalid mixed same-Channel batch", err)
+	}
+	if len(store.loadBatches) != 0 || len(store.batches) != 0 {
+		t.Fatalf("store access = loads %d writes %d, want zero", len(store.loadBatches), len(store.batches))
+	}
+}
+
+func TestExchangeServerRejectsOversizedProbeBeforeStoreAccess(t *testing.T) {
+	store := &recordingReplicaStore{}
+	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 1, MaxBatchBytes: 200})
+	if err != nil {
+		t.Fatalf("NewExchangeServer() error = %v", err)
+	}
+	request := ProbeRequest{
+		ChannelKey: "1:oversized-probe", ChannelID: ch.ChannelID{ID: "oversized-probe", Type: 1},
+		Leader: 1, Follower: 2, Indexes: []uint64{1},
+	}
+
+	_, err = server.Handle(context.Background(), 1, ExchangeBatch{Version: ExchangeVersion, Items: []ExchangeItem{{
+		RequestID: 41, Kind: ExchangeProbe, Probe: &request,
+	}}})
+	if !errors.Is(err, ch.ErrBackpressured) {
+		t.Fatalf("Handle() error = %v, want backpressured", err)
+	}
+	if len(store.loadBatches) != 0 || len(store.batches) != 0 {
+		t.Fatalf("store access = loads %d writes %d, want zero", len(store.loadBatches), len(store.batches))
 	}
 }
 
@@ -120,11 +208,17 @@ func TestExchangeServerRejectsOversizedBatchBeforeStoreMutation(t *testing.T) {
 }
 
 type recordingReplicaStore struct {
-	results []MutationResult
-	batches [][]Mutation
+	results     []MutationResult
+	batches     [][]Mutation
+	loadResult  LoadBatchResult
+	loadBatches []LoadBatch
 }
 
 func (s *recordingReplicaStore) Load(_ context.Context, batch LoadBatch) (LoadBatchResult, error) {
+	s.loadBatches = append(s.loadBatches, batch)
+	if len(s.loadResult.Items) != 0 {
+		return s.loadResult, nil
+	}
 	return LoadBatchResult{Items: make([]LoadResult, len(batch.Items))}, nil
 }
 

@@ -64,6 +64,41 @@ func (s *MemoryChannelStore) LoadExactState(ctx context.Context) (ExactState, er
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.loadExactStateLocked()
+}
+
+// LoadExactRecoveryState returns one consistent frontier plus exact identities
+// at the requested indexes.
+func (s *MemoryChannelStore) LoadExactRecoveryState(ctx context.Context, indexes []uint64) (ExactRecoveryState, error) {
+	if err := ctx.Err(); err != nil {
+		return ExactRecoveryState{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.loadExactStateLocked()
+	if err != nil {
+		return ExactRecoveryState{}, err
+	}
+	result := ExactRecoveryState{ExactState: state, Entries: make([]ExactEntryProbe, len(indexes))}
+	for position, index := range indexes {
+		if index == 0 {
+			return ExactRecoveryState{}, ch.ErrInvalidConfig
+		}
+		probe := ExactEntryProbe{Index: index}
+		if index <= state.LEO {
+			identity, present := s.entriesByIndex[index]
+			if !present || identity.Index != index {
+				return ExactRecoveryState{}, ch.ErrLogConflict
+			}
+			probe.Present = true
+			probe.Identity = identity
+		}
+		result.Entries[position] = probe
+	}
+	return result, nil
+}
+
+func (s *MemoryChannelStore) loadExactStateLocked() (ExactState, error) {
 	leo := s.leoLocked()
 	if s.checkpoint.HW > leo {
 		return ExactState{}, ch.ErrLogConflict

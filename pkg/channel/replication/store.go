@@ -11,6 +11,9 @@ import (
 type LoadRequest struct {
 	ChannelKey ch.ChannelKey
 	ChannelID  ch.ChannelID
+	// ProbeIndexes requests exact entry identities from the same consistent
+	// frontier view. Entries are returned in this order.
+	ProbeIndexes []uint64
 }
 
 // LoadBatch groups a bounded set of local replica frontier reads.
@@ -30,7 +33,16 @@ type ReplicaState struct {
 // LoadResult is one position-aligned local replica read.
 type LoadResult struct {
 	State ReplicaState
-	Err   error
+	// Entries is position-aligned with LoadRequest.ProbeIndexes.
+	Entries []EntryProbe
+	Err     error
+}
+
+// EntryProbe is one exact recovery identity lookup.
+type EntryProbe struct {
+	Index    uint64
+	Present  bool
+	Identity ch.EntryIdentity
 }
 
 // LoadBatchResult aligns one result with every LoadBatch item.

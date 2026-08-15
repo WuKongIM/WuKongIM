@@ -65,12 +65,31 @@ type ExactStateLoader interface {
 	LoadExactState(ctx context.Context) (ExactState, error)
 }
 
+// ExactRecoveryStateLoader reads one exact frontier plus a bounded,
+// position-aligned set of entry identities from the same consistent view.
+type ExactRecoveryStateLoader interface {
+	LoadExactRecoveryState(ctx context.Context, indexes []uint64) (ExactRecoveryState, error)
+}
+
 // ExactState is the local durability state required to recover a quorum-log
 // sequencer. Manifest and TailIdentity are zero only for an empty log.
 type ExactState struct {
 	InitialState
 	Manifest     ProposalManifest
 	TailIdentity ch.EntryIdentity
+}
+
+// ExactEntryProbe is one position-aligned recovery identity lookup.
+type ExactEntryProbe struct {
+	Index    uint64
+	Present  bool
+	Identity ch.EntryIdentity
+}
+
+// ExactRecoveryState is one append/checkpoint-consistent recovery view.
+type ExactRecoveryState struct {
+	ExactState
+	Entries []ExactEntryProbe
 }
 
 // MessageLookup is an optional point lookup surface for rare timeout recovery paths.
