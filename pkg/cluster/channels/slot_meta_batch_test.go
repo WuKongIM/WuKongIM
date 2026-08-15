@@ -3,13 +3,124 @@ package channels
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+func TestSlotMetaSourcePipelinesBoundedBatchesForOneSlot(t *testing.T) {
+	const wantMaxInFlight = 4
+	store := newBlockingConcurrentRuntimeMetaBatchStore()
+	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
+		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
+	}}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{
+		Router: router, BatchStore: store,
+		Placement: fakePlacementResolver{placement: ChannelPlacement{
+			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
+		}},
+	})
+	t.Cleanup(func() {
+		store.release()
+		if err := source.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	results := make(chan error, wantMaxInFlight+1)
+	startEnsure := func(i int) {
+		id := ch.ChannelID{ID: fmt.Sprintf("pipelined-cold-channel-%d", i), Type: 1}
+		go func() {
+			_, err := source.EnsureChannelMeta(context.Background(), id)
+			results <- err
+		}()
+	}
+	for i := 0; i < wantMaxInFlight; i++ {
+		startEnsure(i)
+		store.waitForStarted(t, 1)
+	}
+	startEnsure(wantMaxInFlight)
+	select {
+	case <-store.started:
+		t.Fatalf("started more than %d concurrent metadata batches", wantMaxInFlight)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if got := store.maxActive(); got != wantMaxInFlight {
+		t.Fatalf("maximum active metadata batches = %d, want %d", got, wantMaxInFlight)
+	}
+
+	store.release()
+	for i := 0; i < wantMaxInFlight+1; i++ {
+		if err := <-results; err != nil {
+			t.Fatalf("EnsureChannelMeta(call=%d) error = %v", i, err)
+		}
+	}
+}
+
+func TestSlotMetaSourceCloseJoinsAllPipelinedBatches(t *testing.T) {
+	const inFlight = 4
+	store := newBlockingConcurrentRuntimeMetaBatchStore()
+	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
+		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
+	}}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{
+		Router: router, BatchStore: store,
+		Placement: fakePlacementResolver{placement: ChannelPlacement{
+			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
+		}},
+	})
+	t.Cleanup(store.release)
+
+	results := make(chan error, inFlight)
+	for i := 0; i < inFlight; i++ {
+		id := ch.ChannelID{ID: fmt.Sprintf("closing-pipelined-channel-%d", i), Type: 1}
+		go func() {
+			_, err := source.EnsureChannelMeta(context.Background(), id)
+			results <- err
+		}()
+		store.waitForStarted(t, 1)
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- source.Close() }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		source.batcher.mu.Lock()
+		stopping := source.batcher.stopping
+		source.batcher.mu.Unlock()
+		if stopping {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Close() did not close metadata admission")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	select {
+	case err := <-closed:
+		t.Fatalf("Close() returned before pipelined batches completed: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	_, err := source.EnsureChannelMeta(context.Background(), ch.ChannelID{ID: "after-close-started", Type: 1})
+	if !errors.Is(err, ErrMetaCreateStopped) {
+		t.Fatalf("EnsureChannelMeta(after Close started) error = %v, want ErrMetaCreateStopped", err)
+	}
+
+	store.release()
+	for i := 0; i < inFlight; i++ {
+		if err := <-results; err != nil {
+			t.Fatalf("EnsureChannelMeta(call=%d) error = %v", i, err)
+		}
+	}
+	if err := <-closed; err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
 
 func TestServiceCloseStopsSlotMetaSourceBatchAdmission(t *testing.T) {
 	store := &runtimeMetaReaderFake{err: metadb.ErrNotFound}
@@ -408,6 +519,16 @@ type blockingRuntimeMetaBatchStore struct {
 	releaseFirstBatch chan struct{}
 }
 
+type blockingConcurrentRuntimeMetaBatchStore struct {
+	mu          sync.Mutex
+	rows        map[metadb.ChannelKey]metadb.ChannelRuntimeMeta
+	started     chan struct{}
+	releaseOnce sync.Once
+	releaseCh   chan struct{}
+	active      int
+	max         int
+}
+
 type uncertainAppliedRuntimeMetaBatchStore struct {
 	row         metadb.ChannelRuntimeMeta
 	createCalls int
@@ -484,6 +605,85 @@ func newBlockingRuntimeMetaBatchStore() *blockingRuntimeMetaBatchStore {
 		firstBatchStarted: make(chan struct{}),
 		releaseFirstBatch: make(chan struct{}),
 	}
+}
+
+func newBlockingConcurrentRuntimeMetaBatchStore() *blockingConcurrentRuntimeMetaBatchStore {
+	return &blockingConcurrentRuntimeMetaBatchStore{
+		rows: make(map[metadb.ChannelKey]metadb.ChannelRuntimeMeta), started: make(chan struct{}, 16), releaseCh: make(chan struct{}),
+	}
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta, ok := s.rows[metadb.ChannelKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return meta, nil
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) CreateChannelRuntimeMetaBatch(_ context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaCreateResult, error) {
+	s.mu.Lock()
+	s.active++
+	if s.active > s.max {
+		s.max = s.active
+	}
+	s.mu.Unlock()
+	s.started <- struct{}{}
+	<-s.releaseCh
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.active--
+	results := make([]RuntimeMetaCreateResult, len(items))
+	for i, item := range items {
+		key := metadb.ChannelKey{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
+		_, existed := s.rows[key]
+		if !existed {
+			s.rows[key] = metadb.NormalizeChannelRuntimeMeta(item.Meta)
+		}
+		results[i] = RuntimeMetaCreateResult{
+			HashSlot: item.HashSlot, ChannelID: key.ChannelID, ChannelType: key.ChannelType, Created: !existed,
+		}
+	}
+	return results, nil
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) BatchGetChannelRuntimeMetas(_ context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	results := make([]RuntimeMetaReadResult, len(items))
+	for i, item := range items {
+		meta, ok := s.rows[metadb.ChannelKey{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}]
+		if !ok {
+			results[i].Err = metadb.ErrNotFound
+			continue
+		}
+		results[i].Meta = meta
+	}
+	return results, nil
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) waitForStarted(t *testing.T, count int) {
+	t.Helper()
+	for i := 0; i < count; i++ {
+		select {
+		case <-s.started:
+		case <-time.After(time.Second):
+			t.Fatalf("started metadata batches = %d, want at least %d", i, count)
+		}
+	}
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) release() {
+	s.releaseOnce.Do(func() { close(s.releaseCh) })
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) maxActive() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.max
 }
 
 func (s *blockingRuntimeMetaBatchStore) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {

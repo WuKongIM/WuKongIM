@@ -19,6 +19,9 @@ const (
 	metaCreateQueueMaxItems = 256
 	metaCreateBatchTimeout  = 2 * time.Second
 	metaCreateRerouteMax    = 2
+	// A small fixed pipeline keeps cold metadata creation from serializing on
+	// one Raft future while preserving bounded per-Slot work and memory.
+	metaCreateSlotMaxInFlightBatches = 4
 )
 
 var (
@@ -122,7 +125,9 @@ func (b *metaCreateBatcher) owner(slotID uint32) (*metaCreateSlotOwner, error) {
 	}
 	owner := &metaCreateSlotOwner{
 		batcher: b, slotID: slotID, entries: make(map[metadb.ChannelKey]*metaCreateEntry),
-		wake: make(chan struct{}, 1), done: make(chan struct{}),
+		wake:     make(chan struct{}, 1),
+		finished: make(chan metaCreateBatchCompletion, metaCreateSlotMaxInFlightBatches),
+		done:     make(chan struct{}),
 	}
 	b.owners[slotID] = owner
 	b.wg.Add(1)
@@ -171,10 +176,16 @@ type metaCreateSlotOwner struct {
 	mu       sync.Mutex
 	entries  map[metadb.ChannelKey]*metaCreateEntry
 	queue    []*metaCreateEntry
-	inFlight bool
+	inFlight int
 	stopping bool
 	wake     chan struct{}
+	finished chan metaCreateBatchCompletion
 	done     chan struct{}
+}
+
+type metaCreateBatchCompletion struct {
+	batch   []*metaCreateEntry
+	results map[metadb.ChannelKey]metaCreateEnsureResult
 }
 
 type metaCreateEntry struct {
@@ -271,25 +282,38 @@ func (o *metaCreateSlotOwner) run() {
 	defer o.batcher.wg.Done()
 	defer close(o.done)
 	for {
-		<-o.wake
 		for {
 			batch, stop := o.takeBatch()
+			if stop {
+				return
+			}
 			if len(batch) == 0 {
-				if stop {
-					return
-				}
 				break
 			}
-			results := o.submit(batch)
-			o.finish(batch, results)
+			o.startBatch(batch)
+		}
+		select {
+		case <-o.wake:
+		case completion := <-o.finished:
+			o.finish(completion.batch, completion.results)
 		}
 	}
 }
 
+func (o *metaCreateSlotOwner) startBatch(batch []*metaCreateEntry) {
+	goruntimeregistry.SafeGo(o.batcher.goroutines, goruntimeregistry.TaskClusterMetaCreateBatch, func() {
+		o.finished <- metaCreateBatchCompletion{batch: batch, results: o.submit(batch)}
+	})
+}
+
 func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool) {
 	o.mu.Lock()
+	if o.inFlight >= metaCreateSlotMaxInFlightBatches {
+		o.mu.Unlock()
+		return nil, false
+	}
 	if len(o.queue) == 0 {
-		stop := o.stopping && !o.inFlight
+		stop := o.stopping && o.inFlight == 0
 		o.mu.Unlock()
 		return nil, stop
 	}
@@ -308,7 +332,7 @@ func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool) {
 	for _, entry := range batch {
 		entry.inFlight = true
 	}
-	o.inFlight = true
+	o.inFlight++
 	depth := len(o.queue)
 	o.mu.Unlock()
 	o.observeQueueDepth(depth)
@@ -511,7 +535,7 @@ func (o *metaCreateSlotOwner) finish(batch []*metaCreateEntry, results map[metad
 		}
 		delete(o.entries, entry.key)
 	}
-	o.inFlight = false
+	o.inFlight--
 	stopping := o.stopping
 	hasQueued := len(o.queue) > 0
 	o.mu.Unlock()
@@ -544,7 +568,7 @@ func (o *metaCreateSlotOwner) stop() {
 	for _, waiter := range waiters {
 		waiter.result <- metaCreateEnsureResult{err: ErrMetaCreateStopped}
 	}
-	if !inFlight {
+	if inFlight == 0 {
 		o.signal()
 	}
 }
