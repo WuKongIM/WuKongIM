@@ -166,9 +166,8 @@ type AppendBatchResult struct {
 	LastOffset uint64
 	// Err is the item-specific append error.
 	Err error
-	// AlreadyDurable reports that the exact requested range and content were
-	// present before this call and no new rows were written.
-	AlreadyDurable bool
+	// Outcome is the closed proof of what this call did to durable state.
+	Outcome quorumlog.AppendOutcome
 }
 
 // ApplyFetchBatchItem is one channel apply request in a cross-channel batch.
@@ -705,6 +704,7 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 	if err := ctxErr(ctx); err != nil {
 		for i := range results {
 			results[i].Err = err
+			results[i].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 		}
 		return results
 	}
@@ -718,6 +718,7 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 	for i, item := range items {
 		if item.Store == nil || item.Store.log == nil || item.Store.log.channelEntry == nil {
 			results[i].Err = channel.ErrInvalidArgument
+			results[i].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 			continue
 		}
 		indexesByEntry[item.Store.log.channelEntry] = append(indexesByEntry[item.Store.log.channelEntry], i)
@@ -728,6 +729,7 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 		}
 		for _, index := range indexes {
 			results[index].Err = channel.ErrInvalidArgument
+			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 		}
 	}
 	for i, item := range items {
@@ -736,11 +738,13 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 		}
 		if err := item.Store.validate(); err != nil {
 			results[i].Err = err
+			results[i].Outcome = appendOutcomeForPreCommitError(err)
 			continue
 		}
 		if _, ok := activeStores[item.Store]; !ok {
 			if err := item.Store.log.beginUse(); err != nil {
 				results[i].Err = toChannelError(err)
+				results[i].Outcome = appendOutcomeForPreCommitError(results[i].Err)
 				continue
 			}
 			activeStores[item.Store] = struct{}{}
@@ -768,6 +772,7 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 		if err := ctxErr(ctx); err != nil {
 			for _, index := range group.indexes {
 				results[index].Err = err
+				results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 			}
 			continue
 		}
@@ -780,6 +785,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	if err := ctxErr(ctx); err != nil {
 		for _, index := range indexes {
 			results[index].Err = err
+			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 		}
 		return
 	}
@@ -807,6 +813,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		entry := item.Store.log.channelEntry
 		if err := ctxErr(ctx); err != nil {
 			results[index].Err = err
+			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 			entry.appendMu.Unlock()
 			delete(locked, entry)
 			continue
@@ -824,6 +831,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		}
 		if err != nil {
 			results[index].Err = err
+			results[index].Outcome = appendOutcomeForPreCommitError(err)
 			entry.appendMu.Unlock()
 			delete(locked, entry)
 			continue
@@ -831,7 +839,11 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		prepared.index = index
 		results[index].BaseOffset = prepared.baseOffset
 		results[index].LastOffset = prepared.nextLEO
-		results[index].AlreadyDurable = prepared.alreadyDurable
+		if prepared.alreadyDurable {
+			results[index].Outcome = quorumlog.AppendOutcomeAlreadyDurable
+		} else if !prepared.hasWrites() {
+			results[index].Outcome = quorumlog.AppendOutcomeDurable
+		}
 		if !prepared.hasWrites() {
 			entry.appendMu.Unlock()
 			delete(locked, entry)
@@ -843,12 +855,29 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		for _, item := range preparedRows {
 			delete(locked, item.store.log.channelEntry)
 		}
-		if err := commitPreparedRowsBatch(ctx, owner, preparedRows, commitLaneLeaderAppend); err != nil {
-			err = toChannelError(err)
-			for _, item := range preparedRows {
-				results[item.index].Err = err
-			}
+		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, commitLaneLeaderAppend)
+		for _, item := range preparedRows {
+			results[item.index].Err = toChannelError(commitResult.Err)
+			results[item.index].Outcome = appendOutcomeForCommitResult(commitResult)
 		}
+	}
+}
+
+func appendOutcomeForPreCommitError(err error) quorumlog.AppendOutcome {
+	if errors.Is(err, channel.ErrCorruptState) || errors.Is(err, dberrors.ErrCorruptState) || errors.Is(err, dberrors.ErrConflict) {
+		return quorumlog.AppendOutcomeConflict
+	}
+	return quorumlog.AppendOutcomeDefinitelyNotWritten
+}
+
+func appendOutcomeForCommitResult(result commit.SubmitResult) quorumlog.AppendOutcome {
+	switch result.Outcome {
+	case commit.OutcomeCommitted:
+		return quorumlog.AppendOutcomeDurable
+	case commit.OutcomeDefinitelyNotCommitted:
+		return appendOutcomeForPreCommitError(result.Err)
+	default:
+		return quorumlog.AppendOutcomeUnknown
 	}
 }
 
@@ -2477,28 +2506,32 @@ func (s *ChannelStore) validateRowsForAppend(ctx context.Context, rows []message
 }
 
 func (s *ChannelStore) commitPreparedRowsBatch(ctx context.Context, prepared []preparedCommitRows, lane string) error {
-	return commitPreparedRowsBatch(ctx, s.engine, prepared, lane)
+	return commitPreparedRowsBatchResult(ctx, s.engine, prepared, lane).Err
 }
 
 func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []preparedCommitRows, lane string) error {
+	return commitPreparedRowsBatchResult(ctx, owner, prepared, lane).Err
+}
+
+func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared []preparedCommitRows, lane string) commit.SubmitResult {
 	if len(prepared) == 0 {
-		return nil
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted}
 	}
 	appendEntries, checkpointEntries, duplicate := preparedCommitEntries(prepared)
 	if len(appendEntries) == 0 {
-		return channel.ErrInvalidArgument
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: channel.ErrInvalidArgument}
 	}
 	if duplicate {
 		unlockCommitEntries(appendEntries, checkpointEntries)
-		return channel.ErrInvalidArgument
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: channel.ErrInvalidArgument}
 	}
 	if err := ctxErr(ctx); err != nil {
 		unlockCommitEntries(appendEntries, checkpointEntries)
-		return err
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: err}
 	}
 	if owner == nil {
 		unlockCommitEntries(appendEntries, checkpointEntries)
-		return channel.ErrInvalidArgument
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: channel.ErrInvalidArgument}
 	}
 	owner.mu.Lock()
 	physical := owner.engine
@@ -2506,11 +2539,11 @@ func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []prep
 	owner.mu.Unlock()
 	if physical == nil {
 		unlockCommitEntries(appendEntries, checkpointEntries)
-		return channel.ErrClosed
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: channel.ErrClosed}
 	}
 	ownership, err := newCommitOwnership(appendEntries[0].db.registry, appendEntries, checkpointEntries)
 	if err != nil {
-		return toChannelError(err)
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: toChannelError(err)}
 	}
 	mutations := make([]preparedCommitMutation, 0, len(prepared))
 	for _, item := range prepared {
@@ -2546,21 +2579,20 @@ func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []prep
 		Finalize: ownership.finalize,
 	}
 	if committer != nil {
-		if err := committer.Submit(ctx, request); err != nil {
-			return toChannelError(err)
-		}
-		return nil
+		result := committer.SubmitWithOutcome(ctx, request)
+		result.Err = toChannelError(result.Err)
+		return result
 	}
 	defer ownership.finalize()
 	batch := physical.NewBatch()
 	defer batch.Close()
 	if err := request.Build(batch); err != nil {
-		return err
+		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: err}
 	}
 	if err := batch.Commit(true); err != nil {
-		return toChannelError(err)
+		return commit.SubmitResult{Outcome: commit.OutcomeUnknown, Err: toChannelError(err)}
 	}
-	return request.Publish()
+	return commit.SubmitResult{Outcome: commit.OutcomeCommitted, Err: request.Publish()}
 }
 
 func preparedRowsRecordCount(prepared []preparedCommitRows) int {

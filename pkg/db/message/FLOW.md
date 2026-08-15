@@ -85,9 +85,14 @@ Current flow:
    predecessor, command, and content-derived digest in the same synchronous
    physical batch as all primary rows and secondary indexes. The manifest tail
    equals the final entry digest, so a caller cannot reuse one manifest with
-   different message semantics. Exact retry uses those indexes and returns
-   `AlreadyDurable` without another commit, including after retention removed
-   the materialized rows and after reopen. Missing paired indexes, gaps,
+   different message semantics. Exact retry uses those indexes and returns the
+   closed `AlreadyDurable` outcome without another commit, including after
+   retention removed the materialized rows and after reopen. All append results
+   are one of `Durable`, `AlreadyDurable`, `DefinitelyNotWritten`, `Conflict`,
+   or `OutcomeUnknown`. Preparation rejection is definitely not written; once
+   a commit request is admitted, caller cancellation or a physical commit error
+   is conservatively unknown. Reopen plus exact replay resolves both the
+   pre-commit-crash and post-commit-response-loss boundaries. Missing paired indexes, gaps,
    partial overlaps, or different identity/content fail as log conflicts.
    Exact and ordinary requests share the same cross-channel commit coordinator
    and add no second collection window.

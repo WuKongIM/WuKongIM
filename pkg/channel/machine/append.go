@@ -18,6 +18,7 @@ type AppendStoredResult struct {
 	Fence      ch.Fence
 	BaseOffset uint64
 	LastOffset uint64
+	Outcome    ch.AppendOutcome
 	Err        error
 }
 
@@ -92,7 +93,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	}
 	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
 	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs, WaiterRecordCounts: waiterRecordCounts}
-	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, Sync: true, ServerAllocatedMessageIDs: serverAllocatedMessageIDs}}}}
+	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, ServerAllocatedMessageIDs: serverAllocatedMessageIDs}}}}
 }
 
 // CancelAppendWaiter removes an append waiter that the client no longer observes.

@@ -17,6 +17,17 @@ type ProposalManifest = quorumlog.ProposalManifest
 // EntryIdentity is the durable identity of one Channel log entry.
 type EntryIdentity = quorumlog.EntryIdentity
 
+// AppendOutcome is the closed storage proof for one immutable append attempt.
+type AppendOutcome = quorumlog.AppendOutcome
+
+const (
+	AppendOutcomeDurable              = quorumlog.AppendOutcomeDurable
+	AppendOutcomeAlreadyDurable       = quorumlog.AppendOutcomeAlreadyDurable
+	AppendOutcomeDefinitelyNotWritten = quorumlog.AppendOutcomeDefinitelyNotWritten
+	AppendOutcomeConflict             = quorumlog.AppendOutcomeConflict
+	AppendOutcomeUnknown              = quorumlog.AppendOutcomeUnknown
+)
+
 // DeriveProposalEntries constructs the entry hash chain for Channel records.
 func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt func(int) Record) ([]EntryIdentity, bool) {
 	return quorumlog.DeriveProposalEntries(manifest, recordCount, func(index int) quorumlog.Record {

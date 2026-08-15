@@ -257,9 +257,9 @@ func (h *trackingStoreHandle) Load(ctx context.Context) (store.InitialState, err
 
 func (h *trackingStoreHandle) AppendLeader(ctx context.Context, _ store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
 	if err := h.before(ctx, "append"); err != nil {
-		return store.AppendLeaderResult{}, err
+		return store.AppendLeaderResult{Outcome: store.AppendOutcomeDefinitelyNotWritten}, err
 	}
-	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: 1}, nil
+	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: 1, Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (h *trackingStoreHandle) ApplyFollower(ctx context.Context, _ store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {

@@ -2,6 +2,26 @@ package quorumlog
 
 import "testing"
 
+func TestAppendOutcomeIsClosedAndZeroIsInvalid(t *testing.T) {
+	if AppendOutcomeUnspecified.Valid() || AppendOutcomeUnspecified.Durable() {
+		t.Fatal("zero append outcome must fail closed")
+	}
+	for _, outcome := range []AppendOutcome{
+		AppendOutcomeDurable,
+		AppendOutcomeAlreadyDurable,
+		AppendOutcomeDefinitelyNotWritten,
+		AppendOutcomeConflict,
+		AppendOutcomeUnknown,
+	} {
+		if !outcome.Valid() {
+			t.Fatalf("AppendOutcome(%d).Valid() = false", outcome)
+		}
+	}
+	if !AppendOutcomeDurable.Durable() || !AppendOutcomeAlreadyDurable.Durable() || AppendOutcomeUnknown.Durable() {
+		t.Fatal("AppendOutcome.Durable() classification is incorrect")
+	}
+}
+
 func TestSealProposalManifestBindsEveryEntrySemanticField(t *testing.T) {
 	manifest := ProposalManifest{
 		Version: ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,

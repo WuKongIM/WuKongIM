@@ -30,7 +30,6 @@ func TestFullBackupSnapshotDoesNotHideLaterCommittedAppends(t *testing.T) {
 			ID: 1, ClientMsgNo: "before", Payload: []byte("before"),
 			SizeBytes: len("before"),
 		}},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -53,7 +52,6 @@ func TestFullBackupSnapshotDoesNotHideLaterCommittedAppends(t *testing.T) {
 			ID: 2, ClientMsgNo: "after", Payload: []byte("after"),
 			SizeBytes: len("after"),
 		}},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -103,7 +101,6 @@ func TestMessageDBTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
 
 	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
 		Records: []ch.Record{{ID: 10, Payload: []byte("payload"), SizeBytes: len("payload")}},
-		Sync:    true,
 	})
 	require.NoError(t, err)
 
@@ -141,7 +138,6 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 			SizeBytes:         len("payload"),
 			ServerTimestampMS: 1234,
 		}},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -183,7 +179,6 @@ func TestMessageDBStoreAdapterLookupIdempotency(t *testing.T) {
 			Payload:     []byte("payload"),
 			SizeBytes:   len("payload"),
 		}},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -219,7 +214,6 @@ func TestMessageDBStoreAdapterLooksUpLastCommittedSenderSequence(t *testing.T) {
 			{ID: 11, FromUID: "u2", Payload: []byte("two")},
 			{ID: 12, FromUID: "u1", Payload: []byte("three"), SyncOnce: true},
 		},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -251,7 +245,6 @@ func TestMessageDBStoreAdapterPreservesSyncOnceFlag(t *testing.T) {
 			SizeBytes: len("cmd"),
 			SyncOnce:  true,
 		}},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -288,7 +281,6 @@ func TestChannelStoreAdapterRetentionAdoptAndTrim(t *testing.T) {
 			{ID: 22, Payload: []byte("two"), SizeBytes: len("two")},
 			{ID: 23, Payload: []byte("three"), SizeBytes: len("three")},
 		},
-		Sync: true,
 	})
 	require.NoError(t, err)
 
@@ -431,6 +423,8 @@ func TestMessageDBFactoryBatchesReleaseLeasesOnSuccess(t *testing.T) {
 	require.Len(t, appendResults, 2)
 	require.NoError(t, appendResults[0].Err)
 	require.NoError(t, appendResults[1].Err)
+	require.Equal(t, AppendOutcomeDurable, appendResults[0].Outcome)
+	require.Equal(t, AppendOutcomeDurable, appendResults[1].Outcome)
 	requireBatchKeysReclaimed(t, factory, appendKeys)
 
 	applyKeys := []ch.ChannelKey{"batch-apply-success-a:1", "batch-apply-success-b:1"}
@@ -472,6 +466,8 @@ func TestMessageDBFactoryBatchesReleaseLeasesOnCancellation(t *testing.T) {
 	})
 	require.ErrorIs(t, appendResults[0].Err, context.Canceled)
 	require.ErrorIs(t, appendResults[1].Err, context.Canceled)
+	require.Equal(t, AppendOutcomeDefinitelyNotWritten, appendResults[0].Outcome)
+	require.Equal(t, AppendOutcomeDefinitelyNotWritten, appendResults[1].Outcome)
 	requireBatchKeysReclaimed(t, factory, appendKeys)
 
 	applyKeys := []ch.ChannelKey{"batch-apply-cancel-a:1", "batch-apply-cancel-b:1"}
@@ -524,6 +520,7 @@ func TestMessageDBFactoryBatchAdmittedCancellationReclaimsAfterTerminalCommit(t 
 	}
 	require.Len(t, results, 1)
 	require.ErrorIs(t, results[0].Err, context.Canceled)
+	require.Equal(t, AppendOutcomeUnknown, results[0].Outcome)
 
 	_, err := factory.ChannelStore(key, ch.ChannelID{ID: "replacement-before-terminal", Type: 2})
 	require.Error(t, err, "background commit pin should retain the canonical identity")

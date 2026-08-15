@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -59,7 +60,7 @@ func (s *MemoryChannelStore) Load(ctx context.Context) (InitialState, error) {
 // AppendLeader appends records as the local leader and assigns continuous indexes.
 func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := ctx.Err(); err != nil {
-		return AppendLeaderResult{}, err
+		return appendLeaderErrorResult(err), err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -68,7 +69,7 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	}
 	if len(req.Records) == 0 {
 		leo := s.leoLocked()
-		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo}, nil
+		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo, Outcome: AppendOutcomeDurable}, nil
 	}
 	base := s.leoLocked() + 1
 	for i, record := range req.Records {
@@ -79,51 +80,51 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 		}
 		s.records = append(s.records, record)
 	}
-	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked()}, nil
+	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked(), Outcome: AppendOutcomeDurable}, nil
 }
 
 func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (AppendLeaderResult, error) {
 	proposal, entries, err := buildProposalRecord(req.Proposal, req.ExpectedBaseOffset, req.Records)
 	if err != nil {
-		return AppendLeaderResult{}, err
+		return appendLeaderErrorResult(err), err
 	}
 	leo := s.leoLocked()
 	if req.Proposal.BaseOffset > 0 {
 		previous, ok := s.proposalsByLast[req.Proposal.BaseOffset]
 		if !ok || previous.manifest.LeaderTerm != req.Proposal.PreviousTerm || previous.manifest.Digest != req.Proposal.PreviousDigest {
-			return AppendLeaderResult{}, ch.ErrLogConflict
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 		}
 	}
 	byCommand, commandPresent := s.proposalsByCommand[req.Proposal.CommandID]
 	byLast, lastPresent := s.proposalsByLast[req.Proposal.LastOffset]
 	if commandPresent || lastPresent {
 		if !commandPresent || !lastPresent || byCommand != proposal || byLast != proposal || leo < req.Proposal.LastOffset {
-			return AppendLeaderResult{}, ch.ErrLogConflict
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 		}
 		for _, entry := range entries {
 			if persisted, ok := s.entriesByIndex[entry.Index]; !ok || persisted != entry {
-				return AppendLeaderResult{}, ch.ErrLogConflict
+				return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 			}
 		}
-		return AppendLeaderResult{BaseOffset: req.ExpectedBaseOffset + 1, LastOffset: req.Proposal.LastOffset, AlreadyDurable: true}, nil
+		return AppendLeaderResult{BaseOffset: req.ExpectedBaseOffset + 1, LastOffset: req.Proposal.LastOffset, Outcome: AppendOutcomeAlreadyDurable}, nil
 	}
 	for _, entry := range entries {
 		if _, exists := s.entriesByIndex[entry.Index]; exists {
-			return AppendLeaderResult{}, ch.ErrLogConflict
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 		}
 	}
 	last := req.ExpectedBaseOffset + uint64(len(req.Records))
 	if leo < req.ExpectedBaseOffset || (leo > req.ExpectedBaseOffset && leo < last) {
-		return AppendLeaderResult{}, ch.ErrLogConflict
+		return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 	}
 	if leo >= last {
-		return AppendLeaderResult{}, ch.ErrLogConflict
+		return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 	}
 	base := req.ExpectedBaseOffset + 1
 	for i, record := range req.Records {
 		seq := base + uint64(i)
 		if record.Index != 0 && record.Index != seq {
-			return AppendLeaderResult{}, ch.ErrLogConflict
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
 		}
 		record.Index = seq
 		record.Payload = cloneBytes(record.Payload)
@@ -146,7 +147,14 @@ func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (A
 	for _, entry := range entries {
 		s.entriesByIndex[entry.Index] = entry
 	}
-	return AppendLeaderResult{BaseOffset: base, LastOffset: last}, nil
+	return AppendLeaderResult{BaseOffset: base, LastOffset: last, Outcome: AppendOutcomeDurable}, nil
+}
+
+func appendLeaderErrorResult(err error) AppendLeaderResult {
+	if errors.Is(err, ch.ErrLogConflict) {
+		return AppendLeaderResult{Outcome: AppendOutcomeConflict}
+	}
+	return AppendLeaderResult{Outcome: AppendOutcomeDefinitelyNotWritten}
 }
 
 // ApplyFollower applies leader records, skipping any duplicate prefix already stored.

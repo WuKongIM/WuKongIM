@@ -78,7 +78,6 @@ func TestTaskRunStoreAppendUsesStoreDeps(t *testing.T) {
 		StoreAppend: &StoreAppendTask{
 			ChannelID: id,
 			Records:   []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1}},
-			Sync:      true,
 		},
 	}.Run(context.Background(), deps)
 
@@ -88,6 +87,23 @@ func TestTaskRunStoreAppendUsesStoreDeps(t *testing.T) {
 	require.NotNil(t, res.StoreAppend)
 	require.Equal(t, uint64(1), res.StoreAppend.BaseOffset)
 	require.Equal(t, uint64(1), res.StoreAppend.LastOffset)
+	require.Equal(t, store.AppendOutcomeDurable, res.StoreAppend.Outcome)
+}
+
+func TestAppendResultErrorRejectsUnclassifiedAndImpossibleResults(t *testing.T) {
+	require.ErrorIs(t, appendResultError(0, nil), ch.ErrInvalidConfig)
+	require.ErrorIs(t, appendResultError(store.AppendOutcomeConflict, nil), ch.ErrInvalidConfig)
+	require.NoError(t, appendResultError(store.AppendOutcomeDurable, errors.New("late handle error")))
+	wantErr := errors.New("response lost")
+	require.ErrorIs(t, appendResultError(store.AppendOutcomeUnknown, wantErr), wantErr)
+}
+
+func TestAppendBatchResultKeepsDurableProofAfterCallerCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	task := Task{Context: ctx}
+	require.NoError(t, appendBatchResultError(task, ctx, store.AppendOutcomeDurable, nil))
+	require.ErrorIs(t, appendBatchResultError(task, ctx, store.AppendOutcomeUnknown, context.Canceled), context.Canceled)
 }
 
 func TestTaskRunStoreReadLogUsesStoreDeps(t *testing.T) {

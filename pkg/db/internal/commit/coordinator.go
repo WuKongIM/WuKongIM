@@ -127,6 +127,25 @@ type Request struct {
 	Finalize func()
 }
 
+// Outcome classifies whether one atomic commit request can have changed disk.
+type Outcome uint8
+
+const (
+	OutcomeUnspecified Outcome = iota
+	// OutcomeDefinitelyNotCommitted proves the request never reached a physical commit.
+	OutcomeDefinitelyNotCommitted
+	// OutcomeCommitted proves the physical commit completed successfully.
+	OutcomeCommitted
+	// OutcomeUnknown means commit admission occurred but its durable result is ambiguous.
+	OutcomeUnknown
+)
+
+// SubmitResult is the exact terminal evidence returned by SubmitWithOutcome.
+type SubmitResult struct {
+	Outcome Outcome
+	Err     error
+}
+
 // Coordinator batches logical requests into fewer physical commits.
 type Coordinator struct {
 	db *engine.DB
@@ -152,7 +171,7 @@ type Coordinator struct {
 
 type pendingRequest struct {
 	Request
-	done         chan error
+	done         chan SubmitResult
 	finalizeOnce *sync.Once
 }
 
@@ -207,30 +226,39 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 
 // Submit queues one logical request and waits for its result.
 func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
+	return c.SubmitWithOutcome(ctx, req).Err
+}
+
+// SubmitWithOutcome queues one logical mutation and preserves whether an error was
+// known before physical commit admission or became ambiguous afterward.
+func (c *Coordinator) SubmitWithOutcome(ctx context.Context, req Request) (result SubmitResult) {
 	pending := newPendingRequest(req)
 	if c == nil || c.db == nil || req.Build == nil {
-		pending.complete(dberrors.ErrInvalidArgument)
-		return dberrors.ErrInvalidArgument
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: dberrors.ErrInvalidArgument}
+		pending.complete(result)
+		return result
 	}
 	if c.isSharded() {
 		c.acceptMu.RLock()
 		if c.closed {
 			c.acceptMu.RUnlock()
-			pending.complete(ErrClosed)
-			return ErrClosed
+			result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+			pending.complete(result)
+			return result
 		}
 		shard := c.shardFor(req.Partition)
 		c.acceptMu.RUnlock()
 		if shard == nil {
-			pending.complete(ErrClosed)
-			return ErrClosed
+			result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+			pending.complete(result)
+			return result
 		}
-		return shard.submit(ctx, pending)
+		return shard.submitResult(ctx, pending)
 	}
-	return c.submit(ctx, pending)
+	return c.submitResult(ctx, pending)
 }
 
-func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err error) {
+func (c *Coordinator) submitResult(ctx context.Context, pending pendingRequest) (result SubmitResult) {
 	req := pending.Request
 	if ctx == nil {
 		ctx = context.Background()
@@ -242,15 +270,15 @@ func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err e
 			Records:  req.Records,
 			Bytes:    req.Bytes,
 			Duration: time.Since(startedAt),
-			Err:      err,
+			Err:      result.Err,
 		})
 	}()
 	c.acceptMu.RLock()
 	if c.closed {
 		c.acceptMu.RUnlock()
-		err = ErrClosed
-		pending.complete(err)
-		return err
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+		pending.complete(result)
+		return result
 	}
 	select {
 	case c.requests <- pending:
@@ -258,30 +286,28 @@ func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err e
 		c.observeQueueDepth()
 	case <-ctx.Done():
 		c.acceptMu.RUnlock()
-		err = ctx.Err()
-		pending.complete(err)
-		return err
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ctx.Err()}
+		pending.complete(result)
+		return result
 	case <-c.stopCh:
 		c.acceptMu.RUnlock()
-		err = ErrClosed
-		pending.complete(err)
-		return err
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+		pending.complete(result)
+		return result
 	}
 
 	select {
-	case err = <-pending.done:
-		return err
+	case result = <-pending.done:
+		return result
 	case <-ctx.Done():
-		err = ctx.Err()
-		return err
+		return SubmitResult{Outcome: OutcomeUnknown, Err: ctx.Err()}
 	case <-c.doneCh:
 		select {
-		case err = <-pending.done:
-			return err
+		case result = <-pending.done:
+			return result
 		default:
-			pending.complete(ErrClosed)
-			err = <-pending.done
-			return err
+			pending.complete(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
+			return <-pending.done
 		}
 	}
 }
@@ -289,17 +315,17 @@ func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err e
 func newPendingRequest(req Request) pendingRequest {
 	return pendingRequest{
 		Request:      req,
-		done:         make(chan error, 1),
+		done:         make(chan SubmitResult, 1),
 		finalizeOnce: &sync.Once{},
 	}
 }
 
-func (r pendingRequest) complete(err error) {
+func (r pendingRequest) complete(result SubmitResult) {
 	r.finalizeOnce.Do(func() {
 		if r.Finalize != nil {
 			r.Finalize()
 		}
-		r.done <- err
+		r.done <- result
 	})
 }
 
@@ -427,7 +453,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			TotalDuration:   collectDuration,
 			Err:             ErrClosed,
 		})
-		reqs.completeAll(ErrClosed)
+		reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
 		return
 	}
 	batch := c.db.NewBatch()
@@ -445,7 +471,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 				TotalDuration:   collectDuration + buildDuration,
 				Err:             err,
 			})
-			reqs.completeAll(err)
+			reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: err})
 			return
 		}
 	}
@@ -466,7 +492,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			TotalDuration:   collectDuration + buildDuration + commitDuration,
 			Err:             err,
 		})
-		reqs.completeAll(err)
+		reqs.completeAll(SubmitResult{Outcome: OutcomeUnknown, Err: err})
 		return
 	}
 	commitDuration := time.Since(commitStarted)
@@ -496,7 +522,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		Err:             publishErr,
 	})
 	for i, req := range reqs.requests {
-		req.complete(publishResults[i])
+		req.complete(SubmitResult{Outcome: OutcomeCommitted, Err: publishResults[i]})
 	}
 }
 
@@ -511,7 +537,7 @@ func (c *Coordinator) failQueued() {
 	for {
 		select {
 		case req := <-c.requests:
-			req.complete(ErrClosed)
+			req.complete(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
 		default:
 			c.observeQueueDepth()
 			return

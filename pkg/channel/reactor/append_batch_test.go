@@ -125,7 +125,6 @@ func TestAppendPoolFullKeepsAcceptedRequestPendingAndRetriesOnTick(t *testing.T)
 		StoreAppend: &worker.StoreAppendTask{
 			ChannelID: meta.ID,
 			Records:   []ch.Record{{ID: 900, Payload: []byte("fill"), SizeBytes: 4}},
-			Sync:      true,
 		},
 	}
 	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
@@ -167,7 +166,6 @@ func TestAppendStorePoolBackpressureRollsBackBatchProposalForRetry(t *testing.T)
 		StoreAppend: &worker.StoreAppendTask{
 			ChannelID: meta.ID,
 			Records:   []ch.Record{{ID: 900, Payload: []byte("fill"), SizeBytes: 4}},
-			Sync:      true,
 		},
 	}
 	require.NoError(t, pools.Submit(context.Background(), fillTask))
@@ -210,7 +208,6 @@ func TestAppendStorePoolBackpressureRollsBackMultiChannelGroupForRetry(t *testin
 		StoreAppend: &worker.StoreAppendTask{
 			ChannelID: fillMeta.ID,
 			Records:   []ch.Record{{ID: 900, Payload: []byte("fill"), SizeBytes: 4}},
-			Sync:      true,
 		},
 	}
 	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
@@ -374,7 +371,7 @@ func TestAppendContextCancelRemovesPostStoreQuorumWaiter(t *testing.T) {
 	task := decision.Tasks[0]
 	cs, err := factory.ChannelStore(meta.Key, meta.ID)
 	require.NoError(t, err)
-	appendResult, err := cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: task.StoreAppend.Records, Sync: true})
+	appendResult, err := cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: task.StoreAppend.Records})
 	require.NoError(t, err)
 	r.handleStoreAppendResult(worker.Result{
 		Kind:        worker.TaskStoreAppend,
@@ -1589,7 +1586,7 @@ func (s *countingStore) AppendLeader(ctx context.Context, req store.AppendLeader
 		select {
 		case <-blockCh:
 		case <-ctx.Done():
-			return store.AppendLeaderResult{}, ctx.Err()
+			return store.AppendLeaderResult{Outcome: store.AppendOutcomeDefinitelyNotWritten}, ctx.Err()
 		}
 	}
 	return s.base.AppendLeader(ctx, req)

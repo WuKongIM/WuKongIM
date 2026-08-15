@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 func TestOpenBackupSnapshotPinsCommittedChannelCuts(t *testing.T) {
@@ -145,13 +146,13 @@ func TestBackupSnapshotCarriesOnlyQuorumCommittedProposalManifests(t *testing.T)
 	committedReplay := StoreAppendBatch(ctx, []AppendBatchItem{{
 		Store: targetStore, Records: []channel.Record{firstRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: firstManifest,
 	}})
-	if len(committedReplay) != 1 || committedReplay[0].Err != nil || !committedReplay[0].AlreadyDurable {
+	if len(committedReplay) != 1 || committedReplay[0].Err != nil || committedReplay[0].Outcome != quorumlog.AppendOutcomeAlreadyDurable {
 		t.Fatalf("committed replay = %+v, want already durable", committedReplay)
 	}
 	uncommittedReplay := StoreAppendBatch(ctx, []AppendBatchItem{{
 		Store: targetStore, Records: []channel.Record{secondRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: secondManifest,
 	}})
-	if len(uncommittedReplay) != 1 || uncommittedReplay[0].Err != nil || uncommittedReplay[0].AlreadyDurable {
+	if len(uncommittedReplay) != 1 || uncommittedReplay[0].Err != nil || uncommittedReplay[0].Outcome != quorumlog.AppendOutcomeDurable {
 		t.Fatalf("uncommitted replay = %+v, want new append", uncommittedReplay)
 	}
 }

@@ -70,7 +70,14 @@ path commits monotonic HW updates through one grouped commit without taking
 foreground append locks, instead of issuing one synchronous physical commit
 per channel. Store-append tasks preserve the reactor's all-records
 server-allocated message-ID proof for both single and cross-channel batch
-execution; the worker does not infer or widen that proof.
+execution; the worker does not infer or widen that proof. The store append
+request has no caller-selectable sync flag. Workers require every single or
+batched append result to carry one valid closed storage outcome. Durable and
+exact-already-durable results remain successful even if a temporary handle
+reports a later cleanup error; conflict, definitely-not-written, and
+outcome-unknown results require an error and fail closed. A recovered panic
+from a leader append is also outcome-unknown because the worker cannot prove
+whether the store crossed its physical commit boundary before panicking.
 Store-apply results also return the checkpoint HW persisted atomically with the
 follower records, allowing the reactor to suppress a redundant standalone
 checkpoint task.

@@ -23,7 +23,6 @@ func (r *Reactor) submitStoreAppend(ctx context.Context, channelID ch.ChannelID,
 		StoreAppend: &worker.StoreAppendTask{
 			ChannelID:                 channelID,
 			Records:                   appendTask.Records,
-			Sync:                      appendTask.Sync,
 			ServerAllocatedMessageIDs: appendTask.ServerAllocatedMessageIDs,
 		},
 	})

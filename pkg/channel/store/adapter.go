@@ -4,6 +4,18 @@ import (
 	"context"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
+)
+
+// AppendOutcome is the closed storage proof returned by every leader append.
+type AppendOutcome = quorumlog.AppendOutcome
+
+const (
+	AppendOutcomeDurable              = quorumlog.AppendOutcomeDurable
+	AppendOutcomeAlreadyDurable       = quorumlog.AppendOutcomeAlreadyDurable
+	AppendOutcomeDefinitelyNotWritten = quorumlog.AppendOutcomeDefinitelyNotWritten
+	AppendOutcomeConflict             = quorumlog.AppendOutcomeConflict
+	AppendOutcomeUnknown              = quorumlog.AppendOutcomeUnknown
 )
 
 // Factory opens per-channel stores for channel reactors.
@@ -119,7 +131,6 @@ type RetentionTrimResult struct {
 // AppendLeaderRequest persists a leader-owned continuous record batch.
 type AppendLeaderRequest struct {
 	Records []ch.Record
-	Sync    bool
 	// ServerAllocatedMessageIDs permits skipping only existing message-ID lookups.
 	ServerAllocatedMessageIDs bool
 	// ExactBaseOffset requires Records to begin at ExpectedBaseOffset+1 and
@@ -140,17 +151,19 @@ type AppendLeaderBatchItem struct {
 
 // AppendLeaderResult returns the durable offset range for a leader append.
 type AppendLeaderResult struct {
-	BaseOffset     uint64
-	LastOffset     uint64
-	AlreadyDurable bool
+	BaseOffset uint64
+	LastOffset uint64
+	// Outcome proves whether this request committed, already existed, was
+	// rejected before commit, conflicted, or lost certainty after admission.
+	Outcome AppendOutcome
 }
 
 // AppendLeaderBatchResult returns the result for one AppendLeaderBatchItem.
 type AppendLeaderBatchResult struct {
-	BaseOffset     uint64
-	LastOffset     uint64
-	AlreadyDurable bool
-	Err            error
+	BaseOffset uint64
+	LastOffset uint64
+	Outcome    AppendOutcome
+	Err        error
 }
 
 // ApplyFollowerRequest persists records received from the leader.

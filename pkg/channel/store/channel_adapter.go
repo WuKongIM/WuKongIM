@@ -282,6 +282,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 	if err := f.availabilityError(); err != nil {
 		for i := range results {
 			results[i].Err = err
+			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
 		}
 		return results
 	}
@@ -298,6 +299,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
+			results[i].Outcome = appendLeaderErrorResult(results[i].Err).Outcome
 			continue
 		}
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
@@ -314,6 +316,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 	if len(dbResults) != len(acquired) {
 		for _, item := range acquired {
 			results[item.index].Err = ch.ErrInvalidConfig
+			results[item.index].Outcome = AppendOutcomeUnknown
 		}
 		return results
 	}
@@ -321,10 +324,10 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		dbResult := dbResults[i]
 		err := f.mapError(dbResult.Err)
 		if len(items[acquiredItem.index].Request.Records) == 0 {
-			results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.BaseOffset, Err: err}
+			results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.BaseOffset, Outcome: dbResult.Outcome, Err: err}
 			continue
 		}
-		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, AlreadyDurable: dbResult.AlreadyDurable, Err: err}
+		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, Outcome: dbResult.Outcome, Err: err}
 	}
 	return results
 }
@@ -528,46 +531,30 @@ func (a *messageDBChannelStoreAdapter) Load(ctx context.Context) (InitialState, 
 
 func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := a.ensureOpen(); err != nil {
-		return AppendLeaderResult{}, err
+		return appendLeaderErrorResult(err), err
 	}
 	if err := ctx.Err(); err != nil {
-		return AppendLeaderResult{}, err
+		return appendLeaderErrorResult(err), err
 	}
 	records := a.encodeRecords(req.Records)
-	if req.ExactBaseOffset {
-		results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
-			Store:                     a.store,
-			Records:                   records,
-			ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
-			ExactBaseOffset:           true,
-			ExpectedBaseOffset:        req.ExpectedBaseOffset,
-			Proposal:                  req.Proposal,
-		}})
-		if len(results) != 1 {
-			return AppendLeaderResult{}, ch.ErrInvalidConfig
-		}
-		result := results[0]
-		if result.Err != nil {
-			return AppendLeaderResult{}, a.mapError(result.Err)
-		}
-		return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: result.LastOffset, AlreadyDurable: result.AlreadyDurable}, nil
+	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
+		Store:                     a.store,
+		Records:                   records,
+		ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
+		ExactBaseOffset:           req.ExactBaseOffset,
+		ExpectedBaseOffset:        req.ExpectedBaseOffset,
+		Proposal:                  req.Proposal,
+	}})
+	if len(results) != 1 {
+		return AppendLeaderResult{Outcome: AppendOutcomeUnknown}, ch.ErrInvalidConfig
 	}
-	var (
-		base uint64
-		err  error
-	)
-	if req.ServerAllocatedMessageIDs {
-		base, err = a.store.AppendServerAllocated(records)
-	} else {
-		base, err = a.store.Append(records)
-	}
-	if err != nil {
-		return AppendLeaderResult{}, a.mapError(err)
-	}
+	result := results[0]
+	err := a.mapError(result.Err)
+	lastOffset := result.LastOffset
 	if len(records) == 0 {
-		return AppendLeaderResult{BaseOffset: base + 1, LastOffset: base}, nil
+		lastOffset = result.BaseOffset
 	}
-	return AppendLeaderResult{BaseOffset: base + 1, LastOffset: base + uint64(len(records))}, nil
+	return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: lastOffset, Outcome: result.Outcome}, err
 }
 
 func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {

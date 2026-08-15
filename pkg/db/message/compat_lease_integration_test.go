@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 func TestEngineForChannelReturnsDistinctLeasesSharingCanonicalEntry(t *testing.T) {
@@ -417,7 +418,10 @@ func TestStoreAppendBatchRejectsClosedAndLiveSiblingBeforeLeaseValidation(t *tes
 	if len(results) != 3 || !errors.Is(results[0].Err, channel.ErrInvalidArgument) || !errors.Is(results[1].Err, channel.ErrInvalidArgument) {
 		t.Fatalf("StoreAppendBatch() duplicate results = %+v, want both sibling items invalid", results)
 	}
-	if results[2].Err != nil {
+	if results[0].Outcome != quorumlog.AppendOutcomeDefinitelyNotWritten || results[1].Outcome != quorumlog.AppendOutcomeDefinitelyNotWritten {
+		t.Fatalf("duplicate outcomes = (%v, %v), want definitely not written", results[0].Outcome, results[1].Outcome)
+	}
+	if results[2].Err != nil || results[2].Outcome != quorumlog.AppendOutcomeDurable {
 		t.Fatalf("StoreAppendBatch() unique result = %+v, want success", results[2])
 	}
 	if leo, err := live.LEOWithError(); err != nil || leo != 0 {

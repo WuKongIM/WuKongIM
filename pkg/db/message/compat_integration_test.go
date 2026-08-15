@@ -13,6 +13,7 @@ import (
 
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 func TestCommitCoordinatorConfigKeepsShardCount(t *testing.T) {
@@ -440,7 +441,7 @@ func TestStoreAppendBatchExactProposalReplaysAfterRetentionAndReopen(t *testing.
 		ExpectedBaseOffset: 0,
 		Proposal:           manifest,
 	}})
-	if len(first) != 1 || first[0].Err != nil || first[0].AlreadyDurable {
+	if len(first) != 1 || first[0].Err != nil || first[0].Outcome != quorumlog.AppendOutcomeDurable {
 		t.Fatalf("first StoreAppendBatch() = %+v, want new exact durable append", first)
 	}
 	entryValue, ok, err := engine.engine.Get(encodeEntryIdentityKey(ChannelKey("exact-replay"), 1))
@@ -485,7 +486,7 @@ func TestStoreAppendBatchExactProposalReplaysAfterRetentionAndReopen(t *testing.
 		ExpectedBaseOffset: 0,
 		Proposal:           manifest,
 	}})
-	if len(replay) != 1 || replay[0].Err != nil || !replay[0].AlreadyDurable {
+	if len(replay) != 1 || replay[0].Err != nil || replay[0].Outcome != quorumlog.AppendOutcomeAlreadyDurable {
 		t.Fatalf("replay StoreAppendBatch() = %+v, want already durable", replay)
 	}
 	if got := store.LEO(); got != 1 {
@@ -503,7 +504,7 @@ func TestStoreAppendBatchExactProposalReplaysAfterRetentionAndReopen(t *testing.
 		ExpectedBaseOffset: 0,
 		Proposal:           manifest,
 	}})
-	if len(conflicted) != 1 || !errors.Is(conflicted[0].Err, channel.ErrCorruptState) {
+	if len(conflicted) != 1 || !errors.Is(conflicted[0].Err, channel.ErrCorruptState) || conflicted[0].Outcome != quorumlog.AppendOutcomeConflict {
 		t.Fatalf("conflicting replay StoreAppendBatch() = %+v, want corrupt state", conflicted)
 	}
 
@@ -520,7 +521,7 @@ func TestStoreAppendBatchExactProposalReplaysAfterRetentionAndReopen(t *testing.
 		ExpectedBaseOffset: 2,
 		Proposal:           gappedManifest,
 	}})
-	if len(gapped) != 1 || !errors.Is(gapped[0].Err, channel.ErrCorruptState) {
+	if len(gapped) != 1 || !errors.Is(gapped[0].Err, channel.ErrCorruptState) || gapped[0].Outcome != quorumlog.AppendOutcomeConflict {
 		t.Fatalf("gapped StoreAppendBatch() = %+v, want corrupt state", gapped)
 	}
 }
@@ -571,7 +572,7 @@ func TestTruncateLogAndHistoryRemovesExactProposalIdentityForReplacementSuffix(t
 		Store: store, Records: []channel.Record{replacementRecord},
 		ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: replacement,
 	}})
-	if len(result) != 1 || result[0].Err != nil || result[0].AlreadyDurable {
+	if len(result) != 1 || result[0].Err != nil || result[0].Outcome != quorumlog.AppendOutcomeDurable {
 		t.Fatalf("replacement StoreAppendBatch() = %+v, want new durable suffix", result)
 	}
 	entryValue, ok, err := engine.engine.Get(encodeEntryIdentityKey(ChannelKey("exact-truncate"), 2))

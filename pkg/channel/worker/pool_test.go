@@ -1129,6 +1129,25 @@ func TestPoolBatchesStoreAppendTasksWhenFactorySupportsBatch(t *testing.T) {
 	require.ElementsMatch(t, []uint64{1, 1}, resultStoreAppendLastOffsets(sink.Results()))
 }
 
+func TestPoolClassifiesRecoveredStoreAppendPanicAsOutcomeUnknown(t *testing.T) {
+	stores := &panicAfterCommitStoreFactory{}
+	pool := &Pool{deps: Deps{Stores: stores}}
+	task := Task{
+		Kind:        TaskStoreAppend,
+		Fence:       ch.Fence{ChannelKey: "1:panic", OpID: 1},
+		StoreAppend: &StoreAppendTask{ChannelID: ch.ChannelID{ID: "panic", Type: 1}, Records: []ch.Record{{ID: 1, Payload: []byte("a")}}},
+	}
+
+	results, recovered := pool.runQueuedGroupSafely(context.Background(), []queuedTask{{task: task}})
+
+	require.True(t, recovered)
+	require.Len(t, results, 1)
+	require.ErrorContains(t, results[0].Err, "channel worker panic")
+	require.True(t, stores.committed)
+	require.NotNil(t, results[0].StoreAppend)
+	require.Equal(t, store.AppendOutcomeUnknown, results[0].StoreAppend.Outcome)
+}
+
 func TestPoolUsesConfiguredStoreAppendBatchMaxWait(t *testing.T) {
 	pool := &Pool{
 		cfg:  PoolConfig{Name: "store-append", BatchMaxWait: time.Hour},
@@ -1414,7 +1433,7 @@ func (s *blockingCheckpointStore) Load(context.Context) (store.InitialState, err
 }
 
 func (s *blockingCheckpointStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
-	return store.AppendLeaderResult{}, nil
+	return store.AppendLeaderResult{Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (s *blockingCheckpointStore) ApplyFollower(_ context.Context, req store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
@@ -1834,7 +1853,7 @@ func (s *batchApplySingleStore) Load(context.Context) (store.InitialState, error
 }
 
 func (s *batchApplySingleStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
-	return store.AppendLeaderResult{}, nil
+	return store.AppendLeaderResult{Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (s *batchApplySingleStore) ApplyFollower(_ context.Context, req store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
@@ -1892,6 +1911,7 @@ func (f *batchAppendStoreFactory) AppendLeaderBatch(_ context.Context, items []s
 	f.mu.Unlock()
 	results := make([]store.AppendLeaderBatchResult, len(items))
 	for i, item := range items {
+		results[i].Outcome = store.AppendOutcomeDurable
 		if len(item.Request.Records) == 0 {
 			continue
 		}
@@ -1917,6 +1937,59 @@ type batchAppendSingleStore struct {
 	factory *batchAppendStoreFactory
 }
 
+type panicAfterCommitStoreFactory struct {
+	committed bool
+}
+
+func (f *panicAfterCommitStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
+	return &panicAfterCommitStore{factory: f}, nil
+}
+
+type panicAfterCommitStore struct {
+	factory *panicAfterCommitStoreFactory
+}
+
+func (s *panicAfterCommitStore) Load(context.Context) (store.InitialState, error) {
+	return store.InitialState{}, nil
+}
+
+func (s *panicAfterCommitStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	s.factory.committed = true
+	panic("lost response after commit")
+}
+
+func (s *panicAfterCommitStore) ApplyFollower(context.Context, store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
+	return store.ApplyFollowerResult{}, nil
+}
+
+func (s *panicAfterCommitStore) ReadCommitted(context.Context, store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
+	return store.ReadCommittedResult{}, nil
+}
+
+func (s *panicAfterCommitStore) ReadLog(context.Context, store.ReadLogRequest) (store.ReadLogResult, error) {
+	return store.ReadLogResult{}, nil
+}
+
+func (s *panicAfterCommitStore) LoadRetentionState(context.Context) (store.RetentionState, error) {
+	return store.RetentionState{}, nil
+}
+
+func (s *panicAfterCommitStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return 0, nil
+}
+
+func (s *panicAfterCommitStore) TrimMessagesThrough(context.Context, uint64, store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return store.RetentionTrimResult{}, nil
+}
+
+func (s *panicAfterCommitStore) StoreCheckpoint(context.Context, ch.Checkpoint) error {
+	return nil
+}
+
+func (s *panicAfterCommitStore) Close() error {
+	return nil
+}
+
 func (s *batchAppendSingleStore) Load(context.Context) (store.InitialState, error) {
 	return store.InitialState{}, nil
 }
@@ -1926,9 +1999,9 @@ func (s *batchAppendSingleStore) AppendLeader(_ context.Context, req store.Appen
 	s.factory.singleAppendCalls++
 	s.factory.mu.Unlock()
 	if len(req.Records) == 0 {
-		return store.AppendLeaderResult{}, nil
+		return store.AppendLeaderResult{Outcome: store.AppendOutcomeDurable}, nil
 	}
-	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: uint64(len(req.Records))}, nil
+	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: uint64(len(req.Records)), Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (s *batchAppendSingleStore) ApplyFollower(context.Context, store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {

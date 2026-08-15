@@ -185,6 +185,7 @@ func appendStoredResultFromWorker(result worker.Result) machine.AppendStoredResu
 	}
 	stored.BaseOffset = result.StoreAppend.BaseOffset
 	stored.LastOffset = result.StoreAppend.LastOffset
+	stored.Outcome = result.StoreAppend.Outcome
 	return stored
 }
 

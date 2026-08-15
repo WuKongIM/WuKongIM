@@ -259,7 +259,12 @@ durability and the configured distinct-voter quorum; follower-only durability
 cannot complete an append. This internal round is the first migration slice.
 It does not yet change the production reactor path. Channel stores now require
 a versioned epoch/term/fence/command/range/hash manifest for every exact-base
-write. MessageDB persists both manifest indexes plus every entry's authority,
+write and expose no caller-selectable sync mode: every leader append is one
+synchronous durable mutation. Each result carries exactly one closed outcome:
+`Durable`, `AlreadyDurable`, `DefinitelyNotWritten`, `Conflict`, or
+`OutcomeUnknown`. Rejection before commit is definitely absent; any error after
+physical commit admission stays unknown until an exact retry resolves the
+immutable manifest. MessageDB persists both manifest indexes plus every entry's authority,
 predecessor, command, and content-derived digest in the same synchronous
 physical commit as the rows, so exact replay remains safe after retention and
 reopen; suffix truncation removes whole identities and cannot split one

@@ -81,7 +81,6 @@ type MetaResolveTask struct {
 type StoreAppendTask struct {
 	ChannelID                 ch.ChannelID
 	Records                   []ch.Record
-	Sync                      bool
 	ServerAllocatedMessageIDs bool
 }
 
@@ -372,8 +371,22 @@ func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
 		return invalidResult(t)
 	}
 	defer func() { _ = cs.Close() }()
-	stored, err := cs.AppendLeader(ctx, store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync, ServerAllocatedMessageIDs: payload.ServerAllocatedMessageIDs})
-	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreAppend: &StoreAppendResult{BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset}}
+	stored, err := cs.AppendLeader(ctx, store.AppendLeaderRequest{Records: payload.Records, ServerAllocatedMessageIDs: payload.ServerAllocatedMessageIDs})
+	err = appendResultError(stored.Outcome, err)
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreAppend: &StoreAppendResult{BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset, Outcome: stored.Outcome}}
+}
+
+func appendResultError(outcome store.AppendOutcome, err error) error {
+	if !outcome.Valid() {
+		return ch.ErrInvalidConfig
+	}
+	if outcome.Durable() {
+		return nil
+	}
+	if err == nil {
+		return ch.ErrInvalidConfig
+	}
+	return err
 }
 
 func runStoreReadLog(ctx context.Context, deps Deps, t Task) Result {

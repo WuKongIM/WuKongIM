@@ -48,6 +48,8 @@ type StoreAppendResult struct {
 	BaseOffset uint64
 	// LastOffset is the last offset assigned to the appended records.
 	LastOffset uint64
+	// Outcome is the storage proof for this append attempt.
+	Outcome store.AppendOutcome
 }
 
 // StoreReadLogResult contains raw log records read for replication.
