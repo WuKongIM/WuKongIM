@@ -602,6 +602,11 @@ session while an admitted SEND still owns it, then detaches it on the next
 Step after the last lease is released; this prevents lifecycle churn from
 closing a transport underneath already-admitted work without extending the
 configured session lifetime or admitting a SEND after its deadline. The
+person and group grant routers therefore distinguish current online ownership
+from new-SEND eligibility: a deadline-expired session retained by an older
+lease stays connected for that work but is skipped when selecting the sender
+for a new grant. The final heap admission still acquires the lease under the
+pool ownership lock, so routing never relaxes the hard session deadline. The
 closing tombstone
 prevents same-UID replacement while cleanup is active. The
 WKProto result queue distinguishes a non-terminal asynchronous SEND publication

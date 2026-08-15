@@ -559,6 +559,24 @@ func (p *SessionPool) IsOnline(uid string) bool {
 	return ok
 }
 
+// sendEligibleAt reports whether an owned session may accept a new logical
+// SEND at the owner clock boundary. A deadline-expired session can remain
+// online while an earlier admitted SEND drains, but it must not receive a new
+// SEND lease.
+func (p *SessionPool) sendEligibleAt(uid string, at time.Time) bool {
+	if p == nil || uid == "" {
+		return false
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	session := p.online[uid]
+	return sessionSendEligibleAt(session, p.sendLeases[uid], at)
+}
+
+func sessionSendEligibleAt(session *onlineSession, sendLeases uint32, at time.Time) bool {
+	return session != nil && session.snapshot.TrafficReady && session.snapshot.Deadline.After(at) && sendLeases != ^uint32(0)
+}
+
 // Counts reports current ownership map sizes without touching client gauges.
 func (p *SessionPool) Counts() SessionCounts {
 	if p == nil {
@@ -1237,10 +1255,10 @@ func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {
 }
 
 func (p *SessionPool) onlineGroupMember(group Group, ordinal uint64, requireRecipient bool) (SessionLogin, bool) {
-	return p.onlineGroupMemberExcluding(group, ordinal, requireRecipient, nil)
+	return p.onlineGroupMemberExcluding(group, ordinal, requireRecipient, time.Time{}, nil)
 }
 
-func (p *SessionPool) onlineGroupMemberExcluding(group Group, ordinal uint64, requireRecipient bool, excluded func(string) bool) (SessionLogin, bool) {
+func (p *SessionPool) onlineGroupMemberExcluding(group Group, ordinal uint64, requireRecipient bool, sendEligibleAt time.Time, excluded func(string) bool) (SessionLogin, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if group.Index >= uint64(len(p.onlineGroupMembers)) {
@@ -1257,6 +1275,9 @@ func (p *SessionPool) onlineGroupMemberExcluding(group Group, ordinal uint64, re
 	start := ordinal % uint64(len(members))
 	for offset := 0; offset < len(members); offset++ {
 		session := members[(start+uint64(offset))%uint64(len(members))]
+		if !sendEligibleAt.IsZero() && !sessionSendEligibleAt(session, p.sendLeases[session.snapshot.UID], sendEligibleAt) {
+			continue
+		}
 		if excluded != nil && excluded(session.snapshot.UID) {
 			continue
 		}
@@ -1268,10 +1289,10 @@ func (p *SessionPool) onlineGroupMemberExcluding(group Group, ordinal uint64, re
 }
 
 func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64) (SessionLogin, uint64, bool) {
-	return p.onlineGroupMemberInCategoryExcluding(category, ordinal, requireRecipient, owner, nil)
+	return p.onlineGroupMemberInCategoryExcluding(category, ordinal, requireRecipient, owner, time.Time{}, nil)
 }
 
-func (p *SessionPool) onlineGroupMemberInCategoryExcluding(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64, excluded func(string) bool) (SessionLogin, uint64, bool) {
+func (p *SessionPool) onlineGroupMemberInCategoryExcluding(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64, sendEligibleAt time.Time, excluded func(string) bool) (SessionLogin, uint64, bool) {
 	start, count, ok := p.catalog.categoryRange(category)
 	if !ok {
 		return SessionLogin{}, 0, false
@@ -1296,6 +1317,9 @@ func (p *SessionPool) onlineGroupMemberInCategoryExcluding(category GroupCategor
 		memberStart := ordinal % uint64(len(members))
 		for memberOffset := 0; memberOffset < len(members); memberOffset++ {
 			session := members[(memberStart+uint64(memberOffset))%uint64(len(members))]
+			if !sendEligibleAt.IsZero() && !sessionSendEligibleAt(session, p.sendLeases[session.snapshot.UID], sendEligibleAt) {
+				continue
+			}
 			if excluded != nil && excluded(session.snapshot.UID) {
 				continue
 			}

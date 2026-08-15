@@ -1206,7 +1206,7 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			if intent.Kind == TrafficPerson {
 				intent, routeErr = e.routePersonGrant(intent, now)
 			} else {
-				intent, routeErr = e.routeGroupGrant(intent)
+				intent, routeErr = e.routeGroupGrant(intent, now)
 			}
 			if routeErr != nil {
 				return routeErr
@@ -1217,7 +1217,7 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				grantErr = canaryErr
 			} else if due {
-				if canary, canaryErr = e.routeGroupGrant(canary); canaryErr == nil {
+				if canary, canaryErr = e.routeGroupGrant(canary, now); canaryErr == nil {
 					grantErr = e.addSendWork(canary, 0, now)
 				} else {
 					grantErr = canaryErr
@@ -1280,7 +1280,7 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			if intent.Kind == TrafficPerson {
 				intent, routeErr = e.routePersonGrant(intent, now)
 			} else {
-				intent, routeErr = e.routeGroupGrant(intent)
+				intent, routeErr = e.routeGroupGrant(intent, now)
 			}
 			if routeErr != nil {
 				return routeErr
@@ -1291,7 +1291,7 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				tickErr = canaryErr
 			} else if due {
-				if canary, canaryErr = e.routeGroupGrant(canary); canaryErr == nil {
+				if canary, canaryErr = e.routeGroupGrant(canary, now); canaryErr == nil {
 					tickErr = e.addSendWork(canary, 0, now)
 				} else {
 					tickErr = canaryErr
@@ -3503,7 +3503,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 		if activity.intent.MetaCreateCandidate && (warming || warmed) {
 			activity.intent.MetaCreateCandidate = false
 		}
-		if !e.sessions.IsOnline(activity.intent.Logical.Sender) {
+		if !e.sessions.sendEligibleAt(activity.intent.Logical.Sender, now) {
 			if err := e.deferActivity(activity, now); err != nil {
 				return TrafficIntent{}, err
 			}
@@ -3536,7 +3536,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	if routed, ok, routeErr := e.routeActivePersonGrant(grant, correlate, true); routeErr != nil {
+	if routed, ok, routeErr := e.routeActivePersonGrant(grant, now, correlate, true); routeErr != nil {
 		return TrafficIntent{}, routeErr
 	} else if ok {
 		return routed, nil
@@ -3546,7 +3546,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	// distinct active sender; the formal 10,000-user gate proves this fallback is
 	// not reached by the production workload.
 	if e.grantRoutingActive {
-		if routed, ok, routeErr := e.routeActivePersonGrant(grant, correlate, false); routeErr != nil {
+		if routed, ok, routeErr := e.routeActivePersonGrant(grant, now, correlate, false); routeErr != nil {
 			return TrafficIntent{}, routeErr
 		} else if ok {
 			return routed, nil
@@ -3555,7 +3555,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
 }
 
-func (e *Engine) routeActivePersonGrant(grant TrafficIntent, correlate, requireUnreserved bool) (TrafficIntent, bool, error) {
+func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, correlate, requireUnreserved bool) (TrafficIntent, bool, error) {
 	for scan := 0; scan < len(e.activeChannels); scan++ {
 		position := int((e.activeCursor + uint64(scan)) % uint64(len(e.activeChannels)))
 		active := e.activeChannels[position]
@@ -3566,7 +3566,7 @@ func (e *Engine) routeActivePersonGrant(grant TrafficIntent, correlate, requireU
 		if err != nil {
 			return TrafficIntent{}, false, err
 		}
-		if !e.sessions.IsOnline(sender) {
+		if !e.sessions.sendEligibleAt(sender, now) {
 			continue
 		}
 		if requireUnreserved && !e.grantSenderAvailable(sender) {
@@ -3718,7 +3718,7 @@ func (e *Engine) promotePendingChannels(now time.Time) {
 	}
 }
 
-func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
+func (e *Engine) routeGroupGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
 	groupIndex, ok := e.generator.catalog.IndexFromGroupID(grant.ChannelID)
 	if !ok {
 		return TrafficIntent{}, errEngineConfig
@@ -3736,11 +3736,11 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 		return TrafficIntent{}, err
 	}
 	excluded := func(uid string) bool { return !e.grantSenderAvailable(uid) }
-	sender, ok := e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, excluded)
+	sender, ok := e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, now, excluded)
 	if !ok && group.Category != GroupVeryLarge {
 		var routedIndex uint64
 		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategoryExcluding(
-			group.Category, grant.Logical.LogicalSend, correlate, e.workerID, excluded,
+			group.Category, grant.Logical.LogicalSend, correlate, e.workerID, now, excluded,
 		)
 		if ok {
 			group, err = e.generator.catalog.Group(routedIndex)
@@ -3750,11 +3750,11 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 		}
 	}
 	if !ok && e.grantRoutingActive {
-		sender, ok = e.sessions.onlineGroupMember(group, grant.Logical.LogicalSend, correlate)
+		sender, ok = e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, now, nil)
 		if !ok && group.Category != GroupVeryLarge {
 			var routedIndex uint64
-			sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategory(
-				group.Category, grant.Logical.LogicalSend, correlate, e.workerID,
+			sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategoryExcluding(
+				group.Category, grant.Logical.LogicalSend, correlate, e.workerID, now, nil,
 			)
 			if ok {
 				group, err = e.generator.catalog.Group(routedIndex)

@@ -916,6 +916,51 @@ func TestSessionPoolOnlineRouteIndexesAllocateNoLookupStateAndReleaseAllChurn(t 
 	}
 }
 
+func TestSessionPoolGrantSelectorSkipsDeadlineExpiredMemberRetainedBySendLease(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	group, err := fixture.catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group(0): %v", err)
+	}
+	members := make([]SessionLogin, 0, 2)
+	for memberOrdinal := 0; memberOrdinal < 2; memberOrdinal++ {
+		memberIndex, memberErr := group.MemberIndex(memberOrdinal)
+		if memberErr != nil {
+			t.Fatalf("MemberIndex(%d): %v", memberOrdinal, memberErr)
+		}
+		login := SessionLogin{UID: fixture.identity.UID(memberIndex), UserIndex: memberIndex, LoginOrdinal: uint64(memberOrdinal)}
+		if _, loginErr := fixture.pool.Login(context.Background(), login); loginErr != nil {
+			t.Fatalf("Login member %d: %v", memberOrdinal, loginErr)
+		}
+		members = append(members, login)
+	}
+	defer func() {
+		if err := fixture.pool.CloseAll(); err != nil {
+			t.Errorf("CloseAll: %v", err)
+		}
+	}()
+
+	if !fixture.pool.acquireSendLease(members[0].UID) {
+		t.Fatal("acquire existing SEND lease for expiring group member")
+	}
+	defer func() {
+		if !fixture.pool.releaseSendLease(members[0].UID) {
+			t.Error("release existing SEND lease for expired group member")
+		}
+	}()
+	fixture.pool.mu.Lock()
+	fixture.pool.online[members[0].UID].snapshot.Deadline = fixture.clock.Now()
+	fixture.pool.mu.Unlock()
+
+	selected, ok := fixture.pool.onlineGroupMemberExcluding(group, 0, true, fixture.clock.Now(), nil)
+	if !ok {
+		t.Fatal("no send-eligible group member selected")
+	}
+	if selected.UID != members[1].UID {
+		t.Fatalf("selected UID = %q, want fresh member %q", selected.UID, members[1].UID)
+	}
+}
+
 func TestSessionPoolTransportAdmissionRejectionsSurviveSessionChurn(t *testing.T) {
 	fixture := newSessionTestFixture(t)
 	fixture.factory.sendErr = wkclient.ErrSendQueueFull

@@ -300,7 +300,7 @@ func TestEngineSampledGroupRouteRequiresDistinctOnlineRecipient(t *testing.T) {
 			err    error
 		}, 1)
 		if err := fixture.engine.enqueue(engineCommand{run: func() {
-			intent, routeErr := fixture.engine.routeGroupGrant(grant)
+			intent, routeErr := fixture.engine.routeGroupGrant(grant, fixture.clock.Now())
 			response <- struct {
 				intent TrafficIntent
 				err    error
@@ -1476,6 +1476,82 @@ func TestEngineSessionExpiryWaitsForAdmittedSendCompletion(t *testing.T) {
 	}
 	if secondExpiry.Expired != 1 || fixture.pool.IsOnline(uid) {
 		t.Fatalf("completed session expiry = %+v online=%v, want one expired offline session", secondExpiry, fixture.pool.IsOnline(uid))
+	}
+}
+
+func TestEngineGrantRoutingSkipsDeadlineExpiredSenderRetainedByAdmittedSend(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 4, SessionDuration: time.Millisecond,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	expiredEdge := fixture.graph.edge(0, 1)
+	freshEdge := fixture.graph.edge(2, 3)
+	var expiredSender SessionSnapshot
+	for _, login := range []SessionLogin{
+		{UID: expiredEdge.OwnerUID, UserIndex: expiredEdge.OwnerIndex, LoginOrdinal: expiredEdge.OwnerIndex},
+		{UID: expiredEdge.PeerUID, UserIndex: expiredEdge.PeerIndex, LoginOrdinal: expiredEdge.PeerIndex},
+	} {
+		session, err := fixture.engine.Login(context.Background(), login)
+		if err != nil {
+			t.Fatalf("expired edge Login(%q): %v", login.UID, err)
+		}
+		if login.UID == expiredEdge.OwnerUID {
+			expiredSender = session
+		}
+	}
+	if !fixture.pool.acquireSendLease(expiredEdge.OwnerUID) {
+		t.Fatal("acquire existing SEND lease for expiring sender")
+	}
+	defer func() {
+		if !fixture.pool.releaseSendLease(expiredEdge.OwnerUID) {
+			t.Error("release existing SEND lease for expired sender")
+		}
+	}()
+
+	fixture.clock.Set(expiredSender.Deadline)
+	for _, login := range []SessionLogin{
+		{UID: freshEdge.OwnerUID, UserIndex: freshEdge.OwnerIndex, LoginOrdinal: freshEdge.OwnerIndex},
+		{UID: freshEdge.PeerUID, UserIndex: freshEdge.PeerIndex, LoginOrdinal: freshEdge.PeerIndex},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("fresh edge Login(%q): %v", login.UID, err)
+		}
+	}
+
+	primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, 0)
+	if err != nil {
+		t.Fatalf("scopedLogicalOrdinal: %v", err)
+	}
+	type routeResult struct {
+		intent TrafficIntent
+		err    error
+	}
+	result := make(chan routeResult, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		fixture.engine.addActiveChannel(engineActiveChannel{edge: expiredEdge, direction: DirectionOneWay})
+		fixture.engine.addActiveChannel(engineActiveChannel{edge: freshEdge, direction: DirectionOneWay})
+		intent, routeErr := fixture.engine.routePersonGrant(TrafficIntent{
+			Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+			Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+		}, fixture.clock.Now())
+		if routeErr == nil {
+			routeErr = fixture.engine.addSendWork(intent, 0, fixture.clock.Now())
+		}
+		result <- routeResult{intent: intent, err: routeErr}
+	}}); err != nil {
+		t.Fatalf("enqueue route: %v", err)
+	}
+	routed := <-result
+	if routed.err != nil {
+		t.Fatalf("route and admit fresh sender: %v", routed.err)
+	}
+	if routed.intent.Logical.Sender != freshEdge.OwnerUID {
+		t.Fatalf("routed sender = %q, want fresh sender %q", routed.intent.Logical.Sender, freshEdge.OwnerUID)
 	}
 }
 
@@ -5068,7 +5144,7 @@ func TestEngineAgedRosterRoutesTwoHundredGroupGrantsAtFixedSharesAndCanary(t *te
 		t.Helper()
 		response := make(chan routeResult, 1)
 		if err := fixture.engine.enqueue(engineCommand{run: func() {
-			intent, routeErr := fixture.engine.routeGroupGrant(grant)
+			intent, routeErr := fixture.engine.routeGroupGrant(grant, fixture.clock.Now())
 			response <- routeResult{intent: intent, err: routeErr}
 		}}); err != nil {
 			return TrafficIntent{}, err
@@ -5235,7 +5311,7 @@ func TestEngineThreeWorkerPoolsRouteSampledGroupsOnlyOnOwnerWithPairedRoster(t *
 		route := func(target *engineTestFixture) (TrafficIntent, error) {
 			response := make(chan routeResult, 1)
 			if err := target.engine.enqueue(engineCommand{run: func() {
-				intent, routeErr := target.engine.routeGroupGrant(grant)
+				intent, routeErr := target.engine.routeGroupGrant(grant, target.clock.Now())
 				response <- routeResult{intent: intent, err: routeErr}
 			}}); err != nil {
 				return TrafficIntent{}, err
