@@ -19,9 +19,12 @@ const (
 	metaCreateQueueMaxItems = 256
 	metaCreateBatchTimeout  = 2 * time.Second
 	metaCreateRerouteMax    = 2
-	// A small fixed pipeline keeps cold metadata creation from serializing on
-	// one Raft future while preserving bounded per-Slot work and memory.
-	metaCreateSlotMaxInFlightBatches = 4
+	// A short collection window amortizes the fixed Raft commit cost without
+	// consuming a material portion of the client request deadline.
+	metaCreateBatchCollectWait = 200 * time.Millisecond
+	// Two batches allow one future to progress while the next is submitted,
+	// without flooding a Slot leader with single-item proposals.
+	metaCreateSlotMaxInFlightBatches = 2
 )
 
 var (
@@ -40,6 +43,8 @@ type metaCreateBatcher struct {
 	goroutines *goruntimeregistry.Registry
 	build      runtimeMetaCreateBatchBuilder
 	stage      func(string, string, time.Duration)
+	// collectWait bounds how long the oldest queued identity may wait for peers.
+	collectWait time.Duration
 
 	mu       sync.Mutex
 	owners   map[uint32]*metaCreateSlotOwner
@@ -60,7 +65,8 @@ func newMetaCreateBatcher(router RuntimeMetaBatchRouter, store RuntimeMetaBatchS
 	ctx, cancel := context.WithCancel(context.Background())
 	return &metaCreateBatcher{
 		router: router, store: store, observer: observer, goroutines: goroutines, build: build, stage: stage,
-		owners: make(map[uint32]*metaCreateSlotOwner), rootCtx: ctx, cancel: cancel,
+		collectWait: metaCreateBatchCollectWait,
+		owners:      make(map[uint32]*metaCreateSlotOwner), rootCtx: ctx, cancel: cancel,
 	}
 }
 
@@ -181,6 +187,9 @@ type metaCreateSlotOwner struct {
 	wake     chan struct{}
 	finished chan metaCreateBatchCompletion
 	done     chan struct{}
+	// collectUntil is set only after proposal capacity becomes available, so
+	// time spent behind a full pipeline does not consume the collection window.
+	collectUntil time.Time
 }
 
 type metaCreateBatchCompletion struct {
@@ -265,6 +274,9 @@ func (o *metaCreateSlotOwner) detach(waiter *metaCreateWaiter) {
 				break
 			}
 		}
+		if len(o.queue) == 0 {
+			o.collectUntil = time.Time{}
+		}
 	}
 	depth := len(o.queue)
 	o.mu.Unlock()
@@ -281,21 +293,40 @@ func (o *metaCreateSlotOwner) signal() {
 func (o *metaCreateSlotOwner) run() {
 	defer o.batcher.wg.Done()
 	defer close(o.done)
+	timer := time.NewTimer(time.Hour)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	defer timer.Stop()
 	for {
+		var collectWait time.Duration
 		for {
-			batch, stop := o.takeBatch()
+			batch, stop, wait := o.takeBatch()
 			if stop {
 				return
 			}
 			if len(batch) == 0 {
+				collectWait = wait
 				break
 			}
 			o.startBatch(batch)
+		}
+		var timerC <-chan time.Time
+		if collectWait > 0 {
+			timer.Reset(collectWait)
+			timerC = timer.C
 		}
 		select {
 		case <-o.wake:
 		case completion := <-o.finished:
 			o.finish(completion.batch, completion.results)
+		case <-timerC:
+		}
+		if timerC != nil && !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
 		}
 	}
 }
@@ -306,17 +337,29 @@ func (o *metaCreateSlotOwner) startBatch(batch []*metaCreateEntry) {
 	})
 }
 
-func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool) {
+func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool, time.Duration) {
 	o.mu.Lock()
 	if o.inFlight >= metaCreateSlotMaxInFlightBatches {
 		o.mu.Unlock()
-		return nil, false
+		return nil, false, 0
 	}
 	if len(o.queue) == 0 {
+		o.collectUntil = time.Time{}
 		stop := o.stopping && o.inFlight == 0
 		o.mu.Unlock()
-		return nil, stop
+		return nil, stop, 0
 	}
+	if !o.stopping && o.inFlight > 0 && len(o.queue) < metaCreateBatchMaxItems {
+		if o.collectUntil.IsZero() {
+			o.collectUntil = time.Now().Add(o.batcher.collectWait)
+		}
+		wait := time.Until(o.collectUntil)
+		if wait > 0 {
+			o.mu.Unlock()
+			return nil, false, wait
+		}
+	}
+	o.collectUntil = time.Time{}
 	count := len(o.queue)
 	if count > metaCreateBatchMaxItems {
 		count = metaCreateBatchMaxItems
@@ -336,7 +379,7 @@ func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool) {
 	depth := len(o.queue)
 	o.mu.Unlock()
 	o.observeQueueDepth(depth)
-	return batch, false
+	return batch, false, 0
 }
 
 func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.ChannelKey]metaCreateEnsureResult {
@@ -562,6 +605,7 @@ func (o *metaCreateSlotOwner) stop() {
 		delete(o.entries, entry.key)
 	}
 	o.queue = nil
+	o.collectUntil = time.Time{}
 	inFlight := o.inFlight
 	o.mu.Unlock()
 	o.observeQueueDepth(0)

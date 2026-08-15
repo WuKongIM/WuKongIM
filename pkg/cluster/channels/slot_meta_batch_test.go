@@ -14,7 +14,7 @@ import (
 )
 
 func TestSlotMetaSourcePipelinesBoundedBatchesForOneSlot(t *testing.T) {
-	const wantMaxInFlight = 4
+	const wantMaxInFlight = 2
 	store := newBlockingConcurrentRuntimeMetaBatchStore()
 	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
 		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
@@ -25,6 +25,7 @@ func TestSlotMetaSourcePipelinesBoundedBatchesForOneSlot(t *testing.T) {
 			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
 		}},
 	})
+	source.batcher.collectWait = 20 * time.Millisecond
 	t.Cleanup(func() {
 		store.release()
 		if err := source.Close(); err != nil {
@@ -62,8 +63,7 @@ func TestSlotMetaSourcePipelinesBoundedBatchesForOneSlot(t *testing.T) {
 	}
 }
 
-func TestSlotMetaSourceCloseJoinsAllPipelinedBatches(t *testing.T) {
-	const inFlight = 4
+func TestSlotMetaSourceCollectsShortColdBurstBeforeSubmitting(t *testing.T) {
 	store := newBlockingConcurrentRuntimeMetaBatchStore()
 	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
 		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
@@ -74,6 +74,52 @@ func TestSlotMetaSourceCloseJoinsAllPipelinedBatches(t *testing.T) {
 			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
 		}},
 	})
+	source.batcher.collectWait = 20 * time.Millisecond
+	t.Cleanup(func() {
+		store.release()
+		if err := source.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	results := make(chan error, 3)
+	startEnsure := func(id string) {
+		go func() {
+			_, err := source.EnsureChannelMeta(context.Background(), ch.ChannelID{ID: id, Type: 1})
+			results <- err
+		}()
+	}
+	startEnsure("cold-burst-1")
+	store.waitForStarted(t, 1)
+	startEnsure("cold-burst-2")
+	time.Sleep(5 * time.Millisecond)
+	startEnsure("cold-burst-3")
+	store.waitForStarted(t, 1)
+	if got := store.batchItems(1); got != 2 {
+		t.Fatalf("second cold metadata batch items = %d, want 2 coalesced arrivals behind the active batch", got)
+	}
+
+	store.release()
+	for i := 0; i < 3; i++ {
+		if err := <-results; err != nil {
+			t.Fatalf("EnsureChannelMeta(call=%d) error = %v", i, err)
+		}
+	}
+}
+
+func TestSlotMetaSourceCloseJoinsAllPipelinedBatches(t *testing.T) {
+	const inFlight = 2
+	store := newBlockingConcurrentRuntimeMetaBatchStore()
+	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
+		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
+	}}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{
+		Router: router, BatchStore: store,
+		Placement: fakePlacementResolver{placement: ChannelPlacement{
+			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
+		}},
+	})
+	source.batcher.collectWait = 20 * time.Millisecond
 	t.Cleanup(store.release)
 
 	results := make(chan error, inFlight)
@@ -527,6 +573,7 @@ type blockingConcurrentRuntimeMetaBatchStore struct {
 	releaseCh   chan struct{}
 	active      int
 	max         int
+	batches     [][]RuntimeMetaCreateItem
 }
 
 type uncertainAppliedRuntimeMetaBatchStore struct {
@@ -625,6 +672,7 @@ func (s *blockingConcurrentRuntimeMetaBatchStore) GetChannelRuntimeMeta(_ contex
 
 func (s *blockingConcurrentRuntimeMetaBatchStore) CreateChannelRuntimeMetaBatch(_ context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaCreateResult, error) {
 	s.mu.Lock()
+	s.batches = append(s.batches, append([]RuntimeMetaCreateItem(nil), items...))
 	s.active++
 	if s.active > s.max {
 		s.max = s.active
@@ -684,6 +732,15 @@ func (s *blockingConcurrentRuntimeMetaBatchStore) maxActive() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.max
+}
+
+func (s *blockingConcurrentRuntimeMetaBatchStore) batchItems(index int) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.batches) {
+		return 0
+	}
+	return len(s.batches[index])
 }
 
 func (s *blockingRuntimeMetaBatchStore) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
