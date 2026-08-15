@@ -45,6 +45,10 @@ type metaCreateBatcher struct {
 	stage      func(string, string, time.Duration)
 	// collectWait bounds how long the oldest queued identity may wait for peers.
 	collectWait time.Duration
+	// batchTimeout bounds one submitted proposal and its authoritative reread.
+	// It is a field so focused tests can exercise queueing independently from
+	// the production timeout.
+	batchTimeout time.Duration
 
 	mu       sync.Mutex
 	owners   map[uint32]*metaCreateSlotOwner
@@ -65,8 +69,9 @@ func newMetaCreateBatcher(router RuntimeMetaBatchRouter, store RuntimeMetaBatchS
 	ctx, cancel := context.WithCancel(context.Background())
 	return &metaCreateBatcher{
 		router: router, store: store, observer: observer, goroutines: goroutines, build: build, stage: stage,
-		collectWait: metaCreateBatchCollectWait,
-		owners:      make(map[uint32]*metaCreateSlotOwner), rootCtx: ctx, cancel: cancel,
+		collectWait:  metaCreateBatchCollectWait,
+		batchTimeout: metaCreateBatchTimeout,
+		owners:       make(map[uint32]*metaCreateSlotOwner), rootCtx: ctx, cancel: cancel,
 	}
 }
 
@@ -77,10 +82,8 @@ func (b *metaCreateBatcher) ensure(ctx context.Context, id ch.ChannelID) metaCre
 	if err := ctxErr(ctx); err != nil {
 		return metaCreateEnsureResult{err: err}
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, metaCreateBatchTimeout)
-	defer cancel()
 	for attempt := 0; ; attempt++ {
-		result := b.ensureOnce(waitCtx, id)
+		result := b.ensureOnce(ctx, id)
 		reroute := errors.Is(result.err, errMetaCreateReroute)
 		retryMissing := errors.Is(result.err, errMetaCreateRetryMissing)
 		if !reroute && !retryMissing {
@@ -418,7 +421,7 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 		}
 		return left.Meta.ChannelID < right.Meta.ChannelID
 	})
-	ctx, cancel := context.WithTimeout(o.batcher.rootCtx, metaCreateBatchTimeout)
+	ctx, cancel := context.WithTimeout(o.batcher.rootCtx, o.batcher.batchTimeout)
 	defer cancel()
 	plans := make([]runtimeMetaCreatePlanItem, len(batch))
 	for i, entry := range batch {

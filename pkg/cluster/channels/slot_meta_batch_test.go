@@ -63,6 +63,51 @@ func TestSlotMetaSourcePipelinesBoundedBatchesForOneSlot(t *testing.T) {
 	}
 }
 
+func TestSlotMetaSourceCallerWaitOutlivesOneQueuedBatchTimeout(t *testing.T) {
+	const (
+		proposalDuration = 50 * time.Millisecond
+		batchTimeout     = 80 * time.Millisecond
+	)
+	store := newDelayedRuntimeMetaBatchStore(proposalDuration)
+	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
+		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
+	}}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{
+		Router: router, BatchStore: store,
+		Placement: fakePlacementResolver{placement: ChannelPlacement{
+			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
+		}},
+	})
+	source.batcher.collectWait = 0
+	source.batcher.batchTimeout = batchTimeout
+	t.Cleanup(func() {
+		if err := source.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	results := make(chan error, 3)
+	startEnsure := func(id string) {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			defer cancel()
+			_, err := source.EnsureChannelMeta(ctx, ch.ChannelID{ID: id, Type: 1})
+			results <- err
+		}()
+	}
+	startEnsure("queued-deadline-1")
+	store.waitForStarted(t)
+	startEnsure("queued-deadline-2")
+	store.waitForStarted(t)
+	startEnsure("queued-deadline-3")
+
+	for i := 0; i < 3; i++ {
+		if err := <-results; err != nil {
+			t.Fatalf("EnsureChannelMeta(call=%d) error = %v; caller context should own total queue wait", i, err)
+		}
+	}
+}
+
 func TestSlotMetaSourceCollectsShortColdBurstBeforeSubmitting(t *testing.T) {
 	store := newBlockingConcurrentRuntimeMetaBatchStore()
 	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
@@ -576,6 +621,13 @@ type blockingConcurrentRuntimeMetaBatchStore struct {
 	batches     [][]RuntimeMetaCreateItem
 }
 
+type delayedRuntimeMetaBatchStore struct {
+	mu      sync.Mutex
+	delay   time.Duration
+	rows    map[metadb.ChannelKey]metadb.ChannelRuntimeMeta
+	started chan struct{}
+}
+
 type uncertainAppliedRuntimeMetaBatchStore struct {
 	row         metadb.ChannelRuntimeMeta
 	createCalls int
@@ -657,6 +709,71 @@ func newBlockingRuntimeMetaBatchStore() *blockingRuntimeMetaBatchStore {
 func newBlockingConcurrentRuntimeMetaBatchStore() *blockingConcurrentRuntimeMetaBatchStore {
 	return &blockingConcurrentRuntimeMetaBatchStore{
 		rows: make(map[metadb.ChannelKey]metadb.ChannelRuntimeMeta), started: make(chan struct{}, 16), releaseCh: make(chan struct{}),
+	}
+}
+
+func newDelayedRuntimeMetaBatchStore(delay time.Duration) *delayedRuntimeMetaBatchStore {
+	return &delayedRuntimeMetaBatchStore{
+		delay: delay, rows: make(map[metadb.ChannelKey]metadb.ChannelRuntimeMeta), started: make(chan struct{}, 3),
+	}
+}
+
+func (s *delayedRuntimeMetaBatchStore) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta, ok := s.rows[metadb.ChannelKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return meta, nil
+}
+
+func (s *delayedRuntimeMetaBatchStore) CreateChannelRuntimeMetaBatch(ctx context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaCreateResult, error) {
+	s.started <- struct{}{}
+	timer := time.NewTimer(s.delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	results := make([]RuntimeMetaCreateResult, len(items))
+	for i, item := range items {
+		key := metadb.ChannelKey{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
+		_, existed := s.rows[key]
+		if !existed {
+			s.rows[key] = metadb.NormalizeChannelRuntimeMeta(item.Meta)
+		}
+		results[i] = RuntimeMetaCreateResult{
+			HashSlot: item.HashSlot, ChannelID: key.ChannelID, ChannelType: key.ChannelType, Created: !existed,
+		}
+	}
+	return results, nil
+}
+
+func (s *delayedRuntimeMetaBatchStore) BatchGetChannelRuntimeMetas(_ context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	results := make([]RuntimeMetaReadResult, len(items))
+	for i, item := range items {
+		meta, ok := s.rows[metadb.ChannelKey{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}]
+		if !ok {
+			results[i].Err = metadb.ErrNotFound
+			continue
+		}
+		results[i].Meta = meta
+	}
+	return results, nil
+}
+
+func (s *delayedRuntimeMetaBatchStore) waitForStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.started:
+	case <-time.After(time.Second):
+		t.Fatal("metadata batch did not start")
 	}
 }
 
