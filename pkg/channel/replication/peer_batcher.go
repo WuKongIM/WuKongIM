@@ -62,14 +62,17 @@ type queuedPeerItem struct {
 	kind              ExchangeKind
 	replicate         ReplicateRequest
 	probe             ProbeRequest
+	fetch             FetchRequest
 	bytes             int
 	completeReplicate func(ReplicateResult, error)
 	completeProbe     func(ProbeResult, error)
+	completeFetch     func(FetchResult, error)
 }
 
 type peerExchangeResult struct {
 	replicate ReplicateResult
 	probe     ProbeResult
+	fetch     FetchResult
 }
 
 func newPeerBatcher(cfg peerBatcherConfig) (*peerBatcher, error) {
@@ -106,6 +109,18 @@ func (b *peerBatcher) submitProbe(ctx context.Context, node ch.NodeID, request P
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeProbe, probe: request,
 		bytes: estimateProbeRequestBytes(request), completeProbe: complete,
+	})
+}
+
+// submitFetch admits one immutable recovery donor read under the same bounded
+// per-target ownership as replication and probes.
+func (b *peerBatcher) submitFetch(ctx context.Context, node ch.NodeID, request FetchRequest, complete func(FetchResult, error)) error {
+	if b == nil || ctx == nil || node == 0 || complete == nil || !request.Valid() || request.Follower != node {
+		return ch.ErrInvalidConfig
+	}
+	return b.enqueue(ctx, node, queuedPeerItem{
+		kind: ExchangeFetch, fetch: request,
+		bytes: estimateFetchRequestBytes(request), completeFetch: complete,
 	})
 }
 
@@ -176,6 +191,8 @@ func (b *peerBatcher) drainTarget(node ch.NodeID) {
 				items[index].completeReplicate(results[index].replicate, errs[index])
 			case ExchangeProbe:
 				items[index].completeProbe(results[index].probe, errs[index])
+			case ExchangeFetch:
+				items[index].completeFetch(results[index].fetch, errs[index])
 			}
 		}
 	}
@@ -226,6 +243,9 @@ func (b *peerBatcher) exchange(node ch.NodeID, items []queuedPeerItem) ([]peerEx
 		case ExchangeProbe:
 			request := item.probe
 			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeProbe, Probe: &request}
+		case ExchangeFetch:
+			request := item.fetch
+			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeFetch, Fetch: &request}
 		}
 	}
 	ctx, cancel := context.WithTimeout(b.cfg.OwnerContext, b.cfg.ExchangeTimeout)
@@ -260,15 +280,20 @@ func (b *peerBatcher) exchange(node ch.NodeID, items []queuedPeerItem) ([]peerEx
 		}
 		switch item.kind {
 		case ExchangeReplicate:
-			if !zeroProbeResult(result.Probe) || !validReplicateResult(item.replicate, result.Replicate) {
+			if !zeroProbeResult(result.Probe) || !zeroFetchResult(result.Fetch) || !validReplicateResult(item.replicate, result.Replicate) {
 				return invalidExchangeResults(items, results, errs)
 			}
 			results[index].replicate = result.Replicate
 		case ExchangeProbe:
-			if result.Replicate != (ReplicateResult{}) || !validPeerProbeResult(item.probe, result.Probe) {
+			if result.Replicate != (ReplicateResult{}) || !zeroFetchResult(result.Fetch) || !validPeerProbeResult(item.probe, result.Probe) {
 				return invalidExchangeResults(items, results, errs)
 			}
 			results[index].probe = result.Probe
+		case ExchangeFetch:
+			if result.Replicate != (ReplicateResult{}) || !zeroProbeResult(result.Probe) || !validPeerFetchResult(item.fetch, result.Fetch) {
+				return invalidExchangeResults(items, results, errs)
+			}
+			results[index].fetch = result.Fetch
 		default:
 			return invalidExchangeResults(items, results, errs)
 		}
@@ -302,8 +327,17 @@ func validPeerProbeResult(request ProbeRequest, result ProbeResult) bool {
 		sameRecoveryProbeIndexes(request.Indexes, result.Entries)
 }
 
+func validPeerFetchResult(request FetchRequest, result FetchResult) bool {
+	return result.Proof == fetchProofFor(request) && result.State == request.Expected &&
+		validRecoveryProposals(request, result.Proposals)
+}
+
 func zeroProbeResult(result ProbeResult) bool {
 	return zeroProbeProof(result.Proof) && result.State == (ReplicaState{}) && len(result.Entries) == 0
+}
+
+func zeroFetchResult(result FetchResult) bool {
+	return result.Proof == (FetchProof{}) && result.State == (ReplicaState{}) && len(result.Proposals) == 0
 }
 
 func invalidExchangeResults(items []queuedPeerItem, results []peerExchangeResult, errs []error) ([]peerExchangeResult, []error) {

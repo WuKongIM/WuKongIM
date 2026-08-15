@@ -95,6 +95,25 @@ type RecoveryReplacementResult struct {
 	Err        error
 }
 
+// FetchRange reads the largest non-empty complete-proposal prefix beginning at
+// From and ending no later than Through from the exact proved donor frontier.
+type FetchRange struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Expected   ReplicaState
+	From       uint64
+	Through    uint64
+	Previous   ch.EntryIdentity
+	MaxBytes   int
+}
+
+// FetchRangeResult is one position-aligned exact donor page.
+type FetchRangeResult struct {
+	State     ReplicaState
+	Proposals []RecoveryProposal
+	Err       error
+}
+
 // ReplicaStore loads exact durable frontiers and synchronously applies exact
 // immutable mutations. Returning from Sync with a durable outcome proves
 // physical durability for that item.
@@ -102,4 +121,5 @@ type ReplicaStore interface {
 	Load(context.Context, LoadBatch) (LoadBatchResult, error)
 	Sync(context.Context, []Mutation) []MutationResult
 	Replace(context.Context, []RecoveryReplacement) []RecoveryReplacementResult
+	Fetch(context.Context, []FetchRange) []FetchRangeResult
 }

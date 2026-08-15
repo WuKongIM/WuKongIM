@@ -98,6 +98,91 @@ func (s *MemoryChannelStore) LoadExactRecoveryState(ctx context.Context, indexes
 	return result, nil
 }
 
+// ReadExactRecoveryPage returns one proposal-aligned record and identity page
+// from the same in-memory frontier view.
+func (s *MemoryChannelStore) ReadExactRecoveryPage(ctx context.Context, req ExactRecoveryPageRequest) (ExactRecoveryPage, error) {
+	if ctx == nil || req.From == 0 || req.Through < req.From || req.Through-req.From >= 256 || req.MaxBytes <= 0 {
+		return ExactRecoveryPage{}, ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return ExactRecoveryPage{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.loadExactStateLocked()
+	if err != nil {
+		return ExactRecoveryPage{}, err
+	}
+	if req.Through > state.LEO {
+		return ExactRecoveryPage{}, ch.ErrLogConflict
+	}
+	first, present := s.entriesByIndex[req.From]
+	if !present {
+		return ExactRecoveryPage{}, ch.ErrLogConflict
+	}
+	firstProposal, present := s.proposalsByCommand[first.CommandID]
+	if !present || firstProposal.manifest.BaseOffset+1 != req.From {
+		return ExactRecoveryPage{}, ch.ErrLogConflict
+	}
+	result := ExactRecoveryPage{
+		ExactState: state,
+		Records:    make([]ch.Record, 0, req.Through-req.From+1),
+		Entries:    make([]ExactEntryProbe, 0, req.Through-req.From+1),
+	}
+	used := 0
+	proposal := firstProposal
+	for {
+		if proposal.manifest.LastOffset > req.Through {
+			if len(result.Records) == 0 {
+				return ExactRecoveryPage{}, ch.ErrBackpressured
+			}
+			break
+		}
+		proposalRecords := make([]ch.Record, 0, proposal.manifest.LastOffset-proposal.manifest.BaseOffset)
+		proposalEntries := make([]ExactEntryProbe, 0, proposal.manifest.LastOffset-proposal.manifest.BaseOffset)
+		proposalBytes := 0
+		for index := proposal.manifest.BaseOffset + 1; index <= proposal.manifest.LastOffset; index++ {
+			record, recordPresent := s.recordBySeqLocked(index)
+			identity, identityPresent := s.entriesByIndex[index]
+			if !recordPresent {
+				return ExactRecoveryPage{}, ch.ErrNotReady
+			}
+			if !identityPresent || identity.Index != index || identity.CommandID != proposal.manifest.CommandID {
+				return ExactRecoveryPage{}, ch.ErrLogConflict
+			}
+			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+			if proposalBytes > req.MaxBytes-recordBytes {
+				return ExactRecoveryPage{}, ch.ErrBackpressured
+			}
+			proposalBytes += recordBytes
+			proposalRecords = append(proposalRecords, cloneRecord(record))
+			proposalEntries = append(proposalEntries, ExactEntryProbe{Index: index, Present: true, Identity: identity})
+		}
+		if used > req.MaxBytes-proposalBytes {
+			if len(result.Records) == 0 {
+				return ExactRecoveryPage{}, ch.ErrBackpressured
+			}
+			break
+		}
+		used += proposalBytes
+		result.Records = append(result.Records, proposalRecords...)
+		result.Entries = append(result.Entries, proposalEntries...)
+		if proposal.manifest.LastOffset == req.Through {
+			break
+		}
+		next, present := s.entriesByIndex[proposal.manifest.LastOffset+1]
+		if !present {
+			return ExactRecoveryPage{}, ch.ErrLogConflict
+		}
+		nextProposal, present := s.proposalsByCommand[next.CommandID]
+		if !present || nextProposal.manifest.BaseOffset != proposal.manifest.LastOffset {
+			return ExactRecoveryPage{}, ch.ErrLogConflict
+		}
+		proposal = nextProposal
+	}
+	return result, nil
+}
+
 func (s *MemoryChannelStore) loadExactStateLocked() (ExactState, error) {
 	leo := s.leoLocked()
 	if s.checkpoint.HW > leo {

@@ -29,6 +29,17 @@ func TestRecoveryProbeOwnerSelectsQuorumPrefixInsteadOfMinorityTail(t *testing.T
 	if selected.Index != 5 || selected.Identity != prefix || selected.CertifiedCommitted != 5 {
 		t.Fatalf("recoverQuorumPrefix() = %+v, want certified prefix 5", selected)
 	}
+	if selected.CertifiedIdentity != prefix {
+		t.Fatalf("certified identity = %+v, want %+v", selected.CertifiedIdentity, prefix)
+	}
+	wantSupporters := []recoverySupporter{
+		{Voter: 1, State: dispatcher.results[1].State},
+		{Voter: 2, State: dispatcher.results[2].State},
+		{Voter: 3, State: dispatcher.results[3].State},
+	}
+	if !reflect.DeepEqual(selected.Supporters, wantSupporters) {
+		t.Fatalf("supporters = %+v, want exact quorum supporters %+v", selected.Supporters, wantSupporters)
+	}
 	wantIndexes := [][]uint64{nil, {5}}
 	for voter := ch.NodeID(1); voter <= 3; voter++ {
 		if got := dispatcher.indexes[voter]; !reflect.DeepEqual(got, wantIndexes) {
@@ -333,6 +344,71 @@ func TestBatchingRecoveryProbeDispatcherSupportsSingleNodeClusterWithoutPeerOwne
 	}
 }
 
+func TestBatchingRecoveryProbeDispatcherRoutesExactLocalAndRemoteFetch(t *testing.T) {
+	replicate := testReplicateRequest(t, "1:fetch-dispatch", "fetch-dispatch", 9, []byte("payload"))
+	identities, ok := ch.DeriveProposalEntries(replicate.Manifest, len(replicate.Records), func(index int) ch.Record {
+		return replicate.Records[index]
+	})
+	if !ok {
+		t.Fatal("DeriveProposalEntries() failed")
+	}
+	state := ReplicaState{LEO: 1, Committed: 1, Manifest: replicate.Manifest, TailIdentity: identities[0]}
+	proposal := RecoveryProposal{Manifest: replicate.Manifest, Records: replicate.Records}
+	executor := &manualPeerExecutor{}
+	link := &recordingPeerLink{fetches: map[ch.ChannelKey]FetchResult{
+		replicate.ChannelKey: {State: state, Proposals: []RecoveryProposal{proposal}},
+	}}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 2, MaxBatchBytes: 4096,
+		MaxQueuedItems: 4, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 2, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	store := &recordingReplicaStore{fetchResults: []FetchRangeResult{{State: state, Proposals: []RecoveryProposal{proposal}}}}
+	dispatcher := &batchingRecoveryProbeDispatcher{
+		local: 1, ownerContext: context.Background(), localTimeout: time.Minute,
+		store: store, peers: batcher, executor: executor,
+	}
+	query := recoveryFetchQuery{
+		ChannelKey: replicate.ChannelKey, ChannelID: replicate.ChannelID,
+		Leader: 1, Donor: 1, Expected: state, From: 1, Through: 1, MaxBytes: 2048,
+	}
+	localDone := make(chan FetchResult, 1)
+	if err := dispatcher.submitRecoveryFetch(context.Background(), query, func(result FetchResult, err error) {
+		if err != nil {
+			t.Errorf("local fetch error = %v", err)
+		}
+		localDone <- result
+	}); err != nil {
+		t.Fatalf("submit local fetch error = %v", err)
+	}
+	executor.RunNext()
+	local := <-localDone
+	if local.State != state || !reflect.DeepEqual(local.Proposals, []RecoveryProposal{proposal}) || len(store.fetchBatches) != 1 {
+		t.Fatalf("local fetch = %+v, batches=%+v; want exact store result", local, store.fetchBatches)
+	}
+
+	query.Donor = 2
+	remoteDone := make(chan FetchResult, 1)
+	if err := dispatcher.submitRecoveryFetch(context.Background(), query, func(result FetchResult, err error) {
+		if err != nil {
+			t.Errorf("remote fetch error = %v", err)
+		}
+		remoteDone <- result
+	}); err != nil {
+		t.Fatalf("submit remote fetch error = %v", err)
+	}
+	executor.RunNext()
+	remote := <-remoteDone
+	if remote.State != state || !reflect.DeepEqual(remote.Proposals, []RecoveryProposal{proposal}) ||
+		len(link.batches) != 1 || link.batches[0].Items[0].Kind != ExchangeFetch {
+		t.Fatalf("remote fetch = %+v, batches=%+v; want exact peer result", remote, link.batches)
+	}
+}
+
 func TestBatchingRecoveryProbeDispatcherBoundsAcceptedLocalReadByOwnerTimeout(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	store := &deadlineRecoveryReplicaStore{}
@@ -454,6 +530,9 @@ func (s *deadlineRecoveryReplicaStore) Load(ctx context.Context, _ LoadBatch) (L
 
 func (*deadlineRecoveryReplicaStore) Sync(context.Context, []Mutation) []MutationResult { return nil }
 func (*deadlineRecoveryReplicaStore) Replace(context.Context, []RecoveryReplacement) []RecoveryReplacementResult {
+	return nil
+}
+func (*deadlineRecoveryReplicaStore) Fetch(context.Context, []FetchRange) []FetchRangeResult {
 	return nil
 }
 

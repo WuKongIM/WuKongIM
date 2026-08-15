@@ -33,6 +33,139 @@ type ReplaceRecoverySuffixResult struct {
 	Outcome    quorumlog.AppendOutcome
 }
 
+// DurableRecoveryPageRequest bounds one donor read whose result may end before
+// Through rather than split a proposal or exceed MaxBytes.
+type DurableRecoveryPageRequest struct {
+	From     uint64
+	Through  uint64
+	MaxBytes int
+}
+
+// DurableRecoveryPage is one append/checkpoint-consistent donor view.
+type DurableRecoveryPage struct {
+	DurableFrontier
+	Records []channel.Record
+	Entries []DurableEntryProbe
+}
+
+// ReadDurableRecoveryPage reads records and their exact identities while the
+// canonical append and checkpoint locks keep the donor frontier unchanged.
+func (s *ChannelStore) ReadDurableRecoveryPage(ctx context.Context, req DurableRecoveryPageRequest) (DurableRecoveryPage, error) {
+	if ctx == nil || req.From == 0 || req.Through < req.From || req.Through-req.From >= 256 || req.MaxBytes <= 0 {
+		return DurableRecoveryPage{}, channel.ErrInvalidArgument
+	}
+	if err := s.beginUse(); err != nil {
+		return DurableRecoveryPage{}, err
+	}
+	defer s.endUse()
+	if err := ctx.Err(); err != nil {
+		return DurableRecoveryPage{}, err
+	}
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+	frontier, _, err := s.loadDurableFrontierLocked(ctx)
+	if err != nil {
+		return DurableRecoveryPage{}, toChannelError(err)
+	}
+	if req.Through > frontier.LEO {
+		return DurableRecoveryPage{}, channel.ErrCorruptState
+	}
+	first, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, req.From)
+	if err != nil || !present {
+		if err == nil {
+			err = dberrors.ErrCorruptState
+		}
+		return DurableRecoveryPage{}, toChannelError(err)
+	}
+	firstProposal, present, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, first.CommandID))
+	if err != nil || !present || firstProposal.manifest.BaseOffset+1 != req.From {
+		if err == nil {
+			err = dberrors.ErrConflict
+		}
+		return DurableRecoveryPage{}, toChannelError(err)
+	}
+	page := DurableRecoveryPage{DurableFrontier: frontier}
+	used := 0
+	proposal := firstProposal
+	for {
+		if proposal.manifest.LastOffset > req.Through {
+			if len(page.Records) == 0 {
+				return DurableRecoveryPage{}, channel.ErrBackpressured
+			}
+			break
+		}
+		count := int(proposal.manifest.LastOffset - proposal.manifest.BaseOffset)
+		remaining := req.MaxBytes - used
+		if remaining <= 0 {
+			break
+		}
+		rows, readErr := s.log.readRows(ctx, proposal.manifest.BaseOffset+1, proposal.manifest.LastOffset, ReadOptions{
+			Limit: count, MaxBytes: remaining,
+		})
+		if readErr != nil {
+			return DurableRecoveryPage{}, toChannelError(readErr)
+		}
+		if len(rows) != count || len(rows) == 0 || rows[0].MessageSeq != proposal.manifest.BaseOffset+1 ||
+			rows[len(rows)-1].MessageSeq != proposal.manifest.LastOffset {
+			if len(page.Records) == 0 {
+				return DurableRecoveryPage{}, channel.ErrBackpressured
+			}
+			break
+		}
+		records, convertErr := recordsFromRows(rows)
+		if convertErr != nil {
+			return DurableRecoveryPage{}, toChannelError(convertErr)
+		}
+		proposalBytes := 0
+		entries := make([]DurableEntryProbe, len(records))
+		for index, record := range records {
+			recordBytes := record.SizeBytes
+			if proposalBytes > req.MaxBytes-recordBytes {
+				return DurableRecoveryPage{}, channel.ErrBackpressured
+			}
+			proposalBytes += recordBytes
+			identity, identityPresent, loadErr := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, record.Index)
+			if loadErr != nil || !identityPresent || identity.Index != record.Index || identity.CommandID != proposal.manifest.CommandID {
+				if loadErr == nil {
+					loadErr = dberrors.ErrCorruptState
+				}
+				return DurableRecoveryPage{}, toChannelError(loadErr)
+			}
+			entries[index] = DurableEntryProbe{Index: record.Index, Present: true, Identity: identity}
+		}
+		if used > req.MaxBytes-proposalBytes {
+			if len(page.Records) == 0 {
+				return DurableRecoveryPage{}, channel.ErrBackpressured
+			}
+			break
+		}
+		used += proposalBytes
+		page.Records = append(page.Records, records...)
+		page.Entries = append(page.Entries, entries...)
+		if proposal.manifest.LastOffset == req.Through {
+			break
+		}
+		next, nextPresent, loadErr := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, proposal.manifest.LastOffset+1)
+		if loadErr != nil || !nextPresent {
+			if loadErr == nil {
+				loadErr = dberrors.ErrCorruptState
+			}
+			return DurableRecoveryPage{}, toChannelError(loadErr)
+		}
+		nextProposal, nextProposalPresent, loadErr := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, next.CommandID))
+		if loadErr != nil || !nextProposalPresent || nextProposal.manifest.BaseOffset != proposal.manifest.LastOffset {
+			if loadErr == nil {
+				loadErr = dberrors.ErrConflict
+			}
+			return DurableRecoveryPage{}, toChannelError(loadErr)
+		}
+		proposal = nextProposal
+	}
+	return page, nil
+}
+
 // ReplaceRecoverySuffix atomically deletes a divergent suffix and installs a
 // fully verified exact replacement. No truncated intermediate state is ever
 // published or committed.

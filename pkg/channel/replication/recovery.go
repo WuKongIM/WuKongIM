@@ -24,7 +24,16 @@ type recoverySelection struct {
 	Index              uint64
 	Identity           ch.EntryIdentity
 	CertifiedCommitted uint64
+	CertifiedIdentity  ch.EntryIdentity
+	Supporters         []recoverySupporter
 	Continuation       *recoveryContinuation
+}
+
+// recoverySupporter binds one donor candidate to the exact immutable frontier
+// that participated in the selected quorum proof.
+type recoverySupporter struct {
+	Voter ch.NodeID
+	State ReplicaState
 }
 
 func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProbeReport) (recoverySelection, error) {
@@ -102,12 +111,35 @@ func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProb
 				return recoverySelection{}, errRecoveryProbeIncomplete
 			}
 		}
-		return recoverySelection{Index: index, Identity: identity, CertifiedCommitted: certifiedCommitted}, nil
+		return recoverySelection{
+			Index: index, Identity: identity, CertifiedCommitted: certifiedCommitted, CertifiedIdentity: certifiedIdentity,
+			Supporters: recoverySupportersFor(voters, reports, byIndex[index], identity),
+		}, nil
 	}
 	if quorumLEO == 0 {
 		return recoverySelection{CertifiedCommitted: certifiedCommitted}, nil
 	}
 	return recoverySelection{}, errRecoveryProbeIncomplete
+}
+
+func recoverySupportersFor(voters []ch.NodeID, reports []recoveryProbeReport, position int, identity ch.EntryIdentity) []recoverySupporter {
+	byVoter := make(map[ch.NodeID]recoverySupporter, len(reports))
+	for _, report := range reports {
+		if position < 0 || position >= len(report.Result.Entries) {
+			continue
+		}
+		entry := report.Result.Entries[position]
+		if entry.Present && entry.Identity == identity {
+			byVoter[report.Voter] = recoverySupporter{Voter: report.Voter, State: report.Result.State}
+		}
+	}
+	supporters := make([]recoverySupporter, 0, len(byVoter))
+	for _, voter := range voters {
+		if supporter, ok := byVoter[voter]; ok {
+			supporters = append(supporters, supporter)
+		}
+	}
+	return supporters
 }
 
 func validateRecoveryTopology(voters []ch.NodeID, quorum int) (map[ch.NodeID]struct{}, error) {

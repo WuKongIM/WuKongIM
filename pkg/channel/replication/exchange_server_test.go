@@ -90,6 +90,47 @@ func TestExchangeServerReturnsBoundedPositionAlignedRecoveryProbe(t *testing.T) 
 	}
 }
 
+func TestExchangeServerReturnsExactBoundedRecoveryFetch(t *testing.T) {
+	replicate := testReplicateRequest(t, "1:fetch", "fetch", 1, []byte("fetch-payload"))
+	identities, ok := ch.DeriveProposalEntries(replicate.Manifest, len(replicate.Records), func(index int) ch.Record {
+		return replicate.Records[index]
+	})
+	if !ok {
+		t.Fatal("DeriveProposalEntries() failed")
+	}
+	state := ReplicaState{LEO: 1, Committed: 1, Manifest: replicate.Manifest, TailIdentity: identities[0]}
+	store := &recordingReplicaStore{fetchResults: []FetchRangeResult{{
+		State: state, Proposals: []RecoveryProposal{{Manifest: replicate.Manifest, Records: replicate.Records}},
+	}}}
+	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 2, MaxBatchBytes: 4096})
+	if err != nil {
+		t.Fatalf("NewExchangeServer() error = %v", err)
+	}
+	request := FetchRequest{
+		ChannelKey: "1:fetch", ChannelID: ch.ChannelID{ID: "fetch", Type: 1},
+		Leader: 1, Follower: 2, Expected: state, From: 1, Through: 1, MaxBytes: 2048,
+	}
+
+	result, err := server.Handle(context.Background(), 1, ExchangeBatch{Version: ExchangeVersion, Items: []ExchangeItem{{
+		RequestID: 22, Kind: ExchangeFetch, Fetch: &request,
+	}}})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(store.fetchBatches) != 1 || len(store.fetchBatches[0]) != 1 ||
+		store.fetchBatches[0][0].Expected != state || store.fetchBatches[0][0].From != 1 || store.fetchBatches[0][0].Through != 1 {
+		t.Fatalf("fetch batches = %+v, want exact donor range", store.fetchBatches)
+	}
+	want := FetchResult{
+		Proof: fetchProofFor(request), State: state,
+		Proposals: []RecoveryProposal{{Manifest: replicate.Manifest, Records: replicate.Records}},
+	}
+	if result.Version != ExchangeVersion || len(result.Items) != 1 || result.Items[0].RequestID != 22 ||
+		!reflect.DeepEqual(result.Items[0].Fetch, want) {
+		t.Fatalf("Handle() result = %+v, want %+v", result, want)
+	}
+}
+
 func TestExchangeServerRejectsMixedReadWriteForSameChannelBeforeStoreAccess(t *testing.T) {
 	store := &recordingReplicaStore{}
 	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 4, MaxBatchBytes: 8192})
@@ -208,10 +249,12 @@ func TestExchangeServerRejectsOversizedBatchBeforeStoreMutation(t *testing.T) {
 }
 
 type recordingReplicaStore struct {
-	results     []MutationResult
-	batches     [][]Mutation
-	loadResult  LoadBatchResult
-	loadBatches []LoadBatch
+	results      []MutationResult
+	batches      [][]Mutation
+	loadResult   LoadBatchResult
+	loadBatches  []LoadBatch
+	fetchResults []FetchRangeResult
+	fetchBatches [][]FetchRange
 }
 
 func (s *recordingReplicaStore) Load(_ context.Context, batch LoadBatch) (LoadBatchResult, error) {
@@ -229,6 +272,11 @@ func (s *recordingReplicaStore) Sync(_ context.Context, mutations []Mutation) []
 
 func (*recordingReplicaStore) Replace(context.Context, []RecoveryReplacement) []RecoveryReplacementResult {
 	return nil
+}
+
+func (s *recordingReplicaStore) Fetch(_ context.Context, ranges []FetchRange) []FetchRangeResult {
+	s.fetchBatches = append(s.fetchBatches, append([]FetchRange(nil), ranges...))
+	return append([]FetchRangeResult(nil), s.fetchResults...)
 }
 
 func mutationBatchCounts(batches [][]Mutation) []int {

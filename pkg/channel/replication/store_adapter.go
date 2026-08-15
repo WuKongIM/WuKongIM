@@ -294,6 +294,151 @@ func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryRepla
 	return results
 }
 
+func (a *storeAdapter) Fetch(ctx context.Context, ranges []FetchRange) []FetchRangeResult {
+	results := make([]FetchRangeResult, len(ranges))
+	if a == nil || ctx == nil || len(ranges) == 0 || len(ranges) > a.cfg.MaxBatchItems {
+		return rejectFetchRanges(results, ch.ErrInvalidConfig)
+	}
+	totalBytes := 0
+	for _, request := range ranges {
+		if request.ChannelKey == "" || request.ChannelID.ID == "" || request.From == 0 || request.Through < request.From ||
+			request.Through-request.From >= maxRecoveryProbeIndexes || request.MaxBytes <= 0 || request.MaxBytes > a.cfg.MaxBatchBytes {
+			return rejectFetchRanges(results, ch.ErrInvalidConfig)
+		}
+		expected := channelstore.ExactState{
+			InitialState: channelstore.InitialState{
+				LEO: request.Expected.LEO, HW: request.Expected.Committed, CheckpointHW: request.Expected.Committed,
+			},
+			Manifest: request.Expected.Manifest, TailIdentity: request.Expected.TailIdentity,
+		}
+		if validateExactState(expected) != nil || request.Through > request.Expected.LEO {
+			return rejectFetchRanges(results, ch.ErrInvalidConfig)
+		}
+		if request.From == 1 && request.Previous != (ch.EntryIdentity{}) ||
+			request.From > 1 && (!validEntryIdentity(request.Previous) || request.Previous.Index != request.From-1) {
+			return rejectFetchRanges(results, ch.ErrInvalidConfig)
+		}
+		itemBytes, ok := boundedByteSize(a.cfg.MaxBatchBytes, 192, len(request.ChannelKey), len(request.ChannelID.ID), request.MaxBytes)
+		if !ok || totalBytes > a.cfg.MaxBatchBytes-itemBytes {
+			return rejectFetchRanges(results, ch.ErrBackpressured)
+		}
+		totalBytes += itemBytes
+	}
+	if err := ctx.Err(); err != nil {
+		return rejectFetchRanges(results, err)
+	}
+	for index, request := range ranges {
+		store, err := a.cfg.Factory.ChannelStore(request.ChannelKey, request.ChannelID)
+		if err != nil {
+			results[index].Err = err
+			continue
+		}
+		reader, ok := store.(channelstore.ExactRecoveryPageReader)
+		if !ok {
+			_ = store.Close()
+			results[index].Err = ch.ErrInvalidConfig
+			continue
+		}
+		page, readErr := reader.ReadExactRecoveryPage(ctx, channelstore.ExactRecoveryPageRequest{
+			From: request.From, Through: request.Through, MaxBytes: request.MaxBytes,
+		})
+		closeErr := store.Close()
+		if readErr == nil && closeErr != nil {
+			readErr = closeErr
+		}
+		if readErr != nil {
+			results[index].Err = readErr
+			continue
+		}
+		state := ReplicaState{
+			LEO: page.LEO, Committed: page.HW, Manifest: page.Manifest, TailIdentity: page.TailIdentity,
+		}
+		if state != request.Expected {
+			results[index].Err = ch.ErrStaleMeta
+			continue
+		}
+		proposals, validationErr := recoveryProposalsFromPage(request, page)
+		if validationErr != nil {
+			results[index].Err = validationErr
+			continue
+		}
+		results[index] = FetchRangeResult{State: state, Proposals: proposals}
+	}
+	return results
+}
+
+func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecoveryPage) ([]RecoveryProposal, error) {
+	count := len(page.Records)
+	if count == 0 || count > int(request.Through-request.From+1) || count > maxRecoveryProbeIndexes || len(page.Entries) != count {
+		return nil, ch.ErrLogConflict
+	}
+	entries := make([]EntryProbe, count)
+	used := 0
+	for index := range page.Records {
+		expectedIndex := request.From + uint64(index)
+		entry := page.Entries[index]
+		if entry.Index != expectedIndex || !entry.Present || entry.Identity.Index != expectedIndex || !validEntryIdentity(entry.Identity) ||
+			page.Records[index].Index != expectedIndex {
+			return nil, ch.ErrLogConflict
+		}
+		page.Records[index].Epoch = entry.Identity.ChannelEpoch
+		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload)
+		if used > request.MaxBytes-recordBytes {
+			return nil, ch.ErrBackpressured
+		}
+		used += recordBytes
+		entries[index] = EntryProbe{Index: entry.Index, Present: true, Identity: entry.Identity}
+	}
+	if !validProbeEntryChain(entries) {
+		return nil, ch.ErrLogConflict
+	}
+	first := entries[0].Identity
+	if first.PreviousIndex != request.Previous.Index || first.PreviousTerm != request.Previous.LeaderTerm ||
+		first.PreviousDigest != request.Previous.Digest {
+		return nil, ch.ErrLogConflict
+	}
+	proposals := make([]RecoveryProposal, 0, count)
+	for first := 0; first < count; {
+		identity := entries[first].Identity
+		last := first + 1
+		for last < count && entries[last].Identity.CommandID == identity.CommandID {
+			candidate := entries[last].Identity
+			if candidate.Version != identity.Version || candidate.ChannelEpoch != identity.ChannelEpoch ||
+				candidate.LeaderTerm != identity.LeaderTerm || candidate.FenceVersion != identity.FenceVersion {
+				return nil, ch.ErrLogConflict
+			}
+			last++
+		}
+		lastIdentity := entries[last-1].Identity
+		manifest := ch.ProposalManifest{
+			Version: identity.Version, ChannelEpoch: identity.ChannelEpoch, LeaderTerm: identity.LeaderTerm,
+			FenceVersion: identity.FenceVersion, CommandID: identity.CommandID,
+			BaseOffset: identity.PreviousIndex, LastOffset: lastIdentity.Index,
+			PreviousTerm: identity.PreviousTerm, PreviousIndex: identity.PreviousIndex,
+			PreviousDigest: identity.PreviousDigest, Digest: lastIdentity.Digest,
+		}
+		records := append([]ch.Record(nil), page.Records[first:last]...)
+		sealed, derived, ok := ch.SealProposalManifest(manifest, records)
+		if !ok || sealed != manifest || len(derived) != len(records) || derived[len(derived)-1] != lastIdentity {
+			return nil, ch.ErrLogConflict
+		}
+		proposals = append(proposals, RecoveryProposal{Manifest: manifest, Records: records})
+		first = last
+	}
+	if len(proposals) == 0 || proposals[0].Manifest.BaseOffset+1 != request.From ||
+		proposals[len(proposals)-1].Manifest.LastOffset > request.Through {
+		return nil, ch.ErrLogConflict
+	}
+	return proposals, nil
+}
+
+func rejectFetchRanges(results []FetchRangeResult, err error) []FetchRangeResult {
+	for index := range results {
+		results[index].Err = err
+	}
+	return results
+}
+
 func validateRecoveryReplacement(replacement RecoveryReplacement, maxBytes int) (int, error) {
 	if replacement.ChannelKey == "" || replacement.ChannelID.ID == "" ||
 		len(replacement.Proposals) > maxRecoveryReplacementProposals || replacement.KeepThrough > replacement.Expected.LEO ||

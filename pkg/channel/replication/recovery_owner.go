@@ -33,6 +33,7 @@ type recoveryContinuation struct {
 	Voters             []ch.NodeID
 	Quorum             int
 	CertifiedCommitted uint64
+	CertifiedIdentity  ch.EntryIdentity
 	QuorumLEO          uint64
 	NextIndex          uint64
 	SelectedIndex      uint64
@@ -65,6 +66,21 @@ type recoveryProbeCompletion struct {
 	voter  ch.NodeID
 	result ProbeResult
 	err    error
+}
+
+// recoveryFetchQuery asks one previously proved supporter for an exact,
+// proposal-aligned donor range. Expected is the supporter's immutable frontier
+// from the quorum proof; Previous binds the returned suffix to the proof cut.
+type recoveryFetchQuery struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Leader     ch.NodeID
+	Donor      ch.NodeID
+	Expected   ReplicaState
+	From       uint64
+	Through    uint64
+	Previous   ch.EntryIdentity
+	MaxBytes   int
 }
 
 // batchingRecoveryProbeDispatcher routes local reads through one bounded
@@ -106,6 +122,37 @@ func (d *batchingRecoveryProbeDispatcher) submitRecoveryProbe(ctx context.Contex
 	})
 }
 
+func (d *batchingRecoveryProbeDispatcher) submitRecoveryFetch(ctx context.Context, query recoveryFetchQuery, complete func(FetchResult, error)) error {
+	if d == nil || ctx == nil || d.local == 0 || d.ownerContext == nil || d.localTimeout <= 0 || d.store == nil || d.executor == nil ||
+		complete == nil || query.ChannelKey == "" || query.ChannelID.ID == "" || query.Leader != d.local || query.Donor == 0 ||
+		!validReplicaState(query.Expected) || query.From == 0 || query.Through < query.From ||
+		query.Through-query.From >= maxRecoveryProbeIndexes || query.Through > query.Expected.LEO || query.MaxBytes <= 0 ||
+		(query.From == 1 && query.Previous != (ch.EntryIdentity{})) ||
+		(query.From > 1 && (!validEntryIdentity(query.Previous) || query.Previous.Index != query.From-1)) {
+		return ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := d.ownerContext.Err(); err != nil {
+		return ch.ErrClosed
+	}
+	request := FetchRequest{
+		ChannelKey: query.ChannelKey, ChannelID: query.ChannelID,
+		Leader: query.Leader, Follower: query.Donor, Expected: query.Expected,
+		From: query.From, Through: query.Through, Previous: query.Previous, MaxBytes: query.MaxBytes,
+	}
+	if query.Donor != d.local {
+		if d.peers == nil {
+			return ch.ErrInvalidConfig
+		}
+		return d.peers.submitFetch(ctx, query.Donor, request, complete)
+	}
+	return d.executor.Submit(func() {
+		d.runLocalRecoveryFetch(request, complete)
+	})
+}
+
 func (d *batchingRecoveryProbeDispatcher) runLocalRecoveryProbe(query recoveryProbeQuery, complete func(ProbeResult, error)) {
 	result, err := d.loadLocalRecoveryProbe(query)
 	complete(result, err)
@@ -139,6 +186,37 @@ func (d *batchingRecoveryProbeDispatcher) loadLocalRecoveryProbe(query recoveryP
 		return ProbeResult{}, errInvalidExchangeResult
 	}
 	return result, nil
+}
+
+func (d *batchingRecoveryProbeDispatcher) runLocalRecoveryFetch(request FetchRequest, complete func(FetchResult, error)) {
+	result, err := d.loadLocalRecoveryFetch(request)
+	complete(result, err)
+}
+
+func (d *batchingRecoveryProbeDispatcher) loadLocalRecoveryFetch(request FetchRequest) (result FetchResult, err error) {
+	defer func() {
+		if recover() != nil {
+			result = FetchResult{}
+			err = errPeerExchangePanic
+		}
+	}()
+	fetchContext, cancel := context.WithTimeout(d.ownerContext, d.localTimeout)
+	defer cancel()
+	fetched := d.store.Fetch(fetchContext, []FetchRange{{
+		ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Expected: request.Expected,
+		From: request.From, Through: request.Through, Previous: request.Previous, MaxBytes: request.MaxBytes,
+	}})
+	if len(fetched) != 1 {
+		return FetchResult{}, errInvalidExchangeResult
+	}
+	if fetched[0].Err != nil {
+		return FetchResult{}, fetched[0].Err
+	}
+	mapped, ok := mapFetchResult(request, fetched[0])
+	if !ok {
+		return FetchResult{}, errInvalidExchangeResult
+	}
+	return mapped, nil
 }
 
 // recoverQuorumPrefix proves the greatest quorum-identical prefix using one
@@ -199,6 +277,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		}
 		selected.Index = continuation.SelectedIndex
 		selected.Identity = continuation.SelectedIdentity
+		selected.CertifiedIdentity = continuation.CertifiedIdentity
 		selected.Continuation = cloneRecoveryContinuation(continuation)
 		firstIndex = continuation.NextIndex
 		current := make(map[ch.NodeID]ReplicaState, len(frontierReports))
@@ -215,8 +294,8 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		if len(stable) < request.Quorum {
 			return selected, errRecoveryProbeIncomplete
 		}
+		selected.Supporters = recoverySupportersFromStable(request.Voters, stable)
 	}
-	selected.Continuation = makeRecoveryContinuation(request, certifiedCommitted, quorumLEO, firstIndex, selected, stable)
 	for pageStart := firstIndex; ; {
 		pageSize := quorumLEO - pageStart + 1
 		if pageSize > maxRecoveryProbeIndexes {
@@ -266,6 +345,8 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 			}
 			selected.Index = certifiedCommitted
 			selected.Identity = identity
+			selected.CertifiedIdentity = identity
+			selected.Supporters = recoverySupportersFor(request.Voters, stableReports, 0, identity)
 			position = 1
 		}
 		for ; position < len(indexes); position++ {
@@ -285,6 +366,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 			}
 			selected.Index = index
 			selected.Identity = identity
+			selected.Supporters = recoverySupportersFor(request.Voters, stableReports, position, identity)
 		}
 		pageEnd := indexes[len(indexes)-1]
 		if pageEnd == quorumLEO {
@@ -307,6 +389,14 @@ func validRecoveryContinuationShape(request recoveryProbeRequest, configured map
 		len(continuation.Voters) != len(request.Voters) || len(continuation.Stable) < request.Quorum ||
 		len(continuation.Stable) > len(request.Voters) || continuation.CertifiedCommitted > continuation.QuorumLEO ||
 		continuation.NextIndex == 0 || continuation.NextIndex > continuation.QuorumLEO {
+		return false
+	}
+	if continuation.CertifiedCommitted == 0 {
+		if continuation.CertifiedIdentity != (ch.EntryIdentity{}) {
+			return false
+		}
+	} else if !validEntryIdentity(continuation.CertifiedIdentity) ||
+		continuation.CertifiedIdentity.Index != continuation.CertifiedCommitted {
 		return false
 	}
 	for index := range request.Voters {
@@ -353,7 +443,8 @@ func makeRecoveryContinuation(
 		ChannelKey: request.ChannelKey, ChannelID: request.ChannelID,
 		Leader: request.Leader, Voters: append([]ch.NodeID(nil), request.Voters...), Quorum: request.Quorum,
 		CertifiedCommitted: certifiedCommitted, QuorumLEO: quorumLEO, NextIndex: nextIndex,
-		SelectedIndex: selected.Index, SelectedIdentity: selected.Identity,
+		CertifiedIdentity: selected.CertifiedIdentity,
+		SelectedIndex:     selected.Index, SelectedIdentity: selected.Identity,
 		Stable: make([]recoveryContinuationVoter, 0, len(stable)),
 	}
 	for _, voter := range request.Voters {
@@ -362,6 +453,16 @@ func makeRecoveryContinuation(
 		}
 	}
 	return continuation
+}
+
+func recoverySupportersFromStable(voters []ch.NodeID, stable map[ch.NodeID]ReplicaState) []recoverySupporter {
+	supporters := make([]recoverySupporter, 0, len(stable))
+	for _, voter := range voters {
+		if state, ok := stable[voter]; ok {
+			supporters = append(supporters, recoverySupporter{Voter: voter, State: state})
+		}
+	}
+	return supporters
 }
 
 func cloneRecoveryContinuation(source *recoveryContinuation) *recoveryContinuation {

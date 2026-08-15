@@ -476,6 +476,9 @@ func mapMessageDBAdapterError(err error) error {
 	if errors.Is(err, channel.ErrClosed) {
 		return ch.ErrClosed
 	}
+	if errors.Is(err, channel.ErrBackpressured) {
+		return ch.ErrBackpressured
+	}
 	if errors.Is(err, channel.ErrCorruptState) {
 		return ch.ErrLogConflict
 	}
@@ -603,6 +606,37 @@ func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context
 	})
 	err = a.mapError(err)
 	return ReplaceRecoverySuffixResult{LastOffset: result.LastOffset, Outcome: result.Outcome}, err
+}
+
+// ReadExactRecoveryPage maps one MessageDB donor page into shared Channel
+// records while preserving the exact frontier and entry identities.
+func (a *messageDBChannelStoreAdapter) ReadExactRecoveryPage(ctx context.Context, req ExactRecoveryPageRequest) (ExactRecoveryPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactRecoveryPage{}, err
+	}
+	page, err := a.store.ReadDurableRecoveryPage(ctx, messagedb.DurableRecoveryPageRequest{
+		From: req.From, Through: req.Through, MaxBytes: req.MaxBytes,
+	})
+	if err != nil {
+		return ExactRecoveryPage{}, a.mapError(err)
+	}
+	result := ExactRecoveryPage{
+		ExactState: ExactState{
+			InitialState: InitialState{
+				LEO: page.LEO, HW: page.Committed, CheckpointHW: page.Committed,
+			},
+			Manifest: page.Manifest, TailIdentity: page.TailIdentity,
+		},
+		Records: make([]ch.Record, len(page.Records)),
+		Entries: make([]ExactEntryProbe, len(page.Entries)),
+	}
+	for index, record := range page.Records {
+		result.Records[index] = fromDBRecord(record)
+	}
+	for index, entry := range page.Entries {
+		result.Entries[index] = ExactEntryProbe{Index: entry.Index, Present: entry.Present, Identity: entry.Identity}
+	}
+	return result, nil
 }
 
 func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {

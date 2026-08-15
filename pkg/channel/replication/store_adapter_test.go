@@ -360,6 +360,107 @@ func TestStoreAdapterRejectsReplacementBelowAdoptedRetentionBoundary(t *testing.
 	}
 }
 
+func TestStoreAdapterFetchesCompleteRecoveryProposalsFromOneView(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMemoryFactory()
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:fetch-recovery-proposals")
+	id := ch.ChannelID{ID: "fetch-recovery-proposals", Type: 1}
+	first := sealedMutationAt(t, key, id, 1111, 0, ch.EntryIdentity{})
+	first.Committed = 1
+	firstEntries, _ := ch.DeriveProposalEntries(first.Manifest, len(first.Records), func(index int) ch.Record { return first.Records[index] })
+	second := sealedMutationAt(t, key, id, 1112, 1, firstEntries[0])
+	if results := adapter.Sync(context.Background(), []replication.Mutation{first, second}); len(results) != 2 ||
+		!results[0].Outcome.Durable() || !results[1].Outcome.Durable() {
+		t.Fatalf("Sync() = %+v, want two durable proposals", results)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load() = %+v, error %v", loaded, loadErr)
+	}
+	results := adapter.Fetch(context.Background(), []replication.FetchRange{{
+		ChannelKey: key, ChannelID: id, Expected: loaded.Items[0].State,
+		From: 1, Through: 2, MaxBytes: 32 << 10,
+	}})
+	if len(results) != 1 || results[0].Err != nil || results[0].State != loaded.Items[0].State {
+		t.Fatalf("Fetch() = %+v, want exact donor view", results)
+	}
+	want := []replication.RecoveryProposal{
+		{Manifest: first.Manifest, Records: first.Records},
+		{Manifest: second.Manifest, Records: second.Records},
+	}
+	want[0].Records[0].Index = 1
+	want[1].Records[0].Index = 2
+	if !reflect.DeepEqual(results[0].Proposals, want) {
+		t.Fatalf("Fetch() proposals = %+v, want %+v", results[0].Proposals, want)
+	}
+}
+
+func TestStoreAdapterFetchStopsAtLastCompleteProposalBeforePageCap(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 2, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:fetch-complete-cap")
+	id := ch.ChannelID{ID: "fetch-complete-cap", Type: 1}
+	firstRecords := []ch.Record{
+		{ID: 1201, Epoch: 3, FromUID: "sender", ClientMsgNo: "first-1", Payload: []byte("one"), SizeBytes: 3, ServerTimestampMS: 1},
+		{ID: 1202, Epoch: 3, FromUID: "sender", ClientMsgNo: "first-2", Payload: []byte("two"), SizeBytes: 3, ServerTimestampMS: 2},
+	}
+	firstManifest, firstEntries, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: ch.CommandID{31: 1}, BaseOffset: 0, LastOffset: 2,
+	}, firstRecords)
+	if !ok {
+		t.Fatal("SealProposalManifest(first) failed")
+	}
+	secondRecords := []ch.Record{
+		{ID: 1203, Epoch: 3, FromUID: "sender", ClientMsgNo: "second-1", Payload: []byte("three"), SizeBytes: 5, ServerTimestampMS: 3},
+		{ID: 1204, Epoch: 3, FromUID: "sender", ClientMsgNo: "second-2", Payload: []byte("four"), SizeBytes: 4, ServerTimestampMS: 4},
+	}
+	secondManifest, _, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: ch.CommandID{31: 2}, BaseOffset: 2, LastOffset: 4,
+		PreviousTerm: firstEntries[1].LeaderTerm, PreviousIndex: 2, PreviousDigest: firstEntries[1].Digest,
+	}, secondRecords)
+	if !ok {
+		t.Fatal("SealProposalManifest(second) failed")
+	}
+	mutations := []replication.Mutation{
+		{ChannelKey: key, ChannelID: id, Manifest: firstManifest, Records: firstRecords, Committed: 2},
+		{ChannelKey: key, ChannelID: id, Manifest: secondManifest, Records: secondRecords, Committed: 2},
+	}
+	if results := adapter.Sync(context.Background(), mutations); len(results) != 2 || !results[0].Outcome.Durable() || !results[1].Outcome.Durable() {
+		t.Fatalf("Sync() = %+v, want two durable proposals", results)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{ChannelKey: key, ChannelID: id}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load() = %+v, error %v", loaded, loadErr)
+	}
+	fetched := adapter.Fetch(context.Background(), []replication.FetchRange{{
+		ChannelKey: key, ChannelID: id, Expected: loaded.Items[0].State,
+		From: 1, Through: 3, MaxBytes: 32 << 10,
+	}})
+	if len(fetched) != 1 || fetched[0].Err != nil || len(fetched[0].Proposals) != 1 ||
+		fetched[0].Proposals[0].Manifest != firstManifest || len(fetched[0].Proposals[0].Records) != 2 {
+		t.Fatalf("Fetch(cap inside second proposal) = %+v, want first complete proposal only", fetched)
+	}
+}
+
 func TestStoreAdapterSyncUsesOneMessageDBBatch(t *testing.T) {
 	t.Parallel()
 

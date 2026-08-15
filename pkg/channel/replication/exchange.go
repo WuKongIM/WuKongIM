@@ -17,6 +17,8 @@ const (
 	ExchangeReplicate ExchangeKind = iota + 1
 	// ExchangeProbe reads one bounded exact recovery view from a follower.
 	ExchangeProbe
+	// ExchangeFetch reads one bounded proposal-aligned recovery page.
+	ExchangeFetch
 )
 
 // ReplicateStatus is the closed durable result of one follower replication.
@@ -154,12 +156,63 @@ type ProbeResult struct {
 	Entries []EntryProbe
 }
 
+// FetchRequest asks one quorum supporter for a proposal-aligned donor page
+// while fencing the read to its previously probed exact frontier.
+type FetchRequest struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Leader     ch.NodeID
+	Follower   ch.NodeID
+	Expected   ReplicaState
+	From       uint64
+	Through    uint64
+	Previous   ch.EntryIdentity
+	MaxBytes   int
+}
+
+// FetchProof binds a donor page to the complete request that produced it.
+type FetchProof struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Leader     ch.NodeID
+	Follower   ch.NodeID
+	Expected   ReplicaState
+	From       uint64
+	Through    uint64
+	Previous   ch.EntryIdentity
+	MaxBytes   int
+}
+
+func fetchProofFor(request FetchRequest) FetchProof {
+	return FetchProof{
+		ChannelKey: request.ChannelKey, ChannelID: request.ChannelID,
+		Leader: request.Leader, Follower: request.Follower, Expected: request.Expected,
+		From: request.From, Through: request.Through, Previous: request.Previous, MaxBytes: request.MaxBytes,
+	}
+}
+
+// Valid reports whether the fetch is one exact bounded donor request.
+func (r FetchRequest) Valid() bool {
+	validPrevious := r.From == 1 && r.Previous == (ch.EntryIdentity{}) || r.From > 1 && validEntryIdentity(r.Previous) && r.Previous.Index == r.From-1
+	return r.ChannelKey != "" && r.ChannelID.ID != "" && r.Leader != 0 && r.Follower != 0 && r.Leader != r.Follower && validPrevious &&
+		validReplicaState(r.Expected) && r.From > 0 && r.Through >= r.From &&
+		r.Through-r.From < maxRecoveryProbeIndexes && r.Through <= r.Expected.LEO && r.MaxBytes > 0
+}
+
+// FetchResult is one complete proposal-aligned donor page.
+type FetchResult struct {
+	Proof     FetchProof
+	State     ReplicaState
+	Proposals []RecoveryProposal
+}
+
 // ExchangeItem is one correlated request in a peer batch.
 type ExchangeItem struct {
 	RequestID uint64
 	Kind      ExchangeKind
 	Replicate *ReplicateRequest
 	Probe     *ProbeRequest
+	Fetch     *FetchRequest
 }
 
 // ExchangeBatch carries ready work for one target without another collection timer.
@@ -173,6 +226,7 @@ type ExchangeItemResult struct {
 	RequestID uint64
 	Replicate ReplicateResult
 	Probe     ProbeResult
+	Fetch     FetchResult
 }
 
 // ExchangeBatchResult returns exactly one correlated result per input item.
@@ -198,4 +252,9 @@ func estimateReplicateRequestBytes(request ReplicateRequest) int {
 func estimateProbeRequestBytes(request ProbeRequest) int {
 	const fixedBytes = 192
 	return fixedBytes + len(request.ChannelKey) + len(request.ChannelID.ID) + len(request.Indexes)*192
+}
+
+func estimateFetchRequestBytes(request FetchRequest) int {
+	const fixedBytes = 256
+	return fixedBytes + len(request.ChannelKey) + len(request.ChannelID.ID) + request.MaxBytes
 }

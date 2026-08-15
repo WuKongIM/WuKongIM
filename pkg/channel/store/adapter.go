@@ -78,6 +78,12 @@ type RecoverySuffixReplacer interface {
 	ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error)
 }
 
+// ExactRecoveryPageReader reads one exact frontier and the largest bounded
+// complete-proposal prefix within the requested range from one consistent view.
+type ExactRecoveryPageReader interface {
+	ReadExactRecoveryPage(ctx context.Context, req ExactRecoveryPageRequest) (ExactRecoveryPage, error)
+}
+
 // ExactState is the local durability state required to recover a quorum-log
 // sequencer. Manifest and TailIdentity are zero only for an empty log.
 type ExactState struct {
@@ -118,6 +124,20 @@ type ReplaceRecoverySuffixRequest struct {
 type ReplaceRecoverySuffixResult struct {
 	LastOffset uint64
 	Outcome    AppendOutcome
+}
+
+// ExactRecoveryPageRequest bounds one inclusive recovery range.
+type ExactRecoveryPageRequest struct {
+	From     uint64
+	Through  uint64
+	MaxBytes int
+}
+
+// ExactRecoveryPage is one append/checkpoint-consistent donor page.
+type ExactRecoveryPage struct {
+	ExactState
+	Records []ch.Record
+	Entries []ExactEntryProbe
 }
 
 // MessageLookup is an optional point lookup surface for rare timeout recovery paths.

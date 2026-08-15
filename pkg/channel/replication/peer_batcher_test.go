@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -175,6 +176,48 @@ func TestPeerBatcherCarriesBoundedRecoveryProbes(t *testing.T) {
 	}
 	if len(results) != 2 || results[0].State.LEO != 2 || results[1].State.LEO != 1 {
 		t.Fatalf("probe completions = %+v, want position-correlated frontiers [2 1]", results)
+	}
+}
+
+func TestPeerBatcherCarriesAndValidatesBoundedRecoveryFetch(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	replicate := testReplicateRequest(t, "1:fetch", "fetch", 1, []byte("payload"))
+	identities, _ := ch.DeriveProposalEntries(replicate.Manifest, len(replicate.Records), func(index int) ch.Record {
+		return replicate.Records[index]
+	})
+	state := ReplicaState{LEO: 1, Committed: 1, Manifest: replicate.Manifest, TailIdentity: identities[0]}
+	request := FetchRequest{
+		ChannelKey: replicate.ChannelKey, ChannelID: replicate.ChannelID,
+		Leader: 1, Follower: 2, Expected: state, From: 1, Through: 1, MaxBytes: 2048,
+	}
+	want := FetchResult{
+		Proof: fetchProofFor(request), State: state,
+		Proposals: []RecoveryProposal{{Manifest: replicate.Manifest, Records: replicate.Records}},
+	}
+	link := &recordingPeerLink{fetches: map[ch.ChannelKey]FetchResult{request.ChannelKey: want}}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 2, MaxBatchBytes: 4096,
+		MaxQueuedItems: 4, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 2, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	var got FetchResult
+	var completionErr error
+	if err := batcher.submitFetch(context.Background(), 2, request, func(result FetchResult, err error) {
+		got, completionErr = result, err
+	}); err != nil {
+		t.Fatalf("submitFetch() error = %v", err)
+	}
+	executor.RunNext()
+	if completionErr != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("fetch completion = %+v, error %v; want %+v", got, completionErr, want)
+	}
+	if len(link.batches) != 1 || len(link.batches[0].Items) != 1 || link.batches[0].Items[0].Kind != ExchangeFetch ||
+		link.batches[0].Items[0].Fetch == nil || link.batches[0].Items[0].Probe != nil || link.batches[0].Items[0].Replicate != nil {
+		t.Fatalf("fetch batches = %+v, want one fetch-only item", link.batches)
 	}
 }
 
@@ -670,6 +713,7 @@ func (e *manualPeerExecutor) RunNext() {
 type recordingPeerLink struct {
 	batches []ExchangeBatch
 	probes  map[ch.ChannelKey]ProbeResult
+	fetches map[ch.ChannelKey]FetchResult
 }
 
 type reorderingPeerLink struct {
@@ -760,6 +804,10 @@ func (l *recordingPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch Excha
 			probe := l.probes[item.Probe.ChannelKey]
 			probe.Proof = probeProofFor(*item.Probe)
 			results[index] = ExchangeItemResult{RequestID: item.RequestID, Probe: probe}
+		case ExchangeFetch:
+			fetch := l.fetches[item.Fetch.ChannelKey]
+			fetch.Proof = fetchProofFor(*item.Fetch)
+			results[index] = ExchangeItemResult{RequestID: item.RequestID, Fetch: fetch}
 		}
 	}
 	return ExchangeBatchResult{Version: ExchangeVersion, Items: results}, nil

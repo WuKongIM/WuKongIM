@@ -46,6 +46,8 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 	mutationPositions := make([]int, 0, len(batch.Items))
 	loads := make([]LoadRequest, 0, len(batch.Items))
 	loadPositions := make([]int, 0, len(batch.Items))
+	fetches := make([]FetchRange, 0, len(batch.Items))
+	fetchPositions := make([]int, 0, len(batch.Items))
 	totalBytes := 0
 	for index, item := range batch.Items {
 		if item.RequestID == 0 {
@@ -59,7 +61,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 		var operationKey channelOperationKey
 		switch item.Kind {
 		case ExchangeReplicate:
-			if item.Replicate == nil || item.Probe != nil {
+			if item.Replicate == nil || item.Probe != nil || item.Fetch != nil {
 				return ExchangeBatchResult{}, ch.ErrInvalidConfig
 			}
 			request := *item.Replicate
@@ -74,7 +76,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			})
 			mutationPositions = append(mutationPositions, index)
 		case ExchangeProbe:
-			if item.Probe == nil || item.Replicate != nil {
+			if item.Probe == nil || item.Replicate != nil || item.Fetch != nil {
 				return ExchangeBatchResult{}, ch.ErrInvalidConfig
 			}
 			request := *item.Probe
@@ -88,6 +90,21 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 				ProbeIndexes: append([]uint64(nil), request.Indexes...),
 			})
 			loadPositions = append(loadPositions, index)
+		case ExchangeFetch:
+			if item.Fetch == nil || item.Replicate != nil || item.Probe != nil {
+				return ExchangeBatchResult{}, ch.ErrInvalidConfig
+			}
+			request := *item.Fetch
+			if request.Leader != from || request.Follower != s.cfg.LocalNode || !request.Valid() {
+				return ExchangeBatchResult{}, ch.ErrInvalidConfig
+			}
+			itemBytes = estimateFetchRequestBytes(request)
+			operationKey = channelOperationKey{key: request.ChannelKey, id: request.ChannelID}
+			fetches = append(fetches, FetchRange{
+				ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Expected: request.Expected,
+				From: request.From, Through: request.Through, Previous: request.Previous, MaxBytes: request.MaxBytes,
+			})
+			fetchPositions = append(fetchPositions, index)
 		default:
 			return ExchangeBatchResult{}, ch.ErrInvalidConfig
 		}
@@ -132,7 +149,78 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			response.Items[position].Replicate = mapped
 		}
 	}
+	if len(fetches) > 0 {
+		results := s.cfg.Store.Fetch(ctx, fetches)
+		if len(results) != len(fetches) {
+			return ExchangeBatchResult{}, errInvalidExchangeResult
+		}
+		for index, result := range results {
+			position := fetchPositions[index]
+			mapped, ok := mapFetchResult(*batch.Items[position].Fetch, result)
+			if !ok {
+				return ExchangeBatchResult{}, errInvalidExchangeResult
+			}
+			response.Items[position].Fetch = mapped
+		}
+	}
 	return response, nil
+}
+
+func mapFetchResult(request FetchRequest, result FetchRangeResult) (FetchResult, bool) {
+	if result.Err != nil || result.State != request.Expected || !validRecoveryProposals(request, result.Proposals) {
+		return FetchResult{}, false
+	}
+	return FetchResult{
+		Proof: fetchProofFor(request), State: result.State, Proposals: cloneRecoveryProposals(result.Proposals),
+	}, true
+}
+
+func validRecoveryProposals(request FetchRequest, proposals []RecoveryProposal) bool {
+	if len(proposals) == 0 {
+		return false
+	}
+	base := request.From - 1
+	records := 0
+	bytes := 0
+	previous := request.Previous
+	for _, proposal := range proposals {
+		manifest := proposal.Manifest
+		if manifest.BaseOffset != base || !manifest.ValidFor(base, len(proposal.Records)) {
+			return false
+		}
+		sealed, entries, ok := ch.SealProposalManifest(manifest, proposal.Records)
+		if !ok || sealed != manifest || len(entries) != len(proposal.Records) || entries[len(entries)-1].Digest != manifest.Digest {
+			return false
+		}
+		if manifest.PreviousIndex != previous.Index || manifest.PreviousTerm != previous.LeaderTerm ||
+			manifest.PreviousDigest != previous.Digest {
+			return false
+		}
+		for _, record := range proposal.Records {
+			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+			if bytes > request.MaxBytes-recordBytes {
+				return false
+			}
+			bytes += recordBytes
+			records++
+		}
+		previous = entries[len(entries)-1]
+		base = manifest.LastOffset
+	}
+	return base >= request.From && base <= request.Through && records == int(base-request.From+1) && records <= maxRecoveryProbeIndexes
+}
+
+func cloneRecoveryProposals(source []RecoveryProposal) []RecoveryProposal {
+	cloned := make([]RecoveryProposal, len(source))
+	for index, proposal := range source {
+		cloned[index].Manifest = proposal.Manifest
+		cloned[index].Records = make([]ch.Record, len(proposal.Records))
+		for recordIndex, record := range proposal.Records {
+			record.Payload = append([]byte(nil), record.Payload...)
+			cloned[index].Records[recordIndex] = record
+		}
+	}
+	return cloned
 }
 
 func mapProbeResult(request ProbeRequest, result LoadResult) (ProbeResult, bool) {

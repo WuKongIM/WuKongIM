@@ -336,10 +336,23 @@ verified replacement rows, secondary indexes, proposal/entry identities, and
 monotonic committed HW, and truncates future epoch history in one synchronous
 MessageDB batch. It rejects a stale frontier, a cut below committed or adopted
 retention state, a split proposal, and any unbounded item before storage access;
-physical prefix retention does not erase the immutable identity chain. Suffix
-fetch, the current-term
-barrier, and the `Install` readiness transition must still land before reactor
-wiring. The design is
+physical prefix retention does not erase the immutable identity chain. Recovery
+`Fetch` binds every local or remote donor read to one supporter frontier from
+the completed quorum proof. Its fixed 256-entry upper bound and byte budget are
+caps rather than forced split points: a response returns the largest non-empty
+complete-proposal prefix and may stop early. The leader repair owner therefore
+streams an arbitrarily distant selected suffix through bounded atomic
+`Replace` pages. The first page truncates the minority suffix at the inspected
+local committed proposal boundary; later pages extend only the exact installed
+frontier. Each page validates the hash chain, the quorum-certified committed
+identity when crossed, and the final selected tail before it promotes that
+quorum-proven prefix locally. A crash between pages leaves a non-writable,
+complete exact prefix that the next Install can prove and resume. The
+current-term barrier foundation derives a deterministic business-neutral
+`SyncOnce` proposal from the exact authority and requires local plus matching
+current-voter quorum durability. The public two-method `DurableQuorumLog`
+contract is present; the concrete `Install` owner and reactor readiness/commit
+wiring must still land before the transitional PullHint path is removed. The design is
 recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,
