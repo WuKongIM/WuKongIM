@@ -915,7 +915,7 @@ func localSingleNodeEvidenceFixture() localbaseline.BaselineEvidence {
 		GroupMembers: 10, SendConcurrency: 2800, PayloadBytes: 128, ACKTimeoutSeconds: 15,
 		ReceiveACK: true, HeartbeatEnabled: true, SenderPickRoundRobin: true, MinimumFreePercent: 10,
 		LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 1, ChannelReplicas: 1,
-		CommitFlushWindowMicros: 200, CommitCoordinatorShards: 1, SyncCommit: true, CleanCluster: true,
+		CommitFlushWindowMicros: 500, CommitCoordinatorShards: 1, SyncCommit: true, CleanCluster: true,
 		OwnedCluster: true, OwnedWorker: true, CanonicalSourceConfig: true, MetricsEndpointCount: 1,
 	}
 	closures := make([]localbaseline.StepClosure, 0, len(localbaseline.ReviewedOfferedSendQPS))

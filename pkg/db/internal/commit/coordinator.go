@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	defaultFlushWindow = 200 * time.Microsecond
+	// A 500-microsecond collection window is the measured local optimum for the
+	// durable single-shard coordinator; 1 millisecond and wider windows add more
+	// request wait than batching benefit.
+	defaultFlushWindow = 500 * time.Microsecond
 	defaultQueueSize   = 1024
 )
 

@@ -135,7 +135,7 @@ write_result() {
     printf '  "hash_slots": 256,\n'
     printf '  "slot_replicas": 3,\n'
     printf '  "channel_replicas": 3,\n'
-    printf '  "commit_coordinator_flush_window": "200us",\n'
+    printf '  "commit_coordinator_flush_window": "500us",\n'
     printf '  "commit_coordinator_shards": 1,\n'
     printf '  "sync_commit": true,\n'
     printf '  "minimum_filesystem_free_percent": %s,\n' "$MINIMUM_FREE_PERCENT"

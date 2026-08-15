@@ -701,7 +701,7 @@ start_cluster_generation() {
   WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE=0 \
   WK_CHANNEL_APPEND_EFFECT_POOL_SIZE=0 \
   WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=0 \
-  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us \
+  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0 \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0 \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=131072 \
@@ -2837,7 +2837,7 @@ CLUSTER_CHANNEL_STORE_APPLY_WORKERS=500
 CLUSTER_CHANNEL_RPC_WORKERS=500
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=128
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=250us
-CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
+CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us
 CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
 CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0
 CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=131072
@@ -2895,7 +2895,7 @@ initial_slot_count = 12
 hash_slot_count = 256
 slot_replica_n = 1
 channel_replica_n = 1
-commit_coordinator_flush_window = "200us"
+commit_coordinator_flush_window = "500us"
 commit_coordinator_shards = 1
 commit_coordinator_sync = true
 EOF
@@ -3626,7 +3626,7 @@ write_typed_local_baseline_evidence() {
           heartbeat_enabled:$heartbeat_enabled,sender_pick_round_robin:$sender_pick_round_robin,
           minimum_filesystem_free_percent:$minimum_free_percent,
           logical_slot_groups:$logical_slot_groups,hash_slots:$hash_slots,
-          slot_replicas:1,channel_replicas:1,commit_flush_window_micros:200,
+          slot_replicas:1,channel_replicas:1,commit_flush_window_micros:500,
           commit_coordinator_shards:$commit_shards,sync_commit:$sync_commit,
           clean_cluster:$clean_cluster,owned_cluster:$owned_cluster,owned_worker:$owned_worker,
           metrics_endpoint_count:$metrics_endpoint_count
@@ -3838,7 +3838,7 @@ write_local_baseline_result() {
     printf '  "hash_slots": 256,\n'
     printf '  "slot_replicas": 1,\n'
     printf '  "channel_replicas": 1,\n'
-    printf '  "commit_coordinator_flush_window": "200us",\n'
+    printf '  "commit_coordinator_flush_window": "500us",\n'
     printf '  "commit_coordinator_shards": 1,\n'
     printf '  "sync_commit": true,\n'
     printf '  "minimum_filesystem_free_percent": %s,\n' "$MINIMUM_FREE_PERCENT"

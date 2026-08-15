@@ -72,7 +72,7 @@ channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
 
 # Maximum time to collect adjacent Channel append requests before one durable fsync.
-commit_coordinator_flush_window = "200us"
+commit_coordinator_flush_window = "500us"
 
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 commit_coordinator_max_requests = 0

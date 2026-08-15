@@ -774,7 +774,7 @@ func writeLocalSingleNodeCompletionFixtureWithConfig(t *testing.T, configData []
 		HighestCleanRate: authorization.HighestCleanRate, FirstFailingRate: authorization.FirstFailingRate,
 		AuthorizesThreeNodeDiagnostic: authorization.Authorizes,
 		QPSList:                       "250,500,750,1000", LogicalSlotGroups: 12, HashSlots: 256,
-		SlotReplicas: 1, ChannelReplicas: 1, CommitCoordinatorFlushWindow: "200us",
+		SlotReplicas: 1, ChannelReplicas: 1, CommitCoordinatorFlushWindow: "500us",
 		CommitCoordinatorShards: 1, SyncCommit: true, MinimumFilesystemFreePercent: 10,
 		FilesystemObservationComplete: localSingleNodeCompletionBool(true), ObservedFilesystemFreePercent: 50, SourceRevision: strings.Repeat("a", 40),
 		CanonicalDataDir: "/var/lib/wukongim", DataFilesystemDevice: "2049",
@@ -825,7 +825,7 @@ initial_slot_count = 12
 hash_slot_count = 256
 slot_replica_n = 1
 channel_replica_n = 1
-commit_coordinator_flush_window = "200us"
+commit_coordinator_flush_window = "500us"
 commit_coordinator_shards = 1
 commit_coordinator_sync = true
 `)

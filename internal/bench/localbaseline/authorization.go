@@ -338,7 +338,7 @@ func reviewedSettingsSatisfied(settings ReviewedSettings) bool {
 		settings.SenderPickRoundRobin && settings.MinimumFreePercent == 10 &&
 		settings.LogicalSlotGroups == 12 && settings.HashSlots == 256 &&
 		settings.SlotReplicas == 1 && settings.ChannelReplicas == 1 &&
-		settings.CommitFlushWindowMicros == 200 && settings.CommitCoordinatorShards == 1 &&
+		settings.CommitFlushWindowMicros == 500 && settings.CommitCoordinatorShards == 1 &&
 		settings.SyncCommit && settings.CleanCluster && settings.OwnedCluster && settings.OwnedWorker &&
 		settings.CanonicalSourceConfig &&
 		settings.MetricsEndpointCount == 1

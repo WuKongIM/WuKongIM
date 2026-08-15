@@ -32,6 +32,10 @@ Pebble-specific code must stay under `pkg/db/internal/*` and must not leak into
 callers.
 On Darwin, a 16 MiB `BytesPerSync` interval avoids turning range syncs during
 compactions into repeated full-file fsyncs.
+The durable commit coordinator defaults to one shard and a 500-microsecond
+collection window. The local synchronous append matrix found that window
+reduced physical commit frequency and caller latency relative to 200
+microseconds, while windows of one millisecond or more added request wait.
 Every writable engine keeps one baseline compaction slot and permits Pebble to
 open up to three additional slots as L0 read amplification or compaction debt
 crosses successive pressure thresholds. The L0 concurrency step is 6, so the

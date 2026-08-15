@@ -594,7 +594,7 @@ api_token = "` + apiToken + `"
 		"hash_slot_count = 256",
 		"slot_replica_n = 1",
 		"channel_replica_n = 1",
-		`commit_coordinator_flush_window = "200us"`,
+		`commit_coordinator_flush_window = "500us"`,
 		"commit_coordinator_shards = 1",
 		"commit_coordinator_sync = true",
 	} {

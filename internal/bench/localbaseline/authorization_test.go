@@ -501,7 +501,7 @@ func completeBaselineEvidence() BaselineEvidence {
 			HashSlots:               256,
 			SlotReplicas:            1,
 			ChannelReplicas:         1,
-			CommitFlushWindowMicros: 200,
+			CommitFlushWindowMicros: 500,
 			CommitCoordinatorShards: 1,
 			SyncCommit:              true,
 			CleanCluster:            true,

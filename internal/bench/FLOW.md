@@ -572,6 +572,14 @@ ceiling. The longer timeout budget covers rare quorum tails after the measured
 p99 remains healthy. General configs keep the runtime defaults unless this
 benchmark-specific environment override is set.
 
+The reviewed single-node-cluster and three-node lifecycle profiles use one
+durable commit coordinator per physical message DB with a 500-microsecond
+collection window. A local synchronous append matrix showed that 500
+microseconds increased adjacent-request batching and reduced caller wait versus
+200 microseconds, while one millisecond and wider windows regressed caller
+latency. The profiles keep synchronous commit enabled; the window changes only
+bounded collection before the physical commit.
+
 The single-node and three-node 1,000-channel helpers also bind between-attempt
 cleanup to the worker's current `/v1/status` assignment generation. They POST
 that exact pair as JSON and require a matching terminal response before the next

@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	defaultCommitCoordinatorFlushWindow = 200 * time.Microsecond
+	// Keep the compatibility surface aligned with the measured node-store and
+	// physical coordinator default.
+	defaultCommitCoordinatorFlushWindow = 500 * time.Microsecond
 	defaultCommitCoordinatorQueueSize   = 1024
 	batchLockRetryMinInterval           = 50 * time.Microsecond
 	batchLockRetryMaxInterval           = 2 * time.Millisecond
