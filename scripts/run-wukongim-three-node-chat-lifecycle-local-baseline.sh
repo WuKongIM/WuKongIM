@@ -7,9 +7,10 @@ SHAKEOUT="$ROOT_DIR/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh"
 RUN_DIR=""
 BASE_PORT=15000
 READY_TIMEOUT=120
-RATES="100,150,250,400,500,750,1000"
-SEARCH_MEASURE_SECONDS=120
-REPEAT_MEASURE_SECONDS=600
+RATES="250,500,750,1000"
+STEP_MEASURE_SECONDS=300
+SOAK_RATE=1000
+SOAK_MEASURE_SECONDS=600
 WARMUP_SECONDS=60
 DRAIN_TIMEOUT=90
 MINIMUM_FREE_PERCENT=10
@@ -22,9 +23,9 @@ usage() {
 
 # Usage: run-wukongim-three-node-chat-lifecycle-local-baseline.sh --run-dir DIR [options]
 #
-# Runs the reviewed three-node shared-storage SEND-rate staircase. It stops at
-# the first failed rate, refines the last passing interval, and repeats the
-# highest clean rate for ten measured minutes before recording the local knee.
+# Runs the reviewed three-node shared-storage SEND-rate staircase. Every fixed
+# rate uses a fresh process generation. All four rates must pass before a fresh
+# 1,000 SEND/s generation runs the required ten-minute qualification soak.
 #
 # Options:
 #   --run-dir DIR       Required fresh root for all rate-step evidence.
@@ -75,8 +76,9 @@ if (( DRY_RUN == 1 )); then
   printf 'run_dir=%s\n' "$RUN_DIR"
   printf 'base_port=%s\n' "$BASE_PORT"
   printf 'rates=%s\n' "$RATES"
-  printf 'search_measure_seconds=%s\n' "$SEARCH_MEASURE_SECONDS"
-  printf 'repeat_measure_seconds=%s\n' "$REPEAT_MEASURE_SECONDS"
+  printf 'step_measure_seconds=%s\n' "$STEP_MEASURE_SECONDS"
+  printf 'soak_rate=%s\n' "$SOAK_RATE"
+  printf 'soak_measure_seconds=%s\n' "$SOAK_MEASURE_SECONDS"
   printf 'warmup_seconds=%s\n' "$WARMUP_SECONDS"
   printf 'drain_timeout_seconds=%s\n' "$DRAIN_TIMEOUT"
   printf 'minimum_filesystem_free_percent=%s\n' "$MINIMUM_FREE_PERCENT"
@@ -124,8 +126,9 @@ write_result() {
     printf '  "first_failing_rate": %s,\n' "$first_failing"
     printf '  "online_connections": 2500,\n'
     printf '  "rate_staircase": "%s",\n' "$RATES"
-    printf '  "search_measured_seconds": %s,\n' "$SEARCH_MEASURE_SECONDS"
-    printf '  "repeat_measured_seconds": %s,\n' "$REPEAT_MEASURE_SECONDS"
+    printf '  "step_measured_seconds": %s,\n' "$STEP_MEASURE_SECONDS"
+    printf '  "soak_rate": %s,\n' "$SOAK_RATE"
+    printf '  "soak_measured_seconds": %s,\n' "$SOAK_MEASURE_SECONDS"
     printf '  "warmup_seconds": %s,\n' "$WARMUP_SECONDS"
     printf '  "drain_timeout_seconds": %s,\n' "$DRAIN_TIMEOUT"
     printf '  "logical_slot_groups": 12,\n'
@@ -552,20 +555,17 @@ run_step() {
 
 highest_clean_rate=0
 first_failing_rate=0
-last_terminal_outcome=""
-CLEAN_RATES=()
 IFS=',' read -r -a reviewed_rates <<<"$RATES"
 for rate in "${reviewed_rates[@]}"; do
-  run_step search "$rate" "$SEARCH_MEASURE_SECONDS"
+  run_step step "$rate" "$STEP_MEASURE_SECONDS"
   case "$STEP_OUTCOME" in
     clean)
       highest_clean_rate="$rate"
-      CLEAN_RATES+=("$rate")
       ;;
     rate_failed|product_failure)
       first_failing_rate="$rate"
-      last_terminal_outcome="$STEP_OUTCOME"
-      break
+      write_result "$STEP_OUTCOME" required_staircase_step_failed "$highest_clean_rate" "$first_failing_rate"
+      exit_with_operator_status 3
       ;;
     storage_confounded|host_confounded)
       write_result "$STEP_OUTCOME" step_confounded "$highest_clean_rate" "$rate"
@@ -578,65 +578,27 @@ for rate in "${reviewed_rates[@]}"; do
   esac
 done
 
-if (( first_failing_rate > 0 && highest_clean_rate > 0 )); then
-  original_gap=$((first_failing_rate - highest_clean_rate))
-  refine_increment=$((original_gap / 10))
-  (( refine_increment > 0 )) || refine_increment=1
-  candidate=$((highest_clean_rate + refine_increment))
-  while (( candidate < first_failing_rate )); do
-    run_step refine "$candidate" "$SEARCH_MEASURE_SECONDS"
-    if [[ "$STEP_OUTCOME" == clean ]]; then
-      highest_clean_rate="$candidate"
-      CLEAN_RATES+=("$candidate")
-      candidate=$((candidate + refine_increment))
-      continue
-    fi
-    case "$STEP_OUTCOME" in
-      rate_failed|product_failure)
-        first_failing_rate="$candidate"
-        last_terminal_outcome="$STEP_OUTCOME"
-        ;;
-      storage_confounded|host_confounded)
-        write_result "$STEP_OUTCOME" refine_confounded "$highest_clean_rate" "$candidate"
-        exit_with_operator_status 2
-        ;;
-      *)
-        write_result insufficient_evidence refine_evidence_incomplete "$highest_clean_rate" "$candidate"
-        exit_with_operator_status 6
-        ;;
-    esac
-    break
-  done
+if (( highest_clean_rate != SOAK_RATE )); then
+  write_result insufficient_evidence reviewed_staircase_incomplete "$highest_clean_rate" 0
+  exit_with_operator_status 6
 fi
 
-if (( highest_clean_rate == 0 )); then
-  outcome="${last_terminal_outcome:-rate_failed}"
-  write_result "$outcome" no_clean_rate 0 "$first_failing_rate"
-  exit_with_operator_status 3
-fi
-
-repeat_rate="$highest_clean_rate"
-run_step repeat "$repeat_rate" "$REPEAT_MEASURE_SECONDS"
+run_step soak "$SOAK_RATE" "$SOAK_MEASURE_SECONDS"
 if [[ "$STEP_OUTCOME" != clean ]]; then
   case "$STEP_OUTCOME" in
     storage_confounded|host_confounded)
-      write_result "$STEP_OUTCOME" repeat_confounded "$highest_clean_rate" "$repeat_rate"
+      write_result "$STEP_OUTCOME" required_1000_soak_confounded "$highest_clean_rate" "$SOAK_RATE"
       exit_with_operator_status 2
       ;;
     insufficient_evidence)
-      write_result insufficient_evidence repeat_evidence_incomplete "$highest_clean_rate" "$repeat_rate"
+      write_result insufficient_evidence required_1000_soak_evidence_incomplete "$highest_clean_rate" "$SOAK_RATE"
       exit_with_operator_status 6
       ;;
   esac
-  fallback=0
-  for rate in "${CLEAN_RATES[@]}"; do
-    if (( rate < repeat_rate && rate > fallback )); then fallback="$rate"; fi
-  done
-  highest_clean_rate="$fallback"
-  first_failing_rate="$repeat_rate"
-  write_result "$STEP_OUTCOME" highest_clean_repeat_failed "$highest_clean_rate" "$first_failing_rate"
+  first_failing_rate="$SOAK_RATE"
+  write_result "$STEP_OUTCOME" required_1000_soak_failed "$highest_clean_rate" "$first_failing_rate"
   exit_with_operator_status 3
 fi
 
-write_result clean_knee highest_clean_repeat_passed "$highest_clean_rate" "$first_failing_rate"
+write_result clean required_1000_soak_passed "$highest_clean_rate" "$first_failing_rate"
 exit_with_operator_status 0

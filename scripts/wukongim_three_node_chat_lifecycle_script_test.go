@@ -240,17 +240,22 @@ func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {
 	scriptPath := filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
 	script := readFile(t, scriptPath)
 	for _, want := range []string{
-		"100,150,250,400,500,750,1000", "SEARCH_MEASURE_SECONDS=120", "REPEAT_MEASURE_SECONDS=600",
+		"250,500,750,1000", "STEP_MEASURE_SECONDS=300", "SOAK_RATE=1000", "SOAK_MEASURE_SECONDS=600",
 		"WARMUP_SECONDS=60", "DRAIN_TIMEOUT=90", "MINIMUM_FREE_PERCENT=10",
 		"run-wukongim-three-node-chat-lifecycle-shakeout.sh", "--send-rate", "--measure-seconds",
 		"first_failing_rate", "highest_clean_rate", "storage_confounded", "host_confounded",
-		"local-baseline.json", "steps.tsv", "refine", "filesystem-preflight.txt", "checksums.sha256",
+		"local-baseline.json", "steps.tsv", "required_1000_soak", "filesystem-preflight.txt", "checksums.sha256",
 		"prune_step_runtime_state", "runtime-state-pruned.txt", `find "$path" -xdev -depth -delete`,
 		`"online_connections": 2500`, `"logical_slot_groups": 12`, `"hash_slots": 256`,
 		`"slot_replicas": 3`, `"channel_replicas": 3`, `"sync_commit": true`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("local baseline script missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"100,150,250,400,500,750,1000", "run_step refine", "refine_increment", "repeat_rate=\"$highest_clean_rate\""} {
+		if strings.Contains(script, forbidden) {
+			t.Fatalf("local baseline retains obsolete adaptive staircase contract %q", forbidden)
 		}
 	}
 	if strings.Contains(strings.ToLower(script), "docker") || strings.Contains(script, "workflow") || strings.Contains(script, "aliyun") {
@@ -279,7 +284,7 @@ func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {
 		t.Fatalf("dry run failed: %v\n%s", err, output)
 	}
 	for _, want := range []string{
-		"rates=100,150,250,400,500,750,1000", "search_measure_seconds=120", "repeat_measure_seconds=600",
+		"rates=250,500,750,1000", "step_measure_seconds=300", "soak_rate=1000", "soak_measure_seconds=600",
 		"warmup_seconds=60", "drain_timeout_seconds=90", "base_port=25000",
 	} {
 		if !strings.Contains(string(output), want) {

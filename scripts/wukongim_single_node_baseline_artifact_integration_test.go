@@ -329,8 +329,9 @@ func TestSingleNodeBaselineStoragePreflightResultIsSealedWithoutStartingProcesse
 	}
 	command := exec.Command("bash", "scripts/bench-wukongim-single-node-1000ch.sh", "--no-start", "--qps", "250", "--out-dir", runDir)
 	command.Dir = root
-	command.Env = append(envWithout("WK_BENCH_MINIMUM_FREE_PERCENT", "WK_WUKONGIM_SINGLE_NODE_CONFIG"),
-		"WK_BENCH_MINIMUM_FREE_PERCENT=100", "WK_WUKONGIM_SINGLE_NODE_CONFIG="+config)
+	command.Env = append(envWithout("WK_BENCH_MINIMUM_FREE_PERCENT", "WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
+		"WK_BENCH_MINIMUM_FREE_PERCENT=100", "WK_WUKONGIM_SINGLE_NODE_CONFIG="+config,
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR="+filepath.Join(t.TempDir(), "node-data"))
 	output, err := command.CombinedOutput()
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
@@ -383,10 +384,11 @@ exec "` + realGo + `" "$@"
 	command := exec.Command("bash", "scripts/bench-wukongim-single-node-1000ch.sh",
 		"--no-start", "--qps", "250", "--out-dir", runDir, "--wkbench-bin", staleBinary)
 	command.Dir = root
-	command.Env = append(envWithout("WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_BENCH_MINIMUM_FREE_PERCENT"),
+	command.Env = append(envWithout("WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_BENCH_MINIMUM_FREE_PERCENT", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_WUKONGIM_SINGLE_NODE_CONFIG="+config,
 		"WK_BENCH_MINIMUM_FREE_PERCENT=100",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR="+filepath.Join(t.TempDir(), "node-data"),
 	)
 	output, err := command.CombinedOutput()
 	var exitErr *exec.ExitError
@@ -424,10 +426,11 @@ func TestSingleNodeBaselineRedactionFailureRemovesUnsealedBuildBeforeChecksum(t 
 	command := exec.Command("bash", "scripts/bench-wukongim-single-node-1000ch.sh",
 		"--no-start", "--qps", "250", "--out-dir", runDir)
 	command.Dir = root
-	command.Env = append(envWithout("WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_BENCH_MINIMUM_FREE_PERCENT"),
+	command.Env = append(envWithout("WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_BENCH_MINIMUM_FREE_PERCENT", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
 		"WK_WUKONGIM_SINGLE_NODE_CONFIG="+config,
 		"WK_BENCH_MINIMUM_FREE_PERCENT=100",
 		"GOWORK=off",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR="+filepath.Join(t.TempDir(), "node-data"),
 	)
 	output, err := command.CombinedOutput()
 	var exitErr *exec.ExitError

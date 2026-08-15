@@ -37,9 +37,10 @@ while true; do sleep 0.05; done
 	logDir := filepath.Join(t.TempDir(), "logs")
 	command := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
 		"--no-build", "--bin", node, "--exit-after-ready", "--poll", "0",
-		"--ready-timeout", "3", "--log-dir", logDir)
+		"--ready-timeout", "3", "--log-dir", logDir,
+		"--data-dir", filepath.Join(t.TempDir(), "node-data"))
 	command.Dir = root
-	command.Env = append(envWithout("WK_BENCH_API_TOKEN", "WK_TEST_TOKEN_MARKER", "WK_TEST_ARGS_FILE"),
+	command.Env = append(envWithout("WK_BENCH_API_TOKEN", "WK_TEST_TOKEN_MARKER", "WK_TEST_ARGS_FILE", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_BENCH_API_TOKEN="+canary,
 		"WK_TEST_TOKEN_MARKER="+marker,

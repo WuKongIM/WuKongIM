@@ -432,6 +432,13 @@ own `pprof/run/<qps-tag>/` directory with the triggering status in
 both observations in `sampler.tsv`, so a missed, overwritten, incomplete, or
 run-to-cooldown capture cannot be mistaken for valid hot-path evidence.
 
+The reviewed native three-node local baseline uses fresh product and worker
+generations for fixed 250/500/750/1,000 SEND/s steps. Each step has a 60-second
+warmup, 300-second measured window, and at most 90 seconds of cooldown. Only
+four clean typed closures permit a fifth fresh generation to run the fixed
+ten-minute 1,000 SEND/s soak; there is no adaptive refinement or repeat of a
+lower passing rate.
+
 `capacity hot-channel` uses the same discovery, temporary worker, search, and
 report flow, but every attempt fixes `channels.profiles[0].count` to one group
 channel and sets the offered QPS as that channel's `rate_per_channel`. Its

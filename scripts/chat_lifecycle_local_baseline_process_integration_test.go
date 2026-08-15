@@ -27,10 +27,10 @@ func TestChatLifecycleLocalBaselinePrunesOnlyAfterValidatedStepEvidence(t *testi
   "schema": "wukongim/chat-lifecycle-local-step/v1",
   "outcome": "product_failure",
   "reason": "terminal_product_failure_before_qualification",
-  "offered_rate_per_second": 100,
+  "offered_rate_per_second": 250,
   "actual_rate_per_second": 0,
   "minimum_throughput_percent": 90,
-  "measured_duration_seconds": 120,
+  "measured_duration_seconds": 300,
   "qualification_reached": false,
   "target_connections": 2500,
   "online_connections": 0,
@@ -79,7 +79,57 @@ func TestChatLifecycleLocalBaselinePrunesOnlyAfterValidatedStepEvidence(t *testi
 	}
 }
 
+func TestChatLifecycleLocalBaselineRunsFixedStaircaseThenRequired1000Soak(t *testing.T) {
+	typedResult := `{
+  "schema": "wukongim/chat-lifecycle-local-step/v1",
+  "outcome": "clean",
+  "reason": "clean",
+  "offered_rate_per_second": 250,
+  "actual_rate_per_second": 250,
+  "minimum_throughput_percent": 90,
+  "measured_duration_seconds": 300,
+  "qualification_reached": true,
+  "target_connections": 2500,
+  "online_connections": 2500,
+  "sent": 75000,
+  "acknowledged": 75000,
+  "expected": 75000,
+  "minimum_filesystem_free_percent": 10,
+  "storage_evidence_complete": true,
+  "host_io_evidence_complete": true,
+  "product_metrics_complete": true,
+  "product_queue_evidence_complete": true,
+  "product_queues_converged": true,
+  "process_continuity_complete": true,
+  "timeline_evidence_complete": true,
+  "profile_evidence_complete": true,
+  "operator_interrupted": false,
+  "harness_failure_reason": ""
+}`
+	callLog := filepath.Join(t.TempDir(), "calls.tsv")
+	runDir, output, err := runLocalBaselineWithFakeStepEnv(t, typedResult, 0, "valid", []string{
+		"FAKE_DYNAMIC_TYPED_RESULT=1",
+		"FAKE_CALL_LOG=" + callLog,
+	})
+	if err != nil {
+		t.Fatalf("local baseline error = %v\n%s", err, output)
+	}
+	if got, want := readFile(t, callLog), "250\t300\n500\t300\n750\t300\n1000\t300\n1000\t600\n"; got != want {
+		t.Fatalf("shakeout calls = %q, want %q", got, want)
+	}
+	result := readFile(t, filepath.Join(runDir, "local-baseline.json"))
+	for _, want := range []string{`"outcome": "clean"`, `"reason": "required_1000_soak_passed"`, `"highest_clean_rate": 1000`, `"soak_rate": 1000`} {
+		if !strings.Contains(result, want) {
+			t.Fatalf("baseline result missing %s: %s", want, result)
+		}
+	}
+}
+
 func runLocalBaselineWithFakeStep(t *testing.T, typedResult string, status int, checksumMode string) (string, []byte, error) {
+	return runLocalBaselineWithFakeStepEnv(t, typedResult, status, checksumMode, nil)
+}
+
+func runLocalBaselineWithFakeStepEnv(t *testing.T, typedResult string, status int, checksumMode string, extraEnv []string) (string, []byte, error) {
 	t.Helper()
 	root := repoRoot(t)
 	testRoot := t.TempDir()
@@ -94,18 +144,36 @@ func runLocalBaselineWithFakeStep(t *testing.T, typedResult string, status int, 
 	fakeShakeout := `#!/usr/bin/env bash
 set -euo pipefail
 run_dir=""
+send_rate=""
+measure_seconds=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --run-dir) run_dir="$2"; shift 2 ;;
+	--send-rate) send_rate="$2"; shift 2 ;;
+	--measure-seconds) measure_seconds="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
+	if [[ -n "${FAKE_CALL_LOG:-}" ]]; then
+	  printf '%s\t%s\n' "$send_rate" "$measure_seconds" >>"$FAKE_CALL_LOG"
+	fi
 	mkdir -p "$run_dir/bin" "$run_dir/config" "$run_dir/data" "$run_dir/workers" "$run_dir/evidence" "$run_dir/logs"
 printf 'binary\n' >"$run_dir/bin/wukongim"
 printf 'benchmark binary\n' >"$run_dir/bin/wkbench"
 printf 'database\n' >"$run_dir/data/node.db"
 printf 'worker\n' >"$run_dir/workers/state"
-printf '%s\n' "$FAKE_LOCAL_STEP_JSON" >"$run_dir/local-step.json"
+	local_step_json="$FAKE_LOCAL_STEP_JSON"
+	if [[ "${FAKE_DYNAMIC_TYPED_RESULT:-0}" == 1 ]]; then
+	  local_step_json="$(printf '%s\n' "$local_step_json" | jq -c --argjson rate "$send_rate" --argjson measured "$measure_seconds" '
+	    .offered_rate_per_second = $rate |
+	    .actual_rate_per_second = $rate |
+	    .measured_duration_seconds = $measured |
+	    .sent = ($rate * $measured) |
+	    .acknowledged = .sent |
+	    .expected = .sent
+	  ')"
+	fi
+	printf '%s\n' "$local_step_json" >"$run_dir/local-step.json"
 	printf 'run_id: local-chat-lifecycle-shakeout\n' >"$run_dir/chat-lifecycle.yaml"
 	for node in 1 2 3; do
 	  printf 'node_id = %s\n' "$node" >"$run_dir/config/node$node.toml"
@@ -122,7 +190,7 @@ printf '%s\n' "$FAKE_LOCAL_STEP_JSON" >"$run_dir/local-step.json"
 	printf 'observed_at_utc\trun_id\tsample\tnode\tstatus\tcompaction_count\tcompactions_in_progress\tsnapshot_files\tsnapshot_bytes\tsnapshot_identity\tsnapshot_inventory\n' >"$run_dir/evidence/storage-overlap.tsv"
 	printf '{"event":"wkbench.chat_lifecycle.worker_status_cut"}\n' >"$run_dir/evidence/coordinator-worker-cuts.log"
 	printf '{"schema":"wukongim/chat-lifecycle-threshold-pprof-status/v1","status":"not_triggered"}\n' >"$run_dir/evidence/threshold-pprof-status.json"
-	harness_failure_reason="$(printf '%s\n' "$FAKE_LOCAL_STEP_JSON" | jq -r '.harness_failure_reason // ""' 2>/dev/null || true)"
+	harness_failure_reason="$(printf '%s\n' "$local_step_json" | jq -r '.harness_failure_reason // ""' 2>/dev/null || true)"
 	if [[ "$harness_failure_reason" == coordinator_graceful_stop_timeout ]]; then
 	  mkdir -p "$run_dir/evidence/graceful-stop-timeout"
 	  for node in 1 2 3; do
@@ -229,6 +297,7 @@ exit "${FAKE_SHAKEOUT_STATUS:-0}"
 		"FAKE_SHAKEOUT_STATUS="+strconv.Itoa(status),
 		"FAKE_CHECKSUM_MODE="+checksumMode,
 	)
+	command.Env = append(command.Env, extraEnv...)
 	output, err := command.CombinedOutput()
 	return runDir, output, err
 }
@@ -243,7 +312,7 @@ func requireLocalBaselineExitCode(t *testing.T, err error, output []byte, want i
 
 func assertLocalBaselineRuntimeState(t *testing.T, runDir string, output []byte, wantPruned bool) {
 	t.Helper()
-	stepDir := filepath.Join(runDir, "steps", "search-rate-100")
+	stepDir := filepath.Join(runDir, "steps", "step-rate-250")
 	for _, path := range []string{"bin/wukongim", "data/node.db", "workers/state"} {
 		_, statErr := os.Stat(filepath.Join(stepDir, path))
 		if wantPruned && !os.IsNotExist(statErr) {
