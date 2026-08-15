@@ -272,6 +272,7 @@
 - Historical local three-node 5000-offered-QPS evidence validated Channel replication RPC workers 160 and same-target Pull/PullHint batch size 16 over 30 seconds. The later sustained 4500-QPS/5000-Channel gate invalidated the four-shard commit setting: independent coordinators fragmented durable batches and issued competing fsyncs to one physical message DB.
 - Cluster transport may wait at most 100 microseconds to coalesce an isolated RPC or Bulk frame. Raft and Control frames remain immediate; keep the generic transport default at zero so the latency tradeoff stays cluster-specific.
 - SENDACK must only follow a crash-safe durable message commit; message append `NoSync` is unsafe for this guarantee and must not be exposed as runtime/user configuration. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
+- The approved Channel durability replacement is one deep quorum-log module: reserve exact term/index/hash identity before I/O, start leader and data-bearing follower synchronous writes concurrently, and publish SENDACK only after the identical proposal is durable locally and on an intersecting write quorum. Hot PullHint/Pull/AckOffset choreography is replaced rather than wrapped; Pull remains bounded repair only. Failover must recover the greatest identical quorum-proven prefix and write a current-term barrier before reopening, never select a tail from highest LEO alone.
 
 ## Cluster Membership
 

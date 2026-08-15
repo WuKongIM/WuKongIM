@@ -6,7 +6,7 @@
 pkg/channel/        - Multi-reactor channel log runtime; root DTOs, errors, Cluster facade, Config, tests, and benchmarks.
 |-- machine/          - Pure per-channel state transitions for metadata, append, progress, and invariants; no blocking I/O.
 |-- reactor/          - Channel-key ownership, priority mailboxes, append queues, scheduler, lifecycle, metrics, and worker-result application.
-|-- replication/      - Leader/follower replication helpers and protocol decisions used by reactor runtime paths.
+|-- replication/      - Durable-quorum commit core plus temporary pull/ack planning helpers retained during hot-path migration.
 |-- service/          - Synchronous facade that routes append and replication transport requests to reactors and waits on futures.
 |-- store/            - Narrow persistence contract, memory store, and `pkg/db/message` compatibility adapter boundary.
 |-- testkit/          - In-memory multi-node cluster harness for channel tests.
@@ -249,6 +249,16 @@ turn is collected, `MaxSequentialAwaitDuration` is not a true per-future
 end-to-end latency. The observation contains no channel, follower, or request
 identity and adds timing/counting work only when the service observer implements
 the optional PullBatch hook.
+
+The approved durable-quorum replacement reserves an immutable exact proposal
+before I/O and submits local storage plus owned follower persistence in one
+round through bounded dispatchers. A successful round always includes local
+durability and the configured distinct-voter quorum; follower-only durability
+cannot complete an append. This internal round is the first migration slice.
+It does not yet change the production reactor path. Exact-offset storage,
+term/hash recovery, data-bearing peer exchange, and removal of the PullHint hot
+path must land before production wiring. The design is recorded in
+`docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,
 `Group.Submit` reuses the event's tick timestamp slot to capture admission time
 without enlarging the mailbox envelope. The reactor then reports bounded

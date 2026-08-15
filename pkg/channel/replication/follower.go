@@ -1,4 +1,5 @@
-// Package replication contains v0 pull/ack planning helpers.
+// Package replication owns Channel durable-quorum commit and bounded replica
+// recovery. The existing pull planning helpers remain only during migration.
 package replication
 
 import ch "github.com/WuKongIM/WuKongIM/pkg/channel"
