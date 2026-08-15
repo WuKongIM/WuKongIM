@@ -299,17 +299,38 @@ func (s defaultChannelRuntimeMetaStore) CreateChannelRuntimeMeta(ctx context.Con
 	if s.node == nil {
 		return channels.RuntimeMetaCreateResult{}, ErrNotStarted
 	}
+	route, err := s.node.RouteKey(meta.ChannelID)
+	if err != nil {
+		return channels.RuntimeMetaCreateResult{}, err
+	}
+	command, err := metafsm.EncodeCreateChannelRuntimeMetaBatchCommandChecked([]metafsm.CreateChannelRuntimeMetaBatchItem{{
+		HashSlot: route.HashSlot,
+		Meta:     meta,
+	}})
+	if err != nil {
+		return channels.RuntimeMetaCreateResult{}, err
+	}
 	ctx = propose.WithStageObserver(ctx, s.observer)
 	data, err := s.node.ProposeResult(ctx, ProposeRequest{
-		Key:     meta.ChannelID,
-		Command: metafsm.EncodeCreateChannelRuntimeMetaCommand(meta),
+		Command: command,
+		Target: ProposeTarget{
+			HashSlot: route.HashSlot, HasHashSlot: true,
+			SlotID: route.SlotID, HasSlotID: true,
+		},
 	})
 	if err != nil {
 		return channels.RuntimeMetaCreateResult{}, err
 	}
-	result, err := metafsm.DecodeCreateChannelRuntimeMetaResult(data)
-	if err != nil {
+	results, err := metafsm.DecodeCreateChannelRuntimeMetaBatchResult(data)
+	if err != nil || len(results) != 1 {
+		if err == nil {
+			err = metadb.ErrCorruptValue
+		}
 		return channels.RuntimeMetaCreateResult{}, err
+	}
+	result := results[0]
+	if result.HashSlot != route.HashSlot || result.ChannelID != meta.ChannelID || result.ChannelType != meta.ChannelType {
+		return channels.RuntimeMetaCreateResult{}, metadb.ErrCorruptValue
 	}
 	return channels.RuntimeMetaCreateResult{Created: result.Created}, nil
 }

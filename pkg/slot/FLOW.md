@@ -353,12 +353,12 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
 - **Membership RPC 归属校验**: handler 必须在领导权和数据读取前验证 request 的 `SlotID == SlotForKey(uid)`；不能让调用方提供的 SlotID 绕过 UID 所有权边界。
 - **Permission batch RPC 归属校验**: caller 按 `SlotForKey(channel_id)` 分组，每个物理 Slot 最多一次权威 RPC；handler 必须逐 read 复核 channel key 属于 request Slot。RPC 只返回 Channel/contains/has-any 原始事实，发送权限策略和 reason 优先级留在 `internal/usecase/message`。
-- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 必须逐 entry 校验归属和迁移 fence，不能把 envelope hashSlot 当成所有行的真实归属。
+- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 和 command 59 的 `CreateChannelRuntimeMetaBatch` 必须逐 entry 校验归属，不能把 envelope hashSlot 当成所有行的真实归属。
 - **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `pkg/db/meta` compatibility `WriteBatch.CreateUser`。
 - **Manager Channel 条件写**: 命令 50/51 在 apply 内返回 `applied` 结果而不是用预期的已存在/缺失状态让 Slot fail；create-only 冲突由 proxy 映射成 `ErrAlreadyExists`，flag patch 缺失映射成 `ErrNotFound`，patch 只能改 Ban/Disband/SendBan。
-- **ChannelRuntimeMeta 首次创建**: 命令 59 在同一次 Meta batch commit 内检查并插入，返回 `created=true`；重复 apply 返回成功的 `created=false` 且不覆盖原记录。命令 4 的普通单调 upsert 不变，继续用于迁移和修复。
+- **ChannelRuntimeMeta 首次创建**: 命令 59 只有 bounded batch 格式（1..64 项）。编码按 `(hash_slot, channel_type, channel_id)` 规范排序并拒绝重复 identity；FSM 在同一次 Meta batch commit 内逐项检查并插入，返回同序 identity-bound `created` 结果。重复 apply 返回成功的 `created=false` 且不覆盖原记录，任一 hash slot 不归当前 Slot 所有时整批拒绝。命令 4 的普通单调 upsert 不变，继续用于迁移和修复。
 - **ListChannelRuntimeMeta 扇出**: `store.go:102` 遍历所有 SlotID 发 RPC，N 个 Slot 就是 N 次 RPC，慎用。
 - **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch` / `RouteGeneration`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；write-fence 字段是同一通道的权威 fence 状态，`set/renew/reset/clear` 必须通过更高的 `WriteFenceVersion` 表达有效更新，单调写入不能清空或回退已有 fence；repair / bootstrap 必须通过更高 epoch、RouteGeneration 或更长 lease 表达有效更新。
 - **RuntimeMeta RPC 版本兼容**: `runtime_meta` v2 response 携带 `RouteGeneration` 和 `WriteFence*` 字段；v1 request/response 必须继续可解码，new caller 可先尝试 v2，遇到旧节点不支持 request codec 时回退 v1，responder 必须按 request codec 版本回包。
@@ -377,7 +377,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
 - **Channel 元数据权威分页**: `Store.ScanChannelsSlotPage` 通过 `channel scan_channels_page` 在物理 Slot leader 上扫描 channel 主记录；后台业务频道清单必须基于该权威分页聚合，不能绕过 Slot leader 或全量本地扫描。
 - **命令 50/51 升级约束**: 混合版本 Slot 副本不能安全接收 Manager Channel 条件 create/patch；发布时需要 stop-the-world 升级或 capability gate。
-- **命令 59 升级约束**: 混合版本 Slot 副本不能安全接收 `CreateChannelRuntimeMeta`；发布时需要 stop-the-world 升级或 capability gate。
+- **命令 59 wire 合同**: command 59 从第一版开始就是 `CreateChannelRuntimeMetaBatch`，count=1 也使用同一格式；仓库没有旧单条 command 59 的兼容编码或回退路径。
 - **Membership 路由与分页**: 普通和 CMD membership 都按 UID hash slot 路由。普通目录 cursor 必须包含 `(activated_at, channel_id, channel_type)` 完整索引位置；limit 限制扫描候选数。
 - **Membership 单调语义**: `read_seq`、`deleted_to_seq`、CMD `ack_seq` 只能前进；显式 activate 更新普通 activation index，hide 同批清零 activation。`source_version` 拒绝陈旧的订阅者派生写。
 - **Conversation 表已删除**: Table ID 6/7 仅保留防复用；Slot FSM、proxy 和 cluster 不得重新引入 conversation 投影命令、RPC 或 active hint overlay。
