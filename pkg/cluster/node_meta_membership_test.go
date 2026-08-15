@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -47,10 +48,8 @@ func TestUpsertUserChannelMembershipsSubmitsIndependentSlotsConcurrently(t *test
 }
 
 func TestUpsertUserChannelMembershipsBoundsIndependentSlotConcurrency(t *testing.T) {
-	proposer := &blockingMembershipProposer{
-		entered: make(chan uint16, 3),
-		release: make(chan struct{}),
-	}
+	proposer := newControlledMembershipProposer(3)
+	defer proposer.releaseAll()
 	node := newStartedSlotProxyPortNode(t, proposer)
 	u0 := keyForNodeHashSlot(t, 4, 0)
 	u1 := keyForNodeHashSlot(t, 4, 1)
@@ -60,23 +59,32 @@ func TestUpsertUserChannelMembershipsBoundsIndependentSlotConcurrency(t *testing
 	go func() {
 		done <- node.UpsertUserChannelMemberships(context.Background(), "person-channel", 1, []string{u0, u1, u3}, 0, 1, 1)
 	}()
-	released := false
-	defer func() {
-		if !released {
-			close(proposer.release)
-		}
-	}()
 
-	_ = awaitMembershipProposal(t, proposer.entered)
-	_ = awaitMembershipProposal(t, proposer.entered)
+	first := awaitControlledMembershipProposal(t, proposer.entered)
+	second := awaitControlledMembershipProposal(t, proposer.entered)
 	select {
-	case hashSlot := <-proposer.entered:
-		t.Fatalf("third hash-slot proposal %d started before one of two bounded workers completed", hashSlot)
-	case <-time.After(100 * time.Millisecond):
+	case third := <-proposer.entered:
+		t.Fatalf("third hash-slot proposal %d started before one of two bounded workers completed", third.hashSlot)
+	default:
+	}
+	if got := proposer.maxActiveCount(); got != maxMembershipProposalConcurrency {
+		t.Fatalf("maximum active membership proposals = %d, want %d", got, maxMembershipProposalConcurrency)
 	}
 
-	close(proposer.release)
-	released = true
+	first.releaseProposal()
+	awaitMembershipProposalCompletion(t, first.completed)
+	third := awaitControlledMembershipProposal(t, proposer.entered)
+	if third.hashSlot == first.hashSlot || third.hashSlot == second.hashSlot {
+		t.Fatalf("third proposal reused an entered hash slot: first=%d second=%d third=%d", first.hashSlot, second.hashSlot, third.hashSlot)
+	}
+	if got := proposer.maxActiveCount(); got != maxMembershipProposalConcurrency {
+		t.Fatalf("maximum active membership proposals after refill = %d, want %d", got, maxMembershipProposalConcurrency)
+	}
+
+	second.releaseProposal()
+	third.releaseProposal()
+	awaitMembershipProposalCompletion(t, second.completed)
+	awaitMembershipProposalCompletion(t, third.completed)
 	select {
 	case err := <-done:
 		if err != nil {
@@ -84,6 +92,88 @@ func TestUpsertUserChannelMembershipsBoundsIndependentSlotConcurrency(t *testing
 		}
 	case <-time.After(time.Second):
 		t.Fatal("UpsertUserChannelMemberships() did not finish bounded slot proposals")
+	}
+}
+
+type controlledMembershipProposal struct {
+	hashSlot    uint16
+	release     chan struct{}
+	completed   chan struct{}
+	releaseOnce sync.Once
+}
+
+func (p *controlledMembershipProposal) releaseProposal() {
+	p.releaseOnce.Do(func() { close(p.release) })
+}
+
+type controlledMembershipProposer struct {
+	entered  chan *controlledMembershipProposal
+	shutdown chan struct{}
+	stopOnce sync.Once
+
+	mu        sync.Mutex
+	active    int
+	maxActive int
+}
+
+func newControlledMembershipProposer(capacity int) *controlledMembershipProposer {
+	return &controlledMembershipProposer{
+		entered:  make(chan *controlledMembershipProposal, capacity),
+		shutdown: make(chan struct{}),
+	}
+}
+
+func (p *controlledMembershipProposer) Propose(_ context.Context, req propose.Request) error {
+	proposal := &controlledMembershipProposal{
+		hashSlot:  req.Target.HashSlot,
+		release:   make(chan struct{}),
+		completed: make(chan struct{}),
+	}
+	p.mu.Lock()
+	p.active++
+	if p.active > p.maxActive {
+		p.maxActive = p.active
+	}
+	p.mu.Unlock()
+	p.entered <- proposal
+	select {
+	case <-proposal.release:
+	case <-p.shutdown:
+	}
+	p.mu.Lock()
+	p.active--
+	p.mu.Unlock()
+	close(proposal.completed)
+	return nil
+}
+
+func (p *controlledMembershipProposer) maxActiveCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.maxActive
+}
+
+func (p *controlledMembershipProposer) releaseAll() {
+	p.stopOnce.Do(func() { close(p.shutdown) })
+}
+
+func awaitControlledMembershipProposal(t *testing.T, entered <-chan *controlledMembershipProposal) *controlledMembershipProposal {
+	t.Helper()
+	select {
+	case proposal := <-entered:
+		return proposal
+	case <-time.After(time.Second):
+		t.Fatal("membership proposal did not enter after a bounded worker became available")
+		return nil
+	}
+}
+
+func awaitMembershipProposalCompletion(t *testing.T, completed <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-completed:
+	case <-time.After(time.Second):
+		t.Fatal("membership proposal did not complete after release")
 	}
 }
 
