@@ -280,12 +280,18 @@ log 'building service and benchmark binaries'
 finalize_source_rebuildability_after_builds
 
 sed \
-  -e "s/15001/$(api_port 1)/g" -e "s/15002/$(api_port 2)/g" -e "s/15003/$(api_port 3)/g" \
-  -e "s/15011/$(api_port 1)/g" -e "s/15012/$(api_port 2)/g" -e "s/15013/$(api_port 3)/g" \
-  -e "s/15101/$(gateway_port 1)/g" -e "s/15102/$(gateway_port 2)/g" -e "s/15103/$(gateway_port 3)/g" \
-  -e "s/19091/$(worker_port 1)/g" -e "s/19092/$(worker_port 2)/g" -e "s/19093/$(worker_port 3)/g" \
-  -e "s/19101/$(host_metrics_port 1)/g" -e "s/19102/$(host_metrics_port 2)/g" -e "s/19103/$(host_metrics_port 3)/g" \
-  -e "s/19104/$(load_host_metrics_port)/g" \
+	-e 's/15001/__WK_API_1__/g' -e 's/15002/__WK_API_2__/g' -e 's/15003/__WK_API_3__/g' \
+	-e 's/15011/__WK_METRICS_1__/g' -e 's/15012/__WK_METRICS_2__/g' -e 's/15013/__WK_METRICS_3__/g' \
+	-e 's/15101/__WK_GATEWAY_1__/g' -e 's/15102/__WK_GATEWAY_2__/g' -e 's/15103/__WK_GATEWAY_3__/g' \
+	-e 's/19091/__WK_WORKER_1__/g' -e 's/19092/__WK_WORKER_2__/g' -e 's/19093/__WK_WORKER_3__/g' \
+	-e 's/19101/__WK_HOST_METRICS_1__/g' -e 's/19102/__WK_HOST_METRICS_2__/g' -e 's/19103/__WK_HOST_METRICS_3__/g' \
+	-e 's/19104/__WK_LOAD_HOST_METRICS__/g' \
+	-e "s/__WK_API_1__/$(api_port 1)/g" -e "s/__WK_API_2__/$(api_port 2)/g" -e "s/__WK_API_3__/$(api_port 3)/g" \
+	-e "s/__WK_METRICS_1__/$(api_port 1)/g" -e "s/__WK_METRICS_2__/$(api_port 2)/g" -e "s/__WK_METRICS_3__/$(api_port 3)/g" \
+	-e "s/__WK_GATEWAY_1__/$(gateway_port 1)/g" -e "s/__WK_GATEWAY_2__/$(gateway_port 2)/g" -e "s/__WK_GATEWAY_3__/$(gateway_port 3)/g" \
+	-e "s/__WK_WORKER_1__/$(worker_port 1)/g" -e "s/__WK_WORKER_2__/$(worker_port 2)/g" -e "s/__WK_WORKER_3__/$(worker_port 3)/g" \
+	-e "s/__WK_HOST_METRICS_1__/$(host_metrics_port 1)/g" -e "s/__WK_HOST_METRICS_2__/$(host_metrics_port 2)/g" -e "s/__WK_HOST_METRICS_3__/$(host_metrics_port 3)/g" \
+	-e "s/__WK_LOAD_HOST_METRICS__/$(load_host_metrics_port)/g" \
 	-e "s/send_rate_per_second: 100/send_rate_per_second: $SEND_RATE/" \
 	-e "s/max_global_burst: 200/max_global_burst: $((SEND_RATE * 2))/" \
   "$ROOT_DIR/configs/wkbench/chat-lifecycle/local-shakeout.yaml" >"$LIFECYCLE_CONFIG"
