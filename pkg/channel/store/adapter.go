@@ -71,6 +71,13 @@ type ExactRecoveryStateLoader interface {
 	LoadExactRecoveryState(ctx context.Context, indexes []uint64) (ExactRecoveryState, error)
 }
 
+// RecoverySuffixReplacer atomically replaces an uncommitted divergent suffix.
+// The capability is recovery-only and is intentionally not part of ordinary
+// append or follower-apply admission.
+type RecoverySuffixReplacer interface {
+	ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error)
+}
+
 // ExactState is the local durability state required to recover a quorum-log
 // sequencer. Manifest and TailIdentity are zero only for an empty log.
 type ExactState struct {
@@ -90,6 +97,27 @@ type ExactEntryProbe struct {
 type ExactRecoveryState struct {
 	ExactState
 	Entries []ExactEntryProbe
+}
+
+// RecoveryProposal is one complete exact proposal in a replacement suffix.
+type RecoveryProposal struct {
+	Manifest ProposalManifest
+	Records  []ch.Record
+}
+
+// ReplaceRecoverySuffixRequest binds one replacement to the exact inspected
+// frontier and a proposal-boundary prefix that must remain unchanged.
+type ReplaceRecoverySuffixRequest struct {
+	Expected    ExactState
+	KeepThrough uint64
+	Proposals   []RecoveryProposal
+	Committed   uint64
+}
+
+// ReplaceRecoverySuffixResult reports the durable frontier after replacement.
+type ReplaceRecoverySuffixResult struct {
+	LastOffset uint64
+	Outcome    AppendOutcome
 }
 
 // MessageLookup is an optional point lookup surface for rare timeout recovery paths.

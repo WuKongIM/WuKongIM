@@ -125,6 +125,241 @@ func TestStoreAdapterLoadReturnsPositionAlignedRecoveryIdentities(t *testing.T) 
 	}
 }
 
+func TestStoreAdapterReplacesDivergentRecoverySuffixDurably(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	factory := channelstore.NewMessageDBFactory(dir)
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:replace-recovery-suffix")
+	id := ch.ChannelID{ID: "replace-recovery-suffix", Type: 1}
+	first := sealedMutationAt(t, key, id, 71, 0, ch.EntryIdentity{})
+	first.Committed = 1
+	firstEntries, ok := ch.DeriveProposalEntries(first.Manifest, len(first.Records), func(index int) ch.Record {
+		return first.Records[index]
+	})
+	if !ok {
+		t.Fatal("DeriveProposalEntries(first) failed")
+	}
+	divergent := sealedMutationAt(t, key, id, 72, 1, firstEntries[0])
+	if results := adapter.Sync(context.Background(), []replication.Mutation{first, divergent}); len(results) != 2 || !results[0].Outcome.Durable() || !results[1].Outcome.Durable() {
+		t.Fatalf("Sync(divergent) = %+v, want two durable proposals", results)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load(divergent) = %+v, error %v", loaded, loadErr)
+	}
+
+	replacement := sealedMutationAt(t, key, id, 73, 1, firstEntries[0])
+	replaceResults := adapter.Replace(context.Background(), []replication.RecoveryReplacement{{
+		ChannelKey:  key,
+		ChannelID:   id,
+		Expected:    loaded.Items[0].State,
+		KeepThrough: 1,
+		Proposals: []replication.RecoveryProposal{{
+			Manifest: replacement.Manifest,
+			Records:  replacement.Records,
+		}},
+		Committed: 1,
+	}})
+	if len(replaceResults) != 1 || replaceResults[0].Err != nil || replaceResults[0].Outcome != ch.AppendOutcomeDurable ||
+		replaceResults[0].LastOffset != 2 {
+		t.Fatalf("Replace() = %+v, want durable replacement at offset 2", replaceResults)
+	}
+	if err := factory.Close(); err != nil {
+		t.Fatalf("MessageDBFactory.Close() error = %v", err)
+	}
+
+	reopened := channelstore.NewMessageDBFactory(dir)
+	t.Cleanup(func() { _ = reopened.Close() })
+	adapter, err = replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: reopened, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter(reopened) error = %v", err)
+	}
+	replacementEntries, ok := ch.DeriveProposalEntries(replacement.Manifest, len(replacement.Records), func(index int) ch.Record {
+		return replacement.Records[index]
+	})
+	if !ok {
+		t.Fatal("DeriveProposalEntries(replacement) failed")
+	}
+	loaded, loadErr = adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id, ProbeIndexes: []uint64{1, 2},
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load(reopened replacement) = %+v, error %v", loaded, loadErr)
+	}
+	if got := loaded.Items[0].State; got.LEO != 2 || got.Committed != 1 || got.Manifest != replacement.Manifest ||
+		got.TailIdentity != replacementEntries[0] {
+		t.Fatalf("Load(reopened replacement) state = %+v, want replacement frontier", got)
+	}
+	if got := loaded.Items[0].Entries; len(got) != 2 || got[0].Identity != firstEntries[0] ||
+		got[1].Identity != replacementEntries[0] {
+		t.Fatalf("Load(reopened replacement) entries = %+v, want repaired prefix", got)
+	}
+}
+
+func TestStoreAdapterRejectsOversizedRecoveryReplacementBeforeOpeningStore(t *testing.T) {
+	t.Parallel()
+
+	factory := &countingStoreFactory{store: &channelstore.MemoryChannelStore{}}
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 1, MaxBatchBytes: 512,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:oversized-recovery")
+	id := ch.ChannelID{ID: "oversized-recovery", Type: 1}
+	records := []ch.Record{{
+		ID: 81, Epoch: 3, FromUID: "sender", ClientMsgNo: "oversized-recovery-81",
+		Payload: make([]byte, 1024), SizeBytes: 1024,
+		ServerTimestampMS: time.Unix(1_700_000_300, 0).UnixMilli(),
+	}}
+	manifest, _, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: ch.CommandID{31: 81}, LastOffset: 1,
+	}, records)
+	if !ok {
+		t.Fatal("SealProposalManifest() failed")
+	}
+	results := adapter.Replace(context.Background(), []replication.RecoveryReplacement{{
+		ChannelKey: key, ChannelID: id,
+		Proposals: []replication.RecoveryProposal{{Manifest: manifest, Records: records}},
+	}})
+	if len(results) != 1 || results[0].Outcome != ch.AppendOutcomeDefinitelyNotWritten ||
+		!errors.Is(results[0].Err, ch.ErrBackpressured) {
+		t.Fatalf("Replace(oversized) = %+v, want pre-admission backpressure", results)
+	}
+	if factory.calls != 0 {
+		t.Fatalf("ChannelStore() calls = %d, want zero before bounded admission", factory.calls)
+	}
+}
+
+func TestStoreAdapterReplacesSuffixAfterPhysicalPrefixRetention(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMemoryFactory()
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:retained-recovery-prefix")
+	id := ch.ChannelID{ID: "retained-recovery-prefix", Type: 1}
+	first := sealedMutationAt(t, key, id, 91, 0, ch.EntryIdentity{})
+	first.Committed = 1
+	firstEntries, _ := ch.DeriveProposalEntries(first.Manifest, len(first.Records), func(index int) ch.Record { return first.Records[index] })
+	second := sealedMutationAt(t, key, id, 92, 1, firstEntries[0])
+	secondEntries, _ := ch.DeriveProposalEntries(second.Manifest, len(second.Records), func(index int) ch.Record { return second.Records[index] })
+	divergent := sealedMutationAt(t, key, id, 93, 2, secondEntries[0])
+	if results := adapter.Sync(context.Background(), []replication.Mutation{first, second, divergent}); len(results) != 3 ||
+		!results[0].Outcome.Durable() || !results[1].Outcome.Durable() || !results[2].Outcome.Durable() {
+		t.Fatalf("Sync() = %+v, want three durable proposals", results)
+	}
+	store, err := factory.ChannelStore(key, id)
+	if err != nil {
+		t.Fatalf("ChannelStore() error = %v", err)
+	}
+	if _, err := store.AdoptRetentionBoundary(context.Background(), 1, "delivery"); err != nil {
+		t.Fatalf("AdoptRetentionBoundary() error = %v", err)
+	}
+	if result, err := store.TrimMessagesThrough(context.Background(), 1, channelstore.RetentionTrimOptions{}); err != nil || result.Deleted != 1 {
+		t.Fatalf("TrimMessagesThrough() = %+v, error %v; want one retained-prefix row", result, err)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load() = %+v, error %v", loaded, loadErr)
+	}
+	replacement := sealedMutationAt(t, key, id, 94, 2, secondEntries[0])
+	results := adapter.Replace(context.Background(), []replication.RecoveryReplacement{{
+		ChannelKey: key, ChannelID: id, Expected: loaded.Items[0].State, KeepThrough: 2,
+		Proposals: []replication.RecoveryProposal{{Manifest: replacement.Manifest, Records: replacement.Records}},
+		Committed: 1,
+	}})
+	if len(results) != 1 || results[0].Err != nil || results[0].Outcome != ch.AppendOutcomeDurable {
+		t.Fatalf("Replace() = %+v, want durable retained-prefix repair", results)
+	}
+	loaded, loadErr = adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id, ProbeIndexes: []uint64{1, 2, 3},
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil ||
+		loaded.Items[0].Entries[0].Identity != firstEntries[0] || loaded.Items[0].Entries[1].Identity != secondEntries[0] {
+		t.Fatalf("Load(repaired) = %+v, error %v; want retained identity prefix", loaded, loadErr)
+	}
+}
+
+func TestStoreAdapterRejectsReplacementBelowAdoptedRetentionBoundary(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:retention-fenced-recovery")
+	id := ch.ChannelID{ID: "retention-fenced-recovery", Type: 1}
+	first := sealedMutationAt(t, key, id, 101, 0, ch.EntryIdentity{})
+	first.Committed = 1
+	firstEntries, _ := ch.DeriveProposalEntries(first.Manifest, len(first.Records), func(index int) ch.Record { return first.Records[index] })
+	second := sealedMutationAt(t, key, id, 102, 1, firstEntries[0])
+	secondEntries, _ := ch.DeriveProposalEntries(second.Manifest, len(second.Records), func(index int) ch.Record { return second.Records[index] })
+	third := sealedMutationAt(t, key, id, 103, 2, secondEntries[0])
+	if results := adapter.Sync(context.Background(), []replication.Mutation{first, second, third}); len(results) != 3 ||
+		!results[0].Outcome.Durable() || !results[1].Outcome.Durable() || !results[2].Outcome.Durable() {
+		t.Fatalf("Sync() = %+v, want three durable proposals", results)
+	}
+	store, err := factory.ChannelStore(key, id)
+	if err != nil {
+		t.Fatalf("ChannelStore() error = %v", err)
+	}
+	if _, err := store.AdoptRetentionBoundary(context.Background(), 2, "delivery"); err != nil {
+		t.Fatalf("AdoptRetentionBoundary() error = %v", err)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		t.Fatalf("Load() = %+v, error %v", loaded, loadErr)
+	}
+	replacementSecond := sealedMutationAt(t, key, id, 104, 1, firstEntries[0])
+	replacementSecondEntries, _ := ch.DeriveProposalEntries(
+		replacementSecond.Manifest, len(replacementSecond.Records), func(index int) ch.Record { return replacementSecond.Records[index] },
+	)
+	replacementThird := sealedMutationAt(t, key, id, 105, 2, replacementSecondEntries[0])
+	results := adapter.Replace(context.Background(), []replication.RecoveryReplacement{{
+		ChannelKey: key, ChannelID: id, Expected: loaded.Items[0].State, KeepThrough: 1,
+		Proposals: []replication.RecoveryProposal{
+			{Manifest: replacementSecond.Manifest, Records: replacementSecond.Records},
+			{Manifest: replacementThird.Manifest, Records: replacementThird.Records},
+		},
+		Committed: 1,
+	}})
+	if len(results) != 1 || results[0].Outcome != ch.AppendOutcomeConflict || !errors.Is(results[0].Err, ch.ErrLogConflict) {
+		t.Fatalf("Replace(below retention) = %+v, want conflict", results)
+	}
+	loadedAfter, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loadedAfter.Items) != 1 || loadedAfter.Items[0].Err != nil || loadedAfter.Items[0].State != loaded.Items[0].State {
+		t.Fatalf("Load(after rejected replacement) = %+v, error %v; want unchanged %+v", loadedAfter, loadErr, loaded.Items[0].State)
+	}
+}
+
 func TestStoreAdapterSyncUsesOneMessageDBBatch(t *testing.T) {
 	t.Parallel()
 
@@ -542,6 +777,16 @@ type scriptedStoreFactory struct {
 }
 
 func (f scriptedStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (channelstore.ChannelStore, error) {
+	return f.store, nil
+}
+
+type countingStoreFactory struct {
+	store channelstore.ChannelStore
+	calls int
+}
+
+func (f *countingStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (channelstore.ChannelStore, error) {
+	f.calls++
 	return f.store, nil
 }
 

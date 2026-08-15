@@ -269,7 +269,8 @@ predecessor, command, and content-derived digest in the same synchronous
 physical commit as the rows, so exact replay remains safe after retention and
 reopen; suffix truncation removes whole identities and cannot split one
 proposal. The production `ReplicaStore` adapter now exposes bounded positional
-`Load` plus `Sync`: `Load` takes one append/checkpoint-consistent view and
+`Load`, `Sync`, and recovery-only `Replace`: `Load` takes one
+append/checkpoint-consistent view and
 returns LEO, committed HW, the tail manifest, and the tail entry identity;
 non-empty state without that exact identity, or with HW above LEO, fails
 closed. `Sync` reuses the MessageDB batch surface for both adjacent proposals
@@ -329,7 +330,14 @@ leader, follower, and requested indexes; the peer owner rejects a cross-request
 response before it can count as recovery evidence. Probe and replication items
 for one target may share the owner but are emitted in separate batches, so a
 Channel never mixes recovery reads with writes in one follower storage call.
-Suffix fetch/replace, the current-term
+`Replace` is fenced by the exact inspected local frontier and atomically removes
+only complete proposals after a proposal-boundary `KeepThrough`, installs the
+verified replacement rows, secondary indexes, proposal/entry identities, and
+monotonic committed HW, and truncates future epoch history in one synchronous
+MessageDB batch. It rejects a stale frontier, a cut below committed or adopted
+retention state, a split proposal, and any unbounded item before storage access;
+physical prefix retention does not erase the immutable identity chain. Suffix
+fetch, the current-term
 barrier, and the `Install` readiness transition must still land before reactor
 wiring. The design is
 recorded in

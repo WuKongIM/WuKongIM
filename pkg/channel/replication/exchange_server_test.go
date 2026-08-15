@@ -227,6 +227,10 @@ func (s *recordingReplicaStore) Sync(_ context.Context, mutations []Mutation) []
 	return append([]MutationResult(nil), s.results...)
 }
 
+func (*recordingReplicaStore) Replace(context.Context, []RecoveryReplacement) []RecoveryReplacementResult {
+	return nil
+}
+
 func mutationBatchCounts(batches [][]Mutation) []int {
 	counts := make([]int, len(batches))
 	for index := range batches {

@@ -115,6 +115,13 @@ Current flow:
    prefix retention deliberately preserves manifests for exact replay.
    Bounded retention trims can advance physical deletion in multiple batches
    while retention state preserves LEO across reopen after prefix trim.
+   Recovery-only suffix replacement additionally fences on the exact inspected
+   frontier, refuses cuts below committed or adopted retention state, and uses
+   one synchronous Pebble batch to delete the divergent suffix and future epoch
+   history while installing the verified replacement rows, indexes, proposal
+   manifests, entry identities, and monotonic checkpoint. The in-memory store
+   implements the same atomic contract without assuming retained rows begin at
+   offset one.
 10. Catalog entries are created by the first durable append or a system
     mutation and can be
    listed through `MessageDB.ListChannels`, paged with

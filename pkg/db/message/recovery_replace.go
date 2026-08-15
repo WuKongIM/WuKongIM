@@ -1,0 +1,317 @@
+package message
+
+import (
+	"context"
+	"errors"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
+)
+
+// RecoveryProposal is one complete exact proposal copied from a quorum-proven
+// recovery source.
+type RecoveryProposal struct {
+	Manifest DurableProposalManifest
+	Records  []channel.Record
+}
+
+// ReplaceRecoverySuffixRequest fences one atomic suffix replacement to the
+// exact local frontier inspected before repair.
+type ReplaceRecoverySuffixRequest struct {
+	Expected    DurableFrontier
+	KeepThrough uint64
+	Proposals   []RecoveryProposal
+	Committed   uint64
+}
+
+// ReplaceRecoverySuffixResult reports the closed physical commit outcome.
+type ReplaceRecoverySuffixResult struct {
+	LastOffset uint64
+	Outcome    quorumlog.AppendOutcome
+}
+
+// ReplaceRecoverySuffix atomically deletes a divergent suffix and installs a
+// fully verified exact replacement. No truncated intermediate state is ever
+// published or committed.
+func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error) {
+	if ctx == nil {
+		return recoveryReplaceError(channel.ErrInvalidArgument), channel.ErrInvalidArgument
+	}
+	if err := s.beginUse(); err != nil {
+		return recoveryReplaceError(err), err
+	}
+	defer s.endUse()
+	if err := ctx.Err(); err != nil {
+		return recoveryReplaceError(err), err
+	}
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+
+	current, checkpoint, err := s.loadDurableFrontierLocked(ctx)
+	if err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	if current != req.Expected || req.KeepThrough > current.LEO || req.KeepThrough < current.Committed ||
+		req.Committed < current.Committed {
+		return recoveryReplaceError(channel.ErrCorruptState), channel.ErrCorruptState
+	}
+	retention, present, err := s.log.loadRetentionState(ctx)
+	if err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	if present && req.KeepThrough < retention.LocalRetentionThroughSeq {
+		return recoveryReplaceError(channel.ErrCorruptState), channel.ErrCorruptState
+	}
+	if req.KeepThrough > 0 {
+		proposal, present, loadErr := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, req.KeepThrough)
+		if loadErr != nil || !present || proposal.manifest.LastOffset != req.KeepThrough {
+			if loadErr == nil {
+				loadErr = dberrors.ErrConflict
+			}
+			err = toChannelError(loadErr)
+			return recoveryReplaceError(err), err
+		}
+	}
+
+	prepared, finalOffset, err := s.prepareRecoveryReplacementLocked(ctx, req)
+	if err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	if req.Committed > finalOffset {
+		return recoveryReplaceError(channel.ErrInvalidArgument), channel.ErrInvalidArgument
+	}
+	checkpoint.HW = req.Committed
+	if err := validateCheckpoint(checkpoint); err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	rows, err := s.log.readRows(ctx, req.KeepThrough+1, 0, ReadOptions{})
+	if err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	nextRetention, writeRetention, err := s.retentionStateAfterTruncate(ctx, finalOffset)
+	if err != nil {
+		return recoveryReplaceError(err), err
+	}
+
+	batch := s.log.db.engine.NewBatch()
+	defer batch.Close()
+	if err := s.log.channelEntry.stageTruncateDurableProposals(ctx, batch, req.KeepThrough); err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	for _, row := range rows {
+		if err := s.log.stageDeleteMessage(batch, messageFromRow(row)); err != nil {
+			err = toChannelError(err)
+			return recoveryReplaceError(err), err
+		}
+	}
+	history := keycodec.NewPrefixSpan(encodeHistoryPrefix(s.log.key))
+	if err := batch.DeleteRange(engine.Span{
+		Start: encodeHistoryOffsetKey(s.log.key, req.KeepThrough+1), End: history.End,
+	}); err != nil {
+		err = toChannelError(err)
+		return recoveryReplaceError(err), err
+	}
+	if err := s.log.channelEntry.stageCommitRows(
+		batch, prepared.rows, &checkpoint, nil, prepared.proposals, prepared.entries,
+	); err != nil {
+		return recoveryReplaceError(err), err
+	}
+	if writeRetention {
+		if err := batch.Set(encodeRetentionStateKey(s.log.key), encodeRetentionState(nextRetention)); err != nil {
+			err = toChannelError(err)
+			return recoveryReplaceError(err), err
+		}
+	}
+	if err := batch.Commit(true); err != nil {
+		err = toChannelError(err)
+		return ReplaceRecoverySuffixResult{Outcome: quorumlog.AppendOutcomeUnknown}, err
+	}
+	s.log.leo.Store(finalOffset)
+	s.log.loaded.Store(true)
+	if s.log.idempotencyMembershipLoaded {
+		cache := s.log.appendKeyCache
+		for _, row := range prepared.rows {
+			if row.FromUID != "" && row.ClientMsgNo != "" {
+				s.log.idempotencyMembership.add(cache.idempotencyIndexKey(row.FromUID, row.ClientMsgNo))
+			}
+		}
+	}
+	return ReplaceRecoverySuffixResult{LastOffset: finalOffset, Outcome: quorumlog.AppendOutcomeDurable}, nil
+}
+
+func (s *ChannelStore) loadDurableFrontierLocked(ctx context.Context) (DurableFrontier, Checkpoint, error) {
+	leo, err := s.log.loadLEOLocked(ctx)
+	if err != nil {
+		return DurableFrontier{}, Checkpoint{}, err
+	}
+	checkpoint, present, err := s.log.loadCheckpoint(ctx)
+	if err != nil {
+		return DurableFrontier{}, Checkpoint{}, err
+	}
+	if !present {
+		checkpoint = Checkpoint{}
+	}
+	if checkpoint.HW > leo {
+		return DurableFrontier{}, Checkpoint{}, dberrors.ErrCorruptState
+	}
+	frontier := DurableFrontier{LEO: leo, Committed: checkpoint.HW}
+	if leo == 0 {
+		return frontier, checkpoint, nil
+	}
+	proposal, present, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, leo)
+	if err != nil || !present {
+		if err == nil {
+			err = dberrors.ErrCorruptState
+		}
+		return DurableFrontier{}, Checkpoint{}, err
+	}
+	entry, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, leo)
+	if err != nil || !present || proposal.manifest.LastOffset != leo || proposal.manifest.Digest != entry.Digest ||
+		proposal.manifest.ChannelEpoch != entry.ChannelEpoch || proposal.manifest.LeaderTerm != entry.LeaderTerm ||
+		proposal.manifest.FenceVersion != entry.FenceVersion || proposal.manifest.CommandID != entry.CommandID {
+		if err == nil {
+			err = dberrors.ErrCorruptState
+		}
+		return DurableFrontier{}, Checkpoint{}, err
+	}
+	frontier.Manifest = proposal.manifest
+	frontier.TailIdentity = entry
+	return frontier, checkpoint, nil
+}
+
+func (s *ChannelStore) prepareRecoveryReplacementLocked(ctx context.Context, req ReplaceRecoverySuffixRequest) (preparedCommitRows, uint64, error) {
+	prepared := preparedCommitRows{store: s, baseOffset: req.KeepThrough, nextLEO: req.KeepThrough}
+	base := req.KeepThrough
+	var previous quorumlog.EntryIdentity
+	if base > 0 {
+		identity, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, base)
+		if err != nil || !present {
+			if err == nil {
+				err = dberrors.ErrCorruptState
+			}
+			return preparedCommitRows{}, 0, err
+		}
+		previous = identity
+	}
+	seen := newAppendValidationSeen(recoveryRecordCount(req.Proposals))
+	seenCommands := make(map[quorumlog.CommandID]struct{}, len(req.Proposals))
+	seenLast := make(map[uint64]struct{}, len(req.Proposals))
+	for _, proposal := range req.Proposals {
+		manifest := proposal.Manifest
+		if err := validateDurableProposalManifest(manifest, base, len(proposal.Records)); err != nil {
+			return preparedCommitRows{}, 0, err
+		}
+		if manifest.PreviousIndex != previous.Index || manifest.PreviousTerm != previous.LeaderTerm ||
+			manifest.PreviousDigest != previous.Digest {
+			return preparedCommitRows{}, 0, dberrors.ErrConflict
+		}
+		if _, duplicate := seenCommands[manifest.CommandID]; duplicate {
+			return preparedCommitRows{}, 0, dberrors.ErrConflict
+		}
+		if _, duplicate := seenLast[manifest.LastOffset]; duplicate {
+			return preparedCommitRows{}, 0, dberrors.ErrConflict
+		}
+		if err := s.validateRecoveryProposalKeyReuse(manifest, req.KeepThrough); err != nil {
+			return preparedCommitRows{}, 0, err
+		}
+		rows, err := compatibilityRowsFromRecords(base+1, proposal.Records)
+		if err != nil {
+			return preparedCommitRows{}, 0, err
+		}
+		entries, ok := deriveDurableProposalEntries(manifest, proposal.Records, rows)
+		if !ok || len(entries) == 0 || entries[len(entries)-1].Digest != manifest.Digest {
+			return preparedCommitRows{}, 0, dberrors.ErrConflict
+		}
+		if err := s.validateRecoveryRows(ctx, rows, req.KeepThrough, &seen); err != nil {
+			return preparedCommitRows{}, 0, err
+		}
+		prepared.rows = append(prepared.rows, rows...)
+		prepared.proposals = append(prepared.proposals, durableProposalRecord{manifest: manifest})
+		prepared.entries = append(prepared.entries, entries...)
+		seenCommands[manifest.CommandID] = struct{}{}
+		seenLast[manifest.LastOffset] = struct{}{}
+		previous = entries[len(entries)-1]
+		base = manifest.LastOffset
+	}
+	prepared.nextLEO = base
+	return prepared, base, nil
+}
+
+func (s *ChannelStore) validateRecoveryProposalKeyReuse(manifest DurableProposalManifest, keepThrough uint64) error {
+	byCommand, commandPresent, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, manifest.CommandID))
+	if err != nil {
+		return err
+	}
+	if commandPresent && byCommand.manifest.LastOffset <= keepThrough {
+		return dberrors.ErrConflict
+	}
+	byLast, lastPresent, err := s.loadDurableProposal(encodeProposalByLastKey(s.log.key, manifest.LastOffset))
+	if err != nil {
+		return err
+	}
+	if lastPresent && byLast.manifest.LastOffset <= keepThrough {
+		return dberrors.ErrConflict
+	}
+	return nil
+}
+
+func (s *ChannelStore) validateRecoveryRows(ctx context.Context, rows []messageRow, keepThrough uint64, seen *appendValidationSeen) error {
+	cache := s.log.appendKeyCache
+	for _, row := range rows {
+		if err := row.validate(); err != nil {
+			return err
+		}
+		if row.ChannelID != s.id.ID || row.ChannelType != s.id.Type || seen.rememberMessageID(row.MessageID) {
+			return dberrors.ErrConflict
+		}
+		channelKey, seq, present, err := s.log.lookupGlobalMessageIDByKey(ctx, encodeGlobalMessageIDIndexKey(row.MessageID))
+		if err != nil {
+			return err
+		}
+		if present && (channelKey != s.log.key || seq <= keepThrough) {
+			return dberrors.ErrConflict
+		}
+		if row.FromUID == "" || row.ClientMsgNo == "" {
+			continue
+		}
+		key := IdempotencyKey{FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo}
+		if seen.rememberIdempotencyKey(key) {
+			return dberrors.ErrConflict
+		}
+		hit, present, err := s.log.lookupIdempotencyByKey(ctx, key, cache.idempotencyIndexKey(key.FromUID, key.ClientMsgNo))
+		if err != nil {
+			return err
+		}
+		if present && hit.MessageSeq <= keepThrough {
+			return dberrors.ErrConflict
+		}
+	}
+	return nil
+}
+
+func recoveryRecordCount(proposals []RecoveryProposal) int {
+	total := 0
+	for _, proposal := range proposals {
+		total += len(proposal.Records)
+	}
+	return total
+}
+
+func recoveryReplaceError(err error) ReplaceRecoverySuffixResult {
+	outcome := quorumlog.AppendOutcomeDefinitelyNotWritten
+	if errors.Is(err, channel.ErrCorruptState) || errors.Is(err, dberrors.ErrCorruptState) || errors.Is(err, dberrors.ErrConflict) {
+		outcome = quorumlog.AppendOutcomeConflict
+	}
+	return ReplaceRecoverySuffixResult{Outcome: outcome}
+}

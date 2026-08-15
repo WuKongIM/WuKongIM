@@ -576,6 +576,35 @@ func (a *messageDBChannelStoreAdapter) LoadExactRecoveryState(ctx context.Contex
 	return result, nil
 }
 
+// ReplaceRecoverySuffix maps the recovery-only exact replacement to one
+// atomic MessageDB mutation.
+func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	if err := ctx.Err(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	proposals := make([]messagedb.RecoveryProposal, len(req.Proposals))
+	for index, proposal := range req.Proposals {
+		proposals[index] = messagedb.RecoveryProposal{
+			Manifest: proposal.Manifest,
+			Records:  a.encodeRecords(proposal.Records),
+		}
+	}
+	result, err := a.store.ReplaceRecoverySuffix(ctx, messagedb.ReplaceRecoverySuffixRequest{
+		Expected: messagedb.DurableFrontier{
+			LEO: req.Expected.LEO, Committed: req.Expected.HW,
+			Manifest: req.Expected.Manifest, TailIdentity: req.Expected.TailIdentity,
+		},
+		KeepThrough: req.KeepThrough,
+		Proposals:   proposals,
+		Committed:   req.Committed,
+	})
+	err = a.mapError(err)
+	return ReplaceRecoverySuffixResult{LastOffset: result.LastOffset, Outcome: result.Outcome}, err
+}
+
 func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := a.ensureOpen(); err != nil {
 		return appendLeaderErrorResult(err), err

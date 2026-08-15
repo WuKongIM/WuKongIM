@@ -453,6 +453,9 @@ func (s *deadlineRecoveryReplicaStore) Load(ctx context.Context, _ LoadBatch) (L
 }
 
 func (*deadlineRecoveryReplicaStore) Sync(context.Context, []Mutation) []MutationResult { return nil }
+func (*deadlineRecoveryReplicaStore) Replace(context.Context, []RecoveryReplacement) []RecoveryReplacementResult {
+	return nil
+}
 
 func makeRecoveryChain(last uint64) []EntryProbe {
 	identities := make([]ch.EntryIdentity, last)

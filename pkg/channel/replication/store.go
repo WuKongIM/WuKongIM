@@ -69,10 +69,37 @@ type MutationResult struct {
 	Err      error
 }
 
+// RecoveryProposal is one complete immutable proposal in a replacement
+// suffix. Its first record follows the preceding proposal without a gap.
+type RecoveryProposal struct {
+	Manifest ch.ProposalManifest
+	Records  []ch.Record
+}
+
+// RecoveryReplacement atomically replaces the local suffix after KeepThrough.
+// Expected fences the operation to the exact local frontier inspected by the
+// recovery owner; Committed may advance but never regress.
+type RecoveryReplacement struct {
+	ChannelKey  ch.ChannelKey
+	ChannelID   ch.ChannelID
+	Expected    ReplicaState
+	KeepThrough uint64
+	Proposals   []RecoveryProposal
+	Committed   uint64
+}
+
+// RecoveryReplacementResult is the closed durable outcome of one replacement.
+type RecoveryReplacementResult struct {
+	Outcome    ch.AppendOutcome
+	LastOffset uint64
+	Err        error
+}
+
 // ReplicaStore loads exact durable frontiers and synchronously applies exact
 // immutable mutations. Returning from Sync with a durable outcome proves
 // physical durability for that item.
 type ReplicaStore interface {
 	Load(context.Context, LoadBatch) (LoadBatchResult, error)
 	Sync(context.Context, []Mutation) []MutationResult
+	Replace(context.Context, []RecoveryReplacement) []RecoveryReplacementResult
 }

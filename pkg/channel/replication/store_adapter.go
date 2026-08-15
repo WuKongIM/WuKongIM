@@ -8,7 +8,10 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
-const maxRecoveryProbeIndexes = 256
+const (
+	maxRecoveryProbeIndexes         = 256
+	maxRecoveryReplacementProposals = 256
+)
 
 // StoreAdapterConfig bounds one local ReplicaStore adapter.
 type StoreAdapterConfig struct {
@@ -229,6 +232,135 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 			Outcome: appendResult.Outcome, LastOffset: appendResult.LastOffset,
 			NeedFrom: appendResult.NeedFrom, Err: appendErr,
 		})
+	}
+	return results
+}
+
+func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryReplacement) []RecoveryReplacementResult {
+	results := make([]RecoveryReplacementResult, len(replacements))
+	if a == nil || ctx == nil || len(replacements) == 0 || len(replacements) > a.cfg.MaxBatchItems {
+		return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
+	}
+	totalBytes := 0
+	for _, replacement := range replacements {
+		itemBytes, validationErr := validateRecoveryReplacement(replacement, a.cfg.MaxBatchBytes)
+		if validationErr != nil {
+			return rejectRecoveryReplacements(results, validationErr)
+		}
+		if totalBytes > a.cfg.MaxBatchBytes-itemBytes {
+			return rejectRecoveryReplacements(results, ch.ErrBackpressured)
+		}
+		totalBytes += itemBytes
+	}
+	if err := ctx.Err(); err != nil {
+		return rejectRecoveryReplacements(results, err)
+	}
+	for index, replacement := range replacements {
+		store, err := a.cfg.Factory.ChannelStore(replacement.ChannelKey, replacement.ChannelID)
+		if err != nil {
+			results[index] = RecoveryReplacementResult{Outcome: ch.AppendOutcomeDefinitelyNotWritten, Err: err}
+			continue
+		}
+		replacer, ok := store.(channelstore.RecoverySuffixReplacer)
+		if !ok {
+			_ = store.Close()
+			results[index] = RecoveryReplacementResult{Outcome: ch.AppendOutcomeDefinitelyNotWritten, Err: ch.ErrInvalidConfig}
+			continue
+		}
+		proposals := make([]channelstore.RecoveryProposal, len(replacement.Proposals))
+		for proposalIndex, proposal := range replacement.Proposals {
+			proposals[proposalIndex] = channelstore.RecoveryProposal{Manifest: proposal.Manifest, Records: proposal.Records}
+		}
+		replaceResult, replaceErr := replacer.ReplaceRecoverySuffix(ctx, channelstore.ReplaceRecoverySuffixRequest{
+			Expected: channelstore.ExactState{
+				InitialState: channelstore.InitialState{
+					LEO: replacement.Expected.LEO, HW: replacement.Expected.Committed,
+					CheckpointHW: replacement.Expected.Committed,
+				},
+				Manifest: replacement.Expected.Manifest, TailIdentity: replacement.Expected.TailIdentity,
+			},
+			KeepThrough: replacement.KeepThrough,
+			Proposals:   proposals,
+			Committed:   replacement.Committed,
+		})
+		closeErr := store.Close()
+		if replaceErr == nil && closeErr != nil && !replaceResult.Outcome.Durable() {
+			replaceErr = closeErr
+		}
+		results[index] = normalizeRecoveryReplacementResult(replacement, RecoveryReplacementResult{
+			Outcome: replaceResult.Outcome, LastOffset: replaceResult.LastOffset, Err: replaceErr,
+		})
+	}
+	return results
+}
+
+func validateRecoveryReplacement(replacement RecoveryReplacement, maxBytes int) (int, error) {
+	if replacement.ChannelKey == "" || replacement.ChannelID.ID == "" ||
+		len(replacement.Proposals) > maxRecoveryReplacementProposals || replacement.KeepThrough > replacement.Expected.LEO ||
+		replacement.KeepThrough < replacement.Expected.Committed || replacement.Committed < replacement.Expected.Committed {
+		return 0, ch.ErrInvalidConfig
+	}
+	expected := channelstore.ExactState{
+		InitialState: channelstore.InitialState{
+			LEO: replacement.Expected.LEO, HW: replacement.Expected.Committed,
+			CheckpointHW: replacement.Expected.Committed,
+		},
+		Manifest: replacement.Expected.Manifest, TailIdentity: replacement.Expected.TailIdentity,
+	}
+	if validateExactState(expected) != nil {
+		return 0, ch.ErrInvalidConfig
+	}
+	total, ok := boundedByteSize(maxBytes, 256, len(replacement.ChannelKey), len(replacement.ChannelID.ID))
+	if !ok {
+		return 0, ch.ErrBackpressured
+	}
+	base := replacement.KeepThrough
+	for _, proposal := range replacement.Proposals {
+		mutation := Mutation{
+			ChannelKey: replacement.ChannelKey, ChannelID: replacement.ChannelID,
+			Manifest: proposal.Manifest, Records: proposal.Records,
+		}
+		if proposal.Manifest.BaseOffset != base || !validMutation(mutation) {
+			return 0, ch.ErrInvalidConfig
+		}
+		itemBytes, ok := estimateMutationBytes(mutation, maxBytes-total)
+		if !ok {
+			return 0, ch.ErrBackpressured
+		}
+		total += itemBytes
+		base = proposal.Manifest.LastOffset
+	}
+	if replacement.Committed > base {
+		return 0, ch.ErrInvalidConfig
+	}
+	return total, nil
+}
+
+func normalizeRecoveryReplacementResult(replacement RecoveryReplacement, result RecoveryReplacementResult) RecoveryReplacementResult {
+	lastOffset := replacement.KeepThrough
+	if len(replacement.Proposals) > 0 {
+		lastOffset = replacement.Proposals[len(replacement.Proposals)-1].Manifest.LastOffset
+	}
+	valid := result.Outcome.Valid()
+	if result.Outcome.Durable() {
+		valid = valid && result.Err == nil && result.LastOffset == lastOffset
+	} else {
+		valid = valid && result.Err != nil && result.LastOffset == 0
+	}
+	if valid {
+		return result
+	}
+	return RecoveryReplacementResult{Outcome: ch.AppendOutcomeUnknown, Err: ch.ErrInvalidConfig}
+}
+
+func rejectRecoveryReplacements(results []RecoveryReplacementResult, err error) []RecoveryReplacementResult {
+	outcome := ch.AppendOutcomeDefinitelyNotWritten
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) &&
+		!errors.Is(err, ch.ErrInvalidConfig) && !errors.Is(err, ch.ErrBackpressured) {
+		outcome = ch.AppendOutcomeUnknown
+	}
+	for index := range results {
+		results[index] = RecoveryReplacementResult{Outcome: outcome, Err: err}
 	}
 	return results
 }

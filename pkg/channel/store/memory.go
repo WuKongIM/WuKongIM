@@ -121,6 +121,108 @@ func (s *MemoryChannelStore) loadExactStateLocked() (ExactState, error) {
 	return state, nil
 }
 
+// ReplaceRecoverySuffix atomically swaps an uncommitted divergent suffix for
+// a fully verified sequence of exact proposals.
+func (s *MemoryChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error) {
+	if ctx == nil {
+		return replaceRecoverySuffixErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.loadExactStateLocked()
+	if err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	if current != req.Expected || req.KeepThrough > current.LEO || req.KeepThrough < current.HW ||
+		req.Committed < current.HW || req.KeepThrough < s.retention.LocalRetentionThroughSeq {
+		return replaceRecoverySuffixErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+	}
+	if req.KeepThrough > 0 {
+		if proposal, ok := s.proposalsByLast[req.KeepThrough]; !ok || proposal.manifest.LastOffset != req.KeepThrough {
+			return replaceRecoverySuffixErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+		}
+	}
+
+	prefixRecords := make([]ch.Record, 0, len(s.records))
+	for _, record := range s.records {
+		if record.Index <= req.KeepThrough {
+			prefixRecords = append(prefixRecords, cloneRecord(record))
+		}
+	}
+	next := &MemoryChannelStore{
+		id:                 s.id,
+		records:            prefixRecords,
+		checkpoint:         s.checkpoint,
+		retention:          s.retention,
+		proposalsByCommand: make(map[[32]byte]proposalRecord),
+		proposalsByLast:    make(map[uint64]proposalRecord),
+		entriesByIndex:     make(map[uint64]ch.EntryIdentity),
+	}
+	if next.retention.RetainedMaxSeq > req.KeepThrough {
+		next.retention.RetainedMaxSeq = req.KeepThrough
+	}
+	for command, proposal := range s.proposalsByCommand {
+		if proposal.manifest.LastOffset <= req.KeepThrough {
+			next.proposalsByCommand[command] = proposal
+		}
+	}
+	for last, proposal := range s.proposalsByLast {
+		if last <= req.KeepThrough {
+			next.proposalsByLast[last] = proposal
+		}
+	}
+	for index, identity := range s.entriesByIndex {
+		if index <= req.KeepThrough {
+			next.entriesByIndex[index] = identity
+		}
+	}
+	base := req.KeepThrough
+	for _, proposal := range req.Proposals {
+		if proposal.Manifest.BaseOffset != base {
+			return replaceRecoverySuffixErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+		}
+		result, appendErr := next.appendLeaderExactLocked(AppendLeaderRequest{
+			Records: proposal.Records, ExactBaseOffset: true,
+			ExpectedBaseOffset: base, Proposal: proposal.Manifest,
+		})
+		if appendErr != nil || !result.Outcome.Durable() {
+			if appendErr == nil {
+				appendErr = ch.ErrLogConflict
+			}
+			return replaceRecoverySuffixErrorResult(appendErr), appendErr
+		}
+		base = proposal.Manifest.LastOffset
+	}
+	if req.Committed > base {
+		return replaceRecoverySuffixErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	next.checkpoint.HW = req.Committed
+	if next.retention.RetainedMaxSeq > base {
+		next.retention.RetainedMaxSeq = base
+	}
+	s.records = next.records
+	s.checkpoint = next.checkpoint
+	s.retention = next.retention
+	s.proposalsByCommand = next.proposalsByCommand
+	s.proposalsByLast = next.proposalsByLast
+	s.entriesByIndex = next.entriesByIndex
+	return ReplaceRecoverySuffixResult{LastOffset: base, Outcome: AppendOutcomeDurable}, nil
+}
+
+func replaceRecoverySuffixErrorResult(err error) ReplaceRecoverySuffixResult {
+	outcome := AppendOutcomeDefinitelyNotWritten
+	if errors.Is(err, ch.ErrLogConflict) {
+		outcome = AppendOutcomeConflict
+	}
+	return ReplaceRecoverySuffixResult{Outcome: outcome}
+}
+
 // AppendLeader appends records as the local leader and assigns continuous indexes.
 func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := ctx.Err(); err != nil {
