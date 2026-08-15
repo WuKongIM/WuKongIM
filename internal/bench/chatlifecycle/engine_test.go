@@ -1421,6 +1421,64 @@ func TestEngineDelayedCompletionUsesExactlyThreeStableRetries(t *testing.T) {
 	}
 }
 
+func TestEngineSessionExpiryWaitsForAdmittedSendCompletion(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, SessionDuration: time.Millisecond,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	uid := fixture.identity.UID(0)
+	session, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: uid, UserIndex: 0, LoginOrdinal: 0,
+	})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, uid, "expiry-protected-group", 42, TrafficGroup)
+	if err := fixture.engine.SubmitGranted(intent, fixture.clock.Now()); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
+		t.Fatalf("Advance(send): %v", err)
+	}
+	packets := fixture.factory.sentPackets()
+	if len(packets) != 1 {
+		t.Fatalf("sent packets = %d, want 1", len(packets))
+	}
+
+	fixture.clock.Set(session.Deadline)
+	firstExpiry, err := fixture.engine.Step(context.Background(), session.Deadline, nil)
+	if err != nil {
+		t.Fatalf("Step(at deadline with admitted SEND): %v", err)
+	}
+	if firstExpiry.Expired != 0 || !fixture.pool.IsOnline(uid) {
+		t.Fatalf("leased session expired during admitted SEND: step=%+v online=%v", firstExpiry, fixture.pool.IsOnline(uid))
+	}
+
+	ack := &frame.SendackPacket{
+		ClientSeq: packets[0].ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
+		MessageID: 42, MessageSeq: 42, ReasonCode: frame.ReasonSuccess,
+	}
+	verificationErr := fixture.verifier.HandleSendackAt(ack, session.Deadline)
+	if verificationErr != nil {
+		t.Fatalf("HandleSendackAt: %v", verificationErr)
+	}
+	if err := fixture.engine.ObserveSendack(uid, ack, verificationErr); err != nil {
+		t.Fatalf("ObserveSendack: %v", err)
+	}
+	secondExpiry, err := fixture.engine.Step(context.Background(), session.Deadline, nil)
+	if err != nil {
+		t.Fatalf("Step(after SEND completion): %v", err)
+	}
+	if secondExpiry.Expired != 1 || fixture.pool.IsOnline(uid) {
+		t.Fatalf("completed session expiry = %+v online=%v, want one expired offline session", secondExpiry, fixture.pool.IsOnline(uid))
+	}
+}
+
 func TestEngineSuccessfulFirstPersonSendCountsOneExactMetaCreateHashSlot(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{})

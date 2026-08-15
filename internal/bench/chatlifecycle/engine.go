@@ -593,7 +593,10 @@ func (h *engineWorkHeap) Pop() any {
 }
 
 type engineInflight struct {
-	intent           TrafficIntent
+	intent TrafficIntent
+	// senderLeaseUID identifies the exact session expiry lease owned by this
+	// logical SEND across every retry until its final completion.
+	senderLeaseUID   string
 	attempt          uint8
 	currentClientSeq uint64
 	clientSeqs       [maxSendAttemptIdentities]uint64
@@ -2270,6 +2273,7 @@ func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorker
 func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done chan<- struct{}) {
 	defer func() {
 		e.cleanupInflight()
+		e.cleanupQueuedSendLeases()
 		e.cleanupPendingActivities()
 		e.work = nil
 		e.activity = nil
@@ -2381,6 +2385,9 @@ func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
 func (e *Engine) addSendWork(intent TrafficIntent, attempt uint8, due time.Time) error {
 	if e.futureCount() >= e.workCapacity {
 		return e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
+	}
+	if attempt == 0 && !e.sessions.acquireSendLease(intent.Logical.Sender) {
+		return errSessionOffline
 	}
 	work := &engineWork{due: due, kind: engineWorkSend, intent: intent, attempt: attempt, order: e.nextOrder}
 	e.nextOrder++
@@ -2974,15 +2981,18 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	inflight := e.inflight[logical.ClientMsgNo]
 	if attempt == 0 {
 		if inflight != nil {
-			return errEngineConfig
+			return errors.Join(errEngineConfig, e.releaseUnstartedSendLease(intent))
 		}
 		if len(e.inflight) >= e.inflightCapacity {
-			return e.recordRuntimeFailure(RuntimeFailureInflightSaturated, uint64(e.inflightCapacity))
+			return errors.Join(
+				e.recordRuntimeFailure(RuntimeFailureInflightSaturated, uint64(e.inflightCapacity)),
+				e.releaseUnstartedSendLease(intent),
+			)
 		}
 		if err := e.verifier.RegisterSend(logical, now); err != nil {
-			return err
+			return errors.Join(err, e.releaseUnstartedSendLease(intent))
 		}
-		inflight = &engineInflight{intent: intent}
+		inflight = &engineInflight{intent: intent, senderLeaseUID: logical.Sender}
 		e.inflight[logical.ClientMsgNo] = inflight
 		if len(e.inflight) > e.inflightPeak {
 			e.inflightPeak = len(e.inflight)
@@ -3057,8 +3067,7 @@ func (e *Engine) cancelAttempt(inflight *engineInflight) error {
 	if err := e.verifier.abortSendHarness(logical); err != nil {
 		return err
 	}
-	delete(e.inflight, logical.ClientMsgNo)
-	return nil
+	return e.removeInflight(inflight)
 }
 
 func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause retryExhaustedCause) error {
@@ -3080,9 +3089,9 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		e.completeMetaCreate(inflight.intent, false)
 		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
 		_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
-		delete(e.inflight, logical.ClientMsgNo)
+		removeErr := e.removeInflight(inflight)
 		e.finalFailures++
-		return terminalErr
+		return errors.Join(terminalErr, removeErr)
 	}
 	if runtimeErr := new(RuntimeError); errors.As(err, &runtimeErr) {
 		e.recordRuntimeFailure(RuntimeFailureRetryQueueSaturated, uint64(e.retryCapacity))
@@ -3114,9 +3123,9 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			e.completeMetaCreate(inflight.intent, false)
 			terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
-			delete(e.inflight, ack.ClientMsgNo)
+			removeErr := e.removeInflight(inflight)
 			e.finalFailures++
-			return terminalErr
+			return errors.Join(terminalErr, removeErr)
 		}
 		return e.scheduleRetry(inflight, e.clock.Now(), retryExhaustedRetriableSendack)
 	}
@@ -3162,8 +3171,8 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 		}
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(ack.ClientMsgNo)
-		delete(e.inflight, ack.ClientMsgNo)
-		return errors.Join(verificationErr, lifecycleErr, e.verifier.ReleaseSendAt(logical, e.clock.Now()))
+		removeErr := e.removeInflight(inflight)
+		return errors.Join(verificationErr, lifecycleErr, e.verifier.ReleaseSendAt(logical, e.clock.Now()), removeErr)
 	}
 	if ack.ClientSeq != inflight.currentClientSeq {
 		return verificationErr
@@ -3173,9 +3182,9 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	e.completeMetaCreate(inflight.intent, false)
 	terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 	releaseErr := e.verifier.ReleaseSendAt(logical, e.clock.Now())
-	delete(e.inflight, ack.ClientMsgNo)
+	removeErr := e.removeInflight(inflight)
 	e.finalFailures++
-	return errors.Join(verificationErr, terminalErr, releaseErr)
+	return errors.Join(verificationErr, terminalErr, releaseErr, removeErr)
 }
 
 // completeGroupMetaCreate closes the expected runtime-metadata create only
@@ -3225,9 +3234,27 @@ func (e *Engine) abortHarness(inflight *engineInflight, cause error) error {
 		e.retries.cancel(logical.ClientMsgNo)
 		e.completeMetaCreate(inflight.intent, false)
 		_ = e.verifier.abortSendHarness(logical)
-		delete(e.inflight, logical.ClientMsgNo)
+		cause = errors.Join(cause, e.removeInflight(inflight))
 	}
 	return cause
+}
+
+func (e *Engine) releaseUnstartedSendLease(intent TrafficIntent) error {
+	if e.sessions.releaseSendLease(intent.Logical.Sender) {
+		return nil
+	}
+	return errEngineConfig
+}
+
+func (e *Engine) removeInflight(inflight *engineInflight) error {
+	if inflight == nil || inflight.senderLeaseUID == "" || e.inflight[inflight.intent.Logical.ClientMsgNo] != inflight {
+		return errEngineConfig
+	}
+	delete(e.inflight, inflight.intent.Logical.ClientMsgNo)
+	if !e.sessions.releaseSendLease(inflight.senderLeaseUID) {
+		return errEngineConfig
+	}
+	return nil
 }
 
 func (e *Engine) completeMetaCreate(intent TrafficIntent, success bool) {
@@ -3748,7 +3775,7 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 }
 
 func (e *Engine) cleanupInflight() {
-	for clientMsgNo, inflight := range e.inflight {
+	for _, inflight := range e.inflight {
 		logical := inflight.intent.Logical
 		e.completeMetaCreate(inflight.intent, false)
 		if err := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed); err != nil {
@@ -3756,7 +3783,18 @@ func (e *Engine) cleanupInflight() {
 		} else {
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		}
-		delete(e.inflight, clientMsgNo)
+		_ = e.removeInflight(inflight)
+	}
+}
+
+// cleanupQueuedSendLeases releases admission leases for initial SEND work
+// that was accepted by this generation but never became inflight before stop.
+func (e *Engine) cleanupQueuedSendLeases() {
+	for _, work := range e.work {
+		if work == nil || work.kind != engineWorkSend || work.attempt != 0 {
+			continue
+		}
+		_ = e.sessions.releaseSendLease(work.intent.Logical.Sender)
 	}
 }
 

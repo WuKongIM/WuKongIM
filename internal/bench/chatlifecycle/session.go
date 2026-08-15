@@ -275,6 +275,9 @@ type SessionPool struct {
 	onlineGroupMembers [][]*onlineSession
 	starting           map[string]struct{}
 	closing            map[string]*onlineSession
+	// sendLeases keeps an admitted logical SEND's session routable until its
+	// final ACK, terminal result, or cancellation releases ownership.
+	sendLeases         map[string]uint32
 	readErrors         uint64
 	verificationErrors uint64
 	factoryFailed      uint64
@@ -336,6 +339,7 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		onlineGroupMembers: make([][]*onlineSession, config.Catalog.Count()),
 		starting:           make(map[string]struct{}),
 		closing:            make(map[string]*onlineSession),
+		sendLeases:         make(map[string]uint32),
 		gatewayLatency:     newWorkerHistogramSnapshot(),
 		syncLatency:        newWorkerHistogramSnapshot(),
 		syncThresholds: LatencyThresholdCounters{
@@ -728,6 +732,42 @@ func (p *SessionPool) expireAsync(now time.Time) (int, error) {
 	return len(sessions), nil
 }
 
+func (p *SessionPool) acquireSendLease(uid string) bool {
+	if p == nil || uid == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	session := p.online[uid]
+	if session == nil || !session.snapshot.TrafficReady || !session.snapshot.Deadline.After(p.clock.Now()) {
+		return false
+	}
+	current := p.sendLeases[uid]
+	if current == ^uint32(0) {
+		return false
+	}
+	p.sendLeases[uid] = current + 1
+	return true
+}
+
+func (p *SessionPool) releaseSendLease(uid string) bool {
+	if p == nil || uid == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	current := p.sendLeases[uid]
+	if current == 0 {
+		return false
+	}
+	if current == 1 {
+		delete(p.sendLeases, uid)
+	} else {
+		p.sendLeases[uid] = current - 1
+	}
+	return true
+}
+
 // runExpiryCleanup owns all asynchronous transport teardown for one Engine
 // generation. It releases the queue reservation before the closing tombstone,
 // so replacement admission can never overbook cleanup capacity.
@@ -748,7 +788,7 @@ func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlin
 	p.mu.Lock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
-		if !session.snapshot.Deadline.After(now) {
+		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 {
 			due = append(due, uid)
 		}
 	}
@@ -793,7 +833,7 @@ func (p *SessionPool) dueSessionUIDs(now time.Time) []string {
 	p.mu.RLock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
-		if !session.snapshot.Deadline.After(now) {
+		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 {
 			due = append(due, uid)
 		}
 	}
@@ -975,7 +1015,7 @@ func (p *SessionPool) resetRuntime() error {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 {
+	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 || len(p.sendLeases) != 0 {
 		return errSessionOnline
 	}
 	p.ownershipCapacity = 0
@@ -997,6 +1037,7 @@ func (p *SessionPool) resetRuntime() error {
 	p.transportAdmissionRejected.Store(0)
 	p.onlineByIndex = make(map[uint64]*onlineSession)
 	p.onlineGroupMembers = make([][]*onlineSession, p.catalog.Count())
+	p.sendLeases = make(map[string]uint32)
 	return nil
 }
 

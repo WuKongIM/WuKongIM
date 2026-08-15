@@ -266,6 +266,11 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	defer fixture.engine.Stop()
 	edge := fixture.graph.Incoming(18).Items[0]
 	now := fixture.clock.Now()
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex,
+	}); err != nil {
+		t.Fatalf("login inflight sender: %v", err)
+	}
 	installed := make(chan struct{}, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
 		work := &engineWork{due: now.Add(10 * time.Minute), eligibilityDeadline: now.Add(11 * time.Minute), kind: engineWorkLifecycle, edge: edge,
@@ -296,16 +301,22 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	if err := fixture.verifier.ObserveAttempt(intent.Logical, RetryAttempt{ClientMsgNo: intent.Logical.ClientMsgNo}, 1); err != nil {
 		t.Fatal(err)
 	}
-	installedAck := make(chan struct{}, 1)
+	installedAck := make(chan bool, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
-		inflight := &engineInflight{intent: intent, currentClientSeq: 1}
+		if !fixture.engine.sessions.acquireSendLease(intent.Logical.Sender) {
+			installedAck <- false
+			return
+		}
+		inflight := &engineInflight{intent: intent, senderLeaseUID: intent.Logical.Sender, currentClientSeq: 1}
 		inflight.registerClientSeq(1)
 		fixture.engine.inflight[intent.Logical.ClientMsgNo] = inflight
-		installedAck <- struct{}{}
+		installedAck <- true
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	<-installedAck
+	if !<-installedAck {
+		t.Fatal("install inflight send lease")
+	}
 	ack := &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: intent.Logical.ClientMsgNo, MessageID: 101, MessageSeq: 43, ReasonCode: frame.ReasonSuccess}
 	verificationErr := fixture.verifier.HandleSendack(ack)
 	if err := fixture.engine.ObserveSendack(edge.OwnerUID, ack, verificationErr); err != nil {
@@ -341,16 +352,22 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	if err := fixture.verifier.ObserveAttempt(lateIntent.Logical, RetryAttempt{ClientMsgNo: lateIntent.Logical.ClientMsgNo}, 2); err != nil {
 		t.Fatal(err)
 	}
-	lateInstalled := make(chan struct{}, 1)
+	lateInstalled := make(chan bool, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
-		inflight := &engineInflight{intent: lateIntent, currentClientSeq: 2}
+		if !fixture.engine.sessions.acquireSendLease(lateIntent.Logical.Sender) {
+			lateInstalled <- false
+			return
+		}
+		inflight := &engineInflight{intent: lateIntent, senderLeaseUID: lateIntent.Logical.Sender, currentClientSeq: 2}
 		inflight.registerClientSeq(2)
 		fixture.engine.inflight[lateIntent.Logical.ClientMsgNo] = inflight
-		lateInstalled <- struct{}{}
+		lateInstalled <- true
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	<-lateInstalled
+	if !<-lateInstalled {
+		t.Fatal("install late inflight send lease")
+	}
 	lateAck := &frame.SendackPacket{ClientSeq: 2, ClientMsgNo: lateIntent.Logical.ClientMsgNo, MessageID: 102, MessageSeq: 44, ReasonCode: frame.ReasonSuccess}
 	lateVerificationErr := fixture.verifier.HandleSendack(lateAck)
 	lateErr := fixture.engine.ObserveSendack(edge.OwnerUID, lateAck, lateVerificationErr)
@@ -1417,6 +1434,11 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 	defer fixture.engine.Stop()
 	edge := fixture.graph.Incoming(18).Items[0]
 	now := fixture.clock.Now()
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex,
+	}); err != nil {
+		t.Fatalf("login inflight sender: %v", err)
+	}
 	intent := fixture.intent(t, edge.OwnerUID, edge.PeerUID, 0, TrafficPerson)
 	intent.ChannelID = edge.PersonChannelID
 	if err := fixture.verifier.RegisterSend(intent.Logical, now); err != nil {
@@ -1425,21 +1447,27 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 	if err := fixture.verifier.ObserveAttempt(intent.Logical, RetryAttempt{ClientMsgNo: intent.Logical.ClientMsgNo}, 1); err != nil {
 		t.Fatal(err)
 	}
-	installed := make(chan struct{}, 1)
+	installed := make(chan bool, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
 		work := &engineWork{due: now.Add(10 * time.Minute), kind: engineWorkLifecycle, edge: edge,
 			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true}, lifecycleTimerToken: 1,
 			activityVersion: math.MaxUint64, initialSequence: 42, lastActivityAt: now, observedLoaded: true}
 		fixture.engine.installLifecycleTimer(work)
 		fixture.engine.offerLifecycleCandidate(work)
-		inflight := &engineInflight{intent: intent, currentClientSeq: 1}
+		if !fixture.engine.sessions.acquireSendLease(intent.Logical.Sender) {
+			installed <- false
+			return
+		}
+		inflight := &engineInflight{intent: intent, senderLeaseUID: intent.Logical.Sender, currentClientSeq: 1}
 		inflight.registerClientSeq(1)
 		fixture.engine.inflight[intent.Logical.ClientMsgNo] = inflight
-		installed <- struct{}{}
+		installed <- true
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	<-installed
+	if !<-installed {
+		t.Fatal("install inflight send lease")
+	}
 	ack := &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: intent.Logical.ClientMsgNo, MessageID: 201, MessageSeq: 43, ReasonCode: frame.ReasonSuccess}
 	verificationErr := fixture.verifier.HandleSendack(ack)
 	err := fixture.engine.ObserveSendack(edge.OwnerUID, ack, verificationErr)

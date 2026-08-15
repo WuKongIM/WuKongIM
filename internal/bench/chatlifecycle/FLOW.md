@@ -586,7 +586,16 @@ Expected logout first removes online admission, then cancels and closes the
 socket, joins the drain and heartbeat, and finally releases recipient sequence
 state. Engine-driven expiry performs the same ordered cleanup through one
 generation-owned, worker-online-target-bounded cleanup queue after detaching
-and canceling the session under the serial Step boundary. The closing tombstone
+and canceling the session under the serial Step boundary. An initial logical
+SEND accepted into the engine work heap first acquires a session expiry lease
+under the same pool ownership lock. The lease remains attached to that logical
+SEND across every retry and is released only by its final ACK, terminal result,
+cancellation, or joined generation cleanup. Expiry therefore skips a due
+session while an admitted SEND still owns it, then detaches it on the next
+Step after the last lease is released; this prevents lifecycle churn from
+closing a transport underneath already-admitted work without extending the
+configured session lifetime or admitting a SEND after its deadline. The
+closing tombstone
 prevents same-UID replacement while cleanup is active. The
 WKProto result queue distinguishes a non-terminal asynchronous SEND publication
 error, which keeps the same drain online and returns both the wire `ClientSeq`
