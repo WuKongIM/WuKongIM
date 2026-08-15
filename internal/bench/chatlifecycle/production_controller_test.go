@@ -1,6 +1,7 @@
 package chatlifecycle
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -9,6 +10,80 @@ import (
 	"testing"
 	"time"
 )
+
+func TestProductionEvidenceControllerRecordsBoundedTerminalFailureStage(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-terminal-failure-stage"
+	start := time.Unix(1_960_000_500, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-terminal-failure-stage", Generation: 1}
+	var diagnostics bytes.Buffer
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-terminal-failure-stage-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t), DiagnosticLog: &diagnostics,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	terminal := productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning)
+	terminal[0].HotSendackLatency.Count++
+	if _, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: terminal, StopRequested: true,
+	}); err == nil {
+		t.Fatal("terminal cut with malformed worker evidence was accepted")
+	}
+	if body := diagnostics.String(); !strings.Contains(body, `"event":"wkbench.chat_lifecycle.controller_failure"`) ||
+		!strings.Contains(body, `"cut":"terminal"`) || !strings.Contains(body, `"stage":"worker_evidence"`) {
+		t.Fatalf("bounded terminal failure diagnostic = %q", body)
+	}
+}
+
+func TestProductionEvidenceControllerRecordsTerminalSnapshotAggregateFailure(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-terminal-snapshot-aggregate"
+	start := time.Unix(1_960_000_600, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-terminal-snapshot-aggregate", Generation: 1}
+	var diagnostics bytes.Buffer
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-terminal-snapshot-aggregate-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t), DiagnosticLog: &diagnostics,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	terminal := productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning)
+	// Worker verdict projection does not consume connect histograms, but the
+	// coordinator's pre-stop aggregate requires every histogram to be sound.
+	terminal[0].Sync.ConnectLatency.Count++
+	if _, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: terminal, StopRequested: true,
+	}); err == nil {
+		t.Fatal("terminal cut with malformed aggregate evidence was accepted")
+	}
+	if body := diagnostics.String(); !strings.Contains(body, `"event":"wkbench.chat_lifecycle.controller_failure"`) ||
+		!strings.Contains(body, `"cut":"terminal"`) ||
+		!strings.Contains(body, `"stage":"snapshot_aggregate"`) ||
+		!strings.Contains(body, `"reason":"histogram_schema"`) {
+		t.Fatalf("bounded terminal aggregate diagnostic = %q", body)
+	}
+}
 
 func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle(t *testing.T) {
 	cfg := LocalConfig()

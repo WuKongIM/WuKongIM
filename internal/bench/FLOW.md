@@ -168,6 +168,14 @@ lifecycle reheat traffic. It does not persist an ambiguous combined SENDACK
 histogram. The independent coordinator-controlled lifecycle reheat histogram
 remains under the lifecycle proof and is the authoritative reheat input to the
 cold verdict; the worker reheat histogram is diagnostic evidence only.
+If a worker evidence cut cannot reach a qualification or terminal decision,
+the coordinator diagnostic stream appends one identity-free failure record
+containing only the cut and a closed controller stage. It never retains the
+underlying error, response body, worker identity, or message identity. The
+terminal cut also runs the same structural snapshot aggregate used by the
+coordinator before workers stop; failures add only a closed aggregate reason
+such as `histogram_schema`, so a post-hook `checkpoint` rejection remains
+diagnosable without retaining worker evidence.
 
 `wkbench host-metrics` is the small native helper used by local shakeouts and
 the four-host cloud deployment to serve one exact filesystem's
