@@ -114,6 +114,7 @@ const (
 	TaskClusterSlotLeaderRefresh         TaskID = "cluster/slot_leader_refresh"
 	TaskClusterRaftTransport             TaskID = "cluster/raft_transport"
 	TaskClusterObserveLoop               TaskID = "cluster/observe_loop"
+	TaskClusterMembershipBatch           TaskID = "cluster/membership_batch"
 	TaskControllerRaftRun                TaskID = "controller/raft_run"
 	TaskControllerRaftApply              TaskID = "controller/raft_apply_scheduler"
 	TaskControllerRefresh                TaskID = "controller/refresh_loop"
@@ -204,6 +205,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskClusterSlotLeaderRefresh, Module: ModuleCluster, Name: "slot_leader_refresh", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterRaftTransport, Module: ModuleCluster, Name: "raft_transport", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskClusterObserveLoop, Module: ModuleCluster, Name: "observe_loop", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskClusterMembershipBatch, Module: ModuleCluster, Name: "membership_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskControllerRaftRun, Module: ModuleController, Name: "raft_run", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskControllerRaftApply, Module: ModuleController, Name: "raft_apply_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskControllerRefresh, Module: ModuleController, Name: "refresh_loop", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

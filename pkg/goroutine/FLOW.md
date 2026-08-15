@@ -49,6 +49,9 @@ Gateway accepted-SEND drain and mailbox-release waiters use one fixed Gateway
 burst identity outside the registered dispatch pool.
 Slot-grouped permission metadata reads use one fixed Slot burst task identity;
 physical Slot IDs and permission keys remain ordinary data.
+UID-owned membership upserts use one fixed Cluster burst task identity; UID,
+channel, and hash-slot values remain ordinary data, and the calling goroutine
+joins the bounded helper before returning.
 
 ## Pool Accounting
 

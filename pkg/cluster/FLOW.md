@@ -563,7 +563,11 @@ hash-slot shards into one legacy-compatible ordered page.
 
 UID-owned reverse tables route by UID. `UpsertUserChannelMemberships` and
 `TombstoneUserChannelMemberships` group requested UIDs by `RouteKey(uid)` hash
-slot and submit one Slot proposal per touched hash slot. Point reads and
+slot and submit one Slot proposal per touched hash slot. Foreground upserts
+submit at most two independent hash-slot proposals concurrently, then join and
+publish mutation observations serially; this bounds fanout while avoiding a
+person channel's two UID directories paying unrelated Slot commit latency in
+series. Point reads and
 activation-index pages use the same UID ownership and route to the current Slot
 leader when the ingress node is not a replica. Badge, hide, and activation
 commands are monotonic foreground mutations; message SEND never invokes them.

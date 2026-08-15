@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -77,7 +78,9 @@ func TestNodeSlotProxyPortLocalProposeRejectsRemoteLeader(t *testing.T) {
 	}
 }
 
-func newStartedSlotProxyPortNode(t *testing.T, proposer *recordingProposer) *Node {
+func newStartedSlotProxyPortNode(t *testing.T, proposer interface {
+	Propose(context.Context, propose.Request) error
+}) *Node {
 	t.Helper()
 	node, err := New(validNodeConfig(t), WithProposer(proposer))
 	if err != nil {

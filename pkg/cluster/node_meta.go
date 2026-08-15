@@ -4,16 +4,19 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"sync"
 	"time"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
 const (
-	maxChannelLatestBatchItems = 512
-	maxMembershipBatchItems    = 512
+	maxChannelLatestBatchItems       = 512
+	maxMembershipBatchItems          = 512
+	maxMembershipProposalConcurrency = 2
 )
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
@@ -586,20 +589,76 @@ func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID strin
 	if err != nil {
 		return err
 	}
+	proposals := make([]userMembershipProposal, 0, len(groups))
 	for _, hashSlot := range sortedMembershipHashSlots(groups) {
 		command, err := metafsm.EncodeUpsertUserChannelMembershipsCommandChecked(groups[hashSlot])
 		if err != nil {
 			return err
 		}
-		if err := n.Propose(ctx, ProposeRequest{
-			Command: command,
-			Target:  ProposeTarget{HashSlot: hashSlot, HasHashSlot: true},
-		}); err != nil {
-			return err
-		}
-		n.observeMembershipMutation("ordinary", "upsert", len(groups[hashSlot]))
+		proposals = append(proposals, userMembershipProposal{hashSlot: hashSlot, command: command, rows: len(groups[hashSlot])})
 	}
-	return nil
+	return n.submitUserMembershipProposals(ctx, proposals, "upsert")
+}
+
+type userMembershipProposal struct {
+	hashSlot uint16
+	command  []byte
+	rows     int
+}
+
+func (n *Node) submitUserMembershipProposals(ctx context.Context, proposals []userMembershipProposal, action string) error {
+	if len(proposals) == 0 {
+		return nil
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan int, len(proposals))
+	for index := range proposals {
+		jobs <- index
+	}
+	close(jobs)
+	succeeded := make([]bool, len(proposals))
+	workerCount := min(len(proposals), maxMembershipProposalConcurrency)
+	var workers sync.WaitGroup
+	var firstErr error
+	var firstErrOnce sync.Once
+	worker := func() {
+		for index := range jobs {
+			if workerCtx.Err() != nil {
+				return
+			}
+			proposal := proposals[index]
+			if err := n.Propose(workerCtx, ProposeRequest{
+				Command: proposal.command,
+				Target:  ProposeTarget{HashSlot: proposal.hashSlot, HasHashSlot: true},
+			}); err != nil {
+				firstErrOnce.Do(func() {
+					firstErr = err
+					cancel()
+				})
+				continue
+			}
+			succeeded[index] = true
+		}
+	}
+	if workerCount > 1 {
+		workers.Add(workerCount - 1)
+		goruntimeregistry.SafeGoN(n.cfg.Goroutines, goruntimeregistry.TaskClusterMembershipBatch, workerCount-1, func(int) {
+			defer workers.Done()
+			worker()
+		})
+	}
+	worker()
+	workers.Wait()
+	for index, ok := range succeeded {
+		if ok {
+			n.observeMembershipMutation("ordinary", action, proposals[index].rows)
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctxErr(ctx)
 }
 
 // TombstoneUserChannelMemberships records UID-owned removals through hash-slot ownership.
