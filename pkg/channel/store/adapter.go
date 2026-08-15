@@ -59,6 +59,20 @@ type ChannelStore interface {
 	Close() error
 }
 
+// ExactStateLoader reads the exact proposal identity at the durable local
+// frontier. Implementations must take one consistent append/checkpoint view.
+type ExactStateLoader interface {
+	LoadExactState(ctx context.Context) (ExactState, error)
+}
+
+// ExactState is the local durability state required to recover a quorum-log
+// sequencer. Manifest and TailIdentity are zero only for an empty log.
+type ExactState struct {
+	InitialState
+	Manifest     ProposalManifest
+	TailIdentity ch.EntryIdentity
+}
+
 // MessageLookup is an optional point lookup surface for rare timeout recovery paths.
 type MessageLookup interface {
 	// LookupMessageByID returns a durable row without applying any committed-HW check.
@@ -131,6 +145,9 @@ type RetentionTrimResult struct {
 // AppendLeaderRequest persists a leader-owned continuous record batch.
 type AppendLeaderRequest struct {
 	Records []ch.Record
+	// Committed is the monotonic committed frontier persisted atomically with
+	// an exact append. It must not exceed Proposal.LastOffset.
+	Committed uint64
 	// ServerAllocatedMessageIDs permits skipping only existing message-ID lookups.
 	ServerAllocatedMessageIDs bool
 	// ExactBaseOffset requires Records to begin at ExpectedBaseOffset+1 and
@@ -153,6 +170,8 @@ type AppendLeaderBatchItem struct {
 type AppendLeaderResult struct {
 	BaseOffset uint64
 	LastOffset uint64
+	// NeedFrom is the exact next offset when this replica has a gap.
+	NeedFrom uint64
 	// Outcome proves whether this request committed, already existed, was
 	// rejected before commit, conflicted, or lost certainty after admission.
 	Outcome AppendOutcome
@@ -162,8 +181,10 @@ type AppendLeaderResult struct {
 type AppendLeaderBatchResult struct {
 	BaseOffset uint64
 	LastOffset uint64
-	Outcome    AppendOutcome
-	Err        error
+	// NeedFrom is the exact next offset when this replica has a gap.
+	NeedFrom uint64
+	Outcome  AppendOutcome
+	Err      error
 }
 
 // ApplyFollowerRequest persists records received from the leader.

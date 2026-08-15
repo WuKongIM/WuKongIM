@@ -95,7 +95,17 @@ Current flow:
    pre-commit-crash and post-commit-response-loss boundaries. Missing paired indexes, gaps,
    partial overlaps, or different identity/content fail as log conflicts.
    Exact and ordinary requests share the same cross-channel commit coordinator
-   and add no second collection window.
+   and add no second collection window. Exact replica mutations may carry a
+   monotonic committed HW no higher than their proposal tail; MessageDB locks
+   append state before checkpoint state and persists that HW in the same
+   physical batch as the proposal. Adjacent exact proposals for the same
+   Channel are validated against one in-batch immutable predecessor overlay and
+   retain separate outcomes while sharing that commit; a gap returns the
+   follower's exact next offset. `LoadDurableFrontier` takes the same lock
+   order and returns one append/checkpoint-consistent LEO, committed HW, paired
+   tail manifest, and tail entry identity. A non-empty log without the complete
+   exact tail proof, or any checkpoint above LEO, is corrupt rather than a
+   legacy recovery mode.
 9. Truncate and retention deletes remove primary rows and secondary indexes
    together. Suffix truncation atomically deletes every proposal manifest at
    or above the new LEO and rejects a cut through the middle of one proposal;

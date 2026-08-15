@@ -57,6 +57,35 @@ func (s *MemoryChannelStore) Load(ctx context.Context) (InitialState, error) {
 	return InitialState{LEO: leo, HW: minUint64(s.checkpoint.HW, leo), CheckpointHW: minUint64(s.checkpoint.HW, leo)}, nil
 }
 
+// LoadExactState returns one consistent exact durable frontier snapshot.
+func (s *MemoryChannelStore) LoadExactState(ctx context.Context) (ExactState, error) {
+	if err := ctx.Err(); err != nil {
+		return ExactState{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	leo := s.leoLocked()
+	if s.checkpoint.HW > leo {
+		return ExactState{}, ch.ErrLogConflict
+	}
+	state := ExactState{InitialState: InitialState{
+		LEO: leo, HW: s.checkpoint.HW, CheckpointHW: s.checkpoint.HW,
+	}}
+	if leo == 0 {
+		return state, nil
+	}
+	proposal, proposalOK := s.proposalsByLast[leo]
+	entry, entryOK := s.entriesByIndex[leo]
+	if !proposalOK || !entryOK || proposal.manifest.LastOffset != leo || proposal.manifest.Digest != entry.Digest ||
+		proposal.manifest.LeaderTerm != entry.LeaderTerm || proposal.manifest.ChannelEpoch != entry.ChannelEpoch ||
+		proposal.manifest.FenceVersion != entry.FenceVersion || proposal.manifest.CommandID != entry.CommandID {
+		return ExactState{}, ch.ErrLogConflict
+	}
+	state.Manifest = proposal.manifest
+	state.TailIdentity = entry
+	return state, nil
+}
+
 // AppendLeader appends records as the local leader and assigns continuous indexes.
 func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := ctx.Err(); err != nil {
@@ -65,7 +94,17 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if req.ExactBaseOffset {
-		return s.appendLeaderExactLocked(req)
+		if req.Committed > req.Proposal.LastOffset {
+			return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+		}
+		result, err := s.appendLeaderExactLocked(req)
+		if err == nil && result.Outcome.Durable() && req.Committed > s.checkpoint.HW {
+			s.checkpoint.HW = req.Committed
+		}
+		return result, err
+	}
+	if req.Committed != 0 {
+		return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
 	}
 	if len(req.Records) == 0 {
 		leo := s.leoLocked()
@@ -89,6 +128,11 @@ func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (A
 		return appendLeaderErrorResult(err), err
 	}
 	leo := s.leoLocked()
+	if req.ExpectedBaseOffset > leo {
+		return AppendLeaderResult{
+			Outcome: AppendOutcomeConflict, NeedFrom: leo + 1,
+		}, ch.ErrLogConflict
+	}
 	if req.Proposal.BaseOffset > 0 {
 		previous, ok := s.proposalsByLast[req.Proposal.BaseOffset]
 		if !ok || previous.manifest.LeaderTerm != req.Proposal.PreviousTerm || previous.manifest.Digest != req.Proposal.PreviousDigest {

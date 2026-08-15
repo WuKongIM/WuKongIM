@@ -141,12 +141,23 @@ type ChannelStore struct {
 	id channel.ChannelID
 }
 
+// DurableFrontier is one append/checkpoint-consistent exact log snapshot.
+// Manifest and TailIdentity are zero only when LEO is zero.
+type DurableFrontier struct {
+	LEO          uint64
+	Committed    uint64
+	Manifest     DurableProposalManifest
+	TailIdentity quorumlog.EntryIdentity
+}
+
 // AppendBatchItem is one channel append request in a cross-channel batch.
 type AppendBatchItem struct {
 	// Store is the channel-scoped store that owns Records.
 	Store *ChannelStore
 	// Records contains messages to append to Store.
 	Records []channel.Record
+	// Committed is the monotonic HW persisted atomically with an exact append.
+	Committed uint64
 	// ServerAllocatedMessageIDs skips only existing message-ID reads for this leader append.
 	ServerAllocatedMessageIDs bool
 	// ExactBaseOffset requires Records to occupy the range immediately after
@@ -164,6 +175,8 @@ type AppendBatchResult struct {
 	BaseOffset uint64
 	// LastOffset is the durable last offset after appending this item.
 	LastOffset uint64
+	// NeedFrom is the exact next offset when an exact append has a gap.
+	NeedFrom uint64
 	// Err is the item-specific append error.
 	Err error
 	// Outcome is the closed proof of what this call did to durable state.
@@ -728,8 +741,13 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 			continue
 		}
 		for _, index := range indexes {
-			results[index].Err = channel.ErrInvalidArgument
-			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
+			if !items[index].ExactBaseOffset {
+				for _, duplicateIndex := range indexes {
+					results[duplicateIndex].Err = channel.ErrInvalidArgument
+					results[duplicateIndex].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
+				}
+				break
+			}
 		}
 	}
 	for i, item := range items {
@@ -789,78 +807,227 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		}
 		return
 	}
-	entries := make([]*channelEntry, 0, len(indexes))
+	indexesByEntry := make(map[*channelEntry][]int, len(indexes))
+	checkpointByEntry := make(map[*channelEntry]struct{}, len(indexes))
 	for _, index := range indexes {
-		entries = append(entries, items[index].Store.log.channelEntry)
+		entry := items[index].Store.log.channelEntry
+		indexesByEntry[entry] = append(indexesByEntry[entry], index)
+		if items[index].Committed > 0 {
+			checkpointByEntry[entry] = struct{}{}
+		}
+	}
+	entries := make([]*channelEntry, 0, len(indexesByEntry))
+	for entry := range indexesByEntry {
+		entries = append(entries, entry)
+	}
+	checkpointEntries := make([]*channelEntry, 0, len(checkpointByEntry))
+	for entry := range checkpointByEntry {
+		checkpointEntries = append(checkpointEntries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	sort.Slice(checkpointEntries, func(i, j int) bool { return checkpointEntries[i].key < checkpointEntries[j].key })
 	for _, entry := range entries {
 		entry.appendMu.Lock()
 	}
+	for _, entry := range checkpointEntries {
+		entry.checkpointMu.Lock()
+	}
 	locked := make(map[*channelEntry]struct{}, len(entries))
+	lockedCheckpoints := make(map[*channelEntry]struct{}, len(checkpointEntries))
 	for _, entry := range entries {
 		locked[entry] = struct{}{}
 	}
+	for _, entry := range checkpointEntries {
+		lockedCheckpoints[entry] = struct{}{}
+	}
 	defer func() {
+		for entry := range lockedCheckpoints {
+			entry.checkpointMu.Unlock()
+		}
 		for entry := range locked {
 			entry.appendMu.Unlock()
 		}
 	}()
 
-	preparedRows := make([]preparedCommitRows, 0, len(indexes))
-	for _, index := range indexes {
-		item := items[index]
-		entry := item.Store.log.channelEntry
+	type pendingAppendResult struct {
+		index          int
+		successOutcome quorumlog.AppendOutcome
+	}
+	preparedRows := make([]preparedCommitRows, 0, len(entries))
+	pendingResults := make([]pendingAppendResult, 0, len(indexes))
+	for _, entry := range entries {
+		entryIndexes := indexesByEntry[entry]
 		if err := ctxErr(ctx); err != nil {
-			results[index].Err = err
-			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
+			for _, index := range entryIndexes {
+				results[index].Err = err
+				results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
+			}
+			if _, ok := lockedCheckpoints[entry]; ok {
+				entry.checkpointMu.Unlock()
+				delete(lockedCheckpoints, entry)
+			}
 			entry.appendMu.Unlock()
 			delete(locked, entry)
 			continue
 		}
-		mode := AppendStrict
-		if item.ServerAllocatedMessageIDs {
-			mode = AppendServerAllocatedMessageID
-		}
-		var prepared preparedCommitRows
-		var err error
-		if item.ExactBaseOffset {
-			prepared, err = item.Store.prepareExactAppendRecordsLocked(ctx, item.ExpectedBaseOffset, item.Records, item.Proposal, mode)
-		} else {
-			prepared, err = item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
-		}
+		physicalLEO, err := items[entryIndexes[0]].Store.log.loadLEOLocked(ctx)
 		if err != nil {
-			results[index].Err = err
-			results[index].Outcome = appendOutcomeForPreCommitError(err)
+			err = toChannelError(err)
+			for _, index := range entryIndexes {
+				results[index].Err = err
+				results[index].Outcome = appendOutcomeForPreCommitError(err)
+			}
+			if _, ok := lockedCheckpoints[entry]; ok {
+				entry.checkpointMu.Unlock()
+				delete(lockedCheckpoints, entry)
+			}
 			entry.appendMu.Unlock()
 			delete(locked, entry)
 			continue
 		}
-		prepared.index = index
-		results[index].BaseOffset = prepared.baseOffset
-		results[index].LastOffset = prepared.nextLEO
-		if prepared.alreadyDurable {
-			results[index].Outcome = quorumlog.AppendOutcomeAlreadyDurable
-		} else if !prepared.hasWrites() {
-			results[index].Outcome = quorumlog.AppendOutcomeDurable
+		virtualLEO := physicalLEO
+		totalRecords := 0
+		for _, index := range entryIndexes {
+			totalRecords += len(items[index].Records)
 		}
-		if !prepared.hasWrites() {
-			entry.appendMu.Unlock()
+		seen := newAppendValidationSeen(totalRecords)
+		stagedCommands := make(map[quorumlog.CommandID]durableProposalRecord, len(entryIndexes))
+		stagedLast := make(map[uint64]durableProposalRecord, len(entryIndexes))
+		stagedEntries := make(map[uint64]quorumlog.EntryIdentity, totalRecords)
+		var previousStaged quorumlog.EntryIdentity
+		var combined preparedCommitRows
+		for _, index := range entryIndexes {
+			item := items[index]
+			mode := AppendStrict
+			if item.ServerAllocatedMessageIDs {
+				mode = AppendServerAllocatedMessageID
+			}
+			var prepared preparedCommitRows
+			var prepareErr error
+			if item.ExactBaseOffset {
+				switch {
+				case item.ExpectedBaseOffset > virtualLEO:
+					prepareErr = &exactAppendGapError{needFrom: virtualLEO + 1}
+				case virtualLEO > physicalLEO && item.ExpectedBaseOffset >= physicalLEO && item.ExpectedBaseOffset < virtualLEO:
+					prepared, prepareErr = item.Store.prepareStagedExactReplayLocked(
+						ctx, item, virtualLEO, stagedCommands, stagedLast, stagedEntries,
+					)
+				case item.ExpectedBaseOffset > physicalLEO:
+					prepared, prepareErr = item.Store.prepareAdjacentExactAppendLocked(
+						ctx, item, previousStaged, mode, &seen, stagedCommands, stagedLast, stagedEntries,
+					)
+				default:
+					prepared, prepareErr = item.Store.prepareExactAppendRecordsLocked(
+						ctx, item.ExpectedBaseOffset, item.Records, item.Proposal, item.Committed, mode,
+					)
+					if prepareErr == nil && len(prepared.rows) > 0 {
+						prepareErr = item.Store.validateRowsForAppendSeen(ctx, prepared.rows, mode, &seen)
+					}
+				}
+			} else {
+				if item.Committed != 0 {
+					prepareErr = channel.ErrInvalidArgument
+				} else {
+					prepared, prepareErr = item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
+				}
+			}
+			if prepareErr != nil {
+				results[index].Err = prepareErr
+				results[index].Outcome = appendOutcomeForPreCommitError(prepareErr)
+				var gap *exactAppendGapError
+				if errors.As(prepareErr, &gap) {
+					results[index].NeedFrom = gap.needFrom
+				}
+				continue
+			}
+			prepared.index = index
+			results[index].BaseOffset = prepared.baseOffset
+			results[index].LastOffset = prepared.nextLEO
+			successOutcome := quorumlog.AppendOutcomeDurable
+			if prepared.alreadyDurable {
+				successOutcome = quorumlog.AppendOutcomeAlreadyDurable
+			}
+			if !prepared.hasWrites() && !prepared.dependsOnCommit {
+				results[index].Outcome = successOutcome
+				continue
+			}
+			if prepared.hasWrites() {
+				if err := mergePreparedCommitRows(&combined, prepared); err != nil {
+					results[index] = AppendBatchResult{Outcome: quorumlog.AppendOutcomeDefinitelyNotWritten, Err: err}
+					continue
+				}
+			}
+			pendingResults = append(pendingResults, pendingAppendResult{index: index, successOutcome: successOutcome})
+			if len(prepared.rows) > 0 {
+				virtualLEO = prepared.nextLEO
+				for _, proposal := range prepared.proposals {
+					stagedCommands[proposal.manifest.CommandID] = proposal
+					stagedLast[proposal.manifest.LastOffset] = proposal
+				}
+				for _, stagedEntry := range prepared.entries {
+					stagedEntries[stagedEntry.Index] = stagedEntry
+				}
+				if len(prepared.entries) > 0 {
+					previousStaged = prepared.entries[len(prepared.entries)-1]
+				}
+			}
+		}
+		if combined.hasWrites() {
+			if _, ok := lockedCheckpoints[entry]; ok {
+				combined.checkpointLocked = true
+			}
+			preparedRows = append(preparedRows, combined)
 			delete(locked, entry)
+			delete(lockedCheckpoints, entry)
 			continue
 		}
-		preparedRows = append(preparedRows, prepared)
+		if _, ok := lockedCheckpoints[entry]; ok {
+			entry.checkpointMu.Unlock()
+			delete(lockedCheckpoints, entry)
+		}
+		entry.appendMu.Unlock()
+		delete(locked, entry)
 	}
 	if len(preparedRows) > 0 {
-		for _, item := range preparedRows {
-			delete(locked, item.store.log.channelEntry)
-		}
 		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, commitLaneLeaderAppend)
-		for _, item := range preparedRows {
-			results[item.index].Err = toChannelError(commitResult.Err)
-			results[item.index].Outcome = appendOutcomeForCommitResult(commitResult)
+		commitOutcome := appendOutcomeForCommitResult(commitResult)
+		commitErr := toChannelError(commitResult.Err)
+		for _, pending := range pendingResults {
+			if commitResult.Outcome == commit.OutcomeCommitted {
+				results[pending.index].Outcome = pending.successOutcome
+				results[pending.index].Err = nil
+				continue
+			}
+			results[pending.index].BaseOffset = 0
+			results[pending.index].LastOffset = 0
+			results[pending.index].Outcome = commitOutcome
+			results[pending.index].Err = commitErr
 		}
 	}
+}
+
+func mergePreparedCommitRows(target *preparedCommitRows, item preparedCommitRows) error {
+	if target == nil || item.store == nil {
+		return channel.ErrInvalidArgument
+	}
+	if target.store == nil {
+		target.store = item.store
+		target.baseOffset = item.baseOffset
+	}
+	if target.store.log == nil || item.store.log == nil ||
+		target.store.log.channelEntry != item.store.log.channelEntry {
+		return channel.ErrInvalidArgument
+	}
+	target.rows = append(target.rows, item.rows...)
+	target.proposals = append(target.proposals, item.proposals...)
+	target.entries = append(target.entries, item.entries...)
+	target.checkpointLocked = target.checkpointLocked || item.checkpointLocked
+	if item.checkpoint != nil && (target.checkpoint == nil || item.checkpoint.HW > target.checkpoint.HW) {
+		checkpoint := *item.checkpoint
+		target.checkpoint = &checkpoint
+	}
+	target.nextLEO = max(target.nextLEO, item.nextLEO)
+	return nil
 }
 
 func appendOutcomeForPreCommitError(err error) quorumlog.AppendOutcome {
@@ -1013,6 +1180,64 @@ func (s *ChannelStore) LEOWithError() (uint64, error) {
 		return 0, toChannelError(err)
 	}
 	return leo, nil
+}
+
+// LoadDurableFrontier reads the exact proposal and entry identity at the
+// durable local tail under the canonical append/checkpoint locks.
+func (s *ChannelStore) LoadDurableFrontier(ctx context.Context) (DurableFrontier, error) {
+	if ctx == nil {
+		return DurableFrontier{}, channel.ErrInvalidArgument
+	}
+	if err := s.beginUse(); err != nil {
+		return DurableFrontier{}, err
+	}
+	defer s.endUse()
+	if err := ctx.Err(); err != nil {
+		return DurableFrontier{}, err
+	}
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+
+	leo, err := s.log.loadLEOLocked(ctx)
+	if err != nil {
+		return DurableFrontier{}, toChannelError(err)
+	}
+	frontier := DurableFrontier{LEO: leo}
+	checkpoint, present, err := s.log.loadCheckpoint(ctx)
+	if err != nil {
+		return DurableFrontier{}, toChannelError(err)
+	}
+	if present {
+		if checkpoint.HW > leo {
+			return DurableFrontier{}, channel.ErrCorruptState
+		}
+		frontier.Committed = checkpoint.HW
+	}
+	if leo == 0 {
+		return frontier, nil
+	}
+	proposal, present, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, leo)
+	if err != nil {
+		return DurableFrontier{}, toChannelError(err)
+	}
+	if !present {
+		return DurableFrontier{}, channel.ErrCorruptState
+	}
+	entry, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, leo)
+	if err != nil {
+		return DurableFrontier{}, toChannelError(err)
+	}
+	manifest := proposal.manifest
+	if !present || manifest.LastOffset != leo || manifest.Digest != entry.Digest ||
+		manifest.ChannelEpoch != entry.ChannelEpoch || manifest.LeaderTerm != entry.LeaderTerm ||
+		manifest.FenceVersion != entry.FenceVersion || manifest.CommandID != entry.CommandID {
+		return DurableFrontier{}, channel.ErrCorruptState
+	}
+	frontier.Manifest = manifest
+	frontier.TailIdentity = entry
+	return frontier, nil
 }
 
 // Truncate removes message rows after to while preserving retention state.
@@ -1704,12 +1929,21 @@ type preparedCommitRows struct {
 	checkpointLocked bool
 	checkpoint       *Checkpoint
 	point            *EpochPoint
-	proposal         *durableProposalRecord
+	proposals        []durableProposalRecord
 	entries          []quorumlog.EntryIdentity
 	baseOffset       uint64
 	nextLEO          uint64
 	alreadyDurable   bool
+	dependsOnCommit  bool
 }
+
+type exactAppendGapError struct {
+	needFrom uint64
+}
+
+func (e *exactAppendGapError) Error() string { return "message: exact append gap" }
+
+func (e *exactAppendGapError) Unwrap() error { return channel.ErrCorruptState }
 
 type preparedCommitMutation struct {
 	// entry is the canonical state pinned for asynchronous commit work.
@@ -1717,13 +1951,13 @@ type preparedCommitMutation struct {
 	rows       []messageRow
 	checkpoint *Checkpoint
 	point      *EpochPoint
-	proposal   *durableProposalRecord
+	proposals  []durableProposalRecord
 	entries    []quorumlog.EntryIdentity
 	nextLEO    uint64
 }
 
 func (p preparedCommitRows) hasWrites() bool {
-	return len(p.rows) > 0 || p.checkpoint != nil || p.point != nil || p.proposal != nil || len(p.entries) > 0
+	return len(p.rows) > 0 || p.checkpoint != nil || p.point != nil || len(p.proposals) > 0 || len(p.entries) > 0
 }
 
 func (s *ChannelStore) prepareAppendRecordsLocked(ctx context.Context, records []channel.Record, mode AppendMode) (preparedCommitRows, error) {
@@ -1747,7 +1981,7 @@ func (s *ChannelStore) prepareAppendRecordsLocked(ctx context.Context, records [
 	return prepared, nil
 }
 
-func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expectedBaseOffset uint64, records []channel.Record, manifest DurableProposalManifest, mode AppendMode) (preparedCommitRows, error) {
+func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expectedBaseOffset uint64, records []channel.Record, manifest DurableProposalManifest, committed uint64, mode AppendMode) (preparedCommitRows, error) {
 	if err := validateDurableProposalManifest(manifest, expectedBaseOffset, len(records)); err != nil {
 		return preparedCommitRows{}, err
 	}
@@ -1761,6 +1995,13 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	}
 	if entries[len(entries)-1].Digest != manifest.Digest {
 		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	base, err := s.log.loadLEOLocked(ctx)
+	if err != nil {
+		return preparedCommitRows{}, toChannelError(err)
+	}
+	if expectedBaseOffset > base {
+		return preparedCommitRows{}, &exactAppendGapError{needFrom: base + 1}
 	}
 	proposal := durableProposalRecord{manifest: manifest}
 	if err := s.validateDurableProposalPredecessor(manifest); err != nil {
@@ -1782,10 +2023,6 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	if err := s.validateDurableEntrySet(entries, commandPresent); err != nil {
 		return preparedCommitRows{}, toChannelError(err)
 	}
-	base, err := s.log.loadLEOLocked(ctx)
-	if err != nil {
-		return preparedCommitRows{}, toChannelError(err)
-	}
 	if len(records) == 0 {
 		return preparedCommitRows{}, channel.ErrInvalidArgument
 	}
@@ -1794,6 +2031,9 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	}
 	nextLEO := expectedBaseOffset + uint64(len(records))
 	prepared := preparedCommitRows{store: s, baseOffset: expectedBaseOffset, nextLEO: nextLEO}
+	if err := s.prepareExactCheckpointLocked(ctx, committed, nextLEO, max(base, nextLEO), &prepared); err != nil {
+		return preparedCommitRows{}, err
+	}
 	if commandPresent {
 		if base < nextLEO {
 			return preparedCommitRows{}, channel.ErrCorruptState
@@ -1812,8 +2052,148 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 		return preparedCommitRows{}, err
 	}
 	prepared.rows = rows
-	prepared.proposal = &proposal
+	prepared.proposals = append(prepared.proposals, proposal)
 	prepared.entries = entries
+	return prepared, nil
+}
+
+func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committed, proposalLEO, visibleLEO uint64, prepared *preparedCommitRows) error {
+	if prepared == nil || committed > proposalLEO {
+		return channel.ErrInvalidArgument
+	}
+	if committed == 0 {
+		return nil
+	}
+	prepared.checkpointLocked = true
+	checkpoint, present, err := s.log.loadCheckpoint(ctx)
+	if err != nil {
+		return toChannelError(err)
+	}
+	if !present {
+		checkpoint = Checkpoint{}
+	}
+	if checkpoint.HW > visibleLEO {
+		return channel.ErrCorruptState
+	}
+	if committed > checkpoint.HW {
+		checkpoint.HW = committed
+		prepared.checkpoint = &checkpoint
+	}
+	return nil
+}
+
+func (s *ChannelStore) prepareStagedExactReplayLocked(
+	ctx context.Context,
+	item AppendBatchItem,
+	visibleLEO uint64,
+	stagedCommands map[quorumlog.CommandID]durableProposalRecord,
+	stagedLast map[uint64]durableProposalRecord,
+	stagedEntries map[uint64]quorumlog.EntryIdentity,
+) (preparedCommitRows, error) {
+	manifest := item.Proposal
+	if err := validateDurableProposalManifest(manifest, item.ExpectedBaseOffset, len(item.Records)); err != nil {
+		return preparedCommitRows{}, err
+	}
+	rows, err := compatibilityRowsFromRecords(item.ExpectedBaseOffset+1, item.Records)
+	if err != nil {
+		return preparedCommitRows{}, err
+	}
+	entries, ok := deriveDurableProposalEntries(manifest, item.Records, rows)
+	if !ok || entries[len(entries)-1].Digest != manifest.Digest {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	proposal := durableProposalRecord{manifest: manifest}
+	byCommand, commandPresent := stagedCommands[manifest.CommandID]
+	byLast, lastPresent := stagedLast[manifest.LastOffset]
+	if !commandPresent || !lastPresent || !sameDurableProposal(byCommand, proposal) || !sameDurableProposal(byLast, proposal) {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	for _, entry := range entries {
+		if persisted, present := stagedEntries[entry.Index]; !present || persisted != entry {
+			return preparedCommitRows{}, channel.ErrCorruptState
+		}
+	}
+	prepared := preparedCommitRows{
+		store: item.Store, baseOffset: item.ExpectedBaseOffset, nextLEO: manifest.LastOffset,
+		alreadyDurable: true, dependsOnCommit: true,
+	}
+	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, visibleLEO, &prepared); err != nil {
+		return preparedCommitRows{}, err
+	}
+	return prepared, nil
+}
+
+func (s *ChannelStore) prepareAdjacentExactAppendLocked(
+	ctx context.Context,
+	item AppendBatchItem,
+	previous quorumlog.EntryIdentity,
+	mode AppendMode,
+	seen *appendValidationSeen,
+	stagedCommands map[quorumlog.CommandID]durableProposalRecord,
+	stagedLast map[uint64]durableProposalRecord,
+	stagedEntries map[uint64]quorumlog.EntryIdentity,
+) (preparedCommitRows, error) {
+	manifest := item.Proposal
+	if err := validateDurableProposalManifest(manifest, item.ExpectedBaseOffset, len(item.Records)); err != nil {
+		return preparedCommitRows{}, err
+	}
+	if previous.Index != item.ExpectedBaseOffset || manifest.PreviousIndex != previous.Index ||
+		manifest.PreviousTerm != previous.LeaderTerm || manifest.PreviousDigest != previous.Digest {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	rows, err := compatibilityRowsFromRecords(item.ExpectedBaseOffset+1, item.Records)
+	if err != nil {
+		return preparedCommitRows{}, err
+	}
+	entries, ok := deriveDurableProposalEntries(manifest, item.Records, rows)
+	if !ok || entries[len(entries)-1].Digest != manifest.Digest {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	if _, exists := stagedCommands[manifest.CommandID]; exists {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	if _, exists := stagedLast[manifest.LastOffset]; exists {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	if _, present, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, manifest.CommandID)); err != nil || present {
+		if err != nil {
+			return preparedCommitRows{}, toChannelError(err)
+		}
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	if _, present, err := s.loadDurableProposal(encodeProposalByLastKey(s.log.key, manifest.LastOffset)); err != nil || present {
+		if err != nil {
+			return preparedCommitRows{}, toChannelError(err)
+		}
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	for _, entry := range entries {
+		if _, exists := stagedEntries[entry.Index]; exists {
+			return preparedCommitRows{}, channel.ErrCorruptState
+		}
+		if _, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, entry.Index); err != nil || present {
+			if err != nil {
+				return preparedCommitRows{}, toChannelError(err)
+			}
+			return preparedCommitRows{}, channel.ErrCorruptState
+		}
+	}
+	if err := s.validateRowsForAppendSeen(ctx, rows, mode, seen); err != nil {
+		return preparedCommitRows{}, err
+	}
+	prepared := preparedCommitRows{
+		store: s, baseOffset: item.ExpectedBaseOffset, nextLEO: manifest.LastOffset,
+		rows: rows, proposals: []durableProposalRecord{{manifest: manifest}}, entries: entries,
+	}
+	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, manifest.LastOffset, &prepared); err != nil {
+		return preparedCommitRows{}, err
+	}
+	proposal := durableProposalRecord{manifest: manifest}
+	stagedCommands[manifest.CommandID] = proposal
+	stagedLast[manifest.LastOffset] = proposal
+	for _, entry := range entries {
+		stagedEntries[entry.Index] = entry
+	}
 	return prepared, nil
 }
 
@@ -2495,10 +2875,17 @@ func (s *ChannelStore) storeCommittedDispatchCursor(name string, seq uint64, syn
 
 func (s *ChannelStore) validateRowsForAppend(ctx context.Context, rows []messageRow, mode AppendMode) error {
 	seen := newAppendValidationSeen(len(rows))
+	return s.validateRowsForAppendSeen(ctx, rows, mode, &seen)
+}
+
+func (s *ChannelStore) validateRowsForAppendSeen(ctx context.Context, rows []messageRow, mode AppendMode, seen *appendValidationSeen) error {
+	if seen == nil {
+		return channel.ErrInvalidArgument
+	}
 	cache := s.log.appendKeyCache
 	scratch := appendValidationScratch{}
 	for _, row := range rows {
-		if err := s.log.validateAppendRow(ctx, row, &seen, mode, cache, &scratch); err != nil {
+		if err := s.log.validateAppendRow(ctx, row, seen, mode, cache, &scratch); err != nil {
 			return toChannelError(err)
 		}
 	}
@@ -2552,7 +2939,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 			rows:       item.rows,
 			checkpoint: item.checkpoint,
 			point:      item.point,
-			proposal:   item.proposal,
+			proposals:  item.proposals,
 			entries:    item.entries,
 			nextLEO:    item.nextLEO,
 		})
@@ -2564,7 +2951,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
 			for _, mutation := range mutations {
-				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposal, mutation.entries); err != nil {
+				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries); err != nil {
 					return err
 				}
 			}
@@ -2607,9 +2994,7 @@ func preparedRowsBytes(prepared []preparedCommitRows) int {
 	total := 0
 	for _, item := range prepared {
 		total += messageRowsBytes(item.rows)
-		if item.proposal != nil {
-			total += 2 * durableProposalRecordSize
-		}
+		total += len(item.proposals) * 2 * durableProposalRecordSize
 		total += len(item.entries) * durableEntryIdentitySize
 	}
 	return total
@@ -2631,7 +3016,7 @@ func commitRowsLaneName(lane string) string {
 	return lane
 }
 
-func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposal *durableProposalRecord, entries []quorumlog.EntryIdentity) error {
+func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) error {
 	if err := e.stageMessageRows(batch, rows); err != nil {
 		return toChannelError(err)
 	}
@@ -2645,8 +3030,8 @@ func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, c
 			return toChannelError(err)
 		}
 	}
-	if proposal != nil {
-		value := encodeDurableProposalRecord(*proposal)
+	for _, proposal := range proposals {
+		value := encodeDurableProposalRecord(proposal)
 		if err := batch.Set(encodeProposalByLastKey(e.key, proposal.manifest.LastOffset), value); err != nil {
 			return toChannelError(err)
 		}

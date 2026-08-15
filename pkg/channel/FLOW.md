@@ -268,7 +268,15 @@ immutable manifest. MessageDB persists both manifest indexes plus every entry's 
 predecessor, command, and content-derived digest in the same synchronous
 physical commit as the rows, so exact replay remains safe after retention and
 reopen; suffix truncation removes whole identities and cannot split one
-proposal. Bounded recovery inspection, production peer-adapter wiring, and
+proposal. The production `ReplicaStore` adapter now exposes bounded positional
+`Load` plus `Sync`: `Load` takes one append/checkpoint-consistent view and
+returns LEO, committed HW, the tail manifest, and the tail entry identity;
+non-empty state without that exact identity, or with HW above LEO, fails
+closed. `Sync` reuses the MessageDB batch surface for both adjacent proposals
+of one Channel and different Channels, retains positional per-proposal
+outcomes, and reports the follower's exact `NeedFrom` offset for a gap. A
+follower's monotonic committed HW is persisted atomically with its exact
+proposal rather than through a second checkpoint commit. Bounded quorum probing and
 removal of the PullHint hot path must still land before production wiring. The
 data-bearing exchange foundation now lives in `replication`: one
 versioned `ReplicateRequest` carries the exact manifest and owned record payload

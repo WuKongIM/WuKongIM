@@ -124,6 +124,10 @@ type recordingReplicaStore struct {
 	batches [][]Mutation
 }
 
+func (s *recordingReplicaStore) Load(_ context.Context, batch LoadBatch) (LoadBatchResult, error) {
+	return LoadBatchResult{Items: make([]LoadResult, len(batch.Items))}, nil
+}
+
 func (s *recordingReplicaStore) Sync(_ context.Context, mutations []Mutation) []MutationResult {
 	s.batches = append(s.batches, append([]Mutation(nil), mutations...))
 	return append([]MutationResult(nil), s.results...)

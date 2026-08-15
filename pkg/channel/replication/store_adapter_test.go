@@ -1,0 +1,512 @@
+package replication_test
+
+import (
+	"context"
+	"errors"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+)
+
+func TestStoreAdapterLoadsExactDurableTailAfterSync(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory:       channelstore.NewMemoryFactory(),
+		MaxBatchItems: 4,
+		MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+
+	key := ch.ChannelKey("1:load-exact-tail")
+	id := ch.ChannelID{ID: "load-exact-tail", Type: 1}
+	empty, err := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key,
+		ChannelID:  id,
+	}}})
+	if err != nil {
+		t.Fatalf("Load(empty) error = %v", err)
+	}
+	if len(empty.Items) != 1 || empty.Items[0].Err != nil || empty.Items[0].State != (replication.ReplicaState{}) {
+		t.Fatalf("Load(empty) = %+v, want one empty state", empty)
+	}
+
+	records := []ch.Record{{
+		ID: 17, Epoch: 3, FromUID: "sender", ClientMsgNo: "command-17",
+		Payload: []byte("payload"), SizeBytes: len("payload"), ServerTimestampMS: time.Unix(1_700_000_000, 0).UnixMilli(),
+	}}
+	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: ch.CommandID{31: 17}, LastOffset: 1,
+	}, records)
+	if !ok {
+		t.Fatal("SealProposalManifest() failed")
+	}
+	results := adapter.Sync(context.Background(), []replication.Mutation{{
+		ChannelKey: key,
+		ChannelID:  id,
+		Manifest:   manifest,
+		Records:    records,
+		Committed:  1,
+	}})
+	if len(results) != 1 || results[0].Err != nil || results[0].Outcome != ch.AppendOutcomeDurable {
+		t.Fatalf("Sync() = %+v, want one durable result", results)
+	}
+
+	loaded, err := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key,
+		ChannelID:  id,
+	}}})
+	if err != nil {
+		t.Fatalf("Load(durable) error = %v", err)
+	}
+	want := replication.ReplicaState{
+		LEO:          1,
+		Committed:    1,
+		Manifest:     manifest,
+		TailIdentity: entries[0],
+	}
+	if len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State != want {
+		t.Fatalf("Load(durable) = %+v, want %+v", loaded, want)
+	}
+}
+
+func TestStoreAdapterSyncUsesOneMessageDBBatch(t *testing.T) {
+	t.Parallel()
+
+	observer := &recordingCommitObserver{}
+	factory := channelstore.NewMessageDBFactoryWithOptions(t.TempDir(), channelstore.MessageDBFactoryOptions{
+		CommitObserver: observer,
+	})
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	mutations := []replication.Mutation{
+		sealedMutation(t, ch.ChannelKey("1:batch-a"), ch.ChannelID{ID: "batch-a", Type: 1}, 31),
+		sealedMutation(t, ch.ChannelKey("1:batch-b"), ch.ChannelID{ID: "batch-b", Type: 1}, 32),
+	}
+	results := adapter.Sync(context.Background(), mutations)
+	if len(results) != 2 {
+		t.Fatalf("Sync() result count = %d, want 2", len(results))
+	}
+	for index, result := range results {
+		if result.Err != nil || result.Outcome != ch.AppendOutcomeDurable {
+			t.Fatalf("Sync()[%d] = %+v, want durable", index, result)
+		}
+	}
+	events := observer.snapshot()
+	if len(events) != 1 || events[0].Requests != 1 || events[0].Records != 2 {
+		t.Fatalf("commit events = %+v, want one adapter-request/2-record physical commit", events)
+	}
+}
+
+func TestStoreAdapterSyncsAdjacentSameChannelMutationsInOneMessageDBBatch(t *testing.T) {
+	t.Parallel()
+
+	observer := &recordingCommitObserver{}
+	factory := channelstore.NewMessageDBFactoryWithOptions(t.TempDir(), channelstore.MessageDBFactoryOptions{
+		CommitObserver: observer,
+	})
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:adjacent-batch")
+	id := ch.ChannelID{ID: "adjacent-batch", Type: 1}
+	first := sealedMutationAt(t, key, id, 51, 0, ch.EntryIdentity{})
+	first.Committed = 1
+	second := sealedMutationAt(t, key, id, 52, 1, ch.EntryIdentity{
+		LeaderTerm: first.Manifest.LeaderTerm, Index: first.Manifest.LastOffset, Digest: first.Manifest.Digest,
+	})
+	second.Committed = 2
+
+	results := adapter.Sync(context.Background(), []replication.Mutation{first, second})
+	if len(results) != 2 {
+		t.Fatalf("Sync() result count = %d, want 2", len(results))
+	}
+	for index, result := range results {
+		if result.Err != nil || result.Outcome != ch.AppendOutcomeDurable || result.LastOffset != uint64(index+1) {
+			t.Fatalf("Sync()[%d] = %+v, want durable offset %d", index, result, index+1)
+		}
+	}
+	if events := observer.snapshot(); len(events) != 1 || events[0].Requests != 1 || events[0].Records != 2 {
+		t.Fatalf("commit events = %+v, want one physical commit for two adjacent proposals", events)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil ||
+		loaded.Items[0].State.LEO != 2 || loaded.Items[0].State.Committed != 2 ||
+		loaded.Items[0].State.Manifest != second.Manifest {
+		t.Fatalf("Load() = %+v, error %v; want second exact proposal committed", loaded, loadErr)
+	}
+	replayed := adapter.Sync(context.Background(), []replication.Mutation{first, second})
+	for index, result := range replayed {
+		if result.Err != nil || result.Outcome != ch.AppendOutcomeAlreadyDurable || result.LastOffset != uint64(index+1) {
+			t.Fatalf("Sync(replay)[%d] = %+v, want already durable offset %d", index, result, index+1)
+		}
+	}
+	if events := observer.snapshot(); len(events) != 1 {
+		t.Fatalf("commit events after replay = %+v, want no second physical commit", events)
+	}
+}
+
+func TestStoreAdapterReturnsNeedFromForFollowerGap(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 2, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	mutation := sealedMutationAt(t, ch.ChannelKey("1:gap"), ch.ChannelID{ID: "gap", Type: 1}, 61, 1, ch.EntryIdentity{
+		LeaderTerm: 7, Index: 1, Digest: ch.EntryDigest{31: 1},
+	})
+	results := adapter.Sync(context.Background(), []replication.Mutation{mutation})
+	if len(results) != 1 || results[0].Outcome != ch.AppendOutcomeConflict ||
+		!errors.Is(results[0].Err, ch.ErrLogConflict) || results[0].NeedFrom != 1 {
+		t.Fatalf("Sync(gap) = %+v, want conflict with NeedFrom=1", results)
+	}
+}
+
+func TestStoreAdapterLoadsExactDurableTailAfterMessageDBReopen(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	observer := &recordingCommitObserver{}
+	factory := channelstore.NewMessageDBFactoryWithOptions(dir, channelstore.MessageDBFactoryOptions{CommitObserver: observer})
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	key := ch.ChannelKey("1:reopen-exact-tail")
+	id := ch.ChannelID{ID: "reopen-exact-tail", Type: 1}
+	records := []ch.Record{{
+		ID: 23, Epoch: 4, FromUID: "sender", ClientMsgNo: "command-23",
+		Payload: []byte("durable"), SizeBytes: len("durable"), ServerTimestampMS: time.Unix(1_700_000_100, 0).UnixMilli(),
+	}}
+	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 4, LeaderTerm: 6, FenceVersion: 8,
+		CommandID: ch.CommandID{31: 23}, LastOffset: 1,
+	}, records)
+	if !ok {
+		t.Fatal("SealProposalManifest() failed")
+	}
+	results := adapter.Sync(context.Background(), []replication.Mutation{{
+		ChannelKey: key, ChannelID: id, Manifest: manifest, Records: records, Committed: 1,
+	}})
+	if len(results) != 1 || results[0].Err != nil || results[0].Outcome != ch.AppendOutcomeDurable {
+		t.Fatalf("Sync() = %+v, want one durable result", results)
+	}
+	if events := observer.snapshot(); len(events) != 1 || events[0].Records != 1 {
+		t.Fatalf("commit events = %+v, want exact proposal and HW in one physical commit", events)
+	}
+	if err := factory.Close(); err != nil {
+		t.Fatalf("MessageDBFactory.Close() error = %v", err)
+	}
+
+	reopened := channelstore.NewMessageDBFactory(dir)
+	t.Cleanup(func() { _ = reopened.Close() })
+	adapter, err = replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: reopened, MaxBatchItems: 4, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter(reopened) error = %v", err)
+	}
+	loaded, err := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if err != nil {
+		t.Fatalf("Load(reopened) error = %v", err)
+	}
+	want := replication.ReplicaState{LEO: 1, Committed: 1, Manifest: manifest, TailIdentity: entries[0]}
+	if len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State != want {
+		t.Fatalf("Load(reopened) = %+v, want %+v", loaded, want)
+	}
+}
+
+func TestStoreAdapterRejectsCommittedFrontierBeyondProposalBeforeWrite(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 2, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	mutation := sealedMutation(t, ch.ChannelKey("1:invalid-committed"), ch.ChannelID{ID: "invalid-committed", Type: 1}, 41)
+	mutation.Committed = mutation.Manifest.LastOffset + 1
+	results := adapter.Sync(context.Background(), []replication.Mutation{mutation})
+	if len(results) != 1 || results[0].Outcome != ch.AppendOutcomeDefinitelyNotWritten || results[0].Err == nil {
+		t.Fatalf("Sync(invalid committed) = %+v, want definitely-not-written error", results)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: mutation.ChannelKey, ChannelID: mutation.ChannelID,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State != (replication.ReplicaState{}) {
+		t.Fatalf("Load(after rejected sync) = %+v, error %v; want empty state", loaded, loadErr)
+	}
+}
+
+func TestStoreAdapterLoadRejectsCommittedFrontierBeyondDurableTail(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 2, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	mutation := sealedMutation(t, ch.ChannelKey("1:invalid-frontier"), ch.ChannelID{ID: "invalid-frontier", Type: 1}, 71)
+	results := adapter.Sync(context.Background(), []replication.Mutation{mutation})
+	if len(results) != 1 || results[0].Err != nil || !results[0].Outcome.Durable() {
+		t.Fatalf("Sync() = %+v, want durable proposal", results)
+	}
+	store, err := factory.ChannelStore(mutation.ChannelKey, mutation.ChannelID)
+	if err != nil {
+		t.Fatalf("ChannelStore() error = %v", err)
+	}
+	if err := store.StoreCheckpoint(context.Background(), ch.Checkpoint{HW: 2}); err != nil {
+		t.Fatalf("StoreCheckpoint(HW>LEO) error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("ChannelStore.Close() error = %v", err)
+	}
+
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: mutation.ChannelKey, ChannelID: mutation.ChannelID,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || !errors.Is(loaded.Items[0].Err, ch.ErrLogConflict) ||
+		loaded.Items[0].State != (replication.ReplicaState{}) {
+		t.Fatalf("Load(corrupt HW) = %+v, error %v; want zero state/log conflict", loaded, loadErr)
+	}
+}
+
+func TestStoreAdapterNormalizesMalformedStoreProofs(t *testing.T) {
+	t.Parallel()
+
+	key := ch.ChannelKey("1:malformed-store")
+	id := ch.ChannelID{ID: "malformed-store", Type: 1}
+	malformed := &scriptedExactStore{
+		state: channelstore.ExactState{InitialState: channelstore.InitialState{LEO: 1}},
+		appendResult: channelstore.AppendLeaderResult{
+			Outcome: ch.AppendOutcome(0), LastOffset: 1,
+		},
+	}
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: scriptedStoreFactory{store: malformed}, MaxBatchItems: 2, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].State != (replication.ReplicaState{}) || loaded.Items[0].Err == nil {
+		t.Fatalf("Load(malformed) = %+v, error %v; want zero state/error", loaded, loadErr)
+	}
+	mutation := sealedMutation(t, key, id, 81)
+	results := adapter.Sync(context.Background(), []replication.Mutation{mutation})
+	if len(results) != 1 || results[0].Outcome != ch.AppendOutcomeUnknown || results[0].Err == nil {
+		t.Fatalf("Sync(malformed proof) = %+v, want typed unknown/error", results)
+	}
+}
+
+func TestStoreAdapterLoadRejectsOversizedIdentityBatch(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 2, MaxBatchBytes: 1,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	_, err = adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: "1:oversized", ChannelID: ch.ChannelID{ID: "oversized", Type: 1},
+	}}})
+	if !errors.Is(err, ch.ErrBackpressured) {
+		t.Fatalf("Load(oversized) error = %v, want backpressured", err)
+	}
+}
+
+func TestStoreAdapterSyncRejectsCombinedBatchBytes(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 2, MaxBatchBytes: 512,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	first := sealedMutation(t, "1:bytes-a", ch.ChannelID{ID: "bytes-a", Type: 1}, 91)
+	second := sealedMutation(t, "1:bytes-b", ch.ChannelID{ID: "bytes-b", Type: 1}, 92)
+	results := adapter.Sync(context.Background(), []replication.Mutation{first, second})
+	if len(results) != 2 {
+		t.Fatalf("Sync() result count = %d, want 2", len(results))
+	}
+	for index, result := range results {
+		if result.Outcome != ch.AppendOutcomeDefinitelyNotWritten || !errors.Is(result.Err, ch.ErrBackpressured) {
+			t.Fatalf("Sync()[%d] = %+v, want batch backpressure", index, result)
+		}
+	}
+}
+
+func TestStoreAdapterSharesOneCommitWithSameBatchExactReplay(t *testing.T) {
+	t.Parallel()
+
+	observer := &recordingCommitObserver{}
+	factory := channelstore.NewMessageDBFactoryWithOptions(t.TempDir(), channelstore.MessageDBFactoryOptions{
+		CommitObserver: observer,
+	})
+	t.Cleanup(func() { _ = factory.Close() })
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 2, MaxBatchBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	mutation := sealedMutation(t, "1:same-batch-replay", ch.ChannelID{ID: "same-batch-replay", Type: 1}, 101)
+	mutation.Committed = 1
+	results := adapter.Sync(context.Background(), []replication.Mutation{mutation, mutation})
+	if len(results) != 2 || results[0].Outcome != ch.AppendOutcomeDurable ||
+		results[1].Outcome != ch.AppendOutcomeAlreadyDurable {
+		t.Fatalf("Sync(new,replay) = %+v, want durable/already-durable", results)
+	}
+	for index, result := range results {
+		if result.Err != nil || result.LastOffset != 1 {
+			t.Fatalf("Sync(new,replay)[%d] = %+v, want exact offset 1", index, result)
+		}
+	}
+	if events := observer.snapshot(); len(events) != 1 || events[0].Records != 1 {
+		t.Fatalf("commit events = %+v, want one physical row commit", events)
+	}
+}
+
+func TestStoreAdapterLoadRejectsMemoryHWAboveLEO(t *testing.T) {
+	t.Parallel()
+
+	factory := channelstore.NewMemoryFactory()
+	key := ch.ChannelKey("1:memory-invalid-frontier")
+	id := ch.ChannelID{ID: "memory-invalid-frontier", Type: 1}
+	store, err := factory.ChannelStore(key, id)
+	if err != nil {
+		t.Fatalf("ChannelStore() error = %v", err)
+	}
+	if err := store.StoreCheckpoint(context.Background(), ch.Checkpoint{HW: 1}); err != nil {
+		t.Fatalf("StoreCheckpoint() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+		Factory: factory, MaxBatchItems: 1, MaxBatchBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("NewStoreAdapter() error = %v", err)
+	}
+	loaded, loadErr := adapter.Load(context.Background(), replication.LoadBatch{Items: []replication.LoadRequest{{
+		ChannelKey: key, ChannelID: id,
+	}}})
+	if loadErr != nil || len(loaded.Items) != 1 || !errors.Is(loaded.Items[0].Err, ch.ErrLogConflict) ||
+		loaded.Items[0].State != (replication.ReplicaState{}) {
+		t.Fatalf("Load(memory HW>LEO) = %+v, error %v; want zero state/log conflict", loaded, loadErr)
+	}
+}
+
+func sealedMutation(t *testing.T, key ch.ChannelKey, id ch.ChannelID, messageID uint64) replication.Mutation {
+	t.Helper()
+	return sealedMutationAt(t, key, id, messageID, 0, ch.EntryIdentity{})
+}
+
+func sealedMutationAt(t *testing.T, key ch.ChannelKey, id ch.ChannelID, messageID, base uint64, previous ch.EntryIdentity) replication.Mutation {
+	t.Helper()
+	records := []ch.Record{{
+		ID: messageID, Epoch: 3, FromUID: "sender", ClientMsgNo: id.ID + "-" + strconv.FormatUint(messageID, 10),
+		Payload: []byte(id.ID), SizeBytes: len(id.ID), ServerTimestampMS: time.Unix(1_700_000_200, 0).UnixMilli(),
+	}}
+	commandID := ch.CommandID{}
+	commandID[24] = byte(messageID >> 56)
+	commandID[25] = byte(messageID >> 48)
+	commandID[26] = byte(messageID >> 40)
+	commandID[27] = byte(messageID >> 32)
+	commandID[28] = byte(messageID >> 24)
+	commandID[29] = byte(messageID >> 16)
+	commandID[30] = byte(messageID >> 8)
+	commandID[31] = byte(messageID)
+	manifest, _, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: commandID, BaseOffset: base, LastOffset: base + 1,
+		PreviousTerm: previous.LeaderTerm, PreviousIndex: base, PreviousDigest: previous.Digest,
+	}, records)
+	if !ok {
+		t.Fatal("SealProposalManifest() failed")
+	}
+	return replication.Mutation{ChannelKey: key, ChannelID: id, Manifest: manifest, Records: records}
+}
+
+type scriptedStoreFactory struct {
+	store channelstore.ChannelStore
+}
+
+func (f scriptedStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (channelstore.ChannelStore, error) {
+	return f.store, nil
+}
+
+type scriptedExactStore struct {
+	channelstore.ChannelStore
+	state        channelstore.ExactState
+	loadErr      error
+	appendResult channelstore.AppendLeaderResult
+	appendErr    error
+}
+
+func (s *scriptedExactStore) LoadExactState(context.Context) (channelstore.ExactState, error) {
+	return s.state, s.loadErr
+}
+
+func (s *scriptedExactStore) AppendLeader(context.Context, channelstore.AppendLeaderRequest) (channelstore.AppendLeaderResult, error) {
+	return s.appendResult, s.appendErr
+}
+
+func (s *scriptedExactStore) Close() error { return nil }
+
+type recordingCommitObserver struct {
+	mu     sync.Mutex
+	events []messagedb.CommitCoordinatorBatchEvent
+}
+
+func (o *recordingCommitObserver) SetCommitCoordinatorQueueDepth(int) {}
+
+func (o *recordingCommitObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+}
+
+func (o *recordingCommitObserver) snapshot() []messagedb.CommitCoordinatorBatchEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]messagedb.CommitCoordinatorBatchEvent(nil), o.events...)
+}

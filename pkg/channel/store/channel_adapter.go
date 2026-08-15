@@ -305,6 +305,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
 			Store:                     dbStore,
 			Records:                   encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+			Committed:                 item.Request.Committed,
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
 			ExactBaseOffset:           item.Request.ExactBaseOffset,
 			ExpectedBaseOffset:        item.Request.ExpectedBaseOffset,
@@ -328,6 +329,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			continue
 		}
 		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, Outcome: dbResult.Outcome, Err: err}
+		results[acquiredItem.index].NeedFrom = dbResult.NeedFrom
 	}
 	return results
 }
@@ -529,6 +531,24 @@ func (a *messageDBChannelStoreAdapter) Load(ctx context.Context) (InitialState, 
 	return InitialState{LEO: leo, HW: hw, CheckpointHW: hw}, nil
 }
 
+// LoadExactState returns one append/checkpoint-consistent exact durable
+// frontier from the underlying MessageDB store.
+func (a *messageDBChannelStoreAdapter) LoadExactState(ctx context.Context) (ExactState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactState{}, err
+	}
+	frontier, err := a.store.LoadDurableFrontier(ctx)
+	if err != nil {
+		return ExactState{}, a.mapError(err)
+	}
+	return ExactState{
+		InitialState: InitialState{
+			LEO: frontier.LEO, HW: frontier.Committed, CheckpointHW: frontier.Committed,
+		},
+		Manifest: frontier.Manifest, TailIdentity: frontier.TailIdentity,
+	}, nil
+}
+
 func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := a.ensureOpen(); err != nil {
 		return appendLeaderErrorResult(err), err
@@ -540,6 +560,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
 		Store:                     a.store,
 		Records:                   records,
+		Committed:                 req.Committed,
 		ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
 		ExactBaseOffset:           req.ExactBaseOffset,
 		ExpectedBaseOffset:        req.ExpectedBaseOffset,
@@ -554,7 +575,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 	if len(records) == 0 {
 		lastOffset = result.BaseOffset
 	}
-	return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: lastOffset, Outcome: result.Outcome}, err
+	return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: lastOffset, NeedFrom: result.NeedFrom, Outcome: result.Outcome}, err
 }
 
 func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {
