@@ -812,6 +812,16 @@ close_terminal_drain_boundary() {
     .latest_cut.at
   ' "$CUT_QUERY_FILE" 2>/dev/null)" || return 1
   TERMINAL_BOUNDARY_AT="$terminal_at"
+  if (( DRAIN_BOUNDARY_RECORDED == 0 )); then
+    if (( qualification_seen == 1 )); then
+      record_timeline_boundary_at "$terminal_at" measurement_end
+    else
+      record_timeline_boundary_at "$terminal_at" warmup_end
+    fi
+    record_timeline_boundary_at "$terminal_at" drain_start
+    write_phase_state drain
+    DRAIN_BOUNDARY_RECORDED=1
+  fi
   record_timeline_boundary_at "$terminal_at" drain_end
   record_timeline_boundary_at "$terminal_at" shutdown_start
   write_phase_state shutdown
@@ -1548,18 +1558,18 @@ if (( MEASURE_SECONDS == 0 )) && [[ -n "$HARNESS_FAILURE_REASON" ]]; then
   finalize_unmeasured_harness_failure
 fi
 if (( MEASURE_SECONDS > 0 )); then
-  if (( DRAIN_BOUNDARY_RECORDED == 0 )); then
-    if (( qualification_seen == 1 )); then
-      record_timeline_boundary measurement_end
-    else
-      record_timeline_boundary warmup_end
-    fi
-    record_timeline_boundary drain_start
-    write_phase_state drain
-    DRAIN_BOUNDARY_RECORDED=1
-  fi
   check_measured_host_overlap
   if ! close_terminal_drain_boundary; then
+    if (( DRAIN_BOUNDARY_RECORDED == 0 )); then
+      if (( qualification_seen == 1 )); then
+        record_timeline_boundary measurement_end
+      else
+        record_timeline_boundary warmup_end
+      fi
+      record_timeline_boundary drain_start
+      write_phase_state drain
+      DRAIN_BOUNDARY_RECORDED=1
+    fi
     log 'typed terminal cut was unavailable; drain/shutdown boundaries remain incomplete'
     write_phase_state shutdown
   elif ! wait_for_service_sample_after_terminal_boundary; then

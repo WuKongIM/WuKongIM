@@ -183,6 +183,13 @@ service, worker, coordinator, and host-metrics PIDs as CPU jiffies and RSS;
 the local-step result fails closed when a host/process round or worker-queue
 cut is missing.
 
+If the coordinator publishes a terminal worker cut before the wrapper closes
+warmup or measurement, the wrapper closes the missing phase and drain-start
+boundaries at that exact terminal UTC before recording drain-end and
+shutdown-start. It never stamps those earlier logical boundaries with a later
+shell wall-clock sample. A real early product failure therefore retains an
+ordered typed timeline instead of being downgraded to insufficient evidence.
+
 `wkbench report local-chat-lifecycle-step` consumes one post-warmup
 qualification report, one drained terminal report, complete normalized
 storage and host-I/O evidence, a normalized post-drain service queue cut, and

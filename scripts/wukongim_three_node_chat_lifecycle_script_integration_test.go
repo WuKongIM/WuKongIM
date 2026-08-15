@@ -635,6 +635,51 @@ finalize_unmeasured_harness_failure
 	}
 }
 
+func TestChatLifecycleEarlyTerminalCutClosesWarmupTimelineAtTerminalUTC(t *testing.T) {
+	root := repoRoot(t)
+	testDir := t.TempDir()
+	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	harness := `#!/usr/bin/env bash
+set -euo pipefail
+EVIDENCE_DIR="$TEST_DIR/evidence"
+CUT_QUERY_FILE="$EVIDENCE_DIR/worker-cut-query.json"
+TERMINAL_BOUNDARY_AT=""
+DRAIN_BOUNDARY_RECORDED=0
+qualification_seen=0
+mkdir -p "$EVIDENCE_DIR"
+printf 'observed_at_utc\tphase\tnode\tstatus\n' >"$EVIDENCE_DIR/timeline.tsv"
+printf '%s\n' '{"terminal_cut_present":true,"latest_cut":{"cut":"terminal","at":"2026-08-15T03:37:19.168710Z"}}' >"$CUT_QUERY_FILE"
+write_phase_state() { printf '%s\n' "$1" >"$EVIDENCE_DIR/phase"; }
+` + extractBashFunction(t, script, "record_timeline_boundary_at") + `
+` + extractBashFunction(t, script, "close_terminal_drain_boundary") + `
+close_terminal_drain_boundary
+cat "$EVIDENCE_DIR/timeline.tsv"
+printf 'phase=%s\ndrain_recorded=%s\nterminal=%s\n' \
+  "$(<"$EVIDENCE_DIR/phase")" "$DRAIN_BOUNDARY_RECORDED" "$TERMINAL_BOUNDARY_AT"
+`
+	harnessPath := filepath.Join(testDir, "early-terminal-timeline.sh")
+	if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("bash", harnessPath)
+	command.Env = append(os.Environ(), "TEST_DIR="+testDir)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("early terminal timeline harness failed: %v\n%s", err, output)
+	}
+	want := "observed_at_utc\tphase\tnode\tstatus\n" +
+		"2026-08-15T03:37:19.168710Z\twarmup_end\tboundary\tcomplete\n" +
+		"2026-08-15T03:37:19.168710Z\tdrain_start\tboundary\tcomplete\n" +
+		"2026-08-15T03:37:19.168710Z\tdrain_end\tboundary\tcomplete\n" +
+		"2026-08-15T03:37:19.168710Z\tshutdown_start\tboundary\tcomplete\n" +
+		"phase=shutdown\n" +
+		"drain_recorded=1\n" +
+		"terminal=2026-08-15T03:37:19.168710Z\n"
+	if string(output) != want {
+		t.Fatalf("early terminal timeline =\n%s\nwant:\n%s", output, want)
+	}
+}
+
 func extractBashFunction(t *testing.T, script, name string) string {
 	t.Helper()
 	startToken := name + "() {\n"
