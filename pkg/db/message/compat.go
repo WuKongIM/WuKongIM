@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -148,6 +149,11 @@ type AppendBatchItem struct {
 	Records []channel.Record
 	// ServerAllocatedMessageIDs skips only existing message-ID reads for this leader append.
 	ServerAllocatedMessageIDs bool
+	// ExactBaseOffset requires Records to occupy the range immediately after
+	// ExpectedBaseOffset. It also permits an exact durable replay of that range.
+	ExactBaseOffset bool
+	// ExpectedBaseOffset is the zero-based durable frontier preceding an exact append.
+	ExpectedBaseOffset uint64
 }
 
 // AppendBatchResult is the per-item result returned by StoreAppendBatch.
@@ -158,6 +164,9 @@ type AppendBatchResult struct {
 	LastOffset uint64
 	// Err is the item-specific append error.
 	Err error
+	// AlreadyDurable reports that the exact requested range and content were
+	// present before this call and no new rows were written.
+	AlreadyDurable bool
 }
 
 // ApplyFetchBatchItem is one channel apply request in a cross-channel batch.
@@ -804,7 +813,13 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		if item.ServerAllocatedMessageIDs {
 			mode = AppendServerAllocatedMessageID
 		}
-		prepared, err := item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
+		var prepared preparedCommitRows
+		var err error
+		if item.ExactBaseOffset {
+			prepared, err = item.Store.prepareExactAppendRecordsLocked(ctx, item.ExpectedBaseOffset, item.Records, mode)
+		} else {
+			prepared, err = item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
+		}
 		if err != nil {
 			results[index].Err = err
 			entry.appendMu.Unlock()
@@ -814,6 +829,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		prepared.index = index
 		results[index].BaseOffset = prepared.baseOffset
 		results[index].LastOffset = prepared.nextLEO
+		results[index].AlreadyDurable = prepared.alreadyDurable
 		if !prepared.hasWrites() {
 			entry.appendMu.Unlock()
 			delete(locked, entry)
@@ -1659,6 +1675,7 @@ type preparedCommitRows struct {
 	point            *EpochPoint
 	baseOffset       uint64
 	nextLEO          uint64
+	alreadyDurable   bool
 }
 
 type preparedCommitMutation struct {
@@ -1693,6 +1710,62 @@ func (s *ChannelStore) prepareAppendRecordsLocked(ctx context.Context, records [
 	}
 	prepared.rows = rows
 	return prepared, nil
+}
+
+func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expectedBaseOffset uint64, records []channel.Record, mode AppendMode) (preparedCommitRows, error) {
+	base, err := s.log.loadLEOLocked(ctx)
+	if err != nil {
+		return preparedCommitRows{}, toChannelError(err)
+	}
+	if len(records) == 0 {
+		return preparedCommitRows{}, channel.ErrInvalidArgument
+	}
+	if uint64(len(records)) > math.MaxUint64-expectedBaseOffset {
+		return preparedCommitRows{}, channel.ErrInvalidArgument
+	}
+	nextLEO := expectedBaseOffset + uint64(len(records))
+	prepared := preparedCommitRows{store: s, baseOffset: expectedBaseOffset, nextLEO: nextLEO}
+	if base < expectedBaseOffset || (base > expectedBaseOffset && base < nextLEO) {
+		return preparedCommitRows{}, channel.ErrCorruptState
+	}
+	if base >= nextLEO {
+		rows, err := s.log.readRows(ctx, expectedBaseOffset+1, nextLEO, ReadOptions{Limit: len(records)})
+		if err != nil {
+			return preparedCommitRows{}, toChannelError(err)
+		}
+		expectedRows, err := compatibilityRowsFromRecords(expectedBaseOffset+1, records)
+		if err != nil {
+			return preparedCommitRows{}, err
+		}
+		if len(rows) != len(expectedRows) {
+			return preparedCommitRows{}, channel.ErrCorruptState
+		}
+		for i := range rows {
+			if expectedRows[i].ServerTimestampMS == 0 {
+				expectedRows[i].ServerTimestampMS = rows[i].ServerTimestampMS
+			}
+			if !sameMessageRow(rows[i], expectedRows[i]) {
+				return preparedCommitRows{}, channel.ErrCorruptState
+			}
+		}
+		prepared.alreadyDurable = true
+		return prepared, nil
+	}
+
+	rows, err := compatibilityRowsFromRecords(expectedBaseOffset+1, records)
+	if err != nil {
+		return preparedCommitRows{}, err
+	}
+	defaultMissingServerTimestampMS(rows, time.Now().UnixMilli())
+	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
+		return preparedCommitRows{}, err
+	}
+	prepared.rows = rows
+	return prepared, nil
+}
+
+func sameMessageRow(left, right messageRow) bool {
+	return reflect.DeepEqual(left, right)
 }
 
 func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint, mode AppendMode) (preparedCommitRows, error) {

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"reflect"
 	"sync"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -60,6 +61,9 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if req.ExactBaseOffset {
+		return s.appendLeaderExactLocked(req)
+	}
 	if len(req.Records) == 0 {
 		leo := s.leoLocked()
 		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo}, nil
@@ -74,6 +78,55 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 		s.records = append(s.records, record)
 	}
 	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked()}, nil
+}
+
+func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (AppendLeaderResult, error) {
+	if len(req.Records) == 0 {
+		return AppendLeaderResult{}, ch.ErrInvalidConfig
+	}
+	leo := s.leoLocked()
+	if uint64(len(req.Records)) > ^uint64(0)-req.ExpectedBaseOffset {
+		return AppendLeaderResult{}, ch.ErrInvalidConfig
+	}
+	last := req.ExpectedBaseOffset + uint64(len(req.Records))
+	if leo < req.ExpectedBaseOffset || (leo > req.ExpectedBaseOffset && leo < last) {
+		return AppendLeaderResult{}, ch.ErrLogConflict
+	}
+	if leo >= last {
+		for i, record := range req.Records {
+			seq := req.ExpectedBaseOffset + uint64(i) + 1
+			if record.Index != 0 && record.Index != seq {
+				return AppendLeaderResult{}, ch.ErrLogConflict
+			}
+			existing, ok := s.recordBySeqLocked(seq)
+			if !ok {
+				return AppendLeaderResult{}, ch.ErrLogConflict
+			}
+			expected := record
+			expected.Index = seq
+			if expected.SizeBytes == 0 {
+				expected.SizeBytes = len(expected.Payload)
+			}
+			if !reflect.DeepEqual(existing, expected) {
+				return AppendLeaderResult{}, ch.ErrLogConflict
+			}
+		}
+		return AppendLeaderResult{BaseOffset: req.ExpectedBaseOffset + 1, LastOffset: last, AlreadyDurable: true}, nil
+	}
+	base := req.ExpectedBaseOffset + 1
+	for i, record := range req.Records {
+		seq := base + uint64(i)
+		if record.Index != 0 && record.Index != seq {
+			return AppendLeaderResult{}, ch.ErrLogConflict
+		}
+		record.Index = seq
+		record.Payload = cloneBytes(record.Payload)
+		if record.SizeBytes == 0 {
+			record.SizeBytes = len(record.Payload)
+		}
+		s.records = append(s.records, record)
+	}
+	return AppendLeaderResult{BaseOffset: base, LastOffset: last}, nil
 }
 
 // ApplyFollower applies leader records, skipping any duplicate prefix already stored.

@@ -255,9 +255,11 @@ before I/O and submits local storage plus owned follower persistence in one
 round through bounded dispatchers. A successful round always includes local
 durability and the configured distinct-voter quorum; follower-only durability
 cannot complete an append. This internal round is the first migration slice.
-It does not yet change the production reactor path. Exact-offset storage,
-term/hash recovery, data-bearing peer exchange, and removal of the PullHint hot
-path must land before production wiring. The design is recorded in
+It does not yet change the production reactor path. Channel stores now support
+exact-base first writes and exact durable replay through the existing grouped
+commit coordinator, but persisted term/hash recovery, data-bearing peer
+exchange, and removal of the PullHint hot path must land before production
+wiring. The design is recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,
 `Group.Submit` reuses the event's tick timestamp slot to capture admission time

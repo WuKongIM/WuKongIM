@@ -78,6 +78,14 @@ Current flow:
    checkpoint, and epoch point in one batch.
 8. `ApplyFetch` applies fetched records plus optional checkpoint/history in one
    batch with an explicit base sequence conflict check.
+   Leader append batches may also select exact-base mode. The first call writes
+   only when the current LEO equals the expected base; an exact replay whose
+   complete range is already durable compares every materialized row and
+   returns `AlreadyDurable` without another commit. Gaps, partial overlaps, or
+   different content fail as log conflicts. Exact and ordinary requests share
+   the same cross-channel commit coordinator and add no second collection
+   window. Persisted term/hash proposal manifests and retention-safe replay are
+   still required before this mode is wired to speculative follower writes.
 9. Truncate and retention deletes remove primary rows and secondary indexes
    together; bounded retention trims can advance physical deletion in multiple
    batches while retention state preserves LEO across reopen after prefix trim.

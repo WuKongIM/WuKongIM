@@ -122,6 +122,11 @@ type AppendLeaderRequest struct {
 	Sync    bool
 	// ServerAllocatedMessageIDs permits skipping only existing message-ID lookups.
 	ServerAllocatedMessageIDs bool
+	// ExactBaseOffset requires Records to begin at ExpectedBaseOffset+1 and
+	// permits an exact idempotent replay of an already durable range.
+	ExactBaseOffset bool
+	// ExpectedBaseOffset is the durable frontier preceding an exact append.
+	ExpectedBaseOffset uint64
 }
 
 // AppendLeaderBatchItem is one channel-scoped leader append inside a store-level batch.
@@ -133,15 +138,17 @@ type AppendLeaderBatchItem struct {
 
 // AppendLeaderResult returns the durable offset range for a leader append.
 type AppendLeaderResult struct {
-	BaseOffset uint64
-	LastOffset uint64
+	BaseOffset     uint64
+	LastOffset     uint64
+	AlreadyDurable bool
 }
 
 // AppendLeaderBatchResult returns the result for one AppendLeaderBatchItem.
 type AppendLeaderBatchResult struct {
-	BaseOffset uint64
-	LastOffset uint64
-	Err        error
+	BaseOffset     uint64
+	LastOffset     uint64
+	AlreadyDurable bool
+	Err            error
 }
 
 // ApplyFollowerRequest persists records received from the leader.

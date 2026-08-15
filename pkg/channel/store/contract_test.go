@@ -22,9 +22,29 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.Equal(t, uint64(1), appendRes.BaseOffset)
 	require.Equal(t, uint64(2), appendRes.LastOffset)
 
-	logRes, err := cs.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 2, MaxBytes: 1024})
+	exact := AppendLeaderRequest{
+		Records:            []ch.Record{{ID: 3, Index: 3, Payload: []byte("c"), SizeBytes: 1}},
+		Sync:               true,
+		ExactBaseOffset:    true,
+		ExpectedBaseOffset: 2,
+	}
+	exactRes, err := cs.AppendLeader(ctx, exact)
 	require.NoError(t, err)
-	require.Len(t, logRes.Records, 2)
+	require.False(t, exactRes.AlreadyDurable)
+	replayRes, err := cs.AppendLeader(ctx, exact)
+	require.NoError(t, err)
+	require.True(t, replayRes.AlreadyDurable)
+	require.Equal(t, exactRes.BaseOffset, replayRes.BaseOffset)
+	require.Equal(t, exactRes.LastOffset, replayRes.LastOffset)
+
+	conflict := exact
+	conflict.Records = []ch.Record{{ID: 4, Index: 3, Payload: []byte("different"), SizeBytes: len("different")}}
+	_, err = cs.AppendLeader(ctx, conflict)
+	require.ErrorIs(t, err, ch.ErrLogConflict)
+
+	logRes, err := cs.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 3, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, logRes.Records, 3)
 	require.True(t, logRes.Records[0].SyncOnce)
 	require.False(t, logRes.Records[1].SyncOnce)
 

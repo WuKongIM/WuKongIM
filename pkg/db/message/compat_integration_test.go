@@ -412,6 +412,75 @@ func TestStoreApplyFetchTrustedBatchUsesSingleFollowerApplyRequest(t *testing.T)
 	}
 }
 
+func TestStoreAppendBatchExactRangeReplaysWithoutDuplicateRows(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	t.Cleanup(func() {
+		if err := engine.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	})
+	store, err := engine.ForChannel(channel.ChannelKey("exact-replay"), channel.ChannelID{ID: "exact-replay", Type: 2})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Fatalf("store.Close(): %v", err)
+		}
+	})
+	record := compatTestRecord(t, 7101, "exact-replay", "client-1")
+
+	first := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:              store,
+		Records:            []channel.Record{record},
+		ExactBaseOffset:    true,
+		ExpectedBaseOffset: 0,
+	}})
+	if len(first) != 1 || first[0].Err != nil || first[0].AlreadyDurable {
+		t.Fatalf("first StoreAppendBatch() = %+v, want new exact durable append", first)
+	}
+
+	replay := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:              store,
+		Records:            []channel.Record{record},
+		ExactBaseOffset:    true,
+		ExpectedBaseOffset: 0,
+	}})
+	if len(replay) != 1 || replay[0].Err != nil || !replay[0].AlreadyDurable {
+		t.Fatalf("replay StoreAppendBatch() = %+v, want already durable", replay)
+	}
+	if got := store.LEO(); got != 1 {
+		t.Fatalf("LEO after exact replay = %d, want 1", got)
+	}
+
+	conflict := record
+	conflict.ID = 7102
+	conflict.Payload = append([]byte(nil), record.Payload...)
+	conflict.Payload[len(conflict.Payload)-1] ^= 0xff
+	conflicted := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:              store,
+		Records:            []channel.Record{conflict},
+		ExactBaseOffset:    true,
+		ExpectedBaseOffset: 0,
+	}})
+	if len(conflicted) != 1 || !errors.Is(conflicted[0].Err, channel.ErrCorruptState) {
+		t.Fatalf("conflicting replay StoreAppendBatch() = %+v, want corrupt state", conflicted)
+	}
+
+	gapped := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:              store,
+		Records:            []channel.Record{compatTestRecord(t, 7103, "exact-replay", "client-3")},
+		ExactBaseOffset:    true,
+		ExpectedBaseOffset: 2,
+	}})
+	if len(gapped) != 1 || !errors.Is(gapped[0].Err, channel.ErrCorruptState) {
+		t.Fatalf("gapped StoreAppendBatch() = %+v, want corrupt state", gapped)
+	}
+}
+
 func TestStoreAppendBatchUsesSingleLeaderAppendRequest(t *testing.T) {
 	engine, err := Open(t.TempDir())
 	if err != nil {

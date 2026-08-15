@@ -304,6 +304,8 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			Store:                     dbStore,
 			Records:                   encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
+			ExactBaseOffset:           item.Request.ExactBaseOffset,
+			ExpectedBaseOffset:        item.Request.ExpectedBaseOffset,
 		})
 		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
 	}
@@ -321,7 +323,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.BaseOffset, Err: err}
 			continue
 		}
-		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, Err: err}
+		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, AlreadyDurable: dbResult.AlreadyDurable, Err: err}
 	}
 	return results
 }
@@ -468,6 +470,9 @@ func mapMessageDBAdapterError(err error) error {
 	if errors.Is(err, channel.ErrClosed) {
 		return ch.ErrClosed
 	}
+	if errors.Is(err, channel.ErrCorruptState) {
+		return ch.ErrLogConflict
+	}
 	return err
 }
 
@@ -528,6 +533,23 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 		return AppendLeaderResult{}, err
 	}
 	records := a.encodeRecords(req.Records)
+	if req.ExactBaseOffset {
+		results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
+			Store:                     a.store,
+			Records:                   records,
+			ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
+			ExactBaseOffset:           true,
+			ExpectedBaseOffset:        req.ExpectedBaseOffset,
+		}})
+		if len(results) != 1 {
+			return AppendLeaderResult{}, ch.ErrInvalidConfig
+		}
+		result := results[0]
+		if result.Err != nil {
+			return AppendLeaderResult{}, a.mapError(result.Err)
+		}
+		return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: result.LastOffset, AlreadyDurable: result.AlreadyDurable}, nil
+	}
 	var (
 		base uint64
 		err  error

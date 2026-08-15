@@ -27,6 +27,8 @@ var (
 	ErrChannelNotFound = errors.New("channel: channel not found")
 	// ErrNotReplica reports that the local or requesting node is outside the channel replica set.
 	ErrNotReplica = errors.New("channel: not replica")
+	// ErrLogConflict reports that an exact log range has different durable content or a gap.
+	ErrLogConflict = errors.New("channel: log conflict")
 	// ErrClosed reports that the cluster or one of its bounded workers is closed.
 	ErrClosed = errors.New("channel: closed")
 	// ErrTooManyChannels reports that local channel activation hit its limit.
