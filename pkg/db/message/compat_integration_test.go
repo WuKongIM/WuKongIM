@@ -412,42 +412,78 @@ func TestStoreApplyFetchTrustedBatchUsesSingleFollowerApplyRequest(t *testing.T)
 	}
 }
 
-func TestStoreAppendBatchExactRangeReplaysWithoutDuplicateRows(t *testing.T) {
-	engine, err := Open(t.TempDir())
+func TestStoreAppendBatchExactProposalReplaysAfterRetentionAndReopen(t *testing.T) {
+	path := t.TempDir()
+	engine, err := Open(path)
 	if err != nil {
 		t.Fatalf("Open(): %v", err)
 	}
-	t.Cleanup(func() {
-		if err := engine.Close(); err != nil {
-			t.Fatalf("Close(): %v", err)
-		}
-	})
 	store, err := engine.ForChannel(channel.ChannelKey("exact-replay"), channel.ChannelID{ID: "exact-replay", Type: 2})
 	if err != nil {
 		t.Fatalf("ForChannel(): %v", err)
 	}
-	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Fatalf("store.Close(): %v", err)
-		}
-	})
-	record := compatTestRecord(t, 7101, "exact-replay", "client-1")
+	record := compatExactTestRecord(t, 5, 7101, "exact-replay", "client-1")
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version:      DurableProposalManifestVersion,
+		ChannelEpoch: 5,
+		LeaderTerm:   7,
+		FenceVersion: 9,
+		CommandID:    [32]byte{1, 2, 3},
+		BaseOffset:   0,
+		LastOffset:   1,
+	}, []channel.Record{record})
 
 	first := StoreAppendBatch(context.Background(), []AppendBatchItem{{
 		Store:              store,
 		Records:            []channel.Record{record},
 		ExactBaseOffset:    true,
 		ExpectedBaseOffset: 0,
+		Proposal:           manifest,
 	}})
 	if len(first) != 1 || first[0].Err != nil || first[0].AlreadyDurable {
 		t.Fatalf("first StoreAppendBatch() = %+v, want new exact durable append", first)
 	}
+	entryValue, ok, err := engine.engine.Get(encodeEntryIdentityKey(ChannelKey("exact-replay"), 1))
+	if err != nil || !ok {
+		t.Fatalf("entry identity read = ok %v err %v", ok, err)
+	}
+	entryIdentity, err := decodeDurableEntryIdentity(entryValue)
+	if err != nil || entryIdentity.Index != 1 || entryIdentity.CommandID != manifest.CommandID || entryIdentity.Digest != manifest.Digest {
+		t.Fatalf("entry identity = %+v err %v, want persisted manifest tail", entryIdentity, err)
+	}
+	if err := store.AdoptRetentionBoundary(context.Background(), 1, "committed"); err != nil {
+		t.Fatalf("AdoptRetentionBoundary(): %v", err)
+	}
+	if err := store.TrimMessagesThrough(context.Background(), 1); err != nil {
+		t.Fatalf("TrimMessagesThrough(): %v", err)
+	}
+	if _, ok, err := store.GetMessageBySeq(1); err != nil || ok {
+		t.Fatalf("GetMessageBySeq(1) after retention = ok %v err %v, want missing", ok, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("store.Close(): %v", err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+
+	engine, err = Open(path)
+	if err != nil {
+		t.Fatalf("Open() after retention: %v", err)
+	}
+	defer engine.Close()
+	store, err = engine.ForChannel(channel.ChannelKey("exact-replay"), channel.ChannelID{ID: "exact-replay", Type: 2})
+	if err != nil {
+		t.Fatalf("ForChannel() after retention: %v", err)
+	}
+	defer store.Close()
 
 	replay := StoreAppendBatch(context.Background(), []AppendBatchItem{{
 		Store:              store,
 		Records:            []channel.Record{record},
 		ExactBaseOffset:    true,
 		ExpectedBaseOffset: 0,
+		Proposal:           manifest,
 	}})
 	if len(replay) != 1 || replay[0].Err != nil || !replay[0].AlreadyDurable {
 		t.Fatalf("replay StoreAppendBatch() = %+v, want already durable", replay)
@@ -465,19 +501,299 @@ func TestStoreAppendBatchExactRangeReplaysWithoutDuplicateRows(t *testing.T) {
 		Records:            []channel.Record{conflict},
 		ExactBaseOffset:    true,
 		ExpectedBaseOffset: 0,
+		Proposal:           manifest,
 	}})
 	if len(conflicted) != 1 || !errors.Is(conflicted[0].Err, channel.ErrCorruptState) {
 		t.Fatalf("conflicting replay StoreAppendBatch() = %+v, want corrupt state", conflicted)
 	}
 
+	gappedRecord := compatExactTestRecord(t, 5, 7103, "exact-replay", "client-3")
+	gappedManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{7, 8, 9}, BaseOffset: 2, LastOffset: 3,
+		PreviousTerm: manifest.LeaderTerm, PreviousIndex: 2, PreviousDigest: manifest.Digest,
+	}, []channel.Record{gappedRecord})
 	gapped := StoreAppendBatch(context.Background(), []AppendBatchItem{{
 		Store:              store,
-		Records:            []channel.Record{compatTestRecord(t, 7103, "exact-replay", "client-3")},
+		Records:            []channel.Record{gappedRecord},
 		ExactBaseOffset:    true,
 		ExpectedBaseOffset: 2,
+		Proposal:           gappedManifest,
 	}})
 	if len(gapped) != 1 || !errors.Is(gapped[0].Err, channel.ErrCorruptState) {
 		t.Fatalf("gapped StoreAppendBatch() = %+v, want corrupt state", gapped)
+	}
+}
+
+func TestTruncateLogAndHistoryRemovesExactProposalIdentityForReplacementSuffix(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer engine.Close()
+	store, err := engine.ForChannel(channel.ChannelKey("exact-truncate"), channel.ChannelID{ID: "exact-truncate", Type: 2})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	defer store.Close()
+
+	firstRecord := compatExactTestRecord(t, 5, 7201, "exact-truncate", "client-1")
+	firstManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	secondRecord := compatExactTestRecord(t, 5, 7202, "exact-truncate", "client-2")
+	secondManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{3}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: firstManifest.Digest,
+	}, []channel.Record{secondRecord})
+	for index, item := range []AppendBatchItem{
+		{Store: store, Records: []channel.Record{firstRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: firstManifest},
+		{Store: store, Records: []channel.Record{secondRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: secondManifest},
+	} {
+		result := StoreAppendBatch(context.Background(), []AppendBatchItem{item})
+		if len(result) != 1 || result[0].Err != nil {
+			t.Fatalf("StoreAppendBatch()[%d] = %+v, want success", index, result)
+		}
+	}
+
+	if err := store.TruncateLogAndHistory(context.Background(), 1); err != nil {
+		t.Fatalf("TruncateLogAndHistory(1): %v", err)
+	}
+	replacementRecord := compatExactTestRecord(t, 6, 7203, "exact-truncate", "client-3")
+	replacement := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 6, LeaderTerm: 8, FenceVersion: 10,
+		CommandID: [32]byte{5}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: firstManifest.Digest,
+	}, []channel.Record{replacementRecord})
+	result := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{replacementRecord},
+		ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: replacement,
+	}})
+	if len(result) != 1 || result[0].Err != nil || result[0].AlreadyDurable {
+		t.Fatalf("replacement StoreAppendBatch() = %+v, want new durable suffix", result)
+	}
+	entryValue, ok, err := engine.engine.Get(encodeEntryIdentityKey(ChannelKey("exact-truncate"), 2))
+	if err != nil || !ok {
+		t.Fatalf("replacement entry identity read = ok %v err %v", ok, err)
+	}
+	entryIdentity, err := decodeDurableEntryIdentity(entryValue)
+	if err != nil || entryIdentity.CommandID != replacement.CommandID || entryIdentity.Digest != replacement.Digest {
+		t.Fatalf("replacement entry identity = %+v err %v", entryIdentity, err)
+	}
+}
+
+func TestTruncateLogAndHistoryRejectsSplittingExactProposal(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer engine.Close()
+	store, err := engine.ForChannel(channel.ChannelKey("exact-truncate-split"), channel.ChannelID{ID: "exact-truncate-split", Type: 2})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	defer store.Close()
+	records := []channel.Record{
+		compatExactTestRecord(t, 5, 7301, "exact-truncate-split", "client-1"),
+		compatExactTestRecord(t, 5, 7302, "exact-truncate-split", "client-2"),
+	}
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 2,
+	}, records)
+	result := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:           store,
+		Records:         records,
+		ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	}})
+	if len(result) != 1 || result[0].Err != nil {
+		t.Fatalf("StoreAppendBatch() = %+v, want success", result)
+	}
+	if err := store.TruncateLogAndHistory(context.Background(), 1); !errors.Is(err, channel.ErrCorruptState) {
+		t.Fatalf("TruncateLogAndHistory(1) error = %v, want corrupt state", err)
+	}
+	if got := store.LEO(); got != 2 {
+		t.Fatalf("LEO after rejected split = %d, want 2", got)
+	}
+}
+
+func TestStoreAppendBatchRejectsBrokenProposalHashChain(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer engine.Close()
+	store, err := engine.ForChannel(channel.ChannelKey("exact-chain"), channel.ChannelID{ID: "exact-chain", Type: 1})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	defer store.Close()
+	firstRecord := compatExactTestRecord(t, 5, 7401, "exact-chain", "client-1")
+	firstManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	first := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{firstRecord},
+		ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: firstManifest,
+	}})
+	if len(first) != 1 || first[0].Err != nil {
+		t.Fatalf("first StoreAppendBatch() = %+v, want success", first)
+	}
+	secondRecord := compatExactTestRecord(t, 5, 7402, "exact-chain", "client-2")
+	broken := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{3}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: [32]byte{99},
+	}, []channel.Record{secondRecord})
+	second := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{secondRecord},
+		ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: broken,
+	}})
+	if len(second) != 1 || !errors.Is(second[0].Err, channel.ErrCorruptState) {
+		t.Fatalf("broken-chain StoreAppendBatch() = %+v, want corrupt state", second)
+	}
+	if got := store.LEO(); got != 1 {
+		t.Fatalf("LEO after rejected chain = %d, want 1", got)
+	}
+}
+
+func TestExactProposalPathsRejectMissingPairedCommandIndex(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		run  func(*testing.T, *Engine, *ChannelStore, DurableProposalManifest)
+	}{
+		{name: "predecessor", run: func(t *testing.T, engine *Engine, store *ChannelStore, first DurableProposalManifest) {
+			record := compatExactTestRecord(t, 5, 7502, "exact-pair-predecessor", "client-2")
+			manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+				Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+				CommandID: [32]byte{2}, BaseOffset: 1, LastOffset: 2,
+				PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: first.Digest,
+			}, []channel.Record{record})
+			result := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+				Store: store, Records: []channel.Record{record}, ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: manifest,
+			}})
+			if len(result) != 1 || !errors.Is(result[0].Err, channel.ErrCorruptState) {
+				t.Fatalf("predecessor append = %+v, want corrupt state", result)
+			}
+		}},
+		{name: "truncate", run: func(t *testing.T, _ *Engine, store *ChannelStore, _ DurableProposalManifest) {
+			if err := store.TruncateLogAndHistory(context.Background(), 0); !errors.Is(err, channel.ErrCorruptState) {
+				t.Fatalf("TruncateLogAndHistory() error = %v, want corrupt state", err)
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine, err := Open(t.TempDir())
+			if err != nil {
+				t.Fatalf("Open(): %v", err)
+			}
+			defer engine.Close()
+			key := channel.ChannelKey("exact-pair-" + test.name)
+			store, err := engine.ForChannel(key, channel.ChannelID{ID: string(key), Type: 1})
+			if err != nil {
+				t.Fatalf("ForChannel(): %v", err)
+			}
+			defer store.Close()
+			record := compatExactTestRecord(t, 5, 7501, string(key), "client-1")
+			manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+				Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+				CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+			}, []channel.Record{record})
+			result := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+				Store: store, Records: []channel.Record{record}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+			}})
+			if len(result) != 1 || result[0].Err != nil {
+				t.Fatalf("first append = %+v, want success", result)
+			}
+			deletePhysicalTestKey(t, engine, encodeProposalByCommandKey(ChannelKey(key), manifest.CommandID))
+			test.run(t, engine, store, manifest)
+		})
+	}
+}
+
+func TestExactProposalReplayRejectsMissingEntryIdentity(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+	key := channel.ChannelKey("exact-entry-corruption")
+	store, err := db.ForChannel(key, channel.ChannelID{ID: string(key), Type: 1})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	defer store.Close()
+	record := compatExactTestRecord(t, 5, 7601, string(key), "client-1")
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{record})
+	item := AppendBatchItem{
+		Store: store, Records: []channel.Record{record}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	}
+	if result := StoreAppendBatch(context.Background(), []AppendBatchItem{item}); len(result) != 1 || result[0].Err != nil {
+		t.Fatalf("first append = %+v, want success", result)
+	}
+	deletePhysicalTestKey(t, db, encodeEntryIdentityKey(ChannelKey(key), 1))
+	result := StoreAppendBatch(context.Background(), []AppendBatchItem{item})
+	if len(result) != 1 || !errors.Is(result[0].Err, channel.ErrCorruptState) {
+		t.Fatalf("replay after entry corruption = %+v, want corrupt state", result)
+	}
+}
+
+func TestExactProposalTruncateRejectsOrphanedCommandIndex(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+	key := channel.ChannelKey("exact-orphan-command")
+	store, err := db.ForChannel(key, channel.ChannelID{ID: string(key), Type: 1})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	defer store.Close()
+	record := compatExactTestRecord(t, 5, 7701, string(key), "client-1")
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{record})
+	result := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{record}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	}})
+	if len(result) != 1 || result[0].Err != nil {
+		t.Fatalf("first append = %+v, want success", result)
+	}
+	deletePhysicalTestKey(t, db, encodeProposalByLastKey(ChannelKey(key), 1))
+	if err := store.TruncateLogAndHistory(context.Background(), 0); !errors.Is(err, channel.ErrCorruptState) {
+		t.Fatalf("TruncateLogAndHistory() error = %v, want orphaned command-index corruption", err)
+	}
+}
+
+func deletePhysicalTestKey(t *testing.T, db *Engine, key []byte) {
+	t.Helper()
+	batch := db.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Delete(key); err != nil {
+		t.Fatalf("Delete(): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+}
+
+func setPhysicalTestValue(t *testing.T, db *Engine, key, value []byte) {
+	t.Helper()
+	batch := db.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(key, value); err != nil {
+		t.Fatalf("Set(): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(): %v", err)
 	}
 }
 
@@ -618,6 +934,35 @@ func compatTestRecord(t *testing.T, messageID uint64, channelID string, clientMs
 	}
 	payload := encodeCompatTestMessage(t, msg)
 	return channel.Record{ID: messageID, Payload: payload, SizeBytes: len(payload)}
+}
+
+func compatExactTestRecord(t *testing.T, epoch uint64, messageID uint64, channelID string, clientMsgNo string) channel.Record {
+	t.Helper()
+	row := messageRow{
+		MessageID: messageID, ClientMsgNo: clientMsgNo, ChannelID: channelID, ChannelType: 1,
+		FromUID: "u1", ServerTimestampMS: 1_700_000_000_000 + int64(messageID), Payload: []byte("payload"),
+	}
+	record, err := compatibilityRecordFromRow(row)
+	if err != nil {
+		t.Fatalf("compatibilityRecordFromRow(): %v", err)
+	}
+	record.Epoch = epoch
+	return record
+}
+
+func sealCompatProposalManifest(t *testing.T, manifest DurableProposalManifest, records []channel.Record) DurableProposalManifest {
+	t.Helper()
+	rows, err := compatibilityRowsFromRecords(manifest.BaseOffset+1, records)
+	if err != nil {
+		t.Fatalf("compatibilityRowsFromRecords(): %v", err)
+	}
+	manifest.Digest = [32]byte{}
+	entries, ok := deriveDurableProposalEntries(manifest, records, rows)
+	if !ok || len(entries) == 0 {
+		t.Fatal("deriveDurableProposalEntries() failed")
+	}
+	manifest.Digest = entries[len(entries)-1].Digest
+	return manifest
 }
 
 func appendCompatTestString(dst []byte, value string) []byte {

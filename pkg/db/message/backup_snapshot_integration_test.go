@@ -7,6 +7,8 @@ import (
 	"context"
 	"io"
 	"testing"
+
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 )
 
 func TestOpenBackupSnapshotPinsCommittedChannelCuts(t *testing.T) {
@@ -86,6 +88,255 @@ func TestOpenBackupSnapshotPinsCommittedChannelCuts(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Key != ChannelKey("1:alpha") {
 		t.Fatalf("restored catalog = %+v, want alpha only", entries)
+	}
+}
+
+func TestBackupSnapshotCarriesOnlyQuorumCommittedProposalManifests(t *testing.T) {
+	ctx := context.Background()
+	source, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(source): %v", err)
+	}
+	defer source.Close()
+	key := channel.ChannelKey("proposal-backup")
+	id := channel.ChannelID{ID: "proposal-backup", Type: 1}
+	sourceStore := mustForChannel(t, source, key, id)
+	defer sourceStore.Close()
+	firstRecord := compatExactTestRecord(t, 3, 8101, id.ID, "client-1")
+	firstManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	secondRecord := compatExactTestRecord(t, 3, 8102, id.ID, "client-2")
+	secondManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{3}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 5, PreviousIndex: 1, PreviousDigest: firstManifest.Digest,
+	}, []channel.Record{secondRecord})
+	for index, item := range []AppendBatchItem{
+		{Store: sourceStore, Records: []channel.Record{firstRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: firstManifest},
+		{Store: sourceStore, Records: []channel.Record{secondRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: secondManifest},
+	} {
+		result := StoreAppendBatch(ctx, []AppendBatchItem{item})
+		if len(result) != 1 || result[0].Err != nil {
+			t.Fatalf("StoreAppendBatch()[%d] = %+v, want success", index, result)
+		}
+	}
+	if err := sourceStore.StoreCheckpoint(channel.Checkpoint{Epoch: 3, HW: 1}); err != nil {
+		t.Fatalf("StoreCheckpoint(): %v", err)
+	}
+	body := readBackupSnapshot(t, source.db, BackupSnapshotRequest{
+		HashSlot: 7,
+		Channels: []BackupChannelCut{{
+			Key: ChannelKey(key), ID: ChannelID{ID: id.ID, Type: id.Type}, Checkpoint: Checkpoint{Epoch: 3, HW: 1},
+		}},
+	})
+
+	target, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(target): %v", err)
+	}
+	defer target.Close()
+	if _, err := target.db.ImportBackupSnapshot(ctx, body); err != nil {
+		t.Fatalf("ImportBackupSnapshot(): %v", err)
+	}
+	targetStore := mustForChannel(t, target, key, id)
+	defer targetStore.Close()
+	committedReplay := StoreAppendBatch(ctx, []AppendBatchItem{{
+		Store: targetStore, Records: []channel.Record{firstRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: firstManifest,
+	}})
+	if len(committedReplay) != 1 || committedReplay[0].Err != nil || !committedReplay[0].AlreadyDurable {
+		t.Fatalf("committed replay = %+v, want already durable", committedReplay)
+	}
+	uncommittedReplay := StoreAppendBatch(ctx, []AppendBatchItem{{
+		Store: targetStore, Records: []channel.Record{secondRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: secondManifest,
+	}})
+	if len(uncommittedReplay) != 1 || uncommittedReplay[0].Err != nil || uncommittedReplay[0].AlreadyDurable {
+		t.Fatalf("uncommitted replay = %+v, want new append", uncommittedReplay)
+	}
+}
+
+func TestBackupSnapshotRejectsCommittedCutInsideProposal(t *testing.T) {
+	ctx := context.Background()
+	source, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(source): %v", err)
+	}
+	defer source.Close()
+	key := channel.ChannelKey("proposal-backup-split")
+	id := channel.ChannelID{ID: "proposal-backup-split", Type: 1}
+	store := mustForChannel(t, source, key, id)
+	defer store.Close()
+	records := []channel.Record{
+		compatExactTestRecord(t, 3, 8201, id.ID, "client-1"),
+		compatExactTestRecord(t, 3, 8202, id.ID, "client-2"),
+	}
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 2,
+	}, records)
+	result := StoreAppendBatch(ctx, []AppendBatchItem{{
+		Store:           store,
+		Records:         records,
+		ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	}})
+	if len(result) != 1 || result[0].Err != nil {
+		t.Fatalf("StoreAppendBatch() = %+v, want success", result)
+	}
+	reader, err := source.db.OpenBackupSnapshot(ctx, BackupSnapshotRequest{
+		HashSlot: 7,
+		Channels: []BackupChannelCut{{
+			Key: ChannelKey(key), ID: ChannelID{ID: id.ID, Type: id.Type}, Checkpoint: Checkpoint{Epoch: 3, HW: 1},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("OpenBackupSnapshot(): %v", err)
+	}
+	defer reader.Close()
+	if _, err := io.ReadAll(reader); err == nil {
+		t.Fatal("ReadAll(snapshot) error = nil, want split-proposal rejection")
+	}
+}
+
+func TestBackupSnapshotRejectsMissingPairedProposalIndex(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+	key := channel.ChannelKey("proposal-backup-pair")
+	id := channel.ChannelID{ID: "proposal-backup-pair", Type: 1}
+	store := mustForChannel(t, db, key, id)
+	defer store.Close()
+	record := compatExactTestRecord(t, 3, 8301, id.ID, "client-1")
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{record})
+	result := StoreAppendBatch(ctx, []AppendBatchItem{{
+		Store: store, Records: []channel.Record{record}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	}})
+	if len(result) != 1 || result[0].Err != nil {
+		t.Fatalf("StoreAppendBatch() = %+v, want success", result)
+	}
+	if err := store.StoreCheckpoint(channel.Checkpoint{Epoch: 3, HW: 1}); err != nil {
+		t.Fatalf("StoreCheckpoint(): %v", err)
+	}
+	deletePhysicalTestKey(t, db, encodeProposalByCommandKey(ChannelKey(key), manifest.CommandID))
+	reader, err := db.db.OpenBackupSnapshot(ctx, BackupSnapshotRequest{
+		HashSlot: 7,
+		Channels: []BackupChannelCut{{Key: ChannelKey(key), ID: ChannelID{ID: id.ID, Type: id.Type}, Checkpoint: Checkpoint{Epoch: 3, HW: 1}}},
+	})
+	if err != nil {
+		t.Fatalf("OpenBackupSnapshot(): %v", err)
+	}
+	defer reader.Close()
+	if _, err := io.ReadAll(reader); err == nil {
+		t.Fatal("ReadAll(snapshot) error = nil, want paired-index corruption")
+	}
+}
+
+func TestBackupSnapshotRejectsProposalChainWithMissingPredecessor(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+	key := channel.ChannelKey("proposal-backup-chain")
+	id := channel.ChannelID{ID: "proposal-backup-chain", Type: 1}
+	store := mustForChannel(t, db, key, id)
+	defer store.Close()
+	firstRecord := compatExactTestRecord(t, 3, 8401, id.ID, "client-1")
+	first := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	secondRecord := compatExactTestRecord(t, 3, 8402, id.ID, "client-2")
+	second := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{2}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 5, PreviousIndex: 1, PreviousDigest: first.Digest,
+	}, []channel.Record{secondRecord})
+	for index, item := range []AppendBatchItem{
+		{Store: store, Records: []channel.Record{firstRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: first},
+		{Store: store, Records: []channel.Record{secondRecord}, ExactBaseOffset: true, ExpectedBaseOffset: 1, Proposal: second},
+	} {
+		result := StoreAppendBatch(ctx, []AppendBatchItem{item})
+		if len(result) != 1 || result[0].Err != nil {
+			t.Fatalf("StoreAppendBatch()[%d] = %+v", index, result)
+		}
+	}
+	if err := store.StoreCheckpoint(channel.Checkpoint{Epoch: 3, HW: 2}); err != nil {
+		t.Fatalf("StoreCheckpoint(): %v", err)
+	}
+	deletePhysicalTestKey(t, db, encodeProposalByLastKey(ChannelKey(key), 1))
+	deletePhysicalTestKey(t, db, encodeProposalByCommandKey(ChannelKey(key), first.CommandID))
+	deletePhysicalTestKey(t, db, encodeEntryIdentityKey(ChannelKey(key), 1))
+	reader, err := db.db.OpenBackupSnapshot(ctx, BackupSnapshotRequest{
+		HashSlot: 7,
+		Channels: []BackupChannelCut{{Key: ChannelKey(key), ID: ChannelID{ID: id.ID, Type: id.Type}, Checkpoint: Checkpoint{Epoch: 3, HW: 2}}},
+	})
+	if err != nil {
+		t.Fatalf("OpenBackupSnapshot(): %v", err)
+	}
+	defer reader.Close()
+	if _, err := io.ReadAll(reader); err == nil {
+		t.Fatal("ReadAll(snapshot) error = nil, want broken predecessor chain")
+	}
+}
+
+func TestBackupSnapshotRejectsCommittedRowContentHashMismatch(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+	key := channel.ChannelKey("proposal-backup-content")
+	id := channel.ChannelID{ID: "proposal-backup-content", Type: 1}
+	store := mustForChannel(t, db, key, id)
+	defer store.Close()
+	record := compatExactTestRecord(t, 3, 8501, id.ID, "client-1")
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{record})
+	result := StoreAppendBatch(ctx, []AppendBatchItem{{
+		Store: store, Records: []channel.Record{record}, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	}})
+	if len(result) != 1 || result[0].Err != nil {
+		t.Fatalf("StoreAppendBatch() = %+v, want success", result)
+	}
+	if err := store.StoreCheckpoint(channel.Checkpoint{Epoch: 3, HW: 1}); err != nil {
+		t.Fatalf("StoreCheckpoint(): %v", err)
+	}
+	rowKey := encodeMessageRowKey(ChannelKey(key), 1, messageHeaderFamilyID)
+	header, ok, err := db.engine.Get(rowKey)
+	if err != nil || !ok {
+		t.Fatalf("message row read = ok %v err %v", ok, err)
+	}
+	row := messageRow{MessageSeq: 1}
+	if err := decodeMessageHeader(rowKey, header, &row); err != nil {
+		t.Fatalf("decodeMessageHeader(): %v", err)
+	}
+	row.Payload = []byte("tampered-payload")
+	mutated, err := encodeMessageHeader(rowKey, row)
+	if err != nil {
+		t.Fatalf("encodeMessageHeader(): %v", err)
+	}
+	setPhysicalTestValue(t, db, rowKey, mutated)
+	reader, err := db.db.OpenBackupSnapshot(ctx, BackupSnapshotRequest{
+		HashSlot: 7,
+		Channels: []BackupChannelCut{{Key: ChannelKey(key), ID: ChannelID{ID: id.ID, Type: id.Type}, Checkpoint: Checkpoint{Epoch: 3, HW: 1}}},
+	})
+	if err != nil {
+		t.Fatalf("OpenBackupSnapshot(): %v", err)
+	}
+	defer reader.Close()
+	if _, err := io.ReadAll(reader); err == nil {
+		t.Fatal("ReadAll(snapshot) error = nil, want committed row hash mismatch")
 	}
 }
 

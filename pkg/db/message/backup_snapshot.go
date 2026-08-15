@@ -229,6 +229,10 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 	if err != nil {
 		return err
 	}
+	entryIdentities, err := backupEntryIdentityMap(channel.Key, systemEntries)
+	if err != nil {
+		return err
+	}
 	if err := writeBackupUvarint(writer, uint64(len(systemEntries))); err != nil {
 		return err
 	}
@@ -253,6 +257,18 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 		return err
 	}
 	return visitBackupMessages(ctx, view, channel.Key, channel.Checkpoint.HW, func(seq uint64, header, payload []byte) error {
+		if identity, ok := entryIdentities[seq]; ok {
+			row := messageRow{MessageSeq: seq}
+			if err := decodeMessageHeader(encodeMessageRowKey(channel.Key, seq, messageHeaderFamilyID), header, &row); err != nil {
+				return err
+			}
+			if err := decodeMessagePayload(encodeMessageRowKey(channel.Key, seq, messagePayloadFamilyID), payload, &row); err != nil {
+				return err
+			}
+			if !verifyBackupRowIdentity(identity, row) {
+				return dberrors.ErrCorruptState
+			}
+		}
 		buffer := binary.BigEndian.AppendUint64(nil, seq)
 		if _, err := writer.Write(buffer); err != nil {
 			return err
@@ -290,11 +306,25 @@ func inspectMessageBackupSnapshot(ctx context.Context, view messageBackupReadVie
 		if channel.Checkpoint.HW > leo {
 			return BackupSnapshotStats{}, nil, fmt.Errorf("%w: backup cut hw %d exceeds snapshot leo %d for %q", dberrors.ErrCorruptState, channel.Checkpoint.HW, leo, channel.Key)
 		}
+		systemEntries, err := snapshotBackupSystemEntries(ctx, view, channel.Key, channel.Checkpoint.HW)
+		if err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
+		entryIdentities, err := backupEntryIdentityMap(channel.Key, systemEntries)
+		if err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
 		var maxMessageID uint64
-		err = visitBackupMessages(ctx, view, channel.Key, channel.Checkpoint.HW, func(seq uint64, header, _ []byte) error {
+		err = visitBackupMessages(ctx, view, channel.Key, channel.Checkpoint.HW, func(seq uint64, header, payload []byte) error {
 			row := messageRow{MessageSeq: seq}
 			if err := decodeMessageHeader(encodeMessageRowKey(channel.Key, seq, messageHeaderFamilyID), header, &row); err != nil {
 				return err
+			}
+			if err := decodeMessagePayload(encodeMessageRowKey(channel.Key, seq, messagePayloadFamilyID), payload, &row); err != nil {
+				return err
+			}
+			if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
+				return dberrors.ErrCorruptState
 			}
 			counts[index]++
 			if row.MessageID > maxMessageID {
@@ -331,6 +361,9 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 	defer iter.Close()
 	checkpointKey := encodeCheckpointKey(channelKey)
 	historyPrefix := encodeHistoryPrefix(channelKey)
+	proposalLastPrefix := encodeProposalByLastPrefix(channelKey)
+	proposalCommandPrefix := encodeProposalByCommandPrefix(channelKey)
+	entryIdentityPrefix := encodeEntryIdentityPrefix(channelKey)
 	entries := make([]backupRawEntry, 0, 8)
 	for ok := iter.First(); ok; ok = iter.Next() {
 		if err := ctxErr(ctx); err != nil {
@@ -355,6 +388,61 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 			entries = append(entries, backupRawEntry{Key: key, Value: value})
 			continue
 		}
+		if bytes.HasPrefix(key, proposalLastPrefix) || bytes.HasPrefix(key, proposalCommandPrefix) {
+			value, err := iter.Value()
+			if err != nil {
+				return nil, err
+			}
+			record, err := decodeDurableProposalRecord(value)
+			if err != nil {
+				return nil, err
+			}
+			if lastOffset, ok := decodeProposalByLastKey(channelKey, key); ok {
+				if lastOffset != record.manifest.LastOffset {
+					return nil, dberrors.ErrCorruptState
+				}
+				paired, present, err := loadDurableProposalPairByLast(view, channelKey, lastOffset)
+				if err != nil {
+					return nil, err
+				}
+				if !present || paired != record {
+					return nil, dberrors.ErrCorruptState
+				}
+			} else if commandID, ok := decodeProposalByCommandKey(channelKey, key); !ok || commandID != record.manifest.CommandID {
+				return nil, dberrors.ErrCorruptState
+			} else {
+				paired, present, err := loadDurableProposalFrom(view, encodeProposalByLastKey(channelKey, record.manifest.LastOffset))
+				if err != nil {
+					return nil, err
+				}
+				if !present || paired != record {
+					return nil, dberrors.ErrCorruptState
+				}
+			}
+			if record.manifest.BaseOffset < hw && record.manifest.LastOffset > hw {
+				return nil, dberrors.ErrCorruptState
+			}
+			if record.manifest.LastOffset > hw {
+				continue
+			}
+			entries = append(entries, backupRawEntry{Key: key, Value: value})
+			continue
+		}
+		if bytes.HasPrefix(key, entryIdentityPrefix) {
+			value, err := iter.Value()
+			if err != nil {
+				return nil, err
+			}
+			index, ok := decodeEntryIdentityKey(channelKey, key)
+			entry, decodeErr := decodeDurableEntryIdentity(value)
+			if !ok || decodeErr != nil || entry.Index != index {
+				return nil, dberrors.ErrCorruptState
+			}
+			if index <= hw {
+				entries = append(entries, backupRawEntry{Key: key, Value: value})
+			}
+			continue
+		}
 		value, err := iter.Value()
 		if err != nil {
 			return nil, err
@@ -362,6 +450,9 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 		entries = append(entries, backupRawEntry{Key: key, Value: value})
 	}
 	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	if err := validateBackupProposalSystemEntries(channelKey, hw, entries); err != nil {
 		return nil, err
 	}
 	return entries, nil
@@ -556,6 +647,13 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 }
 
 func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) (uint64, error) {
+	if err := validateBackupProposalSystemEntries(key, checkpoint.HW, systemEntries); err != nil {
+		return 0, err
+	}
+	entryIdentities, err := backupEntryIdentityMap(key, systemEntries)
+	if err != nil {
+		return 0, err
+	}
 	if current, ok, err := db.engine.Get(encodeCatalogKey(key)); err != nil {
 		return 0, err
 	} else if ok {
@@ -628,6 +726,9 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 			return 0, err
 		}
 		if row.ChannelID != id.ID || row.ChannelType != id.Type {
+			return 0, dberrors.ErrCorruptState
+		}
+		if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
 			return 0, dberrors.ErrCorruptState
 		}
 		if row.MessageID > maxMessageID {

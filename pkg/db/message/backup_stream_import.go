@@ -155,6 +155,9 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 			key: key, id: ChannelID{ID: idString, Type: channelType}, checkpoint: checkpoint,
 			systemEntries: systemEntries, messageCount: messageCount,
 		}
+		if err := validateBackupProposalSystemEntries(key, checkpoint.HW, systemEntries); err != nil {
+			return BackupSnapshotStats{}, err
+		}
 		maxMessageID, err := visit(ctx, reader, header)
 		if err != nil {
 			return BackupSnapshotStats{}, err
@@ -174,12 +177,19 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 }
 
 func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
+	entryIdentities, err := backupEntryIdentityMap(header.key, header.systemEntries)
+	if err != nil {
+		return 0, err
+	}
 	var previousSeq uint64
 	var maxMessageID uint64
 	for index := uint64(0); index < header.messageCount; index++ {
 		seq, row, _, _, err := readMessageBackupStreamRow(ctx, reader, header, previousSeq)
 		if err != nil {
 			return 0, err
+		}
+		if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
+			return 0, dberrors.ErrCorruptState
 		}
 		previousSeq = seq
 		if row.MessageID > maxMessageID {
@@ -190,6 +200,13 @@ func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, hea
 }
 
 func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
+	if err := validateBackupProposalSystemEntries(header.key, header.checkpoint.HW, header.systemEntries); err != nil {
+		return 0, err
+	}
+	entryIdentities, err := backupEntryIdentityMap(header.key, header.systemEntries)
+	if err != nil {
+		return 0, err
+	}
 	if current, ok, err := db.engine.Get(encodeCatalogKey(header.key)); err != nil {
 		return 0, err
 	} else if ok {
@@ -241,6 +258,9 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 			return 0, err
 		}
 		previousSeq = seq
+		if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
+			return 0, dberrors.ErrCorruptState
+		}
 		if row.MessageID > maxMessageID {
 			maxMessageID = row.MessageID
 		}

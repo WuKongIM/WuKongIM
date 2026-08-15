@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"reflect"
 	"sync"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -36,11 +35,14 @@ func (f *MemoryFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Channe
 
 // MemoryChannelStore is a mutex-protected durable-log test double.
 type MemoryChannelStore struct {
-	mu         sync.Mutex
-	id         ch.ChannelID
-	records    []ch.Record
-	checkpoint ch.Checkpoint
-	retention  RetentionState
+	mu                 sync.Mutex
+	id                 ch.ChannelID
+	records            []ch.Record
+	checkpoint         ch.Checkpoint
+	retention          RetentionState
+	proposalsByCommand map[[32]byte]proposalRecord
+	proposalsByLast    map[uint64]proposalRecord
+	entriesByIndex     map[uint64]ch.EntryIdentity
 }
 
 // Load returns the current in-memory offsets.
@@ -81,37 +83,41 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 }
 
 func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (AppendLeaderResult, error) {
-	if len(req.Records) == 0 {
-		return AppendLeaderResult{}, ch.ErrInvalidConfig
+	proposal, entries, err := buildProposalRecord(req.Proposal, req.ExpectedBaseOffset, req.Records)
+	if err != nil {
+		return AppendLeaderResult{}, err
 	}
 	leo := s.leoLocked()
-	if uint64(len(req.Records)) > ^uint64(0)-req.ExpectedBaseOffset {
-		return AppendLeaderResult{}, ch.ErrInvalidConfig
+	if req.Proposal.BaseOffset > 0 {
+		previous, ok := s.proposalsByLast[req.Proposal.BaseOffset]
+		if !ok || previous.manifest.LeaderTerm != req.Proposal.PreviousTerm || previous.manifest.Digest != req.Proposal.PreviousDigest {
+			return AppendLeaderResult{}, ch.ErrLogConflict
+		}
+	}
+	byCommand, commandPresent := s.proposalsByCommand[req.Proposal.CommandID]
+	byLast, lastPresent := s.proposalsByLast[req.Proposal.LastOffset]
+	if commandPresent || lastPresent {
+		if !commandPresent || !lastPresent || byCommand != proposal || byLast != proposal || leo < req.Proposal.LastOffset {
+			return AppendLeaderResult{}, ch.ErrLogConflict
+		}
+		for _, entry := range entries {
+			if persisted, ok := s.entriesByIndex[entry.Index]; !ok || persisted != entry {
+				return AppendLeaderResult{}, ch.ErrLogConflict
+			}
+		}
+		return AppendLeaderResult{BaseOffset: req.ExpectedBaseOffset + 1, LastOffset: req.Proposal.LastOffset, AlreadyDurable: true}, nil
+	}
+	for _, entry := range entries {
+		if _, exists := s.entriesByIndex[entry.Index]; exists {
+			return AppendLeaderResult{}, ch.ErrLogConflict
+		}
 	}
 	last := req.ExpectedBaseOffset + uint64(len(req.Records))
 	if leo < req.ExpectedBaseOffset || (leo > req.ExpectedBaseOffset && leo < last) {
 		return AppendLeaderResult{}, ch.ErrLogConflict
 	}
 	if leo >= last {
-		for i, record := range req.Records {
-			seq := req.ExpectedBaseOffset + uint64(i) + 1
-			if record.Index != 0 && record.Index != seq {
-				return AppendLeaderResult{}, ch.ErrLogConflict
-			}
-			existing, ok := s.recordBySeqLocked(seq)
-			if !ok {
-				return AppendLeaderResult{}, ch.ErrLogConflict
-			}
-			expected := record
-			expected.Index = seq
-			if expected.SizeBytes == 0 {
-				expected.SizeBytes = len(expected.Payload)
-			}
-			if !reflect.DeepEqual(existing, expected) {
-				return AppendLeaderResult{}, ch.ErrLogConflict
-			}
-		}
-		return AppendLeaderResult{BaseOffset: req.ExpectedBaseOffset + 1, LastOffset: last, AlreadyDurable: true}, nil
+		return AppendLeaderResult{}, ch.ErrLogConflict
 	}
 	base := req.ExpectedBaseOffset + 1
 	for i, record := range req.Records {
@@ -125,6 +131,20 @@ func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (A
 			record.SizeBytes = len(record.Payload)
 		}
 		s.records = append(s.records, record)
+	}
+	if s.proposalsByCommand == nil {
+		s.proposalsByCommand = make(map[[32]byte]proposalRecord)
+	}
+	if s.proposalsByLast == nil {
+		s.proposalsByLast = make(map[uint64]proposalRecord)
+	}
+	if s.entriesByIndex == nil {
+		s.entriesByIndex = make(map[uint64]ch.EntryIdentity)
+	}
+	s.proposalsByCommand[req.Proposal.CommandID] = proposal
+	s.proposalsByLast[req.Proposal.LastOffset] = proposal
+	for _, entry := range entries {
+		s.entriesByIndex[entry.Index] = entry
 	}
 	return AppendLeaderResult{BaseOffset: base, LastOffset: last}, nil
 }

@@ -16,7 +16,9 @@ pkg/channel/        - Multi-reactor channel log runtime; root DTOs, errors, Clus
 
 `store/channel_adapter.go` is the only channel file that may import the
 `pkg/db/message/channelcompat` DTOs required by the message engine; other
-channel packages should depend on channel interfaces.
+channel packages should depend on channel interfaces. `pkg/quorumlog` is the
+storage-neutral leaf contract shared by this runtime and MessageDB for proposal
+and per-entry durable identities; it does not depend on either package.
 
 Diagram labels use `event or guard / effect` so agents can distinguish triggers from side effects.
 
@@ -255,10 +257,14 @@ before I/O and submits local storage plus owned follower persistence in one
 round through bounded dispatchers. A successful round always includes local
 durability and the configured distinct-voter quorum; follower-only durability
 cannot complete an append. This internal round is the first migration slice.
-It does not yet change the production reactor path. Channel stores now support
-exact-base first writes and exact durable replay through the existing grouped
-commit coordinator, but persisted term/hash recovery, data-bearing peer
-exchange, and removal of the PullHint hot path must land before production
+It does not yet change the production reactor path. Channel stores now require
+a versioned epoch/term/fence/command/range/hash manifest for every exact-base
+write. MessageDB persists both manifest indexes plus every entry's authority,
+predecessor, command, and content-derived digest in the same synchronous
+physical commit as the rows, so exact replay remains safe after retention and
+reopen; suffix truncation removes whole identities and cannot split one
+proposal. Bounded recovery inspection, data-bearing peer
+exchange, and removal of the PullHint hot path must still land before production
 wiring. The design is recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,

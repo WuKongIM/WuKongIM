@@ -201,6 +201,56 @@ func encodeSnapshotKey(channelKey ChannelKey) []byte {
 	return encodeMessageSystemPrefix(channelKey, messageSystemIDSnapshot)
 }
 
+func encodeProposalByLastKey(channelKey ChannelKey, lastOffset uint64) []byte {
+	return keycodec.AppendUint64(encodeProposalByLastPrefix(channelKey), lastOffset)
+}
+
+func encodeProposalByLastPrefix(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDProposalByLast)
+}
+
+func decodeProposalByLastKey(channelKey ChannelKey, key []byte) (uint64, bool) {
+	prefix := encodeProposalByLastPrefix(channelKey)
+	if !bytes.HasPrefix(key, prefix) || len(key) != len(prefix)+8 {
+		return 0, false
+	}
+	return binary.BigEndian.Uint64(key[len(prefix):]), true
+}
+
+func encodeProposalByCommandKey(channelKey ChannelKey, commandID [32]byte) []byte {
+	return append(encodeProposalByCommandPrefix(channelKey), commandID[:]...)
+}
+
+func encodeProposalByCommandPrefix(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDProposalByCommand)
+}
+
+func decodeProposalByCommandKey(channelKey ChannelKey, key []byte) ([32]byte, bool) {
+	prefix := encodeProposalByCommandPrefix(channelKey)
+	if !bytes.HasPrefix(key, prefix) || len(key) != len(prefix)+32 {
+		return [32]byte{}, false
+	}
+	var commandID [32]byte
+	copy(commandID[:], key[len(prefix):])
+	return commandID, true
+}
+
+func encodeEntryIdentityPrefix(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDEntryIdentity)
+}
+
+func encodeEntryIdentityKey(channelKey ChannelKey, index uint64) []byte {
+	return keycodec.AppendUint64(encodeEntryIdentityPrefix(channelKey), index)
+}
+
+func decodeEntryIdentityKey(channelKey ChannelKey, key []byte) (uint64, bool) {
+	prefix := encodeEntryIdentityPrefix(channelKey)
+	if !bytes.HasPrefix(key, prefix) || len(key) != len(prefix)+8 {
+		return 0, false
+	}
+	return binary.BigEndian.Uint64(key[len(prefix):]), true
+}
+
 func encodeCatalogPrefix() []byte {
 	var builder keycodec.Builder
 	return builder.Reset().

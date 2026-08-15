@@ -127,6 +127,8 @@ type AppendLeaderRequest struct {
 	ExactBaseOffset bool
 	// ExpectedBaseOffset is the durable frontier preceding an exact append.
 	ExpectedBaseOffset uint64
+	// Proposal is the immutable durable identity required by exact appends.
+	Proposal ProposalManifest
 }
 
 // AppendLeaderBatchItem is one channel-scoped leader append inside a store-level batch.

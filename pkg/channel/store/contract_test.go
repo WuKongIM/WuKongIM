@@ -22,29 +22,38 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.Equal(t, uint64(1), appendRes.BaseOffset)
 	require.Equal(t, uint64(2), appendRes.LastOffset)
 
+	exactStore, err := factory.ChannelStore(ch.ChannelKey("1:exact"), ch.ChannelID{ID: "exact", Type: 1})
+	require.NoError(t, err)
+	exactRecords := []ch.Record{{ID: 3, Index: 1, Epoch: 3, ServerTimestampMS: 1_700_000_000_000, Payload: []byte("c"), SizeBytes: 1}}
+	manifest, _, ok := ch.SealProposalManifest(ProposalManifest{
+		Version: ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1, 2, 3}, BaseOffset: 0, LastOffset: 1,
+	}, exactRecords)
+	require.True(t, ok)
 	exact := AppendLeaderRequest{
-		Records:            []ch.Record{{ID: 3, Index: 3, Payload: []byte("c"), SizeBytes: 1}},
+		Records:            exactRecords,
 		Sync:               true,
 		ExactBaseOffset:    true,
-		ExpectedBaseOffset: 2,
+		ExpectedBaseOffset: 0,
+		Proposal:           manifest,
 	}
-	exactRes, err := cs.AppendLeader(ctx, exact)
+	exactRes, err := exactStore.AppendLeader(ctx, exact)
 	require.NoError(t, err)
 	require.False(t, exactRes.AlreadyDurable)
-	replayRes, err := cs.AppendLeader(ctx, exact)
+	replayRes, err := exactStore.AppendLeader(ctx, exact)
 	require.NoError(t, err)
 	require.True(t, replayRes.AlreadyDurable)
 	require.Equal(t, exactRes.BaseOffset, replayRes.BaseOffset)
 	require.Equal(t, exactRes.LastOffset, replayRes.LastOffset)
 
 	conflict := exact
-	conflict.Records = []ch.Record{{ID: 4, Index: 3, Payload: []byte("different"), SizeBytes: len("different")}}
-	_, err = cs.AppendLeader(ctx, conflict)
+	conflict.Records = []ch.Record{{ID: 4, Index: 1, Epoch: 3, ServerTimestampMS: 1_700_000_000_000, Payload: []byte("different"), SizeBytes: len("different")}}
+	_, err = exactStore.AppendLeader(ctx, conflict)
 	require.ErrorIs(t, err, ch.ErrLogConflict)
 
-	logRes, err := cs.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 3, MaxBytes: 1024})
+	logRes, err := cs.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 2, MaxBytes: 1024})
 	require.NoError(t, err)
-	require.Len(t, logRes.Records, 3)
+	require.Len(t, logRes.Records, 2)
 	require.True(t, logRes.Records[0].SyncOnce)
 	require.False(t, logRes.Records[1].SyncOnce)
 

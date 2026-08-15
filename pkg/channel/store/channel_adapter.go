@@ -306,6 +306,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
 			ExactBaseOffset:           item.Request.ExactBaseOffset,
 			ExpectedBaseOffset:        item.Request.ExpectedBaseOffset,
+			Proposal:                  item.Request.Proposal,
 		})
 		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
 	}
@@ -540,6 +541,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 			ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
 			ExactBaseOffset:           true,
 			ExpectedBaseOffset:        req.ExpectedBaseOffset,
+			Proposal:                  req.Proposal,
 		}})
 		if len(results) != 1 {
 			return AppendLeaderResult{}, ch.ErrInvalidConfig

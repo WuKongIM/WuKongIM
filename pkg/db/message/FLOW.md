@@ -78,17 +78,25 @@ Current flow:
    checkpoint, and epoch point in one batch.
 8. `ApplyFetch` applies fetched records plus optional checkpoint/history in one
    batch with an explicit base sequence conflict check.
-   Leader append batches may also select exact-base mode. The first call writes
-   only when the current LEO equals the expected base; an exact replay whose
-   complete range is already durable compares every materialized row and
-   returns `AlreadyDurable` without another commit. Gaps, partial overlaps, or
-   different content fail as log conflicts. Exact and ordinary requests share
-   the same cross-channel commit coordinator and add no second collection
-   window. Persisted term/hash proposal manifests and retention-safe replay are
-   still required before this mode is wired to speculative follower writes.
+   Leader append batches may also select exact-base mode. Every exact request
+   carries one versioned Channel epoch, leader term, fence, command, range,
+   previous-entry identity, and digest manifest. The first call writes the
+   manifest's range-end and command indexes plus each entry's authority,
+   predecessor, command, and content-derived digest in the same synchronous
+   physical batch as all primary rows and secondary indexes. The manifest tail
+   equals the final entry digest, so a caller cannot reuse one manifest with
+   different message semantics. Exact retry uses those indexes and returns
+   `AlreadyDurable` without another commit, including after retention removed
+   the materialized rows and after reopen. Missing paired indexes, gaps,
+   partial overlaps, or different identity/content fail as log conflicts.
+   Exact and ordinary requests share the same cross-channel commit coordinator
+   and add no second collection window.
 9. Truncate and retention deletes remove primary rows and secondary indexes
-   together; bounded retention trims can advance physical deletion in multiple
-   batches while retention state preserves LEO across reopen after prefix trim.
+   together. Suffix truncation atomically deletes every proposal manifest at
+   or above the new LEO and rejects a cut through the middle of one proposal;
+   prefix retention deliberately preserves manifests for exact replay.
+   Bounded retention trims can advance physical deletion in multiple batches
+   while retention state preserves LEO across reopen after prefix trim.
 10. Catalog entries are created by the first durable append or a system
     mutation and can be
    listed through `MessageDB.ListChannels`, paged with
@@ -151,7 +159,10 @@ Current flow:
     appends default it at the DB boundary when callers omit it.
 18. Full-backup readers pin one engine view and stream a portable, checksummed
     hash-slot payload containing every committed message through the selected
-    HW, plus checkpoint, epoch history, retention state, and idempotency fields.
+    HW, plus checkpoint, epoch history, retention state, committed proposal and
+    entry identities, and idempotency fields. Proposal identities above the
+    selected HW are excluded with their uncommitted message suffix; paired
+    indexes, the entry chain, and retained message content are revalidated.
     The count pass derives the exact message-row count and maximum message ID
     from the same pinned view; restore parsing independently recomputes both.
 19. Restore imports one complete snapshot into a fresh isolated database in
