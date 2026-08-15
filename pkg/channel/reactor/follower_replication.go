@@ -828,13 +828,22 @@ func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.P
 			rc.replication.hintedAt = time.Time{}
 		}
 		if resp.LeaderLEO > rc.state.LEO || rc.replication.hintedLeaderLEO > rc.state.LEO {
+			if recoveryProbe {
+				rc.replication.resetRecoveryProbeBackoff()
+			}
 			r.scheduleEmptyLaggingPullRetry(rc, now)
 			return
+		}
+		if recoveryProbe {
+			rc.replication.advanceRecoveryProbeBackoff(r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
 		}
 		wasParked := rc.replication.parked
 		rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
 		r.observeFollowerParkedCountIfChanged(wasParked, rc)
 		return
+	}
+	if recoveryProbe {
+		rc.replication.resetRecoveryProbeBackoff()
 	}
 	wasParked := rc.replication.parked
 	rc.replication.parked = false

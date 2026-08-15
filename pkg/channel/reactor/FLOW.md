@@ -405,9 +405,15 @@ When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
 Parked followers do not schedule ordinary idle pulls. A valid PullHint clears the
 parked state and schedules immediate pull when the hint exposes leader progress
-or the follower still needs to return a durable AckOffset; otherwise a
-deterministic jittered recovery probe runs at the configured
-send-timeout-bounded interval. The runtime default is 2s plus up to 1s jitter.
+or the follower still needs to return a durable AckOffset. The first
+deterministic jittered recovery probe keeps the configured send-timeout-bound
+(2s plus up to 1s jitter by default), while repeated caught-up recovery probes
+double an upper-half deterministic window to the one-minute runtime cap.
+Ordinary successful PullHint activity does not collapse that anti-entropy
+window back to the high-frequency initial cadence; only a recovery probe that
+discovers missed leader progress resets it. This keeps the leader-owned bounded
+PullHint retry as the hot progress mechanism and prevents every parked replica
+of every loaded channel from creating a steady empty-Pull storm.
 Each reactor updates the parked-follower gauge by state-transition deltas; one
 follower parking or waking does not scan all loaded channels.
 

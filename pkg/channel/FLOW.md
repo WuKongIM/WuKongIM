@@ -368,10 +368,14 @@ channel-scoped store handle; metadata updates for already loaded runtimes remain
 allowed at capacity.
 
 Caught-up followers park instead of polling the leader on a short idle interval.
-The leader wakes followers with PullHint on new activity, while followers keep a
-send-timeout-bounded jittered recovery probe so a lost hint can recover before
-the caller's sendack budget expires. The runtime default is 2s plus up to 1s
-jitter.
+The leader wakes followers with PullHint on new activity and retries that wakeup
+while quorum progress remains outstanding. The follower's first anti-entropy
+probe remains send-timeout-bounded at 2s plus up to 1s jitter by default.
+Successive probes that confirm it is already caught up use deterministic
+upper-half exponential windows capped at one minute; normal PullHint traffic
+preserves that widened window, while a probe that discovers missed leader
+progress resets it. This prevents the 10k-channel topology from turning the fallback into the
+dominant replication workload.
 
 ```mermaid
 stateDiagram-v2

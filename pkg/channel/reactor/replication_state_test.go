@@ -49,6 +49,81 @@ func TestFollowerRecoveryProbeDelaySaturatesOverflow(t *testing.T) {
 	require.Equal(t, time.Duration(1<<63-1), delay)
 }
 
+func TestFollowerRecoveryProbeBackoffWidensCapsAndSurvivesHints(t *testing.T) {
+	const (
+		interval = 2 * time.Second
+		jitter   = time.Second
+	)
+	now := time.Unix(100, 0)
+	state := replicationState{}
+
+	state.parkWithRecovery(ch.ChannelKey("1:room"), now, interval, jitter)
+	require.Equal(t, 3*time.Second, state.recoveryProbeWindow)
+	require.GreaterOrEqual(t, state.nextPullAt.Sub(now), interval)
+	require.LessOrEqual(t, state.nextPullAt.Sub(now), 3*time.Second)
+
+	for _, want := range []time.Duration{6 * time.Second, 12 * time.Second, 24 * time.Second, 48 * time.Second, time.Minute, time.Minute} {
+		state.advanceRecoveryProbeBackoff(interval, jitter)
+		state.parkWithRecovery(ch.ChannelKey("1:room"), now, interval, jitter)
+		require.Equal(t, want, state.recoveryProbeWindow)
+		require.GreaterOrEqual(t, state.nextPullAt.Sub(now), max(interval, want/2))
+		require.LessOrEqual(t, state.nextPullAt.Sub(now), want)
+	}
+
+	state.clearParkedForHint(now)
+	require.Equal(t, time.Minute, state.recoveryProbeWindow, "ordinary PullHint activity must not restart the anti-entropy storm")
+	state.resetRecoveryProbeBackoff()
+	require.Zero(t, state.recoveryProbeWindow)
+}
+
+func TestFollowerRecoveryProbeBackoffBoundsIdleProbeRate(t *testing.T) {
+	const horizon = 5 * time.Minute
+	startedAt := time.Unix(100, 0)
+	now := startedAt
+	state := replicationState{}
+	probes := 0
+	for {
+		state.parkWithRecovery(ch.ChannelKey("1:room"), now, 2*time.Second, time.Second)
+		if state.nextPullAt.After(startedAt.Add(horizon)) {
+			break
+		}
+		probes++
+		now = state.nextPullAt
+		state.advanceRecoveryProbeBackoff(2*time.Second, time.Second)
+	}
+	require.LessOrEqual(t, probes, 12, "one caught-up follower must not poll every 2-3s for the full measured window")
+}
+
+func TestFollowerEmptyRecoveryProbeAdvancesBackoffWithoutNormalPullReset(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("recovery-probe-backoff")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
+		FollowerRecoveryProbeInterval: 2 * time.Second,
+		FollowerRecoveryProbeJitter:   time.Second,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	now := time.Unix(100, 0)
+	empty := transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 0, LeaderLEO: 0, Control: transport.PullControlContinue,
+	}
+
+	r.applyFollowerPullResponse(rc, empty, false, now)
+	require.Equal(t, 3*time.Second, rc.replication.recoveryProbeWindow)
+	r.applyFollowerPullResponse(rc, empty, true, now)
+	require.Equal(t, 6*time.Second, rc.replication.recoveryProbeWindow)
+	r.applyFollowerPullResponse(rc, empty, false, now)
+	require.Equal(t, 6*time.Second, rc.replication.recoveryProbeWindow)
+
+	rc.replication.recoveryProbeWindow = time.Minute
+	lagging := empty
+	lagging.LeaderLEO = 1
+	r.applyFollowerPullResponse(rc, lagging, true, now)
+	require.Zero(t, rc.replication.recoveryProbeWindow, "a recovery probe that discovers missed leader progress must restore the initial safety cadence")
+}
+
 func TestCommittedCheckpointDelayIsDeterministicBoundedAndSpread(t *testing.T) {
 	const interval = 5 * time.Second
 	minDelay := interval

@@ -22,6 +22,8 @@ const (
 	defaultFollowerRecoveryProbeInterval = 2 * time.Second
 	// defaultFollowerRecoveryProbeJitter spreads recovery probes without exceeding the send timeout budget.
 	defaultFollowerRecoveryProbeJitter = time.Second
+	// defaultFollowerRecoveryProbeMaxWindow caps caught-up anti-entropy backoff while spreading idle probes across its upper half.
+	defaultFollowerRecoveryProbeMaxWindow = time.Minute
 	// defaultCommittedCheckpointInterval coalesces the final HW learned after empty pulls.
 	defaultCommittedCheckpointInterval = 5 * time.Second
 )
