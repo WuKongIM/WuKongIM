@@ -49,6 +49,12 @@ Current flow:
 4. `ChannelLog.LEO` lazily recovers the last durable sequence by scanning the
    primary row keyspace after reopen or after a canonical entry is reclaimed
    and reacquired.
+   Exact quorum-log retry reconciliation reads the proposal-by-command index
+   under the same canonical append lock, validates every indexed row against
+   its persisted entry identity, and returns the complete immutable semantic
+   proposal. This is a rare point lookup after process restart or bounded
+   owner-cache eviction; ordinary new commands still rely on the same durable
+   command index during exact append validation.
 5. `ChannelLog.Read` and `ReadReverse` scan complete primary rows by sequence;
    point reads need one primary lookup rather than separate header and payload
    lookups.

@@ -183,6 +183,41 @@ func (s *MemoryChannelStore) ReadExactRecoveryPage(ctx context.Context, req Exac
 	return result, nil
 }
 
+// LoadExactProposal returns one immutable in-memory proposal and its records.
+func (s *MemoryChannelStore) LoadExactProposal(ctx context.Context, req ExactProposalRequest) (ExactProposal, bool, error) {
+	if ctx == nil || req.CommandID == (ch.CommandID{}) || req.MaxRecords <= 0 || req.MaxBytes <= 0 {
+		return ExactProposal{}, false, ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return ExactProposal{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	proposal, present := s.proposalsByCommand[req.CommandID]
+	if !present {
+		return ExactProposal{}, false, nil
+	}
+	count := proposal.manifest.LastOffset - proposal.manifest.BaseOffset
+	if count > uint64(req.MaxRecords) {
+		return ExactProposal{}, false, ch.ErrBackpressured
+	}
+	records := make([]ch.Record, 0, count)
+	used := 0
+	for index := proposal.manifest.BaseOffset + 1; index <= proposal.manifest.LastOffset; index++ {
+		record, ok := s.recordBySeqLocked(index)
+		if !ok {
+			return ExactProposal{}, false, ch.ErrLogConflict
+		}
+		recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+		if recordBytes > req.MaxBytes-used {
+			return ExactProposal{}, false, ch.ErrBackpressured
+		}
+		used += recordBytes
+		records = append(records, cloneRecord(record))
+	}
+	return ExactProposal{Manifest: proposal.manifest, Records: records}, true, nil
+}
+
 func (s *MemoryChannelStore) loadExactStateLocked() (ExactState, error) {
 	leo := s.leoLocked()
 	if s.checkpoint.HW > leo {

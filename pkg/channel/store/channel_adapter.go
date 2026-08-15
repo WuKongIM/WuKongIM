@@ -579,6 +579,23 @@ func (a *messageDBChannelStoreAdapter) LoadExactRecoveryState(ctx context.Contex
 	return result, nil
 }
 
+// LoadExactProposal maps one MessageDB command-index hit back to shared
+// semantic Channel records.
+func (a *messageDBChannelStoreAdapter) LoadExactProposal(ctx context.Context, req ExactProposalRequest) (ExactProposal, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactProposal{}, false, err
+	}
+	proposal, present, err := a.store.LoadDurableProposal(ctx, req.CommandID, req.MaxRecords, req.MaxBytes)
+	if err != nil || !present {
+		return ExactProposal{}, present, a.mapError(err)
+	}
+	records := make([]ch.Record, len(proposal.Records))
+	for index, record := range proposal.Records {
+		records[index] = fromDBRecord(record)
+	}
+	return ExactProposal{Manifest: proposal.Manifest, Records: records}, true, nil
+}
+
 // ReplaceRecoverySuffix maps the recovery-only exact replacement to one
 // atomic MessageDB mutation.
 func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error) {

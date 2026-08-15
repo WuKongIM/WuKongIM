@@ -114,6 +114,32 @@ type FetchRangeResult struct {
 	Err       error
 }
 
+// CommandLookup identifies one durable proposal by retry-stable command.
+type CommandLookup struct {
+	// ChannelKey and ChannelID select the exact local replica.
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	// CommandID is the immutable proposal identity to reconcile.
+	CommandID ch.CommandID
+	// MaxRecords and MaxBytes bound the result before payload allocation.
+	MaxRecords int
+	MaxBytes   int
+}
+
+// CommandLookupResult is one exact local command-index result.
+type CommandLookupResult struct {
+	// Manifest and Records contain the complete immutable proposal when Found.
+	Manifest ch.ProposalManifest
+	Records  []ch.Record
+	// Found distinguishes an absent command from an empty proposal, which is invalid.
+	Found bool
+	Err   error
+}
+
+type commandStore interface {
+	LookupCommands(context.Context, []CommandLookup) []CommandLookupResult
+}
+
 // ReplicaStore loads exact durable frontiers and synchronously applies exact
 // immutable mutations. Returning from Sync with a durable outcome proves
 // physical durability for that item.

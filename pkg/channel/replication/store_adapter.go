@@ -90,6 +90,53 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 	return result, nil
 }
 
+func (a *storeAdapter) LookupCommands(ctx context.Context, lookups []CommandLookup) []CommandLookupResult {
+	results := make([]CommandLookupResult, len(lookups))
+	if a == nil || ctx == nil || len(lookups) == 0 || len(lookups) > a.cfg.MaxBatchItems {
+		return rejectCommandLookups(results, ch.ErrInvalidConfig)
+	}
+	for index, lookup := range lookups {
+		if lookup.ChannelKey == "" || lookup.ChannelID.ID == "" || lookup.CommandID == (ch.CommandID{}) ||
+			lookup.MaxRecords <= 0 || lookup.MaxRecords > maxRecoveryProbeIndexes || lookup.MaxBytes <= 0 || lookup.MaxBytes > a.cfg.MaxBatchBytes {
+			results[index].Err = ch.ErrInvalidConfig
+			continue
+		}
+		store, err := a.cfg.Factory.ChannelStore(lookup.ChannelKey, lookup.ChannelID)
+		if err != nil {
+			results[index].Err = err
+			continue
+		}
+		loader, ok := store.(channelstore.ExactProposalLookup)
+		if !ok {
+			results[index].Err = ch.ErrInvalidConfig
+			_ = store.Close()
+			continue
+		}
+		proposal, found, loadErr := loader.LoadExactProposal(ctx, channelstore.ExactProposalRequest{
+			CommandID: lookup.CommandID, MaxRecords: lookup.MaxRecords, MaxBytes: lookup.MaxBytes,
+		})
+		closeErr := store.Close()
+		if loadErr == nil && closeErr != nil {
+			loadErr = closeErr
+		}
+		if loadErr != nil {
+			results[index].Err = loadErr
+			continue
+		}
+		results[index] = CommandLookupResult{
+			Manifest: proposal.Manifest, Records: cloneRecords(proposal.Records), Found: found,
+		}
+	}
+	return results
+}
+
+func rejectCommandLookups(results []CommandLookupResult, err error) []CommandLookupResult {
+	for index := range results {
+		results[index].Err = err
+	}
+	return results
+}
+
 func loadExactRecoveryState(ctx context.Context, store channelstore.ChannelStore, indexes []uint64) (channelstore.ExactState, []EntryProbe, error) {
 	if len(indexes) == 0 {
 		loader, ok := store.(channelstore.ExactStateLoader)

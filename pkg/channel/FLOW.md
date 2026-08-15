@@ -269,7 +269,7 @@ predecessor, command, and content-derived digest in the same synchronous
 physical commit as the rows, so exact replay remains safe after retention and
 reopen; suffix truncation removes whole identities and cannot split one
 proposal. The production `ReplicaStore` adapter now exposes bounded positional
-`Load`, `Sync`, and recovery-only `Replace`: `Load` takes one
+`Load`, `Sync`, command lookup, and recovery-only `Replace`: `Load` takes one
 append/checkpoint-consistent view and
 returns LEO, committed HW, the tail manifest, and the tail entry identity;
 non-empty state without that exact identity, or with HW above LEO, fails
@@ -278,8 +278,19 @@ of one Channel and different Channels, retains positional per-proposal
 outcomes, and reports the follower's exact `NeedFrom` offset for a gap. A
 follower's monotonic committed HW is persisted atomically with its exact
 proposal rather than through a second checkpoint commit. The leader-side
-bounded quorum probe owner and removal of the PullHint hot path must still land
-before production wiring. The
+bounded quorum probe owner, suffix repair owner, and deterministic current-term
+barrier now compose behind the concrete `DurableQuorumLog`. `Install` proves
+and repairs the greatest quorum-identical prefix, recognizes an already-proven
+current-authority prefix after restart, and otherwise makes the Channel ready
+only after a new current-term barrier is durable locally and on the configured
+quorum. `Commit` serializes one Channel, fixes its exact range before I/O,
+starts local and follower durability in one round, advances its logical HW only
+after local-plus-quorum proof, and retains an ambiguous immutable proposal for
+same-range retry. A bounded recent-command cache avoids repeated reads, while
+the local durable command index remains authoritative after cache eviction or
+process restart: exact content returns the original receipt and changed
+content is a conflict. This owner is not wired into the transitional reactor
+yet, and the PullHint hot path must still be removed before production use. The
 data-bearing exchange foundation now lives in `replication`: one
 versioned `ReplicateRequest` carries the exact manifest and owned record payload
 to a follower, whose `ExchangeServer` acknowledges only a closed durable result
@@ -351,8 +362,8 @@ complete exact prefix that the next Install can prove and resume. The
 current-term barrier foundation derives a deterministic business-neutral
 `SyncOnce` proposal from the exact authority and requires local plus matching
 current-voter quorum durability. The public two-method `DurableQuorumLog`
-contract is present; the concrete `Install` owner and reactor readiness/commit
-wiring must still land before the transitional PullHint path is removed. The design is
+contract and concrete owner are present; reactor readiness/commit wiring must
+still land before the transitional PullHint path is removed. The design is
 recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,

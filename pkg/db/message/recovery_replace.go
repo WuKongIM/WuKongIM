@@ -133,6 +133,8 @@ func (s *ChannelStore) ReadDurableRecoveryPage(ctx context.Context, req DurableR
 				}
 				return DurableRecoveryPage{}, toChannelError(loadErr)
 			}
+			record.Epoch = identity.ChannelEpoch
+			records[index] = record
 			entries[index] = DurableEntryProbe{Index: record.Index, Present: true, Identity: identity}
 		}
 		if used > req.MaxBytes-proposalBytes {

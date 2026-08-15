@@ -165,6 +165,13 @@ type DurableRecoveryState struct {
 	Entries []DurableEntryProbe
 }
 
+// DurableProposal is one complete immutable proposal loaded by command
+// identity for exact retry reconciliation.
+type DurableProposal struct {
+	Manifest DurableProposalManifest
+	Records  []channel.Record
+}
+
 // AppendBatchItem is one channel append request in a cross-channel batch.
 type AppendBatchItem struct {
 	// Store is the channel-scoped store that owns Records.
@@ -1403,6 +1410,63 @@ func (s *ChannelStore) LookupIdempotency(key channel.IdempotencyKey) (channel.Id
 		return channel.IdempotencyEntry{}, 0, ok, toChannelError(err)
 	}
 	return channel.IdempotencyEntry{MessageID: hit.MessageID, MessageSeq: hit.MessageSeq, Offset: hit.Offset}, hit.PayloadHash, true, nil
+}
+
+// LoadDurableProposal returns one exact proposal while holding the canonical
+// Channel append lock so its manifest and rows form one stable view.
+func (s *ChannelStore) LoadDurableProposal(ctx context.Context, commandID quorumlog.CommandID, maxRecords int, maxBytes int) (DurableProposal, bool, error) {
+	if ctx == nil || commandID == (quorumlog.CommandID{}) || maxRecords <= 0 || maxBytes <= 0 {
+		return DurableProposal{}, false, channel.ErrInvalidArgument
+	}
+	if err := s.beginUse(); err != nil {
+		return DurableProposal{}, false, err
+	}
+	defer s.endUse()
+	if err := ctx.Err(); err != nil {
+		return DurableProposal{}, false, err
+	}
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
+	proposal, present, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, commandID))
+	if err != nil || !present {
+		return DurableProposal{}, present, toChannelError(err)
+	}
+	count := proposal.manifest.LastOffset - proposal.manifest.BaseOffset
+	if count > uint64(maxRecords) {
+		return DurableProposal{}, false, channel.ErrBackpressured
+	}
+	rows := make([]messageRow, 0, count)
+	used := 0
+	for index := proposal.manifest.BaseOffset + 1; index <= proposal.manifest.LastOffset; index++ {
+		row, ok, loadErr := s.log.getRowBySeq(ctx, index)
+		if loadErr != nil {
+			return DurableProposal{}, false, toChannelError(loadErr)
+		}
+		if !ok {
+			return DurableProposal{}, false, channel.ErrCorruptState
+		}
+		identity, identityPresent, identityErr := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, index)
+		if identityErr != nil {
+			return DurableProposal{}, false, toChannelError(identityErr)
+		}
+		if !identityPresent || identity.CommandID != commandID || identity.Index != index {
+			return DurableProposal{}, false, channel.ErrCorruptState
+		}
+		rowBytes := 96 + len(row.FromUID) + len(row.ClientMsgNo) + len(row.Payload)
+		if rowBytes > maxBytes-used {
+			return DurableProposal{}, false, channel.ErrBackpressured
+		}
+		used += rowBytes
+		rows = append(rows, row)
+	}
+	records, err := recordsFromRows(rows)
+	if err != nil {
+		return DurableProposal{}, false, err
+	}
+	for index := range records {
+		records[index].Epoch = proposal.manifest.ChannelEpoch
+	}
+	return DurableProposal{Manifest: proposal.manifest, Records: records}, true, nil
 }
 
 // PutIdempotency stores a legacy idempotency entry without requiring a message row.

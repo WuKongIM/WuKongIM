@@ -84,6 +84,12 @@ type ExactRecoveryPageReader interface {
 	ReadExactRecoveryPage(ctx context.Context, req ExactRecoveryPageRequest) (ExactRecoveryPage, error)
 }
 
+// ExactProposalLookup reads one immutable proposal by its retry-stable command
+// identity. It is used only for recovery and exact retry reconciliation.
+type ExactProposalLookup interface {
+	LoadExactProposal(ctx context.Context, req ExactProposalRequest) (ExactProposal, bool, error)
+}
+
 // ExactState is the local durability state required to recover a quorum-log
 // sequencer. Manifest and TailIdentity are zero only for an empty log.
 type ExactState struct {
@@ -138,6 +144,21 @@ type ExactRecoveryPage struct {
 	ExactState
 	Records []ch.Record
 	Entries []ExactEntryProbe
+}
+
+// ExactProposal is the complete semantic content sealed by one durable
+// proposal manifest.
+type ExactProposal struct {
+	Manifest ProposalManifest
+	Records  []ch.Record
+}
+
+// ExactProposalRequest bounds one command-index reconciliation read before
+// any record-sized allocation.
+type ExactProposalRequest struct {
+	CommandID  ch.CommandID
+	MaxRecords int
+	MaxBytes   int
 }
 
 // MessageLookup is an optional point lookup surface for rare timeout recovery paths.

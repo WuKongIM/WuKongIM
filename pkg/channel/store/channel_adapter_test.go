@@ -70,6 +70,59 @@ func TestMessageDBStoreAdapterContract(t *testing.T) {
 	testStoreCheckpointHWMonotonic(t, cleanupFactory)
 }
 
+func TestMessageDBStoreAdapterLoadsExactProposalByCommand(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "exact-command-lookup", Type: 1}
+	key := ch.ChannelKeyForID(id)
+	store, err := factory.ChannelStore(key, id)
+	require.NoError(t, err)
+	closeChannelStoreOnCleanup(t, store)
+	records := []ch.Record{{
+		ID: 71, Epoch: 3, Setting: 2, FromUID: "sender", ClientMsgNo: "client-71",
+		ServerTimestampMS: 91, SyncOnce: true, Payload: []byte("payload"), SizeBytes: len("payload"),
+	}}
+	manifest, _, ok := ch.SealProposalManifest(ch.ProposalManifest{
+		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: ch.CommandID{31: 11}, BaseOffset: 0, LastOffset: 1,
+	}, records)
+	require.True(t, ok)
+	appended, err := store.AppendLeader(ctx, AppendLeaderRequest{
+		Records: records, ExactBaseOffset: true, ExpectedBaseOffset: 0, Proposal: manifest,
+	})
+	require.NoError(t, err)
+	require.True(t, appended.Outcome.Durable())
+	lookup, ok := store.(ExactProposalLookup)
+	require.True(t, ok)
+	loaded, found, err := lookup.LoadExactProposal(ctx, ExactProposalRequest{
+		CommandID: manifest.CommandID, MaxRecords: 16, MaxBytes: 64 << 10,
+	})
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, manifest, loaded.Manifest)
+	require.Len(t, loaded.Records, 1)
+	require.Equal(t, uint64(1), loaded.Records[0].Index)
+	require.Equal(t, records[0].Epoch, loaded.Records[0].Epoch)
+	require.Equal(t, records[0].Setting, loaded.Records[0].Setting)
+	require.Equal(t, records[0].FromUID, loaded.Records[0].FromUID)
+	require.Equal(t, records[0].ClientMsgNo, loaded.Records[0].ClientMsgNo)
+	require.Equal(t, records[0].ServerTimestampMS, loaded.Records[0].ServerTimestampMS)
+	require.Equal(t, records[0].SyncOnce, loaded.Records[0].SyncOnce)
+	require.Equal(t, records[0].Payload, loaded.Records[0].Payload)
+
+	sealed, _, ok := ch.SealProposalManifest(loaded.Manifest, loaded.Records)
+	require.True(t, ok)
+	require.Equal(t, manifest, sealed)
+
+	pageReader, ok := store.(ExactRecoveryPageReader)
+	require.True(t, ok)
+	page, err := pageReader.ReadExactRecoveryPage(ctx, ExactRecoveryPageRequest{From: 1, Through: 1, MaxBytes: 64 << 10})
+	require.NoError(t, err)
+	require.Len(t, page.Records, 1)
+	require.Equal(t, records[0].Epoch, page.Records[0].Epoch)
+}
+
 func TestMessageDBStoreAdapterCheckpointPreservesExistingFields(t *testing.T) {
 	factory := NewMessageDBFactory(t.TempDir())
 	t.Cleanup(func() { _ = factory.Close() })
