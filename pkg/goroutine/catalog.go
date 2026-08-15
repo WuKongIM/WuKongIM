@@ -129,6 +129,7 @@ const (
 	TaskChannelStoreClose                TaskID = "channel/store_close"
 	TaskChannelTaskCancellation          TaskID = "channel/task_cancellation"
 	TaskChannelWorkerPool                TaskID = "channel/worker_pool"
+	TaskChannelQuorumOwner               TaskID = "channel/quorum_owner"
 	TaskDatabaseRaftWriteWorker          TaskID = "database/raft_write_worker"
 	TaskDatabaseRaftSnapshotGC           TaskID = "database/raft_snapshot_gc"
 	TaskDatabaseLatestMigration          TaskID = "database/latest_migration"
@@ -221,6 +222,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskChannelStoreClose, Module: ModuleChannel, Name: "store_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelTaskCancellation, Module: ModuleChannel, Name: "task_cancellation", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelWorkerPool, Module: ModuleChannel, Name: "worker_pool", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskChannelQuorumOwner, Module: ModuleChannel, Name: "quorum_owner", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskDatabaseRaftWriteWorker, Module: ModuleDatabase, Name: "raft_write_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskDatabaseRaftSnapshotGC, Module: ModuleDatabase, Name: "raft_snapshot_gc", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseLatestMigration, Module: ModuleDatabase, Name: "latest_migration", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},

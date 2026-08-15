@@ -305,8 +305,10 @@ after local-plus-quorum proof, and retains an ambiguous immutable proposal for
 same-range retry. A bounded recent-command cache avoids repeated reads, while
 the local durable command index remains authoritative after cache eviction or
 process restart: exact content returns the original receipt and changed
-content is a conflict. This owner is not wired into the transitional reactor
-yet, and the PullHint hot path must still be removed before production use. The
+content is a conflict. The reactor installs exact authority through this owner
+before marking a leader ready and routes every leader proposal through its
+quorum receipt; the transitional PullHint follower path remains only until the
+node-level peer exchange runtime replaces it. The
 data-bearing exchange foundation now lives in `replication`: one
 versioned `ReplicateRequest` carries the exact manifest and owned record payload
 to a follower, whose `ExchangeServer` acknowledges only a closed durable result
@@ -327,7 +329,19 @@ deadline, not the submitting caller context; caller cancellation stops waiting
 but cannot revoke admitted durability. Response correlation is by request ID;
 malformed, duplicate, missing, panicking, timed-out, or transport-lost
 responses remain typed outcome-unknown so exact retry can resolve them. This
-peer/store seam is not wired into the transitional reactor yet. Recovery now
+peer/store seam is composed by `replication.Runtime`. One runtime per node owns
+three process-managed bounded executors: local synchronous mutation batches,
+per-target peer exchanges, and 64-shard follower repair mailboxes. It exposes
+only the durable log and one bounded exchange server. Zero numeric settings use
+fixed production bounds; no Channel owns a goroutine or timer. Accepted local
+and peer items transfer to the runtime lifecycle context, shutdown permanently
+closes admission, and the goroutine registry attributes every pool to the fixed
+`channel/quorum_owner` task without Channel or node labels. A `NeedFrom` repair
+waits boundedly for the concurrently submitted local proposal to become
+durable, reads complete proposal-aligned pages from the leader store, and sends
+them to that exact follower through the same per-target peer owner. Repair is
+bounded by the same page byte limit and never retains record payload in the
+mailbox. Recovery now
 has a read-only `Probe` exchange item. One bounded store load returns the exact
 frontier and at most 256 requested entry identities from the same
 append/checkpoint-consistent view; results remain request-position aligned and
@@ -378,8 +392,9 @@ complete exact prefix that the next Install can prove and resume. The
 current-term barrier foundation derives a deterministic business-neutral
 `SyncOnce` proposal from the exact authority and requires local plus matching
 current-voter quorum durability. The public two-method `DurableQuorumLog`
-contract and concrete owner are present; reactor readiness/commit wiring must
-still land before the transitional PullHint path is removed. The design is
+contract, concrete owner, reactor readiness/commit wiring, and standalone
+three-node runtime composition are present; node RPC wiring and removal of the
+transitional PullHint path remain. The design is
 recorded in
 `docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
 When the reactor observer also implements the optional leader Pull hook,

@@ -52,6 +52,10 @@ physical Slot IDs and permission keys remain ordinary data.
 UID-owned membership upserts use one fixed Cluster burst task identity; UID,
 channel, and hash-slot values remain ordinary data, and the calling goroutine
 joins the bounded helper before returning.
+Channel durable-quorum local I/O, peer exchange, and follower repair pools all
+use the fixed `channel/quorum_owner` pool task identity. Channel keys, peer node
+IDs, authority generations, and request identities remain ordinary in-process
+data and never become task labels.
 
 ## Pool Accounting
 
