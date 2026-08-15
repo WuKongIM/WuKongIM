@@ -47,11 +47,18 @@ sequenceDiagram
     else accepted
         Reactor->>Reactor: enqueue per-channel append queue
         Reactor->>Reactor: flush by max records, bytes, or wait
-        Reactor->>Workers: TaskStoreAppend(batch, fence)
-        Workers-->>Reactor: append result
-        Reactor->>Reactor: apply fenced result and update local progress
+        alt durable quorum log configured
+            Reactor->>Workers: TaskQuorumCommit(one caller proposal, fence)
+            Workers->>Follower: local sync || data-bearing follower sync
+            Workers-->>Reactor: exact quorum receipt
+            Reactor->>Reactor: atomically publish LEO/HW and complete covered waiter
+        else transitional store path
+            Reactor->>Workers: TaskStoreAppend(batch, fence)
+            Workers-->>Reactor: append result
+            Reactor->>Reactor: apply fenced result and update local progress
+        end
 
-        alt CommitModeLocal
+        alt transitional CommitModeLocal
             Reactor-->>Service: complete future after local durable append
             Note over Reactor,Workers: store_append_wait observes flush-to-store result
             Note over Reactor: post_store_commit_wait is near-zero after local durable append
@@ -171,6 +178,15 @@ pool, and the message DB adapter persists a cross-channel checkpoint group with
 one checkpoint-lock-only commit. This prevents idle-channel checkpoint fsyncs
 from consuming every foreground follower-apply worker or taking foreground
 append locks during high-cardinality traffic.
+
+When `DurableQuorumLog` is installed, one caller append is one immutable
+proposal and therefore one retry-stable command identity; the reactor does not
+reuse its transient multi-caller batch boundary as durable identity. Physical
+cross-Channel collection remains below that seam in the local store and peer
+batch owners. `TaskQuorumInstall` keeps leader `CommitReady` false until
+recovery and the current-authority barrier return, and `TaskQuorumCommit`
+returns an exact range whose receipt advances LEO and HW without hot-path
+PullHint/Pull/AckOffset work.
 
 Leader-side PullHint result counters split submissions, successful RPC returns,
 and low-cardinality error classes. In 10k-channel runs, compare these counters

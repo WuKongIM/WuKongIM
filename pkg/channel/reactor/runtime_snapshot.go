@@ -56,6 +56,7 @@ func pendingWorkViewFromChannel(rc *runtimeChannel) PendingWorkView {
 		AppendRetryScheduled: !rc.appendRetryAt.IsZero(),
 		AppendCancelContexts: len(rc.appendCancelContexts),
 		AppendTimings:        len(rc.appendTimings),
+		QuorumInstall:        rc.quorumInstall != nil,
 		PullInflight:         replication.pullInflight,
 		AckInflight:          rc.lifecycle.stoppedAck.inflight,
 		PendingPull:          replication.pendingPull != nil,

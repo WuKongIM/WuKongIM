@@ -299,6 +299,21 @@ func TestDefaultObserverDoesNotImplementAppendQueuePressureObserver(t *testing.T
 	require.False(t, ok)
 }
 
+func TestAppendQueuePopProposalKeepsRemainderImmediatelyDue(t *testing.T) {
+	now := time.Unix(10, 0)
+	q := newAppendQueue(appendQueueConfig{MaxRecords: 2, MaxWait: time.Hour})
+	require.NoError(t, q.push(appendRequest{opID: 1, enqueuedAt: now, records: []ch.Record{{ID: 1, SizeBytes: 1}}}))
+	require.NoError(t, q.push(appendRequest{opID: 2, enqueuedAt: now, records: []ch.Record{{ID: 2, SizeBytes: 1}}}))
+
+	proposal := q.popProposal(10, nil, now)
+
+	require.Len(t, proposal.requests, 1)
+	require.Equal(t, ch.OpID(1), proposal.requests[0].opID)
+	require.Len(t, q.pending, 1)
+	q.storeBlocked = false
+	require.True(t, q.shouldFlush(now))
+}
+
 type recordingAppendQueuePressureObserver struct {
 	captureObserver
 	calls int

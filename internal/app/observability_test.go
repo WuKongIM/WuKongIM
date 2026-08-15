@@ -51,6 +51,12 @@ func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {
 	if got := channelWorkerKindLabel(worker.TaskColdStoreLoad); got != "cold_store_load" {
 		t.Fatalf("channelWorkerKindLabel(TaskColdStoreLoad) = %q, want cold_store_load", got)
 	}
+	if got := channelWorkerKindLabel(worker.TaskQuorumInstall); got != "quorum_install" {
+		t.Fatalf("channelWorkerKindLabel(TaskQuorumInstall) = %q, want quorum_install", got)
+	}
+	if got := channelWorkerKindLabel(worker.TaskQuorumCommit); got != "quorum_commit" {
+		t.Fatalf("channelWorkerKindLabel(TaskQuorumCommit) = %q, want quorum_commit", got)
+	}
 }
 
 func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T) {

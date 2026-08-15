@@ -705,7 +705,7 @@ func (r *Reactor) handleMetaResolveResult(result worker.Result) {
 	if err != nil {
 		return
 	}
-	if err := r.applyLoadedRuntimeMeta(rc, meta, true); err != nil {
+	if _, err := r.applyLoadedRuntimeMeta(rc, meta, true, nil); err != nil {
 		return
 	}
 }

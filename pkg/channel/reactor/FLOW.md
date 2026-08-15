@@ -420,6 +420,8 @@ follower parking or waking does not scan all loaded channels.
 ## Worker Completion Routing
 
 ```text
+TaskQuorumInstall      -> recovered authority frontier and append-admission readiness
+TaskQuorumCommit       -> exact quorum-durable range and immediate LEO/HW publication
 TaskStoreAppend        -> append completion
 TaskStoreLoad          -> explicit ApplyMeta activation
 TaskColdMetaResolve    -> unloaded authoritative metadata completion
@@ -440,6 +442,16 @@ Worker completions are accepted only when their channel key, generation, epoch,
 leader epoch, and operation id match the current runtime state. Store-load
 results are fenced by the temporary loading shell; stale load results close the
 opened store handle outside the reactor state machine.
+
+Leader activation with a configured `DurableQuorumLog` keeps `CommitReady`
+false while a fenced `TaskQuorumInstall` recovers, repairs, and writes the
+current-authority barrier. ApplyMeta futures complete only after that proof;
+the in-flight install is pending runtime work, so eviction cannot detach its
+Channel store or strand its metadata waiters. Reactor shutdown fails those
+waiters before joining the bounded worker pools.
+Each accepted caller append then becomes one `TaskQuorumCommit`; the returned
+receipt completes quorum waiters directly and deliberately emits no hot-path
+PullHint/AckOffset signal.
 
 ApplyMeta activation builds and applies metadata to a local `ChannelState`
 before publishing either the state or loaded store into the runtime shell. A

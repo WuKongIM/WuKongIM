@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
@@ -25,6 +26,26 @@ func (r *Reactor) submitStoreAppend(ctx context.Context, channelID ch.ChannelID,
 			Records:                   appendTask.Records,
 			ServerAllocatedMessageIDs: appendTask.ServerAllocatedMessageIDs,
 		},
+	})
+}
+
+func (r *Reactor) submitQuorumInstall(ctx context.Context, fence ch.Fence, authority replication.Authority) error {
+	if r.cfg.Pools == nil || r.cfg.QuorumLog == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind: worker.TaskQuorumInstall, Fence: fence, Context: ctx,
+		QuorumInstall: &worker.QuorumInstallTask{Authority: authority},
+	})
+}
+
+func (r *Reactor) submitQuorumCommit(ctx context.Context, fence ch.Fence, proposal replication.Proposal) error {
+	if r.cfg.Pools == nil || r.cfg.QuorumLog == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind: worker.TaskQuorumCommit, Fence: fence, Context: ctx,
+		QuorumCommit: &worker.QuorumCommitTask{Proposal: proposal},
 	})
 }
 

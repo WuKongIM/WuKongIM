@@ -2349,6 +2349,10 @@ func channelWorkerKindLabel(kind worker.TaskKind) string {
 		return "func"
 	case worker.TaskStoreAppend:
 		return "store_append"
+	case worker.TaskQuorumInstall:
+		return "quorum_install"
+	case worker.TaskQuorumCommit:
+		return "quorum_commit"
 	case worker.TaskStoreApply:
 		return "store_apply"
 	case worker.TaskStoreReadLog:

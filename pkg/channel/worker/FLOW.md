@@ -47,6 +47,10 @@ and observer installation and shutdown skip the absent pool safely.
 present and its configured worker and queue limits are positive.
 `TaskColdMetaResolve` and `TaskColdStoreLoad` route exclusively to that pool;
 expired store-load tasks check their task context before acquiring a store.
+`TaskQuorumInstall` and `TaskQuorumCommit` route through the bounded
+store-append pool but call the deep `DurableQuorumLog` owner rather than a raw
+Channel store. They are never worker-batched: authority recovery and proposal
+sequencing own their batching and per-Channel serialization below that seam.
 The reactor derives the default cold budget from its partition count, with
 strict worker and queue caps, while explicit `PoolsConfig.ColdActivation`
 values remain available to package integrators.

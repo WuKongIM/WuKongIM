@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -33,6 +34,10 @@ const (
 	TaskColdMetaResolve
 	// TaskColdStoreLoad opens storage only after cold-channel authority is proven.
 	TaskColdStoreLoad
+	// TaskQuorumInstall recovers and installs one leader authority before admission opens.
+	TaskQuorumInstall
+	// TaskQuorumCommit executes one exact durable quorum proposal.
+	TaskQuorumCommit
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -62,6 +67,10 @@ type Task struct {
 	RPCPullHint *RPCPullHintTask
 	// MetaResolve loads authoritative channel metadata without occupying store or RPC workers.
 	MetaResolve *MetaResolveTask
+	// QuorumInstall carries one authoritative leader generation into the durable log owner.
+	QuorumInstall *QuorumInstallTask
+	// QuorumCommit carries one immutable proposal into the durable log owner.
+	QuorumCommit *QuorumCommitTask
 
 	RunFunc func(context.Context) Result
 }
@@ -75,6 +84,16 @@ type StoreLoadTask struct {
 type MetaResolveTask struct {
 	// ChannelID is the client-visible channel identity to resolve.
 	ChannelID ch.ChannelID
+}
+
+// QuorumInstallTask asks the durable log to recover and install authority.
+type QuorumInstallTask struct {
+	Authority replication.Authority
+}
+
+// QuorumCommitTask asks the durable log to commit one immutable proposal.
+type QuorumCommitTask struct {
+	Proposal replication.Proposal
 }
 
 // StoreAppendTask asks a worker to durably append leader records.
@@ -219,10 +238,30 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runRPCPullHint(ctx, deps, t)
 	case TaskMetaResolve, TaskColdMetaResolve:
 		res = runMetaResolve(ctx, deps, t)
+	case TaskQuorumInstall:
+		res = runQuorumInstall(ctx, deps, t)
+	case TaskQuorumCommit:
+		res = runQuorumCommit(ctx, deps, t)
 	default:
 		res = invalidResult(t)
 	}
 	return normalizeContextErr(ctx, res)
+}
+
+func runQuorumInstall(ctx context.Context, deps Deps, t Task) Result {
+	if t.QuorumInstall == nil || deps.QuorumLog == nil {
+		return invalidResult(t)
+	}
+	installed, err := deps.QuorumLog.Install(ctx, t.QuorumInstall.Authority)
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, QuorumInstall: &QuorumInstallResult{Installed: installed}}
+}
+
+func runQuorumCommit(ctx context.Context, deps Deps, t Task) Result {
+	if t.QuorumCommit == nil || deps.QuorumLog == nil {
+		return invalidResult(t)
+	}
+	receipt, err := deps.QuorumLog.Commit(ctx, t.QuorumCommit.Proposal)
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, QuorumCommit: &QuorumCommitResult{Receipt: receipt}}
 }
 
 func taskContext(parent context.Context, task context.Context) (context.Context, context.CancelFunc) {

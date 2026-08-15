@@ -102,16 +102,18 @@ type PendingWorkView struct {
 	AppendCancelContexts int
 	AppendTimings        int
 	MachineAppendPending bool
-	PullInflight         bool
-	AckInflight          bool
-	PendingPull          bool
-	ApplyBlocked         bool
-	ApplyInflight        bool
-	CheckpointInflight   bool
-	CheckpointRetry      bool
-	AckRetry             bool
-	LifecycleCheckpoint  bool
-	LifecycleRetry       bool
+	// QuorumInstall keeps authority recovery and its ApplyMeta waiters eviction-fenced.
+	QuorumInstall       bool
+	PullInflight        bool
+	AckInflight         bool
+	PendingPull         bool
+	ApplyBlocked        bool
+	ApplyInflight       bool
+	CheckpointInflight  bool
+	CheckpointRetry     bool
+	AckRetry            bool
+	LifecycleCheckpoint bool
+	LifecycleRetry      bool
 }
 
 // HasAppendWork reports whether an accepted ordinary append can still mutate
@@ -192,6 +194,7 @@ func (p PendingWorkView) hasPendingWork() bool {
 		p.AppendCancelContexts != 0 ||
 		p.AppendTimings != 0 ||
 		p.MachineAppendPending ||
+		p.QuorumInstall ||
 		p.PullInflight ||
 		p.AckInflight ||
 		p.PendingPull ||

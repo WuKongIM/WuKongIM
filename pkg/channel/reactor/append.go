@@ -175,6 +175,48 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 	}
 }
 
+func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
+	if err != nil {
+		return
+	}
+	batch := rc.appendInflight
+	current := batch != nil && batch.batchOpID == result.Fence.OpID
+	if !current {
+		return
+	}
+	commitErr := result.Err
+	var committed machine.QuorumCommittedResult
+	committed.Fence = result.Fence
+	if commitErr == nil {
+		if result.QuorumCommit == nil {
+			commitErr = ch.ErrInvalidConfig
+		} else {
+			receipt := result.QuorumCommit.Receipt
+			recordCount := uint64(len(batch.records))
+			if receipt.Authority != batch.authority || receipt.CommandID != batch.commandID || receipt.First == 0 ||
+				recordCount == 0 || receipt.Last < receipt.First || receipt.Last-receipt.First+1 != recordCount || receipt.HW != receipt.Last {
+				commitErr = ch.ErrLogConflict
+			} else {
+				committed.First = receipt.First
+				committed.Last = receipt.Last
+				committed.HW = receipt.HW
+			}
+		}
+	}
+	committed.Err = commitErr
+	now := time.Now()
+	r.observeAppendStoreCompleted(rc, *batch, now, committed.First, commitErr)
+	oldHW := rc.state.HW
+	decision := rc.state.ApplyQuorumCommitted(committed)
+	if commitErr == nil {
+		r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
+		r.afterSuccessfulQuorumCommit(rc, result.Fence.OpID, now)
+	}
+	r.completeReplies(rc, decision.Replies, nil)
+	r.finishAppendInflightBatch(rc, commitErr, now)
+}
+
 func appendStoredResultFromWorker(result worker.Result) machine.AppendStoredResult {
 	stored := machine.AppendStoredResult{Fence: result.Fence, Err: result.Err}
 	if result.StoreAppend == nil {
@@ -206,6 +248,13 @@ func (r *Reactor) afterSuccessfulLeaderAppendStored(rc *runtimeChannel, batchOpI
 	}
 	r.sendPullHintsForAppend(rc, now)
 	r.scheduleLaggingFollowerResumeHints(rc, now)
+}
+
+func (r *Reactor) afterSuccessfulQuorumCommit(rc *runtimeChannel, batchOpID ch.OpID, now time.Time) {
+	rc.recentRecords.append(rc.appendInflightRecords(batchOpID))
+	r.markAppendActivity(rc, now)
+	rc.lifecycle.version = rc.state.LEO
+	r.scheduleLifecycleFromState(rc, now)
 }
 
 func (r *Reactor) finishAppendInflightBatch(rc *runtimeChannel, appendErr error, now time.Time) {

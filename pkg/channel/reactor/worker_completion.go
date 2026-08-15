@@ -4,6 +4,10 @@ import "github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 
 func (r *Reactor) handleWorkerResult(event Event) {
 	switch event.Worker.Kind {
+	case worker.TaskQuorumInstall:
+		r.handleQuorumInstallResult(event.Worker)
+	case worker.TaskQuorumCommit:
+		r.handleQuorumCommitResult(event.Worker)
 	case worker.TaskStoreAppend:
 		r.handleStoreAppendResult(event.Worker)
 	case worker.TaskStoreLoad, worker.TaskColdStoreLoad:
