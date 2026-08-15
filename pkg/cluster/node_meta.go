@@ -8,6 +8,8 @@ import (
 	"time"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -645,6 +647,123 @@ func (n *Node) UpsertUserChannelMembershipBatch(ctx context.Context, memberships
 		}
 	}
 	return n.submitPersonDirectoryProposals(ctx, proposals, "upsert")
+}
+
+// PreparePersonChannelDirectoryBatch atomically groups UID-owned membership
+// rows with create-only Channel runtime metadata by logical Slot. Callers must
+// publish DirectoryReady only after every returned prepare proposal committed.
+func (n *Node) PreparePersonChannelDirectoryBatch(ctx context.Context, memberships []metadb.UserChannelMembership, channelKeys []metadb.ChannelKey) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(memberships) == 0 || len(channelKeys) == 0 ||
+		len(memberships) > maxMembershipBatchItems || len(channelKeys) > metafsm.MaxPersonDirectoryBatchItems {
+		return metadb.ErrInvalidArgument
+	}
+	if err := n.ensureForeground(); err != nil {
+		return err
+	}
+	keys := make([]string, 0, len(memberships)+len(channelKeys))
+	for _, membership := range memberships {
+		if membership.UID == "" || membership.ChannelID == "" || membership.ChannelType <= 0 {
+			return metadb.ErrInvalidArgument
+		}
+		keys = append(keys, membership.UID)
+	}
+	ids := make([]channelruntime.ChannelID, len(channelKeys))
+	for i, key := range channelKeys {
+		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > int64(^uint8(0)) {
+			return metadb.ErrInvalidArgument
+		}
+		keys = append(keys, key.ChannelID)
+		ids[i] = channelruntime.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)}
+	}
+	routes, err := n.router.RouteKeys(keys)
+	if err != nil {
+		return mapRouteError(err)
+	}
+	channelRoutes := routes[len(memberships):]
+	replicaCount := int(n.cfg.Channel.ReplicaCount)
+	if replicaCount == 0 {
+		replicaCount = int(n.cfg.Slots.ReplicaCount)
+	}
+	resolver := channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, replicaCount)
+	placements, err := resolver.ResolveChannelPlacementBatch(ctx, ids, channelRoutes)
+	if err != nil {
+		return err
+	}
+	type prepareGroup struct {
+		memberships []metafsm.UserChannelMembershipBatchItem
+		runtimeMeta []metafsm.CreateChannelRuntimeMetaBatchItem
+	}
+	groups := make(map[uint32]*prepareGroup)
+	groupFor := func(slotID uint32) *prepareGroup {
+		group := groups[slotID]
+		if group == nil {
+			group = &prepareGroup{}
+			groups[slotID] = group
+		}
+		return group
+	}
+	for i, membership := range memberships {
+		route := routes[i]
+		group := groupFor(route.SlotID)
+		group.memberships = append(group.memberships, metafsm.UserChannelMembershipBatchItem{
+			HashSlot: route.HashSlot, Membership: membership,
+		})
+	}
+	for i, id := range ids {
+		meta, err := channels.RuntimeMetaFromPlacement(id, placements[i])
+		if err != nil {
+			return err
+		}
+		route := channelRoutes[i]
+		group := groupFor(route.SlotID)
+		group.runtimeMeta = append(group.runtimeMeta, metafsm.CreateChannelRuntimeMetaBatchItem{
+			HashSlot: route.HashSlot, Meta: meta,
+		})
+	}
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	proposals := make([]personDirectoryProposal, 0, len(groups))
+	for _, slotID := range slotIDs {
+		group := groups[slotID]
+		for membershipStart, metaStart := 0, 0; membershipStart < len(group.memberships) || metaStart < len(group.runtimeMeta); {
+			membershipEnd := min(membershipStart+metafsm.MaxPersonDirectoryBatchItems, len(group.memberships))
+			metaEnd := min(metaStart+metafsm.MaxCreateChannelRuntimeMetaBatchItems, len(group.runtimeMeta))
+			membershipBatch := group.memberships[membershipStart:membershipEnd]
+			metaBatch := group.runtimeMeta[metaStart:metaEnd]
+			var command []byte
+			if len(metaBatch) > 0 {
+				command, err = metafsm.EncodePreparePersonChannelDirectoryBatchCommandChecked(membershipBatch, metaBatch)
+			} else {
+				command, err = metafsm.EncodeUpsertUserChannelMembershipBatchCommandChecked(membershipBatch)
+			}
+			if err != nil {
+				return err
+			}
+			var hashSlot uint16
+			if len(membershipBatch) > 0 {
+				hashSlot = membershipBatch[0].HashSlot
+			} else {
+				hashSlot = metaBatch[0].HashSlot
+			}
+			proposals = append(proposals, personDirectoryProposal{
+				slotID: slotID, hashSlot: hashSlot, command: command, rows: len(membershipBatch),
+			})
+			membershipStart, metaStart = membershipEnd, metaEnd
+		}
+	}
+	if observer, ok := n.cfg.Channel.Observer.(channels.AppendStageObserver); ok {
+		ctx = propose.WithStageObserver(ctx, observer)
+	}
+	return n.submitPersonDirectoryProposals(ctx, proposals, "prepare")
 }
 
 // EnsureChannelDirectoriesReady monotonically marks a bounded cross-channel

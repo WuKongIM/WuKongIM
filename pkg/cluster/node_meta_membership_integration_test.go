@@ -133,6 +133,7 @@ func TestClusterEnsuresPersonChannelDirectoryReady(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
+	waitChannelDataNode(t, node, 1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -144,5 +145,48 @@ func TestClusterEnsuresPersonChannelDirectoryReady(t *testing.T) {
 	got, err := node.GetChannelMetadataAuthoritative(ctx, channelID, 1)
 	if err != nil || got.DirectoryReady != 1 {
 		t.Fatalf("GetChannelMetadataAuthoritative() = %+v err=%v", got, err)
+	}
+}
+
+func TestClusterPreparesPersonDirectoryRuntimeMetaBeforePublishingReady(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+	waitChannelDataNode(t, node, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	left, right := "person-prepare-a", "person-prepare-b"
+	channelID := left + "@" + right
+	for _, key := range []string{left, right, channelID} {
+		waitRouteKeyLeaderReady(t, node, key)
+	}
+	memberships := []metadb.UserChannelMembership{
+		{UID: left, ChannelID: channelID, ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1},
+		{UID: right, ChannelID: channelID, ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1},
+	}
+	keys := []metadb.ChannelKey{{ChannelID: channelID, ChannelType: 1}}
+	if err := node.PreparePersonChannelDirectoryBatch(ctx, memberships, keys); err != nil {
+		t.Fatalf("PreparePersonChannelDirectoryBatch() error = %v", err)
+	}
+	for _, uid := range []string{left, right} {
+		membership, ok, err := node.GetUserChannelMembership(ctx, uid, channelID, 1)
+		if err != nil || !ok || membership.UID != uid {
+			t.Fatalf("GetUserChannelMembership(%s) = %#v ok=%v err=%v", uid, membership, ok, err)
+		}
+	}
+	runtimeMeta, err := node.GetChannelRuntimeMeta(ctx, channelID, 1)
+	if err != nil || runtimeMeta.ChannelID != channelID || runtimeMeta.Leader == 0 || len(runtimeMeta.Replicas) == 0 {
+		t.Fatalf("GetChannelRuntimeMeta() = %#v err=%v", runtimeMeta, err)
+	}
+	if channel, err := node.GetChannelMetadataAuthoritative(ctx, channelID, 1); err == nil && channel.DirectoryReady != 0 {
+		t.Fatalf("directory became ready during prepare: %#v", channel)
+	}
+	if err := node.EnsureChannelDirectoriesReady(ctx, keys); err != nil {
+		t.Fatalf("EnsureChannelDirectoriesReady() error = %v", err)
+	}
+	channel, err := node.GetChannelMetadataAuthoritative(ctx, channelID, 1)
+	if err != nil || channel.DirectoryReady != 1 {
+		t.Fatalf("GetChannelMetadataAuthoritative() = %#v err=%v, want ready", channel, err)
 	}
 }

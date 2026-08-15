@@ -124,7 +124,7 @@ func (s *SlotMetaSource) buildRuntimeMetaBatch(ctx context.Context, plans []runt
 	}
 	items := make([]RuntimeMetaCreateItem, len(plans))
 	for i, plan := range plans {
-		meta, err := runtimeMetaFromPlacement(plan.id, placements[i])
+		meta, err := RuntimeMetaFromPlacement(plan.id, placements[i])
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +147,10 @@ func (s *SlotMetaSource) readRuntimeMeta(ctx context.Context, id ch.ChannelID) (
 	return meta, nil
 }
 
-func runtimeMetaFromPlacement(id ch.ChannelID, placement ChannelPlacement) (metadb.ChannelRuntimeMeta, error) {
+// RuntimeMetaFromPlacement builds one normalized create-only candidate from an
+// authoritative placement decision. It is shared by ordinary append creation
+// and person-directory prepare batches so both paths use identical metadata.
+func RuntimeMetaFromPlacement(id ch.ChannelID, placement ChannelPlacement) (metadb.ChannelRuntimeMeta, error) {
 	replicas := projectUint64NodeIDs(placement.Replicas)
 	if len(replicas) == 0 {
 		return metadb.ChannelRuntimeMeta{}, fmt.Errorf("%w: empty initial channel replicas", ch.ErrInvalidConfig)

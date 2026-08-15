@@ -8,7 +8,39 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
+
+func TestPreparePersonChannelDirectoryBatchCombinesSameSlotMembershipAndRuntimeMeta(t *testing.T) {
+	proposer := &collectingMembershipProposer{}
+	node := newStartedSlotProxyPortNode(t, proposer)
+	node.cfg.Channel.ReplicaCount = 1
+	node.channelDataNodes.UpdateAtRevision(node.router.Table().Revision, []uint64{1, 2})
+	uid := keyForNodeHashSlot(t, 4, 1)
+	channelID := keyForNodeHashSlot(t, 4, 0)
+	memberships := []metadb.UserChannelMembership{{
+		UID: uid, ChannelID: channelID, ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1,
+	}}
+	channels := []metadb.ChannelKey{{ChannelID: channelID, ChannelType: 1}}
+
+	if err := node.PreparePersonChannelDirectoryBatch(context.Background(), memberships, channels); err != nil {
+		t.Fatalf("PreparePersonChannelDirectoryBatch() error = %v", err)
+	}
+	requests := proposer.take()
+	if len(requests) != 1 {
+		t.Fatalf("prepare proposal count = %d, want one combined logical-Slot proposal", len(requests))
+	}
+	request := requests[0]
+	if !metafsm.IsCreateChannelRuntimeMetaCommand(request.Command) {
+		t.Fatalf("prepare command does not contain runtime meta: %x", request.Command)
+	}
+	if count, err := metafsm.CreateChannelRuntimeMetaBatchCommandSize(request.Command); err != nil || count != 1 {
+		t.Fatalf("runtime meta count = %d, err=%v, want 1", count, err)
+	}
+	if slots, err := metafsm.DecodeCommandHashSlots(request.Command, request.Target.HashSlot); err != nil || len(slots) != 2 || slots[0] != 0 || slots[1] != 1 {
+		t.Fatalf("prepare hash slots = %#v, err=%v, want [0 1]", slots, err)
+	}
+}
 
 func TestPersonDirectoryBatchMutationsSubmitOncePerLogicalSlot(t *testing.T) {
 	proposer := &collectingMembershipProposer{}

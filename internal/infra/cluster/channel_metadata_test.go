@@ -415,6 +415,10 @@ func (r *recordingChannelMetadataNode) UpsertUserChannelMembershipBatch(_ contex
 	return nil
 }
 
+func (r *recordingChannelMetadataNode) PreparePersonChannelDirectoryBatch(ctx context.Context, memberships []metadb.UserChannelMembership, _ []metadb.ChannelKey) error {
+	return r.UpsertUserChannelMembershipBatch(ctx, memberships)
+}
+
 func (r *recordingChannelMetadataNode) EnsureChannelDirectoriesReady(_ context.Context, channels []metadb.ChannelKey) error {
 	r.directoryReadyCalls += len(channels)
 	if len(channels) > 0 {

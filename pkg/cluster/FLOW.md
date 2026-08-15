@@ -568,11 +568,16 @@ submit at most two independent hash-slot proposals concurrently, then join and
 publish mutation observations serially; this bounds fanout while avoiding a
 person channel's two UID directories paying unrelated Slot commit latency in
 series. Cold person-directory establishment uses the separate bounded batch
-facade: it groups rows from multiple channels by logical Slot Raft Group,
-submits at most one multi-hash-slot membership command per group, joins every
-membership proposal, and only then submits grouped channel-owned ready rows.
-Up to ten independent logical Slot groups may progress concurrently; the
-two-phase join prevents a ready marker from hiding a missing UID membership.
+facade. A single route snapshot groups both UID-owned membership rows and
+create-only ChannelRuntimeMeta candidates by logical Slot Raft Group; command
+62 commits both record kinds in one WriteBatch whenever they share a group,
+while bounded membership-only overflow retains command 60. After every prepare
+proposal joins, command 61 submits the grouped channel-owned ready rows. Up to
+ten independent logical Slot groups may progress concurrently; this two-phase
+join prevents a ready marker from hiding either a missing UID membership or
+missing append runtime metadata. Command 62 returns the same identity-bound
+create result shape as command 59, preserving created/already-existing/error
+observation at the default Slot proposal boundary.
 Point reads and
 activation-index pages use the same UID ownership and route to the current Slot
 leader when the ingress node is not a replica. Badge, hide, and activation

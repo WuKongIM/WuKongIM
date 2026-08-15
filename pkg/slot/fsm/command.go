@@ -54,6 +54,7 @@ const (
 	cmdTypeCreateChannelRuntimeMeta            uint8 = 59
 	cmdTypeUpsertUserChannelMembershipBatch    uint8 = 60
 	cmdTypeEnsureChannelDirectoriesReadyBatch  uint8 = 61
+	cmdTypePreparePersonChannelDirectoryBatch  uint8 = 62
 	cmdTypeBindPluginUser                      uint8 = 42
 	cmdTypeUnbindPluginUser                    uint8 = 43
 
@@ -234,6 +235,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeCreateChannelRuntimeMeta:            decodeCreateChannelRuntimeMeta,
 	cmdTypeUpsertUserChannelMembershipBatch:    decodeUpsertUserChannelMembershipBatch,
 	cmdTypeEnsureChannelDirectoriesReadyBatch:  decodeEnsureChannelDirectoriesReadyBatch,
+	cmdTypePreparePersonChannelDirectoryBatch:  decodePreparePersonChannelDirectoryBatch,
 	cmdTypeBindPluginUser:                      decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                    decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                          decodeApplyDelta,

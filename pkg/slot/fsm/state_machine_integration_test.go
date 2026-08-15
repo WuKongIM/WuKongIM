@@ -774,6 +774,48 @@ func TestStateMachineAppliesPersonDirectoryBatchesAcrossOwnedHashSlots(t *testin
 	}
 }
 
+func TestStateMachinePreparesPersonDirectoryMembershipAndRuntimeMetaInOneCommit(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5, 7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	command, err := EncodePreparePersonChannelDirectoryBatchCommandChecked(
+		[]UserChannelMembershipBatchItem{{
+			HashSlot: 5,
+			Membership: metadb.UserChannelMembership{
+				UID: "u1", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1,
+			},
+		}},
+		[]CreateChannelRuntimeMetaBatchItem{{
+			HashSlot: 7,
+			Meta: metadb.ChannelRuntimeMeta{
+				ChannelID: "u1@u2", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+				Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
+			},
+		}},
+	)
+	if err != nil {
+		t.Fatalf("EncodePreparePersonChannelDirectoryBatchCommandChecked() error = %v", err)
+	}
+	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, HashSlot: 5, Index: 1, Term: 1, Data: command})
+	if err != nil {
+		t.Fatalf("Apply(prepare directory batch) error = %v", err)
+	}
+	created, err := DecodeCreateChannelRuntimeMetaBatchResult(result)
+	if err != nil || len(created) != 1 || !created[0].Created {
+		t.Fatalf("prepare runtime-meta result = %#v, err=%v", created, err)
+	}
+	if _, err := db.ForHashSlot(5).GetUserChannelMembership(ctx, "u1", "u1@u2", 1); err != nil {
+		t.Fatalf("GetUserChannelMembership() error = %v", err)
+	}
+	meta, err := db.ForHashSlot(7).GetChannelRuntimeMeta(ctx, "u1@u2", 1)
+	if err != nil || meta.ChannelID != "u1@u2" || meta.Leader != 1 {
+		t.Fatalf("GetChannelRuntimeMeta() = %#v, err=%v", meta, err)
+	}
+}
+
 func TestStateMachineAppliesChannelLatestBatchAcrossOwnedHashSlots(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

@@ -22,7 +22,7 @@ const (
 var errPersonDirectoryBackpressured = errors.New("person directory batch backpressured")
 
 type personDirectoryBatchNode interface {
-	UpsertUserChannelMembershipBatch(context.Context, []metadb.UserChannelMembership) error
+	PreparePersonChannelDirectoryBatch(context.Context, []metadb.UserChannelMembership, []metadb.ChannelKey) error
 	EnsureChannelDirectoriesReady(context.Context, []metadb.ChannelKey) error
 }
 
@@ -199,7 +199,7 @@ func (b *personDirectoryBatcher) submit(ctx context.Context, entries []*personDi
 		memberships = append(memberships, entry.mutation.memberships...)
 		ready = append(ready, entry.mutation.key)
 	}
-	if err := b.node.UpsertUserChannelMembershipBatch(ctx, memberships); err != nil {
+	if err := b.node.PreparePersonChannelDirectoryBatch(ctx, memberships, ready); err != nil {
 		return err
 	}
 	return b.node.EnsureChannelDirectoriesReady(ctx, ready)

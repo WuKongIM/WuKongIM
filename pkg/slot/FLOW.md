@@ -355,7 +355,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
 - **Membership RPC 归属校验**: handler 必须在领导权和数据读取前验证 request 的 `SlotID == SlotForKey(uid)`；不能让调用方提供的 SlotID 绕过 UID 所有权边界。
 - **Permission batch RPC 归属校验**: caller 按 `SlotForKey(channel_id)` 分组，每个物理 Slot 最多一次权威 RPC；handler 必须逐 read 复核 channel key 属于 request Slot。RPC 只返回 Channel/contains/has-any 原始事实，发送权限策略和 reason 优先级留在 `internal/usecase/message`。
-- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 和 command 59 的 `CreateChannelRuntimeMetaBatch` 必须逐 entry 校验归属，不能把 envelope hashSlot 当成所有行的真实归属。
+- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch`、command 59 的 `CreateChannelRuntimeMetaBatch` 与 command 62 的 `PreparePersonChannelDirectoryBatch` 必须逐 entry 校验真实 hash slot 与目标逻辑 Slot 归属，不能把 envelope hashSlot 当成所有行的真实归属。
 - **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `pkg/db/meta` compatibility `WriteBatch.CreateUser`。
@@ -379,9 +379,9 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
 - **Channel 元数据权威分页**: `Store.ScanChannelsSlotPage` 通过 `channel scan_channels_page` 在物理 Slot leader 上扫描 channel 主记录；后台业务频道清单必须基于该权威分页聚合，不能绕过 Slot leader 或全量本地扫描。
 - **命令 50/51 升级约束**: 混合版本 Slot 副本不能安全接收 Manager Channel 条件 create/patch；发布时需要 stop-the-world 升级或 capability gate。
-- **命令 59 wire 合同**: command 59 从第一版开始就是 `CreateChannelRuntimeMetaBatch`，count=1 也使用同一格式；仓库没有旧单条 command 59 的兼容编码或回退路径。
+- **命令 59/62 wire 合同**: command 59 从第一版开始就是 `CreateChannelRuntimeMetaBatch`，count=1 也使用同一格式；command 62 是规范顺序的 membership+runtime-meta 组合编码，runtime-meta 结果沿用 command 59 的 identity-bound result wire。仓库没有旧单条 command 59 或旧 command 62 的兼容编码与回退路径。
 - **Membership 路由与分页**: 普通和 CMD membership 都按 UID hash slot 路由。普通目录 cursor 必须包含 `(activated_at, channel_id, channel_type)` 完整索引位置；limit 限制扫描候选数。
-- **Person directory 批命令**: 命令 60/61 各自最多携带 128 个规范排序且 identity 唯一的 row，并逐 row 携带真实 hash slot。FSM 必须校验所有 row 都属于同一目标逻辑 Slot Raft Group；membership 阶段全部提交成功后才能提交 directory-ready 阶段，不能在部分 UID 目录失败时发布 ready。
+- **Person directory 批命令**: 命令 60/61 各自最多携带 128 个规范排序且 identity 唯一的 row，并逐 row 携带真实 hash slot。command 62 在同一个 bounded `WriteBatch` 中合并最多 128 个 membership row 与最多 64 个 create-only runtime-meta row，返回与 command 59 相同的 identity-bound create result；它不发布 ready。FSM 必须校验所有 row 的真实 hash slot 都属于同一目标逻辑 Slot Raft Group。prepare 阶段的 membership 与 runtime meta 全部提交成功后，才能用 command 61 发布 directory-ready；不能在任一目录准备失败时发布 ready。
 - **Membership 单调语义**: `read_seq`、`deleted_to_seq`、CMD `ack_seq` 只能前进；显式 activate 更新普通 activation index，hide 同批清零 activation。`source_version` 拒绝陈旧的订阅者派生写。
 - **Conversation 表已删除**: Table ID 6/7 仅保留防复用；Slot FSM、proxy 和 cluster 不得重新引入 conversation 投影命令、RPC 或 active hint overlay。
 - **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。

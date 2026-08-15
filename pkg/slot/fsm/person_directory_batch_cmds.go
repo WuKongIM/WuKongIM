@@ -1,6 +1,7 @@
 package fsm
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"sort"
@@ -14,6 +15,10 @@ const (
 	maxPersonDirectoryBatchBytes = 256 << 10
 
 	tagPersonDirectoryBatchEntry uint8 = 1
+
+	tagPreparePersonDirectoryMembership  uint8 = 1
+	tagPreparePersonDirectoryRuntimeMeta uint8 = 2
+	maxPreparePersonDirectoryBatchBytes        = 512 << 10
 )
 
 // UserChannelMembershipBatchItem binds one membership row to its logical hash slot.
@@ -59,6 +64,188 @@ func (c *upsertUserChannelMembershipBatchCmd) applyHashSlots(uint16) []uint16 {
 
 type ensureChannelDirectoriesReadyBatchCmd struct {
 	items []ChannelDirectoryReadyBatchItem
+}
+
+// preparePersonChannelDirectoryBatchCmd commits the discovery membership rows
+// and create-only Channel runtime metadata owned by one logical Slot group in
+// one WriteBatch. DirectoryReady remains a separate later command so readers
+// cannot observe readiness before every prepare group has committed.
+type preparePersonChannelDirectoryBatchCmd struct {
+	memberships []UserChannelMembershipBatchItem
+	runtimeMeta []CreateChannelRuntimeMetaBatchItem
+	results     []*metadb.ChannelRuntimeMetaCreateResult
+}
+
+func (c *preparePersonChannelDirectoryBatchCmd) apply(wb *metadb.WriteBatch, _ uint16) error {
+	c.results = make([]*metadb.ChannelRuntimeMetaCreateResult, len(c.runtimeMeta))
+	for i, item := range c.runtimeMeta {
+		result, err := wb.CreateChannelRuntimeMeta(item.HashSlot, item.Meta)
+		if err != nil {
+			return err
+		}
+		c.results[i] = result
+	}
+	for _, item := range c.memberships {
+		if err := wb.UpsertUserChannelMembership(item.HashSlot, item.Membership); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *preparePersonChannelDirectoryBatchCmd) applyForHashSlot(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for i, item := range c.runtimeMeta {
+		if item.HashSlot != hashSlot {
+			continue
+		}
+		result, err := wb.CreateChannelRuntimeMeta(item.HashSlot, item.Meta)
+		if err != nil {
+			return err
+		}
+		if len(c.results) != len(c.runtimeMeta) {
+			c.results = make([]*metadb.ChannelRuntimeMetaCreateResult, len(c.runtimeMeta))
+		}
+		c.results[i] = result
+	}
+	for _, item := range c.memberships {
+		if item.HashSlot == hashSlot {
+			if err := wb.UpsertUserChannelMembership(item.HashSlot, item.Membership); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c *preparePersonChannelDirectoryBatchCmd) applyHashSlots(uint16) []uint16 {
+	hashSlots := make([]uint16, 0, len(c.memberships)+len(c.runtimeMeta))
+	for _, item := range c.memberships {
+		hashSlots = append(hashSlots, item.HashSlot)
+	}
+	for _, item := range c.runtimeMeta {
+		hashSlots = append(hashSlots, item.HashSlot)
+	}
+	sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+	unique := hashSlots[:0]
+	for _, hashSlot := range hashSlots {
+		if len(unique) == 0 || unique[len(unique)-1] != hashSlot {
+			unique = append(unique, hashSlot)
+		}
+	}
+	return unique
+}
+
+func (c *preparePersonChannelDirectoryBatchCmd) applyResult() []byte {
+	results := make([]CreateChannelRuntimeMetaBatchResult, len(c.runtimeMeta))
+	for i, item := range c.runtimeMeta {
+		results[i] = CreateChannelRuntimeMetaBatchResult{
+			HashSlot: item.HashSlot, ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType,
+		}
+		if i < len(c.results) && c.results[i] != nil {
+			results[i].Created = c.results[i].Created
+		}
+	}
+	return EncodeCreateChannelRuntimeMetaBatchResult(results)
+}
+
+// EncodePreparePersonChannelDirectoryBatchCommandChecked encodes one bounded
+// command-62 prepare batch. Runtime metadata is required because membership-
+// only batches continue to use command 60.
+func EncodePreparePersonChannelDirectoryBatchCommandChecked(memberships []UserChannelMembershipBatchItem, runtimeMeta []CreateChannelRuntimeMetaBatchItem) ([]byte, error) {
+	var canonicalMemberships []UserChannelMembershipBatchItem
+	var err error
+	if len(memberships) > 0 {
+		canonicalMemberships, err = canonicalMembershipBatch(memberships)
+		if err != nil {
+			return nil, err
+		}
+	}
+	canonicalRuntimeMeta, err := canonicalCreateChannelRuntimeMetaBatch(runtimeMeta)
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, 0, headerSize+len(canonicalMemberships)*128+len(canonicalRuntimeMeta)*160)
+	buf = append(buf, commandVersion, cmdTypePreparePersonChannelDirectoryBatch)
+	for _, item := range canonicalMemberships {
+		entry := make([]byte, 2)
+		binary.BigEndian.PutUint16(entry, item.HashSlot)
+		entry = append(entry, encodeUserChannelMembershipEntry(item.Membership, true)...)
+		buf = appendBytesTLVField(buf, tagPreparePersonDirectoryMembership, entry)
+	}
+	for _, item := range canonicalRuntimeMeta {
+		entry := make([]byte, 2)
+		binary.BigEndian.PutUint16(entry, item.HashSlot)
+		entry = append(entry, EncodeUpsertChannelRuntimeMetaCommand(item.Meta)...)
+		buf = appendBytesTLVField(buf, tagPreparePersonDirectoryRuntimeMeta, entry)
+	}
+	if len(buf) > maxPreparePersonDirectoryBatchBytes {
+		return nil, metadb.ErrInvalidArgument
+	}
+	return buf, nil
+}
+
+func decodePreparePersonChannelDirectoryBatch(data []byte) (command, error) {
+	if len(data)+headerSize > maxPreparePersonDirectoryBatchBytes {
+		return nil, metadb.ErrInvalidArgument
+	}
+	memberships := make([]UserChannelMembershipBatchItem, 0, MaxPersonDirectoryBatchItems)
+	runtimeMeta := make([]CreateChannelRuntimeMetaBatchItem, 0, MaxCreateChannelRuntimeMetaBatchItems)
+	for off := 0; off < len(data); {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		if len(value) < 2 {
+			return nil, metadb.ErrInvalidArgument
+		}
+		hashSlot := binary.BigEndian.Uint16(value[:2])
+		switch tag {
+		case tagPreparePersonDirectoryMembership:
+			if len(memberships) == MaxPersonDirectoryBatchItems {
+				return nil, metadb.ErrInvalidArgument
+			}
+			membership, err := decodeUserChannelMembershipEntry(value[2:], true)
+			if err != nil {
+				return nil, err
+			}
+			memberships = append(memberships, UserChannelMembershipBatchItem{HashSlot: hashSlot, Membership: membership})
+		case tagPreparePersonDirectoryRuntimeMeta:
+			if len(runtimeMeta) == MaxCreateChannelRuntimeMetaBatchItems || len(value) < 4 ||
+				value[2] != commandVersion || value[3] != cmdTypeUpsertChannelRuntimeMeta {
+				return nil, metadb.ErrInvalidArgument
+			}
+			decoded, err := decodeUpsertChannelRuntimeMeta(value[4:])
+			if err != nil {
+				return nil, err
+			}
+			upsert, ok := decoded.(*upsertChannelRuntimeMetaCmd)
+			if !ok {
+				return nil, metadb.ErrCorruptValue
+			}
+			runtimeMeta = append(runtimeMeta, CreateChannelRuntimeMetaBatchItem{HashSlot: hashSlot, Meta: upsert.meta})
+		default:
+			return nil, metadb.ErrInvalidArgument
+		}
+	}
+	canonical, err := EncodePreparePersonChannelDirectoryBatchCommandChecked(memberships, runtimeMeta)
+	if err != nil {
+		return nil, err
+	}
+	original := append([]byte{commandVersion, cmdTypePreparePersonChannelDirectoryBatch}, data...)
+	if !bytes.Equal(original, canonical) {
+		return nil, fmt.Errorf("%w: non-canonical person directory prepare batch", metadb.ErrCorruptValue)
+	}
+	decodedMemberships, _ := canonicalMembershipBatchOptional(memberships)
+	decodedRuntimeMeta, _ := canonicalCreateChannelRuntimeMetaBatch(runtimeMeta)
+	return &preparePersonChannelDirectoryBatchCmd{memberships: decodedMemberships, runtimeMeta: decodedRuntimeMeta}, nil
+}
+
+func canonicalMembershipBatchOptional(items []UserChannelMembershipBatchItem) ([]UserChannelMembershipBatchItem, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	return canonicalMembershipBatch(items)
 }
 
 func (c *ensureChannelDirectoriesReadyBatchCmd) apply(wb *metadb.WriteBatch, _ uint16) error {

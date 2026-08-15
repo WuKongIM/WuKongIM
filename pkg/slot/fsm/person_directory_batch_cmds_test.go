@@ -57,6 +57,63 @@ func TestPersonDirectoryBatchCommandsCanonicalizeAndExposeOwnedHashSlots(t *test
 	}
 }
 
+func TestPreparePersonChannelDirectoryBatchCombinesMembershipAndRuntimeMeta(t *testing.T) {
+	memberships := []UserChannelMembershipBatchItem{{
+		HashSlot: 2,
+		Membership: metadb.UserChannelMembership{
+			UID: "u1", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 2,
+		},
+	}}
+	metas := []CreateChannelRuntimeMetaBatchItem{{
+		HashSlot: 7,
+		Meta: metadb.ChannelRuntimeMeta{
+			ChannelID: "u1@u2", ChannelType: 1, Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
+		},
+	}}
+	encoded, err := EncodePreparePersonChannelDirectoryBatchCommandChecked(memberships, metas)
+	if err != nil {
+		t.Fatalf("EncodePreparePersonChannelDirectoryBatchCommandChecked() error = %v", err)
+	}
+	if !IsCreateChannelRuntimeMetaCommand(encoded) {
+		t.Fatal("combined directory prepare command did not expose runtime-meta creation")
+	}
+	if count, err := CreateChannelRuntimeMetaBatchCommandSize(encoded); err != nil || count != 1 {
+		t.Fatalf("runtime-meta create count = %d, err=%v, want 1", count, err)
+	}
+	if slots, err := DecodeCommandHashSlots(encoded, 2); err != nil || !reflect.DeepEqual(slots, []uint16{2, 7}) {
+		t.Fatalf("combined command hash slots = %#v, err=%v, want [2 7]", slots, err)
+	}
+}
+
+func TestPreparePersonChannelDirectoryBatchRejectsNonCanonicalWireOrder(t *testing.T) {
+	memberships := []UserChannelMembershipBatchItem{{
+		HashSlot: 2,
+		Membership: metadb.UserChannelMembership{
+			UID: "u1", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 2,
+		},
+	}}
+	metas := []CreateChannelRuntimeMetaBatchItem{{
+		HashSlot: 7,
+		Meta: metadb.ChannelRuntimeMeta{
+			ChannelID: "u1@u2", ChannelType: 1, Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
+		},
+	}}
+	encoded, err := EncodePreparePersonChannelDirectoryBatchCommandChecked(memberships, metas)
+	if err != nil {
+		t.Fatalf("EncodePreparePersonChannelDirectoryBatchCommandChecked() error = %v", err)
+	}
+	_, _, membershipBytes, err := readTLV(encoded[headerSize:])
+	if err != nil {
+		t.Fatalf("read membership TLV: %v", err)
+	}
+	nonCanonical := append([]byte(nil), encoded[:headerSize]...)
+	nonCanonical = append(nonCanonical, encoded[headerSize+membershipBytes:]...)
+	nonCanonical = append(nonCanonical, encoded[headerSize:headerSize+membershipBytes]...)
+	if _, err := decodeCommand(nonCanonical); !errors.Is(err, metadb.ErrCorruptValue) {
+		t.Fatalf("decode non-canonical prepare command error = %v, want corrupt value", err)
+	}
+}
+
 func TestPersonDirectoryBatchCommandsRejectDuplicateAndUnboundedInput(t *testing.T) {
 	membership := UserChannelMembershipBatchItem{HashSlot: 1, Membership: metadb.UserChannelMembership{UID: "u1", ChannelID: "u1@u2", ChannelType: 1}}
 	if _, err := EncodeUpsertUserChannelMembershipBatchCommandChecked([]UserChannelMembershipBatchItem{membership, membership}); !errors.Is(err, metadb.ErrInvalidArgument) {

@@ -31,8 +31,8 @@ func TestPersonDirectoryBatcherCoalescesConcurrentChannelsIntoTwoDurablePhases(t
 
 	node.mu.Lock()
 	defer node.mu.Unlock()
-	if node.membershipCalls != 1 || len(node.memberships) != 8 {
-		t.Fatalf("membership calls/rows = %d/%d, want 1/8", node.membershipCalls, len(node.memberships))
+	if node.prepareCalls != 1 || len(node.memberships) != 8 || len(node.preparedChannels) != 4 {
+		t.Fatalf("prepare calls/membership rows/channels = %d/%d/%d, want 1/8/4", node.prepareCalls, len(node.memberships), len(node.preparedChannels))
 	}
 	if node.readyCalls != 1 || len(node.ready) != 4 {
 		t.Fatalf("ready calls/rows = %d/%d, want 1/4", node.readyCalls, len(node.ready))
@@ -41,7 +41,7 @@ func TestPersonDirectoryBatcherCoalescesConcurrentChannelsIntoTwoDurablePhases(t
 
 func TestPersonDirectoryBatcherDoesNotPublishReadyAfterMembershipFailure(t *testing.T) {
 	membershipErr := errors.New("membership failed")
-	node := &recordingPersonDirectoryBatchNode{membershipErr: membershipErr}
+	node := &recordingPersonDirectoryBatchNode{prepareErr: membershipErr}
 	batcher := newPersonDirectoryBatcher(node)
 	batcher.collectWait = time.Millisecond
 	batcher.targetItems = 8
@@ -71,19 +71,21 @@ func testPersonDirectoryMutation(index int) personDirectoryMutation {
 type recordingPersonDirectoryBatchNode struct {
 	mu sync.Mutex
 
-	membershipCalls int
-	memberships     []metadb.UserChannelMembership
-	membershipErr   error
-	readyCalls      int
-	ready           []metadb.ChannelKey
+	prepareCalls     int
+	memberships      []metadb.UserChannelMembership
+	preparedChannels []metadb.ChannelKey
+	prepareErr       error
+	readyCalls       int
+	ready            []metadb.ChannelKey
 }
 
-func (n *recordingPersonDirectoryBatchNode) UpsertUserChannelMembershipBatch(_ context.Context, memberships []metadb.UserChannelMembership) error {
+func (n *recordingPersonDirectoryBatchNode) PreparePersonChannelDirectoryBatch(_ context.Context, memberships []metadb.UserChannelMembership, channels []metadb.ChannelKey) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.membershipCalls++
+	n.prepareCalls++
 	n.memberships = append(n.memberships, memberships...)
-	return n.membershipErr
+	n.preparedChannels = append(n.preparedChannels, channels...)
+	return n.prepareErr
 }
 
 func (n *recordingPersonDirectoryBatchNode) EnsureChannelDirectoriesReady(_ context.Context, ready []metadb.ChannelKey) error {

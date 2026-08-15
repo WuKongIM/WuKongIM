@@ -66,7 +66,7 @@ type committedChannelTailNode interface {
 type PersonDirectoryNode interface {
 	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
 	CommittedChannelTail(context.Context, string, int64) (uint64, error)
-	UpsertUserChannelMembershipBatch(context.Context, []metadb.UserChannelMembership) error
+	PreparePersonChannelDirectoryBatch(context.Context, []metadb.UserChannelMembership, []metadb.ChannelKey) error
 	EnsureChannelDirectoriesReady(context.Context, []metadb.ChannelKey) error
 }
 

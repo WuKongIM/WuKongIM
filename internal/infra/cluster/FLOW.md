@@ -591,8 +591,9 @@ ordinary subscriber projection
 first persistent person SEND
   -> authoritative Channel DirectoryReady read + committed Channel tail
   -> node-local bounded directory batch (128 channels, 512 queued)
-  -> group both UID membership rows by logical Slot Raft Group
-  -> join all membership proposals
+  -> one route snapshot groups UID membership rows and create-only ChannelRuntimeMeta by logical Slot Raft Group
+  -> command 62 commits both record kinds in one prepare WriteBatch where possible
+  -> join all prepare proposals
   -> group and commit Channel DirectoryReady rows
 ```
 
@@ -604,10 +605,11 @@ future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
 The message adapter coalesces concurrent cold person channels for at most 250
 milliseconds or until 128 unique channels are ready. At most four 128-channel
-batches mutate independent Slot proposals concurrently while later bounded batches collect;
+batches mutate independent Slot prepare proposals concurrently while later bounded batches collect;
 duplicate channels share one result, caller cancellation detaches only that
-waiter, and accepted work has a four-second bound. Membership failure prevents
-the ready phase, preserving the durable discovery invariant.
+waiter, and accepted work has a four-second bound. Membership or runtime-meta
+prepare failure prevents the ready phase, preserving the durable discovery and
+first-append invariant without a later command-59 round trip.
 The Manager path requires the conditional metadata facade. Create-only channel
 writes and existing-only business-flag patches are proposed to the Slot leader;
 the flag patch invalidates append metadata cache state because the FSM preserves
