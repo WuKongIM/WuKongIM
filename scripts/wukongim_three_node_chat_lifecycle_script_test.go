@@ -73,6 +73,10 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		t.Fatal("the measured phase must close before the coordinator stop request")
 	}
 	terminalBoundary := strings.LastIndex(script, "if ! close_terminal_drain_boundary; then")
+	hostOverlapJoin := strings.LastIndex(script, "  check_measured_host_overlap\n")
+	if terminalBoundary < 0 || hostOverlapJoin < 0 || terminalBoundary > hostOverlapJoin {
+		t.Fatal("measured phase must close before joining the phase-scoped host-overlap monitor")
+	}
 	finalServiceSample := strings.LastIndex(script, `capture_service_metrics "sample-$metrics_sequence"`)
 	afterServiceSample := strings.LastIndex(script, "capture_service_metrics after")
 	if terminalBoundary < 0 || finalServiceSample < terminalBoundary ||

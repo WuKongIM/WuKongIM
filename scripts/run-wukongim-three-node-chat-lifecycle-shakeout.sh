@@ -1558,7 +1558,7 @@ if (( MEASURE_SECONDS == 0 )) && [[ -n "$HARNESS_FAILURE_REASON" ]]; then
   finalize_unmeasured_harness_failure
 fi
 if (( MEASURE_SECONDS > 0 )); then
-  check_measured_host_overlap
+  terminal_boundary_closed=0
   if ! close_terminal_drain_boundary; then
     if (( DRAIN_BOUNDARY_RECORDED == 0 )); then
       if (( qualification_seen == 1 )); then
@@ -1572,7 +1572,11 @@ if (( MEASURE_SECONDS > 0 )); then
     fi
     log 'typed terminal cut was unavailable; drain/shutdown boundaries remain incomplete'
     write_phase_state shutdown
-  elif ! wait_for_service_sample_after_terminal_boundary; then
+  else
+    terminal_boundary_closed=1
+  fi
+  check_measured_host_overlap
+  if (( terminal_boundary_closed != 0 )) && ! wait_for_service_sample_after_terminal_boundary; then
     log 'wall clock did not advance beyond the exact terminal boundary; timeline will fail closed'
   fi
   metrics_sequence=$((metrics_sequence + 1))
