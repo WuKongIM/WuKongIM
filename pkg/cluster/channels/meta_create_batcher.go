@@ -11,6 +11,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -30,10 +31,12 @@ var (
 )
 
 type metaCreateBatcher struct {
-	router   RuntimeMetaBatchRouter
-	store    RuntimeMetaBatchStore
-	observer MetaCreateBatchObserver
-	build    runtimeMetaCreateBatchBuilder
+	router     RuntimeMetaBatchRouter
+	store      RuntimeMetaBatchStore
+	observer   MetaCreateBatchObserver
+	goroutines *goruntimeregistry.Registry
+	build      runtimeMetaCreateBatchBuilder
+	stage      func(string, string, time.Duration)
 
 	mu       sync.Mutex
 	owners   map[uint32]*metaCreateSlotOwner
@@ -50,10 +53,10 @@ type runtimeMetaCreatePlanItem struct {
 
 type runtimeMetaCreateBatchBuilder func(context.Context, []runtimeMetaCreatePlanItem) ([]RuntimeMetaCreateItem, error)
 
-func newMetaCreateBatcher(router RuntimeMetaBatchRouter, store RuntimeMetaBatchStore, observer MetaCreateBatchObserver, build runtimeMetaCreateBatchBuilder) *metaCreateBatcher {
+func newMetaCreateBatcher(router RuntimeMetaBatchRouter, store RuntimeMetaBatchStore, observer MetaCreateBatchObserver, goroutines *goruntimeregistry.Registry, build runtimeMetaCreateBatchBuilder, stage func(string, string, time.Duration)) *metaCreateBatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &metaCreateBatcher{
-		router: router, store: store, observer: observer, build: build,
+		router: router, store: store, observer: observer, goroutines: goroutines, build: build, stage: stage,
 		owners: make(map[uint32]*metaCreateSlotOwner), rootCtx: ctx, cancel: cancel,
 	}
 }
@@ -123,7 +126,7 @@ func (b *metaCreateBatcher) owner(slotID uint32) (*metaCreateSlotOwner, error) {
 	}
 	b.owners[slotID] = owner
 	b.wg.Add(1)
-	go owner.run()
+	goruntimeregistry.SafeGo(b.goroutines, goruntimeregistry.TaskClusterMetaCreateBatch, owner.run)
 	return owner, nil
 }
 
@@ -190,12 +193,7 @@ type metaCreateWaiter struct {
 type metaCreateEnsureResult struct {
 	meta      metadb.ChannelRuntimeMeta
 	err       error
-	buildErr  error
 	createErr error
-	readErr   error
-	// readObserved distinguishes a successful authoritative reread from a
-	// pre-submit failure that never reached the read boundary.
-	readObserved bool
 }
 
 func (o *metaCreateSlotOwner) admit(id ch.ChannelID, hashSlot uint16) (*metaCreateWaiter, error) {
@@ -319,6 +317,7 @@ func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool) {
 
 func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.ChannelKey]metaCreateEnsureResult {
 	results := make(map[metadb.ChannelKey]metaCreateEnsureResult, len(batch))
+	buildStarted := time.Now()
 	keys := make([]string, len(batch))
 	for i, entry := range batch {
 		keys[i] = entry.item.Meta.ChannelID
@@ -327,12 +326,17 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 	if err != nil || len(routes) != len(batch) {
 		if err == nil {
 			err = fmt.Errorf("%w: aligned runtime metadata routes", metadb.ErrCorruptValue)
+		} else if errors.Is(err, ch.ErrStaleMeta) || errors.Is(err, metadb.ErrStaleMeta) {
+			err = fmt.Errorf("%w: %w", errMetaCreateReroute, err)
 		}
-		return metaCreateBatchCreateErrorResults(batch, err)
+		o.observeStage(channelMetaStageCreateBuild, err, buildStarted)
+		return metaCreateBatchBuildErrorResults(batch, err)
 	}
 	for i, route := range routes {
 		if route.SlotID != o.slotID || !sameRuntimeMetaBatchRoute(routes[0], route) {
-			return metaCreateBatchCreateErrorResults(batch, fmt.Errorf("%w: %w", errMetaCreateReroute, metadb.ErrStaleMeta))
+			err = fmt.Errorf("%w: %w", errMetaCreateReroute, metadb.ErrStaleMeta)
+			o.observeStage(channelMetaStageCreateBuild, err, buildStarted)
+			return metaCreateBatchBuildErrorResults(batch, err)
 		}
 		batch[i].item.HashSlot = route.HashSlot
 		batch[i].route = route
@@ -361,21 +365,30 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 		buildErr = validateRuntimeMetaCreateItems(plans, items)
 	}
 	if buildErr != nil {
+		if errors.Is(buildErr, ch.ErrStaleMeta) || errors.Is(buildErr, metadb.ErrStaleMeta) {
+			buildErr = fmt.Errorf("%w: %w", errMetaCreateReroute, buildErr)
+		}
+		o.observeStage(channelMetaStageCreateBuild, buildErr, buildStarted)
 		o.observeBatch("error", len(batch))
 		return metaCreateBatchBuildErrorResults(batch, buildErr)
 	}
+	o.observeStage(channelMetaStageCreateBuild, nil, buildStarted)
 	for i := range batch {
 		batch[i].item = items[i]
 	}
+	createStarted := time.Now()
 	created, createErr := o.batcher.store.CreateChannelRuntimeMetaBatch(ctx, routes[0], items)
 	if createErr == nil {
 		createErr = validateRuntimeMetaCreateResults(items, created)
 	}
+	o.observeStage(channelMetaStageCreatePropose, createErr, createStarted)
+	readStarted := time.Now()
 	reads, readErr := o.batcher.store.BatchGetChannelRuntimeMetas(ctx, routes[0], items)
 	if readErr == nil && len(reads) != len(items) {
 		readErr = fmt.Errorf("%w: aligned runtime metadata reread", metadb.ErrCorruptValue)
 	}
 	if readErr != nil {
+		o.observeStage(channelMetaStageFinalRead, readErr, readStarted)
 		o.observeBatch("error", len(items))
 		if createErr != nil {
 			return metaCreateBatchCreateAndReadErrorResults(batch, createErr, readErr)
@@ -383,23 +396,29 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 		return metaCreateBatchReadErrorResults(batch, readErr)
 	}
 	allFound := true
+	var readStageErr error
 	for i, read := range reads {
 		if read.Err != nil {
 			allFound = false
 			err := read.Err
-			if createErr != nil {
+			if readStageErr == nil || !errors.Is(read.Err, metadb.ErrNotFound) {
+				readStageErr = read.Err
+			}
+			if createErr != nil && errors.Is(read.Err, metadb.ErrNotFound) {
 				err = fmt.Errorf("%w: %w", errMetaCreateRetryMissing, createErr)
 			}
-			results[batch[i].key] = metaCreateEnsureResult{err: err, createErr: createErr, readErr: read.Err, readObserved: true}
+			results[batch[i].key] = metaCreateEnsureResult{err: err, createErr: createErr}
 			continue
 		}
 		if read.Meta.ChannelID != items[i].Meta.ChannelID || read.Meta.ChannelType != items[i].Meta.ChannelType {
 			allFound = false
-			results[batch[i].key] = metaCreateEnsureResult{err: metadb.ErrCorruptValue, createErr: createErr, readErr: metadb.ErrCorruptValue, readObserved: true}
+			readStageErr = metadb.ErrCorruptValue
+			results[batch[i].key] = metaCreateEnsureResult{err: metadb.ErrCorruptValue, createErr: createErr}
 			continue
 		}
-		results[batch[i].key] = metaCreateEnsureResult{meta: read.Meta, createErr: createErr, readObserved: true}
+		results[batch[i].key] = metaCreateEnsureResult{meta: read.Meta, createErr: createErr}
 	}
+	o.observeStage(channelMetaStageFinalRead, readStageErr, readStarted)
 	result := "ok"
 	if createErr != nil && allFound {
 		result = "recovered"
@@ -408,6 +427,13 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 	}
 	o.observeBatch(result, len(items))
 	return results
+}
+
+func (o *metaCreateSlotOwner) observeStage(stage string, err error, started time.Time) {
+	if o == nil || o.batcher == nil || o.batcher.stage == nil {
+		return
+	}
+	o.batcher.stage(stage, metaStageResult(err), time.Since(started))
 }
 
 func sameRuntimeMetaBatchRoute(left, right routing.Route) bool {
@@ -445,15 +471,7 @@ func validateRuntimeMetaCreateItems(plans []runtimeMetaCreatePlanItem, items []R
 func metaCreateBatchBuildErrorResults(batch []*metaCreateEntry, err error) map[metadb.ChannelKey]metaCreateEnsureResult {
 	results := make(map[metadb.ChannelKey]metaCreateEnsureResult, len(batch))
 	for _, entry := range batch {
-		results[entry.key] = metaCreateEnsureResult{err: err, buildErr: err}
-	}
-	return results
-}
-
-func metaCreateBatchCreateErrorResults(batch []*metaCreateEntry, err error) map[metadb.ChannelKey]metaCreateEnsureResult {
-	results := make(map[metadb.ChannelKey]metaCreateEnsureResult, len(batch))
-	for _, entry := range batch {
-		results[entry.key] = metaCreateEnsureResult{err: err, createErr: err}
+		results[entry.key] = metaCreateEnsureResult{err: err}
 	}
 	return results
 }
@@ -461,7 +479,7 @@ func metaCreateBatchCreateErrorResults(batch []*metaCreateEntry, err error) map[
 func metaCreateBatchReadErrorResults(batch []*metaCreateEntry, err error) map[metadb.ChannelKey]metaCreateEnsureResult {
 	results := make(map[metadb.ChannelKey]metaCreateEnsureResult, len(batch))
 	for _, entry := range batch {
-		results[entry.key] = metaCreateEnsureResult{err: err, readErr: err, readObserved: true}
+		results[entry.key] = metaCreateEnsureResult{err: err}
 	}
 	return results
 }
@@ -469,7 +487,7 @@ func metaCreateBatchReadErrorResults(batch []*metaCreateEntry, err error) map[me
 func metaCreateBatchCreateAndReadErrorResults(batch []*metaCreateEntry, createErr, readErr error) map[metadb.ChannelKey]metaCreateEnsureResult {
 	results := make(map[metadb.ChannelKey]metaCreateEnsureResult, len(batch))
 	for _, entry := range batch {
-		results[entry.key] = metaCreateEnsureResult{err: errors.Join(createErr, readErr), createErr: createErr, readErr: readErr, readObserved: true}
+		results[entry.key] = metaCreateEnsureResult{err: errors.Join(createErr, readErr), createErr: createErr}
 	}
 	return results
 }

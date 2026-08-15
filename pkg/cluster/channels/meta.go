@@ -6,6 +6,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // ChannelMetaSource resolves authoritative Channel metadata.
@@ -122,9 +123,10 @@ type PlacementRouter interface {
 	RouteKey(string) (routing.Route, error)
 }
 
-// DataNodeProvider returns active data-node candidates for initial Channel placement.
+// DataNodeProvider returns active data-node candidates and the exact control
+// revision from which they were derived for initial Channel placement.
 type DataNodeProvider interface {
-	DataNodes() []uint64
+	PlacementDataNodes(context.Context, uint64) ([]uint64, error)
 }
 
 // SlotMetaSourceOptions configures first-append metadata creation.
@@ -142,6 +144,8 @@ type SlotMetaSourceOptions struct {
 	BatchStore RuntimeMetaBatchStore
 	// BatchObserver receives low-cardinality coalescer metrics.
 	BatchObserver MetaCreateBatchObserver
+	// Goroutines supervises the lazily created per-Slot batch owners.
+	Goroutines *goruntimeregistry.Registry
 	// Observer receives low-cardinality metadata resolve stage metrics.
 	Observer AppendStageObserver
 }

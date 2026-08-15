@@ -275,6 +275,7 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 		Router:        n.router,
 		BatchStore:    store,
 		BatchObserver: batchObserver,
+		Goroutines:    n.cfg.Goroutines,
 		Observer:      observer,
 	})
 }
@@ -369,14 +370,14 @@ func (s defaultChannelRuntimeMetaStore) CreateChannelRuntimeMetaBatch(ctx contex
 
 // BatchGetChannelRuntimeMetas performs one aligned authoritative reread after
 // the command-59 future has resolved.
-func (s defaultChannelRuntimeMetaStore) BatchGetChannelRuntimeMetas(ctx context.Context, expected routing.Route, items []channels.RuntimeMetaCreateItem) ([]channels.RuntimeMetaReadResult, error) {
+func (s defaultChannelRuntimeMetaStore) BatchGetChannelRuntimeMetas(ctx context.Context, _ routing.Route, items []channels.RuntimeMetaCreateItem) ([]channels.RuntimeMetaReadResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
 	if s.node == nil || s.node.defaultSlotProxy == nil {
 		return nil, ErrNotStarted
 	}
-	if err := s.validateRuntimeMetaBatchRoute(items, expected); err != nil {
+	if _, err := s.validateRuntimeMetaBatchItems(items); err != nil {
 		return nil, err
 	}
 	keys := make([]metadb.ChannelKey, len(items))
@@ -404,8 +405,23 @@ func (s defaultChannelRuntimeMetaStore) BatchGetChannelRuntimeMetas(ctx context.
 }
 
 func (s defaultChannelRuntimeMetaStore) validateRuntimeMetaBatchRoute(items []channels.RuntimeMetaCreateItem, expected routing.Route) error {
+	routes, err := s.validateRuntimeMetaBatchItems(items)
+	if err != nil {
+		return err
+	}
+	for _, route := range routes {
+		if route.SlotID != expected.SlotID || route.Leader != expected.Leader ||
+			route.LeaderTerm != expected.LeaderTerm || route.ConfigEpoch != expected.ConfigEpoch ||
+			route.Revision != expected.Revision {
+			return fmt.Errorf("%w: runtime metadata batch route changed", metadb.ErrStaleMeta)
+		}
+	}
+	return nil
+}
+
+func (s defaultChannelRuntimeMetaStore) validateRuntimeMetaBatchItems(items []channels.RuntimeMetaCreateItem) ([]Route, error) {
 	if len(items) == 0 || len(items) > metafsm.MaxCreateChannelRuntimeMetaBatchItems {
-		return metadb.ErrInvalidArgument
+		return nil, metadb.ErrInvalidArgument
 	}
 	keys := make([]string, len(items))
 	for i, item := range items {
@@ -413,19 +429,17 @@ func (s defaultChannelRuntimeMetaStore) validateRuntimeMetaBatchRoute(items []ch
 	}
 	routes, err := s.node.RouteKeys(keys)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(routes) != len(items) {
-		return fmt.Errorf("%w: aligned runtime metadata batch routes", metadb.ErrCorruptValue)
+		return nil, fmt.Errorf("%w: aligned runtime metadata batch routes", metadb.ErrCorruptValue)
 	}
 	for i, route := range routes {
-		if route.HashSlot != items[i].HashSlot || route.SlotID != expected.SlotID ||
-			route.Leader != expected.Leader || route.LeaderTerm != expected.LeaderTerm ||
-			route.ConfigEpoch != expected.ConfigEpoch || route.Revision != expected.Revision {
-			return fmt.Errorf("%w: runtime metadata batch route changed", metadb.ErrStaleMeta)
+		if route.HashSlot != items[i].HashSlot {
+			return nil, fmt.Errorf("%w: runtime metadata batch hash-slot changed", metadb.ErrStaleMeta)
 		}
 	}
-	return nil
+	return routes, nil
 }
 
 func (s defaultChannelRuntimeMetaStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {

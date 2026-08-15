@@ -134,7 +134,7 @@ func TestNodeProbeWriteReadyProposesOneNoopPerPhysicalSlot(t *testing.T) {
 	}
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
 	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 2, HashSlotCount: 4}
-	node.channelDataNodes.Update([]uint64{1})
+	node.channelDataNodes.UpdateAtRevision(node.router.Table().Revision, []uint64{1})
 	node.started.Store(true)
 
 	if err := node.ProbeWriteReady(context.Background()); err != nil {
@@ -193,7 +193,7 @@ func TestNodeProbeWriteReadyBoundsPhysicalSlotProbes(t *testing.T) {
 	}
 	node.router.UpdateSlotLeaders(statuses)
 	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 6, HashSlotCount: 6}
-	node.channelDataNodes.Update([]uint64{1})
+	node.channelDataNodes.UpdateAtRevision(node.router.Table().Revision, []uint64{1})
 	node.started.Store(true)
 
 	if err := node.ProbeWriteReady(context.Background()); err != nil {
@@ -271,7 +271,7 @@ func TestNodeProbeWriteReadyMarksChannelDataPlaneLeaseAfterSuccessfulProbe(t *te
 	}
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
 	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1}
-	node.channelDataNodes.Update([]uint64{1})
+	node.channelDataNodes.UpdateAtRevision(node.router.Table().Revision, []uint64{1})
 	node.channels = noopChannelService{}
 	node.started.Store(true)
 

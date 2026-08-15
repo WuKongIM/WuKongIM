@@ -14,6 +14,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
 func TestDefaultSlotProposerObservesMetaCreateSubmitAndWait(t *testing.T) {
@@ -377,6 +378,48 @@ func TestDefaultChannelRuntimeMetaStoreCreatesBatchWithAuthoritativeResults(t *t
 	if proposer.last.Target.HashSlot != route.HashSlot || proposer.last.Target.SlotID != route.SlotID ||
 		!proposer.last.Target.HasHashSlot || !proposer.last.Target.HasSlotID {
 		t.Fatalf("proposal target = %#v, want exact route %#v", proposer.last.Target, route)
+	}
+}
+
+func TestDefaultChannelRuntimeMetaStoreAuthoritativeRereadFollowsCurrentLeader(t *testing.T) {
+	meta := metadb.NormalizeChannelRuntimeMeta(metadb.ChannelRuntimeMeta{
+		ChannelID: "reread-current-leader", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 2, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2, 3}, MinISR: 2,
+	})
+	router := routing.NewRouter()
+	if err := router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 1}})
+	expected, err := router.RouteKey(meta.ChannelID)
+	if err != nil {
+		t.Fatalf("RouteKey(initial) error = %v", err)
+	}
+
+	db, err := metadb.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.ForHashSlot(expected.HashSlot).UpsertChannelRuntimeMeta(context.Background(), meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta() error = %v", err)
+	}
+
+	node := &Node{cfg: Config{NodeID: 2}, router: router}
+	node.started.Store(true)
+	node.defaultSlotProxy = slotproxy.NewChannelMetadataStore(node, db)
+	router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: expected.SlotID, Leader: 2, LeaderTerm: expected.LeaderTerm + 1}})
+
+	store := defaultChannelRuntimeMetaStore{node: node}
+	reads, err := store.BatchGetChannelRuntimeMetas(context.Background(), expected, []clusterchannels.RuntimeMetaCreateItem{{
+		HashSlot: expected.HashSlot,
+		Meta:     meta,
+	}})
+	if err != nil {
+		t.Fatalf("BatchGetChannelRuntimeMetas() error = %v, want current-leader reread", err)
+	}
+	if len(reads) != 1 || reads[0].Err != nil || reads[0].Meta.ChannelID != meta.ChannelID {
+		t.Fatalf("BatchGetChannelRuntimeMetas() = %#v, want authoritative current-leader row", reads)
 	}
 }
 

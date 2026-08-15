@@ -89,9 +89,10 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 			return err
 		}
 	}
-	if firstSnapshot || changes.nodes {
-		n.channelDataNodes.Update(activeDataNodeIDs(snapshot.Nodes))
-	}
+	// Placement candidates carry the accepted control revision even when the
+	// node set is unchanged, because foreground routes advance on every applied
+	// snapshot and must never be combined with an older candidate generation.
+	n.channelDataNodes.UpdateAtRevision(snapshot.Revision, activeDataNodeIDs(snapshot.Nodes))
 	if n.router != nil {
 		_ = n.updateRouteAuthorityTable(func() error {
 			n.router.AdvanceRevision(snapshot.Revision)

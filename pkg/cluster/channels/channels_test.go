@@ -265,6 +265,31 @@ func TestSlotMetaSourceObservesEnsureMetaStageBreakdown(t *testing.T) {
 	requireAppendStage(t, observer.events, "meta_create_propose", "ok")
 	requireAppendStage(t, observer.events, "meta_create_write", "ok")
 	requireAppendStage(t, observer.events, "meta_final_read", "ok")
+	for _, stage := range []string{"meta_create_build", "meta_create_propose", "meta_final_read"} {
+		requirePositiveAppendStageDuration(t, observer.events, stage)
+	}
+}
+
+func TestSlotMetaSourceDoesNotObserveProposalWhenPlacementBuildFails(t *testing.T) {
+	id := ch.ChannelID{ID: "ensure-build-failed", Type: 1}
+	reader := &runtimeMetaReaderFake{err: metadb.ErrNotFound}
+	observer := &appendStageObserver{}
+	source := NewSlotMetaSource(reader, withTestMetaBatch(reader, SlotMetaSourceOptions{
+		Placement: fakePlacementResolver{err: ch.ErrStaleMeta},
+		Observer:  observer,
+	}))
+	t.Cleanup(func() { require.NoError(t, source.Close()) })
+
+	_, err := source.EnsureChannelMeta(context.Background(), id)
+	if !errors.Is(err, metadb.ErrStaleMeta) && !errors.Is(err, ch.ErrStaleMeta) {
+		t.Fatalf("EnsureChannelMeta() error = %v, want stale placement", err)
+	}
+	requireAppendStage(t, observer.events, "meta_create_build", "err")
+	for _, event := range observer.events {
+		if event.stage == "meta_create_propose" {
+			t.Fatalf("proposal stage = %#v, want no proposal observation before creator call", event)
+		}
+	}
 }
 
 func TestSlotMetaSourceCreateObservesAuthoritativeRereadMiss(t *testing.T) {
@@ -333,6 +358,20 @@ func TestSlotPlacementResolverUsesDataNodesInsteadOfSlotPeers(t *testing.T) {
 		if replica < 4 || replica > 6 {
 			t.Fatalf("Replicas = %v, want only data nodes 4,5,6", placement.Replicas)
 		}
+	}
+}
+
+func TestSlotPlacementResolverRejectsDataNodesFromDifferentControlRevision(t *testing.T) {
+	id := ch.ChannelID{ID: "mixed-control-snapshot", Type: 1}
+	resolver := NewSlotPlacementResolver(
+		fakePlacementRouter{route: routing.Route{Revision: 12, Leader: 2, Peers: []uint64{1, 2, 3}}},
+		fakeDataNodeProvider{revision: 11, nodes: []uint64{1, 2, 3}},
+		3,
+	)
+
+	_, err := resolver.ResolveChannelPlacement(context.Background(), id)
+	if !errors.Is(err, ch.ErrStaleMeta) {
+		t.Fatalf("ResolveChannelPlacement() error = %v, want ErrStaleMeta", err)
 	}
 }
 
@@ -3473,8 +3512,9 @@ func (s *rpcErrorServer) HandleNotify(context.Context, channeltransport.NotifyRe
 }
 
 type appendStageEvent struct {
-	stage  string
-	result string
+	stage    string
+	result   string
+	duration time.Duration
 }
 
 type appendStageObserver struct {
@@ -3488,8 +3528,8 @@ func (o *appendStageObserver) ObserveAppendBatch(int, int, time.Duration) {
 func (o *appendStageObserver) ObserveAppendLatency(ch.CommitMode, time.Duration) {}
 func (o *appendStageObserver) ObserveWorkerResult(worker.TaskKind, error, time.Duration) {
 }
-func (o *appendStageObserver) ObserveChannelAppendStage(stage string, result string, _ time.Duration) {
-	o.events = append(o.events, appendStageEvent{stage: stage, result: result})
+func (o *appendStageObserver) ObserveChannelAppendStage(stage string, result string, duration time.Duration) {
+	o.events = append(o.events, appendStageEvent{stage: stage, result: result, duration: duration})
 }
 
 func requireAppendStage(t *testing.T, events []appendStageEvent, stage string, result string) {
@@ -3500,6 +3540,19 @@ func requireAppendStage(t *testing.T, events []appendStageEvent, stage string, r
 		}
 	}
 	t.Fatalf("append stage %s/%s not observed in %#v", stage, result, events)
+}
+
+func requirePositiveAppendStageDuration(t *testing.T, events []appendStageEvent, stage string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage {
+			if event.duration <= 0 {
+				t.Fatalf("append stage %s duration = %s, want actual positive boundary duration", stage, event.duration)
+			}
+			return
+		}
+	}
+	t.Fatalf("append stage %s not observed in %#v", stage, events)
 }
 
 type countingMetaSource struct {
@@ -3945,11 +3998,19 @@ func (r fakePlacementRouter) RouteKey(string) (routing.Route, error) {
 }
 
 type fakeDataNodeProvider struct {
-	nodes []uint64
+	revision uint64
+	nodes    []uint64
 }
 
 func (p fakeDataNodeProvider) DataNodes() []uint64 {
 	return append([]uint64(nil), p.nodes...)
+}
+
+func (p fakeDataNodeProvider) PlacementDataNodes(_ context.Context, expectedRevision uint64) ([]uint64, error) {
+	if p.revision != expectedRevision {
+		return nil, ch.ErrStaleMeta
+	}
+	return append([]uint64(nil), p.nodes...), nil
 }
 
 type recordingShardCaller struct {

@@ -175,6 +175,33 @@ func TestSlotMetaSourceRetriesOnlyAuthoritativelyMissingUncertainCreates(t *test
 	}
 }
 
+func TestSlotMetaSourceDoesNotRetryUncertainCreateAfterCorruptAuthoritativeRead(t *testing.T) {
+	id := ch.ChannelID{ID: "uncertain-corrupt-read", Type: 1}
+	store := &uncertainCorruptRuntimeMetaBatchStore{}
+	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
+		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
+	}}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{
+		Router: router, BatchStore: store,
+		Placement: fakePlacementResolver{placement: ChannelPlacement{
+			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
+		}},
+	})
+	t.Cleanup(func() {
+		if err := source.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	_, err := source.EnsureChannelMeta(context.Background(), id)
+	if !errors.Is(err, metadb.ErrCorruptValue) {
+		t.Fatalf("EnsureChannelMeta() error = %v, want ErrCorruptValue", err)
+	}
+	if store.createCalls != 1 || store.readCalls != 1 {
+		t.Fatalf("create calls=%d read calls=%d, want no retry after corrupt authoritative read", store.createCalls, store.readCalls)
+	}
+}
+
 func TestSlotMetaSourceRebuildsPlacementFromLatestSnapshotAtSubmission(t *testing.T) {
 	id := ch.ChannelID{ID: "latest-placement", Type: 1}
 	store := newBlockingRuntimeMetaBatchStore()
@@ -391,6 +418,25 @@ type uncertainMissingOnceRuntimeMetaBatchStore struct {
 	row         metadb.ChannelRuntimeMeta
 	createCalls int
 	readCalls   int
+}
+
+type uncertainCorruptRuntimeMetaBatchStore struct {
+	createCalls int
+	readCalls   int
+}
+
+func (s *uncertainCorruptRuntimeMetaBatchStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
+	return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+}
+
+func (s *uncertainCorruptRuntimeMetaBatchStore) CreateChannelRuntimeMetaBatch(context.Context, routing.Route, []RuntimeMetaCreateItem) ([]RuntimeMetaCreateResult, error) {
+	s.createCalls++
+	return nil, context.DeadlineExceeded
+}
+
+func (s *uncertainCorruptRuntimeMetaBatchStore) BatchGetChannelRuntimeMetas(context.Context, routing.Route, []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error) {
+	s.readCalls++
+	return []RuntimeMetaReadResult{{Err: metadb.ErrCorruptValue}}, nil
 }
 
 func (s *uncertainMissingOnceRuntimeMetaBatchStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {

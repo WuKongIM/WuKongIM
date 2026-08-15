@@ -36,7 +36,7 @@ func NewSlotMetaSource(reader RuntimeMetaReader, opts ...SlotMetaSourceOptions) 
 	cfg.DefaultReplicas = append([]ch.NodeID(nil), cfg.DefaultReplicas...)
 	source := &SlotMetaSource{reader: reader, opts: cfg}
 	if cfg.Router != nil && cfg.BatchStore != nil {
-		source.batcher = newMetaCreateBatcher(cfg.Router, cfg.BatchStore, cfg.BatchObserver, source.buildRuntimeMetaBatch)
+		source.batcher = newMetaCreateBatcher(cfg.Router, cfg.BatchStore, cfg.BatchObserver, cfg.Goroutines, source.buildRuntimeMetaBatch, source.observeMetaStage)
 	} else if cfg.Router != nil || cfg.BatchStore != nil {
 		source.batchErr = fmt.Errorf("%w: runtime metadata batch router/store must be configured together", ch.ErrInvalidConfig)
 	}
@@ -90,14 +90,8 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 		return ch.Meta{}, fmt.Errorf("%w: missing runtime metadata batch router/store", ch.ErrInvalidConfig)
 	}
 	started = time.Now()
-	proposeStarted := time.Now()
 	outcome := s.batcher.ensure(ctx, id)
 	meta, err = outcome.meta, outcome.err
-	s.observeMetaStage(channelMetaStageCreateBuild, metaStageResult(outcome.buildErr), 0)
-	s.observeMetaStage(channelMetaStageCreatePropose, metaStageResult(outcome.createErr), time.Since(proposeStarted))
-	if outcome.readObserved {
-		s.observeMetaStage(channelMetaStageFinalRead, metaStageResult(outcome.readErr), 0)
-	}
 	s.observeMetaStage(channelMetaStageCreateWrite, metaStageResult(err), time.Since(started))
 	if err != nil {
 		return ch.Meta{}, err

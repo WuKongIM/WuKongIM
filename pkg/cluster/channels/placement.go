@@ -38,7 +38,11 @@ func (r *SlotPlacementResolver) ResolveChannelPlacement(ctx context.Context, id 
 	if err != nil {
 		return ChannelPlacement{}, err
 	}
-	placements, err := r.resolveChannelPlacements([]ch.ChannelID{id}, []routing.Route{route}, r.dataNodes.DataNodes())
+	candidates, err := r.dataNodes.PlacementDataNodes(ctx, route.Revision)
+	if err != nil {
+		return ChannelPlacement{}, err
+	}
+	placements, err := r.resolveChannelPlacements([]ch.ChannelID{id}, []routing.Route{route}, candidates)
 	if err != nil {
 		return ChannelPlacement{}, err
 	}
@@ -54,7 +58,23 @@ func (r *SlotPlacementResolver) ResolveChannelPlacementBatch(ctx context.Context
 	if r == nil || r.dataNodes == nil {
 		return nil, fmt.Errorf("%w: data node provider is nil", ch.ErrInvalidConfig)
 	}
-	return r.resolveChannelPlacements(ids, routes, r.dataNodes.DataNodes())
+	if len(ids) != len(routes) {
+		return nil, fmt.Errorf("%w: aligned channel placement routes", ch.ErrInvalidConfig)
+	}
+	if len(routes) == 0 {
+		return []ChannelPlacement{}, nil
+	}
+	expectedRevision := routes[0].Revision
+	for _, route := range routes[1:] {
+		if route.Revision != expectedRevision {
+			return nil, fmt.Errorf("%w: mixed channel placement route revisions", ch.ErrStaleMeta)
+		}
+	}
+	candidates, err := r.dataNodes.PlacementDataNodes(ctx, expectedRevision)
+	if err != nil {
+		return nil, err
+	}
+	return r.resolveChannelPlacements(ids, routes, candidates)
 }
 
 func (r *SlotPlacementResolver) resolveChannelPlacements(ids []ch.ChannelID, routes []routing.Route, candidates []uint64) ([]ChannelPlacement, error) {

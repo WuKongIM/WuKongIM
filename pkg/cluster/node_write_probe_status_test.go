@@ -238,7 +238,7 @@ func writeProbeNodeForTest(t *testing.T, proposer *statusRecordingProposer, stat
 		SlotCount:     uint32(len(statuses)),
 		HashSlotCount: uint16(len(statuses)),
 	}
-	node.channelDataNodes.Update([]uint64{1})
+	node.channelDataNodes.UpdateAtRevision(node.router.Table().Revision, []uint64{1})
 	node.started.Store(true)
 	if proposer.statuses == nil {
 		proposer.statuses = make(map[multiraft.SlotID]multiraft.Status, len(statuses))
