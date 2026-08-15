@@ -808,13 +808,17 @@ though per-domain ordinals restart from zero.
 
 Exact delivery correlation uses one run-keyed position in every 100 person
 logical sends per worker and one position in every 100 globally consecutive
-group-domain ordinals. A sampled entry has one map row and one indexed min-heap
-deadline; successful ACK-plus-RECV delivery and deadline expiry both physically
-remove both indexes. A terminal SEND remains until that deadline so expiry also
-records its confirmed sampled loss. RECV correlation is observed before
-sequence-capacity admission, so a saturated sequence tracker cannot manufacture
-sampled loss. A positive successful SENDACK updates correlation even after the
-SEND was terminal, completed, released, or otherwise unknown; its independent
+group-domain ordinals. Registration retains one bounded map row but does not
+start a delivery-loss clock: only a positive successful SENDACK proves server
+acceptance and arms the indexed min-heap deadline. Successful ACK-plus-RECV
+delivery and accepted-message deadline expiry both physically remove retained
+indexes. An unaccepted terminal SEND is already product failure, not a second
+delivery loss; unresolved sibling attempts retain its correlation only until
+the bounded logical-completion grace deadline, whose expiry removes it without
+loss evidence. RECV correlation is observed before sequence-capacity admission,
+so a saturated sequence tracker cannot manufacture sampled loss. A positive
+successful SENDACK from an explicitly retained sibling attempt still updates
+correlation after the SEND was terminal and released; its independent
 duplicate/conflict/unknown completion result remains product evidence.
 Pending, sequence, and correlation capacity exhaustion is `harness_invalid`,
 while loss, corruption, duplicate delivery, sequence regression, and terminal

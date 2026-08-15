@@ -381,13 +381,14 @@ type preparedRecv struct {
 }
 
 type sampledCorrelation struct {
-	logical    LogicalSend
-	deadline   time.Time
-	heapIndex  int
-	ackSeen    bool
-	recvSeen   bool
-	messageID  int64
-	messageSeq uint64
+	logical      LogicalSend
+	registeredAt time.Time
+	deadline     time.Time
+	heapIndex    int
+	ackSeen      bool
+	recvSeen     bool
+	messageID    int64
+	messageSeq   uint64
 }
 
 type correlationDeadlineHeap []*sampledCorrelation
@@ -477,8 +478,9 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 	return v, nil
 }
 
-// RegisterSend installs one attempt-independent logical identity and, when its
-// exact-cycle position is selected, one physically removable deadline entry.
+// RegisterSend installs one attempt-independent logical identity. A sampled
+// send receives a delivery-loss deadline only after a positive SENDACK proves
+// that the server accepted it.
 func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
@@ -506,12 +508,11 @@ func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) err
 	}
 	if sampled {
 		correlation := &sampledCorrelation{
-			logical:   logical,
-			deadline:  registeredAt.Add(v.config.CorrelationDeadline),
-			heapIndex: -1,
+			logical:      logical,
+			registeredAt: registeredAt,
+			heapIndex:    -1,
 		}
 		v.correlations[logical.ClientMsgNo] = correlation
-		heap.Push(&v.deadlines, correlation)
 		v.sendCounters.sampled++
 		if len(v.correlations) > v.correlationPeak {
 			v.correlationPeak = len(v.correlations)
@@ -577,7 +578,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 		if v.releasedAttempts[key] != nil {
 			var correlationErr error
 			if positiveSuccess {
-				correlationErr = v.observeSendackCorrelationLocked(ack)
+				correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
 			}
 			v.consumeReleasedAttemptLocked(key)
 			return correlationErr
@@ -587,7 +588,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	if pending == nil {
 		var correlationErr error
 		if positiveSuccess {
-			correlationErr = v.observeSendackCorrelationLocked(ack)
+			correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
 		}
 		return errors.Join(correlationErr, v.recordUnknownSendackLocked(0, ack))
 	}
@@ -600,7 +601,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	}
 	var correlationErr error
 	if positiveSuccess {
-		correlationErr = v.observeSendackCorrelationLocked(ack)
+		correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
 	}
 	if pending.attemptCount > 0 {
 		if pending.completion != sendIncomplete && ack.ClientSeq != pending.completionClientSeq {
@@ -657,17 +658,23 @@ func (v *Verifier) recordUnknownSendackLocked(logicalSend uint64, ack *frame.Sen
 	)
 }
 
-func (v *Verifier) observeSendackCorrelationLocked(ack *frame.SendackPacket) error {
+func (v *Verifier) observeSendackCorrelationLocked(ack *frame.SendackPacket, completedAt time.Time) error {
 	if correlation := v.correlations[ack.ClientMsgNo]; correlation != nil {
 		if (correlation.ackSeen || correlation.recvSeen) &&
 			(correlation.messageID != ack.MessageID || correlation.messageSeq != ack.MessageSeq) {
 			return v.recordCorrelationConflictLocked(correlation, ack.MessageSeq)
 		}
+		firstPositiveAck := !correlation.ackSeen
 		correlation.ackSeen = true
 		correlation.messageID = ack.MessageID
 		correlation.messageSeq = ack.MessageSeq
 		if correlation.recvSeen {
 			v.completeCorrelationLocked(correlation)
+		} else if firstPositiveAck {
+			if completedAt.IsZero() || completedAt.Before(correlation.registeredAt) {
+				completedAt = correlation.registeredAt
+			}
+			v.scheduleCorrelationDeadlineLocked(correlation, completedAt.Add(v.config.CorrelationDeadline))
 		}
 	}
 	return nil
@@ -922,8 +929,9 @@ func (v *Verifier) ReleaseRecipient(recipient string) int {
 	return released
 }
 
-// ExpireCorrelations pops only due heap roots. Every expired sampled message is
-// confirmed loss evidence and is physically removed from both retained indexes.
+// ExpireCorrelations pops only due heap roots. Only a sampled message with a
+// positive SENDACK can expire as confirmed delivery loss. An unaccepted
+// terminal send may use the same heap solely for bounded late-attempt cleanup.
 func (v *Verifier) ExpireCorrelations(now time.Time) int {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
@@ -931,6 +939,9 @@ func (v *Verifier) ExpireCorrelations(now time.Time) int {
 	for len(v.deadlines) > 0 && !v.deadlines[0].deadline.After(now) {
 		correlation := heap.Pop(&v.deadlines).(*sampledCorrelation)
 		delete(v.correlations, correlation.logical.ClientMsgNo)
+		if !correlation.ackSeen {
+			continue
+		}
 		v.sendCounters.sampledExpired++
 		expired++
 		_ = v.evidence.Record(EvidenceEvent{
@@ -1077,6 +1088,13 @@ func (v *Verifier) releaseSendAt(logical LogicalSend, completedAt time.Time) err
 	}
 	if len(v.releasedAttempts) > v.releasedPeak {
 		v.releasedPeak = len(v.releasedAttempts)
+	}
+	if correlation := v.correlations[logical.ClientMsgNo]; correlation != nil && !correlation.ackSeen {
+		if unresolved == 0 {
+			v.removeCorrelationLocked(correlation)
+		} else {
+			v.scheduleCorrelationDeadlineLocked(correlation, deadline)
+		}
 	}
 	delete(v.pending, logical.ClientMsgNo)
 	return nil
@@ -1266,6 +1284,15 @@ func (v *Verifier) sampledLocked(logical LogicalSend) (bool, error) {
 func (v *Verifier) completeCorrelationLocked(correlation *sampledCorrelation) {
 	v.removeCorrelationLocked(correlation)
 	v.sendCounters.sampledDelivered++
+}
+
+func (v *Verifier) scheduleCorrelationDeadlineLocked(correlation *sampledCorrelation, deadline time.Time) {
+	correlation.deadline = deadline
+	if correlation.heapIndex >= 0 {
+		heap.Fix(&v.deadlines, correlation.heapIndex)
+		return
+	}
+	heap.Push(&v.deadlines, correlation)
 }
 
 func (v *Verifier) removeCorrelationLocked(correlation *sampledCorrelation) {

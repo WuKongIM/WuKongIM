@@ -861,7 +861,7 @@ func TestVerifierCorrelationSamplesExactlyOnceInEveryWorkerOrdinalBlock(t *testi
 					}
 				}
 				snapshot := verifier.Snapshot()
-				if snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.DeadlineCurrent != 1 {
+				if snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.DeadlineCurrent != 0 {
 					t.Fatalf("worker %d block [%d,%d) sampling = %+v, want exactly one", worker, start, start+100, snapshot)
 				}
 			})
@@ -915,6 +915,65 @@ func TestVerifierSampledCorrelationSurvivesSendReleaseUntilLaterRecv(t *testing.
 	}
 }
 
+func TestVerifierDoesNotReportSampledLossBeforePositiveSendack(t *testing.T) {
+	model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+	started := time.Unix(2_300, 0)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	recv := mustRecvPacket(t, model, logical, 230, 23)
+	if err := verifier.HandleRecv(context.Background(), logical.Target, recv, discardRecvAcker{}); err != nil {
+		t.Fatalf("HandleRecv(before positive SENDACK) error = %v", err)
+	}
+
+	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations(before positive SENDACK) = %d, want 0", expired)
+	}
+	beforeAck := verifier.Snapshot()
+	if beforeAck.SampledExpired != 0 || beforeAck.Losses != 0 || beforeAck.CorrelationCurrent != 1 || beforeAck.DeadlineCurrent != 0 {
+		t.Fatalf("correlation before positive SENDACK = %+v", beforeAck)
+	}
+
+	ack := &frame.SendackPacket{
+		MessageID: 230, MessageSeq: 23, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendackAt(ack, started.Add(6*time.Second)); err != nil {
+		t.Fatalf("HandleSendackAt(after registration deadline) error = %v", err)
+	}
+	afterAck := verifier.Snapshot()
+	if afterAck.SampledDelivered != 1 || afterAck.SampledExpired != 0 || afterAck.Losses != 0 ||
+		afterAck.CorrelationCurrent != 0 || afterAck.DeadlineCurrent != 0 {
+		t.Fatalf("correlation after positive SENDACK = %+v", afterAck)
+	}
+}
+
+func TestVerifierSampledLossDeadlineStartsAtPositiveSendack(t *testing.T) {
+	model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+	started := time.Unix(2_400, 0)
+	acceptedAt := started.Add(6 * time.Second)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations(before acceptance) = %d, want 0", expired)
+	}
+	ack := &frame.SendackPacket{
+		MessageID: 240, MessageSeq: 24, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendackAt(ack, acceptedAt); err != nil {
+		t.Fatalf("HandleSendackAt: %v", err)
+	}
+	if err := verifier.ReleaseSendAt(logical, acceptedAt); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
+	if expired := verifier.ExpireCorrelations(acceptedAt.Add(5*time.Second - time.Nanosecond)); expired != 0 {
+		t.Fatalf("ExpireCorrelations(before delivery deadline) = %d, want 0", expired)
+	}
+	if expired := verifier.ExpireCorrelations(acceptedAt.Add(5 * time.Second)); expired != 1 {
+		t.Fatalf("ExpireCorrelations(at delivery deadline) = %d, want 1", expired)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.SampledExpired != 1 || snapshot.Losses != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
+		t.Fatalf("correlation after accepted delivery deadline = %+v", snapshot)
+	}
+}
+
 func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T) {
 	model, verifier := newTestVerifier(t, 500, 16, 8, 5*time.Second)
 	started := time.Unix(2_000, 0)
@@ -922,6 +981,16 @@ func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T)
 		logical := mustLogicalSend(t, model, 0, ordinal, TrafficPerson, "sender", "recipient")
 		if err := verifier.RegisterSend(logical, started); err != nil {
 			t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
+		}
+		ack := &frame.SendackPacket{
+			MessageID: int64(ordinal + 1), MessageSeq: ordinal + 1,
+			ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+		}
+		if err := verifier.HandleSendackAt(ack, started); err != nil {
+			t.Fatalf("HandleSendackAt(%d) error = %v", ordinal, err)
+		}
+		if err := verifier.ReleaseSendAt(logical, started); err != nil {
+			t.Fatalf("ReleaseSendAt(%d) error = %v", ordinal, err)
 		}
 	}
 	before := verifier.Snapshot()
@@ -939,25 +1008,36 @@ func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T)
 		t.Fatalf("classification = %q, want product_failure", after.Classification)
 	}
 	drain := verifier.DrainSnapshot()
-	if drain.PendingUnfinished != 200 || drain.CorrelationOutstanding != 0 || !drain.NextCorrelationDeadline.IsZero() {
+	if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || !drain.NextCorrelationDeadline.IsZero() {
 		t.Fatalf("drain = %+v", drain)
 	}
 }
 
-func TestVerifierSampledTerminalSendRemainsUntilCorrelationDeadline(t *testing.T) {
+func TestVerifierSampledTerminalRetentionExpiresWithoutDeliveryLoss(t *testing.T) {
 	model, verifier := newTestVerifier(t, 200, 16, 16, 5*time.Second)
 	started := time.Unix(2_500, 0)
 	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	policy := newTestRetryPolicy(t, model)
+	attempt, err := policy.Attempt(logical, 0)
+	if err != nil {
+		t.Fatalf("Attempt(0): %v", err)
+	}
+	if err := verifier.ObserveAttempt(logical, attempt, 501); err != nil {
+		t.Fatalf("ObserveAttempt: %v", err)
+	}
 	assertVerificationCode(t, verifier.CompleteTerminal(logical, TerminalSendRetryExhausted), FailureCodeTerminalSend)
+	if err := verifier.ReleaseSendAt(logical, started); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
 	before := verifier.Snapshot()
-	if before.CorrelationCurrent != 1 || before.DeadlineCurrent != 1 || before.SampledExpired != 0 {
+	if before.CorrelationCurrent != 1 || before.DeadlineCurrent != 1 || before.SampledExpired != 0 || before.ReleasedAttemptCurrent != 1 {
 		t.Fatalf("sampled terminal before deadline = %+v", before)
 	}
-	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 1 {
-		t.Fatalf("ExpireCorrelations() = %d, want 1", expired)
+	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations() = %d, want no confirmed delivery loss", expired)
 	}
 	after := verifier.Snapshot()
-	if after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 || after.SampledExpired != 1 {
+	if after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 || after.SampledExpired != 0 || after.Losses != 0 || after.ReleasedAttemptCurrent != 0 {
 		t.Fatalf("sampled terminal after deadline = %+v", after)
 	}
 	evidenceCount := evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation)
@@ -965,20 +1045,21 @@ func TestVerifierSampledTerminalSendRemainsUntilCorrelationDeadline(t *testing.T
 		t.Fatalf("second ExpireCorrelations() = %d, want 0", expired)
 	}
 	again := verifier.Snapshot()
-	if again.SampledExpired != 1 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != evidenceCount {
+	if again.SampledExpired != 0 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != evidenceCount {
 		t.Fatalf("second expiry changed counters/evidence: snapshot=%+v evidence=%+v", again, verifier.EvidenceSnapshot())
 	}
 }
 
 func TestVerifierSampledTerminalLateMatchingAckCompletesCorrelationInBothOrders(t *testing.T) {
 	tests := []struct {
-		name      string
-		release   bool
-		recvFirst bool
-		wantCode  FailureCode
+		name          string
+		release       bool
+		recvFirst     bool
+		wantCode      FailureCode
+		wantDelivered uint64
 	}{
-		{name: "terminal recv then ack", recvFirst: true, wantCode: FailureCodeConflictingCompletion},
-		{name: "terminal ack then recv", recvFirst: false, wantCode: FailureCodeConflictingCompletion},
+		{name: "terminal recv then ack", recvFirst: true, wantCode: FailureCodeConflictingCompletion, wantDelivered: 1},
+		{name: "terminal ack then recv", recvFirst: false, wantCode: FailureCodeConflictingCompletion, wantDelivered: 1},
 		{name: "released terminal recv then ack", release: true, recvFirst: true, wantCode: FailureCodeUnknownSendack},
 		{name: "released terminal ack then recv", release: true, recvFirst: false, wantCode: FailureCodeUnknownSendack},
 	}
@@ -1007,7 +1088,7 @@ func TestVerifierSampledTerminalLateMatchingAckCompletesCorrelationInBothOrders(
 				}
 			}
 			snapshot := verifier.Snapshot()
-			if snapshot.SampledDelivered != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
+			if snapshot.SampledDelivered != test.wantDelivered || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
 				t.Fatalf("late ACK correlation = %+v", snapshot)
 			}
 			if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
