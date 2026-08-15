@@ -19,9 +19,13 @@ const (
 	metaCreateQueueMaxItems = 256
 	metaCreateBatchTimeout  = 2 * time.Second
 	metaCreateRerouteMax    = 2
+	// A target batch amortizes the fixed Raft commit cost once enough cold
+	// identities are already available; the collection deadline remains the
+	// latency bound for smaller bursts.
+	metaCreateBatchTargetItems = 4
 	// A short collection window amortizes the fixed Raft commit cost without
 	// consuming a material portion of the client request deadline.
-	metaCreateBatchCollectWait = 200 * time.Millisecond
+	metaCreateBatchCollectWait = 500 * time.Millisecond
 	// Two batches allow one future to progress while the next is submitted,
 	// without flooding a Slot leader with single-item proposals.
 	metaCreateSlotMaxInFlightBatches = 2
@@ -352,7 +356,7 @@ func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool, time.Durati
 		o.mu.Unlock()
 		return nil, stop, 0
 	}
-	if !o.stopping && o.inFlight > 0 && len(o.queue) < metaCreateBatchMaxItems {
+	if !o.stopping && o.inFlight > 0 && len(o.queue) < metaCreateBatchTargetItems {
 		if o.collectUntil.IsZero() {
 			o.collectUntil = time.Now().Add(o.batcher.collectWait)
 		}

@@ -152,6 +152,50 @@ func TestSlotMetaSourceCollectsShortColdBurstBeforeSubmitting(t *testing.T) {
 	}
 }
 
+func TestSlotMetaSourceSubmitsTargetBatchBeforeCollectionDeadline(t *testing.T) {
+	store := newBlockingConcurrentRuntimeMetaBatchStore()
+	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
+		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
+	}}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{
+		Router: router, BatchStore: store,
+		Placement: fakePlacementResolver{placement: ChannelPlacement{
+			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
+		}},
+	})
+	source.batcher.collectWait = time.Hour
+	t.Cleanup(func() {
+		store.release()
+		if err := source.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	results := make(chan error, 5)
+	startEnsure := func(id string) {
+		go func() {
+			_, err := source.EnsureChannelMeta(context.Background(), ch.ChannelID{ID: id, Type: 1})
+			results <- err
+		}()
+	}
+	startEnsure("target-batch-active")
+	store.waitForStarted(t, 1)
+	for i := 0; i < metaCreateBatchTargetItems; i++ {
+		startEnsure(fmt.Sprintf("target-batch-queued-%d", i))
+	}
+	store.waitForStarted(t, 1)
+	if got := store.batchItems(1); got != metaCreateBatchTargetItems {
+		t.Fatalf("second cold metadata batch items = %d, want target %d before collection deadline", got, metaCreateBatchTargetItems)
+	}
+
+	store.release()
+	for i := 0; i < 5; i++ {
+		if err := <-results; err != nil {
+			t.Fatalf("EnsureChannelMeta(call=%d) error = %v", i, err)
+		}
+	}
+}
+
 func TestSlotMetaSourceCloseJoinsAllPipelinedBatches(t *testing.T) {
 	const inFlight = 2
 	store := newBlockingConcurrentRuntimeMetaBatchStore()
