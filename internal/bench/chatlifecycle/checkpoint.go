@@ -238,7 +238,9 @@ func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snap
 		EvidenceClassification: snapshot.EvidenceClassification, EvidenceCounts: snapshot.EvidenceCounts,
 		Lifecycle: evidence.Lifecycle, MetaCreate: evidence.MetaCreate,
 		Latency: ReportLatencyEvidence{
-			SendACK: snapshot.SendackLatency, ReceiveACK: snapshot.RecvackLatency, FullSync: snapshot.Sync.Latency,
+			HotSendACK: snapshot.HotSendackLatency, ColdFirstCreateSendACK: snapshot.ColdFirstCreateSendackLatency,
+			WorkerLifecycleReheatSendACK: snapshot.LifecycleReheatSendackLatency,
+			ReceiveACK:                   snapshot.RecvackLatency, FullSync: snapshot.Sync.Latency,
 			Warnings: verdict.LatencyWarnings, AnomalyCount: verdict.LatencyAnomalyCount,
 			Anomalies: append([]ReportLatencyAnomaly(nil), verdict.LatencyAnomalies...), Retention: verdict.Retention,
 		},

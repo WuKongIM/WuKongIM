@@ -162,6 +162,13 @@ moving worker or lifecycle evidence. Preflight results retain only their closed
 reason code so failures such as `disk_free` remain distinguishable when no final
 report can be written.
 
+Report schema v4 retains the worker histograms as three explicit SENDACK
+classes: ordinary hot traffic, first-create cold traffic, and worker-observed
+lifecycle reheat traffic. It does not persist an ambiguous combined SENDACK
+histogram. The independent coordinator-controlled lifecycle reheat histogram
+remains under the lifecycle proof and is the authoritative reheat input to the
+cold verdict; the worker reheat histogram is diagnostic evidence only.
+
 `wkbench host-metrics` is the small native helper used by local shakeouts and
 the four-host cloud deployment to serve one exact filesystem's
 `node_filesystem_size_bytes` and `node_filesystem_avail_bytes` series plus

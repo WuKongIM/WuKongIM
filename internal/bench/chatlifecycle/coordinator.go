@@ -2332,15 +2332,17 @@ type CoordinatorSnapshot struct {
 	MinimumUptime  time.Duration
 	WorkerSequence [coordinatorWorkerCount]uint64
 
-	Sessions       WorkerSessionSnapshot
-	Generated      WorkerGeneratedSnapshot
-	Messages       WorkerMessageSnapshot
-	Sync           WorkerSyncSnapshot
-	SendackLatency WorkerHistogramSnapshot
-	RecvackLatency WorkerHistogramSnapshot
-	Correlation    WorkerCorrelationSnapshot
-	Queues         WorkerQueueSnapshot
-	Harness        WorkerHarnessSnapshot
+	Sessions                      WorkerSessionSnapshot
+	Generated                     WorkerGeneratedSnapshot
+	Messages                      WorkerMessageSnapshot
+	Sync                          WorkerSyncSnapshot
+	HotSendackLatency             WorkerHistogramSnapshot
+	ColdFirstCreateSendackLatency WorkerHistogramSnapshot
+	LifecycleReheatSendackLatency WorkerHistogramSnapshot
+	RecvackLatency                WorkerHistogramSnapshot
+	Correlation                   WorkerCorrelationSnapshot
+	Queues                        WorkerQueueSnapshot
+	Harness                       WorkerHarnessSnapshot
 
 	EvidenceClassification SyncClassification
 	EvidenceCounts         [FailureClassHarness + 1]uint64
@@ -2628,8 +2630,10 @@ func aggregateCoordinatorSnapshots(
 		Sync: WorkerSyncSnapshot{
 			ConnectLatency: newWorkerHistogramSnapshot(), Latency: newWorkerHistogramSnapshot(),
 		},
-		SendackLatency: newWorkerHistogramSnapshot(),
-		RecvackLatency: newWorkerHistogramSnapshot(),
+		HotSendackLatency:             newWorkerHistogramSnapshot(),
+		ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+		LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
+		RecvackLatency:                newWorkerHistogramSnapshot(),
 	}
 	for workerID, snapshot := range snapshots {
 		result.WorkerSequence[workerID] = snapshot.SnapshotSequence
@@ -2648,13 +2652,13 @@ func aggregateCoordinatorSnapshots(
 		if err := addCoordinatorSync(&result.Sync, snapshot.Sync); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
-		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.HotSendackLatency); err != nil {
+		if err := addCoordinatorHistogram(&result.HotSendackLatency, snapshot.HotSendackLatency); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
-		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.ColdFirstCreateSendackLatency); err != nil {
+		if err := addCoordinatorHistogram(&result.ColdFirstCreateSendackLatency, snapshot.ColdFirstCreateSendackLatency); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
-		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.LifecycleReheatSendackLatency); err != nil {
+		if err := addCoordinatorHistogram(&result.LifecycleReheatSendackLatency, snapshot.LifecycleReheatSendackLatency); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
 		if err := addCoordinatorHistogram(&result.RecvackLatency, snapshot.RecvackLatency); err != nil {

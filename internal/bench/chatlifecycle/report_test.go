@@ -39,6 +39,14 @@ func TestReportJSONAndMarkdownContainVersionedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, field := range []string{"hot_sendack", "cold_first_create_sendack", "worker_lifecycle_reheat_sendack"} {
+		if !strings.Contains(string(jsonBody), `"`+field+`"`) {
+			t.Fatalf("JSON report omitted classified latency field %q:\n%s", field, jsonBody)
+		}
+	}
+	if strings.Contains(string(jsonBody), `"sendack"`) {
+		t.Fatalf("JSON report retained ambiguous aggregate SENDACK histogram:\n%s", jsonBody)
+	}
 	var decoded Report
 	if err := json.Unmarshal(jsonBody, &decoded); err != nil {
 		t.Fatal(err)

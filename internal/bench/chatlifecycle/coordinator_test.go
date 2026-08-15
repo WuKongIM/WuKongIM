@@ -87,7 +87,8 @@ func TestCoordinatorSnapshotAggregationEnforcesFenceSchemaAndMonotonicity(t *tes
 	if err != nil {
 		t.Fatalf("first Aggregate() error = %v", err)
 	}
-	if aggregated.WorkerCount != 3 || aggregated.Messages.Sent != 33 || aggregated.SendackLatency.Count != 33 || aggregated.SendackLatency.Buckets[1] != 33 {
+	if aggregated.WorkerCount != 3 || aggregated.Messages.Sent != 33 ||
+		aggregated.HotSendackLatency.Count != 33 || aggregated.HotSendackLatency.Buckets[1] != 33 {
 		t.Fatalf("first aggregate = %+v", aggregated)
 	}
 
@@ -181,6 +182,28 @@ func TestCoordinatorSnapshotAggregationEnforcesFenceSchemaAndMonotonicity(t *tes
 				t.Fatalf("Aggregate() error = %v, want %v", err, testCase.wantError)
 			}
 		})
+	}
+}
+
+func TestCoordinatorSnapshotAggregationRetainsSendackLatencyClasses(t *testing.T) {
+	fence := WorkerFence{RunID: "snapshot-latency-run", AssignmentID: "snapshot-latency-assignment", Generation: 1}
+	aggregator, err := NewCoordinatorSnapshotAggregator(fence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshots := coordinatorSnapshotFixture(fence, 1, time.Second, 10)
+	for index := range snapshots {
+		recordWorkerLatency(&snapshots[index].ColdFirstCreateSendackLatency, 2*time.Millisecond)
+		recordWorkerLatency(&snapshots[index].LifecycleReheatSendackLatency, 3*time.Millisecond)
+	}
+	aggregated, err := aggregator.Aggregate(snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if aggregated.HotSendackLatency.Count != 33 || aggregated.HotSendackLatency.Buckets[1] != 33 ||
+		aggregated.ColdFirstCreateSendackLatency.Count != 3 || aggregated.ColdFirstCreateSendackLatency.Buckets[2] != 3 ||
+		aggregated.LifecycleReheatSendackLatency.Count != 3 || aggregated.LifecycleReheatSendackLatency.Buckets[3] != 3 {
+		t.Fatalf("classified aggregate = %+v", aggregated)
 	}
 }
 

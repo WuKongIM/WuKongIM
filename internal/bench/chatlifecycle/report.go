@@ -14,7 +14,7 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v3"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v4"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
 	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v1"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
@@ -103,13 +103,15 @@ type ReportWorkerGeneration struct {
 
 // ReportLatencyEvidence combines bounded worker histograms with verdict-window evidence.
 type ReportLatencyEvidence struct {
-	SendACK      WorkerHistogramSnapshot `json:"sendack"`
-	ReceiveACK   WorkerHistogramSnapshot `json:"receive_ack"`
-	FullSync     WorkerHistogramSnapshot `json:"full_sync"`
-	Warnings     ReportLatencyWarnings   `json:"warnings"`
-	AnomalyCount uint64                  `json:"anomaly_count"`
-	Anomalies    []ReportLatencyAnomaly  `json:"anomalies,omitempty"`
-	Retention    ReportWindowRetention   `json:"retention"`
+	HotSendACK                   WorkerHistogramSnapshot `json:"hot_sendack"`
+	ColdFirstCreateSendACK       WorkerHistogramSnapshot `json:"cold_first_create_sendack"`
+	WorkerLifecycleReheatSendACK WorkerHistogramSnapshot `json:"worker_lifecycle_reheat_sendack"`
+	ReceiveACK                   WorkerHistogramSnapshot `json:"receive_ack"`
+	FullSync                     WorkerHistogramSnapshot `json:"full_sync"`
+	Warnings                     ReportLatencyWarnings   `json:"warnings"`
+	AnomalyCount                 uint64                  `json:"anomaly_count"`
+	Anomalies                    []ReportLatencyAnomaly  `json:"anomalies,omitempty"`
+	Retention                    ReportWindowRetention   `json:"retention"`
 }
 
 // ReportLatencyWarnings is the tagged fixed warning projection.
@@ -413,7 +415,10 @@ func validateReport(report Report) error {
 		len(report.Samples) > maxReportSamples || !validReportVerdict(report) || !validReportCapacity(report.Capacity) ||
 		!validReportCapacityResources(report.Resources.Capacity) ||
 		!validMetaCreateAccountingSnapshot(report.MetaCreate) || !validMetaCreateVerdict(report.MetaCreate, report.Verdict) ||
-		!validCoordinatorHistogram(report.Latency.SendACK) || !validCoordinatorHistogram(report.Latency.ReceiveACK) ||
+		!validCoordinatorHistogram(report.Latency.HotSendACK) ||
+		!validCoordinatorHistogram(report.Latency.ColdFirstCreateSendACK) ||
+		!validCoordinatorHistogram(report.Latency.WorkerLifecycleReheatSendACK) ||
+		!validCoordinatorHistogram(report.Latency.ReceiveACK) ||
 		!validCoordinatorHistogram(report.Latency.FullSync) || !validCoordinatorHistogram(report.Lifecycle.ReheatLatency) {
 		return ErrReportInvalid
 	}
