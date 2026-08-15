@@ -1607,8 +1607,10 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			ConnectLatency: engine.GatewayConnectLatency, Latency: engine.ConversationSyncLatency,
 			Thresholds: engine.ConversationSyncThresholds,
 		},
-		SendackLatency: verification.SendackLatency,
-		RecvackLatency: verification.RecvackLatency,
+		HotSendackLatency:             verification.HotSendackLatency,
+		ColdFirstCreateSendackLatency: verification.ColdFirstCreateSendackLatency,
+		LifecycleReheatSendackLatency: verification.LifecycleReheatSendackLatency,
+		RecvackLatency:                verification.RecvackLatency,
 		Correlation: WorkerCorrelationSnapshot{
 			PendingUnfinished: verification.PendingUnfinished, Outstanding: verification.CorrelationCurrent,
 			Sampled: verification.Sampled, Delivered: verification.SampledDelivered, Expired: verification.SampledExpired,

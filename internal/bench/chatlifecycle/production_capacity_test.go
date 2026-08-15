@@ -381,12 +381,12 @@ func productionCapacityWorkerSnapshot(
 	snapshot := productionControllerWorkerSnapshots(cfg, fence, sequence, time.Minute*time.Duration(sequence), WorkerPhaseRunning)[workerID]
 	snapshot.Messages.FirstAttempts = attempts
 	snapshot.Messages.FirstAttemptFailures = failures
-	snapshot.SendackLatency = newWorkerHistogramSnapshot()
-	snapshot.SendackLatency.Count = attempts
+	snapshot.HotSendackLatency = newWorkerHistogramSnapshot()
+	snapshot.HotSendackLatency.Count = attempts
 	if attempts > 0 {
-		snapshot.SendackLatency.SumNanos = attempts * uint64(time.Millisecond)
-		snapshot.SendackLatency.MaxNanos = uint64(time.Millisecond)
-		snapshot.SendackLatency.Buckets[1] = attempts
+		snapshot.HotSendackLatency.SumNanos = attempts * uint64(time.Millisecond)
+		snapshot.HotSendackLatency.MaxNanos = uint64(time.Millisecond)
+		snapshot.HotSendackLatency.Buckets[1] = attempts
 	}
 	snapshot.Sync.Thresholds.Count = attempts
 	snapshot.Sessions.Target = 10

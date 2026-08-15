@@ -186,41 +186,43 @@ type VerifierSnapshot struct {
 	// admission boundary. It is harness pressure, not target correctness.
 	FirstAttemptLocalAdmissionFailures uint64
 
-	RetryAttempts             uint64
-	Acknowledged              uint64
-	SendackRejections         uint64
-	Terminal                  uint64
-	TerminalReasons           TerminalSendSnapshot
-	DuplicateCompletions      uint64
-	ConflictingCompletions    uint64
-	UnknownSendacks           uint64
-	Received                  uint64
-	ReceiveFailures           uint64
-	ReceiveAcknowledged       uint64
-	ReceiveAckFailures        uint64
-	ReceiveAckProductFailures uint64
-	ReceiveAckHarnessFailures uint64
-	DuplicateDeliveries       uint64
-	Corruptions               uint64
-	SequenceRegressions       uint64
-	ConflictingDeliveries     uint64
-	Sampled                   uint64
-	SampledDelivered          uint64
-	SampledExpired            uint64
-	Losses                    uint64
-	Duplicates                uint64
-	PendingCurrent            int
-	PendingUnfinished         int
-	PendingPeak               int
-	SequenceCurrent           int
-	SequencePeak              int
-	CorrelationCurrent        int
-	CorrelationPeak           int
-	DeadlineCurrent           int
-	ReleasedAttemptCurrent    int
-	ReleasedAttemptPeak       int
-	SendackLatency            WorkerHistogramSnapshot
-	RecvackLatency            WorkerHistogramSnapshot
+	RetryAttempts                 uint64
+	Acknowledged                  uint64
+	SendackRejections             uint64
+	Terminal                      uint64
+	TerminalReasons               TerminalSendSnapshot
+	DuplicateCompletions          uint64
+	ConflictingCompletions        uint64
+	UnknownSendacks               uint64
+	Received                      uint64
+	ReceiveFailures               uint64
+	ReceiveAcknowledged           uint64
+	ReceiveAckFailures            uint64
+	ReceiveAckProductFailures     uint64
+	ReceiveAckHarnessFailures     uint64
+	DuplicateDeliveries           uint64
+	Corruptions                   uint64
+	SequenceRegressions           uint64
+	ConflictingDeliveries         uint64
+	Sampled                       uint64
+	SampledDelivered              uint64
+	SampledExpired                uint64
+	Losses                        uint64
+	Duplicates                    uint64
+	PendingCurrent                int
+	PendingUnfinished             int
+	PendingPeak                   int
+	SequenceCurrent               int
+	SequencePeak                  int
+	CorrelationCurrent            int
+	CorrelationPeak               int
+	DeadlineCurrent               int
+	ReleasedAttemptCurrent        int
+	ReleasedAttemptPeak           int
+	HotSendackLatency             WorkerHistogramSnapshot
+	ColdFirstCreateSendackLatency WorkerHistogramSnapshot
+	LifecycleReheatSendackLatency WorkerHistogramSnapshot
+	RecvackLatency                WorkerHistogramSnapshot
 }
 
 type verifierSendCounters struct {
@@ -273,9 +275,26 @@ const (
 	sendTerminal
 )
 
+// SendLatencyClass binds a logical SEND to exactly one verdict latency domain.
+// Loaded-state traffic is hot, first person-channel creation is cold, and
+// lifecycle reheat is retained as a separate diagnostic domain. LifecycleProof
+// remains the independent verdict evidence for reheat latency.
+type SendLatencyClass uint8
+
+const (
+	SendLatencyHot SendLatencyClass = iota
+	SendLatencyColdFirstCreate
+	SendLatencyLifecycleReheat
+)
+
+func validSendLatencyClass(class SendLatencyClass) bool {
+	return class == SendLatencyHot || class == SendLatencyColdFirstCreate || class == SendLatencyLifecycleReheat
+}
+
 type pendingSend struct {
 	logical             LogicalSend
 	registeredAt        time.Time
+	latencyClass        SendLatencyClass
 	completion          sendCompletion
 	completionClientSeq uint64
 	messageID           int64
@@ -449,10 +468,12 @@ type Verifier struct {
 	releasedDeadlines releasedAttemptDeadlineHeap
 	releasedPeak      int
 
-	sendCounters   verifierSendCounters
-	recvCounters   verifierReceiveCounters
-	sendackLatency WorkerHistogramSnapshot
-	recvackLatency WorkerHistogramSnapshot
+	sendCounters                  verifierSendCounters
+	recvCounters                  verifierReceiveCounters
+	hotSendackLatency             WorkerHistogramSnapshot
+	coldFirstCreateSendackLatency WorkerHistogramSnapshot
+	lifecycleReheatSendackLatency WorkerHistogramSnapshot
+	recvackLatency                WorkerHistogramSnapshot
 }
 
 // NewVerifier constructs empty state without preallocating from untrusted bounds.
@@ -463,15 +484,17 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 		return nil, errVerifierConfig
 	}
 	v := &Verifier{
-		model:            model,
-		config:           config,
-		evidence:         evidence,
-		pending:          make(map[string]*pendingSend),
-		sequences:        make(map[string]*recipientSequenceState),
-		correlations:     make(map[string]*sampledCorrelation),
-		releasedAttempts: make(map[releasedAttemptKey]*releasedAttempt),
-		sendackLatency:   newWorkerHistogramSnapshot(),
-		recvackLatency:   newWorkerHistogramSnapshot(),
+		model:                         model,
+		config:                        config,
+		evidence:                      evidence,
+		pending:                       make(map[string]*pendingSend),
+		sequences:                     make(map[string]*recipientSequenceState),
+		correlations:                  make(map[string]*sampledCorrelation),
+		releasedAttempts:              make(map[releasedAttemptKey]*releasedAttempt),
+		hotSendackLatency:             newWorkerHistogramSnapshot(),
+		coldFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+		lifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
+		recvackLatency:                newWorkerHistogramSnapshot(),
 	}
 	heap.Init(&v.deadlines)
 	heap.Init(&v.releasedDeadlines)
@@ -481,10 +504,10 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 // RegisterSend installs one attempt-independent logical identity. A sampled
 // send receives a delivery-loss deadline only after a positive SENDACK proves
 // that the server accepted it.
-func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) error {
+func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time, latencyClass SendLatencyClass) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
-	if err := v.model.validateLogicalSend(logical); err != nil {
+	if err := v.model.validateLogicalSend(logical); err != nil || !validSendLatencyClass(latencyClass) {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
 	}
 	if _, exists := v.pending[logical.ClientMsgNo]; exists {
@@ -500,7 +523,7 @@ func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) err
 	if sampled && len(v.correlations) >= v.config.CorrelationCapacity {
 		return v.recordHarnessLocked(FailureCodeCorrelationCapacity, logical, EvidenceStageCapacity, uint64(v.config.CorrelationCapacity))
 	}
-	v.pending[logical.ClientMsgNo] = &pendingSend{logical: logical, registeredAt: registeredAt}
+	v.pending[logical.ClientMsgNo] = &pendingSend{logical: logical, registeredAt: registeredAt, latencyClass: latencyClass}
 	v.pendingUnfinished++
 	v.sendCounters.sent++
 	if len(v.pending) > v.pendingPeak {
@@ -645,7 +668,14 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	v.pendingUnfinished--
 	v.sendCounters.acknowledged++
 	if !completedAt.IsZero() {
-		recordWorkerLatency(&v.sendackLatency, completedAt.Sub(pending.registeredAt))
+		switch pending.latencyClass {
+		case SendLatencyHot:
+			recordWorkerLatency(&v.hotSendackLatency, completedAt.Sub(pending.registeredAt))
+		case SendLatencyColdFirstCreate:
+			recordWorkerLatency(&v.coldFirstCreateSendackLatency, completedAt.Sub(pending.registeredAt))
+		case SendLatencyLifecycleReheat:
+			recordWorkerLatency(&v.lifecycleReheatSendackLatency, completedAt.Sub(pending.registeredAt))
+		}
 	}
 	return correlationErr
 }
@@ -1204,7 +1234,9 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.DeadlineCurrent = len(v.deadlines)
 	snapshot.ReleasedAttemptCurrent = len(v.releasedAttempts)
 	snapshot.ReleasedAttemptPeak = v.releasedPeak
-	snapshot.SendackLatency = v.sendackLatency
+	snapshot.HotSendackLatency = v.hotSendackLatency
+	snapshot.ColdFirstCreateSendackLatency = v.coldFirstCreateSendackLatency
+	snapshot.LifecycleReheatSendackLatency = v.lifecycleReheatSendackLatency
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()
@@ -1253,7 +1285,9 @@ func (v *Verifier) resetRuntime() {
 	heap.Init(&v.releasedDeadlines)
 	v.releasedPeak = 0
 	v.sendCounters = verifierSendCounters{}
-	v.sendackLatency = newWorkerHistogramSnapshot()
+	v.hotSendackLatency = newWorkerHistogramSnapshot()
+	v.coldFirstCreateSendackLatency = newWorkerHistogramSnapshot()
+	v.lifecycleReheatSendackLatency = newWorkerHistogramSnapshot()
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()

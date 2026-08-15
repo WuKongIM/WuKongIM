@@ -824,7 +824,7 @@ func TestEnginePlannedShutdownFenceRejectsUnfinishedSend(t *testing.T) {
 	}
 	defer fixture.engine.Stop()
 	logical := mustLogicalSend(t, fixture.traffic, 0, 1, TrafficPerson, "sender", "recipient")
-	if err := fixture.verifier.RegisterSend(logical, fixture.clock.Now()); err != nil {
+	if err := fixture.verifier.RegisterSend(logical, fixture.clock.Now(), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend: %v", err)
 	}
 	if err := fixture.engine.FencePlannedShutdown(context.Background()); !errors.Is(err, errEngineNotDrained) {
@@ -1504,12 +1504,17 @@ func TestEngineSuccessfulFirstPersonSendCountsOneExactMetaCreateHashSlot(t *test
 		ClientSeq: packet.ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
 		MessageID: 901, MessageSeq: 77, ReasonCode: frame.ReasonSuccess,
 	}
-	verificationErr := fixture.verifier.HandleSendack(ack)
+	verificationErr := fixture.verifier.HandleSendackAt(ack, fixture.clock.Now().Add(750*time.Millisecond))
 	if verificationErr != nil {
 		t.Fatalf("HandleSendack: %v", verificationErr)
 	}
 	if err := fixture.engine.ObserveSendack(uid, ack, verificationErr); err != nil {
 		t.Fatalf("ObserveSendack: %v", err)
+	}
+	verification := fixture.verifier.Snapshot()
+	if verification.HotSendackLatency.Count != 0 || verification.ColdFirstCreateSendackLatency.Count != 1 ||
+		verification.ColdFirstCreateSendackLatency.SumNanos != uint64(750*time.Millisecond) {
+		t.Fatalf("first-create latency classification = hot:%+v cold:%+v", verification.HotSendackLatency, verification.ColdFirstCreateSendackLatency)
 	}
 	if err := fixture.engine.ObserveSendack(uid, ack, verificationErr); err != nil {
 		t.Fatalf("duplicate ObserveSendack: %v", err)
@@ -2017,18 +2022,22 @@ func TestEngineAttemptTimeoutUsesColdBudgetForCreateAndReheat(t *testing.T) {
 		AttemptTimeout: time.Second, ColdAttemptTimeout: 5 * time.Second,
 	})
 	tests := []struct {
-		name   string
-		intent TrafficIntent
-		want   time.Duration
+		name             string
+		intent           TrafficIntent
+		want             time.Duration
+		wantLatencyClass SendLatencyClass
 	}{
-		{name: "ordinary hot send", intent: TrafficIntent{Domain: LogicalDomainPrimary}, want: time.Second},
-		{name: "first person create", intent: TrafficIntent{Domain: LogicalDomainPrimary, MetaCreateCandidate: true}, want: 5 * time.Second},
-		{name: "proven cold reheat", intent: TrafficIntent{Domain: LogicalDomainRevisit}, want: 5 * time.Second},
+		{name: "ordinary hot send", intent: TrafficIntent{Domain: LogicalDomainPrimary}, want: time.Second, wantLatencyClass: SendLatencyHot},
+		{name: "first person create", intent: TrafficIntent{Domain: LogicalDomainPrimary, MetaCreateCandidate: true}, want: 5 * time.Second, wantLatencyClass: SendLatencyColdFirstCreate},
+		{name: "proven cold reheat", intent: TrafficIntent{Domain: LogicalDomainRevisit}, want: 5 * time.Second, wantLatencyClass: SendLatencyLifecycleReheat},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if got := fixture.engine.attemptTimeoutFor(test.intent); got != test.want {
 				t.Fatalf("attempt timeout = %v, want %v", got, test.want)
+			}
+			if got := sendLatencyClassForIntent(test.intent); got != test.wantLatencyClass {
+				t.Fatalf("latency class = %v, want %v", got, test.wantLatencyClass)
 			}
 		})
 	}

@@ -20,9 +20,13 @@ func TestProjectWorkerVerdictEvidenceUsesExactMonotonicCountersAndThresholds(t *
 			SequenceRegressions: uint64(index + 3),
 		}
 		snapshot.Harness.CommandSaturation = uint64(index)
-		snapshot.SendackLatency = newWorkerHistogramSnapshot()
-		recordWorkerLatency(&snapshot.SendackLatency, 100*time.Millisecond)
-		recordWorkerLatency(&snapshot.SendackLatency, 2*time.Second)
+		snapshot.HotSendackLatency = newWorkerHistogramSnapshot()
+		recordWorkerLatency(&snapshot.HotSendackLatency, 100*time.Millisecond)
+		recordWorkerLatency(&snapshot.HotSendackLatency, 2*time.Second)
+		snapshot.ColdFirstCreateSendackLatency = newWorkerHistogramSnapshot()
+		recordWorkerLatency(&snapshot.ColdFirstCreateSendackLatency, 3*time.Second)
+		snapshot.LifecycleReheatSendackLatency = newWorkerHistogramSnapshot()
+		recordWorkerLatency(&snapshot.LifecycleReheatSendackLatency, 4*time.Second)
 		snapshot.Sync.Thresholds = LatencyThresholdCounters{
 			P99Limit: time.Second, P999Limit: 3 * time.Second,
 			Count: 2, AboveP99: 1, AboveP999: uint64(index % 2),
@@ -42,7 +46,7 @@ func TestProjectWorkerVerdictEvidenceUsesExactMonotonicCountersAndThresholds(t *
 		t.Fatalf("correctness projection = %+v", correctness)
 	}
 	if latency.Hot.Count != 6 || latency.Hot.AboveP99 != 3 || latency.Hot.AboveP999 != 3 ||
-		latency.Cold.Count != 2 || latency.Cold.AboveP99 != 1 || latency.Cold.AboveP999 != 1 ||
+		latency.Cold.Count != 5 || latency.Cold.AboveP99 != 4 || latency.Cold.AboveP999 != 1 ||
 		latency.Sync.Count != 6 || latency.Sync.AboveP99 != 3 || latency.Sync.AboveP999 != 1 {
 		t.Fatalf("latency projection = %+v", latency)
 	}

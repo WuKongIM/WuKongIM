@@ -295,7 +295,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	fixture.clock.Set(now.Add(time.Minute))
 	intent := fixture.intent(t, edge.OwnerUID, edge.PeerUID, 0, TrafficPerson)
 	intent.ChannelID = edge.PersonChannelID
-	if err := fixture.verifier.RegisterSend(intent.Logical, now); err != nil {
+	if err := fixture.verifier.RegisterSend(intent.Logical, now, SendLatencyHot); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.verifier.ObserveAttempt(intent.Logical, RetryAttempt{ClientMsgNo: intent.Logical.ClientMsgNo}, 1); err != nil {
@@ -346,7 +346,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	}
 	lateIntent := fixture.intent(t, edge.OwnerUID, edge.PeerUID, 1, TrafficPerson)
 	lateIntent.ChannelID = edge.PersonChannelID
-	if err := fixture.verifier.RegisterSend(lateIntent.Logical, now.Add(time.Minute)); err != nil {
+	if err := fixture.verifier.RegisterSend(lateIntent.Logical, now.Add(time.Minute), SendLatencyHot); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.verifier.ObserveAttempt(lateIntent.Logical, RetryAttempt{ClientMsgNo: lateIntent.Logical.ClientMsgNo}, 2); err != nil {
@@ -1441,7 +1441,7 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 	}
 	intent := fixture.intent(t, edge.OwnerUID, edge.PeerUID, 0, TrafficPerson)
 	intent.ChannelID = edge.PersonChannelID
-	if err := fixture.verifier.RegisterSend(intent.Logical, now); err != nil {
+	if err := fixture.verifier.RegisterSend(intent.Logical, now, SendLatencyHot); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.verifier.ObserveAttempt(intent.Logical, RetryAttempt{ClientMsgNo: intent.Logical.ClientMsgNo}, 1); err != nil {

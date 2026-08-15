@@ -2443,7 +2443,9 @@ func (a *CoordinatorSnapshotAggregator) Aggregate(snapshots []WorkerSnapshot) (C
 func validCoordinatorSnapshotHistograms(snapshot WorkerSnapshot) bool {
 	return validCoordinatorHistogram(snapshot.Sync.ConnectLatency) &&
 		validCoordinatorHistogram(snapshot.Sync.Latency) &&
-		validCoordinatorHistogram(snapshot.SendackLatency) &&
+		validCoordinatorHistogram(snapshot.HotSendackLatency) &&
+		validCoordinatorHistogram(snapshot.ColdFirstCreateSendackLatency) &&
+		validCoordinatorHistogram(snapshot.LifecycleReheatSendackLatency) &&
 		validCoordinatorHistogram(snapshot.RecvackLatency)
 }
 
@@ -2583,7 +2585,9 @@ func coordinatorSnapshotRegressed(
 	}
 	return coordinatorHistogramRegressed(current.Sync.ConnectLatency, previous.Sync.ConnectLatency) ||
 		coordinatorHistogramRegressed(current.Sync.Latency, previous.Sync.Latency) ||
-		coordinatorHistogramRegressed(current.SendackLatency, previous.SendackLatency) ||
+		coordinatorHistogramRegressed(current.HotSendackLatency, previous.HotSendackLatency) ||
+		coordinatorHistogramRegressed(current.ColdFirstCreateSendackLatency, previous.ColdFirstCreateSendackLatency) ||
+		coordinatorHistogramRegressed(current.LifecycleReheatSendackLatency, previous.LifecycleReheatSendackLatency) ||
 		coordinatorHistogramRegressed(current.RecvackLatency, previous.RecvackLatency)
 }
 
@@ -2644,7 +2648,13 @@ func aggregateCoordinatorSnapshots(
 		if err := addCoordinatorSync(&result.Sync, snapshot.Sync); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
-		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.SendackLatency); err != nil {
+		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.HotSendackLatency); err != nil {
+			return CoordinatorSnapshot{}, err
+		}
+		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.ColdFirstCreateSendackLatency); err != nil {
+			return CoordinatorSnapshot{}, err
+		}
+		if err := addCoordinatorHistogram(&result.SendackLatency, snapshot.LifecycleReheatSendackLatency); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
 		if err := addCoordinatorHistogram(&result.RecvackLatency, snapshot.RecvackLatency); err != nil {

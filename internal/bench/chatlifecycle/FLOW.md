@@ -300,7 +300,7 @@ schema v3; the strict reader intentionally rejects legacy report schemas. The me
 and all fixed-array aggregate snapshots remain low-cardinality and carry no
 channel label.
 
-Worker protocol v5 snapshots contain only scalar aggregates, including the
+Worker protocol v6 snapshots contain only scalar aggregates, including the
 fixed successful-first person/group metadata-create vectors, terminal SEND and
 retry-exhaustion reason breakdown, fixed arrays, and the verifier's
 at-most-four evidence classes with at most 64
@@ -359,6 +359,13 @@ Latency snapshots use one fixed 16-bucket layout with explicit bounds at zero,
 fake-clock movement is ignored, zero duration enters the zero bucket, and
 values beyond 60 seconds enter the final overflow bucket. Counts, nanosecond
 sums, and bucket counts saturate rather than wrap; maximum latency is retained.
+Worker protocol v6 partitions successful SENDACK latency at registration into
+loaded-hot, deterministic first person-channel create, and lifecycle-reheat
+histograms. Product latency projection uses only loaded-hot for the hot gate,
+adds first-create latency to the lifecycle proof's independent reheat histogram
+for the cold gate, and retains the worker reheat histogram only as diagnostic
+evidence. This prevents a proven cold activation from contaminating the hot
+percentile or being counted twice in the cold percentile.
 `SessionPool` accumulates real factory, CONNECT, and full-sync outcomes for the
 whole generation. CONNECT and sync each expose started, completed, failed, and
 canceled counters; factory failure and cancellation remain separate. Every

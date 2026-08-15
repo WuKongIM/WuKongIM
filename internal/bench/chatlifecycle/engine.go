@@ -2989,7 +2989,7 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 				e.releaseUnstartedSendLease(intent),
 			)
 		}
-		if err := e.verifier.RegisterSend(logical, now); err != nil {
+		if err := e.verifier.RegisterSend(logical, now, sendLatencyClassForIntent(intent)); err != nil {
 			return errors.Join(err, e.releaseUnstartedSendLease(intent))
 		}
 		inflight = &engineInflight{intent: intent, senderLeaseUID: logical.Sender}
@@ -3045,6 +3045,16 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	inflight.timeout = timeout
 	return nil
+}
+
+func sendLatencyClassForIntent(intent TrafficIntent) SendLatencyClass {
+	if intent.MetaCreateCandidate {
+		return SendLatencyColdFirstCreate
+	}
+	if intent.Domain == LogicalDomainRevisit {
+		return SendLatencyLifecycleReheat
+	}
+	return SendLatencyHot
 }
 
 // attemptTimeoutFor selects the bounded first-attempt deadline from the

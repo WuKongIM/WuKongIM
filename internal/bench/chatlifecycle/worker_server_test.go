@@ -235,7 +235,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV6WithCoordinatorGrantV2(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -259,8 +259,8 @@ func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 5 {
-		t.Fatalf("protocol version = %d, want 5", info.ProtocolVersion)
+	if info.ProtocolVersion != 6 {
+		t.Fatalf("protocol version = %d, want 6", info.ProtocolVersion)
 	}
 }
 
@@ -816,7 +816,7 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.engine.cached.SyncCanceled = 1
 	engineGeneration.engine.lifecycleMu.Unlock()
 	engineGeneration.verifier.sendMu.Lock()
-	recordWorkerLatency(&engineGeneration.verifier.sendackLatency, 2*time.Second)
+	recordWorkerLatency(&engineGeneration.verifier.hotSendackLatency, 2*time.Second)
 	engineGeneration.verifier.sendMu.Unlock()
 	engineGeneration.verifier.recvMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.recvackLatency, 50*time.Millisecond)
@@ -842,8 +842,9 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		t.Fatalf("latency Snapshot: %v", err)
 	}
 	if snapshot.Sync.ConnectLatency.Buckets[5] != 1 || snapshot.Sync.Latency.Buckets[6] != 1 ||
-		snapshot.SendackLatency.Buckets[11] != 1 || snapshot.RecvackLatency.Buckets[6] != 1 {
-		t.Fatalf("worker latency projection = sync=%+v sendack=%+v recvack=%+v", snapshot.Sync, snapshot.SendackLatency, snapshot.RecvackLatency)
+		snapshot.HotSendackLatency.Buckets[11] != 1 || snapshot.ColdFirstCreateSendackLatency.Count != 0 ||
+		snapshot.LifecycleReheatSendackLatency.Count != 0 || snapshot.RecvackLatency.Buckets[6] != 1 {
+		t.Fatalf("worker latency projection = sync=%+v hot=%+v cold_create=%+v reheat=%+v recvack=%+v", snapshot.Sync, snapshot.HotSendackLatency, snapshot.ColdFirstCreateSendackLatency, snapshot.LifecycleReheatSendackLatency, snapshot.RecvackLatency)
 	}
 	if snapshot.Sync.FactoryFailed != 1 || snapshot.Sync.FactoryCanceled != 2 ||
 		snapshot.Sync.ConnectStarted != 11 || snapshot.Sync.ConnectCompleted != 8 || snapshot.Sync.ConnectFailed != 2 || snapshot.Sync.ConnectCanceled != 1 ||

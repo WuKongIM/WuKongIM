@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 5
+	workerProtocolVersion  uint64 = 6
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -387,23 +387,25 @@ type WorkerHarnessSnapshot struct {
 
 // WorkerSnapshot is the complete bounded, identity-free worker evidence response.
 type WorkerSnapshot struct {
-	RunID            string                    `json:"run_id,omitempty"`
-	AssignmentID     string                    `json:"assignment_id,omitempty"`
-	Phase            WorkerPhase               `json:"phase"`
-	Uptime           time.Duration             `json:"uptime"`
-	SnapshotSequence uint64                    `json:"snapshot_sequence"`
-	Generation       uint64                    `json:"generation"`
-	WorkerID         uint64                    `json:"worker_id"`
-	WorkerCount      uint64                    `json:"worker_count"`
-	Sessions         WorkerSessionSnapshot     `json:"sessions"`
-	Generated        WorkerGeneratedSnapshot   `json:"generated"`
-	MetaCreate       WorkerMetaCreateSnapshot  `json:"meta_create"`
-	Messages         WorkerMessageSnapshot     `json:"messages"`
-	Sync             WorkerSyncSnapshot        `json:"sync"`
-	SendackLatency   WorkerHistogramSnapshot   `json:"sendack_latency"`
-	RecvackLatency   WorkerHistogramSnapshot   `json:"recvack_latency"`
-	Correlation      WorkerCorrelationSnapshot `json:"correlation"`
-	Queues           WorkerQueueSnapshot       `json:"queues"`
-	Harness          WorkerHarnessSnapshot     `json:"harness"`
-	Evidence         EvidenceSnapshot          `json:"evidence"`
+	RunID                         string                    `json:"run_id,omitempty"`
+	AssignmentID                  string                    `json:"assignment_id,omitempty"`
+	Phase                         WorkerPhase               `json:"phase"`
+	Uptime                        time.Duration             `json:"uptime"`
+	SnapshotSequence              uint64                    `json:"snapshot_sequence"`
+	Generation                    uint64                    `json:"generation"`
+	WorkerID                      uint64                    `json:"worker_id"`
+	WorkerCount                   uint64                    `json:"worker_count"`
+	Sessions                      WorkerSessionSnapshot     `json:"sessions"`
+	Generated                     WorkerGeneratedSnapshot   `json:"generated"`
+	MetaCreate                    WorkerMetaCreateSnapshot  `json:"meta_create"`
+	Messages                      WorkerMessageSnapshot     `json:"messages"`
+	Sync                          WorkerSyncSnapshot        `json:"sync"`
+	HotSendackLatency             WorkerHistogramSnapshot   `json:"hot_sendack_latency"`
+	ColdFirstCreateSendackLatency WorkerHistogramSnapshot   `json:"cold_first_create_sendack_latency"`
+	LifecycleReheatSendackLatency WorkerHistogramSnapshot   `json:"lifecycle_reheat_sendack_latency"`
+	RecvackLatency                WorkerHistogramSnapshot   `json:"recvack_latency"`
+	Correlation                   WorkerCorrelationSnapshot `json:"correlation"`
+	Queues                        WorkerQueueSnapshot       `json:"queues"`
+	Harness                       WorkerHarnessSnapshot     `json:"harness"`
+	Evidence                      EvidenceSnapshot          `json:"evidence"`
 }

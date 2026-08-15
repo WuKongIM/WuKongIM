@@ -143,7 +143,7 @@ func TestCoordinatorSnapshotAggregationEnforcesFenceSchemaAndMonotonicity(t *tes
 		{
 			name: "histogram schema",
 			mutate: func(snapshots []WorkerSnapshot) []WorkerSnapshot {
-				snapshots[2].SendackLatency.BucketUpper[1]++
+				snapshots[2].HotSendackLatency.BucketUpper[1]++
 				return snapshots
 			},
 			wantError: ErrCoordinatorHistogramSchema,
@@ -737,8 +737,10 @@ func coordinatorSnapshotFixture(fence WorkerFence, sequence uint64, uptime time.
 			Sync: WorkerSyncSnapshot{
 				ConnectLatency: newWorkerHistogramSnapshot(), Latency: newWorkerHistogramSnapshot(),
 			},
-			SendackLatency: histogram,
-			RecvackLatency: newWorkerHistogramSnapshot(),
+			HotSendackLatency:             histogram,
+			ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+			LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
+			RecvackLatency:                newWorkerHistogramSnapshot(),
 		}
 	}
 	return snapshots
@@ -3865,6 +3867,8 @@ func (w *recordingCoordinatorWorker) snapshot(phase WorkerPhase) WorkerSnapshot 
 		Sync: WorkerSyncSnapshot{
 			ConnectLatency: newWorkerHistogramSnapshot(), Latency: newWorkerHistogramSnapshot(),
 		},
-		SendackLatency: newWorkerHistogramSnapshot(), RecvackLatency: newWorkerHistogramSnapshot(),
+		HotSendackLatency: newWorkerHistogramSnapshot(), ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+		LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
+		RecvackLatency:                newWorkerHistogramSnapshot(),
 	}
 }
