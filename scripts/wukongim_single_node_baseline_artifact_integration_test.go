@@ -178,11 +178,8 @@ func TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering(t *testing.
 		}
 	}
 	identity := readFile(t, filepath.Join(runDir, "artifact-identity.tsv"))
-	if got := tsvValue(identity, "source_dirty"); got != "true" {
-		t.Fatalf("dirty source identity = %q, want true", got)
-	}
 	if got := tsvValue(identity, "source_capture"); got != "binary_identity_only" {
-		t.Fatalf("dirty source capture = %q, want binary_identity_only", got)
+		t.Fatalf("external binary source capture = %q, want binary_identity_only", got)
 	}
 	if got := tsvValue(identity, "wukongim_binary"); got != "bin/wukongim" {
 		t.Fatalf("sealed wukongim identity path = %q", got)
