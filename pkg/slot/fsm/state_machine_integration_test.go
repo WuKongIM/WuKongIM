@@ -732,6 +732,48 @@ func TestStateMachineEnsuresChannelDirectoryReady(t *testing.T) {
 	}
 }
 
+func TestStateMachineAppliesPersonDirectoryBatchesAcrossOwnedHashSlots(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5, 7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	membershipCommand, err := EncodeUpsertUserChannelMembershipBatchCommandChecked([]UserChannelMembershipBatchItem{
+		{HashSlot: 5, Membership: metadb.UserChannelMembership{UID: "u1", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1}},
+		{HashSlot: 7, Membership: metadb.UserChannelMembership{UID: "u2", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1}},
+	})
+	if err != nil {
+		t.Fatalf("EncodeUpsertUserChannelMembershipBatchCommandChecked() error = %v", err)
+	}
+	if _, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, HashSlot: 5, Index: 1, Term: 1, Data: membershipCommand}); err != nil {
+		t.Fatalf("Apply(membership batch) error = %v", err)
+	}
+	if _, err := db.ForHashSlot(5).GetUserChannelMembership(ctx, "u1", "u1@u2", 1); err != nil {
+		t.Fatalf("GetUserChannelMembership(hash slot 5) error = %v", err)
+	}
+	if _, err := db.ForHashSlot(7).GetUserChannelMembership(ctx, "u2", "u1@u2", 1); err != nil {
+		t.Fatalf("GetUserChannelMembership(hash slot 7) error = %v", err)
+	}
+
+	readyCommand, err := EncodeEnsureChannelDirectoriesReadyBatchCommandChecked([]ChannelDirectoryReadyBatchItem{
+		{HashSlot: 5, ChannelID: "u1@u2", ChannelType: 1},
+		{HashSlot: 7, ChannelID: "u3@u4", ChannelType: 1},
+	})
+	if err != nil {
+		t.Fatalf("EncodeEnsureChannelDirectoriesReadyBatchCommandChecked() error = %v", err)
+	}
+	if _, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, HashSlot: 5, Index: 2, Term: 1, Data: readyCommand}); err != nil {
+		t.Fatalf("Apply(directory-ready batch) error = %v", err)
+	}
+	for _, item := range []ChannelDirectoryReadyBatchItem{{HashSlot: 5, ChannelID: "u1@u2", ChannelType: 1}, {HashSlot: 7, ChannelID: "u3@u4", ChannelType: 1}} {
+		channel, err := db.ForHashSlot(item.HashSlot).GetChannel(ctx, item.ChannelID, item.ChannelType)
+		if err != nil || channel.DirectoryReady != 1 {
+			t.Fatalf("GetChannel(%s) = %#v err=%v, want ready", item.ChannelID, channel, err)
+		}
+	}
+}
+
 func TestStateMachineAppliesChannelLatestBatchAcrossOwnedHashSlots(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

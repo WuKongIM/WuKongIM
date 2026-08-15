@@ -51,6 +51,14 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			items[i]["hash_slot"] = item.HashSlot
 		}
 		return simpleInspection("create_channel_runtime_meta_batch", map[string]any{"items": items}), nil
+	case *upsertUserChannelMembershipBatchCmd:
+		return simpleInspection("upsert_user_channel_membership_batch", map[string]any{
+			"items": len(typed.items), "hash_slots": typed.applyHashSlots(0),
+		}), nil
+	case *ensureChannelDirectoriesReadyBatchCmd:
+		return simpleInspection("ensure_channel_directories_ready_batch", map[string]any{
+			"items": len(typed.items), "hash_slots": typed.applyHashSlots(0),
+		}), nil
 	case *deleteChannelRuntimeMetaCmd:
 		return simpleInspection("delete_channel_runtime_meta", map[string]any{
 			"channel_id":   typed.channelID,

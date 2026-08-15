@@ -331,6 +331,8 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 57: TombstoneUserCMDChannelMemberships
 58: EnsureChannelDirectoryReady
 59: CreateChannelRuntimeMeta
+60: UpsertUserChannelMembershipBatch
+61: EnsureChannelDirectoriesReadyBatch
 ```
 
 ## 8. RPC Service IDs（proxy 层）
@@ -379,6 +381,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **命令 50/51 升级约束**: 混合版本 Slot 副本不能安全接收 Manager Channel 条件 create/patch；发布时需要 stop-the-world 升级或 capability gate。
 - **命令 59 wire 合同**: command 59 从第一版开始就是 `CreateChannelRuntimeMetaBatch`，count=1 也使用同一格式；仓库没有旧单条 command 59 的兼容编码或回退路径。
 - **Membership 路由与分页**: 普通和 CMD membership 都按 UID hash slot 路由。普通目录 cursor 必须包含 `(activated_at, channel_id, channel_type)` 完整索引位置；limit 限制扫描候选数。
+- **Person directory 批命令**: 命令 60/61 各自最多携带 128 个规范排序且 identity 唯一的 row，并逐 row 携带真实 hash slot。FSM 必须校验所有 row 都属于同一目标逻辑 Slot Raft Group；membership 阶段全部提交成功后才能提交 directory-ready 阶段，不能在部分 UID 目录失败时发布 ready。
 - **Membership 单调语义**: `read_seq`、`deleted_to_seq`、CMD `ack_seq` 只能前进；显式 activate 更新普通 activation index，hide 同批清零 activation。`source_version` 拒绝陈旧的订阅者派生写。
 - **Conversation 表已删除**: Table ID 6/7 仅保留防复用；Slot FSM、proxy 和 cluster 不得重新引入 conversation 投影命令、RPC 或 active hint overlay。
 - **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。

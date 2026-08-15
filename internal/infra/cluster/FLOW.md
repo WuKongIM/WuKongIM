@@ -587,6 +587,13 @@ ordinary subscriber projection
   -> pkg/cluster.Node
   -> group by UID hash slot
   -> Slot Raft propose to the UID-owned hash slot
+
+first persistent person SEND
+  -> authoritative Channel DirectoryReady read + committed Channel tail
+  -> node-local bounded directory batch (128 channels, 512 queued)
+  -> group both UID membership rows by logical Slot Raft Group
+  -> join all membership proposals
+  -> group and commit Channel DirectoryReady rows
 ```
 
 The adapter does not contain channel business rules. It clones subscriber UID
@@ -595,6 +602,12 @@ subscriber mutation version into the required cluster facade argument. The
 membership facade is separate from the channel metadata facade so tests and
 future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
+The message adapter coalesces concurrent cold person channels for at most 250
+milliseconds or until 128 unique channels are ready. At most four 128-channel
+batches mutate independent Slot proposals concurrently while later bounded batches collect;
+duplicate channels share one result, caller cancellation detaches only that
+waiter, and accepted work has a four-second bound. Membership failure prevents
+the ready phase, preserving the durable discovery invariant.
 The Manager path requires the conditional metadata facade. Create-only channel
 writes and existing-only business-flag patches are proposed to the Slot leader;
 the flag patch invalidates append metadata cache state because the FSM preserves

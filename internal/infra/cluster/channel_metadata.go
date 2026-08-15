@@ -66,8 +66,8 @@ type committedChannelTailNode interface {
 type PersonDirectoryNode interface {
 	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
 	CommittedChannelTail(context.Context, string, int64) (uint64, error)
-	UpsertUserChannelMemberships(context.Context, string, int64, []string, uint64, uint64, int64) error
-	EnsureChannelDirectoryReady(context.Context, string, int64) error
+	UpsertUserChannelMembershipBatch(context.Context, []metadb.UserChannelMembership) error
+	EnsureChannelDirectoriesReady(context.Context, []metadb.ChannelKey) error
 }
 
 // ChannelMetadataStore adapts cluster Slot metadata to the entry-agnostic channel usecase.
@@ -75,12 +75,17 @@ type ChannelMetadataStore struct {
 	node                ChannelMetadataNode
 	membershipNode      ChannelMembershipNode
 	appendMetadataCache *ChannelAppendMetadataCache
+	personDirectories   *personDirectoryBatcher
 }
 
 // NewChannelMetadataStore creates a cluster-backed channel metadata store.
 func NewChannelMetadataStore(node ChannelMetadataNode, appendMetadataCache *ChannelAppendMetadataCache) *ChannelMetadataStore {
 	membershipNode, _ := node.(ChannelMembershipNode)
-	return &ChannelMetadataStore{node: node, membershipNode: membershipNode, appendMetadataCache: appendMetadataCache}
+	store := &ChannelMetadataStore{node: node, membershipNode: membershipNode, appendMetadataCache: appendMetadataCache}
+	if personNode, ok := node.(personDirectoryBatchNode); ok {
+		store.personDirectories = newPersonDirectoryBatcher(personNode)
+	}
+	return store
 }
 
 // GetChannel reads channel metadata from the authoritative Slot leader.
@@ -386,10 +391,22 @@ func (s *ChannelMetadataStore) EnsurePersonChannelDirectory(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	if err := node.UpsertUserChannelMemberships(ctx, channelID, channelType, []string{left, right}, tail, 1, time.Now().UnixNano()); err != nil {
-		return err
+	if s.personDirectories == nil {
+		return metadb.ErrInvalidArgument
 	}
-	if err := node.EnsureChannelDirectoryReady(ctx, channelID, channelType); err != nil {
+	joinSeq := tail + 1
+	if joinSeq == 0 {
+		joinSeq = tail
+	}
+	updatedAt := time.Now().UnixNano()
+	mutation := personDirectoryMutation{
+		key: metadb.ChannelKey{ChannelID: channelID, ChannelType: channelType},
+		memberships: []metadb.UserChannelMembership{
+			{UID: left, ChannelID: channelID, ChannelType: channelType, JoinSeq: joinSeq, ReadSeq: tail, DeletedToSeq: tail, SourceVersion: 1, UpdatedAt: updatedAt},
+			{UID: right, ChannelID: channelID, ChannelType: channelType, JoinSeq: joinSeq, ReadSeq: tail, DeletedToSeq: tail, SourceVersion: 1, UpdatedAt: updatedAt},
+		},
+	}
+	if err := s.personDirectories.ensure(ctx, mutation); err != nil {
 		return err
 	}
 	channel.ChannelID = channelID

@@ -52,6 +52,8 @@ const (
 	cmdTypeTombstoneUserCMDChannelMemberships  uint8 = 57
 	cmdTypeEnsureChannelDirectoryReady         uint8 = 58
 	cmdTypeCreateChannelRuntimeMeta            uint8 = 59
+	cmdTypeUpsertUserChannelMembershipBatch    uint8 = 60
+	cmdTypeEnsureChannelDirectoriesReadyBatch  uint8 = 61
 	cmdTypeBindPluginUser                      uint8 = 42
 	cmdTypeUnbindPluginUser                    uint8 = 43
 
@@ -230,6 +232,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeTombstoneUserCMDChannelMemberships:  decodeTombstoneUserCMDChannelMemberships,
 	cmdTypeEnsureChannelDirectoryReady:         decodeEnsureChannelDirectoryReady,
 	cmdTypeCreateChannelRuntimeMeta:            decodeCreateChannelRuntimeMeta,
+	cmdTypeUpsertUserChannelMembershipBatch:    decodeUpsertUserChannelMembershipBatch,
+	cmdTypeEnsureChannelDirectoriesReadyBatch:  decodeEnsureChannelDirectoriesReadyBatch,
 	cmdTypeBindPluginUser:                      decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                    decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                          decodeApplyDelta,

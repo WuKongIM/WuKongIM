@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	maxChannelLatestBatchItems       = 512
-	maxMembershipBatchItems          = 512
-	maxMembershipProposalConcurrency = 2
+	maxChannelLatestBatchItems            = 512
+	maxMembershipBatchItems               = 512
+	maxMembershipProposalConcurrency      = 2
+	maxPersonDirectoryProposalConcurrency = 10
 )
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
@@ -598,6 +599,175 @@ func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID strin
 		proposals = append(proposals, userMembershipProposal{hashSlot: hashSlot, command: command, rows: len(groups[hashSlot])})
 	}
 	return n.submitUserMembershipProposals(ctx, proposals, "upsert")
+}
+
+// UpsertUserChannelMembershipBatch persists a bounded cross-channel set of
+// UID-owned memberships with one Raft proposal per logical Slot group.
+func (n *Node) UpsertUserChannelMembershipBatch(ctx context.Context, memberships []metadb.UserChannelMembership) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(memberships) == 0 {
+		return nil
+	}
+	keys := make([]string, len(memberships))
+	for i, membership := range memberships {
+		if membership.UID == "" || membership.ChannelID == "" || membership.ChannelType <= 0 {
+			return metadb.ErrInvalidArgument
+		}
+		keys[i] = membership.UID
+	}
+	routes, err := n.RouteKeys(keys)
+	if err != nil {
+		return err
+	}
+	groups := make(map[uint32][]metafsm.UserChannelMembershipBatchItem)
+	for i, route := range routes {
+		groups[route.SlotID] = append(groups[route.SlotID], metafsm.UserChannelMembershipBatchItem{
+			HashSlot: route.HashSlot, Membership: memberships[i],
+		})
+	}
+	proposals := make([]personDirectoryProposal, 0, len(groups))
+	for _, slotID := range sortedPersonDirectorySlotIDs(groups) {
+		items := groups[slotID]
+		for start := 0; start < len(items); start += metafsm.MaxPersonDirectoryBatchItems {
+			end := min(start+metafsm.MaxPersonDirectoryBatchItems, len(items))
+			command, err := metafsm.EncodeUpsertUserChannelMembershipBatchCommandChecked(items[start:end])
+			if err != nil {
+				return err
+			}
+			proposals = append(proposals, personDirectoryProposal{
+				slotID: slotID, hashSlot: items[start].HashSlot, command: command, rows: end - start,
+			})
+		}
+	}
+	return n.submitPersonDirectoryProposals(ctx, proposals, "upsert")
+}
+
+// EnsureChannelDirectoriesReady monotonically marks a bounded cross-channel
+// set ready with one Raft proposal per logical Slot group.
+func (n *Node) EnsureChannelDirectoriesReady(ctx context.Context, channels []metadb.ChannelKey) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(channels) == 0 {
+		return nil
+	}
+	keys := make([]string, len(channels))
+	for i, channel := range channels {
+		if channel.ChannelID == "" || channel.ChannelType <= 0 {
+			return metadb.ErrInvalidArgument
+		}
+		keys[i] = channel.ChannelID
+	}
+	routes, err := n.RouteKeys(keys)
+	if err != nil {
+		return err
+	}
+	groups := make(map[uint32][]metafsm.ChannelDirectoryReadyBatchItem)
+	for i, route := range routes {
+		groups[route.SlotID] = append(groups[route.SlotID], metafsm.ChannelDirectoryReadyBatchItem{
+			HashSlot: route.HashSlot, ChannelID: channels[i].ChannelID, ChannelType: channels[i].ChannelType,
+		})
+	}
+	proposals := make([]personDirectoryProposal, 0, len(groups))
+	for _, slotID := range sortedDirectoryReadySlotIDs(groups) {
+		items := groups[slotID]
+		for start := 0; start < len(items); start += metafsm.MaxPersonDirectoryBatchItems {
+			end := min(start+metafsm.MaxPersonDirectoryBatchItems, len(items))
+			command, err := metafsm.EncodeEnsureChannelDirectoriesReadyBatchCommandChecked(items[start:end])
+			if err != nil {
+				return err
+			}
+			proposals = append(proposals, personDirectoryProposal{
+				slotID: slotID, hashSlot: items[start].HashSlot, command: command, rows: end - start,
+			})
+		}
+	}
+	return n.submitPersonDirectoryProposals(ctx, proposals, "ready")
+}
+
+type personDirectoryProposal struct {
+	slotID   uint32
+	hashSlot uint16
+	command  []byte
+	rows     int
+}
+
+func (n *Node) submitPersonDirectoryProposals(ctx context.Context, proposals []personDirectoryProposal, action string) error {
+	if len(proposals) == 0 {
+		return nil
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan int, len(proposals))
+	for index := range proposals {
+		jobs <- index
+	}
+	close(jobs)
+	succeeded := make([]bool, len(proposals))
+	workerCount := min(len(proposals), maxPersonDirectoryProposalConcurrency)
+	var workers sync.WaitGroup
+	var firstErr error
+	var firstErrOnce sync.Once
+	worker := func() {
+		for index := range jobs {
+			if workerCtx.Err() != nil {
+				return
+			}
+			proposal := proposals[index]
+			err := n.Propose(workerCtx, ProposeRequest{Command: proposal.command, Target: ProposeTarget{
+				HashSlot: proposal.hashSlot, HasHashSlot: true, SlotID: proposal.slotID, HasSlotID: true,
+			}})
+			if err != nil {
+				firstErrOnce.Do(func() { firstErr = err; cancel() })
+				continue
+			}
+			succeeded[index] = true
+		}
+	}
+	if workerCount > 1 {
+		workers.Add(workerCount - 1)
+		goruntimeregistry.SafeGoN(n.cfg.Goroutines, goruntimeregistry.TaskClusterMembershipBatch, workerCount-1, func(int) {
+			defer workers.Done()
+			worker()
+		})
+	}
+	worker()
+	workers.Wait()
+	for index, ok := range succeeded {
+		if ok {
+			n.observeMembershipMutation("ordinary", action, proposals[index].rows)
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctxErr(ctx)
+}
+
+func sortedPersonDirectorySlotIDs(groups map[uint32][]metafsm.UserChannelMembershipBatchItem) []uint32 {
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	return slotIDs
+}
+
+func sortedDirectoryReadySlotIDs(groups map[uint32][]metafsm.ChannelDirectoryReadyBatchItem) []uint32 {
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	return slotIDs
 }
 
 type userMembershipProposal struct {

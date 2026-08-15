@@ -567,7 +567,13 @@ slot and submit one Slot proposal per touched hash slot. Foreground upserts
 submit at most two independent hash-slot proposals concurrently, then join and
 publish mutation observations serially; this bounds fanout while avoiding a
 person channel's two UID directories paying unrelated Slot commit latency in
-series. Point reads and
+series. Cold person-directory establishment uses the separate bounded batch
+facade: it groups rows from multiple channels by logical Slot Raft Group,
+submits at most one multi-hash-slot membership command per group, joins every
+membership proposal, and only then submits grouped channel-owned ready rows.
+Up to ten independent logical Slot groups may progress concurrently; the
+two-phase join prevents a ready marker from hiding a missing UID membership.
+Point reads and
 activation-index pages use the same UID ownership and route to the current Slot
 leader when the ingress node is not a replica. Badge, hide, and activation
 commands are monotonic foreground mutations; message SEND never invokes them.

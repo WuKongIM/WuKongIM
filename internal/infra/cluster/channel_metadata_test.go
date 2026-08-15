@@ -387,6 +387,42 @@ func (r *recordingChannelMetadataNode) EnsureChannelDirectoryReady(context.Conte
 	return nil
 }
 
+func (r *recordingChannelMetadataNode) UpsertUserChannelMembershipBatch(_ context.Context, memberships []metadb.UserChannelMembership) error {
+	type key struct {
+		channelID   string
+		channelType int64
+	}
+	groups := make(map[key][]metadb.UserChannelMembership)
+	order := make([]key, 0)
+	for _, membership := range memberships {
+		groupKey := key{channelID: membership.ChannelID, channelType: membership.ChannelType}
+		if _, ok := groups[groupKey]; !ok {
+			order = append(order, groupKey)
+		}
+		groups[groupKey] = append(groups[groupKey], membership)
+	}
+	for _, groupKey := range order {
+		group := groups[groupKey]
+		uids := make([]string, len(group))
+		for i, membership := range group {
+			uids[i] = membership.UID
+		}
+		r.membershipUpserts = append(r.membershipUpserts, membershipUpsertNodeCall{
+			channelID: groupKey.channelID, channelType: groupKey.channelType, uids: uids,
+			committedTail: group[0].ReadSeq, sourceVersion: group[0].SourceVersion, updatedAt: group[0].UpdatedAt,
+		})
+	}
+	return nil
+}
+
+func (r *recordingChannelMetadataNode) EnsureChannelDirectoriesReady(_ context.Context, channels []metadb.ChannelKey) error {
+	r.directoryReadyCalls += len(channels)
+	if len(channels) > 0 {
+		r.authoritativeChannel.DirectoryReady = 1
+	}
+	return nil
+}
+
 func equalMembershipUpsertNodeCalls(a, b []membershipUpsertNodeCall) bool {
 	if len(a) != len(b) {
 		return false

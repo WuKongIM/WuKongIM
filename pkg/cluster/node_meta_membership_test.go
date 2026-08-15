@@ -7,7 +7,74 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+func TestPersonDirectoryBatchMutationsSubmitOncePerLogicalSlot(t *testing.T) {
+	proposer := &collectingMembershipProposer{}
+	node := newStartedSlotProxyPortNode(t, proposer)
+	keys := []string{
+		keyForNodeHashSlot(t, 4, 0),
+		keyForNodeHashSlot(t, 4, 1),
+		keyForNodeHashSlot(t, 4, 2),
+		keyForNodeHashSlot(t, 4, 3),
+	}
+	memberships := make([]metadb.UserChannelMembership, len(keys))
+	ready := make([]metadb.ChannelKey, len(keys))
+	for i, key := range keys {
+		memberships[i] = metadb.UserChannelMembership{UID: key, ChannelID: "person-" + key, ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1}
+		ready[i] = metadb.ChannelKey{ChannelID: key, ChannelType: 1}
+	}
+
+	if err := node.UpsertUserChannelMembershipBatch(context.Background(), memberships); err != nil {
+		t.Fatalf("UpsertUserChannelMembershipBatch() error = %v", err)
+	}
+	requests := proposer.take()
+	assertTwoLogicalSlotBatchRequests(t, requests)
+
+	if err := node.EnsureChannelDirectoriesReady(context.Background(), ready); err != nil {
+		t.Fatalf("EnsureChannelDirectoriesReady() error = %v", err)
+	}
+	requests = proposer.take()
+	assertTwoLogicalSlotBatchRequests(t, requests)
+}
+
+type collectingMembershipProposer struct {
+	mu       sync.Mutex
+	requests []propose.Request
+}
+
+func (p *collectingMembershipProposer) Propose(_ context.Context, req propose.Request) error {
+	p.mu.Lock()
+	p.requests = append(p.requests, req)
+	p.mu.Unlock()
+	return nil
+}
+
+func (p *collectingMembershipProposer) take() []propose.Request {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	requests := append([]propose.Request(nil), p.requests...)
+	p.requests = nil
+	return requests
+}
+
+func assertTwoLogicalSlotBatchRequests(t *testing.T, requests []propose.Request) {
+	t.Helper()
+	if len(requests) != 2 {
+		t.Fatalf("proposal count = %d, want one per logical Slot (2); requests=%#v", len(requests), requests)
+	}
+	seen := map[uint32]bool{}
+	for _, request := range requests {
+		if !request.Target.HasSlotID || !request.Target.HasHashSlot || len(request.Command) < 2 {
+			t.Fatalf("proposal target/command = %#v, want explicit logical Slot and hash slot", request)
+		}
+		seen[request.Target.SlotID] = true
+	}
+	if !seen[1] || !seen[2] {
+		t.Fatalf("proposal logical Slots = %#v, want 1 and 2", seen)
+	}
+}
 
 func TestUpsertUserChannelMembershipsSubmitsIndependentSlotsConcurrently(t *testing.T) {
 	proposer := &blockingMembershipProposer{
