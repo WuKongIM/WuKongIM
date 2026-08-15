@@ -243,15 +243,20 @@ func readBoundedProcessMetrics(path string, now time.Time) ([]byte, error) {
 	if path == "" {
 		return nil, nil
 	}
-	file, err := os.Open(path)
+	descriptor, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, errHostMetricsConfig
 	}
+	file := os.NewFile(uintptr(descriptor), path)
+	if file == nil {
+		_ = unix.Close(descriptor)
+		return nil, errHostMetricsConfig
+	}
 	defer file.Close()
+	// The collector atomically replaces the pathname. Validate the securely opened
+	// descriptor instead of comparing it with a newer publication at the pathname.
 	info, statErr := file.Stat()
-	linkInfo, linkErr := os.Lstat(path)
-	if statErr != nil || linkErr != nil || !info.Mode().IsRegular() || !linkInfo.Mode().IsRegular() ||
-		linkInfo.Mode()&os.ModeSymlink != 0 || !os.SameFile(info, linkInfo) || info.Size() < 0 || info.Size() > 256<<10 {
+	if statErr != nil || !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > 256<<10 {
 		return nil, errHostMetricsConfig
 	}
 	age := now.Sub(info.ModTime())

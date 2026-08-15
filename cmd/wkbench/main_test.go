@@ -124,6 +124,94 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("stale collector timestamp status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 	}
+
+	processTarget := filepath.Join(temporary, "processes-target.prom")
+	if err := os.WriteFile(processTarget, []byte(processMetrics), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(processPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(processTarget, processPath); err != nil {
+		t.Fatal(err)
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("symlinked process evidence status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHostMetricsServesProcessSnapshotDuringAtomicPublication(t *testing.T) {
+	temporary := t.TempDir()
+	processPath := filepath.Join(temporary, "processes.prom")
+	processMetrics := []byte(fmt.Sprintf(
+		"wukongim_process_up{unit=\"wukongim.service\"} 1\nwukongim_process_collector_last_success_unixtime_seconds %d\n",
+		time.Now().Unix(),
+	))
+	if err := os.WriteFile(processPath, processMetrics, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := newHostMetricsHandler(hostMetricsConfig{
+		path: temporary, mountpoint: "/var/lib/wukongim-1", device: "/dev/local-data-1",
+		processMetricsPath: processPath, physicalIO: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stop := make(chan struct{})
+	writerErrors := make(chan error, 1)
+	var writers sync.WaitGroup
+	for writerID := 0; writerID < 4; writerID++ {
+		writerID := writerID
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+			for sequence := 0; ; sequence++ {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				temporaryPath := filepath.Join(temporary, fmt.Sprintf("processes.prom.next.%d.%d", writerID, sequence))
+				if err := os.WriteFile(temporaryPath, processMetrics, 0o600); err != nil {
+					select {
+					case writerErrors <- err:
+					default:
+					}
+					return
+				}
+				if err := os.Rename(temporaryPath, processPath); err != nil {
+					select {
+					case writerErrors <- err:
+					default:
+					}
+					return
+				}
+			}
+		}()
+	}
+	t.Cleanup(func() {
+		close(stop)
+		writers.Wait()
+	})
+
+	for attempt := 0; attempt < 3_000; attempt++ {
+		select {
+		case err := <-writerErrors:
+			t.Fatalf("atomic process metrics publisher failed: %v", err)
+		default:
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("metrics request %d status/body = %d/%q, want a complete atomically published snapshot", attempt, response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `wukongim_process_up{unit="wukongim.service"} 1`) {
+			t.Fatalf("metrics request %d omitted the atomically published process snapshot", attempt)
+		}
+	}
 }
 
 func TestHostMetricsNativeResourceCollectors(t *testing.T) {
