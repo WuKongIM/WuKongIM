@@ -20,9 +20,10 @@ const (
 	// sendBatchPermissionWorkers bounds concurrent authoritative metadata reads
 	// without changing the original item order used by hooks and append admission.
 	sendBatchPermissionWorkers = 16
-	// sendBatchPreAppendWorkers bounds independent first-write person-directory
-	// establishment so a gateway batch does not serialize Slot round trips.
-	sendBatchPreAppendWorkers = 16
+	// sendBatchPreAppendWorkers matches the bounded person-directory batch size.
+	// A full caller wave closes that downstream batch immediately instead of
+	// paying its collection deadline in groups of a few entries.
+	sendBatchPreAppendWorkers = 128
 
 	sendBatchStagePermission = "permission"
 	sendBatchStagePreAppend  = "pre_append"

@@ -132,7 +132,12 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 		return Installed{}, err
 	}
 	installedFrontier := recovered
-	if !frontierUsesAuthority(recovered, authority.ID) {
+	// A quorum-proved empty log has no durable effect that needs a standalone
+	// authority fence. Its first business proposal carries the complete current
+	// authority and makes that proof durable in the same quorum round. A
+	// non-empty frontier still needs the barrier before it can accept a proposal
+	// under a different authority.
+	if recovered != (ReplicaState{}) && !frontierUsesAuthority(recovered, authority.ID) {
 		barrier, barrierErr := writeCurrentTermBarrier(ctx, authority, recovered, l.cfg.Durability)
 		if barrierErr != nil {
 			return Installed{}, barrierErr

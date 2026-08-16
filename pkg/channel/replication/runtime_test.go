@@ -57,8 +57,8 @@ func TestRuntimeOwnsThreeNodeInstallAndQuorumCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if installed.LEO != 1 || installed.HW != 1 || installed.Authority != authority.ID {
-		t.Fatalf("Install() = %+v, want current-authority barrier at 1", installed)
+	if installed.LEO != 0 || installed.HW != 0 || installed.Authority != authority.ID {
+		t.Fatalf("Install() = %+v, want quorum-proved empty frontier", installed)
 	}
 
 	proposal := Proposal{
@@ -72,12 +72,12 @@ func TestRuntimeOwnsThreeNodeInstallAndQuorumCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Commit() error = %v", err)
 	}
-	if receipt.First != 2 || receipt.Last != 2 || receipt.HW != 2 || receipt.CommandID != proposal.CommandID {
-		t.Fatalf("Commit() = %+v, want exact range 2", receipt)
+	if receipt.First != 1 || receipt.Last != 1 || receipt.HW != 1 || receipt.CommandID != proposal.CommandID {
+		t.Fatalf("Commit() = %+v, want exact range 1", receipt)
 	}
 
 	for _, node := range []ch.NodeID{1, 2, 3} {
-		waitForRuntimeReplicaLEO(t, stores[node], authority, 2)
+		waitForRuntimeReplicaLEO(t, stores[node], authority, 1)
 	}
 }
 
@@ -136,7 +136,7 @@ func TestRuntimeRepairsFollowerGapFromLeaderDurableStore(t *testing.T) {
 			t.Fatalf("Commit(%d) error = %v", index, err)
 		}
 	}
-	waitForRuntimeReplicaLEO(t, stores[2], authority, 3)
+	waitForRuntimeReplicaLEO(t, stores[2], authority, 2)
 }
 
 func waitForRuntimeReplicaLEO(t *testing.T, store ReplicaStore, authority Authority, want uint64) {

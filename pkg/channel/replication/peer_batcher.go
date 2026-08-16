@@ -69,6 +69,19 @@ type queuedPeerItem struct {
 	completeFetch     func(FetchResult, error)
 }
 
+func (i queuedPeerItem) channelKey() ch.ChannelKey {
+	switch i.kind {
+	case ExchangeReplicate:
+		return i.replicate.ChannelKey
+	case ExchangeProbe:
+		return i.probe.ChannelKey
+	case ExchangeFetch:
+		return i.fetch.ChannelKey
+	default:
+		return ""
+	}
+}
+
 type peerExchangeResult struct {
 	replicate ReplicateResult
 	probe     ProbeResult
@@ -211,23 +224,42 @@ func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedPeerItem {
 		}
 		return nil
 	}
-	count := 0
-	bytes := 0
 	kind := target.queued[0].kind
-	for count < len(target.queued) && count < b.cfg.MaxBatchItems {
-		if target.queued[count].kind != kind {
-			break
+	items := make([]queuedPeerItem, 0, min(len(target.queued), b.cfg.MaxBatchItems))
+	remaining := target.queued[:0]
+	batchBytes := 0
+	var blockedChannels map[ch.ChannelKey]struct{}
+	for index := range target.queued {
+		item := target.queued[index]
+		if len(items) >= b.cfg.MaxBatchItems {
+			remaining = append(remaining, item)
+			continue
 		}
-		next := target.queued[count].bytes
-		if count > 0 && bytes+next > b.cfg.MaxBatchBytes {
-			break
+		channelKey := item.channelKey()
+		if item.kind != kind {
+			if blockedChannels == nil {
+				blockedChannels = make(map[ch.ChannelKey]struct{})
+			}
+			blockedChannels[channelKey] = struct{}{}
+			remaining = append(remaining, item)
+			continue
 		}
-		bytes += next
-		count++
+		if _, blocked := blockedChannels[channelKey]; blocked {
+			remaining = append(remaining, item)
+			continue
+		}
+		if len(items) > 0 && batchBytes+item.bytes > b.cfg.MaxBatchBytes {
+			if blockedChannels == nil {
+				blockedChannels = make(map[ch.ChannelKey]struct{})
+			}
+			blockedChannels[channelKey] = struct{}{}
+			remaining = append(remaining, item)
+			continue
+		}
+		batchBytes += item.bytes
+		items = append(items, item)
 	}
-	items := append([]queuedPeerItem(nil), target.queued[:count]...)
-	copy(target.queued, target.queued[count:])
-	target.queued = target.queued[:len(target.queued)-count]
+	target.queued = remaining
 	return items
 }
 

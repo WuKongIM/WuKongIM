@@ -380,16 +380,20 @@ func (s *ChannelMetadataStore) EnsurePersonChannelDirectory(ctx context.Context,
 		s.appendMetadataCache.storeChannel(channel)
 		return nil
 	}
-	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
+	missing := errors.Is(err, metadb.ErrNotFound)
+	if err != nil && !missing {
 		return mapChannelPermissionReadError(err)
 	}
 	left, right, err := runtimechannelid.DecodePersonChannel(channelID)
 	if err != nil {
 		return err
 	}
-	tail, err := node.CommittedChannelTail(ctx, channelID, channelType)
-	if err != nil {
-		return err
+	var tail uint64
+	if !missing {
+		tail, err = node.CommittedChannelTail(ctx, channelID, channelType)
+		if err != nil {
+			return err
+		}
 	}
 	if s.personDirectories == nil {
 		return metadb.ErrInvalidArgument

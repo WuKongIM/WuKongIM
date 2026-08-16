@@ -10,7 +10,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
-func TestQuorumLogInstallRecoversBarrierThenCommitsAndReplaysExactProposal(t *testing.T) {
+func TestQuorumLogInstallDefersEmptyAuthorityBarrierIntoFirstProposal(t *testing.T) {
 	harness := newReplicaHarness(t, 1, 2, 3)
 	log, err := newQuorumLog(quorumLogConfig{
 		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
@@ -29,8 +29,11 @@ func TestQuorumLogInstallRecoversBarrierThenCommitsAndReplaysExactProposal(t *te
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if installed.Authority != authority.ID || installed.LEO != 1 || installed.HW != 1 {
-		t.Fatalf("Install() = %+v, want current-term barrier at 1", installed)
+	if installed.Authority != authority.ID || installed.LEO != 0 || installed.HW != 0 {
+		t.Fatalf("Install() = %+v, want quorum-proved empty authority without a standalone barrier", installed)
+	}
+	if harness.syncCalls != 0 {
+		t.Fatalf("Install() issued %d empty-channel barrier writes, want zero", harness.syncCalls)
 	}
 	proposal := Proposal{
 		Key: authority.Key, Expected: authority.ID, CommandID: ch.CommandID{31: 9},
@@ -43,7 +46,7 @@ func TestQuorumLogInstallRecoversBarrierThenCommitsAndReplaysExactProposal(t *te
 	if err != nil {
 		t.Fatalf("Commit() error = %v", err)
 	}
-	wantReceipt := Receipt{Authority: authority.ID, CommandID: proposal.CommandID, First: 2, Last: 2, HW: 2}
+	wantReceipt := Receipt{Authority: authority.ID, CommandID: proposal.CommandID, First: 1, Last: 1, HW: 1}
 	if receipt != wantReceipt {
 		t.Fatalf("Commit() = %+v, want %+v", receipt, wantReceipt)
 	}
@@ -67,9 +70,9 @@ func TestQuorumLogInstallRecoversBarrierThenCommitsAndReplaysExactProposal(t *te
 	}
 	for _, voter := range authority.Voters {
 		loaded, loadErr := harness.stores[voter].Load(context.Background(), LoadBatch{Items: []LoadRequest{{ChannelKey: authority.Key, ChannelID: authority.ChannelID}}})
-		if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State.LEO != 2 ||
-			loaded.Items[0].State.Committed != 1 || loaded.Items[0].State.Manifest.CommandID != proposal.CommandID {
-			t.Fatalf("voter %d state = %+v, error %v; want proposal at 2 with persisted prior HW 1", voter, loaded, loadErr)
+		if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State.LEO != 1 ||
+			loaded.Items[0].State.Committed != 0 || loaded.Items[0].State.Manifest.CommandID != proposal.CommandID {
+			t.Fatalf("voter %d state = %+v, error %v; want first proposal at 1 with no prior barrier", voter, loaded, loadErr)
 		}
 	}
 
@@ -86,8 +89,8 @@ func TestQuorumLogInstallRecoversBarrierThenCommitsAndReplaysExactProposal(t *te
 	if err != nil {
 		t.Fatalf("Install(restart) error = %v", err)
 	}
-	if reinstalled.Authority != authority.ID || reinstalled.LEO != 2 || reinstalled.HW != 2 {
-		t.Fatalf("Install(restart) = %+v, want recovered current-authority prefix at 2", reinstalled)
+	if reinstalled.Authority != authority.ID || reinstalled.LEO != 1 || reinstalled.HW != 1 {
+		t.Fatalf("Install(restart) = %+v, want recovered current-authority prefix at 1", reinstalled)
 	}
 	if harness.syncCalls != beforeRestart {
 		t.Fatalf("Install(restart) issued %d barrier writes, want zero", harness.syncCalls-beforeRestart)
@@ -101,8 +104,8 @@ func TestQuorumLogInstallRecoversBarrierThenCommitsAndReplaysExactProposal(t *te
 	}
 	for _, voter := range authority.Voters {
 		loaded, loadErr := harness.stores[voter].Load(context.Background(), LoadBatch{Items: []LoadRequest{{ChannelKey: authority.Key, ChannelID: authority.ChannelID}}})
-		if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State.LEO != 2 {
-			t.Fatalf("voter %d frontier after restart retry = %+v, error %v; want no new row above 2", voter, loaded, loadErr)
+		if loadErr != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil || loaded.Items[0].State.LEO != 1 {
+			t.Fatalf("voter %d frontier after restart retry = %+v, error %v; want no new row above 1", voter, loaded, loadErr)
 		}
 	}
 }
@@ -149,8 +152,57 @@ func TestQuorumLogRetriesSameImmutableRangeAfterLostDurabilityResponses(t *testi
 	if err != nil {
 		t.Fatalf("Commit(exact retry) error = %v", err)
 	}
-	if receipt.First != 2 || receipt.Last != 2 || receipt.HW != 2 {
-		t.Fatalf("Commit(exact retry) = %+v, want original range 2", receipt)
+	if receipt.First != 1 || receipt.Last != 1 || receipt.HW != 1 {
+		t.Fatalf("Commit(exact retry) = %+v, want original range 1", receipt)
+	}
+}
+
+func TestQuorumLogInstallWritesAuthorityBarrierAboveNonEmptyForeignFrontier(t *testing.T) {
+	harness := newReplicaHarness(t, 1, 2, 3)
+	newLog := func() *quorumLog {
+		log, err := newQuorumLog(quorumLogConfig{
+			Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
+			RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
+			MaxChannels: 8, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+		})
+		if err != nil {
+			t.Fatalf("newQuorumLog() error = %v", err)
+		}
+		return log
+	}
+	authority := Authority{
+		Key: "1:authority-change", ChannelID: ch.ChannelID{ID: "authority-change", Type: 1},
+		ID:     AuthorityID{ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7},
+		Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
+	}
+	log := newLog()
+	if installed, err := log.Install(context.Background(), authority); err != nil || installed.LEO != 0 {
+		t.Fatalf("Install(empty) = %+v, %v; want empty frontier", installed, err)
+	}
+	proposal := Proposal{
+		Key: authority.Key, Expected: authority.ID, CommandID: ch.CommandID{31: 27},
+		Records: []ch.Record{{
+			ID: 121, Epoch: authority.ID.ChannelEpoch, FromUID: "sender", ClientMsgNo: "authority-121",
+			Payload: []byte("payload"), SizeBytes: len("payload"), ServerTimestampMS: 121,
+		}},
+	}
+	if receipt, err := log.Commit(context.Background(), proposal); err != nil || receipt.HW != 1 {
+		t.Fatalf("Commit() = %+v, %v; want first proposal at 1", receipt, err)
+	}
+
+	next := authority
+	next.ID.LeaderTerm++
+	next.ID.FenceVersion++
+	before := harness.syncCalls
+	installed, err := newLog().Install(context.Background(), next)
+	if err != nil {
+		t.Fatalf("Install(new authority) error = %v", err)
+	}
+	if installed.Authority != next.ID || installed.LEO != 2 || installed.HW != 2 {
+		t.Fatalf("Install(new authority) = %+v, want barrier above non-empty frontier at 2", installed)
+	}
+	if harness.syncCalls-before != len(next.Voters) {
+		t.Fatalf("Install(new authority) issued %d writes, want one barrier attempt per voter", harness.syncCalls-before)
 	}
 }
 

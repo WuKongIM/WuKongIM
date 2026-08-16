@@ -280,6 +280,90 @@ func TestPeerBatcherSeparatesReadAndWriteForSameChannel(t *testing.T) {
 	}
 }
 
+func TestPeerBatcherCoalescesSameKindAcrossIndependentChannelInterleaving(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	probeIdentity := recoveryIdentity(1, 1)
+	probeResult := recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: probeIdentity}}).Result
+	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:probe": probeResult}}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 4, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	first := testReplicateRequest(t, "1:first", "first", 1, []byte("first"))
+	probe := ProbeRequest{
+		ChannelKey: "1:probe", ChannelID: ch.ChannelID{ID: "probe", Type: 1},
+		Leader: 1, Follower: 2, Indexes: []uint64{1},
+	}
+	last := testReplicateRequest(t, "1:last", "last", 2, []byte("last"))
+	if err := batcher.submit(context.Background(), 2, first, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit first replicate error = %v", err)
+	}
+	if err := batcher.submitProbe(context.Background(), 2, probe, func(ProbeResult, error) {}); err != nil {
+		t.Fatalf("submit probe error = %v", err)
+	}
+	if err := batcher.submit(context.Background(), 2, last, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit last replicate error = %v", err)
+	}
+
+	executor.RunNext()
+
+	if got := batchItemCounts(link.batches); !reflect.DeepEqual(got, []int{2, 1}) {
+		t.Fatalf("batch item counts = %v, want [2 1]", got)
+	}
+	if link.batches[0].Items[0].Kind != ExchangeReplicate || link.batches[0].Items[1].Kind != ExchangeReplicate ||
+		link.batches[0].Items[0].Replicate.ChannelKey != first.ChannelKey ||
+		link.batches[0].Items[1].Replicate.ChannelKey != last.ChannelKey ||
+		link.batches[1].Items[0].Kind != ExchangeProbe {
+		t.Fatalf("independent interleaving batches = %+v, want replicate(first,last) then probe", link.batches)
+	}
+}
+
+func TestPeerBatcherDoesNotReorderOneChannelAcrossKinds(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	probeIdentity := recoveryIdentity(1, 1)
+	probeResult := recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: probeIdentity}}).Result
+	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:ordered": probeResult}}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 4, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	first := testReplicateRequest(t, "1:ordered", "ordered", 1, []byte("first"))
+	probe := ProbeRequest{
+		ChannelKey: first.ChannelKey, ChannelID: first.ChannelID,
+		Leader: 1, Follower: 2, Indexes: []uint64{1},
+	}
+	last := testReplicateRequest(t, "1:ordered", "ordered", 2, []byte("last"))
+	if err := batcher.submit(context.Background(), 2, first, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit first replicate error = %v", err)
+	}
+	if err := batcher.submitProbe(context.Background(), 2, probe, func(ProbeResult, error) {}); err != nil {
+		t.Fatalf("submit probe error = %v", err)
+	}
+	if err := batcher.submit(context.Background(), 2, last, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit last replicate error = %v", err)
+	}
+
+	executor.RunNext()
+
+	if got := batchItemCounts(link.batches); !reflect.DeepEqual(got, []int{1, 1, 1}) {
+		t.Fatalf("batch item counts = %v, want [1 1 1]", got)
+	}
+	if link.batches[0].Items[0].Kind != ExchangeReplicate || link.batches[1].Items[0].Kind != ExchangeProbe ||
+		link.batches[2].Items[0].Kind != ExchangeReplicate {
+		t.Fatalf("same-channel batches = %+v, want replicate, probe, replicate", link.batches)
+	}
+}
+
 func TestDurableRoundOwnsOneImmutablePayloadCopyAcrossFollowers(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 2)}
 	link := &recordingPeerLink{}

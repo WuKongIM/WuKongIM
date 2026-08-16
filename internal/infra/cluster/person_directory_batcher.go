@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -12,14 +11,12 @@ import (
 
 const (
 	personDirectoryBatchMaxItems    = 128
-	personDirectoryQueueMaxItems    = 512
+	personDirectoryQueueMaxItems    = 4096
 	personDirectoryBatchTargetItems = 128
-	personDirectoryBatchMaxActive   = 4
+	personDirectoryBatchMaxActive   = 8
 	personDirectoryBatchCollectWait = 250 * time.Millisecond
 	personDirectoryBatchTimeout     = 4 * time.Second
 )
-
-var errPersonDirectoryBackpressured = errors.New("person directory batch backpressured")
 
 type personDirectoryBatchNode interface {
 	PreparePersonChannelDirectoryBatch(context.Context, []metadb.UserChannelMembership, []metadb.ChannelKey) error
@@ -37,6 +34,10 @@ type personDirectoryBatcher struct {
 	mu          sync.Mutex
 	current     *personDirectoryBatch
 	queuedItems int
+	// maxQueued bounds owned directory mutations independently from active batches.
+	maxQueued int
+	// capacity is closed and replaced whenever queued ownership is released.
+	capacity    chan struct{}
 	collectWait time.Duration
 	targetItems int
 	timeout     time.Duration
@@ -66,7 +67,8 @@ func newPersonDirectoryBatcher(node personDirectoryBatchNode) *personDirectoryBa
 	return &personDirectoryBatcher{
 		node: node, collectWait: personDirectoryBatchCollectWait,
 		targetItems: personDirectoryBatchTargetItems, timeout: personDirectoryBatchTimeout,
-		active: make(chan struct{}, personDirectoryBatchMaxActive),
+		active: make(chan struct{}, personDirectoryBatchMaxActive), capacity: make(chan struct{}),
+		maxQueued: personDirectoryQueueMaxItems,
 	}
 }
 
@@ -80,7 +82,7 @@ func (b *personDirectoryBatcher) ensure(ctx context.Context, mutation personDire
 	if b == nil || b.node == nil || mutation.key.ChannelID == "" || mutation.key.ChannelType <= 0 || len(mutation.memberships) == 0 {
 		return metadb.ErrInvalidArgument
 	}
-	waiter, err := b.admit(mutation)
+	waiter, err := b.admit(ctx, mutation)
 	if err != nil {
 		return err
 	}
@@ -93,39 +95,44 @@ func (b *personDirectoryBatcher) ensure(ctx context.Context, mutation personDire
 	}
 }
 
-func (b *personDirectoryBatcher) admit(mutation personDirectoryMutation) (*personDirectoryWaiter, error) {
-	waiter := &personDirectoryWaiter{result: make(chan error, 1)}
-	b.mu.Lock()
-	batch := b.current
-	if batch == nil || batch.sealed || len(batch.order) >= personDirectoryBatchMaxItems {
-		if b.queuedItems >= personDirectoryQueueMaxItems {
-			b.mu.Unlock()
-			return nil, errPersonDirectoryBackpressured
+func (b *personDirectoryBatcher) admit(ctx context.Context, mutation personDirectoryMutation) (*personDirectoryWaiter, error) {
+	for {
+		waiter := &personDirectoryWaiter{result: make(chan error, 1)}
+		b.mu.Lock()
+		batch := b.current
+		if batch != nil && !batch.sealed {
+			if entry := batch.entries[mutation.key]; entry != nil {
+				waiter.entry = entry
+				entry.waiters[waiter] = struct{}{}
+				b.mu.Unlock()
+				return waiter, nil
+			}
 		}
-		batch = &personDirectoryBatch{entries: make(map[metadb.ChannelKey]*personDirectoryEntry), trigger: make(chan struct{})}
-		b.current = batch
-		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskMessageDirectoryBatch, func() { b.run(batch) })
-	}
-	if entry := batch.entries[mutation.key]; entry != nil {
-		waiter.entry = entry
-		entry.waiters[waiter] = struct{}{}
+		if b.queuedItems < b.maxQueued {
+			if batch == nil || batch.sealed || len(batch.order) >= personDirectoryBatchMaxItems {
+				batch = &personDirectoryBatch{entries: make(map[metadb.ChannelKey]*personDirectoryEntry), trigger: make(chan struct{})}
+				b.current = batch
+				goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskMessageDirectoryBatch, func() { b.run(batch) })
+			}
+			entry := &personDirectoryEntry{mutation: mutation, waiters: map[*personDirectoryWaiter]struct{}{waiter: {}}}
+			waiter.entry = entry
+			batch.entries[mutation.key] = entry
+			batch.order = append(batch.order, entry)
+			b.queuedItems++
+			if len(batch.order) >= b.targetItems {
+				batch.once.Do(func() { close(batch.trigger) })
+			}
+			b.mu.Unlock()
+			return waiter, nil
+		}
+		capacity := b.capacity
 		b.mu.Unlock()
-		return waiter, nil
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-capacity:
+		}
 	}
-	if b.queuedItems >= personDirectoryQueueMaxItems {
-		b.mu.Unlock()
-		return nil, errPersonDirectoryBackpressured
-	}
-	entry := &personDirectoryEntry{mutation: mutation, waiters: map[*personDirectoryWaiter]struct{}{waiter: {}}}
-	waiter.entry = entry
-	batch.entries[mutation.key] = entry
-	batch.order = append(batch.order, entry)
-	b.queuedItems++
-	if len(batch.order) >= b.targetItems {
-		batch.once.Do(func() { close(batch.trigger) })
-	}
-	b.mu.Unlock()
-	return waiter, nil
 }
 
 func (b *personDirectoryBatcher) detach(waiter *personDirectoryWaiter) {
@@ -141,6 +148,7 @@ func (b *personDirectoryBatcher) detach(waiter *personDirectoryWaiter) {
 				entry.canceled = true
 				delete(batch.entries, entry.mutation.key)
 				b.queuedItems--
+				b.signalCapacityLocked()
 			}
 		}
 	}
@@ -180,16 +188,26 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 	<-b.active
 
 	b.mu.Lock()
+	released := false
 	for _, entry := range entries {
 		if !entry.canceled {
 			b.queuedItems--
+			released = true
 		}
 		for waiter := range entry.waiters {
 			waiter.result <- err
 		}
 		entry.waiters = nil
 	}
+	if released {
+		b.signalCapacityLocked()
+	}
 	b.mu.Unlock()
+}
+
+func (b *personDirectoryBatcher) signalCapacityLocked() {
+	close(b.capacity)
+	b.capacity = make(chan struct{})
 }
 
 func (b *personDirectoryBatcher) submit(ctx context.Context, entries []*personDirectoryEntry) error {

@@ -57,6 +57,105 @@ func TestPersonDirectoryBatcherDoesNotPublishReadyAfterMembershipFailure(t *test
 	}
 }
 
+func TestPersonDirectoryBatcherWaitsForCapacityInsteadOfRejectingColdWave(t *testing.T) {
+	const queuedItems = 32
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseAll)
+
+	node := &blockingPersonDirectoryBatchNode{release: release}
+	batcher := newPersonDirectoryBatcher(node)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 1
+	batcher.maxQueued = queuedItems
+
+	results := make(chan error, queuedItems+1)
+	for index := 0; index < queuedItems; index++ {
+		index := index
+		go func() {
+			results <- batcher.ensure(context.Background(), testPersonDirectoryMutation(index))
+		}()
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		batcher.mu.Lock()
+		queued := batcher.queuedItems
+		batcher.mu.Unlock()
+		if queued == queuedItems {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("queued person directories = %d, want %d", queued, queuedItems)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	extra := make(chan error, 1)
+	go func() {
+		extra <- batcher.ensure(context.Background(), testPersonDirectoryMutation(queuedItems))
+	}()
+	select {
+	case err := <-extra:
+		releaseAll()
+		for range queuedItems {
+			<-results
+		}
+		t.Fatalf("extra ensure returned %v while the bounded queue was transiently full; want it to wait", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	releaseAll()
+	for range queuedItems {
+		if err := <-results; err != nil {
+			t.Fatalf("queued ensure error = %v", err)
+		}
+	}
+	if err := <-extra; err != nil {
+		t.Fatalf("extra ensure after capacity release error = %v", err)
+	}
+}
+
+func TestPersonDirectoryBatcherRunsEightColdDirectoryBatchesConcurrently(t *testing.T) {
+	const concurrentBatches = 8
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseAll)
+
+	node := &blockingPersonDirectoryBatchNode{
+		started: make(chan struct{}, concurrentBatches),
+		release: release,
+	}
+	batcher := newPersonDirectoryBatcher(node)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 1
+
+	results := make(chan error, concurrentBatches)
+	for index := 0; index < concurrentBatches; index++ {
+		index := index
+		go func() {
+			results <- batcher.ensure(context.Background(), testPersonDirectoryMutation(index))
+		}()
+		select {
+		case <-node.started:
+		case <-time.After(time.Second):
+			releaseAll()
+			for range index + 1 {
+				<-results
+			}
+			t.Fatalf("active person-directory batches = %d, want %d", index, concurrentBatches)
+		}
+	}
+	releaseAll()
+	for range concurrentBatches {
+		if err := <-results; err != nil {
+			t.Fatalf("ensure() error = %v", err)
+		}
+	}
+}
+
 func testPersonDirectoryMutation(index int) personDirectoryMutation {
 	channelID := string(rune('a'+index)) + "@z"
 	return personDirectoryMutation{
@@ -77,6 +176,27 @@ type recordingPersonDirectoryBatchNode struct {
 	prepareErr       error
 	readyCalls       int
 	ready            []metadb.ChannelKey
+}
+
+type blockingPersonDirectoryBatchNode struct {
+	started chan struct{}
+	release <-chan struct{}
+}
+
+func (n *blockingPersonDirectoryBatchNode) PreparePersonChannelDirectoryBatch(ctx context.Context, _ []metadb.UserChannelMembership, _ []metadb.ChannelKey) error {
+	if n.started != nil {
+		n.started <- struct{}{}
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-n.release:
+		return nil
+	}
+}
+
+func (n *blockingPersonDirectoryBatchNode) EnsureChannelDirectoriesReady(context.Context, []metadb.ChannelKey) error {
+	return nil
 }
 
 func (n *recordingPersonDirectoryBatchNode) PreparePersonChannelDirectoryBatch(_ context.Context, memberships []metadb.UserChannelMembership, channels []metadb.ChannelKey) error {

@@ -484,6 +484,44 @@ func TestSendBatchEnsuresDistinctPersonDirectoriesConcurrently(t *testing.T) {
 	}
 }
 
+func TestSendBatchFillsOnePersonDirectoryBatchWithoutCollectDelay(t *testing.T) {
+	t.Parallel()
+
+	const directoryBatchItems = 128
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseAll)
+	ensurer := &blockingPersonDirectoryEnsurer{
+		started: make(chan string, directoryBatchItems), release: release, calls: make(map[string]int),
+	}
+	results := make([]SendBatchItemResult, directoryBatchItems)
+	items := make([]SendBatchItem, directoryBatchItems)
+	for i := range items {
+		channelID := fmt.Sprintf("u%04d@z", i)
+		items[i] = SendBatchItem{Command: SendCommand{FromUID: "z", ChannelID: channelID, ChannelType: channelTypePerson}}
+		results[i] = SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}
+	}
+	app := New(Options{
+		Submitter:       &recordingSubmitter{batchResults: results},
+		PersonDirectory: ensurer,
+	})
+
+	done := make(chan []SendBatchItemResult, 1)
+	go func() { done <- app.SendBatch(items) }()
+	for started := 0; started < directoryBatchItems; started++ {
+		select {
+		case <-ensurer.started:
+		case <-time.After(time.Second):
+			t.Fatalf("person directory calls started = %d, want %d before the downstream collect deadline", started, directoryBatchItems)
+		}
+	}
+	releaseAll()
+	if got := <-done; len(got) != directoryBatchItems {
+		t.Fatalf("SendBatch() len = %d, want %d", len(got), directoryBatchItems)
+	}
+}
+
 func TestSendBatchPersonDirectoryFailureRemainsItemAligned(t *testing.T) {
 	t.Parallel()
 

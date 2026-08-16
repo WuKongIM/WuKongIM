@@ -34,7 +34,10 @@ func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
 }
 
 func TestChannelMetadataStoreEnsuresPersonDirectoryOnce(t *testing.T) {
-	node := &recordingChannelMetadataNode{committedTail: 9}
+	node := &recordingChannelMetadataNode{
+		authoritativeChannel: metadb.Channel{ChannelID: "u1@u2", ChannelType: 1},
+		committedTail:        9,
+	}
 	cache := NewChannelAppendMetadataCache()
 	store := NewChannelMetadataStore(node, cache)
 
@@ -61,6 +64,21 @@ func TestChannelMetadataStoreEnsuresPersonDirectoryOnce(t *testing.T) {
 	}
 	if len(node.membershipUpserts) != 1 || node.directoryReadyCalls != 1 {
 		t.Fatalf("cached ensure repeated writes: upserts=%d ready=%d", len(node.membershipUpserts), node.directoryReadyCalls)
+	}
+}
+
+func TestChannelMetadataStoreDoesNotActivateMissingPersonChannelToReadZeroTail(t *testing.T) {
+	node := &recordingChannelMetadataNode{authoritativeErr: metadb.ErrNotFound}
+	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache())
+
+	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("EnsurePersonChannelDirectory(): %v", err)
+	}
+	if node.committedTailCalls != 0 {
+		t.Fatalf("committed tail calls = %d, want zero for a channel proved absent by authoritative metadata", node.committedTailCalls)
+	}
+	if len(node.membershipUpserts) != 1 || node.membershipUpserts[0].committedTail != 0 {
+		t.Fatalf("membership upserts = %#v, want one zero-tail directory mutation", node.membershipUpserts)
 	}
 }
 
@@ -251,6 +269,7 @@ type recordingChannelMetadataNode struct {
 	addResult              metadb.SubscriberMutationResult
 	removeResult           metadb.SubscriberMutationResult
 	committedTail          uint64
+	committedTailCalls     int
 	directoryReadyCalls    int
 	permissionBatchReads   []slotproxy.PermissionMetadataRead
 	permissionBatchResults []slotproxy.PermissionMetadataReadResult
@@ -378,6 +397,7 @@ func (r *recordingChannelMetadataNode) TombstoneUserChannelMemberships(_ context
 }
 
 func (r *recordingChannelMetadataNode) CommittedChannelTail(context.Context, string, int64) (uint64, error) {
+	r.committedTailCalls++
 	return r.committedTail, nil
 }
 

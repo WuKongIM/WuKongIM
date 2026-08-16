@@ -45,8 +45,9 @@ type Receipt struct {
 	HW        uint64
 }
 
-// Installed is the ready frontier after recovery and a quorum-durable
-// current-term barrier.
+// Installed is the ready frontier after quorum recovery. A non-empty frontier
+// from another authority includes a quorum-durable current-term barrier; an
+// empty frontier defers that proof into its first business proposal.
 type Installed struct {
 	Authority AuthorityID
 	LEO       uint64
