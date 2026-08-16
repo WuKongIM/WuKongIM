@@ -10,6 +10,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	channelservice "github.com/WuKongIM/WuKongIM/pkg/channel/service"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
@@ -238,6 +239,8 @@ type Config struct {
 	Store channelstore.Factory
 	// Transport sends Channel replication RPCs when constructing Runtime.
 	Transport channeltransport.Client
+	// QuorumLog owns exact authority recovery and quorum durability for leader appends.
+	QuorumLog replication.DurableQuorumLog
 	// MetaSource resolves authoritative channel metadata.
 	MetaSource ChannelMetaSource
 	// Forward sends client append calls to the resolved channel leader.
@@ -290,6 +293,7 @@ func NewService(cfg Config) (*Service, error) {
 			AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 			Store:                         cfg.Store,
 			Transport:                     cfg.Transport,
+			QuorumLog:                     cfg.QuorumLog,
 			MetaResolver:                  cfg.MetaSource,
 			Observer:                      cfg.Observer,
 		})

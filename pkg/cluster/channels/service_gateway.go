@@ -31,6 +31,13 @@ func (g *ServiceGateway) Replace(service *Service) {
 	g.current.Store(service)
 }
 
+// Clear fails new calls closed while an owning runtime is absent.
+func (g *ServiceGateway) Clear() {
+	if g != nil {
+		g.current.Store(nil)
+	}
+}
+
 // Server exposes the gateway itself as the stable replication endpoint.
 func (g *ServiceGateway) Server() channeltransport.Server { return g }
 

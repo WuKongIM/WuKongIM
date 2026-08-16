@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
@@ -31,6 +32,8 @@ type Config struct {
 	MaxChannels int
 	Store       store.Factory
 	Transport   transport.Client
+	// QuorumLog owns exact authority recovery and quorum durability for leader appends.
+	QuorumLog replication.DurableQuorumLog
 	// MetaResolver authorizes unloaded cold activation and refreshes loaded runtimes after newer PullHint fences.
 	MetaResolver ch.MetaResolver
 	// AppendAdmissionGuard can reject local leader appends before reactor admission.
@@ -105,6 +108,7 @@ func New(cfg Config) (ch.Cluster, error) {
 	}
 	group, err := reactor.NewGroup(reactor.Config{
 		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport,
+		QuorumLog:                     cfg.QuorumLog,
 		MetaResolver:                  cfg.MetaResolver,
 		WorkerPools:                   workerPools,
 		AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,

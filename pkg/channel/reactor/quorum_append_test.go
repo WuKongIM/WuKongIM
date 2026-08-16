@@ -64,6 +64,26 @@ func TestQuorumLeaderActivationAndAppendBypassPullAckHotPath(t *testing.T) {
 	require.Zero(t, observer.PullHintsSent(), "quorum receipt must not use PullHint/AckOffset to complete SENDACK")
 }
 
+func TestQuorumFollowerDoesNotScheduleLegacyPullAckReplication(t *testing.T) {
+	log := &reactorCaptureQuorumLog{}
+	transport := newCapturingTransport()
+	g, err := NewGroup(Config{
+		LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: store.NewMemoryFactory(),
+		Transport: transport, QuorumLog: log,
+	})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("quorum-follower-no-pull", 1, 2)
+	meta.RouteGeneration = 1
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	for i := 0; i < 4; i++ {
+		require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Duration(i+1) * time.Hour)}))
+	}
+	require.Zero(t, transport.PullCalls())
+	require.Zero(t, transport.AckCalls())
+}
+
 func TestQuorumLeaderActivationFailsClosedWhenInstallFails(t *testing.T) {
 	log := &reactorCaptureQuorumLog{installErr: ch.ErrNotReady}
 	g, err := NewGroup(Config{

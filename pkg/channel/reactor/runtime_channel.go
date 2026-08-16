@@ -578,7 +578,7 @@ func (r *Reactor) applyLoadedMetaDecision(rc *runtimeChannel, fencePendingState 
 		r.resetPullHintLifecycle(rc)
 	}
 	now := time.Now()
-	if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
+	if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive && r.cfg.QuorumLog == nil {
 		rc.replication.markDirty(time.Time{})
 	} else {
 		rc.replication.reset()

@@ -10,7 +10,7 @@ import (
 )
 
 func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
-	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
+	if r == nil || r.cfg.QuorumLog != nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
 		return
 	}
 	defer r.scheduleReplicationFromState(rc, now)

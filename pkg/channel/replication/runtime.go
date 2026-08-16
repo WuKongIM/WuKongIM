@@ -113,12 +113,13 @@ type runtimeRepairOwner struct {
 // node. It starts no goroutine or timer per Channel.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	cfg = normalizeRuntimeConfig(cfg)
-	if cfg.LocalNode == 0 || cfg.Store == nil || cfg.Link == nil || cfg.Goroutines == nil ||
+	if cfg.LocalNode == 0 || cfg.Store == nil || cfg.Link == nil ||
 		cfg.LocalWorkers <= 0 || cfg.PeerWorkers <= 0 || cfg.RepairWorkers <= 0 || cfg.RepairShards <= 0 ||
 		cfg.QueueItems < cfg.BatchItems || cfg.QueueBytes < cfg.BatchBytes ||
 		cfg.TargetItems < cfg.BatchItems || cfg.TargetItems > cfg.QueueItems-cfg.BatchItems ||
 		cfg.TargetBytes < cfg.BatchBytes || cfg.TargetBytes > cfg.QueueBytes-cfg.BatchBytes ||
-		cfg.BatchItems <= 0 || cfg.BatchBytes <= 0 || cfg.RecoveryPageBytes <= 0 || cfg.RecoveryPageBytes >= cfg.BatchBytes ||
+		cfg.BatchItems <= 0 || cfg.BatchItems > MaxExchangeBatchItems || cfg.BatchBytes <= 0 || cfg.BatchBytes > MaxExchangeBatchBytes ||
+		cfg.RecoveryPageBytes <= 0 || cfg.RecoveryPageBytes >= cfg.BatchBytes ||
 		cfg.ExchangeTimeout <= 0 || cfg.LocalTimeout <= 0 ||
 		cfg.RecoveryTimeout <= 0 || cfg.CloseTimeout <= 0 || cfg.MaxChannels <= 0 || cfg.MaxRetainedCommands <= 0 {
 		return nil, ch.ErrInvalidConfig
@@ -222,6 +223,9 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 }
 
 func normalizeRuntimeConfig(cfg RuntimeConfig) RuntimeConfig {
+	if cfg.Goroutines == nil {
+		cfg.Goroutines = goruntimeregistry.Default()
+	}
 	if cfg.LocalWorkers == 0 {
 		cfg.LocalWorkers = defaultRuntimeLocalWorkers
 	}

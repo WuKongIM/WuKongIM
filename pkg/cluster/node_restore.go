@@ -332,8 +332,18 @@ func (n *Node) rebuildDefaultChannelRuntimeForRestore() error {
 
 	var closeErr error
 	if n.channels != nil {
+		if n.channelRPCGateway != nil {
+			n.channelRPCGateway.Clear()
+		}
+		if n.channelQuorumGateway != nil {
+			n.channelQuorumGateway.Clear()
+		}
 		closeErr = errors.Join(closeErr, n.channels.Close())
 		n.channels = nil
+	}
+	if n.defaultChannelReplication != nil {
+		closeErr = errors.Join(closeErr, n.defaultChannelReplication.Close(context.Background()))
+		n.defaultChannelReplication = nil
 	}
 	if n.defaultChannelStore != nil {
 		closeErr = errors.Join(closeErr, n.defaultChannelStore.Close())

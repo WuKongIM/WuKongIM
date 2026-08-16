@@ -248,7 +248,7 @@ func (r *Reactor) nextAppendFlushDue(rc *runtimeChannel) (time.Time, bool) {
 }
 
 func (r *Reactor) scheduleReplicationFromState(rc *runtimeChannel, now time.Time) {
-	if r == nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
+	if r == nil || r.cfg.QuorumLog != nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
 		return
 	}
 	due, ok := r.nextReplicationDue(rc, now)
@@ -260,7 +260,7 @@ func (r *Reactor) scheduleReplicationFromState(rc *runtimeChannel, now time.Time
 }
 
 func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Time, bool) {
-	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
+	if r == nil || r.cfg.QuorumLog != nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
 		return time.Time{}, false
 	}
 	replication := rc.replication

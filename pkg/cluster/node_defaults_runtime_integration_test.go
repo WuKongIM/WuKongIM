@@ -383,15 +383,16 @@ func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
 		t.Fatalf("default channels = %T, want *channels.Service", node.channels)
 	}
 	meta := channelruntime.Meta{
-		Key:         channelruntime.ChannelKey("1:lease-default"),
-		ID:          channelruntime.ChannelID{ID: "lease-default", Type: 1},
-		Epoch:       1,
-		LeaderEpoch: 1,
-		Leader:      1,
-		Replicas:    []channelruntime.NodeID{1},
-		ISR:         []channelruntime.NodeID{1},
-		MinISR:      1,
-		Status:      channelruntime.StatusActive,
+		Key:             channelruntime.ChannelKey("1:lease-default"),
+		ID:              channelruntime.ChannelID{ID: "lease-default", Type: 1},
+		Epoch:           1,
+		LeaderEpoch:     1,
+		RouteGeneration: 1,
+		Leader:          1,
+		Replicas:        []channelruntime.NodeID{1},
+		ISR:             []channelruntime.NodeID{1},
+		MinISR:          1,
+		Status:          channelruntime.StatusActive,
 	}
 	if err := service.ApplyMeta(meta); err != nil {
 		t.Fatalf("ApplyMeta() error = %v", err)
@@ -407,8 +408,8 @@ func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Append() after lease mark error = %v", err)
 	}
-	if res.MessageSeq != 1 {
-		t.Fatalf("Append() seq = %d, want 1", res.MessageSeq)
+	if res.MessageSeq != 2 {
+		t.Fatalf("Append() seq = %d, want 2 after the authority barrier", res.MessageSeq)
 	}
 }
 

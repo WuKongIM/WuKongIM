@@ -32,11 +32,15 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	waitChannelDataNode(t, node, 1)
 	channelID := channelruntime.ChannelID{ID: "durable", Type: 1}
 	applyDefaultChannelMeta(t, node, channelID)
-	if _, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
+	first, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
 		ChannelID: channelID,
 		Message:   channelruntime.Message{MessageID: 100, Payload: []byte("persisted")},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("AppendChannel() error = %v", err)
+	}
+	if first.MessageSeq != 2 {
+		t.Fatalf("AppendChannel() MessageSeq = %d, want 2 after the authority barrier", first.MessageSeq)
 	}
 	if err := node.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -61,8 +65,8 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restart AppendChannel() error = %v", err)
 	}
-	if second.MessageSeq != 2 {
-		t.Fatalf("restart AppendChannel() MessageSeq = %d, want 2 from durable message DB LEO", second.MessageSeq)
+	if second.MessageSeq != 3 {
+		t.Fatalf("restart AppendChannel() MessageSeq = %d, want 3 from durable message DB LEO", second.MessageSeq)
 	}
 }
 
@@ -157,7 +161,7 @@ func TestNodeLookupChannelIdempotencyUsesDefaultStore(t *testing.T) {
 	if !ok {
 		t.Fatal("LookupChannelIdempotency() ok = false, want true")
 	}
-	if hit.Message.MessageID != 501 || hit.Message.MessageSeq != 1 || hit.Message.FromUID != "u1" || hit.Message.ClientMsgNo != "client-1" {
+	if hit.Message.MessageID != 501 || hit.Message.MessageSeq != 2 || hit.Message.FromUID != "u1" || hit.Message.ClientMsgNo != "client-1" {
 		t.Fatalf("LookupChannelIdempotency() hit = %#v, want committed message", hit)
 	}
 	if hit.PayloadHash == 0 {

@@ -109,6 +109,11 @@ func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
 	channelID := channelruntime.ChannelID{ID: "room-default-follower-store", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)
+	// Direct quorum replication must make the follower durable without the
+	// legacy reactor Pull loop racing this assertion.
+	for _, node := range nodes {
+		node.cfg.Channel.TickInterval = time.Hour
+	}
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)

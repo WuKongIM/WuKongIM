@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelreplication "github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -82,6 +83,33 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		if n.transportClient != nil {
 			transport = channels.NewTransportClient(n.transportClient)
 		}
+		storeAdapter, err := channelreplication.NewStoreAdapter(channelreplication.StoreAdapterConfig{
+			Factory: storeFactory, MaxBatchItems: channelreplication.MaxExchangeBatchItems,
+			MaxBatchBytes: channelreplication.MaxExchangeBatchBytes,
+		})
+		if err != nil {
+			if createdStoreFactory {
+				_ = storeFactory.Close()
+			}
+			return false, err
+		}
+		peerLink, err := channels.NewQuorumPeerLink(channelruntime.NodeID(n.cfg.NodeID), n.transportClient)
+		if err != nil {
+			if createdStoreFactory {
+				_ = storeFactory.Close()
+			}
+			return false, err
+		}
+		quorumRuntime, err := channelreplication.NewRuntime(channelreplication.RuntimeConfig{
+			LocalNode: channelruntime.NodeID(n.cfg.NodeID), Store: storeAdapter, Link: peerLink,
+			Goroutines: n.cfg.Goroutines, MaxChannels: n.cfg.Channel.MaxChannels,
+		})
+		if err != nil {
+			if createdStoreFactory {
+				_ = storeFactory.Close()
+			}
+			return false, err
+		}
 		service, err := channels.NewService(channels.Config{
 			LocalNode:                     channelruntime.NodeID(n.cfg.NodeID),
 			ReactorCount:                  n.cfg.Channel.ReactorCount,
@@ -102,10 +130,12 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			AppendAdmissionGuard:          n.channelDataPlaneLease,
 			Store:                         storeFactory,
 			Transport:                     transport,
+			QuorumLog:                     quorumRuntime.Log(),
 			MetaSource:                    n.defaultChannelMetaSource(),
 			MigrationStore:                n.defaultChannelMigrationStore(),
 		})
 		if err != nil {
+			_ = quorumRuntime.Close(context.Background())
 			if createdStoreFactory {
 				_ = storeFactory.Close()
 			}
@@ -120,10 +150,17 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			} else {
 				n.channelRPCGateway.Replace(service)
 			}
+			if n.channelQuorumGateway == nil {
+				n.channelQuorumGateway = channels.NewQuorumExchangeGateway(quorumRuntime.ExchangeServer())
+				channels.RegisterQuorumExchangeHandlerOn(n.transportServer, n.channelQuorumGateway)
+			} else {
+				n.channelQuorumGateway.Replace(quorumRuntime.ExchangeServer())
+			}
 		}
 		n.channels = service
 		n.defaultChannels = true
 		n.defaultChannelStore = storeFactory
+		n.defaultChannelReplication = quorumRuntime
 		createdDefaultChannels = true
 	}
 	return createdDefaultChannels, nil
@@ -532,8 +569,18 @@ func (n *Node) discardDefaultChannels() {
 	if n == nil || !n.defaultChannels {
 		return
 	}
+	if n.channelRPCGateway != nil {
+		n.channelRPCGateway.Clear()
+	}
+	if n.channelQuorumGateway != nil {
+		n.channelQuorumGateway.Clear()
+	}
 	if n.channels != nil {
 		_ = n.channels.Close()
+	}
+	if n.defaultChannelReplication != nil {
+		_ = n.defaultChannelReplication.Close(context.Background())
+		n.defaultChannelReplication = nil
 	}
 	n.channels = nil
 	n.defaultChannels = false
