@@ -196,7 +196,7 @@ print_plan() {
   printf 'warmup_seconds=%s\n' "$WARMUP_SECONDS"
   printf 'drain_timeout_seconds=%s\n' "$GRACEFUL_STOP_TIMEOUT"
   printf 'raw_metrics_sample_seconds=%s\n' "$METRICS_SAMPLE_SECONDS"
-  printf 'commit_coordinator_flush_window=500us\n'
+  printf 'commit_coordinator_flush_window=5ms\n'
   printf 'commit_coordinator_shards=1\n'
   printf 'sync_commit=true\n'
   printf 'coordinator_config=%s\n' "$LIFECYCLE_CONFIG"
@@ -343,7 +343,7 @@ record_evidence_identity() {
     printf 'hash_slots\t256\n'
     printf 'slot_replicas\t3\n'
     printf 'channel_replicas\t3\n'
-    printf 'commit_coordinator_flush_window\t500us\n'
+    printf 'commit_coordinator_flush_window\t5ms\n'
     printf 'commit_coordinator_shards\t1\n'
     printf 'sync_commit\ttrue\n'
     printf 'physical_io_source\thost-node-1\n'
@@ -604,7 +604,7 @@ start_service() {
     WK_CLUSTER_SLOT_REPLICA_N=3 \
     WK_CLUSTER_CHANNEL_REPLICA_N=3 \
     WK_CLUSTER_MAX_CHANNELS=50000 \
-    WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us \
+    WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=5ms \
     WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1 \
     WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true \
     WK_API_LISTEN_ADDR="127.0.0.1:$(api_port "$node")" \

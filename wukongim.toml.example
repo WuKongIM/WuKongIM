@@ -29,7 +29,8 @@ channel_append_batch_max_wait = "0"
 channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
 # Maximum time to collect adjacent durable commit requests. The measured
-# 500us default improves batching without the caller latency of 1ms+ windows.
+# 500us default favors low caller latency. The reviewed three-node cluster
+# profile uses 5ms to amortize replicated fsyncs at sustained write rates.
 commit_coordinator_flush_window = "500us"
 commit_coordinator_max_requests = 0
 commit_coordinator_max_records = 0

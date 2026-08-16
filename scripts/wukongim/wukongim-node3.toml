@@ -72,7 +72,8 @@ channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
 
 # Maximum time to collect adjacent Channel append requests before one durable fsync.
-commit_coordinator_flush_window = "500us"
+# The three-node cluster profile uses 5ms to amortize replicated fsync latency at 1000 SEND/s.
+commit_coordinator_flush_window = "5ms"
 
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 commit_coordinator_max_requests = 0
