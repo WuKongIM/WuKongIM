@@ -27,6 +27,21 @@ func TestWukongIMThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 	}
 }
 
+func TestWukongIMThreeNode1000ChannelBenchUsesReviewedRateLadder(t *testing.T) {
+	t.Parallel()
+
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "bench-wukongim-three-nodes-1000ch.sh"))
+	for _, want := range []string{
+		`QPS_LIST="${WK_BENCH_THREE_NODE_QPS:-250,500,750,1000}"`,
+		`Default: 250,500,750,1000.`,
+		`--qps 250,500,750,1000`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("three-node benchmark missing reviewed ladder contract %q", want)
+		}
+	}
+}
+
 func TestStorageMetricsSummaryReportsCommitAndPebbleEvidence(t *testing.T) {
 	root := repoRoot(t)
 	dir := t.TempDir()

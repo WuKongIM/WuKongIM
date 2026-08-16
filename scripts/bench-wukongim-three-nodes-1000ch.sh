@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_BENCH_THREE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 
-QPS_LIST="${WK_BENCH_THREE_NODE_QPS:-1000,2000,2400,2490,2500,2600,2800,3000}"
+QPS_LIST="${WK_BENCH_THREE_NODE_QPS:-250,500,750,1000}"
 OUT_DIR="${WK_BENCH_THREE_NODE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-three-node-1000ch}"
 WK_BENCH_BIN="${WK_BENCH_BIN:-$ROOT_DIR/data/wkbench-test}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19130}"
@@ -58,7 +58,7 @@ Starts a local cmd/wukongim three-node cluster, then runs fixed multi-channel
 wkbench traffic against it.
 
 Options:
-  --qps LIST             Comma-separated offered QPS list. Default: 1000,2000,2400,2490,2500,2600,2800,3000.
+  --qps LIST             Comma-separated offered QPS list. Default: 250,500,750,1000.
   --out-dir DIR          Evidence output directory.
   --wkbench-bin PATH     wkbench binary path. Default: data/wkbench-test.
   --worker-addr URL      Worker control URL. Default: http://127.0.0.1:19130.
@@ -98,10 +98,10 @@ Options:
   -h, --help             Show this help.
 
 Example:
-  scripts/bench-wukongim-three-nodes-1000ch.sh --qps 2000,2400,2500
+  scripts/bench-wukongim-three-nodes-1000ch.sh --qps 250,500,750,1000
 
   # Reuse an already-running cluster:
-  scripts/bench-wukongim-three-nodes-1000ch.sh --no-start --qps 2000,2500
+  scripts/bench-wukongim-three-nodes-1000ch.sh --no-start --qps 250,500,750,1000
 USAGE
 }
 
