@@ -884,44 +884,6 @@ func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *tes
 	}
 }
 
-func TestHedgedFollowerFailureReachesOwnedRepairSinkAfterRoundCanReturn(t *testing.T) {
-	executor := &manualPeerExecutor{submitted: make(chan struct{}, 1)}
-	request := testReplicateRequest(t, "1:hedged-failure", "hedged-failure", 1, []byte("payload"))
-	batcher, err := newPeerBatcher(peerBatcherConfig{
-		Link: panicPeerLink{}, Executor: executor,
-		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
-		MaxBatchItems: 1, MaxBatchBytes: 4096,
-		MaxQueuedItems: 2, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 1, MaxTargetQueuedBytes: 4096,
-	})
-	if err != nil {
-		t.Fatalf("newPeerBatcher() error = %v", err)
-	}
-	repairs := &recordingFollowerRepairSink{}
-	dispatcher := &batchingDurabilityDispatcher{
-		ownerContext: context.Background(), local: immediateLocalDurability{}, peers: batcher, repairs: repairs,
-	}
-	completed := make(chan durabilityCompletion, 1)
-	proposal := durableProposal{
-		first: 1, last: 1, channelKey: request.ChannelKey, channelID: request.ChannelID,
-		leader: request.Leader, manifest: request.Manifest, records: request.Records,
-	}
-	if err := dispatcher.submitReplicaHedged(context.Background(), 2, proposal, func(completion durabilityCompletion) {
-		completed <- completion
-	}); err != nil {
-		t.Fatalf("submitReplicaHedged() error = %v", err)
-	}
-	<-executor.submitted
-	executor.RunNext()
-	completion := <-completed
-	if completion.outcome != ch.AppendOutcomeUnknown || completion.err == nil {
-		t.Fatalf("hedged completion = %+v, want owned unknown outcome", completion)
-	}
-	got := repairs.snapshot()
-	if len(got) != 1 || got[0].follower != 2 || got[0].needFrom != 1 || got[0].channelKey != request.ChannelKey || got[0].manifest != request.Manifest {
-		t.Fatalf("hedged repairs = %+v, want exact follower gap", got)
-	}
-}
-
 func TestPeerBatcherMapsPeerPanicToOutcomeUnknownAndReleasesOwnership(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	batcher, err := newPeerBatcher(peerBatcherConfig{

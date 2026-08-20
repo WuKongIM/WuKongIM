@@ -53,56 +53,7 @@ func TestDurableRoundStartsLocalAndFollowerDurabilityBeforeEitherCompletes(t *te
 	waitForSignal(t, writer.replicaReturned[3], "owned trailing follower durability")
 }
 
-func TestDurableRoundStartsOneOwnedFollowerHedgeAndUsesTheFirstDurableFollower(t *testing.T) {
-	writer := &hedgedGatedDurabilityWriter{
-		gatedDurabilityWriter: newGatedDurabilityWriter(2, 3),
-		hedged:                make(chan ch.NodeID, 1),
-	}
-	done := make(chan struct {
-		result durableRoundResult
-		err    error
-	}, 1)
-	go func() {
-		result, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
-			first: 1, last: 1, channelKey: "1:hedged-quorum",
-		}, writer)
-		done <- struct {
-			result durableRoundResult
-			err    error
-		}{result: result, err: err}
-	}()
-
-	waitForSignal(t, writer.localStarted, "local durability")
-	primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:hedged-quorum", 2)]
-	trailing := ch.NodeID(2)
-	if primary == trailing {
-		trailing = 3
-	}
-	waitForSignal(t, writer.replicaStarted[primary], "primary follower durability")
-	waitForSignal(t, writer.replicaStarted[trailing], "owned follower hedge")
-	select {
-	case got := <-writer.hedged:
-		if got != trailing {
-			t.Fatalf("hedged follower = %d, want trailing follower %d", got, trailing)
-		}
-	case <-time.After(250 * time.Millisecond):
-		t.Fatal("timed out waiting for owned hedge admission")
-	}
-
-	close(writer.replicaRelease[trailing])
-	close(writer.localRelease)
-	got := <-done
-	if got.err != nil {
-		t.Fatalf("runDurableRound() error = %v", got.err)
-	}
-	if !got.result.localDurable || got.result.durableVotes < 2 {
-		t.Fatalf("runDurableRound() = %+v, want local plus first durable follower", got.result)
-	}
-	close(writer.replicaRelease[primary])
-	waitForSignal(t, writer.replicaReturned[primary], "late primary follower completion")
-}
-
-func TestDurableRoundDefersOnlyTheTrailingFollowerAfterQuorum(t *testing.T) {
+func TestDurableRoundDefersTrailingFollowerEvenWhenImmediateHedgeIsAvailable(t *testing.T) {
 	dispatcher := newDeferredRecordingDurabilityDispatcher()
 	done := make(chan error, 1)
 	go func() {
@@ -115,6 +66,11 @@ func TestDurableRoundDefersOnlyTheTrailingFollowerAfterQuorum(t *testing.T) {
 	waitForSignal(t, dispatcher.localStarted, "local durability")
 	primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:deferred-trailing", 2)]
 	waitForSignal(t, dispatcher.urgentStarted[primary], "foreground follower durability")
+	select {
+	case follower := <-dispatcher.hedged:
+		t.Fatalf("follower %d was admitted as an eager hedge before quorum", follower)
+	default:
+	}
 	close(dispatcher.urgentRelease[primary])
 	close(dispatcher.localRelease)
 	if err := <-done; err != nil {
@@ -220,16 +176,6 @@ type gatedDurabilityWriter struct {
 	replicaReturned map[ch.NodeID]chan struct{}
 }
 
-type hedgedGatedDurabilityWriter struct {
-	*gatedDurabilityWriter
-	hedged chan ch.NodeID
-}
-
-func (w *hedgedGatedDurabilityWriter) submitReplicaHedged(ctx context.Context, node ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
-	w.hedged <- node
-	return w.submitReplica(ctx, node, proposal, complete)
-}
-
 func newGatedDurabilityWriter(nodes ...ch.NodeID) *gatedDurabilityWriter {
 	w := &gatedDurabilityWriter{
 		localStarted:    make(chan struct{}),
@@ -318,6 +264,7 @@ type deferredRecordingDurabilityDispatcher struct {
 	localRelease  chan struct{}
 	urgentStarted map[ch.NodeID]chan struct{}
 	urgentRelease map[ch.NodeID]chan struct{}
+	hedged        chan ch.NodeID
 	deferred      chan ch.NodeID
 }
 
@@ -326,6 +273,7 @@ func newDeferredRecordingDurabilityDispatcher() *deferredRecordingDurabilityDisp
 		localStarted: make(chan struct{}), localRelease: make(chan struct{}),
 		urgentStarted: map[ch.NodeID]chan struct{}{2: make(chan struct{}), 3: make(chan struct{})},
 		urgentRelease: map[ch.NodeID]chan struct{}{2: make(chan struct{}), 3: make(chan struct{})},
+		hedged:        make(chan ch.NodeID, 1),
 		deferred:      make(chan ch.NodeID, 1),
 	}
 }
@@ -345,6 +293,11 @@ func (d *deferredRecordingDurabilityDispatcher) submitReplica(_ context.Context,
 		<-d.urgentRelease[node]
 		complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
 	}()
+	return nil
+}
+
+func (d *deferredRecordingDurabilityDispatcher) submitReplicaHedged(_ context.Context, node ch.NodeID, _ durableProposal, _ func(durabilityCompletion)) error {
+	d.hedged <- node
 	return nil
 }
 

@@ -43,10 +43,6 @@ func (d *batchingDurabilityDispatcher) submitReplica(ctx context.Context, follow
 	return d.submitReplicaWithMode(ctx, follower, proposal, complete, false, true)
 }
 
-func (d *batchingDurabilityDispatcher) submitReplicaHedged(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
-	return d.submitReplicaWithMode(ctx, follower, proposal, complete, false, true)
-}
-
 func (d *batchingDurabilityDispatcher) submitReplicaDeferred(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
 	return d.submitReplicaWithMode(ctx, follower, proposal, complete, true, true)
 }
