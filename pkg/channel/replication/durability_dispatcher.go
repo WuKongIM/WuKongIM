@@ -12,7 +12,7 @@ var errReplicaNeedsRepair = errors.New("channel replication: follower needs repa
 
 // replicaHedgeDelay bounds how long a quorum round waits for its preferred
 // follower before admitting the trailing follower on the foreground path.
-const replicaHedgeDelay = 100 * time.Millisecond
+const replicaHedgeDelay = 150 * time.Millisecond
 
 type localDurabilitySubmitter interface {
 	submitLocal(context.Context, durableProposal, func(durabilityCompletion)) error

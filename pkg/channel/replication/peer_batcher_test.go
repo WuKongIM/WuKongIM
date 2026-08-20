@@ -72,8 +72,8 @@ func TestBatchingDurabilityDispatcherUsesOwnerContextForAcceptedLocalWrite(t *te
 
 func TestBatchingDurabilityDispatcherUsesBoundedFollowerHedgeDelay(t *testing.T) {
 	dispatcher := &batchingDurabilityDispatcher{}
-	if got := dispatcher.replicaHedgeDelay(); got != 100*time.Millisecond {
-		t.Fatalf("replica hedge delay = %v, want 100ms", got)
+	if got := dispatcher.replicaHedgeDelay(); got != 150*time.Millisecond {
+		t.Fatalf("replica hedge delay = %v, want 150ms", got)
 	}
 }
 
