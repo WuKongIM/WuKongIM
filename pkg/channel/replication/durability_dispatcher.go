@@ -45,7 +45,7 @@ func (d *batchingDurabilityDispatcher) submitLocal(_ context.Context, proposal d
 }
 
 func (d *batchingDurabilityDispatcher) submitReplica(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
-	return d.submitReplicaWithMode(ctx, follower, proposal, complete, peerWorkUrgent, true)
+	return d.submitReplicaWithMode(ctx, follower, proposal, complete, false, true)
 }
 
 func (d *batchingDurabilityDispatcher) replicaHedgeDelay() time.Duration {
@@ -53,14 +53,14 @@ func (d *batchingDurabilityDispatcher) replicaHedgeDelay() time.Duration {
 }
 
 func (d *batchingDurabilityDispatcher) submitReplicaHedged(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
-	return d.submitReplicaWithMode(ctx, follower, proposal, complete, peerWorkHedged, true)
+	return d.submitReplicaWithMode(ctx, follower, proposal, complete, false, true)
 }
 
 func (d *batchingDurabilityDispatcher) submitReplicaDeferred(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
-	return d.submitReplicaWithMode(ctx, follower, proposal, complete, peerWorkBackground, true)
+	return d.submitReplicaWithMode(ctx, follower, proposal, complete, true, true)
 }
 
-func (d *batchingDurabilityDispatcher) submitReplicaWithMode(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion), class peerWorkClass, repairOnFailure bool) error {
+func (d *batchingDurabilityDispatcher) submitReplicaWithMode(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion), deferred bool, repairOnFailure bool) error {
 	if d == nil || d.peers == nil || d.repairs == nil || complete == nil {
 		return ch.ErrInvalidConfig
 	}
@@ -116,12 +116,9 @@ func (d *batchingDurabilityDispatcher) submitReplicaWithMode(ctx context.Context
 		}
 	}
 	var err error
-	switch class {
-	case peerWorkBackground:
+	if deferred {
 		err = d.peers.submitDeferred(ctx, follower, request, finish)
-	case peerWorkHedged:
-		err = d.peers.submitHedged(ctx, follower, request, finish)
-	default:
+	} else {
 		err = d.peers.submit(ctx, follower, request, finish)
 	}
 	if err != nil && repairOnFailure {

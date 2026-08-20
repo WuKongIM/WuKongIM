@@ -14,9 +14,6 @@ const (
 	stagePeerForegroundQueue     = "peer_foreground_queue"
 	stagePeerForegroundExchange  = "peer_foreground_exchange"
 	stagePeerForegroundEndToEnd  = "peer_foreground_end_to_end"
-	stagePeerHedgeQueue          = "peer_hedge_queue"
-	stagePeerHedgeExchange       = "peer_hedge_exchange"
-	stagePeerHedgeEndToEnd       = "peer_hedge_end_to_end"
 	stagePeerBackgroundQueue     = "peer_background_queue"
 	stagePeerBackgroundExchange  = "peer_background_exchange"
 	stagePeerBackgroundEndToEnd  = "peer_background_end_to_end"
@@ -33,7 +30,7 @@ type StageObserver interface {
 type sampledStageObserver struct {
 	sink     StageObserver
 	every    uint64
-	counters [14]atomic.Uint64
+	counters [11]atomic.Uint64
 }
 
 func newSampledStageObserver(sink StageObserver, every uint64) StageObserver {
@@ -71,22 +68,16 @@ func replicationStageIndex(stage string) int {
 		return 4
 	case stagePeerForegroundEndToEnd:
 		return 5
-	case stagePeerHedgeQueue:
-		return 6
-	case stagePeerHedgeExchange:
-		return 7
-	case stagePeerHedgeEndToEnd:
-		return 8
 	case stagePeerBackgroundQueue:
-		return 9
+		return 6
 	case stagePeerBackgroundExchange:
-		return 10
+		return 7
 	case stagePeerBackgroundEndToEnd:
-		return 11
+		return 8
 	case stageFollowerForegroundStore:
-		return 12
+		return 9
 	case stageFollowerBackgroundStore:
-		return 13
+		return 10
 	default:
 		return -1
 	}
@@ -104,12 +95,8 @@ func observeReplicationStage(observer StageObserver, stage string, err error, d 
 }
 
 func peerStageNames(class peerWorkClass) (queue string, exchange string, endToEnd string) {
-	switch class {
-	case peerWorkHedged:
-		return stagePeerHedgeQueue, stagePeerHedgeExchange, stagePeerHedgeEndToEnd
-	case peerWorkBackground:
+	if class == peerWorkBackground {
 		return stagePeerBackgroundQueue, stagePeerBackgroundExchange, stagePeerBackgroundEndToEnd
-	default:
-		return stagePeerForegroundQueue, stagePeerForegroundExchange, stagePeerForegroundEndToEnd
 	}
+	return stagePeerForegroundQueue, stagePeerForegroundExchange, stagePeerForegroundEndToEnd
 }

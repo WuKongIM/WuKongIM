@@ -55,35 +55,27 @@ type peerBatcher struct {
 
 type peerTargetQueue struct {
 	urgent            []queuedPeerItem
-	hedged            []queuedPeerItem
 	deferred          []queuedPeerItem
 	background        []queuedPeerItem
 	urgentWorkers     int
-	hedgedWorkers     int
 	backgroundWorkers int
-	// hedgeBorrowed counts urgent owners temporarily serving the hedge lane.
-	// They remain included in urgentWorkers and therefore in workerCount.
-	hedgeBorrowed int
-	inflight      map[ch.ChannelKey]struct{}
-	ownedItems    int
-	ownedBytes    int
+	inflight          map[ch.ChannelKey]struct{}
+	ownedItems        int
+	ownedBytes        int
 }
 
 type peerWorkClass uint8
 
 const (
 	peerWorkUrgent peerWorkClass = iota + 1
-	peerWorkHedged
 	peerWorkBackground
-
-	maxHedgedTargetFlights = 4
 )
 
 func (q *peerTargetQueue) workerCount() int {
 	if q == nil {
 		return 0
 	}
-	return q.urgentWorkers + q.hedgedWorkers + q.backgroundWorkers
+	return q.urgentWorkers + q.backgroundWorkers
 }
 
 type queuedPeerItem struct {
@@ -143,20 +135,7 @@ func (b *peerBatcher) submit(ctx context.Context, node ch.NodeID, request Replic
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeReplicate, replicate: request,
 		bytes: estimateReplicateRequestBytes(request), completeReplicate: complete,
-	}, peerWorkUrgent)
-}
-
-// submitHedged admits a trailing quorum candidate into its own bounded lane.
-// Keeping hedge traffic separate prevents a slow preferred follower from
-// feeding back into later preferred-follower admission on the same target.
-func (b *peerBatcher) submitHedged(ctx context.Context, node ch.NodeID, request ReplicateRequest, complete func(ReplicateResult, error)) error {
-	if b == nil || ctx == nil || node == 0 || complete == nil || !request.Valid() || request.Follower != node {
-		return ch.ErrInvalidConfig
-	}
-	return b.enqueue(ctx, node, queuedPeerItem{
-		kind: ExchangeReplicate, replicate: request,
-		bytes: estimateReplicateRequestBytes(request), completeReplicate: complete,
-	}, peerWorkHedged)
+	}, false)
 }
 
 // submitDeferred admits one trailing follower write without immediately
@@ -169,7 +148,7 @@ func (b *peerBatcher) submitDeferred(ctx context.Context, node ch.NodeID, reques
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeReplicate, replicate: request,
 		bytes: estimateReplicateRequestBytes(request), completeReplicate: complete,
-	}, peerWorkBackground)
+	}, true)
 }
 
 // submitProbe admits one immutable read-only recovery probe under the same
@@ -182,7 +161,7 @@ func (b *peerBatcher) submitProbe(ctx context.Context, node ch.NodeID, request P
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeProbe, probe: request,
 		bytes: estimateProbeRequestBytes(request), completeProbe: complete,
-	}, peerWorkUrgent)
+	}, false)
 }
 
 // submitFetch admits one immutable recovery donor read under the same bounded
@@ -194,10 +173,10 @@ func (b *peerBatcher) submitFetch(ctx context.Context, node ch.NodeID, request F
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeFetch, fetch: request,
 		bytes: estimateFetchRequestBytes(request), completeFetch: complete,
-	}, peerWorkUrgent)
+	}, false)
 }
 
-func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPeerItem, class peerWorkClass) error {
+func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPeerItem, deferred bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -227,36 +206,23 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 	}
 	item.requestID = b.nextID.Add(1)
 	item.queuedAt = time.Now()
-	switch class {
-	case peerWorkBackground:
+	if deferred {
 		target.deferred = append(target.deferred, item)
-	case peerWorkHedged:
-		target.hedged = append(target.hedged, item)
-	case peerWorkUrgent:
+	} else {
 		target.urgent = append(target.urgent, item)
-	default:
-		return ch.ErrInvalidConfig
 	}
 	target.ownedItems++
 	target.ownedBytes += item.bytes
 	b.ownedItems++
 	b.ownedBytes += item.bytes
-	if class == peerWorkBackground {
+	if deferred {
 		return nil
 	}
 	if err := b.ensureTargetWorkersLocked(node, target); err != nil {
-		workers := target.urgentWorkers
-		if class == peerWorkHedged {
-			workers = target.hedgedWorkers
-		}
-		if workers > 0 {
+		if target.urgentWorkers > 0 {
 			return nil
 		}
-		if class == peerWorkHedged {
-			target.hedged = target.hedged[:len(target.hedged)-1]
-		} else {
-			target.urgent = target.urgent[:len(target.urgent)-1]
-		}
+		target.urgent = target.urgent[:len(target.urgent)-1]
 		target.ownedItems--
 		target.ownedBytes -= item.bytes
 		b.ownedItems--
@@ -320,8 +286,6 @@ func (b *peerBatcher) scheduleTargetLocked(node ch.NodeID, target *peerTargetQue
 	switch class {
 	case peerWorkUrgent:
 		target.urgentWorkers++
-	case peerWorkHedged:
-		target.hedgedWorkers++
 	case peerWorkBackground:
 		target.backgroundWorkers++
 	}
@@ -337,24 +301,9 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 	}
 	var scheduleErr error
 	urgentWasScheduled := target.urgentWorkers > 0
-	urgentLimit := b.cfg.MaxTargetFlight
-	if target.backgroundWorkers > 0 || len(target.background) > 0 {
-		urgentLimit--
-	}
-	if urgentLimit < 1 {
-		urgentLimit = 1
-	}
 	if len(target.urgent) > 0 && target.urgentWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
-		}
-	}
-	hedgeLimit := b.hedgeFlightLimit()
-	desiredHedgeWorkers := min(hedgeLimit, len(target.hedged))
-	for target.hedgedWorkers+target.hedgeBorrowed < desiredHedgeWorkers && target.workerCount() < b.cfg.MaxTargetFlight {
-		if err := b.scheduleTargetLocked(node, target, peerWorkHedged); err != nil {
-			scheduleErr = errors.Join(scheduleErr, err)
-			break
 		}
 	}
 	if b.cfg.MaxTargetFlight > 1 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
@@ -362,10 +311,14 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 			scheduleErr = errors.Join(scheduleErr, err)
 		}
 	}
-	if b.cfg.MaxTargetFlight == 1 && len(target.urgent) == 0 && len(target.hedged) == 0 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() == 0 {
+	if b.cfg.MaxTargetFlight == 1 && len(target.urgent) == 0 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() == 0 {
 		if err := b.scheduleTargetLocked(node, target, peerWorkBackground); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
 		}
+	}
+	urgentLimit := b.cfg.MaxTargetFlight
+	if target.backgroundWorkers > 0 || len(target.background) > 0 {
+		urgentLimit--
 	}
 	if urgentWasScheduled && len(target.urgent) > 0 && len(target.inflight) > 0 &&
 		target.urgentWorkers < urgentLimit && target.workerCount() < b.cfg.MaxTargetFlight {
@@ -376,27 +329,19 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 	return scheduleErr
 }
 
-func (b *peerBatcher) hedgeFlightLimit() int {
-	limit := min(maxHedgedTargetFlights, b.cfg.MaxTargetFlight)
-	if b.cfg.MaxTargetFlight > 1 {
-		limit = min(limit, b.cfg.MaxTargetFlight-1)
-	}
-	return max(1, limit)
-}
-
 func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
 	defer b.finishTargetWorker(node, class)
 	for {
-		items, exchangeClass, borrowedHedge := b.takeBatch(node, class)
+		items := b.takeBatch(node, class)
 		if len(items) == 0 {
 			return
 		}
-		queueStage, exchangeStage, endToEndStage := peerStageNames(exchangeClass)
+		queueStage, exchangeStage, endToEndStage := peerStageNames(class)
 		exchangeStarted := time.Now()
 		for index := range items {
 			observeReplicationStage(b.cfg.Observer, queueStage, nil, exchangeStarted.Sub(items[index].queuedAt))
 		}
-		results, errs := b.exchange(node, exchangeClass, items)
+		results, errs := b.exchange(node, class, items)
 		exchangeFinished := time.Now()
 		var exchangeErr error
 		for index := range errs {
@@ -406,7 +351,7 @@ func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
 			}
 		}
 		observeReplicationStage(b.cfg.Observer, exchangeStage, exchangeErr, exchangeFinished.Sub(exchangeStarted))
-		b.release(node, items, borrowedHedge)
+		b.release(node, items)
 		for index := range items {
 			observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
 			switch items[index].kind {
@@ -433,10 +378,6 @@ func (b *peerBatcher) finishTargetWorker(node ch.NodeID, class peerWorkClass) {
 		if target.urgentWorkers > 0 {
 			target.urgentWorkers--
 		}
-	case peerWorkHedged:
-		if target.hedgedWorkers > 0 {
-			target.hedgedWorkers--
-		}
 	case peerWorkBackground:
 		if target.backgroundWorkers > 0 {
 			target.backgroundWorkers--
@@ -448,33 +389,19 @@ func (b *peerBatcher) finishTargetWorker(node ch.NodeID, class peerWorkClass) {
 	}
 }
 
-func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPeerItem, peerWorkClass, bool) {
+func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) []queuedPeerItem {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]
 	if target == nil {
-		return nil, class, false
-	}
-	borrowedHedge := false
-	if class == peerWorkUrgent && len(target.hedged) > 0 && target.hedgedWorkers+target.hedgeBorrowed < b.hedgeFlightLimit() {
-		// A saturated preferred lane lends only the bounded flights needed to
-		// split queued hedges. Remaining owners stay isolated for preferred work.
-		target.hedgeBorrowed++
-		class = peerWorkHedged
-		borrowedHedge = true
+		return nil
 	}
 	queue := target.urgent
-	switch class {
-	case peerWorkHedged:
-		queue = target.hedged
-	case peerWorkBackground:
+	if class == peerWorkBackground {
 		queue = target.background
 	}
 	if len(queue) == 0 {
-		if borrowedHedge {
-			target.hedgeBorrowed--
-		}
-		return nil, class, false
+		return nil
 	}
 	kind := queue[0].kind
 	items := make([]queuedPeerItem, 0, min(len(queue), b.cfg.MaxBatchItems))
@@ -523,15 +450,12 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPe
 		}
 		target.inflight[channelKey] = struct{}{}
 	}
-	switch class {
-	case peerWorkBackground:
+	if class == peerWorkBackground {
 		target.background = remaining
-	case peerWorkHedged:
-		target.hedged = remaining
-	default:
+	} else {
 		target.urgent = remaining
 	}
-	return items, class, borrowedHedge
+	return items
 }
 
 func (b *peerBatcher) exchange(node ch.NodeID, class peerWorkClass, items []queuedPeerItem) ([]peerExchangeResult, []error) {
@@ -658,15 +582,12 @@ func invalidExchangeResults(items []queuedPeerItem, results []peerExchangeResult
 	return results, errs
 }
 
-func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem, borrowedHedge bool) {
+func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]
 	if target == nil {
 		return
-	}
-	if borrowedHedge {
-		target.hedgeBorrowed--
 	}
 	for _, item := range items {
 		delete(target.inflight, item.channelKey())
