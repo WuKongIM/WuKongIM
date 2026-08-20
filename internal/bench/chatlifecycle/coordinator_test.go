@@ -971,6 +971,56 @@ func TestCoordinatorStopRequestProducesTerminalCutAndBoundedFinalization(t *test
 	}
 }
 
+func TestCoordinatorStopRequestPreservesHigherPriorityProductFailure(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-hook-stop-product-failure"
+	configureFastCoordinatorCutoff(&cfg)
+	clock := newManualCoordinatorClock(time.Unix(1_700_100_100, 0))
+	observerStarted := make(chan struct{})
+	stopRequests := make(chan struct{})
+	hooks := newRecordingCoordinatorRunHooks()
+	hooks.terminalDecision = CoordinatorProductFailure
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 92,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	<-hooks.started
+	close(stopRequests)
+	result := <-resultChannel
+	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver ||
+		result.Snapshot.Phase != WorkerPhaseFinal {
+		t.Fatalf("stop-request product result = %+v", result)
+	}
+	final := <-hooks.finalized
+	if final.Decision != CoordinatorProductFailure || len(final.Prepare) != coordinatorWorkerCount ||
+		len(final.FinalSnapshots) != coordinatorWorkerCount {
+		t.Fatalf("stop-request product final cut = %+v", final)
+	}
+}
+
 func TestCoordinatorStopRequestDoesNotCancelInflightPeriodicCheckpoint(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-stop-during-periodic-checkpoint"
@@ -1167,9 +1217,10 @@ func TestCoordinatorStopRequestStopsWorkersBeforeTrafficReady(t *testing.T) {
 }
 
 type recordingCoordinatorRunHooks struct {
-	started   chan CoordinatorRunStart
-	cuts      chan CoordinatorEvidenceCut
-	finalized chan CoordinatorFinalCut
+	started          chan CoordinatorRunStart
+	cuts             chan CoordinatorEvidenceCut
+	finalized        chan CoordinatorFinalCut
+	terminalDecision CoordinatorOutcome
 }
 
 func newRecordingCoordinatorRunHooks() *recordingCoordinatorRunHooks {
@@ -1187,6 +1238,9 @@ func (h *recordingCoordinatorRunHooks) Begin(_ context.Context, start Coordinato
 func (h *recordingCoordinatorRunHooks) Observe(_ context.Context, cut CoordinatorEvidenceCut) (CoordinatorOutcome, error) {
 	h.cuts <- cut
 	if cut.Kind == CoordinatorCutTerminal {
+		if h.terminalDecision != "" {
+			return h.terminalDecision, nil
+		}
 		if cut.StopRequested {
 			return CoordinatorStopped, nil
 		}

@@ -340,7 +340,7 @@ func TestProductionEvidenceControllerPersistsFrozenLifecycleProductFailure(t *te
 	}
 	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning)
 	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
-		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: prepare,
+		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: prepare, StopRequested: true,
 	})
 	if err != nil || decision != CoordinatorProductFailure {
 		t.Fatalf("lifecycle product terminal = %q/%v", decision, err)

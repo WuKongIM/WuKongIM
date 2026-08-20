@@ -1627,7 +1627,10 @@ observationComplete:
 				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 				return result
 			}
-			if stopRequested && decision != CoordinatorStopped {
+			// Operator stop owns the cutoff, not the verdict. Preserve a higher-
+			// priority terminal failure already proven by the evidence hook; only a
+			// successful completion is incompatible with an operator-owned cutoff.
+			if stopRequested && decision == CoordinatorCompleted {
 				c.stopAfterFailure(fence, attempted)
 				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 				return result
