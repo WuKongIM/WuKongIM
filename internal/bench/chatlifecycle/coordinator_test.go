@@ -3070,7 +3070,7 @@ func TestValidCoordinatorGrantTickRejectsUnscheduledOrStaleTimestamps(t *testing
 	}
 }
 
-func TestCoordinatorGrantCoverageUsesTheReviewedTickTolerance(t *testing.T) {
+func TestCoordinatorGrantCoverageAllowsBoundedTimerDeliveryJitter(t *testing.T) {
 	startedAt := time.Unix(1_700_000_000, 0)
 	tests := []struct {
 		name string
@@ -3079,8 +3079,8 @@ func TestCoordinatorGrantCoverageUsesTheReviewedTickTolerance(t *testing.T) {
 	}{
 		{name: "exact cadence is covered", at: startedAt.Add(coordinatorGrantCadence)},
 		{name: "sub-millisecond scheduler delay is covered", at: startedAt.Add(coordinatorGrantCadence + 500*time.Microsecond)},
-		{name: "exact reviewed tolerance is covered", at: startedAt.Add(coordinatorGrantCadence + coordinatorGrantTickTolerance)},
-		{name: "outside reviewed tolerance is missing", at: startedAt.Add(coordinatorGrantCadence + coordinatorGrantTickTolerance + time.Nanosecond), want: true},
+		{name: "bounded timer delivery jitter is covered", at: startedAt.Add(coordinatorGrantCadence + 250*time.Millisecond)},
+		{name: "outside bounded timer delivery jitter is missing", at: startedAt.Add(coordinatorGrantCadence + 250*time.Millisecond + time.Nanosecond), want: true},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {

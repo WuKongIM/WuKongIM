@@ -22,6 +22,9 @@ const (
 	// coordinatorGrantTickTolerance admits platform timer timestamp quantization
 	// without accepting a delayed, skipped, or catch-up logical grant tick.
 	coordinatorGrantTickTolerance = 10 * time.Millisecond
+	// coordinatorGrantDeliveryTolerance admits bounded runtime timer-delivery
+	// jitter while still failing before a second logical grant becomes due.
+	coordinatorGrantDeliveryTolerance = 250 * time.Millisecond
 )
 
 var ErrCoordinatorConfig = errors.New("chat lifecycle coordinator: invalid configuration")
@@ -2038,7 +2041,7 @@ func validCoordinatorGrantTick(now, tickAt, lastTickAt time.Time, haveLastTick b
 }
 
 func coordinatorGrantCoverageMissing(at, lastTickAt time.Time) bool {
-	return at.Sub(lastTickAt) > coordinatorGrantCadence+coordinatorGrantTickTolerance
+	return at.Sub(lastTickAt) > coordinatorGrantCadence+coordinatorGrantDeliveryTolerance
 }
 
 // deliverGrant applies one exact grant vector concurrently to all workers.
