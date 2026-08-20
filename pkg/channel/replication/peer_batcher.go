@@ -77,7 +77,6 @@ const (
 	peerWorkBackground
 
 	maxHedgedTargetFlights = 4
-	maxHedgedBatchItems    = 16
 )
 
 func (q *peerTargetQueue) workerCount() int {
@@ -478,11 +477,7 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPe
 		return nil, class, false
 	}
 	kind := queue[0].kind
-	batchItemLimit := b.cfg.MaxBatchItems
-	if class == peerWorkHedged {
-		batchItemLimit = min(batchItemLimit, maxHedgedBatchItems)
-	}
-	items := make([]queuedPeerItem, 0, min(len(queue), batchItemLimit))
+	items := make([]queuedPeerItem, 0, min(len(queue), b.cfg.MaxBatchItems))
 	remaining := queue[:0]
 	batchBytes := 0
 	var blockedChannels map[ch.ChannelKey]struct{}
@@ -497,7 +492,7 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPe
 			remaining = append(remaining, item)
 			continue
 		}
-		if len(items) >= batchItemLimit {
+		if len(items) >= b.cfg.MaxBatchItems {
 			remaining = append(remaining, item)
 			continue
 		}

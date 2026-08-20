@@ -384,7 +384,7 @@ func TestPeerBatcherCapsHedgeWorkersWhilePreservingOnePrimaryLane(t *testing.T) 
 	}
 }
 
-func TestPeerBatcherScalesHedgeLanesAndCapsEachHedgeBatch(t *testing.T) {
+func TestPeerBatcherScalesHedgeLanesWhilePreservingExchangeBatching(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	batcher, err := newPeerBatcher(peerBatcherConfig{
 		Link: &recordingPeerLink{}, Executor: executor,
@@ -420,8 +420,8 @@ func TestPeerBatcherScalesHedgeLanesAndCapsEachHedgeBatch(t *testing.T) {
 	if class != peerWorkHedged || borrowed {
 		t.Fatalf("takeBatch() class=%v borrowed=%v, want dedicated hedge batch", class, borrowed)
 	}
-	if len(items) != 16 {
-		t.Fatalf("hedge batch items = %d, want bounded batch of 16", len(items))
+	if len(items) != 40 {
+		t.Fatalf("hedge batch items = %d, want all 40 items within the configured batch bound", len(items))
 	}
 }
 
@@ -437,20 +437,20 @@ func TestPeerBatcherLendsBoundedPrimaryFlightsWhenTargetIsSaturated(t *testing.T
 		t.Fatalf("newPeerBatcher() error = %v", err)
 	}
 	target := &peerTargetQueue{urgentWorkers: 4}
-	for index := 0; index < 40; index++ {
-		target.hedged = append(target.hedged, queuedPeerItem{
-			kind: ExchangeReplicate,
-			replicate: ReplicateRequest{
-				ChannelKey: ch.ChannelKey(fmt.Sprintf("1:hedge-%02d", index)), Follower: 2,
-			},
-		})
-	}
 	batcher.targets[2] = target
 
-	for index, wantItems := range []int{16, 16, 8} {
+	for round := 0; round < 3; round++ {
+		for index := 0; index < 8; index++ {
+			target.hedged = append(target.hedged, queuedPeerItem{
+				kind: ExchangeReplicate,
+				replicate: ReplicateRequest{
+					ChannelKey: ch.ChannelKey(fmt.Sprintf("1:hedge-%02d", round*8+index)), Follower: 2,
+				},
+			})
+		}
 		items, class, borrowed := batcher.takeBatch(2, peerWorkUrgent)
-		if class != peerWorkHedged || !borrowed || len(items) != wantItems {
-			t.Fatalf("borrowed batch %d = class:%v borrowed:%v items:%d, want hedged/true/%d", index, class, borrowed, len(items), wantItems)
+		if class != peerWorkHedged || !borrowed || len(items) != 8 {
+			t.Fatalf("borrowed batch %d = class:%v borrowed:%v items:%d, want hedged/true/8", round, class, borrowed, len(items))
 		}
 	}
 	items, class, borrowed := batcher.takeBatch(2, peerWorkUrgent)
