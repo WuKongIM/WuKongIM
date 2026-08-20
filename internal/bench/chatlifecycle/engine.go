@@ -1213,14 +1213,14 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			if routeErr != nil {
 				return routeErr
 			}
-			return e.addSendWork(intent, 0, now)
+			return e.addSendWorkAt(intent, 0, now, now)
 		})
 		if grantErr == nil {
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				grantErr = canaryErr
 			} else if due {
 				if canary, canaryErr = e.routeGroupGrant(canary, now); canaryErr == nil {
-					grantErr = e.addSendWork(canary, 0, now)
+					grantErr = e.addSendWorkAt(canary, 0, now, now)
 				} else {
 					grantErr = canaryErr
 				}
@@ -1287,14 +1287,14 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			if routeErr != nil {
 				return routeErr
 			}
-			return e.addSendWork(intent, 0, now)
+			return e.addSendWorkAt(intent, 0, now, now)
 		})
 		if tickErr == nil {
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				tickErr = canaryErr
 			} else if due {
 				if canary, canaryErr = e.routeGroupGrant(canary, now); canaryErr == nil {
-					tickErr = e.addSendWork(canary, 0, now)
+					tickErr = e.addSendWorkAt(canary, 0, now, now)
 				} else {
 					tickErr = canaryErr
 				}
@@ -2386,13 +2386,21 @@ func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
 }
 
 func (e *Engine) addSendWork(intent TrafficIntent, attempt uint8, due time.Time) error {
+	return e.addSendWorkAt(intent, attempt, due, e.clock.Now())
+}
+
+// addSendWorkAt keeps route selection and lease acquisition on one owner
+// admission instant. A large grant may cross a session deadline while its
+// intents are routed; consulting the process clock again would turn normal
+// lifecycle churn into a partial grant failure.
+func (e *Engine) addSendWorkAt(intent TrafficIntent, attempt uint8, due, admittedAt time.Time) error {
 	if e.futureCount() >= e.workCapacity {
 		return e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 	}
 	// Admission owns the current session until this work reaches its terminal
 	// result, including work deliberately scheduled beyond the session's
 	// nominal TTL. Validate against admission time, not the future due time.
-	if attempt == 0 && !e.sessions.acquireSendAndCorrelationLease(intent, e.clock.Now()) {
+	if attempt == 0 && !e.sessions.acquireSendAndCorrelationLease(intent, admittedAt) {
 		return errSessionOffline
 	}
 	work := &engineWork{due: due, kind: engineWorkSend, intent: intent, attempt: attempt, order: e.nextOrder}

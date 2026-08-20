@@ -5747,6 +5747,39 @@ func TestEngineGrantSurvivesSessionExpiryReplacementGap(t *testing.T) {
 	}
 }
 
+func TestEngineGrantUsesOneAdmissionInstantAcrossRoutingAndLease(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 100, NewUsersPerDay: 250_000, SessionDuration: time.Minute,
+		WorkCapacity: 8_192, InflightCapacity: 512, MaxWorkPerAdvance: 8_192,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now().Add(10 * time.Second)
+	fixture.clock.Set(now)
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
+	waitForEngineCompletions(t, fixture.engine, "bootstrap")
+
+	// The coordinator owns one admission instant for the complete grant. The
+	// process clock may cross a session deadline while the owner routes the
+	// batch, but lease acquisition must use the same admitted instant.
+	deadline := now.Add(time.Nanosecond)
+	fixture.pool.mu.Lock()
+	for _, session := range fixture.pool.online {
+		session.snapshot.Deadline = deadline
+	}
+	fixture.pool.mu.Unlock()
+	fixture.clock.Set(deadline.Add(time.Nanosecond))
+
+	grant, err := fixture.engine.ApplyGrant(context.Background(), now, 100)
+	if err != nil || !grant.Admitted {
+		t.Fatalf("grant crossing session deadline = %+v, %v", grant, err)
+	}
+}
+
 func TestEngineLocalThreeNodeThousandQPSGrantsSurviveFirstSessionChurn(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		WorkerID: 2, WorkerCount: 3, OnlineUsers: 2_500,
