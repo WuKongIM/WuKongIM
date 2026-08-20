@@ -604,6 +604,39 @@ func TestGatewayTransportPressureKeepsLatestGaugeWhileCountingLateAdmission(t *t
 	}
 }
 
+func TestGatewayAsyncSendQueueKeepsLatestGaugeWhenOlderObservationArrivesLate(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := gatewayMetricsObserver{metrics: reg}
+	observer.OnAsyncSendQueue(gateway.AsyncSendQueueEvent{
+		Depth:    0,
+		Capacity: 1024,
+		Revision: 2,
+	})
+	observer.OnAsyncSendQueue(gateway.AsyncSendQueueEvent{
+		Depth:    2,
+		Capacity: 1024,
+		Revision: 1,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	asyncDepth := requireAppMetricFamily(t, families, "wukongim_gateway_async_send_queue_depth")
+	if got := asyncDepth.GetMetric()[0].GetGauge().GetValue(); got != 0 {
+		t.Fatalf("gateway async SEND queue depth = %v, want latest depth 0", got)
+	}
+	runtimeDepth := findAppMetricByLabels(t, requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth"), map[string]string{
+		"component": "gateway",
+		"pool":      "async_send",
+		"queue":     "send",
+		"priority":  "none",
+	})
+	if got := runtimeDepth.GetGauge().GetValue(); got != 0 {
+		t.Fatalf("gateway async SEND runtime depth = %v, want latest depth 0", got)
+	}
+}
+
 func TestMultiChannelObserverForwardsOptionalPullObservations(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}

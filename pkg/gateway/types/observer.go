@@ -17,6 +17,8 @@ type SessionErrorObserver interface {
 }
 
 // AsyncSendObserver receives optional observations from the asynchronous SEND dispatch path.
+// Implementations that retain an absolute queue gauge must ignore an event whose
+// non-zero Revision is not newer than the last retained event.
 type AsyncSendObserver interface {
 	OnAsyncSendQueue(event AsyncSendQueueEvent)
 	OnAsyncSendBatch(event AsyncSendBatchEvent)
@@ -88,6 +90,9 @@ type AsyncSendQueueEvent struct {
 	Depth int
 	// Capacity is the total queue capacity across shards.
 	Capacity int
+	// Revision orders absolute queue observations across executor generations.
+	// Zero denotes an unversioned legacy observation.
+	Revision uint64
 }
 
 // AsyncAuthQueueEvent reports aggregate asynchronous auth queue occupancy.

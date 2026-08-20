@@ -549,6 +549,32 @@ func TestSendExecutorObserverTracksQueueWaitAndBatch(t *testing.T) {
 	}
 }
 
+func TestSendExecutorQueueSnapshotRevisionsTrackMutationsAcrossExecutors(t *testing.T) {
+	first := &sendExecutor{capacity: 4}
+	if !first.reserve() {
+		t.Fatal("first reserve rejected")
+	}
+	reserved := first.queueSnapshot()
+	if reserved.Depth != 1 || reserved.Revision == 0 {
+		t.Fatalf("reserved snapshot = %+v, want depth 1 and a non-zero revision", reserved)
+	}
+
+	first.consume(1)
+	drained := first.queueSnapshot()
+	if drained.Depth != 0 || drained.Revision <= reserved.Revision {
+		t.Fatalf("drained snapshot = %+v, want depth 0 and revision > %d", drained, reserved.Revision)
+	}
+
+	second := &sendExecutor{capacity: 4}
+	if !second.reserve() {
+		t.Fatal("second executor reserve rejected")
+	}
+	rebuilt := second.queueSnapshot()
+	if rebuilt.Depth != 1 || rebuilt.Revision <= drained.Revision {
+		t.Fatalf("rebuilt snapshot = %+v, want depth 1 and revision > %d", rebuilt, drained.Revision)
+	}
+}
+
 func TestAsyncSendReportsAdmissionResults(t *testing.T) {
 	observer := &recordingAsyncSendObserver{}
 	handler := newBlockingAsyncSendFrameHandler()

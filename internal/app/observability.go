@@ -218,8 +218,8 @@ func (o gatewayMetricsObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQu
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.Gateway.SetAsyncSendQueue(event.Depth, event.Capacity)
-	o.metrics.RuntimePressure.SetQueue("gateway", "async_send", "send", "none", obsmetrics.RuntimePressureQueueObservation{
+	o.metrics.Gateway.SetAsyncSendQueueRevisioned(event.Revision, event.Depth, event.Capacity)
+	o.metrics.RuntimePressure.SetQueueRevisioned("gateway", "async_send", "send", "none", event.Revision, obsmetrics.RuntimePressureQueueObservation{
 		Depth:    event.Depth,
 		Capacity: event.Capacity,
 	})

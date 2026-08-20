@@ -16,6 +16,16 @@ import (
 
 const asyncSendPanicValueMaxLen = 256
 
+var asyncSendQueuePublicationRevision atomic.Uint64
+
+func nextAsyncSendQueuePublicationRevision() uint64 {
+	for {
+		if revision := asyncSendQueuePublicationRevision.Add(1); revision != 0 {
+			return revision
+		}
+	}
+}
+
 // sendExecutor admits SEND frames into a bounded workqueue-backed shard mailbox.
 type sendExecutor struct {
 	// server owns session and gateway state needed by send tasks.
@@ -26,8 +36,12 @@ type sendExecutor struct {
 	capacity int
 	// shardCapacity is the per-shard mailbox admission bound.
 	shardCapacity int
+	// queueMu linearizes aggregate queue occupancy with its publication revision.
+	queueMu sync.Mutex
 	// queued tracks SEND tasks accepted by gateway but not yet entering dispatch.
-	queued atomic.Int64
+	queued int64
+	// queueRevision orders absolute observations across executor generations.
+	queueRevision uint64
 	// shardQueued tracks per-shard accepted tasks before dispatch begins.
 	shardQueued []atomic.Int64
 	// closed prevents new send admission after shutdown.
@@ -213,7 +227,9 @@ func (e *sendExecutor) depth() int {
 	if e == nil {
 		return 0
 	}
-	return int(e.queued.Load())
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	return int(e.queued)
 }
 
 func (e *sendExecutor) totalCapacity() int {
@@ -227,15 +243,14 @@ func (e *sendExecutor) reserve() bool {
 	if e == nil {
 		return false
 	}
-	for {
-		queued := e.queued.Load()
-		if queued < 0 || queued >= int64(e.capacity) {
-			return false
-		}
-		if e.queued.CompareAndSwap(queued, queued+1) {
-			return true
-		}
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	if e.queued < 0 || e.queued >= int64(e.capacity) {
+		return false
 	}
+	e.queued++
+	e.queueRevision = nextAsyncSendQueuePublicationRevision()
+	return true
 }
 
 func (e *sendExecutor) reserveShard(shard int) bool {
@@ -337,11 +352,13 @@ func (e *sendExecutor) consume(count int) {
 	if e == nil || count <= 0 {
 		return
 	}
-	remaining := e.queued.Add(-int64(count))
-	if remaining >= 0 {
-		return
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	e.queued -= int64(count)
+	if e.queued < 0 {
+		e.queued = 0
 	}
-	e.queued.Add(-remaining)
+	e.queueRevision = nextAsyncSendQueuePublicationRevision()
 }
 
 func (e *sendExecutor) consumeShard(shard int, count int) {
@@ -359,9 +376,26 @@ func (e *sendExecutor) resetDepths() {
 	if e == nil {
 		return
 	}
-	e.queued.Store(0)
+	e.queueMu.Lock()
+	e.queued = 0
+	e.queueRevision = nextAsyncSendQueuePublicationRevision()
+	e.queueMu.Unlock()
 	for i := range e.shardQueued {
 		e.shardQueued[i].Store(0)
+	}
+}
+
+// queueSnapshot captures occupancy and its ordering revision under one lock.
+func (e *sendExecutor) queueSnapshot() gatewaytypes.AsyncSendQueueEvent {
+	if e == nil {
+		return gatewaytypes.AsyncSendQueueEvent{}
+	}
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	return gatewaytypes.AsyncSendQueueEvent{
+		Depth:    int(e.queued),
+		Capacity: e.capacity,
+		Revision: e.queueRevision,
 	}
 }
 

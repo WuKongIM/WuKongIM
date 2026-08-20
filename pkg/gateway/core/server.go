@@ -1146,8 +1146,7 @@ type asyncDispatchTask struct {
 }
 
 type asyncSendStats interface {
-	depth() int
-	totalCapacity() int
+	queueSnapshot() gatewaytypes.AsyncSendQueueEvent
 }
 
 type asyncSendBatchLimits struct {
@@ -1581,10 +1580,7 @@ func (s *Server) observeAsyncSendQueue(queue asyncSendStats) {
 	if observer == nil || queue == nil {
 		return
 	}
-	observer.OnAsyncSendQueue(gatewaytypes.AsyncSendQueueEvent{
-		Depth:    queue.depth(),
-		Capacity: queue.totalCapacity(),
-	})
+	observer.OnAsyncSendQueue(queue.queueSnapshot())
 }
 
 func (s *Server) observeAsyncAuthQueue(queue asyncAuthStats) {

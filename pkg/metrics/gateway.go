@@ -33,6 +33,8 @@ type GatewayMetrics struct {
 	asyncSendBatchRecords    prometheus.Histogram
 	asyncSendBatchBytes      prometheus.Histogram
 	asyncSendBatchWait       prometheus.Histogram
+	asyncSendPublicationMu   sync.Mutex
+	asyncSendRevision        uint64
 	mu                       sync.Mutex
 	activeConnectionsByProto map[string]int64
 }
@@ -324,6 +326,27 @@ func (m *GatewayMetrics) SetAsyncSendQueue(depth, capacity int) {
 	}
 	m.asyncSendQueueDepth.Set(float64(depth))
 	m.asyncSendQueueCapacity.Set(float64(capacity))
+}
+
+// SetAsyncSendQueueRevisioned applies an absolute queue observation only when
+// revision is newer than the last retained revision. A zero revision preserves
+// the unconditional SetAsyncSendQueue behavior for unversioned callers.
+func (m *GatewayMetrics) SetAsyncSendQueueRevisioned(revision uint64, depth, capacity int) {
+	if revision == 0 {
+		m.SetAsyncSendQueue(depth, capacity)
+		return
+	}
+	if m == nil {
+		return
+	}
+	m.asyncSendPublicationMu.Lock()
+	defer m.asyncSendPublicationMu.Unlock()
+	if revision <= m.asyncSendRevision {
+		return
+	}
+	m.asyncSendQueueDepth.Set(float64(depth))
+	m.asyncSendQueueCapacity.Set(float64(capacity))
+	m.asyncSendRevision = revision
 }
 
 func (m *GatewayMetrics) ObserveAsyncSendDispatchWait(protocol string, dur time.Duration) {
