@@ -39,6 +39,7 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"force_stop_timed_out_coordinator", "--harness-failure-reason",
 		"graceful-stop-status.json", "wait_child_uninterrupted",
 		"capture_service_metrics", "storage-metrics-summary.awk", "storage_metrics_summary.tsv",
+		"capture_consistent_service_metric_target", "storage-metrics-cut-consistent.awk",
 		"capture-local-storage-overlap.sh", "storage-overlap.tsv", "--storage-overlap",
 		"record_timeline_boundary warmup_end", "record_timeline_boundary measurement_end",
 		"capture_service_metrics warmup-before",

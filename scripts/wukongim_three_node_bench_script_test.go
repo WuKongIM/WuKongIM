@@ -86,6 +86,32 @@ func TestStorageMetricsSummaryReportsCommitAndPebbleEvidence(t *testing.T) {
 	}
 }
 
+func TestStorageMetricsCutConsistencyRejectsTornBatchObservation(t *testing.T) {
+	root := repoRoot(t)
+	dir := t.TempDir()
+	consistent := filepath.Join(dir, "consistent.prom")
+	writeStorageMetricsFixture(t, consistent, storageMetricsFixture{
+		batches: 10, requests: 40, records: 60, bytes: 6000,
+		collectSum: .01, buildSum: .02, commitSum: .05, publishSum: .01, totalSum: .09,
+	})
+	validator := filepath.Join(root, "scripts", "storage-metrics-cut-consistent.awk")
+	if output, err := exec.Command("awk", "-f", validator, consistent).CombinedOutput(); err != nil {
+		t.Fatalf("consistent storage cut rejected: %v\n%s", err, output)
+	}
+
+	torn := filepath.Join(dir, "torn.prom")
+	body := readFile(t, consistent)
+	body = strings.Replace(body,
+		`wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 10`,
+		`wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 11`, 1)
+	if err := os.WriteFile(torn, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("awk", "-f", validator, torn).CombinedOutput(); err == nil {
+		t.Fatalf("torn storage cut accepted:\n%s", output)
+	}
+}
+
 func TestStorageMetricsSummaryReportsBatchSizeDistributionForFixedNodes(t *testing.T) {
 	root := repoRoot(t)
 	headerOutput, err := exec.Command("awk", "-v", "header=1", "-f",

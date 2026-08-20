@@ -182,6 +182,7 @@ HOST_OVERLAP_STATUS_FILE="$EVIDENCE_DIR/measured-host-overlap.tsv"
 HOST_OVERLAP_DETECTOR="$ROOT_DIR/scripts/chat-lifecycle/detect-local-workload-overlap.sh"
 STORAGE_OVERLAP_FILE="$EVIDENCE_DIR/storage-overlap.tsv"
 STORAGE_OVERLAP_CAPTURE="$ROOT_DIR/scripts/chat-lifecycle/capture-local-storage-overlap.sh"
+STORAGE_METRICS_CUT_VALIDATOR="$ROOT_DIR/scripts/storage-metrics-cut-consistent.awk"
 
 print_plan() {
   printf 'run_dir=%s\n' "$RUN_DIR"
@@ -225,6 +226,7 @@ command -v jq >/dev/null 2>&1 || die 'jq is required'
 command -v ps >/dev/null 2>&1 || die 'ps is required'
 [[ -x "$HOST_OVERLAP_DETECTOR" ]] || die "local workload overlap detector is unavailable: $HOST_OVERLAP_DETECTOR"
 [[ -x "$STORAGE_OVERLAP_CAPTURE" ]] || die "local storage-overlap capture is unavailable: $STORAGE_OVERLAP_CAPTURE"
+[[ -f "$STORAGE_METRICS_CUT_VALIDATOR" ]] || die "storage metrics cut validator is unavailable: $STORAGE_METRICS_CUT_VALIDATOR"
 [[ -n "${WK_BENCH_API_TOKEN:-}" ]] || die 'WK_BENCH_API_TOKEN is required'
 [[ -n "${WK_BENCH_WORKER_TOKEN:-}" ]] || die 'WK_BENCH_WORKER_TOKEN is required'
 if [[ -e "$RUN_DIR" ]] && [[ -n "$(find "$RUN_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
@@ -1121,13 +1123,33 @@ capture_metric_target() {
   return 1
 }
 
+capture_consistent_service_metric_target() {
+  local url="$1" timeout="$2" destination="$3" temporary="$3.next" attempt=0
+  while (( attempt < 5 )); do
+    attempt=$((attempt + 1))
+    if curl -fsS --max-time "$timeout" "$url" >"$temporary" &&
+      awk -f "$STORAGE_METRICS_CUT_VALIDATOR" "$temporary"; then
+      mv "$temporary" "$destination"
+      return 0
+    fi
+    rm -f "$temporary"
+    (( attempt == 5 )) || sleep 0.01
+  done
+  : >"$destination"
+  return 1
+}
+
 capture_service_metrics() {
   local phase="$1" node destination observed status host_name index storage_observed row_file
   local -a capture_pids=() capture_names=() storage_pids=()
   observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   for node in 1 2 3; do
     destination="$METRICS_DIR/node-$node-$phase.prom"
-    capture_metric_target "http://127.0.0.1:$(api_port "$node")/metrics" 3 "$destination" &
+    if [[ "$phase" == before || "$phase" == after ]]; then
+      capture_consistent_service_metric_target "http://127.0.0.1:$(api_port "$node")/metrics" 3 "$destination" &
+    else
+      capture_metric_target "http://127.0.0.1:$(api_port "$node")/metrics" 3 "$destination" &
+    fi
     capture_pids+=("$!")
     capture_names+=("node-$node")
   done
