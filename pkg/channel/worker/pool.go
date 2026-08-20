@@ -125,6 +125,9 @@ type Pool struct {
 
 	obsMu sync.RWMutex
 	obs   QueueObserver
+	// queueObservationMu linearizes absolute queue-depth publications. A delayed
+	// older callback reloads the latest physical depth before it reaches the sink.
+	queueObservationMu sync.Mutex
 
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
@@ -286,6 +289,11 @@ func (p *Pool) QueueCapacity() int {
 }
 
 func (p *Pool) observeQueueDepth() {
+	if p == nil {
+		return
+	}
+	p.queueObservationMu.Lock()
+	defer p.queueObservationMu.Unlock()
 	p.observer().SetWorkerQueueDepth(p.cfg.Name, p.QueueDepth())
 }
 
@@ -442,7 +450,7 @@ func (o workerWorkqueueObserver) ObserveBoundedPool(obs workqueue.BoundedPoolObs
 		p.observeQueueCapacity()
 		p.observeWorkers()
 	case "depth":
-		p.observer().SetWorkerQueueDepth(p.cfg.Name, obs.QueueDepth)
+		p.observeQueueDepth()
 	case "admission":
 		p.observeAdmission(workerAdmissionResultFromWorkqueue(obs.Result))
 	case "worker":

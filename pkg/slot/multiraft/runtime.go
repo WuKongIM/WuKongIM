@@ -20,7 +20,10 @@ type Runtime struct {
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
 	inflight  atomic.Int64
-	tickSlots []*slot
+	// inflightObservationMu linearizes absolute inflight publications. A delayed
+	// older worker reloads the latest physical count before it reaches the sink.
+	inflightObservationMu sync.Mutex
+	tickSlots             []*slot
 }
 
 func New(opts Options) (*Runtime, error) {
@@ -75,11 +78,13 @@ func (r *Runtime) runWorker() {
 			return
 		case slotID := <-r.scheduler.ch:
 			r.scheduler.begin(slotID)
-			r.observeSchedulerInflight(int(r.inflight.Add(1)))
+			r.inflight.Add(1)
+			r.observeSchedulerInflight()
 			started := time.Now()
 			requeue := r.processSlot(slotID)
 			r.observeSchedulerTask("process_slot", time.Since(started))
-			r.observeSchedulerInflight(int(r.inflight.Add(-1)))
+			r.inflight.Add(-1)
+			r.observeSchedulerInflight()
 			if r.scheduler.done(slotID) || requeue {
 				r.scheduler.requeue(slotID)
 			}
@@ -171,9 +176,11 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	return false
 }
 
-func (r *Runtime) observeSchedulerInflight(inflight int) {
+func (r *Runtime) observeSchedulerInflight() {
 	if r != nil && r.opts.Observer != nil {
-		r.opts.Observer.SetSchedulerInflight(inflight)
+		r.inflightObservationMu.Lock()
+		defer r.inflightObservationMu.Unlock()
+		r.opts.Observer.SetSchedulerInflight(int(r.inflight.Load()))
 	}
 }
 

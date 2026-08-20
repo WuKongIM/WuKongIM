@@ -145,6 +145,70 @@ func TestPoolDoesNotPublishOlderInflightAfterPhysicalZero(t *testing.T) {
 	}
 }
 
+func TestPoolDoesNotPublishOlderQueueDepthAfterPhysicalZero(t *testing.T) {
+	sink := &captureSink{}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 2}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseFirstOnce := sync.Once{}
+	defer releaseFirstOnce.Do(func() { close(releaseFirst) })
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: ch.Fence{ChannelKey: "1:queue-first", OpID: 1},
+		RunFunc: func(context.Context) Result {
+			close(firstStarted)
+			<-releaseFirst
+			return Result{}
+		},
+	}))
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first worker task")
+	}
+
+	obs := newBlockingQueueDepthObserver()
+	observerReleaseOnce := sync.Once{}
+	defer observerReleaseOnce.Do(func() { close(obs.release) })
+	pool.SetQueueObserver(obs)
+	obs.Arm()
+	submitDone := make(chan error, 1)
+	go func() {
+		submitDone <- pool.Submit(context.Background(), Task{
+			Kind:    TaskFunc,
+			Fence:   ch.Fence{ChannelKey: "1:queue-second", OpID: 2},
+			RunFunc: func(context.Context) Result { return Result{} },
+		})
+	}()
+	select {
+	case <-obs.blocked:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for older queue depth=1 publication")
+	}
+
+	releaseFirstOnce.Do(func() { close(releaseFirst) })
+	select {
+	case <-obs.zeroObserved:
+	case <-time.After(25 * time.Millisecond):
+		// The corrected path serializes the physical-zero callback behind the
+		// blocked older publication. Releasing it below lets zero publish last.
+	}
+	observerReleaseOnce.Do(func() { close(obs.release) })
+	select {
+	case err := <-submitDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second submit")
+	}
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	if got := obs.Depth("test"); got != 0 {
+		t.Fatalf("published queue depth = %d, want physical zero", got)
+	}
+}
+
 func TestPoolReportsCapacityWorkersAdmissionWaitAndTaskDuration(t *testing.T) {
 	obs := &recordingPoolPressureObserver{}
 	sink := &captureSink{ch: make(chan Result, 1)}
@@ -2100,6 +2164,50 @@ type blockingInflightObserver struct {
 	armed    atomic.Bool
 	blocked  chan struct{}
 	release  chan struct{}
+}
+
+type blockingQueueDepthObserver struct {
+	mu           sync.Mutex
+	depth        map[string]int
+	armed        atomic.Bool
+	watchZero    atomic.Bool
+	blocked      chan struct{}
+	release      chan struct{}
+	zeroObserved chan struct{}
+	zeroOnce     sync.Once
+}
+
+func newBlockingQueueDepthObserver() *blockingQueueDepthObserver {
+	return &blockingQueueDepthObserver{
+		depth:        make(map[string]int),
+		blocked:      make(chan struct{}),
+		release:      make(chan struct{}),
+		zeroObserved: make(chan struct{}),
+	}
+}
+
+func (o *blockingQueueDepthObserver) SetWorkerQueueDepth(pool string, depth int) {
+	if depth == 1 && o.armed.CompareAndSwap(true, false) {
+		o.watchZero.Store(true)
+		close(o.blocked)
+		<-o.release
+	}
+	if depth == 0 && o.watchZero.Load() {
+		o.zeroOnce.Do(func() { close(o.zeroObserved) })
+	}
+	o.mu.Lock()
+	o.depth[pool] = depth
+	o.mu.Unlock()
+}
+
+func (o *blockingQueueDepthObserver) Arm() {
+	o.armed.Store(true)
+}
+
+func (o *blockingQueueDepthObserver) Depth(pool string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.depth[pool]
 }
 
 func newBlockingInflightObserver() *blockingInflightObserver {
