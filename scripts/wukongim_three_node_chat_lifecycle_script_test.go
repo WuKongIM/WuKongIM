@@ -21,7 +21,7 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_REPLICA_N=3", "WK_CLUSTER_MAX_CHANNELS=50000",
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000",
-		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us", "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1",
+		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=5ms", "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1",
 		"WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true",
 		"worker --mode chat-lifecycle", "host-metrics",
 		"--process-metrics-path", "start_process_metrics_collector", "process-metrics-collector",
@@ -222,7 +222,7 @@ func TestChatLifecycleShakeoutScriptDryRunIsReadOnlyAndRejectsBroadRunDirs(t *te
 		"raw_metrics_sample_seconds=30",
 		"channel_store_append_workers=500",
 		"gateway_async_send_workers=1000",
-		"commit_coordinator_flush_window=500us", "commit_coordinator_shards=1", "sync_commit=true",
+		"commit_coordinator_flush_window=5ms", "commit_coordinator_shards=1", "sync_commit=true",
 		"service_1=http://127.0.0.1:24001", "worker_3=http://127.0.0.1:24053",
 		"host_metrics_2=http://127.0.0.1:24062", "host_metrics_load=http://127.0.0.1:24060",
 		"coordinator_config=" + filepath.Join(canonicalRunDir, "chat-lifecycle.yaml"),
@@ -256,7 +256,7 @@ func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {
 		"local-baseline.json", "steps.tsv", "required_1000_soak", "filesystem-preflight.txt", "checksums.sha256",
 		"prune_step_runtime_state", "runtime-state-pruned.txt", `find "$path" -xdev -depth -delete`,
 		`"online_connections": 2500`, `"logical_slot_groups": 12`, `"hash_slots": 256`,
-		`"slot_replicas": 3`, `"channel_replicas": 3`, `"commit_coordinator_flush_window": "500us"`, `"sync_commit": true`,
+		`"slot_replicas": 3`, `"channel_replicas": 3`, `"commit_coordinator_flush_window": "5ms"`, `"sync_commit": true`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("local baseline script missing %q", want)

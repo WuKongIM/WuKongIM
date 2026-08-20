@@ -199,7 +199,7 @@ print_plan() {
   printf 'raw_metrics_sample_seconds=%s\n' "$METRICS_SAMPLE_SECONDS"
   printf 'channel_store_append_workers=500\n'
   printf 'gateway_async_send_workers=1000\n'
-  printf 'commit_coordinator_flush_window=500us\n'
+  printf 'commit_coordinator_flush_window=5ms\n'
   printf 'commit_coordinator_shards=1\n'
   printf 'sync_commit=true\n'
   printf 'coordinator_config=%s\n' "$LIFECYCLE_CONFIG"
@@ -349,7 +349,7 @@ record_evidence_identity() {
     printf 'channel_replicas\t3\n'
     printf 'channel_store_append_workers\t500\n'
     printf 'gateway_async_send_workers\t1000\n'
-    printf 'commit_coordinator_flush_window\t500us\n'
+    printf 'commit_coordinator_flush_window\t5ms\n'
     printf 'commit_coordinator_shards\t1\n'
     printf 'sync_commit\ttrue\n'
     printf 'physical_io_source\thost-node-1\n'
@@ -612,7 +612,7 @@ start_service() {
     WK_CLUSTER_MAX_CHANNELS=50000 \
     WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 \
     WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000 \
-    WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us \
+    WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=5ms \
     WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1 \
     WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true \
     WK_API_LISTEN_ADDR="127.0.0.1:$(api_port "$node")" \
