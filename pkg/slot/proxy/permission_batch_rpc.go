@@ -16,10 +16,7 @@ import (
 const (
 	permissionBatchRPCServiceID = clusternet.RPCSlotPermissionMetadataBatch
 	permissionBatchMaxReads     = 4096
-	// The reviewed cluster topology has twelve physical Slots. Covering one
-	// request's represented Slots in a single bounded wave avoids making a
-	// mixed gateway batch pay serial authoritative-RPC rounds.
-	permissionBatchSlotWorkers = 12
+	permissionBatchSlotWorkers  = 4
 )
 
 var (
