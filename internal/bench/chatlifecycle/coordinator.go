@@ -2029,7 +2029,10 @@ func validCoordinatorGrantTick(now, tickAt, lastTickAt time.Time, haveLastTick b
 		return false
 	}
 	age := now.Sub(tickAt)
-	if age < 0 || age >= coordinatorGrantCadence {
+	// A logically consecutive ticker value may wait behind a nearly complete
+	// grant round. Use the same bounded delivery budget as the coverage check;
+	// the interval check below still rejects dropped or catch-up logical ticks.
+	if age < 0 || age > coordinatorGrantCadence+coordinatorGrantDeliveryTolerance {
 		return false
 	}
 	interval := tickAt.Sub(lastTickAt)

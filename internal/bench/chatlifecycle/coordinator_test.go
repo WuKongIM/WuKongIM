@@ -3051,7 +3051,8 @@ func TestValidCoordinatorGrantTickRejectsUnscheduledOrStaleTimestamps(t *testing
 	}{
 		{name: "zero tick", now: startedAt.Add(time.Second), lastTickAt: startedAt},
 		{name: "future tick", now: startedAt, tickAt: startedAt.Add(time.Nanosecond), lastTickAt: startedAt},
-		{name: "exactly one cadence stale", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(time.Second), lastTickAt: startedAt},
+		{name: "bounded delivery delay preserves an exact logical tick", now: startedAt.Add(3200 * time.Millisecond), tickAt: startedAt.Add(2 * time.Second), lastTickAt: startedAt.Add(time.Second), haveLastTick: true, want: true},
+		{name: "delivery delay outside the bounded window is stale", now: startedAt.Add(3250*time.Millisecond + time.Nanosecond), tickAt: startedAt.Add(2 * time.Second), lastTickAt: startedAt.Add(time.Second), haveLastTick: true},
 		{name: "first tick too early", now: startedAt.Add(time.Second), tickAt: startedAt.Add(time.Second - time.Nanosecond), lastTickAt: startedAt},
 		{name: "first scheduled tick", now: startedAt.Add(time.Second), tickAt: startedAt.Add(time.Second), lastTickAt: startedAt, want: true},
 		{name: "next exact scheduled tick", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(2 * time.Second), lastTickAt: startedAt.Add(time.Second), haveLastTick: true, want: true},
