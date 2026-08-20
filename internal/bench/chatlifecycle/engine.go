@@ -1203,24 +1203,27 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			}{err: refreshErr}
 			return
 		}
+		admit := func(intent TrafficIntent) bool {
+			return e.sessions.acquireSendAndCorrelationLease(intent, now)
+		}
 		snapshot, grantErr := e.generator.ApplyGrant(released, func(intent TrafficIntent) error {
 			var routeErr error
 			if intent.Kind == TrafficPerson {
-				intent, routeErr = e.routePersonGrant(intent, now)
+				intent, routeErr = e.routePersonGrantWithAdmission(intent, now, admit)
 			} else {
-				intent, routeErr = e.routeGroupGrant(intent, now)
+				intent, routeErr = e.routeGroupGrantWithAdmission(intent, now, admit)
 			}
 			if routeErr != nil {
 				return routeErr
 			}
-			return e.addSendWorkAt(intent, 0, now, now)
+			return e.addLeasedSendWorkAt(intent, 0, now)
 		})
 		if grantErr == nil {
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				grantErr = canaryErr
 			} else if due {
-				if canary, canaryErr = e.routeGroupGrant(canary, now); canaryErr == nil {
-					grantErr = e.addSendWorkAt(canary, 0, now, now)
+				if canary, canaryErr = e.routeGroupGrantWithAdmission(canary, now, admit); canaryErr == nil {
+					grantErr = e.addLeasedSendWorkAt(canary, 0, now)
 				} else {
 					grantErr = canaryErr
 				}
@@ -1277,24 +1280,27 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			}{err: refreshErr}
 			return
 		}
+		admit := func(intent TrafficIntent) bool {
+			return e.sessions.acquireSendAndCorrelationLease(intent, now)
+		}
 		snapshot, tickErr := e.generator.Tick(demand, func(intent TrafficIntent) error {
 			var routeErr error
 			if intent.Kind == TrafficPerson {
-				intent, routeErr = e.routePersonGrant(intent, now)
+				intent, routeErr = e.routePersonGrantWithAdmission(intent, now, admit)
 			} else {
-				intent, routeErr = e.routeGroupGrant(intent, now)
+				intent, routeErr = e.routeGroupGrantWithAdmission(intent, now, admit)
 			}
 			if routeErr != nil {
 				return routeErr
 			}
-			return e.addSendWorkAt(intent, 0, now, now)
+			return e.addLeasedSendWorkAt(intent, 0, now)
 		})
 		if tickErr == nil {
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				tickErr = canaryErr
 			} else if due {
-				if canary, canaryErr = e.routeGroupGrant(canary, now); canaryErr == nil {
-					tickErr = e.addSendWorkAt(canary, 0, now, now)
+				if canary, canaryErr = e.routeGroupGrantWithAdmission(canary, now, admit); canaryErr == nil {
+					tickErr = e.addLeasedSendWorkAt(canary, 0, now)
 				} else {
 					tickErr = canaryErr
 				}
@@ -2402,6 +2408,20 @@ func (e *Engine) addSendWorkAt(intent TrafficIntent, attempt uint8, due, admitte
 	// nominal TTL. Validate against admission time, not the future due time.
 	if attempt == 0 && !e.sessions.acquireSendAndCorrelationLease(intent, admittedAt) {
 		return errSessionOffline
+	}
+	return e.addLeasedSendWorkAt(intent, attempt, due)
+}
+
+// addLeasedSendWorkAt transfers a grant route whose session lease was already
+// acquired atomically with final route validation. A capacity failure releases
+// that ownership before returning so a rejected grant cannot pin session churn.
+func (e *Engine) addLeasedSendWorkAt(intent TrafficIntent, attempt uint8, due time.Time) error {
+	if e.futureCount() >= e.workCapacity {
+		capacityErr := e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
+		if attempt == 0 {
+			return errors.Join(capacityErr, e.releaseUnstartedSendLease(intent))
+		}
+		return capacityErr
 	}
 	work := &engineWork{due: due, kind: engineWorkSend, intent: intent, attempt: attempt, order: e.nextOrder}
 	e.nextOrder++
@@ -3529,7 +3549,15 @@ func (e *Engine) grantShouldCorrelate(grant TrafficIntent, domain LogicalDomain)
 	return e.verifier.ShouldCorrelate(LogicalSend{LogicalSend: logicalOrdinal, WorkerID: grant.Logical.WorkerID})
 }
 
+type grantRouteAdmission func(TrafficIntent) bool
+
+const maxGrantRouteAdmissionRetries = 16
+
 func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
+	return e.routePersonGrantWithAdmission(grant, now, nil)
+}
+
+func (e *Engine) routePersonGrantWithAdmission(grant TrafficIntent, now time.Time, admit grantRouteAdmission) (TrafficIntent, error) {
 	for scans := 0; scans < maxActivityRouteScans && len(e.activity) > 0 && !e.activity[0].due.After(now); scans++ {
 		activity := heap.Pop(&e.activity).(*engineWork)
 		activity.offered = true
@@ -3571,6 +3599,12 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 		if correlate {
 			routed.correlationRecipient = routed.Logical.Target
 		}
+		if admit != nil && !admit(routed) {
+			if err := e.deferActivity(activity, now); err != nil {
+				return TrafficIntent{}, err
+			}
+			continue
+		}
 		e.reserveGrantSender(routed.Logical.Sender)
 		return routed, nil
 	}
@@ -3578,7 +3612,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	if routed, ok, routeErr := e.routeActivePersonGrant(grant, now, correlate, true); routeErr != nil {
+	if routed, ok, routeErr := e.routeActivePersonGrant(grant, now, correlate, true, admit); routeErr != nil {
 		return TrafficIntent{}, routeErr
 	} else if ok {
 		return routed, nil
@@ -3588,7 +3622,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	// distinct active sender; the formal 10,000-user gate proves this fallback is
 	// not reached by the production workload.
 	if e.grantRoutingActive {
-		if routed, ok, routeErr := e.routeActivePersonGrant(grant, now, correlate, false); routeErr != nil {
+		if routed, ok, routeErr := e.routeActivePersonGrant(grant, now, correlate, false, admit); routeErr != nil {
 			return TrafficIntent{}, routeErr
 		} else if ok {
 			return routed, nil
@@ -3597,7 +3631,7 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
 }
 
-func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, correlate, requireUnreserved bool) (TrafficIntent, bool, error) {
+func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, correlate, requireUnreserved bool, admit grantRouteAdmission) (TrafficIntent, bool, error) {
 	for scan := 0; scan < len(e.activeChannels); scan++ {
 		position := int((e.activeCursor + uint64(scan)) % uint64(len(e.activeChannels)))
 		active := e.activeChannels[position]
@@ -3621,7 +3655,6 @@ func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, corr
 		if correlate && !e.sessions.IsOnline(target) {
 			continue
 		}
-		e.activeCursor = uint64(position + 1)
 		template := TrafficIntent{
 			Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson,
 			Direction: active.direction, ChannelID: channelID, Domain: LogicalDomainPrimary,
@@ -3637,6 +3670,10 @@ func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, corr
 		if correlate {
 			routed.correlationRecipient = routed.Logical.Target
 		}
+		if admit != nil && !admit(routed) {
+			continue
+		}
+		e.activeCursor = uint64(position + 1)
 		e.reserveGrantSender(routed.Logical.Sender)
 		return routed, true, nil
 	}
@@ -3764,6 +3801,24 @@ func (e *Engine) promotePendingChannels(now time.Time) {
 }
 
 func (e *Engine) routeGroupGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
+	return e.routeGroupGrantWithAdmission(grant, now, nil)
+}
+
+func (e *Engine) routeGroupGrantWithAdmission(grant TrafficIntent, now time.Time, admit grantRouteAdmission) (TrafficIntent, error) {
+	for attempt := 0; attempt < maxGrantRouteAdmissionRetries; attempt++ {
+		routed, err := e.routeGroupGrantCandidate(grant, now)
+		if err != nil {
+			return TrafficIntent{}, err
+		}
+		if admit == nil || admit(routed) {
+			e.reserveGrantSender(routed.Logical.Sender)
+			return routed, nil
+		}
+	}
+	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, maxGrantRouteAdmissionRetries)
+}
+
+func (e *Engine) routeGroupGrantCandidate(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
 	groupIndex, ok := e.generator.catalog.IndexFromGroupID(grant.ChannelID)
 	if !ok {
 		return TrafficIntent{}, errEngineConfig
@@ -3832,7 +3887,6 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent, now time.Time) (TrafficInt
 		}
 		grant.correlationRecipient = recipient
 	}
-	e.reserveGrantSender(sender.UID)
 	return grant, nil
 }
 

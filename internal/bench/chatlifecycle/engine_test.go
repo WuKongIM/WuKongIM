@@ -5780,6 +5780,157 @@ func TestEngineGrantUsesOneAdmissionInstantAcrossRoutingAndLease(t *testing.T) {
 	}
 }
 
+func TestEngineGrantReroutesWhenSelectedSenderGoesOfflineBeforeLease(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 100, NewUsersPerDay: 250_000, SessionDuration: time.Hour,
+		WorkCapacity: 8_192, InflightCapacity: 512, MaxWorkPerAdvance: 8_192,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now().Add(10 * time.Second)
+	fixture.clock.Set(now)
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
+	waitForEngineCompletions(t, fixture.engine, "bootstrap")
+
+	var logical LogicalSend
+	for ordinal := uint64(1); ordinal <= 100; ordinal++ {
+		candidate := LogicalSend{LogicalSend: ordinal, WorkerID: 0, Kind: TrafficPerson}
+		correlate, err := fixture.verifier.ShouldCorrelate(candidate)
+		if err != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", ordinal, err)
+		}
+		if !correlate {
+			logical = candidate
+			break
+		}
+	}
+	if logical.LogicalSend == 0 {
+		t.Fatal("exact correlation cycle produced no unsampled person grant")
+	}
+	grant := TrafficIntent{Logical: logical, Kind: TrafficPerson, PayloadBytes: 256}
+	type routeResult struct {
+		intent   TrafficIntent
+		detached *onlineSession
+		firstUID string
+		err      error
+	}
+	result := make(chan routeResult, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		var firstUID string
+		var detached *onlineSession
+		admit := func(intent TrafficIntent) bool {
+			if firstUID == "" {
+				firstUID = intent.Logical.Sender
+				detached = fixture.pool.detachSession(firstUID, sessionCloseReasonExpired)
+				return false
+			}
+			return fixture.pool.acquireSendAndCorrelationLease(intent, now)
+		}
+		routed, routeErr := fixture.engine.routePersonGrantWithAdmission(grant, now, admit)
+		result <- routeResult{intent: routed, detached: detached, firstUID: firstUID, err: routeErr}
+	}}); err != nil {
+		t.Fatalf("enqueue route: %v", err)
+	}
+	routed := <-result
+	if routed.detached != nil {
+		defer fixture.pool.finishDetachedSession(routed.detached)
+	}
+	if routed.err != nil {
+		t.Fatalf("route after selected sender detached: %v", routed.err)
+	}
+	if routed.firstUID == "" || routed.intent.Logical.Sender == routed.firstUID {
+		t.Fatalf("rerouted sender = %q after detached %q", routed.intent.Logical.Sender, routed.firstUID)
+	}
+	if !fixture.pool.releaseSendLease(routed.intent.Logical.Sender) {
+		t.Fatalf("rerouted sender %q did not retain an admission lease", routed.intent.Logical.Sender)
+	}
+}
+
+func TestEngineGroupGrantReroutesWhenSelectedSenderGoesOfflineBeforeLease(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 256, InflightCapacity: 16, MaxWorkPerAdvance: 16})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	group, err := fixture.engine.generator.catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group(0): %v", err)
+	}
+	for memberOrdinal := 0; memberOrdinal < 4; memberOrdinal++ {
+		index, memberErr := group.MemberIndex(memberOrdinal)
+		if memberErr != nil {
+			t.Fatalf("MemberIndex(%d): %v", memberOrdinal, memberErr)
+		}
+		uid := fixture.identity.UID(index)
+		if _, loginErr := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: uint64(memberOrdinal)}); loginErr != nil {
+			t.Fatalf("Login(%d): %v", memberOrdinal, loginErr)
+		}
+	}
+	var logical LogicalSend
+	for ordinal := uint64(1); ordinal <= 100; ordinal++ {
+		scoped, scopedErr := scopedLogicalOrdinal(1, LogicalDomainGroup, ordinal)
+		if scopedErr != nil {
+			t.Fatalf("scopedLogicalOrdinal(%d): %v", ordinal, scopedErr)
+		}
+		candidate := LogicalSend{LogicalSend: scoped, WorkerID: 0, Kind: TrafficGroup}
+		correlate, correlateErr := fixture.verifier.ShouldCorrelate(candidate)
+		if correlateErr != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", ordinal, correlateErr)
+		}
+		if !correlate {
+			logical = candidate
+			break
+		}
+	}
+	if logical.LogicalSend == 0 {
+		t.Fatal("exact correlation cycle produced no unsampled group grant")
+	}
+	grant := TrafficIntent{
+		Logical: logical, Kind: TrafficGroup, ChannelID: group.ID,
+		PayloadBytes: 256, Domain: LogicalDomainGroup,
+	}
+	type routeResult struct {
+		intent   TrafficIntent
+		detached *onlineSession
+		firstUID string
+		err      error
+	}
+	result := make(chan routeResult, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		var firstUID string
+		var detached *onlineSession
+		admit := func(intent TrafficIntent) bool {
+			if firstUID == "" {
+				firstUID = intent.Logical.Sender
+				detached = fixture.pool.detachSession(firstUID, sessionCloseReasonExpired)
+				return false
+			}
+			return fixture.pool.acquireSendAndCorrelationLease(intent, fixture.clock.Now())
+		}
+		routed, routeErr := fixture.engine.routeGroupGrantWithAdmission(grant, fixture.clock.Now(), admit)
+		result <- routeResult{intent: routed, detached: detached, firstUID: firstUID, err: routeErr}
+	}}); err != nil {
+		t.Fatalf("enqueue route: %v", err)
+	}
+	routed := <-result
+	if routed.detached != nil {
+		defer fixture.pool.finishDetachedSession(routed.detached)
+	}
+	if routed.err != nil {
+		t.Fatalf("route after selected group sender detached: %v", routed.err)
+	}
+	if routed.firstUID == "" || routed.intent.Logical.Sender == routed.firstUID {
+		t.Fatalf("rerouted group sender = %q after detached %q", routed.intent.Logical.Sender, routed.firstUID)
+	}
+	if !fixture.pool.releaseSendLease(routed.intent.Logical.Sender) {
+		t.Fatalf("rerouted group sender %q did not retain an admission lease", routed.intent.Logical.Sender)
+	}
+}
+
 func TestEngineLocalThreeNodeThousandQPSGrantsSurviveFirstSessionChurn(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		WorkerID: 2, WorkerCount: 3, OnlineUsers: 2_500,
