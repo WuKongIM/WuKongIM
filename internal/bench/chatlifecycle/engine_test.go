@@ -371,6 +371,9 @@ func TestEngineSampledGroupRouteRequiresDistinctOnlineRecipient(t *testing.T) {
 	if !validSender || !fixture.pool.IsOnline(recipientUID) {
 		t.Fatalf("sampled group route = %+v, distinct recipient %q online=%v", routed.Logical, recipientUID, fixture.pool.IsOnline(recipientUID))
 	}
+	if routed.correlationRecipient != recipientUID {
+		t.Fatalf("sampled group observation recipient = %q, want exact online witness %q", routed.correlationRecipient, recipientUID)
+	}
 	now := fixture.clock.Now()
 	if err := fixture.engine.SubmitGranted(routed, now); err != nil {
 		t.Fatalf("SubmitGranted: %v", err)
@@ -380,6 +383,270 @@ func TestEngineSampledGroupRouteRequiresDistinctOnlineRecipient(t *testing.T) {
 	}
 	if snapshot := fixture.verifier.Snapshot(); snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 {
 		t.Fatalf("eligible sampled group verification state = %+v", snapshot)
+	}
+	fixture.pool.mu.RLock()
+	leasedRecipient := fixture.pool.correlationLeases[routed.Logical.ClientMsgNo]
+	leaseCount := fixture.pool.correlationLeaseCounts[recipientUID]
+	fixture.pool.mu.RUnlock()
+	if leasedRecipient != recipientUID || leaseCount != 1 {
+		t.Fatalf("sampled group recipient lease = (%q,%d), want (%q,1)", leasedRecipient, leaseCount, recipientUID)
+	}
+}
+
+func TestEngineSampledPersonRecipientDoesNotExpireBeforeCorrelationSettles(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 2, SessionDuration: time.Millisecond,
+		WorkCapacity: 64, InflightCapacity: 16, MaxWorkPerAdvance: 16,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.edge(0, 1)
+	sessions := make(map[string]SessionSnapshot, 2)
+	for _, login := range []SessionLogin{
+		{UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex},
+		{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex},
+	} {
+		session, err := fixture.engine.Login(context.Background(), login)
+		if err != nil {
+			t.Fatalf("Login(%q): %v", login.UID, err)
+		}
+		sessions[login.UID] = session
+	}
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		fixture.engine.addActiveChannel(engineActiveChannel{edge: edge, direction: DirectionAlternating})
+	}}); err != nil {
+		t.Fatalf("add active channel: %v", err)
+	}
+
+	var grant TrafficIntent
+	for ordinal := uint64(0); ordinal < 100; ordinal++ {
+		candidate := LogicalSend{LogicalSend: ordinal, WorkerID: 0, Kind: TrafficPerson}
+		sampled, err := fixture.verifier.ShouldCorrelate(candidate)
+		if err != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", ordinal, err)
+		}
+		if sampled {
+			grant = TrafficIntent{Logical: candidate, Kind: TrafficPerson, PayloadBytes: 256}
+			break
+		}
+	}
+	if grant.Kind == 0 {
+		t.Fatal("exact 100-cycle produced no sampled person grant")
+	}
+
+	routedResult := make(chan struct {
+		intent TrafficIntent
+		err    error
+	}, 1)
+	now := fixture.clock.Now()
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		routed, routeErr := fixture.engine.routePersonGrant(grant, now)
+		if routeErr == nil {
+			routeErr = fixture.engine.addSendWork(routed, 0, now)
+		}
+		routedResult <- struct {
+			intent TrafficIntent
+			err    error
+		}{intent: routed, err: routeErr}
+	}}); err != nil {
+		t.Fatalf("route sampled person grant: %v", err)
+	}
+	routed := <-routedResult
+	if routed.err != nil {
+		t.Fatalf("route sampled person grant: %v", routed.err)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("Advance(send): %v", err)
+	}
+	waitForEngineCompletions(t, fixture.engine, "sampled person SENDACK")
+	if snapshot := fixture.verifier.Snapshot(); snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.Acknowledged != 1 {
+		t.Fatalf("sampled correlation after SENDACK = %+v", snapshot)
+	}
+
+	recipient := routed.intent.Logical.Target
+	deadline := sessions[recipient].Deadline
+	fixture.clock.Set(deadline)
+	if step, err := fixture.engine.Step(context.Background(), deadline, nil); err != nil {
+		t.Fatalf("Step(at recipient deadline): %v", err)
+	} else if !fixture.pool.IsOnline(recipient) {
+		t.Fatalf("sampled recipient expired before correlation settled: step=%+v", step)
+	}
+
+	var recipientClient *engineFakeClient
+	for _, client := range fixture.factory.clients() {
+		if client.uid == recipient {
+			recipientClient = client
+			break
+		}
+	}
+	if recipientClient == nil {
+		t.Fatalf("recipient client %q is missing", recipient)
+	}
+	recipientClient.frames <- mustRecvPacket(t, fixture.traffic, routed.intent.Logical, 1, 1)
+	leaseOutstanding := true
+	for attempts := 0; attempts < 10_000; attempts++ {
+		fixture.pool.mu.RLock()
+		_, leaseOutstanding = fixture.pool.correlationLeases[routed.intent.Logical.ClientMsgNo]
+		fixture.pool.mu.RUnlock()
+		if fixture.verifier.Snapshot().CorrelationCurrent == 0 && !leaseOutstanding {
+			break
+		}
+		runtime.Gosched()
+	}
+	if snapshot := fixture.verifier.Snapshot(); snapshot.CorrelationCurrent != 0 || snapshot.SampledDelivered != 1 || snapshot.Losses != 0 || leaseOutstanding {
+		t.Fatalf("sampled correlation after RECV = %+v", snapshot)
+	}
+	if step, err := fixture.engine.Step(context.Background(), deadline, nil); err != nil {
+		t.Fatalf("Step(after correlation settled): %v", err)
+	} else if fixture.pool.IsOnline(recipient) {
+		t.Fatalf("recipient remained online after correlation lease release: step=%+v", step)
+	}
+}
+
+func TestEngineStopReleasesOutstandingSampledRecipientLease(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 2, SessionDuration: time.Hour,
+		WorkCapacity: 64, InflightCapacity: 16, MaxWorkPerAdvance: 16,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.StartGeneration(context.Background(), 1); err != nil {
+		t.Fatalf("StartGeneration(1): %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.edge(0, 1)
+	for _, login := range []SessionLogin{
+		{UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex},
+		{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("Login(%q): %v", login.UID, err)
+		}
+	}
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		fixture.engine.addActiveChannel(engineActiveChannel{edge: edge, direction: DirectionAlternating})
+	}}); err != nil {
+		t.Fatalf("add active channel: %v", err)
+	}
+
+	var grant TrafficIntent
+	for ordinal := uint64(0); ordinal < 100; ordinal++ {
+		candidate := LogicalSend{LogicalSend: ordinal, WorkerID: 0, Kind: TrafficPerson}
+		sampled, err := fixture.verifier.ShouldCorrelate(candidate)
+		if err != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", ordinal, err)
+		}
+		if sampled {
+			grant = TrafficIntent{Logical: candidate, Kind: TrafficPerson, PayloadBytes: 256}
+			break
+		}
+	}
+	if grant.Kind == 0 {
+		t.Fatal("exact 100-cycle produced no sampled person grant")
+	}
+
+	now := fixture.clock.Now()
+	routedResult := make(chan error, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		routed, routeErr := fixture.engine.routePersonGrant(grant, now)
+		if routeErr == nil {
+			routeErr = fixture.engine.addSendWork(routed, 0, now)
+		}
+		routedResult <- routeErr
+	}}); err != nil {
+		t.Fatalf("route sampled person grant: %v", err)
+	}
+	if err := <-routedResult; err != nil {
+		t.Fatalf("route sampled person grant: %v", err)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("Advance(send): %v", err)
+	}
+	waitForEngineCompletions(t, fixture.engine, "sampled person SENDACK")
+	if snapshot := fixture.verifier.Snapshot(); snapshot.CorrelationCurrent != 1 || snapshot.Acknowledged != 1 {
+		t.Fatalf("sampled correlation before Stop = %+v", snapshot)
+	}
+
+	if err := fixture.engine.Stop(); err != nil {
+		t.Fatalf("Stop generation 1: %v", err)
+	}
+	if err := fixture.engine.StartGeneration(context.Background(), 2); err != nil {
+		t.Fatalf("StartGeneration(2) after outstanding sampled recipient lease: %v", err)
+	}
+}
+
+func TestEngineCorrelationTimeoutReleasesSampledRecipientLease(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 2, SessionDuration: time.Millisecond,
+		WorkCapacity: 64, InflightCapacity: 16, MaxWorkPerAdvance: 16,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	now := fixture.clock.Now()
+	senderIndex, recipientIndex := uint64(0), uint64(1)
+	sender, recipient := fixture.identity.UID(senderIndex), fixture.identity.UID(recipientIndex)
+	var recipientDeadline time.Time
+	for _, login := range []SessionLogin{
+		{UID: sender, UserIndex: senderIndex, LoginOrdinal: senderIndex},
+		{UID: recipient, UserIndex: recipientIndex, LoginOrdinal: recipientIndex},
+	} {
+		session, err := fixture.engine.Login(context.Background(), login)
+		if err != nil {
+			t.Fatalf("Login(%q): %v", login.UID, err)
+		}
+		if login.UID == recipient {
+			recipientDeadline = session.Deadline
+		}
+	}
+
+	logical := firstSampledLogical(t, fixture.traffic, fixture.verifier, sender, recipient, now)
+	intent := TrafficIntent{Logical: logical, Kind: TrafficPerson, correlationRecipient: recipient}
+	if !fixture.pool.acquireSendAndCorrelationLease(intent, now) {
+		t.Fatal("acquire sampled sender and recipient lease failed")
+	}
+	ack := &frame.SendackPacket{
+		MessageID: 1, MessageSeq: 1, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := fixture.verifier.HandleSendackAt(ack, now); err != nil {
+		t.Fatalf("HandleSendackAt: %v", err)
+	}
+	if err := fixture.verifier.ReleaseSendAt(logical, now); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
+	if !fixture.pool.releaseSendLease(sender) {
+		t.Fatal("release sampled sender lease failed")
+	}
+
+	fixture.clock.Set(recipientDeadline)
+	if _, err := fixture.engine.Step(context.Background(), recipientDeadline, nil); err != nil {
+		t.Fatalf("Step(before correlation timeout): %v", err)
+	} else if !fixture.pool.IsOnline(recipient) {
+		t.Fatal("sampled recipient expired before correlation deadline")
+	}
+
+	correlationDeadline := now.Add(time.Minute)
+	fixture.clock.Set(correlationDeadline)
+	if _, err := fixture.engine.Step(context.Background(), correlationDeadline, nil); err != nil {
+		t.Fatalf("Step(at correlation timeout): %v", err)
+	}
+	if snapshot := fixture.verifier.Snapshot(); snapshot.CorrelationCurrent != 0 || snapshot.SampledExpired != 1 || snapshot.Losses != 1 {
+		t.Fatalf("correlation timeout snapshot = %+v", snapshot)
+	}
+	// Step expires sessions before owner advancement closes correlations. The
+	// lease is therefore released at this cut and the already-due recipient is
+	// detached at the next bounded scheduler cut, never before the loss verdict.
+	if _, err := fixture.engine.Step(context.Background(), correlationDeadline, nil); err != nil {
+		t.Fatalf("Step(after correlation timeout release): %v", err)
+	}
+	if fixture.pool.IsOnline(recipient) {
+		t.Fatal("sampled recipient remained online after bounded correlation lease release")
 	}
 }
 

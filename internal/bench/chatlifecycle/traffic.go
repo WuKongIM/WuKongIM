@@ -138,6 +138,10 @@ type TrafficIntent struct {
 	// ColdAttempt keeps every SEND on an ACK-unproven person channel inside the
 	// cold observation bound without counting it as another metadata create.
 	ColdAttempt bool
+	// correlationRecipient is the exact online witness whose session remains
+	// routable until this sampled SEND is observed or its delivery deadline
+	// expires. It is empty for the other ninety-nine percent of traffic.
+	correlationRecipient string
 }
 
 // TrafficTickSnapshot is one streaming aggregate; it never retains intents.

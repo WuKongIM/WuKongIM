@@ -963,9 +963,15 @@ func (v *Verifier) ReleaseRecipient(recipient string) int {
 // positive SENDACK can expire as confirmed delivery loss. An unaccepted
 // terminal send may use the same heap solely for bounded late-attempt cleanup.
 func (v *Verifier) ExpireCorrelations(now time.Time) int {
+	return v.expireCorrelations(now, nil)
+}
+
+// expireCorrelations reports closed identities only after releasing sendMu so
+// the session owner may safely drop its matching recipient-expiry lease.
+func (v *Verifier) expireCorrelations(now time.Time, onExpired func(string)) int {
 	v.sendMu.Lock()
-	defer v.sendMu.Unlock()
 	expired := 0
+	var expiredClientMsgNos []string
 	for len(v.deadlines) > 0 && !v.deadlines[0].deadline.After(now) {
 		correlation := heap.Pop(&v.deadlines).(*sampledCorrelation)
 		delete(v.correlations, correlation.logical.ClientMsgNo)
@@ -974,6 +980,9 @@ func (v *Verifier) ExpireCorrelations(now time.Time) int {
 		}
 		v.sendCounters.sampledExpired++
 		expired++
+		if onExpired != nil {
+			expiredClientMsgNos = append(expiredClientMsgNos, correlation.logical.ClientMsgNo)
+		}
 		_ = v.evidence.Record(EvidenceEvent{
 			Class:       FailureClassCorrelation,
 			Stage:       EvidenceStageCorrelation,
@@ -987,7 +996,21 @@ func (v *Verifier) ExpireCorrelations(now time.Time) int {
 		attempt := heap.Pop(&v.releasedDeadlines).(*releasedAttempt)
 		delete(v.releasedAttempts, attempt.key)
 	}
+	v.sendMu.Unlock()
+	for _, clientMsgNo := range expiredClientMsgNos {
+		onExpired(clientMsgNo)
+	}
 	return expired
+}
+
+func (v *Verifier) correlationOutstanding(clientMsgNo string) bool {
+	if v == nil || clientMsgNo == "" {
+		return false
+	}
+	v.sendMu.Lock()
+	_, ok := v.correlations[clientMsgNo]
+	v.sendMu.Unlock()
+	return ok
 }
 
 // DrainSnapshot is a constant-time projection of unfinished verification state.

@@ -2276,6 +2276,7 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 	defer func() {
 		e.cleanupInflight()
 		e.cleanupQueuedSendLeases()
+		e.sessions.releaseAllCorrelationLeases()
 		e.cleanupPendingActivities()
 		e.work = nil
 		e.activity = nil
@@ -2388,7 +2389,10 @@ func (e *Engine) addSendWork(intent TrafficIntent, attempt uint8, due time.Time)
 	if e.futureCount() >= e.workCapacity {
 		return e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 	}
-	if attempt == 0 && !e.sessions.acquireSendLease(intent.Logical.Sender) {
+	// Admission owns the current session until this work reaches its terminal
+	// result, including work deliberately scheduled beyond the session's
+	// nominal TTL. Validate against admission time, not the future due time.
+	if attempt == 0 && !e.sessions.acquireSendAndCorrelationLease(intent, e.clock.Now()) {
 		return errSessionOffline
 	}
 	work := &engineWork{due: due, kind: engineWorkSend, intent: intent, attempt: attempt, order: e.nextOrder}
@@ -2461,7 +2465,9 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 		return advanceResult{err: err}
 	}
 	e.now = now
-	e.verifier.ExpireCorrelations(now)
+	e.verifier.expireCorrelations(now, func(clientMsgNo string) {
+		e.sessions.releaseCorrelationLease(clientMsgNo)
+	})
 	e.drainCompletions()
 	var result advanceResult
 	sentWorkSinceYield := 0
@@ -3087,6 +3093,7 @@ func (e *Engine) cancelAttempt(inflight *engineInflight) error {
 	if err := e.verifier.abortSendHarness(logical); err != nil {
 		return err
 	}
+	e.releaseCorrelationLease(inflight.intent)
 	return e.removeInflight(inflight)
 }
 
@@ -3109,6 +3116,7 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		e.completeMetaCreate(inflight.intent, false)
 		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
 		_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
+		e.releaseCorrelationLease(inflight.intent)
 		removeErr := e.removeInflight(inflight)
 		e.finalFailures++
 		return errors.Join(terminalErr, removeErr)
@@ -3143,6 +3151,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			e.completeMetaCreate(inflight.intent, false)
 			terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
+			e.releaseCorrelationLease(inflight.intent)
 			removeErr := e.removeInflight(inflight)
 			e.finalFailures++
 			return errors.Join(terminalErr, removeErr)
@@ -3202,6 +3211,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	e.completeMetaCreate(inflight.intent, false)
 	terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 	releaseErr := e.verifier.ReleaseSendAt(logical, e.clock.Now())
+	e.releaseCorrelationLease(inflight.intent)
 	removeErr := e.removeInflight(inflight)
 	e.finalFailures++
 	return errors.Join(verificationErr, terminalErr, releaseErr, removeErr)
@@ -3254,16 +3264,27 @@ func (e *Engine) abortHarness(inflight *engineInflight, cause error) error {
 		e.retries.cancel(logical.ClientMsgNo)
 		e.completeMetaCreate(inflight.intent, false)
 		_ = e.verifier.abortSendHarness(logical)
+		e.releaseCorrelationLease(inflight.intent)
 		cause = errors.Join(cause, e.removeInflight(inflight))
 	}
 	return cause
 }
 
 func (e *Engine) releaseUnstartedSendLease(intent TrafficIntent) error {
-	if e.sessions.releaseSendLease(intent.Logical.Sender) {
-		return nil
+	var err error
+	if !e.sessions.releaseSendLease(intent.Logical.Sender) {
+		err = errEngineConfig
 	}
-	return errEngineConfig
+	if intent.correlationRecipient != "" && !e.sessions.releaseCorrelationLease(intent.Logical.ClientMsgNo) {
+		err = errors.Join(err, errEngineConfig)
+	}
+	return err
+}
+
+func (e *Engine) releaseCorrelationLease(intent TrafficIntent) {
+	if intent.correlationRecipient != "" {
+		e.sessions.releaseCorrelationLease(intent.Logical.ClientMsgNo)
+	}
 }
 
 func (e *Engine) removeInflight(inflight *engineInflight) error {
@@ -3539,6 +3560,9 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 		if err != nil {
 			return TrafficIntent{}, err
 		}
+		if correlate {
+			routed.correlationRecipient = routed.Logical.Target
+		}
 		e.reserveGrantSender(routed.Logical.Sender)
 		return routed, nil
 	}
@@ -3601,6 +3625,9 @@ func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, corr
 		routed, err := e.retargetPersonGrant(grant, template)
 		if err != nil {
 			return TrafficIntent{}, false, err
+		}
+		if correlate {
+			routed.correlationRecipient = routed.Logical.Target
 		}
 		e.reserveGrantSender(routed.Logical.Sender)
 		return routed, true, nil
@@ -3790,6 +3817,13 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent, now time.Time) (TrafficInt
 	grant.Logical = logical
 	grant.Packet = packetForTrafficIntent(logical, payload)
 	grant.ChannelID = group.ID
+	if correlate {
+		recipient, recipientOK := e.sessions.onlineGroupCorrelationRecipient(group, sender.UID, grant.Logical.LogicalSend, now)
+		if !recipientOK {
+			return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
+		}
+		grant.correlationRecipient = recipient
+	}
 	e.reserveGrantSender(sender.UID)
 	return grant, nil
 }
@@ -3803,6 +3837,7 @@ func (e *Engine) cleanupInflight() {
 		} else {
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		}
+		e.releaseCorrelationLease(inflight.intent)
 		_ = e.removeInflight(inflight)
 	}
 }
@@ -3815,6 +3850,7 @@ func (e *Engine) cleanupQueuedSendLeases() {
 			continue
 		}
 		_ = e.sessions.releaseSendLease(work.intent.Logical.Sender)
+		e.releaseCorrelationLease(work.intent)
 	}
 }
 

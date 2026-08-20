@@ -312,7 +312,12 @@ type SessionPool struct {
 	closing            map[string]*onlineSession
 	// sendLeases keeps an admitted logical SEND's session routable until its
 	// final ACK, terminal result, or cancellation releases ownership.
-	sendLeases                map[string]uint32
+	sendLeases map[string]uint32
+	// correlationLeases binds each sampled logical SEND to one exact online
+	// recipient. correlationLeaseCounts lets expiry test one UID in O(1)
+	// without retaining message history after the verifier closes the sample.
+	correlationLeases         map[string]string
+	correlationLeaseCounts    map[string]uint32
 	readErrors                uint64
 	verificationErrors        uint64
 	factoryFailed             uint64
@@ -377,6 +382,8 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		starting:                  make(map[string]struct{}),
 		closing:                   make(map[string]*onlineSession),
 		sendLeases:                make(map[string]uint32),
+		correlationLeases:         make(map[string]string),
+		correlationLeaseCounts:    make(map[string]uint32),
 		gatewayLatency:            newWorkerHistogramSnapshot(),
 		syncLatency:               newWorkerHistogramSnapshot(),
 		sendPendingToWriteLatency: newWorkerHistogramSnapshot(),
@@ -807,6 +814,42 @@ func (p *SessionPool) acquireSendLease(uid string) bool {
 	return true
 }
 
+// acquireSendAndCorrelationLease atomically protects the sender until its
+// final SEND result and, for a sampled message, one exact recipient until the
+// verifier closes that correlation. The second lease is deliberately sparse:
+// exact one-percent sampling bounds both maps independently of total traffic.
+func (p *SessionPool) acquireSendAndCorrelationLease(intent TrafficIntent, at time.Time) bool {
+	if p == nil || intent.Logical.Sender == "" ||
+		(intent.correlationRecipient != "" && intent.Logical.ClientMsgNo == "") {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	sender := p.online[intent.Logical.Sender]
+	if !sessionSendEligibleAt(sender, p.sendLeases[intent.Logical.Sender], at) {
+		return false
+	}
+	if p.sendLeases[intent.Logical.Sender] == ^uint32(0) {
+		return false
+	}
+	if intent.correlationRecipient != "" {
+		if intent.correlationRecipient == intent.Logical.Sender || p.correlationLeases[intent.Logical.ClientMsgNo] != "" ||
+			p.correlationLeaseCounts[intent.correlationRecipient] == ^uint32(0) {
+			return false
+		}
+		recipient := p.online[intent.correlationRecipient]
+		if recipient == nil || !recipient.snapshot.TrafficReady || !recipient.snapshot.Deadline.After(at) {
+			return false
+		}
+	}
+	p.sendLeases[intent.Logical.Sender]++
+	if intent.correlationRecipient != "" {
+		p.correlationLeases[intent.Logical.ClientMsgNo] = intent.correlationRecipient
+		p.correlationLeaseCounts[intent.correlationRecipient]++
+	}
+	return true
+}
+
 func (p *SessionPool) releaseSendLease(uid string) bool {
 	if p == nil || uid == "" {
 		return false
@@ -823,6 +866,43 @@ func (p *SessionPool) releaseSendLease(uid string) bool {
 		p.sendLeases[uid] = current - 1
 	}
 	return true
+}
+
+func (p *SessionPool) releaseCorrelationLease(clientMsgNo string) bool {
+	if p == nil || clientMsgNo == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	uid := p.correlationLeases[clientMsgNo]
+	if uid == "" {
+		return false
+	}
+	current := p.correlationLeaseCounts[uid]
+	if current == 0 {
+		return false
+	}
+	delete(p.correlationLeases, clientMsgNo)
+	if current == 1 {
+		delete(p.correlationLeaseCounts, uid)
+	} else {
+		p.correlationLeaseCounts[uid] = current - 1
+	}
+	return true
+}
+
+// releaseAllCorrelationLeases clears only generation-local observation
+// ownership after every session drain has joined. A successful SENDACK can
+// outlive inflight SEND ownership while its sampled RECV is still pending, so
+// Engine.Stop must not leave that bounded lease in the next generation.
+func (p *SessionPool) releaseAllCorrelationLeases() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	p.correlationLeases = make(map[string]string)
+	p.correlationLeaseCounts = make(map[string]uint32)
+	p.mu.Unlock()
 }
 
 // runExpiryCleanup owns all asynchronous transport teardown for one Engine
@@ -845,7 +925,7 @@ func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlin
 	p.mu.Lock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
-		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 {
+		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
 			due = append(due, uid)
 		}
 	}
@@ -890,7 +970,7 @@ func (p *SessionPool) dueSessionUIDs(now time.Time) []string {
 	p.mu.RLock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
-		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 {
+		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
 			due = append(due, uid)
 		}
 	}
@@ -1074,7 +1154,8 @@ func (p *SessionPool) resetRuntime() error {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 || len(p.sendLeases) != 0 {
+	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 || len(p.sendLeases) != 0 ||
+		len(p.correlationLeases) != 0 || len(p.correlationLeaseCounts) != 0 {
 		return errSessionOnline
 	}
 	p.ownershipCapacity = 0
@@ -1099,6 +1180,8 @@ func (p *SessionPool) resetRuntime() error {
 	p.onlineByIndex = make(map[uint64]*onlineSession)
 	p.onlineGroupMembers = make([][]*onlineSession, p.catalog.Count())
 	p.sendLeases = make(map[string]uint32)
+	p.correlationLeases = make(map[string]string)
+	p.correlationLeaseCounts = make(map[string]uint32)
 	return nil
 }
 
@@ -1135,6 +1218,9 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 			}
 			p.recordSendTiming(timing)
 			verificationErr := p.verifier.HandleSendackAt(packet, observedAt)
+			if !p.verifier.correlationOutstanding(packet.ClientMsgNo) {
+				p.releaseCorrelationLease(packet.ClientMsgNo)
+			}
 			if verificationErr != nil {
 				p.mu.Lock()
 				p.verificationErrors++
@@ -1148,6 +1234,9 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 				p.mu.Lock()
 				p.verificationErrors++
 				p.mu.Unlock()
+			}
+			if !p.verifier.correlationOutstanding(packet.ClientMsgNo) {
+				p.releaseCorrelationLease(packet.ClientMsgNo)
 			}
 		}
 	}
@@ -1357,6 +1446,30 @@ func (p *SessionPool) onlineGroupMemberExcluding(group Group, ordinal uint64, re
 		}, true
 	}
 	return SessionLogin{}, false
+}
+
+// onlineGroupCorrelationRecipient returns one deterministic local recipient
+// distinct from sender. The later atomic lease acquisition revalidates this
+// snapshot before the SEND enters the engine work heap.
+func (p *SessionPool) onlineGroupCorrelationRecipient(group Group, sender string, ordinal uint64, at time.Time) (string, bool) {
+	if p == nil || sender == "" || group.Index >= uint64(len(p.onlineGroupMembers)) {
+		return "", false
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	members := p.onlineGroupMembers[group.Index]
+	if len(members) < 2 {
+		return "", false
+	}
+	start := ordinal % uint64(len(members))
+	for offset := 0; offset < len(members); offset++ {
+		session := members[(start+uint64(offset))%uint64(len(members))]
+		if session.snapshot.UID == sender || !session.snapshot.TrafficReady || !session.snapshot.Deadline.After(at) {
+			continue
+		}
+		return session.snapshot.UID, true
+	}
+	return "", false
 }
 
 func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64) (SessionLogin, uint64, bool) {
