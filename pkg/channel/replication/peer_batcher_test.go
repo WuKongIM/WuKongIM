@@ -329,7 +329,7 @@ func TestPeerBatcherUsesBoundedHedgeLaneWhenPreferredLaneIsSaturated(t *testing.
 	}
 }
 
-func TestPeerBatcherCapsHedgeWorkersWithoutConsumingRemainingPrimaryCapacity(t *testing.T) {
+func TestPeerBatcherCapsHedgeWorkersWhilePreservingOnePrimaryLane(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &priorityPeerLink{
 		blockKey: "1:primary-a",
@@ -371,8 +371,8 @@ func TestPeerBatcherCapsHedgeWorkersWithoutConsumingRemainingPrimaryCapacity(t *
 	target := batcher.targets[2]
 	urgentWorkers, hedgedWorkers, workers := target.urgentWorkers, target.hedgedWorkers, target.workerCount()
 	batcher.mu.Unlock()
-	if urgentWorkers != 2 || hedgedWorkers != 1 || workers != 3 {
-		t.Fatalf("target workers = urgent:%d hedged:%d total:%d, want 2/1/3", urgentWorkers, hedgedWorkers, workers)
+	if urgentWorkers != 1 || hedgedWorkers != 2 || workers != 3 {
+		t.Fatalf("target workers = urgent:%d hedged:%d total:%d, want 1/2/3", urgentWorkers, hedgedWorkers, workers)
 	}
 
 	close(link.release)
@@ -381,6 +381,84 @@ func TestPeerBatcherCapsHedgeWorkersWithoutConsumingRemainingPrimaryCapacity(t *
 	executor.RunNext()
 	if got := link.snapshot(); !slices.Contains(got, ch.ChannelKey("1:primary-b")) {
 		t.Fatalf("completed exchanges = %v, want remaining preferred replica", got)
+	}
+}
+
+func TestPeerBatcherScalesHedgeLanesAndCapsEachHedgeBatch(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: &recordingPeerLink{}, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxTargetFlight: 16,
+		MaxBatchItems:   256, MaxBatchBytes: 64 << 10,
+		MaxQueuedItems: 512, MaxQueuedBytes: 128 << 10, MaxTargetQueuedItems: 256, MaxTargetQueuedBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	for index := 0; index < 40; index++ {
+		key := ch.ChannelKey(fmt.Sprintf("1:hedge-%02d", index))
+		request := testReplicateRequest(t, key, string(key), byte(index+1), []byte{byte(index + 1)})
+		if err := batcher.submitHedged(context.Background(), 2, request, func(ReplicateResult, error) {}); err != nil {
+			t.Fatalf("submitHedged(%s) error = %v", key, err)
+		}
+	}
+	primary := testReplicateRequest(t, "1:primary", "primary", 41, []byte("primary"))
+	if err := batcher.submit(context.Background(), 2, primary, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit(primary) error = %v", err)
+	}
+
+	batcher.mu.Lock()
+	target := batcher.targets[2]
+	urgentWorkers, hedgedWorkers, workers := target.urgentWorkers, target.hedgedWorkers, target.workerCount()
+	batcher.mu.Unlock()
+	if urgentWorkers != 1 || hedgedWorkers != 4 || workers != 5 {
+		t.Fatalf("target workers = urgent:%d hedged:%d total:%d, want 1/4/5", urgentWorkers, hedgedWorkers, workers)
+	}
+
+	items, class, borrowed := batcher.takeBatch(2, peerWorkHedged)
+	if class != peerWorkHedged || borrowed {
+		t.Fatalf("takeBatch() class=%v borrowed=%v, want dedicated hedge batch", class, borrowed)
+	}
+	if len(items) != 16 {
+		t.Fatalf("hedge batch items = %d, want bounded batch of 16", len(items))
+	}
+}
+
+func TestPeerBatcherLendsBoundedPrimaryFlightsWhenTargetIsSaturated(t *testing.T) {
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: &recordingPeerLink{}, Executor: &manualPeerExecutor{},
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxTargetFlight: 4,
+		MaxBatchItems:   256, MaxBatchBytes: 64 << 10,
+		MaxQueuedItems: 512, MaxQueuedBytes: 128 << 10, MaxTargetQueuedItems: 256, MaxTargetQueuedBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	target := &peerTargetQueue{urgentWorkers: 4}
+	for index := 0; index < 40; index++ {
+		target.hedged = append(target.hedged, queuedPeerItem{
+			kind: ExchangeReplicate,
+			replicate: ReplicateRequest{
+				ChannelKey: ch.ChannelKey(fmt.Sprintf("1:hedge-%02d", index)), Follower: 2,
+			},
+		})
+	}
+	batcher.targets[2] = target
+
+	for index, wantItems := range []int{16, 16, 8} {
+		items, class, borrowed := batcher.takeBatch(2, peerWorkUrgent)
+		if class != peerWorkHedged || !borrowed || len(items) != wantItems {
+			t.Fatalf("borrowed batch %d = class:%v borrowed:%v items:%d, want hedged/true/%d", index, class, borrowed, len(items), wantItems)
+		}
+	}
+	items, class, borrowed := batcher.takeBatch(2, peerWorkUrgent)
+	if len(items) != 0 || class != peerWorkUrgent || borrowed {
+		t.Fatalf("empty batch = class:%v borrowed:%v items:%d, want urgent/false/0", class, borrowed, len(items))
+	}
+	if target.hedgeBorrowed != 3 {
+		t.Fatalf("borrowed hedge flights = %d, want 3 with one primary lane reserved", target.hedgeBorrowed)
 	}
 }
 

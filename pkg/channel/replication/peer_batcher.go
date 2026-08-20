@@ -61,10 +61,12 @@ type peerTargetQueue struct {
 	urgentWorkers     int
 	hedgedWorkers     int
 	backgroundWorkers int
-	hedgeBorrowed     bool
-	inflight          map[ch.ChannelKey]struct{}
-	ownedItems        int
-	ownedBytes        int
+	// hedgeBorrowed counts urgent owners temporarily serving the hedge lane.
+	// They remain included in urgentWorkers and therefore in workerCount.
+	hedgeBorrowed int
+	inflight      map[ch.ChannelKey]struct{}
+	ownedItems    int
+	ownedBytes    int
 }
 
 type peerWorkClass uint8
@@ -73,6 +75,9 @@ const (
 	peerWorkUrgent peerWorkClass = iota + 1
 	peerWorkHedged
 	peerWorkBackground
+
+	maxHedgedTargetFlights = 4
+	maxHedgedBatchItems    = 16
 )
 
 func (q *peerTargetQueue) workerCount() int {
@@ -345,9 +350,12 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 			scheduleErr = errors.Join(scheduleErr, err)
 		}
 	}
-	if len(target.hedged) > 0 && target.hedgedWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
+	hedgeLimit := b.hedgeFlightLimit()
+	desiredHedgeWorkers := min(hedgeLimit, len(target.hedged))
+	for target.hedgedWorkers+target.hedgeBorrowed < desiredHedgeWorkers && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkHedged); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
+			break
 		}
 	}
 	if b.cfg.MaxTargetFlight > 1 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
@@ -367,6 +375,14 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 		}
 	}
 	return scheduleErr
+}
+
+func (b *peerBatcher) hedgeFlightLimit() int {
+	limit := min(maxHedgedTargetFlights, b.cfg.MaxTargetFlight)
+	if b.cfg.MaxTargetFlight > 1 {
+		limit = min(limit, b.cfg.MaxTargetFlight-1)
+	}
+	return max(1, limit)
 }
 
 func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
@@ -441,10 +457,10 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPe
 		return nil, class, false
 	}
 	borrowedHedge := false
-	if class == peerWorkUrgent && len(target.hedged) > 0 && target.hedgedWorkers == 0 && !target.hedgeBorrowed {
-		// A saturated preferred lane lends exactly one flight to hedges. Other
-		// preferred workers remain isolated from hedge amplification.
-		target.hedgeBorrowed = true
+	if class == peerWorkUrgent && len(target.hedged) > 0 && target.hedgedWorkers+target.hedgeBorrowed < b.hedgeFlightLimit() {
+		// A saturated preferred lane lends only the bounded flights needed to
+		// split queued hedges. Remaining owners stay isolated for preferred work.
+		target.hedgeBorrowed++
 		class = peerWorkHedged
 		borrowedHedge = true
 	}
@@ -457,12 +473,16 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPe
 	}
 	if len(queue) == 0 {
 		if borrowedHedge {
-			target.hedgeBorrowed = false
+			target.hedgeBorrowed--
 		}
 		return nil, class, false
 	}
 	kind := queue[0].kind
-	items := make([]queuedPeerItem, 0, min(len(queue), b.cfg.MaxBatchItems))
+	batchItemLimit := b.cfg.MaxBatchItems
+	if class == peerWorkHedged {
+		batchItemLimit = min(batchItemLimit, maxHedgedBatchItems)
+	}
+	items := make([]queuedPeerItem, 0, min(len(queue), batchItemLimit))
 	remaining := queue[:0]
 	batchBytes := 0
 	var blockedChannels map[ch.ChannelKey]struct{}
@@ -477,7 +497,7 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) ([]queuedPe
 			remaining = append(remaining, item)
 			continue
 		}
-		if len(items) >= b.cfg.MaxBatchItems {
+		if len(items) >= batchItemLimit {
 			remaining = append(remaining, item)
 			continue
 		}
@@ -651,7 +671,7 @@ func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem, borrowedHe
 		return
 	}
 	if borrowedHedge {
-		target.hedgeBorrowed = false
+		target.hedgeBorrowed--
 	}
 	for _, item := range items {
 		delete(target.inflight, item.channelKey())
