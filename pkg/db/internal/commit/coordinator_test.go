@@ -107,6 +107,64 @@ func TestCoordinatorFlushWindowBatchesConcurrentRequests(t *testing.T) {
 	}
 }
 
+func TestCoordinatorFlushesQueuedBacklogWithoutWaitingForWindow(t *testing.T) {
+	db := openTestDB(t)
+	observer := &recordingObserver{depthCh: make(chan int, 32)}
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: time.Hour,
+		QueueSize:   16,
+		MaxBytes:    10,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	firstCommitStarted := make(chan struct{})
+	releaseFirstCommit := make(chan struct{})
+	secondCommitStarted := make(chan struct{})
+	var commits atomic.Int64
+	c.SetCommitFunc(func(*engine.Batch) error {
+		switch commits.Add(1) {
+		case 1:
+			close(firstCommitStarted)
+			<-releaseFirstCommit
+		case 2:
+			close(secondCommitStarted)
+		}
+		return nil
+	})
+
+	results := make(chan error, 4)
+	submit := func(key string, bytes int) {
+		go func() {
+			results <- c.Submit(context.Background(), commit.Request{
+				Bytes: bytes,
+				Build: func(batch *engine.Batch) error {
+					return batch.Set([]byte(key), []byte("value"))
+				},
+			})
+		}()
+	}
+	submit("first-full-batch", 10)
+	waitSignal(t, firstCommitStarted, "first full physical commit")
+	drainDepths(observer.depthCh)
+
+	for i := range 3 {
+		submit(fmt.Sprintf("backlog-%d", i), 1)
+	}
+	waitForExactQueueDepth(t, observer.depthCh, 3)
+	close(releaseFirstCommit)
+	waitSignal(t, secondCommitStarted, "queued backlog commit without flush-window delay")
+
+	for range 4 {
+		if err := waitResult(t, results, "commit request"); err != nil {
+			t.Fatalf("Submit() error = %v", err)
+		}
+	}
+	if got := commits.Load(); got != 2 {
+		t.Fatalf("physical commits = %d, want 2", got)
+	}
+}
+
 func TestCoordinatorPrioritizesHighLaneAheadOfQueuedNormal(t *testing.T) {
 	db := openTestDB(t)
 	observer := &recordingObserver{depthCh: make(chan int, 32)}

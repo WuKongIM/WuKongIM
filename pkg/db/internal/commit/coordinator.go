@@ -470,6 +470,7 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 
 	timer := time.NewTimer(c.cfg.FlushWindow)
 	defer timer.Stop()
+	collectedBacklog := false
 	for {
 		select {
 		case <-timer.C:
@@ -487,10 +488,18 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 			}
 			req.releaseQueued()
 			batch.requests = append(batch.requests, req)
+			collectedBacklog = true
 			if c.limitReached(batch) {
 				return batch
 			}
 			continue
+		}
+		// A batch that finds owner-local backlog already contains the work that
+		// accumulated during the previous physical commit. Waiting another full
+		// flush window only adds serial queue latency without improving that
+		// batch. Keep the window for an otherwise isolated first request.
+		if collectedBacklog {
+			return batch
 		}
 		select {
 		case req := <-c.requests:
