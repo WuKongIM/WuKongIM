@@ -69,6 +69,13 @@ type durabilityDispatcher interface {
 	submitReplica(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
 }
 
+// hedgedReplicaDispatcher owns one extra foreground follower completion after
+// the quorum round returns. Implementations must retain repair evidence for a
+// late non-durable outcome instead of relying on the round's result channel.
+type hedgedReplicaDispatcher interface {
+	submitReplicaHedged(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
+}
+
 // deferredReplicaDispatcher owns non-quorum follower convergence after the
 // foreground write quorum is durable. Admission remains bounded and the
 // dispatcher must arrange repair evidence for any asynchronous failure.
@@ -153,6 +160,19 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 	for nextFollower < len(followers) && nextFollower < writeQuorum-1 {
 		submit(followers[nextFollower])
 		nextFollower++
+	}
+	if hedged, ok := dispatcher.(hedgedReplicaDispatcher); ok && nextFollower < len(followers) {
+		follower := followers[nextFollower]
+		nextFollower++
+		complete := func(completion durabilityCompletion) {
+			results <- writeResult{voter: follower, completion: completion}
+		}
+		if err := hedged.submitReplicaHedged(workCtx, follower, proposal, complete); err != nil {
+			results <- writeResult{voter: follower, completion: durabilityCompletion{
+				outcome: ch.AppendOutcomeDefinitelyNotWritten, err: err,
+			}}
+		}
+		pending++
 	}
 	submitRemaining := func() {
 		for nextFollower < len(followers) {
