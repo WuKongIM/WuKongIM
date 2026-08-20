@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"errors"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -69,10 +70,13 @@ type durabilityDispatcher interface {
 	submitReplica(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
 }
 
-// hedgedReplicaDispatcher owns one extra foreground follower completion after
-// the quorum round returns. Implementations must retain repair evidence for a
-// late non-durable outcome instead of relying on the round's result channel.
+// hedgedReplicaDispatcher admits the trailing follower on the foreground path
+// only after the preferred follower exceeds the configured hedge delay.
+// Implementations own that completion after the quorum round returns and must
+// retain repair evidence for a late non-durable outcome instead of relying on
+// the round's result channel.
 type hedgedReplicaDispatcher interface {
+	replicaHedgeDelay() time.Duration
 	submitReplicaHedged(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
 }
 
@@ -161,7 +165,21 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 		submit(followers[nextFollower])
 		nextFollower++
 	}
-	if hedged, ok := dispatcher.(hedgedReplicaDispatcher); ok && nextFollower < len(followers) {
+	var hedgeTimer *time.Timer
+	var hedgeReady <-chan time.Time
+	hedged, hedgeAvailable := dispatcher.(hedgedReplicaDispatcher)
+	stopHedge := func() {
+		if hedgeTimer != nil {
+			hedgeTimer.Stop()
+		}
+		hedgeReady = nil
+	}
+	submitHedge := func() {
+		if !hedgeAvailable || nextFollower >= len(followers) {
+			stopHedge()
+			return
+		}
+		stopHedge()
 		follower := followers[nextFollower]
 		nextFollower++
 		complete := func(completion durabilityCompletion) {
@@ -174,13 +192,25 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 		}
 		pending++
 	}
+	if hedgeAvailable && nextFollower < len(followers) {
+		delay := hedged.replicaHedgeDelay()
+		if delay <= 0 {
+			submitHedge()
+		} else {
+			hedgeTimer = time.NewTimer(delay)
+			hedgeReady = hedgeTimer.C
+			defer stopHedge()
+		}
+	}
 	submitRemaining := func() {
+		stopHedge()
 		for nextFollower < len(followers) {
 			submit(followers[nextFollower])
 			nextFollower++
 		}
 	}
 	submitRemainingDeferred := func() {
+		stopHedge()
 		deferred, ok := dispatcher.(deferredReplicaDispatcher)
 		if !ok {
 			submitRemaining()
@@ -202,6 +232,8 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 			submitRemaining()
 			result.outcome = ch.AppendOutcomeUnknown
 			return result, ctx.Err()
+		case <-hedgeReady:
+			submitHedge()
 		case write := <-results:
 			pending--
 			completion := write.completion
@@ -218,6 +250,8 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 				result.durableVotes++
 				if write.local {
 					result.localDurable = true
+				} else {
+					stopHedge()
 				}
 				result.outcome = ch.AppendOutcomeUnknown
 			case completion.outcome == ch.AppendOutcomeUnknown:
@@ -236,6 +270,7 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 				continue
 			}
 			if !localFailed && !write.local && !completion.outcome.Durable() && nextFollower < len(followers) {
+				stopHedge()
 				submit(followers[nextFollower])
 				nextFollower++
 			}

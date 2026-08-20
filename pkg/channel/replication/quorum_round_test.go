@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -54,52 +55,138 @@ func TestDurableRoundStartsLocalAndFollowerDurabilityBeforeEitherCompletes(t *te
 }
 
 func TestDurableRoundStartsOneOwnedFollowerHedgeAndUsesTheFirstDurableFollower(t *testing.T) {
-	writer := &hedgedGatedDurabilityWriter{
-		gatedDurabilityWriter: newGatedDurabilityWriter(2, 3),
-		hedged:                make(chan ch.NodeID, 1),
-	}
-	done := make(chan struct {
-		result durableRoundResult
-		err    error
-	}, 1)
-	go func() {
-		result, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
-			first: 1, last: 1, channelKey: "1:hedged-quorum",
-		}, writer)
-		done <- struct {
+	synctest.Test(t, func(t *testing.T) {
+		const hedgeDelay = 50 * time.Millisecond
+		writer := &hedgedGatedDurabilityWriter{
+			gatedDurabilityWriter: newGatedDurabilityWriter(2, 3),
+			hedged:                make(chan ch.NodeID, 1),
+			hedgeDelay:            hedgeDelay,
+		}
+		done := make(chan struct {
 			result durableRoundResult
 			err    error
-		}{result: result, err: err}
-	}()
+		}, 1)
+		go func() {
+			result, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
+				first: 1, last: 1, channelKey: "1:hedged-quorum",
+			}, writer)
+			done <- struct {
+				result durableRoundResult
+				err    error
+			}{result: result, err: err}
+		}()
 
-	waitForSignal(t, writer.localStarted, "local durability")
-	primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:hedged-quorum", 2)]
-	trailing := ch.NodeID(2)
-	if primary == trailing {
-		trailing = 3
-	}
-	waitForSignal(t, writer.replicaStarted[primary], "primary follower durability")
-	waitForSignal(t, writer.replicaStarted[trailing], "owned follower hedge")
-	select {
-	case got := <-writer.hedged:
-		if got != trailing {
-			t.Fatalf("hedged follower = %d, want trailing follower %d", got, trailing)
+		waitForSignal(t, writer.localStarted, "local durability")
+		primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:hedged-quorum", 2)]
+		trailing := ch.NodeID(2)
+		if primary == trailing {
+			trailing = 3
 		}
-	case <-time.After(250 * time.Millisecond):
-		t.Fatal("timed out waiting for owned hedge admission")
-	}
+		waitForSignal(t, writer.replicaStarted[primary], "primary follower durability")
+		select {
+		case got := <-writer.hedged:
+			t.Fatalf("follower %d hedged before %s elapsed", got, hedgeDelay)
+		default:
+		}
 
-	close(writer.replicaRelease[trailing])
-	close(writer.localRelease)
-	got := <-done
-	if got.err != nil {
-		t.Fatalf("runDurableRound() error = %v", got.err)
-	}
-	if !got.result.localDurable || got.result.durableVotes < 2 {
-		t.Fatalf("runDurableRound() = %+v, want local plus first durable follower", got.result)
-	}
-	close(writer.replicaRelease[primary])
-	waitForSignal(t, writer.replicaReturned[primary], "late primary follower completion")
+		time.Sleep(hedgeDelay)
+		waitForSignal(t, writer.replicaStarted[trailing], "owned follower hedge")
+		select {
+		case got := <-writer.hedged:
+			if got != trailing {
+				t.Fatalf("hedged follower = %d, want trailing follower %d", got, trailing)
+			}
+		default:
+			t.Fatal("owned follower hedge was not admitted after its delay")
+		}
+
+		close(writer.replicaRelease[trailing])
+		close(writer.localRelease)
+		got := <-done
+		if got.err != nil {
+			t.Fatalf("runDurableRound() error = %v", got.err)
+		}
+		if !got.result.localDurable || got.result.durableVotes < 2 {
+			t.Fatalf("runDurableRound() = %+v, want local plus first durable follower", got.result)
+		}
+		close(writer.replicaRelease[primary])
+		waitForSignal(t, writer.replicaReturned[primary], "late primary follower completion")
+	})
+}
+
+func TestDurableRoundKeepsTimelyTrailingFollowerOutOfForeground(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		writer := &hedgedGatedDurabilityWriter{
+			gatedDurabilityWriter: newGatedDurabilityWriter(2, 3),
+			hedged:                make(chan ch.NodeID, 1),
+			deferred:              make(chan ch.NodeID, 1),
+			hedgeDelay:            50 * time.Millisecond,
+		}
+		done := make(chan error, 1)
+		go func() {
+			_, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
+				first: 1, last: 1, channelKey: "1:timely-primary",
+			}, writer)
+			done <- err
+		}()
+
+		waitForSignal(t, writer.localStarted, "local durability")
+		primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:timely-primary", 2)]
+		trailing := ch.NodeID(2)
+		if primary == trailing {
+			trailing = 3
+		}
+		waitForSignal(t, writer.replicaStarted[primary], "primary follower durability")
+		close(writer.replicaRelease[primary])
+		close(writer.localRelease)
+		if err := <-done; err != nil {
+			t.Fatalf("runDurableRound() error = %v", err)
+		}
+		select {
+		case got := <-writer.hedged:
+			t.Fatalf("timely quorum started foreground hedge on follower %d", got)
+		default:
+		}
+		select {
+		case got := <-writer.deferred:
+			if got != trailing {
+				t.Fatalf("deferred follower = %d, want %d", got, trailing)
+			}
+		default:
+			t.Fatal("timely quorum did not defer the trailing follower")
+		}
+	})
+}
+
+func TestDurableRoundSubmitsBackupImmediatelyWhenPreferredFollowerFails(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const hedgeDelay = 50 * time.Millisecond
+		writer := &failedPreferredHedgeWriter{
+			hedgeDelay: hedgeDelay,
+			backup:     make(chan ch.NodeID, 1),
+		}
+		startedAt := time.Now()
+		result, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
+			first: 1, last: 1, channelKey: "1:failed-preferred",
+		}, writer)
+		if err != nil {
+			t.Fatalf("runDurableRound() error = %v", err)
+		}
+		if elapsed := time.Since(startedAt); elapsed != 0 {
+			t.Fatalf("backup admission elapsed = %s, want immediate admission before %s hedge delay", elapsed, hedgeDelay)
+		}
+		select {
+		case got := <-writer.backup:
+			if got == writer.preferred {
+				t.Fatalf("backup follower = failed preferred follower %d", got)
+			}
+		default:
+			t.Fatal("preferred follower failure did not admit the backup")
+		}
+		if !result.localDurable || result.durableVotes != 2 {
+			t.Fatalf("runDurableRound() = %+v, want local plus backup durability", result)
+		}
+	})
 }
 
 func TestDurableRoundDefersOnlyTheTrailingFollowerAfterQuorum(t *testing.T) {
@@ -222,12 +309,49 @@ type gatedDurabilityWriter struct {
 
 type hedgedGatedDurabilityWriter struct {
 	*gatedDurabilityWriter
-	hedged chan ch.NodeID
+	hedged     chan ch.NodeID
+	deferred   chan ch.NodeID
+	hedgeDelay time.Duration
 }
+
+type failedPreferredHedgeWriter struct {
+	preferred  ch.NodeID
+	backup     chan ch.NodeID
+	hedgeDelay time.Duration
+}
+
+func (w *failedPreferredHedgeWriter) submitLocal(_ context.Context, _ durableProposal, complete func(durabilityCompletion)) error {
+	complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
+	return nil
+}
+
+func (w *failedPreferredHedgeWriter) submitReplica(_ context.Context, node ch.NodeID, _ durableProposal, complete func(durabilityCompletion)) error {
+	if w.preferred == 0 {
+		w.preferred = node
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: errors.New("preferred follower failed")})
+		return nil
+	}
+	w.backup <- node
+	complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
+	return nil
+}
+
+func (w *failedPreferredHedgeWriter) replicaHedgeDelay() time.Duration { return w.hedgeDelay }
+
+func (w *failedPreferredHedgeWriter) submitReplicaHedged(ctx context.Context, node ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
+	return w.submitReplica(ctx, node, proposal, complete)
+}
+
+func (w *hedgedGatedDurabilityWriter) replicaHedgeDelay() time.Duration { return w.hedgeDelay }
 
 func (w *hedgedGatedDurabilityWriter) submitReplicaHedged(ctx context.Context, node ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
 	w.hedged <- node
 	return w.submitReplica(ctx, node, proposal, complete)
+}
+
+func (w *hedgedGatedDurabilityWriter) submitReplicaDeferred(_ context.Context, node ch.NodeID, _ durableProposal, _ func(durabilityCompletion)) error {
+	w.deferred <- node
+	return nil
 }
 
 func newGatedDurabilityWriter(nodes ...ch.NodeID) *gatedDurabilityWriter {
