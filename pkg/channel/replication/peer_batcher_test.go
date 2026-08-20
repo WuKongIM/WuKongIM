@@ -70,6 +70,13 @@ func TestBatchingDurabilityDispatcherUsesOwnerContextForAcceptedLocalWrite(t *te
 	}
 }
 
+func TestBatchingDurabilityDispatcherUsesBoundedFollowerHedgeDelay(t *testing.T) {
+	dispatcher := &batchingDurabilityDispatcher{}
+	if got := dispatcher.replicaHedgeDelay(); got != 100*time.Millisecond {
+		t.Fatalf("replica hedge delay = %v, want 100ms", got)
+	}
+}
+
 func TestPeerBatcherCarriesRecordsAndCoalescesReadyWorkForOneTarget(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
