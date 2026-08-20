@@ -51,3 +51,33 @@ func TestPermissionMetadataSlotWorkersAreBounded(t *testing.T) {
 		t.Fatalf("peak workers = %d, want %d", got, permissionBatchSlotWorkers)
 	}
 }
+
+func TestPermissionMetadataSlotWorkersCoverReviewedTwelveSlotTopologyInOneWave(t *testing.T) {
+	const representedSlots = 12
+	entered := make(chan struct{}, representedSlots)
+	release := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		runPermissionMetadataSlotWorkers(representedSlots, func(int) {
+			entered <- struct{}{}
+			<-release
+		})
+		close(done)
+	}()
+
+	for slot := 0; slot < representedSlots; slot++ {
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			close(release)
+			<-done
+			t.Fatalf("permission Slot reads entered = %d, want %d in the first wave", slot, representedSlots)
+		}
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("permission Slot workers did not finish after release")
+	}
+}
