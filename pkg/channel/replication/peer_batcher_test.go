@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -271,6 +272,115 @@ func TestPeerBatcherUrgentReplicaOvertakesQueuedTrailingReplica(t *testing.T) {
 	<-backgroundDone
 	if got := link.snapshot(); !reflect.DeepEqual(got, []ch.ChannelKey{"1:urgent", "1:deferred-a", "1:deferred-b"}) {
 		t.Fatalf("final exchange order = %v, want urgent before queued trailing replicas", got)
+	}
+}
+
+func TestPeerBatcherUsesBoundedHedgeLaneWhenPreferredLaneIsSaturated(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	observer := &recordingReplicationStageObserver{}
+	link := &priorityPeerLink{
+		blockKey: "1:primary-a",
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor, Observer: observer,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxTargetFlight: 1,
+		MaxBatchItems:   1, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	primaryA := testReplicateRequest(t, "1:primary-a", "primary-a", 1, []byte("primary-a"))
+	if err := batcher.submit(context.Background(), 2, primaryA, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit(primary-a) error = %v", err)
+	}
+	primaryDone := make(chan struct{})
+	go func() {
+		executor.RunNext()
+		close(primaryDone)
+	}()
+	<-link.started
+
+	hedge := testReplicateRequest(t, "1:hedge", "hedge", 2, []byte("hedge"))
+	if err := batcher.submitHedged(context.Background(), 2, hedge, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submitHedged() error = %v", err)
+	}
+	primaryB := testReplicateRequest(t, "1:primary-b", "primary-b", 3, []byte("primary-b"))
+	if err := batcher.submit(context.Background(), 2, primaryB, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit(primary-b) error = %v", err)
+	}
+
+	close(link.release)
+	<-primaryDone
+	if executor.Len() != 0 {
+		t.Fatalf("scheduled drains after borrowed hedge completes = %d, want 0", executor.Len())
+	}
+	if got := link.snapshot(); !reflect.DeepEqual(got, []ch.ChannelKey{"1:primary-a", "1:hedge", "1:primary-b"}) {
+		t.Fatalf("exchange order = %v, want one borrowed hedge flight between preferred replicas", got)
+	}
+	stages := observer.snapshot()
+	for _, stage := range []string{stagePeerHedgeQueue, stagePeerHedgeExchange, stagePeerHedgeEndToEnd} {
+		if !hasReplicationStage(stages, stage, "ok") {
+			t.Fatalf("replication stages = %+v, want %s/ok", stages, stage)
+		}
+	}
+}
+
+func TestPeerBatcherCapsHedgeWorkersWithoutConsumingRemainingPrimaryCapacity(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	link := &priorityPeerLink{
+		blockKey: "1:primary-a",
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxTargetFlight: 3,
+		MaxBatchItems:   2, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 12288, MaxTargetQueuedItems: 6, MaxTargetQueuedBytes: 8192,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	primaryA := testReplicateRequest(t, "1:primary-a", "primary-a", 1, []byte("primary-a"))
+	if err := batcher.submit(context.Background(), 2, primaryA, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit(primary-a) error = %v", err)
+	}
+	primaryDone := make(chan struct{})
+	go func() {
+		executor.RunNext()
+		close(primaryDone)
+	}()
+	<-link.started
+	for index, key := range []ch.ChannelKey{"1:hedge-a", "1:hedge-b"} {
+		request := testReplicateRequest(t, key, string(key), byte(index+2), []byte{byte(index + 2)})
+		if err := batcher.submitHedged(context.Background(), 2, request, func(ReplicateResult, error) {}); err != nil {
+			t.Fatalf("submitHedged(%s) error = %v", key, err)
+		}
+	}
+	primaryB := testReplicateRequest(t, "1:primary-b", "primary-b", 4, []byte("primary-b"))
+	if err := batcher.submit(context.Background(), 2, primaryB, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit(primary-b) error = %v", err)
+	}
+
+	batcher.mu.Lock()
+	target := batcher.targets[2]
+	urgentWorkers, hedgedWorkers, workers := target.urgentWorkers, target.hedgedWorkers, target.workerCount()
+	batcher.mu.Unlock()
+	if urgentWorkers != 2 || hedgedWorkers != 1 || workers != 3 {
+		t.Fatalf("target workers = urgent:%d hedged:%d total:%d, want 2/1/3", urgentWorkers, hedgedWorkers, workers)
+	}
+
+	close(link.release)
+	<-primaryDone
+	executor.RunNext()
+	executor.RunNext()
+	if got := link.snapshot(); !slices.Contains(got, ch.ChannelKey("1:primary-b")) {
+		t.Fatalf("completed exchanges = %v, want remaining preferred replica", got)
 	}
 }
 
