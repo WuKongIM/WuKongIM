@@ -1483,7 +1483,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			return completeParentCancellation()
 		case <-c.stopRequests:
 			stopRequested = true
-			observation = joinObservation()
 			cutoffOwned = true
 			goto observationComplete
 		}
@@ -1518,6 +1517,12 @@ observationComplete:
 	if joinCapacityAsync != nil {
 		cancelObservation()
 		joinCapacityAsync()
+	}
+	if stopRequested && !observationJoined {
+		// The observer context also owns any periodic checkpoint already in
+		// flight. Join that checkpoint above before canceling observation, then
+		// take the distinct stop-request terminal cut below.
+		observation = joinObservation()
 	}
 	preservedObservationEnded := false
 	if preserveObservation {

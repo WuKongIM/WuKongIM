@@ -971,6 +971,84 @@ func TestCoordinatorStopRequestProducesTerminalCutAndBoundedFinalization(t *test
 	}
 }
 
+func TestCoordinatorStopRequestDoesNotCancelInflightPeriodicCheckpoint(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-stop-during-periodic-checkpoint"
+	cfg.Observation.Cadence = coordinatorGrantCadence
+	clock := newManualCoordinatorClock(time.Unix(1_700_100_000, 0))
+	observerStarted := make(chan struct{})
+	checkpointEntered := make(chan struct{})
+	checkpointRelease := make(chan struct{})
+	stopRequests := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		base := &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+		if workerID == 0 {
+			workers[workerID] = &blockingPeriodicCheckpointCoordinatorWorker{
+				recordingCoordinatorWorker: base,
+				entered:                    checkpointEntered,
+				release:                    checkpointRelease,
+			}
+			continue
+		}
+		workers[workerID] = base
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 93,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	clock.advance(coordinatorGrantCadence)
+	select {
+	case <-checkpointEntered:
+	case result := <-resultChannel:
+		t.Fatalf("Run() ended before the periodic checkpoint blocked: %+v", result)
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not start the periodic checkpoint")
+	}
+	close(stopRequests)
+	select {
+	case result := <-resultChannel:
+		t.Fatalf("stop request canceled the in-flight periodic checkpoint: %+v", result)
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(checkpointRelease)
+
+	terminal := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutTerminal)
+	if !terminal.StopRequested {
+		t.Fatalf("terminal cut = %+v, want stop-request evidence", terminal)
+	}
+	select {
+	case result := <-resultChannel:
+		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+			t.Fatalf("Run() result = %+v, want stopped after the terminal cut", result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not finish after the in-flight checkpoint")
+	}
+}
+
 func TestCoordinatorStopRequestCancelsSetupBeforeAssignment(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-stop-during-setup"
@@ -3695,6 +3773,32 @@ type blockingStatusRecordingGrantCoordinatorWorker struct {
 	*recordingCoordinatorWorker
 	entered chan<- uint64
 	release <-chan struct{}
+}
+
+type blockingPeriodicCheckpointCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	entered chan<- struct{}
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (w *blockingPeriodicCheckpointCoordinatorWorker) Checkpoint(
+	ctx context.Context,
+	request WorkerCheckpointRequest,
+) (WorkerSnapshot, error) {
+	blocked := false
+	w.once.Do(func() {
+		blocked = true
+		close(w.entered)
+	})
+	if blocked {
+		select {
+		case <-w.release:
+		case <-ctx.Done():
+			return WorkerSnapshot{}, ctx.Err()
+		}
+	}
+	return w.recordingCoordinatorWorker.Checkpoint(ctx, request)
 }
 
 type terminalReplacementCoordinatorWorker struct {
