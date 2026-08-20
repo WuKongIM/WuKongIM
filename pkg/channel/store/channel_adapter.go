@@ -296,6 +296,11 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		}
 	}()
 	for i, item := range items {
+		if !item.Request.Class.Valid() {
+			results[i].Err = ch.ErrInvalidConfig
+			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
+			continue
+		}
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
@@ -305,6 +310,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
 			Store:                     dbStore,
 			Records:                   encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+			Class:                     messageDBAppendBatchClass(item.Request.Class),
 			Committed:                 item.Request.Committed,
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
 			ExactBaseOffset:           item.Request.ExactBaseOffset,
@@ -660,6 +666,9 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 	if err := a.ensureOpen(); err != nil {
 		return appendLeaderErrorResult(err), err
 	}
+	if !req.Class.Valid() {
+		return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
 	if err := ctx.Err(); err != nil {
 		return appendLeaderErrorResult(err), err
 	}
@@ -667,6 +676,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
 		Store:                     a.store,
 		Records:                   records,
+		Class:                     messageDBAppendBatchClass(req.Class),
 		Committed:                 req.Committed,
 		ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
 		ExactBaseOffset:           req.ExactBaseOffset,
@@ -683,6 +693,17 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 		lastOffset = result.BaseOffset
 	}
 	return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: lastOffset, NeedFrom: result.NeedFrom, Outcome: result.Outcome}, err
+}
+
+func messageDBAppendBatchClass(class AppendClass) messagedb.AppendBatchClass {
+	switch class {
+	case AppendClassFollowerQuorum:
+		return messagedb.AppendBatchClassFollowerQuorum
+	case AppendClassTrailing:
+		return messagedb.AppendBatchClassTrailing
+	default:
+		return messagedb.AppendBatchClassLeaderQuorum
+	}
 }
 
 func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {

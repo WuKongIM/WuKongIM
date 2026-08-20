@@ -241,12 +241,14 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 	if batcher, ok := a.cfg.Factory.(channelstore.LeaderAppendBatcher); ok {
 		items := make([]channelstore.AppendLeaderBatchItem, len(mutations))
 		for index, mutation := range mutations {
+			class := channelStoreAppendClass(mutation.Class)
 			items[index] = channelstore.AppendLeaderBatchItem{
 				ChannelKey: mutation.ChannelKey,
 				ChannelID:  mutation.ChannelID,
 				Request: channelstore.AppendLeaderRequest{
-					Records: mutation.Records, Committed: mutation.Committed, ExactBaseOffset: true,
+					Records: mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
 					ExpectedBaseOffset: mutation.Manifest.BaseOffset, Proposal: mutation.Manifest,
+					ServerAllocatedMessageIDs: mutation.ServerAllocatedMessageIDs,
 				},
 			}
 		}
@@ -267,9 +269,11 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 			results[index] = MutationResult{Outcome: ch.AppendOutcomeDefinitelyNotWritten, Err: err}
 			continue
 		}
+		class := channelStoreAppendClass(mutation.Class)
 		appendResult, appendErr := store.AppendLeader(ctx, channelstore.AppendLeaderRequest{
-			Records: mutation.Records, Committed: mutation.Committed, ExactBaseOffset: true,
+			Records: mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
 			ExpectedBaseOffset: mutation.Manifest.BaseOffset, Proposal: mutation.Manifest,
+			ServerAllocatedMessageIDs: mutation.ServerAllocatedMessageIDs,
 		})
 		closeErr := store.Close()
 		if appendErr == nil && closeErr != nil && !appendResult.Outcome.Durable() {
@@ -281,6 +285,17 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 		})
 	}
 	return results
+}
+
+func channelStoreAppendClass(class MutationClass) channelstore.AppendClass {
+	switch class {
+	case MutationClassFollowerQuorum:
+		return channelstore.AppendClassFollowerQuorum
+	case MutationClassTrailing:
+		return channelstore.AppendClassTrailing
+	default:
+		return channelstore.AppendClassLeaderQuorum
+	}
 }
 
 func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryReplacement) []RecoveryReplacementResult {
@@ -566,6 +581,7 @@ func rejectMutationsUnknown(results []MutationResult, err error) []MutationResul
 
 func validMutation(mutation Mutation) bool {
 	if mutation.ChannelKey == "" || mutation.ChannelID.ID == "" ||
+		!mutation.Class.valid() ||
 		!mutation.Manifest.ValidFor(mutation.Manifest.BaseOffset, len(mutation.Records)) ||
 		mutation.Committed > mutation.Manifest.LastOffset {
 		return false

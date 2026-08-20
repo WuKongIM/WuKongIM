@@ -50,7 +50,24 @@ type LoadBatchResult struct {
 	Items []LoadResult
 }
 
-// Mutation is one synchronous exact follower write. Manifest is mandatory;
+// MutationClass distinguishes the durability role of a synchronous mutation.
+type MutationClass uint8
+
+const (
+	// MutationClassLeaderQuorum is the leader-local vote required by every
+	// successful quorum round.
+	MutationClassLeaderQuorum MutationClass = iota
+	// MutationClassFollowerQuorum is one redundant synchronous follower vote.
+	MutationClassFollowerQuorum
+	// MutationClassTrailing is post-quorum follower convergence.
+	MutationClassTrailing
+)
+
+func (c MutationClass) valid() bool {
+	return c == MutationClassLeaderQuorum || c == MutationClassFollowerQuorum || c == MutationClassTrailing
+}
+
+// Mutation is one synchronous exact replica write. Manifest is mandatory;
 // there is no caller-selectable durability or legacy append mode.
 type Mutation struct {
 	ChannelKey ch.ChannelKey
@@ -58,6 +75,10 @@ type Mutation struct {
 	Manifest   ch.ProposalManifest
 	Records    []ch.Record
 	Committed  uint64
+	// Class controls commit selection only; all classes remain synchronous.
+	Class MutationClass
+	// ServerAllocatedMessageIDs carries the leader's all-record allocator proof.
+	ServerAllocatedMessageIDs bool
 }
 
 // MutationResult is the closed per-item result of ReplicaStore.Sync.

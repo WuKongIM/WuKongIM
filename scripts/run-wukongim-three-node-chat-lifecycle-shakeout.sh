@@ -196,6 +196,8 @@ print_plan() {
   printf 'warmup_seconds=%s\n' "$WARMUP_SECONDS"
   printf 'drain_timeout_seconds=%s\n' "$GRACEFUL_STOP_TIMEOUT"
   printf 'raw_metrics_sample_seconds=%s\n' "$METRICS_SAMPLE_SECONDS"
+  printf 'channel_store_append_workers=500\n'
+  printf 'gateway_async_send_workers=1000\n'
   printf 'commit_coordinator_flush_window=5ms\n'
   printf 'commit_coordinator_shards=1\n'
   printf 'sync_commit=true\n'
@@ -343,6 +345,8 @@ record_evidence_identity() {
     printf 'hash_slots\t256\n'
     printf 'slot_replicas\t3\n'
     printf 'channel_replicas\t3\n'
+    printf 'channel_store_append_workers\t500\n'
+    printf 'gateway_async_send_workers\t1000\n'
     printf 'commit_coordinator_flush_window\t5ms\n'
     printf 'commit_coordinator_shards\t1\n'
     printf 'sync_commit\ttrue\n'
@@ -604,6 +608,8 @@ start_service() {
     WK_CLUSTER_SLOT_REPLICA_N=3 \
     WK_CLUSTER_CHANNEL_REPLICA_N=3 \
     WK_CLUSTER_MAX_CHANNELS=50000 \
+    WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 \
+    WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000 \
     WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=5ms \
     WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1 \
     WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true \

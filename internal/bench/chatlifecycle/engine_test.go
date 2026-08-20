@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"runtime"
 	"sort"
@@ -77,6 +78,36 @@ func TestEngineOwnsBoundedSessionsRelationshipsAndFutureWork(t *testing.T) {
 	}
 	if got := fixture.factory.sentCount(); got != 1 {
 		t.Fatalf("sparse-online transport sends = %d, want one online-routed grant", got)
+	}
+}
+
+func TestEngineRegistersSendLatencyAtPhysicalAdmissionTime(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	sender := fixture.identity.UID(0)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: sender, UserIndex: 0, LoginOrdinal: 1}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, sender, fixture.identity.UID(1), 1, TrafficPerson)
+	ownerAt := fixture.clock.Now()
+	physicalAdmissionAt := ownerAt.Add(90 * time.Millisecond)
+	fixture.clock.Set(physicalAdmissionAt)
+	if !fixture.pool.acquireSendLease(sender) {
+		t.Fatal("acquireSendLease() = false")
+	}
+	if err := fixture.engine.processAttempt(context.Background(), intent, 0, ownerAt); err != nil {
+		t.Fatalf("processAttempt: %v", err)
+	}
+
+	fixture.verifier.sendMu.Lock()
+	registeredAt := fixture.verifier.pending[intent.Logical.ClientMsgNo].registeredAt
+	fixture.verifier.sendMu.Unlock()
+	if !registeredAt.Equal(physicalAdmissionAt) {
+		t.Fatalf("registered SEND at %v, want physical admission %v instead of stale owner time %v", registeredAt, physicalAdmissionAt, ownerAt)
 	}
 }
 
@@ -2105,6 +2136,7 @@ func TestEngineAttemptTimeoutUsesColdBudgetForCreateAndReheat(t *testing.T) {
 	}{
 		{name: "ordinary hot send", intent: TrafficIntent{Domain: LogicalDomainPrimary}, want: time.Second, wantLatencyClass: SendLatencyHot},
 		{name: "first person create", intent: TrafficIntent{Domain: LogicalDomainPrimary, MetaCreateCandidate: true}, want: 5 * time.Second, wantLatencyClass: SendLatencyColdFirstCreate},
+		{name: "unproven person channel", intent: TrafficIntent{Domain: LogicalDomainPrimary, ColdAttempt: true}, want: 5 * time.Second, wantLatencyClass: SendLatencyColdFirstCreate},
 		{name: "proven cold reheat", intent: TrafficIntent{Domain: LogicalDomainRevisit}, want: 5 * time.Second, wantLatencyClass: SendLatencyLifecycleReheat},
 	}
 	for _, test := range tests {
@@ -5405,6 +5437,94 @@ func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing
 	}
 }
 
+func TestEngineGrantSurvivesSessionExpiryReplacementGap(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 100, NewUsersPerDay: 250_000, SessionDuration: time.Minute,
+		WorkCapacity: 8_192, InflightCapacity: 512, MaxWorkPerAdvance: 8_192,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now().Add(10 * time.Second)
+	fixture.clock.Set(now)
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
+	waitForEngineCompletions(t, fixture.engine, "bootstrap")
+	fixture.pool.mu.Lock()
+	kept := 0
+	for _, session := range fixture.pool.online {
+		if kept > 0 {
+			session.snapshot.Deadline = session.snapshot.Deadline.Add(time.Hour)
+		}
+		kept++
+	}
+	fixture.pool.mu.Unlock()
+
+	// Expiry removes one old route before its asynchronous replacement login can
+	// complete. A coordinator grant arriving in that bounded gap must not turn
+	// normal session churn into an unclassified worker failure.
+	now = now.Add(time.Minute)
+	fixture.clock.Set(now)
+	expiry, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("expiry Step: %v", err)
+	}
+	if expiry.Expired != 1 {
+		t.Fatalf("expired sessions = %d, want 1", expiry.Expired)
+	}
+	grant, err := fixture.engine.ApplyGrant(context.Background(), now, 100)
+	if err != nil || !grant.Admitted {
+		t.Fatalf("grant during replacement gap = %+v, %v", grant, err)
+	}
+}
+
+func TestEngineLocalThreeNodeThousandQPSGrantsSurviveFirstSessionChurn(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkerID: 2, WorkerCount: 3, OnlineUsers: 2_500,
+		BootstrapLoginsPerSecond: 200, NewUsersPerDay: 250_000, SendRatePerSecond: 1_000,
+		HotSet: HotSetConfig{PersonChannels: 2_000, GroupChannels: 500},
+		Groups: GroupCatalogConfig{
+			Small: 400, Medium: 75, Large: 24, VeryLarge: 1,
+			VeryLargeMembers: 100_000, FixedMembership: true, VeryLargeSendEvery: time.Minute,
+		},
+		WorkCapacity: 32_768, InflightCapacity: 4_096, MaxWorkPerAdvance: 32_768,
+		StartingCapacity: 256,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now()
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
+	waitForEngineCompletions(t, fixture.engine, "bootstrap")
+
+	allocator, err := NewRateAllocator(1_000, 2_000, []int64{1, 1, 1})
+	if err != nil {
+		t.Fatalf("NewRateAllocator: %v", err)
+	}
+	for second := 0; second < 310; second++ {
+		if second > 0 {
+			now = now.Add(time.Second)
+			fixture.clock.Set(now)
+			if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
+				t.Fatalf("Step(%d): %v", second, err)
+			}
+		}
+		rate, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+		if err != nil {
+			t.Fatalf("rate Tick(%d): %v", second, err)
+		}
+		grant, err := fixture.engine.ApplyGrant(context.Background(), now, rate.Released[2])
+		if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[2] {
+			t.Fatalf("grant second %d release %d = %+v, %v", second, rate.Released[2], grant, err)
+		}
+	}
+}
+
 func TestEngineStepSchedulerCPUBudgetSaturationIsHarnessInvalid(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{
@@ -5857,6 +5977,10 @@ type engineTestLimits struct {
 	WorkerID                  uint64
 	WorkerCount               uint64
 	StartingCapacity          int
+	BootstrapLoginsPerSecond  int
+	SendRatePerSecond         int
+	HotSet                    HotSetConfig
+	Groups                    GroupCatalogConfig
 }
 
 type engineTestFixture struct {
@@ -5889,6 +6013,19 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 	}
 	if limits.NewUsersPerDay > 0 {
 		cfg.Workload.NewUsersPerDay = limits.NewUsersPerDay
+	}
+	if limits.BootstrapLoginsPerSecond > 0 {
+		cfg.Workload.BootstrapLoginsPerSecond = limits.BootstrapLoginsPerSecond
+	}
+	if limits.SendRatePerSecond > 0 {
+		cfg.Workload.SendRatePerSecond = limits.SendRatePerSecond
+		cfg.Workload.MaxGlobalBurst = 2 * limits.SendRatePerSecond
+	}
+	if limits.HotSet != (HotSetConfig{}) {
+		cfg.Workload.HotSet = limits.HotSet
+	}
+	if limits.Groups != (GroupCatalogConfig{}) {
+		cfg.Workload.Groups = limits.Groups
 	}
 	if limits.SessionDuration > 0 {
 		cfg.Workload.Sessions = []DurationShare{{Percent: 100, Min: limits.SessionDuration, Max: limits.SessionDuration}}

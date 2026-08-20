@@ -88,7 +88,8 @@ func TestCoordinatorSnapshotAggregationEnforcesFenceSchemaAndMonotonicity(t *tes
 		t.Fatalf("first Aggregate() error = %v", err)
 	}
 	if aggregated.WorkerCount != 3 || aggregated.Messages.Sent != 33 ||
-		aggregated.HotSendackLatency.Count != 33 || aggregated.HotSendackLatency.Buckets[1] != 33 {
+		aggregated.HotSendackLatency.Count != 33 || aggregated.HotSendackLatency.Buckets[1] != 33 ||
+		aggregated.SendPendingToWriteLatency.Count != 33 || aggregated.SendWriteToAckLatency.Count != 33 {
 		t.Fatalf("first aggregate = %+v", aggregated)
 	}
 
@@ -764,6 +765,8 @@ func coordinatorSnapshotFixture(fence WorkerFence, sequence uint64, uptime time.
 			ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
 			LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
 			RecvackLatency:                newWorkerHistogramSnapshot(),
+			SendPendingToWriteLatency:     histogram,
+			SendWriteToAckLatency:         histogram,
 		}
 	}
 	return snapshots
@@ -1218,6 +1221,92 @@ func TestCoordinatorStartUsesStrictOrderAndFinalizesExactWorkers(t *testing.T) {
 	}
 	if len(log) != callCount {
 		t.Fatalf("reused Run() made %d additional calls", len(log)-callCount)
+	}
+}
+
+func TestCoordinatorWaitsForTerminalSessionReplacementBeforeCheckpoint(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-terminal-session-replacement"
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	observerStarted := make(chan struct{})
+	stopRequests := make(chan struct{})
+	statusCalls := make(chan bool, 2)
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		base := &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+		if workerID == coordinatorWorkerCount-1 {
+			workers[workerID] = &terminalReplacementCoordinatorWorker{
+				recordingCoordinatorWorker: base,
+				statusCalls:                statusCalls,
+			}
+			continue
+		}
+		workers[workerID] = base
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 43,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	close(stopRequests)
+	select {
+	case ready := <-statusCalls:
+		if ready {
+			t.Fatal("first terminal replacement status was already ready")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not inspect terminal replacement readiness")
+	}
+	select {
+	case period := <-clock.created:
+		if period != time.Second {
+			t.Fatalf("terminal replacement poll period = %s, want 1s", period)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not start the terminal replacement poll")
+	}
+	clock.advance(time.Second)
+	select {
+	case ready := <-statusCalls:
+		if !ready {
+			t.Fatal("second terminal replacement status remained unready")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not recheck terminal replacement readiness")
+	}
+
+	terminal := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutTerminal)
+	if got := terminal.Snapshots[coordinatorWorkerCount-1].Sessions; got.Online != 1 || got.TrafficReady != 1 || got.Target != 1 {
+		t.Fatalf("terminal replacement snapshot = %+v, want exact ready target", got)
+	}
+	select {
+	case result := <-resultChannel:
+		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+			t.Fatalf("Run() result = %+v, want operator stop after terminal replacement", result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not finish after terminal replacement")
 	}
 }
 
@@ -2623,6 +2712,108 @@ func TestCoordinatorAcceptsGrantThatBecomesDueAfterStatusClockSample(t *testing.
 	}
 }
 
+func TestCoordinatorServicesGrantTicksWhileWorkerStatusRoundIsPending(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-grants-during-status"
+	cfg.Observation.Cadence = 2 * coordinatorGrantCadence
+	startedAt := time.Unix(1_700_000_000, 0)
+	clock := newManualCoordinatorClock(startedAt)
+	statusEntered := make(chan uint64, coordinatorWorkerCount)
+	statusRelease := make(chan struct{})
+	grantCalled := make(chan uint64, coordinatorWorkerCount*8)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &blockingStatusRecordingGrantCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{
+				id: uint64(workerID), log: &[]string{}, grantCalled: grantCalled,
+			},
+			entered: statusEntered,
+			release: statusRelease,
+		}
+	}
+	observerStarted := make(chan struct{})
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 42,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+	t.Cleanup(func() {
+		select {
+		case <-statusRelease:
+		default:
+			close(statusRelease)
+		}
+		cancel()
+		select {
+		case <-resultChannel:
+		case <-time.After(time.Second):
+			t.Fatal("coordinator did not stop after test cleanup")
+		}
+	})
+
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		if sequence := <-grantCalled; sequence != 1 {
+			t.Fatalf("initial grant sequence = %d, want 1", sequence)
+		}
+	}
+	clock.advance(coordinatorGrantCadence)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		if sequence := <-grantCalled; sequence != 2 {
+			t.Fatalf("first scheduled grant sequence = %d, want 2", sequence)
+		}
+	}
+	clock.advance(coordinatorGrantCadence)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		select {
+		case <-statusEntered:
+		case <-time.After(time.Second):
+			t.Fatal("coordinator did not begin the worker status round")
+		}
+	}
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		select {
+		case sequence := <-grantCalled:
+			if sequence != 3 {
+				t.Fatalf("coincident scheduled grant sequence = %d, want 3", sequence)
+			}
+		default:
+		}
+	}
+
+	clock.advance(coordinatorGrantCadence)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		select {
+		case sequence := <-grantCalled:
+			if sequence != 3 && sequence != 4 {
+				t.Fatalf("grant sequence while status pending = %d, want 3 or 4", sequence)
+			}
+		case result := <-resultChannel:
+			t.Fatalf("Run() terminated while status was pending: %+v", result)
+		case <-time.After(250 * time.Millisecond):
+			t.Fatal("grant tick was not serviced while worker status was pending")
+		}
+	}
+}
+
 func TestCoordinatorRejectsStaleGrantTickerWithoutAdvancingGrant(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-stale-grant-tick"
@@ -3408,6 +3599,66 @@ type deadlineCoordinatorWorker struct {
 	entered chan<- coordinatorStatusContext
 }
 
+type blockingStatusRecordingGrantCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	entered chan<- uint64
+	release <-chan struct{}
+}
+
+type terminalReplacementCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	statusCalls     chan<- bool
+	statusCount     int
+	checkpointCount int
+}
+
+func (w *terminalReplacementCoordinatorWorker) Status(context.Context) (WorkerStatus, error) {
+	w.statusCount++
+	status := w.status(WorkerPhaseRunning)
+	status.TrafficReady = w.statusCount > 1
+	w.statusCalls <- status.TrafficReady
+	return status, nil
+}
+
+func (w *terminalReplacementCoordinatorWorker) Checkpoint(
+	ctx context.Context,
+	request WorkerCheckpointRequest,
+) (WorkerSnapshot, error) {
+	snapshot, err := w.recordingCoordinatorWorker.Checkpoint(ctx, request)
+	if err != nil {
+		return WorkerSnapshot{}, err
+	}
+	w.checkpointCount++
+	snapshot.Sessions.Target = 1
+	if w.checkpointCount > 1 {
+		snapshot.Sessions.Online = 1
+		snapshot.Sessions.TrafficReady = 1
+	}
+	return snapshot, nil
+}
+
+func (w *terminalReplacementCoordinatorWorker) Stop(
+	ctx context.Context,
+	request WorkerStopRequest,
+) (WorkerSnapshot, error) {
+	snapshot, err := w.recordingCoordinatorWorker.Stop(ctx, request)
+	if err != nil {
+		return WorkerSnapshot{}, err
+	}
+	snapshot.Sessions.Target = 1
+	return snapshot, nil
+}
+
+func (w *blockingStatusRecordingGrantCoordinatorWorker) Status(ctx context.Context) (WorkerStatus, error) {
+	w.entered <- w.id
+	select {
+	case <-w.release:
+		return w.status(WorkerPhaseRunning), nil
+	case <-ctx.Done():
+		return WorkerStatus{}, ctx.Err()
+	}
+}
+
 type staggeredReadyCoordinatorWorker struct {
 	*recordingCoordinatorWorker
 	readyAfter  int
@@ -3893,5 +4144,7 @@ func (w *recordingCoordinatorWorker) snapshot(phase WorkerPhase) WorkerSnapshot 
 		HotSendackLatency: newWorkerHistogramSnapshot(), ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
 		LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
 		RecvackLatency:                newWorkerHistogramSnapshot(),
+		SendPendingToWriteLatency:     newWorkerHistogramSnapshot(),
+		SendWriteToAckLatency:         newWorkerHistogramSnapshot(),
 	}
 }

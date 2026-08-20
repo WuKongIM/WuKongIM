@@ -20,6 +20,17 @@ func TestRuntimePressureRevisionedQueueRejectsOlderAbsoluteGauge(t *testing.T) {
 	}
 }
 
+func TestRuntimePressureRevisionedPoolInflightRejectsOlderAbsoluteGauge(t *testing.T) {
+	m := newRuntimePressureMetrics(prometheus.NewRegistry(), nil)
+	m.SetPoolInflightRevisioned("transport", "service", 2, 0)
+	m.SetPoolInflightRevisioned("transport", "service", 1, 3)
+
+	series := m.boundPoolSeries("transport", "service")
+	if got := testutil.ToFloat64(series.inflight); got != 0 {
+		t.Fatalf("revisioned pool inflight = %v, want latest inflight 0", got)
+	}
+}
+
 func TestRuntimePressureUpdatesReuseBoundSeries(t *testing.T) {
 	m := newRuntimePressureMetrics(prometheus.NewRegistry(), nil)
 	update := func() {

@@ -208,7 +208,9 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 		return Receipt{}, ch.ErrBackpressured
 	}
 
-	durable, err := sealBusinessProposal(state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records)
+	durable, err := sealBusinessProposal(
+		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.ServerAllocatedMessageIDs,
+	)
 	if err != nil {
 		return Receipt{}, err
 	}
@@ -344,7 +346,14 @@ func (l *quorumLog) existingChannel(key ch.ChannelKey) *quorumChannel {
 	return l.channels[key]
 }
 
-func sealBusinessProposal(authority Authority, frontier ReplicaState, hw uint64, command ch.CommandID, records []ch.Record) (durableProposal, error) {
+func sealBusinessProposal(
+	authority Authority,
+	frontier ReplicaState,
+	hw uint64,
+	command ch.CommandID,
+	records []ch.Record,
+	serverAllocatedMessageIDs bool,
+) (durableProposal, error) {
 	if frontier.LEO == ^uint64(0) || uint64(len(records)) > ^uint64(0)-frontier.LEO {
 		return durableProposal{}, ch.ErrInvalidConfig
 	}
@@ -362,6 +371,7 @@ func sealBusinessProposal(authority Authority, frontier ReplicaState, hw uint64,
 		first: frontier.LEO + 1, last: manifest.LastOffset,
 		channelKey: authority.Key, channelID: authority.ChannelID, leader: authority.Leader,
 		manifest: manifest, records: frozen, committed: hw,
+		serverAllocatedMessageIDs: serverAllocatedMessageIDs,
 	}, nil
 }
 

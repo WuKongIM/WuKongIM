@@ -1194,6 +1194,14 @@ func TestClientSendAsyncCopiesPayloadBeforeQueue(t *testing.T) {
 	if result.MessageID != 303 {
 		t.Fatalf("MessageID = %d, want 303", result.MessageID)
 	}
+	if result.PendingStartedAt.IsZero() || result.WriteStartedAt.IsZero() || result.ObservedAt.IsZero() {
+		t.Fatalf("send timing = pending:%v write:%v observed:%v, want complete local timeline",
+			result.PendingStartedAt, result.WriteStartedAt, result.ObservedAt)
+	}
+	if result.WriteStartedAt.Before(result.PendingStartedAt) || result.ObservedAt.Before(result.WriteStartedAt) {
+		t.Fatalf("send timing is out of order: pending:%v write:%v observed:%v",
+			result.PendingStartedAt, result.WriteStartedAt, result.ObservedAt)
+	}
 	if err := <-serverErr; err != nil {
 		t.Fatalf("server error = %v", err)
 	}

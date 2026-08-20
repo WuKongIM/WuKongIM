@@ -91,6 +91,60 @@ func TestPoolReportsInflightCurrentAndPeak(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
+func TestPoolDoesNotPublishOlderInflightAfterPhysicalZero(t *testing.T) {
+	sink := &captureSink{}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 2, QueueSize: 2}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	obs := newBlockingInflightObserver()
+	pool.SetQueueObserver(obs)
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	for index, task := range []struct {
+		started chan struct{}
+		release chan struct{}
+	}{
+		{started: firstStarted, release: releaseFirst},
+		{started: secondStarted, release: releaseSecond},
+	} {
+		index, task := index, task
+		require.NoError(t, pool.Submit(context.Background(), Task{
+			Kind:  TaskFunc,
+			Fence: ch.Fence{ChannelKey: ch.ChannelKey(fmt.Sprintf("1:inflight-%d", index)), OpID: ch.OpID(index + 1)},
+			RunFunc: func(context.Context) Result {
+				close(task.started)
+				<-task.release
+				return Result{}
+			},
+		}))
+	}
+	for _, started := range []chan struct{}{firstStarted, secondStarted} {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for both worker tasks to start")
+		}
+	}
+	require.Eventually(t, func() bool { return obs.Inflight("test") == 2 }, time.Second, time.Millisecond)
+	obs.Arm()
+	close(releaseFirst)
+	select {
+	case <-obs.blocked:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for older inflight=1 publication")
+	}
+	close(releaseSecond)
+	require.Eventually(t, func() bool { return pool.inflight.Load() == 0 }, time.Second, time.Millisecond)
+	close(obs.release)
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	if got := obs.Inflight("test"); got != 0 {
+		t.Fatalf("published inflight = %d, want physical zero", got)
+	}
+}
+
 func TestPoolReportsCapacityWorkersAdmissionWaitAndTaskDuration(t *testing.T) {
 	obs := &recordingPoolPressureObserver{}
 	sink := &captureSink{ch: make(chan Result, 1)}
@@ -2038,6 +2092,46 @@ type captureWorkerObserver struct {
 	mu       sync.Mutex
 	inflight map[string]int
 	peak     map[string]int
+}
+
+type blockingInflightObserver struct {
+	mu       sync.Mutex
+	inflight map[string]int
+	armed    atomic.Bool
+	blocked  chan struct{}
+	release  chan struct{}
+}
+
+func newBlockingInflightObserver() *blockingInflightObserver {
+	return &blockingInflightObserver{
+		inflight: make(map[string]int),
+		blocked:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+}
+
+func (o *blockingInflightObserver) SetWorkerQueueDepth(string, int) {}
+
+func (o *blockingInflightObserver) SetWorkerInflight(pool string, inflight int) {
+	if inflight == 1 && o.armed.CompareAndSwap(true, false) {
+		close(o.blocked)
+		<-o.release
+	}
+	o.mu.Lock()
+	o.inflight[pool] = inflight
+	o.mu.Unlock()
+}
+
+func (o *blockingInflightObserver) SetWorkerInflightPeak(string, int) {}
+
+func (o *blockingInflightObserver) Arm() {
+	o.armed.Store(true)
+}
+
+func (o *blockingInflightObserver) Inflight(pool string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.inflight[pool]
 }
 
 func (o *captureWorkerObserver) SetWorkerQueueDepth(string, int) {}

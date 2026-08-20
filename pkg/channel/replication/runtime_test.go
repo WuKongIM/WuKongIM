@@ -12,6 +12,152 @@ import (
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
+func TestRuntimeDefaultBatchItemsUseHighRateWireBound(t *testing.T) {
+	t.Parallel()
+
+	cfg := normalizeRuntimeConfig(RuntimeConfig{})
+	if cfg.BatchItems != MaxExchangeBatchItems {
+		t.Fatalf("default batch items = %d, want wire bound %d", cfg.BatchItems, MaxExchangeBatchItems)
+	}
+	if cfg.BatchItems != 256 {
+		t.Fatalf("default batch items = %d, want 256 for the high-rate quorum profile", cfg.BatchItems)
+	}
+	if cfg.PeerTargetFlight != 16 {
+		t.Fatalf("default peer target flight = %d, want 16 for independent quorum exchanges to one follower", cfg.PeerTargetFlight)
+	}
+	if cfg.TrailingFlushInterval != 100*time.Millisecond {
+		t.Fatalf("default trailing flush interval = %v, want 100ms for bounded post-quorum batching", cfg.TrailingFlushInterval)
+	}
+}
+
+func TestRuntimeLocalDurabilityObservesEndToEndStage(t *testing.T) {
+	request := testReplicateRequest(t, "1:local-observe", "local-observe", 1, []byte("payload"))
+	store := &recordingReplicaStore{results: []MutationResult{{Outcome: ch.AppendOutcomeDurable, LastOffset: request.Manifest.LastOffset}}}
+	observer := &recordingReplicationStageObserver{}
+	local := &runtimeLocalDurability{
+		runtime: &Runtime{ctx: context.Background()}, store: store, timeout: time.Second, observer: observer,
+	}
+	var completed durabilityCompletion
+	err := local.runBatch(context.Background(), []localDurabilityItem{{
+		proposal: durableProposal{
+			first: request.Manifest.BaseOffset + 1, last: request.Manifest.LastOffset,
+			channelKey: request.ChannelKey, channelID: request.ChannelID, leader: request.Leader,
+			manifest: request.Manifest, records: request.Records,
+		},
+		complete: func(got durabilityCompletion) { completed = got }, submittedAt: time.Now(),
+	}})
+	if err != nil {
+		t.Fatalf("runBatch() error = %v", err)
+	}
+	if !completed.outcome.Durable() || completed.err != nil {
+		t.Fatalf("completion = %+v, want durable", completed)
+	}
+	if len(store.batches) != 1 || len(store.batches[0]) != 1 || store.batches[0][0].Class != MutationClassLeaderQuorum {
+		t.Fatalf("local store mutations = %+v, want one leader-quorum mutation", store.batches)
+	}
+	stages := observer.snapshot()
+	for _, stage := range []string{"quorum_local_queue", "quorum_local_store", "quorum_local_end_to_end"} {
+		if !hasReplicationStage(stages, stage, "ok") {
+			t.Fatalf("replication stages = %+v, want %s/ok", stages, stage)
+		}
+	}
+}
+
+func TestRuntimeReplicatesIndependentChannelsConcurrentlyToOneFollower(t *testing.T) {
+	t.Parallel()
+
+	router := &runtimeTestRouter{servers: make(map[ch.NodeID]*ExchangeServer)}
+	started := make(chan ch.NodeID, 4)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+
+	runtimes := make(map[ch.NodeID]*Runtime, 3)
+	for _, node := range []ch.NodeID{1, 2, 3} {
+		store, err := NewStoreAdapter(StoreAdapterConfig{
+			Factory: channelstore.NewMemoryFactory(), MaxBatchItems: MaxExchangeBatchItems, MaxBatchBytes: MaxExchangeBatchBytes,
+		})
+		if err != nil {
+			t.Fatalf("NewStoreAdapter(node=%d) error = %v", node, err)
+		}
+		var link PeerLink = runtimeTestLink{from: node, router: router}
+		if node == 1 {
+			link = &blockingReplicateRuntimeLink{base: link, started: started, release: release}
+		}
+		runtime, err := NewRuntime(RuntimeConfig{
+			LocalNode: node, Store: store, Link: link, Goroutines: goruntimeregistry.New(),
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(node=%d) error = %v", node, err)
+		}
+		router.register(node, runtime.ExchangeServer())
+		runtimes[node] = runtime
+	}
+	t.Cleanup(func() {
+		unblock()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		for _, node := range []ch.NodeID{1, 2, 3} {
+			if err := runtimes[node].Close(ctx); err != nil {
+				t.Errorf("Runtime.Close(node=%d) error = %v", node, err)
+			}
+		}
+	})
+
+	firstKey := ch.ChannelKey("1:parallel-a")
+	secondKey := ch.ChannelKey("1:parallel-b")
+	if preferredFollowerIndex(firstKey, 2) != preferredFollowerIndex(secondKey, 2) {
+		secondKey += "a"
+	}
+	authorities := []Authority{
+		{
+			Key: firstKey, ChannelID: ch.ChannelID{ID: "parallel-a", Type: 1},
+			ID:     AuthorityID{ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7},
+			Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
+		},
+		{
+			Key: secondKey, ChannelID: ch.ChannelID{ID: "parallel-b", Type: 1},
+			ID:     AuthorityID{ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7},
+			Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
+		},
+	}
+	for _, authority := range authorities {
+		if _, err := runtimes[1].Log().Install(context.Background(), authority); err != nil {
+			t.Fatalf("Install(%s) error = %v", authority.Key, err)
+		}
+	}
+
+	committed := make(chan error, len(authorities))
+	commit := func(index int) {
+		authority := authorities[index]
+		_, err := runtimes[1].Log().Commit(context.Background(), Proposal{
+			Key: authority.Key, Expected: authority.ID, CommandID: ch.CommandID{31: byte(index + 1)},
+			Records: []ch.Record{{
+				ID: uint64(index + 1), Epoch: authority.ID.ChannelEpoch, FromUID: "sender", ClientMsgNo: "parallel",
+				Payload: []byte("payload"), SizeBytes: len("payload"), ServerTimestampMS: int64(index + 1),
+			}},
+		})
+		committed <- err
+	}
+	go commit(0)
+	waitForReplicateStarts(t, started, 1, time.Second)
+	go commit(1)
+	if got := waitForReplicateStarts(t, started, 1, 250*time.Millisecond); got != 1 {
+		unblock()
+		for range authorities {
+			<-committed
+		}
+		t.Fatalf("independent Channel follower exchanges started = %d, want 1 before the first Channel was released", got)
+	}
+	unblock()
+	for range authorities {
+		if err := <-committed; err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+	}
+}
+
 func TestRuntimeOwnsThreeNodeInstallAndQuorumCommit(t *testing.T) {
 	t.Parallel()
 
@@ -154,6 +300,44 @@ func waitForRuntimeReplicaLEO(t *testing.T, store ReplicaStore, authority Author
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+func waitForReplicateStarts(t *testing.T, started <-chan ch.NodeID, want int, timeout time.Duration) int {
+	t.Helper()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	got := 0
+	for got < want {
+		select {
+		case <-started:
+			got++
+		case <-timer.C:
+			return got
+		}
+	}
+	return got
+}
+
+type blockingReplicateRuntimeLink struct {
+	base    PeerLink
+	started chan<- ch.NodeID
+	release <-chan struct{}
+}
+
+func (l *blockingReplicateRuntimeLink) Exchange(ctx context.Context, target ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
+	if len(batch.Items) > 0 && batch.Items[0].Kind == ExchangeReplicate {
+		select {
+		case l.started <- target:
+		case <-ctx.Done():
+			return ExchangeBatchResult{}, ctx.Err()
+		}
+		select {
+		case <-l.release:
+		case <-ctx.Done():
+			return ExchangeBatchResult{}, ctx.Err()
+		}
+	}
+	return l.base.Exchange(ctx, target, batch)
 }
 
 type runtimeTestRouter struct {

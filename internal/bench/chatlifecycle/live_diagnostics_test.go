@@ -37,6 +37,9 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 	snapshots[2].Messages.TerminalReasons = TerminalSendSnapshot{
 		RetryExhausted: RetryExhaustedSnapshot{Total: 1, AttemptTimeout: 1},
 	}
+	snapshots[2].Harness = WorkerHarnessSnapshot{
+		Classification: SyncClassificationHarnessInvalid, Failures: 2, OfferedUnderdelivery: 2,
+	}
 	if err := recorder.Observe(start.Add(10*time.Second), CoordinatorCutPeriodic, snapshots); err != nil {
 		t.Fatalf("second Observe() error = %v", err)
 	}
@@ -51,6 +54,8 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 	}
 	if document.Schema != LiveDiagnosticStatusSchemaV1 || document.RunID != fence.RunID || document.State != liveDiagnosticRunning ||
 		document.Stage != liveDiagnosticMeasured || document.Totals.Online != 2 || document.CloseReasons.HeartbeatFailed != 1 ||
+		document.Harness.Classification != SyncClassificationHarnessInvalid || document.Harness.Failures != 2 ||
+		document.Harness.OfferedUnderdelivery != 2 ||
 		len(document.Workers) != coordinatorWorkerCount || len(document.RecentEvents) != 5 {
 		t.Fatalf("diagnostic status = %+v", document)
 	}
@@ -64,6 +69,8 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 	if logBody := diagnosticLog.String(); !strings.Contains(logBody, `"event":"wkbench.chat_lifecycle.worker_status_cut"`) ||
 		!strings.Contains(logBody, `"heartbeat_failed":1`) ||
 		!strings.Contains(logBody, `"messages":{"sent":6`) ||
+		!strings.Contains(logBody, `"harness":{"classification":"harness_invalid","failures":2`) ||
+		!strings.Contains(logBody, `"offered_underdelivery":2`) ||
 		!strings.Contains(logBody, `"first_attempt_failures":4`) ||
 		!strings.Contains(logBody, `"attempt_timeout":1`) || strings.Contains(logBody, `"uid"`) {
 		t.Fatalf("diagnostic log = %q", logBody)

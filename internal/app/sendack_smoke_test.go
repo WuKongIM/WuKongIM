@@ -107,8 +107,8 @@ func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 		t.Fatalf("first sendack reason = %v, want %v", first.ReasonCode, frame.ReasonSuccess)
 	}
 	requireSnowflakeMessageIDNode(t, first.MessageID, cfg.NodeID)
-	if first.MessageSeq != 2 {
-		t.Fatalf("first message seq = %d, want 2 after the authority barrier", first.MessageSeq)
+	if first.MessageSeq != 1 {
+		t.Fatalf("first message seq = %d, want first durable channel sequence 1", first.MessageSeq)
 	}
 
 	second := sendDefaultMetaSmokePacket(t, app, channelID, 2, "client-default-meta-2")
@@ -119,8 +119,8 @@ func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 	if second.MessageID <= first.MessageID {
 		t.Fatalf("second message id = %d, want greater than first %d", second.MessageID, first.MessageID)
 	}
-	if second.MessageSeq != 3 {
-		t.Fatalf("second message seq = %d, want 3", second.MessageSeq)
+	if second.MessageSeq != 2 {
+		t.Fatalf("second message seq = %d, want 2", second.MessageSeq)
 	}
 }
 

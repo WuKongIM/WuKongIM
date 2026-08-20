@@ -13,14 +13,15 @@ var errDurableQuorumUnavailable = errors.New("channel replication: durable quoru
 // round. The owning Channel sequencer must reserve capacity and assign the
 // range before constructing it.
 type durableProposal struct {
-	first      uint64
-	last       uint64
-	channelKey ch.ChannelKey
-	channelID  ch.ChannelID
-	leader     ch.NodeID
-	manifest   ch.ProposalManifest
-	records    []ch.Record
-	committed  uint64
+	first                     uint64
+	last                      uint64
+	channelKey                ch.ChannelKey
+	channelID                 ch.ChannelID
+	leader                    ch.NodeID
+	manifest                  ch.ProposalManifest
+	records                   []ch.Record
+	committed                 uint64
+	serverAllocatedMessageIDs bool
 }
 
 func (p durableProposal) freeze() durableProposal {
@@ -68,6 +69,20 @@ type durabilityDispatcher interface {
 	submitReplica(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
 }
 
+// hedgedReplicaDispatcher owns one extra foreground follower completion after
+// the quorum round returns. Implementations must retain repair evidence for a
+// late non-durable outcome instead of relying on the round's result channel.
+type hedgedReplicaDispatcher interface {
+	submitReplicaHedged(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
+}
+
+// deferredReplicaDispatcher owns non-quorum follower convergence after the
+// foreground write quorum is durable. Admission remains bounded and the
+// dispatcher must arrange repair evidence for any asynchronous failure.
+type deferredReplicaDispatcher interface {
+	submitReplicaDeferred(context.Context, ch.NodeID, durableProposal, func(durabilityCompletion)) error
+}
+
 type durableRoundResult struct {
 	localDurable bool
 	durableVotes int
@@ -104,6 +119,16 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 		return durableRoundResult{}, ch.ErrInvalidConfig
 	}
 	proposal = proposal.freeze()
+	followers := make([]ch.NodeID, 0, len(uniqueVoters)-1)
+	for _, voter := range uniqueVoters {
+		if voter != local {
+			followers = append(followers, voter)
+		}
+	}
+	if len(followers) > 1 {
+		start := preferredFollowerIndex(proposal.channelKey, len(followers))
+		followers = append(append(make([]ch.NodeID, 0, len(followers)), followers[start:]...), followers[:start]...)
+	}
 
 	type writeResult struct {
 		local      bool
@@ -112,8 +137,8 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 	}
 	workCtx := context.WithoutCancel(ctx)
 	results := make(chan writeResult, len(uniqueVoters))
-	for _, voter := range uniqueVoters {
-		voter := voter
+	pending := 0
+	submit := func(voter ch.NodeID) {
 		localWrite := voter == local
 		complete := func(completion durabilityCompletion) {
 			results <- writeResult{local: localWrite, voter: voter, completion: completion}
@@ -125,18 +150,60 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 			err = dispatcher.submitReplica(workCtx, voter, proposal, complete)
 		}
 		if err != nil {
-			results <- writeResult{local: localWrite, voter: voter, completion: durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: err}}
+			completion := durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: err}
+			results <- writeResult{local: localWrite, voter: voter, completion: completion}
+		}
+		pending++
+	}
+	submit(local)
+	nextFollower := 0
+	for nextFollower < len(followers) && nextFollower < writeQuorum-1 {
+		submit(followers[nextFollower])
+		nextFollower++
+	}
+	if hedged, ok := dispatcher.(hedgedReplicaDispatcher); ok && nextFollower < len(followers) {
+		follower := followers[nextFollower]
+		nextFollower++
+		complete := func(completion durabilityCompletion) {
+			results <- writeResult{voter: follower, completion: completion}
+		}
+		if err := hedged.submitReplicaHedged(workCtx, follower, proposal, complete); err != nil {
+			results <- writeResult{voter: follower, completion: durabilityCompletion{
+				outcome: ch.AppendOutcomeDefinitelyNotWritten, err: err,
+			}}
+		}
+		pending++
+	}
+	submitRemaining := func() {
+		for nextFollower < len(followers) {
+			submit(followers[nextFollower])
+			nextFollower++
+		}
+	}
+	submitRemainingDeferred := func() {
+		deferred, ok := dispatcher.(deferredReplicaDispatcher)
+		if !ok {
+			submitRemaining()
+			return
+		}
+		for nextFollower < len(followers) {
+			follower := followers[nextFollower]
+			nextFollower++
+			_ = deferred.submitReplicaDeferred(workCtx, follower, proposal, func(durabilityCompletion) {})
 		}
 	}
 
 	result := durableRoundResult{outcome: ch.AppendOutcomeDefinitelyNotWritten}
 	conflict := false
-	for pending := len(uniqueVoters); pending > 0; pending-- {
+	localFailed := false
+	for pending > 0 {
 		select {
 		case <-ctx.Done():
+			submitRemaining()
 			result.outcome = ch.AppendOutcomeUnknown
 			return result, ctx.Err()
 		case write := <-results:
+			pending--
 			completion := write.completion
 			repair := completion.follower != 0 || completion.needFrom != 0
 			validRepair := repair && !write.local && completion.follower == write.voter && completion.needFrom > 0 &&
@@ -159,8 +226,18 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 				conflict = true
 			}
 			if result.localDurable && result.durableVotes >= writeQuorum {
+				submitRemainingDeferred()
 				result.outcome = ch.AppendOutcomeDurable
 				return result, nil
+			}
+			if write.local && !completion.outcome.Durable() {
+				localFailed = true
+				submitRemaining()
+				continue
+			}
+			if !localFailed && !write.local && !completion.outcome.Durable() && nextFollower < len(followers) {
+				submit(followers[nextFollower])
+				nextFollower++
 			}
 		}
 	}
@@ -168,4 +245,18 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 		result.outcome = ch.AppendOutcomeConflict
 	}
 	return result, errDurableQuorumUnavailable
+}
+
+func preferredFollowerIndex(key ch.ChannelKey, followers int) int {
+	if key == "" || followers <= 1 {
+		return 0
+	}
+	const offset32 = uint32(2166136261)
+	const prime32 = uint32(16777619)
+	hash := offset32
+	for index := 0; index < len(key); index++ {
+		hash ^= uint32(key[index])
+		hash *= prime32
+	}
+	return int(hash % uint32(followers))
 }

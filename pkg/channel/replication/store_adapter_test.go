@@ -494,6 +494,42 @@ func TestStoreAdapterSyncUsesOneMessageDBBatch(t *testing.T) {
 	}
 }
 
+func TestStoreAdapterRoutesReplicaMutationClassesToDistinctCommitLanes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		class replication.MutationClass
+		lane  string
+	}{
+		{name: "follower_quorum", class: replication.MutationClassFollowerQuorum, lane: "replica_foreground"},
+		{name: "trailing", class: replication.MutationClassTrailing, lane: "replica_trailing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			observer := &recordingCommitObserver{}
+			factory := channelstore.NewMessageDBFactoryWithOptions(t.TempDir(), channelstore.MessageDBFactoryOptions{
+				CommitObserver: observer,
+			})
+			t.Cleanup(func() { _ = factory.Close() })
+			adapter, err := replication.NewStoreAdapter(replication.StoreAdapterConfig{
+				Factory: factory, MaxBatchItems: 1, MaxBatchBytes: 64 << 10,
+			})
+			if err != nil {
+				t.Fatalf("NewStoreAdapter() error = %v", err)
+			}
+			mutation := sealedMutation(t, ch.ChannelKey("1:"+tc.name), ch.ChannelID{ID: tc.name, Type: 1}, 41)
+			mutation.Class = tc.class
+			results := adapter.Sync(context.Background(), []replication.Mutation{mutation})
+			if len(results) != 1 || results[0].Err != nil || !results[0].Outcome.Durable() {
+				t.Fatalf("Sync() = %+v, want one durable result", results)
+			}
+			if lanes := observer.requestLaneSnapshot(); !reflect.DeepEqual(lanes, []string{tc.lane}) {
+				t.Fatalf("commit request lanes = %v, want [%s]", lanes, tc.lane)
+			}
+		})
+	}
+}
+
 func TestStoreAdapterSyncsAdjacentSameChannelMutationsInOneMessageDBBatch(t *testing.T) {
 	t.Parallel()
 
@@ -910,8 +946,9 @@ func (s *scriptedExactStore) AppendLeader(context.Context, channelstore.AppendLe
 func (s *scriptedExactStore) Close() error { return nil }
 
 type recordingCommitObserver struct {
-	mu     sync.Mutex
-	events []messagedb.CommitCoordinatorBatchEvent
+	mu           sync.Mutex
+	events       []messagedb.CommitCoordinatorBatchEvent
+	requestLanes []string
 }
 
 func (o *recordingCommitObserver) SetCommitCoordinatorQueueDepth(int) {}
@@ -922,8 +959,20 @@ func (o *recordingCommitObserver) ObserveCommitCoordinatorBatch(event messagedb.
 	o.mu.Unlock()
 }
 
+func (o *recordingCommitObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {
+	o.mu.Lock()
+	o.requestLanes = append(o.requestLanes, event.Lane)
+	o.mu.Unlock()
+}
+
 func (o *recordingCommitObserver) snapshot() []messagedb.CommitCoordinatorBatchEvent {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]messagedb.CommitCoordinatorBatchEvent(nil), o.events...)
+}
+
+func (o *recordingCommitObserver) requestLaneSnapshot() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]string(nil), o.requestLanes...)
 }

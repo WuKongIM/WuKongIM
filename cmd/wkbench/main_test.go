@@ -225,6 +225,52 @@ func TestHostMetricsNativeResourceCollectors(t *testing.T) {
 	}
 }
 
+func TestHostMetricsCPUPercentIsStableAcrossDuplicateScrapes(t *testing.T) {
+	directory := t.TempDir()
+	handlerValue, err := newHostMetricsHandler(hostMetricsConfig{
+		path: directory, mountpoint: "/data", device: "/dev/data", physicalIO: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := handlerValue.(*hostMetricsHandler)
+	handler.previousCPU = hostCPUTotals{total: 100, idle: 40}
+	handler.previousCPUSet = true
+	handler.readCPUTotals = func() (hostCPUTotals, bool) {
+		return hostCPUTotals{total: 200, idle: 80}, true
+	}
+
+	for requestIndex := 0; requestIndex < 2; requestIndex++ {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("request %d status/body = %d/%q", requestIndex, response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), "wkbench_host_cpu_busy_percent 60.000000\n") {
+			t.Fatalf("request %d omitted the last complete CPU interval: %q", requestIndex, response.Body.String())
+		}
+	}
+}
+
+func TestHostMetricsCPUPercentRejectsStaleDuplicateSample(t *testing.T) {
+	base := time.Unix(1_970_000_000, 0)
+	handler := &hostMetricsHandler{
+		previousCPU:    hostCPUTotals{total: 100, idle: 40},
+		previousCPUSet: true,
+		readCPUTotals: func() (hostCPUTotals, bool) {
+			return hostCPUTotals{total: 200, idle: 80}, true
+		},
+		now: func() time.Time { return base },
+	}
+	if percent, ok := handler.cpuPercent(); !ok || percent != 60 {
+		t.Fatalf("first CPU interval = %v/%v, want 60/true", percent, ok)
+	}
+	handler.now = func() time.Time { return base.Add(hostCPUDuplicateSampleReuseWindow + time.Nanosecond) }
+	if percent, ok := handler.cpuPercent(); ok || percent != 0 {
+		t.Fatalf("stale duplicate CPU interval = %v/%v, want 0/false", percent, ok)
+	}
+}
+
 func TestClassifyLocalChatLifecycleStepSeparatesRateFromOnlineConnections(t *testing.T) {
 	before, after := localChatLifecycleStepReports()
 	evidence := localChatLifecycleStepEvidence{

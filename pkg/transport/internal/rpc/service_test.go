@@ -79,6 +79,22 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	if queueEvent.ServiceID != 42 || queueEvent.ServiceAlias != "answer service" || queueEvent.Capacity != 2 || queueEvent.BytesCapacity != 16 {
 		t.Fatalf("service_queue ok = %+v, want bounded queue dimensions", *queueEvent)
 	}
+	var queueEvents []core.Event
+	for _, event := range events {
+		if event.Name == "service_queue" && event.ServiceID == 42 {
+			queueEvents = append(queueEvents, event)
+		}
+	}
+	if len(queueEvents) < 2 {
+		t.Fatalf("service_queue event count = %d, want enqueue and dequeue", len(queueEvents))
+	}
+	firstQueue, lastQueue := queueEvents[0], queueEvents[len(queueEvents)-1]
+	if firstQueue.Revision == 0 || lastQueue.Revision <= firstQueue.Revision {
+		t.Fatalf("service_queue revisions = %d..%d, want positive physical order", firstQueue.Revision, lastQueue.Revision)
+	}
+	if lastQueue.Items != 0 {
+		t.Fatalf("last service_queue items = %d, want drained zero", lastQueue.Items)
+	}
 
 	inflightStarted := findInflight(events, 42, 1)
 	if inflightStarted == nil {
@@ -97,6 +113,9 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	}
 	if inflightDone.Capacity != 1 {
 		t.Fatalf("service_inflight zero capacity = %d, want worker concurrency 1", inflightDone.Capacity)
+	}
+	if inflightStarted.Revision == 0 || inflightDone.Revision <= inflightStarted.Revision {
+		t.Fatalf("service_inflight revisions = %d..%d, want positive physical order", inflightStarted.Revision, inflightDone.Revision)
 	}
 	if inflightDone.PoolCapacity != 1 || inflightDone.PoolWaiting != 0 {
 		t.Fatalf("service_inflight zero pool stats = %+v, want direct executor pool capacity", *inflightDone)

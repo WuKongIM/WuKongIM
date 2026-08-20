@@ -39,11 +39,13 @@ func TestQuorumLeaderActivationAndAppendBypassPullAckHotPath(t *testing.T) {
 
 	firstEvent := appendEvent(meta, 11, "a")
 	firstEvent.Append.CommitMode = ch.CommitModeQuorum
+	firstEvent.Append.ServerAllocatedMessageIDs = true
 	first, err := g.Submit(context.Background(), meta.Key, firstEvent)
 	require.NoError(t, err)
 	requireFuturePending(t, first)
 	secondEvent := appendEvent(meta, 12, "b")
 	secondEvent.Append.CommitMode = ch.CommitModeQuorum
+	secondEvent.Append.ServerAllocatedMessageIDs = true
 	second, err := g.Submit(context.Background(), meta.Key, secondEvent)
 	require.NoError(t, err)
 
@@ -61,6 +63,8 @@ func TestQuorumLeaderActivationAndAppendBypassPullAckHotPath(t *testing.T) {
 	require.Equal(t, uint64(11), proposals[0].Records[0].ID)
 	require.Equal(t, meta.Epoch, proposals[0].Records[0].Epoch)
 	require.Equal(t, uint64(12), proposals[1].Records[0].ID)
+	require.True(t, proposals[0].ServerAllocatedMessageIDs)
+	require.True(t, proposals[1].ServerAllocatedMessageIDs)
 	require.Zero(t, observer.PullHintsSent(), "quorum receipt must not use PullHint/AckOffset to complete SENDACK")
 }
 

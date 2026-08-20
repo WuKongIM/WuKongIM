@@ -54,6 +54,7 @@ type localTimelineWorkerCut struct {
 	Totals       localTimelineConnectionCounts            `json:"totals"`
 	CloseReasons chatlifecycle.SessionCloseReasonSnapshot `json:"close_reasons"`
 	Messages     chatlifecycle.WorkerMessageSnapshot      `json:"messages"`
+	Harness      chatlifecycle.WorkerHarnessSnapshot      `json:"harness"`
 }
 
 type localTimelineBoundary struct {
@@ -557,6 +558,11 @@ func validateDecodedLocalTimelineWorkerCut(cut localTimelineWorkerCut, runID str
 		cut.Messages.RetryAttempts > cut.Messages.SendAttempts {
 		return errors.New("worker status cut counters are invalid")
 	}
+	if cut.Harness.Classification != "" &&
+		cut.Harness.Classification != chatlifecycle.SyncClassificationHarnessInvalid &&
+		cut.Harness.Classification != chatlifecycle.SyncClassificationProductFailure {
+		return errors.New("worker status cut harness classification is invalid")
+	}
 	terminalTotal, ok := addLocalTimelineCounters(
 		cut.Messages.TerminalReasons.RetryExhausted.Total,
 		cut.Messages.TerminalReasons.NonRetriable,
@@ -585,7 +591,7 @@ func validateLocalWorkerCutKeys(line []byte) error {
 	if err := json.Unmarshal(line, &outer); err != nil {
 		return err
 	}
-	if err := requireExactLocalTimelineKeys(outer, "event", "run_id", "at", "cut", "totals", "close_reasons", "messages"); err != nil {
+	if err := requireExactLocalTimelineKeys(outer, "event", "run_id", "at", "cut", "totals", "close_reasons", "messages", "harness"); err != nil {
 		return err
 	}
 	checks := []struct {
@@ -605,6 +611,13 @@ func validateLocalWorkerCutKeys(line []byte) error {
 			return err
 		}
 	}
+	var harness map[string]json.RawMessage
+	if err := json.Unmarshal(outer["harness"], &harness); err != nil {
+		return err
+	}
+	if err := requireLocalTimelineHarnessKeys(harness); err != nil {
+		return err
+	}
 	var messages map[string]json.RawMessage
 	if err := json.Unmarshal(outer["messages"], &messages); err != nil {
 		return err
@@ -621,6 +634,24 @@ func validateLocalWorkerCutKeys(line []byte) error {
 		return err
 	}
 	return requireExactLocalTimelineKeys(exhausted, "total", "attempt_timeout", "local_admission", "transport_error", "retryable_sendack", "unclassified")
+}
+
+func requireLocalTimelineHarnessKeys(object map[string]json.RawMessage) error {
+	required := []string{"failures", "command_saturation", "offered_underdelivery", "planned_cancellations", "drain_timed_out", "unexpected_exit"}
+	if len(object) != len(required) && len(object) != len(required)+1 {
+		return errors.New("worker status cut has missing or unknown fields")
+	}
+	for _, key := range required {
+		if _, ok := object[key]; !ok {
+			return fmt.Errorf("worker status cut field %q is required", key)
+		}
+	}
+	if len(object) == len(required)+1 {
+		if _, ok := object["classification"]; !ok {
+			return errors.New("worker status cut has missing or unknown fields")
+		}
+	}
+	return nil
 }
 
 func requireExactLocalTimelineKeys(object map[string]json.RawMessage, keys ...string) error {

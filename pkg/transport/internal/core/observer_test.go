@@ -33,6 +33,98 @@ func TestObserverDrainDoesNotBlockWhenSinkIsSlow(t *testing.T) {
 	waitCoreClosed(t, done)
 }
 
+func TestObserverDrainPreservesLatestQueueStateWhenEventQueueIsFull(t *testing.T) {
+	sink := &recordingBlockingObserver{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	drain := newTestObserverDrain(sink)
+
+	drain.ObserveTransport(Event{Name: "first"})
+	waitCoreClosed(t, sink.entered)
+	for i := 0; i < defaultObserverQueueSize*2; i++ {
+		drain.ObserveTransport(Event{Name: "overflow"})
+	}
+
+	drain.ObserveTransport(Event{
+		Name:     "scheduler_queue",
+		SourceID: 99,
+		Priority: PriorityRPC,
+		Result:   "ok",
+		Revision: 1,
+		Items:    8,
+	})
+	drain.ObserveTransport(Event{
+		Name:     "scheduler_queue",
+		SourceID: 99,
+		Priority: PriorityRPC,
+		Result:   "ok",
+		Revision: 2,
+		Items:    0,
+	})
+	drain.ObserveTransport(Event{
+		Name:     "scheduler_queue",
+		SourceID: 99,
+		Priority: PriorityRPC,
+		Result:   "ok",
+		Revision: 1,
+		Items:    8,
+	})
+	drain.ObserveTransport(Event{
+		Name:         "service_queue",
+		ServiceID:    7,
+		ServiceAlias: "slot channel metadata",
+		Result:       "ok",
+		Revision:     1,
+		Items:        2,
+	})
+	drain.ObserveTransport(Event{
+		Name:         "service_queue",
+		ServiceID:    7,
+		ServiceAlias: "slot channel metadata",
+		Result:       "ok",
+		Revision:     2,
+		Items:        0,
+	})
+	drain.ObserveTransport(Event{
+		Name:         "service_queue",
+		ServiceID:    7,
+		ServiceAlias: "slot channel metadata",
+		Result:       "ok",
+		Revision:     1,
+		Items:        2,
+	})
+
+	close(sink.release)
+	drain.Stop()
+
+	assertLastState := func(name string, matches func(Event) bool) {
+		t.Helper()
+		var (
+			last  Event
+			found bool
+		)
+		for _, event := range sink.snapshot() {
+			if matches(event) {
+				last = event
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing %s state event", name)
+		}
+		if last.Items != 0 {
+			t.Fatalf("last %s items = %d, want 0", name, last.Items)
+		}
+	}
+	assertLastState("scheduler queue", func(event Event) bool {
+		return event.Name == "scheduler_queue" && event.SourceID == 99 && event.Priority == PriorityRPC
+	})
+	assertLastState("service queue", func(event Event) bool {
+		return event.Name == "service_queue" && event.ServiceID == 7
+	})
+}
+
 func TestObserverDrainPreservesTerminalCleanupEvents(t *testing.T) {
 	sink := &recordingBlockingObserver{
 		entered: make(chan struct{}),
@@ -77,7 +169,7 @@ func TestObserverDrainIgnoresEventsAfterStop(t *testing.T) {
 	}
 }
 
-func TestObserverDrainStopWaitsForAdmittedTerminalEvent(t *testing.T) {
+func TestObserverDrainStopDrainsTerminalStateAdmittedBeforeStop(t *testing.T) {
 	sink := &recordingBlockingObserver{
 		entered: make(chan struct{}),
 		release: make(chan struct{}),
@@ -96,7 +188,7 @@ func TestObserverDrainStopWaitsForAdmittedTerminalEvent(t *testing.T) {
 		drain.ObserveTransport(terminal)
 		close(terminalDone)
 	}()
-	waitCoreAdmissionCount(t, drain, 1)
+	waitCoreClosed(t, terminalDone)
 	stopDone := make(chan struct{})
 	go func() {
 		drain.Stop()
@@ -104,10 +196,8 @@ func TestObserverDrainStopWaitsForAdmittedTerminalEvent(t *testing.T) {
 	}()
 
 	waitCoreStopped(t, drain)
-	assertCoreNotClosed(t, terminalDone)
 	assertCoreNotClosed(t, stopDone)
 	close(sink.release)
-	waitCoreClosed(t, terminalDone)
 	waitCoreClosed(t, stopDone)
 
 	if !sink.hasEvent(func(event Event) bool {
@@ -206,18 +296,6 @@ func assertCoreNotClosed(t *testing.T, ch <-chan struct{}) {
 		t.Fatal("channel closed before blocked operation was released")
 	case <-time.After(25 * time.Millisecond):
 	}
-}
-
-func waitCoreAdmissionCount(t *testing.T, drain *ObserverDrain, want uint64) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if got := drain.admission.Load() & observerDrainActiveMask; got == want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for admission count %d", want)
 }
 
 func waitCoreStopped(t *testing.T, drain *ObserverDrain) {

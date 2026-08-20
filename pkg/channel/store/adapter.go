@@ -230,13 +230,36 @@ type RetentionTrimResult struct {
 	More bool
 }
 
+// AppendClass separates leader-critical, quorum-follower, and post-quorum
+// writes without changing any path's synchronous durability contract.
+type AppendClass uint8
+
+const (
+	// AppendClassLeaderQuorum is the default for leader-local durability.
+	AppendClassLeaderQuorum AppendClass = iota
+	// AppendClassFollowerQuorum is a synchronous follower vote. It yields
+	// commit selection to leader-local durability because another follower is
+	// independently eligible for the same quorum.
+	AppendClassFollowerQuorum
+	// AppendClassTrailing identifies post-quorum replica convergence.
+	AppendClassTrailing
+)
+
+// Valid reports whether the append class belongs to the closed store contract.
+func (c AppendClass) Valid() bool {
+	return c == AppendClassLeaderQuorum || c == AppendClassFollowerQuorum || c == AppendClassTrailing
+}
+
 // AppendLeaderRequest persists a leader-owned continuous record batch.
 type AppendLeaderRequest struct {
 	Records []ch.Record
+	// Class controls commit admission priority, never durability or validation.
+	Class AppendClass
 	// Committed is the monotonic committed frontier persisted atomically with
 	// an exact append. It must not exceed Proposal.LastOffset.
 	Committed uint64
-	// ServerAllocatedMessageIDs permits skipping only existing message-ID lookups.
+	// ServerAllocatedMessageIDs proves globally unique allocator-issued IDs for
+	// storage's fresh exact-append validation path.
 	ServerAllocatedMessageIDs bool
 	// ExactBaseOffset requires Records to begin at ExpectedBaseOffset+1 and
 	// permits an exact idempotent replay of an already durable range.

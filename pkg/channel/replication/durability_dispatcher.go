@@ -40,20 +40,36 @@ func (d *batchingDurabilityDispatcher) submitLocal(_ context.Context, proposal d
 }
 
 func (d *batchingDurabilityDispatcher) submitReplica(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
+	return d.submitReplicaWithMode(ctx, follower, proposal, complete, false, true)
+}
+
+func (d *batchingDurabilityDispatcher) submitReplicaHedged(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
+	return d.submitReplicaWithMode(ctx, follower, proposal, complete, false, true)
+}
+
+func (d *batchingDurabilityDispatcher) submitReplicaDeferred(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
+	return d.submitReplicaWithMode(ctx, follower, proposal, complete, true, true)
+}
+
+func (d *batchingDurabilityDispatcher) submitReplicaWithMode(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion), deferred bool, repairOnFailure bool) error {
 	if d == nil || d.peers == nil || d.repairs == nil || complete == nil {
 		return ch.ErrInvalidConfig
 	}
 	request := ReplicateRequest{
-		ChannelKey: proposal.channelKey,
-		ChannelID:  proposal.channelID,
-		Leader:     proposal.leader,
-		Follower:   follower,
-		Manifest:   proposal.manifest,
-		Records:    proposal.records,
-		Committed:  proposal.committed,
+		ChannelKey:                proposal.channelKey,
+		ChannelID:                 proposal.channelID,
+		Leader:                    proposal.leader,
+		Follower:                  follower,
+		Manifest:                  proposal.manifest,
+		Records:                   proposal.records,
+		Committed:                 proposal.committed,
+		ServerAllocatedMessageIDs: proposal.serverAllocatedMessageIDs,
 	}
-	return d.peers.submit(ctx, follower, request, func(result ReplicateResult, err error) {
+	finish := func(result ReplicateResult, err error) {
 		if err != nil {
+			if repairOnFailure {
+				d.repairs.RecordFollowerRepair(followerRepairFor(proposal, follower, proposal.first))
+			}
 			complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: err})
 			return
 		}
@@ -69,13 +85,35 @@ func (d *batchingDurabilityDispatcher) submitReplica(ctx context.Context, follow
 				follower: follower, needFrom: result.NeedFrom,
 			})
 		case ReplicateStaleFence:
+			if repairOnFailure {
+				d.repairs.RecordFollowerRepair(followerRepairFor(proposal, follower, proposal.first))
+			}
 			complete(durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: ch.ErrStaleMeta})
 		case ReplicateConflict:
+			if repairOnFailure {
+				d.repairs.RecordFollowerRepair(followerRepairFor(proposal, follower, proposal.first))
+			}
 			complete(durabilityCompletion{outcome: ch.AppendOutcomeConflict, err: ch.ErrLogConflict})
 		case ReplicateBackpressured:
+			if repairOnFailure {
+				d.repairs.RecordFollowerRepair(followerRepairFor(proposal, follower, proposal.first))
+			}
 			complete(durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: ch.ErrBackpressured})
 		default:
+			if repairOnFailure {
+				d.repairs.RecordFollowerRepair(followerRepairFor(proposal, follower, proposal.first))
+			}
 			complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errPeerOutcomeUnknown})
 		}
-	})
+	}
+	var err error
+	if deferred {
+		err = d.peers.submitDeferred(ctx, follower, request, finish)
+	} else {
+		err = d.peers.submit(ctx, follower, request, finish)
+	}
+	if err != nil && repairOnFailure {
+		d.repairs.RecordFollowerRepair(followerRepairFor(proposal, follower, proposal.first))
+	}
+	return err
 }

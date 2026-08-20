@@ -1387,12 +1387,31 @@ func TestClientSessionFullRecvQueueDoesNotBlockSendack(t *testing.T) {
 		t.Fatal("publishSendack() = false, want independent SENDACK admission")
 	}
 	ack := <-session.sendackCh
-	if ack.ClientSeq != 7 {
-		t.Fatalf("sendack client seq = %d, want 7", ack.ClientSeq)
+	if ack.packet.ClientSeq != 7 {
+		t.Fatalf("sendack client seq = %d, want 7", ack.packet.ClientSeq)
 	}
 	recv := (<-session.recvCh).(*frame.RecvPacket)
 	if recv.MessageID != 1 {
 		t.Fatalf("recv message id = %d, want 1", recv.MessageID)
+	}
+}
+
+func TestClientSessionPreservesSendackObservationAcrossAdapterQueue(t *testing.T) {
+	session := newClientSession(nil, 1)
+	pendingStartedAt := time.Unix(1_700_000_020, 123_456_789)
+	writeStartedAt := pendingStartedAt.Add(3 * time.Millisecond)
+	observedAt := time.Unix(1_700_000_021, 987_654_321)
+	ack := &frame.SendackPacket{ClientSeq: 21}
+	timing := FrameTiming{PendingStartedAt: pendingStartedAt, WriteStartedAt: writeStartedAt, ObservedAt: observedAt}
+	if !session.publishSendackTiming(ack, timing) {
+		t.Fatal("publishSendackTiming() = false")
+	}
+	packet, gotTiming, err := session.readFrameTiming(context.Background())
+	if err != nil {
+		t.Fatalf("readFrameTiming() error = %v", err)
+	}
+	if packet != ack || gotTiming != timing {
+		t.Fatalf("readFrameTiming() = %#v, %+v; want original ACK timing %+v", packet, gotTiming, timing)
 	}
 }
 
@@ -1547,7 +1566,7 @@ func sessionPublicationSnapshot(session *clientSession) publicationState {
 func TestClientSessionBlockedSendackPublishUnblocksOnClose(t *testing.T) {
 	session := newClientSession(nil, 1)
 	client := &Client{frameBufferSize: 1, session: session}
-	session.sendackCh <- &frame.SendackPacket{ClientSeq: 1}
+	session.sendackCh <- sendackResult{packet: &frame.SendackPacket{ClientSeq: 1}}
 	started := make(chan struct{})
 	done := make(chan bool, 1)
 	go func() {
@@ -1580,7 +1599,7 @@ func TestClientSessionBlockedSendackPublishUnblocksOnClose(t *testing.T) {
 func TestClientReadFrameBoundedSendackPreferenceDoesNotStarveRecv(t *testing.T) {
 	session := newClientSession(nil, priorityResultQuota+2)
 	for seq := uint64(1); seq <= priorityResultQuota+1; seq++ {
-		session.sendackCh <- &frame.SendackPacket{ClientSeq: seq}
+		session.sendackCh <- sendackResult{packet: &frame.SendackPacket{ClientSeq: seq}}
 	}
 	session.recvCh <- &frame.RecvPacket{MessageID: 99}
 
@@ -1608,7 +1627,7 @@ func TestClientReadFrameErrorPriorityIsBoundedByQueuedRecv(t *testing.T) {
 	session := newClientSession(nil, priorityResultQuota+2)
 	priorityErr := errors.New("priority error")
 	session.errCh <- errorResult{err: priorityErr}
-	session.sendackCh <- &frame.SendackPacket{ClientSeq: 1}
+	session.sendackCh <- sendackResult{packet: &frame.SendackPacket{ClientSeq: 1}}
 	session.recvCh <- &frame.RecvPacket{MessageID: 99}
 
 	consecutivePriority := 0

@@ -404,6 +404,8 @@ type WorkerSnapshot struct {
 	ColdFirstCreateSendackLatency WorkerHistogramSnapshot   `json:"cold_first_create_sendack_latency"`
 	LifecycleReheatSendackLatency WorkerHistogramSnapshot   `json:"lifecycle_reheat_sendack_latency"`
 	RecvackLatency                WorkerHistogramSnapshot   `json:"recvack_latency"`
+	SendPendingToWriteLatency     WorkerHistogramSnapshot   `json:"send_pending_to_write_latency"`
+	SendWriteToAckLatency         WorkerHistogramSnapshot   `json:"send_write_to_ack_latency"`
 	Correlation                   WorkerCorrelationSnapshot `json:"correlation"`
 	Queues                        WorkerQueueSnapshot       `json:"queues"`
 	Harness                       WorkerHarnessSnapshot     `json:"harness"`

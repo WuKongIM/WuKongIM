@@ -11,6 +11,7 @@ func TestExchangeCodecRoundTripsEveryRequestAndResultKind(t *testing.T) {
 	t.Parallel()
 
 	first := testReplicateRequest(t, "1:codec", "codec", 7, []byte("first"))
+	first.ServerAllocatedMessageIDs = true
 	manifest, records := first.Manifest, first.Records
 	_, firstEntries, ok := ch.SealProposalManifest(manifest, records)
 	if !ok {
@@ -33,7 +34,7 @@ func TestExchangeCodecRoundTripsEveryRequestAndResultKind(t *testing.T) {
 	batch := ExchangeBatch{Version: ExchangeVersion, Items: []ExchangeItem{
 		{RequestID: 1, Kind: ExchangeReplicate, Replicate: &ReplicateRequest{
 			ChannelKey: "1:codec", ChannelID: ch.ChannelID{ID: "codec", Type: 1}, Leader: 1, Follower: 2,
-			Manifest: manifest, Records: records,
+			Manifest: manifest, Records: records, ServerAllocatedMessageIDs: true,
 		}},
 		{RequestID: 2, Kind: ExchangeProbe, Probe: &ProbeRequest{
 			ChannelKey: "1:codec", ChannelID: ch.ChannelID{ID: "codec", Type: 1}, Leader: 1, Follower: 2,

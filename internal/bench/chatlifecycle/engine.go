@@ -99,6 +99,8 @@ type EngineSnapshot struct {
 	GatewayConnectLatency      WorkerHistogramSnapshot
 	ConversationSyncLatency    WorkerHistogramSnapshot
 	ConversationSyncThresholds LatencyThresholdCounters
+	SendPendingToWriteLatency  WorkerHistogramSnapshot
+	SendWriteToAckLatency      WorkerHistogramSnapshot
 	// MetaCreatePersonByHashSlot counts successful unique first person SENDs
 	// without retaining channel identities or history-sized state.
 	MetaCreatePersonByHashSlot MetaCreateHashSlotCounts
@@ -2979,6 +2981,10 @@ func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) error {
 func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attempt uint8, now time.Time) error {
 	logical := intent.Logical
 	inflight := e.inflight[logical.ClientMsgNo]
+	attemptAt := e.clock.Now()
+	if attemptAt.Before(now) {
+		attemptAt = now
+	}
 	if attempt == 0 {
 		if inflight != nil {
 			return errors.Join(errEngineConfig, e.releaseUnstartedSendLease(intent))
@@ -2989,7 +2995,7 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 				e.releaseUnstartedSendLease(intent),
 			)
 		}
-		if err := e.verifier.RegisterSend(logical, now, sendLatencyClassForIntent(intent)); err != nil {
+		if err := e.verifier.RegisterSend(logical, attemptAt, sendLatencyClassForIntent(intent)); err != nil {
 			return errors.Join(err, e.releaseUnstartedSendLease(intent))
 		}
 		inflight = &engineInflight{intent: intent, senderLeaseUID: logical.Sender}
@@ -3033,10 +3039,10 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 			resolve = e.verifier.ResolveAttemptLocalAdmissionError
 			cause = retryExhaustedLocalAdmission
 		}
-		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now, cause))
+		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, attemptAt, cause))
 	}
-	deadline := now.Add(e.attemptTimeoutFor(intent))
-	if deadline.Before(now) {
+	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
+	if deadline.Before(attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
 	timeout := &engineWork{due: deadline, kind: engineWorkTimeout, intent: intent, attempt: attempt, clientSeq: clientSeq}
@@ -3048,11 +3054,15 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 }
 
 func sendLatencyClassForIntent(intent TrafficIntent) SendLatencyClass {
-	if intent.MetaCreateCandidate {
-		return SendLatencyColdFirstCreate
-	}
 	if intent.Domain == LogicalDomainRevisit {
 		return SendLatencyLifecycleReheat
+	}
+	// The metadata-create candidate is unique, but every logical SEND routed
+	// before a successful SENDACK proves the person channel warm shares the
+	// same cold first-create path. Charging those followers to the hot
+	// histogram makes the hot verdict depend on directory creation latency.
+	if intent.MetaCreateCandidate || intent.ColdAttempt {
+		return SendLatencyColdFirstCreate
 	}
 	return SendLatencyHot
 }
@@ -3891,6 +3901,8 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		SyncFailed: sessions.SyncFailed, SyncCanceled: sessions.SyncCanceled,
 		GatewayConnectLatency: sessions.GatewayConnectLatency, ConversationSyncLatency: sessions.ConversationSyncLatency,
 		ConversationSyncThresholds: sessions.ConversationSyncThresholds,
+		SendPendingToWriteLatency:  sessions.SendPendingToWriteLatency,
+		SendWriteToAckLatency:      sessions.SendWriteToAckLatency,
 		MetaCreatePersonByHashSlot: e.metaCreatePersonByHashSlot,
 		MetaCreateGroupByHashSlot:  e.metaCreateGroupByHashSlot,
 		QueueCurrent:               e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
@@ -3936,5 +3948,6 @@ func (e *Engine) emptySnapshot(running bool) EngineSnapshot {
 		RelationshipLookback:  MaxForwardRelationships,
 		Classification:        e.evidence.Snapshot().Classification,
 		GatewayConnectLatency: newWorkerHistogramSnapshot(), ConversationSyncLatency: newWorkerHistogramSnapshot(),
+		SendPendingToWriteLatency: newWorkerHistogramSnapshot(), SendWriteToAckLatency: newWorkerHistogramSnapshot(),
 	}
 }

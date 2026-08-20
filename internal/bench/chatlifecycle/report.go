@@ -107,6 +107,8 @@ type ReportLatencyEvidence struct {
 	ColdFirstCreateSendACK       WorkerHistogramSnapshot `json:"cold_first_create_sendack"`
 	WorkerLifecycleReheatSendACK WorkerHistogramSnapshot `json:"worker_lifecycle_reheat_sendack"`
 	ReceiveACK                   WorkerHistogramSnapshot `json:"receive_ack"`
+	SendPendingToWrite           WorkerHistogramSnapshot `json:"send_pending_to_write"`
+	SendWriteToACK               WorkerHistogramSnapshot `json:"send_write_to_ack"`
 	FullSync                     WorkerHistogramSnapshot `json:"full_sync"`
 	Warnings                     ReportLatencyWarnings   `json:"warnings"`
 	AnomalyCount                 uint64                  `json:"anomaly_count"`

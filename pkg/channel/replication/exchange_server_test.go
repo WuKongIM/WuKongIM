@@ -14,7 +14,8 @@ func TestExchangeServerAcknowledgesOnlyExactDurableStoreResults(t *testing.T) {
 		{Outcome: ch.AppendOutcomeDurable, LastOffset: 1},
 		{Outcome: ch.AppendOutcomeAlreadyDurable, LastOffset: 1},
 	}}
-	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 4, MaxBatchBytes: 4096})
+	observer := &recordingReplicationStageObserver{}
+	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, Observer: observer, MaxBatchItems: 4, MaxBatchBytes: 4096})
 	if err != nil {
 		t.Fatalf("NewExchangeServer() error = %v", err)
 	}
@@ -35,6 +36,11 @@ func TestExchangeServerAcknowledgesOnlyExactDurableStoreResults(t *testing.T) {
 	if got := string(store.batches[0][0].Records[0].Payload); got != "payload-a" {
 		t.Fatalf("stored first payload = %q", got)
 	}
+	for index, mutation := range store.batches[0] {
+		if mutation.Class != MutationClassFollowerQuorum {
+			t.Fatalf("store mutation[%d] class = %v, want follower quorum", index, mutation.Class)
+		}
+	}
 	if result.Version != ExchangeVersion || len(result.Items) != 2 {
 		t.Fatalf("Handle() result = %+v", result)
 	}
@@ -46,6 +52,28 @@ func TestExchangeServerAcknowledgesOnlyExactDurableStoreResults(t *testing.T) {
 	}
 	if result.Items[0].Replicate.Proof != replicateProofFor(first) || result.Items[1].Replicate.Proof != replicateProofFor(second) {
 		t.Fatalf("durable proofs = %+v, %+v, want exact request manifests", result.Items[0].Replicate.Proof, result.Items[1].Replicate.Proof)
+	}
+	if stages := observer.snapshot(); !hasReplicationStage(stages, "follower_foreground_store", "ok") {
+		t.Fatalf("replication stages = %+v, want follower_foreground_store/ok", stages)
+	}
+}
+
+func TestExchangeServerMarksTrailingBatchAsBackgroundStorage(t *testing.T) {
+	store := &recordingReplicaStore{results: []MutationResult{{Outcome: ch.AppendOutcomeDurable, LastOffset: 1}}}
+	server, err := NewExchangeServer(ExchangeServerConfig{LocalNode: 2, Store: store, MaxBatchItems: 1, MaxBatchBytes: 4096})
+	if err != nil {
+		t.Fatalf("NewExchangeServer() error = %v", err)
+	}
+	request := testReplicateRequest(t, "1:trailing", "trailing", 1, []byte("payload"))
+	_, err = server.Handle(context.Background(), 1, ExchangeBatch{
+		Version: ExchangeVersion, Priority: ExchangePriorityBackground,
+		Items: []ExchangeItem{{RequestID: 1, Kind: ExchangeReplicate, Replicate: &request}},
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(store.batches) != 1 || len(store.batches[0]) != 1 || store.batches[0][0].Class != MutationClassTrailing {
+		t.Fatalf("store mutations = %+v, want one trailing mutation", store.batches)
 	}
 }
 

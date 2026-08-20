@@ -7,7 +7,23 @@ import (
 )
 
 // ExchangeVersion is the only supported data-bearing peer protocol version.
-const ExchangeVersion uint16 = 1
+const ExchangeVersion uint16 = 3
+
+// ExchangePriority separates quorum-critical work from trailing convergence
+// without changing the durability or validation required at the follower.
+type ExchangePriority uint8
+
+const (
+	// ExchangePriorityForeground is the default for quorum, probe, and recovery work.
+	ExchangePriorityForeground ExchangePriority = iota
+	// ExchangePriorityBackground is valid only for post-quorum trailing replication.
+	ExchangePriorityBackground
+)
+
+// Valid reports whether the priority is part of the closed wire contract.
+func (p ExchangePriority) Valid() bool {
+	return p == ExchangePriorityForeground || p == ExchangePriorityBackground
+}
 
 // ExchangeKind identifies one bounded peer operation.
 type ExchangeKind uint8
@@ -54,6 +70,8 @@ type ReplicateRequest struct {
 	Records    []ch.Record
 	// Committed is the leader's current committed frontier, never above this proposal.
 	Committed uint64
+	// ServerAllocatedMessageIDs carries the leader's all-record allocator proof.
+	ServerAllocatedMessageIDs bool
 }
 
 // ReplicateProof is the follower's exact durable identity echo. A durable
@@ -217,8 +235,9 @@ type ExchangeItem struct {
 
 // ExchangeBatch carries ready work for one target without another collection timer.
 type ExchangeBatch struct {
-	Version uint16
-	Items   []ExchangeItem
+	Version  uint16
+	Priority ExchangePriority
+	Items    []ExchangeItem
 }
 
 // ExchangeItemResult correlates one peer result to its request identity.

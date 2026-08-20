@@ -40,6 +40,9 @@ func TestChannelMetadataStoreEnsuresPersonDirectoryOnce(t *testing.T) {
 	}
 	cache := NewChannelAppendMetadataCache()
 	store := NewChannelMetadataStore(node, cache)
+	if store.PersonChannelDirectoryReady("u1@u2", 1) {
+		t.Fatal("directory reported ready before an authoritative ensure")
+	}
 
 	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
 		t.Fatalf("EnsurePersonChannelDirectory(): %v", err)
@@ -58,12 +61,38 @@ func TestChannelMetadataStoreEnsuresPersonDirectoryOnce(t *testing.T) {
 	if !ok || !metadata.DirectoryReady {
 		t.Fatalf("metadata = %+v ok=%v", metadata, ok)
 	}
+	if !store.PersonChannelDirectoryReady("u1@u2", 1) {
+		t.Fatal("directory readiness proof was not published after ensure")
+	}
 
 	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
 		t.Fatalf("EnsurePersonChannelDirectory(cached): %v", err)
 	}
 	if len(node.membershipUpserts) != 1 || node.directoryReadyCalls != 1 {
 		t.Fatalf("cached ensure repeated writes: upserts=%d ready=%d", len(node.membershipUpserts), node.directoryReadyCalls)
+	}
+}
+
+func TestChannelMetadataStoreAcceptsReplicatedMonotonicDirectoryReadiness(t *testing.T) {
+	t.Parallel()
+
+	node := &recordingChannelMetadataNode{
+		localChannel:     metadb.Channel{ChannelID: "u1@u2", ChannelType: 1, DirectoryReady: 1},
+		authoritativeErr: errors.New("authoritative read must not be needed"),
+	}
+	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache())
+
+	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("EnsurePersonChannelDirectory() error = %v", err)
+	}
+	if node.localReadCalls != 1 || node.authoritativeReadCalls != 0 {
+		t.Fatalf("directory reads local=%d authoritative=%d, want 1/0", node.localReadCalls, node.authoritativeReadCalls)
+	}
+	if len(node.membershipUpserts) != 0 || node.directoryReadyCalls != 0 {
+		t.Fatalf("replicated ready proof caused writes: memberships=%d ready=%d", len(node.membershipUpserts), node.directoryReadyCalls)
+	}
+	if !store.PersonChannelDirectoryReady("u1@u2", 1) {
+		t.Fatal("replicated readiness was not cached")
 	}
 }
 
@@ -261,6 +290,8 @@ func (n *localOnlyChannelMetadataNode) ListChannelSubscribersPage(context.Contex
 type recordingChannelMetadataNode struct {
 	membershipUpserts      []membershipUpsertNodeCall
 	membershipDeletes      []membershipDeleteNodeCall
+	localChannel           metadb.Channel
+	localErr               error
 	authoritativeChannel   metadb.Channel
 	authoritativeUIDs      []string
 	authoritativeErr       error
@@ -294,7 +325,7 @@ type membershipDeleteNodeCall struct {
 
 func (r *recordingChannelMetadataNode) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
 	r.localReadCalls++
-	return metadb.Channel{}, nil
+	return r.localChannel, r.localErr
 }
 
 func (r *recordingChannelMetadataNode) UpsertChannelMetadata(context.Context, metadb.Channel) error {

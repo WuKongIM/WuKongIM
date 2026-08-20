@@ -27,6 +27,11 @@ func TestDurableRoundStartsLocalAndFollowerDurabilityBeforeEitherCompletes(t *te
 
 	waitForSignal(t, writer.localStarted, "local durability")
 	waitForSignal(t, writer.replicaStarted[2], "follower durability before local completion")
+	select {
+	case <-writer.replicaStarted[3]:
+		t.Fatal("trailing follower durability started before the foreground write quorum completed")
+	default:
+	}
 
 	close(writer.replicaRelease[2])
 	waitForSignal(t, writer.replicaReturned[2], "follower durable result")
@@ -46,6 +51,93 @@ func TestDurableRoundStartsLocalAndFollowerDurabilityBeforeEitherCompletes(t *te
 	}
 	close(writer.replicaRelease[3])
 	waitForSignal(t, writer.replicaReturned[3], "owned trailing follower durability")
+}
+
+func TestDurableRoundStartsOneOwnedFollowerHedgeAndUsesTheFirstDurableFollower(t *testing.T) {
+	writer := &hedgedGatedDurabilityWriter{
+		gatedDurabilityWriter: newGatedDurabilityWriter(2, 3),
+		hedged:                make(chan ch.NodeID, 1),
+	}
+	done := make(chan struct {
+		result durableRoundResult
+		err    error
+	}, 1)
+	go func() {
+		result, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
+			first: 1, last: 1, channelKey: "1:hedged-quorum",
+		}, writer)
+		done <- struct {
+			result durableRoundResult
+			err    error
+		}{result: result, err: err}
+	}()
+
+	waitForSignal(t, writer.localStarted, "local durability")
+	primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:hedged-quorum", 2)]
+	trailing := ch.NodeID(2)
+	if primary == trailing {
+		trailing = 3
+	}
+	waitForSignal(t, writer.replicaStarted[primary], "primary follower durability")
+	waitForSignal(t, writer.replicaStarted[trailing], "owned follower hedge")
+	select {
+	case got := <-writer.hedged:
+		if got != trailing {
+			t.Fatalf("hedged follower = %d, want trailing follower %d", got, trailing)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("timed out waiting for owned hedge admission")
+	}
+
+	close(writer.replicaRelease[trailing])
+	close(writer.localRelease)
+	got := <-done
+	if got.err != nil {
+		t.Fatalf("runDurableRound() error = %v", got.err)
+	}
+	if !got.result.localDurable || got.result.durableVotes < 2 {
+		t.Fatalf("runDurableRound() = %+v, want local plus first durable follower", got.result)
+	}
+	close(writer.replicaRelease[primary])
+	waitForSignal(t, writer.replicaReturned[primary], "late primary follower completion")
+}
+
+func TestDurableRoundDefersOnlyTheTrailingFollowerAfterQuorum(t *testing.T) {
+	dispatcher := newDeferredRecordingDurabilityDispatcher()
+	done := make(chan error, 1)
+	go func() {
+		_, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
+			first: 1, last: 1, channelKey: "1:deferred-trailing",
+		}, dispatcher)
+		done <- err
+	}()
+
+	waitForSignal(t, dispatcher.localStarted, "local durability")
+	primary := []ch.NodeID{2, 3}[preferredFollowerIndex("1:deferred-trailing", 2)]
+	waitForSignal(t, dispatcher.urgentStarted[primary], "foreground follower durability")
+	close(dispatcher.urgentRelease[primary])
+	close(dispatcher.localRelease)
+	if err := <-done; err != nil {
+		t.Fatalf("runDurableRound() error = %v", err)
+	}
+
+	trailing := ch.NodeID(2)
+	if primary == trailing {
+		trailing = 3
+	}
+	select {
+	case got := <-dispatcher.deferred:
+		if got != trailing {
+			t.Fatalf("deferred follower = %d, want %d", got, trailing)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("timed out waiting for trailing follower deferred admission")
+	}
+	select {
+	case <-dispatcher.urgentStarted[trailing]:
+		t.Fatalf("trailing follower %d was admitted through the urgent path", trailing)
+	default:
+	}
 }
 
 func TestDurableRoundDoesNotSubstituteTwoFollowersForLocalDurability(t *testing.T) {
@@ -126,6 +218,16 @@ type gatedDurabilityWriter struct {
 	replicaStarted  map[ch.NodeID]chan struct{}
 	replicaRelease  map[ch.NodeID]chan struct{}
 	replicaReturned map[ch.NodeID]chan struct{}
+}
+
+type hedgedGatedDurabilityWriter struct {
+	*gatedDurabilityWriter
+	hedged chan ch.NodeID
+}
+
+func (w *hedgedGatedDurabilityWriter) submitReplicaHedged(ctx context.Context, node ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {
+	w.hedged <- node
+	return w.submitReplica(ctx, node, proposal, complete)
 }
 
 func newGatedDurabilityWriter(nodes ...ch.NodeID) *gatedDurabilityWriter {
@@ -209,6 +311,46 @@ func (immediateDurabilityDispatcher) submitReplica(_ context.Context, _ ch.NodeI
 
 type countingDurabilityDispatcher struct {
 	submissions int
+}
+
+type deferredRecordingDurabilityDispatcher struct {
+	localStarted  chan struct{}
+	localRelease  chan struct{}
+	urgentStarted map[ch.NodeID]chan struct{}
+	urgentRelease map[ch.NodeID]chan struct{}
+	deferred      chan ch.NodeID
+}
+
+func newDeferredRecordingDurabilityDispatcher() *deferredRecordingDurabilityDispatcher {
+	return &deferredRecordingDurabilityDispatcher{
+		localStarted: make(chan struct{}), localRelease: make(chan struct{}),
+		urgentStarted: map[ch.NodeID]chan struct{}{2: make(chan struct{}), 3: make(chan struct{})},
+		urgentRelease: map[ch.NodeID]chan struct{}{2: make(chan struct{}), 3: make(chan struct{})},
+		deferred:      make(chan ch.NodeID, 1),
+	}
+}
+
+func (d *deferredRecordingDurabilityDispatcher) submitLocal(_ context.Context, _ durableProposal, complete func(durabilityCompletion)) error {
+	close(d.localStarted)
+	go func() {
+		<-d.localRelease
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
+	}()
+	return nil
+}
+
+func (d *deferredRecordingDurabilityDispatcher) submitReplica(_ context.Context, node ch.NodeID, _ durableProposal, complete func(durabilityCompletion)) error {
+	close(d.urgentStarted[node])
+	go func() {
+		<-d.urgentRelease[node]
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable})
+	}()
+	return nil
+}
+
+func (d *deferredRecordingDurabilityDispatcher) submitReplicaDeferred(_ context.Context, node ch.NodeID, _ durableProposal, _ func(durabilityCompletion)) error {
+	d.deferred <- node
+	return nil
 }
 
 func (d *countingDurabilityDispatcher) submitLocal(_ context.Context, _ durableProposal, _ func(durabilityCompletion)) error {

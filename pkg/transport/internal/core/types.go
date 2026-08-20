@@ -81,6 +81,9 @@ type Event struct {
 	Kind FrameKind
 	// Result classifies the event outcome.
 	Result string
+	// Revision orders absolute state from the physical source. Zero denotes an
+	// unversioned event whose arrival order remains authoritative.
+	Revision uint64
 	// Items is the queued item count or current count associated with the event.
 	Items int
 	// Capacity is the queued item capacity associated with the event.
@@ -99,6 +102,18 @@ type Event struct {
 	PoolWaiting int
 	// Duration is the elapsed time associated with the event.
 	Duration time.Duration
+}
+
+var transportStateRevision atomic.Uint64
+
+// NextStateRevision returns a process-monotonic revision for absolute
+// transport state captured under its physical owner lock.
+func NextStateRevision() uint64 {
+	for {
+		if revision := transportStateRevision.Add(1); revision != 0 {
+			return revision
+		}
+	}
 }
 
 // Stats is a point-in-time snapshot of transport counters.

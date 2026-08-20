@@ -29,6 +29,9 @@ type pendingEntry struct {
 	timer *time.Timer
 	// startedAt records when the entry was admitted to the pending tracker.
 	startedAt time.Time
+	// writeStartedAt records the socket-submission boundary. pendingTracker.mu
+	// orders this write against SENDACK resolution.
+	writeStartedAt time.Time
 	// once guards completion against SENDACK, timeout, and close races.
 	once sync.Once
 	// onFinish runs after the entry reaches its terminal outcome.
@@ -99,6 +102,10 @@ func (t *pendingTracker) addWithTarget(key pendingKey, timeout time.Duration, do
 }
 
 func (t *pendingTracker) resolve(ack *frame.SendackPacket) bool {
+	return t.resolveAt(ack, time.Now())
+}
+
+func (t *pendingTracker) resolveAt(ack *frame.SendackPacket, observedAt time.Time) bool {
 	if ack == nil {
 		return false
 	}
@@ -114,11 +121,14 @@ func (t *pendingTracker) resolve(ack *frame.SendackPacket) bool {
 	}
 
 	result := SendResult{
-		ClientSeq:   ack.ClientSeq,
-		ClientMsgNo: ack.ClientMsgNo,
-		MessageID:   ack.MessageID,
-		MessageSeq:  ack.MessageSeq,
-		ReasonCode:  ack.ReasonCode,
+		ClientSeq:        ack.ClientSeq,
+		ClientMsgNo:      ack.ClientMsgNo,
+		MessageID:        ack.MessageID,
+		MessageSeq:       ack.MessageSeq,
+		ReasonCode:       ack.ReasonCode,
+		PendingStartedAt: entry.startedAt,
+		WriteStartedAt:   entry.writeStartedAt,
+		ObservedAt:       observedAt,
 	}
 	var err error
 	if ack.ReasonCode != frame.ReasonSuccess {
@@ -130,6 +140,19 @@ func (t *pendingTracker) resolve(ack *frame.SendackPacket) bool {
 	}
 	entry.finish(sendOutcome{result: result, err: err})
 	return true
+}
+
+// markWriteStarted fixes the physical socket-submission boundary before a
+// peer can return the matching SENDACK.
+func (t *pendingTracker) markWriteStarted(entry *pendingEntry, at time.Time) {
+	if t == nil || entry == nil || at.IsZero() {
+		return
+	}
+	t.mu.Lock()
+	if t.entries[entry.key] == entry && entry.writeStartedAt.IsZero() {
+		entry.writeStartedAt = at
+	}
+	t.mu.Unlock()
 }
 
 func (t *pendingTracker) close(err error) {

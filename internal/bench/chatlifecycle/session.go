@@ -45,6 +45,24 @@ type SessionClient interface {
 	ReadErrorInfo(error) (wkproto.ReadErrorInfo, bool)
 }
 
+// sessionFrameObserver is the optional precision seam implemented by the
+// production adapter. Generic test or alternate clients may omit it; the pool
+// then timestamps the frame when its sole drain consumes it.
+type sessionFrameObserver interface {
+	ReadFrameObserved(context.Context) (frame.Frame, time.Time, error)
+}
+
+// SessionFrameTiming carries identity-free, process-local SEND boundaries.
+type SessionFrameTiming struct {
+	PendingStartedAt time.Time
+	WriteStartedAt   time.Time
+	ObservedAt       time.Time
+}
+
+type sessionFrameTimingObserver interface {
+	ReadFrameTiming(context.Context) (frame.Frame, SessionFrameTiming, error)
+}
+
 // SessionClientFactory constructs a client with the deterministic per-UID
 // token already installed in its CONNECT configuration.
 type SessionClientFactory interface {
@@ -71,6 +89,19 @@ func (a *WKProtoSessionAdapter) Connect(ctx context.Context, uid, deviceID strin
 
 func (a *WKProtoSessionAdapter) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	return a.client.ReadFrame(ctx)
+}
+
+func (a *WKProtoSessionAdapter) ReadFrameObserved(ctx context.Context) (frame.Frame, time.Time, error) {
+	return a.client.ReadFrameObserved(ctx)
+}
+
+func (a *WKProtoSessionAdapter) ReadFrameTiming(ctx context.Context) (frame.Frame, SessionFrameTiming, error) {
+	packet, timing, err := a.client.ReadFrameTiming(ctx)
+	return packet, SessionFrameTiming{
+		PendingStartedAt: timing.PendingStartedAt,
+		WriteStartedAt:   timing.WriteStartedAt,
+		ObservedAt:       timing.ObservedAt,
+	}, err
 }
 
 func (a *WKProtoSessionAdapter) TrySend(ctx context.Context, packet *frame.SendPacket) error {
@@ -115,6 +146,8 @@ func (a *WKProtoSessionAdapter) ReadErrorInfo(err error) (wkproto.ReadErrorInfo,
 }
 
 var _ SessionClient = (*WKProtoSessionAdapter)(nil)
+var _ sessionFrameObserver = (*WKProtoSessionAdapter)(nil)
+var _ sessionFrameTimingObserver = (*WKProtoSessionAdapter)(nil)
 
 // SessionQueueSnapshot is the bounded common projection needed by the engine.
 type SessionQueueSnapshot struct {
@@ -203,6 +236,8 @@ type SessionPoolSnapshot struct {
 	GatewayConnectLatency      WorkerHistogramSnapshot
 	ConversationSyncLatency    WorkerHistogramSnapshot
 	ConversationSyncThresholds LatencyThresholdCounters
+	SendPendingToWriteLatency  WorkerHistogramSnapshot
+	SendWriteToAckLatency      WorkerHistogramSnapshot
 }
 
 // SessionCloseReasonSnapshot is the bounded connection-teardown vocabulary.
@@ -277,23 +312,25 @@ type SessionPool struct {
 	closing            map[string]*onlineSession
 	// sendLeases keeps an admitted logical SEND's session routable until its
 	// final ACK, terminal result, or cancellation releases ownership.
-	sendLeases         map[string]uint32
-	readErrors         uint64
-	verificationErrors uint64
-	factoryFailed      uint64
-	factoryCanceled    uint64
-	connectStarted     uint64
-	connectCompleted   uint64
-	connectFailed      uint64
-	connectCanceled    uint64
-	syncStarted        uint64
-	syncCompleted      uint64
-	syncFailed         uint64
-	syncCanceled       uint64
-	closeReasons       SessionCloseReasonSnapshot
-	gatewayLatency     WorkerHistogramSnapshot
-	syncLatency        WorkerHistogramSnapshot
-	syncThresholds     LatencyThresholdCounters
+	sendLeases                map[string]uint32
+	readErrors                uint64
+	verificationErrors        uint64
+	factoryFailed             uint64
+	factoryCanceled           uint64
+	connectStarted            uint64
+	connectCompleted          uint64
+	connectFailed             uint64
+	connectCanceled           uint64
+	syncStarted               uint64
+	syncCompleted             uint64
+	syncFailed                uint64
+	syncCanceled              uint64
+	closeReasons              SessionCloseReasonSnapshot
+	gatewayLatency            WorkerHistogramSnapshot
+	syncLatency               WorkerHistogramSnapshot
+	syncThresholds            LatencyThresholdCounters
+	sendPendingToWriteLatency WorkerHistogramSnapshot
+	sendWriteToAckLatency     WorkerHistogramSnapshot
 	// transportAdmissionRejected survives individual session churn for the generation.
 	transportAdmissionRejected atomic.Uint64
 
@@ -332,16 +369,18 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		syncer: config.Syncer, verifier: config.Verifier, clock: config.Clock,
 		deviceID: config.DeviceID, startingCapacity: config.StartingCapacity,
 		heartbeatInterval: config.HeartbeatInterval, heartbeatTimeout: config.SingleAnomaly, heartbeatSleep: sleepSessionHeartbeat,
-		onSendack:          config.OnSendack,
-		onAsyncSendError:   config.OnAsyncSendError,
-		online:             make(map[string]*onlineSession),
-		onlineByIndex:      make(map[uint64]*onlineSession),
-		onlineGroupMembers: make([][]*onlineSession, config.Catalog.Count()),
-		starting:           make(map[string]struct{}),
-		closing:            make(map[string]*onlineSession),
-		sendLeases:         make(map[string]uint32),
-		gatewayLatency:     newWorkerHistogramSnapshot(),
-		syncLatency:        newWorkerHistogramSnapshot(),
+		onSendack:                 config.OnSendack,
+		onAsyncSendError:          config.OnAsyncSendError,
+		online:                    make(map[string]*onlineSession),
+		onlineByIndex:             make(map[uint64]*onlineSession),
+		onlineGroupMembers:        make([][]*onlineSession, config.Catalog.Count()),
+		starting:                  make(map[string]struct{}),
+		closing:                   make(map[string]*onlineSession),
+		sendLeases:                make(map[string]uint32),
+		gatewayLatency:            newWorkerHistogramSnapshot(),
+		syncLatency:               newWorkerHistogramSnapshot(),
+		sendPendingToWriteLatency: newWorkerHistogramSnapshot(),
+		sendWriteToAckLatency:     newWorkerHistogramSnapshot(),
 		syncThresholds: LatencyThresholdCounters{
 			P99Limit: config.SyncLatency.P99, P999Limit: config.SyncLatency.P999,
 		},
@@ -980,6 +1019,8 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 		CloseReasons:          p.closeReasons,
 		GatewayConnectLatency: p.gatewayLatency, ConversationSyncLatency: p.syncLatency,
 		ConversationSyncThresholds: p.syncThresholds,
+		SendPendingToWriteLatency:  p.sendPendingToWriteLatency,
+		SendWriteToAckLatency:      p.sendWriteToAckLatency,
 	}
 	clients := make([]SessionClient, 0, len(p.online))
 	for _, session := range p.online {
@@ -1052,6 +1093,8 @@ func (p *SessionPool) resetRuntime() error {
 	p.closeReasons = SessionCloseReasonSnapshot{}
 	p.gatewayLatency = newWorkerHistogramSnapshot()
 	p.syncLatency = newWorkerHistogramSnapshot()
+	p.sendPendingToWriteLatency = newWorkerHistogramSnapshot()
+	p.sendWriteToAckLatency = newWorkerHistogramSnapshot()
 	p.transportAdmissionRejected.Store(0)
 	p.onlineByIndex = make(map[uint64]*onlineSession)
 	p.onlineGroupMembers = make([][]*onlineSession, p.catalog.Count())
@@ -1062,7 +1105,7 @@ func (p *SessionPool) resetRuntime() error {
 func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 	defer close(session.done)
 	for {
-		packet, err := session.client.ReadFrame(ctx)
+		packet, timing, err := readSessionFrame(ctx, session.client)
 		if err != nil {
 			info, classified := session.client.ReadErrorInfo(err)
 			if classified && info.Kind == wkproto.ReadErrorNonTerminal {
@@ -1086,7 +1129,12 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 		}
 		switch packet := packet.(type) {
 		case *frame.SendackPacket:
-			verificationErr := p.verifier.HandleSendackAt(packet, p.clock.Now())
+			observedAt := timing.ObservedAt
+			if observedAt.IsZero() {
+				observedAt = p.clock.Now()
+			}
+			p.recordSendTiming(timing)
+			verificationErr := p.verifier.HandleSendackAt(packet, observedAt)
 			if verificationErr != nil {
 				p.mu.Lock()
 				p.verificationErrors++
@@ -1103,6 +1151,29 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 			}
 		}
 	}
+}
+
+func readSessionFrame(ctx context.Context, client SessionClient) (frame.Frame, SessionFrameTiming, error) {
+	if observer, ok := client.(sessionFrameTimingObserver); ok {
+		return observer.ReadFrameTiming(ctx)
+	}
+	if observer, ok := client.(sessionFrameObserver); ok {
+		packet, observedAt, err := observer.ReadFrameObserved(ctx)
+		return packet, SessionFrameTiming{ObservedAt: observedAt}, err
+	}
+	packet, err := client.ReadFrame(ctx)
+	return packet, SessionFrameTiming{}, err
+}
+
+func (p *SessionPool) recordSendTiming(timing SessionFrameTiming) {
+	if p == nil || timing.PendingStartedAt.IsZero() || timing.WriteStartedAt.IsZero() || timing.ObservedAt.IsZero() ||
+		timing.WriteStartedAt.Before(timing.PendingStartedAt) || timing.ObservedAt.Before(timing.WriteStartedAt) {
+		return
+	}
+	p.mu.Lock()
+	recordWorkerLatency(&p.sendPendingToWriteLatency, timing.WriteStartedAt.Sub(timing.PendingStartedAt))
+	recordWorkerLatency(&p.sendWriteToAckLatency, timing.ObservedAt.Sub(timing.WriteStartedAt))
+	p.mu.Unlock()
 }
 
 // heartbeat keeps an otherwise idle real client visible to the authority

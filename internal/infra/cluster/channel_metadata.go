@@ -360,6 +360,16 @@ func (s *ChannelMetadataStore) CommittedChannelTail(ctx context.Context, channel
 	return node.CommittedChannelTail(ctx, channelID, channelType)
 }
 
+// PersonChannelDirectoryReady reports only a monotonic node-local readiness
+// proof. A cache miss is inconclusive and must take the authoritative ensure path.
+func (s *ChannelMetadataStore) PersonChannelDirectoryReady(channelID string, channelType int64) bool {
+	if s == nil || channelType != 1 {
+		return false
+	}
+	metadata, ok := s.appendMetadataCache.Lookup(channelappend.ChannelID{ID: channelID, Type: uint8(channelType)})
+	return ok && metadata.DirectoryReady
+}
+
 // EnsurePersonChannelDirectory establishes both UID-owned memberships before
 // the first persistent ordinary person-channel append. The durable readiness
 // bit is monotonic; the node-local cache only skips redundant checks.
@@ -369,6 +379,14 @@ func (s *ChannelMetadataStore) EnsurePersonChannelDirectory(ctx context.Context,
 	}
 	id := channelappend.ChannelID{ID: channelID, Type: uint8(channelType)}
 	if metadata, ok := s.appendMetadataCache.Lookup(id); ok && metadata.DirectoryReady {
+		return nil
+	}
+	// DirectoryReady is monotonic. A replicated local row carrying the bit is
+	// therefore a sufficient proof; a miss, lagging row, or local read error
+	// remains inconclusive and falls through to the Slot leader.
+	if channel, err := s.node.GetChannelMetadata(ctx, channelID, channelType); err == nil &&
+		channel.ChannelID == channelID && channel.ChannelType == channelType && channel.DirectoryReady != 0 {
+		s.appendMetadataCache.storeChannel(channel)
 		return nil
 	}
 	node, ok := s.node.(PersonDirectoryNode)

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -57,6 +58,16 @@ type SendResult struct {
 	MessageSeq uint64
 	// ReasonCode is the server SENDACK reason.
 	ReasonCode frame.ReasonCode
+	// PendingStartedAt is the process-local instant when this SEND entered the
+	// pending tracker, before the socket writer queue and frame encoding.
+	PendingStartedAt time.Time
+	// WriteStartedAt is the process-local instant immediately before the encoded
+	// SEND was submitted to the socket. Together with PendingStartedAt and
+	// ObservedAt it splits client-side queueing from the wire/server interval.
+	WriteStartedAt time.Time
+	// ObservedAt is the local instant when the matching SENDACK was decoded from
+	// the socket. It is process-local evidence and is never sent over WKProto.
+	ObservedAt time.Time
 }
 
 // SendFuture resolves when the matching SENDACK arrives or the send fails.

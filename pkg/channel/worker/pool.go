@@ -34,6 +34,8 @@ type QueueObserver interface {
 }
 
 // InflightObserver receives current and peak running worker counts.
+// Implementations are called synchronously from worker goroutines and must be
+// concurrency-safe and non-blocking.
 type InflightObserver interface {
 	SetWorkerInflight(pool string, inflight int)
 	SetWorkerInflightPeak(pool string, peak int)
@@ -126,6 +128,9 @@ type Pool struct {
 
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
+	// inflightObservationMu linearizes absolute current/peak publications. A
+	// delayed older worker samples the latest physical state before publishing.
+	inflightObservationMu sync.Mutex
 	// rpcGroupTurn rotates same-kind RPC target groups between bounded batches.
 	rpcGroupTurn atomic.Uint64
 }
@@ -361,9 +366,11 @@ func (p *Pool) observeInflight(inflight int) {
 	if !ok {
 		return
 	}
-	obs.SetWorkerInflight(p.cfg.Name, inflight)
-	peak := p.updateInflightPeak(inflight)
-	obs.SetWorkerInflightPeak(p.cfg.Name, peak)
+	p.updateInflightPeak(inflight)
+	p.inflightObservationMu.Lock()
+	defer p.inflightObservationMu.Unlock()
+	obs.SetWorkerInflight(p.cfg.Name, int(p.inflight.Load()))
+	obs.SetWorkerInflightPeak(p.cfg.Name, int(p.inflightPeak.Load()))
 }
 
 func (p *Pool) updateInflightPeak(inflight int) int {

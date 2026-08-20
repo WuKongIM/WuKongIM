@@ -497,11 +497,35 @@ func TestWorkerServerStatusRetainsLateGrantRuntimeFailureAfterCallerDeadline(t *
 	select {
 	case event := <-events:
 		if event.Event != "wkbench.chat_lifecycle.worker_grant_failure" || event.WorkerID != 0 ||
-			event.Sequence != grant.Sequence || event.RuntimeCode != RuntimeFailureTransportAdmissionSaturated {
+			event.Sequence != grant.Sequence || event.RuntimeCode != RuntimeFailureTransportAdmissionSaturated || event.Cause != "runtime" {
 			t.Fatalf("grant failure event = %+v", event)
 		}
 	default:
 		t.Fatal("late admitted grant failure was not reported")
+	}
+}
+
+func TestWorkerGrantFailureCauseIsBounded(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "runtime", err: &RuntimeError{code: RuntimeFailureEngineCPUSaturated}, want: "runtime"},
+		{name: "offline", err: errSessionOffline, want: "session_offline"},
+		{name: "invariant", err: errors.Join(errEngineConfig, errors.New("private detail")), want: "invariant"},
+		{name: "stopped", err: errEngineNotRunning, want: "generation_stopped"},
+		{name: "deadline", err: context.DeadlineExceeded, want: "deadline"},
+		{name: "canceled", err: context.Canceled, want: "canceled"},
+		{name: "unknown", err: errors.New("private identity"), want: "unclassified"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := workerGrantFailureCause(test.err); got != test.want {
+				t.Fatalf("workerGrantFailureCause() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -804,6 +828,10 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	recordWorkerLatency(&engineGeneration.engine.cached.GatewayConnectLatency, 20*time.Millisecond)
 	engineGeneration.engine.cached.ConversationSyncLatency = newWorkerHistogramSnapshot()
 	recordWorkerLatency(&engineGeneration.engine.cached.ConversationSyncLatency, 50*time.Millisecond)
+	engineGeneration.engine.cached.SendPendingToWriteLatency = newWorkerHistogramSnapshot()
+	recordWorkerLatency(&engineGeneration.engine.cached.SendPendingToWriteLatency, 5*time.Millisecond)
+	engineGeneration.engine.cached.SendWriteToAckLatency = newWorkerHistogramSnapshot()
+	recordWorkerLatency(&engineGeneration.engine.cached.SendWriteToAckLatency, 150*time.Millisecond)
 	engineGeneration.engine.cached.FactoryFailed = 1
 	engineGeneration.engine.cached.FactoryCanceled = 2
 	engineGeneration.engine.cached.ConnectStarted = 11
@@ -843,7 +871,8 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	}
 	if snapshot.Sync.ConnectLatency.Buckets[5] != 1 || snapshot.Sync.Latency.Buckets[6] != 1 ||
 		snapshot.HotSendackLatency.Buckets[11] != 1 || snapshot.ColdFirstCreateSendackLatency.Count != 0 ||
-		snapshot.LifecycleReheatSendackLatency.Count != 0 || snapshot.RecvackLatency.Buckets[6] != 1 {
+		snapshot.LifecycleReheatSendackLatency.Count != 0 || snapshot.RecvackLatency.Buckets[6] != 1 ||
+		snapshot.SendPendingToWriteLatency.Buckets[3] != 1 || snapshot.SendWriteToAckLatency.Buckets[8] != 1 {
 		t.Fatalf("worker latency projection = sync=%+v hot=%+v cold_create=%+v reheat=%+v recvack=%+v", snapshot.Sync, snapshot.HotSendackLatency, snapshot.ColdFirstCreateSendackLatency, snapshot.LifecycleReheatSendackLatency, snapshot.RecvackLatency)
 	}
 	if snapshot.Sync.FactoryFailed != 1 || snapshot.Sync.FactoryCanceled != 2 ||

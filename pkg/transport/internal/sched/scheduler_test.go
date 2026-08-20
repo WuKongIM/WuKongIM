@@ -93,6 +93,9 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 		queueEvent.Bytes != 3 || queueEvent.BytesCapacity != 10 {
 		t.Fatalf("scheduler_queue ok = %+v, want queue state populated", *queueEvent)
 	}
+	if queueEvent.Revision == 0 {
+		t.Fatal("scheduler_queue enqueue revision = 0, want physical state revision")
+	}
 	drainedQueueEvent := findLastEventByPriority(events, "scheduler_queue", "ok", core.PriorityRPC)
 	if drainedQueueEvent == nil {
 		t.Fatalf("missing drained scheduler_queue ok event: %#v", events)
@@ -101,6 +104,9 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 		drainedQueueEvent.Capacity != 1 || drainedQueueEvent.Bytes != 0 ||
 		drainedQueueEvent.BytesCapacity != 10 {
 		t.Fatalf("drained scheduler_queue ok = %+v, want source-scoped drained queue", *drainedQueueEvent)
+	}
+	if drainedQueueEvent.Revision <= queueEvent.Revision {
+		t.Fatalf("drained scheduler_queue revision = %d, want greater than enqueue revision %d", drainedQueueEvent.Revision, queueEvent.Revision)
 	}
 
 	waitEvent := findEvent(events, "scheduler_wait", "ok")

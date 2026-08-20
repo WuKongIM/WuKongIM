@@ -10,7 +10,7 @@ import (
 
 const (
 	// MaxExchangeBatchItems is the fixed wire-level item allocation bound.
-	MaxExchangeBatchItems = 64
+	MaxExchangeBatchItems = 256
 	// MaxExchangeBatchBytes is the fixed wire-level frame allocation bound.
 	MaxExchangeBatchBytes = 4 << 20
 )
@@ -19,10 +19,11 @@ var errInvalidExchangeFrame = errors.New("channel replication: invalid exchange 
 
 // EncodeExchangeBatch encodes one bounded peer request batch.
 func EncodeExchangeBatch(batch ExchangeBatch) ([]byte, error) {
-	if batch.Version != ExchangeVersion || len(batch.Items) == 0 || len(batch.Items) > MaxExchangeBatchItems {
+	if batch.Version != ExchangeVersion || !batch.Priority.Valid() || len(batch.Items) == 0 || len(batch.Items) > MaxExchangeBatchItems {
 		return nil, ch.ErrInvalidConfig
 	}
 	buf := appendCodecUvarint(nil, uint64(batch.Version))
+	buf = append(buf, byte(batch.Priority))
 	buf = appendCodecUvarint(buf, uint64(len(batch.Items)))
 	for _, item := range batch.Items {
 		if item.RequestID == 0 {
@@ -37,12 +38,12 @@ func EncodeExchangeBatch(batch ExchangeBatch) ([]byte, error) {
 			}
 			buf = appendReplicateRequest(buf, *item.Replicate)
 		case ExchangeProbe:
-			if item.Probe == nil || item.Replicate != nil || item.Fetch != nil || !item.Probe.Valid() {
+			if batch.Priority != ExchangePriorityForeground || item.Probe == nil || item.Replicate != nil || item.Fetch != nil || !item.Probe.Valid() {
 				return nil, ch.ErrInvalidConfig
 			}
 			buf = appendProbeRequest(buf, *item.Probe)
 		case ExchangeFetch:
-			if item.Fetch == nil || item.Replicate != nil || item.Probe != nil || !item.Fetch.Valid() {
+			if batch.Priority != ExchangePriorityForeground || item.Fetch == nil || item.Replicate != nil || item.Probe != nil || !item.Fetch.Valid() {
 				return nil, ch.ErrInvalidConfig
 			}
 			buf = appendFetchRequest(buf, *item.Fetch)
@@ -66,11 +67,16 @@ func DecodeExchangeBatch(data []byte) (ExchangeBatch, error) {
 	if !ok || version != uint64(ExchangeVersion) {
 		return ExchangeBatch{}, errInvalidExchangeFrame
 	}
+	priorityByte, ok := c.byte()
+	priority := ExchangePriority(priorityByte)
+	if !ok || !priority.Valid() {
+		return ExchangeBatch{}, errInvalidExchangeFrame
+	}
 	count, ok := c.count(MaxExchangeBatchItems)
 	if !ok || count == 0 {
 		return ExchangeBatch{}, errInvalidExchangeFrame
 	}
-	batch := ExchangeBatch{Version: ExchangeVersion, Items: make([]ExchangeItem, count)}
+	batch := ExchangeBatch{Version: ExchangeVersion, Priority: priority, Items: make([]ExchangeItem, count)}
 	for index := range batch.Items {
 		requestID, valid := c.uvarint()
 		kind, validKind := c.byte()
@@ -87,13 +93,13 @@ func DecodeExchangeBatch(data []byte) (ExchangeBatch, error) {
 			item.Replicate = &request
 		case ExchangeProbe:
 			request, valid := c.probeRequest()
-			if !valid || !request.Valid() {
+			if priority != ExchangePriorityForeground || !valid || !request.Valid() {
 				return ExchangeBatch{}, errInvalidExchangeFrame
 			}
 			item.Probe = &request
 		case ExchangeFetch:
 			request, valid := c.fetchRequest()
-			if !valid || !request.Valid() {
+			if priority != ExchangePriorityForeground || !valid || !request.Valid() {
 				return ExchangeBatch{}, errInvalidExchangeFrame
 			}
 			item.Fetch = &request
@@ -168,7 +174,8 @@ func appendReplicateRequest(dst []byte, request ReplicateRequest) []byte {
 	dst = appendCodecUvarint(dst, uint64(request.Follower))
 	dst = appendProposalManifest(dst, request.Manifest)
 	dst = appendRecords(dst, request.Records)
-	return appendCodecUvarint(dst, request.Committed)
+	dst = appendCodecUvarint(dst, request.Committed)
+	return appendCodecBool(dst, request.ServerAllocatedMessageIDs)
 }
 
 func appendProbeRequest(dst []byte, request ProbeRequest) []byte {
@@ -440,10 +447,12 @@ func (c *exchangeCursor) replicateRequest() (ReplicateRequest, bool) {
 	manifest, okManifest := c.proposalManifest()
 	records, okRecords := c.records()
 	committed, okCommitted := c.uvarint()
+	serverAllocatedMessageIDs, okServerAllocated := c.boolean()
 	return ReplicateRequest{
 		ChannelKey: key, ChannelID: id, Leader: ch.NodeID(leader), Follower: ch.NodeID(follower),
 		Manifest: manifest, Records: records, Committed: committed,
-	}, ok && okLeader && okFollower && okManifest && okRecords && okCommitted
+		ServerAllocatedMessageIDs: serverAllocatedMessageIDs,
+	}, ok && okLeader && okFollower && okManifest && okRecords && okCommitted && okServerAllocated
 }
 
 func (c *exchangeCursor) probeRequest() (ProbeRequest, bool) {

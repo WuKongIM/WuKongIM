@@ -22,7 +22,10 @@ import (
 
 var errHostMetricsConfig = errors.New("host metrics configuration failed")
 
-const processMetricsFreshnessWindow = 45 * time.Second
+const (
+	processMetricsFreshnessWindow     = 45 * time.Second
+	hostCPUDuplicateSampleReuseWindow = 2 * time.Second
+)
 
 type hostMetricsConfig struct {
 	listen             string
@@ -43,13 +46,18 @@ type hostMetricsHandler struct {
 	watchPath          string
 	processMetricsPath string
 	deviceIO           hostDeviceIOSampler
+	readCPUTotals      func() (hostCPUTotals, bool)
+	now                func() time.Time
 
-	mu             sync.Mutex
-	previousCPU    hostCPUTotals
-	previousCPUSet bool
-	watchBytes     int64
-	watchAt        time.Time
-	watchValid     bool
+	mu                sync.Mutex
+	previousCPU       hostCPUTotals
+	previousCPUSet    bool
+	lastCPUPercent    float64
+	lastCPUPercentAt  time.Time
+	lastCPUPercentSet bool
+	watchBytes        int64
+	watchAt           time.Time
+	watchValid        bool
 }
 
 type hostCPUTotals struct{ total, idle uint64 }
@@ -128,6 +136,7 @@ func newHostMetricsHandler(cfg hostMetricsConfig) (http.Handler, error) {
 	handler := &hostMetricsHandler{
 		path: absolute, mountpoint: cfg.mountpoint, device: cfg.device, systemPath: systemAbsolute,
 		watchPath: watchAbsolute, processMetricsPath: processMetricsAbsolute,
+		readCPUTotals: readHostCPUTotals, now: time.Now,
 	}
 	if cfg.physicalIO {
 		handler.deviceIO = newHostDeviceIOSampler(absolute)
@@ -306,22 +315,50 @@ func readBoundedProcessMetrics(path string, now time.Time) ([]byte, error) {
 }
 
 func (h *hostMetricsHandler) cpuPercent() (float64, bool) {
-	current, ok := readHostCPUTotals()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	readCPUTotals := h.readCPUTotals
+	if readCPUTotals == nil {
+		readCPUTotals = readHostCPUTotals
+	}
+	current, ok := readCPUTotals()
 	if !ok {
 		return 0, false
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
 	previous, seen := h.previousCPU, h.previousCPUSet
-	h.previousCPU, h.previousCPUSet = current, true
-	if !seen || current.total <= previous.total || current.idle < previous.idle {
+	if !seen {
+		h.previousCPU, h.previousCPUSet = current, true
+		return 0, false
+	}
+	if current == previous {
+		now := time.Now()
+		if h.now != nil {
+			now = h.now()
+		}
+		age := now.Sub(h.lastCPUPercentAt)
+		if h.lastCPUPercentSet && age >= 0 && age <= hostCPUDuplicateSampleReuseWindow {
+			return h.lastCPUPercent, true
+		}
+		return 0, false
+	}
+	if current.total <= previous.total || current.idle < previous.idle {
 		return 0, false
 	}
 	total, idle := current.total-previous.total, current.idle-previous.idle
 	if idle > total {
 		return 0, false
 	}
-	return float64(total-idle) * 100 / float64(total), true
+	percent := float64(total-idle) * 100 / float64(total)
+	now := time.Now()
+	if h.now != nil {
+		now = h.now()
+	}
+	h.previousCPU = current
+	h.lastCPUPercent = percent
+	h.lastCPUPercentAt = now
+	h.lastCPUPercentSet = true
+	return percent, true
 }
 
 func readHostCPUTotals() (hostCPUTotals, bool) {

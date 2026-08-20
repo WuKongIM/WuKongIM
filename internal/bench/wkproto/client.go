@@ -126,7 +126,7 @@ type clientSession struct {
 	// recvCh backpressures lossless RECV delivery in wire order.
 	recvCh chan frame.Frame
 	// sendackCh isolates SEND futures from RECV pressure.
-	sendackCh chan *frame.SendackPacket
+	sendackCh chan sendackResult
 	// errCh isolates asynchronous send errors and the remote terminal error.
 	errCh chan errorResult
 	// stopCh closes when this session is no longer active.
@@ -166,6 +166,19 @@ type errorResult struct {
 	terminal    bool
 	clientSeq   uint64
 	clientMsgNo string
+}
+
+type sendackResult struct {
+	packet *frame.SendackPacket
+	timing FrameTiming
+}
+
+// FrameTiming preserves process-local SEND boundaries across the adapter's
+// bounded result queues. All fields remain zero for non-SENDACK frames.
+type FrameTiming struct {
+	PendingStartedAt time.Time
+	WriteStartedAt   time.Time
+	ObservedAt       time.Time
 }
 
 type adapterFrameLease struct {
@@ -375,28 +388,63 @@ func clientMessage(pkt *frame.SendPacket) wkclient.Message {
 
 // ReadFrame reads one SENDACK or RECV frame from the connected client stream.
 func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
-	f, lease, err := c.ReadFrameWithLease(ctx)
+	f, _, lease, err := c.ReadFrameObservedWithLease(ctx)
 	if lease != nil {
 		lease.Release()
 	}
 	return f, err
 }
 
+// ReadFrameObserved reads one frame and returns the local source observation
+// instant when available. SENDACK observations originate at socket decode;
+// zero means the source cannot provide a more precise instant.
+func (c *Client) ReadFrameObserved(ctx context.Context) (frame.Frame, time.Time, error) {
+	f, timing, lease, err := c.ReadFrameTimingWithLease(ctx)
+	if lease != nil {
+		lease.Release()
+	}
+	return f, timing.ObservedAt, err
+}
+
+// ReadFrameTiming reads one frame and preserves the local SEND timeline when
+// the result is a SENDACK.
+func (c *Client) ReadFrameTiming(ctx context.Context) (frame.Frame, FrameTiming, error) {
+	f, timing, lease, err := c.ReadFrameTimingWithLease(ctx)
+	if lease != nil {
+		lease.Release()
+	}
+	return f, timing, err
+}
+
 // ReadFrameWithLease reads one frame while retaining adapter ownership for a
 // RECV packet. The caller MUST release a non-nil lease after making the frame
 // observable in its next processing stage.
 func (c *Client) ReadFrameWithLease(ctx context.Context) (frame.Frame, FrameLease, error) {
+	f, _, lease, err := c.ReadFrameObservedWithLease(ctx)
+	return f, lease, err
+}
+
+// ReadFrameObservedWithLease retains the existing ownership lease while also
+// preserving the source observation instant for latency evidence.
+func (c *Client) ReadFrameObservedWithLease(ctx context.Context) (frame.Frame, time.Time, FrameLease, error) {
+	f, timing, lease, err := c.ReadFrameTimingWithLease(ctx)
+	return f, timing.ObservedAt, lease, err
+}
+
+// ReadFrameTimingWithLease retains adapter ownership and all process-local
+// SEND timing boundaries for the next processing stage.
+func (c *Client) ReadFrameTimingWithLease(ctx context.Context) (frame.Frame, FrameTiming, FrameLease, error) {
 	if c == nil {
-		return nil, nil, errClientNotConnected
+		return nil, FrameTiming{}, nil, errClientNotConnected
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	session, err := c.currentSession()
 	if err != nil {
-		return nil, nil, err
+		return nil, FrameTiming{}, nil, err
 	}
-	return session.readFrameWithLease(ctx)
+	return session.readFrameTimingWithLease(ctx)
 }
 
 // QueueSnapshot reports fixed-capacity receive queue occupancy for observability.
@@ -562,7 +610,11 @@ func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFut
 		MessageSeq:  result.MessageSeq,
 		ReasonCode:  result.ReasonCode,
 	}
-	session.publishSendack(ack)
+	session.publishSendackTiming(ack, FrameTiming{
+		PendingStartedAt: result.PendingStartedAt,
+		WriteStartedAt:   result.WriteStartedAt,
+		ObservedAt:       result.ObservedAt,
+	})
 }
 
 func (s *clientSession) publishRecv(f frame.Frame) bool {
@@ -577,9 +629,17 @@ func (s *clientSession) publishRecv(f frame.Frame) bool {
 }
 
 func (s *clientSession) publishSendack(ack *frame.SendackPacket) bool {
+	return s.publishSendackAt(ack, time.Time{})
+}
+
+func (s *clientSession) publishSendackAt(ack *frame.SendackPacket, observedAt time.Time) bool {
+	return s.publishSendackTiming(ack, FrameTiming{ObservedAt: observedAt})
+}
+
+func (s *clientSession) publishSendackTiming(ack *frame.SendackPacket, timing FrameTiming) bool {
 	s.resultPending.Add(1)
 	select {
-	case s.sendackCh <- ack:
+	case s.sendackCh <- sendackResult{packet: ack, timing: timing}:
 		return true
 	case <-s.stopCh:
 		s.resultPending.Add(-1)
@@ -599,56 +659,82 @@ func (s *clientSession) publishError(result errorResult) bool {
 }
 
 func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
-	f, lease, err := s.readFrameWithLease(ctx)
+	f, _, lease, err := s.readFrameObservedWithLease(ctx)
 	if lease != nil {
 		lease.Release()
 	}
 	return f, err
 }
 
+func (s *clientSession) readFrameObserved(ctx context.Context) (frame.Frame, time.Time, error) {
+	f, timing, lease, err := s.readFrameTimingWithLease(ctx)
+	if lease != nil {
+		lease.Release()
+	}
+	return f, timing.ObservedAt, err
+}
+
+func (s *clientSession) readFrameTiming(ctx context.Context) (frame.Frame, FrameTiming, error) {
+	f, timing, lease, err := s.readFrameTimingWithLease(ctx)
+	if lease != nil {
+		lease.Release()
+	}
+	return f, timing, err
+}
+
 func (s *clientSession) readFrameWithLease(ctx context.Context) (frame.Frame, FrameLease, error) {
+	f, _, lease, err := s.readFrameObservedWithLease(ctx)
+	return f, lease, err
+}
+
+func (s *clientSession) readFrameObservedWithLease(ctx context.Context) (frame.Frame, time.Time, FrameLease, error) {
+	f, timing, lease, err := s.readFrameTimingWithLease(ctx)
+	return f, timing.ObservedAt, lease, err
+}
+
+func (s *clientSession) readFrameTimingWithLease(ctx context.Context) (frame.Frame, FrameTiming, FrameLease, error) {
 	if err := s.acquireReadPermit(ctx); err != nil {
-		return nil, nil, err
+		return nil, FrameTiming{}, nil, err
 	}
 	defer s.releaseReadPermit()
 	for {
 		if s.terminalDelivered {
-			return nil, nil, errClientNotConnected
+			return nil, FrameTiming{}, nil, errClientNotConnected
 		}
 		if s.isStopped() {
-			return nil, nil, errClientNotConnected
+			return nil, FrameTiming{}, nil, errClientNotConnected
 		}
 
 		if s.priorityBurst < priorityResultQuota {
 			select {
 			case result := <-s.errCh:
 				f, err := s.consumeError(result)
-				return f, s.newResultLease(), err
+				return f, FrameTiming{}, s.newResultLease(), err
 			default:
 			}
 			select {
 			case ack := <-s.sendackCh:
 				f, err := s.consumeSendack(ack)
-				return f, s.newResultLease(), err
+				return f, ack.timing, s.newResultLease(), err
 			default:
 			}
 		}
 		select {
 		case recv := <-s.recvCh:
 			f, err := s.consumeRecv(recv)
-			return f, s.newResultLease(), err
+			return f, FrameTiming{}, s.newResultLease(), err
 		default:
 		}
 		select {
 		case result := <-s.errCh:
 			f, err := s.consumeError(result)
-			return f, s.newResultLease(), err
+			return f, FrameTiming{}, s.newResultLease(), err
 		default:
 		}
 		select {
 		case ack := <-s.sendackCh:
 			f, err := s.consumeSendack(ack)
-			return f, s.newResultLease(), err
+			return f, ack.timing, s.newResultLease(), err
 		default:
 		}
 
@@ -656,33 +742,33 @@ func (s *clientSession) readFrameWithLease(ctx context.Context) (frame.Frame, Fr
 			select {
 			case recv := <-s.recvCh:
 				f, err := s.consumeRecv(recv)
-				return f, s.newResultLease(), err
+				return f, FrameTiming{}, s.newResultLease(), err
 			case ack := <-s.sendackCh:
 				f, err := s.consumeSendack(ack)
-				return f, s.newResultLease(), err
+				return f, ack.timing, s.newResultLease(), err
 			case result := <-s.errCh:
 				f, err := s.consumeError(result)
-				return f, s.newResultLease(), err
+				return f, FrameTiming{}, s.newResultLease(), err
 			case <-s.stopCh:
-				return nil, nil, errClientNotConnected
+				return nil, FrameTiming{}, nil, errClientNotConnected
 			case <-ctx.Done():
-				return nil, nil, ctx.Err()
+				return nil, FrameTiming{}, nil, ctx.Err()
 			}
 		}
 		select {
 		case ack := <-s.sendackCh:
 			f, err := s.consumeSendack(ack)
-			return f, s.newResultLease(), err
+			return f, ack.timing, s.newResultLease(), err
 		case recv := <-s.recvCh:
 			f, err := s.consumeRecv(recv)
-			return f, s.newResultLease(), err
+			return f, FrameTiming{}, s.newResultLease(), err
 		case result := <-s.errCh:
 			f, err := s.consumeError(result)
-			return f, s.newResultLease(), err
+			return f, FrameTiming{}, s.newResultLease(), err
 		case <-s.stopCh:
-			return nil, nil, errClientNotConnected
+			return nil, FrameTiming{}, nil, errClientNotConnected
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return nil, FrameTiming{}, nil, ctx.Err()
 		}
 	}
 }
@@ -788,7 +874,7 @@ func (s *clientSession) releaseReadPermit() {
 	s.readPermit <- struct{}{}
 }
 
-func (s *clientSession) consumeSendack(ack *frame.SendackPacket) (frame.Frame, error) {
+func (s *clientSession) consumeSendack(ack sendackResult) (frame.Frame, error) {
 	s.notifyQueueDrain()
 	if s.isStopped() {
 		return nil, errClientNotConnected
@@ -796,7 +882,7 @@ func (s *clientSession) consumeSendack(ack *frame.SendackPacket) (frame.Frame, e
 	if s.priorityBurst < priorityResultQuota {
 		s.priorityBurst++
 	}
-	return ack, nil
+	return ack.packet, nil
 }
 
 func (s *clientSession) consumeRecv(recv frame.Frame) (frame.Frame, error) {
@@ -846,7 +932,7 @@ func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSessio
 	session := &clientSession{
 		inner:             inner,
 		recvCh:            make(chan frame.Frame, frameBufferSize),
-		sendackCh:         make(chan *frame.SendackPacket, frameBufferSize),
+		sendackCh:         make(chan sendackResult, frameBufferSize),
 		errCh:             make(chan errorResult, frameBufferSize),
 		stopCh:            make(chan struct{}),
 		drainCh:           make(chan struct{}, 1),

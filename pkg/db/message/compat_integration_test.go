@@ -826,6 +826,43 @@ func TestStoreAppendBatchUsesSingleLeaderAppendRequest(t *testing.T) {
 	}
 }
 
+func TestStoreAppendBatchSeparatesLeaderFollowerAndTrailingReplicaCommitLanes(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	observer := &commitRequestCapture{}
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
+
+	foreground := mustForChannel(t, engine, channel.ChannelKey("foreground-append:1"), channel.ChannelID{ID: "foreground-append", Type: 1})
+	follower := mustForChannel(t, engine, channel.ChannelKey("foreground-replica:1"), channel.ChannelID{ID: "foreground-replica", Type: 1})
+	trailing := mustForChannel(t, engine, channel.ChannelKey("trailing-replica:1"), channel.ChannelID{ID: "trailing-replica", Type: 1})
+	results := StoreAppendBatch(context.Background(), []AppendBatchItem{
+		{Store: foreground, Records: []channel.Record{compatTestRecord(t, 4101, "foreground-append", "client-foreground")}},
+		{Store: follower, Records: []channel.Record{compatTestRecord(t, 4103, "foreground-replica", "client-follower")}, Class: AppendBatchClassFollowerQuorum},
+		{Store: trailing, Records: []channel.Record{compatTestRecord(t, 4102, "trailing-replica", "client-trailing")}, Class: AppendBatchClassTrailing},
+	})
+	if len(results) != 3 {
+		t.Fatalf("results len = %d, want 3", len(results))
+	}
+	for i, result := range results {
+		if result.Err != nil || result.BaseOffset != 0 || result.LastOffset != 1 {
+			t.Fatalf("result[%d] = %+v, want base 0 last 1 nil error", i, result)
+		}
+	}
+	lanes := observer.Lanes()
+	if got := countString(lanes, "leader_append"); got != 1 {
+		t.Fatalf("leader_append request count = %d, want 1 (lanes %v)", got, lanes)
+	}
+	if got := countString(lanes, "replica_foreground"); got != 1 {
+		t.Fatalf("replica_foreground request count = %d, want 1 (lanes %v)", got, lanes)
+	}
+	if got := countString(lanes, "replica_trailing"); got != 1 {
+		t.Fatalf("replica_trailing request count = %d, want 1 (lanes %v)", got, lanes)
+	}
+}
+
 func encodeCompatTestMessage(t *testing.T, msg channel.Message) []byte {
 	t.Helper()
 	payload := make([]byte, 0, channel.DurableMessageHeaderSize+64)

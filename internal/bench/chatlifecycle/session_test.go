@@ -544,6 +544,60 @@ func TestSessionWKProtoAdapterBindsExistingClientWithoutDialing(t *testing.T) {
 	}
 }
 
+func TestSessionPoolRecordsSendackAtTransportObservationTime(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	completed := make(chan struct{}, 1)
+	if err := fixture.pool.setEngineObservers(
+		func(_ string, _ *frame.SendackPacket, _ error) { completed <- struct{}{} },
+		func(string, uint64, string) {},
+	); err != nil {
+		t.Fatalf("setEngineObservers: %v", err)
+	}
+	uid := fixture.identity.UID(30)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 30, LoginOrdinal: 1}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	defer fixture.pool.CloseAll()
+
+	registeredAt := fixture.clock.Now()
+	logical, err := fixture.traffic.NewLogicalSend(0, 1, TrafficPerson, uid, fixture.identity.UID(31))
+	if err != nil {
+		t.Fatalf("NewLogicalSend: %v", err)
+	}
+	if err := fixture.verifier.RegisterSend(logical, registeredAt, SendLatencyHot); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	client := fixture.factory.clients()[0]
+	client.setTiming(SessionFrameTiming{
+		PendingStartedAt: registeredAt.Add(5 * time.Millisecond),
+		WriteStartedAt:   registeredAt.Add(25 * time.Millisecond),
+		ObservedAt:       registeredAt.Add(100 * time.Millisecond),
+	})
+	fixture.clock.Set(registeredAt.Add(2 * time.Second))
+	client.frames <- &frame.SendackPacket{
+		ClientSeq: 1, ClientMsgNo: logical.ClientMsgNo, MessageID: 1, MessageSeq: 1, ReasonCode: frame.ReasonSuccess,
+	}
+	select {
+	case <-completed:
+	case <-time.After(time.Second):
+		t.Fatal("SENDACK was not verified")
+	}
+
+	histogram := fixture.verifier.Snapshot().HotSendackLatency
+	if histogram.Count != 1 || histogram.SumNanos != uint64(100*time.Millisecond) || histogram.Buckets[7] != 1 {
+		t.Fatalf("hot SENDACK latency = %+v, want exact transport-observed 100ms", histogram)
+	}
+	sessions := fixture.pool.Snapshot()
+	if sessions.SendPendingToWriteLatency.Count != 1 ||
+		sessions.SendPendingToWriteLatency.SumNanos != uint64(20*time.Millisecond) {
+		t.Fatalf("pending-to-write latency = %+v, want 20ms", sessions.SendPendingToWriteLatency)
+	}
+	if sessions.SendWriteToAckLatency.Count != 1 ||
+		sessions.SendWriteToAckLatency.SumNanos != uint64(75*time.Millisecond) {
+		t.Fatalf("write-to-ACK latency = %+v, want 75ms", sessions.SendWriteToAckLatency)
+	}
+}
+
 func TestSessionPoolActivatesRelationshipOnlyWhileBothEndpointsOnline(t *testing.T) {
 	t.Parallel()
 	fixture := newSessionTestFixture(t)
@@ -1245,6 +1299,8 @@ type sessionFakeClient struct {
 	pingRelease          <-chan struct{}
 	pingErr              error
 	sendErr              error
+	observedAt           time.Time
+	timing               SessionFrameTiming
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -1270,6 +1326,35 @@ func (c *sessionFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) 
 		c.closeReadExited()
 		return nil, errors.New("session closed")
 	}
+}
+
+func (c *sessionFakeClient) ReadFrameObserved(ctx context.Context) (frame.Frame, time.Time, error) {
+	packet, err := c.ReadFrame(ctx)
+	c.mu.Lock()
+	observedAt := c.observedAt
+	c.mu.Unlock()
+	return packet, observedAt, err
+}
+
+func (c *sessionFakeClient) ReadFrameTiming(ctx context.Context) (frame.Frame, SessionFrameTiming, error) {
+	packet, err := c.ReadFrame(ctx)
+	c.mu.Lock()
+	timing := c.timing
+	c.mu.Unlock()
+	return packet, timing, err
+}
+
+func (c *sessionFakeClient) setObservedAt(observedAt time.Time) {
+	c.mu.Lock()
+	c.observedAt = observedAt
+	c.mu.Unlock()
+}
+
+func (c *sessionFakeClient) setTiming(timing SessionFrameTiming) {
+	c.mu.Lock()
+	c.timing = timing
+	c.observedAt = timing.ObservedAt
+	c.mu.Unlock()
 }
 
 func (c *sessionFakeClient) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool) {

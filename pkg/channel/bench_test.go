@@ -400,6 +400,8 @@ func BenchmarkAppendMessageDBStoreAdapterCommitMatrix(b *testing.B) {
 		{name: "commit1ms_storeDefault_shard1", commitFlushWindow: time.Millisecond, commitShards: 1},
 		{name: "commit2ms_storeDefault_shard1", commitFlushWindow: 2 * time.Millisecond, commitShards: 1},
 		{name: "commit5ms_storeDefault_shard1", commitFlushWindow: 5 * time.Millisecond, commitShards: 1},
+		{name: "commit5ms_storeDefault_shard2", commitFlushWindow: 5 * time.Millisecond, commitShards: 2},
+		{name: "commit10ms_storeDefault_shard1", commitFlushWindow: 10 * time.Millisecond, commitShards: 1},
 		{name: "commit100us_store100us_shard1", commitFlushWindow: 100 * time.Microsecond, storeAppendBatchMaxWait: 100 * time.Microsecond, commitShards: 1},
 		{name: "commit50us_store50us_shard1", commitFlushWindow: 50 * time.Microsecond, storeAppendBatchMaxWait: 50 * time.Microsecond, commitShards: 1},
 		{name: "commit100us_store100us_shard4", commitFlushWindow: 100 * time.Microsecond, storeAppendBatchMaxWait: 100 * time.Microsecond, commitShards: 4},

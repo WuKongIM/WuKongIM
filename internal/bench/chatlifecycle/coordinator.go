@@ -841,6 +841,54 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 	grantCoverageMissing := func(at time.Time) bool {
 		return coordinatorGrantCoverageMissing(at, lastGrantTickAt)
 	}
+	type pendingStatusRoundResult struct {
+		statuses    [coordinatorWorkerCount]WorkerStatus
+		disposition coordinatorRoundDisposition
+	}
+	waitForStatusRound := func() (
+		[coordinatorWorkerCount]WorkerStatus,
+		coordinatorRoundDisposition,
+		coordinatorRoundDisposition,
+	) {
+		statusContext, cancelStatus := context.WithCancel(observationContext)
+		defer cancelStatus()
+		results := make(chan pendingStatusRoundResult, 1)
+		go func() {
+			statuses, disposition := c.statusRound(statusContext, assignments)
+			results <- pendingStatusRoundResult{statuses: statuses, disposition: disposition}
+		}()
+		joinAfterGrantFailure := func(disposition coordinatorRoundDisposition) (
+			[coordinatorWorkerCount]WorkerStatus,
+			coordinatorRoundDisposition,
+			coordinatorRoundDisposition,
+		) {
+			cancelStatus()
+			<-results
+			return [coordinatorWorkerCount]WorkerStatus{}, coordinatorRoundStageFailed, disposition
+		}
+		for {
+			select {
+			case completed := <-results:
+				return completed.statuses, completed.disposition, coordinatorRoundSucceeded
+			case tickAt := <-grantTicker.C():
+				now := c.clock.Now()
+				if tickAt.IsZero() || tickAt.After(now) {
+					result.GrantFailure = CoordinatorGrantFailureTick
+					return joinAfterGrantFailure(coordinatorRoundStageFailed)
+				}
+				if !tickAt.Before(observationDeadline) {
+					continue
+				}
+				if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
+					return joinAfterGrantFailure(disposition)
+				}
+			case <-ctx.Done():
+				cancelStatus()
+				completed := <-results
+				return completed.statuses, completed.disposition, coordinatorRoundParentCanceled
+			}
+		}
+	}
 	cutoffOwned := false
 	stopRequested := false
 	failureCode := CoordinatorCode("")
@@ -1378,7 +1426,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
-			statuses, disposition := c.statusRound(observationContext, assignments)
+			statuses, disposition, grantDisposition := waitForStatusRound()
+			if grantDisposition != coordinatorRoundSucceeded {
+				failureCode = CoordinatorCodeGrant
+				failureDisposition = grantDisposition
+				goto observationFailure
+			}
 			if disposition != coordinatorRoundSucceeded || !allCoordinatorTrafficReady(statuses) {
 				failureCode = CoordinatorCodeRuntime
 				failureDisposition = disposition
@@ -1514,6 +1567,30 @@ observationComplete:
 			}
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 			return result
+		}
+		if terminalSnapshotsNeedTrafficRecovery(checkpoint) {
+			statuses, statusDisposition := c.statusRound(ctx, assignments)
+			if statusDisposition != coordinatorRoundSucceeded {
+				c.stopAfterFailure(fence, attempted)
+				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+				return result
+			}
+			if !allCoordinatorTrafficReady(statuses) {
+				ready, _, _, readyDisposition := c.waitForTrafficReady(
+					ctx, nil, assignments, statuses, c.roundTimeout,
+				)
+				if !ready || readyDisposition != coordinatorRoundSucceeded {
+					c.stopAfterFailure(fence, attempted)
+					result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+					return result
+				}
+			}
+			checkpoint, disposition = c.checkpointRound(ctx, assignments, fence)
+			if disposition != coordinatorRoundSucceeded || terminalSnapshotsNeedTrafficRecovery(checkpoint) {
+				c.stopAfterFailure(fence, attempted)
+				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+				return result
+			}
 		}
 		if ctx.Err() != nil {
 			c.stopAfterFailure(fence, attempted)
@@ -1651,6 +1728,17 @@ func allCoordinatorTrafficReady(statuses [coordinatorWorkerCount]WorkerStatus) b
 		}
 	}
 	return true
+}
+
+func terminalSnapshotsNeedTrafficRecovery(snapshots []WorkerSnapshot) bool {
+	for _, snapshot := range snapshots {
+		sessions := snapshot.Sessions
+		if sessions.Target > 0 && (sessions.Online < sessions.Target || sessions.TrafficReady < sessions.Target ||
+			sessions.Starting > 0 || sessions.Closing > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Coordinator) assignRound(parent context.Context, assignments []CoordinatorAssignment) ([coordinatorWorkerCount]WorkerStatus, coordinatorRoundDisposition) {
@@ -2340,6 +2428,8 @@ type CoordinatorSnapshot struct {
 	ColdFirstCreateSendackLatency WorkerHistogramSnapshot
 	LifecycleReheatSendackLatency WorkerHistogramSnapshot
 	RecvackLatency                WorkerHistogramSnapshot
+	SendPendingToWriteLatency     WorkerHistogramSnapshot
+	SendWriteToAckLatency         WorkerHistogramSnapshot
 	Correlation                   WorkerCorrelationSnapshot
 	Queues                        WorkerQueueSnapshot
 	Harness                       WorkerHarnessSnapshot
@@ -2448,7 +2538,9 @@ func validCoordinatorSnapshotHistograms(snapshot WorkerSnapshot) bool {
 		validCoordinatorHistogram(snapshot.HotSendackLatency) &&
 		validCoordinatorHistogram(snapshot.ColdFirstCreateSendackLatency) &&
 		validCoordinatorHistogram(snapshot.LifecycleReheatSendackLatency) &&
-		validCoordinatorHistogram(snapshot.RecvackLatency)
+		validCoordinatorHistogram(snapshot.RecvackLatency) &&
+		validCoordinatorHistogram(snapshot.SendPendingToWriteLatency) &&
+		validCoordinatorHistogram(snapshot.SendWriteToAckLatency)
 }
 
 func validCoordinatorHistogram(histogram WorkerHistogramSnapshot) bool {
@@ -2590,7 +2682,9 @@ func coordinatorSnapshotRegressed(
 		coordinatorHistogramRegressed(current.HotSendackLatency, previous.HotSendackLatency) ||
 		coordinatorHistogramRegressed(current.ColdFirstCreateSendackLatency, previous.ColdFirstCreateSendackLatency) ||
 		coordinatorHistogramRegressed(current.LifecycleReheatSendackLatency, previous.LifecycleReheatSendackLatency) ||
-		coordinatorHistogramRegressed(current.RecvackLatency, previous.RecvackLatency)
+		coordinatorHistogramRegressed(current.RecvackLatency, previous.RecvackLatency) ||
+		coordinatorHistogramRegressed(current.SendPendingToWriteLatency, previous.SendPendingToWriteLatency) ||
+		coordinatorHistogramRegressed(current.SendWriteToAckLatency, previous.SendWriteToAckLatency)
 }
 
 func coordinatorHistogramRegressed(current, previous WorkerHistogramSnapshot) bool {
@@ -2634,6 +2728,8 @@ func aggregateCoordinatorSnapshots(
 		ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
 		LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
 		RecvackLatency:                newWorkerHistogramSnapshot(),
+		SendPendingToWriteLatency:     newWorkerHistogramSnapshot(),
+		SendWriteToAckLatency:         newWorkerHistogramSnapshot(),
 	}
 	for workerID, snapshot := range snapshots {
 		result.WorkerSequence[workerID] = snapshot.SnapshotSequence
@@ -2662,6 +2758,12 @@ func aggregateCoordinatorSnapshots(
 			return CoordinatorSnapshot{}, err
 		}
 		if err := addCoordinatorHistogram(&result.RecvackLatency, snapshot.RecvackLatency); err != nil {
+			return CoordinatorSnapshot{}, err
+		}
+		if err := addCoordinatorHistogram(&result.SendPendingToWriteLatency, snapshot.SendPendingToWriteLatency); err != nil {
+			return CoordinatorSnapshot{}, err
+		}
+		if err := addCoordinatorHistogram(&result.SendWriteToAckLatency, snapshot.SendWriteToAckLatency); err != nil {
 			return CoordinatorSnapshot{}, err
 		}
 		if err := addCoordinatorCorrelation(&result.Correlation, snapshot.Correlation); err != nil {

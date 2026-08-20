@@ -203,6 +203,7 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 	if err := validateBackupProposalSystemEntries(header.key, header.checkpoint.HW, header.systemEntries); err != nil {
 		return 0, err
 	}
+	db.registry.invalidateWarm(header.key)
 	entryIdentities, err := backupEntryIdentityMap(header.key, header.systemEntries)
 	if err != nil {
 		return 0, err

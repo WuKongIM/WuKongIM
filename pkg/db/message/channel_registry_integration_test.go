@@ -114,6 +114,9 @@ func TestChannelRegistryReclaimsOneHundredThousandDistinctChannels(t *testing.T)
 	}); got != want {
 		t.Fatalf("ChannelEntryMetricsSnapshot() = %+v, want %+v", got, want)
 	}
+	if got := len(store.db.registry.warmEntries); got != defaultChannelWarmCacheEntries {
+		t.Fatalf("warm entry count = %d, want bounded %d", got, defaultChannelWarmCacheEntries)
+	}
 }
 
 func TestChannelRegistryFirstCloseKeepsCanonicalEntry(t *testing.T) {

@@ -36,6 +36,10 @@ func TestCheckpointRecorderKeepsFormalQualificationAndFinalOnOneFence(t *testing
 	if len(qualification.Workers) != coordinatorWorkerCount {
 		t.Fatalf("worker generations = %+v", qualification.Workers)
 	}
+	if qualification.Latency.SendPendingToWrite.Count != 3_003 || qualification.Latency.SendWriteToACK.Count != 3_003 {
+		t.Fatalf("client SEND phase latency = pending-to-write:%+v write-to-ACK:%+v",
+			qualification.Latency.SendPendingToWrite, qualification.Latency.SendWriteToACK)
+	}
 	for workerID, worker := range qualification.Workers {
 		if worker.WorkerIndex != uint64(workerID) || worker.Generation != fence.Generation || worker.SnapshotSequence != 101 || worker.Phase != WorkerPhaseRunning {
 			t.Fatalf("qualification worker %d = %+v", workerID, worker)

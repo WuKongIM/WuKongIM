@@ -30,10 +30,31 @@ const (
 	batchLockRetryMinInterval           = 50 * time.Microsecond
 	batchLockRetryMaxInterval           = 2 * time.Millisecond
 
-	commitLaneLeaderAppend  = "leader_append"
-	commitLaneFollowerApply = "follower_apply"
-	commitLaneMessageAppend = "message_append"
+	commitLaneLeaderAppend      = "leader_append"
+	commitLaneReplicaForeground = "replica_foreground"
+	commitLaneReplicaTrailing   = "replica_trailing"
+	commitLaneFollowerApply     = "follower_apply"
+	commitLaneMessageAppend     = "message_append"
 )
+
+// AppendBatchClass distinguishes leader-critical, quorum-follower, and
+// post-quorum writes without changing their synchronous durability contract.
+type AppendBatchClass uint8
+
+const (
+	// AppendBatchClassLeaderQuorum is the default class and keeps leader-local
+	// durability ahead of redundant follower work.
+	AppendBatchClassLeaderQuorum AppendBatchClass = iota
+	// AppendBatchClassFollowerQuorum is a synchronous follower vote. It may
+	// share a physical commit with leader work but does not overtake it.
+	AppendBatchClassFollowerQuorum
+	// AppendBatchClassTrailing is post-quorum replica convergence.
+	AppendBatchClassTrailing
+)
+
+func (c AppendBatchClass) valid() bool {
+	return c == AppendBatchClassLeaderQuorum || c == AppendBatchClassFollowerQuorum || c == AppendBatchClassTrailing
+}
 
 // CommitCoordinatorConfig keeps the legacy channel-store tuning surface.
 type CommitCoordinatorConfig struct {
@@ -180,7 +201,11 @@ type AppendBatchItem struct {
 	Records []channel.Record
 	// Committed is the monotonic HW persisted atomically with an exact append.
 	Committed uint64
-	// ServerAllocatedMessageIDs skips only existing message-ID reads for this leader append.
+	// Class controls commit selection only; every class remains synchronous.
+	Class AppendBatchClass
+	// ServerAllocatedMessageIDs proves globally unique allocator-issued IDs. A
+	// fresh exact extension may also omit redundant future-key absence reads;
+	// replay, predecessor, and recovery validation remain durable.
 	ServerAllocatedMessageIDs bool
 	// ExactBaseOffset requires Records to occupy the range immediately after
 	// ExpectedBaseOffset. It also permits an exact durable replay of that range.
@@ -238,6 +263,9 @@ type CheckpointHWBatchResult struct {
 type batchOwnerGroup struct {
 	// owner is the only physical Engine whose locks a group may hold.
 	owner *Engine
+	// class keeps leader, quorum-follower, and trailing requests in distinct
+	// logical commit lanes while preserving one shared physical coordinator.
+	class AppendBatchClass
 	// indexes preserve the request order for items owned by owner.
 	indexes []int
 }
@@ -790,18 +818,28 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 			activeStores[item.Store] = struct{}{}
 		}
 	}
+	type batchOwnerClass struct {
+		owner *Engine
+		class AppendBatchClass
+	}
 	groups := make([]batchOwnerGroup, 0)
-	groupByOwner := make(map[*Engine]int)
+	groupByOwnerClass := make(map[batchOwnerClass]int)
 	for index, item := range items {
 		if results[index].Err != nil {
 			continue
 		}
+		if !item.Class.valid() {
+			results[index].Err = channel.ErrInvalidArgument
+			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
+			continue
+		}
 		owner := item.Store.engine
-		groupIndex, ok := groupByOwner[owner]
+		key := batchOwnerClass{owner: owner, class: item.Class}
+		groupIndex, ok := groupByOwnerClass[key]
 		if !ok {
 			groupIndex = len(groups)
-			groupByOwner[owner] = groupIndex
-			groups = append(groups, batchOwnerGroup{owner: owner})
+			groupByOwnerClass[key] = groupIndex
+			groups = append(groups, batchOwnerGroup{owner: owner, class: item.Class})
 		}
 		groups[groupIndex].indexes = append(groups[groupIndex].indexes, index)
 	}
@@ -816,12 +854,24 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 			}
 			continue
 		}
-		storeAppendBatchOwner(ctx, group.owner, items, group.indexes, results)
+		lane := commitLaneForAppendBatchClass(group.class)
+		storeAppendBatchOwner(ctx, group.owner, items, group.indexes, results, lane)
 	}
 	return results
 }
 
-func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBatchItem, indexes []int, results []AppendBatchResult) {
+func commitLaneForAppendBatchClass(class AppendBatchClass) string {
+	switch class {
+	case AppendBatchClassFollowerQuorum:
+		return commitLaneReplicaForeground
+	case AppendBatchClassTrailing:
+		return commitLaneReplicaTrailing
+	default:
+		return commitLaneLeaderAppend
+	}
+}
+
+func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBatchItem, indexes []int, results []AppendBatchResult, lane string) {
 	if err := ctxErr(ctx); err != nil {
 		for _, index := range indexes {
 			results[index].Err = err
@@ -1011,7 +1061,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		delete(locked, entry)
 	}
 	if len(preparedRows) > 0 {
-		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, commitLaneLeaderAppend)
+		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, lane)
 		commitOutcome := appendOutcomeForCommitResult(commitResult)
 		commitErr := toChannelError(commitResult.Err)
 		for _, pending := range pendingResults {
@@ -2113,21 +2163,33 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	if err := s.validateDurableProposalPredecessor(manifest); err != nil {
 		return preparedCommitRows{}, toChannelError(err)
 	}
-	byCommand, commandPresent, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, manifest.CommandID))
-	if err != nil {
-		return preparedCommitRows{}, toChannelError(err)
-	}
-	byLast, lastPresent, err := s.loadDurableProposal(encodeProposalByLastKey(s.log.key, manifest.LastOffset))
-	if err != nil {
-		return preparedCommitRows{}, toChannelError(err)
-	}
-	if commandPresent || lastPresent {
-		if !commandPresent || !lastPresent || !sameDurableProposal(byCommand, proposal) || !sameDurableProposal(byLast, proposal) {
-			return preparedCommitRows{}, channel.ErrCorruptState
+	sequencedFresh := mode == AppendServerAllocatedMessageID && expectedBaseOffset == base
+	commandPresent := false
+	if sequencedFresh {
+		// A current-frontier extension cannot have a durable last-offset or
+		// entry identity above LEO. Allocator-issued globally unique message IDs
+		// also make the content-derived command identity fresh. The predecessor
+		// remains durably verified above, while replay and recovery retain the
+		// complete paired-index validation below.
+		s.log.db.sequencedExactFreshAppends.Add(1)
+	} else {
+		byCommand, present, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, manifest.CommandID))
+		if err != nil {
+			return preparedCommitRows{}, toChannelError(err)
 		}
-	}
-	if err := s.validateDurableEntrySet(entries, commandPresent); err != nil {
-		return preparedCommitRows{}, toChannelError(err)
+		commandPresent = present
+		byLast, lastPresent, err := s.loadDurableProposal(encodeProposalByLastKey(s.log.key, manifest.LastOffset))
+		if err != nil {
+			return preparedCommitRows{}, toChannelError(err)
+		}
+		if commandPresent || lastPresent {
+			if !commandPresent || !lastPresent || !sameDurableProposal(byCommand, proposal) || !sameDurableProposal(byLast, proposal) {
+				return preparedCommitRows{}, channel.ErrCorruptState
+			}
+		}
+		if err := s.validateDurableEntrySet(entries, commandPresent); err != nil {
+			return preparedCommitRows{}, toChannelError(err)
+		}
 	}
 	if len(records) == 0 {
 		return preparedCommitRows{}, channel.ErrInvalidArgument
@@ -3051,7 +3113,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		})
 	}
 	request := commit.Request{
-		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commit.PriorityHigh},
+		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commitRowsPriority(lane)},
 		Partition: preparedRowsPartition(prepared, lane),
 		Records:   preparedRowsRecordCount(prepared),
 		Bytes:     preparedRowsBytes(prepared),
@@ -3120,6 +3182,15 @@ func commitRowsLaneName(lane string) string {
 		return commitLaneMessageAppend
 	}
 	return lane
+}
+
+func commitRowsPriority(lane string) commit.Priority {
+	switch lane {
+	case commitLaneFollowerApply, commitLaneReplicaForeground, commitLaneReplicaTrailing:
+		return commit.PriorityNormal
+	default:
+		return commit.PriorityHigh
+	}
 }
 
 func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) error {

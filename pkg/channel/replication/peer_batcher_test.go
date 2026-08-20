@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -72,8 +73,9 @@ func TestBatchingDurabilityDispatcherUsesOwnerContextForAcceptedLocalWrite(t *te
 func TestPeerBatcherCarriesRecordsAndCoalescesReadyWorkForOneTarget(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
+	observer := &recordingReplicationStageObserver{}
 	batcher, err := newPeerBatcher(peerBatcherConfig{
-		Link: link, Executor: executor,
+		Link: link, Executor: executor, Observer: observer,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
 		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
@@ -108,6 +110,12 @@ func TestPeerBatcherCarriesRecordsAndCoalescesReadyWorkForOneTarget(t *testing.T
 	if len(link.batches) != 1 {
 		t.Fatalf("Exchange calls = %d, want 1", len(link.batches))
 	}
+	stages := observer.snapshot()
+	for _, stage := range []string{"peer_foreground_queue", "peer_foreground_exchange", "peer_foreground_end_to_end"} {
+		if !hasReplicationStage(stages, stage, "ok") {
+			t.Fatalf("replication stages = %+v, want %s/ok", stages, stage)
+		}
+	}
 	batch := link.batches[0]
 	if batch.Version != ExchangeVersion || len(batch.Items) != 2 {
 		t.Fatalf("Exchange batch = %+v, want version %d with 2 items", batch, ExchangeVersion)
@@ -120,6 +128,142 @@ func TestPeerBatcherCarriesRecordsAndCoalescesReadyWorkForOneTarget(t *testing.T
 	}
 	if len(completions) != 2 || completions[0].Status != ReplicateDurable || completions[1].Status != ReplicateDurable {
 		t.Fatalf("completions = %+v, want two durable results", completions)
+	}
+}
+
+func TestPeerBatcherDefaultSchedulesSixteenIndependentQuorumFlightsPerTarget(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	link := &priorityPeerLink{
+		blockKey: "1:flight-0",
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 1, MaxBatchBytes: 4096,
+		MaxQueuedItems: 32, MaxQueuedBytes: 128 << 10,
+		MaxTargetQueuedItems: 16, MaxTargetQueuedBytes: 64 << 10,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+
+	submit := func(index int) {
+		t.Helper()
+		key := ch.ChannelKey(fmt.Sprintf("1:flight-%d", index))
+		request := testReplicateRequest(t, key, string(key), byte(index+1), []byte{byte(index + 1)})
+		if err := batcher.submit(context.Background(), 2, request, func(ReplicateResult, error) {}); err != nil {
+			t.Fatalf("submit(%s) error = %v", key, err)
+		}
+	}
+
+	submit(0)
+	firstDone := make(chan struct{})
+	go func() {
+		executor.RunNext()
+		close(firstDone)
+	}()
+	<-link.started
+	for index := 1; index < 16; index++ {
+		submit(index)
+	}
+	if got := executor.Len(); got != 15 {
+		close(link.release)
+		<-firstDone
+		t.Fatalf("additional follower quorum flights = %d, want 15 while the first independent Channel is blocked", got)
+	}
+
+	close(link.release)
+	<-firstDone
+	for executor.Len() > 0 {
+		executor.RunNext()
+	}
+}
+
+func TestPeerBatcherCoalescesDeferredReplicasOnlyAfterFlush(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	link := &recordingPeerLink{}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 4, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	for index, key := range []ch.ChannelKey{"1:deferred-a", "1:deferred-b"} {
+		request := testReplicateRequest(t, key, string(key), byte(index+1), []byte{byte(index + 1)})
+		if err := batcher.submitDeferred(context.Background(), 2, request, func(ReplicateResult, error) {}); err != nil {
+			t.Fatalf("submitDeferred(%s) error = %v", key, err)
+		}
+	}
+	if executor.Len() != 0 || len(link.batches) != 0 {
+		t.Fatalf("deferred work scheduled before flush: tasks=%d batches=%d", executor.Len(), len(link.batches))
+	}
+
+	if err := batcher.flushDeferred(); err != nil {
+		t.Fatalf("flushDeferred() error = %v", err)
+	}
+	if executor.Len() != 1 {
+		t.Fatalf("scheduled drains after flush = %d, want 1", executor.Len())
+	}
+	executor.RunNext()
+	if len(link.batches) != 1 || len(link.batches[0].Items) != 2 {
+		t.Fatalf("deferred exchange batches = %+v, want one two-item batch", link.batches)
+	}
+}
+
+func TestPeerBatcherUrgentReplicaOvertakesQueuedTrailingReplica(t *testing.T) {
+	executor := &manualPeerExecutor{}
+	link := &priorityPeerLink{
+		blockKey: "1:deferred-a",
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxTargetFlight: 2,
+		MaxBatchItems:   1, MaxBatchBytes: 4096,
+		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	for index, key := range []ch.ChannelKey{"1:deferred-a", "1:deferred-b"} {
+		request := testReplicateRequest(t, key, string(key), byte(index+1), []byte{byte(index + 1)})
+		if err := batcher.submitDeferred(context.Background(), 2, request, func(ReplicateResult, error) {}); err != nil {
+			t.Fatalf("submitDeferred(%s) error = %v", key, err)
+		}
+	}
+	if err := batcher.flushDeferred(); err != nil {
+		t.Fatalf("flushDeferred() error = %v", err)
+	}
+	backgroundDone := make(chan struct{})
+	go func() {
+		executor.RunNext()
+		close(backgroundDone)
+	}()
+	<-link.started
+
+	urgent := testReplicateRequest(t, "1:urgent", "urgent", 3, []byte("urgent"))
+	if err := batcher.submit(context.Background(), 2, urgent, func(ReplicateResult, error) {}); err != nil {
+		t.Fatalf("submit(urgent) error = %v", err)
+	}
+	if executor.Len() != 1 {
+		t.Fatalf("scheduled urgent drains = %d, want 1", executor.Len())
+	}
+	executor.RunNext()
+	if got := link.snapshot(); !reflect.DeepEqual(got, []ch.ChannelKey{"1:urgent"}) {
+		t.Fatalf("completed while first trailing exchange blocked = %v, want urgent only", got)
+	}
+
+	close(link.release)
+	<-backgroundDone
+	if got := link.snapshot(); !reflect.DeepEqual(got, []ch.ChannelKey{"1:urgent", "1:deferred-a", "1:deferred-b"}) {
+		t.Fatalf("final exchange order = %v, want urgent before queued trailing replicas", got)
 	}
 }
 
@@ -389,12 +533,14 @@ func TestDurableRoundOwnsOneImmutablePayloadCopyAcrossFollowers(t *testing.T) {
 		done <- err
 	}()
 	<-executor.submitted
-	<-executor.submitted
-	executor.RunNext()
 	executor.RunNext()
 	if err := <-done; err != nil {
 		t.Fatalf("runDurableRound() error = %v", err)
 	}
+	if err := batcher.flushDeferred(); err != nil {
+		t.Fatalf("flushDeferred() error = %v", err)
+	}
+	executor.RunNext()
 	if len(link.batches) != 2 {
 		t.Fatalf("peer batches = %d, want two follower targets", len(link.batches))
 	}
@@ -693,8 +839,12 @@ func TestDurableRoundRetainsFollowerNeedFromWithoutClassifyingGapAsConflict(t *t
 
 func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 2)}
+	request := testReplicateRequest(t, "1:trailing-gap", "trailing-gap", 1, []byte("payload"))
+	followers := []ch.NodeID{2, 3}
+	primary := followers[preferredFollowerIndex(request.ChannelKey, len(followers))]
+	trailing := followers[1-preferredFollowerIndex(request.ChannelKey, len(followers))]
 	batcher, err := newPeerBatcher(peerBatcherConfig{
-		Link: splitFollowerPeerLink{}, Executor: executor,
+		Link: splitFollowerPeerLink{durable: primary}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
 		MaxQueuedItems: 4, MaxQueuedBytes: 16384, MaxTargetQueuedItems: 1, MaxTargetQueuedBytes: 4096,
@@ -703,7 +853,6 @@ func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *tes
 		t.Fatalf("newPeerBatcher() error = %v", err)
 	}
 	repairs := &recordingFollowerRepairSink{}
-	request := testReplicateRequest(t, "1:trailing-gap", "trailing-gap", 1, []byte("payload"))
 	dispatcher := &batchingDurabilityDispatcher{
 		ownerContext: context.Background(), local: immediateLocalDurability{}, peers: batcher, repairs: repairs,
 	}
@@ -716,7 +865,6 @@ func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *tes
 		done <- err
 	}()
 	<-executor.submitted
-	<-executor.submitted
 	executor.RunNext()
 	if err := <-done; err != nil {
 		t.Fatalf("runDurableRound() error = %v", err)
@@ -725,10 +873,52 @@ func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *tes
 		t.Fatalf("repairs before trailing follower completion = %+v, want none", got)
 	}
 
+	if err := batcher.flushDeferred(); err != nil {
+		t.Fatalf("flushDeferred() error = %v", err)
+	}
+	<-executor.submitted
 	executor.RunNext()
 	got := repairs.snapshot()
-	if len(got) != 1 || got[0].follower != 3 || got[0].needFrom != 1 || got[0].channelKey != request.ChannelKey || got[0].manifest != request.Manifest {
-		t.Fatalf("trailing repairs = %+v, want exact follower 3 gap", got)
+	if len(got) != 1 || got[0].follower != trailing || got[0].needFrom != 1 || got[0].channelKey != request.ChannelKey || got[0].manifest != request.Manifest {
+		t.Fatalf("trailing repairs = %+v, want exact follower %d gap", got, trailing)
+	}
+}
+
+func TestHedgedFollowerFailureReachesOwnedRepairSinkAfterRoundCanReturn(t *testing.T) {
+	executor := &manualPeerExecutor{submitted: make(chan struct{}, 1)}
+	request := testReplicateRequest(t, "1:hedged-failure", "hedged-failure", 1, []byte("payload"))
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: panicPeerLink{}, Executor: executor,
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 1, MaxBatchBytes: 4096,
+		MaxQueuedItems: 2, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 1, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	repairs := &recordingFollowerRepairSink{}
+	dispatcher := &batchingDurabilityDispatcher{
+		ownerContext: context.Background(), local: immediateLocalDurability{}, peers: batcher, repairs: repairs,
+	}
+	completed := make(chan durabilityCompletion, 1)
+	proposal := durableProposal{
+		first: 1, last: 1, channelKey: request.ChannelKey, channelID: request.ChannelID,
+		leader: request.Leader, manifest: request.Manifest, records: request.Records,
+	}
+	if err := dispatcher.submitReplicaHedged(context.Background(), 2, proposal, func(completion durabilityCompletion) {
+		completed <- completion
+	}); err != nil {
+		t.Fatalf("submitReplicaHedged() error = %v", err)
+	}
+	<-executor.submitted
+	executor.RunNext()
+	completion := <-completed
+	if completion.outcome != ch.AppendOutcomeUnknown || completion.err == nil {
+		t.Fatalf("hedged completion = %+v, want owned unknown outcome", completion)
+	}
+	got := repairs.snapshot()
+	if len(got) != 1 || got[0].follower != 2 || got[0].needFrom != 1 || got[0].channelKey != request.ChannelKey || got[0].manifest != request.Manifest {
+		t.Fatalf("hedged repairs = %+v, want exact follower gap", got)
 	}
 }
 
@@ -774,23 +964,32 @@ func testReplicateRequest(t *testing.T, key ch.ChannelKey, channelID string, com
 }
 
 type manualPeerExecutor struct {
+	mu        sync.Mutex
 	tasks     []func()
 	submitted chan struct{}
 }
 
 func (e *manualPeerExecutor) Submit(task func()) error {
+	e.mu.Lock()
 	e.tasks = append(e.tasks, task)
+	e.mu.Unlock()
 	if e.submitted != nil {
 		e.submitted <- struct{}{}
 	}
 	return nil
 }
 
-func (e *manualPeerExecutor) Len() int { return len(e.tasks) }
+func (e *manualPeerExecutor) Len() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.tasks)
+}
 
 func (e *manualPeerExecutor) RunNext() {
+	e.mu.Lock()
 	task := e.tasks[0]
 	e.tasks = e.tasks[1:]
+	e.mu.Unlock()
 	task()
 }
 
@@ -817,7 +1016,40 @@ type panicPeerLink struct{}
 
 type needFromPeerLink struct{}
 
-type splitFollowerPeerLink struct{}
+type splitFollowerPeerLink struct {
+	durable ch.NodeID
+}
+
+type priorityPeerLink struct {
+	blockKey ch.ChannelKey
+	started  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+	mu       sync.Mutex
+	order    []ch.ChannelKey
+}
+
+func (l *priorityPeerLink) Exchange(ctx context.Context, _ ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
+	key := batch.Items[0].Replicate.ChannelKey
+	if key == l.blockKey {
+		l.once.Do(func() { close(l.started) })
+		select {
+		case <-ctx.Done():
+			return ExchangeBatchResult{}, ctx.Err()
+		case <-l.release:
+		}
+	}
+	l.mu.Lock()
+	l.order = append(l.order, key)
+	l.mu.Unlock()
+	return ExchangeBatchResult{Version: ExchangeVersion, Items: []ExchangeItemResult{durableExchangeResult(batch.Items[0])}}, nil
+}
+
+func (l *priorityPeerLink) snapshot() []ch.ChannelKey {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]ch.ChannelKey(nil), l.order...)
+}
 
 func (needFromPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
 	request := batch.Items[0].Replicate
@@ -827,8 +1059,8 @@ func (needFromPeerLink) Exchange(_ context.Context, _ ch.NodeID, batch ExchangeB
 	}}}, nil
 }
 
-func (splitFollowerPeerLink) Exchange(_ context.Context, node ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
-	if node == 2 {
+func (l splitFollowerPeerLink) Exchange(_ context.Context, node ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
+	if node == l.durable {
 		return ExchangeBatchResult{Version: ExchangeVersion, Items: []ExchangeItemResult{durableExchangeResult(batch.Items[0])}}, nil
 	}
 	return needFromPeerLink{}.Exchange(context.Background(), node, batch)

@@ -1498,6 +1498,148 @@ func TestTransportMetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {
 	}
 }
 
+func TestTransportMetricsObserverRejectsOlderAbsoluteQueueState(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := &transportMetricsObserver{metrics: reg}
+
+	observer.ObserveTransport(transport.Event{
+		Name:          "scheduler_queue",
+		SourceID:      101,
+		Priority:      transport.PriorityRPC,
+		Result:        "ok",
+		Revision:      2,
+		Capacity:      8,
+		BytesCapacity: 80,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name:          "scheduler_queue",
+		SourceID:      101,
+		Priority:      transport.PriorityRPC,
+		Result:        "ok",
+		Revision:      1,
+		Items:         5,
+		Capacity:      8,
+		Bytes:         50,
+		BytesCapacity: 80,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name:          "service_queue",
+		ServiceID:     7,
+		ServiceAlias:  "slot channel metadata",
+		Result:        "ok",
+		Revision:      4,
+		Capacity:      16,
+		BytesCapacity: 160,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "service_inflight", ServiceID: 7, ServiceAlias: "slot channel metadata",
+		Revision: 6, Inflight: 0, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "service_inflight", ServiceID: 7, ServiceAlias: "slot channel metadata",
+		Revision: 5, Inflight: 3, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "pending_rpc", SourceID: 101, Revision: 8, Inflight: 0,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "pending_rpc", SourceID: 101, Revision: 7, Inflight: 4,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "controller_raft_queue", Priority: transport.PriorityRaft,
+		Revision: 10, Items: 0, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "controller_raft_queue", Priority: transport.PriorityRaft,
+		Revision: 9, Items: 2, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name:          "service_queue",
+		ServiceID:     7,
+		ServiceAlias:  "slot channel metadata",
+		Result:        "ok",
+		Revision:      3,
+		Items:         2,
+		Capacity:      16,
+		Bytes:         20,
+		BytesCapacity: 160,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	queueDepth := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth")
+	for _, labels := range []map[string]string{
+		{"component": "transport", "pool": "scheduler", "queue": "scheduler", "priority": "rpc"},
+		{"component": "transport", "pool": "service", "queue": "slot channel metadata", "priority": "none"},
+		{"component": "transport", "pool": "controller_raft", "queue": "send", "priority": "raft"},
+	} {
+		if got := findAppMetricByLabels(t, queueDepth, labels).GetGauge().GetValue(); got != 0 {
+			t.Fatalf("transport queue depth for %v = %v, want latest physical zero", labels, got)
+		}
+	}
+	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
+	for _, labels := range []map[string]string{
+		{"component": "transport", "pool": "slot channel metadata"},
+		{"component": "transport", "pool": "rpc"},
+	} {
+		if got := findAppMetricByLabels(t, inflight, labels).GetGauge().GetValue(); got != 0 {
+			t.Fatalf("transport inflight for %v = %v, want latest physical zero", labels, got)
+		}
+	}
+}
+
+func TestTransportMetricsObserverDoesNotReportPeerConnectionsAsInflightWork(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := &transportMetricsObserver{metrics: reg}
+	observer.ObserveTransport(transport.Event{
+		Name: "pending_rpc", SourceID: 1, Inflight: 1,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "peer_pool", Result: "stats", Items: 28, Capacity: 32,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
+	peerInflightFound := false
+	for _, metric := range inflight.Metric {
+		var component, pool string
+		for _, label := range metric.Label {
+			switch label.GetName() {
+			case "component":
+				component = label.GetValue()
+			case "pool":
+				pool = label.GetValue()
+			}
+		}
+		if component == "transport" && pool == "peer_pool" {
+			peerInflightFound = true
+			if got := metric.GetGauge().GetValue(); got != 0 {
+				t.Fatalf("peer connections were published as inflight work: %v", got)
+			}
+		}
+	}
+	if !peerInflightFound {
+		t.Fatal("peer pool inflight series was not materialized at zero")
+	}
+	workers := requireAppMetricFamily(t, families, "wukongim_runtime_pool_workers")
+	if got := findAppMetricByLabels(t, workers, map[string]string{
+		"component": "transport", "pool": "peer_pool",
+	}).GetGauge().GetValue(); got != 32 {
+		t.Fatalf("peer pool capacity = %v, want 32", got)
+	}
+	connections := requireAppMetricFamily(t, families, "wukongim_transport_connections_pool_active")
+	if got := findAppMetricByLabels(t, connections, map[string]string{
+		"peer_node": "aggregate",
+	}).GetGauge().GetValue(); got != 28 {
+		t.Fatalf("peer pool connections = %v, want 28", got)
+	}
+}
+
 func TestObservabilityPresenceMetricsObserverMapsWorkerExpiryAndTouchFlush(t *testing.T) {
 	reg := obsmetrics.New(7, "node-7")
 	targetA := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 7, LeaderTerm: 3, ConfigEpoch: 4}

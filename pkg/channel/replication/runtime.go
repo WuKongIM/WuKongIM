@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultRuntimeBatchItems       = 64
+	defaultRuntimeBatchItems       = MaxExchangeBatchItems
 	defaultRuntimeBatchBytes       = 4 << 20
 	defaultRuntimeQueueItems       = 8192
 	defaultRuntimeQueueBytes       = 256 << 20
@@ -22,6 +22,8 @@ const (
 	defaultRuntimeTargetQueueBytes = 64 << 20
 	defaultRuntimeLocalWorkers     = 32
 	defaultRuntimePeerWorkers      = 32
+	defaultRuntimePeerTargetFlight = 16
+	defaultRuntimeTrailingFlush    = 100 * time.Millisecond
 	defaultRuntimeRepairWorkers    = 8
 	defaultRuntimeRepairShards     = 64
 	defaultRuntimeRepairQueue      = 64
@@ -36,17 +38,26 @@ type RuntimeConfig struct {
 	Store      ReplicaStore
 	Link       PeerLink
 	Goroutines *goruntimeregistry.Registry
+	// Observer receives low-cardinality latency stages for quorum diagnosis.
+	Observer StageObserver
 
-	LocalWorkers  int
-	PeerWorkers   int
-	RepairWorkers int
-	RepairShards  int
-	QueueItems    int
-	QueueBytes    int
-	TargetItems   int
-	TargetBytes   int
-	BatchItems    int
-	BatchBytes    int
+	LocalWorkers int
+	PeerWorkers  int
+	// PeerTargetFlight bounds concurrent follower exchanges for independent
+	// Channels to one target. The peer batcher reserves at most one flight for
+	// trailing convergence, leaving the remaining flight for quorum traffic.
+	PeerTargetFlight int
+	// TrailingFlushInterval bounds how long a non-quorum follower write waits
+	// for cross-channel batching before transport admission.
+	TrailingFlushInterval time.Duration
+	RepairWorkers         int
+	RepairShards          int
+	QueueItems            int
+	QueueBytes            int
+	TargetItems           int
+	TargetBytes           int
+	BatchItems            int
+	BatchBytes            int
 	// RecoveryPageBytes bounds donor payload independently from request envelope bytes.
 	RecoveryPageBytes int
 
@@ -71,6 +82,9 @@ type Runtime struct {
 	localPool  *workqueue.BoundedBatchPool[localDurabilityItem]
 	peerPool   *workqueue.BoundedPool[func()]
 	repairPool *workqueue.ShardedMailbox[followerRepair]
+	peers      *peerBatcher
+	// deferredFlushDone joins the one runtime-scoped trailing-follower timer.
+	deferredFlushDone chan struct{}
 
 	closeTimeout time.Duration
 	closed       atomic.Bool
@@ -79,14 +93,16 @@ type Runtime struct {
 }
 
 type localDurabilityItem struct {
-	proposal durableProposal
-	complete func(durabilityCompletion)
+	proposal    durableProposal
+	complete    func(durabilityCompletion)
+	submittedAt time.Time
 }
 
 type runtimeLocalDurability struct {
-	runtime *Runtime
-	store   ReplicaStore
-	timeout time.Duration
+	runtime  *Runtime
+	store    ReplicaStore
+	timeout  time.Duration
+	observer StageObserver
 }
 
 type runtimePeerExecutor struct {
@@ -114,14 +130,15 @@ type runtimeRepairOwner struct {
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	cfg = normalizeRuntimeConfig(cfg)
 	if cfg.LocalNode == 0 || cfg.Store == nil || cfg.Link == nil ||
-		cfg.LocalWorkers <= 0 || cfg.PeerWorkers <= 0 || cfg.RepairWorkers <= 0 || cfg.RepairShards <= 0 ||
+		cfg.LocalWorkers <= 0 || cfg.PeerWorkers <= 0 || cfg.PeerTargetFlight <= 0 || cfg.PeerTargetFlight > cfg.PeerWorkers ||
+		cfg.RepairWorkers <= 0 || cfg.RepairShards <= 0 ||
 		cfg.QueueItems < cfg.BatchItems || cfg.QueueBytes < cfg.BatchBytes ||
 		cfg.TargetItems < cfg.BatchItems || cfg.TargetItems > cfg.QueueItems-cfg.BatchItems ||
 		cfg.TargetBytes < cfg.BatchBytes || cfg.TargetBytes > cfg.QueueBytes-cfg.BatchBytes ||
 		cfg.BatchItems <= 0 || cfg.BatchItems > MaxExchangeBatchItems || cfg.BatchBytes <= 0 || cfg.BatchBytes > MaxExchangeBatchBytes ||
 		cfg.RecoveryPageBytes <= 0 || cfg.RecoveryPageBytes >= cfg.BatchBytes ||
 		cfg.ExchangeTimeout <= 0 || cfg.LocalTimeout <= 0 ||
-		cfg.RecoveryTimeout <= 0 || cfg.CloseTimeout <= 0 || cfg.MaxChannels <= 0 || cfg.MaxRetainedCommands <= 0 {
+		cfg.TrailingFlushInterval <= 0 || cfg.RecoveryTimeout <= 0 || cfg.CloseTimeout <= 0 || cfg.MaxChannels <= 0 || cfg.MaxRetainedCommands <= 0 {
 		return nil, ch.ErrInvalidConfig
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -140,10 +157,13 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}
 	runtime.peerPool = peerPool
 	executor := runtimePeerExecutor{pool: peerPool}
+	stageObserver := newSampledStageObserver(cfg.Observer, defaultRuntimeStageSampleEvery)
 	peers, err := newPeerBatcher(peerBatcherConfig{
-		Link: cfg.Link, Executor: executor, OwnerContext: ctx, ExchangeTimeout: cfg.ExchangeTimeout,
-		MaxBatchItems: cfg.BatchItems, MaxBatchBytes: cfg.BatchBytes,
-		MaxQueuedItems: cfg.QueueItems, MaxQueuedBytes: cfg.QueueBytes,
+		Link: cfg.Link, Executor: executor, OwnerContext: ctx, ExchangeTimeout: cfg.ExchangeTimeout, Observer: stageObserver,
+		MaxTargetFlight: cfg.PeerTargetFlight,
+		MaxBatchItems:   cfg.BatchItems,
+		MaxBatchBytes:   cfg.BatchBytes,
+		MaxQueuedItems:  cfg.QueueItems, MaxQueuedBytes: cfg.QueueBytes,
 		MaxTargetQueuedItems: cfg.TargetItems, MaxTargetQueuedBytes: cfg.TargetBytes,
 	})
 	if err != nil {
@@ -168,7 +188,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	repairs.pool = repairPool
 	runtime.repairPool = repairPool
 
-	local := &runtimeLocalDurability{runtime: runtime, store: cfg.Store, timeout: cfg.LocalTimeout}
+	local := &runtimeLocalDurability{runtime: runtime, store: cfg.Store, timeout: cfg.LocalTimeout, observer: stageObserver}
 	localPool, err := workqueue.NewBoundedBatchPool(workqueue.BoundedBatchPoolConfig[localDurabilityItem]{
 		Name: "channel_quorum_local", Goroutines: cfg.Goroutines, Task: goruntimeregistry.TaskChannelQuorumOwner,
 		Workers: cfg.LocalWorkers, QueueSize: cfg.QueueItems, ReleaseTimeout: cfg.CloseTimeout,
@@ -208,7 +228,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		return nil, err
 	}
 	server, err := NewExchangeServer(ExchangeServerConfig{
-		LocalNode: cfg.LocalNode, Store: cfg.Store, MaxBatchItems: cfg.BatchItems, MaxBatchBytes: cfg.BatchBytes,
+		LocalNode: cfg.LocalNode, Store: cfg.Store, Observer: stageObserver, MaxBatchItems: cfg.BatchItems, MaxBatchBytes: cfg.BatchBytes,
 	})
 	if err != nil {
 		cancel()
@@ -219,6 +239,12 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}
 	runtime.log = log
 	runtime.server = server
+	runtime.peers = peers
+	runtime.deferredFlushDone = make(chan struct{})
+	goruntimeregistry.SafeGo(cfg.Goroutines, goruntimeregistry.TaskChannelQuorumOwner, func() {
+		defer close(runtime.deferredFlushDone)
+		peers.runDeferredFlusher(cfg.TrailingFlushInterval)
+	})
 	return runtime, nil
 }
 
@@ -231,6 +257,12 @@ func normalizeRuntimeConfig(cfg RuntimeConfig) RuntimeConfig {
 	}
 	if cfg.PeerWorkers == 0 {
 		cfg.PeerWorkers = defaultRuntimePeerWorkers
+	}
+	if cfg.PeerTargetFlight == 0 {
+		cfg.PeerTargetFlight = defaultRuntimePeerTargetFlight
+	}
+	if cfg.TrailingFlushInterval == 0 {
+		cfg.TrailingFlushInterval = defaultRuntimeTrailingFlush
 	}
 	if cfg.RepairWorkers == 0 {
 		cfg.RepairWorkers = defaultRuntimeRepairWorkers
@@ -306,8 +338,18 @@ func (r *Runtime) Close(ctx context.Context) error {
 	}
 	r.closeOnce.Do(func() {
 		r.closed.Store(true)
+		if r.peers != nil {
+			_ = r.peers.flushDeferred()
+		}
 		r.cancel()
 		var errs []error
+		if r.deferredFlushDone != nil {
+			select {
+			case <-r.deferredFlushDone:
+			case <-ctx.Done():
+				errs = append(errs, ctx.Err())
+			}
+		}
 		if err := r.repairPool.Close(ctx); err != nil {
 			errs = append(errs, err)
 		}
@@ -329,21 +371,43 @@ func (l *runtimeLocalDurability) submitLocal(ctx context.Context, proposal durab
 	if l.runtime.closed.Load() {
 		return ch.ErrClosed
 	}
-	return l.runtime.localPool.Submit(ctx, localDurabilityItem{proposal: proposal.freeze(), complete: complete})
+	return l.runtime.localPool.Submit(ctx, localDurabilityItem{proposal: proposal.freeze(), complete: complete, submittedAt: time.Now()})
 }
 
 func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabilityItem) error {
+	batchStartedAt := time.Now()
+	for _, item := range items {
+		observeReplicationStage(l.observer, stageQuorumLocalQueue, nil, batchStartedAt.Sub(item.submittedAt))
+	}
 	mutations := make([]Mutation, len(items))
 	for index, item := range items {
 		proposal := item.proposal
 		mutations[index] = Mutation{
 			ChannelKey: proposal.channelKey, ChannelID: proposal.channelID,
-			Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed,
+			Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed, Class: MutationClassLeaderQuorum,
+			ServerAllocatedMessageIDs: proposal.serverAllocatedMessageIDs,
 		}
 	}
 	ctx, cancel := context.WithTimeout(l.runtime.ctx, l.timeout)
+	storeStartedAt := time.Now()
 	results := l.store.Sync(ctx, mutations)
 	cancel()
+	var storeErr error
+	if len(results) != len(items) {
+		storeErr = errInvalidExchangeResult
+	} else {
+		for index, result := range results {
+			if result.Err != nil {
+				storeErr = result.Err
+				break
+			}
+			if !validLocalDurabilityResult(items[index].proposal, result) {
+				storeErr = errInvalidExchangeResult
+				break
+			}
+		}
+	}
+	observeReplicationStage(l.observer, stageQuorumLocalStore, storeErr, time.Since(storeStartedAt))
 	if len(results) != len(items) {
 		for _, item := range items {
 			item.complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errInvalidExchangeResult})
@@ -356,6 +420,7 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 		if !validLocalDurabilityResult(item.proposal, result) {
 			completion = durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errInvalidExchangeResult}
 		}
+		observeReplicationStage(l.observer, stageQuorumLocalEndToEnd, completion.err, time.Since(item.submittedAt))
 		item.complete(completion)
 	}
 	return nil

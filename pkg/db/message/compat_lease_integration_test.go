@@ -61,6 +61,81 @@ func TestEngineReacquireRestoresDurableLEO(t *testing.T) {
 	}
 }
 
+func TestEngineReacquireRestoresBoundedWarmAppendState(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "compat-warm", Type: 1}
+	first := mustForChannel(t, eng, "compat-warm:1", id)
+	if _, err := first.Append([]channel.Record{compatTestRecord(t, 9051, id.ID, "first")}); err != nil {
+		t.Fatalf("first Append(): %v", err)
+	}
+	firstEntry := first.log.channelEntry
+	if !firstEntry.loaded.Load() || !firstEntry.idempotencyMembershipLoaded {
+		t.Fatalf("first append state = loaded %v idempotency %v, want both true", firstEntry.loaded.Load(), firstEntry.idempotencyMembershipLoaded)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("first Close(): %v", err)
+	}
+
+	second := mustForChannel(t, eng, "compat-warm:1", id)
+	defer second.Close()
+	if second.log.channelEntry == firstEntry {
+		t.Fatal("reacquire reused the detached canonical entry")
+	}
+	if !second.log.loaded.Load() || second.log.leo.Load() != 1 || !second.log.idempotencyMembershipLoaded {
+		t.Fatalf("warm append state = loaded %v leo %d idempotency %v, want true 1 true",
+			second.log.loaded.Load(), second.log.leo.Load(), second.log.idempotencyMembershipLoaded)
+	}
+	if _, err := second.Append([]channel.Record{compatTestRecord(t, 9052, id.ID, "second")}); err != nil {
+		t.Fatalf("second Append(): %v", err)
+	}
+}
+
+func TestExactServerAllocatedAppendUsesFreshValidationAfterReacquire(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "exact-warm", Type: 1}
+	key := channel.ChannelKey("exact-warm:1")
+	first := mustForChannel(t, eng, key, id)
+	firstRecord := compatExactTestRecord(t, 5, 9061, id.ID, "first")
+	firstManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	firstResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: first, Records: []channel.Record{firstRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 0, Proposal: firstManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(firstResult) != 1 || firstResult[0].Err != nil {
+		t.Fatalf("first StoreAppendBatch() = %+v, want success", firstResult)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("first Close(): %v", err)
+	}
+
+	second := mustForChannel(t, eng, key, id)
+	defer second.Close()
+	if !second.log.loaded.Load() || second.log.leo.Load() != 1 || !second.log.idempotencyMembershipLoaded {
+		t.Fatalf("reacquired warm state = loaded %v leo %d idempotency %v, want true 1 true",
+			second.log.loaded.Load(), second.log.leo.Load(), second.log.idempotencyMembershipLoaded)
+	}
+	before := eng.db.sequencedExactFreshAppends.Load()
+	secondRecord := compatExactTestRecord(t, 5, 9062, id.ID, "second")
+	secondManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{2}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: firstManifest.Digest,
+	}, []channel.Record{secondRecord})
+	secondResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: second, Records: []channel.Record{secondRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 1, Proposal: secondManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(secondResult) != 1 || secondResult[0].Err != nil {
+		t.Fatalf("second StoreAppendBatch() = %+v, want success", secondResult)
+	}
+	if got := eng.db.sequencedExactFreshAppends.Load(); got != before+1 {
+		t.Fatalf("sequenced exact fresh appends = %d, want %d", got, before+1)
+	}
+}
+
 func TestEngineReadDoesNotPopulateRegistry(t *testing.T) {
 	eng := openCompatEngine(t)
 	id := channel.ChannelID{ID: "compat-raw", Type: 1}

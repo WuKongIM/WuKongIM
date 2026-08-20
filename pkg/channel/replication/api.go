@@ -33,6 +33,8 @@ type Proposal struct {
 	Expected  AuthorityID
 	CommandID ch.CommandID
 	Records   []ch.Record
+	// ServerAllocatedMessageIDs proves every record ID came from the node-scoped allocator.
+	ServerAllocatedMessageIDs bool
 }
 
 // Receipt proves that one exact proposal is durable on the local leader and

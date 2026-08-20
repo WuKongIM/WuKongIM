@@ -309,6 +309,35 @@ func TestStorageMetricsSummaryFailsClosedOnMissingOrResetCounters(t *testing.T) 
 		}
 	})
 
+	for _, lane := range []string{"replica_foreground", "replica_trailing"} {
+		t.Run("recognized "+lane+" request lane", func(t *testing.T) {
+			dir := t.TempDir()
+			beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+			writeStorageMetricsFixture(t, beforePath, base)
+			writeStorageMetricsFixture(t, afterPath, after)
+			for _, path := range []string{beforePath, afterPath} {
+				body := strings.ReplaceAll(readFile(t, path), `lane="leader_append"`, `lane="`+lane+`"`)
+				if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := strings.Split(strings.TrimSpace(string(output)), "\t")
+			if fields[2] != "complete" {
+				t.Fatalf("%s lane evidence = %q, want complete", lane, output)
+			}
+			if fields[25] != "0" || fields[29] != "0" {
+				t.Fatalf("%s lane leader/message counts = %s/%s, want 0/0", lane, fields[25], fields[29])
+			}
+			if fields[27] == "0" {
+				t.Fatalf("%s lane follower count = %s, want nonzero", lane, fields[27])
+			}
+		})
+	}
+
 	t.Run("counter reset", func(t *testing.T) {
 		dir := t.TempDir()
 		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")

@@ -87,6 +87,7 @@ type WorkerGrantFailureEvent struct {
 	WorkerID    uint64             `json:"worker_id"`
 	Sequence    uint64             `json:"sequence"`
 	RuntimeCode RuntimeFailureCode `json:"runtime_code,omitempty"`
+	Cause       string             `json:"cause"`
 }
 
 // WorkerServer hosts only the authenticated chat-lifecycle worker protocol.
@@ -682,7 +683,7 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 			if reporter != nil {
 				reporter(WorkerGrantFailureEvent{
 					Event: "wkbench.chat_lifecycle.worker_grant_failure", WorkerID: workerID,
-					Sequence: grant.Sequence, RuntimeCode: runtimeCode,
+					Sequence: grant.Sequence, RuntimeCode: runtimeCode, Cause: workerGrantFailureCause(grantErr),
 				})
 			}
 			if request.Context().Err() != nil {
@@ -1052,6 +1053,30 @@ func workerRuntimeFailureCode(err error) RuntimeFailureCode {
 		return runtimeErr.Code()
 	}
 	return ""
+}
+
+// workerGrantFailureCause projects private errors into a fixed diagnostic
+// vocabulary. Raw errors can contain transient transport or identity data and
+// must never cross the retained worker log boundary.
+func workerGrantFailureCause(err error) string {
+	switch {
+	case err == nil:
+		return "none"
+	case workerRuntimeFailureCode(err) != "":
+		return "runtime"
+	case errors.Is(err, errSessionOffline):
+		return "session_offline"
+	case errors.Is(err, errEngineConfig), errors.Is(err, errTrafficGeneratorConfig):
+		return "invariant"
+	case errors.Is(err, errEngineNotRunning):
+		return "generation_stopped"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	default:
+		return "unclassified"
+	}
 }
 
 func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
@@ -1611,6 +1636,8 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		ColdFirstCreateSendackLatency: verification.ColdFirstCreateSendackLatency,
 		LifecycleReheatSendackLatency: verification.LifecycleReheatSendackLatency,
 		RecvackLatency:                verification.RecvackLatency,
+		SendPendingToWriteLatency:     engine.SendPendingToWriteLatency,
+		SendWriteToAckLatency:         engine.SendWriteToAckLatency,
 		Correlation: WorkerCorrelationSnapshot{
 			PendingUnfinished: verification.PendingUnfinished, Outstanding: verification.CorrelationCurrent,
 			Sampled: verification.Sampled, Delivered: verification.SampledDelivered, Expired: verification.SampledExpired,

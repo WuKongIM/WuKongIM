@@ -47,7 +47,7 @@ type TraceIDGenerator func() string
 
 // MessageUsecase is the batch SEND entry used by the gateway adapter.
 type MessageUsecase interface {
-	SendBatch([]message.SendBatchItem) []message.SendBatchItemResult
+	SendBatchEach([]message.SendBatchItem, func(int, message.SendBatchItemResult) error) error
 }
 
 // PresenceUsecase is the session lifecycle entry used by the gateway adapter.
@@ -432,20 +432,32 @@ func (h *Handler) sendBatchOne(item message.SendBatchItem) (message.SendResult, 
 		}
 		return result, sendackSourceSingleResult, sendackErrorClassOther, nil
 	}
-	results := h.messages.SendBatch([]message.SendBatchItem{item})
+	var resultItem message.SendBatchItemResult
+	emitted := 0
+	err := h.messages.SendBatchEach([]message.SendBatchItem{item}, func(index int, result message.SendBatchItemResult) error {
+		if index != 0 || emitted != 0 {
+			return ErrSendBatchResultCountMismatch
+		}
+		resultItem = result
+		emitted++
+		return nil
+	})
 	duration := time.Duration(0)
 	if cmd.TraceID != "" {
 		duration = sendtraceElapsedSince(startedAt)
 	}
-	if len(results) != 1 {
-		h.logSendBatchResultCountMismatch(1, 1, len(results))
+	if err != nil {
+		return message.SendResult{}, "", "", err
+	}
+	if emitted != 1 {
+		h.logSendBatchResultCountMismatch(1, 1, emitted)
 		return message.SendResult{}, "", "", ErrSendBatchResultCountMismatch
 	}
-	result := results[0].Result
-	if results[0].Err != nil {
-		result.Reason = reasonForError(results[0].Err)
-		class := sendackErrorClassForError(results[0].Err)
-		h.logSendFailure(cmd, sendackSourceSingleError, class, results[0].Err)
+	result := resultItem.Result
+	if resultItem.Err != nil {
+		result.Reason = reasonForError(resultItem.Err)
+		class := sendackErrorClassForError(resultItem.Err)
+		h.logSendFailure(cmd, sendackSourceSingleError, class, resultItem.Err)
 		if cmd.TraceID != "" {
 			recordGatewayMessagesSend(cmd, result, class, duration)
 		}

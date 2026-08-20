@@ -25,15 +25,18 @@ type peerExecutor interface {
 type peerBatcherConfig struct {
 	Link     PeerLink
 	Executor peerExecutor
+	Observer StageObserver
 	// OwnerContext and ExchangeTimeout bound accepted work independently from
 	// the caller that submitted it.
 	OwnerContext    context.Context
 	ExchangeTimeout time.Duration
 
-	MaxBatchItems  int
-	MaxBatchBytes  int
-	MaxQueuedItems int
-	MaxQueuedBytes int
+	MaxBatchItems int
+	MaxBatchBytes int
+	// MaxTargetFlight bounds concurrent batches to one target. Channel keys remain serialized.
+	MaxTargetFlight int
+	MaxQueuedItems  int
+	MaxQueuedBytes  int
 	// Per-target bounds prevent one unavailable follower from consuming the
 	// entire global ownership budget.
 	MaxTargetQueuedItems int
@@ -51,10 +54,28 @@ type peerBatcher struct {
 }
 
 type peerTargetQueue struct {
-	queued     []queuedPeerItem
-	scheduled  bool
-	ownedItems int
-	ownedBytes int
+	urgent            []queuedPeerItem
+	deferred          []queuedPeerItem
+	background        []queuedPeerItem
+	urgentWorkers     int
+	backgroundWorkers int
+	inflight          map[ch.ChannelKey]struct{}
+	ownedItems        int
+	ownedBytes        int
+}
+
+type peerWorkClass uint8
+
+const (
+	peerWorkUrgent peerWorkClass = iota + 1
+	peerWorkBackground
+)
+
+func (q *peerTargetQueue) workerCount() int {
+	if q == nil {
+		return 0
+	}
+	return q.urgentWorkers + q.backgroundWorkers
 }
 
 type queuedPeerItem struct {
@@ -67,6 +88,7 @@ type queuedPeerItem struct {
 	completeReplicate func(ReplicateResult, error)
 	completeProbe     func(ProbeResult, error)
 	completeFetch     func(FetchResult, error)
+	queuedAt          time.Time
 }
 
 func (i queuedPeerItem) channelKey() ch.ChannelKey {
@@ -89,7 +111,11 @@ type peerExchangeResult struct {
 }
 
 func newPeerBatcher(cfg peerBatcherConfig) (*peerBatcher, error) {
+	if cfg.MaxTargetFlight == 0 {
+		cfg.MaxTargetFlight = defaultRuntimePeerTargetFlight
+	}
 	if cfg.Link == nil || cfg.Executor == nil || cfg.OwnerContext == nil || cfg.OwnerContext.Err() != nil || cfg.ExchangeTimeout <= 0 ||
+		cfg.MaxTargetFlight <= 0 ||
 		cfg.MaxBatchItems <= 0 || cfg.MaxBatchBytes <= 0 ||
 		cfg.MaxQueuedItems < cfg.MaxBatchItems || cfg.MaxQueuedBytes < cfg.MaxBatchBytes ||
 		cfg.MaxTargetQueuedItems < cfg.MaxBatchItems || cfg.MaxTargetQueuedItems > cfg.MaxQueuedItems-cfg.MaxBatchItems ||
@@ -109,7 +135,20 @@ func (b *peerBatcher) submit(ctx context.Context, node ch.NodeID, request Replic
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeReplicate, replicate: request,
 		bytes: estimateReplicateRequestBytes(request), completeReplicate: complete,
-	})
+	}, false)
+}
+
+// submitDeferred admits one trailing follower write without immediately
+// scheduling transport. The runtime's single bounded flusher promotes all
+// accepted trailing writes as one batching wave.
+func (b *peerBatcher) submitDeferred(ctx context.Context, node ch.NodeID, request ReplicateRequest, complete func(ReplicateResult, error)) error {
+	if b == nil || ctx == nil || node == 0 || complete == nil || !request.Valid() || request.Follower != node {
+		return ch.ErrInvalidConfig
+	}
+	return b.enqueue(ctx, node, queuedPeerItem{
+		kind: ExchangeReplicate, replicate: request,
+		bytes: estimateReplicateRequestBytes(request), completeReplicate: complete,
+	}, true)
 }
 
 // submitProbe admits one immutable read-only recovery probe under the same
@@ -122,7 +161,7 @@ func (b *peerBatcher) submitProbe(ctx context.Context, node ch.NodeID, request P
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeProbe, probe: request,
 		bytes: estimateProbeRequestBytes(request), completeProbe: complete,
-	})
+	}, false)
 }
 
 // submitFetch admits one immutable recovery donor read under the same bounded
@@ -134,10 +173,10 @@ func (b *peerBatcher) submitFetch(ctx context.Context, node ch.NodeID, request F
 	return b.enqueue(ctx, node, queuedPeerItem{
 		kind: ExchangeFetch, fetch: request,
 		bytes: estimateFetchRequestBytes(request), completeFetch: complete,
-	})
+	}, false)
 }
 
-func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPeerItem) error {
+func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPeerItem, deferred bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -166,22 +205,28 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 		return ch.ErrBackpressured
 	}
 	item.requestID = b.nextID.Add(1)
-	target.queued = append(target.queued, item)
+	item.queuedAt = time.Now()
+	if deferred {
+		target.deferred = append(target.deferred, item)
+	} else {
+		target.urgent = append(target.urgent, item)
+	}
 	target.ownedItems++
 	target.ownedBytes += item.bytes
 	b.ownedItems++
 	b.ownedBytes += item.bytes
-	if target.scheduled {
+	if deferred {
 		return nil
 	}
-	target.scheduled = true
-	if err := b.cfg.Executor.Submit(func() { b.drainTarget(node) }); err != nil {
-		target.queued = target.queued[:len(target.queued)-1]
+	if err := b.ensureTargetWorkersLocked(node, target); err != nil {
+		if target.urgentWorkers > 0 {
+			return nil
+		}
+		target.urgent = target.urgent[:len(target.urgent)-1]
 		target.ownedItems--
 		target.ownedBytes -= item.bytes
 		b.ownedItems--
 		b.ownedBytes -= item.bytes
-		target.scheduled = false
 		if target.ownedItems == 0 {
 			delete(b.targets, node)
 		}
@@ -190,15 +235,125 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 	return nil
 }
 
-func (b *peerBatcher) drainTarget(node ch.NodeID) {
+// flushDeferred promotes every accepted trailing write and schedules bounded
+// per-target owners. A scheduling failure leaves promoted work owned so a
+// later flush can retry without losing callbacks.
+func (b *peerBatcher) flushDeferred() error {
+	if b == nil {
+		return ch.ErrInvalidConfig
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.cfg.OwnerContext.Err() != nil {
+		return ch.ErrClosed
+	}
+	var flushErr error
+	for node, target := range b.targets {
+		if len(target.deferred) > 0 {
+			target.background = append(target.background, target.deferred...)
+			target.deferred = target.deferred[:0]
+		}
+		if err := b.ensureTargetWorkersLocked(node, target); err != nil {
+			flushErr = errors.Join(flushErr, err)
+		}
+	}
+	return flushErr
+}
+
+func (b *peerBatcher) runDeferredFlusher(interval time.Duration) {
+	if b == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
-		items := b.takeBatch(node)
+		select {
+		case <-b.cfg.OwnerContext.Done():
+			return
+		case <-ticker.C:
+			_ = b.flushDeferred()
+		}
+	}
+}
+
+func (b *peerBatcher) scheduleTargetLocked(node ch.NodeID, target *peerTargetQueue, class peerWorkClass) error {
+	if target == nil || target.workerCount() >= b.cfg.MaxTargetFlight {
+		return nil
+	}
+	if err := b.cfg.Executor.Submit(func() { b.drainTarget(node, class) }); err != nil {
+		return err
+	}
+	switch class {
+	case peerWorkUrgent:
+		target.urgentWorkers++
+	case peerWorkBackground:
+		target.backgroundWorkers++
+	}
+	return nil
+}
+
+// ensureTargetWorkersLocked reserves one target flight for flushed trailing
+// replicas while keeping every remaining flight available to quorum, probe,
+// and recovery traffic. It must be called with b.mu held.
+func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTargetQueue) error {
+	if target == nil {
+		return nil
+	}
+	var scheduleErr error
+	urgentWasScheduled := target.urgentWorkers > 0
+	if len(target.urgent) > 0 && target.urgentWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
+		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
+			scheduleErr = errors.Join(scheduleErr, err)
+		}
+	}
+	if b.cfg.MaxTargetFlight > 1 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
+		if err := b.scheduleTargetLocked(node, target, peerWorkBackground); err != nil {
+			scheduleErr = errors.Join(scheduleErr, err)
+		}
+	}
+	if b.cfg.MaxTargetFlight == 1 && len(target.urgent) == 0 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() == 0 {
+		if err := b.scheduleTargetLocked(node, target, peerWorkBackground); err != nil {
+			scheduleErr = errors.Join(scheduleErr, err)
+		}
+	}
+	urgentLimit := b.cfg.MaxTargetFlight
+	if target.backgroundWorkers > 0 || len(target.background) > 0 {
+		urgentLimit--
+	}
+	if urgentWasScheduled && len(target.urgent) > 0 && len(target.inflight) > 0 &&
+		target.urgentWorkers < urgentLimit && target.workerCount() < b.cfg.MaxTargetFlight {
+		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
+			scheduleErr = errors.Join(scheduleErr, err)
+		}
+	}
+	return scheduleErr
+}
+
+func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
+	defer b.finishTargetWorker(node, class)
+	for {
+		items := b.takeBatch(node, class)
 		if len(items) == 0 {
 			return
 		}
-		results, errs := b.exchange(node, items)
+		queueStage, exchangeStage, endToEndStage := peerStageNames(class)
+		exchangeStarted := time.Now()
+		for index := range items {
+			observeReplicationStage(b.cfg.Observer, queueStage, nil, exchangeStarted.Sub(items[index].queuedAt))
+		}
+		results, errs := b.exchange(node, class, items)
+		exchangeFinished := time.Now()
+		var exchangeErr error
+		for index := range errs {
+			if errs[index] != nil {
+				exchangeErr = errs[index]
+				break
+			}
+		}
+		observeReplicationStage(b.cfg.Observer, exchangeStage, exchangeErr, exchangeFinished.Sub(exchangeStarted))
 		b.release(node, items)
 		for index := range items {
+			observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
 			switch items[index].kind {
 			case ExchangeReplicate:
 				items[index].completeReplicate(results[index].replicate, errs[index])
@@ -211,31 +366,63 @@ func (b *peerBatcher) drainTarget(node ch.NodeID) {
 	}
 }
 
-func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedPeerItem {
+func (b *peerBatcher) finishTargetWorker(node ch.NodeID, class peerWorkClass) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]
-	if target == nil || len(target.queued) == 0 {
-		if target != nil {
-			target.scheduled = false
-			if target.ownedItems == 0 {
-				delete(b.targets, node)
-			}
+	if target == nil {
+		return
+	}
+	switch class {
+	case peerWorkUrgent:
+		if target.urgentWorkers > 0 {
+			target.urgentWorkers--
 		}
+	case peerWorkBackground:
+		if target.backgroundWorkers > 0 {
+			target.backgroundWorkers--
+		}
+	}
+	_ = b.ensureTargetWorkersLocked(node, target)
+	if target.workerCount() == 0 && target.ownedItems == 0 {
+		delete(b.targets, node)
+	}
+}
+
+func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) []queuedPeerItem {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	target := b.targets[node]
+	if target == nil {
 		return nil
 	}
-	kind := target.queued[0].kind
-	items := make([]queuedPeerItem, 0, min(len(target.queued), b.cfg.MaxBatchItems))
-	remaining := target.queued[:0]
+	queue := target.urgent
+	if class == peerWorkBackground {
+		queue = target.background
+	}
+	if len(queue) == 0 {
+		return nil
+	}
+	kind := queue[0].kind
+	items := make([]queuedPeerItem, 0, min(len(queue), b.cfg.MaxBatchItems))
+	remaining := queue[:0]
 	batchBytes := 0
 	var blockedChannels map[ch.ChannelKey]struct{}
-	for index := range target.queued {
-		item := target.queued[index]
+	for index := range queue {
+		item := queue[index]
+		channelKey := item.channelKey()
+		if _, busy := target.inflight[channelKey]; busy {
+			if blockedChannels == nil {
+				blockedChannels = make(map[ch.ChannelKey]struct{})
+			}
+			blockedChannels[channelKey] = struct{}{}
+			remaining = append(remaining, item)
+			continue
+		}
 		if len(items) >= b.cfg.MaxBatchItems {
 			remaining = append(remaining, item)
 			continue
 		}
-		channelKey := item.channelKey()
 		if item.kind != kind {
 			if blockedChannels == nil {
 				blockedChannels = make(map[ch.ChannelKey]struct{})
@@ -258,15 +445,27 @@ func (b *peerBatcher) takeBatch(node ch.NodeID) []queuedPeerItem {
 		}
 		batchBytes += item.bytes
 		items = append(items, item)
+		if target.inflight == nil {
+			target.inflight = make(map[ch.ChannelKey]struct{})
+		}
+		target.inflight[channelKey] = struct{}{}
 	}
-	target.queued = remaining
+	if class == peerWorkBackground {
+		target.background = remaining
+	} else {
+		target.urgent = remaining
+	}
 	return items
 }
 
-func (b *peerBatcher) exchange(node ch.NodeID, items []queuedPeerItem) ([]peerExchangeResult, []error) {
+func (b *peerBatcher) exchange(node ch.NodeID, class peerWorkClass, items []queuedPeerItem) ([]peerExchangeResult, []error) {
 	results := make([]peerExchangeResult, len(items))
 	errs := make([]error, len(items))
-	batch := ExchangeBatch{Version: ExchangeVersion, Items: make([]ExchangeItem, len(items))}
+	priority := ExchangePriorityForeground
+	if class == peerWorkBackground {
+		priority = ExchangePriorityBackground
+	}
+	batch := ExchangeBatch{Version: ExchangeVersion, Priority: priority, Items: make([]ExchangeItem, len(items))}
 	for index, item := range items {
 		switch item.kind {
 		case ExchangeReplicate:
@@ -391,6 +590,7 @@ func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
 		return
 	}
 	for _, item := range items {
+		delete(target.inflight, item.channelKey())
 		target.ownedItems--
 		target.ownedBytes -= item.bytes
 		b.ownedItems--

@@ -76,6 +76,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		batch.commandID = appendProposalCommandID(rc.state.Key, batch.authority, batch.records)
 		submitErr = r.submitQuorumCommit(context.Background(), batch.fence, replication.Proposal{
 			Key: rc.state.Key, Expected: batch.authority, CommandID: batch.commandID, Records: batch.records,
+			ServerAllocatedMessageIDs: task.StoreAppend.ServerAllocatedMessageIDs,
 		})
 	} else {
 		submitErr = r.submitStoreAppend(context.Background(), batch.requests[0].req.ChannelID, task)

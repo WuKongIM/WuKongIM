@@ -10,7 +10,7 @@ import (
 var channelRuntimeAppendBatchRecordBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 var channelRuntimeWaiterBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 var channelRuntimeAppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 524288, 1048576, 4194304}
-var channelRuntimeDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+var channelRuntimeDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1, 2.5}
 var channelRuntimeISRAnomalyReasons = []string{"isr_insufficient", "no_leader", "replica_gap"}
 var channelRuntimeMetaCreateResults = []string{"created", "already_existing", "error"}
 var channelRuntimeMetaCreateBatchResults = []string{"ok", "recovered", "error"}

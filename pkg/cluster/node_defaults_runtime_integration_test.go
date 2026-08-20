@@ -408,8 +408,8 @@ func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Append() after lease mark error = %v", err)
 	}
-	if res.MessageSeq != 2 {
-		t.Fatalf("Append() seq = %d, want 2 after the authority barrier", res.MessageSeq)
+	if res.MessageSeq != 1 {
+		t.Fatalf("Append() seq = %d, want first business proposal at 1", res.MessageSeq)
 	}
 }
 

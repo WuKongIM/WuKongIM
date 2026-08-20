@@ -484,6 +484,219 @@ func TestSendBatchEnsuresDistinctPersonDirectoriesConcurrently(t *testing.T) {
 	}
 }
 
+func TestSendBatchDoesNotHoldReadyPersonChannelsBehindColdDirectorySetup(t *testing.T) {
+	t.Parallel()
+
+	releaseCold := make(chan struct{})
+	ensurer := &mixedReadinessPersonDirectoryEnsurer{
+		ready:       map[string]bool{"u3@u4": true},
+		coldStarted: make(chan struct{}),
+		releaseCold: releaseCold,
+	}
+	submitter := &signalingBatchSubmitter{submitted: make(chan string, 2)}
+	app := New(Options{Submitter: submitter, PersonDirectory: ensurer})
+	items := []SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u3", ChannelID: "u3@u4", ChannelType: channelTypePerson}},
+	}
+
+	done := make(chan []SendBatchItemResult, 1)
+	go func() { done <- app.SendBatch(items) }()
+	select {
+	case <-ensurer.coldStarted:
+	case <-time.After(time.Second):
+		close(releaseCold)
+		t.Fatal("cold directory setup did not start")
+	}
+	select {
+	case channelID := <-submitter.submitted:
+		if channelID != "u3@u4" {
+			close(releaseCold)
+			t.Fatalf("first submitted channel = %q, want ready channel", channelID)
+		}
+	case <-time.After(time.Second):
+		close(releaseCold)
+		t.Fatal("ready person channel remained blocked behind cold directory setup")
+	}
+	close(releaseCold)
+	results := <-done
+	if len(results) != len(items) || results[0].Err != nil || results[1].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want two aligned successes", results)
+	}
+	select {
+	case channelID := <-submitter.submitted:
+		if channelID != "u1@u2" {
+			t.Fatalf("second submitted channel = %q, want cold channel after setup", channelID)
+		}
+	default:
+		t.Fatal("cold channel was not submitted after directory setup")
+	}
+}
+
+func TestSendBatchEachEmitsReadyPersonResultBeforeColdDirectoryCompletes(t *testing.T) {
+	t.Parallel()
+
+	releaseCold := make(chan struct{})
+	ensurer := &mixedReadinessPersonDirectoryEnsurer{
+		ready:       map[string]bool{"u3@u4": true},
+		coldStarted: make(chan struct{}),
+		releaseCold: releaseCold,
+	}
+	submitter := &signalingBatchSubmitter{submitted: make(chan string, 2)}
+	app := New(Options{Submitter: submitter, PersonDirectory: ensurer})
+	items := []SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u3", ChannelID: "u3@u4", ChannelType: channelTypePerson}},
+	}
+	emitted := make(chan int, len(items))
+	done := make(chan error, 1)
+	go func() {
+		done <- app.SendBatchEach(items, func(index int, result SendBatchItemResult) error {
+			if result.Err != nil || result.Result.Reason != ReasonSuccess {
+				return fmt.Errorf("item %d result: %#v", index, result)
+			}
+			emitted <- index
+			return nil
+		})
+	}()
+	select {
+	case <-ensurer.coldStarted:
+	case <-time.After(time.Second):
+		close(releaseCold)
+		t.Fatal("cold directory setup did not start")
+	}
+	select {
+	case index := <-emitted:
+		if index != 1 {
+			close(releaseCold)
+			t.Fatalf("first emitted index = %d, want ready index 1", index)
+		}
+	case <-time.After(time.Second):
+		close(releaseCold)
+		t.Fatal("ready result remained blocked behind cold directory completion")
+	}
+	select {
+	case err := <-done:
+		close(releaseCold)
+		t.Fatalf("SendBatchEach returned before cold result completed: %v", err)
+	default:
+	}
+	close(releaseCold)
+	select {
+	case index := <-emitted:
+		if index != 0 {
+			t.Fatalf("second emitted index = %d, want cold index 0", index)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cold result was not emitted after directory completion")
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("SendBatchEach() error = %v", err)
+	}
+}
+
+func TestSendBatchEachEmitsReadySubmitterResultBeforeSlowChannelCompletes(t *testing.T) {
+	t.Parallel()
+
+	releaseSlow := make(chan struct{})
+	submitter := &streamingBatchSubmitter{
+		started:     make(chan struct{}),
+		releaseSlow: releaseSlow,
+	}
+	app := New(Options{Submitter: submitter})
+	items := []SendBatchItem{
+		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "c1", ChannelType: channelTypeGroup}},
+		{Context: context.Background(), Command: SendCommand{FromUID: "u2", ChannelID: "c2", ChannelType: channelTypeGroup}},
+	}
+	emitted := make(chan int, len(items))
+	done := make(chan error, 1)
+	go func() {
+		done <- app.SendBatchEach(items, func(index int, result SendBatchItemResult) error {
+			if result.Err != nil || result.Result.Reason != ReasonSuccess {
+				return fmt.Errorf("item %d result: %#v", index, result)
+			}
+			emitted <- index
+			return nil
+		})
+	}()
+	select {
+	case <-submitter.started:
+	case <-time.After(time.Second):
+		close(releaseSlow)
+		t.Fatal("batch submitter did not start")
+	}
+	select {
+	case index := <-emitted:
+		if index != 0 {
+			close(releaseSlow)
+			t.Fatalf("first emitted index = %d, want ready index 0", index)
+		}
+	case <-time.After(100 * time.Millisecond):
+		close(releaseSlow)
+		<-done
+		t.Fatal("ready channel result remained blocked behind slow channel completion")
+	}
+	select {
+	case err := <-done:
+		close(releaseSlow)
+		t.Fatalf("SendBatchEach returned before slow channel completed: %v", err)
+	default:
+	}
+	close(releaseSlow)
+	select {
+	case index := <-emitted:
+		if index != 1 {
+			t.Fatalf("second emitted index = %d, want slow index 1", index)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow channel result was not emitted after completion")
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("SendBatchEach() error = %v", err)
+	}
+}
+
+func TestSendBatchDoesNotHoldAuthoritativelyReadyPersonChannelBehindColdSetup(t *testing.T) {
+	t.Parallel()
+
+	releaseCold := make(chan struct{})
+	ensurer := &mixedLatencyPersonDirectoryEnsurer{
+		coldChannelID: "u1@u2",
+		coldStarted:   make(chan struct{}),
+		releaseCold:   releaseCold,
+	}
+	submitter := &signalingBatchSubmitter{submitted: make(chan string, 2)}
+	app := New(Options{Submitter: submitter, PersonDirectory: ensurer})
+	items := []SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u3", ChannelID: "u3@u4", ChannelType: channelTypePerson}},
+	}
+
+	done := make(chan []SendBatchItemResult, 1)
+	go func() { done <- app.SendBatch(items) }()
+	select {
+	case <-ensurer.coldStarted:
+	case <-time.After(time.Second):
+		close(releaseCold)
+		t.Fatal("cold directory setup did not start")
+	}
+	select {
+	case channelID := <-submitter.submitted:
+		if channelID != "u3@u4" {
+			close(releaseCold)
+			t.Fatalf("first submitted channel = %q, want independently resolved channel", channelID)
+		}
+	case <-time.After(time.Second):
+		close(releaseCold)
+		t.Fatal("authoritatively ready person channel remained blocked behind cold setup")
+	}
+	close(releaseCold)
+	results := <-done
+	if len(results) != len(items) || results[0].Err != nil || results[1].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want two aligned successes", results)
+	}
+}
+
 func TestSendBatchFillsOnePersonDirectoryBatchWithoutCollectDelay(t *testing.T) {
 	t.Parallel()
 
@@ -1117,6 +1330,98 @@ type blockingPersonDirectoryEnsurer struct {
 	calls     map[string]int
 	active    atomic.Int64
 	maxActive atomic.Int64
+}
+
+type mixedReadinessPersonDirectoryEnsurer struct {
+	ready       map[string]bool
+	coldStarted chan struct{}
+	releaseCold <-chan struct{}
+	startedOnce sync.Once
+}
+
+type mixedLatencyPersonDirectoryEnsurer struct {
+	coldChannelID string
+	coldStarted   chan struct{}
+	releaseCold   <-chan struct{}
+	startedOnce   sync.Once
+}
+
+func (e *mixedLatencyPersonDirectoryEnsurer) EnsurePersonChannelDirectory(ctx context.Context, channelID string, _ int64) error {
+	if channelID != e.coldChannelID {
+		return nil
+	}
+	e.startedOnce.Do(func() { close(e.coldStarted) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.releaseCold:
+		return nil
+	}
+}
+
+func (e *mixedReadinessPersonDirectoryEnsurer) PersonChannelDirectoryReady(channelID string, _ int64) bool {
+	return e.ready[channelID]
+}
+
+func (e *mixedReadinessPersonDirectoryEnsurer) EnsurePersonChannelDirectory(ctx context.Context, channelID string, _ int64) error {
+	if e.ready[channelID] {
+		return nil
+	}
+	e.startedOnce.Do(func() { close(e.coldStarted) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.releaseCold:
+		return nil
+	}
+}
+
+type signalingBatchSubmitter struct {
+	submitted chan string
+}
+
+type streamingBatchSubmitter struct {
+	startedOnce sync.Once
+	started     chan struct{}
+	releaseSlow chan struct{}
+}
+
+func (s *streamingBatchSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
+	return SendResult{}, nil
+}
+
+func (s *streamingBatchSubmitter) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+	s.startedOnce.Do(func() { close(s.started) })
+	<-s.releaseSlow
+	results := make([]SendBatchItemResult, len(items))
+	for i := range results {
+		results[i].Result.Reason = ReasonSuccess
+	}
+	return results
+}
+
+func (s *streamingBatchSubmitter) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemResult)) {
+	s.startedOnce.Do(func() { close(s.started) })
+	if len(items) > 0 {
+		emit(0, SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}})
+	}
+	<-s.releaseSlow
+	for i := 1; i < len(items); i++ {
+		emit(i, SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}})
+	}
+}
+
+func (s *signalingBatchSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
+	return SendResult{}, nil
+}
+
+func (s *signalingBatchSubmitter) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+	results := make([]SendBatchItemResult, len(items))
+	for i := range items {
+		s.submitted <- items[i].Command.ChannelID
+		results[i] = SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}
+	}
+	return results
 }
 
 type recordingSendBatchStageObserver struct {

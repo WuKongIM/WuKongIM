@@ -107,6 +107,128 @@ func TestCoordinatorFlushWindowBatchesConcurrentRequests(t *testing.T) {
 	}
 }
 
+func TestCoordinatorPrioritizesHighLaneAheadOfQueuedNormal(t *testing.T) {
+	db := openTestDB(t)
+	observer := &recordingObserver{depthCh: make(chan int, 32)}
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: -1,
+		QueueSize:   8,
+		MaxRequests: 1,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	firstCommitStarted := make(chan struct{})
+	releaseFirstCommit := make(chan struct{})
+	var commits atomic.Int64
+	c.SetCommitFunc(func(*engine.Batch) error {
+		if commits.Add(1) == 1 {
+			close(firstCommitStarted)
+			<-releaseFirstCommit
+		}
+		return nil
+	})
+
+	var orderMu sync.Mutex
+	order := make([]string, 0, 3)
+	submit := func(name string, priority commit.Priority) <-chan error {
+		result := make(chan error, 1)
+		go func() {
+			result <- c.Submit(context.Background(), commit.Request{
+				Lane: commit.Lane{Name: name, Priority: priority},
+				Build: func(*engine.Batch) error {
+					orderMu.Lock()
+					order = append(order, name)
+					orderMu.Unlock()
+					return nil
+				},
+			})
+		}()
+		return result
+	}
+
+	first := submit("first", commit.PriorityNormal)
+	waitSignal(t, firstCommitStarted, "first commit")
+	normal := submit("normal", commit.PriorityNormal)
+	high := submit("high", commit.PriorityHigh)
+	waitForExactQueueDepth(t, observer.depthCh, 2)
+	close(releaseFirstCommit)
+	for name, result := range map[string]<-chan error{"first": first, "normal": normal, "high": high} {
+		if err := waitResult(t, result, name+" request"); err != nil {
+			t.Fatalf("%s Submit() error = %v", name, err)
+		}
+	}
+	orderMu.Lock()
+	defer orderMu.Unlock()
+	if got, want := order, []string{"first", "high", "normal"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("build order = %v, want %v", got, want)
+	}
+}
+
+func TestCoordinatorBoundsForegroundBurstBeforeQueuedNormal(t *testing.T) {
+	db := openTestDB(t)
+	observer := &recordingObserver{depthCh: make(chan int, 256)}
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: -1,
+		QueueSize:   64,
+		MaxRequests: 1,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	firstCommitStarted := make(chan struct{})
+	releaseFirstCommit := make(chan struct{})
+	var commits atomic.Int64
+	c.SetCommitFunc(func(*engine.Batch) error {
+		if commits.Add(1) == 1 {
+			close(firstCommitStarted)
+			<-releaseFirstCommit
+		}
+		return nil
+	})
+
+	var orderMu sync.Mutex
+	order := make([]string, 0, 10)
+	results := make([]<-chan error, 0, 10)
+	submit := func(name string, priority commit.Priority) <-chan error {
+		result := make(chan error, 1)
+		go func() {
+			result <- c.Submit(context.Background(), commit.Request{
+				Lane: commit.Lane{Name: name, Priority: priority},
+				Build: func(*engine.Batch) error {
+					orderMu.Lock()
+					order = append(order, name)
+					orderMu.Unlock()
+					return nil
+				},
+			})
+		}()
+		return result
+	}
+
+	results = append(results, submit("first", commit.PriorityNormal))
+	waitSignal(t, firstCommitStarted, "first commit")
+	drainDepths(observer.depthCh)
+	results = append(results, submit("normal", commit.PriorityNormal))
+	waitForExactQueueDepth(t, observer.depthCh, 1)
+	for index := 0; index < 8; index++ {
+		results = append(results, submit(fmt.Sprintf("high-%02d", index), commit.PriorityHigh))
+		waitForExactQueueDepth(t, observer.depthCh, index+2)
+	}
+	close(releaseFirstCommit)
+	for index, result := range results {
+		if err := waitResult(t, result, fmt.Sprintf("request-%d", index)); err != nil {
+			t.Fatalf("Submit(%d) error = %v", index, err)
+		}
+	}
+
+	orderMu.Lock()
+	defer orderMu.Unlock()
+	if len(order) != 10 || order[0] != "first" || order[9] != "normal" {
+		t.Fatalf("build order = %v, want first, 8 high requests, then normal", order)
+	}
+}
+
 func TestCoordinatorObservesCommitBatch(t *testing.T) {
 	db := openTestDB(t)
 	observer := &recordingObserver{}
@@ -768,7 +890,7 @@ func TestCoordinatorFinalizesDeferredRequestOnceAfterCallerCancels(t *testing.T)
 	observer := &recordingObserver{depthCh: make(chan int, 32)}
 	c := commit.NewCoordinator(db, commit.Config{
 		FlushWindow: time.Hour,
-		QueueSize:   1,
+		QueueSize:   2,
 		MaxBytes:    3,
 		Observer:    observer,
 	})
@@ -836,8 +958,8 @@ func TestCoordinatorFinalizesDeferredRequestOnceAfterCallerCancels(t *testing.T)
 			},
 		})
 	}()
-	// Depth two is one deferred request plus the raw queued request. Keeping the
-	// raw queue full lets the test observe the Close admission gate exactly.
+	// Depth two is one deferred request plus the raw queued request. The shared
+	// two-slot bound covers both owner-local priority queues and raw intake.
 	waitForQueueDepth(t, observer.depthCh, 2)
 
 	closed := make(chan struct{})

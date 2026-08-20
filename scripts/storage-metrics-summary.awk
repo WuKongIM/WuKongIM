@@ -322,7 +322,9 @@ FNR == 1 {
     }
     if (has_label($0, "lane", "leader_append")) {
       add_value("leader_append_" suffix, amount)
-    } else if (has_label($0, "lane", "follower_apply")) {
+    } else if (has_label($0, "lane", "follower_apply") ||
+               has_label($0, "lane", "replica_foreground") ||
+               has_label($0, "lane", "replica_trailing")) {
       add_value("follower_apply_" suffix, amount)
     } else if (has_label($0, "lane", "message_append")) {
       add_value("message_append_" suffix, amount)

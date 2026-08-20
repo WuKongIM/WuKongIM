@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"errors"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -11,6 +12,7 @@ import (
 type ExchangeServerConfig struct {
 	LocalNode     ch.NodeID
 	Store         ReplicaStore
+	Observer      StageObserver
 	MaxBatchItems int
 	MaxBatchBytes int
 }
@@ -30,7 +32,7 @@ func NewExchangeServer(cfg ExchangeServerConfig) (*ExchangeServer, error) {
 
 // Handle validates and synchronously applies one bounded data-bearing batch.
 func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
-	if s == nil || ctx == nil || from == 0 || batch.Version != ExchangeVersion || len(batch.Items) == 0 || len(batch.Items) > s.cfg.MaxBatchItems {
+	if s == nil || ctx == nil || from == 0 || batch.Version != ExchangeVersion || !batch.Priority.Valid() || len(batch.Items) == 0 || len(batch.Items) > s.cfg.MaxBatchItems {
 		return ExchangeBatchResult{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
@@ -70,13 +72,19 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			}
 			itemBytes = estimateReplicateRequestBytes(request)
 			operationKey = channelOperationKey{key: request.ChannelKey, id: request.ChannelID}
+			class := MutationClassFollowerQuorum
+			if batch.Priority == ExchangePriorityBackground {
+				class = MutationClassTrailing
+			}
 			mutations = append(mutations, Mutation{
 				ChannelKey: request.ChannelKey, ChannelID: request.ChannelID,
 				Manifest: request.Manifest, Records: request.Records, Committed: request.Committed,
+				Class:                     class,
+				ServerAllocatedMessageIDs: request.ServerAllocatedMessageIDs,
 			})
 			mutationPositions = append(mutationPositions, index)
 		case ExchangeProbe:
-			if item.Probe == nil || item.Replicate != nil || item.Fetch != nil {
+			if batch.Priority != ExchangePriorityForeground || item.Probe == nil || item.Replicate != nil || item.Fetch != nil {
 				return ExchangeBatchResult{}, ch.ErrInvalidConfig
 			}
 			request := *item.Probe
@@ -91,7 +99,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			})
 			loadPositions = append(loadPositions, index)
 		case ExchangeFetch:
-			if item.Fetch == nil || item.Replicate != nil || item.Probe != nil {
+			if batch.Priority != ExchangePriorityForeground || item.Fetch == nil || item.Replicate != nil || item.Probe != nil {
 				return ExchangeBatchResult{}, ch.ErrInvalidConfig
 			}
 			request := *item.Fetch
@@ -136,7 +144,24 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 		}
 	}
 	if len(mutations) > 0 {
+		startedAt := time.Now()
 		results := s.cfg.Store.Sync(ctx, mutations)
+		var storeErr error
+		if len(results) != len(mutations) {
+			storeErr = errInvalidExchangeResult
+		} else {
+			for index := range results {
+				if results[index].Err != nil {
+					storeErr = results[index].Err
+					break
+				}
+			}
+		}
+		storeStage := stageFollowerForegroundStore
+		if batch.Priority == ExchangePriorityBackground {
+			storeStage = stageFollowerBackgroundStore
+		}
+		observeReplicationStage(s.cfg.Observer, storeStage, storeErr, time.Since(startedAt))
 		if len(results) != len(mutations) {
 			return ExchangeBatchResult{}, errInvalidExchangeResult
 		}

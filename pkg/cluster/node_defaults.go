@@ -100,9 +100,13 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			}
 			return false, err
 		}
+		var replicationObserver channelreplication.StageObserver
+		if n.cfg.Channel.Observer != nil {
+			replicationObserver, _ = n.cfg.Channel.Observer.(channelreplication.StageObserver)
+		}
 		quorumRuntime, err := channelreplication.NewRuntime(channelreplication.RuntimeConfig{
 			LocalNode: channelruntime.NodeID(n.cfg.NodeID), Store: storeAdapter, Link: peerLink,
-			Goroutines: n.cfg.Goroutines, MaxChannels: n.cfg.Channel.MaxChannels,
+			Goroutines: n.cfg.Goroutines, MaxChannels: n.cfg.Channel.MaxChannels, Observer: replicationObserver,
 		})
 		if err != nil {
 			if createdStoreFactory {
