@@ -1310,6 +1310,98 @@ func TestCoordinatorWaitsForTerminalSessionReplacementBeforeCheckpoint(t *testin
 	}
 }
 
+func TestCoordinatorKeepsPollingTerminalSnapshotsAfterStickyTrafficReady(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-terminal-sticky-ready"
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	observerStarted := make(chan struct{})
+	stopRequests := make(chan struct{})
+	checkpointCalls := make(chan int, 3)
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		base := &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+		if workerID == coordinatorWorkerCount-1 {
+			workers[workerID] = &stickyReadyTerminalReplacementCoordinatorWorker{
+				recordingCoordinatorWorker: base,
+				checkpointCalls:            checkpointCalls,
+			}
+			continue
+		}
+		workers[workerID] = base
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 44,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	close(stopRequests)
+	for want := 1; want <= 2; want++ {
+		select {
+		case got := <-checkpointCalls:
+			if got != want {
+				t.Fatalf("terminal checkpoint call = %d, want %d", got, want)
+			}
+		case result := <-resultChannel:
+			t.Fatalf("Run() stopped after checkpoint %d instead of waiting for replacement: %+v", want-1, result)
+		case <-time.After(time.Second):
+			t.Fatalf("terminal checkpoint %d was not attempted", want)
+		}
+	}
+	select {
+	case period := <-clock.created:
+		if period != time.Second {
+			t.Fatalf("terminal snapshot poll period = %s, want 1s", period)
+		}
+	case result := <-resultChannel:
+		t.Fatalf("Run() failed after sticky readiness instead of polling exact snapshots: %+v", result)
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not start exact terminal snapshot polling")
+	}
+	clock.advance(time.Second)
+	select {
+	case got := <-checkpointCalls:
+		if got != 3 {
+			t.Fatalf("replacement checkpoint call = %d, want 3", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not retry the exact terminal snapshot")
+	}
+
+	terminal := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutTerminal)
+	if got := terminal.Snapshots[coordinatorWorkerCount-1].Sessions; got.Online != 1 || got.TrafficReady != 1 || got.Target != 1 {
+		t.Fatalf("terminal replacement snapshot = %+v, want exact ready target", got)
+	}
+	select {
+	case result := <-resultChannel:
+		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+			t.Fatalf("Run() result = %+v, want operator stop after sticky readiness replacement", result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not finish after exact terminal replacement")
+	}
+}
+
 func TestCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-final-cutoff"
@@ -3610,6 +3702,42 @@ type terminalReplacementCoordinatorWorker struct {
 	statusCalls     chan<- bool
 	statusCount     int
 	checkpointCount int
+}
+
+type stickyReadyTerminalReplacementCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	checkpointCalls chan<- int
+	checkpointCount int
+}
+
+func (w *stickyReadyTerminalReplacementCoordinatorWorker) Checkpoint(
+	ctx context.Context,
+	request WorkerCheckpointRequest,
+) (WorkerSnapshot, error) {
+	snapshot, err := w.recordingCoordinatorWorker.Checkpoint(ctx, request)
+	if err != nil {
+		return WorkerSnapshot{}, err
+	}
+	w.checkpointCount++
+	w.checkpointCalls <- w.checkpointCount
+	snapshot.Sessions.Target = 1
+	if w.checkpointCount >= 3 {
+		snapshot.Sessions.Online = 1
+		snapshot.Sessions.TrafficReady = 1
+	}
+	return snapshot, nil
+}
+
+func (w *stickyReadyTerminalReplacementCoordinatorWorker) Stop(
+	ctx context.Context,
+	request WorkerStopRequest,
+) (WorkerSnapshot, error) {
+	snapshot, err := w.recordingCoordinatorWorker.Stop(ctx, request)
+	if err != nil {
+		return WorkerSnapshot{}, err
+	}
+	snapshot.Sessions.Target = 1
+	return snapshot, nil
 }
 
 func (w *terminalReplacementCoordinatorWorker) Status(context.Context) (WorkerStatus, error) {

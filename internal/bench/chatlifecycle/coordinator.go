@@ -1586,7 +1586,12 @@ observationComplete:
 				}
 			}
 			checkpoint, disposition = c.checkpointRound(ctx, assignments, fence)
-			if disposition != coordinatorRoundSucceeded || terminalSnapshotsNeedTrafficRecovery(checkpoint) {
+			if disposition == coordinatorRoundSucceeded && terminalSnapshotsNeedTrafficRecovery(checkpoint) {
+				checkpoint, disposition = c.waitForTerminalSnapshotsReady(
+					ctx, assignments, fence, checkpoint, c.roundTimeout,
+				)
+			}
+			if disposition != coordinatorRoundSucceeded {
 				c.stopAfterFailure(fence, attempted)
 				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 				return result
@@ -1832,10 +1837,19 @@ func (c *Coordinator) checkpointRound(
 	assignments []CoordinatorAssignment,
 	fence WorkerFence,
 ) ([]WorkerSnapshot, coordinatorRoundDisposition) {
-	if len(assignments) != coordinatorWorkerCount {
+	return c.checkpointRoundWithin(parent, assignments, fence, c.roundTimeout)
+}
+
+func (c *Coordinator) checkpointRoundWithin(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+	fence WorkerFence,
+	maximum time.Duration,
+) ([]WorkerSnapshot, coordinatorRoundDisposition) {
+	if len(assignments) != coordinatorWorkerCount || maximum <= 0 {
 		return nil, coordinatorRoundStageFailed
 	}
-	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
+	roundContext, cancel := context.WithTimeoutCause(parent, min(c.roundTimeout, maximum), errCoordinatorRoundDeadline)
 	defer cancel()
 	type checkpointResult struct {
 		snapshot WorkerSnapshot
@@ -1871,6 +1885,51 @@ func (c *Coordinator) checkpointRound(
 		return nil, disposition
 	}
 	return snapshots, disposition
+}
+
+// waitForTerminalSnapshotsReady proves current replacement completion from
+// exact snapshots. WorkerStatus.TrafficReady is deliberately sticky after the
+// initial readiness barrier and therefore cannot prove a churn-free terminal
+// cut by itself.
+func (c *Coordinator) waitForTerminalSnapshotsReady(
+	ctx context.Context,
+	assignments []CoordinatorAssignment,
+	fence WorkerFence,
+	initial []WorkerSnapshot,
+	maximumWait time.Duration,
+) ([]WorkerSnapshot, coordinatorRoundDisposition) {
+	if ctx == nil || len(assignments) != coordinatorWorkerCount || maximumWait <= 0 {
+		return nil, coordinatorRoundStageFailed
+	}
+	if !terminalSnapshotsNeedTrafficRecovery(initial) {
+		return initial, coordinatorRoundSucceeded
+	}
+	ticker := c.clock.NewTicker(time.Second)
+	if ticker == nil {
+		return nil, coordinatorRoundStageFailed
+	}
+	defer ticker.Stop()
+	deadline := c.clock.Now().Add(maximumWait)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, coordinatorRoundParentCanceled
+		case <-ticker.C():
+			now := c.clock.Now()
+			if !now.Before(deadline) {
+				return nil, coordinatorRoundStageFailed
+			}
+			snapshots, disposition := c.checkpointRoundWithin(
+				ctx, assignments, fence, deadline.Sub(now),
+			)
+			if disposition != coordinatorRoundSucceeded {
+				return nil, disposition
+			}
+			if !terminalSnapshotsNeedTrafficRecovery(snapshots) {
+				return snapshots, coordinatorRoundSucceeded
+			}
+		}
+	}
 }
 
 func resolveCoordinatorRoundDisposition(
