@@ -393,6 +393,12 @@ func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
 				after.Messages.Terminal = 1
 			},
 		},
+		{
+			name: "hot latency warning survives operator stop", want: localChatLifecycleStepProductFailure,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Verdict.LatencyWarnings.Hot = 1
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			before, after := localChatLifecycleStepReports()

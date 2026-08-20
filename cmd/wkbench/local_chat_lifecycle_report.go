@@ -945,8 +945,12 @@ func minimumLocalChatLifecycleFilesystemFreePercent(report chatlifecycle.Report)
 
 func localChatLifecycleProductFailure(report chatlifecycle.Report) bool {
 	message := report.Messages
+	verdictLatency := report.Verdict.LatencyWarnings
+	reportLatency := report.Latency.Warnings
 	return report.Verdict.Outcome == chatlifecycle.VerdictProductFailure ||
 		report.EvidenceClassification == chatlifecycle.SyncClassificationProductFailure ||
+		verdictLatency.Hot > 0 || verdictLatency.Cold > 0 || verdictLatency.Sync > 0 ||
+		reportLatency.Hot > 0 || reportLatency.Cold > 0 || reportLatency.Sync > 0 ||
 		message.Terminal > 0 || message.Losses > 0 || message.Duplicates > 0 ||
 		message.Corruptions > 0 || message.SequenceRegressions > 0 ||
 		report.Sync.Failures > 0 || report.Lifecycle.ProductFailures > 0 || report.MetaCreate.Errors > 0
