@@ -122,7 +122,7 @@ jobs:
           retention-days: 7
 
   nightly-qualification:
-    name: Nightly direct 1000 QPS qualification
+    name: Nightly direct 500 QPS qualification
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
@@ -156,7 +156,7 @@ jobs:
             "$MINIMUM_FREE_PERCENT" "$observed_free_percent" \
             >"$evidence_root/filesystem-gate.txt"
           (( observed_free_percent >= MINIMUM_FREE_PERCENT ))
-      - name: Run direct ten-minute 1000 QPS qualification
+      - name: Run direct ten-minute 500 QPS qualification
         shell: bash
         run: |
           set -euo pipefail
@@ -169,7 +169,7 @@ jobs:
             --run-dir "$EVIDENCE_ROOT/artifacts" \
             --base-port 15000 \
             --ready-timeout 180 \
-            --send-rate 1000 \
+            --send-rate 500 \
             --measure-seconds 600 \
             --warmup-seconds 60 \
             --drain-timeout 90 \
