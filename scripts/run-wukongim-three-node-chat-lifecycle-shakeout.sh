@@ -771,7 +771,8 @@ start_load_host_metrics() {
 }
 
 wait_url() {
-  local name="$1" url="$2" token="${3:-}" deadline pid
+  local name="$1" url="$2" token="${3:-}" required_successes="${4:-1}" deadline pid ready consecutive=0
+  [[ "$required_successes" =~ ^[0-9]+$ ]] && (( required_successes > 0 )) || die 'readiness success count must be greater than zero'
   pid="$(<"$PID_DIR/$name.pid")"
   deadline=$((SECONDS + READY_TIMEOUT))
   while (( SECONDS <= deadline )); do
@@ -779,14 +780,20 @@ wait_url() {
       tail -n 80 "$LOG_DIR/$name.log" >&2 || true
       die "$name exited before readiness"
     fi
+    ready=0
     if [[ -n "$token" ]]; then
-      curl -fsS --max-time 2 -H "Authorization: Bearer $token" "$url" >/dev/null 2>&1 && {
+      curl -fsS --max-time 2 -H "Authorization: Bearer $token" "$url" >/dev/null 2>&1 && ready=1
+    elif curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
+      ready=1
+    fi
+    if (( ready == 1 )); then
+      consecutive=$((consecutive + 1))
+      if (( consecutive >= required_successes )); then
         log "$name ready: $url"
         return
-      }
-    elif curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
-      log "$name ready: $url"
-      return
+      fi
+    else
+      consecutive=0
     fi
     sleep 1
   done
@@ -794,7 +801,7 @@ wait_url() {
 }
 
 for node in 1 2 3; do start_service "$node"; done
-for node in 1 2 3; do wait_url "service-$node" "http://127.0.0.1:$(api_port "$node")/readyz"; done
+for node in 1 2 3; do wait_url "service-$node" "http://127.0.0.1:$(api_port "$node")/readyz" "" 3; done
 for node in 1 2 3; do start_worker "$node"; start_host_metrics "$node"; done
 start_load_host_metrics
 for node in 1 2 3; do
