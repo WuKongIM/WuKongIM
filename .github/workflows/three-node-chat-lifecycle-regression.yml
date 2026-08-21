@@ -42,13 +42,6 @@ jobs:
           set -euo pipefail
           GOWORK=off go test ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1
           GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1
-      - name: Run benchmark-first 1000 QPS seams
-        shell: bash
-        run: |
-          set -euo pipefail
-          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m
-          GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m
-          GOWORK=off go test -tags=integration ./pkg/client -run '^$' -bench '^BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m
       - name: Prepare isolated PR evidence root
         shell: bash
         run: |
@@ -57,7 +50,46 @@ jobs:
           echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
           install -d -m 0700 "$evidence_root"
           df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
-      - name: Run bounded three-node 1000 QPS smoke
+      - name: Run benchmark-first 1000 QPS seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          assert_benchmark_metric_le_400() {
+            local output_file="$1" metric="$2"
+            awk -v metric="$metric" '
+              {
+                for (field = 2; field <= NF; field++) {
+                  if ($field != metric) continue
+                  found = 1
+                  value = $(field - 1) + 0
+                  if (value > 400) {
+                    printf "benchmark metric %s exceeded 400ms: %s\n", metric, $(field - 1) > "/dev/stderr"
+                    failed = 1
+                  }
+                }
+              }
+              END {
+                if (!found) {
+                  printf "benchmark metric %s was missing\n", metric > "/dev/stderr"
+                  exit 2
+                }
+                if (failed) exit 1
+              }
+            ' "$output_file"
+          }
+
+          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+            2>&1 | tee "$EVIDENCE_ROOT/channel-append-benchmark.txt"
+          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/channel-append-benchmark.txt" append-p99-ms
+
+          GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+            2>&1 | tee "$EVIDENCE_ROOT/mixed-send-benchmark.txt"
+          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/mixed-send-benchmark.txt" all-p99-ms
+
+          GOWORK=off go test -tags=integration ./pkg/client -run '^$' -bench '^BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+            2>&1 | tee "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt"
+          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt" send-p99-ms
+      - name: Run bounded three-node 1000 QPS correctness smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -74,6 +106,7 @@ jobs:
             --measure-seconds 90 \
             --warmup-seconds 60 \
             --drain-timeout 90 \
+            --hot-sendack-p99-ms 1000 \
             2>&1 | tee "$EVIDENCE_ROOT/driver.log"
       - name: Reject tracked-tree mutation
         if: always()

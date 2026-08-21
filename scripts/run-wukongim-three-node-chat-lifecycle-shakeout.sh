@@ -10,6 +10,7 @@ STOP_AFTER=0
 SEND_RATE=100
 MEASURE_SECONDS=0
 WARMUP_SECONDS=60
+HOT_SENDACK_P99_MS=400
 MINIMUM_THROUGHPUT_PERCENT=90
 # Full Prometheus snapshots are deliberately less frequent than the product's
 # own five-second observation loop. Each service snapshot is roughly 750 KiB
@@ -75,6 +76,8 @@ usage() {
 #   --measure-seconds S After warmup, measure for S seconds; 0 keeps legacy mode.
 #   --warmup-seconds S  Traffic warmup before a measured step (default 60).
 #   --drain-timeout S   Maximum graceful drain in seconds (default 90).
+#   --hot-sendack-p99-ms N
+#                       Sealed hot SENDACK p99 limit in milliseconds (default 400).
 #   --dry-run           Print the resolved topology without building or writing.
 #   -h, --help          Show this help.
 
@@ -135,6 +138,7 @@ while [[ $# -gt 0 ]]; do
     --measure-seconds) [[ $# -ge 2 ]] || die '--measure-seconds requires a value'; MEASURE_SECONDS="$2"; shift 2 ;;
     --warmup-seconds) [[ $# -ge 2 ]] || die '--warmup-seconds requires a value'; WARMUP_SECONDS="$2"; shift 2 ;;
     --drain-timeout) [[ $# -ge 2 ]] || die '--drain-timeout requires a value'; GRACEFUL_STOP_TIMEOUT="$2"; shift 2 ;;
+    --hot-sendack-p99-ms) [[ $# -ge 2 ]] || die '--hot-sendack-p99-ms requires a value'; HOT_SENDACK_P99_MS="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
@@ -148,12 +152,14 @@ require_uint '--send-rate' "$SEND_RATE"
 require_uint '--measure-seconds' "$MEASURE_SECONDS"
 require_uint '--warmup-seconds' "$WARMUP_SECONDS"
 require_uint '--drain-timeout' "$GRACEFUL_STOP_TIMEOUT"
+require_uint '--hot-sendack-p99-ms' "$HOT_SENDACK_P99_MS"
 (( BASE_PORT >= 1024 && BASE_PORT <= 65472 )) || die '--base-port must reserve 64 ports within 1024..65535'
 (( READY_TIMEOUT > 0 )) || die '--ready-timeout must be greater than zero'
 (( SEND_RATE > 0 )) || die '--send-rate must be greater than zero'
 (( SEND_RATE <= 1000000 )) || die '--send-rate must not exceed 1000000'
 (( WARMUP_SECONDS > 0 )) || die '--warmup-seconds must be greater than zero'
 (( GRACEFUL_STOP_TIMEOUT > 0 )) || die '--drain-timeout must be greater than zero'
+(( HOT_SENDACK_P99_MS > 0 && HOT_SENDACK_P99_MS <= 1000 )) || die '--hot-sendack-p99-ms must be within 1..1000'
 (( STOP_AFTER == 0 || MEASURE_SECONDS == 0 )) || die '--stop-after and --measure-seconds are mutually exclusive'
 validate_run_dir
 
@@ -196,6 +202,7 @@ print_plan() {
   printf 'measured_duration_seconds=%s\n' "$MEASURE_SECONDS"
   printf 'warmup_seconds=%s\n' "$WARMUP_SECONDS"
   printf 'drain_timeout_seconds=%s\n' "$GRACEFUL_STOP_TIMEOUT"
+  printf 'hot_sendack_p99_milliseconds=%s\n' "$HOT_SENDACK_P99_MS"
   printf 'raw_metrics_sample_seconds=%s\n' "$METRICS_SAMPLE_SECONDS"
   printf 'channel_store_append_workers=500\n'
   printf 'gateway_async_send_workers=1000\n'
@@ -299,6 +306,7 @@ sed \
 	-e "s/__WK_LOAD_HOST_METRICS__/$(load_host_metrics_port)/g" \
 	-e "s/send_rate_per_second: 100/send_rate_per_second: $SEND_RATE/" \
 	-e "s/max_global_burst: 200/max_global_burst: $((SEND_RATE * 2))/" \
+	-e "s/hot_sendack: {p99: 400ms, p999: 1s}/hot_sendack: {p99: ${HOT_SENDACK_P99_MS}ms, p999: 1s}/" \
   "$ROOT_DIR/configs/wkbench/chat-lifecycle/local-shakeout.yaml" >"$LIFECYCLE_CONFIG"
 
 if (( MEASURE_SECONDS > 0 )); then

@@ -55,17 +55,22 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 		"BenchmarkThreeNodeMixedSendPath1000QPS",
 		"BenchmarkThreeNodeChannelAppend1000QPS",
 		"BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS",
+		"append-p99-ms",
+		"all-p99-ms",
+		"send-p99-ms",
+		"benchmark metric %s exceeded 400ms",
 		"--send-rate 1000",
 		"--measure-seconds 90",
 		"--warmup-seconds 60",
 		"--drain-timeout 90",
+		"--hot-sendack-p99-ms 1000",
 	} {
 		require.Contains(t, prRun, required)
 	}
 	require.NotContains(t, prRun, "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
 	require.NotContains(t, prRun, "--measure-seconds 600")
 	assertInitializesEvidenceRootFromRunnerTemp(t, pr.Steps)
-	assertRejectsTrackedTreeMutationAfter(t, pr.Steps, "Run bounded three-node 1000 QPS smoke")
+	assertRejectsTrackedTreeMutationAfter(t, pr.Steps, "Run bounded three-node 1000 QPS correctness smoke")
 	assertRegressionArtifactStep(t, pr.Steps, 7)
 
 	nightly, ok := workflow.Jobs["nightly-qualification"]
@@ -76,6 +81,7 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	nightlyRun := workflowRunCommands(nightly.Steps)
 	require.Contains(t, nightlyRun, "MINIMUM_FREE_PERCENT=15")
 	require.Contains(t, nightlyRun, "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
+	require.NotContains(t, nightlyRun, "--hot-sendack-p99-ms")
 	require.NotContains(t, nightlyRun, "--no-start")
 	require.NotContains(t, nightlyRun, "--no-worker")
 	assertInitializesEvidenceRootFromRunnerTemp(t, nightly.Steps)

@@ -195,6 +195,9 @@ func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *test
 	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
 timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
 workload: {send_rate_per_second: 100, max_global_burst: 200}
+thresholds:
+  latency:
+    hot_sendack: {p99: 400ms, p999: 1s}
 observation:
   api_addrs: ["http://127.0.0.1:15001", "http://127.0.0.1:15002", "http://127.0.0.1:15003"]
   gateway_tcp_addrs: ["127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"]
@@ -249,7 +252,7 @@ fi
 		}
 	}
 	runDir := filepath.Join(testRoot, "run")
-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--base-port", "15100", "--ready-timeout", "1")
+	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
 	command.Dir = testRoot
 	command.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -273,6 +276,7 @@ fi
 		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
 		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
 		`metrics_addrs: ["http://127.0.0.1:15101/metrics", "http://127.0.0.1:15102/metrics", "http://127.0.0.1:15103/metrics"]`,
+		`hot_sendack: {p99: 1000ms, p999: 1s}`,
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered lifecycle config missing %q:\n%s", want, rendered)
