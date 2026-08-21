@@ -82,7 +82,7 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.Contains(t, nightlyRun, "MINIMUM_FREE_PERCENT=15")
 	for _, required := range []string{
 		"run-wukongim-three-node-chat-lifecycle-shakeout.sh",
-		"--send-rate 1000",
+		"--send-rate 500",
 		"--measure-seconds 600",
 		"--warmup-seconds 60",
 		"--drain-timeout 90",
@@ -91,10 +91,11 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 		require.Contains(t, nightlyRun, required)
 	}
 	require.NotContains(t, nightlyRun, "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
+	require.NotContains(t, nightlyRun, "--send-rate 1000")
 	require.NotContains(t, nightlyRun, "--no-start")
 	require.NotContains(t, nightlyRun, "--no-worker")
 	assertInitializesEvidenceRootFromRunnerTemp(t, nightly.Steps)
-	assertRejectsTrackedTreeMutationAfter(t, nightly.Steps, "Run direct ten-minute 1000 QPS qualification")
+	assertRejectsTrackedTreeMutationAfter(t, nightly.Steps, "Run direct ten-minute 500 QPS qualification")
 	assertRegressionArtifactStep(t, nightly.Steps, 14)
 }
 
