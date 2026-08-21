@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
@@ -88,6 +89,12 @@ func (v *bundleValidator) Visit(kind FileKind, record any) error {
 		return v.validateHashSlot("devices", row.UID, row.HashSlot)
 	case FileKindMetaChannels:
 		row := record.(ChannelRecord)
+		if row.DirectoryProjectionState > uint8(metadb.DirectoryProjectionReady) {
+			return fmt.Errorf("%w: channels invalid directory_projection_state %d", ErrValidation, row.DirectoryProjectionState)
+		}
+		if (row.DirectoryProjectionState == uint8(metadb.DirectoryProjectionNone)) != (row.DirectoryProjectionGeneration == 0) {
+			return fmt.Errorf("%w: channels inconsistent directory projection generation", ErrValidation)
+		}
 		return v.validateHashSlot("channels", row.ChannelID, row.HashSlot)
 	case FileKindMetaSubscribers:
 		row := record.(SubscriberRecord)
@@ -104,6 +111,12 @@ func (v *bundleValidator) Visit(kind FileKind, record any) error {
 	case FileKindMetaChannelLatest:
 		row := record.(ChannelLatestRecord)
 		return v.validateHashSlot("channel_latest", row.ChannelID, row.HashSlot)
+	case FileKindMetaPersonDirectoryTasks:
+		row := record.(PersonDirectoryTaskRecord)
+		if row.Generation == 0 {
+			return fmt.Errorf("%w: person_directory_tasks generation is zero", ErrValidation)
+		}
+		return v.validateHashSlot("person_directory_tasks", row.ChannelID, row.HashSlot)
 	default:
 		return fmt.Errorf("%w: unknown kind %q", ErrValidation, kind)
 	}

@@ -53,6 +53,7 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	reg.Gateway.MessageReceived("tcp", 12)
 	reg.Gateway.MessageDelivered("tcp", 18)
 	reg.Gateway.FrameHandled("SEND", 5*time.Millisecond)
+	reg.Gateway.TransportWrite("SENDACK", 225*time.Millisecond, nil)
 	reg.Gateway.SetAsyncSendQueue(3, 1024)
 	reg.Gateway.ObserveAsyncSendDispatchWait("wkproto", 2*time.Millisecond)
 	reg.Gateway.ObserveAsyncSendBatch(8, 256, 500*time.Microsecond)
@@ -172,6 +173,11 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_records")
 	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_bytes")
 	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_wait_duration_seconds")
+	transportWrite := requireMetricFamily(t, families, "wukongim_gateway_transport_write_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, transportWrite, map[string]string{
+		"frame_type": "SENDACK",
+		"result":     "ok",
+	}).GetHistogram().GetSampleCount())
 
 	sendacks := requireMetricFamily(t, families, "wukongim_gateway_sendacks_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{

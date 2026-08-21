@@ -113,6 +113,7 @@ func composeProductionChatLifecycleRuntime(
 		BenchToken: credentials.BenchToken(), HTTPClient: httpClient, SampleSink: observation,
 	})
 	lifecycle, err := chatlifecycle.NewProductionLifecycle(chatlifecycle.ProductionLifecycleOptions{
+		Enabled: cfg.Profile == chatlifecycle.ProfileFormal,
 		Workers: lifecycleWorkers, Prober: targetClient, SlotAssignment: assignment,
 	})
 	if err != nil {

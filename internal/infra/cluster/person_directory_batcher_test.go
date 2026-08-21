@@ -8,11 +8,57 @@ import (
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
-func TestPersonDirectoryBatcherCoalescesConcurrentChannelsIntoTwoDurablePhases(t *testing.T) {
+func TestPersonDirectoryBatcherUsesBoundedCollectionWindowAndBatch(t *testing.T) {
+	batcher := newPersonDirectoryBatcher(&recordingPersonDirectoryBatchNode{}, nil)
+	if batcher.collectWait != 50*time.Millisecond {
+		t.Fatalf("collect wait = %v, want 50ms", batcher.collectWait)
+	}
+	if batcher.targetItems != 8 || personDirectoryBatchMaxItems != 128 {
+		t.Fatalf("target/max batch items = %d/%d, want 8/128", batcher.targetItems, personDirectoryBatchMaxItems)
+	}
+	if cap(batcher.active) != 8 {
+		t.Fatalf("active batch capacity = %d, want 8", cap(batcher.active))
+	}
+}
+
+func TestPersonDirectoryBatcherStopCancelsAndJoinsOwnedBatch(t *testing.T) {
+	node := &blockingPersonDirectoryBatchNode{started: make(chan struct{}, 1)}
+	registry := goruntimeregistry.New()
+	batcher := newPersonDirectoryBatcher(node, registry)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 1
+	result := make(chan error, 1)
+	go func() {
+		result <- batcher.ensure(context.Background(), testPersonDirectoryMutation(0))
+	}()
+
+	select {
+	case <-node.started:
+	case <-time.After(time.Second):
+		t.Fatal("person-directory batch did not start")
+	}
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := batcher.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("ensure() error = %v, want canceled owned admission", err)
+	}
+	if snapshot := registry.Snapshot(); snapshot.ManagedTotal != 0 {
+		t.Fatalf("managed goroutines after Stop = %d, want 0", snapshot.ManagedTotal)
+	}
+	if err := batcher.ensure(context.Background(), testPersonDirectoryMutation(1)); !errors.Is(err, errPersonDirectoryBatcherStopped) {
+		t.Fatalf("ensure() after Stop error = %v, want stopped", err)
+	}
+}
+
+func TestPersonDirectoryBatcherCoalescesConcurrentChannelsIntoOneDurableAdmission(t *testing.T) {
 	node := &recordingPersonDirectoryBatchNode{}
-	batcher := newPersonDirectoryBatcher(node)
+	batcher := newPersonDirectoryBatcher(node, nil)
 	batcher.collectWait = time.Hour
 	batcher.targetItems = 4
 
@@ -28,32 +74,206 @@ func TestPersonDirectoryBatcherCoalescesConcurrentChannelsIntoTwoDurablePhases(t
 			t.Fatalf("ensure() error = %v", err)
 		}
 	}
-
 	node.mu.Lock()
 	defer node.mu.Unlock()
-	if node.prepareCalls != 1 || len(node.memberships) != 8 || len(node.preparedChannels) != 4 {
-		t.Fatalf("prepare calls/membership rows/channels = %d/%d/%d, want 1/8/4", node.prepareCalls, len(node.memberships), len(node.preparedChannels))
-	}
-	if node.readyCalls != 1 || len(node.ready) != 4 {
-		t.Fatalf("ready calls/rows = %d/%d, want 1/4", node.readyCalls, len(node.ready))
+	if node.admissionCalls != 1 || len(node.tasks) != 4 {
+		t.Fatalf("admission calls/tasks = %d/%d, want 1/4", node.admissionCalls, len(node.tasks))
 	}
 }
 
-func TestPersonDirectoryBatcherDoesNotPublishReadyAfterMembershipFailure(t *testing.T) {
-	membershipErr := errors.New("membership failed")
-	node := &recordingPersonDirectoryBatchNode{prepareErr: membershipErr}
-	batcher := newPersonDirectoryBatcher(node)
+func TestPersonDirectoryBatcherSealsVectorAdmissionAtTargetSize(t *testing.T) {
+	const (
+		targetItems = 12
+		totalItems  = 24
+	)
+	node := &recordingPersonDirectoryBatchNode{}
+	batcher := newPersonDirectoryBatcher(node, nil)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = targetItems
+	admissions := make([]personDirectoryBatchAdmission, totalItems)
+	for i := range admissions {
+		admissions[i] = personDirectoryBatchAdmission{
+			ctx:      context.Background(),
+			mutation: testPersonDirectoryMutation(i),
+		}
+	}
+
+	results := batcher.ensureBatch(admissions)
+	for i, err := range results {
+		if err != nil {
+			t.Fatalf("result %d = %v", i, err)
+		}
+	}
+	node.mu.Lock()
+	defer node.mu.Unlock()
+	if got, want := node.batchSizes, []int{targetItems, targetItems}; !equalInts(got, want) {
+		t.Fatalf("durable batch sizes = %v, want %v", got, want)
+	}
+}
+
+func TestPersonDirectoryBatcherEmitsCompletedWaveBeforeSlowSiblingBatch(t *testing.T) {
+	releaseSlow := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseSlow) }) })
+	node := &stagedPersonDirectoryBatchNode{releaseSlow: releaseSlow}
+	batcher := newPersonDirectoryBatcher(node, nil)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 2
+	admissions := make([]personDirectoryBatchAdmission, 4)
+	for i := range admissions {
+		admissions[i] = personDirectoryBatchAdmission{ctx: context.Background(), mutation: testPersonDirectoryMutation(i)}
+	}
+	waves := make(chan []personDirectoryBatchOutcome, 2)
+	done := make(chan struct{})
+	go func() {
+		batcher.ensureBatchWaves(admissions, func(wave []personDirectoryBatchOutcome) {
+			waves <- append([]personDirectoryBatchOutcome(nil), wave...)
+		})
+		close(done)
+	}()
+
+	select {
+	case wave := <-waves:
+		if got := directoryOutcomeIndexes(wave); !equalInts(got, []int{0, 1}) {
+			t.Fatalf("first completed wave indexes = %v, want [0 1]", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("fast durable batch was held behind slow sibling")
+	}
+	releaseOnce.Do(func() { close(releaseSlow) })
+	select {
+	case wave := <-waves:
+		if got := directoryOutcomeIndexes(wave); !equalInts(got, []int{2, 3}) {
+			t.Fatalf("second completed wave indexes = %v, want [2 3]", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow durable batch did not complete after release")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("wave admission did not join all owned work")
+	}
+}
+
+func TestPersonDirectoryBatcherPublishesFastSourceSlotWithinOneDurableBatch(t *testing.T) {
+	releaseSlow := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseSlow) }) })
+	node := &stagedIntraBatchPersonDirectoryBatchNode{releaseSlow: releaseSlow}
+	batcher := newPersonDirectoryBatcher(node, nil)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 2
+	admissions := []personDirectoryBatchAdmission{
+		{ctx: context.Background(), mutation: testPersonDirectoryMutation(0)},
+		{ctx: context.Background(), mutation: testPersonDirectoryMutation(1)},
+	}
+	waves := make(chan []personDirectoryBatchOutcome, 2)
+	done := make(chan struct{})
+	go func() {
+		batcher.ensureBatchWaves(admissions, func(wave []personDirectoryBatchOutcome) {
+			waves <- append([]personDirectoryBatchOutcome(nil), wave...)
+		})
+		close(done)
+	}()
+
+	select {
+	case wave := <-waves:
+		if got := directoryOutcomeIndexes(wave); !equalInts(got, []int{0}) {
+			releaseOnce.Do(func() { close(releaseSlow) })
+			t.Fatalf("first completed wave indexes = %v, want fast source index 0", got)
+		}
+	case <-time.After(100 * time.Millisecond):
+		releaseOnce.Do(func() { close(releaseSlow) })
+		t.Fatal("fast source result was held until every Slot in the durable batch completed")
+	}
+	releaseOnce.Do(func() { close(releaseSlow) })
+	select {
+	case wave := <-waves:
+		if got := directoryOutcomeIndexes(wave); !equalInts(got, []int{1}) {
+			t.Fatalf("second completed wave indexes = %v, want slow source index 1", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow source result did not complete after release")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("batched source admission did not join")
+	}
+}
+
+func TestPersonDirectoryBatcherSingleflightsSameChannelWhileSealedBatchIsActive(t *testing.T) {
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseAll)
+
+	node := &blockingPersonDirectoryBatchNode{
+		started: make(chan struct{}, 2),
+		release: release,
+	}
+	batcher := newPersonDirectoryBatcher(node, nil)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 1
+	mutation := testPersonDirectoryMutation(0)
+	results := make(chan error, 2)
+	go func() { results <- batcher.ensure(context.Background(), mutation) }()
+	select {
+	case <-node.started:
+	case <-time.After(time.Second):
+		t.Fatal("first person-directory batch did not start")
+	}
+
+	go func() { results <- batcher.ensure(context.Background(), mutation) }()
+	select {
+	case <-node.started:
+		releaseAll()
+		for range 2 {
+			<-results
+		}
+		t.Fatal("same channel started a second durable batch while the first batch was active")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	releaseAll()
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Fatalf("ensure() error = %v", err)
+		}
+	}
+}
+
+func TestPersonDirectoryBatcherReturnsAdmissionFailure(t *testing.T) {
+	admissionErr := errors.New("admission failed")
+	node := &recordingPersonDirectoryBatchNode{admissionErr: admissionErr}
+	batcher := newPersonDirectoryBatcher(node, nil)
 	batcher.collectWait = time.Millisecond
 	batcher.targetItems = 8
 
 	err := batcher.ensure(context.Background(), testPersonDirectoryMutation(0))
-	if !errors.Is(err, membershipErr) {
-		t.Fatalf("ensure() error = %v, want membership failure", err)
+	if !errors.Is(err, admissionErr) {
+		t.Fatalf("ensure() error = %v, want admission failure", err)
 	}
-	node.mu.Lock()
-	defer node.mu.Unlock()
-	if node.readyCalls != 0 {
-		t.Fatalf("ready calls = %d, want 0 after membership failure", node.readyCalls)
+}
+
+func TestPersonDirectoryBatcherPreservesAlignedPartialAdmissionResults(t *testing.T) {
+	admissionErr := errors.New("second source slot unavailable")
+	node := &partialPersonDirectoryBatchNode{admissionErr: admissionErr}
+	batcher := newPersonDirectoryBatcher(node, nil)
+	batcher.collectWait = time.Hour
+	batcher.targetItems = 2
+
+	first := make(chan error, 1)
+	second := make(chan error, 1)
+	go func() { first <- batcher.ensure(context.Background(), testPersonDirectoryMutation(0)) }()
+	go func() { second <- batcher.ensure(context.Background(), testPersonDirectoryMutation(1)) }()
+
+	if err := <-first; err != nil {
+		t.Fatalf("first aligned admission error = %v, want success", err)
+	}
+	if err := <-second; !errors.Is(err, admissionErr) {
+		t.Fatalf("second aligned admission error = %v, want %v", err, admissionErr)
 	}
 }
 
@@ -65,7 +285,7 @@ func TestPersonDirectoryBatcherWaitsForCapacityInsteadOfRejectingColdWave(t *tes
 	t.Cleanup(releaseAll)
 
 	node := &blockingPersonDirectoryBatchNode{release: release}
-	batcher := newPersonDirectoryBatcher(node)
+	batcher := newPersonDirectoryBatcher(node, nil)
 	batcher.collectWait = time.Hour
 	batcher.targetItems = 1
 	batcher.maxQueued = queuedItems
@@ -128,7 +348,7 @@ func TestPersonDirectoryBatcherRunsEightColdDirectoryBatchesConcurrently(t *test
 		started: make(chan struct{}, concurrentBatches),
 		release: release,
 	}
-	batcher := newPersonDirectoryBatcher(node)
+	batcher := newPersonDirectoryBatcher(node, nil)
 	batcher.collectWait = time.Hour
 	batcher.targetItems = 1
 
@@ -159,23 +379,17 @@ func TestPersonDirectoryBatcherRunsEightColdDirectoryBatchesConcurrently(t *test
 func testPersonDirectoryMutation(index int) personDirectoryMutation {
 	channelID := string(rune('a'+index)) + "@z"
 	return personDirectoryMutation{
-		key: metadb.ChannelKey{ChannelID: channelID, ChannelType: 1},
-		memberships: []metadb.UserChannelMembership{
-			{UID: string(rune('a' + index)), ChannelID: channelID, ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1},
-			{UID: "z", ChannelID: channelID, ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1},
-		},
+		task: metadb.PersonDirectoryTask{ChannelID: channelID, ChannelType: 1, CommittedTail: uint64(index), CreatedAt: 1},
 	}
 }
 
 type recordingPersonDirectoryBatchNode struct {
 	mu sync.Mutex
 
-	prepareCalls     int
-	memberships      []metadb.UserChannelMembership
-	preparedChannels []metadb.ChannelKey
-	prepareErr       error
-	readyCalls       int
-	ready            []metadb.ChannelKey
+	admissionCalls int
+	tasks          []metadb.PersonDirectoryTask
+	batchSizes     []int
+	admissionErr   error
 }
 
 type blockingPersonDirectoryBatchNode struct {
@@ -183,35 +397,137 @@ type blockingPersonDirectoryBatchNode struct {
 	release <-chan struct{}
 }
 
-func (n *blockingPersonDirectoryBatchNode) PreparePersonChannelDirectoryBatch(ctx context.Context, _ []metadb.UserChannelMembership, _ []metadb.ChannelKey) error {
-	if n.started != nil {
-		n.started <- struct{}{}
+type partialPersonDirectoryBatchNode struct {
+	admissionErr error
+}
+
+type stagedPersonDirectoryBatchNode struct {
+	releaseSlow <-chan struct{}
+}
+
+type stagedIntraBatchPersonDirectoryBatchNode struct {
+	releaseSlow <-chan struct{}
+}
+
+func (n *stagedIntraBatchPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	if len(tasks) > 0 {
+		emit(0, nil)
+	}
+	if len(tasks) < 2 {
+		return
 	}
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
-	case <-n.release:
-		return nil
+		emit(1, ctx.Err())
+	case <-n.releaseSlow:
+		emit(1, nil)
 	}
 }
 
-func (n *blockingPersonDirectoryBatchNode) EnsureChannelDirectoriesReady(context.Context, []metadb.ChannelKey) error {
-	return nil
+func (n *stagedIntraBatchPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTask) []error {
+	results := make([]error, len(tasks))
+	n.AdmitPersonDirectoryTaskWaves(ctx, tasks, func(index int, err error) { results[index] = err })
+	return results
 }
 
-func (n *recordingPersonDirectoryBatchNode) PreparePersonChannelDirectoryBatch(_ context.Context, memberships []metadb.UserChannelMembership, channels []metadb.ChannelKey) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.prepareCalls++
-	n.memberships = append(n.memberships, memberships...)
-	n.preparedChannels = append(n.preparedChannels, channels...)
-	return n.prepareErr
+func (n *stagedPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTask) []error {
+	results := make([]error, len(tasks))
+	if len(tasks) == 0 || tasks[0].ChannelID != "c@z" {
+		return results
+	}
+	select {
+	case <-ctx.Done():
+		for i := range results {
+			results[i] = ctx.Err()
+		}
+	case <-n.releaseSlow:
+	}
+	return results
 }
 
-func (n *recordingPersonDirectoryBatchNode) EnsureChannelDirectoriesReady(_ context.Context, ready []metadb.ChannelKey) error {
+func (n *stagedPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
+}
+
+func (n *partialPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(_ context.Context, tasks []metadb.PersonDirectoryTask) []error {
+	results := make([]error, len(tasks))
+	for i, task := range tasks {
+		if task.ChannelID == "b@z" {
+			results[i] = n.admissionErr
+		}
+	}
+	return results
+}
+
+func (n *partialPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
+}
+
+func (n *blockingPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTask) []error {
+	if n.started != nil {
+		n.started <- struct{}{}
+	}
+	var err error
+	select {
+	case <-ctx.Done():
+		err = ctx.Err()
+	case <-n.release:
+	}
+	results := make([]error, len(tasks))
+	for i := range results {
+		results[i] = err
+	}
+	return results
+}
+
+func (n *blockingPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
+}
+
+func (n *recordingPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(_ context.Context, tasks []metadb.PersonDirectoryTask) []error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.readyCalls++
-	n.ready = append(n.ready, ready...)
-	return nil
+	n.admissionCalls++
+	n.tasks = append(n.tasks, tasks...)
+	n.batchSizes = append(n.batchSizes, len(tasks))
+	results := make([]error, len(tasks))
+	for i := range results {
+		results[i] = n.admissionErr
+	}
+	return results
+}
+
+func (n *recordingPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
+}
+
+func emitPersonDirectoryAdmissionResults(results []error, emit func(int, error)) {
+	for i, err := range results {
+		emit(i, err)
+	}
+}
+
+func equalInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[int]int, len(left))
+	for _, value := range left {
+		counts[value]++
+	}
+	for _, value := range right {
+		counts[value]--
+		if counts[value] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func directoryOutcomeIndexes(outcomes []personDirectoryBatchOutcome) []int {
+	indexes := make([]int, len(outcomes))
+	for i, outcome := range outcomes {
+		indexes[i] = outcome.index
+	}
+	return indexes
 }

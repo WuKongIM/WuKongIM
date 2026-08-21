@@ -32,6 +32,8 @@ const (
 	FileKindMetaUserCMDChannelMemberships FileKind = "meta.user_cmd_channel_memberships"
 	// FileKindMetaChannelLatest stores latest channel message projection rows.
 	FileKindMetaChannelLatest FileKind = "meta.channel_latest"
+	// FileKindMetaPersonDirectoryTasks stores durable pending person-directory projections.
+	FileKindMetaPersonDirectoryTasks FileKind = "meta.person_directory_tasks"
 	// FileKindMessageChannels stores message channel index rows.
 	FileKindMessageChannels FileKind = "message.channels"
 	// FileKindMessageMessages stores message log rows.
@@ -170,6 +172,26 @@ type ChannelRecord struct {
 	Large int64 `json:"large"`
 	// SubscriberMutationVersion is the exact subscriber mutation version.
 	SubscriberMutationVersion Uint64 `json:"subscriber_mutation_version"`
+	// DirectoryProjectionState is the durable none, pending, or ready state.
+	DirectoryProjectionState uint8 `json:"directory_projection_state"`
+	// DirectoryProjectionGeneration fences stale person-directory projection work.
+	DirectoryProjectionGeneration Uint64 `json:"directory_projection_generation"`
+}
+
+// PersonDirectoryTaskRecord represents one durable pending directory projection.
+type PersonDirectoryTaskRecord struct {
+	// HashSlot is the source Channel-owned hash slot.
+	HashSlot uint16 `json:"hash_slot"`
+	// ChannelID is the canonical person Channel identifier.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is always the person Channel type.
+	ChannelType int64 `json:"channel_type"`
+	// CommittedTail is the projection baseline captured at admission.
+	CommittedTail Uint64 `json:"committed_tail"`
+	// CreatedAt is the durable admission timestamp.
+	CreatedAt int64 `json:"created_at"`
+	// Generation is the exact source incarnation projected by this task.
+	Generation Uint64 `json:"generation"`
 }
 
 // SubscriberRecord represents one imported channel subscriber row.

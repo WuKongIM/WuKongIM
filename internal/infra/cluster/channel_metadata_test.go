@@ -16,7 +16,7 @@ import (
 
 func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
 	node := &recordingChannelMetadataNode{}
-	store := NewChannelMetadataStore(node, nil)
+	store := NewChannelMetadataStore(node, nil, nil)
 
 	if err := store.UpsertChannelMemberships(context.Background(), "g1", 2, []string{"u1", "u2"}, 9, 7, 123); err != nil {
 		t.Fatalf("UpsertChannelMemberships(): %v", err)
@@ -33,88 +33,127 @@ func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
 	}
 }
 
-func TestChannelMetadataStoreEnsuresPersonDirectoryOnce(t *testing.T) {
+func TestChannelMetadataStoreAdmitsPersonDirectoryTaskOnce(t *testing.T) {
 	node := &recordingChannelMetadataNode{
 		authoritativeChannel: metadb.Channel{ChannelID: "u1@u2", ChannelType: 1},
 		committedTail:        9,
 	}
 	cache := NewChannelAppendMetadataCache()
-	store := NewChannelMetadataStore(node, cache)
-	if store.PersonChannelDirectoryReady("u1@u2", 1) {
-		t.Fatal("directory reported ready before an authoritative ensure")
-	}
+	store := NewChannelMetadataStore(node, cache, nil)
+	wakes := 0
+	store.SetPersonDirectoryWake(func() { wakes++ })
+	store.personDirectories.collectWait = 0
 
-	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
-		t.Fatalf("EnsurePersonChannelDirectory(): %v", err)
+	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("AdmitPersonChannelDirectory(): %v", err)
 	}
-	if len(node.membershipUpserts) != 1 {
-		t.Fatalf("membership upserts = %+v", node.membershipUpserts)
+	if len(node.directoryTasks) != 1 {
+		t.Fatalf("directory tasks = %+v", node.directoryTasks)
 	}
-	call := node.membershipUpserts[0]
-	if call.channelID != "u1@u2" || call.channelType != 1 || call.committedTail != 9 || call.sourceVersion != 1 || !equalStringSlices(call.uids, []string{"u1", "u2"}) {
-		t.Fatalf("membership upsert = %+v", call)
+	task := node.directoryTasks[0]
+	if task.ChannelID != "u1@u2" || task.ChannelType != 1 || task.CommittedTail != 9 || task.CreatedAt <= 0 {
+		t.Fatalf("directory task = %+v", task)
 	}
-	if node.directoryReadyCalls != 1 {
-		t.Fatalf("directory ready calls = %d, want 1", node.directoryReadyCalls)
+	if wakes != 1 {
+		t.Fatalf("projector wakes = %d, want 1 after durable admission", wakes)
 	}
 	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "u1@u2", Type: 1})
-	if !ok || !metadata.DirectoryReady {
+	if !ok || metadata.DirectoryProjectionState != metadb.DirectoryProjectionPending {
 		t.Fatalf("metadata = %+v ok=%v", metadata, ok)
 	}
-	if !store.PersonChannelDirectoryReady("u1@u2", 1) {
-		t.Fatal("directory readiness proof was not published after ensure")
+	node.authoritativeChannel.DirectoryProjectionState = metadb.DirectoryProjectionPending
+	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("AdmitPersonChannelDirectory(authoritative pending): %v", err)
 	}
-
-	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
-		t.Fatalf("EnsurePersonChannelDirectory(cached): %v", err)
+	if len(node.directoryTasks) != 1 {
+		t.Fatalf("cached admission repeated writes: tasks=%d", len(node.directoryTasks))
 	}
-	if len(node.membershipUpserts) != 1 || node.directoryReadyCalls != 1 {
-		t.Fatalf("cached ensure repeated writes: upserts=%d ready=%d", len(node.membershipUpserts), node.directoryReadyCalls)
+	if wakes != 1 {
+		t.Fatalf("cached admission wakes = %d, want unchanged", wakes)
 	}
 }
 
-func TestChannelMetadataStoreAcceptsReplicatedMonotonicDirectoryReadiness(t *testing.T) {
+func TestChannelMetadataStoreAcceptsAuthoritativePendingDirectoryAdmission(t *testing.T) {
 	t.Parallel()
 
 	node := &recordingChannelMetadataNode{
-		localChannel:     metadb.Channel{ChannelID: "u1@u2", ChannelType: 1, DirectoryReady: 1},
-		authoritativeErr: errors.New("authoritative read must not be needed"),
+		localChannel:         metadb.Channel{ChannelID: "u1@u2", ChannelType: 1, DirectoryProjectionState: metadb.DirectoryProjectionPending},
+		authoritativeChannel: metadb.Channel{ChannelID: "u1@u2", ChannelType: 1, DirectoryProjectionState: metadb.DirectoryProjectionPending},
 	}
-	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache())
+	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache(), nil)
 
-	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
-		t.Fatalf("EnsurePersonChannelDirectory() error = %v", err)
+	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("AdmitPersonChannelDirectory() error = %v", err)
 	}
-	if node.localReadCalls != 1 || node.authoritativeReadCalls != 0 {
-		t.Fatalf("directory reads local=%d authoritative=%d, want 1/0", node.localReadCalls, node.authoritativeReadCalls)
+	if node.localReadCalls != 0 || node.authoritativeReadCalls != 1 {
+		t.Fatalf("directory reads local=%d authoritative=%d, want 0/1", node.localReadCalls, node.authoritativeReadCalls)
 	}
-	if len(node.membershipUpserts) != 0 || node.directoryReadyCalls != 0 {
-		t.Fatalf("replicated ready proof caused writes: memberships=%d ready=%d", len(node.membershipUpserts), node.directoryReadyCalls)
+	if len(node.directoryTasks) != 0 {
+		t.Fatalf("replicated admission proof caused writes: tasks=%d", len(node.directoryTasks))
 	}
-	if !store.PersonChannelDirectoryReady("u1@u2", 1) {
-		t.Fatal("replicated readiness was not cached")
+}
+
+func TestChannelMetadataStoreDoesNotTrustCachedReadyStateAfterDeleteAndRecreate(t *testing.T) {
+	t.Parallel()
+
+	node := &recordingChannelMetadataNode{authoritativeErr: metadb.ErrNotFound}
+	cache := NewChannelAppendMetadataCache()
+	cache.Store(channelappend.ChannelID{ID: "u1@u2", Type: 1}, ChannelAppendMetadata{
+		DirectoryProjectionState: metadb.DirectoryProjectionReady,
+	})
+	store := NewChannelMetadataStore(node, cache, nil)
+	store.personDirectories.collectWait = 0
+
+	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("AdmitPersonChannelDirectory(): %v", err)
+	}
+	if node.authoritativeReadCalls != 1 {
+		t.Fatalf("authoritative reads = %d, want 1 after cached ready state", node.authoritativeReadCalls)
+	}
+	if len(node.directoryTasks) != 1 {
+		t.Fatalf("directory tasks = %d, want recreated channel admission", len(node.directoryTasks))
 	}
 }
 
 func TestChannelMetadataStoreDoesNotActivateMissingPersonChannelToReadZeroTail(t *testing.T) {
 	node := &recordingChannelMetadataNode{authoritativeErr: metadb.ErrNotFound}
-	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache())
+	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache(), nil)
 
-	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
-		t.Fatalf("EnsurePersonChannelDirectory(): %v", err)
+	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("AdmitPersonChannelDirectory(): %v", err)
 	}
 	if node.committedTailCalls != 0 {
 		t.Fatalf("committed tail calls = %d, want zero for a channel proved absent by authoritative metadata", node.committedTailCalls)
 	}
-	if len(node.membershipUpserts) != 1 || node.membershipUpserts[0].committedTail != 0 {
-		t.Fatalf("membership upserts = %#v, want one zero-tail directory mutation", node.membershipUpserts)
+	if len(node.directoryTasks) != 1 || node.directoryTasks[0].CommittedTail != 0 {
+		t.Fatalf("directory tasks = %#v, want one zero-tail admission", node.directoryTasks)
+	}
+}
+
+func TestChannelMetadataStoreReusesBatchScopedMissingChannelFact(t *testing.T) {
+	node := &recordingChannelMetadataNode{authoritativeErr: errors.New("unexpected duplicate authoritative read")}
+	store := NewChannelMetadataStore(node, NewChannelAppendMetadataCache(), nil)
+	store.personDirectories.collectWait = 0
+
+	results := store.AdmitPersonChannelDirectories([]messageusecase.PersonDirectoryAdmission{{
+		Context: context.Background(), ChannelID: "u1@u2", ChannelType: 1,
+		ChannelFact: &messageusecase.PersonDirectoryChannelFact{Found: false},
+	}})
+	if len(results) != 1 || results[0] != nil {
+		t.Fatalf("AdmitPersonChannelDirectories() = %#v, want success", results)
+	}
+	if len(node.permissionBatchReads) != 0 || node.authoritativeReadCalls != 0 {
+		t.Fatalf("duplicate authoritative reads = batch:%d direct:%d, want zero", len(node.permissionBatchReads), node.authoritativeReadCalls)
+	}
+	if len(node.directoryTasks) != 1 || node.directoryTasks[0].CommittedTail != 0 {
+		t.Fatalf("directory tasks = %#v, want one zero-tail admission", node.directoryTasks)
 	}
 }
 
 func TestChannelMetadataStoreRefreshesAppendMetadataCache(t *testing.T) {
 	node := &recordingChannelMetadataNode{}
 	cache := NewChannelAppendMetadataCache()
-	store := NewChannelMetadataStore(node, cache)
+	store := NewChannelMetadataStore(node, cache, nil)
 
 	channel := metadb.Channel{
 		ChannelID:                 "g1",
@@ -143,7 +182,7 @@ func TestChannelMetadataStoreUsesAuthoritativeChannelReads(t *testing.T) {
 		authoritativeChannel: metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1},
 		authoritativeUIDs:    []string{"u1"},
 	}
-	store := NewChannelMetadataStore(node, nil)
+	store := NewChannelMetadataStore(node, nil, nil)
 
 	channel, err := store.GetChannel(context.Background(), "g1", 2)
 	if err != nil || channel.Ban != 1 {
@@ -173,7 +212,7 @@ func TestChannelMetadataStoreMapsUnavailablePermissionReadsToRouteNotReady(t *te
 			transport.ErrDialFailed,
 		),
 	}
-	store := NewChannelMetadataStore(node, nil)
+	store := NewChannelMetadataStore(node, nil, nil)
 
 	if _, err := store.GetChannelForPermission(
 		context.Background(), "g1", 2,
@@ -198,7 +237,7 @@ func TestChannelMetadataStoreMapsAuthoritativePermissionBatch(t *testing.T) {
 		{Value: true},
 		{Value: false},
 	}}
-	store := NewChannelMetadataStore(node, nil)
+	store := NewChannelMetadataStore(node, nil, nil)
 	reads := []messageusecase.PermissionRead{
 		{Kind: messageusecase.PermissionReadChannel, ChannelID: "g1", ChannelType: 2},
 		{Kind: messageusecase.PermissionReadSubscriberContains, ChannelID: "g1", ChannelType: 2, UID: "u1"},
@@ -221,7 +260,7 @@ func TestChannelMetadataStoreMapsAuthoritativePermissionBatch(t *testing.T) {
 
 func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
 	node := &localOnlyChannelMetadataNode{}
-	store := NewChannelMetadataStore(node, nil)
+	store := NewChannelMetadataStore(node, nil, nil)
 
 	if _, err := store.GetChannel(context.Background(), "g1", 2); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
 		t.Fatalf("GetChannel() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
@@ -245,7 +284,7 @@ func TestChannelMetadataStoreReturnsCountedMutationResults(t *testing.T) {
 		addResult:    metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
 		removeResult: metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 0},
 	}
-	store := NewChannelMetadataStore(node, nil)
+	store := NewChannelMetadataStore(node, nil, nil)
 
 	added, err := store.AddChannelSubscribersCounted(context.Background(), "g1", 2, []string{"u1", "u2"}, 3)
 	if err != nil || added != node.addResult {
@@ -290,6 +329,7 @@ func (n *localOnlyChannelMetadataNode) ListChannelSubscribersPage(context.Contex
 type recordingChannelMetadataNode struct {
 	membershipUpserts      []membershipUpsertNodeCall
 	membershipDeletes      []membershipDeleteNodeCall
+	directoryTasks         []metadb.PersonDirectoryTask
 	localChannel           metadb.Channel
 	localErr               error
 	authoritativeChannel   metadb.Channel
@@ -301,7 +341,6 @@ type recordingChannelMetadataNode struct {
 	removeResult           metadb.SubscriberMutationResult
 	committedTail          uint64
 	committedTailCalls     int
-	directoryReadyCalls    int
 	permissionBatchReads   []slotproxy.PermissionMetadataRead
 	permissionBatchResults []slotproxy.PermissionMetadataReadResult
 }
@@ -393,7 +432,25 @@ func (r *recordingChannelMetadataNode) HasChannelSubscribersAuthoritative(contex
 
 func (r *recordingChannelMetadataNode) ReadPermissionMetadataBatchAuthoritative(_ context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
 	r.permissionBatchReads = append([]slotproxy.PermissionMetadataRead(nil), reads...)
-	return append([]slotproxy.PermissionMetadataReadResult(nil), r.permissionBatchResults...)
+	if r.permissionBatchResults != nil {
+		return append([]slotproxy.PermissionMetadataReadResult(nil), r.permissionBatchResults...)
+	}
+	results := make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	for i, read := range reads {
+		r.authoritativeReadCalls++
+		if r.authoritativeErr != nil {
+			if errors.Is(r.authoritativeErr, metadb.ErrNotFound) {
+				continue
+			}
+			results[i].Err = r.authoritativeErr
+			continue
+		}
+		if read.Kind == slotproxy.PermissionMetadataReadChannel {
+			results[i].Found = true
+			results[i].Channel = r.authoritativeChannel
+		}
+	}
+	return results
 }
 
 func (r *recordingChannelMetadataNode) AddChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error) {
@@ -432,50 +489,16 @@ func (r *recordingChannelMetadataNode) CommittedChannelTail(context.Context, str
 	return r.committedTail, nil
 }
 
-func (r *recordingChannelMetadataNode) EnsureChannelDirectoryReady(context.Context, string, int64) error {
-	r.directoryReadyCalls++
-	r.authoritativeChannel.DirectoryReady = 1
-	return nil
+func (r *recordingChannelMetadataNode) AdmitPersonDirectoryTasks(_ context.Context, tasks []metadb.PersonDirectoryTask) []error {
+	r.directoryTasks = append(r.directoryTasks, tasks...)
+	return make([]error, len(tasks))
 }
 
-func (r *recordingChannelMetadataNode) UpsertUserChannelMembershipBatch(_ context.Context, memberships []metadb.UserChannelMembership) error {
-	type key struct {
-		channelID   string
-		channelType int64
+func (r *recordingChannelMetadataNode) AdmitPersonDirectoryTaskWaves(_ context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	r.directoryTasks = append(r.directoryTasks, tasks...)
+	for i := range tasks {
+		emit(i, nil)
 	}
-	groups := make(map[key][]metadb.UserChannelMembership)
-	order := make([]key, 0)
-	for _, membership := range memberships {
-		groupKey := key{channelID: membership.ChannelID, channelType: membership.ChannelType}
-		if _, ok := groups[groupKey]; !ok {
-			order = append(order, groupKey)
-		}
-		groups[groupKey] = append(groups[groupKey], membership)
-	}
-	for _, groupKey := range order {
-		group := groups[groupKey]
-		uids := make([]string, len(group))
-		for i, membership := range group {
-			uids[i] = membership.UID
-		}
-		r.membershipUpserts = append(r.membershipUpserts, membershipUpsertNodeCall{
-			channelID: groupKey.channelID, channelType: groupKey.channelType, uids: uids,
-			committedTail: group[0].ReadSeq, sourceVersion: group[0].SourceVersion, updatedAt: group[0].UpdatedAt,
-		})
-	}
-	return nil
-}
-
-func (r *recordingChannelMetadataNode) PreparePersonChannelDirectoryBatch(ctx context.Context, memberships []metadb.UserChannelMembership, _ []metadb.ChannelKey) error {
-	return r.UpsertUserChannelMembershipBatch(ctx, memberships)
-}
-
-func (r *recordingChannelMetadataNode) EnsureChannelDirectoriesReady(_ context.Context, channels []metadb.ChannelKey) error {
-	r.directoryReadyCalls += len(channels)
-	if len(channels) > 0 {
-		r.authoritativeChannel.DirectoryReady = 1
-	}
-	return nil
 }
 
 func equalMembershipUpsertNodeCalls(a, b []membershipUpsertNodeCall) bool {

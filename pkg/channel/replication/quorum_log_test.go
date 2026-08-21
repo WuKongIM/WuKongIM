@@ -10,12 +10,32 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
+func TestQuorumLogRejectsAuthorityBeyondConfiguredVoterBound(t *testing.T) {
+	harness := newReplicaHarness(t, 1, 2, 3)
+	log, err := newQuorumLog(quorumLogConfig{
+		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
+		RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
+		MaxChannels: 8, MaxVoters: 2, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+	})
+	if err != nil {
+		t.Fatalf("newQuorumLog() error = %v", err)
+	}
+	_, err = log.Install(context.Background(), Authority{
+		Key: "1:too-many-voters", ChannelID: ch.ChannelID{ID: "too-many-voters", Type: 1},
+		ID: AuthorityID{ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1}, Leader: 1,
+		Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
+	})
+	if !errors.Is(err, ch.ErrInvalidConfig) {
+		t.Fatalf("Install() error = %v, want %v", err, ch.ErrInvalidConfig)
+	}
+}
+
 func TestQuorumLogInstallDefersEmptyAuthorityBarrierIntoFirstProposal(t *testing.T) {
 	harness := newReplicaHarness(t, 1, 2, 3)
 	log, err := newQuorumLog(quorumLogConfig{
 		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
 		RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
-		MaxChannels: 8, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+		MaxChannels: 8, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
 	})
 	if err != nil {
 		t.Fatalf("newQuorumLog() error = %v", err)
@@ -79,7 +99,7 @@ func TestQuorumLogInstallDefersEmptyAuthorityBarrierIntoFirstProposal(t *testing
 	restarted, err := newQuorumLog(quorumLogConfig{
 		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
 		RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
-		MaxChannels: 8, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+		MaxChannels: 8, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
 	})
 	if err != nil {
 		t.Fatalf("newQuorumLog(restart) error = %v", err)
@@ -115,7 +135,7 @@ func TestQuorumLogRetriesSameImmutableRangeAfterLostDurabilityResponses(t *testi
 	log, err := newQuorumLog(quorumLogConfig{
 		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
 		RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
-		MaxChannels: 8, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+		MaxChannels: 8, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
 	})
 	if err != nil {
 		t.Fatalf("newQuorumLog() error = %v", err)
@@ -163,7 +183,7 @@ func TestQuorumLogInstallWritesAuthorityBarrierAboveNonEmptyForeignFrontier(t *t
 		log, err := newQuorumLog(quorumLogConfig{
 			Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
 			RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
-			MaxChannels: 8, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+			MaxChannels: 8, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
 		})
 		if err != nil {
 			t.Fatalf("newQuorumLog() error = %v", err)
@@ -211,7 +231,7 @@ func TestQuorumLogHigherFencedAuthorityPermanentlyClosesOldAdmission(t *testing.
 	log, err := newQuorumLog(quorumLogConfig{
 		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
 		RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
-		MaxChannels: 8, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+		MaxChannels: 8, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
 	})
 	if err != nil {
 		t.Fatalf("newQuorumLog() error = %v", err)

@@ -72,8 +72,8 @@ channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
 
 # Maximum time to collect adjacent Channel append requests before one durable fsync.
-# The three-node cluster profile uses 5ms to amortize replicated fsync latency at 1000 SEND/s.
-commit_coordinator_flush_window = "5ms"
+# The reviewed three-node cluster profile uses 500us to bound commit latency.
+commit_coordinator_flush_window = "500us"
 
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 commit_coordinator_max_requests = 0
@@ -206,7 +206,7 @@ gnet_multicore = true
 gnet_num_event_loop = 0
 
 # Gateway SEND async sharding and micro-batch collection controls.
-runtime_async_send_workers = 0
+runtime_async_send_workers = 1000
 
 runtime_async_send_queue_capacity = 0
 
@@ -219,8 +219,9 @@ runtime_async_pool_release_timeout = "0s"
 default_session_async_send_batch_max_wait = "1ms"
 
 # Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.
-# The 128-record limit is qualified for sustained high-QPS workloads.
-default_session_async_send_batch_max_records = 128
+# The reviewed chat-lifecycle profile keeps one SEND per dispatch because each
+# sender already allows only one in-flight SENDACK operation.
+default_session_async_send_batch_max_records = 1
 
 default_session_async_send_batch_max_bytes = 524288
 

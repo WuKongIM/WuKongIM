@@ -75,6 +75,8 @@ type ReportFence struct {
 }
 
 // ReportTimeWindow binds one checkpoint to the same process-lifetime interval.
+// Start and End are wall-clock audit timestamps; Elapsed is the process-local
+// monotonic duration captured before the timestamps are serialized.
 type ReportTimeWindow struct {
 	Start           time.Time     `json:"start"`
 	WarmupEnd       time.Time     `json:"warmup_end"`
@@ -406,7 +408,7 @@ func validateReport(report Report) error {
 		(report.Kind != CheckpointQualification && report.Kind != CheckpointFinal) ||
 		!validReportHash(report.Fence.RunHash) || !validReportHash(report.Fence.AssignmentHash) ||
 		report.Fence.Generation == 0 || report.Window.Start.IsZero() || report.Window.End.Before(report.Window.Start) ||
-		report.Window.Elapsed != report.Window.End.Sub(report.Window.Start) ||
+		report.Window.Elapsed < 0 ||
 		report.MinimumWorkerUptime < report.Window.Elapsed ||
 		!report.Window.WarmupEnd.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Warmup)) ||
 		!report.Window.QualificationAt.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Checkpoint)) ||
@@ -421,6 +423,8 @@ func validateReport(report Report) error {
 		!validCoordinatorHistogram(report.Latency.ColdFirstCreateSendACK) ||
 		!validCoordinatorHistogram(report.Latency.WorkerLifecycleReheatSendACK) ||
 		!validCoordinatorHistogram(report.Latency.ReceiveACK) ||
+		!validCoordinatorHistogram(report.Latency.SendPendingToWrite) ||
+		!validCoordinatorHistogram(report.Latency.SendWriteToACK) ||
 		!validCoordinatorHistogram(report.Latency.FullSync) || !validCoordinatorHistogram(report.Lifecycle.ReheatLatency) {
 		return ErrReportInvalid
 	}
@@ -564,7 +568,7 @@ func validReportVerdict(report Report) bool {
 		report.Verdict.Outcome == VerdictPassedWithCapacityWarning || report.Verdict.Cause == VerdictCauseCompleted ||
 		report.Verdict.Cause == VerdictCauseRehearsalCompleted || report.Verdict.Cause == VerdictCauseInfrastructureCapacity {
 		if !validSuccessfulVerdictPair(report.Verdict.Outcome, report.Verdict.Cause) || report.Kind != CheckpointFinal ||
-			(report.Mode == ModeSoak && report.Window.End.Before(report.Window.FinalAt)) ||
+			(report.Mode == ModeSoak && report.Window.Elapsed < reportMeasuredDuration(report)) ||
 			(report.Verdict.Outcome == VerdictPass && report.Stage != StageFormal) ||
 			(report.Verdict.Outcome == VerdictRehearsalPass && report.Stage != StageRehearsal) {
 			return false

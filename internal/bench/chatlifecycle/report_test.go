@@ -71,6 +71,34 @@ func TestReportRejectsInconsistentExternalDemoAccounting(t *testing.T) {
 	}
 }
 
+func TestReportRejectsMalformedClientSendPhaseHistograms(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*Report)
+	}{
+		{
+			name: "pending to write",
+			mutate: func(report *Report) {
+				report.Latency.SendPendingToWrite.BucketUpper[0]++
+			},
+		},
+		{
+			name: "write to ack",
+			mutate: func(report *Report) {
+				report.Latency.SendWriteToACK.BucketUpper[0]++
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := reportFixture(t)
+			test.mutate(&report)
+			if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+				t.Fatalf("MarshalReport() error = %v, want malformed client SEND phase histogram rejection", err)
+			}
+		})
+	}
+}
+
 func TestReportRejectsLegacyV1SchemaAfterMetaAccountingContractChange(t *testing.T) {
 	report := reportFixture(t)
 	report.SchemaVersion = "wukongim/chat-lifecycle-report/v1"

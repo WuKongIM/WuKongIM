@@ -365,7 +365,7 @@ func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
 
 	if lastApplied > task.appliedBefore {
 		started := time.Now()
-		err := g.storage.MarkApplied(ctx, lastApplied)
+		err := g.markApplied(ctx, lastApplied)
 		g.observeResolutionFutures(resolutions, "meta_create_slot_mark_applied", err, time.Since(started))
 		if err != nil {
 			g.fail(err)

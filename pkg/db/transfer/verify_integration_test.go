@@ -53,8 +53,8 @@ func TestVerifyStoresReportsEqualForRoundTripStores(t *testing.T) {
 	if report.Mode != VerifyModeFull {
 		t.Fatalf("report.Mode = %q, want %q", report.Mode, VerifyModeFull)
 	}
-	if len(report.Meta) != 7 {
-		t.Fatalf("len(report.Meta) = %d, want 7: %+v", len(report.Meta), report.Meta)
+	if len(report.Meta) != 8 {
+		t.Fatalf("len(report.Meta) = %d, want 8: %+v", len(report.Meta), report.Meta)
 	}
 	if len(report.Message) != 2 {
 		t.Fatalf("len(report.Message) = %d, want 2: %+v", len(report.Message), report.Message)

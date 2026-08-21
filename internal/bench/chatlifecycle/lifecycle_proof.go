@@ -26,7 +26,7 @@ const (
 )
 
 // LifecycleProofCycleTime returns the exact history-free boundary for a
-// zero-based proof cycle. Cycle zero is ten minutes after measured start.
+// zero-based proof cycle at the fixed formal lifecycle cadence.
 func LifecycleProofCycleTime(start time.Time, cycle uint64) (time.Time, error) {
 	if start.IsZero() || cycle == ^uint64(0) {
 		return time.Time{}, ErrLifecycleHarnessInvalid

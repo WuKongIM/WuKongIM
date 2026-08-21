@@ -96,6 +96,14 @@ func (g *slot) compactLogAt(
 	if g == nil || applied == 0 {
 		return nil
 	}
+	// DurableAppliedStateMachine makes its business state authoritative at the
+	// apply boundary. Mirror that watermark into Raft storage only when a
+	// snapshot is about to validate and compact the durable log.
+	if _, ok := g.stateMachine.(DurableAppliedStateMachine); ok {
+		if err := g.storage.MarkApplied(ctx, applied); err != nil {
+			return err
+		}
+	}
 	stateSnap, err := g.stateMachine.Snapshot(ctx)
 	if err != nil {
 		return err

@@ -23,11 +23,17 @@ type quorumLogConfig struct {
 	Store      ReplicaStore
 	Recovery   recoveryDispatcher
 	Durability durabilityDispatcher
+	// RepairAuthorities fences retained follower repair work whenever Channel
+	// authority advances, including an advance whose recovery later fails.
+	RepairAuthorities followerRepairAuthorityOwner
 	// RecoveryTimeout and RecoveryPageBytes bound one proof and repair attempt.
 	RecoveryTimeout   time.Duration
 	RecoveryPageBytes int
 	// MaxChannels bounds resident sequencers without per-Channel goroutines.
 	MaxChannels int
+	// MaxVoters bounds installed authority membership and the follower-repair
+	// ownership ledger shared by all resident Channels.
+	MaxVoters int
 	// Proposal and retained-command limits bound hot-path owned memory.
 	MaxProposalRecords  int
 	MaxProposalBytes    int
@@ -68,6 +74,7 @@ type retainedProposal struct {
 func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 	if cfg.Local == 0 || cfg.Store == nil || cfg.Recovery == nil || cfg.Durability == nil ||
 		cfg.RecoveryTimeout <= 0 || cfg.RecoveryPageBytes <= 0 || cfg.MaxChannels <= 0 ||
+		cfg.MaxVoters <= 0 || cfg.MaxVoters > 256 ||
 		cfg.MaxProposalRecords <= 0 || cfg.MaxProposalBytes <= 0 || cfg.MaxRetainedCommands <= 0 {
 		return nil, ch.ErrInvalidConfig
 	}
@@ -79,7 +86,7 @@ func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 }
 
 func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed, error) {
-	if l == nil || ctx == nil || !validAuthority(authority) || authority.Leader != l.cfg.Local {
+	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || authority.Leader != l.cfg.Local {
 		return Installed{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
@@ -92,6 +99,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
+	authorityAdvanced := false
 	if state.authority.ID != (AuthorityID{}) {
 		switch compareAuthorityID(authority.ID, state.authority.ID) {
 		case -1:
@@ -108,9 +116,14 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 			}
 		case 1:
 			fenceQuorumChannel(state, authority, l.cfg.MaxRetainedCommands)
+			authorityAdvanced = true
 		}
 	} else {
 		fenceQuorumChannel(state, authority, l.cfg.MaxRetainedCommands)
+		authorityAdvanced = true
+	}
+	if authorityAdvanced && l.cfg.RepairAuthorities != nil {
+		l.cfg.RepairAuthorities.InstallAuthority(authority)
 	}
 	if authority.WriteFence.Set() {
 		return Installed{}, ch.ErrWriteFenced

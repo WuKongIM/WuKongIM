@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
@@ -58,6 +59,31 @@ func TestServerEncodeAndWriteMapsTransportOutboundOverflow(t *testing.T) {
 	}
 	if got := closeReasonForError(err, gatewaytypes.CloseReasonPeerClosed); got != gatewaytypes.CloseReasonOutboundOverflow {
 		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonOutboundOverflow)
+	}
+}
+
+func TestServerEncodeAndWriteClassifiesObservedSendackTransportCompletion(t *testing.T) {
+	conn := &recordingWriteConn{}
+	observer := &recordingTransportWriteObserver{}
+	srv := &Server{options: gatewaytypes.Options{Observer: observer}}
+	state := &sessionState{
+		server:   srv,
+		conn:     conn,
+		session:  session.New(session.Config{ID: 3}),
+		listener: &listenerRuntime{options: gatewaytypes.ListenerOptions{Network: "tcp"}, adapter: staticEncodeAdapter{encoded: []byte("sendack")}},
+		closedCh: make(chan struct{}),
+	}
+
+	if err := srv.encodeAndWrite(state, &frame.SendackPacket{}, session.OutboundMeta{}); err != nil {
+		t.Fatalf("encodeAndWrite() error = %v", err)
+	}
+	if conn.observedWriteCalls != 1 || conn.observedFrameType != "SENDACK" {
+		t.Fatalf("observed write = calls:%d frame_type:%q, want one SENDACK", conn.observedWriteCalls, conn.observedFrameType)
+	}
+	conn.completeObservedWrite(nil)
+	events := observer.snapshot()
+	if len(events) != 1 || events[0].FrameType != "SENDACK" || events[0].Duration < 0 || events[0].Err != nil {
+		t.Fatalf("transport write events = %+v, want one successful SENDACK completion", events)
 	}
 }
 
@@ -131,10 +157,13 @@ func (a staticEncodeAdapter) OnOpen(session.Session) error  { return nil }
 func (a staticEncodeAdapter) OnClose(session.Session) error { return nil }
 
 type recordingWriteConn struct {
-	writeCalls   int
-	messageCalls int
-	writePayload []byte
-	writeErr     error
+	writeCalls         int
+	messageCalls       int
+	observedWriteCalls int
+	observedFrameType  string
+	writePayload       []byte
+	writeErr           error
+	complete           func(error)
 }
 
 func (c *recordingWriteConn) ID() uint64         { return 4 }
@@ -146,6 +175,20 @@ func (c *recordingWriteConn) Write(payload []byte) error {
 	c.writeCalls++
 	c.writePayload = payload
 	return c.writeErr
+}
+
+func (c *recordingWriteConn) WriteObserved(payload []byte, frameType string, complete func(error)) error {
+	c.observedWriteCalls++
+	c.observedFrameType = frameType
+	c.writePayload = payload
+	c.complete = complete
+	return c.writeErr
+}
+
+func (c *recordingWriteConn) completeObservedWrite(err error) {
+	if c.complete != nil {
+		c.complete(err)
+	}
 }
 
 func (c *recordingWriteConn) WriteWebSocketMessage(payload []byte, messageType transport.WebSocketMessageType) error {
@@ -174,6 +217,29 @@ func (c *webSocketMessageTypeConn) WriteWebSocketMessage(_ []byte, messageType t
 	c.messageCalls++
 	c.messageType = messageType
 	return nil
+}
+
+type recordingTransportWriteObserver struct {
+	mu     sync.Mutex
+	events []gatewaytypes.TransportWriteEvent
+}
+
+func (o *recordingTransportWriteObserver) OnConnectionOpen(gatewaytypes.ConnectionEvent)  {}
+func (o *recordingTransportWriteObserver) OnConnectionClose(gatewaytypes.ConnectionEvent) {}
+func (o *recordingTransportWriteObserver) OnAuth(gatewaytypes.AuthEvent)                  {}
+func (o *recordingTransportWriteObserver) OnFrameIn(gatewaytypes.FrameEvent)              {}
+func (o *recordingTransportWriteObserver) OnFrameOut(gatewaytypes.FrameEvent)             {}
+func (o *recordingTransportWriteObserver) OnFrameHandled(gatewaytypes.FrameHandleEvent)   {}
+func (o *recordingTransportWriteObserver) OnTransportWrite(event gatewaytypes.TransportWriteEvent) {
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+}
+
+func (o *recordingTransportWriteObserver) snapshot() []gatewaytypes.TransportWriteEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]gatewaytypes.TransportWriteEvent(nil), o.events...)
 }
 
 func BenchmarkServerEncodeAndWrite(b *testing.B) {

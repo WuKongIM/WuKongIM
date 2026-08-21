@@ -201,7 +201,7 @@ func TestHandlerSuppressesCanceledWorkAfterPlannedShutdownFence(t *testing.T) {
 
 type gatewayDelayedPersonDirectory struct{ delay time.Duration }
 
-func (d gatewayDelayedPersonDirectory) EnsurePersonChannelDirectory(ctx context.Context, _ string, _ int64) error {
+func (d gatewayDelayedPersonDirectory) AdmitPersonChannelDirectory(ctx context.Context, _ string, _ int64) error {
 	timer := time.NewTimer(d.delay)
 	defer timer.Stop()
 	select {

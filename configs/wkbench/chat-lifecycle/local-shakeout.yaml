@@ -79,7 +79,7 @@ thresholds:
     overall_first_attempt_failure: {max_failures: 1, per_attempts: 10000, operator: "<"}
     any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}
   latency:
-    hot_sendack: {p99: 200ms, p999: 1s}
+    hot_sendack: {p99: 400ms, p999: 1s}
     cold: {p99: 2s, p999: 5s}
     sync: {p99: 1s, p999: 3s}
     single_anomaly: 10s

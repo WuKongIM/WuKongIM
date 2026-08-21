@@ -307,6 +307,14 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	appliedIndex := state.AppliedIndex
 	if !raft.IsEmptySnap(snapshot) {
 		appliedIndex = snapshot.Metadata.Index
+	} else if durableStateMachine, ok := opts.StateMachine.(DurableAppliedStateMachine); ok {
+		stateMachineApplied, err := durableStateMachine.DurableAppliedIndex(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if stateMachineApplied > appliedIndex {
+			appliedIndex = stateMachineApplied
+		}
 	}
 	snapshotData, snapshotConfigAppliedIndex, err := decodeSlotSnapshotData(snapshot.Data)
 	if err != nil {
@@ -861,7 +869,7 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 
 	if lastApplied > appliedBeforeReady {
 		started := time.Now()
-		err := g.storage.MarkApplied(ctx, lastApplied)
+		err := g.markApplied(ctx, lastApplied)
 		g.observeResolutionFutures(resolutions, "meta_create_slot_mark_applied", err, time.Since(started))
 		if err != nil {
 			g.fail(err)
@@ -894,6 +902,22 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 		}
 	}
 	return true, requeue || g.rawNode.HasReady()
+}
+
+func (g *slot) markApplied(ctx context.Context, index uint64) error {
+	if durableStateMachine, ok := g.stateMachine.(DurableAppliedStateMachine); ok {
+		durableIndex, err := durableStateMachine.DurableAppliedIndex(ctx)
+		if err != nil {
+			return err
+		}
+		if durableIndex > index {
+			return fmt.Errorf("multiraft: state-machine applied index %d exceeds Slot applied index %d", durableIndex, index)
+		}
+		if durableIndex == index {
+			return nil
+		}
+	}
+	return g.storage.MarkApplied(ctx, index)
 }
 
 func (g *slot) processReadyAsyncNormal(ctx context.Context, ready raft.Ready) (bool, bool) {

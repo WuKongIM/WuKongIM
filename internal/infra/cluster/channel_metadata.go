@@ -10,6 +10,7 @@ import (
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
@@ -66,8 +67,7 @@ type committedChannelTailNode interface {
 type PersonDirectoryNode interface {
 	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
 	CommittedChannelTail(context.Context, string, int64) (uint64, error)
-	PreparePersonChannelDirectoryBatch(context.Context, []metadb.UserChannelMembership, []metadb.ChannelKey) error
-	EnsureChannelDirectoriesReady(context.Context, []metadb.ChannelKey) error
+	AdmitPersonDirectoryTasks(context.Context, []metadb.PersonDirectoryTask) []error
 }
 
 // ChannelMetadataStore adapts cluster Slot metadata to the entry-agnostic channel usecase.
@@ -76,16 +76,33 @@ type ChannelMetadataStore struct {
 	membershipNode      ChannelMembershipNode
 	appendMetadataCache *ChannelAppendMetadataCache
 	personDirectories   *personDirectoryBatcher
+	personDirectoryWake func()
+}
+
+// SetPersonDirectoryWake installs the process-local nonblocking projector
+// wake used after a durable admission commits.
+func (s *ChannelMetadataStore) SetPersonDirectoryWake(wake func()) {
+	if s != nil {
+		s.personDirectoryWake = wake
+	}
 }
 
 // NewChannelMetadataStore creates a cluster-backed channel metadata store.
-func NewChannelMetadataStore(node ChannelMetadataNode, appendMetadataCache *ChannelAppendMetadataCache) *ChannelMetadataStore {
+func NewChannelMetadataStore(node ChannelMetadataNode, appendMetadataCache *ChannelAppendMetadataCache, goroutines *goruntimeregistry.Registry) *ChannelMetadataStore {
 	membershipNode, _ := node.(ChannelMembershipNode)
 	store := &ChannelMetadataStore{node: node, membershipNode: membershipNode, appendMetadataCache: appendMetadataCache}
 	if personNode, ok := node.(personDirectoryBatchNode); ok {
-		store.personDirectories = newPersonDirectoryBatcher(personNode)
+		store.personDirectories = newPersonDirectoryBatcher(personNode, goroutines)
 	}
 	return store
+}
+
+// Stop seals and joins the store's durable person-directory admission owner.
+func (s *ChannelMetadataStore) Stop(ctx context.Context) error {
+	if s == nil || s.personDirectories == nil {
+		return nil
+	}
+	return s.personDirectories.Stop(ctx)
 }
 
 // GetChannel reads channel metadata from the authoritative Slot leader.
@@ -360,82 +377,182 @@ func (s *ChannelMetadataStore) CommittedChannelTail(ctx context.Context, channel
 	return node.CommittedChannelTail(ctx, channelID, channelType)
 }
 
-// PersonChannelDirectoryReady reports only a monotonic node-local readiness
-// proof. A cache miss is inconclusive and must take the authoritative ensure path.
-func (s *ChannelMetadataStore) PersonChannelDirectoryReady(channelID string, channelType int64) bool {
-	if s == nil || channelType != 1 {
-		return false
-	}
-	metadata, ok := s.appendMetadataCache.Lookup(channelappend.ChannelID{ID: channelID, Type: uint8(channelType)})
-	return ok && metadata.DirectoryReady
-}
-
-// EnsurePersonChannelDirectory establishes both UID-owned memberships before
-// the first persistent ordinary person-channel append. The durable readiness
-// bit is monotonic; the node-local cache only skips redundant checks.
-func (s *ChannelMetadataStore) EnsurePersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error {
-	if s == nil || s.node == nil || channelType != 1 {
+// AdmitPersonChannelDirectory atomically admits the source-owned projection
+// task before the first persistent ordinary person-channel append. UID-owned
+// memberships are projected asynchronously after SEND admission.
+func (s *ChannelMetadataStore) AdmitPersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error {
+	results := s.AdmitPersonChannelDirectories([]messageusecase.PersonDirectoryAdmission{{
+		Context: ctx, ChannelID: channelID, ChannelType: channelType,
+	}})
+	if len(results) != 1 {
 		return metadb.ErrInvalidArgument
 	}
-	id := channelappend.ChannelID{ID: channelID, Type: uint8(channelType)}
-	if metadata, ok := s.appendMetadataCache.Lookup(id); ok && metadata.DirectoryReady {
-		return nil
+	return results[0]
+}
+
+// AdmitPersonChannelDirectories admits one bounded wave without caller-owned
+// goroutines. Authoritative channel reads and source-Slot proposal results both
+// preserve exact input alignment.
+func (s *ChannelMetadataStore) AdmitPersonChannelDirectories(admissions []messageusecase.PersonDirectoryAdmission) []error {
+	results := make([]error, len(admissions))
+	s.AdmitPersonChannelDirectoryWaves(admissions, func(wave []messageusecase.PersonDirectoryAdmissionOutcome) {
+		for _, outcome := range wave {
+			if outcome.Index >= 0 && outcome.Index < len(results) {
+				results[outcome.Index] = outcome.Err
+			}
+		}
+	})
+	return results
+}
+
+// AdmitPersonChannelDirectoryWaves emits each independently sealed durable
+// batch as it finishes so a fast source Slot is not held behind a slow sibling.
+func (s *ChannelMetadataStore) AdmitPersonChannelDirectoryWaves(admissions []messageusecase.PersonDirectoryAdmission, emit func([]messageusecase.PersonDirectoryAdmissionOutcome)) {
+	if len(admissions) == 0 {
+		return
 	}
-	// DirectoryReady is monotonic. A replicated local row carrying the bit is
-	// therefore a sufficient proof; a miss, lagging row, or local read error
-	// remains inconclusive and falls through to the Slot leader.
-	if channel, err := s.node.GetChannelMetadata(ctx, channelID, channelType); err == nil &&
-		channel.ChannelID == channelID && channel.ChannelType == channelType && channel.DirectoryReady != 0 {
-		s.appendMetadataCache.storeChannel(channel)
-		return nil
+	if s == nil || s.node == nil || s.personDirectories == nil {
+		wave := make([]messageusecase.PersonDirectoryAdmissionOutcome, len(admissions))
+		for i := range wave {
+			wave[i] = messageusecase.PersonDirectoryAdmissionOutcome{Index: i, Err: metadb.ErrInvalidArgument}
+		}
+		emitPersonDirectoryWave(emit, wave)
+		return
 	}
 	node, ok := s.node.(PersonDirectoryNode)
 	if !ok {
-		return metadb.ErrInvalidArgument
+		wave := make([]messageusecase.PersonDirectoryAdmissionOutcome, len(admissions))
+		for i := range wave {
+			wave[i] = messageusecase.PersonDirectoryAdmissionOutcome{Index: i, Err: metadb.ErrInvalidArgument}
+		}
+		emitPersonDirectoryWave(emit, wave)
+		return
 	}
-	channel, err := node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
-	if err == nil && channel.DirectoryReady != 0 {
-		s.appendMetadataCache.storeChannel(channel)
-		return nil
+
+	results := make([]error, len(admissions))
+	reads := make([]messageusecase.PermissionRead, 0, len(admissions))
+	readIndexes := make([]int, 0, len(admissions))
+	channelFacts := make([]messageusecase.PermissionReadResult, len(admissions))
+	needsAdmission := make([]bool, len(admissions))
+	for i, admission := range admissions {
+		ctx := admission.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		admissions[i].Context = ctx
+		if err := ctx.Err(); err != nil {
+			results[i] = err
+			continue
+		}
+		if admission.ChannelType != 1 {
+			results[i] = metadb.ErrInvalidArgument
+			continue
+		}
+		if _, _, err := runtimechannelid.DecodePersonChannel(admission.ChannelID); err != nil {
+			results[i] = err
+			continue
+		}
+		needsAdmission[i] = true
+		if fact := admission.ChannelFact; fact != nil {
+			if fact.Found && (fact.Channel.ChannelID != admission.ChannelID || fact.Channel.ChannelType != admission.ChannelType) {
+				results[i] = metadb.ErrInvalidArgument
+				needsAdmission[i] = false
+				continue
+			}
+			channelFacts[i] = messageusecase.PermissionReadResult{Found: fact.Found, Channel: fact.Channel}
+			continue
+		}
+		reads = append(reads, messageusecase.PermissionRead{
+			Kind: messageusecase.PermissionReadChannel, ChannelID: admission.ChannelID, ChannelType: admission.ChannelType,
+		})
+		readIndexes = append(readIndexes, i)
 	}
-	missing := errors.Is(err, metadb.ErrNotFound)
-	if err != nil && !missing {
-		return mapChannelPermissionReadError(err)
-	}
-	left, right, err := runtimechannelid.DecodePersonChannel(channelID)
-	if err != nil {
-		return err
-	}
-	var tail uint64
-	if !missing {
-		tail, err = node.CommittedChannelTail(ctx, channelID, channelType)
-		if err != nil {
-			return err
+
+	batchCtx, cancel := context.WithTimeout(context.Background(), personDirectoryBatchTimeout)
+	readResults := s.ReadPermissionsBatch(batchCtx, reads)
+	cancel()
+	if len(readResults) != len(reads) {
+		readResults = make([]messageusecase.PermissionReadResult, len(reads))
+		for i := range readResults {
+			readResults[i].Err = metadb.ErrInvalidArgument
 		}
 	}
-	if s.personDirectories == nil {
-		return metadb.ErrInvalidArgument
+	pending := make([]personDirectoryBatchAdmission, 0, len(reads))
+	pendingIndexes := make([]int, 0, len(reads))
+	pendingChannels := make([]metadb.Channel, 0, len(reads))
+	isPending := make([]bool, len(admissions))
+	for readIndex, readResult := range readResults {
+		channelFacts[readIndexes[readIndex]] = readResult
 	}
-	joinSeq := tail + 1
-	if joinSeq == 0 {
-		joinSeq = tail
+	for index, admission := range admissions {
+		if !needsAdmission[index] {
+			continue
+		}
+		readResult := channelFacts[index]
+		if readResult.Err != nil {
+			results[index] = readResult.Err
+			continue
+		}
+		if readResult.Found && readResult.Channel.DirectoryProjectionState != metadb.DirectoryProjectionNone {
+			s.appendMetadataCache.storeChannel(readResult.Channel)
+			continue
+		}
+		var tail uint64
+		if readResult.Found {
+			var err error
+			tail, err = node.CommittedChannelTail(admission.Context, admission.ChannelID, admission.ChannelType)
+			if err != nil {
+				results[index] = err
+				continue
+			}
+		}
+		channel := readResult.Channel
+		channel.ChannelID = admission.ChannelID
+		channel.ChannelType = admission.ChannelType
+		channel.DirectoryProjectionState = metadb.DirectoryProjectionPending
+		pending = append(pending, personDirectoryBatchAdmission{
+			ctx: admission.Context,
+			mutation: personDirectoryMutation{task: metadb.PersonDirectoryTask{
+				ChannelID: admission.ChannelID, ChannelType: admission.ChannelType, CommittedTail: tail, CreatedAt: time.Now().UnixNano(),
+			}},
+		})
+		pendingIndexes = append(pendingIndexes, index)
+		pendingChannels = append(pendingChannels, channel)
+		isPending[index] = true
 	}
-	updatedAt := time.Now().UnixNano()
-	mutation := personDirectoryMutation{
-		key: metadb.ChannelKey{ChannelID: channelID, ChannelType: channelType},
-		memberships: []metadb.UserChannelMembership{
-			{UID: left, ChannelID: channelID, ChannelType: channelType, JoinSeq: joinSeq, ReadSeq: tail, DeletedToSeq: tail, SourceVersion: 1, UpdatedAt: updatedAt},
-			{UID: right, ChannelID: channelID, ChannelType: channelType, JoinSeq: joinSeq, ReadSeq: tail, DeletedToSeq: tail, SourceVersion: 1, UpdatedAt: updatedAt},
-		},
+	immediate := make([]messageusecase.PersonDirectoryAdmissionOutcome, 0, len(admissions)-len(pending))
+	for index := range admissions {
+		if !isPending[index] {
+			immediate = append(immediate, messageusecase.PersonDirectoryAdmissionOutcome{Index: index, Err: results[index]})
+		}
 	}
-	if err := s.personDirectories.ensure(ctx, mutation); err != nil {
-		return err
+	emitPersonDirectoryWave(emit, immediate)
+
+	wake := false
+	s.personDirectories.ensureBatchWaves(pending, func(batchWave []personDirectoryBatchOutcome) {
+		wave := make([]messageusecase.PersonDirectoryAdmissionOutcome, 0, len(batchWave))
+		for _, outcome := range batchWave {
+			if outcome.index < 0 || outcome.index >= len(pendingIndexes) {
+				continue
+			}
+			index := pendingIndexes[outcome.index]
+			if outcome.err == nil {
+				s.appendMetadataCache.storeChannel(pendingChannels[outcome.index])
+				wake = true
+			}
+			wave = append(wave, messageusecase.PersonDirectoryAdmissionOutcome{Index: index, Err: outcome.err})
+		}
+		emitPersonDirectoryWave(emit, wave)
+	})
+	if wake && s.personDirectoryWake != nil {
+		s.personDirectoryWake()
 	}
-	channel.ChannelID = channelID
-	channel.ChannelType = channelType
-	channel.DirectoryReady = 1
-	s.appendMetadataCache.storeChannel(channel)
-	return nil
+}
+
+func emitPersonDirectoryWave(emit func([]messageusecase.PersonDirectoryAdmissionOutcome), wave []messageusecase.PersonDirectoryAdmissionOutcome) {
+	if emit != nil && len(wave) > 0 {
+		emit(wave)
+	}
 }
 
 func firstSubscriberMutationVersion(values []uint64) uint64 {

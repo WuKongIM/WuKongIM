@@ -14,7 +14,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
-const asyncSendPanicValueMaxLen = 256
+const (
+	asyncSendPanicValueMaxLen        = 256
+	asyncSendOrderingShardsPerWorker = 4
+)
 
 var asyncSendQueuePublicationRevision atomic.Uint64
 
@@ -30,8 +33,12 @@ func nextAsyncSendQueuePublicationRevision() uint64 {
 type sendExecutor struct {
 	// server owns session and gateway state needed by send tasks.
 	server *Server
-	// workers is the normalized send worker count and shard count.
+	// workers is the normalized maximum concurrent send worker count.
 	workers int
+	// shards is the bounded logical ordering partition count. It is deliberately
+	// larger than workers so unrelated sessions do not share a worker-local
+	// head-of-line queue while each session still remains strictly ordered.
+	shards int
 	// capacity is the normalized maximum admitted send backlog.
 	capacity int
 	// shardCapacity is the per-shard mailbox admission bound.
@@ -70,12 +77,14 @@ type sendExecutor struct {
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
 	opts = gatewaytypes.NormalizeRuntimeOptions(opts)
+	shards := asyncSendLogicalShardCount(opts.AsyncSendWorkers, opts.AsyncSendQueueCapacity)
 	e := &sendExecutor{
 		server:         s,
 		workers:        opts.AsyncSendWorkers,
+		shards:         shards,
 		capacity:       opts.AsyncSendQueueCapacity,
-		shardCapacity:  asyncSendShardCapacity(opts.AsyncSendQueueCapacity, opts.AsyncSendWorkers),
-		shardQueued:    make([]atomic.Int64, opts.AsyncSendWorkers),
+		shardCapacity:  asyncSendShardCapacity(opts.AsyncSendQueueCapacity, shards),
+		shardQueued:    make([]atomic.Int64, shards),
 		releaseTimeout: opts.AsyncPoolReleaseTimeout,
 		panicC:         make(chan any, 1),
 		drained:        make(chan struct{}),
@@ -87,7 +96,7 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 		Name:              "gateway-send",
 		Goroutines:        opts.Goroutines,
 		Task:              goruntimeregistry.TaskGatewayAsyncDispatch,
-		Shards:            e.workers,
+		Shards:            e.shards,
 		Workers:           e.workers,
 		QueueSizePerShard: e.shardCapacity,
 		BatchMaxItems:     limits.maxRecords,
@@ -122,8 +131,26 @@ func asyncSendShardCapacity(totalCapacity, shards int) int {
 	return capacity
 }
 
+func asyncSendLogicalShardCount(workers, totalCapacity int) int {
+	if workers <= 0 {
+		workers = 1
+	}
+	if totalCapacity <= 0 {
+		totalCapacity = 1
+	}
+	if workers == 1 {
+		return 1
+	}
+	// Division before multiplication keeps the calculation overflow-safe while
+	// bounding allocated shard queues by the configured global item capacity.
+	if workers <= totalCapacity/asyncSendOrderingShardsPerWorker {
+		return workers * asyncSendOrderingShardsPerWorker
+	}
+	return totalCapacity
+}
+
 func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {
-	if e == nil || e.mailbox == nil || send == nil || e.workers <= 0 {
+	if e == nil || e.mailbox == nil || send == nil || e.shards <= 0 {
 		return false
 	}
 	e.admissionMu.Lock()
@@ -133,7 +160,7 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	}
 	e.admitted.Add(1)
 	e.admissionMu.Unlock()
-	shard := asyncSendShardIndex(state, send, e.workers)
+	shard := asyncSendShardIndex(state, send, e.shards)
 	if !e.reserve() {
 		e.completeAdmission()
 		return false

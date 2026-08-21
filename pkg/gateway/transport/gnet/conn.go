@@ -86,8 +86,9 @@ type connState struct {
 // frame is non-nil only for vector WebSocket writes whose header slice must not
 // be reset or reused while gnet can still reference it.
 type outboundWrite struct {
-	size  int
-	frame *wsWritevFrame
+	size       int
+	frame      *wsWritevFrame
+	completion func(error)
 }
 
 func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connState {
@@ -523,11 +524,28 @@ func (c *stateConn) Write(data []byte) error {
 	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" {
 		return c.writeWebSocket(data, transport.WebSocketMessageUnknown)
 	}
+	return c.writeTCP(data, nil)
+}
 
-	if c.state.maxOutboundBytes <= 0 || len(data) == 0 {
-		return c.state.raw.AsyncWrite(data, nil)
+// WriteObserved submits one TCP payload and preserves its physical callback boundary.
+func (c *stateConn) WriteObserved(data []byte, _ string, complete func(error)) error {
+	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" {
+		return c.Write(data)
 	}
-	return c.asyncWriteWithOutboundLimit(len(data), func(callback gnetv2.AsyncCallback) error {
+	return c.writeTCP(data, complete)
+}
+
+func (c *stateConn) writeTCP(data []byte, complete func(error)) error {
+	if c.state.maxOutboundBytes <= 0 || len(data) == 0 {
+		if complete == nil {
+			return c.state.raw.AsyncWrite(data, nil)
+		}
+		return c.state.raw.AsyncWrite(data, func(_ gnetv2.Conn, err error) error {
+			complete(err)
+			return nil
+		})
+	}
+	return c.asyncWriteWithOutboundLimit(len(data), nil, complete, func(callback gnetv2.AsyncCallback) error {
 		return c.state.raw.AsyncWrite(data, callback)
 	})
 }
@@ -562,7 +580,7 @@ func (c *stateConn) writeWebSocketCompact(data []byte, messageType transport.Web
 	if c.state.maxOutboundBytes <= 0 || len(framed) == 0 {
 		return c.state.raw.AsyncWrite(framed, nil)
 	}
-	return c.asyncWriteWithOutboundLimit(len(framed), func(callback gnetv2.AsyncCallback) error {
+	return c.asyncWriteWithOutboundLimit(len(framed), nil, nil, func(callback gnetv2.AsyncCallback) error {
 		return c.state.raw.AsyncWrite(framed, callback)
 	})
 }
@@ -586,7 +604,7 @@ func (c *stateConn) writeWebSocketVector(data []byte, messageType transport.WebS
 		return c.state.outboundSubmitErr
 	}
 	size := len(framed.bufs[0]) + len(framed.bufs[1])
-	snapshot, admitted := c.state.beginOutboundWrite(size, framed)
+	snapshot, admitted := c.state.beginOutboundWrite(size, framed, nil)
 	if !admitted {
 		c.state.releaseOutboundWriteFrame(framed)
 		return transport.ErrOutboundBytesExceeded
@@ -616,7 +634,7 @@ func (c *stateConn) webSocketWriteOpcode(messageType transport.WebSocketMessageT
 	return wsOpcodeBinary
 }
 
-func (c *stateConn) asyncWriteWithOutboundLimit(size int, write func(gnetv2.AsyncCallback) error) error {
+func (c *stateConn) asyncWriteWithOutboundLimit(size int, frame *wsWritevFrame, completion func(error), write func(gnetv2.AsyncCallback) error) error {
 	c.state.outboundSubmitMu.Lock()
 	defer c.state.outboundSubmitMu.Unlock()
 	if c.state.outboundSubmitErr != nil {
@@ -625,7 +643,7 @@ func (c *stateConn) asyncWriteWithOutboundLimit(size int, write func(gnetv2.Asyn
 	if c.state.maxOutboundBytes <= 0 || size <= 0 {
 		return write(nil)
 	}
-	snapshot, admitted := c.state.beginOutboundWrite(size, nil)
+	snapshot, admitted := c.state.beginOutboundWrite(size, frame, completion)
 	if !admitted {
 		return transport.ErrOutboundBytesExceeded
 	}
@@ -639,7 +657,7 @@ func (c *stateConn) asyncWriteWithOutboundLimit(size int, write func(gnetv2.Asyn
 	return err
 }
 
-func (s *connState) beginOutboundWrite(size int, frame *wsWritevFrame) (transportPressureSnapshot, bool) {
+func (s *connState) beginOutboundWrite(size int, frame *wsWritevFrame, completion func(error)) (transportPressureSnapshot, bool) {
 	s.outboundMu.Lock()
 	if s.maxOutboundBytes > 0 && size > 0 && s.outboundPendingBytes+s.outboundBufferedBytes+int64(size) > s.maxOutboundBytes {
 		depth := len(s.outboundWrites)
@@ -654,7 +672,7 @@ func (s *connState) beginOutboundWrite(size int, frame *wsWritevFrame) (transpor
 		reservedSize = size
 		s.outboundPendingBytes += int64(size)
 	}
-	s.outboundWrites = append(s.outboundWrites, outboundWrite{size: reservedSize, frame: frame})
+	s.outboundWrites = append(s.outboundWrites, outboundWrite{size: reservedSize, frame: frame, completion: completion})
 	if s.maxOutboundBytes <= 0 {
 		s.outboundMu.Unlock()
 		return transportPressureSnapshot{}, true
@@ -1011,6 +1029,9 @@ func (s *connState) finishNextOutboundWrite(conn gnetv2.Conn, err error) {
 	}
 	s.outboundMu.Unlock()
 	s.releaseOutboundWriteFrame(write.frame)
+	if write.completion != nil {
+		write.completion(err)
+	}
 	if s.maxOutboundBytes > 0 {
 		s.observeTransportSnapshot(snapshot)
 	}

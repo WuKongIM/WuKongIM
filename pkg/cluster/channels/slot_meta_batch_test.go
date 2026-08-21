@@ -13,8 +13,14 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
+func TestMetaCreateBatcherDefaultCollectWaitKeepsColdAdmissionBelowHotBudget(t *testing.T) {
+	if got := metaCreateBatchCollectWait; got != 25*time.Millisecond {
+		t.Fatalf("metadata create batch collect wait = %v, want 25ms", got)
+	}
+}
+
 func TestSlotMetaSourcePipelinesBoundedBatchesForOneSlot(t *testing.T) {
-	const wantMaxInFlight = 2
+	const wantMaxInFlight = metaCreateSlotMaxInFlightBatches
 	store := newBlockingConcurrentRuntimeMetaBatchStore()
 	router := fixedRuntimeMetaBatchRouter{route: routing.Route{
 		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,

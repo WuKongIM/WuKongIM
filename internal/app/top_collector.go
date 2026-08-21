@@ -511,7 +511,16 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	if c.count < len(c.ring) {
 		c.count++
 	}
-	c.updateAlertsLocked(at.UTC(), c.alertSignalsLocked())
+	alertWindow := c.windowRefsLocked(topAlertSignalWindow)
+	c.mu.Unlock()
+
+	// Samples retained in the ring are immutable. Keep percentile sorting and
+	// pressure evaluation outside the ingestion mutex so one periodic snapshot
+	// cannot convoy synchronous SEND, channel, storage, and transport observers.
+	alertSignals := topAlertSignals(alertWindow)
+
+	c.mu.Lock()
+	c.updateAlertsLocked(at.UTC(), alertSignals)
 	c.pruneAlertsLocked(at.UTC())
 	c.mu.Unlock()
 }
@@ -659,7 +668,7 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	traffic := buildTraffic(window, seconds)
 	clients := buildClients(window, seconds)
 	resources := buildResources(window)
-	pressure := c.buildPressureLocked(window, query.Limit)
+	pressure := buildTopPressure(window, query.Limit)
 	verdict := buildTopVerdict(last.cluster, traffic, pressure)
 	alerts := c.snapshotAlertsLocked(query.Limit)
 
@@ -754,6 +763,30 @@ func (c *topCollector) windowLocked(window time.Duration) []topSample {
 		sample := c.ring[(oldest+i)%len(c.ring)]
 		if !sample.at.Before(cutoff) && !sample.at.After(last) {
 			out = append(out, cloneTopSample(sample))
+		}
+	}
+	return out
+}
+
+// windowRefsLocked returns immutable ring samples without cloning their maps.
+// The collector's single sampler owner consumes this view before another ring
+// write; caller-facing snapshots continue to use windowLocked's deep copies.
+func (c *topCollector) windowRefsLocked(window time.Duration) []topSample {
+	if c.count == 0 || len(c.ring) == 0 {
+		return nil
+	}
+	if window <= 0 {
+		window = 10 * time.Second
+	}
+	lastIndex := (c.head - 1 + len(c.ring)) % len(c.ring)
+	last := c.ring[lastIndex].at
+	cutoff := last.Add(-window)
+	out := make([]topSample, 0, c.count)
+	oldest := (c.head - c.count + len(c.ring)) % len(c.ring)
+	for i := 0; i < c.count; i++ {
+		sample := c.ring[(oldest+i)%len(c.ring)]
+		if !sample.at.Before(cutoff) && !sample.at.After(last) {
+			out = append(out, sample)
 		}
 	}
 	return out
@@ -1085,7 +1118,7 @@ func (c *topCollector) topNodeSnapshot(snapshot cluster.Snapshot) accessapi.TopN
 	}
 }
 
-func (c *topCollector) buildPressureLocked(window []topSample, limit int) *accessapi.TopPressure {
+func buildTopPressure(window []topSample, limit int) *accessapi.TopPressure {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -1313,15 +1346,13 @@ func readinessReasons(snapshot cluster.Snapshot) []string {
 	return reasons
 }
 
-func (c *topCollector) alertSignalsLocked() []topAlertSignal {
-	if c.count == 0 || len(c.ring) == 0 {
+func topAlertSignals(window []topSample) []topAlertSignal {
+	if len(window) == 0 {
 		return nil
 	}
-	lastIndex := (c.head - 1 + len(c.ring)) % len(c.ring)
-	last := c.ring[lastIndex]
+	last := window[len(window)-1]
 	signals := readinessAlertSignals(last.cluster)
 
-	window := c.windowLocked(topAlertSignalWindow)
 	if len(window) >= 2 {
 		first := window[0]
 		seconds := sampleWindowSeconds(window)
@@ -1346,7 +1377,7 @@ func (c *topCollector) alertSignalsLocked() []topAlertSignal {
 		}
 	}
 
-	pressure := c.buildPressureLocked(window, topMaxRetainedAlerts)
+	pressure := buildTopPressure(window, topMaxRetainedAlerts)
 	if pressure != nil {
 		for _, item := range pressure.Top {
 			if item.Level == "ok" {

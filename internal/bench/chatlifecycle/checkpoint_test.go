@@ -370,6 +370,65 @@ func TestCheckpointRecorderStripsMonotonicClockFromPersistedWindow(t *testing.T)
 	}
 }
 
+func TestCheckpointRecorderUsesProcessElapsedAcrossWallClockSlew(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "checkpoint-wall-clock-slew"
+	start := time.Unix(1_800_600_000, 0)
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "assignment-wall-clock-slew", Generation: 8}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate a 200us backwards wall-clock slew while the process monotonic
+	// clock still reaches the exact qualification boundary.
+	recorder.processStart = recorder.processStart.Add(-200 * time.Microsecond)
+	wallCut := start.Add(cfg.Thresholds.Timeline.Checkpoint - 200*time.Microsecond)
+	snapshots := coordinatorSnapshotFixture(fence, 1, cfg.Thresholds.Timeline.Checkpoint, 1)
+	report, err := captureCheckpoint(t, recorder, wallCut, snapshots, checkpointEvidenceFixture(false))
+	if err != nil {
+		t.Fatalf("qualification after monotonic deadline: %v", err)
+	}
+	if !report.Window.End.Equal(wallCut) || report.Window.Elapsed != cfg.Thresholds.Timeline.Checkpoint {
+		t.Fatalf("persisted window = %+v, want wall end %v and process elapsed %v", report.Window, wallCut, cfg.Thresholds.Timeline.Checkpoint)
+	}
+}
+
+func TestCheckpointRecorderUsesProcessElapsedForSuccessfulFinalAcrossWallClockSlew(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.RunID = "checkpoint-final-wall-clock-slew"
+	start := time.Unix(1_800_700_000, 0)
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "assignment-final-wall-clock-slew", Generation: 9}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureCheckpoint(
+		t, recorder, start.Add(cfg.Thresholds.Timeline.Checkpoint),
+		coordinatorSnapshotFixture(fence, 1, cfg.Thresholds.Timeline.Checkpoint, 1),
+		checkpointEvidenceFixture(false),
+	); err != nil {
+		t.Fatalf("qualification: %v", err)
+	}
+
+	const backwardsSlew = 200 * time.Microsecond
+	recorder.processStart = recorder.processStart.Add(-backwardsSlew)
+	wallCut := start.Add(cfg.measuredDuration() - backwardsSlew)
+	snapshots := coordinatorSnapshotFixture(fence, 2, cfg.measuredDuration(), 2)
+	for index := range snapshots {
+		snapshots[index].Phase = WorkerPhaseFinal
+	}
+	evidence := checkpointEvidenceFixture(true)
+	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	report, err := captureCheckpoint(t, recorder, wallCut, snapshots, evidence)
+	if err != nil {
+		t.Fatalf("successful final after monotonic deadline: %v", err)
+	}
+	if report.Window.Elapsed != cfg.measuredDuration() || !report.Window.End.Equal(wallCut) {
+		t.Fatalf("final window = %+v, want process elapsed %v and wall end %v", report.Window, cfg.measuredDuration(), wallCut)
+	}
+}
+
 func captureCheckpoint(
 	t *testing.T,
 	recorder *CheckpointRecorder,

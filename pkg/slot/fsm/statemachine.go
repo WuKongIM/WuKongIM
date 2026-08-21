@@ -15,6 +15,7 @@ import (
 
 // Compile-time interface assertion.
 var _ multiraft.BatchStateMachine = (*stateMachine)(nil)
+var _ multiraft.DurableAppliedStateMachine = (*stateMachine)(nil)
 
 type migrationRuntimePhase uint8
 
@@ -283,6 +284,11 @@ commandLoop:
 		appliedCommands[i] = decoded
 		results[i] = commandApplyResult(decoded)
 	}
+	if len(cmds) > 0 && cmds[len(cmds)-1].Index > 0 {
+		if err := wb.SetSlotAppliedIndex(m.slot, cmds[len(cmds)-1].Index); err != nil {
+			return nil, err
+		}
+	}
 
 	started := time.Now()
 	err := wb.Commit()
@@ -305,6 +311,15 @@ commandLoop:
 		}
 	}
 	return results, nil
+}
+
+// DurableAppliedIndex returns the last command index committed atomically with
+// Slot FSM state.
+func (m *stateMachine) DurableAppliedIndex(ctx context.Context) (uint64, error) {
+	if m == nil || m.db == nil {
+		return 0, metadb.ErrInvalidArgument
+	}
+	return m.db.SlotAppliedIndex(ctx, m.slot)
 }
 
 func commandApplyResult(decoded command) []byte {
@@ -701,10 +716,21 @@ func (m *stateMachine) Restore(ctx context.Context, snap multiraft.Snapshot) err
 	m.ownershipMu.RLock()
 	hashSlots := m.runtimeSnapshotHashSlotsLocked()
 	m.ownershipMu.RUnlock()
-	return m.db.ImportHashSlotSnapshot(ctx, metadb.SlotSnapshot{
+	if err := m.db.ImportHashSlotSnapshot(ctx, metadb.SlotSnapshot{
 		HashSlots: hashSlots,
 		Data:      append([]byte(nil), snap.Data...),
-	})
+	}); err != nil {
+		return err
+	}
+	if snap.Index == 0 {
+		return nil
+	}
+	wb := m.db.NewWriteBatch()
+	defer wb.Close()
+	if err := wb.SetSlotAppliedIndex(m.slot, snap.Index); err != nil {
+		return err
+	}
+	return wb.Commit()
 }
 
 func (m *stateMachine) Snapshot(ctx context.Context) (multiraft.Snapshot, error) {

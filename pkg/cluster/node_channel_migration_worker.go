@@ -8,6 +8,7 @@ import (
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
 // ListRunnableMigrationTasks lists active migration tasks owned by locally led physical Slots.
@@ -68,6 +69,202 @@ func (n *Node) LocalLeaderSlotIDs(ctx context.Context) ([]uint32, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out, nil
+}
+
+// LocalLeaderHashSlots returns physical hash slots whose logical Slot Raft
+// groups are currently led by this node.
+func (n *Node) LocalLeaderHashSlots(ctx context.Context) ([]metadb.HashSlot, error) {
+	slotIDs, err := n.LocalLeaderSlotIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snapshot, err := n.LocalControlSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]metadb.HashSlot, 0, int(snapshot.HashSlots.Count))
+	for _, slotID := range slotIDs {
+		for _, hashSlot := range hashSlotsOfPhysicalSlot(snapshot.HashSlots, slotID) {
+			result = append(result, metadb.HashSlot(hashSlot))
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result, nil
+}
+
+// IsLocalLeaderHashSlot reports whether this node currently leads the logical
+// Slot Raft group that owns hashSlot.
+func (n *Node) IsLocalLeaderHashSlot(ctx context.Context, hashSlot metadb.HashSlot) (bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return false, err
+	}
+	if n.defaultSlotProposer == nil {
+		return false, ErrNotStarted
+	}
+	route, err := n.RouteHashSlot(uint16(hashSlot))
+	if err != nil {
+		return false, err
+	}
+	return n.defaultSlotProposer.IsLocalLeader(route.SlotID), nil
+}
+
+// ListPersonDirectoryTaskPage reads one locally led source hash-slot page.
+func (n *Node) ListPersonDirectoryTaskPage(ctx context.Context, hashSlot metadb.HashSlot, after metadb.PersonDirectoryTaskCursor, limit int) ([]metadb.PersonDirectoryTask, metadb.PersonDirectoryTaskCursor, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, metadb.PersonDirectoryTaskCursor{}, false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, metadb.PersonDirectoryTaskCursor{}, false, err
+	}
+	if n.defaultSlotMetaDB == nil || n.defaultSlotProposer == nil {
+		return nil, metadb.PersonDirectoryTaskCursor{}, false, ErrNotStarted
+	}
+	route, err := n.RouteHashSlot(uint16(hashSlot))
+	if err != nil {
+		return nil, metadb.PersonDirectoryTaskCursor{}, false, err
+	}
+	if !n.defaultSlotProposer.IsLocalLeader(route.SlotID) {
+		return nil, metadb.PersonDirectoryTaskCursor{}, false, ErrNotLeader
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(uint16(hashSlot)).ListPersonDirectoryTaskPage(ctx, after, limit)
+}
+
+// ValidatePersonDirectoryTasks rechecks exact source generations immediately
+// before UID-owned membership writes. Results remain aligned so one stale
+// source task cannot suppress independent projections in the same worker page.
+func (n *Node) ValidatePersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTaskLocation) []error {
+	results := make([]error, len(tasks))
+	if err := ctxErr(ctx); err != nil {
+		return fillPersonDirectoryTaskErrors(results, err)
+	}
+	if err := n.ensureForeground(); err != nil {
+		return fillPersonDirectoryTaskErrors(results, err)
+	}
+	if len(tasks) == 0 || len(tasks) > metafsm.MaxPersonDirectoryBatchItems || n.defaultSlotMetaDB == nil || n.defaultSlotProposer == nil {
+		return fillPersonDirectoryTaskErrors(results, metadb.ErrInvalidArgument)
+	}
+	channelIDs := make([]string, len(tasks))
+	for i, task := range tasks {
+		if task.ChannelID == "" || task.ChannelType != 1 || task.Generation == 0 {
+			results[i] = metadb.ErrInvalidArgument
+		}
+		channelIDs[i] = task.ChannelID
+	}
+	routes, err := n.RouteKeysPartial(channelIDs)
+	if err != nil {
+		return fillUnsetPersonDirectoryTaskErrors(results, err)
+	}
+	for i, routed := range routes {
+		if results[i] != nil {
+			continue
+		}
+		if routed.Err != nil {
+			results[i] = routed.Err
+			continue
+		}
+		route := routed.Route
+		if route.HashSlot != uint16(tasks[i].HashSlot) || !n.defaultSlotProposer.IsLocalLeader(route.SlotID) {
+			results[i] = metadb.ErrStaleMeta
+			continue
+		}
+		current, ok, readErr := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetPersonDirectoryTask(ctx, tasks[i].ChannelID, tasks[i].ChannelType)
+		switch {
+		case readErr != nil:
+			results[i] = readErr
+		case !ok || current.Generation != tasks[i].Generation:
+			results[i] = metadb.ErrStaleMeta
+		}
+	}
+	return results
+}
+
+// CompletePersonDirectoryTasks commits task deletion and ready state in
+// bounded commands grouped by the current source Slot leaders.
+func (n *Node) CompletePersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTaskLocation) []error {
+	results := make([]error, len(tasks))
+	if err := ctxErr(ctx); err != nil {
+		return fillPersonDirectoryTaskErrors(results, err)
+	}
+	if err := n.ensureForeground(); err != nil {
+		return fillPersonDirectoryTaskErrors(results, err)
+	}
+	if len(tasks) == 0 || len(tasks) > metafsm.MaxPersonDirectoryBatchItems {
+		return fillPersonDirectoryTaskErrors(results, metadb.ErrInvalidArgument)
+	}
+	channelIDs := make([]string, len(tasks))
+	for i, task := range tasks {
+		if task.ChannelID == "" || task.ChannelType != 1 || task.Generation == 0 {
+			results[i] = metadb.ErrInvalidArgument
+		}
+		channelIDs[i] = task.ChannelID
+	}
+	routes, err := n.RouteKeysPartial(channelIDs)
+	if err != nil {
+		return fillUnsetPersonDirectoryTaskErrors(results, err)
+	}
+	type completionItem struct {
+		item  metafsm.PersonDirectoryCompletionBatchItem
+		index int
+	}
+	groups := make(map[uint32][]completionItem)
+	for i, routed := range routes {
+		if results[i] != nil {
+			continue
+		}
+		if routed.Err != nil {
+			results[i] = routed.Err
+			continue
+		}
+		route := routed.Route
+		if route.HashSlot != uint16(tasks[i].HashSlot) {
+			results[i] = metadb.ErrStaleMeta
+			continue
+		}
+		groups[route.SlotID] = append(groups[route.SlotID], completionItem{
+			item: metafsm.PersonDirectoryCompletionBatchItem{HashSlot: route.HashSlot, ChannelID: tasks[i].ChannelID, ChannelType: tasks[i].ChannelType, Generation: tasks[i].Generation}, index: i,
+		})
+	}
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	for _, slotID := range slotIDs {
+		group := groups[slotID]
+		items := make([]metafsm.PersonDirectoryCompletionBatchItem, len(group))
+		for i := range group {
+			items[i] = group[i].item
+		}
+		command, err := metafsm.EncodeCompletePersonDirectoryTaskBatchCommandChecked(items)
+		if err == nil {
+			err = n.Propose(ctx, ProposeRequest{Command: command, Target: ProposeTarget{
+				HashSlot: items[0].HashSlot, HasHashSlot: true, SlotID: slotID, HasSlotID: true,
+			}})
+		}
+		for _, grouped := range group {
+			results[grouped.index] = err
+		}
+	}
+	return results
+}
+
+func fillPersonDirectoryTaskErrors(results []error, err error) []error {
+	for i := range results {
+		results[i] = err
+	}
+	return results
+}
+
+func fillUnsetPersonDirectoryTaskErrors(results []error, err error) []error {
+	for i := range results {
+		if results[i] == nil {
+			results[i] = err
+		}
+	}
+	return results
 }
 
 // ListChannelRuntimeMetaPage reads runtime metadata rows for legacy callers that do not need hash-slot provenance.

@@ -57,9 +57,14 @@ type CheckpointOutputPaths struct {
 // CheckpointRecorder owns one in-process, non-resumable qualification/final sequence.
 // It consumes snapshots only and has no worker lifecycle or traffic-control methods.
 type CheckpointRecorder struct {
-	mu                    sync.Mutex
-	cfg                   Config
-	fence                 WorkerFence
+	mu    sync.Mutex
+	cfg   Config
+	fence WorkerFence
+	// processStart retains the process-local monotonic clock used to fence
+	// qualification and final cuts. start is the wall-only projection persisted
+	// in reports, where a bounded clock slew may make its elapsed value slightly
+	// shorter than the monotonic process interval.
+	processStart          time.Time
 	start                 time.Time
 	configDigest          string
 	datasetDigest         string
@@ -73,8 +78,9 @@ func NewCheckpointRecorder(cfg Config, fence WorkerFence, start time.Time) (*Che
 	if start.IsZero() || !validWorkerFence(fence) || cfg.RunID != fence.RunID || cfg.Validate() != nil {
 		return nil, ErrCheckpointConfig
 	}
-	// Persisted windows use wall time only. Process-local monotonic readings are
-	// not serialized and would make an otherwise valid report fail round-trip.
+	processStart := start
+	// Persisted windows use wall time only. The recorder retains processStart
+	// separately so report sequencing still follows the monotonic runtime clock.
 	start = start.Round(0)
 	digest, err := digestCheckpointConfig(cfg)
 	if err != nil {
@@ -84,7 +90,10 @@ func NewCheckpointRecorder(cfg Config, fence WorkerFence, start time.Time) (*Che
 	if err != nil {
 		return nil, ErrCheckpointConfig
 	}
-	return &CheckpointRecorder{cfg: cfg, fence: fence, start: start, configDigest: digest, aggregator: aggregator}, nil
+	return &CheckpointRecorder{
+		cfg: cfg, fence: fence, processStart: processStart, start: start,
+		configDigest: digest, aggregator: aggregator,
+	}, nil
 }
 
 // CaptureAndWrite persists both versioned formats before committing recorder
@@ -105,7 +114,10 @@ func (r *CheckpointRecorder) CaptureAndWrite(
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	report, nextAggregator, datasetDigest, qualificationCaptured, closed, err := r.prepareLocked(at, snapshots, evidence)
+	processElapsed := at.Sub(r.processStart)
+	report, nextAggregator, datasetDigest, qualificationCaptured, closed, err := r.prepareLocked(
+		at, processElapsed, snapshots, evidence,
+	)
 	if err != nil {
 		return Report{}, err
 	}
@@ -124,11 +136,12 @@ func (r *CheckpointRecorder) CaptureAndWrite(
 
 func (r *CheckpointRecorder) prepareLocked(
 	at time.Time,
+	processElapsed time.Duration,
 	snapshots []WorkerSnapshot,
 	evidence CheckpointEvidence,
 ) (Report, *CoordinatorSnapshotAggregator, string, bool, bool, error) {
 	at = at.Round(0)
-	if r.closed || at.IsZero() || at.Before(r.start) || !validCheckpointEvidence(evidence) {
+	if r.closed || at.IsZero() || processElapsed < 0 || !validCheckpointEvidence(evidence) {
 		if !validCheckpointEvidence(evidence) {
 			return Report{}, nil, "", false, false, ErrCheckpointEvidence
 		}
@@ -138,23 +151,23 @@ func (r *CheckpointRecorder) prepareLocked(
 		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 
-	checkpointAt := r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint)
-	finalAt := r.start.Add(r.cfg.measuredDuration())
+	checkpointElapsed := r.cfg.Thresholds.Timeline.Checkpoint
+	finalElapsed := r.cfg.measuredDuration()
 	kind := CheckpointQualification
 	terminal := evidence.Verdict.Terminal
-	if r.cfg.Mode == ModeSoak && terminal && successfulVerdict(evidence.Verdict) && at.Before(finalAt) {
+	if r.cfg.Mode == ModeSoak && terminal && successfulVerdict(evidence.Verdict) && processElapsed < finalElapsed {
 		return Report{}, nil, "", false, false, ErrCheckpointSequence
 	}
 	switch {
 	case r.cfg.Mode == ModeCapacity && terminal:
 		kind = CheckpointFinal
-	case terminal && at.Before(checkpointAt):
+	case terminal && processElapsed < checkpointElapsed:
 		kind = CheckpointFinal
 	case !r.qualificationCaptured:
-		if at.Before(checkpointAt) {
+		if processElapsed < checkpointElapsed {
 			return Report{}, nil, "", false, false, ErrCheckpointSequence
 		}
-		if !at.Before(finalAt) {
+		if processElapsed >= finalElapsed {
 			if !terminal || (r.cfg.Stage == StageFormal && evidence.Verdict.Outcome == VerdictPass) {
 				return Report{}, nil, "", false, false, ErrCheckpointSequence
 			}
@@ -164,7 +177,7 @@ func (r *CheckpointRecorder) prepareLocked(
 		}
 	case terminal:
 		kind = CheckpointFinal
-	case at.Before(finalAt):
+	case processElapsed < finalElapsed:
 		return Report{}, nil, "", false, false, ErrCheckpointSequence
 	default:
 		kind = CheckpointFinal
@@ -173,7 +186,7 @@ func (r *CheckpointRecorder) prepareLocked(
 		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 	if !validCheckpointSnapshotsForCut(
-		snapshots, at.Sub(r.start), kind, evidence.Verdict, evidence.Continuous && r.cfg.Mode == ModeSoak,
+		snapshots, processElapsed, kind, evidence.Verdict, evidence.Continuous && r.cfg.Mode == ModeSoak,
 	) {
 		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
@@ -183,7 +196,7 @@ func (r *CheckpointRecorder) prepareLocked(
 	if err != nil {
 		return Report{}, nil, "", false, false, err
 	}
-	report := r.buildReport(kind, at, aggregated, evidence)
+	report := r.buildReport(kind, at, processElapsed, aggregated, evidence)
 	if err := validateReport(report); err != nil {
 		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
@@ -203,7 +216,13 @@ func cloneCheckpointAggregator(source *CoordinatorSnapshotAggregator) *Coordinat
 	}
 }
 
-func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snapshot CoordinatorSnapshot, evidence CheckpointEvidence) Report {
+func (r *CheckpointRecorder) buildReport(
+	kind CheckpointKind,
+	at time.Time,
+	processElapsed time.Duration,
+	snapshot CoordinatorSnapshot,
+	evidence CheckpointEvidence,
+) Report {
 	workers := make([]ReportWorkerGeneration, coordinatorWorkerCount)
 	for index := range workers {
 		workers[index] = ReportWorkerGeneration{
@@ -224,7 +243,7 @@ func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snap
 		Window: ReportTimeWindow{
 			Start: r.start, WarmupEnd: r.start.Add(r.cfg.Thresholds.Timeline.Warmup),
 			QualificationAt: r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint),
-			FinalAt:         r.start.Add(r.cfg.measuredDuration()), End: at, Elapsed: at.Sub(r.start),
+			FinalAt:         r.start.Add(r.cfg.measuredDuration()), End: at, Elapsed: processElapsed,
 		},
 		MinimumWorkerUptime: snapshot.MinimumUptime,
 		Topology: ReportTopologyProof{

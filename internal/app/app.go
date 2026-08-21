@@ -22,6 +22,7 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
@@ -129,6 +130,12 @@ type App struct {
 	onlineDelivery *runtimedelivery.Runtime
 	// deliveryWorker owns the canonical delivery runtime lifecycle.
 	deliveryWorker WorkerRuntime
+	// personDirectoryProjector materializes UID-owned directory rows from
+	// durable source-Slot tasks using one scanner and fixed workers.
+	personDirectoryProjector *persondirectory.Projector
+	// messageChannelStore owns the request-side durable directory admission
+	// batcher and must be sealed before the cluster runtime stops.
+	messageChannelStore *clusterinfra.ChannelMetadataStore
 	// seedJoinLoop retries pre-membership JoinNode RPCs and gates entry startup until admission is observed.
 	seedJoinLoop seedJoinRuntime
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
@@ -177,23 +184,24 @@ type App struct {
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 
-	lifecycleMu          sync.Mutex
-	started              bool
-	stopped              bool
-	clusterStarted       bool
-	seedJoinStarted      bool
-	presenceStarted      bool
-	channelAppendStarted bool
-	deliveryStarted      bool
-	pluginRuntimeStarted bool
-	pluginHookStarted    bool
-	webhookStarted       bool
-	backupRuntimeStarted bool
-	apiStarted           bool
-	managerStarted       bool
-	prometheusStarted    bool
-	gatewayStarted       bool
-	deliveryErrors       atomic.Uint64
+	lifecycleMu            sync.Mutex
+	started                bool
+	stopped                bool
+	clusterStarted         bool
+	seedJoinStarted        bool
+	presenceStarted        bool
+	channelAppendStarted   bool
+	deliveryStarted        bool
+	personDirectoryStarted bool
+	pluginRuntimeStarted   bool
+	pluginHookStarted      bool
+	webhookStarted         bool
+	backupRuntimeStarted   bool
+	apiStarted             bool
+	managerStarted         bool
+	prometheusStarted      bool
+	gatewayStarted         bool
+	deliveryErrors         atomic.Uint64
 }
 
 // New creates an internal App.
@@ -240,6 +248,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	app.wireDeliveryMetadata()
 	app.wireChannels()
+	if err := app.wirePersonDirectoryProjector(); err != nil {
+		return nil, err
+	}
 	conversationReadStore := app.newConversationReadStore()
 	app.wireConversations(conversationReadStore)
 	app.wirePresence()

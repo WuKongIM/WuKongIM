@@ -41,6 +41,7 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	prober := &productionLifecycleProberFake{phase: productionLifecycleLoaded, calls: make(chan struct{}, 8)}
 	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
 		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
+		Enabled:      true,
 		PollEvery:    time.Minute,
 		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
 	})
@@ -145,6 +146,7 @@ func TestProductionLifecycleCancellationJoinsInFlightPoll(t *testing.T) {
 	prober := &productionLifecycleBlockingProber{entered: make(chan struct{}), returned: make(chan struct{})}
 	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
 		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
+		Enabled:      true,
 		PollEvery:    time.Minute,
 		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
 	})
@@ -177,6 +179,23 @@ func TestProductionLifecycleCancellationJoinsInFlightPoll(t *testing.T) {
 	}
 	if got := runner.Snapshot().HarnessFailures; got != 0 {
 		t.Fatalf("cancellation was classified as %d harness failures", got)
+	}
+}
+
+func TestProductionLifecycleDisabledDoesNotRequireFormalProofDependencies(t *testing.T) {
+	t.Parallel()
+	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{Enabled: false})
+	if err != nil {
+		t.Fatalf("NewProductionLifecycle: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fence := WorkerFence{RunID: "run-local-throughput", AssignmentID: "assignment-local-throughput", Generation: 5}
+	if err := runner.Run(ctx, fence); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run error = %v, want context canceled", err)
+	}
+	if snapshot := runner.Snapshot(); snapshot != (LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}) {
+		t.Fatalf("disabled lifecycle snapshot = %+v, want zero proof evidence", snapshot)
 	}
 }
 
@@ -214,6 +233,7 @@ func TestProductionLifecycleRejectsSeventhOverlappingCohort(t *testing.T) {
 	prober := &productionLifecycleProberFake{phase: productionLifecycleLoaded, calls: make(chan struct{}, 64)}
 	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
 		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
+		Enabled:      true,
 		PollEvery:    time.Minute,
 		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
 	})
@@ -291,6 +311,7 @@ func TestProductionLifecycleReturnsProductClassificationFromProof(t *testing.T) 
 	prober := &productionLifecycleProberFake{phase: productionLifecycleMissing, calls: make(chan struct{}, 2)}
 	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
 		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
+		Enabled:      true,
 		PollEvery:    time.Minute,
 		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
 	})
@@ -357,6 +378,7 @@ func TestProductionLifecycleReleasesCompletedCohortsBeforeCapacityCheck(t *testi
 	}
 	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
 		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
+		Enabled:      true,
 		PollEvery:    time.Minute,
 		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
 	})

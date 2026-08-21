@@ -44,6 +44,11 @@ type TransportPressureObserver interface {
 	OnTransportPressure(event TransportPressureEvent)
 }
 
+// TransportWriteObserver receives optional physical transport-write completion observations.
+type TransportWriteObserver interface {
+	OnTransportWrite(event TransportWriteEvent)
+}
+
 type ConnectionEvent struct {
 	Listener    string
 	Network     string
@@ -71,6 +76,14 @@ type FrameEvent struct {
 }
 
 type FrameHandleEvent struct {
+	ConnectionEvent
+	FrameType string
+	Duration  time.Duration
+	Err       error
+}
+
+// TransportWriteEvent reports the asynchronous socket-write completion of one outbound frame.
+type TransportWriteEvent struct {
 	ConnectionEvent
 	FrameType string
 	Duration  time.Duration

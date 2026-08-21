@@ -84,7 +84,7 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 		metadata := ChannelAppendMetadata{
 			Large:                     channel.Large != 0,
 			SubscriberMutationVersion: channel.SubscriberMutationVersion,
-			DirectoryReady:            channel.DirectoryReady != 0,
+			DirectoryProjectionState:  channel.DirectoryProjectionState,
 		}
 		applyChannelAppendMetadata(&target, metadata)
 		c.metadata.StoreIfGeneration(id, metadata, cacheGeneration)

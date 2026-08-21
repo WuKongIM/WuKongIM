@@ -214,6 +214,13 @@ func (o gatewayMetricsObserver) OnFrameHandled(event accessgateway.FrameHandleEv
 	o.metrics.Gateway.FrameHandled(event.FrameType, event.Duration)
 }
 
+func (o gatewayMetricsObserver) OnTransportWrite(event accessgateway.TransportWriteEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Gateway.TransportWrite(event.FrameType, event.Duration, event.Err)
+}
+
 func (o gatewayMetricsObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQueueEvent) {
 	if o.metrics == nil {
 		return
@@ -329,6 +336,14 @@ func (o multiGatewayObserver) OnFrameOut(event accessgateway.FrameEvent) {
 func (o multiGatewayObserver) OnFrameHandled(event accessgateway.FrameHandleEvent) {
 	for _, observer := range o {
 		observer.OnFrameHandled(event)
+	}
+}
+
+func (o multiGatewayObserver) OnTransportWrite(event accessgateway.TransportWriteEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.TransportWriteObserver); ok {
+			optional.OnTransportWrite(event)
+		}
 	}
 }
 

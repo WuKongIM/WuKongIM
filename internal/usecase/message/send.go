@@ -22,10 +22,6 @@ const (
 	// sendBatchPermissionWorkers bounds concurrent authoritative metadata reads
 	// without changing the original item order used by hooks and append admission.
 	sendBatchPermissionWorkers = 16
-	// sendBatchPreAppendWorkers matches the bounded person-directory batch size.
-	// A full caller wave closes that downstream batch immediately instead of
-	// paying its collection deadline in groups of a few entries.
-	sendBatchPreAppendWorkers = 128
 
 	sendBatchStagePermission = "permission"
 	sendBatchStagePreAppend  = "pre_append"
@@ -51,9 +47,10 @@ type sendBatchPermissionGroup struct {
 }
 
 type sendBatchPermissionOutcome struct {
-	channelID string
-	reason    Reason
-	err       error
+	channelID           string
+	reason              Reason
+	err                 error
+	personDirectoryFact *PersonDirectoryChannelFact
 }
 
 type sendBatchDirectoryGroup struct {
@@ -66,8 +63,19 @@ type sendBatchDirectoryOutcome struct {
 	err        error
 }
 
-type personDirectoryReadiness interface {
-	PersonChannelDirectoryReady(channelID string, channelType int64) bool
+// sendBatchSessionKey keeps admission and result publication ordered for one
+// real gateway session. Non-session callers receive an isolated lane per item.
+type sendBatchSessionKey struct {
+	nodeID    uint64
+	sessionID uint64
+	isolated  int
+}
+
+func sendBatchSessionKeyFor(index int, cmd SendCommand) sendBatchSessionKey {
+	if cmd.SenderNodeID != 0 && cmd.SenderSessionID != 0 {
+		return sendBatchSessionKey{nodeID: cmd.SenderNodeID, sessionID: cmd.SenderSessionID}
+	}
+	return sendBatchSessionKey{isolated: index + 1}
 }
 
 // sendBatchEachSubmitter optionally publishes terminal channel-group results
@@ -127,22 +135,46 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	}
 	permissionStartedAt := time.Now()
 	results := make([]SendBatchItemResult, len(items))
-	finalized := make([]bool, len(items))
+	terminal := make([]bool, len(items))
+	nextInSession := make([]int, len(items))
+	for i := range nextInSession {
+		nextInSession[i] = -1
+	}
+	sessionKeys := make([]sendBatchSessionKey, len(items))
+	emissionHeads := make(map[sendBatchSessionKey]int, len(items))
+	submissionHeads := make(map[sendBatchSessionKey]int, len(items))
+	tails := make(map[sendBatchSessionKey]int, len(items))
+	for i, item := range items {
+		key := sendBatchSessionKeyFor(i, item.Command)
+		sessionKeys[i] = key
+		if tail, ok := tails[key]; ok {
+			nextInSession[tail] = i
+		} else {
+			emissionHeads[key] = i
+			submissionHeads[key] = i
+		}
+		tails[key] = i
+	}
 	var emitErr error
 	var invariantErr error
 	finalize := func(index int) {
-		if index < 0 || index >= len(results) || finalized[index] {
+		if index < 0 || index >= len(results) || terminal[index] {
 			invariantErr = ErrSendBatchEmissionMismatch
 			return
 		}
-		finalized[index] = true
-		if emitErr == nil {
-			emitErr = emit(index, results[index])
+		terminal[index] = true
+		key := sessionKeys[index]
+		for head := emissionHeads[key]; head >= 0 && terminal[head]; head = emissionHeads[key] {
+			if emitErr == nil {
+				emitErr = emit(head, results[head])
+			}
+			emissionHeads[key] = nextInSession[head]
 		}
 	}
 	prepared := make([]SendBatchItem, len(items))
 	contexts := make([]context.Context, len(items))
 	allowedItems := make([]bool, len(items))
+	directoryFacts := make([]*PersonDirectoryChannelFact, len(items))
 	permissionGroups := make([]sendBatchPermissionGroup, 0, len(items))
 	permissionGroupByScope := make(map[sendPermissionScope]int, len(items))
 	for i := range items {
@@ -186,6 +218,7 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 			prepared[i] = item
 			contexts[i] = itemCtx
 			allowedItems[i] = true
+			directoryFacts[i] = outcome.personDirectoryFact
 		}
 	}
 	permissionResult := sendBatchStageResultOK
@@ -204,6 +237,30 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	}
 
 	preAppendStartedAt := time.Now()
+	readyForSubmit := make([]bool, len(items))
+	submitted := make([]bool, len(items))
+	drainReady := func(preAppendResult string) {
+		for {
+			indexes := make([]int, 0, len(submissionHeads))
+			for key, head := range submissionHeads {
+				for head >= 0 && terminal[head] {
+					head = nextInSession[head]
+					submissionHeads[key] = head
+				}
+				if head >= 0 && readyForSubmit[head] && !submitted[head] {
+					indexes = append(indexes, head)
+				}
+			}
+			if len(indexes) == 0 {
+				return
+			}
+			sort.Ints(indexes)
+			for _, index := range indexes {
+				submitted[index] = true
+			}
+			a.submitSendBatchLane(prepared, contexts, allowedItems, indexes, results, permissionDuration, preAppendStartedAt, preAppendResult, finalize)
+		}
+	}
 	directoryGroups := make([]sendBatchDirectoryGroup, 0, len(items))
 	directoryGroupByChannel := make(map[string]int, len(items))
 	if a != nil && a.personDirectory != nil {
@@ -221,84 +278,115 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 			directoryGroups[groupIndex].indexes = append(directoryGroups[groupIndex].indexes, i)
 		}
 	}
-	readiness, _ := a.personDirectory.(personDirectoryReadiness)
 	coldItems := make([]bool, len(items))
 	coldDirectoryGroups := make([]sendBatchDirectoryGroup, 0, len(directoryGroups))
 	for _, group := range directoryGroups {
-		item := prepared[group.representative]
-		if readiness != nil && readiness.PersonChannelDirectoryReady(item.Command.ChannelID, int64(item.Command.ChannelType)) {
-			continue
-		}
 		coldDirectoryGroups = append(coldDirectoryGroups, group)
 		for _, index := range group.indexes {
 			coldItems[index] = true
 		}
 	}
-	immediateIndexes := make([]int, 0, len(items))
 	for i := range items {
 		if allowedItems[i] && !coldItems[i] {
-			immediateIndexes = append(immediateIndexes, i)
+			readyForSubmit[i] = true
 		}
 	}
-	directoryOutcomes := make(chan sendBatchDirectoryOutcome, len(coldDirectoryGroups))
-	directoryWorkers := min(len(coldDirectoryGroups), sendBatchPreAppendWorkers)
-	var nextDirectory atomic.Uint64
-	for range directoryWorkers {
-		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskMessageDirectoryBatch, func() {
-			for {
-				groupIndex := int(nextDirectory.Add(1) - 1)
-				if groupIndex >= len(coldDirectoryGroups) {
-					return
+	drainReady(sendBatchStageResultOK)
+	if len(coldDirectoryGroups) > 0 {
+		submitDirectoryWave := func(wave []sendBatchDirectoryOutcome) {
+			wavePreAppendResult := sendBatchStageResultOK
+			for _, outcome := range wave {
+				group := coldDirectoryGroups[outcome.groupIndex]
+				if outcome.err == nil {
+					for _, index := range group.indexes {
+						readyForSubmit[index] = true
+					}
+					continue
 				}
-				group := coldDirectoryGroups[groupIndex]
-				item := prepared[group.representative]
-				directoryOutcomes <- sendBatchDirectoryOutcome{
-					groupIndex: groupIndex,
-					err:        a.ensurePersonDirectory(contexts[group.representative], item.Command),
+				wavePreAppendResult = sendBatchStageResultErr
+				for _, index := range group.indexes {
+					results[index] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: outcome.err}
+					allowedItems[index] = false
+					finalize(index)
 				}
 			}
-		})
-	}
-	if len(immediateIndexes) > 0 {
-		a.submitSendBatchLane(prepared, contexts, allowedItems, immediateIndexes, results, permissionDuration, preAppendStartedAt, sendBatchStageResultOK, finalize)
-	}
-	for completed := 0; completed < len(coldDirectoryGroups); {
-		wave := []sendBatchDirectoryOutcome{<-directoryOutcomes}
-		completed++
-	drainCompleted:
-		for completed < len(coldDirectoryGroups) {
-			select {
-			case outcome := <-directoryOutcomes:
-				wave = append(wave, outcome)
-				completed++
-			default:
-				break drainCompleted
-			}
+			drainReady(wavePreAppendResult)
 		}
-		wavePreAppendResult := sendBatchStageResultOK
-		waveIndexes := make([]int, 0, len(wave))
-		for _, outcome := range wave {
-			group := coldDirectoryGroups[outcome.groupIndex]
-			waveIndexes = append(waveIndexes, group.indexes...)
-			if outcome.err == nil {
-				continue
+		if waves, ok := a.personDirectory.(PersonDirectoryWaveEnsurer); ok {
+			admissions := personDirectoryAdmissions(prepared, contexts, directoryFacts, coldDirectoryGroups)
+			completed := make([]bool, len(admissions))
+			waves.AdmitPersonChannelDirectoryWaves(admissions, func(admissionWave []PersonDirectoryAdmissionOutcome) {
+				wave := make([]sendBatchDirectoryOutcome, 0, len(admissionWave))
+				for _, outcome := range admissionWave {
+					if outcome.Index < 0 || outcome.Index >= len(completed) || completed[outcome.Index] {
+						invariantErr = ErrSendBatchEmissionMismatch
+						continue
+					}
+					completed[outcome.Index] = true
+					wave = append(wave, sendBatchDirectoryOutcome{groupIndex: outcome.Index, err: outcome.Err})
+				}
+				if len(wave) > 0 {
+					submitDirectoryWave(wave)
+				}
+			})
+			missing := make([]sendBatchDirectoryOutcome, 0)
+			for groupIndex, done := range completed {
+				if !done {
+					invariantErr = ErrSendBatchEmissionMismatch
+					missing = append(missing, sendBatchDirectoryOutcome{groupIndex: groupIndex, err: ErrRouteNotReady})
+				}
 			}
-			wavePreAppendResult = sendBatchStageResultErr
-			for _, index := range group.indexes {
-				results[index] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: outcome.err}
-				allowedItems[index] = false
+			if len(missing) > 0 {
+				submitDirectoryWave(missing)
 			}
+		} else {
+			submitDirectoryWave(a.admitPersonDirectoryGroups(prepared, contexts, directoryFacts, coldDirectoryGroups))
 		}
-		sort.Ints(waveIndexes)
-		a.submitSendBatchLane(prepared, contexts, allowedItems, waveIndexes, results, permissionDuration, preAppendStartedAt, wavePreAppendResult, finalize)
 	}
-	for i := range finalized {
-		if !finalized[i] {
+	for i := range terminal {
+		if !terminal[i] {
 			invariantErr = ErrSendBatchEmissionMismatch
 			break
 		}
 	}
 	return errors.Join(emitErr, invariantErr)
+}
+
+func (a *App) admitPersonDirectoryGroups(items []SendBatchItem, contexts []context.Context, directoryFacts []*PersonDirectoryChannelFact, groups []sendBatchDirectoryGroup) []sendBatchDirectoryOutcome {
+	outcomes := make([]sendBatchDirectoryOutcome, len(groups))
+	if batch, ok := a.personDirectory.(PersonDirectoryBatchEnsurer); ok {
+		admissions := personDirectoryAdmissions(items, contexts, directoryFacts, groups)
+		results := batch.AdmitPersonChannelDirectories(admissions)
+		for i := range outcomes {
+			outcomes[i].groupIndex = i
+			if len(results) != len(admissions) {
+				outcomes[i].err = ErrRouteNotReady
+			} else {
+				outcomes[i].err = results[i]
+			}
+		}
+		return outcomes
+	}
+	for i, group := range groups {
+		item := items[group.representative]
+		outcomes[i] = sendBatchDirectoryOutcome{
+			groupIndex: i,
+			err:        a.ensurePersonDirectory(contexts[group.representative], item.Command),
+		}
+	}
+	return outcomes
+}
+
+func personDirectoryAdmissions(items []SendBatchItem, contexts []context.Context, directoryFacts []*PersonDirectoryChannelFact, groups []sendBatchDirectoryGroup) []PersonDirectoryAdmission {
+	admissions := make([]PersonDirectoryAdmission, len(groups))
+	for i, group := range groups {
+		item := items[group.representative]
+		admissions[i] = PersonDirectoryAdmission{
+			Context: contexts[group.representative], ChannelID: item.Command.ChannelID, ChannelType: int64(item.Command.ChannelType),
+			ChannelFact: directoryFacts[group.representative],
+		}
+	}
+	return admissions
 }
 
 func (a *App) submitSendBatchLane(
@@ -401,6 +489,16 @@ func (a *App) submitSendBatchLane(
 	submitterResult := sendBatchStageResultOK
 	if len(delegated) != len(allowed) {
 		submitterResult = sendBatchStageResultErr
+		for allowedIndex, originalIndex := range allowedIndexes {
+			results[originalIndex] = SendBatchItemResult{
+				Result: SendResult{Reason: ReasonSystemError},
+				Err: annotateSendBatchTimeout(ErrSendBatchEmissionMismatch, SendBatchFailureDiagnostics{
+					FailedStage: sendBatchStageSubmitter, Permission: permissionDuration, PreAppend: preAppendDuration,
+					Submitter:                  submitterDuration,
+					DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(allowed[allowedIndex].Deadline, submitterStartedAt),
+				}),
+			}
+		}
 	} else {
 		for _, result := range delegated {
 			if result.Err != nil {
@@ -410,16 +508,15 @@ func (a *App) submitSendBatchLane(
 		}
 	}
 	a.observeSendBatchStage(sendBatchStageSubmitter, submitterResult, len(allowed), submitterDuration)
-	for i, result := range delegated {
-		if i >= len(allowedIndexes) {
-			break
+	if len(delegated) == len(allowed) {
+		for i, result := range delegated {
+			result.Err = annotateSendBatchTimeout(result.Err, SendBatchFailureDiagnostics{
+				FailedStage: sendBatchStageSubmitter, Permission: permissionDuration, PreAppend: preAppendDuration,
+				Submitter:                  submitterDuration,
+				DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(allowed[i].Deadline, submitterStartedAt),
+			})
+			results[allowedIndexes[i]] = result
 		}
-		result.Err = annotateSendBatchTimeout(result.Err, SendBatchFailureDiagnostics{
-			FailedStage: sendBatchStageSubmitter, Permission: permissionDuration, PreAppend: preAppendDuration,
-			Submitter:                  submitterDuration,
-			DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(allowed[i].Deadline, submitterStartedAt),
-		})
-		results[allowedIndexes[i]] = result
 	}
 	for _, index := range allowedIndexes {
 		finalize(index)
@@ -445,12 +542,19 @@ func (a *App) observeSendBatchStage(stage, result string, items int, duration ti
 func (a *App) resolveSendBatchPermissions(items []SendBatchItem, groups []sendBatchPermissionGroup, permissionWorkers int) []sendBatchPermissionOutcome {
 	outcomes := make([]sendBatchPermissionOutcome, len(groups))
 	batchedGroups := make([]int, 0, len(groups))
+	batchedPersons := make([]int, 0, len(groups))
 	fallbackGroups := make([]int, 0, len(groups))
 	for groupIndex, group := range groups {
 		cmd := items[group.representative].Command
-		if a != nil && a.permissionBatch != nil && cmd.ChannelType == channelTypeGroup && !cmd.RequestScoped && len(cmd.MessageScopedUIDs) == 0 {
-			batchedGroups = append(batchedGroups, groupIndex)
-			continue
+		if a != nil && a.permissionBatch != nil && !cmd.RequestScoped && len(cmd.MessageScopedUIDs) == 0 {
+			switch cmd.ChannelType {
+			case channelTypeGroup:
+				batchedGroups = append(batchedGroups, groupIndex)
+				continue
+			case channelTypePerson:
+				batchedPersons = append(batchedPersons, groupIndex)
+				continue
+			}
 		}
 		fallbackGroups = append(fallbackGroups, groupIndex)
 	}
@@ -461,6 +565,16 @@ func (a *App) resolveSendBatchPermissions(items []SendBatchItem, groups []sendBa
 		}
 		batched := a.checkGroupSendPermissionsBatch(ctx, items, groups, batchedGroups)
 		for i, groupIndex := range batchedGroups {
+			outcomes[groupIndex] = batched[i]
+		}
+	}
+	if len(batchedPersons) > 0 {
+		ctx := items[groups[batchedPersons[0]].representative].Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		batched := a.checkPersonSendPermissionsBatch(ctx, items, groups, batchedPersons)
+		for i, groupIndex := range batchedPersons {
 			outcomes[groupIndex] = batched[i]
 		}
 	}
@@ -526,7 +640,7 @@ func (a *App) ensurePersonDirectory(ctx context.Context, cmd SendCommand) error 
 	if a == nil || a.personDirectory == nil || !sendNeedsPersonDirectory(cmd) {
 		return nil
 	}
-	return a.personDirectory.EnsurePersonChannelDirectory(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	return a.personDirectory.AdmitPersonChannelDirectory(ctx, cmd.ChannelID, int64(cmd.ChannelType))
 }
 
 func sendNeedsPersonDirectory(cmd SendCommand) bool {

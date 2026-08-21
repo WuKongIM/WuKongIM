@@ -161,6 +161,39 @@ func (s *Shard) UpsertUserChannelMembership(ctx context.Context, membership User
 	return batch.Commit(true)
 }
 
+// EnsureUserChannelMembership creates one membership when absent and advances
+// only its source-generation fence when a newer directory incarnation arrives.
+// Structural and user-owned state, including tombstones, is never overwritten.
+func (s *Shard) EnsureUserChannelMembership(ctx context.Context, membership UserChannelMembership) error {
+	if err := s.check(ctx); err != nil {
+		return err
+	}
+	if err := validateUserChannelMembership(membership); err != nil {
+		return err
+	}
+	unlock := s.lock()
+	defer unlock()
+
+	primaryKey, err := userChannelMembershipRowKey(s.hashSlot, membership.UID, membership.ChannelID, membership.ChannelType)
+	if err != nil {
+		return err
+	}
+	existing, exists, err := userChannelMembershipTable.getByPrimaryKey(s.db, s.hashSlot, userChannelMembershipPrimaryKey(membership.UID, membership.ChannelID, membership.ChannelType))
+	if err != nil {
+		return err
+	}
+	next := resolveEnsuredUserChannelMembership(existing, exists, membership)
+	if exists && next == existing {
+		return nil
+	}
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := stageUserChannelMembership(batch, s.hashSlot, primaryKey, existing, exists, next); err != nil {
+		return err
+	}
+	return batch.Commit(true)
+}
+
 // SetUserChannelMembershipActivatedAt changes directory priority for a live
 // membership. A tombstone ignores personal-state commands.
 func (s *Shard) SetUserChannelMembershipActivatedAt(ctx context.Context, uid string, key ChannelKey, activatedAt, updatedAt int64) error {
@@ -320,6 +353,71 @@ func (b *Batch) UpsertUserChannelMembership(hashSlot HashSlot, membership UserCh
 		return nil
 	})
 	return nil
+}
+
+// EnsureUserChannelMembership stages a create-or-fence-advance projection.
+// A newer directory incarnation replaces all source-derived sequence floors
+// while preserving activation and tombstone state owned by the user-facing
+// directory. Exact replacement prevents a delayed older projector from
+// poisoning a delete/recreate incarnation with its prior tail.
+func (b *Batch) EnsureUserChannelMembership(hashSlot HashSlot, membership UserChannelMembership) error {
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if err := validateUserChannelMembership(membership); err != nil {
+		return err
+	}
+	pk := userChannelMembershipPrimaryKey(membership.UID, membership.ChannelID, membership.ChannelType)
+	primaryKey, err := userChannelMembershipTable.primaryRowKey(hashSlot, pk)
+	if err != nil {
+		return err
+	}
+	b.addOp(hashSlot, func(_ context.Context, state *batchCommitState, batch *engine.Batch) error {
+		existing, exists, err := userChannelMembershipTable.loadBatchRow(state, hashSlot, pk, primaryKey)
+		if err != nil {
+			return err
+		}
+		next := resolveEnsuredUserChannelMembership(existing, exists, membership)
+		if exists && next == existing {
+			return nil
+		}
+		if err := stageUserChannelMembership(batch, hashSlot, primaryKey, existing, exists, next); err != nil {
+			return err
+		}
+		value := encodeUserChannelMembershipValue(next)
+		state.tableRows[string(primaryKey)] = tableRowOverlay{value: append([]byte(nil), value...), exists: true}
+		return nil
+	})
+	return nil
+}
+
+func resolveEnsuredUserChannelMembership(existing UserChannelMembership, exists bool, incoming UserChannelMembership) UserChannelMembership {
+	if !exists {
+		return incoming
+	}
+	if incoming.SourceVersion <= existing.SourceVersion {
+		return existing
+	}
+	existing.JoinSeq = incoming.JoinSeq
+	if existing.SourceVersion == 0 {
+		// An unfenced row may contain user-owned floors established before the
+		// first source projection; importing generation one must not regress it.
+		if incoming.ReadSeq > existing.ReadSeq {
+			existing.ReadSeq = incoming.ReadSeq
+		}
+		if incoming.DeletedToSeq > existing.DeletedToSeq {
+			existing.DeletedToSeq = incoming.DeletedToSeq
+		}
+	} else {
+		// A later source generation is a true delete/recreate boundary.
+		existing.ReadSeq = incoming.ReadSeq
+		existing.DeletedToSeq = incoming.DeletedToSeq
+	}
+	existing.SourceVersion = incoming.SourceVersion
+	if incoming.UpdatedAt > existing.UpdatedAt {
+		existing.UpdatedAt = incoming.UpdatedAt
+	}
+	return existing
 }
 
 // AdvanceUserChannelMembershipReadSeq stages one monotonic badge-floor update.

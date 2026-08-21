@@ -3,7 +3,6 @@ package replication
 import (
 	"context"
 	"errors"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,11 +22,12 @@ const (
 	defaultRuntimeLocalWorkers     = 32
 	defaultRuntimePeerWorkers      = 32
 	defaultRuntimePeerTargetFlight = 16
+	defaultRuntimeReplicaHedge     = 25 * time.Millisecond
 	defaultRuntimeTrailingFlush    = 100 * time.Millisecond
 	defaultRuntimeRepairWorkers    = 8
-	defaultRuntimeRepairShards     = 64
-	defaultRuntimeRepairQueue      = 64
+	defaultRuntimeRepairRetry      = 10 * time.Millisecond
 	defaultRuntimeMaxChannels      = 100_000
+	defaultRuntimeMaxVoters        = 3
 	defaultRuntimeRetainedCommands = 64
 )
 
@@ -47,17 +47,22 @@ type RuntimeConfig struct {
 	// Channels to one target. The peer batcher reserves at most one flight for
 	// trailing convergence, leaving the remaining flight for quorum traffic.
 	PeerTargetFlight int
+	// ReplicaHedgeDelay bounds how long a foreground quorum waits for its
+	// preferred follower before admitting the other voter as a hedge.
+	ReplicaHedgeDelay time.Duration
 	// TrailingFlushInterval bounds how long a non-quorum follower write waits
 	// for cross-channel batching before transport admission.
 	TrailingFlushInterval time.Duration
 	RepairWorkers         int
-	RepairShards          int
-	QueueItems            int
-	QueueBytes            int
-	TargetItems           int
-	TargetBytes           int
-	BatchItems            int
-	BatchBytes            int
+	// MaxVoters bounds one installed Channel authority and therefore the
+	// runtime-owned follower-repair ledger.
+	MaxVoters   int
+	QueueItems  int
+	QueueBytes  int
+	TargetItems int
+	TargetBytes int
+	BatchItems  int
+	BatchBytes  int
 	// RecoveryPageBytes bounds donor payload independently from request envelope bytes.
 	RecoveryPageBytes int
 
@@ -79,10 +84,10 @@ type Runtime struct {
 	log    *quorumLog
 	server *ExchangeServer
 
-	localPool  *workqueue.BoundedBatchPool[localDurabilityItem]
-	peerPool   *workqueue.BoundedPool[func()]
-	repairPool *workqueue.ShardedMailbox[followerRepair]
-	peers      *peerBatcher
+	localPool *workqueue.BoundedBatchPool[localDurabilityItem]
+	peerPool  *workqueue.BoundedPool[func()]
+	repairs   *runtimeRepairOwner
+	peers     *peerBatcher
 	// deferredFlushDone joins the one runtime-scoped trailing-follower timer.
 	deferredFlushDone chan struct{}
 
@@ -120,9 +125,42 @@ type runtimeRepairOwner struct {
 	ctx          context.Context
 	store        ReplicaStore
 	peers        *peerBatcher
-	pool         *workqueue.ShardedMailbox[followerRepair]
 	timeout      time.Duration
 	maxPageBytes int
+	retryDelay   time.Duration
+	maxPending   int
+
+	mu          sync.Mutex
+	pending     map[runtimeRepairKey]*runtimeRepairEntry
+	authorities map[ch.ChannelKey]runtimeRepairAuthority
+	ready       []runtimeRepairKey
+	notify      chan struct{}
+	done        chan struct{}
+	workers     atomic.Int32
+}
+
+type runtimeRepairKey struct {
+	channel  ch.ChannelKey
+	follower ch.NodeID
+}
+
+type runtimeRepairEntry struct {
+	repair  followerRepair
+	version uint64
+	queued  bool
+	running bool
+	ctx     context.Context
+	cancel  context.CancelFunc
+}
+
+type runtimeRepairAuthority struct {
+	channelID ch.ChannelID
+	id        AuthorityID
+	voters    []ch.NodeID
+}
+
+type followerRepairAuthorityOwner interface {
+	InstallAuthority(Authority)
 }
 
 // NewRuntime creates the complete bounded durable replication owner for one
@@ -131,14 +169,14 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	cfg = normalizeRuntimeConfig(cfg)
 	if cfg.LocalNode == 0 || cfg.Store == nil || cfg.Link == nil ||
 		cfg.LocalWorkers <= 0 || cfg.PeerWorkers <= 0 || cfg.PeerTargetFlight <= 0 || cfg.PeerTargetFlight > cfg.PeerWorkers ||
-		cfg.RepairWorkers <= 0 || cfg.RepairShards <= 0 ||
+		cfg.RepairWorkers <= 0 || cfg.MaxVoters <= 0 || cfg.MaxVoters > 256 || cfg.MaxChannels > int(^uint(0)>>1)/cfg.MaxVoters ||
 		cfg.QueueItems < cfg.BatchItems || cfg.QueueBytes < cfg.BatchBytes ||
 		cfg.TargetItems < cfg.BatchItems || cfg.TargetItems > cfg.QueueItems-cfg.BatchItems ||
 		cfg.TargetBytes < cfg.BatchBytes || cfg.TargetBytes > cfg.QueueBytes-cfg.BatchBytes ||
 		cfg.BatchItems <= 0 || cfg.BatchItems > MaxExchangeBatchItems || cfg.BatchBytes <= 0 || cfg.BatchBytes > MaxExchangeBatchBytes ||
 		cfg.RecoveryPageBytes <= 0 || cfg.RecoveryPageBytes >= cfg.BatchBytes ||
 		cfg.ExchangeTimeout <= 0 || cfg.LocalTimeout <= 0 ||
-		cfg.TrailingFlushInterval <= 0 || cfg.RecoveryTimeout <= 0 || cfg.CloseTimeout <= 0 || cfg.MaxChannels <= 0 || cfg.MaxRetainedCommands <= 0 {
+		cfg.ReplicaHedgeDelay <= 0 || cfg.TrailingFlushInterval <= 0 || cfg.RecoveryTimeout <= 0 || cfg.CloseTimeout <= 0 || cfg.MaxChannels <= 0 || cfg.MaxRetainedCommands <= 0 {
 		return nil, ch.ErrInvalidConfig
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -172,21 +210,17 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		return nil, err
 	}
 
-	repairs := &runtimeRepairOwner{
-		ctx: ctx, store: cfg.Store, peers: peers, timeout: cfg.RecoveryTimeout, maxPageBytes: cfg.RecoveryPageBytes,
-	}
-	repairPool, err := workqueue.NewShardedMailbox(workqueue.ShardedMailboxConfig{
-		Name: "channel_quorum_repair", Goroutines: cfg.Goroutines, Task: goruntimeregistry.TaskChannelQuorumOwner,
-		Shards: cfg.RepairShards, Workers: cfg.RepairWorkers, QueueSizePerShard: defaultRuntimeRepairQueue,
-		BatchMaxItems: cfg.BatchItems, ReleaseTimeout: cfg.CloseTimeout,
-	}, repairs.handle)
+	repairs, err := newRuntimeRepairOwner(runtimeRepairOwnerConfig{
+		Context: ctx, Store: cfg.Store, Peers: peers, Goroutines: cfg.Goroutines,
+		Workers: cfg.RepairWorkers, Timeout: cfg.RecoveryTimeout, RetryDelay: defaultRuntimeRepairRetry,
+		MaxPageBytes: cfg.RecoveryPageBytes, MaxPending: cfg.MaxChannels * cfg.MaxVoters,
+	})
 	if err != nil {
 		cancel()
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
-	repairs.pool = repairPool
-	runtime.repairPool = repairPool
+	runtime.repairs = repairs
 
 	local := &runtimeLocalDurability{runtime: runtime, store: cfg.Store, timeout: cfg.LocalTimeout, observer: stageObserver}
 	localPool, err := workqueue.NewBoundedBatchPool(workqueue.BoundedBatchPoolConfig[localDurabilityItem]{
@@ -203,27 +237,30 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}, local.runBatch)
 	if err != nil {
 		cancel()
-		_ = repairPool.Close(context.Background())
+		_ = repairs.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
 	runtime.localPool = localPool
 
-	dispatcher := &batchingDurabilityDispatcher{ownerContext: ctx, local: local, peers: peers, repairs: repairs}
+	dispatcher := &batchingDurabilityDispatcher{
+		ownerContext: ctx, local: local, peers: peers, repairs: repairs, hedgeDelay: cfg.ReplicaHedgeDelay,
+	}
 	recovery := &batchingRecoveryProbeDispatcher{
 		local: cfg.LocalNode, ownerContext: ctx, localTimeout: cfg.LocalTimeout,
 		store: cfg.Store, peers: peers, executor: executor,
 	}
 	log, err := newQuorumLog(quorumLogConfig{
 		Local: cfg.LocalNode, Store: cfg.Store, Recovery: recovery, Durability: dispatcher,
-		RecoveryTimeout: cfg.RecoveryTimeout, RecoveryPageBytes: cfg.RecoveryPageBytes,
-		MaxChannels: cfg.MaxChannels, MaxProposalRecords: cfg.BatchItems,
+		RepairAuthorities: repairs,
+		RecoveryTimeout:   cfg.RecoveryTimeout, RecoveryPageBytes: cfg.RecoveryPageBytes,
+		MaxChannels: cfg.MaxChannels, MaxVoters: cfg.MaxVoters, MaxProposalRecords: cfg.BatchItems,
 		MaxProposalBytes: cfg.BatchBytes, MaxRetainedCommands: cfg.MaxRetainedCommands,
 	})
 	if err != nil {
 		cancel()
 		_ = localPool.Close(context.Background())
-		_ = repairPool.Close(context.Background())
+		_ = repairs.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -233,7 +270,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		cancel()
 		_ = localPool.Close(context.Background())
-		_ = repairPool.Close(context.Background())
+		_ = repairs.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -261,14 +298,17 @@ func normalizeRuntimeConfig(cfg RuntimeConfig) RuntimeConfig {
 	if cfg.PeerTargetFlight == 0 {
 		cfg.PeerTargetFlight = defaultRuntimePeerTargetFlight
 	}
+	if cfg.ReplicaHedgeDelay == 0 {
+		cfg.ReplicaHedgeDelay = defaultRuntimeReplicaHedge
+	}
 	if cfg.TrailingFlushInterval == 0 {
 		cfg.TrailingFlushInterval = defaultRuntimeTrailingFlush
 	}
 	if cfg.RepairWorkers == 0 {
 		cfg.RepairWorkers = defaultRuntimeRepairWorkers
 	}
-	if cfg.RepairShards == 0 {
-		cfg.RepairShards = defaultRuntimeRepairShards
+	if cfg.MaxVoters == 0 {
+		cfg.MaxVoters = defaultRuntimeMaxVoters
 	}
 	if cfg.QueueItems == 0 {
 		cfg.QueueItems = defaultRuntimeQueueItems
@@ -350,7 +390,7 @@ func (r *Runtime) Close(ctx context.Context) error {
 				errs = append(errs, ctx.Err())
 			}
 		}
-		if err := r.repairPool.Close(ctx); err != nil {
+		if err := r.repairs.Close(ctx); err != nil {
 			errs = append(errs, err)
 		}
 		if err := r.peerPool.Close(ctx); err != nil {
@@ -436,44 +476,278 @@ func validLocalDurabilityResult(proposal durableProposal, result MutationResult)
 	return result.Err != nil && result.LastOffset == 0
 }
 
+type runtimeRepairOwnerConfig struct {
+	Context      context.Context
+	Store        ReplicaStore
+	Peers        *peerBatcher
+	Goroutines   *goruntimeregistry.Registry
+	Workers      int
+	Timeout      time.Duration
+	RetryDelay   time.Duration
+	MaxPageBytes int
+	MaxPending   int
+}
+
+func newRuntimeRepairOwner(cfg runtimeRepairOwnerConfig) (*runtimeRepairOwner, error) {
+	if cfg.Context == nil || cfg.Store == nil || cfg.Peers == nil || cfg.Workers <= 0 ||
+		cfg.Timeout <= 0 || cfg.RetryDelay <= 0 || cfg.MaxPageBytes <= 0 || cfg.MaxPending <= 0 {
+		return nil, ch.ErrInvalidConfig
+	}
+	owner := &runtimeRepairOwner{
+		ctx: cfg.Context, store: cfg.Store, peers: cfg.Peers, timeout: cfg.Timeout,
+		maxPageBytes: cfg.MaxPageBytes, retryDelay: cfg.RetryDelay, maxPending: cfg.MaxPending,
+		pending: make(map[runtimeRepairKey]*runtimeRepairEntry), authorities: make(map[ch.ChannelKey]runtimeRepairAuthority),
+		notify: make(chan struct{}, 1), done: make(chan struct{}),
+	}
+	owner.workers.Store(int32(cfg.Workers))
+	goruntimeregistry.SafeGoN(cfg.Goroutines, goruntimeregistry.TaskChannelQuorumOwner, cfg.Workers, func(_ int) {
+		defer func() {
+			if owner.workers.Add(-1) == 0 {
+				close(owner.done)
+			}
+		}()
+		owner.runWorker()
+	})
+	return owner, nil
+}
+
+// RecordFollowerRepair retains exact evidence until a fixed worker proves the
+// follower durable. The ledger bound is derived from MaxChannels*MaxVoters;
+// reaching it with a new valid key is therefore an internal invariant breach.
 func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
-	if o == nil || o.pool == nil || o.ctx.Err() != nil || repair.channelKey == "" || repair.follower == 0 {
+	if o == nil || o.ctx.Err() != nil || !validFollowerRepair(repair) {
 		return
 	}
-	key := string(repair.channelKey) + ":" + strconv.FormatUint(uint64(repair.follower), 10)
-	_ = o.pool.Submit(o.ctx, key, repair)
-}
-
-func (o *runtimeRepairOwner) handle(_ context.Context, batch workqueue.MailboxBatch[followerRepair]) error {
-	type repairKey struct {
-		channel  ch.ChannelKey
-		follower ch.NodeID
+	key := runtimeRepairKey{channel: repair.channelKey, follower: repair.follower}
+	o.mu.Lock()
+	authority, known := o.authorities[repair.channelKey]
+	if !known || authority.channelID != repair.channelID || authority.id != repairAuthorityID(repair) ||
+		!repairAuthorityHasVoter(authority, repair.follower) {
+		o.mu.Unlock()
+		return
 	}
-	coalesced := make(map[repairKey]followerRepair, len(batch.Items))
-	for _, repair := range batch.Items {
-		key := repairKey{channel: repair.channelKey, follower: repair.follower}
-		current, exists := coalesced[key]
-		if !exists || repair.needFrom < current.needFrom || repair.manifest.LastOffset > current.manifest.LastOffset {
-			if exists && current.needFrom < repair.needFrom {
-				repair.needFrom = current.needFrom
-			}
-			coalesced[key] = repair
+	entry := o.pending[key]
+	if entry == nil {
+		if len(o.pending) >= o.maxPending {
+			o.mu.Unlock()
+			panic("channel replication: follower repair ownership bound exceeded")
+		}
+		entryCtx, cancel := context.WithCancel(o.ctx)
+		entry = &runtimeRepairEntry{repair: repair, version: 1, queued: true, ctx: entryCtx, cancel: cancel}
+		o.pending[key] = entry
+		o.ready = append(o.ready, key)
+	} else if merged, changed := mergeFollowerRepair(entry.repair, repair); changed {
+		entry.repair = merged
+		entry.version++
+		if !entry.running && !entry.queued {
+			entry.queued = true
+			o.ready = append(o.ready, key)
 		}
 	}
-	for _, repair := range coalesced {
-		o.repair(repair)
-	}
-	return nil
+	o.mu.Unlock()
+	o.signal()
 }
 
-func (o *runtimeRepairOwner) repair(repair followerRepair) {
-	ctx, cancel := context.WithTimeout(o.ctx, o.timeout)
+// InstallAuthority replaces the complete voter repair generation for one
+// Channel. Older ready and running repairs are canceled before a newer
+// authority can publish repair evidence, so membership rotation cannot grow
+// the bounded ledger across generations.
+func (o *runtimeRepairOwner) InstallAuthority(authority Authority) {
+	if o == nil || o.ctx.Err() != nil || !validAuthority(authority) {
+		return
+	}
+	next := runtimeRepairAuthority{
+		channelID: authority.ChannelID, id: authority.ID, voters: append([]ch.NodeID(nil), authority.Voters...),
+	}
+	o.mu.Lock()
+	if o.authorities == nil {
+		o.authorities = make(map[ch.ChannelKey]runtimeRepairAuthority)
+	}
+	if current, ok := o.authorities[authority.Key]; ok {
+		comparison := compareAuthorityID(authority.ID, current.id)
+		if comparison < 0 {
+			o.mu.Unlock()
+			return
+		}
+		if comparison == 0 && current.channelID == authority.ChannelID {
+			o.mu.Unlock()
+			return
+		}
+	}
+	o.authorities[authority.Key] = next
+	for key, entry := range o.pending {
+		if key.channel != authority.Key {
+			continue
+		}
+		entry.cancel()
+		delete(o.pending, key)
+	}
+	kept := o.ready[:0]
+	for _, key := range o.ready {
+		if key.channel != authority.Key {
+			kept = append(kept, key)
+		}
+	}
+	clear(o.ready[len(kept):])
+	o.ready = kept
+	o.mu.Unlock()
+	o.signal()
+}
+
+func repairAuthorityID(repair followerRepair) AuthorityID {
+	return AuthorityID{
+		ChannelEpoch: repair.manifest.ChannelEpoch,
+		LeaderTerm:   repair.manifest.LeaderTerm,
+		FenceVersion: repair.manifest.FenceVersion,
+	}
+}
+
+func repairAuthorityHasVoter(authority runtimeRepairAuthority, voter ch.NodeID) bool {
+	for _, candidate := range authority.voters {
+		if candidate == voter {
+			return true
+		}
+	}
+	return false
+}
+
+func validFollowerRepair(repair followerRepair) bool {
+	return repair.channelKey != "" && repair.channelID.ID != "" && repair.leader != 0 && repair.follower != 0 &&
+		repair.follower != repair.leader && repair.needFrom > 0 && repair.manifest.LastOffset >= repair.needFrom &&
+		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0
+}
+
+func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool) {
+	comparison := compareRepairAuthority(incoming.manifest, current.manifest)
+	if comparison < 0 {
+		return current, false
+	}
+	if comparison > 0 {
+		return incoming, true
+	}
+	merged := current
+	if incoming.needFrom < merged.needFrom {
+		merged.needFrom = incoming.needFrom
+	}
+	if incoming.manifest.LastOffset > merged.manifest.LastOffset {
+		merged.channelID = incoming.channelID
+		merged.leader = incoming.leader
+		merged.manifest = incoming.manifest
+	}
+	return merged, merged != current
+}
+
+func compareRepairAuthority(left, right ch.ProposalManifest) int {
+	return compareAuthorityID(
+		AuthorityID{ChannelEpoch: left.ChannelEpoch, LeaderTerm: left.LeaderTerm, FenceVersion: left.FenceVersion},
+		AuthorityID{ChannelEpoch: right.ChannelEpoch, LeaderTerm: right.LeaderTerm, FenceVersion: right.FenceVersion},
+	)
+}
+
+func (o *runtimeRepairOwner) signal() {
+	select {
+	case o.notify <- struct{}{}:
+	default:
+	}
+}
+
+func (o *runtimeRepairOwner) runWorker() {
+	for {
+		key, repair, entry, version, ok := o.take()
+		if !ok {
+			select {
+			case <-o.ctx.Done():
+				return
+			case <-o.notify:
+				continue
+			}
+		}
+		succeeded := o.repair(entry.ctx, repair)
+		if !succeeded {
+			timer := time.NewTimer(o.retryDelay)
+			select {
+			case <-o.ctx.Done():
+				timer.Stop()
+				o.finish(key, entry, version, false)
+				return
+			case <-timer.C:
+			}
+		}
+		o.finish(key, entry, version, succeeded)
+	}
+}
+
+func (o *runtimeRepairOwner) take() (runtimeRepairKey, followerRepair, *runtimeRepairEntry, uint64, bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for len(o.ready) > 0 {
+		key := o.ready[0]
+		o.ready[0] = runtimeRepairKey{}
+		o.ready = o.ready[1:]
+		entry := o.pending[key]
+		if entry == nil || !entry.queued || entry.running {
+			continue
+		}
+		entry.queued = false
+		entry.running = true
+		return key, entry.repair, entry, entry.version, true
+	}
+	return runtimeRepairKey{}, followerRepair{}, nil, 0, false
+}
+
+func (o *runtimeRepairOwner) finish(key runtimeRepairKey, completed *runtimeRepairEntry, version uint64, succeeded bool) {
+	o.mu.Lock()
+	entry := o.pending[key]
+	if entry != nil && entry == completed {
+		entry.running = false
+		switch {
+		case o.ctx.Err() != nil:
+			entry.cancel()
+			delete(o.pending, key)
+		case succeeded && entry.version == version:
+			entry.cancel()
+			delete(o.pending, key)
+		default:
+			entry.queued = true
+			o.ready = append(o.ready, key)
+		}
+	}
+	o.mu.Unlock()
+	o.signal()
+}
+
+func (o *runtimeRepairOwner) pendingCount() int {
+	if o == nil {
+		return 0
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.pending)
+}
+
+func (o *runtimeRepairOwner) Close(ctx context.Context) error {
+	if o == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-o.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (o *runtimeRepairOwner) repair(parent context.Context, repair followerRepair) bool {
+	ctx, cancel := context.WithTimeout(parent, o.timeout)
 	defer cancel()
 	loaded, ok := o.waitForRepairFrontier(ctx, repair)
 	if !ok {
-		return
+		return false
 	}
-	o.repairFromFrontier(ctx, repair, loaded)
+	return o.repairFromFrontier(ctx, repair, loaded)
 }
 
 func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair followerRepair) (LoadResult, bool) {
@@ -499,12 +773,12 @@ func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair f
 	}
 }
 
-func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair followerRepair, loaded LoadResult) {
+func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair followerRepair, loaded LoadResult) bool {
 	state := loaded.State
 	previous := ch.EntryIdentity{}
 	if repair.needFrom > 1 {
 		if len(loaded.Entries) != 1 || !loaded.Entries[0].Present {
-			return
+			return false
 		}
 		previous = loaded.Entries[0].Identity
 	}
@@ -520,7 +794,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 			From: from, Through: pageThrough, Previous: previous, MaxBytes: o.maxPageBytes,
 		}})
 		if len(pages) != 1 || pages[0].Err != nil || len(pages[0].Proposals) == 0 {
-			return
+			return false
 		}
 		for _, proposal := range pages[0].Proposals {
 			request := ReplicateRequest{
@@ -538,26 +812,27 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				}
 				resultCh <- result
 			}); err != nil {
-				return
+				return false
 			}
 			select {
 			case <-ctx.Done():
-				return
+				return false
 			case <-errCh:
-				return
+				return false
 			case result := <-resultCh:
 				if !result.Status.Durable() {
-					return
+					return false
 				}
 			}
 			_, entries, ok := ch.SealProposalManifest(proposal.Manifest, proposal.Records)
 			if !ok || len(entries) == 0 {
-				return
+				return false
 			}
 			previous = entries[len(entries)-1]
 			from = proposal.Manifest.LastOffset + 1
 		}
 	}
+	return true
 }
 
 func minUint64(left, right uint64) uint64 {

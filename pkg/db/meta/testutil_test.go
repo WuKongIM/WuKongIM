@@ -25,6 +25,9 @@ func (s *testMetaStore) close(tb testing.TB) {
 	if s == nil || s.engine == nil {
 		return
 	}
+	if s.db != nil {
+		s.db.close()
+	}
 	if err := s.engine.Close(); err != nil {
 		tb.Fatalf("engine.Close(): %v", err)
 	}

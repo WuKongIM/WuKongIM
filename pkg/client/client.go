@@ -1064,21 +1064,20 @@ func (c *Client) withDeadline(ctx context.Context, setDeadline func(time.Time) e
 		return err
 	}
 
-	done := make(chan struct{})
-	var deadlineWG sync.WaitGroup
-	deadlineWG.Add(1)
-	go func() {
-		defer deadlineWG.Done()
-		select {
-		case <-ctx.Done():
+	var canceled chan struct{}
+	var stopCancellation func() bool
+	if ctx.Done() != nil {
+		canceled = make(chan struct{})
+		stopCancellation = context.AfterFunc(ctx, func() {
 			_ = setDeadline(time.Now())
-		case <-done:
-		}
-	}()
+			close(canceled)
+		})
+	}
 
 	err := op()
-	close(done)
-	deadlineWG.Wait()
+	if stopCancellation != nil && !stopCancellation() {
+		<-canceled
+	}
 	_ = setDeadline(time.Time{})
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {

@@ -180,6 +180,20 @@ func TestFilterCanceledBatchReusesStorage(t *testing.T) {
 	}
 }
 
+func TestWriteContextForSingleRequestPreservesCallerContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	got, release := writeContextForBatch([]writeRequest{{ctx: ctx}})
+	if got != ctx {
+		t.Fatal("single write request context was wrapped; want the exact caller context")
+	}
+	release()
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("release canceled caller context: %v", err)
+	}
+}
+
 func TestWriteBatchEncodeAllocationBudget(t *testing.T) {
 	c, err := New(Config{
 		Addr:            "discard",

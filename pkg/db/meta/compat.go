@@ -72,6 +72,9 @@ func (db *DB) Close() error {
 		return nil
 	}
 	eng := db.engine
+	if db.meta != nil {
+		db.meta.close()
+	}
 	db.engine = nil
 	db.meta = nil
 	return eng.Close()
@@ -118,12 +121,23 @@ func (db *DB) NewWriteBatch() *WriteBatch {
 	return &WriteBatch{db: db, batch: db.meta.NewBatch(), migrationCreates: make(map[string]ChannelMigrationTask)}
 }
 
+// SlotAppliedIndex returns the atomic state-machine watermark for slotID.
+func (db *DB) SlotAppliedIndex(ctx context.Context, slotID uint64) (uint64, error) {
+	if db == nil || db.meta == nil {
+		return 0, dberrors.ErrClosed
+	}
+	return db.meta.SlotAppliedIndex(ctx, slotID)
+}
+
 // DeleteSlotData removes all data for a legacy single-slot hash slot.
 func (db *DB) DeleteSlotData(ctx context.Context, slotID uint64) error {
 	if slotID > math.MaxUint16 {
 		return ErrInvalidArgument
 	}
-	return db.DeleteHashSlotData(ctx, uint16(slotID))
+	if db == nil || db.meta == nil {
+		return dberrors.ErrClosed
+	}
+	return db.meta.deleteLegacySlotData(ctx, slotID)
 }
 
 // DeleteHashSlotData removes all data for hashSlot.
@@ -464,6 +478,22 @@ func (s *ShardStore) ListUserChannelMembershipPage(ctx context.Context, uid stri
 		return nil, UserChannelMembershipCursor{}, false, err
 	}
 	return s.shard.ListUserChannelMembershipPage(ctx, uid, after, limit)
+}
+
+// GetPersonDirectoryTask returns one durable pending person-directory task.
+func (s *ShardStore) GetPersonDirectoryTask(ctx context.Context, channelID string, channelType int64) (PersonDirectoryTask, bool, error) {
+	if err := s.validate(); err != nil {
+		return PersonDirectoryTask{}, false, err
+	}
+	return s.shard.GetPersonDirectoryTask(ctx, channelID, channelType)
+}
+
+// ListPersonDirectoryTaskPage scans pending person-directory tasks in key order.
+func (s *ShardStore) ListPersonDirectoryTaskPage(ctx context.Context, after PersonDirectoryTaskCursor, limit int) ([]PersonDirectoryTask, PersonDirectoryTaskCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, PersonDirectoryTaskCursor{}, false, err
+	}
+	return s.shard.ListPersonDirectoryTaskPage(ctx, after, limit)
 }
 
 // GetUserCMDChannelMembership returns one UID-owned CMD directory row.
@@ -892,6 +922,14 @@ func (b *WriteBatch) ensure() error {
 	return nil
 }
 
+// SetSlotAppliedIndex stages the physical Slot watermark with this mutation batch.
+func (b *WriteBatch) SetSlotAppliedIndex(slotID uint64, index uint64) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.SetSlotAppliedIndex(slotID, index)
+}
+
 func (b *WriteBatch) CreateUser(hashSlot uint16, user User) error {
 	if err := b.ensure(); err != nil {
 		return err
@@ -1002,58 +1040,11 @@ func (b *WriteBatch) PatchChannelBusinessFlags(hashSlot uint16, channelID string
 	return result, nil
 }
 
-// EnsureChannelDirectoryReady monotonically marks a person channel directory
-// ready, creating its business metadata row when it does not exist yet.
-func (b *WriteBatch) EnsureChannelDirectoryReady(hashSlot uint16, channelID string, channelType int64) error {
-	if err := b.ensure(); err != nil {
-		return err
-	}
-	if err := validateKeyString(channelID); err != nil {
-		return err
-	}
-	hs := HashSlot(hashSlot)
-	primaryKey := encodeChannelRowKey(hs, channelID, channelType, channelPrimaryFamilyID)
-	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		channel, exists, err := state.loadChannel(ctx, primaryKey, channelID, channelType)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			channel = Channel{ChannelID: channelID, ChannelType: channelType}
-		}
-		if channel.DirectoryReady != 0 {
-			return nil
-		}
-		channel.DirectoryReady = 1
-		shard := &Shard{db: state.db, hashSlot: hs}
-		if err := shard.stageChannel(batch, primaryKey, channel); err != nil {
-			return err
-		}
-		state.channelPublishes[string(primaryKey)] = channel
-		delete(state.channelDeletes, string(primaryKey))
-		return nil
-	})
-	return nil
-}
-
 func (b *WriteBatch) DeleteChannel(hashSlot uint16, channelID string, channelType int64) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	hs := HashSlot(hashSlot)
-	primaryKey := encodeChannelRowKey(hs, channelID, channelType, channelPrimaryFamilyID)
-	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		if err := batch.Delete(primaryKey); err != nil {
-			return err
-		}
-		if err := batch.Delete(encodeChannelIDIndexKey(hs, channelID, channelType)); err != nil {
-			return err
-		}
-		delete(state.channelPublishes, string(primaryKey))
-		state.channelDeletes[string(primaryKey)] = struct{}{}
-		return batch.DeleteRange(engine.Span{Start: encodeSubscriberRowPrefix(hs, channelID, channelType), End: keycodec.PrefixEnd(encodeSubscriberRowPrefix(hs, channelID, channelType))})
-	})
-	return nil
+	return b.batch.DeleteChannel(HashSlot(hashSlot), channelID, channelType)
 }
 
 func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRuntimeMeta) error {
@@ -1151,6 +1142,30 @@ func (b *WriteBatch) UpsertUserChannelMembership(hashSlot uint16, membership Use
 		return err
 	}
 	return b.batch.UpsertUserChannelMembership(HashSlot(hashSlot), membership)
+}
+
+// EnsureUserChannelMembership stages a create-if-absent UID membership.
+func (b *WriteBatch) EnsureUserChannelMembership(hashSlot uint16, membership UserChannelMembership) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.EnsureUserChannelMembership(HashSlot(hashSlot), membership)
+}
+
+// EnsurePersonDirectoryTask stages atomic pending-state task admission.
+func (b *WriteBatch) EnsurePersonDirectoryTask(hashSlot uint16, task PersonDirectoryTask) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.EnsurePersonDirectoryTask(HashSlot(hashSlot), task)
+}
+
+// CompletePersonDirectoryTask stages atomic task removal and ready transition.
+func (b *WriteBatch) CompletePersonDirectoryTask(hashSlot uint16, location PersonDirectoryTaskLocation) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.CompletePersonDirectoryTask(HashSlot(hashSlot), location)
 }
 
 func (b *WriteBatch) AdvanceUserChannelMembershipReadSeq(hashSlot uint16, uid string, key ChannelKey, readSeq uint64, updatedAt int64) error {

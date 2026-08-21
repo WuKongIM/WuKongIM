@@ -164,7 +164,7 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 		}
 		channel.SubscriberMutationVersion = existing.SubscriberMutationVersion
 		channel.SubscriberCount = existing.SubscriberCount
-		channel.DirectoryReady = existing.DirectoryReady
+		channel.DirectoryProjectionState = existing.DirectoryProjectionState
 	}
 	return a.store.UpsertChannel(ctx, channel)
 }

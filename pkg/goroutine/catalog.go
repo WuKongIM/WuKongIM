@@ -138,6 +138,8 @@ const (
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
 	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskMessageDirectoryBatch            TaskID = "message/directory_batch"
+	TaskMessageDirectoryProjector        TaskID = "message/directory_projector"
+	TaskMessageDirectoryWorker           TaskID = "message/directory_worker"
 	TaskChannelAppendRouter              TaskID = "channelappend/router"
 	TaskChannelAppendPoolRelease         TaskID = "channelappend/pool_release"
 	TaskChannelAppendAdvanceScheduler    TaskID = "channelappend/advance_scheduler"
@@ -231,6 +233,8 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryBatch, Module: ModuleMessage, Name: "directory_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskMessageDirectoryProjector, Module: ModuleMessage, Name: "directory_projector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMessageDirectoryWorker, Module: ModuleMessage, Name: "directory_worker", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic, Expected: 8},
 	{ID: TaskChannelAppendRouter, Module: ModuleChannelAppend, Name: "router", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendPoolRelease, Module: ModuleChannelAppend, Name: "pool_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelAppendAdvanceScheduler, Module: ModuleChannelAppend, Name: "advance_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

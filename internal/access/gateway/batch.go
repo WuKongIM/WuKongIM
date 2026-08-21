@@ -9,6 +9,19 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
+type gatewayBatchSessionKey struct {
+	sessionID uint64
+	isolated  int
+}
+
+type gatewayBatchSendack struct {
+	ready  bool
+	result message.SendResult
+	source string
+	class  string
+	trace  sendTraceFields
+}
+
 func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	if len(items) == 0 {
 		return nil
@@ -29,7 +42,8 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		traceFields = make([]sendTraceFields, len(items))
 	}
 
-	for i, item := range items {
+	for i := range items {
+		item := items[i]
 		contexts[i] = item.Context
 		if item.ReplyToken != "" {
 			contexts[i].ReplyToken = item.ReplyToken
@@ -61,7 +75,44 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		validIndexes = append(validIndexes, i)
 		validItems = append(validItems, message.SendBatchItem{Context: ctx.RequestContext, Deadline: deadline, Command: cmd})
 	}
-	for i, item := range items {
+	nextInSession := make([]int, len(items))
+	for i := range nextInSession {
+		nextInSession[i] = -1
+	}
+	heads := make(map[gatewayBatchSessionKey]int, len(items))
+	tails := make(map[gatewayBatchSessionKey]int, len(items))
+	keys := make([]gatewayBatchSessionKey, len(items))
+	for i := range contexts {
+		key := gatewayBatchSessionKey{isolated: i + 1}
+		if contexts[i].Session != nil && contexts[i].Session.ID() != 0 {
+			key = gatewayBatchSessionKey{sessionID: contexts[i].Session.ID()}
+		}
+		keys[i] = key
+		if tail, ok := tails[key]; ok {
+			nextInSession[tail] = i
+		} else {
+			heads[key] = i
+		}
+		tails[key] = i
+	}
+	completions := make([]gatewayBatchSendack, len(items))
+	complete := func(index int, completion gatewayBatchSendack) error {
+		if index < 0 || index >= len(completions) || completions[index].ready {
+			return ErrSendBatchResultCountMismatch
+		}
+		completion.ready = true
+		completions[index] = completion
+		key := keys[index]
+		for head := heads[key]; head >= 0 && completions[head].ready; head = heads[key] {
+			current := completions[head]
+			if err := h.writeSendack(&contexts[head], items[head].Frame, current.result, current.source, current.class, current.trace); err != nil {
+				return err
+			}
+			heads[key] = nextInSession[head]
+		}
+		return nil
+	}
+	for i := range items {
 		if !prechecked[i] {
 			continue
 		}
@@ -69,7 +120,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		if traceFields != nil {
 			trace = traceFields[i]
 		}
-		if err := h.writeSendack(&contexts[i], item.Frame, precheckResults[i], precheckSources[i], precheckClasses[i], trace); err != nil {
+		if err := complete(i, gatewayBatchSendack{result: precheckResults[i], source: precheckSources[i], class: precheckClasses[i], trace: trace}); err != nil {
 			return err
 		}
 	}
@@ -85,7 +136,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			if traceFields != nil {
 				trace = traceFields[index]
 			}
-			if err := h.writeSendack(&contexts[index], items[index].Frame, result, sendackSourceBatchResult, sendackErrorClassOther, trace); err != nil {
+			if err := complete(index, gatewayBatchSendack{result: result, source: sendackSourceBatchResult, class: sendackErrorClassOther, trace: trace}); err != nil {
 				return err
 			}
 		}
@@ -121,7 +172,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			if traceFields != nil {
 				trace = traceFields[index]
 			}
-			return h.writeSendack(&contexts[index], items[index].Frame, result, source, class, trace)
+			return complete(index, gatewayBatchSendack{result: result, source: source, class: class, trace: trace})
 		})
 		if batchErr != nil {
 			if errors.Is(batchErr, ErrSendBatchResultCountMismatch) {
@@ -131,6 +182,11 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		}
 		if emittedCount != len(validItems) {
 			h.logSendBatchResultCountMismatch(len(items), len(validItems), emittedCount)
+			return ErrSendBatchResultCountMismatch
+		}
+	}
+	for _, completion := range completions {
+		if !completion.ready {
 			return ErrSendBatchResultCountMismatch
 		}
 	}

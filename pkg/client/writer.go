@@ -302,6 +302,12 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 }
 
 func writeContextForBatch(batch []writeRequest) (context.Context, context.CancelFunc) {
+	if len(batch) == 1 {
+		if batch[0].ctx == nil {
+			return context.Background(), func() {}
+		}
+		return batch[0].ctx, func() {}
+	}
 	var earliest time.Time
 	var hasDeadline bool
 	var doneChans []<-chan struct{}

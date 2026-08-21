@@ -78,6 +78,16 @@ func encodeSystemPrefix(hashSlot HashSlot, systemID uint16) []byte {
 		Key()
 }
 
+func encodeSlotAppliedIndexKey(slotID uint64) []byte {
+	var builder keycodec.Builder
+	key := builder.Reset().
+		Domain(keycodec.DomainMeta).
+		Partition(keycodec.PartitionGlobal, nil).
+		System(0, systemIDSlotApplied).
+		Key()
+	return keycodec.AppendUint64(key, slotID)
+}
+
 func encodeUserRowKey(hashSlot HashSlot, uid string, familyID uint16) []byte {
 	key := encodeRowPrefix(hashSlot, TableIDUser)
 	key = keycodec.AppendString(key, uid)

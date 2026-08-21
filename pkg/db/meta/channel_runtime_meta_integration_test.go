@@ -398,6 +398,7 @@ func equalRuntimeMeta(a, b ChannelRuntimeMeta) bool {
 	if a.ChannelID != b.ChannelID || a.ChannelType != b.ChannelType || a.ChannelEpoch != b.ChannelEpoch ||
 		a.LeaderEpoch != b.LeaderEpoch || a.RouteGeneration != b.RouteGeneration || a.Leader != b.Leader ||
 		a.MinISR != b.MinISR || a.Status != b.Status || a.Features != b.Features || a.LeaseUntilMS != b.LeaseUntilMS ||
+		a.DirectoryGeneration != b.DirectoryGeneration ||
 		a.RetentionThroughSeq != b.RetentionThroughSeq || a.RetentionUpdatedAtMS != b.RetentionUpdatedAtMS ||
 		a.WriteFenceToken != b.WriteFenceToken || a.WriteFenceVersion != b.WriteFenceVersion ||
 		a.WriteFenceReason != b.WriteFenceReason || a.WriteFenceUntilMS != b.WriteFenceUntilMS {

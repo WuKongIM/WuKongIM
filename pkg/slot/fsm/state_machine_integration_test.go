@@ -32,6 +32,10 @@ func TestStateMachineApplyNoopCommand(t *testing.T) {
 	if string(result) != ApplyResultOK {
 		t.Fatalf("Apply(noop) result = %q, want %q", result, ApplyResultOK)
 	}
+	durable := sm.(multiraft.DurableAppliedStateMachine)
+	if got, err := durable.DurableAppliedIndex(ctx); err != nil || got != 1 {
+		t.Fatalf("DurableAppliedIndex() = %d, %v; want 1, nil", got, err)
+	}
 }
 
 func TestStateMachineApplyUpsertsUserAndChannel(t *testing.T) {
@@ -712,107 +716,6 @@ func TestStateMachineAppliesChannelLatest(t *testing.T) {
 	}
 	if got.LastMessageID != 100 || got.LastMessageSeq != 10 || string(got.Payload) != "hello" {
 		t.Fatalf("latest after upsert = %#v, want message 100 seq 10", got)
-	}
-}
-
-func TestStateMachineEnsuresChannelDirectoryReady(t *testing.T) {
-	ctx := context.Background()
-	db := openTestDB(t)
-	sm := mustNewStateMachine(t, db, 11)
-
-	if _, err := sm.Apply(ctx, multiraft.Command{
-		SlotID: 11, Index: 1, Term: 1,
-		Data: EncodeEnsureChannelDirectoryReadyCommand("u1@u2", 1),
-	}); err != nil {
-		t.Fatalf("Apply(ensure channel directory ready) error = %v", err)
-	}
-	got, err := db.ForSlot(11).GetChannel(ctx, "u1@u2", 1)
-	if err != nil || got.DirectoryReady != 1 {
-		t.Fatalf("GetChannel() = %+v err=%v", got, err)
-	}
-}
-
-func TestStateMachineAppliesPersonDirectoryBatchesAcrossOwnedHashSlots(t *testing.T) {
-	ctx := context.Background()
-	db := openTestDB(t)
-	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5, 7})
-	if err != nil {
-		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
-	}
-	membershipCommand, err := EncodeUpsertUserChannelMembershipBatchCommandChecked([]UserChannelMembershipBatchItem{
-		{HashSlot: 5, Membership: metadb.UserChannelMembership{UID: "u1", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1}},
-		{HashSlot: 7, Membership: metadb.UserChannelMembership{UID: "u2", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1}},
-	})
-	if err != nil {
-		t.Fatalf("EncodeUpsertUserChannelMembershipBatchCommandChecked() error = %v", err)
-	}
-	if _, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, HashSlot: 5, Index: 1, Term: 1, Data: membershipCommand}); err != nil {
-		t.Fatalf("Apply(membership batch) error = %v", err)
-	}
-	if _, err := db.ForHashSlot(5).GetUserChannelMembership(ctx, "u1", "u1@u2", 1); err != nil {
-		t.Fatalf("GetUserChannelMembership(hash slot 5) error = %v", err)
-	}
-	if _, err := db.ForHashSlot(7).GetUserChannelMembership(ctx, "u2", "u1@u2", 1); err != nil {
-		t.Fatalf("GetUserChannelMembership(hash slot 7) error = %v", err)
-	}
-
-	readyCommand, err := EncodeEnsureChannelDirectoriesReadyBatchCommandChecked([]ChannelDirectoryReadyBatchItem{
-		{HashSlot: 5, ChannelID: "u1@u2", ChannelType: 1},
-		{HashSlot: 7, ChannelID: "u3@u4", ChannelType: 1},
-	})
-	if err != nil {
-		t.Fatalf("EncodeEnsureChannelDirectoriesReadyBatchCommandChecked() error = %v", err)
-	}
-	if _, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, HashSlot: 5, Index: 2, Term: 1, Data: readyCommand}); err != nil {
-		t.Fatalf("Apply(directory-ready batch) error = %v", err)
-	}
-	for _, item := range []ChannelDirectoryReadyBatchItem{{HashSlot: 5, ChannelID: "u1@u2", ChannelType: 1}, {HashSlot: 7, ChannelID: "u3@u4", ChannelType: 1}} {
-		channel, err := db.ForHashSlot(item.HashSlot).GetChannel(ctx, item.ChannelID, item.ChannelType)
-		if err != nil || channel.DirectoryReady != 1 {
-			t.Fatalf("GetChannel(%s) = %#v err=%v, want ready", item.ChannelID, channel, err)
-		}
-	}
-}
-
-func TestStateMachinePreparesPersonDirectoryMembershipAndRuntimeMetaInOneCommit(t *testing.T) {
-	ctx := context.Background()
-	db := openTestDB(t)
-	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5, 7})
-	if err != nil {
-		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
-	}
-	command, err := EncodePreparePersonChannelDirectoryBatchCommandChecked(
-		[]UserChannelMembershipBatchItem{{
-			HashSlot: 5,
-			Membership: metadb.UserChannelMembership{
-				UID: "u1", ChannelID: "u1@u2", ChannelType: 1, JoinSeq: 1, SourceVersion: 1, UpdatedAt: 1,
-			},
-		}},
-		[]CreateChannelRuntimeMetaBatchItem{{
-			HashSlot: 7,
-			Meta: metadb.ChannelRuntimeMeta{
-				ChannelID: "u1@u2", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
-				Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
-			},
-		}},
-	)
-	if err != nil {
-		t.Fatalf("EncodePreparePersonChannelDirectoryBatchCommandChecked() error = %v", err)
-	}
-	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, HashSlot: 5, Index: 1, Term: 1, Data: command})
-	if err != nil {
-		t.Fatalf("Apply(prepare directory batch) error = %v", err)
-	}
-	created, err := DecodeCreateChannelRuntimeMetaBatchResult(result)
-	if err != nil || len(created) != 1 || !created[0].Created {
-		t.Fatalf("prepare runtime-meta result = %#v, err=%v", created, err)
-	}
-	if _, err := db.ForHashSlot(5).GetUserChannelMembership(ctx, "u1", "u1@u2", 1); err != nil {
-		t.Fatalf("GetUserChannelMembership() error = %v", err)
-	}
-	meta, err := db.ForHashSlot(7).GetChannelRuntimeMeta(ctx, "u1@u2", 1)
-	if err != nil || meta.ChannelID != "u1@u2" || meta.Leader != 1 {
-		t.Fatalf("GetChannelRuntimeMeta() = %#v, err=%v", meta, err)
 	}
 }
 

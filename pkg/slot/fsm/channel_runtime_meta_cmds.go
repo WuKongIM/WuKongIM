@@ -128,10 +128,10 @@ func canonicalCreateChannelRuntimeMetaBatch(items []CreateChannelRuntimeMetaBatc
 }
 
 // IsCreateChannelRuntimeMetaCommand reports whether data carries authoritative
-// create-only runtime metadata outcomes (command 59 or composite command 62).
+// create-only runtime metadata outcomes.
 func IsCreateChannelRuntimeMetaCommand(data []byte) bool {
 	return len(data) >= 2 && data[0] == commandVersion &&
-		(data[1] == cmdTypeCreateChannelRuntimeMeta || data[1] == cmdTypePreparePersonChannelDirectoryBatch)
+		(data[1] == cmdTypeCreateChannelRuntimeMeta || data[1] == cmdTypeAdmitPersonDirectoryTaskBatch)
 }
 
 // CreateChannelRuntimeMetaBatchCommandSize validates a create-bearing command
@@ -147,8 +147,8 @@ func CreateChannelRuntimeMetaBatchCommandSize(data []byte) (int, error) {
 	switch batch := decoded.(type) {
 	case *createChannelRuntimeMetaBatchCmd:
 		return len(batch.items), nil
-	case *preparePersonChannelDirectoryBatchCmd:
-		return len(batch.runtimeMeta), nil
+	case *admitPersonDirectoryTaskBatchCmd:
+		return len(batch.items), nil
 	default:
 		return 0, fmt.Errorf("%w: create runtime metadata batch", metadb.ErrCorruptValue)
 	}

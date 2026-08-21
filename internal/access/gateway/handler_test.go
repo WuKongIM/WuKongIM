@@ -873,6 +873,29 @@ func TestOnSendBatchWritesEachSendackAsItsResultCompletes(t *testing.T) {
 	}
 }
 
+func TestOnSendBatchBuffersOutOfOrderResultsForOneSession(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{Messages: reverseMessages{}, SendTimeout: time.Second, OwnerNodeID: 9})
+	items := []coregateway.SendBatchItem{
+		{Context: coregateway.Context{Session: sess, RequestContext: context.Background()}, Frame: &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "first", ChannelID: "ch1", ChannelType: 2}},
+		{Context: coregateway.Context{Session: sess, RequestContext: context.Background()}, Frame: &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "second", ChannelID: "ch2", ChannelType: 2}},
+	}
+	if err := handler.OnSendBatch(items); err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(written) != 2 {
+		t.Fatalf("written sendacks = %d, want 2", len(written))
+	}
+	if first := requireSendack(t, written, 0); first.ClientMsgNo != "first" {
+		t.Fatalf("first written sendack = %#v, want first input", first)
+	}
+	if second := requireSendack(t, written, 1); second.ClientMsgNo != "second" {
+		t.Fatalf("second written sendack = %#v, want second input", second)
+	}
+}
+
 func TestOnSendBatchTraceRecordsPerValidItemAndPreservesAlignment(t *testing.T) {
 	sink := &recordingSendtraceSink{}
 	restore := sendtrace.SetSink(sink)
@@ -922,13 +945,13 @@ func TestOnSendBatchTraceRecordsPerValidItemAndPreservesAlignment(t *testing.T) 
 	if len(events) != 5 {
 		t.Fatalf("sendtrace events = %#v, want 5", events)
 	}
-	requireTraceEvent(t, events[0], sendtrace.StageGatewayWriteSendack, "trace-batch-2", sendtrace.ChannelKeyFromID("ch2", 2), "b", "u1", sendtrace.ResultOK, "")
-	requireTraceEvent(t, events[1], sendtrace.StageGatewayMessagesSend, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
-	requireTraceEvent(t, events[2], sendtrace.StageGatewayWriteSendack, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[0], sendtrace.StageGatewayMessagesSend, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayWriteSendack, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[2], sendtrace.StageGatewayWriteSendack, "trace-batch-2", sendtrace.ChannelKeyFromID("ch2", 2), "b", "u1", sendtrace.ResultOK, "")
 	requireTraceEvent(t, events[3], sendtrace.StageGatewayMessagesSend, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultCanceled, sendackErrorClassCanceled)
 	requireTraceEvent(t, events[4], sendtrace.StageGatewayWriteSendack, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultOK, "")
+	requireTraceNodeAndSeq(t, events[0], 9, 101)
 	requireTraceNodeAndSeq(t, events[1], 9, 101)
-	requireTraceNodeAndSeq(t, events[2], 9, 101)
 }
 
 func TestOnSendBatchPassesSharedDeadlineWithoutReplacingRequestContext(t *testing.T) {
@@ -1085,9 +1108,9 @@ func TestOnSendBatchObservesSendackSourcesAndReasons(t *testing.T) {
 		t.Fatalf("written sendacks = %d, want 3", len(written))
 	}
 	want := []SendackEvent{
-		{Reason: message.ReasonSystemError, Source: sendackSourceBatchMissingRequestContext, ErrorClass: sendackErrorClassMissingRequestContext},
 		{Reason: message.ReasonNodeNotMatch, Source: sendackSourceBatchResultError, ErrorClass: sendackErrorClassTimeout},
 		{Reason: message.ReasonSuccess, Source: sendackSourceBatchResult, ErrorClass: sendackErrorClassNone},
+		{Reason: message.ReasonSystemError, Source: sendackSourceBatchMissingRequestContext, ErrorClass: sendackErrorClassMissingRequestContext},
 	}
 	if len(observer.events) != len(want) {
 		t.Fatalf("sendack events = %#v, want %#v", observer.events, want)
@@ -1196,6 +1219,15 @@ type batchOnlyMessages struct {
 
 type stagedMessages struct {
 	releaseSecond <-chan struct{}
+}
+
+type reverseMessages struct{}
+
+func (reverseMessages) SendBatchEach(_ []message.SendBatchItem, emit func(int, message.SendBatchItemResult) error) error {
+	if err := emit(1, message.SendBatchItemResult{Result: message.SendResult{MessageID: 2, MessageSeq: 1, Reason: message.ReasonSuccess}}); err != nil {
+		return err
+	}
+	return emit(0, message.SendBatchItemResult{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}})
 }
 
 func (m *stagedMessages) SendBatchEach(items []message.SendBatchItem, emit func(int, message.SendBatchItemResult) error) error {

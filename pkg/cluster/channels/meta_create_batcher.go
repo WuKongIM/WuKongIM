@@ -24,8 +24,9 @@ const (
 	// latency bound for smaller bursts.
 	metaCreateBatchTargetItems = 4
 	// A short collection window amortizes the fixed Raft commit cost without
-	// consuming a material portion of the client request deadline.
-	metaCreateBatchCollectWait = 500 * time.Millisecond
+	// consuming a material portion of the 200ms hot-send latency budget. The
+	// target-item fast path still dispatches full bursts before this deadline.
+	metaCreateBatchCollectWait = 25 * time.Millisecond
 	// Two batches allow one future to progress while the next is submitted,
 	// without flooding a Slot leader with single-item proposals.
 	metaCreateSlotMaxInFlightBatches = 2

@@ -658,6 +658,33 @@ func TestStateConnReleasesOutboundReservationAfterAsyncCallback(t *testing.T) {
 	}
 }
 
+func TestStateConnObservedWriteReportsOnlyAfterAsyncCompletion(t *testing.T) {
+	raw := &queuedAsyncWriteConn{}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 1024,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network: "tcp",
+		}},
+	}
+	raw.ctx = state
+	conn := &stateConn{state: state}
+	var completions []error
+
+	if err := conn.WriteObserved([]byte("ack"), "SENDACK", func(err error) {
+		completions = append(completions, err)
+	}); err != nil {
+		t.Fatalf("WriteObserved() error = %v", err)
+	}
+	if len(completions) != 0 {
+		t.Fatalf("write completion published before callback: %+v", completions)
+	}
+	raw.completeWrite(t, 0)
+	if len(completions) != 1 || completions[0] != nil {
+		t.Fatalf("write completions = %+v, want one success", completions)
+	}
+}
+
 func TestStateConnAsyncWriteTriggerErrorRetainsFIFOCallbackOwnership(t *testing.T) {
 	errTrigger := errors.New("trigger failed after enqueue")
 	raw := &queuedAsyncWriteConn{writeErrors: []error{nil, errTrigger}}

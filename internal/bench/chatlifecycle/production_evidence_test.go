@@ -83,3 +83,17 @@ func TestProjectWorkerVerdictEvidenceRejectsHistogramInterpolationAndGenericFail
 		t.Fatalf("generic harness signal = %+v", signals)
 	}
 }
+
+func TestWorkerHistogramSupportsReviewedLocalHotSendACKThreshold(t *testing.T) {
+	histogram := newWorkerHistogramSnapshot()
+	recordWorkerLatency(&histogram, 399*time.Millisecond)
+	recordWorkerLatency(&histogram, 401*time.Millisecond)
+
+	counters, err := histogramThresholdCounters(histogram, LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second})
+	if err != nil {
+		t.Fatalf("histogramThresholdCounters() error = %v", err)
+	}
+	if counters.Count != 2 || counters.AboveP99 != 1 || counters.AboveP999 != 0 {
+		t.Fatalf("400ms threshold counters = %+v, want count 2 and one value above p99", counters)
+	}
+}

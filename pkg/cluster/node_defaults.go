@@ -106,7 +106,8 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		}
 		quorumRuntime, err := channelreplication.NewRuntime(channelreplication.RuntimeConfig{
 			LocalNode: channelruntime.NodeID(n.cfg.NodeID), Store: storeAdapter, Link: peerLink,
-			Goroutines: n.cfg.Goroutines, MaxChannels: n.cfg.Channel.MaxChannels, Observer: replicationObserver,
+			Goroutines: n.cfg.Goroutines, MaxChannels: n.cfg.Channel.MaxChannels,
+			MaxVoters: int(n.cfg.Channel.ReplicaCount), Observer: replicationObserver,
 		})
 		if err != nil {
 			if createdStoreFactory {
@@ -202,7 +203,6 @@ func (n *Node) ensureDefaultTransport() error {
 		NodeID:    n.cfg.NodeID,
 		Discovery: n.discovery,
 		Observer:  n.cfg.Transport.Observer,
-		PoolSize:  1000,
 	})
 	n.slotStatusCaller = n.transportClient
 	n.defaultTransport = true

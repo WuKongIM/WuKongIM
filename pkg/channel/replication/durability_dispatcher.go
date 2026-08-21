@@ -10,10 +10,6 @@ import (
 
 var errReplicaNeedsRepair = errors.New("channel replication: follower needs repair")
 
-// replicaHedgeDelay bounds how long a quorum round waits for its preferred
-// follower before admitting the trailing follower on the foreground path.
-const replicaHedgeDelay = 100 * time.Millisecond
-
 type localDurabilitySubmitter interface {
 	submitLocal(context.Context, durableProposal, func(durabilityCompletion)) error
 }
@@ -32,6 +28,7 @@ type batchingDurabilityDispatcher struct {
 	local        localDurabilitySubmitter
 	peers        *peerBatcher
 	repairs      followerRepairSink
+	hedgeDelay   time.Duration
 }
 
 func (d *batchingDurabilityDispatcher) submitLocal(_ context.Context, proposal durableProposal, complete func(durabilityCompletion)) error {
@@ -49,7 +46,10 @@ func (d *batchingDurabilityDispatcher) submitReplica(ctx context.Context, follow
 }
 
 func (d *batchingDurabilityDispatcher) replicaHedgeDelay() time.Duration {
-	return replicaHedgeDelay
+	if d == nil || d.hedgeDelay <= 0 {
+		return defaultRuntimeReplicaHedge
+	}
+	return d.hedgeDelay
 }
 
 func (d *batchingDurabilityDispatcher) submitReplicaHedged(ctx context.Context, follower ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) error {

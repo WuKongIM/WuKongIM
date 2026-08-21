@@ -223,7 +223,7 @@ var workerLatencyBucketUpperNanos = [16]uint64{
 	uint64(50 * time.Millisecond),
 	uint64(100 * time.Millisecond),
 	uint64(200 * time.Millisecond),
-	uint64(500 * time.Millisecond),
+	uint64(400 * time.Millisecond),
 	uint64(time.Second),
 	uint64(2 * time.Second),
 	uint64(5 * time.Second),

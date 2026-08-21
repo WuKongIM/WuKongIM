@@ -96,29 +96,6 @@ func TestDefaultSlotProposerObservesAuthoritativeMetaCreateResultOnce(t *testing
 	}
 }
 
-func TestDefaultSlotProposerObservesRuntimeMetaInsidePersonDirectoryPrepare(t *testing.T) {
-	meta := metadb.ChannelRuntimeMeta{
-		ChannelID: "person-prepare", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
-		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
-	}
-	command, err := metafsm.EncodePreparePersonChannelDirectoryBatchCommandChecked(nil, []metafsm.CreateChannelRuntimeMetaBatchItem{{
-		HashSlot: 11, Meta: meta,
-	}})
-	if err != nil {
-		t.Fatalf("EncodePreparePersonChannelDirectoryBatchCommandChecked() error = %v", err)
-	}
-	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: encodeTestRuntimeMetaCreateResult(11, meta.ChannelID, meta.ChannelType, true)}}
-	observer := &recordingMetaCreateObserver{}
-	if err := (defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}).Propose(
-		context.Background(), 37, propose.EncodePayload(11, command),
-	); err != nil {
-		t.Fatalf("Propose() error = %v", err)
-	}
-	if len(observer.events) != 1 || observer.events[0].slotID != 37 || observer.events[0].result != clusterchannels.MetaCreateCreated {
-		t.Fatalf("meta-create observations = %#v", observer.events)
-	}
-}
-
 func TestDefaultSlotProposerMetaCreateObserverUsesRouteSlotRaftGroupNotPayloadHashSlot(t *testing.T) {
 	const (
 		routeSlotID     = uint32(3)

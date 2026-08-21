@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 )
 
 func TestIdempotencyLookup(t *testing.T) {
@@ -93,6 +94,37 @@ func TestAppendServerAllocatedUsesMembershipFilterForNegativeIdempotencyLookups(
 	metrics := store.db.MetricsSnapshot()
 	if metrics.IdempotencyNegativeFilterSkips != 2 || metrics.IdempotencyPointReads != 1 {
 		t.Fatalf("idempotency metrics = %+v, want skips=2 point_reads=1", metrics)
+	}
+}
+
+func TestStoreAppendBatchExactFreshRecordValidatesIdempotencyOnce(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer engine.Close()
+	const channelID = "exact-idempotency-once"
+	store, err := engine.ForChannel(channel.ChannelKey(channelID+":1"), channel.ChannelID{ID: channelID, Type: 1})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	defer store.Close()
+	record := compatExactTestRecord(t, 5, 201, channelID, "client-201")
+	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{2, 0, 1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{record})
+
+	results := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{record}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 0, Proposal: manifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("StoreAppendBatch() = %+v, want durable append", results)
+	}
+	metrics := engine.MetricsSnapshot()
+	if metrics.IdempotencyNegativeFilterSkips != 1 || metrics.IdempotencyPointReads != 0 {
+		t.Fatalf("idempotency metrics = %+v, want one negative skip and no point read for one fresh record", metrics)
 	}
 }
 

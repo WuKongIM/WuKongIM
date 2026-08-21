@@ -173,6 +173,10 @@ func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *test
 		[]byte("#!/usr/bin/env bash\nexit 0\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	validator := readFile(t, filepath.Join(root, "scripts", "storage-metrics-cut-consistent.awk"))
+	if err := os.WriteFile(filepath.Join(scriptsDir, "storage-metrics-cut-consistent.awk"), []byte(validator), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	shakeoutPath := filepath.Join(scriptsDir, "run-wukongim-three-node-chat-lifecycle-shakeout.sh")
 	shakeout := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
 	if err := os.WriteFile(shakeoutPath, []byte(shakeout), 0o700); err != nil {

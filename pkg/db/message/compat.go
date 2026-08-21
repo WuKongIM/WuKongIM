@@ -990,11 +990,8 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 					)
 				default:
 					prepared, prepareErr = item.Store.prepareExactAppendRecordsLocked(
-						ctx, item.ExpectedBaseOffset, item.Records, item.Proposal, item.Committed, mode,
+						ctx, item.ExpectedBaseOffset, item.Records, item.Proposal, item.Committed, mode, &seen,
 					)
-					if prepareErr == nil && len(prepared.rows) > 0 {
-						prepareErr = item.Store.validateRowsForAppendSeen(ctx, prepared.rows, mode, &seen)
-					}
 				}
 			} else {
 				if item.Committed != 0 {
@@ -2137,7 +2134,7 @@ func (s *ChannelStore) prepareAppendRecordsLocked(ctx context.Context, records [
 	return prepared, nil
 }
 
-func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expectedBaseOffset uint64, records []channel.Record, manifest DurableProposalManifest, committed uint64, mode AppendMode) (preparedCommitRows, error) {
+func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expectedBaseOffset uint64, records []channel.Record, manifest DurableProposalManifest, committed uint64, mode AppendMode, seen *appendValidationSeen) (preparedCommitRows, error) {
 	if err := validateDurableProposalManifest(manifest, expectedBaseOffset, len(records)); err != nil {
 		return preparedCommitRows{}, err
 	}
@@ -2216,7 +2213,7 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 		return preparedCommitRows{}, channel.ErrCorruptState
 	}
 
-	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
+	if err := s.validateRowsForAppendSeen(ctx, rows, mode, seen); err != nil {
 		return preparedCommitRows{}, err
 	}
 	prepared.rows = rows

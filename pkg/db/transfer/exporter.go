@@ -125,6 +125,7 @@ func exportMetaFiles(ctx context.Context, root string, meta *metadb.MetaDB, opts
 		{table: "user_channel_membership", path: "meta/memberships.jsonl", kind: FileKindMetaUserChannelMemberships, convert: exportUserChannelMembershipRecord},
 		{table: "user_cmd_channel_membership", path: "meta/cmd_memberships.jsonl", kind: FileKindMetaUserCMDChannelMemberships, convert: exportUserCMDChannelMembershipRecord},
 		{table: "channel_latest", path: "meta/channel_latest.jsonl", kind: FileKindMetaChannelLatest, convert: exportChannelLatestRecord},
+		{table: "person_directory_task", path: "meta/person_directory_tasks.jsonl", kind: FileKindMetaPersonDirectoryTasks, convert: exportPersonDirectoryTaskRecord},
 	}
 
 	entries := make([]FileEntry, 0, len(specs))
@@ -524,16 +525,54 @@ func exportChannelRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	directoryProjectionState, err := rowUint64(row, "directory_projection_state")
+	if err != nil || directoryProjectionState > uint64(metadb.DirectoryProjectionReady) {
+		return nil, fmt.Errorf("invalid directory_projection_state %d", directoryProjectionState)
+	}
+	directoryProjectionGeneration, err := rowUint64(row, "directory_projection_generation")
+	if err != nil {
+		return nil, err
+	}
 	return ChannelRecord{
-		HashSlot:                  slot,
-		ChannelID:                 channelID,
-		ChannelType:               channelType,
-		Ban:                       ban,
-		Disband:                   disband,
-		SendBan:                   sendBan,
-		AllowStranger:             allowStranger,
-		Large:                     large,
-		SubscriberMutationVersion: Uint64(subscriberMutationVersion),
+		HashSlot:                      slot,
+		ChannelID:                     channelID,
+		ChannelType:                   channelType,
+		Ban:                           ban,
+		Disband:                       disband,
+		SendBan:                       sendBan,
+		AllowStranger:                 allowStranger,
+		Large:                         large,
+		SubscriberMutationVersion:     Uint64(subscriberMutationVersion),
+		DirectoryProjectionState:      uint8(directoryProjectionState),
+		DirectoryProjectionGeneration: Uint64(directoryProjectionGeneration),
+	}, nil
+}
+
+func exportPersonDirectoryTaskRecord(slot uint16, row metadb.InspectRow) (any, error) {
+	channelID, err := rowString(row, "channel_id")
+	if err != nil {
+		return nil, err
+	}
+	channelType, err := rowInt64(row, "channel_type")
+	if err != nil {
+		return nil, err
+	}
+	committedTail, err := rowUint64(row, "committed_tail")
+	if err != nil {
+		return nil, err
+	}
+	createdAt, err := rowInt64(row, "created_at")
+	if err != nil {
+		return nil, err
+	}
+	generation, err := rowUint64(row, "generation")
+	if err != nil {
+		return nil, err
+	}
+	return PersonDirectoryTaskRecord{
+		HashSlot: slot, ChannelID: channelID, ChannelType: channelType,
+		CommittedTail: Uint64(committedTail), CreatedAt: createdAt,
+		Generation: Uint64(generation),
 	}, nil
 }
 

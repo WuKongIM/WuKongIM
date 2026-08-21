@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
@@ -91,6 +92,11 @@ func (db *DB) submitWrite(req *writeRequest) error {
 
 func (db *DB) runWriteWorker() {
 	defer db.workerWG.Done()
+	timer := time.NewTimer(db.options.WriteBatchMaxWait)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	defer timer.Stop()
 
 	for {
 		req, ok := <-db.writeCh
@@ -98,22 +104,14 @@ func (db *DB) runWriteWorker() {
 			return
 		}
 
-		reqs := []*writeRequest{req}
-		closed := false
-		for {
+		timer.Reset(db.options.WriteBatchMaxWait)
+		reqs, closed, timerFired := collectWriteRequests(req, db.writeCh, db.options.WriteBatchMaxItems, timer.C)
+		if !timerFired && !timer.Stop() {
 			select {
-			case next, ok := <-db.writeCh:
-				if !ok {
-					closed = true
-					goto flush
-				}
-				reqs = append(reqs, next)
+			case <-timer.C:
 			default:
-				goto flush
 			}
 		}
-
-	flush:
 		err := db.flushWriteRequests(reqs)
 		for _, req := range reqs {
 			req.done <- err
@@ -123,6 +121,36 @@ func (db *DB) runWriteWorker() {
 			return
 		}
 	}
+}
+
+// collectWriteRequests waits for a bounded cross-scope write batch. The timer
+// starts when the first request is dequeued, so an idle database never pays the
+// batching delay and a busy database cannot grow a batch without bound.
+func collectWriteRequests(first *writeRequest, requests <-chan *writeRequest, maxItems int, deadline <-chan time.Time) (batch []*writeRequest, closed bool, timerFired bool) {
+	batch = append(batch, first)
+	for len(batch) < maxItems {
+		select {
+		case next, ok := <-requests:
+			if !ok {
+				return batch, true, false
+			}
+			batch = append(batch, next)
+		case <-deadline:
+			for len(batch) < maxItems {
+				select {
+				case next, ok := <-requests:
+					if !ok {
+						return batch, true, true
+					}
+					batch = append(batch, next)
+				default:
+					return batch, false, true
+				}
+			}
+			return batch, false, true
+		}
+	}
+	return batch, false, false
 }
 
 func (db *DB) flushWriteRequests(reqs []*writeRequest) error {
