@@ -93,7 +93,7 @@ thresholds:
     host_memory_percent: 85
     bounded_queue_percent: 80
     sustained_saturation_window: 15m
-    minimum_load_filesystem_bytes: 200000000000
+    minimum_load_filesystem_bytes: 10000000000
     prometheus_safe_stop_bytes: 140000000000
   cluster:
     health_poll_every: 5s

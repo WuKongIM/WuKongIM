@@ -84,6 +84,7 @@ scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
   --stop-after 120
 ```
 
-The run directory must be absent or empty. A local filesystem smaller than the
-configured minimum, or already below the 5-percent reserve, is expected to fail
-preflight and is not formal evidence.
+The run directory must be absent or empty. The local profile requires at least
+10,000,000,000 bytes on both the service-data and load-host filesystems while
+retaining the 5-percent free-space stop. A smaller or fuller filesystem fails
+preflight, and no local result is formal evidence.

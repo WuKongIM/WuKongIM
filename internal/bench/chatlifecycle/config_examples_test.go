@@ -24,6 +24,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		formal.Workload.Sync.CompletedCoverage != 0 || formal.Thresholds.Timeline.Warmup != 2*time.Hour ||
 		formal.Thresholds.Timeline.Checkpoint != 24*time.Hour || formal.Thresholds.Timeline.Final != 72*time.Hour ||
 		formal.Thresholds.MinimumDataFilesystemBytes != 500_000_000_000 ||
+		formal.Thresholds.Resource.MinimumLoadFilesystemBytes != 200_000_000_000 ||
 		formal.Thresholds.DiskSafeStopFreePercent != 5 {
 		t.Fatalf("formal example drifted: %+v", formal)
 	}
@@ -46,6 +47,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 	if local.Profile != ProfileLocal || local.Mode != ModeSoak || local.Workload.Sync.CompletedCoverage != 0 ||
 		local.Workload.OnlineUsers != 2_500 || local.Workload.BootstrapLoginsPerSecond != 200 ||
 		local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
+		local.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 ||
 		local.Thresholds.Latency.HotSendACK.P99 != 400*time.Millisecond ||
 		local.Workload.MaxChannelsPerNode != 50_000 ||
 		local.Workload.Groups.Small+local.Workload.Groups.Medium+local.Workload.Groups.Large+local.Workload.Groups.VeryLarge != 500 ||
