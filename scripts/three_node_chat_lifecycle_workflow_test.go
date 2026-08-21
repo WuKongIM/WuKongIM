@@ -77,15 +77,24 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.True(t, ok)
 	require.Contains(t, nightly.If, "github.event_name == 'schedule'")
 	require.Contains(t, nightly.If, "github.ref == 'refs/heads/main'")
-	require.LessOrEqual(t, nightly.TimeoutMinutes, 90)
+	require.LessOrEqual(t, nightly.TimeoutMinutes, 45)
 	nightlyRun := workflowRunCommands(nightly.Steps)
 	require.Contains(t, nightlyRun, "MINIMUM_FREE_PERCENT=15")
-	require.Contains(t, nightlyRun, "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
-	require.NotContains(t, nightlyRun, "--hot-sendack-p99-ms")
+	for _, required := range []string{
+		"run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+		"--send-rate 1000",
+		"--measure-seconds 600",
+		"--warmup-seconds 60",
+		"--drain-timeout 90",
+		"--hot-sendack-p99-ms 400",
+	} {
+		require.Contains(t, nightlyRun, required)
+	}
+	require.NotContains(t, nightlyRun, "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
 	require.NotContains(t, nightlyRun, "--no-start")
 	require.NotContains(t, nightlyRun, "--no-worker")
 	assertInitializesEvidenceRootFromRunnerTemp(t, nightly.Steps)
-	assertRejectsTrackedTreeMutationAfter(t, nightly.Steps, "Run reviewed staircase and ten-minute qualification")
+	assertRejectsTrackedTreeMutationAfter(t, nightly.Steps, "Run direct ten-minute 1000 QPS qualification")
 	assertRegressionArtifactStep(t, nightly.Steps, 14)
 }
 
