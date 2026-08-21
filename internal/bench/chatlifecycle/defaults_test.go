@@ -65,7 +65,7 @@ func TestLocalConfigValid(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Observation, wantObservation) {
 		t.Fatalf("observation = %+v, want %+v", cfg.Observation, wantObservation)
 	}
-	if cfg.Thresholds.MinimumDataFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Timeline != (TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}) {
+	if cfg.Thresholds.MinimumDataFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Timeline != (TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}) {
 		t.Fatalf("local thresholds = %+v", cfg.Thresholds)
 	}
 	if err := cfg.Validate(); err != nil {
@@ -175,7 +175,7 @@ func TestFormalConfigDefaults(t *testing.T) {
 	if cfg.Thresholds.Latency.HotSendACK != (LatencyLimit{P99: 200 * time.Millisecond, P999: time.Second}) || cfg.Thresholds.Latency.Cold != (LatencyLimit{P99: 2 * time.Second, P999: 5 * time.Second}) || cfg.Thresholds.Latency.Sync != (LatencyLimit{P99: time.Second, P999: 3 * time.Second}) || cfg.Thresholds.Latency.SingleAnomaly != 10*time.Second || cfg.Thresholds.Latency.SustainedBreachWindow != 5*time.Minute {
 		t.Fatalf("latency = %+v", cfg.Thresholds.Latency)
 	}
-	if cfg.Thresholds.Resource.ForcedGCLiveHeapGrowthPercent != 5 || cfg.Thresholds.Resource.ForcedGCLiveHeapWindow != 6*time.Hour || cfg.Thresholds.Resource.GoroutineGrowthPercent != 5 || cfg.Thresholds.Resource.GoroutineGrowthWindow != 24*time.Hour {
+	if cfg.Thresholds.Resource.ForcedGCLiveHeapGrowthPercent != 5 || cfg.Thresholds.Resource.ForcedGCLiveHeapWindow != 6*time.Hour || cfg.Thresholds.Resource.GoroutineGrowthPercent != 5 || cfg.Thresholds.Resource.GoroutineGrowthWindow != 24*time.Hour || cfg.Thresholds.Resource.MinimumLoadFilesystemBytes != 200_000_000_000 || cfg.Thresholds.Resource.PrometheusSafeStopBytes != 140_000_000_000 {
 		t.Fatalf("resource = %+v", cfg.Thresholds.Resource)
 	}
 	if cfg.Capacity.StartRatePerSecond != 2_000 || cfg.Capacity.RecoveryRatePerSecond != 2_000 || cfg.Capacity.StepPercent != 25 || cfg.Capacity.RefinePercent != 10 || cfg.Capacity.Step.Stabilize != 10*time.Minute || cfg.Capacity.Step.Measure != 20*time.Minute || cfg.Capacity.RecoveryDuration != 30*time.Minute {

@@ -1,0 +1,184 @@
+name: Safety Automation - Three-Node Chat Lifecycle Regression
+run-name: >-
+  Three-Node Chat Lifecycle Regression ${{ github.event_name }}
+  ${{ github.event.pull_request.number || github.ref_name }} attempt ${{ github.run_attempt }}
+
+on:
+  pull_request:
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    three-node-chat-lifecycle-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pr-regression:
+    name: PR three-node regression
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run focused unit and race gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOWORK=off go test ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1
+          GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1
+      - name: Prepare isolated PR evidence root
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/three-node-pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
+          install -d -m 0700 "$evidence_root"
+          df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
+      - name: Run benchmark-first 1000 QPS seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          assert_benchmark_metric_le_400() {
+            local output_file="$1" metric="$2"
+            awk -v metric="$metric" '
+              {
+                for (field = 2; field <= NF; field++) {
+                  if ($field != metric) continue
+                  found = 1
+                  value = $(field - 1) + 0
+                  if (value > 400) {
+                    printf "benchmark metric %s exceeded 400ms: %s\n", metric, $(field - 1) > "/dev/stderr"
+                    failed = 1
+                  }
+                }
+              }
+              END {
+                if (!found) {
+                  printf "benchmark metric %s was missing\n", metric > "/dev/stderr"
+                  exit 2
+                }
+                if (failed) exit 1
+              }
+            ' "$output_file"
+          }
+
+          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+            2>&1 | tee "$EVIDENCE_ROOT/channel-append-benchmark.txt"
+          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/channel-append-benchmark.txt" append-p99-ms
+
+          GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+            2>&1 | tee "$EVIDENCE_ROOT/mixed-send-benchmark.txt"
+          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/mixed-send-benchmark.txt" all-p99-ms
+
+          GOWORK=off go test -tags=integration ./pkg/client -run '^$' -bench '^BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+            2>&1 | tee "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt"
+          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt" send-p99-ms
+      - name: Run bounded three-node 1000 QPS correctness smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_token="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$api_token" "$worker_token"
+          export WK_BENCH_API_TOKEN="$api_token"
+          export WK_BENCH_WORKER_TOKEN="$worker_token"
+          scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
+            --run-dir "$EVIDENCE_ROOT/artifacts" \
+            --base-port 15000 \
+            --ready-timeout 120 \
+            --send-rate 1000 \
+            --measure-seconds 90 \
+            --warmup-seconds 60 \
+            --drain-timeout 90 \
+            --hot-sendack-p99-ms 1000 \
+            2>&1 | tee "$EVIDENCE_ROOT/driver.log"
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
+      - name: Upload PR regression evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: three-node-pr-${{ github.event.pull_request.number }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/three-node-pr-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  nightly-qualification:
+    name: Nightly reviewed three-node qualification
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout protected main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Require at least fifteen percent free disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/three-node-nightly-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
+          install -d -m 0700 "$evidence_root"
+          df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
+          read -r filesystem_blocks filesystem_available < <(awk 'NR == 2 {print $2, $4}' "$evidence_root/filesystem-preflight.txt")
+          MINIMUM_FREE_PERCENT=15
+          observed_free_percent=$((filesystem_available * 100 / filesystem_blocks))
+          printf 'minimum_free_percent=%s\nobserved_free_percent=%s\n' \
+            "$MINIMUM_FREE_PERCENT" "$observed_free_percent" \
+            >"$evidence_root/filesystem-gate.txt"
+          (( observed_free_percent >= MINIMUM_FREE_PERCENT ))
+      - name: Run reviewed staircase and ten-minute qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_token="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$api_token" "$worker_token"
+          export WK_BENCH_API_TOKEN="$api_token"
+          export WK_BENCH_WORKER_TOKEN="$worker_token"
+          scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh \
+            --run-dir "$EVIDENCE_ROOT/artifacts" \
+            --base-port 15000 \
+            --ready-timeout 180 \
+            2>&1 | tee "$EVIDENCE_ROOT/driver.log"
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
+      - name: Upload nightly qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: three-node-nightly-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/three-node-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14

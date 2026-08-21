@@ -195,6 +195,9 @@ func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *test
 	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
 timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
 workload: {send_rate_per_second: 100, max_global_burst: 200}
+thresholds:
+  latency:
+    hot_sendack: {p99: 400ms, p999: 1s}
 observation:
   api_addrs: ["http://127.0.0.1:15001", "http://127.0.0.1:15002", "http://127.0.0.1:15003"]
   gateway_tcp_addrs: ["127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"]
@@ -249,7 +252,7 @@ fi
 		}
 	}
 	runDir := filepath.Join(testRoot, "run")
-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--base-port", "15100", "--ready-timeout", "1")
+	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
 	command.Dir = testRoot
 	command.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -273,10 +276,46 @@ fi
 		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
 		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
 		`metrics_addrs: ["http://127.0.0.1:15101/metrics", "http://127.0.0.1:15102/metrics", "http://127.0.0.1:15103/metrics"]`,
+		`hot_sendack: {p99: 1000ms, p999: 1s}`,
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered lifecycle config missing %q:\n%s", want, rendered)
 		}
+	}
+}
+
+func TestChatLifecycleShakeoutRequiresStableServiceReadiness(t *testing.T) {
+	root := repoRoot(t)
+	testDir := t.TempDir()
+	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	harness := `#!/usr/bin/env bash
+set -euo pipefail
+READY_TIMEOUT=5
+PID_DIR="$TEST_DIR"
+printf '%s\n' "$$" >"$PID_DIR/service-1.pid"
+CURL_CALLS=0
+curl() {
+  CURL_CALLS=$((CURL_CALLS + 1))
+  case "$CURL_CALLS" in
+    1|3|4|5) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+sleep() { :; }
+log() { :; }
+die() { printf 'die: %s\n' "$*" >&2; exit 90; }
+` + extractBashFunction(t, script, "wait_url") + `
+wait_url service-1 http://127.0.0.1:15001/readyz "" 3
+test "$CURL_CALLS" -eq 5
+`
+	harnessPath := filepath.Join(testDir, "stable-readiness.sh")
+	if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("bash", harnessPath)
+	command.Env = append(os.Environ(), "TEST_DIR="+testDir)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("service readiness did not wait for three consecutive successes: %v\n%s", err, output)
 	}
 }
 
