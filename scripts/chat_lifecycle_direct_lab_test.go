@@ -182,6 +182,49 @@ jq -n --slurpfile selector "$3" '{schema:"wukongim.cloud_lease.release/v1",resul
 	}
 }
 
+func TestChatLifecycleDirectLabStopFinalizesRequestThatNeverReachedAcquire(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	requestID := "chat-20260823T011203Z-c1d2e3f4"
+	requestDirectory := filepath.Join(directory, requestID)
+	if err := os.MkdirAll(requestDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	state := `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","source_sha":"` + strings.Repeat("a", 40) + `","state":"preparing","generation":0}`
+	if err := os.WriteFile(filepath.Join(requestDirectory, "state.json"), []byte(state), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(directory, "provider-called")
+	cloudTool := filepath.Join(directory, "wkcloudlease")
+	writeDirectLabExecutable(t, cloudTool, "#!/usr/bin/env bash\n: >\"$WK_TEST_PROVIDER_MARKER\"\nexit 99\n")
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "stop", requestID)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"WK_CHAT_LAB_STATE_ROOT="+directory,
+		"WK_CHAT_LAB_CLOUD_TOOL="+cloudTool,
+		"WK_TEST_PROVIDER_MARKER="+marker,
+		"ALIBABA_CLOUD_ACCESS_KEY_ID=",
+		"ALIBABA_CLOUD_ACCESS_KEY_SECRET=",
+		"ALIBABA_CLOUD_SECURITY_TOKEN=",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("stop failed to finalize pre-Acquire request: %v\n%s", err, output)
+	}
+	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+		t.Fatalf("pre-Acquire stop contacted provider: %v", statErr)
+	}
+	proof, err := os.ReadFile(filepath.Join(requestDirectory, "zero-inventory.json"))
+	if err != nil || !strings.Contains(string(proof), `"acquire_invoked": false`) {
+		t.Fatalf("not-acquired proof = %s, %v", proof, err)
+	}
+	finalState, err := os.ReadFile(filepath.Join(requestDirectory, "state.json"))
+	if err != nil || !strings.Contains(string(finalState), `"state": "released"`) {
+		t.Fatalf("state = %s, %v", finalState, err)
+	}
+}
+
 func TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()

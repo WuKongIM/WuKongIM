@@ -33,6 +33,8 @@ const (
 	credentialAccessKeyIDEnv       = "ALIBABA_CLOUD_ACCESS_KEY_ID"
 	credentialAccessKeySecretEnv   = "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
 	credentialSecurityTokenEnv     = "ALIBABA_CLOUD_SECURITY_TOKEN"
+	cloudShellAuthorizationEnv     = "WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION"
+	cloudShellAuthorizationValue   = "unregistered-one-hour-cloud-shell"
 	lifecycleAuthorizationEnv      = "WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION"
 	lifecycleAuthorizationValue    = "create-and-delete-paid-cloud-lease"
 	officialUbuntuImageNamePattern = "ubuntu_24_04_x64_20G_alibase*"
@@ -79,8 +81,8 @@ type OpenAPI struct {
 var _ ReadAPI = (*OpenAPI)(nil)
 
 // NewOpenAPIFromOIDCEnvironment creates read-only SDK clients from temporary
-// role credentials. Requiring a security token prevents accidental fallback
-// to a long-lived AccessKey in automated Quote jobs.
+// role credentials or an explicitly verified one-hour Cloud Shell credential.
+// An ordinary tokenless AccessKey remains rejected.
 func NewOpenAPIFromOIDCEnvironment(region string) (*OpenAPI, error) {
 	return newOpenAPIFromOIDCEnvironment(region, false)
 }
@@ -105,16 +107,19 @@ func newOpenAPIFromOIDCEnvironment(region string, lifecycleAuthorized bool) (*Op
 	accessKeyID := strings.TrimSpace(os.Getenv(credentialAccessKeyIDEnv))
 	accessKeySecret := os.Getenv(credentialAccessKeySecretEnv)
 	securityToken := strings.TrimSpace(os.Getenv(credentialSecurityTokenEnv))
-	if region != RegionHangzhou || accessKeyID == "" || accessKeySecret == "" || securityToken == "" {
+	cloudShellAuthorized := os.Getenv(cloudShellAuthorizationEnv) == cloudShellAuthorizationValue
+	if region != RegionHangzhou || accessKeyID == "" || accessKeySecret == "" || (securityToken == "" && !cloudShellAuthorized) {
 		return nil, fmt.Errorf("%w: temporary Alibaba role credentials for %s are required", ErrInvalidConfig, RegionHangzhou)
 	}
 	config := (&openapiutil.Config{}).
 		SetAccessKeyId(accessKeyID).
 		SetAccessKeySecret(accessKeySecret).
-		SetSecurityToken(securityToken).
 		SetRegionId(region).
 		SetConnectTimeout(defaultConnectTimeoutMillis).
 		SetReadTimeout(defaultReadTimeoutMillis)
+	if securityToken != "" {
+		config.SetSecurityToken(securityToken)
+	}
 	ecsClient, err := ecs.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("%w: create ECS client: %v", ErrInvalidConfig, err)

@@ -291,7 +291,10 @@ start_request() {
   jq -c '{schema:"wukongim.cloud_lease.bootstrap_access/v1",access:.bootstrap_access}' \
     "$directory/run-plan.json" >"$directory/bootstrap-access.json"
 
-  "$cloud" quote --plan "$directory/lease-plan.json" >"$directory/quote.json"
+  if ! "$cloud" quote --plan "$directory/lease-plan.json" >"$directory/quote.json"; then
+    finalize_not_acquired "$directory" quote_failed_before_acquire
+    die 'read-only Quote failed before paid Acquire; request was finalized as not acquired'
+  fi
   jq -e --arg request "$request_id" '
     .schema == "wukongim.cloud_lease.quote/v1" and .quote.request_id == $request and
     .quote.capacity_available == true and .quote.quota_available == true and
@@ -545,11 +548,41 @@ write_released_state() {
   mv -f -- "$temporary" "$directory/state.json"
 }
 
+finalize_not_acquired() {
+  local directory="$1" reason="$2" output temporary
+  [[ "$(jq -er .state "$directory/state.json")" == preparing ]] ||
+    die 'only a preparing request can be finalized without provider inventory'
+  [[ ! -e "$directory/release-selector.json" && ! -L "$directory/release-selector.json" ]] ||
+    die 'a request with a release selector requires provider-backed Release'
+  [[ ! -e "$directory/receipt.json" && ! -L "$directory/receipt.json" ]] ||
+    die 'a request with an Acquire receipt requires provider-backed Release'
+  output="$directory/zero-inventory.json"
+  temporary="$directory/.zero-inventory.next.$$"
+  jq -n --slurpfile state "$directory/state.json" --arg reason "$reason" \
+    '{schema:"wukongim.chat_lifecycle.direct_lab_not_acquired/v1",request_id:$state[0].request_id,
+      source_sha:$state[0].source_sha,acquire_invoked:false,residual_resources:0,
+      basis:"release_selector_absent_before_acquire",reason:$reason,observed_at:(now | todateiso8601)}' \
+    >"$temporary"
+  chmod 0600 "$temporary"
+  mv -f -- "$temporary" "$output"
+  temporary="$directory/.state.next.$$"
+  jq --arg reason "$reason" \
+    '.state="released" | .failure=$reason | .acquire_invoked=false | .released_at=(now | todateiso8601)' \
+    "$directory/state.json" >"$temporary"
+  chmod 0600 "$temporary"
+  mv -f -- "$temporary" "$directory/state.json"
+}
+
 stop_request() {
   local request_id="$1" directory selector output temporary cloud
   directory="$(resolve_request_dir "$request_id")"
   selector="$directory/release-selector.json"
-  [[ -f "$selector" && ! -L "$selector" ]] || die 'exact release selector is unavailable'
+  if [[ ! -f "$selector" || -L "$selector" ]]; then
+    finalize_not_acquired "$directory" operator_finalized_pre_acquire_failure
+    jq -n --arg request_id "$request_id" --arg proof "$directory/zero-inventory.json" \
+      '{schema:"wukongim.chat_lifecycle.direct_lab_stop/v1",request_id:$request_id,state:"released",acquire_invoked:false,zero_inventory_proof:$proof}'
+    return
+  fi
   check_temporary_credentials || die 'temporary Alibaba credentials are required for exact Release'
   cloud="$(cloud_tool "$directory")"
   require_executable "$cloud"

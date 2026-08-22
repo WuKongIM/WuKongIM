@@ -556,10 +556,22 @@ func TestNewOpenAPIFromOIDCEnvironmentRequiresTemporaryCredentials(t *testing.T)
 	t.Setenv(credentialAccessKeyIDEnv, "temporary-access-key")
 	t.Setenv(credentialAccessKeySecretEnv, "temporary-secret")
 	t.Setenv(credentialSecurityTokenEnv, "")
+	t.Setenv(cloudShellAuthorizationEnv, "")
 
 	_, err := NewOpenAPIFromOIDCEnvironment(RegionHangzhou)
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("NewOpenAPIFromOIDCEnvironment() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestNewOpenAPIFromOIDCEnvironmentAcceptsVerifiedCloudShellCredential(t *testing.T) {
+	t.Setenv(credentialAccessKeyIDEnv, "ephemeral-cloud-shell-key")
+	t.Setenv(credentialAccessKeySecretEnv, "ephemeral-cloud-shell-secret")
+	t.Setenv(credentialSecurityTokenEnv, "")
+	t.Setenv(cloudShellAuthorizationEnv, cloudShellAuthorizationValue)
+
+	if _, err := NewOpenAPIFromOIDCEnvironment(RegionHangzhou); err != nil {
+		t.Fatalf("NewOpenAPIFromOIDCEnvironment() rejected verified Cloud Shell credential: %v", err)
 	}
 }
 

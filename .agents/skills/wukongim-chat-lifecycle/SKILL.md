@@ -47,6 +47,9 @@ Require the paid authority above. Require a clean worktree whose exact candidate
 is committed, generate a fresh request ID, and execute the reference `start`
 procedure. This sequence builds and seals locally before a read-only Quote;
 Acquire is the last step. Persist the pre-Acquire selector before the paid call.
+If build, materialization, or Quote fails before that selector exists, finalize
+the request as not acquired with a local zero-resource proof; do not leave a
+phantom active request that blocks the next exact start.
 
 ### Deploy
 
