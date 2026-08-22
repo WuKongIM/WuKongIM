@@ -160,7 +160,7 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	}
 	for _, required := range []string{
 		"channel_reactor_count = 4",
-		"channel_store_append_workers = 8",
+		"channel_store_append_workers = 128",
 		"channel_store_apply_workers = 8",
 		"channel_rpc_workers = 96",
 		"channel_rpc_batch_max_items = 8",
@@ -231,10 +231,11 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 		scale                string
 		wantRecipientWorkers int
 		wantRPCWorkers       int
+		wantAppendWorkers    int
 	}{
-		{scale: "small", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
-		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers},
-		{scale: "large", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
+		{scale: "small", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers},
+		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers, wantAppendWorkers: cloudMediumChannelStoreAppendWorkers},
+		{scale: "large", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -276,10 +277,10 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 			if loaded.Cluster.Slots.ReplicaCount != 3 || loaded.Cluster.Channel.ReplicaCount != 3 {
 				t.Fatalf("cluster replicas = Slot %d / Channel %d, want 3 / 3", loaded.Cluster.Slots.ReplicaCount, loaded.Cluster.Channel.ReplicaCount)
 			}
-			if loaded.Cluster.Channel.ReactorCount != 4 || loaded.Cluster.Channel.StoreAppendWorkers != 8 ||
+			if loaded.Cluster.Channel.ReactorCount != 4 || loaded.Cluster.Channel.StoreAppendWorkers != test.wantAppendWorkers ||
 				loaded.Cluster.Channel.StoreApplyWorkers != 8 || loaded.Cluster.Channel.RPCWorkers != test.wantRPCWorkers ||
 				loaded.Cluster.Channel.RPCBatchMaxItems != 8 {
-				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/8/8/%d/8", loaded.Cluster.Channel, test.wantRPCWorkers)
+				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/%d/8/%d/8", loaded.Cluster.Channel, test.wantAppendWorkers, test.wantRPCWorkers)
 			}
 			if !loaded.Gateway.Transport.Gnet.Multicore || loaded.Gateway.Transport.Gnet.NumEventLoop != 4 || loaded.Gateway.Runtime.AsyncSendWorkers != 128 || loaded.Gateway.Runtime.AsyncSendQueueCapacity != 131072 {
 				t.Fatalf("gateway runtime = transport %#v runtime %#v, want multicore/loops/workers/queue true/4/128/131072", loaded.Gateway.Transport.Gnet, loaded.Gateway.Runtime)
