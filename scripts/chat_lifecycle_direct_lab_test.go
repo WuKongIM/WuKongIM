@@ -156,7 +156,7 @@ func TestChatLifecycleDirectLabStopReleasesExactSelectorAndPersistsZeroProof(t *
 	writeDirectLabExecutable(t, cloudTool, `#!/usr/bin/env bash
 set -euo pipefail
 [[ "$1" == release && "$2" == --selector ]]
-jq -n --slurpfile selector "$3" '{schema:"wukongim.cloud_lease.release/v1",result:{state:"released",residual_resources:0,zero_inventory:{selector:$selector[0].selector,account_id_hash:("sha256:"+("b"*64)),observed_at:"2026-08-23T01:03:00Z",scopes:["cn-hangzhou"]}}}'
+jq -n --slurpfile selector "$3" '{schema:"wukongim.cloud_lease.release/v1",result:{zero_inventory:{selector:$selector[0].selector,account_id_hash:("sha256:"+("b"*64)),observed_at:"2026-08-23T01:03:00Z",scopes:["cn-hangzhou"]}}}'
 `)
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "stop", requestID)

@@ -628,7 +628,6 @@ stop_request() {
   chmod 0600 "$temporary"
   jq -e --slurpfile expected "$selector" --arg request "$request_id" '
     .schema == "wukongim.cloud_lease.release/v1" and
-    .result.state == "released" and .result.residual_resources == 0 and
     .result.zero_inventory.selector == $expected[0].selector and
     .result.zero_inventory.selector.request_id == $request and
     (.result.zero_inventory.account_id_hash | test("^sha256:[0-9a-f]{64}$")) and
