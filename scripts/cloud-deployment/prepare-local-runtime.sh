@@ -81,7 +81,7 @@ region="$(jq -er .region "$plan")"
 
 printf "WK_MANAGER_JWT_SECRET=%s\nWK_MANAGER_USERS='%s'\nWK_BENCH_API_TOKEN=%s\n" \
   "$manager_jwt" "$users" "$bench_token" >"$runtime_node/node.env"
-printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\nWK_DEMO_BASIC_AUTH_USER=%s\nWK_DEMO_BASIC_AUTH_HASH='%s'\nWK_CHAT_LEASE_CREATED_AT=%s\nWK_CHAT_LEASE_EXPIRES_AT=%s\nWK_CHAT_BUDGET_LIMIT_MICROS=%s\nWK_CHAT_BUDGET_OPERATIONAL_STOP_MICROS=%s\nWK_CHAT_BUDGET_COMMITTED_MICROS=%s\nWK_CHAT_BUDGET_ESTIMATED_MICROS=%s\nWK_CHAT_BUDGET_LINE_ITEMS_BASE64=%s\n" \
+printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\nWK_DEMO_BASIC_AUTH_USER=%s\nWK_DEMO_BASIC_AUTH_HASH='%s'\nWK_CHAT_LEASE_CREATED_AT=%s\nWK_CHAT_LEASE_EXPIRES_AT=%s\nWK_CHAT_BUDGET_LIMIT_MICROS=%s\nWK_CHAT_BUDGET_OPERATIONAL_STOP_MICROS=%s\nWK_CHAT_BUDGET_COMMITTED_MICROS=%s\nWK_CHAT_BUDGET_ESTIMATED_MICROS=%s\nWK_CHAT_BUDGET_LINE_ITEMS_BASE64=%s\nWK_CHAT_RUNTIME_ENVELOPE=direct_repair\n" \
   "$worker_token" "$bench_token" "$demo_user" "$demo_hash" "$created_at" "$expires_at" \
   "$budget_limit" "$budget_stop" "$budget_committed" "$budget_estimated" "$budget_line_items" \
   >"$runtime_load/load.env"

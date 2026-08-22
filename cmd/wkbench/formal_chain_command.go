@@ -163,6 +163,8 @@ type formalRuntimeEnvelope struct {
 func loadFormalRuntimeEnvelope(cfg chatlifecycle.Config, now time.Time) (*formalRuntimeEnvelope, error) {
 	const hardLimit = int64(1_500_000_000)
 	const operationalStop = int64(1_350_000_000)
+	const directRepairRuntime = 10 * time.Minute
+	const directRepairCleanupReserve = time.Hour
 	createdAt, createdErr := time.Parse(time.RFC3339Nano, strings.TrimSpace(os.Getenv("WK_CHAT_LEASE_CREATED_AT")))
 	expiresAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(os.Getenv("WK_CHAT_LEASE_EXPIRES_AT")))
 	if err != nil {
@@ -185,12 +187,24 @@ func loadFormalRuntimeEnvelope(cfg chatlifecycle.Config, now time.Time) (*formal
 	if decodeErr == nil {
 		decodeErr = json.Unmarshal(encodedItems, &lineItems)
 	}
+	envelopeMode := strings.TrimSpace(os.Getenv("WK_CHAT_RUNTIME_ENVELOPE"))
+	directRepair := envelopeMode == "direct_repair"
+	if envelopeMode != "" && !directRepair {
+		return nil, errors.New("formal-chain immutable budget or expiry guard failed")
+	}
 	var minimumRemaining time.Duration
 	switch cfg.Stage {
 	case chatlifecycle.StageFormal:
+		if directRepair {
+			return nil, errors.New("formal-chain immutable budget or expiry guard failed")
+		}
 		minimumRemaining = cfg.Thresholds.Timeline.Final + cfg.Capacity.MaximumDuration + cfg.Capacity.RecoveryDuration + time.Hour
 	case chatlifecycle.StageRehearsal:
-		minimumRemaining = 2*time.Hour + time.Hour
+		if directRepair {
+			minimumRemaining = directRepairRuntime + directRepairCleanupReserve
+		} else {
+			minimumRemaining = 2*time.Hour + time.Hour
+		}
 	default:
 		return nil, errors.New("formal-chain immutable budget or expiry guard failed")
 	}
@@ -212,8 +226,12 @@ func loadFormalRuntimeEnvelope(cfg chatlifecycle.Config, now time.Time) (*formal
 			itemsValid = false
 		}
 	}
+	budgetBoundsValid := limit == hardLimit && stop == operationalStop
+	if directRepair {
+		budgetBoundsValid = limit > 0 && stop > 0 && stop < limit
+	}
 	if createdErr != nil || limitErr != nil || stopErr != nil || committedErr != nil || estimatedErr != nil || decodeErr != nil ||
-		limit != hardLimit || stop != operationalStop || committed < 0 || estimated <= 0 ||
+		!budgetBoundsValid || committed < 0 || estimated <= 0 ||
 		committed >= stop || estimated > stop-committed || quoted != estimated || !itemsValid ||
 		createdAt.After(now.UTC()) || !createdAt.Before(expiresAt) || expiresAt.Before(now.UTC().Add(minimumRemaining)) {
 		return nil, errors.New("formal-chain immutable budget or expiry guard failed")

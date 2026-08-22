@@ -443,6 +443,7 @@ func TestChatLifecycleLocalRuntimePreparationKeepsCredentialsLocal(t *testing.T)
 		`analysis_token="$(openssl rand -hex 32)"`,
 		"WK_ANALYSIS_MCP_TOKEN=$analysis_token",
 		"WK_ANALYSIS_GITHUB_OIDC_ENABLED=false",
+		"WK_CHAT_RUNTIME_ENVELOPE=direct_repair",
 		"runtime-node.tar.gz",
 		"runtime-load.tar.gz",
 		"readiness-credentials",
