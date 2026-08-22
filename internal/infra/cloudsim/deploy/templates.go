@@ -38,9 +38,14 @@ const (
 	// three-process Medium-shaped 256/10/3 gate at 4,500/s actual ingress.
 	// The prior 61.75ms cycle and batch-four saturation corroborate the choice
 	// but are not treated as an ingress-to-RPC-item capacity equation.
-	cloudChannelRPCBatchMaxItems       = 8
-	cloudGatewayGnetEventLoops         = 4
-	cloudGatewayAsyncSendWorkers       = 128
+	cloudChannelRPCBatchMaxItems        = 8
+	cloudGatewayGnetEventLoops          = 4
+	cloudDefaultGatewayAsyncSendWorkers = 128
+	// cloudMediumGatewayAsyncSendWorkers prevents cold Channel activation from
+	// pinning the bounded gateway SEND executors. A real three-node 2,000/s
+	// cold-person wave took 4.38s at 128 workers per node and 1.61-1.67s at
+	// 1,000 while retaining the production metadata batching contract.
+	cloudMediumGatewayAsyncSendWorkers = 1000
 	cloudGatewayAsyncSendQueueCapacity = 131_072
 	cloudDefaultRecipientWorkers       = 100
 	// cloudMediumRecipientWorkerConcurrency is the measured Cloud Medium plan
@@ -124,7 +129,7 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 		ChannelRPCBatchMaxItems:       cloudChannelRPCBatchMaxItems,
 		GatewayGnetMulticore:          true,
 		GatewayGnetEventLoops:         cloudGatewayGnetEventLoops,
-		GatewayAsyncSendWorkers:       cloudGatewayAsyncSendWorkers,
+		GatewayAsyncSendWorkers:       cloudDefaultGatewayAsyncSendWorkers,
 		GatewayAsyncSendQueueCapacity: cloudGatewayAsyncSendQueueCapacity,
 		RecipientWorkerConcurrency:    cloudDefaultRecipientWorkers,
 	}
@@ -134,6 +139,7 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 		contract.ChannelStoreAppendWorkers = cloudMediumChannelStoreAppendWorkers
 		contract.RecipientWorkerConcurrency = cloudMediumRecipientWorkerConcurrency
 		contract.ChannelRPCWorkers = cloudMediumChannelRPCWorkers
+		contract.GatewayAsyncSendWorkers = cloudMediumGatewayAsyncSendWorkers
 	case "large":
 	default:
 		return EffectiveNodeRuntimeContract{}, fmt.Errorf("%w: scenario objectives.scale must be small, medium, or large", ErrInvalidBundle)

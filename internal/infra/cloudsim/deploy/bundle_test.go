@@ -166,7 +166,7 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 		"channel_rpc_batch_max_items = 8",
 		"gnet_multicore = true",
 		"gnet_num_event_loop = 4",
-		"runtime_async_send_workers = 128",
+		"runtime_async_send_workers = 1000",
 		"runtime_async_send_queue_capacity = 131072",
 	} {
 		if !strings.Contains(config, required) {
@@ -232,10 +232,11 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 		wantRecipientWorkers int
 		wantRPCWorkers       int
 		wantAppendWorkers    int
+		wantGatewayWorkers   int
 	}{
-		{scale: "small", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers},
-		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers, wantAppendWorkers: cloudMediumChannelStoreAppendWorkers},
-		{scale: "large", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers},
+		{scale: "small", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers, wantGatewayWorkers: cloudDefaultGatewayAsyncSendWorkers},
+		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers, wantAppendWorkers: cloudMediumChannelStoreAppendWorkers, wantGatewayWorkers: cloudMediumGatewayAsyncSendWorkers},
+		{scale: "large", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers, wantGatewayWorkers: cloudDefaultGatewayAsyncSendWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -282,8 +283,8 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 				loaded.Cluster.Channel.RPCBatchMaxItems != 8 {
 				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/%d/8/%d/8", loaded.Cluster.Channel, test.wantAppendWorkers, test.wantRPCWorkers)
 			}
-			if !loaded.Gateway.Transport.Gnet.Multicore || loaded.Gateway.Transport.Gnet.NumEventLoop != 4 || loaded.Gateway.Runtime.AsyncSendWorkers != 128 || loaded.Gateway.Runtime.AsyncSendQueueCapacity != 131072 {
-				t.Fatalf("gateway runtime = transport %#v runtime %#v, want multicore/loops/workers/queue true/4/128/131072", loaded.Gateway.Transport.Gnet, loaded.Gateway.Runtime)
+			if !loaded.Gateway.Transport.Gnet.Multicore || loaded.Gateway.Transport.Gnet.NumEventLoop != 4 || loaded.Gateway.Runtime.AsyncSendWorkers != test.wantGatewayWorkers || loaded.Gateway.Runtime.AsyncSendQueueCapacity != 131072 {
+				t.Fatalf("gateway runtime = transport %#v runtime %#v, want multicore/loops/workers/queue true/4/%d/131072", loaded.Gateway.Transport.Gnet, loaded.Gateway.Runtime, test.wantGatewayWorkers)
 			}
 			sources := startupConfigSources(loaded.StartupConfigSnapshot)
 			for _, key := range effectiveRuntimeContractKeys {

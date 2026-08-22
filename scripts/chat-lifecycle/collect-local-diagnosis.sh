@@ -38,7 +38,7 @@ bounded_remote 262144 "$WK_CHAT_LAB_DIAGNOSIS_DIR/prometheus-targets.json" \
   "curl --silent --show-error --fail --max-time 20 http://127.0.0.1:9090/api/v1/targets?state=active" || true
 
 for worker in 1 2 3; do
-  port=$(( 25050 + worker ))
+  port=$(( 19090 + worker ))
   bounded_remote 16384 "$WK_CHAT_LAB_DIAGNOSIS_DIR/worker-${worker}-status.json" \
     "sudo bash -euo pipefail -c 'source /etc/wukongim/secrets/load.env; curl --silent --show-error --fail --max-time 20 -H \"Authorization: Bearer \${WK_BENCH_WORKER_TOKEN}\" http://127.0.0.1:${port}/v1/chat-lifecycle/status'" || true
   bounded_remote 16384 "$WK_CHAT_LAB_DIAGNOSIS_DIR/worker-${worker}-snapshot.json" \

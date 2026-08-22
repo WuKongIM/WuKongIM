@@ -109,6 +109,65 @@ fi
 	}
 }
 
+func TestChatLifecycleDiagnosisCollectorUsesCurrentWorkerPorts(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	fakeBin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(fakeBin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeRepairExecutable(t, filepath.Join(fakeBin, "timeout"), "#!/usr/bin/env bash\nshift\nexec \"$@\"\n")
+	writeRepairExecutable(t, filepath.Join(fakeBin, "ssh"), `#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$WK_TEST_CALL_LOG"
+case "$*" in
+  *"systemctl show"*) printf 'Id=wukongim.service\nActiveState=active\n' ;;
+  *"journalctl"*) printf 'bounded stage journal\n' ;;
+  *"api/v1/targets"*) printf '{"status":"success","data":{"activeTargets":[]}}\n' ;;
+  *"/v1/chat-lifecycle/status"*) printf '{"phase":"final"}\n' ;;
+  *"/v1/chat-lifecycle/snapshot"*) printf '{"messages":{"sent":1}}\n' ;;
+  *) exit 91 ;;
+esac
+`)
+	sshConfig := filepath.Join(directory, "ssh-config")
+	if err := os.WriteFile(sshConfig, []byte("Host wukong-load\n  HostName 127.0.0.1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	evidence := filepath.Join(directory, "evidence")
+	if err := os.Mkdir(evidence, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	callLog := filepath.Join(directory, "calls.log")
+	collector := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "collect-local-diagnosis.sh"))
+	collector.Dir = root
+	collector.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_CHAT_LAB_DIAGNOSIS_DIR="+evidence,
+		"WK_CHAT_LAB_SSH_CONFIG="+sshConfig,
+		"WK_CHAT_LAB_REQUEST_ID=chat-20260823T000000Z-0123abcd",
+		"WK_TEST_CALL_LOG="+callLog,
+	)
+	if output, err := collector.CombinedOutput(); err != nil {
+		t.Fatalf("collector failed: %v\n%s", err, output)
+	}
+	calls, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	callText := string(calls)
+	for _, port := range []string{"19091", "19092", "19093"} {
+		if count := strings.Count(callText, ":"+port+"/v1/chat-lifecycle/"); count != 2 {
+			t.Fatalf("worker port %s call count = %d, want status and snapshot; calls:\n%s", port, count, callText)
+		}
+	}
+	if strings.Contains(callText, ":2505") {
+		t.Fatalf("collector retained legacy worker ports:\n%s", callText)
+	}
+	summary, err := os.ReadFile(filepath.Join(evidence, "summary.json"))
+	if err != nil || !strings.Contains(string(summary), `"classification": "captured"`) {
+		t.Fatalf("summary = %s, %v", summary, err)
+	}
+}
+
 func writeRepairExecutable(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o700); err != nil {

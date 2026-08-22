@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sort"
@@ -25,6 +26,82 @@ const (
 	channelMetaPressureHotChannels = 100
 	channelMetaPressureColdEvery   = 7
 )
+
+func TestThreeNodeColdPersonChannelWaveMeetsAttemptBudget(t *testing.T) {
+	const (
+		total          = 4000
+		rate           = 2000
+		workersPerNode = 1000
+	)
+	workers := workersPerNode * 3
+	observer := newChannelMetaPressureObserver()
+	nodes := newChannelMetaPressureCluster(t, observer)
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
+	waitClusterReady(t, nodes...)
+	waitChannelMetaPlacementReady(t, nodes)
+	waitChannelMetaSlotsReady(t, nodes, 12)
+
+	latencies := make([]time.Duration, total)
+	jobs := make(chan int, total)
+	var group sync.WaitGroup
+	var firstErr error
+	var errMu sync.Mutex
+	group.Add(workers)
+	started := time.Now()
+	for range workers {
+		go func() {
+			defer group.Done()
+			for index := range jobs {
+				err := appendColdPersonChannelPressureMessage(nodes, index)
+				latencies[index] = time.Since(started.Add(time.Duration(index) * time.Second / rate))
+				if err != nil {
+					errMu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("cold person append index=%d: %w", index, err)
+					}
+					errMu.Unlock()
+				}
+			}
+		}()
+	}
+	for index := 0; index < total; index++ {
+		waitChannelMetaPressureUntil(started.Add(time.Duration(index) * time.Second / rate))
+		jobs <- index
+	}
+	close(jobs)
+	group.Wait()
+	if firstErr != nil {
+		t.Fatal(firstErr)
+	}
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	p99 := latencies[(len(latencies)*99-1)/100]
+	maximum := latencies[len(latencies)-1]
+	observer.mu.Lock()
+	batchCount := len(observer.batchSize)
+	batchItems := 0
+	for _, items := range observer.batchSize {
+		batchItems += items
+	}
+	stageP99 := make(map[string]time.Duration)
+	for _, stage := range []string{"meta_create_write", "meta_create_propose", "runtime_append_wait", "store_append_wait"} {
+		values := append([]time.Duration(nil), observer.stages[stage]...)
+		if len(values) == 0 {
+			continue
+		}
+		sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
+		stageP99[stage] = values[(len(values)*99-1)/100]
+	}
+	observer.mu.Unlock()
+	averageBatch := 0.0
+	if batchCount > 0 {
+		averageBatch = float64(batchItems) / float64(batchCount)
+	}
+	t.Logf("cold person latency p99=%v max=%v metadata batches=%d average-items=%.2f stage-p99=%v", p99, maximum, batchCount, averageBatch, stageP99)
+	if p99 > 2*time.Second || maximum > 5*time.Second {
+		t.Fatalf("cold person latency p99=%v max=%v; want p99<=2s and max<=5s", p99, maximum)
+	}
+}
 
 // BenchmarkThreeNodeChannelAppendWithSlotMetaPressure1000QPS keeps ordinary
 // hot Channel appends at 1000 QPS while roughly one seventh of requests create a fresh
@@ -473,9 +550,9 @@ func benchmarkThreeNodeChannelAppendWithSlotMetaPressure1000QPS(b *testing.B, op
 	observer.report(b)
 }
 
-func newChannelMetaPressureCluster(b *testing.B, observer *channelMetaPressureObserver) []*Node {
-	b.Helper()
-	addrs := []string{channelMetaPressureAddr(b), channelMetaPressureAddr(b), channelMetaPressureAddr(b)}
+func newChannelMetaPressureCluster(tb testing.TB, observer *channelMetaPressureObserver) []*Node {
+	tb.Helper()
+	addrs := []string{channelMetaPressureAddr(tb), channelMetaPressureAddr(tb), channelMetaPressureAddr(tb)}
 	snapshot := channelMetaPressureSnapshot(addrs)
 	voters := make([]ControlVoter, len(addrs))
 	for index, addr := range addrs {
@@ -484,7 +561,7 @@ func newChannelMetaPressureCluster(b *testing.B, observer *channelMetaPressureOb
 	nodes := make([]*Node, 0, len(addrs))
 	for index, addr := range addrs {
 		nodeID := uint64(index + 1)
-		cfg := Config{NodeID: nodeID, ListenAddr: addr, DataDir: b.TempDir()}
+		cfg := Config{NodeID: nodeID, ListenAddr: addr, DataDir: tb.TempDir()}
 		cfg.Control.ClusterID = snapshot.ClusterID
 		cfg.Control.Voters = voters
 		cfg.Slots.InitialSlotCount = uint32(len(snapshot.Slots))
@@ -497,10 +574,10 @@ func newChannelMetaPressureCluster(b *testing.B, observer *channelMetaPressureOb
 		cfg.Channel.Observer = observer
 		node, err := New(cfg)
 		if err != nil {
-			b.Fatalf("New(node=%d): %v", nodeID, err)
+			tb.Fatalf("New(node=%d): %v", nodeID, err)
 		}
 		if err := node.ensureDefaultTransport(); err != nil {
-			b.Fatalf("ensureDefaultTransport(node=%d): %v", nodeID, err)
+			tb.Fatalf("ensureDefaultTransport(node=%d): %v", nodeID, err)
 		}
 		node.control = control.NewStaticController(snapshot)
 		nodes = append(nodes, node)
@@ -617,21 +694,21 @@ func channelMetaPressureSnapshot(addrs []string) control.Snapshot {
 	return snapshot
 }
 
-func channelMetaPressureAddr(b *testing.B) string {
-	b.Helper()
+func channelMetaPressureAddr(tb testing.TB) string {
+	tb.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
 	addr := listener.Addr().String()
 	if err := listener.Close(); err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
 	return addr
 }
 
-func waitChannelMetaPlacementReady(b *testing.B, nodes []*Node) {
-	b.Helper()
+func waitChannelMetaPlacementReady(tb testing.TB, nodes []*Node) {
+	tb.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		ready := true
@@ -646,11 +723,11 @@ func waitChannelMetaPlacementReady(b *testing.B, nodes []*Node) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	b.Fatal("Channel placement data nodes did not become ready")
+	tb.Fatal("Channel placement data nodes did not become ready")
 }
 
-func waitChannelMetaSlotsReady(b *testing.B, nodes []*Node, slotCount int) {
-	b.Helper()
+func waitChannelMetaSlotsReady(tb testing.TB, nodes []*Node, slotCount int) {
+	tb.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		ready := true
@@ -665,6 +742,9 @@ func waitChannelMetaSlotsReady(b *testing.B, nodes []*Node, slotCount int) {
 			if !ready {
 				break
 			}
+		}
+		if ready {
+			ready = channelMetaSlotProxyReadsReady(nodes, slotCount)
 		}
 		if ready {
 			return
@@ -684,7 +764,59 @@ func waitChannelMetaSlotsReady(b *testing.B, nodes []*Node, slotCount int) {
 		}
 		summary += "]"
 	}
-	b.Fatalf("Slot runtime did not converge before benchmark:%s", summary)
+	tb.Fatalf("Slot runtime did not converge before benchmark:%s", summary)
+}
+
+func channelMetaSlotProxyReadsReady(nodes []*Node, slotCount int) bool {
+	if len(nodes) == 0 || slotCount <= 0 {
+		return false
+	}
+	keys := make(map[uint32]string, slotCount)
+	for candidate := 0; candidate < 10000 && len(keys) < slotCount; candidate++ {
+		key := fmt.Sprintf("meta-pressure-readiness-%05d", candidate)
+		route, err := nodes[0].RouteKey(key)
+		if err == nil && route.SlotID > 0 && int(route.SlotID) <= slotCount {
+			keys[route.SlotID] = key
+		}
+	}
+	if len(keys) != slotCount {
+		return false
+	}
+	for _, node := range nodes {
+		for _, key := range keys {
+			ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+			_, err := node.GetChannelRuntimeMeta(ctx, key, 2)
+			cancel()
+			if err != nil && !errors.Is(err, metadb.ErrNotFound) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func appendColdPersonChannelPressureMessage(nodes []*Node, index int) error {
+	left := fmt.Sprintf("cold-person-left-%09d", index)
+	right := fmt.Sprintf("cold-person-right-%09d", index)
+	channelID := runtimechannelid.EncodePersonChannel(left, right)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	messageID := uint64(index + 1)
+	result, err := nodes[index%len(nodes)].AppendChannel(ctx, channelruntime.AppendRequest{
+		ChannelID: channelruntime.ChannelID{ID: channelID, Type: 1},
+		Message: channelruntime.Message{
+			MessageID: messageID, ChannelID: channelID, ChannelType: 1,
+			FromUID: left, ClientMsgNo: fmt.Sprintf("cold-person-meta-pressure-%d", messageID), Payload: channelMetaPressurePayload(index),
+		},
+		CommitMode: channelruntime.CommitModeQuorum,
+	})
+	if err != nil {
+		return err
+	}
+	if result.MessageID != messageID || result.MessageSeq == 0 {
+		return fmt.Errorf("result=%#v", result)
+	}
+	return nil
 }
 
 func appendChannelMetaPressureMessage(nodes []*Node, index int, channelID string, messageID uint64, payload func(int) []byte) error {
