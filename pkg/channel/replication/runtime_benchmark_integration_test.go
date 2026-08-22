@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	threeNodeBenchmarkChannels = 1000
-	threeNodeBenchmarkRate     = 1000
-	threeNodeBenchmarkWorkers  = 256
+	threeNodeBenchmarkChannels   = 1000
+	threeNodeBenchmarkRate       = 1000
+	threeNodeHostedBenchmarkRate = 500
+	threeNodeBenchmarkWorkers    = 256
 )
 
 // BenchmarkThreeNodeDurableQuorumCommit1000QPS measures the public durable-log
@@ -133,6 +134,13 @@ func benchmarkDurableQuorumCluster1000QPS(b *testing.B, cluster *durableQuorumBe
 func BenchmarkThreeNodeChannelAppend1000QPS(b *testing.B) {
 	cluster := newChannelAppendBenchmarkCluster(b, threeNodeBenchmarkChannels)
 	benchmarkThreeNodeChannelAppendCluster1000QPS(b, cluster, "append")
+}
+
+// BenchmarkThreeNodeChannelAppend500QPS is the hosted-runner regression seam.
+// The 1000 QPS variant remains the dedicated capacity-environment benchmark.
+func BenchmarkThreeNodeChannelAppend500QPS(b *testing.B) {
+	cluster := newChannelAppendBenchmarkCluster(b, threeNodeBenchmarkChannels)
+	benchmarkThreeNodeChannelAppendClusterAtRate(b, cluster, "append", threeNodeHostedBenchmarkRate)
 }
 
 // BenchmarkThreeNodeChannelAppendPayloadMixWithGatewayDeliveryPressure1000QPS
@@ -293,7 +301,11 @@ func BenchmarkThreeNodeChannelAppendMixedCold1000QPS(b *testing.B) {
 }
 
 func benchmarkThreeNodeChannelAppendCluster1000QPS(b *testing.B, cluster *durableQuorumBenchmarkCluster, metricPrefix string) {
-	benchmarkThreeNodeChannelAppendClusterWithLoad1000QPS(b, cluster, metricPrefix, nil)
+	benchmarkThreeNodeChannelAppendClusterAtRate(b, cluster, metricPrefix, threeNodeBenchmarkRate)
+}
+
+func benchmarkThreeNodeChannelAppendClusterAtRate(b *testing.B, cluster *durableQuorumBenchmarkCluster, metricPrefix string, rate int) {
+	benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b, cluster, metricPrefix, nil, rate)
 }
 
 type channelAppendBenchmarkLoad interface {
@@ -302,6 +314,13 @@ type channelAppendBenchmarkLoad interface {
 }
 
 func benchmarkThreeNodeChannelAppendClusterWithLoad1000QPS(b *testing.B, cluster *durableQuorumBenchmarkCluster, metricPrefix string, load channelAppendBenchmarkLoad) {
+	benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b, cluster, metricPrefix, load, threeNodeBenchmarkRate)
+}
+
+func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster *durableQuorumBenchmarkCluster, metricPrefix string, load channelAppendBenchmarkLoad, rate int) {
+	if rate <= 0 {
+		b.Fatal("channel append benchmark rate must be positive")
+	}
 	defer cluster.close(b)
 	if load != nil {
 		defer func() {
@@ -359,7 +378,7 @@ func benchmarkThreeNodeChannelAppendClusterWithLoad1000QPS(b *testing.B, cluster
 	}
 	started := time.Now()
 	for index := 0; index < b.N; index++ {
-		waitUntil(started.Add(time.Duration(index) * time.Second / threeNodeBenchmarkRate))
+		waitUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
 		jobs <- index
 	}
 	close(jobs)

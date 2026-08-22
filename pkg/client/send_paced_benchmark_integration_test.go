@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	pacedTCPBenchmarkRate     = 1000
-	pacedTCPBenchmarkSessions = 2500
-	pacedTCPBenchmarkWorkers  = 256
+	pacedTCPBenchmarkRate       = 1000
+	pacedTCPHostedBenchmarkRate = 500
+	pacedTCPBenchmarkSessions   = 2500
+	pacedTCPBenchmarkWorkers    = 256
 )
 
 // BenchmarkRealTCPSendackPaced1000QPS measures the full client writer,
@@ -27,7 +28,7 @@ const (
 // path while replaying the retained three-node handler latency distribution.
 // Run with -benchtime=5000x so every session sends twice over five seconds.
 func BenchmarkRealTCPSendackPaced1000QPS(b *testing.B) {
-	benchmarkRealTCPSendackPaced1000QPS(b, false, false)
+	benchmarkRealTCPSendackPacedAtRate(b, false, false, pacedTCPBenchmarkRate)
 }
 
 // BenchmarkRealTCPSendackShuffledPaced1000QPS preserves one SEND per client
@@ -35,7 +36,7 @@ func BenchmarkRealTCPSendackPaced1000QPS(b *testing.B) {
 // gateway session IDs. This models assignment sender order without allowing
 // concurrent SENDs from one client.
 func BenchmarkRealTCPSendackShuffledPaced1000QPS(b *testing.B) {
-	benchmarkRealTCPSendackPaced1000QPS(b, false, true)
+	benchmarkRealTCPSendackPacedAtRate(b, false, true, pacedTCPBenchmarkRate)
 }
 
 // BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS adds the
@@ -43,12 +44,22 @@ func BenchmarkRealTCPSendackShuffledPaced1000QPS(b *testing.B) {
 // paced SENDs. RECVACK completion therefore contends with SEND on each
 // client's single writer exactly as it does in the three-node workload.
 func BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS(b *testing.B) {
-	benchmarkRealTCPSendackPaced1000QPS(b, true, true)
+	benchmarkRealTCPSendackPacedAtRate(b, true, true, pacedTCPBenchmarkRate)
 }
 
-func benchmarkRealTCPSendackPaced1000QPS(b *testing.B, synchronousRecvack bool, shuffledClients bool) {
+// BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS is the
+// hosted-runner regression seam. The 1000 QPS variant remains available for
+// dedicated capacity environments.
+func BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS(b *testing.B) {
+	benchmarkRealTCPSendackPacedAtRate(b, true, true, pacedTCPHostedBenchmarkRate)
+}
+
+func benchmarkRealTCPSendackPacedAtRate(b *testing.B, synchronousRecvack bool, shuffledClients bool, rate int) {
 	if b.N < 1000 {
 		return
+	}
+	if rate <= 0 {
+		b.Fatal("paced TCP benchmark rate must be positive")
 	}
 	handler := &pacedTCPBenchmarkHandler{}
 	observer := &pacedTCPBenchmarkObserver{}
@@ -141,7 +152,7 @@ func benchmarkRealTCPSendackPaced1000QPS(b *testing.B, synchronousRecvack bool, 
 	}
 	started := time.Now()
 	for index := range b.N {
-		pacedTCPBenchmarkWaitUntil(started.Add(time.Duration(index) * time.Second / pacedTCPBenchmarkRate))
+		pacedTCPBenchmarkWaitUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
 		jobs <- index
 	}
 	close(jobs)
