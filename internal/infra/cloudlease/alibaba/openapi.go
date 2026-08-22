@@ -76,6 +76,8 @@ type OpenAPI struct {
 	vpc *vpc.Client
 	// lifecycleAuthorized is true only through the explicit paid-mutation constructor.
 	lifecycleAuthorized bool
+	// cloudShellAuthorized records the separately verified one-hour account identity shape.
+	cloudShellAuthorized bool
 }
 
 var _ ReadAPI = (*OpenAPI)(nil)
@@ -143,6 +145,7 @@ func newOpenAPIFromOIDCEnvironment(region string, lifecycleAuthorized bool) (*Op
 	return &OpenAPI{
 		region: region, ecs: ecsClient, sts: stsClient, quotas: quotaClient,
 		ram: ramClient, vpc: vpcClient, lifecycleAuthorized: lifecycleAuthorized,
+		cloudShellAuthorized: cloudShellAuthorized,
 	}, nil
 }
 
@@ -273,11 +276,25 @@ func (a *OpenAPI) callerIdentity(ctx context.Context) (string, string, error) {
 	}
 	accountID := strings.TrimSpace(stringValue(response.Body.AccountId))
 	arn := strings.TrimSpace(stringValue(response.Body.Arn))
-	if accountID == "" || arn == "" || stringValue(response.Body.IdentityType) != "AssumedRoleUser" ||
-		strings.TrimSpace(stringValue(response.Body.RoleId)) == "" {
+	if !validCallerIdentity(accountID, arn, stringValue(response.Body.IdentityType),
+		stringValue(response.Body.RoleId), a.cloudShellAuthorized) {
 		return "", "", discoveryError("GetCallerIdentity incomplete", nil)
 	}
 	return accountID, arn, nil
+}
+
+func validCallerIdentity(accountID, arn, identityType, roleID string, cloudShellAuthorized bool) bool {
+	accountID = strings.TrimSpace(accountID)
+	arn = strings.TrimSpace(arn)
+	identityType = strings.TrimSpace(identityType)
+	roleID = strings.TrimSpace(roleID)
+	if accountID == "" || arn == "" {
+		return false
+	}
+	if cloudShellAuthorized {
+		return identityType == "Account" && roleID == "" && arn == "acs:ram::"+accountID+":root"
+	}
+	return identityType == "AssumedRoleUser" && roleID != ""
 }
 
 func principalHasRole(arn, expectedRole string) bool {

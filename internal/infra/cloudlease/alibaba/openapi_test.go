@@ -575,4 +575,30 @@ func TestNewOpenAPIFromOIDCEnvironmentAcceptsVerifiedCloudShellCredential(t *tes
 	}
 }
 
+func TestValidCallerIdentitySeparatesRoleAndVerifiedCloudShellShapes(t *testing.T) {
+	tests := []struct {
+		name       string
+		accountID  string
+		arn        string
+		identity   string
+		roleID     string
+		cloudShell bool
+		want       bool
+	}{
+		{name: "assumed role", accountID: "123", arn: "acs:ram::123:assumed-role/provisioner/session", identity: "AssumedRoleUser", roleID: "role:session", want: true},
+		{name: "root rejected by default", accountID: "123", arn: "acs:ram::123:root", identity: "Account"},
+		{name: "verified Cloud Shell root", accountID: "123", arn: "acs:ram::123:root", identity: "Account", cloudShell: true, want: true},
+		{name: "Cloud Shell marker cannot bless another account ARN", accountID: "123", arn: "acs:ram::456:root", identity: "Account", cloudShell: true},
+		{name: "Cloud Shell marker cannot bless a user", accountID: "123", arn: "acs:ram::123:user/operator", identity: "Account", cloudShell: true},
+		{name: "Cloud Shell account must not carry role identity", accountID: "123", arn: "acs:ram::123:root", identity: "Account", roleID: "role", cloudShell: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := validCallerIdentity(test.accountID, test.arn, test.identity, test.roleID, test.cloudShell); got != test.want {
+				t.Fatalf("validCallerIdentity() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func float32Pointer(value float32) *float32 { return &value }
