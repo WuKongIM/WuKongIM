@@ -18,6 +18,28 @@ die() {
   exit 1
 }
 
+normalize_rfc3339_utc() {
+  local value="$1" base fraction zone zone_for_date epoch utc_base
+  [[ "$value" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$ ]] || return 1
+  base="${BASH_REMATCH[1]}"
+  fraction="${BASH_REMATCH[2]:-}"
+  zone="${BASH_REMATCH[3]}"
+  epoch="$(date -u -d "${base}${zone}" '+%s' 2>/dev/null || true)"
+  if [[ ! "$epoch" =~ ^-?[0-9]+$ ]]; then
+    zone_for_date="$zone"
+    [[ "$zone_for_date" == Z ]] && zone_for_date=+0000
+    zone_for_date="${zone_for_date/:/}"
+    epoch="$(date -u -j -f '%Y-%m-%dT%H:%M:%S%z' "${base}${zone_for_date}" '+%s' 2>/dev/null || true)"
+  fi
+  [[ "$epoch" =~ ^-?[0-9]+$ ]] || return 1
+  utc_base="$(date -u -d "@$epoch" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || true)"
+  if [[ -z "$utc_base" ]]; then
+    utc_base="$(date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || true)"
+  fi
+  [[ "$utc_base" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] || return 1
+  printf '%s%sZ\n' "$utc_base" "$fraction"
+}
+
 resolve_account_home() {
   local account_home=''
   if command -v getent >/dev/null 2>&1; then
@@ -439,7 +461,7 @@ write_run_state() {
 }
 
 run_request() {
-  local request_id="$1" directory root generation generation_dir starter chat monitor run_start
+  local request_id="$1" directory root generation generation_dir starter chat monitor run_start started_at
   local repair_state monitor_status reason
   directory="$(resolve_request_dir "$request_id")"
   jq -e '.schema == "wukongim.chat_lifecycle.direct_lab_state/v1" and .state == "deployed" and .generation > 0' \
@@ -468,12 +490,14 @@ run_request() {
     (.run_hash | test("^sha256:[0-9a-f]{64}$")) and
     (.assignment_hash | test("^sha256:[0-9a-f]{64}$")) and .generation > 0
   ' "$run_start" >/dev/null || die 'remote stage did not publish a valid run-start document'
+  started_at="$(normalize_rfc3339_utc "$(jq -er .started_at "$run_start")")" ||
+    die 'remote stage published a non-normalizable run-start timestamp'
   repair_state="$generation_dir/repair-state.json"
   "$chat" repair-begin \
     --request-id "$request_id" --lease-id "$(jq -er .lease_id "$directory/state.json")" \
     --generation "$generation" --source-sha "$(jq -er .source_sha "$directory/state.json")" \
     --bundle-digest "$(jq -er .bundle_digest "$directory/state.json")" \
-    --started-at "$(jq -er .started_at "$run_start")" \
+    --started-at "$started_at" \
     --target-online 10000 --minimum-online-percent 95 \
     --minimum-send-rate 1900 --maximum-ack-backlog 4000 \
     --warmup-timeout 5m --stall-after 15s --qualify-after 2m \

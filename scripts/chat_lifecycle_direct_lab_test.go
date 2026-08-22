@@ -484,12 +484,23 @@ func TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis(t *testi
 	writeDirectLabExecutable(t, stageStarter, `#!/usr/bin/env bash
 set -euo pipefail
 printf 'stage-start\n' >>"$WK_TEST_CALL_LOG"
-printf '{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","started_at":"2026-08-23T04:05:06Z","expected_end_at":"2026-08-23T06:05:06Z","run_hash":"sha256:%064d","assignment_hash":"sha256:%064d","generation":1}\n' 1 2 >"$WK_CHAT_LAB_RUN_START_OUTPUT"
+printf '{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","started_at":"2026-08-23T12:05:06.276365315+08:00","expected_end_at":"2026-08-23T14:05:06.276365315+08:00","run_hash":"sha256:%064d","assignment_hash":"sha256:%064d","generation":1}\n' 1 2 >"$WK_CHAT_LAB_RUN_START_OUTPUT"
 `)
 	chatTool := filepath.Join(directory, "wkchatlifecycle")
 	writeDirectLabExecutable(t, chatTool, `#!/usr/bin/env bash
 set -euo pipefail
 [[ "$1" == repair-begin ]]
+started_at=''
+while (( $# > 0 )); do
+  if [[ "$1" == --started-at ]]; then
+    started_at="$2"
+    break
+  fi
+  shift
+done
+if [[ "$started_at" != 2026-08-23T04:05:06.276365315Z ]]; then
+  exit 42
+fi
 printf 'repair-begin\n' >>"$WK_TEST_CALL_LOG"
 printf '{"schema":"wukongim.chat_lifecycle.repair_state/v1"}\n'
 `)
