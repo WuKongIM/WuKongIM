@@ -50,7 +50,7 @@ jobs:
           echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
           install -d -m 0700 "$evidence_root"
           df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
-      - name: Run benchmark-first 1000 QPS seams
+      - name: Run benchmark-first 500 QPS seams
         shell: bash
         run: |
           set -euo pipefail
@@ -78,18 +78,18 @@ jobs:
             ' "$output_file"
           }
 
-          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
             2>&1 | tee "$EVIDENCE_ROOT/channel-append-benchmark.txt"
           assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/channel-append-benchmark.txt" append-p99-ms
 
-          GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+          GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
             2>&1 | tee "$EVIDENCE_ROOT/mixed-send-benchmark.txt"
           assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/mixed-send-benchmark.txt" all-p99-ms
 
-          GOWORK=off go test -tags=integration ./pkg/client -run '^$' -bench '^BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+          GOWORK=off go test -tags=integration ./pkg/client -run '^$' -bench '^BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
             2>&1 | tee "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt"
           assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt" send-p99-ms
-      - name: Run bounded three-node 1000 QPS correctness smoke
+      - name: Run bounded three-node 500 QPS correctness smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -102,7 +102,7 @@ jobs:
             --run-dir "$EVIDENCE_ROOT/artifacts" \
             --base-port 15000 \
             --ready-timeout 120 \
-            --send-rate 1000 \
+            --send-rate 500 \
             --measure-seconds 90 \
             --warmup-seconds 60 \
             --drain-timeout 90 \

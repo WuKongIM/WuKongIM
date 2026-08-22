@@ -52,14 +52,14 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	for _, required := range []string{
 		"GOWORK=off go test ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1",
 		"GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1",
-		"BenchmarkThreeNodeMixedSendPath1000QPS",
-		"BenchmarkThreeNodeChannelAppend1000QPS",
-		"BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS",
+		"BenchmarkThreeNodeMixedSendPath500QPS",
+		"BenchmarkThreeNodeChannelAppend500QPS",
+		"BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS",
 		"append-p99-ms",
 		"all-p99-ms",
 		"send-p99-ms",
 		"benchmark metric %s exceeded 400ms",
-		"--send-rate 1000",
+		"--send-rate 500",
 		"--measure-seconds 90",
 		"--warmup-seconds 60",
 		"--drain-timeout 90",
@@ -68,9 +68,13 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 		require.Contains(t, prRun, required)
 	}
 	require.NotContains(t, prRun, "run-wukongim-three-node-chat-lifecycle-local-baseline.sh")
+	require.NotContains(t, prRun, "BenchmarkThreeNodeMixedSendPath1000QPS")
+	require.NotContains(t, prRun, "BenchmarkThreeNodeChannelAppend1000QPS")
+	require.NotContains(t, prRun, "BenchmarkRealTCPSendackWithSynchronousRecvackPaced1000QPS")
+	require.NotContains(t, prRun, "--send-rate 1000")
 	require.NotContains(t, prRun, "--measure-seconds 600")
 	assertInitializesEvidenceRootFromRunnerTemp(t, pr.Steps)
-	assertRejectsTrackedTreeMutationAfter(t, pr.Steps, "Run bounded three-node 1000 QPS correctness smoke")
+	assertRejectsTrackedTreeMutationAfter(t, pr.Steps, "Run bounded three-node 500 QPS correctness smoke")
 	assertRegressionArtifactStep(t, pr.Steps, 7)
 
 	nightly, ok := workflow.Jobs["nightly-qualification"]

@@ -23,6 +23,7 @@ import (
 
 const (
 	threeNodeMixedSendRate          = 1000
+	threeNodeMixedHostedSendRate    = 500
 	threeNodeMixedSendWorkers       = 256
 	threeNodeMixedSendUsers         = 2500
 	threeNodeMixedPersonChannels    = 2000
@@ -37,19 +38,28 @@ const (
 // steady-state reviewed ingress shape after a bounded channel warmup. The
 // separate cold-wave benchmark owns first-message and projector pressure.
 func BenchmarkThreeNodeMixedSendPath1000QPS(b *testing.B) {
-	benchmarkThreeNodeMixedSendPath1000QPS(b, threeNodeMixedHotPersonChannels, true)
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedHotPersonChannels, true, threeNodeMixedSendRate)
+}
+
+// BenchmarkThreeNodeMixedSendPath500QPS is the hosted-runner regression seam.
+// The 1000 QPS variant remains the dedicated capacity-environment benchmark.
+func BenchmarkThreeNodeMixedSendPath500QPS(b *testing.B) {
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedHotPersonChannels, true, threeNodeMixedHostedSendRate)
 }
 
 // BenchmarkThreeNodeMixedSendColdDirectoryWave1000QPS deliberately creates
 // all 2,000 person channels in the short run. It is a projector catch-up and
 // foreground-interference stress benchmark, not the formal p99 distribution.
 func BenchmarkThreeNodeMixedSendColdDirectoryWave1000QPS(b *testing.B) {
-	benchmarkThreeNodeMixedSendPath1000QPS(b, threeNodeMixedPersonChannels, false)
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedPersonChannels, false, threeNodeMixedSendRate)
 }
 
-func benchmarkThreeNodeMixedSendPath1000QPS(b *testing.B, personChannels int, prewarm bool) {
+func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, personChannels int, prewarm bool, rate int) {
 	if b.N < threeNodeMixedMinimumIterations {
 		return
+	}
+	if rate <= 0 {
+		b.Fatal("mixed SEND benchmark rate must be positive")
 	}
 	apps, nodes := newThreeNodeMixedSendApps(b)
 	seedThreeNodeMixedGroups(b, nodes[0])
@@ -105,7 +115,7 @@ func benchmarkThreeNodeMixedSendPath1000QPS(b *testing.B, personChannels int, pr
 	b.ResetTimer()
 	started := time.Now()
 	for index := 0; index < b.N; index++ {
-		waitThreeNodeMixedSendUntil(started.Add(time.Duration(index) * time.Second / threeNodeMixedSendRate))
+		waitThreeNodeMixedSendUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
 		jobs <- index
 	}
 	close(jobs)
