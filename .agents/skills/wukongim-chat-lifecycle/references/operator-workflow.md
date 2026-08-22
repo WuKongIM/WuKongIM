@@ -17,8 +17,8 @@ are 0700; private keys, access data, receipts, selectors, runtime archives, and
 evidence are 0600. Never set the state root to `/`, a repository, a worktree,
 or an unresolved variable. Never print a private file.
 
-The local shell must receive one short-lived Alibaba STS session without writing
-it to disk:
+The preferred path is one short-lived Alibaba STS session received without
+writing it to disk:
 
 ```bash
 export ALIBABA_CLOUD_ACCESS_KEY_ID='temporary-id'
@@ -30,6 +30,21 @@ export WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION='create-and-delete-paid-cloud
 The operator must supply these values through a secure local mechanism. Do not
 copy GitHub Secrets, create a credential broker workflow, or fall back to a
 long-lived AccessKey.
+
+Alibaba Cloud Shell is the only tokenless alternative. Before using it, prove
+that the current Cloud Shell AccessKey ID is absent from `ram ListAccessKeys`
+for the account and that the console describes the shell as a one-hour
+disposable environment. Download the credential once through the authenticated
+browser, import it into the controlled local shell without printing it, and
+delete the downloaded file before any provider call. Then set:
+
+```bash
+export WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION='unregistered-one-hour-cloud-shell'
+export WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION='create-and-delete-paid-cloud-lease'
+```
+
+This marker is not permission to accept an arbitrary tokenless AccessKey. If
+the unregistered-key proof cannot be repeated, stop and obtain STS instead.
 
 ## Non-billable preflight
 

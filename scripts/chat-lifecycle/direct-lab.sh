@@ -131,12 +131,21 @@ require_no_unreleased_request() {
 
 check_temporary_credentials() {
   local missing=0 name
-  for name in ALIBABA_CLOUD_ACCESS_KEY_ID ALIBABA_CLOUD_ACCESS_KEY_SECRET ALIBABA_CLOUD_SECURITY_TOKEN; do
+  temporary_credential_kind=""
+  for name in ALIBABA_CLOUD_ACCESS_KEY_ID ALIBABA_CLOUD_ACCESS_KEY_SECRET; do
     if [[ -z "${!name:-}" ]]; then
       echo "missing temporary credential: $name" >&2
       missing=1
     fi
   done
+  if [[ -n "${ALIBABA_CLOUD_SECURITY_TOKEN:-}" ]]; then
+    temporary_credential_kind="temporary_sts"
+  elif [[ "${WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION:-}" == unregistered-one-hour-cloud-shell ]]; then
+    temporary_credential_kind="cloud_shell_ephemeral_unregistered"
+  else
+    echo 'missing temporary credential proof: set ALIBABA_CLOUD_SECURITY_TOKEN for STS or WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION=unregistered-one-hour-cloud-shell for a verified one-hour Cloud Shell credential' >&2
+    missing=1
+  fi
   if [[ "${WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION:-}" != create-and-delete-paid-cloud-lease ]]; then
     echo 'missing exact lifecycle authorization: WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease' >&2
     missing=1
@@ -175,7 +184,8 @@ preflight() {
   if (( failed != 0 )); then
     return 1
   fi
-  jq -n '{schema:"wukongim.chat_lifecycle.direct_lab_preflight/v1",ready:true,provider_contacted:false,credential_kind:"temporary_sts"}'
+  jq -n --arg credential_kind "$temporary_credential_kind" \
+    '{schema:"wukongim.chat_lifecycle.direct_lab_preflight/v1",ready:true,provider_contacted:false,credential_kind:$credential_kind}'
 }
 
 ensure_control_tools() {

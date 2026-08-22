@@ -47,11 +47,49 @@ exit 99
 		"ALIBABA_CLOUD_ACCESS_KEY_ID",
 		"ALIBABA_CLOUD_ACCESS_KEY_SECRET",
 		"ALIBABA_CLOUD_SECURITY_TOKEN",
+		"WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION",
 		"create-and-delete-paid-cloud-lease",
 	} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("preflight output missing %q: %s", want, output)
 		}
+	}
+}
+
+func TestChatLifecycleDirectLabPreflightAcceptsExplicitUnregisteredCloudShellCredential(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	cloudTool := filepath.Join(directory, "wkcloudlease")
+	writeDirectLabExecutable(t, cloudTool, "#!/usr/bin/env bash\nexit 99\n")
+	for _, tool := range []string{
+		"git", "go", "ssh", "scp", "ssh-keygen", "ssh-agent", "ssh-add", "openssl",
+		"curl", "tar", "python3", "sha256sum", "htpasswd",
+	} {
+		writeDirectLabExecutable(t, filepath.Join(directory, tool), "#!/usr/bin/env bash\nexit 0\n")
+	}
+	writeDirectLabExecutable(t, filepath.Join(directory, "bun"), "#!/usr/bin/env bash\nprintf '%s\\n' 1.3.11\n")
+	writeDirectLabExecutable(t, filepath.Join(directory, "yarn"), "#!/usr/bin/env bash\nprintf '%s\\n' 1.22.22\n")
+	writeDirectLabExecutable(t, filepath.Join(directory, "jq"), `#!/usr/bin/env bash
+printf '%s\n' '{"schema":"wukongim.chat_lifecycle.direct_lab_preflight/v1","ready":true,"provider_contacted":false,"credential_kind":"cloud_shell_ephemeral_unregistered"}'
+`)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "preflight")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+directory+":"+os.Getenv("PATH"),
+		"WK_CHAT_LAB_CLOUD_TOOL="+cloudTool,
+		"ALIBABA_CLOUD_ACCESS_KEY_ID=ephemeral-id",
+		"ALIBABA_CLOUD_ACCESS_KEY_SECRET=ephemeral-secret",
+		"ALIBABA_CLOUD_SECURITY_TOKEN=",
+		"WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION=unregistered-one-hour-cloud-shell",
+		"WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("preflight rejected a verified Cloud Shell credential: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), `"credential_kind":"cloud_shell_ephemeral_unregistered"`) {
+		t.Fatalf("preflight credential kind = %s", output)
 	}
 }
 

@@ -16,9 +16,12 @@ or destroy healthy hosts between candidate generations.
   the direct repair lab, as authority for one CNY 300 repair Lease.
 - Never infer paid authority from `继续`, `同意`, deploy, run, status, diagnose,
   stop, an explanation, `下一步建议？`, or prior paid runs.
-- `start` additionally requires short-lived Alibaba STS environment variables
-  and both exact local authorization values. Never use or persist a long-lived
-  AccessKey for this loop.
+- `start` additionally requires either short-lived Alibaba STS environment
+  variables or a verified one-hour Alibaba Cloud Shell credential, plus both
+  exact local authorization values. A tokenless credential is accepted only
+  when it is absent from the account's registered AccessKey list and the exact
+  Cloud Shell authorization marker is present. Never use or persist a
+  long-lived AccessKey for this loop.
 - Reject another paid start until every earlier request has an exact
   selector-bound zero-inventory proof.
 - Keep one Lease while diagnosing and deploying committed candidate
@@ -35,8 +38,8 @@ Before any operation, read
 ### Preflight
 
 Run `scripts/chat-lifecycle/direct-lab.sh preflight`. It is local and read-only:
-it must not call Alibaba APIs. Report every missing host tool, temporary STS
-field, or exact lifecycle authorization.
+it must not call Alibaba APIs. Report every missing host tool, temporary
+credential proof, or exact lifecycle authorization.
 
 ### Start
 
