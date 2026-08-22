@@ -7,8 +7,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCloudSimulationSSHRetryEventuallySucceeds(t *testing.T) {
@@ -197,6 +199,29 @@ printf 'called\n' >"$COUNTER_PATH"
 	}
 	if !strings.Contains(string(output), "status=124 retryable=false reason=deadline-exceeded") {
 		t.Fatalf("expired retry omitted deadline evidence:\n%s", output)
+	}
+}
+
+func TestCloudSimulationSSHRetryUsesRepositoryPortableTimeoutWithDeadline(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
+	retryScript := cloudSimulationSSHRetryScript(t)
+	root := filepath.Dir(filepath.Dir(filepath.Dir(retryScript)))
+	temporary := t.TempDir()
+	portableTimeout := filepath.Join(root, "scripts", "chat-lifecycle", "portable-timeout.sh")
+	if err := os.Symlink(portableTimeout, filepath.Join(temporary, "timeout")); err != nil {
+		t.Fatal(err)
+	}
+	commandPath := filepath.Join(temporary, "succeeds")
+	writeSSHRetryExecutable(t, commandPath, "#!/usr/bin/env bash\nexit 0\n")
+
+	command := exec.CommandContext(t.Context(), "bash", "-c",
+		`source "$1"; shift; cloud_ssh_retry local-ready 1 0 "$@"`, "--", retryScript, commandPath)
+	command.Env = append(os.Environ(),
+		"PATH="+temporary+":"+os.Getenv("PATH"),
+		"WK_CLOUD_SSH_DEADLINE_EPOCH="+strconv.FormatInt(time.Now().Add(time.Minute).Unix(), 10),
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("portable timeout rejected the SSH retry contract: %v\n%s", err, output)
 	}
 }
 
