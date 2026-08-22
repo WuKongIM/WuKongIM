@@ -115,7 +115,7 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
     'for unit in node-exporter.service wukongim.service wkbench-host-metrics.service; do sudo systemctl cat "$unit" >/dev/null 2>&1 || continue; sudo systemctl stop "$unit" || exit $?; done'
   if [[ "$repair_generation_reset" == true ]]; then
     cloud_ssh_retry "${role}-repair-reset" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
-      'sudo bash -euo pipefail -c '\''for root in /var/lib/wukongim-cloud/wukongim; do test ! -L "$root"; if test -e "$root"; then test -d "$root"; else install -d -o wukongim -g wukongim -m 0755 "$root"; fi; find -P "$root" -xdev -mindepth 1 -delete; test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"; done'\'''
+      'sudo bash -euo pipefail -c '\''if ! id -u wukongim >/dev/null 2>&1; then for root in /var/lib/wukongim-cloud/wukongim; do test ! -e "$root"; done; exit 0; fi; for root in /var/lib/wukongim-cloud/wukongim; do test ! -L "$root"; if test -e "$root"; then test -d "$root"; else install -d -o wukongim -g wukongim -m 0755 "$root"; fi; find -P "$root" -xdev -mindepth 1 -delete; test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"; done'\'''
   fi
   cloud_ssh_retry "${role}-prepare" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
     "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role '$role' --runtime-dir /home/wkdeploy/run-secrets --data-device '$data_device' --no-systemd"
@@ -133,7 +133,7 @@ cloud_ssh_retry load-quiesce 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'for unit in node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service; do sudo systemctl cat "$unit" >/dev/null 2>&1 || continue; sudo systemctl stop "$unit" || exit $?; done'
 if [[ "$repair_generation_reset" == true ]]; then
   cloud_ssh_retry load-repair-reset 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-    'sudo bash -euo pipefail -c '\''for root in /var/lib/wukongim-cloud/workers /var/lib/wukongim-cloud/reports /var/lib/wukongim-cloud/prometheus /var/lib/wukongim-cloud/evidence; do test ! -L "$root"; if test -e "$root"; then test -d "$root"; else install -d -o wukongim -g wukongim -m 0755 "$root"; fi; find -P "$root" -xdev -mindepth 1 -delete; test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"; done'\'''
+    'sudo bash -euo pipefail -c '\''if ! id -u wukongim >/dev/null 2>&1; then for root in /var/lib/wukongim-cloud/workers /var/lib/wukongim-cloud/reports /var/lib/wukongim-cloud/prometheus /var/lib/wukongim-cloud/evidence; do test ! -e "$root"; done; exit 0; fi; for root in /var/lib/wukongim-cloud/workers /var/lib/wukongim-cloud/reports /var/lib/wukongim-cloud/prometheus /var/lib/wukongim-cloud/evidence; do test ! -L "$root"; if test -e "$root"; then test -d "$root"; else install -d -o wukongim -g wukongim -m 0755 "$root"; fi; find -P "$root" -xdev -mindepth 1 -delete; test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"; done'\'''
 fi
 cloud_ssh_retry load-prepare 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role load --runtime-dir /home/wkdeploy/run-secrets --data-device '$load_data_device' --no-systemd"

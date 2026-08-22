@@ -237,6 +237,8 @@ func TestCloudDeploymentRepairGenerationResetsOnlyFixedDataRootsAfterQuiesce(t *
 		`/var/lib/wukongim-cloud/prometheus`,
 		`/var/lib/wukongim-cloud/evidence`,
 		`test ! -L "$root"`,
+		`if ! id -u wukongim >/dev/null 2>&1; then`,
+		`do test ! -e "$root"; done; exit 0`,
 		`find -P "$root" -xdev -mindepth 1 -delete`,
 		`test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"`,
 	} {
