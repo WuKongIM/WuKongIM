@@ -30,6 +30,12 @@ auth_on = true
 [bench]
 api_enable = true
 
+[gateway]
+gnet_multicore = true
+gnet_num_event_loop = 4
+runtime_async_send_workers = 1000
+runtime_async_send_queue_capacity = 131072
+
 [observability]
 metrics_enable = true
 debug_api_enable = true
