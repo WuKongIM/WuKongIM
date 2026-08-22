@@ -438,6 +438,7 @@ func TestChatLifecycleLocalRuntimePreparationKeepsCredentialsLocal(t *testing.T)
 	for _, want := range []string{
 		"deployment-plan",
 		"verify-offline",
+		"tar -xpzf",
 		"WK_ANALYSIS_GITHUB_OIDC_ENABLED=false",
 		"runtime-node.tar.gz",
 		"runtime-load.tar.gz",

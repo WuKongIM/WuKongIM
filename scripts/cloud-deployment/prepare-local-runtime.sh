@@ -28,7 +28,7 @@ bundle_root="$generation_dir/bundle-root"
 runtime_node="$generation_dir/runtime-node"
 runtime_load="$generation_dir/runtime-load"
 install -d -m 0700 "$bundle_root" "$runtime_node" "$runtime_load"
-tar -xzf "$generation_dir/bundle/cloud-deployment-bundle.tar.gz" -C "$bundle_root"
+tar -xpzf "$generation_dir/bundle/cloud-deployment-bundle.tar.gz" -C "$bundle_root"
 "$WK_CHAT_LAB_BUNDLE_TOOL" verify-offline --root "$bundle_root" >"$generation_dir/bundle-verification.json"
 jq -e --arg source "$source_sha" '.source_sha == $source and (.bundle_digest | test("^sha256:[0-9a-f]{64}$"))' \
   "$generation_dir/bundle-verification.json" >/dev/null
