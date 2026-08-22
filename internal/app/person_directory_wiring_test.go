@@ -8,12 +8,43 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
+
+func TestMessageSendDoesNotSynchronouslyAdmitPersonDirectory(t *testing.T) {
+	cluster := &personDirectoryLifecycleCluster{admissionStarted: make(chan struct{}, 1)}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("newTestApp(): %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, sendErr := app.messages.Send(ctx, messageusecase.SendCommand{
+			FromUID: "u1", ChannelID: runtimechannelid.EncodePersonChannel("u1", "u2"), ChannelType: 1,
+		})
+		done <- sendErr
+	}()
+
+	select {
+	case <-cluster.admissionStarted:
+		cancel()
+		<-done
+		t.Fatal("person SEND synchronously entered directory admission")
+	case sendErr := <-done:
+		if sendErr != nil {
+			t.Fatalf("Send() error = %v, want append success without directory wait", sendErr)
+		}
+	}
+}
 
 func TestPersonDirectoryPressureUsesTerminalRuntimePoolSeries(t *testing.T) {
 	registry := obsmetrics.New(1, "n1")
@@ -194,6 +225,21 @@ type personDirectoryLifecycleCluster struct {
 	tasks            []metadb.PersonDirectoryTask
 	projected        chan struct{}
 	admissionStarted chan struct{}
+}
+
+func (*personDirectoryLifecycleCluster) NodeID() uint64 { return 1 }
+
+func (*personDirectoryLifecycleCluster) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
+	return fakeChannelAuthorityMeta(1, id), nil
+}
+
+func (*personDirectoryLifecycleCluster) AppendChannelBatch(_ context.Context, request channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
+	items := make([]channelruntime.AppendBatchItemResult, len(request.Messages))
+	for i, message := range request.Messages {
+		message.MessageSeq = uint64(i + 1)
+		items[i] = channelruntime.AppendBatchItemResult{MessageID: message.MessageID, MessageSeq: message.MessageSeq, Message: message}
+	}
+	return channelruntime.AppendBatchResult{Items: items}, nil
 }
 
 type projectorStopTaskSource struct {

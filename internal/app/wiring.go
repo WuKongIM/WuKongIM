@@ -768,7 +768,6 @@ func (a *App) wireMessages() {
 			messageOpts.ChannelState = channelStore
 			if _, ok := a.cluster.(clusterinfra.PersonDirectoryNode); ok && a.personDirectoryProjector != nil {
 				channelStore.SetPersonDirectoryWake(a.personDirectoryProjector.Wake)
-				messageOpts.PersonDirectory = channelStore
 			}
 		}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {

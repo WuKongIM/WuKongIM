@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
@@ -64,7 +65,8 @@ type RuntimeMetaBatchRouter interface {
 	RouteKeys([]string) ([]routing.Route, error)
 }
 
-// RuntimeMetaBatchStore commits and rereads one physical Slot metadata batch.
+// RuntimeMetaBatchStore commits one physical Slot metadata batch and rereads
+// only concurrent-create losers or uncertain proposal outcomes.
 type RuntimeMetaBatchStore interface {
 	CreateChannelRuntimeMetaBatch(context.Context, routing.Route, []RuntimeMetaCreateItem) ([]RuntimeMetaCreateResult, error)
 	BatchGetChannelRuntimeMetas(context.Context, routing.Route, []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error)
@@ -148,6 +150,9 @@ type SlotMetaSourceOptions struct {
 	Goroutines *goruntimeregistry.Registry
 	// Observer receives low-cardinality metadata resolve stage metrics.
 	Observer AppendStageObserver
+	// metaCreateCollectWait is a package-local deterministic test seam. Zero
+	// retains the production collection window.
+	metaCreateCollectWait time.Duration
 }
 
 func ctxErr(ctx context.Context) error {

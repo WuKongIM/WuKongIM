@@ -50,6 +50,13 @@ func (c *createChannelRuntimeMetaBatchCmd) apply(wb *metadb.WriteBatch, _ uint16
 			return err
 		}
 		c.results[i] = result
+		if item.Meta.ChannelType == 1 {
+			if err := wb.EnsurePersonDirectoryTask(item.HashSlot, metadb.PersonDirectoryTask{
+				ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType,
+			}); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -37,6 +37,9 @@ func NewSlotMetaSource(reader RuntimeMetaReader, opts ...SlotMetaSourceOptions) 
 	source := &SlotMetaSource{reader: reader, opts: cfg}
 	if cfg.Router != nil && cfg.BatchStore != nil {
 		source.batcher = newMetaCreateBatcher(cfg.Router, cfg.BatchStore, cfg.BatchObserver, cfg.Goroutines, source.buildRuntimeMetaBatch, source.observeMetaStage)
+		if cfg.metaCreateCollectWait > 0 {
+			source.batcher.collectWait = cfg.metaCreateCollectWait
+		}
 	} else if cfg.Router != nil || cfg.BatchStore != nil {
 		source.batchErr = fmt.Errorf("%w: runtime metadata batch router/store must be configured together", ch.ErrInvalidConfig)
 	}

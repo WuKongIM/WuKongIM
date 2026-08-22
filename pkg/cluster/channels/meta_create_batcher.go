@@ -22,11 +22,12 @@ const (
 	// A target batch amortizes the fixed Raft commit cost once enough cold
 	// identities are already available; the collection deadline remains the
 	// latency bound for smaller bursts.
-	metaCreateBatchTargetItems = 4
-	// A short collection window amortizes the fixed Raft commit cost without
-	// consuming a material portion of the 200ms hot-send latency budget. The
+	metaCreateBatchTargetItems = 32
+	// Cold identities wait briefly for peers assigned to the same physical
+	// Slot. Existing identities bypass this batcher, so the window reduces Raft
+	// proposal pressure without adding latency to the hot SEND path. The
 	// target-item fast path still dispatches full bursts before this deadline.
-	metaCreateBatchCollectWait = 25 * time.Millisecond
+	metaCreateBatchCollectWait = 500 * time.Millisecond
 	// Two batches allow one future to progress while the next is submitted,
 	// without flooding a Slot leader with single-item proposals.
 	metaCreateSlotMaxInFlightBatches = 2
@@ -357,7 +358,7 @@ func (o *metaCreateSlotOwner) takeBatch() ([]*metaCreateEntry, bool, time.Durati
 		o.mu.Unlock()
 		return nil, stop, 0
 	}
-	if !o.stopping && o.inFlight > 0 && len(o.queue) < metaCreateBatchTargetItems {
+	if !o.stopping && len(o.queue) < metaCreateBatchTargetItems {
 		if o.collectUntil.IsZero() {
 			o.collectUntil = time.Now().Add(o.batcher.collectWait)
 		}
@@ -457,6 +458,13 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 		createErr = validateRuntimeMetaCreateResults(items, created)
 	}
 	o.observeStage(channelMetaStageCreatePropose, createErr, createStarted)
+	if createErr == nil && allRuntimeMetaCreatesInserted(created) {
+		for i, item := range items {
+			results[batch[i].key] = metaCreateEnsureResult{meta: item.Meta}
+		}
+		o.observeBatch("ok", len(items))
+		return results
+	}
 	readStarted := time.Now()
 	reads, readErr := o.batcher.store.BatchGetChannelRuntimeMetas(ctx, routes[0], items)
 	if readErr == nil && len(reads) != len(items) {
@@ -502,6 +510,18 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 	}
 	o.observeBatch(result, len(items))
 	return results
+}
+
+func allRuntimeMetaCreatesInserted(results []RuntimeMetaCreateResult) bool {
+	if len(results) == 0 {
+		return false
+	}
+	for _, result := range results {
+		if !result.Created {
+			return false
+		}
+	}
+	return true
 }
 
 func (o *metaCreateSlotOwner) observeStage(stage string, err error, started time.Time) {

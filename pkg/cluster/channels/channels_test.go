@@ -264,8 +264,12 @@ func TestSlotMetaSourceObservesEnsureMetaStageBreakdown(t *testing.T) {
 	requireAppendStage(t, observer.events, "meta_create_build", "ok")
 	requireAppendStage(t, observer.events, "meta_create_propose", "ok")
 	requireAppendStage(t, observer.events, "meta_create_write", "ok")
-	requireAppendStage(t, observer.events, "meta_final_read", "ok")
-	for _, stage := range []string{"meta_create_build", "meta_create_propose", "meta_final_read"} {
+	for _, event := range observer.events {
+		if event.stage == "meta_final_read" {
+			t.Fatalf("successful identity-bound create unexpectedly reread authoritative metadata: %#v", event)
+		}
+	}
+	for _, stage := range []string{"meta_create_build", "meta_create_propose"} {
 		requirePositiveAppendStageDuration(t, observer.events, stage)
 	}
 }
@@ -292,21 +296,28 @@ func TestSlotMetaSourceDoesNotObserveProposalWhenPlacementBuildFails(t *testing.
 	}
 }
 
-func TestSlotMetaSourceCreateObservesAuthoritativeRereadMiss(t *testing.T) {
+func TestSlotMetaSourceCreatedResultDoesNotDependOnLaggingReread(t *testing.T) {
 	id := ch.ChannelID{ID: "ensure-create-lagging-read", Type: 1}
 	store := &laggingRuntimeMetaStore{}
 	observer := &appendStageObserver{}
 	source := NewSlotMetaSource(store, withTestMetaBatch(store, SlotMetaSourceOptions{DefaultReplicas: []ch.NodeID{2, 1}, DefaultMinISR: 1, Observer: observer}))
 	t.Cleanup(func() { require.NoError(t, source.Close()) })
 
-	_, err := source.EnsureChannelMeta(context.Background(), id)
-	if !errors.Is(err, metadb.ErrNotFound) {
-		t.Fatalf("EnsureChannelMeta() error = %v, want authoritative reread miss", err)
+	meta, err := source.EnsureChannelMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("EnsureChannelMeta() error = %v", err)
 	}
-	if store.creates != 1 || store.upserts != 0 {
-		t.Fatalf("creates=%d upserts=%d, want one create-only call", store.creates, store.upserts)
+	if meta.ID != id {
+		t.Fatalf("EnsureChannelMeta() meta = %#v, want %v", meta, id)
 	}
-	requireAppendStage(t, observer.events, "meta_final_read", "miss")
+	if store.creates != 1 || store.upserts != 0 || store.reads != 0 {
+		t.Fatalf("creates=%d upserts=%d reads=%d, want one proven create and no reread", store.creates, store.upserts, store.reads)
+	}
+	for _, event := range observer.events {
+		if event.stage == "meta_final_read" {
+			t.Fatalf("successful identity-bound create unexpectedly reread authoritative metadata: %#v", event)
+		}
+	}
 }
 
 func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {
@@ -327,6 +338,9 @@ func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {
 	}
 	if reader.creates != 1 || reader.upserts != 0 {
 		t.Fatalf("creates=%d upserts=%d, want one create-only call", reader.creates, reader.upserts)
+	}
+	if reader.batchReads != 0 {
+		t.Fatalf("authoritative batch rereads=%d, want none after an identity-bound created result", reader.batchReads)
 	}
 	if meta.Leader != 3 || meta.MinISR != 2 {
 		t.Fatalf("created meta leader/minISR = %#v, want placement", meta)
@@ -3819,10 +3833,11 @@ func (r *validatingRuntime) HandlePullHint(context.Context, channeltransport.Pul
 }
 
 type runtimeMetaReaderFake struct {
-	meta    metadb.ChannelRuntimeMeta
-	err     error
-	upserts int
-	creates int
+	meta       metadb.ChannelRuntimeMeta
+	err        error
+	upserts    int
+	creates    int
+	batchReads int
 }
 
 func withTestMetaBatch(store RuntimeMetaBatchStore, opts SlotMetaSourceOptions) SlotMetaSourceOptions {
@@ -3830,6 +3845,7 @@ func withTestMetaBatch(store RuntimeMetaBatchStore, opts SlotMetaSourceOptions) 
 		HashSlot: 7, SlotID: 3, Leader: 1, LeaderTerm: 4, ConfigEpoch: 2, Revision: 9,
 	}}
 	opts.BatchStore = store
+	opts.metaCreateCollectWait = time.Millisecond
 	return opts
 }
 
@@ -3860,6 +3876,7 @@ func (f *runtimeMetaReaderFake) CreateChannelRuntimeMetaBatch(_ context.Context,
 }
 
 func (f *runtimeMetaReaderFake) BatchGetChannelRuntimeMetas(_ context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error) {
+	f.batchReads++
 	if len(items) != 1 {
 		return nil, metadb.ErrInvalidArgument
 	}
@@ -3872,6 +3889,7 @@ func (f *runtimeMetaReaderFake) BatchGetChannelRuntimeMetas(_ context.Context, _
 type laggingRuntimeMetaStore struct {
 	upserts int
 	creates int
+	reads   int
 }
 
 func (f *laggingRuntimeMetaStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
@@ -3893,6 +3911,7 @@ func (f *laggingRuntimeMetaStore) CreateChannelRuntimeMetaBatch(_ context.Contex
 }
 
 func (f *laggingRuntimeMetaStore) BatchGetChannelRuntimeMetas(_ context.Context, _ routing.Route, items []RuntimeMetaCreateItem) ([]RuntimeMetaReadResult, error) {
+	f.reads++
 	results := make([]RuntimeMetaReadResult, len(items))
 	for i := range results {
 		results[i].Err = metadb.ErrNotFound

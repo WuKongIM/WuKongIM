@@ -13,9 +13,38 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestMetaCreateBatcherDefaultCollectWaitKeepsColdAdmissionBelowHotBudget(t *testing.T) {
-	if got := metaCreateBatchCollectWait; got != 25*time.Millisecond {
-		t.Fatalf("metadata create batch collect wait = %v, want 25ms", got)
+func TestMetaCreateBatcherDefaultCollectWaitBoundsColdAdmission(t *testing.T) {
+	if got := metaCreateBatchCollectWait; got != 500*time.Millisecond {
+		t.Fatalf("metadata create batch collect wait = %v, want 500ms", got)
+	}
+}
+
+func TestMetaCreateSlotOwnerCollectsFirstColdBatch(t *testing.T) {
+	owner := &metaCreateSlotOwner{
+		batcher: &metaCreateBatcher{collectWait: 20 * time.Millisecond},
+		slotID:  3,
+		entries: make(map[metadb.ChannelKey]*metaCreateEntry),
+		wake:    make(chan struct{}, 1),
+	}
+	if _, err := owner.admit(ch.ChannelID{ID: "first-cold-burst-0", Type: 1}, 7); err != nil {
+		t.Fatalf("admit first cold item: %v", err)
+	}
+	batch, stopped, wait := owner.takeBatch()
+	if stopped {
+		t.Fatal("first cold batch unexpectedly stopped")
+	}
+	if len(batch) != 0 || wait <= 0 {
+		t.Fatalf("first cold batch = %d items with wait %v, want collection wait", len(batch), wait)
+	}
+	for i := 1; i < metaCreateBatchTargetItems; i++ {
+		id := ch.ChannelID{ID: fmt.Sprintf("first-cold-burst-%d", i), Type: 1}
+		if _, err := owner.admit(id, uint16(7+i)); err != nil {
+			t.Fatalf("admit cold item %d: %v", i, err)
+		}
+	}
+	batch, stopped, wait = owner.takeBatch()
+	if stopped || wait != 0 || len(batch) != metaCreateBatchTargetItems {
+		t.Fatalf("target cold batch = %d items, stopped=%v wait=%v; want %d items", len(batch), stopped, wait, metaCreateBatchTargetItems)
 	}
 }
 
@@ -169,7 +198,7 @@ func TestSlotMetaSourceSubmitsTargetBatchBeforeCollectionDeadline(t *testing.T) 
 			Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, MinISR: 2,
 		}},
 	})
-	source.batcher.collectWait = time.Hour
+	source.batcher.collectWait = 200 * time.Millisecond
 	t.Cleanup(func() {
 		store.release()
 		if err := source.Close(); err != nil {
@@ -422,8 +451,8 @@ func TestSlotMetaSourceRetriesOnlyAuthoritativelyMissingUncertainCreates(t *test
 	if meta.ID != id {
 		t.Fatalf("EnsureChannelMeta() meta = %#v, want %v", meta, id)
 	}
-	if store.createCalls != 2 || store.readCalls != 2 {
-		t.Fatalf("create calls=%d read calls=%d, want reread-before-retry then one successful retry", store.createCalls, store.readCalls)
+	if store.createCalls != 2 || store.readCalls != 1 {
+		t.Fatalf("create calls=%d read calls=%d, want one reread before one proven successful retry", store.createCalls, store.readCalls)
 	}
 }
 

@@ -23,6 +23,8 @@ import (
 
 const (
 	threeNodeMixedSendRate          = 1000
+	threeNodeMixedRehearsalSendRate = 2000
+	threeNodeMixedWarmupSendRate    = 200
 	threeNodeMixedHostedSendRate    = 500
 	threeNodeMixedSendWorkers       = 256
 	threeNodeMixedSendUsers         = 2500
@@ -34,27 +36,74 @@ const (
 	threeNodeMixedMinimumIterations = 3000
 )
 
+type threeNodeMixedShape struct {
+	users          int
+	personChannels int
+	groupChannels  int
+	workers        int
+}
+
+var (
+	threeNodeMixedLocalShape = threeNodeMixedShape{
+		users: threeNodeMixedSendUsers, personChannels: threeNodeMixedPersonChannels, groupChannels: threeNodeMixedGroupChannels,
+		workers: threeNodeMixedSendWorkers,
+	}
+	threeNodeMixedRehearsalShape = threeNodeMixedShape{users: 10_000, personChannels: 8_000, groupChannels: 2_000, workers: 4_096}
+)
+
 // BenchmarkThreeNodeMixedSendPath1000QPS is the short feedback loop for the
 // steady-state reviewed ingress shape after a bounded channel warmup. The
 // separate cold-wave benchmark owns first-message and projector pressure.
 func BenchmarkThreeNodeMixedSendPath1000QPS(b *testing.B) {
-	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedHotPersonChannels, true, threeNodeMixedSendRate)
+	shape := threeNodeMixedLocalShape
+	shape.personChannels = threeNodeMixedHotPersonChannels
+	benchmarkThreeNodeMixedSendPathAtRate(b, shape, -1, threeNodeMixedSendRate)
 }
 
 // BenchmarkThreeNodeMixedSendPath500QPS is the hosted-runner regression seam.
 // The 1000 QPS variant remains the dedicated capacity-environment benchmark.
 func BenchmarkThreeNodeMixedSendPath500QPS(b *testing.B) {
-	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedHotPersonChannels, true, threeNodeMixedHostedSendRate)
+	shape := threeNodeMixedLocalShape
+	shape.personChannels = threeNodeMixedHotPersonChannels
+	benchmarkThreeNodeMixedSendPathAtRate(b, shape, -1, threeNodeMixedHostedSendRate)
 }
 
 // BenchmarkThreeNodeMixedSendColdDirectoryWave1000QPS deliberately creates
 // all 2,000 person channels in the short run. It is a projector catch-up and
 // foreground-interference stress benchmark, not the formal p99 distribution.
 func BenchmarkThreeNodeMixedSendColdDirectoryWave1000QPS(b *testing.B) {
-	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedPersonChannels, false, threeNodeMixedSendRate)
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedLocalShape, 0, threeNodeMixedSendRate)
 }
 
-func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, personChannels int, prewarm bool, rate int) {
+// BenchmarkThreeNodeMixedSendColdDirectoryWave2000QPS reproduces the exact
+// cold-person arrival envelope used by the cloud rehearsal. It is the local
+// fail-fast seam for foreground person-directory admission before another
+// paid run.
+func BenchmarkThreeNodeMixedSendColdDirectoryWave2000QPS(b *testing.B) {
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedLocalShape, 0, threeNodeMixedRehearsalSendRate)
+}
+
+// BenchmarkThreeNodeMixedSendRehearsalColdDirectoryWave2000QPS uses the
+// reviewed cloud rehearsal's exact 10,000-user and 8,000/2,000 hot-set shape.
+func BenchmarkThreeNodeMixedSendRehearsalColdDirectoryWave2000QPS(b *testing.B) {
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedRehearsalShape, 0, threeNodeMixedRehearsalSendRate)
+}
+
+// BenchmarkThreeNodeMixedSendRehearsalWarmupColdDirectoryWave200QPS uses the
+// reviewed rehearsal warmup envelope: ten percent of the measured rate for
+// sixty seconds against the full 10,000-user channel set.
+func BenchmarkThreeNodeMixedSendRehearsalWarmupColdDirectoryWave200QPS(b *testing.B) {
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedRehearsalShape, 0, threeNodeMixedWarmupSendRate)
+}
+
+// BenchmarkThreeNodeMixedSendRehearsalHotPath2000QPS first prepares every
+// reviewed hot channel at the 200 QPS warmup rate, then measures the exact
+// 2,000 QPS hot path on the same three-node cluster generation.
+func BenchmarkThreeNodeMixedSendRehearsalHotPath2000QPS(b *testing.B) {
+	benchmarkThreeNodeMixedSendPathAtRate(b, threeNodeMixedRehearsalShape, threeNodeMixedWarmupSendRate, threeNodeMixedRehearsalSendRate)
+}
+
+func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedShape, prewarmRate int, rate int) {
 	if b.N < threeNodeMixedMinimumIterations {
 		return
 	}
@@ -62,16 +111,16 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, personChannels int, pre
 		b.Fatal("mixed SEND benchmark rate must be positive")
 	}
 	apps, nodes := newThreeNodeMixedSendApps(b)
-	seedThreeNodeMixedGroups(b, nodes[0])
+	seedThreeNodeMixedGroups(b, nodes[0], shape)
 
 	sink := &threeNodeMixedAckSink{}
-	sessions := newThreeNodeMixedSessions(apps, sink)
-	if prewarm {
-		warmThreeNodeMixedSendChannels(b, apps, nodes, sessions, sink, personChannels)
+	sessions := newThreeNodeMixedSessions(apps, sink, shape.users)
+	if prewarmRate != 0 {
+		warmThreeNodeMixedSendChannels(b, apps, nodes, sessions, sink, shape, prewarmRate)
 	}
 	latencies := make([]time.Duration, b.N)
 	cold := make([]bool, b.N)
-	jobs := make(chan int, threeNodeMixedSendWorkers)
+	jobs := make(chan int, shape.workers)
 	var workers sync.WaitGroup
 	var firstErr error
 	var errMu sync.Mutex
@@ -85,12 +134,12 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, personChannels int, pre
 		}
 		errMu.Unlock()
 	}
-	workers.Add(threeNodeMixedSendWorkers)
-	for range threeNodeMixedSendWorkers {
+	workers.Add(shape.workers)
+	for range shape.workers {
 		go func() {
 			defer workers.Done()
 			for index := range jobs {
-				input := threeNodeMixedSendInputAt(index, personChannels, !prewarm)
+				input := threeNodeMixedSendInputAt(index, shape, prewarmRate == 0)
 				appIndex := index % len(apps)
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				started := time.Now()
@@ -118,6 +167,7 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, personChannels int, pre
 		waitThreeNodeMixedSendUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
 		jobs <- index
 	}
+	offeredDuration := time.Since(started)
 	close(jobs)
 	workers.Wait()
 	b.StopTimer()
@@ -125,17 +175,86 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, personChannels int, pre
 	if firstErr != nil {
 		b.Fatal(firstErr)
 	}
-	if got := sink.failures.Load(); got != 0 {
-		b.Fatalf("non-success SENDACKs = %d", got)
-	}
-	if got := sink.successes.Load(); got != uint64(b.N) {
-		b.Fatalf("success SENDACKs = %d, want %d", got, b.N)
-	}
+	failures := sink.failures.Load()
+	successes := sink.successes.Load()
+	b.ReportMetric(float64(b.N)/offeredDuration.Seconds(), "offered-msg/s")
 	projectionDrain := waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)
 	b.ReportMetric(float64(projectionDrain)/float64(time.Millisecond), "person-directory-drain-ms")
 	reportThreeNodeMixedSendLatencies(b, latencies, cold)
 	reportThreeNodeMixedSendStages(b, apps)
 	reportThreeNodeMixedChannelStages(b, apps)
+	batchCount, batchItems := reportThreeNodeMixedMetaCreateBatches(b, apps)
+	if failures != 0 {
+		averageBatchItems := 0.0
+		if batchCount != 0 {
+			averageBatchItems = float64(batchItems) / float64(batchCount)
+		}
+		b.Fatalf("non-success SENDACKs = %d reasons=%v client_seqs=%v observations=%v meta_create_batches=%d meta_create_items=%d average_batch_items=%.2f", failures, sink.failureReasons(), sink.failureClientSeqs(), threeNodeMixedSendackFailures(b, apps), batchCount, batchItems, averageBatchItems)
+	}
+	if successes != uint64(b.N) {
+		b.Fatalf("success SENDACKs = %d, want %d", successes, b.N)
+	}
+}
+
+func reportThreeNodeMixedMetaCreateBatches(b *testing.B, apps []*App) (uint64, uint64) {
+	b.Helper()
+	const familyName = "wukongim_channelv2_meta_create_batch_items"
+	var batches uint64
+	var items uint64
+	for _, app := range apps {
+		families, err := app.metrics.PrometheusRegistry().Gather()
+		if err != nil {
+			b.Fatalf("gather benchmark metadata-create metrics: %v", err)
+		}
+		for _, family := range families {
+			if family.GetName() != familyName {
+				continue
+			}
+			for _, metric := range family.Metric {
+				if metric.Histogram == nil {
+					continue
+				}
+				batches += metric.Histogram.GetSampleCount()
+				items += uint64(metric.Histogram.GetSampleSum())
+			}
+		}
+	}
+	if batches != 0 {
+		b.ReportMetric(float64(batches), "meta-create-batches")
+		b.ReportMetric(float64(items)/float64(batches), "meta-create-items/batch")
+	}
+	return batches, items
+}
+
+func threeNodeMixedSendackFailures(b *testing.B, apps []*App) []string {
+	b.Helper()
+	const familyName = "wukongim_gateway_sendacks_total"
+	counts := make(map[string]uint64)
+	for _, app := range apps {
+		families, err := app.metrics.PrometheusRegistry().Gather()
+		if err != nil {
+			b.Fatalf("gather benchmark SENDACK metrics: %v", err)
+		}
+		for _, family := range families {
+			if family.GetName() != familyName {
+				continue
+			}
+			for _, metric := range family.Metric {
+				reason := threeNodeMixedMetricLabel(metric, "reason")
+				if reason == "success" || metric.Counter == nil {
+					continue
+				}
+				key := fmt.Sprintf("reason=%s/source=%s/class=%s", reason, threeNodeMixedMetricLabel(metric, "source"), threeNodeMixedMetricLabel(metric, "class"))
+				counts[key] += uint64(metric.Counter.GetValue())
+			}
+		}
+	}
+	keys := make([]string, 0, len(counts))
+	for key, count := range counts {
+		keys = append(keys, fmt.Sprintf("%s:%d", key, count))
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func waitThreeNodeMixedPersonDirectoryDrain(b *testing.B, nodes []*clusterpkg.Node, timeout time.Duration) time.Duration {
@@ -193,43 +312,43 @@ type threeNodeMixedSendInput struct {
 	cold        bool
 }
 
-func threeNodeMixedSendInputAt(index, personChannels int, markFirstCold bool) threeNodeMixedSendInput {
+func threeNodeMixedSendInputAt(index int, shape threeNodeMixedShape, markFirstCold bool) threeNodeMixedSendInput {
 	cycle := index % 100
 	if cycle >= threeNodeMixedPersonPercent {
 		groupOrdinal := index / 10
-		channelIndex := groupOrdinal % threeNodeMixedGroupChannels
+		channelIndex := groupOrdinal % shape.groupChannels
 		memberIndex := groupOrdinal % threeNodeMixedGroupMembers
 		return threeNodeMixedSendInput{
-			senderIndex: (channelIndex*threeNodeMixedGroupMembers + memberIndex) % threeNodeMixedSendUsers,
+			senderIndex: (channelIndex*threeNodeMixedGroupMembers + memberIndex) % shape.users,
 			channelID:   fmt.Sprintf("mixed-group-%04d", channelIndex), channelType: frame.ChannelTypeGroup,
 		}
 	}
 	personOrdinal := index - index/10
-	channelIndex := personOrdinal % personChannels
-	senderIndex := channelIndex % threeNodeMixedSendUsers
-	receiverIndex := (channelIndex*37 + 1) % threeNodeMixedSendUsers
+	channelIndex := personOrdinal % shape.personChannels
+	senderIndex := channelIndex % shape.users
+	receiverIndex := (channelIndex*37 + 1) % shape.users
 	if receiverIndex == senderIndex {
-		receiverIndex = (receiverIndex + 1) % threeNodeMixedSendUsers
+		receiverIndex = (receiverIndex + 1) % shape.users
 	}
 	return threeNodeMixedSendInput{
 		senderIndex: senderIndex, channelID: fmt.Sprintf("mixed-user-%04d", receiverIndex),
-		channelType: frame.ChannelTypePerson, cold: markFirstCold && personOrdinal < personChannels,
+		channelType: frame.ChannelTypePerson, cold: markFirstCold && personOrdinal < shape.personChannels,
 	}
 }
 
-func warmThreeNodeMixedSendChannels(b *testing.B, apps []*App, nodes []*clusterpkg.Node, sessions [][]session.Session, sink *threeNodeMixedAckSink, personChannels int) {
+func warmThreeNodeMixedSendChannels(b *testing.B, apps []*App, nodes []*clusterpkg.Node, sessions [][]session.Session, sink *threeNodeMixedAckSink, shape threeNodeMixedShape, rate int) {
 	b.Helper()
-	total := personChannels + threeNodeMixedGroupChannels
-	jobs := make(chan int, threeNodeMixedSendWorkers)
+	total := shape.personChannels + shape.groupChannels
+	jobs := make(chan int, shape.workers)
 	var workers sync.WaitGroup
 	var firstErr error
 	var errMu sync.Mutex
-	workers.Add(threeNodeMixedSendWorkers)
-	for range threeNodeMixedSendWorkers {
+	workers.Add(shape.workers)
+	for range shape.workers {
 		go func() {
 			defer workers.Done()
 			for ordinal := range jobs {
-				input := threeNodeMixedWarmInput(ordinal, personChannels)
+				input := threeNodeMixedWarmInput(ordinal, shape)
 				appIndex := ordinal % len(apps)
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				err := apps[appIndex].Handler().OnFrame(coregateway.Context{
@@ -249,7 +368,11 @@ func warmThreeNodeMixedSendChannels(b *testing.B, apps []*App, nodes []*clusterp
 			}
 		}()
 	}
+	started := time.Now()
 	for ordinal := 0; ordinal < total; ordinal++ {
+		if rate > 0 {
+			waitThreeNodeMixedSendUntil(started.Add(time.Duration(ordinal) * time.Second / time.Duration(rate)))
+		}
 		jobs <- ordinal
 	}
 	close(jobs)
@@ -258,7 +381,7 @@ func warmThreeNodeMixedSendChannels(b *testing.B, apps []*App, nodes []*clusterp
 		b.Fatal(firstErr)
 	}
 	if got := sink.failures.Load(); got != 0 {
-		b.Fatalf("warmup non-success SENDACKs = %d", got)
+		b.Fatalf("warmup non-success SENDACKs = %d reasons=%v", got, sink.failureReasons())
 	}
 	if got := sink.successes.Load(); got != uint64(total) {
 		b.Fatalf("warmup success SENDACKs = %d, want %d", got, total)
@@ -266,20 +389,27 @@ func warmThreeNodeMixedSendChannels(b *testing.B, apps []*App, nodes []*clusterp
 	waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)
 	sink.successes.Store(0)
 	sink.failures.Store(0)
+	sink.failureN.Store(0)
+	for i := range sink.failureSeqs {
+		sink.failureSeqs[i].Store(0)
+	}
+	for i := range sink.reasons {
+		sink.reasons[i].Store(0)
+	}
 }
 
-func threeNodeMixedWarmInput(ordinal, personChannels int) threeNodeMixedSendInput {
-	if ordinal >= personChannels {
-		channelIndex := ordinal - personChannels
+func threeNodeMixedWarmInput(ordinal int, shape threeNodeMixedShape) threeNodeMixedSendInput {
+	if ordinal >= shape.personChannels {
+		channelIndex := ordinal - shape.personChannels
 		return threeNodeMixedSendInput{
-			senderIndex: (channelIndex * threeNodeMixedGroupMembers) % threeNodeMixedSendUsers,
+			senderIndex: (channelIndex * threeNodeMixedGroupMembers) % shape.users,
 			channelID:   fmt.Sprintf("mixed-group-%04d", channelIndex), channelType: frame.ChannelTypeGroup,
 		}
 	}
-	senderIndex := ordinal % threeNodeMixedSendUsers
-	receiverIndex := (ordinal*37 + 1) % threeNodeMixedSendUsers
+	senderIndex := ordinal % shape.users
+	receiverIndex := (ordinal*37 + 1) % shape.users
 	if receiverIndex == senderIndex {
-		receiverIndex = (receiverIndex + 1) % threeNodeMixedSendUsers
+		receiverIndex = (receiverIndex + 1) % shape.users
 	}
 	return threeNodeMixedSendInput{
 		senderIndex: senderIndex, channelID: fmt.Sprintf("mixed-user-%04d", receiverIndex), channelType: frame.ChannelTypePerson,
@@ -311,7 +441,7 @@ func newThreeNodeMixedSendApps(b *testing.B) ([]*App, []*clusterpkg.Node) {
 					RPCWorkers: 160, MaxChannels: 50000,
 				},
 				Storage:  clusterpkg.StorageConfig{CommitFlushWindow: time.Millisecond, CommitShards: 1},
-				Timeouts: clusterpkg.TimeoutConfig{Start: 15 * time.Second, Stop: 10 * time.Second},
+				Timeouts: clusterpkg.TimeoutConfig{Start: 45 * time.Second, Stop: 10 * time.Second},
 			},
 		}
 		app, err := New(cfg, WithLogger(wklog.NewNop()), WithGateway(nil))
@@ -320,7 +450,7 @@ func newThreeNodeMixedSendApps(b *testing.B) ([]*App, []*clusterpkg.Node) {
 		}
 		apps = append(apps, app)
 	}
-	startCtx, startCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	startCtx, startCancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer startCancel()
 	startErrs := make(chan error, len(apps))
 	for _, app := range apps {
@@ -499,7 +629,7 @@ func stopThreeNodeMixedSendApps(apps []*App) {
 	wg.Wait()
 }
 
-func seedThreeNodeMixedGroups(b *testing.B, node *clusterpkg.Node) {
+func seedThreeNodeMixedGroups(b *testing.B, node *clusterpkg.Node, shape threeNodeMixedShape) {
 	b.Helper()
 	jobs := make(chan int, 32)
 	var wg sync.WaitGroup
@@ -516,7 +646,7 @@ func seedThreeNodeMixedGroups(b *testing.B, node *clusterpkg.Node) {
 				if err == nil {
 					members := make([]string, threeNodeMixedGroupMembers)
 					for memberIndex := range members {
-						members[memberIndex] = fmt.Sprintf("mixed-user-%04d", (channelIndex*threeNodeMixedGroupMembers+memberIndex)%threeNodeMixedSendUsers)
+						members[memberIndex] = fmt.Sprintf("mixed-user-%04d", (channelIndex*threeNodeMixedGroupMembers+memberIndex)%shape.users)
 					}
 					err = node.AddChannelSubscribers(ctx, channelID, int64(frame.ChannelTypeGroup), members, 1)
 				}
@@ -531,7 +661,7 @@ func seedThreeNodeMixedGroups(b *testing.B, node *clusterpkg.Node) {
 			}
 		}()
 	}
-	for channelIndex := 0; channelIndex < threeNodeMixedGroupChannels; channelIndex++ {
+	for channelIndex := 0; channelIndex < shape.groupChannels; channelIndex++ {
 		jobs <- channelIndex
 	}
 	close(jobs)
@@ -542,20 +672,55 @@ func seedThreeNodeMixedGroups(b *testing.B, node *clusterpkg.Node) {
 }
 
 type threeNodeMixedAckSink struct {
-	successes atomic.Uint64
-	failures  atomic.Uint64
+	successes   atomic.Uint64
+	failures    atomic.Uint64
+	reasons     [256]atomic.Uint64
+	failureN    atomic.Uint64
+	failureSeqs [32]atomic.Uint64
 }
 
-func newThreeNodeMixedSessions(apps []*App, sink *threeNodeMixedAckSink) [][]session.Session {
+func (s *threeNodeMixedAckSink) failureClientSeqs() []uint64 {
+	count := s.failureN.Load()
+	if count > uint64(len(s.failureSeqs)) {
+		count = uint64(len(s.failureSeqs))
+	}
+	seqs := make([]uint64, count)
+	for i := range seqs {
+		seqs[i] = s.failureSeqs[i].Load()
+	}
+	return seqs
+}
+
+func (s *threeNodeMixedAckSink) failureReasons() []string {
+	reasons := make([]string, 0)
+	for code := 0; code < len(s.reasons); code++ {
+		count := s.reasons[code].Load()
+		if count != 0 && frame.ReasonCode(code) != frame.ReasonSuccess {
+			reasons = append(reasons, fmt.Sprintf("%s=%d", frame.ReasonCode(code), count))
+		}
+	}
+	return reasons
+}
+
+func newThreeNodeMixedSessions(apps []*App, sink *threeNodeMixedAckSink, users int) [][]session.Session {
 	sessions := make([][]session.Session, len(apps))
 	for appIndex := range apps {
-		sessions[appIndex] = make([]session.Session, threeNodeMixedSendUsers)
-		for userIndex := 0; userIndex < threeNodeMixedSendUsers; userIndex++ {
+		sessions[appIndex] = make([]session.Session, users)
+		for userIndex := 0; userIndex < users; userIndex++ {
 			sess := session.New(session.Config{
 				ID: uint64((appIndex+1)*10000 + userIndex + 1),
 				WriteFrameFn: func(value frame.Frame, _ session.OutboundMeta) error {
 					ack, ok := value.(*frame.SendackPacket)
-					if !ok || ack.ReasonCode != frame.ReasonSuccess {
+					if !ok {
+						sink.failures.Add(1)
+						return nil
+					}
+					sink.reasons[uint8(ack.ReasonCode)].Add(1)
+					if ack.ReasonCode != frame.ReasonSuccess {
+						sample := sink.failureN.Add(1)
+						if sample <= uint64(len(sink.failureSeqs)) {
+							sink.failureSeqs[sample-1].Store(ack.ClientSeq)
+						}
 						sink.failures.Add(1)
 						return nil
 					}
