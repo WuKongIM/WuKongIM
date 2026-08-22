@@ -20,17 +20,6 @@ set -euo pipefail
 
 chat_stage="${WK_CHAT_STAGE:-rehearsal}"
 case "$chat_stage" in
-  repair)
-    : "${GITHUB_RUN_ID:?required for repair handoff recovery}"
-    [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-    stage_service=wkbench-rehearsal.service
-    stage_report_dir=rehearsal
-    stage_runtime_name=rehearsal
-    stage_duration_seconds=7200
-    reserved_stage_duration_seconds=600
-    repair_max_seconds=600
-    stage_handoff_schema=wukongim.chat_lifecycle.repair_handoff/v1
-    ;;
   rehearsal)
     stage_service=wkbench-rehearsal.service
     stage_report_dir=rehearsal
@@ -135,7 +124,6 @@ dispatch_and_wait() {
   case "$workflow" in
     cloud-deployment-bundle.yml|cloud-lease-provision.yml) watch_timeout_seconds=2880 ;;
     cloud-deployment-activate.yml) watch_timeout_seconds=3780 ;;
-    chat-lifecycle-repair-handoff.yml) watch_timeout_seconds=900 ;;
     cloud-lease-release.yml) watch_timeout_seconds=2580 ;;
     *) return 1 ;;
   esac
@@ -191,9 +179,9 @@ download_run() {
   gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --dir "$destination"
 }
 
-rebuild_repair_bundle() {
+rebuild_stage_bundle() {
   local candidate_sha="$1" candidate_dir candidate_title
-  [[ "$chat_stage" == repair && "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
+  [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
   candidate_dir="$WK_CHAT_WORK_DIR/repair-bundle-$candidate_sha"
   candidate_title="Cloud Deployment Bundle $candidate_sha $WK_CHAT_REQUEST_ID"
   dispatch_and_wait cloud-deployment-bundle.yml "$candidate_title" \
@@ -206,41 +194,6 @@ rebuild_repair_bundle() {
   bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
   WK_CHAT_SOURCE_SHA="$candidate_sha"
   export WK_CHAT_SOURCE_SHA
-}
-
-publish_repair_checkpoint() {
-  local generation_dir="$1" checkpoint_title terminal_cut terminal_cut_bytes
-  [[ "$chat_stage" == repair && -s "$generation_dir/repair-decision.json" && -s "$generation_dir/repair-diagnosis.json" ]]
-  for worker in 1 2 3; do
-    [[ -s "$generation_dir/terminal-cut/status-${worker}.json" &&
-       -s "$generation_dir/terminal-cut/snapshot-${worker}.json" ]]
-  done
-  terminal_cut="$generation_dir/terminal-cut.json"
-  jq -n --arg schema 'wukongim.chat_lifecycle.repair_terminal_cut/v1' \
-    --argjson generation "$deployment_generation" \
-    --slurpfile status1 "$generation_dir/terminal-cut/status-1.json" \
-    --slurpfile snapshot1 "$generation_dir/terminal-cut/snapshot-1.json" \
-    --slurpfile status2 "$generation_dir/terminal-cut/status-2.json" \
-    --slurpfile snapshot2 "$generation_dir/terminal-cut/snapshot-2.json" \
-    --slurpfile status3 "$generation_dir/terminal-cut/status-3.json" \
-    --slurpfile snapshot3 "$generation_dir/terminal-cut/snapshot-3.json" '
-      {schema:$schema,generation:$generation,workers:[
-        {worker:1,status:$status1[0],snapshot:$snapshot1[0]},
-        {worker:2,status:$status2[0],snapshot:$snapshot2[0]},
-        {worker:3,status:$status3[0],snapshot:$snapshot3[0]}]}
-    ' >"$terminal_cut"
-  terminal_cut_bytes="$(stat -c '%s' "$terminal_cut" 2>/dev/null || stat -f '%z' "$terminal_cut")"
-  [[ "$terminal_cut_bytes" =~ ^[1-9][0-9]*$ && "$terminal_cut_bytes" -le 45000 ]]
-  checkpoint_title="Chat Lifecycle Repair Handoff $WK_CHAT_REQUEST_ID $GITHUB_RUN_ID"
-  dispatch_and_wait chat-lifecycle-repair-handoff.yml "$checkpoint_title" \
-    -f request_id="$WK_CHAT_REQUEST_ID" -f parent_run_id="$GITHUB_RUN_ID" \
-    -f artifact_kind=checkpoint -f generation="$deployment_generation" \
-    -f receipt_json="$(jq -c . "$attempt_dir/receipt.json")" \
-    -f selector_json="$(jq -c . "$active_selector")" \
-    -f decision_json="$(jq -c . "$generation_dir/repair-decision.json")" \
-    -f diagnosis_json="$(jq -c . "$generation_dir/repair-diagnosis.json")" \
-    -f terminal_cut_json="$(jq -c . "$terminal_cut")" \
-    -f publish_authorization=publish-chat-lifecycle-repair-handoff
 }
 
 release_current() {
@@ -302,7 +255,7 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 trap 'exit 130' INT TERM
 
-if [[ "$chat_stage" == rehearsal || "$chat_stage" == repair ]]; then
+if [[ "$chat_stage" == rehearsal ]]; then
   bundle_title="Cloud Deployment Bundle $WK_CHAT_SOURCE_SHA $WK_CHAT_REQUEST_ID"
   dispatch_and_wait cloud-deployment-bundle.yml "$bundle_title" \
     -f source_sha="$WK_CHAT_SOURCE_SHA" -f request_id="$WK_CHAT_REQUEST_ID"
@@ -440,10 +393,6 @@ run_deployment_action() {
   deployment_generation=$(( deployment_generation + 1 ))
   deployment_purpose=immutable
   deployment_plan_generation=1
-  if [[ "$chat_stage" == repair ]]; then
-    deployment_purpose=repair
-    deployment_plan_generation="$deployment_generation"
-  fi
   deployment_title="Cloud Deployment $lease_artifact $deployment_purpose generation $deployment_plan_generation"
   deployment_artifact_dir="$attempt_dir/deployment-${deployment_generation}-artifact"
   deployment_failed=false
@@ -577,8 +526,7 @@ for attempt in 1; do
     -f request_id="$WK_CHAT_REQUEST_ID" -f plan_json="$(cat "$attempt_dir/lease-plan.json")" \
     -f bootstrap_access_json="$(cat "$attempt_dir/bootstrap-access.json")" -f quote_only=false \
     -f admitted_quote_json="$(cat "$attempt_dir/preflight-quote.json")" \
-    -f paid_authorization=create-paid-cloud-lease \
-    -f repair_parent_run_id="$([[ "$chat_stage" == repair ]] && printf '%s' "$GITHUB_RUN_ID" || printf '0')"; then
+    -f paid_authorization=create-paid-cloud-lease; then
     acquire_failed=true
   fi
   acquire_run_id="$DISPATCH_RUN_ID"
@@ -631,34 +579,6 @@ for attempt in 1; do
   lease_plan_digest="$(jq -er .receipt.plan_digest "$attempt_dir/receipt.json")"
   lease_expires_at="$(jq -er .receipt.expires_at "$attempt_dir/receipt.json")"
 
-  if [[ "$chat_stage" == repair ]]; then
-    repair_handoff_title="Chat Lifecycle Repair Handoff $WK_CHAT_REQUEST_ID $GITHUB_RUN_ID"
-    if ! dispatch_and_wait chat-lifecycle-repair-handoff.yml "$repair_handoff_title" \
-      -f request_id="$WK_CHAT_REQUEST_ID" -f parent_run_id="$GITHUB_RUN_ID" \
-      -f artifact_kind=handoff -f generation=0 \
-      -f receipt_json="$(jq -c . "$attempt_dir/receipt.json")" \
-      -f selector_json="$(jq -c . "$active_selector")" \
-      -f publish_authorization=publish-chat-lifecycle-repair-handoff; then
-      release_failed_attempt "$attempt_dir/quote.json" \
-        'durable repair handoff publication failed; exact Lease was released'
-    fi
-    repair_handoff_run_id="$DISPATCH_RUN_ID"
-    repair_handoff_dir="$attempt_dir/repair-handoff-artifact"
-    download_run "$repair_handoff_run_id" "$repair_handoff_dir"
-    mapfile -t repair_handoffs < <(find "$repair_handoff_dir" -type f -name repair-handoff.json -print)
-    mapfile -t repair_handoff_selectors < <(find "$repair_handoff_dir" -type f -name release-selector.json -print)
-    if (( ${#repair_handoffs[@]} != 1 || ${#repair_handoff_selectors[@]} != 1 )) ||
-      ! jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg lease "$lease_id" \
-        --argjson parent_run_id "$GITHUB_RUN_ID" '
-        .schema == "wukongim.chat_lifecycle.repair_handoff/v1" and .request_id == $request and
-        .lease_id == $lease and .parent_run_id == $parent_run_id
-      ' "${repair_handoffs[0]:-/dev/null}" >/dev/null ||
-      ! cmp -s <(jq -S -c . "$active_selector") <(jq -S -c . "${repair_handoff_selectors[0]:-/dev/null}"); then
-      release_failed_attempt "$attempt_dir/quote.json" \
-        'durable repair handoff identity is invalid; exact Lease was released'
-    fi
-  fi
-
   lease_artifact="cloud-lease-provision-$WK_CHAT_REQUEST_ID"
   readiness_timeout="$(jq -er .readiness_timeout_seconds "$attempt_dir/run-plan.json")"
   lease_expires_epoch="$(date -u -d "$lease_expires_at" +%s)"
@@ -703,7 +623,7 @@ for attempt in 1; do
           if ! grep -Fqx "$candidate_sha" "$attempted_source_shas_file"; then
             printf '%s\n' "$candidate_sha" >>"$attempted_source_shas_file"
           fi
-          rebuild_repair_bundle "$candidate_sha"
+          rebuild_stage_bundle "$candidate_sha"
           rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
           continue
           ;;
@@ -797,110 +717,6 @@ for attempt in 1; do
           done < <(find "$attempt_dir" -type f -name encrypted-deployment-identity.json -print)
           cp "$attempt_dir/run-start.json" "$WK_CHAT_OUTPUT_DIR/run-start.json"
           cp "$active_selector" "$WK_CHAT_OUTPUT_DIR/release-selector.json"
-          if [[ "$chat_stage" == repair ]]; then
-            generation_dir="$WK_CHAT_OUTPUT_DIR/generation-$deployment_generation"
-            install -d -m 0700 "$generation_dir"
-            cp "$attempt_dir/run-start.json" "$generation_dir/run-start.json"
-            cp "$attempt_dir/deployment-plan.json" "$generation_dir/deployment-plan.json"
-            cp "${deployment_outcomes[0]}" "$generation_dir/deployment-outcome.json"
-            repair_state="$generation_dir/repair-state.json"
-            "$WK_CHAT_TOOL" repair-begin \
-              --request-id "$WK_CHAT_REQUEST_ID" --lease-id "$lease_id" \
-              --generation "$deployment_generation" --source-sha "$WK_CHAT_SOURCE_SHA" \
-              --bundle-digest "$bundle_digest" \
-              --started-at "$(jq -er .started_at "$attempt_dir/run-start.json")" \
-              --target-online 10000 --minimum-online-percent 95 \
-              --minimum-send-rate 1900 --maximum-ack-backlog 4000 \
-              --warmup-timeout 5m --stall-after 15s --qualify-after 2m \
-              >"$repair_state"
-            chmod 0600 "$repair_state"
-            repair_monitor_status=0
-            WK_CHAT_REPAIR_TOOL="$WK_CHAT_TOOL" \
-              WK_CHAT_REPAIR_STATE="$repair_state" \
-              WK_CHAT_REPAIR_OUTPUT_DIR="$generation_dir" \
-              WK_CHAT_REPAIR_SSH_CONFIG="$WK_CLOUD_SSH_CONFIG" \
-              WK_CHAT_REPAIR_REQUEST_ID="$WK_CHAT_REQUEST_ID" \
-              WK_CHAT_REPAIR_MAX_SECONDS="$repair_max_seconds" \
-              WK_CHAT_REPAIR_POLL_SECONDS=5 \
-              WK_CHAT_REPAIR_SERVICE="$stage_service" \
-              scripts/chat-lifecycle/repair-monitor.sh || repair_monitor_status=$?
-            case "$repair_monitor_status" in
-              0)
-                jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg lease "$lease_id" \
-                  --arg source "$WK_CHAT_SOURCE_SHA" --arg bundle "$bundle_digest" \
-                  --argjson generation "$deployment_generation" '
-                  .schema == "wukongim.chat_lifecycle.repair_step/v1" and
-                  .decision.action == "qualified" and .decision.generation == $generation and
-                  .state.candidate.request_id == $request and .state.candidate.lease_id == $lease and
-                  .state.candidate.generation == $generation and .state.candidate.source_sha == $source and
-                  .state.candidate.bundle_digest == $bundle
-                ' "$generation_dir/repair-decision.json" >/dev/null
-                jq -n --arg schema 'wukongim.chat_lifecycle.repair_qualified/v1' \
-                  --arg request_id "$WK_CHAT_REQUEST_ID" --arg lease_id "$lease_id" \
-                  --arg source_sha "$WK_CHAT_SOURCE_SHA" --arg bundle_digest "$bundle_digest" \
-                  --arg observed_at "$(jq -er .decision.observed_at "$generation_dir/repair-decision.json")" \
-                  --argjson generation "$deployment_generation" \
-                  --slurpfile decision "$generation_dir/repair-decision.json" \
-                  '{schema:$schema,request_id:$request_id,lease_id:$lease_id,generation:$generation,
-                    source_sha:$source_sha,bundle_digest:$bundle_digest,observed_at:$observed_at,
-                    decision:$decision[0].decision,official_evidence_eligible:false}' \
-                  >"$WK_CHAT_OUTPUT_DIR/repair-qualified.json"
-                if ! release_current; then
-                  echo 'repair qualified but exact zero-inventory release proof is unavailable' >&2
-                  exit 1
-                fi
-                rm -f "$deployment_key" "${deployment_key}.pub"
-                deployment_key=''
-                exit 0
-                ;;
-              10)
-                repair_reason="$(jq -er .decision.reason "$generation_dir/repair-decision.json")"
-                if ! publish_repair_checkpoint "$generation_dir"; then
-                  release_failed_attempt "$attempt_dir/quote.json" \
-                    'terminal repair checkpoint publication failed; exact Lease was released'
-                fi
-                if ! record_deployment_repair_pending "$repair_reason" repair_monitor "$repair_deadline"; then
-                  release_failed_attempt "$attempt_dir/quote.json" \
-                    'repair monitor failure state could not be published; exact Lease was released'
-                fi
-                repair_wait_status=0
-                candidate_sha="$(wait_for_deployment_repair_revision "$attempted_source_shas_file" "$repair_deadline_epoch")" || repair_wait_status=$?
-                case "$repair_wait_status" in
-                  0)
-                    printf '%s\n' "$candidate_sha" >>"$attempted_source_shas_file"
-                    rebuild_repair_bundle "$candidate_sha"
-                    rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
-                    continue
-                    ;;
-                  124)
-                    release_failed_attempt "$attempt_dir/quote.json" \
-                      'repair short-run revision deadline expired; exact Lease was released'
-                    ;;
-                  125)
-                    release_failed_attempt "$attempt_dir/quote.json" \
-                      'repair short-run reached the operational cost stop; exact Lease was released'
-                    ;;
-                  130)
-                    release_failed_attempt "$attempt_dir/quote.json" \
-                      'operator stopped the repair short-run after exact zero-inventory cleanup'
-                    ;;
-                  *)
-                    release_failed_attempt "$attempt_dir/quote.json" \
-                      'repair revision control became unavailable; exact Lease was released'
-                    ;;
-                esac
-                ;;
-              130)
-                operator_stop_requested=true
-                release_failed_attempt "$attempt_dir/quote.json" \
-                  'operator stopped the repair short-run after exact zero-inventory cleanup'
-                ;;
-              *)
-                release_failed_attempt "$attempt_dir/quote.json" \
-                  'repair monitor failed without a sealed diagnosis; exact Lease was released'
-                ;;
-            esac
-          fi
           jq -n --arg schema "$stage_handoff_schema" \
             --arg request_id "$WK_CHAT_REQUEST_ID" --argjson attempt "$attempt" \
             --arg source_sha "$WK_CHAT_SOURCE_SHA" --arg bundle_digest "$bundle_digest" \
@@ -973,7 +789,7 @@ for attempt in 1; do
         if ! grep -Fqx "$candidate_sha" "$attempted_source_shas_file"; then
           printf '%s\n' "$candidate_sha" >>"$attempted_source_shas_file"
         fi
-        rebuild_repair_bundle "$candidate_sha"
+          rebuild_stage_bundle "$candidate_sha"
         rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
         continue
         ;;

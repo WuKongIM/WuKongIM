@@ -17,7 +17,6 @@ authorization and the applicable budget.
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | Uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
 | `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
-| `chat-lifecycle-repair.yml` | `Agent Tool - Start Chat Lifecycle Repair` | Reuses one bounded paid repair Lease across immutable protected-main candidate generations, stops stalled short runs immediately, and releases the Lease after qualification or a bounded terminal failure; repair output is never formal evidence |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
 | `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
@@ -31,8 +30,6 @@ authorization and the applicable budget.
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
 | `cloud-lease-analyze.yml` | `Agent Tool - Analyze Chat Lifecycle Cloud Lease` | Authenticates one retained chat-lifecycle handoff, proves live Lease inventory, and brokers one bounded Analysis MCP session |
 | `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | Releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
-| `chat-lifecycle-repair-handoff.yml` | `Agent Tool - Publish Chat Lifecycle Repair Handoff` | Publishes the exact non-secret selector-bound repair Lease handoff immediately after acquisition |
-| `chat-lifecycle-repair-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Repairs` | Reconciles abandoned, stopped, or expiring repair handoffs to exact zero inventory every 15 minutes |
 | `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
 | `cloud-deployment-activate.yml` | `Agent Tool - Activate Cloud Deployment` | Installs and gates one exact offline bundle on an active four-host Lease |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
@@ -40,6 +37,18 @@ authorization and the applicable budget.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
+
+## Direct local chat-lifecycle repair
+
+The diagnostic repair loop is intentionally not a GitHub Action. Codex runs
+`.agents/skills/wukongim-chat-lifecycle` from the operator's local repository
+and uses `scripts/chat-lifecycle/direct-lab.sh` to build an exact committed
+candidate, Quote and acquire one temporary Alibaba Cloud Lease, deploy over
+SSH, stop stalled traffic, collect bounded evidence, and redeploy later
+candidate generations on the same hosts. Only the request-scoped `stop`
+command accepts cleanup, and only after it stores an exact selector-bound
+zero-inventory proof. The generic expired-Lease sweep remains an independent
+safety backstop; it is not the repair control plane.
 
 ## Review Agent
 
@@ -351,51 +360,6 @@ publication fails. Every immediate cleanup owner performs one complete
 provider-bounded Release pass; the finalizer retries on its next schedule, and
 the independent 15-minute Cloud Lease Sweep reconciles cleanup-pending or
 expired inventory even if an owning job is canceled.
-
-## Chat lifecycle repair short run
-
-`chat-lifecycle-repair.yml` is a separate paid Agent Tool for the development
-loop before a fresh official rehearsal. It requires the exact
-`paid_authorization=create-paid-cloud-lease` input and acquires at most one
-six-hour, CNY 300 repair Lease. The first candidate and every later candidate
-must be immutable bundle content from protected `main`; a later candidate is
-accepted only after a commit containing the exact
-`Chat-Lifecycle-Repair: <request_id>` trailer. Activation retains the original
-Lease provenance while binding every candidate source, bundle digest, and
-monotonic deployment generation.
-
-The repair worker reuses the same four hosts. Every generation starts the
-existing rehearsal process, but a separate ten-minute monitor watches exactly
-three fenced worker snapshots. After traffic becomes active, fifteen seconds
-without SEND progress, SENDACK progress, or at least 95 percent of the expected
-10,000 online sessions stops the process immediately and seals a low-cardinality
-diagnosis. Every adjacent active observation window must also sustain at least
-1,900 logical SEND/s with
-no more than 4,000 unacknowledged SENDs; worker rejection or receive-ACK failure
-is terminal. A healthy generation must sustain two minutes of those conditions.
-Generation two and later reset only the fixed WuKongIM, worker, report,
-Prometheus, and evidence data roots after all known units are quiesced; symbolic
-links and non-directories fail closed.
-
-A failed generation keeps the Lease only while the bounded cost, expiry, stop,
-and protected-main repair-revision gates remain valid. A qualified generation
-is marked `official_evidence_eligible=false`, then the repair Lease is released
-to selector-bound zero inventory. It never transitions into formal execution
-and never supplies rehearsal or formal evidence. The official lifecycle must
-start later on a fresh Lease through its existing paid authorization boundary.
-The paid Provision Artifact already carries the authenticated active Receipt,
-so procurement discovery and the finalizer can recover an Acquire even if the
-parent runner exits before the separate protected-main selector-bound handoff
-is published. Every terminal generation also publishes its bounded three-worker
-status/snapshot cut with the decision and diagnosis. The scheduled repair finalizer retains a live
-parent run; the Provision workflow authenticates and stores the exact parent
-run identity with the Acquire Receipt. It releases a terminal, stopped,
-unknown, abandoned, or near-expiry parent to
-exact zero inventory. New repair procurement rejects any handoff whose cleanup
-Artifact does not contain an authenticated zero proof for that exact selector.
-Candidate admission deadlines reserve the full remaining bundle, activation,
-readiness, monitor, and Release chain before the finalizer's two-hour expiry
-safety cutoff.
 
 `chat-lifecycle-stop.yml` is the only manual request-stop entrypoint. It first
 uploads an authenticated request-level stop marker, which makes formal

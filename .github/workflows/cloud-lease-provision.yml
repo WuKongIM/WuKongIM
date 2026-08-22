@@ -31,11 +31,6 @@ on:
         required: false
         default: ""
         type: string
-      repair_parent_run_id:
-        description: Exact active repair owner; required only for a paid repair Acquire
-        required: false
-        default: "0"
-        type: string
 
 permissions:
   contents: read
@@ -59,8 +54,6 @@ jobs:
       PLAN_JSON: ${{ inputs.plan_json }}
       BOOTSTRAP_ACCESS_JSON: ${{ inputs.bootstrap_access_json }}
       ADMITTED_QUOTE_JSON: ${{ inputs.admitted_quote_json }}
-      REPAIR_PARENT_RUN_ID: ${{ inputs.repair_parent_run_id }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -104,6 +97,11 @@ jobs:
             echo 'Plan repository and request_id must match this workflow dispatch.' >&2
             exit 1
           }
+          plan_stage="$(jq -er '.tags.stage // ""' "$RUNNER_TEMP/plan.json")"
+          [[ "$plan_stage" != repair ]] || {
+            echo 'Repair Lease Quote and Acquire are local Codex operations, not GitHub Actions.' >&2
+            exit 1
+          }
           if [[ "$QUOTE_ONLY" != true ]]; then
             printf '%s\n' "$ADMITTED_QUOTE_JSON" >"$RUNNER_TEMP/quote.json"
             chmod 0600 "$RUNNER_TEMP/quote.json"
@@ -116,26 +114,6 @@ jobs:
               echo 'Admitted Quote must be a matching usable Cloud Lease Quote.' >&2
               exit 1
             }
-          fi
-          plan_stage="$(jq -er '.tags.stage // ""' "$RUNNER_TEMP/plan.json")"
-          if [[ "$QUOTE_ONLY" == false && "$plan_stage" == repair ]]; then
-            [[ "$REPAIR_PARENT_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-            gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${REPAIR_PARENT_RUN_ID}" \
-              >"$RUNNER_TEMP/repair-parent-run.json"
-            jq -e --arg repository "$GITHUB_REPOSITORY" --arg request "$REQUEST_ID" '
-              .repository.full_name == $repository and .head_repository.full_name == $repository and
-              .head_branch == "main" and .event == "workflow_dispatch" and .status == "in_progress" and
-              .display_title == ("Chat Lifecycle Repair " + $request) and
-              (.path == ".github/workflows/chat-lifecycle-repair.yml" or
-               .path == ".github/workflows/chat-lifecycle-repair.yml@refs/heads/main")
-            ' "$RUNNER_TEMP/repair-parent-run.json" >/dev/null
-            jq -n --arg schema 'wukongim.chat_lifecycle.repair_acquire_owner/v1' \
-              --arg request_id "$REQUEST_ID" --argjson parent_run_id "$REPAIR_PARENT_RUN_ID" \
-              '{schema:$schema,request_id:$request_id,parent_run_id:$parent_run_id}' \
-              >"$RUNNER_TEMP/repair-owner.json"
-            chmod 0600 "$RUNNER_TEMP/repair-owner.json"
-          else
-            [[ "$REPAIR_PARENT_RUN_ID" == 0 ]]
           fi
       - name: Build trusted Cloud Lease tool
         shell: bash
@@ -175,6 +153,5 @@ jobs:
           path: |
             ${{ runner.temp }}/quote.json
             ${{ runner.temp }}/receipt.json
-            ${{ runner.temp }}/repair-owner.json
           if-no-files-found: warn
           retention-days: 7

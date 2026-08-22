@@ -15,6 +15,9 @@ stage_service="${WK_CHAT_REPAIR_SERVICE:-wkbench-rehearsal.service}"
 [[ -x "$WK_CHAT_REPAIR_TOOL" && -f "$WK_CHAT_REPAIR_STATE" && -f "$WK_CHAT_REPAIR_SSH_CONFIG" ]]
 [[ "$stage_service" =~ ^[A-Za-z0-9@._-]{1,128}\.service$ ]]
 [[ "$WK_CHAT_REPAIR_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
+if [[ -n "${WK_CHAT_REPAIR_OPERATOR_STOP_FILE:-}" ]]; then
+  [[ "$WK_CHAT_REPAIR_OPERATOR_STOP_FILE" == /* && ! -L "$WK_CHAT_REPAIR_OPERATOR_STOP_FILE" ]]
+fi
 
 install -d -m 0700 "$WK_CHAT_REPAIR_OUTPUT_DIR"
 work_dir="$(mktemp -d "$WK_CHAT_REPAIR_OUTPUT_DIR/.repair-monitor.XXXXXX")"
@@ -30,6 +33,14 @@ stop_stage() {
     "sudo systemctl stop '$stage_service' && ! sudo systemctl is-active --quiet '$stage_service'" >/dev/null 2>&1
 }
 trap 'stop_stage || true; exit 130' INT TERM
+
+operator_stop_requested() {
+  if [[ -n "${WK_CHAT_REPAIR_OPERATOR_STOP_FILE:-}" ]]; then
+    [[ -f "$WK_CHAT_REPAIR_OPERATOR_STOP_FILE" && ! -L "$WK_CHAT_REPAIR_OPERATOR_STOP_FILE" ]]
+    return
+  fi
+  scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REPAIR_REQUEST_ID" >/dev/null
+}
 
 remote_get() {
   local port="$1" path="$2" output="$3" temporary
@@ -100,7 +111,7 @@ deadline_epoch=$(( started_epoch + max_seconds ))
 while true; do
   observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   operator_stop_status=0
-  scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REPAIR_REQUEST_ID" >/dev/null || operator_stop_status=$?
+  operator_stop_requested || operator_stop_status=$?
   case "$operator_stop_status" in
     0)
       seal_abort operator_stop "$observed_at" || true

@@ -16,9 +16,6 @@ var workflowCatalog = map[string]string{
 	"chat-lifecycle-rehearsal-finalize.yml":    "Safety Automation - Finalize Chat Lifecycle Rehearsals",
 	"chat-lifecycle-formal.yml":                "Safety Automation - Start Fresh Formal Chat Lifecycle",
 	"chat-lifecycle-formal-finalize.yml":       "Safety Automation - Finalize Formal Chat Lifecycle Runs",
-	"chat-lifecycle-repair.yml":                "Agent Tool - Start Chat Lifecycle Repair",
-	"chat-lifecycle-repair-handoff.yml":        "Agent Tool - Publish Chat Lifecycle Repair Handoff",
-	"chat-lifecycle-repair-finalize.yml":       "Safety Automation - Finalize Chat Lifecycle Repairs",
 	"chat-lifecycle-stop.yml":                  "Agent Tool - Stop Chat Lifecycle Request",
 	"cloud-deployment-activate.yml":            "Agent Tool - Activate Cloud Deployment",
 	"cloud-deployment-bundle.yml":              "Agent Tool - Build Cloud Deployment Bundle",
@@ -39,6 +36,22 @@ var workflowCatalog = map[string]string{
 	"review-agent-run.yml":                     "Agent Tool - Review Pull Request",
 	"review-agent.yml":                         "Safety Automation - Review Agent Controller",
 	"three-node-chat-lifecycle-regression.yml": "Safety Automation - Three-Node Chat Lifecycle Regression",
+}
+
+func TestCloudLeaseProvisionRejectsGitHubOwnedRepairPlans(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "cloud-lease-provision.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{
+		`plan_stage="$(jq -er '.tags.stage // ""' "$RUNNER_TEMP/plan.json")"`,
+		`[[ "$plan_stage" != repair ]]`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("generic Provision workflow still permits GitHub-owned repair acquisition; missing %q", want)
+		}
+	}
 }
 
 var externalActionPattern = regexp.MustCompile(
