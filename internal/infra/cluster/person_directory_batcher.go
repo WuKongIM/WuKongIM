@@ -17,9 +17,10 @@ var errPersonDirectoryBatcherStopped = errors.New("cluster: person-directory bat
 const (
 	personDirectoryBatchMaxItems = 128
 	personDirectoryQueueMaxItems = 4096
-	// Eight items stays below the measured cold-directory latency knee while
-	// still amortizing one durable Slot proposal over a useful wave.
-	personDirectoryBatchTargetItems = 8
+	// Thirty-two items lets the 50ms window collect roughly one cloud-rehearsal
+	// ingress-node wave and halves Slot proposal amplification. Lower rates
+	// still seal on the collection deadline instead of waiting for this target.
+	personDirectoryBatchTargetItems = 32
 	personDirectoryBatchMaxActive   = 8
 	personDirectoryBatchCollectWait = 50 * time.Millisecond
 	personDirectoryBatchTimeout     = 4 * time.Second

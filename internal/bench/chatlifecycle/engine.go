@@ -3642,6 +3642,19 @@ func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, corr
 		if err != nil {
 			return TrafficIntent{}, false, err
 		}
+		// Alternating person traffic may use either channel endpoint. Prefer the
+		// deterministic sender, but consume the other eligible endpoint before
+		// reusing a sender already reserved by this coordinator grant. This keeps
+		// one-second grants from manufacturing same-session head-of-line bursts.
+		if requireUnreserved && !e.grantSenderAvailable(sender) && active.direction == DirectionAlternating {
+			alternate := active.edge.OwnerUID
+			if sender == alternate {
+				alternate = active.edge.PeerUID
+			}
+			if e.sessions.sendEligibleAt(alternate, now) && e.grantSenderAvailable(alternate) {
+				sender = alternate
+			}
+		}
 		if !e.sessions.sendEligibleAt(sender, now) {
 			continue
 		}

@@ -16,8 +16,8 @@ func TestPersonDirectoryBatcherUsesBoundedCollectionWindowAndBatch(t *testing.T)
 	if batcher.collectWait != 50*time.Millisecond {
 		t.Fatalf("collect wait = %v, want 50ms", batcher.collectWait)
 	}
-	if batcher.targetItems != 8 || personDirectoryBatchMaxItems != 128 {
-		t.Fatalf("target/max batch items = %d/%d, want 8/128", batcher.targetItems, personDirectoryBatchMaxItems)
+	if batcher.targetItems != 32 || personDirectoryBatchMaxItems != 128 {
+		t.Fatalf("target/max batch items = %d/%d, want 32/128", batcher.targetItems, personDirectoryBatchMaxItems)
 	}
 	if cap(batcher.active) != 8 {
 		t.Fatalf("active batch capacity = %d, want 8", cap(batcher.active))

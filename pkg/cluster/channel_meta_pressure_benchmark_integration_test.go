@@ -92,6 +92,40 @@ func BenchmarkThreeNodePersonDirectoryBatchMatrix1000QPS(b *testing.B) {
 	}
 }
 
+// BenchmarkThreeNodePersonDirectoryBurst1800QPS reproduces the cold-person
+// directory arrival rate observed in the failed 2000 QPS cloud rehearsal. It
+// retains the failed production wave as a baseline and compares bounded batch
+// and concurrency candidates so Slot proposal amplification stays visible.
+func BenchmarkThreeNodePersonDirectoryBurst1800QPS(b *testing.B) {
+	observer := newChannelMetaPressureObserver()
+	nodes := newChannelMetaPressureCluster(b, observer)
+	startNodes(b, nodes...)
+	b.Cleanup(func() { stopNodes(b, nodes...) })
+	waitClusterReady(b, nodes...)
+	waitChannelMetaPlacementReady(b, nodes)
+	waitChannelMetaSlotsReady(b, nodes, 12)
+
+	for _, tc := range []struct {
+		batchItems int
+		maxActive  int
+	}{
+		{batchItems: 8, maxActive: 8},
+		{batchItems: 16, maxActive: 8},
+		{batchItems: 32, maxActive: 8},
+		{batchItems: 32, maxActive: 12},
+		{batchItems: 32, maxActive: 16},
+		{batchItems: 64, maxActive: 8},
+		{batchItems: 32, maxActive: 4},
+	} {
+		name := fmt.Sprintf("batch-%03d-active-%02d", tc.batchItems, tc.maxActive)
+		b.Run(name, func(b *testing.B) {
+			observer.reset()
+			benchmarkThreeNodePersonDirectoryBatchAtRate(b, nodes, name, tc.batchItems, tc.maxActive, 1800)
+			observer.report(b)
+		})
+	}
+}
+
 // BenchmarkThreeNodeHotAppendWithPersonDirectoryPressure1000QPS measures the
 // reviewed hot append rate while the same cluster concurrently establishes
 // person directories at the observed 720 items/second cold-wave rate.
@@ -133,7 +167,11 @@ type personDirectoryPressureBatch struct {
 }
 
 func benchmarkThreeNodePersonDirectoryBatch1000QPS(b *testing.B, nodes []*Node, namespace string, batchItems, maxActive int) {
-	if batchItems <= 0 || maxActive <= 0 || len(nodes) == 0 {
+	benchmarkThreeNodePersonDirectoryBatchAtRate(b, nodes, namespace, batchItems, maxActive, personDirectoryPressureRate)
+}
+
+func benchmarkThreeNodePersonDirectoryBatchAtRate(b *testing.B, nodes []*Node, namespace string, batchItems, maxActive, rate int) {
+	if batchItems <= 0 || maxActive <= 0 || rate <= 0 || len(nodes) == 0 {
 		b.Fatal("person-directory benchmark requires nodes and positive batch/concurrency limits")
 	}
 	streams := make([][]int, len(nodes))
@@ -150,7 +188,7 @@ func benchmarkThreeNodePersonDirectoryBatch1000QPS(b *testing.B, nodes []*Node, 
 			batches = append(batches, personDirectoryPressureBatch{
 				nodeIndex: nodeIndex,
 				indices:   indices,
-				sealAt:    time.Duration(last) * time.Second / personDirectoryPressureRate,
+				sealAt:    time.Duration(last) * time.Second / time.Duration(rate),
 			})
 		}
 	}
@@ -167,6 +205,7 @@ func benchmarkThreeNodePersonDirectoryBatch1000QPS(b *testing.B, nodes []*Node, 
 	var workers sync.WaitGroup
 	var firstErr error
 	var errMu sync.Mutex
+	var benchmarkStarted time.Time
 	workers.Add(24)
 	for range 24 {
 		go func() {
@@ -178,10 +217,10 @@ func benchmarkThreeNodePersonDirectoryBatch1000QPS(b *testing.B, nodes []*Node, 
 				physical, err := admitPersonDirectoryPressureBatch(nodes[batch.nodeIndex], namespace, batch.indices)
 				<-semaphore
 				execution[batchIndex] = physical
-				admissionLatency[batchIndex] = physical
+				admissionLatency[batchIndex] = time.Since(benchmarkStarted.Add(batch.sealAt))
 				last := batch.indices[len(batch.indices)-1]
 				for _, index := range batch.indices {
-					latencies[index] = physical + time.Duration(last-index)*time.Second/personDirectoryPressureRate
+					latencies[index] = admissionLatency[batchIndex] + time.Duration(last-index)*time.Second/time.Duration(rate)
 				}
 				if err != nil {
 					errMu.Lock()
@@ -196,9 +235,9 @@ func benchmarkThreeNodePersonDirectoryBatch1000QPS(b *testing.B, nodes []*Node, 
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	started := time.Now()
+	benchmarkStarted = time.Now()
 	for batchIndex, batch := range batches {
-		waitChannelMetaPressureUntil(started.Add(batch.sealAt))
+		waitChannelMetaPressureUntil(benchmarkStarted.Add(batch.sealAt))
 		jobs <- batchIndex
 	}
 	close(jobs)
@@ -535,6 +574,10 @@ func (o *channelMetaPressureObserver) report(b *testing.B) {
 		}
 		sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
 		b.ReportMetric(float64(values[(len(values)-1)*99/100])/float64(time.Millisecond), stage+"-p99-ms")
+		if stage == "meta_create_slot_propose_submit" {
+			b.ReportMetric(float64(len(values)), stage+"-count")
+			b.ReportMetric(float64(b.N)/float64(len(values)), "items-per-slot-proposal")
+		}
 	}
 	if len(batchSizes) == 0 {
 		return

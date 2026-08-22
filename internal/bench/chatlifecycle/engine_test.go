@@ -5931,48 +5931,85 @@ func TestEngineGroupGrantReroutesWhenSelectedSenderGoesOfflineBeforeLease(t *tes
 	}
 }
 
-func TestEngineLocalThreeNodeThousandQPSGrantsSurviveFirstSessionChurn(t *testing.T) {
-	fixture := newEngineTestFixture(t, engineTestLimits{
-		WorkerID: 2, WorkerCount: 3, OnlineUsers: 2_500,
-		BootstrapLoginsPerSecond: 200, NewUsersPerDay: 250_000, SendRatePerSecond: 1_000,
-		HotSet: HotSetConfig{PersonChannels: 2_000, GroupChannels: 500},
-		Groups: GroupCatalogConfig{
-			Small: 400, Medium: 75, Large: 24, VeryLarge: 1,
-			VeryLargeMembers: 100_000, FixedMembership: true, VeryLargeSendEvery: time.Minute,
-		},
-		WorkCapacity: 32_768, InflightCapacity: 4_096, MaxWorkPerAdvance: 32_768,
-		StartingCapacity: 256,
-	})
-	fixture.factory.autoAck = true
-	if err := fixture.engine.Start(context.Background()); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer fixture.engine.Stop()
-	now := fixture.clock.Now()
-	now, _ = fixture.bootstrapScheduledLogins(t, now)
-	fixture.engine.finishBootstrapIfOnline(now)
-	waitForEngineCompletions(t, fixture.engine, "bootstrap")
-
-	allocator, err := NewRateAllocator(1_000, 2_000, []int64{1, 1, 1})
-	if err != nil {
-		t.Fatalf("NewRateAllocator: %v", err)
-	}
-	for second := 0; second < 310; second++ {
-		if second > 0 {
-			now = now.Add(time.Second)
-			fixture.clock.Set(now)
-			if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
-				t.Fatalf("Step(%d): %v", second, err)
+func TestEngineLocalThreeNodeTwoThousandQPSFirstGrantUsesDistinctSenders(t *testing.T) {
+	const workerCount = uint64(3)
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		workerID := workerID
+		t.Run(fmt.Sprintf("worker-%d", workerID), func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{
+				WorkerID: workerID, WorkerCount: workerCount, OnlineUsers: 2_500,
+				BootstrapLoginsPerSecond: 200, NewUsersPerDay: 250_000, SendRatePerSecond: 2_000,
+				HotSet: HotSetConfig{PersonChannels: 2_000, GroupChannels: 500},
+				Groups: GroupCatalogConfig{
+					Small: 400, Medium: 75, Large: 24, VeryLarge: 1,
+					VeryLargeMembers: 100_000, FixedMembership: true, VeryLargeSendEvery: time.Minute,
+				},
+				WorkCapacity: 32_768, InflightCapacity: 4_096, MaxWorkPerAdvance: 32_768,
+				StartingCapacity: 256,
+			})
+			fixture.factory.autoAck = true
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
 			}
-		}
-		rate, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
-		if err != nil {
-			t.Fatalf("rate Tick(%d): %v", second, err)
-		}
-		grant, err := fixture.engine.ApplyGrant(context.Background(), now, rate.Released[2])
-		if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[2] {
-			t.Fatalf("grant second %d release %d = %+v, %v", second, rate.Released[2], grant, err)
-		}
+			defer fixture.engine.Stop()
+			now := fixture.clock.Now()
+			now, _ = fixture.bootstrapScheduledLogins(t, now)
+			fixture.engine.finishBootstrapIfOnline(now)
+			waitForEngineCompletions(t, fixture.engine, "bootstrap")
+			type activeSenderCapacity struct {
+				channels   int
+				candidates int
+			}
+			capacityResult := make(chan activeSenderCapacity, 1)
+			if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+				candidates := make(map[string]struct{}, fixture.engine.onlineTarget)
+				for _, active := range fixture.engine.activeChannels {
+					candidates[active.edge.OwnerUID] = struct{}{}
+					if active.direction == DirectionAlternating {
+						candidates[active.edge.PeerUID] = struct{}{}
+					}
+				}
+				capacityResult <- activeSenderCapacity{channels: len(fixture.engine.activeChannels), candidates: len(candidates)}
+			}}); err != nil {
+				t.Fatalf("inspect active sender capacity: %v", err)
+			}
+			activeCapacity := <-capacityResult
+
+			allocator, err := NewRateAllocator(2_000, 4_000, []int64{1, 1, 1})
+			if err != nil {
+				t.Fatalf("NewRateAllocator: %v", err)
+			}
+			rate, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+			if err != nil {
+				t.Fatalf("rate Tick: %v", err)
+			}
+			before := len(fixture.factory.sentRoutes())
+			grant, err := fixture.engine.ApplyGrant(context.Background(), now, rate.Released[workerID])
+			if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[workerID] {
+				t.Fatalf("ApplyGrant release %d = %+v, %v", rate.Released[workerID], grant, err)
+			}
+			routes := fixture.factory.sentRoutes()[before:]
+			senders := make(map[string]struct{}, len(routes))
+			personSenders := make(map[string]struct{}, len(routes))
+			groupSenders := make(map[string]struct{}, len(routes))
+			personRoutes := 0
+			groupRoutes := 0
+			for _, route := range routes {
+				senders[route.uid] = struct{}{}
+				if route.packet.ChannelType == uint8(frame.ChannelTypePerson) {
+					personRoutes++
+					personSenders[route.uid] = struct{}{}
+				} else {
+					groupRoutes++
+					groupSenders[route.uid] = struct{}{}
+				}
+			}
+			if len(routes) != int(rate.Released[workerID]) || len(senders) != len(routes) {
+				t.Fatalf("first grant routes = %d sends across %d senders (person %d/%d, group %d/%d, active channels/candidate senders %d/%d), want %d distinct senders",
+					len(routes), len(senders), len(personSenders), personRoutes, len(groupSenders), groupRoutes,
+					activeCapacity.channels, activeCapacity.candidates, rate.Released[workerID])
+			}
+		})
 	}
 }
 

@@ -114,6 +114,111 @@ func TestSendBatchAnnotatesSubmitterTimeoutWithConsumedDeadlineBudget(t *testing
 	}
 }
 
+func TestSendBatchBindsItemDeadlineToPersonDirectoryAdmission(t *testing.T) {
+	t.Parallel()
+
+	deadline := time.Now().Add(time.Hour).Round(0)
+	directories := &recordingPersonDirectoryEnsurer{}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{Reason: ReasonSuccess}}}}
+	app := New(Options{PersonDirectory: directories, Submitter: submitter})
+
+	results := app.SendBatch([]SendBatchItem{{
+		Context: context.Background(), Deadline: deadline,
+		Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson},
+	}})
+
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want success", results)
+	}
+	if len(directories.admissions) != 1 {
+		t.Fatalf("directory admissions = %d, want 1", len(directories.admissions))
+	}
+	got, ok := directories.admissions[0].Context.Deadline()
+	if !ok || !got.Equal(deadline) {
+		t.Fatalf("directory context deadline = %v/%v, want %v", got, ok, deadline)
+	}
+}
+
+func TestSendBatchDoesNotExtendEarlierRequestDeadline(t *testing.T) {
+	t.Parallel()
+
+	requestDeadline := time.Now().Add(time.Hour).Round(0)
+	requestContext, cancel := context.WithDeadline(context.Background(), requestDeadline)
+	defer cancel()
+	directories := &recordingPersonDirectoryEnsurer{}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{Reason: ReasonSuccess}}}}
+	app := New(Options{PersonDirectory: directories, Submitter: submitter})
+
+	results := app.SendBatch([]SendBatchItem{{
+		Context: requestContext, Deadline: requestDeadline.Add(time.Hour),
+		Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson},
+	}})
+
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want success", results)
+	}
+	if len(directories.admissions) != 1 || directories.admissions[0].Context != requestContext {
+		t.Fatalf("directory admission context was replaced despite its earlier deadline")
+	}
+}
+
+func TestSendBatchExpiredItemDeadlineStopsBeforeAppend(t *testing.T) {
+	t.Parallel()
+
+	directories := contextResultPersonDirectoryEnsurer{}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{Reason: ReasonSuccess}}}}
+	app := New(Options{PersonDirectory: directories, Submitter: submitter})
+
+	results := app.SendBatch([]SendBatchItem{{
+		Context: context.Background(), Deadline: time.Now().Add(-time.Second),
+		Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson},
+	}})
+
+	if len(results) != 1 || !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("SendBatch() = %#v, want deadline exceeded", results)
+	}
+	if len(submitter.batchItems) != 0 {
+		t.Fatalf("submitter calls = %d, want none after expired pre-append", len(submitter.batchItems))
+	}
+}
+
+func TestSendBatchPermissionBatchesPreserveMixedItemDeadlines(t *testing.T) {
+	t.Parallel()
+
+	base := newFakePermissionStore()
+	const channelID = "g-shared"
+	base.channels[permissionKey(channelID, int64(channelTypeGroup))] = metadb.Channel{
+		ChannelID: channelID, ChannelType: int64(channelTypeGroup),
+	}
+	permissions := &deadlinePermissionBatchStore{recordingPermissionBatchStore: &recordingPermissionBatchStore{base: base}}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{Reason: ReasonSuccess}}}}
+	app := New(Options{
+		Submitter: submitter, PermissionStore: permissions, PermissionBatchStore: permissions,
+		SystemUIDs: fakeSystemUIDChecker{"system": true},
+	})
+
+	results := app.SendBatch([]SendBatchItem{
+		{
+			Context: context.Background(), Deadline: time.Now().Add(-time.Second),
+			Command: SendCommand{FromUID: "system", ChannelID: channelID, ChannelType: channelTypeGroup},
+		},
+		{
+			Context: context.Background(), Deadline: time.Now().Add(time.Hour),
+			Command: SendCommand{FromUID: "system", ChannelID: channelID, ChannelType: channelTypeGroup},
+		},
+	})
+
+	if len(results) != 2 || !errors.Is(results[0].Err, context.DeadlineExceeded) || results[1].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want expired first item and successful second item", results)
+	}
+	if permissions.batchCalls.Load() != 2 {
+		t.Fatalf("permission batch calls = %d, want one per distinct deadline", permissions.batchCalls.Load())
+	}
+	if len(submitter.batchItems) != 1 || len(submitter.batchItems[0]) != 1 || submitter.batchItems[0][0].Command.ChannelID != channelID {
+		t.Fatalf("submitted items = %#v, want only the live-deadline command", submitter.batchItems)
+	}
+}
+
 func TestSendBatchBoundsConcurrentPermissionChecksAndPreservesOrder(t *testing.T) {
 	const itemCount = sendBatchPermissionWorkers * 2
 	store := &blockingBatchPermissionStore{
@@ -1490,6 +1595,20 @@ type recordingPersonDirectoryEnsurer struct {
 
 type delayedPersonDirectoryEnsurer struct{ delay time.Duration }
 
+type contextResultPersonDirectoryEnsurer struct{}
+
+func (contextResultPersonDirectoryEnsurer) AdmitPersonChannelDirectory(ctx context.Context, _ string, _ int64) error {
+	return ctx.Err()
+}
+
+func (contextResultPersonDirectoryEnsurer) AdmitPersonChannelDirectories(admissions []PersonDirectoryAdmission) []error {
+	results := make([]error, len(admissions))
+	for i := range admissions {
+		results[i] = admissions[i].Context.Err()
+	}
+	return results
+}
+
 func (e delayedPersonDirectoryEnsurer) AdmitPersonChannelDirectory(ctx context.Context, _ string, _ int64) error {
 	timer := time.NewTimer(e.delay)
 	defer timer.Stop()
@@ -1825,6 +1944,22 @@ type recordingPermissionBatchStore struct {
 	base       *fakePermissionStore
 	batchCalls atomic.Int64
 	reads      []PermissionRead
+}
+
+type deadlinePermissionBatchStore struct {
+	*recordingPermissionBatchStore
+}
+
+func (s *deadlinePermissionBatchStore) ReadPermissionsBatch(ctx context.Context, reads []PermissionRead) []PermissionReadResult {
+	if err := ctx.Err(); err != nil {
+		s.batchCalls.Add(1)
+		results := make([]PermissionReadResult, len(reads))
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	return s.recordingPermissionBatchStore.ReadPermissionsBatch(ctx, reads)
 }
 
 func (s *recordingPermissionBatchStore) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {

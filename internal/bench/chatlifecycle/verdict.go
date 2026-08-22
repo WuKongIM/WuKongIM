@@ -263,6 +263,9 @@ type VerdictEvaluator struct {
 	cleanupSize         int
 	cleanupCount        uint64
 	latencySeen         bool
+	// latencyBoundarySet records that the first cumulative latency cut after
+	// warmup was retained as the measured-window baseline rather than evidence.
+	latencyBoundarySet  bool
 	previousLatency     LatencyCounters
 	latency             [3]verdictLatencyState
 	latencyWarnings     LatencyWarningCounts
@@ -401,7 +404,14 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 			}
 			v.latencySeen = true
 			v.previousLatency = current
-			if hadBaseline && observation.At.After(v.start.Add(v.thresholds.Timeline.Warmup)) {
+			warmupEnd := v.start.Add(v.thresholds.Timeline.Warmup)
+			afterWarmup := observation.At.After(warmupEnd)
+			if !observation.At.Before(warmupEnd) && !v.latencyBoundarySet {
+				// Cumulative worker histograms cannot split the cadence that crosses
+				// warmup. Keep its first post-boundary cut only as the baseline so
+				// pre-warmup latency cannot enter measured evidence.
+				v.latencyBoundarySet = true
+			} else if hadBaseline && afterWarmup {
 				operations := [...]struct {
 					operation LatencyOperation
 					counters  LatencyThresholdCounters

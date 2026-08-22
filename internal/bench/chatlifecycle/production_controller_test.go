@@ -479,6 +479,76 @@ func TestProductionEvidenceControllerWritesNonTerminalQualificationAndKeepsRunni
 	}
 }
 
+func TestProductionEvidenceControllerDoesNotErasePostWarmupLatencyAtQualification(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-latency-boundary"
+	start := time.Unix(1_960_110_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-latency-boundary", Generation: 5}
+	output := t.TempDir()
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: output, Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-latency-boundary-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+
+	baseline := productionControllerWorkerSnapshots(cfg, fence, 1, cfg.Thresholds.Timeline.Warmup-time.Second, WorkerPhaseRunning)
+	for index := range baseline {
+		recordWorkerLatency(&baseline[index].HotSendackLatency, 100*time.Millisecond)
+	}
+	if decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic,
+		At: start.Add(cfg.Thresholds.Timeline.Warmup - time.Second), Snapshots: baseline,
+	}); observeErr != nil || decision != "" {
+		t.Fatalf("pre-qualification decision/error = %q/%v", decision, observeErr)
+	}
+
+	boundary := productionControllerWorkerSnapshots(cfg, fence, 2, cfg.Thresholds.Timeline.Warmup+time.Second, WorkerPhaseRunning)
+	for index := range boundary {
+		recordWorkerLatency(&boundary[index].HotSendackLatency, 100*time.Millisecond)
+		recordWorkerLatency(&boundary[index].HotSendackLatency, 500*time.Millisecond)
+	}
+	if decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic,
+		At: start.Add(cfg.Thresholds.Timeline.Warmup + time.Second), Snapshots: boundary,
+	}); observeErr != nil || decision != "" {
+		t.Fatalf("measurement-boundary decision/error = %q/%v", decision, observeErr)
+	}
+	if warning := controller.evaluator.Snapshot().LatencyWarnings.Hot; warning != 0 {
+		t.Fatalf("warmup-straddling latency warnings = %d, want 0", warning)
+	}
+
+	qualification := productionControllerWorkerSnapshots(cfg, fence, 3, cfg.Thresholds.Timeline.Checkpoint, WorkerPhaseRunning)
+	for index := range qualification {
+		recordWorkerLatency(&qualification[index].HotSendackLatency, 100*time.Millisecond)
+		recordWorkerLatency(&qualification[index].HotSendackLatency, 500*time.Millisecond)
+		recordWorkerLatency(&qualification[index].HotSendackLatency, 500*time.Millisecond)
+	}
+	if decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutQualification,
+		At: start.Add(cfg.Thresholds.Timeline.Checkpoint), Snapshots: qualification,
+	}); observeErr != nil || decision != "" {
+		t.Fatalf("qualification decision/error = %q/%v", decision, observeErr)
+	}
+	report, err := ReadReport(filepath.Join(output, "qualification.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Verdict.LatencyWarnings.Hot != 1 {
+		t.Fatalf("post-warmup latency warnings at qualification = %d, want 1", report.Verdict.LatencyWarnings.Hot)
+	}
+}
+
 func TestProductionEvidenceControllerClassifiesQualificationMetaDeficitAsProductFailure(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "production-controller-qualification-meta-product"
