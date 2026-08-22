@@ -51,9 +51,9 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"-f quote_only=false",
 		"  while true; do\n    run_deployment_action",
 		"systemctl start --no-block '$stage_service'",
-		"stage_start_grace_deadline=$(( $(date -u +%s) + 15 ))",
 		"run-start.json",
 		"keep_active=true",
+		"classify-stage-service-state.sh",
 	}
 	previous := -1
 	for _, fragment := range ordered {
@@ -81,7 +81,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"capture-stage-journal-cursor.sh",
 		"pre-clock journal cursor unavailable; exact Lease was released",
 		"read_pre_clock_terminal_code",
-		`[[ "$state" == inactive && "$(date -u +%s)" -ge "$stage_start_grace_deadline" ]]`,
+		`[[ "$state" == terminal ]]`,
 		"--after-cursor='$journal_cursor'",
 		"classify-pre-clock-summary.sh",
 		"stage terminated before run-start with coordinator_code=",
@@ -202,6 +202,38 @@ func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
 				t.Fatalf("classification unexpectedly succeeded: %q", output)
 			}
 		})
+	}
+}
+
+func TestChatLifecycleStageServiceStateKeepsQueuedInactiveStartAlive(t *testing.T) {
+	root := repoRoot(t)
+	classifier := filepath.Join(root, "scripts", "chat-lifecycle", "classify-stage-service-state.sh")
+	command := exec.Command("bash", classifier)
+	command.Stdin = strings.NewReader("ActiveState=inactive\nJob=8841\n")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("classify queued inactive stage: %v\n%s", err, output)
+	}
+	if string(output) != "pending\n" {
+		t.Fatalf("classification = %q, want pending", output)
+	}
+
+	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
+	if !strings.Contains(orchestrator, "classify-stage-service-state.sh") {
+		t.Fatal("stage orchestrator does not use the queued-start classifier")
+	}
+}
+
+func TestChatLifecycleStageServiceStateRejectsTerminalInactiveUnit(t *testing.T) {
+	classifier := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "classify-stage-service-state.sh")
+	command := exec.Command("bash", classifier)
+	command.Stdin = strings.NewReader("ActiveState=inactive\nJob=0\n")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("classify terminal inactive stage: %v\n%s", err, output)
+	}
+	if string(output) != "terminal\n" {
+		t.Fatalf("classification = %q, want terminal", output)
 	}
 }
 

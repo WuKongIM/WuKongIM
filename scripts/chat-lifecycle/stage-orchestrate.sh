@@ -752,11 +752,6 @@ for attempt in 1; do
       stage_readiness_failure_code='stage_readiness_timeout'
       deployment_failed=false
     fi
-    # systemctl --no-block may return before a Type=simple service has left
-    # inactive. Give that startup handoff one bounded grace period; a real
-    # failed state remains terminal immediately, and an inactive unit after
-    # the grace still fails closed.
-    stage_start_grace_deadline=$(( $(date -u +%s) + 15 ))
     readiness_deadline=$(( $(date -u +%s) + readiness_timeout ))
     while [[ "$deployment_failed" != true ]]; do
       stop_status=0
@@ -940,10 +935,13 @@ for attempt in 1; do
           exit 0
         fi
       fi
-      state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-        "sudo systemctl is-active '$stage_service' || true" 2>/dev/null || printf unreachable)"
-      if [[ "$state" == failed ]] ||
-        [[ "$state" == inactive && "$(date -u +%s)" -ge "$stage_start_grace_deadline" ]]; then
+      state=unreachable
+      if stage_service_snapshot="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        "sudo systemctl show '$stage_service' --property=ActiveState --property=Job --no-pager" 2>/dev/null)"; then
+        state="$(printf '%s\n' "$stage_service_snapshot" | \
+          scripts/chat-lifecycle/classify-stage-service-state.sh 2>/dev/null || printf unreachable)"
+      fi
+      if [[ "$state" == terminal ]]; then
         stage_terminal_code="$(read_pre_clock_terminal_code "$stage_journal_cursor")" || true
         deployment_failed=true
         break
