@@ -90,6 +90,35 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 	}
 }
 
+func TestCloudDeploymentActivationBindsRepairGenerationWithoutChangingLeaseIdentity(t *testing.T) {
+	path := filepath.Join(repoRoot(t), ".github", "workflows", "cloud-deployment-activate.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, fragment := range []string{
+		"deployment_purpose:",
+		"deployment_generation:",
+		"DEPLOYMENT_PURPOSE: ${{ inputs.deployment_purpose }}",
+		"DEPLOYMENT_GENERATION: ${{ inputs.deployment_generation }}",
+		`[[ "$DEPLOYMENT_PURPOSE" == "immutable" || "$DEPLOYMENT_PURPOSE" == "repair" ]]`,
+		`[[ "$DEPLOYMENT_GENERATION" =~ ^[1-9][0-9]*$ ]]`,
+		`--purpose "$DEPLOYMENT_PURPOSE"`,
+		`--generation "$DEPLOYMENT_GENERATION"`,
+		`install -m 0600 "$lease_receipt" lease-receipt.json`,
+		`--lease-receipt lease-receipt.json`,
+		`lease_source_sha="$(jq -er .lease_source_sha deployment-plan.json)"`,
+		`--source-sha "$lease_source_sha"`,
+		`wukongim.cloud_deployment.plan/v2`,
+		`wukongim.cloud_deployment.receipt/v2`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("repair activation contract missing %q", fragment)
+		}
+	}
+}
+
 func TestCloudDeploymentUpstreamProvenanceUsesGitHubCLITransport(t *testing.T) {
 	path := filepath.Join(repoRoot(t), ".github", "workflows", "cloud-deployment-activate.yml")
 	content, err := os.ReadFile(path)
@@ -188,6 +217,38 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("activation script missing %q", fragment)
 		}
+	}
+}
+
+func TestCloudDeploymentRepairGenerationResetsOnlyFixedDataRootsAfterQuiesce(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "activate-hosts.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, fragment := range []string{
+		`deployment_purpose="$(jq -er '.purpose' "$WK_CLOUD_DEPLOYMENT_PLAN")"`,
+		`deployment_generation="$(jq -er '.generation' "$WK_CLOUD_DEPLOYMENT_PLAN")"`,
+		`[[ "$deployment_purpose" == repair && "$deployment_generation" -gt 1 ]]`,
+		`/var/lib/wukongim-cloud/wukongim`,
+		`/var/lib/wukongim-cloud/workers`,
+		`/var/lib/wukongim-cloud/reports`,
+		`/var/lib/wukongim-cloud/prometheus`,
+		`/var/lib/wukongim-cloud/evidence`,
+		`test ! -L "$root"`,
+		`find -P "$root" -xdev -mindepth 1 -delete`,
+		`test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("repair generation reset missing %q", fragment)
+		}
+	}
+	if strings.Index(text, "${role}-quiesce") > strings.Index(text, "${role}-repair-reset") {
+		t.Fatal("service repair reset must run only after the service units are quiesced")
+	}
+	if strings.Index(text, "load-quiesce") > strings.Index(text, "load-repair-reset") {
+		t.Fatal("load repair reset must run only after the load units are quiesced")
 	}
 }
 

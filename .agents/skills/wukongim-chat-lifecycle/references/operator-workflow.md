@@ -19,8 +19,8 @@ Retain this diagnostic key across rehearsal and formal because the formal transi
 
 Before opening paid authority:
 
-1. Confirm `chat-lifecycle-rehearsal.yml`, both finalizers, `chat-lifecycle-formal.yml`, `chat-lifecycle-stop.yml`, generic Cloud Lease workflows, and Deployment workflows exist on `origin/main`.
-2. Query recent runs and bounded chat-lifecycle Artifacts. Reject start if any rehearsal or formal handoff lacks an authenticated cleanup Artifact with an exact zero-inventory receipt.
+1. Confirm `chat-lifecycle-rehearsal.yml`, `chat-lifecycle-repair.yml`, both finalizers, `chat-lifecycle-formal.yml`, `chat-lifecycle-stop.yml`, generic Cloud Lease workflows, and Deployment workflows exist on `origin/main`.
+2. Query recent runs and bounded chat-lifecycle Artifacts. Reject start if any repair, rehearsal, or formal handoff lacks an authenticated cleanup Artifact with an exact zero-inventory receipt.
 3. Run the repository identity plan. If OIDC or the four unattended Environments need setup, run `scripts/cloud-lease/setup-identity.sh <owner/repo>` only under the explicit start authority. This setup creates no Lease. If both bootstrap AccessKey Secrets are absent, or only one exists, stop and tell the operator the exact two Secret names required.
 4. Require the live OIDC verification jobs for Provisioner, Observer, and Releaser to pass. Do not accept the presence of Variables alone.
 5. Do not quote or acquire before these checks pass.
@@ -65,6 +65,53 @@ orchestrators, scheduled finalizers, and stop workflow still append idempotent
 stage/cleanup states to the exact tracking Issue, while the scheduled sweeper
 remains the provider-cleanup fallback. Do not imply that a local monitor is
 active or that workflow comments replace live diagnosis.
+
+## Repair short run
+
+Use this path only for the exact paid repair authority. Create the same
+request-scoped local identity and tracking Issue, but record the CNY 300 hard
+limit, CNY 250 operational stop, and `state=repair_preflight_passed`. Freeze the
+protected `origin/main` source SHA and dispatch `chat-lifecycle-repair.yml` with:
+
+- `source_sha=<protected-main SHA>`
+- `operator=tangtaoit`
+- `codex_diagnostic_pubkey=<request public key>`
+- `request_id=<exact request>`
+- `paid_authorization=create-paid-cloud-lease`
+
+Correlate exactly one newer run titled `Chat Lifecycle Repair <request_id>`.
+The workflow owns one six-hour repair Lease, starts a bounded rehearsal-shaped
+process, and samples exactly three workers. Once traffic is active, fifteen
+seconds without online, SEND, or SENDACK progress is terminal for that
+generation. Every adjacent active observation window must sustain at least
+1,900 logical SEND/s, keep the
+SEND-to-SENDACK backlog at or below 4,000, and retain zero send rejection or
+receive-ACK failure; do not keep polling a stopped workload. The workflow stops the
+unit, retains the Lease, publishes the typed low-cardinality diagnosis, and
+waits for a distinct protected-main commit with the exact trailer
+`Chat-Lifecycle-Repair: <request_id>`. Fix and test locally first, then push that
+candidate; do not dispatch another paid workflow. The orchestrator builds and
+deploys the candidate to the same hosts as the next generation. Later
+generations reset only the fixed workload and product data roots after service
+quiescence.
+
+Authenticate the immediate `chat-lifecycle-repair-handoff-<request_id>`
+Artifact. Its parent run and exact release selector let the scheduled repair
+finalizer release a crashed, stopped, or expiring owner. A cleanup-pending
+Artifact is not zero proof and continues to block another paid start. If the
+parent exits before that handoff is published, authenticate the paid Provision
+Artifact's active repair Receipt and its exact authenticated parent owner, then
+let the finalizer derive the same exact selector; never infer that the Lease or
+owner is absent. Each failed generation's checkpoint must retain all three
+terminal worker status/snapshot pairs. An Acquire-only recovery owner retains
+its exact active parent; a terminal parent is released.
+
+Qualification requires two continuous minutes of healthy active progress. It
+does not authorize official evidence: require
+`repair-qualified.json.official_evidence_eligible == false`, then authenticate
+the exact cleanup and zero-inventory Artifacts. Only after cleanup may the
+operator separately authorize `开始聊天生命周期全流程压测`, which starts the
+official flow on a fresh Lease.
 
 ## Manager and Demo access
 

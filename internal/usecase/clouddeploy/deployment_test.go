@@ -17,7 +17,7 @@ func TestBuildPlanBindsExactFourHostLeaseInventory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
-	if plan.Schema != clouddeploy.PlanSchemaV1 || plan.Topology.PhysicalHashSlots != 256 ||
+	if plan.Schema != clouddeploy.PlanSchemaV2 || plan.Topology.PhysicalHashSlots != 256 ||
 		plan.Topology.LogicalSlotGroups != 12 || plan.Topology.SlotReplicas != 3 || plan.Topology.ChannelReplicas != 3 {
 		t.Fatalf("plan topology = %#v", plan)
 	}
@@ -36,6 +36,43 @@ func TestBuildPlanBindsExactFourHostLeaseInventory(t *testing.T) {
 	}
 	if err := clouddeploy.ValidatePlan(plan, manifest, now); err != nil {
 		t.Fatalf("ValidatePlan() error = %v", err)
+	}
+}
+
+func TestBuildRepairPlanReusesOnlyRepairLeaseForNewBundleGeneration(t *testing.T) {
+	now := time.Date(2026, 8, 22, 14, 0, 0, 0, time.UTC)
+	lease := deploymentLease(now)
+	lease.Tags = map[string]string{"stage": "repair"}
+	lease.Budget.LimitMicros = clouddeploy.RepairBudgetHardMicros
+	lease.Budget.OperationalStopMicros = clouddeploy.RepairBudgetStopMicros
+	candidate := deploymentManifest()
+	candidate.SourceSHA = "1111111111111111111111111111111111111111"
+	candidate.BundleDigest = digest('d')
+
+	plan, err := clouddeploy.BuildRepairPlan(lease, candidate, 2, now)
+	if err != nil {
+		t.Fatalf("BuildRepairPlan() error = %v", err)
+	}
+	if plan.Purpose != clouddeploy.DeploymentPurposeRepair || plan.Generation != 2 ||
+		plan.LeaseSourceSHA != lease.SourceSHA || plan.LeaseBundleDigest != lease.BundleDigest ||
+		plan.SourceSHA != candidate.SourceSHA || plan.BundleDigest != candidate.BundleDigest {
+		t.Fatalf("repair plan identity = %#v", plan)
+	}
+
+	third, err := clouddeploy.BuildRepairPlan(lease, candidate, 3, now)
+	if err != nil {
+		t.Fatalf("BuildRepairPlan(generation 3) error = %v", err)
+	}
+	if third.PlanDigest == plan.PlanDigest {
+		t.Fatal("repair generations share one deployment plan digest")
+	}
+
+	ordinary := deploymentLease(now)
+	if _, err := clouddeploy.BuildRepairPlan(ordinary, candidate, 2, now); !errors.Is(err, clouddeploy.ErrInvalidDeployment) {
+		t.Fatalf("ordinary Lease repair error = %v", err)
+	}
+	if _, err := clouddeploy.BuildRepairPlan(lease, candidate, 0, now); !errors.Is(err, clouddeploy.ErrInvalidDeployment) {
+		t.Fatalf("zero generation repair error = %v", err)
 	}
 }
 
@@ -91,13 +128,37 @@ func TestEvaluateReadinessReturnsTypedReceipt(t *testing.T) {
 	if !outcome.Passed || outcome.Receipt == nil || outcome.Failure != nil {
 		t.Fatalf("outcome = %#v", outcome)
 	}
-	if outcome.Receipt.Schema != clouddeploy.ReceiptSchemaV1 || outcome.Receipt.BundleDigest != plan.BundleDigest ||
+	if outcome.Receipt.Schema != clouddeploy.ReceiptSchemaV2 || outcome.Receipt.BundleDigest != plan.BundleDigest ||
 		outcome.Receipt.DeploymentPlanDigest != plan.PlanDigest || len(outcome.Receipt.Hosts) != 4 {
 		t.Fatalf("receipt = %#v", outcome.Receipt)
 	}
 	if outcome.Receipt.PublicEndpoints.Manager != "http://203.0.113.10/" ||
 		outcome.Receipt.PublicEndpoints.Demo != "http://203.0.113.10/demo/" {
 		t.Fatalf("public endpoints = %#v", outcome.Receipt.PublicEndpoints)
+	}
+}
+
+func TestEvaluateReadinessRetainsRepairGenerationIdentity(t *testing.T) {
+	now := time.Date(2026, 8, 22, 17, 30, 0, 0, time.UTC)
+	lease := deploymentLease(now)
+	lease.Tags = map[string]string{"stage": "repair"}
+	lease.Budget.LimitMicros = clouddeploy.RepairBudgetHardMicros
+	lease.Budget.OperationalStopMicros = clouddeploy.RepairBudgetStopMicros
+	candidate := deploymentManifest()
+	candidate.SourceSHA = "1111111111111111111111111111111111111111"
+	candidate.BundleDigest = digest('d')
+	plan, err := clouddeploy.BuildRepairPlan(lease, candidate, 7, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcome := clouddeploy.EvaluateReadiness(plan, readySnapshot(plan, now), now)
+	if !outcome.Passed || outcome.Receipt == nil {
+		t.Fatalf("outcome = %#v", outcome)
+	}
+	if outcome.Receipt.Purpose != clouddeploy.DeploymentPurposeRepair || outcome.Receipt.Generation != 7 ||
+		outcome.Receipt.LeaseSourceSHA != lease.SourceSHA || outcome.Receipt.LeaseBundleDigest != lease.BundleDigest ||
+		outcome.Receipt.SourceSHA != candidate.SourceSHA || outcome.Receipt.BundleDigest != candidate.BundleDigest {
+		t.Fatalf("repair receipt identity = %#v", outcome.Receipt)
 	}
 }
 

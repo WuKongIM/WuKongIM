@@ -42,6 +42,7 @@ func newRootCommand(stdout io.Writer) *cobra.Command {
 	addSealAccessCommand(root)
 	addOpenAccessCommand(root)
 	addDeploymentIdentityCommands(root)
+	addRepairCommands(root)
 	return root
 }
 

@@ -1,6 +1,6 @@
 ---
 name: wukongim-chat-lifecycle
-description: Operate the repository's fully automated, native-Ubuntu WuKongIM chat-lifecycle cloud test. Use when the operator explicitly asks to start the complete paid rehearsal/formal/capacity chain, requests status for one active request, asks to stop and clean up that request, asks to diagnose its exact live run, or asks what to do next. Only the exact start intent authorizes billable procurement; status, diagnose, stop, explanations, and next-step questions never do.
+description: Operate the repository's fully automated, native-Ubuntu WuKongIM chat-lifecycle cloud test or its reusable-Lease repair short run. Use when the operator explicitly asks to start either paid flow, requests status for one active request, asks to stop and clean up that request, asks to diagnose its exact live run, or asks what to do next. Only the corresponding exact start intent authorizes billable procurement; status, diagnose, stop, explanations, and next-step questions never do.
 ---
 
 # WuKongIM Chat Lifecycle
@@ -10,6 +10,7 @@ Route one operator intent into the fixed protected-main workflows. Keep this Ski
 ## Safety boundary
 
 - Treat the exact phrase `开始聊天生命周期全流程压测`, or an explicit invocation of this Skill that unambiguously says to start the complete flow, as authority for one aggregate Cost Envelope capped at CNY 1,500.
+- Treat the exact phrase `开始聊天生命周期修复短跑`, or an explicit invocation of this Skill that unambiguously says to start the repair short run, as authority for one reusable repair Lease capped at CNY 300. This authority does not start an official rehearsal or formal run.
 - Never infer paid authority from `继续`, approval of implementation work, status, diagnose, stop, an explanation, `下一步建议？`, or any other conversational context.
 - Reject a second start while any earlier chat-lifecycle request lacks authenticated zero-inventory proof.
 - Do not change the reviewed 4-vCPU/8-GiB hosts, 500-GiB service disks, 200-GiB load disk, workload rate, 12 workload groups, or 256 physical hash slots.
@@ -34,6 +35,27 @@ Use `scripts/chat-lifecycle/local-request-state.sh init` for the local identity;
 do not reproduce its path validation or permissions with ad hoc deletion logic.
 
 When a successful Deployment handoff appears, authenticate its producer, download `encrypted-access.json`, and use `wkchatlifecycle open-access` with the local request identity. Give the operator the exact Manager and Demo HTTP URLs plus their shared temporary username and password only in the local conversation. Never copy them to the tracking Issue.
+
+### Repair short run
+
+Require the exact repair authority above, then execute the `Repair short run`
+procedure in the operator reference. The only paid entrypoint is
+`.github/workflows/chat-lifecycle-repair.yml` on protected `main`, with the
+same four identity inputs as Start plus
+`paid_authorization=create-paid-cloud-lease`.
+
+The workflow may reuse that one Lease across immutable protected-main candidate
+generations. It must stop a generation when active online sessions or SEND / SENDACK
+progress stalls, preserve the typed diagnosis, and wait for the exact
+`Chat-Lifecycle-Repair: <request_id>` revision rather than buying replacement
+hosts. A passing short run releases the repair Lease to exact zero inventory.
+The paid Acquire Receipt, immediate selector-bound handoff, and scheduled repair
+finalizer form the cleanup recovery chain if the paid runner exits; the
+Provision Artifact binds the exact authenticated parent, and the finalizer
+derives the selector from its active Receipt when the handoff was not reached.
+Cleanup-pending is never zero proof.
+Its result is explicitly ineligible for official rehearsal/formal evidence;
+starting the complete flow later requires the complete-flow paid authority.
 
 ### Status
 

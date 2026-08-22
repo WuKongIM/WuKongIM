@@ -1,5 +1,5 @@
 name: Agent Tool - Activate Cloud Deployment
-run-name: Cloud Deployment ${{ inputs.lease_artifact_name }}
+run-name: Cloud Deployment ${{ inputs.lease_artifact_name }} ${{ inputs.deployment_purpose }} generation ${{ inputs.deployment_generation }}
 
 on:
   workflow_dispatch:
@@ -28,6 +28,19 @@ on:
         description: Lease-bound deployment SSH identity sealed to the deployment Environment wrapping key
         required: true
         type: string
+      deployment_purpose:
+        description: Immutable evidence activation or reusable repair activation
+        required: true
+        default: immutable
+        type: choice
+        options:
+          - immutable
+          - repair
+      deployment_generation:
+        description: One-based candidate generation within the exact Lease
+        required: true
+        default: "1"
+        type: string
 
 permissions:
   contents: read
@@ -52,6 +65,8 @@ jobs:
       BUNDLE_ARTIFACT: ${{ inputs.bundle_artifact_name }}
       CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
       ENCRYPTED_DEPLOYMENT_IDENTITY_JSON: ${{ inputs.encrypted_deployment_identity_json }}
+      DEPLOYMENT_PURPOSE: ${{ inputs.deployment_purpose }}
+      DEPLOYMENT_GENERATION: ${{ inputs.deployment_generation }}
     steps:
       - name: Checkout trusted Deployment Action
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -75,6 +90,9 @@ jobs:
             'upstream workflow provenance validation failed' 'no deployment host was contacted'
           [[ "$LEASE_RUN_ID" =~ ^[0-9]+$ && "$BUNDLE_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$LEASE_ARTIFACT" =~ ^[A-Za-z0-9._-]{1,200}$ && "$BUNDLE_ARTIFACT" =~ ^[A-Za-z0-9._-]{1,200}$ ]]
+          [[ "$DEPLOYMENT_PURPOSE" == "immutable" || "$DEPLOYMENT_PURPOSE" == "repair" ]]
+          [[ "$DEPLOYMENT_GENERATION" =~ ^[1-9][0-9]*$ ]]
+          if [[ "$DEPLOYMENT_PURPOSE" == "immutable" ]]; then test "$DEPLOYMENT_GENERATION" = "1"; fi
           for pair in "lease:$LEASE_RUN_ID" "bundle:$BUNDLE_RUN_ID"; do
             name="${pair%%:*}"
             run_id="${pair#*:}"
@@ -129,6 +147,7 @@ jobs:
           lease_receipt="${lease_receipts[0]}"
           bundle_archive="${bundle_archives[0]}"
           bundle_checksum="${bundle_checksums[0]}"
+          install -m 0600 "$lease_receipt" lease-receipt.json
           test "$LEASE_ARTIFACT" = "cloud-lease-provision-$(jq -er .receipt.request_id "$lease_receipt")"
           scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
             bundle_digest_mismatch none '' \
@@ -161,8 +180,10 @@ jobs:
             --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
             --bootstrap-pubkey "$deployment_public_key" \
             --bootstrap-pubkey "$CODEX_DIAGNOSTIC_PUBKEY" \
+            --purpose "$DEPLOYMENT_PURPOSE" \
+            --generation "$DEPLOYMENT_GENERATION" \
             >deployment-plan.json
-          jq -e '.schema == "wukongim.cloud_deployment.plan/v1" and .topology.physical_hash_slots == 256 and .topology.logical_slot_groups == 12 and (.hosts | length) == 4' deployment-plan.json >/dev/null
+          jq -e '.schema == "wukongim.cloud_deployment.plan/v2" and .topology.physical_hash_slots == 256 and .topology.logical_slot_groups == 12 and (.hosts | length) == 4' deployment-plan.json >/dev/null
           bundle_digest="$(jq -er .bundle_digest deployment-plan.json)"
           test "$BUNDLE_ARTIFACT" = "cloud-deployment-bundle-${bundle_digest#sha256:}"
           install -m 0600 "$bundle_archive" cloud-deployment-bundle.tar.gz
@@ -185,11 +206,12 @@ jobs:
           printf '%s\n' "$WRAPPING_PRIVATE_KEY" >"$RUNNER_TEMP/wrapping-key"
           chmod 0600 "$RUNNER_TEMP/wrapping-key"
           lease_plan_digest="$(jq -er '.lease_plan_digest | select(test("^sha256:[0-9a-f]{64}$")) | sub("^sha256:"; "")' deployment-plan.json)"
+          lease_source_sha="$(jq -er .lease_source_sha deployment-plan.json)"
           "$RUNNER_TEMP/trusted-deployment-tools/wkchatlifecycle" open-deployment-identity \
             --envelope encrypted-deployment-identity.json --identity "$RUNNER_TEMP/wrapping-key" \
             --request-id "$(jq -er .request_id deployment-plan.json)" \
             --lease-id "$(jq -er .lease_id deployment-plan.json)" \
-            --source-sha "$(jq -er .source_sha deployment-plan.json)" \
+            --source-sha "$lease_source_sha" \
             --plan-digest "$lease_plan_digest" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output deployment-key
           ssh-keygen -y -f deployment-key >/dev/null
@@ -348,6 +370,7 @@ jobs:
           while true; do
             if scripts/cloud-deployment/collect-readiness.sh; then
               if "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" deployment-gate \
+                --lease-receipt lease-receipt.json \
                 --plan deployment-plan.json \
                 --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
                 --snapshot readiness-snapshot.json \
@@ -365,7 +388,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! jq -e '
-            (.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v1") or
+            (.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v2") or
             (.passed == false and .failure.schema == "wukongim.cloud_deployment.failure/v1")
           ' deployment-outcome.json >/dev/null 2>&1; then
             if jq -e '.passed == false and .failure.schema == "wukongim.cloud_deployment.failure/v1"' deployment-failure-state.json >/dev/null 2>&1; then

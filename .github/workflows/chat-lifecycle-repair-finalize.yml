@@ -1,0 +1,169 @@
+name: Safety Automation - Finalize Chat Lifecycle Repairs
+run-name: Chat Lifecycle Repair Finalizer ${{ inputs.request_id || github.run_id }}
+
+on:
+  schedule:
+    - cron: "11,26,41,56 * * * *"
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Optional exact repair request; empty scans active handoffs
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+  issues: read
+
+concurrency:
+  group: chat-lifecycle-repair-finalizer-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUEST_ID: ${{ inputs.request_id || '' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Discover authenticated repair handoffs without zero proof
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/discover-active-repair-handoffs.sh "$REQUEST_ID" matrix.json
+          echo "matrix=$(cat matrix.json)" >>"$GITHUB_OUTPUT"
+
+  finalize:
+    needs: discover
+    if: fromJSON(needs.discover.outputs.matrix).include[0] != null
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WK_CHAT_REQUEST_ID: ${{ matrix.request_id }}
+      WK_CHAT_HANDOFF_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
+      WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/cleanup
+      WK_CHAT_HANDOFF_KIND: ${{ matrix.handoff_kind }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Download exact repair handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ env.WK_CHAT_HANDOFF_DIR }}
+          run-id: ${{ matrix.handoff_run_id }}
+          github-token: ${{ github.token }}
+      - name: Authenticate selector-bound handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/authenticate-repair-artifact-producer.sh "$WK_CHAT_HANDOFF_KIND" \
+            '${{ matrix.handoff_run_id }}' "$RUNNER_TEMP/handoff-producer.json" "$WK_CHAT_REQUEST_ID"
+          go build -trimpath -o "$RUNNER_TEMP/wkchatlifecycle" ./cmd/wkchatlifecycle
+          if [[ "$WK_CHAT_HANDOFF_KIND" == acquire ]]; then
+            test -s "$WK_CHAT_HANDOFF_DIR/receipt.json"
+            test -s "$WK_CHAT_HANDOFF_DIR/repair-owner.json"
+            "$RUNNER_TEMP/wkchatlifecycle" selector --receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
+              >"$WK_CHAT_HANDOFF_DIR/release-selector.json"
+            jq -n --arg schema 'wukongim.chat_lifecycle.repair_acquire_recovery/v1' \
+              --arg request_id "$WK_CHAT_REQUEST_ID" \
+              --slurpfile owner "$WK_CHAT_HANDOFF_DIR/repair-owner.json" \
+              --slurpfile receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
+              --slurpfile selector "$WK_CHAT_HANDOFF_DIR/release-selector.json" '
+              {schema:$schema,request_id:$request_id,parent_run_id:$owner[0].parent_run_id,
+               lease_id:$receipt[0].receipt.lease_id,
+               source_sha:$receipt[0].receipt.provenance.source_sha,
+               bundle_digest:$receipt[0].receipt.provenance.bundle_digest,
+               expires_at:$receipt[0].receipt.expires_at,plan_digest:$receipt[0].receipt.plan_digest,
+               selector:$selector[0].selector}
+            ' >"$WK_CHAT_HANDOFF_DIR/repair-handoff.json"
+          fi
+          for name in repair-handoff.json receipt.json release-selector.json; do
+            test -s "$WK_CHAT_HANDOFF_DIR/$name"
+            test "$(stat -c '%s' "$WK_CHAT_HANDOFF_DIR/$name")" -le 1048576
+          done
+          "$RUNNER_TEMP/wkchatlifecycle" selector --receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
+            >"$RUNNER_TEMP/derived-selector.json"
+          cmp -s <(jq -S -c . "$RUNNER_TEMP/derived-selector.json") \
+            <(jq -S -c . "$WK_CHAT_HANDOFF_DIR/release-selector.json")
+          jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg repository "$GITHUB_REPOSITORY" \
+            --slurpfile receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
+            --slurpfile selector "$WK_CHAT_HANDOFF_DIR/release-selector.json" '
+            ((.schema == "wukongim.chat_lifecycle.repair_handoff/v1" or
+              .schema == "wukongim.chat_lifecycle.repair_acquire_recovery/v1") and .parent_run_id > 0) and
+            .request_id == $request and (.parent_run_id | type == "number") and
+            .lease_id == $receipt[0].receipt.lease_id and .source_sha == $receipt[0].receipt.provenance.source_sha and
+            .bundle_digest == $receipt[0].receipt.provenance.bundle_digest and .expires_at == $receipt[0].receipt.expires_at and
+            .plan_digest == $receipt[0].receipt.plan_digest and .selector == $selector[0].selector and
+            $receipt[0].receipt.request_id == $request and $receipt[0].receipt.repository == $repository and
+            $receipt[0].receipt.state == "active" and $receipt[0].receipt.tags.stage == "repair"
+          ' "$WK_CHAT_HANDOFF_DIR/repair-handoff.json" >/dev/null
+      - name: Decide whether the independent cleanup owner must release
+        id: decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          parent_run_id="$(jq -er .parent_run_id "$WK_CHAT_HANDOFF_DIR/repair-handoff.json")"
+          stop_status=0
+          scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REQUEST_ID" >/dev/null || stop_status=$?
+          case "$stop_status" in 0) operator_stop=true ;; 1) operator_stop=false ;; *) exit "$stop_status" ;; esac
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${parent_run_id}" >parent-run.json
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg request "$WK_CHAT_REQUEST_ID" '
+            .repository.full_name == $repository and .head_repository.full_name == $repository and
+            .head_branch == "main" and .event == "workflow_dispatch" and
+            .display_title == ("Chat Lifecycle Repair " + $request) and
+            (.path == ".github/workflows/chat-lifecycle-repair.yml" or
+             .path == ".github/workflows/chat-lifecycle-repair.yml@refs/heads/main")
+          ' parent-run.json >/dev/null
+          parent_status="$(jq -er .status parent-run.json)"
+          expires_epoch="$(date -u -d "$(jq -er .expires_at "$WK_CHAT_HANDOFF_DIR/repair-handoff.json")" +%s)"
+          now_epoch="$(date -u +%s)"
+          release=false
+          reason=parent_active
+          if [[ "$operator_stop" == true ]]; then
+            release=true; reason=operator_stop
+          elif [[ "$parent_status" == completed ]]; then
+            release=true; reason=parent_terminal
+          elif (( now_epoch >= expires_epoch - 7200 )); then
+            release=true; reason=lease_safety_deadline
+          elif [[ "$parent_status" != in_progress && "$parent_status" != queued && "$parent_status" != pending && "$parent_status" != waiting && "$parent_status" != requested ]]; then
+            release=true; reason=parent_state_unknown
+          fi
+          echo "release=$release" >>"$GITHUB_OUTPUT"
+          echo "reason=$reason" >>"$GITHUB_OUTPUT"
+      - name: Release terminal or abandoned repair Lease to exact zero
+        if: steps.decision.outputs.release == 'true'
+        shell: bash
+        env:
+          WK_CHAT_STAGE: repair
+          WK_CHAT_SELECTOR: ${{ env.WK_CHAT_HANDOFF_DIR }}/release-selector.json
+        run: scripts/chat-lifecycle/release-until-zero.sh
+      - name: Upload repair cleanup or cleanup-pending continuation
+        if: always() && steps.decision.outputs.release == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-repair-cleanup-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 90

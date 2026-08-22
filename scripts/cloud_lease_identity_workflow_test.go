@@ -237,13 +237,14 @@ func TestCloudLeaseLifecycleToolsUseOnlyTheirExactOIDCRoles(t *testing.T) {
 		text        string
 		environment string
 		role        string
+		permissions string
 	}{
-		"provision": {provision, "environment: cloud-lease-provision", "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN"},
-		"observe":   {observe, "environment: cloud-lease-observe", "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN"},
-		"release":   {release, "environment: cloud-lease-release", "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN"},
+		"provision": {provision, "environment: cloud-lease-provision", "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN", "permissions:\n  contents: read\n  actions: read\n  id-token: write"},
+		"observe":   {observe, "environment: cloud-lease-observe", "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN", "permissions:\n  contents: read\n  id-token: write"},
+		"release":   {release, "environment: cloud-lease-release", "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN", "permissions:\n  contents: read\n  id-token: write"},
 	} {
 		if !strings.Contains(contract.text, contract.environment) || !strings.Contains(contract.text, contract.role) ||
-			!strings.Contains(contract.text, "permissions:\n  contents: read\n  id-token: write") {
+			!strings.Contains(contract.text, contract.permissions) {
 			t.Fatalf("%s workflow does not use its exact OIDC boundary", name)
 		}
 		for _, forbidden := range []string{"ALIBABA_CLOUD_ACCESS_KEY_ID", "ALIBABA_CLOUD_ACCESS_KEY_SECRET", "pull_request:", "push:"} {

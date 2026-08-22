@@ -15,17 +15,26 @@ first queries the GitHub Actions API and requires both run IDs to be successful
 `main` and from the same repository. It then builds trusted validators from its
 own protected checkout, revalidates the
 Lease Receipt and bundle before executing any payload binary, derives
-`wukongim.cloud_deployment.plan/v1`, and refuses a bundle Artifact name that
+`wukongim.cloud_deployment.plan/v2`, and refuses a bundle Artifact name that
 does not contain the derived digest. Long builds remain usable when `main`
 advances: the bundle's trusted control SHA must equal its authenticated bundle
 producer run, while the Lease provenance must bind that bundle digest and the
 same immutable source SHA. An arbitrary or cross-run artifact mix therefore
 still fails before host mutation.
 
+The default `deployment_purpose=immutable` accepts only generation 1 and
+requires the candidate source and bundle to equal Lease provenance. The
+`repair` purpose is accepted only for a Lease tagged `stage=repair`; every
+activation binds a positive candidate generation while retaining the original
+Lease source and bundle separately. Generation two and later quiesce all known
+units and clear only the fixed product/workload data roots before installing
+the next candidate. Repair activation is deployment evidence for that
+candidate, never official rehearsal or formal evidence.
+
 The run Artifact `cloud-deployment-<workflow-run-id>` contains the non-secret
 Deployment Plan, bounded readiness snapshot when collection completed, and
 `deployment-outcome.json`. A successful outcome contains
-`wukongim.cloud_deployment.receipt/v1`. Failure contains a stable code, the last
+`wukongim.cloud_deployment.receipt/v2`. Failure contains a stable code, the last
 completed gate, and bounded generated evidence; it never includes raw SSH
 output or credentials.
 

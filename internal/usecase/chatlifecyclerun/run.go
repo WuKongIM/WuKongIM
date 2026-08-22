@@ -23,6 +23,7 @@ const (
 	TemplateSchemaV1         = "wukongim.chat_lifecycle.run_plan_template/v1"
 	RunPlanSchemaV1          = "wukongim.chat_lifecycle.run_plan/v1"
 	FormalTransitionSchemaV1 = "wukongim.chat_lifecycle.formal_transition/v1"
+	StageRepair              = "repair"
 	StageRehearsal           = "rehearsal"
 	StageFormal              = "formal"
 	maxDocumentBytes         = 1 << 20
@@ -257,8 +258,7 @@ func validTemplate(template Template) bool {
 	if template.Schema != TemplateSchemaV1 ||
 		template.Provider != "alibaba" || template.Region != "cn-hangzhou" ||
 		template.ReadinessTimeoutSeconds <= 0 || template.ReadinessTimeoutSeconds > int64((2*time.Hour)/time.Second) ||
-		template.Budget.Currency != "CNY" || template.Budget.HardLimitMicros != 1_500_000_000 ||
-		template.Budget.OperationalStopMicros != 1_350_000_000 ||
+		template.Budget.Currency != "CNY" ||
 		template.Network.ConservativePublicEgressBytes <= 0 || template.Network.PeakBandwidthMbps != 20 ||
 		template.Compute.VCPUs != 4 || template.Compute.MemoryBytes != 8<<30 ||
 		template.Compute.Architecture != "x86_64" || !strings.EqualFold(template.Compute.BillingModel, "postpaid") ||
@@ -266,14 +266,26 @@ func validTemplate(template Template) bool {
 		return false
 	}
 	switch template.Stage {
+	case StageRepair:
+		if template.LeaseDurationSeconds != int64((6*time.Hour)/time.Second) ||
+			template.WorkloadDurationSeconds != int64((10*time.Minute)/time.Second) ||
+			template.ReadinessTimeoutSeconds != int64((30*time.Minute)/time.Second) ||
+			template.Budget.HardLimitMicros != 300_000_000 ||
+			template.Budget.OperationalStopMicros != 250_000_000 {
+			return false
+		}
 	case StageRehearsal:
 		if template.LeaseDurationSeconds != int64((12*time.Hour)/time.Second) ||
-			template.WorkloadDurationSeconds != int64((2*time.Hour)/time.Second) {
+			template.WorkloadDurationSeconds != int64((2*time.Hour)/time.Second) ||
+			template.Budget.HardLimitMicros != 1_500_000_000 ||
+			template.Budget.OperationalStopMicros != 1_350_000_000 {
 			return false
 		}
 	case StageFormal:
 		if template.LeaseDurationSeconds != int64((96*time.Hour)/time.Second) ||
-			template.WorkloadDurationSeconds != int64((72*time.Hour)/time.Second) {
+			template.WorkloadDurationSeconds != int64((72*time.Hour)/time.Second) ||
+			template.Budget.HardLimitMicros != 1_500_000_000 ||
+			template.Budget.OperationalStopMicros != 1_350_000_000 {
 			return false
 		}
 	default:

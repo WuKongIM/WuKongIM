@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	// PlanSchemaV1 is the exact four-host native activation contract.
-	PlanSchemaV1 = "wukongim.cloud_deployment.plan/v1"
+	// PlanSchemaV2 is the generation-aware four-host native activation contract.
+	PlanSchemaV2 = "wukongim.cloud_deployment.plan/v2"
 	// SnapshotSchemaV1 is bounded evidence collected after native activation.
 	SnapshotSchemaV1 = "wukongim.cloud_deployment.readiness/v1"
-	// ReceiptSchemaV1 proves one exact Plan was activated on one exact Lease.
-	ReceiptSchemaV1 = "wukongim.cloud_deployment.receipt/v1"
+	// ReceiptSchemaV2 proves one exact candidate generation was activated on one exact Lease.
+	ReceiptSchemaV2 = "wukongim.cloud_deployment.receipt/v2"
 	// FailureSchemaV1 is the stable non-secret deployment failure contract.
 	FailureSchemaV1 = "wukongim.cloud_deployment.failure/v1"
 
@@ -40,6 +40,18 @@ const (
 	MaximumReadinessAge     = 5 * time.Minute
 	FormalBudgetHardMicros  = int64(1_500_000_000)
 	FormalBudgetStopMicros  = int64(1_350_000_000)
+	RepairBudgetHardMicros  = int64(300_000_000)
+	RepairBudgetStopMicros  = int64(250_000_000)
+)
+
+// DeploymentPurpose separates immutable evidence-bearing activation from a
+// mutable repair session that may install several protected-main candidates
+// on one explicitly tagged Lease.
+type DeploymentPurpose string
+
+const (
+	DeploymentPurposeImmutable DeploymentPurpose = "immutable"
+	DeploymentPurposeRepair    DeploymentPurpose = "repair"
 )
 
 var (
@@ -63,6 +75,7 @@ type LeaseInventory struct {
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	Budget       DeploymentBudget
+	Tags         map[string]string
 	Resources    []LeaseResource
 }
 
@@ -130,26 +143,30 @@ type HostPlan struct {
 
 // DeploymentPlan is the immutable WuKongIM-specific consumer of a Lease Receipt.
 type DeploymentPlan struct {
-	Schema          string           `json:"schema"`
-	PlanDigest      string           `json:"plan_digest"`
-	LeaseID         string           `json:"lease_id"`
-	RequestID       string           `json:"request_id"`
-	Repository      string           `json:"repository"`
-	Provider        string           `json:"provider"`
-	Region          string           `json:"region"`
-	Zone            string           `json:"zone"`
-	LeasePlanDigest string           `json:"lease_plan_digest"`
-	SourceSHA       string           `json:"source_sha"`
-	ControlSHA      string           `json:"control_sha"`
-	BundleDigest    string           `json:"bundle_digest"`
-	LeaseCreatedAt  time.Time        `json:"lease_created_at"`
-	ExpiresAt       time.Time        `json:"expires_at"`
-	Budget          DeploymentBudget `json:"budget"`
-	OperatingSystem string           `json:"operating_system"`
-	OSVersion       string           `json:"operating_system_version"`
-	Architecture    string           `json:"architecture"`
-	Topology        Topology         `json:"topology"`
-	Hosts           []HostPlan       `json:"hosts"`
+	Schema            string            `json:"schema"`
+	PlanDigest        string            `json:"plan_digest"`
+	LeaseID           string            `json:"lease_id"`
+	RequestID         string            `json:"request_id"`
+	Repository        string            `json:"repository"`
+	Provider          string            `json:"provider"`
+	Region            string            `json:"region"`
+	Zone              string            `json:"zone"`
+	LeasePlanDigest   string            `json:"lease_plan_digest"`
+	Purpose           DeploymentPurpose `json:"purpose"`
+	Generation        uint64            `json:"generation"`
+	LeaseSourceSHA    string            `json:"lease_source_sha"`
+	LeaseBundleDigest string            `json:"lease_bundle_digest"`
+	SourceSHA         string            `json:"source_sha"`
+	ControlSHA        string            `json:"control_sha"`
+	BundleDigest      string            `json:"bundle_digest"`
+	LeaseCreatedAt    time.Time         `json:"lease_created_at"`
+	ExpiresAt         time.Time         `json:"expires_at"`
+	Budget            DeploymentBudget  `json:"budget"`
+	OperatingSystem   string            `json:"operating_system"`
+	OSVersion         string            `json:"operating_system_version"`
+	Architecture      string            `json:"architecture"`
+	Topology          Topology          `json:"topology"`
+	Hosts             []HostPlan        `json:"hosts"`
 }
 
 // HostSnapshot is bounded local evidence for one planned host.
@@ -277,20 +294,24 @@ type PublicEndpoints struct {
 
 // DeploymentReceipt is the non-secret handoff to workload orchestration.
 type DeploymentReceipt struct {
-	Schema               string          `json:"schema"`
-	LeaseID              string          `json:"lease_id"`
-	RequestID            string          `json:"request_id"`
-	Repository           string          `json:"repository"`
-	LeasePlanDigest      string          `json:"lease_plan_digest"`
-	DeploymentPlanDigest string          `json:"deployment_plan_digest"`
-	SourceSHA            string          `json:"source_sha"`
-	ControlSHA           string          `json:"control_sha"`
-	BundleDigest         string          `json:"bundle_digest"`
-	ActivatedAt          time.Time       `json:"activated_at"`
-	LeaseExpiresAt       time.Time       `json:"lease_expires_at"`
-	Topology             Topology        `json:"topology"`
-	PublicEndpoints      PublicEndpoints `json:"public_endpoints"`
-	Hosts                []HostProof     `json:"hosts"`
+	Schema               string            `json:"schema"`
+	LeaseID              string            `json:"lease_id"`
+	RequestID            string            `json:"request_id"`
+	Repository           string            `json:"repository"`
+	LeasePlanDigest      string            `json:"lease_plan_digest"`
+	DeploymentPlanDigest string            `json:"deployment_plan_digest"`
+	Purpose              DeploymentPurpose `json:"purpose"`
+	Generation           uint64            `json:"generation"`
+	LeaseSourceSHA       string            `json:"lease_source_sha"`
+	LeaseBundleDigest    string            `json:"lease_bundle_digest"`
+	SourceSHA            string            `json:"source_sha"`
+	ControlSHA           string            `json:"control_sha"`
+	BundleDigest         string            `json:"bundle_digest"`
+	ActivatedAt          time.Time         `json:"activated_at"`
+	LeaseExpiresAt       time.Time         `json:"lease_expires_at"`
+	Topology             Topology          `json:"topology"`
+	PublicEndpoints      PublicEndpoints   `json:"public_endpoints"`
+	Hosts                []HostProof       `json:"hosts"`
 }
 
 // Outcome carries exactly one successful Receipt or one structured Failure.
@@ -313,14 +334,37 @@ type Fleet interface {
 
 // BuildPlan converts exact active Lease inventory into the fixed native topology.
 func BuildPlan(lease LeaseInventory, manifest Manifest, now time.Time) (DeploymentPlan, error) {
+	return buildPlan(lease, manifest, DeploymentPurposeImmutable, 1, now)
+}
+
+// BuildRepairPlan binds one protected-main candidate generation to the exact
+// inventory of a Lease explicitly created for a repair session. The original
+// Lease provenance remains in the Plan while SourceSHA and BundleDigest name
+// the candidate being installed.
+func BuildRepairPlan(lease LeaseInventory, manifest Manifest, generation uint64, now time.Time) (DeploymentPlan, error) {
+	return buildPlan(lease, manifest, DeploymentPurposeRepair, generation, now)
+}
+
+func buildPlan(lease LeaseInventory, manifest Manifest, purpose DeploymentPurpose, generation uint64, now time.Time) (DeploymentPlan, error) {
 	if manifest.Schema != ManifestSchemaV1 || !validDigest(manifest.IntentSHA256) ||
 		strings.TrimSpace(lease.LeaseID) == "" || strings.TrimSpace(lease.RequestID) == "" ||
 		strings.TrimSpace(lease.Repository) == "" || strings.TrimSpace(lease.Provider) == "" ||
 		strings.TrimSpace(lease.Region) == "" || strings.TrimSpace(lease.Zone) == "" ||
 		!validDigest(lease.PlanDigest) || lease.State != "active" || !lease.ExpiresAt.After(now.UTC()) ||
-		!validDeploymentBudget(lease.Budget) || lease.CreatedAt.IsZero() || !lease.CreatedAt.Before(lease.ExpiresAt) ||
-		lease.SourceSHA != manifest.SourceSHA || lease.BundleDigest != manifest.BundleDigest ||
+		!validDeploymentBudget(purpose, lease.Budget) || lease.CreatedAt.IsZero() || !lease.CreatedAt.Before(lease.ExpiresAt) ||
 		!validSHA(lease.SourceSHA) || !validDigest(lease.BundleDigest) || !validSHA(manifest.ControlSHA) {
+		return DeploymentPlan{}, ErrInvalidDeployment
+	}
+	switch purpose {
+	case DeploymentPurposeImmutable:
+		if generation != 1 || lease.SourceSHA != manifest.SourceSHA || lease.BundleDigest != manifest.BundleDigest {
+			return DeploymentPlan{}, ErrInvalidDeployment
+		}
+	case DeploymentPurposeRepair:
+		if generation == 0 || lease.Tags["stage"] != "repair" {
+			return DeploymentPlan{}, ErrInvalidDeployment
+		}
+	default:
 		return DeploymentPlan{}, ErrInvalidDeployment
 	}
 	instances := make([]LeaseResource, 0, ServiceHostCount+LoadHostCount)
@@ -397,9 +441,11 @@ func BuildPlan(lease LeaseInventory, manifest Manifest, now time.Time) (Deployme
 	budget := lease.Budget
 	budget.LineItems = append([]DeploymentBudgetLineItem(nil), lease.Budget.LineItems...)
 	plan := DeploymentPlan{
-		Schema: PlanSchemaV1, LeaseID: lease.LeaseID, RequestID: lease.RequestID,
+		Schema: PlanSchemaV2, LeaseID: lease.LeaseID, RequestID: lease.RequestID,
 		Repository: lease.Repository, Provider: lease.Provider, Region: lease.Region, Zone: lease.Zone,
-		LeasePlanDigest: lease.PlanDigest, SourceSHA: manifest.SourceSHA, ControlSHA: manifest.ControlSHA,
+		LeasePlanDigest: lease.PlanDigest, Purpose: purpose, Generation: generation,
+		LeaseSourceSHA: lease.SourceSHA, LeaseBundleDigest: lease.BundleDigest,
+		SourceSHA: manifest.SourceSHA, ControlSHA: manifest.ControlSHA,
 		BundleDigest: manifest.BundleDigest, LeaseCreatedAt: lease.CreatedAt.UTC(), ExpiresAt: lease.ExpiresAt.UTC(), Budget: budget,
 		OperatingSystem: "ubuntu", OSVersion: "24.04", Architecture: "amd64",
 		Topology: fixedTopology(), Hosts: hosts,
@@ -413,12 +459,19 @@ func BuildPlan(lease LeaseInventory, manifest Manifest, now time.Time) (Deployme
 
 // ValidatePlan independently checks identity, topology, inventory, and digest.
 func ValidatePlan(plan DeploymentPlan, manifest Manifest, now time.Time) error {
+	validPurpose := plan.Purpose == DeploymentPurposeImmutable && plan.Generation == 1 &&
+		plan.LeaseSourceSHA == manifest.SourceSHA && plan.LeaseBundleDigest == manifest.BundleDigest
+	if plan.Purpose == DeploymentPurposeRepair && plan.Generation > 0 &&
+		validSHA(plan.LeaseSourceSHA) && validDigest(plan.LeaseBundleDigest) {
+		validPurpose = true
+	}
 	if manifest.Schema != ManifestSchemaV1 || !validDigest(manifest.IntentSHA256) ||
-		plan.Schema != PlanSchemaV1 || !validDigest(plan.PlanDigest) || plan.Topology != fixedTopology() ||
+		plan.Schema != PlanSchemaV2 || !validDigest(plan.PlanDigest) || plan.Topology != fixedTopology() ||
+		!validPurpose ||
 		plan.SourceSHA != manifest.SourceSHA || plan.ControlSHA != manifest.ControlSHA || plan.BundleDigest != manifest.BundleDigest ||
 		!validDigest(plan.LeasePlanDigest) || plan.OperatingSystem != "ubuntu" || plan.OSVersion != "24.04" ||
 		plan.Architecture != "amd64" || plan.LeaseCreatedAt.IsZero() || !plan.LeaseCreatedAt.Before(plan.ExpiresAt) || !plan.ExpiresAt.After(now.UTC()) ||
-		!validDeploymentBudget(plan.Budget) || len(plan.Hosts) != 4 ||
+		!validDeploymentBudget(plan.Purpose, plan.Budget) || len(plan.Hosts) != 4 ||
 		!boundedText(plan.LeaseID, 128) || !boundedText(plan.RequestID, 128) || !boundedText(plan.Repository, 256) ||
 		!boundedText(plan.Provider, 64) || !boundedText(plan.Region, 128) || !boundedText(plan.Zone, 128) ||
 		deploymentPlanDigest(plan) != plan.PlanDigest {
@@ -454,6 +507,29 @@ func ValidatePlan(plan DeploymentPlan, manifest Manifest, now time.Time) error {
 		seenPrivateAddresses[host.PrivateAddress] = struct{}{}
 	}
 	return nil
+}
+
+// ValidatePlanForLease proves that plan was derived from lease and manifest,
+// including the repair-only Lease tag and the exact candidate generation.
+// Readiness gates must use this boundary instead of trusting caller-authored
+// Purpose or inventory fields in a standalone DeploymentPlan.
+func ValidatePlanForLease(plan DeploymentPlan, lease LeaseInventory, manifest Manifest, now time.Time) error {
+	var (
+		expected DeploymentPlan
+		err      error
+	)
+	switch plan.Purpose {
+	case DeploymentPurposeImmutable:
+		expected, err = BuildPlan(lease, manifest, now)
+	case DeploymentPurposeRepair:
+		expected, err = BuildRepairPlan(lease, manifest, plan.Generation, now)
+	default:
+		return ErrInvalidDeployment
+	}
+	if err != nil || expected.PlanDigest != plan.PlanDigest {
+		return ErrInvalidDeployment
+	}
+	return ValidatePlan(plan, manifest, now)
 }
 
 // Deploy executes the provider-free transfer, verification, native activation,
@@ -572,8 +648,10 @@ func EvaluateReadiness(plan DeploymentPlan, snapshot ReadinessSnapshot, now time
 		return failed(FailureEvidence, GateClusterConverged, "load", "public endpoint identity is invalid")
 	}
 	receipt := &DeploymentReceipt{
-		Schema: ReceiptSchemaV1, LeaseID: plan.LeaseID, RequestID: plan.RequestID, Repository: plan.Repository,
+		Schema: ReceiptSchemaV2, LeaseID: plan.LeaseID, RequestID: plan.RequestID, Repository: plan.Repository,
 		LeasePlanDigest: plan.LeasePlanDigest, DeploymentPlanDigest: plan.PlanDigest,
+		Purpose: plan.Purpose, Generation: plan.Generation,
+		LeaseSourceSHA: plan.LeaseSourceSHA, LeaseBundleDigest: plan.LeaseBundleDigest,
 		SourceSHA: plan.SourceSHA, ControlSHA: plan.ControlSHA, BundleDigest: plan.BundleDigest,
 		ActivatedAt: snapshot.ObservedAt.UTC(), LeaseExpiresAt: plan.ExpiresAt.UTC(), Topology: plan.Topology,
 		PublicEndpoints: publicEndpoints, Hosts: hostProofs,
@@ -653,9 +731,15 @@ func minimumDataBytes(role string) int64 {
 	return MinimumServiceDataBytes
 }
 
-func validDeploymentBudget(budget DeploymentBudget) bool {
-	if budget.Currency != "CNY" || budget.LimitMicros != FormalBudgetHardMicros ||
-		budget.OperationalStopMicros != FormalBudgetStopMicros || budget.CommittedMicros < 0 ||
+func validDeploymentBudget(purpose DeploymentPurpose, budget DeploymentBudget) bool {
+	hardLimit, stopLimit := FormalBudgetHardMicros, FormalBudgetStopMicros
+	if purpose == DeploymentPurposeRepair {
+		hardLimit, stopLimit = RepairBudgetHardMicros, RepairBudgetStopMicros
+	} else if purpose != DeploymentPurposeImmutable {
+		return false
+	}
+	if budget.Currency != "CNY" || budget.LimitMicros != hardLimit ||
+		budget.OperationalStopMicros != stopLimit || budget.CommittedMicros < 0 ||
 		budget.EstimatedCostMicros <= 0 || budget.CommittedMicros >= budget.OperationalStopMicros || len(budget.LineItems) == 0 {
 		return false
 	}

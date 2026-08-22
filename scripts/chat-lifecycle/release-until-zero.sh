@@ -10,7 +10,7 @@ set -euo pipefail
 [[ -f "$WK_CHAT_SELECTOR" ]]
 install -d -m 0700 "$WK_CHAT_CLEANUP_DIR"
 chat_stage="${WK_CHAT_STAGE:-rehearsal}"
-[[ "$chat_stage" == rehearsal || "$chat_stage" == formal ]]
+[[ "$chat_stage" == rehearsal || "$chat_stage" == formal || "$chat_stage" == repair ]]
 
 max_run_id() {
   gh run list --repo "$GITHUB_REPOSITORY" --workflow cloud-lease-release.yml --event workflow_dispatch --branch main \

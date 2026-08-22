@@ -87,6 +87,11 @@ jobs:
               exit 1
             }
           done
+          scripts/chat-lifecycle/discover-active-repair-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle-repair.json"
+          jq -e '.include | length == 0' "$RUNNER_TEMP/active-chat-lifecycle-repair.json" >/dev/null || {
+            echo 'Another Chat Lifecycle repair Lease lacks authenticated zero-inventory proof.' >&2
+            exit 1
+          }
       - name: Orchestrate until remote systemd owns the measured run
         shell: bash
         env:

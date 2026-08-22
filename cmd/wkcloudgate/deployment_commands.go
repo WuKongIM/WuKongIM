@@ -26,7 +26,8 @@ type cloudLeaseReceiptDocument struct {
 }
 
 func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
-	var receiptPath, manifestPath, planNow string
+	var receiptPath, manifestPath, planNow, purpose string
+	var generation uint64
 	var bootstrapPublicKeys []string
 	planCommand := &cobra.Command{
 		Use: "deployment-plan", Short: "Bind an active Cloud Lease Receipt to the native deployment bundle", Args: cobra.NoArgs,
@@ -55,7 +56,19 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 			if err != nil {
 				return err
 			}
-			plan, err := clouddeploy.BuildPlan(normalizeLeaseReceipt(receipt), manifest, now)
+			inventory := normalizeLeaseReceipt(receipt)
+			var plan clouddeploy.DeploymentPlan
+			switch clouddeploy.DeploymentPurpose(purpose) {
+			case clouddeploy.DeploymentPurposeImmutable:
+				if generation != 1 {
+					return clouddeploy.ErrInvalidDeployment
+				}
+				plan, err = clouddeploy.BuildPlan(inventory, manifest, now)
+			case clouddeploy.DeploymentPurposeRepair:
+				plan, err = clouddeploy.BuildRepairPlan(inventory, manifest, generation, now)
+			default:
+				return clouddeploy.ErrInvalidDeployment
+			}
 			if err != nil {
 				return err
 			}
@@ -66,13 +79,25 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 	planCommand.Flags().StringVar(&manifestPath, "bundle-manifest", "", "strict offline bundle manifest JSON")
 	planCommand.Flags().StringVar(&planNow, "now", "", "optional RFC3339 validation time")
 	planCommand.Flags().StringArrayVar(&bootstrapPublicKeys, "bootstrap-pubkey", nil, "complete Ed25519 public-key set bound by the Lease Receipt")
+	planCommand.Flags().StringVar(&purpose, "purpose", string(clouddeploy.DeploymentPurposeImmutable), "immutable or repair activation purpose")
+	planCommand.Flags().Uint64Var(&generation, "generation", 1, "one-based deployment generation")
 	_ = planCommand.MarkFlagRequired("lease-receipt")
 	_ = planCommand.MarkFlagRequired("bundle-manifest")
 
-	var deploymentPlanPath, snapshotPath, gateManifestPath, gateNow string
+	var deploymentPlanPath, snapshotPath, gateManifestPath, gateNow, gateReceiptPath string
 	gateCommand := &cobra.Command{
 		Use: "deployment-gate", Short: "Evaluate four-host native deployment readiness", Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
+			var document cloudLeaseReceiptDocument
+			if err := readStrictDeploymentJSON(gateReceiptPath, &document); err != nil {
+				return fmt.Errorf("read Lease Receipt: %w", err)
+			}
+			if document.Schema != cloudLeaseReceiptDocumentV1 {
+				return errors.New("Lease Receipt schema is not supported")
+			}
+			if err := cloudlease.ValidateReceipt(document.Receipt); err != nil {
+				return fmt.Errorf("validate Lease Receipt: %w", err)
+			}
 			var plan clouddeploy.DeploymentPlan
 			if err := readStrictDeploymentJSON(deploymentPlanPath, &plan); err != nil {
 				return fmt.Errorf("read deployment plan: %w", err)
@@ -89,7 +114,7 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 			if err != nil {
 				return err
 			}
-			if err := clouddeploy.ValidatePlan(plan, manifest, now); err != nil {
+			if err := clouddeploy.ValidatePlanForLease(plan, normalizeLeaseReceipt(document.Receipt), manifest, now); err != nil {
 				outcome := clouddeploy.Outcome{Failure: &clouddeploy.DeploymentFailure{
 					Schema: clouddeploy.FailureSchemaV1, Code: clouddeploy.FailureInvalidPlan,
 					LastCompletedGate: clouddeploy.GateNone, Evidence: []string{"deployment plan validation failed"},
@@ -109,10 +134,12 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 			return nil
 		},
 	}
+	gateCommand.Flags().StringVar(&gateReceiptPath, "lease-receipt", "", "strict active Cloud Lease Receipt JSON")
 	gateCommand.Flags().StringVar(&deploymentPlanPath, "plan", "", "strict Deployment Plan JSON")
 	gateCommand.Flags().StringVar(&gateManifestPath, "bundle-manifest", "", "strict offline bundle manifest JSON")
 	gateCommand.Flags().StringVar(&snapshotPath, "snapshot", "", "strict Readiness Snapshot JSON")
 	gateCommand.Flags().StringVar(&gateNow, "now", "", "optional RFC3339 validation time")
+	_ = gateCommand.MarkFlagRequired("lease-receipt")
 	_ = gateCommand.MarkFlagRequired("plan")
 	_ = gateCommand.MarkFlagRequired("bundle-manifest")
 	_ = gateCommand.MarkFlagRequired("snapshot")
@@ -132,6 +159,10 @@ func normalizeLeaseReceipt(receipt cloudlease.Receipt) clouddeploy.LeaseInventor
 			CommittedMicros:       receipt.Budget.CommittedMicros,
 			EstimatedCostMicros:   receipt.Quote.EstimatedCostMicros,
 		},
+	}
+	result.Tags = make(map[string]string, len(receipt.Tags))
+	for key, value := range receipt.Tags {
+		result.Tags[key] = value
 	}
 	for _, item := range receipt.Quote.LineItems {
 		result.Budget.LineItems = append(result.Budget.LineItems, clouddeploy.DeploymentBudgetLineItem{
