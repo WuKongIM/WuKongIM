@@ -50,6 +50,7 @@ jq -e --arg source "$source_sha" --argjson generation "$generation" '
 manager_user="operator-$(openssl rand -hex 12)"
 manager_password="$(openssl rand -hex 32)"
 analysis_password="$(openssl rand -hex 32)"
+analysis_token="$(openssl rand -hex 32)"
 manager_jwt="$(openssl rand -hex 32)"
 worker_token="$(openssl rand -hex 32)"
 bench_token="$(openssl rand -hex 32)"
@@ -108,6 +109,7 @@ WK_ANALYSIS_PROMETHEUS_BASE_URL=http://127.0.0.1:9090
 WK_ANALYSIS_NODE_API_URLS='$node_urls'
 WK_ANALYSIS_WORKLOAD_REPORT_DIR=/var/lib/wukongim-cloud/reports
 WK_ANALYSIS_LISTEN_ADDR=0.0.0.0:19444
+WK_ANALYSIS_MCP_TOKEN=$analysis_token
 WK_ANALYSIS_GITHUB_OIDC_ENABLED=false
 EOF
 chmod 0600 "$runtime_node/node.env" "$runtime_load"/*

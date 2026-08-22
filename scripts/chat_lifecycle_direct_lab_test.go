@@ -440,6 +440,8 @@ func TestChatLifecycleLocalRuntimePreparationKeepsCredentialsLocal(t *testing.T)
 		"deployment-plan",
 		"verify-offline",
 		"tar -xpzf",
+		`analysis_token="$(openssl rand -hex 32)"`,
+		"WK_ANALYSIS_MCP_TOKEN=$analysis_token",
 		"WK_ANALYSIS_GITHUB_OIDC_ENABLED=false",
 		"runtime-node.tar.gz",
 		"runtime-load.tar.gz",
