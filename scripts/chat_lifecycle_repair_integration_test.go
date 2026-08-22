@@ -43,7 +43,6 @@ func TestChatLifecycleRepairMonitorStopsAfterRealWorkerProgressStall(t *testing.
 	if err := os.Mkdir(fakeBin, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	writeRepairExecutable(t, filepath.Join(fakeBin, "timeout"), "#!/usr/bin/env bash\nshift\nexec \"$@\"\n")
 	writeRepairExecutable(t, filepath.Join(fakeBin, "gh"), "#!/usr/bin/env bash\nprintf '%s\\n' '{\"artifacts\":[]}'\n")
 	writeRepairExecutable(t, filepath.Join(fakeBin, "ssh"), `#!/usr/bin/env bash
 command_line="$*"

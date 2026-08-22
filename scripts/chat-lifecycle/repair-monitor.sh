@@ -7,6 +7,10 @@ set -euo pipefail
 : "${WK_CHAT_REPAIR_SSH_CONFIG:?required}"
 : "${WK_CHAT_REPAIR_REQUEST_ID:?required}"
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=../cloud-sim/local-runtime.sh
+source "$script_dir/../cloud-sim/local-runtime.sh"
+
 poll_seconds="${WK_CHAT_REPAIR_POLL_SECONDS:-5}"
 max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-600}"
 stage_service="${WK_CHAT_REPAIR_SERVICE:-wkbench-rehearsal.service}"
@@ -29,7 +33,7 @@ cleanup() {
 trap cleanup EXIT
 
 stop_stage() {
-  timeout 60 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+  wk_run_bounded 60 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
     "sudo systemctl stop '$stage_service' && ! sudo systemctl is-active --quiet '$stage_service'" >/dev/null 2>&1
 }
 trap 'stop_stage || true; exit 130' INT TERM
@@ -39,7 +43,7 @@ operator_stop_requested() {
     [[ -f "$WK_CHAT_REPAIR_OPERATOR_STOP_FILE" && ! -L "$WK_CHAT_REPAIR_OPERATOR_STOP_FILE" ]]
     return
   fi
-  scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REPAIR_REQUEST_ID" >/dev/null
+  "$script_dir/operator-stop-requested.sh" "$WK_CHAT_REPAIR_REQUEST_ID" >/dev/null
 }
 
 remote_get() {
@@ -48,7 +52,7 @@ remote_get() {
   [[ "$path" == /v1/chat-lifecycle/status || "$path" == /v1/chat-lifecycle/snapshot ]]
   temporary="${output}.next"
   rm -f -- "$temporary"
-  if ! timeout 45 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+  if ! wk_run_bounded 45 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
     "sudo bash -euo pipefail -c 'source /etc/wukongim/secrets/load.env; exec curl --silent --show-error --fail --max-time 20 -H \"Authorization: Bearer \${WK_BENCH_WORKER_TOKEN}\" http://127.0.0.1:${port}${path}'" \
     >"$temporary"; then
     rm -f -- "$temporary"
@@ -65,9 +69,9 @@ remote_get() {
 
 record_diagnosis() {
   local reason="$1" observed_at="$2" service_state journal_digest
-  service_state="$(timeout 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+  service_state="$(wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
     "sudo systemctl is-active '$stage_service' || true" 2>/dev/null | head -c 64 || true)"
-  journal_digest="$(timeout 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+  journal_digest="$(wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
     "sudo journalctl -u '$stage_service' --no-pager -n 500 -o cat | sha256sum | awk '{print \$1}'" \
     2>/dev/null | head -c 64 || true)"
   [[ "$journal_digest" =~ ^[0-9a-f]{64}$ ]] || journal_digest=''
@@ -127,7 +131,7 @@ while true; do
     seal_abort monitor_timeout "$observed_at"
     exit $?
   fi
-  service_state="$(timeout 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+  service_state="$(wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
     "sudo systemctl is-active '$stage_service' || true" 2>/dev/null | head -c 64 || true)"
   if [[ "$service_state" != active && "$service_state" != activating ]]; then
     seal_abort service_inactive "$observed_at"
