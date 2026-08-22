@@ -329,6 +329,7 @@ func TestChatLifecycleLocalBundleBuilderUsesExactLocalRevisionWithoutGitHubActio
 		"CADDY_LINUX_AMD64_SHA256",
 		"seal-offline",
 		"verify-offline",
+		"COPYFILE_DISABLE=1 tar -czf",
 		"cloud-deployment-bundle.tar.gz",
 		"printf '%s  %s\\n' \"$archive_sha256\" cloud-deployment-bundle.tar.gz",
 	} {

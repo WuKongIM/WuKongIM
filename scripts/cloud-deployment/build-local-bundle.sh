@@ -97,7 +97,7 @@ install -m 0755 "$downloads/caddy/caddy" "$bundle/bin/caddy"
 bundle_digest="$(jq -er .bundle_digest "$temporary/bundle-manifest-output.json")"
 [[ "$bundle_digest" == "$("$temporary/wkcloudbundle-host" verify-offline --root "$bundle" | jq -er .bundle_digest)" ]]
 
-tar -czf "$temporary/cloud-deployment-bundle.tar.gz" -C "$bundle" .
+COPYFILE_DISABLE=1 tar -czf "$temporary/cloud-deployment-bundle.tar.gz" -C "$bundle" .
 archive_sha256="$(sha256sum "$temporary/cloud-deployment-bundle.tar.gz" | awk '{print $1}')"
 [[ "$archive_sha256" =~ ^[0-9a-f]{64}$ ]]
 printf '%s  %s\n' "$archive_sha256" cloud-deployment-bundle.tar.gz \
