@@ -44,7 +44,7 @@ operator_stop_requested() {
 
 remote_get() {
   local port="$1" path="$2" output="$3" temporary
-  [[ "$port" =~ ^2505[1-3]$ ]]
+  [[ "$port" =~ ^1909[1-3]$ ]]
   [[ "$path" == /v1/chat-lifecycle/status || "$path" == /v1/chat-lifecycle/snapshot ]]
   temporary="${output}.next"
   rm -f -- "$temporary"
@@ -137,7 +137,7 @@ while true; do
   capture_args=(repair-capture --state "$WK_CHAT_REPAIR_STATE" --observed-at "$observed_at")
   capture_failed=false
   for worker in 1 2 3; do
-    port=$(( 25050 + worker ))
+    port=$(( 19090 + worker ))
     status_path="$work_dir/status-${worker}.json"
     snapshot_path="$work_dir/snapshot-${worker}.json"
     remote_get "$port" /v1/chat-lifecycle/status "$status_path" || capture_failed=true

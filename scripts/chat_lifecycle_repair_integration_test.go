@@ -53,7 +53,7 @@ case "$command_line" in
   *"systemctl is-active"*) printf 'active\n'; exit 0 ;;
   *"journalctl"*) printf '%064d\n' 0; exit 0 ;;
 esac
-case "$command_line" in *25051*) worker=0 ;; *25052*) worker=1 ;; *25053*) worker=2 ;; *) exit 91 ;; esac
+case "$command_line" in *19091*) worker=0 ;; *19092*) worker=1 ;; *19093*) worker=2 ;; *) exit 91 ;; esac
 if [[ "$command_line" == *"/v1/chat-lifecycle/status"* ]]; then
   printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"running","generation":1,"worker_id":%s,"worker_count":3,"unexpected":false,"traffic_ready":true}\n' "$worker"
 elif [[ "$command_line" == *"/v1/chat-lifecycle/snapshot"* ]]; then
