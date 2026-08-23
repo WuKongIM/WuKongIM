@@ -2905,14 +2905,13 @@ func (e *Engine) lifecycleCandidateSlotForAt(work *engineWork, now time.Time) (i
 	}
 	if work.schedule.RevisitMessages >= minimumRevisitMessages && work.schedule.RevisitMessages <= maximumRevisitMessages {
 		// Leasing converts this otherwise neutral churn timer into a mandatory
-		// five-second product proof. Every real revisit needs both endpoints:
-		// one owns SEND admission and the other owns correlated delivery. Never
-		// promise the timer when either current session generation cannot
-		// outlive the proof, regardless of which direction this burst selects.
+		// five-second product proof. Never promise it when an endpoint that will
+		// actually send this revisit cannot outlive the proof. A one-way target
+		// is not a sender and therefore need not retain a worker-owned session;
+		// the proof reads durable sequence advancement from every service node.
 		proofDeadline := work.due.Add(lifecycleReheatDeadline)
 		if !proofDeadline.After(work.due) ||
-			!e.sessions.sendEligibleAt(work.edge.OwnerUID, proofDeadline) ||
-			!e.sessions.sendEligibleAt(work.edge.PeerUID, proofDeadline) {
+			!e.lifecycleReheatSendersEligibleAt(work, proofDeadline) {
 			return 0, time.Time{}, time.Time{}, false
 		}
 	}
@@ -2922,6 +2921,44 @@ func (e *Engine) lifecycleCandidateSlotForAt(work *engineWork, now time.Time) (i
 		return 0, time.Time{}, time.Time{}, false
 	}
 	return slot, quietNotBefore, quietDeadline, true
+}
+
+// lifecycleReheatSendersEligibleAt mirrors scheduleRelationshipMessagesFrom's
+// sender selection without retaining identities or reserving a SEND lease.
+// Required-sender returning work uses that one generation for the whole burst;
+// ordinary one-way and alternating work checks each distinct planned sender.
+func (e *Engine) lifecycleReheatSendersEligibleAt(work *engineWork, at time.Time) bool {
+	if e == nil || work == nil || at.IsZero() {
+		return false
+	}
+	if work.requiredSender != "" {
+		return e.sessions.sendEligibleAt(work.requiredSender, at)
+	}
+	direction, err := e.traffic.DirectionFor(work.relationshipOrdinal)
+	if err != nil {
+		return false
+	}
+	var checked [2]string
+	checkedCount := 0
+	for messageIndex := 0; messageIndex < work.schedule.RevisitMessages; messageIndex++ {
+		sender, senderErr := SenderFor(direction, uint64(messageIndex), work.edge.OwnerUID, work.edge.PeerUID)
+		if senderErr != nil {
+			return false
+		}
+		alreadyChecked := false
+		for index := 0; index < checkedCount; index++ {
+			alreadyChecked = alreadyChecked || checked[index] == sender
+		}
+		if alreadyChecked {
+			continue
+		}
+		if checkedCount == len(checked) || !e.sessions.sendEligibleAt(sender, at) {
+			return false
+		}
+		checked[checkedCount] = sender
+		checkedCount++
+	}
+	return checkedCount > 0
 }
 
 // addLifecyclePrimary appends into one known-vacant fixed primary bucket and
