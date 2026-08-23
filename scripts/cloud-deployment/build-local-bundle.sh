@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
 
 usage() {
   echo "usage: $0 --source-sha SHA --output-dir DIRECTORY" >&2

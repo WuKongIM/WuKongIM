@@ -344,6 +344,20 @@ func TestChatLifecycleLocalBundleBuilderUsesExactLocalRevisionWithoutGitHubActio
 	}
 }
 
+func TestChatLifecycleLocalBundleBuilderNormalizesPublicPayloadModes(t *testing.T) {
+	root := repoRoot(t)
+	body, err := os.ReadFile(filepath.Join(root, "scripts", "cloud-deployment", "build-local-bundle.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	umaskIndex := strings.Index(text, "umask 022")
+	buildIndex := strings.Index(text, "repository_root=")
+	if umaskIndex < 0 || buildIndex < 0 || umaskIndex > buildIndex {
+		t.Fatal("local bundle builder must normalize its umask before creating public bundle payloads")
+	}
+}
+
 func TestChatLifecycleDirectLabDeployActivatesAndGatesOneLocalGeneration(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
