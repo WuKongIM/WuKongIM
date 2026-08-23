@@ -335,7 +335,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 			return
 		}
 		inflight := &engineInflight{intent: intent, senderLeaseUID: intent.Logical.Sender, currentClientSeq: 1}
-		inflight.registerClientSeq(1)
+		inflight.registerClientSeq(1, fixture.clock.Now())
 		fixture.engine.inflight[intent.Logical.ClientMsgNo] = inflight
 		installedAck <- true
 	}}); err != nil {
@@ -386,7 +386,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 			return
 		}
 		inflight := &engineInflight{intent: lateIntent, senderLeaseUID: lateIntent.Logical.Sender, currentClientSeq: 2}
-		inflight.registerClientSeq(2)
+		inflight.registerClientSeq(2, fixture.clock.Now())
 		fixture.engine.inflight[lateIntent.Logical.ClientMsgNo] = inflight
 		lateInstalled <- true
 	}}); err != nil {
@@ -462,6 +462,74 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	}
 	if exact, exactErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidate.ChannelID, 42, 1); exactErr != nil || !exact {
 		t.Fatalf("replacement exact approval = %v,%v", exact, exactErr)
+	}
+}
+
+func TestLifecycleCandidateQuietWindowStartsAtPhysicalSendAdmissionNotDelayedSendACK(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.Incoming(18).Items[0]
+	startedAt := fixture.clock.Now()
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex,
+	}); err != nil {
+		t.Fatalf("login sender: %v", err)
+	}
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: startedAt.Add(10 * time.Minute), eligibilityDeadline: startedAt.Add(11 * time.Minute), kind: engineWorkLifecycle, edge: edge,
+			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true}, lifecycleTimerToken: 51,
+			activityVersion: 1, initialSequence: 42, lastActivityAt: startedAt, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	physicalAdmissionAt := startedAt.Add(time.Minute)
+	fixture.clock.Set(physicalAdmissionAt)
+	intent := fixture.intent(t, edge.OwnerUID, edge.PeerUID, 0, TrafficPerson)
+	intent.ChannelID = edge.PersonChannelID
+	if !fixture.pool.acquireSendLease(intent.Logical.Sender) {
+		t.Fatal("acquire send lease")
+	}
+	if err := fixture.engine.processAttempt(context.Background(), intent, 0, physicalAdmissionAt); err != nil {
+		t.Fatalf("process attempt: %v", err)
+	}
+	routes := fixture.factory.sentRoutes()
+	if len(routes) != 1 || routes[0].packet == nil {
+		t.Fatalf("physical routes = %+v, want one SEND", routes)
+	}
+
+	acknowledgedAt := physicalAdmissionAt.Add(750 * time.Millisecond)
+	fixture.clock.Set(acknowledgedAt)
+	packet := routes[0].packet
+	ack := &frame.SendackPacket{
+		ClientSeq: packet.ClientSeq, ClientMsgNo: packet.ClientMsgNo,
+		MessageID: 101, MessageSeq: 43, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := fixture.engine.ObserveSendack(edge.OwnerUID, ack, fixture.verifier.HandleSendack(ack)); err != nil {
+		t.Fatalf("observe delayed SENDACK: %v", err)
+	}
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), 1, mustInitialLifecycleSlotAssignment(t), acknowledgedAt,
+	)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("lease candidates = %+v, %v", candidates, err)
+	}
+	wantQuietNotBefore := physicalAdmissionAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
+	if !candidates[0].QuietNotBefore.Equal(wantQuietNotBefore) {
+		t.Fatalf("quiet-not-before = %v, want physical SEND admission boundary %v; delayed SENDACK was %v",
+			candidates[0].QuietNotBefore, wantQuietNotBefore, acknowledgedAt)
 	}
 }
 
@@ -1710,7 +1778,7 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 			return
 		}
 		inflight := &engineInflight{intent: intent, senderLeaseUID: intent.Logical.Sender, currentClientSeq: 1}
-		inflight.registerClientSeq(1)
+		inflight.registerClientSeq(1, fixture.clock.Now())
 		fixture.engine.inflight[intent.Logical.ClientMsgNo] = inflight
 		installed <- true
 	}}); err != nil {

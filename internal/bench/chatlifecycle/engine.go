@@ -607,18 +607,35 @@ type engineInflight struct {
 	attempt          uint8
 	currentClientSeq uint64
 	clientSeqs       [maxSendAttemptIdentities]uint64
-	clientSeqCount   uint8
-	retryScheduled   bool
-	timeout          *engineWork
+	// clientSeqStartedAt binds every bounded retry identity to the conservative
+	// local time immediately before its physical SEND admission. A successful
+	// delayed ACK must not move the server runtime's natural-idle boundary later.
+	clientSeqStartedAt [maxSendAttemptIdentities]time.Time
+	clientSeqCount     uint8
+	retryScheduled     bool
+	timeout            *engineWork
 }
 
-func (i *engineInflight) registerClientSeq(clientSeq uint64) bool {
-	if i == nil || clientSeq == 0 || i.clientSeqCount >= uint8(maxSendAttemptIdentities) || i.hasClientSeq(clientSeq) {
+func (i *engineInflight) registerClientSeq(clientSeq uint64, startedAt time.Time) bool {
+	if i == nil || clientSeq == 0 || startedAt.IsZero() || i.clientSeqCount >= uint8(maxSendAttemptIdentities) || i.hasClientSeq(clientSeq) {
 		return false
 	}
 	i.clientSeqs[i.clientSeqCount] = clientSeq
+	i.clientSeqStartedAt[i.clientSeqCount] = startedAt
 	i.clientSeqCount++
 	return true
+}
+
+func (i *engineInflight) startedAtForClientSeq(clientSeq uint64) (time.Time, bool) {
+	if i == nil || clientSeq == 0 {
+		return time.Time{}, false
+	}
+	for index := uint8(0); index < i.clientSeqCount; index++ {
+		if i.clientSeqs[index] == clientSeq && !i.clientSeqStartedAt[index].IsZero() {
+			return i.clientSeqStartedAt[index], true
+		}
+	}
+	return time.Time{}, false
 }
 
 func (i *engineInflight) hasClientSeq(clientSeq uint64) bool {
@@ -3105,7 +3122,7 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	if err := e.verifier.ObserveAttempt(logical, attemptPlan, clientSeq); err != nil {
 		return e.abortHarness(inflight, err)
 	}
-	if !inflight.registerClientSeq(clientSeq) {
+	if !inflight.registerClientSeq(clientSeq, attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
 	inflight.attempt = attempt
@@ -3240,6 +3257,10 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	}
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+		activityStartedAt, ok := inflight.startedAtForClientSeq(ack.ClientSeq)
+		if !ok {
+			return errors.Join(verificationErr, e.abortHarness(inflight, errEngineConfig))
+		}
 		var lifecycleErr error
 		lifecycleErr = errors.Join(lifecycleErr, e.completeGroupMetaCreate(inflight.intent))
 		if inflight.intent.ColdAttempt {
@@ -3273,7 +3294,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 				if ack.MessageSeq > lifecycle.initialSequence {
 					lifecycle.initialSequence = ack.MessageSeq
 				}
-				lifecycle.lastActivityAt = e.clock.Now()
+				lifecycle.lastActivityAt = activityStartedAt
 				lifecycle.observedLoaded = true
 				e.offerLifecycleCandidate(lifecycle)
 			}
