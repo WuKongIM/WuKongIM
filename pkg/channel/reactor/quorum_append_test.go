@@ -88,6 +88,29 @@ func TestQuorumFollowerDoesNotScheduleLegacyPullAckReplication(t *testing.T) {
 	require.Zero(t, transport.AckCalls())
 }
 
+func TestQuorumLeaderIdleEvictionDoesNotWaitForLegacyFollowerStopACKs(t *testing.T) {
+	log := &reactorCaptureQuorumLog{}
+	observer := &captureObserver{}
+	g, err := NewGroup(Config{
+		LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: store.NewMemoryFactory(),
+		QuorumLog: log, Observer: observer,
+		IdleEvictAfter: 5 * time.Millisecond, IdleEvictCheckInterval: time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("quorum-idle-evict", 1, 1)
+	meta.RouteGeneration = 1
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	require.Eventually(t, func() bool {
+		return observer.RuntimeEvicted() == 1
+	}, 250*time.Millisecond, time.Millisecond)
+}
+
 func TestQuorumLeaderActivationFailsClosedWhenInstallFails(t *testing.T) {
 	log := &reactorCaptureQuorumLog{installErr: ch.ErrNotReady}
 	g, err := NewGroup(Config{

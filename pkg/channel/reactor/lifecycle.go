@@ -51,6 +51,14 @@ func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
 	if rc == nil {
 		return
 	}
+	// DurableQuorumLog owns follower durability and repair without loading
+	// follower Channel runtimes. Its leader must not wait for the legacy
+	// pull-replication STOP/ACK handshake before evicting an idle runtime.
+	if r != nil && r.cfg.QuorumLog != nil {
+		rc.lifecycle.followers = nil
+		rc.lifecycle.pullHintInflight = nil
+		return
+	}
 	if rc.state == nil || rc.state.Role != ch.RoleLeader {
 		rc.lifecycle.followers = nil
 		rc.lifecycle.pullHintInflight = nil
