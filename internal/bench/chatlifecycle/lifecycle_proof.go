@@ -600,13 +600,18 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		if now.Before(state.reheatStarted) {
 			return p.productFailureLocked(LifecycleFailureControlTransition)
 		}
+		sequenceAdvanced := true
 		for index, row := range rows {
 			if !loaded[index] {
 				continue
 			}
-			if row.LEO <= state.candidate.InitialSequence || row.HW <= state.candidate.InitialSequence {
+			if row.LEO < state.candidate.InitialSequence || row.HW < state.candidate.InitialSequence {
 				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
+			sequenceAdvanced = sequenceAdvanced && row.LEO > state.candidate.InitialSequence && row.HW > state.candidate.InitialSequence
+		}
+		if !sequenceAdvanced {
+			return nil
 		}
 		state.phase = lifecycleComplete
 		p.snapshot.Completed = saturatingIncrement(p.snapshot.Completed)

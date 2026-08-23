@@ -258,6 +258,69 @@ func TestLifecycleProofLoadedAbsentReheatSequenceContinuity(t *testing.T) {
 	}
 }
 
+func TestLifecycleProofWaitsForReheatSendACKBeforeRequiringSequenceAdvance(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("loaded: %v", err)
+	}
+	if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+		t.Fatalf("absent: %v", err)
+	}
+	if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+		t.Fatalf("reheat: %v", err)
+	}
+
+	// The incoming reheat SEND loads the runtime before its SENDACK proves the
+	// append. Seeing the retained sequence in that bounded interval is expected
+	// convergence, not a reset or a failed continuity proof.
+	if err := proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("pre-SENDACK active runtime: %v", err)
+	}
+	if snapshot := proof.Snapshot(); snapshot.Completed != 0 || snapshot.ProductFailures != 0 {
+		t.Fatalf("pre-SENDACK snapshot = %+v", snapshot)
+	}
+
+	if err := proof.Observe(candidate.ReheatAt.Add(2*time.Second), lifecycleRows(candidate, "active", 11, 11)); err != nil {
+		t.Fatalf("post-SENDACK sequence advance: %v", err)
+	}
+	if snapshot := proof.Snapshot(); snapshot.Completed != 1 || snapshot.ProductFailures != 0 {
+		t.Fatalf("completed snapshot = %+v", snapshot)
+	}
+}
+
+func TestLifecycleProofFailsClosedWhenReheatSequenceNeverAdvances(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("loaded: %v", err)
+	}
+	if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+		t.Fatalf("absent: %v", err)
+	}
+	if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+		t.Fatalf("reheat: %v", err)
+	}
+	if err := proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("bounded convergence: %v", err)
+	}
+	if err := proof.Observe(candidate.ReheatAt.Add(lifecycleReheatDeadline+time.Nanosecond), lifecycleRows(candidate, "active", 10, 10)); !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("deadline error = %v, want product failure", err)
+	}
+	snapshot := proof.Snapshot()
+	if snapshot.ProductFailures != 1 || snapshot.ProductFailureReasons.ReheatTimeout != 1 || snapshot.Completed != 0 {
+		t.Fatalf("deadline snapshot = %+v", snapshot)
+	}
+}
+
 func TestLifecycleProofAcceptsLeaderOnlyRuntimeAcrossNaturalColdReheat(t *testing.T) {
 	now := time.Unix(1_000, 0)
 	candidate := lifecycleTestCandidates(t, now)[0]
@@ -1934,10 +1997,6 @@ func TestLifecycleProofReportsClosedProductFailureReasons(t *testing.T) {
 			reheat(proof)
 			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRowsWithRoles(candidate, [3]string{"follower", "missing", "missing"}, 11, 11))
 		}},
-		{name: "sequence proof", reason: LifecycleFailureSequenceProof, run: func(proof *LifecycleProof) error {
-			reheat(proof)
-			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 10, 10))
-		}},
 		{name: "sequence reset", reason: LifecycleFailureSequenceProof, run: func(proof *LifecycleProof) error {
 			initial := lifecycleRows(candidate, "active", 10, 10)
 			for node := range initial {
@@ -2123,10 +2182,14 @@ func TestLifecycleProofRejectsStuckRuntimeAndSequenceReset(t *testing.T) {
 			return p.Reheat(context.Background(), now, candidate.ChannelID, &fakeLifecycleSender{})
 		}},
 		{"sequence reset", func(p *LifecycleProof) error {
-			_ = p.Observe(now, lifecycleRows(candidate, "active", 10, 10))
+			initial := lifecycleRows(candidate, "active", 10, 10)
+			for node := range initial {
+				initial[node].Channels[0].CheckpointHW = 8
+			}
+			_ = p.Observe(now, initial)
 			_ = p.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0))
 			_ = p.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{})
-			return p.Observe(candidate.ReheatAt, lifecycleRows(candidate, "active", 10, 10))
+			return p.Observe(candidate.ReheatAt, lifecycleRows(candidate, "active", 9, 9))
 		}},
 		{"reheat without leader", func(p *LifecycleProof) error {
 			_ = p.Observe(now, lifecycleRows(candidate, "active", 10, 10))
