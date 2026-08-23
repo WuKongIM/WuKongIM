@@ -133,7 +133,7 @@ func TestRepositoryRepairTemplateCreatesReusableLeaseWithoutFormalTransition(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Stage != StageRepair || plan.WorkloadDurationSeconds != 600 ||
+	if plan.Stage != StageRepair || plan.WorkloadDurationSeconds != 4500 ||
 		plan.ReadinessTimeoutSeconds != 1800 || plan.LeasePlan.ExpiresAt != now.Add(6*time.Hour) ||
 		plan.LeasePlan.LeaseID != "repair-run-20260822-repair-1" ||
 		plan.LeasePlan.Budget.LimitMicros != 300_000_000 ||

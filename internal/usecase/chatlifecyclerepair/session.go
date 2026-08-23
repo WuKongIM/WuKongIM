@@ -63,7 +63,7 @@ const (
 	ReasonOperatorStop                   Reason = "operator_stop"
 )
 
-// Config fixes one short-run qualification contract.
+// Config fixes one bounded stability-run qualification contract.
 type Config struct {
 	TargetOnline             uint64        `json:"target_online"`
 	MinimumOnlinePercent     uint64        `json:"minimum_online_percent"`
@@ -281,7 +281,7 @@ func validConfig(config Config) bool {
 		config.MaximumAckBacklog > 0 && config.MaximumAckBacklog <= 100_000_000 &&
 		config.StallAfter >= time.Second && config.WarmupTimeout >= config.StallAfter &&
 		config.WarmupTimeout <= 10*time.Minute && config.QualifyAfter >= config.StallAfter &&
-		config.QualifyAfter <= 10*time.Minute
+		config.QualifyAfter <= time.Hour
 }
 
 func validCandidate(candidate Candidate) bool {

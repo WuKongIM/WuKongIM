@@ -1,6 +1,6 @@
 ---
 name: wukongim-chat-lifecycle
-description: Operate the Codex-owned WuKongIM chat-lifecycle laboratory directly from the local repository. Use when the operator explicitly asks to buy temporary Alibaba Cloud servers and start the repair short run, deploy a committed candidate to the same Lease, start or monitor the short workload, diagnose a stopped live run over SSH, inspect one request, or stop and destroy its exact resources. Only an exact start intent authorizes paid procurement; deploy, run, status, diagnose, stop, explanations, approvals, and next-step questions never buy servers.
+description: Operate the Codex-owned WuKongIM chat-lifecycle laboratory directly from the local repository. Use when the operator explicitly asks to buy temporary Alibaba Cloud servers and start the repair stability run, deploy a committed candidate to the same Lease, start or monitor the bounded long workload, diagnose a stopped live run over SSH, inspect one request, or stop and destroy its exact resources. Only an exact start intent authorizes paid procurement; deploy, run, status, diagnose, stop, explanations, approvals, and next-step questions never buy servers.
 ---
 
 # WuKongIM Chat Lifecycle Direct Lab
@@ -11,7 +11,7 @@ or destroy healthy hosts between candidate generations.
 
 ## Safety boundary
 
-- Treat the exact phrase `开始聊天生命周期修复短跑`, or an explicit invocation
+- Treat the exact phrase `开始聊天生命周期稳定性长跑`, or an explicit invocation
   of this Skill that unambiguously asks to purchase temporary servers and start
   the direct repair lab, as authority for one CNY 300 repair Lease.
 - Never infer paid authority from `继续`, `同意`, deploy, run, status, diagnose,
@@ -61,10 +61,12 @@ diagnosis; do not purchase replacement hosts.
 ### Run
 
 `run` never authorizes procurement. Start the fixed rehearsal-shaped systemd
-unit and hand it to the ten-minute repair monitor. Once active, online loss or
-missing SEND/SENDACK progress is terminal within 15 seconds. Stop the workload,
-retain the terminal worker cuts, and mark the request `diagnosis_ready`; do not
-keep polling a stopped workload.
+unit and hand it to the bounded 75-minute stability monitor. Qualification
+requires 60 continuous healthy active minutes. Once active, online loss,
+insufficient SEND rate, excessive SENDACK backlog, missing SEND/SENDACK
+progress, or active-phase loss is terminal within 15 seconds. Stop the
+workload, retain the terminal worker cuts, and mark the request
+`diagnosis_ready`; do not keep polling a stopped workload.
 
 ### Diagnose
 
@@ -88,7 +90,7 @@ completion only with an authenticated zero-inventory proof for that selector.
 
 ## Completion
 
-The repair short run is diagnostic and never official evidence. Keep the local
+The repair stability run is diagnostic and never official evidence. Keep the local
 request directory until `stop` has stored `zero-inventory.json`. Report both UTC
 and Asia/Shanghai timestamps for paid start, diagnosis, qualification, and
 release. Do not claim cleanup from a successful API delete request alone.

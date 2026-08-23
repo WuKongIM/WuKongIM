@@ -4,7 +4,7 @@
   "provider": "alibaba",
   "region": "cn-hangzhou",
   "lease_duration_seconds": 21600,
-  "workload_duration_seconds": 600,
+  "workload_duration_seconds": 4500,
   "readiness_timeout_seconds": 1800,
   "budget": {
     "currency": "CNY",

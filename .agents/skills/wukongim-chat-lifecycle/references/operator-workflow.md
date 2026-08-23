@@ -97,20 +97,21 @@ through the load host, activates the three service nodes plus load node, and
 requires the typed readiness gate. It does not contact the provider or purchase
 hosts.
 
-Start the bounded short workload:
+Start the bounded stability workload:
 
 ```bash
 scripts/chat-lifecycle/direct-lab.sh run "$request_id"
 ```
 
-The monitor samples all three workers every five seconds for at most ten
-minutes. It requires 10,000 target online sessions, at least 95% online,
-adjacent active-window SEND progress of at least 1,900/s, backlog at most
-4,000, and zero terminal correctness failures. After activity has begun,
-online loss, SEND/SENDACK stagnation, or service exit is terminal within 15
-seconds. Exit 10 means the workload was stopped and the Lease is deliberately
-retained for diagnosis. Exit 0 means the short run qualified; it remains
-diagnostic and is not official evidence.
+The monitor samples all three workers every five seconds for at most 75
+minutes. Qualification requires 60 continuous healthy active minutes with
+10,000 target online sessions, at least 95% online, adjacent active-window SEND
+progress of at least 1,900/s, backlog at most 4,000, and zero terminal
+correctness failures. After activity has begun, online loss, SEND/SENDACK
+stagnation, insufficient SEND rate, excessive backlog, active-phase loss, or
+service exit is terminal within 15 seconds. Exit 10 means the workload was
+stopped and the Lease is deliberately retained for diagnosis. Exit 0 means the
+stability run qualified; it remains diagnostic and is not official evidence.
 
 Collect a new bounded diagnosis while the Lease is live:
 
@@ -139,7 +140,7 @@ An explicit user stop authorizes cleanup of that request, not a new purchase:
 scripts/chat-lifecycle/direct-lab.sh stop "$request_id"
 ```
 
-`stop` writes the local stop marker, stops the remote short workload
+`stop` writes the local stop marker, stops the remote stability workload
 best-effort, calls `wkcloudlease release --selector` with the saved selector,
 and writes `zero-inventory.json` only if the returned proof contains the exact
 same selector, zero residual resources, an account hash, observation time, and

@@ -30,7 +30,7 @@ func TestChatLifecycleRepairMonitorStopsAfterRealWorkerProgressStall(t *testing.
 		"--bundle-digest", "sha256:"+strings.Repeat("b", 64), "--started-at", startedAt,
 		"--target-online", "9999", "--minimum-online-percent", "95", "--warmup-timeout", "5m",
 		"--minimum-send-rate", "1", "--maximum-ack-backlog", "10000",
-		"--stall-after", "1s", "--qualify-after", "2m")
+		"--stall-after", "1s", "--qualify-after", "1h")
 	body, err := begin.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ fi
 		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
 		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-test",
 		"WK_CHAT_REPAIR_POLL_SECONDS=1",
-		"WK_CHAT_REPAIR_MAX_SECONDS=60",
+		"WK_CHAT_REPAIR_MAX_SECONDS=4500",
 	)
 	if output, err := monitor.CombinedOutput(); err == nil {
 		t.Fatal("repair monitor unexpectedly qualified stalled traffic")

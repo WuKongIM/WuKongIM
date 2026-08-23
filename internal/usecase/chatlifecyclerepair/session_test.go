@@ -228,6 +228,31 @@ func TestSessionQualifiesOnlyAfterContinuousHealthyActiveProgress(t *testing.T) 
 	}
 }
 
+func TestSessionAcceptsOneHourStabilityWindow(t *testing.T) {
+	config := testConfig()
+	config.QualifyAfter = time.Hour
+	started := time.Date(2026, 8, 22, 15, 55, 0, 0, time.UTC)
+	state, err := repair.Begin(config, repair.Candidate{
+		RequestID: "chat-repair-a", LeaseID: "lease-a", Generation: 3,
+		SourceSHA: "1111111111111111111111111111111111111111", BundleDigest: digest('a'),
+	}, started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, decision, err := repair.Advance(config, state, observation(started.Add(5*time.Second), 10_000, 100, 100))
+	if err != nil || decision.Action != repair.ActionContinue {
+		t.Fatalf("first active observation = decision=%+v error=%v", decision, err)
+	}
+	state, decision, err = repair.Advance(config, state, observation(started.Add(time.Hour), 10_000, 360_000, 360_000))
+	if err != nil || decision.Action != repair.ActionContinue {
+		t.Fatalf("stability run qualified before one active hour: decision=%+v error=%v", decision, err)
+	}
+	_, decision, err = repair.Advance(config, state, observation(started.Add(time.Hour+5*time.Second), 10_000, 360_005, 360_005))
+	if err != nil || decision.Action != repair.ActionQualified {
+		t.Fatalf("one-hour stability qualification = decision=%+v error=%v", decision, err)
+	}
+}
+
 func TestSessionFailureIsTerminalUntilANewGenerationBegins(t *testing.T) {
 	started := time.Date(2026, 8, 22, 16, 0, 0, 0, time.UTC)
 	config := testConfig()

@@ -268,7 +268,7 @@ func validTemplate(template Template) bool {
 	switch template.Stage {
 	case StageRepair:
 		if template.LeaseDurationSeconds != int64((6*time.Hour)/time.Second) ||
-			template.WorkloadDurationSeconds != int64((10*time.Minute)/time.Second) ||
+		template.WorkloadDurationSeconds != int64((75*time.Minute)/time.Second) ||
 			template.ReadinessTimeoutSeconds != int64((30*time.Minute)/time.Second) ||
 			template.Budget.HardLimitMicros != 300_000_000 ||
 			template.Budget.OperationalStopMicros != 250_000_000 {

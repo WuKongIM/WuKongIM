@@ -465,7 +465,7 @@ run_request() {
   local repair_state monitor_status reason
   directory="$(resolve_request_dir "$request_id")"
   jq -e '.schema == "wukongim.chat_lifecycle.direct_lab_state/v1" and .state == "deployed" and .generation > 0' \
-    "$directory/state.json" >/dev/null || die 'request must have one gated deployment before a short run'
+    "$directory/state.json" >/dev/null || die 'request must have one gated deployment before a stability run'
   generation="$(jq -er .generation "$directory/state.json")"
   generation_dir="$directory/generations/$generation"
   [[ -d "$generation_dir" && ! -L "$generation_dir" ]] || die 'current deployment generation is unavailable'
@@ -500,7 +500,7 @@ run_request() {
     --started-at "$started_at" \
     --target-online 10000 --minimum-online-percent 95 \
     --minimum-send-rate 1900 --maximum-ack-backlog 4000 \
-    --warmup-timeout 5m --stall-after 15s --qualify-after 2m \
+    --warmup-timeout 5m --stall-after 15s --qualify-after 1h \
     >"$repair_state"
   chmod 0600 "$repair_state"
   rm -f -- "$directory/stop-requested"
@@ -511,7 +511,7 @@ run_request() {
     WK_CHAT_REPAIR_OUTPUT_DIR="$generation_dir" \
     WK_CHAT_REPAIR_SSH_CONFIG="$directory/deployment-ssh-config" \
     WK_CHAT_REPAIR_REQUEST_ID="$request_id" \
-    WK_CHAT_REPAIR_MAX_SECONDS="${WK_CHAT_LAB_RUN_SECONDS:-600}" \
+    WK_CHAT_REPAIR_MAX_SECONDS="${WK_CHAT_LAB_RUN_SECONDS:-4500}" \
     WK_CHAT_REPAIR_POLL_SECONDS="${WK_CHAT_LAB_POLL_SECONDS:-5}" \
     WK_CHAT_REPAIR_SERVICE=wkbench-rehearsal.service \
     WK_CHAT_REPAIR_OPERATOR_STOP_FILE="$directory/stop-requested" \

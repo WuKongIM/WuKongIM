@@ -491,14 +491,15 @@ printf '{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","st
 set -euo pipefail
 [[ "$1" == repair-begin ]]
 started_at=''
+qualify_after=''
 while (( $# > 0 )); do
-  if [[ "$1" == --started-at ]]; then
-    started_at="$2"
-    break
-  fi
-  shift
+  case "$1" in
+    --started-at) started_at="$2"; shift 2 ;;
+    --qualify-after) qualify_after="$2"; shift 2 ;;
+    *) shift ;;
+  esac
 done
-if [[ "$started_at" != 2026-08-23T04:05:06.276365315Z ]]; then
+if [[ "$started_at" != 2026-08-23T04:05:06.276365315Z || "$qualify_after" != 1h ]]; then
   exit 42
 fi
 printf 'repair-begin\n' >>"$WK_TEST_CALL_LOG"
@@ -507,6 +508,7 @@ printf '{"schema":"wukongim.chat_lifecycle.repair_state/v1"}\n'
 	monitor := filepath.Join(directory, "repair-monitor")
 	writeDirectLabExecutable(t, monitor, `#!/usr/bin/env bash
 set -euo pipefail
+[[ "$WK_CHAT_REPAIR_MAX_SECONDS" == 4500 ]]
 printf 'monitor\n' >>"$WK_TEST_CALL_LOG"
 printf '{"schema":"wukongim.chat_lifecycle.repair_step/v1","decision":{"action":"stop_and_diagnose","reason":"send_progress_stalled","observed_at":"2026-08-23T04:05:21Z"}}\n' >"$WK_CHAT_REPAIR_OUTPUT_DIR/repair-decision.json"
 printf '{"schema":"wukongim.chat_lifecycle.repair_diagnosis/v1","reason":"send_progress_stalled"}\n' >"$WK_CHAT_REPAIR_OUTPUT_DIR/repair-diagnosis.json"
@@ -534,7 +536,7 @@ exit 10
 		t.Fatalf("state = %s, %v", state, readErr)
 	}
 	if _, statErr := os.Stat(filepath.Join(requestDirectory, "zero-inventory.json")); !os.IsNotExist(statErr) {
-		t.Fatalf("failed short run released or fabricated zero proof: %v", statErr)
+		t.Fatalf("failed stability run released or fabricated zero proof: %v", statErr)
 	}
 }
 
