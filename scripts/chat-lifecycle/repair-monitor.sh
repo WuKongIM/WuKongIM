@@ -94,6 +94,26 @@ persist_terminal_cut() {
   done
 }
 
+persist_observation_failure() {
+  local reason="$1" observed_at="$2" attempt="$3" failure_dir worker source
+  failure_dir="$WK_CHAT_REPAIR_OUTPUT_DIR/observation-failure"
+  install -d -m 0700 "$failure_dir"
+  for worker in 1 2 3; do
+    for source in status snapshot; do
+      if [[ -f "$work_dir/${source}-${worker}.json" && ! -L "$work_dir/${source}-${worker}.json" ]]; then
+        install -m 0600 "$work_dir/${source}-${worker}.json" "$failure_dir/${source}-${worker}.json"
+      else
+        rm -f -- "$failure_dir/${source}-${worker}.json"
+      fi
+    done
+  done
+  jq -n --arg schema 'wukongim.chat_lifecycle.repair_observation_failure/v1' \
+    --arg reason "$reason" --arg observed_at "$observed_at" --argjson attempt "$attempt" \
+    '{schema:$schema,reason:$reason,observed_at:$observed_at,attempt:$attempt}' \
+    >"$failure_dir/failure.json"
+  chmod 0600 "$failure_dir/failure.json"
+}
+
 seal_abort() {
   local reason="$1" observed_at="$2"
   "$WK_CHAT_REPAIR_TOOL" repair-abort --state "$WK_CHAT_REPAIR_STATE" \
@@ -138,18 +158,34 @@ while true; do
     exit $?
   fi
 
-  capture_args=(repair-capture --state "$WK_CHAT_REPAIR_STATE" --observed-at "$observed_at")
-  capture_failed=false
-  for worker in 1 2 3; do
-    port=$(( 19090 + worker ))
-    status_path="$work_dir/status-${worker}.json"
-    snapshot_path="$work_dir/snapshot-${worker}.json"
-    remote_get "$port" /v1/chat-lifecycle/status "$status_path" || capture_failed=true
-    remote_get "$port" /v1/chat-lifecycle/snapshot "$snapshot_path" || capture_failed=true
-    capture_args+=(--worker-status "$status_path" --worker-snapshot "$snapshot_path")
+  capture_succeeded=false
+  for capture_attempt in 1 2 3; do
+    observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    capture_args=(repair-capture --state "$WK_CHAT_REPAIR_STATE" --observed-at "$observed_at")
+    capture_failed=false
+    for worker in 1 2 3; do
+      port=$(( 19090 + worker ))
+      status_path="$work_dir/status-${worker}.json"
+      snapshot_path="$work_dir/snapshot-${worker}.json"
+      rm -f -- "$status_path" "$snapshot_path"
+      remote_get "$port" /v1/chat-lifecycle/status "$status_path" || capture_failed=true
+      remote_get "$port" /v1/chat-lifecycle/snapshot "$snapshot_path" || capture_failed=true
+      capture_args+=(--worker-status "$status_path" --worker-snapshot "$snapshot_path")
+    done
+    if [[ "$capture_failed" == true ]]; then
+      persist_observation_failure remote_fetch_failed "$observed_at" "$capture_attempt"
+      break
+    elif "$WK_CHAT_REPAIR_TOOL" "${capture_args[@]}" >"$work_dir/observation.json"; then
+      capture_succeeded=true
+      break
+    else
+      persist_observation_failure strict_capture_rejected "$observed_at" "$capture_attempt"
+    fi
+    if (( capture_attempt < 3 )); then
+      sleep 1
+    fi
   done
-  if [[ "$capture_failed" == true ]] ||
-    ! "$WK_CHAT_REPAIR_TOOL" "${capture_args[@]}" >"$work_dir/observation.json"; then
+  if [[ "$capture_succeeded" != true ]]; then
     seal_abort observation_unavailable "$observed_at"
     exit $?
   fi

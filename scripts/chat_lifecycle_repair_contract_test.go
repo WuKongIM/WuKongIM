@@ -19,6 +19,8 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"stop_and_diagnose", "qualified", "sudo systemctl stop", "systemctl is-active --quiet",
 		"repair-observations.jsonl", "repair-decision.json", "repair-diagnosis.json",
 		"terminal-cut", "status-${worker}.json", "snapshot-${worker}.json",
+		"observation-failure", "strict_capture_rejected", "remote_fetch_failed",
+		"for capture_attempt in 1 2 3", "capture_succeeded",
 		"WK_CHAT_REPAIR_POLL_SECONDS", "WK_CHAT_REPAIR_MAX_SECONDS",
 		"operator-stop-requested.sh", "WK_CHAT_REPAIR_REQUEST_ID", "operator_stop",
 		`max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"`,

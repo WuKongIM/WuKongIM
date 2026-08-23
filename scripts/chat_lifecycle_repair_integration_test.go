@@ -108,6 +108,100 @@ fi
 	}
 }
 
+func TestChatLifecycleRepairMonitorRetriesOneInconsistentWorkerCut(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	tool := filepath.Join(directory, "wkchatlifecycle")
+	build := exec.Command("go", "build", "-trimpath", "-o", tool, "./cmd/wkchatlifecycle")
+	build.Dir = root
+	build.Env = append(os.Environ(), "GOWORK=off")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build wkchatlifecycle: %v\n%s", err, output)
+	}
+	state := filepath.Join(directory, "state.json")
+	startedAt := time.Now().UTC().Add(-time.Second).Truncate(time.Second).Format(time.RFC3339)
+	begin := exec.Command(tool,
+		"repair-begin", "--request-id", "repair-monitor-retry", "--lease-id", "repair-lease-retry",
+		"--generation", "1", "--source-sha", strings.Repeat("a", 40),
+		"--bundle-digest", "sha256:"+strings.Repeat("b", 64), "--started-at", startedAt,
+		"--target-online", "9999", "--minimum-online-percent", "95", "--warmup-timeout", "5m",
+		"--minimum-send-rate", "1", "--maximum-ack-backlog", "10000",
+		"--stall-after", "1s", "--qualify-after", "1h")
+	body, err := begin.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(state, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeBin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(fakeBin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	callState := filepath.Join(directory, "snapshot-calls")
+	writeRepairExecutable(t, filepath.Join(fakeBin, "ssh"), `#!/usr/bin/env bash
+command_line="$*"
+case "$command_line" in
+  *"systemctl stop"*) exit 0 ;;
+  *"systemctl is-active --quiet"*) exit 1 ;;
+  *"systemctl is-active"*) printf 'active\n'; exit 0 ;;
+  *"journalctl"*) printf '%064d\n' 0; exit 0 ;;
+esac
+case "$command_line" in *19091*) worker=0 ;; *19092*) worker=1 ;; *19093*) worker=2 ;; *) exit 91 ;; esac
+if [[ "$command_line" == *"/v1/chat-lifecycle/status"* ]]; then
+  printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"running","generation":1,"worker_id":%s,"worker_count":3,"unexpected":false,"traffic_ready":true}\n' "$worker"
+elif [[ "$command_line" == *"/v1/chat-lifecycle/snapshot"* ]]; then
+  calls=0
+  [[ -f "$WK_TEST_SNAPSHOT_CALLS" ]] && calls="$(cat "$WK_TEST_SNAPSHOT_CALLS")"
+  calls=$(( calls + 1 ))
+  printf '%s\n' "$calls" >"$WK_TEST_SNAPSHOT_CALLS"
+  phase=running
+  [[ "$calls" == 1 ]] && phase=final
+  printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"%s","generation":1,"worker_id":%s,"worker_count":3,"sessions":{"target":3333,"online":3333,"traffic_ready":3333},"messages":{"sent":100,"send_acknowledged":90},"harness":{}}\n' "$phase" "$worker"
+else
+  exit 92
+fi
+`)
+	sshConfig := filepath.Join(directory, "ssh-config")
+	if err := os.WriteFile(sshConfig, []byte("Host wukong-load\n  HostName 127.0.0.1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := filepath.Join(directory, "output")
+	monitor := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "repair-monitor.sh"))
+	monitor.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_CHAT_REPAIR_TOOL="+tool,
+		"WK_CHAT_REPAIR_STATE="+state,
+		"WK_CHAT_REPAIR_OUTPUT_DIR="+outputDir,
+		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
+		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-retry",
+		"WK_CHAT_REPAIR_POLL_SECONDS=1",
+		"WK_CHAT_REPAIR_MAX_SECONDS=4500",
+		"WK_TEST_SNAPSHOT_CALLS="+callState,
+	)
+	if output, err := monitor.CombinedOutput(); err == nil {
+		t.Fatal("repair monitor unexpectedly qualified stalled traffic")
+	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 10 {
+		t.Fatalf("repair monitor exit = %v\n%s", err, output)
+	}
+	decisionBody, err := os.ReadFile(filepath.Join(outputDir, "repair-decision.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(decisionBody), `"reason":"message_progress_stalled"`) {
+		t.Fatalf("repair monitor did not recover from one inconsistent cut: %s", decisionBody)
+	}
+	for worker := 1; worker <= 3; worker++ {
+		for _, kind := range []string{"status", "snapshot"} {
+			path := filepath.Join(outputDir, "observation-failure", kind+"-"+string(rune('0'+worker))+".json")
+			if info, statErr := os.Stat(path); statErr != nil || info.Size() == 0 {
+				t.Fatalf("failed %s cut for worker %d was not retained: %v", kind, worker, statErr)
+			}
+		}
+	}
+}
+
 func TestChatLifecycleDiagnosisCollectorUsesCurrentWorkerPorts(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
