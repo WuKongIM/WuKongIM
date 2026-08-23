@@ -28,6 +28,9 @@ type channelEntry struct {
 	// idempotencyMembershipLoaded reports that the filter covers every durable
 	// idempotency key visible when it was initialized. It is guarded by appendMu.
 	idempotencyMembershipLoaded bool
+	// durableProposalTail caches the committed exact-append predecessor. It is
+	// guarded by appendMu and may only be published after the physical commit.
+	durableProposalTail durableProposalTail
 	// checkpointMu serializes checkpoint reads followed by writes.
 	checkpointMu sync.Mutex
 	// leo caches the last durable message sequence after it is loaded.
@@ -147,6 +150,7 @@ func (l *ChannelLog) loadLEOLocked(ctx context.Context) (uint64, error) {
 	}
 	l.leo.Store(leo)
 	l.loaded.Store(true)
+	l.clearDurableProposalTailLocked()
 	return leo, nil
 }
 

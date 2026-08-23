@@ -616,6 +616,9 @@ func (c *topCollector) observeStorageMetrics() {
 	snapshot := snapshotFn()
 	for _, store := range snapshot.Stores {
 		metrics.SetPebbleMetrics(store.Store, obsmetrics.StoragePebbleObservation{
+			SequencedExactFreshAppends:     store.Engine.SequencedExactFreshAppends,
+			DurablePredecessorCacheHits:    store.Engine.DurablePredecessorCacheHits,
+			DurablePredecessorValidations:  store.Engine.DurablePredecessorValidations,
 			IdempotencyNegativeFilterSkips: store.Engine.IdempotencyNegativeFilterSkips,
 			IdempotencyPointReads:          store.Engine.IdempotencyPointReads,
 			DiskSpaceUsageBytes:            store.Engine.DiskSpaceUsageBytes,

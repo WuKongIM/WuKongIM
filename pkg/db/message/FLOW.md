@@ -20,6 +20,15 @@ Current flow:
    `channelEntry`, including its immutable append-key cache, append mutex,
    checkpoint mutex, and LEO state. Lease close waits for its admitted
    operations; the last lease or pin compare-deletes and reclaims the entry.
+   A 32768-entry bounded warm cache retains LEO, idempotency membership, and
+   the last committed exact proposal/entry identity across lease reclamation.
+   Fresh exact extensions backed by the node-scoped message-ID allocator proof
+   validate that immutable tail in memory and therefore avoid repeated Pebble
+   predecessor point reads. Strict, replay, and recovery paths retain full
+   durable validation. Only post-commit publish may
+   advance the cached tail; ordinary append, suffix mutation, and a recovered
+   LEO invalidate it. Process restart or warm eviction falls back to the full
+   durable predecessor validation before repopulating the cache.
    `MessageDB.ChannelEntryMetricsSnapshot` and the compatibility `Engine`
    surface expose aggregate active-entry, lease, background-pin, acquisition,
    release, and reclamation counts. These metrics are database-wide and never

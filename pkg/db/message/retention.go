@@ -163,8 +163,12 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	if err := batch.Commit(true); err != nil {
 		return RetentionTrimResult{}, err
 	}
-	l.leo.Store(maxUint64(leo, next.RetainedMaxSeq))
+	nextLEO := maxUint64(leo, next.RetainedMaxSeq)
+	l.leo.Store(nextLEO)
 	l.loaded.Store(true)
+	if nextLEO != leo {
+		l.clearDurableProposalTailLocked()
+	}
 	return result, nil
 }
 

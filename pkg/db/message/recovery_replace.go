@@ -272,8 +272,13 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 		err = toChannelError(err)
 		return ReplaceRecoverySuffixResult{Outcome: quorumlog.AppendOutcomeUnknown}, err
 	}
-	s.log.leo.Store(finalOffset)
-	s.log.loaded.Store(true)
+	if len(prepared.rows) == 0 {
+		s.log.leo.Store(finalOffset)
+		s.log.loaded.Store(true)
+		s.log.clearDurableProposalTailLocked()
+	} else {
+		s.log.publishCommittedRows(prepared.rows, finalOffset, prepared.proposals, prepared.entries)
+	}
 	if s.log.idempotencyMembershipLoaded {
 		cache := s.log.appendKeyCache
 		for _, row := range prepared.rows {

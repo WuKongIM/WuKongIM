@@ -288,6 +288,97 @@ func BenchmarkStoreAppendBatch(b *testing.B) {
 	}
 }
 
+func BenchmarkExactAppendWarmWorkingSet(b *testing.B) {
+	const (
+		workingSet = 24 * 1024
+		batchSize  = 128
+	)
+	eng, err := Open(b.TempDir())
+	if err != nil {
+		b.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := eng.Close(); err != nil {
+			b.Fatalf("Close(): %v", err)
+		}
+	}()
+	tails := make([][32]byte, workingSet)
+	appendSweep := func(sweep int) {
+		baseOffset := uint64(sweep)
+		for start := 0; start < workingSet; start += batchSize {
+			end := minInt(start+batchSize, workingSet)
+			items := make([]AppendBatchItem, 0, end-start)
+			stores := make([]*ChannelStore, 0, end-start)
+			for index := start; index < end; index++ {
+				channelID := "exact-warm-" + strconv.Itoa(index)
+				store := mustForChannel(b, eng, channel.ChannelKey(channelID+":1"), channel.ChannelID{ID: channelID, Type: 1})
+				stores = append(stores, store)
+				messageID := uint64(sweep*workingSet + index + 1)
+				record, err := compatibilityRecordFromRow(messageRow{
+					MessageID: messageID, ClientMsgNo: benchmarkClientMsgNo(messageID), ChannelID: channelID,
+					ChannelType: 1, FromUID: "bench-u1", ServerTimestampMS: 1_700_000_000_000 + int64(messageID),
+					Payload: []byte("payload"),
+				})
+				if err != nil {
+					b.Fatalf("compatibilityRecordFromRow(): %v", err)
+				}
+				record.Epoch = 5
+				commandID := [32]byte{}
+				binary.BigEndian.PutUint64(commandID[len(commandID)-8:], messageID)
+				manifest := DurableProposalManifest{
+					Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+					CommandID: commandID, BaseOffset: baseOffset, LastOffset: baseOffset + 1,
+				}
+				if baseOffset > 0 {
+					manifest.PreviousTerm = 7
+					manifest.PreviousIndex = baseOffset
+					manifest.PreviousDigest = tails[index]
+				}
+				rows, err := compatibilityRowsFromRecords(baseOffset+1, []channel.Record{record})
+				if err != nil {
+					b.Fatalf("compatibilityRowsFromRecords(): %v", err)
+				}
+				entries, ok := deriveDurableProposalEntries(manifest, []channel.Record{record}, rows)
+				if !ok || len(entries) != 1 {
+					b.Fatal("deriveDurableProposalEntries() failed")
+				}
+				manifest.Digest = entries[0].Digest
+				tails[index] = manifest.Digest
+				items = append(items, AppendBatchItem{
+					Store: store, Records: []channel.Record{record}, ExactBaseOffset: true,
+					ExpectedBaseOffset: baseOffset, Proposal: manifest, ServerAllocatedMessageIDs: true,
+				})
+			}
+			results := StoreAppendBatch(context.Background(), items)
+			for index, result := range results {
+				if result.Err != nil {
+					b.Fatalf("StoreAppendBatch()[%d]: %v", index, result.Err)
+				}
+			}
+			for _, store := range stores {
+				if err := store.Close(); err != nil {
+					b.Fatalf("ChannelStore.Close(): %v", err)
+				}
+			}
+		}
+	}
+
+	appendSweep(0)
+	validationsBefore := eng.db.durablePredecessorValidations.Load()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for sweep := 1; sweep <= b.N; sweep++ {
+		appendSweep(sweep)
+	}
+	b.StopTimer()
+	validations := eng.db.durablePredecessorValidations.Load() - validationsBefore
+	if validations != 0 {
+		b.Fatalf("durable predecessor validations = %d, want 0 for warm working set", validations)
+	}
+	b.ReportMetric(workingSet, "channels/op")
+	b.ReportMetric(float64(validations)/float64(max(1, b.N)), "predecessor-validations/op")
+}
+
 func BenchmarkChannelLogRead(b *testing.B) {
 	log, closeFn := openBenchmarkLog(b, "bench-read")
 	defer closeFn()

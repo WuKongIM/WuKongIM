@@ -8,6 +8,12 @@ import (
 
 // StorageEngineMetrics is a stable view of one local storage engine.
 type StorageEngineMetrics struct {
+	// SequencedExactFreshAppends is the number of allocator-proven fresh exact appends.
+	SequencedExactFreshAppends uint64
+	// DurablePredecessorCacheHits is the number of exact predecessor checks served from memory.
+	DurablePredecessorCacheHits uint64
+	// DurablePredecessorValidations is the number of complete durable predecessor proofs after cache misses.
+	DurablePredecessorValidations uint64
 	// IdempotencyNegativeFilterSkips is the number of durable negative point reads avoided.
 	IdempotencyNegativeFilterSkips uint64
 	// IdempotencyPointReads is the number of possible filter hits verified durably.
@@ -126,6 +132,9 @@ func storageChannelEntryMetricsFromChannelStore(snapshot channelstore.MessageDBF
 
 func storageMetricsFromChannelStore(snapshot channelstore.MessageDBFactoryMetricsSnapshot) StorageEngineMetrics {
 	return StorageEngineMetrics{
+		SequencedExactFreshAppends:     snapshot.SequencedExactFreshAppends,
+		DurablePredecessorCacheHits:    snapshot.DurablePredecessorCacheHits,
+		DurablePredecessorValidations:  snapshot.DurablePredecessorValidations,
 		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
 		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
 		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,

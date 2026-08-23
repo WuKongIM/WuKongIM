@@ -52,6 +52,7 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 	}
 	l.leo.Store(fromSeq - 1)
 	l.loaded.Store(true)
+	l.clearDurableProposalTailLocked()
 	return nil
 }
 

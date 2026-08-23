@@ -112,6 +112,7 @@ func (l *ChannelLog) publishAppendLocked(result AppendResult) {
 	}
 	l.leo.Store(result.LastSeq)
 	l.loaded.Store(true)
+	l.clearDurableProposalTailLocked()
 }
 
 func (l *channelEntry) stageMessageRows(batch *engine.Batch, rows []messageRow) error {

@@ -118,6 +118,7 @@ func TestExactServerAllocatedAppendUsesFreshValidationAfterReacquire(t *testing.
 			second.log.loaded.Load(), second.log.leo.Load(), second.log.idempotencyMembershipLoaded)
 	}
 	before := eng.db.sequencedExactFreshAppends.Load()
+	predecessorValidationsBefore := eng.db.durablePredecessorValidations.Load()
 	secondRecord := compatExactTestRecord(t, 5, 9062, id.ID, "second")
 	secondManifest := sealCompatProposalManifest(t, DurableProposalManifest{
 		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
@@ -133,6 +134,124 @@ func TestExactServerAllocatedAppendUsesFreshValidationAfterReacquire(t *testing.
 	}
 	if got := eng.db.sequencedExactFreshAppends.Load(); got != before+1 {
 		t.Fatalf("sequenced exact fresh appends = %d, want %d", got, before+1)
+	}
+	if got := eng.db.durablePredecessorValidations.Load(); got != predecessorValidationsBefore {
+		t.Fatalf("durable predecessor validations = %d, want %d after warm exact append", got, predecessorValidationsBefore)
+	}
+}
+
+func TestExactServerAllocatedAppendLoadsPredecessorOnceAfterReopen(t *testing.T) {
+	path := t.TempDir()
+	id := channel.ChannelID{ID: "exact-reopen", Type: 1}
+	key := channel.ChannelKey("exact-reopen:1")
+	eng, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	first := mustForChannel(t, eng, key, id)
+	firstRecord := compatExactTestRecord(t, 5, 9071, id.ID, "first")
+	firstManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	firstResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: first, Records: []channel.Record{firstRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 0, Proposal: firstManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(firstResult) != 1 || firstResult[0].Err != nil {
+		t.Fatalf("first StoreAppendBatch() = %+v, want success", firstResult)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("first Close(): %v", err)
+	}
+	if err := eng.Close(); err != nil {
+		t.Fatalf("first Engine.Close(): %v", err)
+	}
+
+	eng, err = Open(path)
+	if err != nil {
+		t.Fatalf("Open() after restart: %v", err)
+	}
+	defer eng.Close()
+	second := mustForChannel(t, eng, key, id)
+	secondRecord := compatExactTestRecord(t, 5, 9072, id.ID, "second")
+	secondManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{2}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: firstManifest.Digest,
+	}, []channel.Record{secondRecord})
+	validationsBefore := eng.db.durablePredecessorValidations.Load()
+	secondResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: second, Records: []channel.Record{secondRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 1, Proposal: secondManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(secondResult) != 1 || secondResult[0].Err != nil {
+		t.Fatalf("second StoreAppendBatch() = %+v, want success", secondResult)
+	}
+	if got := eng.db.durablePredecessorValidations.Load(); got != validationsBefore+1 {
+		t.Fatalf("durable predecessor validations = %d, want %d after restart cache miss", got, validationsBefore+1)
+	}
+	if err := second.Close(); err != nil {
+		t.Fatalf("second Close(): %v", err)
+	}
+
+	third := mustForChannel(t, eng, key, id)
+	defer third.Close()
+	thirdRecord := compatExactTestRecord(t, 5, 9073, id.ID, "third")
+	thirdManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{3}, BaseOffset: 2, LastOffset: 3,
+		PreviousTerm: 7, PreviousIndex: 2, PreviousDigest: secondManifest.Digest,
+	}, []channel.Record{thirdRecord})
+	validationsBefore = eng.db.durablePredecessorValidations.Load()
+	thirdResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: third, Records: []channel.Record{thirdRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 2, Proposal: thirdManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(thirdResult) != 1 || thirdResult[0].Err != nil {
+		t.Fatalf("third StoreAppendBatch() = %+v, want success", thirdResult)
+	}
+	if got := eng.db.durablePredecessorValidations.Load(); got != validationsBefore {
+		t.Fatalf("durable predecessor validations = %d, want %d after warm cache hit", got, validationsBefore)
+	}
+}
+
+func TestExactAppendPublishesTailOnlyAfterCommit(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "exact-commit-tail", Type: 1}
+	store := mustForChannel(t, eng, "exact-commit-tail:1", id)
+	defer store.Close()
+	firstRecord := compatExactTestRecord(t, 5, 9081, id.ID, "first")
+	firstManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{firstRecord})
+	firstResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{firstRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 0, Proposal: firstManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(firstResult) != 1 || firstResult[0].Err != nil {
+		t.Fatalf("first StoreAppendBatch() = %+v, want success", firstResult)
+	}
+
+	secondRecord := compatExactTestRecord(t, 5, 9082, id.ID, "second")
+	secondManifest := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{2}, BaseOffset: 1, LastOffset: 2,
+		PreviousTerm: 7, PreviousIndex: 1, PreviousDigest: firstManifest.Digest,
+	}, []channel.Record{secondRecord})
+	wantErr := errors.New("commit failed")
+	eng.committer.SetCommitFunc(func(*engine.Batch) error { return wantErr })
+	secondResult := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{secondRecord}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 1, Proposal: secondManifest, ServerAllocatedMessageIDs: true,
+	}})
+	if len(secondResult) != 1 || !errors.Is(secondResult[0].Err, wantErr) {
+		t.Fatalf("failed StoreAppendBatch() = %+v, want %v", secondResult, wantErr)
+	}
+	tail := store.log.durableProposalTail
+	if !tail.loaded || tail.proposal.manifest.CommandID != firstManifest.CommandID || tail.entry.Index != 1 {
+		t.Fatalf("tail after failed commit = %+v, want first committed proposal", tail)
 	}
 }
 

@@ -8,7 +8,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
-const defaultChannelWarmCacheEntries = 8192
+// Keep the complete append frontier for the expected multi-node hot working
+// set while retaining a strict database-wide memory bound.
+const defaultChannelWarmCacheEntries = 32 * 1024
 
 // channelWarmState is the bounded, lease-independent append state retained
 // after a canonical entry reaches zero references. It never retains a usable
@@ -20,6 +22,7 @@ type channelWarmState struct {
 	loaded                      bool
 	idempotencyMembership       idempotencyMembershipFilter
 	idempotencyMembershipLoaded bool
+	durableProposalTail         durableProposalTail
 }
 
 type channelWarmCacheEntry struct {
@@ -117,6 +120,7 @@ func (r *channelRegistry) acquire(db *MessageDB, key ChannelKey, id ChannelID) (
 			entry.loaded.Store(warm.loaded)
 			entry.idempotencyMembership = warm.idempotencyMembership
 			entry.idempotencyMembershipLoaded = warm.idempotencyMembershipLoaded
+			entry.durableProposalTail = warm.durableProposalTail
 		}
 		r.entries[key] = entry
 	}
@@ -220,9 +224,11 @@ func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
 		loaded:                      entry.loaded.Load(),
 		idempotencyMembership:       entry.idempotencyMembership,
 		idempotencyMembershipLoaded: entry.idempotencyMembershipLoaded,
+		durableProposalTail:         entry.durableProposalTail,
 	}
 	entry.idempotencyMembership = idempotencyMembershipFilter{}
 	entry.idempotencyMembershipLoaded = false
+	entry.durableProposalTail = durableProposalTail{}
 	element := r.warmOrder.PushBack(channelWarmCacheEntry{key: entry.key, state: state})
 	r.warmEntries[entry.key] = element
 	for len(r.warmEntries) > r.maxWarmEntries {

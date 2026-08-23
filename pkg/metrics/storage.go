@@ -40,6 +40,9 @@ type StorageMetrics struct {
 	pebbleCompactionEstimatedDebt   *prometheus.GaugeVec
 	pebbleCompactionInProgressBytes *prometheus.GaugeVec
 	pebbleCompactionsInProgress     *prometheus.GaugeVec
+	messageExactFreshAppends        *prometheus.GaugeVec
+	messagePredecessorCacheHits     *prometheus.GaugeVec
+	messagePredecessorValidations   *prometheus.GaugeVec
 	messageIdempotencyNegativeSkips *prometheus.GaugeVec
 	messageIdempotencyPointReads    *prometheus.GaugeVec
 	commitQueueDepth                *prometheus.GaugeVec
@@ -87,6 +90,12 @@ type StorageCommitRequestObservation struct {
 
 // StoragePebbleObservation describes one Pebble-backed storage engine snapshot.
 type StoragePebbleObservation struct {
+	// SequencedExactFreshAppends is the number of allocator-proven fresh exact appends.
+	SequencedExactFreshAppends uint64
+	// DurablePredecessorCacheHits is the number of exact predecessor checks served from memory.
+	DurablePredecessorCacheHits uint64
+	// DurablePredecessorValidations is the number of complete durable predecessor proofs after cache misses.
+	DurablePredecessorValidations uint64
 	// IdempotencyNegativeFilterSkips is the number of durable negative point reads avoided.
 	IdempotencyNegativeFilterSkips uint64
 	// IdempotencyPointReads is the number of possible filter hits verified durably.
@@ -255,6 +264,21 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Pebble compactions currently in progress by storage subsystem.",
 			ConstLabels: labels,
 		}, []string{"store"}),
+		messageExactFreshAppends: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_message_exact_fresh_appends",
+			Help:        "Allocator-proven fresh exact message appends since the message store opened.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		messagePredecessorCacheHits: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_message_predecessor_cache_hits",
+			Help:        "Exact predecessor validations served from committed canonical or warm state.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		messagePredecessorValidations: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_message_predecessor_durable_validations",
+			Help:        "Complete durable exact predecessor proofs performed after cache misses.",
+			ConstLabels: labels,
+		}, []string{"store"}),
 		messageIdempotencyNegativeSkips: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_message_idempotency_negative_filter_skips",
 			Help:        "Durable idempotency negative point reads avoided by the bounded membership filter.",
@@ -366,6 +390,9 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.pebbleCompactionEstimatedDebt,
 		m.pebbleCompactionInProgressBytes,
 		m.pebbleCompactionsInProgress,
+		m.messageExactFreshAppends,
+		m.messagePredecessorCacheHits,
+		m.messagePredecessorValidations,
 		m.messageIdempotencyNegativeSkips,
 		m.messageIdempotencyPointReads,
 		m.commitQueueDepth,
@@ -448,6 +475,9 @@ func (m *StorageMetrics) SetPebbleMetrics(store string, obs StoragePebbleObserva
 	m.pebbleCompactionEstimatedDebt.WithLabelValues(store).Set(float64(obs.CompactionEstimatedDebtBytes))
 	m.pebbleCompactionInProgressBytes.WithLabelValues(store).Set(float64(obs.CompactionInProgressBytes))
 	m.pebbleCompactionsInProgress.WithLabelValues(store).Set(float64(obs.CompactionsInProgress))
+	m.messageExactFreshAppends.WithLabelValues(store).Set(float64(obs.SequencedExactFreshAppends))
+	m.messagePredecessorCacheHits.WithLabelValues(store).Set(float64(obs.DurablePredecessorCacheHits))
+	m.messagePredecessorValidations.WithLabelValues(store).Set(float64(obs.DurablePredecessorValidations))
 	m.messageIdempotencyNegativeSkips.WithLabelValues(store).Set(float64(obs.IdempotencyNegativeFilterSkips))
 	m.messageIdempotencyPointReads.WithLabelValues(store).Set(float64(obs.IdempotencyPointReads))
 }

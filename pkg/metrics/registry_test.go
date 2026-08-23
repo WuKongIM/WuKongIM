@@ -1482,6 +1482,9 @@ func TestStorageMetricsTrackPebbleEngineSnapshot(t *testing.T) {
 	reg := New(15, "node-15")
 
 	reg.Storage.SetPebbleMetrics("channel_log", StoragePebbleObservation{
+		SequencedExactFreshAppends:     2345,
+		DurablePredecessorCacheHits:    2200,
+		DurablePredecessorValidations:  18,
 		DiskSpaceUsageBytes:            1024,
 		ReadAmplification:              3,
 		MemTableSizeBytes:              2048,
@@ -1546,6 +1549,12 @@ func TestStorageMetricsTrackPebbleEngineSnapshot(t *testing.T) {
 	require.Equal(t, float64(128), findMetricByLabels(t, compactionBytes, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
 	compactionsInProgress := requireMetricFamily(t, families, "wukongim_storage_pebble_compactions_in_progress")
 	require.Equal(t, float64(2), findMetricByLabels(t, compactionsInProgress, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	exactFresh := requireMetricFamily(t, families, "wukongim_storage_message_exact_fresh_appends")
+	require.Equal(t, float64(2345), findMetricByLabels(t, exactFresh, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	predecessorHits := requireMetricFamily(t, families, "wukongim_storage_message_predecessor_cache_hits")
+	require.Equal(t, float64(2200), findMetricByLabels(t, predecessorHits, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	predecessorValidations := requireMetricFamily(t, families, "wukongim_storage_message_predecessor_durable_validations")
+	require.Equal(t, float64(18), findMetricByLabels(t, predecessorValidations, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
 	idempotencySkips := requireMetricFamily(t, families, "wukongim_storage_message_idempotency_negative_filter_skips")
 	require.Equal(t, float64(1234), findMetricByLabels(t, idempotencySkips, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
 	idempotencyReads := requireMetricFamily(t, families, "wukongim_storage_message_idempotency_point_reads")

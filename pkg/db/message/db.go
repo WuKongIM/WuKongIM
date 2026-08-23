@@ -24,6 +24,12 @@ type MessageDB struct {
 	// sequencedExactFreshAppends counts fresh exact proposals whose allocator
 	// proof permits redundant future-key absence reads to be omitted.
 	sequencedExactFreshAppends atomic.Uint64
+	// durablePredecessorValidations counts exact predecessor checks that fall
+	// back to the complete durable proof after a canonical warm-state miss.
+	durablePredecessorValidations atomic.Uint64
+	// durablePredecessorCacheHits counts fresh exact extensions validated from
+	// the committed canonical or warm tail without durable predecessor reads.
+	durablePredecessorCacheHits atomic.Uint64
 
 	// closeOnce ensures the physical engine closes exactly once.
 	closeOnce sync.Once

@@ -28,6 +28,14 @@ type durableProposalRecord struct {
 	manifest DurableProposalManifest
 }
 
+// durableProposalTail is the last committed exact proposal and its matching
+// tail entry identity. Callers guard it with the channel append mutex.
+type durableProposalTail struct {
+	proposal durableProposalRecord
+	entry    quorumlog.EntryIdentity
+	loaded   bool
+}
+
 func validateDurableProposalManifest(manifest DurableProposalManifest, expectedBase uint64, recordCount int) error {
 	if !manifest.ValidFor(expectedBase, recordCount) {
 		return channel.ErrInvalidArgument
@@ -219,28 +227,70 @@ func (s *ChannelStore) validateDurableEntrySet(entries []quorumlog.EntryIdentity
 
 // validateDurableProposalPredecessor proves that the exact previous range and
 // its tail entry identity are present before a new proposal can extend it.
-func (s *ChannelStore) validateDurableProposalPredecessor(manifest DurableProposalManifest) error {
+func (s *ChannelStore) validateDurableProposalPredecessor(manifest DurableProposalManifest, allowCached bool) error {
 	if manifest.BaseOffset == 0 {
 		return nil
 	}
+	if cached := s.log.durableProposalTail; allowCached && cached.loaded && cached.entry.Index == manifest.BaseOffset {
+		if !durableProposalTailMatchesPredecessor(cached.proposal, cached.entry, manifest) {
+			return dberrors.ErrCorruptState
+		}
+		s.log.db.durablePredecessorCacheHits.Add(1)
+		return nil
+	}
+	s.log.db.durablePredecessorValidations.Add(1)
 	previous, ok, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, manifest.BaseOffset)
 	if err != nil {
 		return err
 	}
-	if !ok || previous.manifest.LastOffset != manifest.BaseOffset ||
-		previous.manifest.LeaderTerm != manifest.PreviousTerm || previous.manifest.Digest != manifest.PreviousDigest {
+	if !ok {
 		return dberrors.ErrCorruptState
 	}
 	tail, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, manifest.BaseOffset)
 	if err != nil {
 		return err
 	}
-	if !present || tail.Index != previous.manifest.LastOffset || tail.ChannelEpoch != previous.manifest.ChannelEpoch ||
-		tail.LeaderTerm != previous.manifest.LeaderTerm || tail.FenceVersion != previous.manifest.FenceVersion ||
-		tail.CommandID != previous.manifest.CommandID || tail.Digest != previous.manifest.Digest {
+	if !present || !durableProposalTailMatchesPredecessor(previous, tail, manifest) {
 		return dberrors.ErrCorruptState
 	}
+	s.log.durableProposalTail = durableProposalTail{proposal: previous, entry: tail, loaded: true}
 	return nil
+}
+
+func durableProposalTailMatchesPredecessor(previous durableProposalRecord, tail quorumlog.EntryIdentity, next DurableProposalManifest) bool {
+	manifest := previous.manifest
+	return manifest.LastOffset == next.BaseOffset && manifest.LeaderTerm == next.PreviousTerm && manifest.Digest == next.PreviousDigest &&
+		durableProposalTailConsistent(previous, tail)
+}
+
+func durableProposalTailConsistent(proposal durableProposalRecord, tail quorumlog.EntryIdentity) bool {
+	manifest := proposal.manifest
+	return tail.Index == manifest.LastOffset && tail.ChannelEpoch == manifest.ChannelEpoch &&
+		tail.LeaderTerm == manifest.LeaderTerm && tail.FenceVersion == manifest.FenceVersion &&
+		tail.CommandID == manifest.CommandID && tail.Digest == manifest.Digest
+}
+
+func (e *channelEntry) clearDurableProposalTailLocked() {
+	e.durableProposalTail = durableProposalTail{}
+}
+
+func (e *channelEntry) publishDurableProposalTailLocked(proposals []durableProposalRecord, entries []quorumlog.EntryIdentity, nextLEO uint64) {
+	if len(proposals) == 0 && len(entries) == 0 {
+		e.clearDurableProposalTailLocked()
+		return
+	}
+	if len(proposals) == 0 || len(entries) == 0 {
+		e.clearDurableProposalTailLocked()
+		return
+	}
+	proposal := proposals[len(proposals)-1]
+	entry := entries[len(entries)-1]
+	if proposal.manifest.LastOffset != nextLEO || entry.Index != nextLEO ||
+		!durableProposalTailConsistent(proposal, entry) {
+		e.clearDurableProposalTailLocked()
+		return
+	}
+	e.durableProposalTail = durableProposalTail{proposal: proposal, entry: entry, loaded: true}
 }
 
 func sameDurableProposal(left, right durableProposalRecord) bool {

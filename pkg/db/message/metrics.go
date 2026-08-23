@@ -4,6 +4,15 @@ import "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 
 // EngineMetricsSnapshot is a stable view of the message engine's local storage state.
 type EngineMetricsSnapshot struct {
+	// SequencedExactFreshAppends is the number of fresh exact proposals backed
+	// by the node-scoped message-ID allocator proof since the DB opened.
+	SequencedExactFreshAppends uint64
+	// DurablePredecessorCacheHits is the number of exact predecessor checks
+	// served from committed canonical or warm state since the DB opened.
+	DurablePredecessorCacheHits uint64
+	// DurablePredecessorValidations is the number of complete durable
+	// predecessor proofs performed after a cache miss since the DB opened.
+	DurablePredecessorValidations uint64
 	// IdempotencyNegativeFilterSkips is the number of durable negative point
 	// reads avoided since the message DB opened.
 	IdempotencyNegativeFilterSkips uint64
@@ -74,6 +83,9 @@ func (db *MessageDB) MetricsSnapshot() EngineMetricsSnapshot {
 	}
 	defer db.endUse()
 	snapshot := engineMetricsFromSnapshot(db.engine.MetricsSnapshot())
+	snapshot.SequencedExactFreshAppends = db.sequencedExactFreshAppends.Load()
+	snapshot.DurablePredecessorCacheHits = db.durablePredecessorCacheHits.Load()
+	snapshot.DurablePredecessorValidations = db.durablePredecessorValidations.Load()
 	snapshot.IdempotencyNegativeFilterSkips = db.idempotencyNegativeFilterSkips.Load()
 	snapshot.IdempotencyPointReads = db.idempotencyPointReads.Load()
 	return snapshot

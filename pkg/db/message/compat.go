@@ -2157,10 +2157,10 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 		return preparedCommitRows{}, &exactAppendGapError{needFrom: base + 1}
 	}
 	proposal := durableProposalRecord{manifest: manifest}
-	if err := s.validateDurableProposalPredecessor(manifest); err != nil {
+	sequencedFresh := mode == AppendServerAllocatedMessageID && expectedBaseOffset == base
+	if err := s.validateDurableProposalPredecessor(manifest, sequencedFresh); err != nil {
 		return preparedCommitRows{}, toChannelError(err)
 	}
-	sequencedFresh := mode == AppendServerAllocatedMessageID && expectedBaseOffset == base
 	commandPresent := false
 	if sequencedFresh {
 		// A current-frontier extension cannot have a durable last-offset or
@@ -2662,6 +2662,7 @@ func (s *ChannelStore) DiscardForRestore(ctx context.Context) error {
 	}
 	s.log.leo.Store(0)
 	s.log.loaded.Store(false)
+	s.log.clearDurableProposalTailLocked()
 	return nil
 }
 
@@ -2720,6 +2721,7 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 	if to < leo {
 		s.log.leo.Store(to)
 		s.log.loaded.Store(true)
+		s.log.clearDurableProposalTailLocked()
 	}
 	return nil
 }
@@ -2904,6 +2906,7 @@ func (s *ChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq ui
 	if next.RetainedMaxSeq > s.log.leo.Load() {
 		s.log.leo.Store(next.RetainedMaxSeq)
 		s.log.loaded.Store(true)
+		s.log.clearDurableProposalTailLocked()
 	}
 	return nil
 }
@@ -3124,7 +3127,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		},
 		Publish: func() error {
 			for _, mutation := range mutations {
-				mutation.entry.publishCommittedRows(mutation.rows, mutation.nextLEO)
+				mutation.entry.publishCommittedRows(mutation.rows, mutation.nextLEO, mutation.proposals, mutation.entries)
 			}
 			return nil
 		},
@@ -3236,10 +3239,11 @@ func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, c
 	return nil
 }
 
-func (e *channelEntry) publishCommittedRows(rows []messageRow, nextLEO uint64) {
+func (e *channelEntry) publishCommittedRows(rows []messageRow, nextLEO uint64, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) {
 	if len(rows) > 0 {
 		e.leo.Store(nextLEO)
 		e.loaded.Store(true)
+		e.publishDurableProposalTailLocked(proposals, entries, nextLEO)
 	}
 }
 

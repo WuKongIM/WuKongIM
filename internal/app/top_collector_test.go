@@ -163,11 +163,14 @@ func TestTopCollectorRecordsStoragePebbleMetrics(t *testing.T) {
 				{
 					Store: "channel_log",
 					Engine: cluster.StorageEngineMetrics{
-						DiskSpaceUsageBytes:          1024,
-						ReadAmplification:            3,
-						MemTableSizeBytes:            2048,
-						WALBytesIn:                   300,
-						CompactionEstimatedDebtBytes: 4096,
+						SequencedExactFreshAppends:    2345,
+						DurablePredecessorCacheHits:   2200,
+						DurablePredecessorValidations: 18,
+						DiskSpaceUsageBytes:           1024,
+						ReadAmplification:             3,
+						MemTableSizeBytes:             2048,
+						WALBytesIn:                    300,
+						CompactionEstimatedDebtBytes:  4096,
 					},
 					ChannelEntries: cluster.StorageChannelEntryMetricsSnapshot{
 						ActiveEntries:     7,
@@ -202,6 +205,17 @@ func TestTopCollectorRecordsStoragePebbleMetrics(t *testing.T) {
 	debt := requireAppMetricFamily(t, families, "wukongim_storage_pebble_compaction_estimated_debt_bytes")
 	if got := findAppMetricByLabels(t, debt, map[string]string{"store": "channel_log"}).GetGauge().GetValue(); got != 4096 {
 		t.Fatalf("storage pebble compaction debt metric = %v, want 4096", got)
+	}
+	messageGauges := map[string]float64{
+		"wukongim_storage_message_exact_fresh_appends":             2345,
+		"wukongim_storage_message_predecessor_cache_hits":          2200,
+		"wukongim_storage_message_predecessor_durable_validations": 18,
+	}
+	for name, want := range messageGauges {
+		family := requireAppMetricFamily(t, families, name)
+		if got := findAppMetricByLabels(t, family, map[string]string{"store": "channel_log"}).GetGauge().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
 	}
 	entryGauges := map[string]float64{
 		"wukongim_storage_channel_entries_active":     7,
