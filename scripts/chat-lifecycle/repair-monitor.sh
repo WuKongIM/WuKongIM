@@ -192,7 +192,11 @@ while true; do
   jq -c . "$work_dir/observation.json" >>"$WK_CHAT_REPAIR_OUTPUT_DIR/repair-observations.jsonl"
   chmod 0600 "$WK_CHAT_REPAIR_OUTPUT_DIR/repair-observations.jsonl"
   "$WK_CHAT_REPAIR_TOOL" repair-observe --state "$WK_CHAT_REPAIR_STATE" \
-    --observation "$work_dir/observation.json" >"$work_dir/step.json"
+    --observation "$work_dir/observation.json" >"$work_dir/step.json" || {
+      persist_observation_failure strict_observe_rejected "$observed_at" 1
+      seal_abort observation_unavailable "$observed_at"
+      exit $?
+    }
   jq -c .state "$work_dir/step.json" >"${WK_CHAT_REPAIR_STATE}.next"
   chmod 0600 "${WK_CHAT_REPAIR_STATE}.next"
   mv -f -- "${WK_CHAT_REPAIR_STATE}.next" "$WK_CHAT_REPAIR_STATE"

@@ -20,6 +20,7 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"repair-observations.jsonl", "repair-decision.json", "repair-diagnosis.json",
 		"terminal-cut", "status-${worker}.json", "snapshot-${worker}.json",
 		"observation-failure", "strict_capture_rejected", "remote_fetch_failed",
+		"strict_observe_rejected", "seal_abort observation_unavailable",
 		"for capture_attempt in 1 2 3", "capture_succeeded",
 		"WK_CHAT_REPAIR_POLL_SECONDS", "WK_CHAT_REPAIR_MAX_SECONDS",
 		"operator-stop-requested.sh", "WK_CHAT_REPAIR_REQUEST_ID", "operator_stop",

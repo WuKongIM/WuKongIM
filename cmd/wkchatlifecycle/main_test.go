@@ -172,13 +172,13 @@ func TestRepairMonitorCommandsEmitFailFastDecisionFromDurableState(t *testing.T)
 func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 	directory := t.TempDir()
 	statePath := filepath.Join(directory, "state.json")
-	started := time.Date(2026, 8, 22, 18, 30, 0, 0, time.UTC)
+	started := time.Date(2026, 8, 22, 18, 30, 0, 288_009_056, time.UTC)
 	var begin bytes.Buffer
 	command := newRootCommand(&begin)
 	command.SetArgs([]string{
 		"repair-begin", "--request-id", "chat-repair-capture", "--lease-id", "lease-capture",
 		"--generation", "2", "--source-sha", strings.Repeat("a", 40),
-		"--bundle-digest", "sha256:" + strings.Repeat("b", 64), "--started-at", started.Format(time.RFC3339),
+		"--bundle-digest", "sha256:" + strings.Repeat("b", 64), "--started-at", started.Format(time.RFC3339Nano),
 		"--target-online", "10000", "--minimum-online-percent", "95", "--minimum-send-rate", "1", "--maximum-ack-backlog", "10000", "--warmup-timeout", "5m", "--stall-after", "15s", "--qualify-after", "2m",
 	})
 	if err := command.Execute(); err != nil {
@@ -188,7 +188,7 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := []string{"repair-capture", "--state", statePath, "--observed-at", started.Add(time.Second).Format(time.RFC3339)}
+	args := []string{"repair-capture", "--state", statePath, "--observed-at", started.Truncate(time.Second).Format(time.RFC3339)}
 	for workerID := uint64(0); workerID < 3; workerID++ {
 		status := chatlifecycle.WorkerStatus{
 			RunID: "repair-run", AssignmentID: "repair-assignment", Phase: chatlifecycle.WorkerPhaseRunning,
@@ -217,11 +217,12 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	var observation struct {
-		Phase            string `json:"phase"`
-		Online           uint64 `json:"online"`
-		Sent             uint64 `json:"sent"`
-		SendAcknowledged uint64 `json:"send_acknowledged"`
-		TerminalErrors   uint64 `json:"terminal_errors"`
+		ObservedAt       time.Time `json:"observed_at"`
+		Phase            string    `json:"phase"`
+		Online           uint64    `json:"online"`
+		Sent             uint64    `json:"sent"`
+		SendAcknowledged uint64    `json:"send_acknowledged"`
+		TerminalErrors   uint64    `json:"terminal_errors"`
 		Workers          [3]struct {
 			WorkerID         uint64        `json:"worker_id"`
 			Uptime           time.Duration `json:"uptime"`
@@ -232,7 +233,7 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &observation); err != nil {
 		t.Fatal(err)
 	}
-	if observation.Phase != "active" || observation.Online != 9999 ||
+	if !observation.ObservedAt.Equal(started) || observation.Phase != "active" || observation.Online != 9999 ||
 		observation.Sent != 303 || observation.SendAcknowledged != 273 || observation.TerminalErrors != 0 {
 		t.Fatalf("observation = %+v", observation)
 	}

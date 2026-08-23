@@ -40,6 +40,10 @@ func addRepairAbortCommand(root *cobra.Command) {
 			if err != nil || observed.Location() != time.UTC {
 				return repair.ErrInvalidObservation
 			}
+			observed, err = normalizeRepairObservedAt(state.StartedAt, observed)
+			if err != nil {
+				return err
+			}
 			next, decision, err := repair.Abort(state, observed, repair.Reason(reasonValue))
 			if err != nil {
 				return err
@@ -71,6 +75,10 @@ func addRepairCaptureCommand(root *cobra.Command) {
 			observed, err := time.Parse(time.RFC3339, observedAt)
 			if err != nil || observed.Location() != time.UTC || len(statusPaths) != 3 || len(snapshotPaths) != 3 {
 				return repair.ErrInvalidObservation
+			}
+			observed, err = normalizeRepairObservedAt(state.StartedAt, observed)
+			if err != nil {
+				return err
 			}
 			observation := repair.Observation{
 				Schema: repair.ObservationSchemaV2, RequestID: state.Candidate.RequestID,
@@ -160,6 +168,20 @@ func addRepairCaptureCommand(root *cobra.Command) {
 		}
 	}
 	root.AddCommand(command)
+}
+
+// normalizeRepairObservedAt accepts only the sub-second precision loss caused
+// by the portable shell clock used by the repair monitor. A cut in the same
+// UTC second as the authoritative run start is clamped to that exact start;
+// older cuts remain invalid.
+func normalizeRepairObservedAt(startedAt, observedAt time.Time) (time.Time, error) {
+	if !observedAt.Before(startedAt) {
+		return observedAt, nil
+	}
+	if observedAt.Truncate(time.Second).Equal(startedAt.Truncate(time.Second)) {
+		return startedAt, nil
+	}
+	return time.Time{}, repair.ErrInvalidObservation
 }
 
 func addRepairCounter(current, value uint64) (uint64, error) {
