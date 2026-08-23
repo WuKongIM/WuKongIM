@@ -34,7 +34,7 @@ const (
 	mediumReplicaCount                         = 3
 	mediumSlotTickInterval                     = 50 * time.Millisecond
 	mediumSlotHeartbeatTick                    = 2
-	mediumSlotElectionTick                     = 20
+	mediumSlotElectionTick                     = 40
 	mediumMessageCount                         = 250
 	mediumRecipientRows                        = 19_650
 	mediumOnlineRoutes                         = 2_545

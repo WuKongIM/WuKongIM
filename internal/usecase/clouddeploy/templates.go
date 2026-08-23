@@ -16,6 +16,11 @@ initial_slot_count = 12
 hash_slot_count = 256
 slot_replica_n = 3
 channel_replica_n = 3
+# A 100ms heartbeat and two-second minimum election window keep transient
+# Cloud Medium storage/transport tails from causing unnecessary Slot terms.
+slot_tick_interval = "50ms"
+slot_heartbeat_tick = 2
+slot_election_tick = 40
 max_channels = 50000
 # These bounded Cloud Medium capacities are calibrated for the fixed
 # 10,000-online, 2,000-SEND/s chat-lifecycle workload. In particular, the

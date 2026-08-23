@@ -139,6 +139,9 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	nodeConfig := read("config/wukongim.toml.tmpl")
 	if !strings.Contains(nodeConfig, "initial_slot_count = 12") || !strings.Contains(nodeConfig, "hash_slot_count = 256") ||
 		!strings.Contains(nodeConfig, "slot_replica_n = 3") || !strings.Contains(nodeConfig, "channel_replica_n = 3") ||
+		!strings.Contains(nodeConfig, `slot_tick_interval = "50ms"`) ||
+		!strings.Contains(nodeConfig, "slot_election_tick = 40") ||
+		!strings.Contains(nodeConfig, "slot_heartbeat_tick = 2") ||
 		!strings.Contains(nodeConfig, "max_channels = 50000") ||
 		!strings.Contains(nodeConfig, "channel_store_append_workers = 128") ||
 		!strings.Contains(nodeConfig, "channel_store_apply_workers = 8") ||

@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	defaultSlotTickInterval       = 10 * time.Millisecond
+	defaultSlotTickInterval       = 50 * time.Millisecond
 	defaultSlotLeaderPollInterval = 10 * time.Millisecond
-	defaultSlotElectionTick       = 50
-	defaultSlotHeartbeatTick      = 1
+	defaultSlotElectionTick       = 40
+	defaultSlotHeartbeatTick      = 2
 	defaultSlotRuntimeWorkerCount = 20
 	defaultSlotRaftDirName        = "slotraft"
 	defaultSlotMetaDirName        = "slotmeta"

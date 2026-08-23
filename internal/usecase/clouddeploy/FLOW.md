@@ -30,6 +30,11 @@ active Lease Receipt + verified bundle manifest
 ```
 
 The bundle is deliberately free of secrets and Lease-specific configuration.
+Its three service-node templates explicitly pin the Slot Raft profile to a
+50-millisecond tick, two-tick heartbeat, and 40-tick election floor. The
+resulting 100-millisecond heartbeat and two-second minimum election window
+match the production default and prevent bounded Cloud Medium storage or RPC
+tails from silently reverting the deployment to a sub-second election budget.
 Its load-node payload includes 15-second Prometheus scraping with fixed
 96-hour/150-GB retention, node metrics, and one root collector that exports
 independent process metrics for every service, worker, coordinator, proxy, and

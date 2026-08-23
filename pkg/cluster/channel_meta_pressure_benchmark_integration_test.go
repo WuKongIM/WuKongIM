@@ -567,9 +567,9 @@ func newChannelMetaPressureCluster(tb testing.TB, observer *channelMetaPressureO
 		cfg.Slots.InitialSlotCount = uint32(len(snapshot.Slots))
 		cfg.Slots.HashSlotCount = snapshot.HashSlots.Count
 		cfg.Slots.ReplicaCount = 3
-		cfg.Slots.TickInterval = 10 * time.Millisecond
-		cfg.Slots.ElectionTick = 100
-		cfg.Slots.HeartbeatTick = 1
+		cfg.Slots.TickInterval = 50 * time.Millisecond
+		cfg.Slots.ElectionTick = 40
+		cfg.Slots.HeartbeatTick = 2
 		cfg.Channel.TickInterval = time.Millisecond
 		cfg.Channel.Observer = observer
 		node, err := New(cfg)

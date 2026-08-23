@@ -275,7 +275,12 @@ generic control writes from non-leader Controller runtimes, including
 During initial Slot bootstrap, every target peer installs the same voter set.
 The `PreferredLeader` target asks only that local voter to campaign as soon as
 the initial membership is durably applied; ordinary Raft election timeouts stay
-active as the fallback. Raft vote eligibility, log freshness, and quorum remain
+active as the fallback. The default Slot timing uses a 50-millisecond local
+tick, a two-tick heartbeat, and a 40-tick election floor: heartbeats are sent
+every 100 milliseconds and elections start after at least two seconds. This
+keeps bounded storage or transport tails below one second from creating new
+terms while leaving proposal replication event-driven. Raft vote eligibility,
+log freshness, and quorum remain
 authoritative. Bootstrap execution completes after all target peers report done,
 the observed voter set exactly matches `TargetPeers`, and the live Slot Raft
 leader belongs to that voter set. It does not force a post-election leadership

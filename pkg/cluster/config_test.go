@@ -53,6 +53,21 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	}
 }
 
+func TestConfigDefaultSlotRaftTimingUsesResilientCloudProfile(t *testing.T) {
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+
+	if cfg.Slots.TickInterval != 50*time.Millisecond || cfg.Slots.ElectionTick != 40 || cfg.Slots.HeartbeatTick != 2 {
+		t.Fatalf("Slot Raft timing defaults = %s/%d/%d, want 50ms/40/2", cfg.Slots.TickInterval, cfg.Slots.ElectionTick, cfg.Slots.HeartbeatTick)
+	}
+	if electionFloor := cfg.Slots.TickInterval * time.Duration(cfg.Slots.ElectionTick); electionFloor != 2*time.Second {
+		t.Fatalf("Slot Raft election floor = %s, want 2s", electionFloor)
+	}
+	if heartbeatInterval := cfg.Slots.TickInterval * time.Duration(cfg.Slots.HeartbeatTick); heartbeatInterval != 100*time.Millisecond {
+		t.Fatalf("Slot Raft heartbeat interval = %s, want 100ms", heartbeatInterval)
+	}
+}
+
 func TestConfigAppliesHealthReportDefaults(t *testing.T) {
 	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
 	cfg.applyDefaults()

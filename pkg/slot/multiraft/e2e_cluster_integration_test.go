@@ -126,6 +126,53 @@ func TestThreeNodeClusterObservesLeaderChangeAfterTransfer(t *testing.T) {
 	observer.waitForTargetCause(t, slotID, targetLeader, LeaderChangeCausePlannedTransfer)
 }
 
+func TestThreeNodeClusterElectionWindowSurvivesBoundedLeaderIsolation(t *testing.T) {
+	const isolation = 1600 * time.Millisecond
+	for _, tc := range []struct {
+		name             string
+		tickInterval     time.Duration
+		electionTick     int
+		heartbeatTick    int
+		wantLeaderChange bool
+	}{
+		{name: "legacy-500ms-floor", tickInterval: 10 * time.Millisecond, electionTick: 50, heartbeatTick: 1, wantLeaderChange: true},
+		{name: "resilient-2s-floor", tickInterval: 50 * time.Millisecond, electionTick: 40, heartbeatTick: 2, wantLeaderChange: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			observer := &slotLeaderChangeObserver{}
+			cluster := newAsyncTestClusterWithObserver(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
+				MaxDelay:      5 * time.Millisecond,
+				Seed:          91,
+				TickInterval:  tc.tickInterval,
+				ElectionTick:  tc.electionTick,
+				HeartbeatTick: tc.heartbeatTick,
+			}, observer)
+			slotID := SlotID(113)
+			cluster.bootstrapSlot(t, slotID, []NodeID{1, 2, 3})
+			cluster.waitForBootstrapApplied(t, slotID, 3)
+			leaderID := cluster.waitForLeader(t, slotID)
+
+			observer.clear()
+			cluster.partitionNode(leaderID)
+			time.Sleep(isolation)
+
+			observer.mu.Lock()
+			changes := append([]slotLeaderChangeObservation(nil), observer.changes...)
+			observer.mu.Unlock()
+			changed := false
+			for _, change := range changes {
+				if change.slotID == slotID && change.to != 0 && change.to != leaderID {
+					changed = true
+					break
+				}
+			}
+			if changed != tc.wantLeaderChange {
+				t.Fatalf("leader changes after %s isolation = %#v, changed=%t want=%t", isolation, changes, changed, tc.wantLeaderChange)
+			}
+		})
+	}
+}
+
 func TestThreeNodeClusterIdleDoesNotRemarkApplied(t *testing.T) {
 	cluster := newAsyncTestCluster(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
 		MaxDelay: 5 * time.Millisecond,

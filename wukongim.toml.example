@@ -12,6 +12,13 @@ initial_slot_count = 10
 # Stable physical hash-slot fence count used to route keys to logical Slot Raft Groups.
 hash_slot_count = 256
 slot_replica_n = 1
+# Slot Raft ticks every 50ms. Heartbeats are sent every two ticks (100ms),
+# while elections start after at least 40 ticks (2s, randomized by Raft).
+# This leaves headroom for bounded storage and RPC tail latency without slowing
+# ordinary proposal replication; set all three values together when tuning.
+slot_tick_interval = "50ms"
+slot_heartbeat_tick = 2
+slot_election_tick = 40
 node_health_report_interval = "5s"
 node_health_report_ttl = "30s"
 channel_reactor_count = 0

@@ -20,8 +20,11 @@ type testCluster struct {
 }
 
 type asyncNetworkConfig struct {
-	MaxDelay time.Duration
-	Seed     int64
+	MaxDelay      time.Duration
+	Seed          int64
+	TickInterval  time.Duration
+	ElectionTick  int
+	HeartbeatTick int
 }
 
 type asyncTestNetwork struct {
@@ -50,6 +53,15 @@ func newAsyncTestCluster(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig)
 
 func newAsyncTestClusterWithObserver(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig, observer SchedulerObserver) *testCluster {
 	t.Helper()
+	if cfg.TickInterval == 0 {
+		cfg.TickInterval = 10 * time.Millisecond
+	}
+	if cfg.ElectionTick == 0 {
+		cfg.ElectionTick = 20
+	}
+	if cfg.HeartbeatTick == 0 {
+		cfg.HeartbeatTick = 1
+	}
 
 	network := newAsyncTestNetwork(cfg)
 	cluster := &testCluster{
@@ -65,13 +77,13 @@ func newAsyncTestClusterWithObserver(t testing.TB, nodeIDs []NodeID, cfg asyncNe
 		transport := &clusterTransport{network: network, from: nodeID}
 		rt, err := New(Options{
 			NodeID:       nodeID,
-			TickInterval: 10 * time.Millisecond,
+			TickInterval: cfg.TickInterval,
 			Workers:      1,
 			Transport:    transport,
 			Observer:     observer,
 			Raft: RaftOptions{
-				ElectionTick:  20,
-				HeartbeatTick: 1,
+				ElectionTick:  cfg.ElectionTick,
+				HeartbeatTick: cfg.HeartbeatTick,
 			},
 		})
 		if err != nil {
