@@ -321,6 +321,34 @@ func TestLifecycleProofFailsClosedWhenReheatSequenceNeverAdvances(t *testing.T) 
 	}
 }
 
+func TestLifecycleProofAcceptsAdvancedSequenceFromFirstPostDeadlineProbe(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("loaded: %v", err)
+	}
+	if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+		t.Fatalf("absent: %v", err)
+	}
+	if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+		t.Fatalf("reheat: %v", err)
+	}
+
+	// The worker can finish the real SEND/SENDACK before the proof's bounded
+	// all-node probe returns. The first post-deadline probe must evaluate that
+	// successful sequence evidence before classifying a timeout.
+	if err := proof.Observe(candidate.ReheatAt.Add(lifecycleReheatDeadline+time.Nanosecond), lifecycleRows(candidate, "active", 11, 11)); err != nil {
+		t.Fatalf("advanced post-deadline probe: %v", err)
+	}
+	if snapshot := proof.Snapshot(); snapshot.Completed != 1 || snapshot.ProductFailures != 0 {
+		t.Fatalf("completed snapshot = %+v", snapshot)
+	}
+}
+
 func TestLifecycleProofAcceptsLeaderOnlyRuntimeAcrossNaturalColdReheat(t *testing.T) {
 	now := time.Unix(1_000, 0)
 	candidate := lifecycleTestCandidates(t, now)[0]
@@ -2201,11 +2229,11 @@ func TestLifecycleProofRejectsStuckRuntimeAndSequenceReset(t *testing.T) {
 			_ = p.Observe(now, lifecycleRows(candidate, "active", 10, 10))
 			return p.Observe(candidate.QuietDeadline.Add(time.Nanosecond), lifecycleRows(candidate, "missing", 0, 0))
 		}},
-		{"reload after reheat deadline", func(p *LifecycleProof) error {
+		{"unadvanced reload after reheat deadline", func(p *LifecycleProof) error {
 			_ = p.Observe(now, lifecycleRows(candidate, "active", 10, 10))
 			_ = p.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0))
 			_ = p.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{})
-			return p.Observe(candidate.ReheatAt.Add(lifecycleReheatDeadline+time.Nanosecond), lifecycleRows(candidate, "active", 11, 11))
+			return p.Observe(candidate.ReheatAt.Add(lifecycleReheatDeadline+time.Nanosecond), lifecycleRows(candidate, "active", 10, 10))
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

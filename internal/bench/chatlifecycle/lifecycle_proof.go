@@ -588,10 +588,13 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			return p.productFailureLocked(LifecycleFailureUnexpectedReload)
 		}
 	case lifecycleAwaitReloaded:
-		if now.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
-			return p.productFailureLocked(LifecycleFailureReheatTimeout)
-		}
+		// A bounded all-node probe can finish after the product deadline even
+		// when the scheduled SEND/SENDACK completed within it. Consume current
+		// sequence evidence before classifying still-unproven work as timed out.
 		if allMissing {
+			if now.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
+				return p.productFailureLocked(LifecycleFailureReheatTimeout)
+			}
 			return nil
 		}
 		if leaders != 1 {
@@ -611,6 +614,9 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			sequenceAdvanced = sequenceAdvanced && row.LEO > state.candidate.InitialSequence && row.HW > state.candidate.InitialSequence
 		}
 		if !sequenceAdvanced {
+			if now.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
+				return p.productFailureLocked(LifecycleFailureReheatTimeout)
+			}
 			return nil
 		}
 		state.phase = lifecycleComplete
