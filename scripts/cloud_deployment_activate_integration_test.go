@@ -4,6 +4,7 @@ package scripts_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,6 +112,9 @@ exit 0
 				gate, readErr := os.ReadFile(gatePath)
 				if readErr != nil || strings.TrimSpace(string(gate)) != fixture.wantGate {
 					t.Fatalf("last gate = %q, %v", gate, readErr)
+				}
+				if _, statErr := os.Stat(failurePath); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("successful activation retained stale failure state: %v", statErr)
 				}
 				return
 			}

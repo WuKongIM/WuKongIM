@@ -187,3 +187,8 @@ write_failure credential_cleanup_failed services_active load \
   "deployment staging credentials could not be removed" "load services are active; staging cleanup is unconfirmed"
 cloud_ssh_retry cleanup-load-secrets 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh /home/wkdeploy/install-frozen-worker-health-compat.sh /home/wkdeploy/install-frozen-stage-process-compat.sh /home/wkdeploy/prime-frozen-orchestrator-stage.sh'
+
+# Each failure record is written before the operation it protects so an abrupt
+# exit leaves actionable evidence. Once every cleanup succeeds, no pending
+# failure remains and retaining the final guard would misclassify deployment.
+rm -f -- "$WK_CLOUD_FAILURE_OUTPUT"
