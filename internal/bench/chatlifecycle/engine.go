@@ -471,6 +471,11 @@ const (
 type engineWork struct {
 	due                 time.Time
 	eligibilityDeadline time.Time
+	// senderLoginOrdinal binds mandatory activity to the exact session
+	// generation that planned it. A later login of the same UID must not inherit
+	// old activity or turn its cancellation into offered-load under-delivery.
+	senderLoginOrdinal uint64
+	senderLoginBound   bool
 	// bootstrapActivity marks initial relationship activity created before the
 	// global traffic barrier. bootstrapDelay retains the relationship activation
 	// spacing from the bootstrap origin plus its offset inside the configured
@@ -2449,6 +2454,12 @@ func (e *Engine) addActivity(work *engineWork) error {
 	if work == nil || work.kind != engineWorkSend {
 		return errEngineConfig
 	}
+	if !work.senderLoginBound && work.intent.Logical.Sender != "" {
+		if loginOrdinal, ok := e.sessions.sendLoginOrdinalAt(work.intent.Logical.Sender, e.now); ok {
+			work.senderLoginOrdinal = loginOrdinal
+			work.senderLoginBound = true
+		}
+	}
 	if work.eligibilityDeadline.IsZero() {
 		deadline, err := e.newEligibilityDeadline(work.due)
 		if err != nil {
@@ -3585,6 +3596,12 @@ func (e *Engine) routePersonGrantWithAdmission(grant TrafficIntent, now time.Tim
 			}
 			continue
 		}
+		if activity.senderLoginBound && !e.sessions.sendEligibleLoginAt(
+			activity.intent.Logical.Sender, activity.senderLoginOrdinal, now,
+		) {
+			e.activityPlannedCanceled++
+			continue
+		}
 		_, warming := e.warmingChannels[activity.intent.ChannelID]
 		_, warmed := e.warmedActive[activity.intent.ChannelID]
 		activity.intent.ColdAttempt = !warmed
@@ -3763,6 +3780,12 @@ func (e *Engine) expireActivity(activity *engineWork, now time.Time) error {
 	// Work that never crossed admission cannot outlive the session generation
 	// that planned it. Churn cancellation is neutral; a still-eligible sender
 	// that could not be admitted for the full window remains harness-invalid.
+	if activity.senderLoginBound && !e.sessions.sendEligibleLoginAt(
+		activity.intent.Logical.Sender, activity.senderLoginOrdinal, now,
+	) {
+		e.activityPlannedCanceled++
+		return nil
+	}
 	if !e.sessions.sendEligibleAt(activity.intent.Logical.Sender, now) {
 		e.activityPlannedCanceled++
 		return nil

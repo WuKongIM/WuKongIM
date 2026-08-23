@@ -619,6 +619,33 @@ func (p *SessionPool) sendEligibleAt(uid string, at time.Time) bool {
 	return sessionSendEligibleAt(session, p.sendLeases[uid], at)
 }
 
+// sendLoginOrdinalAt returns the exact traffic-ready login generation that
+// owns new SEND admission at the supplied owner-clock boundary.
+func (p *SessionPool) sendLoginOrdinalAt(uid string, at time.Time) (uint64, bool) {
+	if p == nil || uid == "" {
+		return 0, false
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	session := p.online[uid]
+	if !sessionSendEligibleAt(session, p.sendLeases[uid], at) {
+		return 0, false
+	}
+	return session.snapshot.LoginOrdinal, true
+}
+
+// sendEligibleLoginAt rejects a later login of the same UID. Mandatory work
+// planned by an earlier session generation cannot transfer to its replacement.
+func (p *SessionPool) sendEligibleLoginAt(uid string, loginOrdinal uint64, at time.Time) bool {
+	if p == nil || uid == "" {
+		return false
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	session := p.online[uid]
+	return sessionSendEligibleAt(session, p.sendLeases[uid], at) && session.snapshot.LoginOrdinal == loginOrdinal
+}
+
 func sessionSendEligibleAt(session *onlineSession, sendLeases uint32, at time.Time) bool {
 	return session != nil && session.snapshot.TrafficReady && session.snapshot.Deadline.After(at) && sendLeases != ^uint32(0)
 }

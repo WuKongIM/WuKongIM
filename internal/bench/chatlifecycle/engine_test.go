@@ -658,7 +658,6 @@ func TestEngineDueActivityIsDeferredInsteadOfDroppedWhenRouteTemporarilyIneligib
 		requireSample bool
 	}{
 		{name: "sampled_target_offline", loginSender: true, requireSample: true},
-		{name: "sender_offline", loginTarget: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
@@ -777,10 +776,16 @@ func TestEngineSessionChurnCancelsOfflineMandatoryActivityWithoutHidingActiveTra
 	}
 	defer fixture.engine.Stop()
 	activeEdge := fixture.graph.edge(40, 41)
-	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
-		UID: activeEdge.OwnerUID, UserIndex: activeEdge.OwnerIndex, LoginOrdinal: activeEdge.OwnerIndex,
-	}); err != nil {
-		t.Fatalf("active sender Login: %v", err)
+	staleSenderIndex, staleTargetIndex := uint64(500), uint64(501)
+	staleSender, staleTarget := fixture.identity.UID(staleSenderIndex), fixture.identity.UID(staleTargetIndex)
+	for _, login := range []SessionLogin{
+		{UID: activeEdge.OwnerUID, UserIndex: activeEdge.OwnerIndex, LoginOrdinal: activeEdge.OwnerIndex},
+		{UID: staleSender, UserIndex: staleSenderIndex, LoginOrdinal: staleSenderIndex},
+		{UID: staleTarget, UserIndex: staleTargetIndex, LoginOrdinal: staleTargetIndex},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("Login(%q): %v", login.UID, err)
+		}
 	}
 	now := fixture.clock.Now()
 	added := make(chan error, 1)
@@ -789,7 +794,7 @@ func TestEngineSessionChurnCancelsOfflineMandatoryActivityWithoutHidingActiveTra
 		added <- fixture.engine.addActivity(&engineWork{
 			due: now, kind: engineWorkSend,
 			intent: TrafficIntent{
-				Logical: LogicalSend{Sender: fixture.identity.UID(500), Target: fixture.identity.UID(501)},
+				Logical: LogicalSend{Sender: staleSender, Target: staleTarget},
 				Kind:    TrafficPerson, Domain: LogicalDomainLifecycle,
 			},
 		})
@@ -798,6 +803,9 @@ func TestEngineSessionChurnCancelsOfflineMandatoryActivityWithoutHidingActiveTra
 	}
 	if err := <-added; err != nil {
 		t.Fatalf("add mandatory activity: %v", err)
+	}
+	if err := fixture.engine.Logout(staleSender); err != nil {
+		t.Fatalf("stale sender Logout: %v", err)
 	}
 	route := func(raw uint64, at time.Time) (TrafficIntent, error) {
 		t.Helper()
@@ -844,19 +852,9 @@ func TestEngineSessionChurnCancelsOfflineMandatoryActivityWithoutHidingActiveTra
 		return 0
 	}
 	firstRaw := findNonSampled(0)
-	for _, beforeDeadline := range []time.Duration{0, eligibilityWindow / 2, eligibilityWindow - 2*time.Nanosecond} {
-		routed, err := route(firstRaw, now.Add(beforeDeadline))
-		if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
-			t.Fatalf("active fallback before deadline at %v = %+v, %v", beforeDeadline, routed.Logical, err)
-		}
-		if snapshot, _ := fixture.engine.Snapshot(); snapshot.ActivityCurrent != 1 || snapshot.ActivityUnderDelivered != 0 {
-			t.Fatalf("mandatory activity was not retained inside eligibility window: %+v", snapshot)
-		}
-		firstRaw = findNonSampled(firstRaw + 1)
-	}
-	routed, err := route(firstRaw, now.Add(eligibilityWindow-time.Nanosecond))
+	routed, err := route(firstRaw, now)
 	if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
-		t.Fatalf("active fallback at churn cancellation = %+v, %v", routed.Logical, err)
+		t.Fatalf("active fallback after churn cancellation = %+v, %v", routed.Logical, err)
 	}
 	expired, err := fixture.engine.Snapshot()
 	if err != nil {
@@ -876,6 +874,108 @@ func TestEngineSessionChurnCancelsOfflineMandatoryActivityWithoutHidingActiveTra
 	if stable.ActivityCurrent != 0 || stable.ActivityUnderDelivered != 0 || stable.ActivityPlannedCanceled != 1 ||
 		stable.HarnessInvalid != 0 || evidenceCountForClass(fixture.evidence.Snapshot(), FailureClassHarness) != 0 {
 		t.Fatalf("churn-canceled activity was retried or reclassified: %+v evidence=%+v", stable, fixture.evidence.Snapshot())
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 0)
+}
+
+func TestEngineSessionChurnCancelsMandatoryActivityAfterSameUIDRelogin(t *testing.T) {
+	const eligibilityWindow = 10 * time.Nanosecond
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 64, MaxWorkPerAdvance: 64, ActivityEligibilityWindow: eligibilityWindow,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	staleSenderIndex, staleTargetIndex := uint64(500), uint64(501)
+	staleSender := fixture.identity.UID(staleSenderIndex)
+	staleTarget := fixture.identity.UID(staleTargetIndex)
+	activeEdge := fixture.graph.edge(40, 41)
+	for _, login := range []SessionLogin{
+		{UID: staleSender, UserIndex: staleSenderIndex, LoginOrdinal: 1},
+		{UID: staleTarget, UserIndex: staleTargetIndex, LoginOrdinal: 2},
+		{UID: activeEdge.OwnerUID, UserIndex: activeEdge.OwnerIndex, LoginOrdinal: 3},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("Login(%q): %v", login.UID, err)
+		}
+	}
+
+	now := fixture.clock.Now()
+	added := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		fixture.engine.addActiveChannel(engineActiveChannel{edge: activeEdge, direction: DirectionOneWay})
+		added <- fixture.engine.addActivity(&engineWork{
+			due: now, kind: engineWorkSend,
+			intent: TrafficIntent{
+				Logical: LogicalSend{Sender: staleSender, Target: staleTarget},
+				Kind:    TrafficPerson, Domain: LogicalDomainLifecycle,
+			},
+		})
+	}}); err != nil {
+		t.Fatalf("enqueue setup: %v", err)
+	}
+	if err := <-added; err != nil {
+		t.Fatalf("add mandatory activity: %v", err)
+	}
+	if err := fixture.engine.Logout(staleSender); err != nil {
+		t.Fatalf("Logout stale sender: %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: staleSender, UserIndex: staleSenderIndex, LoginOrdinal: 4,
+	}); err != nil {
+		t.Fatalf("relogin stale sender UID: %v", err)
+	}
+
+	var raw uint64
+	for ; raw < 100; raw++ {
+		scoped, err := scopedLogicalOrdinal(1, LogicalDomainLifecycle, raw)
+		if err != nil {
+			t.Fatalf("scoped lifecycle ordinal: %v", err)
+		}
+		sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+		if err != nil {
+			t.Fatalf("ShouldCorrelate: %v", err)
+		}
+		if !sampled {
+			break
+		}
+	}
+	primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+	if err != nil {
+		t.Fatalf("scoped primary ordinal: %v", err)
+	}
+	routed := make(chan struct {
+		intent TrafficIntent
+		err    error
+	}, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		intent, routeErr := fixture.engine.routePersonGrant(TrafficIntent{
+			Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+			Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+		}, now.Add(time.Nanosecond))
+		routed <- struct {
+			intent TrafficIntent
+			err    error
+		}{intent: intent, err: routeErr}
+	}}); err != nil {
+		t.Fatalf("enqueue route: %v", err)
+	}
+	result := <-routed
+	if result.err != nil {
+		t.Fatalf("route after same-UID relogin: %v", result.err)
+	}
+	if result.intent.Logical.Sender != activeEdge.OwnerUID {
+		t.Fatalf("route sender = %q, want active fallback %q", result.intent.Logical.Sender, activeEdge.OwnerUID)
+	}
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if snapshot.ActivityCurrent != 0 || snapshot.ActivityUnderDelivered != 0 ||
+		snapshot.ActivityPlannedCanceled != 1 || snapshot.HarnessInvalid != 0 {
+		t.Fatalf("same-UID relogin cancellation = %+v", snapshot)
 	}
 	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 0)
 }
