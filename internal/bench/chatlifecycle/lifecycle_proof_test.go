@@ -573,12 +573,21 @@ func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseRequiredSenderExpiresAtP
 	}); err != nil {
 		t.Fatalf("login required sender: %v", err)
 	}
+	fixture.clock.Set(now.Add(time.Minute))
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex,
+	}); err != nil {
+		t.Fatalf("login surviving recipient: %v", err)
+	}
 	installed := make(chan struct{}, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
 		work := &engineWork{
 			due: now.Add(revisitAfter), eligibilityDeadline: now.Add(revisitAfter + time.Minute),
 			kind: engineWorkLifecycle, edge: edge,
-			schedule:       ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+			schedule: ChannelSchedule{
+				Class: LifecycleRevisit, RevisitMessages: 2,
+				RequiresColdRuntimeEvidence: true, NaturalCooling: true,
+			},
 			requiredSender: edge.OwnerUID, lifecycleTimerToken: 41,
 			activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
 		}
@@ -598,6 +607,162 @@ func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseRequiredSenderExpiresAtP
 	}
 	if len(candidates) != 0 {
 		t.Fatalf("leased candidates = %+v, want none whose required sender expires at the proof deadline", candidates)
+	}
+}
+
+func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseRequiredRecipientExpiresAtProofDeadline(t *testing.T) {
+	const revisitAfter = 10 * time.Minute
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		SessionDuration: revisitAfter + lifecycleReheatDeadline,
+		WorkCapacity:    256,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex,
+	}); err != nil {
+		t.Fatalf("login expiring recipient: %v", err)
+	}
+	fixture.clock.Set(now.Add(time.Minute))
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex,
+	}); err != nil {
+		t.Fatalf("login surviving required sender: %v", err)
+	}
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: now.Add(revisitAfter), eligibilityDeadline: now.Add(revisitAfter + time.Minute),
+			kind: engineWorkLifecycle, edge: edge,
+			schedule: ChannelSchedule{
+				Class: LifecycleRevisit, RevisitMessages: 2,
+				RequiresColdRuntimeEvidence: true, NaturalCooling: true,
+			},
+			requiredSender: edge.OwnerUID, lifecycleTimerToken: 41,
+			activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), 1, mustInitialLifecycleSlotAssignment(t), now,
+	)
+	if err != nil {
+		t.Fatalf("LeaseLifecycleCandidates: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("leased candidates = %+v, want none whose required recipient expires at the proof deadline", candidates)
+	}
+}
+
+func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseDirectionalSendersExpireAtProofDeadline(t *testing.T) {
+	const revisitAfter = 10 * time.Minute
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		SessionDuration: revisitAfter + lifecycleReheatDeadline,
+		WorkCapacity:    256,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	for _, login := range []SessionLogin{
+		{UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex},
+		{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("login %s: %v", login.UID, err)
+		}
+	}
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: now.Add(revisitAfter), eligibilityDeadline: now.Add(revisitAfter + time.Minute),
+			kind: engineWorkLifecycle, edge: edge,
+			schedule: ChannelSchedule{
+				Class: LifecycleRevisit, RevisitMessages: 2,
+				RequiresColdRuntimeEvidence: true, NaturalCooling: true,
+			},
+			relationshipOrdinal: 1, lifecycleTimerToken: 41,
+			activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), 1, mustInitialLifecycleSlotAssignment(t), now,
+	)
+	if err != nil {
+		t.Fatalf("LeaseLifecycleCandidates: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("leased candidates = %+v, want none whose directional senders expire at the proof deadline", candidates)
+	}
+}
+
+func TestLifecycleCandidateEngineLeaseIncludesTimerWhoseEndpointsOutliveProofDeadline(t *testing.T) {
+	const revisitAfter = 10 * time.Minute
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		SessionDuration: revisitAfter + lifecycleReheatDeadline + time.Nanosecond,
+		WorkCapacity:    256,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	for _, login := range []SessionLogin{
+		{UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex},
+		{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("login %s: %v", login.UID, err)
+		}
+	}
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: now.Add(revisitAfter), eligibilityDeadline: now.Add(revisitAfter + time.Minute),
+			kind: engineWorkLifecycle, edge: edge,
+			schedule: ChannelSchedule{
+				Class: LifecycleRevisit, RevisitMessages: 2,
+				RequiresColdRuntimeEvidence: true, NaturalCooling: true,
+			},
+			relationshipOrdinal: 1, lifecycleTimerToken: 41,
+			activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), 1, mustInitialLifecycleSlotAssignment(t), now,
+	)
+	if err != nil {
+		t.Fatalf("LeaseLifecycleCandidates: %v", err)
+	}
+	if len(candidates) != 1 {
+		t.Fatalf("leased candidates = %+v, want the timer whose endpoints strictly outlive the proof deadline", candidates)
 	}
 }
 

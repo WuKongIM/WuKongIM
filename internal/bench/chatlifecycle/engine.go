@@ -2903,12 +2903,16 @@ func (e *Engine) lifecycleCandidateSlotForAt(work *engineWork, now time.Time) (i
 	if !eligible || now.IsZero() {
 		return 0, time.Time{}, time.Time{}, false
 	}
-	if work.requiredSender != "" {
+	if work.schedule.RevisitMessages >= minimumRevisitMessages && work.schedule.RevisitMessages <= maximumRevisitMessages {
 		// Leasing converts this otherwise neutral churn timer into a mandatory
-		// five-second product proof. Never promise it when the returning
-		// sender's current session generation cannot outlive that proof.
+		// five-second product proof. Every real revisit needs both endpoints:
+		// one owns SEND admission and the other owns correlated delivery. Never
+		// promise the timer when either current session generation cannot
+		// outlive the proof, regardless of which direction this burst selects.
 		proofDeadline := work.due.Add(lifecycleReheatDeadline)
-		if !proofDeadline.After(work.due) || !e.sessions.sendEligibleAt(work.requiredSender, proofDeadline) {
+		if !proofDeadline.After(work.due) ||
+			!e.sessions.sendEligibleAt(work.edge.OwnerUID, proofDeadline) ||
+			!e.sessions.sendEligibleAt(work.edge.PeerUID, proofDeadline) {
 			return 0, time.Time{}, time.Time{}, false
 		}
 	}
