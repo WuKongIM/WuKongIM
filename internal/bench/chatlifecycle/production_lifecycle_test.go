@@ -87,6 +87,9 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	if got := approvals.failure(); got != "" {
 		t.Fatal(got)
 	}
+	if got := approvals.callCount(); got != len(workers) {
+		t.Fatalf("reheat approval RPCs = %d, want one batch per worker", got)
+	}
 
 	prober.setPhase(productionLifecycleReloaded)
 	clock.tick(startedAt.Add(13 * time.Minute))
@@ -410,6 +413,7 @@ type productionLifecycleApprovals struct {
 	mu       sync.Mutex
 	owners   map[string]uint64
 	approved int
+	calls    int
 	failed   string
 	done     chan struct{}
 	once     sync.Once
@@ -418,16 +422,25 @@ type productionLifecycleApprovals struct {
 func (a *productionLifecycleApprovals) record(workerID uint64, request WorkerLifecycleReheatRequest) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	owner, exists := a.owners[request.ChannelID]
-	if !exists {
-		a.failed = "approval contained an unknown channel identity"
-	} else if owner != workerID {
-		a.failed = fmt.Sprintf("channel was approved by worker %d, want original owner %d", workerID, owner)
+	a.calls++
+	for _, item := range request.Items {
+		owner, exists := a.owners[item.ChannelID]
+		if !exists {
+			a.failed = "approval contained an unknown channel identity"
+		} else if owner != workerID {
+			a.failed = fmt.Sprintf("channel was approved by worker %d, want original owner %d", workerID, owner)
+		}
 	}
-	a.approved++
+	a.approved += len(request.Items)
 	if a.approved == lifecycleCohortSize {
 		a.once.Do(func() { close(a.done) })
 	}
+}
+
+func (a *productionLifecycleApprovals) callCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.calls
 }
 
 func (a *productionLifecycleApprovals) failure() string {
@@ -471,7 +484,7 @@ func (w *productionLifecycleRotatingWorker) LeaseLifecycleCandidates(_ context.C
 func (w *productionLifecycleRotatingWorker) ApproveLifecycleReheat(_ context.Context, request WorkerLifecycleReheatRequest) (WorkerLifecycleReheatResponse, error) {
 	return WorkerLifecycleReheatResponse{
 		WorkerFence: w.fence, WorkerID: w.workerID, WorkerCount: 3,
-		Approved: request.ChannelID != "" && request.TimerToken != 0 && request.ActivityVersion != 0,
+		Approved: uint16(len(request.Items)),
 	}, nil
 }
 
@@ -496,7 +509,7 @@ func (w *productionLifecycleWorkerFake) LeaseLifecycleCandidates(ctx context.Con
 
 func (w *productionLifecycleWorkerFake) ApproveLifecycleReheat(_ context.Context, request WorkerLifecycleReheatRequest) (WorkerLifecycleReheatResponse, error) {
 	w.approvals.record(w.workerID, request)
-	return WorkerLifecycleReheatResponse{WorkerFence: w.fence, WorkerID: w.workerID, WorkerCount: 3, Approved: true}, nil
+	return WorkerLifecycleReheatResponse{WorkerFence: w.fence, WorkerID: w.workerID, WorkerCount: 3, Approved: uint16(len(request.Items))}, nil
 }
 
 type productionLifecycleClock struct {

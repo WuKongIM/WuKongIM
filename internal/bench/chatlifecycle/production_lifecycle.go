@@ -319,9 +319,9 @@ func (p *ProductionLifecycle) pollCohorts(ctx context.Context, fence WorkerFence
 }
 
 type productionLifecycleReheatJob struct {
-	cohort   *productionLifecycleCohort
-	identity string
-	index    int
+	cohort    *productionLifecycleCohort
+	candidate LifecycleCandidate
+	index     int
 }
 
 func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence WorkerFence, now time.Time, cohorts []*productionLifecycleCohort) []error {
@@ -337,7 +337,7 @@ func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence Wo
 				return []error{ErrLifecycleHarnessInvalid}
 			}
 			jobsByWorker[owner] = append(jobsByWorker[owner], productionLifecycleReheatJob{
-				cohort: cohort, identity: candidate.ChannelID, index: jobCount,
+				cohort: cohort, candidate: candidate, index: jobCount,
 			})
 			jobCount++
 		}
@@ -352,9 +352,22 @@ func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence Wo
 		wait.Add(1)
 		go func(workerID uint64, jobs []productionLifecycleReheatJob) {
 			defer wait.Done()
-			sender := productionLifecycleOwnedSender{client: p.options.Workers[workerID], fence: fence, workerID: workerID}
+			items := make([]WorkerLifecycleReheatItem, len(jobs))
+			for index, job := range jobs {
+				items[index] = WorkerLifecycleReheatItem{
+					ChannelID: job.candidate.ChannelID, TimerToken: job.candidate.TimerToken, ActivityVersion: job.candidate.ActivityVersion,
+				}
+			}
+			response, err := p.options.Workers[workerID].ApproveLifecycleReheat(ctx, WorkerLifecycleReheatRequest{
+				WorkerFence: fence, Items: items,
+			})
+			if err != nil || !sameWorkerFence(response.WorkerFence, fence) || response.WorkerID != workerID ||
+				response.WorkerCount != uint64(len(p.options.Workers)) || int(response.Approved) != len(items) {
+				results[jobs[0].index] = ErrLifecycleHarnessInvalid
+				return
+			}
 			for _, job := range jobs {
-				err := job.cohort.proof.Reheat(ctx, now, job.identity, &sender)
+				err := job.cohort.proof.Reheat(ctx, now, job.candidate.ChannelID, approvedLifecycleReheatSender{})
 				results[job.index] = err
 				succeeded[job.index] = err == nil
 			}
@@ -364,30 +377,16 @@ func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence Wo
 	for _, jobs := range jobsByWorker {
 		for _, job := range jobs {
 			if succeeded[job.index] {
-				job.cohort.approved[job.identity] = true
+				job.cohort.approved[job.candidate.ChannelID] = true
 			}
 		}
 	}
 	return results
 }
 
-type productionLifecycleOwnedSender struct {
-	client   ProductionLifecycleWorker
-	fence    WorkerFence
-	workerID uint64
-}
+type approvedLifecycleReheatSender struct{}
 
-func (s *productionLifecycleOwnedSender) ApproveLifecycleReheat(ctx context.Context, candidate LifecycleCandidate) error {
-	response, err := s.client.ApproveLifecycleReheat(ctx, WorkerLifecycleReheatRequest{
-		WorkerFence: s.fence, ChannelID: candidate.ChannelID,
-		TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion,
-	})
-	if err != nil {
-		return err
-	}
-	if !sameWorkerFence(response.WorkerFence, s.fence) || response.WorkerID != s.workerID || response.WorkerCount != 3 || !response.Approved {
-		return ErrLifecycleHarnessInvalid
-	}
+func (approvedLifecycleReheatSender) ApproveLifecycleReheat(context.Context, LifecycleCandidate) error {
 	return nil
 }
 

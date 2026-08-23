@@ -63,10 +63,10 @@ type WorkerLifecycleCandidateLeaser interface {
 	LeaseLifecycleCandidates(context.Context, int, time.Time) ([]LifecycleCandidate, error)
 }
 
-// WorkerLifecycleReheatApprover exposes only existing scheduled SEND admission.
-// Its deliberately narrow shape cannot manufacture cold state through eviction.
+// WorkerLifecycleReheatApprover exposes only bounded existing scheduled SEND
+// admission. Its deliberately narrow shape cannot manufacture cold state.
 type WorkerLifecycleReheatApprover interface {
-	ApproveLifecycleReheat(context.Context, string, uint64, uint64) (bool, error)
+	ApproveLifecycleReheat(context.Context, []WorkerLifecycleReheatItem) (int, error)
 }
 
 // WorkerServerConfig fixes authentication and drain bounds for one dedicated worker server.
@@ -262,9 +262,21 @@ func (s *WorkerServer) handleLifecycleReheat(response http.ResponseWriter, reque
 	if !decodeWorkerJSON(response, request, &reheat) {
 		return
 	}
-	if !validWorkerFence(reheat.WorkerFence) || !validLifecyclePersonChannelID(reheat.ChannelID) || reheat.TimerToken == 0 || reheat.ActivityVersion == 0 {
+	if !validWorkerFence(reheat.WorkerFence) || len(reheat.Items) == 0 || len(reheat.Items) > lifecycleCohortSize {
 		writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
 		return
+	}
+	seen := make(map[string]struct{}, len(reheat.Items))
+	for _, item := range reheat.Items {
+		if !validLifecyclePersonChannelID(item.ChannelID) || item.TimerToken == 0 || item.ActivityVersion == 0 {
+			writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
+			return
+		}
+		if _, duplicate := seen[item.ChannelID]; duplicate {
+			writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
+			return
+		}
+		seen[item.ChannelID] = struct{}{}
 	}
 	s.mu.Lock()
 	if !s.runningFenceLocked(response, reheat.WorkerFence) {
@@ -280,7 +292,7 @@ func (s *WorkerServer) handleLifecycleReheat(response http.ResponseWriter, reque
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
-	approved, err := approver.ApproveLifecycleReheat(request.Context(), reheat.ChannelID, reheat.TimerToken, reheat.ActivityVersion)
+	approved, err := approver.ApproveLifecycleReheat(request.Context(), reheat.Items)
 	s.mu.Lock()
 	if !s.controlStateMatchesLocked(control) {
 		s.mu.Unlock()
@@ -288,14 +300,16 @@ func (s *WorkerServer) handleLifecycleReheat(response http.ResponseWriter, reque
 		return
 	}
 	s.mu.Unlock()
-	if err != nil || !approved {
+	if err != nil || approved != len(reheat.Items) {
 		if request.Context().Err() != nil {
 			return
 		}
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
-	writeWorkerJSON(response, http.StatusOK, WorkerLifecycleReheatResponse{WorkerFence: reheat.WorkerFence, WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount, Approved: true})
+	writeWorkerJSON(response, http.StatusOK, WorkerLifecycleReheatResponse{
+		WorkerFence: reheat.WorkerFence, WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount, Approved: uint16(approved),
+	})
 }
 
 func (s *WorkerServer) authenticated(request *http.Request) bool {
@@ -1507,8 +1521,8 @@ func (g *engineWorkerGeneration) LeaseLifecycleCandidates(ctx context.Context, r
 	return g.engine.LeaseLifecycleCandidates(ctx, requested, g.lifecycleSlots, loadedThrough)
 }
 
-func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, identity string, timerToken, activityVersion uint64) (bool, error) {
-	return g.engine.ApproveColdRevisitContext(ctx, identity, timerToken, activityVersion)
+func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, items []WorkerLifecycleReheatItem) (int, error) {
+	return g.engine.ApproveColdRevisitsContext(ctx, items)
 }
 
 func (g *engineWorkerGeneration) TrafficReady() bool { return g.trafficReady.Load() }

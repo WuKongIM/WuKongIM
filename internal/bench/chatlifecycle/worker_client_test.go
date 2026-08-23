@@ -96,14 +96,14 @@ func TestWorkerClientLifecycleCandidateLeaseRejectsDuplicateOversizeAndFenceMuta
 	}
 	t.Run("reheat response cannot echo raw identity", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"run_id": fence.RunID, "assignment_id": fence.AssignmentID, "generation": fence.Generation, "worker_id": 0, "worker_count": 3, "approved": true, "channel_id": candidate.ChannelID, "timer_token": candidate.TimerToken})
+			_ = json.NewEncoder(w).Encode(map[string]any{"run_id": fence.RunID, "assignment_id": fence.AssignmentID, "generation": fence.Generation, "worker_id": 0, "worker_count": 3, "approved": 1, "channel_id": candidate.ChannelID, "timer_token": candidate.TimerToken})
 		}))
 		defer server.Close()
 		client, err := NewWorkerClient(WorkerClientConfig{BaseURL: server.URL, ControlToken: "token", HTTPClient: server.Client()})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := client.ApproveLifecycleReheat(context.Background(), WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion}); !errors.Is(err, ErrWorkerResponse) {
+		if _, err := client.ApproveLifecycleReheat(context.Background(), workerLifecycleReheatRequest(fence, candidate)); !errors.Is(err, ErrWorkerResponse) {
 			t.Fatalf("error = %v", err)
 		}
 	})
@@ -112,10 +112,10 @@ func TestWorkerClientLifecycleCandidateLeaseRejectsDuplicateOversizeAndFenceMuta
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := client.ApproveLifecycleReheat(context.Background(), WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID, ActivityVersion: candidate.ActivityVersion}); !errors.Is(err, ErrWorkerClientConfig) {
+		if _, err := client.ApproveLifecycleReheat(context.Background(), WorkerLifecycleReheatRequest{WorkerFence: fence, Items: []WorkerLifecycleReheatItem{{ChannelID: candidate.ChannelID, ActivityVersion: candidate.ActivityVersion}}}); !errors.Is(err, ErrWorkerClientConfig) {
 			t.Fatalf("zero token error = %v", err)
 		}
-		if _, err := client.ApproveLifecycleReheat(context.Background(), WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken}); !errors.Is(err, ErrWorkerClientConfig) {
+		if _, err := client.ApproveLifecycleReheat(context.Background(), WorkerLifecycleReheatRequest{WorkerFence: fence, Items: []WorkerLifecycleReheatItem{{ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken}}}); !errors.Is(err, ErrWorkerClientConfig) {
 			t.Fatalf("zero activity version error = %v", err)
 		}
 	})

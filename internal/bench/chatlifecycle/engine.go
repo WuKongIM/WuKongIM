@@ -1476,21 +1476,40 @@ func (e *Engine) ApproveColdRevisit(personChannelID string, timerToken, activity
 // ApproveColdRevisitContext admits the existing scheduled real SEND only
 // when the timer token and post-activity version exactly match its lease.
 func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID string, timerToken, activityVersion uint64) (bool, error) {
-	if e == nil || ctx == nil || personChannelID == "" || timerToken == 0 || activityVersion == 0 {
-		return false, errEngineConfig
+	approved, err := e.ApproveColdRevisitsContext(ctx, []WorkerLifecycleReheatItem{{
+		ChannelID: personChannelID, TimerToken: timerToken, ActivityVersion: activityVersion,
+	}})
+	return approved == 1, err
+}
+
+// ApproveColdRevisitsContext validates and admits one bounded batch at a
+// single owner-clock instant. Either every exact lease is admitted or none is.
+func (e *Engine) ApproveColdRevisitsContext(ctx context.Context, items []WorkerLifecycleReheatItem) (int, error) {
+	if e == nil || ctx == nil || len(items) == 0 || len(items) > lifecycleCohortSize {
+		return 0, errEngineConfig
+	}
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if !validLifecyclePersonChannelID(item.ChannelID) || item.TimerToken == 0 || item.ActivityVersion == 0 {
+			return 0, errEngineConfig
+		}
+		if _, duplicate := seen[item.ChannelID]; duplicate {
+			return 0, errEngineConfig
+		}
+		seen[item.ChannelID] = struct{}{}
 	}
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return 0, err
 	}
 	e.lifecycleMu.Lock()
 	generation := e.generation
 	generationCtx := e.generationCtx
 	e.lifecycleMu.Unlock()
 	if generationCtx == nil {
-		return false, errEngineNotRunning
+		return 0, errEngineNotRunning
 	}
 	type approvalResult struct {
-		approved bool
+		approved int
 		err      error
 	}
 	response := make(chan approvalResult, 1)
@@ -1514,49 +1533,57 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 			response <- approvalResult{err: errEngineNotRunning}
 			return
 		}
-		channelDigest := sha256.Sum256([]byte(personChannelID))
-		if replay, exists := e.lifecycleApprovalReplays[timerToken]; exists {
-			if !e.clock.Now().Before(replay.expiresAt) {
-				e.removeLifecycleApprovalReplayToken(timerToken, replay)
+		admittedAt := e.clock.Now()
+		for _, item := range items {
+			channelDigest := sha256.Sum256([]byte(item.ChannelID))
+			if replay, exists := e.lifecycleApprovalReplays[item.TimerToken]; exists {
+				if !admittedAt.Before(replay.expiresAt) {
+					e.removeLifecycleApprovalReplayToken(item.TimerToken, replay)
+					response <- approvalResult{}
+					return
+				}
+				if replay.activityVersion != item.ActivityVersion || replay.channelDigest != channelDigest {
+					response <- approvalResult{}
+					return
+				}
+				continue
+			}
+			work := e.lifecycleByChannel[item.ChannelID]
+			if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
+				work.lifecycleTimerToken != item.TimerToken || work.activityVersion != item.ActivityVersion ||
+				work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted ||
+				(!work.coldConfirmed && !admittedAt.Before(work.due)) {
 				response <- approvalResult{}
 				return
 			}
-			response <- approvalResult{approved: replay.activityVersion == activityVersion && replay.channelDigest == channelDigest}
-			return
 		}
-		work := e.lifecycleByChannel[personChannelID]
-		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
-			work.lifecycleTimerToken != timerToken || work.activityVersion != activityVersion ||
-			work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted {
-			response <- approvalResult{}
-			return
+		for _, item := range items {
+			if _, replay := e.lifecycleApprovalReplays[item.TimerToken]; replay {
+				continue
+			}
+			work := e.lifecycleByChannel[item.ChannelID]
+			if work.coldConfirmed {
+				continue
+			}
+			work.coldConfirmed = true
+			e.removeLifecycleCandidate(work)
 		}
-		if work.coldConfirmed {
-			response <- approvalResult{approved: true}
-			return
-		}
-		if !e.clock.Now().Before(work.due) {
-			response <- approvalResult{}
-			return
-		}
-		work.coldConfirmed = true
-		e.removeLifecycleCandidate(work)
-		response <- approvalResult{approved: true}
+		response <- approvalResult{approved: len(items)}
 	}}); err != nil {
-		return false, err
+		return 0, err
 	}
 	select {
 	case result := <-response:
 		return result.approved, result.err
 	case <-ctx.Done():
 		if causalState.CompareAndSwap(0, 2) {
-			return false, ctx.Err()
+			return 0, ctx.Err()
 		}
 		result := <-response
 		return result.approved, result.err
 	case <-generationCtx.Done():
 		if causalState.CompareAndSwap(0, 2) {
-			return false, errEngineNotRunning
+			return 0, errEngineNotRunning
 		}
 		result := <-response
 		return result.approved, result.err

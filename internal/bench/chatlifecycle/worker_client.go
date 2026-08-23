@@ -130,14 +130,25 @@ func (c *WorkerClient) LeaseLifecycleCandidates(ctx context.Context, lease Worke
 	return response, err
 }
 
-// ApproveLifecycleReheat admits the existing scheduled real SEND.
+// ApproveLifecycleReheat atomically admits one bounded batch of existing
+// scheduled real SENDs.
 func (c *WorkerClient) ApproveLifecycleReheat(ctx context.Context, reheat WorkerLifecycleReheatRequest) (WorkerLifecycleReheatResponse, error) {
-	if !validWorkerFence(reheat.WorkerFence) || !validLifecyclePersonChannelID(reheat.ChannelID) || reheat.TimerToken == 0 || reheat.ActivityVersion == 0 {
+	if !validWorkerFence(reheat.WorkerFence) || len(reheat.Items) == 0 || len(reheat.Items) > lifecycleCohortSize {
 		return WorkerLifecycleReheatResponse{}, ErrWorkerClientConfig
+	}
+	seen := make(map[string]struct{}, len(reheat.Items))
+	for _, item := range reheat.Items {
+		if !validLifecyclePersonChannelID(item.ChannelID) || item.TimerToken == 0 || item.ActivityVersion == 0 {
+			return WorkerLifecycleReheatResponse{}, ErrWorkerClientConfig
+		}
+		if _, duplicate := seen[item.ChannelID]; duplicate {
+			return WorkerLifecycleReheatResponse{}, ErrWorkerClientConfig
+		}
+		seen[item.ChannelID] = struct{}{}
 	}
 	var response WorkerLifecycleReheatResponse
 	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", reheat, &response)
-	if err == nil && !sameWorkerFence(response.WorkerFence, reheat.WorkerFence) {
+	if err == nil && (!sameWorkerFence(response.WorkerFence, reheat.WorkerFence) || int(response.Approved) != len(reheat.Items)) {
 		return WorkerLifecycleReheatResponse{}, ErrWorkerResponse
 	}
 	return response, err
@@ -245,7 +256,8 @@ func validTypedWorkerResponse(response any) bool {
 		}
 		return true
 	case *WorkerLifecycleReheatResponse:
-		return validWorkerFence(value.WorkerFence) && value.WorkerCount == coordinatorWorkerCount && value.WorkerID < value.WorkerCount && value.Approved
+		return validWorkerFence(value.WorkerFence) && value.WorkerCount == coordinatorWorkerCount && value.WorkerID < value.WorkerCount &&
+			value.Approved > 0 && value.Approved <= lifecycleCohortSize
 	default:
 		return true
 	}

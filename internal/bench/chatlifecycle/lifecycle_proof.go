@@ -642,12 +642,14 @@ func (s *WorkerLifecycleReheatSender) ApproveLifecycleReheat(ctx context.Context
 		return ErrLifecycleHarnessInvalid
 	}
 	response, err := s.client.ApproveLifecycleReheat(ctx, WorkerLifecycleReheatRequest{
-		WorkerFence: s.fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion,
+		WorkerFence: s.fence, Items: []WorkerLifecycleReheatItem{{
+			ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion,
+		}},
 	})
 	if err != nil {
 		return err
 	}
-	if !sameWorkerFence(response.WorkerFence, s.fence) || !response.Approved {
+	if !sameWorkerFence(response.WorkerFence, s.fence) || response.Approved != 1 {
 		return ErrLifecycleHarnessInvalid
 	}
 	return nil

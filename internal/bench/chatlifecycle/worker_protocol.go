@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 7
+	workerProtocolVersion  uint64 = 8
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -152,14 +152,19 @@ type WorkerLifecycleCandidateLeaseResponse struct {
 	Candidates  []LifecycleCandidate `json:"candidates"`
 }
 
-// WorkerLifecycleReheatRequest admits the exact existing deterministic revisit
-// SEND after all-node absence proof; token and version reject timer and activity
-// ABA races. It never invokes runtime eviction.
-type WorkerLifecycleReheatRequest struct {
-	WorkerFence
+// WorkerLifecycleReheatItem identifies one exact existing deterministic revisit
+// SEND; token and version reject timer and activity ABA races.
+type WorkerLifecycleReheatItem struct {
 	ChannelID       string `json:"channel_id"`
 	TimerToken      uint64 `json:"timer_token"`
 	ActivityVersion uint64 `json:"activity_version"`
+}
+
+// WorkerLifecycleReheatRequest atomically admits one bounded worker-owned batch
+// after all-node absence proof. It never invokes runtime eviction.
+type WorkerLifecycleReheatRequest struct {
+	WorkerFence
+	Items []WorkerLifecycleReheatItem `json:"items"`
 }
 
 // WorkerLifecycleReheatResponse confirms admission, not SEND completion.
@@ -167,7 +172,7 @@ type WorkerLifecycleReheatResponse struct {
 	WorkerFence
 	WorkerID    uint64 `json:"worker_id"`
 	WorkerCount uint64 `json:"worker_count"`
-	Approved    bool   `json:"approved"`
+	Approved    uint16 `json:"approved"`
 }
 
 // WorkerStopRequest explicitly drains and stops the exact assignment.

@@ -543,6 +543,55 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	}
 }
 
+func TestLifecycleCandidateEngineBatchApprovalIsAtomic(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now()
+	edges := []RelationshipEdge{fixture.graph.Incoming(18).Items[0], fixture.graph.Incoming(19).Items[0]}
+	items := make([]WorkerLifecycleReheatItem, len(edges))
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for index, edge := range edges {
+			work := &engineWork{
+				due: now.Add(10 * time.Minute), eligibilityDeadline: now.Add(11 * time.Minute), kind: engineWorkLifecycle, edge: edge,
+				schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+				lifecycleTimerToken: uint64(index + 41), activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+			}
+			fixture.engine.installLifecycleTimer(work)
+			fixture.engine.offerLifecycleCandidate(work)
+			items[index] = WorkerLifecycleReheatItem{ChannelID: edge.PersonChannelID, TimerToken: work.lifecycleTimerToken, ActivityVersion: 1}
+		}
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	invalid := append([]WorkerLifecycleReheatItem(nil), items...)
+	invalid[1].ActivityVersion++
+	if approved, err := fixture.engine.ApproveColdRevisitsContext(context.Background(), invalid); err != nil || approved != 0 {
+		t.Fatalf("invalid batch approval = %d,%v, want 0,nil", approved, err)
+	}
+	state := make(chan [2]bool, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		state <- [2]bool{
+			fixture.engine.lifecycleByChannel[items[0].ChannelID].coldConfirmed,
+			fixture.engine.lifecycleByChannel[items[1].ChannelID].coldConfirmed,
+		}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-state; got != [2]bool{} {
+		t.Fatalf("partial admission after rejected batch = %v", got)
+	}
+	if approved, err := fixture.engine.ApproveColdRevisitsContext(context.Background(), items); err != nil || approved != len(items) {
+		t.Fatalf("valid batch approval = %d,%v, want %d,nil", approved, err, len(items))
+	}
+}
+
 func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseRequiredSenderExpiresAtProofDeadline(t *testing.T) {
 	const revisitAfter = 10 * time.Minute
 	fixture := newEngineTestFixture(t, engineTestLimits{
@@ -2185,7 +2234,7 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 
 func TestLifecycleProofWorkerSenderUsesFencedApprovalWithoutForgingSequence(t *testing.T) {
 	fence := WorkerFence{RunID: "run", AssignmentID: "assignment", Generation: 1}
-	control := &fakeLifecycleReheatControl{response: WorkerLifecycleReheatResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Approved: true}}
+	control := &fakeLifecycleReheatControl{response: WorkerLifecycleReheatResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Approved: 1}}
 	sender, err := NewWorkerLifecycleReheatSender(control, fence)
 	if err != nil {
 		t.Fatal(err)
@@ -2194,7 +2243,9 @@ func TestLifecycleProofWorkerSenderUsesFencedApprovalWithoutForgingSequence(t *t
 	if err := sender.ApproveLifecycleReheat(context.Background(), candidate); err != nil {
 		t.Fatal(err)
 	}
-	if control.request.ChannelID != candidate.ChannelID || control.request.TimerToken != candidate.TimerToken || control.request.ActivityVersion != candidate.ActivityVersion || control.request.WorkerFence != fence {
+	if len(control.request.Items) != 1 || control.request.Items[0].ChannelID != candidate.ChannelID ||
+		control.request.Items[0].TimerToken != candidate.TimerToken || control.request.Items[0].ActivityVersion != candidate.ActivityVersion ||
+		control.request.WorkerFence != fence {
 		t.Fatalf("request = %+v", control.request)
 	}
 	invalid := candidate
@@ -2990,6 +3041,16 @@ type fakeLifecycleSender struct{ err error }
 
 func (s *fakeLifecycleSender) ApproveLifecycleReheat(context.Context, LifecycleCandidate) error {
 	return s.err
+}
+
+func workerLifecycleReheatRequest(fence WorkerFence, candidates ...LifecycleCandidate) WorkerLifecycleReheatRequest {
+	items := make([]WorkerLifecycleReheatItem, len(candidates))
+	for index, candidate := range candidates {
+		items[index] = WorkerLifecycleReheatItem{
+			ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion,
+		}
+	}
+	return WorkerLifecycleReheatRequest{WorkerFence: fence, Items: items}
 }
 
 type fakeLifecycleReheatControl struct {
