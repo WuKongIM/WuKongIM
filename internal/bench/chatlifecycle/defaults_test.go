@@ -172,7 +172,7 @@ func TestFormalConfigDefaults(t *testing.T) {
 	if cfg.Thresholds.Correctness.OverallFirstAttemptFailure != (FailureRateLimit{MaxFailures: 1, PerAttempts: 10_000, Operator: ComparisonLessThan}) || cfg.Thresholds.Correctness.AnyMinuteFirstAttemptFailure != (FailureRateLimit{MaxFailures: 1, PerAttempts: 1_000, Operator: ComparisonLessOrEqual}) {
 		t.Fatalf("failure limits = %+v", cfg.Thresholds.Correctness)
 	}
-	if cfg.Thresholds.Latency.HotSendACK != (LatencyLimit{P99: 200 * time.Millisecond, P999: time.Second}) || cfg.Thresholds.Latency.Cold != (LatencyLimit{P99: 2 * time.Second, P999: 5 * time.Second}) || cfg.Thresholds.Latency.Sync != (LatencyLimit{P99: time.Second, P999: 3 * time.Second}) || cfg.Thresholds.Latency.SingleAnomaly != 10*time.Second || cfg.Thresholds.Latency.SustainedBreachWindow != 5*time.Minute {
+	if cfg.Thresholds.Latency.HotSendACK != (LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second}) || cfg.Thresholds.Latency.Cold != (LatencyLimit{P99: 2 * time.Second, P999: 5 * time.Second}) || cfg.Thresholds.Latency.Sync != (LatencyLimit{P99: time.Second, P999: 3 * time.Second}) || cfg.Thresholds.Latency.SingleAnomaly != 10*time.Second || cfg.Thresholds.Latency.SustainedBreachWindow != 5*time.Minute {
 		t.Fatalf("latency = %+v", cfg.Thresholds.Latency)
 	}
 	if cfg.Thresholds.Resource.ForcedGCLiveHeapGrowthPercent != 5 || cfg.Thresholds.Resource.ForcedGCLiveHeapWindow != 6*time.Hour || cfg.Thresholds.Resource.GoroutineGrowthPercent != 5 || cfg.Thresholds.Resource.GoroutineGrowthWindow != 24*time.Hour || cfg.Thresholds.Resource.MinimumLoadFilesystemBytes != 200_000_000_000 || cfg.Thresholds.Resource.PrometheusSafeStopBytes != 140_000_000_000 {
