@@ -22,6 +22,7 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	candidates, owners := productionLifecycleCandidates(t, startedAt, assignment)
 	fence := WorkerFence{RunID: "run-production-lifecycle", AssignmentID: "assignment-production-lifecycle", Generation: 7}
 	leaseEntered := make(chan uint64, 3)
+	leaseDeadlines := make(chan time.Time, 3)
 	leaseRelease := make(chan struct{})
 	approvals := &productionLifecycleApprovals{owners: owners, done: make(chan struct{})}
 	var workers [3]ProductionLifecycleWorker
@@ -34,7 +35,7 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 		}
 		workers[workerID] = &productionLifecycleWorkerFake{
 			workerID: uint64(workerID), fence: fence, candidates: owned,
-			leaseEntered: leaseEntered, leaseRelease: leaseRelease, approvals: approvals,
+			leaseEntered: leaseEntered, leaseDeadlines: leaseDeadlines, leaseRelease: leaseRelease, approvals: approvals,
 		}
 	}
 	clock := newProductionLifecycleClock(startedAt)
@@ -66,6 +67,12 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	close(leaseRelease)
 	if len(seenWorkers) != 3 {
 		t.Fatalf("concurrent lease workers = %v, want all three", seenWorkers)
+	}
+	wantInitialLoadDeadline := startedAt.Add(LifecycleProofCadence + 2*time.Second + productionLifecycleInitialLoadSchedulingReserve)
+	for range 3 {
+		if got := <-leaseDeadlines; !got.Equal(wantInitialLoadDeadline) {
+			t.Fatalf("initial load deadline = %v, want %v", got, wantInitialLoadDeadline)
+		}
 	}
 	prober.waitForCall(t)
 
@@ -534,12 +541,13 @@ func (a *productionLifecycleApprovals) failure() string {
 }
 
 type productionLifecycleWorkerFake struct {
-	workerID     uint64
-	fence        WorkerFence
-	candidates   []LifecycleCandidate
-	leaseEntered chan<- uint64
-	leaseRelease <-chan struct{}
-	approvals    *productionLifecycleApprovals
+	workerID       uint64
+	fence          WorkerFence
+	candidates     []LifecycleCandidate
+	leaseEntered   chan<- uint64
+	leaseDeadlines chan<- time.Time
+	leaseRelease   <-chan struct{}
+	approvals      *productionLifecycleApprovals
 }
 
 type productionLifecycleRotatingWorker struct {
@@ -553,7 +561,8 @@ type productionLifecycleRotatingWorker struct {
 func (w *productionLifecycleRotatingWorker) LeaseLifecycleCandidates(_ context.Context, request WorkerLifecycleCandidateLeaseRequest) (WorkerLifecycleCandidateLeaseResponse, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if request.Requested != lifecycleCohortSize || !sameWorkerFence(request.WorkerFence, w.fence) || w.lease >= len(w.cohorts) {
+	if request.Requested != lifecycleCohortSize || request.InitialLoadDeadline.IsZero() ||
+		!sameWorkerFence(request.WorkerFence, w.fence) || w.lease >= len(w.cohorts) {
 		return WorkerLifecycleCandidateLeaseResponse{}, ErrLifecycleHarnessInvalid
 	}
 	candidates := append([]LifecycleCandidate(nil), w.cohorts[w.lease]...)
@@ -628,8 +637,11 @@ func (p *productionLifecycleRotatingProber) ProbeChannelRuntimeAll(_ context.Con
 }
 
 func (w *productionLifecycleWorkerFake) LeaseLifecycleCandidates(ctx context.Context, request WorkerLifecycleCandidateLeaseRequest) (WorkerLifecycleCandidateLeaseResponse, error) {
-	if request.Requested != lifecycleCohortSize || !sameWorkerFence(request.WorkerFence, w.fence) {
+	if request.Requested != lifecycleCohortSize || request.InitialLoadDeadline.IsZero() || !sameWorkerFence(request.WorkerFence, w.fence) {
 		return WorkerLifecycleCandidateLeaseResponse{}, ErrLifecycleHarnessInvalid
+	}
+	if w.leaseDeadlines != nil {
+		w.leaseDeadlines <- request.InitialLoadDeadline
 	}
 	w.leaseEntered <- w.workerID
 	select {

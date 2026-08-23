@@ -64,6 +64,9 @@ func TestWorkerClientSendsAuthenticatedTypedRequestsAndRejectsUnknownResponses(t
 func TestWorkerClientLifecycleCandidateLeaseRejectsDuplicateOversizeAndFenceMutation(t *testing.T) {
 	fence := WorkerFence{RunID: "run", AssignmentID: "assignment", Generation: 1}
 	candidate := lifecycleTestCandidates(t, time.Unix(1_000, 0))[0]
+	initialLoadDeadline := time.Unix(1_001, 0)
+	boundaryCandidate := candidate
+	boundaryCandidate.QuietNotBefore = initialLoadDeadline
 	for _, test := range []struct {
 		name     string
 		response WorkerLifecycleCandidateLeaseResponse
@@ -71,6 +74,7 @@ func TestWorkerClientLifecycleCandidateLeaseRejectsDuplicateOversizeAndFenceMuta
 		{"duplicate", WorkerLifecycleCandidateLeaseResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{candidate, candidate}}},
 		{"over requested", WorkerLifecycleCandidateLeaseResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{candidate, candidate}}},
 		{"wrong fence", WorkerLifecycleCandidateLeaseResponse{WorkerFence: WorkerFence{RunID: "other", AssignmentID: "assignment", Generation: 1}, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{candidate}}},
+		{"not loaded through deadline", WorkerLifecycleCandidateLeaseResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{boundaryCandidate}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(test.response) }))
@@ -83,7 +87,9 @@ func TestWorkerClientLifecycleCandidateLeaseRejectsDuplicateOversizeAndFenceMuta
 			if test.name == "duplicate" {
 				requested = 2
 			}
-			if _, err := client.LeaseLifecycleCandidates(context.Background(), WorkerLifecycleCandidateLeaseRequest{WorkerFence: fence, Requested: requested}); !errors.Is(err, ErrWorkerResponse) {
+			if _, err := client.LeaseLifecycleCandidates(context.Background(), WorkerLifecycleCandidateLeaseRequest{
+				WorkerFence: fence, Requested: requested, InitialLoadDeadline: initialLoadDeadline,
+			}); !errors.Is(err, ErrWorkerResponse) {
 				t.Fatalf("error = %v", err)
 			}
 		})

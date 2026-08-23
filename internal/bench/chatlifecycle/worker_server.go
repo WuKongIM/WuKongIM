@@ -60,7 +60,7 @@ func (f WorkerGenerationFactoryFunc) New(assignment WorkerAssignment) (WorkerGen
 // WorkerLifecycleCandidateLeaser is an optional generation capability for
 // reconstructing a bounded transient lease without retaining channel history.
 type WorkerLifecycleCandidateLeaser interface {
-	LeaseLifecycleCandidates(context.Context, int) ([]LifecycleCandidate, error)
+	LeaseLifecycleCandidates(context.Context, int, time.Time) ([]LifecycleCandidate, error)
 }
 
 // WorkerLifecycleReheatApprover exposes only existing scheduled SEND admission.
@@ -214,7 +214,7 @@ func (s *WorkerServer) handleLifecycleCandidates(response http.ResponseWriter, r
 	if !decodeWorkerJSON(response, request, &lease) {
 		return
 	}
-	if !validWorkerFence(lease.WorkerFence) || lease.Requested == 0 || int(lease.Requested) > lifecycleCohortSize {
+	if !validWorkerFence(lease.WorkerFence) || lease.Requested == 0 || int(lease.Requested) > lifecycleCohortSize || lease.InitialLoadDeadline.IsZero() {
 		writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
 		return
 	}
@@ -232,7 +232,7 @@ func (s *WorkerServer) handleLifecycleCandidates(response http.ResponseWriter, r
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
-	candidates, err := leaser.LeaseLifecycleCandidates(request.Context(), int(lease.Requested))
+	candidates, err := leaser.LeaseLifecycleCandidates(request.Context(), int(lease.Requested), lease.InitialLoadDeadline)
 	s.mu.Lock()
 	if !s.controlStateMatchesLocked(control) {
 		s.mu.Unlock()
@@ -247,7 +247,7 @@ func (s *WorkerServer) handleLifecycleCandidates(response http.ResponseWriter, r
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
-	if !validWorkerLifecycleCandidateLease(candidates, int(lease.Requested), assignment) {
+	if !validWorkerLifecycleCandidateLease(candidates, int(lease.Requested), assignment, lease.InitialLoadDeadline) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
 		return
 	}
@@ -1503,8 +1503,8 @@ func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64
 	return WorkerGrantApplication{Admitted: result.Admitted}, err
 }
 
-func (g *engineWorkerGeneration) LeaseLifecycleCandidates(ctx context.Context, requested int) ([]LifecycleCandidate, error) {
-	return g.engine.LeaseLifecycleCandidates(ctx, requested, g.lifecycleSlots)
+func (g *engineWorkerGeneration) LeaseLifecycleCandidates(ctx context.Context, requested int, loadedThrough time.Time) ([]LifecycleCandidate, error) {
+	return g.engine.LeaseLifecycleCandidates(ctx, requested, g.lifecycleSlots, loadedThrough)
 }
 
 func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, identity string, timerToken, activityVersion uint64) (bool, error) {

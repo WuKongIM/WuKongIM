@@ -113,7 +113,9 @@ func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testi
 	generation := &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration(), candidates: []LifecycleCandidate{candidate}}
 	server, fence := startWorkerServerForGeneration(t, generation, "lifecycle-lease")
 
-	response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", WorkerLifecycleCandidateLeaseRequest{WorkerFence: fence, Requested: 1})
+	response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", WorkerLifecycleCandidateLeaseRequest{
+		WorkerFence: fence, Requested: 1, InitialLoadDeadline: now.Add(time.Second),
+	})
 	if response.Code != http.StatusOK {
 		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
 	}
@@ -150,6 +152,9 @@ func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testi
 func TestWorkerServerLifecycleCandidateLeaseRejectsOversizeFencePhaseAndInvalidProviderRows(t *testing.T) {
 	now := time.Unix(2_000, 0)
 	valid := lifecycleTestCandidates(t, now)[0]
+	deadline := now.Add(time.Second)
+	boundary := valid
+	boundary.QuietNotBefore = deadline
 	for _, test := range []struct {
 		name    string
 		start   bool
@@ -158,11 +163,13 @@ func TestWorkerServerLifecycleCandidateLeaseRejectsOversizeFencePhaseAndInvalidP
 		want    WorkerErrorCode
 	}{
 		{"oversize", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1201}, nil, WorkerErrorInvalidRequest},
-		{"wrong fence", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1, WorkerFence: WorkerFence{RunID: "other", AssignmentID: "other", Generation: 9}}, []LifecycleCandidate{valid}, WorkerErrorFenceMismatch},
-		{"not running", false, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, []LifecycleCandidate{valid}, WorkerErrorInvalidState},
-		{"provider exceeds requested", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, []LifecycleCandidate{valid, valid}, WorkerErrorRuntimeFailure},
-		{"provider duplicate", true, WorkerLifecycleCandidateLeaseRequest{Requested: 2}, []LifecycleCandidate{valid, valid}, WorkerErrorRuntimeFailure},
-		{"provider invalid raw", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, []LifecycleCandidate{{ChannelID: "private-invalid"}}, WorkerErrorRuntimeFailure},
+		{"missing deadline", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, nil, WorkerErrorInvalidRequest},
+		{"wrong fence", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1, InitialLoadDeadline: deadline, WorkerFence: WorkerFence{RunID: "other", AssignmentID: "other", Generation: 9}}, []LifecycleCandidate{valid}, WorkerErrorFenceMismatch},
+		{"not running", false, WorkerLifecycleCandidateLeaseRequest{Requested: 1, InitialLoadDeadline: deadline}, []LifecycleCandidate{valid}, WorkerErrorInvalidState},
+		{"provider exceeds requested", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1, InitialLoadDeadline: deadline}, []LifecycleCandidate{valid, valid}, WorkerErrorRuntimeFailure},
+		{"provider duplicate", true, WorkerLifecycleCandidateLeaseRequest{Requested: 2, InitialLoadDeadline: deadline}, []LifecycleCandidate{valid, valid}, WorkerErrorRuntimeFailure},
+		{"provider missed loaded deadline", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1, InitialLoadDeadline: deadline}, []LifecycleCandidate{boundary}, WorkerErrorRuntimeFailure},
+		{"provider invalid raw", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1, InitialLoadDeadline: deadline}, []LifecycleCandidate{{ChannelID: "private-invalid"}}, WorkerErrorRuntimeFailure},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generation := &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration(), candidates: test.rows}
@@ -259,8 +266,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV6WithCoordinatorGrantV2(t *testing
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 6 {
-		t.Fatalf("protocol version = %d, want 6", info.ProtocolVersion)
+	if info.ProtocolVersion != 7 {
+		t.Fatalf("protocol version = %d, want 7", info.ProtocolVersion)
 	}
 }
 
@@ -2659,7 +2666,7 @@ func (g *fakeLifecycleLeaseGeneration) approveLifecycleReheat(ctx context.Contex
 	return true, nil
 }
 
-func (g *fakeLifecycleLeaseGeneration) LeaseLifecycleCandidates(_ context.Context, requested int) ([]LifecycleCandidate, error) {
+func (g *fakeLifecycleLeaseGeneration) LeaseLifecycleCandidates(_ context.Context, requested int, _ time.Time) ([]LifecycleCandidate, error) {
 	g.requested = requested
 	return append([]LifecycleCandidate(nil), g.candidates...), nil
 }

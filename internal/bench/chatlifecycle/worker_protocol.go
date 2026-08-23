@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 6
+	workerProtocolVersion  uint64 = 7
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -134,10 +134,13 @@ type WorkerGrantResponse struct {
 }
 
 // WorkerLifecycleCandidateLeaseRequest asks one fenced worker for at most the
-// bounded number of transient lifecycle candidates.
+// bounded number of transient lifecycle candidates that must remain hot until
+// InitialLoadDeadline. This prevents control-plane and probe latency from
+// selecting a runtime whose natural quiet interval is already beginning.
 type WorkerLifecycleCandidateLeaseRequest struct {
 	WorkerFence
-	Requested uint16 `json:"requested"`
+	Requested           uint16    `json:"requested"`
+	InitialLoadDeadline time.Time `json:"initial_load_deadline"`
 }
 
 // WorkerLifecycleCandidateLeaseResponse is transient control data. It must

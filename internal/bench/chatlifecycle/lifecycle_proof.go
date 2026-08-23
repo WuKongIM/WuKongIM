@@ -319,14 +319,14 @@ func validLifecycleCandidate(candidate LifecycleCandidate, now time.Time, assign
 	return validLifecyclePersonChannelID(candidate.ChannelID)
 }
 
-func validWorkerLifecycleCandidateLease(candidates []LifecycleCandidate, requested int, assignment WorkerAssignment) bool {
+func validWorkerLifecycleCandidateLease(candidates []LifecycleCandidate, requested int, assignment WorkerAssignment, loadedThrough time.Time) bool {
 	if requested <= 0 || requested > lifecycleCohortSize || len(candidates) > requested ||
-		assignment.Config.Workload.Topology.HashSlots != formalHashSlots || assignment.Config.Workload.Topology.LogicalSlotGroups != formalLogicalSlotGroups {
+		loadedThrough.IsZero() || assignment.Config.Workload.Topology.HashSlots != formalHashSlots || assignment.Config.Workload.Topology.LogicalSlotGroups != formalLogicalSlotGroups {
 		return false
 	}
 	seen := make(map[string]struct{}, len(candidates))
 	for _, candidate := range candidates {
-		if !validWorkerLifecycleCandidate(candidate) {
+		if !validWorkerLifecycleCandidate(candidate) || !candidate.QuietNotBefore.After(loadedThrough) {
 			return false
 		}
 		if _, duplicate := seen[candidate.ChannelID]; duplicate {

@@ -9,7 +9,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
-const productionLifecycleMaxActiveCohorts = 6
+const (
+	productionLifecycleMaxActiveCohorts             = 6
+	productionLifecycleInitialLoadSchedulingReserve = time.Second
+)
 
 // ProductionLifecycleWorker is the fenced control-plane seam required from
 // each of the exact three production workers.
@@ -217,6 +220,10 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 }
 
 func (p *ProductionLifecycle) leaseCohort(ctx context.Context, fence WorkerFence, now time.Time) (*productionLifecycleCohort, error) {
+	initialLoadDeadline := now.Add(2*p.options.ProbeOptions.RequestTimeout + productionLifecycleInitialLoadSchedulingReserve)
+	if !initialLoadDeadline.After(now) {
+		return nil, ErrLifecycleHarnessInvalid
+	}
 	type leaseOutcome struct {
 		response WorkerLifecycleCandidateLeaseResponse
 		err      error
@@ -230,7 +237,7 @@ func (p *ProductionLifecycle) leaseCohort(ctx context.Context, fence WorkerFence
 		go func(workerID int, worker ProductionLifecycleWorker) {
 			defer wait.Done()
 			outcomes[workerID].response, outcomes[workerID].err = worker.LeaseLifecycleCandidates(roundCtx, WorkerLifecycleCandidateLeaseRequest{
-				WorkerFence: fence, Requested: lifecycleCohortSize,
+				WorkerFence: fence, Requested: lifecycleCohortSize, InitialLoadDeadline: initialLoadDeadline,
 			})
 		}(workerID, worker)
 	}
@@ -265,7 +272,7 @@ func (p *ProductionLifecycle) leaseCohort(ctx context.Context, fence WorkerFence
 			all = append(all, candidate)
 		}
 	}
-	selected, err := SelectLifecycleCohort(all, now, p.options.SlotAssignment, formalLogicalSlotGroups)
+	selected, err := SelectLifecycleCohort(all, initialLoadDeadline, p.options.SlotAssignment, formalLogicalSlotGroups)
 	if err != nil {
 		return nil, ErrLifecycleHarnessInvalid
 	}

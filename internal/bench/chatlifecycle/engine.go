@@ -1548,9 +1548,10 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 }
 
 // LeaseLifecycleCandidates reconstructs at most requested current revisit
-// timers. Completed timers are absent, so memory remains history-independent.
-func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, assignment LifecycleSlotAssignment) ([]LifecycleCandidate, error) {
-	if ctx == nil || requested <= 0 || requested > lifecycleCohortSize || assignment.HashSlotCount() != formalHashSlots {
+// timers whose natural quiet interval starts strictly after loadedThrough.
+// Completed timers are absent, so memory remains history-independent.
+func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, assignment LifecycleSlotAssignment, loadedThrough time.Time) ([]LifecycleCandidate, error) {
+	if ctx == nil || requested <= 0 || requested > lifecycleCohortSize || assignment.HashSlotCount() != formalHashSlots || loadedThrough.IsZero() {
 		return nil, errEngineConfig
 	}
 	if assignment != e.lifecycleCandidateSlots {
@@ -1559,7 +1560,6 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 	response := make(chan []LifecycleCandidate, 1)
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		candidates := make([]LifecycleCandidate, 0, lifecycleCohortSize)
-		now := e.clock.Now()
 		e.lifecycleCandidateLeaseScanned = 0
 		for slot := range formalLogicalSlotGroups {
 			bucket := &e.lifecycleCandidates[slot]
@@ -1569,11 +1569,11 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 				work := entry.work
 				indexed := work != nil && work.lifecycleCandidateTier == engineLifecycleCandidatePrimary &&
 					work.lifecycleCandidateSlot == uint8(slot+1) && work.lifecycleCandidatePosition == position
-				candidateSlot, quietNotBefore, quietDeadline, eligible := e.lifecycleCandidateSlotForAt(work, now)
+				candidateSlot, quietNotBefore, quietDeadline, eligible := e.lifecycleCandidateSlotForAt(work, loadedThrough)
 				if !indexed || work.lifecycleTimerToken != entry.timerToken || work.activityVersion != entry.activityVersion ||
 					!eligible || candidateSlot != slot {
 					if indexed && e.detachLifecyclePrimary(work) {
-						e.promoteLifecycleStandbyAt(slot, now)
+						e.promoteLifecycleStandbyAt(slot, loadedThrough)
 						continue
 					}
 					position++

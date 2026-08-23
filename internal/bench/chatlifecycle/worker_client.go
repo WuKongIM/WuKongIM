@@ -112,10 +112,20 @@ func (c *WorkerClient) Grant(ctx context.Context, grant WorkerGrantRequest) (Wor
 
 // LeaseLifecycleCandidates obtains bounded transient candidate control data.
 func (c *WorkerClient) LeaseLifecycleCandidates(ctx context.Context, lease WorkerLifecycleCandidateLeaseRequest) (WorkerLifecycleCandidateLeaseResponse, error) {
+	if !validWorkerFence(lease.WorkerFence) || lease.Requested == 0 || int(lease.Requested) > lifecycleCohortSize || lease.InitialLoadDeadline.IsZero() {
+		return WorkerLifecycleCandidateLeaseResponse{}, ErrWorkerClientConfig
+	}
 	var response WorkerLifecycleCandidateLeaseResponse
 	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", lease, &response)
-	if err == nil && (!sameWorkerFence(response.WorkerFence, lease.WorkerFence) || len(response.Candidates) > int(lease.Requested)) {
-		return WorkerLifecycleCandidateLeaseResponse{}, ErrWorkerResponse
+	if err == nil {
+		if !sameWorkerFence(response.WorkerFence, lease.WorkerFence) || len(response.Candidates) > int(lease.Requested) {
+			return WorkerLifecycleCandidateLeaseResponse{}, ErrWorkerResponse
+		}
+		for _, candidate := range response.Candidates {
+			if !validWorkerLifecycleCandidate(candidate) || !candidate.QuietNotBefore.After(lease.InitialLoadDeadline) {
+				return WorkerLifecycleCandidateLeaseResponse{}, ErrWorkerResponse
+			}
+		}
 	}
 	return response, err
 }

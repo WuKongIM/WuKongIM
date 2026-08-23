@@ -283,7 +283,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 		t.Fatal(err)
 	}
 	<-installed
-	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t))
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now())
 	if err != nil || len(candidates) != 1 {
 		t.Fatalf("lease = %+v, %v", candidates, err)
 	}
@@ -325,7 +325,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	if stale, staleErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidate.ChannelID, candidate.TimerToken, candidate.ActivityVersion); staleErr != nil || stale {
 		t.Fatalf("stale activity lease approval = %v,%v", stale, staleErr)
 	}
-	refreshed, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t))
+	refreshed, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now())
 	if err != nil || len(refreshed) != 1 || refreshed[0].TimerToken != candidate.TimerToken || refreshed[0].ActivityVersion != 2 || refreshed[0].InitialSequence != 43 || !refreshed[0].QuietNotBefore.Equal(now.Add(6*time.Minute+time.Nanosecond)) {
 		t.Fatalf("refreshed lease = %+v,%v", refreshed, err)
 	}
@@ -391,7 +391,7 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	if replay, replayErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidate.ChannelID, candidate.TimerToken, candidate.ActivityVersion); replayErr != nil || replay {
 		t.Fatalf("externally invalidated approval replay = %v,%v", replay, replayErr)
 	}
-	if leased, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t)); leaseErr != nil || len(leased) != 0 {
+	if leased, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now()); leaseErr != nil || len(leased) != 0 {
 		t.Fatalf("invalidated timer lease = %+v,%v", leased, leaseErr)
 	}
 	if washed, washErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidate.ChannelID, candidate.TimerToken, candidate.ActivityVersion+1); washErr != nil || washed {
@@ -954,7 +954,7 @@ func TestEngineLifecycleApprovalUsesOwnerExecutionDeadlineAndKeepsExactReplay(t 
 					t.Fatalf("late rejection washed timer state: %+v", gotState)
 				}
 			}
-			leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t))
+			leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -997,7 +997,7 @@ func TestEngineLifecycleApprovalUsesOwnerExecutionDeadlineAndKeepsExactReplay(t 
 			t.Fatalf("canceled approval error = %v, want context canceled", err)
 		}
 		close(release)
-		leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t))
+		leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now())
 		if err != nil || len(leased) != 1 {
 			t.Fatalf("canceled approval mutated timer/index: %+v,%v", leased, err)
 		}
@@ -1140,7 +1140,7 @@ func TestEngineLifecycleCandidateLeaseUsesFixedBalancedIndex(t *testing.T) {
 			t.Fatalf("slot %d indexed count = %d, want %d", slot+1, count, lifecyclePerSlot)
 		}
 	}
-	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecycleCohortSize, assignment)
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecycleCohortSize, assignment, fixture.clock.Now())
 	if err != nil || len(candidates) != lifecycleCohortSize {
 		t.Fatalf("bounded lease = %d,%v", len(candidates), err)
 	}
@@ -1182,7 +1182,7 @@ func TestEngineLifecycleCandidateLeaseUsesFixedBalancedIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mismatch); !errors.Is(err, ErrLifecycleHarnessInvalid) {
+	if _, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mismatch, fixture.clock.Now()); !errors.Is(err, ErrLifecycleHarnessInvalid) {
 		t.Fatalf("mismatched mapping error = %v, want harness invalid", err)
 	}
 }
@@ -1241,14 +1241,14 @@ func TestEngineLifecycleCandidateStandbyPromotesBestWithoutFenceReentry(t *testi
 			works[100].lifecycleCandidateTier, works[101].lifecycleCandidateTier, works[102].lifecycleCandidateTier, replacement.lifecycleCandidateTier)
 	}
 
-	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 100, assignment)
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 100, assignment, fixture.clock.Now())
 	if err != nil || len(candidates) != 100 {
 		t.Fatalf("initial primary lease = %d,%v", len(candidates), err)
 	}
 	if approved, approveErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidates[0].ChannelID, candidates[0].TimerToken, candidates[0].ActivityVersion); approveErr != nil || !approved {
 		t.Fatalf("primary approval = %v,%v", approved, approveErr)
 	}
-	candidates, err = fixture.engine.LeaseLifecycleCandidates(context.Background(), 100, assignment)
+	candidates, err = fixture.engine.LeaseLifecycleCandidates(context.Background(), 100, assignment, fixture.clock.Now())
 	if err != nil || len(candidates) != 100 {
 		t.Fatalf("promoted primary lease = %d,%v", len(candidates), err)
 	}
@@ -1282,7 +1282,7 @@ func TestEngineLifecycleCandidateStandbyPromotesBestWithoutFenceReentry(t *testi
 		} else if approved, approveErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidate.ChannelID, candidate.TimerToken, candidate.ActivityVersion); approveErr != nil || !approved {
 			t.Fatalf("repeated primary approval %d = %v,%v", removed, approved, approveErr)
 		}
-		candidates, err = fixture.engine.LeaseLifecycleCandidates(context.Background(), 100, assignment)
+		candidates, err = fixture.engine.LeaseLifecycleCandidates(context.Background(), 100, assignment, fixture.clock.Now())
 		if err != nil || len(candidates) != 100 {
 			t.Fatalf("lease after removal %d = %d,%v, want standby refill", removed, len(candidates), err)
 		}
@@ -1348,7 +1348,7 @@ func TestEngineLifecycleCandidateLeaseEvictsExpiredPrimariesAndPromotesValidStan
 		t.Fatal(err)
 	}
 
-	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecyclePerSlot, assignment)
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecyclePerSlot, assignment, fixture.clock.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1357,6 +1357,74 @@ func TestEngineLifecycleCandidateLeaseEvictsExpiredPrimariesAndPromotesValidStan
 	}
 	if !candidates[0].QuietNotBefore.After(leaseNow) {
 		t.Fatalf("leased candidate quiet-not-before = %v, want after lease time %v", candidates[0].QuietNotBefore, leaseNow)
+	}
+}
+
+func TestEngineLifecycleCandidateLeasePromotesStandbyThatRemainsLoadedThroughInitialProbe(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: lifecyclePerSlot + 1})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	leaseNow := fixture.clock.Now()
+	loadedThrough := leaseNow.Add(5 * time.Second)
+	assignment := mustInitialLifecycleSlotAssignment(t)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for ordinal, added := 0, 0; added < lifecyclePerSlot; ordinal++ {
+			identity := channelid.EncodePersonChannel(
+				fmt.Sprintf("boundary-primary-%06d-a", ordinal), fmt.Sprintf("boundary-primary-%06d-b", ordinal),
+			)
+			hashSlot := lifecycleHashSlotForKey(identity, formalHashSlots)
+			slotID, _ := assignment.Lookup(hashSlot)
+			if slotID != 1 {
+				continue
+			}
+			work := &engineWork{
+				due: leaseNow.Add(20*time.Minute + time.Duration(added)*time.Second), kind: engineWorkLifecycle,
+				edge: RelationshipEdge{PersonChannelID: identity}, schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				lifecycleTimerToken: uint64(added + 1), activityVersion: 1, initialSequence: 10,
+				lastActivityAt: leaseNow.Add(-lifecycleNaturalQuiet + time.Second), observedLoaded: true,
+			}
+			fixture.engine.installLifecycleTimer(work)
+			fixture.engine.offerLifecycleCandidate(work)
+			added++
+		}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	var validStandby string
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for ordinal := 0; ; ordinal++ {
+			identity := channelid.EncodePersonChannel(
+				fmt.Sprintf("probe-safe-standby-%06d-a", ordinal), fmt.Sprintf("probe-safe-standby-%06d-b", ordinal),
+			)
+			hashSlot := lifecycleHashSlotForKey(identity, formalHashSlots)
+			slotID, _ := assignment.Lookup(hashSlot)
+			if slotID != 1 {
+				continue
+			}
+			work := &engineWork{
+				due: leaseNow.Add(30 * time.Minute), kind: engineWorkLifecycle,
+				edge: RelationshipEdge{PersonChannelID: identity}, schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				lifecycleTimerToken: lifecyclePerSlot + 1, activityVersion: 1, initialSequence: 11,
+				lastActivityAt: leaseNow, observedLoaded: true,
+			}
+			fixture.engine.installLifecycleTimer(work)
+			fixture.engine.offerLifecycleCandidate(work)
+			validStandby = identity
+			return
+		}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecyclePerSlot, assignment, loadedThrough)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 || candidates[0].ChannelID != validStandby || !candidates[0].QuietNotBefore.After(loadedThrough) {
+		t.Fatalf("lease through initial probe = %+v, want only safe standby %q after %v", candidates, validStandby, loadedThrough)
 	}
 }
 
@@ -1462,7 +1530,7 @@ func TestEngineLifecycleCandidateFullIndexRefreshKeepsLiveTimerAndInvalidatesOld
 	if approved, err := fixture.engine.ApproveColdRevisitContext(context.Background(), state.identity, state.token, state.oldVersion); err != nil || approved {
 		t.Fatalf("old refreshed lease approval = %v,%v, want false,nil", approved, err)
 	}
-	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecyclePerSlot, assignment)
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecyclePerSlot, assignment, fixture.clock.Now())
 	if err != nil || len(candidates) != lifecyclePerSlot {
 		t.Fatalf("lease after full refresh = %d,%v", len(candidates), err)
 	}
@@ -1509,7 +1577,7 @@ func TestEngineLifecycleCandidateDetachMismatchFailsClosedWithoutDuplicate(t *te
 	if got.tier != engineLifecycleCandidatePrimary || got.position != lifecyclePerSlot-1 || got.indexed != 1 || got.primaries != 1 {
 		t.Fatalf("detach mismatch state = %+v, want one fail-closed retained entry without duplicate", got)
 	}
-	leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t))
+	leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now())
 	if err != nil || len(leased) != 0 {
 		t.Fatalf("corrupt fail-closed entry became leasable: %+v,%v", leased, err)
 	}
@@ -1577,7 +1645,7 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 	if !<-unchanged {
 		t.Fatal("activity overflow mutated the fenced quiet window")
 	}
-	if leased, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t)); leaseErr != nil || len(leased) != 0 {
+	if leased, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now()); leaseErr != nil || len(leased) != 0 {
 		t.Fatalf("exhausted timer lease = %+v,%v", leased, leaseErr)
 	}
 	if washed, washErr := fixture.engine.ApproveColdRevisitContext(context.Background(), edge.PersonChannelID, 1, math.MaxUint64); washErr != nil || washed {
