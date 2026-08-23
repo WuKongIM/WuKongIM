@@ -84,10 +84,11 @@ func TestProviderQuoteFiltersIneligibleTypesAndUsesOneTypeForAllHosts(t *testing
 		InstanceType{ID: "ecs.c8.large", Architecture: "x86_64", VCPUs: 2, MemoryBytes: 8 << 30, FamilyLevel: "EnterpriseLevel"},
 		InstanceType{ID: "ecs.g8.arm", Architecture: "arm64", VCPUs: 4, MemoryBytes: 8 << 30, FamilyLevel: "EnterpriseLevel"},
 		InstanceType{ID: "ecs.gn8.large", Architecture: "x86_64", VCPUs: 4, MemoryBytes: 8 << 30, GPUCount: 1, FamilyLevel: "EnterpriseLevel"},
+		InstanceType{ID: "ecs.e-c1m2.large", Architecture: "x86_64", VCPUs: 4, MemoryBytes: 8 << 30, FamilyLevel: "EntryLevel"},
 		InstanceType{ID: "ecs.t6-c1m2.large", Architecture: "x86_64", VCPUs: 4, MemoryBytes: 8 << 30, FamilyLevel: "CreditEntryLevel"},
 		InstanceType{ID: "ecs.unknown.large", Architecture: "x86_64", VCPUs: 4, MemoryBytes: 8 << 30},
 	)
-	for _, instanceType := range []string{"ecs.g8.xlarge", "ecs.c8.large", "ecs.g8.arm", "ecs.gn8.large", "ecs.t6-c1m2.large", "ecs.unknown.large"} {
+	for _, instanceType := range []string{"ecs.g8.xlarge", "ecs.c8.large", "ecs.g8.arm", "ecs.gn8.large", "ecs.e-c1m2.large", "ecs.t6-c1m2.large", "ecs.unknown.large"} {
 		api.availability[offerKey("cn-hangzhou-h", instanceType)] = Availability{Instance: true, SystemESSDPL0: true, DataESSDPL0: true}
 		api.images[instanceType] = []Image{{ID: "ubuntu_24_04_x64_20G_alibase_20260701.vhd", CreationTime: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), Official: true, CloudInit: true, Architecture: "x86_64"}}
 		api.hostPrices[priceKey("cn-hangzhou-h", instanceType, 500)] = 1
@@ -99,6 +100,9 @@ func TestProviderQuoteFiltersIneligibleTypesAndUsesOneTypeForAllHosts(t *testing
 	quote, err := controller.Quote(context.Background(), approvedPlan(now))
 	if err != nil {
 		t.Fatalf("Quote() error = %v", err)
+	}
+	if got := quote.Selection["instance_type"]; got == "ecs.e-c1m2.large" {
+		t.Fatalf("Quote().Selection[instance_type] = %q, want an enterprise-level compute type", got)
 	}
 	for _, request := range api.priceRequests {
 		if request.Kind == PriceKindHost && request.InstanceType != quote.Selection["instance_type"] &&

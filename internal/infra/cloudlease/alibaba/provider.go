@@ -633,7 +633,7 @@ func eligibleInstanceTypes(instanceTypes []InstanceType, vcpus int, memoryBytes 
 		familyLevel := strings.TrimSpace(instanceType.FamilyLevel)
 		if instanceType.ID == "" || (architecture != "x86_64" && architecture != "x86" && architecture != "amd64") ||
 			instanceType.VCPUs != vcpus || instanceType.MemoryBytes != memoryBytes || instanceType.GPUCount != 0 ||
-			(familyLevel != "EnterpriseLevel" && familyLevel != "EntryLevel") || strings.HasPrefix(instanceType.ID, "ecs.t") {
+			familyLevel != "EnterpriseLevel" {
 			continue
 		}
 		if _, exists := seen[instanceType.ID]; exists {
