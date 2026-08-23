@@ -767,7 +767,7 @@ func TestEngineDueActivityIsDeferredInsteadOfDroppedWhenRouteTemporarilyIneligib
 	}
 }
 
-func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByActiveTraffic(t *testing.T) {
+func TestEngineSessionChurnCancelsOfflineMandatoryActivityWithoutHidingActiveTraffic(t *testing.T) {
 	const eligibilityWindow = 10 * time.Nanosecond
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		WorkCapacity: 64, MaxWorkPerAdvance: 64, ActivityEligibilityWindow: eligibilityWindow,
@@ -854,24 +854,102 @@ func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByAct
 		}
 		firstRaw = findNonSampled(firstRaw + 1)
 	}
-	_, err := route(firstRaw, now.Add(eligibilityWindow-time.Nanosecond))
-	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
+	routed, err := route(firstRaw, now.Add(eligibilityWindow-time.Nanosecond))
+	if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
+		t.Fatalf("active fallback at churn cancellation = %+v, %v", routed.Logical, err)
+	}
 	expired, err := fixture.engine.Snapshot()
 	if err != nil {
 		t.Fatalf("expired Snapshot: %v", err)
 	}
-	if expired.ActivityCurrent != 0 || expired.ActivityUnderDelivered != 1 || expired.HarnessInvalid != 1 || expired.Classification != SyncClassificationHarnessInvalid {
-		t.Fatalf("expired mandatory activity = %+v", expired)
+	if expired.ActivityCurrent != 0 || expired.ActivityUnderDelivered != 0 || expired.ActivityPlannedCanceled != 1 ||
+		expired.HarnessInvalid != 0 || expired.Classification != "" {
+		t.Fatalf("churn-canceled mandatory activity = %+v", expired)
 	}
-	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 0)
 	nextRaw := findNonSampled(firstRaw + 1)
-	routed, err := route(nextRaw, now.Add(eligibilityWindow+time.Nanosecond))
+	routed, err = route(nextRaw, now.Add(eligibilityWindow+time.Nanosecond))
 	if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
 		t.Fatalf("active route after physical expiry = %+v, %v", routed.Logical, err)
 	}
 	stable, _ := fixture.engine.Snapshot()
-	if stable.ActivityCurrent != 0 || stable.ActivityUnderDelivered != 1 || stable.HarnessInvalid != 1 || evidenceCountForClass(fixture.evidence.Snapshot(), FailureClassHarness) != 1 {
-		t.Fatalf("expired activity was retried or re-recorded: %+v evidence=%+v", stable, fixture.evidence.Snapshot())
+	if stable.ActivityCurrent != 0 || stable.ActivityUnderDelivered != 0 || stable.ActivityPlannedCanceled != 1 ||
+		stable.HarnessInvalid != 0 || evidenceCountForClass(fixture.evidence.Snapshot(), FailureClassHarness) != 0 {
+		t.Fatalf("churn-canceled activity was retried or reclassified: %+v evidence=%+v", stable, fixture.evidence.Snapshot())
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 0)
+}
+
+func TestEngineEligibleMandatoryActivityStillFailsClosedAtAdmissionDeadline(t *testing.T) {
+	const eligibilityWindow = 10 * time.Nanosecond
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 64, MaxWorkPerAdvance: 64, ActivityEligibilityWindow: eligibilityWindow,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	senderIndex, targetIndex := uint64(500), uint64(501)
+	sender, target := fixture.identity.UID(senderIndex), fixture.identity.UID(targetIndex)
+	for _, login := range []SessionLogin{
+		{UID: sender, UserIndex: senderIndex, LoginOrdinal: senderIndex},
+		{UID: target, UserIndex: targetIndex, LoginOrdinal: targetIndex},
+	} {
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("Login(%q): %v", login.UID, err)
+		}
+	}
+	now := fixture.clock.Now()
+	added := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		added <- fixture.engine.addActivity(&engineWork{
+			due: now, kind: engineWorkSend,
+			intent: TrafficIntent{
+				Logical: LogicalSend{Sender: sender, Target: target},
+				Kind:    TrafficPerson, Domain: LogicalDomainLifecycle,
+			},
+		})
+	}}); err != nil {
+		t.Fatalf("enqueue setup: %v", err)
+	}
+	if err := <-added; err != nil {
+		t.Fatalf("add mandatory activity: %v", err)
+	}
+	var raw uint64
+	for ; raw < 100; raw++ {
+		scoped, err := scopedLogicalOrdinal(1, LogicalDomainLifecycle, raw)
+		if err != nil {
+			t.Fatalf("scoped lifecycle ordinal: %v", err)
+		}
+		sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+		if err != nil {
+			t.Fatalf("ShouldCorrelate: %v", err)
+		}
+		if !sampled {
+			break
+		}
+	}
+	primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+	if err != nil {
+		t.Fatalf("scoped primary ordinal: %v", err)
+	}
+	routed := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		_, routeErr := fixture.engine.routePersonGrantWithAdmission(TrafficIntent{
+			Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+			Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+		}, now.Add(eligibilityWindow-time.Nanosecond), func(TrafficIntent) bool { return false })
+		routed <- routeErr
+	}}); err != nil {
+		t.Fatalf("enqueue route: %v", err)
+	}
+	assertRuntimeFailure(t, <-routed, RuntimeFailureUnderDelivery)
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if snapshot.ActivityUnderDelivered != 1 || snapshot.ActivityPlannedCanceled != 0 || snapshot.HarnessInvalid != 1 {
+		t.Fatalf("eligible admission under-delivery = %+v", snapshot)
 	}
 	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
 }
@@ -1279,7 +1357,7 @@ func TestEngineApprovedRevisitUsesEitherOnlineEndpointAndRetainsFullyOfflineTime
 	}
 }
 
-func TestEngineApprovedFullyOfflineRevisitExpiresOnceAtEligibilityBoundary(t *testing.T) {
+func TestEngineApprovedFullyOfflineRevisitCancelsOnceAtEligibilityBoundary(t *testing.T) {
 	const eligibilityWindow = 10 * time.Nanosecond
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		WorkCapacity: 256, MaxWorkPerAdvance: 256, ActivityEligibilityWindow: eligibilityWindow,
@@ -1332,17 +1410,18 @@ func TestEngineApprovedFullyOfflineRevisitExpiresOnceAtEligibilityBoundary(t *te
 
 	expiry := deadline.Add(-time.Nanosecond)
 	fixture.clock.Set(expiry)
-	if _, err := fixture.engine.Advance(expiry); err == nil {
-		t.Fatal("Advance at eligibility boundary returned nil, want under-delivery")
+	if _, err := fixture.engine.Advance(expiry); err != nil {
+		t.Fatalf("Advance at churn cancellation boundary: %v", err)
 	}
 	expired, err := fixture.engine.Snapshot()
 	if err != nil {
 		t.Fatalf("Snapshot expired: %v", err)
 	}
-	if expired.ActiveLifecycleTimers != 0 || expired.ColdEvidencePending != 0 || expired.ActivityUnderDelivered != 1 || expired.HarnessInvalid != 1 || expired.Classification != SyncClassificationHarnessInvalid {
-		t.Fatalf("expired offline revisit = %+v", expired)
+	if expired.ActiveLifecycleTimers != 0 || expired.ColdEvidencePending != 0 || expired.ActivityUnderDelivered != 0 ||
+		expired.ActivityPlannedCanceled != 1 || expired.HarnessInvalid != 0 || expired.Classification != "" {
+		t.Fatalf("churn-canceled offline revisit = %+v", expired)
 	}
-	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 0)
 
 	afterLongIdle := deadline.Add(72 * time.Hour)
 	fixture.clock.Set(afterLongIdle)
@@ -1353,10 +1432,11 @@ func TestEngineApprovedFullyOfflineRevisitExpiresOnceAtEligibilityBoundary(t *te
 	if err != nil {
 		t.Fatalf("Snapshot stable: %v", err)
 	}
-	if stable.ActiveLifecycleTimers != 0 || stable.ColdEvidencePending != 0 || stable.ActivityUnderDelivered != 1 || stable.HarnessInvalid != 1 {
-		t.Fatalf("expired revisit changed after long idle = %+v", stable)
+	if stable.ActiveLifecycleTimers != 0 || stable.ColdEvidencePending != 0 || stable.ActivityUnderDelivered != 0 ||
+		stable.ActivityPlannedCanceled != 1 || stable.HarnessInvalid != 0 {
+		t.Fatalf("churn-canceled revisit changed after long idle = %+v", stable)
 	}
-	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 0)
 }
 
 func TestEngineRelationshipActivityRetainsOnlyRetargetMetadata(t *testing.T) {

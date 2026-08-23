@@ -2648,8 +2648,26 @@ func (e *Engine) deferLifecycleWork(work *engineWork, now time.Time) error {
 }
 
 func (e *Engine) expireLifecycleWork(work *engineWork, now time.Time) error {
+	canceledByChurn := false
+	if work != nil {
+		if work.requiredSender != "" {
+			canceledByChurn = !e.sessions.sendEligibleAt(work.requiredSender, now)
+		} else {
+			canceledByChurn = !e.sessions.sendEligibleAt(work.edge.OwnerUID, now) &&
+				!e.sessions.sendEligibleAt(work.edge.PeerUID, now)
+		}
+	}
 	if err := e.completeLifecycleTimer(work, now); err != nil {
 		return err
+	}
+	// A revisit belongs to the session generation that scheduled it. Natural
+	// session churn may invalidate every eligible endpoint before the revisit
+	// crosses SEND admission; that is a planned cancellation, not offered-load
+	// loss. An eligible endpoint that remains blocked through the deadline still
+	// fails closed below.
+	if canceledByChurn {
+		e.activityPlannedCanceled++
+		return nil
 	}
 	e.activityUnderDelivered++
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
@@ -3562,7 +3580,10 @@ func (e *Engine) routePersonGrantWithAdmission(grant TrafficIntent, now time.Tim
 		activity := heap.Pop(&e.activity).(*engineWork)
 		activity.offered = true
 		if !activity.eligibilityDeadline.After(now) {
-			return TrafficIntent{}, e.expireActivity(activity)
+			if err := e.expireActivity(activity, now); err != nil {
+				return TrafficIntent{}, err
+			}
+			continue
 		}
 		_, warming := e.warmingChannels[activity.intent.ChannelID]
 		_, warmed := e.warmedActive[activity.intent.ChannelID]
@@ -3722,20 +3743,30 @@ func (e *Engine) deferActivity(activity *engineWork, now time.Time) error {
 		return errEngineConfig
 	}
 	if !activity.eligibilityDeadline.After(now) {
-		return e.expireActivity(activity)
+		return e.expireActivity(activity, now)
 	}
 	deferred := now.Add(activityRouteDeferral)
 	if !deferred.After(now) {
 		return errEngineConfig
 	}
 	if !deferred.Before(activity.eligibilityDeadline) {
-		return e.expireActivity(activity)
+		return e.expireActivity(activity, now)
 	}
 	activity.due = deferred
 	return e.addActivity(activity)
 }
 
-func (e *Engine) expireActivity(_ *engineWork) error {
+func (e *Engine) expireActivity(activity *engineWork, now time.Time) error {
+	if activity == nil || activity.intent.Logical.Sender == "" {
+		return errEngineConfig
+	}
+	// Work that never crossed admission cannot outlive the session generation
+	// that planned it. Churn cancellation is neutral; a still-eligible sender
+	// that could not be admitted for the full window remains harness-invalid.
+	if !e.sessions.sendEligibleAt(activity.intent.Logical.Sender, now) {
+		e.activityPlannedCanceled++
+		return nil
+	}
 	e.activityUnderDelivered++
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
 }

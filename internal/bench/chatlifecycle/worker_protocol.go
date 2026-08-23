@@ -378,8 +378,8 @@ type WorkerHarnessSnapshot struct {
 	Failures             uint64             `json:"failures"`
 	CommandSaturation    uint64             `json:"command_saturation"`
 	OfferedUnderdelivery uint64             `json:"offered_underdelivery"`
-	// PlannedCancellations counts scheduled activities canceled only after the
-	// admitted SEND/SENDACK drain fence closed successfully.
+	// PlannedCancellations counts scheduled work canceled before SEND admission
+	// by either planned session churn or a fully drained planned shutdown.
 	PlannedCancellations uint64 `json:"planned_cancellations"`
 	DrainTimedOut        bool   `json:"drain_timed_out"`
 	UnexpectedExit       bool   `json:"unexpected_exit"`
