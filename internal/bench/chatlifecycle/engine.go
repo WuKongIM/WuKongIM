@@ -2868,7 +2868,7 @@ func (e *Engine) lifecycleCandidateSlotFor(work *engineWork) (int, bool) {
 	}
 	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
 	quietDeadline := work.due.Add(-time.Nanosecond)
-	if !quietDeadline.After(quietNotBefore) {
+	if quietDeadline.Sub(quietNotBefore) < lifecycleMinimumColdObservationWindow {
 		return 0, false
 	}
 	hashSlot := lifecycleHashSlotForKey(work.edge.PersonChannelID, formalHashSlots)

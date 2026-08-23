@@ -1387,6 +1387,73 @@ func TestEngineLifecycleCandidateLeaseEvictsExpiredPrimariesAndPromotesValidStan
 	}
 }
 
+func TestEngineLifecycleCandidateLeasePromotesStandbyWithCompleteColdObservationWindow(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: lifecyclePerSlot + 1})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	leaseNow := fixture.clock.Now()
+	assignment := mustInitialLifecycleSlotAssignment(t)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for ordinal, added := 0, 0; added < lifecyclePerSlot; ordinal++ {
+			identity := channelid.EncodePersonChannel(
+				fmt.Sprintf("narrow-window-primary-%06d-a", ordinal), fmt.Sprintf("narrow-window-primary-%06d-b", ordinal),
+			)
+			hashSlot := lifecycleHashSlotForKey(identity, formalHashSlots)
+			slotID, _ := assignment.Lookup(hashSlot)
+			if slotID != 1 {
+				continue
+			}
+			work := &engineWork{
+				due: leaseNow.Add(lifecycleNaturalQuiet + 30*time.Second), kind: engineWorkLifecycle,
+				edge: RelationshipEdge{PersonChannelID: identity}, schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				lifecycleTimerToken: uint64(added + 1), activityVersion: 1, initialSequence: 10,
+				lastActivityAt: leaseNow, observedLoaded: true,
+			}
+			fixture.engine.installLifecycleTimer(work)
+			fixture.engine.offerLifecycleCandidate(work)
+			added++
+		}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	var validStandby string
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for ordinal := 0; ; ordinal++ {
+			identity := channelid.EncodePersonChannel(
+				fmt.Sprintf("complete-window-standby-%06d-a", ordinal), fmt.Sprintf("complete-window-standby-%06d-b", ordinal),
+			)
+			hashSlot := lifecycleHashSlotForKey(identity, formalHashSlots)
+			slotID, _ := assignment.Lookup(hashSlot)
+			if slotID != 1 {
+				continue
+			}
+			work := &engineWork{
+				due: leaseNow.Add(lifecycleNaturalQuiet + 2*time.Minute), kind: engineWorkLifecycle,
+				edge: RelationshipEdge{PersonChannelID: identity}, schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				lifecycleTimerToken: lifecyclePerSlot + 1, activityVersion: 1, initialSequence: 11,
+				lastActivityAt: leaseNow, observedLoaded: true,
+			}
+			fixture.engine.installLifecycleTimer(work)
+			fixture.engine.offerLifecycleCandidate(work)
+			validStandby = identity
+			return
+		}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecyclePerSlot, assignment, leaseNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 || candidates[0].ChannelID != validStandby {
+		t.Fatalf("lease with narrow primary windows = %+v, want complete-window standby %q", candidates, validStandby)
+	}
+}
+
 func TestEngineLifecycleCandidateLeasePromotesStandbyThatRemainsLoadedThroughInitialProbe(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: lifecyclePerSlot + 1})
 	if err := fixture.engine.Start(context.Background()); err != nil {

@@ -18,11 +18,14 @@ const (
 	lifecycleCohortSize = 1_200
 	lifecyclePerSlot    = 100
 	// LifecycleProofCadence fixes one proof cohort every ten minutes.
-	LifecycleProofCadence     = 10 * time.Minute
-	lifecycleNaturalQuiet     = 5 * time.Minute
-	lifecycleReheatDeadline   = 5 * time.Second
-	lifecycleMaxProbeBatch    = 1_200
-	lifecycleMaxProbeParallel = 32
+	LifecycleProofCadence = 10 * time.Minute
+	lifecycleNaturalQuiet = 5 * time.Minute
+	// lifecycleMinimumColdObservationWindow leaves enough time after the
+	// natural-idle boundary for a complete all-node probe before reheat.
+	lifecycleMinimumColdObservationWindow = time.Minute
+	lifecycleReheatDeadline               = 5 * time.Second
+	lifecycleMaxProbeBatch                = 1_200
+	lifecycleMaxProbeParallel             = 32
 )
 
 // LifecycleProofCycleTime returns the exact history-free boundary for a
@@ -313,7 +316,7 @@ func validLifecycleCandidate(candidate LifecycleCandidate, now time.Time, assign
 	if candidate.ChannelType != 1 || candidate.TimerToken == 0 || candidate.ActivityVersion == 0 || candidate.InitialSequence == 0 || candidate.SlotID == 0 || int(candidate.SlotID) > logicalSlots ||
 		int(candidate.HashSlot) >= hashSlots || lifecycleHashSlotForKey(candidate.ChannelID, uint16(hashSlots)) != candidate.HashSlot ||
 		!assigned || slotID != candidate.SlotID || !candidate.QuietNotBefore.After(now) ||
-		!candidate.QuietDeadline.After(candidate.QuietNotBefore) || !candidate.ReheatAt.After(candidate.QuietDeadline) {
+		candidate.QuietDeadline.Sub(candidate.QuietNotBefore) < lifecycleMinimumColdObservationWindow || !candidate.ReheatAt.After(candidate.QuietDeadline) {
 		return false
 	}
 	return validLifecyclePersonChannelID(candidate.ChannelID)
@@ -340,7 +343,7 @@ func validWorkerLifecycleCandidateLease(candidates []LifecycleCandidate, request
 func validWorkerLifecycleCandidate(candidate LifecycleCandidate) bool {
 	if candidate.ChannelType != 1 || candidate.TimerToken == 0 || candidate.ActivityVersion == 0 || candidate.InitialSequence == 0 || candidate.SlotID == 0 || candidate.SlotID > formalLogicalSlotGroups ||
 		candidate.HashSlot >= formalHashSlots || lifecycleHashSlotForKey(candidate.ChannelID, formalHashSlots) != candidate.HashSlot ||
-		candidate.QuietNotBefore.IsZero() || !candidate.QuietDeadline.After(candidate.QuietNotBefore) || !candidate.ReheatAt.After(candidate.QuietDeadline) {
+		candidate.QuietNotBefore.IsZero() || candidate.QuietDeadline.Sub(candidate.QuietNotBefore) < lifecycleMinimumColdObservationWindow || !candidate.ReheatAt.After(candidate.QuietDeadline) {
 		return false
 	}
 	return validLifecyclePersonChannelID(candidate.ChannelID)
