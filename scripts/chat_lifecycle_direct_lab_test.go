@@ -517,7 +517,7 @@ if [[ "$started_at" != 2026-08-23T04:05:06.276365315Z || "$qualify_after" != 1h 
   exit 42
 fi
 printf 'repair-begin\n' >>"$WK_TEST_CALL_LOG"
-printf '{"schema":"wukongim.chat_lifecycle.repair_state/v1"}\n'
+printf '{"schema":"wukongim.chat_lifecycle.repair_state/v2"}\n'
 `)
 	monitor := filepath.Join(directory, "repair-monitor")
 	writeDirectLabExecutable(t, monitor, `#!/usr/bin/env bash

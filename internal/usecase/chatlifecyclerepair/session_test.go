@@ -107,6 +107,9 @@ func TestSessionStopsWhenAnActiveGenerationFallsBackOutOfActive(t *testing.T) {
 		t.Fatalf("first lost-active observation = decision=%+v error=%v", decision, err)
 	}
 	lost.ObservedAt = started.Add(25 * time.Second)
+	for worker := range lost.Workers {
+		lost.Workers[worker].Uptime = time.Duration(lost.ObservedAt.UnixNano())
+	}
 	_, decision, err = repair.Advance(config, state, lost)
 	if err != nil {
 		t.Fatal(err)
@@ -171,6 +174,87 @@ func TestSessionEarlyBurstDoesNotHideAContinuouslyLowRecentSendRate(t *testing.T
 	}
 	if decision.Action != repair.ActionStopAndDiagnose || decision.Reason != repair.ReasonSendRateBelowFloor {
 		t.Fatalf("burst-masked rate decision = %+v", decision)
+	}
+}
+
+func TestSessionUsesWorkerUptimeForRateAcrossSlowMixedCaptureCuts(t *testing.T) {
+	started := time.Date(2026, 8, 23, 11, 14, 0, 0, time.UTC)
+	config := testConfig()
+	config.MinimumSendRatePerSecond = 1_900
+	state, err := repair.Begin(config, repair.Candidate{
+		RequestID: "chat-repair-a", LeaseID: "lease-a", Generation: 3,
+		SourceSHA: "1111111111111111111111111111111111111111", BundleDigest: digest('a'),
+	}, started)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := observation(started.Add(23*time.Second), 10_000, 278_008, 277_164)
+	first.Workers = [3]repair.WorkerProgress{
+		{WorkerID: 0, Uptime: 100 * time.Second, Sent: 92_669, SendAcknowledged: 92_388},
+		{WorkerID: 1, Uptime: 102 * time.Second, Sent: 92_669, SendAcknowledged: 92_388},
+		{WorkerID: 2, Uptime: 104 * time.Second, Sent: 92_670, SendAcknowledged: 92_388},
+	}
+	state, decision, err := repair.Advance(config, state, first)
+	if err != nil || decision.Action != repair.ActionContinue {
+		t.Fatalf("first mixed cut = decision=%+v error=%v", decision, err)
+	}
+
+	// The aggregate counters advanced by only 34,668 across 24 seconds of local
+	// collection time (1,444/s). Each worker's own monotonic interval proves the
+	// generation actually sustained 2,039/s; serial SSH latency is not workload
+	// time and must not begin a low-rate window.
+	second := observation(started.Add(47*time.Second), 10_000, 312_676, 312_030)
+	second.Workers = [3]repair.WorkerProgress{
+		{WorkerID: 0, Uptime: 117 * time.Second, Sent: 104_225, SendAcknowledged: 104_010},
+		{WorkerID: 1, Uptime: 119 * time.Second, Sent: 104_225, SendAcknowledged: 104_010},
+		{WorkerID: 2, Uptime: 121 * time.Second, Sent: 104_226, SendAcknowledged: 104_010},
+	}
+	state, decision, err = repair.Advance(config, state, second)
+	if err != nil || decision.Action != repair.ActionContinue || state.SendRateBelowSince != nil {
+		t.Fatalf("second mixed cut = state=%+v decision=%+v error=%v", state, decision, err)
+	}
+
+	third := observation(started.Add(70*time.Second), 10_000, 350_009, 350_007)
+	third.Workers = [3]repair.WorkerProgress{
+		{WorkerID: 0, Uptime: 135 * time.Second, Sent: 116_669, SendAcknowledged: 116_669},
+		{WorkerID: 1, Uptime: 137 * time.Second, Sent: 116_670, SendAcknowledged: 116_669},
+		{WorkerID: 2, Uptime: 139 * time.Second, Sent: 116_670, SendAcknowledged: 116_669},
+	}
+	state, decision, err = repair.Advance(config, state, third)
+	if err != nil || decision.Action != repair.ActionContinue || state.SendRateBelowSince != nil {
+		t.Fatalf("third mixed cut = state=%+v decision=%+v error=%v", state, decision, err)
+	}
+}
+
+func TestSessionRejectsWorkerUptimeOrCounterRegression(t *testing.T) {
+	started := time.Date(2026, 8, 23, 11, 20, 0, 0, time.UTC)
+	config := testConfig()
+	state, err := repair.Begin(config, repair.Candidate{
+		RequestID: "chat-repair-a", LeaseID: "lease-a", Generation: 3,
+		SourceSHA: "1111111111111111111111111111111111111111", BundleDigest: digest('a'),
+	}, started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _, err = repair.Advance(config, state, observation(started.Add(5*time.Second), 10_000, 300, 300))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*repair.Observation){
+		func(next *repair.Observation) { next.Workers[1].Uptime = state.LastWorkers[1].Uptime },
+		func(next *repair.Observation) {
+			next.Workers[1].Sent = state.LastWorkers[1].Sent - 1
+			next.Workers[1].SendAcknowledged = state.LastWorkers[1].SendAcknowledged - 1
+			next.Sent = next.Workers[0].Sent + next.Workers[1].Sent + next.Workers[2].Sent
+			next.SendAcknowledged = next.Workers[0].SendAcknowledged + next.Workers[1].SendAcknowledged + next.Workers[2].SendAcknowledged
+		},
+	} {
+		next := observation(started.Add(10*time.Second), 10_000, 600, 600)
+		mutate(&next)
+		if _, _, err := repair.Advance(config, state, next); !errors.Is(err, repair.ErrInvalidObservation) {
+			t.Fatalf("regressed worker observation error = %v", err)
+		}
 	}
 }
 
@@ -341,11 +425,24 @@ func TestSessionAbortAcceptsRequestScopedOperatorStop(t *testing.T) {
 }
 
 func observation(at time.Time, online, sent, acknowledged uint64) repair.Observation {
-	return repair.Observation{
-		Schema: repair.ObservationSchemaV1, RequestID: "chat-repair-a", LeaseID: "lease-a",
+	result := repair.Observation{
+		Schema: repair.ObservationSchemaV2, RequestID: "chat-repair-a", LeaseID: "lease-a",
 		Generation: 3, ObservedAt: at, Phase: repair.PhaseActive,
 		Online: online, Sent: sent, SendAcknowledged: acknowledged,
 	}
+	for worker := range result.Workers {
+		result.Workers[worker] = repair.WorkerProgress{
+			WorkerID: uint64(worker), Uptime: time.Duration(at.UnixNano()),
+			Sent: sent / 3, SendAcknowledged: acknowledged / 3,
+		}
+		if uint64(worker) < sent%3 {
+			result.Workers[worker].Sent++
+		}
+		if uint64(worker) < acknowledged%3 {
+			result.Workers[worker].SendAcknowledged++
+		}
+	}
+	return result
 }
 
 func testConfig() repair.Config {

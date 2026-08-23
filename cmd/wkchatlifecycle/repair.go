@@ -73,7 +73,7 @@ func addRepairCaptureCommand(root *cobra.Command) {
 				return repair.ErrInvalidObservation
 			}
 			observation := repair.Observation{
-				Schema: repair.ObservationSchemaV1, RequestID: state.Candidate.RequestID,
+				Schema: repair.ObservationSchemaV2, RequestID: state.Candidate.RequestID,
 				LeaseID: state.Candidate.LeaseID, Generation: state.Candidate.Generation, ObservedAt: observed,
 			}
 			seen := make(map[uint64]struct{}, 3)
@@ -87,13 +87,17 @@ func addRepairCaptureCommand(root *cobra.Command) {
 					status.WorkerCount != 3 || snapshot.WorkerCount != 3 || status.WorkerID != snapshot.WorkerID ||
 					status.RunID == "" || status.AssignmentID == "" || status.RunID != snapshot.RunID ||
 					status.AssignmentID != snapshot.AssignmentID || status.Generation == 0 || status.Generation != snapshot.Generation ||
-					status.Phase != snapshot.Phase || snapshot.Sessions.Online < 0 {
+					status.Phase != snapshot.Phase || snapshot.Sessions.Online < 0 || snapshot.Uptime <= 0 {
 					return repair.ErrInvalidObservation
 				}
 				if _, duplicate := seen[status.WorkerID]; duplicate || status.WorkerID >= 3 {
 					return repair.ErrInvalidObservation
 				}
 				seen[status.WorkerID] = struct{}{}
+				observation.Workers[status.WorkerID] = repair.WorkerProgress{
+					WorkerID: status.WorkerID, Uptime: snapshot.Uptime,
+					Sent: snapshot.Messages.Sent, SendAcknowledged: snapshot.Messages.SendAcknowledged,
+				}
 				if index == 0 {
 					runID, assignmentID, workerGeneration = status.RunID, status.AssignmentID, status.Generation
 				} else if status.RunID != runID || status.AssignmentID != assignmentID || status.Generation != workerGeneration {

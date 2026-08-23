@@ -5,13 +5,14 @@ package chatlifecyclerepair
 
 import (
 	"errors"
+	"math/big"
 	"regexp"
 	"time"
 )
 
 const (
-	StateSchemaV1       = "wukongim.chat_lifecycle.repair_state/v1"
-	ObservationSchemaV1 = "wukongim.chat_lifecycle.repair_observation/v1"
+	StateSchemaV2       = "wukongim.chat_lifecycle.repair_state/v2"
+	ObservationSchemaV2 = "wukongim.chat_lifecycle.repair_observation/v2"
 )
 
 var (
@@ -83,41 +84,54 @@ type Candidate struct {
 	BundleDigest string `json:"bundle_digest"`
 }
 
+// WorkerProgress binds one cumulative message counter cut to that worker's
+// process-monotonic uptime. Repair capture is intentionally serial and may be
+// slow, so wall-clock collection intervals are not valid workload intervals.
+type WorkerProgress struct {
+	WorkerID         uint64        `json:"worker_id"`
+	Uptime           time.Duration `json:"uptime"`
+	Sent             uint64        `json:"sent"`
+	SendAcknowledged uint64        `json:"send_acknowledged"`
+}
+
 // Observation is the bounded aggregate produced by exactly one sampling cut.
 type Observation struct {
-	Schema           string    `json:"schema"`
-	RequestID        string    `json:"request_id"`
-	LeaseID          string    `json:"lease_id"`
-	Generation       uint64    `json:"generation"`
-	ObservedAt       time.Time `json:"observed_at"`
-	Phase            Phase     `json:"phase"`
-	Online           uint64    `json:"online"`
-	Sent             uint64    `json:"sent"`
-	SendAcknowledged uint64    `json:"send_acknowledged"`
-	TerminalErrors   uint64    `json:"terminal_errors"`
+	Schema           string            `json:"schema"`
+	RequestID        string            `json:"request_id"`
+	LeaseID          string            `json:"lease_id"`
+	Generation       uint64            `json:"generation"`
+	ObservedAt       time.Time         `json:"observed_at"`
+	Phase            Phase             `json:"phase"`
+	Online           uint64            `json:"online"`
+	Sent             uint64            `json:"sent"`
+	SendAcknowledged uint64            `json:"send_acknowledged"`
+	TerminalErrors   uint64            `json:"terminal_errors"`
+	Workers          [3]WorkerProgress `json:"workers"`
 }
 
 // State is the complete restart-safe monitor state for one generation.
 type State struct {
-	Schema             string     `json:"schema"`
-	Config             Config     `json:"config"`
-	Candidate          Candidate  `json:"candidate"`
-	StartedAt          time.Time  `json:"started_at"`
-	LastObservedAt     time.Time  `json:"last_observed_at,omitempty"`
-	ActiveStartedAt    time.Time  `json:"active_started_at,omitempty"`
-	EverActive         bool       `json:"ever_active"`
-	ActiveLostSince    *time.Time `json:"active_lost_since,omitempty"`
-	LastSendProgressAt time.Time  `json:"last_send_progress_at,omitempty"`
-	LastAckProgressAt  time.Time  `json:"last_acknowledgement_progress_at,omitempty"`
-	SendRateBelowSince *time.Time `json:"send_rate_below_since,omitempty"`
-	AckBacklogSince    *time.Time `json:"acknowledgement_backlog_since,omitempty"`
-	OnlineBelowSince   *time.Time `json:"online_below_since,omitempty"`
-	LastOnline         uint64     `json:"last_online"`
-	LastSent           uint64     `json:"last_sent"`
-	LastAcknowledged   uint64     `json:"last_send_acknowledged"`
-	LastTerminalErrors uint64     `json:"last_terminal_errors"`
-	TerminalAction     Action     `json:"terminal_action,omitempty"`
-	TerminalReason     Reason     `json:"terminal_reason,omitempty"`
+	Schema             string            `json:"schema"`
+	Config             Config            `json:"config"`
+	Candidate          Candidate         `json:"candidate"`
+	StartedAt          time.Time         `json:"started_at"`
+	LastObservedAt     time.Time         `json:"last_observed_at,omitempty"`
+	ActiveStartedAt    time.Time         `json:"active_started_at,omitempty"`
+	EverActive         bool              `json:"ever_active"`
+	ActiveLostSince    *time.Time        `json:"active_lost_since,omitempty"`
+	LastSendProgressAt time.Time         `json:"last_send_progress_at,omitempty"`
+	LastAckProgressAt  time.Time         `json:"last_acknowledgement_progress_at,omitempty"`
+	SendRateBelowSince *time.Time        `json:"send_rate_below_since,omitempty"`
+	AckBacklogSince    *time.Time        `json:"acknowledgement_backlog_since,omitempty"`
+	OnlineBelowSince   *time.Time        `json:"online_below_since,omitempty"`
+	LastOnline         uint64            `json:"last_online"`
+	LastSent           uint64            `json:"last_sent"`
+	LastAcknowledged   uint64            `json:"last_send_acknowledged"`
+	LastTerminalErrors uint64            `json:"last_terminal_errors"`
+	HasWorkerProgress  bool              `json:"has_worker_progress"`
+	LastWorkers        [3]WorkerProgress `json:"last_workers"`
+	TerminalAction     Action            `json:"terminal_action,omitempty"`
+	TerminalReason     Reason            `json:"terminal_reason,omitempty"`
 }
 
 // Decision directs the entry adapter without exposing raw snapshot data.
@@ -136,7 +150,7 @@ func Begin(config Config, candidate Candidate, startedAt time.Time) (State, erro
 	if !validCandidate(candidate) || startedAt.IsZero() {
 		return State{}, ErrInvalidCandidate
 	}
-	return State{Schema: StateSchemaV1, Config: config, Candidate: candidate, StartedAt: startedAt.UTC()}, nil
+	return State{Schema: StateSchemaV2, Config: config, Candidate: candidate, StartedAt: startedAt.UTC()}, nil
 }
 
 // Advance validates one monotonic observation and returns the next durable
@@ -185,7 +199,7 @@ func Advance(config Config, state State, observation Observation) (State, Decisi
 			next.OnlineBelowSince = nil
 		}
 		activeElapsed := at.Sub(next.ActiveStartedAt)
-		if continuedActive && observation.Sent-state.LastSent < minimumSentProgress(config, at.Sub(state.LastObservedAt)) {
+		if continuedActive && sendRateBelowFloor(config, state.LastWorkers, observation.Workers) {
 			if next.SendRateBelowSince == nil {
 				below := at
 				next.SendRateBelowSince = &below
@@ -241,6 +255,8 @@ func Advance(config Config, state State, observation Observation) (State, Decisi
 	next.LastSent = observation.Sent
 	next.LastAcknowledged = observation.SendAcknowledged
 	next.LastTerminalErrors = observation.TerminalErrors
+	next.HasWorkerProgress = true
+	next.LastWorkers = observation.Workers
 	if decision.Action == ActionStopAndDiagnose || decision.Action == ActionQualified {
 		next.TerminalAction = decision.Action
 		next.TerminalReason = decision.Reason
@@ -290,7 +306,15 @@ func validCandidate(candidate Candidate) bool {
 }
 
 func validState(state State) bool {
-	if state.Schema != StateSchemaV1 || !validConfig(state.Config) || !validCandidate(state.Candidate) || state.StartedAt.IsZero() {
+	if state.Schema != StateSchemaV2 || !validConfig(state.Config) || !validCandidate(state.Candidate) || state.StartedAt.IsZero() {
+		return false
+	}
+	if state.HasWorkerProgress {
+		sent, acknowledged, valid := workerProgressTotals(state.LastWorkers)
+		if !valid || sent != state.LastSent || acknowledged != state.LastAcknowledged || state.LastObservedAt.Before(state.StartedAt) {
+			return false
+		}
+	} else if state.LastSent != 0 || state.LastAcknowledged != 0 || state.LastWorkers != [3]WorkerProgress{} {
 		return false
 	}
 	if state.TerminalAction == "" {
@@ -300,12 +324,13 @@ func validState(state State) bool {
 }
 
 func validObservation(state State, observation Observation) bool {
-	if observation.Schema != ObservationSchemaV1 || observation.RequestID != state.Candidate.RequestID ||
+	if observation.Schema != ObservationSchemaV2 || observation.RequestID != state.Candidate.RequestID ||
 		observation.LeaseID != state.Candidate.LeaseID || observation.Generation != state.Candidate.Generation ||
 		observation.ObservedAt.IsZero() || observation.ObservedAt.Before(state.StartedAt) ||
 		(!state.LastObservedAt.IsZero() && !observation.ObservedAt.After(state.LastObservedAt)) ||
 		observation.Sent < state.LastSent || observation.SendAcknowledged < state.LastAcknowledged ||
-		observation.TerminalErrors < state.LastTerminalErrors || observation.SendAcknowledged > observation.Sent {
+		observation.TerminalErrors < state.LastTerminalErrors || observation.SendAcknowledged > observation.Sent ||
+		!validWorkerProgress(state, observation) {
 		return false
 	}
 	switch observation.Phase {
@@ -322,6 +347,45 @@ func minimumOnline(config Config) uint64 {
 	return whole + (remainder+99)/100
 }
 
-func minimumSentProgress(config Config, elapsed time.Duration) uint64 {
-	return uint64(elapsed/time.Second) * config.MinimumSendRatePerSecond
+func validWorkerProgress(state State, observation Observation) bool {
+	sent, acknowledged, valid := workerProgressTotals(observation.Workers)
+	if !valid || sent != observation.Sent || acknowledged != observation.SendAcknowledged {
+		return false
+	}
+	for index, current := range observation.Workers {
+		if !state.LastObservedAt.IsZero() {
+			previous := state.LastWorkers[index]
+			if current.Uptime <= previous.Uptime || current.Sent < previous.Sent || current.SendAcknowledged < previous.SendAcknowledged {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func workerProgressTotals(workers [3]WorkerProgress) (uint64, uint64, bool) {
+	var sent, acknowledged uint64
+	for index, current := range workers {
+		if current.WorkerID != uint64(index) || current.Uptime <= 0 || current.SendAcknowledged > current.Sent ||
+			current.Sent > ^uint64(0)-sent || current.SendAcknowledged > ^uint64(0)-acknowledged {
+			return 0, 0, false
+		}
+		sent += current.Sent
+		acknowledged += current.SendAcknowledged
+	}
+	return sent, acknowledged, true
+}
+
+func sendRateBelowFloor(config Config, previous, current [3]WorkerProgress) bool {
+	var observedRate big.Rat
+	for index := range current {
+		elapsed := current[index].Uptime - previous[index].Uptime
+		progress := current[index].Sent - previous[index].Sent
+		var workerRate big.Rat
+		workerRate.SetFrac(new(big.Int).SetUint64(progress), big.NewInt(elapsed.Nanoseconds()))
+		observedRate.Add(&observedRate, &workerRate)
+	}
+	var floor big.Rat
+	floor.SetFrac(new(big.Int).SetUint64(config.MinimumSendRatePerSecond), big.NewInt(int64(time.Second)))
+	return observedRate.Cmp(&floor) < 0
 }

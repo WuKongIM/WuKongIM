@@ -132,8 +132,8 @@ func TestRepairMonitorCommandsEmitFailFastDecisionFromDurableState(t *testing.T)
 
 	for index, offset := range []time.Duration{5 * time.Second, 20 * time.Second} {
 		observationPath := filepath.Join(directory, fmt.Sprintf("observation-%d.json", index))
-		body := fmt.Sprintf(`{"schema":"wukongim.chat_lifecycle.repair_observation/v1","request_id":"chat-repair-command","lease_id":"lease-command","generation":4,"observed_at":%q,"phase":"active","online":10000,"sent":100,"send_acknowledged":90,"terminal_errors":0}`,
-			started.Add(offset).Format(time.RFC3339))
+		body := fmt.Sprintf(`{"schema":"wukongim.chat_lifecycle.repair_observation/v2","request_id":"chat-repair-command","lease_id":"lease-command","generation":4,"observed_at":%q,"phase":"active","online":10000,"sent":100,"send_acknowledged":90,"terminal_errors":0,"workers":[{"worker_id":0,"uptime":%d,"sent":34,"send_acknowledged":30},{"worker_id":1,"uptime":%d,"sent":33,"send_acknowledged":30},{"worker_id":2,"uptime":%d,"sent":33,"send_acknowledged":30}]}`,
+			started.Add(offset).Format(time.RFC3339), offset.Nanoseconds(), offset.Nanoseconds(), offset.Nanoseconds())
 		if err := os.WriteFile(observationPath, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -196,7 +196,7 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 		}
 		snapshot := chatlifecycle.WorkerSnapshot{
 			RunID: "repair-run", AssignmentID: "repair-assignment", Phase: chatlifecycle.WorkerPhaseRunning,
-			Generation: 7, WorkerID: workerID, WorkerCount: 3,
+			Generation: 7, WorkerID: workerID, WorkerCount: 3, Uptime: time.Duration(workerID+1) * time.Minute,
 			Sessions: chatlifecycle.WorkerSessionSnapshot{Target: 3334, Online: 3333, TrafficReady: 3333},
 			Messages: chatlifecycle.WorkerMessageSnapshot{Sent: 100 + workerID, SendAcknowledged: 90 + workerID},
 		}
@@ -215,6 +215,12 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 		Online           uint64 `json:"online"`
 		Sent             uint64 `json:"sent"`
 		SendAcknowledged uint64 `json:"send_acknowledged"`
+		Workers          [3]struct {
+			WorkerID         uint64        `json:"worker_id"`
+			Uptime           time.Duration `json:"uptime"`
+			Sent             uint64        `json:"sent"`
+			SendAcknowledged uint64        `json:"send_acknowledged"`
+		} `json:"workers"`
 	}
 	if err := json.Unmarshal(output.Bytes(), &observation); err != nil {
 		t.Fatal(err)
@@ -222,6 +228,12 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 	if observation.Phase != "active" || observation.Online != 9999 ||
 		observation.Sent != 303 || observation.SendAcknowledged != 273 {
 		t.Fatalf("observation = %+v", observation)
+	}
+	for workerID, progress := range observation.Workers {
+		if progress.WorkerID != uint64(workerID) || progress.Uptime != time.Duration(workerID+1)*time.Minute ||
+			progress.Sent != 100+uint64(workerID) || progress.SendAcknowledged != 90+uint64(workerID) {
+			t.Fatalf("worker progress %d = %+v", workerID, progress)
+		}
 	}
 }
 
