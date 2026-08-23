@@ -2903,6 +2903,15 @@ func (e *Engine) lifecycleCandidateSlotForAt(work *engineWork, now time.Time) (i
 	if !eligible || now.IsZero() {
 		return 0, time.Time{}, time.Time{}, false
 	}
+	if work.requiredSender != "" {
+		// Leasing converts this otherwise neutral churn timer into a mandatory
+		// five-second product proof. Never promise it when the returning
+		// sender's current session generation cannot outlive that proof.
+		proofDeadline := work.due.Add(lifecycleReheatDeadline)
+		if !proofDeadline.After(work.due) || !e.sessions.sendEligibleAt(work.requiredSender, proofDeadline) {
+			return 0, time.Time{}, time.Time{}, false
+		}
+	}
 	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
 	quietDeadline := work.due.Add(-time.Nanosecond)
 	if !quietNotBefore.After(now) {

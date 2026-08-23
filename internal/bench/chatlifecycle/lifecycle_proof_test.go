@@ -556,6 +556,51 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	}
 }
 
+func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseRequiredSenderExpiresAtProofDeadline(t *testing.T) {
+	const revisitAfter = 10 * time.Minute
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		SessionDuration: revisitAfter + lifecycleReheatDeadline,
+		WorkCapacity:    256,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex,
+	}); err != nil {
+		t.Fatalf("login required sender: %v", err)
+	}
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: now.Add(revisitAfter), eligibilityDeadline: now.Add(revisitAfter + time.Minute),
+			kind: engineWorkLifecycle, edge: edge,
+			schedule:       ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+			requiredSender: edge.OwnerUID, lifecycleTimerToken: 41,
+			activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), 1, mustInitialLifecycleSlotAssignment(t), now,
+	)
+	if err != nil {
+		t.Fatalf("LeaseLifecycleCandidates: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("leased candidates = %+v, want none whose required sender expires at the proof deadline", candidates)
+	}
+}
+
 func TestLifecycleCandidateQuietWindowStartsAtPhysicalSendAdmissionNotDelayedSendACK(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{})
 	if err := fixture.engine.Start(context.Background()); err != nil {
