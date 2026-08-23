@@ -258,6 +258,33 @@ func TestLifecycleProofLoadedAbsentReheatSequenceContinuity(t *testing.T) {
 	}
 }
 
+func TestLifecycleProofAcceptsLeaderOnlyRuntimeAcrossNaturalColdReheat(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaderOnly := lifecycleRowsWithRoles(candidate, [3]string{"leader", "missing", "missing"}, 10, 10)
+	if err := proof.Observe(now, leaderOnly); err != nil {
+		t.Fatalf("initial leader runtime: %v", err)
+	}
+	if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+		t.Fatalf("all-node absence: %v", err)
+	}
+	if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+		t.Fatalf("reheat: %v", err)
+	}
+	reheatedLeaderOnly := lifecycleRowsWithRoles(candidate, [3]string{"missing", "leader", "missing"}, 11, 11)
+	if err := proof.Observe(candidate.ReheatAt.Add(time.Second), reheatedLeaderOnly); err != nil {
+		t.Fatalf("reheated leader runtime: %v", err)
+	}
+	snapshot := proof.Snapshot()
+	if snapshot.Loaded != 1 || snapshot.ColdEligible != 1 || snapshot.Completed != 1 || snapshot.ProductFailures != 0 {
+		t.Fatalf("snapshot = %+v, want one leader-only lifecycle proof", snapshot)
+	}
+}
+
 func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealScheduledReheat(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{})
 	if err := fixture.engine.Start(context.Background()); err != nil {
@@ -1700,7 +1727,7 @@ func TestLifecycleProofRejectsProductTransitionFailures(t *testing.T) {
 		{"error", lifecycleRows(candidate, "error", 10, 10)},
 		{"two leaders", lifecycleRowsWithRoles(candidate, [3]string{"leader", "leader", "follower"}, 10, 10)},
 		{"non monotonic watermark", lifecycleRowsWithOffsets(candidate, [3][2]uint64{{10, 9}, {8, 8}, {10, 10}})},
-		{"partial missing", lifecycleRowsWithRoles(candidate, [3]string{"missing", "leader", "follower"}, 10, 10)},
+		{"no leader", lifecycleRowsWithRoles(candidate, [3]string{"missing", "follower", "follower"}, 10, 10)},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1741,7 +1768,7 @@ func TestLifecycleProofReportsClosedProductFailureReasons(t *testing.T) {
 		run    func(*LifecycleProof) error
 	}{
 		{name: "incomplete initial load", reason: LifecycleFailureInitialLoad, run: func(proof *LifecycleProof) error {
-			return proof.Observe(now, lifecycleRowsWithRoles(candidate, [3]string{"missing", "leader", "follower"}, 10, 10))
+			return proof.Observe(now, lifecycleRows(candidate, "missing", 0, 0))
 		}},
 		{name: "runtime state", reason: LifecycleFailureRuntimeState, run: func(proof *LifecycleProof) error {
 			return proof.Observe(now, lifecycleRows(candidate, "closing", 10, 10))
@@ -1768,9 +1795,9 @@ func TestLifecycleProofReportsClosedProductFailureReasons(t *testing.T) {
 			reheat(proof)
 			return proof.Observe(candidate.ReheatAt.Add(lifecycleReheatDeadline+time.Nanosecond), lifecycleRows(candidate, "missing", 0, 0))
 		}},
-		{name: "partial reheat", reason: LifecycleFailurePartialReheat, run: func(proof *LifecycleProof) error {
+		{name: "reheat without leader", reason: LifecycleFailureRoleDisagreement, run: func(proof *LifecycleProof) error {
 			reheat(proof)
-			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRowsWithRoles(candidate, [3]string{"leader", "follower", "missing"}, 11, 11))
+			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRowsWithRoles(candidate, [3]string{"follower", "missing", "missing"}, 11, 11))
 		}},
 		{name: "sequence proof", reason: LifecycleFailureSequenceProof, run: func(proof *LifecycleProof) error {
 			reheat(proof)
@@ -1946,7 +1973,7 @@ func TestLifecycleProofRejectsInvalidBatchAtomically(t *testing.T) {
 	}
 }
 
-func TestLifecycleProofRejectsStuckPartialReheatAndSequenceReset(t *testing.T) {
+func TestLifecycleProofRejectsStuckRuntimeAndSequenceReset(t *testing.T) {
 	now := time.Unix(1_000, 0)
 	candidate := lifecycleTestCandidates(t, now)[0]
 	for _, test := range []struct {
@@ -1966,11 +1993,11 @@ func TestLifecycleProofRejectsStuckPartialReheatAndSequenceReset(t *testing.T) {
 			_ = p.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{})
 			return p.Observe(candidate.ReheatAt, lifecycleRows(candidate, "active", 10, 10))
 		}},
-		{"partial reheat", func(p *LifecycleProof) error {
+		{"reheat without leader", func(p *LifecycleProof) error {
 			_ = p.Observe(now, lifecycleRows(candidate, "active", 10, 10))
 			_ = p.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0))
 			_ = p.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{})
-			return p.Observe(candidate.ReheatAt, lifecycleRowsWithRoles(candidate, [3]string{"leader", "follower", "missing"}, 11, 11))
+			return p.Observe(candidate.ReheatAt, lifecycleRowsWithRoles(candidate, [3]string{"follower", "missing", "missing"}, 11, 11))
 		}},
 		{"absence after quiet deadline", func(p *LifecycleProof) error {
 			_ = p.Observe(now, lifecycleRows(candidate, "active", 10, 10))

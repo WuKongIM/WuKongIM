@@ -499,12 +499,14 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 	allMissing := true
 	loadedCount := 0
 	leaders := 0
+	loaded := [3]bool{}
 	for index, row := range rows {
 		missing := row.Role == "missing" && row.Status == "missing" && row.LEO == 0 && row.HW == 0 && row.CheckpointHW == 0
 		allMissing = allMissing && missing
 		if missing {
 			continue
 		}
+		loaded[index] = true
 		if row.Status != "active" {
 			return p.productFailureLocked(LifecycleFailureRuntimeState)
 		}
@@ -528,13 +530,16 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 	allLoaded := loadedCount == len(rows)
 	switch state.phase {
 	case lifecycleAwaitLoaded:
-		if !allLoaded {
+		if loadedCount == 0 {
 			return p.productFailureLocked(LifecycleFailureInitialLoad)
 		}
 		if leaders != 1 {
 			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
 		}
 		for index, row := range rows {
+			if !loaded[index] {
+				continue
+			}
 			if row.LEO < state.candidate.InitialSequence || row.HW < state.candidate.InitialSequence {
 				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
@@ -586,16 +591,16 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		if allMissing {
 			return nil
 		}
-		if !allLoaded {
-			return p.productFailureLocked(LifecycleFailurePartialReheat)
-		}
 		if leaders != 1 {
 			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
 		}
 		if now.Before(state.reheatStarted) {
 			return p.productFailureLocked(LifecycleFailureControlTransition)
 		}
-		for _, row := range rows {
+		for index, row := range rows {
+			if !loaded[index] {
+				continue
+			}
 			if row.LEO <= state.candidate.InitialSequence || row.HW <= state.candidate.InitialSequence {
 				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
