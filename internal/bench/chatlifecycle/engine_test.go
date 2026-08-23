@@ -6632,6 +6632,8 @@ func assertUnderDeliveryEvidence(t *testing.T, snapshot EvidenceSnapshot, want u
 
 type engineTestLimits struct {
 	Formal                    bool
+	IdentityRunID             string
+	IdentitySeed              uint64
 	CommandCapacity           int
 	WorkCapacity              int
 	InflightCapacity          int
@@ -6698,7 +6700,15 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 	if limits.SessionDuration > 0 {
 		cfg.Workload.Sessions = []DurationShare{{Percent: 100, Min: limits.SessionDuration, Max: limits.SessionDuration}}
 	}
-	identity, err := NewIdentitySpace("engine-test", 89, uint64(cfg.Workload.Workers))
+	identityRunID := limits.IdentityRunID
+	if identityRunID == "" {
+		identityRunID = "engine-test"
+	}
+	identitySeed := limits.IdentitySeed
+	if identitySeed == 0 {
+		identitySeed = 89
+	}
+	identity, err := NewIdentitySpace(identityRunID, identitySeed, uint64(cfg.Workload.Workers))
 	if err != nil {
 		t.Fatalf("NewIdentitySpace: %v", err)
 	}

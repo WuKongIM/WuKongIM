@@ -15,10 +15,8 @@ import (
 )
 
 const (
-	lifecycleCohortSize = 1_200
-	lifecyclePerSlot    = 100
-	// LifecycleProofCadence fixes one proof cohort every ten minutes.
-	LifecycleProofCadence = 10 * time.Minute
+	lifecycleCohortSize   = 1_200
+	lifecyclePerSlot      = 100
 	lifecycleNaturalQuiet = 5 * time.Minute
 	// lifecycleMinimumColdObservationWindow leaves enough time after the
 	// natural-idle boundary for a complete all-node probe before reheat.
@@ -27,23 +25,6 @@ const (
 	lifecycleMaxProbeBatch                = 1_200
 	lifecycleMaxProbeParallel             = 32
 )
-
-// LifecycleProofCycleTime returns the exact history-free boundary for a
-// zero-based proof cycle at the fixed formal lifecycle cadence.
-func LifecycleProofCycleTime(start time.Time, cycle uint64) (time.Time, error) {
-	if start.IsZero() || cycle == ^uint64(0) {
-		return time.Time{}, ErrLifecycleHarnessInvalid
-	}
-	multiplier := cycle + 1
-	if multiplier > uint64(math.MaxInt64/int64(LifecycleProofCadence)) {
-		return time.Time{}, ErrLifecycleHarnessInvalid
-	}
-	deadline := start.Add(time.Duration(multiplier) * LifecycleProofCadence)
-	if !deadline.After(start) {
-		return time.Time{}, ErrLifecycleHarnessInvalid
-	}
-	return deadline, nil
-}
 
 var (
 	// ErrLifecycleHarnessInvalid identifies malformed, incomplete, or transport evidence.

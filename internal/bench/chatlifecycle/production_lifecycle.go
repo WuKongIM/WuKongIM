@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	productionLifecycleMaxActiveCohorts             = 6
 	productionLifecycleInitialLoadSchedulingReserve = time.Second
+	productionLifecycleMaxPollEvery                 = 10 * time.Minute
+	productionLifecycleFirstLeaseGrace              = 10 * time.Minute
 )
 
 // ProductionLifecycleWorker is the fenced control-plane seam required from
@@ -41,8 +42,8 @@ type ProductionLifecycleOptions struct {
 	ProbeOptions   LifecycleProbeOptions
 }
 
-// ProductionLifecycle owns at most six transient 1,200-candidate proofs.
-// Snapshot is identity-free and safe to call while Run is active.
+// ProductionLifecycle owns one transient 1,200-candidate proof. Snapshot is
+// identity-free and safe to call while Run is active.
 type ProductionLifecycle struct {
 	options ProductionLifecycleOptions
 
@@ -84,7 +85,7 @@ func NewProductionLifecycle(options ProductionLifecycleOptions) (*ProductionLife
 	if options.PollEvery == 0 {
 		options.PollEvery = time.Second
 	}
-	if options.PollEvery < 0 || options.PollEvery > LifecycleProofCadence {
+	if options.PollEvery < 0 || options.PollEvery > productionLifecycleMaxPollEvery {
 		return nil, ErrLifecycleHarnessInvalid
 	}
 	if options.ProbeOptions.BatchSize == 0 {
@@ -107,9 +108,10 @@ func NewProductionLifecycle(options ProductionLifecycleOptions) (*ProductionLife
 	}, nil
 }
 
-// Run leases one exact 12x100 cohort every ten minutes and polls all active
-// cohorts concurrently. It returns the original cancellation or a closed
-// product/harness classification and always releases transient identities.
+// Run leases one fixed exact 12x100 cohort after five active minutes and polls
+// it through natural cold/reheat completion. It returns the original
+// cancellation or a closed product/harness classification and always releases
+// transient identities.
 func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error {
 	if p == nil || ctx == nil || !validWorkerFence(fence) {
 		if p != nil {
@@ -138,8 +140,8 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 		p.recordHarnessFailure()
 		return ErrLifecycleHarnessInvalid
 	}
-	nextLease, err := LifecycleProofCycleTime(startedAt, 0)
-	if err != nil {
+	nextLease := startedAt.Add(lifecycleNaturalQuiet)
+	if !nextLease.After(startedAt) {
 		p.recordHarnessFailure()
 		return ErrLifecycleHarnessInvalid
 	}
@@ -150,7 +152,7 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 	}
 	defer ticker.Stop()
 	lastTick := startedAt
-	cycle := uint64(0)
+	leasedOnce := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -161,25 +163,9 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 				return ErrLifecycleHarnessInvalid
 			}
 			lastTick = tick
-			leaseDue := !tick.Before(nextLease)
-			var leased *productionLifecycleCohort
-			prePolled := false
-			if leaseDue && p.activeCount() >= productionLifecycleMaxActiveCohorts {
-				if err := p.pollRound(ctx, fence, tick); err != nil {
-					if ctx.Err() != nil {
-						return ctx.Err()
-					}
-					return err
-				}
-				p.releaseCompleted()
-				prePolled = true
-				if p.activeCount() >= productionLifecycleMaxActiveCohorts {
-					p.recordHarnessFailure()
-					return ErrLifecycleHarnessInvalid
-				}
-			}
+			leaseDue := !leasedOnce && !tick.Before(nextLease)
 			if leaseDue {
-				if !tick.Before(nextLease.Add(LifecycleProofCadence)) {
+				if !tick.Before(nextLease.Add(productionLifecycleFirstLeaseGrace)) {
 					p.recordHarnessFailure()
 					return ErrLifecycleHarnessInvalid
 				}
@@ -194,20 +180,9 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 				p.mu.Lock()
 				p.active = append(p.active, cohort)
 				p.mu.Unlock()
-				leased = cohort
-				cycle++
-				nextLease, err = LifecycleProofCycleTime(startedAt, cycle)
-				if err != nil {
-					p.recordHarnessFailure()
-					return ErrLifecycleHarnessInvalid
-				}
+				leasedOnce = true
 			}
-			var pollErr error
-			if prePolled {
-				pollErr = p.pollCohorts(ctx, fence, tick, []*productionLifecycleCohort{leased})
-			} else {
-				pollErr = p.pollRound(ctx, fence, tick)
-			}
+			pollErr := p.pollRound(ctx, fence, tick)
 			if pollErr != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -414,12 +389,6 @@ func (s *productionLifecycleOwnedSender) ApproveLifecycleReheat(ctx context.Cont
 		return ErrLifecycleHarnessInvalid
 	}
 	return nil
-}
-
-func (p *ProductionLifecycle) activeCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return len(p.active)
 }
 
 func (p *ProductionLifecycle) releaseCompleted() {

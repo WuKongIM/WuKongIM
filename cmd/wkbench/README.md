@@ -125,8 +125,8 @@ slots, replicas `3/3`, 10,000 online users, and one global 2,000 SEND/s budget.
 Every login performs a fresh product `/conversation/list` pass with
 `completed_coverage=0`, an empty initial cursor, all pages through `done=true`,
 and bounded `/conversation/retry` hydration. No cursor or coverage is retained.
-The independent proof samples
-1,200 real person channels every ten minutes and waits for natural
+The independent proof leases one fixed, Slot-balanced cohort of 1,200 real
+person channels after five active minutes and follows their natural
 hot-to-cold-to-reheat transitions without a control-plane eviction.
 `configs/wkbench/chat-lifecycle/rehearsal.yaml` changes only the run identity
 and evidence stage. It ends two hours after every online user has completed

@@ -25,10 +25,9 @@ const (
 	// lifecycleApprovalReplayRetention covers twelve maximum five-second
 	// coordinator control rounds after one completed reheat admission.
 	lifecycleApprovalReplayRetention = time.Minute
-	// lifecycleApprovalReplayCapacity covers the worst case in which six full
-	// ten-minute cohorts choose 10..60-minute revisits that complete together.
-	lifecycleApprovalReplayOverlappingCohorts = int((maximumRevisitDelay + LifecycleProofCadence - 1) / LifecycleProofCadence)
-	lifecycleApprovalReplayCapacity           = lifecycleCohortSize * lifecycleApprovalReplayOverlappingCohorts
+	// lifecycleApprovalReplayCapacity covers every member of the one fixed
+	// cohort completing inside the same retained retry window.
+	lifecycleApprovalReplayCapacity = lifecycleCohortSize
 	// completionFairnessQuantum bounds consecutive SEND work before the engine
 	// yields one scheduler turn to session drains and rechecks completions.
 	completionFairnessQuantum = 32

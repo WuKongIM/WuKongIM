@@ -54,7 +54,7 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	runDone := make(chan error, 1)
 	go func() { runDone <- runner.Run(ctx, fence) }()
 	clock.waitForTicker(t)
-	clock.tick(startedAt.Add(LifecycleProofCadence))
+	clock.tick(startedAt.Add(lifecycleNaturalQuiet))
 	seenWorkers := make(map[uint64]bool, 3)
 	for range 3 {
 		select {
@@ -68,7 +68,7 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	if len(seenWorkers) != 3 {
 		t.Fatalf("concurrent lease workers = %v, want all three", seenWorkers)
 	}
-	wantInitialLoadDeadline := startedAt.Add(LifecycleProofCadence + 2*time.Second + productionLifecycleInitialLoadSchedulingReserve)
+	wantInitialLoadDeadline := startedAt.Add(lifecycleNaturalQuiet + 2*time.Second + productionLifecycleInitialLoadSchedulingReserve)
 	for range 3 {
 		if got := <-leaseDeadlines; !got.Equal(wantInitialLoadDeadline) {
 			t.Fatalf("initial load deadline = %v, want %v", got, wantInitialLoadDeadline)
@@ -123,6 +123,76 @@ func TestProductionLifecycleCompletesCohortAndReleasesRawIdentities(t *testing.T
 	}
 }
 
+func TestProductionLifecycleLeasesOneFixedCohortAtFiveMinutes(t *testing.T) {
+	t.Parallel()
+	startedAt := time.Unix(1_720_050_000, 0).UTC()
+	assignment, err := newInitialLifecycleSlotAssignment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates, owners := productionLifecycleCandidateSet(
+		t, "fixed", assignment,
+		startedAt.Add(6*time.Minute), startedAt.Add(18*time.Minute), startedAt.Add(20*time.Minute),
+	)
+	fence := WorkerFence{RunID: "run-fixed-lifecycle", AssignmentID: "assignment-fixed-lifecycle", Generation: 8}
+	var workers [3]ProductionLifecycleWorker
+	var rotating [3]*productionLifecycleRotatingWorker
+	for workerID := range workers {
+		owned := make([]LifecycleCandidate, 0, lifecycleCohortSize/3)
+		for _, candidate := range candidates {
+			if owners[candidate.ChannelID] == uint64(workerID) {
+				owned = append(owned, candidate)
+			}
+		}
+		rotating[workerID] = &productionLifecycleRotatingWorker{
+			workerID: uint64(workerID), fence: fence, cohorts: [][]LifecycleCandidate{owned},
+		}
+		workers[workerID] = rotating[workerID]
+	}
+	clock := newProductionLifecycleClock(startedAt)
+	prober := &productionLifecycleProberFake{phase: productionLifecycleLoaded, calls: make(chan struct{}, 4)}
+	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
+		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
+		Enabled: true, PollEvery: time.Minute,
+		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runDone := make(chan error, 1)
+	go func() { runDone <- runner.Run(ctx, fence) }()
+	clock.waitForTicker(t)
+
+	clock.tick(startedAt.Add(lifecycleNaturalQuiet))
+	prober.waitForCall(t)
+	for workerID, worker := range rotating {
+		worker.mu.Lock()
+		leases := worker.lease
+		worker.mu.Unlock()
+		if leases != 1 {
+			t.Fatalf("worker %d leases after fixed-cohort boundary = %d, want 1", workerID, leases)
+		}
+	}
+
+	clock.tick(startedAt.Add(lifecycleNaturalQuiet + productionLifecycleFirstLeaseGrace))
+	prober.waitForCall(t)
+	for workerID, worker := range rotating {
+		worker.mu.Lock()
+		leases := worker.lease
+		worker.mu.Unlock()
+		if leases != 1 {
+			t.Fatalf("worker %d leases after later cadence = %d, want fixed cohort retained", workerID, leases)
+		}
+	}
+	select {
+	case runErr := <-runDone:
+		t.Fatalf("Run terminated while polling the fixed cohort: %v", runErr)
+	default:
+	}
+}
+
 func TestProductionLifecycleCancellationJoinsInFlightPoll(t *testing.T) {
 	t.Parallel()
 	startedAt := time.Unix(1_720_100_000, 0).UTC()
@@ -164,7 +234,7 @@ func TestProductionLifecycleCancellationJoinsInFlightPoll(t *testing.T) {
 	runDone := make(chan error, 1)
 	go func() { runDone <- runner.Run(ctx, fence) }()
 	clock.waitForTicker(t)
-	clock.tick(startedAt.Add(LifecycleProofCadence))
+	clock.tick(startedAt.Add(lifecycleNaturalQuiet))
 	select {
 	case <-prober.entered:
 	case <-time.After(time.Second):
@@ -203,88 +273,6 @@ func TestProductionLifecycleDisabledDoesNotRequireFormalProofDependencies(t *tes
 	}
 	if snapshot := runner.Snapshot(); snapshot != (LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}) {
 		t.Fatalf("disabled lifecycle snapshot = %+v, want zero proof evidence", snapshot)
-	}
-}
-
-func TestProductionLifecycleRejectsSeventhOverlappingCohort(t *testing.T) {
-	t.Parallel()
-	startedAt := time.Unix(1_720_200_000, 0).UTC()
-	assignment, err := newInitialLifecycleSlotAssignment()
-	if err != nil {
-		t.Fatal(err)
-	}
-	fence := WorkerFence{RunID: "run-saturated-lifecycle", AssignmentID: "assignment-saturated-lifecycle", Generation: 9}
-	cohortsByWorker := [3][][]LifecycleCandidate{}
-	for cohortIndex := range productionLifecycleMaxActiveCohorts {
-		candidates, owners := productionLifecycleCandidateSet(
-			t, fmt.Sprintf("saturated-%d", cohortIndex), assignment,
-			startedAt.Add(80*time.Minute), startedAt.Add(90*time.Minute), startedAt.Add(100*time.Minute),
-		)
-		for _, candidate := range candidates {
-			owner := owners[candidate.ChannelID]
-			for len(cohortsByWorker[owner]) <= cohortIndex {
-				cohortsByWorker[owner] = append(cohortsByWorker[owner], nil)
-			}
-			cohortsByWorker[owner][cohortIndex] = append(cohortsByWorker[owner][cohortIndex], candidate)
-		}
-	}
-	var workers [3]ProductionLifecycleWorker
-	var rotatingWorkers [3]*productionLifecycleRotatingWorker
-	for workerID := range workers {
-		rotatingWorkers[workerID] = &productionLifecycleRotatingWorker{
-			workerID: uint64(workerID), fence: fence, cohorts: cohortsByWorker[workerID],
-		}
-		workers[workerID] = rotatingWorkers[workerID]
-	}
-	clock := newProductionLifecycleClock(startedAt)
-	prober := &productionLifecycleProberFake{phase: productionLifecycleLoaded, calls: make(chan struct{}, 64)}
-	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
-		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
-		Enabled:      true,
-		PollEvery:    time.Minute,
-		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	runDone := make(chan error, 1)
-	go func() { runDone <- runner.Run(ctx, fence) }()
-	clock.waitForTicker(t)
-	for cohortCount := 1; cohortCount <= productionLifecycleMaxActiveCohorts; cohortCount++ {
-		clock.tick(startedAt.Add(time.Duration(cohortCount) * LifecycleProofCadence))
-		for range cohortCount {
-			prober.waitForCall(t)
-		}
-	}
-	clock.tick(startedAt.Add(7 * LifecycleProofCadence))
-	select {
-	case err := <-runDone:
-		if !errors.Is(err, ErrLifecycleHarnessInvalid) || errors.Is(err, ErrLifecycleProductFailure) {
-			t.Fatalf("Run error = %v, want strict harness saturation", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("seventh overlapping cohort did not terminate the run")
-	}
-	leaseCalls := 0
-	for _, worker := range rotatingWorkers {
-		worker.mu.Lock()
-		leaseCalls += worker.lease
-		worker.mu.Unlock()
-	}
-	if got := leaseCalls; got != 3*productionLifecycleMaxActiveCohorts {
-		t.Fatalf("lease calls = %d, want %d with no seventh lease", got, 3*productionLifecycleMaxActiveCohorts)
-	}
-	snapshot := runner.Snapshot()
-	if snapshot.Candidates != lifecycleCohortSize*productionLifecycleMaxActiveCohorts || snapshot.HarnessFailures != 1 || snapshot.ProductFailures != 0 {
-		t.Fatalf("saturation snapshot = %+v", snapshot)
-	}
-	runner.mu.Lock()
-	active := len(runner.active)
-	runner.mu.Unlock()
-	if active != 0 {
-		t.Fatalf("terminal saturation retained %d raw cohorts", active)
 	}
 }
 
@@ -330,7 +318,7 @@ func TestProductionLifecycleReturnsProductClassificationFromProof(t *testing.T) 
 	runDone := make(chan error, 1)
 	go func() { runDone <- runner.Run(ctx, fence) }()
 	clock.waitForTicker(t)
-	clock.tick(startedAt.Add(LifecycleProofCadence))
+	clock.tick(startedAt.Add(lifecycleNaturalQuiet))
 	select {
 	case err := <-runDone:
 		if !errors.Is(err, ErrLifecycleProductFailure) || errors.Is(err, ErrLifecycleHarnessInvalid) {
@@ -342,98 +330,6 @@ func TestProductionLifecycleReturnsProductClassificationFromProof(t *testing.T) 
 	snapshot := runner.Snapshot()
 	if snapshot.ProductFailures != 1 || snapshot.ProductFailureReasons.InitialLoad != 1 || snapshot.HarnessFailures != 0 {
 		t.Fatalf("product failure snapshot = %+v", snapshot)
-	}
-}
-
-func TestProductionLifecycleReleasesCompletedCohortsBeforeCapacityCheck(t *testing.T) {
-	startedAt := time.Unix(1_720_400_000, 0).UTC()
-	assignment, err := newInitialLifecycleSlotAssignment()
-	if err != nil {
-		t.Fatal(err)
-	}
-	fence := WorkerFence{RunID: "run-rotating-lifecycle", AssignmentID: "assignment-rotating-lifecycle", Generation: 4}
-	cohortsByWorker := [3][][]LifecycleCandidate{}
-	cohortByIdentity := make(map[string]int, 7*lifecycleCohortSize)
-	for cohortIndex := range 7 {
-		leaseAt := startedAt.Add(time.Duration(cohortIndex+1) * LifecycleProofCadence)
-		reheatAt := startedAt.Add(7 * LifecycleProofCadence)
-		if cohortIndex == 6 {
-			reheatAt = startedAt.Add(8 * LifecycleProofCadence)
-		}
-		candidates, owners := productionLifecycleCandidateSet(
-			t, fmt.Sprintf("rotation-%d", cohortIndex), assignment,
-			leaseAt.Add(time.Minute), leaseAt.Add(2*time.Minute), reheatAt,
-		)
-		for _, candidate := range candidates {
-			owner := owners[candidate.ChannelID]
-			for len(cohortsByWorker[owner]) <= cohortIndex {
-				cohortsByWorker[owner] = append(cohortsByWorker[owner], nil)
-			}
-			cohortsByWorker[owner][cohortIndex] = append(cohortsByWorker[owner][cohortIndex], candidate)
-			cohortByIdentity[candidate.ChannelID] = cohortIndex
-		}
-	}
-	var workers [3]ProductionLifecycleWorker
-	for workerID := range workers {
-		workers[workerID] = &productionLifecycleRotatingWorker{
-			workerID: uint64(workerID), fence: fence, cohorts: cohortsByWorker[workerID],
-		}
-	}
-	clock := newProductionLifecycleClock(startedAt)
-	prober := &productionLifecycleRotatingProber{
-		clock: clock, startedAt: startedAt, cohortByIdentity: cohortByIdentity, calls: make(chan struct{}, 64),
-	}
-	runner, err := NewProductionLifecycle(ProductionLifecycleOptions{
-		Workers: workers, Prober: prober, Clock: clock, SlotAssignment: assignment,
-		Enabled:      true,
-		PollEvery:    time.Minute,
-		ProbeOptions: LifecycleProbeOptions{BatchSize: lifecycleCohortSize, MaxConcurrency: 1, RequestTimeout: time.Second},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	runDone := make(chan error, 1)
-	go func() { runDone <- runner.Run(ctx, fence) }()
-	clock.waitForTicker(t)
-	for cohortCount := 1; cohortCount <= productionLifecycleMaxActiveCohorts; cohortCount++ {
-		leaseAt := startedAt.Add(time.Duration(cohortCount) * LifecycleProofCadence)
-		clock.tick(leaseAt)
-		for range cohortCount {
-			prober.waitForCall(t)
-		}
-		clock.tick(leaseAt.Add(time.Minute))
-		for range cohortCount {
-			prober.waitForCall(t)
-		}
-	}
-	clock.tick(startedAt.Add(7 * LifecycleProofCadence))
-	for range productionLifecycleMaxActiveCohorts + 1 {
-		prober.waitForCall(t)
-	}
-	productionLifecycleEventually(t, func() bool {
-		snapshot := runner.Snapshot()
-		return snapshot.Completed == 6*lifecycleCohortSize && snapshot.Candidates == 7*lifecycleCohortSize
-	})
-	select {
-	case err := <-runDone:
-		t.Fatalf("Run terminated at a recyclable capacity boundary: %v", err)
-	default:
-	}
-	runner.mu.Lock()
-	active := len(runner.active)
-	runner.mu.Unlock()
-	if active != 1 {
-		t.Fatalf("active cohorts after rotation = %d, want one newly leased cohort", active)
-	}
-	cancel()
-	select {
-	case err := <-runDone:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("Run error = %v, want context canceled", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Run did not join after rotation cancellation")
 	}
 }
 
@@ -577,63 +473,6 @@ func (w *productionLifecycleRotatingWorker) ApproveLifecycleReheat(_ context.Con
 		WorkerFence: w.fence, WorkerID: w.workerID, WorkerCount: 3,
 		Approved: request.ChannelID != "" && request.TimerToken != 0 && request.ActivityVersion != 0,
 	}, nil
-}
-
-type productionLifecycleRotatingProber struct {
-	clock            *productionLifecycleClock
-	startedAt        time.Time
-	cohortByIdentity map[string]int
-	calls            chan struct{}
-}
-
-func (p *productionLifecycleRotatingProber) waitForCall(t *testing.T) {
-	t.Helper()
-	select {
-	case <-p.calls:
-	case <-time.After(2 * time.Second):
-		t.Fatal("rotating lifecycle probe was not called")
-	}
-}
-
-func (p *productionLifecycleRotatingProber) ProbeChannelRuntimeAll(_ context.Context, request model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
-	now := p.clock.Now()
-	results := make([]model.ChannelRuntimeProbeResult, 3)
-	for node := range results {
-		results[node].NodeID = uint64(node + 1)
-		results[node].Checked = len(request.Channels)
-		results[node].Channels = make([]model.ChannelRuntimeProbeChannel, len(request.Channels))
-		for index, identity := range request.Channels {
-			cohortIndex, exists := p.cohortByIdentity[identity.ChannelID]
-			if !exists {
-				return nil, ErrLifecycleHarnessInvalid
-			}
-			leaseAt := p.startedAt.Add(time.Duration(cohortIndex+1) * LifecycleProofCadence)
-			reheatAt := p.startedAt.Add(7 * LifecycleProofCadence)
-			if cohortIndex == 6 {
-				reheatAt = p.startedAt.Add(8 * LifecycleProofCadence)
-			}
-			row := model.ChannelRuntimeProbeChannel{ChannelID: identity.ChannelID, ChannelType: identity.ChannelType}
-			switch {
-			case now.Equal(leaseAt):
-				row.Role, row.Status = "follower", "active"
-				if node == 0 {
-					row.Role = "leader"
-				}
-				row.LEO, row.HW, row.CheckpointHW = 10, 10, 10
-			case !now.Before(reheatAt):
-				row.Role, row.Status = "follower", "active"
-				if node == 0 {
-					row.Role = "leader"
-				}
-				row.LEO, row.HW, row.CheckpointHW = 11, 11, 11
-			default:
-				row.Role, row.Status = "missing", "missing"
-			}
-			results[node].Channels[index] = row
-		}
-	}
-	p.calls <- struct{}{}
-	return results, nil
 }
 
 func (w *productionLifecycleWorkerFake) LeaseLifecycleCandidates(ctx context.Context, request WorkerLifecycleCandidateLeaseRequest) (WorkerLifecycleCandidateLeaseResponse, error) {

@@ -61,7 +61,7 @@ func TestEngineLocalThreeNodeGrantsSurviveFirstSessionChurn(t *testing.T) {
 	}
 }
 
-func TestEngineFormalFirstLifecycleCohortRetainsExactReheatSenders(t *testing.T) {
+func TestEngineFormalFixedLifecycleCohortRetainsExactReheatSenders(t *testing.T) {
 	const workerCount = 3
 	assignment := mustInitialLifecycleSlotAssignment(t)
 	all := make([]LifecycleCandidate, 0, lifecycleCohortSize*workerCount)
@@ -71,6 +71,7 @@ func TestEngineFormalFirstLifecycleCohortRetainsExactReheatSenders(t *testing.T)
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
 		fixtures[workerID] = newEngineTestFixture(t, engineTestLimits{
 			Formal: true, WorkerID: workerID, WorkerCount: workerCount,
+			IdentityRunID: "chat-20260823T101330Z-10678f5a-repair-1", IdentitySeed: 1,
 			OnlineUsers: 10_000, BootstrapLoginsPerSecond: formalBootstrapLoginRate,
 			NewUsersPerDay: 250_000, SendRatePerSecond: 2_000,
 			WorkCapacity: 160_000, InflightCapacity: 8_192, MaxWorkPerAdvance: 160_000,
@@ -106,15 +107,15 @@ func TestEngineFormalFirstLifecycleCohortRetainsExactReheatSenders(t *testing.T)
 			fixture.settleScheduledLogins(t, now, step)
 		}
 	}
-	// The candidate seam needs enough real grants to complete every scheduled
-	// initial relationship burst; it does not need to replay unrelated hot-set
-	// volume at the full production rate.
-	allocator, err := NewRateAllocator(500, 1_000, []int64{1, 1, 1})
+	// Replay the exact production grant rate. Lower traffic leaves lifecycle
+	// channels artificially quiet and cannot prove the first formal cohort
+	// remains available while the steady hot set is active.
+	allocator, err := NewRateAllocator(2_000, 4_000, []int64{1, 1, 1})
 	if err != nil {
 		t.Fatalf("NewRateAllocator: %v", err)
 	}
 	now := activeStart
-	for second := 0; second <= int(LifecycleProofCadence/time.Second); second++ {
+	for second := 0; second <= int(lifecycleNaturalQuiet/time.Second); second++ {
 		if second > 0 {
 			now = now.Add(time.Second)
 		}
@@ -144,7 +145,7 @@ func TestEngineFormalFirstLifecycleCohortRetainsExactReheatSenders(t *testing.T)
 			waitForEngineCompletions(t, fixture.engine, "formal measured grant")
 		}
 	}
-	loadedThrough := activeStart.Add(LifecycleProofCadence + 2*observerMaxRoundTimeout + productionLifecycleInitialLoadSchedulingReserve)
+	loadedThrough := activeStart.Add(lifecycleNaturalQuiet + 2*observerMaxRoundTimeout + productionLifecycleInitialLoadSchedulingReserve)
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
 		fixture := &fixtures[workerID]
 		candidates, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecycleCohortSize, assignment, loadedThrough)
