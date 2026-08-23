@@ -2910,7 +2910,7 @@ func (e *Engine) lifecycleCandidateSlotFor(work *engineWork) (int, bool) {
 		return 0, false
 	}
 	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
-	quietDeadline := work.due.Add(-time.Nanosecond)
+	quietDeadline := work.due.Add(-lifecycleReheatAdmissionReserve - time.Nanosecond)
 	if quietDeadline.Sub(quietNotBefore) < lifecycleMinimumColdObservationWindow {
 		return 0, false
 	}
@@ -2942,7 +2942,7 @@ func (e *Engine) lifecycleCandidateSlotForAt(work *engineWork, now time.Time) (i
 		}
 	}
 	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
-	quietDeadline := work.due.Add(-time.Nanosecond)
+	quietDeadline := work.due.Add(-lifecycleReheatAdmissionReserve - time.Nanosecond)
 	if !quietNotBefore.After(now) {
 		return 0, time.Time{}, time.Time{}, false
 	}

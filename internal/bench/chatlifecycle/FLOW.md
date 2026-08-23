@@ -260,10 +260,14 @@ approval clears live admission and records a dedicated bounded harness failure,
 and the invalidated timer also fails explicitly rather than silently dropping
 at its due time. The approval only unlocks the existing deterministic revisit
 timer. The proof intentionally allows early approval only after the all-node
-cold observation and strictly before the deterministic `ReheatAt` instant. The
-serialized owner reads its clock at admission, so a request queued before the
-boundary is rejected if it executes at or after due; that rejection neither
-confirms nor removes the indexed timer. A first pre-boundary approval remains
+cold observation and strictly before the deterministic `ReheatAt` instant.
+Candidate selection ends the acceptable cold-observation window eleven seconds
+before `ReheatAt`; this reserves one bounded five-second all-node probe, one
+bounded five-second worker approval, and one second of scheduling margin while
+leaving the scheduled SEND time unchanged. The serialized owner reads its clock
+at admission, so a request queued before the boundary is rejected if it executes
+at or after due; that rejection neither confirms nor removes the indexed timer.
+A first pre-boundary approval remains
 idempotently true from live state through due, then from its completed tombstone
 only inside the bounded one-minute retry window, without performing admission
 again. Approval at or after that instant, or another absent

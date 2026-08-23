@@ -99,7 +99,7 @@ func NewProductionLifecycle(options ProductionLifecycleOptions) (*ProductionLife
 	}
 	if options.ProbeOptions.BatchSize < 1 || options.ProbeOptions.BatchSize > lifecycleMaxProbeBatch ||
 		options.ProbeOptions.MaxConcurrency < 1 || options.ProbeOptions.MaxConcurrency > lifecycleMaxProbeParallel ||
-		options.ProbeOptions.RequestTimeout < 0 || options.ProbeOptions.RequestTimeout > 30*time.Second {
+		options.ProbeOptions.RequestTimeout < 0 || options.ProbeOptions.RequestTimeout > observerMaxRoundTimeout {
 		return nil, ErrLifecycleHarnessInvalid
 	}
 	return &ProductionLifecycle{
@@ -352,13 +352,15 @@ func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence Wo
 		wait.Add(1)
 		go func(workerID uint64, jobs []productionLifecycleReheatJob) {
 			defer wait.Done()
+			approvalCtx, cancel := context.WithTimeout(ctx, p.options.ProbeOptions.RequestTimeout)
+			defer cancel()
 			items := make([]WorkerLifecycleReheatItem, len(jobs))
 			for index, job := range jobs {
 				items[index] = WorkerLifecycleReheatItem{
 					ChannelID: job.candidate.ChannelID, TimerToken: job.candidate.TimerToken, ActivityVersion: job.candidate.ActivityVersion,
 				}
 			}
-			response, err := p.options.Workers[workerID].ApproveLifecycleReheat(ctx, WorkerLifecycleReheatRequest{
+			response, err := p.options.Workers[workerID].ApproveLifecycleReheat(approvalCtx, WorkerLifecycleReheatRequest{
 				WorkerFence: fence, Items: items,
 			})
 			if err != nil || !sameWorkerFence(response.WorkerFence, fence) || response.WorkerID != workerID ||

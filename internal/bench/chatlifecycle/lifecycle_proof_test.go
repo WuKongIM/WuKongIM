@@ -394,7 +394,9 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	}
 	candidate := candidates[0]
 	if candidate.ChannelID != edge.PersonChannelID || candidate.TimerToken != 41 || candidate.ActivityVersion != 1 || candidate.InitialSequence != 42 || !candidate.ObservedLoaded ||
-		!candidate.QuietNotBefore.Equal(now.Add(5*time.Minute+time.Nanosecond)) || !candidate.QuietDeadline.Equal(now.Add(10*time.Minute-time.Nanosecond)) || !candidate.ReheatAt.Equal(now.Add(10*time.Minute)) {
+		!candidate.QuietNotBefore.Equal(now.Add(5*time.Minute+time.Nanosecond)) ||
+		!candidate.QuietDeadline.Equal(now.Add(10*time.Minute-lifecycleReheatAdmissionReserve-time.Nanosecond)) ||
+		!candidate.ReheatAt.Equal(now.Add(10*time.Minute)) {
 		t.Fatalf("candidate = %+v", candidate)
 	}
 	fixture.clock.Set(now.Add(time.Minute))

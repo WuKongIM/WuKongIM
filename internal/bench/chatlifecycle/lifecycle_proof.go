@@ -21,9 +21,14 @@ const (
 	// lifecycleMinimumColdObservationWindow leaves enough time after the
 	// natural-idle boundary for a complete all-node probe before reheat.
 	lifecycleMinimumColdObservationWindow = time.Minute
-	lifecycleReheatDeadline               = 5 * time.Second
-	lifecycleMaxProbeBatch                = 1_200
-	lifecycleMaxProbeParallel             = 32
+	// lifecycleReheatAdmissionReserve keeps the deterministic SEND due time
+	// separate from the control-plane deadline. One all-node probe and one
+	// worker approval each have a five-second bound; the final second covers
+	// scheduler and serialization delay without moving the scheduled SEND.
+	lifecycleReheatAdmissionReserve = 11 * time.Second
+	lifecycleReheatDeadline         = 5 * time.Second
+	lifecycleMaxProbeBatch          = 1_200
+	lifecycleMaxProbeParallel       = 32
 )
 
 var (
@@ -163,7 +168,8 @@ type LifecycleCandidate struct {
 	InitialSequence uint64 `json:"initial_sequence"`
 	// QuietNotBefore is the earliest valid all-node absence observation.
 	QuietNotBefore time.Time `json:"quiet_not_before"`
-	// QuietDeadline is the last acceptable time to prove all-node absence.
+	// QuietDeadline is the last acceptable time to prove all-node absence and
+	// leaves the fixed control-plane reserve before ReheatAt.
 	QuietDeadline time.Time `json:"quiet_deadline"`
 	// ReheatAt is the due time of the already-scheduled revisit SEND.
 	ReheatAt time.Time `json:"reheat_at"`
