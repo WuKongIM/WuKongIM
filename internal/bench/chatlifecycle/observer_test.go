@@ -24,8 +24,8 @@ func TestObserverClusterHealthFailsAfterContinuousThirtySeconds(t *testing.T) {
 
 	fixture.targets[0].mutate(func(snapshot *target.DebugCluster) {
 		progress := &snapshot.Slots[0].ReplicaProgress[0]
-		progress.MatchIndex--
-		progress.LagEntries++
+		progress.LagEntries = cfg.Thresholds.Cluster.MaxHotReplicaLagEntries + 1
+		progress.MatchIndex = snapshot.Slots[0].CommitIndex - progress.LagEntries
 	})
 	for elapsed := 5 * time.Second; elapsed <= 35*time.Second; elapsed += 5 * time.Second {
 		fixture.clock.advance(5 * time.Second)
@@ -34,6 +34,44 @@ func TestObserverClusterHealthFailsAfterContinuousThirtySeconds(t *testing.T) {
 	result := <-resultChannel
 	if result.Outcome != ObserverProductFailure || result.Code != ObserverCodeClusterHealth {
 		t.Fatalf("result = %+v, want product_failure/cluster_health", result)
+	}
+}
+
+func TestObserverAllowsBoundedReplicateLagForThirtySeconds(t *testing.T) {
+	cfg := FormalConfig()
+	fixture := newObserverFixture(cfg)
+	resultChannel := make(chan ObserverResult, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+	fixture.waitPoll(t)
+
+	for _, observed := range fixture.targets {
+		observed.mutate(func(snapshot *target.DebugCluster) {
+			for slotIndex := range snapshot.Slots {
+				if snapshot.NodeID != snapshot.Slots[slotIndex].LeaderID {
+					continue
+				}
+				progress := &snapshot.Slots[slotIndex].ReplicaProgress[0]
+				progress.LagEntries = cfg.Thresholds.Cluster.MaxHotReplicaLagEntries
+				progress.MatchIndex = snapshot.Slots[slotIndex].CommitIndex - progress.LagEntries
+				break
+			}
+		})
+	}
+	for elapsed := 5 * time.Second; elapsed <= 35*time.Second; elapsed += 5 * time.Second {
+		fixture.clock.advance(5 * time.Second)
+		fixture.waitPoll(t)
+	}
+
+	select {
+	case result := <-resultChannel:
+		cancel()
+		t.Fatalf("observer rejected bounded StateReplicate lag: %+v", result)
+	default:
+	}
+	cancel()
+	if result := <-resultChannel; result.Outcome != ObserverStopped {
+		t.Fatalf("result = %+v, want stopped", result)
 	}
 }
 

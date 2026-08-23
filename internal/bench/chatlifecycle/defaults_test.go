@@ -160,7 +160,7 @@ func TestFormalConfigDefaults(t *testing.T) {
 	if cfg.Thresholds.MinimumDataFilesystemBytes != 500_000_000_000 || cfg.Thresholds.DiskSafeStopFreePercent != 5 {
 		t.Fatalf("disk thresholds = %+v", cfg.Thresholds)
 	}
-	if cfg.Thresholds.Cluster.HealthPollEvery != 5*time.Second || cfg.Thresholds.Cluster.UnhealthyFailAfter != 30*time.Second || cfg.Thresholds.Cluster.LeaderImbalancePercent != 20 || cfg.Thresholds.Cluster.LeaderImbalanceFor != 10*time.Minute {
+	if cfg.Thresholds.Cluster.HealthPollEvery != 5*time.Second || cfg.Thresholds.Cluster.UnhealthyFailAfter != 30*time.Second || cfg.Thresholds.Cluster.MaxHotReplicaLagEntries != 64 || cfg.Thresholds.Cluster.LeaderImbalancePercent != 20 || cfg.Thresholds.Cluster.LeaderImbalanceFor != 10*time.Minute {
 		t.Fatalf("cluster thresholds = %+v", cfg.Thresholds.Cluster)
 	}
 	if cfg.Thresholds.Timeline.Warmup != 2*time.Hour || cfg.Thresholds.Timeline.Checkpoint != 24*time.Hour || cfg.Thresholds.Timeline.Final != 72*time.Hour {

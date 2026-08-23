@@ -98,7 +98,7 @@ thresholds:
   cluster:
     health_poll_every: 5s
     unhealthy_fail_after: 30s
-    max_hot_replica_lag_entries: 0
+    max_hot_replica_lag_entries: 64
     leader_imbalance_percent: 20
     leader_imbalance_for: 10m
   timeline: {warmup: 2h, checkpoint: 24h, final: 72h}
