@@ -17,6 +17,14 @@ hash_slot_count = 256
 slot_replica_n = 3
 channel_replica_n = 3
 max_channels = 50000
+# These bounded Cloud Medium capacities are calibrated for the fixed
+# 10,000-online, 2,000-SEND/s chat-lifecycle workload. In particular, the
+# append pool must absorb the initial cold-Channel quorum-write wave without
+# consuming the five-second gateway SEND deadline.
+channel_store_append_workers = 128
+channel_store_apply_workers = 8
+channel_rpc_workers = 96
+channel_rpc_batch_max_items = 8
 
 [api]
 listen_addr = "0.0.0.0:5001"
@@ -35,6 +43,9 @@ gnet_multicore = true
 gnet_num_event_loop = 4
 runtime_async_send_workers = 1000
 runtime_async_send_queue_capacity = 131072
+
+[delivery]
+recipient_worker_concurrency = 320
 
 [observability]
 metrics_enable = true

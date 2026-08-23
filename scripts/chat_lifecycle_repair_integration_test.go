@@ -56,7 +56,8 @@ case "$command_line" in *19091*) worker=0 ;; *19092*) worker=1 ;; *19093*) worke
 if [[ "$command_line" == *"/v1/chat-lifecycle/status"* ]]; then
   printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"running","generation":1,"worker_id":%s,"worker_count":3,"unexpected":false,"traffic_ready":true}\n' "$worker"
 elif [[ "$command_line" == *"/v1/chat-lifecycle/snapshot"* ]]; then
-  printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"running","generation":1,"worker_id":%s,"worker_count":3,"sessions":{"target":3333,"online":3333,"traffic_ready":3333},"messages":{"sent":100,"send_acknowledged":90},"harness":{}}\n' "$worker"
+  uptime=$(( $(date +%s) * 1000000000 + worker + 1 ))
+  printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"running","generation":1,"worker_id":%s,"worker_count":3,"uptime":%s,"sessions":{"target":3333,"online":3333,"traffic_ready":3333},"messages":{"sent":100,"send_acknowledged":90},"harness":{}}\n' "$worker" "$uptime"
 else
   exit 92
 fi
@@ -158,7 +159,8 @@ elif [[ "$command_line" == *"/v1/chat-lifecycle/snapshot"* ]]; then
   printf '%s\n' "$calls" >"$WK_TEST_SNAPSHOT_CALLS"
   phase=running
   [[ "$calls" == 1 ]] && phase=final
-  printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"%s","generation":1,"worker_id":%s,"worker_count":3,"sessions":{"target":3333,"online":3333,"traffic_ready":3333},"messages":{"sent":100,"send_acknowledged":90},"harness":{}}\n' "$phase" "$worker"
+  uptime=$(( $(date +%s) * 1000000000 + worker + 1 ))
+  printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"%s","generation":1,"worker_id":%s,"worker_count":3,"uptime":%s,"sessions":{"target":3333,"online":3333,"traffic_ready":3333},"messages":{"sent":100,"send_acknowledged":90},"harness":{}}\n' "$phase" "$worker" "$uptime"
 else
   exit 92
 fi

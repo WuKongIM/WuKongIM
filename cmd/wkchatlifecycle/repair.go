@@ -121,8 +121,8 @@ func addRepairCaptureCommand(root *cobra.Command) {
 					observation.SendAcknowledged, addErr = addRepairCounter(observation.SendAcknowledged, snapshot.Messages.SendAcknowledged)
 				}
 				for _, failures := range []uint64{
-					snapshot.Messages.SendRejected, snapshot.Messages.ReceiveAckFailures,
-					snapshot.Messages.Terminal, snapshot.Messages.Losses, snapshot.Messages.Duplicates,
+					snapshot.Messages.ReceiveAckFailures, snapshot.Messages.Terminal,
+					snapshot.Messages.Losses, snapshot.Messages.Duplicates,
 					snapshot.Messages.Corruptions, snapshot.Messages.SequenceRegressions, snapshot.Harness.Failures,
 				} {
 					if addErr == nil {

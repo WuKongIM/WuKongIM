@@ -140,7 +140,12 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	if !strings.Contains(nodeConfig, "initial_slot_count = 12") || !strings.Contains(nodeConfig, "hash_slot_count = 256") ||
 		!strings.Contains(nodeConfig, "slot_replica_n = 3") || !strings.Contains(nodeConfig, "channel_replica_n = 3") ||
 		!strings.Contains(nodeConfig, "max_channels = 50000") ||
+		!strings.Contains(nodeConfig, "channel_store_append_workers = 128") ||
+		!strings.Contains(nodeConfig, "channel_store_apply_workers = 8") ||
+		!strings.Contains(nodeConfig, "channel_rpc_workers = 96") ||
+		!strings.Contains(nodeConfig, "channel_rpc_batch_max_items = 8") ||
 		!strings.Contains(nodeConfig, "runtime_async_send_workers = 1000") ||
+		!strings.Contains(nodeConfig, "recipient_worker_concurrency = 320") ||
 		!strings.Contains(nodeConfig, `external_ws_addr = "ws://{{PUBLIC_HTTP_HOST}}"`) {
 		t.Fatalf("node template = %s", nodeConfig)
 	}

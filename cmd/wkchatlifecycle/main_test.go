@@ -198,7 +198,13 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 			RunID: "repair-run", AssignmentID: "repair-assignment", Phase: chatlifecycle.WorkerPhaseRunning,
 			Generation: 7, WorkerID: workerID, WorkerCount: 3, Uptime: time.Duration(workerID+1) * time.Minute,
 			Sessions: chatlifecycle.WorkerSessionSnapshot{Target: 3334, Online: 3333, TrafficReady: 3333},
-			Messages: chatlifecycle.WorkerMessageSnapshot{Sent: 100 + workerID, SendAcknowledged: 90 + workerID},
+			Messages: chatlifecycle.WorkerMessageSnapshot{
+				Sent: 100 + workerID, SendAcknowledged: 90 + workerID,
+				// A retryable first-attempt rejection is diagnostic evidence, not a
+				// terminal message failure. The repair monitor must let the bounded
+				// retry path determine whether the logical SEND eventually fails.
+				SendRejected: workerID + 1,
+			},
 		}
 		statusPath := writeJSONFile(t, directory, fmt.Sprintf("status-%d.json", workerID), status)
 		snapshotPath := writeJSONFile(t, directory, fmt.Sprintf("snapshot-%d.json", workerID), snapshot)
@@ -215,6 +221,7 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 		Online           uint64 `json:"online"`
 		Sent             uint64 `json:"sent"`
 		SendAcknowledged uint64 `json:"send_acknowledged"`
+		TerminalErrors   uint64 `json:"terminal_errors"`
 		Workers          [3]struct {
 			WorkerID         uint64        `json:"worker_id"`
 			Uptime           time.Duration `json:"uptime"`
@@ -226,7 +233,7 @@ func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	if observation.Phase != "active" || observation.Online != 9999 ||
-		observation.Sent != 303 || observation.SendAcknowledged != 273 {
+		observation.Sent != 303 || observation.SendAcknowledged != 273 || observation.TerminalErrors != 0 {
 		t.Fatalf("observation = %+v", observation)
 	}
 	for workerID, progress := range observation.Workers {
