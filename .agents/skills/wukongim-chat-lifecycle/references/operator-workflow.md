@@ -91,6 +91,31 @@ Deploy the current committed candidate:
 scripts/chat-lifecycle/direct-lab.sh deploy "$request_id"
 ```
 
+After and only after `deploy` exits successfully, validate the exact request's
+0600 `access.json` against `state.json`, `receipt.json`, and the current
+generation's `deployment-plan.json`. Its `request_id`, `lease_id`, `source_sha`,
+and `deployment_plan_digest` must match; `manager_url`, `demo_url`, `username`,
+`password`, and `lease_expires_at` must all be non-empty. Do not `cat`, source,
+or copy this file into a command, log, diagnosis, status artifact, or repository
+file. A missing or mismatched access receipt blocks the deployment handoff; do
+not reconstruct credentials from runtime archives or an older generation.
+
+Before suggesting or starting `run`, return this block in the final
+operator-facing response using the receipt values verbatim:
+
+```text
+Manager: <manager_url>
+Manager username: <username>
+Manager password: <password>
+Demo: <demo_url>
+Demo HTTP Basic Auth: same username and password as Manager
+Lease expires: <lease_expires_at>
+```
+
+This final deploy response is the only allowed disclosure of the Manager
+credential. Do not include it in progress commentary, and disclose nothing when
+the typed readiness gate has not passed.
+
 Generation 1 reuses the already sealed pre-Acquire bundle. Later generations
 build the new committed HEAD. Deployment uses the saved bootstrap key, transfers
 through the load host, activates the three service nodes plus load node, and

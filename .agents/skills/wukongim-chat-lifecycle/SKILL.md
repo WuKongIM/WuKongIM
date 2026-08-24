@@ -27,8 +27,13 @@ or destroy healthy hosts between candidate generations.
 - Keep one Lease while diagnosing and deploying committed candidate
   generations. A failed workload stops within the bounded monitor window but
   does not release the hosts. Only `stop` destroys the Lease.
-- Never print or commit STS credentials, SSH private keys, Manager credentials,
-  worker tokens, or runtime credential archives.
+- Never print or commit STS credentials, SSH private keys, worker tokens, or
+  runtime credential archives. Never place Manager credentials in commands,
+  shell output, logs, commentary, diagnosis/status artifacts, or repository files.
+- The sole Manager-credential disclosure is the final operator-facing response
+  after the typed deployment readiness gate passes. Read it from the exact
+  request's private `access.json`; never disclose it for a failed deployment or
+  reuse values from another request or generation.
 
 Before any operation, read
 [references/operator-workflow.md](references/operator-workflow.md) completely.
@@ -56,7 +61,13 @@ phantom active request that blocks the next exact start.
 `deploy` never authorizes procurement. Build the current committed candidate,
 activate it as the next repair generation on the existing Lease, and require the
 typed readiness gate. Preserve failed deployment evidence and the Lease for
-diagnosis; do not purchase replacement hosts.
+diagnosis; do not purchase replacement hosts. A successful deployment handoff
+MUST include the exact Manager URL, Manager username, Manager password, and Demo
+URL from the selector-bound private `access.json`. State that Demo HTTP Basic
+Authentication uses the same username and password. Validate that the access
+receipt matches the request, Lease, source SHA, and deployment-plan digest; if
+it is missing or inconsistent, report the handoff failure and never invent access
+information. Give this access block before suggesting or starting `run`.
 
 ### Run
 
@@ -93,4 +104,6 @@ completion only with an authenticated zero-inventory proof for that selector.
 The repair stability run is diagnostic and never official evidence. Keep the local
 request directory until `stop` has stored `zero-inventory.json`. Report both UTC
 and Asia/Shanghai timestamps for paid start, diagnosis, qualification, and
-release. Do not claim cleanup from a successful API delete request alone.
+release. Every successful deploy response must include the validated Manager and
+Demo access block above. Do not claim cleanup from a successful API delete request
+alone.

@@ -21,6 +21,9 @@ func TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate(t *tes
 		"60 continuous healthy active minutes",
 		"75-minute stability monitor",
 		"zero-inventory proof",
+		"Manager URL, Manager username, Manager password, and Demo",
+		"final operator-facing response",
+		"private `access.json`",
 	} {
 		if !strings.Contains(skill, required) {
 			t.Fatalf("project Skill is missing %q", required)
@@ -37,6 +40,12 @@ func TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate(t *tes
 		"direct-lab.sh status",
 		"direct-lab.sh stop",
 		"not delete and repurchase servers between generations",
+		"Manager: <manager_url>",
+		"Manager username: <username>",
+		"Manager password: <password>",
+		"Demo: <demo_url>",
+		"Demo HTTP Basic Auth: same username and password as Manager",
+		"typed readiness gate has not passed",
 	} {
 		if !strings.Contains(reference, required) {
 			t.Fatalf("project Skill operator reference is missing %q", required)
