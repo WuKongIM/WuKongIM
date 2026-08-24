@@ -229,7 +229,7 @@ func dispatchRecipientSetResultForModeWithScratch(ctx context.Context, mode onli
 	if len(recipients) == 0 || enqueuer == nil {
 		return recipientSetDispatchResult{}, nil
 	}
-	normalized := normalizeRecipientsForAuthorityResolutionWithScratch(event.FromUID, recipients, false, scratch)
+	normalized := normalizeRecipientsForAuthorityResolutionWithScratch(recipients, scratch)
 	if len(normalized.recipients) == 0 {
 		return recipientSetDispatchResult{}, nil
 	}
@@ -243,7 +243,7 @@ func dispatchRecipientSetResultForModeWithScratch(ctx context.Context, mode onli
 	if ports.recipientAuthorityResolver != nil {
 		results, resolveErr = resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, normalized.authorityUIDs)
 		if resolveErr == nil {
-			grouping, groupErr = groupRecipientAuthoritiesWithScratch(normalized, results, event.FromUID, scratch)
+			grouping, groupErr = groupRecipientAuthoritiesWithScratch(normalized, results, scratch)
 		}
 	}
 
@@ -334,12 +334,7 @@ func dispatchRecipientPlans(
 	return flush()
 }
 
-func normalizeRecipientsForAuthorityResolution(_ string, recipients []Recipient, _ bool) normalizedRecipientAuthoritySet {
-	var scratch recipientDispatchScratch
-	return normalizeRecipientsForAuthorityResolutionWithScratch("", recipients, false, &scratch)
-}
-
-func normalizeRecipientsForAuthorityResolutionWithScratch(_ string, recipients []Recipient, _ bool, scratch *recipientDispatchScratch) normalizedRecipientAuthoritySet {
+func normalizeRecipientsForAuthorityResolutionWithScratch(recipients []Recipient, scratch *recipientDispatchScratch) normalizedRecipientAuthoritySet {
 	if scratch == nil {
 		scratch = &recipientDispatchScratch{}
 	}
@@ -458,12 +453,7 @@ func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAut
 	return results, nil
 }
 
-func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, _ string) (recipientAuthorityGrouping, error) {
-	var scratch recipientDispatchScratch
-	return groupRecipientAuthoritiesWithScratch(set, results, "", &scratch)
-}
-
-func groupRecipientAuthoritiesWithScratch(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, _ string, scratch *recipientDispatchScratch) (recipientAuthorityGrouping, error) {
+func groupRecipientAuthoritiesWithScratch(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, scratch *recipientDispatchScratch) (recipientAuthorityGrouping, error) {
 	if scratch == nil {
 		scratch = &recipientDispatchScratch{}
 	}

@@ -393,7 +393,7 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 	}
 
 	permissionStartedAt := time.Now()
-	outcome := a.resolveSingleSendPermission(item)
+	outcome := a.resolveSingleSendPermission(ctx, item)
 	permissionResult := sendBatchStageResultOK
 	if outcome.err != nil {
 		permissionResult = sendBatchStageResultErr
@@ -411,7 +411,6 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 	preAppendStartedAt := time.Now()
 	directoryErr, invariantErr := a.admitSinglePersonDirectory(ctx, item.Command, outcome.personDirectoryFact)
 	if directoryErr != nil {
-		a.observeSendBatchStage(sendBatchStagePreAppend, sendBatchStageResultErr, 1, time.Since(preAppendStartedAt))
 		return errors.Join(emit(0, SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: directoryErr}), invariantErr)
 	}
 	cmd, reason, err := a.beforeSendHook(ctx, item.Command)
@@ -462,21 +461,17 @@ func bindSendBatchItemDeadline(item SendBatchItem) (SendBatchItem, context.Cance
 
 func noopContextCancel() {}
 
-func (a *App) resolveSingleSendPermission(item SendBatchItem) sendBatchPermissionOutcome {
+func (a *App) resolveSingleSendPermission(ctx context.Context, item SendBatchItem) sendBatchPermissionOutcome {
 	if a != nil && a.permissionBatch != nil && !item.Command.RequestScoped && len(item.Command.MessageScopedUIDs) == 0 {
 		items := []SendBatchItem{item}
 		groups := []sendBatchPermissionGroup{{representative: 0, indexes: []int{0}}}
 		indexes := []int{0}
 		switch item.Command.ChannelType {
 		case channelTypeGroup:
-			return a.checkGroupSendPermissionsBatch(item.Context, items, groups, indexes)[0]
+			return a.checkGroupSendPermissionsBatch(ctx, items, groups, indexes)[0]
 		case channelTypePerson:
-			return a.checkPersonSendPermissionsBatch(item.Context, items, groups, indexes)[0]
+			return a.checkPersonSendPermissionsBatch(ctx, items, groups, indexes)[0]
 		}
-	}
-	ctx := item.Context
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	cmd, reason, err := a.checkSendPermission(ctx, item.Command)
 	return sendBatchPermissionOutcome{channelID: cmd.ChannelID, reason: reason, err: err}
@@ -535,7 +530,7 @@ func (a *App) submitSingleBatchItem(item SendBatchItem) (SendBatchItemResult, bo
 			result = itemResult
 		})
 		if !emitted {
-			return SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: ErrSendBatchEmissionMismatch}, true
+			return SendBatchItemResult{Err: ErrSendBatchEmissionMismatch}, true
 		}
 		return result, invalid
 	}

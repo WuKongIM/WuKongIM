@@ -136,6 +136,59 @@ func TestSendBatchEachSingleItemPreservesDirectoryBeforeHookOrder(t *testing.T) 
 	}
 }
 
+func TestSendBatchEachSingleItemNormalizesNilPermissionBatchContext(t *testing.T) {
+	base := newFakePermissionStore()
+	base.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{
+		ChannelID: "g1", ChannelType: int64(channelTypeGroup),
+	}
+	permissions := &deadlinePermissionBatchStore{recordingPermissionBatchStore: &recordingPermissionBatchStore{base: base}}
+	app := New(Options{
+		PermissionStore: permissions, PermissionBatchStore: permissions,
+		SystemUIDs: fakeSystemUIDChecker{"system": true}, Submitter: benchmarkMessageSubmitter{},
+	})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "system", ChannelID: "g1", ChannelType: channelTypeGroup,
+	}}})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("SendBatch() = %#v, want success with a normalized background context", results)
+	}
+}
+
+func TestSendBatchEachSingleItemStreamingMissingResultMatchesBatchContract(t *testing.T) {
+	app := New(Options{Submitter: missingStreamingBatchSubmitter{}})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup,
+	}}})
+	if len(results) != 1 || !errors.Is(results[0].Err, ErrSendBatchEmissionMismatch) {
+		t.Fatalf("SendBatch() = %#v, want ErrSendBatchEmissionMismatch", results)
+	}
+	if results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("missing streaming result reason = %v, want zero-value success for compatibility", results[0].Result.Reason)
+	}
+}
+
+func TestSendBatchEachSingleItemDirectoryFailureDoesNotInventPreAppendObservation(t *testing.T) {
+	directoryErr := errors.New("directory unavailable")
+	observer := &recordingSendBatchStageObserver{}
+	app := New(Options{
+		PersonDirectory:   &recordingPersonDirectoryEnsurer{err: directoryErr},
+		Submitter:         benchmarkMessageSubmitter{},
+		SendBatchObserver: observer,
+	})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson,
+	}}})
+	if len(results) != 1 || !errors.Is(results[0].Err, directoryErr) {
+		t.Fatalf("SendBatch() = %#v, want directory error", results)
+	}
+	if got, want := observer.stages(), []string{"permission"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("observed stages = %v, want %v from the existing batch contract", got, want)
+	}
+}
+
 func TestSendBatchAnnotatesSubmitterTimeoutWithConsumedDeadlineBudget(t *testing.T) {
 	deadline := time.Now().Add(100 * time.Millisecond)
 	app := New(Options{
@@ -1798,6 +1851,19 @@ type streamingBatchSubmitter struct {
 	startedOnce sync.Once
 	started     chan struct{}
 	releaseSlow chan struct{}
+}
+
+type missingStreamingBatchSubmitter struct{}
+
+func (missingStreamingBatchSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
+	return SendResult{}, nil
+}
+
+func (missingStreamingBatchSubmitter) SendBatch([]SendBatchItem) []SendBatchItemResult {
+	return nil
+}
+
+func (missingStreamingBatchSubmitter) SendBatchEach([]SendBatchItem, func(int, SendBatchItemResult)) {
 }
 
 func (s *streamingBatchSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
