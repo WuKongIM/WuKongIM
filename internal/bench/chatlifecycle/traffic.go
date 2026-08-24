@@ -303,8 +303,11 @@ func (g *TrafficGenerator) ApplyGrant(released uint64, emit func(TrafficIntent) 
 	return snapshot, nil
 }
 
-// NextCanary emits at most one due very-large-group probe. Calling it again at
-// the same instant cannot duplicate the minute; catch-up remains caller paced.
+// NextCanary peeks at most one due very-large-group probe. The owner commits it
+// only after successful admission, so a temporary roster gap can
+// retry the same correctness identity without interrupting primary traffic.
+// Non-owner workers consume the shared cadence immediately because they never
+// route the fixed canary group.
 func (g *TrafficGenerator) NextCanary(now time.Time) (TrafficIntent, bool, error) {
 	if g.nextCanary.IsZero() || now.Before(g.nextCanary) {
 		return TrafficIntent{}, false, nil
@@ -330,13 +333,32 @@ func (g *TrafficGenerator) NextCanary(now time.Time) (TrafficIntent, bool, error
 		Logical: LogicalSend{LogicalSend: logicalOrdinal, WorkerID: uint32(workerID), Kind: TrafficGroup}, Kind: TrafficGroup,
 		ChannelID: group.ID, GroupCategory: GroupVeryLarge, PayloadBytes: payloadBytes, Canary: true, Domain: LogicalDomainCanary,
 	}
-	g.canaryOrdinal++
-	g.nextCanary = g.nextCanary.Add(canary.Every)
 	if workerID != g.workerID {
+		g.advanceCanary(canary.Every, false)
 		return TrafficIntent{}, false, nil
 	}
-	g.snapshot.Canaries++
 	return intent, true, nil
+}
+
+// commitCanary advances one owner-routed canary only after it owns engine work.
+func (g *TrafficGenerator) commitCanary() error {
+	if g == nil || g.nextCanary.IsZero() {
+		return errTrafficGeneratorConfig
+	}
+	canary, err := g.catalog.VeryLargeCanary(g.canaryOrdinal)
+	if err != nil {
+		return err
+	}
+	g.advanceCanary(canary.Every, true)
+	return nil
+}
+
+func (g *TrafficGenerator) advanceCanary(every time.Duration, count bool) {
+	g.canaryOrdinal++
+	g.nextCanary = g.nextCanary.Add(every)
+	if count {
+		g.snapshot.Canaries++
+	}
 }
 
 // Snapshot returns a constant-size copy.

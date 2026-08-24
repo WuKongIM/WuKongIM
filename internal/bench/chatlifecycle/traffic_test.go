@@ -276,6 +276,9 @@ func TestTrafficGeneratorsEmitEveryFormalGroupGrantOnlyOnCatalogOwner(t *testing
 		if !ok || groupIndex%uint64(cfg.Workload.Workers) != uint64(workerID) {
 			t.Fatalf("worker %d emitted non-owned canary group %d/%v: %+v", workerID, groupIndex, ok, intent)
 		}
+		if err := generator.commitCanary(); err != nil {
+			t.Fatalf("worker %d commitCanary: %v", workerID, err)
+		}
 	}
 	if dueCount != 1 {
 		t.Fatalf("owned canary count = %d, want 1", dueCount)
@@ -307,6 +310,9 @@ func TestTrafficGeneratorVeryLargeCanaryIsOncePerMinuteAndOutsidePrimaryRate(t *
 				dueCount++
 				if !intent.Canary || intent.GroupCategory != GroupVeryLarge || intent.Logical.WorkerID != uint32(workerID) {
 					t.Fatalf("minute %d worker %d canary = %+v", minute, workerID, intent)
+				}
+				if err := generator.commitCanary(); err != nil {
+					t.Fatalf("minute %d worker %d commitCanary: %v", minute, workerID, err)
 				}
 			}
 			if generator.Snapshot().PrimaryReleased != 0 {

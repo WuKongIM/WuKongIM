@@ -393,6 +393,144 @@ func TestEngineSampledGroupRouteRequiresDistinctOnlineRecipient(t *testing.T) {
 	}
 }
 
+func TestEngineSampledCanaryDefersTemporaryRosterGapWithoutFailingPrimaryGrant(t *testing.T) {
+	t.Parallel()
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 256, InflightCapacity: 16, MaxWorkPerAdvance: 256,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	canary, err := fixture.engine.generator.catalog.VeryLargeCanary(0)
+	if err != nil {
+		t.Fatalf("VeryLargeCanary: %v", err)
+	}
+	firstIndex, err := canary.Group.MemberIndex(0)
+	if err != nil {
+		t.Fatalf("first MemberIndex: %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(firstIndex), UserIndex: firstIndex, LoginOrdinal: 0,
+	}); err != nil {
+		t.Fatalf("first member Login: %v", err)
+	}
+
+	var sampledRaw uint64
+	for ; sampledRaw < 100; sampledRaw++ {
+		logical, scopedErr := scopedLogicalOrdinal(1, LogicalDomainCanary, sampledRaw)
+		if scopedErr != nil {
+			t.Fatalf("scoped canary logical: %v", scopedErr)
+		}
+		sampled, sampleErr := fixture.verifier.ShouldCorrelate(LogicalSend{
+			LogicalSend: logical, WorkerID: 0, Kind: TrafficGroup,
+		})
+		if sampleErr != nil {
+			t.Fatalf("ShouldCorrelate: %v", sampleErr)
+		}
+		if sampled {
+			break
+		}
+	}
+	if sampledRaw == 100 {
+		t.Fatal("no sampled canary ordinal in exact cycle")
+	}
+	now := fixture.clock.Now()
+	fixture.engine.generator.canaryOrdinal = sampledRaw
+	fixture.engine.generator.nextCanary = now
+	first, err := fixture.engine.ApplyGrant(context.Background(), now, 0)
+	if err != nil || !first.Admitted || first.Snapshot.Released != 0 {
+		t.Fatalf("temporarily ineligible sampled canary failed the primary grant: %+v, %v", first, err)
+	}
+	if generated := fixture.engine.generator.Snapshot().Canaries; generated != 0 {
+		t.Fatalf("deferred canary count = %d, want 0 before successful admission", generated)
+	}
+	if evidence := fixture.evidence.Snapshot(); evidenceCountForClass(evidence, FailureClassHarness) != 0 {
+		t.Fatalf("temporary canary gap recorded harness evidence: %+v", evidence)
+	}
+
+	secondIndex, err := canary.Group.MemberIndex(1)
+	if err != nil {
+		t.Fatalf("second MemberIndex: %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(secondIndex), UserIndex: secondIndex, LoginOrdinal: 1,
+	}); err != nil {
+		t.Fatalf("second member Login: %v", err)
+	}
+	now = now.Add(time.Second)
+	fixture.clock.Set(now)
+	second, err := fixture.engine.ApplyGrant(context.Background(), now, 0)
+	if err != nil || !second.Admitted || fixture.engine.generator.Snapshot().Canaries != 1 {
+		t.Fatalf("eligible deferred canary was not admitted exactly once: %+v, %v, generated=%d",
+			second, err, fixture.engine.generator.Snapshot().Canaries)
+	}
+}
+
+func TestEngineSampledCanaryFailsAfterRosterEligibilityWindow(t *testing.T) {
+	t.Parallel()
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 256, InflightCapacity: 16, MaxWorkPerAdvance: 256,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	canary, err := fixture.engine.generator.catalog.VeryLargeCanary(0)
+	if err != nil {
+		t.Fatalf("VeryLargeCanary: %v", err)
+	}
+	memberIndex, err := canary.Group.MemberIndex(0)
+	if err != nil {
+		t.Fatalf("MemberIndex: %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(memberIndex), UserIndex: memberIndex, LoginOrdinal: 0,
+	}); err != nil {
+		t.Fatalf("member Login: %v", err)
+	}
+	for raw := uint64(0); raw < 100; raw++ {
+		logical, scopedErr := scopedLogicalOrdinal(1, LogicalDomainCanary, raw)
+		if scopedErr != nil {
+			t.Fatalf("scoped canary logical: %v", scopedErr)
+		}
+		sampled, sampleErr := fixture.verifier.ShouldCorrelate(LogicalSend{
+			LogicalSend: logical, WorkerID: 0, Kind: TrafficGroup,
+		})
+		if sampleErr != nil {
+			t.Fatalf("ShouldCorrelate: %v", sampleErr)
+		}
+		if sampled {
+			fixture.engine.generator.canaryOrdinal = raw
+			break
+		}
+	}
+	due := fixture.clock.Now()
+	fixture.engine.generator.nextCanary = due
+	if first, err := fixture.engine.ApplyGrant(context.Background(), due, 0); err != nil || !first.Admitted {
+		t.Fatalf("initial sampled canary gap was not deferred: %+v, %v", first, err)
+	}
+	now := due.Add(fixture.engine.activityEligibilityWindow)
+	fixture.clock.Set(now)
+	if _, err := fixture.engine.ApplyGrant(context.Background(), now, 0); err == nil {
+		t.Fatal("sampled canary without a recipient survived its eligibility window")
+	} else {
+		assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
+	}
+	if generated := fixture.engine.generator.Snapshot().Canaries; generated != 0 {
+		t.Fatalf("failed canary count = %d, want 0", generated)
+	}
+	evidence := fixture.evidence.Snapshot()
+	if evidenceCountForClass(evidence, FailureClassHarness) != 1 || len(evidence.Classes) != 1 ||
+		evidence.Classes[0].Class != FailureClassHarness || len(evidence.Classes[0].First) != 1 ||
+		evidence.Classes[0].First[0].Value != uint64(canary.Group.MemberCount) {
+		t.Fatalf("sustained canary gap evidence = %+v", evidence)
+	}
+}
+
 func TestEngineSampledPersonRecipientDoesNotExpireBeforeCorrelationSettles(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		OnlineUsers: 2, SessionDuration: time.Millisecond,

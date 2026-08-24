@@ -758,6 +758,12 @@ Person routing always requires an online sender. For the verifier's exact one
 position in every 100 logical sends, it also requires an online target; other
 person sends may keep a channel hot while its peer is offline. A sampled group
 or canary send requires a distinct second online fixed-directory member. A
+due very-large canary is only committed after the owner atomically acquires its
+sender and optional correlation-recipient leases and adds the SEND to engine
+work. A temporary fixed-roster gap therefore retries the same canary identity
+without counting it or interrupting the primary grant. One continuous gap that
+reaches the ordinary activity-eligibility window fails as bounded offered-load
+under-delivery instead of hiding a missing correctness probe. A
 mandatory initial or revisit activity owns an explicit checked eligibility
 deadline. A temporarily ineligible due activity is reinserted once just beyond
 the current advance boundary, with route scans bounded independently of queue

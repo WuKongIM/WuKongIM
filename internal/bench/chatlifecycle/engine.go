@@ -34,11 +34,12 @@ const (
 )
 
 var (
-	errEngineConfig     = errors.New("chat lifecycle engine: configuration is invalid")
-	errEngineRunning    = errors.New("chat lifecycle engine: already running")
-	errEngineNotRunning = errors.New("chat lifecycle engine: not running")
-	errEngineNotDrained = errors.New("chat lifecycle engine: admitted work is not drained")
-	errSchedulerClock   = errors.New("chat lifecycle scheduler: clock moved backwards or login credit overflowed")
+	errEngineConfig          = errors.New("chat lifecycle engine: configuration is invalid")
+	errEngineRunning         = errors.New("chat lifecycle engine: already running")
+	errEngineNotRunning      = errors.New("chat lifecycle engine: not running")
+	errEngineNotDrained      = errors.New("chat lifecycle engine: admitted work is not drained")
+	errSchedulerClock        = errors.New("chat lifecycle scheduler: clock moved backwards or login credit overflowed")
+	errGroupRouteUnavailable = errors.New("chat lifecycle engine: group route is temporarily unavailable")
 )
 
 // EngineConfig fixes every local retained-state and per-advance CPU bound.
@@ -67,8 +68,8 @@ type EngineConfig struct {
 	// ColdAttemptTimeout is the retry deadline for the deterministic first
 	// person-channel create and an all-node-proven cold reheat.
 	ColdAttemptTimeout time.Duration
-	// ActivityEligibilityWindow bounds how long a due mandatory initial or
-	// revisit SEND may wait for an eligible online route.
+	// ActivityEligibilityWindow bounds how long a due mandatory initial,
+	// revisit, or canary SEND may wait for an eligible online route.
 	ActivityEligibilityWindow time.Duration
 }
 
@@ -802,13 +803,16 @@ type Engine struct {
 	// externalGrantsApplied keeps only the generation-local control sequence.
 	// The first pre-clock grant drains synchronously; later grants only admit
 	// bounded work so data-plane pressure cannot consume the one-second RPC.
-	externalGrantsApplied      uint64
-	retryAttempts              uint64
-	finalFailures              uint64
-	harnessInvalid             uint64
-	activityUnderDelivered     uint64
-	activityFutureCanceled     uint64
-	activityPlannedCanceled    uint64
+	externalGrantsApplied   uint64
+	retryAttempts           uint64
+	finalFailures           uint64
+	harnessInvalid          uint64
+	activityUnderDelivered  uint64
+	activityFutureCanceled  uint64
+	activityPlannedCanceled uint64
+	// canaryUnavailableSince bounds one continuous fixed-roster gap without
+	// retaining canary identities or interrupting primary grant admission.
+	canaryUnavailableSince     time.Time
 	plannedShutdown            bool
 	metaCreatePersonByHashSlot MetaCreateHashSlotCounts
 	metaCreateGroupByHashSlot  MetaCreateHashSlotCounts
@@ -972,6 +976,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.activityUnderDelivered = 0
 	e.activityFutureCanceled = 0
 	e.activityPlannedCanceled = 0
+	e.canaryUnavailableSince = time.Time{}
 	e.plannedShutdown = false
 	e.bootstrapActivityRefresh = false
 	e.bootstrapActivityBarrier = time.Time{}
@@ -1240,15 +1245,7 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			return e.addLeasedSendWorkAt(intent, 0, now)
 		})
 		if grantErr == nil {
-			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
-				grantErr = canaryErr
-			} else if due {
-				if canary, canaryErr = e.routeGroupGrantWithAdmission(canary, now, admit); canaryErr == nil {
-					grantErr = e.addLeasedSendWorkAt(canary, 0, now)
-				} else {
-					grantErr = canaryErr
-				}
-			}
+			grantErr = e.admitDueCanary(now, admit)
 		}
 		first := e.externalGrantsApplied == 0
 		if e.externalGrantsApplied == math.MaxUint64 {
@@ -1317,15 +1314,7 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			return e.addLeasedSendWorkAt(intent, 0, now)
 		})
 		if tickErr == nil {
-			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
-				tickErr = canaryErr
-			} else if due {
-				if canary, canaryErr = e.routeGroupGrantWithAdmission(canary, now, admit); canaryErr == nil {
-					tickErr = e.addLeasedSendWorkAt(canary, 0, now)
-				} else {
-					tickErr = canaryErr
-				}
-			}
+			tickErr = e.admitDueCanary(now, admit)
 		}
 		response <- struct {
 			snapshot TrafficTickSnapshot
@@ -3992,17 +3981,31 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent, now time.Time) (TrafficInt
 }
 
 func (e *Engine) routeGroupGrantWithAdmission(grant TrafficIntent, now time.Time, admit grantRouteAdmission) (TrafficIntent, error) {
+	routed, available, err := e.tryRouteGroupGrantWithAdmission(grant, now, admit)
+	if err != nil {
+		return TrafficIntent{}, err
+	}
+	if !available {
+		return TrafficIntent{}, e.recordGroupUnderDelivery(grant)
+	}
+	return routed, nil
+}
+
+func (e *Engine) tryRouteGroupGrantWithAdmission(grant TrafficIntent, now time.Time, admit grantRouteAdmission) (TrafficIntent, bool, error) {
 	for attempt := 0; attempt < maxGrantRouteAdmissionRetries; attempt++ {
 		routed, err := e.routeGroupGrantCandidate(grant, now)
+		if errors.Is(err, errGroupRouteUnavailable) {
+			return TrafficIntent{}, false, nil
+		}
 		if err != nil {
-			return TrafficIntent{}, err
+			return TrafficIntent{}, false, err
 		}
 		if admit == nil || admit(routed) {
 			e.reserveGrantSender(routed.Logical.Sender)
-			return routed, nil
+			return routed, true, nil
 		}
 	}
-	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, maxGrantRouteAdmissionRetries)
+	return TrafficIntent{}, false, nil
 }
 
 func (e *Engine) routeGroupGrantCandidate(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
@@ -4052,7 +4055,7 @@ func (e *Engine) routeGroupGrantCandidate(grant TrafficIntent, now time.Time) (T
 		}
 	}
 	if !ok {
-		return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
+		return TrafficIntent{}, errGroupRouteUnavailable
 	}
 	logical, err := e.traffic.NewLogicalSend(
 		uint64(grant.Logical.WorkerID), grant.Logical.LogicalSend, TrafficGroup, sender.UID, group.ID,
@@ -4070,11 +4073,52 @@ func (e *Engine) routeGroupGrantCandidate(grant TrafficIntent, now time.Time) (T
 	if correlate {
 		recipient, recipientOK := e.sessions.onlineGroupCorrelationRecipient(group, sender.UID, grant.Logical.LogicalSend, now)
 		if !recipientOK {
-			return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
+			return TrafficIntent{}, errGroupRouteUnavailable
 		}
 		grant.correlationRecipient = recipient
 	}
 	return grant, nil
+}
+
+func (e *Engine) admitDueCanary(now time.Time, admit grantRouteAdmission) error {
+	canary, due, err := e.generator.NextCanary(now)
+	if err != nil || !due {
+		return err
+	}
+	routed, available, err := e.tryRouteGroupGrantWithAdmission(canary, now, admit)
+	if err != nil {
+		return err
+	}
+	if !available {
+		if e.canaryUnavailableSince.IsZero() {
+			e.canaryUnavailableSince = now
+			return nil
+		}
+		if now.Before(e.canaryUnavailableSince) {
+			return errEngineConfig
+		}
+		if now.Sub(e.canaryUnavailableSince) < e.activityEligibilityWindow {
+			return nil
+		}
+		return e.recordGroupUnderDelivery(canary)
+	}
+	if err := e.addLeasedSendWorkAt(routed, 0, now); err != nil {
+		return err
+	}
+	e.canaryUnavailableSince = time.Time{}
+	return e.generator.commitCanary()
+}
+
+func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent) error {
+	groupIndex, ok := e.generator.catalog.IndexFromGroupID(intent.ChannelID)
+	if !ok {
+		return errEngineConfig
+	}
+	group, err := e.generator.catalog.Group(groupIndex)
+	if err != nil {
+		return errEngineConfig
+	}
+	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
 }
 
 func (e *Engine) cleanupInflight() {
