@@ -379,7 +379,7 @@ next_deployment_generation() {
 
 start_request() {
   local request_id="$1" duration="${2:-$DEFAULT_QUALIFICATION_DURATION}" budget_value="${3:-$DEFAULT_BUDGET_CNY}"
-  local budget_cny directory root source_sha builder chat cloud bundle_digest lease_id
+  local budget_cny directory root source_sha builder chat cloud bundle_digest lease_id temporary
   parse_duration_seconds "$duration" >/dev/null ||
     die "duration must be between 1m and 72h using whole h, m, or s units"
   budget_cny="$(parse_budget_cny "$budget_value")" ||
@@ -404,11 +404,20 @@ start_request() {
   require_executable "$cloud"
   source_sha="$(jq -er .source_sha "$directory/state.json")"
 
-  "$builder" --source-sha "$source_sha" --output-dir "$directory/bundle"
-  bundle_digest="$(jq -er '.bundle_digest | select(test("^sha256:[0-9a-f]{64}$"))' "$directory/bundle/bundle-manifest-output.json")"
-  [[ -f "$directory/bundle/cloud-deployment-bundle.tar.gz" ]] || die 'sealed offline bundle archive is unavailable'
+  if ! "$builder" --source-sha "$source_sha" --output-dir "$directory/bundle"; then
+    finalize_not_acquired "$directory" bundle_build_failed_before_acquire
+    die 'sealed bundle build failed before paid Acquire; request was finalized as not acquired'
+  fi
+  if ! bundle_digest="$(jq -er '.bundle_digest | select(test("^sha256:[0-9a-f]{64}$"))' "$directory/bundle/bundle-manifest-output.json")"; then
+    finalize_not_acquired "$directory" bundle_manifest_failed_before_acquire
+    die 'sealed bundle manifest failed before paid Acquire; request was finalized as not acquired'
+  fi
+  if [[ ! -f "$directory/bundle/cloud-deployment-bundle.tar.gz" ]]; then
+    finalize_not_acquired "$directory" bundle_archive_missing_before_acquire
+    die 'sealed offline bundle archive is unavailable; request was finalized as not acquired'
+  fi
 
-  "$chat" materialize \
+  if ! "$chat" materialize \
     --template "$directory/materialize-template.json" \
     --source-sha "$source_sha" --operator tangtaoit \
     --codex-diagnostic-pubkey "$(<"$directory/diagnostic_ed25519.pub")" \
@@ -416,22 +425,42 @@ start_request() {
     --bundle-digest "$bundle_digest" \
     --deployment-pubkey "$(<"$directory/deployment_ed25519.pub")" \
     --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --attempt 1 \
-    >"$directory/run-plan.json"
-  jq -c '.lease_plan' "$directory/run-plan.json" >"$directory/lease-plan.json"
-  jq -c '{schema:"wukongim.cloud_lease.bootstrap_access/v1",access:.bootstrap_access}' \
-    "$directory/run-plan.json" >"$directory/bootstrap-access.json"
+    --authorized-repair-budget-cny "$(jq -er .budget_cny "$directory/run-policy.json")" \
+    >"$directory/run-plan.json"; then
+    finalize_not_acquired "$directory" materialization_failed_before_acquire
+    die 'Run Plan materialization failed before paid Acquire; request was finalized as not acquired'
+  fi
+  if ! jq -c '.lease_plan' "$directory/run-plan.json" >"$directory/lease-plan.json"; then
+    finalize_not_acquired "$directory" lease_plan_failed_before_acquire
+    die 'Lease Plan extraction failed before paid Acquire; request was finalized as not acquired'
+  fi
+  if ! jq -c '{schema:"wukongim.cloud_lease.bootstrap_access/v1",access:.bootstrap_access}' \
+    "$directory/run-plan.json" >"$directory/bootstrap-access.json"; then
+    finalize_not_acquired "$directory" bootstrap_access_failed_before_acquire
+    die 'bootstrap access extraction failed before paid Acquire; request was finalized as not acquired'
+  fi
 
   if ! "$cloud" quote --plan "$directory/lease-plan.json" >"$directory/quote.json"; then
     finalize_not_acquired "$directory" quote_failed_before_acquire
     die 'read-only Quote failed before paid Acquire; request was finalized as not acquired'
   fi
-  jq -e --arg request "$request_id" '
+  if ! jq -e --arg request "$request_id" '
     .schema == "wukongim.cloud_lease.quote/v1" and .quote.request_id == $request and
     .quote.capacity_available == true and .quote.quota_available == true and
     (.quote.plan_digest | test("^[0-9a-f]{64}$"))
-  ' "$directory/quote.json" >/dev/null
-  "$chat" selector-from-plan --plan "$directory/lease-plan.json" --quote "$directory/quote.json" \
-    >"$directory/release-selector.json"
+  ' "$directory/quote.json" >/dev/null; then
+    finalize_not_acquired "$directory" invalid_quote_before_acquire
+    die 'read-only Quote was invalid before paid Acquire; request was finalized as not acquired'
+  fi
+  temporary="$directory/.release-selector.next.$$"
+  if ! "$chat" selector-from-plan --plan "$directory/lease-plan.json" --quote "$directory/quote.json" \
+    >"$temporary"; then
+    rm -f -- "$temporary"
+    finalize_not_acquired "$directory" selector_failed_before_acquire
+    die 'release selector derivation failed before paid Acquire; request was finalized as not acquired'
+  fi
+  chmod 0600 "$temporary"
+  mv -f -- "$temporary" "$directory/release-selector.json"
 
   if ! "$cloud" acquire --plan "$directory/lease-plan.json" --quote "$directory/quote.json" \
     --bootstrap-access "$directory/bootstrap-access.json" >"$directory/receipt.json"; then

@@ -111,6 +111,56 @@ func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	}
 }
 
+func TestMaterializeCommandBindsExplicitRepairBudgetFromTrustedFlag(t *testing.T) {
+	templatePath := filepath.Join("..", "..", "configs", "cloud", "chat-lifecycle", "repair-v1.json")
+	templateFile, err := os.Open(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := chatlifecyclerun.DecodeTemplate(templateFile)
+	templateFile.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	template.Budget.HardLimitMicros = 450_000_000
+	template.Budget.OperationalStopMicros = 430_000_000
+	customTemplate := filepath.Join(t.TempDir(), "repair.json")
+	body, err := json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(customTemplate, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	args := []string{
+		"materialize", "--template", customTemplate,
+		"--source-sha", strings.Repeat("a", 40), "--operator", "tangtaoit",
+		"--codex-diagnostic-pubkey", commandPublicKey(t), "--request-id", "command-repair-budget",
+		"--repository", "WuKongIM/WuKongIM", "--bundle-digest", "sha256:" + strings.Repeat("b", 64),
+		"--deployment-pubkey", commandPublicKey(t), "--now", "2026-08-25T01:00:00Z", "--attempt", "1",
+	}
+	command := newRootCommand(&bytes.Buffer{})
+	command.SetArgs(args)
+	if err := command.Execute(); err == nil {
+		t.Fatal("explicit repair budget without trusted flag was accepted")
+	}
+
+	var output bytes.Buffer
+	command = newRootCommand(&output)
+	command.SetArgs(append(args, "--authorized-repair-budget-cny", "450"))
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var plan chatlifecyclerun.RunPlan
+	if err := json.Unmarshal(output.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.LeasePlan.Budget.LimitMicros != 450_000_000 || plan.OperationalStopMicros != 430_000_000 {
+		t.Fatalf("materialized repair budget = %+v", plan.LeasePlan.Budget)
+	}
+}
+
 func TestRepairMonitorCommandsEmitFailFastDecisionFromDurableState(t *testing.T) {
 	directory := t.TempDir()
 	statePath := filepath.Join(directory, "state.json")

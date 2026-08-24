@@ -193,7 +193,7 @@ type materializeOptions struct {
 	templatePath, sourceSHA, operator, codexPubKey, requestID string
 	repository, bundleDigest, deploymentPubKey, nowValue      string
 	transitionPath                                            string
-	attempt, committedMicros                                  int64
+	attempt, committedMicros, authorizedRepairBudgetCNY       int64
 }
 
 func addMaterializeCommand(root *cobra.Command) {
@@ -217,6 +217,7 @@ func addMaterializeCommand(root *cobra.Command) {
 	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
+	flags.Int64Var(&options.authorizedRepairBudgetCNY, "authorized-repair-budget-cny", 0, "independently authorized whole-CNY direct repair budget")
 	for _, name := range []string{"template", "source-sha", "operator", "codex-diagnostic-pubkey", "request-id", "repository", "bundle-digest", "deployment-pubkey", "now", "attempt"} {
 		if err := command.MarkFlagRequired(name); err != nil {
 			panic(err)
@@ -243,6 +244,7 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
 		Repository: options.repository, BundleDigest: options.bundleDigest,
 		DeploymentPubKey: options.deploymentPubKey, Now: now,
 		Attempt: int(options.attempt), CommittedMicros: options.committedMicros,
+		AuthorizedRepairBudgetCNY: options.authorizedRepairBudgetCNY,
 	}
 	if options.transitionPath != "" {
 		var transition chatlifecyclerun.StageTransition
