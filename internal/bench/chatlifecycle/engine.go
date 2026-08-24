@@ -1770,7 +1770,17 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 				response <- errEngineConfig
 				return
 			}
+			// A returning login must not turn a rotating or long-lived hot
+			// conversation into a natural-cooling proof candidate. Primary hot
+			// traffic would keep advancing the same Channel after the proof lease
+			// and make a healthy runtime look like continued loading.
 			if e.lifecycleByChannel[edge.PersonChannelID] != nil {
+				continue
+			}
+			if _, active := e.activePosition[edge.PersonChannelID]; active {
+				continue
+			}
+			if _, pending := e.pendingPosition[edge.PersonChannelID]; pending {
 				continue
 			}
 			delay, err := e.schedule.durationInRange(

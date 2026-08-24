@@ -1815,6 +1815,77 @@ func TestEngineReturningCandidateColdRevisitUsesOldEdgeAndRevisitIdentityDomain(
 	t.Fatal("approved returning cold revisit did not produce a revisit-domain SEND")
 }
 
+func TestEngineReturningCandidateDoesNotScheduleColdRevisitForHotConversation(t *testing.T) {
+	for _, state := range []string{"active", "pending"} {
+		t.Run(state, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{
+				OnlineUsers: 100, SessionDuration: 2 * time.Hour,
+				WorkCapacity: 4_096, InflightCapacity: 128, MaxWorkPerAdvance: 4_096,
+			})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			defer fixture.engine.Stop()
+
+			var candidate ReturningCandidate
+			var loginOrdinal uint64
+			for ordinal := uint64(0); ordinal < 10_000; ordinal++ {
+				planned, err := fixture.graph.ReturningCandidate(fixture.schedule, 100, ordinal, 100)
+				if err != nil {
+					t.Fatalf("ReturningCandidate(%d): %v", ordinal, err)
+				}
+				if planned.Available && planned.ConversationCount > 0 {
+					candidate, loginOrdinal = planned, ordinal
+					break
+				}
+			}
+			if !candidate.Available {
+				t.Fatal("no deterministic returning candidate was available")
+			}
+
+			conversation := candidate.Conversations[0]
+			ownerIndex, peerIndex := candidate.UserIndex, conversation.PeerIndex
+			if ownerIndex > peerIndex {
+				ownerIndex, peerIndex = peerIndex, ownerIndex
+			}
+			edge := fixture.graph.edge(ownerIndex, peerIndex)
+			installed := make(chan error, 1)
+			if err := fixture.engine.enqueue(engineCommand{run: func() {
+				active := engineActiveChannel{edge: edge}
+				switch state {
+				case "active":
+					fixture.engine.addActiveChannel(active)
+				case "pending":
+					if !fixture.engine.addPendingChannel(active, &engineWork{due: fixture.clock.Now().Add(time.Hour)}) {
+						installed <- errors.New("add pending hot conversation")
+						return
+					}
+				}
+				installed <- nil
+			}}); err != nil {
+				t.Fatalf("install %s hot conversation: %v", state, err)
+			}
+			if err := <-installed; err != nil {
+				t.Fatal(err)
+			}
+
+			if err := fixture.engine.scheduleReturningCandidate(candidate, loginOrdinal, fixture.clock.Now()); err != nil {
+				t.Fatalf("scheduleReturningCandidate: %v", err)
+			}
+			checked := make(chan bool, 1)
+			if err := fixture.engine.enqueue(engineCommand{run: func() {
+				_, scheduled := fixture.engine.lifecycleByChannel[conversation.PersonChannelID]
+				checked <- scheduled
+			}}); err != nil {
+				t.Fatalf("inspect returning lifecycle: %v", err)
+			}
+			if <-checked {
+				t.Fatalf("returning cold revisit overlapped %s hot conversation", state)
+			}
+		})
+	}
+}
+
 func TestEngineReturningColdRevisitUsesOnlineReturningSenderWhenOldPeerIsOffline(t *testing.T) {
 	for _, returningOfflineAtDue := range []bool{false, true} {
 		name := map[bool]string{false: "peer_only_offline", true: "returning_temporarily_offline"}[returningOfflineAtDue]

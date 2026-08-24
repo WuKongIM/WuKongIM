@@ -46,7 +46,7 @@ passing 72-hour formal generation
 - The measured clock starts only after all users finish real CONNECT plus a
   fresh zero-coverage conversation sync and all workers accept the first grant.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
-  Planning is history-independent; no historical user or Channel owns retained work.
+  Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
   Session expiry transfers to one generation-owned bounded cleanup queue;
   closing tombstones and per-SEND expiry leases prevent replacement or socket
   teardown from racing admitted retry work.
