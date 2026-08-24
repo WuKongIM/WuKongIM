@@ -34,7 +34,11 @@ trap cleanup EXIT
 
 stop_stage() {
   wk_run_bounded 60 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
-    "sudo systemctl stop '$stage_service' && ! sudo systemctl is-active --quiet '$stage_service'" >/dev/null 2>&1
+    "sudo systemctl stop '$stage_service' wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service &&
+     ! sudo systemctl is-active --quiet '$stage_service' &&
+     ! sudo systemctl is-active --quiet wkbench-worker@1.service &&
+     ! sudo systemctl is-active --quiet wkbench-worker@2.service &&
+     ! sudo systemctl is-active --quiet wkbench-worker@3.service" >/dev/null 2>&1
 }
 trap 'stop_stage || true; exit 130' INT TERM
 

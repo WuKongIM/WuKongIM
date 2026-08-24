@@ -17,6 +17,7 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 	for _, fragment := range []string{
 		"repair-capture", "repair-observe", "/v1/chat-lifecycle/status", "/v1/chat-lifecycle/snapshot",
 		"stop_and_diagnose", "qualified", "sudo systemctl stop", "systemctl is-active --quiet",
+		"wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service",
 		"repair-observations.jsonl", "repair-decision.json", "repair-diagnosis.json",
 		"terminal-cut", "status-${worker}.json", "snapshot-${worker}.json",
 		"observation-failure", "strict_capture_rejected", "remote_fetch_failed",
