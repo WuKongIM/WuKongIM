@@ -463,3 +463,70 @@ func TestCloudDeploymentUsesTheProvisionedBootstrapUser(t *testing.T) {
 		}
 	}
 }
+
+func TestCloudDeploymentSSHConfigUsesLeaseScopedKnownHosts(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	keyPath := filepath.Join(directory, "deployment identity")
+	configPath := filepath.Join(directory, "deployment-ssh-config")
+	if err := os.WriteFile(keyPath, []byte("test-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "cloud-deployment", "write-ssh-config.sh"))
+	command.Env = append(os.Environ(),
+		"WK_CLOUD_LOAD_PUBLIC_IP=203.0.113.20",
+		"WK_CLOUD_SERVICE1_IP=10.42.0.11",
+		"WK_CLOUD_SERVICE2_IP=10.42.0.12",
+		"WK_CLOUD_SERVICE3_IP=10.42.0.13",
+		"WK_CLOUD_SSH_KEY="+keyPath,
+		"WK_CLOUD_SSH_CONFIG="+configPath,
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("write SSH config: %v\n%s", err, output)
+	}
+	knownHostsPath := configPath + ".known_hosts"
+	knownHosts, err := os.Stat(knownHostsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if knownHosts.Mode().Perm() != 0o600 {
+		t.Fatalf("known-hosts mode = %o, want 600", knownHosts.Mode().Perm())
+	}
+	if err := os.WriteFile(knownHostsPath, []byte("retained-host-key\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command = exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "cloud-deployment", "write-ssh-config.sh"))
+	command.Env = append(os.Environ(),
+		"WK_CLOUD_LOAD_PUBLIC_IP=203.0.113.20",
+		"WK_CLOUD_SERVICE1_IP=10.42.0.11",
+		"WK_CLOUD_SERVICE2_IP=10.42.0.12",
+		"WK_CLOUD_SERVICE3_IP=10.42.0.13",
+		"WK_CLOUD_SSH_KEY="+keyPath,
+		"WK_CLOUD_SSH_CONFIG="+configPath,
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("rewrite SSH config: %v\n%s", err, output)
+	}
+	retained, err := os.ReadFile(knownHostsPath)
+	if err != nil || string(retained) != "retained-host-key\n" {
+		t.Fatalf("known-hosts content = %q, %v", retained, err)
+	}
+	canonicalKnownHostsPath, err := filepath.EvalSymlinks(knownHostsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := exec.CommandContext(t.Context(), "ssh", "-G", "-F", configPath, "wukong-load")
+	output, err := resolved.CombinedOutput()
+	if err != nil {
+		t.Fatalf("resolve deployment SSH config: %v\n%s", err, output)
+	}
+	for _, setting := range []string{
+		"hostname 203.0.113.20",
+		"strictHostKeyChecking accept-new",
+		"userknownhostsfile " + canonicalKnownHostsPath,
+	} {
+		if !strings.Contains(strings.ToLower(string(output)), strings.ToLower(setting)+"\n") {
+			t.Fatalf("resolved SSH config missing %q:\n%s", setting, output)
+		}
+	}
+}

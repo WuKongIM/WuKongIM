@@ -45,6 +45,9 @@ non-secret Lease inventory and has no provider lifecycle authority.
   it never restarts services/workers, clears data, or splices process lifetimes.
 - Direct repair may pass one validated process-duration override only to the
   rehearsal unit; repository YAML and formal execution remain unchanged.
+- SSH activation records first-use host keys in one private Lease-scoped file,
+  retains that file across repair generations, and never reads or mutates the
+  operator's global user known-hosts file.
 - Five-second cost and expiry guards enforce the immutable stage's admitted CNY
   1,350 operational stop and CNY 1,500 hard limit. Direct repair preserves the
   exact admitted Lease budget: CNY 300/250 by default or an explicit whole-CNY
