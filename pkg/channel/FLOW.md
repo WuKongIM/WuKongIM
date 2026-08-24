@@ -36,6 +36,9 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 1. The service reserves a Channel key and submits an append; the reactor fences
    role, epochs, write admission, and capacity, while store workers durably
    append in order and local or quorum progress completes aligned futures.
+   Borrowed public payloads are cloned at admission; an adapter-owned append
+   may explicitly transfer immutable payloads that downstream state, quorum,
+   and storage submissions share while copying record metadata.
    With `DurableQuorumLog`, leader activation first installs a recovered
    authority frontier and current-term barrier, then each caller append is one
    immutable exact quorum proposal rather than a transient worker batch.

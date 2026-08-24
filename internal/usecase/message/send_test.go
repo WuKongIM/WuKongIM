@@ -89,6 +89,53 @@ func TestSendBatchObservesBoundedStages(t *testing.T) {
 	}
 }
 
+func TestSendBatchEachSingleItemStaysWithinAllocationBudget(t *testing.T) {
+	app := New(Options{Submitter: benchmarkMessageSubmitter{}})
+	items := []SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("one"),
+	}}}
+	var result SendBatchItemResult
+	emit := func(index int, item SendBatchItemResult) error {
+		if index != 0 {
+			return fmt.Errorf("emitted index = %d, want 0", index)
+		}
+		result = item
+		return nil
+	}
+	var sendErr error
+	allocs := testing.AllocsPerRun(100, func() {
+		sendErr = app.SendBatchEach(items, emit)
+	})
+	if sendErr != nil || result.Err != nil || result.Result.Reason != ReasonSuccess {
+		t.Fatalf("SendBatchEach() = %#v, %v, want success", result, sendErr)
+	}
+	if allocs > 16 {
+		t.Fatalf("SendBatchEach() allocations = %.0f, want <= 16 for one item", allocs)
+	}
+}
+
+func TestSendBatchEachSingleItemPreservesDirectoryBeforeHookOrder(t *testing.T) {
+	steps := make([]string, 0, 2)
+	app := New(Options{
+		PersonDirectory: orderedPersonDirectoryEnsurer{steps: &steps},
+		SendHook:        orderedSendHook{steps: &steps},
+		Submitter:       benchmarkMessageSubmitter{},
+	})
+	items := []SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson, Payload: []byte("one"),
+	}}}
+
+	err := app.SendBatchEach(items, func(_ int, result SendBatchItemResult) error {
+		return result.Err
+	})
+	if err != nil {
+		t.Fatalf("SendBatchEach() error = %v", err)
+	}
+	if want := []string{"directory", "hook"}; !reflect.DeepEqual(steps, want) {
+		t.Fatalf("single-item pre-append order = %v, want %v", steps, want)
+	}
+}
+
 func TestSendBatchAnnotatesSubmitterTimeoutWithConsumedDeadlineBudget(t *testing.T) {
 	deadline := time.Now().Add(100 * time.Millisecond)
 	app := New(Options{
@@ -2072,6 +2119,20 @@ func (f fakeSystemUIDChecker) IsSystemUID(uid string) bool { return f[uid] }
 type recordingSendHook struct {
 	calls  []SendCommand
 	mutate func(SendCommand) (SendCommand, Reason, error)
+}
+
+type orderedPersonDirectoryEnsurer struct{ steps *[]string }
+
+func (e orderedPersonDirectoryEnsurer) AdmitPersonChannelDirectory(context.Context, string, int64) error {
+	*e.steps = append(*e.steps, "directory")
+	return nil
+}
+
+type orderedSendHook struct{ steps *[]string }
+
+func (h orderedSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	*h.steps = append(*h.steps, "hook")
+	return cmd, ReasonSuccess, nil
 }
 
 func (h *recordingSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, Reason, error) {

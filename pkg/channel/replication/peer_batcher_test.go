@@ -562,6 +562,50 @@ func TestDurableRoundOwnsOneImmutablePayloadCopyAcrossFollowers(t *testing.T) {
 	}
 }
 
+func TestDurableRoundSharesDeclaredImmutablePayloadAcrossFollowers(t *testing.T) {
+	executor := &manualPeerExecutor{submitted: make(chan struct{}, 2)}
+	link := &recordingPeerLink{}
+	batcher, err := newPeerBatcher(peerBatcherConfig{
+		Link: link, Executor: executor, OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		MaxBatchItems: 2, MaxBatchBytes: 4096,
+		MaxQueuedItems: 4, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 2, MaxTargetQueuedBytes: 4096,
+	})
+	if err != nil {
+		t.Fatalf("newPeerBatcher() error = %v", err)
+	}
+	request := testReplicateRequest(t, "1:immutable-owned", "immutable-owned", 1, []byte("immutable"))
+	dispatcher := &batchingDurabilityDispatcher{
+		ownerContext: context.Background(), local: immediateLocalDurability{}, peers: batcher, repairs: discardFollowerRepairSink{},
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := runDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{
+			first: 1, last: 1, channelKey: request.ChannelKey, channelID: request.ChannelID,
+			leader: request.Leader, manifest: request.Manifest, records: request.Records, payloadsImmutable: true,
+		}, dispatcher)
+		done <- err
+	}()
+	<-executor.submitted
+	executor.RunNext()
+	if err := <-done; err != nil {
+		t.Fatalf("runDurableRound() error = %v", err)
+	}
+	if err := batcher.flushDeferred(); err != nil {
+		t.Fatalf("flushDeferred() error = %v", err)
+	}
+	executor.RunNext()
+	if len(link.batches) != 2 {
+		t.Fatalf("peer batches = %d, want two follower targets", len(link.batches))
+	}
+	want := request.Records[0].Payload
+	for index, batch := range link.batches {
+		got := batch.Items[0].Replicate.Records[0].Payload
+		if &got[0] != &want[0] {
+			t.Fatalf("follower %d payload did not share declared immutable storage", index)
+		}
+	}
+}
+
 func TestPeerBatcherSplitsOneTargetWithoutASecondCollectionTimer(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}

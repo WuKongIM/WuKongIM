@@ -72,6 +72,37 @@ func TestProposeAppendBatchTrustsMessageIDsOnlyWhenEveryWaiterIsServerAllocated(
 	}
 }
 
+func TestProposeAppendBatchSharesDeclaredImmutablePayload(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+	payload := []byte("immutable")
+	decision := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 1,
+		Waiters: []AppendBatchWaiter{{
+			OpID: 1, Records: []ch.Record{{ID: 10, Payload: payload, SizeBytes: len(payload)}}, PayloadsImmutable: true,
+		}},
+	})
+
+	require.NoError(t, decision.Err)
+	require.Len(t, decision.Tasks, 1)
+	require.Same(t, &payload[0], &decision.Tasks[0].StoreAppend.Records[0].Payload[0])
+}
+
+func TestProposeAppendBatchOwnsBorrowedPayload(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+	payload := []byte("borrowed")
+	decision := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 1,
+		Waiters: []AppendBatchWaiter{{
+			OpID: 1, Records: []ch.Record{{ID: 10, Payload: payload, SizeBytes: len(payload)}},
+		}},
+	})
+
+	require.NoError(t, decision.Err)
+	require.Len(t, decision.Tasks, 1)
+	payload[0] = 'B'
+	require.Equal(t, "borrowed", string(decision.Tasks[0].StoreAppend.Records[0].Payload))
+}
+
 func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
 	decision := state.ProposeAppend(AppendCommand{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}})

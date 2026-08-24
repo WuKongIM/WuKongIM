@@ -30,6 +30,7 @@ const (
 	threeNodeBenchmarkChannels   = 1000
 	threeNodeBenchmarkRate       = 1000
 	threeNodeHostedBenchmarkRate = 500
+	threeNodeHotChannelRate      = 100
 	threeNodeBenchmarkWorkers    = 256
 )
 
@@ -141,6 +142,13 @@ func BenchmarkThreeNodeChannelAppend1000QPS(b *testing.B) {
 func BenchmarkThreeNodeChannelAppend500QPS(b *testing.B) {
 	cluster := newChannelAppendBenchmarkCluster(b, threeNodeBenchmarkChannels)
 	benchmarkThreeNodeChannelAppendClusterAtRate(b, cluster, "append", threeNodeHostedBenchmarkRate)
+}
+
+// BenchmarkThreeNodeChannelAppendHotChannel100QPS isolates one exact Channel
+// so reactor batching delays and per-Channel serialization remain visible.
+func BenchmarkThreeNodeChannelAppendHotChannel100QPS(b *testing.B) {
+	cluster := newChannelAppendBenchmarkCluster(b, 1)
+	benchmarkThreeNodeChannelAppendClusterAtRate(b, cluster, "append-hot", threeNodeHotChannelRate)
 }
 
 // BenchmarkThreeNodeChannelAppendPayloadMixWithGatewayDeliveryPressure1000QPS

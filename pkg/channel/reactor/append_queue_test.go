@@ -24,11 +24,27 @@ func TestAppendRecordsFromMessagesPreservesConversationFields(t *testing.T) {
 	records := appendRecordsFromMessages([]ch.Message{
 		{MessageID: 10, FromUID: "u1", ClientMsgNo: "client-1", Payload: []byte("payload"), ServerTimestampMS: 5678},
 		{MessageID: 11, FromUID: "u2", ClientMsgNo: "client-2", Payload: []byte("fallback")},
-	}, admittedAt)
+	}, admittedAt, false)
 
 	require.Len(t, records, 2)
 	require.Equal(t, ch.Record{ID: 10, FromUID: "u1", ClientMsgNo: "client-1", Payload: []byte("payload"), SizeBytes: len("payload"), ServerTimestampMS: 5678}, records[0])
 	require.Equal(t, ch.Record{ID: 11, FromUID: "u2", ClientMsgNo: "client-2", Payload: []byte("fallback"), SizeBytes: len("fallback"), ServerTimestampMS: 1234}, records[1])
+}
+
+func TestAppendRecordsFromMessagesSharesDeclaredImmutablePayload(t *testing.T) {
+	payload := []byte("immutable")
+	records := appendRecordsFromMessages([]ch.Message{{MessageID: 10, Payload: payload}}, time.UnixMilli(1234), true)
+
+	require.Len(t, records, 1)
+	require.Same(t, &payload[0], &records[0].Payload[0])
+}
+
+func TestAppendRecordsFromMessagesOwnsBorrowedPayload(t *testing.T) {
+	payload := []byte("borrowed")
+	records := appendRecordsFromMessages([]ch.Message{{MessageID: 10, Payload: payload}}, time.UnixMilli(1234), false)
+	payload[0] = 'B'
+
+	require.Equal(t, "borrowed", string(records[0].Payload))
 }
 
 func TestAppendQueueFlushesByMaxWait(t *testing.T) {

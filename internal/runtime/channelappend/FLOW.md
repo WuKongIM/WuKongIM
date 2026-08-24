@@ -37,8 +37,10 @@ sends terminate successfully before routing.
    orders items, performs fenced append, applies completions in sequence, and
    recovers only payload-hash-proven committed retries.
 3. Fresh commits retain bounded delivery-handoff ownership until a terminal
-   enqueue result, while Stop closes admission and drains all futures, append,
-   realtime, reservation, handoff, and retry ownership before pool release.
+   enqueue result. Subscriber pages reuse only page-local authority-planning
+   scratch; each enqueued delivery plan owns its grouped recipient storage.
+   Stop closes admission and drains all futures, append, realtime, reservation,
+   handoff, and retry ownership before pool release.
 
 ## Invariants and Failure Semantics
 

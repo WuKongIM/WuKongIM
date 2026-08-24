@@ -33,6 +33,8 @@ and bounded operations observations.
 1. Data-plane adapters map append, metadata, and membership DTOs to their
    resolved Channel or physical-Slot authority, preserve payload ownership and
    aligned results, then translate typed failures back to the calling runtime.
+   Channel append clones payload bytes once and explicitly transfers that
+   immutable ownership to the Channel runtime.
    First person SENDs prepare coalesced UID membership/runtime metadata and
    publish directory-ready only after every prepare proposal joins.
 2. Presence and recipient adapters resolve exact fenced targets, group work by

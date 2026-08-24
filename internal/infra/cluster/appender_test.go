@@ -379,6 +379,9 @@ func TestChannelAppenderClonesPayloadsBothDirections(t *testing.T) {
 	if got := string(node.last.Messages[0].Payload); got != "source" {
 		t.Fatalf("sent payload = %q, want cloned source", got)
 	}
+	if !node.last.PayloadsImmutable {
+		t.Fatal("sent payload ownership = borrowed, want adapter-owned immutable payloads")
+	}
 	if got := string(res.Items[0].Message.Payload); got != "accepted" {
 		t.Fatalf("result payload = %q, want cloned accepted", got)
 	}

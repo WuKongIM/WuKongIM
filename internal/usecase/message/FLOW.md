@@ -29,10 +29,11 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 ## Main Flows
 
-1. `SendBatch` coalesces equivalent raw permission reads, evaluates legacy
-   policy per item, establishes each accepted person directory once, runs hooks
-   in original order, and copies one aligned `channelappend` submission back to
-   original indexes.
+1. `SendBatchEach` uses an allocation-tight single-item path at cardinality one;
+   larger batches coalesce equivalent raw permission reads. Both evaluate the
+   same legacy policy, establish each accepted person directory once, run hooks
+   in original order, and copy aligned `channelappend` results to original
+   indexes.
 2. Single and batch sync validate membership and visibility, canonicalize
    Channel IDs, perform routed committed reads, clone payloads, and optionally
    batch-enrich stream messages with bounded event metadata.

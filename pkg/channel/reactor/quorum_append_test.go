@@ -42,7 +42,6 @@ func TestQuorumLeaderActivationAndAppendBypassPullAckHotPath(t *testing.T) {
 	firstEvent.Append.ServerAllocatedMessageIDs = true
 	first, err := g.Submit(context.Background(), meta.Key, firstEvent)
 	require.NoError(t, err)
-	requireFuturePending(t, first)
 	secondEvent := appendEvent(meta, 12, "b")
 	secondEvent.Append.CommitMode = ch.CommitModeQuorum
 	secondEvent.Append.ServerAllocatedMessageIDs = true
@@ -66,6 +65,32 @@ func TestQuorumLeaderActivationAndAppendBypassPullAckHotPath(t *testing.T) {
 	require.True(t, proposals[0].ServerAllocatedMessageIDs)
 	require.True(t, proposals[1].ServerAllocatedMessageIDs)
 	require.Zero(t, observer.PullHintsSent(), "quorum receipt must not use PullHint/AckOffset to complete SENDACK")
+}
+
+func TestQuorumLeaderFlushesOneProposalWithoutReactorBatchWait(t *testing.T) {
+	log := &reactorCaptureQuorumLog{}
+	g, err := NewGroup(Config{
+		LocalNode: 1, ReactorCount: 1, MailboxSize: 32, Store: store.NewMemoryFactory(),
+		QuorumLog: log, AppendBatchMaxRecords: 128, AppendBatchMaxWait: time.Hour,
+	})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("quorum-immediate", 1, 1)
+	meta.RouteGeneration = 7
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	event := appendEvent(meta, 11, "a")
+	event.Append.CommitMode = ch.CommitModeQuorum
+	future, err := g.Submit(context.Background(), meta.Key, event)
+	require.NoError(t, err)
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(1), result.AppendBatch.Items[0].MessageSeq)
+	require.Len(t, log.proposals(), 1)
 }
 
 func TestQuorumFollowerDoesNotScheduleLegacyPullAckReplication(t *testing.T) {

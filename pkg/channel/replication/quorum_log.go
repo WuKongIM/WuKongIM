@@ -267,7 +267,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 
 	durable, err := sealBusinessProposal(
-		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.ServerAllocatedMessageIDs,
+		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs,
 	)
 	if err != nil {
 		return Receipt{}, err
@@ -413,12 +413,13 @@ func sealBusinessProposal(
 	hw uint64,
 	command ch.CommandID,
 	records []ch.Record,
+	payloadsImmutable bool,
 	serverAllocatedMessageIDs bool,
 ) (durableProposal, error) {
 	if frontier.LEO == ^uint64(0) || uint64(len(records)) > ^uint64(0)-frontier.LEO {
 		return durableProposal{}, ch.ErrInvalidConfig
 	}
-	frozen := cloneRecords(records)
+	frozen := immutableProposalRecords(records, payloadsImmutable)
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
 		Version:      ch.ProposalManifestVersion,
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
@@ -432,8 +433,16 @@ func sealBusinessProposal(
 		first: frontier.LEO + 1, last: manifest.LastOffset,
 		channelKey: authority.Key, channelID: authority.ChannelID, leader: authority.Leader,
 		manifest: manifest, records: frozen, committed: hw,
+		payloadsImmutable:         true,
 		serverAllocatedMessageIDs: serverAllocatedMessageIDs,
 	}, nil
+}
+
+func immutableProposalRecords(records []ch.Record, payloadsImmutable bool) []ch.Record {
+	if !payloadsImmutable {
+		return cloneRecords(records)
+	}
+	return append([]ch.Record(nil), records...)
 }
 
 func validProposalRecords(records []ch.Record, maxBytes int) bool {

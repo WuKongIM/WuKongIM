@@ -33,6 +33,9 @@ type Proposal struct {
 	Expected  AuthorityID
 	CommandID ch.CommandID
 	Records   []ch.Record
+	// PayloadsImmutable promises that Records payload buffers have an owner that
+	// will never mutate them. The durable log still owns the record metadata.
+	PayloadsImmutable bool
 	// ServerAllocatedMessageIDs proves every record ID came from the node-scoped allocator.
 	ServerAllocatedMessageIDs bool
 }

@@ -22,14 +22,19 @@ type durableProposal struct {
 	manifest                  ch.ProposalManifest
 	records                   []ch.Record
 	committed                 uint64
+	payloadsImmutable         bool
 	serverAllocatedMessageIDs bool
 }
 
 func (p durableProposal) freeze() durableProposal {
+	if p.payloadsImmutable {
+		return p
+	}
 	p.records = append([]ch.Record(nil), p.records...)
 	for index := range p.records {
 		p.records[index].Payload = append([]byte(nil), p.records[index].Payload...)
 	}
+	p.payloadsImmutable = true
 	return p
 }
 
