@@ -1,5 +1,7 @@
 // Package fake implements a deterministic Cloud Provider Adapter for local
-// lifecycle, cleanup, and failure-state verification.
+// lifecycle, cleanup, and failure-state tests. Its tagged inventory retains
+// access windows, partial cleanup state, and released tombstones without cloud
+// SDK calls; it is not real-provider evidence.
 package fake
 
 import (

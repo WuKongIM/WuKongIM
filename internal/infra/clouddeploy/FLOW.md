@@ -1,16 +1,44 @@
-# Cloud Deployment Filesystem Adapter Flow
+---
+scope: package
+summary: Provides a root-anchored filesystem adapter for cloud deployment files, inventory, and digests.
+---
 
-`internal/infra/clouddeploy` implements the `internal/usecase/clouddeploy`
-directory port for an existing local bundle root. It owns root-anchored
-`openat`/`O_NOFOLLOW` access, atomic exact-mode writes, bounded reads, regular
-file inventory, and SHA-256 calculation. It contains no topology, workload,
-service-template, or cloud-procurement policy.
+# Cloud Deployment Infrastructure Flow
 
-`internal/infra/clouddeploy/fake` is the deterministic provider-free adapter
-for the activation use-case Fleet port. It records bundle staging, load-node
-relay, host preparation, activation, and readiness calls so success and stable
-failure gates can be tested without SSH, systemd, or paid infrastructure. It
-has no Cloud Lease provider or lifecycle capability. Integration-tagged tests
-drive the complete controller through this adapter, while the Deployment shell
-adapter has a fake-SSH integration harness covering transfer, verification,
-preparation, activation, and typed last-gate failures.
+## Responsibility
+
+This package provides the production filesystem adapter used by cloud
+deployment orchestration to read, write, inventory, and digest files beneath
+one configured root.
+It does not build deployment plans, call cloud providers, or manage services.
+
+## Boundaries
+
+- It owns filesystem mechanics only, not deployment planning, cloud-provider
+  behavior, or service lifecycle policy.
+- Paths are root-relative and no-follow; callers cannot escape the configured
+  deployment tree or traverse symlinks.
+- Reads are bounded and writes are atomic with explicit file modes.
+
+## Main Flows
+
+1. Resolve a caller path beneath the configured root and reject traversal or
+   symlink ambiguity.
+2. Read or atomically replace the bounded file using the requested safe mode.
+3. Walk the anchored tree to produce deterministic inventory and digest data.
+
+## Invariants and Failure Semantics
+
+- No operation follows symlinks or accepts an absolute path outside the root.
+- Partial writes must not replace a previously valid file.
+- Inventory and digest output is deterministic for the same filesystem state.
+- Invalid paths, unsafe file types, and oversized reads fail closed.
+
+## Read First
+
+- [Directory adapter](directory.go)
+
+## Update Triggers
+
+Update this file when path resolution, file-type policy, size bounds, atomic
+write behavior, inventory, or digest semantics change.

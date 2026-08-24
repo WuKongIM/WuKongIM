@@ -1,567 +1,86 @@
-# pkg/channel Flow
+---
+scope: subtree
+summary: Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers.
+---
 
-## Directory Tree
+# Channel Runtime Flow
 
-```text
-pkg/channel/        - Multi-reactor channel log runtime; root DTOs, errors, Cluster facade, Config, tests, and benchmarks.
-|-- machine/          - Pure per-channel state transitions for metadata, append, progress, and invariants; no blocking I/O.
-|-- reactor/          - Channel-key ownership, priority mailboxes, append queues, scheduler, lifecycle, metrics, and worker-result application.
-|-- replication/      - Durable-quorum commit core plus temporary pull/ack planning helpers retained during hot-path migration.
-|-- service/          - Synchronous facade that routes append and replication transport requests to reactors and waits on futures.
-|-- store/            - Narrow persistence contract, memory store, and `pkg/db/message` compatibility adapter boundary.
-|-- testkit/          - In-memory multi-node cluster harness for channel tests.
-|-- transport/        - V0 local/RPC transport DTOs for pull, ack, notify compatibility, and PullHint.
-`-- worker/           - Typed bounded worker admission queues plus ants-backed execution for store append/read/apply, RPC pull/ack/PullHint, checkpoint, and result delivery.
-```
+## Responsibility
 
-`store/channel_adapter.go` is the only channel file that may import the
-`pkg/db/message/channelcompat` DTOs required by the message engine; other
-channel packages should depend on channel interfaces. `pkg/quorumlog` is the
-storage-neutral leaf contract shared by this runtime and MessageDB for proposal
-and per-entry durable identities; it does not depend on either package.
+`pkg/channel` is the reusable replicated Channel log runtime. It owns Channel
+metadata fences, per-Channel ordering, leader append, durable-quorum commits, follower pull replication,
+committed progress, retention adoption, runtime lifecycle, and synchronous
+facades over reactor futures.
 
-Diagram labels use `event or guard / effect` so agents can distinguish triggers from side effects.
+The subtree is split by role: `machine` holds pure transitions, `reactor` owns
+Channel state and scheduling, `replication` holds protocol decisions, `service`
+is the public synchronous facade, `store` defines persistence, `transport`
+defines RPC DTOs, and `worker` bounds blocking I/O.
+It does not own product permission, authority selection, fanout, or SENDACK policy.
 
-## Append Sequence
+## Boundaries
 
-```mermaid
-sequenceDiagram
-    participant Caller
-    participant Service as service facade
-    participant Reactor as owning reactor
-    participant Workers as typed worker pools
-    participant Follower as follower reactor
+- Product permission, authority selection, subscriber fanout, and SENDACK
+  orchestration stay above this package.
+- `store/channel_adapter.go` is the only Channel file allowed to import message
+  DB compatibility DTOs; other packages use Channel contracts.
+  Storage-neutral proposal and entry identities live in the leaf `pkg/quorumlog`
+  contract rather than depending on Channel or MessageDB implementations.
+- Reactor goroutines decide state transitions but never perform blocking store
+  or transport I/O. Typed workers execute that work and return fenced results.
+- Recent-record caches, PullHint, batching, and benchmark controls are
+  performance or observation mechanisms, never sources of durable truth.
 
-    Caller->>Service: Append / AppendBatch
-    Service->>Reactor: ReserveAppend(key) and HasChannelState(key)
-    Note over Service,Reactor: runtime_append_reserve_wait observes reservation delay
-    alt channel runtime not loaded
-        Service-->>Caller: ErrChannelNotFound
-    end
-    Service->>Reactor: submit append event
-    Note over Service,Reactor: runtime_append_submit observes mailbox admission
-    Reactor->>Reactor: validate leader, write fence, epoch, append admission guard, capacity
-    alt not leader, write fenced, stale meta, admission rejected, or queue full
-        Reactor-->>Service: complete future with typed error
-        Service-->>Caller: error
-    else accepted
-        Reactor->>Reactor: enqueue per-channel append queue
-        Reactor->>Reactor: flush by max records, bytes, or wait
-        alt durable quorum log configured
-            Reactor->>Workers: TaskQuorumCommit(one caller proposal, fence)
-            Workers->>Follower: local sync || data-bearing follower sync
-            Workers-->>Reactor: exact quorum receipt
-            Reactor->>Reactor: atomically publish LEO/HW and complete covered waiter
-        else transitional store path
-            Reactor->>Workers: TaskStoreAppend(batch, fence)
-            Workers-->>Reactor: append result
-            Reactor->>Reactor: apply fenced result and update local progress
-        end
+## Main Flows
 
-        alt transitional CommitModeLocal
-            Reactor-->>Service: complete future after local durable append
-            Note over Reactor,Workers: store_append_wait observes flush-to-store result
-            Note over Reactor: post_store_commit_wait is near-zero after local durable append
-            Note over Service,Reactor: runtime_append_wait observes total future wait
-            Service-->>Caller: AppendResult / AppendBatchResult
-        else CommitModeQuorum
-            Reactor->>Workers: TaskRPCPullHint(lagging followers)
-            Workers-->>Follower: PullHint
-            loop until leader HW covers appended records
-                Follower->>Workers: TaskRPCPull(leader, local LEO + 1, AckOffset = local LEO)
-                Workers->>Reactor: EventPull
-                Reactor->>Reactor: apply AckOffset and advance HW
-                alt requested offsets covered by leader recent-record cache
-                    Reactor-->>Follower: PullResponse(records, leader HW, leader LEO)
-                else cache miss or older prefix needed
-                    Reactor->>Workers: TaskStoreReadLog
-                    Workers-->>Reactor: store prefix records
-                    Reactor-->>Follower: PullResponse(store prefix + optional cache suffix, leader HW, leader LEO)
-                end
-                Follower->>Workers: TaskStoreApply(records)
-                Workers-->>Follower: apply result
-                Follower->>Follower: schedule immediate next Pull carrying new AckOffset
-                opt later empty Pull advances committed HW
-                    Follower->>Follower: coalesce final HW for bounded interval
-                    Follower->>Workers: TaskStoreCheckpoint(latest committed HW) on isolated pool
-                end
-            end
-            Reactor-->>Service: complete quorum future
-            Note over Reactor: post_store_commit_wait observes store-result-to-HW coverage
-            Note over Reactor: quorum_* wait stages split follower pull, AckOffset, HW advance, and final completion
-            Note over Service,Reactor: runtime_append_wait observes total quorum future wait
-            Service-->>Caller: AppendResult / AppendBatchResult
-        end
-    end
-```
+1. The service reserves a Channel key and submits an append; the reactor fences
+   role, epochs, write admission, and capacity, while store workers durably
+   append in order and local or quorum progress completes aligned futures.
+   With `DurableQuorumLog`, leader activation first installs a recovered
+   authority frontier and current-term barrier, then each caller append is one
+   immutable exact quorum proposal rather than a transient worker batch.
+2. Followers pull continuous records, apply and return ACK progress, and use a
+   bounded checkpoint path; idle leaders and caught-up followers coordinate
+   checkpointed stop before either runtime can be evicted.
+3. Committed reads expose only HW-covered records above the logical retention
+   floor; optional physical trim runs later when all local and replica safety
+   watermarks cover that boundary.
 
-Append flush waits are bounded by `AppendBatchMaxWait` by default. When
-`AppendBatchAdaptiveFlush` is enabled, the first request in a cold per-channel
-append queue uses `AppendBatchColdMaxWait` if it is shorter, while record and
-byte thresholds still trigger immediate flushes. Store-append workers may then
-coalesce flushed tasks across channels before entering the store adapter;
-`StoreAppendBatchMaxWait` can shorten that worker-side wait for low-latency
-profiles while zero keeps the default batching window.
+## Invariants and Failure Semantics
 
-Runtime snapshots include a per-reactor count of channels with accepted append
-work still outstanding. This count is a bounded local quiescence proof used by
-the cluster source-fence barrier; it does not expose Channel identities.
+- Channel epoch, leader epoch, leader ID, write fence, generation, and worker op
+  identity fence every relevant transition and completion.
+- Durable quorum success requires local durability plus a distinct-voter quorum.
+  Exact manifests and closed durable/already-durable/absent/conflict/unknown
+  outcomes make ambiguous commits safely retryable after cancellation or
+  restart; caller cancellation cannot revoke admitted durability.
+- The node-owned replication runtime bounds local mutation batches, per-target
+  exchange, recovery probes, and follower repair without per-Channel goroutines.
+  Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
+  and makes writes ready only after the deterministic current-term barrier.
+- LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
+  only positive sequences covered by local HW and the logical retention floor.
+- Same-Channel append ordering survives batching and worker concurrency.
+  Quorum success requires replicated progress; desired replicas never imply it.
+- Unloaded state is absence from the reactor map. Cold PullHint activation must
+  resolve authoritative metadata and prove local replica membership before
+  opening storage.
+- Mailboxes, Channel count, append queues, worker queues, batching windows,
+  recovery probes, maintenance turns, and result payloads are bounded.
+- Write fencing rejects new append admission without discarding already
+  accepted work. Lifecycle eviction requires no pending work and current
+  fenced checkpoint/replica evidence.
 
-Leader reactors keep a configurable recent-record suffix cache for durable
-append records, defaulting to 128 records. Follower `Pull` requests that are
-covered by this suffix can complete from memory; older requests still use
-`TaskStoreReadLog`, and the leader may append a cache-covered suffix to the
-store prefix when doing so does not create gaps. As ACK progress advances, the
-leader releases the prefix acknowledged by every configured follower; a later
-request for a released offset safely falls back to the durable store. The cache
-is also cleared by metadata fences or role changes and is only a performance
-optimization.
+## Read First
 
-Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a follower durably applies records, it schedules the next `Pull` immediately and carries the latest local LEO as the ACK offset. The standalone `Ack` RPC remains only for stopped-follower lifecycle confirmation, not for the hot replication path.
+- [Public contracts](channel.go)
+- [Core types](types.go)
+- [Service facade](service/service.go)
+- [Pure Channel state](machine/channel.go)
+- [Reactor ownership](reactor/FLOW.md)
 
-Follower-side replication uses the message DB adapter's trusted contiguous apply
-path after the reactor has validated pull fencing and continuous follower
-offsets, avoiding redundant existing-index reads in the hot replication path.
-Each record-bearing apply returns the checkpoint HW persisted atomically with
-its rows. A committed HW learned only from a later empty pull is coalesced for
-at most five seconds by default. Its first deadline is deterministically spread
-by channel key over the upper half of that interval, so pause recovery does not
-release every idle-channel checkpoint simultaneously. A subsequent record
-apply can persist it for free, while an idle channel still receives one final
-standalone checkpoint within the bounded window.
-After a pause makes many deadlines overdue, committed-HW checkpoint submission
-uses the isolated pool's half-capacity high-water mark and spreads excess work
-over a fresh bounded window. This prevents maintenance recovery from crowding
-out foreground replication or spinning on a full checkpoint queue.
-The reactor also processes at most 128 ready maintenance deadlines between
-mailbox turns. Unprocessed deadlines remain coalesced in the scheduler, so a
-high-cardinality recovery wave cannot monopolize the reactor goroutine.
-Pending record apply and dirty follower Pull work run before an idle committed-HW
-checkpoint, allowing foreground traffic to cover that HW atomically whenever
-possible.
-Follower-side replication stage metrics split PullHint wakeup, pull RPC wait,
-store apply wait, and apply-to-`AckOffset` return wait. These complement the
-leader-side quorum append wait stages: leader stages show when an append becomes
-quorum-covered, while follower stages show which follower step delayed that
-coverage.
+## Update Triggers
 
-The RPC worker dispatcher may coalesce queued `TaskRPCPull` or
-`TaskRPCPullHint` items that target the same remote node into one transport
-batch before executing the group on the ants-backed worker executor.
-The shared RPC queue uses reactor-side priority watermarks: a new append's first
-PullHint wakeup and critical follower Pull work yield at 50% occupancy, while
-retry-only resume PullHint work yields at 25%.
-Both thresholds allow at least four queued tasks first, preserving one normal
-multi-replica fanout when a test or deployment uses a very small queue.
-Deferred channels keep their pending state and are deterministically spread
-over the upper half of their configured retry windows, both one second by
-default. This prevents
-a pause-recovery hint wave from consuming Pull headroom; bounded pool admission
-and retry backoff still cover concurrent overshoot. Typed `result="paced"`
-counters distinguish proactive pacing from actual `result="full"` rejection.
-Follower Pull admission also yields when the local store-apply queue reaches
-50%, leaving half the queue for responses already in flight. These followers
-retain dirty state and retry over the upper half of the configured maximum
-backoff (50-100 ms by default); already
-fetched `pendingPull` data keeps precedence. Store-apply-pool
-`kind="rpc_pull",result="paced"` counts distinguish this persistence
-backpressure from the RPC-queue watermarks.
-
-Store worker dispatchers may coalesce queued `TaskStoreAppend`,
-`TaskStoreApply`, or `TaskStoreCheckpoint` items when the store factory
-implements the corresponding optional batch surface; ants only runs the
-prepared blocking group. Reactor and machine batching preserve the
-all-records `ServerAllocatedMessageIDs` proof only when every contributing
-append waiter carries it; mixed batches fail closed to strict message-ID
-validation. Checkpoint work uses its own bounded low-concurrency
-pool, and the message DB adapter persists a cross-channel checkpoint group with
-one checkpoint-lock-only commit. This prevents idle-channel checkpoint fsyncs
-from consuming every foreground follower-apply worker or taking foreground
-append locks during high-cardinality traffic.
-
-When `DurableQuorumLog` is installed, one caller append is one immutable
-proposal and therefore one retry-stable command identity; the reactor does not
-reuse its transient multi-caller batch boundary as durable identity. Physical
-cross-Channel collection remains below that seam in the local store and peer
-batch owners. `TaskQuorumInstall` keeps leader `CommitReady` false until
-recovery and the current-authority barrier return, and `TaskQuorumCommit`
-returns an exact range whose receipt advances LEO and HW without hot-path
-PullHint/Pull/AckOffset work.
-
-Leader-side PullHint result counters split submissions, successful RPC returns,
-and low-cardinality error classes. In 10k-channel runs, compare these counters
-with follower replication stage counts to distinguish slow accepted PullHints
-from missing or failed wakeups that fall back to recovery probes.
-Follower-side PullHint receive counters stay at the service adapter boundary:
-`submit` covers reactor mailbox admission and `await` covers the reactor future.
-An unloaded follower treats the hint only as a wakeup and runs authoritative
-metadata resolution plus store loading through the separate bounded
-`channelv2-cold-activation` worker pool. Existing PendingMeta and NeedMeta
-metrics remain for transport compatibility paths; production cold activation is
-attributed through the `cold_meta_resolve` and `cold_store_load` worker kinds.
-The PullHint future acknowledges bounded cold-task admission rather than waiting
-for store activation, so best-effort leader wakeups never inherit cold storage
-latency. Asynchronous authority, dependency, cancellation, and deadline failures
-increment activation-rejected metrics with bounded `cold_*` reason labels.
-
-Append callers may set `OmitResultPayload` when they only need assigned message
-ids and sequences; the leader then avoids cloning payload bytes into successful
-append replies.
-Authoritative metadata may also carry a durable channel write fence. A fenced
-leader rejects new append admission with `ErrWriteFenced`; already accepted
-in-flight append bookkeeping is not cleared by the fence-only metadata update
-so migration executors can drain it explicitly before changing leadership or
-membership.
-`Meta.RouteGeneration` projects the durable complete-metadata version for
-append-authority cache ordering and conditional invalidation. It is not a
-Channel state-machine fence: reactor and machine decisions continue to use the
-channel epoch, leader epoch, leader, retention boundary, and write fence fields.
-The hosted runtime may also provide an `AppendAdmissionGuard`. Channel runtime calls
-it only after local leader, write-fence, and epoch checks and before enqueueing
-new leader appends. The guard is an external readiness fence: it must not mutate
-channel state, and rejection completes the caller's append future without
-disturbing already accepted in-flight batches.
-
-Runtime probes are read-only control events owned by the channel's reactor. In
-addition to loaded leader/follower/missing counts, `RuntimeProbe` returns a
-bounded per-loaded-channel proof record: channel epoch, leader epoch, role,
-status, LEO, HW, checkpoint HW, current write fence, in-flight append boolean,
-and pending append count. It never copies pending append entries or payloads.
-Cluster conversation hydration uses one probe for the locally assigned part of
-each Leader batch so a hot quorum channel exposes current HW without converting
-the intentionally coalesced durable checkpoint into a per-message write.
-`DrainChannel` is a migration-only service boundary. It polls the owning reactor
-until the requested local leader is still fenced by the expected fence version,
-has no accepted in-flight or pending append work, and local HW covers local LEO;
-leader epoch or fence-version changes return `ErrStaleMeta`.
-Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
-trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
-transient diagnostics data for sendtrace and RPC forwarding only. The reactor
-still converts messages to durable records using message id, payload, display
-fields, the legacy setting bitset, and the `SyncOnce` command-sync marker, so
-trace metadata is not part of channel log storage, idempotency, or DB
-semantics.
-
-Leader-side deep sendtrace detail is gated by the active diagnostics detail
-sampler. The reactor builds bounded transient sidecars only for selected traced
-items, records leader queue/local durable/quorum wait stages from existing
-append timing points, and drops the sidecar before durable channel records or
-DB-compatible messages are written.
-
-The cluster-facing append stage metric keeps `runtime_append` as the aggregate
-facade call and also records service sub-stages: `runtime_append_reserve_wait`
-for per-channel append admission, `runtime_append_submit` for reactor mailbox
-submission, and `runtime_append_wait` for the future wait after admission.
-Inside that admitted future, `store_append_wait` covers append flush submission
-through durable store completion, while `post_store_commit_wait` covers durable
-store completion through local/quorum waiter completion. Quorum post-store
-sub-stages further separate follower pull service, leader-side `AckOffset`
-observation, HW advancement, and final future completion.
-Leader-side grouped pull service calls also emit one optional low-cardinality
-`PullBatchObservation` after every submit is decided and every admitted Await
-has returned a result or caller-context error. It separates reactor
-submission time from the sequential result-collection interval and records the
-longest individual `Await` call in collection order plus total items, records,
-and logical pull-budget bytes. Because futures may already be ready when their
-turn is collected, `MaxSequentialAwaitDuration` is not a true per-future
-end-to-end latency. The observation contains no channel, follower, or request
-identity and adds timing/counting work only when the service observer implements
-the optional PullBatch hook.
-
-The approved durable-quorum replacement reserves an immutable exact proposal
-before I/O and submits local storage plus owned follower persistence in one
-round through bounded dispatchers. A successful round always includes local
-durability and the configured distinct-voter quorum; follower-only durability
-cannot complete an append. This internal round is the first migration slice.
-It does not yet change the production reactor path. Channel stores now require
-a versioned epoch/term/fence/command/range/hash manifest for every exact-base
-write and expose no caller-selectable sync mode: every leader append is one
-synchronous durable mutation. Each result carries exactly one closed outcome:
-`Durable`, `AlreadyDurable`, `DefinitelyNotWritten`, `Conflict`, or
-`OutcomeUnknown`. Rejection before commit is definitely absent; any error after
-physical commit admission stays unknown until an exact retry resolves the
-immutable manifest. MessageDB persists both manifest indexes plus every entry's authority,
-predecessor, command, and content-derived digest in the same synchronous
-physical commit as the rows, so exact replay remains safe after retention and
-reopen; suffix truncation removes whole identities and cannot split one
-proposal. The production `ReplicaStore` adapter now exposes bounded positional
-`Load`, `Sync`, command lookup, and recovery-only `Replace`: `Load` takes one
-append/checkpoint-consistent view and
-returns LEO, committed HW, the tail manifest, and the tail entry identity;
-non-empty state without that exact identity, or with HW above LEO, fails
-closed. `Sync` reuses the MessageDB batch surface for both adjacent proposals
-of one Channel and different Channels, retains positional per-proposal
-outcomes, and reports the follower's exact `NeedFrom` offset for a gap. A
-follower's monotonic committed HW is persisted atomically with its exact
-proposal rather than through a second checkpoint commit. The leader-side
-bounded quorum probe owner, suffix repair owner, and deterministic current-term
-barrier now compose behind the concrete `DurableQuorumLog`. `Install` proves
-and repairs the greatest quorum-identical prefix, recognizes an already-proven
-current-authority prefix after restart, and otherwise makes the Channel ready
-only after a new current-term barrier is durable locally and on the configured
-quorum. `Commit` serializes one Channel, fixes its exact range before I/O,
-starts local and follower durability in one round, advances its logical HW only
-after local-plus-quorum proof, and retains an ambiguous immutable proposal for
-same-range retry. A bounded recent-command cache avoids repeated reads, while
-the local durable command index remains authoritative after cache eviction or
-process restart: exact content returns the original receipt and changed
-content is a conflict. The reactor installs exact authority through this owner
-before marking a leader ready and routes every leader proposal through its
-quorum receipt; the transitional PullHint follower path remains only until the
-node-level peer exchange runtime replaces it. The
-data-bearing exchange foundation now lives in `replication`: one
-versioned `ReplicateRequest` carries the exact manifest and owned record payload
-to a follower, whose `ExchangeServer` acknowledges only a closed durable result
-from `ReplicaStore.Sync`. A durable response echoes the exact Channel,
-leader/follower authority, command, range, and digest manifest; a mismatched
-proof cannot vote. The leader durability round freezes one immutable record
-payload copy shared by local storage and every follower submission. The peer
-batcher only borrows that frozen proposal, bounds queued items and bytes both
-globally and independently per target, reserves at least one complete batch of
-global headroom for another follower, and drains work already ready for the
-same target into bounded batches without a second collection timer. A follower
-gap remains typed `{follower, need_from}` repair evidence and is not collapsed
-into a content conflict. The peer completion transfers that exact gap to a
-lifecycle-owned, membership-bounded coalescing repair sink before notifying the
-round, so a slow follower's trailing `NeedFrom` cannot be lost after a faster
-quorum returns. Accepted peer work runs under an owner lifecycle context plus a bounded exchange
-deadline, not the submitting caller context; caller cancellation stops waiting
-but cannot revoke admitted durability. Response correlation is by request ID;
-malformed, duplicate, missing, panicking, timed-out, or transport-lost
-responses remain typed outcome-unknown so exact retry can resolve them. This
-peer/store seam is composed by `replication.Runtime`. One runtime per node owns
-three process-managed bounded executors: local synchronous mutation batches,
-per-target peer exchanges, and 64-shard follower repair mailboxes. It exposes
-only the durable log and one bounded exchange server. Zero numeric settings use
-fixed production bounds; no Channel owns a goroutine or timer. Accepted local
-and peer items transfer to the runtime lifecycle context, shutdown permanently
-closes admission, and the goroutine registry attributes every pool to the fixed
-`channel/quorum_owner` task without Channel or node labels. A `NeedFrom` repair
-waits boundedly for the concurrently submitted local proposal to become
-durable, reads complete proposal-aligned pages from the leader store, and sends
-them to that exact follower through the same per-target peer owner. Repair is
-bounded by the same page byte limit and never retains record payload in the
-mailbox. Recovery now
-has a read-only `Probe` exchange item. One bounded store load returns the exact
-frontier and at most 256 requested entry identities from the same
-append/checkpoint-consistent view; results remain request-position aligned and
-mixed read/write work for the same Channel is rejected before storage access.
-The recovery selector accepts only an intersecting current-voter quorum,
-ignores a minority-only higher tail, and treats identity disagreement among
-the quorum that certifies a committed cut as corruption. Any selected suffix
-above that cut must include a complete probed page whose quorum identities form
-one predecessor hash chain from the certified identity; a missing page remains
-incomplete and a detached chain is corruption. The leader-side probe owner
-reads one frontier round and then streams immutable identity pages of at most
-256 entries until it proves the recoverable prefix or its caller deadline
-expires. It retains only one page, so page memory and in-flight work remain
-bounded without imposing a permanent maximum recoverable log distance. Voter
-fanout is rejected above a fixed defensive topology bound before allocation,
-and only voters whose exact frontier remains unchanged across every consumed
-page participate in the proof; removed voters are not queried on later pages.
-If one bounded attempt ends, a frontier-bound continuation retains only the
-proven prefix identity, next index, and the exact voter states that supported
-that boundary so any still-available supporter quorum resumes without
-rescanning prior pages. A later page that loses quorum returns the preceding
-continuation rather than discarding prior proof. Local reads use a bounded
-executor plus an owner-owned timeout; remote reads share the peer owner's global
-and per-target ownership limits. A single-node cluster uses the same proof path
-without requiring a peer owner. Every remote probe result echoes the exact Channel,
-leader, follower, and requested indexes; the peer owner rejects a cross-request
-response before it can count as recovery evidence. Probe and replication items
-for one target may share the owner but are emitted in separate batches, so a
-Channel never mixes recovery reads with writes in one follower storage call.
-`Replace` is fenced by the exact inspected local frontier and atomically removes
-only complete proposals after a proposal-boundary `KeepThrough`, installs the
-verified replacement rows, secondary indexes, proposal/entry identities, and
-monotonic committed HW, and truncates future epoch history in one synchronous
-MessageDB batch. It rejects a stale frontier, a cut below committed or adopted
-retention state, a split proposal, and any unbounded item before storage access;
-physical prefix retention does not erase the immutable identity chain. Recovery
-`Fetch` binds every local or remote donor read to one supporter frontier from
-the completed quorum proof. Its fixed 256-entry upper bound and byte budget are
-caps rather than forced split points: a response returns the largest non-empty
-complete-proposal prefix and may stop early. The leader repair owner therefore
-streams an arbitrarily distant selected suffix through bounded atomic
-`Replace` pages. The first page truncates the minority suffix at the inspected
-local committed proposal boundary; later pages extend only the exact installed
-frontier. Each page validates the hash chain, the quorum-certified committed
-identity when crossed, and the final selected tail before it promotes that
-quorum-proven prefix locally. A crash between pages leaves a non-writable,
-complete exact prefix that the next Install can prove and resume. The
-current-term barrier foundation derives a deterministic business-neutral
-`SyncOnce` proposal from the exact authority and requires local plus matching
-current-voter quorum durability. The public two-method `DurableQuorumLog`
-contract, concrete owner, reactor readiness/commit wiring, and standalone
-three-node runtime composition are present; node RPC wiring and removal of the
-transitional PullHint path remain. The design is
-recorded in
-`docs/superpowers/specs/2026-08-15-channel-durable-quorum-log-design.md`.
-When the reactor observer also implements the optional leader Pull hook,
-`Group.Submit` reuses the event's tick timestamp slot to capture admission time
-without enlarging the mailbox envelope. The reactor then reports bounded
-`mailbox_wait`, synchronous `handler`, and AckOffset `ack_apply` stages plus the
-number of append caller futures actually completed by that AckOffset. Mailbox
-wait includes earlier high-priority events, cancellation sweeps, due work, and
-prior observer callbacks; it is not equivalent to a full mailbox or an
-admission failure. On a recent-record-cache miss, synchronous handler time ends
-after store-read submission and does not include worker queueing, store I/O, or
-the later worker completion path. The app metrics adapter deterministically
-samples one of every sixteen Pull op IDs so this diagnostic does not add four
-histogram writes to every replication RPC.
-When an admitted append waiter is canceled by the caller, the reactor emits a
-low-volume `AppendWaitCancelSnapshot` before cleanup. The snapshot captures the
-channel key, op id, commit mode, LEO/HW/target offset, queue and in-flight
-counts, and quorum progress booleans so timeout triage can distinguish slow
-storage, missing follower progress, and lost waiter completion.
-
-Committed-message lookup is a read-only recovery/diagnostic path. It asks the
-owning reactor to read a durable row by message id, then returns it only when
-the row has a positive sequence and the local HW covers that sequence. It never
-advances HW, creates rows, or turns an uncommitted local write into success.
-The store contract also has an optional local `IdempotencyLookup` surface for
-sender/client-message recovery. MessageDB-backed stores resolve it through the
-durable idempotency index and return the stored raw-payload hash with the
-message row so upper layers can reject conflicting key reuse without parsing
-append errors.
-
-Logical channel message compaction is represented by the caller-supplied
-`ReadCommittedRequest.MinSeq` floor, normally derived from Slot metadata
-`RetentionThroughSeq + 1` by cluster. Forward committed reads clamp their
-starting sequence to this floor, reverse/latest reads stop before crossing it,
-and message DB adapter reads filter compacted rows even when physical message
-rows still exist.
-
-Physical retention is applied through the Channel runtime retention runtime facade.
-Reactors first publish the monotonic logical boundary into local state, then a
-store-apply worker adopts the boundary in storage and optionally performs one
-bounded prefix trim. Physical trim is skipped unless the requested boundary is
-covered by local HW, durable checkpoint HW, local LEO, and, for leaders, the
-minimum known ISR match offset. Skipped trims still keep the adopted logical
-boundary so later retries can advance physical progress without regressing
-replica visibility. When checkpoint HW is the only missing trim gate, the
-retention runtime can submit a bounded checkpoint from the physical GC path; the
-next retry observes the checkpoint result and performs the trim.
-
-## Channel Runtime Lifecycle Model
-
-`Unloaded` is represented by absence from the owning reactor's `channels` map.
-`ColdActivation` is a short-lived unloaded follower shell created from a slim
-PullHint. The hint is only a wakeup: a dedicated bounded worker first resolves
-authoritative metadata, validates active topology and local replica membership,
-and only then opens and loads the channel store in the same isolated pool. The
-complete resolve-plus-load lifecycle has a fixed timeout and releases its
-capacity on invalid, not-replica, backpressured, or timed-out results. A valid
-completion activates the resolved role and uses ordinary `NeedMeta=false`
-follower replication. When a loaded runtime receives the
-same channel identity with a strictly newer metadata fence, the
-reactor keeps the existing runtime and starts one isolated authoritative
-metadata resolve. The hint is only a trigger: its claimed target fence, leader,
-LEO, and activity are not metadata proof. All valid newer hints coalesce without
-extending the fixed admission lease. Only an active, structurally valid,
-local-replica result from the configured read-only MetaResolver with the same
-identity and a fence newer than the exact base runtime may fence waiters and
-update that runtime in place. Invalid, failed, backpressured, or timed-out
-resolves leave the loaded runtime intact. Successful follower transitions use
-ordinary `NeedMeta=false` Pull from the resolved leader; local-leader results
-enter leader lifecycle without a self-Pull. Explicit ApplyMeta remains the
-authority for same-fence retention and write-fence refreshes.
-Loaded runtimes hold
-`machine.ChannelState`, `appendQueue`, `replicationState`, and
-`channelRuntimeLifecycle`. `channelRuntimeLifecycle` is the single controller
-for stop, checkpoint, stopped ACK, final eviction, leader-visible follower stop
-state, and pull-hint inflight state for that loaded runtime. Ordinary follower
-replication state stays in `replicationState` and only exposes a summarized
-`RuntimeView` to lifecycle guards.
-
-Metadata reload is not a long-lived lifecycle stage. Accepted metadata fence
-changes fail stale waiters, reset transient lifecycle/replication state, apply
-the new `Meta`, and then choose the leader or follower runtime path from local
-role.
-
-Leader phases:
-
-- `Live`: normal hot or idle leader runtime. Idle slowdown is derived from idle
-  age and `leaderPullDelay`; it is not stored as a separate stage.
-- `LeaderStoppingFollowers`: the leader is idle-expired, has no pending work,
-  and offers stop control only after followers are caught up.
-- `LeaderCheckpointing`: all followers stopped for the current activity version
-  and the leader checkpoint is in flight or retrying.
-- `LeaderReadyToEvict`: the checkpoint finished and a normal-priority recheck
-  fences eviction behind same-channel append reservations and submit sequence
-  changes.
-
-Follower phases:
-
-- `Live`: ordinary pull, apply, piggyback ACK, park, and retry behavior remains
-  in the follower hot path.
-- `FollowerCheckpointing`: the follower accepted `PullControlStop` after local
-  LEO/HW caught up and is checkpointing before the stopped ACK.
-- `FollowerStoppedAcking`: the checkpoint succeeded and the follower is sending
-  or retrying the stopped ACK before unloading runtime state.
-- `FollowerReadyToEvict`: the stopped ACK succeeded and the local runtime can be
-  evicted.
-
-Follower pull hints are only used to wake followers that still trail the hinted
-leader LEO. If an empty pull observes newer leader activity without records, the
-follower schedules a short retry instead of recursively pulling in the same
-reactor turn; this prevents stale hint bursts from turning into empty-pull
-storms under write pressure.
-
-## 10k Live Channel Runtime Rules
-
-Channel runtime can bound loaded local runtimes with `MaxChannels`. A limit of `0`
-keeps unlimited behavior. Capacity checks happen before opening a new
-channel-scoped store handle; metadata updates for already loaded runtimes remain
-allowed at capacity.
-
-Caught-up followers park instead of polling the leader on a short idle interval.
-The leader wakes followers with PullHint on new activity and retries that wakeup
-while quorum progress remains outstanding. The follower's first anti-entropy
-probe remains send-timeout-bounded at 2s plus up to 1s jitter by default.
-Successive probes that confirm it is already caught up use deterministic
-upper-half exponential windows capped at one minute; normal PullHint traffic
-preserves that widened window, while a probe that discovers missed leader
-progress resets it. This prevents the 10k-channel topology from turning the fallback into the
-dominant replication workload.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Unloaded
-    Unloaded --> ColdActivation: slim PullHint / authoritative resolve
-    ColdActivation --> Loaded: local replica proven / isolated store load
-    ColdActivation --> Unloaded: invalid, not replica, backpressure, timeout
-    Unloaded --> Loaded: ApplyMeta
-    Loaded --> Live: local role = leader or follower
-
-    Live --> LeaderStoppingFollowers: leader idle expired && HW == LEO && followers caught up
-    LeaderStoppingFollowers --> Live: append or metadata fence
-    LeaderStoppingFollowers --> LeaderCheckpointing: all followers stopped at ActivityVersion
-    LeaderCheckpointing --> Live: append or metadata fence
-    LeaderCheckpointing --> LeaderReadyToEvict: checkpoint done and guards still pass
-    LeaderReadyToEvict --> Live: append reservation or submit sequence change
-    LeaderReadyToEvict --> Unloaded: no pending work / evict runtime
-
-    Live --> FollowerCheckpointing: PullControlStop && local LEO/HW caught up
-    FollowerCheckpointing --> Live: newer PullHint or metadata fence
-    FollowerCheckpointing --> FollowerStoppedAcking: checkpoint done
-    FollowerStoppedAcking --> Live: stale stopped ACK metadata
-    FollowerStoppedAcking --> FollowerReadyToEvict: stopped ACK succeeds
-    FollowerReadyToEvict --> Unloaded: evict runtime
-
-    Live --> Unloaded: Close
-```
-
-Lifecycle decisions are expressed as reactor-owned actions such as starting a
-checkpoint, scheduling lifecycle retry, queuing leader final recheck, sending a
-stopped ACK, or evicting runtime. Worker completions are fenced by channel key,
-generation, epoch, leader epoch, and op id before controller state is advanced.
-Store and transport I/O still run through the existing worker pools; the
-controller only decides what should happen next.
-
-## Bench Runtime Observation
-
-`RuntimeBench` exposes snapshot, probe, and safe eviction for controlled
-benchmark runs. Callers pass concrete `ChannelID` values; benchmark run/profile
-range expansion happens above `pkg/channel` so the runtime package does not
-depend on wkbench naming rules.
+Update this file when subtree ownership changes, append or quorum semantics
+change, a new blocking-I/O path is added, metadata fencing changes, lifecycle
+states change, or committed-read and retention guarantees change.

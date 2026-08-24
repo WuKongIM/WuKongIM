@@ -25,8 +25,15 @@ The keywords `MUST`, `MUST NOT`, `SHOULD`, and `MAY` define requirement levels:
 ## Before You Work
 
 - Development SHOULD use a Git worktree with its working copy located in the .worktrees directory
-- Before reading or changing a package, you MUST check that package for a
-  `FLOW.md` and read it when present.
+- Before deeply analyzing or changing a package, you MUST read every applicable
+  `FLOW.md`. Broad repository discovery and symbol search do not trigger this
+  requirement. A FLOW with `scope: package` applies only to its directory; a
+  FLOW with `scope: subtree` also applies to descendants. A FLOW without valid
+  scope metadata is invalid and MUST NOT be used as context.
+- `FLOW.md` is advisory module navigation. It MUST NOT override this file,
+  executable code, schemas, or tests. Use
+  `docs/development/FLOW_INDEX.md` only for discovery; read applicable FLOW
+  files directly before package work.
 - If a change makes an applicable `FLOW.md` inaccurate, update it in the same
   change.
 - More specific `AGENTS.md` files in a target subtree add to or override this
@@ -171,6 +178,9 @@ app -> access/usecase/runtime/infra/pkg
   from Skill directories.
 - Changes under `.agents/skills/` MUST pass the `agent-artifact-contracts` and
   `skill-focused-contracts` named checks.
+- Changes to any `FLOW.md`, its validator, the generated FLOW index, Agent FLOW
+  context discovery, or this governing rule MUST pass the
+  `flow-doc-contracts` named check.
 
 ## GitHub Actions tools
 

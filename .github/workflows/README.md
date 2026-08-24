@@ -111,6 +111,11 @@ only in `.github/review-agent/policy.json`; focused Skill test commands live
 only in `.agents/skill-tests.json`. The structural check never discovers or
 executes files from a Skill's `scripts/` directory.
 
+FLOW navigation uses the protected `flow-doc-contracts` check. Its command and
+path selection live only in `.github/review-agent/policy.json`; it enforces the
+strict schema, 150-line limit, local navigation references, and canonical
+generated index.
+
 The model request passes through one root-owned loopback proxy that clamps
 `max_output_tokens` to the protected policy and injects the OpenRouter
 credential. The root-only credential handoff file is deleted before the

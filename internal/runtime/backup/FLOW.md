@@ -1,53 +1,51 @@
-# internal/runtime/backup Flow
+---
+scope: package
+summary: Owns node-local backup archive streaming, publication verification, and the Controller-leader scheduled supervisor.
+---
+
+# Backup Runtime Flow
 
 ## Responsibility
 
-`internal/runtime/backup` owns reusable node-local archive streaming and the
-Controller-leader supervisor. Repository adapters, cluster routing, and
-business policy remain outside this package.
+This package owns reusable node-local archive streaming and the scheduled
+Controller-leader supervisor. Repository adapters, cluster routing, and backup
+business policy remain outside the runtime.
 
-## Full Slot export
+## Boundaries
 
-`FullStreamWriter` accepts one metadata or message snapshot as a closeable
-stream. It:
+- `FullStreamWriter` chunks a closeable metadata or message snapshot into at
+  most 64 MiB of logical bytes per Zstandard-compressed part.
+- Leaders stream large payloads directly to the shared repository. RPC carries
+  only bounded keys, digests, counts, and totals.
+- The runtime publishes artifacts but does not select schedules, repositories,
+  retention policy, or operator actions.
 
-1. reads no more than 64 MiB logical bytes per part;
-2. writes Zstandard output to a temporary file;
-3. records stored/logical SHA-256 and byte counts;
-4. uploads the exact stored bytes under the deterministic Slot path;
-5. returns bounded chunk references to its local caller.
+## Main Flows
 
-Large payloads never cross node RPC. Slot and Channel leaders write directly
-to the shared repository. Message exporters write a bounded repository-resident
-chunk index and RPC responses contain only its fixed-size key, digest, counts,
-and totals. The Slot leader authenticates that index before composing the
-bounded Slot manifest.
+1. Full export writes deterministic streams, chunk digests, and counts;
+   metadata comes first and the Slot manifest is written last.
+2. `PublishArchive` verifies all 256 Slot artifacts, writes and rereads the
+   canonical manifest, then writes the manifest-bound `COMPLETE` marker.
+3. The scheduled singleton advances restore first, then a due schedule, then
+   the active full-backup job only while this node is Controller leader.
 
-`FullExporter` requires metadata first, assigns deterministic stream/sequence
-numbers, writes the Slot manifest last, and never publishes the archive-level
-`COMPLETE` marker.
+## Invariants and Failure Semantics
 
-## Publication
+- Every retry uses immutable attempt-scoped paths; late workers cannot replace
+  accepted artifacts.
+- `FullExporter` never publishes the archive-level completion marker.
+- Verification repeats marker, manifest, and chunk checks without mutation.
+- Leadership loss stops new advancement; the next leader resumes recorded
+  Controller state instead of creating a duplicate job.
+- Hash Slot and archive identifiers never become metric labels.
 
-`PublishArchive` loads and verifies every one of the 256 Slot artifacts, writes
-the canonical top-level manifest, reads it back, and only then writes the
-manifest-bound `COMPLETE` marker. `VerifyPublishedArchive` repeats complete
-marker, manifest, and chunk verification without mutation.
+## Read First
 
-Every retry writes under an attempt-scoped immutable artifact directory.
-Only the winning attempt is referenced by the Slot manifest, so a late worker
-cannot overwrite an already accepted artifact.
+- [Full export](full_export.go)
+- [Archive publication](full_publish.go)
+- [Scheduled runtime](scheduled_runtime.go)
 
-## Scheduled supervisor
+## Update Triggers
 
-`ScheduledRuntime` runs one managed singleton loop per node. Only the current
-Controller leader advances work:
-
-1. resume restore first;
-2. if no restore is active, evaluate the next schedule occurrence;
-3. resume the active full-backup job.
-
-Leadership loss stops new advancement. All active state is Controller-owned,
-so a new leader continues the recorded phase rather than creating a duplicate
-job. Slot export goroutines use one fixed low-cardinality dynamic task identity;
-Hash Slot and archive IDs never become labels.
+Update this file when chunking, compression, manifests, publication fencing,
+verification, leader supervision, or runtime observability changes.

@@ -25,6 +25,8 @@ type PathRule struct {
 	Suffixes  []string `json:"suffixes"`
 	Checks    []string `json:"checks"`
 	Exclusive bool     `json:"exclusive"`
+	// Always preserves this rule's checks when an exclusive fast path applies.
+	Always bool `json:"always"`
 }
 
 // Policy is the verification projection of protected policy.json.
@@ -62,6 +64,18 @@ func PlanChecks(
 	evaluationPaths := inventoryPaths(inventory.Files)
 	selected := make(map[string]struct{})
 	for _, rule := range policy.PathRules {
+		if !rule.Always {
+			continue
+		}
+		if slices.ContainsFunc(evaluationPaths, func(repositoryPath string) bool {
+			return matchesRule(repositoryPath, rule)
+		}) {
+			if err := addChecks(selected, rule.Checks, policy); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, rule := range policy.PathRules {
 		if !rule.Exclusive {
 			continue
 		}
@@ -81,7 +95,7 @@ func PlanChecks(
 	}
 	for _, repositoryPath := range evaluationPaths {
 		for _, rule := range policy.PathRules {
-			if rule.Exclusive || !matchesRule(repositoryPath, rule) {
+			if rule.Always || rule.Exclusive || !matchesRule(repositoryPath, rule) {
 				continue
 			}
 			if err := addChecks(selected, rule.Checks, policy); err != nil {

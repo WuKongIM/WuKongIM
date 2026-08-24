@@ -107,6 +107,9 @@
 - `pkg/channel` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
+- Presence authority changes must not scan or replay all owner-local active
+  sessions. Route reconstruction is driven by bounded dirty-touch batches so
+  authority handoff work does not scale with the node's total online sessions.
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - Online Delivery must preserve complete plan execution order per canonical Channel so clients cannot observe a later `message_seq` first. Keep one globally bounded preallocated queue, hash Channel type/ID to a stable worker shard, and scale across Channel shards; multiple consumers must not race plans from one shared FIFO.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, membership state, or owner delivery.
@@ -358,6 +361,21 @@
 - The node-local plugin process host lives in `pkg/plugin/pluginhost`; internal app wiring adapts it to `internal/usecase/plugin` without depending on old plugin runtime code.
 
 ## Development Workflow
+
+### Agent context navigation
+- `AGENTS.md` contains mandatory scoped rules; executable code, schemas, and
+  tests remain authoritative behavior facts. Accepted ADRs and stable project
+  knowledge explain cross-module decisions.
+- `FLOW.md` is advisory just-in-time navigation for complex modules, not a
+  second policy or implementation manual. Deep analysis or changes must read
+  the applicable exact-directory and ancestor FLOW candidates; broad discovery
+  searches alone do not trigger loading.
+- Explicit `scope: package` applies only to the FLOW directory, while
+  `scope: subtree` applies recursively. Missing, malformed, or ambiguous FLOW
+  metadata is invalid and must not be used as Agent context.
+- Conflicts resolve in this order: `AGENTS.md`, executable facts, accepted ADR
+  or stable project knowledge, `FLOW.md`, generated FLOW index. Report stale
+  FLOW guidance instead of silently following it.
 
 ### Public documentation
 - The public WuKongIM v3 documentation application lives in `docs-site/`; the repository-level `docs/` tree remains the engineering knowledge base.

@@ -1,44 +1,55 @@
+---
+scope: package
+summary: Owns node-local Operations MCP authentication, budgets, audits, metrics, and fenced profile capture.
+---
+
 # Operations MCP Runtime Flow
 
-The runtime package owns high-frequency MCP state that must not enter
+## Responsibility
+
+This package owns high-frequency node-local MCP authentication, execution
+budgets, audit summaries, metrics, and profile capture that must not enter
 Controller Raft.
+It does not own tool registration, remote ingress routing, or Controller state.
 
-```text
-raw wko_* bearer
-  -> parse credential ID and 256-bit secret
-  -> read latest Controller-derived DesiredState
-  -> require enabled
-  -> constant-time SHA-256 digest comparison
-  -> bounded Principal
-```
+## Boundaries
 
-Execution budgets and audit records are keyed only by non-secret credential
-IDs and stable tool names. Raw tokens, full tool arguments, results, log
-keywords, and high-cardinality selectors are never retained.
+- Desired credential state and MCP ownership are Controller-derived; raw
+  bearer secrets, full arguments, results, and log keywords are never retained.
+- Tool registration, request validation, and remote routing live in access and
+  app layers.
+- `Profiler` is the only active observation runtime.
 
-Ordinary tools allow 60 calls per credential per minute; the two log tools
-allow 20. Concurrency is capped at four calls per credential and sixteen per
-node. A remote ingress also has a separate 60-request credential budget and
-records its forwarding decision. Inactive credential budgets are evicted
-after their minute window. Authentication failures have independent source
-and node budgets.
-Low-cardinality Prometheus metrics record tool/result counts, durations, active
-calls, rejections, and authentication failures.
+## Main Flows
 
-Audits retain the newest 200 summaries in memory and write rotating
-`mcp-audit.jsonl` files under the configured log directory. A summary may
-contain the credential ID, stable tool, node/Slot/channel-type selectors,
-ingress/owner phase, recorder/ingress/owner node IDs, result, duration,
-response size, cache hit, and bounded pprof kind/duration.
+1. Parse credential ID and 256-bit secret, require the latest enabled desired
+   state, and compare its SHA-256 digest in constant time.
+2. Apply per-credential, per-node, ingress, authentication, and concurrency
+   budgets before executing a stable tool name; record only bounded summaries.
+3. For CPU, heap, or goroutine capture, verify current owner/revision, consume
+   an exact one-time owner-held lease, capture under cluster and node fences,
+   and return parsed top rows.
 
-`Profiler` is the only active observation runtime. It accepts only CPU, heap,
-and goroutine profiles; CPU duration is at most 30 seconds. One profile may run
-cluster-wide, each node has a full 60-second cooldown after capture completion,
-raw profiles are capped in memory, and only parsed top rows leave the execution owner. Heap/goroutine
-collection requires a zero duration. The target node rechecks the Controller
-MCP owner and revision before capture, then calls that owner to consume an
-exact random, one-time, 35-second in-memory profile lease. A node cannot start
-profiling by forging the caller node ID because it cannot reconstruct the
-owner-held lease. A Controller-derived 30-second stop fence prevents a newly
-started owner generation from overlapping a capture that began before the
-stop.
+## Invariants and Failure Semantics
+
+- Ordinary tools allow 60 calls per credential per minute, log tools 20;
+  concurrency is four per credential and sixteen per node.
+- Audits retain 200 summaries and rotate `mcp-audit.jsonl`; selectors and
+  metrics remain bounded and low-cardinality.
+- CPU duration is at most 30 seconds; heap and goroutine require zero duration.
+- Only one profile runs cluster-wide, each node has a 60-second cooldown, and
+  raw profiles remain size-capped in memory.
+- A random one-time 35-second lease and Controller-derived stop fence prevent
+  forged callers and overlapping owner generations.
+
+## Read First
+
+- [Credential verifier](verifier.go)
+- [Call budgets and audits](calls.go)
+- [Profile runtime](profile.go)
+- [Profile analyzer](analyzer.go)
+
+## Update Triggers
+
+Update this file when token verification, call limits, audit fields, metrics,
+profile kinds or limits, ownership leases, or stop fencing changes.

@@ -1,93 +1,57 @@
+---
+scope: package
+summary: Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests.
+---
+
 # E2E Suite Flow
 
-`test/e2e/suite` owns reusable black-box process, configuration, protocol, and
-HTTP helpers for real `cmd/wukongim` tests.
+## Responsibility
 
-## Process lifecycle
+This package is reusable harness code for real `cmd/wukongim` processes. It
+contains no scenario-specific business assertions and follows `test/e2e/AGENTS.md`.
 
-1. `Suite` allocates a test workspace, loopback ports, and a short independent
-   plugin socket root. Each `go test` process holds one sentinel listener for
-   its process-lifetime port block, so concurrently running E2E packages cannot
-   return overlapping listener addresses; individual addresses are still
-   probed before use to avoid unrelated host listeners.
-   On Darwin, the workspace root is marked `.metadata_never_index` before node
-   directories are created so Spotlight cannot turn multi-gigabyte Pebble test
-   artifacts into unrelated disk-pressure spikes. Other platforms are
-   unchanged.
-2. Config renderers write node TOML and derive the product environment. Static
-   scenarios may choose an explicit positive node count; the three-node helper
-   is the common shorthand. The
-   shared E2E baseline explicitly disables the optional plugin runtime; plugin
-   scenarios opt in per node through a config override.
-3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag into
-   one user-cache location scoped by repository, operating system, and
-   architecture. Concurrent test processes publish complete binaries through
-   atomic replacement, so package-level runs do not accumulate one large
-   temporary directory per process. Tagged product substitutes remain dormant
-   unless their separate explicit harness environment is present.
-   `NodeProcess.Start` removes the harness-only `WK_E2E_*` namespace before
-   starting the child process. On Unix, every product process starts as the
-   leader of an independent process group so plugin and other descendants stay
-   inside the harness-owned lifecycle boundary. `NodeProcess` owns the only
-   `Wait` call for the group leader.
-4. Test cleanup stops the current process for every registered node, including
-   nodes appended after cluster startup and processes replaced by restart.
-   Static cluster nodes receive graceful termination concurrently so one node
-   does not lose Raft quorum while later nodes are still waiting to begin
-   shutdown, and so per-node stop budgets do not accumulate serially.
-   Concurrent or repeated stops join the same exit result, and readiness waits
-   fail immediately when their child exits instead of consuming the full poll
-   timeout. Leader exit also starts group cleanup: the harness sends `TERM`,
-   waits for a bounded grace interval, then sends `KILL` to the whole process
-   group when any descendant remains. `Stop` does not return until that cleanup
-   has completed, including when the leader exited before `Stop` was called.
-   Detached-node start and restart paths join this cleanup before reusing the
-   node's ports or data directory.
+## Boundaries
 
-`ReconfigureStoppedNodes` rewrites a static cluster generation only after all
-nodes are stopped. It preserves data directories and non-product external
-environment, replaces schema-known product config environment, and lets a
-restore scenario restart the same successor data in normal mode without a
-mixed restore/normal generation.
+- Helpers observe public HTTP, WKProto, metrics, process state, and bounded
+  artifacts; they do not import app, use cases, or storage internals.
+- `WK_E2E_*` is harness-only and is removed from spawned nodes. Real product
+  variables must be passed explicitly through `NodeSpec.Env`.
+- Unix socket placement uses a short independent workspace path.
 
-## Failure diagnostics
+## Main Flows
 
-`NodeProcess.DumpDiagnostics` keeps output bounded and safe for CI logs:
+1. Allocate isolated workspace and non-overlapping loopback port block, render
+   node TOML, obtain the repository/OS/architecture-scoped cached E2E binary,
+   and start each product as an independently owned process group.
+2. Wait for readiness or stable Slot authority through public evidence; restart
+   or reconfigure only after previous process-group cleanup completes.
+3. Cleanup stops static nodes concurrently, joins repeated stops, escalates
+   TERM to KILL for remaining descendants, and waits for complete group cleanup.
 
-- process state and artifact paths are always reported;
-- config content is parsed as TOML and validated against the public
-  `internal/config.SchemaFields` leaf and group-prefix contract before it is
-  re-encoded and limited to the diagnostic tail;
-- unknown paths, scalar values where schema groups are required, schema-leaf
-  kind mismatches, and invalid TOML fail closed to the single
-  `[invalid or unsupported TOML; content omitted]` marker; neither source
-  content nor validation/parser errors are included in diagnostics;
-- stdout, stderr, app, and error logs use the existing bounded tail path.
+## Invariants and Failure Semantics
 
-Every schema leaf marked `DiagnosticSensitive` is redacted as a whole value.
-Startup-snapshot `Sensitive` fields inherit that diagnostic behavior, while the
-additional URL-only diagnostic policy does not change startup snapshot output.
-The complete URL values for `api.external_ws_addr`, `api.external_wss_addr`,
-`webhook.http_addr`, and `prometheus.query_base_url` are diagnostic-sensitive so
-userinfo, paths, query parameters, and fragments cannot leak.
+- One `NodeProcess` owns the only leader `Wait`; readiness fails immediately on
+  child exit. Restart never reuses ports/data before prior group cleanup.
+- Binary publication is atomic. Plugin runtime is disabled by default and
+  enabled only by plugin scenarios.
+- Diagnostics expose bounded paths and tails. TOML is re-encoded only after
+  schema validation; invalid structure is fully omitted, and sensitive leaves
+  plus nested secret-like keys are redacted.
+- Message-send recovery retries only exact public
+  `503 {"error":"retry required"}` with one stable body and idempotency key.
+- `WaitClusterReady` proves availability only. `WaitSlotLeadersStable` proves
+  closed cross-node inventories, voters, quorum, actual Raft leader agreement,
+  and a stable fingerprint; PreferredLeader is not authority.
 
-Known ordinary structured leaves remain useful as evidence, but their nested
-password, secret, token, credential, and private/API/access key values are
-redacted using case-insensitive, separator-independent key matching.
+## Read First
 
-## Public request helpers
+- [Suite runtime](runtime.go)
+- [Node process](process.go)
+- [Configuration rendering](config.go)
+- [Port allocation](ports.go)
+- [Slot convergence](slot_convergence.go)
 
-HTTP helpers preserve typed non-2xx response details. Message-send recovery
-retries only the exact public `503 {"error":"retry required"}` signal while
-reusing one serialized request body and idempotency key.
+## Update Triggers
 
-## Cluster convergence
-
-`WaitClusterReady` proves only public HTTP and WKProto availability. Scenarios
-whose correctness depends on stable Slot authority enable read-only Manager
-HTTP and call `WaitSlotLeadersStable`. That helper polls every node's full
-control inventory plus each node-scoped voter inventory, proves the two views
-are closed over the same Slots, validates desired/current voters and quorum,
-uses the actual Raft-elected `node_log.leader_id` rather than
-`preferred_leader_id`, requires cross-node agreement, and resets its bounded
-stability timer whenever the leader/config fingerprint changes.
+Update this file when workspace isolation, binary caching, process ownership,
+environment filtering, cleanup, diagnostics, HTTP retry, or convergence changes.

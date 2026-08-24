@@ -1,4 +1,6 @@
-// Package fake implements a deterministic provider-free deployment Fleet.
+// Package fake implements a deterministic provider-free deployment Fleet for
+// ordered contract tests. It records host operations and injects exact failures
+// or readiness snapshots without touching hosts, processes, or Cloud Leases.
 package fake
 
 import (

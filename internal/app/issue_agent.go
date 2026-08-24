@@ -994,7 +994,7 @@ func buildContextForState(
 	if err != nil {
 		return contract.ContextBundle{}, err
 	}
-	instructions, err := client.InstructionFileDigests(
+	contextDocuments, err := client.ContextDocumentFileDigests(
 		ctx,
 		state.Task.BaseSHA,
 	)
@@ -1020,11 +1020,11 @@ func buildContextForState(
 			StatusCommentID:   state.StatusCommentID,
 			Sequence:          state.Sequence,
 			Task:              *state.Task, Authorization: *state.Authorization,
-			RequiredTests:      policy.RequiredSuites,
-			RiskCeiling:        []string{"low"},
-			InstructionDigests: instructions,
-			KnowledgePaths:     policy.KnowledgePaths,
-			OutputSchemaDigest: outputSchemaDigest,
+			RequiredTests:          policy.RequiredSuites,
+			RiskCeiling:            []string{"low"},
+			ContextDocumentDigests: contextDocuments,
+			KnowledgePaths:         policy.KnowledgePaths,
+			OutputSchemaDigest:     outputSchemaDigest,
 			Limits: contract.EngineerLimits{
 				WallTimeSeconds:      policy.Engineer.WallTimeSeconds,
 				ModifyTestIterations: policy.Engineer.ModifyTestIterations,

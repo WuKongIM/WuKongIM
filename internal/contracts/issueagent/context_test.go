@@ -34,7 +34,7 @@ func TestContextBundleKeepsAuthorizationSeparateFromIssueText(t *testing.T) {
 			Labels:        []string{"bug", "ready-for-agent"},
 			RequiredTests: []string{"focused", "unit"},
 			RiskCeiling:   []string{"low"},
-			InstructionDigests: []issueagent.FileDigest{{
+			ContextDocumentDigests: []issueagent.FileDigest{{
 				Path:       "AGENTS.md",
 				GitBlobSHA: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 			}},

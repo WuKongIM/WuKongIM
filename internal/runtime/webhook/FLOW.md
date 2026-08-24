@@ -1,38 +1,49 @@
-# internal/runtime/webhook Flow
+---
+scope: package
+summary: Performs bounded node-local best-effort delivery of message, offline-recipient, and online-status webhooks.
+---
 
-`internal/runtime/webhook` owns node-local best-effort webhook delivery for
-events produced by `internal/app` adapters. It wraps `pkg/workqueue` behind a
-typed API so queue pressure, retry, JSON mapping, and endpoint delivery stay out
-of access adapters and usecases.
+# Webhook Runtime Flow
 
-It does not own message durability, subscriber scans, presence authority, plugin
-hooks, channel append ordering, or crash replay.
+## Responsibility
 
-## Event Flow
+This package wraps `pkg/workqueue` behind typed APIs for node-local best-effort
+webhook admission, batching, retry, JSON mapping, and HTTP delivery.
+It does not own message durability, presence, Channel ordering, or crash replay.
 
-`msg.notify`
-  -> app adapter receives a durable channelappend committed envelope
-  -> webhook runtime admits a `Message` into a bounded notify batch pool
-  -> worker sends one JSON array to `{HTTPAddr}?event=msg.notify`
+## Boundaries
 
-`msg.offline`
-  -> canonical Online Delivery classifies offline recipients after presence
-  -> batch observer passes bounded UID chunks to the app adapter
-  -> webhook runtime admits `OfflineMessage` chunks into a sharded mailbox
-  -> worker sends one JSON object to `{HTTPAddr}?event=msg.offline`
+- It receives already-decided events from app adapters and does not own message
+  durability, subscriber scans, presence, plugin hooks, Channel ordering, or
+  crash replay.
+- Endpoint and JSON compatibility live here; product success semantics do not.
 
-`user.onlinestatus`
-  -> presence usecase observes successful route activation/deactivation
-  -> app adapter formats the legacy status string
-  -> webhook runtime admits it into a bounded online-status batch pool
-  -> worker sends one JSON array to `{HTTPAddr}?event=user.onlinestatus`
+## Main Flows
 
-## Performance Rules
+1. A durable Channel append event enters a bounded notify pool and sends a JSON
+   array to the `msg.notify` endpoint.
+2. Delivery-classified offline recipients enter a sharded mailbox in bounded
+   UID chunks and send `msg.offline` objects.
+3. Successful presence activation or deactivation enters the bounded status
+   pool and sends legacy `user.onlinestatus` strings.
 
-Webhook admission is bounded and best-effort. Queue-full, closed, canceled, and
-retry-exhausted events are observed and dropped. Webhook delivery never changes
-SENDACK success, durable append success, membership state, or owner
-delivery.
+## Invariants and Failure Semantics
 
-Large offline fanout must use recipient batches. Do not enqueue one webhook item
-per UID for large groups.
+- Admission is bounded and best effort; full, closed, canceled, and exhausted
+  events are observed and dropped.
+- Webhook failure never changes SENDACK, durable append, membership, or owner
+  delivery results.
+- Large offline fanout remains batched; never enqueue one item per recipient.
+- This runtime provides no durability or crash-replay guarantee.
+
+## Read First
+
+- [Runtime](runtime.go)
+- [Event types](types.go)
+- [JSON mapper](mapper.go)
+- [HTTP sender](sender.go)
+
+## Update Triggers
+
+Update this file when event sources, batching, queue pressure, retry, JSON
+compatibility, endpoints, or best-effort failure semantics change.

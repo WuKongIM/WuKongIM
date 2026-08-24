@@ -1,48 +1,55 @@
-# pkg/db Flow
+---
+scope: subtree
+summary: Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation.
+---
 
-`pkg/db` is the root package for node-local storage. It owns shared errors,
-options, and the root `NodeStore` handle.
+# Node Storage Flow
 
-When changing existing durable table fields, follow
-[`SCHEMA_COMPATIBILITY.md`](SCHEMA_COMPATIBILITY.md).
+## Responsibility
 
-Current flow:
+`pkg/db` is the root of node-local durable storage. It owns shared errors and
+options, the root `NodeStore`, message and metadata domain composition,
+Pebble-neutral metrics, lifecycle fencing, and pinned engine snapshots.
+It does not own product policy or expose Pebble-specific APIs to callers.
 
-1. Build `NodeStoreOptions` with `DefaultNodeStoreOptions` or explicit paths.
-2. Open the root handle with `OpenNodeStore`.
-3. `NodeStore` constructs one message-domain registry and one metadata domain;
-   repeated `Messages` calls return the same canonical message registry.
-4. Read `MetricsSnapshot` when operators need a Pebble-neutral view of the
-   physical `message` and `meta` stores. The message snapshot also carries the
-   cumulative definite-negative idempotency reads avoided and possible hits
-   verified durably. A root lifecycle read lock prevents these physical reads
-   from overlapping root shutdown, while the canonical message-domain
-   operation guard also prevents snapshots from overlapping a direct
-   `Messages().Close()`.
-5. Close the root handle during application shutdown. Message shutdown first
-   rejects acquisitions and drains its registry before the physical message
-   engine is closed exactly once; metadata then closes independently. The root
-   lifecycle write lock also makes concurrent Close callers wait for the same
-   terminal physical shutdown.
-6. Internal engine snapshots provide a Pebble-neutral pinned read view with
-   bounded iterators. Callers must close the view; later writes and compactions
-   may proceed while the snapshot is streamed.
+## Boundaries
 
-Pebble-specific code must stay under `pkg/db/internal/*` and must not leak into
-callers.
-On Darwin, a 16 MiB `BytesPerSync` interval avoids turning range syncs during
-compactions into repeated full-file fsyncs.
-The durable commit coordinator defaults to one shard and a 500-microsecond
-collection window. The local synchronous append matrix found that window
-reduced physical commit frequency and caller latency relative to 200
-microseconds, while windows of one millisecond or more added request wait.
-Every writable engine keeps one baseline compaction slot and permits Pebble to
-open up to three additional slots as L0 read amplification or compaction debt
-crosses successive pressure thresholds. The L0 concurrency step is 6, so the
-extra slots may open at depths 6, 12, and 18; the fourth has six sublevels of
-recovery headroom before the write-stop depth of 24. A separate debt step of
-four memtables (128 MiB with defaults) also lets sustained debt open additional
-slots. High-write callers may keep an explicit debt step when using a larger
-memtable so flush cadence and recovery concurrency remain independently tuned.
-The reactive upper bound avoids extra compactions while the store is
-calm.
+- Pebble-specific implementation stays under `pkg/db/internal` and must not
+  leak into callers.
+- Durable schema changes follow `SCHEMA_COMPATIBILITY.md`.
+- Child package details belong in their nearest `FLOW.md`; this subtree guide
+  records only root ownership and cross-domain lifecycle.
+
+## Main Flows
+
+1. Build options and open one `NodeStore`; repeated `Messages` calls return the
+   same canonical message registry while metadata has its independent domain.
+2. Read physical message/meta metrics under the root lifecycle fence and the
+   message operation guard, including bounded idempotency-filter counters.
+3. Close rejects and drains message acquisitions, closes its physical engine
+   once, then closes metadata; concurrent callers join the same terminal close.
+
+## Invariants and Failure Semantics
+
+- Engine snapshots provide a pinned bounded-iterator view and must be closed;
+  later writes and compactions may proceed while the view streams.
+- Metrics must not race root shutdown or a direct message-domain close.
+- Darwin uses 16 MiB `BytesPerSync` to avoid compaction range-sync full-file
+  fsync behavior.
+- The durable commit coordinator defaults to one shard and a 500-microsecond
+  collection window; synchronous durability is unchanged.
+- Each writable engine keeps one baseline compaction slot and may open three
+  more only as L0 depth or compaction debt crosses configured pressure steps.
+
+## Read First
+
+- [Root store](db.go)
+- [Store options](options.go)
+- [Metrics](metrics.go)
+- [Schema compatibility](SCHEMA_COMPATIBILITY.md)
+- [Metadata domain](meta/FLOW.md)
+
+## Update Triggers
+
+Update this file when root composition, lifecycle locking, message registry,
+metrics, snapshots, engine isolation, sync, or compaction tuning changes.

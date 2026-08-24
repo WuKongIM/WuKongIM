@@ -194,6 +194,18 @@
       "timeout_seconds": 45,
       "max_output_bytes": 1048576
     },
+    "flow-doc-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    },
     "workflow-contracts": {
       "arguments": [
         "go",
@@ -305,6 +317,48 @@
     }
   },
   "path_rules": [
+    {
+      "name": "flow-documents",
+      "paths": [
+        "AGENTS.md",
+        ".github/issue-agent/prompts/engineer.md",
+        ".github/issue-agent/prompts/review.md",
+        "docs/development/FLOW_INDEX.md",
+        "docs/development/PROJECT_KNOWLEDGE.md",
+        "internal/infra/issueagentgithub/instructions.go",
+        "internal/infra/issueagentgithub/instructions_test.go",
+        "internal/infra/reviewagentgithub/reader.go",
+        "internal/infra/reviewagentgithub/reader_budget_test.go",
+        "internal/infra/reviewagentgithub/reader_test.go",
+        "internal/runtime/reviewagentverify/instructions.go",
+        "internal/runtime/reviewagentverify/context_test.go"
+      ],
+      "prefixes": [
+        ""
+      ],
+      "suffixes": [
+        "FLOW.md"
+      ],
+      "checks": [
+        "flow-doc-contracts"
+      ],
+      "exclusive": false,
+      "always": true
+    },
+    {
+      "name": "flow-tooling",
+      "paths": [],
+      "prefixes": [
+        "pkg/flowdoc/",
+        "scripts/flowcheck/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "flow-doc-contracts"
+      ],
+      "exclusive": false,
+      "always": true
+    },
     {
       "name": "repository-default",
       "paths": [],

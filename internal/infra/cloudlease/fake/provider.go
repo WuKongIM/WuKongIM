@@ -1,5 +1,8 @@
-// Package fake implements an in-memory Cloud Lease Provider for contract,
-// lifecycle, and cleanup tests.
+// Package fake implements a deterministic in-memory Cloud Lease Provider for
+// contract, lifecycle, cleanup, and failure-injection tests. It performs no
+// cloud, network, process, timer, or background work and cannot prove real
+// capacity, price, permission, or zero inventory. Every returned Quote,
+// Receipt, and inventory projection is detached from internal mutable state.
 package fake
 
 import (

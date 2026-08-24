@@ -1,399 +1,86 @@
-# pkg/slot 流程文档
+---
+scope: subtree
+summary: Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies.
+---
 
-## 1. 职责定位
+# Slot Metadata Flow
 
-基于 Multi-Raft 的分布式元数据存储层。集群元数据按 Slot 分片到多个独立 Raft Group 中管理，每个 Slot 负责一部分键空间（用户、频道、订阅者、普通/CMD membership 等）。
-**不负责**: 消息日志存储（由 channel 负责）、Slot 的副本分配决策（由 controller 负责）、跨节点 durable send 寻址 / 重路由（由 `internal/runtime/channelplane` 负责）。
+## Responsibility
 
-## 2. 子包分工
+`pkg/slot` is the distributed metadata layer. Physical Slots are independent
+Raft groups that own logical hash-Slot partitions containing user, Channel,
+subscriber, runtime, membership, plugin-binding, migration, and message-event
+projection state.
 
-| 子包 | 入口/核心类型 | 职责 |
-|------|-------------|------|
-| `multiraft/` | `multiraft.New()` → `Runtime` | Multi-Raft 运行时：Worker 池 + Ticker + Scheduler，管理多个独立 Raft Group |
-| `fsm/` | `fsm.NewStateMachine()` | 状态机：TLV 命令解码 + BatchStateMachine 批量应用（均摊 fsync） |
-| 元数据存储 | `pkg/db/meta.Open()` → `DB` | 统一 Pebble 元数据库：hash-slot 分区表、WriteBatch、快照；`pkg/slot/fsm` 与 `pkg/slot/proxy` 继续使用 `metadb` 别名 |
-| `proxy/` | `proxy.New()` → `Store` | 分布式代理：写入路由到 Propose，读取路由到 Leader 的权威 RPC；`pkg/cluster.Node` 已满足 `Cluster` 路由/RPC 调用端口和 optional hash-slot 提案端口，RPC handler 注册走 `pkg/slot/proxy/promoted_cluster.go` 的 `pkg/cluster.Node.RegisterRPC` bridge |
+`multiraft` owns Raft groups and futures, `fsm` decodes and atomically applies
+metadata commands, and `proxy` routes writes to proposals and authoritative
+reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 
-## 3. 对外接口
+## Boundaries
 
-```go
-// proxy/store.go — 业务层唯一入口
-Store.CreateChannel / UpdateChannel / UpsertChannel / DeleteChannel / GetChannelForPermission / ReadPermissionMetadataBatch / ScanChannelsSlotPage
-Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
-Store.UpsertChannelRuntimeMeta / AdvanceChannelRetentionThroughSeq / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
-Store.CreateUser / UpsertUser / GetUser
-Store.UpsertDevice / GetDevice
-Store.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots / ListActiveChannelMigrationTasksForNode
-Store.ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover
-Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
-Store.GarbageCollectTerminalChannelMigrationTasks
-Store.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ListPluginBindingsByPluginNo / ExistPluginBindingByUID
-Store.GetUserChannelMembership / ListUserChannelMembershipPage / ListUserCMDChannelMembershipPage
-Cluster Node.AppendMessageEvent / GetMessageEventStatesBatch
+- Controller chooses Slot assignments; Channel stores message logs; usecases
+  own business policy. This subtree persists and serves metadata under the
+  supplied ownership and command contracts.
+- Writes resolve `HashSlotForKey` then `SlotForKey`; authoritative reads execute
+  on the actual Slot leader through registered typed RPC.
+- Slot proxy handlers register through the promoted
+  `pkg/cluster.Node.RegisterRPC` bridge; they do not construct a second cluster
+  transport or routing table.
+- Local reads are valid only for explicitly local contracts. A proxy must not
+  answer a cluster-authoritative query from a convenient local replica.
+- FSM command and RPC catalogs live in code and tests, not in this overview.
 
-// pkg/db/meta — 本地 ShardStore / WriteBatch helper
-ShardStore.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
-WriteBatch.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
-ShardStore.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ScanPluginBindingsByPluginNo / ExistPluginBindingByUID
-WriteBatch.BindPluginUser / UnbindPluginUser
-ShardStore.GetUserChannelMembership / ListUserChannelMembershipPage
-WriteBatch.UpsertUserChannelMembership / AdvanceUserChannelMembershipReadSeq / HideUserChannelMembership / ActivateUserChannelMembership
-ShardStore.GetUserCMDChannelMembership / ListUserCMDChannelMembershipPage
-WriteBatch.UpsertUserCMDChannelMembership / AdvanceUserCMDChannelMembershipAckSeq / TombstoneUserCMDChannelMembership
-ShardStore.GetChannelLatest / UpsertChannelLatest
-WriteBatch.UpsertChannelLatest
-ShardStore.AppendMessageEvent / ListMessageEventStates
-WriteBatch.AppendMessageEvent
+## Main Flows
 
-// multiraft/api.go — Raft Runtime 底层 API
-Runtime.OpenSlot / BootstrapSlot / CloseSlot
-Runtime.Step(ctx, Envelope)                  // 接收远端 Raft 消息
-Runtime.Propose(ctx, slotID, data) → Future  // 提交提案
-Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / CompactLog / Status
-```
+1. The proxy derives ownership, proposes versioned writes locally or through
+   forwarding, and follows the leader for authoritative reads. Person-directory
+   commands prepare bounded UID membership/runtime metadata before publishing
+   ready only after every prepare group succeeds.
+2. A Multi-Raft worker persists Ready state, sends messages, batches normal
+   entries, flushes before configuration changes, and atomically applies an
+   ownership-validated FSM batch before persisting apply and completing futures.
+3. Maintenance and migration controls use the same fenced worker/FSM path:
+   snapshots and backup prove an applied boundary, while Channel migration
+   advances task and runtime metadata together through guarded phases.
 
-## 4. 关键类型
+## Invariants and Failure Semantics
 
-| 类型 | 文件 | 说明 |
-|------|------|------|
-| `SlotID` / `NodeID` | multiraft/types.go | Slot / 节点标识 |
-| `Command` | multiraft/types.go | 状态机命令：SlotID(物理 Raft 组), HashSlot(逻辑哈希分片), Index, Term, Data(TLV编码) |
-| `Future` / `Result` | multiraft/types.go | 异步提案结果，Wait(ctx) 阻塞到提交 |
-| `ProposalStageObserver` | multiraft/stage_observer.go | 低基数 proposal stage 观测接口；可从上游 ctx 进入 Future 并随 apply/commit 路径传播 |
-| `LeaderChangeObserver` | multiraft/types.go | Slot leader election 观测接口；用于把本地运行时观察到的 leader 变化映射到低基数指标 |
-| `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
-| `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
-| `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
-| `User` / `Channel` / `Device` | pkg/db/meta | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` / `DirectoryReady`；权威 Channel RPC 也必须携带这些字段 |
-| `ChannelRuntimeMeta` | pkg/db/meta | Leader/ISR/Epoch、RouteGeneration、write-fence 与权威保留边界运行时元数据 |
-| `ChannelMigrationTask` | pkg/db/meta | Channel leader transfer / replica replace 的权威任务、owner lease、进度与 terminal retention 索引 |
-| `UserChannelMembership` | pkg/db/meta | UID-owned 普通会话目录、加入/隐藏边界、badge floor 与显式 activation |
-| `UserCMDChannelMembership` | pkg/db/meta | 独立 CMD 绑定、起始序号、ack 与 tombstone 状态 |
-| `Raft Logger` | multiraft/logging.go | `wklog` 结构化日志，模块 `slot.raft`，附带 `raftScope=slot` / `nodeID` / `slotID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 |
+- Every command belongs to its physical Slot and an owned logical hash Slot.
+  Multi-hash-Slot batches are allowed only by explicit command contracts and
+  validate every embedded row.
+  Runtime-meta batches are canonical, identity-unique, and bounded to 64;
+  person membership/ready batches are bounded to 128. The combined prepare
+  command returns aligned create results but never publishes ready.
+- Entity routing keys are stable: UID-owned rows use UID; Channel-owned rows use
+  Channel identity. Caller-supplied Slot IDs never override derived ownership.
+- FSM batches are atomic. Expected conditional conflicts and migration races
+  return deterministic results such as stale metadata; unexpected apply
+  failures do not expose a partially committed batch.
+- Runtime metadata epochs, route generation, retention, and write-fence version
+  advance monotonically. Cleared fences retain their generation marker, and no
+  task may overwrite a foreign fence.
+- Migration cutover requires task, epoch, leader, fence, drain, replica, ISR,
+  and phase proof from the same authoritative state. Irreversible commit or
+  promotion cannot later be labeled aborted.
+- Losing leadership fails pending proposal/configuration futures. Transport
+  payload ownership, queues, apply batches, subscriber commands, scans,
+  snapshots, and result payloads remain bounded.
+- Recovery restores the persisted snapshot boundary then replays its committed
+  suffix; a later applied marker must never skip replay.
+- Ordinary and CMD membership progress is monotonic and UID-owned. Removed
+  conversation table IDs stay reserved and must not be reused.
 
-## 5. 核心流程
+## Read First
 
-### 5.1 写入（以 CreateChannel 为例）
+- [Subtree boundary](BOUNDARY.md)
+- [Multi-Raft API](multiraft/api.go)
+- [Raft Slot worker](multiraft/slot.go)
+- [FSM state machine](fsm/statemachine.go)
+- [Distributed proxy](proxy/store.go)
 
-入口: `proxy/store.go:44 CreateChannel`
+## Update Triggers
 
-```
-  ① hashSlot := cluster.HashSlotForKey(channelID)       // CRC32(key) % HashSlotCount
-  ② slotID := cluster.SlotForKey(channelID)             // hashSlot 查表定位物理 Slot
-  ③ cmd := fsm.EncodeUpsertChannelCommand(channel)      // TLV 编码，包含 channel status flags
-  ④ cluster.ProposeWithHashSlot(ctx, slotID, hashSlot, cmd) // 提交带 hashSlot 信封的提案
-     ↓
-multiraft/slot.go:
-  ⑤ enqueueControl(controlPropose, data, future) → scheduler.enqueue(slotID)
-  ⑥ Worker 拾取 → processControls → rawNode.Propose(data)
-     - `meta_create_slot_control_wait` 记录 Future 从 Runtime.Propose 到 Slot control 被处理的等待
-     - Raft 在选举或 leader transfer 窗口丢弃 proposal 时返回 `ErrNotLeader` 让上层按新 leader 重试；仅当前节点仍是无 transfer 的 leader 时，dropped proposal 才归类为未提交日志预算 backpressure
-  ⑦ applyCommittedEntries 先从 entry.Data 头部解出 HashSlot，再把 TLV Data 传给状态机
-     - `meta_create_slot_raft_commit_wait` 记录 proposal entry 被本地持久化/跟踪后到 committed apply 的等待
-     - `meta_create_slot_fsm_apply` 记录状态机 Apply/ApplyBatch 总耗时
-  ⑧ processReady → persistReady → transport.Send → 多数确认
-     ↓
-fsm/statemachine.go:43 ApplyBatch:
-  ⑨ 创建 WriteBatch → 遍历 cmds → 校验物理 Slot + HashSlot 归属 → decodeCommand → cmd.apply(wb, hashSlot)
-  ⑩ wb.Commit() — 单次 fsync 原子提交
-     - `meta_create_slot_fsm_commit` 记录元数据 WriteBatch commit 耗时
-  ⑪ storage.MarkApplied(lastApplied)
-     - `meta_create_slot_mark_applied` 记录 applied index 持久化耗时
-     ↓
-Pebble:
-  写入 State 键(0x10)主记录 + Index 键(0x11)二级索引
-```
-
-`CreateChannelRuntimeMeta` 使用命令 59，并通过通用 `resultCommand` 在同一次 FSM
-commit 后返回 `created`。Meta batch 在 hash-slot 锁内原子执行存在性检查和插入；已存在是
-成功的 `created=false` 结果且不会覆盖原记录。命令 4 的普通单调 upsert 继续用于迁移和修复。
-
-稳态普通消息 SEND 不提交 membership 命令。首次持久化私聊 SEND 会先建立双方
-membership 并单调写入 Channel `DirectoryReady`；后续节点必须通过本地或权威
-Channel RPC 读取该标记，不能重复建立目录。除此之外，只有订阅成员变更以及显式
-clear/set unread、hide、activate 操作才通过 UID hash slot 提交普通 membership 命令；
-CMD bind/unbind/syncack 使用独立 CMD membership 命令。
-
-`channel_latest` 支持按物理 Slot 聚合的批量命令。命令 envelope 只携带一个用于路由的
-hash slot，但 batch entry 内部会保存每行真实 hash slot；`fsm.ApplyBatch` 会校验每个
-entry 的 hash slot 都属于当前物理 Slot，并用同一个 WriteBatch 原子写入这些行。
-
-消息事件 durable 投影使用 channel-owned hash slot。进入 Slot FSM 的
-`AppendMessageEvent` 是普通 Slot FSM 命令，但它实现 `resultCommand`，因此
-`ApplyBatch` 会返回 reducer 产生的 `MessageEventAppendResult` 编码结果；调用方只有
-显式走 result proposal path 时才支付返回结果的序列化和传输成本。上层
-`pkg/cluster.Node` 会把 `stream.open`/`stream.delta`/`stream.snapshot` 先缓存在
-Slot leader 节点内，只在 terminal stream event 到达时提交 durable projection；
-`stream.finish` 会由 cluster 层先把仍未终态的缓存 lane 刷成 compact terminal
-state，并与 reserved finish marker 一起编码成一个 batch command/result
-proposal。投影只保存每条消息各 event lane 的压缩状态和消息级 cursor，不保存原始事件日志，
-`/message/eventsync` 的逐事件增量接口不在这一层实现。
-同一个 channel-owned hash slot 内的 `AppendMessageEventsBatch` 可以携带多个
-`client_msg_no`，用于上层 Slot leader 把同 channel 的并发 `stream.finish`
-合并成一次 durable proposal。FSM 对 batch 中每个 event 都产生
-`MessageEventAppendResult`，batch apply result 使用多结果编码返回；旧的单结果
-decoder 在多结果 payload 上仍返回最后一条结果，以保持已有单 stream finish 路径兼容。
-
-### 5.2 读取（本地 vs 权威 RPC）
-
-入口: `proxy/store.go` 各 Get 方法
-
-```
-读取路径分两种:
-
-本地读取（proxy/store.go:69 GetChannel）:
-  hashSlot = HashSlotForKey(channelID)
-  → db.ForHashSlot(hashSlot).GetChannel(ctx, ...)  // 直接读本地 Pebble
-  → meta.DB 会对热 Channel 元数据维护节点内有界缓存；Create/Update/Upsert/Delete/AddSubscribers/RemoveSubscribers
-    以及 WriteBatch commit、快照导入会同步更新或清理缓存，保证订阅版本栅栏不绕过本地已应用状态。
-
-权威读取（proxy/store.go:138 GetUser，需线性一致性）:
-  slotID = SlotForKey(uid)
-  → callAuthoritativeRPC(proxy/authoritative_rpc.go:35):
-    ① 获取 peers := cluster.PeersForSlot(slotID)
-    ② 遍历 peers（去重），发送 RPC
-    ③ 响应状态处理:
-       ok / not_found          → 返回结果
-       not_leader + leaderID   → 优先重试 leaderID
-       no_leader / no_slot     → 记录 lastErr，尝试下一个
-    ④ 所有 peers 用尽 → 返回 lastErr
-
-Channel migration active task scan:
-  `Store.ListActiveChannelMigrationTasksForNode` 按 Slot 权威 leader 扫描 active task，仅以 `SourceNode` / `TargetNode` 判断节点参与关系；`OwnerNodeID` 只表示当前 executor，不算节点参与。NodeScaleIn 会把该结果与当前 `ChannelRuntimeMeta` 扫描结果再 join，用于统计 channel metadata 仍引用目标节点的 active task。
-```
-
-### 5.3 Raft Ready 处理循环
-
-入口: `multiraft/runtime.go:runWorker` → `slot.go:processReady`
-
-```
-Worker 循环:
-  processSlot (runtime.go:93):
-    ① beginProcessing → 抢占锁，防并发处理
-    ② processRequests → 入站消息 Step 到 rawNode
-    ③ processControls → Propose / ConfigChange / Campaign / TransferLeader
-       - ordinary TransferLeadership keeps the operator/task advisory-target fallback semantics
-       - TryTransferLeadershipToPreferred checks fresh RawNode leader/term, stable exact voters, no in-flight transfer, target RecentActive, and target Match >= Commit in the Slot worker; immediately before issuing TransferLeader the intent guard wraps a Slot-mutex action that rechecks close/fatal state, so waiting for intent never holds the Slot mutex and invalidation/terminal state wins unless the nonblocking issue point already linearized. It returns a bounded decision (`stale_intent`, `voter_mismatch`, `joint_config`, `transfer_in_progress`, `preferred_inactive`, `preferred_lagging`, or `transfer_started`) together with the fresh worker-observed leader/term and an explicit observation-presence bit, honors caller cancellation before that issue point, and never falls back to another voter
-    ④ processTick    → tickPending 时 rawNode.Tick()
-    ⑤ processReady   → 核心处理:
-       - storageView.persistReady(HardState + Entries + Snapshot)
-       - trackReadyEntries(future 追踪)
-       - transport.Send(ready.Messages)
-       - applyCommittedEntries: 连续 Normal Entry 批量 ApplyBatch (均摊 fsync)
-                                遇到 ConfChange 先 flush 再 ApplyConfChange
-       - when `lastApplied` advances, `storage.MarkApplied(lastApplied)`
-       - rawNode.Advance(ready)
-       - 若 applied 增量达到 Slot log compaction 阈值，导出 Slot meta snapshot，写入 Raft snapshot，并裁剪旧本地 entries
-       - 通过 Future 通知提案者
-    ⑥ refreshStatus → 刷新 Leader / CurrentVoters 观测，检测 Leader 丢失并清理 pending 提案
-    ⑦ finishProcessing
-```
-
-默认 `Transport` 会收到深拷贝的 `Entry.Data` / `Snapshot.Data`，避免异步 transport
-持有 Raft Ready 可复用内存；显式实现 `ReadyMessagePayloadOwner` 的 transport 必须在
-`Send` 返回前消费或编码 payload，Multi-Raft 会只复制小的可变元数据并共享大 payload。
-
-`Runtime.Propose` 会把 ctx 中的 `ProposalStageObserver` 复制到 Future 上，保证异步
-control queue、Raft commit、FSM apply、FSM commit 和 MarkApplied 阶段仍能归属到同一次上游
-Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/ApplyBatch 总耗时，
-其中包含 `meta_create_slot_fsm_commit` 子阶段。
-
-### 5.4 Slot 生命周期
-
-```
-创建: BootstrapSlot (runtime.go:58)
-  ① newSlot → 加载持久化状态 → 创建 rawNode
-  ② rawNode.Bootstrap(voters) → 初始化成员
-  ③ slots[slotID] = slot
-  ④ scheduler.enqueue → 首次处理
-
-运行: Ticker 周期(TickInterval)扫描所有 Slot → markTickPending → scheduler.enqueue
-
-关闭: CloseSlot (runtime.go:102)
-  ① 等待 processing=false
-  ② slot.closed=true → 失败所有 pending futures
-  ③ 从 slots map 删除
-```
-
-### 5.5 快照
-
-```
-生成: fsm/statemachine.go:Snapshot → pkg/db/meta snapshot export
-  遍历 State/Index/Meta 三个键空间 → 编码为 binary
-
-传输: Raft InstallSnapshot RPC
-  - 小快照仍作为普通 `msgTypeRaft` / `MsgSnap` 发送
-  - 超过 transport 单帧预算的 Slot `MsgSnap` 会在 `pkg/cluster` 的 raftTransport 层拆成 `msgTypeRaftSnapshotChunk`
-  - 接收端按 snapshot chunk 重组成原始 `MsgSnap` 后再调用 Runtime.Step，状态机 Restore 语义不变
-
-恢复: fsm/statemachine.go:Restore → pkg/db/meta snapshot import
-  删除旧键空间范围 → 原子写入所有新 KV → 单次 Commit
-
-本地日志压缩:
-  ① processReady apply + MarkApplied + RawNode.Advance 之后检查 applied delta
-  ② 达到阈值时调用 StateMachine.Snapshot 导出当前物理 Slot 拥有的 hash slot 数据
-  ③ 始终用当前 applied index/term/conf state 写入 snapshot
-  ④ 发生 Raft membership change 且已有 snapshot 时，刷新 snapshot 到最新 conf state，保证新 learner 可安装 snapshot 追赶
-  ⑤ Runtime.CompactLog 可由运维入口手动触发同一节点本地压缩，忽略自动阈值但仍遵守 compaction enabled 配置
-  ⑥ Runtime.InstallExternalStateSnapshot 用于维护期恢复：即使普通压缩关闭或 index 未前进，也在当前 applied boundary 强制替换持久化 snapshot
-  ⑦ Runtime.ReloadSlot 仅在维护栅栏内退役并重建该 Slot，使内存 Raft/FSM 从新 snapshot 恢复
-  ⑧ 启动时先 Restore 当前 snapshot，再只加载并 replay snapshot index 之后的 committed entries
-```
-
-备份读取使用独立的 `Runtime.CaptureHashSlotSnapshot` 控制动作。Slot worker
-先等待异步 apply 归零，证明当前 commit index 与 durable applied index 相等，记录该
-证据的 UTC watermark 与 term，再让 FSM 为一个当前归属的
-逻辑 hash slot 创建 Pebble pinned read view。控制动作只负责建立一致性点；返回的
-reader 在 worker 外分块消费，后续 Slot apply 不被整个导出时长阻塞。该读取不会创建
-Raft snapshot、不会裁剪日志，也不会改变业务状态。
-
-### 5.6 Channel Migration Task Flow
-
-```
-创建:
-  ① 管理入口通过 dry-run 读取 `ChannelRuntimeMeta`，再用 `CreateChannelMigrationTaskWithRuntimeGuard` 把 epoch/leader/fence guard 带入 Slot Raft
-  ② FSM 在同一个 `WriteBatch` 中创建 `ChannelMigrationTask`，并在 commit-time 复核 pre-batch runtime guard
-
-Replica replace:
-  ① `AddChannelLearner` 原子更新 task 阶段与 `ChannelRuntimeMeta.Replicas`，只把 target 加进 `Replicas`
-  ② `learner = Replicas - ISR`；learner 可以接收 channel 复制和 catch-up probe，但不参与 HW quorum、MinISR 写可用性或 leader promotion 候选
-  ③ catch-up 必须证明 target 在当前 leader/epoch 下追到阈值；V1 遇到 snapshot-required gate 时不能 promote，必须等待 snapshot 支持或人工恢复
-  ④ `SetChannelWriteFence` 原子推进 task 与权威 `WriteFenceVersion`，channel leader drain 期间写入 fail-closed
-  ⑤ `PromoteLearnerAndRemoveReplica` 在同一 Slot Raft `WriteBatch` 中验证 drain proof、把 target 加入 `ISR`、移除 source，并推进同 leader `ChannelEpoch`
-
-Leader transfer:
-  ① `SetChannelWriteFence` 后由旧 leader `FenceAndDrain` 生成 cutover proof
-  ② `CommitChannelLeaderTransfer` 原子验证 task/fence/proof，写入新 leader、递增 `LeaderEpoch`/`ChannelEpoch`，并保留后续 verify/clear 所需阶段
-
-清理/回滚:
-  ① `ClearChannelWriteFence` 只能在 verify 阶段用更高 `WriteFenceVersion` 清除权威 fence
-  ② `ResetChannelWriteFenceToPreCutover` / `AbortChannelMigration` 仍通过 Slot Raft 命令更新 task 与 runtime meta；不能靠 channel 节点本地 TTL 重新开写
-```
-
-## 6. Meta DB 键空间与表
-
-**3 个键空间:**
-```
-State (0x10): [0x10][hashSlot:2][tableID:4][主键列...]            主记录，值带 CRC32 校验
-Index (0x11): [0x11][hashSlot:2][tableID:4][indexID:2][索引列...]  二级索引
-Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
-```
-
-**业务表 catalog** (见 `pkg/db/meta/schema.go`):
-
-| Table ID | 表 | 主键 | 二级索引 |
-|----|----|----|----|
-| 1 | User | (uid) | - |
-| 2 | Channel | (channel_id, channel_type) | idx_channel_id |
-| 3 | ChannelRuntimeMeta | (channel_id, channel_type) | - |
-| 4 | Device | (uid, device_flag) | - |
-| 5 | Subscriber | (channel_id, channel_type, uid) | - |
-| 6 | ReservedConversation | - | 已删除的开发期 conversation 表 ID，不注册、不复用 |
-| 7 | ReservedCMDConversation | - | 已删除的开发期 CMD conversation 表 ID，不注册、不复用 |
-| 8 | PluginUserBinding | (uid, plugin_no) | idx_plugin_no_uid |
-| 9 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
-| 10 | HashSlotMigration | (hash_slot) | - |
-| 11 | UserChannelMembership | (uid, channel_id, channel_type) | idx_user_membership_activated |
-| 12 | ChannelLatest | (channel_id, channel_type) | - |
-| 13 | MessageEventState | (channel_id, channel_type, client_msg_no, event_key) | - |
-| 14 | MessageEventCursor | (channel_id, channel_type, client_msg_no) | - |
-| 15 | MessageEventApplied | (channel_id, channel_type, client_msg_no, event_id) | - |
-| 16 | UserCMDChannelMembership | (uid, command_channel_id, channel_type) | - |
-
-## 7. FSM 命令类型
-
-TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
-未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
-
-```
-1: UpsertUser         2: UpsertChannel         3: DeleteChannel
-4: UpsertChannelRuntimeMeta                     5: DeleteChannelRuntimeMeta
-6: CreateUser         7: UpsertDevice
-8: AddSubscribers     9: RemoveSubscribers
-15: AdvanceChannelRetentionThroughSeq
-20: ApplyDelta                         21: EnterFence
-22: AckMigrationOutbox                 23: CleanupMigrationOutbox
-30: CreateChannelMigrationTask         31: ClaimChannelMigrationTask
-32: AdvanceChannelMigrationTask        33: SetChannelWriteFence
-34: ResetChannelWriteFenceToPreCutover 35: CommitChannelLeaderTransfer
-36: AddChannelLearner                  37: PromoteLearnerAndRemoveReplica
-38: ClearChannelWriteFence             39: AbortChannelMigration
-40: GarbageCollectTerminalChannelMigrationTasks
-41: CreateChannelMigrationTaskWithRuntimeGuard
-42: BindPluginUser                    43: UnbindPluginUser
-44: UpsertUserChannelMemberships      45: DeleteUserChannelMemberships
-46: UpsertChannelLatest               47: UpsertChannelLatestBatch
-48: AppendMessageEvent                49: AppendMessageEventsBatch
-50: CreateChannel                     51: PatchChannelBusinessFlags
-52: AdvanceUserChannelMembershipReadSeq
-53: HideUserChannelMembership         54: ActivateUserChannelMembership
-55: UpsertUserCMDChannelMemberships   56: AdvanceUserCMDChannelMembershipAcks
-57: TombstoneUserCMDChannelMemberships
-58: EnsureChannelDirectoryReady
-59: CreateChannelRuntimeMeta
-60: UpsertUserChannelMembershipBatch
-61: EnsureChannelDirectoriesReadyBatch
-```
-
-## 8. RPC Service IDs（proxy 层）
-
-| Service ID 常量 | 值 | 用途 | 文件 |
-|---|---:|---|---|
-| `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
-| `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发 | proxy/channel_migration_rpc.go |
-| `pluginBindingRPCServiceID` | 53 | 插件绑定查询、UID-owned 远端提案与 plugin_no 扫描 | proxy/plugin_binding_rpc.go |
-| `RPCSlotSubscriberMetadata` | 79 | 订阅者列表、精确包含与非空查询 | proxy/subscriber_rpc.go |
-| `RPCSlotChannelMetadata` | 80 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
-| `RPCSlotUserMembership` | 83 | UID-owned 普通 membership 点读/分页与 CMD membership 分页 | proxy/membership_rpc.go |
-| `RPCSlotRuntimeMetadata` | 84 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
-| `RPCSlotPermissionMetadataBatch` | 85 | 按物理 Slot 批量读取原始发送权限事实，并保持结果对齐 | proxy/permission_batch_rpc.go |
-
-**RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
-
-## 9. 避坑清单
-
-- **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
-- **Membership RPC 归属校验**: handler 必须在领导权和数据读取前验证 request 的 `SlotID == SlotForKey(uid)`；不能让调用方提供的 SlotID 绕过 UID 所有权边界。
-- **Permission batch RPC 归属校验**: caller 按 `SlotForKey(channel_id)` 分组，每个物理 Slot 最多一次权威 RPC；handler 必须逐 read 复核 channel key 属于 request Slot。RPC 只返回 Channel/contains/has-any 原始事实，发送权限策略和 reason 优先级留在 `internal/usecase/message`。
-- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch`、command 59 的 `CreateChannelRuntimeMetaBatch` 与 command 62 的 `PreparePersonChannelDirectoryBatch` 必须逐 entry 校验真实 hash slot 与目标逻辑 Slot 归属，不能把 envelope hashSlot 当成所有行的真实归属。
-- **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
-- **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
-- **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `pkg/db/meta` compatibility `WriteBatch.CreateUser`。
-- **Manager Channel 条件写**: 命令 50/51 在 apply 内返回 `applied` 结果而不是用预期的已存在/缺失状态让 Slot fail；create-only 冲突由 proxy 映射成 `ErrAlreadyExists`，flag patch 缺失映射成 `ErrNotFound`，patch 只能改 Ban/Disband/SendBan。
-- **ChannelRuntimeMeta 首次创建**: 命令 59 只有 bounded batch 格式（1..64 项）。编码按 `(hash_slot, channel_type, channel_id)` 规范排序并拒绝重复 identity；FSM 在同一次 Meta batch commit 内逐项检查并插入，返回同序 identity-bound `created` 结果。重复 apply 返回成功的 `created=false` 且不覆盖原记录，任一 hash slot 不归当前 Slot 所有时整批拒绝。命令 4 的普通单调 upsert 不变，继续用于迁移和修复。
-- **ListChannelRuntimeMeta 扇出**: `store.go:102` 遍历所有 SlotID 发 RPC，N 个 Slot 就是 N 次 RPC，慎用。
-- **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch` / `RouteGeneration`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；write-fence 字段是同一通道的权威 fence 状态，`set/renew/reset/clear` 必须通过更高的 `WriteFenceVersion` 表达有效更新，单调写入不能清空或回退已有 fence；repair / bootstrap 必须通过更高 epoch、RouteGeneration 或更长 lease 表达有效更新。
-- **RuntimeMeta RPC 版本兼容**: `runtime_meta` v2 response 携带 `RouteGeneration` 和 `WriteFence*` 字段；v1 request/response 必须继续可解码，new caller 可先尝试 v2，遇到旧节点不支持 request codec 时回退 v1，responder 必须按 request codec 版本回包。
-- **Channel 迁移 cutover proof**: `CommitChannelLeaderTransfer` 和 `PromoteLearnerAndRemoveReplica` 必须同时验证活跃 fence、`DrainedFenceVersion == meta.WriteFenceVersion`、`DrainedChannelEpoch == meta.ChannelEpoch`、`DrainedLeaderEpoch == meta.LeaderEpoch`、`DrainedLeaderNode == meta.Leader`，否则按 `stale_meta` 处理，避免过期 drain proof 继续切换。
-- **Channel 迁移恢复/回滚边界**: `ResetChannelWriteFenceToPreCutover` 只能作为已过期 fence 的恢复命令；`PromoteLearnerAndRemoveReplica` 要求 target 仍是 learner（在 `Replicas` 但不在 `ISR`）；`AbortChannelMigration` 只在 replica replace 且 target 仍未进入 `ISR` 时移除 unpromoted learner，leader transfer abort 不删除非 ISR 副本。
-- **Channel 迁移不可逆边界**: drain 后续租 fence 会提升 `WriteFenceVersion` 并清空旧 `Cutover*` / `Drained*` proof，后续 cutover 必须重新 drain；clear 只能从 leader transfer 的 `VerifyNewLeader` 或 replica replace 的 `VerifyMembership` 完成（embedded leader transfer 的 clear 只能回到 `AddLearner`）；abort 只允许在 leader commit / promote 之前的可回滚阶段，且只有已经越过 `AddLearner` 的 replica replace 才会移除 unpromoted learner，不能把已提交 leader transfer 或已 promote 的任务标成 aborted。
-- **Replica replace 嵌入式 leader transfer**: 当 source 是当前 channel leader 时，executor 通过 `AdvanceChannelMigrationTask.EmbeddedDesiredLeader` 在同一任务中持久化 embedded transfer 决策；后续 leader-transfer 子阶段不能创建第二个 active task，embedded clear 只清 fence/proof 并回到 `AddLearner`；`AddLearner` 会重新读取权威 meta，若 source 又成为 leader 则重新回到 embedded transfer。
-- **Channel 迁移 fence/task 一致性**: set/renew/reset/commit/promote/clear/abort 不允许覆盖或清理 foreign fence；涉及已存在 fence 的命令必须让 task fence 与 runtime meta fence 的 token/version 指向同一 task。source/target 角色校验采用 fail-closed 语义，例如 add learner 时 source 必须仍在 `Replicas` 和 `ISR` 且不能是当前 leader、target 必须尚未进入 `Replicas`/`ISR`。
-- **Channel 迁移 clear marker**: token 为空但 `WriteFenceVersion > 0` 是合法的已清 fence generation marker，不算 active/foreign fence；同任务 reset 后重设 fence 或后续新任务 set fence 必须基于该 marker 继续递增版本。
-- **Channel 迁移任务创建防竞态**: 管理入口创建任务应使用 `CreateChannelMigrationTaskWithRuntimeGuard`，把 dry-run 读取到的 `ChannelRuntimeMeta` epoch/leader/fence 状态带进 Raft apply；如果创建前 runtime meta 已变化，FSM 返回确定性的 `stale_meta`，避免创建出必然失败的陈旧任务；若同批前序命令已 staged runtime meta，guarded create 会记录 pre-batch DB guard 并在 commit-time 复核，防止同批 staging 期间 DB 被更新后仍创建陈旧任务。
-- **Channel 迁移同批写保护**: `UpsertChannelRuntimeMeta` / `CreateChannelMigrationTask` 如果已经在同一个 `ApplyBatch` 里写入，后续迁移命令会复用同批 staged state，不再按 DB 旧值做 commit-time 重新校验；这样 `runtime meta -> create task -> add learner` 这类合法同批命令不会被误判为 stale。`CreateChannelMigrationTaskWithRuntimeGuard` 是例外：它可读取同批 staged runtime meta 做语义校验，但仍会记录 pre-batch runtime guard 用于 commit-time 防竞态。
-- **Channel 迁移提交期竞态**: commit-time guard 如果发现 `ErrStaleMeta` / `ErrNotFound` / `ErrAlreadyExists`，FSM 会把该 Raft entry 归一化为确定性的 `stale_meta` 结果；批量提交遇到这类提交期竞态会拆成单条重放，避免正常迁移竞态让 Slot fatal。
-- **Channel 迁移编码健壮性**: 迁移命令只接受单个 JSON payload TLV，重复 payload、重复 JSON key 或未知 JSON 字段视为 `ErrCorruptValue`，避免歧义编码。
-- **Retention 窄更新是可失败提案**: `AdvanceChannelRetentionThroughSeq` 直接调用 meta store 时会返回 `ErrStaleMeta` / `ErrNotFound`，但 FSM apply 会把 stale 或缺失 runtime meta 转成确定性的 `stale_meta` 结果，避免正常竞态让 Slot fatal；proxy/cluster 再把该结果归一化为调用方可见的 `ErrStaleMeta`。
-- **ChannelRuntimeMeta 分页边界**: `meta.ShardStore.ListChannelRuntimeMetaPage` 只扫描当前 hash slot 的主键范围，按 `(channel_id, channel_type)` 升序读取并用 `limit+1` 判定是否还有下一页；更高层如果需要物理 Slot / 全局分页，必须基于这个分片原语做增量合并，不能先全量拉取再截页。
-- **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
-- **Channel 元数据权威分页**: `Store.ScanChannelsSlotPage` 通过 `channel scan_channels_page` 在物理 Slot leader 上扫描 channel 主记录；后台业务频道清单必须基于该权威分页聚合，不能绕过 Slot leader 或全量本地扫描。
-- **命令 50/51 升级约束**: 混合版本 Slot 副本不能安全接收 Manager Channel 条件 create/patch；发布时需要 stop-the-world 升级或 capability gate。
-- **命令 59/62 wire 合同**: command 59 从第一版开始就是 `CreateChannelRuntimeMetaBatch`，count=1 也使用同一格式；command 62 是规范顺序的 membership+runtime-meta 组合编码，runtime-meta 结果沿用 command 59 的 identity-bound result wire。仓库没有旧单条 command 59 或旧 command 62 的兼容编码与回退路径。
-- **Membership 路由与分页**: 普通和 CMD membership 都按 UID hash slot 路由。普通目录 cursor 必须包含 `(activated_at, channel_id, channel_type)` 完整索引位置；limit 限制扫描候选数。
-- **Person directory 批命令**: 命令 60/61 各自最多携带 128 个规范排序且 identity 唯一的 row，并逐 row 携带真实 hash slot。command 62 在同一个 bounded `WriteBatch` 中合并最多 128 个 membership row 与最多 64 个 create-only runtime-meta row，返回与 command 59 相同的 identity-bound create result；它不发布 ready。FSM 必须校验所有 row 的真实 hash slot 都属于同一目标逻辑 Slot Raft Group。prepare 阶段的 membership 与 runtime meta 全部提交成功后，才能用 command 61 发布 directory-ready；不能在任一目录准备失败时发布 ready。
-- **Membership 单调语义**: `read_seq`、`deleted_to_seq`、CMD `ack_seq` 只能前进；显式 activate 更新普通 activation index，hide 同批清零 activation。`source_version` 拒绝陈旧的订阅者派生写。
-- **Conversation 表已删除**: Table ID 6/7 仅保留防复用；Slot FSM、proxy 和 cluster 不得重新引入 conversation 投影命令、RPC 或 active hint overlay。
-- **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。
-- **PluginUserBinding plugin_no 分页**: plugin_no 维度扫描的公开 cursor 以 `(plugin_no, uid, slot_id, hash_slot)` 做总序断点，避免不同 hash slot 中出现相同 `(plugin_no, uid)` 时翻页跳项；远端扫描请求必须校验 `hash_slot` 属于目标物理 Slot。
-- **PluginUserBinding 只表达集群绑定**: 表内只保存 UID 到 plugin_no 的权威关联，不保存节点本地插件配置、启停状态或进程状态；这些状态属于 `pkg/plugin/pluginhost` 的 node-local desired/observed state。
-- **PluginUserBinding Receive 选择边界**: 写入绑定不要求目标插件在所有节点都存在；Receive hook 执行时由 usecase 结合本节点 observed plugins、desired enabled 和方法列表选择最高优先级 running Receive 插件。
-- **ApplyBatch 原子性**: 一个 ApplyBatch 内所有命令要么全部成功，要么全部失败（WriteBatch 未 Commit 就丢弃）。任何一条失败会导致整个 Raft Slot fail。
-- **Subscriber 命令硬上限**: `AddSubscribers` / `RemoveSubscribers` 单条 Raft command 最多 1000 个 UID，编码后的 UID 字节最多 64KB；proxy 在提案前校验，FSM decode 仍兜底拒绝超限命令。
-- **Leader 变更自动失败 pending**: `slot.go:refreshStatus` 检测到从 Leader 降级时，立即 fail 所有 submitted/pending 的 proposal/config Future 返回 ErrNotLeader。
-- **Batch Apply 与 ConfChange 穿插**: `slot.go:applyCommittedEntries` 遇到 ConfChange 必须先 flush 累积的 Normal Entry 批次。不能把 ConfChange 塞进批次里。
-- **Slot log compaction 恢复边界**: 启动时只把持久化 snapshot index 作为 RawNode applied point，然后 replay snapshot 之后仍存在的 entries；不能用更靠后的 persisted applied index 跳过 replay。
-- **RPC Handler 注册**: `proxy.New` 在构造时通过统一注册端口安装 8 个 handler，漏任一个该类远端查询会全部失败；生产默认 `NewChannelMetadataStore` 安装 runtime-meta、subscriber、channel、permission-batch、membership 五个权威读取 handler。
-- **写入 Key 路由**: `HashSlotForKey(key)` 先算逻辑 hash slot，再通过 `SlotForKey(key)` 查表定位物理 Slot；**同一实体必须使用同一 Key**（User 用 uid，Channel 用 channelID，Device 用 uid 而非 deviceFlag）。用错 Key 会写到不同 hash slot / Slot，读不到。
-- **值 CRC 校验失败**: Pebble 存储值带 CRC32，校验失败返回 `ErrCorruptValue`。表明磁盘损坏或编解码器版本不兼容。
-- **备份快照边界**: `CaptureHashSlotSnapshot` 只在本地 Slot leader 上证明 commit index 等于 durable applied index 后建立固定 Pebble 视图，并返回 SlotID、hashSlot、term、commit/applied index 与证据 UTC watermark；备份层必须在读取期间复核这些 fence，不能把未提交日志、apply lag 或迁移中的临时路由状态当成业务恢复数据。
+Update this file when Slot/hash-Slot ownership changes, Raft Ready/apply order
+changes, a command crosses ownership domains, authoritative read routing
+changes, migration fence semantics change, or snapshot/recovery guarantees
+change.

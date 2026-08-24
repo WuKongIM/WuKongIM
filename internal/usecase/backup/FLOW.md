@@ -1,88 +1,61 @@
-# internal/usecase/backup Flow
+---
+scope: package
+summary: Owns cluster-wide backup plan policy, job admission, archive lifecycle, retention, and current-cluster restore orchestration.
+---
+
+# Backup Use Case Flow
 
 ## Responsibility
 
-`internal/usecase/backup` owns entry-independent policy for the single
-cluster-wide backup plan, scheduled/manual job admission, bounded task state,
-archive operations, and current-cluster restore. Durable DTOs are defined in
-`internal/contracts/backup`; repositories and cluster execution are injected
-ports.
+This package owns entry-independent policy for the single cluster-wide backup
+plan, scheduled and manual jobs, archive operations, retention, and restore.
+Durable DTOs come from `internal/contracts/backup`; storage and execution are
+injected ports.
+It does not own entry protocols, concrete repositories, or cluster transport.
 
-## Plan and scheduling
+## Boundaries
 
-Manager replaces one complete plan through revision-fenced compare-and-swap.
-The plan contains enabled state, repository selection, Cron or `@every`
-schedule, time zone, retention count, per-node rate, one through four workers,
-and a one through 48 hour deadline. Saving publishes configuration only; it
-does not open or test the repository. A changed effective repository is saved
-as unverified, while schedule-only changes preserve the existing verification.
-Object-storage credential rotation is an effective repository change.
+- Saving a revision-fenced plan publishes configuration only; repository I/O
+  occurs in the separate exact-revision test operation.
+- One-node deployment remains a single-node cluster and follows the same Slot,
+  Controller, publication, and restore paths.
+- Access adapters redact and present results; infrastructure implements
+  repository, Controller state, routing, export, and restore ports.
 
-Enabling a previously disabled plan admits one immediate initial full backup.
-The Controller leader evaluates only the next occurrence after the durable
-schedule cursor. Missed occurrences are not replayed. An occurrence that
-overlaps a backup or restore becomes a bounded `skipped` history record.
-Enabling, manual admission, scheduled admission, and resumed runner execution
-all reject an explicitly unverified repository. A nil verification record is
-legacy verified state until the effective repository changes.
+## Main Flows
 
-## Backup execution
+1. Plan management validates repository, schedule, time zone, retention, rate,
+   one-to-four workers, and one-to-48-hour deadline. Effective repository
+   changes become unverified; schedule-only changes retain verification.
+2. `JobRunner` claims exact Slot attempts, exports bounded concurrent batches,
+   accepts fenced completions, publishes only after all 256 Slots, then applies
+   retention under a Controller-node-and-term operation lease.
+3. Restore fully verifies an archive, enters maintenance, stages and verifies
+   every current replica, switches only after all Slots pass, and shares one
+   durable rollback path for cancellation, timeout, or failure.
 
-`JobRunner` resumes the only active job from Controller state:
+## Invariants and Failure Semantics
 
-1. Resolve current Slot authority and claim attempts serially through durable
-   authority fences.
-2. Export a bounded batch concurrently, capped by `workers_per_node` for each
-   data node.
-3. Accept completion only for the exact job, attempt, owner, and term.
-4. After all 256 Slots complete, verify and publish the archive.
-5. Apply retention under a durable operation lease owned by the current
-   Controller node and term. A successor waits for the previous worker's
-   token-fenced completion release (or lease expiry) before it starts repository
-   side effects. Release the lease before moving the terminal result into the
-   newest-first, 100-record history.
+- Enabling a disabled plan admits one initial backup; missed schedule times are
+  not replayed, and overlap becomes a bounded skipped history record.
+- Explicitly unverified repositories reject admission and resume. Legacy nil
+  verification remains valid only until the effective repository changes.
+- Cancellation or deadline expiry never publishes `COMPLETE`; failover resumes
+  the single durable active job and unfinished attempts.
+- Dashboard and errors are bounded and secret-safe. Blank replacement secrets
+  preserve credentials only for the unchanged object provider.
+- Restore success increments `manager_session_epoch` while preserving restored
+  client authentication tokens.
 
-Cancellation and deadline expiry finish without publishing `COMPLETE`.
-Process or Controller leader failover reuses the durable active job and retries
-unfinished Slots.
+## Read First
 
-## Manager operations
+- [Plan management](management.go)
+- [Scheduled service](scheduled_service.go)
+- [Backup runner](job_runner.go)
+- [Restore runner](restore_runner.go)
+- [Archive catalog](archive_catalog.go)
 
-`ManagementService` returns one redacted dashboard containing plan, active
-task, bounded history, and published archives. Configuration and repository
-testing are separate operations. Configuration durably publishes the plan
-without repository I/O and preserves existing object-storage credentials when
-replacement fields are blank and the provider kind is unchanged. Testing
-requires the exact saved plan revision, opens that repository, probes access
-and shared visibility through every active data node, binds it to the source
-cluster, and only then marks that same plan revision verified.
+## Update Triggers
 
-Alibaba OSS and Tencent COS derive their standard public endpoint from Region
-when no override is supplied; the plan keeps that default selection as an
-empty Endpoint so later Region changes cannot retain a stale derived address.
-Repository failures retain a bounded provider, operation stage, stable reason,
-provider code, request ID, and node ID for access adapters to present without
-exposing credentials or raw provider bodies. Archive verify, hold/release, and
-delete operate only through the current plan repository.
-
-## Restore execution
-
-`RestoreService.StartRestore` fully verifies the selected archive before
-admitting one 48-hour restore job. `RestoreRunner` then advances one durable
-transition per call:
-
-```text
-preparing
-  -> maintenance
-  -> stage all 256 Hash Slots on every current replica
-  -> verify all staged replicas
-  -> switching
-  -> success
-```
-
-Every Slot attempt records sorted replica IDs and logical-byte evidence.
-Switching is forbidden until all Slots are verified. Cancellation, timeout,
-staging failure, verification failure, or switch failure enters the same
-durable rollback phase. A successful restore increments
-`manager_session_epoch`, invalidating existing Manager sessions while
-preserving restored client authentication tokens.
+Update this file when plan fields, verification, admission, Slot execution,
+publication, retention leases, restore phases, or session invalidation changes.

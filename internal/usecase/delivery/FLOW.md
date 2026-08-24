@@ -1,46 +1,47 @@
-# internal/usecase/delivery Flow
+---
+scope: package
+summary: Provides the temporary entry-agnostic gateway feedback facade and explicit legacy committed-event rejection.
+---
+
+# Delivery Compatibility Use Case Flow
 
 ## Responsibility
 
-`internal/usecase/delivery` is the temporary entry-agnostic gateway feedback
-facade for receive-ack and session-close commands.
+This package is the temporary gateway feedback facade for receive ACK and
+session-close commands. Canonical recipient plans now go directly from Channel
+append through `internal/contracts/onlinedelivery` to the delivery runtime.
+It does not select recipients, construct plans, or execute online delivery.
 
-Production app composition now uses this package only as the temporary gateway
-feedback facade. Channelappend submits canonical recipient plans directly to
-`internal/contracts/onlinedelivery`. `SubmitCommitted` remains temporarily as
-an explicit compatibility rejection surface for callers compiled against the
-old usecase API; production composition returns the canonical-plan-required
-error and never converts the event into fanout work.
+## Boundaries
 
-The package must not import gateway frames, access adapters, app composition,
-or concrete cluster/runtime implementations. Runtime adapters are responsible
-for bridging these usecase DTOs to concrete runtime DTOs.
+- `SubmitCommitted` remains only for source compatibility and production
+  composition returns the canonical-plan-required error without fanout work.
+- Runtime adapters translate use-case DTOs to runtime DTOs.
+- This package must not import gateway frames, protocol frames, cluster,
+  Channel, access, app, or the concrete delivery runtime.
 
-## Flow
+## Main Flows
 
-```text
-MessageCommitted compatibility call
-  -> App.SubmitCommitted
-  -> production runtime adapter rejects: canonical recipient plan required
+1. A legacy committed-event call is explicitly rejected as requiring a
+   canonical recipient plan.
+2. `RecvackCommand` delegates the exact feedback identity to the runtime port.
+3. `SessionClosedCommand` delegates exact session cleanup to the runtime port.
 
-RecvackCommand
-  -> App.Recvack
-  -> runtime.Recvack
+## Invariants and Failure Semantics
 
-SessionClosedCommand
-  -> App.SessionClosed
-  -> runtime.SessionClosed
-```
+- The compatibility surface never reconstructs subscriber fanout or a delivery
+  plan from a committed event.
+- Feedback DTOs remain entry-independent and contain no gateway frame types.
+- Import-boundary tests are part of the package contract.
 
-## Import Boundary
+## Read First
 
-The usecase package must remain independent from concrete entries and cluster
-adapters. The import-boundary test rejects imports of:
+- [Application facade](app.go)
+- [Ports](ports.go)
+- [Compatibility submission](submit.go)
+- [Use-case types](types.go)
 
-- `pkg/gateway`
-- `pkg/protocol/frame`
-- `pkg/cluster`
-- `pkg/channel`
-- `internal/access`
-- `internal/app`
-- `internal/runtime/delivery`
+## Update Triggers
+
+Update this file when the compatibility API, feedback commands, DTO mapping, or
+import boundary changes. Remove it when the compatibility surface is retired.

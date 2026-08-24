@@ -1,241 +1,73 @@
-# internal/usecase/plugin Flow
+---
+scope: package
+summary: Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping.
+---
+
+# Plugin Usecase Flow
 
 ## Responsibility
 
-`internal/usecase/plugin` owns entry-agnostic v2 plugin lifecycle state,
-candidate selection, and PDK-compatible hook payload mapping. It reuses the
-existing PDK `pluginproto` wire format but does not own process launching,
-Unix-socket transport, HTTP manager routes, or channel append side effects.
+`internal/usecase/plugin` manages node-local plugin desired state and observed
+lifecycle, selects eligible hooks, maps entry-independent values to the PDK
+wire model, and implements the business side of compatible plugin host RPCs.
 
-## Lifecycle Desired-State Flow
+It orchestrates synchronous Send hooks and post-commit Receive/PersistAfter
+hooks while keeping process, transport, cluster, and append implementations
+behind narrow ports.
 
-```text
-plugin /plugin/start host RPC
-  -> access/plugin decodes pluginproto.PluginInfo
-  -> App.StartPlugin
-  -> validate plugin number and caller identity
-  -> marshal ConfigTemplate from the manifest into ObservedPlugin
-  -> read node-local desired state through DesiredStore
-       if found and disabled, register observed status as disabled
-       if config exists, return it in pluginproto.StartupResp.Config
-  -> resolve sandbox directory through the runtime adapter
-  -> Runtime.RegisterObserved
-  -> return StartupResp with node id, sandbox dir, config, and success=true
-```
+## Boundaries
 
-Desired state is node-local in this phase because the reusable plugin runtime
-starts local `.wkp` processes from the local plugin directory. The usecase keeps
-a small desired-state cache so Send/Receive/PersistAfter candidate selection
-does not read the filesystem on every message. Mutations refresh the cache after
-writing the store.
+- `internal/access/plugin` owns host RPC decoding, body limits, timeouts, and
+  wire responses.
+- Process launch, sandbox paths, Unix sockets, and local runtime inventory
+  belong to runtime adapters; cluster and remote-node routing belong to infra.
+- Plugin-origin messages re-enter the normal message usecase. They do not
+  bypass permission, authority, append, or `NoPersist` semantics.
+- Receive and PersistAfter are best-effort post-commit effects and cannot alter
+  SENDACK, durable append, membership, or online delivery results.
 
-## Config And Local Lifecycle Flow
+## Main Flows
 
-```text
-manager/app local plugin config update
-  -> App.UpdateLocalConfig
-  -> validate plugin number and require an observed local plugin
-  -> decode ConfigTemplate and preserve existing secret values when the manager
-     sends the SecretHidden placeholder
-  -> persist DesiredPlugin through DesiredStore
-  -> when the effective plugin is running, enabled, and advertises ConfigUpdate:
-       call /plugin/config_update synchronously through Invoker.RequestPlugin
-  -> return LocalPluginDetail with config secrets redacted
+1. Lifecycle operations validate identity, merge and persist node-local desired
+   state, preserve secret redaction, register observed runtime state, refresh
+   candidate caches, and notify only advertised config-update hooks.
+2. Foreground hooks and host RPCs select eligible plugins in priority order,
+   clone boundary payloads, restrict allowed mutation, and route message send,
+   committed reads, cluster snapshots, conversations, and bounded HTTP through
+   injected usecase ports.
+3. Post-commit Receive and PersistAfter select eligible bound candidates under
+   recursion, deduplication, and timeout fences; their independent failures do
+   not change the durable or online-delivery outcome.
 
-local restart/uninstall
-  -> App.RestartLocalPlugin / App.UninstallLocalPlugin
-  -> validate plugin number
-  -> delegate process control to the runtime lifecycle adapter
-  -> uninstall first writes disabled desired state, then asks the runtime to
-     stop/remove the local plugin process
-```
+## Invariants and Failure Semantics
 
-Manager HTTP and cross-node mutation routing are intentionally outside this
-package. This usecase owns entry-agnostic config merging, redaction, desired
-state, and candidate gating only.
+- Candidate order is priority descending then plugin number ascending. Desired
+  disabled state always suppresses observed runtime availability.
+- Send hooks fail closed unless `FailOpen` is explicitly configured; a plugin
+  may change payload or reject, but cannot replace sender, Channel, session, or
+  routing identity.
+- Origin and hook-depth controls prevent unbounded plugin-send recursion while
+  retaining the normal message path.
+- Receive skips transient, command, scoped, incomplete, system-origin, and
+  sender-recipient cases defined by the compatibility contract. One recipient
+  failure does not discard independent siblings.
+- Request, response, header, query, body, UID-batch, worker, timeout, and
+  deduplication state are bounded. Payload ownership changes are explicit.
+- Remote HTTP forward executes exactly one target-node local route hook;
+  cluster fanout remains deliberately unsupported and fails before partial work.
+- Secret values never reappear in Manager-facing desired-state projections or
+  low-cardinality observations.
 
-## Send Hook Flow
+## Read First
 
-```text
-message.Send / SendBatch after permission success
-  -> App.BeforeSend
-  -> apply cached desired enable state to node-local observed plugins
-  -> select running, enabled plugins advertising MethodSend
-  -> order by priority desc, plugin number asc
-  -> for each plugin:
-       map current SendCommand to pluginproto.SendPacket
-       clone payload before crossing the plugin boundary
-       call /plugin/send synchronously through Invoker.RequestPlugin
-       fail-closed by default on invocation errors
-       fail-open only when Options.FailOpen is true
-       reject immediately on non-success plugin reason
-       apply response payload only; preserve sender/channel/session/routing fields
-       observe low-cardinality invoke result when Observer is configured
-  -> return the mutated command or rejection reason to message usecase
-```
+- [App and ports](app.go)
+- [Lifecycle and config](config_lifecycle.go)
+- [Send hooks](send_hook.go)
+- [Offline Receive hooks](receive.go)
+- [Plugin invocation](invocation.go)
 
-`Send` hooks are synchronous and therefore on the SENDACK path. Operators
-should keep Send plugin chains short and watch `method="send"` hook invoke
-metrics when plugins are enabled.
+## Update Triggers
 
-## Receive Hook Flow
-
-```text
-channelappend recipient delivery after presence resolution
-  -> pluginReceiveObserver maps one offline UID batch
-  -> runtime/pluginhook bounded worker owns one copy of the UID slice and payload
-  -> App.ReceiveOfflineBatch
-  -> reject an ineligible message batch:
-       NoPersist, SyncOnce, request-scoped, temp-channel, missing durable ids,
-       missing sender, or system sender
-  -> snapshot node-local plugins advertising MethodReceive once
-  -> apply cached desired enable state and order running candidates by
-       priority desc, plugin number asc
-  -> if no candidate remains, return without UID binding reads
-  -> for each distinct non-empty UID other than the sender, in order:
-       read UID-owned plugin bindings from cluster-authoritative metadata
-       select the highest-priority bound candidate
-       suppress duplicate messageID+UID candidates for a bounded TTL
-       project the shared batch into the recipient view
-       map to pluginproto.RecvPacket
-         strip command-channel suffixes
-         for person channels, expose the recipient's counterpart channel id
-         let synchronous wire marshal own the per-bound-recipient payload copy
-       invoke /plugin/receive synchronously when ReplySync=true,
-         otherwise send the legacy async Receive msgType
-       apply the plugin-worker timeout independently to this UID
-       continue after independent recipient failures or timeouts, unless the
-         batch parent context is canceled
-       observe low-cardinality invoke result when Observer is configured
-```
-
-Receive hooks are post-commit side effects. Their failures are logged and
-reported through hook metrics but do not change SENDACK, durable append,
-membership state, or ordinary online delivery outcomes. The usecase does
-not scan subscribers; channelappend provides already-expanded offline UID
-batches. Scalar `ReceiveOffline` and worker fallback remain compatibility paths
-and reuse the same candidate selection and batch-to-recipient projection rules.
-
-## Host RPC Message Send Flow
-
-```text
-plugin /message/send host RPC
-  -> access/plugin decodes pluginproto.SendReq and applies the host RPC timeout
-  -> App.SendMessage
-  -> map SendReq to message.SendCommand
-       use DefaultSystemUID when fromUid is empty
-       clone payload before entering the message usecase
-       preserve NoPersist, SyncOnce, and RedDot header flags
-       set NormalizePersonChannel for person-channel sends
-       set Origin=SendOriginPlugin and leave SkipPluginHooks=false
-  -> MessageSender.Send
-  -> message usecase permissions, Send hook recursion guard, and channelappend
-  -> return pluginproto.SendResp with the accepted messageId
-```
-
-Plugin-origin sends do not bypass the v2 message usecase. They use the same
-permission, transient NoPersist, and channel authority routing semantics as
-other trusted host-origin sends, with `SendOriginPlugin` only used to fence hook
-recursion.
-
-## Host RPC Channel Messages Flow
-
-```text
-plugin /channel/messages host RPC
-  -> access/plugin decodes pluginproto.ChannelMessageBatchReq and applies timeout
-  -> App.ChannelMessages
-  -> for each request item:
-       map to message.ChannelMessageQuery
-       apply legacy limit default 100 and cap 10000
-       use PullModeUp
-       call MessageReader.SyncMessages
-       map metadb.ErrNotFound to an empty item response
-       clone each returned payload into pluginproto.Message
-  -> return pluginproto.ChannelMessageBatchResp with item-aligned responses
-```
-
-`/channel/messages` is an authoritative committed-message read. It does not use
-login UID person-channel normalization because the legacy plugin RPC carries the
-explicit channel id and channel type to read.
-
-## Host RPC Cluster Flow
-
-```text
-plugin /cluster/config host RPC
-  -> access/plugin applies body limit and host RPC timeout
-  -> App.ClusterConfig
-  -> ClusterReader.ClusterSnapshot
-  -> map nodes and physical Slots to pluginproto.ClusterConfig
-       sort nodes by node id
-       sort Slots by physical Slot id
-       clone Slot replica lists
-       do not infer API server addresses
-
-plugin /cluster/channels/belongNode host RPC
-  -> access/plugin decodes pluginproto.ClusterChannelBelongNodeReq and applies timeout
-  -> App.ClusterChannelsBelongNode
-  -> validate non-empty channel ids
-  -> ChannelOwnerReader.ChannelOwnerNode for each request item
-  -> reject zero or unknown owners instead of guessing local ownership
-  -> group responses by owner node id, preserving request order within each group
-```
-
-Cluster host RPCs are read-only compatibility surfaces. They use authoritative
-control/authority adapters supplied by the app composition root and do not
-depend directly on cluster from the plugin usecase.
-
-## Host RPC Conversation Channels Flow
-
-```text
-plugin /conversation/channels host RPC
-  -> access/plugin decodes pluginproto.ConversationChannelReq and applies timeout
-  -> App.ConversationChannels
-  -> trim and validate uid
-  -> ConversationReader.ConversationChannels(limit=1000)
-  -> map reader-defined channel order to pluginproto.ConversationChannelResp
-```
-
-`/conversation/channels` reads one activation-ordered UID membership page. It
-uses the fixed limit of 1000, skips tombstones, and intentionally does not
-hydrate Channel heads or reuse user-facing conversation response defaults.
-
-## Host RPC HTTP Forward Flow
-
-```text
-plugin /plugin/httpForward host RPC
-  -> access/plugin decodes pluginproto.ForwardHttpReq and applies timeout
-  -> App.HTTPForward
-  -> trim pluginNo, falling back to the caller plugin number when empty
-  -> clone the HTTP request and drop hop-by-hop headers plus Connection tokens
-  -> enforce bounded request header/query and body sizes
-  -> toNodeId <= 0:
-       call local plugin /plugin/route through Invoker.RequestPlugin
-  -> toNodeId > 0:
-       call HTTPForwarder.ForwardPluginHTTP(target node, normalized request)
-       validate and clone the returned response
-  -> toNodeId == -1:
-       return ErrHTTPForwardFanoutDeferred by explicit compatibility decision
-```
-
-`/plugin/httpForward` keeps the legacy host RPC surface while preserving v2
-cluster routing. Remote forwarding is a narrow port owned by app/infra wiring;
-the plugin usecase does not call cluster directly and the remote receiver
-must execute only the local `/plugin/route` hook. Fanout `toNodeId=-1` remains
-an intentional deferred compatibility path; it must not scan the cluster
-snapshot or issue partial remote RPCs.
-
-## PersistAfter Flow
-
-```text
-channelappend durable commit success
-  -> runtime/pluginhook bounded worker
-  -> App.PersistAfterCommitted
-  -> apply cached desired enable state to node-local observed plugins
-  -> select running, enabled plugins advertising MethodPersistAfter
-  -> map committed event to pluginproto.MessageBatch
-  -> invoke each candidate as sync or async according to PersistAfterSync
-```
-
-PersistAfter is a post-commit side effect. Its failures are returned to the
-worker for logging/metrics and do not change SENDACK, durable append, NoPersist
-realtime dispatch, delivery, or membership results.
+Update this file when desired-state ownership, lifecycle transitions,
+candidate ordering, hook recursion or failure policy, host RPC ownership,
+payload mutation, or post-commit eligibility changes.

@@ -1,66 +1,56 @@
-# Cloud Analysis Flow
+---
+scope: package
+summary: Validates exact-run Analysis MCP requests and returns bounded observations from narrow live sources.
+---
 
-`internal/usecase/cloudanalysis` is the entry-independent Analysis MCP usecase.
-Every tool call is bound to one exact Run Identity and first proves the run has
-not been released before touching live observability sources. `run_inspect`
-also returns the canonical effective `wkbench/v1` scenario digest, non-zero
-deterministic seed, full effective scenario, source commit, and 256-slot
-identity; inconsistent contracts fail closed.
+# Cloud Analysis Use Case Flow
 
-```text
-MCP tool input
-  -> validate run, node, selector, time/range/count bounds
-  -> InspectRun (released inventory stops here)
-  -> one narrow Sources method
-  -> Observation envelope with an explicit source or point-in-time window
-  -> JSON response-size gate
-```
+## Responsibility
 
-Metrics select server-owned query IDs rather than accepting PromQL, including
-per-node memory, OOM counters, process start times, active gateway connections,
-active channels, recipient-delivery queue/execution/conservation pressure,
-channel-append post-commit handoff/retry pressure, and data-disk used bytes for
-process-continuity guards and bounded storage-growth calibration. These
-delivery queries preserve only bounded node and result dimensions, never UID,
-channel, authority-target, or Slot labels. Logs and
-diagnostics use fixed private API selectors and opaque cursors. A diagnostics
-query can combine an exact physical `slot_id` with the stable PreferredLeader
-reconciliation stage without widening Prometheus label cardinality. Those
-events are transition evidence with at-most-30-second unchanged resampling, not
-frequency counters; reconciliation rates remain Prometheus evidence. Active
-diagnostics are serialized across expiring trace rules and all profile kinds,
-so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or
-`goroutine`; CPU capture is limited to 30 seconds per call and 60 seconds per
-Analysis Session.
+This package is the entry-independent Analysis MCP use case. Every call binds
+to one exact Run Identity, proves it has not been released, invokes one narrow
+source, and caps the final JSON response.
+It does not own MCP transport, live source adapters, or cloud resource lifecycle.
 
-The recipient pipeline query contract also exposes the three aggregate stages
-that precede or follow the recipient worker. Recipient-authority resolution
-rates retain only `instance`, `node_name`, and bounded `result`; exact-target
-presence lookup rates retain those node dimensions plus bounded `path`,
-`outcome`, and `stale_retry`; ACK batch cumulative counters and P99 retain only
-the node dimensions plus bounded `phase` and `outcome`. Counter queries
-aggregate away the metric's internal `node_id`, and no query exposes a UID,
-authority target, route, physical hash slot, logical Slot, session, or message
-identifier. ACK cumulative values are intended for bounded endpoint deltas;
-the duration queries use a fixed one-minute histogram window.
+## Boundaries
 
-`workload_inspect` returns bounded workload diagnostic contracts rather than
-raw worker reports. While chat-lifecycle is running, its optional `live`
-projection contains exactly the fixed worker connection gauges, teardown
-reason counts, and recent aggregate changes supplied by the infrastructure
-adapter. After completion it includes actual ingress QPS and successful send count.
-Its actual phase windows and structured worker failures let
-consumers choose the narrowest next observation without parsing Markdown or
-guessing a failed worker from aggregate counts. A failed worker may include a
-reason-bound low-cardinality person/group operation or the `worker_status` /
-`phase_completion` timeout control stage; missing operation remains explicitly
-unknown and never falls back to parsing detail text. Terminal stop failures use
-the exact `phase=stop`, `reason_code=worker_stop_failed` tuple.
-Diagnosis references preserve three workload lifecycle shapes: terminal
-`complete=true + completed + passed|failed`, running
-`complete=false + in_progress + null` with optional bounded live status, and incomplete source/tool failure with
-`complete=false` plus null state and status. Nullable lifecycle and note keys
-remain present so unknown evidence is never rewritten as an empty string or zero.
+- Metrics select server-owned query IDs; callers cannot provide PromQL, URLs,
+  paths, shell commands, configuration writes, restarts, or cleanup actions.
+- Logs, diagnostics, workload summaries, and profiles use fixed bounded
+  contracts. Source and cloud adapters live outside this package.
+- Exact identifiers may appear as bounded evidence, never as metric labels.
 
-The package owns no HTTP, MCP protocol, cloud SDK, shell, filesystem, restart,
-configuration-write, or cleanup behavior.
+## Main Flows
+
+1. Validate run, node, selector, time range, and count; `InspectRun` stops the
+   call when provider inventory proves release.
+2. Invoke the closed source method and wrap its data with an explicit source
+   and observation window before applying the response-size gate.
+3. `run_inspect` additionally validates source commit, scenario digest,
+   non-zero deterministic seed, full effective scenario, and 256-slot identity.
+
+## Invariants and Failure Semantics
+
+- Missing, nullable, or incomplete evidence remains unknown and is never
+  rewritten as zero, empty, healthy, or complete.
+- Metrics aggregate away UID, Channel, authority target, Slot, session, and
+  message identities; dimensions remain fixed and low-cardinality.
+- Active diagnostics serialize trace rules and profile kinds. CPU is at most
+  30 seconds per call and 60 seconds per Analysis Session.
+- Workload inspection returns structured lifecycle, phase windows, actual QPS,
+  successful sends, and bounded failures rather than raw reports or parsed prose.
+  During a run its optional live projection contains only fixed worker
+  connection gauges, teardown counters, and recent aggregate changes.
+- Released or inconsistent Run Identity evidence fails closed before a live
+  observability source is touched.
+
+## Read First
+
+- [Analysis service](service.go)
+- [Analysis types](types.go)
+- [Diagnosis contracts](diagnosis.go)
+
+## Update Triggers
+
+Update this file when tool inputs, run inspection, fixed metrics, cardinality,
+diagnostics, profile budgets, workload lifecycle, or response bounds change.

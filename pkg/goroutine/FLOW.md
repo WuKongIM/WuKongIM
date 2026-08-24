@@ -1,106 +1,58 @@
-# pkg/goroutine Flow
+---
+scope: package
+summary: Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence.
+---
+
+# Goroutine Ownership Flow
 
 ## Responsibility
 
-`pkg/goroutine` is the process-wide ownership registry for first-party
-goroutines reachable from `cmd/wukongim`. It owns the fixed low-cardinality
-module/task catalog, lifecycle counters, pprof labels, panic policy, pool
-snapshots, Prometheus collection, and bounded shutdown evidence. Business
-packages still own cancellation, queue closure, dependency order, and restart
-policy.
+This package is the process-wide ownership registry for first-party goroutines
+reachable from `cmd/wukongim`. Business modules still own cancellation, queue
+closure, dependency order, and restart policy.
 
-Standalone bench/cloud tools, `pkg/client`, tests, generated code, and
-third-party goroutines are outside this registry. `Snapshot` therefore reports
-the Go process total, managed total, and a non-negative unmanaged remainder.
+## Boundaries
 
-## Launch Flow
+- Standalone tools, `pkg/client`, tests, generated code, and third-party
+  goroutines are unmanaged; snapshots report process, managed, and non-negative
+  unmanaged totals.
+- Task IDs come from a fixed low-cardinality catalog. Node, Slot, Channel, UID,
+  connection, request, error, and function values never become labels.
+- `Default()` is the shared always-on registry used before and during app composition.
 
-```text
-module Start / bounded async operation
-  -> SafeGo(registry, fixed TaskID, fn)
-  -> validate TaskID against the compiled catalog
-  -> increment active/started and apply module/task pprof labels
-  -> run fn
-  -> record bounded panic evidence
-     -> recover isolated burst tasks
-     -> re-panic critical permanent loops
-  -> decrement active and update process-boot peak
-```
+## Main Flows
 
-`Default()` is the always-on process registry. App construction reuses it so
-goroutines launched by lower-level packages before or without an explicit
-registry remain in the same node snapshot. Dynamic node, Slot, channel, UID,
-connection, plugin, error, and function values are never task labels.
-Operations MCP audit and metric fanouts use fixed Manager and Observability
-burst task IDs; request, node, and metric identifiers remain ordinary data
-rather than registry labels. Scheduled full backup uses one singleton
-coordinator identity plus one dynamic Slot-export identity; Hash Slot and
-archive identifiers never become labels.
-Slot archive-trim retry uses one dynamic Slot-module identity; physical Slot
-IDs never become labels.
-Message batch permission helpers use one fixed Message burst task identity;
-UIDs, channels, sessions, and item indexes never become labels.
-Message person-directory batch helpers use a distinct fixed Message burst task
-identity; canonical Channel IDs and batch indexes remain ordinary data.
-The benchmark terminal prepare pipeline uses one fixed App burst identity;
-run, assignment, epoch, capability, and session values remain ordinary secret
-or high-cardinality data and never become registry labels.
-Gateway accepted-SEND drain and mailbox-release waiters use one fixed Gateway
-burst identity outside the registered dispatch pool.
-Slot-grouped permission metadata reads use one fixed Slot burst task identity;
-physical Slot IDs and permission keys remain ordinary data.
-UID-owned membership upserts use one fixed Cluster burst task identity; UID,
-channel, and hash-slot values remain ordinary data, and the calling goroutine
-joins the bounded helper before returning.
-Channel durable-quorum local I/O, peer exchange, and follower repair pools all
-use the fixed `channel/quorum_owner` pool task identity. Channel keys, peer node
-IDs, authority generations, and request identities remain ordinary in-process
-data and never become task labels.
+1. `SafeGo` validates the task, increments lifecycle state, applies pprof
+   labels, executes, records bounded panic evidence, applies recover/repanic
+   policy, and decrements active state.
+2. Audited pool adapters register scrape-time worker, busy, capacity, queue,
+   rejection, and ownership snapshots; health is derived per pool before totals.
+3. Group waits and baseline fences provide bounded live-task evidence during
+   shutdown without canceling work.
 
-## Pool Accounting
+## Invariants and Failure Semantics
 
-Audited ants/workqueue adapters call `RegisterPool` with a scrape-time callback.
-`Goroutines` is the actual created worker count plus known ants maintenance
-loops; busy tasks, worker capacity, queue depth/capacity, and rejected
-admissions are separate. A bounded queue at capacity or any rejected admission
-is critical. Health is derived per registered pool before task totals are
-aggregated, so one saturated or pressured shard cannot be hidden by a larger
-idle shard. Worker utilization at or above 80 percent with queueing becomes
-warning pressure after pressured observations span ten seconds. An observed
-relief resets the window, and observations separated by more than twenty
-seconds start a new window instead of implying continuity across a monitoring
-gap.
-Closing a pool unregisters its callback only after every worker has exited.
-Rejected totals from retired pools are retained so Prometheus counters never
-move backwards. Task peaks are exact for direct managed launches; pool and
-module peaks include the highest aggregate value observed by a snapshot or
-scrape and never sum unrelated task peaks.
+- Burst tasks recover according to catalog policy; critical permanent loops
+  repanic. Critical panics and over-declared fixed counts are unhealthy.
+- Pool rejection or full bounded queues are critical. At least 80% worker use
+  with queueing becomes warning only after ten seconds; relief or a monitoring
+  gap resets continuity.
+- Retired-pool rejection totals remain monotonic. Inflight, capacity, queue,
+  and rejected work are distinct from worker goroutine counts.
+- Required tasks are unhealthy below expected count after readiness. Optional
+  tasks become required only after first start.
+- Only compile-time expected cohorts use `fixed`; configuration-sized or
+  per-runtime cohorts use `dynamic`.
+- Terminal prepare, Gateway SEND drain, UID membership fanout, and Channel
+  quorum pools use fixed task identities; run, user, Channel, Slot, peer,
+  authority, and capability values remain ordinary data.
 
-## Observation And Shutdown
+## Read First
 
-`Snapshot` is lock-bounded and safe during concurrent task starts, exits, and
-pool tuning. The registry is also a Prometheus collector for active, started,
-panic, busy, capacity, queue, and rejected metrics. The app registers the
-collector with constant `node_id` and `node_name` labels.
+- [Registry](registry.go)
+- [Task catalog](catalog.go)
 
-`Registry.Group(module).Wait(ctx)` does not cancel work. It waits for the
-module's managed goroutines and registered pool workers, returning a bounded
-list of live task IDs, counts, and running ages if the caller deadline expires.
-`Baseline` / `WaitFrom` provide an unlabeled lifecycle fence. Pools are fenced
-by registration sequence. Direct tasks create a sparse fence only when that
-task is already active as the baseline is captured; tasks with no pre-existing
-activity keep the ordinary aggregate active counter. A launch performs a
-lock-free fence-set read, and only a task whose lifecycle actually overlaps an
-App baseline updates an extra fence counter. A pre-existing instance exiting
-therefore cannot mask still-live App-owned work without charging every direct
-launch for per-run bookkeeping.
+## Update Triggers
 
-After app readiness, catalog tasks marked required are unhealthy below their
-declared count even if they never started. Optional fixed tasks become
-unhealthy only after they have started once. Over-declared fixed counts and
-critical panics are critical. Pool rejection or a full bounded queue is
-critical, while sustained queue pressure is warning.
-Only tasks with a compile-time expected count use the `fixed` kind.
-Configuration-sized worker cohorts and per-runtime instances use `dynamic`;
-the catalog rejects an undeclared `fixed` task instead of silently skipping
-its over-declaration invariant.
+Update this file when task catalog, panic policy, ownership, pool accounting,
+health thresholds, metrics, fences, or shutdown evidence changes.

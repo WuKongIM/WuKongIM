@@ -37,20 +37,20 @@ type ContextSource interface {
 
 // BuildContextRequest contains protected task inputs, never GitHub credentials.
 type BuildContextRequest struct {
-	Repository         string
-	IssueNumber        int64
-	PullRequestNumber  int64
-	StatusCommentID    int64
-	Sequence           uint64
-	Task               contract.TaskIdentity
-	Authorization      contract.AuthorizationRecord
-	RequiredTests      []string
-	RiskCeiling        []string
-	InstructionDigests []contract.FileDigest
-	KnowledgePaths     []string
-	OutputSchemaDigest string
-	Limits             contract.EngineerLimits
-	CreatedAt          time.Time
+	Repository             string
+	IssueNumber            int64
+	PullRequestNumber      int64
+	StatusCommentID        int64
+	Sequence               uint64
+	Task                   contract.TaskIdentity
+	Authorization          contract.AuthorizationRecord
+	RequiredTests          []string
+	RiskCeiling            []string
+	ContextDocumentDigests []contract.FileDigest
+	KnowledgePaths         []string
+	OutputSchemaDigest     string
+	Limits                 contract.EngineerLimits
+	CreatedAt              time.Time
 }
 
 // ContextBuilder reads current GitHub context and emits one credential-free bundle.
@@ -117,9 +117,9 @@ func (builder *ContextBuilder) Build(
 	requiredTests := sortedUniqueCopy(request.RequiredTests)
 	riskCeiling := sortedUniqueCopy(request.RiskCeiling)
 	knowledgePaths := sortedUniqueCopy(request.KnowledgePaths)
-	instructionDigests := slices.Clone(request.InstructionDigests)
-	sort.Slice(instructionDigests, func(left, right int) bool {
-		return instructionDigests[left].Path < instructionDigests[right].Path
+	contextDocumentDigests := slices.Clone(request.ContextDocumentDigests)
+	sort.Slice(contextDocumentDigests, func(left, right int) bool {
+		return contextDocumentDigests[left].Path < contextDocumentDigests[right].Path
 	})
 	comments = slices.Clone(comments)
 	sort.Slice(comments, func(left, right int) bool {
@@ -137,14 +137,14 @@ func (builder *ContextBuilder) Build(
 		Sequence:      request.Sequence,
 		Task:          request.Task,
 		Trusted: contract.TrustedContext{
-			Authorization:      request.Authorization,
-			Labels:             labels,
-			RequiredTests:      requiredTests,
-			RiskCeiling:        riskCeiling,
-			InstructionDigests: instructionDigests,
-			KnowledgePaths:     knowledgePaths,
-			OutputSchemaDigest: request.OutputSchemaDigest,
-			Limits:             request.Limits,
+			Authorization:          request.Authorization,
+			Labels:                 labels,
+			RequiredTests:          requiredTests,
+			RiskCeiling:            riskCeiling,
+			ContextDocumentDigests: contextDocumentDigests,
+			KnowledgePaths:         knowledgePaths,
+			OutputSchemaDigest:     request.OutputSchemaDigest,
+			Limits:                 request.Limits,
 		},
 		Untrusted: contract.UntrustedContext{
 			Issue: contract.IssueSnapshot{
