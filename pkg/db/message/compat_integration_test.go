@@ -160,6 +160,42 @@ func TestCompatListMessagesBySeqPreservesCanceledContext(t *testing.T) {
 	}
 }
 
+func TestCompatListMessagesBySeqReverseLimitDoesNotReadOlderHistory(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+
+	key := channel.ChannelKey("compat-reverse-limit:1")
+	id := channel.ChannelID{ID: "compat-reverse-limit", Type: 1}
+	store := mustForChannel(t, engine, key, id)
+	defer store.Close()
+	if _, err := store.Append([]channel.Record{
+		compatTestRecord(t, 801, id.ID, "old"),
+		compatTestRecord(t, 802, id.ID, "middle"),
+		compatTestRecord(t, 803, id.ID, "latest"),
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	batch := engine.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(encodeMessageRowKey(ChannelKey(key), 1, messageHeaderFamilyID), []byte{0x01}); err != nil {
+		t.Fatalf("Set(corrupt old header): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(corrupt old header): %v", err)
+	}
+
+	messages, err := store.ListMessagesBySeq(context.Background(), 3, 1, 1<<20, true)
+	if err != nil {
+		t.Fatalf("ListMessagesBySeq(latest only): %v", err)
+	}
+	if len(messages) != 1 || messages[0].MessageSeq != 3 || messages[0].ClientMsgNo != "latest" {
+		t.Fatalf("messages = %#v, want only latest sequence 3", messages)
+	}
+}
+
 func TestCompatEngineAppendReadAndIdempotency(t *testing.T) {
 	engine, err := Open(t.TempDir())
 	if err != nil {

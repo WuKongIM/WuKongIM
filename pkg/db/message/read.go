@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
@@ -52,20 +53,71 @@ func (l *ChannelLog) ReadReverse(ctx context.Context, fromSeq uint64, opts ReadO
 		}
 		fromSeq = leo
 	}
-	all, err := l.readForward(ctx, 1, fromSeq, ReadOptions{})
+	rows, err := readMessageRowsReverseRaw(ctx, l.db, l.key, fromSeq, opts)
 	if err != nil {
 		return nil, err
 	}
-	messages := make([]Message, 0, boundedCapacity(len(all), opts.Limit))
+	messages := make([]Message, len(rows))
+	for i, row := range rows {
+		messages[i] = messageFromRow(row)
+	}
+	return messages, nil
+}
+
+func readMessageRowsReverseRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, fromSeq uint64, opts ReadOptions) ([]messageRow, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if db == nil || db.engine == nil {
+		return nil, dberrors.ErrClosed
+	}
+	prefix := encodeMessageRowPrefix(channelKey)
+	span := keycodec.NewPrefixSpan(prefix)
+	end := span.End
+	if fromSeq < math.MaxUint64 {
+		end = encodeMessageRowKey(channelKey, fromSeq+1, messageHeaderFamilyID)
+	}
+	iter, err := db.engine.NewIter(engine.Span{Start: span.Start, End: end}, engine.IterOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	rows := make([]messageRow, 0, boundedCapacity(16, opts.Limit))
 	var totalBytes int
-	for i := len(all) - 1; i >= 0; i-- {
-		var stop bool
-		messages, totalBytes, stop = appendReadMessage(messages, totalBytes, all[i], opts)
-		if stop {
+	for ok := iter.Last(); ok; ok = iter.Prev() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		key := iter.Key()
+		seq, familyID, ok := decodeMessageRowKey(channelKey, key)
+		if !ok || seq > fromSeq || familyID != messageHeaderFamilyID {
+			continue
+		}
+		value, err := iter.Value()
+		if err != nil {
+			return nil, err
+		}
+		row := messageRow{MessageSeq: seq}
+		if err := decodeMessageHeader(key, value, &row); err != nil {
+			return nil, err
+		}
+		if err := validateMaterializedMessageRow(row); err != nil {
+			return nil, err
+		}
+		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(row.Payload) > opts.MaxBytes {
+			break
+		}
+		rows = append(rows, row)
+		totalBytes += len(row.Payload)
+		if opts.Limit > 0 && len(rows) >= opts.Limit {
 			break
 		}
 	}
-	return messages, nil
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // GetLastVisibleMessage returns the newest message whose sequence is greater than visibleAfterSeq.
