@@ -774,7 +774,12 @@ while a continuous gap through the activity-eligibility window fails as offered
 under-delivery. Worker queue snapshots expose the current deferred-group-route
 count. A due very-large canary is only committed after the owner atomically acquires its
 sender and optional correlation-recipient leases and adds the SEND to engine
-work. A temporary fixed-roster gap therefore retries the same canary identity
+work. Its owner-local session pool retains exactly two generation-local canary
+anchors from the prepared fixed roster. Those two sessions remain routable
+past their ordinary churn deadlines, continue normal heartbeat and SEND
+semantics, and are removed by transport failure or generation shutdown; the
+anchor count is O(1), does not grow with the 100,000-member roster, and does not
+change ordinary session expiry. A temporary fixed-roster gap therefore retries the same canary identity
 without counting it or interrupting the primary grant. One continuous gap that
 reaches the ordinary activity-eligibility window fails as bounded offered-load
 under-delivery instead of hiding a missing correctness probe. A

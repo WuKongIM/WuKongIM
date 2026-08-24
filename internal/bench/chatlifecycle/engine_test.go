@@ -5984,7 +5984,7 @@ func TestEngineStepReplacesTerminalSessionWithoutWaitingForCallerCancellation(t 
 	}
 }
 
-func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing.T) {
+func TestEngineStepExpiresAndReplacesOrdinarySessionsWhileRetainingCanaryAnchor(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		OnlineUsers: 20, NewUsersPerDay: 250_000, SessionDuration: time.Minute,
@@ -6004,20 +6004,20 @@ func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing
 	if err != nil {
 		t.Fatalf("expiry Step: %v", err)
 	}
-	if expiry.Expired != 20 || expiry.AdmittedNew != 0 || expiry.AdmittedReturning != 0 {
+	if expiry.Expired != 19 || expiry.AdmittedNew != 0 || expiry.AdmittedReturning != 0 {
 		t.Fatalf("expiry snapshot before cleanup = %+v", expiry)
 	}
-	assertSessionCountsEventually(t, fixture.pool, SessionCounts{})
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{Online: 1})
 	replacement, err := fixture.engine.Step(context.Background(), now, nil)
 	if err != nil {
 		t.Fatalf("post-cleanup replacement Step: %v", err)
 	}
 	replacement = fixture.settleScheduledLogins(t, now, replacement)
-	if replacement.Expired != 0 || replacement.ReplacementLogins != 20 || replacement.LoginsCompleted != 20 || replacement.Online != 20 {
+	if replacement.Expired != 0 || replacement.ReplacementLogins != 19 || replacement.LoginsCompleted != 19 || replacement.Online != 20 {
 		t.Fatalf("expiry replacement snapshot = %+v", replacement)
 	}
 	aggregate, err := fixture.engine.Snapshot()
-	if err != nil || aggregate.SessionsExpired != 20 || aggregate.LoginReplacements != 20 {
+	if err != nil || aggregate.SessionsExpired != 19 || aggregate.LoginReplacements != 19 {
 		t.Fatalf("expiry aggregate = %+v, %v", aggregate, err)
 	}
 }

@@ -23,6 +23,11 @@ var (
 
 const defaultSessionHeartbeatInterval = 30 * time.Second
 
+// veryLargeCanaryAnchorLimit keeps the unique owner-routed correctness canary
+// sendable for both ordinary and sampled probes without retaining its roster.
+// The fixed bound is generation-local and does not grow with group size.
+const veryLargeCanaryAnchorLimit = 2
+
 // SessionClock is the narrow time source used for login latency and expiration.
 // Unit workers can advance it without wall-clock sleeps.
 type SessionClock interface {
@@ -280,6 +285,7 @@ type onlineSession struct {
 	heartbeatDone         chan struct{}
 	groupIndex            int
 	groupPosition         int
+	canaryAnchor          bool
 	relationshipsObserved bool
 	// closeInitiator is guarded by SessionPool.mu and claimed exactly once.
 	closeInitiator sessionCloseReason
@@ -308,8 +314,11 @@ type SessionPool struct {
 	online             map[string]*onlineSession
 	onlineByIndex      map[uint64]*onlineSession
 	onlineGroupMembers [][]*onlineSession
-	starting           map[string]struct{}
-	closing            map[string]*onlineSession
+	// canaryAnchors is the exact number of non-expiring owner-local sessions
+	// retained for the unique very-large correctness canary.
+	canaryAnchors int
+	starting      map[string]struct{}
+	closing       map[string]*onlineSession
 	// sendLeases keeps an admitted logical SEND's session routable until its
 	// final ACK, terminal result, or cancellation releases ownership.
 	sendLeases map[string]uint32
@@ -490,15 +499,32 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 		snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{}), heartbeatDone: make(chan struct{}),
 		groupIndex: -1, groupPosition: -1, relationshipsObserved: !login.NewIdentity,
 	}
-	if group, _, member, groupErr := p.catalog.GroupForMemberIndex(login.UserIndex); groupErr != nil {
+	canaryAnchorCandidate := false
+	if group, memberOrdinal, member, groupErr := p.catalog.GroupForMemberIndex(login.UserIndex); groupErr != nil {
 		cancel()
 		_ = client.Close()
 		return SessionSnapshot{}, groupErr
 	} else if member {
 		session.groupIndex = int(group.Index)
+		if group.Category == GroupVeryLarge {
+			groupOwner, ownerErr := p.catalog.GroupOwner(group.Index)
+			userOwner, _ := p.identity.Owner(login.UserIndex)
+			if ownerErr != nil {
+				cancel()
+				_ = client.Close()
+				return SessionSnapshot{}, errSessionConfig
+			}
+			period := p.identity.Workers() / greatestCommonDivisor(group.memberStride, p.identity.Workers())
+			canaryAnchorCandidate = groupOwner == userOwner && period > 0 &&
+				uint64(memberOrdinal)%period == 0 && uint64(memberOrdinal)/period < veryLargeCanaryAnchorLimit
+		}
 	}
 	p.mu.Lock()
 	delete(p.starting, login.UID)
+	if canaryAnchorCandidate && p.canaryAnchors < veryLargeCanaryAnchorLimit {
+		session.canaryAnchor = true
+		p.canaryAnchors++
+	}
 	p.online[login.UID] = session
 	p.onlineByIndex[login.UserIndex] = session
 	if session.groupIndex >= 0 {
@@ -647,7 +673,12 @@ func (p *SessionPool) sendEligibleLoginAt(uid string, loginOrdinal uint64, at ti
 }
 
 func sessionSendEligibleAt(session *onlineSession, sendLeases uint32, at time.Time) bool {
-	return session != nil && session.snapshot.TrafficReady && session.snapshot.Deadline.After(at) && sendLeases != ^uint32(0)
+	return sessionTrafficEligibleAt(session, at) && sendLeases != ^uint32(0)
+}
+
+func sessionTrafficEligibleAt(session *onlineSession, at time.Time) bool {
+	return session != nil && session.snapshot.TrafficReady &&
+		(session.canaryAnchor || session.snapshot.Deadline.After(at))
 }
 
 // Counts reports current ownership map sizes without touching client gauges.
@@ -830,7 +861,7 @@ func (p *SessionPool) acquireSendLease(uid string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	session := p.online[uid]
-	if session == nil || !session.snapshot.TrafficReady || !session.snapshot.Deadline.After(p.clock.Now()) {
+	if !sessionSendEligibleAt(session, p.sendLeases[uid], p.clock.Now()) {
 		return false
 	}
 	current := p.sendLeases[uid]
@@ -865,7 +896,7 @@ func (p *SessionPool) acquireSendAndCorrelationLease(intent TrafficIntent, at ti
 			return false
 		}
 		recipient := p.online[intent.correlationRecipient]
-		if recipient == nil || !recipient.snapshot.TrafficReady || !recipient.snapshot.Deadline.After(at) {
+		if !sessionTrafficEligibleAt(recipient, at) {
 			return false
 		}
 	}
@@ -952,7 +983,7 @@ func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlin
 	p.mu.Lock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
-		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
+		if !session.canaryAnchor && !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
 			due = append(due, uid)
 		}
 	}
@@ -997,7 +1028,7 @@ func (p *SessionPool) dueSessionUIDs(now time.Time) []string {
 	p.mu.RLock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
-		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
+		if !session.canaryAnchor && !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
 			due = append(due, uid)
 		}
 	}
@@ -1182,7 +1213,7 @@ func (p *SessionPool) resetRuntime() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 || len(p.sendLeases) != 0 ||
-		len(p.correlationLeases) != 0 || len(p.correlationLeaseCounts) != 0 {
+		len(p.correlationLeases) != 0 || len(p.correlationLeaseCounts) != 0 || p.canaryAnchors != 0 {
 		return errSessionOnline
 	}
 	p.ownershipCapacity = 0
@@ -1422,6 +1453,12 @@ func (p *SessionPool) finishClosing(uid string, session *onlineSession) {
 
 func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {
 	session := p.online[uid]
+	if session != nil && session.canaryAnchor {
+		if p.canaryAnchors > 0 {
+			p.canaryAnchors--
+		}
+		session.canaryAnchor = false
+	}
 	if session != nil && session.groupIndex >= 0 {
 		members := p.onlineGroupMembers[session.groupIndex]
 		position := session.groupPosition
@@ -1491,7 +1528,7 @@ func (p *SessionPool) onlineGroupCorrelationRecipient(group Group, sender string
 	start := ordinal % uint64(len(members))
 	for offset := 0; offset < len(members); offset++ {
 		session := members[(start+uint64(offset))%uint64(len(members))]
-		if session.snapshot.UID == sender || !session.snapshot.TrafficReady || !session.snapshot.Deadline.After(at) {
+		if session.snapshot.UID == sender || !sessionTrafficEligibleAt(session, at) {
 			continue
 		}
 		return session.snapshot.UID, true

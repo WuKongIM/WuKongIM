@@ -61,7 +61,7 @@ func TestEngineLocalThreeNodeGrantsSurviveFirstSessionChurn(t *testing.T) {
 	}
 }
 
-func TestEngineFormalWorkerOneSurvivesFirstCloudGrantWindow(t *testing.T) {
+func TestEngineFormalWorkerOneSurvivesOneHourCloudGrantWindow(t *testing.T) {
 	const (
 		workerID    = uint64(1)
 		workerCount = uint64(3)
@@ -115,7 +115,7 @@ func TestEngineFormalWorkerOneSurvivesFirstCloudGrantWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRateAllocator: %v", err)
 	}
-	for second := 0; second < 310; second++ {
+	for second := 0; second < 3600; second++ {
 		if second > 0 {
 			now = now.Add(time.Second)
 			fixture.clock.Set(now)
@@ -127,11 +127,23 @@ func TestEngineFormalWorkerOneSurvivesFirstCloudGrantWindow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("rate Tick(%d): %v", second, err)
 		}
+		canary, canaryErr := fixture.engine.generator.catalog.VeryLargeCanary(0)
+		if canaryErr != nil {
+			t.Fatalf("VeryLargeCanary: %v", canaryErr)
+		}
+		fixture.pool.mu.RLock()
+		canaryMembers := len(fixture.pool.onlineGroupMembers[canary.Group.Index])
+		canaryAnchors := fixture.pool.canaryAnchors
+		fixture.pool.mu.RUnlock()
+		if canaryAnchors != veryLargeCanaryAnchorLimit || canaryMembers < canaryAnchors {
+			t.Fatalf("second %d canary anchors/members = %d/%d, want %d anchors and at least that many members",
+				second, canaryAnchors, canaryMembers, veryLargeCanaryAnchorLimit)
+		}
 		grant, err := fixture.engine.ApplyGrant(context.Background(), now, rate.Released[workerID])
 		if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[workerID] {
 			snapshot, snapshotErr := fixture.engine.Snapshot()
-			t.Fatalf("grant second %d release %d = %+v, %v; snapshot=%+v snapshot_error=%v",
-				second, rate.Released[workerID], grant, err, snapshot, snapshotErr)
+			t.Fatalf("grant second %d release %d = %+v, %v; canary_members=%d canary_error=%v snapshot=%+v snapshot_error=%v",
+				second, rate.Released[workerID], grant, err, canaryMembers, canaryErr, snapshot, snapshotErr)
 		}
 		waitForEngineCompletions(t, fixture.engine, "formal cloud grant")
 	}

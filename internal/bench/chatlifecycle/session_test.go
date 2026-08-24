@@ -82,6 +82,66 @@ func TestSessionPoolLoginSyncExpiryAndFreshRelogin(t *testing.T) {
 	}
 }
 
+func TestSessionPoolRetainsExactlyTwoOwnerLocalVeryLargeCanaryAnchors(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	canary, err := fixture.catalog.VeryLargeCanary(0)
+	if err != nil {
+		t.Fatalf("VeryLargeCanary: %v", err)
+	}
+	groupOwner, err := fixture.catalog.GroupOwner(canary.Group.Index)
+	if err != nil {
+		t.Fatalf("GroupOwner: %v", err)
+	}
+	members := make([]SessionLogin, 0, veryLargeCanaryAnchorLimit+1)
+	for memberOrdinal := 0; memberOrdinal < canary.Group.MemberCount && len(members) < cap(members); memberOrdinal++ {
+		userIndex, memberErr := canary.Group.MemberIndex(memberOrdinal)
+		if memberErr != nil {
+			t.Fatalf("MemberIndex(%d): %v", memberOrdinal, memberErr)
+		}
+		owner, _ := fixture.identity.Owner(userIndex)
+		if owner != groupOwner {
+			continue
+		}
+		members = append(members, SessionLogin{
+			UID: fixture.identity.UID(userIndex), UserIndex: userIndex, LoginOrdinal: uint64(100 + memberOrdinal),
+		})
+	}
+	if len(members) != veryLargeCanaryAnchorLimit+1 {
+		t.Fatalf("owner-local canary members = %d, want %d", len(members), veryLargeCanaryAnchorLimit+1)
+	}
+	for _, member := range members {
+		if _, loginErr := fixture.pool.Login(context.Background(), member); loginErr != nil {
+			t.Fatalf("Login(%d): %v", member.UserIndex, loginErr)
+		}
+	}
+
+	fixture.clock.Set(fixture.clock.Now().Add(24 * time.Hour))
+	if expired := fixture.pool.Expire(fixture.clock.Now()); expired != 1 {
+		t.Fatalf("Expire = %d, want only the unanchored third member", expired)
+	}
+	if fixture.pool.canaryAnchors != veryLargeCanaryAnchorLimit {
+		t.Fatalf("canary anchors = %d, want %d", fixture.pool.canaryAnchors, veryLargeCanaryAnchorLimit)
+	}
+	selected, ok := fixture.pool.onlineGroupMember(canary.Group, 0, true)
+	if !ok || selected.UID == "" {
+		t.Fatal("expired canary schedule no longer has a sampled sender/recipient pair")
+	}
+	if !fixture.pool.acquireSendLease(selected.UID) {
+		t.Fatal("canary anchor was not send-eligible after its ordinary session deadline")
+	}
+	if !fixture.pool.releaseSendLease(selected.UID) {
+		t.Fatal("canary anchor send lease was not released")
+	}
+	for _, member := range members[:veryLargeCanaryAnchorLimit] {
+		if logoutErr := fixture.pool.Logout(member.UID); logoutErr != nil {
+			t.Fatalf("Logout(%d): %v", member.UserIndex, logoutErr)
+		}
+	}
+	if fixture.pool.canaryAnchors != 0 {
+		t.Fatalf("canary anchors after logout = %d, want 0", fixture.pool.canaryAnchors)
+	}
+}
+
 func TestSessionPoolHeartbeatsTrafficReadySessionAndLogoutJoinsHeartbeat(t *testing.T) {
 	fixture := newSessionTestFixture(t)
 	sleepEntered := make(chan time.Duration, 1)
