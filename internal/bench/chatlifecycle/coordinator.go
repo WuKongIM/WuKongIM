@@ -1562,11 +1562,20 @@ observationComplete:
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 		return result
 	}
+	terminalRoundTimeout := c.roundTimeout
+	if stopRequested && c.cleanupTimeout > terminalRoundTimeout {
+		// Periodic control rounds must remain strict, but an operator-owned
+		// cutoff has already closed admission. Give its one terminal evidence
+		// round the bounded cleanup budget so a busy worker can drain the owner
+		// queue and publish the final checkpoint instead of losing the report at
+		// the ordinary five-second control deadline.
+		terminalRoundTimeout = c.cleanupTimeout
+	}
 	checkpoint := hookPrepareSnapshots
 	terminalDecision := hookTerminalDecision
 	if len(checkpoint) == 0 {
 		var disposition coordinatorRoundDisposition
-		checkpoint, disposition = c.checkpointRound(ctx, assignments, fence)
+		checkpoint, disposition = c.checkpointRoundWithTimeout(ctx, assignments, fence, terminalRoundTimeout)
 		if disposition != coordinatorRoundSucceeded {
 			c.stopAfterFailure(fence, attempted)
 			if disposition == coordinatorRoundParentCanceled {
@@ -1577,7 +1586,7 @@ observationComplete:
 			return result
 		}
 		if terminalSnapshotsNeedTrafficRecovery(checkpoint) {
-			statuses, statusDisposition := c.statusRound(ctx, assignments)
+			statuses, statusDisposition := c.statusRoundWithin(ctx, assignments, terminalRoundTimeout)
 			if statusDisposition != coordinatorRoundSucceeded {
 				c.stopAfterFailure(fence, attempted)
 				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
@@ -1585,7 +1594,7 @@ observationComplete:
 			}
 			if !allCoordinatorTrafficReady(statuses) {
 				ready, _, _, readyDisposition := c.waitForTrafficReady(
-					ctx, nil, assignments, statuses, c.roundTimeout,
+					ctx, nil, assignments, statuses, terminalRoundTimeout,
 				)
 				if !ready || readyDisposition != coordinatorRoundSucceeded {
 					c.stopAfterFailure(fence, attempted)
@@ -1593,10 +1602,12 @@ observationComplete:
 					return result
 				}
 			}
-			checkpoint, disposition = c.checkpointRound(ctx, assignments, fence)
+			checkpoint, disposition = c.checkpointRoundWithTimeout(
+				ctx, assignments, fence, terminalRoundTimeout,
+			)
 			if disposition == coordinatorRoundSucceeded && terminalSnapshotsNeedTrafficRecovery(checkpoint) {
 				checkpoint, disposition = c.waitForTerminalSnapshotsReady(
-					ctx, assignments, fence, checkpoint, c.roundTimeout,
+					ctx, assignments, fence, checkpoint, terminalRoundTimeout,
 				)
 			}
 			if disposition != coordinatorRoundSucceeded {
@@ -1615,7 +1626,7 @@ observationComplete:
 			terminalDecision = CoordinatorStopped
 		}
 		if c.hooks != nil {
-			hookContext, cancelHook := context.WithTimeoutCause(ctx, c.roundTimeout, errCoordinatorRoundDeadline)
+			hookContext, cancelHook := context.WithTimeoutCause(ctx, terminalRoundTimeout, errCoordinatorRoundDeadline)
 			decision, hookErr := c.hooks.Observe(hookContext, CoordinatorEvidenceCut{
 				Start: runStart, Kind: CoordinatorCutTerminal, At: c.clock.Now(), Snapshots: checkpoint,
 				Capacity: result.Capacity, StopRequested: stopRequested,
@@ -1860,7 +1871,19 @@ func (c *Coordinator) checkpointRoundWithin(
 	if len(assignments) != coordinatorWorkerCount || maximum <= 0 {
 		return nil, coordinatorRoundStageFailed
 	}
-	roundContext, cancel := context.WithTimeoutCause(parent, min(c.roundTimeout, maximum), errCoordinatorRoundDeadline)
+	return c.checkpointRoundWithTimeout(parent, assignments, fence, min(c.roundTimeout, maximum))
+}
+
+func (c *Coordinator) checkpointRoundWithTimeout(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+	fence WorkerFence,
+	timeout time.Duration,
+) ([]WorkerSnapshot, coordinatorRoundDisposition) {
+	if len(assignments) != coordinatorWorkerCount || timeout <= 0 {
+		return nil, coordinatorRoundStageFailed
+	}
+	roundContext, cancel := context.WithTimeoutCause(parent, timeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type checkpointResult struct {
 		snapshot WorkerSnapshot

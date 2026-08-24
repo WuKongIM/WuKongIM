@@ -1099,6 +1099,71 @@ func TestCoordinatorStopRequestDoesNotCancelInflightPeriodicCheckpoint(t *testin
 	}
 }
 
+func TestCoordinatorStopRequestAllowsTerminalCheckpointToUseCleanupBudget(t *testing.T) {
+	const (
+		roundTimeout   = 20 * time.Millisecond
+		cleanupTimeout = 150 * time.Millisecond
+		checkpointWait = 80 * time.Millisecond
+	)
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-stop-terminal-checkpoint-budget"
+	clock := newManualCoordinatorClock(time.Unix(1_700_100_100, 0))
+	observerStarted := make(chan struct{})
+	stopRequests := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		base := &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+		if workerID == 0 {
+			workers[workerID] = &delayedCheckpointCoordinatorWorker{
+				recordingCoordinatorWorker: base,
+				delay:                      checkpointWait,
+			}
+			continue
+		}
+		workers[workerID] = base
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 94,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+		RoundTimeout: roundTimeout, CleanupTimeout: cleanupTimeout,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	started := time.Now()
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	close(stopRequests)
+	result := <-resultChannel
+	if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+		t.Fatalf("Run() result = %+v, want stopped after the delayed terminal checkpoint", result)
+	}
+	if elapsed := time.Since(started); elapsed < checkpointWait || elapsed >= cleanupTimeout {
+		t.Fatalf("Run() elapsed = %s, want delayed checkpoint within cleanup budget [%s, %s)", elapsed, checkpointWait, cleanupTimeout)
+	}
+	terminal := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutTerminal)
+	if !terminal.StopRequested {
+		t.Fatalf("terminal cut = %+v, want stop-request evidence", terminal)
+	}
+}
+
 func TestCoordinatorStopRequestCancelsSetupBeforeAssignment(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-stop-during-setup"
@@ -3835,6 +3900,25 @@ type blockingPeriodicCheckpointCoordinatorWorker struct {
 	entered chan<- struct{}
 	release <-chan struct{}
 	once    sync.Once
+}
+
+type delayedCheckpointCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	delay time.Duration
+}
+
+func (w *delayedCheckpointCoordinatorWorker) Checkpoint(
+	ctx context.Context,
+	request WorkerCheckpointRequest,
+) (WorkerSnapshot, error) {
+	timer := time.NewTimer(w.delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return w.recordingCoordinatorWorker.Checkpoint(ctx, request)
+	case <-ctx.Done():
+		return WorkerSnapshot{}, ctx.Err()
+	}
 }
 
 func (w *blockingPeriodicCheckpointCoordinatorWorker) Checkpoint(
