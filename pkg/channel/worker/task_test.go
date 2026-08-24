@@ -480,6 +480,10 @@ func (l *captureDurableQuorumLog) Commit(_ context.Context, proposal replication
 	return l.receipt, nil
 }
 
+func (l *captureDurableQuorumLog) Release(ch.ChannelKey, replication.AuthorityID) bool {
+	return true
+}
+
 type metaResolverFunc func(context.Context, ch.ChannelID) (ch.Meta, error)
 
 func (f metaResolverFunc) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {

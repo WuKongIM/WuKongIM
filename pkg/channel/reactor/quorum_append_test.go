@@ -109,6 +109,10 @@ func TestQuorumLeaderIdleEvictionDoesNotWaitForLegacyFollowerStopACKs(t *testing
 	require.Eventually(t, func() bool {
 		return observer.RuntimeEvicted() == 1
 	}, 250*time.Millisecond, time.Millisecond)
+	releases := log.releasedAuthorities()
+	require.Equal(t, []releasedQuorumAuthority{{key: meta.Key, authority: replication.AuthorityID{
+		ChannelEpoch: meta.Epoch, LeaderTerm: meta.LeaderEpoch, FenceVersion: meta.RouteGeneration,
+	}}}, releases)
 }
 
 func TestQuorumLeaderActivationFailsClosedWhenInstallFails(t *testing.T) {
@@ -236,10 +240,20 @@ func (l *blockingReactorQuorumLog) Commit(context.Context, replication.Proposal)
 	return replication.Receipt{}, ch.ErrNotReady
 }
 
+func (l *blockingReactorQuorumLog) Release(ch.ChannelKey, replication.AuthorityID) bool {
+	return true
+}
+
+type releasedQuorumAuthority struct {
+	key       ch.ChannelKey
+	authority replication.AuthorityID
+}
+
 type reactorCaptureQuorumLog struct {
 	mu         sync.Mutex
 	installed  []replication.Authority
 	committed  []replication.Proposal
+	released   []releasedQuorumAuthority
 	installErr error
 	leo        uint64
 }
@@ -263,6 +277,13 @@ func (l *reactorCaptureQuorumLog) Commit(_ context.Context, proposal replication
 	return replication.Receipt{Authority: proposal.Expected, CommandID: proposal.CommandID, First: first, Last: l.leo, HW: l.leo}, nil
 }
 
+func (l *reactorCaptureQuorumLog) Release(key ch.ChannelKey, authority replication.AuthorityID) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.released = append(l.released, releasedQuorumAuthority{key: key, authority: authority})
+	return true
+}
+
 func (l *reactorCaptureQuorumLog) authorities() []replication.Authority {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -273,4 +294,10 @@ func (l *reactorCaptureQuorumLog) proposals() []replication.Proposal {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return append([]replication.Proposal(nil), l.committed...)
+}
+
+func (l *reactorCaptureQuorumLog) releasedAuthorities() []releasedQuorumAuthority {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]releasedQuorumAuthority(nil), l.released...)
 }

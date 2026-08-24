@@ -30,6 +30,64 @@ func TestQuorumLogRejectsAuthorityBeyondConfiguredVoterBound(t *testing.T) {
 	}
 }
 
+func TestQuorumLogReleaseDropsResidentCacheAndReloadsFromDurableStore(t *testing.T) {
+	harness := newReplicaHarness(t, 1, 2, 3)
+	log, err := newQuorumLog(quorumLogConfig{
+		Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness,
+		RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10,
+		MaxChannels: 1, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16,
+	})
+	if err != nil {
+		t.Fatalf("newQuorumLog() error = %v", err)
+	}
+	authority := Authority{
+		Key: "1:release-cache", ChannelID: ch.ChannelID{ID: "release-cache", Type: 1},
+		ID:     AuthorityID{ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7},
+		Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
+	}
+	if _, err := log.Install(context.Background(), authority); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	proposal := Proposal{
+		Key: authority.Key, Expected: authority.ID, CommandID: ch.CommandID{31: 29},
+		Records: []ch.Record{{
+			ID: 131, Epoch: authority.ID.ChannelEpoch, FromUID: "sender", ClientMsgNo: "release-131",
+			Payload:   []byte("payload retained only for exact retry acceleration"),
+			SizeBytes: len("payload retained only for exact retry acceleration"), ServerTimestampMS: 131,
+		}},
+	}
+	receipt, err := log.Commit(context.Background(), proposal)
+	if err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+	state := log.channels[authority.Key]
+	if state == nil || len(state.retained) != 1 || state.retained[proposal.CommandID].proposal.records != nil {
+		t.Fatalf("resident retry cache = %+v, want one payload-free durable receipt", state)
+	}
+	stale := authority.ID
+	stale.FenceVersion++
+	if log.Release(authority.Key, stale) {
+		t.Fatal("Release(stale authority) = true, want false")
+	}
+	if log.Release(authority.Key, authority.ID) != true {
+		t.Fatal("Release(current authority) = false, want true")
+	}
+	if len(log.channels) != 0 || state.ready || state.pending != nil || state.retained != nil || state.order != nil || state.authority.ID != (AuthorityID{}) {
+		t.Fatalf("released state still retains resident ownership: channels=%d state=%+v", len(log.channels), state)
+	}
+
+	// Release only drops process-local acceleration state. The durable command
+	// index must still recover the frontier and prove the exact retry.
+	installed, err := log.Install(context.Background(), authority)
+	if err != nil || installed.HW != receipt.HW {
+		t.Fatalf("Install(after release) = %+v, %v; want HW %d", installed, err, receipt.HW)
+	}
+	replayed, err := log.Commit(context.Background(), proposal)
+	if err != nil || replayed != receipt {
+		t.Fatalf("Commit(after release exact retry) = %+v, %v; want %+v", replayed, err, receipt)
+	}
+}
+
 func TestQuorumLogInstallDefersEmptyAuthorityBarrierIntoFirstProposal(t *testing.T) {
 	harness := newReplicaHarness(t, 1, 2, 3)
 	log, err := newQuorumLog(quorumLogConfig{

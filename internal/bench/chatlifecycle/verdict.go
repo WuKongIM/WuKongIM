@@ -204,7 +204,10 @@ type VerdictObservation struct {
 	// overlapping this latency cut. Empty preserves legacy product attribution.
 	LatencyAttribution CapacityAttribution
 	Resources          []NodeResourceSample
-	Signals            []VerdictSignal
+	// ResourceAt is the source timestamp of Resources when their completed
+	// batch is committed at a later monotonic At boundary. Zero uses At.
+	ResourceAt time.Time
+	Signals    []VerdictSignal
 }
 
 // VerdictSnapshot is a bounded projection. Pass is provisional until Terminal.
@@ -276,6 +279,7 @@ type VerdictEvaluator struct {
 	latencyEvidence     [3]bool
 	capacityWarning     bool
 	resources           [3]verdictResourceNode
+	resourceLast        time.Time
 	heapWindowCapacity  int
 	goroWindowCapacity  int
 }
@@ -338,10 +342,18 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 	}
 	var selected VerdictSignal
 	var observationErr error
+	resourceAt := observation.ResourceAt
+	if resourceAt.IsZero() {
+		resourceAt = observation.At
+	}
 	selectSignal := func(signal VerdictSignal) {
 		if verdictSignalPrecedes(signal, selected) {
 			selected = signal
 		}
+	}
+	if len(observation.Resources) == 0 && !observation.ResourceAt.IsZero() {
+		selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
+		observationErr = ErrVerdictObservation
 	}
 	if observation.Correctness != nil {
 		counters := *observation.Correctness
@@ -473,15 +485,17 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 		}
 	}
 	if len(observation.Resources) > 0 {
-		if !v.validResourceBatch(observation) {
+		if resourceAt.Before(v.start) || resourceAt.After(observation.At) ||
+			(!v.resourceLast.IsZero() && !resourceAt.After(v.resourceLast)) || !v.validResourceBatch(observation, resourceAt) {
 			selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
 			observationErr = ErrVerdictObservation
 		} else {
+			v.resourceLast = resourceAt
 			for _, sample := range observation.Resources {
 				state := v.resourceNode(sample.NodeID)
 				queue, inflight := uint64(sample.QueueDepth), uint64(sample.Inflight)
 				warmupEnd := v.start.Add(v.thresholds.Timeline.Warmup)
-				if !observation.At.After(warmupEnd) && sample.Burst == ResourceBurstNone {
+				if !resourceAt.After(warmupEnd) && sample.Burst == ResourceBurstNone {
 					state.baselineSeen = true
 					if queue > state.baselineQueue {
 						state.baselineQueue = queue
@@ -490,20 +504,20 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 						state.baselineInflight = inflight
 					}
 				}
-				if sample.ForcedGC && !observation.At.Before(warmupEnd) {
+				if sample.ForcedGC && !resourceAt.Before(warmupEnd) {
 					heap, goroutines := uint64(sample.HeapBytes), uint64(sample.Goroutines)
 					if !state.baselineSeen {
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
 						observationErr = ErrVerdictObservation
 						continue
 					}
-					if err := state.heap.Add(observation.At, heap); err != nil {
+					if err := state.heap.Add(resourceAt, heap); err != nil {
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
 						observationErr = ErrVerdictObservation
 					} else if ready, exceeded, _ := state.heap.GrowthExceeds(uint64(v.thresholds.Resource.ForcedGCLiveHeapGrowthPercent)); ready && exceeded {
 						selectSignal(VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseHeapGrowth})
 					}
-					if err := state.goroutines.Add(observation.At, goroutines); err != nil {
+					if err := state.goroutines.Add(resourceAt, goroutines); err != nil {
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
 						observationErr = ErrVerdictObservation
 					} else if ready, exceeded, _ := state.goroutines.GrowthExceeds(uint64(v.thresholds.Resource.GoroutineGrowthPercent)); ready && exceeded {
@@ -610,7 +624,7 @@ func verdictCauseRank(cause VerdictCause) int {
 	return len(causes)
 }
 
-func (v *VerdictEvaluator) validResourceBatch(observation VerdictObservation) bool {
+func (v *VerdictEvaluator) validResourceBatch(observation VerdictObservation, resourceAt time.Time) bool {
 	if len(observation.Resources) != len(v.resources) {
 		return false
 	}
@@ -618,7 +632,7 @@ func (v *VerdictEvaluator) validResourceBatch(observation VerdictObservation) bo
 	for index, sample := range observation.Resources {
 		runtimeValid := sample.HeapBytes == 0 && sample.Goroutines == 0
 		if sample.ForcedGC {
-			runtimeValid = observation.At.Sub(v.start)%time.Hour == 0 &&
+			runtimeValid = resourceAt.Sub(v.start)%time.Hour == 0 &&
 				validPrometheusGauge(sample.HeapBytes) && validPrometheusGauge(sample.Goroutines)
 		}
 		if sample.NodeID == 0 || !runtimeValid ||

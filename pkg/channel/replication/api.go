@@ -61,4 +61,7 @@ type Installed struct {
 type DurableQuorumLog interface {
 	Install(context.Context, Authority) (Installed, error)
 	Commit(context.Context, Proposal) (Receipt, error)
+	// Release discards process-local state only when expected still identifies
+	// the installed authority. The caller must first quiesce that generation.
+	Release(ch.ChannelKey, AuthorityID) bool
 }

@@ -281,7 +281,9 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 			// either dropping it or inserting it behind the monotonic evaluator.
 			observationAtCut = true
 		} else {
-			resourceObservation := VerdictObservation{At: observation.At, Resources: observation.Resources, Signals: observation.Signals}
+			resourceObservation := VerdictObservation{
+				At: observation.At, Resources: observation.Resources, ResourceAt: observation.At, Signals: observation.Signals,
+			}
 			if err := c.evaluator.Observe(resourceObservation); err != nil && !c.evaluator.Snapshot().Terminal {
 				return c.observeFailure(cut, productionControllerFailureVerdict, errProductionController)
 			}
@@ -324,8 +326,10 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		}
 	}
 	resources := []NodeResourceSample(nil)
+	resourceAt := time.Time{}
 	if observationAtCut {
 		resources = observation.Resources
+		resourceAt = observation.At
 		signals = append(signals, observation.Signals...)
 	}
 	if cut.StopRequested {
@@ -344,7 +348,7 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	}
 	if err := c.evaluator.Observe(VerdictObservation{
 		At: cut.At, Correctness: &correctness, Latency: &latency,
-		LatencyAttribution: latencyAttribution, Resources: resources, Signals: signals,
+		LatencyAttribution: latencyAttribution, Resources: resources, ResourceAt: resourceAt, Signals: signals,
 	}); err != nil && !c.evaluator.Snapshot().Terminal {
 		return c.observeFailure(cut, productionControllerFailureVerdict, errProductionController)
 	}

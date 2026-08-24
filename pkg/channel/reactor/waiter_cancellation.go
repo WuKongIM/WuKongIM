@@ -5,6 +5,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 )
 
 func (rc *runtimeChannel) addWaiter(opID ch.OpID, future *Future) error {
@@ -172,6 +173,9 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	}
 	role := rc.state.Role
 	wasParkedFollower := role == ch.RoleFollower && rc.replication.parked
+	if r.cfg.QuorumLog != nil && rc.quorumAuthority.ID != (replication.AuthorityID{}) {
+		r.cfg.QuorumLog.Release(key, rc.quorumAuthority.ID)
+	}
 	r.clearAppendCancelContexts(rc)
 	r.clearPullCancelChannel(rc)
 	r.clearLookupCancelChannel(rc)

@@ -56,6 +56,7 @@ type quorumChannel struct {
 	mu sync.Mutex
 
 	id        ch.ChannelID
+	released  bool
 	authority Authority
 	frontier  ReplicaState
 	hw        uint64
@@ -92,11 +93,19 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	if err := ctx.Err(); err != nil {
 		return Installed{}, err
 	}
-	state, err := l.channel(authority.Key, authority.ChannelID)
-	if err != nil {
-		return Installed{}, err
+	var state *quorumChannel
+	for {
+		var err error
+		state, err = l.channel(authority.Key, authority.ChannelID)
+		if err != nil {
+			return Installed{}, err
+		}
+		state.mu.Lock()
+		if !state.released {
+			break
+		}
+		state.mu.Unlock()
 	}
-	state.mu.Lock()
 	defer state.mu.Unlock()
 
 	authorityAdvanced := false
@@ -168,6 +177,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 }
 
 func fenceQuorumChannel(state *quorumChannel, authority Authority, retainedCapacity int) {
+	state.released = false
 	state.authority = cloneAuthority(authority)
 	state.frontier = ReplicaState{}
 	state.hw = 0
@@ -175,6 +185,41 @@ func fenceQuorumChannel(state *quorumChannel, authority Authority, retainedCapac
 	state.pending = nil
 	state.retained = make(map[ch.CommandID]retainedProposal, retainedCapacity)
 	state.order = state.order[:0]
+}
+
+// Release removes retry acceleration and sequencing state for one quiesced
+// authority. Durable rows and the command index remain authoritative for a
+// later Install, so idle runtime eviction does not retain message payloads.
+func (l *quorumLog) Release(key ch.ChannelKey, expected AuthorityID) bool {
+	if l == nil || key == "" || expected == (AuthorityID{}) {
+		return false
+	}
+	l.mu.Lock()
+	state := l.channels[key]
+	l.mu.Unlock()
+	if state == nil {
+		return false
+	}
+	state.mu.Lock()
+	l.mu.Lock()
+	if l.channels[key] != state || state.released || state.authority.ID != expected {
+		l.mu.Unlock()
+		state.mu.Unlock()
+		return false
+	}
+	state.released = true
+	state.ready = false
+	state.id = ch.ChannelID{}
+	state.authority = Authority{}
+	state.frontier = ReplicaState{}
+	state.hw = 0
+	state.pending = nil
+	state.retained = nil
+	state.order = nil
+	delete(l.channels, key)
+	l.mu.Unlock()
+	state.mu.Unlock()
+	return true
 }
 
 func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, error) {
@@ -284,7 +329,7 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 	return retainedProposal{proposal: durableProposal{
 		first: receipt.First, last: receipt.Last,
 		channelKey: state.authority.Key, channelID: state.authority.ChannelID, leader: state.authority.Leader,
-		manifest: manifest, records: cloneRecords(result.Records), committed: manifest.BaseOffset,
+		manifest: manifest, committed: manifest.BaseOffset,
 	}, receipt: receipt, durable: true}, true, nil
 }
 
@@ -317,6 +362,9 @@ func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal
 	state.pending = nil
 	retained.receipt = receipt
 	retained.durable = true
+	// The sealed manifest is sufficient to validate an exact durable retry.
+	// Payloads are needed only while an outcome is unresolved.
+	retained.proposal.records = nil
 	l.remember(state, retained)
 	return receipt, nil
 }
@@ -404,7 +452,8 @@ func validProposalRecords(records []ch.Record, maxBytes int) bool {
 }
 
 func sameProposalContent(retained durableProposal, records []ch.Record) bool {
-	if len(records) != len(retained.records) {
+	if retained.manifest.LastOffset < retained.manifest.BaseOffset ||
+		uint64(len(records)) != retained.manifest.LastOffset-retained.manifest.BaseOffset {
 		return false
 	}
 	manifest, _, ok := ch.SealProposalManifest(retained.manifest, records)

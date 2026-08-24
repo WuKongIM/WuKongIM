@@ -440,6 +440,64 @@ func TestProductionEvidenceControllerRebasesLateCompletedObservationOntoNextCut(
 	}
 }
 
+func TestProductionEvidenceControllerPreservesLateForcedGCResourceClock(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-late-forced-gc"
+	start := time.Unix(1_960_080_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-late-forced-gc", Generation: 8}
+	observation := newProductionControllerObservation(cfg, start)
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: observation,
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-late-forced-gc-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+
+	// The exact-hour observer round starts before this worker cut, but has not
+	// committed yet. The worker cut therefore advances the reducer just beyond
+	// the source round's forced-GC timestamp.
+	forcedGCAt := start.Add(time.Hour)
+	firstCutAt := forcedGCAt.Add(time.Millisecond)
+	if decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic, At: firstCutAt,
+		Snapshots: productionControllerWorkerSnapshots(cfg, fence, 1, firstCutAt.Sub(start), WorkerPhaseRunning),
+	}); observeErr != nil || decision != "" {
+		t.Fatalf("worker cut ahead of forced GC decision/error = %q/%v", decision, observeErr)
+	}
+
+	observation.snapshot.Sequence++
+	observation.snapshot.At = forcedGCAt
+	secondCutAt := firstCutAt.Add(5 * time.Second)
+	decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic, At: secondCutAt,
+		Snapshots: productionControllerWorkerSnapshots(cfg, fence, 2, secondCutAt.Sub(start), WorkerPhaseRunning),
+	})
+	if observeErr != nil || decision != "" {
+		t.Fatalf("late forced GC decision/error = %q/%v, want empty/nil", decision, observeErr)
+	}
+	if got := controller.evaluator.Snapshot(); got.Terminal {
+		t.Fatalf("late forced GC froze verdict: %+v", got)
+	}
+	if !controller.evaluator.resourceLast.Equal(forcedGCAt) {
+		t.Fatalf("resource clock = %v, want source time %v", controller.evaluator.resourceLast, forcedGCAt)
+	}
+	for _, resource := range controller.evaluator.resources {
+		if !resource.used || !resource.heap.last.Equal(forcedGCAt) || !resource.goroutines.last.Equal(forcedGCAt) {
+			t.Fatalf("resource windows = %+v, want exact source time %v", resource, forcedGCAt)
+		}
+	}
+}
+
 func TestFormalSoakLatencyAttributionJoinsResourceAndDeliveryEvidence(t *testing.T) {
 	cfg := FormalConfig()
 	complete := ReportCapacityResourceEvidence{
