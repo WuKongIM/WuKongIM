@@ -45,8 +45,10 @@ non-secret Lease inventory and has no provider lifecycle authority.
   it never restarts services/workers, clears data, or splices process lifetimes.
 - Direct repair may pass one validated process-duration override only to the
   rehearsal unit; repository YAML and formal execution remain unchanged.
-- Five-second cost and expiry guards enforce the admitted CNY 1,350 operational
-  stop and CNY 1,500 hard limit.
+- Five-second cost and expiry guards enforce the immutable stage's admitted CNY
+  1,350 operational stop and CNY 1,500 hard limit. Direct repair preserves the
+  exact admitted Lease budget: CNY 300/250 by default or an explicit whole-CNY
+  hard limit through CNY 1,500 with a CNY 20 operational reserve.
 - A control repair may redeploy only the same Lease, source, bundle, and sealed
   identity. Bootstrap-user, coordinator-state, and dependency-script repairs
   are allowed only for explicitly recognized frozen revision or file hashes;
