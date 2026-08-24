@@ -392,6 +392,54 @@ func TestProductionEvidenceControllerSkipsPeriodicCutUntilFirstObservation(t *te
 	}
 }
 
+func TestProductionEvidenceControllerRebasesLateCompletedObservationOntoNextCut(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-late-observation"
+	start := time.Unix(1_960_075_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-late-observation", Generation: 8}
+	observation := newProductionControllerObservation(cfg, start)
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: observation,
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-late-observation-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	firstAt := start.Add(cfg.Observation.Cadence)
+	if decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic, At: firstAt,
+		Snapshots: productionControllerWorkerSnapshots(cfg, fence, 1, cfg.Observation.Cadence, WorkerPhaseRunning),
+	}); observeErr != nil || decision != "" {
+		t.Fatalf("first periodic decision/error = %q/%v", decision, observeErr)
+	}
+
+	// This source round began before the first worker cut but completed after it.
+	// Its product signal must be retained at the next monotonic reducer boundary.
+	observation.snapshot.Sequence++
+	observation.snapshot.At = firstAt.Add(-time.Millisecond)
+	observation.snapshot.Signals = []VerdictSignal{{Outcome: VerdictProductFailure, Cause: VerdictCauseServerCrash}}
+	secondAt := firstAt.Add(cfg.Observation.Cadence)
+	decision, observeErr := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic, At: secondAt,
+		Snapshots: productionControllerWorkerSnapshots(cfg, fence, 2, 2*cfg.Observation.Cadence, WorkerPhaseRunning),
+	})
+	if observeErr != nil || decision != CoordinatorProductFailure {
+		t.Fatalf("late observation decision/error = %q/%v, want %q/nil", decision, observeErr, CoordinatorProductFailure)
+	}
+	if controller.lastObservationID != 2 || !controller.lastEvaluatorAt.Equal(secondAt) {
+		t.Fatalf("late observation fence/evaluator = %d/%v, want 2/%v", controller.lastObservationID, controller.lastEvaluatorAt, secondAt)
+	}
+}
+
 func TestFormalSoakLatencyAttributionJoinsResourceAndDeliveryEvidence(t *testing.T) {
 	cfg := FormalConfig()
 	complete := ReportCapacityResourceEvidence{

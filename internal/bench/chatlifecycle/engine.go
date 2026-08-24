@@ -373,7 +373,7 @@ func (s *sessionScheduler) releaseBootstrap(now time.Time) (int, error) {
 
 	// Every worker owns one immutable share of each UTC-aligned second. Keeping
 	// the extra token on the same worker prevents adjacent buckets observed
-	// across a subsecond boundary from combining into a 26-login burst.
+	// across a subsecond boundary from combining into a multi-bucket burst.
 	localWhole, err := workerOnlineTarget(rate, s.workerID, s.workerCount)
 	if err != nil {
 		return 0, err

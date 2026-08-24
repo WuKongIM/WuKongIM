@@ -451,7 +451,7 @@ integer percentage, which bounds even a local profile to at most 100 buckets.
 At 250,000 new users per day the identity growth rate is about 2.9 new
 users/second; because new users are 80% of logins, the total login rate is about
 3.6 logins/second after bootstrap. Empty-dataset bootstrap is a separate fixed
-global 50-login/second phase until 10,000 users are simultaneously online.
+global 100-login/second phase until 10,000 users are simultaneously online.
 
 Each new relationship plan has a finite two-to-eight-message initial burst over
 five to thirty seconds and explicitly requires both endpoints online. Revisit
@@ -682,10 +682,10 @@ identity to complete a real WKProto CONNECT/CONNACK plus fresh version-zero
 full conversation sync. Each worker has 256 bounded concurrent starting slots.
 Missed whole attempts and unused per-step credit are discarded, so a delayed
 tick or recovered sync path cannot catch up above the fixed global rate. Every
-UTC-aligned second gives the workers immutable 17/17/16 shares, so even subsecond
+UTC-aligned second gives the workers immutable 34/33/33 shares, so even subsecond
 skew across the boundary cannot mix adjacent extra positions; a whole missed
 range is discarded.
-Fake-clock three-worker churn coverage reaches 10,000 simultaneous online users in 209
+Fake-clock three-worker churn coverage reaches 10,000 simultaneous online users in 101
 seconds and enforces a 15-minute scheduler bound. A coordinator-controlled
 worker remains in all-new bootstrap at its local target; the first grant, sent
 only after every local share is ready, clears bootstrap credit, bucket phase,
@@ -794,7 +794,7 @@ eligibility window after its rebased due time. Initial relationship
 messages also retain their checked delay from generation start: the
 relationship's real bootstrap activation time plus its configured offset
 inside the 5-30 second window. The barrier rebases those delays and rebuilds
-the activity heap once. This preserves the 209-second login-time spacing
+the activity heap once. This preserves the 101-second login-time spacing
 between relationships instead of either replaying every item as an overdue
 historical burst or collapsing every cold relationship into the same
 30-second activation spike.
@@ -1116,7 +1116,7 @@ ready responses are accepted only if the poll also finishes strictly before
 that deadline; equality is timeout, not success. Continuous observation starts
 immediately after the successful Start round and remains active throughout that
 readiness barrier, so a product or harness result can terminate bootstrap. The
-local shakeout uses the same fixed global 50-login/second bootstrap rate so its
+local shakeout uses the same fixed global 100-login/second bootstrap rate so its
 100-user synchronized population fits inside the shorter ten-minute warmup;
 after readiness it keeps the reviewed 250,000-new-users/day steady arrival
 rate. Its smaller online population and evidence label bound that non-formal
@@ -1183,7 +1183,12 @@ retryable SENDACK exhaustion, non-retriable SENDACK, and generation cleanup.
 It contains no UID, Channel, message identity, address,
 credential, path, or raw error. This running contract is intentionally
 separate from terminal reports so Analysis MCP can diagnose a connection drop
-before `final.json` exists. A fresh production controller arms the observation source at that exact barrier
+before `final.json` exists. Observer rounds collect external evidence
+asynchronously, so a complete round may commit after a worker cut whose wall
+clock it precedes. The production controller retains the round's source time
+and sequence but rebases its resource samples and signals onto the next worker
+cut, preserving monotonic verdict order without dropping late evidence. A fresh
+production controller arms the observation source at that exact barrier
 before probing the live dataset digest. The digest proof may take longer than
 one observer phase, but it therefore cannot consume the first exact-hour
 forced-GC evidence window; a failed digest remains a terminal Begin failure and

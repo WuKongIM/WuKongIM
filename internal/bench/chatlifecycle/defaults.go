@@ -11,7 +11,7 @@ const (
 	formalReplicas             = 3
 	formalRuntimeSampleSize    = 1_200
 	formalSyncMaxConversations = 500
-	formalBootstrapLoginRate   = 50
+	formalBootstrapLoginRate   = 100
 	formalFilesystemBytes      = int64(500_000_000_000)
 	localFilesystemBytes       = int64(10_000_000_000)
 	formalGroupCatalogTotal    = 2_000

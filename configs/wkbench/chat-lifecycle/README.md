@@ -15,13 +15,13 @@ the three service nodes and three workers contend on one local filesystem,
 which is not representative of the four-host cloud topology. It is not formal
 evidence.
 
-The reviewed empty-dataset bootstrap rate is one global 50 logins/second until
+The reviewed empty-dataset bootstrap rate is one global 100 logins/second until
 all 10,000 users are simultaneously online. This does not bypass startup work:
 each login still completes WKProto CONNECT/CONNACK and a fresh version-zero full
-conversation sync. The deterministic three-worker churn model reaches the barrier in 209
+conversation sync. The deterministic three-worker churn model reaches the barrier in 101
 seconds and must remain within 15 minutes. Missed or unused per-step credit is
-discarded rather than caught up in a burst. Immutable 17/17/16 worker shares keep
-subsecond skew, including UTC-second boundary skew, within the global 50-login
+discarded rather than caught up in a burst. Immutable 34/33/33 worker shares keep
+subsecond skew, including UTC-second boundary skew, within the global 100-login
 ceiling; coordinator-controlled workers stay all-new at their local shares
 until the first global grant moves all three to the unchanged
 250,000-new-user/day 80/20 stream.

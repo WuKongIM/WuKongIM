@@ -264,6 +264,7 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	}
 
 	observation := c.observation.Snapshot()
+	observationAtCut := false
 	if observation.Sequence == 0 {
 		if cut.Kind == CoordinatorCutPeriodic {
 			return "", nil
@@ -271,13 +272,16 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		return c.observeFailure(cut, productionControllerFailureObservationMissing, errProductionController)
 	}
 	if observation.Sequence > c.lastObservationID && !observation.At.After(cut.At) {
-		if observation.At.IsZero() || !observation.At.After(c.lastEvaluatorAt) || len(observation.Resources) != coordinatorWorkerCount {
+		if observation.At.IsZero() || len(observation.Resources) != coordinatorWorkerCount {
 			return c.observeFailure(cut, productionControllerFailureObservationOrder, errProductionController)
 		}
-		resourceObservation := VerdictObservation{At: observation.At, Resources: observation.Resources, Signals: observation.Signals}
-		if observation.At.Equal(cut.At) {
-			// The worker evidence below shares this exact atomic timestamp.
+		if !observation.At.After(c.lastEvaluatorAt) || observation.At.Equal(cut.At) {
+			// A complete observer round may commit after the worker cut whose wall
+			// clock it precedes. Rebase that late evidence onto this cut instead of
+			// either dropping it or inserting it behind the monotonic evaluator.
+			observationAtCut = true
 		} else {
+			resourceObservation := VerdictObservation{At: observation.At, Resources: observation.Resources, Signals: observation.Signals}
 			if err := c.evaluator.Observe(resourceObservation); err != nil && !c.evaluator.Snapshot().Terminal {
 				return c.observeFailure(cut, productionControllerFailureVerdict, errProductionController)
 			}
@@ -320,7 +324,7 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		}
 	}
 	resources := []NodeResourceSample(nil)
-	if c.lastObservationID == observation.Sequence && observation.At.Equal(cut.At) {
+	if observationAtCut {
 		resources = observation.Resources
 		signals = append(signals, observation.Signals...)
 	}
