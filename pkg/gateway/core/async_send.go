@@ -77,7 +77,8 @@ type sendExecutor struct {
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
 	opts = gatewaytypes.NormalizeRuntimeOptions(opts)
-	shards := asyncSendLogicalShardCount(opts.AsyncSendWorkers, opts.AsyncSendQueueCapacity)
+	limits := gatewaySendBatchLimits(s)
+	shards := asyncSendLogicalShardCount(opts.AsyncSendWorkers, opts.AsyncSendQueueCapacity, limits.maxRecords)
 	e := &sendExecutor{
 		server:         s,
 		workers:        opts.AsyncSendWorkers,
@@ -91,7 +92,6 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 		goroutines:     opts.Goroutines,
 	}
 
-	limits := gatewaySendBatchLimits(s)
 	mailbox, err := workqueue.NewShardedMailbox[asyncDispatchTask](workqueue.ShardedMailboxConfig{
 		Name:              "gateway-send",
 		Goroutines:        opts.Goroutines,
@@ -131,7 +131,7 @@ func asyncSendShardCapacity(totalCapacity, shards int) int {
 	return capacity
 }
 
-func asyncSendLogicalShardCount(workers, totalCapacity int) int {
+func asyncSendLogicalShardCount(workers, totalCapacity, minShardCapacity int) int {
 	if workers <= 0 {
 		workers = 1
 	}
@@ -141,12 +141,21 @@ func asyncSendLogicalShardCount(workers, totalCapacity int) int {
 	if workers == 1 {
 		return 1
 	}
+	if minShardCapacity <= 0 {
+		minShardCapacity = 1
+	}
+	maxShards := totalCapacity
+	if totalCapacity >= minShardCapacity {
+		maxShards = totalCapacity / minShardCapacity
+	}
 	// Division before multiplication keeps the calculation overflow-safe while
 	// bounding allocated shard queues by the configured global item capacity.
+	// A shard must still admit at least one configured SEND batch so increasing
+	// workers cannot silently reduce one session's bounded burst capacity.
 	if workers <= totalCapacity/asyncSendOrderingShardsPerWorker {
-		return workers * asyncSendOrderingShardsPerWorker
+		return min(workers*asyncSendOrderingShardsPerWorker, maxShards)
 	}
-	return totalCapacity
+	return min(totalCapacity, maxShards)
 }
 
 func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {

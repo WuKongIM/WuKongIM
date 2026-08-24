@@ -44,8 +44,8 @@ func TestComposeNodeConfigsUseHotPathTuning(t *testing.T) {
 			if cfg.Cluster.Storage.CommitShards != 1 {
 				t.Fatalf("%s CommitShards = %d, want 1", node, cfg.Cluster.Storage.CommitShards)
 			}
-			if cfg.Gateway.Runtime.AsyncSendWorkers != 128 {
-				t.Fatalf("%s AsyncSendWorkers = %d, want 128", node, cfg.Gateway.Runtime.AsyncSendWorkers)
+			if cfg.Gateway.Runtime.AsyncSendWorkers != 1000 {
+				t.Fatalf("%s AsyncSendWorkers = %d, want 1000", node, cfg.Gateway.Runtime.AsyncSendWorkers)
 			}
 			if cfg.Gateway.Transport.Gnet.NumEventLoop != 4 || !cfg.Gateway.Transport.Gnet.Multicore {
 				t.Fatalf("%s gnet = %#v, want multicore with 4 event loops", node, cfg.Gateway.Transport.Gnet)

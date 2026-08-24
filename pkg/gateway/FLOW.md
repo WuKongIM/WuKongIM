@@ -55,7 +55,11 @@ It does not own message, presence, Channel, or Controller business policy.
   and relevant errors happen only after an in-progress open callback returns.
 - Inbound bytes, outbound bytes, auth queue, SEND backlog, per-shard mailboxes,
   batch records/bytes/wait, idle work, actor work, and shutdown waits are
-  bounded. Saturation closes only the affected session with a typed reason.
+  bounded. SEND shard count is capped so one shard can admit at least one
+  configured record batch, unless the entire global queue is smaller than that
+  batch. Raising worker concurrency therefore cannot silently reduce one
+  session's bounded burst capacity. Saturation closes only the affected session
+  with a typed reason.
 - `DrainSends` is a one-shot SEND-admission fence that waits for accepted
   mailbox work without canceling or resetting it when a caller times out.
   It does not prove append, delivery, transport flush, or client receipt.

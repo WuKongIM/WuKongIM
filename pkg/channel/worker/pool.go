@@ -13,11 +13,17 @@ import (
 )
 
 const (
+	// DefaultStoreAppendWorkers is the qualified leader append pool size for
+	// sustained 2,000 SEND/s three-replica workloads.
+	DefaultStoreAppendWorkers = 128
+	// DefaultStoreApplyWorkers is the qualified follower apply pool size for
+	// sustained 2,000 SEND/s three-replica workloads.
+	DefaultStoreApplyWorkers = 8
 	// DefaultRPCWorkers bounds the QPS-validated blocking replication pool.
-	DefaultRPCWorkers = 160
+	DefaultRPCWorkers = 96
 	// DefaultRPCBatchMaxItems amortizes one blocking replication transport call
 	// across a bounded number of Pull or PullHint items.
-	DefaultRPCBatchMaxItems      = 16
+	DefaultRPCBatchMaxItems      = 8
 	rpcBatchMaxWait              = 250 * time.Microsecond
 	storeAppendBatchMaxItems     = 64
 	storeAppendBatchMaxWait      = 250 * time.Microsecond

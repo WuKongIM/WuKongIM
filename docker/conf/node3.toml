@@ -46,7 +46,7 @@ api_max_payload_bytes = 10485760
 [gateway]
 gnet_multicore = true
 gnet_num_event_loop = 4
-runtime_async_send_workers = 128
+runtime_async_send_workers = 1000
 runtime_async_send_queue_capacity = 131072
 
 [[gateway.listeners]]
@@ -91,7 +91,7 @@ sample_rate = 1.0
 [delivery]
 # Maximum recipient-authority delivery batches processed concurrently by this node.
 # This is independent from channel_append.recipient_authority_dispatch_concurrency.
-recipient_worker_concurrency = 100
+recipient_worker_concurrency = 320
 
 [message]
 permission_cache_ttl = "30s"

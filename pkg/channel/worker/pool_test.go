@@ -1155,7 +1155,7 @@ func TestPoolUsesFirstRPCTaskBatchLimit(t *testing.T) {
 func TestPoolUsesQPSValidatedDefaultRPCBatchLimit(t *testing.T) {
 	pool := &Pool{cfg: PoolConfig{Name: "rpc"}}
 
-	require.Equal(t, 16, pool.rpcBatchMaxItems())
+	require.Equal(t, 8, pool.rpcBatchMaxItems())
 }
 
 func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {

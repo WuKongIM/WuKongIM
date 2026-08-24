@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,12 +43,11 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 		binding.TCPWKProto("tcp-wkproto", "0.0.0.0:5100"),
 		binding.WSMux("ws-gateway", "0.0.0.0:5200"),
 	})
-	wantLoops := adaptiveGatewayGnetEventLoops(runtime.GOMAXPROCS(0))
-	if cfg.Gateway.Transport.Gnet.NumEventLoop != wantLoops {
-		t.Fatalf("Gnet.NumEventLoop = %d, want adaptive %d", cfg.Gateway.Transport.Gnet.NumEventLoop, wantLoops)
+	if cfg.Gateway.Transport.Gnet.NumEventLoop != 4 {
+		t.Fatalf("Gnet.NumEventLoop = %d, want 4", cfg.Gateway.Transport.Gnet.NumEventLoop)
 	}
-	if wantLoops > 1 && !cfg.Gateway.Transport.Gnet.Multicore {
-		t.Fatalf("Gnet.Multicore = false, want true for %d event loops", wantLoops)
+	if !cfg.Gateway.Transport.Gnet.Multicore {
+		t.Fatal("Gnet.Multicore = false, want true")
 	}
 	if cfg.Gateway.Session.AsyncSendBatchMaxWait != time.Millisecond {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 1ms", cfg.Gateway.Session.AsyncSendBatchMaxWait)
@@ -63,8 +61,8 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true by default")
 	}
-	if cfg.Delivery.RecipientWorkerConcurrency != 100 {
-		t.Fatalf("Delivery.RecipientWorkerConcurrency = %d, want 100 by default", cfg.Delivery.RecipientWorkerConcurrency)
+	if cfg.Delivery.RecipientWorkerConcurrency != 320 {
+		t.Fatalf("Delivery.RecipientWorkerConcurrency = %d, want 320 by default", cfg.Delivery.RecipientWorkerConcurrency)
 	}
 	if !cfg.Plugin.Enable {
 		t.Fatalf("Plugin.Enable = false, want true by default")
@@ -166,26 +164,6 @@ func TestLoadConfigParsesManagerLoginSettings(t *testing.T) {
 	}
 	if len(user.Permissions) != 1 || user.Permissions[0].Resource != "cluster.node" || len(user.Permissions[0].Actions) != 1 || user.Permissions[0].Actions[0] != "r" {
 		t.Fatalf("manager permissions = %#v, want cluster.node read", user.Permissions)
-	}
-}
-
-func TestAdaptiveGatewayGnetEventLoops(t *testing.T) {
-	tests := []struct {
-		name       string
-		gomaxprocs int
-		want       int
-	}{
-		{name: "invalid clamps to one", gomaxprocs: 0, want: 1},
-		{name: "small server keeps one", gomaxprocs: 2, want: 1},
-		{name: "medium server uses half", gomaxprocs: 6, want: 3},
-		{name: "larger server caps at four", gomaxprocs: 16, want: 4},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := adaptiveGatewayGnetEventLoops(tt.gomaxprocs); got != tt.want {
-				t.Fatalf("adaptiveGatewayGnetEventLoops(%d) = %d, want %d", tt.gomaxprocs, got, tt.want)
-			}
-		})
 	}
 }
 
@@ -2003,21 +1981,4 @@ func testSupportedConfigKeys() []string {
 		keys = append(keys, field.EnvKey)
 	}
 	return keys
-}
-
-func adaptiveGatewayGnetEventLoops(gomaxprocs int) int {
-	if gomaxprocs <= 0 {
-		return 1
-	}
-	if gomaxprocs <= 2 {
-		return 1
-	}
-	loops := gomaxprocs / 2
-	if loops < 1 {
-		return 1
-	}
-	if loops > 4 {
-		return 4
-	}
-	return loops
 }

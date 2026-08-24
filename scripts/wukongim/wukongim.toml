@@ -41,18 +41,18 @@ slot_log_compaction_check_interval = "5s"
 # Channel reactor partitions. 0 derives max(4, GOMAXPROCS).
 channel_reactor_count = 0
 
-# Blocking Channel worker caps. 0 keeps the runtime default.
-channel_store_append_workers = 0
+# Qualified Channel worker bounds for sustained 2,000 SEND/s workloads.
+channel_store_append_workers = 128
 
-channel_store_apply_workers = 0
+channel_store_apply_workers = 8
 
-# Bounds blocking replication RPC work. The 160-worker default avoids the scheduler
-# and allocation overhead observed with oversized pools while retaining burst headroom.
-channel_rpc_workers = 160
+# Bounds blocking replication RPC work. The 96-worker default preserves measured
+# 2,000 SEND/s headroom without oversized-pool scheduler and allocation overhead.
+channel_rpc_workers = 96
 
 # Maximum same-target Pull or PullHint items coalesced into one bounded
-# replication transport call. Zero uses the runtime default.
-channel_rpc_batch_max_items = 16
+# replication transport call. The qualified default is eight items.
+channel_rpc_batch_max_items = 8
 
 # Maximum loaded Channel runtimes on this node. 0 keeps unlimited behavior.
 max_channels = 0
@@ -198,15 +198,15 @@ format = "console"
 # Client-facing gateway listeners. Use TOML arrays here; WK_ environment overrides use one JSON string value.
 listeners = [{ address = "127.0.0.1:5100", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }, { address = "0.0.0.0:5200", name = "ws-gateway", network = "websocket", protocol = "wsmux", transport = "gnet" }]
 
-# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
+# Four multicore event loops match the qualified 2,000 SEND/s gateway profile.
 gnet_multicore = true
 
-gnet_num_event_loop = 0
+gnet_num_event_loop = 4
 
 # Gateway SEND async sharding and micro-batch collection controls.
-runtime_async_send_workers = 0
+runtime_async_send_workers = 1000
 
-runtime_async_send_queue_capacity = 0
+runtime_async_send_queue_capacity = 131072
 
 runtime_async_auth_workers = 0
 
@@ -257,7 +257,7 @@ event_queue_size = 1024
 # Number of stable Channel-order delivery shards processed concurrently by this node.
 # Plans for one Channel stay FIFO on one shard; different Channels may run in parallel.
 # This is independent from channel_append.recipient_authority_dispatch_concurrency.
-recipient_worker_concurrency = 100
+recipient_worker_concurrency = 320
 
 [channel_append]
 # Channel append shard count controls channel-key authority-state lookup shards; zero derives a CPU-aware default.

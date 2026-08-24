@@ -11,9 +11,9 @@ join_token = "change-me"
 hash_slot_count = 256
 slot_replica_n = 3
 # Bounded Channel replication worker count for this joining node.
-channel_rpc_workers = 50
+channel_rpc_workers = 96
 # Maximum same-target Pull or PullHint items coalesced into one bounded
-# replication transport call. Zero uses the runtime default.
+# replication transport call. The qualified default is eight items.
 channel_rpc_batch_max_items = 8
 
 [api]

@@ -80,7 +80,7 @@ type RuntimeOptions struct {
 }
 
 const (
-	defaultAsyncSendWorkers        = 128
+	defaultAsyncSendWorkers        = 1000
 	defaultAsyncSendQueueCapacity  = 128 * 1024
 	defaultAsyncAuthWorkers        = 16
 	defaultAsyncAuthQueueCapacity  = 8 * 1024

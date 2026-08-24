@@ -197,7 +197,7 @@ type ChannelConfig struct {
 	StoreAppendBatchMaxWait time.Duration
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the Channel runtime default.
 	StoreApplyWorkers int
-	// RPCWorkers caps blocking Channel replication RPC workers. Zero uses the QPS-validated default of 160.
+	// RPCWorkers caps blocking Channel replication RPC workers. Zero uses the QPS-validated default of 96.
 	RPCWorkers int
 	// RPCBatchMaxItems caps same-target Channel Pull or PullHint items in one
 	// blocking transport call. Zero uses the Channel worker default of 16.

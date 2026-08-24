@@ -3058,8 +3058,8 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	if cfg.EventQueueSize != 1024 {
 		t.Fatalf("EventQueueSize = %d, want 1024", cfg.EventQueueSize)
 	}
-	if cfg.RecipientWorkerConcurrency != 100 {
-		t.Fatalf("RecipientWorkerConcurrency = %d, want 100", cfg.RecipientWorkerConcurrency)
+	if cfg.RecipientWorkerConcurrency != 320 {
+		t.Fatalf("RecipientWorkerConcurrency = %d, want 320", cfg.RecipientWorkerConcurrency)
 	}
 
 	negative := defaultDeliveryConfig(DeliveryConfig{

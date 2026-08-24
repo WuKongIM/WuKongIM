@@ -107,11 +107,11 @@ func TestDefaultSessionOptions(t *testing.T) {
 
 func TestDefaultRuntimeOptions(t *testing.T) {
 	opts := gateway.DefaultRuntimeOptions()
-	if opts.AsyncSendWorkers <= 0 {
-		t.Fatalf("AsyncSendWorkers = %d, want > 0", opts.AsyncSendWorkers)
+	if opts.AsyncSendWorkers != 1000 {
+		t.Fatalf("AsyncSendWorkers = %d, want 1000", opts.AsyncSendWorkers)
 	}
-	if opts.AsyncSendQueueCapacity <= 0 {
-		t.Fatalf("AsyncSendQueueCapacity = %d, want > 0", opts.AsyncSendQueueCapacity)
+	if opts.AsyncSendQueueCapacity != 128*1024 {
+		t.Fatalf("AsyncSendQueueCapacity = %d, want %d", opts.AsyncSendQueueCapacity, 128*1024)
 	}
 	if opts.AsyncAuthWorkers <= 0 {
 		t.Fatalf("AsyncAuthWorkers = %d, want > 0", opts.AsyncAuthWorkers)

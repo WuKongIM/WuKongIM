@@ -397,7 +397,6 @@ func TestLoadBuildsNormalizedEffectiveCriticalConfigSnapshot(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=0",
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0",
-		"WK_CLUSTER_CHANNEL_RPC_WORKERS=50",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP=0",
 	}})
 	if err != nil {
@@ -412,15 +411,15 @@ func TestLoadBuildsNormalizedEffectiveCriticalConfigSnapshot(t *testing.T) {
 		"WK_CLUSTER_SLOT_REPLICA_N":                    {value: "3", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_CLUSTER_CHANNEL_REPLICA_N":                 {value: "3", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT":             {value: "4", source: managementusecase.NodeConfigValueSourceDerived},
-		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":      {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":      {value: "128", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":       {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
-		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               {value: "50", source: managementusecase.NodeConfigValueSourceEnvironment},
-		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       {value: "16", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               {value: "96", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_GATEWAY_GNET_MULTICORE":                    {value: "true", source: managementusecase.NodeConfigValueSourceDerived},
-		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               {value: "2", source: managementusecase.NodeConfigValueSourceDerived},
-		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        {value: "128", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               {value: "4", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        {value: "1000", source: managementusecase.NodeConfigValueSourceDefault},
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY": {value: "131072", source: managementusecase.NodeConfigValueSourceDefault},
-		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":     {value: "100", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":     {value: "320", source: managementusecase.NodeConfigValueSourceDefault},
 	}
 	for key, want := range wants {
 		item, ok := snapshotItem(cfg.StartupConfigSnapshot, key)

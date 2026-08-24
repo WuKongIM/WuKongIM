@@ -242,24 +242,24 @@ func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
 	require.Equal(t, fence, events[0].Worker.Fence)
 }
 
-func TestDefaultWorkerPoolsUseExtraStoreWorkers(t *testing.T) {
+func TestDefaultWorkerPoolsUseQualified2000QPSProfile(t *testing.T) {
 	pools := defaultWorkerPools(Config{ReactorCount: 32, MailboxSize: 16})
 
-	require.Equal(t, 64, pools.StoreAppend.Workers)
+	require.Equal(t, 128, pools.StoreAppend.Workers)
 	require.Equal(t, 32, pools.StoreRead.Workers)
-	require.Equal(t, 64, pools.StoreApply.Workers)
-	require.Equal(t, 16, pools.StoreCheckpoint.Workers)
-	require.Equal(t, 160, pools.RPC.Workers)
+	require.Equal(t, 8, pools.StoreApply.Workers)
+	require.Equal(t, 2, pools.StoreCheckpoint.Workers)
+	require.Equal(t, 96, pools.RPC.Workers)
 }
 
-func TestDefaultWorkerPoolsCapStoreWorkers(t *testing.T) {
+func TestDefaultWorkerPoolsKeepQualifiedProfileAcrossReactorCounts(t *testing.T) {
 	pools := defaultWorkerPools(Config{ReactorCount: 128, MailboxSize: 16})
 
 	require.Equal(t, 128, pools.StoreAppend.Workers)
-	require.Equal(t, 128, pools.StoreApply.Workers)
-	require.Equal(t, 32, pools.StoreCheckpoint.Workers)
+	require.Equal(t, 8, pools.StoreApply.Workers)
+	require.Equal(t, 2, pools.StoreCheckpoint.Workers)
 	require.Equal(t, 128, pools.StoreRead.Workers)
-	require.Equal(t, 160, pools.RPC.Workers)
+	require.Equal(t, 96, pools.RPC.Workers)
 }
 
 func TestDefaultWorkerPoolsScaleCheckpointWorkersFromExplicitApplyCapacity(t *testing.T) {

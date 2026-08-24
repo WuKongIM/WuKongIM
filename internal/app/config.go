@@ -27,8 +27,9 @@ var (
 )
 
 const (
-	// DefaultDeliveryRecipientWorkerConcurrency is the bounded recipient-plan worker count used when configuration omits it.
-	DefaultDeliveryRecipientWorkerConcurrency = 100
+	// DefaultDeliveryRecipientWorkerConcurrency is the bounded recipient-plan
+	// worker count qualified for the sustained 2,000 SEND/s runtime profile.
+	DefaultDeliveryRecipientWorkerConcurrency = 320
 )
 
 // Config contains phase-1 internal app configuration.

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -1267,26 +1266,11 @@ func defaultGatewayListeners() []gateway.ListenerOptions {
 }
 
 func defaultGatewayGnetOptions() gateway.GnetTransportOptions {
-	loops := adaptiveGatewayGnetEventLoops(runtime.GOMAXPROCS(0))
 	return gateway.GnetTransportOptions{
-		Multicore:    loops > 1,
-		NumEventLoop: loops,
+		Multicore:    true,
+		NumEventLoop: 4,
 		ReusePort:    true,
 	}
-}
-
-func adaptiveGatewayGnetEventLoops(gomaxprocs int) int {
-	if gomaxprocs <= 2 {
-		return 1
-	}
-	loops := gomaxprocs / 2
-	if loops < 1 {
-		return 1
-	}
-	if loops > 4 {
-		return 4
-	}
-	return loops
 }
 
 func parseListeners(raw string) ([]gateway.ListenerOptions, error) {

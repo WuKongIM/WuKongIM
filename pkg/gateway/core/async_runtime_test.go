@@ -77,6 +77,23 @@ func TestNewAsyncRuntimeUsesNormalizedOptions(t *testing.T) {
 	}
 }
 
+func TestDefaultAsyncRuntimeKeepsOneSendBatchPerOrderingShard(t *testing.T) {
+	srv := &Server{options: gatewaytypes.Options{
+		DefaultSession: gatewaytypes.DefaultSessionOptions(),
+		Runtime:        gatewaytypes.DefaultRuntimeOptions(),
+	}}
+	runtime, err := newAsyncRuntime(srv)
+	if err != nil {
+		t.Fatalf("newAsyncRuntime failed: %v", err)
+	}
+	defer runtime.stop()
+
+	want := gatewaytypes.DefaultSessionOptions().AsyncSendBatchMaxRecords
+	if runtime.send.shardCapacity < want {
+		t.Fatalf("send shard capacity = %d, want at least one %d-record SEND batch", runtime.send.shardCapacity, want)
+	}
+}
+
 func TestAsyncRuntimeStopIsIdempotent(t *testing.T) {
 	srv := &Server{
 		options: gatewaytypes.Options{

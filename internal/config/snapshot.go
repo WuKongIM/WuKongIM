@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	channelreactor "github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	channelworker "github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
@@ -71,13 +71,13 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 	appendWorkers := cfg.Cluster.Channel.StoreAppendWorkers
 	appendDerived := false
 	if appendWorkers == 0 {
-		appendWorkers = channelreactor.DefaultStoreAppendWorkerCount(reactorCount)
+		appendWorkers = channelworker.DefaultStoreAppendWorkers
 		appendDerived = true
 	}
 	applyWorkers := cfg.Cluster.Channel.StoreApplyWorkers
 	applyDerived := false
 	if applyWorkers == 0 {
-		applyWorkers = channelreactor.DefaultStoreApplyWorkerCount(reactorCount)
+		applyWorkers = channelworker.DefaultStoreApplyWorkers
 		applyDerived = true
 	}
 	rpcWorkers := clusterCfg.Channel.RPCWorkers

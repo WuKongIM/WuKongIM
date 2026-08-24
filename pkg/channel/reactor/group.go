@@ -16,9 +16,6 @@ import (
 )
 
 const (
-	defaultStoreAppendWorkerMultiplier  = 2
-	defaultStoreApplyWorkerMultiplier   = 2
-	defaultStoreWorkerCap               = 128
 	defaultMetaResolveWorkers           = 2
 	defaultMetaResolveQueueSize         = 64
 	defaultColdActivationMinWorkers     = 4
@@ -451,8 +448,8 @@ func eventPriority(kind EventKind) Priority {
 
 func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	workers := max(1, cfg.ReactorCount)
-	storeAppendWorkers := DefaultStoreAppendWorkerCount(workers)
-	storeApplyWorkers := DefaultStoreApplyWorkerCount(workers)
+	storeAppendWorkers := worker.DefaultStoreAppendWorkers
+	storeApplyWorkers := worker.DefaultStoreApplyWorkers
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
 	effectiveStoreApplyWorkers := storeApplyWorkers
@@ -467,7 +464,7 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, defaultStoreReadPoolName, workers, queueSize)
 	pools.StoreApply = defaultPoolConfig(pools.StoreApply, defaultStoreApplyPoolName, storeApplyWorkers, queueSize)
 	pools.StoreCheckpoint = defaultPoolConfig(pools.StoreCheckpoint, "channelv2-store-checkpoint", storeCheckpointWorkers, queueSize)
-	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, DefaultRPCWorkerCount(workers), queueSize)
+	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, worker.DefaultRPCWorkers, queueSize)
 	if cfg.MetaResolver != nil {
 		pools.MetaResolve = defaultPoolConfig(pools.MetaResolve, defaultMetaResolvePoolName, defaultMetaResolveWorkers, defaultMetaResolveQueueSize)
 		coldWorkers := min(max(defaultColdActivationMinWorkers, workers), defaultColdActivationWorkerCap)
@@ -475,23 +472,6 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 		pools.ColdActivation = defaultPoolConfig(pools.ColdActivation, defaultColdActivationPoolName, coldWorkers, coldQueueSize)
 	}
 	return pools
-}
-
-// DefaultStoreAppendWorkerCount returns the runtime-derived leader append pool size.
-func DefaultStoreAppendWorkerCount(reactorCount int) int {
-	return min(max(1, reactorCount)*defaultStoreAppendWorkerMultiplier, defaultStoreWorkerCap)
-}
-
-// DefaultStoreApplyWorkerCount returns the runtime-derived follower apply pool size.
-func DefaultStoreApplyWorkerCount(reactorCount int) int {
-	return min(max(1, reactorCount)*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
-}
-
-// DefaultRPCWorkerCount returns the QPS-validated replication RPC pool size.
-// The parameter is retained for source compatibility with callers that
-// previously consumed a reactor-derived default.
-func DefaultRPCWorkerCount(_ int) int {
-	return worker.DefaultRPCWorkers
 }
 
 func defaultPoolConfig(cfg worker.PoolConfig, name string, workers int, queueSize int) worker.PoolConfig {
