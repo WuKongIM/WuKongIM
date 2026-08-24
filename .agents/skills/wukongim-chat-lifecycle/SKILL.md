@@ -13,9 +13,15 @@ or destroy healthy hosts between candidate generations.
 
 - Treat the exact phrase `开始聊天生命周期稳定性长跑`, or an explicit invocation
   of this Skill that unambiguously asks to purchase temporary servers and start
-  the direct repair lab, as authority for one CNY 300 repair Lease.
+  the direct repair lab, as authority for one CNY 300 repair Lease. A higher
+  limit is authorized only when the same explicit start instruction states the
+  exact CNY amount; never carry a higher limit forward from an earlier turn.
 - Never infer paid authority from `继续`, `同意`, deploy, run, status, diagnose,
   stop, an explanation, `下一步建议？`, or prior paid runs.
+- For an explicitly authorized limit above CNY 300, pass the same whole-CNY
+  value through `--budget-cny` and
+  `WK_CHAT_LAB_PAID_BUDGET_CNY`. A mismatch or missing marker must fail before
+  request state or provider contact. The supported safety ceiling is CNY 1500.
 - `start` additionally requires either short-lived Alibaba STS environment
   variables or a verified one-hour Alibaba Cloud Shell credential, plus both
   exact local authorization values. A tokenless credential is accepted only

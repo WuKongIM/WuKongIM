@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 usage: direct-lab.sh preflight
-       direct-lab.sh start REQUEST_ID [--duration DURATION]
+       direct-lab.sh start REQUEST_ID [--duration DURATION] [--budget-cny WHOLE_CNY]
        direct-lab.sh deploy REQUEST_ID
        direct-lab.sh run REQUEST_ID
        direct-lab.sh status REQUEST_ID
@@ -14,6 +14,11 @@ EOF
 }
 
 readonly DEFAULT_QUALIFICATION_DURATION='60m'
+readonly DEFAULT_BUDGET_CNY=300
+readonly DEFAULT_OPERATIONAL_STOP_CNY=250
+readonly MIN_BUDGET_CNY=300
+readonly MAX_BUDGET_CNY=1500
+readonly CUSTOM_BUDGET_STOP_RESERVE_CNY=20
 readonly QUALIFICATION_RESERVE_SECONDS=900
 readonly MAX_QUALIFICATION_DURATION_SECONDS=259200
 readonly MIN_QUALIFICATION_DURATION_SECONDS=60
@@ -46,26 +51,58 @@ parse_duration_seconds() {
   printf '%s\n' "$total"
 }
 
+parse_budget_cny() {
+  local value="$1" budget
+  [[ "$value" =~ ^[0-9]+$ ]] || return 1
+  budget=$((10#$value))
+  (( budget >= MIN_BUDGET_CNY && budget <= MAX_BUDGET_CNY )) || return 1
+  printf '%s\n' "$budget"
+}
+
+require_budget_authorization() {
+  local budget_cny="$1"
+  if (( budget_cny <= DEFAULT_BUDGET_CNY )); then
+    return 0
+  fi
+  [[ "${WK_CHAT_LAB_PAID_BUDGET_CNY:-}" == "$budget_cny" ]] ||
+    die "budget above CNY $DEFAULT_BUDGET_CNY requires WK_CHAT_LAB_PAID_BUDGET_CNY=$budget_cny"
+}
+
 write_run_policy() {
-  local directory="$1" duration="$2" duration_seconds max_seconds lease_seconds template root
+  local directory="$1" duration="$2" budget_value="$3" duration_seconds max_seconds lease_seconds
+  local budget_cny hard_limit_micros operational_stop_micros template root
   duration_seconds="$(parse_duration_seconds "$duration")" ||
     die "duration must be between 1m and 72h using whole h, m, or s units"
+  budget_cny="$(parse_budget_cny "$budget_value")" ||
+    die "budget must be a whole CNY amount between $MIN_BUDGET_CNY and $MAX_BUDGET_CNY"
   max_seconds=$((duration_seconds + QUALIFICATION_RESERVE_SECONDS))
   lease_seconds=$((max_seconds + LEASE_RESERVE_SECONDS))
   if (( lease_seconds < MIN_LEASE_DURATION_SECONDS )); then
     lease_seconds=$MIN_LEASE_DURATION_SECONDS
   fi
+  hard_limit_micros=$((budget_cny * 1000000))
+  if (( budget_cny == DEFAULT_BUDGET_CNY )); then
+    operational_stop_micros=$((DEFAULT_OPERATIONAL_STOP_CNY * 1000000))
+  else
+    operational_stop_micros=$(((budget_cny - CUSTOM_BUDGET_STOP_RESERVE_CNY) * 1000000))
+  fi
   jq -n --arg duration "$duration" --argjson duration_seconds "$duration_seconds" \
     --argjson max_seconds "$max_seconds" --argjson reserve "$QUALIFICATION_RESERVE_SECONDS" \
-    --argjson lease_seconds "$lease_seconds" \
+    --argjson lease_seconds "$lease_seconds" --argjson budget_cny "$budget_cny" \
+    --argjson hard_limit_micros "$hard_limit_micros" \
+    --argjson operational_stop_micros "$operational_stop_micros" \
     '{schema:"wukongim.chat_lifecycle.direct_lab_run_policy/v1",duration:$duration,
       duration_seconds:$duration_seconds,max_duration_seconds:$max_seconds,
-      qualification_reserve_seconds:$reserve,lease_duration_seconds:$lease_seconds}' \
+      qualification_reserve_seconds:$reserve,lease_duration_seconds:$lease_seconds,
+      budget_cny:$budget_cny,hard_limit_micros:$hard_limit_micros,
+      operational_stop_micros:$operational_stop_micros}' \
     >"$directory/run-policy.json"
   root="$(repository_root)"
   template="$directory/materialize-template.json"
   jq --argjson workload "$max_seconds" --argjson lease "$lease_seconds" \
-    '.workload_duration_seconds=$workload | .lease_duration_seconds=$lease' \
+    --argjson hard_limit "$hard_limit_micros" --argjson operational_stop "$operational_stop_micros" \
+    '.workload_duration_seconds=$workload | .lease_duration_seconds=$lease |
+      .budget.hard_limit_micros=$hard_limit | .budget.operational_stop_micros=$operational_stop' \
     "$root/configs/cloud/chat-lifecycle/repair-v1.json" >"$template"
   chmod 0600 "$directory/run-policy.json" "$template"
 }
@@ -341,16 +378,20 @@ next_deployment_generation() {
 }
 
 start_request() {
-  local request_id="$1" duration="${2:-$DEFAULT_QUALIFICATION_DURATION}" directory root source_sha builder chat cloud bundle_digest lease_id
+  local request_id="$1" duration="${2:-$DEFAULT_QUALIFICATION_DURATION}" budget_value="${3:-$DEFAULT_BUDGET_CNY}"
+  local budget_cny directory root source_sha builder chat cloud bundle_digest lease_id
   parse_duration_seconds "$duration" >/dev/null ||
     die "duration must be between 1m and 72h using whole h, m, or s units"
+  budget_cny="$(parse_budget_cny "$budget_value")" ||
+    die "budget must be a whole CNY amount between $MIN_BUDGET_CNY and $MAX_BUDGET_CNY"
   [[ "${WK_CHAT_LAB_PAID_AUTHORIZATION:-}" == create-paid-cloud-lease ]] ||
     die 'start requires WK_CHAT_LAB_PAID_AUTHORIZATION=create-paid-cloud-lease'
+  require_budget_authorization "$budget_cny"
   check_temporary_credentials || die 'temporary Alibaba credentials are required before paid start'
   require_committed_candidate
   require_no_unreleased_request
   directory="$(initialize_request_state "$request_id")"
-  write_run_policy "$directory" "$duration"
+  write_run_policy "$directory" "$duration" "$budget_cny"
   root="$(repository_root)"
   require_committed_candidate
   ensure_control_tools "$directory"
@@ -777,14 +818,34 @@ case "$operation" in
     show_status "$2"
     ;;
   start)
-    if [[ $# -eq 2 ]]; then
-      start_request "$2"
-    elif [[ $# -eq 4 && "$3" == --duration ]]; then
-      start_request "$2" "$4"
-    else
-      usage
-      exit 2
-    fi
+    [[ $# -ge 2 ]] || { usage; exit 2; }
+    request_id="$2"
+    duration="$DEFAULT_QUALIFICATION_DURATION"
+    budget_cny="$DEFAULT_BUDGET_CNY"
+    duration_seen=false
+    budget_seen=false
+    shift 2
+    while (( $# > 0 )); do
+      case "$1" in
+        --duration)
+          [[ "$duration_seen" == false && $# -ge 2 ]] || { usage; exit 2; }
+          duration="$2"
+          duration_seen=true
+          shift 2
+          ;;
+        --budget-cny)
+          [[ "$budget_seen" == false && $# -ge 2 ]] || { usage; exit 2; }
+          budget_cny="$2"
+          budget_seen=true
+          shift 2
+          ;;
+        *)
+          usage
+          exit 2
+          ;;
+      esac
+    done
+    start_request "$request_id" "$duration" "$budget_cny"
     ;;
   deploy|run|diagnose)
     [[ $# -eq 2 ]] || { usage; exit 2; }

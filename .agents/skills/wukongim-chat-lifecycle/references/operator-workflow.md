@@ -67,8 +67,14 @@ Only after the user gives exact paid authority:
 
 ```bash
 qualification_duration="${qualification_duration:-60m}"
+budget_cny="${budget_cny:-300}"
 export WK_CHAT_LAB_PAID_AUTHORIZATION='create-paid-cloud-lease'
-scripts/chat-lifecycle/direct-lab.sh start "$request_id" --duration "$qualification_duration"
+if (( budget_cny > 300 )); then
+  export WK_CHAT_LAB_PAID_BUDGET_CNY="$budget_cny"
+fi
+scripts/chat-lifecycle/direct-lab.sh start "$request_id" \
+  --duration "$qualification_duration" --budget-cny "$budget_cny"
+unset WK_CHAT_LAB_PAID_BUDGET_CNY
 unset WK_CHAT_LAB_PAID_AUTHORIZATION
 ```
 
@@ -78,8 +84,12 @@ to `72h`. The command automatically adds a 15-minute control reserve, so `60m`
 produces a 75-minute workload and `72h` produces a 72-hour-15-minute workload.
 It also derives a Lease lifetime with the existing deployment and diagnosis
 reserve. Duration is immutable after paid `start`; retries on the same Lease use
-the saved request policy. The read-only Quote must still fit the reviewed CNY
-300 repair budget or the request is finalized without Acquire.
+the saved request policy. `budget_cny` defaults to CNY 300. Set a higher
+whole-CNY value only when the same explicit start instruction names that exact
+limit; the matching `WK_CHAT_LAB_PAID_BUDGET_CNY` marker is mandatory above
+CNY 300. A higher limit keeps CNY 20 below the hard limit as its operational
+stop reserve. The read-only Quote must fit both thresholds or the request is
+finalized without Acquire.
 
 The fixed transaction is:
 

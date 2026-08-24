@@ -166,6 +166,39 @@ func TestChatLifecycleDirectLabStartRejectsInvalidDurationBeforeCredentialsOrPro
 	}
 }
 
+func TestChatLifecycleDirectLabStartRejectsUnreviewedHigherBudgetBeforeProvider(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	marker := filepath.Join(directory, "provider-called")
+	cloudTool := filepath.Join(directory, "wkcloudlease")
+	writeDirectLabExecutable(t, cloudTool, "#!/usr/bin/env bash\n: >\"$WK_TEST_PROVIDER_MARKER\"\nexit 99\n")
+	requestID := "chat-20260823T000004Z-0d0e0f10"
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"),
+		"start", requestID, "--duration", "72h", "--budget-cny", "450")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"WK_CHAT_LAB_STATE_ROOT="+directory,
+		"WK_CHAT_LAB_CLOUD_TOOL="+cloudTool,
+		"WK_CHAT_LAB_PAID_AUTHORIZATION=create-paid-cloud-lease",
+		"WK_CHAT_LAB_ALLOW_DIRTY_FOR_TESTS=true",
+		"WK_TEST_PROVIDER_MARKER="+marker,
+		"ALIBABA_CLOUD_ACCESS_KEY_ID=test-id",
+		"ALIBABA_CLOUD_ACCESS_KEY_SECRET=test-secret",
+		"ALIBABA_CLOUD_SECURITY_TOKEN=test-token",
+		"WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "WK_CHAT_LAB_PAID_BUDGET_CNY=450") {
+		t.Fatalf("unreviewed budget result = %v\n%s", err, output)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("unreviewed budget contacted provider: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(directory, requestID)); !os.IsNotExist(err) {
+		t.Fatalf("unreviewed budget created request state: %v", err)
+	}
+}
+
 func TestChatLifecycleDirectLabStopReleasesExactSelectorAndPersistsZeroProof(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
@@ -281,7 +314,8 @@ case "$1" in
         *) shift ;;
       esac
     done
-    jq -e '.workload_duration_seconds == 4500 and .lease_duration_seconds == 21600' "$template" >/dev/null
+    jq -e '.workload_duration_seconds == 4500 and .lease_duration_seconds == 21600 and
+      .budget.hard_limit_micros == 300000000 and .budget.operational_stop_micros == 250000000' "$template" >/dev/null
     printf '{"schema":"wukongim.chat_lifecycle.run_plan/v1","lease_plan":{"schema":"wukongim.cloud_lease/v1","lease_id":"lease-direct","request_id":"%s","repository":"WuKongIM/WuKongIM","provider":"alibaba","region":"cn-hangzhou"},"bootstrap_access":{"public_keys":["ssh-ed25519 fake"]}}\n' "$WK_TEST_REQUEST_ID"
     ;;
   selector-from-plan|selector)
@@ -347,7 +381,10 @@ esac
 	}
 	policy, err := os.ReadFile(filepath.Join(requestDirectory, "run-policy.json"))
 	if err != nil || !strings.Contains(string(policy), `"duration_seconds": 3600`) ||
-		!strings.Contains(string(policy), `"max_duration_seconds": 4500`) {
+		!strings.Contains(string(policy), `"max_duration_seconds": 4500`) ||
+		!strings.Contains(string(policy), `"budget_cny": 300`) ||
+		!strings.Contains(string(policy), `"hard_limit_micros": 300000000`) ||
+		!strings.Contains(string(policy), `"operational_stop_micros": 250000000`) {
 		t.Fatalf("run policy = %s, %v", policy, err)
 	}
 }
@@ -377,7 +414,8 @@ while (( $# > 0 )); do
     *) shift ;;
   esac
 done
-jq -e '.workload_duration_seconds == 260100 and .lease_duration_seconds == 277200' "$template" >/dev/null
+jq -e '.workload_duration_seconds == 260100 and .lease_duration_seconds == 277200 and
+  .budget.hard_limit_micros == 450000000 and .budget.operational_stop_micros == 430000000' "$template" >/dev/null
 : >"$WK_TEST_VALIDATED"
 exit 55
 `)
@@ -387,7 +425,8 @@ exit 55
 exit 99
 `)
 
-	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "start", requestID, "--duration", "72h")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"),
+		"start", requestID, "--duration", "72h", "--budget-cny", "450")
 	command.Dir = root
 	command.Env = append(os.Environ(),
 		"WK_CHAT_LAB_STATE_ROOT="+directory,
@@ -395,6 +434,7 @@ exit 99
 		"WK_CHAT_LAB_CHAT_TOOL="+chatTool,
 		"WK_CHAT_LAB_BUNDLE_BUILDER="+bundleBuilder,
 		"WK_CHAT_LAB_PAID_AUTHORIZATION=create-paid-cloud-lease",
+		"WK_CHAT_LAB_PAID_BUDGET_CNY=450",
 		"WK_CHAT_LAB_ALLOW_DIRTY_FOR_TESTS=true",
 		"WK_TEST_VALIDATED="+validated,
 		"WK_TEST_PROVIDER_MARKER="+providerMarker,
@@ -414,7 +454,10 @@ exit 99
 	}
 	policy, err := os.ReadFile(filepath.Join(directory, requestID, "run-policy.json"))
 	if err != nil || !strings.Contains(string(policy), `"duration_seconds": 259200`) ||
-		!strings.Contains(string(policy), `"max_duration_seconds": 260100`) {
+		!strings.Contains(string(policy), `"max_duration_seconds": 260100`) ||
+		!strings.Contains(string(policy), `"budget_cny": 450`) ||
+		!strings.Contains(string(policy), `"hard_limit_micros": 450000000`) ||
+		!strings.Contains(string(policy), `"operational_stop_micros": 430000000`) {
 		t.Fatalf("custom run policy = %s, %v", policy, err)
 	}
 }
