@@ -200,7 +200,7 @@ type ChannelConfig struct {
 	// RPCWorkers caps blocking Channel replication RPC workers. Zero uses the QPS-validated default of 96.
 	RPCWorkers int
 	// RPCBatchMaxItems caps same-target Channel Pull or PullHint items in one
-	// blocking transport call. Zero uses the Channel worker default of 16.
+	// blocking transport call. Zero uses the Channel worker default of 8.
 	RPCBatchMaxItems int
 	// MailboxSize bounds each Channel reactor mailbox.
 	MailboxSize int

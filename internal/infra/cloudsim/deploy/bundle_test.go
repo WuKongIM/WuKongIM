@@ -155,7 +155,7 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	if !strings.Contains(config, "hash_slot_count = 256") || !strings.Contains(config, "initial_slot_count = 10") || !strings.Contains(config, "channel_replica_n = 3") || strings.Count(config, "[[cluster.nodes]]") != 3 {
 		t.Fatalf("node config does not preserve the three-node 256 hash-slot and 10 Slot Group contract:\n%s", config)
 	}
-	if !strings.Contains(config, "[delivery]") || !strings.Contains(config, fmt.Sprintf("recipient_worker_concurrency = %d", cloudRecipientWorkerConcurrency)) {
+	if !strings.Contains(config, "[delivery]") || !strings.Contains(config, fmt.Sprintf("recipient_worker_concurrency = %d", cloudMediumRecipientWorkerConcurrency)) {
 		t.Fatalf("cloud Medium node config does not retain the measured recipient worker capacity:\n%s", config)
 	}
 	for _, required := range []string{
@@ -199,9 +199,9 @@ func TestNodeRuntimeProfileUsesReviewedCloudScale(t *testing.T) {
 		scale                string
 		wantRecipientWorkers int
 	}{
-		{scale: "small", wantRecipientWorkers: 320},
-		{scale: "medium", wantRecipientWorkers: 320},
-		{scale: "large", wantRecipientWorkers: 320},
+		{scale: "small", wantRecipientWorkers: cloudDefaultRecipientWorkers},
+		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
+		{scale: "large", wantRecipientWorkers: cloudDefaultRecipientWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -234,9 +234,9 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 		wantAppendWorkers    int
 		wantGatewayWorkers   int
 	}{
-		{scale: "small", wantRecipientWorkers: 320, wantRPCWorkers: 96, wantAppendWorkers: 128, wantGatewayWorkers: 1000},
-		{scale: "medium", wantRecipientWorkers: 320, wantRPCWorkers: 96, wantAppendWorkers: 128, wantGatewayWorkers: 1000},
-		{scale: "large", wantRecipientWorkers: 320, wantRPCWorkers: 96, wantAppendWorkers: 128, wantGatewayWorkers: 1000},
+		{scale: "small", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers, wantGatewayWorkers: cloudDefaultGatewayAsyncSendWorkers},
+		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers, wantAppendWorkers: cloudMediumChannelStoreAppendWorkers, wantGatewayWorkers: cloudMediumGatewayAsyncSendWorkers},
+		{scale: "large", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers, wantAppendWorkers: cloudDefaultChannelStoreAppendWorkers, wantGatewayWorkers: cloudDefaultGatewayAsyncSendWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -318,8 +318,8 @@ func TestCloudMediumRecipientWorkerCapacityCoversMeasuredPlanRate(t *testing.T) 
 	if productDefaultWorkerCapacity >= required {
 		t.Fatalf("test invariant invalid: product default %d unexpectedly covers required capacity %d", productDefaultWorkerCapacity, required)
 	}
-	if cloudRecipientWorkerConcurrency < required {
-		t.Fatalf("recipient worker capacity = %d, want at least %d", cloudRecipientWorkerConcurrency, required)
+	if cloudMediumRecipientWorkerConcurrency < required {
+		t.Fatalf("Cloud Medium recipient worker capacity = %d, want at least %d", cloudMediumRecipientWorkerConcurrency, required)
 	}
 }
 

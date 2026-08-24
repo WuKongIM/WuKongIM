@@ -26,7 +26,7 @@ It does not own reactor state machines, business retries, or dependency policy.
 1. Validate admission and context, reject obvious fullness before stamping
    enqueue time, collect adjacent work by the first task's policy, partition it
    into compatible typed groups, and emit one result per original task.
-2. Pull and PullHint batch by task kind and target node, defaulting to 16 items
+2. Pull and PullHint batch by task kind and target node, defaulting to 8 items
    and 250 microseconds; optional store interfaces batch append, apply, and
    checkpoint across channels while preserving per-task proof and results.
    Quorum install and commit use the bounded store-append pool but call the

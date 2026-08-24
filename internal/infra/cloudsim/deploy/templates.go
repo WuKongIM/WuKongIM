@@ -10,44 +10,50 @@ const (
 	// effectiveNodeRuntimeContractName is the bundle-relative machine-readable runtime contract.
 	effectiveNodeRuntimeContractName = "effective-node-runtime-contract.json"
 	// EffectiveNodeRuntimeContractSchemaV1 is the exact runtime contract schema emitted into bundles and checked at bootstrap.
-	EffectiveNodeRuntimeContractSchemaV1 = "wukongim/cloud-effective-node-runtime-contract/v1"
-	cloudPhysicalHashSlotCount           = 256
-	cloudLogicalSlotGroupCount           = 10
-	cloudSlotReplicaCount                = 3
-	cloudChannelReplicaCount             = 3
-	cloudChannelReactorCount             = 4
-	// cloudChannelStoreAppendWorkers is the bounded default append
+	EffectiveNodeRuntimeContractSchemaV1  = "wukongim/cloud-effective-node-runtime-contract/v1"
+	cloudPhysicalHashSlotCount            = 256
+	cloudLogicalSlotGroupCount            = 10
+	cloudSlotReplicaCount                 = 3
+	cloudChannelReplicaCount              = 3
+	cloudChannelReactorCount              = 4
+	cloudDefaultChannelStoreAppendWorkers = 8
+	// cloudMediumChannelStoreAppendWorkers is the bounded Cloud Medium append
 	// concurrency. The chat-20260822T063603Z-45db6ea8 rehearsal observed a
 	// 38ms store-effect envelope and a 2.5s append wait P99 with eight workers.
 	// At 2,000 SEND/s, three replicas, and three evenly loaded nodes, Little's
 	// Law requires about 76 workers per node; 128 keeps 50 percent headroom and
-	// a power-of-two bound.
-	cloudChannelStoreAppendWorkers = 128
-	cloudChannelStoreApplyWorkers  = 8
-	// cloudChannelRPCWorkers is acceptance-driven by the completed
+	// a power-of-two bound without inheriting the local 500-worker diagnostic
+	// profile.
+	cloudMediumChannelStoreAppendWorkers = 128
+	cloudChannelStoreApplyWorkers        = 8
+	cloudDefaultChannelRPCWorkers        = 50
+	// cloudMediumChannelRPCWorkers is acceptance-driven by the completed
 	// gh-30047907477-1 run. Fifty workers sustained 3,846.48 messages/s while
 	// every Channel RPC queue reached saturation and SENDACK P99 reached
 	// 4.369s. Scaling the observed bound to 4,500/s with 50 percent headroom
 	// requires 88 workers; 96 preserves a fixed bounded pool while leaving
 	// rounding and valid 3/4/3 Slot-leader skew margin.
-	cloudChannelRPCWorkers = 96
+	cloudMediumChannelRPCWorkers = 96
 	// cloudChannelRPCBatchMaxItems is the bounded value accepted by the real
 	// three-process Medium-shaped 256/10/3 gate at 4,500/s actual ingress.
 	// The prior 61.75ms cycle and batch-four saturation corroborate the choice
 	// but are not treated as an ingress-to-RPC-item capacity equation.
-	cloudChannelRPCBatchMaxItems = 8
-	cloudGatewayGnetEventLoops   = 4
-	// cloudGatewayAsyncSendWorkers prevents cold Channel activation from
+	cloudChannelRPCBatchMaxItems        = 8
+	cloudGatewayGnetEventLoops          = 4
+	cloudDefaultGatewayAsyncSendWorkers = 128
+	// cloudMediumGatewayAsyncSendWorkers prevents cold Channel activation from
 	// pinning the bounded gateway SEND executors. A real three-node 2,000/s
 	// cold-person wave took 4.38s at 128 workers per node and 1.61-1.67s at
 	// 1,000 while retaining the production metadata batching contract.
-	cloudGatewayAsyncSendWorkers       = 1000
+	cloudMediumGatewayAsyncSendWorkers = 1000
 	cloudGatewayAsyncSendQueueCapacity = 131_072
-	// cloudRecipientWorkerConcurrency is the measured plan
+	cloudDefaultRecipientWorkers       = 100
+	// cloudMediumRecipientWorkerConcurrency is the measured Cloud Medium plan
 	// capacity. At 108-113 ms per plan, 320 workers cover the reviewed 5,100
 	// plans/s cluster load when the busiest node owns 40 percent of the ten Slot
-	// Groups, with bounded headroom.
-	cloudRecipientWorkerConcurrency = 320
+	// Groups, with bounded headroom. Other scales keep the product default until
+	// they have their own completed calibration.
+	cloudMediumRecipientWorkerConcurrency = 320
 )
 
 var effectiveRuntimeContractKeys = []string{
@@ -117,19 +123,23 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 		SlotReplicaCount:              cloudSlotReplicaCount,
 		ChannelReplicaCount:           cloudChannelReplicaCount,
 		ChannelReactorCount:           cloudChannelReactorCount,
-		ChannelStoreAppendWorkers:     cloudChannelStoreAppendWorkers,
+		ChannelStoreAppendWorkers:     cloudDefaultChannelStoreAppendWorkers,
 		ChannelStoreApplyWorkers:      cloudChannelStoreApplyWorkers,
-		ChannelRPCWorkers:             cloudChannelRPCWorkers,
+		ChannelRPCWorkers:             cloudDefaultChannelRPCWorkers,
 		ChannelRPCBatchMaxItems:       cloudChannelRPCBatchMaxItems,
 		GatewayGnetMulticore:          true,
 		GatewayGnetEventLoops:         cloudGatewayGnetEventLoops,
-		GatewayAsyncSendWorkers:       cloudGatewayAsyncSendWorkers,
+		GatewayAsyncSendWorkers:       cloudDefaultGatewayAsyncSendWorkers,
 		GatewayAsyncSendQueueCapacity: cloudGatewayAsyncSendQueueCapacity,
-		RecipientWorkerConcurrency:    cloudRecipientWorkerConcurrency,
+		RecipientWorkerConcurrency:    cloudDefaultRecipientWorkers,
 	}
 	switch contract.Scale {
 	case "small":
 	case "medium":
+		contract.ChannelStoreAppendWorkers = cloudMediumChannelStoreAppendWorkers
+		contract.RecipientWorkerConcurrency = cloudMediumRecipientWorkerConcurrency
+		contract.ChannelRPCWorkers = cloudMediumChannelRPCWorkers
+		contract.GatewayAsyncSendWorkers = cloudMediumGatewayAsyncSendWorkers
 	case "large":
 	default:
 		return EffectiveNodeRuntimeContract{}, fmt.Errorf("%w: scenario objectives.scale must be small, medium, or large", ErrInvalidBundle)
@@ -190,8 +200,8 @@ func nodeConfig(nodeID int, addresses map[string]string, contract EffectiveNodeR
 	deliveryConfig := fmt.Sprintf(`
 [delivery]
 # Runs recipient-authority delivery plans outside channel append writers.
-# All reviewed scales pin the product's qualified 2,000 SEND/s default so paid
-# runs cannot silently inherit stale per-scale overrides.
+# Cloud Medium uses its measured capacity; other reviewed scales pin the
+# product default explicitly so paid runs never inherit loader drift.
 recipient_worker_concurrency = %d
 `, contract.RecipientWorkerConcurrency)
 	return fmt.Sprintf(`[node]
