@@ -4828,9 +4828,9 @@ func TestEngineFormalWorkerAcceptsFirstCoordinatorGrantAfterBootstrap(t *testing
 				t.Fatalf("inspect bootstrap activity distribution: %v", enqueueErr)
 			}
 			distribution := <-distributionResult
-			if distribution.invalid || distribution.seconds < 300 || distribution.maximum > 1_000 ||
+			if distribution.invalid || distribution.seconds < 200 || distribution.maximum > 1_000 ||
 				distribution.latest > 15*time.Minute {
-				t.Fatalf("worker %d bootstrap activity distribution = %+v, want >=300 seconds, <=1000/second, <=15m", workerID, distribution)
+				t.Fatalf("worker %d bootstrap activity distribution = %+v, want >=200 seconds, <=1000/second, <=15m", workerID, distribution)
 			}
 		})
 	}
@@ -5488,7 +5488,7 @@ func TestEngineFinishBootstrapRestartsExactGlobalSteadyLoginSequence(t *testing.
 	}
 	if got := [workerCount]uint64{
 		schedulers[0].loginOrdinal, schedulers[1].loginOrdinal, schedulers[2].loginOrdinal,
-	}; got != [workerCount]uint64{18, 16, 16} {
+	}; got != [workerCount]uint64{34, 34, 32} {
 		t.Fatalf("bootstrap local ordinals = %v, want unequal fixed-share phase", got)
 	}
 
@@ -5707,8 +5707,8 @@ func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *
 		}
 	}
 	totalOnline := len(sessions[0]) + len(sessions[1]) + len(sessions[2])
-	if exitSecond != 421 || totalOnline != cfg.Workload.OnlineUsers {
-		t.Fatalf("formal bootstrap did not reach 10k at the reviewed 421-second bound under churn: exit=%d online=%d", exitSecond, totalOnline)
+	if exitSecond != 209 || totalOnline != cfg.Workload.OnlineUsers {
+		t.Fatalf("formal bootstrap did not reach 10k at the reviewed 209-second bound under churn: exit=%d online=%d", exitSecond, totalOnline)
 	}
 	if excess := bootstrapCompletedNew - bootstrapPlanned[LoginNew]; excess != bootstrapPlanned[LoginReturning] || excess <= 0 {
 		t.Fatalf("bootstrap cumulative new excess = %d, planned=%v completed_new=%d", excess, bootstrapPlanned, bootstrapCompletedNew)

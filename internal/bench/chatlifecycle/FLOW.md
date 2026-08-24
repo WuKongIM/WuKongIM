@@ -149,8 +149,12 @@ and strict JSON schemas. A running, exactly fenced worker may lease at most
 1,200 current revisit candidates. The Engine reconstructs those rows only from
 a fixed owner-loop primary index of 12 logical-Slot buckets with at most 100
 entries per bucket; it never scans the potentially much larger live timer map
-or standby state while leasing. A first successful SENDACK offers the exact
-current timer token/version to its bucket. Each Slot also owns a min-heap of
+or standby state while leasing. Each initial SEND is bound to the exact timer
+token and closes one timer-local pending count on success or neutral
+pre-admission cancellation. Only after that count reaches zero can the latest
+successful SENDACK offer the exact current timer token/version to its bucket;
+a late ACK therefore advances the fence before leasing instead of invalidating
+a selected cohort. Each Slot also owns a min-heap of
 overflow standbys, while the aggregate primary-plus-standby count is bounded by
 Engine `WorkCapacity`; every production-eligible live timer is in exactly one
 tier. The primary bucket deterministically retains the 100 earliest due timers
@@ -447,7 +451,7 @@ integer percentage, which bounds even a local profile to at most 100 buckets.
 At 250,000 new users per day the identity growth rate is about 2.9 new
 users/second; because new users are 80% of logins, the total login rate is about
 3.6 logins/second after bootstrap. Empty-dataset bootstrap is a separate fixed
-global 25-login/second phase until 10,000 users are simultaneously online.
+global 50-login/second phase until 10,000 users are simultaneously online.
 
 Each new relationship plan has a finite two-to-eight-message initial burst over
 five to thirty seconds and explicitly requires both endpoints online. Revisit
@@ -678,10 +682,10 @@ identity to complete a real WKProto CONNECT/CONNACK plus fresh version-zero
 full conversation sync. Each worker has 256 bounded concurrent starting slots.
 Missed whole attempts and unused per-step credit are discarded, so a delayed
 tick or recovered sync path cannot catch up above the fixed global rate. Every
-UTC-aligned second gives the workers immutable 9/8/8 shares, so even subsecond
+UTC-aligned second gives the workers immutable 17/17/16 shares, so even subsecond
 skew across the boundary cannot mix adjacent extra positions; a whole missed
 range is discarded.
-Fake-clock three-worker churn coverage reaches 10,000 simultaneous online users in 421
+Fake-clock three-worker churn coverage reaches 10,000 simultaneous online users in 209
 seconds and enforces a 15-minute scheduler bound. A coordinator-controlled
 worker remains in all-new bootstrap at its local target; the first grant, sent
 only after every local share is ready, clears bootstrap credit, bucket phase,
@@ -785,7 +789,7 @@ eligibility window after its rebased due time. Initial relationship
 messages also retain their checked delay from generation start: the
 relationship's real bootstrap activation time plus its configured offset
 inside the 5-30 second window. The barrier rebases those delays and rebuilds
-the activity heap once. This preserves the 421-second login-time spacing
+the activity heap once. This preserves the 209-second login-time spacing
 between relationships instead of either replaying every item as an overdue
 historical burst or collapsing every cold relationship into the same
 30-second activation spike.
@@ -1107,7 +1111,7 @@ ready responses are accepted only if the poll also finishes strictly before
 that deadline; equality is timeout, not success. Continuous observation starts
 immediately after the successful Start round and remains active throughout that
 readiness barrier, so a product or harness result can terminate bootstrap. The
-local shakeout uses the same fixed global 25-login/second bootstrap rate so its
+local shakeout uses the same fixed global 50-login/second bootstrap rate so its
 100-user synchronized population fits inside the shorter ten-minute warmup;
 after readiness it keeps the reviewed 250,000-new-users/day steady arrival
 rate. Its smaller online population and evidence label bound that non-formal

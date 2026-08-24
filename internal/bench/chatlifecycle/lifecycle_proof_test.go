@@ -696,6 +696,81 @@ func TestLifecycleCandidateEngineApprovalRejectionsAreClosedAndIdentityFree(t *t
 	}
 }
 
+func TestLifecycleCandidateLeaseWaitsForInitialActivitySettlement(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: now.Add(10 * time.Minute), kind: engineWorkLifecycle, edge: edge,
+			schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+			lifecycleTimerToken: 41, activityVersion: 2, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+			initialActivityPending: 2,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), lifecycleCohortSize, mustInitialLifecycleSlotAssignment(t), now.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("leased %d candidates with unsettled initial activity", len(candidates))
+	}
+	settled := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		settlementErr := fixture.engine.settleLifecycleInitialActivity(TrafficIntent{
+			ChannelID: edge.PersonChannelID, Domain: LogicalDomainLifecycle, lifecycleTimerToken: 40,
+		})
+		settlementErr = errors.Join(settlementErr, fixture.engine.settleLifecycleInitialActivity(TrafficIntent{
+			ChannelID: edge.PersonChannelID, Domain: LogicalDomainLifecycle, lifecycleTimerToken: 41,
+		}))
+		settled <- settlementErr
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if settlementErr := <-settled; settlementErr != nil {
+		t.Fatalf("settle stale and first activity: %v", settlementErr)
+	}
+	candidates, err = fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), lifecycleCohortSize, mustInitialLifecycleSlotAssignment(t), now.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("leased %d candidates with one unsettled initial activity", len(candidates))
+	}
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		settled <- fixture.engine.settleLifecycleInitialActivity(TrafficIntent{
+			ChannelID: edge.PersonChannelID, Domain: LogicalDomainLifecycle, lifecycleTimerToken: 41,
+		})
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if settlementErr := <-settled; settlementErr != nil {
+		t.Fatalf("settle final activity: %v", settlementErr)
+	}
+	candidates, err = fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), lifecycleCohortSize, mustInitialLifecycleSlotAssignment(t), now.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 || candidates[0].TimerToken != 41 {
+		t.Fatalf("settled candidates = %+v, want exact timer 41", candidates)
+	}
+}
+
 func TestLifecycleCandidateEngineLeaseExcludesTimerWhoseRequiredSenderExpiresAtProofDeadline(t *testing.T) {
 	const revisitAfter = 10 * time.Minute
 	fixture := newEngineTestFixture(t, engineTestLimits{

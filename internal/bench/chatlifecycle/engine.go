@@ -572,9 +572,10 @@ type engineWork struct {
 	offered                    bool
 	// initialSequence and lastActivityAt are retained only on one live revisit
 	// timer so a lifecycle lease can be reconstructed without channel history.
-	initialSequence uint64
-	lastActivityAt  time.Time
-	observedLoaded  bool
+	initialSequence        uint64
+	lastActivityAt         time.Time
+	observedLoaded         bool
+	initialActivityPending int
 }
 
 type engineLifecycleCandidateEntry struct {
@@ -2826,7 +2827,7 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 		}
 		return e.scheduleRelationshipMessagesFrom(
 			work.edge, work.relationshipOrdinal, 8, work.schedule.RevisitMessages,
-			work.due, work.schedule.InitialBurst.Window, sender,
+			work.due, work.schedule.InitialBurst.Window, sender, 0,
 		)
 	case engineWorkGroupRoute:
 		return e.retryDeferredGroupRoute(work, now)
@@ -2890,6 +2891,27 @@ func (e *Engine) installLifecycleTimer(work *engineWork) {
 		e.removeLifecycleCandidate(existing)
 	}
 	e.lifecycleByChannel[work.edge.PersonChannelID] = work
+}
+
+// settleLifecycleInitialActivity closes one exact scheduled initial SEND. A
+// candidate is indexable only after every initial SEND for its timer either
+// completed or was neutrally canceled before admission.
+func (e *Engine) settleLifecycleInitialActivity(intent TrafficIntent) error {
+	if intent.Domain != LogicalDomainLifecycle || intent.lifecycleTimerToken == 0 {
+		return nil
+	}
+	work := e.lifecycleByChannel[intent.ChannelID]
+	if work == nil || work.lifecycleTimerToken != intent.lifecycleTimerToken {
+		return nil
+	}
+	if work.initialActivityPending <= 0 {
+		return errEngineConfig
+	}
+	work.initialActivityPending--
+	if work.initialActivityPending == 0 {
+		e.offerLifecycleCandidate(work)
+	}
+	return nil
 }
 
 // retainCompletedLifecycleApprovalReplay atomically creates the bounded retry
@@ -3055,7 +3077,7 @@ func (e *Engine) offerLifecycleCandidate(work *engineWork) {
 func (e *Engine) lifecycleCandidateSlotFor(work *engineWork) (int, bool) {
 	if work == nil || e.lifecycleByChannel[work.edge.PersonChannelID] != work || work.schedule.Class != LifecycleRevisit ||
 		!work.schedule.RequiresColdRuntimeEvidence || work.lifecycleTimerToken == 0 || work.activityVersion == 0 ||
-		work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded ||
+		work.initialActivityPending != 0 || work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded ||
 		work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted || !validLifecyclePersonChannelID(work.edge.PersonChannelID) {
 		return 0, false
 	}
@@ -3503,7 +3525,8 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 				e.metaCreatePersonByHashSlot[hashSlot]++
 			}
 		}
-		if lifecycle := e.lifecycleByChannel[inflight.intent.ChannelID]; lifecycle != nil {
+		if lifecycle := e.lifecycleByChannel[inflight.intent.ChannelID]; lifecycle != nil &&
+			(inflight.intent.lifecycleTimerToken == 0 || inflight.intent.lifecycleTimerToken == lifecycle.lifecycleTimerToken) {
 			wasConfirmed := lifecycle.coldConfirmed
 			lifecycle.coldConfirmed = false
 			if wasConfirmed {
@@ -3522,8 +3545,9 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 				}
 				lifecycle.lastActivityAt = activityStartedAt
 				lifecycle.observedLoaded = true
-				e.offerLifecycleCandidate(lifecycle)
 			}
+			lifecycleErr = errors.Join(lifecycleErr, e.settleLifecycleInitialActivity(inflight.intent))
+			e.offerLifecycleCandidate(lifecycle)
 		}
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(ack.ClientMsgNo)
@@ -3699,7 +3723,9 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		}
 		active = engineActiveChannel{edge: edge, direction: direction}
 	}
-	if err := e.scheduleRelationshipMessages(edge, relationshipOrdinal, 0, schedule.InitialBurst.MessageCount, e.now, schedule.InitialBurst.Window); err != nil {
+	if err := e.scheduleRelationshipMessages(
+		edge, relationshipOrdinal, 0, schedule.InitialBurst.MessageCount, e.now, schedule.InitialBurst.Window, lifecycleTimerToken,
+	); err != nil {
 		return false, err
 	}
 	if !lifecycleDue.IsZero() {
@@ -3708,6 +3734,7 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 			relationshipOrdinal: relationshipOrdinal, lifecycleTimerToken: lifecycleTimerToken,
 		}
 		if schedule.Class == LifecycleRevisit {
+			work.initialActivityPending = schedule.InitialBurst.MessageCount
 			deadline, deadlineErr := e.newEligibilityDeadline(lifecycleDue)
 			if deadlineErr != nil {
 				return false, deadlineErr
@@ -3742,11 +3769,11 @@ func (e *Engine) allocateLifecycleTimerToken() (uint64, error) {
 	return e.nextLifecycleTimerToken, nil
 }
 
-func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration) error {
-	return e.scheduleRelationshipMessagesFrom(edge, relationshipOrdinal, logicalOffset, count, start, window, "")
+func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration, lifecycleTimerToken uint64) error {
+	return e.scheduleRelationshipMessagesFrom(edge, relationshipOrdinal, logicalOffset, count, start, window, "", lifecycleTimerToken)
 }
 
-func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration, requiredSender string) error {
+func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration, requiredSender string, lifecycleTimerToken uint64) error {
 	direction, err := e.traffic.DirectionFor(relationshipOrdinal)
 	if err != nil {
 		return err
@@ -3777,10 +3804,14 @@ func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relatio
 		if logicalOffset >= 8 {
 			domain = LogicalDomainRevisit
 		}
+		if lifecycleTimerToken != 0 && domain != LogicalDomainLifecycle {
+			return errEngineConfig
+		}
 		intent := TrafficIntent{
 			Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson,
 			Direction: direction, ChannelID: edge.PersonChannelID, Domain: domain,
 			MetaCreateCandidate: logicalOffset == 0 && messageIndex == 0,
+			lifecycleTimerToken: lifecycleTimerToken,
 		}
 		bootstrapDelay := time.Duration(0)
 		if e.scheduler.bootstrapping {
@@ -3870,6 +3901,9 @@ func (e *Engine) routePersonGrantWithAdmission(grant TrafficIntent, now time.Tim
 			activity.intent.Logical.Sender, activity.senderLoginOrdinal, now,
 		) {
 			e.activityPlannedCanceled++
+			if err := e.settleLifecycleInitialActivity(activity.intent); err != nil {
+				return TrafficIntent{}, err
+			}
 			continue
 		}
 		_, warming := e.warmingChannels[activity.intent.ChannelID]
@@ -4054,14 +4088,14 @@ func (e *Engine) expireActivity(activity *engineWork, now time.Time) error {
 		activity.intent.Logical.Sender, activity.senderLoginOrdinal, now,
 	) {
 		e.activityPlannedCanceled++
-		return nil
+		return e.settleLifecycleInitialActivity(activity.intent)
 	}
 	if !e.sessions.sendEligibleAt(activity.intent.Logical.Sender, now) {
 		e.activityPlannedCanceled++
-		return nil
+		return e.settleLifecycleInitialActivity(activity.intent)
 	}
 	e.activityUnderDelivered++
-	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
+	return errors.Join(e.settleLifecycleInitialActivity(activity.intent), e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1))
 }
 
 func (e *Engine) addActiveChannel(channel engineActiveChannel) {

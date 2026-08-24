@@ -142,6 +142,9 @@ type TrafficIntent struct {
 	// routable until this sampled SEND is observed or its delivery deadline
 	// expires. It is empty for the other ninety-nine percent of traffic.
 	correlationRecipient string
+	// lifecycleTimerToken binds initial revisit-channel activity to the exact
+	// live timer whose candidate fence it may advance. Other traffic keeps zero.
+	lifecycleTimerToken uint64
 }
 
 // TrafficTickSnapshot is one streaming aggregate; it never retains intents.
