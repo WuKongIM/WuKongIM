@@ -154,8 +154,31 @@ func (r *Router) Send(ctx context.Context, cmd SendCommand) (SendResult, error) 
 }
 
 // SendBatch routes sends and returns item-aligned results.
-func (r *Router) SendBatch(items []SendBatchItem) (results []SendBatchItemResult) {
+func (r *Router) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+	results := make([]SendBatchItemResult, len(items))
+	r.SendBatchEach(items, func(index int, result SendBatchItemResult) {
+		results[index] = result
+	})
+	return results
+}
+
+// SendBatchEach publishes each terminal item result as soon as its canonical
+// channel group finishes. Emit calls are serialized, and the method joins all
+// admitted group work before returning.
+func (r *Router) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemResult)) {
 	startedAt := time.Now()
+	results := make([]SendBatchItemResult, len(items))
+	finalized := make([]bool, len(items))
+	finalize := func(index int, result SendBatchItemResult) {
+		if index < 0 || index >= len(results) || finalized[index] {
+			return
+		}
+		results[index] = result
+		finalized[index] = true
+		if emit != nil {
+			emit(index, result)
+		}
+	}
 	defer func() {
 		observeRouterGroup(r.observer, RouterObservation{
 			Path:     "batch",
@@ -165,16 +188,16 @@ func (r *Router) SendBatch(items []SendBatchItem) (results []SendBatchItemResult
 		})
 	}()
 	if len(items) == 1 {
-		return []SendBatchItemResult{r.sendSingle(items[0])}
+		finalize(0, r.sendSingle(items[0]))
+		return
 	}
-	results = make([]SendBatchItemResult, len(items))
 	pending := make([]int, 0, len(items))
 	attempts := make([]int, len(items))
 	routeChannels := make([]ChannelID, len(items))
 	for i, item := range items {
 		prepared, routeChannel, result, done := prepareRouterItem(item, time.Now())
 		if done {
-			results[i] = result
+			finalize(i, result)
 			continue
 		}
 		items[i] = prepared
@@ -184,9 +207,22 @@ func (r *Router) SendBatch(items []SendBatchItem) (results []SendBatchItemResult
 
 	for len(pending) > 0 {
 		groups, nextPending := r.resolvePending(items, routeChannels, results, pending, attempts)
-		submitted := r.submitResolvedGroups(groups)
-		for groupIndex, group := range groups {
-			groupResults := submitted[groupIndex]
+		deferred := make([]bool, len(items))
+		for _, group := range groups {
+			for _, index := range group.indexes {
+				deferred[index] = true
+			}
+		}
+		for _, index := range nextPending {
+			deferred[index] = true
+		}
+		for _, index := range pending {
+			if !deferred[index] {
+				finalize(index, results[index])
+			}
+		}
+		r.submitResolvedGroupsEach(groups, func(groupIndex int, groupResults []SendBatchItemResult) {
+			group := groups[groupIndex]
 			invalidate := false
 			for i, result := range normalizeRouterGroupResults(len(group.indexes), groupResults) {
 				index := group.indexes[i]
@@ -195,19 +231,23 @@ func (r *Router) SendBatch(items []SendBatchItem) (results []SendBatchItemResult
 					nextPending = append(nextPending, index)
 					continue
 				}
-				results[index] = result
+				finalize(index, result)
 			}
 			if invalidate {
 				r.invalidateAppendAuthority(group.target.ChannelID, group.target)
 			}
-		}
+		})
 		if len(nextPending) == 0 {
 			break
 		}
 		r.waitBeforeRetry(items, nextPending)
 		pending = nextPending
 	}
-	return results
+	for index := range results {
+		if !finalized[index] {
+			finalize(index, SendBatchItemResult{Err: ErrAppendResultMissing})
+		}
+	}
 }
 
 func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
@@ -329,23 +369,82 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 // submitResolvedGroups submits independent channel groups while retaining group-index result alignment.
 func (r *Router) submitResolvedGroups(groups []routerBatchGroup) [][]SendBatchItemResult {
 	results := make([][]SendBatchItemResult, len(groups))
-	if len(groups) == 0 {
-		return results
-	}
-	if !r.requiresResolvedGroupLanes(groups) {
-		runRouterBatchWorkers(len(groups), r.maxConcurrentGroupsPerBatch, func(groupIndex int) {
-			results[groupIndex] = r.submitGroup(groups[groupIndex])
-		})
-		return results
-	}
-
-	lanes := r.resolvedGroupLanes(groups)
-	runRouterBatchWorkers(len(lanes), r.maxConcurrentGroupsPerBatch, func(laneIndex int) {
-		for _, groupIndex := range lanes[laneIndex].groupIndexes {
-			results[groupIndex] = r.submitGroup(groups[groupIndex])
-		}
+	r.submitResolvedGroupsEach(groups, func(groupIndex int, groupResults []SendBatchItemResult) {
+		results[groupIndex] = groupResults
 	})
 	return results
+}
+
+type routerBatchGroupOutcome struct {
+	groupIndex int
+	results    []SendBatchItemResult
+}
+
+// submitResolvedGroupsEach publishes completed independent channel groups on
+// the caller goroutine while retaining the configured worker and leader-lane
+// bounds. A worker panic cannot strand the join: any missing group is
+// normalized by the caller after this helper returns.
+func (r *Router) submitResolvedGroupsEach(groups []routerBatchGroup, emit func(int, []SendBatchItemResult)) {
+	if len(groups) == 0 {
+		return
+	}
+	lanes := make([]routerBatchLane, len(groups))
+	for groupIndex := range groups {
+		lanes[groupIndex] = routerBatchLane{groupIndexes: []int{groupIndex}}
+	}
+	if r.requiresResolvedGroupLanes(groups) {
+		lanes = r.resolvedGroupLanes(groups)
+	}
+	workers := r.maxConcurrentGroupsPerBatch
+	if workers > len(lanes) {
+		workers = len(lanes)
+	}
+	if workers <= 1 {
+		for _, lane := range lanes {
+			for _, groupIndex := range lane.groupIndexes {
+				emit(groupIndex, r.submitGroup(groups[groupIndex]))
+			}
+		}
+		return
+	}
+
+	outcomes := make(chan routerBatchGroupOutcome, len(groups))
+	workerDone := make(chan struct{}, workers)
+	var next atomic.Uint64
+	for range workers {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendRouter, func() {
+			defer func() { workerDone <- struct{}{} }()
+			for {
+				laneIndex := int(next.Add(1) - 1)
+				if laneIndex >= len(lanes) {
+					return
+				}
+				for _, groupIndex := range lanes[laneIndex].groupIndexes {
+					outcomes <- routerBatchGroupOutcome{
+						groupIndex: groupIndex,
+						results:    r.submitGroup(groups[groupIndex]),
+					}
+				}
+			}
+		})
+	}
+	completedWorkers := 0
+	for completedWorkers < workers {
+		select {
+		case outcome := <-outcomes:
+			emit(outcome.groupIndex, outcome.results)
+		case <-workerDone:
+			completedWorkers++
+		}
+	}
+	for {
+		select {
+		case outcome := <-outcomes:
+			emit(outcome.groupIndex, outcome.results)
+		default:
+			return
+		}
+	}
 }
 
 // runRouterBatchWorkers executes indexed work with the caller participating in the fixed worker bound.

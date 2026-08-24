@@ -43,6 +43,10 @@ var (
 	ErrMessageEventTypeRequired = errors.New("event_type不能为空！")
 	// ErrSendHookDepthExceeded reports that a plugin-origin send exceeded hook recursion limits.
 	ErrSendHookDepthExceeded = errors.New("internal/message: send hook depth exceeded")
+	// ErrSendBatchEmitterRequired reports a missing per-item result emitter.
+	ErrSendBatchEmitterRequired = errors.New("internal/message: send batch result emitter required")
+	// ErrSendBatchEmissionMismatch reports an internal duplicate or missing per-item completion.
+	ErrSendBatchEmissionMismatch = errors.New("internal/message: send batch result emission mismatch")
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.
 	ErrRequestSubscribersRequireSyncOnce = channelappend.ErrRequestSubscribersRequireSyncOnce
 	// ErrRequestSubscribersConflictChannel reports that request-scoped sends cannot specify a channel.

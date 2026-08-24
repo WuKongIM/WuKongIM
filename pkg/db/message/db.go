@@ -21,6 +21,9 @@ type MessageDB struct {
 	idempotencyNegativeFilterSkips atomic.Uint64
 	// idempotencyPointReads counts possible membership hits verified durably.
 	idempotencyPointReads atomic.Uint64
+	// sequencedExactFreshAppends counts fresh exact proposals whose allocator
+	// proof permits redundant future-key absence reads to be omitted.
+	sequencedExactFreshAppends atomic.Uint64
 
 	// closeOnce ensures the physical engine closes exactly once.
 	closeOnce sync.Once

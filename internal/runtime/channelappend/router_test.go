@@ -920,6 +920,76 @@ func TestRouterSendBatchObservesWholeBatch(t *testing.T) {
 	}
 }
 
+func TestRouterSendBatchEachPublishesReadyChannelBeforeSlowChannelCompletes(t *testing.T) {
+	fastTarget := routerTarget("fast", 2, 7)
+	slowTarget := routerTarget("slow", 2, 7)
+	local := newRouterControlledLocalSubmitter(2)
+	router := NewRouter(RouterOptions{
+		LocalNodeID: 7,
+		Resolver: &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{
+			fastTarget.ChannelID: fastTarget,
+			slowTarget.ChannelID: slowTarget,
+		}},
+		Local: local,
+	})
+
+	type emittedResult struct {
+		index  int
+		result SendBatchItemResult
+	}
+	emitted := make(chan emittedResult, 2)
+	done := make(chan struct{})
+	go func() {
+		router.SendBatchEach([]SendBatchItem{
+			routerItem("u0", "fast", 2),
+			routerItem("u1", "slow", 2),
+		}, func(index int, result SendBatchItemResult) {
+			emitted <- emittedResult{index: index, result: result}
+		})
+		close(done)
+	}()
+
+	first := local.nextCall(t)
+	second := local.nextCall(t)
+	fastCall, slowCall := first, second
+	if fastCall.target.ChannelID == slowTarget.ChannelID {
+		fastCall, slowCall = slowCall, fastCall
+	}
+	if fastCall.target.ChannelID != fastTarget.ChannelID || slowCall.target.ChannelID != slowTarget.ChannelID {
+		t.Fatalf("routed calls = %#v, %#v, want fast and slow channels", first.target.ChannelID, second.target.ChannelID)
+	}
+
+	local.complete(fastCall, controlledRouterResults(fastCall.items))
+	select {
+	case got := <-emitted:
+		if got.index != 0 || got.result.Err != nil || got.result.Result.Reason != ReasonSuccess {
+			t.Fatalf("first emitted result = %#v, want fast channel success at index 0", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ready channel result remained blocked behind slow channel completion")
+	}
+	select {
+	case <-done:
+		t.Fatal("SendBatchEach returned before slow channel completed")
+	default:
+	}
+
+	local.complete(slowCall, controlledRouterResults(slowCall.items))
+	select {
+	case got := <-emitted:
+		if got.index != 1 || got.result.Err != nil || got.result.Result.Reason != ReasonSuccess {
+			t.Fatalf("second emitted result = %#v, want slow channel success at index 1", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow channel result was not emitted after completion")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("SendBatchEach did not join all channel work")
+	}
+}
+
 func BenchmarkRouterSubmitResolvedGroupsNoLeaderOverflow(b *testing.B) {
 	const groupCount = 32
 	groups := make([]routerBatchGroup, groupCount)

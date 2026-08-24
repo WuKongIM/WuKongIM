@@ -118,6 +118,40 @@ func TestRepositoryFormalTemplateRequiresReleasedPassingRehearsalAndCarriesAggre
 	}
 }
 
+func TestRepositoryRepairTemplateCreatesReusableLeaseWithoutFormalTransition(t *testing.T) {
+	template := loadRepositoryTemplateNamed(t, "repair-v1.json")
+	now := time.Date(2026, 8, 22, 18, 0, 0, 0, time.UTC)
+	input := OperatorInput{
+		SourceSHA: strings.Repeat("4", 40), Operator: "tangtaoit",
+		CodexDiagnosticPubKey: testPublicKey(t), RequestID: "repair-run-20260822",
+	}
+	trusted := TrustedContext{
+		Repository: "WuKongIM/WuKongIM", BundleDigest: "sha256:" + strings.Repeat("5", 64),
+		DeploymentPubKey: testPublicKey(t), Now: now, Attempt: 1,
+	}
+	plan, err := Materialize(template, input, trusted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Stage != StageRepair || plan.WorkloadDurationSeconds != 4500 ||
+		plan.ReadinessTimeoutSeconds != 1800 || plan.LeasePlan.ExpiresAt != now.Add(6*time.Hour) ||
+		plan.LeasePlan.LeaseID != "repair-run-20260822-repair-1" ||
+		plan.LeasePlan.Budget.LimitMicros != 300_000_000 ||
+		plan.LeasePlan.Budget.OperationalStopMicros != 250_000_000 ||
+		plan.LeasePlan.Tags["stage"] != StageRepair {
+		t.Fatalf("repair run plan = %+v", plan)
+	}
+	transition := &StageTransition{
+		Schema: FormalTransitionSchemaV1, FromStage: StageRehearsal, Outcome: "rehearsal_pass",
+		RequestID: input.RequestID, SourceSHA: input.SourceSHA, BundleDigest: trusted.BundleDigest,
+		CodexDiagnosticPubKey: input.CodexDiagnosticPubKey, CommittedMicros: 1, ZeroInventory: true,
+	}
+	trusted.Transition = transition
+	if _, err := Materialize(template, input, trusted); err == nil {
+		t.Fatal("repair template accepted a formal-transition receipt")
+	}
+}
+
 func TestTemplateAndOperatorSurfaceFailClosed(t *testing.T) {
 	template := loadRepositoryTemplate(t)
 	body, err := os.ReadFile(filepath.Join("..", "..", "..", "configs", "cloud", "chat-lifecycle", "rehearsal-v1.json"))

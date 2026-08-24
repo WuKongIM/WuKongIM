@@ -143,6 +143,10 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 	if r == nil || rc == nil {
 		return
 	}
+	if rc.quorumInstall != nil {
+		r.completeFutures(rc.quorumInstall.futures, Result{Err: err})
+		rc.quorumInstall = nil
+	}
 	for opID, future := range rc.waiters {
 		delete(rc.waiters, opID)
 		if future != nil {

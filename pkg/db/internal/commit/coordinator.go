@@ -13,8 +13,12 @@ import (
 )
 
 const (
-	defaultFlushWindow = 200 * time.Microsecond
+	// A 500-microsecond collection window is the measured local optimum for the
+	// durable single-shard coordinator; 1 millisecond and wider windows add more
+	// request wait than batching benefit.
+	defaultFlushWindow = 500 * time.Microsecond
 	defaultQueueSize   = 1024
+	maxConsecutiveHigh = 8
 )
 
 // ErrClosed reports submissions after the coordinator stops accepting work.
@@ -34,7 +38,7 @@ const (
 type Lane struct {
 	// Name is a low-cardinality lane name for metrics and debugging.
 	Name string
-	// Priority is reserved for future scheduling policy.
+	// Priority controls bounded owner-side selection when multiple requests are queued.
 	Priority Priority
 }
 
@@ -124,20 +128,48 @@ type Request struct {
 	Finalize func()
 }
 
+// Outcome classifies whether one atomic commit request can have changed disk.
+type Outcome uint8
+
+const (
+	OutcomeUnspecified Outcome = iota
+	// OutcomeDefinitelyNotCommitted proves the request never reached a physical commit.
+	OutcomeDefinitelyNotCommitted
+	// OutcomeCommitted proves the physical commit completed successfully.
+	OutcomeCommitted
+	// OutcomeUnknown means commit admission occurred but its durable result is ambiguous.
+	OutcomeUnknown
+)
+
+// SubmitResult is the exact terminal evidence returned by SubmitWithOutcome.
+type SubmitResult struct {
+	Outcome Outcome
+	Err     error
+}
+
 // Coordinator batches logical requests into fewer physical commits.
 type Coordinator struct {
 	db *engine.DB
 
 	shards []coordinatorShard
 
-	mu         sync.Mutex
-	cfg        Config
-	commitFunc func(batch *engine.Batch) error
-	deferred   []pendingRequest
+	mu              sync.Mutex
+	cfg             Config
+	commitFunc      func(batch *engine.Batch) error
+	pendingHigh     []pendingRequest
+	pendingNormal   []pendingRequest
+	consecutiveHigh int
+	// queueObservationMu linearizes absolute queue-depth publications without
+	// holding the physical queue state lock across the external observer.
+	queueObservationMu sync.Mutex
 
 	requests chan pendingRequest
-	stopCh   chan struct{}
-	doneCh   chan struct{}
+	// queueSlots bounds requests across both the intake channel and owner-local
+	// priority queues. A slot is released only when a request enters a physical
+	// batch or reaches a terminal state without doing so.
+	queueSlots chan struct{}
+	stopCh     chan struct{}
+	doneCh     chan struct{}
 
 	closeOnce sync.Once
 	acceptMu  sync.RWMutex
@@ -146,8 +178,10 @@ type Coordinator struct {
 
 type pendingRequest struct {
 	Request
-	done         chan error
-	finalizeOnce *sync.Once
+	done             chan SubmitResult
+	finalizeOnce     *sync.Once
+	queueSlotOnce    *sync.Once
+	releaseQueueSlot func()
 }
 
 type coordinatorShard struct {
@@ -172,11 +206,12 @@ func NewCoordinator(db *engine.DB, cfg Config) *Coordinator {
 		return c
 	}
 	c := &Coordinator{
-		db:       db,
-		cfg:      cfg,
-		requests: make(chan pendingRequest, cfg.QueueSize),
-		stopCh:   make(chan struct{}),
-		doneCh:   make(chan struct{}),
+		db:         db,
+		cfg:        cfg,
+		requests:   make(chan pendingRequest, cfg.QueueSize),
+		queueSlots: make(chan struct{}, cfg.QueueSize),
+		stopCh:     make(chan struct{}),
+		doneCh:     make(chan struct{}),
 	}
 	c.commitFunc = func(batch *engine.Batch) error { return batch.Commit(true) }
 	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseCommitCoordinator, c.run)
@@ -201,30 +236,39 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 
 // Submit queues one logical request and waits for its result.
 func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
+	return c.SubmitWithOutcome(ctx, req).Err
+}
+
+// SubmitWithOutcome queues one logical mutation and preserves whether an error was
+// known before physical commit admission or became ambiguous afterward.
+func (c *Coordinator) SubmitWithOutcome(ctx context.Context, req Request) (result SubmitResult) {
 	pending := newPendingRequest(req)
 	if c == nil || c.db == nil || req.Build == nil {
-		pending.complete(dberrors.ErrInvalidArgument)
-		return dberrors.ErrInvalidArgument
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: dberrors.ErrInvalidArgument}
+		pending.complete(result)
+		return result
 	}
 	if c.isSharded() {
 		c.acceptMu.RLock()
 		if c.closed {
 			c.acceptMu.RUnlock()
-			pending.complete(ErrClosed)
-			return ErrClosed
+			result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+			pending.complete(result)
+			return result
 		}
 		shard := c.shardFor(req.Partition)
 		c.acceptMu.RUnlock()
 		if shard == nil {
-			pending.complete(ErrClosed)
-			return ErrClosed
+			result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+			pending.complete(result)
+			return result
 		}
-		return shard.submit(ctx, pending)
+		return shard.submitResult(ctx, pending)
 	}
-	return c.submit(ctx, pending)
+	return c.submitResult(ctx, pending)
 }
 
-func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err error) {
+func (c *Coordinator) submitResult(ctx context.Context, pending pendingRequest) (result SubmitResult) {
 	req := pending.Request
 	if ctx == nil {
 		ctx = context.Background()
@@ -236,15 +280,29 @@ func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err e
 			Records:  req.Records,
 			Bytes:    req.Bytes,
 			Duration: time.Since(startedAt),
-			Err:      err,
+			Err:      result.Err,
 		})
 	}()
 	c.acceptMu.RLock()
 	if c.closed {
 		c.acceptMu.RUnlock()
-		err = ErrClosed
-		pending.complete(err)
-		return err
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+		pending.complete(result)
+		return result
+	}
+	select {
+	case c.queueSlots <- struct{}{}:
+		pending.releaseQueueSlot = func() { <-c.queueSlots }
+	case <-ctx.Done():
+		c.acceptMu.RUnlock()
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ctx.Err()}
+		pending.complete(result)
+		return result
+	case <-c.stopCh:
+		c.acceptMu.RUnlock()
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+		pending.complete(result)
+		return result
 	}
 	select {
 	case c.requests <- pending:
@@ -252,48 +310,59 @@ func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err e
 		c.observeQueueDepth()
 	case <-ctx.Done():
 		c.acceptMu.RUnlock()
-		err = ctx.Err()
-		pending.complete(err)
-		return err
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ctx.Err()}
+		pending.complete(result)
+		return result
 	case <-c.stopCh:
 		c.acceptMu.RUnlock()
-		err = ErrClosed
-		pending.complete(err)
-		return err
+		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed}
+		pending.complete(result)
+		return result
 	}
 
 	select {
-	case err = <-pending.done:
-		return err
+	case result = <-pending.done:
+		return result
 	case <-ctx.Done():
-		err = ctx.Err()
-		return err
+		return SubmitResult{Outcome: OutcomeUnknown, Err: ctx.Err()}
 	case <-c.doneCh:
 		select {
-		case err = <-pending.done:
-			return err
+		case result = <-pending.done:
+			return result
 		default:
-			pending.complete(ErrClosed)
-			err = <-pending.done
-			return err
+			pending.complete(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
+			return <-pending.done
 		}
 	}
 }
 
 func newPendingRequest(req Request) pendingRequest {
 	return pendingRequest{
-		Request:      req,
-		done:         make(chan error, 1),
-		finalizeOnce: &sync.Once{},
+		Request:       req,
+		done:          make(chan SubmitResult, 1),
+		finalizeOnce:  &sync.Once{},
+		queueSlotOnce: &sync.Once{},
 	}
 }
 
-func (r pendingRequest) complete(err error) {
+func (r pendingRequest) complete(result SubmitResult) {
 	r.finalizeOnce.Do(func() {
+		r.releaseQueued()
 		if r.Finalize != nil {
 			r.Finalize()
 		}
-		r.done <- err
+		r.done <- result
+	})
+}
+
+func (r pendingRequest) releaseQueued() {
+	if r.queueSlotOnce == nil {
+		return
+	}
+	r.queueSlotOnce.Do(func() {
+		if r.releaseQueueSlot != nil {
+			r.releaseQueueSlot()
+		}
 	})
 }
 
@@ -331,27 +400,40 @@ func (c *Coordinator) run() {
 		}
 		collectStarted := time.Now()
 		batch := c.collect(req)
+		// collect may drain additional requests directly from the channel. Publish
+		// the remaining physical queue after that drain so the last grouped batch
+		// cannot leave its pre-collection depth as the terminal gauge.
+		c.observeQueueDepth()
 		c.commit(batch, time.Since(collectStarted))
 	}
 }
 
 func (c *Coordinator) nextRequest() (pendingRequest, bool) {
-	c.mu.Lock()
-	if len(c.deferred) > 0 {
-		req := c.deferred[0]
-		copy(c.deferred, c.deferred[1:])
-		c.deferred = c.deferred[:len(c.deferred)-1]
-		c.mu.Unlock()
+	select {
+	case <-c.stopCh:
+		c.failQueued()
+		return pendingRequest{}, false
+	default:
+	}
+	c.drainIncoming()
+	if req, ok := c.popPending(true); ok {
+		req.releaseQueued()
 		c.observeQueueDepth()
 		return req, true
 	}
-	c.mu.Unlock()
 
 	select {
 	case <-c.stopCh:
 		c.failQueued()
 		return pendingRequest{}, false
 	case req := <-c.requests:
+		c.enqueuePending(req)
+		c.drainIncoming()
+		req, ok := c.popPending(true)
+		if !ok {
+			return pendingRequest{}, false
+		}
+		req.releaseQueued()
 		c.observeQueueDepth()
 		return req, true
 	}
@@ -365,20 +447,22 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 
 	if c.cfg.FlushWindow <= 0 {
 		for {
-			select {
-			case req := <-c.requests:
-				if c.wouldExceed(batch, req) {
-					c.deferRequest(req)
-					return batch
-				}
-				batch.requests = append(batch.requests, req)
-				if c.limitReached(batch) {
-					return batch
-				}
-			case <-c.stopCh:
+			if c.stopped() {
 				batch.closed = true
 				return batch
-			default:
+			}
+			c.drainIncoming()
+			req, ok := c.popPending(false)
+			if !ok {
+				return batch
+			}
+			if c.wouldExceed(batch, req) {
+				c.requeueFront(req)
+				return batch
+			}
+			req.releaseQueued()
+			batch.requests = append(batch.requests, req)
+			if c.limitReached(batch) {
 				return batch
 			}
 		}
@@ -388,15 +472,29 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 	defer timer.Stop()
 	for {
 		select {
-		case req := <-c.requests:
+		case <-timer.C:
+			return batch
+		case <-c.stopCh:
+			batch.closed = true
+			return batch
+		default:
+		}
+		c.drainIncoming()
+		if req, ok := c.popPending(false); ok {
 			if c.wouldExceed(batch, req) {
-				c.deferRequest(req)
+				c.requeueFront(req)
 				return batch
 			}
+			req.releaseQueued()
 			batch.requests = append(batch.requests, req)
 			if c.limitReached(batch) {
 				return batch
 			}
+			continue
+		}
+		select {
+		case req := <-c.requests:
+			c.enqueuePending(req)
 		case <-timer.C:
 			return batch
 		case <-c.stopCh:
@@ -417,7 +515,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			TotalDuration:   collectDuration,
 			Err:             ErrClosed,
 		})
-		reqs.completeAll(ErrClosed)
+		reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
 		return
 	}
 	batch := c.db.NewBatch()
@@ -435,7 +533,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 				TotalDuration:   collectDuration + buildDuration,
 				Err:             err,
 			})
-			reqs.completeAll(err)
+			reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: err})
 			return
 		}
 	}
@@ -456,7 +554,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			TotalDuration:   collectDuration + buildDuration + commitDuration,
 			Err:             err,
 		})
-		reqs.completeAll(err)
+		reqs.completeAll(SubmitResult{Outcome: OutcomeUnknown, Err: err})
 		return
 	}
 	commitDuration := time.Since(commitStarted)
@@ -486,22 +584,96 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		Err:             publishErr,
 	})
 	for i, req := range reqs.requests {
-		req.complete(publishResults[i])
+		req.complete(SubmitResult{Outcome: OutcomeCommitted, Err: publishResults[i]})
 	}
 }
 
-func (c *Coordinator) deferRequest(req pendingRequest) {
+func (c *Coordinator) enqueuePending(req pendingRequest) {
 	c.mu.Lock()
-	c.deferred = append(c.deferred, req)
+	if req.Lane.Priority == PriorityHigh {
+		c.pendingHigh = append(c.pendingHigh, req)
+	} else {
+		c.pendingNormal = append(c.pendingNormal, req)
+	}
 	c.mu.Unlock()
-	c.observeQueueDepth()
 }
 
-func (c *Coordinator) failQueued() {
+func (c *Coordinator) requeueFront(req pendingRequest) {
+	c.mu.Lock()
+	if req.Lane.Priority == PriorityHigh {
+		c.pendingHigh = append(c.pendingHigh, pendingRequest{})
+		copy(c.pendingHigh[1:], c.pendingHigh[:len(c.pendingHigh)-1])
+		c.pendingHigh[0] = req
+	} else {
+		c.pendingNormal = append(c.pendingNormal, pendingRequest{})
+		copy(c.pendingNormal[1:], c.pendingNormal[:len(c.pendingNormal)-1])
+		c.pendingNormal[0] = req
+	}
+	c.mu.Unlock()
+}
+
+func (c *Coordinator) drainIncoming() {
 	for {
 		select {
 		case req := <-c.requests:
-			req.complete(ErrClosed)
+			c.enqueuePending(req)
+		default:
+			return
+		}
+	}
+}
+
+func (c *Coordinator) popPending(fair bool) (pendingRequest, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	preferHigh := len(c.pendingHigh) > 0
+	if fair && len(c.pendingNormal) > 0 && c.consecutiveHigh >= maxConsecutiveHigh {
+		preferHigh = false
+	}
+	if preferHigh {
+		req := c.pendingHigh[0]
+		copy(c.pendingHigh, c.pendingHigh[1:])
+		c.pendingHigh = c.pendingHigh[:len(c.pendingHigh)-1]
+		if fair {
+			c.consecutiveHigh++
+		}
+		return req, true
+	}
+	if len(c.pendingNormal) > 0 {
+		req := c.pendingNormal[0]
+		copy(c.pendingNormal, c.pendingNormal[1:])
+		c.pendingNormal = c.pendingNormal[:len(c.pendingNormal)-1]
+		if fair {
+			c.consecutiveHigh = 0
+		}
+		return req, true
+	}
+	return pendingRequest{}, false
+}
+
+func (c *Coordinator) stopped() bool {
+	select {
+	case <-c.stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *Coordinator) failQueued() {
+	c.mu.Lock()
+	pending := append([]pendingRequest(nil), c.pendingHigh...)
+	pending = append(pending, c.pendingNormal...)
+	c.pendingHigh = nil
+	c.pendingNormal = nil
+	c.mu.Unlock()
+	for _, req := range pending {
+		req.complete(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
+	}
+	for {
+		select {
+		case req := <-c.requests:
+			req.complete(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
 		default:
 			c.observeQueueDepth()
 			return
@@ -513,11 +685,9 @@ func (c *Coordinator) observeQueueDepth() {
 	if c == nil || c.cfg.Observer == nil {
 		return
 	}
-	c.mu.Lock()
-	depth := len(c.deferred)
-	c.mu.Unlock()
-	depth += len(c.requests)
-	c.cfg.Observer.SetQueueDepth(depth)
+	c.queueObservationMu.Lock()
+	defer c.queueObservationMu.Unlock()
+	c.cfg.Observer.SetQueueDepth(len(c.queueSlots))
 }
 
 func (c *Coordinator) observeBatch(event BatchEvent) {
@@ -587,9 +757,10 @@ func partitionShard(partition string, shards int) int {
 }
 
 type shardedObserver struct {
-	observer Observer
-	mu       sync.Mutex
-	depths   []int
+	observer      Observer
+	mu            sync.Mutex
+	depths        []int
+	publicationMu sync.Mutex
 }
 
 type shardObserver struct {
@@ -616,6 +787,14 @@ func (o shardObserver) SetQueueDepth(depth int) {
 	if o.index >= 0 && o.index < len(o.parent.depths) {
 		o.parent.depths[o.index] = depth
 	}
+	o.parent.mu.Unlock()
+
+	// Serialize absolute aggregate publications, then refresh the total after
+	// acquiring the publication lock. A delayed shard callback must publish the
+	// newest aggregate rather than overwrite a later zero with a stale total.
+	o.parent.publicationMu.Lock()
+	defer o.parent.publicationMu.Unlock()
+	o.parent.mu.Lock()
 	total := 0
 	for _, value := range o.parent.depths {
 		total += value

@@ -14,6 +14,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
 func TestDefaultSlotProposerObservesMetaCreateSubmitAndWait(t *testing.T) {
@@ -68,8 +69,8 @@ func TestDefaultSlotProposerObservesAuthoritativeMetaCreateResultOnce(t *testing
 		waitErr    error
 		wantResult clusterchannels.MetaCreateResult
 	}{
-		{name: "created", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true}), wantResult: clusterchannels.MetaCreateCreated},
-		{name: "already existing", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{}), wantResult: clusterchannels.MetaCreateAlreadyExisting},
+		{name: "created", applyData: encodeTestRuntimeMetaCreateResult(11, "authoritative", 1, true), wantResult: clusterchannels.MetaCreateCreated},
+		{name: "already existing", applyData: encodeTestRuntimeMetaCreateResult(11, "authoritative", 1, false), wantResult: clusterchannels.MetaCreateAlreadyExisting},
 		{name: "wait error", waitErr: errors.New("apply failed"), wantResult: clusterchannels.MetaCreateError},
 		{name: "decode error", applyData: []byte("invalid"), wantResult: clusterchannels.MetaCreateError},
 	}
@@ -78,7 +79,7 @@ func TestDefaultSlotProposerObservesAuthoritativeMetaCreateResultOnce(t *testing
 			runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: tt.applyData, err: tt.waitErr}}
 			observer := &recordingMetaCreateObserver{}
 			proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
-			command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+			command := mustEncodeTestRuntimeMetaCreateCommand(t, 11, metadb.ChannelRuntimeMeta{
 				ChannelID: "authoritative", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 				Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
 			})
@@ -100,11 +101,11 @@ func TestDefaultSlotProposerMetaCreateObserverUsesRouteSlotRaftGroupNotPayloadHa
 		routeSlotID     = uint32(3)
 		payloadHashSlot = uint16(37)
 	)
-	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(
-		metafsm.CreateChannelRuntimeMetaResult{Created: true},
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: encodeTestRuntimeMetaCreateResult(
+		payloadHashSlot, "slot-contract", 1, true,
 	)}}
 	observer := &recordingMetaCreateObserver{}
-	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+	command := mustEncodeTestRuntimeMetaCreateCommand(t, payloadHashSlot, metadb.ChannelRuntimeMeta{
 		ChannelID: "slot-contract", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
 	})
@@ -128,7 +129,7 @@ func TestDefaultSlotProposerDoesNotObserveRejectedMetaCreateSubmission(t *testin
 	runtime := &recordingSlotRuntime{err: multiraft.ErrNotLeader}
 	observer := &recordingMetaCreateObserver{}
 	proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
-	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+	command := mustEncodeTestRuntimeMetaCreateCommand(t, 11, metadb.ChannelRuntimeMeta{
 		ChannelID: "rejected", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
 	})
@@ -150,17 +151,13 @@ func TestDefaultSlotProposerObservesMetaCreateOnlyAfterCanceledCallerFutureResol
 		wantResult clusterchannels.MetaCreateResult
 	}{
 		{
-			name: "created",
-			result: multiraft.Result{Data: metafsm.EncodeCreateChannelRuntimeMetaResult(
-				metafsm.CreateChannelRuntimeMetaResult{Created: true},
-			)},
+			name:       "created",
+			result:     multiraft.Result{Data: encodeTestRuntimeMetaCreateResult(11, "canceled", 1, true)},
 			wantResult: clusterchannels.MetaCreateCreated,
 		},
 		{
-			name: "already existing",
-			result: multiraft.Result{Data: metafsm.EncodeCreateChannelRuntimeMetaResult(
-				metafsm.CreateChannelRuntimeMetaResult{},
-			)},
+			name:       "already existing",
+			result:     multiraft.Result{Data: encodeTestRuntimeMetaCreateResult(11, "canceled", 1, false)},
 			wantResult: clusterchannels.MetaCreateAlreadyExisting,
 		},
 		{
@@ -180,7 +177,7 @@ func TestDefaultSlotProposerObservesMetaCreateOnlyAfterCanceledCallerFutureResol
 			runtime := &recordingSlotRuntime{future: future}
 			observer := &recordingMetaCreateObserver{}
 			proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
-			command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+			command := mustEncodeTestRuntimeMetaCreateCommand(t, 11, metadb.ChannelRuntimeMeta{
 				ChannelID: "canceled", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 				Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
 			})
@@ -219,8 +216,8 @@ func TestDefaultSlotProposerForwardHandlerObservesMetaCreateOnlyOnLeader(t *test
 		wantResult clusterchannels.MetaCreateResult
 		wantErr    bool
 	}{
-		{name: "created", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true}), wantResult: clusterchannels.MetaCreateCreated},
-		{name: "already existing", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{}), wantResult: clusterchannels.MetaCreateAlreadyExisting},
+		{name: "created", applyData: encodeTestRuntimeMetaCreateResult(19, "forwarded", 1, true), wantResult: clusterchannels.MetaCreateCreated},
+		{name: "already existing", applyData: encodeTestRuntimeMetaCreateResult(19, "forwarded", 1, false), wantResult: clusterchannels.MetaCreateAlreadyExisting},
 		{name: "future failure", waitErr: errors.New("apply failed"), wantResult: clusterchannels.MetaCreateError, wantErr: true},
 		{name: "decode failure", applyData: []byte("invalid"), wantResult: clusterchannels.MetaCreateError, wantErr: true},
 	}
@@ -230,7 +227,7 @@ func TestDefaultSlotProposerForwardHandlerObservesMetaCreateOnlyOnLeader(t *test
 			observer := &recordingMetaCreateObserver{}
 			leader := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
 			handler := propose.NewForwardHandler(leader)
-			command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+			command := mustEncodeTestRuntimeMetaCreateCommand(t, 19, metadb.ChannelRuntimeMeta{
 				ChannelID: "forwarded", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 				Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1,
 			})
@@ -257,12 +254,12 @@ func TestDefaultSlotProposerForwardHandlerObservesMetaCreateOnlyOnLeader(t *test
 }
 
 func TestProposeServiceLeaderChangeRetryObservesMetaCreateOnce(t *testing.T) {
-	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+	command := mustEncodeTestRuntimeMetaCreateCommand(t, 19, metadb.ChannelRuntimeMeta{
 		ChannelID: "leader-change", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
 	})
 	runtime := &retryingSlotRuntime{
-		future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true})},
+		future: recordingSlotFuture{data: encodeTestRuntimeMetaCreateResult(19, "leader-change", 1, true)},
 	}
 	observer := &recordingMetaCreateObserver{}
 	slots := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
@@ -286,7 +283,7 @@ func TestProposeServiceLeaderChangeRetryObservesMetaCreateOnce(t *testing.T) {
 
 func TestDefaultSlotProposerMetaCreateObservationIsNotReplicaApplied(t *testing.T) {
 	observer := &recordingMetaCreateObserver{}
-	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+	command := mustEncodeTestRuntimeMetaCreateCommand(t, 11, metadb.ChannelRuntimeMeta{
 		ChannelID: "three-replicas", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 		Leader: 1, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2, 3}, MinISR: 2,
 	})
@@ -316,7 +313,7 @@ func TestDefaultSlotProposerMetaCreateObservationIsNotReplicaApplied(t *testing.
 		t.Fatalf("replica apply events = %#v, want none", observer.events)
 	}
 
-	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true})}}
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: encodeTestRuntimeMetaCreateResult(11, "three-replicas", 1, true)}}
 	proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
 	_, err := proposer.ProposeResult(context.Background(), 37, propose.EncodePayload(11, command))
 	if err != nil {
@@ -341,24 +338,36 @@ func TestDefaultSlotProposerDoesNotObserveNonCreateProposal(t *testing.T) {
 	}
 }
 
-func TestDefaultChannelRuntimeMetaStoreCreatesWithAuthoritativeResult(t *testing.T) {
-	proposer := &recordingNodeResultProposer{
-		result: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{}),
-	}
-	node := &Node{proposer: proposer}
-	node.started.Store(true)
-	store := defaultChannelRuntimeMetaStore{node: node}
+func TestDefaultChannelRuntimeMetaStoreCreatesBatchWithAuthoritativeResults(t *testing.T) {
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID: "create-result", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
 		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
 	}
-
-	result, err := store.CreateChannelRuntimeMeta(context.Background(), meta)
-	if err != nil {
-		t.Fatalf("CreateChannelRuntimeMeta() error = %v", err)
+	router := routing.NewRouter()
+	if err := router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
 	}
-	if result.Created {
-		t.Fatal("CreateChannelRuntimeMeta() Created = true, want authoritative already-existing result")
+	router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 1}})
+	route, err := router.RouteKey(meta.ChannelID)
+	if err != nil {
+		t.Fatalf("RouteKey() error = %v", err)
+	}
+	proposer := &recordingNodeResultProposer{
+		result: encodeTestRuntimeMetaCreateResult(route.HashSlot, meta.ChannelID, meta.ChannelType, false),
+	}
+	node := &Node{proposer: proposer, router: router}
+	node.started.Store(true)
+	store := defaultChannelRuntimeMetaStore{node: node}
+
+	results, err := store.CreateChannelRuntimeMetaBatch(context.Background(), route, []clusterchannels.RuntimeMetaCreateItem{{
+		HashSlot: route.HashSlot,
+		Meta:     meta,
+	}})
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMetaBatch() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Created {
+		t.Fatalf("CreateChannelRuntimeMetaBatch() results = %#v, want authoritative already-existing result", results)
 	}
 	if proposer.resultCalls != 1 || proposer.proposeCalls != 0 {
 		t.Fatalf("resultCalls=%d proposeCalls=%d, want result proposal only", proposer.resultCalls, proposer.proposeCalls)
@@ -366,6 +375,70 @@ func TestDefaultChannelRuntimeMetaStoreCreatesWithAuthoritativeResult(t *testing
 	if !metafsm.IsCreateChannelRuntimeMetaCommand(proposer.last.Command) {
 		t.Fatalf("command = %x, want create-only runtime metadata command", proposer.last.Command)
 	}
+	if proposer.last.Target.HashSlot != route.HashSlot || proposer.last.Target.SlotID != route.SlotID ||
+		!proposer.last.Target.HasHashSlot || !proposer.last.Target.HasSlotID {
+		t.Fatalf("proposal target = %#v, want exact route %#v", proposer.last.Target, route)
+	}
+}
+
+func TestDefaultChannelRuntimeMetaStoreAuthoritativeRereadFollowsCurrentLeader(t *testing.T) {
+	meta := metadb.NormalizeChannelRuntimeMeta(metadb.ChannelRuntimeMeta{
+		ChannelID: "reread-current-leader", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 2, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2, 3}, MinISR: 2,
+	})
+	router := routing.NewRouter()
+	if err := router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 1}})
+	expected, err := router.RouteKey(meta.ChannelID)
+	if err != nil {
+		t.Fatalf("RouteKey(initial) error = %v", err)
+	}
+
+	db, err := metadb.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.ForHashSlot(expected.HashSlot).UpsertChannelRuntimeMeta(context.Background(), meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta() error = %v", err)
+	}
+
+	node := &Node{cfg: Config{NodeID: 2}, router: router}
+	node.started.Store(true)
+	node.defaultSlotProxy = slotproxy.NewChannelMetadataStore(node, db)
+	router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: expected.SlotID, Leader: 2, LeaderTerm: expected.LeaderTerm + 1}})
+
+	store := defaultChannelRuntimeMetaStore{node: node}
+	reads, err := store.BatchGetChannelRuntimeMetas(context.Background(), expected, []clusterchannels.RuntimeMetaCreateItem{{
+		HashSlot: expected.HashSlot,
+		Meta:     meta,
+	}})
+	if err != nil {
+		t.Fatalf("BatchGetChannelRuntimeMetas() error = %v, want current-leader reread", err)
+	}
+	if len(reads) != 1 || reads[0].Err != nil || reads[0].Meta.ChannelID != meta.ChannelID {
+		t.Fatalf("BatchGetChannelRuntimeMetas() = %#v, want authoritative current-leader row", reads)
+	}
+}
+
+func mustEncodeTestRuntimeMetaCreateCommand(t *testing.T, hashSlot uint16, meta metadb.ChannelRuntimeMeta) []byte {
+	t.Helper()
+	command, err := metafsm.EncodeCreateChannelRuntimeMetaBatchCommandChecked([]metafsm.CreateChannelRuntimeMetaBatchItem{{
+		HashSlot: hashSlot,
+		Meta:     meta,
+	}})
+	if err != nil {
+		t.Fatalf("EncodeCreateChannelRuntimeMetaBatchCommandChecked() error = %v", err)
+	}
+	return command
+}
+
+func encodeTestRuntimeMetaCreateResult(hashSlot uint16, channelID string, channelType int64, created bool) []byte {
+	return metafsm.EncodeCreateChannelRuntimeMetaBatchResult([]metafsm.CreateChannelRuntimeMetaBatchResult{{
+		HashSlot: hashSlot, ChannelID: channelID, ChannelType: channelType, Created: created,
+	}})
 }
 
 func TestDefaultSlotProposerPassesBackgroundProposalClass(t *testing.T) {

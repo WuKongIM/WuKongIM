@@ -18,7 +18,7 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	model, verifier := newTestVerifier(t, 256, 256, 64, 10*time.Second)
 	logical := mustLogicalSend(t, model, 1, 42, TrafficPerson, "sender-private", "recipient-private")
 	registeredAt := time.Unix(100, 0)
-	if err := verifier.RegisterSend(logical, registeredAt); err != nil {
+	if err := verifier.RegisterSend(logical, registeredAt, SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend() error = %v", err)
 	}
 	policy := newTestRetryPolicy(t, model)
@@ -56,7 +56,7 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	}
 
 	terminal := mustLogicalSend(t, model, 1, 43, TrafficGroup, "sender-private", "group-private")
-	if err := verifier.RegisterSend(terminal, registeredAt); err != nil {
+	if err := verifier.RegisterSend(terminal, registeredAt, SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(terminal) error = %v", err)
 	}
 	assertVerificationCode(t, verifier.CompleteTerminal(terminal, TerminalSendRetryExhausted), FailureCodeTerminalSend)
@@ -69,12 +69,38 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	}
 }
 
+func TestVerifierSnapshotClassifiesTerminalSendReasons(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
+	startedAt := time.Unix(200, 0)
+	codes := []TerminalSendCode{
+		TerminalSendRetryExhausted,
+		TerminalSendNonRetriable,
+		TerminalSendSessionClosed,
+	}
+	for ordinal, code := range codes {
+		logical := mustLogicalSend(t, model, 0, uint64(ordinal+1), TrafficPerson, "sender", "recipient")
+		if err := verifier.RegisterSend(logical, startedAt, SendLatencyHot); err != nil {
+			t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
+		}
+		assertVerificationCode(t, verifier.CompleteTerminal(logical, code), FailureCodeTerminalSend)
+	}
+
+	snapshot := verifier.Snapshot()
+	if snapshot.Terminal != 3 || snapshot.TerminalReasons != (TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, Unclassified: 1},
+		NonRetriable:   1,
+		SessionClosed:  1,
+	}) {
+		t.Fatalf("terminal reasons = %+v", snapshot)
+	}
+}
+
 func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
 	policy := newTestRetryPolicy(t, model)
 
 	rejected := mustLogicalSend(t, model, 0, 51, TrafficPerson, "sender", "recipient")
-	if err := verifier.RegisterSend(rejected, time.Unix(100, 0)); err != nil {
+	if err := verifier.RegisterSend(rejected, time.Unix(100, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(rejected): %v", err)
 	}
 	first, err := policy.Attempt(rejected, 0)
@@ -103,7 +129,7 @@ func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	}
 
 	transportFailed := mustLogicalSend(t, model, 0, 52, TrafficPerson, "sender", "recipient")
-	if err := verifier.RegisterSend(transportFailed, time.Unix(101, 0)); err != nil {
+	if err := verifier.RegisterSend(transportFailed, time.Unix(101, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(transport): %v", err)
 	}
 	first, err = policy.Attempt(transportFailed, 0)
@@ -113,15 +139,15 @@ func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	if err := verifier.ObserveAttempt(transportFailed, first, 201); err != nil {
 		t.Fatalf("ObserveAttempt(transport, 0): %v", err)
 	}
-	if err := verifier.ResolveAttemptError(transportFailed.ClientMsgNo, 201); err != nil {
-		t.Fatalf("ResolveAttemptError(first): %v", err)
+	if err := verifier.ResolveAttemptLocalAdmissionError(transportFailed.ClientMsgNo, 201); err != nil {
+		t.Fatalf("ResolveAttemptLocalAdmissionError(first): %v", err)
 	}
-	if err := verifier.ResolveAttemptError(transportFailed.ClientMsgNo, 201); err != nil {
-		t.Fatalf("ResolveAttemptError(first duplicate): %v", err)
+	if err := verifier.ResolveAttemptLocalAdmissionError(transportFailed.ClientMsgNo, 201); err != nil {
+		t.Fatalf("ResolveAttemptLocalAdmissionError(first duplicate): %v", err)
 	}
 
 	succeeded := mustLogicalSend(t, model, 0, 53, TrafficPerson, "sender", "recipient")
-	if err := verifier.RegisterSend(succeeded, time.Unix(102, 0)); err != nil {
+	if err := verifier.RegisterSend(succeeded, time.Unix(102, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(success): %v", err)
 	}
 	first, err = policy.Attempt(succeeded, 0)
@@ -138,8 +164,8 @@ func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	}
 
 	snapshot := verifier.Snapshot()
-	if snapshot.FirstAttempts != 3 || snapshot.FirstAttemptFailures != 2 {
-		t.Fatalf("first-attempt counters = %d/%d, want 3/2; snapshot=%+v", snapshot.FirstAttempts, snapshot.FirstAttemptFailures, snapshot)
+	if snapshot.FirstAttempts != 3 || snapshot.FirstAttemptFailures != 2 || snapshot.FirstAttemptLocalAdmissionFailures != 1 {
+		t.Fatalf("first-attempt counters = %d/%d local=%d, want 3/2 local=1; snapshot=%+v", snapshot.FirstAttempts, snapshot.FirstAttemptFailures, snapshot.FirstAttemptLocalAdmissionFailures, snapshot)
 	}
 }
 
@@ -148,7 +174,7 @@ func TestVerifierRecordsExplicitClockSendackAndRecvackLatency(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
 	logical := mustLogicalSend(t, model, 0, 91, TrafficPerson, "sender", "recipient")
 	started := time.Unix(8_000, 0)
-	if err := verifier.RegisterSend(logical, started); err != nil {
+	if err := verifier.RegisterSend(logical, started, SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend: %v", err)
 	}
 	ack := &frame.SendackPacket{
@@ -157,7 +183,7 @@ func TestVerifierRecordsExplicitClockSendackAndRecvackLatency(t *testing.T) {
 	if err := verifier.HandleSendackAt(ack, started.Add(2*time.Second)); err != nil {
 		t.Fatalf("HandleSendackAt: %v", err)
 	}
-	if histogram := verifier.Snapshot().SendackLatency; histogram.Count != 1 || histogram.SumNanos != uint64(2*time.Second) || histogram.MaxNanos != uint64(2*time.Second) || histogram.Buckets[11] != 1 {
+	if histogram := verifier.Snapshot().HotSendackLatency; histogram.Count != 1 || histogram.SumNanos != uint64(2*time.Second) || histogram.MaxNanos != uint64(2*time.Second) || histogram.Buckets[11] != 1 {
 		t.Fatalf("sendack latency = %+v", histogram)
 	}
 
@@ -169,6 +195,58 @@ func TestVerifierRecordsExplicitClockSendackAndRecvackLatency(t *testing.T) {
 	}
 	if histogram := verifier.Snapshot().RecvackLatency; histogram.Count != 1 || histogram.SumNanos != uint64(50*time.Millisecond) || histogram.MaxNanos != uint64(50*time.Millisecond) || histogram.Buckets[6] != 1 {
 		t.Fatalf("recvack latency = %+v", histogram)
+	}
+}
+
+func TestVerifierSeparatesHotAndFirstCreateSendackLatency(t *testing.T) {
+	t.Parallel()
+	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
+	started := time.Unix(8_100, 0)
+	hot := mustLogicalSend(t, model, 0, 92, TrafficPerson, "sender", "recipient")
+	cold := mustLogicalSend(t, model, 0, 93, TrafficPerson, "sender", "recipient")
+	reheat := mustLogicalSend(t, model, 0, 94, TrafficPerson, "sender", "recipient")
+	if err := verifier.RegisterSend(hot, started, SendLatencyHot); err != nil {
+		t.Fatalf("RegisterSend(hot): %v", err)
+	}
+	if err := verifier.RegisterSend(cold, started, SendLatencyColdFirstCreate); err != nil {
+		t.Fatalf("RegisterSend(cold): %v", err)
+	}
+	if err := verifier.RegisterSend(reheat, started, SendLatencyLifecycleReheat); err != nil {
+		t.Fatalf("RegisterSend(reheat): %v", err)
+	}
+	for index, logical := range []LogicalSend{hot, cold, reheat} {
+		clientSeq := uint64(index + 1)
+		attempt := RetryAttempt{ClientMsgNo: logical.ClientMsgNo, Attempt: 0}
+		if err := verifier.ObserveAttempt(logical, attempt, clientSeq); err != nil {
+			t.Fatalf("ObserveAttempt(%d): %v", index, err)
+		}
+		if err := verifier.HandleSendackAt(&frame.SendackPacket{
+			ClientSeq: clientSeq, ClientMsgNo: logical.ClientMsgNo,
+			MessageID: int64(index + 1), MessageSeq: uint64(index + 1), ReasonCode: frame.ReasonSuccess,
+		}, started.Add(time.Duration(index+1)*time.Second)); err != nil {
+			t.Fatalf("HandleSendackAt(%d): %v", index, err)
+		}
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.HotSendackLatency.Count != 1 || snapshot.HotSendackLatency.SumNanos != uint64(time.Second) {
+		t.Fatalf("hot SENDACK latency = %+v", snapshot.HotSendackLatency)
+	}
+	if snapshot.ColdFirstCreateSendackLatency.Count != 1 || snapshot.ColdFirstCreateSendackLatency.SumNanos != uint64(2*time.Second) {
+		t.Fatalf("cold first-create SENDACK latency = %+v", snapshot.ColdFirstCreateSendackLatency)
+	}
+	if snapshot.LifecycleReheatSendackLatency.Count != 1 || snapshot.LifecycleReheatSendackLatency.SumNanos != uint64(3*time.Second) {
+		t.Fatalf("lifecycle reheat SENDACK latency = %+v", snapshot.LifecycleReheatSendackLatency)
+	}
+}
+
+func TestVerifierRejectsUnknownSendLatencyClass(t *testing.T) {
+	t.Parallel()
+	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
+	logical := mustLogicalSend(t, model, 0, 95, TrafficPerson, "sender", "recipient")
+
+	assertVerificationCode(t, verifier.RegisterSend(logical, time.Unix(8_200, 0), SendLatencyClass(255)), FailureCodeGeneratorInvariant)
+	if snapshot := verifier.Snapshot(); snapshot.Sent != 0 || snapshot.PendingUnfinished != 0 {
+		t.Fatalf("invalid latency class mutated SEND state: %+v", snapshot)
 	}
 }
 
@@ -186,7 +264,7 @@ func TestVerifierReleasedLogicalSendConsumesRegisteredSiblingAttempts(t *testing
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
 	logical := mustLogicalSend(t, model, 0, 44, TrafficGroup, "sender", "group")
 	registeredAt := time.Unix(100, 0)
-	if err := verifier.RegisterSend(logical, registeredAt); err != nil {
+	if err := verifier.RegisterSend(logical, registeredAt, SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend: %v", err)
 	}
 	policy := newTestRetryPolicy(t, model)
@@ -228,10 +306,54 @@ func TestVerifierReleasedLogicalSendConsumesRegisteredSiblingAttempts(t *testing
 	assertVerificationCode(t, verifier.HandleSendack(&unknown), FailureCodeUnknownSendack)
 }
 
+func TestVerifierReleasedAttemptRetentionStartsAtLogicalCompletion(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
+	logical := mustLogicalSend(t, model, 0, 45, TrafficGroup, "sender", "group")
+	registeredAt := time.Unix(200, 0)
+	if err := verifier.RegisterSend(logical, registeredAt, SendLatencyHot); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	policy := newTestRetryPolicy(t, model)
+	for attemptNumber, clientSeq := range []uint64{201, 202} {
+		attempt, err := policy.Attempt(logical, uint8(attemptNumber))
+		if err != nil {
+			t.Fatalf("Attempt(%d): %v", attemptNumber, err)
+		}
+		if err := verifier.ObserveAttempt(logical, attempt, clientSeq); err != nil {
+			t.Fatalf("ObserveAttempt(%d, %d): %v", attemptNumber, clientSeq, err)
+		}
+	}
+	first := &frame.SendackPacket{
+		ClientSeq: 201, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: 701, MessageSeq: 801, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(first); err != nil {
+		t.Fatalf("HandleSendack(first): %v", err)
+	}
+	completedAt := registeredAt.Add(9 * time.Second)
+	if err := verifier.ReleaseSendAt(logical, completedAt); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
+	if expired := verifier.ExpireCorrelations(registeredAt.Add(11 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations() = %d, want no sampled correlation", expired)
+	}
+	second := &frame.SendackPacket{
+		ClientSeq: 202, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: 701, MessageSeq: 801, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(second); err != nil {
+		t.Fatalf("HandleSendack(late released sibling): %v", err)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.ReleasedAttemptCurrent != 0 || snapshot.UnknownSendacks != 0 || snapshot.ConflictingCompletions != 0 {
+		t.Fatalf("released sibling snapshot = %+v", snapshot)
+	}
+}
+
 func TestVerifierRejectsUnknownDuplicateAndConflictingSendacks(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
 	logical := mustLogicalSend(t, model, 0, 7, TrafficPerson, "sender-secret", "target-secret")
-	if err := verifier.RegisterSend(logical, time.Unix(1, 0)); err != nil {
+	if err := verifier.RegisterSend(logical, time.Unix(1, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend() error = %v", err)
 	}
 	ack := &frame.SendackPacket{MessageID: 41, MessageSeq: 4, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
@@ -264,7 +386,7 @@ func TestVerifierRejectsUnknownDuplicateAndConflictingSendacks(t *testing.T) {
 func TestVerifierRequiresValidSuccessfulSendackAndStableAttemptIdentity(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
 	logical := mustLogicalSend(t, model, 2, 8, TrafficPerson, "sender", "target")
-	if err := verifier.RegisterSend(logical, time.Unix(1, 0)); err != nil {
+	if err := verifier.RegisterSend(logical, time.Unix(1, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend() error = %v", err)
 	}
 	tampered := RetryAttempt{Attempt: 1, ClientMsgNo: logical.ClientMsgNo + "-new"}
@@ -293,7 +415,7 @@ func TestVerifierRequiresValidSuccessfulSendackAndStableAttemptIdentity(t *testi
 func TestVerifierCompletedSendRejectsEveryLaterRejectedSendack(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
 	success := mustLogicalSend(t, model, 0, 90, TrafficPerson, "sender-secret", "target-secret")
-	if err := verifier.RegisterSend(success, time.Unix(1, 0)); err != nil {
+	if err := verifier.RegisterSend(success, time.Unix(1, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(success) error = %v", err)
 	}
 	successAck := &frame.SendackPacket{MessageID: 91, MessageSeq: 9, ClientMsgNo: success.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
@@ -307,7 +429,7 @@ func TestVerifierCompletedSendRejectsEveryLaterRejectedSendack(t *testing.T) {
 	assertVerificationCode(t, verifier.HandleSendack(rejectedNoIdentity), FailureCodeConflictingCompletion)
 
 	terminal := mustLogicalSend(t, model, 0, 91, TrafficPerson, "sender-secret", "target-secret")
-	if err := verifier.RegisterSend(terminal, time.Unix(1, 0)); err != nil {
+	if err := verifier.RegisterSend(terminal, time.Unix(1, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(terminal) error = %v", err)
 	}
 	assertVerificationCode(t, verifier.CompleteTerminal(terminal, TerminalSendRetryExhausted), FailureCodeTerminalSend)
@@ -325,7 +447,7 @@ func TestVerifierCompletedSendRejectsEveryLaterRejectedSendack(t *testing.T) {
 func TestVerifierIncompleteRejectedSendackRequiresZeroServerIdentity(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
 	logical := mustLogicalSend(t, model, 0, 92, TrafficPerson, "sender", "target")
-	if err := verifier.RegisterSend(logical, time.Unix(1, 0)); err != nil {
+	if err := verifier.RegisterSend(logical, time.Unix(1, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend() error = %v", err)
 	}
 	zero := &frame.SendackPacket{ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonRateLimit}
@@ -423,7 +545,11 @@ func TestVerifierAcknowledgesButExcludesExternalDemoTraffic(t *testing.T) {
 	if len(acker.acks) != 1 || acker.acks[0].MessageID != external.MessageID || acker.acks[0].MessageSeq != external.MessageSeq {
 		t.Fatalf("external Demo ACKs = %+v", acker.acks)
 	}
-	if snapshot := verifier.Snapshot(); snapshot != (VerifierSnapshot{SendackLatency: newWorkerHistogramSnapshot(), RecvackLatency: newWorkerHistogramSnapshot()}) {
+	if snapshot := verifier.Snapshot(); snapshot != (VerifierSnapshot{
+		HotSendackLatency: newWorkerHistogramSnapshot(), ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+		LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
+		RecvackLatency:                newWorkerHistogramSnapshot(),
+	}) {
 		t.Fatalf("external Demo traffic entered workload counters: %+v", snapshot)
 	}
 
@@ -722,7 +848,7 @@ func TestVerifierCorrelationSamplesExactlyOnePercentAndPhysicallyRemovesComplete
 	const sends = 10_000
 	for ordinal := uint64(0); ordinal < sends; ordinal++ {
 		logical := mustLogicalSend(t, model, 0, ordinal, TrafficPerson, "sender", recipient)
-		if err := verifier.RegisterSend(logical, started.Add(time.Duration(ordinal)*time.Millisecond)); err != nil {
+		if err := verifier.RegisterSend(logical, started.Add(time.Duration(ordinal)*time.Millisecond), SendLatencyHot); err != nil {
 			t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
 		}
 		payload, err := model.BuildPayload(logical, 256)
@@ -786,12 +912,12 @@ func TestVerifierCorrelationSamplesExactlyOnceInEveryWorkerOrdinalBlock(t *testi
 				model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
 				for ordinal := start; ordinal < start+100; ordinal++ {
 					logical := mustLogicalSend(t, model, worker, ordinal, TrafficPerson, "sender", "recipient")
-					if err := verifier.RegisterSend(logical, time.Unix(2_000, 0)); err != nil {
+					if err := verifier.RegisterSend(logical, time.Unix(2_000, 0), SendLatencyHot); err != nil {
 						t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
 					}
 				}
 				snapshot := verifier.Snapshot()
-				if snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.DeadlineCurrent != 1 {
+				if snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.DeadlineCurrent != 0 {
 					t.Fatalf("worker %d block [%d,%d) sampling = %+v, want exactly one", worker, start, start+100, snapshot)
 				}
 			})
@@ -845,13 +971,82 @@ func TestVerifierSampledCorrelationSurvivesSendReleaseUntilLaterRecv(t *testing.
 	}
 }
 
+func TestVerifierDoesNotReportSampledLossBeforePositiveSendack(t *testing.T) {
+	model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+	started := time.Unix(2_300, 0)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	recv := mustRecvPacket(t, model, logical, 230, 23)
+	if err := verifier.HandleRecv(context.Background(), logical.Target, recv, discardRecvAcker{}); err != nil {
+		t.Fatalf("HandleRecv(before positive SENDACK) error = %v", err)
+	}
+
+	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations(before positive SENDACK) = %d, want 0", expired)
+	}
+	beforeAck := verifier.Snapshot()
+	if beforeAck.SampledExpired != 0 || beforeAck.Losses != 0 || beforeAck.CorrelationCurrent != 1 || beforeAck.DeadlineCurrent != 0 {
+		t.Fatalf("correlation before positive SENDACK = %+v", beforeAck)
+	}
+
+	ack := &frame.SendackPacket{
+		MessageID: 230, MessageSeq: 23, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendackAt(ack, started.Add(6*time.Second)); err != nil {
+		t.Fatalf("HandleSendackAt(after registration deadline) error = %v", err)
+	}
+	afterAck := verifier.Snapshot()
+	if afterAck.SampledDelivered != 1 || afterAck.SampledExpired != 0 || afterAck.Losses != 0 ||
+		afterAck.CorrelationCurrent != 0 || afterAck.DeadlineCurrent != 0 {
+		t.Fatalf("correlation after positive SENDACK = %+v", afterAck)
+	}
+}
+
+func TestVerifierSampledLossDeadlineStartsAtPositiveSendack(t *testing.T) {
+	model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+	started := time.Unix(2_400, 0)
+	acceptedAt := started.Add(6 * time.Second)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations(before acceptance) = %d, want 0", expired)
+	}
+	ack := &frame.SendackPacket{
+		MessageID: 240, MessageSeq: 24, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendackAt(ack, acceptedAt); err != nil {
+		t.Fatalf("HandleSendackAt: %v", err)
+	}
+	if err := verifier.ReleaseSendAt(logical, acceptedAt); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
+	if expired := verifier.ExpireCorrelations(acceptedAt.Add(5*time.Second - time.Nanosecond)); expired != 0 {
+		t.Fatalf("ExpireCorrelations(before delivery deadline) = %d, want 0", expired)
+	}
+	if expired := verifier.ExpireCorrelations(acceptedAt.Add(5 * time.Second)); expired != 1 {
+		t.Fatalf("ExpireCorrelations(at delivery deadline) = %d, want 1", expired)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.SampledExpired != 1 || snapshot.Losses != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
+		t.Fatalf("correlation after accepted delivery deadline = %+v", snapshot)
+	}
+}
+
 func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T) {
 	model, verifier := newTestVerifier(t, 500, 16, 8, 5*time.Second)
 	started := time.Unix(2_000, 0)
 	for ordinal := uint64(0); ordinal < 200; ordinal++ {
 		logical := mustLogicalSend(t, model, 0, ordinal, TrafficPerson, "sender", "recipient")
-		if err := verifier.RegisterSend(logical, started); err != nil {
+		if err := verifier.RegisterSend(logical, started, SendLatencyHot); err != nil {
 			t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
+		}
+		ack := &frame.SendackPacket{
+			MessageID: int64(ordinal + 1), MessageSeq: ordinal + 1,
+			ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess,
+		}
+		if err := verifier.HandleSendackAt(ack, started); err != nil {
+			t.Fatalf("HandleSendackAt(%d) error = %v", ordinal, err)
+		}
+		if err := verifier.ReleaseSendAt(logical, started); err != nil {
+			t.Fatalf("ReleaseSendAt(%d) error = %v", ordinal, err)
 		}
 	}
 	before := verifier.Snapshot()
@@ -869,25 +1064,36 @@ func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T)
 		t.Fatalf("classification = %q, want product_failure", after.Classification)
 	}
 	drain := verifier.DrainSnapshot()
-	if drain.PendingUnfinished != 200 || drain.CorrelationOutstanding != 0 || !drain.NextCorrelationDeadline.IsZero() {
+	if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || !drain.NextCorrelationDeadline.IsZero() {
 		t.Fatalf("drain = %+v", drain)
 	}
 }
 
-func TestVerifierSampledTerminalSendRemainsUntilCorrelationDeadline(t *testing.T) {
+func TestVerifierSampledTerminalRetentionExpiresWithoutDeliveryLoss(t *testing.T) {
 	model, verifier := newTestVerifier(t, 200, 16, 16, 5*time.Second)
 	started := time.Unix(2_500, 0)
 	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	policy := newTestRetryPolicy(t, model)
+	attempt, err := policy.Attempt(logical, 0)
+	if err != nil {
+		t.Fatalf("Attempt(0): %v", err)
+	}
+	if err := verifier.ObserveAttempt(logical, attempt, 501); err != nil {
+		t.Fatalf("ObserveAttempt: %v", err)
+	}
 	assertVerificationCode(t, verifier.CompleteTerminal(logical, TerminalSendRetryExhausted), FailureCodeTerminalSend)
+	if err := verifier.ReleaseSendAt(logical, started); err != nil {
+		t.Fatalf("ReleaseSendAt: %v", err)
+	}
 	before := verifier.Snapshot()
-	if before.CorrelationCurrent != 1 || before.DeadlineCurrent != 1 || before.SampledExpired != 0 {
+	if before.CorrelationCurrent != 1 || before.DeadlineCurrent != 1 || before.SampledExpired != 0 || before.ReleasedAttemptCurrent != 1 {
 		t.Fatalf("sampled terminal before deadline = %+v", before)
 	}
-	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 1 {
-		t.Fatalf("ExpireCorrelations() = %d, want 1", expired)
+	if expired := verifier.ExpireCorrelations(started.Add(5 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations() = %d, want no confirmed delivery loss", expired)
 	}
 	after := verifier.Snapshot()
-	if after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 || after.SampledExpired != 1 {
+	if after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 || after.SampledExpired != 0 || after.Losses != 0 || after.ReleasedAttemptCurrent != 0 {
 		t.Fatalf("sampled terminal after deadline = %+v", after)
 	}
 	evidenceCount := evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation)
@@ -895,20 +1101,21 @@ func TestVerifierSampledTerminalSendRemainsUntilCorrelationDeadline(t *testing.T
 		t.Fatalf("second ExpireCorrelations() = %d, want 0", expired)
 	}
 	again := verifier.Snapshot()
-	if again.SampledExpired != 1 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != evidenceCount {
+	if again.SampledExpired != 0 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != evidenceCount {
 		t.Fatalf("second expiry changed counters/evidence: snapshot=%+v evidence=%+v", again, verifier.EvidenceSnapshot())
 	}
 }
 
 func TestVerifierSampledTerminalLateMatchingAckCompletesCorrelationInBothOrders(t *testing.T) {
 	tests := []struct {
-		name      string
-		release   bool
-		recvFirst bool
-		wantCode  FailureCode
+		name          string
+		release       bool
+		recvFirst     bool
+		wantCode      FailureCode
+		wantDelivered uint64
 	}{
-		{name: "terminal recv then ack", recvFirst: true, wantCode: FailureCodeConflictingCompletion},
-		{name: "terminal ack then recv", recvFirst: false, wantCode: FailureCodeConflictingCompletion},
+		{name: "terminal recv then ack", recvFirst: true, wantCode: FailureCodeConflictingCompletion, wantDelivered: 1},
+		{name: "terminal ack then recv", recvFirst: false, wantCode: FailureCodeConflictingCompletion, wantDelivered: 1},
 		{name: "released terminal recv then ack", release: true, recvFirst: true, wantCode: FailureCodeUnknownSendack},
 		{name: "released terminal ack then recv", release: true, recvFirst: false, wantCode: FailureCodeUnknownSendack},
 	}
@@ -937,7 +1144,7 @@ func TestVerifierSampledTerminalLateMatchingAckCompletesCorrelationInBothOrders(
 				}
 			}
 			snapshot := verifier.Snapshot()
-			if snapshot.SampledDelivered != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
+			if snapshot.SampledDelivered != test.wantDelivered || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
 				t.Fatalf("late ACK correlation = %+v", snapshot)
 			}
 			if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
@@ -1037,7 +1244,7 @@ func TestVerifierCapacityOverflowIsHarnessInvalidAndSequenceOwnershipCanBeReleas
 	var correlationOverflow error
 	for ordinal := uint64(0); ordinal < 200; ordinal++ {
 		logical := mustLogicalSend(t, model, 0, ordinal, TrafficPerson, "sender", "recipient")
-		err := verifier.RegisterSend(logical, started)
+		err := verifier.RegisterSend(logical, started, SendLatencyHot)
 		if err != nil {
 			correlationOverflow = err
 			break
@@ -1115,10 +1322,10 @@ func TestVerifierPendingCapacityIsHarnessInvalidWithoutPartialRegistration(t *te
 	model, verifier := newTestVerifier(t, 1, 16, 16, 5*time.Second)
 	first := mustLogicalSend(t, model, 0, 800, TrafficPerson, "sender-a", "recipient")
 	second := mustLogicalSend(t, model, 0, 801, TrafficPerson, "sender-b", "recipient")
-	if err := verifier.RegisterSend(first, time.Unix(5_000, 0)); err != nil {
+	if err := verifier.RegisterSend(first, time.Unix(5_000, 0), SendLatencyHot); err != nil {
 		t.Fatalf("RegisterSend(first) error = %v", err)
 	}
-	err := verifier.RegisterSend(second, time.Unix(5_000, 0))
+	err := verifier.RegisterSend(second, time.Unix(5_000, 0), SendLatencyHot)
 	assertVerificationCode(t, err, FailureCodePendingCapacity)
 	var verification *VerificationError
 	if !errors.As(err, &verification) || verification.Classification() != SyncClassificationHarnessInvalid {
@@ -1195,7 +1402,7 @@ func TestVerifierConcurrentSendRecvAndSnapshotsAreRaceSafe(t *testing.T) {
 		register.Add(1)
 		go func(logical LogicalSend) {
 			defer register.Done()
-			if err := verifier.RegisterSend(logical, time.Unix(6_000, 0)); err != nil {
+			if err := verifier.RegisterSend(logical, time.Unix(6_000, 0), SendLatencyHot); err != nil {
 				errs <- err
 			}
 		}(logicals[index])
@@ -1271,7 +1478,7 @@ func TestVerifierConcurrentHeavyRecvAndSendackUseIndependentStateDomains(t *test
 	sends := make([]LogicalSend, operations)
 	for index := 0; index < operations; index++ {
 		sends[index] = mustLogicalSend(t, model, 0, uint64(10_000+index), TrafficPerson, "send-source-"+strconv.Itoa(index), "send-target-"+strconv.Itoa(index))
-		if err := verifier.RegisterSend(sends[index], time.Unix(7_000, 0)); err != nil {
+		if err := verifier.RegisterSend(sends[index], time.Unix(7_000, 0), SendLatencyHot); err != nil {
 			t.Fatalf("RegisterSend(%d) error = %v", index, err)
 		}
 	}
@@ -1479,7 +1686,7 @@ func firstSampledLogical(t *testing.T, model TrafficModel, verifier *Verifier, s
 	for ordinal := uint64(0); ordinal < 100; ordinal++ {
 		logical := mustLogicalSend(t, model, 0, ordinal, TrafficPerson, sender, target)
 		before := verifier.Snapshot().Sampled
-		if err := verifier.RegisterSend(logical, at); err != nil {
+		if err := verifier.RegisterSend(logical, at, SendLatencyHot); err != nil {
 			t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
 		}
 		if verifier.Snapshot().Sampled > before {

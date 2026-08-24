@@ -23,7 +23,9 @@ case "$chat_stage" in
   rehearsal)
     stage_service=wkbench-rehearsal.service
     stage_report_dir=rehearsal
+    stage_runtime_name=rehearsal
     stage_duration_seconds=7200
+    reserved_stage_duration_seconds="$stage_duration_seconds"
     stage_handoff_schema=wukongim.chat_lifecycle.rehearsal_handoff/v1
     ;;
   formal)
@@ -35,7 +37,9 @@ case "$chat_stage" in
     [[ -f "$WK_CHAT_TRANSITION" ]]
     stage_service=wkbench-formal.service
     stage_report_dir=formal
+    stage_runtime_name=formal
     stage_duration_seconds=259200
+    reserved_stage_duration_seconds="$stage_duration_seconds"
     stage_handoff_schema=wukongim.chat_lifecycle.formal_handoff/v1
     ;;
   *)
@@ -173,6 +177,23 @@ download_run() {
   [[ ! -e "$destination" ]] || return 1
   install -d -m 0700 "$destination" || return
   gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --dir "$destination"
+}
+
+rebuild_stage_bundle() {
+  local candidate_sha="$1" candidate_dir candidate_title
+  [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
+  candidate_dir="$WK_CHAT_WORK_DIR/repair-bundle-$candidate_sha"
+  candidate_title="Cloud Deployment Bundle $candidate_sha $WK_CHAT_REQUEST_ID"
+  dispatch_and_wait cloud-deployment-bundle.yml "$candidate_title" \
+    -f source_sha="$candidate_sha" -f request_id="$WK_CHAT_REQUEST_ID"
+  bundle_run_id="$DISPATCH_RUN_ID"
+  download_run "$bundle_run_id" "$candidate_dir"
+  mapfile -t candidate_manifests < <(find "$candidate_dir" -type f -name bundle-manifest-output.json -print)
+  (( ${#candidate_manifests[@]} == 1 ))
+  bundle_digest="$(jq -er '.bundle_digest | select(test("^sha256:[0-9a-f]{64}$"))' "${candidate_manifests[0]}")"
+  bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
+  WK_CHAT_SOURCE_SHA="$candidate_sha"
+  export WK_CHAT_SOURCE_SHA
 }
 
 release_current() {
@@ -368,14 +389,18 @@ wait_for_deployment_repair_revision() {
 }
 
 run_deployment_action() {
-  local control_identity_attempt
+  local control_identity_attempt deployment_purpose deployment_plan_generation
   deployment_generation=$(( deployment_generation + 1 ))
+  deployment_purpose=immutable
+  deployment_plan_generation=1
+  deployment_title="Cloud Deployment $lease_artifact $deployment_purpose generation $deployment_plan_generation"
   deployment_artifact_dir="$attempt_dir/deployment-${deployment_generation}-artifact"
   deployment_failed=false
   if ! dispatch_and_wait cloud-deployment-activate.yml "$deployment_title" \
     -f lease_artifact_run_id="$acquire_run_id" -f lease_artifact_name="$lease_artifact" \
     -f bundle_artifact_run_id="$bundle_run_id" -f bundle_artifact_name="$bundle_artifact" \
     -f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY" \
+    -f deployment_purpose="$deployment_purpose" -f deployment_generation="$deployment_plan_generation" \
     -f encrypted_deployment_identity_json="$(jq -c . "$attempt_dir/encrypted-deployment-identity.json")"; then
     deployment_failed=true
   fi
@@ -402,7 +427,7 @@ run_deployment_action() {
   fi
   mapfile -t deployment_outcomes < <(find "$deployment_artifact_dir" -type f -name deployment-outcome.json -print 2>/dev/null || true)
   if (( ${#deployment_outcomes[@]} != 1 )) || ! jq -e \
-    '.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v1"' \
+    '.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v2"' \
     "${deployment_outcomes[0]:-/dev/null}" >/dev/null; then
     deployment_failed=true
   fi
@@ -555,21 +580,23 @@ for attempt in 1; do
   lease_expires_at="$(jq -er .receipt.expires_at "$attempt_dir/receipt.json")"
 
   lease_artifact="cloud-lease-provision-$WK_CHAT_REQUEST_ID"
-  deployment_title="Cloud Deployment $lease_artifact"
   readiness_timeout="$(jq -er .readiness_timeout_seconds "$attempt_dir/run-plan.json")"
   lease_expires_epoch="$(date -u -d "$lease_expires_at" +%s)"
-  repair_reserve_seconds=$(( 3780 + readiness_timeout + stage_duration_seconds + 3600 ))
-  repair_deadline_epoch=$(( lease_expires_epoch - repair_reserve_seconds ))
+  repair_finalizer_safety_seconds=7200
+  repair_reserve_seconds=$(( 2880 + 3780 + readiness_timeout + reserved_stage_duration_seconds + 3600 ))
+  repair_deadline_epoch=$(( lease_expires_epoch - repair_finalizer_safety_seconds - repair_reserve_seconds ))
   if (( repair_deadline_epoch > orchestration_deadline_epoch )); then
     repair_deadline_epoch="$orchestration_deadline_epoch"
   fi
   if (( repair_deadline_epoch <= $(date -u +%s) )); then
     release_failed_attempt "$attempt_dir/quote.json" \
-      'Lease has insufficient time for deployment, readiness, measured execution, and release reserve'
+      'Lease has insufficient time before the independent finalizer cutoff for bundle, deployment, readiness, measured execution, and release reserve'
   fi
   repair_deadline="$(date -u -d "@$repair_deadline_epoch" +%Y-%m-%dT%H:%M:%SZ)"
   attempted_control_shas_file="$attempt_dir/attempted-deployment-control-shas"
   : >"$attempted_control_shas_file"
+  attempted_source_shas_file="$attempt_dir/attempted-repair-source-shas"
+  printf '%s\n' "$WK_CHAT_SOURCE_SHA" >"$attempted_source_shas_file"
   deployment_generation=0
 
   while true; do
@@ -590,9 +617,13 @@ for attempt in 1; do
           'deployment repair state could not be published; exact Lease was released'
       fi
       repair_wait_status=0
-      wait_for_deployment_repair_revision "$attempted_control_shas_file" "$repair_deadline_epoch" || repair_wait_status=$?
+      candidate_sha="$(wait_for_deployment_repair_revision "$attempted_control_shas_file" "$repair_deadline_epoch")" || repair_wait_status=$?
       case "$repair_wait_status" in
         0)
+          if ! grep -Fqx "$candidate_sha" "$attempted_source_shas_file"; then
+            printf '%s\n' "$candidate_sha" >>"$attempted_source_shas_file"
+          fi
+          rebuild_stage_bundle "$candidate_sha"
           rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
           continue
           ;;
@@ -664,7 +695,7 @@ for attempt in 1; do
         timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
           "sudo head -c 65537 -- '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json'" \
           >"$attempt_dir/run-start.json" || true
-        if [[ -f "$attempt_dir/run-start.json" && "$(stat --format='%s' "$attempt_dir/run-start.json")" -le 65536 ]] && jq -e --arg stage "$chat_stage" '
+        if [[ -f "$attempt_dir/run-start.json" && "$(stat --format='%s' "$attempt_dir/run-start.json")" -le 65536 ]] && jq -e --arg stage "$stage_runtime_name" '
           .schema == "wukongim.chat_lifecycle.run_start/v1" and .stage == $stage and
           (.started_at | type == "string") and (.expected_end_at | type == "string") and
           (.run_hash | test("^sha256:[0-9a-f]{64}$")) and
@@ -720,9 +751,13 @@ for attempt in 1; do
           exit 0
         fi
       fi
-      state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-        "sudo systemctl is-active '$stage_service' || true" 2>/dev/null || printf unreachable)"
-      if [[ "$state" == failed || "$state" == inactive ]]; then
+      state=unreachable
+      if stage_service_snapshot="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        "sudo systemctl show '$stage_service' --property=ActiveState --property=Job --no-pager" 2>/dev/null)"; then
+        state="$(printf '%s\n' "$stage_service_snapshot" | \
+          scripts/chat-lifecycle/classify-stage-service-state.sh 2>/dev/null || printf unreachable)"
+      fi
+      if [[ "$state" == terminal ]]; then
         stage_terminal_code="$(read_pre_clock_terminal_code "$stage_journal_cursor")" || true
         deployment_failed=true
         break
@@ -748,9 +783,13 @@ for attempt in 1; do
         'pre-clock readiness repair state could not be published; exact Lease was released'
     fi
     repair_wait_status=0
-    wait_for_deployment_repair_revision "$attempted_control_shas_file" "$repair_deadline_epoch" || repair_wait_status=$?
+    candidate_sha="$(wait_for_deployment_repair_revision "$attempted_control_shas_file" "$repair_deadline_epoch")" || repair_wait_status=$?
     case "$repair_wait_status" in
       0)
+        if ! grep -Fqx "$candidate_sha" "$attempted_source_shas_file"; then
+          printf '%s\n' "$candidate_sha" >>"$attempted_source_shas_file"
+        fi
+          rebuild_stage_bundle "$candidate_sha"
         rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
         continue
         ;;

@@ -38,6 +38,9 @@ and bounded operations observations.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read
    models with partial evidence explicit.
+4. First persistent person SENDs coalesce bounded Channel directory work,
+   prepare UID membership and create-only runtime metadata by logical Slot
+   group, then publish directory-ready only after every prepare proposal joins.
 
 ## Invariants and Failure Semantics
 
@@ -49,6 +52,12 @@ and bounded operations observations.
 - Batch adapters preserve cardinality and order. Missing, duplicate,
   contradictory, or unrepresentable evidence is an error, not fabricated
   success.
+- A generic append failure may still resolve through durable idempotency lookup
+  and therefore emits no premature adapter terminal error; final item logging
+  and recovered/unresolved accounting belong to channelappend.
+- Person-directory batching shares duplicate Channel results, detaches canceled
+  waiters without canceling accepted work, and never publishes ready after a
+  membership or runtime-metadata prepare failure.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.
 - Node lifecycle, Slot movement, retention, and Controller changes are executed

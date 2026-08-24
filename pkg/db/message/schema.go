@@ -25,6 +25,9 @@ const (
 	messageSystemIDCursor              uint16 = 5
 	messageSystemIDLatestIndex         uint16 = 6
 	messageSystemIDLatestIndexProgress uint16 = 7
+	messageSystemIDProposalByLast      uint16 = 8
+	messageSystemIDProposalByCommand   uint16 = 9
+	messageSystemIDEntryIdentity       uint16 = 10
 
 	messageColumnIDMessageSeq        uint16 = 1
 	messageColumnIDMessageID         uint16 = 2

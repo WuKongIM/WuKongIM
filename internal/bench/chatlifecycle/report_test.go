@@ -22,6 +22,7 @@ func TestReportJSONAndMarkdownContainVersionedEvidence(t *testing.T) {
 			ReportSchemaVersion, ReportThresholdVersion, ReportDesignProfile,
 			report.ConfigDigest, report.Fence.RunHash, "thresholds", "logical_slot_groups", "worker_generations",
 			"minimum_worker_uptime", "generated", "payload_bytes", "messages", "sync", "lifecycle",
+			"terminal_reasons", "retry_exhausted", "non_retriable", "session_closed",
 			"meta_create", "external_demo_activity", "latency", "resources", "data_filesystem_bytes", "cluster",
 			"verdict", "capacity", string(ReportWarningShortLatencyBreach),
 		} {
@@ -37,6 +38,14 @@ func TestReportJSONAndMarkdownContainVersionedEvidence(t *testing.T) {
 	jsonBody, err := MarshalReport(report, ReportFormatJSON)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, field := range []string{"hot_sendack", "cold_first_create_sendack", "worker_lifecycle_reheat_sendack"} {
+		if !strings.Contains(string(jsonBody), `"`+field+`"`) {
+			t.Fatalf("JSON report omitted classified latency field %q:\n%s", field, jsonBody)
+		}
+	}
+	if strings.Contains(string(jsonBody), `"sendack"`) {
+		t.Fatalf("JSON report retained ambiguous aggregate SENDACK histogram:\n%s", jsonBody)
 	}
 	var decoded Report
 	if err := json.Unmarshal(jsonBody, &decoded); err != nil {
@@ -59,6 +68,34 @@ func TestReportRejectsInconsistentExternalDemoAccounting(t *testing.T) {
 	report.MetaCreate.ExternalDemoActivity++
 	if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
 		t.Fatalf("MarshalReport error = %v, want invalid external Demo accounting", err)
+	}
+}
+
+func TestReportRejectsMalformedClientSendPhaseHistograms(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*Report)
+	}{
+		{
+			name: "pending to write",
+			mutate: func(report *Report) {
+				report.Latency.SendPendingToWrite.BucketUpper[0]++
+			},
+		},
+		{
+			name: "write to ack",
+			mutate: func(report *Report) {
+				report.Latency.SendWriteToACK.BucketUpper[0]++
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := reportFixture(t)
+			test.mutate(&report)
+			if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+				t.Fatalf("MarshalReport() error = %v, want malformed client SEND phase histogram rejection", err)
+			}
+		})
 	}
 }
 

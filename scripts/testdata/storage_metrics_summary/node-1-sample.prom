@@ -1,0 +1,6 @@
+wukongim_storage_commit_queue_depth{store="message",node_name="node-1"} 9
+wukongim_storage_pebble_sstable_size_bytes{store="channel_log",node_name="node-1"} 7000
+wukongim_storage_pebble_compaction_estimated_debt_bytes{store="channel_log",node_name="node-1"} 900
+wukongim_storage_pebble_compactions_in_progress{store="channel_log",node_name="node-1"} 3
+wukongim_storage_pebble_read_amplification{store="channel_log",node_name="node-1"} 7
+wukongim_storage_pebble_disk_usage_bytes{store="channel_log",node_name="node-1"} 8000

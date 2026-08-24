@@ -2,7 +2,9 @@ package client
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
@@ -30,15 +32,23 @@ func (c *Client) readerLoop(conn net.Conn, pending *pendingTracker, session *wkp
 				if f == nil || consumed == 0 {
 					break
 				}
+				observedAt := time.Now()
 				detachPayload(f)
-				if err := c.routeInboundFrameWithPending(f, pending, session, conn); err != nil {
+				if err := c.routeInboundFrameWithPendingAt(f, pending, session, conn, observedAt); err != nil {
 					c.failRead(conn, pending, err)
 					return
 				}
 				buf = buf[consumed:]
 			}
+			if err := c.completeTerminalFenceReadBatch(conn, len(buf)); err != nil {
+				c.failRead(conn, pending, err)
+				return
+			}
 		}
 		if readErr != nil {
+			if len(buf) > 0 {
+				readErr = fmt.Errorf("client: truncated WKProto frame at stream end: %w", io.ErrUnexpectedEOF)
+			}
 			c.failRead(conn, pending, readErr)
 			return
 		}
@@ -52,6 +62,8 @@ func detachPayload(f frame.Frame) {
 		pkt.Payload = append([]byte(nil), pkt.Payload...)
 	case *frame.RecvPacket:
 		pkt.Payload = append([]byte(nil), pkt.Payload...)
+	case *frame.EventPacket:
+		pkt.Data = append([]byte(nil), pkt.Data...)
 	}
 }
 
@@ -66,10 +78,20 @@ func (c *Client) routeInboundFrame(f frame.Frame) error {
 }
 
 func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTracker, session *wkprotoenc.SessionCrypto, conn net.Conn) error {
+	return c.routeInboundFrameWithPendingAt(f, pending, session, conn, time.Now())
+}
+
+func (c *Client) routeInboundFrameWithPendingAt(f frame.Frame, pending *pendingTracker, session *wkprotoenc.SessionCrypto, conn net.Conn, observedAt time.Time) error {
+	if err := c.rejectFrameAfterTerminalFence(f, conn); err != nil {
+		return err
+	}
+	if event, ok := f.(*frame.EventPacket); ok && event != nil && frame.IsTerminalFenceEvent(event) {
+		return c.acceptTerminalFenceAck(event, conn)
+	}
 	switch pkt := f.(type) {
 	case *frame.SendackPacket:
 		if pending != nil {
-			pending.resolve(pkt)
+			pending.resolveAt(pkt, observedAt)
 		}
 		return nil
 	case *frame.RecvPacket:
@@ -149,14 +171,19 @@ func (c *Client) enqueueRecv(pkt *frame.RecvPacket, conn net.Conn) {
 	}
 	recvCh := c.recvCh
 	recvNotify := c.recvNotify
+	ownership := c.recvOwnershipLocked()
+	ownership.pending.Add(1)
 	c.mu.Unlock()
 	if recvCh == nil {
+		ownership.pending.Add(-1)
 		return
 	}
 	select {
 	case recvCh <- pkt:
 	case <-recvNotify:
+		ownership.pending.Add(-1)
 	case <-c.closeCh:
+		ownership.pending.Add(-1)
 	}
 }
 
@@ -165,6 +192,7 @@ func (c *Client) failRead(conn net.Conn, pending *pendingTracker, err error) {
 	if err == nil {
 		err = net.ErrClosed
 	}
+	c.failTerminalFenceForRead(conn, err)
 	var closePending bool
 	c.mu.Lock()
 	if conn != nil {

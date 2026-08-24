@@ -32,10 +32,14 @@ It does not own diagnosis policy, MCP transport, or cloud resource lifecycle.
    safe summary rows without exposing raw profile bytes.
 3. Run inspection combines static identity, provider inventory, diagnostics,
    and one-second cgroup evidence into strict analysis inputs.
+4. Workload inspection prefers the final diagnostic summary; before it exists,
+   it strictly parses the atomic running status with exactly three ordered
+   workers, checked connection/teardown totals, and at most 64 recent events.
 
 ## Invariants and Failure Semantics
 
 - Missing, malformed, truncated, or identity-mismatched evidence fails closed.
+  Running status never reads the command journal or exposes worker logs.
 - Diagnostic summaries accept only the documented operations, statuses, exit
   codes, and verdict combinations.
 - Heap analysis uses the fixed sample type; profile type and duration are not

@@ -18,7 +18,18 @@ type AppendStoredResult struct {
 	Fence      ch.Fence
 	BaseOffset uint64
 	LastOffset uint64
+	Outcome    ch.AppendOutcome
 	Err        error
+}
+
+// QuorumCommittedResult is the complete durable quorum receipt for one
+// in-flight append. Unlike AppendStoredResult, it needs no later follower ACK.
+type QuorumCommittedResult struct {
+	Fence ch.Fence
+	First uint64
+	Last  uint64
+	HW    uint64
+	Err   error
 }
 
 // FollowerAck reports follower replication progress to the leader.
@@ -92,7 +103,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	}
 	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
 	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs, WaiterRecordCounts: waiterRecordCounts}
-	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, Sync: true, ServerAllocatedMessageIDs: serverAllocatedMessageIDs}}}}
+	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, ServerAllocatedMessageIDs: serverAllocatedMessageIDs}}}}
 }
 
 // CancelAppendWaiter removes an append waiter that the client no longer observes.
@@ -141,6 +152,32 @@ func (s *ChannelState) ApplyAppendStored(res AppendStoredResult) Decision {
 	decision := s.completeAppendWaiters(replyOrder)
 	decision.Signals = append(decision.Signals, Signal{Kind: SignalKindReplicate})
 	return decision
+}
+
+// ApplyQuorumCommitted publishes one exact quorum-durable range and completes
+// every covered waiter without entering the displaced Pull/AckOffset path.
+func (s *ChannelState) ApplyQuorumCommitted(res QuorumCommittedResult) Decision {
+	if !s.matchesInflightFence(res.Fence) {
+		return Decision{}
+	}
+	if res.Err != nil {
+		return s.failInflightAppend(res.Err)
+	}
+	inflight := s.InflightAppend
+	count := uint64(len(inflight.Records))
+	if res.First == 0 || count == 0 || res.Last < res.First || res.Last-res.First+1 != count || res.HW != res.Last {
+		return s.failInflightAppend(ch.ErrLogConflict)
+	}
+	s.assignStoredOffsets(inflight.Records, res.First)
+	s.assignInflightRecordsToWaiters(inflight)
+	s.LEO = maxUint64(s.LEO, res.Last)
+	s.HW = maxUint64(s.HW, res.HW)
+	progress := s.Progress[s.LocalNode]
+	progress.Match = maxUint64(progress.Match, res.Last)
+	s.Progress[s.LocalNode] = progress
+	replyOrder := append([]ch.OpID(nil), inflight.WaiterOpIDs...)
+	s.InflightAppend = nil
+	return s.completeAppendWaiters(replyOrder)
 }
 
 // ApplyFollowerAck updates leader-side follower match progress.

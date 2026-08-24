@@ -149,25 +149,6 @@ func TestWriteBatchConditionalChannelCreateAndFlagPatch(t *testing.T) {
 	if err != nil || got.Disband != 1 {
 		t.Fatalf("terminal disband was cleared: channel=%+v err=%v", got, err)
 	}
-	readyBatch := db.NewWriteBatch()
-	if err := readyBatch.EnsureChannelDirectoryReady(7, "managed", 2); err != nil {
-		t.Fatalf("EnsureChannelDirectoryReady(): %v", err)
-	}
-	if err := readyBatch.EnsureChannelDirectoryReady(7, "person", 1); err != nil {
-		t.Fatalf("EnsureChannelDirectoryReady(missing): %v", err)
-	}
-	if err := readyBatch.Commit(); err != nil {
-		t.Fatalf("Commit(directory ready): %v", err)
-	}
-	got, err = db.ForHashSlot(7).GetChannel(ctx, "managed", 2)
-	if err != nil || got.DirectoryReady != 1 || got.Ban != 0 || got.Disband != 1 || got.SubscriberCount != 2 {
-		t.Fatalf("managed channel after directory ready = %+v err=%v", got, err)
-	}
-	created, err := db.ForHashSlot(7).GetChannel(ctx, "person", 1)
-	if err != nil || created.DirectoryReady != 1 {
-		t.Fatalf("created person channel = %+v err=%v", created, err)
-	}
-
 	missingBatch := db.NewWriteBatch()
 	missingResult, err := missingBatch.PatchChannelBusinessFlags(7, "missing", 2, ChannelBusinessFlags{Ban: 1})
 	if err != nil {

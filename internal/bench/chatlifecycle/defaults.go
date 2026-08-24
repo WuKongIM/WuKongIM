@@ -13,6 +13,7 @@ const (
 	formalSyncMaxConversations = 500
 	formalBootstrapLoginRate   = 25
 	formalFilesystemBytes      = int64(500_000_000_000)
+	localFilesystemBytes       = int64(10_000_000_000)
 	formalGroupCatalogTotal    = 2_000
 	formalVeryLargeMembers     = 100_000
 	// localMaxChannelsPerNode covers the five-minute loaded relationship window
@@ -62,7 +63,8 @@ func LocalConfig() Config {
 		GatewayTCPAddrs: []string{"127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"},
 		Cadence:         5 * time.Second,
 	}
-	cfg.Thresholds.MinimumDataFilesystemBytes = 10_000_000_000
+	cfg.Thresholds.MinimumDataFilesystemBytes = localFilesystemBytes
+	cfg.Thresholds.Resource.MinimumLoadFilesystemBytes = localFilesystemBytes
 	cfg.Thresholds.Timeline = TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}
 	return cfg
 }

@@ -48,6 +48,9 @@ depending on their frames, JSON, or concrete cluster runtimes.
   failures remain item-local; batch order and cardinality are preserved.
 - Permission and directory concurrency, batch sync size, page limits, event
   enrichment, and observer data are bounded. No identity enters metric labels.
+  Submitter deadline errors preserve the original cause while attaching only
+  permission, pre-append, submitter, and pre-submit-budget timings for the
+  entry adapter's single existing diagnostic record.
 - Terminal source-Channel checks are authoritative and bypass stale permission
   cache state.
 - Sync reads committed data only, never mutate membership, and treat a missing

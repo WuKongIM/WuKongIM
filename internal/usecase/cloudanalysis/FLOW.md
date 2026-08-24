@@ -39,6 +39,8 @@ It does not own MCP transport, live source adapters, or cloud resource lifecycle
   30 seconds per call and 60 seconds per Analysis Session.
 - Workload inspection returns structured lifecycle, phase windows, actual QPS,
   successful sends, and bounded failures rather than raw reports or parsed prose.
+  During a run its optional live projection contains only fixed worker
+  connection gauges, teardown counters, and recent aggregate changes.
 - Released or inconsistent Run Identity evidence fails closed before a live
   observability source is touched.
 

@@ -9,9 +9,8 @@ summary: Implements deterministic black-box benchmark planning, workers, traffic
 
 `internal/bench` is the reusable runtime behind `cmd/wkbench`. It validates
 benchmark inputs, builds deterministic worker plans, drives black-box target
-setup and WKProto traffic, evaluates bounded evidence, and writes reports.
-Subpackages own config, planning, coordination, workers, workloads, target
-clients, capacity searches, metrics, and reports.
+setup and WKProto traffic, evaluates bounded evidence, and writes reports. It
+also owns strict local-baseline evidence parsing and authorization gates.
 
 ## Boundaries
 
@@ -31,15 +30,20 @@ wkbench run
   -> exact-assignment stop and stable evidence collection
   -> verdict and report directory
 
-capacity command
-  -> discover an already-running target
-  -> run bounded attempts with one temporary worker
-  -> classify actual throughput, errors, latency, and cleanup
-
 worker assignment
   -> exact run_id + assignment_id generation
   -> bounded phase task and owned sessions
   -> synchronous admission fence, joined teardown, terminal snapshot
+
+reviewed external terminal cut
+  -> require one target, one worker, and advertised prepare capability
+  -> target grant + joined SEND/receive proof + product queue convergence
+  -> exact server marker ACK + immutable terminal_pre_close cut
+
+native local baseline
+  -> fresh product generations for fixed 250/500/750/1,000 SEND/s steps
+  -> typed closure, process/storage/I/O evidence, and sealed attestation
+  -> optional fresh ten-minute 1,000 SEND/s soak only after four clean steps
 ```
 
 ## Invariants and Failure Semantics
@@ -54,8 +58,27 @@ worker assignment
 - Client publisher, RECV, SENDACK, error, inflight, and worker queues are
   explicitly bounded and lossless. Backpressure or cancellation is visible;
   evidence is not evicted to keep offered load moving.
+  Queue-to-consumer handoff leases keep dequeued work observable until the
+  matching reader owns it; terminal receive proof requires two separated,
+  stable zero-work cuts and complete physical RECV/RECVACK counters.
 - Measured windows stop scheduling at their deadline and report achieved QPS;
-  they do not extend time to drain an imagined offered schedule.
+  admitted work drains only inside the same bounded cooldown. Explicit generic
+  retry uses one logical identity, fresh ClientSeq values, and only the fixed
+  100 ms, 500 ms, and 2 s delays.
+- High-concurrency round-robin group traffic selects an idle member only at
+  admission and shares sharded per-session credits. Reviewed group runs also
+  prove expected, received, and acknowledged fanout with bounded anonymous
+  multiset witnesses; equal totals cannot hide a duplicate and a missing peer.
+- External terminal proof is not a TCP half-close or buffer observation. It
+  requires the grant-bound marker plus Gateway, append, delivery, ACK-binding,
+  and client receive convergence; a failed seal still performs ordinary stop.
+- Report schemas keep hot, first-create, and reheat SENDACK histograms distinct.
+  Running status and retained artifacts contain closed reason vocabularies,
+  fixed aggregates, and redacted credentials, never raw identities or errors.
+- Local-baseline authorization replays no-follow manifests, typed closures,
+  process generations, immutable config/binary digests, and complete storage
+  and host evidence. Missing, stale, contradictory, or transplanted evidence
+  fails closed and never becomes a formal or capacity verdict.
 - Target and response parsing is bounded and redacted. Reports keep fixed
   counters, histograms, reason codes, and bounded samples without raw UIDs,
   Channel IDs, credentials, response bodies, or arbitrary error text.
@@ -72,7 +95,6 @@ worker assignment
 
 ## Update Triggers
 
-- Package ownership or the black-box/public-API boundary changes.
-- Assignment fencing, phase ordering, stop/join, or evidence stability changes.
-- Queue, concurrency, response, retry, or report bounds change.
-- Planning determinism, measured-window semantics, or verdict attribution changes.
+- Package ownership, public-API boundaries, assignment fencing, or evidence
+  stability changes.
+- Queue, retry, report, planning, measured-window, or verdict semantics change.

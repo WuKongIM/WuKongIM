@@ -25,6 +25,16 @@ func TestChannelRuntimeProbeRequestJSONRoundTripGeneratedSelector(t *testing.T) 
 	require.Equal(t, want, got)
 }
 
+func TestBenchCapabilitiesRoundTripTerminalFenceSupport(t *testing.T) {
+	want := BenchCapabilities{Enabled: true, Version: "bench/v1", Supports: BenchCapabilitiesSupports{TerminalFencePrepare: true}}
+	body, err := json.Marshal(want)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"terminal_fence_prepare":true`)
+	var got BenchCapabilities
+	require.NoError(t, json.Unmarshal(body, &got))
+	require.True(t, got.Supports.TerminalFencePrepare)
+}
+
 func TestChannelRuntimeProbeRequestJSONRoundTripExplicitSelector(t *testing.T) {
 	want := ChannelRuntimeProbeRequest{
 		Channels: []ChannelRuntimeChannelIdentity{

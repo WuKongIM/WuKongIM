@@ -204,9 +204,7 @@ func (o *Observer) poll(
 				result.serviceHealthy = false
 			}
 			snapshot, err := observed.DebugCluster(roundCtx)
-			if err != nil {
-				result.serviceHealthy = false
-			} else {
+			if err == nil {
 				result.snapshot = snapshot
 				result.hasSnapshot = true
 			}

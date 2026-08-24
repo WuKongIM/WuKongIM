@@ -42,7 +42,12 @@ It does not select subscribers, append messages, or build gateway packets.
 - RECVACK and session-close remove only matching owner-local identities;
   activity-throttled expiry avoids full tracker scans.
 - `Stop` closes admission, waits for enqueuers, and drains every accepted plan
-  within context, leaving a successful stop restartable.
+  within context, resets transient ACK state, and leaves a successful stop
+  restartable.
+- `Quiesce` is the terminal-evidence variant: it drains admission, workers,
+  owner pushes, and then pending ACK bindings without resetting them. A caller
+  timeout stops only that wait; later calls join the same detached drain.
+  Quiesce does not prove transport flush or remote acknowledgement.
 - Identity samples never become metric labels; observation callbacks are
   bounded and aggregate tracker work.
 

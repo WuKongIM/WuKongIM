@@ -556,10 +556,48 @@ func TestNewOpenAPIFromOIDCEnvironmentRequiresTemporaryCredentials(t *testing.T)
 	t.Setenv(credentialAccessKeyIDEnv, "temporary-access-key")
 	t.Setenv(credentialAccessKeySecretEnv, "temporary-secret")
 	t.Setenv(credentialSecurityTokenEnv, "")
+	t.Setenv(cloudShellAuthorizationEnv, "")
 
 	_, err := NewOpenAPIFromOIDCEnvironment(RegionHangzhou)
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("NewOpenAPIFromOIDCEnvironment() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestNewOpenAPIFromOIDCEnvironmentAcceptsVerifiedCloudShellCredential(t *testing.T) {
+	t.Setenv(credentialAccessKeyIDEnv, "ephemeral-cloud-shell-key")
+	t.Setenv(credentialAccessKeySecretEnv, "ephemeral-cloud-shell-secret")
+	t.Setenv(credentialSecurityTokenEnv, "")
+	t.Setenv(cloudShellAuthorizationEnv, cloudShellAuthorizationValue)
+
+	if _, err := NewOpenAPIFromOIDCEnvironment(RegionHangzhou); err != nil {
+		t.Fatalf("NewOpenAPIFromOIDCEnvironment() rejected verified Cloud Shell credential: %v", err)
+	}
+}
+
+func TestValidCallerIdentitySeparatesRoleAndVerifiedCloudShellShapes(t *testing.T) {
+	tests := []struct {
+		name       string
+		accountID  string
+		arn        string
+		identity   string
+		roleID     string
+		cloudShell bool
+		want       bool
+	}{
+		{name: "assumed role", accountID: "123", arn: "acs:ram::123:assumed-role/provisioner/session", identity: "AssumedRoleUser", roleID: "role:session", want: true},
+		{name: "root rejected by default", accountID: "123", arn: "acs:ram::123:root", identity: "Account"},
+		{name: "verified Cloud Shell root", accountID: "123", arn: "acs:ram::123:root", identity: "Account", cloudShell: true, want: true},
+		{name: "Cloud Shell marker cannot bless another account ARN", accountID: "123", arn: "acs:ram::456:root", identity: "Account", cloudShell: true},
+		{name: "Cloud Shell marker cannot bless a user", accountID: "123", arn: "acs:ram::123:user/operator", identity: "Account", cloudShell: true},
+		{name: "Cloud Shell account must not carry role identity", accountID: "123", arn: "acs:ram::123:root", identity: "Account", roleID: "role", cloudShell: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := validCallerIdentity(test.accountID, test.arn, test.identity, test.roleID, test.cloudShell); got != test.want {
+				t.Fatalf("validCallerIdentity() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 

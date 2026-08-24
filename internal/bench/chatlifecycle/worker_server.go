@@ -75,15 +75,29 @@ type WorkerServerConfig struct {
 	Factory      WorkerGenerationFactory
 	DrainTimeout time.Duration
 	Now          func() time.Time
+	// ReportGrantFailure receives one bounded post-admission terminal event.
+	// Implementations must not retain raw errors or block normal grant handling.
+	ReportGrantFailure func(WorkerGrantFailureEvent)
+}
+
+// WorkerGrantFailureEvent is the identity-free diagnostic emitted even when
+// the HTTP caller deadline suppresses the cached runtime response.
+type WorkerGrantFailureEvent struct {
+	Event       string             `json:"event"`
+	WorkerID    uint64             `json:"worker_id"`
+	Sequence    uint64             `json:"sequence"`
+	RuntimeCode RuntimeFailureCode `json:"runtime_code,omitempty"`
+	Cause       string             `json:"cause"`
 }
 
 // WorkerServer hosts only the authenticated chat-lifecycle worker protocol.
 type WorkerServer struct {
-	tokenHash    [sha256.Size]byte
-	factory      WorkerGenerationFactory
-	drainTimeout time.Duration
-	now          func() time.Time
-	mux          *http.ServeMux
+	tokenHash          [sha256.Size]byte
+	factory            WorkerGenerationFactory
+	drainTimeout       time.Duration
+	now                func() time.Time
+	reportGrantFailure func(WorkerGrantFailureEvent)
+	mux                *http.ServeMux
 
 	mu               sync.Mutex
 	phase            WorkerPhase
@@ -138,13 +152,14 @@ func NewWorkerServer(config WorkerServerConfig) (*WorkerServer, error) {
 		config.Now = time.Now
 	}
 	server := &WorkerServer{
-		tokenHash:      sha256.Sum256([]byte(config.ControlToken)),
-		factory:        config.Factory,
-		drainTimeout:   config.DrainTimeout,
-		now:            config.Now,
-		mux:            http.NewServeMux(),
-		phase:          WorkerPhaseUnassigned,
-		unexpectedExit: make(chan struct{}),
+		tokenHash:          sha256.Sum256([]byte(config.ControlToken)),
+		factory:            config.Factory,
+		drainTimeout:       config.DrainTimeout,
+		now:                config.Now,
+		reportGrantFailure: config.ReportGrantFailure,
+		mux:                http.NewServeMux(),
+		phase:              WorkerPhaseUnassigned,
+		unexpectedExit:     make(chan struct{}),
 	}
 	server.routes()
 	return server, nil
@@ -660,10 +675,17 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 		s.lastGrantFailed = grantErr != nil
 		s.lastGrantRuntimeCode = workerRuntimeFailureCode(grantErr)
 		runtimeCode := s.lastGrantRuntimeCode
+		reporter := s.reportGrantFailure
 		s.grantInFlight = nil
 		close(task.done)
 		s.mu.Unlock()
 		if grantErr != nil {
+			if reporter != nil {
+				reporter(WorkerGrantFailureEvent{
+					Event: "wkbench.chat_lifecycle.worker_grant_failure", WorkerID: workerID,
+					Sequence: grant.Sequence, RuntimeCode: runtimeCode, Cause: workerGrantFailureCause(grantErr),
+				})
+			}
 			if request.Context().Err() != nil {
 				return
 			}
@@ -832,15 +854,23 @@ func (s *WorkerServer) statusLocked() WorkerStatus {
 	if s.phase == WorkerPhaseRunning && !s.generationExited && s.generation != nil {
 		trafficReady = s.generation.TrafficReady()
 	}
+	activeGrantSequence := uint64(0)
+	if s.grantInFlight != nil {
+		activeGrantSequence = s.grantInFlight.request.Sequence
+	}
 	return WorkerStatus{
-		RunID:        s.assignment.RunID,
-		AssignmentID: s.assignment.AssignmentID,
-		Phase:        s.phase,
-		Generation:   s.assignment.Generation,
-		WorkerID:     s.assignment.WorkerID,
-		WorkerCount:  s.assignment.WorkerCount,
-		Unexpected:   s.unexpected,
-		TrafficReady: trafficReady,
+		RunID:                s.assignment.RunID,
+		AssignmentID:         s.assignment.AssignmentID,
+		Phase:                s.phase,
+		Generation:           s.assignment.Generation,
+		WorkerID:             s.assignment.WorkerID,
+		WorkerCount:          s.assignment.WorkerCount,
+		Unexpected:           s.unexpected,
+		TrafficReady:         trafficReady,
+		ActiveGrantSequence:  activeGrantSequence,
+		LastGrantSequence:    s.lastGrantRequest.Sequence,
+		LastGrantFailed:      s.lastGrantFailed,
+		LastGrantRuntimeCode: s.lastGrantRuntimeCode,
 	}
 }
 
@@ -964,7 +994,8 @@ func sumWorkerGrantCounts(counts WorkerGrantCounts) (uint64, bool) {
 }
 
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
-	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts {
+	terminal, terminalOK := snapshot.Messages.TerminalReasons.total()
+	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts || !terminalOK || terminal != snapshot.Messages.Terminal {
 		return false
 	}
 	thresholds := snapshot.Sync.Thresholds
@@ -1022,6 +1053,30 @@ func workerRuntimeFailureCode(err error) RuntimeFailureCode {
 		return runtimeErr.Code()
 	}
 	return ""
+}
+
+// workerGrantFailureCause projects private errors into a fixed diagnostic
+// vocabulary. Raw errors can contain transient transport or identity data and
+// must never cross the retained worker log boundary.
+func workerGrantFailureCause(err error) string {
+	switch {
+	case err == nil:
+		return "none"
+	case workerRuntimeFailureCode(err) != "":
+		return "runtime"
+	case errors.Is(err, errSessionOffline):
+		return "session_offline"
+	case errors.Is(err, errEngineConfig), errors.Is(err, errTrafficGeneratorConfig):
+		return "invariant"
+	case errors.Is(err, errEngineNotRunning):
+		return "generation_stopped"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	default:
+		return "unclassified"
+	}
 }
 
 func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
@@ -1469,7 +1524,7 @@ func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
 	for {
 		drain := g.verifier.DrainSnapshot()
 		if drain.PendingUnfinished == 0 && drain.CorrelationOutstanding == 0 {
-			return nil
+			return g.engine.FencePlannedShutdown(ctx)
 		}
 		if _, err := g.engine.AdvanceContext(ctx, g.clock.Now()); err != nil {
 			return err
@@ -1537,25 +1592,34 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 	generated := runtime.Generated
 	verification := g.verifier.Snapshot()
 	evidence := g.evidence.Snapshot()
+	firstAttemptFailures, ok := productFirstAttemptFailures(verification)
+	if !ok {
+		return WorkerSnapshot{}, errWorkerServerConfig
+	}
 	return WorkerSnapshot{
 		Generation: engine.Generation, WorkerID: engine.WorkerID, WorkerCount: engine.WorkerCount,
 		Sessions: WorkerSessionSnapshot{
-			Target: engine.OnlineTarget, Online: engine.Online, Starting: engine.LoginStarting, TrafficReady: engine.TrafficReady,
+			Target: engine.OnlineTarget, Online: engine.Online, Starting: engine.LoginStarting, Closing: engine.Closing, TrafficReady: engine.TrafficReady,
 			PlannedNew: engine.LoginPlannedNew, PlannedReturning: engine.LoginPlannedReturning,
 			CompletedNew: engine.LoginCompletedNew, CompletedReturning: engine.LoginCompletedReturning, Expired: engine.SessionsExpired,
+			CloseReasons: engine.SessionCloseReasons,
 		},
 		Generated: WorkerGeneratedSnapshot{
 			Primary: generated.PrimaryReleased, Person: generated.Person, Group: generated.Group,
 			Canary: generated.Canaries, PayloadBytes: generated.PayloadBytes,
 		},
-		MetaCreate: WorkerMetaCreateSnapshot{PersonByHashSlot: engine.MetaCreatePersonByHashSlot},
+		MetaCreate: WorkerMetaCreateSnapshot{
+			PersonByHashSlot: engine.MetaCreatePersonByHashSlot,
+			GroupByHashSlot:  engine.MetaCreateGroupByHashSlot,
+		},
 		Messages: WorkerMessageSnapshot{
 			Sent: verification.Sent, SendAttempts: verification.Attempts, SendAcknowledged: verification.Acknowledged,
-			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: verification.FirstAttemptFailures,
+			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: firstAttemptFailures,
 			SendRejected: verification.SendackRejections, Received: verification.Received,
 			ReceiveAcknowledged: verification.ReceiveAcknowledged, ReceiveAckFailures: verification.ReceiveAckFailures,
 			RetryAttempts: verification.RetryAttempts, Terminal: verification.Terminal,
-			Losses: verification.Losses, Duplicates: verification.Duplicates,
+			TerminalReasons: verification.TerminalReasons,
+			Losses:          verification.Losses, Duplicates: verification.Duplicates,
 			Corruptions: verification.Corruptions, SequenceRegressions: verification.SequenceRegressions,
 		},
 		Sync: WorkerSyncSnapshot{
@@ -1568,8 +1632,12 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			ConnectLatency: engine.GatewayConnectLatency, Latency: engine.ConversationSyncLatency,
 			Thresholds: engine.ConversationSyncThresholds,
 		},
-		SendackLatency: verification.SendackLatency,
-		RecvackLatency: verification.RecvackLatency,
+		HotSendackLatency:             verification.HotSendackLatency,
+		ColdFirstCreateSendackLatency: verification.ColdFirstCreateSendackLatency,
+		LifecycleReheatSendackLatency: verification.LifecycleReheatSendackLatency,
+		RecvackLatency:                verification.RecvackLatency,
+		SendPendingToWriteLatency:     engine.SendPendingToWriteLatency,
+		SendWriteToAckLatency:         engine.SendWriteToAckLatency,
 		Correlation: WorkerCorrelationSnapshot{
 			PendingUnfinished: verification.PendingUnfinished, Outstanding: verification.CorrelationCurrent,
 			Sampled: verification.Sampled, Delivered: verification.SampledDelivered, Expired: verification.SampledExpired,
@@ -1580,9 +1648,18 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		Harness: WorkerHarnessSnapshot{
 			Classification: evidence.Classification, Failures: engine.HarnessInvalid,
 			CommandSaturation: engine.CommandSaturation, OfferedUnderdelivery: engine.ActivityUnderDelivered,
+			PlannedCancellations: engine.ActivityPlannedCanceled,
 		},
 		Evidence: evidence,
 	}, nil
+}
+
+func productFirstAttemptFailures(verification VerifierSnapshot) (uint64, bool) {
+	if verification.FirstAttemptFailures > verification.FirstAttempts ||
+		verification.FirstAttemptLocalAdmissionFailures > verification.FirstAttemptFailures {
+		return 0, false
+	}
+	return verification.FirstAttemptFailures - verification.FirstAttemptLocalAdmissionFailures, true
 }
 
 func workerQueueSnapshot(engine EngineSnapshot) WorkerQueueSnapshot {

@@ -32,6 +32,10 @@ func TestStateMachineApplyNoopCommand(t *testing.T) {
 	if string(result) != ApplyResultOK {
 		t.Fatalf("Apply(noop) result = %q, want %q", result, ApplyResultOK)
 	}
+	durable := sm.(multiraft.DurableAppliedStateMachine)
+	if got, err := durable.DurableAppliedIndex(ctx); err != nil || got != 1 {
+		t.Fatalf("DurableAppliedIndex() = %d, %v; want 1, nil", got, err)
+	}
 }
 
 func TestStateMachineApplyUpsertsUserAndChannel(t *testing.T) {
@@ -712,23 +716,6 @@ func TestStateMachineAppliesChannelLatest(t *testing.T) {
 	}
 	if got.LastMessageID != 100 || got.LastMessageSeq != 10 || string(got.Payload) != "hello" {
 		t.Fatalf("latest after upsert = %#v, want message 100 seq 10", got)
-	}
-}
-
-func TestStateMachineEnsuresChannelDirectoryReady(t *testing.T) {
-	ctx := context.Background()
-	db := openTestDB(t)
-	sm := mustNewStateMachine(t, db, 11)
-
-	if _, err := sm.Apply(ctx, multiraft.Command{
-		SlotID: 11, Index: 1, Term: 1,
-		Data: EncodeEnsureChannelDirectoryReadyCommand("u1@u2", 1),
-	}); err != nil {
-		t.Fatalf("Apply(ensure channel directory ready) error = %v", err)
-	}
-	got, err := db.ForSlot(11).GetChannel(ctx, "u1@u2", 1)
-	if err != nil || got.DirectoryReady != 1 {
-		t.Fatalf("GetChannel() = %+v err=%v", got, err)
 	}
 }
 

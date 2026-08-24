@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,42 +14,81 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
-const asyncSendPanicValueMaxLen = 256
+const (
+	asyncSendPanicValueMaxLen        = 256
+	asyncSendOrderingShardsPerWorker = 4
+)
+
+var asyncSendQueuePublicationRevision atomic.Uint64
+
+func nextAsyncSendQueuePublicationRevision() uint64 {
+	for {
+		if revision := asyncSendQueuePublicationRevision.Add(1); revision != 0 {
+			return revision
+		}
+	}
+}
 
 // sendExecutor admits SEND frames into a bounded workqueue-backed shard mailbox.
 type sendExecutor struct {
 	// server owns session and gateway state needed by send tasks.
 	server *Server
-	// workers is the normalized send worker count and shard count.
+	// workers is the normalized maximum concurrent send worker count.
 	workers int
+	// shards is the bounded logical ordering partition count. It is deliberately
+	// larger than workers so unrelated sessions do not share a worker-local
+	// head-of-line queue while each session still remains strictly ordered.
+	shards int
 	// capacity is the normalized maximum admitted send backlog.
 	capacity int
 	// shardCapacity is the per-shard mailbox admission bound.
 	shardCapacity int
+	// queueMu linearizes aggregate queue occupancy with its publication revision.
+	queueMu sync.Mutex
 	// queued tracks SEND tasks accepted by gateway but not yet entering dispatch.
-	queued atomic.Int64
+	queued int64
+	// queueRevision orders absolute observations across executor generations.
+	queueRevision uint64
 	// shardQueued tracks per-shard accepted tasks before dispatch begins.
 	shardQueued []atomic.Int64
 	// closed prevents new send admission after shutdown.
 	closed atomic.Bool
+	// admissionMu linearizes closing SEND admission with accepted task ownership.
+	admissionMu sync.Mutex
+	// admitted owns every caller that crossed SEND admission until its task has
+	// completed dispatch or the mailbox rejects it before ownership transfer.
+	admitted sync.WaitGroup
+	// drainOnce starts the non-cancelable accepted-work drain at most once.
+	drainOnce sync.Once
+	// drained closes after every SEND admitted before closure completes dispatch.
+	drained chan struct{}
+	// closeOnce releases the mailbox only after the accepted-work drain. It
+	// prevents Stop callers with expired release budgets from canceling work.
+	closeOnce sync.Once
 	// mailbox owns shard-local scheduling and worker execution.
 	mailbox *workqueue.ShardedMailbox[asyncDispatchTask]
 	// releaseTimeout bounds graceful mailbox pool release.
 	releaseTimeout time.Duration
 	// panicC records worker panics for package tests and diagnostics.
 	panicC chan any
+	// goroutines owns the bounded drain/release waiters outside the mailbox pool.
+	goroutines *goruntimeregistry.Registry
 }
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
 	opts = gatewaytypes.NormalizeRuntimeOptions(opts)
+	shards := asyncSendLogicalShardCount(opts.AsyncSendWorkers, opts.AsyncSendQueueCapacity)
 	e := &sendExecutor{
 		server:         s,
 		workers:        opts.AsyncSendWorkers,
+		shards:         shards,
 		capacity:       opts.AsyncSendQueueCapacity,
-		shardCapacity:  asyncSendShardCapacity(opts.AsyncSendQueueCapacity, opts.AsyncSendWorkers),
-		shardQueued:    make([]atomic.Int64, opts.AsyncSendWorkers),
+		shardCapacity:  asyncSendShardCapacity(opts.AsyncSendQueueCapacity, shards),
+		shardQueued:    make([]atomic.Int64, shards),
 		releaseTimeout: opts.AsyncPoolReleaseTimeout,
 		panicC:         make(chan any, 1),
+		drained:        make(chan struct{}),
+		goroutines:     opts.Goroutines,
 	}
 
 	limits := gatewaySendBatchLimits(s)
@@ -56,7 +96,7 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 		Name:              "gateway-send",
 		Goroutines:        opts.Goroutines,
 		Task:              goruntimeregistry.TaskGatewayAsyncDispatch,
-		Shards:            e.workers,
+		Shards:            e.shards,
 		Workers:           e.workers,
 		QueueSizePerShard: e.shardCapacity,
 		BatchMaxItems:     limits.maxRecords,
@@ -91,16 +131,43 @@ func asyncSendShardCapacity(totalCapacity, shards int) int {
 	return capacity
 }
 
+func asyncSendLogicalShardCount(workers, totalCapacity int) int {
+	if workers <= 0 {
+		workers = 1
+	}
+	if totalCapacity <= 0 {
+		totalCapacity = 1
+	}
+	if workers == 1 {
+		return 1
+	}
+	// Division before multiplication keeps the calculation overflow-safe while
+	// bounding allocated shard queues by the configured global item capacity.
+	if workers <= totalCapacity/asyncSendOrderingShardsPerWorker {
+		return workers * asyncSendOrderingShardsPerWorker
+	}
+	return totalCapacity
+}
+
 func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {
-	if e == nil || e.mailbox == nil || send == nil || e.closed.Load() || e.workers <= 0 {
+	if e == nil || e.mailbox == nil || send == nil || e.shards <= 0 {
 		return false
 	}
-	shard := asyncSendShardIndex(state, send, e.workers)
+	e.admissionMu.Lock()
+	if e.closed.Load() {
+		e.admissionMu.Unlock()
+		return false
+	}
+	e.admitted.Add(1)
+	e.admissionMu.Unlock()
+	shard := asyncSendShardIndex(state, send, e.shards)
 	if !e.reserve() {
+		e.completeAdmission()
 		return false
 	}
 	if !e.reserveShard(shard) {
 		e.consume(1)
+		e.completeAdmission()
 		return false
 	}
 
@@ -113,6 +180,7 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	if err := e.mailbox.SubmitHash(context.Background(), uint64(shard), task); err != nil {
 		e.consumeShard(shard, 1)
 		e.consume(1)
+		e.completeAdmission()
 		return false
 	}
 	return true
@@ -122,19 +190,73 @@ func (e *sendExecutor) stop() {
 	if e == nil || e.mailbox == nil {
 		return
 	}
-	e.closed.Store(true)
+	// Stop reuses the terminal drain: accepted SEND work is never dropped just
+	// because a caller's earlier deadline elapsed.
 	ctx, cancel := context.WithTimeout(context.Background(), e.releaseTimeout)
-	defer cancel()
-	if err := e.mailbox.Close(ctx); err != nil {
-		e.resetDepths()
+	err := e.drain(ctx)
+	cancel()
+	if err != nil {
+		e.closeMailboxAfterDrain()
+		return
 	}
+	e.closeMailboxAfterDrain()
+}
+
+func (e *sendExecutor) closeMailboxAfterDrain() {
+	if e == nil || e.mailbox == nil {
+		return
+	}
+	e.closeOnce.Do(func() {
+		goruntimeregistry.SafeGo(e.goroutines, goruntimeregistry.TaskGatewayAsyncDrain, func() {
+			<-e.drained
+			_ = e.mailbox.Close(context.Background())
+			e.resetDepths()
+		})
+	})
+}
+
+// drain closes SEND admission and waits for every already accepted mailbox
+// task. The background drain is deliberately independent from caller context:
+// a timeout stops only that caller's wait, so a later DrainSends call can
+// observe the same accepted work finishing without a reset or drop.
+func (e *sendExecutor) drain(ctx context.Context) error {
+	if e == nil || e.mailbox == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.admissionMu.Lock()
+	e.closed.Store(true)
+	e.admissionMu.Unlock()
+	e.drainOnce.Do(func() {
+		goruntimeregistry.SafeGo(e.goroutines, goruntimeregistry.TaskGatewayAsyncDrain, func() {
+			e.admitted.Wait()
+			close(e.drained)
+		})
+	})
+	select {
+	case <-e.drained:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (e *sendExecutor) completeAdmission() {
+	if e == nil {
+		return
+	}
+	e.admitted.Done()
 }
 
 func (e *sendExecutor) depth() int {
 	if e == nil {
 		return 0
 	}
-	return int(e.queued.Load())
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	return int(e.queued)
 }
 
 func (e *sendExecutor) totalCapacity() int {
@@ -148,15 +270,14 @@ func (e *sendExecutor) reserve() bool {
 	if e == nil {
 		return false
 	}
-	for {
-		queued := e.queued.Load()
-		if queued < 0 || queued >= int64(e.capacity) {
-			return false
-		}
-		if e.queued.CompareAndSwap(queued, queued+1) {
-			return true
-		}
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	if e.queued < 0 || e.queued >= int64(e.capacity) {
+		return false
 	}
+	e.queued++
+	e.queueRevision = nextAsyncSendQueuePublicationRevision()
+	return true
 }
 
 func (e *sendExecutor) reserveShard(shard int) bool {
@@ -180,6 +301,11 @@ func (e *sendExecutor) handleMailboxBatch(_ context.Context, batch workqueue.Mai
 	}
 	e.consumeShard(batch.Shard, len(batch.Items))
 	e.consume(len(batch.Items))
+	defer func() {
+		for range batch.Items {
+			e.completeAdmission()
+		}
+	}()
 	e.dispatchMailboxBatch(batch.Items)
 	return nil
 }
@@ -253,11 +379,13 @@ func (e *sendExecutor) consume(count int) {
 	if e == nil || count <= 0 {
 		return
 	}
-	remaining := e.queued.Add(-int64(count))
-	if remaining >= 0 {
-		return
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	e.queued -= int64(count)
+	if e.queued < 0 {
+		e.queued = 0
 	}
-	e.queued.Add(-remaining)
+	e.queueRevision = nextAsyncSendQueuePublicationRevision()
 }
 
 func (e *sendExecutor) consumeShard(shard int, count int) {
@@ -275,9 +403,26 @@ func (e *sendExecutor) resetDepths() {
 	if e == nil {
 		return
 	}
-	e.queued.Store(0)
+	e.queueMu.Lock()
+	e.queued = 0
+	e.queueRevision = nextAsyncSendQueuePublicationRevision()
+	e.queueMu.Unlock()
 	for i := range e.shardQueued {
 		e.shardQueued[i].Store(0)
+	}
+}
+
+// queueSnapshot captures occupancy and its ordering revision under one lock.
+func (e *sendExecutor) queueSnapshot() gatewaytypes.AsyncSendQueueEvent {
+	if e == nil {
+		return gatewaytypes.AsyncSendQueueEvent{}
+	}
+	e.queueMu.Lock()
+	defer e.queueMu.Unlock()
+	return gatewaytypes.AsyncSendQueueEvent{
+		Depth:    int(e.queued),
+		Capacity: e.capacity,
+		Revision: e.queueRevision,
 	}
 }
 

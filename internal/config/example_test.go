@@ -111,9 +111,6 @@ func TestGatewayExamplesUseQualifiedAsyncSendBatchLimit(t *testing.T) {
 		files = append(files, matches...)
 	}
 
-	want := "# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.\n" +
-		"# The 128-record limit is qualified for sustained high-QPS workloads.\n" +
-		"default_session_async_send_batch_max_records = 128"
 	foundGateway := 0
 	for _, file := range files {
 		content, err := os.ReadFile(file)
@@ -124,6 +121,15 @@ func TestGatewayExamplesUseQualifiedAsyncSendBatchLimit(t *testing.T) {
 			continue
 		}
 		foundGateway++
+		want := "# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.\n" +
+			"# The 128-record limit is qualified for sustained high-QPS workloads.\n" +
+			"default_session_async_send_batch_max_records = 128"
+		if strings.Contains(filepath.ToSlash(file), "scripts/wukongim/wukongim-node") {
+			want = "# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.\n" +
+				"# The reviewed chat-lifecycle profile keeps one SEND per dispatch because each\n" +
+				"# sender already allows only one in-flight SENDACK operation.\n" +
+				"default_session_async_send_batch_max_records = 1"
+		}
 		if !strings.Contains(string(content), want) {
 			t.Errorf("%s must document the qualified gateway async SEND batch limit", file)
 		}

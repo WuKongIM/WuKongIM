@@ -1330,7 +1330,7 @@ func (s *serviceBlockingAppendStore) AppendLeader(ctx context.Context, req store
 	select {
 	case <-s.parent.unblock:
 	case <-ctx.Done():
-		return store.AppendLeaderResult{}, ctx.Err()
+		return store.AppendLeaderResult{Outcome: store.AppendOutcomeDefinitelyNotWritten}, ctx.Err()
 	}
 	return s.ChannelStore.AppendLeader(ctx, req)
 }

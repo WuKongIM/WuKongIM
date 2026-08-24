@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 var benchmarkMessageSendBatchSink []SendBatchItemResult
@@ -30,6 +31,28 @@ func BenchmarkMessageSendBatchWithHook(b *testing.B) {
 		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
 			app := New(Options{Submitter: benchmarkMessageSubmitter{}, SendHook: benchmarkMessageSendHook{}})
 			items := benchmarkMessageSendBatchItems(count)
+			b.ReportAllocs()
+			b.SetBytes(int64(count * len(items[0].Command.Payload)))
+			for i := 0; i < b.N; i++ {
+				benchmarkMessageSendBatchSink = app.SendBatch(items)
+				if len(benchmarkMessageSendBatchSink) != count {
+					b.Fatalf("results = %d, want %d", len(benchmarkMessageSendBatchSink), count)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkMessageSendBatchWithDeadline(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1024} {
+		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
+			app := New(Options{Submitter: benchmarkMessageSubmitter{}})
+			items := benchmarkMessageSendBatchItems(count)
+			deadline := time.Now().Add(time.Hour)
+			for i := range items {
+				items[i].Context = context.Background()
+				items[i].Deadline = deadline
+			}
 			b.ReportAllocs()
 			b.SetBytes(int64(count * len(items[0].Command.Payload)))
 			for i := 0; i < b.N; i++ {

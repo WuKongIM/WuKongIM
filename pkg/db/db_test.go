@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -17,8 +18,8 @@ func TestDefaultOptionsFillPathsAndDurability(t *testing.T) {
 	if opts.MessagePath == "" || opts.MetaPath == "" {
 		t.Fatalf("paths not filled: %#v", opts)
 	}
-	if opts.Commit.FlushWindow <= 0 {
-		t.Fatalf("flush window not filled: %#v", opts.Commit)
+	if got, want := opts.Commit.FlushWindow, 500*time.Microsecond; got != want {
+		t.Fatalf("commit flush window = %s, want %s", got, want)
 	}
 }
 

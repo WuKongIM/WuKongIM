@@ -136,6 +136,45 @@ func TestAppStopReturnsManagedGoroutineWaitEvidence(t *testing.T) {
 	close(release)
 }
 
+func TestAppStopFencesGatewayHandlerBeforeStoppingGatewayRuntime(t *testing.T) {
+	handler := accessgateway.New(accessgateway.Options{})
+	gatewayRuntime := &assertGatewayShutdownFenceRuntime{t: t, handler: handler}
+	app := &App{
+		started:        true,
+		gatewayStarted: true,
+		gateway:        gatewayRuntime,
+		handler:        handler,
+		logger:         wklog.NewNop(),
+	}
+
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if !gatewayRuntime.stopped {
+		t.Fatal("gateway runtime was not stopped")
+	}
+}
+
+type assertGatewayShutdownFenceRuntime struct {
+	t       *testing.T
+	handler *accessgateway.Handler
+	stopped bool
+}
+
+func (r *assertGatewayShutdownFenceRuntime) Start() error { return nil }
+
+func (r *assertGatewayShutdownFenceRuntime) Stop() error {
+	r.t.Helper()
+	// A package-level behavior assertion lives in access/gateway; this runtime
+	// verifies only that App.Stop crossed the handler boundary before invoking
+	// the gateway runtime stop hook.
+	if !r.handler.IsPlannedShutdown() {
+		r.t.Fatal("gateway handler planned-shutdown fence was not set before runtime Stop")
+	}
+	r.stopped = true
+	return nil
+}
+
 func TestAppStopBeforeStartReleasesChannelAppendPools(t *testing.T) {
 	registry := goruntimeregistry.Default()
 	baseline := registry.Baseline()

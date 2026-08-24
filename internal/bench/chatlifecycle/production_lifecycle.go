@@ -27,6 +27,9 @@ type ProductionLifecycleProber interface {
 // ProductionLifecycleOptions supplies the three fenced workers and the
 // bounded polling controls for the long-running production proof loop.
 type ProductionLifecycleOptions struct {
+	// Enabled starts the formal natural hot/cold/reheat proof. Local throughput
+	// diagnostics leave it disabled and make no natural-lifecycle claim.
+	Enabled        bool
 	Workers        [3]ProductionLifecycleWorker
 	Prober         ProductionLifecycleProber
 	Clock          ObserverClock
@@ -58,6 +61,12 @@ type productionLifecycleCohort struct {
 
 // NewProductionLifecycle constructs one single-use production proof loop.
 func NewProductionLifecycle(options ProductionLifecycleOptions) (*ProductionLifecycle, error) {
+	if !options.Enabled {
+		return &ProductionLifecycle{
+			options:   options,
+			completed: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()},
+		}, nil
+	}
 	for _, worker := range options.Workers {
 		if worker == nil {
 			return nil, ErrLifecycleHarnessInvalid
@@ -116,6 +125,10 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 	defer p.releaseAllActive()
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if !p.options.Enabled {
+		<-ctx.Done()
+		return ctx.Err()
 	}
 	startedAt := p.options.Clock.Now()
 	if startedAt.IsZero() {

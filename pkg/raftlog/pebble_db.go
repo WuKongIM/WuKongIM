@@ -13,7 +13,12 @@ import (
 	"github.com/cockroachdb/pebble/v2"
 )
 
-const defaultSnapshotChunkSize uint64 = 8 << 20
+const (
+	defaultSnapshotChunkSize  uint64 = 8 << 20
+	defaultWriteBatchMaxWait         = 5 * time.Millisecond
+	defaultWriteBatchMaxItems        = 128
+	maxWriteBatchItems               = 1024
+)
 
 // Options configures durable raft log storage.
 type Options struct {
@@ -27,6 +32,12 @@ type Options struct {
 	Goroutines *goroutine.Registry
 	// Logger receives structured Pebble diagnostics; routine recovery details are debug-only.
 	Logger wklog.Logger
+	// WriteBatchMaxWait bounds how long the durable writer waits for writes from
+	// other Raft scopes to share one Pebble sync. Zero selects the default.
+	WriteBatchMaxWait time.Duration
+	// WriteBatchMaxItems bounds the number of Raft mutations committed by one
+	// Pebble sync. Zero selects the default.
+	WriteBatchMaxItems int
 }
 
 type DB struct {
@@ -124,6 +135,18 @@ func normalizeOptions(path string, opts Options) (Options, error) {
 	}
 	if opts.SnapshotGCGrace < 0 {
 		return Options{}, errors.New("raftstorage: snapshot GC grace must be non-negative")
+	}
+	if opts.WriteBatchMaxWait < 0 {
+		return Options{}, errors.New("raftstorage: write batch max wait must be non-negative")
+	}
+	if opts.WriteBatchMaxWait == 0 {
+		opts.WriteBatchMaxWait = defaultWriteBatchMaxWait
+	}
+	if opts.WriteBatchMaxItems < 0 || opts.WriteBatchMaxItems > maxWriteBatchItems {
+		return Options{}, errors.New("raftstorage: write batch max items must be between 1 and 1024")
+	}
+	if opts.WriteBatchMaxItems == 0 {
+		opts.WriteBatchMaxItems = defaultWriteBatchMaxItems
 	}
 	return opts, nil
 }

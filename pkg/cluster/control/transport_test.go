@@ -106,13 +106,27 @@ func TestRaftTransportObservesAggregateQueueCapacity(t *testing.T) {
 	t.Cleanup(raftTransport.Stop)
 
 	raftTransport.observeQueue("ok")
+	var firstRevision uint64
 	select {
 	case event := <-observer.events:
 		if event.Capacity != 6 || event.Items != 0 {
 			t.Fatalf("event = %#v, want aggregate depth=0 capacity=6", event)
 		}
+		if event.Revision == 0 {
+			t.Fatal("controller raft queue revision = 0, want physical-state revision")
+		}
+		firstRevision = event.Revision
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for aggregate queue observation")
+	}
+	raftTransport.observeQueue("ok")
+	select {
+	case event := <-observer.events:
+		if event.Revision <= firstRevision {
+			t.Fatalf("controller raft queue revisions = %d..%d, want physical order", firstRevision, event.Revision)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for second aggregate queue observation")
 	}
 }
 

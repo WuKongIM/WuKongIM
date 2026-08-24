@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,6 +109,133 @@ func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 		plan.Attempt != 1 || plan.LeasePlan.HostGroups[0].Count != 3 || plan.LeasePlan.HostGroups[1].Count != 1 {
 		t.Fatalf("materialized plan = %+v", plan)
 	}
+}
+
+func TestRepairMonitorCommandsEmitFailFastDecisionFromDurableState(t *testing.T) {
+	directory := t.TempDir()
+	statePath := filepath.Join(directory, "state.json")
+	started := time.Date(2026, 8, 22, 16, 30, 0, 0, time.UTC)
+	var begin bytes.Buffer
+	command := newRootCommand(&begin)
+	command.SetArgs([]string{
+		"repair-begin", "--request-id", "chat-repair-command", "--lease-id", "lease-command",
+		"--generation", "4", "--source-sha", strings.Repeat("a", 40),
+		"--bundle-digest", "sha256:" + strings.Repeat("b", 64), "--started-at", started.Format(time.RFC3339),
+		"--target-online", "10000", "--minimum-online-percent", "95", "--minimum-send-rate", "1", "--maximum-ack-backlog", "10000", "--warmup-timeout", "5m", "--stall-after", "15s", "--qualify-after", "2m",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, begin.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for index, offset := range []time.Duration{5 * time.Second, 20 * time.Second} {
+		observationPath := filepath.Join(directory, fmt.Sprintf("observation-%d.json", index))
+		body := fmt.Sprintf(`{"schema":"wukongim.chat_lifecycle.repair_observation/v1","request_id":"chat-repair-command","lease_id":"lease-command","generation":4,"observed_at":%q,"phase":"active","online":10000,"sent":100,"send_acknowledged":90,"terminal_errors":0}`,
+			started.Add(offset).Format(time.RFC3339))
+		if err := os.WriteFile(observationPath, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var output bytes.Buffer
+		command = newRootCommand(&output)
+		command.SetArgs([]string{"repair-observe", "--state", statePath, "--observation", observationPath})
+		if err := command.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		var result struct {
+			State    json.RawMessage `json:"state"`
+			Decision struct {
+				Action string `json:"action"`
+				Reason string `json:"reason"`
+			} `json:"decision"`
+		}
+		if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		wantAction := "continue"
+		if index == 1 {
+			wantAction = "stop_and_diagnose"
+		}
+		if result.Decision.Action != wantAction {
+			t.Fatalf("decision %d = %+v", index, result.Decision)
+		}
+		if index == 1 && result.Decision.Reason != "message_progress_stalled" {
+			t.Fatalf("terminal reason = %+v", result.Decision)
+		}
+		if err := os.WriteFile(statePath, result.State, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestRepairCaptureAggregatesThreeFencedWorkerSnapshots(t *testing.T) {
+	directory := t.TempDir()
+	statePath := filepath.Join(directory, "state.json")
+	started := time.Date(2026, 8, 22, 18, 30, 0, 0, time.UTC)
+	var begin bytes.Buffer
+	command := newRootCommand(&begin)
+	command.SetArgs([]string{
+		"repair-begin", "--request-id", "chat-repair-capture", "--lease-id", "lease-capture",
+		"--generation", "2", "--source-sha", strings.Repeat("a", 40),
+		"--bundle-digest", "sha256:" + strings.Repeat("b", 64), "--started-at", started.Format(time.RFC3339),
+		"--target-online", "10000", "--minimum-online-percent", "95", "--minimum-send-rate", "1", "--maximum-ack-backlog", "10000", "--warmup-timeout", "5m", "--stall-after", "15s", "--qualify-after", "2m",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, begin.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	args := []string{"repair-capture", "--state", statePath, "--observed-at", started.Add(time.Second).Format(time.RFC3339)}
+	for workerID := uint64(0); workerID < 3; workerID++ {
+		status := chatlifecycle.WorkerStatus{
+			RunID: "repair-run", AssignmentID: "repair-assignment", Phase: chatlifecycle.WorkerPhaseRunning,
+			Generation: 7, WorkerID: workerID, WorkerCount: 3, TrafficReady: true,
+		}
+		snapshot := chatlifecycle.WorkerSnapshot{
+			RunID: "repair-run", AssignmentID: "repair-assignment", Phase: chatlifecycle.WorkerPhaseRunning,
+			Generation: 7, WorkerID: workerID, WorkerCount: 3,
+			Sessions: chatlifecycle.WorkerSessionSnapshot{Target: 3334, Online: 3333, TrafficReady: 3333},
+			Messages: chatlifecycle.WorkerMessageSnapshot{Sent: 100 + workerID, SendAcknowledged: 90 + workerID},
+		}
+		statusPath := writeJSONFile(t, directory, fmt.Sprintf("status-%d.json", workerID), status)
+		snapshotPath := writeJSONFile(t, directory, fmt.Sprintf("snapshot-%d.json", workerID), snapshot)
+		args = append(args, "--worker-status", statusPath, "--worker-snapshot", snapshotPath)
+	}
+	var output bytes.Buffer
+	command = newRootCommand(&output)
+	command.SetArgs(args)
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var observation struct {
+		Phase            string `json:"phase"`
+		Online           uint64 `json:"online"`
+		Sent             uint64 `json:"sent"`
+		SendAcknowledged uint64 `json:"send_acknowledged"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &observation); err != nil {
+		t.Fatal(err)
+	}
+	if observation.Phase != "active" || observation.Online != 9999 ||
+		observation.Sent != 303 || observation.SendAcknowledged != 273 {
+		t.Fatalf("observation = %+v", observation)
+	}
+}
+
+func writeJSONFile(t *testing.T, directory, name string, value any) string {
+	t.Helper()
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, name)
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestMaterializeCommandRequiresTypedTransitionForFormalPlan(t *testing.T) {

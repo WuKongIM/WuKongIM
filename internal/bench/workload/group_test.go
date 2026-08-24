@@ -279,6 +279,69 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 	require.Len(t, clients["u-2"].(*recordingPersonClient).recvAckCalls, 1)
 }
 
+func TestGroupWorkloadSuccessfulSendACKRecordsExpectedFanoutWithoutRecvVerification(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 3)
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	clients := map[string]PersonClient{
+		"u-0": sender,
+		"u-1": newRecordingPersonClient(),
+		"u-2": newRecordingPersonClient(),
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "huge-group",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "none",
+		FanoutProof:     proof,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-huge-group-0",
+			OnlineMembers: []string{"u-0", "u-1", "u-2"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, clients)
+	require.NoError(t, err)
+
+	require.NoError(t, workload.SendOne(context.Background(), 0, 0))
+
+	snapshot := proof.Snapshot()
+	require.True(t, snapshot.Complete(), "%+v", snapshot)
+	require.Equal(t, uint64(1), snapshot.LogicalSendACKs)
+	require.Equal(t, uint64(2), snapshot.Expected.Count)
+	require.Zero(t, snapshot.Received.Count)
+}
+
+func TestGroupWorkloadRejectedSendACKDoesNotRecordExpectedFanout(t *testing.T) {
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	sender := newRecordingPersonClient()
+	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
+		ClientMsgNo: "bench-msg-run-a-huge-group-group-send-run-ch0-msg0",
+		ReasonCode:  frame.ReasonRateLimit,
+	})
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "huge-group",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		FanoutProof:     proof,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-huge-group-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender, "u-1": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	require.Error(t, workload.SendOne(context.Background(), 0, 0))
+
+	snapshot := proof.Snapshot()
+	require.Zero(t, snapshot.LogicalSendACKs)
+	require.Zero(t, snapshot.Expected.Count)
+}
+
 func TestGroupWorkloadRecvMetricsAreSeparatedByPhase(t *testing.T) {
 	sender := newRecordingPersonClient()
 	sender.autoSendack = true
@@ -412,7 +475,8 @@ func TestGroupWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testing
 
 	err = workload.Run(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "sendack not received")
+	require.Equal(t, "group sendack: session operation failed", err.Error())
+	require.Equal(t, []string{"u-0"}, SessionErrorUIDs(err))
 }
 
 func TestGroupWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
@@ -614,10 +678,11 @@ func TestGroupWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Equal(t, []string{"u-0"}, SessionErrorUIDs(err))
-	require.Contains(t, err.Error(), "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
+	require.NotContains(t, err.Error(), "u-0")
+	require.NotContains(t, err.Error(), "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
 	require.True(t, workload.Metrics().CounterValue("group_send_error_total", groupSendLabels("run", "group-profile", "group-send")) > 0)
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
-	require.Contains(t, workload.Metrics().ErrorSamples()[0].Message, "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
+	require.Equal(t, "timeout", workload.Metrics().ErrorSamples()[0].Message)
 }
 
 func TestGroupWorkloadRecvReadErrorIdentifiesFailedSession(t *testing.T) {
@@ -726,6 +791,33 @@ func TestGroupWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) 
 
 	require.NoError(t, workload.Warmup(context.Background()))
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("warmup", "group-profile", "group-send")))
+}
+
+func TestGroupWorkloadWarmupHoldsTheConfiguredWindowAfterTheLastScheduledSend(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		LocalRate:       model.Rate{PerSecond: 100},
+		MaxConcurrency:  2,
+		WarmupDuration:  50 * time.Millisecond,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	startedAt := time.Now()
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	require.GreaterOrEqual(t, time.Since(startedAt), 40*time.Millisecond,
+		"warmup must retain the configured phase window after its final scheduled admission")
 }
 
 func groupRecv(clientMsgNo, recipientUID string, messageID int64, messageSeq uint64) *frame.RecvPacket {
@@ -976,6 +1068,144 @@ func TestGroupWorkloadRoundRobinSenderPickFansIntoOneChannel(t *testing.T) {
 	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("run", "hot-group", "hot-send")))
 }
 
+func TestGroupWorkloadRoundRobinReassignsBusyPreferredSenderWithinWindow(t *testing.T) {
+	clock := newManualExactGroupWindowClock(time.Unix(400, 0))
+	proof := newDeterministicGroupFanoutProof(t, 2)
+	preferred := &blockingSendPersonClient{
+		recordingPersonClient: newRecordingPersonClient(),
+		entered:               make(chan struct{}),
+		release:               make(chan struct{}),
+	}
+	preferred.autoSendack = true
+	alternative := &signalingSendPersonClient{
+		recordingPersonClient: newRecordingPersonClient(),
+		sent:                  make(chan struct{}, 1),
+	}
+	alternative.autoSendack = true
+	clients := map[string]PersonClient{
+		"u-0": preferred,
+		"u-1": newRecordingPersonClient(),
+		"u-2": alternative,
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "hot-group",
+		TrafficName:     "hot-send",
+		ClientMsgPrefix: "bench-msg",
+		LocalRate:       model.Rate{PerSecond: 10},
+		MaxConcurrency:  2,
+		SenderPick:      "round_robin",
+		Channels: []GroupChannel{
+			{ChannelIndex: 0, ChannelID: "run-a-hot-group-0", OnlineMembers: []string{"u-0", "u-1"}},
+			{ChannelIndex: 1, ChannelID: "run-a-hot-group-1", OnlineMembers: []string{"u-0", "u-2"}},
+		},
+		Metrics:     metrics.NewRegistry(),
+		FanoutProof: proof,
+		windowClock: clock,
+	}, clients)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- workload.RunWindow(context.Background(), GroupRunConfig{
+			Phase:             "run",
+			Duration:          100 * time.Millisecond,
+			Rate:              model.Rate{PerSecond: 10},
+			admissionDeadline: clock.Now().Add(100 * time.Millisecond),
+		})
+	}()
+
+	select {
+	case <-preferred.entered:
+	case <-time.After(time.Second):
+		t.Fatal("preferred sender did not enter its first SEND")
+	}
+	clock.Advance(50 * time.Millisecond)
+	select {
+	case <-alternative.sent:
+	case <-time.After(time.Second):
+		t.Fatal("idle group member did not receive the second SEND admission")
+	}
+	close(preferred.release)
+	require.NoError(t, <-done)
+	require.Len(t, preferred.sentFrames, 1)
+	require.Len(t, alternative.sentFrames, 1)
+	require.Empty(t, clients["u-1"].(*recordingPersonClient).sentFrames)
+	for _, delivered := range []struct {
+		recipient string
+		sender    string
+		packet    *frame.SendPacket
+	}{
+		{recipient: "u-1", sender: "u-0", packet: preferred.sentFrames[0]},
+		{recipient: "u-0", sender: "u-2", packet: alternative.sentFrames[0]},
+	} {
+		receipt := proof.ObserveGroupRecv(delivered.recipient, &frame.RecvPacket{
+			ClientMsgNo: delivered.packet.ClientMsgNo,
+			ChannelID:   delivered.packet.ChannelID,
+			ChannelType: frame.ChannelTypeGroup,
+			FromUID:     delivered.sender,
+		})
+		proof.ObserveRecvACK(receipt, true)
+	}
+	require.True(t, proof.Snapshot().Matches(), "fanout proof must bind the scheduler-selected sender")
+
+	labels := groupSendLabels("run", "hot-group", "hot-send")
+	require.Equal(t, uint64(2), workload.Metrics().CounterValue("workload_scheduler_planned_total", labels))
+	require.Equal(t, uint64(2), workload.Metrics().CounterValue("workload_scheduler_dispatched_total", labels))
+	require.Zero(t, workload.Metrics().CounterValue("workload_scheduler_dropped_total", schedulerDropLabels(labels, schedulerDropPendingWindowExpired)))
+}
+
+func TestGroupWorkloadExactWindowShortfallRemainsRateEvidence(t *testing.T) {
+	clock := newManualExactGroupWindowClock(time.Unix(500, 0))
+	sender := &blockingSendPersonClient{
+		recordingPersonClient: newRecordingPersonClient(),
+		entered:               make(chan struct{}),
+		release:               make(chan struct{}),
+	}
+	sender.autoSendack = true
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "hot-group",
+		TrafficName:     "hot-send",
+		ClientMsgPrefix: "bench-msg",
+		LocalRate:       model.Rate{PerSecond: 20},
+		MaxConcurrency:  2,
+		SenderPick:      "round_robin",
+		Channels: []GroupChannel{{
+			ChannelIndex: 0, ChannelID: "run-a-hot-group-0", OnlineMembers: []string{"u-0"},
+		}},
+		Metrics:     metrics.NewRegistry(),
+		windowClock: clock,
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- workload.RunWindow(context.Background(), GroupRunConfig{
+			Phase:             "run",
+			Duration:          100 * time.Millisecond,
+			Rate:              model.Rate{PerSecond: 20},
+			admissionDeadline: clock.Now().Add(100 * time.Millisecond),
+		})
+	}()
+	select {
+	case <-sender.entered:
+	case <-time.After(time.Second):
+		t.Fatal("first SEND did not enter the exact window")
+	}
+	clock.Advance(50 * time.Millisecond)
+	clock.Advance(50 * time.Millisecond)
+	close(sender.release)
+
+	require.NoError(t, <-done, "capacity shortfall must be classified by typed scheduler evidence")
+	labels := groupSendLabels("run", "hot-group", "hot-send")
+	require.Equal(t, uint64(2), workload.Metrics().CounterValue("workload_scheduler_planned_total", labels))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("workload_scheduler_dispatched_total", labels))
+	dropped := workload.Metrics().CounterValue("workload_scheduler_dropped_total", schedulerDropLabels(labels, schedulerDropPendingWindowExpired)) +
+		workload.Metrics().CounterValue("workload_scheduler_dropped_total", schedulerDropLabels(labels, schedulerDropUnstartedWindowExpired))
+	require.Equal(t, uint64(1), dropped)
+}
+
 func TestGroupWorkloadRunRecordsSchedulerWindowDropMetrics(t *testing.T) {
 	sender := newDelayedSendackClient(30 * time.Millisecond)
 	clients := map[string]PersonClient{
@@ -1010,6 +1240,87 @@ func TestGroupWorkloadRunRecordsSchedulerWindowDropMetrics(t *testing.T) {
 	require.GreaterOrEqual(t, workload.Metrics().CounterValue("workload_scheduler_busy_key_stall_total", labels), uint64(1))
 	require.Equal(t, float64(1), workload.Metrics().GaugeValue("workload_scheduler_max_active", labels))
 	require.GreaterOrEqual(t, workload.Metrics().GaugeValue("workload_scheduler_max_pending", labels), float64(1))
+}
+
+func TestGroupWorkloadPublishesPlannedTrafficBeforeFirstAdmissionCompletes(t *testing.T) {
+	sender := &blockingSendPersonClient{
+		recordingPersonClient: newRecordingPersonClient(),
+		entered:               make(chan struct{}),
+		release:               make(chan struct{}),
+	}
+	sender.autoSendack = true
+	clients := map[string]PersonClient{
+		"u-0": sender,
+		"u-1": newRecordingPersonClient(),
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "hot-group",
+		TrafficName:     "hot-send",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     time.Second,
+		LocalRate:       model.Rate{PerSecond: 3},
+		MaxConcurrency:  1,
+		SenderPick:      "first_online",
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-hot-group-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+		sleep:   func(context.Context, time.Duration) error { return nil },
+	}, clients)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- workload.Run(context.Background())
+	}()
+
+	select {
+	case <-sender.entered:
+	case <-time.After(time.Second):
+		t.Fatal("first SEND admission did not start")
+	}
+	labels := groupSendLabels("run", "hot-group", "hot-send")
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("workload_scheduler_planned_total", labels))
+	close(sender.release)
+	require.NoError(t, <-done)
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("workload_scheduler_planned_total", labels),
+		"final scheduler publication must not double count the plan")
+}
+
+type blockingSendPersonClient struct {
+	*recordingPersonClient
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+type signalingSendPersonClient struct {
+	*recordingPersonClient
+	sent chan struct{}
+}
+
+func (c *signalingSendPersonClient) Send(ctx context.Context, packet *frame.SendPacket) error {
+	if err := c.recordingPersonClient.Send(ctx, packet); err != nil {
+		return err
+	}
+	select {
+	case c.sent <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (c *blockingSendPersonClient) Send(ctx context.Context, packet *frame.SendPacket) error {
+	c.once.Do(func() { close(c.entered) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.release:
+		return c.recordingPersonClient.Send(ctx, packet)
+	}
 }
 
 func TestGroupWorkloadSequentialRunStopsSchedulingAtWindowEnd(t *testing.T) {

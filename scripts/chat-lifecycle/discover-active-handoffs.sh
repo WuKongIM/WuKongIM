@@ -18,10 +18,29 @@ temporary="$(mktemp -d)"
 trap 'rm -r "$temporary"' EXIT
 : >"$temporary/artifacts-pages.json"
 max_pages=50
+artifact_api_attempts=4
 inventory_complete=false
+
+fetch_artifact_page() {
+  local endpoint="$1" output="$2" attempt status delay
+  for ((attempt = 1; attempt <= artifact_api_attempts; attempt++)); do
+    status=0
+    gh api "$endpoint" >"$output" || status=$?
+    if (( status == 0 )); then
+      return 0
+    fi
+    if (( attempt == artifact_api_attempts )); then
+      return "$status"
+    fi
+    delay=$((1 << (attempt - 1)))
+    echo "artifact inventory request failed; retrying attempt $((attempt + 1))/${artifact_api_attempts} after ${delay}s" >&2
+    sleep "$delay"
+  done
+}
+
 for ((page = 1; page <= max_pages; page++)); do
   page_file="$temporary/artifacts-page-${page}.json"
-  gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100&page=${page}" >"$page_file"
+  fetch_artifact_page "/repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100&page=${page}" "$page_file"
   jq -c . "$page_file" >>"$temporary/artifacts-pages.json"
   if [[ "$(jq -r '.artifacts | length' "$page_file")" != 100 ]]; then
     inventory_complete=true

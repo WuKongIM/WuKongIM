@@ -28,7 +28,10 @@ channel_append_batch_max_records = 0
 channel_append_batch_max_wait = "0"
 channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
-commit_coordinator_flush_window = "200us"
+# Maximum time to collect adjacent durable commit requests. The measured
+# 500us default favors low caller latency and is also the reviewed three-node
+# cluster profile value at sustained write rates.
+commit_coordinator_flush_window = "500us"
 commit_coordinator_max_requests = 0
 commit_coordinator_max_records = 0
 commit_coordinator_max_bytes = 0

@@ -18,6 +18,7 @@ authorization and the applicable budget.
 | `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
+| `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
@@ -36,6 +37,18 @@ authorization and the applicable budget.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
+
+## Direct local chat-lifecycle repair
+
+The diagnostic repair loop is intentionally not a GitHub Action. Codex runs
+`.agents/skills/wukongim-chat-lifecycle` from the operator's local repository
+and uses `scripts/chat-lifecycle/direct-lab.sh` to build an exact committed
+candidate, Quote and acquire one temporary Alibaba Cloud Lease, deploy over
+SSH, stop stalled traffic, collect bounded evidence, and redeploy later
+candidate generations on the same hosts. Only the request-scoped `stop`
+command accepts cleanup, and only after it stores an exact selector-bound
+zero-inventory proof. The generic expired-Lease sweep remains an independent
+safety backstop; it is not the repair control plane.
 
 ## Review Agent
 

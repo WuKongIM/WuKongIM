@@ -607,11 +607,16 @@
       "targets": [
         {
           "expr": "topk(10, histogram_quantile(0.95, sum(rate(wukongim_gateway_frame_handle_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, frame_type)))",
-          "legendFormat": "{{frame_type}}",
+          "legendFormat": "handle {{frame_type}}",
           "refId": "A"
+        },
+        {
+          "expr": "topk(10, histogram_quantile(0.95, sum(rate(wukongim_gateway_transport_write_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, frame_type, result)))",
+          "legendFormat": "write {{frame_type}} {{result}}",
+          "refId": "B"
         }
       ],
-      "title": "Frame Handle P95 by Type",
+      "title": "Gateway Frame and Transport P95",
       "type": "timeseries"
     },
     {

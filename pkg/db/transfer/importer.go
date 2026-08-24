@@ -48,6 +48,7 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		FileKindMetaUserChannelMemberships,
 		FileKindMetaUserCMDChannelMemberships,
 		FileKindMetaChannelLatest,
+		FileKindMetaPersonDirectoryTasks,
 	} {
 		for _, entry := range entries[kind] {
 			if err := importMetaEntry(ctx, root, entry, store, opts, &stats); err != nil {
@@ -175,14 +176,16 @@ func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, r
 	case FileKindMetaChannels:
 		row := record.(ChannelRecord)
 		return meta.HashSlot(row.HashSlot).UpsertChannel(ctx, metadb.Channel{
-			ChannelID:                 row.ChannelID,
-			ChannelType:               row.ChannelType,
-			Ban:                       row.Ban,
-			Disband:                   row.Disband,
-			SendBan:                   row.SendBan,
-			AllowStranger:             row.AllowStranger,
-			Large:                     row.Large,
-			SubscriberMutationVersion: uint64(row.SubscriberMutationVersion),
+			ChannelID:                     row.ChannelID,
+			ChannelType:                   row.ChannelType,
+			Ban:                           row.Ban,
+			Disband:                       row.Disband,
+			SendBan:                       row.SendBan,
+			AllowStranger:                 row.AllowStranger,
+			Large:                         row.Large,
+			SubscriberMutationVersion:     uint64(row.SubscriberMutationVersion),
+			DirectoryProjectionState:      metadb.DirectoryProjectionState(row.DirectoryProjectionState),
+			DirectoryProjectionGeneration: uint64(row.DirectoryProjectionGeneration),
 		})
 	case FileKindMetaUserChannelMemberships:
 		row := record.(UserChannelMembershipRecord)
@@ -212,6 +215,17 @@ func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, r
 			Payload:        row.Payload,
 			UpdatedAt:      row.UpdatedAt,
 		})
+	case FileKindMetaPersonDirectoryTasks:
+		row := record.(PersonDirectoryTaskRecord)
+		batch := meta.NewBatch()
+		defer batch.Close()
+		if err := batch.EnsurePersonDirectoryTask(metadb.HashSlot(row.HashSlot), metadb.PersonDirectoryTask{
+			ChannelID: row.ChannelID, ChannelType: row.ChannelType,
+			CommittedTail: uint64(row.CommittedTail), CreatedAt: row.CreatedAt, Generation: uint64(row.Generation),
+		}); err != nil {
+			return err
+		}
+		return batch.Commit(ctx)
 	default:
 		return fmt.Errorf("%w: unsupported import kind %q", ErrValidation, kind)
 	}

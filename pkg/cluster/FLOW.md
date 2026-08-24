@@ -41,6 +41,9 @@ cluster. There is no standalone data or control path.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded.
+4. Person-directory establishment groups UID membership and create-only runtime
+   metadata by logical Slot, joins the bounded prepare proposals, then publishes
+   Channel directory-ready rows in a separate phase.
 
 ## Invariants and Failure Semantics
 
@@ -55,6 +58,13 @@ cluster. There is no standalone data or control path.
 - Slot and Channel metadata are authoritative at their current owners. Caches,
   hints, compatibility codecs, and local replicas cannot roll back a newer
   generation or make migration decisions from stale state.
+- Runtime-meta creation uses one supervised owner per logical Slot: duplicate
+  identities coalesce, unique work is bounded and canonical-sorted, placement
+  comes from one current revision, and uncertain proposals retry only rows an
+  authoritative reread proves missing.
+- UID-owned membership fanout and person-directory batches have fixed
+  concurrency. Directory-ready can never hide missing UID membership or
+  missing append runtime metadata.
 - Lifecycle, fanout, workers, retries, scans, repairs, retention, tasks,
   diagnostics, and observations are bounded and low-cardinality.
 - Maintenance closes business admission before storage replacement and keeps

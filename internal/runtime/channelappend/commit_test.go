@@ -376,6 +376,35 @@ func TestCommitEffectFailureDropsAndAdvancesWithoutRetry(t *testing.T) {
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
+func TestPostCommitCompletionObservesPanicExactlyOnce(t *testing.T) {
+	observer := &recordingCommitObserverForPersistAfterTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1005),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		OnlineDeliveryEnqueuer:     panicRecipientDeliveryEnqueuerForCommitTest{},
+		RecipientBatchSize:         16,
+		Observer:                   observer,
+	})
+	item := appendSendItemForTest("u1", "room", "payload")
+	item.Command.MessageScopedUIDs = []string{"u2"}
+	target := localTargetForAppendTest("room")
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1005, 1)
+	observer.waitFailures(t, 1)
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+
+	effects := observer.effectsForStage(effectStagePostCommit)
+	if len(effects) != 1 || effects[0].Result != channelAppendResultCommitFailed || effects[0].Items != 1 {
+		t.Fatalf("post-commit effects = %+v, want one commit_failed result", effects)
+	}
+}
+
 func TestPersistAfterDurableAppendSchedulesPostCommitAndDrainsBacklog(t *testing.T) {
 	persistAfter := &recordingPersistAfterEnqueuerForCommitTest{}
 	observer := &recordingCommitObserverForPersistAfterTest{}
@@ -1168,6 +1197,7 @@ type recordingEffectObserverForCommitTest struct {
 type recordingCommitObserverForPersistAfterTest struct {
 	mu       sync.Mutex
 	stages   []string
+	effects  []EffectObservation
 	failures []PostCommitFailureObservation
 }
 
@@ -1185,6 +1215,7 @@ func (o *recordingCommitObserverForPersistAfterTest) ObserveChannelAppendEffect(
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.stages = append(o.stages, event.Stage)
+	o.effects = append(o.effects, event)
 }
 
 func (o *recordingCommitObserverForPersistAfterTest) ObserveChannelAppendPostCommitFailure(obs PostCommitFailureObservation) {
@@ -1243,6 +1274,18 @@ func (o *recordingCommitObserverForPersistAfterTest) waitFailures(t *testing.T, 
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+func (o *recordingCommitObserverForPersistAfterTest) effectsForStage(stage string) []EffectObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	var effects []EffectObservation
+	for _, event := range o.effects {
+		if event.Stage == stage {
+			effects = append(effects, event)
+		}
+	}
+	return effects
 }
 
 func (r staticRecipientAuthorityResolverForCommitTest) ResolveRecipientAuthority(_ context.Context, _ string) (RecipientAuthorityTarget, error) {
@@ -1384,6 +1427,12 @@ type recordingPersistAfterEnqueuerForCommitTest struct {
 type panicPersistAfterEnqueuerForCommitTest struct {
 	mu    sync.Mutex
 	calls int
+}
+
+type panicRecipientDeliveryEnqueuerForCommitTest struct{}
+
+func (panicRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientDeliveryPlan(context.Context, onlinedelivery.RecipientDeliveryPlan) error {
+	panic("recipient delivery enqueue panic")
 }
 
 func (r *recordingPersistAfterEnqueuerForCommitTest) EnqueuePersistAfter(_ context.Context, event CommittedEnvelope) {

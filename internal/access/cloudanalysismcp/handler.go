@@ -122,7 +122,7 @@ func registerTools(server *mcp.Server, service *analysis.Service) {
 			output, err := service.ClusterSnapshot(ctx, input)
 			return nil, output, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "workload_inspect", Description: "Read the bounded final wkbench diagnostic summary, actual phase windows, structured worker failures, or explicit in-progress state.", Annotations: readOnly},
+	mcp.AddTool(server, &mcp.Tool{Name: "workload_inspect", Description: "Read bounded live worker connection diagnostics while running, or the final wkbench summary, phase windows, and structured failures after completion.", Annotations: readOnly},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input analysis.RunRequest) (*mcp.CallToolResult, observationOutput[analysis.WorkloadInspection], error) {
 			output, err := service.WorkloadInspect(ctx, input)
 			if err != nil {

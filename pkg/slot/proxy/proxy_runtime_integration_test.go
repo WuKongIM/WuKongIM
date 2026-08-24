@@ -110,6 +110,9 @@ func TestMemoryBackedGroupDoesNotRecoverDeletedSlotDataAfterOpenGroup(t *testing
 	if err := db.DeleteSlotData(ctx, uint64(slotID)); err != nil {
 		t.Fatalf("DeleteSlotData() error = %v", err)
 	}
+	if applied, err := db.SlotAppliedIndex(ctx, uint64(slotID)); err != nil || applied != 0 {
+		t.Fatalf("SlotAppliedIndex() after delete = %d, %v; want 0, nil", applied, err)
+	}
 	if _, err := db.ForSlot(uint64(slotID)).GetUser(ctx, "u1"); !errors.Is(err, metadb.ErrNotFound) {
 		t.Fatalf("GetUser() after delete err = %v, want ErrNotFound", err)
 	}
@@ -547,7 +550,7 @@ func TestStoreGetChannelForPermissionReadsAuthoritativeSlot(t *testing.T) {
 	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-channel-permission")
 	ch := metadb.Channel{
 		ChannelID: channelID, ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1,
-		AllowStranger: 1, DirectoryReady: 1,
+		AllowStranger: 1,
 	}
 	require.NoError(t, nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID)).UpsertChannel(ctx, ch))
 
@@ -587,7 +590,9 @@ func TestStoreReadPermissionMetadataBatchRoutesBySlotAndPreservesAlignment(t *te
 		require.NoError(t, result.Err)
 	}
 	require.True(t, results[0].Found)
-	require.Equal(t, remoteChannel, results[0].Channel)
+	expectedRemoteChannel := remoteChannel
+	expectedRemoteChannel.SubscriberCount = 1
+	require.Equal(t, expectedRemoteChannel, results[0].Channel)
 	require.True(t, results[1].Value)
 	require.False(t, results[2].Value)
 	require.False(t, results[3].Found)

@@ -392,6 +392,16 @@ func BenchmarkAppendMessageDBStoreAdapterCommitMatrix(b *testing.B) {
 		storeAppendBatchMaxWait time.Duration
 	}{
 		{name: "commit200us_storeDefault_shard1", commitFlushWindow: 200 * time.Microsecond, commitShards: 1},
+		{name: "commit500us_storeDefault_shard1", commitFlushWindow: 500 * time.Microsecond, commitShards: 1},
+		{name: "commit500us_store500us_shard1", commitFlushWindow: 500 * time.Microsecond, storeAppendBatchMaxWait: 500 * time.Microsecond, commitShards: 1},
+		{name: "commit500us_store1ms_shard1", commitFlushWindow: 500 * time.Microsecond, storeAppendBatchMaxWait: time.Millisecond, commitShards: 1},
+		{name: "commit500us_store2ms_shard1", commitFlushWindow: 500 * time.Microsecond, storeAppendBatchMaxWait: 2 * time.Millisecond, commitShards: 1},
+		{name: "commit500us_store5ms_shard1", commitFlushWindow: 500 * time.Microsecond, storeAppendBatchMaxWait: 5 * time.Millisecond, commitShards: 1},
+		{name: "commit1ms_storeDefault_shard1", commitFlushWindow: time.Millisecond, commitShards: 1},
+		{name: "commit2ms_storeDefault_shard1", commitFlushWindow: 2 * time.Millisecond, commitShards: 1},
+		{name: "commit5ms_storeDefault_shard1", commitFlushWindow: 5 * time.Millisecond, commitShards: 1},
+		{name: "commit5ms_storeDefault_shard2", commitFlushWindow: 5 * time.Millisecond, commitShards: 2},
+		{name: "commit10ms_storeDefault_shard1", commitFlushWindow: 10 * time.Millisecond, commitShards: 1},
 		{name: "commit100us_store100us_shard1", commitFlushWindow: 100 * time.Microsecond, storeAppendBatchMaxWait: 100 * time.Microsecond, commitShards: 1},
 		{name: "commit50us_store50us_shard1", commitFlushWindow: 50 * time.Microsecond, storeAppendBatchMaxWait: 50 * time.Microsecond, commitShards: 1},
 		{name: "commit100us_store100us_shard4", commitFlushWindow: 100 * time.Microsecond, storeAppendBatchMaxWait: 100 * time.Microsecond, commitShards: 4},

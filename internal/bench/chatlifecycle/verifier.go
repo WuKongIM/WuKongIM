@@ -37,6 +37,58 @@ const (
 	TerminalSendSessionClosed
 )
 
+type retryExhaustedCause uint8
+
+const (
+	retryExhaustedUnclassified retryExhaustedCause = iota + 1
+	retryExhaustedAttemptTimeout
+	retryExhaustedLocalAdmission
+	retryExhaustedTransportError
+	retryExhaustedRetriableSendack
+)
+
+// RetryExhaustedSnapshot is the bounded reason breakdown for logical sends
+// that used every permitted attempt without a successful SENDACK.
+type RetryExhaustedSnapshot struct {
+	Total            uint64 `json:"total"`
+	AttemptTimeout   uint64 `json:"attempt_timeout"`
+	LocalAdmission   uint64 `json:"local_admission"`
+	TransportError   uint64 `json:"transport_error"`
+	RetriableSendack uint64 `json:"retryable_sendack"`
+	Unclassified     uint64 `json:"unclassified"`
+}
+
+func (s RetryExhaustedSnapshot) valid() bool {
+	values := [...]uint64{s.AttemptTimeout, s.LocalAdmission, s.TransportError, s.RetriableSendack, s.Unclassified}
+	var total uint64
+	for _, value := range values {
+		if ^uint64(0)-total < value {
+			return false
+		}
+		total += value
+	}
+	return total == s.Total
+}
+
+// TerminalSendSnapshot is the fixed, identity-free breakdown of terminal send
+// decisions. Its fields must sum to the aggregate terminal count.
+type TerminalSendSnapshot struct {
+	RetryExhausted RetryExhaustedSnapshot `json:"retry_exhausted"`
+	NonRetriable   uint64                 `json:"non_retriable"`
+	SessionClosed  uint64                 `json:"session_closed"`
+}
+
+func (s TerminalSendSnapshot) total() (uint64, bool) {
+	if !s.RetryExhausted.valid() || ^uint64(0)-s.RetryExhausted.Total < s.NonRetriable {
+		return 0, false
+	}
+	total := s.RetryExhausted.Total + s.NonRetriable
+	if ^uint64(0)-total < s.SessionClosed {
+		return 0, false
+	}
+	return total + s.SessionClosed, true
+}
+
 // VerificationError is a redacted stable verifier failure. It never wraps a
 // transport error because arbitrary error text is forbidden in evidence.
 type VerificationError struct {
@@ -123,56 +175,69 @@ func (e *ProductRecvAckError) valid() bool {
 
 // VerifierSnapshot contains only aggregate counts and bounded-state gauges.
 type VerifierSnapshot struct {
-	Classification            SyncClassification
-	Sent                      uint64
-	Attempts                  uint64
-	FirstAttempts             uint64
-	FirstAttemptFailures      uint64
-	RetryAttempts             uint64
-	Acknowledged              uint64
-	SendackRejections         uint64
-	Terminal                  uint64
-	DuplicateCompletions      uint64
-	ConflictingCompletions    uint64
-	UnknownSendacks           uint64
-	Received                  uint64
-	ReceiveFailures           uint64
-	ReceiveAcknowledged       uint64
-	ReceiveAckFailures        uint64
-	ReceiveAckProductFailures uint64
-	ReceiveAckHarnessFailures uint64
-	DuplicateDeliveries       uint64
-	Corruptions               uint64
-	SequenceRegressions       uint64
-	ConflictingDeliveries     uint64
-	Sampled                   uint64
-	SampledDelivered          uint64
-	SampledExpired            uint64
-	Losses                    uint64
-	Duplicates                uint64
-	PendingCurrent            int
-	PendingUnfinished         int
-	PendingPeak               int
-	SequenceCurrent           int
-	SequencePeak              int
-	CorrelationCurrent        int
-	CorrelationPeak           int
-	DeadlineCurrent           int
-	ReleasedAttemptCurrent    int
-	ReleasedAttemptPeak       int
-	SendackLatency            WorkerHistogramSnapshot
-	RecvackLatency            WorkerHistogramSnapshot
+	Classification       SyncClassification
+	Sent                 uint64
+	Attempts             uint64
+	FirstAttempts        uint64
+	FirstAttemptFailures uint64
+
+	// FirstAttemptLocalAdmissionFailures is the subset whose first wire
+	// attempt was rejected by the load generator's non-waiting local SEND
+	// admission boundary. It is harness pressure, not target correctness.
+	FirstAttemptLocalAdmissionFailures uint64
+
+	RetryAttempts                 uint64
+	Acknowledged                  uint64
+	SendackRejections             uint64
+	Terminal                      uint64
+	TerminalReasons               TerminalSendSnapshot
+	DuplicateCompletions          uint64
+	ConflictingCompletions        uint64
+	UnknownSendacks               uint64
+	Received                      uint64
+	ReceiveFailures               uint64
+	ReceiveAcknowledged           uint64
+	ReceiveAckFailures            uint64
+	ReceiveAckProductFailures     uint64
+	ReceiveAckHarnessFailures     uint64
+	DuplicateDeliveries           uint64
+	Corruptions                   uint64
+	SequenceRegressions           uint64
+	ConflictingDeliveries         uint64
+	Sampled                       uint64
+	SampledDelivered              uint64
+	SampledExpired                uint64
+	Losses                        uint64
+	Duplicates                    uint64
+	PendingCurrent                int
+	PendingUnfinished             int
+	PendingPeak                   int
+	SequenceCurrent               int
+	SequencePeak                  int
+	CorrelationCurrent            int
+	CorrelationPeak               int
+	DeadlineCurrent               int
+	ReleasedAttemptCurrent        int
+	ReleasedAttemptPeak           int
+	HotSendackLatency             WorkerHistogramSnapshot
+	ColdFirstCreateSendackLatency WorkerHistogramSnapshot
+	LifecycleReheatSendackLatency WorkerHistogramSnapshot
+	RecvackLatency                WorkerHistogramSnapshot
 }
 
 type verifierSendCounters struct {
-	sent                   uint64
-	attempts               uint64
-	firstAttempts          uint64
-	firstAttemptFailures   uint64
+	sent                 uint64
+	attempts             uint64
+	firstAttempts        uint64
+	firstAttemptFailures uint64
+
+	firstAttemptLocalAdmissionFailures uint64
+
 	retryAttempts          uint64
 	acknowledged           uint64
 	sendackRejections      uint64
 	terminal               uint64
+	terminalReasons        TerminalSendSnapshot
 	duplicateCompletions   uint64
 	conflictingCompletions uint64
 	unknownSendacks        uint64
@@ -210,9 +275,26 @@ const (
 	sendTerminal
 )
 
+// SendLatencyClass binds a logical SEND to exactly one verdict latency domain.
+// Loaded-state traffic is hot, first person-channel creation is cold, and
+// lifecycle reheat is retained as a separate diagnostic domain. LifecycleProof
+// remains the independent verdict evidence for reheat latency.
+type SendLatencyClass uint8
+
+const (
+	SendLatencyHot SendLatencyClass = iota
+	SendLatencyColdFirstCreate
+	SendLatencyLifecycleReheat
+)
+
+func validSendLatencyClass(class SendLatencyClass) bool {
+	return class == SendLatencyHot || class == SendLatencyColdFirstCreate || class == SendLatencyLifecycleReheat
+}
+
 type pendingSend struct {
 	logical             LogicalSend
 	registeredAt        time.Time
+	latencyClass        SendLatencyClass
 	completion          sendCompletion
 	completionClientSeq uint64
 	messageID           int64
@@ -318,13 +400,14 @@ type preparedRecv struct {
 }
 
 type sampledCorrelation struct {
-	logical    LogicalSend
-	deadline   time.Time
-	heapIndex  int
-	ackSeen    bool
-	recvSeen   bool
-	messageID  int64
-	messageSeq uint64
+	logical      LogicalSend
+	registeredAt time.Time
+	deadline     time.Time
+	heapIndex    int
+	ackSeen      bool
+	recvSeen     bool
+	messageID    int64
+	messageSeq   uint64
 }
 
 type correlationDeadlineHeap []*sampledCorrelation
@@ -385,10 +468,12 @@ type Verifier struct {
 	releasedDeadlines releasedAttemptDeadlineHeap
 	releasedPeak      int
 
-	sendCounters   verifierSendCounters
-	recvCounters   verifierReceiveCounters
-	sendackLatency WorkerHistogramSnapshot
-	recvackLatency WorkerHistogramSnapshot
+	sendCounters                  verifierSendCounters
+	recvCounters                  verifierReceiveCounters
+	hotSendackLatency             WorkerHistogramSnapshot
+	coldFirstCreateSendackLatency WorkerHistogramSnapshot
+	lifecycleReheatSendackLatency WorkerHistogramSnapshot
+	recvackLatency                WorkerHistogramSnapshot
 }
 
 // NewVerifier constructs empty state without preallocating from untrusted bounds.
@@ -399,27 +484,30 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 		return nil, errVerifierConfig
 	}
 	v := &Verifier{
-		model:            model,
-		config:           config,
-		evidence:         evidence,
-		pending:          make(map[string]*pendingSend),
-		sequences:        make(map[string]*recipientSequenceState),
-		correlations:     make(map[string]*sampledCorrelation),
-		releasedAttempts: make(map[releasedAttemptKey]*releasedAttempt),
-		sendackLatency:   newWorkerHistogramSnapshot(),
-		recvackLatency:   newWorkerHistogramSnapshot(),
+		model:                         model,
+		config:                        config,
+		evidence:                      evidence,
+		pending:                       make(map[string]*pendingSend),
+		sequences:                     make(map[string]*recipientSequenceState),
+		correlations:                  make(map[string]*sampledCorrelation),
+		releasedAttempts:              make(map[releasedAttemptKey]*releasedAttempt),
+		hotSendackLatency:             newWorkerHistogramSnapshot(),
+		coldFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+		lifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
+		recvackLatency:                newWorkerHistogramSnapshot(),
 	}
 	heap.Init(&v.deadlines)
 	heap.Init(&v.releasedDeadlines)
 	return v, nil
 }
 
-// RegisterSend installs one attempt-independent logical identity and, when its
-// exact-cycle position is selected, one physically removable deadline entry.
-func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) error {
+// RegisterSend installs one attempt-independent logical identity. A sampled
+// send receives a delivery-loss deadline only after a positive SENDACK proves
+// that the server accepted it.
+func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time, latencyClass SendLatencyClass) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
-	if err := v.model.validateLogicalSend(logical); err != nil {
+	if err := v.model.validateLogicalSend(logical); err != nil || !validSendLatencyClass(latencyClass) {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
 	}
 	if _, exists := v.pending[logical.ClientMsgNo]; exists {
@@ -435,7 +523,7 @@ func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) err
 	if sampled && len(v.correlations) >= v.config.CorrelationCapacity {
 		return v.recordHarnessLocked(FailureCodeCorrelationCapacity, logical, EvidenceStageCapacity, uint64(v.config.CorrelationCapacity))
 	}
-	v.pending[logical.ClientMsgNo] = &pendingSend{logical: logical, registeredAt: registeredAt}
+	v.pending[logical.ClientMsgNo] = &pendingSend{logical: logical, registeredAt: registeredAt, latencyClass: latencyClass}
 	v.pendingUnfinished++
 	v.sendCounters.sent++
 	if len(v.pending) > v.pendingPeak {
@@ -443,12 +531,11 @@ func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) err
 	}
 	if sampled {
 		correlation := &sampledCorrelation{
-			logical:   logical,
-			deadline:  registeredAt.Add(v.config.CorrelationDeadline),
-			heapIndex: -1,
+			logical:      logical,
+			registeredAt: registeredAt,
+			heapIndex:    -1,
 		}
 		v.correlations[logical.ClientMsgNo] = correlation
-		heap.Push(&v.deadlines, correlation)
 		v.sendCounters.sampled++
 		if len(v.correlations) > v.correlationPeak {
 			v.correlationPeak = len(v.correlations)
@@ -514,7 +601,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 		if v.releasedAttempts[key] != nil {
 			var correlationErr error
 			if positiveSuccess {
-				correlationErr = v.observeSendackCorrelationLocked(ack)
+				correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
 			}
 			v.consumeReleasedAttemptLocked(key)
 			return correlationErr
@@ -524,7 +611,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	if pending == nil {
 		var correlationErr error
 		if positiveSuccess {
-			correlationErr = v.observeSendackCorrelationLocked(ack)
+			correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
 		}
 		return errors.Join(correlationErr, v.recordUnknownSendackLocked(0, ack))
 	}
@@ -537,7 +624,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	}
 	var correlationErr error
 	if positiveSuccess {
-		correlationErr = v.observeSendackCorrelationLocked(ack)
+		correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
 	}
 	if pending.attemptCount > 0 {
 		if pending.completion != sendIncomplete && ack.ClientSeq != pending.completionClientSeq {
@@ -581,7 +668,14 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	v.pendingUnfinished--
 	v.sendCounters.acknowledged++
 	if !completedAt.IsZero() {
-		recordWorkerLatency(&v.sendackLatency, completedAt.Sub(pending.registeredAt))
+		switch pending.latencyClass {
+		case SendLatencyHot:
+			recordWorkerLatency(&v.hotSendackLatency, completedAt.Sub(pending.registeredAt))
+		case SendLatencyColdFirstCreate:
+			recordWorkerLatency(&v.coldFirstCreateSendackLatency, completedAt.Sub(pending.registeredAt))
+		case SendLatencyLifecycleReheat:
+			recordWorkerLatency(&v.lifecycleReheatSendackLatency, completedAt.Sub(pending.registeredAt))
+		}
 	}
 	return correlationErr
 }
@@ -594,17 +688,23 @@ func (v *Verifier) recordUnknownSendackLocked(logicalSend uint64, ack *frame.Sen
 	)
 }
 
-func (v *Verifier) observeSendackCorrelationLocked(ack *frame.SendackPacket) error {
+func (v *Verifier) observeSendackCorrelationLocked(ack *frame.SendackPacket, completedAt time.Time) error {
 	if correlation := v.correlations[ack.ClientMsgNo]; correlation != nil {
 		if (correlation.ackSeen || correlation.recvSeen) &&
 			(correlation.messageID != ack.MessageID || correlation.messageSeq != ack.MessageSeq) {
 			return v.recordCorrelationConflictLocked(correlation, ack.MessageSeq)
 		}
+		firstPositiveAck := !correlation.ackSeen
 		correlation.ackSeen = true
 		correlation.messageID = ack.MessageID
 		correlation.messageSeq = ack.MessageSeq
 		if correlation.recvSeen {
 			v.completeCorrelationLocked(correlation)
+		} else if firstPositiveAck {
+			if completedAt.IsZero() || completedAt.Before(correlation.registeredAt) {
+				completedAt = correlation.registeredAt
+			}
+			v.scheduleCorrelationDeadlineLocked(correlation, completedAt.Add(v.config.CorrelationDeadline))
 		}
 	}
 	return nil
@@ -859,17 +959,30 @@ func (v *Verifier) ReleaseRecipient(recipient string) int {
 	return released
 }
 
-// ExpireCorrelations pops only due heap roots. Every expired sampled message is
-// confirmed loss evidence and is physically removed from both retained indexes.
+// ExpireCorrelations pops only due heap roots. Only a sampled message with a
+// positive SENDACK can expire as confirmed delivery loss. An unaccepted
+// terminal send may use the same heap solely for bounded late-attempt cleanup.
 func (v *Verifier) ExpireCorrelations(now time.Time) int {
+	return v.expireCorrelations(now, nil)
+}
+
+// expireCorrelations reports closed identities only after releasing sendMu so
+// the session owner may safely drop its matching recipient-expiry lease.
+func (v *Verifier) expireCorrelations(now time.Time, onExpired func(string)) int {
 	v.sendMu.Lock()
-	defer v.sendMu.Unlock()
 	expired := 0
+	var expiredClientMsgNos []string
 	for len(v.deadlines) > 0 && !v.deadlines[0].deadline.After(now) {
 		correlation := heap.Pop(&v.deadlines).(*sampledCorrelation)
 		delete(v.correlations, correlation.logical.ClientMsgNo)
+		if !correlation.ackSeen {
+			continue
+		}
 		v.sendCounters.sampledExpired++
 		expired++
+		if onExpired != nil {
+			expiredClientMsgNos = append(expiredClientMsgNos, correlation.logical.ClientMsgNo)
+		}
 		_ = v.evidence.Record(EvidenceEvent{
 			Class:       FailureClassCorrelation,
 			Stage:       EvidenceStageCorrelation,
@@ -883,7 +996,21 @@ func (v *Verifier) ExpireCorrelations(now time.Time) int {
 		attempt := heap.Pop(&v.releasedDeadlines).(*releasedAttempt)
 		delete(v.releasedAttempts, attempt.key)
 	}
+	v.sendMu.Unlock()
+	for _, clientMsgNo := range expiredClientMsgNos {
+		onExpired(clientMsgNo)
+	}
 	return expired
+}
+
+func (v *Verifier) correlationOutstanding(clientMsgNo string) bool {
+	if v == nil || clientMsgNo == "" {
+		return false
+	}
+	v.sendMu.Lock()
+	_, ok := v.correlations[clientMsgNo]
+	v.sendMu.Unlock()
+	return ok
 }
 
 // DrainSnapshot is a constant-time projection of unfinished verification state.
@@ -902,10 +1029,24 @@ func (v *Verifier) DrainSnapshot() VerificationDrain {
 
 // CompleteTerminal marks the explicit final result chosen by the retry engine.
 func (v *Verifier) CompleteTerminal(logical LogicalSend, code TerminalSendCode) error {
+	cause := retryExhaustedCause(0)
+	if code == TerminalSendRetryExhausted {
+		cause = retryExhaustedUnclassified
+	}
+	return v.completeTerminal(logical, code, cause)
+}
+
+func (v *Verifier) completeRetryExhausted(logical LogicalSend, cause retryExhaustedCause) error {
+	return v.completeTerminal(logical, TerminalSendRetryExhausted, cause)
+}
+
+func (v *Verifier) completeTerminal(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
-	if pending == nil || pending.logical != logical || code < TerminalSendRetryExhausted || code > TerminalSendSessionClosed {
+	validCause := (code == TerminalSendRetryExhausted && cause >= retryExhaustedUnclassified && cause <= retryExhaustedRetriableSendack) ||
+		(code != TerminalSendRetryExhausted && cause == 0)
+	if pending == nil || pending.logical != logical || code < TerminalSendRetryExhausted || code > TerminalSendSessionClosed || !validCause {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(code))
 	}
 	if pending.completion != sendIncomplete {
@@ -922,17 +1063,55 @@ func (v *Verifier) CompleteTerminal(logical LogicalSend, code TerminalSendCode) 
 	pending.terminal = code
 	v.pendingUnfinished--
 	v.sendCounters.terminal++
+	switch code {
+	case TerminalSendRetryExhausted:
+		reasons := &v.sendCounters.terminalReasons.RetryExhausted
+		reasons.Total++
+		switch cause {
+		case retryExhaustedAttemptTimeout:
+			reasons.AttemptTimeout++
+		case retryExhaustedLocalAdmission:
+			reasons.LocalAdmission++
+		case retryExhaustedTransportError:
+			reasons.TransportError++
+		case retryExhaustedRetriableSendack:
+			reasons.RetriableSendack++
+		default:
+			reasons.Unclassified++
+		}
+	case TerminalSendNonRetriable:
+		v.sendCounters.terminalReasons.NonRetriable++
+	case TerminalSendSessionClosed:
+		v.sendCounters.terminalReasons.SessionClosed++
+	}
 	return v.recordSendFailureLocked(FailureCodeTerminalSend, logical.LogicalSend, messageFingerprint(logical.ClientMsgNo), EvidenceStageSend, uint64(code))
 }
 
-// ReleaseSend physically removes a completed pending identity while retaining
-// only its unresolved sibling wire attempts until the existing verifier
-// deadline. The retained set is bounded by pending capacity times MaxAttempts.
+// ReleaseSend physically removes a completed pending identity using the legacy
+// registration-relative retention boundary. Runtime owners with an explicit
+// completion clock should use ReleaseSendAt.
 func (v *Verifier) ReleaseSend(logical LogicalSend) error {
+	return v.releaseSendAt(logical, time.Time{})
+}
+
+// ReleaseSendAt physically removes a completed pending identity while retaining
+// unresolved sibling wire attempts for one bounded correlation window after
+// logical completion. The retained set is bounded by pending capacity times
+// MaxAttempts.
+func (v *Verifier) ReleaseSendAt(logical LogicalSend, completedAt time.Time) error {
+	return v.releaseSendAt(logical, completedAt)
+}
+
+func (v *Verifier) releaseSendAt(logical LogicalSend, completedAt time.Time) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
 	if pending == nil || pending.logical != logical || pending.completion == sendIncomplete {
+		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
+	}
+	if completedAt.IsZero() {
+		completedAt = pending.registeredAt
+	} else if completedAt.Before(pending.registeredAt) {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
 	}
 	unresolved := 0
@@ -946,7 +1125,7 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 	if unresolved > capacity-len(v.releasedAttempts) {
 		return v.recordHarnessLocked(FailureCodePendingCapacity, logical, EvidenceStageCapacity, uint64(capacity))
 	}
-	deadline := pending.registeredAt.Add(v.config.CorrelationDeadline)
+	deadline := completedAt.Add(v.config.CorrelationDeadline)
 	for index := uint8(0); index < pending.attemptCount; index++ {
 		attempt := pending.attempts[index]
 		if !attempt.outstanding || attempt.clientSeq == pending.completionClientSeq {
@@ -963,6 +1142,13 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 	if len(v.releasedAttempts) > v.releasedPeak {
 		v.releasedPeak = len(v.releasedAttempts)
 	}
+	if correlation := v.correlations[logical.ClientMsgNo]; correlation != nil && !correlation.ackSeen {
+		if unresolved == 0 {
+			v.removeCorrelationLocked(correlation)
+		} else {
+			v.scheduleCorrelationDeadlineLocked(correlation, deadline)
+		}
+	}
 	delete(v.pending, logical.ClientMsgNo)
 	return nil
 }
@@ -971,6 +1157,18 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 // immediate transport failure. A released sibling is consumed without making
 // the already completed logical send unknown.
 func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) error {
+	return v.resolveAttemptError(clientMsgNo, clientSeq, false)
+}
+
+// ResolveAttemptLocalAdmissionError removes an attempt rejected before it
+// entered the socket writer. The ordinary first-attempt counter still records
+// retry behavior, while the additional subset prevents local load-generator
+// pressure from being projected as a target correctness failure.
+func (v *Verifier) ResolveAttemptLocalAdmissionError(clientMsgNo string, clientSeq uint64) error {
+	return v.resolveAttemptError(clientMsgNo, clientSeq, true)
+}
+
+func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, localAdmission bool) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	key := releasedAttemptKey{clientSeq: clientSeq, clientMsgNo: clientMsgNo}
@@ -986,7 +1184,9 @@ func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) err
 		return v.recordUnknownSendackLocked(pending.logical.LogicalSend, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
 	}
 	if pending.completion == sendIncomplete {
-		v.recordFirstAttemptFailureLocked(pending, attempt)
+		if v.recordFirstAttemptFailureLocked(pending, attempt) && localAdmission {
+			v.sendCounters.firstAttemptLocalAdmissionFailures++
+		}
 	}
 	attempt.outstanding = false
 	return nil
@@ -1029,14 +1229,18 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	v.sendMu.Lock()
 	send := v.sendCounters
 	snapshot := VerifierSnapshot{
-		Sent:                   send.sent,
-		Attempts:               send.attempts,
-		FirstAttempts:          send.firstAttempts,
-		FirstAttemptFailures:   send.firstAttemptFailures,
+		Sent:                 send.sent,
+		Attempts:             send.attempts,
+		FirstAttempts:        send.firstAttempts,
+		FirstAttemptFailures: send.firstAttemptFailures,
+
+		FirstAttemptLocalAdmissionFailures: send.firstAttemptLocalAdmissionFailures,
+
 		RetryAttempts:          send.retryAttempts,
 		Acknowledged:           send.acknowledged,
 		SendackRejections:      send.sendackRejections,
 		Terminal:               send.terminal,
+		TerminalReasons:        send.terminalReasons,
 		DuplicateCompletions:   send.duplicateCompletions,
 		ConflictingCompletions: send.conflictingCompletions,
 		UnknownSendacks:        send.unknownSendacks,
@@ -1053,7 +1257,9 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.DeadlineCurrent = len(v.deadlines)
 	snapshot.ReleasedAttemptCurrent = len(v.releasedAttempts)
 	snapshot.ReleasedAttemptPeak = v.releasedPeak
-	snapshot.SendackLatency = v.sendackLatency
+	snapshot.HotSendackLatency = v.hotSendackLatency
+	snapshot.ColdFirstCreateSendackLatency = v.coldFirstCreateSendackLatency
+	snapshot.LifecycleReheatSendackLatency = v.lifecycleReheatSendackLatency
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()
@@ -1102,7 +1308,9 @@ func (v *Verifier) resetRuntime() {
 	heap.Init(&v.releasedDeadlines)
 	v.releasedPeak = 0
 	v.sendCounters = verifierSendCounters{}
-	v.sendackLatency = newWorkerHistogramSnapshot()
+	v.hotSendackLatency = newWorkerHistogramSnapshot()
+	v.coldFirstCreateSendackLatency = newWorkerHistogramSnapshot()
+	v.lifecycleReheatSendackLatency = newWorkerHistogramSnapshot()
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()
@@ -1133,6 +1341,15 @@ func (v *Verifier) sampledLocked(logical LogicalSend) (bool, error) {
 func (v *Verifier) completeCorrelationLocked(correlation *sampledCorrelation) {
 	v.removeCorrelationLocked(correlation)
 	v.sendCounters.sampledDelivered++
+}
+
+func (v *Verifier) scheduleCorrelationDeadlineLocked(correlation *sampledCorrelation, deadline time.Time) {
+	correlation.deadline = deadline
+	if correlation.heapIndex >= 0 {
+		heap.Fix(&v.deadlines, correlation.heapIndex)
+		return
+	}
+	heap.Push(&v.deadlines, correlation)
 }
 
 func (v *Verifier) removeCorrelationLocked(correlation *sampledCorrelation) {
@@ -1195,12 +1412,13 @@ func (v *Verifier) recordPayloadCorruption(sample uint64, fingerprint [16]byte, 
 	return v.recordReceiveFailureLocked(FailureCodeReceivePayload, sample, fingerprint, EvidenceStageReceive, value)
 }
 
-func (v *Verifier) recordFirstAttemptFailureLocked(pending *pendingSend, attempt *sendAttemptIdentity) {
+func (v *Verifier) recordFirstAttemptFailureLocked(pending *pendingSend, attempt *sendAttemptIdentity) bool {
 	if pending == nil || attempt == nil || attempt.attempt != 0 || pending.firstAttemptFailed {
-		return
+		return false
 	}
 	pending.firstAttemptFailed = true
 	v.sendCounters.firstAttemptFailures++
+	return true
 }
 
 func (v *Verifier) recordRecvAckFailureLocked(ackErr error, recv *frame.RecvPacket) error {
@@ -1307,6 +1525,8 @@ func failureCodeName(code FailureCode) string {
 		return "lifecycle_lease_invalidated"
 	case FailureCodeLifecycleReplaySaturated:
 		return "lifecycle_replay_saturated"
+	case FailureCodeTransportAdmissionSaturated:
+		return "transport_admission_saturated"
 	default:
 		return "unknown"
 	}

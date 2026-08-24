@@ -12,5 +12,5 @@ sort_by(.created_at) | reverse |
     max_by(.created_at)) as $cleanup |
   {request_id:$handoff.request_id,handoff_run_id:$handoff.workflow_run.id,handoff_artifact_id:$handoff.id,
    final_exists:($final != null),final_run_id:($final.workflow_run.id // 0),
-   cleanup_run_id:($cleanup.workflow_run.id // 0)} ] |
+   cleanup_run_id:($cleanup.workflow_run.id // 0),cleanup_artifact_id:($cleanup.id // 0)} ] |
 {include:.}

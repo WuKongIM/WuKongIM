@@ -10,8 +10,61 @@ import (
 	"testing"
 )
 
+func TestWukongIMSingleNodeScriptPassesBenchAPITokenOnlyThroughEnvironment(t *testing.T) {
+	runTimingSensitiveShellScriptTestExclusively(t)
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "token-received")
+	argsFile := filepath.Join(t.TempDir(), "node.args")
+	node := filepath.Join(t.TempDir(), "wukongim")
+	const canary = "single-node-api-token-must-not-leak"
+	nodeScript := `#!/usr/bin/env bash
+set -euo pipefail
+: "${WK_BENCH_API_TOKEN:?}"
+[[ "$WK_BENCH_API_TOKEN" == "` + canary + `" ]]
+: > "$WK_TEST_TOKEN_MARKER"
+printf '%s\n' "$@" > "$WK_TEST_ARGS_FILE"
+trap 'exit 0' TERM INT
+while true; do sleep 0.05; done
+`
+	if err := os.WriteFile(node, []byte(nodeScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	curl := filepath.Join(binDir, "curl")
+	if err := os.WriteFile(curl, []byte("#!/usr/bin/env bash\nset -euo pipefail\nif [[ ! -f \"$WK_TEST_TOKEN_MARKER\" ]]; then exit 7; fi\nprintf 'ok\\n'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	logDir := filepath.Join(t.TempDir(), "logs")
+	command := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
+		"--no-build", "--bin", node, "--exit-after-ready", "--poll", "0",
+		"--ready-timeout", "3", "--log-dir", logDir,
+		"--data-dir", filepath.Join(t.TempDir(), "node-data"))
+	command.Dir = root
+	command.Env = append(envWithout("WK_BENCH_API_TOKEN", "WK_TEST_TOKEN_MARKER", "WK_TEST_ARGS_FILE", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_BENCH_API_TOKEN="+canary,
+		"WK_TEST_TOKEN_MARKER="+marker,
+		"WK_TEST_ARGS_FILE="+argsFile,
+		"WK_PROMETHEUS_ENABLE=false",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("single-node startup failed: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("node did not receive WK_BENCH_API_TOKEN: %v\n%s", err, output)
+	}
+	args := readFile(t, argsFile)
+	log := readFile(t, filepath.Join(logDir, "node1.log"))
+	for source, content := range map[string]string{"stdout": string(output), "argv": args, "node log": log} {
+		if strings.Contains(content, canary) {
+			t.Fatalf("%s leaked API token canary: %s", source, content)
+		}
+	}
+}
+
 func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
-	runHeavyShellScriptTestInParallel(t)
+	runTimingSensitiveShellScriptTestExclusively(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -33,6 +86,8 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	)
 	cmd.Dir = root
 	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR",
+		"GOWORK",
+		"WK_NODE_DATA_DIR",
 		"WK_WUKONGIM_SINGLE_NODE_CONFIG",
 		"WK_WUKONGIM_SINGLE_NODE_BIN",
 		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR",
@@ -41,7 +96,11 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT",
 		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"GOWORK="+filepath.Join(t.TempDir(), "ancestor-go.work"),
 		"WK_PROMETHEUS_EMBED_DIR="+embedDir,
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR="+filepath.Join(t.TempDir(), "script-data"),
+		"WK_BENCH_SINGLE_NODE_QPS=250,500,750,1000",
+		"WK_BENCH_API_ENABLE=true",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -55,6 +114,11 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongim") {
 		t.Fatalf("expected build command, got:\n%s", goCalls)
 	}
+	goEnv := readFile(t, filepath.Join(callsDir, "go.env"))
+	wantBuildEnv := "GOWORK=off args=build -o " + outputBin + " ./cmd/wukongim"
+	if !strings.Contains(goEnv, wantBuildEnv) {
+		t.Fatalf("single-node build must ignore an ancestor go.work file, got:\n%s", goEnv)
+	}
 
 	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongim.calls"))
 	wantConfig := "-config " + filepath.Join(root, "scripts/wukongim/wukongim.toml")
@@ -62,11 +126,26 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 		t.Fatalf("expected node command %q, got:\n%s", wantConfig, nodeCalls)
 	}
 	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongim.env"))
+	canonicalDataDir, err := filepath.EvalSymlinks(dataDir)
+	if err != nil {
+		t.Fatalf("resolve product data directory: %v", err)
+	}
 	if !strings.Contains(nodeEnv, "WK_PROMETHEUS_ENABLE=true") {
 		t.Fatalf("expected single-node script to enable prometheus by default, got:\n%s", nodeEnv)
 	}
 	if !strings.Contains(nodeEnv, "WK_PROMETHEUS_BINARY_PATH=") || strings.Contains(nodeEnv, "WK_PROMETHEUS_BINARY_PATH=<unset>") {
 		t.Fatalf("expected script to clear binary path so wukongim uses embedded prometheus, got:\n%s", nodeEnv)
+	}
+	for _, want := range []string{
+		"WK_NODE_DATA_DIR=" + canonicalDataDir,
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR=<unset>",
+		"WK_PROMETHEUS_EMBED_DIR=<unset>",
+		"WK_BENCH_SINGLE_NODE_QPS=<unset>",
+		"WK_BENCH_API_ENABLE=true",
+	} {
+		if !strings.Contains(nodeEnv, want) {
+			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
+		}
 	}
 	goCalls = readFile(t, filepath.Join(callsDir, "go.calls"))
 	if strings.Contains(goCalls, "install github.com/prometheus/prometheus/cmd/prometheus@") {
@@ -88,8 +167,36 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	}
 }
 
+func TestWukongIMSingleNodeScriptRejectsConflictingProductDataDir(t *testing.T) {
+	runTimingSensitiveShellScriptTestExclusively(t)
+	root := repoRoot(t)
+	requestedDataDir := filepath.Join(t.TempDir(), "requested-data")
+	conflictingDataDir := filepath.Join(t.TempDir(), "conflicting-data")
+
+	cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
+		"--no-build",
+		"--bin", filepath.Join(t.TempDir(), "unused-wukongim"),
+		"--data-dir", requestedDataDir,
+	)
+	cmd.Dir = root
+	cmd.Env = append(envWithout("WK_NODE_DATA_DIR", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
+		"WK_NODE_DATA_DIR="+conflictingDataDir,
+		"WK_PROMETHEUS_ENABLE=false",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("conflicting product data directories must fail closed:\n%s", output)
+	}
+	if !strings.Contains(string(output), "WK_NODE_DATA_DIR conflicts with --data-dir") {
+		t.Fatalf("unexpected conflict failure:\n%s", output)
+	}
+	if _, statErr := os.Stat(requestedDataDir); !os.IsNotExist(statErr) {
+		t.Fatalf("conflict must fail before creating requested data directory: %v", statErr)
+	}
+}
+
 func TestWukongIMSingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T) {
-	runHeavyShellScriptTestInParallel(t)
+	runTimingSensitiveShellScriptTestExclusively(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()

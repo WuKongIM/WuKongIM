@@ -17,6 +17,8 @@ type SessionErrorObserver interface {
 }
 
 // AsyncSendObserver receives optional observations from the asynchronous SEND dispatch path.
+// Implementations that retain an absolute queue gauge must ignore an event whose
+// non-zero Revision is not newer than the last retained event.
 type AsyncSendObserver interface {
 	OnAsyncSendQueue(event AsyncSendQueueEvent)
 	OnAsyncSendBatch(event AsyncSendBatchEvent)
@@ -36,8 +38,15 @@ type AsyncSendAdmissionObserver interface {
 }
 
 // TransportPressureObserver receives optional gateway transport pressure observations.
+// Implementations that retain absolute gauges must ignore an event whose non-zero
+// Revision is not newer than the last event retained for the same Name and Queue.
 type TransportPressureObserver interface {
 	OnTransportPressure(event TransportPressureEvent)
+}
+
+// TransportWriteObserver receives optional physical transport-write completion observations.
+type TransportWriteObserver interface {
+	OnTransportWrite(event TransportWriteEvent)
 }
 
 type ConnectionEvent struct {
@@ -73,6 +82,14 @@ type FrameHandleEvent struct {
 	Err       error
 }
 
+// TransportWriteEvent reports the asynchronous socket-write completion of one outbound frame.
+type TransportWriteEvent struct {
+	ConnectionEvent
+	FrameType string
+	Duration  time.Duration
+	Err       error
+}
+
 // SessionErrorEvent reports a non-benign session error without high-cardinality raw error text.
 type SessionErrorEvent struct {
 	ConnectionEvent
@@ -86,6 +103,9 @@ type AsyncSendQueueEvent struct {
 	Depth int
 	// Capacity is the total queue capacity across shards.
 	Capacity int
+	// Revision orders absolute queue observations across executor generations.
+	// Zero denotes an unversioned legacy observation.
+	Revision uint64
 }
 
 // AsyncAuthQueueEvent reports aggregate asynchronous auth queue occupancy.
@@ -133,6 +153,9 @@ type TransportPressureEvent struct {
 	BytesCapacity int64
 	// Result is a low-cardinality admission outcome such as ok, full, closed, or too_large.
 	Result string
+	// Revision monotonically orders aggregate absolute gauges for one transport runtime.
+	// Result observations remain independent and must still be counted exactly once.
+	Revision uint64
 }
 
 // AsyncSendBatchEvent reports one asynchronous SEND batch flush.

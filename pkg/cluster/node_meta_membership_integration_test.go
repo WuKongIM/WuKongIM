@@ -128,21 +128,3 @@ func (o *recordingMembershipMutationObserver) totalRows(directory string) int {
 	}
 	return total
 }
-
-func TestClusterEnsuresPersonChannelDirectoryReady(t *testing.T) {
-	node := newDefaultSingleNode(t)
-	startNode(t, node)
-	t.Cleanup(func() { stopNodes(t, node) })
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	channelID := "person-a@person-b"
-	waitRouteKeyLeaderReady(t, node, channelID)
-	if err := node.EnsureChannelDirectoryReady(ctx, channelID, 1); err != nil {
-		t.Fatalf("EnsureChannelDirectoryReady() error = %v", err)
-	}
-	got, err := node.GetChannelMetadataAuthoritative(ctx, channelID, 1)
-	if err != nil || got.DirectoryReady != 1 {
-		t.Fatalf("GetChannelMetadataAuthoritative() = %+v err=%v", got, err)
-	}
-}

@@ -4,16 +4,23 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"sync"
 	"time"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
 const (
-	maxChannelLatestBatchItems = 512
-	maxMembershipBatchItems    = 512
+	maxChannelLatestBatchItems            = 512
+	maxMembershipBatchItems               = 512
+	maxMembershipProposalConcurrency      = 2
+	maxPersonDirectoryProposalConcurrency = 10
 )
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
@@ -586,20 +593,364 @@ func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID strin
 	if err != nil {
 		return err
 	}
+	proposals := make([]userMembershipProposal, 0, len(groups))
 	for _, hashSlot := range sortedMembershipHashSlots(groups) {
 		command, err := metafsm.EncodeUpsertUserChannelMembershipsCommandChecked(groups[hashSlot])
 		if err != nil {
 			return err
 		}
-		if err := n.Propose(ctx, ProposeRequest{
-			Command: command,
-			Target:  ProposeTarget{HashSlot: hashSlot, HasHashSlot: true},
-		}); err != nil {
-			return err
-		}
-		n.observeMembershipMutation("ordinary", "upsert", len(groups[hashSlot]))
+		proposals = append(proposals, userMembershipProposal{hashSlot: hashSlot, command: command, rows: len(groups[hashSlot])})
 	}
-	return nil
+	return n.submitUserMembershipProposals(ctx, proposals, "upsert")
+}
+
+// AdmitPersonDirectoryTasks durably records source-owned projection work in
+// the same Slot FSM batch as create-only Channel runtime metadata. Results are
+// aligned with tasks so one unavailable source Slot cannot fail unrelated,
+// already committed admissions.
+func (n *Node) AdmitPersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTask) []error {
+	results := make([]error, len(tasks))
+	n.AdmitPersonDirectoryTaskWaves(ctx, tasks, func(index int, err error) {
+		if index >= 0 && index < len(results) {
+			results[index] = err
+		}
+	})
+	return results
+}
+
+// AdmitPersonDirectoryTaskWaves records source-owned projection tasks and
+// emits every aligned result as soon as its independent Slot proposal
+// completes. emit is called serially and exactly once for every input before
+// the method returns.
+func (n *Node) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+	if emit == nil {
+		return
+	}
+	completed := make([]bool, len(tasks))
+	complete := func(index int, err error) {
+		if index < 0 || index >= len(completed) || completed[index] {
+			return
+		}
+		completed[index] = true
+		emit(index, err)
+	}
+	completeAll := func(err error) {
+		for i := range tasks {
+			complete(i, err)
+		}
+	}
+	if err := ctxErr(ctx); err != nil {
+		completeAll(err)
+		return
+	}
+	if n == nil {
+		completeAll(ErrNotStarted)
+		return
+	}
+	if err := n.ensureForeground(); err != nil {
+		completeAll(err)
+		return
+	}
+	if len(tasks) == 0 {
+		return
+	}
+	if len(tasks) > metafsm.MaxPersonDirectoryBatchItems {
+		completeAll(metadb.ErrInvalidArgument)
+		return
+	}
+	keys := make([]string, len(tasks))
+	ids := make([]channelruntime.ChannelID, len(tasks))
+	for i, task := range tasks {
+		if task.ChannelID == "" || task.ChannelType != 1 || task.CreatedAt < 0 {
+			complete(i, metadb.ErrInvalidArgument)
+			continue
+		}
+		keys[i] = task.ChannelID
+		ids[i] = channelruntime.ChannelID{ID: task.ChannelID, Type: uint8(task.ChannelType)}
+	}
+	routed, err := n.router.RouteKeysPartial(keys)
+	if err != nil {
+		completeAll(mapRouteError(err))
+		return
+	}
+	validIndices := make([]int, 0, len(tasks))
+	validIDs := make([]channelruntime.ChannelID, 0, len(tasks))
+	validRoutes := make([]routing.Route, 0, len(tasks))
+	for i, result := range routed {
+		if completed[i] {
+			continue
+		}
+		if result.Err != nil {
+			complete(i, mapRouteError(result.Err))
+			continue
+		}
+		validIndices = append(validIndices, i)
+		validIDs = append(validIDs, ids[i])
+		validRoutes = append(validRoutes, result.Route)
+	}
+	if len(validIndices) == 0 {
+		return
+	}
+	replicaCount := int(n.cfg.Channel.ReplicaCount)
+	if replicaCount == 0 {
+		replicaCount = int(n.cfg.Slots.ReplicaCount)
+	}
+	resolver := channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, replicaCount)
+	placements, err := resolver.ResolveChannelPlacementBatch(ctx, validIDs, validRoutes)
+	if err != nil {
+		for _, index := range validIndices {
+			complete(index, err)
+		}
+		return
+	}
+	type admissionGroupItem struct {
+		item  metafsm.PersonDirectoryAdmissionBatchItem
+		index int
+	}
+	groups := make(map[uint32][]admissionGroupItem)
+	for validIndex, index := range validIndices {
+		task := tasks[index]
+		meta, err := channels.RuntimeMetaFromPlacement(ids[index], placements[validIndex])
+		if err != nil {
+			complete(index, err)
+			continue
+		}
+		route := validRoutes[validIndex]
+		groups[route.SlotID] = append(groups[route.SlotID], admissionGroupItem{
+			item: metafsm.PersonDirectoryAdmissionBatchItem{HashSlot: route.HashSlot, Task: task, RuntimeMeta: meta}, index: index,
+		})
+	}
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	proposals := make([]personDirectoryProposal, 0, len(groups))
+	for _, slotID := range slotIDs {
+		group := groups[slotID]
+		for start := 0; start < len(group); start += metafsm.MaxPersonDirectoryBatchItems {
+			end := min(start+metafsm.MaxPersonDirectoryBatchItems, len(group))
+			items := make([]metafsm.PersonDirectoryAdmissionBatchItem, end-start)
+			indices := make([]int, end-start)
+			for i := start; i < end; i++ {
+				items[i-start] = group[i].item
+				indices[i-start] = group[i].index
+			}
+			command, err := metafsm.EncodeAdmitPersonDirectoryTaskBatchCommandChecked(items)
+			if err != nil {
+				for _, index := range indices {
+					complete(index, err)
+				}
+				continue
+			}
+			proposals = append(proposals, personDirectoryProposal{slotID: slotID, hashSlot: items[0].HashSlot, command: command, indices: indices})
+		}
+	}
+	if observer, ok := n.cfg.Channel.Observer.(channels.AppendStageObserver); ok {
+		ctx = propose.WithStageObserver(ctx, observer)
+	}
+	n.submitPersonDirectoryProposalWaves(ctx, proposals, complete)
+	completeAll(metadb.ErrInvalidArgument)
+}
+
+// EnsureUserChannelMembershipBatch projects create-if-absent rows and
+// preserves one error aligned with every input membership. Slot-group success
+// is retained when another independent Slot group fails.
+func (n *Node) EnsureUserChannelMembershipBatch(ctx context.Context, memberships []metadb.UserChannelMembership) []error {
+	results := make([]error, len(memberships))
+	if err := ctxErr(ctx); err != nil {
+		for i := range results {
+			results[i] = err
+		}
+		return results
+	}
+	if n == nil {
+		for i := range results {
+			results[i] = ErrNotStarted
+		}
+		return results
+	}
+	keys := make([]string, len(memberships))
+	for i, membership := range memberships {
+		if membership.UID == "" || membership.ChannelID == "" || membership.ChannelType != 1 {
+			results[i] = metadb.ErrInvalidArgument
+			continue
+		}
+		keys[i] = membership.UID
+	}
+	routes, err := n.RouteKeysPartial(keys)
+	if err != nil {
+		for i := range results {
+			if results[i] == nil {
+				results[i] = err
+			}
+		}
+		return results
+	}
+	type groupItem struct {
+		item  metafsm.UserChannelMembershipBatchItem
+		index int
+	}
+	groups := make(map[uint32][]groupItem)
+	for i, result := range routes {
+		if results[i] != nil {
+			continue
+		}
+		if result.Err != nil {
+			results[i] = result.Err
+			continue
+		}
+		groups[result.Route.SlotID] = append(groups[result.Route.SlotID], groupItem{
+			item: metafsm.UserChannelMembershipBatchItem{HashSlot: result.Route.HashSlot, Membership: memberships[i]}, index: i,
+		})
+	}
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	proposals := make([]personDirectoryProposal, 0, len(groups))
+	for _, slotID := range slotIDs {
+		group := groups[slotID]
+		for start := 0; start < len(group); start += metafsm.MaxPersonDirectoryBatchItems {
+			end := min(start+metafsm.MaxPersonDirectoryBatchItems, len(group))
+			items := make([]metafsm.UserChannelMembershipBatchItem, end-start)
+			indices := make([]int, end-start)
+			for i := start; i < end; i++ {
+				items[i-start] = group[i].item
+				indices[i-start] = group[i].index
+			}
+			command, err := metafsm.EncodeEnsureUserChannelMembershipBatchCommandChecked(items)
+			if err != nil {
+				for _, index := range indices {
+					results[index] = err
+				}
+				continue
+			}
+			proposals = append(proposals, personDirectoryProposal{
+				slotID: slotID, hashSlot: items[0].HashSlot, command: command, indices: indices,
+			})
+		}
+	}
+	n.submitPersonDirectoryProposalWaves(ctx, proposals, func(index int, err error) {
+		results[index] = err
+		if err == nil {
+			n.observeMembershipMutation("ordinary", "ensure", 1)
+		}
+	})
+	return results
+}
+
+type personDirectoryProposal struct {
+	slotID   uint32
+	hashSlot uint16
+	command  []byte
+	indices  []int
+}
+
+func (n *Node) submitPersonDirectoryProposalWaves(ctx context.Context, proposals []personDirectoryProposal, emit func(int, error)) {
+	if len(proposals) == 0 {
+		return
+	}
+	type proposalResult struct {
+		proposal personDirectoryProposal
+		err      error
+	}
+	jobs := make(chan int, len(proposals))
+	completed := make(chan proposalResult, len(proposals))
+	for index := range proposals {
+		jobs <- index
+	}
+	close(jobs)
+	workerCount := min(len(proposals), maxPersonDirectoryProposalConcurrency)
+	var workers sync.WaitGroup
+	worker := func() {
+		for index := range jobs {
+			proposal := proposals[index]
+			err := n.Propose(ctx, ProposeRequest{Command: proposal.command, Target: ProposeTarget{
+				HashSlot: proposal.hashSlot, HasHashSlot: true, SlotID: proposal.slotID, HasSlotID: true,
+			}})
+			completed <- proposalResult{proposal: proposal, err: err}
+		}
+	}
+	if workerCount > 1 {
+		workers.Add(workerCount - 1)
+		goruntimeregistry.SafeGoN(n.cfg.Goroutines, goruntimeregistry.TaskClusterMembershipBatch, workerCount-1, func(int) {
+			defer workers.Done()
+			worker()
+		})
+	}
+	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterMembershipBatch, func() {
+		worker()
+		workers.Wait()
+		close(completed)
+	})
+	for result := range completed {
+		for _, index := range result.proposal.indices {
+			emit(index, result.err)
+		}
+	}
+}
+
+type userMembershipProposal struct {
+	hashSlot uint16
+	command  []byte
+	rows     int
+}
+
+func (n *Node) submitUserMembershipProposals(ctx context.Context, proposals []userMembershipProposal, action string) error {
+	if len(proposals) == 0 {
+		return nil
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan int, len(proposals))
+	for index := range proposals {
+		jobs <- index
+	}
+	close(jobs)
+	succeeded := make([]bool, len(proposals))
+	workerCount := min(len(proposals), maxMembershipProposalConcurrency)
+	var workers sync.WaitGroup
+	var firstErr error
+	var firstErrOnce sync.Once
+	worker := func() {
+		for index := range jobs {
+			if workerCtx.Err() != nil {
+				return
+			}
+			proposal := proposals[index]
+			if err := n.Propose(workerCtx, ProposeRequest{
+				Command: proposal.command,
+				Target:  ProposeTarget{HashSlot: proposal.hashSlot, HasHashSlot: true},
+			}); err != nil {
+				firstErrOnce.Do(func() {
+					firstErr = err
+					cancel()
+				})
+				continue
+			}
+			succeeded[index] = true
+		}
+	}
+	if workerCount > 1 {
+		workers.Add(workerCount - 1)
+		goruntimeregistry.SafeGoN(n.cfg.Goroutines, goruntimeregistry.TaskClusterMembershipBatch, workerCount-1, func(int) {
+			defer workers.Done()
+			worker()
+		})
+	}
+	worker()
+	workers.Wait()
+	for index, ok := range succeeded {
+		if ok {
+			n.observeMembershipMutation("ordinary", action, proposals[index].rows)
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctxErr(ctx)
 }
 
 // TombstoneUserChannelMemberships records UID-owned removals through hash-slot ownership.
@@ -691,24 +1042,6 @@ func (n *Node) proposeUserChannelMembershipMutation(ctx context.Context, uid, op
 	}
 	n.observeMembershipMutation("ordinary", operation, 1)
 	return nil
-}
-
-// EnsureChannelDirectoryReady monotonically marks canonical person-channel
-// membership initialization complete in channel-owned metadata.
-func (n *Node) EnsureChannelDirectoryReady(ctx context.Context, channelID string, channelType int64) error {
-	if err := ctxErr(ctx); err != nil {
-		return err
-	}
-	if n == nil {
-		return ErrNotStarted
-	}
-	if channelID == "" || channelType <= 0 {
-		return metadb.ErrInvalidArgument
-	}
-	return n.Propose(ctx, ProposeRequest{
-		Key:     channelID,
-		Command: metafsm.EncodeEnsureChannelDirectoryReadyCommand(channelID, channelType),
-	})
 }
 
 // UpsertUserCMDChannelMemberships persists CMD discovery bindings through UID hash-slot ownership.

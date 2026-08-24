@@ -109,6 +109,35 @@ func TestRehearsalRuntimeEnvelopeUsesTwoHourRunAndCleanupReserve(t *testing.T) {
 	}
 }
 
+func TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget(t *testing.T) {
+	cfg := chatlifecycle.RehearsalConfig()
+	now := time.Unix(1_970_300_000, 0).UTC()
+	t.Setenv("WK_CHAT_RUNTIME_ENVELOPE", "direct_repair")
+	t.Setenv("WK_CHAT_LEASE_CREATED_AT", now.Format(time.RFC3339Nano))
+	t.Setenv("WK_CHAT_LEASE_EXPIRES_AT", now.Add(6*time.Hour).Format(time.RFC3339Nano))
+	t.Setenv("WK_CHAT_BUDGET_LIMIT_MICROS", "300000000")
+	t.Setenv("WK_CHAT_BUDGET_OPERATIONAL_STOP_MICROS", "250000000")
+	t.Setenv("WK_CHAT_BUDGET_COMMITTED_MICROS", "0")
+	t.Setenv("WK_CHAT_BUDGET_ESTIMATED_MICROS", "41318000")
+	setFormalBudgetLineItems(t, []formalBudgetLineItem{
+		{Kind: "postpaid_host_hour", Role: "service", Quantity: 18, CostMicros: 18_306_000},
+		{Kind: "postpaid_host_hour", Role: "load", Quantity: 6, CostMicros: 4_212_000},
+		{Kind: "eip_public_egress_gib", Role: "load", Quantity: 11, CostMicros: 8_800_000},
+		{Kind: "eip_retention_policy_risk_hour", Role: "load", Quantity: 10, CostMicros: 10_000_000},
+	})
+	if _, err := loadFormalRuntimeEnvelope(cfg, now); err != nil {
+		t.Fatalf("loadFormalRuntimeEnvelope(direct repair) error = %v", err)
+	}
+	t.Setenv("WK_CHAT_LEASE_EXPIRES_AT", now.Add(70*time.Minute-time.Second).Format(time.RFC3339Nano))
+	if _, err := loadFormalRuntimeEnvelope(cfg, now); err == nil {
+		t.Fatal("direct repair Lease without its ten-minute run and cleanup reserve was accepted")
+	}
+	t.Setenv("WK_CHAT_LEASE_EXPIRES_AT", now.Add(6*time.Hour).Format(time.RFC3339Nano))
+	if _, err := loadFormalRuntimeEnvelope(chatlifecycle.FormalConfig(), now); err == nil {
+		t.Fatal("direct repair envelope was accepted for a formal run")
+	}
+}
+
 func setFormalBudgetLineItems(t *testing.T, items []formalBudgetLineItem) {
 	t.Helper()
 	body, err := json.Marshal(items)

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -35,11 +36,14 @@ func (f *MemoryFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Channe
 
 // MemoryChannelStore is a mutex-protected durable-log test double.
 type MemoryChannelStore struct {
-	mu         sync.Mutex
-	id         ch.ChannelID
-	records    []ch.Record
-	checkpoint ch.Checkpoint
-	retention  RetentionState
+	mu                 sync.Mutex
+	id                 ch.ChannelID
+	records            []ch.Record
+	checkpoint         ch.Checkpoint
+	retention          RetentionState
+	proposalsByCommand map[[32]byte]proposalRecord
+	proposalsByLast    map[uint64]proposalRecord
+	entriesByIndex     map[uint64]ch.EntryIdentity
 }
 
 // Load returns the current in-memory offsets.
@@ -53,16 +57,315 @@ func (s *MemoryChannelStore) Load(ctx context.Context) (InitialState, error) {
 	return InitialState{LEO: leo, HW: minUint64(s.checkpoint.HW, leo), CheckpointHW: minUint64(s.checkpoint.HW, leo)}, nil
 }
 
-// AppendLeader appends records as the local leader and assigns continuous indexes.
-func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
+// LoadExactState returns one consistent exact durable frontier snapshot.
+func (s *MemoryChannelStore) LoadExactState(ctx context.Context) (ExactState, error) {
 	if err := ctx.Err(); err != nil {
-		return AppendLeaderResult{}, err
+		return ExactState{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.loadExactStateLocked()
+}
+
+// LoadExactRecoveryState returns one consistent frontier plus exact identities
+// at the requested indexes.
+func (s *MemoryChannelStore) LoadExactRecoveryState(ctx context.Context, indexes []uint64) (ExactRecoveryState, error) {
+	if err := ctx.Err(); err != nil {
+		return ExactRecoveryState{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.loadExactStateLocked()
+	if err != nil {
+		return ExactRecoveryState{}, err
+	}
+	result := ExactRecoveryState{ExactState: state, Entries: make([]ExactEntryProbe, len(indexes))}
+	for position, index := range indexes {
+		if index == 0 {
+			return ExactRecoveryState{}, ch.ErrInvalidConfig
+		}
+		probe := ExactEntryProbe{Index: index}
+		if index <= state.LEO {
+			identity, present := s.entriesByIndex[index]
+			if !present || identity.Index != index {
+				return ExactRecoveryState{}, ch.ErrLogConflict
+			}
+			probe.Present = true
+			probe.Identity = identity
+		}
+		result.Entries[position] = probe
+	}
+	return result, nil
+}
+
+// ReadExactRecoveryPage returns one proposal-aligned record and identity page
+// from the same in-memory frontier view.
+func (s *MemoryChannelStore) ReadExactRecoveryPage(ctx context.Context, req ExactRecoveryPageRequest) (ExactRecoveryPage, error) {
+	if ctx == nil || req.From == 0 || req.Through < req.From || req.Through-req.From >= 256 || req.MaxBytes <= 0 {
+		return ExactRecoveryPage{}, ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return ExactRecoveryPage{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.loadExactStateLocked()
+	if err != nil {
+		return ExactRecoveryPage{}, err
+	}
+	if req.Through > state.LEO {
+		return ExactRecoveryPage{}, ch.ErrLogConflict
+	}
+	first, present := s.entriesByIndex[req.From]
+	if !present {
+		return ExactRecoveryPage{}, ch.ErrLogConflict
+	}
+	firstProposal, present := s.proposalsByCommand[first.CommandID]
+	if !present || firstProposal.manifest.BaseOffset+1 != req.From {
+		return ExactRecoveryPage{}, ch.ErrLogConflict
+	}
+	result := ExactRecoveryPage{
+		ExactState: state,
+		Records:    make([]ch.Record, 0, req.Through-req.From+1),
+		Entries:    make([]ExactEntryProbe, 0, req.Through-req.From+1),
+	}
+	used := 0
+	proposal := firstProposal
+	for {
+		if proposal.manifest.LastOffset > req.Through {
+			if len(result.Records) == 0 {
+				return ExactRecoveryPage{}, ch.ErrBackpressured
+			}
+			break
+		}
+		proposalRecords := make([]ch.Record, 0, proposal.manifest.LastOffset-proposal.manifest.BaseOffset)
+		proposalEntries := make([]ExactEntryProbe, 0, proposal.manifest.LastOffset-proposal.manifest.BaseOffset)
+		proposalBytes := 0
+		for index := proposal.manifest.BaseOffset + 1; index <= proposal.manifest.LastOffset; index++ {
+			record, recordPresent := s.recordBySeqLocked(index)
+			identity, identityPresent := s.entriesByIndex[index]
+			if !recordPresent {
+				return ExactRecoveryPage{}, ch.ErrNotReady
+			}
+			if !identityPresent || identity.Index != index || identity.CommandID != proposal.manifest.CommandID {
+				return ExactRecoveryPage{}, ch.ErrLogConflict
+			}
+			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+			if proposalBytes > req.MaxBytes-recordBytes {
+				return ExactRecoveryPage{}, ch.ErrBackpressured
+			}
+			proposalBytes += recordBytes
+			proposalRecords = append(proposalRecords, cloneRecord(record))
+			proposalEntries = append(proposalEntries, ExactEntryProbe{Index: index, Present: true, Identity: identity})
+		}
+		if used > req.MaxBytes-proposalBytes {
+			if len(result.Records) == 0 {
+				return ExactRecoveryPage{}, ch.ErrBackpressured
+			}
+			break
+		}
+		used += proposalBytes
+		result.Records = append(result.Records, proposalRecords...)
+		result.Entries = append(result.Entries, proposalEntries...)
+		if proposal.manifest.LastOffset == req.Through {
+			break
+		}
+		next, present := s.entriesByIndex[proposal.manifest.LastOffset+1]
+		if !present {
+			return ExactRecoveryPage{}, ch.ErrLogConflict
+		}
+		nextProposal, present := s.proposalsByCommand[next.CommandID]
+		if !present || nextProposal.manifest.BaseOffset != proposal.manifest.LastOffset {
+			return ExactRecoveryPage{}, ch.ErrLogConflict
+		}
+		proposal = nextProposal
+	}
+	return result, nil
+}
+
+// LoadExactProposal returns one immutable in-memory proposal and its records.
+func (s *MemoryChannelStore) LoadExactProposal(ctx context.Context, req ExactProposalRequest) (ExactProposal, bool, error) {
+	if ctx == nil || req.CommandID == (ch.CommandID{}) || req.MaxRecords <= 0 || req.MaxBytes <= 0 {
+		return ExactProposal{}, false, ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return ExactProposal{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	proposal, present := s.proposalsByCommand[req.CommandID]
+	if !present {
+		return ExactProposal{}, false, nil
+	}
+	count := proposal.manifest.LastOffset - proposal.manifest.BaseOffset
+	if count > uint64(req.MaxRecords) {
+		return ExactProposal{}, false, ch.ErrBackpressured
+	}
+	records := make([]ch.Record, 0, count)
+	used := 0
+	for index := proposal.manifest.BaseOffset + 1; index <= proposal.manifest.LastOffset; index++ {
+		record, ok := s.recordBySeqLocked(index)
+		if !ok {
+			return ExactProposal{}, false, ch.ErrLogConflict
+		}
+		recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+		if recordBytes > req.MaxBytes-used {
+			return ExactProposal{}, false, ch.ErrBackpressured
+		}
+		used += recordBytes
+		records = append(records, cloneRecord(record))
+	}
+	return ExactProposal{Manifest: proposal.manifest, Records: records}, true, nil
+}
+
+func (s *MemoryChannelStore) loadExactStateLocked() (ExactState, error) {
+	leo := s.leoLocked()
+	if s.checkpoint.HW > leo {
+		return ExactState{}, ch.ErrLogConflict
+	}
+	state := ExactState{InitialState: InitialState{
+		LEO: leo, HW: s.checkpoint.HW, CheckpointHW: s.checkpoint.HW,
+	}}
+	if leo == 0 {
+		return state, nil
+	}
+	proposal, proposalOK := s.proposalsByLast[leo]
+	entry, entryOK := s.entriesByIndex[leo]
+	if !proposalOK || !entryOK || proposal.manifest.LastOffset != leo || proposal.manifest.Digest != entry.Digest ||
+		proposal.manifest.LeaderTerm != entry.LeaderTerm || proposal.manifest.ChannelEpoch != entry.ChannelEpoch ||
+		proposal.manifest.FenceVersion != entry.FenceVersion || proposal.manifest.CommandID != entry.CommandID {
+		return ExactState{}, ch.ErrLogConflict
+	}
+	state.Manifest = proposal.manifest
+	state.TailIdentity = entry
+	return state, nil
+}
+
+// ReplaceRecoverySuffix atomically swaps an uncommitted divergent suffix for
+// a fully verified sequence of exact proposals.
+func (s *MemoryChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error) {
+	if ctx == nil {
+		return replaceRecoverySuffixErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.loadExactStateLocked()
+	if err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	if current != req.Expected || req.KeepThrough > current.LEO || req.KeepThrough < current.HW ||
+		req.Committed < current.HW || req.KeepThrough < s.retention.LocalRetentionThroughSeq {
+		return replaceRecoverySuffixErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+	}
+	if req.KeepThrough > 0 {
+		if proposal, ok := s.proposalsByLast[req.KeepThrough]; !ok || proposal.manifest.LastOffset != req.KeepThrough {
+			return replaceRecoverySuffixErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+		}
+	}
+
+	prefixRecords := make([]ch.Record, 0, len(s.records))
+	for _, record := range s.records {
+		if record.Index <= req.KeepThrough {
+			prefixRecords = append(prefixRecords, cloneRecord(record))
+		}
+	}
+	next := &MemoryChannelStore{
+		id:                 s.id,
+		records:            prefixRecords,
+		checkpoint:         s.checkpoint,
+		retention:          s.retention,
+		proposalsByCommand: make(map[[32]byte]proposalRecord),
+		proposalsByLast:    make(map[uint64]proposalRecord),
+		entriesByIndex:     make(map[uint64]ch.EntryIdentity),
+	}
+	if next.retention.RetainedMaxSeq > req.KeepThrough {
+		next.retention.RetainedMaxSeq = req.KeepThrough
+	}
+	for command, proposal := range s.proposalsByCommand {
+		if proposal.manifest.LastOffset <= req.KeepThrough {
+			next.proposalsByCommand[command] = proposal
+		}
+	}
+	for last, proposal := range s.proposalsByLast {
+		if last <= req.KeepThrough {
+			next.proposalsByLast[last] = proposal
+		}
+	}
+	for index, identity := range s.entriesByIndex {
+		if index <= req.KeepThrough {
+			next.entriesByIndex[index] = identity
+		}
+	}
+	base := req.KeepThrough
+	for _, proposal := range req.Proposals {
+		if proposal.Manifest.BaseOffset != base {
+			return replaceRecoverySuffixErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+		}
+		result, appendErr := next.appendLeaderExactLocked(AppendLeaderRequest{
+			Records: proposal.Records, ExactBaseOffset: true,
+			ExpectedBaseOffset: base, Proposal: proposal.Manifest,
+		})
+		if appendErr != nil || !result.Outcome.Durable() {
+			if appendErr == nil {
+				appendErr = ch.ErrLogConflict
+			}
+			return replaceRecoverySuffixErrorResult(appendErr), appendErr
+		}
+		base = proposal.Manifest.LastOffset
+	}
+	if req.Committed > base {
+		return replaceRecoverySuffixErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	next.checkpoint.HW = req.Committed
+	if next.retention.RetainedMaxSeq > base {
+		next.retention.RetainedMaxSeq = base
+	}
+	s.records = next.records
+	s.checkpoint = next.checkpoint
+	s.retention = next.retention
+	s.proposalsByCommand = next.proposalsByCommand
+	s.proposalsByLast = next.proposalsByLast
+	s.entriesByIndex = next.entriesByIndex
+	return ReplaceRecoverySuffixResult{LastOffset: base, Outcome: AppendOutcomeDurable}, nil
+}
+
+func replaceRecoverySuffixErrorResult(err error) ReplaceRecoverySuffixResult {
+	outcome := AppendOutcomeDefinitelyNotWritten
+	if errors.Is(err, ch.ErrLogConflict) {
+		outcome = AppendOutcomeConflict
+	}
+	return ReplaceRecoverySuffixResult{Outcome: outcome}
+}
+
+// AppendLeader appends records as the local leader and assigns continuous indexes.
+func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
+	if err := ctx.Err(); err != nil {
+		return appendLeaderErrorResult(err), err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if req.ExactBaseOffset {
+		if req.Committed > req.Proposal.LastOffset {
+			return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+		}
+		result, err := s.appendLeaderExactLocked(req)
+		if err == nil && result.Outcome.Durable() && req.Committed > s.checkpoint.HW {
+			s.checkpoint.HW = req.Committed
+		}
+		return result, err
+	}
+	if req.Committed != 0 {
+		return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
 	if len(req.Records) == 0 {
 		leo := s.leoLocked()
-		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo}, nil
+		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo, Outcome: AppendOutcomeDurable}, nil
 	}
 	base := s.leoLocked() + 1
 	for i, record := range req.Records {
@@ -73,7 +376,86 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 		}
 		s.records = append(s.records, record)
 	}
-	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked()}, nil
+	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked(), Outcome: AppendOutcomeDurable}, nil
+}
+
+func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (AppendLeaderResult, error) {
+	proposal, entries, err := buildProposalRecord(req.Proposal, req.ExpectedBaseOffset, req.Records)
+	if err != nil {
+		return appendLeaderErrorResult(err), err
+	}
+	leo := s.leoLocked()
+	if req.ExpectedBaseOffset > leo {
+		return AppendLeaderResult{
+			Outcome: AppendOutcomeConflict, NeedFrom: leo + 1,
+		}, ch.ErrLogConflict
+	}
+	if req.Proposal.BaseOffset > 0 {
+		previous, ok := s.proposalsByLast[req.Proposal.BaseOffset]
+		if !ok || previous.manifest.LeaderTerm != req.Proposal.PreviousTerm || previous.manifest.Digest != req.Proposal.PreviousDigest {
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+		}
+	}
+	byCommand, commandPresent := s.proposalsByCommand[req.Proposal.CommandID]
+	byLast, lastPresent := s.proposalsByLast[req.Proposal.LastOffset]
+	if commandPresent || lastPresent {
+		if !commandPresent || !lastPresent || byCommand != proposal || byLast != proposal || leo < req.Proposal.LastOffset {
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+		}
+		for _, entry := range entries {
+			if persisted, ok := s.entriesByIndex[entry.Index]; !ok || persisted != entry {
+				return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+			}
+		}
+		return AppendLeaderResult{BaseOffset: req.ExpectedBaseOffset + 1, LastOffset: req.Proposal.LastOffset, Outcome: AppendOutcomeAlreadyDurable}, nil
+	}
+	for _, entry := range entries {
+		if _, exists := s.entriesByIndex[entry.Index]; exists {
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+		}
+	}
+	last := req.ExpectedBaseOffset + uint64(len(req.Records))
+	if leo < req.ExpectedBaseOffset || (leo > req.ExpectedBaseOffset && leo < last) {
+		return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+	}
+	if leo >= last {
+		return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+	}
+	base := req.ExpectedBaseOffset + 1
+	for i, record := range req.Records {
+		seq := base + uint64(i)
+		if record.Index != 0 && record.Index != seq {
+			return appendLeaderErrorResult(ch.ErrLogConflict), ch.ErrLogConflict
+		}
+		record.Index = seq
+		record.Payload = cloneBytes(record.Payload)
+		if record.SizeBytes == 0 {
+			record.SizeBytes = len(record.Payload)
+		}
+		s.records = append(s.records, record)
+	}
+	if s.proposalsByCommand == nil {
+		s.proposalsByCommand = make(map[[32]byte]proposalRecord)
+	}
+	if s.proposalsByLast == nil {
+		s.proposalsByLast = make(map[uint64]proposalRecord)
+	}
+	if s.entriesByIndex == nil {
+		s.entriesByIndex = make(map[uint64]ch.EntryIdentity)
+	}
+	s.proposalsByCommand[req.Proposal.CommandID] = proposal
+	s.proposalsByLast[req.Proposal.LastOffset] = proposal
+	for _, entry := range entries {
+		s.entriesByIndex[entry.Index] = entry
+	}
+	return AppendLeaderResult{BaseOffset: base, LastOffset: last, Outcome: AppendOutcomeDurable}, nil
+}
+
+func appendLeaderErrorResult(err error) AppendLeaderResult {
+	if errors.Is(err, ch.ErrLogConflict) {
+		return AppendLeaderResult{Outcome: AppendOutcomeConflict}
+	}
+	return AppendLeaderResult{Outcome: AppendOutcomeDefinitelyNotWritten}
 }
 
 // ApplyFollower applies leader records, skipping any duplicate prefix already stored.

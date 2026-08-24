@@ -146,6 +146,17 @@ func (o deliveryMessageObserver) ObserveChannelAppendEffect(event channelappend.
 	o.app.metrics.ChannelAppend.ObserveEffect(event.Stage, event.Result, event.Items, event.Duration)
 }
 
+func (o deliveryMessageObserver) ObserveChannelAppendIdempotencyRecovery(event channelappend.IdempotencyRecoveryObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelAppend.ObserveIdempotencyRecovery(
+		event.RecoveredItems,
+		event.UnresolvedItems,
+		event.LookupErrorItems,
+	)
+}
+
 func (o deliveryMessageObserver) ObserveChannelAppendPostCommitFailure(event channelappend.PostCommitFailureObservation) {
 	if o.app == nil {
 		return

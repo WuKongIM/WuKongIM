@@ -96,6 +96,65 @@ func TestClientQueueSnapshotReportsBoundedAdapterState(t *testing.T) {
 	}
 }
 
+func TestClientReadFrameLeaseKeepsAdapterReceiveOwnedUntilRelease(t *testing.T) {
+	client, err := NewClient(ClientConfig{Addr: "127.0.0.1:5100", FrameBufferSize: 1})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	inner, err := wkclient.New(wkclient.Config{Addr: "127.0.0.1:5100", InboundFrameBufferSize: 1})
+	if err != nil {
+		t.Fatalf("wkclient.New() error = %v", err)
+	}
+	defer inner.Close()
+	session := newClientSession(inner, client.frameBufferSize)
+	client.session = session
+	if !session.publishRecv(&frame.RecvPacket{MessageID: 9}) {
+		t.Fatal("publishRecv() = false")
+	}
+
+	got, lease, err := client.ReadFrameWithLease(context.Background())
+	if err != nil || got.(*frame.RecvPacket).MessageID != 9 || lease == nil {
+		t.Fatalf("ReadFrameWithLease() = %#v, %v, %v", got, lease, err)
+	}
+	if snapshot := client.QueueSnapshot(); snapshot.RecvDepth != 0 || snapshot.AdapterHandoffs != 1 {
+		t.Fatalf("dequeued adapter snapshot = %+v, want recv_depth=0 recv_handoffs=1", snapshot)
+	}
+	lease.Release()
+	lease.Release()
+	if snapshot := client.QueueSnapshot(); snapshot.AdapterHandoffs != 0 {
+		t.Fatalf("released adapter snapshot = %+v, want no receive handoff", snapshot)
+	}
+}
+
+func TestClientReadFrameLeaseKeepsAdapterSendackOwnedUntilRelease(t *testing.T) {
+	client, err := NewClient(ClientConfig{Addr: "127.0.0.1:5100", FrameBufferSize: 1})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	inner, err := wkclient.New(wkclient.Config{Addr: "127.0.0.1:5100", InboundFrameBufferSize: 1})
+	if err != nil {
+		t.Fatalf("wkclient.New() error = %v", err)
+	}
+	defer inner.Close()
+	session := newClientSession(inner, client.frameBufferSize)
+	client.session = session
+	if !session.publishSendack(&frame.SendackPacket{ClientSeq: 11}) {
+		t.Fatal("publishSendack() = false")
+	}
+
+	got, lease, err := client.ReadFrameWithLease(context.Background())
+	if err != nil || got.(*frame.SendackPacket).ClientSeq != 11 || lease == nil {
+		t.Fatalf("ReadFrameWithLease() = %#v, %v, %v", got, lease, err)
+	}
+	if snapshot := client.QueueSnapshot(); snapshot.SendackDepth != 0 || snapshot.AdapterHandoffs != 1 {
+		t.Fatalf("dequeued adapter snapshot = %+v, want sendack_depth=0 handoffs=1", snapshot)
+	}
+	lease.Release()
+	if snapshot := client.QueueSnapshot(); snapshot.AdapterHandoffs != 0 {
+		t.Fatalf("released adapter snapshot = %+v, want no handoff", snapshot)
+	}
+}
+
 func TestReadErrorKindDistinguishesAsyncSendFromTerminalSessionFailure(t *testing.T) {
 	t.Parallel()
 	session := newClientSession(nil, 2)
@@ -310,6 +369,122 @@ func TestClientEncryptsSendDecryptsRecvAndWritesRecvAck(t *testing.T) {
 	case <-serverDone:
 	case <-time.After(time.Second):
 		t.Fatal("server did not observe recvack")
+	}
+}
+
+func TestClientSealIngressFailsClosedWithoutMutatingLiveQueues(t *testing.T) {
+	recvWritten := make(chan struct{})
+	serverObservedAck := make(chan struct{})
+	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
+		if _, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion); err != nil {
+			t.Fatalf("decode connect: %v", err)
+		}
+		writeFrame(t, conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+		writeFrame(t, conn, &frame.RecvPacket{
+			Setting: frame.SettingNoEncrypt, MessageID: 91, MessageSeq: 9,
+			ChannelID: "u1", ChannelType: frame.ChannelTypePerson, FromUID: "u2",
+			Payload: []byte("queued-before-unsupported-seal"),
+		})
+		close(recvWritten)
+		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode recvack: %v", err)
+		}
+		if ack, ok := f.(*frame.RecvackPacket); !ok || ack.MessageID != 91 {
+			t.Fatalf("recvack = %#v, want message 91", f)
+		}
+		close(serverObservedAck)
+	})
+	defer server.close()
+
+	client, err := NewClient(ClientConfig{Addr: server.addr, OperationTimeout: time.Second, FrameBufferSize: 1})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	<-recvWritten
+	waitForQueueSnapshot(t, client, func(snapshot QueueSnapshot) bool {
+		return snapshot.InnerRecvDepth == 0 && snapshot.InnerRecvHandoffs == 0 && snapshot.AdapterDepth > 0
+	})
+	before := client.QueueSnapshot()
+	if err := client.SealIngress(ctx); !errors.Is(err, wkclient.ErrIngressSealUnsupported) {
+		t.Fatalf("SealIngress() error = %v, want %v", err, wkclient.ErrIngressSealUnsupported)
+	}
+	if after := client.QueueSnapshot(); !reflect.DeepEqual(after, before) {
+		t.Fatalf("unsupported SealIngress mutated queues: before=%+v after=%+v", before, after)
+	}
+
+	f, err := client.ReadFrame(ctx)
+	if err != nil {
+		t.Fatalf("ReadFrame() after unsupported seal error = %v", err)
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok || recv.MessageID != 91 {
+		t.Fatalf("ReadFrame() = %#v, want queued RECV 91", f)
+	}
+	if err := client.RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
+		t.Fatalf("RecvAck() after unsupported seal error = %v", err)
+	}
+	select {
+	case <-serverObservedAck:
+	case <-time.After(time.Second):
+		t.Fatal("unsupported seal disrupted the live session")
+	}
+}
+
+func TestClientSealIngressWithFenceUsesExactServerAck(t *testing.T) {
+	grant := frame.TerminalFenceGrant{Epoch: 73, Capability: "adapter-test-capability"}
+	fenceRead := make(chan struct{})
+	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
+		if _, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion); err != nil {
+			t.Fatalf("decode connect: %v", err)
+		}
+		writeFrame(t, conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode terminal request: %v", err)
+		}
+		request, err := frame.ParseTerminalFenceRequest(f.(*frame.EventPacket))
+		if err != nil || !request.AuthorizedBy(grant) {
+			t.Fatal("terminal request did not match adapter grant")
+		}
+		close(fenceRead)
+		ack, err := request.AckEvent()
+		if err != nil {
+			t.Fatalf("build terminal ACK: %v", err)
+		}
+		writeFrame(t, conn, ack)
+	})
+	defer server.close()
+
+	client, err := NewClient(ClientConfig{Addr: server.addr, OperationTimeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	if err := client.SealIngressWithFence(ctx, grant); err != nil {
+		t.Fatalf("SealIngressWithFence() error = %v", err)
+	}
+	select {
+	case <-fenceRead:
+	case <-time.After(time.Second):
+		t.Fatal("server did not decode terminal request")
+	}
+	if err := client.Ping(ctx); !errors.Is(err, wkclient.ErrTerminalFenceActive) {
+		t.Fatalf("Ping() after fence = %v, want %v", err, wkclient.ErrTerminalFenceActive)
+	}
+	if err := client.Connect(ctx, "u1", "replacement"); !errors.Is(err, wkclient.ErrTerminalFenceActive) {
+		t.Fatalf("Connect() after fence = %v, want %v", err, wkclient.ErrTerminalFenceActive)
 	}
 }
 
@@ -1212,12 +1387,31 @@ func TestClientSessionFullRecvQueueDoesNotBlockSendack(t *testing.T) {
 		t.Fatal("publishSendack() = false, want independent SENDACK admission")
 	}
 	ack := <-session.sendackCh
-	if ack.ClientSeq != 7 {
-		t.Fatalf("sendack client seq = %d, want 7", ack.ClientSeq)
+	if ack.packet.ClientSeq != 7 {
+		t.Fatalf("sendack client seq = %d, want 7", ack.packet.ClientSeq)
 	}
 	recv := (<-session.recvCh).(*frame.RecvPacket)
 	if recv.MessageID != 1 {
 		t.Fatalf("recv message id = %d, want 1", recv.MessageID)
+	}
+}
+
+func TestClientSessionPreservesSendackObservationAcrossAdapterQueue(t *testing.T) {
+	session := newClientSession(nil, 1)
+	pendingStartedAt := time.Unix(1_700_000_020, 123_456_789)
+	writeStartedAt := pendingStartedAt.Add(3 * time.Millisecond)
+	observedAt := time.Unix(1_700_000_021, 987_654_321)
+	ack := &frame.SendackPacket{ClientSeq: 21}
+	timing := FrameTiming{PendingStartedAt: pendingStartedAt, WriteStartedAt: writeStartedAt, ObservedAt: observedAt}
+	if !session.publishSendackTiming(ack, timing) {
+		t.Fatal("publishSendackTiming() = false")
+	}
+	packet, gotTiming, err := session.readFrameTiming(context.Background())
+	if err != nil {
+		t.Fatalf("readFrameTiming() error = %v", err)
+	}
+	if packet != ack || gotTiming != timing {
+		t.Fatalf("readFrameTiming() = %#v, %+v; want original ACK timing %+v", packet, gotTiming, timing)
 	}
 }
 
@@ -1372,7 +1566,7 @@ func sessionPublicationSnapshot(session *clientSession) publicationState {
 func TestClientSessionBlockedSendackPublishUnblocksOnClose(t *testing.T) {
 	session := newClientSession(nil, 1)
 	client := &Client{frameBufferSize: 1, session: session}
-	session.sendackCh <- &frame.SendackPacket{ClientSeq: 1}
+	session.sendackCh <- sendackResult{packet: &frame.SendackPacket{ClientSeq: 1}}
 	started := make(chan struct{})
 	done := make(chan bool, 1)
 	go func() {
@@ -1405,7 +1599,7 @@ func TestClientSessionBlockedSendackPublishUnblocksOnClose(t *testing.T) {
 func TestClientReadFrameBoundedSendackPreferenceDoesNotStarveRecv(t *testing.T) {
 	session := newClientSession(nil, priorityResultQuota+2)
 	for seq := uint64(1); seq <= priorityResultQuota+1; seq++ {
-		session.sendackCh <- &frame.SendackPacket{ClientSeq: seq}
+		session.sendackCh <- sendackResult{packet: &frame.SendackPacket{ClientSeq: seq}}
 	}
 	session.recvCh <- &frame.RecvPacket{MessageID: 99}
 
@@ -1433,7 +1627,7 @@ func TestClientReadFrameErrorPriorityIsBoundedByQueuedRecv(t *testing.T) {
 	session := newClientSession(nil, priorityResultQuota+2)
 	priorityErr := errors.New("priority error")
 	session.errCh <- errorResult{err: priorityErr}
-	session.sendackCh <- &frame.SendackPacket{ClientSeq: 1}
+	session.sendackCh <- sendackResult{packet: &frame.SendackPacket{ClientSeq: 1}}
 	session.recvCh <- &frame.RecvPacket{MessageID: 99}
 
 	consecutivePriority := 0

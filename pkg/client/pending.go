@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -28,6 +29,9 @@ type pendingEntry struct {
 	timer *time.Timer
 	// startedAt records when the entry was admitted to the pending tracker.
 	startedAt time.Time
+	// writeStartedAt records the socket-submission boundary. pendingTracker.mu
+	// orders this write against SENDACK resolution.
+	writeStartedAt time.Time
 	// once guards completion against SENDACK, timeout, and close races.
 	once sync.Once
 	// onFinish runs after the entry reaches its terminal outcome.
@@ -42,6 +46,12 @@ type pendingTracker struct {
 	closed bool
 	// entries stores unresolved SENDs by client sequence and optional message number.
 	entries map[pendingKey]*pendingEntry
+	// empty is allocated only by the terminal fence slow path and closes when
+	// the currently admitted entries reach zero.
+	empty chan struct{}
+	// terminalFailure records the first admitted SEND that ended without a
+	// decoded SENDACK. A terminal fence must fail closed after such a gap.
+	terminalFailure error
 }
 
 func newPendingTracker() *pendingTracker {
@@ -72,7 +82,6 @@ func (t *pendingTracker) addWithTarget(key pendingKey, timeout time.Duration, do
 		t.mu.Unlock()
 		return nil, ErrDuplicatePendingSend
 	}
-
 	entry := &pendingEntry{
 		key:        key,
 		done:       done,
@@ -93,6 +102,10 @@ func (t *pendingTracker) addWithTarget(key pendingKey, timeout time.Duration, do
 }
 
 func (t *pendingTracker) resolve(ack *frame.SendackPacket) bool {
+	return t.resolveAt(ack, time.Now())
+}
+
+func (t *pendingTracker) resolveAt(ack *frame.SendackPacket, observedAt time.Time) bool {
 	if ack == nil {
 		return false
 	}
@@ -108,11 +121,14 @@ func (t *pendingTracker) resolve(ack *frame.SendackPacket) bool {
 	}
 
 	result := SendResult{
-		ClientSeq:   ack.ClientSeq,
-		ClientMsgNo: ack.ClientMsgNo,
-		MessageID:   ack.MessageID,
-		MessageSeq:  ack.MessageSeq,
-		ReasonCode:  ack.ReasonCode,
+		ClientSeq:        ack.ClientSeq,
+		ClientMsgNo:      ack.ClientMsgNo,
+		MessageID:        ack.MessageID,
+		MessageSeq:       ack.MessageSeq,
+		ReasonCode:       ack.ReasonCode,
+		PendingStartedAt: entry.startedAt,
+		WriteStartedAt:   entry.writeStartedAt,
+		ObservedAt:       observedAt,
 	}
 	var err error
 	if ack.ReasonCode != frame.ReasonSuccess {
@@ -124,6 +140,19 @@ func (t *pendingTracker) resolve(ack *frame.SendackPacket) bool {
 	}
 	entry.finish(sendOutcome{result: result, err: err})
 	return true
+}
+
+// markWriteStarted fixes the physical socket-submission boundary before a
+// peer can return the matching SENDACK.
+func (t *pendingTracker) markWriteStarted(entry *pendingEntry, at time.Time) {
+	if t == nil || entry == nil || at.IsZero() {
+		return
+	}
+	t.mu.Lock()
+	if t.entries[entry.key] == entry && entry.writeStartedAt.IsZero() {
+		entry.writeStartedAt = at
+	}
+	t.mu.Unlock()
 }
 
 func (t *pendingTracker) close(err error) {
@@ -139,6 +168,15 @@ func (t *pendingTracker) close(err error) {
 	t.closed = true
 	entries := t.entries
 	t.entries = make(map[pendingKey]*pendingEntry)
+	if len(entries) > 0 {
+		if t.terminalFailure == nil {
+			t.terminalFailure = err
+		}
+		if t.empty != nil {
+			close(t.empty)
+			t.empty = nil
+		}
+	}
 	t.mu.Unlock()
 
 	for _, entry := range entries {
@@ -147,9 +185,23 @@ func (t *pendingTracker) close(err error) {
 }
 
 func (t *pendingTracker) fail(entry *pendingEntry, err error) {
-	if entry == nil || !t.takeEntry(entry) {
+	if entry == nil {
 		return
 	}
+	t.mu.Lock()
+	if t.entries[entry.key] != entry {
+		t.mu.Unlock()
+		return
+	}
+	delete(t.entries, entry.key)
+	if t.terminalFailure == nil {
+		t.terminalFailure = err
+	}
+	if len(t.entries) == 0 && t.empty != nil {
+		close(t.empty)
+		t.empty = nil
+	}
+	t.mu.Unlock()
 	entry.finish(sendOutcome{err: err})
 }
 
@@ -158,20 +210,45 @@ func (t *pendingTracker) take(key pendingKey) *pendingEntry {
 	entry := t.entries[key]
 	if entry != nil {
 		delete(t.entries, key)
+		if len(t.entries) == 0 && t.empty != nil {
+			close(t.empty)
+			t.empty = nil
+		}
 	}
 	t.mu.Unlock()
 	return entry
 }
 
-func (t *pendingTracker) takeEntry(entry *pendingEntry) bool {
-	t.mu.Lock()
-	if t.entries[entry.key] != entry {
-		t.mu.Unlock()
-		return false
+// waitEmpty joins every SEND admitted to this session before the terminal
+// fence cut. Client.sendMu serializes the cut itself; terminal state prevents
+// new admissions after that lock is released.
+func (t *pendingTracker) waitEmpty(ctx context.Context) error {
+	if t == nil {
+		return nil
 	}
-	delete(t.entries, entry.key)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	t.mu.Lock()
+	if len(t.entries) == 0 {
+		err := t.terminalFailure
+		t.mu.Unlock()
+		return err
+	}
+	if t.empty == nil {
+		t.empty = make(chan struct{})
+	}
+	empty := t.empty
 	t.mu.Unlock()
-	return true
+	select {
+	case <-empty:
+		t.mu.Lock()
+		err := t.terminalFailure
+		t.mu.Unlock()
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (t *pendingTracker) expire(entry *pendingEntry) {

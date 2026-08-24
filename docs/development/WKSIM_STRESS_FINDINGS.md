@@ -1,5 +1,32 @@
 # WKSIM Stress Findings
 
+## 2026-08-15 local lifecycle durable commit collection window
+
+- The repaired three-node lifecycle 250-SEND/s stage completed all 75,255
+  measured SEND/SENDACK operations with zero correctness, retry, or terminal
+  errors, but failed the unchanged hot p99 gate. Runtime append averaged about
+  89-91ms; local durable storage and post-store quorum waits each contributed
+  about 43-47ms while CPU and bounded queues remained below saturation.
+- A direct synchronous append matrix on the same code compared one coordinator
+  shard at 200us, 500us, 1ms, 2ms, and 5ms. Moving from 200us to 500us reduced
+  benchmark time from 631199ns/op to 506728ns/op, reduced recorded append wait
+  from 6280us to 5037us, increased logical requests per physical commit from
+  1.732 to 2.159, and reduced physical commits per operation from 0.1500 to
+  0.1003. One millisecond and wider windows increased request wait again.
+- The real matched 250-SEND/s rerun with 500us remained a
+  `product_failure/hot_latency`: hot mean improved from 212.6ms to 199.3ms,
+  maximum fell from 3.36s to 2.77s, and samples above 2s fell from 310 to 65,
+  but p99 still occupied the 2s bucket against the unchanged 200ms gate. Total
+  physical commits across the three nodes fell only about 0.9%. Store append
+  and post-store quorum wait remained two serial durable waits of roughly
+  43-50ms each; Pull RPC itself remained about 2ms.
+- The measured default and reviewed local lifecycle profiles therefore use a
+  500us collection window with one coordinator shard as a bounded improvement,
+  not a capacity fix. Synchronous durability, quorum semantics, error gates,
+  and latency thresholds are unchanged. Wider fixed commit or store-worker
+  collection windows do not reduce commit frequency further in the direct
+  matrix and only increase caller wait.
+
 ## 2026-08-04 wkcli sim three-node 4000 QPS pacing and admission profile
 
 - Scenario: `smoke-wkcli-sim-wukongim-three-nodes.sh` with 2000 users, 2000 groups, 10 members per group, and `--rate 2/s`. The rate is per group, so the offered aggregate is 4000 SEND/s. The original user command's `--rate 4/s` offers 8000 SEND/s rather than 4000.

@@ -27,7 +27,9 @@ func projectWorkerVerdictEvidence(
 	for _, snapshot := range snapshots {
 		if snapshot.WorkerCount != coordinatorWorkerCount || snapshot.WorkerID >= coordinatorWorkerCount ||
 			seen[snapshot.WorkerID] || !validWorkerSnapshot(snapshot) ||
-			!validCoordinatorHistogram(snapshot.SendackLatency) {
+			!validCoordinatorHistogram(snapshot.HotSendackLatency) ||
+			!validCoordinatorHistogram(snapshot.ColdFirstCreateSendackLatency) ||
+			!validCoordinatorHistogram(snapshot.LifecycleReheatSendackLatency) {
 			return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
 		}
 		seen[snapshot.WorkerID] = true
@@ -46,7 +48,7 @@ func projectWorkerVerdictEvidence(
 			}
 			*pair[0] += *pair[1]
 		}
-		if err := addCoordinatorHistogram(&hot, snapshot.SendackLatency); err != nil {
+		if err := addCoordinatorHistogram(&hot, snapshot.HotSendackLatency); err != nil {
 			return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
 		}
 		thresholds := snapshot.Sync.Thresholds
@@ -70,7 +72,16 @@ func projectWorkerVerdictEvidence(
 	if err != nil {
 		return CorrectnessCounters{}, LatencyCounters{}, nil, err
 	}
-	coldCounters, err := histogramThresholdCounters(lifecycle.ReheatLatency, cfg.Thresholds.Latency.Cold)
+	cold := newWorkerHistogramSnapshot()
+	if err := addCoordinatorHistogram(&cold, lifecycle.ReheatLatency); err != nil {
+		return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
+	}
+	for _, snapshot := range snapshots {
+		if err := addCoordinatorHistogram(&cold, snapshot.ColdFirstCreateSendackLatency); err != nil {
+			return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
+		}
+	}
+	coldCounters, err := histogramThresholdCounters(cold, cfg.Thresholds.Latency.Cold)
 	if err != nil {
 		return CorrectnessCounters{}, LatencyCounters{}, nil, err
 	}

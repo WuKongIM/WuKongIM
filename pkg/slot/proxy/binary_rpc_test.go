@@ -164,7 +164,7 @@ func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	resp := channelRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 2,
-		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1, SubscriberMutationVersion: 7, SubscriberCount: 11, DirectoryReady: 1},
+		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1, SubscriberMutationVersion: 7, SubscriberCount: 11, DirectoryProjectionState: metadb.DirectoryProjectionReady, DirectoryProjectionGeneration: 1},
 	}
 	body := encodeChannelRPCResponseBinary(resp)
 	got, err := decodeChannelRPCResponseBinary(body)
@@ -236,7 +236,7 @@ func TestChannelRPCBinaryCodecDecodesV3ChannelWithoutDirectoryReady(t *testing.T
 	got, err := decodeChannelRPCResponseBinary(body)
 	require.NoError(t, err)
 	require.NotNil(t, got.Channel)
-	require.Equal(t, int64(0), got.Channel.DirectoryReady)
+	require.Equal(t, metadb.DirectoryProjectionNone, got.Channel.DirectoryProjectionState)
 	require.Equal(t, uint64(11), got.Channel.SubscriberCount)
 }
 

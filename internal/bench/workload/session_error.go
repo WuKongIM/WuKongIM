@@ -2,10 +2,22 @@ package workload
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 )
+
+var safeSessionOperations = map[string]struct{}{
+	"person sendack lock": {},
+	"person send":         {},
+	"person sendack":      {},
+	"person recv":         {},
+	"person recvack":      {},
+	"group sendack lock":  {},
+	"group send":          {},
+	"group sendack":       {},
+	"group recv":          {},
+	"group recvack":       {},
+}
 
 // SessionError identifies a workload error that is tied to a specific online session.
 type SessionError struct {
@@ -21,22 +33,11 @@ func (e *SessionError) Error() string {
 	if e == nil {
 		return ""
 	}
-	errText := "<nil>"
-	if e.Err != nil {
-		errText = e.Err.Error()
-	}
-	uid := strings.TrimSpace(e.UID)
 	op := strings.TrimSpace(e.Operation)
-	if uid == "" && op == "" {
-		return errText
+	if _, ok := safeSessionOperations[op]; !ok {
+		return "session operation failed"
 	}
-	if uid == "" {
-		return fmt.Sprintf("%s: %s", op, errText)
-	}
-	if op == "" {
-		return fmt.Sprintf("session %q: %s", uid, errText)
-	}
-	return fmt.Sprintf("session %q %s: %s", uid, op, errText)
+	return op + ": session operation failed"
 }
 
 // Unwrap returns the underlying workload or transport error.

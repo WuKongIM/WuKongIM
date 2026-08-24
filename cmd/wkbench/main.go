@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -836,6 +837,9 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 		workerServer, err := chatlifecycle.NewWorkerServer(chatlifecycle.WorkerServerConfig{
 			ControlToken: cfg.server.ControlToken,
 			Factory:      chatlifecycle.NewEngineWorkerGenerationFactory(),
+			ReportGrantFailure: func(event chatlifecycle.WorkerGrantFailureEvent) {
+				_ = json.NewEncoder(stderr).Encode(event)
+			},
 		})
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker configuration failed")

@@ -64,7 +64,6 @@ func TestWorkloadSummarySourceParsesReportProducerOutput(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteDir() error = %v", err)
 	}
-
 	result, err := newWorkloadSummarySource(reportDir).inspect(context.Background(), "run-1")
 	if err != nil {
 		t.Fatalf("inspect producer output error = %v", err)
@@ -170,6 +169,68 @@ func TestWorkloadSummarySourceReportsMissingSummaryAsInProgress(t *testing.T) {
 	inspection := result.Data.(analysis.WorkloadInspection)
 	if inspection.RunID != "run-1" || inspection.State != "in_progress" {
 		t.Fatalf("inspection = %+v", inspection)
+	}
+}
+
+func TestWorkloadSummarySourceReportsBoundedLiveDiagnosticsBeforeFinalSummary(t *testing.T) {
+	reportDir := t.TempDir()
+	live := `{
+  "schema":"wukongim/chat-lifecycle-diagnostic-status/v1",
+  "run_id":"run-1",
+  "state":"running",
+  "stage":"measured",
+  "started_at":"2026-08-12T06:46:57Z",
+  "updated_at":"2026-08-12T06:49:23Z",
+  "cut":"periodic",
+  "totals":{"target":10000,"online":0,"starting":0,"closing":0,"traffic_ready":0},
+  "close_reasons":{"expired":10000,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0},
+  "workers":[
+    {"worker_id":0,"phase":"running","snapshot_sequence":31,"connections":{"target":3334,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3334,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0}},
+    {"worker_id":1,"phase":"running","snapshot_sequence":31,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0}},
+    {"worker_id":2,"phase":"running","snapshot_sequence":31,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0}}
+  ],
+  "recent_events":[
+    {"at":"2026-08-12T06:49:08Z","kind":"worker_connections_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0}}
+  ]
+}`
+	if err := os.WriteFile(filepath.Join(reportDir, "diagnostic-status.json"), []byte(live), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := newWorkloadSummarySource(reportDir).inspect(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("inspect() error = %v", err)
+	}
+	if result.Completeness != analysis.CompletenessPartial {
+		t.Fatalf("completeness = %q, want partial", result.Completeness)
+	}
+	inspection := result.Data.(analysis.WorkloadInspection)
+	if inspection.State != "in_progress" || inspection.Live == nil || inspection.Live.Stage != "measured" ||
+		inspection.Live.Totals.Target != 10000 || inspection.Live.Totals.Online != 0 ||
+		inspection.Live.CloseReasons.Expired != 10000 || len(inspection.Live.Workers) != 3 ||
+		len(inspection.Live.RecentEvents) != 1 || inspection.Live.RecentEvents[0].WorkerID != 2 {
+		t.Fatalf("live inspection = %+v", inspection)
+	}
+	missingField := strings.Replace(live, `"closing":0,`, "", 1)
+	if _, err := decodeWorkloadLiveStatus(strings.NewReader(missingField), "run-1"); !errors.Is(err, errInvalidWorkloadLiveStatus) {
+		t.Fatalf("missing live field error = %v, want %v", err, errInvalidWorkloadLiveStatus)
+	}
+	unknownField := strings.Replace(live, `"cut":"periodic",`, `"cut":"periodic","uid":"secret",`, 1)
+	if _, err := decodeWorkloadLiveStatus(strings.NewReader(unknownField), "run-1"); !errors.Is(err, errInvalidWorkloadLiveStatus) {
+		t.Fatalf("unknown live field error = %v, want %v", err, errInvalidWorkloadLiveStatus)
+	}
+	regressed := strings.Replace(live,
+		`"recent_events":[`,
+		`"recent_events":[{"at":"2026-08-12T06:49:00Z","kind":"worker_close_reasons_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0}},`,
+		1,
+	)
+	regressed = strings.Replace(regressed,
+		`"at":"2026-08-12T06:49:08Z","kind":"worker_connections_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333`,
+		`"at":"2026-08-12T06:49:08Z","kind":"worker_connections_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3332`,
+		1,
+	)
+	if _, err := decodeWorkloadLiveStatus(strings.NewReader(regressed), "run-1"); !errors.Is(err, errInvalidWorkloadLiveStatus) {
+		t.Fatalf("regressing live event error = %v, want %v", err, errInvalidWorkloadLiveStatus)
 	}
 }
 

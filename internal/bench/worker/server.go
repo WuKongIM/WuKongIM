@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,7 +15,14 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 )
 
-const phaseStartGrace = 25 * time.Millisecond
+const (
+	phaseStartGrace = 25 * time.Millisecond
+	// TerminalReceiveSealFailureReasonCode identifies a failed post-ACK receive
+	// reproof without exposing session or transport error details.
+	TerminalReceiveSealFailureReasonCode = "terminal_receive_seal_failed"
+)
+
+var errTerminalReceiveSealFailed = errors.New("terminal receive seal failed")
 
 // WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
 type WorkloadRunner interface {
@@ -36,10 +44,18 @@ type MetricsReporter interface {
 	MetricsSnapshot() metrics.SnapshotData
 }
 
-// ConnectionStatusReporter exposes live online connection state for dev-sim diagnostics.
+// ConnectionStatusReporter exposes live online connection state for bounded diagnostics.
 type ConnectionStatusReporter interface {
 	// ConnectionStatus returns the latest active connection count and reconnect churn.
 	ConnectionStatus() (activeUsers int, reconnectedUsers uint64)
+}
+
+// LifecycleStatusReporter exposes one bounded worker-wide status projection
+// for periodic local baseline evidence. Implementations must not include
+// per-connection or per-message identities.
+type LifecycleStatusReporter interface {
+	// LifecycleStatus returns one coherent connection and traffic lifecycle snapshot.
+	LifecycleStatus() LifecycleStatus
 }
 
 // AssignmentStarter receives a hook when the control plane accepts a fresh run assignment.
@@ -53,6 +69,13 @@ type AssignmentStopper interface {
 	// EndAssignment closes assignment-scoped connections and background work.
 	// Implementations must be idempotent because stop requests may be retried.
 	EndAssignment(assignment Assignment) error
+}
+
+// TerminalReceiveSealer closes only the assignment's receive readers after an
+// acknowledged external terminal cut and proves that the live drained cut did
+// not change across that stop boundary. Product sessions remain connected.
+type TerminalReceiveSealer interface {
+	SealTerminalReceive(ctx context.Context, assignment Assignment) error
 }
 
 // StopRequest identifies the exact assignment that a coordinator intends to stop.
@@ -145,6 +168,15 @@ type Server struct {
 	// stoppingAssignment fences assignment work as soon as an exact-generation
 	// stop is admitted. It remains set until a stopped assignment is replaced.
 	stoppingAssignment assignmentIdentity
+	terminalMu         sync.Mutex
+	// terminalLifecycle is an exact-generation post-drain cut captured before
+	// EndAssignment closes sessions. It remains readable after PhaseStopped.
+	terminalLifecycle *terminalLifecycleSnapshot
+}
+
+type terminalLifecycleSnapshot struct {
+	identity  assignmentIdentity
+	lifecycle LifecycleStatus
 }
 
 // lifecycleTaskKind identifies assignment work that terminal stop must cancel and join.
@@ -202,6 +234,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/v1/phase/run", s.withControl(s.phase(PhaseRun)))
 	s.mux.HandleFunc("/v1/phase/cooldown", s.withControl(s.phase(PhaseCooldown)))
 	s.mux.HandleFunc("/v1/prepare/channels", s.withControl(s.prepareChannels))
+	s.mux.HandleFunc("/v1/terminal-cut", s.withControl(s.terminalCut))
 	s.mux.HandleFunc("/v1/stop", s.withControl(s.stop))
 	s.mux.HandleFunc("/v1/status", s.withControl(s.status))
 	s.mux.HandleFunc("/v1/metrics", s.withControl(s.metrics))
@@ -255,6 +288,7 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 	status := s.state.Status()
 	if assignmentStarted(before, status) {
 		s.stoppingAssignment = assignmentIdentity{}
+		s.clearTerminalLifecycle()
 		s.stopMu.Lock()
 		s.stopTask = nil
 		s.stopMu.Unlock()
@@ -530,6 +564,13 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-task.done:
 		if task.err != nil {
+			if errors.Is(task.err, errTerminalReceiveSealFailed) {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{
+					"error":       errTerminalReceiveSealFailed.Error(),
+					"reason_code": TerminalReceiveSealFailureReasonCode,
+				})
+				return
+			}
 			statusCode := http.StatusInternalServerError
 			if errors.Is(task.err, ErrActiveRunConflict) || errors.Is(task.err, ErrInvalidPhaseTransition) {
 				statusCode = http.StatusConflict
@@ -541,6 +582,84 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 	case <-r.Context().Done():
 		return
 	}
+}
+
+func (s *Server) terminalCut(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	request, err := decodeTerminalCutRequest(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	identity, err := requiredAssignmentIdentity(request.RunID, request.AssignmentID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	status := s.state.Status()
+	if !identity.matches(status.Assignment) {
+		writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, identity.runID, identity.assignmentID).Error())
+		return
+	}
+	coordinator, ok := s.runner.(TerminalCutCoordinator)
+	if !ok {
+		writeError(w, http.StatusConflict, "external terminal cut is not enabled")
+		return
+	}
+	cutStatus := coordinator.TerminalCutStatus()
+	if cutStatus.Binding != nil {
+		if terminalCutRequestMatchesBinding(request, *cutStatus.Binding) {
+			writeJSON(w, http.StatusOK, cutStatus.Binding)
+			return
+		}
+		writeError(w, http.StatusConflict, ErrTerminalCutAlreadyAcknowledged.Error())
+		return
+	}
+	if status.Phase != PhaseRun || status.ActivePhase != PhaseCooldown || !cutStatus.Required || !cutStatus.Ready {
+		writeError(w, http.StatusConflict, ErrTerminalCutNotReady.Error())
+		return
+	}
+	if err := validateTerminalCutRequest(request, cutStatus.ReadyAt, cutStatus.DeadlineAt, time.Now().UTC()); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	binding, err := coordinator.AcknowledgeTerminalCut(request)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if errors.Is(err, ErrTerminalCutNotReady) || errors.Is(err, ErrTerminalCutAlreadyAcknowledged) || errors.Is(err, ErrActiveRunConflict) {
+			statusCode = http.StatusConflict
+		}
+		writeError(w, statusCode, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, binding)
+}
+
+func decodeTerminalCutRequest(reader io.Reader) (TerminalCutRequest, error) {
+	if reader == nil {
+		return TerminalCutRequest{}, fmt.Errorf("terminal cut json is required")
+	}
+	limited := &io.LimitedReader{R: reader, N: 4097}
+	decoder := json.NewDecoder(limited)
+	decoder.DisallowUnknownFields()
+	var request TerminalCutRequest
+	if err := decoder.Decode(&request); err != nil {
+		return TerminalCutRequest{}, fmt.Errorf("invalid terminal cut json")
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return TerminalCutRequest{}, fmt.Errorf("invalid terminal cut json")
+	}
+	if limited.N <= 0 {
+		return TerminalCutRequest{}, fmt.Errorf("terminal cut json exceeds 4096 bytes")
+	}
+	return request, nil
 }
 
 func (s *Server) beginTerminalStop(expected assignmentIdentity) *terminalStopTask {
@@ -576,7 +695,7 @@ func (s *Server) beginTerminalStop(expected assignmentIdentity) *terminalStopTas
 	if existing := s.stopTask; existing != nil && existing.runID == expected.runID && existing.assignmentID == expected.assignmentID {
 		select {
 		case <-existing.done:
-			if existing.err == nil {
+			if existing.err == nil || errors.Is(existing.err, errTerminalReceiveSealFailed) {
 				return existing
 			}
 		default:
@@ -614,6 +733,36 @@ func (s *Server) finalizeStop(expected assignmentIdentity, activeDone <-chan str
 	assignment := before.Assignment
 	s.lifecycleMu.Unlock()
 
+	// Freeze the exact post-drain lifecycle before teardown. The stopped status
+	// exposes this cut with explicit provenance instead of pretending the
+	// sessions remain live after EndAssignment closes them.
+	var terminalReceiveSealErr error
+	if before.Phase == PhaseCooldown && before.ActivePhase == "" && before.LastError == "" {
+		sealComplete := true
+		if coordinator, ok := s.runner.(TerminalCutCoordinator); ok && coordinator.TerminalCutStatus().Required {
+			sealComplete = false
+			sealer, canSeal := s.runner.(TerminalReceiveSealer)
+			if canSeal {
+				cut := coordinator.TerminalCutStatus()
+				if cut.Binding == nil || cut.DeadlineAt.IsZero() {
+					sealComplete = false
+				} else {
+					sealCtx, cancel := context.WithDeadline(context.Background(), cut.DeadlineAt)
+					if err := sealer.SealTerminalReceive(sealCtx, assignment); err != nil {
+						terminalReceiveSealErr = errTerminalReceiveSealFailed
+						sealComplete = false
+					} else {
+						sealComplete = true
+					}
+					cancel()
+				}
+			}
+		}
+		if sealComplete {
+			s.freezeTerminalLifecycle(expected)
+		}
+	}
+
 	// Admission remains fenced while teardown runs, so a slow runner cannot
 	// make exact-run phase or prepare requests wait behind this cleanup.
 	if stopper, ok := s.runner.(AssignmentStopper); ok {
@@ -631,7 +780,7 @@ func (s *Server) finalizeStop(expected assignmentIdentity, activeDone <-chan str
 	if err := s.state.StopForAssignment(expected.runID, expected.assignmentID); err != nil {
 		return s.state.Status(), err
 	}
-	return s.state.Status(), nil
+	return s.statusWithTerminalLifecycle(s.state.Status()), terminalReceiveSealErr
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
@@ -639,7 +788,93 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.state.Status())
+	writeJSON(w, http.StatusOK, s.statusResponse())
+}
+
+func (s *Server) statusResponse() Status {
+	status := s.state.Status()
+	status.ObservedAt = time.Now().UTC()
+	if status.Phase == PhaseStopped {
+		return s.statusWithTerminalLifecycle(status)
+	}
+	if reporter, ok := s.runner.(LifecycleStatusReporter); ok {
+		lifecycle := reporter.LifecycleStatus()
+		lifecycle.TerminalPreClose = false
+		decorateLifecycleTerminalCut(s.runner, &lifecycle)
+		status.Lifecycle = &lifecycle
+		return status
+	}
+	if reporter, ok := s.runner.(ConnectionStatusReporter); ok {
+		active, reconnected := reporter.ConnectionStatus()
+		lifecycle := LifecycleStatus{ActiveConnections: active, ReconnectedUsers: reconnected}
+		decorateLifecycleTerminalCut(s.runner, &lifecycle)
+		status.Lifecycle = &lifecycle
+	}
+	return status
+}
+
+func (s *Server) freezeTerminalLifecycle(identity assignmentIdentity) {
+	var lifecycle *LifecycleStatus
+	if reporter, ok := s.runner.(LifecycleStatusReporter); ok {
+		value := reporter.LifecycleStatus()
+		decorateLifecycleTerminalCut(s.runner, &value)
+		if value.Traffic.Remaining != 0 || !value.ReceiveDrain.TerminalProofComplete() {
+			return
+		}
+		if value.TerminalCutRequired && (!value.ReceiveDrain.Required || !value.TerminalCutReady || value.TerminalCut == nil || !validTerminalCutBinding(*value.TerminalCut, identity)) {
+			return
+		}
+		value.TerminalPreClose = true
+		lifecycle = &value
+	}
+	if lifecycle == nil {
+		return
+	}
+	s.terminalMu.Lock()
+	s.terminalLifecycle = &terminalLifecycleSnapshot{identity: identity, lifecycle: *lifecycle}
+	s.terminalMu.Unlock()
+}
+
+func decorateLifecycleTerminalCut(runner WorkloadRunner, lifecycle *LifecycleStatus) {
+	coordinator, ok := runner.(TerminalCutCoordinator)
+	if !ok || lifecycle == nil {
+		return
+	}
+	status := coordinator.TerminalCutStatus()
+	lifecycle.TerminalCutRequired = status.Required
+	lifecycle.TerminalCutReady = status.Ready
+	lifecycle.TerminalCutReadyAt = status.ReadyAt
+	lifecycle.TerminalCutDeadlineAt = status.DeadlineAt
+	if status.Binding != nil {
+		binding := *status.Binding
+		lifecycle.TerminalCut = &binding
+	} else {
+		lifecycle.TerminalCut = nil
+	}
+}
+
+func (s *Server) statusWithTerminalLifecycle(status Status) Status {
+	if status.ObservedAt.IsZero() {
+		status.ObservedAt = time.Now().UTC()
+	}
+	identity, err := requiredAssignmentIdentity(status.Assignment.RunID, status.Assignment.AssignmentID)
+	if err != nil {
+		return status
+	}
+	s.terminalMu.Lock()
+	defer s.terminalMu.Unlock()
+	if s.terminalLifecycle == nil || s.terminalLifecycle.identity != identity {
+		return status
+	}
+	lifecycle := s.terminalLifecycle.lifecycle
+	status.Lifecycle = &lifecycle
+	return status
+}
+
+func (s *Server) clearTerminalLifecycle() {
+	s.terminalMu.Lock()
+	s.terminalLifecycle = nil
+	s.terminalMu.Unlock()
 }
 
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
@@ -707,6 +942,7 @@ func (s *Server) metricsSnapshot() metrics.SnapshotData {
 }
 
 func normalizeMetricsSnapshot(snapshot metrics.SnapshotData) metrics.SnapshotData {
+	snapshot = metrics.SanitizeSnapshot(snapshot)
 	if snapshot.Counters == nil {
 		snapshot.Counters = map[string]uint64{}
 	}
@@ -764,9 +1000,10 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 func writePhaseError(w http.ResponseWriter, status int, err error) {
+	reason := failureReasonForError(err)
 	payload := map[string]string{
-		"error":       err.Error(),
-		"reason_code": string(failureReasonForError(err)),
+		"error":       safeFailureMessage(reason),
+		"reason_code": string(reason),
 	}
 	if operation := failureOperationForError(err); operation.Valid() {
 		payload["operation"] = string(operation)

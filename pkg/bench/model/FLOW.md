@@ -28,6 +28,8 @@ It does not execute benchmarks, manage workers, or depend on server runtimes.
    churn, rate, and Hash Slot spread plans.
 3. Exchange closed `bench/v1` target DTOs for assignments, progress, reports,
    and bounded Channel runtime probes.
+4. Share the explicit fixed generic-retry policy, receive-drain/fanout proof,
+   and terminal-fence prepare/grant contracts without runtime dependencies.
 
 ## Invariants and Failure Semantics
 
@@ -42,6 +44,14 @@ It does not execute benchmarks, manage workers, or depend on server runtimes.
 - Runtime probes use either the generated half-open range selector or at most
   1,200 explicit channels, never both; private errors map to the closed safe
   reason vocabulary.
+- Generic retry is opt-in and fixed to an initial attempt plus 100 ms, 500 ms,
+  and 2 s retries; scenarios cannot tune the policy while resembling a
+  reviewed baseline.
+- Terminal receive proof requires two separated zero-work cuts with complete
+  queue, handoff, RECV, and RECVACK evidence. Reviewed group proof compares
+  expected, received, and acknowledged multiplicities through opaque digests.
+- Terminal grants bind exact run, assignment, session count, epoch, and opaque
+  capability. String formatting always redacts the capability.
 
 ## Read First
 

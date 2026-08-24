@@ -84,13 +84,84 @@ func TestDeploymentPlanAndGateCommandsUseValidatedReceipts(t *testing.T) {
 	snapshotPath := writeCommandJSON(t, directory, "readiness.json", snapshot)
 	stdout.Reset()
 	command = newRootCommand(&stdout, &bytes.Buffer{})
-	command.SetArgs([]string{"deployment-gate", "--plan", planPath, "--bundle-manifest", manifestPath, "--snapshot", snapshotPath, "--now", now.Format(time.RFC3339Nano)})
+	command.SetArgs([]string{"deployment-gate", "--lease-receipt", receiptPath, "--plan", planPath, "--bundle-manifest", manifestPath, "--snapshot", snapshotPath, "--now", now.Format(time.RFC3339Nano)})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("deployment-gate error = %v; output=%s", err, stdout.String())
 	}
 	var outcome clouddeploy.Outcome
 	if err := json.Unmarshal(stdout.Bytes(), &outcome); err != nil || !outcome.Passed || outcome.Receipt == nil {
 		t.Fatalf("outcome = %#v, %v", outcome, err)
+	}
+}
+
+func TestDeploymentGateRejectsRepairPlanWithoutItsRepairLeaseReceipt(t *testing.T) {
+	now := time.Date(2026, 8, 22, 17, 0, 0, 0, time.UTC)
+	initial := commandManifest()
+	repairReceipt := commandLeaseReceiptWithTags(t, now, initial, map[string]string{"stage": "repair"})
+	ordinaryReceipt := commandLeaseReceipt(t, now, initial)
+	candidate := initial
+	candidate.SourceSHA = "1111111111111111111111111111111111111111"
+	candidate.BundleDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	plan, err := clouddeploy.BuildRepairPlan(normalizeLeaseReceipt(repairReceipt), candidate, 2, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := commandReadySnapshot(plan, now)
+	directory := t.TempDir()
+	receiptPath := writeCommandJSON(t, directory, "ordinary-receipt.json", cloudLeaseReceiptDocument{
+		Schema: cloudLeaseReceiptDocumentV1, Receipt: ordinaryReceipt,
+	})
+	planPath := writeCommandJSON(t, directory, "repair-plan.json", plan)
+	manifestPath := writeCommandJSON(t, directory, "candidate-manifest.json", candidate)
+	snapshotPath := writeCommandJSON(t, directory, "readiness.json", snapshot)
+
+	var stdout bytes.Buffer
+	command := newRootCommand(&stdout, &bytes.Buffer{})
+	command.SetArgs([]string{"deployment-gate", "--lease-receipt", receiptPath, "--plan", planPath,
+		"--bundle-manifest", manifestPath, "--snapshot", snapshotPath, "--now", now.Format(time.RFC3339Nano)})
+	if err := command.Execute(); err == nil {
+		t.Fatal("deployment-gate accepted a repair plan without its repair Lease Receipt")
+	}
+	var outcome clouddeploy.Outcome
+	if err := json.Unmarshal(stdout.Bytes(), &outcome); err != nil || outcome.Failure == nil || outcome.Failure.Code != clouddeploy.FailureInvalidPlan {
+		t.Fatalf("outcome = %#v, %v", outcome, err)
+	}
+}
+
+func TestDeploymentPlanCommandBindsRepairGenerationToRetainedLease(t *testing.T) {
+	now := time.Date(2026, 8, 22, 17, 0, 0, 0, time.UTC)
+	initial := commandManifest()
+	receipt := commandLeaseReceiptWithTags(t, now, initial, map[string]string{"stage": "repair"})
+	candidate := initial
+	candidate.SourceSHA = "1111111111111111111111111111111111111111"
+	candidate.BundleDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	directory := t.TempDir()
+	receiptPath := writeCommandJSON(t, directory, "repair-receipt.json", cloudLeaseReceiptDocument{
+		Schema: cloudLeaseReceiptDocumentV1, Receipt: receipt,
+	})
+	manifestPath := writeCommandJSON(t, directory, "candidate-manifest.json", candidate)
+
+	var stdout bytes.Buffer
+	command := newRootCommand(&stdout, &bytes.Buffer{})
+	command.SetArgs([]string{"deployment-plan", "--lease-receipt", receiptPath, "--bundle-manifest", manifestPath,
+		"--purpose", "repair", "--generation", "2", "--now", now.Format(time.RFC3339Nano)})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("repair deployment-plan error = %v", err)
+	}
+	var plan clouddeploy.DeploymentPlan
+	if err := json.Unmarshal(stdout.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Purpose != clouddeploy.DeploymentPurposeRepair || plan.Generation != 2 ||
+		plan.LeaseSourceSHA != initial.SourceSHA || plan.SourceSHA != candidate.SourceSHA {
+		t.Fatalf("repair plan = %#v", plan)
+	}
+
+	command = newRootCommand(&bytes.Buffer{}, &bytes.Buffer{})
+	command.SetArgs([]string{"deployment-plan", "--lease-receipt", receiptPath, "--bundle-manifest", manifestPath,
+		"--now", now.Format(time.RFC3339Nano)})
+	if err := command.Execute(); err == nil {
+		t.Fatal("immutable deployment accepted a different repair candidate")
 	}
 }
 
@@ -135,7 +206,10 @@ func TestDeploymentGateEmitsStructuredFailure(t *testing.T) {
 	snapshotPath := writeCommandJSON(t, directory, "snapshot.json", snapshot)
 	var stdout bytes.Buffer
 	command := newRootCommand(&stdout, &bytes.Buffer{})
-	command.SetArgs([]string{"deployment-gate", "--plan", planPath, "--bundle-manifest", manifestPath, "--snapshot", snapshotPath, "--now", now.Format(time.RFC3339Nano)})
+	receiptPath := writeCommandJSON(t, directory, "lease-receipt.json", cloudLeaseReceiptDocument{
+		Schema: cloudLeaseReceiptDocumentV1, Receipt: receipt,
+	})
+	command.SetArgs([]string{"deployment-gate", "--lease-receipt", receiptPath, "--plan", planPath, "--bundle-manifest", manifestPath, "--snapshot", snapshotPath, "--now", now.Format(time.RFC3339Nano)})
 	if err := command.Execute(); err == nil {
 		t.Fatal("deployment-gate succeeded")
 	}
@@ -161,15 +235,28 @@ func commandLeaseReceipt(t *testing.T, now time.Time, manifest clouddeploy.Manif
 }
 
 func commandLeaseReceiptWithBootstrap(t *testing.T, now time.Time, manifest clouddeploy.Manifest, access cloudlease.BootstrapAccess) cloudlease.Receipt {
+	return commandLeaseReceiptWithBootstrapAndTags(t, now, manifest, access, nil)
+}
+
+func commandLeaseReceiptWithTags(t *testing.T, now time.Time, manifest clouddeploy.Manifest, tags map[string]string) cloudlease.Receipt {
+	return commandLeaseReceiptWithBootstrapAndTags(t, now, manifest, cloudlease.BootstrapAccess{}, tags)
+}
+
+func commandLeaseReceiptWithBootstrapAndTags(t *testing.T, now time.Time, manifest clouddeploy.Manifest, access cloudlease.BootstrapAccess, tags map[string]string) cloudlease.Receipt {
 	t.Helper()
+	hardLimit, stopLimit := clouddeploy.FormalBudgetHardMicros, clouddeploy.FormalBudgetStopMicros
+	if tags["stage"] == "repair" {
+		hardLimit, stopLimit = clouddeploy.RepairBudgetHardMicros, clouddeploy.RepairBudgetStopMicros
+	}
 	provider := cloudleasefake.New(cloudleasefake.Options{Now: func() time.Time { return now }})
 	controller := cloudlease.NewController(provider, func() time.Time { return now })
 	plan := cloudlease.Plan{
 		Schema: cloudlease.PlanSchemaV1, LeaseID: "lease-deploy", RequestID: "request-deploy",
 		Provider: cloudleasefake.ProviderName, Region: "local", Repository: "WuKongIM/WuKongIM", Operator: "tangtaoit",
-		ExpiresAt: now.Add(96 * time.Hour), Budget: cloudlease.Budget{Currency: "CNY", LimitMicros: clouddeploy.FormalBudgetHardMicros, OperationalStopMicros: clouddeploy.FormalBudgetStopMicros},
+		ExpiresAt: now.Add(96 * time.Hour), Budget: cloudlease.Budget{Currency: "CNY", LimitMicros: hardLimit, OperationalStopMicros: stopLimit},
 		Provenance: cloudlease.Provenance{SourceSHA: manifest.SourceSHA, BundleDigest: manifest.BundleDigest},
 		Network:    cloudlease.NetworkPlan{Isolated: true, SingleZone: true},
+		Tags:       tags,
 		HostGroups: []cloudlease.HostGroupPlan{
 			{Role: "service", Count: 3, Compute: commandCompute(), SystemDisk: commandDisk("system", 40_000_000_000), DataDisks: []cloudlease.DiskPlan{commandDisk("data", 500_000_000_000)}},
 			{Role: "load", Count: 1, Compute: commandCompute(), SystemDisk: commandDisk("system", 40_000_000_000), DataDisks: []cloudlease.DiskPlan{commandDisk("data", 200_000_000_000)}, PublicIPv4: true, InternetEgress: true, PeakBandwidthMbps: 20},

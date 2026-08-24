@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/stretchr/testify/require"
@@ -78,7 +79,6 @@ func TestTaskRunStoreAppendUsesStoreDeps(t *testing.T) {
 		StoreAppend: &StoreAppendTask{
 			ChannelID: id,
 			Records:   []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1}},
-			Sync:      true,
 		},
 	}.Run(context.Background(), deps)
 
@@ -88,6 +88,23 @@ func TestTaskRunStoreAppendUsesStoreDeps(t *testing.T) {
 	require.NotNil(t, res.StoreAppend)
 	require.Equal(t, uint64(1), res.StoreAppend.BaseOffset)
 	require.Equal(t, uint64(1), res.StoreAppend.LastOffset)
+	require.Equal(t, store.AppendOutcomeDurable, res.StoreAppend.Outcome)
+}
+
+func TestAppendResultErrorRejectsUnclassifiedAndImpossibleResults(t *testing.T) {
+	require.ErrorIs(t, appendResultError(0, nil), ch.ErrInvalidConfig)
+	require.ErrorIs(t, appendResultError(store.AppendOutcomeConflict, nil), ch.ErrInvalidConfig)
+	require.NoError(t, appendResultError(store.AppendOutcomeDurable, errors.New("late handle error")))
+	wantErr := errors.New("response lost")
+	require.ErrorIs(t, appendResultError(store.AppendOutcomeUnknown, wantErr), wantErr)
+}
+
+func TestAppendBatchResultKeepsDurableProofAfterCallerCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	task := Task{Context: ctx}
+	require.NoError(t, appendBatchResultError(task, ctx, store.AppendOutcomeDurable, nil))
+	require.ErrorIs(t, appendBatchResultError(task, ctx, store.AppendOutcomeUnknown, context.Canceled), context.Canceled)
 }
 
 func TestTaskRunStoreReadLogUsesStoreDeps(t *testing.T) {
@@ -263,6 +280,33 @@ func TestTaskRunMetaResolveUsesResolver(t *testing.T) {
 	require.Equal(t, want, res.MetaResolve.Meta)
 }
 
+func TestTaskRunQuorumInstallAndCommitUseDurableLog(t *testing.T) {
+	authority := replication.Authority{
+		Key: "1:quorum-worker", ChannelID: ch.ChannelID{ID: "quorum-worker", Type: 1},
+		ID:     replication.AuthorityID{ChannelEpoch: 2, LeaderTerm: 3, FenceVersion: 4},
+		Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
+	}
+	proposal := replication.Proposal{
+		Key: authority.Key, Expected: authority.ID, CommandID: ch.CommandID{31: 9},
+		Records: []ch.Record{{ID: 11, Epoch: 2, ServerTimestampMS: 1, Payload: []byte("a"), SizeBytes: 1}},
+	}
+	log := &captureDurableQuorumLog{
+		installed: replication.Installed{Authority: authority.ID, LEO: 5, HW: 5},
+		receipt:   replication.Receipt{Authority: authority.ID, CommandID: proposal.CommandID, First: 6, Last: 6, HW: 6},
+	}
+	fence := ch.Fence{ChannelKey: authority.Key, Generation: 7, Epoch: 2, LeaderEpoch: 3, OpID: 8}
+
+	installed := Task{Kind: TaskQuorumInstall, Fence: fence, QuorumInstall: &QuorumInstallTask{Authority: authority}}.Run(context.Background(), Deps{QuorumLog: log})
+	require.NoError(t, installed.Err)
+	require.Equal(t, authority, log.authority)
+	require.Equal(t, log.installed, installed.QuorumInstall.Installed)
+
+	committed := Task{Kind: TaskQuorumCommit, Fence: fence, QuorumCommit: &QuorumCommitTask{Proposal: proposal}}.Run(context.Background(), Deps{QuorumLog: log})
+	require.NoError(t, committed.Err)
+	require.Equal(t, proposal, log.proposal)
+	require.Equal(t, log.receipt, committed.QuorumCommit.Receipt)
+}
+
 func TestTaskRunMetaResolveReturnsResolverError(t *testing.T) {
 	id := ch.ChannelID{ID: "meta-resolve-error", Type: 1}
 	wantErr := errors.New("resolve failed")
@@ -406,6 +450,8 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 		{name: "rpc notify", task: Task{Kind: TaskRPCNotify, Fence: fence}},
 		{name: "rpc pull hint", task: Task{Kind: TaskRPCPullHint, Fence: fence}},
 		{name: "meta resolve", task: Task{Kind: TaskMetaResolve, Fence: fence}},
+		{name: "quorum install", task: Task{Kind: TaskQuorumInstall, Fence: fence}},
+		{name: "quorum commit", task: Task{Kind: TaskQuorumCommit, Fence: fence}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -415,6 +461,23 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 			require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
 		})
 	}
+}
+
+type captureDurableQuorumLog struct {
+	authority replication.Authority
+	proposal  replication.Proposal
+	installed replication.Installed
+	receipt   replication.Receipt
+}
+
+func (l *captureDurableQuorumLog) Install(_ context.Context, authority replication.Authority) (replication.Installed, error) {
+	l.authority = authority
+	return l.installed, nil
+}
+
+func (l *captureDurableQuorumLog) Commit(_ context.Context, proposal replication.Proposal) (replication.Receipt, error) {
+	l.proposal = proposal
+	return l.receipt, nil
 }
 
 type metaResolverFunc func(context.Context, ch.ChannelID) (ch.Meta, error)

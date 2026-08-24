@@ -181,6 +181,26 @@
           "expr": "sum(rate(wukongim_channelv2_meta_created_total[$__rate_interval])) by (slot_id, result)",
           "legendFormat": "meta created slot={{slot_id}} {{result}}",
           "refId": "J"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_meta_create_queue_depth{node_name=~\"$node_name\"}) by (slot_id)",
+          "legendFormat": "meta create queued slot={{slot_id}}",
+          "refId": "K"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_meta_create_coalesced_total{node_name=~\"$node_name\"}[$__rate_interval])) by (slot_id)",
+          "legendFormat": "meta create coalesced slot={{slot_id}}",
+          "refId": "L"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_meta_create_batch_total{node_name=~\"$node_name\"}[$__rate_interval])) by (slot_id, result)",
+          "legendFormat": "meta create batches slot={{slot_id}} {{result}}",
+          "refId": "M"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_meta_create_batch_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "meta create batch items p95 {{result}}",
+          "refId": "N"
         }
       ],
       "title": "Channel Runtime Replication Counters",

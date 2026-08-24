@@ -8,6 +8,7 @@ import (
 	"time"
 
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -478,6 +479,117 @@ func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
 	}
 }
 
+func TestTerminalFenceEventSealsExactSessionAndRejectsAllLaterBusinessFramesBeforeUsecases(t *testing.T) {
+	terminal, grant := readyGatewayTerminalController(t, 1)
+	messages := &recordingMessages{sendResult: message.SendResult{Reason: message.ReasonSuccess}}
+	deliveryUsecase := &recordingDelivery{}
+	handler := New(Options{Messages: messages, Delivery: deliveryUsecase, BenchTerminalFence: terminal})
+	var writes []frame.Frame
+	sess := session.New(session.Config{ID: 101, WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+		writes = append(writes, f)
+		return nil
+	}})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	nonce := frame.TerminalFenceNonce{1}
+	event, err := frame.NewTerminalFenceRequest(frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: grant.Capability}, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := coregateway.Context{Session: sess, RequestContext: context.Background()}
+	if err := handler.OnFrame(ctx, event); err != nil {
+		t.Fatalf("terminal OnFrame() error = %v", err)
+	}
+	if len(writes) != 1 {
+		t.Fatalf("terminal writes = %d, want one exact ACK", len(writes))
+	}
+	ack, err := frame.ParseTerminalFenceAck(writes[0].(*frame.EventPacket))
+	if err != nil || !ack.Matches(grant.Epoch, nonce) {
+		t.Fatalf("terminal ACK = %#v, %v", ack, err)
+	}
+
+	for _, late := range []frame.Frame{
+		&frame.SendPacket{ClientSeq: 1, ClientMsgNo: "late", ChannelID: "c", ChannelType: 1},
+		&frame.RecvackPacket{MessageID: 7, MessageSeq: 1},
+		&frame.PingPacket{},
+	} {
+		if err := handler.OnFrame(ctx, late); !errors.Is(err, ErrTerminalSessionSealed) {
+			t.Fatalf("late %T error = %v, want %v", late, err, ErrTerminalSessionSealed)
+		}
+	}
+	if len(messages.batchItems) != 0 || len(deliveryUsecase.recvackCommands) != 0 {
+		t.Fatalf("late frames reached usecases: sends=%d recvacks=%d", len(messages.batchItems), len(deliveryUsecase.recvackCommands))
+	}
+	if status := terminal.Status(); status.Stage != benchterminal.StageFailed || status.Failure != benchterminal.FailureProtocolViolation {
+		t.Fatalf("terminal status after late frame = %#v, want permanent protocol failure", status)
+	}
+}
+
+func TestTerminalFenceEventWrongProofPermanentlyFailsEpochWithoutSealingSession(t *testing.T) {
+	terminal, grant := readyGatewayTerminalController(t, 1)
+	handler := New(Options{BenchTerminalFence: terminal})
+	var writes []frame.Frame
+	sess := newTestSession(t, &writes)
+	nonce := frame.TerminalFenceNonce{2}
+	wrongCapability := grant.Capability[:len(grant.Capability)-1] + "x"
+	event, err := frame.NewTerminalFenceRequest(frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: wrongCapability}, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := coregateway.Context{Session: sess, RequestContext: context.Background()}
+	if err := handler.OnFrame(ctx, event); !errors.Is(err, benchterminal.ErrGrantRejected) {
+		t.Fatalf("wrong proof error = %v, want %v", err, benchterminal.ErrGrantRejected)
+	}
+	if ctx.OutboundSealed() || len(writes) != 0 {
+		t.Fatalf("wrong proof changed session: sealed=%v writes=%d", ctx.OutboundSealed(), len(writes))
+	}
+
+	valid, err := frame.NewTerminalFenceRequest(frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: grant.Capability}, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := handler.OnFrame(ctx, valid); !errors.Is(err, benchterminal.ErrPreparationFailed) {
+		t.Fatalf("valid proof after rejection error = %v, want permanent failure", err)
+	}
+	if ctx.OutboundSealed() || len(writes) != 0 {
+		t.Fatalf("failed epoch changed session: sealed=%v writes=%d", ctx.OutboundSealed(), len(writes))
+	}
+	if status := terminal.Status(); status.Stage != benchterminal.StageFailed || status.Failure != benchterminal.FailureProtocolViolation {
+		t.Fatalf("terminal status = %#v, want permanent protocol failure", status)
+	}
+}
+
+func readyGatewayTerminalController(t *testing.T, expectedSessions int) (*benchterminal.Controller, benchterminal.Grant) {
+	t.Helper()
+	controller := benchterminal.New(benchterminal.Options{
+		Gateway:       terminalDrainFunc(func(context.Context) error { return nil }),
+		ChannelAppend: terminalStopFunc(func(context.Context) error { return nil }),
+		Delivery:      terminalQuiesceFunc(func(context.Context) error { return nil }),
+		MaxSessions:   expectedSessions,
+		DrainTimeout:  time.Second,
+	})
+	grant, err := controller.Prepare(context.Background(), benchterminal.PrepareRequest{
+		RunID:            "run-a",
+		AssignmentID:     "assignment-a",
+		ExpectedSessions: expectedSessions,
+	})
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	return controller, grant
+}
+
+type terminalDrainFunc func(context.Context) error
+
+func (f terminalDrainFunc) DrainSends(ctx context.Context) error { return f(ctx) }
+
+type terminalStopFunc func(context.Context) error
+
+func (f terminalStopFunc) Stop(ctx context.Context) error { return f(ctx) }
+
+type terminalQuiesceFunc func(context.Context) error
+
+func (f terminalQuiesceFunc) Quiesce(ctx context.Context) error { return f(ctx) }
+
 func TestOnFrameUnauthenticatedSessionWritesAuthFailSendack(t *testing.T) {
 	var written []frame.Frame
 	sess := newTestSession(t, &written)
@@ -702,6 +814,88 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	}
 }
 
+func TestOnSendBatchWritesEachSendackAsItsResultCompletes(t *testing.T) {
+	written := make(chan frame.Frame, 2)
+	sess := session.New(session.Config{
+		ID: 101,
+		WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+			written <- f
+			return nil
+		},
+	})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	releaseSecond := make(chan struct{})
+	usecase := &stagedMessages{releaseSecond: releaseSecond}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+	done := make(chan error, 1)
+	go func() {
+		done <- handler.OnSendBatch([]coregateway.SendBatchItem{
+			{
+				Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+				Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "ready", ChannelID: "ready", ChannelType: 1},
+			},
+			{
+				Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+				Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "cold", ChannelID: "cold", ChannelType: 1},
+			},
+		})
+	}()
+
+	select {
+	case got := <-written:
+		ack, ok := got.(*frame.SendackPacket)
+		if !ok || ack.ClientSeq != 1 || ack.ClientMsgNo != "ready" {
+			close(releaseSecond)
+			t.Fatalf("first completed sendack = %#v, want ready item", got)
+		}
+	case <-time.After(time.Second):
+		close(releaseSecond)
+		t.Fatal("ready sendack remained blocked behind unfinished batch item")
+	}
+	select {
+	case err := <-done:
+		close(releaseSecond)
+		t.Fatalf("OnSendBatch returned before cold result completed: %v", err)
+	default:
+	}
+	close(releaseSecond)
+	select {
+	case got := <-written:
+		ack, ok := got.(*frame.SendackPacket)
+		if !ok || ack.ClientSeq != 2 || ack.ClientMsgNo != "cold" {
+			t.Fatalf("second completed sendack = %#v, want cold item", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cold sendack was not written after completion")
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+}
+
+func TestOnSendBatchBuffersOutOfOrderResultsForOneSession(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{Messages: reverseMessages{}, SendTimeout: time.Second, OwnerNodeID: 9})
+	items := []coregateway.SendBatchItem{
+		{Context: coregateway.Context{Session: sess, RequestContext: context.Background()}, Frame: &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "first", ChannelID: "ch1", ChannelType: 2}},
+		{Context: coregateway.Context{Session: sess, RequestContext: context.Background()}, Frame: &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "second", ChannelID: "ch2", ChannelType: 2}},
+	}
+	if err := handler.OnSendBatch(items); err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(written) != 2 {
+		t.Fatalf("written sendacks = %d, want 2", len(written))
+	}
+	if first := requireSendack(t, written, 0); first.ClientMsgNo != "first" {
+		t.Fatalf("first written sendack = %#v, want first input", first)
+	}
+	if second := requireSendack(t, written, 1); second.ClientMsgNo != "second" {
+		t.Fatalf("second written sendack = %#v, want second input", second)
+	}
+}
+
 func TestOnSendBatchTraceRecordsPerValidItemAndPreservesAlignment(t *testing.T) {
 	sink := &recordingSendtraceSink{}
 	restore := sendtrace.SetSink(sink)
@@ -752,12 +946,12 @@ func TestOnSendBatchTraceRecordsPerValidItemAndPreservesAlignment(t *testing.T) 
 		t.Fatalf("sendtrace events = %#v, want 5", events)
 	}
 	requireTraceEvent(t, events[0], sendtrace.StageGatewayMessagesSend, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
-	requireTraceEvent(t, events[1], sendtrace.StageGatewayMessagesSend, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultCanceled, sendackErrorClassCanceled)
-	requireTraceEvent(t, events[2], sendtrace.StageGatewayWriteSendack, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
-	requireTraceEvent(t, events[3], sendtrace.StageGatewayWriteSendack, "trace-batch-2", sendtrace.ChannelKeyFromID("ch2", 2), "b", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayWriteSendack, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[2], sendtrace.StageGatewayWriteSendack, "trace-batch-2", sendtrace.ChannelKeyFromID("ch2", 2), "b", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[3], sendtrace.StageGatewayMessagesSend, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultCanceled, sendackErrorClassCanceled)
 	requireTraceEvent(t, events[4], sendtrace.StageGatewayWriteSendack, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultOK, "")
 	requireTraceNodeAndSeq(t, events[0], 9, 101)
-	requireTraceNodeAndSeq(t, events[2], 9, 101)
+	requireTraceNodeAndSeq(t, events[1], 9, 101)
 }
 
 func TestOnSendBatchPassesSharedDeadlineWithoutReplacingRequestContext(t *testing.T) {
@@ -983,8 +1177,8 @@ func TestOnSendBatchReturnsErrorWhenBatchResultsHaveExtraItems(t *testing.T) {
 	if err == nil {
 		t.Fatalf("OnSendBatch() error = nil, want batch result count mismatch")
 	}
-	if len(written) != 0 {
-		t.Fatalf("written frame count = %d, want 0 on mismatch", len(written))
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want the already-emitted first result before mismatch", len(written))
 	}
 }
 
@@ -1008,14 +1202,55 @@ func (m *recordingMessages) SendBatch(items []message.SendBatchItem) []message.S
 	return m.batchResults
 }
 
+func (m *recordingMessages) SendBatchEach(items []message.SendBatchItem, emit func(int, message.SendBatchItemResult) error) error {
+	results := m.SendBatch(items)
+	for index, result := range results {
+		if err := emit(index, result); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type batchOnlyMessages struct {
 	batchResults []message.SendBatchItemResult
 	batchItems   []message.SendBatchItem
 }
 
+type stagedMessages struct {
+	releaseSecond <-chan struct{}
+}
+
+type reverseMessages struct{}
+
+func (reverseMessages) SendBatchEach(_ []message.SendBatchItem, emit func(int, message.SendBatchItemResult) error) error {
+	if err := emit(1, message.SendBatchItemResult{Result: message.SendResult{MessageID: 2, MessageSeq: 1, Reason: message.ReasonSuccess}}); err != nil {
+		return err
+	}
+	return emit(0, message.SendBatchItemResult{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}})
+}
+
+func (m *stagedMessages) SendBatchEach(items []message.SendBatchItem, emit func(int, message.SendBatchItemResult) error) error {
+	if err := emit(0, message.SendBatchItemResult{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}}); err != nil {
+		return err
+	}
+	<-m.releaseSecond
+	return emit(1, message.SendBatchItemResult{Result: message.SendResult{MessageID: 2, MessageSeq: 1, Reason: message.ReasonSuccess}})
+}
+
 func (m *batchOnlyMessages) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
 	m.batchItems = append([]message.SendBatchItem(nil), items...)
 	return m.batchResults
+}
+
+func (m *batchOnlyMessages) SendBatchEach(items []message.SendBatchItem, emit func(int, message.SendBatchItemResult) error) error {
+	results := m.SendBatch(items)
+	for index, result := range results {
+		if err := emit(index, result); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type recordingSendackObserver struct {

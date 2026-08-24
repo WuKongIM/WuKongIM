@@ -219,7 +219,11 @@ func (p *Pool) runQueuedGroupSafely(ctx context.Context, group []queuedTask) (re
 			err := fmt.Errorf("channel worker panic: %v", value)
 			results = make([]Result, 0, len(group))
 			for _, queued := range group {
-				results = append(results, Result{Kind: queued.task.Kind, Fence: queued.task.Fence, Err: err})
+				result := Result{Kind: queued.task.Kind, Fence: queued.task.Fence, Err: err}
+				if queued.task.Kind == TaskStoreAppend {
+					result.StoreAppend = &StoreAppendResult{Outcome: store.AppendOutcomeUnknown}
+				}
+				results = append(results, result)
 			}
 		}
 	}()
@@ -269,7 +273,7 @@ func (p *Pool) runStoreAppendBatch(ctx context.Context, group []queuedTask, batc
 	items := make([]store.AppendLeaderBatchItem, 0, len(group))
 	active := make([]int, 0, len(group))
 	for i, queued := range group {
-		results[i] = Result{Kind: queued.task.Kind, Fence: queued.task.Fence, StoreAppend: &StoreAppendResult{}}
+		results[i] = Result{Kind: queued.task.Kind, Fence: queued.task.Fence, StoreAppend: &StoreAppendResult{Outcome: store.AppendOutcomeDefinitelyNotWritten}}
 		if err := taskContextDoneErr(queued.task); err != nil {
 			results[i].Err = err
 			continue
@@ -282,7 +286,7 @@ func (p *Pool) runStoreAppendBatch(ctx context.Context, group []queuedTask, batc
 		items = append(items, store.AppendLeaderBatchItem{
 			ChannelKey: queued.task.Fence.ChannelKey,
 			ChannelID:  payload.ChannelID,
-			Request:    store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync, ServerAllocatedMessageIDs: payload.ServerAllocatedMessageIDs},
+			Request:    store.AppendLeaderRequest{Records: payload.Records, ServerAllocatedMessageIDs: payload.ServerAllocatedMessageIDs},
 		})
 		active = append(active, i)
 	}
@@ -301,17 +305,28 @@ func (p *Pool) runStoreAppendBatch(ctx context.Context, group []queuedTask, batc
 		p.observeBatch(TaskStoreAppend, len(active), ch.ErrInvalidConfig)
 		for _, index := range active {
 			results[index].Err = ch.ErrInvalidConfig
+			results[index].StoreAppend.Outcome = store.AppendOutcomeUnknown
 		}
 		return results
+	}
+	for i := range batchResults {
+		batchResults[i].Err = appendResultError(batchResults[i].Outcome, batchResults[i].Err)
 	}
 	batchErr := firstStoreAppendBatchErr(batchResults)
 	p.observeBatch(TaskStoreAppend, len(active), batchErr)
 	for i, index := range active {
 		item := batchResults[i]
-		results[index].Err = batchContextErr(group[index].task, ctx, item.Err)
-		results[index].StoreAppend = &StoreAppendResult{BaseOffset: item.BaseOffset, LastOffset: item.LastOffset}
+		results[index].Err = appendBatchResultError(group[index].task, ctx, item.Outcome, item.Err)
+		results[index].StoreAppend = &StoreAppendResult{BaseOffset: item.BaseOffset, LastOffset: item.LastOffset, Outcome: item.Outcome}
 	}
 	return results
+}
+
+func appendBatchResultError(task Task, ctx context.Context, outcome store.AppendOutcome, err error) error {
+	if outcome.Durable() {
+		return err
+	}
+	return batchContextErr(task, ctx, err)
 }
 
 func (p *Pool) runStoreApplyBatch(ctx context.Context, group []queuedTask, batcher store.FollowerApplyBatcher) []Result {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 func TestConnectionManagerConnectsUsersRoundRobinAndTracksActiveSessions(t *testing.T) {
@@ -48,6 +49,60 @@ func TestConnectionManagerConnectsUsersRoundRobinAndTracksActiveSessions(t *test
 		}
 		if session.UID != user.UID || session.DeviceID != user.DeviceID || session.Client == nil || session.GatewayAddr == "" {
 			t.Fatalf("session(%q) = %#v", user.UID, session)
+		}
+	}
+}
+
+func TestConnectionManagerSealIngressKeepsAssignmentSessionsInstalled(t *testing.T) {
+	factory := &recordingClientFactory{}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs: []string{"gw-a:5100"}, ClientFactory: factory.newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+	users := []ConnectionUser{{UID: "u1", DeviceID: "d1"}, {UID: "u2", DeviceID: "d2"}}
+	if err := manager.Connect(context.Background(), users); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	if err := manager.SealIngress(context.Background()); err != nil {
+		t.Fatalf("SealIngress() error = %v", err)
+	}
+	if got := manager.ActiveCount(); got != len(users) {
+		t.Fatalf("ActiveCount() after seal = %d, want %d installed sessions", got, len(users))
+	}
+	for index, client := range factory.clients {
+		if !client.ingressSealed || client.closed {
+			t.Fatalf("client %d after seal = sealed:%t closed:%t, want sealed live session", index, client.ingressSealed, client.closed)
+		}
+	}
+}
+
+func TestConnectionManagerSealIngressWithFenceUsesExactGrantForEveryLiveSession(t *testing.T) {
+	factory := &recordingClientFactory{}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs: []string{"gw-a:5100"}, ClientFactory: factory.newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+	users := []ConnectionUser{{UID: "u1", DeviceID: "d1"}, {UID: "u2", DeviceID: "d2"}}
+	if err := manager.Connect(context.Background(), users); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	grant := frame.TerminalFenceGrant{Epoch: 71, Capability: "bounded-terminal-capability"}
+	if err := manager.SealIngressWithFence(context.Background(), grant); err != nil {
+		t.Fatalf("SealIngressWithFence() error = %v", err)
+	}
+	if got := manager.ActiveCount(); got != len(users) {
+		t.Fatalf("ActiveCount() after fence = %d, want %d", got, len(users))
+	}
+	for index, client := range factory.clients {
+		if client.terminalFenceGrant != grant || client.closed {
+			t.Fatalf("client %d = grant:%v closed:%t, want exact grant and live session", index, client.terminalFenceGrant, client.closed)
 		}
 	}
 }
@@ -563,10 +618,12 @@ func (f *recordingClientFactory) newClient(user ConnectionUser, addr string) (Co
 }
 
 type recordingClient struct {
-	addr      string
-	connected []ConnectionUser
-	closed    bool
-	pings     atomic.Int32
+	addr               string
+	connected          []ConnectionUser
+	closed             bool
+	ingressSealed      bool
+	terminalFenceGrant frame.TerminalFenceGrant
+	pings              atomic.Int32
 }
 
 type closeUnblocksHeartbeatClient struct {
@@ -644,6 +701,16 @@ func (c *recordingClient) Connect(ctx context.Context, uid, deviceID string) err
 
 func (c *recordingClient) Close() error {
 	c.closed = true
+	return nil
+}
+
+func (c *recordingClient) SealIngress(context.Context) error {
+	c.ingressSealed = true
+	return nil
+}
+
+func (c *recordingClient) SealIngressWithFence(_ context.Context, grant frame.TerminalFenceGrant) error {
+	c.terminalFenceGrant = grant
 	return nil
 }
 

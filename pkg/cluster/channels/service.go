@@ -10,6 +10,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	channelservice "github.com/WuKongIM/WuKongIM/pkg/channel/service"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
@@ -238,6 +239,8 @@ type Config struct {
 	Store channelstore.Factory
 	// Transport sends Channel replication RPCs when constructing Runtime.
 	Transport channeltransport.Client
+	// QuorumLog owns exact authority recovery and quorum durability for leader appends.
+	QuorumLog replication.DurableQuorumLog
 	// MetaSource resolves authoritative channel metadata.
 	MetaSource ChannelMetaSource
 	// Forward sends client append calls to the resolved channel leader.
@@ -290,6 +293,7 @@ func NewService(cfg Config) (*Service, error) {
 			AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 			Store:                         cfg.Store,
 			Transport:                     cfg.Transport,
+			QuorumLog:                     cfg.QuorumLog,
 			MetaResolver:                  cfg.MetaSource,
 			Observer:                      cfg.Observer,
 		})
@@ -376,8 +380,17 @@ func (s *Service) InvalidateAppendAuthority(id ch.ChannelID, leader ch.NodeID, e
 // Tick advances Channel background work.
 func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 
-// Close closes the Channel runtime.
-func (s *Service) Close() error { return s.runtime.Close() }
+// Close stops metadata-create admission before closing the Channel runtime.
+func (s *Service) Close() error {
+	var errs []error
+	if closer, ok := s.metaSource.(interface{ Close() error }); ok {
+		errs = append(errs, closer.Close())
+	}
+	if s.runtime != nil {
+		errs = append(errs, s.runtime.Close())
+	}
+	return errors.Join(errs...)
+}
 
 // ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
 func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, visibleAfterSeq uint64) (ch.Message, bool, error) {

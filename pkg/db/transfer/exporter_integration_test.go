@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/inspect"
 	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
@@ -18,6 +19,8 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	const hashSlotCount uint16 = 16
 	userSlot := testHashSlot("u1", hashSlotCount)
 	channelSlot := testHashSlot("g1", hashSlotCount)
+	personChannelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	personChannelSlot := testHashSlot(personChannelID, hashSlotCount)
 
 	seedStore, seedOptions := openExportNodeStore(t, t.TempDir())
 	if err := seedStore.Meta().HashSlot(userSlot).UpsertUser(ctx, metadb.User{
@@ -79,6 +82,18 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpsertChannelLatest(): %v", err)
 	}
+	batch := seedStore.Meta().NewBatch()
+	if err := batch.EnsurePersonDirectoryTask(personChannelSlot, metadb.PersonDirectoryTask{
+		ChannelID: personChannelID, ChannelType: 1, CommittedTail: 9, CreatedAt: 123, Generation: 1,
+	}); err != nil {
+		t.Fatalf("EnsurePersonDirectoryTask(): %v", err)
+	}
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(person-directory task): %v", err)
+	}
+	if err := batch.Close(); err != nil {
+		t.Fatalf("Close(person-directory task batch): %v", err)
+	}
 	log, err := seedStore.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
 	if err != nil {
 		t.Fatalf("Channel(): %v", err)
@@ -130,6 +145,9 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	if got := countManifestKind(manifest, FileKindMessageMessages); got != 2 {
 		t.Fatalf("message file count = %d, want 2", got)
 	}
+	if got := countManifestKind(manifest, FileKindMetaPersonDirectoryTasks); got != 1 {
+		t.Fatalf("person-directory task file count = %d, want 1", got)
+	}
 
 	target := openImportNodeStore(t)
 	if _, err := ImportBundle(ctx, exportRoot, target, ImportOptions{HashSlotCount: hashSlotCount, RequireEmpty: true, MessageBatchSize: 1}); err != nil {
@@ -148,6 +166,14 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	}
 	if channel.SubscriberCount != 1 || channel.Large != 1 {
 		t.Fatalf("channel = %+v, want subscriber count and large flag", channel)
+	}
+	personChannel, ok, err := target.Meta().HashSlot(personChannelSlot).GetChannel(ctx, personChannelID, 1)
+	if err != nil || !ok || personChannel.DirectoryProjectionState != metadb.DirectoryProjectionPending {
+		t.Fatalf("person channel = %+v ok=%v err=%v, want pending projection", personChannel, ok, err)
+	}
+	personTask, ok, err := target.Meta().HashSlot(personChannelSlot).GetPersonDirectoryTask(ctx, personChannelID, 1)
+	if err != nil || !ok || personTask.CommittedTail != 9 || personTask.CreatedAt != 123 {
+		t.Fatalf("person-directory task = %+v ok=%v err=%v, want preserved durable task", personTask, ok, err)
 	}
 	membership, ok, err := target.Meta().HashSlot(userSlot).GetUserChannelMembership(ctx, "u1", "g1", 2)
 	if err != nil || !ok || membership.ReadSeq != 1 || membership.ActivatedAt != 2000 || membership.SourceVersion != 7 {

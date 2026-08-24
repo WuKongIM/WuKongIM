@@ -50,8 +50,10 @@ const (
 	cmdTypeUpsertUserCMDChannelMemberships     uint8 = 55
 	cmdTypeAdvanceUserCMDChannelMembershipAcks uint8 = 56
 	cmdTypeTombstoneUserCMDChannelMemberships  uint8 = 57
-	cmdTypeEnsureChannelDirectoryReady         uint8 = 58
 	cmdTypeCreateChannelRuntimeMeta            uint8 = 59
+	cmdTypeAdmitPersonDirectoryTaskBatch       uint8 = 63
+	cmdTypeEnsureUserChannelMembershipBatch    uint8 = 64
+	cmdTypeCompletePersonDirectoryTaskBatch    uint8 = 65
 	cmdTypeBindPluginUser                      uint8 = 42
 	cmdTypeUnbindPluginUser                    uint8 = 43
 
@@ -228,8 +230,10 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeUpsertUserCMDChannelMemberships:     decodeUpsertUserCMDChannelMemberships,
 	cmdTypeAdvanceUserCMDChannelMembershipAcks: decodeAdvanceUserCMDChannelMembershipAcks,
 	cmdTypeTombstoneUserCMDChannelMemberships:  decodeTombstoneUserCMDChannelMemberships,
-	cmdTypeEnsureChannelDirectoryReady:         decodeEnsureChannelDirectoryReady,
 	cmdTypeCreateChannelRuntimeMeta:            decodeCreateChannelRuntimeMeta,
+	cmdTypeAdmitPersonDirectoryTaskBatch:       decodeAdmitPersonDirectoryTaskBatch,
+	cmdTypeEnsureUserChannelMembershipBatch:    decodeEnsureUserChannelMembershipBatch,
+	cmdTypeCompletePersonDirectoryTaskBatch:    decodeCompletePersonDirectoryTaskBatch,
 	cmdTypeBindPluginUser:                      decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                    decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                          decodeApplyDelta,
@@ -341,15 +345,6 @@ func (c *patchChannelBusinessFlagsCmd) apply(wb *metadb.WriteBatch, hashSlot uin
 
 func (c *patchChannelBusinessFlagsCmd) applyResult() []byte {
 	return EncodeChannelConditionalMutationResult(c.result)
-}
-
-type ensureChannelDirectoryReadyCmd struct {
-	channelID   string
-	channelType int64
-}
-
-func (c *ensureChannelDirectoryReadyCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.EnsureChannelDirectoryReady(hashSlot, c.channelID, c.channelType)
 }
 
 // --- DeleteChannel ---
@@ -742,13 +737,6 @@ func EncodePatchChannelBusinessFlagsCommand(channelID string, channelType int64,
 		Ban:         flags.Ban,
 		Disband:     flags.Disband,
 		SendBan:     flags.SendBan,
-	})
-}
-
-// EncodeEnsureChannelDirectoryReadyCommand encodes a monotonic person-directory readiness mutation.
-func EncodeEnsureChannelDirectoryReadyCommand(channelID string, channelType int64) []byte {
-	return encodeChannelCommand(cmdTypeEnsureChannelDirectoryReady, metadb.Channel{
-		ChannelID: channelID, ChannelType: channelType,
 	})
 }
 
@@ -1635,17 +1623,6 @@ func decodePatchChannelBusinessFlags(data []byte) (command, error) {
 			SendBan: ch.SendBan,
 		},
 	}, nil
-}
-
-func decodeEnsureChannelDirectoryReady(data []byte) (command, error) {
-	ch, err := decodeChannel(data)
-	if err != nil {
-		return nil, err
-	}
-	if ch.ChannelID == "" || ch.ChannelType <= 0 {
-		return nil, fmt.Errorf("%w: incomplete channel directory ready command", metadb.ErrInvalidArgument)
-	}
-	return &ensureChannelDirectoryReadyCmd{channelID: ch.ChannelID, channelType: ch.ChannelType}, nil
 }
 
 func decodeChannel(data []byte) (metadb.Channel, error) {

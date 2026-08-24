@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
@@ -52,6 +53,8 @@ type Config struct {
 	Transport transport.Client
 	// MetaResolver authorizes unloaded cold activation and refreshes loaded runtimes after newer PullHint fences.
 	MetaResolver ch.MetaResolver
+	// QuorumLog owns authority recovery and quorum-durable leader commits.
+	QuorumLog replication.DurableQuorumLog
 	// WorkerPools configures bounded pools for blocking store and RPC effects.
 	WorkerPools worker.PoolsConfig
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
@@ -137,7 +140,7 @@ func NewGroup(cfg Config) (*Group, error) {
 		return nil, err
 	}
 	g := &Group{cfg: cfg, router: router, reactors: make([]*Reactor, cfg.ReactorCount), storeCloses: newStoreCloseTracker()}
-	pools, err := worker.NewPools(defaultWorkerPools(cfg), worker.Deps{LocalNode: cfg.LocalNode, Stores: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaResolver}, g)
+	pools, err := worker.NewPools(defaultWorkerPools(cfg), worker.Deps{LocalNode: cfg.LocalNode, Stores: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaResolver, QuorumLog: cfg.QuorumLog}, g)
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +179,7 @@ func NewGroup(cfg Config) (*Group, error) {
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
 			CommittedCheckpointInterval:   cfg.CommittedCheckpointInterval,
 			Observer:                      cfg.Observer,
+			QuorumLog:                     cfg.QuorumLog,
 			NextOpID:                      g.NextOpID,
 			storeCloses:                   g.storeCloses,
 		})

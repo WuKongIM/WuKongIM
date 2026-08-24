@@ -30,7 +30,6 @@ type Task struct {
 // StoreAppendTask asks a worker to durably append leader records.
 type StoreAppendTask struct {
 	Records []ch.Record
-	Sync    bool
 	// ServerAllocatedMessageIDs permits storage to skip only duplicate message-ID reads.
 	ServerAllocatedMessageIDs bool
 }

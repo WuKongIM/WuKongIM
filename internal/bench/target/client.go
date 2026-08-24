@@ -43,9 +43,20 @@ const (
 	maxObservationMetricLineBytes            = 64 << 10
 	maxObservationMetricSeries               = 32_768
 	maxObservationQueueSeries                = 128
+	maxTerminalFenceResponseBytes      int64 = 4 << 10
+	maxTerminalFenceSessions                 = 1_000_000
+	maxTerminalFenceIdentityBytes            = 128
+	maxTerminalFenceCapabilityBytes          = 64
 	// MetaCreateLogicalSlots is the fixed reviewed logical Slot cardinality.
 	MetaCreateLogicalSlots = 12
 )
+
+// Terminal fence API DTOs are aliases of the shared target contract so the
+// black-box client and promoted server surface cannot drift.
+const TerminalFenceVersion = model.TerminalFenceVersion
+
+type TerminalFencePrepareRequest = model.TerminalFencePrepareRequest
+type TerminalFenceGrant = model.TerminalFenceGrant
 
 // DebugConfig is the bounded effective configuration required by formal preflight.
 type DebugConfig struct {
@@ -725,6 +736,62 @@ func (c *Client) RemoveSubscribers(ctx context.Context, req model.BatchSubscribe
 	return c.postAny(ctx, "/bench/v1/channels/subscribers/remove", req)
 }
 
+// PrepareTerminalFence calls exactly one target. It never falls back to a
+// second address because issuing two independent terminal epochs would make
+// the session proof ambiguous.
+func (c *Client) PrepareTerminalFence(ctx context.Context, request TerminalFencePrepareRequest) (TerminalFenceGrant, error) {
+	if err := validateTerminalFencePrepareRequest(request); err != nil {
+		return TerminalFenceGrant{}, err
+	}
+	addrs := c.addrs()
+	if len(addrs) != 1 {
+		return TerminalFenceGrant{}, fmt.Errorf("terminal fence requires exactly one target api address, got %d", len(addrs))
+	}
+	var grant TerminalFenceGrant
+	if err := c.doJSONLimited(ctx, http.MethodPost, addrs[0], "/bench/v1/terminal-fence/prepare", request, &grant, maxTerminalFenceResponseBytes); err != nil {
+		return TerminalFenceGrant{}, err
+	}
+	if err := validateTerminalFenceGrant(request, grant); err != nil {
+		return TerminalFenceGrant{}, err
+	}
+	return grant, nil
+}
+
+func validateTerminalFencePrepareRequest(request TerminalFencePrepareRequest) error {
+	if request.RunID == "" || request.RunID != strings.TrimSpace(request.RunID) || len(request.RunID) > maxTerminalFenceIdentityBytes {
+		return errors.New("terminal fence run_id is invalid")
+	}
+	if request.AssignmentID == "" || request.AssignmentID != strings.TrimSpace(request.AssignmentID) || len(request.AssignmentID) > maxTerminalFenceIdentityBytes {
+		return errors.New("terminal fence assignment_id is invalid")
+	}
+	if request.ExpectedSessions <= 0 || request.ExpectedSessions > maxTerminalFenceSessions {
+		return errors.New("terminal fence expected_sessions is outside the supported range")
+	}
+	return nil
+}
+
+func validateTerminalFenceGrant(request TerminalFencePrepareRequest, grant TerminalFenceGrant) error {
+	if grant.Version != TerminalFenceVersion || grant.RunID != request.RunID || grant.AssignmentID != request.AssignmentID ||
+		grant.ExpectedSessions != request.ExpectedSessions || grant.Epoch == 0 || !validTerminalFenceCapability(grant.Capability) {
+		return errors.New("terminal fence grant does not match request")
+	}
+	return nil
+}
+
+func validTerminalFenceCapability(value string) bool {
+	if len(value) < 22 || len(value) > maxTerminalFenceCapabilityBytes {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		ch := value[index]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func (c *Client) getAny(ctx context.Context, path string, out any) error {
 	addrs := c.addrs()
 	if len(addrs) == 0 {
@@ -1106,7 +1173,11 @@ func validateDebugCluster(snapshot DebugCluster) error {
 				return errors.New("observation cluster contains duplicate replica progress")
 			}
 			seenProgress[progress.NodeID] = struct{}{}
-			if progress.MatchIndex > slot.CommitIndex || slot.CommitIndex-progress.MatchIndex != progress.LagEntries {
+			lagEntries := uint64(0)
+			if progress.MatchIndex < slot.CommitIndex {
+				lagEntries = slot.CommitIndex - progress.MatchIndex
+			}
+			if lagEntries != progress.LagEntries {
 				return errors.New("observation cluster contains inconsistent replica lag")
 			}
 		}

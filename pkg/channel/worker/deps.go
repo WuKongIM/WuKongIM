@@ -2,6 +2,7 @@ package worker
 
 import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 )
@@ -16,4 +17,6 @@ type Deps struct {
 	Transport transport.Client
 	// MetaResolver loads authoritative channel metadata from inside dedicated workers.
 	MetaResolver ch.MetaResolver
+	// QuorumLog owns authority recovery and quorum-durable leader commits.
+	QuorumLog replication.DurableQuorumLog
 }

@@ -34,6 +34,8 @@ type QueueObserver interface {
 }
 
 // InflightObserver receives current and peak running worker counts.
+// Implementations are called synchronously from worker goroutines and must be
+// concurrency-safe and non-blocking.
 type InflightObserver interface {
 	SetWorkerInflight(pool string, inflight int)
 	SetWorkerInflightPeak(pool string, peak int)
@@ -123,9 +125,15 @@ type Pool struct {
 
 	obsMu sync.RWMutex
 	obs   QueueObserver
+	// queueObservationMu linearizes absolute queue-depth publications. A delayed
+	// older callback reloads the latest physical depth before it reaches the sink.
+	queueObservationMu sync.Mutex
 
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
+	// inflightObservationMu linearizes absolute current/peak publications. A
+	// delayed older worker samples the latest physical state before publishing.
+	inflightObservationMu sync.Mutex
 	// rpcGroupTurn rotates same-kind RPC target groups between bounded batches.
 	rpcGroupTurn atomic.Uint64
 }
@@ -281,6 +289,11 @@ func (p *Pool) QueueCapacity() int {
 }
 
 func (p *Pool) observeQueueDepth() {
+	if p == nil {
+		return
+	}
+	p.queueObservationMu.Lock()
+	defer p.queueObservationMu.Unlock()
 	p.observer().SetWorkerQueueDepth(p.cfg.Name, p.QueueDepth())
 }
 
@@ -361,9 +374,11 @@ func (p *Pool) observeInflight(inflight int) {
 	if !ok {
 		return
 	}
-	obs.SetWorkerInflight(p.cfg.Name, inflight)
-	peak := p.updateInflightPeak(inflight)
-	obs.SetWorkerInflightPeak(p.cfg.Name, peak)
+	p.updateInflightPeak(inflight)
+	p.inflightObservationMu.Lock()
+	defer p.inflightObservationMu.Unlock()
+	obs.SetWorkerInflight(p.cfg.Name, int(p.inflight.Load()))
+	obs.SetWorkerInflightPeak(p.cfg.Name, int(p.inflightPeak.Load()))
 }
 
 func (p *Pool) updateInflightPeak(inflight int) int {
@@ -435,7 +450,7 @@ func (o workerWorkqueueObserver) ObserveBoundedPool(obs workqueue.BoundedPoolObs
 		p.observeQueueCapacity()
 		p.observeWorkers()
 	case "depth":
-		p.observer().SetWorkerQueueDepth(p.cfg.Name, obs.QueueDepth)
+		p.observeQueueDepth()
 	case "admission":
 		p.observeAdmission(workerAdmissionResultFromWorkqueue(obs.Result))
 	case "worker":

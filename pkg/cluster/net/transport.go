@@ -327,7 +327,7 @@ func isOrderedRaftService(serviceID uint8) bool {
 
 func isForegroundChannelMutationService(serviceID uint8) bool {
 	switch serviceID {
-	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend, RPCMessageEventAppend:
+	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend, RPCMessageEventAppend, RPCChannelQuorumExchange:
 		return true
 	default:
 		return false

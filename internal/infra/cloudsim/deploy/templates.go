@@ -10,13 +10,21 @@ const (
 	// effectiveNodeRuntimeContractName is the bundle-relative machine-readable runtime contract.
 	effectiveNodeRuntimeContractName = "effective-node-runtime-contract.json"
 	// EffectiveNodeRuntimeContractSchemaV1 is the exact runtime contract schema emitted into bundles and checked at bootstrap.
-	EffectiveNodeRuntimeContractSchemaV1 = "wukongim/cloud-effective-node-runtime-contract/v1"
-	cloudPhysicalHashSlotCount           = 256
-	cloudLogicalSlotGroupCount           = 10
-	cloudSlotReplicaCount                = 3
-	cloudChannelReplicaCount             = 3
-	cloudChannelReactorCount             = 4
-	cloudChannelStoreAppendWorkers       = 8
+	EffectiveNodeRuntimeContractSchemaV1  = "wukongim/cloud-effective-node-runtime-contract/v1"
+	cloudPhysicalHashSlotCount            = 256
+	cloudLogicalSlotGroupCount            = 10
+	cloudSlotReplicaCount                 = 3
+	cloudChannelReplicaCount              = 3
+	cloudChannelReactorCount              = 4
+	cloudDefaultChannelStoreAppendWorkers = 8
+	// cloudMediumChannelStoreAppendWorkers is the bounded Cloud Medium append
+	// concurrency. The chat-20260822T063603Z-45db6ea8 rehearsal observed a
+	// 38ms store-effect envelope and a 2.5s append wait P99 with eight workers.
+	// At 2,000 SEND/s, three replicas, and three evenly loaded nodes, Little's
+	// Law requires about 76 workers per node; 128 keeps 50 percent headroom and
+	// a power-of-two bound without inheriting the local 500-worker diagnostic
+	// profile.
+	cloudMediumChannelStoreAppendWorkers = 128
 	cloudChannelStoreApplyWorkers        = 8
 	cloudDefaultChannelRPCWorkers        = 50
 	// cloudMediumChannelRPCWorkers is acceptance-driven by the completed
@@ -30,9 +38,14 @@ const (
 	// three-process Medium-shaped 256/10/3 gate at 4,500/s actual ingress.
 	// The prior 61.75ms cycle and batch-four saturation corroborate the choice
 	// but are not treated as an ingress-to-RPC-item capacity equation.
-	cloudChannelRPCBatchMaxItems       = 8
-	cloudGatewayGnetEventLoops         = 4
-	cloudGatewayAsyncSendWorkers       = 128
+	cloudChannelRPCBatchMaxItems        = 8
+	cloudGatewayGnetEventLoops          = 4
+	cloudDefaultGatewayAsyncSendWorkers = 128
+	// cloudMediumGatewayAsyncSendWorkers prevents cold Channel activation from
+	// pinning the bounded gateway SEND executors. A real three-node 2,000/s
+	// cold-person wave took 4.38s at 128 workers per node and 1.61-1.67s at
+	// 1,000 while retaining the production metadata batching contract.
+	cloudMediumGatewayAsyncSendWorkers = 1000
 	cloudGatewayAsyncSendQueueCapacity = 131_072
 	cloudDefaultRecipientWorkers       = 100
 	// cloudMediumRecipientWorkerConcurrency is the measured Cloud Medium plan
@@ -110,21 +123,23 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 		SlotReplicaCount:              cloudSlotReplicaCount,
 		ChannelReplicaCount:           cloudChannelReplicaCount,
 		ChannelReactorCount:           cloudChannelReactorCount,
-		ChannelStoreAppendWorkers:     cloudChannelStoreAppendWorkers,
+		ChannelStoreAppendWorkers:     cloudDefaultChannelStoreAppendWorkers,
 		ChannelStoreApplyWorkers:      cloudChannelStoreApplyWorkers,
 		ChannelRPCWorkers:             cloudDefaultChannelRPCWorkers,
 		ChannelRPCBatchMaxItems:       cloudChannelRPCBatchMaxItems,
 		GatewayGnetMulticore:          true,
 		GatewayGnetEventLoops:         cloudGatewayGnetEventLoops,
-		GatewayAsyncSendWorkers:       cloudGatewayAsyncSendWorkers,
+		GatewayAsyncSendWorkers:       cloudDefaultGatewayAsyncSendWorkers,
 		GatewayAsyncSendQueueCapacity: cloudGatewayAsyncSendQueueCapacity,
 		RecipientWorkerConcurrency:    cloudDefaultRecipientWorkers,
 	}
 	switch contract.Scale {
 	case "small":
 	case "medium":
+		contract.ChannelStoreAppendWorkers = cloudMediumChannelStoreAppendWorkers
 		contract.RecipientWorkerConcurrency = cloudMediumRecipientWorkerConcurrency
 		contract.ChannelRPCWorkers = cloudMediumChannelRPCWorkers
+		contract.GatewayAsyncSendWorkers = cloudMediumGatewayAsyncSendWorkers
 	case "large":
 	default:
 		return EffectiveNodeRuntimeContract{}, fmt.Errorf("%w: scenario objectives.scale must be small, medium, or large", ErrInvalidBundle)

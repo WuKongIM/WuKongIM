@@ -53,6 +53,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"systemctl start --no-block '$stage_service'",
 		"run-start.json",
 		"keep_active=true",
+		"classify-stage-service-state.sh",
 	}
 	previous := -1
 	for _, fragment := range ordered {
@@ -80,6 +81,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"capture-stage-journal-cursor.sh",
 		"pre-clock journal cursor unavailable; exact Lease was released",
 		"read_pre_clock_terminal_code",
+		`[[ "$state" == terminal ]]`,
 		"--after-cursor='$journal_cursor'",
 		"classify-pre-clock-summary.sh",
 		"stage terminated before run-start with coordinator_code=",
@@ -200,6 +202,38 @@ func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
 				t.Fatalf("classification unexpectedly succeeded: %q", output)
 			}
 		})
+	}
+}
+
+func TestChatLifecycleStageServiceStateKeepsQueuedInactiveStartAlive(t *testing.T) {
+	root := repoRoot(t)
+	classifier := filepath.Join(root, "scripts", "chat-lifecycle", "classify-stage-service-state.sh")
+	command := exec.Command("bash", classifier)
+	command.Stdin = strings.NewReader("ActiveState=inactive\nJob=8841\n")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("classify queued inactive stage: %v\n%s", err, output)
+	}
+	if string(output) != "pending\n" {
+		t.Fatalf("classification = %q, want pending", output)
+	}
+
+	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
+	if !strings.Contains(orchestrator, "classify-stage-service-state.sh") {
+		t.Fatal("stage orchestrator does not use the queued-start classifier")
+	}
+}
+
+func TestChatLifecycleStageServiceStateRejectsTerminalInactiveUnit(t *testing.T) {
+	classifier := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "classify-stage-service-state.sh")
+	command := exec.Command("bash", classifier)
+	command.Stdin = strings.NewReader("ActiveState=inactive\nJob=0\n")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("classify terminal inactive stage: %v\n%s", err, output)
+	}
+	if string(output) != "terminal\n" {
+		t.Fatalf("classification = %q, want terminal", output)
 	}
 }
 
@@ -1070,7 +1104,7 @@ func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t 
 		t.Fatal("formal finalizer cannot recover already-zero pre-handoff cleanup evidence")
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-active-handoffs.sh"))
-	for _, required := range []string{"max_pages=50", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
+	for _, required := range []string{"max_pages=50", "artifact_api_attempts=4", "fetch_artifact_page", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
 		if !strings.Contains(discovery, required) {
 			t.Fatalf("bounded discovery is missing %q", required)
 		}
@@ -1321,6 +1355,100 @@ func TestChatLifecycleActiveHandoffDiscoveryFailsClosedAtInventoryBound(t *testi
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatalf("bounded discovery wrote output: %v", err)
+	}
+}
+
+func TestChatLifecycleActiveHandoffDiscoveryRetriesTransientArtifactInventoryFailure(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	attemptsPath := filepath.Join(directory, "attempts")
+	if err := os.WriteFile(attemptsPath, []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := `#!/bin/sh
+attempts="$(cat "$FAKE_ATTEMPTS")"
+attempts=$((attempts + 1))
+printf '%s\n' "$attempts" >"$FAKE_ATTEMPTS"
+if [ "$attempts" -lt 3 ]; then
+  printf '%s\n' 'tls: failed to verify certificate: x509: certificate is not valid for any names' >&2
+  exit 1
+fi
+printf '%s\n' '{"artifacts":[]}'
+`
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "sleep"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-active-handoffs.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ATTEMPTS="+attemptsPath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "WK_CHAT_STAGE=rehearsal")
+	combined, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("transient artifact inventory failure was not retried: %v\n%s", err, combined)
+	}
+	if attempts := strings.TrimSpace(readFile(t, attemptsPath)); attempts != "3" {
+		t.Fatalf("artifact inventory attempts = %s, want 3", attempts)
+	}
+	var matrix struct {
+		Include []json.RawMessage `json:"include"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, output)), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 0 {
+		t.Fatalf("active handoff matrix = %#v, want empty", matrix.Include)
+	}
+}
+
+func TestChatLifecycleActiveHandoffDiscoveryFailsClosedAfterBoundedArtifactInventoryRetries(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	attemptsPath := filepath.Join(directory, "attempts")
+	if err := os.WriteFile(attemptsPath, []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := `#!/bin/sh
+attempts="$(cat "$FAKE_ATTEMPTS")"
+printf '%s\n' "$((attempts + 1))" >"$FAKE_ATTEMPTS"
+printf '%s\n' 'tls: failed to verify certificate: x509: certificate is not valid for any names' >&2
+exit 1
+`
+	for name, content := range map[string]string{
+		"gh":    gh,
+		"sleep": "#!/bin/sh\nexit 0\n",
+	} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(content), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-active-handoffs.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ATTEMPTS="+attemptsPath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "WK_CHAT_STAGE=rehearsal")
+	combined, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(combined), "tls: failed to verify certificate") {
+		t.Fatalf("persistent artifact inventory error = %v\n%s", err, combined)
+	}
+	if attempts := strings.TrimSpace(readFile(t, attemptsPath)); attempts != "4" {
+		t.Fatalf("artifact inventory attempts = %s, want 4", attempts)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Fatalf("persistent artifact inventory failure wrote output: %v", err)
 	}
 }
 

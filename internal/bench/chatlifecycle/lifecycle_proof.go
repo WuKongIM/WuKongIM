@@ -26,7 +26,7 @@ const (
 )
 
 // LifecycleProofCycleTime returns the exact history-free boundary for a
-// zero-based proof cycle. Cycle zero is ten minutes after measured start.
+// zero-based proof cycle at the fixed formal lifecycle cadence.
 func LifecycleProofCycleTime(start time.Time, cycle uint64) (time.Time, error) {
 	if start.IsZero() || cycle == ^uint64(0) {
 		return time.Time{}, ErrLifecycleHarnessInvalid
@@ -940,7 +940,7 @@ type MetaCreateAccounting struct {
 
 // MetaCreateAccountingSnapshot is low-cardinality checkpoint evidence.
 type MetaCreateAccountingSnapshot struct {
-	// ExpectedUnique is the latest deterministic person-edge plus group total.
+	// ExpectedUnique is the latest successful first person plus touched-group total.
 	ExpectedUnique uint64 `json:"expected_unique"`
 	// Created is the latest authoritative cumulative create counter.
 	Created uint64 `json:"created"`
@@ -967,14 +967,14 @@ func NewMetaCreateAccounting() *MetaCreateAccounting { return &MetaCreateAccount
 // Checkpoint folds bounded physical-hash-slot expectations through the current
 // immutable logical-Slot assignment and rejects redistribution or recreation.
 func (a *MetaCreateAccounting) Checkpoint(
-	personEdges, preparedGroups MetaCreateHashSlotCounts,
+	personEdges, touchedGroups MetaCreateHashSlotCounts,
 	assignment LifecycleSlotAssignment,
 	metrics [3]target.MetricsSnapshot,
 	reheat bool,
 ) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	expectedBySlot, expected, ok := foldMetaCreateExpectation(personEdges, preparedGroups, assignment)
+	expectedBySlot, expected, ok := foldMetaCreateExpectation(personEdges, touchedGroups, assignment)
 	if !ok {
 		return ErrLifecycleHarnessInvalid
 	}
@@ -1071,7 +1071,7 @@ func (a *MetaCreateAccounting) Checkpoint(
 }
 
 func foldMetaCreateExpectation(
-	personEdges, preparedGroups MetaCreateHashSlotCounts,
+	personEdges, touchedGroups MetaCreateHashSlotCounts,
 	assignment LifecycleSlotAssignment,
 ) ([formalLogicalSlotGroups]uint64, uint64, bool) {
 	var expected [formalLogicalSlotGroups]uint64
@@ -1080,7 +1080,7 @@ func foldMetaCreateExpectation(
 	}
 	var total uint64
 	for hashSlot := range formalHashSlots {
-		count, ok := checkedUint64Add(personEdges[hashSlot], preparedGroups[hashSlot])
+		count, ok := checkedUint64Add(personEdges[hashSlot], touchedGroups[hashSlot])
 		if !ok {
 			return [formalLogicalSlotGroups]uint64{}, 0, false
 		}

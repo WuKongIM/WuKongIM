@@ -282,6 +282,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 	if err := f.availabilityError(); err != nil {
 		for i := range results {
 			results[i].Err = err
+			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
 		}
 		return results
 	}
@@ -295,15 +296,26 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		}
 	}()
 	for i, item := range items {
+		if !item.Request.Class.Valid() {
+			results[i].Err = ch.ErrInvalidConfig
+			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
+			continue
+		}
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
+			results[i].Outcome = appendLeaderErrorResult(results[i].Err).Outcome
 			continue
 		}
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
 			Store:                     dbStore,
 			Records:                   encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+			Class:                     messageDBAppendBatchClass(item.Request.Class),
+			Committed:                 item.Request.Committed,
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
+			ExactBaseOffset:           item.Request.ExactBaseOffset,
+			ExpectedBaseOffset:        item.Request.ExpectedBaseOffset,
+			Proposal:                  item.Request.Proposal,
 		})
 		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
 	}
@@ -311,6 +323,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 	if len(dbResults) != len(acquired) {
 		for _, item := range acquired {
 			results[item.index].Err = ch.ErrInvalidConfig
+			results[item.index].Outcome = AppendOutcomeUnknown
 		}
 		return results
 	}
@@ -318,10 +331,11 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		dbResult := dbResults[i]
 		err := f.mapError(dbResult.Err)
 		if len(items[acquiredItem.index].Request.Records) == 0 {
-			results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.BaseOffset, Err: err}
+			results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.BaseOffset, Outcome: dbResult.Outcome, Err: err}
 			continue
 		}
-		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, Err: err}
+		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, Outcome: dbResult.Outcome, Err: err}
+		results[acquiredItem.index].NeedFrom = dbResult.NeedFrom
 	}
 	return results
 }
@@ -468,6 +482,12 @@ func mapMessageDBAdapterError(err error) error {
 	if errors.Is(err, channel.ErrClosed) {
 		return ch.ErrClosed
 	}
+	if errors.Is(err, channel.ErrBackpressured) {
+		return ch.ErrBackpressured
+	}
+	if errors.Is(err, channel.ErrCorruptState) {
+		return ch.ErrLogConflict
+	}
 	return err
 }
 
@@ -520,30 +540,170 @@ func (a *messageDBChannelStoreAdapter) Load(ctx context.Context) (InitialState, 
 	return InitialState{LEO: leo, HW: hw, CheckpointHW: hw}, nil
 }
 
-func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
+// LoadExactState returns one append/checkpoint-consistent exact durable
+// frontier from the underlying MessageDB store.
+func (a *messageDBChannelStoreAdapter) LoadExactState(ctx context.Context) (ExactState, error) {
 	if err := a.ensureOpen(); err != nil {
-		return AppendLeaderResult{}, err
+		return ExactState{}, err
+	}
+	frontier, err := a.store.LoadDurableFrontier(ctx)
+	if err != nil {
+		return ExactState{}, a.mapError(err)
+	}
+	return ExactState{
+		InitialState: InitialState{
+			LEO: frontier.LEO, HW: frontier.Committed, CheckpointHW: frontier.Committed,
+		},
+		Manifest: frontier.Manifest, TailIdentity: frontier.TailIdentity,
+	}, nil
+}
+
+// LoadExactRecoveryState returns one append/checkpoint-consistent frontier and
+// the requested exact entry identities from MessageDB.
+func (a *messageDBChannelStoreAdapter) LoadExactRecoveryState(ctx context.Context, indexes []uint64) (ExactRecoveryState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactRecoveryState{}, err
+	}
+	recovery, err := a.store.LoadDurableRecovery(ctx, indexes)
+	if err != nil {
+		return ExactRecoveryState{}, a.mapError(err)
+	}
+	result := ExactRecoveryState{
+		ExactState: ExactState{
+			InitialState: InitialState{
+				LEO: recovery.LEO, HW: recovery.Committed, CheckpointHW: recovery.Committed,
+			},
+			Manifest: recovery.Manifest, TailIdentity: recovery.TailIdentity,
+		},
+		Entries: make([]ExactEntryProbe, len(recovery.Entries)),
+	}
+	for index, entry := range recovery.Entries {
+		result.Entries[index] = ExactEntryProbe{
+			Index: entry.Index, Present: entry.Present, Identity: entry.Identity,
+		}
+	}
+	return result, nil
+}
+
+// LoadExactProposal maps one MessageDB command-index hit back to shared
+// semantic Channel records.
+func (a *messageDBChannelStoreAdapter) LoadExactProposal(ctx context.Context, req ExactProposalRequest) (ExactProposal, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactProposal{}, false, err
+	}
+	proposal, present, err := a.store.LoadDurableProposal(ctx, req.CommandID, req.MaxRecords, req.MaxBytes)
+	if err != nil || !present {
+		return ExactProposal{}, present, a.mapError(err)
+	}
+	records := make([]ch.Record, len(proposal.Records))
+	for index, record := range proposal.Records {
+		records[index] = fromDBRecord(record)
+	}
+	return ExactProposal{Manifest: proposal.Manifest, Records: records}, true, nil
+}
+
+// ReplaceRecoverySuffix maps the recovery-only exact replacement to one
+// atomic MessageDB mutation.
+func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRecoverySuffixRequest) (ReplaceRecoverySuffixResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return replaceRecoverySuffixErrorResult(err), err
 	}
 	if err := ctx.Err(); err != nil {
-		return AppendLeaderResult{}, err
+		return replaceRecoverySuffixErrorResult(err), err
+	}
+	proposals := make([]messagedb.RecoveryProposal, len(req.Proposals))
+	for index, proposal := range req.Proposals {
+		proposals[index] = messagedb.RecoveryProposal{
+			Manifest: proposal.Manifest,
+			Records:  a.encodeRecords(proposal.Records),
+		}
+	}
+	result, err := a.store.ReplaceRecoverySuffix(ctx, messagedb.ReplaceRecoverySuffixRequest{
+		Expected: messagedb.DurableFrontier{
+			LEO: req.Expected.LEO, Committed: req.Expected.HW,
+			Manifest: req.Expected.Manifest, TailIdentity: req.Expected.TailIdentity,
+		},
+		KeepThrough: req.KeepThrough,
+		Proposals:   proposals,
+		Committed:   req.Committed,
+	})
+	err = a.mapError(err)
+	return ReplaceRecoverySuffixResult{LastOffset: result.LastOffset, Outcome: result.Outcome}, err
+}
+
+// ReadExactRecoveryPage maps one MessageDB donor page into shared Channel
+// records while preserving the exact frontier and entry identities.
+func (a *messageDBChannelStoreAdapter) ReadExactRecoveryPage(ctx context.Context, req ExactRecoveryPageRequest) (ExactRecoveryPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ExactRecoveryPage{}, err
+	}
+	page, err := a.store.ReadDurableRecoveryPage(ctx, messagedb.DurableRecoveryPageRequest{
+		From: req.From, Through: req.Through, MaxBytes: req.MaxBytes,
+	})
+	if err != nil {
+		return ExactRecoveryPage{}, a.mapError(err)
+	}
+	result := ExactRecoveryPage{
+		ExactState: ExactState{
+			InitialState: InitialState{
+				LEO: page.LEO, HW: page.Committed, CheckpointHW: page.Committed,
+			},
+			Manifest: page.Manifest, TailIdentity: page.TailIdentity,
+		},
+		Records: make([]ch.Record, len(page.Records)),
+		Entries: make([]ExactEntryProbe, len(page.Entries)),
+	}
+	for index, record := range page.Records {
+		result.Records[index] = fromDBRecord(record)
+	}
+	for index, entry := range page.Entries {
+		result.Entries[index] = ExactEntryProbe{Index: entry.Index, Present: entry.Present, Identity: entry.Identity}
+	}
+	return result, nil
+}
+
+func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return appendLeaderErrorResult(err), err
+	}
+	if !req.Class.Valid() {
+		return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return appendLeaderErrorResult(err), err
 	}
 	records := a.encodeRecords(req.Records)
-	var (
-		base uint64
-		err  error
-	)
-	if req.ServerAllocatedMessageIDs {
-		base, err = a.store.AppendServerAllocated(records)
-	} else {
-		base, err = a.store.Append(records)
+	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
+		Store:                     a.store,
+		Records:                   records,
+		Class:                     messageDBAppendBatchClass(req.Class),
+		Committed:                 req.Committed,
+		ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
+		ExactBaseOffset:           req.ExactBaseOffset,
+		ExpectedBaseOffset:        req.ExpectedBaseOffset,
+		Proposal:                  req.Proposal,
+	}})
+	if len(results) != 1 {
+		return AppendLeaderResult{Outcome: AppendOutcomeUnknown}, ch.ErrInvalidConfig
 	}
-	if err != nil {
-		return AppendLeaderResult{}, a.mapError(err)
-	}
+	result := results[0]
+	err := a.mapError(result.Err)
+	lastOffset := result.LastOffset
 	if len(records) == 0 {
-		return AppendLeaderResult{BaseOffset: base + 1, LastOffset: base}, nil
+		lastOffset = result.BaseOffset
 	}
-	return AppendLeaderResult{BaseOffset: base + 1, LastOffset: base + uint64(len(records))}, nil
+	return AppendLeaderResult{BaseOffset: result.BaseOffset + 1, LastOffset: lastOffset, NeedFrom: result.NeedFrom, Outcome: result.Outcome}, err
+}
+
+func messageDBAppendBatchClass(class AppendClass) messagedb.AppendBatchClass {
+	switch class {
+	case AppendClassFollowerQuorum:
+		return messagedb.AppendBatchClassFollowerQuorum
+	case AppendClassTrailing:
+		return messagedb.AppendBatchClassTrailing
+	default:
+		return messagedb.AppendBatchClassLeaderQuorum
+	}
 }
 
 func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {

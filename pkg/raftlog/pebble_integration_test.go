@@ -38,12 +38,32 @@ func TestPebbleOpenOptionsDefaultExternalSnapshotRoot(t *testing.T) {
 	if db.options.SnapshotChunkSize != uint64(8<<20) {
 		t.Fatalf("SnapshotChunkSize = %d, want %d", db.options.SnapshotChunkSize, uint64(8<<20))
 	}
+	if db.options.WriteBatchMaxWait != 5*time.Millisecond {
+		t.Fatalf("WriteBatchMaxWait = %v, want %v", db.options.WriteBatchMaxWait, 5*time.Millisecond)
+	}
+	if db.options.WriteBatchMaxItems != 128 {
+		t.Fatalf("WriteBatchMaxItems = %d, want 128", db.options.WriteBatchMaxItems)
+	}
 }
 
 func TestPebbleOpenRejectsNegativeSnapshotGCGrace(t *testing.T) {
 	_, err := Open(filepath.Join(t.TempDir(), "raft"), Options{SnapshotGCGrace: -time.Second})
 	if err == nil {
 		t.Fatal("Open() error = nil, want error")
+	}
+}
+
+func TestPebbleOpenRejectsInvalidWriteBatchBounds(t *testing.T) {
+	for _, opts := range []Options{
+		{WriteBatchMaxWait: -time.Nanosecond},
+		{WriteBatchMaxItems: -1},
+		{WriteBatchMaxItems: maxWriteBatchItems + 1},
+	} {
+		db, err := Open(filepath.Join(t.TempDir(), "raft"), opts)
+		if err == nil {
+			_ = db.Close()
+			t.Fatalf("Open(%+v) error = nil, want invalid write batch bound", opts)
+		}
 	}
 }
 

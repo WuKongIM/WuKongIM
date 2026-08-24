@@ -174,6 +174,78 @@ type WorkloadInspection struct {
 	FailedWorkers []WorkloadWorkerFailure `json:"failed_workers"`
 	// FailedWorkersTruncated reports that additional failure details were omitted.
 	FailedWorkersTruncated bool `json:"failed_workers_truncated"`
+	// Live is the latest bounded load-generator status while State is in_progress.
+	Live *WorkloadLiveStatus `json:"live,omitempty"`
+}
+
+// WorkloadLiveStatus is a bounded, identity-free projection of the running
+// chat-lifecycle coordinator and its fixed three workers.
+type WorkloadLiveStatus struct {
+	// Stage is the producer-owned measured lifecycle stage.
+	Stage string `json:"stage"`
+	// Cut is the latest periodic, qualification, or terminal evidence cut.
+	Cut string `json:"cut"`
+	// StartedAt is the post-first-grant measured-run boundary.
+	StartedAt time.Time `json:"started_at"`
+	// UpdatedAt is the latest complete three-worker evidence time.
+	UpdatedAt time.Time `json:"updated_at"`
+	// Totals are checked sums over the fixed worker set.
+	Totals WorkloadConnectionCounts `json:"totals"`
+	// CloseReasons are checked cumulative sums over the fixed worker set.
+	CloseReasons WorkloadSessionCloseCounts `json:"close_reasons"`
+	// Workers contains exactly workers zero through two in order.
+	Workers []WorkloadLiveWorker `json:"workers"`
+	// RecentEvents contains a bounded ordered aggregate change log.
+	RecentEvents []WorkloadLiveEvent `json:"recent_events"`
+}
+
+// WorkloadConnectionCounts exposes only aggregate worker ownership gauges.
+type WorkloadConnectionCounts struct {
+	Target       int `json:"target"`
+	Online       int `json:"online"`
+	Starting     int `json:"starting"`
+	Closing      int `json:"closing"`
+	TrafficReady int `json:"traffic_ready"`
+}
+
+// WorkloadSessionCloseCounts attributes load-side connection teardown to a
+// fixed initiator vocabulary without exposing a user or socket identity.
+type WorkloadSessionCloseCounts struct {
+	Expired              uint64 `json:"expired"`
+	HeartbeatFailed      uint64 `json:"heartbeat_failed"`
+	RemoteTerminal       uint64 `json:"remote_terminal"`
+	ReadFailed           uint64 `json:"read_failed"`
+	GenerationStop       uint64 `json:"generation_stop"`
+	ExplicitLogout       uint64 `json:"explicit_logout"`
+	TransportCloseFailed uint64 `json:"transport_close_failed"`
+}
+
+// WorkloadLiveWorker is one fixed worker's latest aggregate status.
+type WorkloadLiveWorker struct {
+	// WorkerID is the fixed zero-based worker index.
+	WorkerID uint64 `json:"worker_id"`
+	// Phase is the worker protocol lifecycle phase.
+	Phase string `json:"phase"`
+	// SnapshotSequence is the worker-owned monotonic snapshot fence.
+	SnapshotSequence uint64 `json:"snapshot_sequence"`
+	// Connections is the worker's current aggregate ownership state.
+	Connections WorkloadConnectionCounts `json:"connections"`
+	// CloseReasons contains generation-cumulative teardown reasons.
+	CloseReasons WorkloadSessionCloseCounts `json:"close_reasons"`
+}
+
+// WorkloadLiveEvent is one entry in the producer's fixed-size recent-event ring.
+type WorkloadLiveEvent struct {
+	// At is the evidence-cut time when this aggregate change was observed.
+	At time.Time `json:"at"`
+	// Kind is one closed aggregate change classification.
+	Kind string `json:"kind"`
+	// WorkerID identifies the affected fixed worker.
+	WorkerID uint64 `json:"worker_id"`
+	// Connections preserves the worker state at the change.
+	Connections WorkloadConnectionCounts `json:"connections"`
+	// CloseReasons preserves cumulative reasons at the change.
+	CloseReasons WorkloadSessionCloseCounts `json:"close_reasons"`
 }
 
 // WorkloadLimit describes one enforced violation or non-enforced warning.
@@ -466,7 +538,7 @@ type ConfigReadRequest struct {
 type Sources interface {
 	// InspectRun proves the current live or released state of one exact run.
 	InspectRun(context.Context, string) (RunInspection, error)
-	// WorkloadInspect returns a bounded final wkbench summary or explicit in-progress state.
+	// WorkloadInspect returns bounded live worker status or the final wkbench summary.
 	WorkloadInspect(context.Context, string) (SourceResult, error)
 	// ClusterSnapshot returns a bounded aggregate node/runtime snapshot.
 	ClusterSnapshot(context.Context) (SourceResult, error)

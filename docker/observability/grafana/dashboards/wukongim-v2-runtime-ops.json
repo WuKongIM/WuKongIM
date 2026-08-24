@@ -377,6 +377,11 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_effect_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
           "legendFormat": "effect items p95 {{stage}} {{result}}",
           "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelappend_idempotency_recovery_items_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result)",
+          "legendFormat": "idempotency recovery {{node_name}} {{result}}",
+          "refId": "D"
         }
       ],
       "title": "Channel Append Effect Results",

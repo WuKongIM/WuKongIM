@@ -36,6 +36,8 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 - Metrics must not race root shutdown or a direct message-domain close.
 - Darwin uses 16 MiB `BytesPerSync` to avoid compaction range-sync full-file
   fsync behavior.
+- The durable commit coordinator defaults to one shard and a 500-microsecond
+  collection window; synchronous durability is unchanged.
 - Each writable engine keeps one baseline compaction slot and may open three
   more only as L0 depth or compaction debt crosses configured pressure steps.
 

@@ -2,7 +2,9 @@ package chatlifecycle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -12,6 +14,32 @@ import (
 )
 
 var errProductionController = errors.New("chat lifecycle production controller failed")
+
+type productionControllerFailureStage string
+type productionControllerFailureReason string
+
+const (
+	productionControllerFailureCutValidation       productionControllerFailureStage = "cut_validation"
+	productionControllerFailureLiveDiagnostic      productionControllerFailureStage = "live_diagnostic"
+	productionControllerFailureWorkerQueues        productionControllerFailureStage = "worker_queues"
+	productionControllerFailureObservationMissing  productionControllerFailureStage = "observation_missing"
+	productionControllerFailureObservationOrder    productionControllerFailureStage = "observation_order"
+	productionControllerFailureWorkerEvidence      productionControllerFailureStage = "worker_evidence"
+	productionControllerFailureMetaCheckpoint      productionControllerFailureStage = "meta_checkpoint"
+	productionControllerFailureLatencyAttribution  productionControllerFailureStage = "latency_attribution"
+	productionControllerFailureVerdict             productionControllerFailureStage = "verdict"
+	productionControllerFailureDataset             productionControllerFailureStage = "dataset"
+	productionControllerFailureQualificationReport productionControllerFailureStage = "qualification_report"
+	productionControllerFailureSnapshotAggregate   productionControllerFailureStage = "snapshot_aggregate"
+
+	productionControllerFailureReasonSnapshotCount     productionControllerFailureReason = "snapshot_count"
+	productionControllerFailureReasonSnapshotFence     productionControllerFailureReason = "snapshot_fence"
+	productionControllerFailureReasonSnapshotStale     productionControllerFailureReason = "snapshot_stale"
+	productionControllerFailureReasonHistogramSchema   productionControllerFailureReason = "histogram_schema"
+	productionControllerFailureReasonCounterRegression productionControllerFailureReason = "counter_regression"
+	productionControllerFailureReasonAggregateOverflow productionControllerFailureReason = "aggregate_overflow"
+	productionControllerFailureReasonInvalid           productionControllerFailureReason = "invalid"
+)
 
 type productionObservationEvidence interface {
 	Begin(time.Time) error
@@ -49,6 +77,9 @@ type ProductionEvidenceControllerOptions struct {
 	// Continuous enables the one formal Soak-to-capacity process lifetime. It
 	// changes report/finalization semantics but never permits disk resumption.
 	Continuous bool
+	// DiagnosticLog receives one bounded, identity-free JSON line per worker
+	// evidence cut. Nil disables stream logging while retaining the status file.
+	DiagnosticLog io.Writer
 }
 
 // ProductionEvidenceController reduces live sources into one non-resumable
@@ -65,6 +96,7 @@ type ProductionEvidenceController struct {
 	dataset          productionDatasetEvidence
 	assignment       LifecycleSlotAssignment
 	continuous       bool
+	diagnosticLog    io.Writer
 	continuing       bool
 	awaitingCapacity bool
 
@@ -73,6 +105,7 @@ type ProductionEvidenceController struct {
 	start             CoordinatorRunStart
 	datasetDigest     string
 	recorder          *CheckpointRecorder
+	diagnostics       *liveDiagnosticRecorder
 	evaluator         *VerdictEvaluator
 	lastEvaluatorAt   time.Time
 	lastObservation   ProductionObservationSnapshot
@@ -104,6 +137,7 @@ func NewProductionEvidenceController(options ProductionEvidenceControllerOptions
 		cfg: options.Config, outputDir: filepath.Clean(output), observation: options.Observation,
 		lifecycle: options.Lifecycle, meta: options.Meta, accounting: options.MetaAccounting,
 		dataset: options.Dataset, assignment: options.SlotAssignment, continuous: options.Continuous,
+		diagnosticLog: options.DiagnosticLog,
 	}, nil
 }
 
@@ -177,6 +211,7 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 		c.lifecycleCancel, c.lifecycleDone = cancel, done
 		go func() { done <- c.lifecycle.Run(lifecycleCtx, start.Fence) }()
 	}
+	c.diagnostics = newLiveDiagnosticRecorder(c.outputDir, c.cfg.RunID, start.StartedAt, c.diagnosticLog)
 	c.begun = true
 	return nil
 }
@@ -200,7 +235,7 @@ func (c *ProductionEvidenceController) ContinueCapacity(cfg Config, outputDir st
 	c.cfg, c.outputDir = cfg, filepath.Clean(output)
 	c.begun, c.awaitingCapacity, c.continuing = false, false, true
 	c.start = CoordinatorRunStart{}
-	c.recorder, c.evaluator = nil, nil
+	c.recorder, c.diagnostics, c.evaluator = nil, nil, nil
 	c.lastEvaluatorAt, c.lastObservation = time.Time{}, ProductionObservationSnapshot{}
 	c.lastObservationID = 0
 	c.lastOfferedUnderdelivery = 0
@@ -217,11 +252,14 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.validCut(cut) {
-		return "", errProductionController
+		return c.observeFailure(cut, productionControllerFailureCutValidation, errProductionController)
+	}
+	if c.diagnostics == nil || c.diagnostics.Observe(cut.At, cut.Kind, cut.Snapshots) != nil {
+		return c.observeFailure(cut, productionControllerFailureLiveDiagnostic, errProductionController)
 	}
 	if source, ok := c.observation.(productionWorkerQueueEvidence); ok {
 		if err := source.ObserveWorkerQueues(ctx, cut.At, cut.Snapshots); err != nil {
-			return "", errProductionController
+			return c.observeFailure(cut, productionControllerFailureWorkerQueues, errProductionController)
 		}
 	}
 
@@ -230,18 +268,18 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		if cut.Kind == CoordinatorCutPeriodic {
 			return "", nil
 		}
-		return "", errProductionController
+		return c.observeFailure(cut, productionControllerFailureObservationMissing, errProductionController)
 	}
 	if observation.Sequence > c.lastObservationID && !observation.At.After(cut.At) {
 		if observation.At.IsZero() || !observation.At.After(c.lastEvaluatorAt) || len(observation.Resources) != coordinatorWorkerCount {
-			return "", errProductionController
+			return c.observeFailure(cut, productionControllerFailureObservationOrder, errProductionController)
 		}
 		resourceObservation := VerdictObservation{At: observation.At, Resources: observation.Resources, Signals: observation.Signals}
 		if observation.At.Equal(cut.At) {
 			// The worker evidence below shares this exact atomic timestamp.
 		} else {
 			if err := c.evaluator.Observe(resourceObservation); err != nil && !c.evaluator.Snapshot().Terminal {
-				return "", errProductionController
+				return c.observeFailure(cut, productionControllerFailureVerdict, errProductionController)
 			}
 			c.lastEvaluatorAt = observation.At
 		}
@@ -249,13 +287,25 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		c.lastObservationID = observation.Sequence
 	}
 	if c.lastObservation.Sequence == 0 || !cut.At.After(c.lastEvaluatorAt) {
-		return "", errProductionController
+		return c.observeFailure(cut, productionControllerFailureObservationOrder, errProductionController)
 	}
 
 	lifecycle := c.lifecycle.Snapshot()
 	correctness, latency, signals, err := projectWorkerVerdictEvidence(c.cfg, cut.Snapshots, lifecycle)
 	if err != nil {
-		return "", errProductionController
+		return c.observeFailure(cut, productionControllerFailureWorkerEvidence, errProductionController)
+	}
+	if cut.Kind == CoordinatorCutTerminal {
+		aggregator, aggregateErr := NewCoordinatorSnapshotAggregator(c.start.Fence)
+		if aggregateErr == nil {
+			_, aggregateErr = aggregator.Aggregate(cut.Snapshots)
+		}
+		if aggregateErr != nil {
+			return c.observeFailureReason(
+				cut, productionControllerFailureSnapshotAggregate,
+				productionControllerSnapshotFailureReason(aggregateErr), errProductionController,
+			)
+		}
 	}
 	correctness.ActivationRejections = c.lastObservation.ActivationRejections
 	signals = append(signals, productionLifecycleSignals(lifecycle)...)
@@ -266,7 +316,7 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		case errors.Is(metaErr, ErrLifecycleProductFailure):
 			signals = append(signals, VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseMetaCreateProduct})
 		case metaErr != nil:
-			return "", errProductionController
+			return c.observeFailure(cut, productionControllerFailureMetaCheckpoint, errProductionController)
 		}
 	}
 	resources := []NodeResourceSample(nil)
@@ -284,7 +334,7 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 			c.cfg, c.lastObservation, cut.Snapshots, c.lastOfferedUnderdelivery,
 		)
 		if err != nil {
-			return "", errProductionController
+			return c.observeFailure(cut, productionControllerFailureLatencyAttribution, errProductionController)
 		}
 		c.lastOfferedUnderdelivery = offered
 	}
@@ -292,13 +342,13 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		At: cut.At, Correctness: &correctness, Latency: &latency,
 		LatencyAttribution: latencyAttribution, Resources: resources, Signals: signals,
 	}); err != nil && !c.evaluator.Snapshot().Terminal {
-		return "", errProductionController
+		return c.observeFailure(cut, productionControllerFailureVerdict, errProductionController)
 	}
 	c.lastEvaluatorAt = cut.At
 
 	if cut.Kind == CoordinatorCutQualification || cut.Kind == CoordinatorCutTerminal {
 		if err := c.refreshDatasetLocked(ctx); err != nil {
-			return "", err
+			return c.observeFailure(cut, productionControllerFailureDataset, err)
 		}
 	}
 
@@ -317,7 +367,7 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	evidence := c.checkpointEvidenceLocked(lifecycle, verdict, cut.Capacity)
 	if cut.Kind == CoordinatorCutQualification && !verdict.Terminal {
 		if _, err := c.recorder.CaptureAndWrite(cut.At, cut.Snapshots, evidence, c.paths("qualification")); err != nil {
-			return "", errProductionController
+			return c.observeFailure(cut, productionControllerFailureQualificationReport, errProductionController)
 		}
 		return "", nil
 	}
@@ -326,6 +376,60 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		return coordinatorOutcomeForVerdict(verdict), nil
 	}
 	return "", nil
+}
+
+func (c *ProductionEvidenceController) observeFailure(
+	cut CoordinatorEvidenceCut,
+	stage productionControllerFailureStage,
+	err error,
+) (CoordinatorOutcome, error) {
+	return c.observeFailureReason(cut, stage, "", err)
+}
+
+func (c *ProductionEvidenceController) observeFailureReason(
+	cut CoordinatorEvidenceCut,
+	stage productionControllerFailureStage,
+	reason productionControllerFailureReason,
+	err error,
+) (CoordinatorOutcome, error) {
+	if c != nil && c.diagnosticLog != nil {
+		record := struct {
+			Event  string                            `json:"event"`
+			At     time.Time                         `json:"at"`
+			Cut    CoordinatorCutKind                `json:"cut"`
+			Stage  productionControllerFailureStage  `json:"stage"`
+			Reason productionControllerFailureReason `json:"reason,omitempty"`
+		}{
+			Event: "wkbench.chat_lifecycle.controller_failure",
+			At:    cut.At, Cut: cut.Kind, Stage: stage, Reason: reason,
+		}
+		if body, marshalErr := json.Marshal(record); marshalErr == nil {
+			_, _ = c.diagnosticLog.Write(append(body, '\n'))
+		}
+	}
+	if err == nil {
+		err = errProductionController
+	}
+	return "", err
+}
+
+func productionControllerSnapshotFailureReason(err error) productionControllerFailureReason {
+	switch {
+	case errors.Is(err, ErrCoordinatorSnapshotCount):
+		return productionControllerFailureReasonSnapshotCount
+	case errors.Is(err, ErrCoordinatorSnapshotFence):
+		return productionControllerFailureReasonSnapshotFence
+	case errors.Is(err, ErrCoordinatorSnapshotStale):
+		return productionControllerFailureReasonSnapshotStale
+	case errors.Is(err, ErrCoordinatorHistogramSchema):
+		return productionControllerFailureReasonHistogramSchema
+	case errors.Is(err, ErrCoordinatorSnapshotRegression):
+		return productionControllerFailureReasonCounterRegression
+	case errors.Is(err, ErrCoordinatorSnapshotOverflow):
+		return productionControllerFailureReasonAggregateOverflow
+	default:
+		return productionControllerFailureReasonInvalid
+	}
 }
 
 func formalSoakLatencyAttribution(
@@ -427,6 +531,9 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 		return errProductionController
 	}
 	if cut.Continuous != (c.continuous && !c.continuing) {
+		return errProductionController
+	}
+	if c.diagnostics == nil || c.diagnostics.Observe(cut.At, CoordinatorCutTerminal, cut.FinalSnapshots) != nil {
 		return errProductionController
 	}
 	if !cut.Continuous {

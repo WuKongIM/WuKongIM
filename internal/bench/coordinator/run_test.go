@@ -222,6 +222,36 @@ func TestCoordinatorRetriesExactRunStopUntilTerminalAcknowledged(t *testing.T) {
 	require.Equal(t, []string{scenario.Run.ID, scenario.Run.ID}, workers[0].StopRunIDs())
 }
 
+func TestCoordinatorDefaultStopTimeoutLeavesBoundedTerminalReceiveJoinBudget(t *testing.T) {
+	coord := New(CoordinatorConfig{})
+	require.Equal(t, 15*time.Second, coord.cfg.StopTimeout)
+	require.Equal(t, 250*time.Millisecond, coord.stopAttemptTimeout())
+
+	overridden := New(CoordinatorConfig{StopTimeout: 125 * time.Millisecond})
+	require.Equal(t, 125*time.Millisecond, overridden.cfg.StopTimeout)
+}
+
+func TestCoordinatorPreservesTerminalReceiveSealStopFailureReason(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailStop(http.StatusInternalServerError, `{"error":"terminal receive seal failed","reason_code":"terminal_receive_seal_failed"}`)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+		StopTimeout:  50 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.ErrorContains(t, err, "terminal receive seal failed")
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "terminal_receive_seal_failed", result.Report.WorkerFailures[0].ReasonCode)
+	require.Equal(t, "stop", result.Report.WorkerFailures[0].Phase)
+}
+
 func TestCoordinatorRetriesWhenFirstStopRequestHangs(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].HangStopAttempts(1)
@@ -1198,6 +1228,16 @@ func TestMaximumTrafficOperationTimeoutIgnoresRecvWhenVerificationDisabled(t *te
 	require.Equal(t, 7*time.Second, maximumTrafficOperationTimeout(scenario, model.Plan{}))
 }
 
+func TestMaximumTrafficOperationTimeoutIncludesFixedRetryBudget(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 11 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "none"
+	scenario.Messages.Traffic[0].Retry.Enabled = true
+
+	require.Equal(t, 30*time.Second+600*time.Millisecond, maximumTrafficOperationTimeout(scenario, model.Plan{}))
+}
+
 func TestMaximumWarmupOperationTimeoutUsesSharedDeadlineTail(t *testing.T) {
 	scenario := fakeScenario()
 	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
@@ -1205,6 +1245,15 @@ func TestMaximumWarmupOperationTimeoutUsesSharedDeadlineTail(t *testing.T) {
 	scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
 
 	require.Equal(t, 11*time.Second, maximumWarmupOperationTimeout(scenario))
+}
+
+func TestMaximumWarmupOperationTimeoutIncludesFixedRetryBudget(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 11 * time.Second
+	scenario.Messages.Traffic[0].Retry.Enabled = true
+
+	require.Equal(t, 30*time.Second+600*time.Millisecond, maximumWarmupOperationTimeout(scenario))
 }
 
 func TestCoordinatorRunPollTimeoutIncludesEveryChurnWindowOperationTail(t *testing.T) {
@@ -1310,7 +1359,8 @@ func TestCoordinatorFailsWhenWorkerStatusReportsPhaseError(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, StatusWorkerFailed, result.Status)
-	require.Contains(t, err.Error(), "connect exploded")
+	require.NotContains(t, err.Error(), "connect exploded")
+	require.Contains(t, err.Error(), "worker operation failed")
 	require.False(t, workers[0].SawPhaseAttempt(PhaseWarmup), "coordinator must not advance after status reports a phase error")
 }
 
@@ -1337,7 +1387,7 @@ func TestCoordinatorWritesStructuredPhaseFailureForDiagnosis(t *testing.T) {
 	require.Equal(t, "a", failure.WorkerID)
 	require.Equal(t, string(PhaseConnect), failure.Phase)
 	require.Equal(t, "phase_wait_failed", failure.ReasonCode)
-	require.Contains(t, failure.Detail, "connect exploded")
+	require.Equal(t, "worker phase status failed", failure.Detail)
 	require.False(t, failure.ObservedAt.IsZero())
 	require.Len(t, result.Report.PhaseWindows, 2)
 	require.Equal(t, string(PhaseConnect), result.Report.PhaseWindows[1].Phase)
@@ -1966,6 +2016,7 @@ type fakeWorker struct {
 	report              json.RawMessage
 	failMetrics         *fakePhaseFailure
 	failReport          *fakePhaseFailure
+	failStop            *fakePhaseFailure
 	lagPhases           map[Phase]bool
 	blockStatus         map[Phase]bool
 	blockStatusAfter    map[Phase]int
@@ -1997,6 +2048,12 @@ func (fw *fakeWorker) FailReport(status int, body string) {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
 	fw.failReport = &fakePhaseFailure{status: status, body: body}
+}
+
+func (fw *fakeWorker) FailStop(status int, body string) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.failStop = &fakePhaseFailure{status: status, body: body}
 }
 
 func (fw *fakeWorker) SetReport(payload json.RawMessage) {
@@ -2424,6 +2481,14 @@ func (fw *fakeWorker) handleStop(w http.ResponseWriter, r *http.Request) {
 	fw.stopAttempts++
 	fw.stopRunIDs = append(fw.stopRunIDs, request.RunID)
 	fw.stopAssignmentIDs = append(fw.stopAssignmentIDs, request.AssignmentID)
+	if fw.failStop != nil {
+		failure := *fw.failStop
+		fw.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(failure.status)
+		_, _ = w.Write([]byte(failure.body))
+		return
+	}
 	if fw.stopFailures > 0 {
 		fw.stopFailures--
 		fw.mu.Unlock()

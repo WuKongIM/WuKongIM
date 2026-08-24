@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -69,4 +70,11 @@ func (r *asyncRuntime) submitSend(state *sessionState, replyToken string, sendFr
 		return false
 	}
 	return r.send.submit(state, replyToken, sendFrame)
+}
+
+func (r *asyncRuntime) drainSends(ctx context.Context) error {
+	if r == nil || r.send == nil {
+		return gatewaytypes.ErrGatewayClosed
+	}
+	return r.send.drain(ctx)
 }

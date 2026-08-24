@@ -84,6 +84,9 @@ func New(opts Options) *Group {
 			postCommitRetries: postCommitRetries,
 		}
 		metrics = &group.metrics
+		advancePool.onStateChange = metrics.observePressure
+		appendPool.onStateChange = metrics.observePressure
+		postCommitPool.onStateChange = metrics.observePressure
 	}
 	advanceScheduler.onStateChange = group.metrics.observePressure
 	ports := writerPorts{

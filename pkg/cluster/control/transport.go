@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
@@ -36,6 +37,18 @@ type RaftTransport struct {
 	stopped  bool
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+	// observationMu orders aggregate queue snapshots from concurrent senders and workers.
+	observationMu sync.Mutex
+}
+
+var controllerRaftQueueRevision atomic.Uint64
+
+func nextControllerRaftQueueRevision() uint64 {
+	for {
+		if revision := controllerRaftQueueRevision.Add(1); revision != 0 {
+			return revision
+		}
+	}
 }
 
 // RaftTransportOptions bounds Controller Raft send concurrency and observation.
@@ -182,8 +195,14 @@ func (t *RaftTransport) observeQueue(result string) {
 	if t.observer == nil {
 		return
 	}
+	t.observationMu.Lock()
 	depth, capacity := t.queueUsage()
-	t.observer.ObserveTransport(transport.Event{Name: "controller_raft_queue", Priority: transport.PriorityRaft, Result: result, Items: depth, Capacity: capacity})
+	revision := nextControllerRaftQueueRevision()
+	t.observationMu.Unlock()
+	t.observer.ObserveTransport(transport.Event{
+		Name: "controller_raft_queue", Priority: transport.PriorityRaft, Result: result,
+		Revision: revision, Items: depth, Capacity: capacity,
+	})
 }
 
 func (t *RaftTransport) queueUsage() (int, int) {

@@ -14,13 +14,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 )
 
 var errHostMetricsConfig = errors.New("host metrics configuration failed")
 
-const processMetricsFreshnessWindow = 45 * time.Second
+const (
+	processMetricsFreshnessWindow     = 45 * time.Second
+	hostCPUDuplicateSampleReuseWindow = 2 * time.Second
+)
 
 type hostMetricsConfig struct {
 	listen             string
@@ -30,6 +35,7 @@ type hostMetricsConfig struct {
 	systemPath         string
 	watchPath          string
 	processMetricsPath string
+	physicalIO         bool
 }
 
 type hostMetricsHandler struct {
@@ -39,13 +45,19 @@ type hostMetricsHandler struct {
 	systemPath         string
 	watchPath          string
 	processMetricsPath string
+	deviceIO           hostDeviceIOSampler
+	readCPUTotals      func() (hostCPUTotals, bool)
+	now                func() time.Time
 
-	mu             sync.Mutex
-	previousCPU    hostCPUTotals
-	previousCPUSet bool
-	watchBytes     int64
-	watchAt        time.Time
-	watchValid     bool
+	mu                sync.Mutex
+	previousCPU       hostCPUTotals
+	previousCPUSet    bool
+	lastCPUPercent    float64
+	lastCPUPercentAt  time.Time
+	lastCPUPercentSet bool
+	watchBytes        int64
+	watchAt           time.Time
+	watchValid        bool
 }
 
 type hostCPUTotals struct{ total, idle uint64 }
@@ -79,6 +91,7 @@ func newHostMetricsCommand(stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&cfg.systemPath, "system-path", "/", "system filesystem path used by the five-percent safety guard")
 	cmd.Flags().StringVar(&cfg.watchPath, "watch-path", "", "optional directory whose bounded size is exported")
 	cmd.Flags().StringVar(&cfg.processMetricsPath, "process-metrics-path", "", "optional trusted process textfile forwarded as bounded evidence")
+	cmd.Flags().BoolVar(&cfg.physicalIO, "physical-io", true, "sample the physical block device when supported")
 	return cmd
 }
 
@@ -123,6 +136,12 @@ func newHostMetricsHandler(cfg hostMetricsConfig) (http.Handler, error) {
 	handler := &hostMetricsHandler{
 		path: absolute, mountpoint: cfg.mountpoint, device: cfg.device, systemPath: systemAbsolute,
 		watchPath: watchAbsolute, processMetricsPath: processMetricsAbsolute,
+		readCPUTotals: readHostCPUTotals, now: time.Now,
+	}
+	if cfg.physicalIO {
+		handler.deviceIO = newHostDeviceIOSampler(absolute)
+	} else {
+		handler.deviceIO = unavailableHostDeviceIOSampler{}
 	}
 	if totals, ok := readHostCPUTotals(); ok {
 		handler.previousCPU, handler.previousCPUSet = totals, true
@@ -166,6 +185,9 @@ func (h *hostMetricsHandler) ServeHTTP(writer http.ResponseWriter, request *http
 		if transmitted, ok := hostNetworkTransmitBytes(); ok {
 			_, _ = fmt.Fprintf(writer, "wkbench_host_network_transmit_bytes %d\n", transmitted)
 		}
+		if h.deviceIO != nil {
+			writeHostDeviceIOMetrics(writer, h.deviceIO.Sample())
+		}
 		if bytes, ok := h.watchedBytes(time.Now()); ok {
 			_, _ = fmt.Fprintf(writer, "wkbench_host_watched_directory_bytes %d\n", bytes)
 		}
@@ -180,19 +202,77 @@ func (h *hostMetricsHandler) ServeHTTP(writer http.ResponseWriter, request *http
 	}
 }
 
+func writeHostDeviceIOMetrics(writer io.Writer, sample hostDeviceIOSample) {
+	device := sample.Device
+	if strings.TrimSpace(device) == "" || strings.ContainsAny(device, "\r\n") {
+		device = "unavailable"
+	}
+	deviceLabel := "physical_device=" + strconv.Quote(device)
+	_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_schema_info{%s,version=\"v1\"} 1\n", deviceLabel)
+	availability := []struct {
+		field string
+		value bool
+	}{
+		{"iops", sample.IOPSAvailable},
+		{"bytes_per_second", sample.BytesPerSecondAvailable},
+		{"utilization", sample.UtilizationAvailable},
+		{"service_time", sample.ServiceTimeAvailable},
+		{"read_write_split", sample.ReadWriteSplitAvailable},
+	}
+	for _, entry := range availability {
+		value := 0
+		if entry.value {
+			value = 1
+		}
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_available{field=%s,%s} %d\n", strconv.Quote(entry.field), deviceLabel, value)
+	}
+	if sample.IOPSAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_iops{operation=\"total\",%s} %.6f\n", deviceLabel, sample.TotalIOPS)
+		if sample.ReadWriteSplitAvailable {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_iops{operation=\"read\",%s} %.6f\n", deviceLabel, sample.ReadIOPS)
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_iops{operation=\"write\",%s} %.6f\n", deviceLabel, sample.WriteIOPS)
+		}
+	}
+	if sample.BytesPerSecondAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_bytes_per_second{operation=\"total\",%s} %.6f\n", deviceLabel, sample.TotalBytesPerSecond)
+		if sample.ReadWriteSplitAvailable {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_bytes_per_second{operation=\"read\",%s} %.6f\n", deviceLabel, sample.ReadBytesPerSecond)
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_bytes_per_second{operation=\"write\",%s} %.6f\n", deviceLabel, sample.WriteBytesPerSecond)
+		}
+	}
+	if sample.UtilizationAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_utilization_percent{%s} %.6f\n", deviceLabel, sample.UtilizationPercent)
+	}
+	if sample.ServiceTimeAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_service_time_milliseconds{%s} %.6f\n", deviceLabel, sample.ServiceTimeMilliseconds)
+	}
+}
+
 func readBoundedProcessMetrics(path string, now time.Time) ([]byte, error) {
 	if path == "" {
 		return nil, nil
 	}
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 0 || info.Size() > 256<<10 {
+	descriptor, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, errHostMetricsConfig
+	}
+	file := os.NewFile(uintptr(descriptor), path)
+	if file == nil {
+		_ = unix.Close(descriptor)
+		return nil, errHostMetricsConfig
+	}
+	defer file.Close()
+	// The collector atomically replaces the pathname. Validate the securely opened
+	// descriptor instead of comparing it with a newer publication at the pathname.
+	info, statErr := file.Stat()
+	if statErr != nil || !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > 256<<10 {
 		return nil, errHostMetricsConfig
 	}
 	age := now.Sub(info.ModTime())
 	if now.IsZero() || age < -5*time.Second || age > processMetricsFreshnessWindow {
 		return nil, errHostMetricsConfig
 	}
-	body, err := os.ReadFile(path)
+	body, err := io.ReadAll(io.LimitReader(file, (256<<10)+1))
 	if err != nil || int64(len(body)) != info.Size() || strings.ContainsRune(string(body), '\r') {
 		return nil, errHostMetricsConfig
 	}
@@ -235,77 +315,92 @@ func readBoundedProcessMetrics(path string, now time.Time) ([]byte, error) {
 }
 
 func (h *hostMetricsHandler) cpuPercent() (float64, bool) {
-	current, ok := readHostCPUTotals()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	readCPUTotals := h.readCPUTotals
+	if readCPUTotals == nil {
+		readCPUTotals = readHostCPUTotals
+	}
+	current, ok := readCPUTotals()
 	if !ok {
 		return 0, false
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
 	previous, seen := h.previousCPU, h.previousCPUSet
-	h.previousCPU, h.previousCPUSet = current, true
-	if !seen || current.total <= previous.total || current.idle < previous.idle {
+	if !seen {
+		h.previousCPU, h.previousCPUSet = current, true
+		return 0, false
+	}
+	if current == previous {
+		now := time.Now()
+		if h.now != nil {
+			now = h.now()
+		}
+		age := now.Sub(h.lastCPUPercentAt)
+		if h.lastCPUPercentSet && age >= 0 && age <= hostCPUDuplicateSampleReuseWindow {
+			return h.lastCPUPercent, true
+		}
+		return 0, false
+	}
+	if current.total <= previous.total || current.idle < previous.idle {
 		return 0, false
 	}
 	total, idle := current.total-previous.total, current.idle-previous.idle
 	if idle > total {
 		return 0, false
 	}
-	return float64(total-idle) * 100 / float64(total), true
+	percent := float64(total-idle) * 100 / float64(total)
+	now := time.Now()
+	if h.now != nil {
+		now = h.now()
+	}
+	h.previousCPU = current
+	h.lastCPUPercent = percent
+	h.lastCPUPercentAt = now
+	h.lastCPUPercentSet = true
+	return percent, true
 }
 
 func readHostCPUTotals() (hostCPUTotals, bool) {
-	body, err := os.ReadFile("/proc/stat")
-	if err != nil {
+	times, err := cpu.Times(false)
+	if err != nil || len(times) != 1 {
 		return hostCPUTotals{}, false
 	}
-	line := strings.SplitN(string(body), "\n", 2)[0]
-	fields := strings.Fields(line)
-	if len(fields) < 5 || fields[0] != "cpu" {
-		return hostCPUTotals{}, false
+	sample := times[0]
+	values := [...]float64{
+		sample.User, sample.System, sample.Idle, sample.Nice, sample.Iowait,
+		sample.Irq, sample.Softirq, sample.Steal,
 	}
-	var result hostCPUTotals
-	for index, raw := range fields[1:] {
-		value, err := strconv.ParseUint(raw, 10, 64)
-		if err != nil || math.MaxUint64-result.total < value {
+	var totalSeconds float64
+	for _, value := range values {
+		if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 			return hostCPUTotals{}, false
 		}
-		result.total += value
-		if index == 3 || index == 4 {
-			if math.MaxUint64-result.idle < value {
-				return hostCPUTotals{}, false
-			}
-			result.idle += value
-		}
+		totalSeconds += value
 	}
-	return result, result.total > 0
+	idleSeconds := sample.Idle + sample.Iowait
+	total, totalOK := hostCPUSecondsToTicks(totalSeconds)
+	idle, idleOK := hostCPUSecondsToTicks(idleSeconds)
+	if !totalOK || !idleOK || total == 0 || idle > total {
+		return hostCPUTotals{}, false
+	}
+	return hostCPUTotals{total: total, idle: idle}, true
+}
+
+func hostCPUSecondsToTicks(seconds float64) (uint64, bool) {
+	const ticksPerSecond = 1_000_000_000
+	if seconds < 0 || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds > float64(math.MaxUint64)/ticksPerSecond {
+		return 0, false
+	}
+	return uint64(math.Round(seconds * ticksPerSecond)), true
 }
 
 func hostMemoryUsedPercent() (float64, bool) {
-	body, err := os.ReadFile("/proc/meminfo")
-	if err != nil {
+	memory, err := mem.VirtualMemory()
+	if err != nil || memory.Total == 0 || memory.Available > memory.Total {
 		return 0, false
 	}
-	var total, available uint64
-	for _, line := range strings.Split(string(body), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		value, err := strconv.ParseUint(fields[1], 10, 64)
-		if err != nil {
-			return 0, false
-		}
-		switch fields[0] {
-		case "MemTotal:":
-			total = value
-		case "MemAvailable:":
-			available = value
-		}
-	}
-	if total == 0 || available > total {
-		return 0, false
-	}
-	return float64(total-available) * 100 / float64(total), true
+	return float64(memory.Total-memory.Available) * 100 / float64(memory.Total), true
 }
 
 func hostNetworkTransmitBytes() (uint64, bool) {

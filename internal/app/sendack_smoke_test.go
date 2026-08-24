@@ -108,7 +108,7 @@ func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 	}
 	requireSnowflakeMessageIDNode(t, first.MessageID, cfg.NodeID)
 	if first.MessageSeq != 1 {
-		t.Fatalf("first message seq = %d, want 1", first.MessageSeq)
+		t.Fatalf("first message seq = %d, want first durable channel sequence 1", first.MessageSeq)
 	}
 
 	second := sendDefaultMetaSmokePacket(t, app, channelID, 2, "client-default-meta-2")

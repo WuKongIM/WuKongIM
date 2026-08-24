@@ -38,6 +38,7 @@ const (
 	runtimeMetaColumnWriteFenceReason    uint16 = 14
 	runtimeMetaColumnWriteFenceUntilMS   uint16 = 15
 	runtimeMetaColumnRouteGeneration     uint16 = 16
+	runtimeMetaColumnDirectoryGeneration uint16 = 17
 )
 
 const runtimeMetaValueVersion byte = 1
@@ -106,6 +107,10 @@ type ChannelRuntimeMeta struct {
 	WriteFenceReason uint8
 	// WriteFenceUntilMS is the fence lease deadline in milliseconds.
 	WriteFenceUntilMS int64
+	// DirectoryGeneration is the durable person-directory incarnation fence.
+	// It survives business Channel deletion so delayed projection work from an
+	// older incarnation cannot complete or overwrite the recreated directory.
+	DirectoryGeneration uint64
 }
 
 // ChannelRuntimeMetaCreateResult is populated by Batch.Commit.
@@ -359,6 +364,9 @@ func normalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
 	if meta.RouteGeneration == 0 {
 		meta.RouteGeneration = maxUint64(meta.ChannelEpoch, meta.LeaderEpoch, meta.WriteFenceVersion, 1)
 	}
+	if meta.ChannelType == 1 && meta.DirectoryGeneration == 0 {
+		meta.DirectoryGeneration = 1
+	}
 	return meta
 }
 
@@ -398,6 +406,9 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 }
 
 func preserveRuntimeMetaState(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
+	if candidate.DirectoryGeneration < existing.DirectoryGeneration {
+		candidate.DirectoryGeneration = existing.DirectoryGeneration
+	}
 	if candidate.RetentionThroughSeq < existing.RetentionThroughSeq ||
 		(candidate.RetentionThroughSeq == existing.RetentionThroughSeq && candidate.RetentionUpdatedAtMS < existing.RetentionUpdatedAtMS) {
 		candidate.RetentionThroughSeq = existing.RetentionThroughSeq
@@ -464,6 +475,7 @@ func encodeChannelRuntimeMetaValue(key []byte, meta ChannelRuntimeMeta) []byte {
 	_ = w.Uint8(runtimeMetaColumnWriteFenceReason, meta.WriteFenceReason)
 	_ = w.Int64(runtimeMetaColumnWriteFenceUntilMS, meta.WriteFenceUntilMS)
 	_ = w.Uint64(runtimeMetaColumnRouteGeneration, meta.RouteGeneration)
+	_ = w.Uint64(runtimeMetaColumnDirectoryGeneration, meta.DirectoryGeneration)
 	return rowcodec.Wrap(key, runtimeMetaValueVersion, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes())
 }
 
@@ -559,6 +571,10 @@ func decodeRuntimeMetaColumn(scanner *rowcodec.Scanner, meta *ChannelRuntimeMeta
 	case runtimeMetaColumnRouteGeneration:
 		value, err := scanner.Uint64()
 		meta.RouteGeneration = value
+		return err
+	case runtimeMetaColumnDirectoryGeneration:
+		value, err := scanner.Uint64()
+		meta.DirectoryGeneration = value
 		return err
 	default:
 		return nil

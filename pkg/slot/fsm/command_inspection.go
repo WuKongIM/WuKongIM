@@ -44,8 +44,13 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		}), nil
 	case *upsertChannelRuntimeMetaCmd:
 		return runtimeMetaInspection("upsert_channel_runtime_meta", typed.meta), nil
-	case *createChannelRuntimeMetaCmd:
-		return runtimeMetaInspection("create_channel_runtime_meta", typed.meta), nil
+	case *createChannelRuntimeMetaBatchCmd:
+		items := make([]map[string]any, len(typed.items))
+		for i, item := range typed.items {
+			items[i] = runtimeMetaInspection("create_channel_runtime_meta", item.Meta).Payload
+			items[i]["hash_slot"] = item.HashSlot
+		}
+		return simpleInspection("create_channel_runtime_meta_batch", map[string]any{"items": items}), nil
 	case *deleteChannelRuntimeMetaCmd:
 		return simpleInspection("delete_channel_runtime_meta", map[string]any{
 			"channel_id":   typed.channelID,

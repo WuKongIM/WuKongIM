@@ -8,6 +8,13 @@ import (
 
 var channelAppendItemBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 
+var channelAppendPostCommitResults = [...]string{
+	"ok", "mixed", "canceled", "timeout", "backpressured", "channel_busy", "route_not_ready",
+	"stale_route", "stale_completion", "not_authority", "not_leader", "channel_not_found",
+	"append_result_missing", "append_failed", "commit_failed", "invalid_subscribers", "invalid_cursor",
+	"unsupported", "auth_fail", "invalid_request", "system_error", "other",
+}
+
 // ChannelAppendMetrics exposes internal channel authority writer metrics.
 type ChannelAppendMetrics struct {
 	routerTotal              *prometheus.CounterVec
@@ -34,6 +41,7 @@ type ChannelAppendMetrics struct {
 	effectTotal              *prometheus.CounterVec
 	effectDuration           *prometheus.HistogramVec
 	effectItems              *prometheus.HistogramVec
+	idempotencyRecoveryItems *prometheus.CounterVec
 }
 
 func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelAppendMetrics {
@@ -164,6 +172,11 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 			ConstLabels: labels,
 			Buckets:     channelAppendItemBuckets,
 		}, []string{"stage", "result"}),
+		idempotencyRecoveryItems: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelappend_idempotency_recovery_items_total",
+			Help:        "Total channel append items entering durable idempotency recovery by final low-cardinality outcome.",
+			ConstLabels: labels,
+		}, []string{"result"}),
 	}
 	// Materialize idle writer-state series so quiescence checks can distinguish zero backlog from a missing metric contract.
 	for _, kind := range []string{"pending_append", "append_inflight", "post_commit_backlog"} {
@@ -177,6 +190,11 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 	m.routerGroupCapacity.WithLabelValues().Set(0)
 	// Materialize the append/ok histogram without recording a synthetic observation.
 	_ = m.effectItems.WithLabelValues("append", "ok")
+	// Materialize the closed post-commit terminal partition so a zero failure
+	// delta is directly observable at both native baseline boundaries.
+	for _, result := range channelAppendPostCommitResults {
+		m.effectTotal.WithLabelValues("post_commit", result).Add(0)
+	}
 
 	registry.MustRegister(
 		m.routerTotal,
@@ -203,9 +221,28 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		m.effectTotal,
 		m.effectDuration,
 		m.effectItems,
+		m.idempotencyRecoveryItems,
 	)
 
 	return m
+}
+
+// ObserveIdempotencyRecovery records final item outcomes after durable
+// idempotency recovery. Zero-valued outcomes do not materialize synthetic
+// counter samples.
+func (m *ChannelAppendMetrics) ObserveIdempotencyRecovery(recoveredItems int, unresolvedItems int, lookupErrorItems int) {
+	if m == nil {
+		return
+	}
+	if recoveredItems > 0 {
+		m.idempotencyRecoveryItems.WithLabelValues("recovered").Add(float64(recoveredItems))
+	}
+	if unresolvedItems > 0 {
+		m.idempotencyRecoveryItems.WithLabelValues("unresolved").Add(float64(unresolvedItems))
+	}
+	if lookupErrorItems > 0 {
+		m.idempotencyRecoveryItems.WithLabelValues("lookup_error").Add(float64(lookupErrorItems))
+	}
 }
 
 // ObserveRouter records one foreground router group.
@@ -314,7 +351,22 @@ func (m *ChannelAppendMetrics) ObserveEffect(stage, result string, items int, du
 	if items < 0 {
 		items = 0
 	}
+	if stage == "post_commit" {
+		result = normalizeChannelAppendPostCommitResult(result)
+	}
 	m.effectTotal.WithLabelValues(stage, result).Inc()
 	m.effectDuration.WithLabelValues(stage, result).Observe(dur.Seconds())
 	m.effectItems.WithLabelValues(stage, result).Observe(float64(items))
+}
+
+func normalizeChannelAppendPostCommitResult(result string) string {
+	switch result {
+	case "ok", "mixed", "canceled", "timeout", "backpressured", "channel_busy", "route_not_ready",
+		"stale_route", "stale_completion", "not_authority", "not_leader", "channel_not_found",
+		"append_result_missing", "append_failed", "commit_failed", "invalid_subscribers", "invalid_cursor",
+		"unsupported", "auth_fail", "invalid_request", "system_error", "other":
+		return result
+	default:
+		return "other"
+	}
 }

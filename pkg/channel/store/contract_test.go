@@ -2,11 +2,18 @@ package store
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAppendLeaderRequestDoesNotExposeCallerSelectableSync(t *testing.T) {
+	if _, ok := reflect.TypeOf(AppendLeaderRequest{}).FieldByName("Sync"); ok {
+		t.Fatal("AppendLeaderRequest exposes Sync, want invariant durable commit")
+	}
+}
 
 func testStoreContract(t *testing.T, factory Factory) {
 	t.Helper()
@@ -17,10 +24,46 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.NoError(t, err)
 	require.Zero(t, initial.LEO)
 
-	appendRes, err := cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1, SyncOnce: true}, {ID: 2, Payload: []byte("b"), SizeBytes: 1}}, Sync: true})
+	appendRes, err := cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1, SyncOnce: true}, {ID: 2, Payload: []byte("b"), SizeBytes: 1}}})
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), appendRes.BaseOffset)
 	require.Equal(t, uint64(2), appendRes.LastOffset)
+	require.Equal(t, AppendOutcomeDurable, appendRes.Outcome)
+
+	exactStore, err := factory.ChannelStore(ch.ChannelKey("1:exact"), ch.ChannelID{ID: "exact", Type: 1})
+	require.NoError(t, err)
+	exactRecords := []ch.Record{{ID: 3, Index: 1, Epoch: 3, ServerTimestampMS: 1_700_000_000_000, Payload: []byte("c"), SizeBytes: 1}}
+	manifest, _, ok := ch.SealProposalManifest(ProposalManifest{
+		Version: ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
+		CommandID: [32]byte{1, 2, 3}, BaseOffset: 0, LastOffset: 1,
+	}, exactRecords)
+	require.True(t, ok)
+	exact := AppendLeaderRequest{
+		Records:            exactRecords,
+		ExactBaseOffset:    true,
+		ExpectedBaseOffset: 0,
+		Proposal:           manifest,
+	}
+	exactRes, err := exactStore.AppendLeader(ctx, exact)
+	require.NoError(t, err)
+	require.Equal(t, AppendOutcomeDurable, exactRes.Outcome)
+	replayRes, err := exactStore.AppendLeader(ctx, exact)
+	require.NoError(t, err)
+	require.Equal(t, AppendOutcomeAlreadyDurable, replayRes.Outcome)
+	require.Equal(t, exactRes.BaseOffset, replayRes.BaseOffset)
+	require.Equal(t, exactRes.LastOffset, replayRes.LastOffset)
+
+	conflict := exact
+	conflict.Records = []ch.Record{{ID: 4, Index: 1, Epoch: 3, ServerTimestampMS: 1_700_000_000_000, Payload: []byte("different"), SizeBytes: len("different")}}
+	conflictRes, err := exactStore.AppendLeader(ctx, conflict)
+	require.ErrorIs(t, err, ch.ErrLogConflict)
+	require.Equal(t, AppendOutcomeConflict, conflictRes.Outcome)
+
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	canceledRes, err := exactStore.AppendLeader(canceled, exact)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, AppendOutcomeDefinitelyNotWritten, canceledRes.Outcome)
 
 	logRes, err := cs.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 2, MaxBytes: 1024})
 	require.NoError(t, err)
@@ -46,7 +89,7 @@ func testStoreCheckpointHWMonotonic(t *testing.T, factory Factory) {
 		{ID: 103, Payload: []byte("c"), SizeBytes: 1},
 		{ID: 104, Payload: []byte("d"), SizeBytes: 1},
 		{ID: 105, Payload: []byte("e"), SizeBytes: 1},
-	}, Sync: true})
+	}})
 	require.NoError(t, err)
 
 	require.NoError(t, cs.StoreCheckpoint(ctx, ch.Checkpoint{HW: 5}))
@@ -66,7 +109,7 @@ func testStoreReadCommittedHonorsMinSeq(t *testing.T, factory Factory) {
 		{ID: 202, Payload: []byte("b"), SizeBytes: 1},
 		{ID: 203, Payload: []byte("c"), SizeBytes: 1},
 		{ID: 204, Payload: []byte("d"), SizeBytes: 1},
-	}, Sync: true})
+	}})
 	require.NoError(t, err)
 
 	forward, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 4, MinSeq: 3, Limit: 10, MaxBytes: 1024})
@@ -111,7 +154,6 @@ func TestTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
 
 	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
 		Records: []ch.Record{{ID: 10, Payload: []byte("payload"), SizeBytes: len("payload")}},
-		Sync:    true,
 	})
 	require.NoError(t, err)
 

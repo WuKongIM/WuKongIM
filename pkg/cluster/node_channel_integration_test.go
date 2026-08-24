@@ -32,11 +32,15 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	waitChannelDataNode(t, node, 1)
 	channelID := channelruntime.ChannelID{ID: "durable", Type: 1}
 	applyDefaultChannelMeta(t, node, channelID)
-	if _, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
+	first, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
 		ChannelID: channelID,
 		Message:   channelruntime.Message{MessageID: 100, Payload: []byte("persisted")},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("AppendChannel() error = %v", err)
+	}
+	if first.MessageSeq != 1 {
+		t.Fatalf("AppendChannel() MessageSeq = %d, want first business proposal at 1", first.MessageSeq)
 	}
 	if err := node.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)

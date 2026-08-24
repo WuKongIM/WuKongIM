@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
@@ -123,6 +124,52 @@ func TestConnStateReportsInboundPressureForWebSocketOpcodePath(t *testing.T) {
 	}
 }
 
+func TestConnStatePublishesInboundAdmissionBeforeActorRelease(t *testing.T) {
+	observer := newOrderedTransportPressureObserver()
+	actors := newActorPool(1)
+	actors.start()
+	defer actors.stop()
+
+	state := &connState{
+		owner:           actors.shards[0],
+		runtime:         &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}},
+		maxPendingBytes: 4,
+	}
+	done := make(chan bool, 1)
+	go func() {
+		done <- state.enqueueCopiedData([]byte("data"))
+	}()
+
+	waitForPressureTestSignal(t, observer.actorAdmissionBlocked, "actor admission observation")
+	waitForPressureTestSignal(t, observer.inboundReleased, "inbound release observation")
+	close(observer.allowActorAdmission)
+
+	select {
+	case accepted := <-done:
+		if !accepted {
+			t.Fatal("enqueueCopiedData rejected payload within pending byte limit")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("enqueueCopiedData did not return after actor admission was released")
+	}
+
+	events := observer.snapshot()
+	var lastInbound gatewaytypes.TransportPressureEvent
+	var found bool
+	for _, event := range events {
+		if event.Name == "inbound_pending" {
+			lastInbound = event
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no inbound pressure observation was published")
+	}
+	if lastInbound.Depth != 0 || lastInbound.Bytes != 0 {
+		t.Fatalf("last inbound pressure = %+v, want released zero", lastInbound)
+	}
+}
+
 func TestListenerRuntimeAggregatesTransportPressureAcrossConnections(t *testing.T) {
 	observer := &recordingTransportPressureObserver{}
 	runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
@@ -184,6 +231,160 @@ func TestEngineGroupAggregatesTransportPressureAcrossListeners(t *testing.T) {
 	}
 	if got := last.BytesCapacity; got != 20 {
 		t.Fatalf("aggregated byte capacity = %d, want 20", got)
+	}
+}
+
+func TestTransportPressureAggregatorIgnoresOutOfOrderGaugeSnapshot(t *testing.T) {
+	aggregator := newTransportPressureAggregator()
+	latest := aggregator.apply("conn_1", transportPressureSnapshot{
+		name:     "inbound_pending",
+		queue:    "inbound",
+		depth:    0,
+		bytes:    0,
+		result:   "",
+		revision: 2,
+	})
+	if latest.depth != 0 || latest.bytes != 0 {
+		t.Fatalf("latest aggregate = %+v, want zero", latest)
+	}
+
+	stale := aggregator.apply("conn_1", transportPressureSnapshot{
+		name:     "inbound_pending",
+		queue:    "inbound",
+		depth:    1,
+		bytes:    110,
+		result:   "ok",
+		revision: 1,
+	})
+	if stale.depth != 0 || stale.bytes != 0 {
+		t.Fatalf("aggregate after stale snapshot = %+v, want latest zero", stale)
+	}
+	if stale.result != "ok" {
+		t.Fatalf("stale admission result = %q, want ok result preserved", stale.result)
+	}
+}
+
+func TestListenerRuntimeDoesNotPublishOlderTransportPressureAfterNewerRevision(t *testing.T) {
+	observer := newBlockingAbsoluteGaugeObserver()
+	runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
+
+	olderDone := make(chan struct{})
+	go func() {
+		defer close(olderDone)
+		runtime.observeTransportPressure("conn_1", transportPressureSnapshot{
+			name:     "inbound_pending",
+			queue:    "inbound",
+			depth:    2,
+			result:   "ok",
+			revision: 1,
+		})
+	}()
+	waitForPressureTestSignal(t, observer.olderBlocked, "older absolute gauge observation")
+
+	newerDone := make(chan struct{})
+	go func() {
+		defer close(newerDone)
+		runtime.observeTransportPressure("conn_1", transportPressureSnapshot{
+			name:     "inbound_pending",
+			queue:    "inbound",
+			depth:    0,
+			result:   "",
+			revision: 2,
+		})
+	}()
+	waitForTransportPressureRevision(t, runtime.transportPressureAggregator(), transportPressureSourceKey{
+		source: "conn_1",
+		name:   "inbound_pending",
+		queue:  "inbound",
+	}, 2)
+	close(observer.releaseOlder)
+	waitForPressureTestSignal(t, olderDone, "older absolute gauge release")
+	waitForPressureTestSignal(t, newerDone, "newer absolute gauge release")
+	waitForPressureTestSignal(t, observer.newerApplied, "newer absolute gauge observation")
+
+	if got := observer.currentDepth(); got != 0 {
+		t.Fatalf("published absolute gauge depth = %d, want latest revision depth 0", got)
+	}
+}
+
+func TestTransportPressurePublicationRevisionRemainsMonotonicAcrossAggregatorRebuildAndClear(t *testing.T) {
+	first := newTransportPressureAggregator()
+	firstEvent := first.apply("conn_1", transportPressureSnapshot{
+		name:     "inbound_pending",
+		queue:    "inbound",
+		depth:    1,
+		result:   "ok",
+		revision: 1,
+	})
+	cleared := first.clear("conn_1")
+	if len(cleared) != 1 {
+		t.Fatalf("clear events = %d, want 1", len(cleared))
+	}
+	if cleared[0].publicationRevision <= firstEvent.publicationRevision {
+		t.Fatalf("clear publication revision = %d, want > apply revision %d", cleared[0].publicationRevision, firstEvent.publicationRevision)
+	}
+
+	second := newTransportPressureAggregator()
+	secondEvent := second.apply("conn_2", transportPressureSnapshot{
+		name:     "inbound_pending",
+		queue:    "inbound",
+		depth:    1,
+		result:   "ok",
+		revision: 1,
+	})
+	if secondEvent.publicationRevision <= cleared[0].publicationRevision {
+		t.Fatalf("rebuilt aggregator publication revision = %d, want > prior clear revision %d", secondEvent.publicationRevision, cleared[0].publicationRevision)
+	}
+}
+
+func waitForTransportPressureRevision(t *testing.T, aggregator *transportPressureAggregator, key transportPressureSourceKey, revision uint64) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		aggregator.mu.Lock()
+		current := aggregator.bySource[key]
+		aggregator.mu.Unlock()
+		if current.revision >= revision {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("transport pressure revision = %d, want >= %d", current.revision, revision)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestConnStateDoesNotReopenTransportPressureAfterClose(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	state := &connState{
+		id: 1,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Observer: observer,
+		}},
+	}
+	state.observeTransportSnapshot(transportPressureSnapshot{
+		name:     "outbound_pending",
+		queue:    "outbound",
+		depth:    1,
+		bytes:    70,
+		result:   "ok",
+		revision: 1,
+	})
+	state.closeTransportPressure()
+	state.observeTransportSnapshot(transportPressureSnapshot{
+		name:     "outbound_pending",
+		queue:    "outbound",
+		depth:    1,
+		bytes:    70,
+		result:   "",
+		revision: 2,
+	})
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want admission and clear only", len(events))
+	}
+	if last := events[len(events)-1]; last.Depth != 0 || last.Bytes != 0 {
+		t.Fatalf("last pressure after close = %+v, want cleared zero", last)
 	}
 }
 
@@ -458,6 +659,91 @@ func TestConnStateFailClearsQueuedPayloadReferences(t *testing.T) {
 type recordingTransportPressureObserver struct {
 	mu     sync.Mutex
 	events []gatewaytypes.TransportPressureEvent
+}
+
+type orderedTransportPressureObserver struct {
+	recordingTransportPressureObserver
+	actorAdmissionBlocked chan struct{}
+	allowActorAdmission   chan struct{}
+	inboundReleased       chan struct{}
+	actorBlockedOnce      sync.Once
+	inboundReleasedOnce   sync.Once
+}
+
+type blockingAbsoluteGaugeObserver struct {
+	mu           sync.Mutex
+	depth        int
+	revision     uint64
+	olderBlocked chan struct{}
+	releaseOlder chan struct{}
+	newerApplied chan struct{}
+	olderOnce    sync.Once
+	newerOnce    sync.Once
+}
+
+func newBlockingAbsoluteGaugeObserver() *blockingAbsoluteGaugeObserver {
+	return &blockingAbsoluteGaugeObserver{
+		olderBlocked: make(chan struct{}),
+		releaseOlder: make(chan struct{}),
+		newerApplied: make(chan struct{}),
+	}
+}
+
+func (o *blockingAbsoluteGaugeObserver) OnTransportPressure(event gatewaytypes.TransportPressureEvent) {
+	if event.Name != "inbound_pending" || event.Queue != "inbound" {
+		return
+	}
+	if event.Depth == 2 {
+		o.olderOnce.Do(func() { close(o.olderBlocked) })
+		<-o.releaseOlder
+	}
+	o.mu.Lock()
+	if event.Revision > o.revision {
+		o.depth = event.Depth
+		o.revision = event.Revision
+	}
+	o.mu.Unlock()
+	if event.Depth == 0 {
+		o.newerOnce.Do(func() { close(o.newerApplied) })
+	}
+}
+
+func (o *blockingAbsoluteGaugeObserver) currentDepth() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.depth
+}
+
+func newOrderedTransportPressureObserver() *orderedTransportPressureObserver {
+	return &orderedTransportPressureObserver{
+		actorAdmissionBlocked: make(chan struct{}),
+		allowActorAdmission:   make(chan struct{}),
+		inboundReleased:       make(chan struct{}),
+	}
+}
+
+func (o *orderedTransportPressureObserver) OnTransportPressure(event gatewaytypes.TransportPressureEvent) {
+	o.recordingTransportPressureObserver.OnTransportPressure(event)
+	if event.Name == "actor_ready" && event.Result == "ok" {
+		o.actorBlockedOnce.Do(func() {
+			close(o.actorAdmissionBlocked)
+			<-o.allowActorAdmission
+		})
+	}
+	if event.Name == "inbound_pending" && event.Depth == 0 && event.Bytes == 0 {
+		o.inboundReleasedOnce.Do(func() {
+			close(o.inboundReleased)
+		})
+	}
+}
+
+func waitForPressureTestSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+	}
 }
 
 func (o *recordingTransportPressureObserver) OnTransportPressure(event gatewaytypes.TransportPressureEvent) {

@@ -100,7 +100,9 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal workload output schema: %v", err)
 	}
-	if !strings.Contains(string(workloadSchema), `"failed_workers"`) || !strings.Contains(string(workloadSchema), `"phase_windows"`) {
+	if !strings.Contains(string(workloadSchema), `"failed_workers"`) || !strings.Contains(string(workloadSchema), `"phase_windows"`) ||
+		!strings.Contains(string(workloadSchema), `"live"`) || !strings.Contains(string(workloadSchema), `"close_reasons"`) ||
+		!strings.Contains(string(workloadSchema), `"heartbeat_failed"`) {
 		t.Fatalf("workload output schema does not describe diagnostic evidence: %s", workloadSchema)
 	}
 	if diagnosticsTool == nil || diagnosticsTool.InputSchema == nil {

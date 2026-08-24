@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 3
+	workerProtocolVersion  uint64 = 6
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -195,6 +195,13 @@ type WorkerStatus struct {
 	WorkerCount  uint64      `json:"worker_count"`
 	Unexpected   bool        `json:"unexpected"`
 	TrafficReady bool        `json:"traffic_ready"`
+	// ActiveGrantSequence identifies one admitted grant whose generation-owned
+	// completion outlived the caller request. The remaining fields retain only
+	// the latest bounded replay result, never a raw worker error.
+	ActiveGrantSequence  uint64             `json:"active_grant_sequence,omitempty"`
+	LastGrantSequence    uint64             `json:"last_grant_sequence,omitempty"`
+	LastGrantFailed      bool               `json:"last_grant_failed,omitempty"`
+	LastGrantRuntimeCode RuntimeFailureCode `json:"last_grant_runtime_code,omitempty"`
 }
 
 // WorkerHistogramSnapshot uses fixed buckets so response size cannot grow with runtime.
@@ -216,7 +223,7 @@ var workerLatencyBucketUpperNanos = [16]uint64{
 	uint64(50 * time.Millisecond),
 	uint64(100 * time.Millisecond),
 	uint64(200 * time.Millisecond),
-	uint64(500 * time.Millisecond),
+	uint64(400 * time.Millisecond),
 	uint64(time.Second),
 	uint64(2 * time.Second),
 	uint64(5 * time.Second),
@@ -264,15 +271,17 @@ func recordWorkerLatency(snapshot *WorkerHistogramSnapshot, latency time.Duratio
 
 // WorkerSessionSnapshot exposes aggregate session and real-sync progress only.
 type WorkerSessionSnapshot struct {
-	Target             int    `json:"target"`
-	Online             int    `json:"online"`
-	Starting           int    `json:"starting"`
-	TrafficReady       int    `json:"traffic_ready"`
-	PlannedNew         uint64 `json:"planned_new"`
-	PlannedReturning   uint64 `json:"planned_returning"`
-	CompletedNew       uint64 `json:"completed_new"`
-	CompletedReturning uint64 `json:"completed_returning"`
-	Expired            uint64 `json:"expired"`
+	Target             int                        `json:"target"`
+	Online             int                        `json:"online"`
+	Starting           int                        `json:"starting"`
+	Closing            int                        `json:"closing"`
+	TrafficReady       int                        `json:"traffic_ready"`
+	PlannedNew         uint64                     `json:"planned_new"`
+	PlannedReturning   uint64                     `json:"planned_returning"`
+	CompletedNew       uint64                     `json:"completed_new"`
+	CompletedReturning uint64                     `json:"completed_returning"`
+	Expired            uint64                     `json:"expired"`
+	CloseReasons       SessionCloseReasonSnapshot `json:"close_reasons"`
 }
 
 // WorkerGeneratedSnapshot contains monotonic aggregate generation indexes.
@@ -288,25 +297,27 @@ type WorkerGeneratedSnapshot struct {
 // SEND expectation used to reconcile authoritative metadata-create metrics.
 type WorkerMetaCreateSnapshot struct {
 	PersonByHashSlot MetaCreateHashSlotCounts `json:"person_by_hash_slot"`
+	GroupByHashSlot  MetaCreateHashSlotCounts `json:"group_by_hash_slot"`
 }
 
 // WorkerMessageSnapshot exposes end-to-end aggregate correctness counters.
 type WorkerMessageSnapshot struct {
-	Sent                 uint64 `json:"sent"`
-	SendAttempts         uint64 `json:"send_attempts"`
-	FirstAttempts        uint64 `json:"first_attempts"`
-	FirstAttemptFailures uint64 `json:"first_attempt_failures"`
-	SendAcknowledged     uint64 `json:"send_acknowledged"`
-	SendRejected         uint64 `json:"send_rejected"`
-	Received             uint64 `json:"received"`
-	ReceiveAcknowledged  uint64 `json:"receive_acknowledged"`
-	ReceiveAckFailures   uint64 `json:"receive_ack_failures"`
-	RetryAttempts        uint64 `json:"retry_attempts"`
-	Terminal             uint64 `json:"terminal"`
-	Losses               uint64 `json:"losses"`
-	Duplicates           uint64 `json:"duplicates"`
-	Corruptions          uint64 `json:"corruptions"`
-	SequenceRegressions  uint64 `json:"sequence_regressions"`
+	Sent                 uint64               `json:"sent"`
+	SendAttempts         uint64               `json:"send_attempts"`
+	FirstAttempts        uint64               `json:"first_attempts"`
+	FirstAttemptFailures uint64               `json:"first_attempt_failures"`
+	SendAcknowledged     uint64               `json:"send_acknowledged"`
+	SendRejected         uint64               `json:"send_rejected"`
+	Received             uint64               `json:"received"`
+	ReceiveAcknowledged  uint64               `json:"receive_acknowledged"`
+	ReceiveAckFailures   uint64               `json:"receive_ack_failures"`
+	RetryAttempts        uint64               `json:"retry_attempts"`
+	Terminal             uint64               `json:"terminal"`
+	TerminalReasons      TerminalSendSnapshot `json:"terminal_reasons"`
+	Losses               uint64               `json:"losses"`
+	Duplicates           uint64               `json:"duplicates"`
+	Corruptions          uint64               `json:"corruptions"`
+	SequenceRegressions  uint64               `json:"sequence_regressions"`
 }
 
 // WorkerSyncSnapshot exposes cumulative real factory, CONNECT, and full-sync
@@ -367,29 +378,36 @@ type WorkerHarnessSnapshot struct {
 	Failures             uint64             `json:"failures"`
 	CommandSaturation    uint64             `json:"command_saturation"`
 	OfferedUnderdelivery uint64             `json:"offered_underdelivery"`
-	DrainTimedOut        bool               `json:"drain_timed_out"`
-	UnexpectedExit       bool               `json:"unexpected_exit"`
+	// PlannedCancellations counts scheduled activities canceled only after the
+	// admitted SEND/SENDACK drain fence closed successfully.
+	PlannedCancellations uint64 `json:"planned_cancellations"`
+	DrainTimedOut        bool   `json:"drain_timed_out"`
+	UnexpectedExit       bool   `json:"unexpected_exit"`
 }
 
 // WorkerSnapshot is the complete bounded, identity-free worker evidence response.
 type WorkerSnapshot struct {
-	RunID            string                    `json:"run_id,omitempty"`
-	AssignmentID     string                    `json:"assignment_id,omitempty"`
-	Phase            WorkerPhase               `json:"phase"`
-	Uptime           time.Duration             `json:"uptime"`
-	SnapshotSequence uint64                    `json:"snapshot_sequence"`
-	Generation       uint64                    `json:"generation"`
-	WorkerID         uint64                    `json:"worker_id"`
-	WorkerCount      uint64                    `json:"worker_count"`
-	Sessions         WorkerSessionSnapshot     `json:"sessions"`
-	Generated        WorkerGeneratedSnapshot   `json:"generated"`
-	MetaCreate       WorkerMetaCreateSnapshot  `json:"meta_create"`
-	Messages         WorkerMessageSnapshot     `json:"messages"`
-	Sync             WorkerSyncSnapshot        `json:"sync"`
-	SendackLatency   WorkerHistogramSnapshot   `json:"sendack_latency"`
-	RecvackLatency   WorkerHistogramSnapshot   `json:"recvack_latency"`
-	Correlation      WorkerCorrelationSnapshot `json:"correlation"`
-	Queues           WorkerQueueSnapshot       `json:"queues"`
-	Harness          WorkerHarnessSnapshot     `json:"harness"`
-	Evidence         EvidenceSnapshot          `json:"evidence"`
+	RunID                         string                    `json:"run_id,omitempty"`
+	AssignmentID                  string                    `json:"assignment_id,omitempty"`
+	Phase                         WorkerPhase               `json:"phase"`
+	Uptime                        time.Duration             `json:"uptime"`
+	SnapshotSequence              uint64                    `json:"snapshot_sequence"`
+	Generation                    uint64                    `json:"generation"`
+	WorkerID                      uint64                    `json:"worker_id"`
+	WorkerCount                   uint64                    `json:"worker_count"`
+	Sessions                      WorkerSessionSnapshot     `json:"sessions"`
+	Generated                     WorkerGeneratedSnapshot   `json:"generated"`
+	MetaCreate                    WorkerMetaCreateSnapshot  `json:"meta_create"`
+	Messages                      WorkerMessageSnapshot     `json:"messages"`
+	Sync                          WorkerSyncSnapshot        `json:"sync"`
+	HotSendackLatency             WorkerHistogramSnapshot   `json:"hot_sendack_latency"`
+	ColdFirstCreateSendackLatency WorkerHistogramSnapshot   `json:"cold_first_create_sendack_latency"`
+	LifecycleReheatSendackLatency WorkerHistogramSnapshot   `json:"lifecycle_reheat_sendack_latency"`
+	RecvackLatency                WorkerHistogramSnapshot   `json:"recvack_latency"`
+	SendPendingToWriteLatency     WorkerHistogramSnapshot   `json:"send_pending_to_write_latency"`
+	SendWriteToAckLatency         WorkerHistogramSnapshot   `json:"send_write_to_ack_latency"`
+	Correlation                   WorkerCorrelationSnapshot `json:"correlation"`
+	Queues                        WorkerQueueSnapshot       `json:"queues"`
+	Harness                       WorkerHarnessSnapshot     `json:"harness"`
+	Evidence                      EvidenceSnapshot          `json:"evidence"`
 }

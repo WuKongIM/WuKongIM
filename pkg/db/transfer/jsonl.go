@@ -153,6 +153,15 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		record.LastPayloadB64 = *wire.LastPayloadB64
 		record.Payload = payload
 		return record, nil
+	case FileKindMetaPersonDirectoryTasks:
+		var record PersonDirectoryTaskRecord
+		if err := decodeStrict(line, &record); err != nil {
+			return nil, err
+		}
+		if err := requireString("channel_id", record.ChannelID); err != nil {
+			return nil, err
+		}
+		return record, nil
 	case FileKindMessageChannels:
 		var record MessageChannelRecord
 		if err := decodeStrict(line, &record); err != nil {

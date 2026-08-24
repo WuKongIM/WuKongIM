@@ -66,15 +66,16 @@ type Scheduler struct {
 	observer       core.Observer
 	sourceID       uint64
 
-	lanes       []lane
-	nextLane    int
-	roundOpen   bool
-	roundSeen   int
-	roundOutput bool
-	queuedItems int
-	queuedBytes int64
-	stopped     bool
-	stopErr     error
+	lanes         []lane
+	nextLane      int
+	roundOpen     bool
+	roundSeen     int
+	roundOutput   bool
+	queuedItems   int
+	queuedBytes   int64
+	queueRevision uint64
+	stopped       bool
+	stopErr       error
 }
 
 // New creates a scheduler with configured queue limits and default batch limits.
@@ -162,6 +163,7 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 			s.lanes[i].bytes += queueBytes(item)
 			s.queuedItems++
 			s.queuedBytes += int64(item.Bytes)
+			s.queueRevision = core.NextStateRevision()
 			snapshot := s.snapshotQueueLocked()
 			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 			s.cond.Signal()
@@ -257,6 +259,7 @@ func (s *Scheduler) Stop(err error) []Item {
 	s.stopped = true
 	s.stopErr = err
 	drained := s.drainLocked()
+	s.queueRevision = core.NextStateRevision()
 	var events []core.Event
 	if s.observer != nil {
 		events = s.stoppedQueueEventsLocked()
@@ -320,6 +323,9 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, batchObse
 		if l.items == 0 {
 			s.finishLaneLocked()
 		}
+	}
+	if len(batch) > 0 {
+		s.queueRevision = core.NextStateRevision()
 	}
 
 	if observe {
@@ -442,6 +448,7 @@ type queueSnapshot struct {
 	capacity      int
 	bytes         int64
 	bytesCapacity int64
+	revision      uint64
 }
 
 // batchObservation preserves dequeue-time pressure state without allocating
@@ -472,6 +479,7 @@ func (s *Scheduler) snapshotQueueLocked() queueSnapshot {
 		capacity:      s.maxItems,
 		bytes:         s.queuedBytes,
 		bytesCapacity: s.maxBytes,
+		revision:      s.queueRevision,
 	}
 }
 
@@ -479,6 +487,7 @@ func (s *Scheduler) snapshotLaneQueueLocked(priority core.Priority) queueSnapsho
 	snapshot := queueSnapshot{
 		capacity:      s.maxItems,
 		bytesCapacity: s.maxBytes,
+		revision:      s.queueRevision,
 	}
 	for i := range s.lanes {
 		if s.lanes[i].priority != priority {
@@ -525,6 +534,7 @@ func (s *Scheduler) observeBatch(batch []Item, observation batchObservation) {
 			SourceID:      s.sourceID,
 			Priority:      s.lanes[i].priority,
 			Result:        "ok",
+			Revision:      snapshot.revision,
 			Items:         snapshot.items,
 			Capacity:      snapshot.capacity,
 			Bytes:         int(snapshot.bytes),
@@ -552,6 +562,7 @@ func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnaps
 		SourceID:      s.sourceID,
 		Priority:      item.Priority,
 		Result:        result,
+		Revision:      laneSnapshot.revision,
 		Items:         laneSnapshot.items,
 		Capacity:      laneSnapshot.capacity,
 		Bytes:         int(laneSnapshot.bytes),
@@ -567,6 +578,7 @@ func (s *Scheduler) stoppedQueueEventsLocked() []core.Event {
 			SourceID:      s.sourceID,
 			Priority:      lane.priority,
 			Result:        "stopped",
+			Revision:      s.queueRevision,
 			Capacity:      s.maxItems,
 			BytesCapacity: s.maxBytes,
 		})

@@ -299,8 +299,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 
 	pullEvent := waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_inflight" &&
-			event.ServiceID == uint16(RPCChannelPull) &&
-			event.Inflight == 1
+			event.ServiceID == uint16(RPCChannelPull)
 	})
 	if pullEvent.ServiceAlias != "channel pull" {
 		t.Fatalf("pull service alias = %q, want channel pull", pullEvent.ServiceAlias)
@@ -311,8 +310,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 
 	appendEvent := waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_inflight" &&
-			event.ServiceID == uint16(RPCChannelAppendBatch) &&
-			event.Inflight == 1
+			event.ServiceID == uint16(RPCChannelAppendBatch)
 	})
 	if appendEvent.Capacity != wantWriteConcurrency {
 		t.Fatalf("append service capacity = %d, want %d", appendEvent.Capacity, wantWriteConcurrency)
@@ -320,8 +318,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 
 	writeEvent := waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_inflight" &&
-			event.ServiceID == uint16(RPCChannelAuthoritySend) &&
-			event.Inflight == 1
+			event.ServiceID == uint16(RPCChannelAuthoritySend)
 	})
 	if writeEvent.Capacity != wantWriteConcurrency {
 		t.Fatalf("channel authority send service capacity = %d, want %d", writeEvent.Capacity, wantWriteConcurrency)

@@ -68,6 +68,13 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 		return nil, err
 	}
 	metaCreate := metafsm.IsCreateChannelRuntimeMetaCommand(command)
+	metaCreateCount := 0
+	if metaCreate {
+		metaCreateCount, err = metafsm.CreateChannelRuntimeMetaBatchCommandSize(command)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if observer := propose.StageObserverFromContext(ctx); observer != nil {
 		ctx = multiraft.WithProposalStageObserver(ctx, defaultSlotProposalStageObserver{observer: observer})
 	}
@@ -95,8 +102,9 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 	if metaCreate && p.metaCreateObserver != nil {
 		if completionFuture, ok := future.(multiraft.CompletionFuture); ok {
 			completionObserved = completionFuture.ObserveCompletion(defaultSlotMetaCreateCompletionObserver{
-				slotID:   slotID,
-				observer: p.metaCreateObserver,
+				slotID:        slotID,
+				expectedCount: metaCreateCount,
+				observer:      p.metaCreateObserver,
 			})
 		}
 	}
@@ -106,23 +114,29 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 	if err == nil {
 		if applyErr := mapSlotApplyResult(command, result.Data); applyErr != nil {
 			if !completionObserved {
-				p.observeMetaCreate(slotID, metaCreate, clusterchannels.MetaCreateError)
+				p.observeMetaCreateBatch(slotID, metaCreateCount, clusterchannels.MetaCreateError)
 			}
 			return nil, applyErr
 		}
 	}
 	if err != nil {
 		if !completionObserved && (ctx.Err() == nil || !errors.Is(err, ctx.Err())) {
-			p.observeMetaCreate(slotID, metaCreate, clusterchannels.MetaCreateError)
+			p.observeMetaCreateBatch(slotID, metaCreateCount, clusterchannels.MetaCreateError)
 		}
 		return nil, mapMultiraftProposeError(err)
 	}
 	if metaCreate && !completionObserved {
-		defaultSlotMetaCreateCompletionObserver{slotID: slotID, observer: p.metaCreateObserver}.ObserveFutureCompletion(result, nil)
+		defaultSlotMetaCreateCompletionObserver{
+			slotID: slotID, expectedCount: metaCreateCount, observer: p.metaCreateObserver,
+		}.ObserveFutureCompletion(result, nil)
 	}
 	if metaCreate {
-		if _, decodeErr := metafsm.DecodeCreateChannelRuntimeMetaResult(result.Data); decodeErr != nil {
+		results, decodeErr := metafsm.DecodeCreateChannelRuntimeMetaBatchResult(result.Data)
+		if decodeErr != nil {
 			return nil, decodeErr
+		}
+		if len(results) != metaCreateCount {
+			return nil, metadb.ErrCorruptValue
 		}
 	}
 	if !wantResult {
@@ -132,28 +146,44 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 }
 
 type defaultSlotMetaCreateCompletionObserver struct {
-	slotID   uint32
-	observer clusterchannels.MetaCreateObserver
+	slotID        uint32
+	expectedCount int
+	observer      clusterchannels.MetaCreateObserver
 }
 
 func (o defaultSlotMetaCreateCompletionObserver) ObserveFutureCompletion(result multiraft.Result, err error) {
 	if o.observer == nil {
 		return
 	}
-	observed := clusterchannels.MetaCreateError
-	if err == nil {
-		if createResult, decodeErr := metafsm.DecodeCreateChannelRuntimeMetaResult(result.Data); decodeErr == nil {
-			observed = clusterchannels.MetaCreateAlreadyExisting
-			if createResult.Created {
-				observed = clusterchannels.MetaCreateCreated
-			}
-		}
+	if err != nil {
+		o.observeRepeated(clusterchannels.MetaCreateError)
+		return
 	}
-	o.observer.ObserveChannelMetaCreate(o.slotID, observed)
+	results, decodeErr := metafsm.DecodeCreateChannelRuntimeMetaBatchResult(result.Data)
+	if decodeErr != nil || len(results) != o.expectedCount {
+		o.observeRepeated(clusterchannels.MetaCreateError)
+		return
+	}
+	for _, result := range results {
+		observed := clusterchannels.MetaCreateAlreadyExisting
+		if result.Created {
+			observed = clusterchannels.MetaCreateCreated
+		}
+		o.observer.ObserveChannelMetaCreate(o.slotID, observed)
+	}
 }
 
-func (p defaultSlotProposer) observeMetaCreate(slotID uint32, metaCreate bool, result clusterchannels.MetaCreateResult) {
-	if metaCreate && p.metaCreateObserver != nil {
+func (o defaultSlotMetaCreateCompletionObserver) observeRepeated(result clusterchannels.MetaCreateResult) {
+	for i := 0; i < o.expectedCount; i++ {
+		o.observer.ObserveChannelMetaCreate(o.slotID, result)
+	}
+}
+
+func (p defaultSlotProposer) observeMetaCreateBatch(slotID uint32, count int, result clusterchannels.MetaCreateResult) {
+	if p.metaCreateObserver == nil {
+		return
+	}
+	for i := 0; i < count; i++ {
 		p.metaCreateObserver.ObserveChannelMetaCreate(slotID, result)
 	}
 }

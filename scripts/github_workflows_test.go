@@ -12,29 +12,46 @@ import (
 )
 
 var workflowCatalog = map[string]string{
-	"chat-lifecycle-rehearsal.yml":          "Agent Tool - Start Chat Lifecycle Rehearsal",
-	"chat-lifecycle-rehearsal-finalize.yml": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
-	"chat-lifecycle-formal.yml":             "Safety Automation - Start Fresh Formal Chat Lifecycle",
-	"chat-lifecycle-formal-finalize.yml":    "Safety Automation - Finalize Formal Chat Lifecycle Runs",
-	"chat-lifecycle-stop.yml":               "Agent Tool - Stop Chat Lifecycle Request",
-	"cloud-deployment-activate.yml":         "Agent Tool - Activate Cloud Deployment",
-	"cloud-deployment-bundle.yml":           "Agent Tool - Build Cloud Deployment Bundle",
-	"cloud-lease-analyze.yml":               "Agent Tool - Analyze Chat Lifecycle Cloud Lease",
-	"cloud-lease-observe.yml":               "Agent Tool - Inspect Cloud Lease",
-	"cloud-lease-oidc-setup.yml":            "Agent Tool - Configure Cloud Lease OIDC Roles",
-	"cloud-lease-provision.yml":             "Agent Tool - Provision Cloud Lease",
-	"cloud-lease-release.yml":               "Safety Automation - Release Cloud Leases",
-	"cloud-sim-analyze.yml":                 "Agent Tool - Analyze Cloud Simulation",
-	"cloud-sim-cleanup.yml":                 "Safety Automation - Reconcile Cloud Simulation Resources",
-	"cloud-sim-monitor.yml":                 "Safety Automation - Patrol Cloud Simulation Runs",
-	"cloud-sim-oidc-subject.yml":            "Agent Tool - Configure Cloud Simulation OIDC Subject",
-	"cloud-sim-provision.yml":               "Agent Tool - Provision Cloud Simulation",
-	"issue-agent-engineer.yml":              "Agent Tool - Issue Engineer",
-	"issue-agent-pr-signal.yml":             "Safety Automation - Issue Agent PR Signal",
-	"issue-agent.yml":                       "Safety Automation - GitHub Issue Agent",
-	"review-agent-pr-signal.yml":            "Safety Automation - Review Agent PR Signal",
-	"review-agent-run.yml":                  "Agent Tool - Review Pull Request",
-	"review-agent.yml":                      "Safety Automation - Review Agent Controller",
+	"chat-lifecycle-rehearsal.yml":             "Agent Tool - Start Chat Lifecycle Rehearsal",
+	"chat-lifecycle-rehearsal-finalize.yml":    "Safety Automation - Finalize Chat Lifecycle Rehearsals",
+	"chat-lifecycle-formal.yml":                "Safety Automation - Start Fresh Formal Chat Lifecycle",
+	"chat-lifecycle-formal-finalize.yml":       "Safety Automation - Finalize Formal Chat Lifecycle Runs",
+	"chat-lifecycle-stop.yml":                  "Agent Tool - Stop Chat Lifecycle Request",
+	"cloud-deployment-activate.yml":            "Agent Tool - Activate Cloud Deployment",
+	"cloud-deployment-bundle.yml":              "Agent Tool - Build Cloud Deployment Bundle",
+	"cloud-lease-analyze.yml":                  "Agent Tool - Analyze Chat Lifecycle Cloud Lease",
+	"cloud-lease-observe.yml":                  "Agent Tool - Inspect Cloud Lease",
+	"cloud-lease-oidc-setup.yml":               "Agent Tool - Configure Cloud Lease OIDC Roles",
+	"cloud-lease-provision.yml":                "Agent Tool - Provision Cloud Lease",
+	"cloud-lease-release.yml":                  "Safety Automation - Release Cloud Leases",
+	"cloud-sim-analyze.yml":                    "Agent Tool - Analyze Cloud Simulation",
+	"cloud-sim-cleanup.yml":                    "Safety Automation - Reconcile Cloud Simulation Resources",
+	"cloud-sim-monitor.yml":                    "Safety Automation - Patrol Cloud Simulation Runs",
+	"cloud-sim-oidc-subject.yml":               "Agent Tool - Configure Cloud Simulation OIDC Subject",
+	"cloud-sim-provision.yml":                  "Agent Tool - Provision Cloud Simulation",
+	"issue-agent-engineer.yml":                 "Agent Tool - Issue Engineer",
+	"issue-agent-pr-signal.yml":                "Safety Automation - Issue Agent PR Signal",
+	"issue-agent.yml":                          "Safety Automation - GitHub Issue Agent",
+	"review-agent-pr-signal.yml":               "Safety Automation - Review Agent PR Signal",
+	"review-agent-run.yml":                     "Agent Tool - Review Pull Request",
+	"review-agent.yml":                         "Safety Automation - Review Agent Controller",
+	"three-node-chat-lifecycle-regression.yml": "Safety Automation - Three-Node Chat Lifecycle Regression",
+}
+
+func TestCloudLeaseProvisionRejectsGitHubOwnedRepairPlans(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "cloud-lease-provision.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{
+		`plan_stage="$(jq -er '.tags.stage // ""' "$RUNNER_TEMP/plan.json")"`,
+		`[[ "$plan_stage" != repair ]]`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("generic Provision workflow still permits GitHub-owned repair acquisition; missing %q", want)
+		}
+	}
 }
 
 var externalActionPattern = regexp.MustCompile(

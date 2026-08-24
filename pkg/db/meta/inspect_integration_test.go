@@ -27,6 +27,7 @@ func TestInspectTablesIncludesRegisteredSchemas(t *testing.T) {
 		"hashslot_migration",
 		"message_event_state",
 		"message_event_cursor",
+		"person_directory_task",
 	} {
 		if !names[name] {
 			t.Fatalf("InspectTables() missing %q; got %+v", name, got)
@@ -146,14 +147,16 @@ func TestInspectScanChannelByFilter(t *testing.T) {
 	defer store.close(t)
 	ctx := context.Background()
 	channel := Channel{
-		ChannelID:                 "g1",
-		ChannelType:               2,
-		Ban:                       1,
-		Disband:                   0,
-		SendBan:                   1,
-		AllowStranger:             1,
-		Large:                     1,
-		SubscriberMutationVersion: 42,
+		ChannelID:                     "g1",
+		ChannelType:                   2,
+		Ban:                           1,
+		Disband:                       0,
+		SendBan:                       1,
+		AllowStranger:                 1,
+		Large:                         1,
+		SubscriberMutationVersion:     42,
+		DirectoryProjectionState:      DirectoryProjectionReady,
+		DirectoryProjectionGeneration: 1,
 	}
 	if err := store.db.HashSlot(7).UpsertChannel(ctx, channel); err != nil {
 		t.Fatalf("UpsertChannel(): %v", err)
@@ -173,7 +176,7 @@ func TestInspectScanChannelByFilter(t *testing.T) {
 		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
 	}
 	row := got.Rows[0]
-	if row["channel_id"] != "g1" || row["channel_type"] != int64(2) || row["large"] != int64(1) || row["subscriber_mutation_version"] != uint64(42) {
+	if row["channel_id"] != "g1" || row["channel_type"] != int64(2) || row["large"] != int64(1) || row["subscriber_mutation_version"] != uint64(42) || row["directory_projection_state"] != uint8(DirectoryProjectionReady) {
 		t.Fatalf("row = %+v, want channel fields", row)
 	}
 }
@@ -352,6 +355,27 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 		seed   func(context.Context, *Shard) error
 		assert func(*testing.T, InspectRow)
 	}{
+		{
+			name:  "person_directory_task",
+			table: "person_directory_task",
+			slot:  10,
+			seed: func(ctx context.Context, shard *Shard) error {
+				batch := shard.db.NewBatch()
+				defer batch.Close()
+				if err := batch.EnsurePersonDirectoryTask(shard.hashSlot, PersonDirectoryTask{
+					ChannelID: "u1@u2", ChannelType: 1, CommittedTail: 9, CreatedAt: 123, Generation: 1,
+				}); err != nil {
+					return err
+				}
+				return batch.Commit(ctx)
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "u1@u2" || row["channel_type"] != int64(1) || row["committed_tail"] != uint64(9) || row["created_at"] != int64(123) {
+					t.Fatalf("person-directory task row = %+v", row)
+				}
+			},
+		},
 		{
 			name:  "subscriber",
 			table: "subscriber",

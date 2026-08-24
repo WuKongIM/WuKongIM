@@ -45,6 +45,9 @@ func TestSessionPoolLoginSyncExpiryAndFreshRelogin(t *testing.T) {
 	if expired := fixture.pool.Expire(fixture.clock.Now()); expired != 1 {
 		t.Fatalf("Expire = %d, want 1", expired)
 	}
+	if got := fixture.pool.Snapshot().CloseReasons.Expired; got != 1 {
+		t.Fatalf("expired close reasons = %d, want 1", got)
+	}
 	if fixture.pool.IsOnline(uid) || !fixture.factory.clients()[0].closed() {
 		t.Fatal("expired session retained online state or open socket")
 	}
@@ -175,6 +178,8 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 	client := fixture.factory.clients()[0]
 	closeEntered := make(chan struct{}, 2)
 	client.closeEntered = closeEntered
+	closeRelease := make(chan struct{})
+	client.closeRelease = closeRelease
 	fixture.pool.mu.RLock()
 	session := fixture.pool.online[uid]
 	fixture.pool.mu.RUnlock()
@@ -184,6 +189,10 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("heartbeat write failure did not close the session")
 	}
+	if snapshot := fixture.pool.Snapshot(); snapshot.CloseReasons.HeartbeatFailed != 1 || snapshot.Online != 1 {
+		t.Fatalf("heartbeat failure was not observable while close blocked: %+v", snapshot)
+	}
+	close(closeRelease)
 	select {
 	case <-session.done:
 	case <-time.After(time.Second):
@@ -193,8 +202,53 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 		t.Fatal("heartbeat write failure retained session ownership")
 	}
 	snapshot := fixture.pool.Snapshot()
-	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
+	if snapshot.ReadErrors != 1 || snapshot.CloseReasons.HeartbeatFailed != 1 ||
+		fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("heartbeat write failure evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
+	}
+}
+
+func TestSessionPoolHeartbeatCloseFailureStillDetachesAndCountsCleanup(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	sleepEntered := make(chan struct{}, 1)
+	sleepRelease := make(chan struct{})
+	fixture.pool.heartbeatSleep = func(ctx context.Context, _ time.Duration) error {
+		select {
+		case sleepEntered <- struct{}{}:
+		default:
+		}
+		select {
+		case <-sleepRelease:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	fixture.factory.pingErr = errors.New("redacted heartbeat write failure")
+	uid := fixture.identity.UID(22)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 22, LoginOrdinal: 12}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	<-sleepEntered
+	client := fixture.factory.clients()[0]
+	client.closeErr = errors.New("private close failure")
+	client.closeDoesNotStop = true
+	fixture.pool.mu.RLock()
+	session := fixture.pool.online[uid]
+	fixture.pool.mu.RUnlock()
+	close(sleepRelease)
+	select {
+	case <-session.heartbeatDone:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat close failure did not finish cleanup")
+	}
+	if fixture.pool.isOwned(uid) {
+		t.Fatal("heartbeat close failure retained session ownership")
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.CloseReasons.HeartbeatFailed != 1 || snapshot.CloseReasons.TransportCloseFailed != 1 ||
+		snapshot.Online != 0 || snapshot.Closing != 0 {
+		t.Fatalf("heartbeat close-failure diagnostics = %+v", snapshot)
 	}
 }
 
@@ -490,6 +544,60 @@ func TestSessionWKProtoAdapterBindsExistingClientWithoutDialing(t *testing.T) {
 	}
 }
 
+func TestSessionPoolRecordsSendackAtTransportObservationTime(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	completed := make(chan struct{}, 1)
+	if err := fixture.pool.setEngineObservers(
+		func(_ string, _ *frame.SendackPacket, _ error) { completed <- struct{}{} },
+		func(string, uint64, string) {},
+	); err != nil {
+		t.Fatalf("setEngineObservers: %v", err)
+	}
+	uid := fixture.identity.UID(30)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 30, LoginOrdinal: 1}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	defer fixture.pool.CloseAll()
+
+	registeredAt := fixture.clock.Now()
+	logical, err := fixture.traffic.NewLogicalSend(0, 1, TrafficPerson, uid, fixture.identity.UID(31))
+	if err != nil {
+		t.Fatalf("NewLogicalSend: %v", err)
+	}
+	if err := fixture.verifier.RegisterSend(logical, registeredAt, SendLatencyHot); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	client := fixture.factory.clients()[0]
+	client.setTiming(SessionFrameTiming{
+		PendingStartedAt: registeredAt.Add(5 * time.Millisecond),
+		WriteStartedAt:   registeredAt.Add(25 * time.Millisecond),
+		ObservedAt:       registeredAt.Add(100 * time.Millisecond),
+	})
+	fixture.clock.Set(registeredAt.Add(2 * time.Second))
+	client.frames <- &frame.SendackPacket{
+		ClientSeq: 1, ClientMsgNo: logical.ClientMsgNo, MessageID: 1, MessageSeq: 1, ReasonCode: frame.ReasonSuccess,
+	}
+	select {
+	case <-completed:
+	case <-time.After(time.Second):
+		t.Fatal("SENDACK was not verified")
+	}
+
+	histogram := fixture.verifier.Snapshot().HotSendackLatency
+	if histogram.Count != 1 || histogram.SumNanos != uint64(100*time.Millisecond) || histogram.Buckets[7] != 1 {
+		t.Fatalf("hot SENDACK latency = %+v, want exact transport-observed 100ms", histogram)
+	}
+	sessions := fixture.pool.Snapshot()
+	if sessions.SendPendingToWriteLatency.Count != 1 ||
+		sessions.SendPendingToWriteLatency.SumNanos != uint64(20*time.Millisecond) {
+		t.Fatalf("pending-to-write latency = %+v, want 20ms", sessions.SendPendingToWriteLatency)
+	}
+	if sessions.SendWriteToAckLatency.Count != 1 ||
+		sessions.SendWriteToAckLatency.SumNanos != uint64(75*time.Millisecond) {
+		t.Fatalf("write-to-ACK latency = %+v, want 75ms", sessions.SendWriteToAckLatency)
+	}
+}
+
 func TestSessionPoolActivatesRelationshipOnlyWhileBothEndpointsOnline(t *testing.T) {
 	t.Parallel()
 	fixture := newSessionTestFixture(t)
@@ -578,7 +686,8 @@ func TestSessionPoolUnexpectedReadExitIsBoundedHarnessEvidence(t *testing.T) {
 	}
 	<-drainDone
 	snapshot := fixture.pool.Snapshot()
-	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
+	if snapshot.ReadErrors != 1 || snapshot.CloseReasons.ReadFailed != 1 ||
+		fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("unexpected read evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
 	}
 	if err := fixture.pool.Logout(uid); !errors.Is(err, errSessionOffline) {
@@ -631,6 +740,26 @@ func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testin
 	}
 	if got := fixture.verifier.EvidenceSnapshot().Classification; got != SyncClassificationProductFailure {
 		t.Fatalf("terminal remote read classification = %q, want product_failure", got)
+	}
+	if got := fixture.pool.Snapshot().CloseReasons.RemoteTerminal; got != 1 {
+		t.Fatalf("remote-terminal close reasons = %d, want 1", got)
+	}
+}
+
+func TestSessionPoolCountsTransportCloseFailureWithoutRawError(t *testing.T) {
+	t.Parallel()
+	fixture := newSessionTestFixture(t)
+	uid := fixture.identity.UID(38)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 38, LoginOrdinal: 10}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	fixture.factory.clients()[0].closeErr = errors.New("private transport close detail")
+	if err := fixture.pool.Logout(uid); err == nil {
+		t.Fatal("Logout returned nil transport-close error")
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.CloseReasons.ExplicitLogout != 1 || snapshot.CloseReasons.TransportCloseFailed != 1 {
+		t.Fatalf("transport-close diagnostics = %+v", snapshot.CloseReasons)
 	}
 }
 
@@ -785,6 +914,9 @@ func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T)
 	if err := pool.CloseAll(); err != nil {
 		t.Fatalf("CloseAll: %v", err)
 	}
+	if got := pool.Snapshot().CloseReasons.GenerationStop; got != 2 {
+		t.Fatalf("generation-stop close reasons = %d, want 2", got)
+	}
 }
 
 func TestSessionPoolOnlineRouteIndexesAllocateNoLookupStateAndReleaseAllChurn(t *testing.T) {
@@ -835,6 +967,51 @@ func TestSessionPoolOnlineRouteIndexesAllocateNoLookupStateAndReleaseAllChurn(t 
 	fixture.pool.mu.RUnlock()
 	if online != 0 || byIndex != 0 {
 		t.Fatalf("online route indexes retained churn history: online=%d by_index=%d", online, byIndex)
+	}
+}
+
+func TestSessionPoolGrantSelectorSkipsDeadlineExpiredMemberRetainedBySendLease(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	group, err := fixture.catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group(0): %v", err)
+	}
+	members := make([]SessionLogin, 0, 2)
+	for memberOrdinal := 0; memberOrdinal < 2; memberOrdinal++ {
+		memberIndex, memberErr := group.MemberIndex(memberOrdinal)
+		if memberErr != nil {
+			t.Fatalf("MemberIndex(%d): %v", memberOrdinal, memberErr)
+		}
+		login := SessionLogin{UID: fixture.identity.UID(memberIndex), UserIndex: memberIndex, LoginOrdinal: uint64(memberOrdinal)}
+		if _, loginErr := fixture.pool.Login(context.Background(), login); loginErr != nil {
+			t.Fatalf("Login member %d: %v", memberOrdinal, loginErr)
+		}
+		members = append(members, login)
+	}
+	defer func() {
+		if err := fixture.pool.CloseAll(); err != nil {
+			t.Errorf("CloseAll: %v", err)
+		}
+	}()
+
+	if !fixture.pool.acquireSendLease(members[0].UID) {
+		t.Fatal("acquire existing SEND lease for expiring group member")
+	}
+	defer func() {
+		if !fixture.pool.releaseSendLease(members[0].UID) {
+			t.Error("release existing SEND lease for expired group member")
+		}
+	}()
+	fixture.pool.mu.Lock()
+	fixture.pool.online[members[0].UID].snapshot.Deadline = fixture.clock.Now()
+	fixture.pool.mu.Unlock()
+
+	selected, ok := fixture.pool.onlineGroupMemberExcluding(group, 0, true, fixture.clock.Now(), nil)
+	if !ok {
+		t.Fatal("no send-eligible group member selected")
+	}
+	if selected.UID != members[1].UID {
+		t.Fatalf("selected UID = %q, want fresh member %q", selected.UID, members[1].UID)
 	}
 }
 
@@ -1110,6 +1287,8 @@ type sessionFakeClient struct {
 	readExited           chan struct{}
 	closeEntered         chan struct{}
 	closeRelease         <-chan struct{}
+	closeErr             error
+	closeDoesNotStop     bool
 	queueSnapshotEntered chan<- struct{}
 	queueSnapshotRelease <-chan struct{}
 	closeOnce            sync.Once
@@ -1120,6 +1299,8 @@ type sessionFakeClient struct {
 	pingRelease          <-chan struct{}
 	pingErr              error
 	sendErr              error
+	observedAt           time.Time
+	timing               SessionFrameTiming
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -1145,6 +1326,35 @@ func (c *sessionFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) 
 		c.closeReadExited()
 		return nil, errors.New("session closed")
 	}
+}
+
+func (c *sessionFakeClient) ReadFrameObserved(ctx context.Context) (frame.Frame, time.Time, error) {
+	packet, err := c.ReadFrame(ctx)
+	c.mu.Lock()
+	observedAt := c.observedAt
+	c.mu.Unlock()
+	return packet, observedAt, err
+}
+
+func (c *sessionFakeClient) ReadFrameTiming(ctx context.Context) (frame.Frame, SessionFrameTiming, error) {
+	packet, err := c.ReadFrame(ctx)
+	c.mu.Lock()
+	timing := c.timing
+	c.mu.Unlock()
+	return packet, timing, err
+}
+
+func (c *sessionFakeClient) setObservedAt(observedAt time.Time) {
+	c.mu.Lock()
+	c.observedAt = observedAt
+	c.mu.Unlock()
+}
+
+func (c *sessionFakeClient) setTiming(timing SessionFrameTiming) {
+	c.mu.Lock()
+	c.timing = timing
+	c.observedAt = timing.ObservedAt
+	c.mu.Unlock()
 }
 
 func (c *sessionFakeClient) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool) {
@@ -1187,13 +1397,16 @@ func (c *sessionFakeClient) Close() error {
 	if c.closeRelease != nil {
 		<-c.closeRelease
 	}
+	if c.closeDoesNotStop {
+		return c.closeErr
+	}
 	c.closeOnce.Do(func() {
 		c.mu.Lock()
 		c.isClosed = true
 		c.mu.Unlock()
 		close(c.stop)
 	})
-	return nil
+	return c.closeErr
 }
 
 func (c *sessionFakeClient) QueueSnapshot(ctx context.Context) (SessionQueueSnapshot, error) {

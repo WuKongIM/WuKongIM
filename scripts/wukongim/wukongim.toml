@@ -69,7 +69,8 @@ channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
 
 # Maximum time to collect adjacent Channel append requests before one durable fsync.
-commit_coordinator_flush_window = "200us"
+# The measured 500us default improves batching without the latency of 1ms+ windows.
+commit_coordinator_flush_window = "500us"
 
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 commit_coordinator_max_requests = 0
@@ -195,7 +196,7 @@ format = "console"
 
 [gateway]
 # Client-facing gateway listeners. Use TOML arrays here; WK_ environment overrides use one JSON string value.
-listeners = [{ address = "0.0.0.0:5100", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }, { address = "0.0.0.0:5200", name = "ws-gateway", network = "websocket", protocol = "wsmux", transport = "gnet" }]
+listeners = [{ address = "127.0.0.1:5100", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }, { address = "0.0.0.0:5200", name = "ws-gateway", network = "websocket", protocol = "wsmux", transport = "gnet" }]
 
 # Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
 gnet_multicore = true

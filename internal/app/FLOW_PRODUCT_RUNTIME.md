@@ -140,7 +140,11 @@ classification, and activity-throttled expiry; see
 those state machines. The same append observer records
 per-message append success/error latency and classifies append failures with
 low-cardinality labels for benchmark triage, including typed Channel runtime/cluster
-errors and short append results.
+errors and short append results. It also projects final durable idempotency
+recovery summaries into
+`wukongim_channelappend_idempotency_recovery_items_total` with only the fixed
+`recovered|unresolved|lookup_error` result label; recovered items do not emit
+per-attempt application error logs.
 
 The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
@@ -209,6 +213,20 @@ creates bindings, and CMD state never shares ordinary membership fields or
 ordinary Channel sequence space.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+
+The authenticated terminal-fence prepare route is a separate one-shot product
+generation boundary. App composition exposes it only when all three concrete
+drains exist. The controller first closes and drains Gateway SEND admission,
+then stops and drains channelappend (including post-commit ownership), and
+finally quiesces Online Delivery through pending RECVACK convergence. Only a
+complete successful pipeline returns the opaque epoch/capability grant. The
+controller remains one-way; the next QPS tier starts a fresh product process
+generation rather than reopening any of these admissions.
+The gateway handler and authenticated prepare API share the exact same
+controller pointer. App construction creates the concrete Gateway first so its
+drain port exists, then binds the controller once to the already-built handler
+before listeners start. A terminal EVENT therefore cannot authenticate against
+a different in-memory epoch than the one returned by the prepare route.
 
 Legacy channel management requests flow through internal/usecase/channel and
 the infra/cluster ChannelMetadataStore to Slot metadata. Add captures one

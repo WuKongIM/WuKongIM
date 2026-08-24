@@ -169,6 +169,23 @@ func TestPreflightDiskCapacityFailsWithoutStopSignal(t *testing.T) {
 	}
 }
 
+func TestLocalPreflightAcceptsBoundedDevelopmentHostCapacity(t *testing.T) {
+	fixture := newPreflightFixture(LocalConfig())
+	const sizeBytes = int64(151_263_856 * 1024)
+	const availableBytes = int64(88_001_148 * 1024)
+	for _, disk := range fixture.disks {
+		disk.filesystem.SizeBytes = sizeBytes
+		disk.filesystem.AvailableBytes = availableBytes
+		disk.filesystem.SystemSizeBytes = sizeBytes
+		disk.filesystem.SystemAvailableBytes = availableBytes
+	}
+
+	result := fixture.preflight.Check(context.Background(), fixture.cfg)
+	if !result.Passed() || !result.TrafficAllowed() {
+		t.Fatalf("result = %+v, want bounded local host capacity to pass", result)
+	}
+}
+
 func TestPreflightChecksEveryDeclaredAPIEndpoint(t *testing.T) {
 	fixture := newPreflightFixture(FormalConfig())
 	result := fixture.preflight.Check(context.Background(), fixture.cfg)

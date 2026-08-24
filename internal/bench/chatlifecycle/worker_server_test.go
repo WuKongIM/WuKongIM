@@ -27,6 +27,35 @@ func TestWorkerQueueSnapshotIncludesTransportAdmissionRejections(t *testing.T) {
 	}
 }
 
+func TestProductFirstAttemptFailuresExcludeLocalAdmissionPressure(t *testing.T) {
+	// This is the exact counter shape from rehearsal
+	// chat-20260811T175629Z-4ff683f0-rehearsal-1. All 38 first-attempt
+	// failures were local non-waiting admission rejections and every logical
+	// SEND was later acknowledged.
+	got, ok := productFirstAttemptFailures(VerifierSnapshot{
+		FirstAttempts: 232_008, FirstAttemptFailures: 38,
+		FirstAttemptLocalAdmissionFailures: 38,
+	})
+	if !ok || got != 0 {
+		t.Fatalf("product first-attempt failures = %d, ok=%v, want 0,true", got, ok)
+	}
+
+	got, ok = productFirstAttemptFailures(VerifierSnapshot{
+		FirstAttempts: 20_000, FirstAttemptFailures: 3,
+		FirstAttemptLocalAdmissionFailures: 2,
+	})
+	if !ok || got != 1 {
+		t.Fatalf("mixed product first-attempt failures = %d, ok=%v, want 1,true", got, ok)
+	}
+
+	if _, ok := productFirstAttemptFailures(VerifierSnapshot{
+		FirstAttempts: 1, FirstAttemptFailures: 1,
+		FirstAttemptLocalAdmissionFailures: 2,
+	}); ok {
+		t.Fatal("invalid local-admission attribution was accepted")
+	}
+}
+
 func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +235,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV6WithCoordinatorGrantV2(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -230,8 +259,8 @@ func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 3 {
-		t.Fatalf("protocol version = %d, want 2", info.ProtocolVersion)
+	if info.ProtocolVersion != 6 {
+		t.Fatalf("protocol version = %d, want 6", info.ProtocolVersion)
 	}
 }
 
@@ -411,6 +440,92 @@ func TestWorkerServerCachesAcceptedGrantFailureWithoutRegeneration(t *testing.T)
 	}
 	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40}) {
 		t.Fatalf("failed grant applications = %v, want one accepted attempt", got)
+	}
+}
+
+func TestWorkerServerStatusRetainsLateGrantRuntimeFailureAfterCallerDeadline(t *testing.T) {
+	t.Parallel()
+
+	generation := &lateGrantFailureGeneration{
+		fakeWorkerGeneration: newFakeWorkerGeneration(),
+		entered:              make(chan struct{}),
+		release:              make(chan struct{}),
+	}
+	events := make(chan WorkerGrantFailureEvent, 1)
+	server, fence := startWorkerServerForCoordinatorGenerationWithReporter(
+		t, generation, "late-grant-failure", func(event WorkerGrantFailureEvent) { events <- event },
+	)
+	grant := WorkerGrantRequest{
+		WorkerFence: fence, Sequence: 1, RatePerSecond: 120, MaxBurst: 240,
+		Fresh:    WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Released: WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+	}
+
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	requestDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		requestDone <- workerRequestWithContext(
+			t, server, requestContext, http.MethodPost, "/v1/chat-lifecycle/grant", grant,
+		)
+	}()
+	<-generation.entered
+
+	var inFlight WorkerStatus
+	response := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil)
+	if err := json.Unmarshal(response.Body.Bytes(), &inFlight); err != nil {
+		t.Fatalf("decode in-flight status: %v", err)
+	}
+	if inFlight.ActiveGrantSequence != grant.Sequence || inFlight.LastGrantSequence != 0 ||
+		inFlight.LastGrantFailed || inFlight.LastGrantRuntimeCode != "" {
+		t.Fatalf("in-flight grant status = %+v, want only active sequence %d", inFlight, grant.Sequence)
+	}
+
+	cancelRequest()
+	close(generation.release)
+	<-requestDone
+
+	var terminal WorkerStatus
+	response = workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil)
+	if err := json.Unmarshal(response.Body.Bytes(), &terminal); err != nil {
+		t.Fatalf("decode terminal status: %v", err)
+	}
+	if terminal.ActiveGrantSequence != 0 || terminal.LastGrantSequence != grant.Sequence ||
+		!terminal.LastGrantFailed || terminal.LastGrantRuntimeCode != RuntimeFailureTransportAdmissionSaturated {
+		t.Fatalf("terminal grant status = %+v, want retained sequence %d failure %q", terminal,
+			grant.Sequence, RuntimeFailureTransportAdmissionSaturated)
+	}
+	select {
+	case event := <-events:
+		if event.Event != "wkbench.chat_lifecycle.worker_grant_failure" || event.WorkerID != 0 ||
+			event.Sequence != grant.Sequence || event.RuntimeCode != RuntimeFailureTransportAdmissionSaturated || event.Cause != "runtime" {
+			t.Fatalf("grant failure event = %+v", event)
+		}
+	default:
+		t.Fatal("late admitted grant failure was not reported")
+	}
+}
+
+func TestWorkerGrantFailureCauseIsBounded(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "runtime", err: &RuntimeError{code: RuntimeFailureEngineCPUSaturated}, want: "runtime"},
+		{name: "offline", err: errSessionOffline, want: "session_offline"},
+		{name: "invariant", err: errors.Join(errEngineConfig, errors.New("private detail")), want: "invariant"},
+		{name: "stopped", err: errEngineNotRunning, want: "generation_stopped"},
+		{name: "deadline", err: context.DeadlineExceeded, want: "deadline"},
+		{name: "canceled", err: context.Canceled, want: "canceled"},
+		{name: "unknown", err: errors.New("private identity"), want: "unclassified"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := workerGrantFailureCause(test.err); got != test.want {
+				t.Fatalf("workerGrantFailureCause() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -713,6 +828,10 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	recordWorkerLatency(&engineGeneration.engine.cached.GatewayConnectLatency, 20*time.Millisecond)
 	engineGeneration.engine.cached.ConversationSyncLatency = newWorkerHistogramSnapshot()
 	recordWorkerLatency(&engineGeneration.engine.cached.ConversationSyncLatency, 50*time.Millisecond)
+	engineGeneration.engine.cached.SendPendingToWriteLatency = newWorkerHistogramSnapshot()
+	recordWorkerLatency(&engineGeneration.engine.cached.SendPendingToWriteLatency, 5*time.Millisecond)
+	engineGeneration.engine.cached.SendWriteToAckLatency = newWorkerHistogramSnapshot()
+	recordWorkerLatency(&engineGeneration.engine.cached.SendWriteToAckLatency, 150*time.Millisecond)
 	engineGeneration.engine.cached.FactoryFailed = 1
 	engineGeneration.engine.cached.FactoryCanceled = 2
 	engineGeneration.engine.cached.ConnectStarted = 11
@@ -725,7 +844,7 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.engine.cached.SyncCanceled = 1
 	engineGeneration.engine.lifecycleMu.Unlock()
 	engineGeneration.verifier.sendMu.Lock()
-	recordWorkerLatency(&engineGeneration.verifier.sendackLatency, 2*time.Second)
+	recordWorkerLatency(&engineGeneration.verifier.hotSendackLatency, 2*time.Second)
 	engineGeneration.verifier.sendMu.Unlock()
 	engineGeneration.verifier.recvMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.recvackLatency, 50*time.Millisecond)
@@ -733,6 +852,12 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.verifier.sendMu.Lock()
 	engineGeneration.verifier.sendCounters.firstAttempts = 101
 	engineGeneration.verifier.sendCounters.firstAttemptFailures = 2
+	engineGeneration.verifier.sendCounters.terminal = 3
+	engineGeneration.verifier.sendCounters.terminalReasons = TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, Unclassified: 1},
+		NonRetriable:   1,
+		SessionClosed:  1,
+	}
 	engineGeneration.verifier.sendCounters.sampledExpired = 3
 	engineGeneration.verifier.sendMu.Unlock()
 	engineGeneration.verifier.recvMu.Lock()
@@ -745,8 +870,10 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		t.Fatalf("latency Snapshot: %v", err)
 	}
 	if snapshot.Sync.ConnectLatency.Buckets[5] != 1 || snapshot.Sync.Latency.Buckets[6] != 1 ||
-		snapshot.SendackLatency.Buckets[11] != 1 || snapshot.RecvackLatency.Buckets[6] != 1 {
-		t.Fatalf("worker latency projection = sync=%+v sendack=%+v recvack=%+v", snapshot.Sync, snapshot.SendackLatency, snapshot.RecvackLatency)
+		snapshot.HotSendackLatency.Buckets[11] != 1 || snapshot.ColdFirstCreateSendackLatency.Count != 0 ||
+		snapshot.LifecycleReheatSendackLatency.Count != 0 || snapshot.RecvackLatency.Buckets[6] != 1 ||
+		snapshot.SendPendingToWriteLatency.Buckets[3] != 1 || snapshot.SendWriteToAckLatency.Buckets[8] != 1 {
+		t.Fatalf("worker latency projection = sync=%+v hot=%+v cold_create=%+v reheat=%+v recvack=%+v", snapshot.Sync, snapshot.HotSendackLatency, snapshot.ColdFirstCreateSendackLatency, snapshot.LifecycleReheatSendackLatency, snapshot.RecvackLatency)
 	}
 	if snapshot.Sync.FactoryFailed != 1 || snapshot.Sync.FactoryCanceled != 2 ||
 		snapshot.Sync.ConnectStarted != 11 || snapshot.Sync.ConnectCompleted != 8 || snapshot.Sync.ConnectFailed != 2 || snapshot.Sync.ConnectCanceled != 1 ||
@@ -754,9 +881,51 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		t.Fatalf("worker real sync outcome projection = %+v", snapshot.Sync)
 	}
 	if snapshot.Messages.FirstAttempts != 101 || snapshot.Messages.FirstAttemptFailures != 2 ||
+		snapshot.Messages.Terminal != 3 || snapshot.Messages.TerminalReasons != (TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, Unclassified: 1}, NonRetriable: 1, SessionClosed: 1,
+	}) ||
 		snapshot.Messages.Losses != 3 || snapshot.Messages.Duplicates != 4 ||
 		snapshot.Messages.Corruptions != 5 || snapshot.Messages.SequenceRegressions != 6 {
 		t.Fatalf("worker correctness projection = %+v", snapshot.Messages)
+	}
+}
+
+func TestWorkerEngineGenerationDrainFencesPlannedShutdown(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 16, MaxWorkPerAdvance: 16})
+	ticker := newManualWorkerGenerationTicker()
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,
+		lifecycleSlots: mustInitialLifecycleSlotAssignment(t), onlineTarget: 0, trafficDemand: []uint64{0},
+		generation: 1, clock: fixture.clock,
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+		done:      make(chan error, 1),
+	}
+	if err := generation.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	ticker.awaitReady(t)
+	added := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		added <- fixture.engine.addActivity(&engineWork{due: fixture.clock.Now(), kind: engineWorkSend})
+	}}); err != nil {
+		t.Fatalf("enqueue pending activity: %v", err)
+	}
+	if err := <-added; err != nil {
+		t.Fatalf("add pending activity: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := generation.Drain(ctx); err != nil {
+		t.Fatalf("Drain: %v", err)
+	}
+	generation.Stop()
+	snapshot, err := generation.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if snapshot.Harness.Failures != 0 || snapshot.Harness.OfferedUnderdelivery != 0 ||
+		snapshot.Harness.PlannedCancellations != 1 || snapshot.Harness.Classification != "" {
+		t.Fatalf("planned terminal harness evidence = %+v", snapshot.Harness)
 	}
 }
 
@@ -2407,12 +2576,22 @@ func startWorkerServerForGeneration(t *testing.T, generation WorkerGeneration, a
 }
 
 func startWorkerServerForCoordinatorGeneration(t *testing.T, generation WorkerGeneration, assignmentID string) (*WorkerServer, WorkerFence) {
+	return startWorkerServerForCoordinatorGenerationWithReporter(t, generation, assignmentID, nil)
+}
+
+func startWorkerServerForCoordinatorGenerationWithReporter(
+	t *testing.T,
+	generation WorkerGeneration,
+	assignmentID string,
+	reporter func(WorkerGrantFailureEvent),
+) (*WorkerServer, WorkerFence) {
 	t.Helper()
 	server, err := NewWorkerServer(WorkerServerConfig{
 		ControlToken: "control-secret",
 		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
 			return generation, nil
 		}),
+		ReportGrantFailure: reporter,
 	})
 	if err != nil {
 		t.Fatalf("NewWorkerServer: %v", err)
@@ -2489,6 +2668,19 @@ type cancelBeforeGrantAdmissionGeneration struct {
 	*fakeWorkerGeneration
 	firstEntered chan struct{}
 	calls        int
+}
+
+type lateGrantFailureGeneration struct {
+	*fakeWorkerGeneration
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *lateGrantFailureGeneration) ApplyGrant(_ context.Context, released uint64) (WorkerGrantApplication, error) {
+	g.grants = append(g.grants, released)
+	close(g.entered)
+	<-g.release
+	return WorkerGrantApplication{Admitted: true}, &RuntimeError{code: RuntimeFailureTransportAdmissionSaturated}
 }
 
 func (g *cancelBeforeGrantAdmissionGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {

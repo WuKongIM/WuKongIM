@@ -37,6 +37,36 @@ func TestObserverClusterHealthFailsAfterContinuousThirtySeconds(t *testing.T) {
 	}
 }
 
+func TestObserverClassifiesMissingDebugSnapshotAsClusterHealth(t *testing.T) {
+	cfg := FormalConfig()
+	fixture := newObserverFixture(cfg)
+	fixture.targets[0].setClusterError(errors.New("snapshot unavailable"))
+	resultChannel := make(chan ObserverResult, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+	fixture.waitPoll(t)
+	for elapsed := 5 * time.Second; elapsed <= 30*time.Second; elapsed += 5 * time.Second {
+		fixture.clock.advance(5 * time.Second)
+		fixture.waitPoll(t)
+	}
+	result := <-resultChannel
+	if result.Outcome != ObserverProductFailure || result.Code != ObserverCodeClusterHealth {
+		t.Fatalf("result = %+v, want product_failure/cluster_health", result)
+	}
+}
+
+func TestHealthyLeaderProgressAllowsReplicationAheadOfCommit(t *testing.T) {
+	slot := target.ClusterSlot{CommitIndex: 100, ReplicaProgress: []target.ReplicaProgress{
+		{NodeID: 1, MatchIndex: 101, LagEntries: 0, State: "StateReplicate"},
+		{NodeID: 2, MatchIndex: 100, LagEntries: 0, State: "StateReplicate"},
+		{NodeID: 3, MatchIndex: 99, LagEntries: 1, State: "StateReplicate"},
+	}}
+	if !healthyLeaderProgress(slot, []uint64{1, 2, 3}, 1) {
+		t.Fatal("healthyLeaderProgress() rejected a replicated but not-yet-committed entry")
+	}
+}
+
 func TestObserverClusterHealthDoesNotCombineLagFromDifferentSlots(t *testing.T) {
 	cfg := FormalConfig()
 	fixture := newObserverFixture(cfg)
@@ -516,10 +546,11 @@ func (f *observerFixture) waitPoll(t *testing.T) {
 }
 
 type fakeObserverTarget struct {
-	mu        sync.Mutex
-	healthErr error
-	readyErr  error
-	cluster   target.DebugCluster
+	mu         sync.Mutex
+	healthErr  error
+	readyErr   error
+	clusterErr error
+	cluster    target.DebugCluster
 }
 
 type barrierObserverTarget struct {
@@ -606,14 +637,21 @@ func (f *fakeObserverTarget) Readyz(context.Context) error {
 func (f *fakeObserverTarget) DebugCluster(context.Context) (target.DebugCluster, error) {
 	f.mu.Lock()
 	snapshot := cloneDebugCluster(f.cluster)
+	err := f.clusterErr
 	f.mu.Unlock()
-	return snapshot, nil
+	return snapshot, err
 }
 
 func (f *fakeObserverTarget) setHealthError(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.healthErr = err
+}
+
+func (f *fakeObserverTarget) setClusterError(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.clusterErr = err
 }
 
 func (f *fakeObserverTarget) mutate(change func(*target.DebugCluster)) {

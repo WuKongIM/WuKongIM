@@ -191,6 +191,7 @@ func writeFakeGoWukongIMStarter(t *testing.T, path string, callsDir string) {
 set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/go.calls"
+printf 'GOWORK=%s args=%s\n' "${GOWORK-<unset>}" "$*" >> "$calls_dir/go.env"
 case "$1" in
   env)
     case "$2" in
@@ -245,6 +246,8 @@ done
 	printf '%s WK_BENCH_API_ENABLE=%s\n' "$config" "${WK_BENCH_API_ENABLE-<unset>}"
 	printf '%s WK_BENCH_API_MAX_BATCH_SIZE=%s\n' "$config" "${WK_BENCH_API_MAX_BATCH_SIZE-<unset>}"
 	printf '%s WK_BENCH_API_MAX_PAYLOAD_BYTES=%s\n' "$config" "${WK_BENCH_API_MAX_PAYLOAD_BYTES-<unset>}"
+	printf '%s WK_WUKONGIM_SINGLE_NODE_DATA_DIR=%s\n' "$config" "${WK_WUKONGIM_SINGLE_NODE_DATA_DIR-<unset>}"
+	printf '%s WK_BENCH_SINGLE_NODE_QPS=%s\n' "$config" "${WK_BENCH_SINGLE_NODE_QPS-<unset>}"
 	printf '%s WK_PRESENCE_TOUCH_BATCH_SIZE=%s\n' "$config" "${WK_PRESENCE_TOUCH_BATCH_SIZE-<unset>}"
 	printf '%s WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=%s\n' "$config" "${WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH-<unset>}"
   if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then

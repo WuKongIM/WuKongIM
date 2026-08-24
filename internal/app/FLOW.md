@@ -28,6 +28,8 @@ second implementation of those layers.
 validated Config
   -> construct cluster and shared runtime foundations
   -> construct use cases and infrastructure ports
+  -> when bearer and all real drain ports exist, bind one terminal controller
+     to both the already-created gateway handler and API prepare route
   -> register node RPC and access adapters
   -> expose optional API, Manager, metrics, diagnostics, plugins, and gateway
 
@@ -38,6 +40,7 @@ Start
   -> Prometheus and Gateway admission
 
 Stop or startup rollback
+  -> mark the gateway handler's planned-shutdown warning fence
   -> close entry admission
   -> drain Channel append and accepted post-commit work
   -> stop side-effect, presence, and cluster dependencies in reverse order
@@ -49,6 +52,9 @@ Stop or startup rollback
   must not introduce a local business bypass.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- The benchmark terminal controller is advertised only with a non-empty token,
+  the real Gateway SEND drainer, Channel append group, and Online Delivery
+  runtime. Partial compositions cannot mint a terminal capability.
 - Channel append producers start after their post-commit consumers and drain
   before those dependencies stop. A drain timeout returns promptly but keeps
   dependencies alive so a later `Stop` can continue the same drain.
@@ -61,6 +67,10 @@ Stop or startup rollback
   Controller clears maintenance.
 - Observability is bounded and low-cardinality; runtime labels must not contain
   UIDs, Channel IDs, client message IDs, addresses, or secret material.
+  Channel-create coalescer gauges and closed delivery/post-commit terminal
+  result partitions must materialize true zero series rather than imply them.
+- A Slot replica match index may exceed commit while replication is pending;
+  its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
 

@@ -68,8 +68,14 @@ type runtimePressureTaskKey struct {
 }
 
 type runtimePressurePoolSeries struct {
-	workers  prometheus.Gauge
-	inflight prometheus.Gauge
+	workers             prometheus.Gauge
+	inflight            prometheus.Gauge
+	inflightPublication *runtimePressurePoolPublication
+}
+
+type runtimePressurePoolPublication struct {
+	mu       sync.Mutex
+	revision uint64
 }
 
 type runtimePressureQueueSeries struct {
@@ -77,6 +83,12 @@ type runtimePressureQueueSeries struct {
 	capacity      prometheus.Gauge
 	bytes         prometheus.Gauge
 	bytesCapacity prometheus.Gauge
+	publication   *runtimePressureQueuePublication
+}
+
+type runtimePressureQueuePublication struct {
+	mu       sync.Mutex
+	revision uint64
 }
 
 func newRuntimePressureMetrics(registry prometheus.Registerer, labels prometheus.Labels) *RuntimePressureMetrics {
@@ -161,6 +173,30 @@ func (m *RuntimePressureMetrics) SetPoolInflight(component, pool string, infligh
 	series.inflight.Set(float64(clampRuntimePressureInt(inflight)))
 }
 
+// SetPoolInflightRevisioned applies an absolute inflight observation only when
+// revision is newer than the last revision retained for the same normalized
+// pool. A zero revision preserves the unconditional SetPoolInflight behavior.
+func (m *RuntimePressureMetrics) SetPoolInflightRevisioned(component, pool string, revision uint64, inflight int) {
+	if revision == 0 {
+		m.SetPoolInflight(component, pool, inflight)
+		return
+	}
+	if m == nil || m.poolInflight == nil {
+		return
+	}
+	series := m.boundPoolSeries(component, pool)
+	if series.inflightPublication == nil {
+		return
+	}
+	series.inflightPublication.mu.Lock()
+	defer series.inflightPublication.mu.Unlock()
+	if revision <= series.inflightPublication.revision {
+		return
+	}
+	series.inflight.Set(float64(clampRuntimePressureInt(inflight)))
+	series.inflightPublication.revision = revision
+}
+
 func (m *RuntimePressureMetrics) SetQueue(component, pool, queue, priority string, obs RuntimePressureQueueObservation) {
 	if m == nil {
 		return
@@ -178,6 +214,41 @@ func (m *RuntimePressureMetrics) SetQueue(component, pool, queue, priority strin
 	if series.bytesCapacity != nil {
 		series.bytesCapacity.Set(float64(clampRuntimePressureInt64(obs.BytesCapacity)))
 	}
+}
+
+// SetQueueRevisioned applies an absolute queue observation only when revision is
+// newer than the last revision retained for the same normalized series. A zero
+// revision preserves the unconditional SetQueue behavior for unversioned callers.
+func (m *RuntimePressureMetrics) SetQueueRevisioned(component, pool, queue, priority string, revision uint64, obs RuntimePressureQueueObservation) {
+	if revision == 0 {
+		m.SetQueue(component, pool, queue, priority, obs)
+		return
+	}
+	if m == nil {
+		return
+	}
+	series := m.boundQueueSeries(component, pool, queue, priority)
+	if series.publication == nil {
+		return
+	}
+	series.publication.mu.Lock()
+	defer series.publication.mu.Unlock()
+	if revision <= series.publication.revision {
+		return
+	}
+	if series.depth != nil {
+		series.depth.Set(float64(clampRuntimePressureInt(obs.Depth)))
+	}
+	if series.capacity != nil {
+		series.capacity.Set(float64(clampRuntimePressureInt(obs.Capacity)))
+	}
+	if series.bytes != nil {
+		series.bytes.Set(float64(clampRuntimePressureInt64(obs.Bytes)))
+	}
+	if series.bytesCapacity != nil {
+		series.bytesCapacity.Set(float64(clampRuntimePressureInt64(obs.BytesCapacity)))
+	}
+	series.publication.revision = revision
 }
 
 func (m *RuntimePressureMetrics) SetQueueDepth(component, pool, queue, priority string, depth int) {
@@ -256,6 +327,7 @@ func (m *RuntimePressureMetrics) boundPoolSeries(component, pool string) runtime
 	if m.poolInflight != nil {
 		series.inflight = m.poolInflight.WithLabelValues(key.component, key.pool)
 	}
+	series.inflightPublication = &runtimePressurePoolPublication{}
 	if m.poolSeries == nil {
 		m.poolSeries = make(map[runtimePressurePoolKey]runtimePressurePoolSeries)
 	}
@@ -294,6 +366,7 @@ func (m *RuntimePressureMetrics) boundQueueSeries(component, pool, queue, priori
 	if m.queueBytesCapacity != nil {
 		series.bytesCapacity = m.queueBytesCapacity.WithLabelValues(key.component, key.pool, key.queue, key.priority)
 	}
+	series.publication = &runtimePressureQueuePublication{}
 	if m.queueSeries == nil {
 		m.queueSeries = make(map[runtimePressureQueueKey]runtimePressureQueueSeries)
 	}

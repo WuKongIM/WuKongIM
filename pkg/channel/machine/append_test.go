@@ -83,6 +83,59 @@ func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	require.Empty(t, state.PendingAppendOrder)
 }
 
+func TestQuorumCommittedAppendPublishesOffsetsAndRepliesWithoutFollowerAck(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
+	decision := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 100,
+		Waiters: []AppendBatchWaiter{
+			{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}},
+			{OpID: 2, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 20, Payload: []byte("b"), SizeBytes: 1}}},
+		},
+	})
+	require.Len(t, decision.Tasks, 1)
+
+	decision = state.ApplyQuorumCommitted(QuorumCommittedResult{
+		Fence: decision.Tasks[0].Fence,
+		First: 7,
+		Last:  8,
+		HW:    8,
+	})
+
+	require.Equal(t, uint64(8), state.LEO)
+	require.Equal(t, uint64(8), state.HW)
+	require.Equal(t, machineProgress(8), state.Progress[1])
+	require.Len(t, decision.Replies, 2)
+	require.Equal(t, uint64(7), decision.Replies[0].AppendItems[0].MessageSeq)
+	require.Equal(t, uint64(8), decision.Replies[1].AppendItems[0].MessageSeq)
+	require.Nil(t, state.InflightAppend)
+	require.Empty(t, state.PendingAppends)
+	require.Empty(t, decision.Signals, "quorum receipt must not start the displaced PullHint/AckOffset hot path")
+}
+
+func TestQuorumCommittedAppendRejectsMalformedReceiptWithoutMutation(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
+	decision := state.ProposeAppend(AppendCommand{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}})
+	require.Len(t, decision.Tasks, 1)
+
+	decision = state.ApplyQuorumCommitted(QuorumCommittedResult{
+		Fence: decision.Tasks[0].Fence,
+		First: 7,
+		Last:  8,
+		HW:    8,
+	})
+
+	require.Len(t, decision.Replies, 1)
+	require.ErrorIs(t, decision.Replies[0].Err, ch.ErrLogConflict)
+	require.Zero(t, state.LEO)
+	require.Zero(t, state.HW)
+	require.Nil(t, state.InflightAppend)
+	require.Empty(t, state.PendingAppends)
+}
+
+func machineProgress(match uint64) ReplicaProgress {
+	return ReplicaProgress{Match: match}
+}
+
 func TestAppendStoredUpdatesPendingWaiterOffsetsInPlace(t *testing.T) {
 	state := leaderState(t, 1, []ch.NodeID{1, 2}, []ch.NodeID{1, 2}, 2)
 	decision := state.ProposeAppend(AppendCommand{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}})

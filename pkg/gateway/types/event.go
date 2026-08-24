@@ -66,6 +66,30 @@ func (ctx *Context) WriteFrame(f frame.Frame) error {
 	return ctx.Session.WriteFrame(f, session.WithReplyToken(ctx.ReplyToken))
 }
 
+// SealOutboundAndWrite atomically seals ordinary writes on the owning session
+// and admits f as its final ordered frame. Transport implementations are not
+// treated as flushed here; the peer must decode the final frame as the ACK.
+func (ctx *Context) SealOutboundAndWrite(f frame.Frame) error {
+	if ctx == nil || ctx.Session == nil {
+		return session.ErrSessionClosed
+	}
+	sealer, ok := ctx.Session.(session.OutboundSealer)
+	if !ok {
+		return session.ErrOutboundSealUnsupported
+	}
+	return sealer.SealOutboundAndWrite(f, session.WithReplyToken(ctx.ReplyToken))
+}
+
+// OutboundSealed reports whether this session has admitted its terminal frame.
+// Entry adapters must reject every later ordinary frame before use-case entry.
+func (ctx *Context) OutboundSealed() bool {
+	if ctx == nil || ctx.Session == nil {
+		return false
+	}
+	state, ok := ctx.Session.(session.OutboundSealState)
+	return ok && state.OutboundSealed()
+}
+
 // CloseSession closes the gateway session through the physical connection path when available.
 func (ctx *Context) CloseSession(reason CloseReason, err error) error {
 	if ctx == nil {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelreplication "github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -110,6 +111,10 @@ type Node struct {
 	// channelRPCGateway is registered once per transport server and atomically
 	// follows Channel runtime rebuilds after a restore activation.
 	channelRPCGateway *channels.ServiceGateway
+	// channelQuorumGateway is registered once and follows node-owned quorum runtime rebuilds.
+	channelQuorumGateway *channels.QuorumExchangeGateway
+	// defaultChannelReplication owns local durability, peer batches, and recovery workers.
+	defaultChannelReplication *channelreplication.Runtime
 	// defaultChannelStore owns the Node-created message DB factory.
 	defaultChannelStore *channelstore.MessageDBFactory
 	// channelStoreFactory is the narrow acquisition surface used by local message read facades.

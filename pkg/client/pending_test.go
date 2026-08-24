@@ -51,6 +51,27 @@ func TestPendingTrackerMatchingSendackResolvesPendingEntry(t *testing.T) {
 	}
 }
 
+func TestPendingTrackerPreservesSendackDecodeObservationTime(t *testing.T) {
+	tracker := newPendingTracker()
+	entry, err := tracker.add(pendingKey{ClientSeq: 19, ClientMsgNo: "msg-19"}, time.Second)
+	if err != nil {
+		t.Fatalf("add() error = %v", err)
+	}
+	observedAt := time.Unix(1_700_000_019, 123_456_789)
+	if !tracker.resolveAt(&frame.SendackPacket{
+		ClientSeq: 19, ClientMsgNo: "msg-19", MessageID: 119, MessageSeq: 219, ReasonCode: frame.ReasonSuccess,
+	}, observedAt) {
+		t.Fatal("resolveAt() = false, want true")
+	}
+	result, err := waitPendingEntry(t, entry)
+	if err != nil {
+		t.Fatalf("pending result error = %v", err)
+	}
+	if !result.ObservedAt.Equal(observedAt) {
+		t.Fatalf("pending result ObservedAt = %v, want %v", result.ObservedAt, observedAt)
+	}
+}
+
 func TestPendingTrackerMatchingSendackFallsBackToClientSeq(t *testing.T) {
 	tracker := newPendingTracker()
 	key := pendingKey{ClientSeq: 11}

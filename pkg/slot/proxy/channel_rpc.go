@@ -536,7 +536,8 @@ func appendChannel(dst []byte, ch metadb.Channel) []byte {
 	dst = runtimeMetaAppendVarint(dst, ch.AllowStranger)
 	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberCount)
 	dst = runtimeMetaAppendVarint(dst, ch.Large)
-	dst = runtimeMetaAppendVarint(dst, ch.DirectoryReady)
+	dst = runtimeMetaAppendVarint(dst, int64(ch.DirectoryProjectionState))
+	dst = runtimeMetaAppendUvarint(dst, ch.DirectoryProjectionGeneration)
 	return dst
 }
 
@@ -598,8 +599,19 @@ func readChannel(body []byte, offset int) (metadb.Channel, int, error) {
 	if ch.Large, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return metadb.Channel{}, offset, err
 	}
-	if ch.DirectoryReady, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+	directoryState, next, err := runtimeMetaReadVarint(body, offset)
+	if err != nil {
 		return metadb.Channel{}, offset, err
+	}
+	if directoryState < int64(metadb.DirectoryProjectionNone) || directoryState > int64(metadb.DirectoryProjectionReady) {
+		return metadb.Channel{}, offset, fmt.Errorf("%w: invalid directory projection state", metadb.ErrCorruptValue)
+	}
+	ch.DirectoryProjectionState = metadb.DirectoryProjectionState(directoryState)
+	if ch.DirectoryProjectionGeneration, offset, err = runtimeMetaReadUvarint(body, next); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if (ch.DirectoryProjectionState == metadb.DirectoryProjectionNone) != (ch.DirectoryProjectionGeneration == 0) {
+		return metadb.Channel{}, offset, fmt.Errorf("%w: invalid directory projection generation", metadb.ErrCorruptValue)
 	}
 	return ch, offset, nil
 }

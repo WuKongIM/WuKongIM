@@ -91,6 +91,124 @@ func TestPoolReportsInflightCurrentAndPeak(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
+func TestPoolDoesNotPublishOlderInflightAfterPhysicalZero(t *testing.T) {
+	sink := &captureSink{}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 2, QueueSize: 2}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	obs := newBlockingInflightObserver()
+	pool.SetQueueObserver(obs)
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	for index, task := range []struct {
+		started chan struct{}
+		release chan struct{}
+	}{
+		{started: firstStarted, release: releaseFirst},
+		{started: secondStarted, release: releaseSecond},
+	} {
+		index, task := index, task
+		require.NoError(t, pool.Submit(context.Background(), Task{
+			Kind:  TaskFunc,
+			Fence: ch.Fence{ChannelKey: ch.ChannelKey(fmt.Sprintf("1:inflight-%d", index)), OpID: ch.OpID(index + 1)},
+			RunFunc: func(context.Context) Result {
+				close(task.started)
+				<-task.release
+				return Result{}
+			},
+		}))
+	}
+	for _, started := range []chan struct{}{firstStarted, secondStarted} {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for both worker tasks to start")
+		}
+	}
+	require.Eventually(t, func() bool { return obs.Inflight("test") == 2 }, time.Second, time.Millisecond)
+	obs.Arm()
+	close(releaseFirst)
+	select {
+	case <-obs.blocked:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for older inflight=1 publication")
+	}
+	close(releaseSecond)
+	require.Eventually(t, func() bool { return pool.inflight.Load() == 0 }, time.Second, time.Millisecond)
+	close(obs.release)
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	if got := obs.Inflight("test"); got != 0 {
+		t.Fatalf("published inflight = %d, want physical zero", got)
+	}
+}
+
+func TestPoolDoesNotPublishOlderQueueDepthAfterPhysicalZero(t *testing.T) {
+	sink := &captureSink{}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 2}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseFirstOnce := sync.Once{}
+	defer releaseFirstOnce.Do(func() { close(releaseFirst) })
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: ch.Fence{ChannelKey: "1:queue-first", OpID: 1},
+		RunFunc: func(context.Context) Result {
+			close(firstStarted)
+			<-releaseFirst
+			return Result{}
+		},
+	}))
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first worker task")
+	}
+
+	obs := newBlockingQueueDepthObserver()
+	observerReleaseOnce := sync.Once{}
+	defer observerReleaseOnce.Do(func() { close(obs.release) })
+	pool.SetQueueObserver(obs)
+	obs.Arm()
+	submitDone := make(chan error, 1)
+	go func() {
+		submitDone <- pool.Submit(context.Background(), Task{
+			Kind:    TaskFunc,
+			Fence:   ch.Fence{ChannelKey: "1:queue-second", OpID: 2},
+			RunFunc: func(context.Context) Result { return Result{} },
+		})
+	}()
+	select {
+	case <-obs.blocked:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for older queue depth=1 publication")
+	}
+
+	releaseFirstOnce.Do(func() { close(releaseFirst) })
+	select {
+	case <-obs.zeroObserved:
+	case <-time.After(25 * time.Millisecond):
+		// The corrected path serializes the physical-zero callback behind the
+		// blocked older publication. Releasing it below lets zero publish last.
+	}
+	observerReleaseOnce.Do(func() { close(obs.release) })
+	select {
+	case err := <-submitDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second submit")
+	}
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	if got := obs.Depth("test"); got != 0 {
+		t.Fatalf("published queue depth = %d, want physical zero", got)
+	}
+}
+
 func TestPoolReportsCapacityWorkersAdmissionWaitAndTaskDuration(t *testing.T) {
 	obs := &recordingPoolPressureObserver{}
 	sink := &captureSink{ch: make(chan Result, 1)}
@@ -1129,6 +1247,25 @@ func TestPoolBatchesStoreAppendTasksWhenFactorySupportsBatch(t *testing.T) {
 	require.ElementsMatch(t, []uint64{1, 1}, resultStoreAppendLastOffsets(sink.Results()))
 }
 
+func TestPoolClassifiesRecoveredStoreAppendPanicAsOutcomeUnknown(t *testing.T) {
+	stores := &panicAfterCommitStoreFactory{}
+	pool := &Pool{deps: Deps{Stores: stores}}
+	task := Task{
+		Kind:        TaskStoreAppend,
+		Fence:       ch.Fence{ChannelKey: "1:panic", OpID: 1},
+		StoreAppend: &StoreAppendTask{ChannelID: ch.ChannelID{ID: "panic", Type: 1}, Records: []ch.Record{{ID: 1, Payload: []byte("a")}}},
+	}
+
+	results, recovered := pool.runQueuedGroupSafely(context.Background(), []queuedTask{{task: task}})
+
+	require.True(t, recovered)
+	require.Len(t, results, 1)
+	require.ErrorContains(t, results[0].Err, "channel worker panic")
+	require.True(t, stores.committed)
+	require.NotNil(t, results[0].StoreAppend)
+	require.Equal(t, store.AppendOutcomeUnknown, results[0].StoreAppend.Outcome)
+}
+
 func TestPoolUsesConfiguredStoreAppendBatchMaxWait(t *testing.T) {
 	pool := &Pool{
 		cfg:  PoolConfig{Name: "store-append", BatchMaxWait: time.Hour},
@@ -1414,7 +1551,7 @@ func (s *blockingCheckpointStore) Load(context.Context) (store.InitialState, err
 }
 
 func (s *blockingCheckpointStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
-	return store.AppendLeaderResult{}, nil
+	return store.AppendLeaderResult{Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (s *blockingCheckpointStore) ApplyFollower(_ context.Context, req store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
@@ -1834,7 +1971,7 @@ func (s *batchApplySingleStore) Load(context.Context) (store.InitialState, error
 }
 
 func (s *batchApplySingleStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
-	return store.AppendLeaderResult{}, nil
+	return store.AppendLeaderResult{Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (s *batchApplySingleStore) ApplyFollower(_ context.Context, req store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
@@ -1892,6 +2029,7 @@ func (f *batchAppendStoreFactory) AppendLeaderBatch(_ context.Context, items []s
 	f.mu.Unlock()
 	results := make([]store.AppendLeaderBatchResult, len(items))
 	for i, item := range items {
+		results[i].Outcome = store.AppendOutcomeDurable
 		if len(item.Request.Records) == 0 {
 			continue
 		}
@@ -1917,6 +2055,59 @@ type batchAppendSingleStore struct {
 	factory *batchAppendStoreFactory
 }
 
+type panicAfterCommitStoreFactory struct {
+	committed bool
+}
+
+func (f *panicAfterCommitStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
+	return &panicAfterCommitStore{factory: f}, nil
+}
+
+type panicAfterCommitStore struct {
+	factory *panicAfterCommitStoreFactory
+}
+
+func (s *panicAfterCommitStore) Load(context.Context) (store.InitialState, error) {
+	return store.InitialState{}, nil
+}
+
+func (s *panicAfterCommitStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	s.factory.committed = true
+	panic("lost response after commit")
+}
+
+func (s *panicAfterCommitStore) ApplyFollower(context.Context, store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
+	return store.ApplyFollowerResult{}, nil
+}
+
+func (s *panicAfterCommitStore) ReadCommitted(context.Context, store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
+	return store.ReadCommittedResult{}, nil
+}
+
+func (s *panicAfterCommitStore) ReadLog(context.Context, store.ReadLogRequest) (store.ReadLogResult, error) {
+	return store.ReadLogResult{}, nil
+}
+
+func (s *panicAfterCommitStore) LoadRetentionState(context.Context) (store.RetentionState, error) {
+	return store.RetentionState{}, nil
+}
+
+func (s *panicAfterCommitStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return 0, nil
+}
+
+func (s *panicAfterCommitStore) TrimMessagesThrough(context.Context, uint64, store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return store.RetentionTrimResult{}, nil
+}
+
+func (s *panicAfterCommitStore) StoreCheckpoint(context.Context, ch.Checkpoint) error {
+	return nil
+}
+
+func (s *panicAfterCommitStore) Close() error {
+	return nil
+}
+
 func (s *batchAppendSingleStore) Load(context.Context) (store.InitialState, error) {
 	return store.InitialState{}, nil
 }
@@ -1926,9 +2117,9 @@ func (s *batchAppendSingleStore) AppendLeader(_ context.Context, req store.Appen
 	s.factory.singleAppendCalls++
 	s.factory.mu.Unlock()
 	if len(req.Records) == 0 {
-		return store.AppendLeaderResult{}, nil
+		return store.AppendLeaderResult{Outcome: store.AppendOutcomeDurable}, nil
 	}
-	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: uint64(len(req.Records))}, nil
+	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: uint64(len(req.Records)), Outcome: store.AppendOutcomeDurable}, nil
 }
 
 func (s *batchAppendSingleStore) ApplyFollower(context.Context, store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
@@ -1965,6 +2156,90 @@ type captureWorkerObserver struct {
 	mu       sync.Mutex
 	inflight map[string]int
 	peak     map[string]int
+}
+
+type blockingInflightObserver struct {
+	mu       sync.Mutex
+	inflight map[string]int
+	armed    atomic.Bool
+	blocked  chan struct{}
+	release  chan struct{}
+}
+
+type blockingQueueDepthObserver struct {
+	mu           sync.Mutex
+	depth        map[string]int
+	armed        atomic.Bool
+	watchZero    atomic.Bool
+	blocked      chan struct{}
+	release      chan struct{}
+	zeroObserved chan struct{}
+	zeroOnce     sync.Once
+}
+
+func newBlockingQueueDepthObserver() *blockingQueueDepthObserver {
+	return &blockingQueueDepthObserver{
+		depth:        make(map[string]int),
+		blocked:      make(chan struct{}),
+		release:      make(chan struct{}),
+		zeroObserved: make(chan struct{}),
+	}
+}
+
+func (o *blockingQueueDepthObserver) SetWorkerQueueDepth(pool string, depth int) {
+	if depth == 1 && o.armed.CompareAndSwap(true, false) {
+		o.watchZero.Store(true)
+		close(o.blocked)
+		<-o.release
+	}
+	if depth == 0 && o.watchZero.Load() {
+		o.zeroOnce.Do(func() { close(o.zeroObserved) })
+	}
+	o.mu.Lock()
+	o.depth[pool] = depth
+	o.mu.Unlock()
+}
+
+func (o *blockingQueueDepthObserver) Arm() {
+	o.armed.Store(true)
+}
+
+func (o *blockingQueueDepthObserver) Depth(pool string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.depth[pool]
+}
+
+func newBlockingInflightObserver() *blockingInflightObserver {
+	return &blockingInflightObserver{
+		inflight: make(map[string]int),
+		blocked:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+}
+
+func (o *blockingInflightObserver) SetWorkerQueueDepth(string, int) {}
+
+func (o *blockingInflightObserver) SetWorkerInflight(pool string, inflight int) {
+	if inflight == 1 && o.armed.CompareAndSwap(true, false) {
+		close(o.blocked)
+		<-o.release
+	}
+	o.mu.Lock()
+	o.inflight[pool] = inflight
+	o.mu.Unlock()
+}
+
+func (o *blockingInflightObserver) SetWorkerInflightPeak(string, int) {}
+
+func (o *blockingInflightObserver) Arm() {
+	o.armed.Store(true)
+}
+
+func (o *blockingInflightObserver) Inflight(pool string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.inflight[pool]
 }
 
 func (o *captureWorkerObserver) SetWorkerQueueDepth(string, int) {}

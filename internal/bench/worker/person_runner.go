@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -37,10 +39,16 @@ type PrepareChannelsRunner interface {
 // defaultWorkloadRunner builds and runs built-in workloads from worker assignments.
 type defaultWorkloadRunner struct {
 	clientFactory WorkloadClientFactory
+	// terminalFencePrepare obtains one target-published grant only after the
+	// product generation has closed and drained its write path. Tests replace
+	// this black-box HTTP seam without importing product internals.
+	terminalFencePrepare func(context.Context, Assignment, int) (frame.TerminalFenceGrant, error)
 
 	mu sync.Mutex
 	// replaceMu serializes traffic generation swaps that reuse one connection manager.
 	replaceMu sync.Mutex
+	// maintenanceMu serializes session repair/churn with generation replacement.
+	maintenanceMu sync.Mutex
 	// metrics stores worker-level counters for connection lifecycle events.
 	metrics *metrics.Registry
 	// runID is the assignment currently bound to manager and workloads.
@@ -53,14 +61,80 @@ type defaultWorkloadRunner struct {
 	personWorkloads []*benchworkload.PersonWorkload
 	// groupWorkloads contains the active group traffic executors for the active run.
 	groupWorkloads []*benchworkload.GroupWorkload
+	// fanoutProof is one assignment-generation witness shared by every socket
+	// wrapper and group workload rebuild. Churn must never reset it.
+	fanoutProof *benchworkload.GroupFanoutProof
+	// fanoutProofAssignmentID identifies the immutable assignment generation
+	// whose traffic is allowed to contribute to fanoutProof.
+	fanoutProofAssignmentID string
 	// archivedWorkloadMetrics contains at most one temporally merged snapshot of
 	// completed traffic generations, keeping long-running churn memory bounded.
 	archivedWorkloadMetrics []metrics.SnapshotData
 	// autoRecvAck controls and joins background recv-ack drains bound to the current run.
 	autoRecvAck *benchworkload.AutoRecvAckHandle
+	// receiveDrainRequired records whether the current assignment owns inbound
+	// processing that must converge before a terminal pre-close cut.
+	receiveDrainRequired bool
+	// receiveDrainTerminal retains the latest bounded cooldown result, including
+	// a non-converged failure snapshot.
+	receiveDrainTerminal    model.ReceiveDrainSnapshot
+	receiveDrainTerminalSet bool
+	// receiveDrain historical counters retain failures and receive progress from
+	// completed churn generations so a later clean generation cannot hide them
+	// or make the typed lifecycle timeline regress.
+	receiveDrainReadFailures   uint64
+	receiveDrainACKFailures    uint64
+	receiveDrainACKSuccesses   uint64
+	receiveDrainFramesObserved uint64
+	receiveDrainFramesDrained  uint64
+	// receiveDrainEvidenceLost retains an incomplete queue contract from any
+	// completed receive-drain generation.
+	receiveDrainEvidenceLost bool
 	// teardownErr preserves a terminal resource-release failure for this run so
 	// a retry cannot falsely acknowledge stopped after references were detached.
 	teardownErr error
+	// measuredTask owns admitted measured work after the SEND admission window
+	// closes. Cooldown joins this task before terminal evidence is collected;
+	// EndAssignment is the only successful-path boundary that closes sessions.
+	measuredTask *measuredTrafficTask
+	// terminalCut pauses only explicitly opted-in local cooldowns after internal
+	// convergence while an external observer captures exact pre-close evidence.
+	terminalCut terminalCutBarrier
+	// terminalCutRequiredConnections freezes the exact assignment-owned session
+	// count that must still be live when an external terminal cut is accepted.
+	terminalCutRequiredConnections int
+	// terminalSealedLifecycle retains the pre-close side of a receive proof that
+	// was verified unchanged after a server-confirmed ingress fence and reader join.
+	terminalSealedLifecycle *LifecycleStatus
+}
+
+// measuredTrafficTask separates the fixed SEND-admission window from the
+// bounded completion tail for SENDACK/RECV/RECVACK and retry processing.
+type measuredTrafficTask struct {
+	runID  string
+	cancel context.CancelFunc
+	done   chan struct{}
+	err    error
+}
+
+func (t *measuredTrafficTask) wait() error {
+	if t == nil {
+		return nil
+	}
+	<-t.done
+	return t.err
+}
+
+func (t *measuredTrafficTask) completed() (bool, error) {
+	if t == nil {
+		return true, nil
+	}
+	select {
+	case <-t.done:
+		return true, t.err
+	default:
+		return false, nil
+	}
 }
 
 // personWorkloadBundle binds one profile shard, one traffic stream, and its pairs.
@@ -85,7 +159,32 @@ type churnReplacement struct {
 
 // NewDefaultWorkloadRunner builds the built-in workload runner for in-process callers.
 func NewDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
-	return &defaultWorkloadRunner{clientFactory: factory, metrics: metrics.NewRegistry()}
+	return &defaultWorkloadRunner{
+		clientFactory:        factory,
+		metrics:              metrics.NewRegistry(),
+		terminalFencePrepare: prepareTargetTerminalFence,
+	}
+}
+
+func prepareTargetTerminalFence(ctx context.Context, assignment Assignment, expectedSessions int) (frame.TerminalFenceGrant, error) {
+	addrs := append([]string(nil), assignment.Target.BenchAPI.Addrs...)
+	if len(addrs) == 0 {
+		addrs = append(addrs, assignment.Target.API.Addrs...)
+	}
+	client := target.NewClient(target.Config{
+		APIAddrs: addrs,
+		Token:    assignment.Target.BenchAPI.Token,
+		// The worker's bounded cooldown context is the only terminal deadline.
+		// A shorter client-wide default must not truncate the reviewed 90s drain.
+		HTTPClient: &http.Client{},
+	})
+	grant, err := client.PrepareTerminalFence(ctx, model.TerminalFencePrepareRequest{
+		RunID: assignment.RunID, AssignmentID: assignment.AssignmentID, ExpectedSessions: expectedSessions,
+	})
+	if err != nil {
+		return frame.TerminalFenceGrant{}, fmt.Errorf("worker runner: prepare target terminal fence: %w", err)
+	}
+	return frame.TerminalFenceGrant{Epoch: grant.Epoch, Capability: grant.Capability}, nil
 }
 
 func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
@@ -94,6 +193,14 @@ func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
 
 func (r *defaultWorkloadRunner) BeginAssignment(assignment Assignment) {
 	r.beginRun(assignment.RunID, true)
+	requiredConnections := assignment.Plan.IdentityRange.Len()
+	if requiredConnections <= 0 && assignment.Scenario.Run.ExternalTerminalCut {
+		requiredConnections = assignment.Scenario.Online.TotalUsers
+	}
+	r.mu.Lock()
+	r.terminalCutRequiredConnections = requiredConnections
+	r.mu.Unlock()
+	r.terminalCut.begin(assignment)
 }
 
 // EndAssignment releases connections and background receive drains for a
@@ -103,6 +210,13 @@ func (r *defaultWorkloadRunner) EndAssignment(assignment Assignment) error {
 }
 
 func (r *defaultWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	proof, err := fanoutProofForAssignment(assignment)
+	if err != nil {
+		return err
+	}
+	if err := r.installAssignmentFanoutProof(assignment, proof); err != nil {
+		return err
+	}
 	if err := prepareBenchTokens(ctx, assignment); err != nil {
 		return err
 	}
@@ -113,8 +227,81 @@ func (r *defaultWorkloadRunner) PrepareChannels(ctx context.Context, assignment 
 	return prepareGroupChannels(ctx, assignment)
 }
 
+func fanoutProofForAssignment(assignment Assignment) (*benchworkload.GroupFanoutProof, error) {
+	if !assignment.Scenario.Run.ExternalTerminalCut {
+		return nil, nil
+	}
+	if !assignmentWantsRecvDrain(assignment) {
+		return nil, fmt.Errorf("worker runner: external terminal cut requires receive-drain traffic")
+	}
+	if !assignmentWantsRecvAck(assignment) {
+		return nil, fmt.Errorf("worker runner: external terminal cut requires recv_ack traffic")
+	}
+	if len(assignment.Scenario.Channels.Profiles) != 1 || len(assignment.Scenario.Messages.Traffic) != 1 {
+		return nil, fmt.Errorf("worker runner: external terminal cut fanout proof requires exactly one group profile and one traffic stream")
+	}
+	profile := assignment.Scenario.Channels.Profiles[0]
+	traffic := assignment.Scenario.Messages.Traffic[0]
+	if profile.ChannelType != model.ChannelTypeGroup || strings.TrimSpace(profile.Name) == "" ||
+		profile.Count <= 0 || strings.TrimSpace(traffic.ChannelRef) != strings.TrimSpace(profile.Name) || profile.Members.Count < 2 ||
+		profile.Shard.Mode != "hash" || profile.Online.MemberRatio != 1 ||
+		strings.TrimSpace(traffic.Verify.Recv.Mode) != "none" || !traffic.RecvAck {
+		return nil, fmt.Errorf("worker runner: external terminal cut fanout proof requires one exact fully-online hash group stream")
+	}
+	groupPlan, err := buildGroupExecutionPlan(assignment)
+	if err != nil {
+		return nil, fmt.Errorf("worker runner: external terminal cut fanout plan: %w", err)
+	}
+	shard, shardOK := assignment.Plan.Profiles[profile.Name]
+	if len(assignment.Plan.Profiles) != 1 || !shardOK || shard.ChannelType != model.ChannelTypeGroup ||
+		shard.ChannelRange.Start != 0 || shard.ChannelRange.End != profile.Count ||
+		shard.MemberRange != assignment.Plan.IdentityRange || shard.MemberReusePolicy != "allowed" ||
+		shard.TrafficPartitionCount != 0 || len(shard.OwnedTrafficPartitions) != 0 ||
+		len(groupPlan.bundles) != 1 || len(groupPlan.bundles[0].channels) != profile.Count {
+		return nil, fmt.Errorf("worker runner: external terminal cut fanout proof requires one complete group shard")
+	}
+	for _, channel := range groupPlan.bundles[0].channels {
+		if len(channel.OnlineMembers) != profile.Members.Count {
+			return nil, fmt.Errorf("worker runner: external terminal cut fanout proof requires complete online group membership")
+		}
+	}
+	proof, err := benchworkload.NewGroupFanoutProof(profile.Members.Count)
+	if err != nil {
+		return nil, fmt.Errorf("worker runner: create fanout proof: %w", err)
+	}
+	return proof, nil
+}
+
+func (r *defaultWorkloadRunner) installAssignmentFanoutProof(assignment Assignment, proof *benchworkload.GroupFanoutProof) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.runID != assignment.RunID {
+		return fmt.Errorf("worker runner: fanout proof assignment changed")
+	}
+	if assignment.Scenario.Run.ExternalTerminalCut {
+		if proof == nil || strings.TrimSpace(assignment.AssignmentID) == "" {
+			return fmt.Errorf("worker runner: external terminal cut fanout proof is unavailable")
+		}
+		r.fanoutProof = proof
+		r.fanoutProofAssignmentID = assignment.AssignmentID
+		return nil
+	}
+	r.fanoutProof = nil
+	r.fanoutProofAssignmentID = assignment.AssignmentID
+	return nil
+}
+
 func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
 	r.beginRun(assignment.RunID, false)
+	if assignment.Scenario.Run.ExternalTerminalCut && r.currentFanoutProof(assignment) == nil {
+		proof, err := fanoutProofForAssignment(assignment)
+		if err != nil {
+			return err
+		}
+		if err := r.installAssignmentFanoutProof(assignment, proof); err != nil {
+			return err
+		}
+	}
 	plan, err := buildPersonExecutionPlan(assignment)
 	if err != nil {
 		return err
@@ -137,7 +324,7 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		r.mergeConnectionMetrics(manager)
 		return markTargetUnavailable(err)
 	}
-	if err := r.rebuildTrafficFromManager(assignment, manager); err != nil {
+	if err := r.rebuildTrafficFromManager(ctx, assignment, manager); err != nil {
 		_ = manager.Close()
 		r.mergeConnectionMetrics(manager)
 		return err
@@ -203,25 +390,502 @@ func (r *defaultWorkloadRunner) ConnectionStatus() (int, uint64) {
 	return manager.ActiveCount(), reconnected
 }
 
+// LifecycleStatus returns the bounded measured-phase evidence consumed by the
+// local baseline sampler. The projection is computed in Go from validated
+// low-cardinality series; no identity-bearing metric or shell parsing is used.
+func (r *defaultWorkloadRunner) LifecycleStatus() LifecycleStatus {
+	r.mu.Lock()
+	if r.terminalSealedLifecycle != nil {
+		sealed := cloneLifecycleStatus(*r.terminalSealedLifecycle)
+		r.mu.Unlock()
+		return sealed
+	}
+	r.mu.Unlock()
+	active, reconnected := r.ConnectionStatus()
+	terminalCut := r.terminalCut.status()
+	receiveDrain := r.receiveDrainSnapshot()
+	return LifecycleStatus{
+		ActiveConnections:     active,
+		ReconnectedUsers:      reconnected,
+		Traffic:               trafficStatusFromMetrics(r.MetricsSnapshot()),
+		ReceiveDrain:          receiveDrain,
+		ReceiveDrainSHA256:    model.ReceiveDrainFingerprint(receiveDrain),
+		TerminalCutRequired:   terminalCut.Required,
+		TerminalCutReady:      terminalCut.Ready,
+		TerminalCutReadyAt:    terminalCut.ReadyAt,
+		TerminalCutDeadlineAt: terminalCut.DeadlineAt,
+		TerminalCut:           terminalCut.Binding,
+	}
+}
+
+func cloneLifecycleStatus(status LifecycleStatus) LifecycleStatus {
+	if status.TerminalCut != nil {
+		binding := *status.TerminalCut
+		status.TerminalCut = &binding
+	}
+	return status
+}
+
+// TerminalCutStatus returns the bounded state of the opt-in pre-close barrier.
+func (r *defaultWorkloadRunner) TerminalCutStatus() TerminalCutStatus {
+	return r.terminalCut.status()
+}
+
+// AcknowledgeTerminalCut immutably binds one exact external pre-close capture.
+func (r *defaultWorkloadRunner) AcknowledgeTerminalCut(request TerminalCutRequest) (TerminalCutBinding, error) {
+	r.mu.Lock()
+	activeRun := r.runID
+	requiredConnections := r.terminalCutRequiredConnections
+	r.mu.Unlock()
+	if strings.TrimSpace(request.RunID) == "" || request.RunID != activeRun {
+		return TerminalCutBinding{}, ErrTerminalCutNotReady
+	}
+	// Preserve exact-request idempotency after the first accepted ACK. Live
+	// sessions are intentionally allowed to close only after that immutable
+	// binding releases cooldown.
+	if r.terminalCut.status().Binding != nil {
+		return r.terminalCut.acknowledge(request)
+	}
+	lifecycle := r.LifecycleStatus()
+	if request.ReceiveDrainSHA256 != lifecycle.ReceiveDrainSHA256 {
+		return TerminalCutBinding{}, ErrTerminalCutNotReady
+	}
+	if lifecycle.ReceiveDrain.Required && !lifecycle.ReceiveDrain.TerminalProofComplete() {
+		r.mu.Lock()
+		r.receiveDrainTerminal = lifecycle.ReceiveDrain
+		r.receiveDrainTerminalSet = true
+		r.mu.Unlock()
+		return TerminalCutBinding{}, ErrTerminalCutNotReady
+	}
+	if !lifecycle.ReceiveDrain.FanoutProof.Required || !lifecycle.ReceiveDrain.FanoutProof.Complete() {
+		return TerminalCutBinding{}, ErrTerminalCutNotReady
+	}
+	if lifecycle.Traffic.Remaining != 0 || !lifecycle.ReceiveDrain.Required ||
+		requiredConnections <= 0 || lifecycle.ActiveConnections != requiredConnections ||
+		lifecycle.ReceiveDrain.ClientCount != uint64(requiredConnections) ||
+		lifecycle.ReceiveDrain.ActiveDrains != uint64(requiredConnections) ||
+		lifecycle.ReceiveDrain.QueueSnapshotClients != uint64(requiredConnections) {
+		return TerminalCutBinding{}, ErrTerminalCutNotReady
+	}
+	return r.terminalCut.acknowledge(request)
+}
+
+// SealTerminalReceive requests a server-confirmed ingress fence, stops and
+// joins the exact assignment's receive readers, and retains the live proof only
+// when the stopped cut reconciles with it. Unsupported transports fail closed
+// without publishing terminal pre-close evidence.
+func (r *defaultWorkloadRunner) SealTerminalReceive(ctx context.Context, assignment Assignment) error {
+	r.replaceMu.Lock()
+	defer r.replaceMu.Unlock()
+
+	cut := r.terminalCut.status()
+	if !cut.Required || cut.Binding == nil || cut.Binding.RunID != assignment.RunID ||
+		cut.Binding.AssignmentID != assignment.AssignmentID {
+		return ErrTerminalCutNotReady
+	}
+	r.mu.Lock()
+	if r.runID != assignment.RunID {
+		r.mu.Unlock()
+		return ErrTerminalCutNotReady
+	}
+	handle := r.autoRecvAck
+	manager := r.manager
+	proof := r.fanoutProof
+	requiredConnections := r.terminalCutRequiredConnections
+	r.mu.Unlock()
+	if handle == nil {
+		snapshot := r.receiveDrainSnapshot()
+		if snapshot.TerminalProofComplete() && snapshot.FanoutProof.Required && snapshot.FanoutProof.Complete() &&
+			model.ReceiveDrainFingerprint(snapshot) == cut.Binding.ReceiveDrainSHA256 {
+			return nil
+		}
+		return fmt.Errorf("worker runner: terminal receive evidence unavailable")
+	}
+
+	if manager == nil || manager.ActiveCount() != requiredConnections {
+		return fmt.Errorf("worker runner: terminal receive ingress coverage changed")
+	}
+	// Cooldown already established the target-published fence on every live
+	// session before exposing terminal-cut readiness. At stop we only rebuild
+	// the exact receive proof, join its readers, and compare the immutable cut;
+	// sending a second fence would create a different epoch boundary.
+	drained, stopped, err := handle.DrainAndStop(ctx)
+	drained = r.mergeReceiveDrainHistory(drained)
+	drained = attachFanoutProof(drained, proof)
+	stopped = attachFanoutProof(stopped, proof)
+	if err == nil && model.ReceiveDrainFingerprint(drained) != cut.Binding.ReceiveDrainSHA256 {
+		err = fmt.Errorf("terminal receive proof changed after acknowledgement")
+	}
+	r.archiveReceiveDrainGeneration(drained, stopped, err != nil)
+	if err != nil {
+		drained.EvidenceComplete = false
+		drained.DrainComplete = false
+		drained.StableZeroObservations = 0
+	}
+	traffic := trafficStatusFromMetrics(r.MetricsSnapshot())
+	r.mu.Lock()
+	if r.runID != assignment.RunID || r.autoRecvAck != handle {
+		r.mu.Unlock()
+		return fmt.Errorf("worker runner: receive generation changed while sealing run %q", assignment.RunID)
+	}
+	r.autoRecvAck = nil
+	r.receiveDrainTerminal = drained
+	r.receiveDrainTerminalSet = true
+	if err == nil && drained.TerminalProofComplete() {
+		binding := *cut.Binding
+		r.terminalSealedLifecycle = &LifecycleStatus{
+			ActiveConnections:     requiredConnections,
+			ReconnectedUsers:      atomic.LoadUint64(&r.reconnectedUsers),
+			Traffic:               traffic,
+			ReceiveDrain:          drained,
+			ReceiveDrainSHA256:    model.ReceiveDrainFingerprint(drained),
+			TerminalCutRequired:   true,
+			TerminalCutReady:      cut.Ready,
+			TerminalCutReadyAt:    cut.ReadyAt,
+			TerminalCutDeadlineAt: cut.DeadlineAt,
+			TerminalCut:           &binding,
+		}
+	}
+	r.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("worker runner: seal terminal receive: %w", err)
+	}
+	if !drained.TerminalProofComplete() {
+		return fmt.Errorf("worker runner: terminal receive proof is incomplete")
+	}
+	return nil
+}
+
+func (r *defaultWorkloadRunner) receiveDrainSnapshot() model.ReceiveDrainSnapshot {
+	r.mu.Lock()
+	required := r.receiveDrainRequired
+	proof := r.fanoutProof
+	handle := r.autoRecvAck
+	terminal := r.receiveDrainTerminal
+	terminalSet := r.receiveDrainTerminalSet
+	readFailures := r.receiveDrainReadFailures
+	ackFailures := r.receiveDrainACKFailures
+	ackSuccesses := r.receiveDrainACKSuccesses
+	framesObserved := r.receiveDrainFramesObserved
+	framesDrained := r.receiveDrainFramesDrained
+	evidenceLost := r.receiveDrainEvidenceLost
+	r.mu.Unlock()
+
+	if !required {
+		return model.ReceiveDrainNotRequired()
+	}
+	if terminalSet && handle == nil {
+		return attachFanoutProof(terminal, proof)
+	}
+	var snapshot model.ReceiveDrainSnapshot
+	if handle != nil {
+		snapshot = handle.Snapshot()
+	} else {
+		snapshot.Required = true
+	}
+	snapshot = mergeHistoricalReceiveDrain(snapshot, readFailures, ackFailures, ackSuccesses, framesObserved, framesDrained, evidenceLost)
+	snapshot = attachFanoutProof(snapshot, proof)
+	if terminalSet && snapshot.TerminalProofComplete() {
+		r.mu.Lock()
+		r.receiveDrainTerminal = snapshot
+		r.mu.Unlock()
+	}
+	return snapshot
+}
+
+func attachFanoutProof(snapshot model.ReceiveDrainSnapshot, proof *benchworkload.GroupFanoutProof) model.ReceiveDrainSnapshot {
+	if proof == nil {
+		snapshot.FanoutProof = model.FanoutProofNotRequired()
+		return snapshot
+	}
+	snapshot.FanoutProof = proof.Snapshot()
+	return snapshot
+}
+
+func mergeHistoricalReceiveDrain(snapshot model.ReceiveDrainSnapshot, readFailures, ackFailures, ackSuccesses, framesObserved, framesDrained uint64, evidenceLost bool) model.ReceiveDrainSnapshot {
+	if next, ok := checkedAddUint64(snapshot.ReadFailures, readFailures); ok {
+		snapshot.ReadFailures = next
+	} else {
+		snapshot.ReadFailures = ^uint64(0)
+		snapshot.EvidenceComplete = false
+	}
+	if next, ok := checkedAddUint64(snapshot.RecvACKFailures, ackFailures); ok {
+		snapshot.RecvACKFailures = next
+	} else {
+		snapshot.RecvACKFailures = ^uint64(0)
+		snapshot.EvidenceComplete = false
+	}
+	if next, ok := checkedAddUint64(snapshot.RecvACKSuccesses, ackSuccesses); ok {
+		snapshot.RecvACKSuccesses = next
+	} else {
+		snapshot.RecvACKSuccesses = ^uint64(0)
+		snapshot.EvidenceComplete = false
+	}
+	if next, ok := checkedAddUint64(snapshot.ReceiveFramesObserved, framesObserved); ok {
+		snapshot.ReceiveFramesObserved = next
+	} else {
+		snapshot.ReceiveFramesObserved = ^uint64(0)
+		snapshot.EvidenceComplete = false
+	}
+	if next, ok := checkedAddUint64(snapshot.BufferedFramesDrained, framesDrained); ok {
+		snapshot.BufferedFramesDrained = next
+	} else {
+		snapshot.BufferedFramesDrained = ^uint64(0)
+		snapshot.EvidenceComplete = false
+	}
+	if evidenceLost {
+		snapshot.EvidenceComplete = false
+	}
+	if !snapshot.ZeroCutComplete() {
+		snapshot.DrainComplete = false
+		snapshot.StableZeroObservations = 0
+	}
+	return snapshot
+}
+
+func (r *defaultWorkloadRunner) mergeReceiveDrainHistory(snapshot model.ReceiveDrainSnapshot) model.ReceiveDrainSnapshot {
+	r.mu.Lock()
+	readFailures := r.receiveDrainReadFailures
+	ackFailures := r.receiveDrainACKFailures
+	ackSuccesses := r.receiveDrainACKSuccesses
+	framesObserved := r.receiveDrainFramesObserved
+	framesDrained := r.receiveDrainFramesDrained
+	evidenceLost := r.receiveDrainEvidenceLost
+	r.mu.Unlock()
+	return mergeHistoricalReceiveDrain(snapshot, readFailures, ackFailures, ackSuccesses, framesObserved, framesDrained, evidenceLost)
+}
+
+func (r *defaultWorkloadRunner) archiveReceiveDrainGeneration(before, after model.ReceiveDrainSnapshot, failed bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if failed || !before.EvidenceComplete || !after.EvidenceComplete {
+		r.receiveDrainEvidenceLost = true
+	}
+	if next, ok := checkedAddUint64(r.receiveDrainReadFailures, after.ReadFailures); ok {
+		r.receiveDrainReadFailures = next
+	} else {
+		r.receiveDrainReadFailures = ^uint64(0)
+		r.receiveDrainEvidenceLost = true
+	}
+	if next, ok := checkedAddUint64(r.receiveDrainACKFailures, after.RecvACKFailures); ok {
+		r.receiveDrainACKFailures = next
+	} else {
+		r.receiveDrainACKFailures = ^uint64(0)
+		r.receiveDrainEvidenceLost = true
+	}
+	if next, ok := checkedAddUint64(r.receiveDrainACKSuccesses, after.RecvACKSuccesses); ok {
+		r.receiveDrainACKSuccesses = next
+	} else {
+		r.receiveDrainACKSuccesses = ^uint64(0)
+		r.receiveDrainEvidenceLost = true
+	}
+	if next, ok := checkedAddUint64(r.receiveDrainFramesObserved, after.ReceiveFramesObserved); ok {
+		r.receiveDrainFramesObserved = next
+	} else {
+		r.receiveDrainFramesObserved = ^uint64(0)
+		r.receiveDrainEvidenceLost = true
+	}
+	if next, ok := checkedAddUint64(r.receiveDrainFramesDrained, after.BufferedFramesDrained); ok {
+		r.receiveDrainFramesDrained = next
+	} else {
+		r.receiveDrainFramesDrained = ^uint64(0)
+		r.receiveDrainEvidenceLost = true
+	}
+}
+
+func (r *defaultWorkloadRunner) storeReceiveDrainTerminal(snapshot model.ReceiveDrainSnapshot) {
+	r.mu.Lock()
+	proof := r.fanoutProof
+	required := r.receiveDrainRequired
+	r.mu.Unlock()
+	if !required {
+		return
+	}
+	snapshot = attachFanoutProof(snapshot, proof)
+	r.mu.Lock()
+	if r.receiveDrainRequired {
+		r.receiveDrainTerminal = snapshot
+		r.receiveDrainTerminalSet = true
+	}
+	r.mu.Unlock()
+}
+
+func trafficStatusFromMetrics(snapshot metrics.SnapshotData) TrafficStatus {
+	status := TrafficStatus{
+		Planned:           measuredCounterSum(snapshot, "workload_scheduler_planned_total"),
+		Dispatched:        measuredCounterSum(snapshot, "workload_scheduler_dispatched_total"),
+		LogicalSent:       measuredCounterSum(snapshot, "logical_sent_total"),
+		SendAttempts:      measuredCounterSum(snapshot, "send_attempt_total"),
+		SendACKs:          measuredCounterSum(snapshot, "sendack_success_total"),
+		WarmupSendACKs:    exactPhaseCounterSum(snapshot, "sendack_success_total", "warmup"),
+		TerminalErrors:    measuredCounterSum(snapshot, "logical_terminal_error_total"),
+		CorrectnessErrors: measuredCounterSum(snapshot, "logical_correctness_error_total"),
+		RetryAttempts:     measuredCounterSum(snapshot, "retry_attempt_total"),
+		RetryExhausted:    measuredCounterSum(snapshot, "retry_exhausted_total"),
+	}
+	status.Remaining, _ = measuredExactUintGauge(snapshot, "logical_remaining")
+	logicalIdentities := measuredCounterSum(snapshot, "logical_identity_total")
+	attemptRecords := measuredCounterSum(snapshot, "attempt_record_total")
+	mismatches := measuredCounterSum(snapshot, "client_msg_no_mismatch_total")
+	configuredAttempts, configuredOK := measuredUniformUintGauge(snapshot, "configured_maximum_attempts")
+	maximumObserved, observedOK := measuredMaximumUintGauge(snapshot, "maximum_observed_attempts")
+	if configuredOK && configuredAttempts == model.TrafficRetryMaximumAttempts {
+		status.MaximumRetriesPerMessage = model.TrafficRetryMaximumRetries
+	}
+	status.StableClientMsgNo = status.LogicalSent > 0 && logicalIdentities == status.LogicalSent &&
+		attemptRecords == status.SendAttempts && mismatches == 0
+	terminal, terminalOK := checkedAddUint64(status.SendACKs, status.TerminalErrors)
+	attempts, attemptsOK := checkedAddUint64(status.LogicalSent, status.RetryAttempts)
+	settled, settledOK := checkedAddUint64(terminal, status.Remaining)
+	maximumRetryAttempts, maximumRetryOK := checkedMultiplyUint64(status.LogicalSent, model.TrafficRetryMaximumRetries)
+	status.RetryEvidenceComplete = status.StableClientMsgNo && configuredOK && observedOK &&
+		configuredAttempts == model.TrafficRetryMaximumAttempts && maximumObserved >= 1 &&
+		maximumObserved <= model.TrafficRetryMaximumAttempts && terminalOK && settledOK &&
+		settled == status.LogicalSent && attemptsOK && attempts == status.SendAttempts && maximumRetryOK &&
+		status.RetryAttempts <= maximumRetryAttempts
+	return status
+}
+
+func measuredCounterSum(snapshot metrics.SnapshotData, wanted string) uint64 {
+	var total uint64
+	for key, value := range snapshot.Counters {
+		name, labels, err := metrics.ParseSeries(key)
+		if err != nil || name != wanted || !measuredPhaseLabel(labels["phase"]) {
+			continue
+		}
+		if next, ok := checkedAddUint64(total, value); ok {
+			total = next
+		} else {
+			return ^uint64(0)
+		}
+	}
+	return total
+}
+
+func exactPhaseCounterSum(snapshot metrics.SnapshotData, wanted, phase string) uint64 {
+	var total uint64
+	for key, value := range snapshot.Counters {
+		name, labels, err := metrics.ParseSeries(key)
+		if err != nil || name != wanted || labels["phase"] != phase {
+			continue
+		}
+		if next, ok := checkedAddUint64(total, value); ok {
+			total = next
+		} else {
+			return ^uint64(0)
+		}
+	}
+	return total
+}
+
+func measuredExactUintGauge(snapshot metrics.SnapshotData, wanted string) (uint64, bool) {
+	var total float64
+	found := false
+	for key, value := range snapshot.Gauges {
+		name, labels, err := metrics.ParseSeries(key)
+		if err != nil || name != wanted || !measuredPhaseLabel(labels["phase"]) {
+			continue
+		}
+		found = true
+		total += value
+	}
+	if !found || total < 0 || total > math.MaxUint64 || math.Trunc(total) != total {
+		return 0, false
+	}
+	return uint64(total), true
+}
+
+func measuredUniformUintGauge(snapshot metrics.SnapshotData, wanted string) (uint64, bool) {
+	var expected uint64
+	found := false
+	for key, value := range snapshot.Gauges {
+		name, labels, err := metrics.ParseSeries(key)
+		if err != nil || name != wanted || !measuredPhaseLabel(labels["phase"]) {
+			continue
+		}
+		if value < 0 || value > math.MaxUint64 || math.Trunc(value) != value {
+			return 0, false
+		}
+		current := uint64(value)
+		if found && current != expected {
+			return 0, false
+		}
+		expected = current
+		found = true
+	}
+	return expected, found
+}
+
+func measuredMaximumUintGauge(snapshot metrics.SnapshotData, wanted string) (uint64, bool) {
+	var maximum uint64
+	found := false
+	for key, value := range snapshot.Gauges {
+		name, labels, err := metrics.ParseSeries(key)
+		if err != nil || name != wanted || !measuredPhaseLabel(labels["phase"]) {
+			continue
+		}
+		if value < 0 || value > math.MaxUint64 || math.Trunc(value) != value {
+			return 0, false
+		}
+		current := uint64(value)
+		if !found || current > maximum {
+			maximum = current
+		}
+		found = true
+	}
+	return maximum, found
+}
+
+func measuredPhaseLabel(phase string) bool {
+	return phase == "run" || strings.HasPrefix(phase, "run-window-")
+}
+
+func checkedAddUint64(left, right uint64) (uint64, bool) {
+	if left > ^uint64(0)-right {
+		return 0, false
+	}
+	return left + right, true
+}
+
+func checkedMultiplyUint64(left uint64, right int) (uint64, bool) {
+	if right < 0 || (right != 0 && left > ^uint64(0)/uint64(right)) {
+		return 0, false
+	}
+	return left * uint64(right), true
+}
+
 // ResetTraffic rebuilds traffic workloads while keeping the active sessions open.
 func (r *defaultWorkloadRunner) ResetTraffic(assignment Assignment) error {
+	r.maintenanceMu.Lock()
+	defer r.maintenanceMu.Unlock()
 	manager, err := r.managerForRun(assignment.RunID)
 	if err != nil {
 		return err
 	}
-	return r.rebuildTrafficFromManager(assignment, manager)
+	budget := assignment.Scenario.Run.Cooldown
+	if budget <= 0 {
+		budget = 30 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
+	defer cancel()
+	return r.rebuildTrafficFromManager(ctx, assignment, manager)
 }
 
 // RecoverTraffic repairs failed sessions and rebuilds workloads for the next traffic window.
 func (r *defaultWorkloadRunner) RecoverTraffic(ctx context.Context, assignment Assignment, cause error) error {
+	r.maintenanceMu.Lock()
+	defer r.maintenanceMu.Unlock()
 	manager, err := r.managerForRun(assignment.RunID)
 	if err != nil {
 		return err
 	}
+	if err := r.stopCurrentReceiveGeneration(ctx, assignment.RunID); err != nil {
+		return markTargetUnavailable(err)
+	}
 	if err := r.repairSessions(ctx, assignment, manager, cause); err != nil {
 		return markTargetUnavailable(err)
 	}
-	return r.rebuildTrafficFromManager(assignment, manager)
+	return r.rebuildTrafficFromManager(ctx, assignment, manager)
 }
 
 func (r *defaultWorkloadRunner) managerForRun(runID string) (*benchworkload.ConnectionManager, error) {
@@ -261,7 +925,7 @@ func (r *defaultWorkloadRunner) repairSessions(ctx context.Context, assignment A
 	return nil
 }
 
-func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment, manager *benchworkload.ConnectionManager) error {
+func (r *defaultWorkloadRunner) rebuildTrafficFromManager(ctx context.Context, assignment Assignment, manager *benchworkload.ConnectionManager) error {
 	plan, err := buildPersonExecutionPlan(assignment)
 	if err != nil {
 		return err
@@ -272,28 +936,38 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 	}
 	users := mergeConnectionUsers(plan.users, groupPlan.users, identityRangeUsers(assignment))
 	if len(users) == 0 {
-		return r.replaceTrafficGeneration(assignment.RunID, manager, nil, nil, nil)
+		return r.replaceTrafficGeneration(ctx, assignment.RunID, manager, nil, nil, nil)
 	}
 	rawClients, err := personClientsFromManager(manager, users)
 	if err != nil {
 		return err
 	}
-	clients := benchworkload.WrapPersonClientsForConcurrentReads(rawClients)
+	r.mu.Lock()
+	proof := r.fanoutProof
+	proofAssignmentID := r.fanoutProofAssignmentID
+	r.mu.Unlock()
+	if assignment.Scenario.Run.ExternalTerminalCut && (proof == nil || proofAssignmentID != assignment.AssignmentID) {
+		return fmt.Errorf("worker runner: external terminal cut fanout proof is not bound to assignment")
+	}
+	clients := benchworkload.WrapPersonClientsForConcurrentReadsWithFanoutProof(rawClients, proof)
 	workloads, err := buildPersonWorkloads(assignment, plan.bundles, clients)
 	if err != nil {
 		return err
 	}
-	groupWorkloads, err := buildGroupWorkloads(assignment, groupPlan.bundles, clients)
+	groupWorkloads, err := buildGroupWorkloads(assignment, groupPlan.bundles, clients, proof)
 	if err != nil {
 		return err
 	}
 	var startAutoRecvAck func() *benchworkload.AutoRecvAckHandle
 	if assignmentWantsRecvDrain(assignment) {
 		startAutoRecvAck = func() *benchworkload.AutoRecvAckHandle {
-			return benchworkload.StartAutoRecvAckHandleWithOptions(autoRecvAckClients(clients, plan.users, groupPlan.users), autoRecvAckOptionsForAssignment(assignment))
+			return benchworkload.StartAutoRecvAckHandleWithOptions(
+				autoRecvAckClients(clients, plan.users, groupPlan.users, identityRangeUsers(assignment)),
+				autoRecvAckOptionsForAssignment(assignment),
+			)
 		}
 	}
-	return r.replaceTrafficGeneration(assignment.RunID, manager, workloads, groupWorkloads, startAutoRecvAck)
+	return r.replaceTrafficGeneration(ctx, assignment.RunID, manager, workloads, groupWorkloads, startAutoRecvAck)
 }
 
 // MetricsSnapshot returns the merged metrics from active worker-local workloads.
@@ -350,6 +1024,23 @@ func spatialWorkloadMetrics(personWorkloads []*benchworkload.PersonWorkload, gro
 		return metrics.SnapshotData{}, false, nil
 	}
 	aggregated, err := metrics.Aggregate(snapshots)
+	if err == nil {
+		for _, gaugeName := range []string{"configured_maximum_attempts", "maximum_observed_attempts"} {
+			for key := range aggregated.Gauges {
+				name, _, parseErr := metrics.ParseSeries(key)
+				if parseErr != nil || name != gaugeName {
+					continue
+				}
+				var maximum float64
+				for _, snapshot := range snapshots {
+					if value := snapshot.Metrics.Gauges[key]; value > maximum {
+						maximum = value
+					}
+				}
+				aggregated.Gauges[key] = maximum
+			}
+		}
+	}
 	return aggregated, true, err
 }
 
@@ -414,18 +1105,98 @@ func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignmen
 }
 
 func (r *defaultWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
-	if assignment.Scenario.Online.Churn.Enabled {
-		return r.runWithScheduledChurn(ctx, assignment)
-	}
-	return r.runPhaseWithIdleHold(ctx, assignment, assignment.Scenario.Run.Duration, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
-		if person != nil {
-			return person.Run(phaseCtx)
+	if assignment.Scenario.Run.Duration <= 0 {
+		if assignment.Scenario.Online.Churn.Enabled {
+			return r.runWithScheduledChurn(ctx, assignment)
 		}
-		return group.Run(phaseCtx)
-	})
+		return r.runPhaseWithIdleHold(ctx, assignment, 0, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+			if person != nil {
+				return person.Run(phaseCtx)
+			}
+			return group.Run(phaseCtx)
+		})
+	}
+	deadline := time.Now().Add(assignment.Scenario.Run.Duration)
+	task, err := r.startMeasuredTrafficTask(assignment, deadline)
+	if err != nil {
+		return err
+	}
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		task.cancel()
+		_ = task.wait()
+		r.clearMeasuredTrafficTask(task)
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	case <-task.done:
+		if task.err != nil {
+			r.clearMeasuredTrafficTask(task)
+			return task.err
+		}
+		if err := sleepContext(ctx, time.Until(deadline)); err != nil {
+			r.clearMeasuredTrafficTask(task)
+			return err
+		}
+		return nil
+	}
+}
+
+func (r *defaultWorkloadRunner) startMeasuredTrafficTask(assignment Assignment, admissionDeadline time.Time) (*measuredTrafficTask, error) {
+	r.mu.Lock()
+	if r.runID != assignment.RunID {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("worker runner: cannot start measured traffic for inactive run %q", assignment.RunID)
+	}
+	if r.measuredTask != nil {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("worker runner: measured traffic is already active for run %q", assignment.RunID)
+	}
+	taskCtx, cancel := context.WithCancel(context.Background())
+	task := &measuredTrafficTask{runID: assignment.RunID, cancel: cancel, done: make(chan struct{})}
+	r.measuredTask = task
+	r.mu.Unlock()
+
+	go func() {
+		if assignment.Scenario.Online.Churn.Enabled {
+			task.err = r.runWithScheduledChurnUntil(taskCtx, assignment, admissionDeadline)
+		} else {
+			task.err = r.runPhaseWithIdleHold(taskCtx, assignment, assignment.Scenario.Run.Duration, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+				if person != nil {
+					return person.RunUntil(phaseCtx, admissionDeadline)
+				}
+				return group.RunUntil(phaseCtx, admissionDeadline)
+			})
+		}
+		close(task.done)
+	}()
+	return task, nil
+}
+
+func (r *defaultWorkloadRunner) clearMeasuredTrafficTask(task *measuredTrafficTask) {
+	r.mu.Lock()
+	if r.measuredTask == task {
+		r.measuredTask = nil
+	}
+	r.mu.Unlock()
+}
+
+func (r *defaultWorkloadRunner) currentMeasuredTrafficTask(runID string) *measuredTrafficTask {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.runID != runID || r.measuredTask == nil || r.measuredTask.runID != runID {
+		return nil
+	}
+	return r.measuredTask
 }
 
 func (r *defaultWorkloadRunner) runWithScheduledChurn(ctx context.Context, assignment Assignment) error {
+	return r.runWithScheduledChurnUntil(ctx, assignment, time.Time{})
+}
+
+func (r *defaultWorkloadRunner) runWithScheduledChurnUntil(ctx context.Context, assignment Assignment, admissionDeadline time.Time) error {
 	churn := assignment.Scenario.Online.Churn
 	remaining := assignment.Scenario.Run.Duration
 	if remaining <= 0 || churn.Interval <= 0 {
@@ -441,20 +1212,34 @@ func (r *defaultWorkloadRunner) runWithScheduledChurn(ctx context.Context, assig
 	}
 	swapGenerations := make([]int, identityCount)
 	for cycle := 1; remaining > 0; cycle++ {
+		if !admissionDeadline.IsZero() && !time.Now().Before(admissionDeadline) {
+			return nil
+		}
 		window := min(remaining, churn.Interval)
+		windowDeadline := time.Now().Add(window)
+		if !admissionDeadline.IsZero() && admissionDeadline.Before(windowDeadline) {
+			windowDeadline = admissionDeadline
+		}
 		if err := r.runPhaseWithIdleHold(ctx, assignment, window, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 			if person != nil {
-				return person.RunMeasuredWindow(phaseCtx, window, cycle)
+				return person.RunMeasuredWindowUntil(phaseCtx, window, cycle, windowDeadline)
 			}
-			return group.RunMeasuredWindow(phaseCtx, window, cycle)
+			return group.RunMeasuredWindowUntil(phaseCtx, window, cycle, windowDeadline)
 		}); err != nil {
 			return err
 		}
 		remaining -= window
-		if remaining <= 0 {
+		if remaining <= 0 || (!admissionDeadline.IsZero() && !time.Now().Before(admissionDeadline)) {
 			return nil
 		}
-		if err := r.applyScheduledChurn(ctx, &assignment, cycle, swapGenerations); err != nil {
+		maintenanceCtx := ctx
+		cancelMaintenance := func() {}
+		if !admissionDeadline.IsZero() {
+			maintenanceCtx, cancelMaintenance = context.WithDeadline(ctx, admissionDeadline)
+		}
+		err := r.applyScheduledChurn(maintenanceCtx, &assignment, cycle, swapGenerations)
+		cancelMaintenance()
+		if err != nil {
 			return markTargetUnavailable(err)
 		}
 	}
@@ -462,6 +1247,8 @@ func (r *defaultWorkloadRunner) runWithScheduledChurn(ctx context.Context, assig
 }
 
 func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignment *Assignment, cycle int, swapGenerations []int) error {
+	r.maintenanceMu.Lock()
+	defer r.maintenanceMu.Unlock()
 	manager, err := r.managerForRun(assignment.RunID)
 	if err != nil {
 		return err
@@ -494,10 +1281,6 @@ func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignm
 		identityIndex := assignment.Plan.OnlineIdentityIndexes[offset]
 		sameUsers = append(sameUsers, connectionUserForIdentityIndex(assignment.Scenario.Identity, identityIndex))
 	}
-	if err := manager.ReconnectUsers(ctx, sameUsers); err != nil {
-		return err
-	}
-
 	onlineTotal := assignment.Scenario.Online.TotalUsers
 	totalUsers := assignment.Scenario.Identity.TotalUsers
 	offlineLanes := 0
@@ -524,17 +1307,22 @@ func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignm
 	if err := prepareChurnTokens(ctx, *assignment, cycle, replacements); err != nil {
 		return err
 	}
+	if err := prepareChurnGroupSubscriberSwaps(ctx, *assignment, cycle, replacements); err != nil {
+		return err
+	}
+	if err := r.stopCurrentReceiveGeneration(ctx, assignment.RunID); err != nil {
+		return err
+	}
+	if err := manager.ReconnectUsers(ctx, sameUsers); err != nil {
+		return err
+	}
 	for _, item := range replacements {
 		if _, err := manager.ReplaceUser(ctx, item.oldUID, item.user); err != nil {
 			return err
 		}
 		assignment.Plan.OnlineIdentityIndexes[item.offset] = item.identityIndex
 	}
-	if err := prepareChurnGroupSubscriberSwaps(ctx, *assignment, cycle, replacements); err != nil {
-		return err
-	}
-
-	if err := r.rebuildTrafficFromManager(*assignment, manager); err != nil {
+	if err := r.rebuildTrafficFromManager(ctx, *assignment, manager); err != nil {
 		return err
 	}
 	r.mu.Lock()
@@ -550,13 +1338,131 @@ func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignm
 }
 
 func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
-	err := r.runPhaseWithIdleHold(ctx, assignment, assignment.Scenario.Run.Cooldown, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
-		if person != nil {
-			return person.Cooldown(phaseCtx)
+	budget := assignment.Scenario.Run.Cooldown
+	if budget <= 0 {
+		snapshot := r.receiveDrainSnapshot()
+		r.storeReceiveDrainTerminal(snapshot)
+		if task := r.currentMeasuredTrafficTask(assignment.RunID); task != nil {
+			task.cancel()
+			_ = task.wait()
+			r.clearMeasuredTrafficTask(task)
+			return fmt.Errorf("worker runner: measured traffic did not drain before zero cooldown deadline")
 		}
-		return group.Cooldown(phaseCtx)
-	})
-	return errors.Join(err, r.closeCurrent(assignment.RunID))
+		if !snapshot.TerminalProofComplete() {
+			return fmt.Errorf("worker runner: receive drain did not converge before zero cooldown deadline")
+		}
+		if assignment.Scenario.Run.ExternalTerminalCut {
+			if !snapshot.FanoutProof.Required || !snapshot.FanoutProof.Complete() {
+				return fmt.Errorf("worker runner: fanout proof is incomplete")
+			}
+			return fmt.Errorf("worker runner: external terminal cut did not complete before zero cooldown deadline")
+		}
+		return nil
+	}
+	drainCtx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+
+	task := r.currentMeasuredTrafficTask(assignment.RunID)
+	if task != nil {
+		select {
+		case <-task.done:
+			r.clearMeasuredTrafficTask(task)
+			if task.err != nil {
+				r.storeReceiveDrainTerminal(r.receiveDrainSnapshot())
+				return task.err
+			}
+		case <-drainCtx.Done():
+			completed, taskErr := task.completed()
+			if !completed {
+				task.cancel()
+				taskErr = task.wait()
+			}
+			r.clearMeasuredTrafficTask(task)
+			if taskErr == nil {
+				break
+			}
+			r.storeReceiveDrainTerminal(r.receiveDrainSnapshot())
+			if completed {
+				return taskErr
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("worker runner: measured traffic drain exceeded %s", budget)
+		}
+	}
+
+	r.mu.Lock()
+	required := r.receiveDrainRequired
+	handle := r.autoRecvAck
+	r.mu.Unlock()
+	if !required {
+		snapshot := model.ReceiveDrainNotRequired()
+		r.storeReceiveDrainTerminal(snapshot)
+		return r.terminalCut.wait(drainCtx, assignment)
+	}
+	if handle == nil {
+		snapshot := model.ReceiveDrainSnapshot{Required: true}
+		r.storeReceiveDrainTerminal(snapshot)
+		return fmt.Errorf("worker runner: receive drain evidence unavailable")
+	}
+	snapshot, err := handle.WaitDrained(drainCtx)
+	snapshot = r.mergeReceiveDrainHistory(snapshot)
+	r.storeReceiveDrainTerminal(snapshot)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("worker runner: receive drain exceeded %s", budget)
+		}
+		return fmt.Errorf("worker runner: receive drain failed: %w", err)
+	}
+	if assignment.Scenario.Run.ExternalTerminalCut {
+		r.mu.Lock()
+		manager := r.manager
+		requiredConnections := r.terminalCutRequiredConnections
+		prepare := r.terminalFencePrepare
+		r.mu.Unlock()
+		if manager == nil || requiredConnections <= 0 || manager.ActiveCount() != requiredConnections {
+			return fmt.Errorf("worker runner: terminal fence session coverage changed")
+		}
+		if prepare == nil {
+			return fmt.Errorf("worker runner: target terminal fence preparation unavailable")
+		}
+		grant, prepareErr := prepare(drainCtx, assignment, requiredConnections)
+		if prepareErr != nil {
+			return prepareErr
+		}
+		if err := manager.SealIngressWithFence(drainCtx, grant); err != nil {
+			return fmt.Errorf("worker runner: establish terminal session fence: %w", err)
+		}
+		// The decoded ACK orders all pre-fence RECV frames before this cut. Rebuild
+		// temporal zero evidence after every client has acknowledged the epoch.
+		snapshot, err = handle.WaitDrained(drainCtx)
+		snapshot = r.mergeReceiveDrainHistory(snapshot)
+		snapshot = attachFanoutProof(snapshot, r.currentFanoutProof(assignment))
+		r.storeReceiveDrainTerminal(snapshot)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("worker runner: post-fence receive drain failed: %w", err)
+		}
+		if !snapshot.FanoutProof.Required || !snapshot.FanoutProof.Complete() {
+			return fmt.Errorf("worker runner: fanout proof is incomplete")
+		}
+	}
+	return r.terminalCut.wait(drainCtx, assignment)
+}
+
+func (r *defaultWorkloadRunner) currentFanoutProof(assignment Assignment) *benchworkload.GroupFanoutProof {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.runID != assignment.RunID || r.fanoutProofAssignmentID != assignment.AssignmentID {
+		return nil
+	}
+	return r.fanoutProof
 }
 
 func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
@@ -702,6 +1608,7 @@ func buildPersonWorkloads(assignment Assignment, bundles []personWorkloadBundle,
 			WarmupDuration:   assignment.Scenario.Run.Warmup,
 			CooldownDuration: assignment.Scenario.Run.Cooldown,
 			AckTimeout:       bundle.traffic.AckTimeout,
+			RetryEnabled:     bundle.traffic.Retry.Enabled,
 			RecvTimeout:      bundle.traffic.RecvTimeout,
 			VerifyRecvMode:   bundle.traffic.Verify.Recv.Mode,
 			RecvAck:          bundle.traffic.RecvAck,
@@ -973,7 +1880,7 @@ func mappedOnlineIdentityIndex(workerPlan model.WorkerPlan, logicalIndex int) in
 	return workerPlan.OnlineIdentityIndexes[logicalIndex-workerPlan.IdentityRange.Start]
 }
 
-func (r *defaultWorkloadRunner) replaceTrafficGeneration(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, startAutoRecvAck func() *benchworkload.AutoRecvAckHandle) error {
+func (r *defaultWorkloadRunner) replaceTrafficGeneration(ctx context.Context, runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, startAutoRecvAck func() *benchworkload.AutoRecvAckHandle) error {
 	r.replaceMu.Lock()
 	defer r.replaceMu.Unlock()
 
@@ -986,15 +1893,18 @@ func (r *defaultWorkloadRunner) replaceTrafficGeneration(runID string, manager *
 	previousManager := r.manager
 	r.autoRecvAck = nil
 	r.mu.Unlock()
-
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if previousAutoRecvAck != nil {
-		previousAutoRecvAck.Cancel()
+		drained, stopped, err := previousAutoRecvAck.DrainAndStop(ctx)
+		r.archiveReceiveDrainGeneration(drained, stopped, err != nil)
+		if err != nil {
+			return fmt.Errorf("worker runner: drain previous receive generation: %w", err)
+		}
 	}
 	if previousManager != nil && previousManager != manager {
 		_ = previousManager.Close()
-	}
-	if previousAutoRecvAck != nil {
-		previousAutoRecvAck.Wait()
 	}
 
 	var autoRecvAck *benchworkload.AutoRecvAckHandle
@@ -1022,7 +1932,38 @@ func (r *defaultWorkloadRunner) replaceTrafficGeneration(runID string, manager *
 	r.personWorkloads = personWorkloads
 	r.groupWorkloads = groupWorkloads
 	r.autoRecvAck = autoRecvAck
+	if autoRecvAck != nil {
+		r.receiveDrainRequired = true
+	}
+	r.receiveDrainTerminal = model.ReceiveDrainSnapshot{}
+	r.receiveDrainTerminalSet = false
 	r.mu.Unlock()
+	return nil
+}
+
+func (r *defaultWorkloadRunner) stopCurrentReceiveGeneration(ctx context.Context, runID string) error {
+	r.replaceMu.Lock()
+	defer r.replaceMu.Unlock()
+
+	r.mu.Lock()
+	if r.runID != runID {
+		r.mu.Unlock()
+		return fmt.Errorf("worker runner: cannot drain traffic for inactive run %q", runID)
+	}
+	previous := r.autoRecvAck
+	r.autoRecvAck = nil
+	r.mu.Unlock()
+	if previous == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	drained, stopped, err := previous.DrainAndStop(ctx)
+	r.archiveReceiveDrainGeneration(drained, stopped, err != nil)
+	if err != nil {
+		return fmt.Errorf("worker runner: drain previous receive generation: %w", err)
+	}
 	return nil
 }
 
@@ -1069,6 +2010,11 @@ func (r *defaultWorkloadRunner) snapshot(runID string) ([]*benchworkload.PersonW
 }
 
 func (r *defaultWorkloadRunner) closeCurrent(runID string) error {
+	if task := r.currentMeasuredTrafficTask(runID); task != nil {
+		task.cancel()
+		_ = task.wait()
+		r.clearMeasuredTrafficTask(task)
+	}
 	r.mu.Lock()
 	if r.runID != runID {
 		r.mu.Unlock()
@@ -1086,6 +2032,10 @@ func (r *defaultWorkloadRunner) closeCurrent(runID string) error {
 	r.manager = nil
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
+	if r.fanoutProof == nil || r.terminalSealedLifecycle != nil {
+		r.fanoutProof = nil
+		r.fanoutProofAssignmentID = ""
+	}
 	r.mu.Unlock()
 
 	if autoRecvAck != nil {
@@ -1149,8 +2099,21 @@ func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	atomic.StoreUint64(&r.reconnectedUsers, 0)
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
+	r.fanoutProof = nil
+	r.fanoutProofAssignmentID = ""
 	r.archivedWorkloadMetrics = nil
 	r.metrics = metrics.NewRegistry()
+	r.receiveDrainRequired = false
+	r.receiveDrainTerminal = model.ReceiveDrainSnapshot{}
+	r.receiveDrainTerminalSet = false
+	r.receiveDrainReadFailures = 0
+	r.receiveDrainACKFailures = 0
+	r.receiveDrainACKSuccesses = 0
+	r.receiveDrainFramesObserved = 0
+	r.receiveDrainFramesDrained = 0
+	r.receiveDrainEvidenceLost = false
+	r.terminalCutRequiredConnections = 0
+	r.terminalSealedLifecycle = nil
 	r.mu.Unlock()
 
 	if autoRecvAck != nil {

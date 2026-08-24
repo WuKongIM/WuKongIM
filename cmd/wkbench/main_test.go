@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
+	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/bench/messageevent"
 )
 
@@ -70,6 +71,14 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	nativeHandler := handler.(*hostMetricsHandler)
+	totals, ok := readHostCPUTotals()
+	if !ok || totals.total == 0 {
+		t.Fatal("native CPU totals unavailable")
+	}
+	nativeHandler.previousCPU = totals
+	nativeHandler.previousCPU.total--
+	nativeHandler.previousCPUSet = true
 	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -79,6 +88,8 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	for _, want := range []string{
 		`node_filesystem_size_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
 		`node_filesystem_avail_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
+		`wkbench_host_cpu_busy_percent `,
+		`wkbench_host_memory_used_percent `,
 		`wukongim_process_up{unit="wukongim.service"} 0`,
 	} {
 		if !strings.Contains(response.Body.String(), want) {
@@ -113,6 +124,1011 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("stale collector timestamp status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 	}
+
+	processTarget := filepath.Join(temporary, "processes-target.prom")
+	if err := os.WriteFile(processTarget, []byte(processMetrics), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(processPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(processTarget, processPath); err != nil {
+		t.Fatal(err)
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("symlinked process evidence status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHostMetricsServesProcessSnapshotDuringAtomicPublication(t *testing.T) {
+	temporary := t.TempDir()
+	processPath := filepath.Join(temporary, "processes.prom")
+	processMetrics := []byte(fmt.Sprintf(
+		"wukongim_process_up{unit=\"wukongim.service\"} 1\nwukongim_process_collector_last_success_unixtime_seconds %d\n",
+		time.Now().Unix(),
+	))
+	if err := os.WriteFile(processPath, processMetrics, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := newHostMetricsHandler(hostMetricsConfig{
+		path: temporary, mountpoint: "/var/lib/wukongim-1", device: "/dev/local-data-1",
+		processMetricsPath: processPath, physicalIO: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stop := make(chan struct{})
+	writerErrors := make(chan error, 1)
+	var writers sync.WaitGroup
+	for writerID := 0; writerID < 4; writerID++ {
+		writerID := writerID
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+			for sequence := 0; ; sequence++ {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				temporaryPath := filepath.Join(temporary, fmt.Sprintf("processes.prom.next.%d.%d", writerID, sequence))
+				if err := os.WriteFile(temporaryPath, processMetrics, 0o600); err != nil {
+					select {
+					case writerErrors <- err:
+					default:
+					}
+					return
+				}
+				if err := os.Rename(temporaryPath, processPath); err != nil {
+					select {
+					case writerErrors <- err:
+					default:
+					}
+					return
+				}
+			}
+		}()
+	}
+	t.Cleanup(func() {
+		close(stop)
+		writers.Wait()
+	})
+
+	for attempt := 0; attempt < 3_000; attempt++ {
+		select {
+		case err := <-writerErrors:
+			t.Fatalf("atomic process metrics publisher failed: %v", err)
+		default:
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("metrics request %d status/body = %d/%q, want a complete atomically published snapshot", attempt, response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `wukongim_process_up{unit="wukongim.service"} 1`) {
+			t.Fatalf("metrics request %d omitted the atomically published process snapshot", attempt)
+		}
+	}
+}
+
+func TestHostMetricsNativeResourceCollectors(t *testing.T) {
+	totals, ok := readHostCPUTotals()
+	if !ok || totals.total == 0 || totals.idle > totals.total {
+		t.Fatalf("host CPU totals = %+v/%v, want a valid native sample", totals, ok)
+	}
+	memory, ok := hostMemoryUsedPercent()
+	if !ok || memory < 0 || memory > 100 {
+		t.Fatalf("host memory used percent = %v/%v, want a value in [0,100]", memory, ok)
+	}
+}
+
+func TestHostMetricsCPUPercentIsStableAcrossDuplicateScrapes(t *testing.T) {
+	directory := t.TempDir()
+	handlerValue, err := newHostMetricsHandler(hostMetricsConfig{
+		path: directory, mountpoint: "/data", device: "/dev/data", physicalIO: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := handlerValue.(*hostMetricsHandler)
+	handler.previousCPU = hostCPUTotals{total: 100, idle: 40}
+	handler.previousCPUSet = true
+	handler.readCPUTotals = func() (hostCPUTotals, bool) {
+		return hostCPUTotals{total: 200, idle: 80}, true
+	}
+
+	for requestIndex := 0; requestIndex < 2; requestIndex++ {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("request %d status/body = %d/%q", requestIndex, response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), "wkbench_host_cpu_busy_percent 60.000000\n") {
+			t.Fatalf("request %d omitted the last complete CPU interval: %q", requestIndex, response.Body.String())
+		}
+	}
+}
+
+func TestHostMetricsCPUPercentRejectsStaleDuplicateSample(t *testing.T) {
+	base := time.Unix(1_970_000_000, 0)
+	handler := &hostMetricsHandler{
+		previousCPU:    hostCPUTotals{total: 100, idle: 40},
+		previousCPUSet: true,
+		readCPUTotals: func() (hostCPUTotals, bool) {
+			return hostCPUTotals{total: 200, idle: 80}, true
+		},
+		now: func() time.Time { return base },
+	}
+	if percent, ok := handler.cpuPercent(); !ok || percent != 60 {
+		t.Fatalf("first CPU interval = %v/%v, want 60/true", percent, ok)
+	}
+	handler.now = func() time.Time { return base.Add(hostCPUDuplicateSampleReuseWindow + time.Nanosecond) }
+	if percent, ok := handler.cpuPercent(); ok || percent != 0 {
+		t.Fatalf("stale duplicate CPU interval = %v/%v, want 0/false", percent, ok)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepSeparatesRateFromOnlineConnections(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	evidence := localChatLifecycleStepEvidence{
+		QualificationReportComplete: true, FinalReportComplete: true,
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+		ProductQueueEvidenceComplete: true, ProductQueuesConverged: true, ProcessesContinuous: true,
+		TimelineComplete: true, ProfileEvidenceComplete: true,
+	}
+
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+
+	if result.Outcome != localChatLifecycleStepClean || result.OnlineConnections != 2500 ||
+		result.Acknowledged != 11_900 || result.Expected != 12_000 || result.ActualRatePerSecond != 99.16666666666667 {
+		t.Fatalf("local step result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepExcludesWarmupAcknowledgementsThatArriveAfterQualification(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	before.Messages.Sent = 6_001
+	before.Messages.SendAcknowledged = 5_894
+	after.Messages.Sent = 18_001
+	after.Messages.SendAcknowledged = 18_001
+	evidence := localChatLifecycleStepEvidence{
+		QualificationReportComplete: true, FinalReportComplete: true,
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+		ProductQueueEvidenceComplete: true, ProductQueuesConverged: true, ProcessesContinuous: true,
+		TimelineComplete: true, ProfileEvidenceComplete: true,
+	}
+
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+
+	if result.Outcome != localChatLifecycleStepClean || result.Sent != 12_000 ||
+		result.Acknowledged != 12_000 || result.ActualRatePerSecond != 100 {
+		t.Fatalf("local step result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*chatlifecycle.Report, *chatlifecycle.Report, *localChatLifecycleStepEvidence)
+		want   localChatLifecycleStepOutcome
+	}{
+		{
+			name: "storage confounded", want: localChatLifecycleStepStorageConfounded,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Resources.Nodes[1].DataFilesystemAvailableBytes = 50
+			},
+		},
+		{
+			name: "missing normalized storage evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.StorageComplete = false
+			},
+		},
+		{
+			name: "missing normalized host I/O evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.HostIOComplete = false
+			},
+		},
+		{
+			name: "missing post-drain product queue evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProductQueueEvidenceComplete = false
+			},
+		},
+		{
+			name: "missing unified timeline evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.TimelineComplete = false
+			},
+		},
+		{
+			name: "missing threshold profile status", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProfileEvidenceComplete = false
+			},
+		},
+		{
+			name: "post-drain product queues did not converge", want: localChatLifecycleStepRateFailed,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProductQueuesConverged = false
+			},
+		},
+		{
+			name: "throughput underdelivery", want: localChatLifecycleStepRateFailed,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Messages.Sent = 6_100
+				after.Messages.SendAcknowledged = 6_100
+			},
+		},
+		{
+			name: "warmup acknowledgement count exceeds warmup sends", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(before *chatlifecycle.Report, _ *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				before.Messages.SendAcknowledged = before.Messages.Sent + 1
+			},
+		},
+		{
+			name: "remaining correlation", want: localChatLifecycleStepRateFailed,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Correlation.Outstanding = 1
+			},
+		},
+		{
+			name: "terminal report predates product drain evidence", want: localChatLifecycleStepClean,
+			mutate: func(before *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				before.Resources.Nodes[0].QueueCurrent = 2
+				after.Resources.Nodes[0].QueueCurrent = 3
+			},
+		},
+		{
+			name: "terminal send", want: localChatLifecycleStepProductFailure,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Messages.Terminal = 1
+			},
+		},
+		{
+			name: "hot latency warning survives operator stop", want: localChatLifecycleStepProductFailure,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Verdict.LatencyWarnings.Hot = 1
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			before, after := localChatLifecycleStepReports()
+			evidence := localChatLifecycleStepEvidence{
+				QualificationReportComplete: true, FinalReportComplete: true,
+				StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+				ProductQueueEvidenceComplete: true, ProductQueuesConverged: true, ProcessesContinuous: true,
+				TimelineComplete: true, ProfileEvidenceComplete: true,
+			}
+			test.mutate(&before, &after, &evidence)
+			result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+				OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+			})
+			if result.Outcome != test.want {
+				t.Fatalf("outcome = %q, want %q; result=%+v", result.Outcome, test.want, result)
+			}
+		})
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepPreservesProductFailureBeforeQualification(t *testing.T) {
+	_, after := localChatLifecycleStepReports()
+	after.Sessions.Online = 0
+	after.Messages.Sent = 6_901
+	after.Messages.SendAcknowledged = 5_999
+	after.Messages.Terminal = 6
+	after.Messages.Losses = 1
+	after.Verdict.Outcome = chatlifecycle.VerdictProductFailure
+	evidence := localChatLifecycleStepEvidence{
+		FinalReportComplete: true, HostIOComplete: true, ProcessesContinuous: true,
+		TimelineComplete: true, ProfileEvidenceComplete: true,
+	}
+
+	result := classifyLocalChatLifecycleStep(chatlifecycle.Report{}, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 150, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+
+	if result.Outcome != localChatLifecycleStepProductFailure ||
+		result.Reason != "terminal_product_failure_before_qualification" || result.QualificationReached ||
+		result.TargetConnections != 2500 || result.OnlineConnections != 0 ||
+		result.Sent != 6_901 || result.Acknowledged != 5_999 || result.Expected != 0 ||
+		result.ActualRatePerSecond != 0 {
+		t.Fatalf("pre-qualification product result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepFailsClosedBeforeQualificationWithoutTerminalProof(t *testing.T) {
+	terminalReport := func() chatlifecycle.Report {
+		_, after := localChatLifecycleStepReports()
+		after.Sessions.Online = 0
+		after.Messages.Sent = 6_901
+		after.Messages.SendAcknowledged = 5_999
+		after.Messages.Terminal = 6
+		after.Verdict.Outcome = chatlifecycle.VerdictProductFailure
+		return after
+	}
+	completeEvidence := func() localChatLifecycleStepEvidence {
+		return localChatLifecycleStepEvidence{
+			FinalReportComplete: true, ProcessesContinuous: true,
+			TimelineComplete: true, ProfileEvidenceComplete: true,
+		}
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*chatlifecycle.Report, *localChatLifecycleStepEvidence)
+	}{
+		{
+			name: "missing final report",
+			mutate: func(_ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.FinalReportComplete = false
+			},
+		},
+		{
+			name: "missing process continuity",
+			mutate: func(_ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProcessesContinuous = false
+			},
+		},
+		{
+			name: "missing typed timeline",
+			mutate: func(_ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.TimelineComplete = false
+			},
+		},
+		{
+			name: "missing typed profile status",
+			mutate: func(_ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProfileEvidenceComplete = false
+			},
+		},
+		{
+			name: "missing final filesystem observation",
+			mutate: func(after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Resources.Nodes[1].DataFilesystemBytes = 0
+			},
+		},
+		{
+			name: "missing terminal product evidence",
+			mutate: func(after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Messages.Terminal = 0
+				after.Verdict.Outcome = chatlifecycle.VerdictOperatorStop
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			after := terminalReport()
+			evidence := completeEvidence()
+			test.mutate(&after, &evidence)
+			result := classifyLocalChatLifecycleStep(chatlifecycle.Report{}, after, evidence, localChatLifecycleStepOptions{
+				OfferedRatePerSecond: 150, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+			})
+			if result.Outcome != localChatLifecycleStepInsufficientEvidence ||
+				result.Reason != "invalid_or_missing_evidence" || result.ActualRatePerSecond != 0 || result.Expected != 0 {
+				t.Fatalf("pre-qualification incomplete result = %+v", result)
+			}
+		})
+	}
+}
+
+func TestLocalChatLifecycleProfileEvidenceMatchesMeasuredTimeline(t *testing.T) {
+	timeline := localChatLifecycleUnifiedTimeline{}
+	writeStatus := func(t *testing.T, dir, body string) string {
+		t.Helper()
+		path := filepath.Join(dir, "profile-status.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	notTriggered := `{"schema":"wukongim/chat-lifecycle-threshold-pprof-status/v1","status":"not_triggered","evidence_complete":true,"capture_valid":true,"reason":"no_measured_threshold","trigger_kind":"","trigger_previous_utc":"","trigger_current_utc":"","metadata":""}`
+	if complete, err := readLocalStepProfileEvidence(writeStatus(t, t.TempDir(), notTriggered), timeline); err != nil || !complete {
+		t.Fatalf("not-triggered profile evidence = %v/%v", complete, err)
+	}
+	previous := time.Date(2026, 8, 13, 1, 2, 3, 100, time.UTC)
+	current := previous.Add(time.Second)
+	timeline.MeasuredFirstBreach = localTimelineFirstBreach{
+		Observed: true, TriggerKind: localTimelineTriggerActualOfferedRatio,
+		PreviousAt: &previous, CurrentAt: &current,
+	}
+	if complete, err := readLocalStepProfileEvidence(writeStatus(t, t.TempDir(), notTriggered), timeline); err == nil || complete {
+		t.Fatalf("contradictory not-triggered evidence = %v/%v", complete, err)
+	}
+	dir := t.TempDir()
+	metadataDir := filepath.Join(dir, "threshold-pprof")
+	if err := os.MkdirAll(filepath.Join(metadataDir, "profiles"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	metadata := fmt.Sprintf(`{
+  "schema":"wukongim.local_threshold_pprof/v1",
+	  "trigger":{"kind":"actual_offered_ratio","observed_phase":"measurement","previous_utc":%q,"current_utc":%q},
+  "capture":{"status":"partial","valid":false,"reason":"profile_capture_missing","start_phase":"measurement","end_phase":"measurement","started_at_utc":"2026-08-13T01:02:04Z","completed_at_utc":"2026-08-13T01:02:05Z","cpu_seconds":10},
+  "nodes":[
+    {"node":"node-1","cpu":"missing","heap":"missing","goroutine":"missing"},
+    {"node":"node-2","cpu":"missing","heap":"missing","goroutine":"missing"},
+    {"node":"node-3","cpu":"missing","heap":"missing","goroutine":"missing"}
+  ]
+}`, previous.Format(time.RFC3339Nano), current.Format(time.RFC3339Nano))
+	metadataPath := filepath.Join(metadataDir, "metadata.json")
+	if err := os.WriteFile(metadataPath, []byte(metadata), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	partial := fmt.Sprintf(`{"schema":"wukongim/chat-lifecycle-threshold-pprof-status/v1","status":"partial","evidence_complete":true,"capture_valid":false,"reason":"profile_capture_missing","trigger_kind":"actual_offered_ratio","trigger_previous_utc":%q,"trigger_current_utc":%q,"metadata":"threshold-pprof/metadata.json"}`, previous.Format(time.RFC3339Nano), current.Format(time.RFC3339Nano))
+	statusPath := writeStatus(t, dir, partial)
+	if complete, err := readLocalStepProfileEvidence(statusPath, timeline); err != nil || !complete {
+		t.Fatalf("partial threshold profile evidence = %v/%v", complete, err)
+	}
+	metadata = strings.Replace(metadata, `"cpu":"missing"`, `"cpu":"complete"`, 1)
+	if err := os.WriteFile(metadataPath, []byte(metadata), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepProfileEvidence(statusPath, timeline); err == nil || complete {
+		t.Fatalf("missing declared profile blob = %v/%v", complete, err)
+	}
+	operational := `{"schema":"wukongim/chat-lifecycle-threshold-pprof-status/v1","status":"operational_error","evidence_complete":false,"capture_valid":false,"reason":"missing_or_invalid_helper_metadata","trigger_kind":"","trigger_previous_utc":"","trigger_current_utc":"","metadata":"","helper_exit_status":73}`
+	if complete, err := readLocalStepProfileEvidence(writeStatus(t, t.TempDir(), operational), timeline); err == nil || complete {
+		t.Fatalf("operational profile evidence = %v/%v", complete, err)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepFailsClosedOnOperatorInterrupt(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	evidence := localChatLifecycleStepEvidence{
+		QualificationReportComplete: true, FinalReportComplete: true,
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+		ProductQueueEvidenceComplete: true, ProductQueuesConverged: true,
+		ProcessesContinuous: true, TimelineComplete: true, ProfileEvidenceComplete: true,
+		OperatorInterrupted: true,
+	}
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+	if result.Outcome != localChatLifecycleStepInsufficientEvidence || result.Reason != "operator_interrupted" ||
+		!result.OperatorInterrupted {
+		t.Fatalf("operator-interrupted result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepFailsClosedOnGracefulStopTimeout(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	evidence := localChatLifecycleStepEvidence{
+		QualificationReportComplete: true, FinalReportComplete: true,
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+		ProductQueueEvidenceComplete: true, ProductQueuesConverged: true,
+		ProcessesContinuous: true, TimelineComplete: true, ProfileEvidenceComplete: true,
+		HarnessFailureReason: localChatLifecycleHarnessFailureCoordinatorGracefulStopTimeout,
+	}
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+	if result.Outcome != localChatLifecycleStepInsufficientEvidence ||
+		result.Reason != string(localChatLifecycleHarnessFailureCoordinatorGracefulStopTimeout) ||
+		result.HarnessFailureReason != localChatLifecycleHarnessFailureCoordinatorGracefulStopTimeout {
+		t.Fatalf("graceful-stop-timeout result = %+v", result)
+	}
+
+	// A concurrent operator signal is retained, but the timeout is the more
+	// precise reason the evidence could not become terminal.
+	evidence.OperatorInterrupted = true
+	result = classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+	if result.Reason != string(localChatLifecycleHarnessFailureCoordinatorGracefulStopTimeout) ||
+		!result.OperatorInterrupted {
+		t.Fatalf("operator timeout result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepFailsClosedWhenCoordinatorExitsBeforeStopRequest(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	evidence := localChatLifecycleStepEvidence{
+		QualificationReportComplete: true, FinalReportComplete: true,
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+		ProductQueueEvidenceComplete: true, ProductQueuesConverged: true,
+		ProcessesContinuous: true, TimelineComplete: true, ProfileEvidenceComplete: true,
+		HarnessFailureReason: localChatLifecycleHarnessFailureCoordinatorExitedBeforeStopRequest,
+	}
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+	if result.Outcome != localChatLifecycleStepInsufficientEvidence ||
+		result.Reason != string(localChatLifecycleHarnessFailureCoordinatorExitedBeforeStopRequest) ||
+		result.HarnessFailureReason != localChatLifecycleHarnessFailureCoordinatorExitedBeforeStopRequest {
+		t.Fatalf("coordinator stop-request race result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepRejectsOpenEndedHarnessFailureReason(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	result := classifyLocalChatLifecycleStep(before, after, localChatLifecycleStepEvidence{
+		HarnessFailureReason: localChatLifecycleHarnessFailureReason("arbitrary_wrapper_error"),
+	}, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+	if result.Outcome != localChatLifecycleStepInsufficientEvidence || result.Reason != "invalid_or_missing_evidence" {
+		t.Fatalf("open-ended harness failure result = %+v", result)
+	}
+}
+
+func TestLocalChatLifecycleStepCommandRejectsUnknownHarnessFailureReason(t *testing.T) {
+	var stderr bytes.Buffer
+	code := runWithStderr([]string{
+		"report", "local-chat-lifecycle-step",
+		"--before", "before.json", "--after", "after.json",
+		"--storage-summary", "storage.tsv", "--host-io-summary", "host.tsv",
+		"--product-queue-summary", "queue.tsv", "--process-continuity", "process.tsv",
+		"--timeline", "timeline.json", "--profile-status", "profile.json",
+		"--run-id", "local", "--output", "local-step.json",
+		"--offered-rate", "100", "--measured-duration", "120s",
+		"--harness-failure-reason", "arbitrary_wrapper_error",
+	}, &stderr)
+	if code != exitConfig || !strings.Contains(stderr.String(), "--harness-failure-reason is unsupported") {
+		t.Fatalf("unknown harness failure code/stderr = %d/%q", code, stderr.String())
+	}
+}
+
+func TestLocalChatLifecycleTimelineRequiresClosedOrderedMeasuredWindows(t *testing.T) {
+	at := func(seconds int) *time.Time {
+		value := time.Date(2026, 8, 13, 1, 0, seconds, 0, time.UTC)
+		return &value
+	}
+	timeline := localChatLifecycleUnifiedTimeline{
+		Schema: localChatLifecycleUnifiedTimelineSchemaV1, RunID: "complete-timeline",
+		OfferedRatePerSecond: 100, MinimumThroughputPercent: 90, QualificationCutPresent: true,
+		SourceCompleteness: localTimelineSourceCompleteness{
+			WorkerStatusCutsComplete: true, BoundaryTimelineComplete: true, StorageOverlapComplete: true,
+			TerminalCutPresent: true, FirstBreachObservable: true,
+		},
+		Windows: map[string]localTimelineWindow{
+			"warmup":   {StartAt: at(0), EndAt: at(5), Complete: true},
+			"measured": {StartAt: at(5), EndAt: at(35), Complete: true},
+			"drain":    {StartAt: at(35), EndAt: at(40), Complete: true},
+			"shutdown": {StartAt: at(40), EndAt: at(41), Complete: true},
+		},
+	}
+	timeline.Overlap.Compaction = localTimelineOverlapEvidence{Status: "not_observed", SourceComplete: true}
+	timeline.Overlap.Snapshot = localTimelineOverlapEvidence{Status: "not_observed", SourceComplete: true}
+	for _, kind := range []string{
+		"warmup_start", "warmup_end", "measurement_start", "measurement_end", "drain_start", "drain_end", "shutdown_start",
+	} {
+		timeline.Points = append(timeline.Points, localTimelinePoint{Source: "boundary", Kind: kind, BoundaryNode: "boundary"})
+	}
+	if !localChatLifecycleTimelineWindowsComplete(timeline, 30*time.Second) {
+		t.Fatal("closed ordered measured timeline was rejected")
+	}
+	timelinePath := filepath.Join(t.TempDir(), "timeline.json")
+	body, err := json.Marshal(timeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(timelinePath, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, complete, err := readLocalStepTimelineEvidence(timelinePath, "complete-timeline", 100, 90, 30*time.Second); err != nil || !complete {
+		t.Fatalf("complete storage-overlap timeline = %v/%v", complete, err)
+	}
+	timeline.SourceCompleteness.StorageOverlapComplete = false
+	body, err = json.Marshal(timeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(timelinePath, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, complete, err := readLocalStepTimelineEvidence(timelinePath, "complete-timeline", 100, 90, 30*time.Second); err == nil || complete {
+		t.Fatalf("missing storage-overlap timeline = %v/%v", complete, err)
+	}
+	timeline.SourceCompleteness.StorageOverlapComplete = true
+	timeline.Overlap.Compaction = localTimelineOverlapEvidence{Status: "unknown", SourceComplete: true}
+	body, err = json.Marshal(timeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(timelinePath, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, complete, err := readLocalStepTimelineEvidence(timelinePath, "complete-timeline", 100, 90, 30*time.Second); err == nil || complete {
+		t.Fatalf("inconsistent storage-overlap timeline = %v/%v", complete, err)
+	}
+	short := timeline
+	short.Windows = make(map[string]localTimelineWindow, len(timeline.Windows))
+	for name, window := range timeline.Windows {
+		short.Windows[name] = window
+	}
+	short.Windows["measured"] = localTimelineWindow{StartAt: at(5), EndAt: at(20), Complete: true}
+	if localChatLifecycleTimelineWindowsComplete(short, 30*time.Second) {
+		t.Fatal("early measured termination was accepted")
+	}
+	duplicate := timeline
+	duplicate.Points = append(append([]localTimelinePoint(nil), timeline.Points...), localTimelinePoint{
+		Source: "boundary", Kind: "measurement_end", BoundaryNode: "boundary",
+	})
+	if localChatLifecycleTimelineWindowsComplete(duplicate, 30*time.Second) {
+		t.Fatal("duplicate measured boundary was accepted")
+	}
+}
+
+func TestLocalChatLifecycleProductMetricsRequireClosedCompleteCuts(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	for report, samples := range map[*chatlifecycle.Report]uint64{&before: 2, &after: 3} {
+		report.Resources.Capacity.Complete = true
+		report.Resources.Capacity.ProcessesComplete = true
+		report.Resources.Capacity.Samples = samples
+		report.Resources.Capacity.MissingSamples = 1
+		report.Resources.Capacity.WorkerQueuesComplete = true
+		report.Resources.Capacity.WorkerQueueSamples = samples
+		report.Resources.Capacity.WorkerQueueMissingSamples = 1
+		report.Cluster.HealthySamples = samples
+	}
+	if !localChatLifecycleProductMetricsComplete(before, after) {
+		t.Fatal("complete local product metrics were rejected")
+	}
+	after.Resources.Capacity.MissingSamples++
+	if localChatLifecycleProductMetricsComplete(before, after) {
+		t.Fatal("new host/process sampling gap was accepted")
+	}
+	after.Resources.Capacity.MissingSamples = before.Resources.Capacity.MissingSamples
+	after.Resources.Capacity.WorkerQueueMissingSamples++
+	if localChatLifecycleProductMetricsComplete(before, after) {
+		t.Fatal("new worker queue sampling gap was accepted")
+	}
+	after.Resources.Capacity.WorkerQueueMissingSamples = before.Resources.Capacity.WorkerQueueMissingSamples
+	after.Resources.Capacity.Samples = before.Resources.Capacity.Samples
+	if localChatLifecycleProductMetricsComplete(before, after) {
+		t.Fatal("product cut without a new resource sample was accepted")
+	}
+}
+
+func TestLocalChatLifecycleStepEvidenceReadersRequireCompleteClosedRows(t *testing.T) {
+	directory := t.TempDir()
+	storagePath := filepath.Join(directory, "storage.tsv")
+	var storage strings.Builder
+	storage.WriteString(strings.Join(localStepStorageHeader, "\t") + "\n")
+	for node := 1; node <= 3; node++ {
+		row := make([]string, len(localStepStorageHeader))
+		for index := range row {
+			row[index] = "0"
+		}
+		row[0], row[1], row[2] = "rate-100", fmt.Sprintf("node-%d", node), "complete"
+		for _, column := range []int{4, 5, 6, 7, 15, 31, 32} {
+			row[column] = "1"
+		}
+		storage.WriteString(strings.Join(row, "\t") + "\n")
+	}
+	if err := os.WriteFile(storagePath, []byte(storage.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-100"); err != nil || !complete {
+		t.Fatalf("storage evidence complete/error = %v/%v", complete, err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-101"); err == nil || complete {
+		t.Fatalf("mismatched storage tag complete/error = %v/%v", complete, err)
+	}
+	zeroActivity := strings.NewReplacer(
+		"\t1\t1\t1\t1\t", "\t0\t0\t0\t0\t",
+	).Replace(storage.String())
+	if err := os.WriteFile(storagePath, []byte(zeroActivity), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-100"); err == nil || complete {
+		t.Fatalf("zero-activity storage complete/error = %v/%v", complete, err)
+	}
+	invalidHeader := append([]string(nil), localStepStorageHeader...)
+	invalidHeader[3] = "renamed_queue_depth"
+	invalidStorage := strings.Replace(storage.String(), strings.Join(localStepStorageHeader, "\t"), strings.Join(invalidHeader, "\t"), 1)
+	if err := os.WriteFile(storagePath, []byte(invalidStorage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-100"); err == nil || complete {
+		t.Fatalf("invalid storage header complete/error = %v/%v", complete, err)
+	}
+
+	hostIOPath := filepath.Join(directory, "host-io.tsv")
+	var hostIO strings.Builder
+	hostIO.WriteString(strings.Join(localStepHostIOHeader, "\t") + "\n")
+	for _, host := range []string{"host-node-1", "host-node-2", "host-node-3", "host-load"} {
+		hostIO.WriteString("rate-100\t" + host + "\tunavailable\tunavailable\t0\tunavailable\t0\tunavailable\t0\tunavailable\t0\tunavailable\t0\n")
+	}
+	if err := os.WriteFile(hostIOPath, []byte(hostIO.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepHostIOEvidence(hostIOPath, "rate-100"); err != nil || !complete {
+		t.Fatalf("host I/O evidence complete/error = %v/%v", complete, err)
+	}
+	if complete, err := readLocalStepHostIOEvidence(hostIOPath, "rate-101"); err == nil || complete {
+		t.Fatalf("mismatched host I/O tag complete/error = %v/%v", complete, err)
+	}
+
+	productQueuePath := filepath.Join(directory, "product-queue.tsv")
+	var productQueue strings.Builder
+	productQueue.WriteString(strings.Join(localStepProductQueueHeader, "\t") + "\n")
+	for node := 1; node <= 3; node++ {
+		fmt.Fprintf(&productQueue, "rate-100\tnode-%d\tcomplete\t60\t160\t40\t80\ttrue\n", node)
+	}
+	if err := os.WriteFile(productQueuePath, []byte(productQueue.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || !converged {
+		t.Fatalf("product queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+	redistributed := strings.Join([]string{
+		strings.Join(localStepProductQueueHeader, "\t"),
+		"rate-100\tnode-1\tcomplete\t0\t60\t2\t30\ttrue",
+		"rate-100\tnode-2\tcomplete\t4\t60\t0\t30\ttrue",
+		"rate-100\tnode-3\tcomplete\t0\t60\t1\t30\ttrue",
+		"",
+	}, "\n")
+	if err := os.WriteFile(productQueuePath, []byte(redistributed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || !converged {
+		t.Fatalf("redistributed cluster queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+	dishonest := strings.Replace(redistributed, "\t1\t30\ttrue\n", "\t5\t30\ttrue\n", 1)
+	if err := os.WriteFile(productQueuePath, []byte(dishonest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err == nil || complete || converged {
+		t.Fatalf("dishonest cluster queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+	notConverged := strings.ReplaceAll(productQueue.String(), "\t40\t80\ttrue\n", "\t70\t80\tfalse\n")
+	if err := os.WriteFile(productQueuePath, []byte(notConverged), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || converged {
+		t.Fatalf("non-converged product queue complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+
+	processPath := filepath.Join(directory, "process.tsv")
+	processes := []string{"service-1", "service-2", "service-3", "worker-1", "worker-2", "worker-3",
+		"host-metrics-1", "host-metrics-2", "host-metrics-3", "host-metrics-load", "process-metrics-collector"}
+	var process strings.Builder
+	process.WriteString("name\talive\n")
+	for _, name := range processes {
+		fmt.Fprintf(&process, "%s\ttrue\n", name)
+	}
+	if err := os.WriteFile(processPath, []byte(process.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if continuous, err := readLocalStepProcessContinuity(processPath); err != nil || !continuous {
+		t.Fatalf("process continuity complete/error = %v/%v", continuous, err)
+	}
+}
+
+func TestLinuxPhysicalDeviceIOSampleUsesCounterDeltas(t *testing.T) {
+	before, err := parseLinuxBlockDeviceCounters("100 0 200 300 400 0 500 600 0 700 800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := parseLinuxBlockDeviceCounters("120 0 260 340 430 0 620 660 0 900 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sample, ok := linuxBlockDeviceDelta("nvme1n1", before, after, 2*time.Second)
+	if !ok || !sample.IOPSAvailable || !sample.BytesPerSecondAvailable || !sample.UtilizationAvailable || !sample.ServiceTimeAvailable {
+		t.Fatalf("linux sample availability = %+v / %v", sample, ok)
+	}
+	if sample.ReadIOPS != 10 || sample.WriteIOPS != 15 || sample.TotalIOPS != 25 ||
+		sample.ReadBytesPerSecond != 15_360 || sample.WriteBytesPerSecond != 30_720 ||
+		sample.UtilizationPercent != 10 || sample.ServiceTimeMilliseconds != 2 {
+		t.Fatalf("linux sample = %+v", sample)
+	}
+}
+
+func TestDarwinPhysicalDeviceIOSampleMarksUnsupportedFieldsUnavailable(t *testing.T) {
+	volume, ok := parseDarwinDFDevice(`Filesystem 512-blocks Used Available Capacity iused ifree %iused Mounted on
+/dev/disk3s5 100000 50000 50000 50% 1 2 33% /System/Volumes/Data
+`)
+	if !ok || volume != "/dev/disk3s5" {
+		t.Fatalf("darwin volume = %q/%v", volume, ok)
+	}
+	device, ok := parseDarwinPhysicalDevice(`
+   Device Identifier:         disk3s5
+   Part of Whole:             disk3
+   APFS Physical Store:       disk0s2
+`)
+	if !ok || device != "disk0" {
+		t.Fatalf("physical device = %q/%v", device, ok)
+	}
+	sample, err := parseDarwinIostatDeviceSample(device, `
+              disk0
+    KB/t xfrs   MB
+   22.75 9999 200.00
+    7.48  208   1.52
+`, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sample.IOPSAvailable || !sample.BytesPerSecondAvailable || sample.TotalIOPS != 208 ||
+		sample.TotalBytesPerSecond != 1.52*1024*1024 || sample.UtilizationAvailable || sample.ServiceTimeAvailable ||
+		sample.ReadWriteSplitAvailable {
+		t.Fatalf("darwin sample = %+v", sample)
+	}
+}
+
+func TestDarwinPhysicalDeviceIOSamplerReturnsCachedSampleAndSingleFlightsRefresh(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	collectCalls := 0
+	sampler := &darwinHostDeviceIOSampler{
+		device: "disk0",
+		last:   hostDeviceIOSample{Device: "disk0"},
+		collect: func() (hostDeviceIOSample, error) {
+			collectCalls++
+			close(started)
+			<-release
+			return hostDeviceIOSample{Device: "disk0", IOPSAvailable: true, TotalIOPS: 42}, nil
+		},
+	}
+
+	returned := make(chan hostDeviceIOSample, 1)
+	go func() { returned <- sampler.Sample() }()
+	select {
+	case sample := <-returned:
+		if sample.Device != "disk0" || sample.IOPSAvailable {
+			t.Fatalf("initial cached sample = %+v", sample)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Sample blocked on the physical I/O collector")
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("background physical I/O refresh did not start")
+	}
+	if sample := sampler.Sample(); sample.Device != "disk0" || sample.IOPSAvailable {
+		t.Fatalf("in-flight cached sample = %+v", sample)
+	}
+	if collectCalls != 1 {
+		t.Fatalf("collector calls while refresh is in flight = %d, want 1", collectCalls)
+	}
+
+	close(release)
+	deadline := time.Now().Add(time.Second)
+	for {
+		sample := sampler.Sample()
+		if sample.IOPSAvailable {
+			if sample.TotalIOPS != 42 {
+				t.Fatalf("refreshed sample = %+v", sample)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("refreshed sample was not published")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestDarwinPhysicalDeviceIOSamplerExpiresCachedAvailabilityWhileRefreshIsInFlight(t *testing.T) {
+	base := time.Unix(1_970_000_000, 0)
+	now := base.Add(darwinHostDeviceIOMaxSampleAge)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	sampler := &darwinHostDeviceIOSampler{
+		device: "disk0",
+		last: hostDeviceIOSample{
+			Device: "disk0", IOPSAvailable: true, BytesPerSecondAvailable: true,
+			TotalIOPS: 42, TotalBytesPerSecond: 4096,
+		},
+		at:  base,
+		now: func() time.Time { return now },
+		collect: func() (hostDeviceIOSample, error) {
+			close(started)
+			<-release
+			return hostDeviceIOSample{Device: "disk0", IOPSAvailable: true, TotalIOPS: 84}, nil
+		},
+	}
+
+	sample := sampler.Sample()
+	if sample.Device != "disk0" || sample.IOPSAvailable || sample.BytesPerSecondAvailable ||
+		sample.UtilizationAvailable || sample.ServiceTimeAvailable || sample.ReadWriteSplitAvailable {
+		t.Fatalf("expired cached sample = %+v", sample)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("background physical I/O refresh did not start")
+	}
+	if sample = sampler.Sample(); sample.Device != "disk0" || sample.IOPSAvailable {
+		t.Fatalf("expired in-flight cached sample = %+v", sample)
+	}
+}
+
+func TestDarwinPhysicalDeviceIOSamplerInvalidatesAvailabilityWhenRefreshFails(t *testing.T) {
+	base := time.Unix(1_970_000_000, 0)
+	sampler := &darwinHostDeviceIOSampler{
+		device: "disk0",
+		last: hostDeviceIOSample{
+			Device: "disk0", IOPSAvailable: true, BytesPerSecondAvailable: true,
+			TotalIOPS: 42, TotalBytesPerSecond: 4096,
+		},
+		at:         base,
+		now:        func() time.Time { return base.Add(darwinHostDeviceIORefreshInterval) },
+		refreshing: true,
+		collect: func() (hostDeviceIOSample, error) {
+			return hostDeviceIOSample{}, errors.New("iostat failed")
+		},
+	}
+
+	sampler.refresh()
+	sampler.collect = nil
+	sample := sampler.Sample()
+	if sample.Device != "disk0" || sample.IOPSAvailable || sample.BytesPerSecondAvailable ||
+		sample.UtilizationAvailable || sample.ServiceTimeAvailable || sample.ReadWriteSplitAvailable ||
+		sample.TotalIOPS != 0 || sample.TotalBytesPerSecond != 0 {
+		t.Fatalf("sample after failed refresh = %+v", sample)
+	}
+}
+
+func TestHostMetricsPublishesVersionedPhysicalIOAvailability(t *testing.T) {
+	directory := t.TempDir()
+	handlerValue, err := newHostMetricsHandler(hostMetricsConfig{
+		path: directory, mountpoint: "/data", device: "/dev/data",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := handlerValue.(*hostMetricsHandler)
+	handler.deviceIO = fixedHostDeviceIOSampler{sample: hostDeviceIOSample{
+		Device: "disk0", IOPSAvailable: true, BytesPerSecondAvailable: true,
+		TotalIOPS: 208, TotalBytesPerSecond: 1_593_835.52,
+	}}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("metrics status/body = %d/%q", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, want := range []string{
+		`wkbench_host_block_io_schema_info{physical_device="disk0",version="v1"} 1`,
+		`wkbench_host_block_io_available{field="iops",physical_device="disk0"} 1`,
+		`wkbench_host_block_io_available{field="utilization",physical_device="disk0"} 0`,
+		`wkbench_host_block_io_iops{operation="total",physical_device="disk0"} 208.000000`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q: %q", want, body)
+		}
+	}
+	if strings.Contains(body, "wkbench_host_block_io_service_time_milliseconds{") {
+		t.Fatalf("unsupported service time was fabricated: %q", body)
+	}
+}
+
+type fixedHostDeviceIOSampler struct{ sample hostDeviceIOSample }
+
+func (s fixedHostDeviceIOSampler) Sample() hostDeviceIOSample { return s.sample }
+
+func localChatLifecycleStepReports() (chatlifecycle.Report, chatlifecycle.Report) {
+	start := time.Unix(1_970_000_000, 0).UTC()
+	before := chatlifecycle.Report{
+		ConfigDigest: "sha256:local-step", Fence: chatlifecycle.ReportFence{RunHash: "sha256:run", AssignmentHash: "sha256:assignment", Generation: 1},
+		Window:   chatlifecycle.ReportTimeWindow{End: start},
+		Topology: chatlifecycle.ReportTopologyProof{Validated: true, LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 3, ChannelReplicas: 3},
+		Sessions: chatlifecycle.WorkerSessionSnapshot{Target: 2500, Online: 2500},
+		Messages: chatlifecycle.WorkerMessageSnapshot{Sent: 100, SendAcknowledged: 100},
+	}
+	after := before
+	after.Window.End = start.Add(2 * time.Minute)
+	after.Final = true
+	after.Verdict = chatlifecycle.ReportVerdictEvidence{
+		Outcome: chatlifecycle.VerdictOperatorStop, Cause: chatlifecycle.VerdictCauseOperatorRequested, Terminal: true,
+	}
+	after.Messages.Sent = 12_000
+	after.Messages.SendAcknowledged = 12_000
+	for index := range after.Resources.Nodes {
+		after.Resources.Nodes[index].DataFilesystemBytes = 1_000
+		after.Resources.Nodes[index].DataFilesystemAvailableBytes = 200
+	}
+	return before, after
 }
 
 func TestRootCommandUsesWkbenchName(t *testing.T) {

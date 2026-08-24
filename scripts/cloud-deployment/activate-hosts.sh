@@ -24,6 +24,19 @@ complete_gate() {
   printf '%s\n' "$1" >"$WK_CLOUD_LAST_GATE_OUTPUT"
 }
 
+deployment_purpose="$(jq -er '.purpose' "$WK_CLOUD_DEPLOYMENT_PLAN")"
+deployment_generation="$(jq -er '.generation' "$WK_CLOUD_DEPLOYMENT_PLAN")"
+[[ "$deployment_generation" =~ ^[1-9][0-9]*$ ]]
+case "$deployment_purpose" in
+  immutable) (( deployment_generation == 1 )) ;;
+  repair) ;;
+  *) exit 2 ;;
+esac
+repair_generation_reset=false
+if [[ "$deployment_purpose" == repair && "$deployment_generation" -gt 1 ]]; then
+  repair_generation_reset=true
+fi
+
 service1="$(jq -er '.hosts[] | select(.role=="service-1") | .private_address' "$WK_CLOUD_DEPLOYMENT_PLAN")"
 service2="$(jq -er '.hosts[] | select(.role=="service-2") | .private_address' "$WK_CLOUD_DEPLOYMENT_PLAN")"
 service3="$(jq -er '.hosts[] | select(.role=="service-3") | .private_address' "$WK_CLOUD_DEPLOYMENT_PLAN")"
@@ -100,6 +113,10 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
   # must still succeed.
   cloud_ssh_retry "${role}-quiesce" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
     'for unit in node-exporter.service wukongim.service wkbench-host-metrics.service; do sudo systemctl cat "$unit" >/dev/null 2>&1 || continue; sudo systemctl stop "$unit" || exit $?; done'
+  if [[ "$repair_generation_reset" == true ]]; then
+    cloud_ssh_retry "${role}-repair-reset" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
+      'sudo bash -euo pipefail -c '\''if ! id -u wukongim >/dev/null 2>&1; then for root in /var/lib/wukongim-cloud/wukongim; do test ! -e "$root"; done; exit 0; fi; for root in /var/lib/wukongim-cloud/wukongim; do test ! -L "$root"; if test -e "$root"; then test -d "$root"; else install -d -o wukongim -g wukongim -m 0755 "$root"; fi; find -P "$root" -xdev -mindepth 1 -delete; test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"; done'\'''
+  fi
   cloud_ssh_retry "${role}-prepare" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
     "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role '$role' --runtime-dir /home/wkdeploy/run-secrets --data-device '$data_device' --no-systemd"
   cloud_ssh_retry "${role}-normalize-config" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
@@ -114,6 +131,10 @@ cloud_ssh_retry load-secrets 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'rm -rf /home/wkdeploy/run-secrets && mkdir /home/wkdeploy/run-secrets && tar -xzf /home/wkdeploy/runtime-load.tar.gz -C /home/wkdeploy/run-secrets'
 cloud_ssh_retry load-quiesce 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'for unit in node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service; do sudo systemctl cat "$unit" >/dev/null 2>&1 || continue; sudo systemctl stop "$unit" || exit $?; done'
+if [[ "$repair_generation_reset" == true ]]; then
+  cloud_ssh_retry load-repair-reset 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    'sudo bash -euo pipefail -c '\''if ! id -u wukongim >/dev/null 2>&1; then for root in /var/lib/wukongim-cloud/workers /var/lib/wukongim-cloud/reports /var/lib/wukongim-cloud/prometheus /var/lib/wukongim-cloud/evidence; do test ! -e "$root"; done; exit 0; fi; for root in /var/lib/wukongim-cloud/workers /var/lib/wukongim-cloud/reports /var/lib/wukongim-cloud/prometheus /var/lib/wukongim-cloud/evidence; do test ! -L "$root"; if test -e "$root"; then test -d "$root"; else install -d -o wukongim -g wukongim -m 0755 "$root"; fi; find -P "$root" -xdev -mindepth 1 -delete; test -z "$(find -P "$root" -xdev -mindepth 1 -print -quit)"; done'\'''
+fi
 cloud_ssh_retry load-prepare 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role load --runtime-dir /home/wkdeploy/run-secrets --data-device '$load_data_device' --no-systemd"
 # Source d3701b839 seals the stage runner into the authenticated bundle but its

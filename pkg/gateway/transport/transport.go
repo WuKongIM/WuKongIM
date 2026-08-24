@@ -26,6 +26,14 @@ type Conn interface {
 	RemoteAddr() string
 }
 
+// ObservedWriter exposes the physical asynchronous-write completion boundary.
+// The completion callback is invoked at most once after transport ownership of
+// an accepted payload ends. A caller that does not need this evidence should
+// continue to use Conn.Write.
+type ObservedWriter interface {
+	WriteObserved(data []byte, frameType string, complete func(error)) error
+}
+
 // WebSocketMessageType identifies the websocket opcode for an outbound application message.
 type WebSocketMessageType uint8
 

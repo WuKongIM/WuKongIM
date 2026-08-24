@@ -332,8 +332,18 @@ func (n *Node) rebuildDefaultChannelRuntimeForRestore() error {
 
 	var closeErr error
 	if n.channels != nil {
+		if n.channelRPCGateway != nil {
+			n.channelRPCGateway.Clear()
+		}
+		if n.channelQuorumGateway != nil {
+			n.channelQuorumGateway.Clear()
+		}
 		closeErr = errors.Join(closeErr, n.channels.Close())
 		n.channels = nil
+	}
+	if n.defaultChannelReplication != nil {
+		closeErr = errors.Join(closeErr, n.defaultChannelReplication.Close(context.Background()))
+		n.defaultChannelReplication = nil
 	}
 	if n.defaultChannelStore != nil {
 		closeErr = errors.Join(closeErr, n.defaultChannelStore.Close())
@@ -540,10 +550,16 @@ func (n *Node) installRestoreChannelRuntimeMeta(
 	return batch.Commit()
 }
 
-type restoreSlotDataNodes []uint64
+type restoreSlotDataNodes struct {
+	revision uint64
+	nodes    []uint64
+}
 
-func (n restoreSlotDataNodes) DataNodes() []uint64 {
-	return append([]uint64(nil), n...)
+func (n restoreSlotDataNodes) PlacementDataNodes(_ context.Context, expectedRevision uint64) ([]uint64, error) {
+	if n.revision != expectedRevision {
+		return nil, channelruntime.ErrStaleMeta
+	}
+	return append([]uint64(nil), n.nodes...), nil
 }
 
 func (n *Node) restoreChannelPlacement(
@@ -563,7 +579,7 @@ func (n *Node) restoreChannelPlacement(
 	peers := append([]uint64(nil), route.Peers...)
 	slices.Sort(peers)
 	return channels.NewSlotPlacementResolver(
-		n.router, restoreSlotDataNodes(peers),
+		n.router, restoreSlotDataNodes{revision: route.Revision, nodes: peers},
 		int(n.cfg.Channel.ReplicaCount),
 	), nil
 }

@@ -8,7 +8,7 @@ summary: Implements the reusable multi-reactor Channel log runtime, replication,
 ## Responsibility
 
 `pkg/channel` is the reusable replicated Channel log runtime. It owns Channel
-metadata fences, per-Channel ordering, leader append, follower pull replication,
+metadata fences, per-Channel ordering, leader append, durable-quorum commits, follower pull replication,
 committed progress, retention adoption, runtime lifecycle, and synchronous
 facades over reactor futures.
 
@@ -23,6 +23,8 @@ defines RPC DTOs, and `worker` bounds blocking I/O.
   orchestration stay above this package.
 - `store/channel_adapter.go` is the only Channel file allowed to import message
   DB compatibility DTOs; other packages use Channel contracts.
+  Storage-neutral proposal and entry identities live in the leaf `pkg/quorumlog`
+  contract rather than depending on Channel or MessageDB implementations.
 - Reactor goroutines decide state transitions but never perform blocking store
   or transport I/O. Typed workers execute that work and return fenced results.
 - Recent-record caches, PullHint, batching, and benchmark controls are
@@ -33,6 +35,9 @@ defines RPC DTOs, and `worker` bounds blocking I/O.
 1. The service reserves a Channel key and submits an append; the reactor fences
    role, epochs, write admission, and capacity, while store workers durably
    append in order and local or quorum progress completes aligned futures.
+   With `DurableQuorumLog`, leader activation first installs a recovered
+   authority frontier and current-term barrier, then each caller append is one
+   immutable exact quorum proposal rather than a transient worker batch.
 2. Followers pull continuous records, apply and return ACK progress, and use a
    bounded checkpoint path; idle leaders and caught-up followers coordinate
    checkpointed stop before either runtime can be evicted.
@@ -44,6 +49,14 @@ defines RPC DTOs, and `worker` bounds blocking I/O.
 
 - Channel epoch, leader epoch, leader ID, write fence, generation, and worker op
   identity fence every relevant transition and completion.
+- Durable quorum success requires local durability plus a distinct-voter quorum.
+  Exact manifests and closed durable/already-durable/absent/conflict/unknown
+  outcomes make ambiguous commits safely retryable after cancellation or
+  restart; caller cancellation cannot revoke admitted durability.
+- The node-owned replication runtime bounds local mutation batches, per-target
+  exchange, recovery probes, and follower repair without per-Channel goroutines.
+  Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
+  and makes writes ready only after the deterministic current-term barrier.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
 - Same-Channel append ordering survives batching and worker concurrency.

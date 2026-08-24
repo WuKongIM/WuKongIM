@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 )
 
 // appendQueueConfig bounds one channel's append queue and flush batch size.
@@ -79,6 +80,9 @@ type appendBatch struct {
 	requests  []appendRequest
 	records   []ch.Record
 	trace     appendTraceBatch
+	// commandID and authority fence the exact proposal submitted to DurableQuorumLog.
+	commandID ch.CommandID
+	authority replication.AuthorityID
 }
 
 func newAppendQueue(cfg appendQueueConfig) appendQueue {
@@ -167,6 +171,29 @@ func (q *appendQueue) popBatch(batchOpID ch.OpID, state *machine.ChannelState) a
 	q.storeBlocked = true
 	q.recount()
 	return batch
+}
+
+// popProposal removes exactly one caller request for a retry-stable durable
+// proposal. If a prior batch threshold triggered the flush, the remaining
+// requests stay immediately due so the per-Channel sequencer can drain them.
+func (q *appendQueue) popProposal(batchOpID ch.OpID, state *machine.ChannelState, now time.Time) appendBatch {
+	if q == nil || len(q.pending) == 0 {
+		return appendBatch{batchOpID: batchOpID, fence: appendQueueFence(batchOpID, state)}
+	}
+	request := q.pending[0]
+	q.pending[0] = appendRequest{}
+	q.pending = q.pending[1:]
+	q.storeBlocked = true
+	q.recount()
+	if len(q.pending) > 0 {
+		q.flushDue = now
+	}
+	return appendBatch{
+		batchOpID: batchOpID,
+		fence:     appendQueueFence(batchOpID, state),
+		requests:  []appendRequest{request},
+		records:   append([]ch.Record(nil), request.records...),
+	}
 }
 
 func (q *appendQueue) restoreFront(batch appendBatch) {

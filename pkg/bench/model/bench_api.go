@@ -38,6 +38,9 @@ type BenchCapabilitiesSupports struct {
 	ChannelRuntimeFaults bool `json:"channel_runtime_faults"`
 	// ChannelRuntimeActivate indicates support for server-side diagnostic activation.
 	ChannelRuntimeActivate bool `json:"channel_runtime_activate"`
+	// TerminalFencePrepare indicates support for the one-shot product drain and
+	// server-confirmed session fence used by the local diagnostic.
+	TerminalFencePrepare bool `json:"terminal_fence_prepare"`
 	// ChannelTypes lists logical channel types accepted by the bench API.
 	ChannelTypes []string `json:"channel_types"`
 }

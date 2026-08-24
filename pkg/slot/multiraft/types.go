@@ -305,6 +305,14 @@ type BatchStateMachine interface {
 	ApplyBatch(ctx context.Context, cmds []Command) ([][]byte, error)
 }
 
+// DurableAppliedStateMachine atomically persists each successful command's
+// applied index with the state-machine mutation. Multi-Raft may use this
+// watermark instead of issuing a second durable Storage.MarkApplied write.
+type DurableAppliedStateMachine interface {
+	StateMachine
+	DurableAppliedIndex(ctx context.Context) (uint64, error)
+}
+
 type Command struct {
 	SlotID   SlotID
 	HashSlot uint16

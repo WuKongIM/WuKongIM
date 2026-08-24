@@ -1,71 +1,96 @@
 ---
 name: wukongim-chat-lifecycle
-description: Operate the repository's fully automated, native-Ubuntu WuKongIM chat-lifecycle cloud test. Use when the operator explicitly asks to start the complete paid rehearsal/formal/capacity chain, requests status for one active request, asks to stop and clean up that request, asks to diagnose its exact live run, or asks what to do next. Only the exact start intent authorizes billable procurement; status, diagnose, stop, explanations, and next-step questions never do.
+description: Operate the Codex-owned WuKongIM chat-lifecycle laboratory directly from the local repository. Use when the operator explicitly asks to buy temporary Alibaba Cloud servers and start the repair stability run, deploy a committed candidate to the same Lease, start or monitor the bounded long workload, diagnose a stopped live run over SSH, inspect one request, or stop and destroy its exact resources. Only an exact start intent authorizes paid procurement; deploy, run, status, diagnose, stop, explanations, approvals, and next-step questions never buy servers.
 ---
 
-# WuKongIM Chat Lifecycle
+# WuKongIM Chat Lifecycle Direct Lab
 
-Route one operator intent into the fixed protected-main workflows. Keep this Skill thin: do not reproduce provider API calls, SSH deployment, workload configuration, diagnosis logic, or cleanup algorithms here.
+Codex owns this loop from the local machine. Use repository commands and SSH;
+do not dispatch a GitHub Action, create a tracking Issue, wait for an Artifact,
+or destroy healthy hosts between candidate generations.
 
 ## Safety boundary
 
-- Treat the exact phrase `开始聊天生命周期全流程压测`, or an explicit invocation of this Skill that unambiguously says to start the complete flow, as authority for one aggregate Cost Envelope capped at CNY 1,500.
-- Never infer paid authority from `继续`, approval of implementation work, status, diagnose, stop, an explanation, `下一步建议？`, or any other conversational context.
-- Reject a second start while any earlier chat-lifecycle request lacks authenticated zero-inventory proof.
-- Do not change the reviewed 4-vCPU/8-GiB hosts, 500-GiB service disks, 200-GiB load disk, workload rate, 12 workload groups, or 256 physical hash slots.
-- Ask the operator only for a genuinely missing prerequisite that cannot be repaired through the approved setup workflow.
-- Never put a private key, password, AccessKey, bearer token, or decrypted access document in a command log, GitHub Issue, run summary, Artifact, or repository file.
+- Treat the exact phrase `开始聊天生命周期稳定性长跑`, or an explicit invocation
+  of this Skill that unambiguously asks to purchase temporary servers and start
+  the direct repair lab, as authority for one CNY 300 repair Lease.
+- Never infer paid authority from `继续`, `同意`, deploy, run, status, diagnose,
+  stop, an explanation, `下一步建议？`, or prior paid runs.
+- `start` additionally requires either short-lived Alibaba STS environment
+  variables or a verified one-hour Alibaba Cloud Shell credential, plus both
+  exact local authorization values. A tokenless credential is accepted only
+  when it is absent from the account's registered AccessKey list and the exact
+  Cloud Shell authorization marker is present. Never use or persist a
+  long-lived AccessKey for this loop.
+- Reject another paid start until every earlier request has an exact
+  selector-bound zero-inventory proof.
+- Keep one Lease while diagnosing and deploying committed candidate
+  generations. A failed workload stops within the bounded monitor window but
+  does not release the hosts. Only `stop` destroys the Lease.
+- Never print or commit STS credentials, SSH private keys, Manager credentials,
+  worker tokens, or runtime credential archives.
 
-Before start or stop, read [references/operator-workflow.md](references/operator-workflow.md) completely. Also read `.github/workflows/README.md` before invoking a workflow.
+Before any operation, read
+[references/operator-workflow.md](references/operator-workflow.md) completely.
 
 ## Route the intent
 
+### Preflight
+
+Run `scripts/chat-lifecycle/direct-lab.sh preflight`. It is local and read-only:
+it must not call Alibaba APIs. Report every missing host tool, temporary
+credential proof, or exact lifecycle authorization.
+
 ### Start
 
-Require the explicit paid authority above, then execute the `Start` procedure in the operator reference. The only paid entrypoint is `.github/workflows/chat-lifecycle-rehearsal.yml` on protected `main`, with exactly these four inputs:
+Require the paid authority above. Require a clean worktree whose exact candidate
+is committed, generate a fresh request ID, and execute the reference `start`
+procedure. This sequence builds and seals locally before a read-only Quote;
+Acquire is the last step. Persist the pre-Acquire selector before the paid call.
+If build, materialization, or Quote fails before that selector exists, finalize
+the request as not acquired with a local zero-resource proof; do not leave a
+phantom active request that blocks the next exact start.
 
-- `source_sha`
-- `operator=tangtaoit`
-- `codex_diagnostic_pubkey`
-- `request_id`
+### Deploy
 
-Create one request-scoped tracking Issue and one request-scoped local state directory outside the repository. Generate a fresh Ed25519 diagnostic identity there. Dispatch only after all read-only and identity prerequisites pass. Register a run-scoped 30-minute monitor that remains active until authenticated provider inventory is zero.
-Use `scripts/chat-lifecycle/local-request-state.sh init` for the local identity;
-do not reproduce its path validation or permissions with ad hoc deletion logic.
+`deploy` never authorizes procurement. Build the current committed candidate,
+activate it as the next repair generation on the existing Lease, and require the
+typed readiness gate. Preserve failed deployment evidence and the Lease for
+diagnosis; do not purchase replacement hosts.
 
-When a successful Deployment handoff appears, authenticate its producer, download `encrypted-access.json`, and use `wkchatlifecycle open-access` with the local request identity. Give the operator the exact Manager and Demo HTTP URLs plus their shared temporary username and password only in the local conversation. Never copy them to the tracking Issue.
+### Run
 
-### Status
-
-Status is read-only and never authorizes setup, dispatch, Acquire, Release, cancellation, Issue comments, or any other mutation. Resolve an explicit request ID or the sole active local request; do not guess between multiple requests. Reauthenticate GitHub run and Artifact provenance, then summarize:
-
-- current stage and workflow run;
-- source SHA, Lease identity, and expected stage end;
-- latest health/checkpoint, warnings, and failure classification;
-- conservative aggregate cost against CNY 1,350 operational stop and CNY 1,500 hard limit;
-- cleanup state and whether exact zero-inventory proof exists; and
-- both UTC and Asia/Shanghai timestamps.
-
-Return Manager/Demo credentials only when explicitly requested and only while the matching Lease is still live.
-
-### Stop
-
-Require an explicit request-scoped stop intent, but do not ask for a second confirmation. Dispatch `.github/workflows/chat-lifecycle-stop.yml` on `main` with the exact request ID and `stop_authorization=operator-stop-chat-lifecycle`.
-
-The Stop Action seals the durable stop marker, blocks future formal procurement, and requests bounded finalization for both possible stages. Before handoff, the cleanup-owning orchestrator observes the marker, cancels only its exact current child, waits for that child to become terminal, and performs exact Release; the Stop Action never hard-cancels that owner. After handoff, every scheduled finalizer reauthenticates the marker before performing the graceful workload stop and Release, so a handoff publication race cannot lose the intent. Continue monitoring cleanup. Do not report successful stop, close the Issue, or delete local request credentials until an authenticated zero-inventory proof covers the exact selector.
+`run` never authorizes procurement. Start the fixed rehearsal-shaped systemd
+unit and hand it to the bounded 75-minute stability monitor. Qualification
+requires 60 continuous healthy active minutes. Once active, online loss,
+insufficient SEND rate, excessive SENDACK backlog, missing SEND/SENDACK
+progress, or active-phase loss is terminal within 15 seconds. Stop the
+workload, retain the terminal worker cuts, and mark the request
+`diagnosis_ready`; do not keep polling a stopped workload.
 
 ### Diagnose
 
-Diagnose is read-only and never authorizes procurement or cleanup. Resolve and authenticate one exact live request and stage. If provider inventory is already zero, report that live diagnosis is unavailable. Otherwise delegate the exact live run to `$wukongim-cloud-analysis` and preserve its evidence-based classification. Do not substitute old workflow logs for a live Analysis session.
-Establish that session through
-`scripts/chat-lifecycle/analyze.sh <request_id> <lease_id>`; do not send the
-Lease identity to the legacy Cloud Simulation locator workflow.
+`diagnose` is read-only and uses the saved SSH config for the exact live Lease.
+Collect bounded service state, stage journal, Prometheus targets, and all three
+worker status/snapshot pairs. Diagnose from evidence, fix locally, commit, then
+`deploy` and `run` again on the same hosts.
 
-## Tracking and completion
+### Status
 
-Use the tracking Issue as the human control record, never as provider authority. Record stage transitions, immutable source and Lease identities, checkpoint verdicts, cost, warnings, and cleanup evidence. Mention `tangtaoit` only for failures, capacity/resource or disk warnings, budget events, and the final outcome.
+`status` is read-only. Resolve an explicit request ID or refuse ambiguity.
+Report local state, generation, source SHA, Lease identity, last diagnosis,
+expiry/cost when available, and whether exact zero inventory is proven.
 
-Keep local diagnostic and UI credentials until the complete request has terminal evidence and exact zero inventory. Then remove only the fully resolved request-scoped files and mark the monitor complete. A workflow conclusion, accepted delete request, empty Issue, or elapsed expiry is not cleanup proof.
-Pass the authenticated `zero-inventory.json` to
-`scripts/chat-lifecycle/local-request-state.sh cleanup`; never recursively
-remove the request directory.
+### Stop
+
+An explicit request-scoped stop needs no second confirmation. Execute the
+reference `stop` procedure. It first signals any local monitor, stops the remote
+workload best-effort, releases only the saved exact selector, and accepts
+completion only with an authenticated zero-inventory proof for that selector.
+
+## Completion
+
+The repair stability run is diagnostic and never official evidence. Keep the local
+request directory until `stop` has stored `zero-inventory.json`. Report both UTC
+and Asia/Shanghai timestamps for paid start, diagnosis, qualification, and
+release. Do not claim cleanup from a successful API delete request alone.

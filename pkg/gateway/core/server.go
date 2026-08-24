@@ -370,6 +370,19 @@ func (s *Server) Stop() error {
 	return firstErr
 }
 
+// DrainSends closes new SEND admission and waits for already accepted SEND
+// mailbox work to finish. Caller cancellation stops only this wait; accepted
+// work continues in the background and a later call resumes the same drain.
+func (s *Server) DrainSends(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.asyncRuntime().drainSends(ctx)
+}
+
 func (s *Server) asyncRuntime() *asyncRuntime {
 	if s == nil {
 		return nil
@@ -970,7 +983,7 @@ func (s *Server) encodeAndWrite(state *sessionState, f frame.Frame, meta session
 		return err
 	}
 	s.observeFrameOut(state, f, len(encoded))
-	return s.writePayloadDirect(state, encoded)
+	return s.writePayloadDirectObserved(state, encoded, f)
 }
 
 func (s *Server) writeImmediateFrame(state *sessionState, f frame.Frame) error {
@@ -983,7 +996,7 @@ func (s *Server) writeImmediateFrame(state *sessionState, f frame.Frame) error {
 		return err
 	}
 	s.observeFrameOut(state, f, len(encoded))
-	return s.writePayloadDirect(state, encoded)
+	return s.writePayloadDirectObserved(state, encoded, f)
 }
 
 func (s *Server) dispatchSessionOpen(state *sessionState) error {
@@ -1133,8 +1146,7 @@ type asyncDispatchTask struct {
 }
 
 type asyncSendStats interface {
-	depth() int
-	totalCapacity() int
+	queueSnapshot() gatewaytypes.AsyncSendQueueEvent
 }
 
 type asyncSendBatchLimits struct {
@@ -1260,6 +1272,27 @@ func (s *Server) writePayloadDirect(state *sessionState, payload []byte) error {
 		}
 	}
 	return state.conn.Write(payload)
+}
+
+func (s *Server) writePayloadDirectObserved(state *sessionState, payload []byte, f frame.Frame) error {
+	if state == nil || state.conn == nil {
+		return session.ErrSessionClosed
+	}
+	observer := s.transportWriteObserver()
+	writer, observed := state.conn.(transport.ObservedWriter)
+	if observer == nil || !observed || f == nil || f.GetFrameType() != frame.SENDACK || webSocketMessageTypeForState(state) != transport.WebSocketMessageUnknown {
+		return s.writePayloadDirect(state, payload)
+	}
+	frameType := f.GetFrameType().String()
+	startedAt := time.Now()
+	return writer.WriteObserved(payload, frameType, func(err error) {
+		observer.OnTransportWrite(gatewaytypes.TransportWriteEvent{
+			ConnectionEvent: connectionEventForState(state),
+			FrameType:       frameType,
+			Duration:        time.Since(startedAt),
+			Err:             err,
+		})
+	})
 }
 
 func webSocketMessageTypeForState(state *sessionState) transport.WebSocketMessageType {
@@ -1568,10 +1601,7 @@ func (s *Server) observeAsyncSendQueue(queue asyncSendStats) {
 	if observer == nil || queue == nil {
 		return
 	}
-	observer.OnAsyncSendQueue(gatewaytypes.AsyncSendQueueEvent{
-		Depth:    queue.depth(),
-		Capacity: queue.totalCapacity(),
-	})
+	observer.OnAsyncSendQueue(queue.queueSnapshot())
 }
 
 func (s *Server) observeAsyncAuthQueue(queue asyncAuthStats) {
@@ -1691,6 +1721,17 @@ func (s *Server) transportPressureObserver() gatewaytypes.TransportPressureObser
 		return nil
 	}
 	observer, ok := s.options.Observer.(gatewaytypes.TransportPressureObserver)
+	if !ok {
+		return nil
+	}
+	return observer
+}
+
+func (s *Server) transportWriteObserver() gatewaytypes.TransportWriteObserver {
+	if s == nil || s.options.Observer == nil {
+		return nil
+	}
+	observer, ok := s.options.Observer.(gatewaytypes.TransportWriteObserver)
 	if !ok {
 		return nil
 	}

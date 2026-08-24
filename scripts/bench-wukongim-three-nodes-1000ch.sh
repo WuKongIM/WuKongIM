@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_BENCH_THREE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 
-QPS_LIST="${WK_BENCH_THREE_NODE_QPS:-1000,2000,2400,2490,2500,2600,2800,3000}"
+QPS_LIST="${WK_BENCH_THREE_NODE_QPS:-250,500,750,1000}"
 OUT_DIR="${WK_BENCH_THREE_NODE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-three-node-1000ch}"
 WK_BENCH_BIN="${WK_BENCH_BIN:-$ROOT_DIR/data/wkbench-test}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19130}"
@@ -58,7 +58,7 @@ Starts a local cmd/wukongim three-node cluster, then runs fixed multi-channel
 wkbench traffic against it.
 
 Options:
-  --qps LIST             Comma-separated offered QPS list. Default: 1000,2000,2400,2490,2500,2600,2800,3000.
+  --qps LIST             Comma-separated offered QPS list. Default: 250,500,750,1000.
   --out-dir DIR          Evidence output directory.
   --wkbench-bin PATH     wkbench binary path. Default: data/wkbench-test.
   --worker-addr URL      Worker control URL. Default: http://127.0.0.1:19130.
@@ -98,10 +98,10 @@ Options:
   -h, --help             Show this help.
 
 Example:
-  scripts/bench-wukongim-three-nodes-1000ch.sh --qps 2000,2400,2500
+  scripts/bench-wukongim-three-nodes-1000ch.sh --qps 250,500,750,1000
 
   # Reuse an already-running cluster:
-  scripts/bench-wukongim-three-nodes-1000ch.sh --no-start --qps 2000,2500
+  scripts/bench-wukongim-three-nodes-1000ch.sh --no-start --qps 250,500,750,1000
 USAGE
 }
 
@@ -1487,6 +1487,32 @@ channelappend_metrics_summary() {
   done
 }
 
+storage_metrics_summary() {
+  local tag="$1"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/storage_metrics_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/storage-metrics-summary.awk"
+  local addr id before after
+  local samples=() files=()
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    if [[ ! -f "$before" || ! -f "$after" ]]; then
+      awk -v tag="$tag" -v node="$id" -f "$summarizer" /dev/null /dev/null >>"$out" || true
+      continue
+    fi
+    samples=("$metrics_dir/${id}-sample-"*.prom)
+    if [[ ! -e "${samples[0]}" ]]; then
+      samples=()
+    fi
+    files=("$before")
+    files+=("${samples[@]}")
+    files+=("$after")
+    awk -v tag="$tag" -v node="$id" -f "$summarizer" "${files[@]}" >>"$out" || true
+  done
+}
+
 runtime_pool_pressure_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -1585,6 +1611,7 @@ run_attempt() {
   rpc_pull_qps_summary "$tag" "$duration"
   channel_metrics_summary "$tag" "$duration"
   channelappend_metrics_summary "$tag"
+  storage_metrics_summary "$tag"
   runtime_pool_pressure_summary "$tag"
   ants_pool_usage_summary "$tag"
   cluster_transport_peak_summary "$tag"
@@ -2605,6 +2632,7 @@ print_summary() {
   printf '  %s%-23s%s %s\n' "$C_DIM" "server_process" "$C_RESET" "resources/server-process-summary.tsv"
   printf '  %s%-23s%s %s\n' "$C_DIM" "cluster_transport" "$C_RESET" "cluster_transport_peak_summary.tsv"
   printf '  %s%-23s%s %s\n' "$C_DIM" "ants_pool_usage" "$C_RESET" "ants_pool_usage_summary.tsv"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "storage_metrics" "$C_RESET" "storage_metrics_summary.tsv"
 }
 
 write_evidence_summary() {
@@ -2633,6 +2661,7 @@ write_evidence_summary() {
 - server_process: resources/server-process-summary.tsv
 - cluster_transport: cluster_transport_peak_summary.tsv
 - ants_pool_usage: ants_pool_usage_summary.tsv
+- storage_metrics: storage_metrics_summary.tsv
 - quiescence: quiescence/*.tsv
 - sample_validity: sample-validity.tsv
 - storage_preflight: storage-preflight.tsv
@@ -2681,6 +2710,7 @@ EOF
   cat >"$OUT_DIR/channelappend_metrics_summary.tsv" <<'EOF'
 tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms	effect_worker_inflight_max	effect_worker_capacity_max	effect_worker_util_max	effect_queue_depth_max	effect_queue_capacity_max	effect_queue_fill_max	effect_pool_submit_delta	effect_pool_full_delta	effect_pool_error_delta	effect_pool_inflight_max	effect_pool_capacity_max	effect_pool_util_max	effect_pool_saturated_max	effect_pool_over90_count
 EOF
+  awk -v header=1 -f "$ROOT_DIR/scripts/storage-metrics-summary.awk" /dev/null >"$OUT_DIR/storage_metrics_summary.tsv"
   cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
 EOF

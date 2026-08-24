@@ -19,5 +19,11 @@ func (e *EventPacket) GetFrameType() FrameType {
 }
 
 func (e *EventPacket) String() string {
+	if IsTerminalFenceEvent(e) {
+		return fmt.Sprintf("Id:%s Type:%s Timestamp:%d Data:[redacted]", e.Id, e.Type, e.Timestamp)
+	}
 	return fmt.Sprintf("Id:%s Type:%s Timestamp:%d Data:%s", e.Id, e.Type, e.Timestamp, string(e.Data))
 }
+
+// GoString prevents debug formatting from reflecting secret fence payloads.
+func (e *EventPacket) GoString() string { return e.String() }

@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -91,6 +92,78 @@ func TestPreflightFailsWhenRequiredCapabilityMissing(t *testing.T) {
 	}, model.WorkerSet{})
 
 	require.ErrorContains(t, err, "snapshot")
+}
+
+func TestPreflightRequiresTerminalFenceCapabilityOnlyForExternalTerminalCut(t *testing.T) {
+	targetSrv := goodTargetServer(t)
+	defer targetSrv.Close()
+	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer workerSrv.Close()
+	target := model.Target{
+		API:      model.TargetAPIConfig{Addrs: []string{targetSrv.URL}},
+		BenchAPI: model.BenchAPIConfig{Enabled: true},
+	}
+	workers := model.WorkerSet{Workers: []model.Worker{{
+		ID: "w1", Addr: workerSrv.URL, InsecureControl: true,
+	}}}
+
+	err := NewPreflight(PreflightConfig{RequireTerminalFence: true}).Check(context.Background(), target, workers)
+	require.ErrorContains(t, err, "terminal_fence_prepare")
+
+	err = NewPreflight(PreflightConfig{}).Check(context.Background(), target, workers)
+	require.NoError(t, err)
+}
+
+func TestPreflightExternalTerminalCutRejectsMultipleEffectiveBenchAPIAddressesBeforeNetwork(t *testing.T) {
+	httpCalls := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		httpCalls++
+		return nil, errors.New("unexpected HTTP request")
+	})}
+	gateway := &recordingGatewayChecker{}
+
+	err := NewPreflight(PreflightConfig{
+		HTTPClient:           httpClient,
+		GatewayChecker:       gateway,
+		RequireTerminalFence: true,
+	}).Check(context.Background(), model.Target{
+		BenchAPI: model.BenchAPIConfig{
+			Enabled: true,
+			Addrs:   []string{"http://bench-a.invalid", "http://bench-b.invalid"},
+		},
+	}, model.WorkerSet{Workers: []model.Worker{{
+		ID: "w1", Addr: "http://worker.invalid", InsecureControl: true,
+	}}})
+
+	require.ErrorContains(t, err, "exactly one effective bench API address")
+	require.Zero(t, httpCalls)
+	require.Empty(t, gateway.addrs)
+}
+
+func TestPreflightExternalTerminalCutRejectsMultipleWorkersBeforeNetwork(t *testing.T) {
+	httpCalls := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		httpCalls++
+		return nil, errors.New("unexpected HTTP request")
+	})}
+	gateway := &recordingGatewayChecker{}
+
+	err := NewPreflight(PreflightConfig{
+		HTTPClient:           httpClient,
+		GatewayChecker:       gateway,
+		RequireTerminalFence: true,
+	}).Check(context.Background(), model.Target{
+		BenchAPI: model.BenchAPIConfig{Enabled: true, Addrs: []string{"http://bench.invalid"}},
+	}, model.WorkerSet{Workers: []model.Worker{
+		{ID: "w1", Addr: "http://worker-1.invalid", InsecureControl: true},
+		{ID: "w2", Addr: "http://worker-2.invalid", InsecureControl: true},
+	}})
+
+	require.ErrorContains(t, err, "exactly one worker")
+	require.Zero(t, httpCalls)
+	require.Empty(t, gateway.addrs)
 }
 
 func TestPreflightFailsWhenCapabilityVersionIsWrong(t *testing.T) {
@@ -244,4 +317,10 @@ type recordingGatewayChecker struct {
 func (g *recordingGatewayChecker) Check(ctx context.Context, addrs []string) error {
 	g.addrs = append(g.addrs, addrs...)
 	return nil
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

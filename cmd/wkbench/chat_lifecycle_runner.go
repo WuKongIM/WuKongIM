@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -103,6 +104,7 @@ func composeProductionChatLifecycleRuntime(
 	}
 	observation, err := chatlifecycle.NewProductionObservationSource(chatlifecycle.ProductionObservationOptions{
 		Config: cfg, BenchToken: credentials.BenchToken(), HTTPClient: httpClient, RuntimeSafety: runtimeSafety,
+		DiagnosticLog: os.Stderr,
 	})
 	if err != nil {
 		return nil, errors.New("chat-lifecycle production composition failed")
@@ -111,6 +113,7 @@ func composeProductionChatLifecycleRuntime(
 		BenchToken: credentials.BenchToken(), HTTPClient: httpClient, SampleSink: observation,
 	})
 	lifecycle, err := chatlifecycle.NewProductionLifecycle(chatlifecycle.ProductionLifecycleOptions{
+		Enabled: cfg.Profile == chatlifecycle.ProfileFormal,
 		Workers: lifecycleWorkers, Prober: targetClient, SlotAssignment: assignment,
 	})
 	if err != nil {
@@ -154,6 +157,7 @@ func (r *productionChatLifecycleRuntime) controller(
 		Config: cfg, OutputDir: outputDir, Observation: r.observation,
 		Lifecycle: r.lifecycle, Meta: r.meta, MetaAccounting: r.accounting,
 		Dataset: r.dataset, SlotAssignment: r.assignment, Continuous: continuous,
+		DiagnosticLog: os.Stderr,
 	})
 	if err != nil {
 		return nil, errors.New("chat-lifecycle production composition failed")

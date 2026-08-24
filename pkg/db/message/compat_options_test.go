@@ -1,6 +1,17 @@
 package message
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestCommitCoordinatorUsesMeasuredBatchingDefault(t *testing.T) {
+	got := effectiveCommitCoordinatorConfig(CommitCoordinatorConfig{}).FlushWindow
+	want := 500 * time.Microsecond
+	if got != want {
+		t.Fatalf("default commit coordinator flush window = %s, want %s", got, want)
+	}
+}
 
 func TestMessageEngineOptionsUseLargerMemTable(t *testing.T) {
 	const wantMemTable = 64 << 20

@@ -41,12 +41,18 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
+4. Person-directory prepare uses bounded commands for UID membership,
+   create-only runtime metadata, and directory-ready publication; ready follows
+   only after every membership/runtime-meta prepare group succeeds.
 
 ## Invariants and Failure Semantics
 
 - Every command belongs to its physical Slot and an owned logical hash Slot.
   Multi-hash-Slot batches are allowed only by explicit command contracts and
   validate every embedded row.
+  Runtime-meta batches are canonical, identity-unique, and bounded to 64;
+  person membership/ready batches are bounded to 128. The combined prepare
+  command returns aligned create results but never publishes ready.
 - Entity routing keys are stable: UID-owned rows use UID; Channel-owned rows use
   Channel identity. Caller-supplied Slot IDs never override derived ownership.
 - FSM batches are atomic. Expected conditional conflicts and migration races

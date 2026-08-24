@@ -1,9 +1,11 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +24,33 @@ func TestLabelsValidateRejectsForbiddenUID(t *testing.T) {
 func TestLabelsValidateAcceptsLowCardinalityReason(t *testing.T) {
 	if err := (Labels{"phase": "run", "reason": "pending_window_expired"}).Validate(); err != nil {
 		t.Fatalf("expected reason label to be accepted: %v", err)
+	}
+}
+
+func TestParseSeriesReturnsValidatedNameAndLabels(t *testing.T) {
+	name, labels, err := ParseSeries(`send_attempt_total{channel_type=person,phase=run}`)
+	if err != nil {
+		t.Fatalf("ParseSeries() error = %v", err)
+	}
+	if name != "send_attempt_total" || labels["phase"] != "run" || labels["channel_type"] != "person" {
+		t.Fatalf("ParseSeries() = %q %#v", name, labels)
+	}
+	if _, _, err := ParseSeries(`send_attempt_total{uid=secret}`); err == nil {
+		t.Fatal("ParseSeries() accepted forbidden identity label")
+	}
+}
+
+func TestParseSeriesRejectsIdentityBearingNameAndLabelValueWithoutEcho(t *testing.T) {
+	const identityCanary = "canary-uid-493857"
+	for _, series := range []string{
+		"send_" + identityCanary + "_total{phase=run}",
+		"send_attempt_total{phase=" + identityCanary + "}",
+	} {
+		if _, _, err := ParseSeries(series); err == nil {
+			t.Fatalf("ParseSeries(%q) accepted an identity-bearing series", series)
+		} else if strings.Contains(err.Error(), identityCanary) {
+			t.Fatalf("ParseSeries error echoed workload identity: %v", err)
+		}
 	}
 }
 
@@ -52,19 +81,129 @@ func TestRegistrySnapshotIncludesCountersGaugesAndHistogramSummaries(t *testing.
 	}
 }
 
+func TestRegistryRetainsOnlyApprovedMetricNamesAndLabelValues(t *testing.T) {
+	const identityCanary = "canary-uid-493857"
+	r := NewRegistry()
+	legalLabels := Labels{
+		"phase": "run", "channel_type": "person", "profile": "person-a", "traffic": "person-send",
+	}
+	r.IncCounter("send_attempt_total", legalLabels)
+	r.IncCounter("send_"+identityCanary+"_total", Labels{"phase": "run"})
+	r.IncCounter("send_attempt_total", Labels{"phase": identityCanary})
+
+	snapshot := r.Collect()
+	if got := snapshot.Counters["send_attempt_total{channel_type=person,phase=run,profile=person-a,traffic=person-send}"]; got != 1 {
+		t.Fatalf("approved counter = %d, want 1; snapshot = %+v", got, snapshot.Counters)
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), identityCanary) {
+		t.Fatalf("registry retained workload identity through a metric name or label value: %s", encoded)
+	}
+}
+
+func TestRegistrySetGaugeMaxNeverRegresses(t *testing.T) {
+	r := NewRegistry()
+	labels := Labels{"phase": "run"}
+	r.SetGaugeMax("maximum_observed_attempts", labels, 4)
+	r.SetGaugeMax("maximum_observed_attempts", labels, 2)
+	if got := r.GaugeValue("maximum_observed_attempts", labels); got != 4 {
+		t.Fatalf("maximum gauge = %v, want 4", got)
+	}
+}
+
 func TestRegistryBoundsErrorSamples(t *testing.T) {
 	r := NewRegistry()
 	r.SetMaxErrorSamples(2)
-	r.RecordErrorSample("send", errors.New("first"))
-	r.RecordErrorSample("send", errors.New("second"))
-	r.RecordErrorSample("send", errors.New("third"))
+	r.RecordErrorSample("send", io.EOF)
+	r.RecordErrorSample("send", context.DeadlineExceeded)
+	r.RecordErrorSample("send", errors.New("unknown"))
 
 	samples := r.ErrorSamples()
 	if len(samples) != 2 {
 		t.Fatalf("len(samples) = %d, want 2", len(samples))
 	}
-	if samples[0].Message != "second" || samples[1].Message != "third" {
+	if samples[0].Message != "timeout" || samples[1].Message != "operation_failed" {
 		t.Fatalf("unexpected samples: %+v", samples)
+	}
+}
+
+func TestRegistryErrorSamplesNeverRetainWorkloadIdentity(t *testing.T) {
+	const (
+		uid         = "canary-uid-493857"
+		channelID   = "canary-channel-291734"
+		clientMsgNo = "canary-client-msg-875104"
+	)
+	r := NewRegistry()
+	r.RecordErrorSample("group_send_error", fmt.Errorf("uid=%s channel=%s client_msg_no=%s", uid, channelID, clientMsgNo))
+
+	encoded, err := json.Marshal(r.Collect())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{uid, channelID, clientMsgNo} {
+		if strings.Contains(string(encoded), secret) {
+			t.Fatalf("bounded error sample retained workload identity %q: %s", secret, encoded)
+		}
+	}
+	if !strings.Contains(string(encoded), `"name":"group_send_error"`) || !strings.Contains(string(encoded), `"message":"operation_failed"`) {
+		t.Fatalf("bounded error sample lost its closed operation/reason: %s", encoded)
+	}
+}
+
+func TestAggregateSanitizesLegacyWorkerErrorSamples(t *testing.T) {
+	const canary = "canary-client-msg-875104"
+	agg, err := Aggregate([]WorkerSnapshot{{
+		WorkerID: "worker-a",
+		Metrics: SnapshotData{Errors: []ErrorSample{{
+			Name:    "send-" + canary,
+			Message: "sendack timeout for " + canary,
+		}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(agg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), canary) {
+		t.Fatalf("aggregate retained legacy worker identity: %s", encoded)
+	}
+	if len(agg.Errors) != 1 || agg.Errors[0].Name != "workload_error" || agg.Errors[0].Message != "operation_failed" {
+		t.Fatalf("sanitized aggregate sample = %+v", agg.Errors)
+	}
+}
+
+func TestSanitizeSnapshotDropsIdentityBearingMetricNamesAndLabelValues(t *testing.T) {
+	const identityCanary = "canary-uid-493857"
+	sanitized := SanitizeSnapshot(SnapshotData{
+		Counters: map[string]uint64{
+			"send_attempt_total{phase=run}":                    1,
+			"send_" + identityCanary + "_total{phase=run}":     2,
+			"send_attempt_total{phase=" + identityCanary + "}": 3,
+		},
+		Gauges: map[string]float64{
+			"logical_remaining{phase=run}":                    0,
+			"logical_remaining{phase=" + identityCanary + "}": 4,
+		},
+		Histograms: map[string]HistogramSummary{
+			"person_send_latency_seconds{phase=run}":                    {Count: 1},
+			"person_send_latency_seconds{phase=" + identityCanary + "}": {Count: 2},
+		},
+	})
+	if len(sanitized.Counters) != 1 || sanitized.Counters["send_attempt_total{phase=run}"] != 1 ||
+		len(sanitized.Gauges) != 1 || len(sanitized.Histograms) != 1 {
+		t.Fatalf("sanitized snapshot did not preserve only the approved series: %+v", sanitized)
+	}
+	encoded, err := json.Marshal(sanitized)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), identityCanary) {
+		t.Fatalf("sanitized snapshot retained workload identity: %s", encoded)
 	}
 }
 
@@ -80,6 +219,27 @@ func TestAggregateRejectsUnsafeLabelsFromWorkerSnapshots(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, "uid") {
 		t.Fatalf("expected error to mention uid, got %q", got)
+	}
+}
+
+func TestAggregateRejectsIdentityBearingMetricNamesAndLabelValuesWithoutEcho(t *testing.T) {
+	const identityCanary = "canary-uid-493857"
+	for name, series := range map[string]string{
+		"metric name": "send_" + identityCanary + "_total{phase=run}",
+		"phase value": "send_attempt_total{phase=" + identityCanary + "}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Aggregate([]WorkerSnapshot{{
+				WorkerID: "worker-a",
+				Metrics:  SnapshotData{Counters: map[string]uint64{series: 1}},
+			}})
+			if err == nil {
+				t.Fatal("Aggregate accepted an identity-bearing worker metric series")
+			}
+			if strings.Contains(err.Error(), identityCanary) {
+				t.Fatalf("Aggregate error echoed workload identity: %v", err)
+			}
+		})
 	}
 }
 
@@ -103,7 +263,7 @@ func TestAggregateBoundsErrorSamplesGlobally(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		workers = append(workers, WorkerSnapshot{
 			WorkerID: fmt.Sprintf("w%02d", i),
-			Metrics:  SnapshotData{Errors: []ErrorSample{{Name: "send", Message: fmt.Sprintf("err-%02d", i)}}},
+			Metrics:  SnapshotData{Errors: []ErrorSample{{Name: "send", Message: "operation_failed", At: time.Unix(int64(i), 0)}}},
 		})
 	}
 
@@ -115,8 +275,8 @@ func TestAggregateBoundsErrorSamplesGlobally(t *testing.T) {
 	if len(agg.Errors) != 32 {
 		t.Fatalf("len(errors) = %d, want 32", len(agg.Errors))
 	}
-	if agg.Errors[0].Message != "err-08" || agg.Errors[31].Message != "err-39" {
-		t.Fatalf("unexpected bounded errors: first=%q last=%q", agg.Errors[0].Message, agg.Errors[31].Message)
+	if !agg.Errors[0].At.Equal(time.Unix(8, 0)) || !agg.Errors[31].At.Equal(time.Unix(39, 0)) {
+		t.Fatalf("unexpected bounded errors: first=%s last=%s", agg.Errors[0].At, agg.Errors[31].At)
 	}
 }
 

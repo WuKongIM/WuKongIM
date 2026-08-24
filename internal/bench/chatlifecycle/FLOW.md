@@ -32,6 +32,7 @@ strict config and black-box preflight
   -> first complete global grant
   -> measured clock, continuous grants, observation, and lifecycle proof
   -> cutoff, stable worker stop, evidence reconciliation, atomic report
+  -> atomically replace bounded live diagnostic status on every evidence cut
 
 passing 72-hour formal generation
   -> prove the same live aged dataset and process generation
@@ -41,8 +42,10 @@ passing 72-hour formal generation
 
 ## Invariants and Failure Semantics
 
-- Worker protocol v2 uses constant-time bearer verification and exact
-  `run_id + assignment_id + generation` fences. Assignment, Start, grant,
+- Current worker protocols use constant-time bearer verification and exact
+  `run_id + assignment_id + generation` fences. Status retains the active and
+  latest cached grant sequence/result, while snapshots expose only bounded
+  scalar aggregates and fixed metadata-create and latency partitions. Assignment, Start, grant,
   status, checkpoint, rate, and stop rounds are bounded and attempt all three
   workers concurrently.
 - The coordinator is the sole global rate allocator. Workers apply only their
@@ -52,6 +55,17 @@ passing 72-hour formal generation
 - Engine heaps, maps, queues, correlations, samples, and histories have checked
   capacities. Planning is history-independent; no historical user or Channel
   owns retained goroutines, timers, or map rows.
+  Session expiry transfers to one generation-owned bounded cleanup queue;
+  closing tombstones and per-SEND expiry leases prevent replacement or socket
+  teardown from racing admitted retry work.
+- The first measured grant reserves distinct senders across person, group, and
+  canary traffic at the formal population. A Channel becomes hot only after
+  its first successful SENDACK; metadata-create vectors and hot/first-create/
+  reheat latency evidence advance from those exact successful boundaries.
+- Local transport-admission rejection stays explicit harness evidence and is
+  excluded from product first-attempt failure rates. Retry exhaustion keeps a
+  fixed trigger breakdown; sampled delivery loss starts only after a successful
+  SENDACK proves target acceptance.
 - Lifecycle proof leases at most 100 current candidates per each of 12 logical
   Slot groups. It never evicts runtimes: all replicas must cool naturally, one
   fenced approval unlocks the already scheduled real SEND, and post-reheat
@@ -64,6 +78,10 @@ passing 72-hour formal generation
 - Reports and control responses use closed reason vocabularies, fixed arrays,
   checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.
+  The running diagnostic file contains only three-worker connection gauges,
+  teardown reasons, message aggregates, and at most 64 recent changes.
+- The native local staircase is a non-formal typed-evidence classifier; an early
+  proven product failure is not downgraded before warmup qualification.
 - Formal-to-capacity continuation cannot restart workers, reset the dataset,
   replace the observer, or reuse a clean cluster. Cost-stop and Lease-expiry
   risk remain terminal throughout rehearsal, formal, and capacity stages.
@@ -78,7 +96,5 @@ passing 72-hour formal generation
 
 ## Update Triggers
 
-- Worker fencing, control-round, grant, clock-start, or cleanup semantics change.
-- Engine capacity, retry, correlation, session ownership, or shutdown changes.
-- Lifecycle proof, metadata accounting, observer, or verdict precedence changes.
-- Formal/rehearsal/capacity continuity, cost, expiry, or report schema changes.
+- Worker fencing, grants, engine/session lifecycle, or cleanup semantics change.
+- Lifecycle, observation, verdict, cost, continuity, or report schemas change.

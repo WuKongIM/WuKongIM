@@ -33,6 +33,8 @@ typed bounded workers and returns as `EventWorkerResult`.
 2. Leaders apply `AckOffset`, serve cached or stored pulls, and advance quorum;
    followers run one continuous pull/apply chain, return progress, checkpoint
    idle HW, and activate from hints only after authoritative bounded loading.
+   Repeated caught-up anti-entropy probes widen deterministically to one minute;
+   only discovered missed progress resets the initial short cadence.
 3. The lifecycle controller checkpoints and stops caught-up replicas, performs
    a final mailbox-ordered recheck, and evicts or shuts down runtime/store
    ownership only after every fence and pending-work guard passes.
@@ -42,6 +44,10 @@ typed bounded workers and returns as `EventWorkerResult`.
 - Each asynchronous completion must match Channel key, generation, epoch,
   leader epoch, and operation ID. Stale results cannot advance or evict a newer
   incarnation.
+- Quorum install remains pending work and keeps append admission closed until
+  recovery plus the current-authority barrier succeeds. Each accepted append
+  completes directly from its exact quorum-commit receipt, without hot-path
+  PullHint or AckOffset signals.
 - One loaded runtime has one lifecycle controller. Hot follower replication
   remains separate but exposes pending-work evidence to lifecycle guards.
 - Cold activation is not loaded state and does not consume `MaxChannels` until

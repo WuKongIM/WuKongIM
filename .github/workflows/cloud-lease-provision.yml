@@ -34,6 +34,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 concurrency:
@@ -94,6 +95,11 @@ jobs:
             .request_id == $request_id
           ' "$RUNNER_TEMP/plan.json" >/dev/null || {
             echo 'Plan repository and request_id must match this workflow dispatch.' >&2
+            exit 1
+          }
+          plan_stage="$(jq -er '.tags.stage // ""' "$RUNNER_TEMP/plan.json")"
+          [[ "$plan_stage" != repair ]] || {
+            echo 'Repair Lease Quote and Acquire are local Codex operations, not GitHub Actions.' >&2
             exit 1
           }
           if [[ "$QUOTE_ONLY" != true ]]; then

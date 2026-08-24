@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
@@ -86,13 +87,25 @@ type transportMetricsObserver struct {
 	metrics *obsmetrics.Registry
 	mu      sync.Mutex
 
-	pendingRPCBySource     map[uint64]int
-	schedulerQueueBySource map[transportSchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation
+	pendingRPCBySource         map[uint64]int
+	pendingRPCRevisionBySource map[uint64]uint64
+	schedulerQueueBySource     map[transportSchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation
+	schedulerRevisionBySource  map[transportSchedulerQueueSource]uint64
 }
 
 type transportSchedulerQueueSource struct {
 	sourceID uint64
 	priority string
+}
+
+var transportMetricsStateRevision atomic.Uint64
+
+func nextTransportMetricsStateRevision() uint64 {
+	for {
+		if revision := transportMetricsStateRevision.Add(1); revision != 0 {
+			return revision
+		}
+	}
 }
 
 type controllerRaftMetricsObserver struct {
@@ -201,12 +214,19 @@ func (o gatewayMetricsObserver) OnFrameHandled(event accessgateway.FrameHandleEv
 	o.metrics.Gateway.FrameHandled(event.FrameType, event.Duration)
 }
 
+func (o gatewayMetricsObserver) OnTransportWrite(event accessgateway.TransportWriteEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Gateway.TransportWrite(event.FrameType, event.Duration, event.Err)
+}
+
 func (o gatewayMetricsObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQueueEvent) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.Gateway.SetAsyncSendQueue(event.Depth, event.Capacity)
-	o.metrics.RuntimePressure.SetQueue("gateway", "async_send", "send", "none", obsmetrics.RuntimePressureQueueObservation{
+	o.metrics.Gateway.SetAsyncSendQueueRevisioned(event.Revision, event.Depth, event.Capacity)
+	o.metrics.RuntimePressure.SetQueueRevisioned("gateway", "async_send", "send", "none", event.Revision, obsmetrics.RuntimePressureQueueObservation{
 		Depth:    event.Depth,
 		Capacity: event.Capacity,
 	})
@@ -265,7 +285,7 @@ func (o gatewayMetricsObserver) OnTransportPressure(event accessgateway.Transpor
 	}
 	pool := fallbackRuntimePressureLabel(event.Name, "gnet")
 	queue := fallbackRuntimePressureLabel(event.Queue, "transport")
-	o.metrics.RuntimePressure.SetQueue("gateway", pool, queue, "none", obsmetrics.RuntimePressureQueueObservation{
+	o.metrics.RuntimePressure.SetQueueRevisioned("gateway", pool, queue, "none", event.Revision, obsmetrics.RuntimePressureQueueObservation{
 		Depth:         event.Depth,
 		Capacity:      event.Capacity,
 		Bytes:         event.Bytes,
@@ -316,6 +336,14 @@ func (o multiGatewayObserver) OnFrameOut(event accessgateway.FrameEvent) {
 func (o multiGatewayObserver) OnFrameHandled(event accessgateway.FrameHandleEvent) {
 	for _, observer := range o {
 		observer.OnFrameHandled(event)
+	}
+}
+
+func (o multiGatewayObserver) OnTransportWrite(event accessgateway.TransportWriteEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.TransportWriteObserver); ok {
+			optional.OnTransportWrite(event)
+		}
 	}
 }
 
@@ -722,6 +750,27 @@ func (o channelMetricsObserver) ObserveChannelMetaCreate(slotID uint32, result c
 	o.metrics.ChannelRuntime.ObserveMetaCreate(slotID, string(result))
 }
 
+func (o channelMetricsObserver) SetChannelMetaCreateQueueDepth(slotID uint32, depth int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.SetMetaCreateQueueDepth(slotID, depth)
+}
+
+func (o channelMetricsObserver) ObserveChannelMetaCreateCoalesced(slotID uint32) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveMetaCreateCoalesced(slotID)
+}
+
+func (o channelMetricsObserver) ObserveChannelMetaCreateBatch(slotID uint32, result string, items int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveMetaCreateBatch(slotID, result, items)
+}
+
 func (o channelMetricsObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	if o.metrics == nil {
 		return
@@ -1003,19 +1052,20 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 	case "write_batch":
 		o.metrics.Transport.ObserveWriteBatch(event.Items, event.Bytes, event.Capacity)
 	case "pending_rpc":
-		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "rpc", o.transportPendingRPCInflight(event))
+		inflight, revision := o.transportPendingRPCInflight(event)
+		o.metrics.RuntimePressure.SetPoolInflightRevisioned(transportRuntimePressureComponent, "rpc", revision, inflight)
 	case "peer_pool":
-		inflight := event.Inflight
-		if inflight == 0 {
-			inflight = event.Items
-		}
 		o.metrics.RuntimePressure.SetPoolWorkers(transportRuntimePressureComponent, "peer_pool", event.Capacity)
-		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "peer_pool", inflight)
+		// Peer pool items are persistent node-to-node connections, not unfinished
+		// work. Publishing them as runtime inflight makes a healthy live cluster
+		// structurally unable to prove terminal queue convergence.
+		o.metrics.Transport.SetPoolConnections(map[string]int{"aggregate": event.Items}, nil)
 	case "scheduler_queue":
 		priority := transportPriorityLabel(event.Priority)
-		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "scheduler", "scheduler", priority, o.transportSchedulerQueue(priority, event))
+		queue, revision := o.transportSchedulerQueue(priority, event)
+		o.metrics.RuntimePressure.SetQueueRevisioned(transportRuntimePressureComponent, "scheduler", "scheduler", priority, revision, queue)
 	case "service_queue":
-		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), transportQueueObservation(event))
+		o.metrics.RuntimePressure.SetQueueRevisioned(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), event.Revision, transportQueueObservation(event))
 	case "scheduler_admission":
 		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result)
 	case "service_admission":
@@ -1031,12 +1081,12 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 		if event.Capacity > 0 {
 			o.metrics.RuntimePressure.SetPoolWorkers(transportRuntimePressureComponent, pool, event.Capacity)
 		}
-		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, pool, event.Inflight)
+		o.metrics.RuntimePressure.SetPoolInflightRevisioned(transportRuntimePressureComponent, pool, event.Revision, event.Inflight)
 		if event.PoolCapacity > 0 {
 			o.metrics.AntsPool.SetUsage(transportRuntimePressureComponent, "service_executor", event.PoolRunning, event.PoolCapacity, event.PoolWaiting)
 		}
 	case "controller_raft_queue":
-		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), transportQueueObservation(event))
+		o.metrics.RuntimePressure.SetQueueRevisioned(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), event.Revision, transportQueueObservation(event))
 	case "controller_raft_admission":
 		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), event.Result)
 	case "controller_raft_task":
@@ -1044,38 +1094,56 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 	}
 }
 
-func (o *transportMetricsObserver) transportPendingRPCInflight(event transport.Event) int {
+func (o *transportMetricsObserver) transportPendingRPCInflight(event transport.Event) (int, uint64) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	if o.pendingRPCBySource == nil {
 		o.pendingRPCBySource = make(map[uint64]int)
 	}
-	if event.Inflight <= 0 {
-		delete(o.pendingRPCBySource, event.SourceID)
-	} else {
-		o.pendingRPCBySource[event.SourceID] = event.Inflight
+	if o.pendingRPCRevisionBySource == nil {
+		o.pendingRPCRevisionBySource = make(map[uint64]uint64)
+	}
+	lastRevision := o.pendingRPCRevisionBySource[event.SourceID]
+	if event.Revision == 0 || lastRevision == 0 || event.Revision > lastRevision {
+		if event.Revision > 0 {
+			o.pendingRPCRevisionBySource[event.SourceID] = event.Revision
+		}
+		if event.Inflight <= 0 {
+			delete(o.pendingRPCBySource, event.SourceID)
+		} else {
+			o.pendingRPCBySource[event.SourceID] = event.Inflight
+		}
 	}
 	var total int
 	for _, inflight := range o.pendingRPCBySource {
 		total += inflight
 	}
-	return total
+	return total, nextTransportMetricsStateRevision()
 }
 
-func (o *transportMetricsObserver) transportSchedulerQueue(priority string, event transport.Event) obsmetrics.RuntimePressureQueueObservation {
+func (o *transportMetricsObserver) transportSchedulerQueue(priority string, event transport.Event) (obsmetrics.RuntimePressureQueueObservation, uint64) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	if o.schedulerQueueBySource == nil {
 		o.schedulerQueueBySource = make(map[transportSchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation)
 	}
+	if o.schedulerRevisionBySource == nil {
+		o.schedulerRevisionBySource = make(map[transportSchedulerQueueSource]uint64)
+	}
 	key := transportSchedulerQueueSource{sourceID: event.SourceID, priority: priority}
-	switch event.Result {
-	case "closed", "stopped":
-		delete(o.schedulerQueueBySource, key)
-	default:
-		o.schedulerQueueBySource[key] = transportQueueObservation(event)
+	lastRevision := o.schedulerRevisionBySource[key]
+	if event.Revision == 0 || lastRevision == 0 || event.Revision > lastRevision {
+		if event.Revision > 0 {
+			o.schedulerRevisionBySource[key] = event.Revision
+		}
+		switch event.Result {
+		case "closed", "stopped":
+			delete(o.schedulerQueueBySource, key)
+		default:
+			o.schedulerQueueBySource[key] = transportQueueObservation(event)
+		}
 	}
 
 	var total obsmetrics.RuntimePressureQueueObservation
@@ -1088,7 +1156,7 @@ func (o *transportMetricsObserver) transportSchedulerQueue(priority string, even
 		total.Bytes += observation.Bytes
 		total.BytesCapacity += observation.BytesCapacity
 	}
-	return total
+	return total, nextTransportMetricsStateRevision()
 }
 
 func (o controllerRaftMetricsObserver) SetStepQueueDepth(depth int, capacity int) {
@@ -1988,6 +2056,33 @@ func (o multiChannelObserver) ObserveChannelMetaCreate(slotID uint32, result clu
 	}
 }
 
+func (o multiChannelObserver) SetChannelMetaCreateQueueDepth(slotID uint32, depth int) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(clusterchannels.MetaCreateBatchObserver)
+		if ok {
+			batchObserver.SetChannelMetaCreateQueueDepth(slotID, depth)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveChannelMetaCreateCoalesced(slotID uint32) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(clusterchannels.MetaCreateBatchObserver)
+		if ok {
+			batchObserver.ObserveChannelMetaCreateCoalesced(slotID)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveChannelMetaCreateBatch(slotID uint32, result string, items int) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(clusterchannels.MetaCreateBatchObserver)
+		if ok {
+			batchObserver.ObserveChannelMetaCreateBatch(slotID, result, items)
+		}
+	}
+}
+
 func (o multiChannelObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	for _, observer := range o {
 		observer.ObserveAppendBatch(records, bytes, wait)
@@ -2301,6 +2396,10 @@ func channelWorkerKindLabel(kind worker.TaskKind) string {
 		return "func"
 	case worker.TaskStoreAppend:
 		return "store_append"
+	case worker.TaskQuorumInstall:
+		return "quorum_install"
+	case worker.TaskQuorumCommit:
+		return "quorum_commit"
 	case worker.TaskStoreApply:
 		return "store_apply"
 	case worker.TaskStoreReadLog:

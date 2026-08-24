@@ -367,6 +367,16 @@ func (db *MetaDB) ImportHashSlotSnapshotPreservingMigrationMeta(ctx context.Cont
 
 // DeleteHashSlotData removes all metadata for one hash slot.
 func (db *MetaDB) DeleteHashSlotData(ctx context.Context, hashSlot uint16) error {
+	return db.deleteHashSlotData(ctx, hashSlot, nil)
+}
+
+// deleteLegacySlotData atomically removes a legacy one-to-one physical Slot's
+// hash-slot data and its state-machine applied watermark.
+func (db *MetaDB) deleteLegacySlotData(ctx context.Context, slotID uint64) error {
+	return db.deleteHashSlotData(ctx, uint16(slotID), encodeSlotAppliedIndexKey(slotID))
+}
+
+func (db *MetaDB) deleteHashSlotData(ctx context.Context, hashSlot uint16, slotAppliedKey []byte) error {
 	if err := checkSnapshotDB(ctx, db); err != nil {
 		return err
 	}
@@ -378,6 +388,11 @@ func (db *MetaDB) DeleteHashSlotData(ctx context.Context, hashSlot uint16) error
 	defer batch.Close()
 	for _, span := range hashSlotAllDataSpans(slot) {
 		if err := batch.DeleteRange(engine.Span{Start: span.Start, End: span.End}); err != nil {
+			return err
+		}
+	}
+	if len(slotAppliedKey) != 0 {
+		if err := batch.Delete(slotAppliedKey); err != nil {
 			return err
 		}
 	}

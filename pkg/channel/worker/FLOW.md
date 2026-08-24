@@ -29,6 +29,8 @@ It does not own reactor state machines, business retries, or dependency policy.
 2. Pull and PullHint batch by task kind and target node, defaulting to 16 items
    and 250 microseconds; optional store interfaces batch append, apply, and
    checkpoint across channels while preserving per-task proof and results.
+   Quorum install and commit use the bounded store-append pool but call the
+   deep durable-log owner and are never worker-batched.
 3. Close admission, resolve queued accepted tasks as closed when configured,
    cancel the runtime for active dependency calls, wait for handlers, and
    release the executor.
@@ -41,6 +43,10 @@ It does not own reactor state machines, business retries, or dependency policy.
   single-Channel and trims only after a safe logical boundary.
 - Compatible groups run serially inside one handler; rotating first-group
   priority avoids permanent target or task-kind tailing under skew.
+- Leader append results must use the closed storage outcomes. Durable and exact
+  replay are success; conflict, definitely absent, and outcome unknown fail
+  closed. A recovered panic is outcome unknown because commit crossing cannot
+  be inferred.
 - Temporary store leases are registered immediately and released on success,
   error, cancellation, or panic. Cleanup error never replaces the primary result.
 - A detached store-close lease transfers only after successful submission and

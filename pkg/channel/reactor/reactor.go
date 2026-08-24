@@ -8,6 +8,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
@@ -22,6 +23,8 @@ const (
 	defaultFollowerRecoveryProbeInterval = 2 * time.Second
 	// defaultFollowerRecoveryProbeJitter spreads recovery probes without exceeding the send timeout budget.
 	defaultFollowerRecoveryProbeJitter = time.Second
+	// defaultFollowerRecoveryProbeMaxWindow caps caught-up anti-entropy backoff while spreading idle probes across its upper half.
+	defaultFollowerRecoveryProbeMaxWindow = time.Minute
 	// defaultCommittedCheckpointInterval coalesces the final HW learned after empty pulls.
 	defaultCommittedCheckpointInterval = 5 * time.Second
 )
@@ -32,6 +35,8 @@ type ReactorConfig struct {
 	LocalNode ch.NodeID
 	Store     store.Factory
 	Pools     *worker.Pools
+	// QuorumLog replaces the store-then-pull append path when configured.
+	QuorumLog replication.DurableQuorumLog
 	// MailboxSize bounds each priority queue in this reactor.
 	MailboxSize int
 	// MaxChannels bounds loaded runtimes owned by this reactor when MaxChannelsEnabled is true.
@@ -156,7 +161,11 @@ type runtimeChannel struct {
 	store   store.ChannelStore
 	pending *pendingMetaState
 	loading *storeLoadState
-	waiters map[ch.OpID]*Future
+	// quorumAuthority is the complete authority proven by the last successful install.
+	quorumAuthority replication.Authority
+	// quorumInstall owns ApplyMeta futures until recovery and the term barrier finish.
+	quorumInstall *quorumInstallState
+	waiters       map[ch.OpID]*Future
 	// appendQ holds accepted append requests before they are flushed as durable batches.
 	appendQ appendQueue
 	// appendQueuePressure is the last pressure snapshot included in the reactor aggregate.
@@ -211,6 +220,12 @@ type loadedMetaRefreshState struct {
 	deadline        time.Time
 	cancel          context.CancelFunc
 	inflight        bool
+}
+
+type quorumInstallState struct {
+	opID      ch.OpID
+	authority replication.Authority
+	futures   []*Future
 }
 
 type storeLoadKind uint8

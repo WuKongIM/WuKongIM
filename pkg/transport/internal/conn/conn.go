@@ -90,6 +90,9 @@ type Conn struct {
 	dispatch  Dispatch
 	scheduler *sched.Scheduler
 	pending   *rpc.PendingTable
+	// pendingObservationMu orders absolute pending-RPC snapshots after concurrent
+	// pending-table mutations so downstream revision-aware gauges cannot regress.
+	pendingObservationMu sync.Mutex
 
 	nextRequestID atomic.Uint64
 
@@ -429,6 +432,8 @@ func (c *Conn) observePendingRPC(result string) {
 	if c.cfg.Observer == nil {
 		return
 	}
+	c.pendingObservationMu.Lock()
+	defer c.pendingObservationMu.Unlock()
 	if result == "" {
 		result = "ok"
 	}
@@ -437,6 +442,7 @@ func (c *Conn) observePendingRPC(result string) {
 		NodeID:   c.cfg.NodeID,
 		SourceID: c.cfg.SourceID,
 		Result:   result,
+		Revision: core.NextStateRevision(),
 		Inflight: c.pending.Len(),
 	})
 }

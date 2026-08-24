@@ -35,6 +35,8 @@ type replicationState struct {
 	recoveryProbe bool
 	// recoveryProbeInflight records whether the current pull RPC is a recovery probe.
 	recoveryProbeInflight bool
+	// recoveryProbeWindow is the deterministic anti-entropy window retained across ordinary PullHint activity.
+	recoveryProbeWindow time.Duration
 	// nextPullAt is the earliest time a new pull may be submitted.
 	nextPullAt time.Time
 	// nextPullAfter is the leader-provided delay from the latest empty pull response.
@@ -175,9 +177,39 @@ func (s *replicationState) parkWithRecovery(key ch.ChannelKey, now time.Time, in
 	s.recoveryProbe = false
 	s.nextPullAt = time.Time{}
 	if interval > 0 {
+		initialWindow := followerRecoveryProbeInitialWindow(interval, jitter)
+		if s.recoveryProbeWindow < initialWindow {
+			s.recoveryProbeWindow = initialWindow
+		}
 		s.recoveryProbe = true
-		s.nextPullAt = now.Add(followerRecoveryProbeDelay(key, interval, jitter))
+		s.nextPullAt = now.Add(followerRecoveryProbeBackoffDelay(key, interval, s.recoveryProbeWindow))
 	}
+}
+
+// advanceRecoveryProbeBackoff widens the next caught-up anti-entropy window without weakening the initial lost-hint bound.
+func (s *replicationState) advanceRecoveryProbeBackoff(interval time.Duration, jitter time.Duration) {
+	initialWindow := followerRecoveryProbeInitialWindow(interval, jitter)
+	if initialWindow <= 0 {
+		return
+	}
+	if s.recoveryProbeWindow < initialWindow {
+		s.recoveryProbeWindow = initialWindow
+	}
+	maxWindow := max(defaultFollowerRecoveryProbeMaxWindow, initialWindow)
+	if s.recoveryProbeWindow >= maxWindow {
+		s.recoveryProbeWindow = maxWindow
+		return
+	}
+	if s.recoveryProbeWindow > maxWindow/2 {
+		s.recoveryProbeWindow = maxWindow
+		return
+	}
+	s.recoveryProbeWindow *= 2
+}
+
+// resetRecoveryProbeBackoff restores the initial recovery cadence after anti-entropy finds missed data.
+func (s *replicationState) resetRecoveryProbeBackoff() {
+	s.recoveryProbeWindow = 0
 }
 
 // clearParkedForHint makes a parked follower eligible for immediate PullHint-driven work.
@@ -256,6 +288,31 @@ func followerRecoveryProbeDelay(key ch.ChannelKey, interval time.Duration, jitte
 		return time.Duration(math.MaxInt64)
 	}
 	return interval + extra
+}
+
+func followerRecoveryProbeInitialWindow(interval time.Duration, jitter time.Duration) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+	if jitter <= 0 {
+		return interval
+	}
+	if interval > time.Duration(math.MaxInt64)-jitter {
+		return time.Duration(math.MaxInt64)
+	}
+	return interval + jitter
+}
+
+// followerRecoveryProbeBackoffDelay deterministically spreads one idle follower across the upper half of its current window.
+func followerRecoveryProbeBackoffDelay(key ch.ChannelKey, interval time.Duration, window time.Duration) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+	if window < interval {
+		window = interval
+	}
+	floor := max(interval, window/2)
+	return followerRecoveryProbeDelay(key, floor, window-floor)
 }
 
 // committedCheckpointDelay spreads one bounded checkpoint deadline by channel key.

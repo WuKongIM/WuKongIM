@@ -57,10 +57,14 @@ type Service struct {
 	queuedItems int
 	// queuedBytes is the byte cost currently waiting in queue.
 	queuedBytes int64
+	// queueRevision orders absolute queue snapshots captured under mu.
+	queueRevision uint64
 	// queue stores requests waiting for a worker.
 	queue chan Request
 	// inflight is the current number of handlers running for this service.
 	inflight atomic.Int32
+	// inflightStateMu orders physical inflight mutations and their revisions.
+	inflightStateMu sync.Mutex
 	// tokens bounds this service's handler concurrency on the shared executor.
 	tokens chan struct{}
 
@@ -160,6 +164,7 @@ func (s *Service) Enqueue(req Request) error {
 	case s.queue <- req:
 		s.queuedItems++
 		s.queuedBytes += int64(payloadLen)
+		s.queueRevision = core.NextStateRevision()
 		snapshot := s.queueSnapshotLocked()
 		s.mu.Unlock()
 		s.observeAdmissionAndQueue("ok", payloadLen, snapshot)
@@ -287,6 +292,7 @@ func (s *Service) markDequeued(req Request) (bool, core.Event) {
 	if s.queuedBytes < 0 {
 		s.queuedBytes = 0
 	}
+	s.queueRevision = core.NextStateRevision()
 	result := "ok"
 	if s.stopped {
 		result = "stopped"
@@ -324,6 +330,7 @@ type queueSnapshot struct {
 	capacity      int
 	bytes         int64
 	bytesCapacity int64
+	revision      uint64
 }
 
 func (s *Service) queueSnapshot() queueSnapshot {
@@ -345,6 +352,7 @@ func (s *Service) queueSnapshotLocked() queueSnapshot {
 		capacity:      s.opts.QueueSize,
 		bytes:         s.queuedBytes,
 		bytesCapacity: s.opts.MaxQueueBytes,
+		revision:      s.queueRevision,
 	}
 }
 
@@ -371,6 +379,7 @@ func (s *Service) queueEvent(result string, snapshot queueSnapshot) core.Event {
 		ServiceID:     s.ID,
 		ServiceAlias:  s.opts.Alias,
 		Result:        result,
+		Revision:      snapshot.revision,
 		Items:         snapshot.items,
 		Capacity:      snapshot.capacity,
 		Bytes:         int(snapshot.bytes),
@@ -378,12 +387,13 @@ func (s *Service) queueEvent(result string, snapshot queueSnapshot) core.Event {
 	}
 }
 
-func (s *Service) observeInflight(inflight int) {
+func (s *Service) observeInflight(inflight int, revision uint64) {
 	event := core.Event{
 		Name:         "service_inflight",
 		ServiceID:    s.ID,
 		ServiceAlias: s.opts.Alias,
 		Result:       "ok",
+		Revision:     revision,
 		Capacity:     s.opts.Concurrency,
 		Inflight:     inflight,
 	}
@@ -394,6 +404,14 @@ func (s *Service) observeInflight(inflight int) {
 		event.PoolWaiting = stats.Waiting
 	}
 	s.observe(event)
+}
+
+func (s *Service) changeInflight(delta int32) {
+	s.inflightStateMu.Lock()
+	inflight := int(s.inflight.Add(delta))
+	revision := core.NextStateRevision()
+	s.inflightStateMu.Unlock()
+	s.observeInflight(inflight, revision)
 }
 
 func (s *Service) observeTask(result string, payloadBytes int, duration time.Duration) {
@@ -473,7 +491,7 @@ func (t *serviceTask) run() {
 		return
 	}
 
-	s.observeInflight(int(s.inflight.Add(1)))
+	s.changeInflight(1)
 	payloadLen := t.req.Payload.Len()
 	started := time.Now()
 	result := "ok"
@@ -485,7 +503,7 @@ func (t *serviceTask) run() {
 			})
 		}
 		s.observeTask(result, payloadLen, nonNegativeSince(started))
-		s.observeInflight(int(s.inflight.Add(-1)))
+		s.changeInflight(-1)
 		s.releaseToken()
 		s.taskWG.Done()
 	}()

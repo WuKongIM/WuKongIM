@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/commit"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
@@ -127,8 +128,11 @@ func (b *Batch) UpsertChannel(hashSlot HashSlot, channel Channel) error {
 		}
 		if err == nil && exists {
 			next.SubscriberCount = existing.SubscriberCount
-			if existing.DirectoryReady != 0 {
-				next.DirectoryReady = 1
+			if existing.DirectoryProjectionState > next.DirectoryProjectionState {
+				next.DirectoryProjectionState = existing.DirectoryProjectionState
+			}
+			if existing.DirectoryProjectionGeneration > next.DirectoryProjectionGeneration {
+				next.DirectoryProjectionGeneration = existing.DirectoryProjectionGeneration
 			}
 		}
 		shard := &Shard{db: state.db, hashSlot: hashSlot}
@@ -322,15 +326,20 @@ func (b *Batch) Commit(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if b.db == nil || b.db.engine == nil {
+	if b.db == nil || b.db.engine == nil || b.db.committer == nil {
 		return dberrors.ErrClosed
 	}
 	unlock := b.db.lockHashSlots(b.hashSlots)
+	if err := ctx.Err(); err != nil {
+		unlock()
+		return err
+	}
 	b.lastLocked = b.db.testLockedOrder()
-	defer unlock()
-
-	engineBatch := b.db.engine.NewBatch()
-	defer engineBatch.Close()
+	// Once the mutation owns its hash-slot locks, it must retain its staged
+	// operations until the coordinator reports one durable terminal outcome.
+	// Callers commonly defer Batch.Close, so returning an ambiguous cancellation
+	// here would otherwise allow Close to clear operations still queued for Build.
+	commitCtx := context.WithoutCancel(ctx)
 	state := &batchCommitState{
 		db:               b.db,
 		tableRows:        make(map[string]tableRowOverlay),
@@ -341,25 +350,29 @@ func (b *Batch) Commit(ctx context.Context) error {
 		channelPublishes: make(map[string]Channel),
 		channelDeletes:   make(map[string]struct{}),
 	}
-	for _, op := range b.ops {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err := op.apply(ctx, state, engineBatch); err != nil {
-			return err
-		}
-	}
-	if err := engineBatch.Commit(true); err != nil {
-		return err
-	}
-	for cacheKey, channel := range state.channelPublishes {
-		b.db.rememberChannel([]byte(cacheKey), channel)
-	}
-	for cacheKey := range state.channelDeletes {
-		b.db.forgetChannel([]byte(cacheKey))
-	}
-	b.closed = true
-	return nil
+	return b.db.committer.Submit(commitCtx, commit.Request{
+		Lane:    commit.Lane{Name: "meta"},
+		Records: len(b.ops),
+		Build: func(engineBatch *engine.Batch) error {
+			for _, op := range b.ops {
+				if err := op.apply(commitCtx, state, engineBatch); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Publish: func() error {
+			for cacheKey, channel := range state.channelPublishes {
+				b.db.rememberChannel([]byte(cacheKey), channel)
+			}
+			for cacheKey := range state.channelDeletes {
+				b.db.forgetChannel([]byte(cacheKey))
+			}
+			b.closed = true
+			return nil
+		},
+		Finalize: unlock,
+	})
 }
 
 func (b *Batch) ensureOpen() error {

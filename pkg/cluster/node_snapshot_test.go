@@ -303,6 +303,25 @@ func TestNodeAppliesActiveDataNodesForChannelPlacement(t *testing.T) {
 		got = node.channelDataNodes.DataNodes()
 		return equalUint64s(got, []uint64{1, 2, 3, 4})
 	})
+	placementCtx, placementCancel := context.WithTimeout(context.Background(), time.Second)
+	placementNodes, err := node.channelDataNodes.PlacementDataNodes(placementCtx, next.Revision)
+	placementCancel()
+	if err != nil || !equalUint64s(placementNodes, []uint64{1, 2, 3, 4}) {
+		t.Fatalf("placement data-node snapshot nodes=%v error=%v, want revision=%d nodes=1,2,3,4", placementNodes, err, next.Revision)
+	}
+
+	revisionOnly := next.Clone()
+	revisionOnly.Revision = 3
+	if err := controller.Publish(revisionOnly); err != nil {
+		t.Fatalf("Publish(revision only) error = %v", err)
+	}
+	waitUntil(t, func() bool { return node.Snapshot().StateRevision == revisionOnly.Revision })
+	placementCtx, placementCancel = context.WithTimeout(context.Background(), time.Second)
+	placementNodes, err = node.channelDataNodes.PlacementDataNodes(placementCtx, revisionOnly.Revision)
+	placementCancel()
+	if err != nil || !equalUint64s(placementNodes, []uint64{1, 2, 3, 4}) {
+		t.Fatalf("revision-only placement data-node snapshot nodes=%v error=%v, want nodes=1,2,3,4", placementNodes, err)
+	}
 }
 
 func TestActiveDataNodeIDsExcludeLeavingAndRemovedNodes(t *testing.T) {

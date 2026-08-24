@@ -582,9 +582,17 @@ func TestPendingRPCObservation(t *testing.T) {
 
 	req := readPeerFrame(t, peer)
 	req.Body.Release()
+	var startedEvent core.Event
 	waitConnEvent(t, observer, func(event core.Event) bool {
-		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 && event.Inflight == 1
+		matched := event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 && event.Inflight == 1
+		if matched {
+			startedEvent = event
+		}
+		return matched
 	})
+	if startedEvent.Revision == 0 {
+		t.Fatal("pending_rpc started revision = 0, want physical-state revision")
+	}
 
 	writePeerFrame(t, peer, wire.Frame{
 		Header: wire.Header{
@@ -602,9 +610,18 @@ func TestPendingRPCObservation(t *testing.T) {
 	if string(got.payload) != "response" {
 		t.Fatalf("payload = %q, want response", got.payload)
 	}
+	var drainedEvent core.Event
 	waitConnEvent(t, observer, func(event core.Event) bool {
-		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 && event.Inflight == 0
+		matched := event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 &&
+			event.Inflight == 0 && event.Revision > startedEvent.Revision
+		if matched {
+			drainedEvent = event
+		}
+		return matched
 	})
+	if drainedEvent.Revision <= startedEvent.Revision {
+		t.Fatalf("pending_rpc revisions = %d..%d, want physical order", startedEvent.Revision, drainedEvent.Revision)
+	}
 	c.Close(nil)
 	waitConnEvent(t, observer, func(event core.Event) bool {
 		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 &&

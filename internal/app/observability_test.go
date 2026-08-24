@@ -51,6 +51,12 @@ func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {
 	if got := channelWorkerKindLabel(worker.TaskColdStoreLoad); got != "cold_store_load" {
 		t.Fatalf("channelWorkerKindLabel(TaskColdStoreLoad) = %q, want cold_store_load", got)
 	}
+	if got := channelWorkerKindLabel(worker.TaskQuorumInstall); got != "quorum_install" {
+		t.Fatalf("channelWorkerKindLabel(TaskQuorumInstall) = %q, want quorum_install", got)
+	}
+	if got := channelWorkerKindLabel(worker.TaskQuorumCommit); got != "quorum_commit" {
+		t.Fatalf("channelWorkerKindLabel(TaskQuorumCommit) = %q, want quorum_commit", got)
+	}
 }
 
 func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T) {
@@ -554,6 +560,83 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	}
 }
 
+func TestGatewayTransportPressureKeepsLatestGaugeWhileCountingLateAdmission(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := gatewayMetricsObserver{metrics: reg}
+	observer.OnTransportPressure(gateway.TransportPressureEvent{
+		Name:     "actor_ready",
+		Queue:    "ready",
+		Depth:    0,
+		Capacity: 1024,
+		Revision: 2,
+	})
+	observer.OnTransportPressure(gateway.TransportPressureEvent{
+		Name:     "actor_ready",
+		Queue:    "ready",
+		Depth:    2,
+		Capacity: 1024,
+		Result:   "ok",
+		Revision: 1,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	depth := findAppMetricByLabels(t, requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth"), map[string]string{
+		"component": "gateway",
+		"pool":      "actor_ready",
+		"queue":     "ready",
+		"priority":  "none",
+	})
+	if got := depth.GetGauge().GetValue(); got != 0 {
+		t.Fatalf("gateway actor_ready depth = %v, want latest depth 0", got)
+	}
+	admission := findAppMetricByLabels(t, requireAppMetricFamily(t, families, "wukongim_runtime_pool_admission_total"), map[string]string{
+		"component": "gateway",
+		"pool":      "actor_ready",
+		"queue":     "ready",
+		"priority":  "none",
+		"result":    "ok",
+	})
+	if got := admission.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("gateway actor_ready ok admissions = %v, want 1", got)
+	}
+}
+
+func TestGatewayAsyncSendQueueKeepsLatestGaugeWhenOlderObservationArrivesLate(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := gatewayMetricsObserver{metrics: reg}
+	observer.OnAsyncSendQueue(gateway.AsyncSendQueueEvent{
+		Depth:    0,
+		Capacity: 1024,
+		Revision: 2,
+	})
+	observer.OnAsyncSendQueue(gateway.AsyncSendQueueEvent{
+		Depth:    2,
+		Capacity: 1024,
+		Revision: 1,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	asyncDepth := requireAppMetricFamily(t, families, "wukongim_gateway_async_send_queue_depth")
+	if got := asyncDepth.GetMetric()[0].GetGauge().GetValue(); got != 0 {
+		t.Fatalf("gateway async SEND queue depth = %v, want latest depth 0", got)
+	}
+	runtimeDepth := findAppMetricByLabels(t, requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth"), map[string]string{
+		"component": "gateway",
+		"pool":      "async_send",
+		"queue":     "send",
+		"priority":  "none",
+	})
+	if got := runtimeDepth.GetGauge().GetValue(); got != 0 {
+		t.Fatalf("gateway async SEND runtime depth = %v, want latest depth 0", got)
+	}
+}
+
 func TestMultiChannelObserverForwardsOptionalPullObservations(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}
@@ -616,6 +699,40 @@ func TestMultiChannelObserverForwardsMetaCreateOncePerChild(t *testing.T) {
 	}
 }
 
+func TestMultiChannelObserverPublishesMetaCreateBatchStateOncePerChild(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	recorder := &recordingChannelMetaCreateObserver{}
+	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}, recorder}
+
+	observer.SetChannelMetaCreateQueueDepth(3, 7)
+	observer.ObserveChannelMetaCreateCoalesced(3)
+	observer.ObserveChannelMetaCreateBatch(3, "recovered", 11)
+
+	if recorder.queueDepthCalls != 1 || recorder.queueDepth != 7 || recorder.coalescedCalls != 1 || recorder.batchCalls != 1 || recorder.batchResult != "recovered" || recorder.batchItems != 11 {
+		t.Fatalf("recorder = %#v, want one aligned queue/coalesced/batch observation", recorder)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	queue := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_queue_depth")
+	if got := findAppMetricByLabels(t, queue, map[string]string{"slot_id": "3"}).GetGauge().GetValue(); got != 7 {
+		t.Fatalf("meta create queue depth = %v, want 7", got)
+	}
+	coalesced := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_coalesced_total")
+	if got := findAppMetricByLabels(t, coalesced, map[string]string{"slot_id": "3"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("meta create coalesced total = %v, want 1", got)
+	}
+	batches := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_batch_total")
+	if got := findAppMetricByLabels(t, batches, map[string]string{"slot_id": "3", "result": "recovered"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("meta create recovered batch total = %v, want 1", got)
+	}
+	items := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_create_batch_items")
+	if got := findAppMetricByLabels(t, items, map[string]string{"slot_id": "3", "result": "recovered"}).GetHistogram().GetSampleSum(); got != 11 {
+		t.Fatalf("meta create recovered batch items = %v, want 11", got)
+	}
+}
+
 func TestComposedChannelObserverReheatExistingMetaDoesNotCountCreate(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}
@@ -631,8 +748,8 @@ func TestComposedChannelObserverReheatExistingMetaDoesNotCountCreate(t *testing.
 	if err != nil {
 		t.Fatalf("EnsureChannelMeta() error = %v", err)
 	}
-	if meta.ID != id || store.creates != 0 {
-		t.Fatalf("meta=%#v creates=%d, want existing reheat without create", meta, store.creates)
+	if meta.ID != id {
+		t.Fatalf("meta=%#v, want existing reheat without create", meta)
 	}
 	families, err := reg.Gather()
 	if err != nil {
@@ -680,29 +797,47 @@ type sampledLeaderPullObserver struct {
 
 type recordingChannelMetaCreateObserver struct {
 	reactor.Observer
-	calls  int
-	slotID uint32
-	result clusterchannels.MetaCreateResult
+	calls           int
+	slotID          uint32
+	result          clusterchannels.MetaCreateResult
+	queueDepthCalls int
+	queueDepth      int
+	coalescedCalls  int
+	batchCalls      int
+	batchResult     string
+	batchItems      int
 }
 
 type existingRuntimeMetaStore struct {
-	meta    metadb.ChannelRuntimeMeta
-	creates int
+	meta metadb.ChannelRuntimeMeta
 }
 
 func (s *existingRuntimeMetaStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
 	return s.meta, nil
 }
 
-func (s *existingRuntimeMetaStore) CreateChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) (clusterchannels.RuntimeMetaCreateResult, error) {
-	s.creates++
-	return clusterchannels.RuntimeMetaCreateResult{Created: true}, nil
-}
-
 func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreate(slotID uint32, result clusterchannels.MetaCreateResult) {
 	o.calls++
 	o.slotID = slotID
 	o.result = result
+}
+
+func (o *recordingChannelMetaCreateObserver) SetChannelMetaCreateQueueDepth(slotID uint32, depth int) {
+	o.slotID = slotID
+	o.queueDepthCalls++
+	o.queueDepth = depth
+}
+
+func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreateCoalesced(slotID uint32) {
+	o.slotID = slotID
+	o.coalescedCalls++
+}
+
+func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreateBatch(slotID uint32, result string, items int) {
+	o.slotID = slotID
+	o.batchCalls++
+	o.batchResult = result
+	o.batchItems = items
 }
 
 func (o *sampledLeaderPullObserver) LeaderPullObservationSampleEvery() uint64 {
@@ -1393,6 +1528,148 @@ func TestTransportMetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {
 	})
 	if got := schedulerCapacity.GetGauge().GetValue(); got != 8 {
 		t.Fatalf("transport scheduler capacity after stopped = %v, want remaining source capacity 8", got)
+	}
+}
+
+func TestTransportMetricsObserverRejectsOlderAbsoluteQueueState(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := &transportMetricsObserver{metrics: reg}
+
+	observer.ObserveTransport(transport.Event{
+		Name:          "scheduler_queue",
+		SourceID:      101,
+		Priority:      transport.PriorityRPC,
+		Result:        "ok",
+		Revision:      2,
+		Capacity:      8,
+		BytesCapacity: 80,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name:          "scheduler_queue",
+		SourceID:      101,
+		Priority:      transport.PriorityRPC,
+		Result:        "ok",
+		Revision:      1,
+		Items:         5,
+		Capacity:      8,
+		Bytes:         50,
+		BytesCapacity: 80,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name:          "service_queue",
+		ServiceID:     7,
+		ServiceAlias:  "slot channel metadata",
+		Result:        "ok",
+		Revision:      4,
+		Capacity:      16,
+		BytesCapacity: 160,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "service_inflight", ServiceID: 7, ServiceAlias: "slot channel metadata",
+		Revision: 6, Inflight: 0, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "service_inflight", ServiceID: 7, ServiceAlias: "slot channel metadata",
+		Revision: 5, Inflight: 3, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "pending_rpc", SourceID: 101, Revision: 8, Inflight: 0,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "pending_rpc", SourceID: 101, Revision: 7, Inflight: 4,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "controller_raft_queue", Priority: transport.PriorityRaft,
+		Revision: 10, Items: 0, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "controller_raft_queue", Priority: transport.PriorityRaft,
+		Revision: 9, Items: 2, Capacity: 16,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name:          "service_queue",
+		ServiceID:     7,
+		ServiceAlias:  "slot channel metadata",
+		Result:        "ok",
+		Revision:      3,
+		Items:         2,
+		Capacity:      16,
+		Bytes:         20,
+		BytesCapacity: 160,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	queueDepth := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth")
+	for _, labels := range []map[string]string{
+		{"component": "transport", "pool": "scheduler", "queue": "scheduler", "priority": "rpc"},
+		{"component": "transport", "pool": "service", "queue": "slot channel metadata", "priority": "none"},
+		{"component": "transport", "pool": "controller_raft", "queue": "send", "priority": "raft"},
+	} {
+		if got := findAppMetricByLabels(t, queueDepth, labels).GetGauge().GetValue(); got != 0 {
+			t.Fatalf("transport queue depth for %v = %v, want latest physical zero", labels, got)
+		}
+	}
+	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
+	for _, labels := range []map[string]string{
+		{"component": "transport", "pool": "slot channel metadata"},
+		{"component": "transport", "pool": "rpc"},
+	} {
+		if got := findAppMetricByLabels(t, inflight, labels).GetGauge().GetValue(); got != 0 {
+			t.Fatalf("transport inflight for %v = %v, want latest physical zero", labels, got)
+		}
+	}
+}
+
+func TestTransportMetricsObserverDoesNotReportPeerConnectionsAsInflightWork(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := &transportMetricsObserver{metrics: reg}
+	observer.ObserveTransport(transport.Event{
+		Name: "pending_rpc", SourceID: 1, Inflight: 1,
+	})
+	observer.ObserveTransport(transport.Event{
+		Name: "peer_pool", Result: "stats", Items: 28, Capacity: 32,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
+	peerInflightFound := false
+	for _, metric := range inflight.Metric {
+		var component, pool string
+		for _, label := range metric.Label {
+			switch label.GetName() {
+			case "component":
+				component = label.GetValue()
+			case "pool":
+				pool = label.GetValue()
+			}
+		}
+		if component == "transport" && pool == "peer_pool" {
+			peerInflightFound = true
+			if got := metric.GetGauge().GetValue(); got != 0 {
+				t.Fatalf("peer connections were published as inflight work: %v", got)
+			}
+		}
+	}
+	if !peerInflightFound {
+		t.Fatal("peer pool inflight series was not materialized at zero")
+	}
+	workers := requireAppMetricFamily(t, families, "wukongim_runtime_pool_workers")
+	if got := findAppMetricByLabels(t, workers, map[string]string{
+		"component": "transport", "pool": "peer_pool",
+	}).GetGauge().GetValue(); got != 32 {
+		t.Fatalf("peer pool capacity = %v, want 32", got)
+	}
+	connections := requireAppMetricFamily(t, families, "wukongim_transport_connections_pool_active")
+	if got := findAppMetricByLabels(t, connections, map[string]string{
+		"peer_node": "aggregate",
+	}).GetGauge().GetValue(); got != 28 {
+		t.Fatalf("peer pool connections = %v, want 28", got)
 	}
 }
 
@@ -2530,6 +2807,11 @@ func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T
 		PostCommitRetryQueueDepth: 3,
 		PostCommitRetryContended:  true,
 	})
+	observer.ObserveChannelAppendIdempotencyRecovery(channelappend.IdempotencyRecoveryObservation{
+		RecoveredItems:   4,
+		UnresolvedItems:  2,
+		LookupErrorItems: 1,
+	})
 
 	families, err := reg.Gather()
 	if err != nil {
@@ -2548,6 +2830,12 @@ func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T
 	assertGauge("wukongim_channelappend_post_commit_retry_contended", 1)
 	assertGauge("wukongim_channelappend_router_group_inflight", 13)
 	assertGauge("wukongim_channelappend_router_group_capacity", 192)
+	recovery := requireAppMetricFamily(t, families, "wukongim_channelappend_idempotency_recovery_items_total")
+	for result, want := range map[string]float64{"recovered": 4, "unresolved": 2, "lookup_error": 1} {
+		if got := findAppMetricByLabels(t, recovery, map[string]string{"result": result}).GetCounter().GetValue(); got != want {
+			t.Fatalf("idempotency recovery %s = %v, want %v", result, got, want)
+		}
+	}
 }
 
 func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T) {

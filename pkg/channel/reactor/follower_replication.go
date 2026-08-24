@@ -10,7 +10,7 @@ import (
 )
 
 func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
-	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
+	if r == nil || r.cfg.QuorumLog != nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
 		return
 	}
 	defer r.scheduleReplicationFromState(rc, now)
@@ -705,7 +705,7 @@ func (r *Reactor) handleMetaResolveResult(result worker.Result) {
 	if err != nil {
 		return
 	}
-	if err := r.applyLoadedRuntimeMeta(rc, meta, true); err != nil {
+	if _, err := r.applyLoadedRuntimeMeta(rc, meta, true, nil); err != nil {
 		return
 	}
 }
@@ -828,13 +828,22 @@ func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.P
 			rc.replication.hintedAt = time.Time{}
 		}
 		if resp.LeaderLEO > rc.state.LEO || rc.replication.hintedLeaderLEO > rc.state.LEO {
+			if recoveryProbe {
+				rc.replication.resetRecoveryProbeBackoff()
+			}
 			r.scheduleEmptyLaggingPullRetry(rc, now)
 			return
+		}
+		if recoveryProbe {
+			rc.replication.advanceRecoveryProbeBackoff(r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
 		}
 		wasParked := rc.replication.parked
 		rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
 		r.observeFollowerParkedCountIfChanged(wasParked, rc)
 		return
+	}
+	if recoveryProbe {
+		rc.replication.resetRecoveryProbeBackoff()
 	}
 	wasParked := rc.replication.parked
 	rc.replication.parked = false

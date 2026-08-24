@@ -6,7 +6,10 @@ import (
 )
 
 const (
-	defaultCommitFlushWindow = 200 * time.Microsecond
+	// A 500-microsecond collection window reduced physical commits and caller
+	// latency in the local synchronous group-commit benchmark; wider windows
+	// increased caller latency without enough additional batching.
+	defaultCommitFlushWindow = 500 * time.Microsecond
 	defaultCommitQueueSize   = 1024
 )
 

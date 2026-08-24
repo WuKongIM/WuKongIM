@@ -983,12 +983,14 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 		scriptPath string
 		prefix     string
 		oldPrefix  string
+		wantExit   int
 	}{
 		{
 			name:       "single-node",
 			scriptPath: "scripts/bench-wukongim-single-node-1000ch.sh",
 			prefix:     "[bench-single-10ch]",
 			oldPrefix:  "[bench-single-1000ch]",
+			wantExit:   6,
 		},
 		{
 			name:       "three-node",
@@ -1010,6 +1012,7 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 			writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 			writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 			writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+			dataDir := t.TempDir()
 			gatewayAddr := listenLocalTCP(t)
 
 			cmd := exec.Command("bash", tc.scriptPath,
@@ -1033,9 +1036,24 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 			cmd.Env = append(os.Environ(),
 				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 			)
+			if tc.name == "single-node" {
+				cmd.Env = append(cmd.Env,
+					"WK_BENCH_MINIMUM_FREE_PERCENT=1",
+					"WK_WUKONGIM_SINGLE_NODE_DATA_DIR="+dataDir,
+					"WK_FAKE_LOCAL_STORAGE_EVIDENCE=1",
+					"WK_FAKE_WKBENCH_SUCCESS_TOTAL=100",
+					"WK_FAKE_WKBENCH_CONNECT_SUCCESS=20",
+				)
+			}
 			output, err := cmd.CombinedOutput()
-			if err != nil {
+			if tc.wantExit == 0 && err != nil {
 				t.Fatalf("script failed: %v\n%s", err, output)
+			}
+			if tc.wantExit != 0 {
+				exitErr, ok := err.(*exec.ExitError)
+				if !ok || exitErr.ExitCode() != tc.wantExit {
+					t.Fatalf("script exit = %v, want %d\n%s", err, tc.wantExit, output)
+				}
 			}
 			text := string(output)
 			if !strings.Contains(text, tc.prefix) {
@@ -2518,9 +2536,138 @@ func writeFakeThreeNode1000Wkbench(t *testing.T, path string, callsDir string, l
 set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '` + label + ` %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "report" && "${2:-}" == "redact-config" ]]; then
+  input="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --input) input="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) echo "unexpected redact-config args: $*" >&2; exit 2 ;;
+    esac
+  done
+  [[ -f "$input" && -n "$output" && ! -e "$output" ]]
+  cat > "$output" <<'TOML'
+[manager]
+users = []
+jwt_secret = "******"
+[bench]
+api_token = "******"
+TOML
+  chmod 0600 "$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-step" ]]; then
+  output="" result="" closure=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --output) output="$2"; shift 2 ;;
+      --result-output) result="$2"; shift 2 ;;
+      --closure-output) closure="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$output" && -n "$result" && -n "$closure" ]]
+  mkdir -p "$(dirname "$output")" "$(dirname "$result")" "$(dirname "$closure")"
+  printf '{}\n' >"$output"
+  printf '{}\n' >"$result"
+  printf '{}\n' >"$closure"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-step-closure" ]]; then
+  output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$output" ]]
+  mkdir -p "$(dirname "$output")"
+  printf '{"schema":"wukongim/chat-lifecycle-local-single-node-step-result/v1","offered_send_qps":100,"outcome":"clean","clean":true,"reasons":[]}\n' >"$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-queue-convergence" ]]; then
+  candidate="" run_id="" assignment_id="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --candidate) candidate="$2"; shift 2 ;;
+      --run-id) run_id="$2"; shift 2 ;;
+      --assignment-id) assignment_id="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -f "$candidate" && -n "$run_id" && -n "$assignment_id" && -n "$output" ]]
+  digest="$(shasum -a 256 "$candidate" | awk '{print $1}')"
+  observed_at="$(awk 'index($0, "# wkbench_local_single_node_cut ") == 1 { print substr($0, length("# wkbench_local_single_node_cut ") + 1); exit }' "$candidate" | jq -r '.observed_at')"
+  printf '{"schema":"wukongim/chat-lifecycle-local-single-node-queue-convergence/v1","run_id":"%s","assignment_id":"%s","evidence_complete":true,"converged":true,"reason":"ok","candidate_sha256":"%s","candidate_cut":{"run_id":"%s","assignment_id":"%s","phase":"run","active_phase":"cooldown","observed_at":"%s"}}\n' \
+    "$run_id" "$assignment_id" "$digest" "$run_id" "$assignment_id" "$observed_at" >"$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-baseline" ]]; then
+  evidence="" sealed="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --evidence) evidence="$2"; shift 2 ;;
+      --sealed-evidence-output) sealed="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$evidence" && -n "$sealed" && -n "$output" ]]
+  mkdir -p "$(dirname "$sealed")" "$(dirname "$output")"
+  cp "$evidence" "$sealed"
+  if [[ "$(jq -r '.seal.payload_complete == true and .settings.owned_cluster == true' "$evidence")" == true ]]; then
+    outcome=clean reason=complete exit_code=0
+  else
+    outcome=insufficient_evidence reason=artifact_seal_verification_failed exit_code=6
+  fi
+  printf '{"schema":"wukongim/chat-lifecycle-local-single-node-authorization/v1","reviewed_contract_satisfied":false,"authorizes_three_node_diagnostic":false,"outcome":"%s","reason":"%s","exit_code":%s,"highest_clean_rate":0,"first_failing_rate":0,"completion_generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]}\n' "$outcome" "$reason" "$exit_code" >"$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-publish" ]]; then
+  draft="" output=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --draft) draft="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$draft" && -n "$output" ]]
+  temporary="$(dirname "$output")/.completion.next.$$"
+  cp "$draft" "$temporary"
+  mv "$temporary" "$output"
+  exit 0
+fi
+if [[ "${1:-}" == "report" && "${2:-}" == "local-single-node-completion" ]]; then
+  marker=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --marker) marker="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$marker" ]]
+  if [[ "$(jq -r '.outcome' "$marker")" == insufficient_evidence ]]; then
+    exit 6
+  fi
+  exit 0
+fi
 if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
   echo 'classification: ` + label + `'
   exit 0
+fi
+if [[ "${1:-}" == "host-metrics" ]]; then
+  trap 'exit 0' TERM INT
+  while true; do sleep 1; done
 fi
 if [[ "${1:-}" == "run" ]]; then
   scenario=""
@@ -2564,14 +2711,36 @@ if [[ "${1:-}" == "run" ]]; then
 		fi
 		publish_state done
 	fi
+  if [[ "${WK_FAKE_SINGLE_NODE_TERMINAL_CUT:-0}" == "1" ]]; then
+		publish_state() {
+			local tmp="` + callsDir + `/wkbench.state.tmp.$$.$RANDOM"
+			printf '%s\t%s\n' "$run_id" "$1" >"$tmp"
+			mv -f "$tmp" "` + callsDir + `/wkbench.state"
+		}
+		publish_state run
+		for ((attempt = 0; attempt < 300; attempt++)); do
+			if find "$report_dir/evidence" -maxdepth 1 -name 'storage-overlap.tsv' -type f -exec grep -q $'\tpost-warmup\t' {} \; 2>/dev/null; then
+				break
+			fi
+			sleep 0.01
+		done
+		publish_state cooldown
+		for ((attempt = 0; attempt < 300; attempt++)); do
+			[[ -f "$report_dir/evidence/terminal-cut-binding.json" ]] && break
+			sleep 0.01
+		done
+		[[ -f "$report_dir/evidence/terminal-cut-binding.json" ]] || exit 2
+		publish_state done
+	fi
   if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
     sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
   fi
 	  success="${WK_FAKE_WKBENCH_SUCCESS_TOTAL:-1}"
+	  connect_success="${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}"
 	  p99="${WK_FAKE_WKBENCH_P99_SECONDS:-0.003}"
 	  max="${WK_FAKE_WKBENCH_MAX_SECONDS:-0.004}"
 	  cat > "$report_dir/report.json" <<JSON
-{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":$success,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":$p99,"max_seconds":$max}}}}
+{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0,"connect_success":$connect_success,"send_success":$success},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":$success,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0,"workload_scheduler_planned_total{phase=run}":$success,"workload_scheduler_dispatched_total{phase=run}":$success,"workload_scheduler_dropped_total{phase=run}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":$p99,"max_seconds":$max}}}}
 JSON
   exit 0
 fi
@@ -2677,7 +2846,7 @@ publish_fake_state() {
 	mv -f "$tmp" "$state_file"
 }
 case "$url" in
-	  http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz)
+	  http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz|http://127.0.0.1:19131/healthz)
 	    echo 'ok'
 	    ;;
 	  http://127.0.0.1:19130/v1/stop)
@@ -2702,10 +2871,10 @@ case "$url" in
 		fi
 			case "$state" in
 				run)
-					printf '{"phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					printf '{"observed_at":"2026-08-14T01:02:03Z","phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"},"lifecycle":{"active_connections":%s,"receive_drain_sha256":"%s"}}\n' "$run_id" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "$(printf 'a%.0s' {1..64})"
 					;;
 				cooldown)
-					printf '{"phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					printf '{"observed_at":"2026-08-14T01:02:04Z","phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"},"lifecycle":{"active_connections":%s,"terminal_cut_required":true,"terminal_cut_ready":true,"terminal_cut_ready_at":"2026-08-14T01:02:04Z","terminal_cut_deadline_at":"2099-08-14T01:03:34Z","receive_drain_sha256":"%s","receive_drain":{"required":true,"evidence_complete":true,"drain_complete":true,"client_count":%s,"active_drains":%s,"queue_snapshot_clients":%s,"fanout_proof":{"version":"wukongim/group-fanout-proof/v1","required":true,"evidence_complete":true}}}}\n' "$run_id" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "$(printf 'a%.0s' {1..64})" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}" "${WK_FAKE_WKBENCH_CONNECT_SUCCESS:-1}"
 					;;
 				done)
 					printf '{"phase":"run","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
@@ -2718,6 +2887,16 @@ case "$url" in
 			touch "` + callsDir + `/profile.${run_id}.end_checked"
 		fi
 		;;
+	  http://127.0.0.1:19130/v1/terminal-cut)
+	    payload="$(cat)"
+	    jq -cn --argjson payload "$payload" '
+	      $payload + {
+	        ready_at:"2026-08-14T01:02:04Z",
+	        deadline_at:"2099-08-14T01:03:34Z",
+	        acknowledged_at:"2026-08-14T01:02:05Z"
+	      }
+	    '
+	    ;;
 	  http://127.0.0.1:501*/metrics)
 	    if [[ "$*" == *"X-WK-Bench-Evidence: append-effect-"* ]]; then
 	      if [[ "${WK_FAKE_APPEND_EFFECT_MISSING_NODE:-0}" == "1" && "$url" == "http://127.0.0.1:5012/metrics" ]]; then
@@ -2810,7 +2989,64 @@ OUT
 wukongim_channelv2_rpc_pull_total 1
 go_goroutines 1111
 OUT
+	    if [[ "${WK_FAKE_LOCAL_STORAGE_EVIDENCE:-0}" == "1" ]]; then
+	      cat <<'OUT'
+wukongim_storage_commit_queue_depth{store="message"} 0
+wukongim_storage_commit_batch_requests_count{store="message"} 10
+wukongim_storage_commit_batch_requests_sum{store="message"} 100
+wukongim_storage_commit_batch_requests_bucket{store="message",le="1"} 1
+wukongim_storage_commit_batch_requests_bucket{store="message",le="4"} 4
+wukongim_storage_commit_batch_requests_bucket{store="message",le="16"} 10
+wukongim_storage_commit_batch_requests_bucket{store="message",le="+Inf"} 10
+wukongim_storage_commit_batch_records_sum{store="message"} 100
+wukongim_storage_commit_batch_records_bucket{store="message",le="1"} 1
+wukongim_storage_commit_batch_records_bucket{store="message",le="4"} 4
+wukongim_storage_commit_batch_records_bucket{store="message",le="16"} 10
+wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 10
+wukongim_storage_commit_batch_bytes_sum{store="message"} 12800
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="256"} 1
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="1024"} 4
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="4096"} 10
+wukongim_storage_commit_batch_bytes_bucket{store="message",le="+Inf"} 10
+wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="collect"} 10
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",result="ok",stage="collect"} 0.01
+wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="build"} 10
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",result="ok",stage="build"} 0.01
+wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="commit"} 10
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",result="ok",stage="commit"} 0.01
+wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="publish"} 10
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",result="ok",stage="publish"} 0.01
+wukongim_storage_commit_batch_duration_seconds_count{store="message",result="ok",stage="total"} 10
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",result="ok",stage="total"} 0.05
+wukongim_storage_commit_request_duration_seconds_count{store="message",lane="leader_append",result="ok"} 100
+wukongim_storage_commit_request_duration_seconds_sum{store="message",lane="leader_append",result="ok"} 0.1
+wukongim_storage_pebble_wal_bytes_in{store="channel_log"} 12800
+wukongim_storage_pebble_wal_bytes_written{store="channel_log"} 12800
+wukongim_storage_pebble_flush_bytes_written{store="channel_log"} 0
+wukongim_storage_pebble_flush_count{store="channel_log"} 0
+wukongim_storage_pebble_compaction_bytes_read{store="channel_log"} 0
+wukongim_storage_pebble_compaction_bytes_written{store="channel_log"} 0
+wukongim_storage_pebble_compaction_count{store="channel_log"} 0
+wukongim_storage_pebble_sstable_size_bytes{store="channel_log"} 1024
+wukongim_storage_pebble_compaction_estimated_debt_bytes{store="channel_log"} 0
+wukongim_storage_pebble_compactions_in_progress{store="channel_log"} 0
+wukongim_storage_pebble_read_amplification{store="channel_log"} 1
+wukongim_storage_pebble_disk_usage_bytes{store="channel_log"} 1024
+OUT
+	    fi
     ;;
+	  http://127.0.0.1:19131/metrics)
+	    cat <<'OUT'
+wkbench_host_block_io_schema_info{version="v1",physical_device="disk-test"} 1
+wkbench_host_block_io_available{physical_device="disk-test",field="iops"} 1
+wkbench_host_block_io_available{physical_device="disk-test",field="bytes_per_second"} 1
+wkbench_host_block_io_available{physical_device="disk-test",field="utilization"} 0
+wkbench_host_block_io_available{physical_device="disk-test",field="service_time"} 0
+wkbench_host_block_io_available{physical_device="disk-test",field="read_write_split"} 0
+wkbench_host_block_io_iops{physical_device="disk-test",operation="total"} 100
+wkbench_host_block_io_bytes_per_second{physical_device="disk-test",operation="total"} 4096
+OUT
+	    ;;
   http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)
     echo 'goroutine profile'
     ;;
@@ -3038,6 +3274,11 @@ func writeFakeActivatePS(t *testing.T, path string, callsDir string) {
 set -euo pipefail
 mkdir -p "` + callsDir + `"
 echo "$*" >> "` + callsDir + `/ps.calls"
+if [[ "$*" == *"pid=,stat=,comm="* ]]; then
+  # The shared overlap detector uses this shape. This fixture owns every fake
+  # process it starts, so report no foreign local workload.
+  exit 0
+fi
 pid=""
 while [[ $# -gt 0 ]]; do
   if [[ "$1" == "-p" ]]; then

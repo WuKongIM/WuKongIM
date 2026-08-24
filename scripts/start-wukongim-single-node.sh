@@ -7,7 +7,8 @@ CONFIG_PATH="${WK_WUKONGIM_SINGLE_NODE_CONFIG:-$ROOT_DIR/scripts/wukongim/wukong
 BIN_PATH="${WK_WUKONGIM_SINGLE_NODE_BIN:-$ROOT_DIR/data/wukongim-single-node/wukongim}"
 LOG_DIR="${WK_WUKONGIM_SINGLE_NODE_LOG_DIR:-$ROOT_DIR/data/wukongim-single-node-logs}"
 READY_URL="${WK_WUKONGIM_SINGLE_NODE_READY_URL:-http://127.0.0.1:5001/readyz}"
-DATA_DIR="${WK_WUKONGIM_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongim-single-node-data}"
+FORMAL_DATA_DIR="${WK_NODE_DATA_DIR:-}"
+DATA_DIR="${WK_WUKONGIM_SINGLE_NODE_DATA_DIR:-${WK_NODE_DATA_DIR:-$ROOT_DIR/data/wukongim-single-node-data}}"
 READY_TIMEOUT="${WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT:-60}"
 POLL_INTERVAL="${WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL:-1}"
 PROMETHEUS_SOURCE_REF="${WK_PROMETHEUS_SOURCE_REF:-${WK_PROMETHEUS_EMBED_VERSION:-v3.12.0}}"
@@ -79,13 +80,14 @@ log_path() {
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   if [[ "$BUILD" -eq 1 ]]; then
-    printf 'build_cmd=go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
+    printf 'build_cmd=GOWORK=off go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
   else
     printf 'build_cmd=<disabled>\n'
   fi
   printf 'bin=%s\n' "$BIN_PATH"
   printf 'config=%s\n' "$CONFIG_PATH"
   printf 'data_dir=%s\n' "$DATA_DIR"
+  printf 'node_data_env=%s\n' "$DATA_DIR"
   printf 'log_dir=%s\n' "$LOG_DIR"
   printf 'log=%s\n' "$(log_path)"
   printf 'ready=%s\n' "$READY_URL"
@@ -105,6 +107,30 @@ tail_log() {
     printf '\n--- node log: %s ---\n' "$path" >&2
     tail -n 80 "$path" >&2 || true
   fi
+}
+
+resolve_cleanup_directory() {
+  local label="$1" raw="$2" parent name resolved_parent resolved
+  [[ "$raw" == /* && "$raw" != *$'\n'* && "$raw" != *$'\r'* ]] || \
+    die "$label must be an absolute single-line path: $raw"
+  [[ ! -L "$raw" ]] || die "$label must not be a symlink: $raw"
+  if [[ -e "$raw" ]]; then
+    [[ -d "$raw" ]] || die "$label must be a directory: $raw"
+    resolved="$(cd "$raw" && pwd -P)"
+  else
+    parent="$(dirname "$raw")"
+    name="$(basename "$raw")"
+    [[ "$name" != "." && "$name" != ".." && -d "$parent" ]] || \
+      die "$label parent must already exist: $parent"
+    resolved_parent="$(cd "$parent" && pwd -P)"
+    resolved="$resolved_parent/$name"
+  fi
+  case "$resolved" in
+    /|"$HOME"|"$ROOT_DIR"|"$ROOT_DIR/data")
+      die "$label is too broad for managed cleanup: $resolved"
+      ;;
+  esac
+  printf '%s\n' "$resolved"
 }
 
 stop_node() {
@@ -211,17 +237,27 @@ fi
 
 [[ -f "$CONFIG_PATH" ]] || die "missing config: $CONFIG_PATH"
 
+DATA_DIR="$(resolve_cleanup_directory 'data directory' "$DATA_DIR")"
+if [[ -n "$FORMAL_DATA_DIR" ]]; then
+  FORMAL_DATA_DIR="$(resolve_cleanup_directory 'WK_NODE_DATA_DIR' "$FORMAL_DATA_DIR")"
+  [[ "$FORMAL_DATA_DIR" == "$DATA_DIR" ]] || \
+    die "WK_NODE_DATA_DIR conflicts with --data-dir: $FORMAL_DATA_DIR != $DATA_DIR"
+fi
+LOG_DIR="$(resolve_cleanup_directory 'log directory' "$LOG_DIR")"
+[[ "$DATA_DIR" != "$LOG_DIR" ]] || die 'data directory and log directory must be distinct'
+
 if [[ "$CLEAN" -eq 1 ]]; then
   log 'cleaning node data and logs'
   rm -rf "$DATA_DIR" "$LOG_DIR"
 fi
 
-mkdir -p "$(dirname "$BIN_PATH")" "$LOG_DIR"
+mkdir -p "$(dirname "$BIN_PATH")" "$LOG_DIR" "$DATA_DIR"
+export WK_NODE_DATA_DIR="$DATA_DIR"
 
 ensure_embedded_prometheus() {
   local goos goarch suffix embed_name embed_path tmp src_dir gobin_path
-  goos="${GOOS:-$(go env GOOS)}"
-  goarch="${GOARCH:-$(go env GOARCH)}"
+  goos="${GOOS:-$(GOWORK=off go env GOOS)}"
+  goarch="${GOARCH:-$(GOWORK=off go env GOARCH)}"
   suffix=""
   if [[ "$goos" == "windows" ]]; then
     suffix=".exe"
@@ -242,7 +278,7 @@ ensure_embedded_prometheus() {
   git clone --depth 1 --branch "$PROMETHEUS_SOURCE_REF" "$PROMETHEUS_REPO" "$src_dir"
   (
     cd "$src_dir"
-    GOOS="$goos" GOARCH="$goarch" go build -o "$gobin_path" ./cmd/prometheus
+    GOWORK=off GOOS="$goos" GOARCH="$goarch" go build -o "$gobin_path" ./cmd/prometheus
   )
   [[ -x "$gobin_path" ]] || die "prometheus build did not produce executable: $gobin_path"
   cp "$gobin_path" "$embed_path"
@@ -258,7 +294,7 @@ if [[ "$BUILD" -eq 1 ]]; then
   log "building $BIN_PATH"
   (
     cd "$ROOT_DIR"
-    go build -o "$BIN_PATH" ./cmd/wukongim
+    GOWORK=off go build -o "$BIN_PATH" ./cmd/wukongim
   )
 elif [[ ! -x "$BIN_PATH" ]]; then
   die "--no-build requested but binary is not executable: $BIN_PATH"
@@ -278,11 +314,25 @@ check_process() {
 }
 
 start_node() {
-  local log_file
+  local log_file exported_name
+  local env_args=()
+  while IFS= read -r exported_name; do
+    case "$exported_name" in
+      WK_BENCH_API_ENABLE|WK_BENCH_API_TOKEN|WK_BENCH_API_MAX_BATCH_SIZE|WK_BENCH_API_MAX_PAYLOAD_BYTES)
+        ;;
+      WK_WUKONGIM_SINGLE_NODE_*|WK_BENCH_*|WK_PROMETHEUS_SOURCE_REF|WK_PROMETHEUS_EMBED_VERSION|WK_PROMETHEUS_REPO|WK_PROMETHEUS_EMBED_DIR)
+        env_args+=("-u" "$exported_name")
+        ;;
+    esac
+  done < <(compgen -e)
   log_file="$(log_path)"
   : > "$log_file"
   log "starting node: $CONFIG_PATH"
-  "$BIN_PATH" -config "$CONFIG_PATH" >"$log_file" 2>&1 &
+  if (( ${#env_args[@]} > 0 )); then
+    env "${env_args[@]}" "$BIN_PATH" -config "$CONFIG_PATH" >"$log_file" 2>&1 &
+  else
+    "$BIN_PATH" -config "$CONFIG_PATH" >"$log_file" 2>&1 &
+  fi
   PID="$!"
   log "node pid=${PID} log=$log_file"
 }

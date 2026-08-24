@@ -40,16 +40,19 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	fencePendingState := existing != nil && metadataWouldFenceState(rc.state, event.Meta)
-	event.Future.Complete(Result{Err: r.applyLoadedRuntimeMeta(rc, event.Meta, fencePendingState)})
+	fencePendingState := existing != nil && (metadataWouldFenceState(rc.state, event.Meta) || r.quorumMetaWouldFence(rc, event.Meta))
+	async, err := r.applyLoadedRuntimeMeta(rc, event.Meta, fencePendingState, []*Future{event.Future})
+	if !async {
+		event.Future.Complete(Result{Err: err})
+	}
 }
 
-func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fencePendingState bool) error {
+func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fencePendingState bool, futures []*Future) (bool, error) {
 	if r == nil || rc == nil || rc.state == nil {
-		return ch.ErrChannelNotFound
+		return false, ch.ErrChannelNotFound
 	}
 	if err := rc.state.ValidateMeta(meta); err != nil {
-		return err
+		return false, err
 	}
 	previousRole := rc.state.Role
 	wasParkedFollower := previousRole == ch.RoleFollower && rc.replication.parked
@@ -58,12 +61,21 @@ func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fence
 	}
 	decision := rc.state.ApplyMeta(meta)
 	if decision.Err != nil {
-		return decision.Err
+		return false, decision.Err
+	}
+	if r.requiresQuorumInstall(rc.state) {
+		rc.state.CommitReady = false
 	}
 	r.applyLoadedMetaDecision(rc, fencePendingState)
 	r.observeFollowerParkedCountIfChanged(wasParkedFollower, rc)
 	r.updateActiveRuntimeRole(previousRole, rc.state.Role)
-	return nil
+	if r.requiresQuorumInstall(rc.state) {
+		if err := r.startQuorumInstall(rc, meta, futures); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func (r *Reactor) shouldAsyncStoreLoad() bool {
@@ -253,10 +265,29 @@ func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeL
 	rc.store = loaded.Store
 	rc.loading = nil
 	r.resetLoadedRuntimeStructures(rc, time.Now(), loaded.Initial.LEO)
+	if r.requiresQuorumInstall(state) {
+		state.CommitReady = false
+	}
 	r.applyLoadedMetaDecision(rc, false)
 	r.updateActiveRuntimeRole(0, state.Role)
 	r.observeChannelRuntimeLoaded(loading.key)
+	if r.requiresQuorumInstall(state) {
+		futures := append([]*Future(nil), loading.futures...)
+		loading.futures = nil
+		if err := r.startQuorumInstall(rc, loading.meta, futures); err != nil {
+			r.completeFutures(futures, Result{Err: err})
+		}
+		return
+	}
 	r.completeStoreLoadFutures(loading, Result{})
+}
+
+func (r *Reactor) completeFutures(futures []*Future, result Result) {
+	for _, future := range futures {
+		if future != nil {
+			future.Complete(result)
+		}
+	}
 }
 
 func (r *Reactor) completeStoreLoadFutures(loading *storeLoadState, result Result) {
@@ -516,6 +547,10 @@ func (r *Reactor) clearFencedRuntimeWork(rc *runtimeChannel, err error) {
 	r.clearPullCancelChannel(rc)
 	r.clearLookupCancelChannel(rc)
 	r.clearAppendCancelContexts(rc)
+	if rc != nil && rc.quorumInstall != nil {
+		r.completeFutures(rc.quorumInstall.futures, Result{Err: err})
+		rc.quorumInstall = nil
+	}
 }
 
 // metadataWouldFenceState reports whether accepted metadata invalidates pending state.
@@ -543,7 +578,7 @@ func (r *Reactor) applyLoadedMetaDecision(rc *runtimeChannel, fencePendingState 
 		r.resetPullHintLifecycle(rc)
 	}
 	now := time.Now()
-	if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
+	if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive && r.cfg.QuorumLog == nil {
 		rc.replication.markDirty(time.Time{})
 	} else {
 		rc.replication.reset()
@@ -553,6 +588,9 @@ func (r *Reactor) applyLoadedMetaDecision(rc *runtimeChannel, fencePendingState 
 			rc.lifecycle.version = rc.state.LEO
 		}
 		r.syncLeaderFollowers(rc)
+		if !rc.state.CommitReady {
+			return
+		}
 		if fencePendingState {
 			resetFollowerStopLifecycle(rc)
 		}

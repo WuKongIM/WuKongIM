@@ -25,8 +25,10 @@ It does not own diagnostic policy, live evidence collection, or cloud lifecycle.
 
 1. Authenticate the run-scoped bearer session, reject cross-origin requests,
    validate inferred JSON schemas, and dispatch an allowlisted tool.
-2. Project bounded observations and parsed workload/profile summaries with
-   incomplete evidence explicitly nullable or partial.
+2. Project bounded observations and parsed workload/profile summaries. A
+   running workload exposes only fixed worker connection gauges, teardown
+   counters, and recent aggregate changes; terminal runs expose the final
+   diagnostic summary. Incomplete evidence remains explicitly nullable.
 3. Parse `/analysis/token`, verify GitHub OIDC through callbacks, and serialize
    only the bounded issued-session response.
 

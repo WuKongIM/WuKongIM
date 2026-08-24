@@ -117,8 +117,8 @@ func (s *Service) ClusterSnapshot(ctx context.Context, req RunRequest) (Observat
 	})
 }
 
-// WorkloadInspect returns the simulator-local final wkbench summary without
-// exposing raw worker reports, logs, messages, files, or paths.
+// WorkloadInspect returns bounded live worker status or the simulator-local
+// final summary without exposing raw reports, logs, messages, files, or paths.
 func (s *Service) WorkloadInspect(ctx context.Context, req RunRequest) (Observation, error) {
 	return s.read(ctx, req.RunID, func(callCtx context.Context) (SourceResult, error) {
 		return s.sources.WorkloadInspect(callCtx, req.RunID)

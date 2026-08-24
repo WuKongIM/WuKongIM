@@ -32,6 +32,9 @@ storage core without transferring shared-engine ownership.
    transfer its locks/pins to terminal commit ownership, validate sequences and
    duplicates, synchronously commit compatible batches, then publish all rows,
    indexes, checkpoints, history, and frontiers atomically.
+   Exact quorum proposals persist versioned authority, command, range,
+   predecessor, entry identities, and paired command/range indexes in that same
+   synchronous commit; replica HW may advance atomically with its proposal.
 2. Reads scan complete primary rows or verified typed indexes, recover LEO
    lazily after reopen/reclamation, and use bounded durable verification for
    idempotency and newest-message lookup.
@@ -46,6 +49,10 @@ storage core without transferring shared-engine ownership.
   catalog as one atomic unit where applicable.
 - Server-allocation proof may skip only existing message-ID reads. In-batch
   duplicate IDs and durable sender/client idempotency remain mandatory.
+- Exact retries return only durable, already-durable, definitely-not-written,
+  conflict, or outcome-unknown. Durable indexes remain authoritative across
+  cache eviction, prefix retention, and reopen; incomplete manifests, chains,
+  overlaps, or checkpoints above LEO are corruption.
 - Idempotency filter negatives may avoid a read; possible hits always verify
   durable index and message data. Saturation can increase reads, never admit a
   duplicate.
@@ -53,6 +60,11 @@ storage core without transferring shared-engine ownership.
   pins before build, physical commit, publish, or terminal shutdown.
 - Retention and truncation remove primary and secondary rows together. Logical
   retention preserves canonical lookup state until physical deletion.
+  Suffix cuts never split proposals; recovery replacement is fenced by the
+  inspected frontier and atomically replaces complete verified proposal pages.
+- Queue-depth publication is monotonic through grouped collection and terminal
+  zero. Backup includes committed proposal/entry identities and excludes the
+  uncommitted suffix above the selected HW.
 - Checkpoint updates are serialized, initialize an explicit zero, never regress
   HW, and preserve epoch and log-start fields.
 - Close rejects new work, drains admitted operations and pins, reclaims entries,

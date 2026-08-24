@@ -25,7 +25,10 @@ go run ./cmd/wkbench <command> [flags]
 | `capacity activate-channels` | Activates a fixed number of group channels through real SEND traffic, holds them live, and probes Channel runtime state. |
 | `capacity message-event` | Runs fixed-shape `/message/event` stream pressure, captures message event metrics, and writes a report. |
 | `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, Controller Raft, Channel runtime, and storage attribution hints. |
-| `report` | Reserved for future standalone report rendering. It is not implemented yet. |
+| `report local-chat-lifecycle-step` | Classifies one non-formal local lifecycle rate step from closed evidence. |
+| `report chat-lifecycle-timeline` | Reduces typed worker cuts and wrapper boundaries into bounded UTC JSON/TSV evidence. |
+| `report chat-lifecycle-cut-query` | Reads the latest complete typed worker cut after a byte cursor for live threshold watchers. |
+| `report redact-config` | Parses a WuKongIM TOML file, rejects unknown keys, and writes a private diagnostic copy using the canonical schema sensitivity policy. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2`
 preflight failure, `3` hard limit failure, `4` worker failure, `5` target
@@ -152,6 +155,16 @@ coordinated infrastructure stop. There is no resume: a process crash, config
 change, Slot migration, disk expansion, or failed worker requires a new run ID
 and fresh data directories.
 
+During the measured run, the output directory contains an atomically replaced
+`diagnostic-status.json`. It reports all three workers' current online,
+starting, closing, and traffic-ready counts; fixed connection-close reasons;
+and a bounded recent transition log. `wkbench` also emits one compact
+`wkbench.chat_lifecycle.worker_status_cut` JSON line per evidence cut to
+standard error. That line also carries checked aggregate message counters and
+the terminal reason breakdown, including retry exhaustion by attempt timeout,
+local admission, transport error, or retryable SENDACK. Both surfaces are identity-free and are intended for live
+Analysis MCP diagnosis before the terminal report exists.
+
 For a bounded local native-process shakeout:
 
 ```bash
@@ -169,6 +182,59 @@ that cannot satisfy it is a valid `disk_free` preflight result, not a passing
 soak. See
 `docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md` for formal host,
 security, monitoring, evidence, and capacity procedures.
+
+Local diagnostics consume the coordinator's mixed log without text matching.
+The batch reducer strictly decodes only the exact run's
+`wkbench.chat_lifecycle.worker_status_cut` records and combines them with the
+wrapper's UTC boundary TSV:
+
+```bash
+wkbench report chat-lifecycle-timeline \
+  --worker-log ./tmp/chat-lifecycle-shakeout/logs/coordinator.log \
+  --boundary-timeline ./tmp/chat-lifecycle-shakeout/evidence/timeline.tsv \
+  --run-id local-chat-lifecycle-shakeout \
+  --offered-rate 1000 \
+  --minimum-throughput-percent 90 \
+  --output-json ./tmp/chat-lifecycle-shakeout/evidence/unified-timeline.json \
+  --output-tsv ./tmp/chat-lifecycle-shakeout/evidence/unified-timeline.tsv
+```
+
+The JSON uses `wukongim/chat-lifecycle-unified-timeline/v1`. It marks incomplete
+phase windows and brackets the first same-phase interval whose trigger is
+`actual_offered_ratio` or `terminal_product_failure`. Qualification establishes
+the measured baseline, so a warmup cut is never compared with a measured cut;
+cleanup underdelivery is never an ACK-ratio trigger. The output also reports
+retry and shutdown amplification. Snapshot and compaction overlap stay
+explicitly `unknown` when no typed source proves them.
+
+`actual_offered_ratio` uses acknowledged SENDs divided by the configured
+offered rate multiplied by the exact interval duration. It deliberately does
+not use acknowledged divided by dispatched SENDs: a saturated generator or
+send path can acknowledge every dispatched message while still producing far
+less than the offered rate.
+
+A live watcher can advance only over complete log lines. If the final line is
+partial, `next_cursor` remains at its beginning and `partial_line` is true. A
+subsequent query passes both that cursor and the prior query document; the next
+document then contains `previous_cut` and `latest_cut` for the same interval
+test without rescanning the log:
+
+```bash
+wkbench report chat-lifecycle-cut-query \
+  --worker-log ./tmp/chat-lifecycle-shakeout/logs/coordinator.log \
+  --run-id local-chat-lifecycle-shakeout \
+  --cursor 0 \
+  --offered-rate 1000 \
+  --output ./tmp/chat-lifecycle-shakeout/evidence/latest-worker-cut.json
+
+wkbench report chat-lifecycle-cut-query \
+  --worker-log ./tmp/chat-lifecycle-shakeout/logs/coordinator.log \
+  --run-id local-chat-lifecycle-shakeout \
+  --cursor "$NEXT_CURSOR" \
+  --previous-query ./tmp/chat-lifecycle-shakeout/evidence/latest-worker-cut.json \
+  --offered-rate 1000 \
+  --output ./tmp/chat-lifecycle-shakeout/evidence/next-worker-cut.json
+```
 
 ## Capacity Send
 

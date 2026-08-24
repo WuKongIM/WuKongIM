@@ -180,15 +180,16 @@ func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelruntime.
 		t.Fatalf("default channels type = %T, want *channels.Service", node.channels)
 	}
 	if err := svc.ApplyMeta(channelruntime.Meta{
-		Key:         channelruntime.ChannelKeyForID(channelID),
-		ID:          channelID,
-		Epoch:       1,
-		LeaderEpoch: 1,
-		Leader:      1,
-		Replicas:    []channelruntime.NodeID{1},
-		ISR:         []channelruntime.NodeID{1},
-		MinISR:      1,
-		Status:      channelruntime.StatusActive,
+		Key:             channelruntime.ChannelKeyForID(channelID),
+		ID:              channelID,
+		Epoch:           1,
+		LeaderEpoch:     1,
+		RouteGeneration: 1,
+		Leader:          1,
+		Replicas:        []channelruntime.NodeID{1},
+		ISR:             []channelruntime.NodeID{1},
+		MinISR:          1,
+		Status:          channelruntime.StatusActive,
 	}); err != nil {
 		t.Fatalf("ApplyMeta() error = %v", err)
 	}

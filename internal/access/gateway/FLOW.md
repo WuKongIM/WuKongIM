@@ -8,7 +8,8 @@ summary: Maps gateway sessions and frames to message, presence, and delivery use
 ## Responsibility
 
 `internal/access/gateway` adapts `pkg/gateway` authentication/session events and
-WKProto frames to entry-independent presence, message, and delivery commands,
+WKProto frames to entry-independent presence, message, delivery, and benchmark
+terminal-fence commands,
 then maps results back to protocol frames and stable reason codes.
 It does not own reusable message, presence, delivery, or storage policy.
 
@@ -31,6 +32,10 @@ It does not own reusable message, presence, delivery, or storage policy.
    for every input item.
 3. PING best-effort touches presence before PONG; RECVACK validates identity and
    positive message ID before delegating best-effort delivery feedback.
+4. The reserved terminal EVENT is strictly parsed into fixed-size redacting
+   proof values, validated by the terminal controller, and sealed with its ACK
+   under the exact session write lock; every later inbound frame is rejected
+   before reaching any usecase.
 
 ## Invariants and Failure Semantics
 
@@ -44,6 +49,12 @@ It does not own reusable message, presence, delivery, or storage policy.
 - Send hooks run after permission inside the message usecase, uniformly across
   all entries. Payload ownership remains immutable until lower durable/async
   boundaries copy it.
+- Terminal capability, nonce, digest, request, and ACK payloads are never
+  exposed or logged. The usecase session identity must equal the authenticated
+  gateway session before sealing.
+- Deadline failures may add bounded permission, pre-append, submitter, and
+  pre-submit budget timings to the existing warning. Planned shutdown fences
+  suppress only identity-bearing cancellation warnings, not observations.
 
 ## Read First
 

@@ -3,6 +3,7 @@ package target
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,66 @@ func TestCapabilities404FailsPreflight(t *testing.T) {
 	client := NewClient(Config{APIAddrs: []string{ts.URL}})
 	_, err := client.Capabilities(context.Background())
 	require.ErrorContains(t, err, "bench api")
+}
+
+func TestPrepareTerminalFenceBindsExactSingleTargetGeneration(t *testing.T) {
+	var authorization string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/terminal-fence/prepare", r.URL.Path)
+		authorization = r.Header.Get("Authorization")
+		var request TerminalFencePrepareRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		require.Equal(t, TerminalFencePrepareRequest{RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500}, request)
+		writeJSON(t, w, TerminalFenceGrant{
+			Version: TerminalFenceVersion, RunID: request.RunID, AssignmentID: request.AssignmentID,
+			ExpectedSessions: request.ExpectedSessions, Epoch: 7, Capability: "bounded-terminal-capability",
+		})
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}, Token: "bench-secret"})
+
+	grant, err := client.PrepareTerminalFence(context.Background(), TerminalFencePrepareRequest{
+		RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "Bearer bench-secret", authorization)
+	require.Equal(t, uint64(7), grant.Epoch)
+	require.Equal(t, "bounded-terminal-capability", grant.Capability)
+}
+
+func TestPrepareTerminalFenceRejectsAmbiguousTargetsAndMismatchedGrant(t *testing.T) {
+	client := NewClient(Config{APIAddrs: []string{"http://node-a", "http://node-b"}})
+	_, err := client.PrepareTerminalFence(context.Background(), TerminalFencePrepareRequest{
+		RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500,
+	})
+	require.ErrorContains(t, err, "exactly one target")
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, TerminalFenceGrant{
+			Version: TerminalFenceVersion, RunID: "different-run", AssignmentID: "generation-a",
+			ExpectedSessions: 2500, Epoch: 7, Capability: "bounded-terminal-capability",
+		})
+	}))
+	defer ts.Close()
+	client = NewClient(Config{APIAddrs: []string{ts.URL}})
+	_, err = client.PrepareTerminalFence(context.Background(), TerminalFencePrepareRequest{
+		RunID: "run-a", AssignmentID: "generation-a", ExpectedSessions: 2500,
+	})
+	require.ErrorContains(t, err, "does not match request")
+}
+
+func TestTerminalFenceGrantFormattingRedactsCapability(t *testing.T) {
+	grant := TerminalFenceGrant{
+		Version: TerminalFenceVersion, RunID: "run-a", AssignmentID: "generation-a",
+		ExpectedSessions: 2500, Epoch: 7, Capability: "bounded-terminal-capability",
+	}
+	for _, rendered := range []string{fmt.Sprintf("%v", grant), fmt.Sprintf("%#v", grant)} {
+		if strings.Contains(rendered, grant.Capability) || !strings.Contains(rendered, "[redacted]") {
+			t.Fatalf("formatted grant = %q, want redacted capability", rendered)
+		}
+	}
 }
 
 func TestCapabilitiesTriesAPIAddrsInOrder(t *testing.T) {
@@ -980,7 +1041,7 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 		case "/debug/goroutines/summary":
 			_, _ = io.WriteString(w, `{"generated_at":"2030-03-17T17:46:41Z","process_started_at":"2030-03-14T17:46:40Z","boot_id":"process-1","process_total":42,"future_field":"ignored"}`)
 		case "/debug/cluster":
-			_, _ = io.WriteString(w, `{"node_id":1,"state_revision":9,"slots":[{"slot_id":1,"leader_id":1,"replicas":[1,2,3],"voters":[1,2,3],"term":7,"commit_index":100,"applied_index":100,"replica_progress":[{"node_id":1,"match_index":100,"lag_entries":0,"state":"StateReplicate"},{"node_id":2,"match_index":99,"lag_entries":1,"state":"StateReplicate"},{"node_id":3,"match_index":98,"lag_entries":2,"state":"StateProbe"}],"future_field":true}],"future_field":"ignored"}`)
+			_, _ = io.WriteString(w, `{"node_id":1,"state_revision":9,"slots":[{"slot_id":1,"leader_id":1,"replicas":[1,2,3],"voters":[1,2,3],"term":7,"commit_index":100,"applied_index":100,"replica_progress":[{"node_id":1,"match_index":101,"lag_entries":0,"state":"StateReplicate"},{"node_id":2,"match_index":99,"lag_entries":1,"state":"StateReplicate"},{"node_id":3,"match_index":98,"lag_entries":2,"state":"StateProbe"}],"future_field":true}],"future_field":"ignored"}`)
 		case "/metrics":
 			_, _ = io.WriteString(w, strings.Join([]string{
 				`unrelated_future_metric{description="value with spaces"} 1`,
@@ -1022,7 +1083,7 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 	require.Equal(t, uint64(9), cluster.StateRevision)
 	require.Equal(t, []ClusterSlot{{
 		SlotID: 1, LeaderID: 1, Replicas: []uint64{1, 2, 3}, Voters: []uint64{1, 2, 3}, Term: 7, CommitIndex: 100, AppliedIndex: 100,
-		ReplicaProgress: []ReplicaProgress{{NodeID: 1, MatchIndex: 100, State: "StateReplicate"}, {NodeID: 2, MatchIndex: 99, LagEntries: 1, State: "StateReplicate"}, {NodeID: 3, MatchIndex: 98, LagEntries: 2, State: "StateProbe"}},
+		ReplicaProgress: []ReplicaProgress{{NodeID: 1, MatchIndex: 101, State: "StateReplicate"}, {NodeID: 2, MatchIndex: 99, LagEntries: 1, State: "StateReplicate"}, {NodeID: 3, MatchIndex: 98, LagEntries: 2, State: "StateProbe"}},
 	}}, cluster.Slots)
 	metrics, err := client.Metrics(context.Background())
 	require.NoError(t, err)

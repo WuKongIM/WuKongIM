@@ -75,7 +75,13 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelappend.App
 	})
 	if err != nil {
 		mappedErr := mapAppendError(err)
-		a.logAppendChannelBatchError(req, err, mappedErr)
+		// A generic append failure can still be recovered by the channelappend
+		// runtime through a durable idempotency lookup. That runtime owns the
+		// final recovered/unresolved outcome, so logging ERROR here would report
+		// successful retries as failures.
+		if !errors.Is(mappedErr, channelappend.ErrAppendFailed) {
+			a.logAppendChannelBatchError(req, err, mappedErr)
+		}
 		if traceEnabled {
 			recordChannelAppendTrace(req, nil, mappedErr, sendtrace.Elapsed(startedAt, time.Now()))
 		}

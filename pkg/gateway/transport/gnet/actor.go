@@ -3,6 +3,7 @@ package gnet
 import (
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
@@ -22,27 +23,35 @@ type actorPool struct {
 type actorShard struct {
 	id int
 
-	mu      sync.Mutex
-	ready   []*connState
-	drain   []*connState
-	wake    chan struct{}
-	stopped bool
-	stopCh  <-chan struct{}
+	mu       sync.Mutex
+	ready    []*connState
+	drain    []*connState
+	wake     chan struct{}
+	stopped  bool
+	stopCh   <-chan struct{}
+	revision *atomic.Uint64
 }
 
 func newActorPool(shards int) *actorPool {
+	return newActorPoolWithRevision(shards, &atomic.Uint64{})
+}
+
+func newActorPoolWithRevision(shards int, revision *atomic.Uint64) *actorPool {
 	if shards <= 0 {
 		shards = runtime.GOMAXPROCS(0)
 		if shards <= 0 {
 			shards = 1
 		}
 	}
+	if revision == nil {
+		revision = &atomic.Uint64{}
+	}
 	pool := &actorPool{
 		shards: make([]*actorShard, shards),
 		stopCh: make(chan struct{}),
 	}
 	for i := range pool.shards {
-		pool.shards[i] = newActorShard(i, pool.stopCh)
+		pool.shards[i] = newActorShardWithRevision(i, pool.stopCh, revision)
 	}
 	return pool
 }
@@ -84,12 +93,20 @@ func (p *actorPool) shardForConn(connID uint64) *actorShard {
 }
 
 func newActorShard(id int, stopCh <-chan struct{}) *actorShard {
+	return newActorShardWithRevision(id, stopCh, &atomic.Uint64{})
+}
+
+func newActorShardWithRevision(id int, stopCh <-chan struct{}, revision *atomic.Uint64) *actorShard {
+	if revision == nil {
+		revision = &atomic.Uint64{}
+	}
 	return &actorShard{
-		id:     id,
-		ready:  make([]*connState, 0, actorReadyQueueSize),
-		drain:  make([]*connState, 0, actorReadyQueueSize),
-		wake:   make(chan struct{}, 1),
-		stopCh: stopCh,
+		id:       id,
+		ready:    make([]*connState, 0, actorReadyQueueSize),
+		drain:    make([]*connState, 0, actorReadyQueueSize),
+		wake:     make(chan struct{}, 1),
+		stopCh:   stopCh,
+		revision: revision,
 	}
 }
 
@@ -112,6 +129,7 @@ func (s *actorShard) schedule(state *connState) bool {
 	wasEmpty := len(s.ready) == 0
 	s.ready = append(s.ready, state)
 	depth := len(s.ready)
+	revision := s.revision.Add(1)
 	s.mu.Unlock()
 
 	if wasEmpty {
@@ -120,7 +138,14 @@ func (s *actorShard) schedule(state *connState) bool {
 		default:
 		}
 	}
-	state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "ok")
+	state.observeTransportSnapshotForSource(actorPressureSource(s.id), transportPressureSnapshot{
+		name:     "actor_ready",
+		queue:    "ready",
+		depth:    depth,
+		capacity: actorReadyQueueSize,
+		result:   "ok",
+		revision: revision,
+	})
 	return true
 }
 
@@ -157,10 +182,16 @@ func (s *actorShard) drainReady() {
 		}
 		s.ready, s.drain = s.drain[:0], s.ready
 		batch := s.drain
+		revision := s.revision.Add(1)
 		s.mu.Unlock()
 
 		if len(batch) > 0 && batch[0] != nil {
-			batch[0].observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", 0, actorReadyQueueSize, 0, 0, "")
+			batch[0].observeTransportSnapshotForSource(actorPressureSource(s.id), transportPressureSnapshot{
+				name:     "actor_ready",
+				queue:    "ready",
+				capacity: actorReadyQueueSize,
+				revision: revision,
+			})
 		}
 		for i, state := range batch {
 			if state != nil {

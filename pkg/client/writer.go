@@ -274,6 +274,12 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 
 	data := buf.Bytes()
 	bytesWritten := buf.Len()
+	writeStartedAt := time.Now()
+	for _, req := range batch {
+		if req.kind == writeKindSend && req.pending != nil {
+			req.pending.markWriteStarted(req.entry, writeStartedAt)
+		}
+	}
 	writeCtx, cancel := writeContextForBatch(batch)
 	defer cancel()
 	err := c.withDeadline(writeCtx, conn.SetWriteDeadline, func() error {
@@ -296,6 +302,12 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 }
 
 func writeContextForBatch(batch []writeRequest) (context.Context, context.CancelFunc) {
+	if len(batch) == 1 {
+		if batch[0].ctx == nil {
+			return context.Background(), func() {}
+		}
+		return batch[0].ctx, func() {}
+	}
 	var earliest time.Time
 	var hasDeadline bool
 	var doneChans []<-chan struct{}

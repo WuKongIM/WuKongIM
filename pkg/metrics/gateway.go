@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var gatewayFrameDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
+var gatewayFrameDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 var gatewayAsyncSendBatchRecordBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 var gatewayAsyncSendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 524288, 1048576, 4194304}
 
@@ -27,12 +27,15 @@ type GatewayMetrics struct {
 	messagesDeliveredBytes   *prometheus.CounterVec
 	sendacksTotal            *prometheus.CounterVec
 	frameHandleDuration      *prometheus.HistogramVec
+	transportWriteDuration   *prometheus.HistogramVec
 	asyncSendQueueDepth      prometheus.Gauge
 	asyncSendQueueCapacity   prometheus.Gauge
 	asyncSendDispatchWait    *prometheus.HistogramVec
 	asyncSendBatchRecords    prometheus.Histogram
 	asyncSendBatchBytes      prometheus.Histogram
 	asyncSendBatchWait       prometheus.Histogram
+	asyncSendPublicationMu   sync.Mutex
+	asyncSendRevision        uint64
 	mu                       sync.Mutex
 	activeConnectionsByProto map[string]int64
 }
@@ -96,6 +99,12 @@ func newGatewayMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"frame_type"}),
+		transportWriteDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_gateway_transport_write_duration_seconds",
+			Help:        "Gateway asynchronous transport-write completion latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"frame_type", "result"}),
 		asyncSendQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_gateway_async_send_queue_depth",
 			Help:        "Number of SEND frames currently queued for asynchronous gateway dispatch.",
@@ -145,6 +154,7 @@ func newGatewayMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.messagesDeliveredBytes,
 		m.sendacksTotal,
 		m.frameHandleDuration,
+		m.transportWriteDuration,
 		m.asyncSendQueueDepth,
 		m.asyncSendQueueCapacity,
 		m.asyncSendDispatchWait,
@@ -318,12 +328,54 @@ func (m *GatewayMetrics) FrameHandled(frameType string, dur time.Duration) {
 	m.frameHandleDuration.WithLabelValues(frameType).Observe(dur.Seconds())
 }
 
+// TransportWrite records the physical async-write completion boundary for one outbound frame.
+func (m *GatewayMetrics) TransportWrite(frameType string, dur time.Duration, err error) {
+	if m == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	m.transportWriteDuration.WithLabelValues(normalizeGatewayFrameType(frameType), result).Observe(dur.Seconds())
+}
+
+func normalizeGatewayFrameType(frameType string) string {
+	switch frameType {
+	case "CONNECT", "CONNACK", "SEND", "SENDACK", "RECV", "RECVACK", "PING", "PONG", "DISCONNECT", "EVENT":
+		return frameType
+	default:
+		return "UNKNOWN"
+	}
+}
+
 func (m *GatewayMetrics) SetAsyncSendQueue(depth, capacity int) {
 	if m == nil {
 		return
 	}
 	m.asyncSendQueueDepth.Set(float64(depth))
 	m.asyncSendQueueCapacity.Set(float64(capacity))
+}
+
+// SetAsyncSendQueueRevisioned applies an absolute queue observation only when
+// revision is newer than the last retained revision. A zero revision preserves
+// the unconditional SetAsyncSendQueue behavior for unversioned callers.
+func (m *GatewayMetrics) SetAsyncSendQueueRevisioned(revision uint64, depth, capacity int) {
+	if revision == 0 {
+		m.SetAsyncSendQueue(depth, capacity)
+		return
+	}
+	if m == nil {
+		return
+	}
+	m.asyncSendPublicationMu.Lock()
+	defer m.asyncSendPublicationMu.Unlock()
+	if revision <= m.asyncSendRevision {
+		return
+	}
+	m.asyncSendQueueDepth.Set(float64(depth))
+	m.asyncSendQueueCapacity.Set(float64(capacity))
+	m.asyncSendRevision = revision
 }
 
 func (m *GatewayMetrics) ObserveAsyncSendDispatchWait(protocol string, dur time.Duration) {

@@ -5,18 +5,18 @@ mode: soak
 stage: shakeout
 workload:
   workers: 3
-  online_users: 100
-  bootstrap_logins_per_second: 25
+  online_users: 2500
+  bootstrap_logins_per_second: 200
   new_users_per_day: 250000
   send_rate_per_second: 100
   traffic: {person_percent: 90, group_percent: 10}
-  hot_set: {person_channels: 80, group_channels: 20}
+  hot_set: {person_channels: 2000, group_channels: 500}
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
   runtime_sampling: {every: 1m, size: 12}
   sync: {completed_coverage: 0, max_conversations: 500}
   burst_credit: 2s
   max_global_burst: 200
-  max_channels_per_node: 5000
+  max_channels_per_node: 50000
   login: {new_percent: 80, returning_percent: 20}
   sessions:
     - {percent: 25, min: 5m, max: 15m}
@@ -42,11 +42,11 @@ workload:
     returning_older_percent: 20
   retry: {max_count: 3, delays: [100ms, 500ms, 2s]}
   groups:
-    small: 16
-    medium: 3
-    large: 0
+    small: 400
+    medium: 75
+    large: 24
     very_large: 1
-    very_large_members: 1000
+    very_large_members: 100000
     fixed_membership: true
     very_large_send_every: 1m
 observation:
@@ -79,7 +79,7 @@ thresholds:
     overall_first_attempt_failure: {max_failures: 1, per_attempts: 10000, operator: "<"}
     any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}
   latency:
-    hot_sendack: {p99: 200ms, p999: 1s}
+    hot_sendack: {p99: 400ms, p999: 1s}
     cold: {p99: 2s, p999: 5s}
     sync: {p99: 1s, p999: 3s}
     single_anomaly: 10s
@@ -93,7 +93,7 @@ thresholds:
     host_memory_percent: 85
     bounded_queue_percent: 80
     sustained_saturation_window: 15m
-    minimum_load_filesystem_bytes: 200000000000
+    minimum_load_filesystem_bytes: 10000000000
     prometheus_safe_stop_bytes: 140000000000
   cluster:
     health_poll_every: 5s

@@ -56,10 +56,18 @@ sends terminate successfully before routing.
   typed busy/backpressure result; acknowledged commits are never dropped.
 - A post-commit completion must match both sequence and attempt. Stale
   completions cannot release another item's reservation or advance state.
+  Every admitted effect publishes exactly one closed terminal result only after
+  that match; panics, mixed batches, and stale completions cannot double-count
+  or first publish a false success.
+- Idempotency recovery observes only batch counts for recovered, unresolved,
+  and lookup-error items. Recovered items are not errors; every fresh item that
+  fails its bounded retry remains unresolved with its original aligned result.
 - Persistent command messages use their command Channel; transient messages
   write neither Channel logs nor directory membership.
 - Observability is aggregate and low-cardinality: never label Channel, UID,
   Slot, route, or authority identities.
+  Pool pressure republishes after the final running count decrement so a
+  terminal zero is observable without later traffic.
 
 ## Read First
 

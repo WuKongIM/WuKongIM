@@ -2,13 +2,16 @@ package meta
 
 import (
 	"sync"
+	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/commit"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
 
 // MetaDB owns hash-slot-scoped metadata storage.
 type MetaDB struct {
-	engine *engine.DB
+	engine    *engine.DB
+	committer *commit.Coordinator
 
 	mu         sync.Mutex
 	shards     map[HashSlot]*Shard
@@ -20,12 +23,28 @@ type MetaDB struct {
 
 // NewDB creates a MetaDB backed by engine.
 func NewDB(engine *engine.DB) *MetaDB {
-	return &MetaDB{
+	db := &MetaDB{
 		engine:       engine,
 		shards:       make(map[HashSlot]*Shard),
 		shardLocks:   make(map[HashSlot]*sync.Mutex),
 		channelCache: make(map[string]Channel),
 	}
+	if engine != nil {
+		db.committer = commit.NewCoordinator(engine, commit.Config{
+			FlushWindow: 500 * time.Microsecond,
+			QueueSize:   1024,
+			MaxRequests: 128,
+		})
+	}
+	return db
+}
+
+func (db *MetaDB) close() {
+	if db == nil || db.committer == nil {
+		return
+	}
+	db.committer.Close()
+	db.committer = nil
 }
 
 // HashSlot returns a stable shard handle for hashSlot.

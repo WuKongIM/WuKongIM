@@ -30,18 +30,27 @@ It does not provision users or channels, choose benchmark policy, or retry sends
    its SENDACK.
 3. The reader decrypts RECV into a bounded lossless queue and optionally sends
    RECVACK; send-only callers may discard inbound RECV before decryption/queueing.
+4. A grant-bound terminal seal quiesces SEND/PING and reconnect admission,
+   joins admitted SENDACKs, writes the reserved epoch/capability/nonce EVENT,
+   and succeeds only after decoding the exact peer ACK with no trailing frame.
 
 ## Invariants and Failure Semantics
 
 - `Close` is terminal. Reconnect before terminal close uses a fresh pending
   tracker and reader; streaming `Recv`/`ReadFrame` has no implicit operation timeout.
+  Incomplete-frame EOF is unexpected, never a clean boundary.
 - `TrySendAsync` leaves no pending entry when admission, writer queue, or
   inflight capacity is busy.
 - Retries may reuse idempotent `ClientMsgNo`, but overlapping attempts require
   distinct nonzero `ClientSeq` so late ACKs cannot resolve another attempt.
 - A full inbound queue backpressures the socket; close or replacement releases
   blocked publishers. Discard mode prevents RECV fanout from blocking ACK progress.
+  Leased reads keep dequeued handoff ownership visible until the next stage
+  accepts it.
 - Ping and RECVACK share the writer so all frames remain serialized.
+- Terminal capability and nonce are redacted and never metric labels. TCP
+  half-close, local write completion, malformed/stale ACK, EOF, or post-ACK
+  bytes fail closed. RECVACK remains permitted while the terminal ACK is pending.
 
 ## Read First
 

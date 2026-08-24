@@ -252,11 +252,56 @@ func TestSendExecutorUsesRuntimeWorkerCountAndCapacity(t *testing.T) {
 	if got, want := executor.workers, 4; got != want {
 		t.Fatalf("send executor workers = %d, want %d", got, want)
 	}
-	if got, want := executor.workers, 4; got != want {
+	if got, want := executor.shards, 16; got != want {
 		t.Fatalf("send executor shards = %d, want %d", got, want)
 	}
 	if got, want := executor.totalCapacity(), 16; got != want {
 		t.Fatalf("send executor capacity = %d, want %d", got, want)
+	}
+}
+
+func TestSendExecutorDoesNotSerializeUnrelatedSessionsOnWorkerSlot(t *testing.T) {
+	handler := newSessionIsolationAsyncSendHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        2,
+		AsyncSendQueueCapacity:  64,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer func() {
+		handler.releaseFirst()
+		executor.stop()
+	}()
+
+	// Session IDs 1 and 3 collide when worker slots are also used as the two
+	// ordering shards. They are unrelated sessions and must be able to use the
+	// two available workers independently.
+	if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{ClientMsgNo: "first"}) {
+		t.Fatal("first submit rejected")
+	}
+	select {
+	case <-handler.firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first session did not enter handler")
+	}
+	if !executor.submit(asyncSendTestState(srv, 3), "", &frame.SendPacket{ClientMsgNo: "second"}) {
+		t.Fatal("second submit rejected")
+	}
+	select {
+	case <-handler.secondStarted:
+	case <-time.After(time.Second):
+		t.Fatal("unrelated second session was serialized behind the first session")
 	}
 }
 
@@ -271,11 +316,11 @@ func TestSendExecutorBoundsMailboxCapacityAcrossShards(t *testing.T) {
 	}
 	defer executor.stop()
 
-	if got, want := executor.workers, 4; got != want {
+	if got, want := executor.shards, 10; got != want {
 		t.Fatalf("send executor shards = %d, want %d", got, want)
 	}
-	if got, want := executor.shardCapacity, 3; got != want {
-		t.Fatalf("send executor shard capacity = %d, want ceil(10/4)=3", got)
+	if got, want := executor.shardCapacity, 1; got != want {
+		t.Fatalf("send executor shard capacity = %d, want ceil(10/10)=1", got)
 	}
 	if got, want := executor.totalCapacity(), 10; got != want {
 		t.Fatalf("send executor total capacity = %d, want %d", got, want)
@@ -546,6 +591,32 @@ func TestSendExecutorObserverTracksQueueWaitAndBatch(t *testing.T) {
 	}
 	if waits[0].Duration <= 0 {
 		t.Fatalf("dispatch wait = %s, want > 0", waits[0].Duration)
+	}
+}
+
+func TestSendExecutorQueueSnapshotRevisionsTrackMutationsAcrossExecutors(t *testing.T) {
+	first := &sendExecutor{capacity: 4}
+	if !first.reserve() {
+		t.Fatal("first reserve rejected")
+	}
+	reserved := first.queueSnapshot()
+	if reserved.Depth != 1 || reserved.Revision == 0 {
+		t.Fatalf("reserved snapshot = %+v, want depth 1 and a non-zero revision", reserved)
+	}
+
+	first.consume(1)
+	drained := first.queueSnapshot()
+	if drained.Depth != 0 || drained.Revision <= reserved.Revision {
+		t.Fatalf("drained snapshot = %+v, want depth 0 and revision > %d", drained, reserved.Revision)
+	}
+
+	second := &sendExecutor{capacity: 4}
+	if !second.reserve() {
+		t.Fatal("second executor reserve rejected")
+	}
+	rebuilt := second.queueSnapshot()
+	if rebuilt.Depth != 1 || rebuilt.Revision <= drained.Revision {
+		t.Fatalf("rebuilt snapshot = %+v, want depth 1 and revision > %d", rebuilt, drained.Revision)
 	}
 }
 
@@ -1104,6 +1175,23 @@ type blockingAsyncSendFrameHandler struct {
 	release   chan struct{}
 }
 
+type sessionIsolationAsyncSendHandler struct {
+	firstStarted  chan struct{}
+	secondStarted chan struct{}
+	firstRelease  chan struct{}
+	firstOnce     sync.Once
+	secondOnce    sync.Once
+	releaseOnce   sync.Once
+}
+
+func newSessionIsolationAsyncSendHandler() *sessionIsolationAsyncSendHandler {
+	return &sessionIsolationAsyncSendHandler{
+		firstStarted:  make(chan struct{}),
+		secondStarted: make(chan struct{}),
+		firstRelease:  make(chan struct{}),
+	}
+}
+
 func newBlockingAsyncSendFrameHandler() *blockingAsyncSendFrameHandler {
 	return &blockingAsyncSendFrameHandler{
 		started: make(chan struct{}),
@@ -1289,6 +1377,33 @@ func (h *blockingAsyncSendFrameHandler) OnSessionError(ctx gatewaytypes.Context,
 
 func (h *blockingAsyncSendFrameHandler) frames() uint64 {
 	return h.counting.frames.Load()
+}
+
+func (h *sessionIsolationAsyncSendHandler) OnListenerError(string, error) {}
+func (h *sessionIsolationAsyncSendHandler) OnSessionOpen(gatewaytypes.Context) error {
+	return nil
+}
+func (h *sessionIsolationAsyncSendHandler) OnFrame(_ gatewaytypes.Context, f frame.Frame) error {
+	send, _ := f.(*frame.SendPacket)
+	if send == nil {
+		return nil
+	}
+	switch send.ClientMsgNo {
+	case "first":
+		h.firstOnce.Do(func() { close(h.firstStarted) })
+		<-h.firstRelease
+	case "second":
+		h.secondOnce.Do(func() { close(h.secondStarted) })
+	}
+	return nil
+}
+func (h *sessionIsolationAsyncSendHandler) OnSessionClose(gatewaytypes.Context) error {
+	return nil
+}
+func (h *sessionIsolationAsyncSendHandler) OnSessionError(gatewaytypes.Context, error) {}
+
+func (h *sessionIsolationAsyncSendHandler) releaseFirst() {
+	h.releaseOnce.Do(func() { close(h.firstRelease) })
 }
 
 type blockingRecordingAsyncSendBatchHandler struct {

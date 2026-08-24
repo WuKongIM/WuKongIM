@@ -25,15 +25,20 @@ import (
 )
 
 const (
-	defaultPollInterval            = 25 * time.Millisecond
-	defaultPollTimeout             = 10 * time.Second
-	defaultWorkerStatusTimeout     = time.Second
-	defaultStopTimeout             = 2 * time.Second
+	defaultPollInterval        = 25 * time.Millisecond
+	defaultPollTimeout         = 10 * time.Second
+	defaultWorkerStatusTimeout = time.Second
+	// defaultStopTimeout leaves a bounded post-ACK window for the worker to
+	// rebuild receive proof, join readers, and close up to 2,500 sessions.
+	defaultStopTimeout             = 15 * time.Second
 	defaultTrafficOperationTimeout = 5 * time.Second
 	maxBodySnippetBytes            = 512
 )
 
-var errWorkerReportCollection = errors.New("worker report collection failed")
+var (
+	errWorkerReportCollection    = errors.New("worker report collection failed")
+	errTerminalReceiveSealFailed = errors.New("terminal receive seal failed")
+)
 
 // Phase is the workload lifecycle phase orchestrated by the coordinator.
 type Phase = worker.Phase
@@ -146,9 +151,6 @@ func New(cfg CoordinatorConfig) *Coordinator {
 		hc = &http.Client{Timeout: workerInfoTimeout}
 	}
 	preflight := cfg.Preflight
-	if preflight == nil {
-		preflight = NewPreflight(PreflightConfig{HTTPClient: hc})
-	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = defaultPollInterval
 	}
@@ -175,7 +177,14 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	result.Plan = plan
 
 	workers := model.WorkerSet{Workers: c.cfg.Workers}
-	if err := c.preflight.Check(ctx, c.cfg.Target, workers); err != nil {
+	preflight := c.preflight
+	if preflight == nil {
+		preflight = NewPreflight(PreflightConfig{
+			HTTPClient:           c.http,
+			RequireTerminalFence: scenario.Run.ExternalTerminalCut,
+		})
+	}
+	if err := preflight.Check(ctx, c.cfg.Target, workers); err != nil {
 		if errorsIsContext(err) {
 			result.Status = StatusCanceled
 		} else {
@@ -730,7 +739,14 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, pla
 func maximumWarmupOperationTimeout(scenario model.Scenario) time.Duration {
 	maximum := defaultTrafficOperationTimeout
 	for _, traffic := range scenario.Messages.Traffic {
-		for _, timeout := range []time.Duration{traffic.AckTimeout, traffic.RecvTimeout} {
+		ackTimeout := positiveTrafficOperationTimeout(traffic.AckTimeout)
+		if traffic.Retry.Enabled {
+			ackTimeout = saturatingDurationAdd(
+				saturatingDurationMultiply(ackTimeout, model.TrafficRetryMaximumAttempts),
+				model.TrafficRetryDelayBudget(),
+			)
+		}
+		for _, timeout := range []time.Duration{ackTimeout, traffic.RecvTimeout} {
 			timeout = positiveTrafficOperationTimeout(timeout)
 			if timeout > maximum {
 				maximum = timeout
@@ -751,6 +767,12 @@ func maximumTrafficOperationTimeout(scenario model.Scenario, plan model.Plan) ti
 	}
 	for _, traffic := range scenario.Messages.Traffic {
 		ackTimeout := positiveTrafficOperationTimeout(traffic.AckTimeout)
+		if traffic.Retry.Enabled {
+			ackTimeout = saturatingDurationAdd(
+				saturatingDurationMultiply(ackTimeout, model.TrafficRetryMaximumAttempts),
+				model.TrafficRetryDelayBudget(),
+			)
+		}
 		recvWaits := trafficReceiveVerificationWaits(traffic, profiles[strings.TrimSpace(traffic.ChannelRef)], plan)
 		operationTimeout := saturatingDurationAdd(ackTimeout, saturatingDurationMultiply(positiveTrafficOperationTimeout(traffic.RecvTimeout), recvWaits))
 		if operationTimeout > maximum {
@@ -1173,7 +1195,11 @@ func (c *Coordinator) stopAll(runID, assignmentID string, workers []model.Worker
 		go func() {
 			defer wg.Done()
 			if err := c.stopWorker(runID, assignmentID, w); err != nil {
-				errs[i] = newWorkerFailureError(strings.TrimSpace(w.ID), Phase("stop"), "worker_stop_failed", err)
+				reasonCode := "worker_stop_failed"
+				if errors.Is(err, errTerminalReceiveSealFailed) {
+					reasonCode = worker.TerminalReceiveSealFailureReasonCode
+				}
+				errs[i] = newWorkerFailureError(strings.TrimSpace(w.ID), Phase("stop"), reasonCode, err)
 			}
 		}()
 	}
@@ -1194,6 +1220,7 @@ func (c *Coordinator) stopWorker(runID, assignmentID string, w model.Worker) err
 	defer cancel()
 	attemptTimeout := c.stopAttemptTimeout()
 	var lastErr error
+	var terminalReceiveSealErr error
 	for {
 		var status worker.Status
 		attemptCtx, attemptCancel := context.WithTimeout(ctx, attemptTimeout)
@@ -1201,6 +1228,9 @@ func (c *Coordinator) stopWorker(runID, assignmentID string, w model.Worker) err
 		attemptCancel()
 		if err != nil {
 			lastErr = fmt.Errorf("worker %s stop failed: %w", workerName(w), err)
+			if errors.Is(err, errTerminalReceiveSealFailed) {
+				terminalReceiveSealErr = lastErr
+			}
 		} else if err := validateStatusAssignment(status, w, runID, assignmentID); err != nil {
 			lastErr = fmt.Errorf("worker %s stop response failed validation: %w", workerName(w), err)
 		} else if status.Phase != worker.PhaseStopped || status.ActivePhase != "" {
@@ -1210,6 +1240,9 @@ func (c *Coordinator) stopWorker(runID, assignmentID string, w model.Worker) err
 		}
 		select {
 		case <-ctx.Done():
+			if terminalReceiveSealErr != nil {
+				return terminalReceiveSealErr
+			}
 			return lastErr
 		case <-time.After(c.cfg.PollInterval):
 		}
@@ -1421,6 +1454,9 @@ func coordinatorStatusError(method, url string, resp *http.Response) error {
 		responseErr = fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
 	} else {
 		responseErr = fmt.Errorf("%s %s returned status %d: %s", method, url, resp.StatusCode, snippet)
+	}
+	if string(payload.ReasonCode) == worker.TerminalReceiveSealFailureReasonCode {
+		return fmt.Errorf("%w: %v", errTerminalReceiveSealFailed, responseErr)
 	}
 	if payload.ReasonCode.Valid() {
 		if payload.ReasonCode == worker.FailureReasonTargetUnavailable && !errors.Is(responseErr, errTargetUnavailable) {

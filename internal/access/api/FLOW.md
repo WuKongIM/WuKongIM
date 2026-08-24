@@ -16,7 +16,7 @@ user business state.
 ## Boundaries
 
 The composition root supplies message, CMD sync, conversation, channel, user,
-benchmark, top, diagnostics, metrics, and debug ports. Optional capabilities
+benchmark, terminal-fence, top, diagnostics, metrics, and debug ports. Optional capabilities
 remain explicit: their routes are absent or fail closed when the matching port
 is not wired. Business ordering, cursor semantics, durable writes, Channel
 authority, and compatibility decisions below the HTTP envelope stay in the
@@ -35,6 +35,11 @@ bench or debug request
   -> feature-enabled and bearer-capability gates
   -> bounded runtime/read-model port
   -> low-cardinality response or stable failure
+
+terminal-fence prepare
+  -> strict authenticated 4 KiB request
+  -> exact run, assignment, and expected-session binding
+  -> one-shot product terminal controller and opaque grant
 
 /demo/*
   -> embedded immutable asset or revalidated index
@@ -55,8 +60,13 @@ bench or debug request
   membership, opaque cursors, badge floors, and Channel reads stay below it.
 - Benchmark mutation routes write only through the supplied benchmark data
   port. Missing mutation capability returns an explicit unsupported result.
+- `/bench/v1/terminal-fence/prepare` exists only with the complete controller
+  and a non-empty bearer token; it has no unauthenticated compatibility mode.
+  Capability and benchmark identities never enter logs or error responses.
 - Debug failures and observations never expose raw requested identities or
-  unbounded internal errors. Metrics must not add UID or Channel labels.
+  unbounded internal errors. Cluster-snapshot failures retain only the fixed
+  diagnostic event plus the private source cause. Metrics must not add UID or
+  Channel labels.
 - The adapter never writes storage, resolves distributed authority, or performs
   post-commit effects directly.
 

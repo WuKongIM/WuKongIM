@@ -38,6 +38,9 @@ built-in listener presets.
    CONNACK, then opens the callback gate; authenticated SEND uses bounded
    session-sharded batching, other frames dispatch synchronously, and all
    outbound frames serialize through protocol-aware Session writes.
+   A terminal session sealer shares that write lock, permanently closes ordinary
+   outbound admission, and enqueues the unique marker ACK before later inbound
+   frames can reach the handler.
 3. Close cancels request work, removes indexes, releases protocol and transport
    state, and orders error/close callbacks after open completion; drain rejects
    only new sessions and reports existing session state for safety checks.
@@ -52,13 +55,21 @@ built-in listener presets.
 - Inbound bytes, outbound bytes, auth queue, SEND backlog, per-shard mailboxes,
   batch records/bytes/wait, idle work, actor work, and shutdown waits are
   bounded. Saturation closes only the affected session with a typed reason.
+- `DrainSends` is a one-shot SEND-admission fence that waits for accepted
+  mailbox work without canceling or resetting it when a caller times out.
+  It does not prove append, delivery, transport flush, or client receipt.
 - Async SEND owns retained payload bytes unless the protocol explicitly proves
   decoded-frame ownership. Result order within a session is preserved.
 - Only inbound activity refreshes the idle deadline. Drain rejects new sessions
   and does not silently terminate existing ones.
 - Session writes serialize encode and close interaction; business code must not
   write directly to the transport connection.
+  Sealed ACK enqueue failure never reopens ordinary writes, and remote proof
+  still requires the client's exact decoded ACK.
 - Observations remain low-cardinality and never add per-connection identities.
+  Absolute pressure snapshots carry monotonic source/publication revisions so
+  delayed callbacks cannot overwrite terminal zero or resurrect a cleared
+  connection source.
 
 ## Read First
 

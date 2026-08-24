@@ -174,10 +174,47 @@ type PermissionBatchStore interface {
 	ReadPermissionsBatch(context.Context, []PermissionRead) []PermissionReadResult
 }
 
-// PersonDirectoryEnsurer establishes the durable discovery invariant for a
+// PersonDirectoryEnsurer admits durable discovery projection work for a
 // canonical person channel before its first persistent ordinary message.
 type PersonDirectoryEnsurer interface {
-	EnsurePersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error
+	AdmitPersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error
+}
+
+// PersonDirectoryAdmission identifies one canonical person directory whose
+// durable admission must complete before its SEND can proceed.
+type PersonDirectoryAdmission struct {
+	Context     context.Context
+	ChannelID   string
+	ChannelType int64
+	// ChannelFact is the authoritative channel read already used by this
+	// SendBatch's permission decision. It is request-scoped and must never be
+	// retained as a cross-request readiness proof.
+	ChannelFact *PersonDirectoryChannelFact
+}
+
+// PersonDirectoryChannelFact carries one request-scoped authoritative channel
+// observation from permission evaluation into directory admission.
+type PersonDirectoryChannelFact struct {
+	Found   bool
+	Channel metadb.Channel
+}
+
+// PersonDirectoryBatchEnsurer admits one bounded wave and preserves exact
+// result alignment without creating caller-owned goroutines per channel.
+type PersonDirectoryBatchEnsurer interface {
+	AdmitPersonChannelDirectories([]PersonDirectoryAdmission) []error
+}
+
+// PersonDirectoryAdmissionOutcome is one result in a completed durable wave.
+type PersonDirectoryAdmissionOutcome struct {
+	Index int
+	Err   error
+}
+
+// PersonDirectoryWaveEnsurer emits serialized waves as independently sealed
+// durable batches finish, then returns only after every admission is final.
+type PersonDirectoryWaveEnsurer interface {
+	AdmitPersonChannelDirectoryWaves([]PersonDirectoryAdmission, func([]PersonDirectoryAdmissionOutcome))
 }
 
 // SystemUIDChecker identifies internal system senders that bypass business permissions.

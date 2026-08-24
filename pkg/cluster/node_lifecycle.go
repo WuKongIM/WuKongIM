@@ -104,6 +104,14 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.stopChannelRetentionGCLoop()
 	n.stopChannelMigrationLoop()
 	var errs []error
+	if n.defaultChannels {
+		if n.channelRPCGateway != nil {
+			n.channelRPCGateway.Clear()
+		}
+		if n.channelQuorumGateway != nil {
+			n.channelQuorumGateway.Clear()
+		}
+	}
 	if n.channels != nil {
 		if err := n.channels.Close(); err != nil {
 			errs = append(errs, err)
@@ -112,6 +120,12 @@ func (n *Node) Stop(ctx context.Context) error {
 	if n.defaultChannels {
 		n.channels = nil
 		n.defaultChannels = false
+		if n.defaultChannelReplication != nil {
+			if err := n.defaultChannelReplication.Close(ctx); err != nil {
+				errs = append(errs, err)
+			}
+			n.defaultChannelReplication = nil
+		}
 		if err := n.closeDefaultChannelStore(); err != nil {
 			errs = append(errs, err)
 		}

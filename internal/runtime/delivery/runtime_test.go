@@ -466,6 +466,62 @@ func TestRuntimeStopClearsTransientAckStateAndAllowsRestart(t *testing.T) {
 	}
 }
 
+func TestRuntimeQuiesceWaitsForAcceptedPlanAndPendingRecvackWithoutReset(t *testing.T) {
+	writes := make(chan LocalSessionWrite, 1)
+	runtime := NewRuntime(RuntimeOptions{
+		LocalNodeID: 1,
+		Presence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
+			return []TargetPresenceResult{{Routes: []onlinedelivery.Route{runtimeRouteForTest()}}}
+		}),
+		SessionWriter: localSessionWriterFunc(func(_ context.Context, write LocalSessionWrite) SessionWriteResult {
+			writes <- write
+			return SessionWriteResult{Disposition: SessionWriteAccepted}
+		}),
+	})
+	startRuntimeForTest(t, runtime)
+	defer func() { _ = runtime.Stop(context.Background()) }()
+
+	if err := runtime.EnqueueRecipientDeliveryPlan(context.Background(), runtimePlanForTest(74)); err != nil {
+		t.Fatalf("EnqueueRecipientDeliveryPlan() error = %v", err)
+	}
+	var write LocalSessionWrite
+	select {
+	case write = <-writes:
+	case <-time.After(time.Second):
+		t.Fatal("accepted plan did not reach local session writer")
+	}
+	if got := runtime.PendingAckCount(); got != 1 {
+		t.Fatalf("PendingAckCount() = %d, want one pending recvack", got)
+	}
+
+	deadline, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if err := runtime.Quiesce(deadline); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Quiesce() error = %v, want context deadline exceeded while recvack remains pending", err)
+	}
+	if got := runtime.PendingAckCount(); got != 1 {
+		t.Fatalf("PendingAckCount() after deadline = %d, want preserved pending recvack", got)
+	}
+	if err := runtime.EnqueueRecipientDeliveryPlan(context.Background(), runtimePlanForTest(75)); !errors.Is(err, ErrRuntimeClosed) {
+		t.Fatalf("EnqueueRecipientDeliveryPlan() after Quiesce admission close = %v, want ErrRuntimeClosed", err)
+	}
+
+	if err := runtime.Recvack(context.Background(), Recvack{
+		UID: write.Route.UID, SessionID: write.Route.SessionID,
+		MessageID: write.Event.MessageID, MessageSeq: write.Event.MessageSeq,
+	}); err != nil {
+		t.Fatalf("Recvack() error = %v", err)
+	}
+	finished, finishedCancel := context.WithTimeout(context.Background(), time.Second)
+	defer finishedCancel()
+	if err := runtime.Quiesce(finished); err != nil {
+		t.Fatalf("second Quiesce() error = %v, want nil after recvack", err)
+	}
+	if got := runtime.PendingAckCount(); got != 0 {
+		t.Fatalf("PendingAckCount() after quiesce = %d, want zero", got)
+	}
+}
+
 func TestRuntimeStopDrainsAcceptedPlanBeforeCancel(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})

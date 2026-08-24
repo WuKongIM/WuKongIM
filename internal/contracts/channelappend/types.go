@@ -167,7 +167,9 @@ type SendResult struct {
 type SendBatchItem struct {
 	// Context is the per-send request context.
 	Context context.Context
-	// Deadline bounds durable append for this item without replacing Context.
+	// Deadline bounds the complete send pipeline. Entry adapters preserve
+	// Context; the message usecase derives a child context when this deadline
+	// is earlier so permission and pre-append work cannot consume append time.
 	Deadline time.Time
 	// Command is the SEND command.
 	Command SendCommand
