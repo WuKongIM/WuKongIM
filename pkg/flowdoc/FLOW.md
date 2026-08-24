@@ -33,9 +33,8 @@ repository FLOW bytes
 ## Invariants and Failure Semantics
 
 Explicit front matter is a closed two-field format. Unknown, duplicate, or
-malformed fields fail. During migration only, a file without front matter is
-reported as legacy and receives historical subtree scope. The parser never
-reads files or follows links itself.
+malformed fields fail, and missing front matter fails. The parser never reads
+files or follows links itself.
 
 ## Read First
 
@@ -46,5 +45,5 @@ reads files or follows links itself.
 ## Update Triggers
 
 - FLOW metadata, scope, heading, or Read First contracts change.
-- Legacy compatibility is added, altered, or removed.
+- Parser failure or validation semantics change.
 - Markdown reference extraction changes.

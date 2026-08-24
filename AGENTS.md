@@ -28,8 +28,8 @@ The keywords `MUST`, `MUST NOT`, `SHOULD`, and `MAY` define requirement levels:
 - Before deeply analyzing or changing a package, you MUST read every applicable
   `FLOW.md`. Broad repository discovery and symbol search do not trigger this
   requirement. A FLOW with `scope: package` applies only to its directory; a
-  FLOW with `scope: subtree` also applies to descendants. During migration, a
-  FLOW without scope metadata keeps its historical subtree scope.
+  FLOW with `scope: subtree` also applies to descendants. A FLOW without valid
+  scope metadata is invalid and MUST NOT be used as context.
 - `FLOW.md` is advisory module navigation. It MUST NOT override this file,
   executable code, schemas, or tests. Use
   `docs/development/FLOW_INDEX.md` only for discovery; read applicable FLOW
@@ -178,6 +178,9 @@ app -> access/usecase/runtime/infra/pkg
   from Skill directories.
 - Changes under `.agents/skills/` MUST pass the `agent-artifact-contracts` and
   `skill-focused-contracts` named checks.
+- Changes to any `FLOW.md`, its validator, the generated FLOW index, Agent FLOW
+  context discovery, or this governing rule MUST pass the
+  `flow-doc-contracts` named check.
 
 ## GitHub Actions tools
 

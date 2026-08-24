@@ -57,7 +57,7 @@ func DiscoverContextDocuments(
 		}
 		flowScope := flowdoc.ScopeSubtree
 		if base == "FLOW.md" {
-			metadata, err := flowdoc.ParseMetadata(document.Content, true)
+			metadata, err := flowdoc.ParseMetadata(document.Content)
 			if err != nil {
 				return nil, fmt.Errorf(
 					"%s: invalid base FLOW metadata: %w",

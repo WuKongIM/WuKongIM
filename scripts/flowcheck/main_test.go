@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestReportAcceptsLegacyFlowDuringMigration(t *testing.T) {
+func TestReportMarksFlowWithoutMetadataInvalid(t *testing.T) {
 	root := t.TempDir()
 	writeFlowcheckFile(t, root, "module/FLOW.md", "# module Flow\n")
 
@@ -22,16 +22,15 @@ func TestReportAcceptsLegacyFlowDuringMigration(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run() code = %d, want 0; stderr = %q", code, stderr.String())
 	}
-	if got, want := stdout.String(), "flowcheck: 1 FLOW file; 0 compliant; 1 legacy; 0 invalid; 0 warnings\n"; got != want {
+	if got, want := stdout.String(), "flowcheck: 1 FLOW file; 0 compliant; 1 invalid; 0 warnings\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
-	if got, want := stderr.String(), "module/FLOW.md: legacy metadata missing; transition scope is subtree\n"+
-		"docs/development/FLOW_INDEX.md: generated index is missing or stale\n"; got != want {
+	if got, want := stderr.String(), "module/FLOW.md: FLOW front matter is missing\n"; got != want {
 		t.Fatalf("stderr = %q, want %q", got, want)
 	}
 }
 
-func TestCheckRejectsLegacyFlow(t *testing.T) {
+func TestCheckRejectsFlowWithoutMetadata(t *testing.T) {
 	root := t.TempDir()
 	writeFlowcheckFile(t, root, "module/FLOW.md", "# module Flow\n")
 
@@ -45,11 +44,10 @@ func TestCheckRejectsLegacyFlow(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("run() code = %d, want 1; stderr = %q", code, stderr.String())
 	}
-	if got, want := stdout.String(), "flowcheck: 1 FLOW file; 0 compliant; 1 legacy; 0 invalid; 0 warnings\n"; got != want {
+	if got, want := stdout.String(), "flowcheck: 1 FLOW file; 0 compliant; 1 invalid; 0 warnings\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
-	if got, want := stderr.String(), "module/FLOW.md: legacy metadata missing; transition scope is subtree\n"+
-		"docs/development/FLOW_INDEX.md: generated index is missing or stale\n"; got != want {
+	if got, want := stderr.String(), "module/FLOW.md: FLOW front matter is missing\n"; got != want {
 		t.Fatalf("stderr = %q, want %q", got, want)
 	}
 }
@@ -78,7 +76,7 @@ Own one example.
 	if code != 1 {
 		t.Fatalf("run() code = %d, want 1; stderr = %q", code, stderr.String())
 	}
-	if got, want := stdout.String(), "flowcheck: 1 FLOW file; 0 compliant; 0 legacy; 1 invalid; 0 warnings\n"; got != want {
+	if got, want := stdout.String(), "flowcheck: 1 FLOW file; 0 compliant; 1 invalid; 0 warnings\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
 	if got, want := stderr.String(), "module/FLOW.md: required heading \"## Boundaries\" is missing or out of order\n"; got != want {
@@ -222,7 +220,6 @@ func TestRenderProducesCanonicalIndex(t *testing.T) {
 	root := t.TempDir()
 	writeFlowcheckFile(t, root, "a/entry.go", "package a\n")
 	writeFlowcheckFile(t, root, "a/FLOW.md", compliantFlow("entry.go"))
-	writeFlowcheckFile(t, root, "b/FLOW.md", "# b Flow\n")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -238,14 +235,13 @@ func TestRenderProducesCanonicalIndex(t *testing.T) {
 
 # FLOW Index
 
-This file is generated from repository FLOW.md metadata. Legacy entries retain historical subtree scope until migration.
+This file is generated from repository FLOW.md metadata.
 
 Regenerate with ` + "`GOWORK=off go run ./scripts/flowcheck --mode render --write-index`" + `.
 
 | Path | Scope | Summary | Lines | Budget |
 | --- | --- | --- | ---: | --- |
 | [a/FLOW.md](../../a/FLOW.md) | ` + "`package`" + ` | Owns one example module. | 30 | ok |
-| [b/FLOW.md](../../b/FLOW.md) | ` + "`legacy-subtree`" + ` | Metadata migration pending. | 1 | ok |
 `
 	if got := stdout.String(); got != want {
 		t.Fatalf("stdout =\n%s\nwant =\n%s", got, want)

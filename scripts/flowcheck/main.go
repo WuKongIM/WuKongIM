@@ -89,7 +89,6 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 0
 	}
 	compliant := 0
-	legacy := 0
 	invalid := 0
 	warnings := 0
 	staleIndex := false
@@ -120,44 +119,35 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 			)
 			warnings++
 		}
-		metadata, err := flowdoc.ParseMetadata(content, true)
+		_, err = flowdoc.ParseMetadata(content)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v\n", relative, err)
 			invalid++
 			continue
 		}
-		if metadata.Legacy {
+		if err := flowdoc.ValidateBody(content); err != nil {
+			fmt.Fprintf(stderr, "%s: %v\n", relative, err)
+			invalid++
+			continue
+		}
+		readFirst, err := flowdoc.ReadFirstReferences(content)
+		if err != nil || len(readFirst) < 1 || len(readFirst) > 5 {
 			fmt.Fprintf(
 				stderr,
-				"%s: legacy metadata missing; transition scope is subtree\n",
+				"%s: Read First must contain 1-5 local references\n",
 				relative,
 			)
-			legacy++
-		} else {
-			if err := flowdoc.ValidateBody(content); err != nil {
-				fmt.Fprintf(stderr, "%s: %v\n", relative, err)
-				invalid++
-				continue
-			}
-			readFirst, err := flowdoc.ReadFirstReferences(content)
-			if err != nil || len(readFirst) < 1 || len(readFirst) > 5 {
-				fmt.Fprintf(
-					stderr,
-					"%s: Read First must contain 1-5 local references\n",
-					relative,
-				)
-				invalid++
-				continue
-			}
-			if err := validateLocalReferences(*root, relative, content); err != nil {
-				fmt.Fprintf(stderr, "%s: %v\n", relative, err)
-				invalid++
-				continue
-			}
-			compliant++
+			invalid++
+			continue
 		}
+		if err := validateLocalReferences(*root, relative, content); err != nil {
+			fmt.Fprintf(stderr, "%s: %v\n", relative, err)
+			invalid++
+			continue
+		}
+		compliant++
 	}
-	compareIndex := mode == modeReport || mode == modeCheck && invalid == 0
+	compareIndex := (mode == modeReport || mode == modeCheck) && invalid == 0
 	if compareIndex {
 		var canonical bytes.Buffer
 		if err := renderIndex(*root, paths, &canonical); err != nil {
@@ -179,15 +169,14 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	fmt.Fprintf(
 		stdout,
-		"flowcheck: %d %s; %d compliant; %d legacy; %d invalid; %d warnings\n",
+		"flowcheck: %d %s; %d compliant; %d invalid; %d warnings\n",
 		len(paths),
 		pluralize(len(paths), "FLOW file", "FLOW files"),
 		compliant,
-		legacy,
 		invalid,
 		warnings,
 	)
-	if mode == modeCheck && (legacy+invalid != 0 || staleIndex) {
+	if mode == modeCheck && (invalid != 0 || staleIndex) {
 		return 1
 	}
 	return 0
@@ -198,7 +187,7 @@ func renderIndex(root string, paths []string, output io.Writer) error {
 	fmt.Fprintln(output)
 	fmt.Fprintln(output, "# FLOW Index")
 	fmt.Fprintln(output)
-	fmt.Fprintln(output, "This file is generated from repository FLOW.md metadata. Legacy entries retain historical subtree scope until migration.")
+	fmt.Fprintln(output, "This file is generated from repository FLOW.md metadata.")
 	fmt.Fprintln(output)
 	fmt.Fprintln(output, "Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-index`.")
 	fmt.Fprintln(output)
@@ -209,16 +198,12 @@ func renderIndex(root string, paths []string, output io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", relative, err)
 		}
-		metadata, err := flowdoc.ParseMetadata(content, true)
+		metadata, err := flowdoc.ParseMetadata(content)
 		if err != nil {
 			return fmt.Errorf("%s: %w", relative, err)
 		}
 		scope := string(metadata.Scope)
 		summary := metadata.Summary
-		if metadata.Legacy {
-			scope = "legacy-subtree"
-			summary = "Metadata migration pending."
-		}
 		lines := physicalLineCount(content)
 		budget := "ok"
 		if lines > 150 {

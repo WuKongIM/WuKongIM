@@ -2,7 +2,7 @@
 
 # FLOW Index
 
-This file is generated from repository FLOW.md metadata. Legacy entries retain historical subtree scope until migration.
+This file is generated from repository FLOW.md metadata.
 
 Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-index`.
 
@@ -49,7 +49,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/runtime/online/FLOW.md](../../internal/runtime/online/FLOW.md) | `package` | Maintains node-local pending and active connection routes, concrete session handles, and bounded touch batching. | 46 | ok |
 | [internal/runtime/opsmcp/FLOW.md](../../internal/runtime/opsmcp/FLOW.md) | `package` | Owns node-local Operations MCP authentication, budgets, audits, metrics, and fenced profile capture. | 55 | ok |
 | [internal/runtime/presence/FLOW.md](../../internal/runtime/presence/FLOW.md) | `package` | Maintains hash-slot-authoritative virtual connection routes with exact fencing, conflict staging, touch, and TTL expiry. | 53 | ok |
-| [internal/runtime/reviewagentverify/FLOW.md](../../internal/runtime/reviewagentverify/FLOW.md) | `package` | Freezes Review Agent context and validates trusted check evidence. | 54 | ok |
+| [internal/runtime/reviewagentverify/FLOW.md](../../internal/runtime/reviewagentverify/FLOW.md) | `package` | Freezes Review Agent context and validates trusted check evidence. | 57 | ok |
 | [internal/runtime/webhook/FLOW.md](../../internal/runtime/webhook/FLOW.md) | `package` | Performs bounded node-local best-effort delivery of message, offline-recipient, and online-status webhooks. | 49 | ok |
 | [internal/usecase/backup/FLOW.md](../../internal/usecase/backup/FLOW.md) | `package` | Owns cluster-wide backup plan policy, job admission, archive lifecycle, retention, and current-cluster restore orchestration. | 61 | ok |
 | [internal/usecase/channel/FLOW.md](../../internal/usecase/channel/FLOW.md) | `package` | Orchestrates channel metadata, ordinary membership, derived member lists, versioning, projection, and bounded iteration. | 56 | ok |
@@ -79,7 +79,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 53 | ok |
 | [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 76 | ok |
 | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 58 | ok |
-| [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 50 | ok |
+| [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 49 | ok |
 | [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 76 | ok |
 | [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 55 | ok |
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |

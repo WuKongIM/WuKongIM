@@ -356,16 +356,20 @@ func TestIssueAgentPromptsMakeAuthorityAndOutcomeExplicit(t *testing.T) {
 			t,
 			filepath.Join(".github/issue-agent/prompts", name),
 		)
+		normalized := strings.Join(strings.Fields(raw), " ")
 		require.Contains(t, raw, "ISSUE_AGENT_CONTEXT_BUNDLE")
 		require.Contains(t, strings.ToLower(raw), "untrusted")
 		require.Contains(t, raw, "AGENTS.md")
 		require.Contains(t, raw, "FLOW.md")
 		require.Contains(t, raw, "advisory")
 		require.Contains(t, raw, "scope: package")
+		require.Contains(t, normalized, "`FLOW.md` without valid metadata is invalid")
+		require.Contains(t, normalized, "must not be used as context")
 		require.Contains(t, raw, "higher-authority source")
 		require.Contains(t, strings.ToLower(raw), "do not commit")
 		require.Contains(t, strings.ToLower(raw), "three modify/test")
 		require.NotContains(t, strings.ToLower(raw), "deepseek")
+		require.NotContains(t, strings.ToLower(raw), "legacy file without metadata")
 		require.Contains(t, raw,
 			"exactly one JSON object, with no surrounding prose")
 		require.Contains(t, raw, "never use `null`")

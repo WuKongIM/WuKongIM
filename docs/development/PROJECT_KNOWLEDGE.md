@@ -361,8 +361,8 @@
   the applicable exact-directory and ancestor FLOW candidates; broad discovery
   searches alone do not trigger loading.
 - Explicit `scope: package` applies only to the FLOW directory, while
-  `scope: subtree` applies recursively. Front-matter-free legacy files
-  temporarily retain subtree behavior during migration.
+  `scope: subtree` applies recursively. Missing, malformed, or ambiguous FLOW
+  metadata is invalid and must not be used as Agent context.
 - Conflicts resolve in this order: `AGENTS.md`, executable facts, accepted ADR
   or stable project knowledge, `FLOW.md`, generated FLOW index. Report stale
   FLOW guidance instead of silently following it.

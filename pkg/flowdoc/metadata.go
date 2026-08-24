@@ -19,26 +19,18 @@ const (
 	ScopeSubtree Scope = "subtree"
 )
 
-// Metadata is the closed FLOW front-matter contract. Legacy is true only when
-// transition compatibility supplied the historical subtree behavior.
+// Metadata is the closed FLOW front-matter contract.
 type Metadata struct {
 	// Scope selects package-local or recursive subtree applicability.
 	Scope Scope
 	// Summary is the 1-160 byte printable-ASCII discovery description.
 	Summary string
-	// Legacy records temporary front-matter-free subtree compatibility.
-	Legacy bool
 }
 
-// ParseMetadata reads the closed two-field FLOW front matter. When
-// allowLegacy is true, a file without front matter retains the historical
-// subtree scope until repository migration is complete.
-func ParseMetadata(content []byte, allowLegacy bool) (Metadata, error) {
+// ParseMetadata reads the required closed two-field FLOW front matter.
+func ParseMetadata(content []byte) (Metadata, error) {
 	lines, closing, err := splitFrontMatter(content)
 	if err != nil {
-		if allowLegacy && errors.Is(err, errFrontMatterMissing) {
-			return Metadata{Scope: ScopeSubtree, Legacy: true}, nil
-		}
 		return Metadata{}, err
 	}
 

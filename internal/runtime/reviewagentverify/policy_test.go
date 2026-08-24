@@ -90,6 +90,41 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 			want: []string{"docs-contracts"},
 		},
 		{
+			name: "FLOW and governing root rule",
+			files: []contract.ChangedFile{
+				changed("pkg/channel/FLOW.md"),
+				changed("AGENTS.md"),
+			},
+			want: []string{"flow-doc-contracts", "go-unit", "go-vet"},
+		},
+		{
+			name: "generated FLOW knowledge stays on the exclusive docs path",
+			files: []contract.ChangedFile{
+				changed("docs/development/FLOW_INDEX.md"),
+				changed("docs/development/PROJECT_KNOWLEDGE.md"),
+			},
+			want: []string{"docs-contracts", "flow-doc-contracts"},
+		},
+		{
+			name: "FLOW check remains additive on a mixed docs change",
+			files: []contract.ChangedFile{
+				changed("docs/example/FLOW.md"),
+				changed("docs/example/guide.md"),
+			},
+			want: []string{"docs-contracts", "flow-doc-contracts"},
+		},
+		{
+			name: "all Agent context discovery boundaries",
+			files: []contract.ChangedFile{
+				changed("internal/infra/issueagentgithub/instructions.go"),
+				changed("internal/infra/reviewagentgithub/reader.go"),
+				changed(".github/issue-agent/prompts/engineer.md"),
+			},
+			want: []string{
+				"flow-doc-contracts", "go-unit", "go-vet", "workflow-contracts",
+			},
+		},
+		{
 			name: "rename from production into docs evaluates both names",
 			files: []contract.ChangedFile{{
 				Path:         "docs/queue.md",
@@ -167,6 +202,7 @@ func testVerificationPolicy() verify.Policy {
 		TrustedChecks: map[string]verify.CheckPlan{
 			"go-unit": {}, "go-vet": {}, "scripts-integration": {},
 			"workflow-contracts": {}, "docs-contracts": {},
+			"flow-doc-contracts":     {},
 			"review-proxy-contracts": {},
 			"web-lint":               {}, "web-test": {}, "web-typecheck": {},
 			"web-build": {}, "web-bundle": {}, "demo-test": {},
@@ -174,6 +210,33 @@ func testVerificationPolicy() verify.Policy {
 			"go-integration": {}, "go-e2e": {}, "three-node-cluster": {},
 		},
 		PathRules: []verify.PathRule{
+			{
+				Name: "flow documents",
+				Paths: []string{
+					"AGENTS.md",
+					".github/issue-agent/prompts/engineer.md",
+					".github/issue-agent/prompts/review.md",
+					"docs/development/FLOW_INDEX.md",
+					"docs/development/PROJECT_KNOWLEDGE.md",
+					"internal/infra/issueagentgithub/instructions.go",
+					"internal/infra/issueagentgithub/instructions_test.go",
+					"internal/infra/reviewagentgithub/reader.go",
+					"internal/infra/reviewagentgithub/reader_budget_test.go",
+					"internal/infra/reviewagentgithub/reader_test.go",
+					"internal/runtime/reviewagentverify/instructions.go",
+					"internal/runtime/reviewagentverify/context_test.go",
+				},
+				Prefixes: []string{""},
+				Suffixes: []string{"FLOW.md"},
+				Checks:   []string{"flow-doc-contracts"},
+				Always:   true,
+			},
+			{
+				Name:     "flow tooling",
+				Prefixes: []string{"pkg/flowdoc/", "scripts/flowcheck/"},
+				Checks:   []string{"flow-doc-contracts"},
+				Always:   true,
+			},
 			{
 				Name:     "repository default",
 				Prefixes: []string{""},

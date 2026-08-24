@@ -28,11 +28,12 @@ func TestContextDocumentDiscoveryUsesOnlyApplicableBaseTreeBlobs(t *testing.T) {
 			},
 			{
 				Path: "internal/FLOW.md", BlobSHA: strings.Repeat("b", 40),
-				Content: []byte("internal"),
+				Content: []byte("---\nscope: subtree\nsummary: Describes internal descendants.\n---\n"),
 			},
 			{
 				Path:    "internal/runtime/delivery/FLOW.md",
-				BlobSHA: strings.Repeat("c", 40), Content: []byte("delivery"),
+				BlobSHA: strings.Repeat("c", 40),
+				Content: []byte("---\nscope: package\nsummary: Describes exact delivery behavior.\n---\n"),
 			},
 			{
 				Path: "web/AGENTS.md", BlobSHA: strings.Repeat("d", 40),
@@ -59,6 +60,24 @@ func TestContextDocumentDiscoveryUsesOnlyApplicableBaseTreeBlobs(t *testing.T) {
 		require.NotEmpty(t, document.BlobDigest)
 		require.NotEmpty(t, document.Scope)
 	}
+}
+
+func TestContextDocumentDiscoveryRejectsFlowWithoutMetadata(t *testing.T) {
+	t.Parallel()
+
+	_, err := verify.DiscoverContextDocuments(
+		[]string{"internal/runtime/delivery/queue.go"},
+		[]verify.BaseContextDocument{{
+			Path:    "internal/FLOW.md",
+			BlobSHA: strings.Repeat("a", 40),
+			Content: []byte("# Internal Flow\n"),
+		}},
+	)
+	require.EqualError(
+		t,
+		err,
+		"internal/FLOW.md: invalid base FLOW metadata: FLOW front matter is missing",
+	)
 }
 
 func TestContextDocumentDiscoveryHonorsExplicitFlowScope(t *testing.T) {

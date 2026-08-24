@@ -23,8 +23,12 @@ evidence between jobs.
 ```text
 exact changed paths + frozen AGENTS.md / FLOW.md candidates
   -> preserve recursive AGENTS.md scope
-  -> resolve package/subtree FLOW scope with legacy-subtree compatibility
+  -> reject invalid FLOW metadata and resolve package/subtree scope
   -> stable applicable context blobs
+
+complete changed paths + protected policy rules
+  -> retain always-required checks across exclusive fast paths
+  -> stable sorted mandatory check names
 
 protected named check + disposable checkout
   -> credential-free bounded execution
@@ -34,8 +38,7 @@ protected named check + disposable checkout
 
 ## Invariants and Failure Semantics
 
-Explicit malformed FLOW metadata fails context construction. A FLOW without
-front matter temporarily keeps the historical subtree scope. The first result
+Malformed or missing FLOW metadata fails context construction. The first result
 for every mandatory check remains the sealed baseline; a model-requested rerun
 cannot replace it. Callers cannot provide commands, working directories,
 environment overrides, URLs, refs, or test patterns.

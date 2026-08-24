@@ -15,9 +15,9 @@ Then:
    recursively and is mandatory. A `FLOW.md` is advisory navigation: inspect
    exact-directory and ancestor candidates from the same source revision;
    `scope: package` applies only to its exact directory, `scope: subtree`
-   applies recursively, and a legacy file without metadata temporarily uses
-   subtree scope. Repeat this step whenever investigation selects another
-   package.
+   applies recursively. A `FLOW.md` without valid metadata is invalid and must
+   not be used as context. Repeat this step whenever investigation selects
+   another package.
    Apply this authority order: mandatory `AGENTS.md`, executable
    code/schema/test facts, accepted ADRs or stable project knowledge, advisory
    `FLOW.md`, then the generated FLOW index. Report a FLOW conflict with a

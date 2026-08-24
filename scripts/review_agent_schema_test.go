@@ -127,15 +127,28 @@ func TestReviewAgentPolicy(t *testing.T) {
 		},
 		proxyCheck.Arguments,
 	)
+	flowCheck, ok := policy.TrustedChecks["flow-doc-contracts"]
+	require.True(t, ok)
+	require.Equal(
+		t,
+		[]string{"go", "run", "./scripts/flowcheck", "--mode", "check"},
+		flowCheck.Arguments,
+	)
 	require.NotEmpty(t, policy.PathRules)
 	var javascriptRule *reviewAgentPathRule
 	var documentationRule *reviewAgentPathRule
+	var flowDocumentsRule *reviewAgentPathRule
+	var flowToolingRule *reviewAgentPathRule
 	for index := range policy.PathRules {
 		switch policy.PathRules[index].Name {
 		case "review-agent-javascript":
 			javascriptRule = &policy.PathRules[index]
 		case "documentation-only":
 			documentationRule = &policy.PathRules[index]
+		case "flow-documents":
+			flowDocumentsRule = &policy.PathRules[index]
+		case "flow-tooling":
+			flowToolingRule = &policy.PathRules[index]
 		}
 	}
 	require.NotNil(t, javascriptRule)
@@ -150,6 +163,38 @@ func TestReviewAgentPolicy(t *testing.T) {
 		documentationRule.Paths,
 	)
 	require.Equal(t, []string{"docs-contracts"}, documentationRule.Checks)
+	require.NotNil(t, flowDocumentsRule)
+	require.ElementsMatch(
+		t,
+		[]string{
+			"AGENTS.md",
+			".github/issue-agent/prompts/engineer.md",
+			".github/issue-agent/prompts/review.md",
+			"docs/development/FLOW_INDEX.md",
+			"docs/development/PROJECT_KNOWLEDGE.md",
+			"internal/infra/issueagentgithub/instructions.go",
+			"internal/infra/issueagentgithub/instructions_test.go",
+			"internal/infra/reviewagentgithub/reader.go",
+			"internal/infra/reviewagentgithub/reader_budget_test.go",
+			"internal/infra/reviewagentgithub/reader_test.go",
+			"internal/runtime/reviewagentverify/instructions.go",
+			"internal/runtime/reviewagentverify/context_test.go",
+		},
+		flowDocumentsRule.Paths,
+	)
+	require.Equal(t, []string{""}, flowDocumentsRule.Prefixes)
+	require.Equal(t, []string{"FLOW.md"}, flowDocumentsRule.Suffixes)
+	require.Equal(t, []string{"flow-doc-contracts"}, flowDocumentsRule.Checks)
+	require.True(t, flowDocumentsRule.Always)
+	require.NotNil(t, flowToolingRule)
+	require.ElementsMatch(
+		t,
+		[]string{"pkg/flowdoc/", "scripts/flowcheck/"},
+		flowToolingRule.Prefixes,
+	)
+	require.Empty(t, flowToolingRule.Suffixes)
+	require.Equal(t, []string{"flow-doc-contracts"}, flowToolingRule.Checks)
+	require.True(t, flowToolingRule.Always)
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
 	require.Contains(t, policy.Credentials.Denied, "github")
 	require.Contains(t, policy.Credentials.Denied, "cloud")
@@ -506,4 +551,5 @@ type reviewAgentPathRule struct {
 	Suffixes  []string `json:"suffixes"`
 	Checks    []string `json:"checks"`
 	Exclusive bool     `json:"exclusive"`
+	Always    bool     `json:"always"`
 }
