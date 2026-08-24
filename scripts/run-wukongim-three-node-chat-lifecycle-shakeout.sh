@@ -654,17 +654,18 @@ CLUSTER_NODES="[{\"id\":1,\"addr\":\"127.0.0.1:$(cluster_port 1)\"},{\"id\":2,\"
 
 start_service() {
   local node="$1" gateway_listeners pid
-  local -a runtime_overrides=()
+  # Bash 3.2 treats an empty-array expansion as unbound under set -u. Keep the
+  # common node identity in the array so product-default mode remains portable.
+  local -a service_environment=("WK_NODE_ID=$node")
   gateway_listeners="[{\"name\":\"tcp-wkproto\",\"network\":\"tcp\",\"address\":\"127.0.0.1:$(gateway_port "$node")\",\"transport\":\"gnet\",\"protocol\":\"wkproto\"},{\"name\":\"ws-gateway\",\"network\":\"websocket\",\"address\":\"127.0.0.1:$(ws_port "$node")\",\"transport\":\"gnet\",\"protocol\":\"wsmux\"}]"
   if (( RUNTIME_DEFAULTS == 0 )); then
-    runtime_overrides+=(
+    service_environment+=(
       "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500"
       "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000"
     )
   fi
   env -u WK_BENCH_WORKER_TOKEN -u WK_CHAT_LIFECYCLE_WORKER_TOKEN_FILE \
-    "${runtime_overrides[@]}" \
-    WK_NODE_ID="$node" \
+    "${service_environment[@]}" \
     WK_NODE_DATA_DIR="$DATA_DIR/node$node" \
     WK_CLUSTER_LISTEN_ADDR="127.0.0.1:$(cluster_port "$node")" \
     WK_CLUSTER_NODES="$CLUSTER_NODES" \

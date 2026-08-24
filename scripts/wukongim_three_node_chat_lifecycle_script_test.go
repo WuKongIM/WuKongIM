@@ -19,6 +19,8 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"go build", "./cmd/wukongim", "./cmd/wkbench", "WK_CLUSTER_INITIAL_SLOT_COUNT=12",
 		"WK_CLUSTER_HASH_SLOT_COUNT=256", "WK_CLUSTER_SLOT_REPLICA_N=3",
 		"WK_CLUSTER_CHANNEL_REPLICA_N=3", "WK_CLUSTER_MAX_CHANNELS=50000",
+		`local -a service_environment=("WK_NODE_ID=$node")`,
+		`"${service_environment[@]}"`,
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000",
 		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us", "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1",
