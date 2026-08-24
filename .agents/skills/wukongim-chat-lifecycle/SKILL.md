@@ -50,8 +50,12 @@ credential proof, or exact lifecycle authorization.
 
 Require the paid authority above. Require a clean worktree whose exact candidate
 is committed, generate a fresh request ID, and execute the reference `start`
-procedure. This sequence builds and seals locally before a read-only Quote;
-Acquire is the last step. Persist the pre-Acquire selector before the paid call.
+procedure. Treat a user-specified test duration as the required continuously
+healthy qualification duration: for example, "test for 72 hours" maps to
+`--duration 72h`. If the user gives no duration, use the 60-minute default.
+The tool calculates the workload ceiling and Lease lifetime; do not ask the
+operator to calculate them. This sequence builds and seals locally before a
+read-only Quote; Acquire is the last step. Persist the pre-Acquire selector before the paid call.
 If build, materialization, or Quote fails before that selector exists, finalize
 the request as not acquired with a local zero-resource proof; do not leave a
 phantom active request that blocks the next exact start.
@@ -72,8 +76,11 @@ information. Give this access block before suggesting or starting `run`.
 ### Run
 
 `run` never authorizes procurement. Start the fixed rehearsal-shaped systemd
-unit and hand it to the bounded 75-minute stability monitor. Qualification
-requires 60 continuous healthy active minutes. Once active, online loss,
+unit and hand it to the bounded stability monitor. The default qualification duration is 60 minutes,
+and the tool automatically adds a 15-minute control reserve, so the default
+workload ceiling is 75 minutes. A requested `--duration 72h` therefore runs for
+at most 72 hours 15 minutes and qualifies after 72 continuous healthy hours.
+Once active, online loss,
 insufficient SEND rate, excessive SENDACK backlog, missing SEND/SENDACK
 progress, or active-phase loss is terminal within 15 seconds. Stop the
 workload, retain the terminal worker cuts, and mark the request

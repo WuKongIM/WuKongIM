@@ -66,10 +66,20 @@ downloads checksum-pinned native dependencies, and seals the offline bundle.
 Only after the user gives exact paid authority:
 
 ```bash
+qualification_duration="${qualification_duration:-60m}"
 export WK_CHAT_LAB_PAID_AUTHORIZATION='create-paid-cloud-lease'
-scripts/chat-lifecycle/direct-lab.sh start "$request_id"
+scripts/chat-lifecycle/direct-lab.sh start "$request_id" --duration "$qualification_duration"
 unset WK_CHAT_LAB_PAID_AUTHORIZATION
 ```
+
+`qualification_duration` is the requested continuously healthy pass window,
+not the process ceiling. If the operator says only "test for 72 hours", set it
+to `72h`. The command automatically adds a 15-minute control reserve, so `60m`
+produces a 75-minute workload and `72h` produces a 72-hour-15-minute workload.
+It also derives a Lease lifetime with the existing deployment and diagnosis
+reserve. Duration is immutable after paid `start`; retries on the same Lease use
+the saved request policy. The read-only Quote must still fit the reviewed CNY
+300 repair budget or the request is finalized without Acquire.
 
 The fixed transaction is:
 
@@ -122,14 +132,17 @@ through the load host, activates the three service nodes plus load node, and
 requires the typed readiness gate. It does not contact the provider or purchase
 hosts.
 
-Start the bounded stability workload:
+Start the bounded stability workload using the immutable duration selected at
+paid `start`:
 
 ```bash
 scripts/chat-lifecycle/direct-lab.sh run "$request_id"
 ```
 
-The monitor samples all three workers every five seconds for at most 75
-minutes. Qualification requires 60 continuous healthy active minutes with
+By default, the monitor samples all three workers every five seconds for at
+most 75 minutes and requires 60 continuous healthy active minutes. For a custom
+duration it automatically monitors for that qualification duration plus 15
+minutes. The health requirements remain
 10,000 target online sessions, at least 95% online, adjacent active-window SEND
 progress of at least 1,900/s, backlog at most 4,000, and zero terminal
 correctness failures. After activity has begun, online loss, SEND/SENDACK

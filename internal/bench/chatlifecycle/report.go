@@ -14,7 +14,7 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v4"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v5"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
 	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v1"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
@@ -292,9 +292,11 @@ type Report struct {
 	Profile       Profile          `json:"profile"`
 	Mode          Mode             `json:"mode"`
 	Stage         Stage            `json:"stage"`
-	Kind          CheckpointKind   `json:"kind"`
-	Final         bool             `json:"final"`
-	Continue      bool             `json:"continue"`
+	// RunDuration records the trusted direct-rehearsal override; zero retains the reviewed stage duration.
+	RunDuration time.Duration  `json:"run_duration,omitempty"`
+	Kind        CheckpointKind `json:"kind"`
+	Final       bool           `json:"final"`
+	Continue    bool           `json:"continue"`
 	// Continuous marks an in-process formal-chain boundary whose worker fence
 	// remains live. It is not authorization to resume from this report.
 	Continuous             bool                            `json:"continuous"`
@@ -404,7 +406,7 @@ func validateReport(report Report) error {
 		validateThresholds(report.Thresholds) != nil ||
 		(report.Profile != ProfileFormal && report.Profile != ProfileLocal) ||
 		(report.Mode != ModeSoak && report.Mode != ModeCapacity) ||
-		!validReportStage(report) ||
+		!validReportStage(report) || !validReportRunDuration(report) ||
 		(report.Kind != CheckpointQualification && report.Kind != CheckpointFinal) ||
 		!validReportHash(report.Fence.RunHash) || !validReportHash(report.Fence.AssignmentHash) ||
 		report.Fence.Generation == 0 || report.Window.Start.IsZero() || report.Window.End.Before(report.Window.Start) ||
@@ -734,7 +736,18 @@ func validReportStage(report Report) bool {
 	}
 }
 
+func validReportRunDuration(report Report) bool {
+	if report.RunDuration == 0 {
+		return true
+	}
+	return report.Stage == StageRehearsal &&
+		report.RunDuration >= minDirectRunDuration && report.RunDuration <= maxDirectRunDuration
+}
+
 func reportMeasuredDuration(report Report) time.Duration {
+	if report.Stage == StageRehearsal && report.RunDuration > 0 {
+		return report.RunDuration
+	}
 	if report.Stage == StageRehearsal {
 		return rehearsalDuration
 	}

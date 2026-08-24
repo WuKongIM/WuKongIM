@@ -45,6 +45,7 @@ passing 72-hour formal generation
   sequenced share; delayed ticks discard credit and never catch up in bursts.
 - The measured clock starts only after all users finish real CONNECT plus a
   fresh zero-coverage conversation sync and all workers accept the first grant.
+- Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
   Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
   Session expiry transfers to one generation-owned bounded cleanup queue;

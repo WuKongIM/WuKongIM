@@ -26,6 +26,7 @@ type chatLifecycleCLIConfig struct {
 	configPath     string
 	checkpointPath string
 	outputDir      string
+	duration       time.Duration
 	config         chatlifecycle.Config
 	checkpoint     chatlifecycle.Report
 }
@@ -66,6 +67,8 @@ func bindChatLifecycleFlags(flags *pflag.FlagSet, cli *chatLifecycleCLIConfig, c
 	flags.StringVar(&cli.configPath, "config", "", "strict chat-lifecycle YAML file")
 	if capacity {
 		flags.StringVar(&cli.checkpointPath, "checkpoint", "", "completed passing 72-hour Soak JSON checkpoint")
+	} else {
+		flags.DurationVar(&cli.duration, "duration", 0, "direct rehearsal process duration (for example 72h15m)")
 	}
 	flags.StringVar(&cli.outputDir, "output-dir", "", "checkpoint and final report output directory")
 }
@@ -96,6 +99,12 @@ func loadSoakChatLifecycleConfig(cli *chatLifecycleCLIConfig) error {
 	}
 	if cfg.Mode != chatlifecycle.ModeSoak {
 		return fmt.Errorf("chat-lifecycle config mode must be soak")
+	}
+	if cli.duration != 0 {
+		cfg.RunDuration = cli.duration
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
 	}
 	cli.config = cfg
 	return nil

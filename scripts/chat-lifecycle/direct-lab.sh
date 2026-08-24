@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 usage: direct-lab.sh preflight
-       direct-lab.sh start REQUEST_ID
+       direct-lab.sh start REQUEST_ID [--duration DURATION]
        direct-lab.sh deploy REQUEST_ID
        direct-lab.sh run REQUEST_ID
        direct-lab.sh status REQUEST_ID
@@ -13,9 +13,61 @@ usage: direct-lab.sh preflight
 EOF
 }
 
+readonly DEFAULT_QUALIFICATION_DURATION='60m'
+readonly QUALIFICATION_RESERVE_SECONDS=900
+readonly MAX_QUALIFICATION_DURATION_SECONDS=259200
+readonly MIN_QUALIFICATION_DURATION_SECONDS=60
+readonly MIN_LEASE_DURATION_SECONDS=21600
+readonly LEASE_RESERVE_SECONDS=17100
+
 die() {
   echo "chat lifecycle direct lab: $*" >&2
   exit 1
+}
+
+parse_duration_seconds() {
+  local value="$1" remaining="$1" total=0 amount unit multiplier
+  [[ -n "$value" ]] || return 1
+  while [[ -n "$remaining" ]]; do
+    [[ "$remaining" =~ ^([0-9]+)(h|m|s)(.*)$ ]] || return 1
+    amount=$((10#${BASH_REMATCH[1]}))
+    unit="${BASH_REMATCH[2]}"
+    remaining="${BASH_REMATCH[3]}"
+    case "$unit" in
+      h) multiplier=3600 ;;
+      m) multiplier=60 ;;
+      s) multiplier=1 ;;
+      *) return 1 ;;
+    esac
+    (( amount <= (MAX_QUALIFICATION_DURATION_SECONDS - total) / multiplier )) || return 1
+    total=$((total + amount * multiplier))
+  done
+  (( total >= MIN_QUALIFICATION_DURATION_SECONDS && total <= MAX_QUALIFICATION_DURATION_SECONDS )) || return 1
+  printf '%s\n' "$total"
+}
+
+write_run_policy() {
+  local directory="$1" duration="$2" duration_seconds max_seconds lease_seconds template root
+  duration_seconds="$(parse_duration_seconds "$duration")" ||
+    die "duration must be between 1m and 72h using whole h, m, or s units"
+  max_seconds=$((duration_seconds + QUALIFICATION_RESERVE_SECONDS))
+  lease_seconds=$((max_seconds + LEASE_RESERVE_SECONDS))
+  if (( lease_seconds < MIN_LEASE_DURATION_SECONDS )); then
+    lease_seconds=$MIN_LEASE_DURATION_SECONDS
+  fi
+  jq -n --arg duration "$duration" --argjson duration_seconds "$duration_seconds" \
+    --argjson max_seconds "$max_seconds" --argjson reserve "$QUALIFICATION_RESERVE_SECONDS" \
+    --argjson lease_seconds "$lease_seconds" \
+    '{schema:"wukongim.chat_lifecycle.direct_lab_run_policy/v1",duration:$duration,
+      duration_seconds:$duration_seconds,max_duration_seconds:$max_seconds,
+      qualification_reserve_seconds:$reserve,lease_duration_seconds:$lease_seconds}' \
+    >"$directory/run-policy.json"
+  root="$(repository_root)"
+  template="$directory/materialize-template.json"
+  jq --argjson workload "$max_seconds" --argjson lease "$lease_seconds" \
+    '.workload_duration_seconds=$workload | .lease_duration_seconds=$lease' \
+    "$root/configs/cloud/chat-lifecycle/repair-v1.json" >"$template"
+  chmod 0600 "$directory/run-policy.json" "$template"
 }
 
 normalize_rfc3339_utc() {
@@ -38,6 +90,18 @@ normalize_rfc3339_utc() {
   fi
   [[ "$utc_base" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] || return 1
   printf '%s%sZ\n' "$utc_base" "$fraction"
+}
+
+rfc3339_epoch() {
+  local normalized base epoch
+  normalized="$(normalize_rfc3339_utc "$1")" || return 1
+  base="${normalized:0:19}Z"
+  epoch="$(date -u -d "$base" '+%s' 2>/dev/null || true)"
+  if [[ ! "$epoch" =~ ^-?[0-9]+$ ]]; then
+    epoch="$(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$base" '+%s' 2>/dev/null || true)"
+  fi
+  [[ "$epoch" =~ ^-?[0-9]+$ ]] || return 1
+  printf '%s\n' "$epoch"
 }
 
 resolve_account_home() {
@@ -277,13 +341,16 @@ next_deployment_generation() {
 }
 
 start_request() {
-  local request_id="$1" directory root source_sha builder chat cloud bundle_digest lease_id
+  local request_id="$1" duration="${2:-$DEFAULT_QUALIFICATION_DURATION}" directory root source_sha builder chat cloud bundle_digest lease_id
+  parse_duration_seconds "$duration" >/dev/null ||
+    die "duration must be between 1m and 72h using whole h, m, or s units"
   [[ "${WK_CHAT_LAB_PAID_AUTHORIZATION:-}" == create-paid-cloud-lease ]] ||
     die 'start requires WK_CHAT_LAB_PAID_AUTHORIZATION=create-paid-cloud-lease'
   check_temporary_credentials || die 'temporary Alibaba credentials are required before paid start'
   require_committed_candidate
   require_no_unreleased_request
   directory="$(initialize_request_state "$request_id")"
+  write_run_policy "$directory" "$duration"
   root="$(repository_root)"
   require_committed_candidate
   ensure_control_tools "$directory"
@@ -301,7 +368,7 @@ start_request() {
   [[ -f "$directory/bundle/cloud-deployment-bundle.tar.gz" ]] || die 'sealed offline bundle archive is unavailable'
 
   "$chat" materialize \
-    --template "$root/configs/cloud/chat-lifecycle/repair-v1.json" \
+    --template "$directory/materialize-template.json" \
     --source-sha "$source_sha" --operator tangtaoit \
     --codex-diagnostic-pubkey "$(<"$directory/diagnostic_ed25519.pub")" \
     --request-id "$request_id" --repository WuKongIM/WuKongIM \
@@ -343,7 +410,9 @@ start_request() {
   chmod 0600 "$directory"/*.json
   write_active_state "$directory" "$lease_id" "$bundle_digest"
   jq -n --arg request_id "$request_id" --arg lease_id "$lease_id" --arg state_dir "$directory" \
-    '{schema:"wukongim.chat_lifecycle.direct_lab_start/v1",request_id:$request_id,lease_id:$lease_id,state:"active",state_dir:$state_dir}'
+    --slurpfile policy "$directory/run-policy.json" \
+    '{schema:"wukongim.chat_lifecycle.direct_lab_start/v1",request_id:$request_id,lease_id:$lease_id,
+      state:"active",state_dir:$state_dir,run_policy:$policy[0]}'
 }
 
 deploy_request() {
@@ -460,9 +529,20 @@ write_run_state() {
   mv -f -- "$temporary" "$directory/state.json"
 }
 
+stop_remote_rehearsal_best_effort() {
+  local directory="$1" timeout_tool
+  timeout_tool="$directory/tools/timeout"
+  if [[ ! -x "$timeout_tool" ]]; then
+    timeout_tool="$(repository_root)/scripts/chat-lifecycle/portable-timeout.sh"
+  fi
+  [[ -x "$timeout_tool" ]] || return 0
+  "$timeout_tool" --kill-after=5s 20s ssh -F "$directory/deployment-ssh-config" wukong-load \
+    "sudo systemctl stop wkbench-rehearsal.service || true" >/dev/null 2>&1 || true
+}
+
 run_request() {
   local request_id="$1" directory root generation generation_dir starter chat monitor run_start started_at
-  local repair_state monitor_status reason
+  local repair_state monitor_status reason duration_seconds max_seconds started_epoch expected_epoch
   directory="$(resolve_request_dir "$request_id")"
   jq -e '.schema == "wukongim.chat_lifecycle.direct_lab_state/v1" and .state == "deployed" and .generation > 0' \
     "$directory/state.json" >/dev/null || die 'request must have one gated deployment before a stability run'
@@ -471,6 +551,16 @@ run_request() {
   [[ -d "$generation_dir" && ! -L "$generation_dir" ]] || die 'current deployment generation is unavailable'
   [[ -f "$directory/deployment-ssh-config" && ! -L "$directory/deployment-ssh-config" ]] ||
     die 'deployment SSH config is unavailable'
+  [[ -f "$directory/run-policy.json" && ! -L "$directory/run-policy.json" ]] ||
+    die 'immutable run policy is unavailable'
+  jq -e --argjson reserve "$QUALIFICATION_RESERVE_SECONDS" '
+    .schema == "wukongim.chat_lifecycle.direct_lab_run_policy/v1" and
+    (.duration_seconds | type == "number" and . >= 60 and . <= 259200) and
+    (.max_duration_seconds == .duration_seconds + $reserve) and
+    (.qualification_reserve_seconds == $reserve)
+  ' "$directory/run-policy.json" >/dev/null || die 'immutable run policy is invalid'
+  duration_seconds="$(jq -er .duration_seconds "$directory/run-policy.json")"
+  max_seconds="$(jq -er .max_duration_seconds "$directory/run-policy.json")"
   root="$(repository_root)"
   starter="${WK_CHAT_LAB_STAGE_STARTER:-$root/scripts/chat-lifecycle/start-local-stage.sh}"
   chat="$(chat_tool "$directory")"
@@ -484,24 +574,44 @@ run_request() {
     WK_CHAT_LAB_STAGE_SERVICE=wkbench-rehearsal.service \
     WK_CHAT_LAB_STAGE_REPORT_DIR=rehearsal \
     "$starter"
-  jq -e '
+  if ! jq -e '
     .schema == "wukongim.chat_lifecycle.run_start/v1" and .stage == "rehearsal" and
     (.started_at | type == "string") and (.expected_end_at | type == "string") and
     (.run_hash | test("^sha256:[0-9a-f]{64}$")) and
     (.assignment_hash | test("^sha256:[0-9a-f]{64}$")) and .generation > 0
-  ' "$run_start" >/dev/null || die 'remote stage did not publish a valid run-start document'
-  started_at="$(normalize_rfc3339_utc "$(jq -er .started_at "$run_start")")" ||
+  ' "$run_start" >/dev/null; then
+    stop_remote_rehearsal_best_effort "$directory"
+    die 'remote stage did not publish a valid run-start document'
+  fi
+  if ! started_at="$(normalize_rfc3339_utc "$(jq -er .started_at "$run_start")")"; then
+    stop_remote_rehearsal_best_effort "$directory"
     die 'remote stage published a non-normalizable run-start timestamp'
+  fi
+  if ! started_epoch="$(rfc3339_epoch "$(jq -er .started_at "$run_start")")"; then
+    stop_remote_rehearsal_best_effort "$directory"
+    die 'remote stage published an invalid start instant'
+  fi
+  if ! expected_epoch="$(rfc3339_epoch "$(jq -er .expected_end_at "$run_start")")"; then
+    stop_remote_rehearsal_best_effort "$directory"
+    die 'remote stage published an invalid expected end instant'
+  fi
+  if (( expected_epoch - started_epoch != max_seconds )); then
+    stop_remote_rehearsal_best_effort "$directory"
+    die 'remote workload duration differs from the immutable run policy'
+  fi
   repair_state="$generation_dir/repair-state.json"
-  "$chat" repair-begin \
+  if ! "$chat" repair-begin \
     --request-id "$request_id" --lease-id "$(jq -er .lease_id "$directory/state.json")" \
     --generation "$generation" --source-sha "$(jq -er .source_sha "$directory/state.json")" \
     --bundle-digest "$(jq -er .bundle_digest "$directory/state.json")" \
     --started-at "$started_at" \
     --target-online 10000 --minimum-online-percent 95 \
     --minimum-send-rate 1900 --maximum-ack-backlog 4000 \
-    --warmup-timeout 5m --stall-after 15s --qualify-after 1h \
-    >"$repair_state"
+    --warmup-timeout 5m --stall-after 15s --qualify-after "${duration_seconds}s" \
+    >"$repair_state"; then
+    stop_remote_rehearsal_best_effort "$directory"
+    die 'failed to initialize the bounded repair monitor state'
+  fi
   chmod 0600 "$repair_state"
   rm -f -- "$directory/stop-requested"
   write_run_state "$directory" running
@@ -511,7 +621,7 @@ run_request() {
     WK_CHAT_REPAIR_OUTPUT_DIR="$generation_dir" \
     WK_CHAT_REPAIR_SSH_CONFIG="$directory/deployment-ssh-config" \
     WK_CHAT_REPAIR_REQUEST_ID="$request_id" \
-    WK_CHAT_REPAIR_MAX_SECONDS="${WK_CHAT_LAB_RUN_SECONDS:-4500}" \
+    WK_CHAT_REPAIR_MAX_SECONDS="$max_seconds" \
     WK_CHAT_REPAIR_POLL_SECONDS="${WK_CHAT_LAB_POLL_SECONDS:-5}" \
     WK_CHAT_REPAIR_SERVICE=wkbench-rehearsal.service \
     WK_CHAT_REPAIR_OPERATOR_STOP_FILE="$directory/stop-requested" \
@@ -647,9 +757,9 @@ stop_request() {
 show_status() {
   local directory
   directory="$(resolve_request_dir "$1")"
-  jq -n --slurpfile state "$directory/state.json" \
+  jq -n --slurpfile state "$directory/state.json" --slurpfile policy "$directory/run-policy.json" \
     --arg zero "$([[ -f "$directory/zero-inventory.json" ]] && printf true || printf false)" \
-    '{schema:"wukongim.chat_lifecycle.direct_lab_status/v1",state:$state[0],zero_inventory_proven:($zero=="true")}'
+    '{schema:"wukongim.chat_lifecycle.direct_lab_status/v1",state:$state[0],run_policy:$policy[0],zero_inventory_proven:($zero=="true")}'
 }
 
 operation="${1:-}"
@@ -666,10 +776,19 @@ case "$operation" in
     [[ $# -eq 2 ]] || { usage; exit 2; }
     show_status "$2"
     ;;
-  start|deploy|run|diagnose)
+  start)
+    if [[ $# -eq 2 ]]; then
+      start_request "$2"
+    elif [[ $# -eq 4 && "$3" == --duration ]]; then
+      start_request "$2" "$4"
+    else
+      usage
+      exit 2
+    fi
+    ;;
+  deploy|run|diagnose)
     [[ $# -eq 2 ]] || { usage; exit 2; }
     case "$operation" in
-      start) start_request "$2" ;;
       deploy) deploy_request "$2" ;;
       run) run_request "$2" ;;
       diagnose) diagnose_request "$2" ;;

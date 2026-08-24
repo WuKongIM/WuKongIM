@@ -193,6 +193,7 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	stageScript := read("scripts/run-chat-lifecycle-stage.sh")
 	for _, fragment := range []string{
 		"stage_unit=wkbench-coordinator.service", "stage_unit=wkbench-rehearsal.service", "stage_unit=wkbench-formal.service",
+		"WK_CHAT_LAB_MAX_DURATION_SECONDS", `--duration "${WK_CHAT_LAB_MAX_DURATION_SECONDS}s"`,
 		`wukongim_process_up{unit=\"" unit "\"}`, `up == 1 && cpu == 1 && memory == 1`,
 		`exec "${command[@]}"`,
 	} {

@@ -57,6 +57,14 @@ func (c Config) Validate() error {
 	default:
 		return fieldError("stage", "must be formal, rehearsal, or shakeout")
 	}
+	if c.RunDuration != 0 {
+		if c.Stage != StageRehearsal {
+			return fieldError("run_duration", "is allowed only for a direct rehearsal")
+		}
+		if c.RunDuration < minDirectRunDuration || c.RunDuration > maxDirectRunDuration {
+			return fieldError("run_duration", "must be between 16m and 72h15m")
+		}
+	}
 	return nil
 }
 

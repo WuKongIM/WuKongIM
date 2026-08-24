@@ -86,6 +86,26 @@ func TestRehearsalConfigChangesOnlyRunIdentityAndEvidenceStage(t *testing.T) {
 	}
 }
 
+func TestRehearsalRunDurationOverrideIsBoundedAndStageSpecific(t *testing.T) {
+	cfg := RehearsalConfig()
+	cfg.RunDuration = 72*time.Hour + 15*time.Minute
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("72h15m rehearsal override rejected: %v", err)
+	}
+	if got := cfg.measuredDuration(); got != 72*time.Hour+15*time.Minute {
+		t.Fatalf("measured duration = %v", got)
+	}
+	cfg.RunDuration = 72*time.Hour + 15*time.Minute + time.Second
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("oversized rehearsal override accepted")
+	}
+	cfg = FormalConfig()
+	cfg.RunDuration = time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("formal run accepted a direct rehearsal duration override")
+	}
+}
+
 func TestConfigUsesTopLevelIdentityAndMode(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.RunID == "" || cfg.Seed == 0 {

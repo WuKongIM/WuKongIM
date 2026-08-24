@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Materializes reviewed rehearsal and formal chat-lifecycle run plans from four operator inputs and trusted context.
+summary: Materializes bounded repair, rehearsal, and formal chat-lifecycle run plans from reviewed templates and trusted context.
 ---
 
 # Chat Lifecycle Run Flow
@@ -14,8 +14,9 @@ private credentials.
 
 ## Boundaries
 
-- Infrastructure quantities and workload thresholds come from the reviewed
-  template, not command-line input.
+- Infrastructure quantities and workload thresholds come from a reviewed
+  template. The direct repair controller may derive only its bounded workload
+  and Lease durations from the operator's qualification window.
 - Each stage has exactly one procurement attempt. Deployment readiness repairs
   reuse the exact Lease, bundle, sealed identity, and request-bound control fix.
 - Runtime YAML owns workload details; this use case owns cross-stage identity,
@@ -23,8 +24,9 @@ private credentials.
 
 ## Main Flows
 
-1. Validate source, operator, request, bundle, clock, attempt, and protected
-   workflow context; materialize the 12-hour rehearsal lease and budget ledger.
+1. Validate source, operator, request, bundle, clock, attempt, and trusted
+   context; materialize either the bounded direct-repair Lease or the fixed
+   12-hour rehearsal Lease and budget ledger.
 2. Require a typed released rehearsal transition with exact zero inventory,
    matching identities, public diagnostic owner, and carried commitment.
 3. Materialize a fresh 96-hour formal lease bound to the same source, bundle,
@@ -37,6 +39,9 @@ private credentials.
 - Topology is fixed at four Ubuntu x86 hosts, one EIP, and reviewed disk and
   port settings; rehearsal runs two hours and formal runs 72 hours after their
   two-hour readiness windows.
+- Direct repair accepts a 16-minute through 72-hour-15-minute workload ceiling
+  and derives its Lease as the larger of six hours or workload plus four hours
+  45 minutes; its CNY 300/250 limits and every other quantity remain fixed.
 - No fresh Lease is created for deployment retry.
 - The exact release selector is derived before paid Acquire so ambiguous or
   artifact-losing acquisition remains cleanup-capable.

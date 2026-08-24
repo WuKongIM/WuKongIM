@@ -26,7 +26,7 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"WK_CHAT_REPAIR_POLL_SECONDS", "WK_CHAT_REPAIR_MAX_SECONDS",
 		"operator-stop-requested.sh", "WK_CHAT_REPAIR_REQUEST_ID", "operator_stop",
 		`max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"`,
-		"max_seconds <= 4500",
+		"max_seconds <= 260100",
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("repair monitor missing %q", fragment)

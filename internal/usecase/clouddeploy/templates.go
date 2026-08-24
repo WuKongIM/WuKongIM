@@ -222,6 +222,11 @@ case "$stage" in
     config=/etc/wukongim/chat-lifecycle-rehearsal.yaml
     stage_unit=wkbench-rehearsal.service
     command=(/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports/rehearsal)
+    if [[ -n "${WK_CHAT_LAB_MAX_DURATION_SECONDS:-}" ]]; then
+      [[ "$WK_CHAT_LAB_MAX_DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]]
+      (( WK_CHAT_LAB_MAX_DURATION_SECONDS >= 960 && WK_CHAT_LAB_MAX_DURATION_SECONDS <= 260100 ))
+      command+=(--duration "${WK_CHAT_LAB_MAX_DURATION_SECONDS}s")
+    fi
     ;;
   formal)
     config=/etc/wukongim/chat-lifecycle.yaml

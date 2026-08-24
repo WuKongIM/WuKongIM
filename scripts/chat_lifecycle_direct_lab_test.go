@@ -137,6 +137,35 @@ exit 99
 	}
 }
 
+func TestChatLifecycleDirectLabStartRejectsInvalidDurationBeforeCredentialsOrProvider(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	marker := filepath.Join(directory, "provider-called")
+	cloudTool := filepath.Join(directory, "wkcloudlease")
+	writeDirectLabExecutable(t, cloudTool, "#!/usr/bin/env bash\n: >\"$WK_TEST_PROVIDER_MARKER\"\nexit 99\n")
+	requestID := "chat-20260823T000003Z-090a0b0c"
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "start", requestID, "--duration", "72hours")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"WK_CHAT_LAB_STATE_ROOT="+directory,
+		"WK_CHAT_LAB_CLOUD_TOOL="+cloudTool,
+		"WK_TEST_PROVIDER_MARKER="+marker,
+		"ALIBABA_CLOUD_ACCESS_KEY_ID=",
+		"ALIBABA_CLOUD_ACCESS_KEY_SECRET=",
+		"ALIBABA_CLOUD_SECURITY_TOKEN=",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "duration must be between 1m and 72h") {
+		t.Fatalf("invalid duration result = %v\n%s", err, output)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("invalid duration contacted provider: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(directory, requestID)); !os.IsNotExist(err) {
+		t.Fatalf("invalid duration created request state: %v", err)
+	}
+}
+
 func TestChatLifecycleDirectLabStopReleasesExactSelectorAndPersistsZeroProof(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
@@ -245,6 +274,14 @@ set -euo pipefail
 printf '%s\n' "$1" >>"$WK_TEST_CALL_LOG"
 case "$1" in
   materialize)
+    template=''
+    while (( $# > 0 )); do
+      case "$1" in
+        --template) template="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    jq -e '.workload_duration_seconds == 4500 and .lease_duration_seconds == 21600' "$template" >/dev/null
     printf '{"schema":"wukongim.chat_lifecycle.run_plan/v1","lease_plan":{"schema":"wukongim.cloud_lease/v1","lease_id":"lease-direct","request_id":"%s","repository":"WuKongIM/WuKongIM","provider":"alibaba","region":"cn-hangzhou"},"bootstrap_access":{"public_keys":["ssh-ed25519 fake"]}}\n' "$WK_TEST_REQUEST_ID"
     ;;
   selector-from-plan|selector)
@@ -295,7 +332,7 @@ esac
 		t.Fatalf("operation order = %q, want %q", got, want)
 	}
 	requestDirectory := filepath.Join(directory, requestID)
-	for _, name := range []string{"run-plan.json", "quote.json", "receipt.json", "release-selector.json", "diagnostic_ed25519", "deployment_ed25519"} {
+	for _, name := range []string{"run-policy.json", "materialize-template.json", "run-plan.json", "quote.json", "receipt.json", "release-selector.json", "diagnostic_ed25519", "deployment_ed25519"} {
 		info, statErr := os.Stat(filepath.Join(requestDirectory, name))
 		if statErr != nil {
 			t.Fatalf("missing %s: %v", name, statErr)
@@ -307,6 +344,78 @@ esac
 	state, err := os.ReadFile(filepath.Join(requestDirectory, "state.json"))
 	if err != nil || !strings.Contains(string(state), `"state": "active"`) {
 		t.Fatalf("state = %s, %v", state, err)
+	}
+	policy, err := os.ReadFile(filepath.Join(requestDirectory, "run-policy.json"))
+	if err != nil || !strings.Contains(string(policy), `"duration_seconds": 3600`) ||
+		!strings.Contains(string(policy), `"max_duration_seconds": 4500`) {
+		t.Fatalf("run policy = %s, %v", policy, err)
+	}
+}
+
+func TestChatLifecycleDirectLabStartDerivesMaximumAndLeaseFromQualificationDuration(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	requestID := "chat-20260823T021304Z-b1c2d3e5"
+	validated := filepath.Join(directory, "validated")
+	providerMarker := filepath.Join(directory, "provider-called")
+	bundleBuilder := filepath.Join(directory, "build-bundle")
+	writeDirectLabExecutable(t, bundleBuilder, `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "$4"
+printf '{"bundle_digest":"sha256:%064d"}\n' 1 >"$4/bundle-manifest-output.json"
+: >"$4/cloud-deployment-bundle.tar.gz"
+`)
+	chatTool := filepath.Join(directory, "wkchatlifecycle")
+	writeDirectLabExecutable(t, chatTool, `#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == materialize ]]
+shift
+template=''
+while (( $# > 0 )); do
+  case "$1" in
+    --template) template="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+jq -e '.workload_duration_seconds == 260100 and .lease_duration_seconds == 277200' "$template" >/dev/null
+: >"$WK_TEST_VALIDATED"
+exit 55
+`)
+	cloudTool := filepath.Join(directory, "wkcloudlease")
+	writeDirectLabExecutable(t, cloudTool, `#!/usr/bin/env bash
+: >"$WK_TEST_PROVIDER_MARKER"
+exit 99
+`)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "start", requestID, "--duration", "72h")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"WK_CHAT_LAB_STATE_ROOT="+directory,
+		"WK_CHAT_LAB_CLOUD_TOOL="+cloudTool,
+		"WK_CHAT_LAB_CHAT_TOOL="+chatTool,
+		"WK_CHAT_LAB_BUNDLE_BUILDER="+bundleBuilder,
+		"WK_CHAT_LAB_PAID_AUTHORIZATION=create-paid-cloud-lease",
+		"WK_CHAT_LAB_ALLOW_DIRTY_FOR_TESTS=true",
+		"WK_TEST_VALIDATED="+validated,
+		"WK_TEST_PROVIDER_MARKER="+providerMarker,
+		"ALIBABA_CLOUD_ACCESS_KEY_ID=test-id",
+		"ALIBABA_CLOUD_ACCESS_KEY_SECRET=test-secret",
+		"ALIBABA_CLOUD_SECURITY_TOKEN=test-token",
+		"WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease",
+	)
+	if output, err := command.CombinedOutput(); err == nil || command.ProcessState.ExitCode() != 55 {
+		t.Fatalf("custom start exit = %v, code=%d\n%s", err, command.ProcessState.ExitCode(), output)
+	}
+	if _, err := os.Stat(validated); err != nil {
+		t.Fatalf("custom duration did not reach materialized template: %v", err)
+	}
+	if _, err := os.Stat(providerMarker); !os.IsNotExist(err) {
+		t.Fatalf("failed materialization contacted provider: %v", err)
+	}
+	policy, err := os.ReadFile(filepath.Join(directory, requestID, "run-policy.json"))
+	if err != nil || !strings.Contains(string(policy), `"duration_seconds": 259200`) ||
+		!strings.Contains(string(policy), `"max_duration_seconds": 260100`) {
+		t.Fatalf("custom run policy = %s, %v", policy, err)
 	}
 }
 
@@ -458,6 +567,7 @@ func TestChatLifecycleLocalRuntimePreparationKeepsCredentialsLocal(t *testing.T)
 		"WK_ANALYSIS_MCP_TOKEN=$analysis_token",
 		"WK_ANALYSIS_GITHUB_OIDC_ENABLED=false",
 		"WK_CHAT_RUNTIME_ENVELOPE=direct_repair",
+		"WK_CHAT_LAB_MAX_DURATION_SECONDS",
 		"runtime-node.tar.gz",
 		"runtime-load.tar.gz",
 		"readiness-credentials",
@@ -486,6 +596,7 @@ func TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis(t *testi
 	}
 	for path, body := range map[string]string{
 		filepath.Join(requestDirectory, "state.json"):              `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "run-policy.json"):         `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
 		filepath.Join(requestDirectory, "deployment-ssh-config"):   "Host wukong-load\n",
 		filepath.Join(generationDirectory, "deployment-plan.json"): `{"schema":"wukongim.cloud_deployment.plan/v2"}`,
 	} {
@@ -498,7 +609,7 @@ func TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis(t *testi
 	writeDirectLabExecutable(t, stageStarter, `#!/usr/bin/env bash
 set -euo pipefail
 printf 'stage-start\n' >>"$WK_TEST_CALL_LOG"
-printf '{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","started_at":"2026-08-23T12:05:06.276365315+08:00","expected_end_at":"2026-08-23T14:05:06.276365315+08:00","run_hash":"sha256:%064d","assignment_hash":"sha256:%064d","generation":1}\n' 1 2 >"$WK_CHAT_LAB_RUN_START_OUTPUT"
+printf '{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","started_at":"2026-08-23T12:05:06.276365315+08:00","expected_end_at":"2026-08-23T13:20:06.276365315+08:00","run_hash":"sha256:%064d","assignment_hash":"sha256:%064d","generation":1}\n' 1 2 >"$WK_CHAT_LAB_RUN_START_OUTPUT"
 `)
 	chatTool := filepath.Join(directory, "wkchatlifecycle")
 	writeDirectLabExecutable(t, chatTool, `#!/usr/bin/env bash
@@ -513,7 +624,7 @@ while (( $# > 0 )); do
     *) shift ;;
   esac
 done
-if [[ "$started_at" != 2026-08-23T04:05:06.276365315Z || "$qualify_after" != 1h ]]; then
+if [[ "$started_at" != 2026-08-23T04:05:06.276365315Z || "$qualify_after" != 3600s ]]; then
   exit 42
 fi
 printf 'repair-begin\n' >>"$WK_TEST_CALL_LOG"
@@ -551,6 +662,60 @@ exit 10
 	}
 	if _, statErr := os.Stat(filepath.Join(requestDirectory, "zero-inventory.json")); !os.IsNotExist(statErr) {
 		t.Fatalf("failed stability run released or fabricated zero proof: %v", statErr)
+	}
+}
+
+func TestChatLifecycleDirectLabRunStopsRemoteStageWhenDurationHandoffDiffers(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	requestID := "chat-20260823T041506Z-d1e2f3a5"
+	requestDirectory := filepath.Join(directory, requestID)
+	generationDirectory := filepath.Join(requestDirectory, "generations", "1")
+	if err := os.MkdirAll(generationDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for path, body := range map[string]string{
+		filepath.Join(requestDirectory, "state.json"):            `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "run-policy.json"):       `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
+		filepath.Join(requestDirectory, "deployment-ssh-config"): "Host wukong-load\n",
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stageStarter := filepath.Join(directory, "stage-starter")
+	writeDirectLabExecutable(t, stageStarter, `#!/usr/bin/env bash
+set -euo pipefail
+printf '{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","started_at":"2026-08-23T04:05:06Z","expected_end_at":"2026-08-23T06:05:06Z","run_hash":"sha256:%064d","assignment_hash":"sha256:%064d","generation":1}\n' 1 2 >"$WK_CHAT_LAB_RUN_START_OUTPUT"
+`)
+	unexpectedChat := filepath.Join(directory, "wkchatlifecycle")
+	writeDirectLabExecutable(t, unexpectedChat, "#!/usr/bin/env bash\n: >\"$WK_TEST_CHAT_CALLED\"\nexit 99\n")
+	sshLog := filepath.Join(directory, "ssh-called")
+	writeDirectLabExecutable(t, filepath.Join(directory, "ssh"), `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >"$WK_TEST_SSH_LOG"
+`)
+	chatMarker := filepath.Join(directory, "chat-called")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "run", requestID)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+directory+":"+os.Getenv("PATH"),
+		"WK_CHAT_LAB_STATE_ROOT="+directory,
+		"WK_CHAT_LAB_CHAT_TOOL="+unexpectedChat,
+		"WK_CHAT_LAB_STAGE_STARTER="+stageStarter,
+		"WK_TEST_CHAT_CALLED="+chatMarker,
+		"WK_TEST_SSH_LOG="+sshLog,
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "remote workload duration differs") {
+		t.Fatalf("mismatched handoff result = %v\n%s", err, output)
+	}
+	if _, err := os.Stat(chatMarker); !os.IsNotExist(err) {
+		t.Fatalf("mismatched handoff began repair monitor state: %v", err)
+	}
+	sshCall, err := os.ReadFile(sshLog)
+	if err != nil || !strings.Contains(string(sshCall), "sudo systemctl stop wkbench-rehearsal.service") {
+		t.Fatalf("remote stop = %q, %v", sshCall, err)
 	}
 }
 

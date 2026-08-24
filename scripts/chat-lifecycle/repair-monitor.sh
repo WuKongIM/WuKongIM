@@ -15,7 +15,7 @@ poll_seconds="${WK_CHAT_REPAIR_POLL_SECONDS:-5}"
 max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"
 stage_service="${WK_CHAT_REPAIR_SERVICE:-wkbench-rehearsal.service}"
 [[ "$poll_seconds" =~ ^[1-9][0-9]*$ && "$max_seconds" =~ ^[1-9][0-9]*$ ]]
-(( poll_seconds <= 30 && max_seconds >= 60 && max_seconds <= 4500 ))
+(( poll_seconds <= 30 && max_seconds >= 60 && max_seconds <= 260100 ))
 [[ -x "$WK_CHAT_REPAIR_TOOL" && -f "$WK_CHAT_REPAIR_STATE" && -f "$WK_CHAT_REPAIR_SSH_CONFIG" ]]
 [[ "$stage_service" =~ ^[A-Za-z0-9@._-]{1,128}\.service$ ]]
 [[ "$WK_CHAT_REPAIR_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]

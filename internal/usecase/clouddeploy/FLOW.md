@@ -43,6 +43,8 @@ non-secret Lease inventory and has no provider lifecycle authority.
   WebSockets disable retries and connection reuse.
 - Formal execution is one native process across soak, capacity, and recovery;
   it never restarts services/workers, clears data, or splices process lifetimes.
+- Direct repair may pass one validated process-duration override only to the
+  rehearsal unit; repository YAML and formal execution remain unchanged.
 - Five-second cost and expiry guards enforce the admitted CNY 1,350 operational
   stop and CNY 1,500 hard limit.
 - A control repair may redeploy only the same Lease, source, bundle, and sealed

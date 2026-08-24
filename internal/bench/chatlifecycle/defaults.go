@@ -22,6 +22,8 @@ const (
 	capacityStepDuration     = 30 * time.Minute
 	formalCheckpointDuration = 72 * time.Hour
 	rehearsalDuration        = 2 * time.Hour
+	minDirectRunDuration     = 16 * time.Minute
+	maxDirectRunDuration     = 72*time.Hour + 15*time.Minute
 )
 
 // DefaultConfig returns the validated formal configuration for lifecycle planning.
@@ -157,6 +159,9 @@ func RehearsalConfig() Config {
 }
 
 func (c Config) measuredDuration() time.Duration {
+	if c.Stage == StageRehearsal && c.RunDuration > 0 {
+		return c.RunDuration
+	}
 	if c.Stage == StageRehearsal {
 		return rehearsalDuration
 	}

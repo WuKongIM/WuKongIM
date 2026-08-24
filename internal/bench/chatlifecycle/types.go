@@ -46,6 +46,9 @@ type Config struct {
 	Mode Mode `json:"mode" yaml:"mode"`
 	// Stage fixes the evidence claim and measured duration for this process lifetime.
 	Stage Stage `json:"stage" yaml:"stage"`
+	// RunDuration is a trusted CLI-only override for one direct rehearsal process.
+	// Repository YAML cannot set it, and zero preserves the reviewed two-hour rehearsal.
+	RunDuration time.Duration `json:"run_duration,omitempty" yaml:"-"`
 	// Workload contains only deterministic traffic and lifecycle quantities.
 	Workload WorkloadConfig `json:"workload" yaml:"workload"`
 	// Observation declares non-secret observation sources and sampling cadence.

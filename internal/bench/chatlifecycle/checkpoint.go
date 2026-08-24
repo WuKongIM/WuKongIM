@@ -237,7 +237,8 @@ func (r *CheckpointRecorder) buildReport(
 	return Report{
 		SchemaVersion: ReportSchemaVersion, ThresholdVersion: ReportThresholdVersion, DesignProfile: ReportDesignProfile,
 		ConfigDigest: r.configDigest, DatasetDigest: evidence.DatasetDigest,
-		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage, Kind: kind,
+		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage,
+		RunDuration: r.cfg.RunDuration, Kind: kind,
 		Final: final, Continue: !final, Continuous: evidence.Continuous,
 		Fence: ReportFence{RunHash: hashReportValue(r.fence.RunID), AssignmentHash: hashReportValue(r.fence.AssignmentID), Generation: r.fence.Generation},
 		Window: ReportTimeWindow{

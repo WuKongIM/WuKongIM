@@ -27,6 +27,10 @@ const (
 	StageRehearsal           = "rehearsal"
 	StageFormal              = "formal"
 	maxDocumentBytes         = 1 << 20
+	minimumRepairWorkload    = int64((16 * time.Minute) / time.Second)
+	maximumRepairWorkload    = int64((72*time.Hour + 15*time.Minute) / time.Second)
+	minimumRepairLease       = int64((6 * time.Hour) / time.Second)
+	repairLeaseReserve       = int64((4*time.Hour + 45*time.Minute) / time.Second)
 )
 
 var (
@@ -38,8 +42,8 @@ var (
 	digestPattern      = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
-// Template is the reviewed, versioned policy source. None of its quantities
-// are exposed as top-level workflow inputs.
+// Template is the reviewed, versioned policy source. Direct repair may derive
+// only its bounded workload and Lease durations before this package validates it.
 type Template struct {
 	Schema                  string              `json:"schema"`
 	Stage                   string              `json:"stage"`
@@ -267,8 +271,13 @@ func validTemplate(template Template) bool {
 	}
 	switch template.Stage {
 	case StageRepair:
-		if template.LeaseDurationSeconds != int64((6*time.Hour)/time.Second) ||
-		template.WorkloadDurationSeconds != int64((75*time.Minute)/time.Second) ||
+		expectedLease := template.WorkloadDurationSeconds + repairLeaseReserve
+		if expectedLease < minimumRepairLease {
+			expectedLease = minimumRepairLease
+		}
+		if template.WorkloadDurationSeconds < minimumRepairWorkload ||
+			template.WorkloadDurationSeconds > maximumRepairWorkload ||
+			template.LeaseDurationSeconds != expectedLease ||
 			template.ReadinessTimeoutSeconds != int64((30*time.Minute)/time.Second) ||
 			template.Budget.HardLimitMicros != 300_000_000 ||
 			template.Budget.OperationalStopMicros != 250_000_000 {

@@ -273,6 +273,32 @@ func TestCheckpointRehearsalPassIsDistinctAndEndsAtTwoHours(t *testing.T) {
 	}
 }
 
+func TestCheckpointDirectRehearsalUsesTrustedRunDuration(t *testing.T) {
+	cfg := RehearsalConfig()
+	cfg.RunID = "checkpoint-direct-rehearsal-final"
+	cfg.RunDuration = 72*time.Hour + 15*time.Minute
+	start := time.Unix(1_800_385_000, 0)
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "direct-rehearsal-assignment", Generation: 5}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := checkpointEvidenceFixture(false)
+	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictRehearsalPass, Cause: VerdictCauseRehearsalCompleted}
+	snapshots := coordinatorSnapshotFixture(fence, 1, cfg.RunDuration, 10)
+	for index := range snapshots {
+		snapshots[index].Phase = WorkerPhaseFinal
+	}
+	report, err := captureCheckpoint(t, recorder, start.Add(cfg.RunDuration), snapshots, evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.RunDuration != cfg.RunDuration || report.Window.FinalAt != start.Add(cfg.RunDuration) ||
+		report.Window.Elapsed != cfg.RunDuration {
+		t.Fatalf("direct rehearsal report = %+v", report)
+	}
+}
+
 func TestCheckpointTerminalAfterQualificationFinalizesImmediately(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "checkpoint-immediate-terminal"

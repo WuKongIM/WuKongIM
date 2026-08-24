@@ -30,10 +30,24 @@ func TestSoakChatLifecycleHelp(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("soak chat-lifecycle help code = %d, stderr = %q", code, stderr.String())
 	}
-	for _, want := range []string{"chat-lifecycle", "--config", "--output-dir"} {
+	for _, want := range []string{"chat-lifecycle", "--config", "--duration", "--output-dir"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("soak chat-lifecycle help does not contain %q: %q", want, stderr.String())
 		}
+	}
+}
+
+func TestSoakChatLifecycleAppliesDirectRehearsalDuration(t *testing.T) {
+	cli := chatLifecycleCLIConfig{
+		configPath: filepath.Join(findRepoRoot(t), "configs", "wkbench", "chat-lifecycle", "rehearsal.yaml"),
+		outputDir:  t.TempDir(),
+		duration:   72*time.Hour + 15*time.Minute,
+	}
+	if err := loadSoakChatLifecycleConfig(&cli); err != nil {
+		t.Fatal(err)
+	}
+	if cli.config.RunDuration != cli.duration {
+		t.Fatalf("run duration = %v, want %v", cli.config.RunDuration, cli.duration)
 	}
 }
 

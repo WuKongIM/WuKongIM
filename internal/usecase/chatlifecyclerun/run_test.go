@@ -1,8 +1,10 @@
 package chatlifecyclerun
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -149,6 +151,27 @@ func TestRepositoryRepairTemplateCreatesReusableLeaseWithoutFormalTransition(t *
 	trusted.Transition = transition
 	if _, err := Materialize(template, input, trusted); err == nil {
 		t.Fatal("repair template accepted a formal-transition receipt")
+	}
+}
+
+func TestRepairTemplateAcceptsOnlyDerivedCustomDurationEnvelope(t *testing.T) {
+	template := loadRepositoryTemplateNamed(t, "repair-v1.json")
+	template.WorkloadDurationSeconds = int64((72*time.Hour + 15*time.Minute) / time.Second)
+	template.LeaseDurationSeconds = int64(77 * time.Hour / time.Second)
+	body, err := json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodeTemplate(bytes.NewReader(body)); err != nil {
+		t.Fatalf("derived 72-hour repair envelope rejected: %v", err)
+	}
+	template.LeaseDurationSeconds++
+	body, err = json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodeTemplate(bytes.NewReader(body)); err == nil {
+		t.Fatal("repair template accepted a lease duration outside the derived envelope")
 	}
 }
 
