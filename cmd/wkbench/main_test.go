@@ -394,9 +394,17 @@ func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
 			},
 		},
 		{
-			name: "hot latency warning survives operator stop", want: localChatLifecycleStepProductFailure,
+			name: "transient hot latency warning does not override operator stop", want: localChatLifecycleStepClean,
 			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
 				after.Verdict.LatencyWarnings.Hot = 1
+				after.Latency.Warnings.Hot = 1
+			},
+		},
+		{
+			name: "sustained hot latency failure survives operator stop", want: localChatLifecycleStepProductFailure,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Verdict.Outcome = chatlifecycle.VerdictProductFailure
+				after.Verdict.Cause = chatlifecycle.VerdictCauseHotLatency
 			},
 		},
 	} {
