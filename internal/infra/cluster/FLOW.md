@@ -33,14 +33,13 @@ and bounded operations observations.
 1. Data-plane adapters map append, metadata, and membership DTOs to their
    resolved Channel or physical-Slot authority, preserve payload ownership and
    aligned results, then translate typed failures back to the calling runtime.
+   First person SENDs prepare coalesced UID membership/runtime metadata and
+   publish directory-ready only after every prepare proposal joins.
 2. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read
    models with partial evidence explicit.
-4. First persistent person SENDs coalesce bounded Channel directory work,
-   prepare UID membership and create-only runtime metadata by logical Slot
-   group, then publish directory-ready only after every prepare proposal joins.
 
 ## Invariants and Failure Semantics
 

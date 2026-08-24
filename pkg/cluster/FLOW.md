@@ -14,6 +14,7 @@ RPC, Slot reconciliation/proposal, Channel hosting, and observation loops.
 
 Every deployment follows these cluster semantics, including a single-node
 cluster. There is no standalone data or control path.
+It does not own Manager or product business policy.
 
 ## Boundaries
 
@@ -37,13 +38,11 @@ cluster. There is no standalone data or control path.
    work and invalidating readiness.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    group Channel- or UID-owned work by physical Slot, execute locally or
-   forward, and require the receiver to recheck actual leadership.
+   forward, and recheck leadership. Person-directory prepare joins UID
+   membership/runtime metadata before publishing directory-ready.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded.
-4. Person-directory establishment groups UID membership and create-only runtime
-   metadata by logical Slot, joins the bounded prepare proposals, then publishes
-   Channel directory-ready rows in a separate phase.
 
 ## Invariants and Failure Semantics
 

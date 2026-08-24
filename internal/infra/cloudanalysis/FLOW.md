@@ -26,15 +26,13 @@ It does not own diagnosis policy, MCP transport, or cloud resource lifecycle.
 
 ## Main Flows
 
-1. Source adapters authenticate, fetch bounded Manager or Prometheus evidence,
-   validate its shape, and return domain DTOs.
+1. Source adapters authenticate and fetch bounded Manager, Prometheus, or
+   workload evidence. Workload inspection prefers the final summary and
+   otherwise parses the strict three-worker atomic running status.
 2. Profile collection captures an allowed bounded profile and converts it to
    safe summary rows without exposing raw profile bytes.
 3. Run inspection combines static identity, provider inventory, diagnostics,
    and one-second cgroup evidence into strict analysis inputs.
-4. Workload inspection prefers the final diagnostic summary; before it exists,
-   it strictly parses the atomic running status with exactly three ordered
-   workers, checked connection/teardown totals, and at most 64 recent events.
 
 ## Invariants and Failure Semantics
 

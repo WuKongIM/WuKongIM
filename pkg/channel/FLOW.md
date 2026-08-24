@@ -16,6 +16,7 @@ The subtree is split by role: `machine` holds pure transitions, `reactor` owns
 Channel state and scheduling, `replication` holds protocol decisions, `service`
 is the public synchronous facade, `store` defines persistence, `transport`
 defines RPC DTOs, and `worker` bounds blocking I/O.
+It does not own product permission, authority selection, fanout, or SENDACK policy.
 
 ## Boundaries
 

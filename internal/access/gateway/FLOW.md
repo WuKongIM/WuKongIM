@@ -30,12 +30,10 @@ It does not own reusable message, presence, delivery, or storage policy.
 2. Single or batched SEND maps immutable packet/session fields, calls one
    aligned message batch, records optional trace stages, and writes one SENDACK
    for every input item.
-3. PING best-effort touches presence before PONG; RECVACK validates identity and
-   positive message ID before delegating best-effort delivery feedback.
-4. The reserved terminal EVENT is strictly parsed into fixed-size redacting
-   proof values, validated by the terminal controller, and sealed with its ACK
-   under the exact session write lock; every later inbound frame is rejected
-   before reaching any usecase.
+3. Control frames map PING and RECVACK to best-effort presence/delivery work.
+   The reserved terminal EVENT is strictly parsed into redacting proof values,
+   validated, and sealed with its ACK under the exact session write lock;
+   every later inbound frame is rejected before reaching a usecase.
 
 ## Invariants and Failure Semantics
 

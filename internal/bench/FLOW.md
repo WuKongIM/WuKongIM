@@ -11,6 +11,7 @@ summary: Implements deterministic black-box benchmark planning, workers, traffic
 benchmark inputs, builds deterministic worker plans, drives black-box target
 setup and WKProto traffic, evaluates bounded evidence, and writes reports. It
 also owns strict local-baseline evidence parsing and authorization gates.
+It does not provision targets, own product state, or bypass public target APIs.
 
 ## Boundaries
 
@@ -26,14 +27,10 @@ wkbench run
   -> strict target/worker/scenario validation
   -> deterministic plan and immutable worker assignments
   -> preflight
+  -> exact fenced assignment with bounded owned sessions
   -> prepare -> connect -> warmup -> run -> cooldown
-  -> exact-assignment stop and stable evidence collection
+  -> exact-assignment stop, joined teardown, and stable evidence collection
   -> verdict and report directory
-
-worker assignment
-  -> exact run_id + assignment_id generation
-  -> bounded phase task and owned sessions
-  -> synchronous admission fence, joined teardown, terminal snapshot
 
 reviewed external terminal cut
   -> require one target, one worker, and advertised prepare capability

@@ -28,11 +28,10 @@ It does not provision users or channels, choose benchmark policy, or retry sends
 2. Send reserves bounded inflight state, records `(ClientSeq, ClientMsgNo)`,
    queues a writer request, and resolves the exact future when the reader sees
    its SENDACK.
-3. The reader decrypts RECV into a bounded lossless queue and optionally sends
-   RECVACK; send-only callers may discard inbound RECV before decryption/queueing.
-4. A grant-bound terminal seal quiesces SEND/PING and reconnect admission,
-   joins admitted SENDACKs, writes the reserved epoch/capability/nonce EVENT,
-   and succeeds only after decoding the exact peer ACK with no trailing frame.
+3. The reader decrypts RECV into a bounded queue and optionally sends RECVACK.
+   A grant-bound terminal seal quiesces SEND/PING and reconnect, joins admitted
+   SENDACKs, writes the reserved marker, and requires its exact peer ACK with
+   no trailing frame.
 
 ## Invariants and Failure Semantics
 

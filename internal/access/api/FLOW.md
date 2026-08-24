@@ -33,13 +33,8 @@ product HTTP request
 
 bench or debug request
   -> feature-enabled and bearer-capability gates
-  -> bounded runtime/read-model port
-  -> low-cardinality response or stable failure
-
-terminal-fence prepare
-  -> strict authenticated 4 KiB request
-  -> exact run, assignment, and expected-session binding
-  -> one-shot product terminal controller and opaque grant
+  -> bounded runtime/read-model port or strict terminal-fence prepare
+  -> low-cardinality response, opaque grant, or stable failure
 
 /demo/*
   -> embedded immutable asset or revalidated index

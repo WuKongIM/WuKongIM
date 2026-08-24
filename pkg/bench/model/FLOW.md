@@ -26,10 +26,9 @@ It does not execute benchmarks, manage workers, or depend on server runtimes.
    lifecycle tags, and Analysis MCP share one digest.
 2. Produce deterministic worker identity, online-identity, source-address,
    churn, rate, and Hash Slot spread plans.
-3. Exchange closed `bench/v1` target DTOs for assignments, progress, reports,
-   and bounded Channel runtime probes.
-4. Share the explicit fixed generic-retry policy, receive-drain/fanout proof,
-   and terminal-fence prepare/grant contracts without runtime dependencies.
+3. Define closed `bench/v1` target DTOs for assignments, reports, probes, and
+   terminal grants. Fixed retry configuration and receive/fanout evidence are
+   separate shared model contracts without runtime dependencies.
 
 ## Invariants and Failure Semantics
 

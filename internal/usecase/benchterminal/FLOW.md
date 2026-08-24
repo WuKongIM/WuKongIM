@@ -11,6 +11,8 @@ summary: Owns one exact benchmark terminal drain, capability grant, and session-
 process terminal cut for one exact benchmark run and assignment. It drains
 accepted product work, mints one opaque capability, and counts exact owner-local
 session-seal admissions.
+It does not parse entry requests, look up sessions, encode markers, or write
+transports.
 
 ## Boundaries
 

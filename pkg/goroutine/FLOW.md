@@ -29,9 +29,6 @@ closure, dependency order, and restart policy.
    rejection, and ownership snapshots; health is derived per pool before totals.
 3. Group waits and baseline fences provide bounded live-task evidence during
    shutdown without canceling work.
-4. Fixed task identities cover terminal prepare, Gateway SEND drain, UID
-   membership fanout, and Channel quorum local/peer/repair pools; run, user,
-   Channel, Slot, peer, authority, and capability values remain ordinary data.
 
 ## Invariants and Failure Semantics
 
@@ -46,6 +43,9 @@ closure, dependency order, and restart policy.
   tasks become required only after first start.
 - Only compile-time expected cohorts use `fixed`; configuration-sized or
   per-runtime cohorts use `dynamic`.
+- Terminal prepare, Gateway SEND drain, UID membership fanout, and Channel
+  quorum pools use fixed task identities; run, user, Channel, Slot, peer,
+  authority, and capability values remain ordinary data.
 
 ## Read First
 

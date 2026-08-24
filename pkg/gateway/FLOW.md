@@ -16,6 +16,7 @@ overloaded connections.
 `core` owns runtime state; `protocol` and `transport` define extension seams;
 `session` owns connection-facing session values and writes; `binding` provides
 built-in listener presets.
+It does not own message, presence, Channel, or Controller business policy.
 
 ## Boundaries
 
