@@ -6249,6 +6249,170 @@ func TestEngineGroupGrantReroutesWhenSelectedSenderGoesOfflineBeforeLease(t *tes
 	}
 }
 
+func TestEngineCoordinatorGrantDefersSampledSmallGroupUntilPairReturns(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 256, InflightCapacity: 16, MaxWorkPerAdvance: 256,
+	})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	group, err := fixture.engine.generator.catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group(0): %v", err)
+	}
+	memberIndex, err := group.MemberIndex(0)
+	if err != nil {
+		t.Fatalf("MemberIndex(0): %v", err)
+	}
+	memberUID := fixture.identity.UID(memberIndex)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: memberUID, UserIndex: memberIndex, LoginOrdinal: 1,
+	}); err != nil {
+		t.Fatalf("Login first member: %v", err)
+	}
+
+	now := fixture.clock.Now()
+	var grantOrdinal uint64
+	found := false
+	for candidate := uint64(0); candidate < 10_000; candidate++ {
+		fixture.engine.generator.primaryOrdinal = candidate
+		intent, intentErr := fixture.engine.generator.primaryIntent()
+		if intentErr != nil {
+			t.Fatalf("primaryIntent(%d): %v", candidate, intentErr)
+		}
+		correlate, correlateErr := fixture.verifier.ShouldCorrelate(intent.Logical)
+		if correlateErr != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", candidate, correlateErr)
+		}
+		if intent.Kind == TrafficGroup && intent.GroupCategory == GroupSmall && correlate {
+			grantOrdinal, found = candidate, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no sampled small-group grant found")
+	}
+	fixture.engine.generator.primaryOrdinal = grantOrdinal
+
+	type grantResult struct {
+		snapshot TrafficTickSnapshot
+		err      error
+	}
+	result := make(chan grantResult, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		fixture.engine.beginGrantRouting()
+		snapshot, grantErr := fixture.engine.admitGrantedTraffic(now, 1)
+		fixture.engine.endGrantRouting()
+		result <- grantResult{snapshot: snapshot, err: grantErr}
+	}}); err != nil {
+		t.Fatalf("enqueue grant: %v", err)
+	}
+	grant := <-result
+	if grant.err != nil || grant.snapshot.Released != 1 || grant.snapshot.Group != 1 {
+		t.Fatalf("temporarily unroutable sampled group grant = %+v, %v", grant.snapshot, grant.err)
+	}
+	if sent := fixture.factory.sentCount(); sent != 0 {
+		t.Fatalf("deferred sampled group sent %d packets before a recipient returned", sent)
+	}
+
+	secondIndex, err := group.MemberIndex(1)
+	if err != nil {
+		t.Fatalf("MemberIndex(1): %v", err)
+	}
+	secondUID := fixture.identity.UID(secondIndex)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: secondUID, UserIndex: secondIndex, LoginOrdinal: 2,
+	}); err != nil {
+		t.Fatalf("Login second member: %v", err)
+	}
+	now = now.Add(time.Second)
+	fixture.clock.Set(now)
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("Advance after pair return: %v", err)
+	}
+	waitForEngineCompletions(t, fixture.engine, "deferred sampled group")
+	if sent := fixture.factory.sentCount(); sent != 1 {
+		t.Fatalf("deferred sampled group sent %d packets after pair return, want 1", sent)
+	}
+}
+
+func TestEngineDeferredSampledGroupFailsAfterEligibilityWindow(t *testing.T) {
+	const eligibilityWindow = 10 * time.Nanosecond
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 256, InflightCapacity: 16, MaxWorkPerAdvance: 256,
+		ActivityEligibilityWindow: eligibilityWindow,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	group, err := fixture.engine.generator.catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group(0): %v", err)
+	}
+	memberIndex, err := group.MemberIndex(0)
+	if err != nil {
+		t.Fatalf("MemberIndex(0): %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(memberIndex), UserIndex: memberIndex, LoginOrdinal: 1,
+	}); err != nil {
+		t.Fatalf("Login first member: %v", err)
+	}
+
+	var grantOrdinal uint64
+	found := false
+	for candidate := uint64(0); candidate < 10_000; candidate++ {
+		fixture.engine.generator.primaryOrdinal = candidate
+		intent, intentErr := fixture.engine.generator.primaryIntent()
+		if intentErr != nil {
+			t.Fatalf("primaryIntent(%d): %v", candidate, intentErr)
+		}
+		correlate, correlateErr := fixture.verifier.ShouldCorrelate(intent.Logical)
+		if correlateErr != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", candidate, correlateErr)
+		}
+		if intent.Kind == TrafficGroup && intent.GroupCategory == GroupSmall && correlate {
+			grantOrdinal, found = candidate, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no sampled small-group grant found")
+	}
+	fixture.engine.generator.primaryOrdinal = grantOrdinal
+	now := fixture.clock.Now()
+	result := make(chan error, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		fixture.engine.beginGrantRouting()
+		_, grantErr := fixture.engine.admitGrantedTraffic(now, 1)
+		fixture.engine.endGrantRouting()
+		result <- grantErr
+	}}); err != nil {
+		t.Fatalf("enqueue grant: %v", err)
+	}
+	if err := <-result; err != nil {
+		t.Fatalf("defer sampled group grant: %v", err)
+	}
+
+	now = now.Add(eligibilityWindow)
+	fixture.clock.Set(now)
+	_, err = fixture.engine.Advance(now)
+	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
+	snapshot, snapshotErr := fixture.engine.Snapshot()
+	if snapshotErr != nil {
+		t.Fatalf("Snapshot: %v", snapshotErr)
+	}
+	if snapshot.DeferredGroupRoutes != 0 || snapshot.ActivityUnderDelivered != 1 {
+		t.Fatalf("expired deferred group snapshot = %+v", snapshot)
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+}
+
 func TestEngineLocalThreeNodeTwoThousandQPSFirstGrantUsesDistinctSenders(t *testing.T) {
 	const workerCount = uint64(3)
 	for workerID := uint64(0); workerID < workerCount; workerID++ {

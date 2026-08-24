@@ -241,7 +241,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesWorkerProtocolV8(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV9(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV8(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 8 {
-		t.Fatalf("protocol version = %d, want 8", info.ProtocolVersion)
+	if info.ProtocolVersion != 9 {
+		t.Fatalf("protocol version = %d, want 9", info.ProtocolVersion)
 	}
 }
 

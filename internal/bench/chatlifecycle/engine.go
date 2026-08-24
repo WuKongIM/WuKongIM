@@ -106,10 +106,12 @@ type EngineSnapshot struct {
 	MetaCreatePersonByHashSlot MetaCreateHashSlotCounts
 	// MetaCreateGroupByHashSlot counts fixed-catalog groups after their first
 	// successful SEND proves that runtime metadata was actually required.
-	MetaCreateGroupByHashSlot  MetaCreateHashSlotCounts
-	QueueCurrent               int
-	FutureCurrent              int
-	ActivityCurrent            int
+	MetaCreateGroupByHashSlot MetaCreateHashSlotCounts
+	QueueCurrent              int
+	FutureCurrent             int
+	ActivityCurrent           int
+	// DeferredGroupRoutes counts accepted primary grants waiting for a fixed-roster route.
+	DeferredGroupRoutes        int
 	ActivityUnderDelivered     uint64
 	ActivityFutureCanceled     uint64
 	ActivityPlannedCanceled    uint64
@@ -466,6 +468,7 @@ const (
 	engineWorkSend engineWorkKind = iota + 1
 	engineWorkTimeout
 	engineWorkLifecycle
+	engineWorkGroupRoute
 )
 
 type engineWork struct {
@@ -810,6 +813,8 @@ type Engine struct {
 	activityUnderDelivered  uint64
 	activityFutureCanceled  uint64
 	activityPlannedCanceled uint64
+	// deferredGroupRoutes is included in future-work capacity and must drain before shutdown.
+	deferredGroupRoutes int
 	// canaryUnavailableSince bounds one continuous fixed-roster gap without
 	// retaining canary identities or interrupting primary grant admission.
 	canaryUnavailableSince     time.Time
@@ -976,6 +981,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.activityUnderDelivered = 0
 	e.activityFutureCanceled = 0
 	e.activityPlannedCanceled = 0
+	e.deferredGroupRoutes = 0
 	e.canaryUnavailableSince = time.Time{}
 	e.plannedShutdown = false
 	e.bootstrapActivityRefresh = false
@@ -1229,24 +1235,7 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			}{err: refreshErr}
 			return
 		}
-		admit := func(intent TrafficIntent) bool {
-			return e.sessions.acquireSendAndCorrelationLease(intent, now)
-		}
-		snapshot, grantErr := e.generator.ApplyGrant(released, func(intent TrafficIntent) error {
-			var routeErr error
-			if intent.Kind == TrafficPerson {
-				intent, routeErr = e.routePersonGrantWithAdmission(intent, now, admit)
-			} else {
-				intent, routeErr = e.routeGroupGrantWithAdmission(intent, now, admit)
-			}
-			if routeErr != nil {
-				return routeErr
-			}
-			return e.addLeasedSendWorkAt(intent, 0, now)
-		})
-		if grantErr == nil {
-			grantErr = e.admitDueCanary(now, admit)
-		}
+		snapshot, grantErr := e.admitGrantedTraffic(now, released)
 		first := e.externalGrantsApplied == 0
 		if e.externalGrantsApplied == math.MaxUint64 {
 			grantErr = errors.Join(grantErr, errEngineConfig)
@@ -1263,6 +1252,39 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 	}
 	result := <-response
 	return result.snapshot, result.first, result.err
+}
+
+// admitGrantedTraffic routes one already apportioned worker grant while the
+// engine owner holds the generation's grant-routing boundary.
+func (e *Engine) admitGrantedTraffic(now time.Time, released uint64) (TrafficTickSnapshot, error) {
+	admit := func(intent TrafficIntent) bool {
+		return e.sessions.acquireSendAndCorrelationLease(intent, now)
+	}
+	snapshot, grantErr := e.generator.ApplyGrant(released, func(intent TrafficIntent) error {
+		return e.admitGrantedIntent(intent, now, admit)
+	})
+	if grantErr == nil {
+		grantErr = e.admitDueCanary(now, admit)
+	}
+	return snapshot, grantErr
+}
+
+func (e *Engine) admitGrantedIntent(intent TrafficIntent, now time.Time, admit grantRouteAdmission) error {
+	if intent.Kind == TrafficPerson {
+		routed, err := e.routePersonGrantWithAdmission(intent, now, admit)
+		if err != nil {
+			return err
+		}
+		return e.addLeasedSendWorkAt(routed, 0, now)
+	}
+	routed, available, err := e.tryRouteGroupGrantWithAdmission(intent, now, admit)
+	if err != nil {
+		return err
+	}
+	if !available {
+		return e.addDeferredGroupRoute(intent, now)
+	}
+	return e.addLeasedSendWorkAt(routed, 0, now)
 }
 
 func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
@@ -1302,16 +1324,7 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			return e.sessions.acquireSendAndCorrelationLease(intent, now)
 		}
 		snapshot, tickErr := e.generator.Tick(demand, func(intent TrafficIntent) error {
-			var routeErr error
-			if intent.Kind == TrafficPerson {
-				intent, routeErr = e.routePersonGrantWithAdmission(intent, now, admit)
-			} else {
-				intent, routeErr = e.routeGroupGrantWithAdmission(intent, now, admit)
-			}
-			if routeErr != nil {
-				return routeErr
-			}
-			return e.addLeasedSendWorkAt(intent, 0, now)
+			return e.admitGrantedIntent(intent, now, admit)
 		})
 		if tickErr == nil {
 			tickErr = e.admitDueCanary(now, admit)
@@ -2232,7 +2245,8 @@ func (e *Engine) FencePlannedShutdown(ctx context.Context) error {
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		e.drainCompletions()
 		drain := e.verifier.DrainSnapshot()
-		if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || len(e.inflight) != 0 || e.retries.Snapshot().Depth != 0 {
+		if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || len(e.inflight) != 0 ||
+			e.retries.Snapshot().Depth != 0 || e.deferredGroupRoutes != 0 {
 			response <- errEngineNotDrained
 			return
 		}
@@ -2484,6 +2498,62 @@ func (e *Engine) addWork(work *engineWork) error {
 	return nil
 }
 
+// addDeferredGroupRoute retains one accepted primary grant whose fixed group
+// temporarily lacks the sender/recipient pair required by sampled delivery.
+func (e *Engine) addDeferredGroupRoute(intent TrafficIntent, now time.Time) error {
+	deadline, err := e.newEligibilityDeadline(now)
+	if err != nil {
+		return err
+	}
+	due := now.Add(activityRouteDeferral)
+	if !due.After(now) || !due.Before(deadline) {
+		return errEngineConfig
+	}
+	work := &engineWork{
+		due: due, eligibilityDeadline: deadline, kind: engineWorkGroupRoute, intent: intent,
+	}
+	if err := e.addWork(work); err != nil {
+		return err
+	}
+	e.deferredGroupRoutes++
+	return nil
+}
+
+func (e *Engine) retryDeferredGroupRoute(work *engineWork, now time.Time) error {
+	if work == nil || work.kind != engineWorkGroupRoute || work.intent.Kind != TrafficGroup ||
+		work.eligibilityDeadline.IsZero() || e.deferredGroupRoutes <= 0 {
+		return errEngineConfig
+	}
+	if !work.eligibilityDeadline.After(now) {
+		e.deferredGroupRoutes--
+		e.activityUnderDelivered++
+		return e.recordGroupUnderDelivery(work.intent)
+	}
+	admit := func(intent TrafficIntent) bool {
+		return e.sessions.acquireSendAndCorrelationLease(intent, now)
+	}
+	routed, available, err := e.tryRouteGroupGrantWithAdmission(work.intent, now, admit)
+	if err != nil {
+		e.deferredGroupRoutes--
+		return err
+	}
+	if !available {
+		work.due = now.Add(activityRouteDeferral)
+		if !work.due.After(now) || !work.due.Before(work.eligibilityDeadline) {
+			e.deferredGroupRoutes--
+			e.activityUnderDelivered++
+			return e.recordGroupUnderDelivery(work.intent)
+		}
+		if err := e.addWork(work); err != nil {
+			e.deferredGroupRoutes--
+			return err
+		}
+		return nil
+	}
+	e.deferredGroupRoutes--
+	return e.addLeasedSendWorkAt(routed, 0, now)
+}
+
 func (e *Engine) addActivity(work *engineWork) error {
 	if work == nil || work.kind != engineWorkSend {
 		return errEngineConfig
@@ -2669,6 +2739,8 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 			work.edge, work.relationshipOrdinal, 8, work.schedule.RevisitMessages,
 			work.due, work.schedule.InitialBurst.Window, sender,
 		)
+	case engineWorkGroupRoute:
+		return e.retryDeferredGroupRoute(work, now)
 	default:
 		return errEngineConfig
 	}
@@ -4138,12 +4210,25 @@ func (e *Engine) cleanupInflight() {
 // cleanupQueuedSendLeases releases admission leases for initial SEND work
 // that was accepted by this generation but never became inflight before stop.
 func (e *Engine) cleanupQueuedSendLeases() {
+	deferredGroupRoutes := uint64(0)
 	for _, work := range e.work {
-		if work == nil || work.kind != engineWorkSend || work.attempt != 0 {
+		if work == nil {
 			continue
 		}
-		_ = e.sessions.releaseSendLease(work.intent.Logical.Sender)
-		e.releaseCorrelationLease(work.intent)
+		switch work.kind {
+		case engineWorkSend:
+			if work.attempt == 0 {
+				_ = e.sessions.releaseSendLease(work.intent.Logical.Sender)
+				e.releaseCorrelationLease(work.intent)
+			}
+		case engineWorkGroupRoute:
+			deferredGroupRoutes++
+		}
+	}
+	e.deferredGroupRoutes = 0
+	if deferredGroupRoutes > 0 {
+		e.activityUnderDelivered += deferredGroupRoutes
+		_ = e.recordRuntimeFailure(RuntimeFailureUnderDelivery, deferredGroupRoutes)
 	}
 }
 
@@ -4234,7 +4319,8 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		SendWriteToAckLatency:      sessions.SendWriteToAckLatency,
 		MetaCreatePersonByHashSlot: e.metaCreatePersonByHashSlot,
 		MetaCreateGroupByHashSlot:  e.metaCreateGroupByHashSlot,
-		QueueCurrent:               e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
+		QueueCurrent:               e.queuedSends + e.deferredGroupRoutes, FutureCurrent: e.futureCount(),
+		ActivityCurrent: len(e.activity), DeferredGroupRoutes: e.deferredGroupRoutes,
 		ActivityUnderDelivered:  e.activityUnderDelivered,
 		ActivityFutureCanceled:  e.activityFutureCanceled,
 		ActivityPlannedCanceled: e.activityPlannedCanceled,

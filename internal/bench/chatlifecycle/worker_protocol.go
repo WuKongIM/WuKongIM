@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 8
+	workerProtocolVersion  uint64 = 9
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -365,17 +365,19 @@ type WorkerCorrelationSnapshot struct {
 
 // WorkerQueueSnapshot exposes fixed capacity and current/peak gauges.
 type WorkerQueueSnapshot struct {
-	WorkCurrent       int `json:"work_current"`
-	WorkPeak          int `json:"work_peak"`
-	WorkCapacity      int `json:"work_capacity"`
-	RetryCurrent      int `json:"retry_current"`
-	RetryPeak         int `json:"retry_peak"`
-	RetryCapacity     int `json:"retry_capacity"`
-	InflightCurrent   int `json:"inflight_current"`
-	InflightPeak      int `json:"inflight_peak"`
-	InflightCapacity  int `json:"inflight_capacity"`
-	TransportCurrent  int `json:"transport_current"`
-	TransportCapacity int `json:"transport_capacity"`
+	WorkCurrent int `json:"work_current"`
+	// DeferredGroupRoutes is accepted primary work awaiting a fixed-roster sender/recipient.
+	DeferredGroupRoutes int `json:"deferred_group_routes"`
+	WorkPeak            int `json:"work_peak"`
+	WorkCapacity        int `json:"work_capacity"`
+	RetryCurrent        int `json:"retry_current"`
+	RetryPeak           int `json:"retry_peak"`
+	RetryCapacity       int `json:"retry_capacity"`
+	InflightCurrent     int `json:"inflight_current"`
+	InflightPeak        int `json:"inflight_peak"`
+	InflightCapacity    int `json:"inflight_capacity"`
+	TransportCurrent    int `json:"transport_current"`
+	TransportCapacity   int `json:"transport_capacity"`
 	// TransportRejected is cumulative local non-waiting SEND admission pressure.
 	TransportRejected uint64 `json:"transport_rejected"`
 }

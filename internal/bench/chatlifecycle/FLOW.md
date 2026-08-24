@@ -225,7 +225,7 @@ a later CheckpointHW regression cannot hide between staggered replica exits.
 CheckpointHW regression and invalid HW/Checkpoint ordering always classify as
 `watermark_regression`; only LEO/HW reset during reload is `sequence_proof`.
 Only the same candidate's all-node absence makes it cold-latency eligible. Worker
-protocol v8 sends all currently eligible approvals through one strict fenced,
+protocol v9 sends all currently eligible approvals through one strict fenced,
 all-or-nothing batch per owning worker; the response exposes only the approved
 count and never echoes a channel identity. The server delegates the whole batch
 to `engineWorkerGeneration`, which validates every exact canonical ID, timer
@@ -707,7 +707,7 @@ work is still live.
 
 `Engine` owns one bounded command loop for the active generation. One activity
 min-heap holds relationship SEND eligibility, a runtime min-heap holds granted
-SEND, attempt-timeout, and lifecycle deadlines, the indexed retry heap holds at
+SEND, deferred group-route, attempt-timeout, and lifecycle deadlines, the indexed retry heap holds at
 most one approved retry per logical message, and the inflight map is explicitly
 capacity-bounded. The shared future-work capacity includes every bootstrap
 forward relationship's maximum initial burst plus one possible lifecycle timer,
@@ -757,8 +757,14 @@ its channel index, and records exactly one under-delivery event.
 Person routing always requires an online sender. For the verifier's exact one
 position in every 100 logical sends, it also requires an online target; other
 person sends may keep a channel hot while its peer is offline. A sampled group
-or canary send requires a distinct second online fixed-directory member. A
-due very-large canary is only committed after the owner atomically acquires its
+or canary send requires a distinct second online fixed-directory member. An
+accepted primary group grant that temporarily lacks its required fixed-roster
+sender or sampled recipient enters the same bounded future-work capacity and
+retries after the current advance boundary. Its immutable logical identity and
+primary denominator are committed once; successful later routing sends it once,
+while a continuous gap through the activity-eligibility window fails as offered
+under-delivery. Worker queue snapshots expose the current deferred-group-route
+count. A due very-large canary is only committed after the owner atomically acquires its
 sender and optional correlation-recipient leases and adds the SEND to engine
 work. A temporary fixed-roster gap therefore retries the same canary identity
 without counting it or interrupting the primary grant. One continuous gap that
@@ -807,9 +813,10 @@ that grant. Joined shutdown records one aggregate event for pending mandatory
 activities that were already offered or are due at the final workload cutoff.
 Unoffered activity strictly after that cutoff is normal future cancellation
 with its own numeric counter and no harness evidence; a fully drained shutdown
-adds no evidence. A missing eligible primary route is harness-invalid under-delivery
-before SEND registration and therefore cannot become a retry or product
-terminal result.
+adds no evidence. A person grant with no eligible route remains immediate
+harness-invalid under-delivery. A primary group route is instead already-owned
+future work: graceful drain cannot fence while it remains pending, and only its
+bounded eligibility expiry becomes harness-invalid before SEND registration.
 No historical user or channel owns a goroutine, timer, or retained map row.
 
 Attempt zero plus retries one through three reuse the same Phase 2 logical

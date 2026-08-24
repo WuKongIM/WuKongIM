@@ -1538,7 +1538,11 @@ func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
 	for {
 		drain := g.verifier.DrainSnapshot()
 		if drain.PendingUnfinished == 0 && drain.CorrelationOutstanding == 0 {
-			return g.engine.FencePlannedShutdown(ctx)
+			if err := g.engine.FencePlannedShutdown(ctx); err == nil {
+				return nil
+			} else if !errors.Is(err, errEngineNotDrained) {
+				return err
+			}
 		}
 		if _, err := g.engine.AdvanceContext(ctx, g.clock.Now()); err != nil {
 			return err
@@ -1678,7 +1682,8 @@ func productFirstAttemptFailures(verification VerifierSnapshot) (uint64, bool) {
 
 func workerQueueSnapshot(engine EngineSnapshot) WorkerQueueSnapshot {
 	return WorkerQueueSnapshot{
-		WorkCurrent: engine.QueueCurrent, WorkPeak: engine.QueuePeak, WorkCapacity: engine.QueueCapacity,
+		WorkCurrent: engine.QueueCurrent, DeferredGroupRoutes: engine.DeferredGroupRoutes,
+		WorkPeak: engine.QueuePeak, WorkCapacity: engine.QueueCapacity,
 		RetryCurrent: engine.RetryQueueDepth, RetryPeak: engine.RetryQueuePeak, RetryCapacity: engine.RetryQueueCapacity,
 		InflightCurrent: engine.InflightCurrent, InflightPeak: engine.InflightPeak, InflightCapacity: engine.InflightCapacity,
 		TransportCurrent: engine.TransportQueueDepth, TransportCapacity: engine.TransportQueueCapacity,

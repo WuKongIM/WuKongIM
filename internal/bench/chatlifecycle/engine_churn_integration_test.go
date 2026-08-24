@@ -61,6 +61,89 @@ func TestEngineLocalThreeNodeGrantsSurviveFirstSessionChurn(t *testing.T) {
 	}
 }
 
+func TestEngineFormalWorkerOneSurvivesFirstCloudGrantWindow(t *testing.T) {
+	const (
+		workerID    = uint64(1)
+		workerCount = uint64(3)
+	)
+	config := FormalConfig()
+	limits, err := workerEngineLimitsFor(WorkerAssignment{
+		WorkerID: workerID, WorkerCount: workerCount, Config: config,
+	})
+	if err != nil {
+		t.Fatalf("workerEngineLimitsFor: %v", err)
+	}
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		Formal: true, WorkerID: workerID, WorkerCount: workerCount,
+		IdentityRunID: "chat-20260823T232033Z-5128d68f-repair-1", IdentitySeed: 1,
+		CommandCapacity: limits.command, WorkCapacity: limits.work,
+		InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
+		StartingCapacity: limits.starting,
+	})
+	fixture.engine.generator.primaryOrdinal = 67_170
+	failedIntent, err := fixture.engine.generator.primaryIntent()
+	if err != nil {
+		t.Fatalf("reconstruct failed cloud intent: %v", err)
+	}
+	groupIndex, ok := fixture.engine.generator.catalog.IndexFromGroupID(failedIntent.ChannelID)
+	if !ok {
+		t.Fatalf("failed cloud group ID is invalid: %q", failedIntent.ChannelID)
+	}
+	group, groupErr := fixture.engine.generator.catalog.Group(groupIndex)
+	if groupErr != nil {
+		t.Fatalf("failed cloud group: %v", groupErr)
+	}
+	correlate, correlateErr := fixture.verifier.ShouldCorrelate(failedIntent.Logical)
+	if correlateErr != nil {
+		t.Fatalf("failed cloud correlation decision: %v", correlateErr)
+	}
+	if failedIntent.Kind != TrafficGroup || group.Category != GroupSmall || group.MemberCount != 6 || group.Index != 181 || !correlate {
+		t.Fatalf("reconstructed cloud failure = intent %+v group %+v sampled=%t", failedIntent, group, correlate)
+	}
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	now := fixture.clock.Now()
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
+	waitForEngineCompletions(t, fixture.engine, "formal bootstrap")
+
+	allocator, err := NewRateAllocator(2_000, 4_000, []int64{1, 1, 1})
+	if err != nil {
+		t.Fatalf("NewRateAllocator: %v", err)
+	}
+	for second := 0; second < 310; second++ {
+		if second > 0 {
+			now = now.Add(time.Second)
+			fixture.clock.Set(now)
+			if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
+				t.Fatalf("Step(%d): %v", second, err)
+			}
+		}
+		rate, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+		if err != nil {
+			t.Fatalf("rate Tick(%d): %v", second, err)
+		}
+		grant, err := fixture.engine.ApplyGrant(context.Background(), now, rate.Released[workerID])
+		if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[workerID] {
+			snapshot, snapshotErr := fixture.engine.Snapshot()
+			t.Fatalf("grant second %d release %d = %+v, %v; snapshot=%+v snapshot_error=%v",
+				second, rate.Released[workerID], grant, err, snapshot, snapshotErr)
+		}
+		waitForEngineCompletions(t, fixture.engine, "formal cloud grant")
+	}
+	final, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if final.HarnessInvalid != 0 || final.ActivityUnderDelivered != 0 {
+		t.Fatalf("formal cloud grant window retained harness failure: %+v", final)
+	}
+}
+
 func TestEngineFormalFixedLifecycleCohortRetainsExactReheatSenders(t *testing.T) {
 	const workerCount = 3
 	assignment := mustInitialLifecycleSlotAssignment(t)
