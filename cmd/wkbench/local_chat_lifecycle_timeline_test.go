@@ -505,6 +505,7 @@ func TestLocalChatLifecycleTimelineCommandFailsClosedOnMalformedMatchingEvent(t 
 		line string
 	}{
 		{name: "unknown field", line: valid[:len(valid)-1] + `,"unexpected":1}`},
+		{name: "unknown lifecycle approval rejection", line: strings.Replace(valid, `"replay_mismatch":0`, `"replay_mismatch":0,"unexpected":1`, 1)},
 		{name: "broken newline-terminated tail", line: valid[:len(valid)-17]},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -978,7 +979,7 @@ func workerStatusTerminalFailureCutTestLine(runID, at string, sent, acknowledged
 }
 
 func workerStatusCutTestLine(runID, at, cut string, sent, acknowledged, retry, generationStop, sessionClosed uint64) string {
-	return fmt.Sprintf(`{"event":"wkbench.chat_lifecycle.worker_status_cut","run_id":%q,"at":%q,"cut":%q,"totals":{"target":2500,"online":2500,"starting":0,"closing":0,"traffic_ready":2500},"close_reasons":{"expired":0,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":%d,"explicit_logout":0,"transport_close_failed":0},"messages":{"sent":%d,"send_attempts":%d,"first_attempts":%d,"first_attempt_failures":0,"send_acknowledged":%d,"send_rejected":0,"received":0,"receive_acknowledged":0,"receive_ack_failures":0,"retry_attempts":%d,"terminal":%d,"terminal_reasons":{"retry_exhausted":{"total":0,"attempt_timeout":0,"local_admission":0,"transport_error":0,"retryable_sendack":0,"unclassified":0},"non_retriable":0,"session_closed":%d},"losses":0,"duplicates":0,"corruptions":0,"sequence_regressions":0},"harness":{"failures":0,"command_saturation":0,"offered_underdelivery":0,"planned_cancellations":0,"drain_timed_out":false,"unexpected_exit":false}}`,
+	return fmt.Sprintf(`{"event":"wkbench.chat_lifecycle.worker_status_cut","run_id":%q,"at":%q,"cut":%q,"totals":{"target":2500,"online":2500,"starting":0,"closing":0,"traffic_ready":2500},"close_reasons":{"expired":0,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":%d,"explicit_logout":0,"transport_close_failed":0},"messages":{"sent":%d,"send_attempts":%d,"first_attempts":%d,"first_attempt_failures":0,"send_acknowledged":%d,"send_rejected":0,"received":0,"receive_acknowledged":0,"receive_ack_failures":0,"retry_attempts":%d,"terminal":%d,"terminal_reasons":{"retry_exhausted":{"total":0,"attempt_timeout":0,"local_admission":0,"transport_error":0,"retryable_sendack":0,"unclassified":0},"non_retriable":0,"session_closed":%d},"losses":0,"duplicates":0,"corruptions":0,"sequence_regressions":0},"harness":{"failures":0,"command_saturation":0,"offered_underdelivery":0,"planned_cancellations":0,"lifecycle_approval_rejections":{"missing_timer":0,"invalid_shape":0,"timer_fence":0,"activity_fence":0,"invalidated":0,"fence_exhausted":0,"deadline":0,"replay_expired":0,"replay_mismatch":0},"drain_timed_out":false,"unexpected_exit":false}}`,
 		runID, at, cut, generationStop, sent, sent+retry, sent, acknowledged, retry, sessionClosed, sessionClosed)
 }
 

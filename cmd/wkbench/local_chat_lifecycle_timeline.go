@@ -618,6 +618,15 @@ func validateLocalWorkerCutKeys(line []byte) error {
 	if err := requireLocalTimelineHarnessKeys(harness); err != nil {
 		return err
 	}
+	var lifecycleApprovalRejections map[string]json.RawMessage
+	if err := json.Unmarshal(harness["lifecycle_approval_rejections"], &lifecycleApprovalRejections); err != nil {
+		return err
+	}
+	if err := requireExactLocalTimelineKeys(lifecycleApprovalRejections,
+		"missing_timer", "invalid_shape", "timer_fence", "activity_fence", "invalidated",
+		"fence_exhausted", "deadline", "replay_expired", "replay_mismatch"); err != nil {
+		return err
+	}
 	var messages map[string]json.RawMessage
 	if err := json.Unmarshal(outer["messages"], &messages); err != nil {
 		return err
@@ -637,7 +646,7 @@ func validateLocalWorkerCutKeys(line []byte) error {
 }
 
 func requireLocalTimelineHarnessKeys(object map[string]json.RawMessage) error {
-	required := []string{"failures", "command_saturation", "offered_underdelivery", "planned_cancellations", "drain_timed_out", "unexpected_exit"}
+	required := []string{"failures", "command_saturation", "offered_underdelivery", "planned_cancellations", "lifecycle_approval_rejections", "drain_timed_out", "unexpected_exit"}
 	if len(object) != len(required) && len(object) != len(required)+1 {
 		return errors.New("worker status cut has missing or unknown fields")
 	}
