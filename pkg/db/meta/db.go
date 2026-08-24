@@ -8,6 +8,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
 
+const channelCacheCapacity = 8192
+
 // MetaDB owns hash-slot-scoped metadata storage.
 type MetaDB struct {
 	engine    *engine.DB
@@ -17,7 +19,7 @@ type MetaDB struct {
 	shards     map[HashSlot]*Shard
 	shardLocks map[HashSlot]*sync.Mutex
 
-	channelCache map[string]Channel
+	channelCache *channelReadCache
 	testLocked   []HashSlot
 }
 
@@ -27,7 +29,7 @@ func NewDB(engine *engine.DB) *MetaDB {
 		engine:       engine,
 		shards:       make(map[HashSlot]*Shard),
 		shardLocks:   make(map[HashSlot]*sync.Mutex),
-		channelCache: make(map[string]Channel),
+		channelCache: newChannelReadCache(channelCacheCapacity),
 	}
 	if engine != nil {
 		db.committer = commit.NewCoordinator(engine, commit.Config{
@@ -107,35 +109,36 @@ func (db *MetaDB) testLockedOrder() []HashSlot {
 }
 
 func (db *MetaDB) rememberChannel(cacheKey []byte, channel Channel) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	if db.channelCache == nil {
-		db.channelCache = make(map[string]Channel)
+	if db == nil || db.channelCache == nil {
+		return
 	}
-	db.channelCache[string(cacheKey)] = channel
+	db.channelCache.put(string(cacheKey), channel)
 }
 
 func (db *MetaDB) cachedChannel(cacheKey []byte) (Channel, bool) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	channel, ok := db.channelCache[string(cacheKey)]
-	return channel, ok
+	if db == nil || db.channelCache == nil {
+		return Channel{}, false
+	}
+	return db.channelCache.get(string(cacheKey))
 }
 
 func (db *MetaDB) forgetChannel(cacheKey []byte) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	delete(db.channelCache, string(cacheKey))
+	if db == nil || db.channelCache == nil {
+		return
+	}
+	db.channelCache.remove(string(cacheKey))
 }
 
 func (db *MetaDB) clearChannelCache() {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	db.channelCache = make(map[string]Channel)
+	if db == nil || db.channelCache == nil {
+		return
+	}
+	db.channelCache.clear()
 }
 
 func (db *MetaDB) channelCacheSize() int {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	return len(db.channelCache)
+	if db == nil || db.channelCache == nil {
+		return 0
+	}
+	return db.channelCache.size()
 }

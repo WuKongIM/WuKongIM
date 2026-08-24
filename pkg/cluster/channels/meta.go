@@ -16,6 +16,22 @@ type ChannelMetaSource interface {
 	ResolveChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error)
 }
 
+// ChannelMetaResult is one aligned authoritative metadata outcome.
+type ChannelMetaResult struct {
+	// Meta contains normalized metadata when Found is true.
+	Meta ch.Meta
+	// Found distinguishes an absent source from an item failure.
+	Found bool
+	// Err contains an item-scoped resolve or validation failure.
+	Err error
+}
+
+// ChannelMetaBatchSource resolves authoritative metadata with results aligned
+// to the input IDs. Item failures must not discard successful siblings.
+type ChannelMetaBatchSource interface {
+	ResolveChannelMetas(context.Context, []ch.ChannelID) []ChannelMetaResult
+}
+
 // ChannelMetaEnsurer resolves metadata and may create it for append admission.
 type ChannelMetaEnsurer interface {
 	// EnsureChannelMeta returns metadata for id, creating the initial record when needed.
@@ -26,6 +42,11 @@ type ChannelMetaEnsurer interface {
 type RuntimeMetaReader interface {
 	// GetChannelRuntimeMeta reads one authoritative runtime metadata record.
 	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
+}
+
+// RuntimeMetaBatchReader returns one authoritative runtime-metadata outcome per key.
+type RuntimeMetaBatchReader interface {
+	BatchReadChannelRuntimeMetas(context.Context, []metadb.ChannelKey) ([]RuntimeMetaReadResult, error)
 }
 
 // RuntimeMetaWriter persists authoritative ChannelRuntimeMeta through Slot ownership.
@@ -163,5 +184,7 @@ func ctxErr(ctx context.Context) error {
 }
 
 var _ ChannelMetaSource = (*SlotMetaSource)(nil)
+var _ ChannelMetaBatchSource = (*SlotMetaSource)(nil)
+var _ ChannelMetaBatchSource = (*StaticMetaSource)(nil)
 var _ ChannelMetaEnsurer = (*SlotMetaSource)(nil)
 var _ ChannelMetaEnsurer = (*StaticMetaSource)(nil)

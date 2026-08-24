@@ -30,6 +30,8 @@ It does not own product business policy or expose engine-specific APIs.
 3. Snapshot and restore cover registered row, index, and system spans; restore
    installs isolated portable metadata, replays ordered Slot FSM commands, and
    verifies canonical digests.
+4. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and
+   restore invalidate affected or complete cache state after durable commit.
 
 ## Invariants and Failure Semantics
 
@@ -44,6 +46,8 @@ It does not own product business policy or expose engine-specific APIs.
   and deduplication.
 - Runtime metadata, Channel latest sequence, and event reducers stay monotonic
   and idempotent; create-only runtime batches never overwrite existing rows.
+- The Channel read cache is capacity-bounded, independently locked from shard
+  lookup, and exposes current entries and capacity through `MetricsSnapshot`.
 
 ## Read First
 

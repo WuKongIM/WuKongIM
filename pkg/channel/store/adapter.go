@@ -348,7 +348,9 @@ type ReadCommittedRequest struct {
 	Reverse bool
 }
 
-// ReadCommittedResult contains committed messages from storage.
+// ReadCommittedResult contains committed messages from storage. Messages and
+// their payloads are owned by the caller and remain valid after the store
+// handle is closed; callers may transfer that ownership without cloning.
 type ReadCommittedResult struct {
 	Messages []ch.Message
 	NextSeq  uint64

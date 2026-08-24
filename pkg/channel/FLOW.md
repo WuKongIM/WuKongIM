@@ -60,6 +60,8 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
   and makes writes ready only after the deterministic current-term barrier.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
+  Committed-read results own their payload bytes beyond store-handle closure,
+  so upper layers may transfer them without another deep copy.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must

@@ -110,6 +110,36 @@ func BenchmarkChannelCachedGet(b *testing.B) {
 	}
 }
 
+func BenchmarkChannelCachedGetParallel(b *testing.B) {
+	ctx := context.Background()
+	store := openTestMetaStore(b)
+	defer store.close(b)
+	fixture := buildBenchmarkMetaFixture(b, store.db, 1, benchmarkMetaFixtureConfig{
+		ChannelIDs:   64,
+		ChannelTypes: 1,
+	})
+	shard := store.db.HashSlot(1)
+	for _, channelID := range fixture.ChannelIDs {
+		if _, ok, err := shard.GetChannel(ctx, channelID, 1); err != nil || !ok {
+			b.Fatalf("warm GetChannel(%q) ok=%v err=%v", channelID, ok, err)
+		}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		index := 0
+		for pb.Next() {
+			channelID := fixture.ChannelIDs[index%len(fixture.ChannelIDs)]
+			if _, ok, err := shard.GetChannel(ctx, channelID, 1); err != nil || !ok {
+				b.Errorf("GetChannel(%d) ok=%v err=%v", index, ok, err)
+				return
+			}
+			index++
+		}
+	})
+}
+
 func BenchmarkSubscriberAddPage(b *testing.B) {
 	b.Run("add", func(b *testing.B) {
 		ctx := context.Background()

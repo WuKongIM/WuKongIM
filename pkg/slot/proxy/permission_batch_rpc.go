@@ -106,7 +106,7 @@ func (s *Store) ReadPermissionMetadataBatch(ctx context.Context, reads []Permiss
 	for slotID, items := range grouped {
 		groups = append(groups, permissionMetadataSlotGroup{slotID: slotID, items: items})
 	}
-	runPermissionMetadataSlotWorkers(len(groups), func(groupIndex int) {
+	runSlotMetadataBatchWorkers(goruntimeregistry.TaskSlotPermissionBatch, len(groups), func(groupIndex int) {
 		group := groups[groupIndex]
 		groupReads := make([]PermissionMetadataRead, len(group.items))
 		for i := range group.items {
@@ -133,7 +133,7 @@ func (s *Store) ReadPermissionMetadataBatch(ctx context.Context, reads []Permiss
 	return results
 }
 
-func runPermissionMetadataSlotWorkers(groupCount int, run func(int)) {
+func runSlotMetadataBatchWorkers(task goruntimeregistry.TaskID, groupCount int, run func(int)) {
 	workers := min(groupCount, permissionBatchSlotWorkers)
 	if workers <= 1 {
 		for i := 0; i < groupCount; i++ {
@@ -154,7 +154,7 @@ func runPermissionMetadataSlotWorkers(groupCount int, run func(int)) {
 	var wait sync.WaitGroup
 	wait.Add(workers - 1)
 	for range workers - 1 {
-		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskSlotPermissionBatch, func() {
+		goruntimeregistry.SafeGo(nil, task, func() {
 			defer wait.Done()
 			worker()
 		})

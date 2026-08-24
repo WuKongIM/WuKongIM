@@ -36,6 +36,9 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
    forwarding, and follows the leader for authoritative reads. Person-directory
    commands prepare bounded UID membership/runtime metadata before publishing
    ready only after every prepare group succeeds.
+   Runtime-metadata read batches accept at most 4,096 keys, group them by
+   physical Slot, use at most four supervised workers, and preserve item-scoped
+   missing or Slot failures.
 2. A Multi-Raft worker persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.

@@ -43,6 +43,9 @@ It does not own Manager or product business policy.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded.
+4. Conversation hydration batch-reads business lifecycle and runtime route
+   metadata by physical Slot, preserves input alignment and item errors, then
+   groups committed-head reads by exact Channel Leader.
 
 ## Invariants and Failure Semantics
 

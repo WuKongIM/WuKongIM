@@ -42,6 +42,8 @@ It does not subscribe users, deliver messages, or implement storage and transpor
   conversation without a last message.
 - SEND, receive, delivery, and pull never mutate `read_seq` or `activated_at`.
 - The opaque cursor contains `(ActivatedAt, ChannelID, ChannelType)` only.
+- Hydrated payload bytes are cloned once into usecase-owned immutable data and
+  may then be transferred through synchronous response adapters without another copy.
 
 ## Read First
 

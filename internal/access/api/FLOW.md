@@ -64,6 +64,8 @@ bench or debug request
   Channel labels.
 - The adapter never writes storage, resolves distributed authority, or performs
   post-commit effects directly.
+- Conversation-list serialization borrows the usecase-owned immutable payload
+  only for the synchronous response write; it does not retain it afterward.
 
 ## Read First
 

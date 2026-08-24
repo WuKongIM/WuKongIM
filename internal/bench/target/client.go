@@ -611,7 +611,7 @@ func conversationSyncRow(item conversationListItem) ConversationSyncConversation
 			MessageID: item.LastMessage.MessageID, MessageIDStr: item.LastMessage.MessageIDStr,
 			MessageSeq: item.LastMessage.MessageSeq, ClientMsgNo: item.LastMessage.ClientMsgNo,
 			FromUID: item.LastMessage.FromUID, ServerTimestampMS: item.LastMessage.ServerTimestampMS,
-			Payload: append([]byte(nil), item.LastMessage.Payload...),
+			Payload: item.LastMessage.Payload,
 		}
 	}
 	return row

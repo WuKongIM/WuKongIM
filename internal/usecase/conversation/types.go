@@ -103,7 +103,8 @@ type LastMessage struct {
 	ClientMsgNo string
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
 	ServerTimestampMS int64
-	// Payload stores the durable message payload.
+	// Payload stores caller-owned immutable durable message bytes. Response
+	// adapters may retain this slice until synchronous serialization completes.
 	Payload []byte
 }
 

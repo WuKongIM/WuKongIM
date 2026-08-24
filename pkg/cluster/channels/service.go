@@ -56,7 +56,8 @@ type ForwardClient interface {
 	ForwardAppendBatch(context.Context, ch.NodeID, ch.AppendBatchRequest) (ch.AppendBatchResult, error)
 	// ForwardLastVisible forwards one last-visible message read to node.
 	ForwardLastVisible(context.Context, ch.NodeID, LastVisibleRequest) (LastVisibleResponse, error)
-	// ForwardConversationHeads forwards one aligned conversation-head batch to node.
+	// ForwardConversationHeads forwards one aligned conversation-head batch to
+	// node. A successful response transfers ownership of message payloads to the caller.
 	ForwardConversationHeads(context.Context, ch.NodeID, ConversationHeadsRequest) (ConversationHeadsResponse, error)
 	// ForwardCommittedReads forwards one aligned committed-message batch to node.
 	ForwardCommittedReads(context.Context, ch.NodeID, CommittedReadsRequest) (CommittedReadsResponse, error)
@@ -149,7 +150,8 @@ type ConversationHeadResult struct {
 
 // ConversationHeadsResponse preserves request item ordering.
 type ConversationHeadsResponse struct {
-	// Items is positionally aligned with ConversationHeadsRequest.Items.
+	// Items is positionally aligned with ConversationHeadsRequest.Items. Message
+	// payloads are response-owned immutable bytes transferred to the caller.
 	Items []ConversationHeadResult
 }
 
@@ -486,6 +488,11 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 	if len(ids) == 0 {
 		return results, nil
 	}
+	metaResults, err := s.resolveReadMetas(ctx, ids)
+	if err != nil {
+		resultLabel = "error"
+		return nil, err
+	}
 	type remoteItem struct {
 		index   int
 		request ConversationHeadRequest
@@ -497,12 +504,13 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 			resultLabel = "error"
 			return nil, err
 		}
-		meta, ok, err := s.resolveReadMeta(ctx, id)
-		if err != nil {
-			results[index].Err = err
+		metaResult := metaResults[index]
+		meta := metaResult.Meta
+		if metaResult.Err != nil {
+			results[index].Err = metaResult.Err
 			continue
 		}
-		if !ok || meta.Leader == 0 {
+		if !metaResult.Found || meta.Leader == 0 {
 			results[index].Err = ch.ErrNotReady
 			continue
 		}
@@ -568,9 +576,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 		}
 		localReads += len(items)
 		for index, item := range items {
-			result := response.Items[index]
-			result.Head.Message.Payload = append([]byte(nil), result.Head.Message.Payload...)
-			results[item.index] = result
+			results[item.index] = response.Items[index]
 		}
 	}
 	return results, nil
@@ -594,8 +600,17 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 	response := ConversationHeadsResponse{Items: make([]ConversationHeadResult, len(req.Items))}
 	localItems := make([]ConversationHeadRequest, 0, len(req.Items))
 	localIndexes := make([]int, 0, len(req.Items))
+	ids := make([]ch.ChannelID, len(req.Items))
+	for i, item := range req.Items {
+		ids[i] = item.ChannelID
+	}
+	metaResults, err := s.resolveReadMetas(ctx, ids)
+	if err != nil {
+		return ConversationHeadsResponse{}, err
+	}
 	for index, item := range req.Items {
-		meta, ok, err := s.resolveReadMeta(ctx, item.ChannelID)
+		metaResult := metaResults[index]
+		meta, ok, err := metaResult.Meta, metaResult.Found, metaResult.Err
 		if err != nil && !canFallbackConversationHeadOnMissingMeta(s.localNode, item, err) {
 			response.Items[index].Err = err
 			continue
@@ -983,7 +998,6 @@ func readLastOrdinaryCommitted(ctx context.Context, store channelstore.ChannelSt
 		}
 		for _, message := range read.Messages {
 			if !message.SyncOnce {
-				message.Payload = append([]byte(nil), message.Payload...)
 				return message, true, nil
 			}
 		}
@@ -1410,6 +1424,36 @@ func (s *Service) resolveReadMeta(ctx context.Context, id ch.ChannelID) (ch.Meta
 		return ch.Meta{}, true, err
 	}
 	return normalizeAppendMeta(id, meta)
+}
+
+func (s *Service) resolveReadMetas(ctx context.Context, ids []ch.ChannelID) ([]ChannelMetaResult, error) {
+	results := make([]ChannelMetaResult, len(ids))
+	if s == nil || s.metaSource == nil {
+		return results, nil
+	}
+	if source, ok := s.metaSource.(ChannelMetaBatchSource); ok {
+		batchResults := source.ResolveChannelMetas(ctx, ids)
+		if len(batchResults) != len(ids) {
+			return nil, ch.ErrInvalidConfig
+		}
+		for i, id := range ids {
+			if batchResults[i].Err != nil || !batchResults[i].Found {
+				results[i] = batchResults[i]
+				continue
+			}
+			meta, found, err := normalizeAppendMeta(id, batchResults[i].Meta)
+			results[i] = ChannelMetaResult{Meta: meta, Found: found, Err: err}
+		}
+		return results, nil
+	}
+	for i, id := range ids {
+		if err := ctxErr(ctx); err != nil {
+			return nil, err
+		}
+		meta, found, err := s.resolveReadMeta(ctx, id)
+		results[i] = ChannelMetaResult{Meta: meta, Found: found, Err: err}
+	}
+	return results, nil
 }
 
 func normalizeAppendMeta(id ch.ChannelID, meta ch.Meta) (ch.Meta, bool, error) {

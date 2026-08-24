@@ -46,6 +46,8 @@ closure, dependency order, and restart policy.
 - Terminal prepare, Gateway SEND drain, UID membership fanout, and Channel
   quorum pools use fixed task identities; run, user, Channel, Slot, peer,
   authority, and capability values remain ordinary data.
+- Permission and runtime-metadata batch fanout use distinct fixed Slot task
+  identities and bounded worker cohorts.
 
 ## Read First
 

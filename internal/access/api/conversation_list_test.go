@@ -319,6 +319,29 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 	}
 }
 
+func BenchmarkConversationListResponse200LargePayload(b *testing.B) {
+	payload := bytes.Repeat([]byte("x"), 32767)
+	result := conversationusecase.ListResult{Items: make([]conversationusecase.Conversation, 200), Done: true}
+	for i := range result.Items {
+		result.Items[i] = conversationusecase.Conversation{
+			ChannelID: "benchmark-group", ChannelType: int64(frame.ChannelTypeGroup),
+			LastMessage: &conversationusecase.LastMessage{MessageID: uint64(i + 1), MessageSeq: uint64(i + 1), Payload: payload},
+		}
+	}
+	b.ReportAllocs()
+	b.SetBytes(int64(len(payload) * len(result.Items)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		encoded, err := json.Marshal(newConversationListResponse("u1", result))
+		if err != nil {
+			b.Fatal(err)
+		}
+		conversationListBenchmarkSink = encoded
+	}
+}
+
+var conversationListBenchmarkSink []byte
+
 func assertJSONFieldAbsent(t *testing.T, body []byte, field string) {
 	t.Helper()
 	var decoded map[string]any

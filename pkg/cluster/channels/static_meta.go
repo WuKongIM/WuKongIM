@@ -39,6 +39,16 @@ func (s *StaticMetaSource) ResolveChannelMeta(ctx context.Context, id ch.Channel
 	return cloneMeta(meta), nil
 }
 
+// ResolveChannelMetas returns one immutable metadata result per input ID.
+func (s *StaticMetaSource) ResolveChannelMetas(ctx context.Context, ids []ch.ChannelID) []ChannelMetaResult {
+	results := make([]ChannelMetaResult, len(ids))
+	for i, id := range ids {
+		meta, err := s.ResolveChannelMeta(ctx, id)
+		results[i] = ChannelMetaResult{Meta: meta, Found: err == nil, Err: err}
+	}
+	return results
+}
+
 // EnsureChannelMeta returns existing static metadata for append admission.
 func (s *StaticMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
 	return s.ResolveChannelMeta(ctx, id)
