@@ -23,9 +23,10 @@ const (
 	lifecycleMinimumColdObservationWindow = time.Minute
 	// lifecycleReheatAdmissionReserve keeps the deterministic SEND due time
 	// separate from the control-plane deadline. One all-node probe and one
-	// worker approval each have a five-second bound; the final second covers
-	// scheduler and serialization delay without moving the scheduled SEND.
-	lifecycleReheatAdmissionReserve = 11 * time.Second
+	// worker approval each have a five-second bound; the remaining twenty
+	// seconds cover cloud scheduling and serialization jitter without moving
+	// the scheduled SEND.
+	lifecycleReheatAdmissionReserve = 30 * time.Second
 	lifecycleReheatDeadline         = 5 * time.Second
 	lifecycleMaxProbeBatch          = 1_200
 	lifecycleMaxProbeParallel       = 32

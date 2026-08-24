@@ -545,6 +545,55 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	}
 }
 
+func TestLifecycleCandidateReheatAdmissionSurvivesBoundedControlPipeline(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		work := &engineWork{
+			due: now.Add(minimumRevisitDelay), eligibilityDeadline: now.Add(minimumRevisitDelay + time.Minute),
+			kind: engineWorkLifecycle, edge: edge,
+			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+			lifecycleTimerToken: 41, activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(
+		context.Background(), 1, mustInitialLifecycleSlotAssignment(t), fixture.clock.Now(),
+	)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("lease = %+v, %v", candidates, err)
+	}
+	candidate := candidates[0]
+	// The production controller performs one bounded all-node probe followed by
+	// one bounded worker approval. Leave five additional seconds for remote
+	// scheduling and command-queue jitter observed by the owner clock.
+	controlPipeline := 2*observerMaxRoundTimeout + 5*time.Second
+	if candidate.ReheatAt.Sub(candidate.QuietDeadline) <= controlPipeline {
+		t.Fatalf("reheat admission reserve = %v, want more than bounded control pipeline %v",
+			candidate.ReheatAt.Sub(candidate.QuietDeadline), controlPipeline)
+	}
+	fixture.clock.Set(candidate.QuietDeadline.Add(controlPipeline))
+	approved, err := fixture.engine.ApproveColdRevisitContext(
+		context.Background(), candidate.ChannelID, candidate.TimerToken, candidate.ActivityVersion,
+	)
+	if err != nil || !approved {
+		t.Fatalf("bounded control pipeline approval = %v, %v", approved, err)
+	}
+}
+
 func TestLifecycleCandidateEngineBatchApprovalIsAtomic(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{})
 	if err := fixture.engine.Start(context.Background()); err != nil {
