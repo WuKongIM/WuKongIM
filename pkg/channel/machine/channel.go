@@ -104,6 +104,9 @@ type AppendBatchWaiter struct {
 	OmitResultPayload bool
 	// Records are the client records contributed by this waiter.
 	Records []ch.Record
+	// PayloadsImmutable promises that Records payload buffers have an owner that
+	// will never mutate them, so state-machine record copies may share the bytes.
+	PayloadsImmutable bool
 	// ServerAllocatedMessageIDs proves every record ID in this waiter came from the server allocator.
 	ServerAllocatedMessageIDs bool
 }

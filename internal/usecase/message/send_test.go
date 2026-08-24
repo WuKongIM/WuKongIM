@@ -89,6 +89,106 @@ func TestSendBatchObservesBoundedStages(t *testing.T) {
 	}
 }
 
+func TestSendBatchEachSingleItemStaysWithinAllocationBudget(t *testing.T) {
+	app := New(Options{Submitter: benchmarkMessageSubmitter{}})
+	items := []SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("one"),
+	}}}
+	var result SendBatchItemResult
+	emit := func(index int, item SendBatchItemResult) error {
+		if index != 0 {
+			return fmt.Errorf("emitted index = %d, want 0", index)
+		}
+		result = item
+		return nil
+	}
+	var sendErr error
+	allocs := testing.AllocsPerRun(100, func() {
+		sendErr = app.SendBatchEach(items, emit)
+	})
+	if sendErr != nil || result.Err != nil || result.Result.Reason != ReasonSuccess {
+		t.Fatalf("SendBatchEach() = %#v, %v, want success", result, sendErr)
+	}
+	if allocs > 16 {
+		t.Fatalf("SendBatchEach() allocations = %.0f, want <= 16 for one item", allocs)
+	}
+}
+
+func TestSendBatchEachSingleItemPreservesDirectoryBeforeHookOrder(t *testing.T) {
+	steps := make([]string, 0, 2)
+	app := New(Options{
+		PersonDirectory: orderedPersonDirectoryEnsurer{steps: &steps},
+		SendHook:        orderedSendHook{steps: &steps},
+		Submitter:       benchmarkMessageSubmitter{},
+	})
+	items := []SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson, Payload: []byte("one"),
+	}}}
+
+	err := app.SendBatchEach(items, func(_ int, result SendBatchItemResult) error {
+		return result.Err
+	})
+	if err != nil {
+		t.Fatalf("SendBatchEach() error = %v", err)
+	}
+	if want := []string{"directory", "hook"}; !reflect.DeepEqual(steps, want) {
+		t.Fatalf("single-item pre-append order = %v, want %v", steps, want)
+	}
+}
+
+func TestSendBatchEachSingleItemNormalizesNilPermissionBatchContext(t *testing.T) {
+	base := newFakePermissionStore()
+	base.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{
+		ChannelID: "g1", ChannelType: int64(channelTypeGroup),
+	}
+	permissions := &deadlinePermissionBatchStore{recordingPermissionBatchStore: &recordingPermissionBatchStore{base: base}}
+	app := New(Options{
+		PermissionStore: permissions, PermissionBatchStore: permissions,
+		SystemUIDs: fakeSystemUIDChecker{"system": true}, Submitter: benchmarkMessageSubmitter{},
+	})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "system", ChannelID: "g1", ChannelType: channelTypeGroup,
+	}}})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("SendBatch() = %#v, want success with a normalized background context", results)
+	}
+}
+
+func TestSendBatchEachSingleItemStreamingMissingResultMatchesBatchContract(t *testing.T) {
+	app := New(Options{Submitter: missingStreamingBatchSubmitter{}})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup,
+	}}})
+	if len(results) != 1 || !errors.Is(results[0].Err, ErrSendBatchEmissionMismatch) {
+		t.Fatalf("SendBatch() = %#v, want ErrSendBatchEmissionMismatch", results)
+	}
+	if results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("missing streaming result reason = %v, want zero-value success for compatibility", results[0].Result.Reason)
+	}
+}
+
+func TestSendBatchEachSingleItemDirectoryFailureDoesNotInventPreAppendObservation(t *testing.T) {
+	directoryErr := errors.New("directory unavailable")
+	observer := &recordingSendBatchStageObserver{}
+	app := New(Options{
+		PersonDirectory:   &recordingPersonDirectoryEnsurer{err: directoryErr},
+		Submitter:         benchmarkMessageSubmitter{},
+		SendBatchObserver: observer,
+	})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson,
+	}}})
+	if len(results) != 1 || !errors.Is(results[0].Err, directoryErr) {
+		t.Fatalf("SendBatch() = %#v, want directory error", results)
+	}
+	if got, want := observer.stages(), []string{"permission"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("observed stages = %v, want %v from the existing batch contract", got, want)
+	}
+}
+
 func TestSendBatchAnnotatesSubmitterTimeoutWithConsumedDeadlineBudget(t *testing.T) {
 	deadline := time.Now().Add(100 * time.Millisecond)
 	app := New(Options{
@@ -1753,6 +1853,19 @@ type streamingBatchSubmitter struct {
 	releaseSlow chan struct{}
 }
 
+type missingStreamingBatchSubmitter struct{}
+
+func (missingStreamingBatchSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
+	return SendResult{}, nil
+}
+
+func (missingStreamingBatchSubmitter) SendBatch([]SendBatchItem) []SendBatchItemResult {
+	return nil
+}
+
+func (missingStreamingBatchSubmitter) SendBatchEach([]SendBatchItem, func(int, SendBatchItemResult)) {
+}
+
 func (s *streamingBatchSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
 	return SendResult{}, nil
 }
@@ -2072,6 +2185,20 @@ func (f fakeSystemUIDChecker) IsSystemUID(uid string) bool { return f[uid] }
 type recordingSendHook struct {
 	calls  []SendCommand
 	mutate func(SendCommand) (SendCommand, Reason, error)
+}
+
+type orderedPersonDirectoryEnsurer struct{ steps *[]string }
+
+func (e orderedPersonDirectoryEnsurer) AdmitPersonChannelDirectory(context.Context, string, int64) error {
+	*e.steps = append(*e.steps, "directory")
+	return nil
+}
+
+type orderedSendHook struct{ steps *[]string }
+
+func (h orderedSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	*h.steps = append(*h.steps, "hook")
+	return cmd, ReasonSuccess, nil
 }
 
 func (h *recordingSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, Reason, error) {

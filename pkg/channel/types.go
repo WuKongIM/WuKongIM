@@ -214,6 +214,10 @@ type AppendResult struct {
 type AppendBatchRequest struct {
 	ChannelID ChannelID
 	Messages  []Message
+	// PayloadsImmutable lets an adapter transfer payload buffers that it owns and
+	// promises never to mutate. False keeps the public borrowed-buffer behavior
+	// and makes the Channel runtime clone payloads at admission.
+	PayloadsImmutable bool
 
 	// TraceID correlates diagnostics events for this append batch.
 	TraceID string

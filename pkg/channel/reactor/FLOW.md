@@ -30,6 +30,9 @@ typed bounded workers and returns as `EventWorkerResult`.
 1. Priority mailboxes admit control, append, replication, worker-completion,
    and maintenance events under fairness and due-work budgets; appends then
    validate metadata/capacity, flush to workers, and apply fenced completions.
+   Exact durable-quorum proposals flush immediately from the reactor; the
+   MessageDB coordinator below this seam remains the physical group-commit
+   batching owner.
 2. Leaders apply `AckOffset`, serve cached or stored pulls, and advance quorum;
    followers run one continuous pull/apply chain, return progress, checkpoint
    idle HW, and activate from hints only after authoritative bounded loading.

@@ -148,6 +148,9 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	if emit == nil {
 		return ErrSendBatchEmitterRequired
 	}
+	if len(items) == 1 {
+		return a.sendBatchEachOne(items[0], emit)
+	}
 	items, cancelItemDeadlines := bindSendBatchItemDeadlines(items)
 	defer cancelItemDeadlines()
 	permissionStartedAt := time.Now()
@@ -376,6 +379,166 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 		}
 	}
 	return errors.Join(emitErr, invariantErr)
+}
+
+// sendBatchEachOne preserves the batch permission, directory, and submitter
+// contracts without allocating the multi-session scheduling tables used by a
+// real batch.
+func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemResult) error) error {
+	item, cancelDeadline := bindSendBatchItemDeadline(item)
+	defer cancelDeadline()
+	ctx := item.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	permissionStartedAt := time.Now()
+	outcome := a.resolveSingleSendPermission(ctx, item)
+	permissionResult := sendBatchStageResultOK
+	if outcome.err != nil {
+		permissionResult = sendBatchStageResultErr
+	}
+	permissionDuration := time.Since(permissionStartedAt)
+	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, 1, permissionDuration)
+	if outcome.err != nil || outcome.reason != ReasonSuccess {
+		return emit(0, SendBatchItemResult{
+			Result: SendResult{Reason: outcome.reason},
+			Err:    outcome.err,
+		})
+	}
+	item.Command.ChannelID = outcome.channelID
+
+	preAppendStartedAt := time.Now()
+	directoryErr, invariantErr := a.admitSinglePersonDirectory(ctx, item.Command, outcome.personDirectoryFact)
+	if directoryErr != nil {
+		return errors.Join(emit(0, SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: directoryErr}), invariantErr)
+	}
+	cmd, reason, err := a.beforeSendHook(ctx, item.Command)
+	if err != nil || reason != ReasonSuccess {
+		preAppendResult := sendBatchStageResultOK
+		if err != nil {
+			preAppendResult = sendBatchStageResultErr
+		}
+		a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, 1, time.Since(preAppendStartedAt))
+		return errors.Join(emit(0, SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}), invariantErr)
+	}
+	item.Command = cmd
+	preAppendDuration := time.Since(preAppendStartedAt)
+	a.observeSendBatchStage(sendBatchStagePreAppend, sendBatchStageResultOK, 1, preAppendDuration)
+
+	submitterStartedAt := time.Now()
+	result, invalidSubmission := a.submitSingleBatchItem(item)
+	result.Err = annotateSendBatchTimeout(result.Err, SendBatchFailureDiagnostics{
+		FailedStage:                sendBatchStageSubmitter,
+		Permission:                 permissionDuration,
+		PreAppend:                  preAppendDuration,
+		Submitter:                  time.Since(submitterStartedAt),
+		DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(item.Deadline, submitterStartedAt),
+	})
+	submitterResult := sendBatchStageResultOK
+	if result.Err != nil || invalidSubmission {
+		submitterResult = sendBatchStageResultErr
+	}
+	a.observeSendBatchStage(sendBatchStageSubmitter, submitterResult, 1, time.Since(submitterStartedAt))
+	return errors.Join(emit(0, result), invariantErr)
+}
+
+func bindSendBatchItemDeadline(item SendBatchItem) (SendBatchItem, context.CancelFunc) {
+	if item.Deadline.IsZero() {
+		return item, noopContextCancel
+	}
+	parent := item.Context
+	if parent == nil {
+		parent = context.Background()
+	}
+	if current, ok := parent.Deadline(); ok && !item.Deadline.Before(current) {
+		return item, noopContextCancel
+	}
+	bounded, cancel := context.WithDeadline(parent, item.Deadline)
+	item.Context = bounded
+	return item, cancel
+}
+
+func noopContextCancel() {}
+
+func (a *App) resolveSingleSendPermission(ctx context.Context, item SendBatchItem) sendBatchPermissionOutcome {
+	if a != nil && a.permissionBatch != nil && !item.Command.RequestScoped && len(item.Command.MessageScopedUIDs) == 0 {
+		items := []SendBatchItem{item}
+		groups := []sendBatchPermissionGroup{{representative: 0, indexes: []int{0}}}
+		indexes := []int{0}
+		switch item.Command.ChannelType {
+		case channelTypeGroup:
+			return a.checkGroupSendPermissionsBatch(ctx, items, groups, indexes)[0]
+		case channelTypePerson:
+			return a.checkPersonSendPermissionsBatch(ctx, items, groups, indexes)[0]
+		}
+	}
+	cmd, reason, err := a.checkSendPermission(ctx, item.Command)
+	return sendBatchPermissionOutcome{channelID: cmd.ChannelID, reason: reason, err: err}
+}
+
+func (a *App) admitSinglePersonDirectory(ctx context.Context, cmd SendCommand, fact *PersonDirectoryChannelFact) (error, error) {
+	if a == nil || a.personDirectory == nil || !sendNeedsPersonDirectory(cmd) {
+		return nil, nil
+	}
+	admission := PersonDirectoryAdmission{Context: ctx, ChannelID: cmd.ChannelID, ChannelType: int64(cmd.ChannelType), ChannelFact: fact}
+	if waves, ok := a.personDirectory.(PersonDirectoryWaveEnsurer); ok {
+		var result error
+		emitted := false
+		var invariantErr error
+		waves.AdmitPersonChannelDirectoryWaves([]PersonDirectoryAdmission{admission}, func(outcomes []PersonDirectoryAdmissionOutcome) {
+			for _, outcome := range outcomes {
+				if outcome.Index != 0 || emitted {
+					invariantErr = ErrSendBatchEmissionMismatch
+					continue
+				}
+				emitted = true
+				result = outcome.Err
+			}
+		})
+		if !emitted {
+			invariantErr = ErrSendBatchEmissionMismatch
+			result = ErrRouteNotReady
+		}
+		return result, invariantErr
+	}
+	if batch, ok := a.personDirectory.(PersonDirectoryBatchEnsurer); ok {
+		results := batch.AdmitPersonChannelDirectories([]PersonDirectoryAdmission{admission})
+		if len(results) != 1 {
+			return ErrRouteNotReady, nil
+		}
+		return results[0], nil
+	}
+	return a.personDirectory.AdmitPersonChannelDirectory(ctx, cmd.ChannelID, int64(cmd.ChannelType)), nil
+}
+
+func (a *App) submitSingleBatchItem(item SendBatchItem) (SendBatchItemResult, bool) {
+	if a == nil || a.submitter == nil {
+		return SendBatchItemResult{Err: ErrRouteNotReady}, false
+	}
+	items := []SendBatchItem{item}
+	if streaming, ok := a.submitter.(sendBatchEachSubmitter); ok {
+		var result SendBatchItemResult
+		emitted := false
+		invalid := false
+		streaming.SendBatchEach(items, func(index int, itemResult SendBatchItemResult) {
+			if index != 0 || emitted {
+				invalid = true
+				return
+			}
+			emitted = true
+			result = itemResult
+		})
+		if !emitted {
+			return SendBatchItemResult{Err: ErrSendBatchEmissionMismatch}, true
+		}
+		return result, invalid
+	}
+	results := a.submitter.SendBatch(items)
+	if len(results) != 1 {
+		return SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: ErrSendBatchEmissionMismatch}, true
+	}
+	return results[0], false
 }
 
 // bindSendBatchItemDeadlines keeps entry contexts unchanged at the adapter

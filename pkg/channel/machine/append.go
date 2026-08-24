@@ -94,7 +94,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 		if mode == 0 {
 			mode = ch.CommitModeQuorum
 		}
-		cloned := cloneRecords(waiter.Records)
+		cloned := recordsForAppendWaiter(waiter.Records, waiter.PayloadsImmutable)
 		records = append(records, cloned...)
 		waiterOpIDs = append(waiterOpIDs, waiter.OpID)
 		waiterRecordCounts = append(waiterRecordCounts, len(cloned))
@@ -379,6 +379,13 @@ func cloneRecords(in []ch.Record) []ch.Record {
 		out[i].Payload = cloneBytes(out[i].Payload)
 	}
 	return out
+}
+
+func recordsForAppendWaiter(in []ch.Record, payloadsImmutable bool) []ch.Record {
+	if !payloadsImmutable {
+		return cloneRecords(in)
+	}
+	return append([]ch.Record(nil), in...)
 }
 
 func cloneBytes(in []byte) []byte {

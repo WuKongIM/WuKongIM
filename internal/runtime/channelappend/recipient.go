@@ -63,6 +63,22 @@ type normalizedRecipientAuthoritySet struct {
 	uniqueRecipientCount int
 }
 
+// recipientDispatchScratch owns page-local indexes that can be reused after
+// each delivery plan has taken ownership of its grouped recipient storage.
+type recipientDispatchScratch struct {
+	inlineUIDs                inlineRecipientAuthorityUIDTable
+	seen                      map[string]int
+	authorityUIDs             []string
+	authorityRecipient        []bool
+	recipientAuthorityIndexes []int
+	normalizedRecipients      []Recipient
+	groups                    []recipientAuthorityGroup
+	deliveryOrder             []int
+	authorityGroupIndexes     []int
+	recipientGroupIndexes     []int
+	firstGroupByHashSlot      [256]uint32
+}
+
 type recipientAuthorityGroup struct {
 	// target is the exact fenced authority shared by this group.
 	target RecipientAuthorityTarget
@@ -127,6 +143,7 @@ func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, even
 	pageSize := boundedPositive(ports.subscriberPageSize, defaultSubscriberScanPageSize)
 	cursor := ""
 	var result recipientDispatchResult
+	var scratch recipientDispatchScratch
 	for {
 		previousCursor := cursor
 		if err := contextErr(ctx); err != nil {
@@ -146,7 +163,7 @@ func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, even
 				RecipientCount: len(page.Recipients),
 			})
 		}
-		_, dispatchErr := dispatchRecipientSetResultForMode(ctx, mode, event, page.Recipients, ports)
+		_, dispatchErr := dispatchRecipientSetResultForModeWithScratch(ctx, mode, event, page.Recipients, ports, &scratch)
 		if dispatchErr != nil {
 			return result, dispatchErr
 		}
@@ -203,11 +220,16 @@ func dispatchRecipientSetResult(ctx context.Context, event CommittedEnvelope, re
 }
 
 func dispatchRecipientSetResultForMode(ctx context.Context, mode onlinedelivery.Mode, event CommittedEnvelope, recipients []Recipient, ports commitPorts) (recipientSetDispatchResult, error) {
+	var scratch recipientDispatchScratch
+	return dispatchRecipientSetResultForModeWithScratch(ctx, mode, event, recipients, ports, &scratch)
+}
+
+func dispatchRecipientSetResultForModeWithScratch(ctx context.Context, mode onlinedelivery.Mode, event CommittedEnvelope, recipients []Recipient, ports commitPorts, scratch *recipientDispatchScratch) (recipientSetDispatchResult, error) {
 	enqueuer := ports.deliveryEnqueuer
 	if len(recipients) == 0 || enqueuer == nil {
 		return recipientSetDispatchResult{}, nil
 	}
-	normalized := normalizeRecipientsForAuthorityResolution(event.FromUID, recipients, false)
+	normalized := normalizeRecipientsForAuthorityResolutionWithScratch(recipients, scratch)
 	if len(normalized.recipients) == 0 {
 		return recipientSetDispatchResult{}, nil
 	}
@@ -221,7 +243,7 @@ func dispatchRecipientSetResultForMode(ctx context.Context, mode onlinedelivery.
 	if ports.recipientAuthorityResolver != nil {
 		results, resolveErr = resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, normalized.authorityUIDs)
 		if resolveErr == nil {
-			grouping, groupErr = groupRecipientAuthorities(normalized, results, event.FromUID)
+			grouping, groupErr = groupRecipientAuthoritiesWithScratch(normalized, results, scratch)
 		}
 	}
 
@@ -260,7 +282,7 @@ func dispatchRecipientPlans(
 	enqueuer OnlineDeliveryEnqueuer,
 ) error {
 	planTargetCapacity := min(batchSize, len(order))
-	plan := onlinedelivery.RecipientDeliveryPlan{Mode: mode, Event: event, Targets: make([]onlinedelivery.RecipientTargetBatch, 0, planTargetCapacity)}
+	plan := onlinedelivery.RecipientDeliveryPlan{Mode: mode, Event: event}
 	flush := func() error {
 		if plan.RecipientCount() == 0 {
 			return nil
@@ -275,7 +297,7 @@ func dispatchRecipientPlans(
 			detail.DispatchBatchSize = plan.RecipientCount()
 			return withPostCommitFailureDetail(err, detail)
 		}
-		plan = onlinedelivery.RecipientDeliveryPlan{Mode: mode, Event: event, Targets: make([]onlinedelivery.RecipientTargetBatch, 0, planTargetCapacity)}
+		plan.Targets = nil
 		return nil
 	}
 
@@ -295,6 +317,9 @@ func dispatchRecipientPlans(
 			if n > len(recipients) {
 				n = len(recipients)
 			}
+			if plan.Targets == nil {
+				plan.Targets = make([]onlinedelivery.RecipientTargetBatch, 0, planTargetCapacity)
+			}
 			plan.Targets = append(plan.Targets, onlinedelivery.RecipientTargetBatch{
 				Target: target,
 				// Grouping already owns this normalized recipient storage. A
@@ -309,30 +334,60 @@ func dispatchRecipientPlans(
 	return flush()
 }
 
-func normalizeRecipientsForAuthorityResolution(_ string, recipients []Recipient, _ bool) normalizedRecipientAuthoritySet {
+func normalizeRecipientsForAuthorityResolutionWithScratch(recipients []Recipient, scratch *recipientDispatchScratch) normalizedRecipientAuthoritySet {
+	if scratch == nil {
+		scratch = &recipientDispatchScratch{}
+	}
+	clear(scratch.authorityUIDs)
+	clear(scratch.normalizedRecipients)
+	scratch.authorityUIDs = scratch.authorityUIDs[:0]
+	scratch.authorityRecipient = scratch.authorityRecipient[:0]
+	scratch.recipientAuthorityIndexes = scratch.recipientAuthorityIndexes[:0]
+	scratch.normalizedRecipients = scratch.normalizedRecipients[:0]
+	if cap(scratch.authorityUIDs) < len(recipients) {
+		scratch.authorityUIDs = make([]string, 0, len(recipients))
+	}
+	if cap(scratch.authorityRecipient) < len(recipients) {
+		scratch.authorityRecipient = make([]bool, 0, len(recipients))
+	}
+	if cap(scratch.recipientAuthorityIndexes) < len(recipients) {
+		scratch.recipientAuthorityIndexes = make([]int, 0, len(recipients))
+	}
 	set := normalizedRecipientAuthoritySet{
-		authorityUIDs:             make([]string, 0, len(recipients)),
-		authorityRecipient:        make([]bool, 0, len(recipients)),
-		recipientAuthorityIndexes: make([]int, 0, len(recipients)),
+		authorityUIDs:             scratch.authorityUIDs,
+		authorityRecipient:        scratch.authorityRecipient,
+		recipientAuthorityIndexes: scratch.recipientAuthorityIndexes,
 	}
 	copyRecipients := false
-	var inlineUIDs inlineRecipientAuthorityUIDTable
 	var seen map[string]int
 	if len(recipients) > inlineRecipientAuthorityUIDLimit {
-		seen = make(map[string]int, len(recipients))
+		if scratch.seen == nil {
+			scratch.seen = make(map[string]int, len(recipients))
+		} else {
+			clear(scratch.seen)
+		}
+		seen = scratch.seen
+	} else {
+		clear(scratch.inlineUIDs.positions[:])
 	}
 	for recipientIndex, recipient := range recipients {
 		uid := strings.TrimSpace(recipient.UID)
 		if uid == "" {
 			if !copyRecipients {
-				set.recipients = make([]Recipient, 0, len(recipients))
+				if cap(scratch.normalizedRecipients) < len(recipients) {
+					scratch.normalizedRecipients = make([]Recipient, 0, len(recipients))
+				}
+				set.recipients = scratch.normalizedRecipients
 				set.recipients = append(set.recipients, recipients[:recipientIndex]...)
 				copyRecipients = true
 			}
 			continue
 		}
 		if uid != recipient.UID && !copyRecipients {
-			set.recipients = make([]Recipient, 0, len(recipients))
+			if cap(scratch.normalizedRecipients) < len(recipients) {
+				scratch.normalizedRecipients = make([]Recipient, 0, len(recipients))
+			}
+			set.recipients = scratch.normalizedRecipients
 			set.recipients = append(set.recipients, recipients[:recipientIndex]...)
 			copyRecipients = true
 		}
@@ -347,7 +402,7 @@ func normalizeRecipientsForAuthorityResolution(_ string, recipients []Recipient,
 		if seen != nil {
 			authorityIndex, ok = seen[uid]
 		} else {
-			authorityIndex, ok = inlineUIDs.lookupOrInsert(uid, set.authorityUIDs, len(set.authorityUIDs))
+			authorityIndex, ok = scratch.inlineUIDs.lookupOrInsert(uid, set.authorityUIDs, len(set.authorityUIDs))
 		}
 		if !ok {
 			authorityIndex = len(set.authorityUIDs)
@@ -366,7 +421,12 @@ func normalizeRecipientsForAuthorityResolution(_ string, recipients []Recipient,
 	if !copyRecipients {
 		// The caller retains ownership; downstream grouping only reads this normalized view.
 		set.recipients = recipients
+	} else {
+		scratch.normalizedRecipients = set.recipients
 	}
+	scratch.authorityUIDs = set.authorityUIDs
+	scratch.authorityRecipient = set.authorityRecipient
+	scratch.recipientAuthorityIndexes = set.recipientAuthorityIndexes
 	return set
 }
 
@@ -393,11 +453,23 @@ func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAut
 	return results, nil
 }
 
-func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, _ string) (recipientAuthorityGrouping, error) {
+func groupRecipientAuthoritiesWithScratch(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, scratch *recipientDispatchScratch) (recipientAuthorityGrouping, error) {
+	if scratch == nil {
+		scratch = &recipientDispatchScratch{}
+	}
 	groupCapacity := recipientAuthorityGroupCapacity(results)
+	clear(scratch.groups)
+	scratch.groups = scratch.groups[:0]
+	scratch.deliveryOrder = scratch.deliveryOrder[:0]
+	if cap(scratch.groups) < groupCapacity {
+		scratch.groups = make([]recipientAuthorityGroup, 0, groupCapacity)
+	}
+	if cap(scratch.deliveryOrder) < groupCapacity {
+		scratch.deliveryOrder = make([]int, 0, groupCapacity)
+	}
 	grouping := recipientAuthorityGrouping{
-		groups:        make([]recipientAuthorityGroup, 0, groupCapacity),
-		deliveryOrder: make([]int, 0, groupCapacity),
+		groups:        scratch.groups,
+		deliveryOrder: scratch.deliveryOrder,
 	}
 	if len(results) != len(set.authorityUIDs) {
 		return grouping, fmt.Errorf("channelappend: aligned recipient authority result count %d does not match UID count %d: %w", len(results), len(set.authorityUIDs), ErrRouteNotReady)
@@ -405,8 +477,14 @@ func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []Re
 	// The default physical hash-slot table is 256 entries. The fixed first-group
 	// index removes a target-keyed map from the hot path while the exact-target
 	// scan preserves semantics for custom slot counts and transition collisions.
-	var firstGroupByHashSlot [256]uint32
-	authorityGroupIndexes := make([]int, len(results))
+	clear(scratch.firstGroupByHashSlot[:])
+	firstGroupByHashSlot := &scratch.firstGroupByHashSlot
+	if cap(scratch.authorityGroupIndexes) < len(results) {
+		scratch.authorityGroupIndexes = make([]int, len(results))
+	} else {
+		scratch.authorityGroupIndexes = scratch.authorityGroupIndexes[:len(results)]
+	}
+	authorityGroupIndexes := scratch.authorityGroupIndexes
 	for index := range authorityGroupIndexes {
 		authorityGroupIndexes[index] = -1
 	}
@@ -446,7 +524,12 @@ func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []Re
 		authorityGroupIndexes[index] = indexForGroup
 	}
 
-	recipientGroupIndexes := make([]int, len(set.recipients))
+	if cap(scratch.recipientGroupIndexes) < len(set.recipients) {
+		scratch.recipientGroupIndexes = make([]int, len(set.recipients))
+	} else {
+		scratch.recipientGroupIndexes = scratch.recipientGroupIndexes[:len(set.recipients)]
+	}
+	recipientGroupIndexes := scratch.recipientGroupIndexes
 	for index, recipient := range set.recipients {
 		authorityIndex := set.recipientAuthorityIndexes[index]
 		result := results[authorityIndex]
@@ -487,6 +570,8 @@ func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []Re
 		groupIndex := recipientGroupIndexes[index]
 		grouping.groups[groupIndex].recipients = append(grouping.groups[groupIndex].recipients, recipient)
 	}
+	scratch.groups = grouping.groups
+	scratch.deliveryOrder = grouping.deliveryOrder
 
 	return grouping, nil
 }

@@ -32,7 +32,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	if rc.appendStoreBlocked && now.Before(rc.appendRetryAt) {
 		return
 	}
-	if !rc.appendQ.shouldFlush(now) {
+	if !r.appendQueueReadyToFlush(rc, now) {
 		return
 	}
 	batchOpID := r.nextBatchOpID()
@@ -76,6 +76,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		batch.commandID = appendProposalCommandID(rc.state.Key, batch.authority, batch.records)
 		submitErr = r.submitQuorumCommit(context.Background(), batch.fence, replication.Proposal{
 			Key: rc.state.Key, Expected: batch.authority, CommandID: batch.commandID, Records: batch.records,
+			PayloadsImmutable:         true,
 			ServerAllocatedMessageIDs: task.StoreAppend.ServerAllocatedMessageIDs,
 		})
 	} else {
@@ -99,6 +100,16 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	rc.appendStoreBlocked = false
 	rc.appendRetryAt = time.Time{}
 	r.observeAppendBatch(batch, now)
+}
+
+func (r *Reactor) appendQueueReadyToFlush(rc *runtimeChannel, now time.Time) bool {
+	if r == nil || rc == nil {
+		return false
+	}
+	if r.cfg.QuorumLog != nil {
+		return !rc.appendQ.storeBlocked && len(rc.appendQ.pending) > 0
+	}
+	return rc.appendQ.shouldFlush(now)
 }
 
 const appendProposalCommandDomain = "wukongim/channel/append-proposal/v1"
@@ -138,6 +149,7 @@ func appendBatchWaiters(requests []appendRequest) []machine.AppendBatchWaiter {
 			CommitMode:                req.commitMode,
 			OmitResultPayload:         req.req.OmitResultPayload,
 			Records:                   req.records,
+			PayloadsImmutable:         true,
 			ServerAllocatedMessageIDs: req.req.ServerAllocatedMessageIDs,
 		})
 	}
