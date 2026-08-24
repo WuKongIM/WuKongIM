@@ -18,6 +18,7 @@ MINIMUM_THROUGHPUT_PERCENT=90
 # can make the diagnostic collector interfere with the evidence it measures.
 METRICS_SAMPLE_SECONDS=30
 DRY_RUN=0
+RUNTIME_DEFAULTS=0
 CLEANUP_TIMEOUT=15
 GRACEFUL_STOP_TIMEOUT=90
 RUN_ID=local-chat-lifecycle-shakeout
@@ -78,6 +79,8 @@ usage() {
 #   --drain-timeout S   Maximum graceful drain in seconds (default 90).
 #   --hot-sendack-p99-ms N
 #                       Sealed hot SENDACK p99 limit in milliseconds (default 400).
+#   --runtime-defaults  Remove the promoted performance overrides from generated
+#                       node configs and let the product supply its defaults.
 #   --dry-run           Print the resolved topology without building or writing.
 #   -h, --help          Show this help.
 
@@ -139,6 +142,7 @@ while [[ $# -gt 0 ]]; do
     --warmup-seconds) [[ $# -ge 2 ]] || die '--warmup-seconds requires a value'; WARMUP_SECONDS="$2"; shift 2 ;;
     --drain-timeout) [[ $# -ge 2 ]] || die '--drain-timeout requires a value'; GRACEFUL_STOP_TIMEOUT="$2"; shift 2 ;;
     --hot-sendack-p99-ms) [[ $# -ge 2 ]] || die '--hot-sendack-p99-ms requires a value'; HOT_SENDACK_P99_MS="$2"; shift 2 ;;
+    --runtime-defaults) RUNTIME_DEFAULTS=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
@@ -204,8 +208,22 @@ print_plan() {
   printf 'drain_timeout_seconds=%s\n' "$GRACEFUL_STOP_TIMEOUT"
   printf 'hot_sendack_p99_milliseconds=%s\n' "$HOT_SENDACK_P99_MS"
   printf 'raw_metrics_sample_seconds=%s\n' "$METRICS_SAMPLE_SECONDS"
-  printf 'channel_store_append_workers=500\n'
-  printf 'gateway_async_send_workers=1000\n'
+  if (( RUNTIME_DEFAULTS == 1 )); then
+    printf 'runtime_profile=product_defaults\n'
+    printf 'channel_store_append_workers=product_default\n'
+    printf 'channel_store_apply_workers=product_default\n'
+    printf 'channel_rpc_workers=product_default\n'
+    printf 'channel_rpc_batch_max_items=product_default\n'
+    printf 'gateway_gnet_multicore=product_default\n'
+    printf 'gateway_gnet_event_loops=product_default\n'
+    printf 'gateway_async_send_workers=product_default\n'
+    printf 'gateway_async_send_queue_capacity=product_default\n'
+    printf 'delivery_recipient_worker_concurrency=product_default\n'
+  else
+    printf 'runtime_profile=explicit_rehearsal_tuning\n'
+    printf 'channel_store_append_workers=500\n'
+    printf 'gateway_async_send_workers=1000\n'
+  fi
   printf 'gateway_async_send_batch_max_records=1\n'
   printf 'commit_coordinator_flush_window=500us\n'
   printf 'commit_coordinator_shards=1\n'
@@ -279,11 +297,24 @@ finalize_source_rebuildability_after_builds() {
   fi
 }
 
+strip_promoted_runtime_overrides() {
+  local config_path="$1" temporary
+  temporary="$config_path.runtime-defaults.next.$$"
+  awk '
+    /^[[:space:]]*(channel_store_append_workers|channel_store_apply_workers|channel_rpc_workers|channel_rpc_batch_max_items|gnet_multicore|gnet_num_event_loop|runtime_async_send_workers|runtime_async_send_queue_capacity|recipient_worker_concurrency)[[:space:]]*=/ { next }
+    { print }
+  ' "$config_path" >"$temporary"
+  mv "$temporary" "$config_path"
+}
+
 mkdir -p "$RUN_DIR/bin" "$CONFIG_DIR" "$DATA_DIR/load" "$LOG_DIR" "$PID_DIR" "$WORKER_DIR" "$REPORT_DIR" \
   "$EVIDENCE_DIR/snapshot-inventory" "$METRICS_DIR"
 for node in 1 2 3; do
   mkdir -p "$DATA_DIR/node$node" "$LOG_DIR/node$node" "$WORKER_DIR/node$node"
   cp "$ROOT_DIR/scripts/wukongim/wukongim-node$node.toml" "$CONFIG_DIR/node$node.toml"
+  if (( RUNTIME_DEFAULTS == 1 )); then
+    strip_promoted_runtime_overrides "$CONFIG_DIR/node$node.toml"
+  fi
 done
 
 log 'building service and benchmark binaries'
@@ -356,8 +387,22 @@ record_evidence_identity() {
     printf 'hash_slots\t256\n'
     printf 'slot_replicas\t3\n'
     printf 'channel_replicas\t3\n'
-    printf 'channel_store_append_workers\t500\n'
-    printf 'gateway_async_send_workers\t1000\n'
+    if (( RUNTIME_DEFAULTS == 1 )); then
+      printf 'runtime_profile\tproduct_defaults\n'
+      printf 'channel_store_append_workers\tproduct_default\n'
+      printf 'channel_store_apply_workers\tproduct_default\n'
+      printf 'channel_rpc_workers\tproduct_default\n'
+      printf 'channel_rpc_batch_max_items\tproduct_default\n'
+      printf 'gateway_gnet_multicore\tproduct_default\n'
+      printf 'gateway_gnet_event_loops\tproduct_default\n'
+      printf 'gateway_async_send_workers\tproduct_default\n'
+      printf 'gateway_async_send_queue_capacity\tproduct_default\n'
+      printf 'delivery_recipient_worker_concurrency\tproduct_default\n'
+    else
+      printf 'runtime_profile\texplicit_rehearsal_tuning\n'
+      printf 'channel_store_append_workers\t500\n'
+      printf 'gateway_async_send_workers\t1000\n'
+    fi
     printf 'gateway_async_send_batch_max_records\t1\n'
     printf 'commit_coordinator_flush_window\t500us\n'
     printf 'commit_coordinator_shards\t1\n'
@@ -609,8 +654,16 @@ CLUSTER_NODES="[{\"id\":1,\"addr\":\"127.0.0.1:$(cluster_port 1)\"},{\"id\":2,\"
 
 start_service() {
   local node="$1" gateway_listeners pid
+  local -a runtime_overrides=()
   gateway_listeners="[{\"name\":\"tcp-wkproto\",\"network\":\"tcp\",\"address\":\"127.0.0.1:$(gateway_port "$node")\",\"transport\":\"gnet\",\"protocol\":\"wkproto\"},{\"name\":\"ws-gateway\",\"network\":\"websocket\",\"address\":\"127.0.0.1:$(ws_port "$node")\",\"transport\":\"gnet\",\"protocol\":\"wsmux\"}]"
+  if (( RUNTIME_DEFAULTS == 0 )); then
+    runtime_overrides+=(
+      "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500"
+      "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000"
+    )
+  fi
   env -u WK_BENCH_WORKER_TOKEN -u WK_CHAT_LIFECYCLE_WORKER_TOKEN_FILE \
+    "${runtime_overrides[@]}" \
     WK_NODE_ID="$node" \
     WK_NODE_DATA_DIR="$DATA_DIR/node$node" \
     WK_CLUSTER_LISTEN_ADDR="127.0.0.1:$(cluster_port "$node")" \
@@ -620,8 +673,6 @@ start_service() {
     WK_CLUSTER_SLOT_REPLICA_N=3 \
     WK_CLUSTER_CHANNEL_REPLICA_N=3 \
     WK_CLUSTER_MAX_CHANNELS=50000 \
-    WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 \
-    WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=1000 \
     WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=1 \
     WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us \
     WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1 \

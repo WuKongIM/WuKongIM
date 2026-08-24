@@ -15,7 +15,7 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 
 	for _, want := range []string{
 		"#!/usr/bin/env bash", "set -euo pipefail", "umask 077", "--run-dir", "--dry-run", "--stop-after",
-		"--send-rate", "--measure-seconds", "--warmup-seconds", "--drain-timeout",
+		"--send-rate", "--measure-seconds", "--warmup-seconds", "--drain-timeout", "--runtime-defaults",
 		"go build", "./cmd/wukongim", "./cmd/wkbench", "WK_CLUSTER_INITIAL_SLOT_COUNT=12",
 		"WK_CLUSTER_HASH_SLOT_COUNT=256", "WK_CLUSTER_SLOT_REPLICA_N=3",
 		"WK_CLUSTER_CHANNEL_REPLICA_N=3", "WK_CLUSTER_MAX_CHANNELS=50000",
@@ -236,6 +236,35 @@ func TestChatLifecycleShakeoutScriptDryRunIsReadOnlyAndRejectsBroadRunDirs(t *te
 		t.Fatalf("dry run created %s", runDir)
 	}
 
+	cmd = exec.Command("bash", "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+		"--dry-run", "--runtime-defaults", "--run-dir", runDir, "--base-port", "24000",
+		"--send-rate", "2000", "--measure-seconds", "600", "--warmup-seconds", "120")
+	cmd.Dir = root
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("runtime-defaults dry run failed: %v\n%s", err, output)
+	}
+	text = string(output)
+	for _, want := range []string{
+		"runtime_profile=product_defaults",
+		"channel_store_append_workers=product_default",
+		"channel_store_apply_workers=product_default",
+		"channel_rpc_workers=product_default",
+		"channel_rpc_batch_max_items=product_default",
+		"gateway_gnet_multicore=product_default",
+		"gateway_gnet_event_loops=product_default",
+		"gateway_async_send_workers=product_default",
+		"gateway_async_send_queue_capacity=product_default",
+		"delivery_recipient_worker_concurrency=product_default",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("runtime-defaults dry-run output missing %q:\n%s", want, text)
+		}
+	}
+	if _, statErr := os.Stat(runDir); !os.IsNotExist(statErr) {
+		t.Fatalf("runtime-defaults dry run created %s", runDir)
+	}
+
 	for _, broad := range []string{"/", root} {
 		cmd = exec.Command("bash", "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh", "--dry-run", "--run-dir", broad)
 		cmd.Dir = root
@@ -243,6 +272,71 @@ func TestChatLifecycleShakeoutScriptDryRunIsReadOnlyAndRejectsBroadRunDirs(t *te
 			t.Fatalf("broad run dir %q not rejected: %v\n%s", broad, rejectErr, rejected)
 		}
 	}
+}
+
+func TestChatLifecycleRuntimeDefaultsStripPromotedOverrides(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "node.toml")
+	config := `node_id = 1
+channel_store_append_workers = 128
+channel_store_apply_workers = 8
+channel_rpc_workers = 96
+channel_rpc_batch_max_items = 8
+gnet_multicore = true
+gnet_num_event_loop = 4
+runtime_async_send_workers = 1000
+runtime_async_send_queue_capacity = 131072
+recipient_worker_concurrency = 320
+commit_coordinator_shards = 1
+`
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	harness := "#!/usr/bin/env bash\nset -euo pipefail\n" +
+		extractDefaultBashFunction(t, script, "strip_promoted_runtime_overrides") +
+		"\nstrip_promoted_runtime_overrides \"$CONFIG_PATH\"\n"
+	harnessPath := filepath.Join(directory, "strip.sh")
+	if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("bash", harnessPath)
+	command.Env = append(os.Environ(), "CONFIG_PATH="+configPath)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("strip promoted runtime overrides failed: %v\n%s", err, output)
+	}
+	rendered := readFile(t, configPath)
+	for _, forbidden := range []string{
+		"channel_store_append_workers", "channel_store_apply_workers",
+		"channel_rpc_workers", "channel_rpc_batch_max_items",
+		"gnet_multicore", "gnet_num_event_loop",
+		"runtime_async_send_workers", "runtime_async_send_queue_capacity",
+		"recipient_worker_concurrency",
+	} {
+		if strings.Contains(rendered, forbidden) {
+			t.Fatalf("runtime-defaults config retained %q:\n%s", forbidden, rendered)
+		}
+	}
+	for _, want := range []string{"node_id = 1", "commit_coordinator_shards = 1"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("runtime-defaults config removed unrelated setting %q:\n%s", want, rendered)
+		}
+	}
+}
+
+func extractDefaultBashFunction(t *testing.T, script, name string) string {
+	t.Helper()
+	startToken := name + "() {\n"
+	start := strings.Index(script, startToken)
+	if start < 0 {
+		t.Fatalf("bash function %s not found", name)
+	}
+	end := strings.Index(script[start:], "\n}\n")
+	if end < 0 {
+		t.Fatalf("bash function %s is not closed", name)
+	}
+	return script[start : start+end+2]
 }
 
 func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {

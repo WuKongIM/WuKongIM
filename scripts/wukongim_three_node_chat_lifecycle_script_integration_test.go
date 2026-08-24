@@ -184,7 +184,19 @@ func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *test
 	}
 	for node := 1; node <= 3; node++ {
 		path := filepath.Join(scriptsDir, "wukongim", fmt.Sprintf("wukongim-node%d.toml", node))
-		if err := os.WriteFile(path, []byte(fmt.Sprintf("node_id = %d\n", node)), 0o600); err != nil {
+		body := fmt.Sprintf(`node_id = %d
+channel_store_append_workers = 128
+channel_store_apply_workers = 8
+channel_rpc_workers = 96
+channel_rpc_batch_max_items = 8
+gnet_multicore = true
+gnet_num_event_loop = 4
+runtime_async_send_workers = 1000
+runtime_async_send_queue_capacity = 131072
+recipient_worker_concurrency = 320
+commit_coordinator_shards = 1
+`, node)
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -252,7 +264,7 @@ fi
 		}
 	}
 	runDir := filepath.Join(testRoot, "run")
-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
+	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
 	command.Dir = testRoot
 	command.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -270,6 +282,24 @@ fi
 		identity["source_rebuildable_from_revision"] != "false" ||
 		identity["source_capture"] != "binary_identity_only" {
 		t.Fatalf("build-window source identity did not fail closed: %#v\n%s", identity, output)
+	}
+	if identity["runtime_profile"] != "product_defaults" {
+		t.Fatalf("runtime profile = %q, want product_defaults", identity["runtime_profile"])
+	}
+	renderedNode := readFile(t, filepath.Join(runDir, "config", "node1.toml"))
+	for _, forbidden := range []string{
+		"channel_store_append_workers", "channel_store_apply_workers",
+		"channel_rpc_workers", "channel_rpc_batch_max_items",
+		"gnet_multicore", "gnet_num_event_loop",
+		"runtime_async_send_workers", "runtime_async_send_queue_capacity",
+		"recipient_worker_concurrency",
+	} {
+		if strings.Contains(renderedNode, forbidden) {
+			t.Fatalf("runtime-defaults node config retained %q:\n%s", forbidden, renderedNode)
+		}
+	}
+	if !strings.Contains(renderedNode, "commit_coordinator_shards = 1") {
+		t.Fatalf("runtime-defaults node config removed unrelated setting:\n%s", renderedNode)
 	}
 	rendered := readFile(t, filepath.Join(runDir, "chat-lifecycle.yaml"))
 	for _, want := range []string{
