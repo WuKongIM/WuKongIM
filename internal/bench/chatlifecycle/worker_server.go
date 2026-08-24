@@ -1666,7 +1666,8 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		Harness: WorkerHarnessSnapshot{
 			Classification: evidence.Classification, Failures: engine.HarnessInvalid,
 			CommandSaturation: engine.CommandSaturation, OfferedUnderdelivery: engine.ActivityUnderDelivered,
-			PlannedCancellations: engine.ActivityPlannedCanceled,
+			PlannedCancellations:        engine.ActivityPlannedCanceled,
+			LifecycleApprovalRejections: engine.LifecycleApprovalRejections,
 		},
 		Evidence: evidence,
 	}, nil

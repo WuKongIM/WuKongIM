@@ -559,7 +559,7 @@ func TestLifecycleCandidateReheatAdmissionSurvivesBoundedControlPipeline(t *test
 		work := &engineWork{
 			due: now.Add(minimumRevisitDelay), eligibilityDeadline: now.Add(minimumRevisitDelay + time.Minute),
 			kind: engineWorkLifecycle, edge: edge,
-			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+			schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
 			lifecycleTimerToken: 41, activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
 		}
 		fixture.engine.installLifecycleTimer(work)
@@ -640,6 +640,59 @@ func TestLifecycleCandidateEngineBatchApprovalIsAtomic(t *testing.T) {
 	}
 	if approved, err := fixture.engine.ApproveColdRevisitsContext(context.Background(), items); err != nil || approved != len(items) {
 		t.Fatalf("valid batch approval = %d,%v, want %d,nil", approved, err, len(items))
+	}
+}
+
+func TestLifecycleCandidateEngineApprovalRejectionsAreClosedAndIdentityFree(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.Incoming(18).Items[0]
+	now := fixture.clock.Now()
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		fixture.engine.installLifecycleTimer(&engineWork{
+			due: now.Add(10 * time.Minute), eligibilityDeadline: now.Add(11 * time.Minute), kind: engineWorkLifecycle, edge: edge,
+			schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true},
+			lifecycleTimerToken: 41, activityVersion: 2, initialSequence: 42, lastActivityAt: now, observedLoaded: true,
+		})
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+
+	if approved, err := fixture.engine.ApproveColdRevisitContext(context.Background(), edge.PersonChannelID, 41, 1); err != nil || approved {
+		t.Fatalf("stale activity approval = %v,%v", approved, err)
+	}
+	fixture.clock.Set(now.Add(10 * time.Minute))
+	if approved, err := fixture.engine.ApproveColdRevisitContext(context.Background(), edge.PersonChannelID, 41, 2); err != nil || approved {
+		t.Fatalf("expired approval = %v,%v", approved, err)
+	}
+	missing := channelid.EncodePersonChannel("diagnostic-missing-a", "diagnostic-missing-b")
+	if approved, err := fixture.engine.ApproveColdRevisitContext(context.Background(), missing, 42, 1); err != nil || approved {
+		t.Fatalf("missing timer approval = %v,%v", approved, err)
+	}
+
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := LifecycleApprovalRejectionSnapshot{MissingTimer: 1, ActivityFence: 1, Deadline: 1}
+	if snapshot.LifecycleApprovalRejections != want {
+		t.Fatalf("approval rejections = %+v, want %+v", snapshot.LifecycleApprovalRejections, want)
+	}
+	encoded, err := json.Marshal(snapshot.LifecycleApprovalRejections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, identity := range []string{edge.PersonChannelID, missing} {
+		if bytes.Contains(encoded, []byte(identity)) {
+			t.Fatalf("approval rejection evidence leaked identity: %s", encoded)
+		}
 	}
 }
 

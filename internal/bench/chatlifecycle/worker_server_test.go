@@ -241,7 +241,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesWorkerProtocolV9(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV10(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV9(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 9 {
-		t.Fatalf("protocol version = %d, want 9", info.ProtocolVersion)
+	if info.ProtocolVersion != 10 {
+		t.Fatalf("protocol version = %d, want 10", info.ProtocolVersion)
 	}
 }
 
@@ -848,6 +848,10 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.engine.cached.SyncCompleted = 5
 	engineGeneration.engine.cached.SyncFailed = 2
 	engineGeneration.engine.cached.SyncCanceled = 1
+	engineGeneration.engine.cached.LifecycleApprovalRejections = LifecycleApprovalRejectionSnapshot{
+		ActivityFence: 2,
+		Deadline:      1,
+	}
 	engineGeneration.engine.lifecycleMu.Unlock()
 	engineGeneration.verifier.sendMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.hotSendackLatency, 2*time.Second)
@@ -885,6 +889,9 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		snapshot.Sync.ConnectStarted != 11 || snapshot.Sync.ConnectCompleted != 8 || snapshot.Sync.ConnectFailed != 2 || snapshot.Sync.ConnectCanceled != 1 ||
 		snapshot.Sync.SyncStarted != 8 || snapshot.Sync.SyncCompleted != 5 || snapshot.Sync.SyncFailed != 2 || snapshot.Sync.SyncCanceled != 1 || snapshot.Sync.Failures != 2 {
 		t.Fatalf("worker real sync outcome projection = %+v", snapshot.Sync)
+	}
+	if snapshot.Harness.LifecycleApprovalRejections != (LifecycleApprovalRejectionSnapshot{ActivityFence: 2, Deadline: 1}) {
+		t.Fatalf("worker lifecycle approval rejection projection = %+v", snapshot.Harness.LifecycleApprovalRejections)
 	}
 	if snapshot.Messages.FirstAttempts != 101 || snapshot.Messages.FirstAttemptFailures != 2 ||
 		snapshot.Messages.Terminal != 3 || snapshot.Messages.TerminalReasons != (TerminalSendSnapshot{

@@ -225,7 +225,7 @@ a later CheckpointHW regression cannot hide between staggered replica exits.
 CheckpointHW regression and invalid HW/Checkpoint ordering always classify as
 `watermark_regression`; only LEO/HW reset during reload is `sequence_proof`.
 Only the same candidate's all-node absence makes it cold-latency eligible. Worker
-protocol v9 sends all currently eligible approvals through one strict fenced,
+protocol v10 sends all currently eligible approvals through one strict fenced,
 all-or-nothing batch per owning worker; the response exposes only the approved
 count and never echoes a channel identity. The server delegates the whole batch
 to `engineWorkerGeneration`, which validates every exact canonical ID, timer
@@ -233,6 +233,9 @@ token, and activity version at one Engine owner-clock instant before admitting
 any item. This removes the deadline race from hundreds of serial HTTP calls
 without relaxing the pre-due fence. A stale lease cannot approve a same-channel
 replacement timer or a timer with newer activity; exact replay is idempotent.
+The bounded worker snapshot retains only a closed counter for the first rejected
+owner-side predicate in each atomic batch, so a failed cloud reheat distinguishes
+timer, activity, fence, deadline, and replay races without retaining identities.
 While the timer is live, its current exact token/version and
 `coldConfirmed` bit are the replay state; live approvals consume no completed
 tombstone capacity. Immediately before the owner deletes that live timer, it

@@ -151,6 +151,63 @@ type EngineSnapshot struct {
 	Classification             SyncClassification
 	NextFutureAt               time.Time
 	NextRetryAt                time.Time
+
+	LifecycleApprovalRejections LifecycleApprovalRejectionSnapshot
+}
+
+// LifecycleApprovalRejectionSnapshot is a closed, identity-free diagnostic
+// projection for an exact lifecycle reheat lease rejected by the Engine owner.
+type LifecycleApprovalRejectionSnapshot struct {
+	MissingTimer   uint64 `json:"missing_timer"`
+	InvalidShape   uint64 `json:"invalid_shape"`
+	TimerFence     uint64 `json:"timer_fence"`
+	ActivityFence  uint64 `json:"activity_fence"`
+	Invalidated    uint64 `json:"invalidated"`
+	FenceExhausted uint64 `json:"fence_exhausted"`
+	Deadline       uint64 `json:"deadline"`
+	ReplayExpired  uint64 `json:"replay_expired"`
+	ReplayMismatch uint64 `json:"replay_mismatch"`
+}
+
+type lifecycleApprovalRejection uint8
+
+const (
+	lifecycleApprovalMissingTimer lifecycleApprovalRejection = iota + 1
+	lifecycleApprovalInvalidShape
+	lifecycleApprovalTimerToken
+	lifecycleApprovalActivityVersion
+	lifecycleApprovalInvalidated
+	lifecycleApprovalFenceExhausted
+	lifecycleApprovalDeadline
+	lifecycleApprovalReplayExpired
+	lifecycleApprovalReplayMismatch
+)
+
+func (s *LifecycleApprovalRejectionSnapshot) increment(reason lifecycleApprovalRejection) {
+	var counter *uint64
+	switch reason {
+	case lifecycleApprovalMissingTimer:
+		counter = &s.MissingTimer
+	case lifecycleApprovalInvalidShape:
+		counter = &s.InvalidShape
+	case lifecycleApprovalTimerToken:
+		counter = &s.TimerFence
+	case lifecycleApprovalActivityVersion:
+		counter = &s.ActivityFence
+	case lifecycleApprovalInvalidated:
+		counter = &s.Invalidated
+	case lifecycleApprovalFenceExhausted:
+		counter = &s.FenceExhausted
+	case lifecycleApprovalDeadline:
+		counter = &s.Deadline
+	case lifecycleApprovalReplayExpired:
+		counter = &s.ReplayExpired
+	case lifecycleApprovalReplayMismatch:
+		counter = &s.ReplayMismatch
+	}
+	if counter != nil {
+		*counter = saturatingIncrement(*counter)
+	}
 }
 
 // EngineStepSnapshot is one bounded orchestration result. Login counters
@@ -787,6 +844,7 @@ type Engine struct {
 	lifecycleCandidateStandbys     [formalLogicalSlotGroups]engineLifecycleCandidateStandbyHeap
 	lifecycleCandidateIndexed      int
 	lifecycleCandidateLeaseScanned int
+	lifecycleApprovalRejections    LifecycleApprovalRejectionSnapshot
 	activeChannels                 []engineActiveChannel
 	activePosition                 map[string]int
 	// warmedActive records active person channels whose first classified cold
@@ -975,6 +1033,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.lifecycleCandidateStandbys = [formalLogicalSlotGroups]engineLifecycleCandidateStandbyHeap{}
 	e.lifecycleCandidateIndexed = 0
 	e.lifecycleCandidateLeaseScanned = 0
+	e.lifecycleApprovalRejections = LifecycleApprovalRejectionSnapshot{}
 	e.retryAttempts = 0
 	e.finalFailures = 0
 	e.harnessInvalid = 0
@@ -1541,20 +1600,50 @@ func (e *Engine) ApproveColdRevisitsContext(ctx context.Context, items []WorkerL
 			if replay, exists := e.lifecycleApprovalReplays[item.TimerToken]; exists {
 				if !admittedAt.Before(replay.expiresAt) {
 					e.removeLifecycleApprovalReplayToken(item.TimerToken, replay)
+					e.lifecycleApprovalRejections.increment(lifecycleApprovalReplayExpired)
 					response <- approvalResult{}
 					return
 				}
 				if replay.activityVersion != item.ActivityVersion || replay.channelDigest != channelDigest {
+					e.lifecycleApprovalRejections.increment(lifecycleApprovalReplayMismatch)
 					response <- approvalResult{}
 					return
 				}
 				continue
 			}
 			work := e.lifecycleByChannel[item.ChannelID]
-			if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
-				work.lifecycleTimerToken != item.TimerToken || work.activityVersion != item.ActivityVersion ||
-				work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted ||
-				(!work.coldConfirmed && !admittedAt.Before(work.due)) {
+			if work == nil {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalMissingTimer)
+				response <- approvalResult{}
+				return
+			}
+			if work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalInvalidShape)
+				response <- approvalResult{}
+				return
+			}
+			if work.lifecycleTimerToken != item.TimerToken {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalTimerToken)
+				response <- approvalResult{}
+				return
+			}
+			if work.activityVersion != item.ActivityVersion {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalActivityVersion)
+				response <- approvalResult{}
+				return
+			}
+			if work.lifecycleLeaseInvalidated {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalInvalidated)
+				response <- approvalResult{}
+				return
+			}
+			if work.lifecycleFenceExhausted {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalFenceExhausted)
+				response <- approvalResult{}
+				return
+			}
+			if !work.coldConfirmed && !admittedAt.Before(work.due) {
+				e.lifecycleApprovalRejections.increment(lifecycleApprovalDeadline)
 				response <- approvalResult{}
 				return
 			}
@@ -4331,7 +4420,8 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		TransportInflight: sessions.TransportInflight, TransportAdmissionRejected: sessions.TransportAdmissionRejected,
 		RelationshipLookback:  MaxForwardRelationships,
 		ActiveLifecycleTimers: e.activeLifecycleTimers, ColdEvidencePending: len(e.lifecycleByChannel),
-		ActiveHotChannels: len(e.activeChannels), PendingHotChannels: len(e.pendingChannels),
+		LifecycleApprovalRejections: e.lifecycleApprovalRejections,
+		ActiveHotChannels:           len(e.activeChannels), PendingHotChannels: len(e.pendingChannels),
 		LoginPlannedNew: e.schedulerMetrics.plannedNew.Load(), LoginPlannedReturning: e.schedulerMetrics.plannedReturning.Load(),
 		LoginAdmittedNew: e.schedulerMetrics.admittedNew.Load(), LoginAdmittedReturning: e.schedulerMetrics.admittedReturning.Load(),
 		LoginCompletedNew: e.schedulerMetrics.completedNew.Load(), LoginCompletedReturning: e.schedulerMetrics.completedReturning.Load(),

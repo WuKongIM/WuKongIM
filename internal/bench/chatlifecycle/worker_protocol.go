@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 9
+	workerProtocolVersion  uint64 = 10
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -391,8 +391,11 @@ type WorkerHarnessSnapshot struct {
 	// PlannedCancellations counts scheduled work canceled before SEND admission
 	// by either planned session churn or a fully drained planned shutdown.
 	PlannedCancellations uint64 `json:"planned_cancellations"`
-	DrainTimedOut        bool   `json:"drain_timed_out"`
-	UnexpectedExit       bool   `json:"unexpected_exit"`
+	// LifecycleApprovalRejections identifies the first closed owner-side
+	// predicate that rejected each atomic reheat batch without exposing IDs.
+	LifecycleApprovalRejections LifecycleApprovalRejectionSnapshot `json:"lifecycle_approval_rejections"`
+	DrainTimedOut               bool                               `json:"drain_timed_out"`
+	UnexpectedExit              bool                               `json:"unexpected_exit"`
 }
 
 // WorkerSnapshot is the complete bounded, identity-free worker evidence response.
