@@ -96,6 +96,33 @@ func TestChannelLogReadReverse(t *testing.T) {
 	assertMessageSeqs(t, messages, 4, 3, 2)
 }
 
+func TestChannelLogReadReverseLimitDoesNotReadOlderHistory(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	log := testChannelLog(store)
+	if _, err := log.Append(context.Background(), testRecords(500, "old", "middle", "latest"), AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(encodeMessageRowKey(log.key, 1, messageHeaderFamilyID), []byte{0x01}); err != nil {
+		t.Fatalf("Set(corrupt old header): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(corrupt old header): %v", err)
+	}
+
+	messages, err := log.ReadReverse(context.Background(), 3, ReadOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("ReadReverse(latest only): %v", err)
+	}
+	assertMessageSeqs(t, messages, 3)
+	if string(messages[0].Payload) != "latest" {
+		t.Fatalf("payload = %q, want latest", messages[0].Payload)
+	}
+}
+
 func assertMessageSeqs(t *testing.T, messages []Message, seqs ...uint64) {
 	t.Helper()
 	if len(messages) != len(seqs) {

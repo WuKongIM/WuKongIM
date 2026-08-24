@@ -75,18 +75,24 @@ func (w *wal) replay() (replayState, error) {
 		if err != nil {
 			return replayState{}, err
 		}
+		sawCompleteRecord := false
 		for {
 			rec, nextCRC, err := readRecord(f, crc)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
+					if !sawCompleteRecord {
+						_ = f.Close()
+						return replayState{}, fmt.Errorf("%w: empty WAL segment %s", ErrTruncatedRecord, filepath.Base(path))
+					}
 					break
 				}
-				if errors.Is(err, ErrTruncatedRecord) && fileIdx == len(files)-1 {
+				if errors.Is(err, ErrTruncatedRecord) && fileIdx == len(files)-1 && sawCompleteRecord {
 					break
 				}
 				_ = f.Close()
 				return replayState{}, err
 			}
+			sawCompleteRecord = true
 			crc = nextCRC
 			if err := applyRecord(&state, rec); err != nil {
 				_ = f.Close()
@@ -259,21 +265,46 @@ func (w *wal) loadTailState(files []string) error {
 		w.lastIndex = state.Snapshot.Index
 	}
 	var crc uint32
-	for _, path := range files {
-		f, err := os.Open(path)
+	for fileIdx, path := range files {
+		flags := os.O_RDONLY
+		if fileIdx == len(files)-1 {
+			flags = os.O_RDWR
+		}
+		f, err := os.OpenFile(path, flags, 0)
 		if err != nil {
 			return err
 		}
+		lastCompleteOffset := int64(0)
 		for {
 			_, next, err := readRecord(f, crc)
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, ErrTruncatedRecord) {
+				if errors.Is(err, io.EOF) {
+					if lastCompleteOffset == 0 {
+						_ = f.Close()
+						return fmt.Errorf("%w: empty WAL segment %s", ErrTruncatedRecord, filepath.Base(path))
+					}
+					break
+				}
+				if errors.Is(err, ErrTruncatedRecord) && fileIdx == len(files)-1 && lastCompleteOffset > 0 {
+					if err := f.Truncate(lastCompleteOffset); err != nil {
+						_ = f.Close()
+						return err
+					}
+					if err := f.Sync(); err != nil {
+						_ = f.Close()
+						return err
+					}
 					break
 				}
 				_ = f.Close()
 				return err
 			}
 			crc = next
+			lastCompleteOffset, err = f.Seek(0, io.SeekCurrent)
+			if err != nil {
+				_ = f.Close()
+				return err
+			}
 		}
 		if err := f.Close(); err != nil {
 			return err

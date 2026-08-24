@@ -76,9 +76,9 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `package` | Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations. | 68 | ok |
 | [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 65 | ok |
 | [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 92 | ok |
-| [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 78 | ok |
+| [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 82 | ok |
 | [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 55 | ok |
-| [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 93 | ok |
+| [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 95 | ok |
 | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 62 | ok |
 | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 49 | ok |
 | [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 88 | ok |

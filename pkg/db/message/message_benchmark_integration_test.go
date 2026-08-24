@@ -392,6 +392,29 @@ func BenchmarkChannelLogRead(b *testing.B) {
 	}
 }
 
+func BenchmarkChannelLogReadReverseLimitOne(b *testing.B) {
+	for _, history := range []int{100, 5000} {
+		history := history
+		b.Run(fmt.Sprintf("history=%d", history), func(b *testing.B) {
+			log, closeFn := openBenchmarkLog(b, ChannelKey("bench-read-reverse-"+strconv.Itoa(history)))
+			defer closeFn()
+			seedBenchmarkMessagesSized(b, log, history, 128, false)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				messages, err := log.ReadReverse(context.Background(), uint64(history), ReadOptions{Limit: 1, MaxBytes: 1 << 20})
+				if err != nil {
+					b.Fatalf("ReadReverse(): %v", err)
+				}
+				if len(messages) != 1 || messages[0].MessageSeq != uint64(history) {
+					b.Fatalf("ReadReverse() = %#v, want latest sequence %d", messages, history)
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkChannelLogGetByMessageID(b *testing.B) {
 	log, closeFn := openBenchmarkLog(b, "bench-id")
 	defer closeFn()

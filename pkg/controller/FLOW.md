@@ -46,6 +46,10 @@ not depend on `pkg/cluster`.
 - The Raft WAL plus applied-boundary metadata is authoritative. The JSON file
   is its materialized state and is saved before publication and applied-index
   advancement.
+- Startup may repair only an incomplete physical record at the newest WAL
+  segment tail by truncating to the last complete record and syncing it before
+  append. Checksum mismatches, incomplete older segments, and a newest segment
+  without any complete record fail closed.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft
   materialization. Empty probes and health reports may advance applied state
   without advancing logical revision.

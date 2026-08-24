@@ -3398,24 +3398,7 @@ func (l *ChannelLog) readRowsReverse(ctx context.Context, fromSeq uint64, opts R
 		}
 		fromSeq = leo
 	}
-	all, err := l.readRows(ctx, 1, fromSeq, ReadOptions{})
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]messageRow, 0, boundedCapacity(len(all), opts.Limit))
-	var totalBytes int
-	for i := len(all) - 1; i >= 0; i-- {
-		row := all[i]
-		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(row.Payload) > opts.MaxBytes {
-			break
-		}
-		rows = append(rows, row)
-		totalBytes += len(row.Payload)
-		if opts.Limit > 0 && len(rows) >= opts.Limit {
-			break
-		}
-	}
-	return rows, nil
+	return readMessageRowsReverseRaw(ctx, l.db, l.key, fromSeq, opts)
 }
 
 func compatibilityRowsFromRecords(startSeq uint64, records []channel.Record) ([]messageRow, error) {

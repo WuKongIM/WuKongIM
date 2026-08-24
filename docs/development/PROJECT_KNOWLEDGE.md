@@ -153,6 +153,7 @@
 - UID membership and CMD-directory reads are Slot-leader authoritative even when the accepting ingress node is not a replica of that UID's logical Slot. Ordinary static nodes learn actual leaders for unassigned Slots from the Slot-status RPC; local DB presence is never treated as cluster ownership.
 - A hot quorum Channel Leader's live reactor HW is authoritative for conversation hydration; durable HW checkpoints are intentionally coalesced. Hydration probes all locally assigned channels once per Leader batch and falls back to durable checkpoint HW only when a runtime is unloaded.
 - A valid non-tombstoned membership is sufficient for ordinary conversation construction and message pull; do not recheck the subscriber set. Pull clamps to join, delete, and retention floors and rejects terminally disbanded channels.
+- Conversation hydration and message pull that need the newest records must use storage-native reverse iteration and enforce `Limit` / `MaxBytes` while scanning. Reversing an unbounded forward materialization makes memory and decode work proportional to the complete Channel history even when the response contains one record.
 - `read_seq` is a monotonic badge floor changed only by clear/set-unread. Badge calculation also uses the current user's latest committed ordinary sender sequence; it is not a message-read receipt or client message cursor.
 - Hiding advances `deleted_to_seq` and clears `activated_at` without removing membership. A newer message may make the conversation visible again. True remove/rejoin resets visibility from the newly captured tail.
 - Persistent person SEND admits the source/channel-owned projection task atomically with ordinary Channel runtime creation. It does not execute a separate directory-admission proposal and never puts the two UID-owned membership proposals in the foreground path. The projector derives both membership rows from the durable task, writes their UID hash slots concurrently within its process-wide worker bound, and only then atomically removes the task and marks the source projection ready. Projection attempts have bounded deadlines and retry durably; scans preserve fair progress across the 256 physical hash slots.
@@ -325,12 +326,13 @@
 
 ### Controller Raft compaction
 - Controller Raft snapshot restore starts from the snapshot index and replays post-snapshot entries; never skip replay by using a later persisted applied index after importing snapshot data.
+- Controller WAL startup may truncate only an incomplete physical record at the tail of the newest segment, and must sync the repaired length before later appends. CRC mismatches, incomplete older segments, and a newest segment with no complete record remain corruption and must fail closed.
 - `pkg/raftlog` persists Raft snapshot payloads as external chunks; Pebble keeps only metadata and snapshot manifests.
 
 ### Slot Raft compaction
 - Slot Raft snapshot restore follows the same boundary as Controller Raft: restore snapshot data first, then replay committed entries after the snapshot index.
 - After Slot Raft log compaction exists, membership changes must refresh the snapshot ConfState so newly added learners can install a snapshot and catch up.
-- Pebble-backed Raft log saves must stage an entry-suffix range tombstone only when the incoming entries overwrite an existing index (`first <= LastIndex`). Pure tail appends have no old suffix to hide; deleting one creates highly overlapping tombstones whose flush-time fragmentation can use quadratic transient heap.
+- Pebble-backed Raft log saves must stage an entry-suffix range tombstone only when the incoming entries overwrite an existing index (`first <= LastIndex`). Pure tail appends have no old suffix to hide; deleting one creates highly overlapping tombstones whose flush-time fragmentation can use quadratic transient heap. Snapshot prefix deletion starts at the scope's current `FirstIndex`, not at the physical entry-prefix origin, so consecutive snapshots do not keep covering already-compacted history.
 - Large Slot Raft snapshots are chunked only in `pkg/cluster` raft transport; receivers reassemble chunks into the original `MsgSnap` before calling `multiraft.Runtime.Step`.
 - Slot Raft batched fanout must attempt every peer before returning a send error; one offline peer must not block quorum messages to healthy peers in the same batch.
 - A Multi-Raft Slot apply queue must stay pinned while an accepted apply crosses from the Slot lock to the apply-pipeline lock; idle retirement cannot invalidate that in-flight enqueue.

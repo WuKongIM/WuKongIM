@@ -37,7 +37,9 @@ storage core without transferring shared-engine ownership.
    synchronous commit; replica HW may advance atomically with its proposal.
 2. Reads scan complete primary rows or verified typed indexes, recover LEO
    lazily after reopen/reclamation, and use bounded durable verification for
-   idempotency and newest-message lookup.
+   idempotency and newest-message lookup. Newest-first primary reads iterate
+   natively in reverse and stop while scanning at `Limit` or `MaxBytes`; they
+   must never materialize the complete Channel history before truncation.
 3. Snapshot, backup, restore, truncation, retention, and close stream or mutate
    bounded batches while keeping rows, indexes, catalog, system state, leases,
    and physical engine ownership consistent.

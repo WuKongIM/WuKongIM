@@ -312,12 +312,16 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		if err := batch.Set(encodeSnapshotKey(scope), encoded, nil); err != nil {
 			return err
 		}
-		if st.Snapshot.Index < math.MaxUint64 {
-			if err := batch.DeleteRange(encodeEntryPrefix(scope), encodeEntryKey(scope, st.Snapshot.Index+1), nil); err != nil {
-				return err
+		deleteStart := encodeEntryPrefix(scope)
+		if state.meta.FirstIndex > 0 {
+			deleteStart = encodeEntryKey(scope, state.meta.FirstIndex)
+		}
+		if state.meta.FirstIndex == 0 || state.meta.FirstIndex <= st.Snapshot.Index {
+			deleteEnd := encodeEntryPrefixEnd(scope)
+			if st.Snapshot.Index < math.MaxUint64 {
+				deleteEnd = encodeEntryKey(scope, st.Snapshot.Index+1)
 			}
-		} else {
-			if err := batch.DeleteRange(encodeEntryPrefix(scope), encodeEntryPrefixEnd(scope), nil); err != nil {
+			if err := batch.DeleteRange(deleteStart, deleteEnd, nil); err != nil {
 				return err
 			}
 		}
