@@ -1,29 +1,49 @@
-# Issue Agent Verifier Flow
+---
+scope: package
+summary: Captures credential-free candidates and verifies them in a clean exact-base checkout using trusted tests.
+---
 
-`internal/runtime/issueagentverify` owns credential-free candidate capture and
-clean-checkout verification. It contains no GitHub API, model, Issue lifecycle,
-or Publisher logic.
+# Issue Agent Verification Flow
 
-```text
-immutable baseline + disposable Codex workspace
-  -> filesystem comparison that ignores Codex Git metadata
-  -> canonical bounded CandidateSnapshot
+## Responsibility
 
-fresh exact-base checkout + CandidateSnapshot + protected policy
-  -> apply complete regular-file ChangeSet
-  -> recompute the complete diff
-  -> protected-path, mode, dependency, size, and risk checks
-  -> trusted fixed and focused test plan
-  -> CandidateEvidence
-```
+This package captures candidate filesystem changes and verifies the canonical
+change set in a fresh exact-base checkout. It contains no GitHub API, model,
+Issue lifecycle, or publisher logic.
 
-Codex-authored Git refs, index state, attributes, ignore rules, command claims,
-and result fields are never evidence. Existing safe repository symlinks must
-remain byte-for-byte unchanged; added, removed, retargeted, escaping, chained,
-or file-type-changing symlinks fail closed. Only regular-file upserts and
-deletions may enter a candidate. Every `AGENTS.md` and `FLOW.md` is protected
-because its exact source blob identity is part of the trusted task context.
+## Boundaries
 
-The Verifier runs candidate code without a model or Publisher credential.
-Docker-dependent fixed scenarios belong to a separate trusted job; the
-Engineer never receives the host Docker socket.
+- Candidate capture compares an immutable baseline with a disposable Codex
+  workspace while ignoring Codex Git metadata.
+- Verification trusts only the recomputed complete diff, protected policy, and
+  fixed or cataloged focused test plan.
+- Docker-dependent scenarios run in a separate trusted job; the engineer never
+  receives the host Docker socket.
+
+## Main Flows
+
+1. Capture regular-file upserts and deletions into a bounded canonical snapshot.
+2. Apply the snapshot to a fresh exact-base checkout and recompute the entire
+   diff rather than trusting candidate claims.
+3. Enforce protected paths, file modes, dependency, size, symlink, and risk
+   checks, then run trusted tests and emit candidate evidence.
+
+## Invariants and Failure Semantics
+
+- Git refs, index state, attributes, ignore rules, command claims, and claimed
+  results are never evidence.
+- Existing safe symlinks must remain byte-for-byte unchanged; new, removed,
+  retargeted, escaping, chained, or type-changing symlinks fail closed.
+- Every `AGENTS.md` and `FLOW.md` is protected by its exact source blob identity.
+- Only regular-file upserts and deletions may enter a candidate.
+
+## Read First
+
+- [Candidate capture](capture.go)
+- [Verification](verify.go)
+- [Trusted runner](runner.go)
+
+## Update Triggers
+
+Update this file when candidate shape, filesystem comparison, protected policy,
+symlink handling, test selection, or clean-checkout evidence changes.

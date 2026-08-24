@@ -1,110 +1,56 @@
-# pkg/workqueue Flow
+---
+scope: package
+summary: Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations.
+---
+
+# Work Queue Flow
 
 ## Responsibility
 
-`pkg/workqueue` provides reusable low-level queue and worker primitives. It owns
-bounded admission, shard-local mailbox scheduling, worker execution, shutdown
-waiting, and low-cardinality observations. It does not own business retries,
-fencing, message ordering rules, protocol/session handling, or runtime-specific
-metrics names.
+This package owns reusable low-level admission, queueing, worker execution,
+batch collection, shard scheduling, shutdown waiting, and low-cardinality
+observations.
+It does not own business retries, fencing, ordering, or protocol semantics.
 
-Every primitive accepts a `pkg/goroutine` registry and fixed pool task. The
-business module owns the resulting worker and maintenance goroutines; queue
-pressure is reported separately as busy, worker capacity, depth, bounded queue
-capacity, and rejected count.
-Callers that omit ownership use the explicit `app/detached_workqueue` fallback,
-so no worker pool is invisible to the process snapshot.
-Ants worker panics are routed through the owning catalog task before its
-recover-or-repanic policy is applied.
+## Boundaries
 
-## Primitives
+- Callers retain business retries, fencing, ordering, protocol/session rules,
+  metric names, and typed task/result adapters.
+- Every primitive uses a goroutine registry and fixed pool task; omitted
+  ownership is explicitly attributed to `app/detached_workqueue`.
+- Worker panics follow the owning catalog task's recover-or-repanic policy.
 
-| Type | Responsibility |
-|------|----------------|
-| `BoundedPool[T]` | Admit generic work into a bounded queue and execute it on an ants-backed worker pool. |
-| `BoundedBatchPool[T]` | Admit generic work into a bounded queue, collect adjacent items into policy-driven batches, and execute those batches on an ants-backed worker pool. |
-| `BoundedWorkerQueue[T]` | Admit generic work into a bounded queue and execute it on direct worker goroutines for very hot, low-latency paths. |
-| `ShardedMailbox[T]` | Hash work into bounded shard queues and run at most one drain per shard at a time. |
+## Main Flows
 
-Runtime packages should keep typed adapters around these primitives. For
-example, channel can keep its `Task` / `Result` / `Fence` surface, gateway can
-keep SEND frame cloning and session-close policy, and channelappend can keep its
-channel-writer state machine.
+1. `BoundedPool` and `BoundedWorkerQueue` reserve one admission slot, enqueue,
+   release capacity at executor or direct-worker acceptance, and run with a
+   pool context. Nonblocking submit returns `ErrFull`; waiting submit obeys context.
+2. `BoundedBatchPool` selects collection policy from the first item, drains
+   adjacent ready peers, optionally waits for one peer, extends before executor
+   retry, then releases all item slots when the batch is accepted.
+3. `ShardedMailbox` hashes a key, enqueues within a bounded shard, schedules
+   only the false-to-true edge, and runs at most one ordered drain per shard.
 
-## Bounded Pool Flow
+## Invariants and Failure Semantics
 
-```text
-Submit / SubmitWait
-  -> check closed and caller context
-  -> reserve one bounded admission slot
-  -> enqueue item
-  -> dispatcher submits item to ants executor
-  -> handler runs with the pool runtime context
-  -> slot is released when ants accepts the task
-```
+- Admission closes before shutdown. Default close drains accepted work and
+  waits; optional policies cancel queued items and/or runtime context for handlers.
+- Cancellation hooks cover accepted work that never enters the executor.
+- Queue depth, capacity, busy workers, goroutines, and rejected admissions are
+  distinct bounded observations.
+- Mailboxes guarantee one drain per shard, not per-business-key isolation;
+  keyed state machines remain above this package.
+- Runtime packages should wrap these generic primitives in typed APIs.
 
-`Submit` is non-blocking and returns `ErrFull` when no admission slot is
-available. `SubmitWait` waits for admission until the caller context expires.
-`Close` closes admission and drains already accepted work until its context
-expires.
+## Read First
 
-## Bounded Worker Queue Flow
+- [Package usage](USAGE.md)
+- [Bounded pool](bounded_pool.go)
+- [Bounded batch pool](bounded_batch_pool.go)
+- [Direct worker queue](bounded_worker_queue.go)
+- [Sharded mailbox](sharded_mailbox.go)
 
-```text
-Submit / SubmitWait
-  -> check caller context
-  -> reserve one free queue slot
-  -> re-check closed state under admission lock
-  -> enqueue item
-  -> direct worker receives the item
-  -> slot is released when the worker receives the item
-  -> handler runs with the queue runtime context
-```
+## Update Triggers
 
-`BoundedWorkerQueue` is for hot paths where the ants executor handoff is too
-expensive and fixed direct workers are enough. `Submit` is non-blocking and
-returns `ErrFull` when no free queue slot is available. `SubmitWait` waits for
-capacity, caller context expiry, or close. `Close` closes admission, drains
-accepted work, and waits for workers until its context expires.
-
-## Bounded Batch Pool Flow
-
-```text
-Submit
-  -> check closed and caller context
-  -> reserve one bounded admission slot
-  -> enqueue item
-  -> dispatcher starts from the first accepted item
-  -> policy chooses MaxItems / MaxWait
-  -> dispatcher drains immediately ready adjacent items
-  -> dispatcher optionally waits for one adjacent peer, then drains ready peers
-  -> dispatcher extends the batch with ready adjacent items before executor retries
-  -> dispatcher submits the batch to the ants executor
-  -> handler runs with the pool runtime context
-  -> item slots are released when ants accepts the batch
-```
-
-Default `Close` closes admission, skips outstanding batch waits, drains all
-accepted items into the executor, and waits for running handlers. With
-`CancelAcceptedOnClose`, `Close` instead cancels accepted items that have not
-entered the executor, calls the configured cancellation hook, and still waits
-for executor-accepted or already running handlers without canceling their
-runtime context unless the close context expires. With `CancelRunningOnClose`,
-`Close` cancels the runtime context as soon as shutdown starts so running
-handlers can exit through their own context-aware dependency calls.
-
-## Sharded Mailbox Flow
-
-```text
-Submit(key, item)
-  -> hash key to shard
-  -> enqueue into the shard's bounded mailbox
-  -> schedule a shard drain on the false-to-true scheduled edge
-  -> drain collects an ordered shard-local batch
-  -> handler processes the batch
-  -> shard is unscheduled only after its queue is empty
-```
-
-The mailbox guarantees one active drain per shard. It does not guarantee
-per-business-key isolation beyond stable hash placement; callers that need
-per-key state machines should keep that logic above this package.
+Update this file when admission ownership, slot release, batch collection,
+shutdown policies, mailbox scheduling, panic handling, or observations change.

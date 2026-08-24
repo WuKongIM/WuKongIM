@@ -1,655 +1,79 @@
+---
+scope: package
+summary: Adapts authenticated Manager HTTP and UI operations to bounded management use cases.
+---
+
 # internal/access/manager Flow
 
 ## Responsibility
 
-`internal/access/manager` exposes the dedicated manager HTTP listener for
-new-architecture administration routes and the embedded Manager Web UI. It owns
-HTTP routing, CORS, embedded static asset and SPA fallback handling, static
-manager login validation, JWT issuance, manager route permission checks, and
-manager-specific response envelopes. It does not own cluster, message, channel,
-user, or conversation business state.
+This package owns the dedicated Manager HTTP listener, embedded SPA, login and
+JWT handling, permission middleware, request validation, cursor and response
+mapping, and Manager-specific error envelopes. It presents cluster operations
+but does not own cluster state, safety policy, durable tasks, storage, or
+node-local runtime behavior.
 
-## Routes
+## Boundaries
 
-The same listener serves the embedded production Web bundle at `/`. Registered
-`/manager/*` routes always take precedence. Unmatched non-`/manager` GET and
-HEAD routes without a concrete static file return `index.html` for browser SPA
-routing; missing file-like paths and unmatched `/manager/*` routes remain 404.
-Content-hashed `/assets/*` responses are immutable-cacheable while `index.html`
-and public root assets require revalidation.
+Handlers call `internal/usecase/management` and narrow backup, channel,
+conversation, message, user, diagnostics, plugin, log, DB-inspect, runtime, and
+Operations MCP ports supplied by `internal/app`. Local-versus-remote selection
+and node RPC live below this package. The web UI consumes the same bounded HTTP
+contracts; it does not grant additional authority.
 
-When Manager authentication is disabled, a fresh Web client probes the
-read-only permissions snapshot and may enter only `/cluster/backups` with
-`cluster.backup:r`. The client does not persist this synthetic session and
-does not expose backup writes or the login/logout flow. Server-reported
-`auth_enabled=false` remains a second fail-closed write guard on the page.
+## Main Flows
 
 ```text
-POST /manager/login   (only when Auth.On=true)
-GET  /manager/permissions (read-only manager auth/user/catalog snapshot; requires cluster.permission:r when Auth.On=true)
-GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
-GET  /manager/nodes/:node_id/config (read-only redacted effective startup config; requires cluster.node:r when Auth.On=true)
-POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/onboarding/plan (bounded Slot onboarding preview; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/onboarding/start (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
-GET  /manager/nodes/:node_id/onboarding/status (active onboarding task status; requires cluster.node:r when Auth.On=true)
-POST /manager/nodes/:node_id/onboarding/advance (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/slot-move-out/plan (bounded pure Slot move-out preview; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/slot-move-out/advance (bounded pure Slot move-out task creation; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/scale-in/plan (bounded Slot scale-in drain preview; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/scale-in/start (mark node leaving for scale-in preparation; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/scale-in/drain (toggle target gateway drain mode; requires cluster.node:w when Auth.On=true)
-POST /manager/nodes/:node_id/scale-in/remove (mark a fully drained node removed; requires cluster.node:w when Auth.On=true)
-GET  /manager/nodes/:node_id/scale-in/status (fail-closed scale-in safety status; requires cluster.node:r when Auth.On=true)
-POST /manager/nodes/:node_id/scale-in/advance (bounded Slot scale-in drain task creation; requires cluster.node:w when Auth.On=true)
-GET  /manager/nodes/:node_id/diagnostics (read-only dynamic-node diagnostics; requires cluster.node:r when Auth.On=true)
-GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
-GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
-GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
-POST /manager/slots/leader-transfer-plan (read-only Slot leader-transfer batch preview; requires cluster.slot:r when Auth.On=true)
-POST /manager/slots/leader-transfer-batch (fenced Slot leader-transfer batch execute; requires cluster.slot:w when Auth.On=true)
-POST /manager/slots/:slot_id/leader-transfer (Controller-backed Slot leader-transfer intent; requires cluster.slot:w when Auth.On=true)
-POST /manager/nodes/:node_id/slots/:slot_id/compact (manual node-local Slot Raft compaction; requires cluster.slot:w when Auth.On=true)
-GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
-GET  /manager/controller/tasks (active Controller task list; requires cluster.controller:r when Auth.On=true)
-GET  /manager/controller/tasks/:task_id (active Controller task detail; requires cluster.controller:r when Auth.On=true)
-GET  /manager/controller/task-audits (retained Controller task history; requires cluster.controller:r when Auth.On=true)
-GET  /manager/controller/task-audits/:task_id/events (retained Controller task event timeline; requires cluster.controller:r when Auth.On=true)
-GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
-POST /manager/nodes/:node_id/controller-raft/compact (manual node-local Controller Raft compaction; requires cluster.controller:w when Auth.On=true)
-POST /manager/nodes/:node_id/controller-voter/promote (online Controller voter promotion; requires cluster.controller:w when Auth.On=true)
-POST /manager/controller-raft/compact (manual Controller voter compaction fan-out; requires cluster.controller:w when Auth.On=true)
-GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.slot:r when Auth.On=true)
-GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
-GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
-GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
-GET    /manager/backups (scheduled plan, current tasks, bounded history, and archives; requires cluster.backup:r when Auth.On=true)
-PUT    /manager/backups/plan (replace the single backup plan; requires cluster.backup:w when Auth.On=true)
-POST   /manager/backups/repository/test (probe the configured repository; requires cluster.backup:w when Auth.On=true)
-POST   /manager/backups/jobs (start one full backup now; requires cluster.backup:w when Auth.On=true)
-POST   /manager/backups/jobs/:job_id/cancel (cancel the active backup; requires cluster.backup:w when Auth.On=true)
-GET    /manager/backups/archives/:archive_id (read one archive; requires cluster.backup:r when Auth.On=true)
-POST   /manager/backups/archives/:archive_id/verify (verify one archive; requires cluster.backup:w when Auth.On=true)
-PUT    /manager/backups/archives/:archive_id/hold (hold or release one archive; requires cluster.backup:w when Auth.On=true)
-DELETE /manager/backups/archives/:archive_id (delete one archive; requires cluster.backup:w when Auth.On=true)
-POST   /manager/backups/archives/:archive_id/restore (restore one archive; requires exact cluster.restore:w plus reauthentication and confirmation)
-POST   /manager/backups/restores/:job_id/cancel (cancel the active restore before switching; requires exact cluster.restore:w)
-GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requires cluster.diagnostics:r when Auth.On=true)
-GET  /manager/diagnostics/message (diagnostics message lookup; requires cluster.diagnostics:r when Auth.On=true)
-GET  /manager/diagnostics/events (diagnostics event query, including optional exact physical slot_id; requires cluster.diagnostics:r when Auth.On=true)
-GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requires cluster.diagnostics:r when Auth.On=true)
-POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule on all eligible nodes by default, or one exact optional node_id; requires cluster.diagnostics:w when Auth.On=true)
-DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
-GET  /manager/channel-runtime-meta (read-only channel runtime metadata list or exact point read; requires cluster.channel:r when Auth.On=true)
-POST /manager/channel-migrations/leader-transfer (manual Channel leader-transfer task creation; requires cluster.channel:w when Auth.On=true)
-POST /manager/channel-migrations/replica-replace (manual Channel replica-replacement task creation; requires cluster.channel:w when Auth.On=true)
-GET  /manager/channel-migrations/active (active Channel migration task list scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
-GET  /manager/channel-migrations/:task_id (Channel migration task detail scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
-POST /manager/channel-migrations/:task_id/abort (abort Channel migration task scoped by channel_id/channel_type; requires cluster.channel:w when Auth.On=true)
-GET  /manager/channels (business channel list; requires cluster.channel:r when Auth.On=true)
-GET  /manager/channels/:channel_type/:channel_id (authoritative detail; cluster.channel:r)
-GET  /manager/channels/:channel_type/:channel_id/{subscribers,allowlist,denylist} (page or exact UID; cluster.channel:r)
-POST /manager/channels and PATCH /manager/channels/:channel_type/:channel_id (create/flag patch; cluster.channel:w)
-POST /manager/channels/:channel_type/:channel_id/{subscribers,allowlist,denylist}/{add,remove} (bounded set mutation; cluster.channel:w)
-GET  /manager/conversations (recent conversation list; requires cluster.channel:r when Auth.On=true)
-GET  /manager/messages (channel message list; requires cluster.channel:r when Auth.On=true)
-POST /manager/messages/retention (message retention request; requires cluster.channel:w when Auth.On=true)
-GET  /manager/connections (connection list; requires cluster.connection:r when Auth.On=true)
-GET  /manager/connections/:session_id (connection detail; requires cluster.connection:r when Auth.On=true)
-GET  /manager/webhooks/config (read-only webhook startup configuration snapshot; requires cluster.webhook:r when Auth.On=true)
-GET  /manager/nodes/:node_id/plugins (node-local plugin inventory; requires cluster.plugin:r when Auth.On=true)
-GET  /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin detail; requires cluster.plugin:r when Auth.On=true)
-PUT  /manager/nodes/:node_id/plugins/:plugin_no/config (node-local plugin desired config update; requires cluster.plugin:w when Auth.On=true)
-POST /manager/nodes/:node_id/plugins/:plugin_no/restart (node-local plugin restart; requires cluster.plugin:w when Auth.On=true)
-DELETE /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin uninstall; requires cluster.plugin:w when Auth.On=true)
-GET  /manager/plugin-bindings (UID/plugin binding list; requires cluster.plugin:r when Auth.On=true)
-POST /manager/plugin-bindings (create/update UID/plugin binding; requires cluster.plugin:w when Auth.On=true)
-DELETE /manager/plugin-bindings (remove UID/plugin binding; requires cluster.plugin:w when Auth.On=true)
-GET  /manager/db/inspect/tables (DB Inspect table list; requires cluster.db:r when Auth.On=true)
-GET  /manager/db/inspect/tables/:domain/:table (DB Inspect table schema; requires cluster.db:r when Auth.On=true)
-POST /manager/db/inspect/query (DB Inspect query; requires cluster.db:r when Auth.On=true)
-GET  /manager/users   (user list; requires cluster.user:r when Auth.On=true)
-GET  /manager/users/:uid (user detail; requires cluster.user:r when Auth.On=true)
-POST /manager/users/:uid/kick (force offline; requires cluster.user:w when Auth.On=true)
-POST /manager/users/:uid/token/reset (reset token; requires cluster.user:w when Auth.On=true)
-GET  /manager/system-users (system UID list; requires cluster.user:r when Auth.On=true)
-POST /manager/system-users/add (add system UIDs; requires cluster.user:w when Auth.On=true)
-POST /manager/system-users/remove (remove system UIDs; requires cluster.user:w when Auth.On=true)
+Manager request
+  -> authentication and resource permission
+  -> bounded path/query/body validation
+  -> entry-independent use case or read-model port
+  -> stable status and redacted response
+
+irreversible operator request
+  -> exact permission plus operation-specific confirmation/fences
+  -> use-case safety plan and fresh state checks
+  -> Controller-backed intent or explicit conflict/unavailable result
+
+remote node read or action
+  -> management orchestration selects target
+  -> infra/cluster node RPC adapter
+  -> partial/unknown evidence remains explicit
 ```
 
-Backup responses expose only the redacted scheduled-full-backup plan, bounded
-task progress/history, archive health/hold state, aggregate byte/record counts,
-and the fixed `healthy`, `warning`, or `critical` schedule-health projection.
-History covers full backup, restore, archive verification, and retention
-cleanup. They never expose repository object paths, encrypted credential bytes,
-plaintext secrets, Channel identities, or restore staging paths.
+## Invariants and Failure Semantics
 
-Backup plan requests select `file`, `oss`, `cos`, or generic `s3` storage.
-Alibaba OSS and Tencent COS require Region, Bucket, Prefix, and provider
-credentials, reject path-style addressing, and allow Endpoint to remain blank
-for the provider's standard public address. COS requires the full Bucket name
-including its numeric APPID suffix.
+- When Manager authentication is enabled, every route uses its declared
+  resource permission. Backup writes, restore, and MCP administration fail
+  closed when authentication is disabled.
+- Restore requires exact `cluster.restore:w`; wildcard permission is
+  insufficient. It also requires reauthentication and exact archive
+  confirmation, and a successful restore invalidates prior Manager sessions.
+- HTTP handlers never create Raft tasks, decide lifecycle safety, infer actual
+  leaders from desired placement, or mutate node runtimes directly.
+- Planning endpoints are read-only. Fenced writes return `202` only for newly
+  accepted work and preserve idempotent/no-op results as `200`.
+- Missing, stale, partial, or unavailable distributed evidence remains unknown
+  or unsafe; it is never projected as zero, healthy, or safe to remove.
+- Backup, config, diagnostics, log, plugin, and DB-inspect responses remain
+  bounded and redacted. Credentials, filesystem paths, raw provider errors,
+  complete UID sets, and secret material are never returned.
+- Unsigned 64-bit message IDs cross JSON as decimal strings.
+- `/mcp` uses its opaque MCP bearer token rather than a Manager JWT, rejects
+  browser origins, and forwards only to the Controller-selected execution
+  owner. `/manager/mcp*` remains the separately authenticated admin surface.
 
-Saving and testing are distinct mutations. `PUT /manager/backups/plan`
-durably saves and returns the redacted plan without repository I/O.
-`POST /manager/backups/repository/test` accepts only
-`expected_plan_revision`, probes that exact saved repository from every active
-data node, and marks only that revision verified. Repository or credential
-changes become unverified; schedule-only saves retain verification. Blank
-credential fields reuse the saved same-provider credential and all reads keep
-those inputs blank.
+## Read First
 
-`/manager/login` preserves the legacy manager response shape migrated from
-`internal/access/manager`: successful responses include `username`,
-`token_type`, `access_token`, `expires_in`, `expires_at`, and `permissions`;
-invalid JSON returns `{"error":"invalid_request","message":"invalid request"}`;
-invalid credentials return
-`{"error":"invalid_credentials","message":"invalid credentials"}`.
+- [server.go](server.go)
+- [auth.go](auth.go)
+- [backups.go](backups.go)
+- [scale_in.go](scale_in.go)
+- [opsmcp.go](opsmcp.go)
 
-`/manager/permissions` exposes a sanitized read-only snapshot of manager
-authentication state owned by this access layer. It returns `auth_enabled`, the
-authenticated `current_user` when auth is enabled, sorted static usernames with
-copied permission grants, and a cloned built-in manager permission catalog. It
-never returns passwords, JWT secrets, tokens, config paths, or environment
-values. When auth is enabled the route is guarded by `cluster.permission:r`;
-wildcard manager permissions continue to satisfy the same middleware check.
-When auth is disabled the route returns `auth_enabled=false` and an empty user
-list so the web permissions page can render a non-error read-only state. The
-catalog includes wildcard `*` and concrete manager resources such as
-`cluster.db:r` and `cluster.webhook:r`; webhook write permission is not
-advertised because webhook configuration is startup-only in this package. The
-route does not mutate runtime config or static auth grants.
+## Update Triggers
 
-`/manager/nodes` preserves the legacy list response shape for the web node list
-view. It reads a control snapshot through `internal/usecase/management` and
-uses the wired Slot runtime status reader for actual Slot Raft leader counts.
-It exposes control-snapshot health evidence in each node's `health` object:
-`fresh`, `freshness`, `runtime_ready`, report age/TTL, observed control and Slot
-revisions, and an optional bounded `error_code`. `membership.schedulable` is the
-shared health-gated placement predicate rather than an HTTP-only hint. It also
-surfaces lightweight online/gateway runtime counters from the management
-runtime-summary reader. Its top-level `channel_runtime` object reports the
-node-local loaded Channel runtime total and Leader/Follower split; unavailable
-or incomplete per-node runtime summaries stay explicitly marked `unknown`
-instead of being rendered as zero or failing the inventory response.
-Node list action hints remain read-model hints; `can_drain` and `can_resume`
-stay tied to the legacy node-operation routes and remain disabled in
-internal until those routes are migrated. Stage 5C gateway drain mode is
-exposed through `/manager/nodes/:node_id/scale-in/drain` and scale-in status
-instead of these node-list action hints. `can_move_slots_in` and
-`can_move_slots_out` are Slot migration hints for active Data-role nodes,
-including Controller voters; they do not imply that the node can be scaled in
-or removed. `can_scale_in` and `can_promote_controller_voter` remain separate
-read-model hints for data-only lifecycle and Controller membership routes.
-Node lifecycle writes are exposed as separate join and activate routes under
-`cluster.node:w`.
-
-`/manager/nodes/:node_id/config` is a read-only operator inspection route for
-one selected node's effective startup configuration. The handler validates a
-positive path node ID, requires the same `cluster.node:r` permission as node
-inventory, delegates node-existence checks and local/remote targeting to
-`internal/usecase/management`, and serializes only the allowlisted,
-pre-redacted groups returned by that usecase. Every item carries its normalized
-effective value plus a bounded `toml`, `env`, `default`, or `derived` source so
-operators do not mistake a zero-valued auto input for its non-zero runtime
-shape. It never reads environment
-variables directly, never exposes raw manager credentials or join tokens, and
-does not mutate runtime configuration. Missing nodes return `404 not_found`;
-unwired or unreachable config readers return `503 service_unavailable`.
-
-`/manager/nodes/join` parses `node_id`, optional `name`, `addr`, and optional
-`capacity_weight`, delegates to `internal/usecase/management`, returns
-`202 Accepted` when the control writer creates state, and returns `200 OK` for
-idempotent no-op results. `/manager/nodes/:node_id/activate` parses the target
-node from the path, accepts an empty body, delegates to the same lifecycle
-usecase, and returns `202 Accepted` when activation changes state after the
-joining-node readiness gate passes. These routes do not seed node RPC, poll
-peer startup, or perform Slot rebalance work. Lifecycle conflicts and
-not-ready activation gates return `409 conflict`; not-ready responses preserve
-the usecase's compact readiness detail in `message` so operators can see
-whether transport reachability, control mirror catch-up, runtime readiness,
-cluster ID, or revision fencing blocked activation. Missing activation targets
-return `404 not_found`, and unwired control writers/readiness readers return
-`503 service_unavailable`.
-
-`/manager/nodes/:node_id/controller-voter/promote` is a Controller membership
-write guarded by `cluster.controller:w`, not a generic node lifecycle write. It
-parses the positive path `node_id` and optional `expected_revision`, delegates
-all safety gates, target readiness checks, and control writes to
-`management.App.PromoteControllerVoter`, returns `202 Accepted` when Controller
-state changed, and returns `200 OK` for idempotent already-voter results.
-Blocked safety gates return `409 conflict` with compact usecase detail, missing
-targets return `404 not_found`, and unavailable cluster/control dependencies
-return `503 service_unavailable`.
-
-`/manager/nodes/:node_id/controller-raft` returns the selected node's local
-Controller Raft status, including live voter and learner sets in addition to
-role, leader, term, commit/apply, log, snapshot, compaction, restore, and peer
-progress fields. HTTP does not derive membership from durable node roles; it
-only serializes the usecase status DTO so app-level metrics and operators can
-compare live Raft membership with the durable Controller role view.
-
-`/manager/nodes/:node_id/onboarding/*` exposes the first bounded Slot onboarding
-surface for active data nodes. `plan`, `start`, and `advance` accept
-`max_slot_moves`, delegate all planning and task creation to
-`internal/usecase/management`, and never mutate Slot Raft or `DesiredPeers`
-inside HTTP handlers. `start` and `advance` return `202 Accepted` only when at
-least one Controller-backed `slot_replica_move` task is created; no-op previews
-or no-create results return `200 OK`. `status` is read-only and reports active
-replica-move tasks targeting the selected node. There is intentionally no
-`cancel` route in this stage because no fenced Controller cancel writer exists.
-The downstream flow is `SlotReplicaMoveWriter -> Controller slot_replica_move
-task -> cluster task executor -> Slot Raft learner/config-change flow -> final
-Controller assignment commit`; HTTP never treats target learners as
-`DesiredPeers` before that final commit.
-Transient cluster lifecycle and Controller leadership failures use the stable
-`503 service_unavailable` envelope rather than leaking Controller internals as
-`500 internal_error`; callers may retry these idempotent fenced writes within
-their own bounded operation deadline.
-
-`/manager/nodes/:node_id/slot-move-out/*` exposes bounded Slot replica
-migration away from an active Data-role node without entering the scale-in
-lifecycle. `plan` and `advance` accept `max_slot_moves`, delegate source
-eligibility, replacement selection, task conflict checks, and fenced writer
-calls to `management.App.PlanNodeSlotMoveOut` /
-`AdvanceNodeSlotMoveOut`, and reuse the scale-in candidate response shape.
-Controller-voter nodes are allowed as sources because this route does not mark
-the node `leaving`, toggle gateway drain, remove the node, or change Controller
-membership. `advance` returns `202 Accepted` when at least one
-`slot_replica_move` task is created and `200 OK` for no-create results.
-
-`/manager/nodes/:node_id/scale-in/*` exposes scale-in preparation for
-data nodes. `start` marks the target node `leaving` through
-`management.App.MarkNodeLeaving`, causing future planners to stop assigning new
-work to it. `drain` toggles the target node gateway's new-session admission
-through `management.App.SetNodeDrainMode` and returns the target runtime
-counters after the change; it is rejected unless the target is already a
-durable Data-role, non-Controller `leaving` node, and it does not close existing
-sessions. `status` delegates to `management.App.NodeScaleInStatus` and returns
-every fail-closed safety bit from the control snapshot, target and eligible-node
-health freshness, per-node runtime summaries, target gateway drain counters,
-Slot runtime summaries, active Controller tasks, and bounded Channel runtime
-metadata inventory. It includes bounded health blocker fields such as
-`blocked_by_health`, `blocked_by_stale_revision`, `health_fresh`,
-`health_freshness`, `observed_control_revision`, `required_control_revision`,
-and `blocked_reasons` for operator diagnosis. `blocked_reasons` are bounded
-machine-readable strings shared with the app metrics observer, which aggregates
-scale-in blockers by reason only, deduplicated per node/control revision/reason,
-and never by task, channel, UID, node address, or session. Channel inventory is
-bounded by a per-page limit plus a total page budget and fails closed when the
-budget is exceeded. `plan` and `advance` accept
-`max_slot_moves` and delegate to
-`management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
-bounded Stage 3 `slot_replica_move` task intents through the usecase's
-`SlotReplicaMoveWriter` path. Manager HTTP owns operator intent routing,
-permission checks, and response mapping only; safety and lifecycle decisions
-stay in the management usecase. `remove` delegates to
-`management.App.MarkNodeRemoved`, which calls the control lifecycle writer only
-when the same fail-closed status reports `safe_to_remove=true` and carries that
-status revision as the final write fence; unsafe attempts and revision conflicts
-return `409 conflict`. The downstream flow is:
-
-```text
-manager scale-in route
-  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn / MarkNodeRemoved
-  -> control snapshot + runtime summaries + gateway drain counters + ChannelRuntimeMeta inventory for status
-  -> SlotReplicaMoveWriter
-  -> Stage 3 slot_replica_move tasks
-  -> NodeLifecycleWriter.MarkNodeRemoved for final safe removal
-```
-
-This scale-in surface cannot close existing gateway sessions, migrate Channel
-replicas, clear Channel metadata, or cancel drain tasks. It can mark a node
-removed only through the final `remove` route after `safe_to_remove=true`.
-Unknown runtime, target/eligible-node health, or control-revision data keeps
-status unsafe and keeps planning/advancement at no candidates rather than
-guessing. Unknown Channel inventory keeps status unsafe, but HTTP still allows
-Slot drain `plan`/`advance` while desired Slot peers contain the target so
-operators can continue the first drain phase. Final `safe_to_remove` remains
-false until target health is fresh, `alive`, and runtime-ready; live runtime
-summaries have observed the required control revision; the target gateway is
-in drain mode, no longer accepts new sessions, and reports zero gateway,
-online, closing, and pending-activation counters; the remove route is the only
-manager entrypoint that can submit the removed tombstone. A repeated remove on
-an already-removed tombstone returns the writer's idempotent
-`changed=false` result even when the original safe-remove fence is stale.
-
-`/manager/nodes/:node_id/diagnostics` is the read-only root-cause surface for
-dynamic add/remove operations. It parses bounded task, audit, and Slot evidence
-limits, delegates all evidence assembly to
-`management.App.DynamicNodeDiagnostics`, and maps the usecase response to a
-single manager JSON document with `node`, optional `scale_in` or `onboarding`,
-`active_tasks`, `task_audits`, `slots`, `summary`, `sources`, and `warnings`.
-The handler does not create Controller tasks, retry task failures, mutate Slot
-assignments, change gateway drain mode, or mark nodes removed. When manager
-auth is enabled it uses the same `cluster.node:r` permission as node inventory
-and scale-in status because it only reads cluster-node lifecycle evidence.
-
-`/manager/realtime-monitor` backs the unified web realtime monitor under
-cluster operations. It parses chart `window`, optional `step`, optional
-positive `node_id`, and `category` (`common`, `gateway`, `internal`, `message`,
-`conversation`, `channel`, `database`, `control`, `slot`, `node`, or
-`goroutines`), requires
-`cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
-bounded `control_snapshot` reads to the app-wired realtime monitor provider.
-When Prometheus is disabled or unavailable the route still returns HTTP 200
-with an explicit monitor status so the web UI can show setup guidance instead
-of rendering empty charts. This route does not read from the top collector or
-any in-process dashboard ring buffer. PromQL is scoped to the app-managed
-`wukongim` Prometheus job so unrelated Prometheus jobs cannot be mixed into the
-realtime cards. Conversation cards include a `conversationSync` stage
-covering membership-directory request rate, latency, errors, scanned and
-returned candidates, deletes, unresolved rows, and Channel-Leader hydration
-latency and read amplification. Gateway cards cover
-client ingress, active connections, async SEND queue usage, connection churn,
-close-reason distribution, auth success/latency, SENDACK error rate, gateway
-traffic, frame handling latency, async SEND batch shape, async auth pressure,
-and transport queue/byte pressure. Internal network cards cover total and
-split TX/RX transport traffic, RPC rate/success/error/inflight/tail latency,
-dial success/latency, and Transport queue/admission pressure. Message cards
-cover SEND rate/SENDACK error rate, append commit rate/error and tail latency,
-committed dispatch backlog/enqueue/overflow, online delivery rate/latency/fan-out,
-delivery queue/admission pressure, retry rate/depth, route expiry, and path
-error closure. Channel cards cover Channel append tail latency, active
-runtime count, append batch shape, append error rate, channel writer admission
-pressure, parked followers, activation rejections, reactor mailbox depth,
-worker queue depth, PullHint error rate, and follower replication tail latency.
-Database cards cover message DB commit request tail latency, commit error rate,
-commit queue pressure, physical commit tail latency, and grouped commit batch
-shape. Disk usage is not exposed here until internal owns a database disk
-sampler.
-Slot cards cover Slot leader stability, proposal/apply rate and gap, proposal
-admission rejects, leader-change rate, replica lag, and Slot scheduler
-queue/inflight/task-latency pressure.
-Node cards cover runtime workqueue pressure, process CPU, RSS memory,
-goroutine count, and Go GC pause/rate/CPU/heap-goal pressure while preserving
-per-node series for the global cluster view.
-Goroutine cards combine Prometheus history with a direct, current node RPC
-snapshot. The direct view remains available when Prometheus is disabled,
-preserves node identity, and returns fixed module/task ownership plus pool
-busy/capacity/queue-depth/queue-capacity/rejection values through the
-entry-independent management read model. Peer failures are partial node results,
-not zeroes, and never expose stack traces or dynamic function names. Fan-out is
-limited to eight concurrent reads, 256 nodes, 1.5 seconds per node, and two
-seconds overall; successful peer snapshots are coalesced and cached for two
-seconds, while stale, unsupported, timed-out, and unavailable nodes remain
-explicit. Module/task health derives from fixed-count drift, panic evidence,
-and pool pressure.
-
-`/manager/runtime/workqueues` is backed by the `internal/app` top collector.
-It is a forced runtime view of the local node only: it does not fan out to peer
-nodes and does not depend on Prometheus. When the collector is not configured or
-has not sampled enough data yet, the route returns `service_unavailable`.
-The manager route preserves provider labels from the top collector; Transport
-service aliases are registered with the service worker pools and resolved before
-the HTTP response layer.
-
-`/manager/slots` preserves the legacy list response shape for the web Slot list
-view, including `node_id` filtering. It reads the same control snapshot through
-`internal/usecase/management`; `runtime.preferred_leader_id` is the
-Controller preferred leader from the assignment, while `runtime.leader_id` and
-the row health fields come from a live Slot Raft status read. Missing live
-evidence is returned as unknown/unreported rather than projected from desired
-placement. The selected node's actual local Slot Raft leader is also exposed as
-`node_log.leader_id` when available. The route returns its local Slot Raft role plus
-commit/applied watermarks in `node_log` for the web status and log-height
-columns. The response may include active task summaries and participant
-progress for display only. `/manager/slots/leader-transfer-plan`
-parses source/target selection, optional Slot allow-list, max task count, and
-target policy, then delegates deterministic batch preview generation to
-`internal/usecase/management`; it is read-only and requires Slot read
-permission. `/manager/slots/leader-transfer-batch` accepts the same selection
-plus `state_revision` and `plan_id` fences, delegates execution to the
-management usecase, returns `202 Accepted` when at least one new Controller task
-is created, and returns `200 OK` for existing/no-op-only outcomes.
-`/manager/slots/:slot_id/leader-transfer` parses a `target_node`, delegates
-snapshot/runtime validation to `internal/usecase/management`, returns
-`202 Accepted` when a new Controller task is created, and returns `200 OK` for
-no-op already-leader or existing-task responses. The single-Slot response
-includes `target_node`, `preferred_leader`, `actual_leader`, `created`, and
-`message` so operators can distinguish accepted work from no-op outcomes without
-inspecting Controller internals. Slot detail and other operation routes remain
-unmigrated.
-
-`/manager/controller/logs` and `/manager/slots/:slot_id/logs` expose
-newest-first distributed Raft log pages for the selected node. They parse
-`node_id`, `limit`, and `cursor` at the HTTP boundary, delegate local/remote log
-selection to `internal/usecase/management`, and return decoded payload
-summaries only for inspection; the routes do not mutate Controller or Slot
-state.
-
-`/manager/controller/tasks*` exposes active Controller task state from the
-local control snapshot. The HTTP layer validates `kind`, `status`, `slot_id`,
-`node_id`, and `limit`, requires `cluster.controller:r` when manager auth is
-enabled, and delegates projection/filtering to `internal/usecase/management`.
-The route is read-only and intentionally omits completed task history because
-completed tasks are removed from active cluster state.
-
-`/manager/controller/task-audits*` exposes bounded retained Controller task
-history from the internal task audit reader. The HTTP layer validates `kind`,
-`status`, `slot_id`, `node_id`, `keyword`, and `limit`, requires
-`cluster.controller:r` when manager auth is enabled, and delegates list and
-exact task timeline reads to `internal/usecase/management`. The route is
-read-only and uses applied Raft index ordering from the backend audit store, so
-completed or failed historical tasks remain inspectable after they disappear
-from active control state.
-
-`/manager/nodes/:node_id/slots/:slot_id/compact` is the explicit Slot Raft
-operator action paired with the read-only Slot log page and list-row Slot Raft
-status reads. It validates the selected node and physical Slot at the HTTP
-boundary, delegates local/remote execution to the management usecase, and
-returns one per-node/slot result with success, skip, or error state; it does
-not fan out across Slot replicas.
-
-`/manager/nodes/:node_id/controller-raft` exposes the selected node's
-Controller Raft role, commit/apply watermarks, durable log/snapshot watermarks,
-and latest compaction/restore status. The `compact` routes are explicit
-operator actions separate from log paging: the node-scoped route forces one
-node-local compaction attempt, while `/manager/controller-raft/compact` fans out
-to Controller voter nodes through the management usecase and returns per-node
-success, skip, or error results.
-
-`/manager/app-logs*` exposes ordinary WuKongIM process logs under `WK_LOG_DIR`,
-not Controller, Slot, Channel, or Raft logs. The routes use the fixed ordinary
-application log sources owned by the application log reader (`app`, `warn`,
-`error`, and `debug`), require an explicit positive `node_id`, and delegate
-local-vs-remote node selection to `internal/usecase/management`. The stream
-route emits lightweight NDJSON events for lines, rotations, heartbeats, and
-reader errors without owning a long-running log runtime.
-
-## Embedded Operations MCP
-
-Every configured normal-mode Manager listener mounts the agent-facing `POST /mcp`
-Streamable HTTP endpoint and the SPA settings page at `/system/mcp`. The
-agent-facing route uses only its opaque MCP bearer token; it does not accept a
-Manager JWT. Non-empty browser `Origin` values are rejected and the route has
-no CORS grant.
-
-Administration is deliberately separate under `/manager/mcp*` and is disabled
-unless Manager authentication is enabled. Status, token metadata, and local
-audits require `cluster.mcp:r`; token create/revoke, owner change, start, and
-stop require `cluster.mcp:w`. The UI displays the raw token exactly once,
-generates a token-only client snippet, warns on plain HTTP, and reloads
-authoritative Controller state after each mutation.
-
-The Manager listener is the only endpoint operators configure. There is no
-separate MCP process, port, capability file, TLS requirement, or MCP-specific
-TOML switch. Any Manager node may receive a request and forwards it to the
-single Controller-selected execution owner.
-
-`/manager/diagnostics*` exposes internal diagnostics tracing. The HTTP layer
-parses trace/message/event query parameters, enforces the dedicated
-`cluster.diagnostics` permissions, and delegates local-vs-remote fan-out plus
-tracking-rule mutations to `internal/usecase/management`. These routes use
-the internal diagnostics store and do not import or query legacy
-`internal/observability/diagnostics` state.
-The event route accepts an optional positive physical `slot_id` and returns
-explicit PreferredLeader decision, actual/preferred leader, Raft term, and
-config epoch fields without repurposing generic peer, retry, or error fields.
-
-`/manager/channels` preserves the business channel list response shape for the
-web channel list view, including `node_id`, `type`, `keyword`, `limit`, and
-`cursor` query parameters. Typed detail and member-list routes read through the
-authoritative Slot leader. Member pages default to 100 rows and cap at 500;
-`uid` performs one exact lookup and is mutually exclusive with `cursor`.
-Create is create-only (`409` for an existing row), PATCH changes only
-`ban`/`disband`/`send_ban`, and member writes accept at most 500 distinct UIDs.
-Subscriber writes on person channels are rejected. Member writes emit one
-bounded audit record with the operator, channel, list, operation,
-requested/changed counts, result, timestamp, and at most one redacted UID
-sample; the complete UID list is never logged. Non-local list `node_id` reads
-remain delegated below the HTTP layer through the management usecase.
-
-`/manager/channel-runtime-meta` preserves the legacy channel cluster list
-response shape for the web cluster channel page, including `node_id`,
-`node_scope`, `channel_id`, `include_max_message_seq`, `limit`, and `cursor`
-query parameters. It exposes read-only runtime metadata and augments rows with
-the physical `slot_leader`, control-plane `preferred_leader`, Channel
-write-fence, degraded, and active migration hints. The existing `leader` field
-continues to mean Channel data leader. Channel detail, repair, and generic
-mutation operation routes remain unmigrated in internal. `exact=1` requires an
-exact `channel_id` and `channel_type` and delegates to the point-read usecase;
-it does not enumerate unrelated physical Slots.
-
-`/manager/channel-migrations/*` exposes the narrow manual Channel migration
-surface. HTTP parses operator intent, requires positive node IDs where
-applicable, maps duplicate active tasks to `409 conflict`, maps missing tasks
-to `404 not_found`, and delegates all runtime metadata validation, fence
-creation, and Slot-owned persistence to `internal/usecase/management`.
-Read and abort routes require `channel_id` and optional `channel_type` because
-migration tasks are stored in the channel-owned hash slot rather than in a
-global task index.
-
-`/manager/conversations` preserves the legacy recent conversation manager
-response shape for the web recent-conversation list view, including `uid`,
-`limit`, `msg_count`, and `only_unread` query parameters. It reuses the
-membership-backed conversation construction usecase and remains a read-only
-display route.
-Embedded `recent_messages[].message_id` values are decimal strings so browser
-clients preserve the complete unsigned 64-bit identifier.
-
-`/manager/messages` preserves the message list response shape for the web
-message page. Without `channel_id` it returns the cluster-wide newest unique
-messages and pages by global message ID. With `channel_id`, it requires
-`channel_type`, accepts `message_id` and `client_msg_no`, and keeps the existing
-channel-sequence cursor. Both modes read committed messages through
-`internal/usecase/management`. Response `message_id` values are decimal strings,
-and the optional `message_id` query parameter accepts the same representation,
-so JavaScript clients never pass the identifier through an unsafe JSON number.
-`/manager/messages/retention` preserves the legacy request/response envelope
-and delegates to an optional retention port; when no v2 retention implementation
-is configured, the route returns `service_unavailable` instead of reporting a
-false success.
-
-`/manager/connections*` preserves the legacy connection list/detail JSON shape
-for the web connection page. The list route accepts optional `node_id` and
-`limit` query parameters, with the connection page bounded to at most 100 rows
-per request. In internal it reads the owner-local online registry for local
-or empty `node_id` filters, routes remote `node_id` filters through
-internal node RPC, and maps session details such as UID, device, listener,
-state, timestamps, and addresses when the gateway session handle exposes them.
-If a remote connection reader is not wired, non-local filters return
-`service_unavailable`.
-
-`/manager/webhooks/config` exposes the node-local webhook startup configuration
-snapshot for the web webhook settings page. The route requires
-`cluster.webhook:r` when manager auth is enabled, delegates snapshot reads to
-the configured `WebhookConfigProvider`, and returns `service_unavailable` when
-the provider is absent or cannot produce a snapshot. It is read-only and does
-not mutate webhook runtime or config state.
-
-`/manager/nodes/:node_id/plugins*` exposes node-scoped plugin inventory,
-detail, desired-config update, restart, and uninstall operations for one
-selected node. The HTTP layer validates positive `node_id` values and non-empty
-plugin numbers, requires `cluster.plugin:r` for reads and `cluster.plugin:w`
-for lifecycle writes when manager auth is enabled, caps config update bodies at
-1 MiB, and accepts only JSON objects for desired config. Response DTOs map
-plugin status, hook methods, hook sync flags, process ID, last-seen timestamp,
-latest error text, config templates, redacted desired config, and desired-state
-timestamps from `internal/usecase/management`. Local-vs-remote node targeting
-is routed below this package through manager plugin node RPC; the HTTP layer
-does not inspect plugin files or call the plugin runtime directly.
-
-`/manager/plugin-bindings` exposes cluster-authoritative UID/plugin bindings
-used by Receive hooks. `GET` accepts exactly one selector: `uid` for
-UID-owned binding reads, or `plugin_no` for plugin-centric pages when the
-wired binding store supports that scan. `POST` and `DELETE` parse
-`uid`/`plugin_no` from JSON bodies or query parameters, require
-`cluster.plugin:w`, and delegate mutations to `internal/usecase/management`.
-The HTTP layer owns only parsing, permission checks, and response DTO mapping;
-durable ownership and timestamps stay below the access layer.
-
-`/manager/db/inspect*` backs the web `/system/db` DB Inspect page. It parses
-HTTP query/body parameters, enforces `cluster.db:r` when manager auth is
-enabled, and delegates all local-vs-remote targeting to
-`internal/usecase/management`. Empty `node_id` means the local manager node;
-non-local `node_id` requests are routed below this package through manager DB
-inspect node RPC. The routes are read-only diagnostics: they do not merge
-cluster rows, expose filesystem paths, or provide storage mutation operations.
-
-`/manager/users*` and `/manager/system-users*` preserve the legacy manager user
-management response shapes for the web user and system-user pages. HTTP parsing,
-cursor encoding, permissions, and response DTOs stay here; user metadata scans,
-presence joins, token reset, force-offline, and system UID mutations are
-delegated to `internal/usecase/management`.
-
-The manager server uses its own listen address from the composition root and is
-separate from `internal/access/api`. In `cmd/wukongim`, that listener is
-configured by `WK_MANAGER_LISTEN_ADDR`; JWT settings and static users are
-configured by the `WK_MANAGER_*` auth keys.
-
-## Backup And Restore
-
-Manager exposes one scheduled full-backup surface:
-
-```text
-GET    /manager/backups
-PUT    /manager/backups/plan
-POST   /manager/backups/repository/test
-POST   /manager/backups/jobs
-POST   /manager/backups/jobs/:job_id/cancel
-GET    /manager/backups/archives/:archive_id
-POST   /manager/backups/archives/:archive_id/verify
-PUT    /manager/backups/archives/:archive_id/hold
-DELETE /manager/backups/archives/:archive_id
-POST   /manager/backups/archives/:archive_id/restore
-POST   /manager/backups/restores/:job_id/cancel
-```
-
-Reads require `cluster.backup:r` when Manager auth is enabled. Every backup
-write requires authenticated Manager mode plus `cluster.backup:w`; writes are
-rejected when authentication is disabled.
-
-Restore requires an exact resource grant for `cluster.restore:w`; a global
-wildcard resource does not satisfy it. The administrator must also submit the
-current username/password and exact `RESTORE <archive-id>` confirmation.
-Restore routes remain available while cluster business traffic is in
-maintenance.
-
-The dashboard projection contains only the redacted plan, active task, bounded
-history, credential-present boolean, published archive summaries, and schedule
-health. A latest failed backup is `warning`; two expected schedule occurrences
-without a successful archive is `critical`. It never returns credential
-ciphertext, plaintext secrets, object keys, Channel identities, or staging
-paths. Backup route failures use stable `backup_*` error codes so the Web UI
-does not infer behavior from messages.
-
-The embedded Web UI uses one `/cluster/backups` page for configuration,
-current progress, archive verify/hold/delete, and in-place restore. It offers
-daily 01:00, every 12 hours, or custom Cron/`@every` schedules. The previous
-checkpoint tabs and recovery-command page do not exist. Auth-disabled Manager
-may view this page read-only and cannot perform writes or restore.
-
-Repository test failures use specific stable codes for authentication,
-permission, bucket, region, endpoint, TLS, timeout, repository identity, node,
-and operation failures. The optional error detail contains only provider,
-stage, reason, bounded provider code, bounded request ID, and node ID. The Web
-page renders test success or failure in a live region immediately below the
-Save/Test action row, so feedback stays visible without scrolling to the page
-header. The same response never contains credentials or an unbounded raw
-provider message.
-
-A successful restore increments Controller's Manager session epoch. JWT
-validation compares that epoch, so all pre-restore Manager sessions are forced
-to sign in again.
+- Authentication, permissions, redaction, or stable error mapping changes.
+- A handler begins planning, fencing, or executing distributed mutations.
+- Restore, node lifecycle, scale-in, migration, or MCP authority changes.
+- Remote-node failure, unknown-state, pagination, or response bounds change.

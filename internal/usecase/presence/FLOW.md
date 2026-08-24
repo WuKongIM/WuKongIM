@@ -1,107 +1,57 @@
-# internal/usecase/presence Flow
+---
+scope: package
+summary: Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup.
+---
+
+# Presence Use Case Flow
 
 ## Responsibility
 
-`internal/usecase/presence` owns entry-agnostic connection presence
-orchestration. It coordinates an owner-local registry with the current UID
-authority client, but does not import gateway frames, wire protocol packages,
-cluster runtimes, access adapters, or the app composition root.
+This package owns entry-independent presence orchestration between the
+owner-local online registry and the current UID authority client.
+It does not own gateway frames, concrete cluster routing, or session storage.
 
-## Activate Flow
+## Boundaries
 
-```text
-Activate(command)
-  -> resolve UID hash slot
-  -> build owner-local OwnerRoute and authority Route
-  -> local.RegisterPending(LocalSession{Route, Session})
-  -> authority.RegisterRoute(route)
-     -> on error, local.MarkClosingAndUnregister(sessionID)
-  -> route returned RouteAction values through OwnerActionClient
-  -> authority.CommitRoute(token) when registration returned a pending token
-  -> local.MarkActive(sessionID)
-     -> on failure, authority.EnqueueUnregister(ctx, exact route identity, owner seq)
-        and local.MarkClosingAndUnregister(sessionID)
-  -> observe uid online status when an active owner-local session remains
-```
+- It does not import gateway or protocol frames, cluster runtimes, access, or
+  app composition.
+- Concrete sessions remain local; authority calls use route projections and
+  exact targets.
+- The app touch worker drains dirty routes in bounded batches, avoiding one
+  authority RPC per client ping.
 
-`MarkActive` is the final local active re-check. A successful activation means
-the authority accepted the route, required owner actions were acknowledged, and
-the owner still has the session locally. Online-status observation is
-best-effort and owner-local; it emits the legacy-compatible
-`uid-deviceFlag-1-sessionID-deviceOnlineCount-totalOnlineCount` status only
-after successful local activation when an active owner-local session exists.
-The device and total counts are computed from active owner-local sessions after
-activation, and pending sessions are not counted. Observation never adds
-authority traffic.
+## Main Flows
 
-## Deactivate Flow
+1. Activate resolves the UID Hash Slot, registers the local session pending,
+   registers authority, executes returned owner actions, commits a pending
+   token, performs the final local active recheck, then observes online status.
+2. Deactivate snapshots active state, removes local indexes first, observes
+   offline only for the last active owner-local session, then queues the exact
+   authority unregister tombstone.
+3. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
+   authority batch ports; group errors do not abort successful siblings.
 
-```text
-Deactivate(command)
-  -> local.LocalSession(sessionID) to snapshot whether the removed session is active
-  -> local.MarkClosingAndUnregister(sessionID)
-  -> observe uid offline status when the removed session was active and no active
-     owner-local sessions remain for the UID
-  -> authority.EnqueueUnregister(ctx, exact route identity, owner seq)
-```
+## Invariants and Failure Semantics
 
-Local removal happens before the authority tombstone is queued so owner-local
-delivery no longer sees the route while unregister retry is pending. Offline
-status observation is best-effort and emits the legacy-compatible offline status
-only after the removed session was active and was the last active owner-local
-session for that UID. The emitted value uses
-`uid-deviceFlag-0-sessionID-deviceOnlineCount-totalOnlineCount`, with counts
-computed after removal from active owner-local sessions. If the pre-removal
-session snapshot is missing, the observer is skipped to avoid a false offline
-event. Pending same-UID sessions do not count as online until activation
-succeeds.
+- Failed authority registration removes the pending local session. Failed final
+  activation queues exact unregister and removes local state.
+- Status observation is best effort, never adds authority traffic, counts only
+  active owner-local sessions, and skips offline when the prior session is unknown.
+- Touch records owner-observed activity locally only.
+- Production target-aware lookup preserves the complete fence and returns
+  aligned results. The per-UID fallback exists only for limited compatibility
+  implementations and cannot provide that target fence.
+- Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
 
-## Touch Flow
+## Read First
 
-```text
-Touch(command)
-  -> local.MarkTouched(sessionID, activityUnix)
-```
+- [Activation](activate.go)
+- [Deactivation](deactivate.go)
+- [Lookup](lookup.go)
+- [Touch](touch.go)
+- [Ports](ports.go)
 
-Touch is owner-local and only records observed client activity on the local
-registry. It does not call the authority for each ping. Authority touch updates
-are forwarded by the app touch worker in bounded batches from the local dirty
-touch set, so frequent client activity does not become one RPC per ping.
+## Update Triggers
 
-## Query Flow
-
-```text
-EndpointsByUID(uid)
-  -> authority.EndpointsByUID(uid)
-
-EndpointsByUIDs(uids)
-  -> authority.EndpointsByUIDs(uids) when the authority client exposes the
-     optional batch surface
-  -> otherwise loop through authority.EndpointsByUID(uid)
-
-EndpointsByTargets([{exact target, uids}])
-  -> authority.EndpointsByTargets(groups) when the authority client exposes the
-     target-aware batch surface
-  -> otherwise loop through authority.EndpointsByUID(uid) within each group
-     for compatibility with limited harnesses
-```
-
-Target-aware lookup returns one aligned `EndpointLookupResult` per input group.
-A group-scoped lookup error is recorded on that result and does not abort later
-groups. Production cluster adapters preserve the supplied complete target
-fence; the legacy fallback deliberately cannot do so and exists only for
-compatibility with older or limited authority implementations. When the
-production batch surface is present, the usecase returns its aligned result
-directly and does not allocate a discarded compatibility result slice. Lookup
-stays authority-routed behind the `AuthorityClient` port.
-
-## Import Boundary
-
-The usecase package must remain independent from concrete entries and cluster
-adapters. The import-boundary test rejects imports of:
-
-- `pkg/gateway`
-- `pkg/protocol/frame`
-- `pkg/cluster`
-- `internal/access`
-- `internal/app`
+Update this file when activation rollback, conflict actions, status observation,
+deactivation ordering, touch ownership, lookup alignment, or imports change.

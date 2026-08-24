@@ -13,26 +13,27 @@ import (
 	verify "github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify"
 )
 
-func TestInstructionDiscoveryUsesOnlyApplicableBaseTreeBlobs(t *testing.T) {
+func TestContextDocumentDiscoveryUsesOnlyApplicableBaseTreeBlobs(t *testing.T) {
 	t.Parallel()
 
-	instructions, err := verify.DiscoverInstructions(
+	documents, err := verify.DiscoverContextDocuments(
 		[]string{
 			"internal/runtime/delivery/queue.go",
 			"web/src/App.tsx",
 		},
-		[]verify.BaseInstruction{
+		[]verify.BaseContextDocument{
 			{
 				Path: "AGENTS.md", BlobSHA: strings.Repeat("a", 40),
 				Content: []byte("root"),
 			},
 			{
 				Path: "internal/FLOW.md", BlobSHA: strings.Repeat("b", 40),
-				Content: []byte("internal"),
+				Content: []byte("---\nscope: subtree\nsummary: Describes internal descendants.\n---\n"),
 			},
 			{
 				Path:    "internal/runtime/delivery/FLOW.md",
-				BlobSHA: strings.Repeat("c", 40), Content: []byte("delivery"),
+				BlobSHA: strings.Repeat("c", 40),
+				Content: []byte("---\nscope: package\nsummary: Describes exact delivery behavior.\n---\n"),
 			},
 			{
 				Path: "web/AGENTS.md", BlobSHA: strings.Repeat("d", 40),
@@ -53,12 +54,101 @@ func TestInstructionDiscoveryUsesOnlyApplicableBaseTreeBlobs(t *testing.T) {
 			"internal/runtime/delivery/FLOW.md",
 			"web/AGENTS.md",
 		},
-		instructionPaths(instructions),
+		contextDocumentPaths(documents),
 	)
-	for _, instruction := range instructions {
-		require.NotEmpty(t, instruction.BlobDigest)
-		require.NotEmpty(t, instruction.Scope)
+	for _, document := range documents {
+		require.NotEmpty(t, document.BlobDigest)
+		require.NotEmpty(t, document.Scope)
 	}
+}
+
+func TestContextDocumentDiscoveryRejectsFlowWithoutMetadata(t *testing.T) {
+	t.Parallel()
+
+	_, err := verify.DiscoverContextDocuments(
+		[]string{"internal/runtime/delivery/queue.go"},
+		[]verify.BaseContextDocument{{
+			Path:    "internal/FLOW.md",
+			BlobSHA: strings.Repeat("a", 40),
+			Content: []byte("# Internal Flow\n"),
+		}},
+	)
+	require.EqualError(
+		t,
+		err,
+		"internal/FLOW.md: invalid base FLOW metadata: FLOW front matter is missing",
+	)
+}
+
+func TestContextDocumentDiscoveryHonorsExplicitFlowScope(t *testing.T) {
+	t.Parallel()
+
+	documents, err := verify.DiscoverContextDocuments(
+		[]string{"internal/runtime/delivery/queue.go"},
+		[]verify.BaseContextDocument{
+			{
+				Path: "AGENTS.md", BlobSHA: strings.Repeat("a", 40),
+				Content: []byte("root instructions"),
+			},
+			{
+				Path: "internal/FLOW.md", BlobSHA: strings.Repeat("b", 40),
+				Content: []byte("---\nscope: package\nsummary: Describes the internal root package.\n---\n"),
+			},
+			{
+				Path:    "internal/runtime/FLOW.md",
+				BlobSHA: strings.Repeat("c", 40),
+				Content: []byte("---\nscope: subtree\nsummary: Describes runtime descendants.\n---\n"),
+			},
+			{
+				Path:    "internal/runtime/delivery/FLOW.md",
+				BlobSHA: strings.Repeat("d", 40),
+				Content: []byte("---\nscope: package\nsummary: Describes exact delivery behavior.\n---\n"),
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		[]string{
+			"AGENTS.md",
+			"internal/runtime/FLOW.md",
+			"internal/runtime/delivery/FLOW.md",
+		},
+		contextDocumentPaths(documents),
+	)
+}
+
+func TestContextDocumentDiscoveryRejectsMalformedExplicitFlowMetadata(t *testing.T) {
+	t.Parallel()
+
+	_, err := verify.DiscoverContextDocuments(
+		[]string{"internal/runtime/delivery/queue.go"},
+		[]verify.BaseContextDocument{{
+			Path:    "internal/FLOW.md",
+			BlobSHA: strings.Repeat("a", 40),
+			Content: []byte("---\nscope: everywhere\nsummary: Invalid scope.\n---\n"),
+		}},
+	)
+	require.EqualError(
+		t,
+		err,
+		"internal/FLOW.md: invalid base FLOW metadata: FLOW scope must be package or subtree",
+	)
+}
+
+func TestContextDocumentDiscoveryIgnoresMalformedUnrelatedFlowMetadata(t *testing.T) {
+	t.Parallel()
+
+	documents, err := verify.DiscoverContextDocuments(
+		[]string{"internal/runtime/delivery/queue.go"},
+		[]verify.BaseContextDocument{{
+			Path:    "pkg/FLOW.md",
+			BlobSHA: strings.Repeat("a", 40),
+			Content: []byte("---\nscope: everywhere\nsummary: Invalid scope.\n---\n"),
+		}},
+	)
+	require.NoError(t, err)
+	require.Empty(t, documents)
 }
 
 func TestContextRejectsBudgetInsteadOfDroppingInventory(t *testing.T) {
@@ -136,7 +226,7 @@ func testGeneration() contract.GenerationIdentity {
 	}
 }
 
-func instructionPaths(values []contract.InstructionBlob) []string {
+func contextDocumentPaths(values []contract.ContextDocumentBlob) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
 		result = append(result, value.Path)

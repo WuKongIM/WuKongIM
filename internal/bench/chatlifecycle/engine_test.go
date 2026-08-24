@@ -6038,14 +6038,24 @@ func TestEngineGrantSurvivesSessionExpiryReplacementGap(t *testing.T) {
 	fixture.engine.finishBootstrapIfOnline(now)
 	waitForEngineCompletions(t, fixture.engine, "bootstrap")
 	fixture.pool.mu.Lock()
-	kept := 0
-	for _, session := range fixture.pool.online {
-		if kept > 0 {
-			session.snapshot.Deadline = session.snapshot.Deadline.Add(time.Hour)
+	uids := make([]string, 0, len(fixture.pool.online))
+	for uid := range fixture.pool.online {
+		uids = append(uids, uid)
+	}
+	sort.Strings(uids)
+	expiringUID := ""
+	for _, uid := range uids {
+		session := fixture.pool.online[uid]
+		if expiringUID == "" && !session.canaryAnchor {
+			expiringUID = uid
+			continue
 		}
-		kept++
+		session.snapshot.Deadline = session.snapshot.Deadline.Add(time.Hour)
 	}
 	fixture.pool.mu.Unlock()
+	if expiringUID == "" {
+		t.Fatal("no ordinary session available for expiry gap")
+	}
 
 	// Expiry removes one old route before its asynchronous replacement login can
 	// complete. A coordinator grant arriving in that bounded gap must not turn

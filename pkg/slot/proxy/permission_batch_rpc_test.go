@@ -4,6 +4,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 func TestPermissionMetadataSlotWorkersAreBounded(t *testing.T) {
@@ -14,7 +16,7 @@ func TestPermissionMetadataSlotWorkersAreBounded(t *testing.T) {
 	var active atomic.Int64
 	var peak atomic.Int64
 	go func() {
-		runPermissionMetadataSlotWorkers(groups, func(int) {
+		runSlotMetadataBatchWorkers(goruntimeregistry.TaskSlotPermissionBatch, groups, func(int) {
 			current := active.Add(1)
 			defer active.Add(-1)
 			for {

@@ -1,39 +1,52 @@
+---
+scope: package
+summary: Materializes reviewed rehearsal and formal chat-lifecycle run plans from four operator inputs and trusted context.
+---
+
 # Chat Lifecycle Run Flow
 
-`chatlifecyclerun` owns the reviewed cross-stage policy that binds the four
-operator inputs to a versioned repository Plan. It materializes generic Cloud
-Lease input and public bootstrap identities, but it does not call a provider,
-deploy hosts, run workers, or retain private credentials.
+## Responsibility
 
-```text
-versioned Run Plan template + four operator inputs + trusted workflow context
-  -> validate exact source, operator, request, bundle, clock, and attempt
-  -> bind immutable 12-hour rehearsal AutoRelease ceiling and aggregate budget ledger
-  -> require released rehearsal_pass transition before formal materialization
-  -> bind fresh 96-hour formal Lease to the same source, bundle, and ledger
-  -> emit generic Cloud Lease Plan + public bootstrap access
-```
+This package binds four operator inputs and trusted workflow context to the
+versioned repository Run Plan, generic Cloud Lease input, and public bootstrap
+identities. It never calls providers, deploys hosts, runs workers, or retains
+private credentials.
 
-Every stage has exactly one procurement attempt. Deployment and pre-clock
-readiness repair reuse that exact Lease, bundle, and sealed identity while the
-top-level orchestrator tries distinct request-bound protected-main control
-revisions. There is no fresh-Lease deployment retry. The request shares one
-aggregate cost ledger: CNY 1,350 is the operational admission stop and CNY
-1,500 is the hard limit. The template fixes four Ubuntu x86 hosts, 4 vCPU/8 GiB,
-40 GiB system disks, 500/200 GiB data disks, one 20 Mbps EIP, lease-long public
-ports 22 and 80. The rehearsal template fixes a 12-hour AutoRelease ceiling, a
-two-hour pre-clock readiness window, and a two-hour run. The formal template
-fixes a fresh 96-hour Lease, the same two-hour readiness window, and a 72-hour
-run. It is accepted only with a typed rehearsal transition containing exact
-zero-inventory
-proof, the same request/source/bundle identities, and the carried aggregate
-commitment. The transition also carries the normalized public half of the
-request-scoped Codex diagnostic identity, so a fresh formal Lease cannot switch
-to a different local diagnostic owner. Runtime YAML owns the unchanged
-workload and threshold details.
+## Boundaries
 
-This package never accepts infrastructure quantities as command-line inputs.
-The workflow supplies only trusted context derived from the protected
-repository and the prior typed receipts. It derives and retains the exact
-release selector from the admitted Plan/Quote before paid Acquire, so ambiguous
-acquisition is cleanup-capable even when no Receipt Artifact survives.
+- Infrastructure quantities and workload thresholds come from the reviewed
+  template, not command-line input.
+- Each stage has exactly one procurement attempt. Deployment readiness repairs
+  reuse the exact Lease, bundle, sealed identity, and request-bound control fix.
+- Runtime YAML owns workload details; this use case owns cross-stage identity,
+  budget, duration, and transition policy.
+
+## Main Flows
+
+1. Validate source, operator, request, bundle, clock, attempt, and protected
+   workflow context; materialize the 12-hour rehearsal lease and budget ledger.
+2. Require a typed released rehearsal transition with exact zero inventory,
+   matching identities, public diagnostic owner, and carried commitment.
+3. Materialize a fresh 96-hour formal lease bound to the same source, bundle,
+   request, diagnostic identity, and aggregate ledger.
+
+## Invariants and Failure Semantics
+
+- The shared CNY 1,350 operational stop and CNY 1,500 hard limit cover both
+  stages.
+- Topology is fixed at four Ubuntu x86 hosts, one EIP, and reviewed disk and
+  port settings; rehearsal runs two hours and formal runs 72 hours after their
+  two-hour readiness windows.
+- No fresh Lease is created for deployment retry.
+- The exact release selector is derived before paid Acquire so ambiguous or
+  artifact-losing acquisition remains cleanup-capable.
+
+## Read First
+
+- [Run plan materialization](run.go)
+- [Run plan contracts](run_test.go)
+
+## Update Triggers
+
+Update this file when operator inputs, stage templates, topology, budgets,
+durations, transition proof, retry policy, or cleanup selector derivation changes.

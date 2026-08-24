@@ -109,6 +109,9 @@
 - `pkg/channel` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
+- Presence authority changes must not scan or replay all owner-local active
+  sessions. Route reconstruction is driven by bounded dirty-touch batches so
+  authority handoff work does not scale with the node's total online sessions.
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - Online Delivery must preserve complete plan execution order per canonical Channel so clients cannot observe a later `message_seq` first. Keep one globally bounded preallocated queue, hash Channel type/ID to a stable worker shard, and scale across Channel shards; multiple consumers must not race plans from one shared FIFO.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, membership state, or owner delivery.
@@ -145,7 +148,8 @@
 - Steady-state ordinary/CMD SEND performs zero recipient membership writes. Before the first persistent person-channel append, SEND durably admits one source-owned directory projection task; the original Channel runtime then remains authoritative for message sequencing and append. A bounded process-local projector asynchronously establishes both participant memberships and marks the source projection ready. Every admission uses the request's authoritative Channel fact; a retained process cache is never a cross-request readiness proof. Source runtime metadata, Channel state, task, projected memberships, and completion all carry the same monotonic directory generation, and delete increments that generation so delayed work cannot complete a recreated person Channel. The admission batch owner is sealed, canceled, and joined before cluster shutdown. Ordinary message storage writes the sender-sequence index atomically with the message row; the index lets conversation hydration calculate the current user's latest committed SEND without a membership mutation. `wukongim_conversation_membership_mutation_rows_total` counts actual successful ordinary/CMD directory proposal rows and must remain unchanged during a warmed pure SEND workload.
 - Member add captures one committed tail for the logical operation, writes subscribers first, then UID memberships. Remove deletes subscribers first, then writes membership tombstones. Failures are returned for idempotent caller retry; there is no background repair workflow in the first version.
 - `activated_at` is synchronization priority, changed only by explicit navigation or hide. The client owns pinning and final ordering. Directory pages scan candidates in `(activated_at desc, channel_id, channel_type)` order; the candidate limit may underfill conversations, and only `done=true` completes a pass.
-- Directory hydration groups live candidates by exact Channel Leader and returns successful conversations, deletes, and unresolved keys independently. Clients persist coverage after a complete pass and retry unresolved keys separately.
+- Directory hydration batch-reads business Channel lifecycle and runtime route metadata by physical Slot, then groups live candidates by exact Channel Leader and returns successful conversations, deletes, and unresolved keys independently. Both metadata stages preserve input alignment and item-scoped failures. Clients persist coverage after a complete pass and retry unresolved keys separately.
+- Durable business Channel point reads use a fixed 8,192-entry LRU rather than a process-lifetime high-cardinality map; mutations and restore still invalidate cached rows, and metadata snapshots expose both current entries and capacity.
 - UID membership and CMD-directory reads are Slot-leader authoritative even when the accepting ingress node is not a replica of that UID's logical Slot. Ordinary static nodes learn actual leaders for unassigned Slots from the Slot-status RPC; local DB presence is never treated as cluster ownership.
 - A hot quorum Channel Leader's live reactor HW is authoritative for conversation hydration; durable HW checkpoints are intentionally coalesced. Hydration probes all locally assigned channels once per Leader batch and falls back to durable checkpoint HW only when a runtime is unloaded.
 - A valid non-tombstoned membership is sufficient for ordinary conversation construction and message pull; do not recheck the subscriber set. Pull clamps to join, delete, and retention floors and rejects terminally disbanded channels.
@@ -362,6 +366,21 @@
 - The node-local plugin process host lives in `pkg/plugin/pluginhost`; internal app wiring adapts it to `internal/usecase/plugin` without depending on old plugin runtime code.
 
 ## Development Workflow
+
+### Agent context navigation
+- `AGENTS.md` contains mandatory scoped rules; executable code, schemas, and
+  tests remain authoritative behavior facts. Accepted ADRs and stable project
+  knowledge explain cross-module decisions.
+- `FLOW.md` is advisory just-in-time navigation for complex modules, not a
+  second policy or implementation manual. Deep analysis or changes must read
+  the applicable exact-directory and ancestor FLOW candidates; broad discovery
+  searches alone do not trigger loading.
+- Explicit `scope: package` applies only to the FLOW directory, while
+  `scope: subtree` applies recursively. Missing, malformed, or ambiguous FLOW
+  metadata is invalid and must not be used as Agent context.
+- Conflicts resolve in this order: `AGENTS.md`, executable facts, accepted ADR
+  or stable project knowledge, `FLOW.md`, generated FLOW index. Report stale
+  FLOW guidance instead of silently following it.
 
 ### Public documentation
 - The public WuKongIM v3 documentation application lives in `docs-site/`; the repository-level `docs/` tree remains the engineering knowledge base.

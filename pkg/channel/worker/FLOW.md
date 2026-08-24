@@ -1,155 +1,68 @@
-# pkg/channel/worker Flow
+---
+scope: package
+summary: Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations.
+---
+
+# Channel Worker Flow
 
 ## Responsibility
 
-`worker` owns Channel blocking effects. Reactors submit typed store and RPC
-tasks through bounded admission queues, and workers return one fenced
-`Result` per accepted task. Loaded-runtime authoritative metadata refresh uses
-its own optional bounded pool. Unloaded authority resolution and the subsequent
-store load use a second bounded `ColdActivation` pool, so cold bursts cannot
-occupy hot store, metadata-refresh, or replication RPC workers.
-Durable checkpoint maintenance uses a separate low-concurrency
-`StoreCheckpoint` pool, so per-channel checkpoint fsyncs cannot occupy every
-foreground follower-apply worker or hold checkpoint locks across the apply
-queue.
+This package owns Channel blocking effects. Reactors submit typed tasks through
+bounded pools and receive one fence-preserving result per accepted task.
+It does not own reactor state machines, business retries, or dependency policy.
 
-The package uses `pkg/workqueue.BoundedBatchPool` as its execution primitive.
-Backpressure, queue depth, adjacent batch collection, close admission, and
-executor entry are owned by workqueue. This package keeps the Channel typed
-semantics: task/result envelopes, fence-preserving completions, task-kind batch
-grouping, and worker-level observations.
+## Boundaries
 
-## Pool Flow
+- `pkg/workqueue.BoundedBatchPool` owns generic admission, collection, executor
+  handoff, backpressure, and close mechanics; this package owns task kinds,
+  grouping, fences, dependency calls, temporary leases, and typed observations.
+- Hot store/RPC, loaded metadata refresh, cold authority/load, and durable
+  checkpoint work use separate bounded pools so cold or fsync bursts cannot
+  occupy all foreground workers.
+- Reactors own retry and pre-admission pacing policy.
 
-```text
-Submit(ctx, Task)
-  -> validate pool open and caller context
-  -> reject obviously full admission before stamping enqueue time
-  -> submit queuedTask to workqueue bounded admission
-  -> workqueue collects adjacent peers according to task-kind policy
-  -> workqueue submits the collected execution window to ants
-  -> worker groups compatible tasks inside the collected window
-  -> worker runs each grouped blocking store or transport call serially
-  -> CompletionSink receives one Result per original task
-```
+## Main Flows
 
-`PoolConfig.QueueSize` is the admission queue capacity. `QueueDepth` reports
-current workqueue admission occupancy, including accepted work not yet entered
-by the executor. `QueueCapacity` exposes the same fixed bound to owners that
-pace different work classes before admission. `PoolConfig.Workers` is the
-workqueue ants executor capacity.
-The Channel reactor supplies the QPS-validated 160-worker default for the RPC
-pool when its composition config leaves that capacity unset.
-`Pools.MetaResolve` is created only when `Deps.MetaResolver` is configured;
-otherwise metadata-resolve submission returns `ErrInvalidConfig`, depth is zero,
-and observer installation and shutdown skip the absent pool safely.
-`Pools.ColdActivation` is also optional and is created only when a resolver is
-present and its configured worker and queue limits are positive.
-`TaskColdMetaResolve` and `TaskColdStoreLoad` route exclusively to that pool;
-expired store-load tasks check their task context before acquiring a store.
-`TaskQuorumInstall` and `TaskQuorumCommit` route through the bounded
-store-append pool but call the deep `DurableQuorumLog` owner rather than a raw
-Channel store. They are never worker-batched: authority recovery and proposal
-sequencing own their batching and per-Channel serialization below that seam.
-The reactor derives the default cold budget from its partition count, with
-strict worker and queue caps, while explicit `PoolsConfig.ColdActivation`
-values remain available to package integrators.
+1. Validate admission and context, reject obvious fullness before stamping
+   enqueue time, collect adjacent work by the first task's policy, partition it
+   into compatible typed groups, and emit one result per original task.
+2. Pull and PullHint batch by task kind and target node, defaulting to 16 items
+   and 250 microseconds; optional store interfaces batch append, apply, and
+   checkpoint across channels while preserving per-task proof and results.
+   Quorum install and commit use the bounded store-append pool but call the
+   deep durable-log owner and are never worker-batched.
+3. Close admission, resolve queued accepted tasks as closed when configured,
+   cancel the runtime for active dependency calls, wait for handlers, and
+   release the executor.
 
-## Batching
+## Invariants and Failure Semantics
 
-RPC pull and pull-hint tasks can batch when they have the same task kind and
-target node. Workqueue chooses the collection policy from the first accepted
-task. Both use the configured `RPCBatchMaxItems`, defaulting to 16, and the
-built-in 250-microsecond collection window. This is not strict queue isolation;
-later tasks of another RPC kind or target can enter the same window and are
-partitioned into serial subgroups whose first-run priority rotates across
-windows. The channel reactor uses `QueueDepth` and `QueueCapacity` to make
-retry-only resume PullHint yield at one-quarter capacity, while new-append
-PullHint and follower Pull yield at half capacity, preserving shared-queue
-headroom without increasing the pool's concurrency or admission bound. Store
-append, store apply, and checkpoint
-tasks can batch across different channel keys when the store factory exposes
-the corresponding optional batch interface. The message DB checkpoint batch
-path commits monotonic HW updates through one grouped commit without taking
-foreground append locks, instead of issuing one synchronous physical commit
-per channel. Store-append tasks preserve the reactor's all-records
-server-allocated message-ID proof for both single and cross-channel batch
-execution; the worker does not infer or widen that proof. The store append
-request has no caller-selectable sync flag. Workers require every single or
-batched append result to carry one valid closed storage outcome. Durable and
-exact-already-durable results remain successful even if a temporary handle
-reports a later cleanup error; conflict, definitely-not-written, and
-outcome-unknown results require an error and fail closed. A recovered panic
-from a leader append is also outcome-unknown because the worker cannot prove
-whether the store crossed its physical commit boundary before panicking.
-Store-apply results also return the checkpoint HW persisted atomically with the
-follower records, allowing the reactor to suppress a redundant standalone
-checkpoint task.
-`TaskMetaResolve`, `TaskColdMetaResolve`, and `TaskColdStoreLoad` are never
-batched. The first runs only in the loaded-runtime metadata resolver pool; the
-two cold stages share the separate cold-activation admission budget.
-Retention tasks remain single-channel store-apply-pool work: they first adopt a
-logical boundary and only call physical trim when the reactor marked it safe.
-`PoolConfig.BatchMaxWait` overrides the task-class coalescing wait for that
-pool; zero keeps the built-in default. This lets low-latency store-append
-deployments shorten the extra worker-side wait without removing batching from
-throughput-oriented configurations.
+- Queue depth includes accepted work not yet in the executor; workers are the
+  hard executor concurrency. Optional pools reject submission when absent.
+- Cold resolve/load and loaded metadata resolution never batch. Retention stays
+  single-Channel and trims only after a safe logical boundary.
+- Compatible groups run serially inside one handler; rotating first-group
+  priority avoids permanent target or task-kind tailing under skew.
+- Leader append results must use the closed storage outcomes. Durable and exact
+  replay are success; conflict, definitely absent, and outcome unknown fail
+  closed. A recovered panic is outcome unknown because commit crossing cannot
+  be inferred.
+- Temporary store leases are registered immediately and released on success,
+  error, cancellation, or panic. Cleanup error never replaces the primary result.
+- A detached store-close lease transfers only after successful submission and
+  has one shared exactly-once finalizer across execution and cancellation.
+- Inflight counts task groups, not original tasks. Pool, task kind, and result
+  dimensions are bounded; dynamic Channel, Slot, and fence values are not labels.
 
-`PoolConfig.RPCBatchMaxItems` bounds same-target Pull and PullHint transport
-batches; zero uses the default of 16. The default is deliberately a batch
-capacity change rather than a worker-count increase, so the RPC runtime keeps
-its configured goroutine and remote-call concurrency bound while amortizing a
-blocking transport cycle across more channels.
+## Read First
 
-Batching changes only the blocking dependency call. Workqueue chooses the
-collection window from the first accepted task. The worker then splits that
-window into compatible typed groups; incompatible or non-batchable items become
-single-task groups. Groups still run serially inside one workqueue handler call,
-but their first-run priority rotates across collected batches so a less common
-target or task kind is not always last under actual Slot-leader skew. Reactors
-still observe one fenced completion per original task.
+- [Pool](pool.go)
+- [Pool composition](pools.go)
+- [Task contracts](task.go)
+- [Batch grouping](batch.go)
+- [Dependency ports](deps.go)
 
-## Shutdown
+## Update Triggers
 
-`Close` closes admission to new submissions, completes accepted items that have
-not entered the executor with `ErrClosed`, cancels the worker runtime context
-for running handlers, waits for them to exit, and releases the workqueue ants
-pool. Running handlers must rely on their task-owned context or the worker
-runtime context when blocking in dependency calls.
-
-Store append, apply, read, lookup, checkpoint, and retention tasks own only a
-temporary channel-store lease. They register lease cleanup immediately after a
-successful acquisition and release it on success, dependency failure,
-cancellation, or panic. Cleanup errors never replace the primary durable/read
-result, which prevents a completed write from being retried solely because its
-temporary handle failed to close. Store-load tasks keep the same panic-safe
-cleanup until both initial and retention state are loaded; only a complete
-`StoreLoadResult` transfers the lease to the result consumer.
-
-Store-close tasks own an already detached runtime lease rather than acquiring a
-temporary one. `Submit == nil` transfers that lease to the pool; any submission
-error leaves it with the caller. Execution and queued-task cancellation call the
-same exactly-once finalizer, so pool shutdown cannot drop an accepted close and
-cannot close it again if execution races cancellation. A canceled queued close
-still completes its reactor result with `ErrClosed`; cleanup errors do not
-replace that shutdown result.
-
-## Observability
-
-Worker queue, capacity, admission, wait, task, batch, inflight, and ants pool
-usage observers retain their existing meanings. Workqueue observations are
-adapted to queue/capacity/admission/ants usage metrics. Typed wait, task, batch,
-and inflight observations stay in this package because they need `TaskKind`,
-`Fence`, and per-result errors. Inflight is the number of running task groups,
-not the number of original tasks inside those groups.
-
-Admission additionally exposes a bounded `pool` / `TaskKind` / `result` split.
-This distinguishes critical follower Pull saturation from best-effort,
-retryable PullHint bursts when both share the RPC pool. Reactor-side
-pre-admission watermarks use `result="paced"` and allow a minimum of four
-queued tasks before pacing small pools; actual bounded-pool rejection continues
-to use `result="full"`.
-The reactor additionally reports `kind="rpc_pull",result="paced"` against the
-store-apply pool when that queue reaches half capacity and a new Pull is
-deferred. This is prefetch backpressure, distinct from an attempted
-`kind="store_apply",result="full"` admission.
+Update this file when pool separation, admission, batching, task ownership,
+lease cleanup, shutdown, pacing signals, or observation semantics change.

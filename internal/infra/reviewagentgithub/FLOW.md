@@ -1,48 +1,52 @@
-# Review Agent GitHub Adapter Flow
+---
+scope: package
+summary: Implements exact-head GitHub reads, state refs, review publication, checks, and merge for the Review Agent.
+---
 
-`internal/infra/reviewagentgithub` is the only GitHub boundary for Review
-Agent facts, signed state refs, and GitHub projections.
+# Review Agent GitHub Flow
 
-```text
-zero-authority event hint
-  -> fresh PR/files/reviews/threads/comments/checks metadata
-  -> one exact base/head content read for the dispatched review Context
-  -> usecase facts and verification inventory
+## Responsibility
 
-Review State Writer App token
-  -> exact review-state/pr-N or review-state/scheduler ref
-  -> verified latest + immediate predecessor rolling checkpoint
-     (older commits remain append-only audit history)
-  -> one legacy scheduler checkpoint that only repeats its canonical
-     predecessor with empty JSON collections may be loaded for the next append
-  -> expected-head append only
+This package implements the Review Agent's narrow GitHub boundary: fresh PR
+facts, exact content, signed state refs, review publication, check conclusions,
+and exact-head merge.
+It does not adjudicate findings, schedule reviews, verify code, or invoke models.
 
-Review Agent App token
-  -> App JWT verifies the protected policy App ID and slug before minting
-     one exact repository-scoped installation token
-  -> fresh generation and human-review fences
-  -> one mutable status comment
-  -> one formal Review with bounded inline comments
-  -> one Review Agent Verdict Check Run
-  -> one exact-head merge only after fresh admin/member authorization
-```
+## Boundaries
 
-An infrastructure-sourced terminal projection reports that no current findings
-were adjudicated. Findings retained in signed state for a later reconsideration
-are not republished as if the failed attempt had confirmed them.
+- Protected App credentials are scoped to named domain operations; callers do
+  not receive a generic GitHub writer.
+- State paths and refs are fixed by the adapter rather than caller-selected.
+- Finding adjudication and terminal-state policy belong to the review use case.
 
-The bounded scheduler recovery never rewinds or rewrites the protected state
-ref. A strict successor may name that one legacy checkpoint; after the next
-successor, it leaves the two-checkpoint verification window.
+## Main Flows
 
-After a signed GraphQL commit, the State Writer tolerates bounded ref
-read-your-write lag only while GitHub still reports the exact expected parent.
-The committed head must become visible within the retry budget; any third head
-is real contention and fails immediately.
+1. Read fresh PR, repository, content, permission, review, and exact-head facts
+   into bounded projections.
+2. Read or append signed rolling checkpoints under the fixed state ref using
+   an expected-parent fence.
+3. After fresh authorization and head checks, publish the status comment or
+   formal review, conclude the named check, and merge only the exact head.
 
-The Review App token includes GitHub's required `contents:write` permission for
-the pull-request merge endpoint, but the adapter exposes only an exact-head
-normal merge after the pure authorization plan succeeds. It exposes no generic
-contents, branch, commit, close, dismiss, resolve, Ruleset, Actions, or Secrets
-operation. The State Writer adapter accepts no caller-selected ref or path and
-exposes no Review, comment, Check, merge, or pull-request mutation.
+## Invariants and Failure Semantics
+
+- Read-your-write polling is bounded and remains valid only while the expected
+  parent is unchanged.
+- Stale head, unexpected state parent, incomplete facts, failed authorization,
+  or ambiguous GitHub results fail closed.
+- Terminal records contain no locally adjudicated findings, and retained
+  findings are not republished as new ones.
+- Token permissions do not expand the adapter beyond its exact merge and state
+  operations.
+
+## Read First
+
+- [GitHub client](client.go)
+- [Repository reader](reader.go)
+- [Projection client](projection_client.go)
+- [Scheduler state store](scheduler_store.go)
+
+## Update Triggers
+
+Update this file when GitHub facts, App permissions, state refs, publication,
+checks, merge fencing, or visibility polling changes.

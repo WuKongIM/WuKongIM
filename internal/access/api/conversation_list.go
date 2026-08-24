@@ -264,7 +264,7 @@ func newConversationListItem(uid string, item conversationusecase.Conversation) 
 			FromUID:           item.LastMessage.FromUID,
 			ClientMsgNo:       item.LastMessage.ClientMsgNo,
 			ServerTimestampMS: item.LastMessage.ServerTimestampMS,
-			Payload:           append([]byte(nil), item.LastMessage.Payload...),
+			Payload:           item.LastMessage.Payload,
 		}
 	}
 	return out

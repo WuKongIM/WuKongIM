@@ -76,6 +76,10 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.Len(t, committed.Messages, 1)
 	require.Equal(t, uint64(2), committed.NextSeq)
 	require.True(t, committed.Messages[0].SyncOnce)
+	committed.Messages[0].Payload[0] = 'z'
+	reread, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Equal(t, []byte("a"), reread.Messages[0].Payload)
 }
 
 func testStoreCheckpointHWMonotonic(t *testing.T, factory Factory) {

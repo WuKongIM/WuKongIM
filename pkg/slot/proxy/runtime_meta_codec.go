@@ -27,6 +27,9 @@ const (
 
 // encodeRuntimeMetaRPCRequestBinary encodes runtime meta requests without JSON reflection.
 func encodeRuntimeMetaRPCRequestBinary(req runtimeMetaRPCRequest) ([]byte, error) {
+	if req.Op == runtimeMetaRPCBatchGet && len(req.Keys) > runtimeMetaBatchMaxReads {
+		return nil, fmt.Errorf("%w: runtime metadata batch has %d reads, max %d", metadb.ErrInvalidArgument, len(req.Keys), runtimeMetaBatchMaxReads)
+	}
 	opID, err := runtimeMetaOpID(req.Op)
 	if err != nil {
 		return nil, err
@@ -273,6 +276,9 @@ func runtimeMetaReadChannelKeys(body []byte, offset int) ([]metadb.ChannelKey, i
 		return nil, offset, err
 	}
 	offset = next
+	if count > runtimeMetaBatchMaxReads {
+		return nil, offset, fmt.Errorf("%w: runtime metadata batch has %d reads, max %d", metadb.ErrInvalidArgument, count, runtimeMetaBatchMaxReads)
+	}
 	keysLen, err := runtimeMetaCollectionLen(count, len(body)-offset, "runtime meta keys")
 	if err != nil {
 		return nil, offset, err

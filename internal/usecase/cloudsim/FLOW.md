@@ -1,109 +1,63 @@
+---
+scope: package
+summary: Owns provider-neutral cloud Simulation Run identity, admission, lifecycle, access windows, finalization, and cleanup rules.
+---
+
 # Cloud Simulation Control Flow
 
-`internal/usecase/cloudsim` owns provider-neutral Simulation Run lifecycle
-rules. It never imports a cloud SDK and never treats workflow-local state as
-resource authority.
+## Responsibility
 
-```text
-trusted access/CLI
-  -> ControlPlane
-     -> validate exact Run Identity, preset, lease, cost ceiling and tags
-     -> Provider.Authority (credential-to-account binding before cleanup)
-     -> Provider.Inventory (concurrency and release truth)
-     -> Provider.Quote (price, quota, spot and subnet capacity)
-     -> Provider.Create/Transition/OpenAnalysis/CloseAnalysis
-     -> Provider.OpenPublicView/ClosePublicView/Destroy
-```
+This package owns provider-neutral Simulation Run lifecycle policy. Cloud SDKs
+and workflow-local assumptions cannot determine live inventory or release.
+It does not own provider SDK calls, workflow execution, or observability sources.
 
-`RunLocator` is a strict, bounded, non-diagnostic JSON record. Live status and
-cleanup come from Provider inventory. A released-run decision additionally
-requires a valid matching locator; provider inventory alone is not sufficient.
-The exact preflight result carries the provider resource snapshot explicitly;
-released is valid only with a non-null empty `resources` array.
-Before Destroy, Sweep, or an empty-inventory `released` decision,
-`Provider.Authority` must bind the active credential to the adapter's provider,
-region, and account hash. A wrong account or region therefore fails closed
-before cleanup inventory is interpreted or resources are mutated.
+## Boundaries
 
-Lifecycle transitions are forward-only. The provisioning workflow persists
-`provisioning -> ready -> running` after the bootstrap gate and workload start.
-Entering `running` records the active workload deadline; provider reconciliation
-projects an elapsed running deadline as `analysis_grace`. A failed bootstrap
-enters `analysis_grace` only when the simulator MCP self-check is usable;
-otherwise the workflow releases the run immediately.
+- Provider authority binds credential, provider, region, and account before
+  cleanup inventory is interpreted or mutated.
+- `RunLocator` is a bounded identity candidate. A released decision requires a
+  matching locator and provider-confirmed empty resource array.
+- Provisioning, bootstrap scripts, workflows, and monitoring adapters execute
+  the plans; this package defines their domain transitions and evidence.
 
-Cloud workload duration is allowlisted as `30m`, `2h`, `24h`, `48h`, or
-`168h`. Only 48h/168h are standard stability durations. Standard runs fail
-closed unless the dispatch supplies a completed 30-minute storage calibration
-identity and measured worst-node retained bytes per message. The provision
-workflow applies a 50% compaction margin, reserves 30% free space, and places
-the resulting size into the provider config before quote and creation. Large
-168h runs require a separate explicit cost confirmation.
+## Main Flows
 
-The immutable node bundle configures 256 physical hash slots owned by 10
-logical Slot Raft Groups. Bootstrap evidence records and gates both counts; the
-healthy leader/replica totals remain aggregated across all 256 hash slots. A
-versioned effective-node runtime contract in the bundle also pins replicas,
-Channel worker bounds, gateway capacity, delivery concurrency, and conversation
-cache capacity. Before workload start, Bootstrap Gate compares every node's
-normalized Manager snapshot and `toml` source against that scale contract.
-A healthy Slot leader is the non-zero actual Raft leader contained in the current
-voter set while quorum is ready and runtime peers match the assignment.
-`PreferredLeader` mismatch remains observable placement drift and is not a
-Bootstrap Gate failure because Raft eligibility and the elected leader are
-authoritative.
-Prometheus uses a 15-second interval with 72h retention for runs through 48h
-and 192h retention for 168h.
+1. Validate exact Run Identity, preset, immutable lease, budget, provider
+   authority, capacity quote, storage calibration, tags, and current inventory
+   before create or transition.
+2. Advance only forward through provisioning, ready, running, and
+   `analysis_grace`; persist the workload deadline and reconcile elapsed running
+   state from provider truth.
+3. Open or close bounded analysis/public windows, finalize from exact workload
+   evidence, then destroy and recheck the provider-backed released gate; sweep
+   reconciles every expired or cleanup-pending run.
 
-After `running` is persisted, provisioning uploads a bounded Finalization
-Schedule containing only the exact Run Identity, workload deadline,
-initial analysis time, and immutable lease expiry. The local `finalize.sh`
-command waits for that schedule and delegates diagnosis to `analyze.sh`. A
-validated `workload_inspect.state=in_progress` retains the run for another
-bounded attempt while the lease can safely admit one. Once terminal evidence is
-available, or diagnosis cannot complete, the command dispatches exact cleanup
-and invokes the provider-backed released gate again to prove zero residual
-inventory. A failed Schedule upload leaves an already-running workload in
-`running`; deadline reconciliation, rather than workflow failure, projects it
-to `analysis_grace`.
+## Invariants and Failure Semantics
 
-Analysis ingress accepts one IPv4 `/32`, expires within 50 minutes and the Run
-Lease, requires at least 30 minutes of lease remaining, and rejects a second
-unexpired window for the same run. Provider inventory reconstructs ingress
-expiry from run-owned security rules. `Sweep` preserves future active windows,
-closes expired or malformed deployment and analysis windows, and then
-reconciles all expired unreleased runs; partial cleanup failures remain
-explicit. Its result also reports every retained Run whose provider inventory
-was not proven empty. The cleanup safety automation disables its own schedule
-and the observer schedule only when a complete repository sweep has no retained
-Run and no failure. Provision persists the provider binding and re-enables both
-schedules before it may create billable resources; the shared cleanup/provision
-concurrency group prevents an idle sweep from racing that handoff.
+- Durations are allowlisted; standard 48h/168h runs require completed storage
+  calibration, margin, free-space reserve, and 168h cost confirmation.
+- Runtime topology is 256 physical Hash Slots in 10 logical Slot Raft Groups.
+  Bootstrap compares every node with the versioned scale contract; an elected
+  healthy voter is authoritative even when PreferredLeader differs.
+- Finalization schedules carry only exact identity and deadlines. In-progress
+  evidence permits a bounded retry; unavailable terminal diagnosis still leads
+  to exact cleanup and zero-inventory proof.
+- Analysis ingress is one IPv4 `/32`, at most 50 minutes, and requires 30
+  minutes of remaining lease. Public view is only TCP/19443 for ready, running,
+  or grace and never outlives the lease.
+- Monitor discovery is bounded, read-only, authority-validated, and requires
+  exact preflight before public access; missing or ambiguous evidence fails closed.
+- Second-provider admission requires reviewed real Alibaba workflow references
+  and zero-residual proof; fake or unit-test evidence is insufficient.
 
-Public Cloud View ingress is a separate Run-Lease-bounded capability. It admits
-exactly `0.0.0.0/0` on TCP/19443 only while the run is `ready`, `running`, or
-`analysis_grace`, and never beyond the immutable Run Lease. `Sweep` closes an
-expired or malformed public window, while `Destroy` closes it before deleting
-run-owned resources. This capability does not change Analysis MCP semantics.
+## Read First
 
-`cloud-sim-monitor.yml` is an observer-only workflow. While cloud inventory is
-live, it runs every 30 minutes or for an explicitly dispatched Run Identity.
-Scheduled discovery resolves one
-retained provider config per account/region binding, takes one read-only
-authority-validated Inventory Snapshot per binding, and selects only `running`
-runs owned by this repository. Provider-config, binding, and running-candidate
-budgets fail with structured evidence instead of truncating discovery. A
-retained Run Locator remains only an identity candidate: each selected run must
-still pass exact `Preflight` before public access. Provider-confirmed `released`
-or no-longer-running candidates are skipped normally, and only a locator-bound
-live run in `running` state can reach Cloud View and Prometheus. Missing,
-ambiguous, mismatched, or timed-out inventory and Preflight evidence fails
-closed. The workflow never calls Create
-or starts wkbench. Patrol evidence includes target liveness, 30-minute sustained
-target loss, CPU, RSS, disk use, and bounded queue saturation; missing evidence
-remains distinct from the cleanup lease backstop.
+- [Control plane](control.go)
+- [Run contracts](types.go)
+- [Run locator](locator.go)
+- [Multi-cloud gate](multicloud_gate.go)
 
-`ValidateTencentAdmission` is a delivery-order gate, not a Tencent adapter. It
-requires repository-owner-reviewed real Alibaba workflow references and
-zero-residual proof for every accepted canary/drill before second-provider work
-may begin. Fake-provider and unit-test results cannot create that attestation.
+## Update Triggers
+
+Update this file when identity, lifecycle states, duration or storage admission,
+topology, access windows, finalization, release proof, monitoring, or cloud gates change.

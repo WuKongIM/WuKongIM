@@ -1,81 +1,56 @@
-# internal/usecase/channel Flow
+---
+scope: package
+summary: Orchestrates channel metadata, ordinary membership, derived member lists, versioning, projection, and bounded iteration.
+---
+
+# Channel Use Case Flow
 
 ## Responsibility
 
-`internal/usecase/channel` coordinates legacy-compatible channel management
-without depending on HTTP, gateway frames, cluster, or concrete storage. It
-owns channel metadata mutations, ordinary subscriber mutations, temporary
-subscriber lists, allowlists, denylists, subscriber mutation versioning, and
-bounded subscriber page/chunk iteration.
+This package owns entry-independent channel metadata and membership policy,
+including ordinary subscribers, temporary lists, allowlists, denylists,
+mutation versions, and bounded page or chunk iteration.
+It does not own entry protocols, concrete storage, cluster transport, or caches.
 
-## Store Port
+## Boundaries
 
-```text
-App command
-  -> Store.GetChannel / UpsertChannel / DeleteChannel
-  -> required-for-Manager conditional CreateChannelStrict / PatchChannelBusinessFlags
-  -> Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
-  -> required-for-exact-reads ContainsChannelSubscriber / HasChannelSubscribers
-```
+- Storage ports represent cluster-authoritative Slot metadata; a single-node
+  cluster uses the same path.
+- Exact create, patch, membership, and non-empty operations fail closed without
+  their narrow store capability and never scan a 100,000-member list as a
+  fallback.
+- HTTP, gateway, cluster, concrete storage, and runtime cache types remain
+  outside the use case.
 
-The store is expected to represent cluster-authoritative Slot metadata. The
-usecase does not add single-node-only branches; single-node deployment is still
-handled by the store implementation as a single-node cluster.
-Manager create, derived-list first creation, and flag patch fail closed unless
-the conditional store extension is present:
-create fails if the row exists, while the partial patch fails if it is missing
-and preserves every field except `Ban`, `Disband`, and `SendBan`.
-Exact membership and non-empty reads likewise require point-lookup capability;
-they never scan a 100,000-member list as a compatibility fallback.
+## Main Flows
 
-## Membership Projection Port
+1. Metadata commands create, patch, upsert, or delete through conditional
+   exact-store operations while preserving fields outside the requested patch.
+2. Ordinary subscriber mutation updates durable membership, projects the same
+   logical version into the UID membership index, refreshes the large-group
+   flag, then notifies the observer with cloned final state.
+3. Allowlist, denylist, and temporary members use stable derived channel IDs
+   that preserve the legacy internal namespace; counted mutations require the
+   parent and return exact requested and durable set-change counts.
 
-```text
-ordinary Upsert/AddSubscribers/RemoveSubscribers/RemoveAllSubscribers
-  -> Store subscriber mutation
-  -> MembershipIndex.UpsertChannelMemberships / DeleteChannelMemberships
-```
+## Invariants and Failure Semantics
 
-The projection is only for ordinary channel subscribers. Allowlist, denylist,
-and temporary member-list mutations keep using their internal channel IDs and do
-not create user-channel membership rows. Reset operations first remove the
-current ordinary subscriber snapshot from the membership index, then project the
-replacement subscribers using the same logical subscriber mutation version.
-After ordinary subscriber mutations complete, the usecase reads the stored
-subscriber count and refreshes the channel large-group flag when the count is
-greater than the configured threshold.
+- Only ordinary subscribers create user-channel membership projection rows and
+  observer events.
+- Reset removes the old snapshot and adds the replacement under one mutation
+  version.
+- Observer notification occurs only after durable mutation, projection, and
+  large-group refresh succeed.
+- First allowlist or denylist add may create its derived channel; removal from
+  a missing list is a zero-change no-op.
 
-## Subscriber Mutation Observer Port
+## Read First
 
-```text
-ordinary Upsert/AddSubscribers/RemoveSubscribers/RemoveAllSubscribers
-  -> Store subscriber mutation and large-group refresh
-  -> SubscriberMutationObserver.ObserveSubscriberMutation(final channel metadata)
-```
+- [Application service](app.go)
+- [Use-case types](types.go)
+- [Import boundary](import_boundary_test.go)
 
-The observer is notified only after the durable mutation, membership projection,
-and large-group flag refresh succeed. The event carries the final
-`SubscriberMutationVersion`, final `Large` flag, reset/add/remove shape, and
-cloned UID lists so the composition root can keep runtime channel-state caches
-aligned without letting the HTTP adapter or this usecase depend on
-`runtime/channelappend`. Allowlist, denylist, and temporary member-list
-mutations do not emit observer events.
+## Update Triggers
 
-## Member Lists
-
-Allowlist, denylist, and temporary subscribers are represented as subscriber
-rows on stable internal member-list channel IDs derived by
-`internal/contracts/channelmembers`. This preserves compatibility with the
-legacy metadata layout while keeping the HTTP adapter thin.
-Counted Manager mutations first require the parent channel without creating it.
-The first allowlist/denylist add creates the derived channel; removing from a
-missing derived list returns zero changes without creating storage.
-
-## Subscriber Mutation Versioning
-
-For ordinary subscribers, each logical mutation reads the current channel
-`SubscriberMutationVersion` and forwards one next version across all chunks in
-that logical operation. Reset operations use the same version for removal of the
-old snapshot and addition of the replacement snapshot.
-Counted mutations return the exact de-duplicated requested count and the exact
-number of durable set changes produced by the Slot FSM apply.
+Update this file when channel commands, store extensions, member-list encoding,
+versioning, membership projection, large-group policy, or observation changes.

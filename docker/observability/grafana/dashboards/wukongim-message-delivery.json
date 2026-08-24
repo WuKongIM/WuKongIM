@@ -66,6 +66,21 @@
           "expr": "sum(rate(wukongim_storage_message_idempotency_point_reads{node_name=~\"$node_name\"}[$__rate_interval])) by (store)",
           "legendFormat": "idempotency point reads {{store}}",
           "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_message_exact_fresh_appends{node_name=~\"$node_name\"}[$__rate_interval])) by (store)",
+          "legendFormat": "exact fresh appends {{store}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_message_predecessor_cache_hits{node_name=~\"$node_name\"}[$__rate_interval])) by (store)",
+          "legendFormat": "predecessor cache hits {{store}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_message_predecessor_durable_validations{node_name=~\"$node_name\"}[$__rate_interval])) by (store)",
+          "legendFormat": "predecessor durable validations {{store}}",
+          "refId": "F"
         }
       ],
       "title": "Message append rate",

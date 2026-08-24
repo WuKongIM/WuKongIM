@@ -4,6 +4,10 @@ import "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 
 // EngineMetricsSnapshot is a stable view of the metadata engine's local storage state.
 type EngineMetricsSnapshot struct {
+	// ChannelCacheEntries is the number of business-channel rows retained by the read cache.
+	ChannelCacheEntries int
+	// ChannelCacheCapacity is the hard upper bound for business-channel cache entries.
+	ChannelCacheCapacity int
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -49,7 +53,12 @@ func (db *DB) MetricsSnapshot() EngineMetricsSnapshot {
 	if db == nil || db.engine == nil {
 		return EngineMetricsSnapshot{}
 	}
-	return metaMetricsFromSnapshot(db.engine.MetricsSnapshot())
+	snapshot := metaMetricsFromSnapshot(db.engine.MetricsSnapshot())
+	if db.meta != nil {
+		snapshot.ChannelCacheEntries = db.meta.channelCacheSize()
+		snapshot.ChannelCacheCapacity = channelCacheCapacity
+	}
+	return snapshot
 }
 
 func metaMetricsFromSnapshot(snapshot engine.MetricsSnapshot) EngineMetricsSnapshot {

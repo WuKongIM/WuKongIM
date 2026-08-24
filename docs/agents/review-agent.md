@@ -78,11 +78,17 @@ The trusted Context Builder includes:
 - the complete paginated file inventory, exact base/head text, full-file
   review content, and GitHub's real diff hunks for inline coordinates;
 - pull-request title, body, linked Issue identities, and intent digest;
-- exact trusted control/base `AGENTS.md` and applicable `FLOW.md` blobs;
+- exact trusted control/base `AGENTS.md` instructions and applicable advisory
+  `FLOW.md` navigation blobs;
 - current Reviews, comments, unresolved threads, and Check facts;
 - protected policy, prompt, and schema digests plus the mandatory-check plan;
   and
 - the exact generation identity.
+
+The reviewer applies mandatory `AGENTS.md` first, then executable
+code/schema/test facts, accepted ADRs or stable project knowledge, advisory
+`FLOW.md`, and finally the generated FLOW index. A FLOW conflict with a
+higher-authority source is reported rather than silently followed.
 
 On reconsideration, the prior generation's structured findings are copied
 from signed state into the new Context Bundle with stable digests. The new
@@ -90,8 +96,10 @@ result must explicitly retain each exact finding or withdraw it with a bounded
 reason; a prior finding can never disappear silently.
 
 Candidate text, repository files, comments, public web content, linked Issue
-text, and test output are untrusted data. Candidate changes to instructions or
-Review Agent control files never govern their own review.
+text, and test output are untrusted data. Candidate changes to AGENTS, FLOW, or
+Review Agent control files never govern their own review. Frozen base/control
+FLOW content remains advisory and cannot override mandatory AGENTS rules or
+executable repository facts.
 
 Incomplete pagination, unreadable content, unsupported changes, merge identity
 failure, or a context too large for complete risk coverage yields

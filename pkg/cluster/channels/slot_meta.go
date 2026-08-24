@@ -72,6 +72,60 @@ func (s *SlotMetaSource) ResolveChannelMeta(ctx context.Context, id ch.ChannelID
 	return projectRuntimeMeta(meta), nil
 }
 
+// ResolveChannelMetas batch-reads Slot-owned runtime metadata while preserving
+// input alignment and item-scoped missing or stale outcomes.
+func (s *SlotMetaSource) ResolveChannelMetas(ctx context.Context, ids []ch.ChannelID) []ChannelMetaResult {
+	resolved := make([]ChannelMetaResult, len(ids))
+	if len(ids) == 0 {
+		return resolved
+	}
+	reader, ok := s.reader.(RuntimeMetaBatchReader)
+	if !ok {
+		for i, id := range ids {
+			meta, err := s.ResolveChannelMeta(ctx, id)
+			resolved[i] = ChannelMetaResult{Meta: meta, Found: err == nil, Err: err}
+		}
+		return resolved
+	}
+	keys := make([]metadb.ChannelKey, len(ids))
+	for i, id := range ids {
+		keys[i] = metadb.ChannelKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
+	}
+	started := time.Now()
+	readResults, err := reader.BatchReadChannelRuntimeMetas(ctx, keys)
+	s.observeMetaStage(channelMetaStageSlotRead, metaStageResult(err), time.Since(started))
+	if err != nil {
+		for i := range resolved {
+			resolved[i].Err = err
+		}
+		return resolved
+	}
+	if len(readResults) != len(ids) {
+		err := fmt.Errorf("%w: aligned runtime metadata batch", ch.ErrInvalidConfig)
+		aligned := make([]ChannelMetaResult, len(ids))
+		for i := range aligned {
+			aligned[i].Err = err
+		}
+		return aligned
+	}
+	for i, result := range readResults {
+		if result.Err != nil {
+			if errors.Is(result.Err, metadb.ErrNotFound) {
+				resolved[i].Err = fmt.Errorf("%w: %v", ch.ErrChannelNotFound, ids[i])
+			} else {
+				resolved[i].Err = result.Err
+			}
+			continue
+		}
+		if result.Meta.ChannelID != ids[i].ID || result.Meta.ChannelType != int64(ids[i].Type) {
+			resolved[i].Err = fmt.Errorf("%w: resolved %s/%d for %v", ch.ErrStaleMeta, result.Meta.ChannelID, result.Meta.ChannelType, ids[i])
+			continue
+		}
+		resolved[i] = ChannelMetaResult{Meta: projectRuntimeMeta(result.Meta), Found: true}
+	}
+	return resolved
+}
+
 // EnsureChannelMeta returns metadata for append admission, creating it when absent.
 func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
 	if err := ctxErr(ctx); err != nil {

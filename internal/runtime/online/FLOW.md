@@ -1,39 +1,46 @@
-# internal/runtime/online Flow
+---
+scope: package
+summary: Maintains node-local pending and active connection routes, concrete session handles, and bounded touch batching.
+---
+
+# Online Registry Flow
 
 ## Responsibility
 
-`internal/runtime/online` owns node-local connection route projections for internal connection routing. It is not a distributed directory, and authority/touch flows consume only `OwnerRoute` values. Concrete gateway session handles are stored separately in `LocalSession` for owner-local close actions.
+This package owns the node-local connection-route projection and concrete
+owner-local session handles. It is not a distributed presence directory.
 
-## Lifecycle
+## Boundaries
 
-`RegisterPending` stores a `LocalSession` before CONNACK succeeds, while keeping the route projection separate from the concrete session handle. `MarkActive` promotes a session after authority registration and local active re-check. `MarkClosingAndUnregister` removes local indexes before authority unregister tombstones are queued and returns only the `OwnerRoute` projection.
+- Authority registration, lookup, and touch use only copied `OwnerRoute`
+  values; concrete `SessionHandle` values never leave owner-local flows.
+- Gateway and frame validation remain in the adapter that creates the handle.
+- The app worker owns repeated touch drains and the total flush budget.
 
-## Local Session Handle
+## Main Flows
 
-`SessionHandle` is the entry-agnostic write and close surface stored with a
-`LocalSession`. Runtime code may call `WriteDelivery(any)` for owner-local
-server push and `CloseSession(reason)` for conflict actions, but the concrete
-gateway/frame validation remains in the access adapter that created the handle.
-`LocalSessionsByUID` returns copies of concrete local session records for
-owner-local maintenance flows such as compatible user token replacement and
-device quit handling. `LocalSessions` returns copies of all locally indexed
-session records for owner-local manager connection inventory. Authority-facing
-flows still consume only `OwnerRoute`.
+1. `RegisterPending` stores a local session before CONNACK; `MarkActive`
+   promotes it after authority registration and an active recheck.
+2. `MarkClosingAndUnregister` removes local indexes before the authority
+   tombstone is queued and returns only the owner-route projection.
+3. `MarkTouched` marks an active route dirty; bounded drains produce one touch
+   chunk, and failed routes are requeued only if the same active owner remains.
 
-## Touch Batching
+## Invariants and Failure Semantics
 
-`MarkTouched` records owner-observed activity on active routes only and marks the
-session dirty. Each `DrainTouched(limit)` call returns at most `limit`
-`OwnerRoute` values for one authority touch chunk and clears their dirty
-markers. The app worker, rather than the registry, owns repeated drains and the
-65,536-route default total flush budget. `RequeueTouched` re-marks drained
-routes only when the same active owner route is still current, so removed or
-superseded sessions are skipped. The worker defers failed-route requeue until
-the complete bounded flush ends, preventing one failing route from being
-drained repeatedly in the same flush.
+- Pending and active indexes remain separate from concrete session handles.
+- Local inventory methods return copies and are restricted to owner-local
+  maintenance and diagnostics.
+- Requeue skips removed or superseded sessions and occurs after a bounded flush
+  so one failing route cannot be redrained indefinitely.
+- Snapshot reports only aggregate pending, active, and dirty counts.
 
-## Diagnostics
+## Read First
 
-`Snapshot` counts pending routes, active routes, and dirty touched routes across
-all shards. It is intended for benchmark diagnostics and does not expose
-concrete `LocalSession` handles.
+- [Registry](registry.go)
+- [Online types](types.go)
+
+## Update Triggers
+
+Update this file when connection lifecycle, owner-route projection, session
+handles, touch batching, flush ownership, or diagnostics change.

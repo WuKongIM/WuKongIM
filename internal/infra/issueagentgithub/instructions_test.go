@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInstructionFileDigestsReadExactRecursiveSourceTree(t *testing.T) {
+func TestContextDocumentFileDigestsReadExactRecursiveSourceTree(t *testing.T) {
 	t.Parallel()
 
 	commitSHA := "1111111111111111111111111111111111111111"
@@ -55,7 +55,7 @@ func TestInstructionFileDigestsReadExactRecursiveSourceTree(t *testing.T) {
 	}, server.Client())
 	require.NoError(t, err)
 
-	digests, err := client.InstructionFileDigests(
+	digests, err := client.ContextDocumentFileDigests(
 		context.Background(),
 		commitSHA,
 	)

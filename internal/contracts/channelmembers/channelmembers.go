@@ -1,3 +1,6 @@
+// Package channelmembers defines the dependency-light, legacy-compatible
+// namespace used for internal allowlist, denylist, and temporary member rows.
+// It must not import access, app, gateway, cluster, or storage packages.
 package channelmembers
 
 import (
@@ -13,17 +16,17 @@ type ChannelKey struct {
 	ChannelType uint8
 }
 
-// AllowlistChannelID returns the internal subscriber-list channel ID for allowlist members.
+// AllowlistChannelID returns the stable legacy-compatible channel ID for allowlist members.
 func AllowlistChannelID(key ChannelKey) string {
 	return namespacedListChannelID("allow", key)
 }
 
-// DenylistChannelID returns the internal subscriber-list channel ID for denylist members.
+// DenylistChannelID returns the stable legacy-compatible channel ID for denylist members.
 func DenylistChannelID(key ChannelKey) string {
 	return namespacedListChannelID("deny", key)
 }
 
-// TempListChannelID returns the internal subscriber-list channel ID for temporary members.
+// TempListChannelID returns the stable legacy-compatible channel ID for temporary members.
 func TempListChannelID(channelID string) string {
 	return namespacedListChannelID("temp", ChannelKey{ChannelID: channelID, ChannelType: 8})
 }

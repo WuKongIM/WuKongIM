@@ -1,23 +1,45 @@
+---
+scope: package
+summary: Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts.
+---
+
 # Review Agent CLI Flow
 
-`internal/access/reviewagentcli` is a strict JSON control boundary. Every
-control command accepts exactly one bounded JSON document on stdin. The sole
-advisory-input exception is `normalize-review-result`, which accepts one
-bounded model-authored Review result and emits its validated, normalized JSON
-object.
+## Responsibility
 
-```text
-GitHub Actions job
-  -> exact command + strict JSON request
-  -> internal/app Review Agent operation
-  -> one bounded JSON response
+`internal/access/reviewagentcli` validates one fixed Review Agent command and
+bounded JSON input, dispatches the app operation, and emits one JSON response.
+It does not own Review Agent policy, GitHub effects, verification, or model work.
 
-bounded model output
-  -> normalize-review-result
-  -> one validated ReviewResult JSON response
-```
+## Boundaries
 
-The CLI does not parse shell plans, arbitrary commands, paths, URLs, secrets,
-or model instructions. Model-result normalization accepts only the contract's
-single unambiguous JSON object. Errors are generic and never echo input or
-credential material.
+- Control commands are strict JSON-only; the sole advisory exception normalizes
+  one bounded model-authored Review result.
+- The CLI accepts no shell plan, arbitrary command, path, URL, secret, or model
+  instruction.
+- Lifecycle and GitHub behavior remain behind app operations.
+
+## Main Flows
+
+1. Decode one exact control command request and delegate to app.
+2. For result normalization, extract exactly one unambiguous bounded JSON object
+   and validate the canonical Review contract.
+3. Emit one JSON response or generic non-echoing error.
+
+## Invariants and Failure Semantics
+
+- Unknown fields, trailing data, competing JSON containers, and ambiguous prose
+  fail closed.
+- Advisory model output never gains control or publication authority through
+  normalization.
+- Errors never echo input or credential material.
+
+## Read First
+
+- [Command boundary](command.go)
+- [Command tests](command_test.go)
+
+## Update Triggers
+
+Update this file when commands, model-result extraction, JSON bounds, dispatch,
+output, or error-redaction semantics change.

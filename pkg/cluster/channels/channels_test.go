@@ -116,6 +116,27 @@ func TestSlotMetaSourceProjectsClearedWriteFenceVersion(t *testing.T) {
 	require.False(t, meta.WriteFence.Set())
 }
 
+func TestSlotMetaSourceBatchResolvePreservesMissingItemAlignment(t *testing.T) {
+	first := ch.ChannelID{ID: "batch-runtime-first", Type: 2}
+	missing := ch.ChannelID{ID: "batch-runtime-missing", Type: 2}
+	last := ch.ChannelID{ID: "batch-runtime-last", Type: 2}
+	reader := &alignedRuntimeMetaBatchReader{results: []RuntimeMetaReadResult{
+		{Meta: metadb.ChannelRuntimeMeta{ChannelID: first.ID, ChannelType: int64(first.Type), ChannelEpoch: 1, LeaderEpoch: 2, Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(ch.StatusActive)}},
+		{Err: metadb.ErrNotFound},
+		{Meta: metadb.ChannelRuntimeMeta{ChannelID: last.ID, ChannelType: int64(last.Type), ChannelEpoch: 3, LeaderEpoch: 4, Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1, Status: uint8(ch.StatusActive)}},
+	}}
+	source := NewSlotMetaSource(reader)
+
+	results := source.ResolveChannelMetas(context.Background(), []ch.ChannelID{first, missing, last})
+
+	require.Len(t, results, 3)
+	require.NoError(t, results[0].Err)
+	require.Equal(t, first, results[0].Meta.ID)
+	require.ErrorIs(t, results[1].Err, ch.ErrChannelNotFound)
+	require.NoError(t, results[2].Err)
+	require.Equal(t, last, results[2].Meta.ID)
+}
+
 func TestServicePassesAppendBatchTuningToRuntime(t *testing.T) {
 	id := ch.ChannelID{ID: "batch-tuning", Type: 1}
 	meta := ch.Meta{
@@ -2958,6 +2979,85 @@ func TestServiceReadConversationHeadsUsesOneLiveRuntimeProbeBeforeLeaderCheckpoi
 	}
 }
 
+func TestServiceReadConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
+	first := ch.ChannelID{ID: "conversation-batch-meta-first", Type: 2}
+	missing := ch.ChannelID{ID: "conversation-batch-meta-missing", Type: 2}
+	second := ch.ChannelID{ID: "conversation-batch-meta-second", Type: 2}
+	source := &batchOnlyChannelMetaSource{metas: map[ch.ChannelID]ch.Meta{
+		first:  {ID: first, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive},
+		second: {ID: second, Epoch: 3, LeaderEpoch: 4, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive},
+	}}
+	forward := &recordingConversationHeadsForward{response: ConversationHeadsResponse{Items: []ConversationHeadResult{
+		{Head: ConversationHead{LastCommittedSeq: 10}},
+		{Head: ConversationHead{LastCommittedSeq: 20}},
+	}}}
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Forward: forward})
+	require.NoError(t, err)
+
+	results, err := svc.ReadConversationHeads(context.Background(), []ch.ChannelID{first, missing, second}, "u1")
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+	require.NoError(t, results[0].Err)
+	require.Equal(t, uint64(10), results[0].Head.LastCommittedSeq)
+	require.ErrorIs(t, results[1].Err, ch.ErrChannelNotFound)
+	require.NoError(t, results[2].Err)
+	require.Equal(t, uint64(20), results[2].Head.LastCommittedSeq)
+}
+
+func TestForwardConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
+	id := ch.ChannelID{ID: "forward-conversation-batch-meta", Type: 2}
+	factory := channelstore.NewMemoryFactory()
+	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{{ID: 10, FromUID: "u2", Payload: []byte("tail")}}})
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+	source := &batchOnlyChannelMetaSource{metas: map[ch.ChannelID]ch.Meta{
+		id: {ID: id, Epoch: 2, LeaderEpoch: 3, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive},
+	}}
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: factory})
+	require.NoError(t, err)
+
+	response, err := svc.handleForwardConversationHeads(context.Background(), ConversationHeadsRequest{
+		UID: "u1", Items: []ConversationHeadRequest{{ChannelID: id, ExpectedLeader: 1, ExpectedChannelEpoch: 2, ExpectedLeaderEpoch: 3, ExpectedMinISR: 1}},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, response.Items, 1)
+	require.NoError(t, response.Items[0].Err)
+	require.Equal(t, uint64(1), response.Items[0].Head.LastCommittedSeq)
+	require.Equal(t, []byte("tail"), response.Items[0].Head.Message.Payload)
+}
+
+func TestServiceReadConversationHeadsTransfersLocalPayloadOwnership(t *testing.T) {
+	id := ch.ChannelID{ID: "conversation-head-local-payload-ownership", Type: 2}
+	base := channelstore.NewMemoryFactory()
+	store, err := base.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{{ID: 10, FromUID: "u2", Payload: []byte("tail")}}})
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+	tracking := newLastVisibleTrackingFactory(base)
+	source := NewStaticMetaSource([]ch.Meta{{
+		ID: id, Epoch: 2, LeaderEpoch: 3, Leader: 1,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}})
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: tracking})
+	require.NoError(t, err)
+
+	results, err := svc.ReadConversationHeads(context.Background(), []ch.ChannelID{id}, "u1")
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Err)
+	readPayload := tracking.lastPayload()
+	require.NotEmpty(t, readPayload)
+	require.NotEmpty(t, results[0].Head.Message.Payload)
+	if &readPayload[0] != &results[0].Head.Message.Payload[0] {
+		t.Fatal("conversation head copied the caller-owned store payload")
+	}
+}
+
 func TestServiceReadConversationHeadsGroupsRemoteReadsByLeaderAndKeepsAlignment(t *testing.T) {
 	remoteA := ch.ChannelID{ID: "conversation-head-remote-a", Type: 2}
 	local := ch.ChannelID{ID: "conversation-head-local", Type: 2}
@@ -3101,13 +3201,21 @@ func TestServiceReadLocalLastVisibleClosesStoreOnReadErrorAndCancellation(t *tes
 type lastVisibleTrackingFactory struct {
 	base channelstore.Factory
 
-	readErr  error
-	acquired atomic.Int64
-	closed   atomic.Int64
+	readErr         error
+	acquired        atomic.Int64
+	closed          atomic.Int64
+	mu              sync.Mutex
+	lastReadPayload []byte
 }
 
 func newLastVisibleTrackingFactory(base channelstore.Factory) *lastVisibleTrackingFactory {
 	return &lastVisibleTrackingFactory{base: base}
+}
+
+func (f *lastVisibleTrackingFactory) lastPayload() []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastReadPayload
 }
 
 func (f *lastVisibleTrackingFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (channelstore.ChannelStore, error) {
@@ -3129,7 +3237,21 @@ func (s *lastVisibleTrackingStore) ReadCommitted(ctx context.Context, req channe
 	if s.parent.readErr != nil {
 		return channelstore.ReadCommittedResult{}, s.parent.readErr
 	}
-	return s.ChannelStore.ReadCommitted(ctx, req)
+	result, err := s.ChannelStore.ReadCommitted(ctx, req)
+	if err == nil && len(result.Messages) > 0 {
+		s.parent.mu.Lock()
+		s.parent.lastReadPayload = result.Messages[0].Payload
+		s.parent.mu.Unlock()
+	}
+	return result, err
+}
+
+func (s *lastVisibleTrackingStore) GetLastSenderMessageSeq(ctx context.Context, uid string, throughSeq uint64) (uint64, bool, error) {
+	lookup, ok := s.ChannelStore.(channelstore.SenderSequenceLookup)
+	if !ok {
+		return 0, false, ch.ErrInvalidConfig
+	}
+	return lookup.GetLastSenderMessageSeq(ctx, uid, throughSeq)
 }
 
 func (s *lastVisibleTrackingStore) Close() error {
@@ -3300,6 +3422,31 @@ func TestServiceRecoversCommittedForwardAppendBatchAfterDeadline(t *testing.T) {
 }
 
 type clusterOnlyRuntime struct{}
+
+type batchOnlyChannelMetaSource struct {
+	metas map[ch.ChannelID]ch.Meta
+}
+
+func (s *batchOnlyChannelMetaSource) ResolveChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error) {
+	return ch.Meta{}, errors.New("unexpected point metadata read")
+}
+
+func (s *batchOnlyChannelMetaSource) ResolveChannelMetas(ctx context.Context, ids []ch.ChannelID) []ChannelMetaResult {
+	results := make([]ChannelMetaResult, len(ids))
+	for i, id := range ids {
+		if err := ctx.Err(); err != nil {
+			results[i].Err = err
+			continue
+		}
+		meta, ok := s.metas[id]
+		if !ok {
+			results[i].Err = fmt.Errorf("%w: %v", ch.ErrChannelNotFound, id)
+			continue
+		}
+		results[i] = ChannelMetaResult{Meta: meta, Found: true}
+	}
+	return results
+}
 
 func (clusterOnlyRuntime) ApplyMeta(ch.Meta) error { return nil }
 func (clusterOnlyRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
@@ -3838,6 +3985,18 @@ type runtimeMetaReaderFake struct {
 	upserts    int
 	creates    int
 	batchReads int
+}
+
+type alignedRuntimeMetaBatchReader struct {
+	results []RuntimeMetaReadResult
+}
+
+func (r *alignedRuntimeMetaBatchReader) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
+	return metadb.ChannelRuntimeMeta{}, errors.New("unexpected point runtime metadata read")
+}
+
+func (r *alignedRuntimeMetaBatchReader) BatchReadChannelRuntimeMetas(context.Context, []metadb.ChannelKey) ([]RuntimeMetaReadResult, error) {
+	return append([]RuntimeMetaReadResult(nil), r.results...), nil
 }
 
 func withTestMetaBatch(store RuntimeMetaBatchStore, opts SlotMetaSourceOptions) SlotMetaSourceOptions {

@@ -445,6 +445,35 @@ func (s defaultChannelRuntimeMetaStore) BatchGetChannelRuntimeMetas(ctx context.
 	return results, nil
 }
 
+// BatchReadChannelRuntimeMetas reads arbitrary channel identities through the
+// Slot proxy and returns one outcome aligned with every key.
+func (s defaultChannelRuntimeMetaStore) BatchReadChannelRuntimeMetas(ctx context.Context, keys []metadb.ChannelKey) ([]channels.RuntimeMetaReadResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if s.node == nil || s.node.defaultSlotProxy == nil {
+		return nil, ErrNotStarted
+	}
+	reads, err := s.node.defaultSlotProxy.ReadChannelRuntimeMetadataBatch(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]channels.RuntimeMetaReadResult, len(keys))
+	for i, key := range keys {
+		if reads[i].Err != nil {
+			results[i].Err = reads[i].Err
+			continue
+		}
+		meta := reads[i].Meta
+		if meta.ChannelID != key.ChannelID || meta.ChannelType != key.ChannelType {
+			results[i].Err = metadb.ErrCorruptValue
+			continue
+		}
+		results[i].Meta = meta
+	}
+	return results, nil
+}
+
 func (s defaultChannelRuntimeMetaStore) validateRuntimeMetaBatchRoute(items []channels.RuntimeMetaCreateItem, expected routing.Route) error {
 	routes, err := s.validateRuntimeMetaBatchItems(items)
 	if err != nil {
@@ -508,6 +537,7 @@ func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Con
 }
 
 var _ channels.RuntimeMetaReader = defaultChannelRuntimeMetaStore{}
+var _ channels.RuntimeMetaBatchReader = defaultChannelRuntimeMetaStore{}
 var _ channels.RuntimeMetaBatchStore = defaultChannelRuntimeMetaStore{}
 var _ channels.RuntimeMetaWriter = defaultChannelRuntimeMetaStore{}
 

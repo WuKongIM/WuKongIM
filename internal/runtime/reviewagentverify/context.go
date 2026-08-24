@@ -22,7 +22,7 @@ type ContextInput struct {
 	Discussion         []contract.DiscussionItem
 	PriorFindings      []contract.Finding
 	Inventory          Inventory
-	Instructions       []contract.InstructionBlob
+	ContextDocuments   []contract.ContextDocumentBlob
 	MandatoryChecks    []string
 }
 
@@ -59,9 +59,9 @@ func BuildContext(input ContextInput, maxBytes int64) (contract.ReviewContext, e
 			[]contract.ChangedFile(nil),
 			input.Inventory.Files...,
 		),
-		Instructions: append(
-			[]contract.InstructionBlob(nil),
-			input.Instructions...,
+		ContextDocuments: append(
+			[]contract.ContextDocumentBlob(nil),
+			input.ContextDocuments...,
 		),
 		MandatoryChecks: append(
 			[]string(nil),

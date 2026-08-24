@@ -1,79 +1,68 @@
-# internal/usecase/benchterminal Flow
+---
+scope: package
+summary: Owns one exact benchmark terminal drain, capability grant, and session-seal admission proof.
+---
+
+# Benchmark Terminal Usecase Flow
 
 ## Responsibility
 
 `internal/usecase/benchterminal` owns the entry-agnostic, once-per-product-
-process terminal cut for one exact benchmark `(run_id, assignment_id)`.
-It does not parse HTTP or gateway frames, look up sessions, encode markers, or
-write transports. Those operations remain in the entry adapter and gateway
-session layer.
+process terminal cut for one exact benchmark run and assignment. It drains
+accepted product work, mints one opaque capability, and counts exact owner-local
+session-seal admissions.
+It does not parse entry requests, look up sessions, encode markers, or write
+transports.
 
-The controller is intentionally a one-shot generation capability. A new QPS
-tier starts a new product process and owns a new controller; it is not a
-general drain/restart control plane.
+## Boundaries
 
-## Prepare Flow
+- HTTP and gateway adapters parse requests, bind the authenticated session, and
+  encode markers. This package never looks up sessions or writes transports.
+- Gateway SEND, Channel append, and Online Delivery expose narrow drain ports.
+- The controller is one-shot process state, not a general drain/restart plane.
+  A new reviewed QPS tier starts a new product process and controller.
 
-```text
-Prepare(exact run_id, assignment_id, expected_sessions)
-  -> close gateway SEND admission and wait accepted mailbox work
-  -> stop channelappend admission and wait accepted append/handoff work
-  -> quiesce delivery-plan admission and wait owner push + pending RECVACK = 0
-  -> issue non-zero uint64 epoch + opaque capability
-  -> await exactly expected owner-local SessionFence admissions
-```
-
-The three ports run in that strict order against one detached context whose
-total timeout is bounded by `Options.DrainTimeout` (default and maximum 90
-seconds). The caller context only limits its own wait. A caller deadline does
-not cancel previously accepted drain work; a later call with the exact same
-identity joins the existing preparation. A port error, detached deadline, or
-random-material failure makes the epoch permanently `failed` and issues no
-grant. The detached pipeline is launched through the process goroutine
-registry under one fixed low-cardinality App task; run and assignment identity
-never enter supervisor labels.
-
-`PrepareRequest` has the same public bounds as the target API: trimmed
-`run_id` and `assignment_id` are at most 128 bytes, while
-`expected_sessions` is at most 1,000,000. Product composition normally sets
-`MaxSessions` to the smaller owner-local limit (2,500 for the lifecycle run).
-The controller keeps identity internal: `Status` exposes only the closed
-stage/failure enums, epoch, and bounded expected/sealed counts.
-
-## Session Marker Flow
+## Main Flows
 
 ```text
+Prepare(exact run, assignment, expected sessions)
+  -> close Gateway SEND admission and drain accepted mailbox work
+  -> stop Channel append admission and drain append/handoff work
+  -> quiesce Online Delivery and wait pending RECVACK bindings = 0
+  -> issue non-zero epoch plus opaque capability
+  -> await exactly the expected unique SessionFence admissions
+
 authenticated terminal EVENT
-  -> access adapter validates its current session ID == SessionFence.SessionID
-  -> access adapter copies only epoch + SHA-256 capability proof
-  -> Controller.SealAndEnqueue
-     -> constant-time epoch and capability-digest comparison
-     -> exact session-ID uniqueness and expected-count reservation
-     -> per-call SessionSealer adapter
-        -> current session write lock: seal ordinary outbound + enqueue ACK marker
-  -> count local marker admission, never remote acknowledgement
+  -> adapter verifies current session identity and copies redacting proof values
+  -> constant-time epoch and capability-digest validation
+  -> reserve the exact unique session
+  -> per-call sealer closes ordinary outbound admission and enqueues marker ACK
+  -> publish the bounded session count or a permanent closed failure
 ```
 
-`SessionSealer` is supplied to each `SealAndEnqueue` call rather than stored
-in the controller. This prevents a usecase-to-entry/session registry cycle and
-makes the access adapter responsible for binding the call to its authenticated
-current session. Any seal error, duplicate session, stale/wrong proof, session
-above the exact count, or adapter-reported post-seal ordinary frame permanently
-fails the published epoch with the single low-cardinality
-`protocol_violation` or `session_seal` status. The controller does **not** treat gnet
-`AsyncWrite` callbacks, empty outbound buffers, TCP half-close, or marker
-admission as proof that a client received the marker. Only the matching
-client-observed marker acknowledgement closes receive proof.
+## Invariants and Failure Semantics
 
-The frame parser never exposes the raw capability. It derives a fixed-size
-`Proof` digest and separately copies the nonce into the redacting
-`SessionFence`; neither value is formatted or persisted by the access adapter.
+- Drain ports run in the stated order against one detached context bounded by
+  at most 90 seconds. Caller cancellation stops only that wait; an exact retry
+  joins the existing generation and never cancels admitted work.
+- Run and assignment strings are trimmed and bounded to 128 bytes. Session count
+  is positive, bounded by configuration, and normally capped at 2,500.
+- A drain, randomness, protocol, duplicate, overflow, stale-proof, or seal
+  failure permanently fails the epoch and never issues or reopens a capability.
+- `SessionSealer` is supplied per call, and the adapter must prove its usecase
+  SessionID is the currently authenticated session before sealing.
+- Marker admission, async-write completion, empty buffers, and TCP half-close
+  are not remote receipt proof. Only the client's exact decoded ACK closes the
+  benchmark receive proof.
+- Capability, nonce, digest, run, assignment, session identity, and raw adapter
+  errors never enter status, formatting, logs, metrics, or supervisor labels.
 
-## Secrets and Observability
+## Read First
 
-`Grant.Capability` uses fixed-width 32-byte base64url material. Its `String`
-and `GoString` methods redact it, and `Status` never contains capability,
-run/assignment identity, nonce, or session IDs. Grant validation compares the
-fixed-width capability and uint64 epoch in constant time. Raw adapter errors
-and capability values must not become metrics, logs, status fields, or error
-text.
+- [Controller](controller.go)
+- [Controller tests](controller_test.go)
+
+## Update Triggers
+
+Update this file when drain order, one-shot identity, capability validation,
+session-seal counting, failure permanence, or secret exposure changes.

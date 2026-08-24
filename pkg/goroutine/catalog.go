@@ -124,6 +124,7 @@ const (
 	TaskSlotRaftApplyWorker              TaskID = "slot/raft_apply_worker"
 	TaskSlotConditionWaiter              TaskID = "slot/condition_waiter"
 	TaskSlotPermissionBatch              TaskID = "slot/permission_batch"
+	TaskSlotRuntimeMetaBatch             TaskID = "slot/runtime_meta_batch"
 	TaskChannelReactor                   TaskID = "channel/reactor"
 	TaskChannelReactorClose              TaskID = "channel/reactor_close"
 	TaskChannelStoreClose                TaskID = "channel/store_close"
@@ -219,6 +220,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskSlotRaftApplyWorker, Module: ModuleSlot, Name: "raft_apply_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskSlotConditionWaiter, Module: ModuleSlot, Name: "condition_waiter", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskSlotPermissionBatch, Module: ModuleSlot, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskSlotRuntimeMetaBatch, Module: ModuleSlot, Name: "runtime_meta_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactor, Module: ModuleChannel, Name: "reactor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactorClose, Module: ModuleChannel, Name: "reactor_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelStoreClose, Module: ModuleChannel, Name: "store_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
