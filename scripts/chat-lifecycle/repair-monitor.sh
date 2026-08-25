@@ -131,7 +131,7 @@ prove_qualified_stage_exit() {
     [[ "$(grep -c '^ActiveState=inactive$' "$temporary" || true)" != 1 ]] ||
     [[ "$(grep -c '^SubState=dead$' "$temporary" || true)" != 1 ]] ||
     [[ "$(grep -c '^Result=success$' "$temporary" || true)" != 1 ]] ||
-    [[ "$(grep -c '^ExecMainCode=exited$' "$temporary" || true)" != 1 ]] ||
+    [[ "$(grep -c '^ExecMainCode=1$' "$temporary" || true)" != 1 ]] ||
     [[ "$(grep -c '^ExecMainStatus=130$' "$temporary" || true)" != 1 ]]; then
     rm -f -- "$temporary"
     return 1

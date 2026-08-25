@@ -378,9 +378,9 @@ case "$command_line" in
     calls=$(( calls + 1 ))
     printf '%s\n' "$calls" >"$WK_TEST_SERVICE_SHOW_CALLS"
     if [[ "$calls" == 1 ]]; then
-      printf 'ActiveState=deactivating\nSubState=stop-sigterm\nResult=success\nExecMainCode=exited\nExecMainStatus=0\n'
+      printf 'ActiveState=deactivating\nSubState=stop-sigterm\nResult=success\nExecMainCode=0\nExecMainStatus=0\n'
     else
-      printf 'ActiveState=inactive\nSubState=dead\nResult=success\nExecMainCode=exited\nExecMainStatus=130\n'
+      printf 'ActiveState=inactive\nSubState=dead\nResult=success\nExecMainCode=1\nExecMainStatus=130\n'
     fi
     ;;
   *"systemctl stop wkbench-worker@1.service"*)
@@ -419,6 +419,7 @@ esac
 		"WK_CHAT_REPAIR_OPERATOR_STOP_FILE="+operatorStop,
 		"WK_CHAT_REPAIR_POLL_SECONDS=1",
 		"WK_CHAT_REPAIR_MAX_SECONDS=4500",
+		"WK_CHAT_REPAIR_QUALIFICATION_FINALIZE_SECONDS=4",
 		"WK_TEST_CALL_LOG="+callLog,
 		"WK_TEST_SIGNAL_MARKER="+signalMarker,
 		"WK_TEST_SERVICE_SHOW_CALLS="+serviceShowCalls,
