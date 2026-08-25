@@ -28,6 +28,7 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"query_stage_service_state", "for attempt in 1 2 3", "observation_unavailable",
 		"request_qualified_stage_stop", "systemctl kill --kill-who=main --signal=SIGTERM",
 		"fetch_qualified_report", "validate-rehearsal-report", "prove_qualified_stage_exit",
+		"WK_CHAT_REPAIR_RUN_START", "--run-start", "stop_stage_with_retries",
 		"qualified-final.json", "qualified-result.json", "qualification-finalization.json",
 		"stop_workers", "qualification_finalize_failed",
 		`max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"`,
@@ -40,6 +41,24 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 	for _, forbidden := range []string{"cloud-lease-release", "wkcloudlease", "rm -rf", "docker", "podman"} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("repair monitor unexpectedly owns Lease or container mutation %q", forbidden)
+		}
+	}
+}
+
+func TestChatLifecycleStageStartRemovesStaleTerminalReports(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "start-local-stage.sh")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, fragment := range []string{
+		`remote_report_dir="/var/lib/wukongim-cloud/reports/$report_dir"`,
+		`'$remote_report_dir/final.json'`, `'$remote_report_dir/final.md'`,
+		"systemctl start --no-block",
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("stage starter missing stale-report fence %q", fragment)
 		}
 	}
 }

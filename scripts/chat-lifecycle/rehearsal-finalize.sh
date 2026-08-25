@@ -118,6 +118,7 @@ if [[ "$report_ready" == true ]] &&
   fetch_bounded_remote_report "$remote_json" "$WK_CHAT_FINAL_DIR/final.json" &&
   fetch_bounded_remote_report "$remote_markdown" "$WK_CHAT_FINAL_DIR/final.md" &&
   "$WK_CHAT_TOOL" validate-rehearsal-report --report "$WK_CHAT_FINAL_DIR/final.json" \
+    --run-start "$WK_CHAT_FINAL_DIR/run-start.json" \
     >"$WK_CHAT_FINAL_DIR/rehearsal-result.json" 2>/dev/null; then
   validated_report=true
   outcome="$(jq -er .outcome "$WK_CHAT_FINAL_DIR/rehearsal-result.json")"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 : "${WK_CHAT_REPAIR_TOOL:?required}"
 : "${WK_CHAT_REPAIR_STATE:?required}"
+: "${WK_CHAT_REPAIR_RUN_START:?required}"
 : "${WK_CHAT_REPAIR_OUTPUT_DIR:?required}"
 : "${WK_CHAT_REPAIR_SSH_CONFIG:?required}"
 : "${WK_CHAT_REPAIR_REQUEST_ID:?required}"
@@ -22,6 +23,13 @@ qualified_report_max_bytes=4194304
 [[ "$qualification_finalize_seconds" =~ ^[1-9][0-9]*$ ]]
 (( qualification_finalize_seconds >= 30 && qualification_finalize_seconds <= 900 ))
 [[ -x "$WK_CHAT_REPAIR_TOOL" && -f "$WK_CHAT_REPAIR_STATE" && -f "$WK_CHAT_REPAIR_SSH_CONFIG" ]]
+[[ "$WK_CHAT_REPAIR_RUN_START" == /* && -f "$WK_CHAT_REPAIR_RUN_START" && ! -L "$WK_CHAT_REPAIR_RUN_START" ]]
+jq -e '
+  .schema == "wukongim.chat_lifecycle.run_start/v1" and .stage == "rehearsal" and
+  (.started_at | type == "string") and (.expected_end_at | type == "string") and
+  (.run_hash | test("^sha256:[0-9a-f]{64}$")) and
+  (.assignment_hash | test("^sha256:[0-9a-f]{64}$")) and .generation > 0
+' "$WK_CHAT_REPAIR_RUN_START" >/dev/null
 [[ "$stage_service" =~ ^[A-Za-z0-9@._-]{1,128}\.service$ ]]
 [[ "$WK_CHAT_REPAIR_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
 if [[ -n "${WK_CHAT_REPAIR_OPERATOR_STOP_FILE:-}" ]]; then
@@ -46,6 +54,15 @@ stop_stage() {
      ! sudo systemctl is-active --quiet wkbench-worker@3.service" >/dev/null 2>&1
 }
 trap 'stop_stage || true; exit 130' INT TERM
+
+stop_stage_with_retries() {
+  local attempt
+  for attempt in 1 2 3; do
+    stop_stage && return 0
+    (( attempt < 3 )) && sleep 2
+  done
+  return 1
+}
 
 stop_workers() {
   wk_run_bounded 60 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
@@ -82,7 +99,8 @@ fetch_qualified_report() {
 validate_qualified_report() {
   local report="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-final.json"
   local result="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-result.json"
-  if ! "$WK_CHAT_REPAIR_TOOL" validate-rehearsal-report --report "$report" >"${result}.next"; then
+  if ! "$WK_CHAT_REPAIR_TOOL" validate-rehearsal-report \
+    --report "$report" --run-start "$WK_CHAT_REPAIR_RUN_START" >"${result}.next"; then
     rm -f -- "${result}.next"
     return 1
   fi
@@ -362,8 +380,11 @@ while true; do
       persist_terminal_cut
       install -m 0600 "$work_dir/step.json" "$WK_CHAT_REPAIR_OUTPUT_DIR/repair-decision.json"
       if ! finalize_qualified_stage; then
-        stop_stage || true
-        record_diagnosis qualification_finalize_failed "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        failure_reason=qualification_finalize_failed
+        if ! stop_stage_with_retries; then
+          failure_reason=qualification_finalize_cleanup_unproven
+        fi
+        record_diagnosis "$failure_reason" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         exit 20
       fi
       exit 0

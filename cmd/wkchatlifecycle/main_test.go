@@ -82,6 +82,42 @@ func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T)
 	}
 }
 
+func TestValidateRehearsalReportRunStartRejectsStaleGeneration(t *testing.T) {
+	startedAt := time.Date(2026, 8, 26, 1, 2, 3, 456_000_000, time.UTC)
+	runHash := "sha256:" + strings.Repeat("a", 64)
+	assignmentHash := "sha256:" + strings.Repeat("b", 64)
+	report := chatlifecycle.Report{
+		Stage: chatlifecycle.StageRehearsal,
+		Fence: chatlifecycle.ReportFence{
+			RunHash: runHash, AssignmentHash: assignmentHash, Generation: 7,
+		},
+		Window: chatlifecycle.ReportTimeWindow{Start: startedAt},
+	}
+	receipt := chatlifecycle.RunStartReceipt{
+		Schema: chatlifecycle.RunStartReceiptSchemaV1, Stage: chatlifecycle.StageRehearsal,
+		StartedAt: startedAt, ExpectedEndAt: startedAt.Add(4*time.Hour + 15*time.Minute),
+		RunHash: runHash, AssignmentHash: assignmentHash, Generation: 7,
+	}
+	if err := validateRehearsalReportRunStart(report, receipt); err != nil {
+		t.Fatalf("matching report/run-start rejected: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*chatlifecycle.RunStartReceipt){
+		"run hash":        func(value *chatlifecycle.RunStartReceipt) { value.RunHash = "sha256:" + strings.Repeat("c", 64) },
+		"assignment hash": func(value *chatlifecycle.RunStartReceipt) { value.AssignmentHash = "sha256:" + strings.Repeat("d", 64) },
+		"generation":      func(value *chatlifecycle.RunStartReceipt) { value.Generation++ },
+		"start":           func(value *chatlifecycle.RunStartReceipt) { value.StartedAt = value.StartedAt.Add(time.Nanosecond) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			stale := receipt
+			mutate(&stale)
+			if err := validateRehearsalReportRunStart(report, stale); err == nil {
+				t.Fatalf("report from stale %s was accepted", name)
+			}
+		})
+	}
+}
+
 func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	var output bytes.Buffer
 	command := newRootCommand(&output)

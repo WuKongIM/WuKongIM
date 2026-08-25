@@ -11,10 +11,12 @@ poll_seconds="${WK_CHAT_LAB_STAGE_POLL_SECONDS:-5}"
 [[ "$WK_CHAT_LAB_RUN_START_OUTPUT" == /* && "$stage_service" =~ ^[A-Za-z0-9@._-]+\.service$ ]]
 [[ "$report_dir" =~ ^[a-z][a-z0-9_-]*$ && "$readiness_seconds" =~ ^[1-9][0-9]*$ && "$poll_seconds" =~ ^[1-9][0-9]*$ ]]
 
-remote_report="/var/lib/wukongim-cloud/reports/$report_dir/run-start.json"
+remote_report_dir="/var/lib/wukongim-cloud/reports/$report_dir"
+remote_report="$remote_report_dir/run-start.json"
 ssh -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
   -F "$WK_CHAT_LAB_SSH_CONFIG" wukong-load \
-  "sudo rm -f '$remote_report' && (sudo systemctl reset-failed '$stage_service' || true) && sudo systemctl start --no-block '$stage_service'"
+  "sudo rm -f '$remote_report' '$remote_report_dir/final.json' '$remote_report_dir/final.md' &&
+   (sudo systemctl reset-failed '$stage_service' || true) && sudo systemctl start --no-block '$stage_service'"
 
 deadline=$(( $(date -u +%s) + readiness_seconds ))
 temporary="${WK_CHAT_LAB_RUN_START_OUTPUT}.next.$$"

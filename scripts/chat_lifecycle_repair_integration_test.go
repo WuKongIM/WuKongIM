@@ -72,6 +72,7 @@ fi
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_CHAT_REPAIR_TOOL="+tool,
 		"WK_CHAT_REPAIR_STATE="+state,
+		"WK_CHAT_REPAIR_RUN_START="+writeRepairRunStart(t, directory),
 		"WK_CHAT_REPAIR_OUTPUT_DIR="+outputDir,
 		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
 		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-test",
@@ -187,6 +188,7 @@ fi
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_CHAT_REPAIR_TOOL="+tool,
 		"WK_CHAT_REPAIR_STATE="+state,
+		"WK_CHAT_REPAIR_RUN_START="+writeRepairRunStart(t, directory),
 		"WK_CHAT_REPAIR_OUTPUT_DIR="+outputDir,
 		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
 		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-retry",
@@ -285,6 +287,7 @@ fi
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_CHAT_REPAIR_TOOL="+tool,
 		"WK_CHAT_REPAIR_STATE="+state,
+		"WK_CHAT_REPAIR_RUN_START="+writeRepairRunStart(t, directory),
 		"WK_CHAT_REPAIR_OUTPUT_DIR="+outputDir,
 		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
 		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-service-probe",
@@ -334,14 +337,16 @@ case "$1" in
   validate-rehearsal-report)
     printf 'validate-report\n' >>"$WK_TEST_CALL_LOG"
     report=''
+    run_start=''
     shift
     while (( $# > 0 )); do
       case "$1" in
         --report) report="$2"; shift 2 ;;
+        --run-start) run_start="$2"; shift 2 ;;
         *) shift ;;
       esac
     done
-    [[ -s "$report" ]]
+    [[ -s "$report" && -s "$run_start" ]]
     printf '{"schema":"wukongim.chat_lifecycle.rehearsal_result/v1","stage":"rehearsal","outcome":"operator_stop","cause":"operator_requested","end":"2026-08-26T00:00:01Z"}\n'
     ;;
   *) exit 91 ;;
@@ -407,6 +412,7 @@ esac
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_CHAT_REPAIR_TOOL="+tool,
 		"WK_CHAT_REPAIR_STATE="+state,
+		"WK_CHAT_REPAIR_RUN_START="+writeRepairRunStart(t, directory),
 		"WK_CHAT_REPAIR_OUTPUT_DIR="+outputDir,
 		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
 		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-qualified",
@@ -467,6 +473,7 @@ printf '{"schema":"wukongim.chat_lifecycle.repair_state/v2"}\n'
 	monitor := filepath.Join(directory, "repair-monitor")
 	writeRepairExecutable(t, monitor, `#!/usr/bin/env bash
 set -euo pipefail
+[[ -s "$WK_CHAT_REPAIR_RUN_START" ]]
 printf '{"schema":"wukongim.chat_lifecycle.repair_step/v1","decision":{"action":"stop_and_diagnose","reason":"observation_unavailable","observed_at":"2026-08-25T01:02:10Z"}}\n' >"$WK_CHAT_REPAIR_OUTPUT_DIR/repair-decision.json"
 exit 20
 `)
@@ -660,4 +667,14 @@ func writeRepairExecutable(t *testing.T, path, body string) {
 	if err := os.WriteFile(path, []byte(body), 0o700); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeRepairRunStart(t *testing.T, directory string) string {
+	t.Helper()
+	path := filepath.Join(directory, "run-start.json")
+	body := `{"schema":"wukongim.chat_lifecycle.run_start/v1","stage":"rehearsal","started_at":"2026-08-26T00:00:00Z","expected_end_at":"2026-08-26T04:15:00Z","run_hash":"sha256:` + strings.Repeat("a", 64) + `","assignment_hash":"sha256:` + strings.Repeat("b", 64) + `","generation":1}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

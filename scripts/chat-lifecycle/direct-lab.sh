@@ -704,6 +704,7 @@ run_request() {
   monitor_status=0
   WK_CHAT_REPAIR_TOOL="$chat" \
     WK_CHAT_REPAIR_STATE="$repair_state" \
+    WK_CHAT_REPAIR_RUN_START="$run_start" \
     WK_CHAT_REPAIR_OUTPUT_DIR="$generation_dir" \
     WK_CHAT_REPAIR_SSH_CONFIG="$directory/deployment-ssh-config" \
     WK_CHAT_REPAIR_REQUEST_ID="$request_id" \

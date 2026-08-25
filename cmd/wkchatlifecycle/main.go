@@ -346,7 +346,7 @@ type reportResult struct {
 }
 
 func addReportCommand(root *cobra.Command) {
-	var path string
+	var path, runStartPath string
 	command := &cobra.Command{
 		Use: "validate-rehearsal-report", Short: "Validate one terminal bounded rehearsal report", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -355,6 +355,13 @@ func addReportCommand(root *cobra.Command) {
 				!report.Final || report.Continue || !report.Verdict.Terminal {
 				return chatlifecyclerun.ErrInvalidInput
 			}
+			var runStart chatlifecycle.RunStartReceipt
+			if err := readStrict(runStartPath, &runStart); err != nil {
+				return err
+			}
+			if err := validateRehearsalReportRunStart(report, runStart); err != nil {
+				return err
+			}
 			return json.NewEncoder(command.OutOrStdout()).Encode(reportResult{
 				Schema: "wukongim.chat_lifecycle.rehearsal_result/v1", Stage: report.Stage,
 				Outcome: report.Verdict.Outcome, Cause: report.Verdict.Cause, End: report.Window.End,
@@ -362,10 +369,26 @@ func addReportCommand(root *cobra.Command) {
 		},
 	}
 	command.Flags().StringVar(&path, "report", "", "bounded chat-lifecycle report")
-	if err := command.MarkFlagRequired("report"); err != nil {
-		panic(err)
+	command.Flags().StringVar(&runStartPath, "run-start", "", "exact run-start receipt for the report generation")
+	for _, name := range []string{"report", "run-start"} {
+		if err := command.MarkFlagRequired(name); err != nil {
+			panic(err)
+		}
 	}
 	root.AddCommand(command)
+}
+
+func validateRehearsalReportRunStart(report chatlifecycle.Report, runStart chatlifecycle.RunStartReceipt) error {
+	if runStart.Schema != chatlifecycle.RunStartReceiptSchemaV1 ||
+		runStart.Stage != chatlifecycle.StageRehearsal ||
+		runStart.StartedAt.IsZero() || !runStart.ExpectedEndAt.After(runStart.StartedAt) ||
+		report.Stage != runStart.Stage || report.Fence.RunHash != runStart.RunHash ||
+		report.Fence.AssignmentHash != runStart.AssignmentHash ||
+		report.Fence.Generation != runStart.Generation ||
+		!report.Window.Start.Equal(runStart.StartedAt) {
+		return chatlifecyclerun.ErrInvalidInput
+	}
+	return nil
 }
 
 func readStrict(path string, output any) error {
