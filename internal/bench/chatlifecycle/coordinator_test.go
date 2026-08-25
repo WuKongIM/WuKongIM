@@ -1421,7 +1421,7 @@ func TestCoordinatorStartUsesStrictOrderAndFinalizesExactWorkers(t *testing.T) {
 	}
 }
 
-func TestCoordinatorWaitsForTerminalSessionReplacementBeforeCheckpoint(t *testing.T) {
+func TestCoordinatorOperatorStopDoesNotWaitForTerminalSessionReplacement(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-terminal-session-replacement"
 	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
@@ -1467,52 +1467,34 @@ func TestCoordinatorWaitsForTerminalSessionReplacementBeforeCheckpoint(t *testin
 		<-clock.created
 	}
 	close(stopRequests)
-	select {
-	case ready := <-statusCalls:
-		if ready {
-			t.Fatal("first terminal replacement status was already ready")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("coordinator did not inspect terminal replacement readiness")
-	}
-	select {
-	case period := <-clock.created:
-		if period != time.Second {
-			t.Fatalf("terminal replacement poll period = %s, want 1s", period)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("coordinator did not start the terminal replacement poll")
-	}
-	clock.advance(time.Second)
-	select {
-	case ready := <-statusCalls:
-		if !ready {
-			t.Fatal("second terminal replacement status remained unready")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("coordinator did not recheck terminal replacement readiness")
-	}
-
 	terminal := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutTerminal)
-	if got := terminal.Snapshots[coordinatorWorkerCount-1].Sessions; got.Online != 1 || got.TrafficReady != 1 || got.Target != 1 {
-		t.Fatalf("terminal replacement snapshot = %+v, want exact ready target", got)
+	if !terminal.StopRequested {
+		t.Fatal("terminal cut did not preserve the operator stop request")
+	}
+	if got := terminal.Snapshots[coordinatorWorkerCount-1].Sessions; got.Online != 0 || got.TrafficReady != 0 || got.Target != 1 {
+		t.Fatalf("operator-stop terminal snapshot = %+v, want current partial population", got)
+	}
+	select {
+	case ready := <-statusCalls:
+		t.Fatalf("operator stop inspected sticky readiness instead of using the current checkpoint: ready=%t", ready)
+	default:
 	}
 	select {
 	case result := <-resultChannel:
 		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
-			t.Fatalf("Run() result = %+v, want operator stop after terminal replacement", result)
+			t.Fatalf("Run() result = %+v, want bounded operator stop", result)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("coordinator did not finish after terminal replacement")
+		t.Fatal("coordinator did not finish from the current operator-stop checkpoint")
 	}
 }
 
-func TestCoordinatorKeepsPollingTerminalSnapshotsAfterStickyTrafficReady(t *testing.T) {
+func TestCoordinatorNaturalFinalKeepsPollingTerminalSnapshotsAfterStickyTrafficReady(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-terminal-sticky-ready"
+	configureFastCoordinatorCutoff(&cfg)
 	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
 	observerStarted := make(chan struct{})
-	stopRequests := make(chan struct{})
 	checkpointCalls := make(chan int, 3)
 	log := []string{}
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
@@ -1540,7 +1522,7 @@ func TestCoordinatorKeepsPollingTerminalSnapshotsAfterStickyTrafficReady(t *test
 			<-ctx.Done()
 			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
 		}),
-		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+		Clock: clock, Hooks: hooks,
 	})
 	if err != nil {
 		t.Fatalf("NewCoordinator() error = %v", err)
@@ -1552,7 +1534,8 @@ func TestCoordinatorKeepsPollingTerminalSnapshotsAfterStickyTrafficReady(t *test
 	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
 		<-clock.created
 	}
-	close(stopRequests)
+	<-hooks.started
+	clock.advance(cfg.Thresholds.Timeline.Final)
 	for want := 1; want <= 2; want++ {
 		select {
 		case got := <-checkpointCalls:
@@ -1586,16 +1569,19 @@ func TestCoordinatorKeepsPollingTerminalSnapshotsAfterStickyTrafficReady(t *test
 	}
 
 	terminal := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutTerminal)
+	if terminal.StopRequested {
+		t.Fatal("natural final cut was marked as an operator stop")
+	}
 	if got := terminal.Snapshots[coordinatorWorkerCount-1].Sessions; got.Online != 1 || got.TrafficReady != 1 || got.Target != 1 {
 		t.Fatalf("terminal replacement snapshot = %+v, want exact ready target", got)
 	}
 	select {
 	case result := <-resultChannel:
-		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
-			t.Fatalf("Run() result = %+v, want operator stop after sticky readiness replacement", result)
+		if result.Outcome != CoordinatorCompleted || result.Code != CoordinatorCodeCompleted {
+			t.Fatalf("Run() result = %+v, want natural completion after sticky readiness replacement", result)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("coordinator did not finish after exact terminal replacement")
+		t.Fatal("coordinator did not finish natural finalization after exact terminal replacement")
 	}
 }
 
