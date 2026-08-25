@@ -702,12 +702,14 @@ run_request() {
       jq -n --arg request_id "$request_id" --argjson generation "$generation" \
         '{schema:"wukongim.chat_lifecycle.direct_lab_run/v1",request_id:$request_id,generation:$generation,state:"qualified",official_evidence_eligible:false}'
       ;;
-    10)
-      reason="$(jq -er '.decision.reason' "$generation_dir/repair-decision.json")"
+    10|20)
+      reason="$(jq -er '.decision.reason | select(type == "string" and length > 0 and length <= 128)' \
+        "$generation_dir/repair-decision.json" 2>/dev/null || true)"
+      [[ -n "$reason" ]] || reason=monitor_failed
       write_run_state "$directory" diagnosis_ready "$reason"
       jq -n --arg request_id "$request_id" --argjson generation "$generation" --arg reason "$reason" \
         '{schema:"wukongim.chat_lifecycle.direct_lab_run/v1",request_id:$request_id,generation:$generation,state:"diagnosis_ready",reason:$reason,lease_retained:true}'
-      return 10
+      return "$monitor_status"
       ;;
     130)
       write_run_state "$directory" deployed operator_stop

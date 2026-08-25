@@ -1,6 +1,7 @@
 package multiraft
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -68,6 +69,106 @@ func TestRuntimeLogCompactionSnapshotsAndCompactsAppliedEntries(t *testing.T) {
 	}
 	if first != snap.Metadata.Index+1 {
 		t.Fatalf("FirstIndex() = %d, want %d", first, snap.Metadata.Index+1)
+	}
+}
+
+func TestRuntimeLogCompactionKeepsSnapshotPayloadOnlyInDurableStorage(t *testing.T) {
+	rt := newCompactionRuntime(t, LogCompactionConfig{
+		Enabled:        true,
+		EnabledSet:     true,
+		TriggerEntries: 1000,
+		CheckInterval:  time.Hour,
+	})
+	store := &internalFakeStorage{}
+	fsm := &snapshottingStateMachine{}
+	slotID := SlotID(202)
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   SlotOptions{ID: slotID, Storage: store, StateMachine: fsm},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForSingleNodeLeader(t, rt, slotID)
+	future, err := rt.Propose(context.Background(), slotID, proposalString("large-snapshot"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	waitForFutureResult(t, future)
+
+	payload := bytes.Repeat([]byte{0x5a}, 8<<20)
+	fsm.mu.Lock()
+	fsm.externalSnapshot = payload
+	fsm.mu.Unlock()
+	if _, err := rt.CompactLog(context.Background(), slotID); err != nil {
+		t.Fatalf("CompactLog() error = %v", err)
+	}
+
+	durable, err := store.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("durable Snapshot() error = %v", err)
+	}
+	durablePayload, _, err := decodeSlotSnapshotData(durable.Data)
+	if err != nil || !bytes.Equal(durablePayload, payload) {
+		t.Fatalf("durable snapshot payload = %d bytes, err=%v; want %d bytes", len(durablePayload), err, len(payload))
+	}
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	inMemory, err := g.storageView.memory.MemoryStorage.Snapshot()
+	if err != nil {
+		t.Fatalf("in-memory Snapshot() error = %v", err)
+	}
+	if len(inMemory.Data) != 0 {
+		t.Fatalf("in-memory snapshot retained %d payload bytes", len(inMemory.Data))
+	}
+	served, err := g.storageView.memory.Snapshot()
+	if err != nil {
+		t.Fatalf("Raft Snapshot() error = %v", err)
+	}
+	servedPayload, _, err := decodeSlotSnapshotData(served.Data)
+	if err != nil || !bytes.Equal(servedPayload, payload) {
+		t.Fatalf("Raft snapshot payload = %d bytes, err=%v; want durable %d bytes", len(servedPayload), err, len(payload))
+	}
+}
+
+func TestStorageAdapterLoadKeepsRecoveredSnapshotPayloadOutOfMemory(t *testing.T) {
+	store := &internalFakeStorage{}
+	payload := bytes.Repeat([]byte{0x3c}, 4<<20)
+	snapshot := raftpb.Snapshot{
+		Data: encodeSlotSnapshotData(payload, 1),
+		Metadata: raftpb.SnapshotMetadata{
+			Index: 7,
+			Term:  3,
+			ConfState: raftpb.ConfState{
+				Voters: []uint64{1, 2, 3},
+			},
+		},
+	}
+	if err := store.Save(context.Background(), PersistentState{Snapshot: &snapshot}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	_, recovered, memory, err := newStorageAdapter(store).load(context.Background())
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+	if len(recovered.Data) == 0 {
+		t.Fatal("load() discarded the snapshot payload needed for state-machine restore")
+	}
+	inMemory, err := memory.MemoryStorage.Snapshot()
+	if err != nil {
+		t.Fatalf("in-memory Snapshot() error = %v", err)
+	}
+	if len(inMemory.Data) != 0 {
+		t.Fatalf("recovered in-memory snapshot retained %d payload bytes", len(inMemory.Data))
+	}
+	served, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("Raft Snapshot() error = %v", err)
+	}
+	servedPayload, _, err := decodeSlotSnapshotData(served.Data)
+	if err != nil || !bytes.Equal(servedPayload, payload) {
+		t.Fatalf("Raft snapshot payload = %d bytes, err=%v; want durable %d bytes", len(servedPayload), err, len(payload))
 	}
 }
 

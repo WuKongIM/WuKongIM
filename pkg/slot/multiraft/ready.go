@@ -20,7 +20,7 @@ func (s *storageAdapter) load(ctx context.Context) (BootstrapState, raftpb.Snaps
 		return BootstrapState{}, raftpb.Snapshot{}, nil, err
 	}
 	if !raft.IsEmptySnap(snap) {
-		if err := memory.ApplySnapshot(snap); err != nil {
+		if err := memory.ApplySnapshot(snapshotWithoutData(snap)); err != nil {
 			return BootstrapState{}, raftpb.Snapshot{}, nil, err
 		}
 	}
@@ -60,7 +60,7 @@ func (s *storageAdapter) load(ctx context.Context) (BootstrapState, raftpb.Snaps
 	if !raft.IsEmptySnap(snap) {
 		loadedConfState = snap.Metadata.ConfState
 	}
-	return state, snap, newLoadedMemoryStorage(memory, loadedConfState), nil
+	return state, snap, newLoadedMemoryStorage(memory, s.storage, loadedConfState), nil
 }
 
 func (s *storageAdapter) persistReady(ctx context.Context, ready raft.Ready) error {
