@@ -21,6 +21,14 @@ func TestFreshRegistryScrapeExposesLifecycleZeroCounters(t *testing.T) {
 	scrape := recorder.Body.String()
 	require.Contains(t, scrape, `wukongim_channelv2_activation_rejected_total{node_id="8",node_name="node-8",reason="max_channels"} 0`)
 	require.Equal(t, 1, strings.Count(scrape, "wukongim_channelv2_activation_rejected_total{"))
+	for _, role := range []string{"leader", "follower"} {
+		require.Contains(t, scrape, `wukongim_channelv2_runtime_load_total{node_id="8",node_name="node-8",role="`+role+`"} 0`)
+		for _, reason := range []string{"idle", "bench"} {
+			require.Contains(t, scrape, `wukongim_channelv2_runtime_eviction_total{node_id="8",node_name="node-8",reason="`+reason+`",role="`+role+`"} 0`)
+		}
+	}
+	require.Equal(t, 2, strings.Count(scrape, "wukongim_channelv2_runtime_load_total{"))
+	require.Equal(t, 4, strings.Count(scrape, "wukongim_channelv2_runtime_eviction_total{"))
 	for _, result := range []string{"created", "already_existing", "error"} {
 		require.Contains(t, scrape, `wukongim_channelv2_meta_created_total{result="`+result+`",slot_id="1"} 0`)
 	}
@@ -616,6 +624,8 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelRuntime.ObserveWorkerAdmission("channelv2-rpc", "rpc_pull_hint", "full")
 	reg.ChannelRuntime.ObserveWorkerBatch("rpc_pull", "ok", 3)
 	reg.ChannelRuntime.SetChannelRuntimeCount(2, "leader", 17)
+	reg.ChannelRuntime.ObserveRuntimeLoad("leader")
+	reg.ChannelRuntime.ObserveRuntimeEviction("leader", "idle")
 	reg.ChannelRuntime.ObserveChannelActivationRejected("max_channels")
 	reg.ChannelRuntime.SetFollowerParkedCount(2, 11)
 	reg.ChannelRuntime.ObserveFollowerRecoveryProbe("ok")
@@ -863,6 +873,16 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"role":       "leader",
 	})
 	require.Equal(t, float64(17), activeRuntimes.GetMetric()[0].GetGauge().GetValue())
+
+	runtimeLoads := requireMetricFamily(t, families, "wukongim_channelv2_runtime_load_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, runtimeLoads, map[string]string{
+		"node_id": "8", "node_name": "node-8", "role": "leader",
+	}).GetCounter().GetValue())
+
+	runtimeEvictions := requireMetricFamily(t, families, "wukongim_channelv2_runtime_eviction_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, runtimeEvictions, map[string]string{
+		"node_id": "8", "node_name": "node-8", "role": "leader", "reason": "idle",
+	}).GetCounter().GetValue())
 
 	activationRejected := requireMetricFamily(t, families, "wukongim_channelv2_activation_rejected_total")
 	require.Len(t, activationRejected.GetMetric(), 1)

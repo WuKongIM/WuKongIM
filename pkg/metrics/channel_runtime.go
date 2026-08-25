@@ -25,6 +25,8 @@ type ChannelRuntimeMetrics struct {
 	workerInflight           *prometheus.GaugeVec
 	workerInflightPeak       *prometheus.GaugeVec
 	activeRuntimes           *prometheus.GaugeVec
+	runtimeLoadTotal         *prometheus.CounterVec
+	runtimeEvictionTotal     *prometheus.CounterVec
 	activationRejectedTotal  *prometheus.CounterVec
 	followerParked           *prometheus.GaugeVec
 	recoveryProbeTotal       *prometheus.CounterVec
@@ -93,6 +95,16 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 			Help:        "Number of active Channel runtimes by reactor and local role.",
 			ConstLabels: labels,
 		}, []string{"reactor_id", "role"}),
+		runtimeLoadTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_runtime_load_total",
+			Help:        "Total Channel runtimes loaded from non-resident state by local role.",
+			ConstLabels: labels,
+		}, []string{"role"}),
+		runtimeEvictionTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_runtime_eviction_total",
+			Help:        "Total loaded Channel runtimes safely evicted by local role and bounded reason.",
+			ConstLabels: labels,
+		}, []string{"role", "reason"}),
 		activationRejectedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelv2_activation_rejected_total",
 			Help:        "Total Channel runtime activation rejections by reason.",
@@ -281,6 +293,12 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 	// without recording an event. NewWithLogicalSlots extends this first group
 	// to the complete configured topology.
 	_ = m.activationRejectedTotal.WithLabelValues("max_channels")
+	for _, role := range []string{"leader", "follower"} {
+		_ = m.runtimeLoadTotal.WithLabelValues(role)
+		for _, reason := range []string{"idle", "bench"} {
+			_ = m.runtimeEvictionTotal.WithLabelValues(role, reason)
+		}
+	}
 	m.materializeMetaCreateSlots(1)
 
 	registry.MustRegister(
@@ -290,6 +308,8 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 		m.workerInflight,
 		m.workerInflightPeak,
 		m.activeRuntimes,
+		m.runtimeLoadTotal,
+		m.runtimeEvictionTotal,
 		m.activationRejectedTotal,
 		m.followerParked,
 		m.recoveryProbeTotal,
@@ -387,6 +407,22 @@ func (m *ChannelRuntimeMetrics) SetChannelRuntimeCount(reactorID int, role strin
 		return
 	}
 	m.activeRuntimes.WithLabelValues(strconv.Itoa(reactorID), role).Set(float64(count))
+}
+
+// ObserveRuntimeLoad records one transition from non-resident state to a loaded runtime.
+func (m *ChannelRuntimeMetrics) ObserveRuntimeLoad(role string) {
+	if m == nil {
+		return
+	}
+	m.runtimeLoadTotal.WithLabelValues(role).Inc()
+}
+
+// ObserveRuntimeEviction records one safe loaded-runtime release.
+func (m *ChannelRuntimeMetrics) ObserveRuntimeEviction(role string, reason string) {
+	if m == nil {
+		return
+	}
+	m.runtimeEvictionTotal.WithLabelValues(role, reason).Inc()
 }
 
 func (m *ChannelRuntimeMetrics) ObserveChannelActivationRejected(reason string) {

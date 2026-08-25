@@ -860,11 +860,13 @@ function channelOperatorMonitorResponse(): RealtimeMonitorResponse {
     snapshot: [],
     categories: [
       { key: "common", count: 3 },
-      { key: "channel", count: 12 },
+      { key: "channel", count: 14 },
     ],
     cards: [
       channelOperatorCard("channelAppendLatencyP99", "channelReplication", "warning", "ms", 42),
       channelOperatorCard("activeChannels", "channelReplication", "normal", "", 1024),
+      channelOperatorCard("channelRuntimeLoadRate", "channelReplication", "normal", "events/s", 18.5),
+      channelOperatorCard("channelRuntimeIdleEvictionRate", "channelReplication", "normal", "events/s", 12.25),
       channelOperatorCard("channelAppendBatchRecordsP95", "channelReplication", "normal", "records", 64),
       channelOperatorCard("channelAppendBatchBytesP95", "channelReplication", "normal", "B", 32768),
       channelOperatorCard("channelAppendErrorRate", "channelReplication", "critical", "%", 0.35),
@@ -1517,19 +1519,21 @@ test("renders channel operator cards from realtime API data", async () => {
   renderClusterMonitorPage()
 
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
-  expect(cards).toHaveLength(12)
+  expect(cards).toHaveLength(14)
   expect(within(cards[0]).getByText("Channel Append Latency P99")).toBeInTheDocument()
   expect(within(cards[1]).getByText("Active Channels")).toBeInTheDocument()
-  expect(within(cards[2]).getByText("Append Batch Records P95")).toBeInTheDocument()
-  expect(within(cards[3]).getByText("Append Batch Bytes P95")).toBeInTheDocument()
-  expect(within(cards[4]).getByText("Channel Append Error Rate")).toBeInTheDocument()
-  expect(within(cards[5]).getByText("Writer Admission Usage")).toBeInTheDocument()
-  expect(within(cards[6]).getByText("Parked Followers")).toBeInTheDocument()
-  expect(within(cards[7]).getByText("Channel Activation Rejects")).toBeInTheDocument()
-  expect(within(cards[8]).getByText("Reactor Mailbox Depth")).toBeInTheDocument()
-  expect(within(cards[9]).getByText("Channel Worker Queue Depth")).toBeInTheDocument()
-  expect(within(cards[10]).getByText("Pull Hint Error Rate")).toBeInTheDocument()
-  expect(within(cards[11]).getByText("Replication Latency P99")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Channel Runtime Load Rate")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Channel Runtime Idle Eviction Rate")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("Append Batch Records P95")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("Append Batch Bytes P95")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Channel Append Error Rate")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Writer Admission Usage")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Parked Followers")).toBeInTheDocument()
+  expect(within(cards[9]).getByText("Channel Activation Rejects")).toBeInTheDocument()
+  expect(within(cards[10]).getByText("Reactor Mailbox Depth")).toBeInTheDocument()
+  expect(within(cards[11]).getByText("Channel Worker Queue Depth")).toBeInTheDocument()
+  expect(within(cards[12]).getByText("Pull Hint Error Rate")).toBeInTheDocument()
+  expect(within(cards[13]).getByText("Replication Latency P99")).toBeInTheDocument()
 })
 
 test("renders database operator cards from realtime API data", async () => {

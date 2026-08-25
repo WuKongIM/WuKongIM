@@ -226,7 +226,7 @@ func (r *Reactor) tryEvictStoppedFollower(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	rc.lifecycle.finalCheck.retryAt = time.Time{}
-	if r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack retry") {
+	if r.evictRuntimeChannel(rc.state.Key, rc, RuntimeEvictionReasonIdle) {
 		r.clearAppendSubmitState(rc.state.Key)
 		return
 	}

@@ -42,6 +42,9 @@ func (r *Reactor) handleApplyMeta(event Event) {
 	}
 	fencePendingState := existing != nil && (metadataWouldFenceState(rc.state, event.Meta) || r.quorumMetaWouldFence(rc, event.Meta))
 	async, err := r.applyLoadedRuntimeMeta(rc, event.Meta, fencePendingState, []*Future{event.Future})
+	if existing == nil && (rc.state.Role == ch.RoleLeader || rc.state.Role == ch.RoleFollower) {
+		r.observeRuntimeLoad(rc.state.Role)
+	}
 	if !async {
 		event.Future.Complete(Result{Err: err})
 	}
@@ -271,6 +274,7 @@ func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeL
 	r.applyLoadedMetaDecision(rc, false)
 	r.updateActiveRuntimeRole(0, state.Role)
 	r.observeChannelRuntimeLoaded(loading.key)
+	r.observeRuntimeLoad(state.Role)
 	if r.requiresQuorumInstall(state) {
 		futures := append([]*Future(nil), loading.futures...)
 		loading.futures = nil
@@ -898,6 +902,7 @@ func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
 	r.observePendingMeta("converted", nil)
 	r.observePendingMetaCount()
 	r.observeChannelRuntimeLoaded(state.Key)
+	r.observeRuntimeLoad(state.Role)
 	r.updateActiveRuntimeRole(0, state.Role)
 	return nil
 }

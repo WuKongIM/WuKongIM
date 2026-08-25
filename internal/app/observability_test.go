@@ -699,6 +699,27 @@ func TestMultiChannelObserverForwardsMetaCreateOncePerChild(t *testing.T) {
 	}
 }
 
+func TestMultiChannelObserverForwardsRuntimeLifecycleMetrics(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}
+
+	observer.ObserveRuntimeLoad(ch.RoleLeader)
+	observer.ObserveRuntimeEviction(ch.RoleFollower, reactor.RuntimeEvictionReasonIdle)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	loads := requireAppMetricFamily(t, families, "wukongim_channelv2_runtime_load_total")
+	if got := findAppMetricByLabels(t, loads, map[string]string{"role": "leader"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("leader runtime loads = %v, want 1", got)
+	}
+	evictions := requireAppMetricFamily(t, families, "wukongim_channelv2_runtime_eviction_total")
+	if got := findAppMetricByLabels(t, evictions, map[string]string{"role": "follower", "reason": "idle"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("idle follower runtime evictions = %v, want 1", got)
+	}
+}
+
 func TestMultiChannelObserverPublishesMetaCreateBatchStateOncePerChild(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	recorder := &recordingChannelMetaCreateObserver{}

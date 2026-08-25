@@ -39,6 +39,8 @@ export type ClusterMonitorMetricKey =
   | "slotSchedulerTaskLatencyP99"
   | "channelAppendLatencyP99"
   | "activeChannels"
+  | "channelRuntimeLoadRate"
+  | "channelRuntimeIdleEvictionRate"
   | "channelAppendBatchRecordsP95"
   | "channelAppendBatchBytesP95"
   | "channelAppendErrorRate"

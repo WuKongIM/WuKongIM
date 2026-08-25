@@ -160,6 +160,23 @@ type RuntimeTopologyObserver interface {
 	SetChannelRuntimeReactorCount(count int)
 }
 
+// RuntimeEvictionReason is a bounded reason for releasing one loaded runtime.
+type RuntimeEvictionReason string
+
+const (
+	// RuntimeEvictionReasonIdle means lifecycle fencing proved an idle runtime safe to release.
+	RuntimeEvictionReasonIdle RuntimeEvictionReason = "idle"
+	// RuntimeEvictionReasonBench means an explicit benchmark control requested the release.
+	RuntimeEvictionReasonBench RuntimeEvictionReason = "bench"
+)
+
+// RuntimeLifecycleMetricsObserver receives low-cardinality runtime load and eviction events.
+// Implementations must not retain Channel identities.
+type RuntimeLifecycleMetricsObserver interface {
+	ObserveRuntimeLoad(role ch.Role)
+	ObserveRuntimeEviction(role ch.Role, reason RuntimeEvictionReason)
+}
+
 // ReplicationObserver receives follower replication scheduling metrics.
 type ReplicationObserver interface {
 	SetFollowerParkedCount(reactorID int, count int)
@@ -687,9 +704,18 @@ func (r *Reactor) observeChannelRuntimeLoaded(key ch.ChannelKey) {
 	}
 }
 
-func (r *Reactor) observeChannelRuntimeEvicted(key ch.ChannelKey, role ch.Role) {
+func (r *Reactor) observeRuntimeLoad(role ch.Role) {
+	if observer, ok := r.cfg.Observer.(RuntimeLifecycleMetricsObserver); ok {
+		observer.ObserveRuntimeLoad(role)
+	}
+}
+
+func (r *Reactor) observeChannelRuntimeEvicted(key ch.ChannelKey, role ch.Role, reason RuntimeEvictionReason) {
 	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
 		observer.ObserveChannelRuntimeEvicted(key, role)
+	}
+	if observer, ok := r.cfg.Observer.(RuntimeLifecycleMetricsObserver); ok {
+		observer.ObserveRuntimeEviction(role, reason)
 	}
 }
 

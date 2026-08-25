@@ -337,7 +337,7 @@ func (r *Reactor) handleRuntimeEvict(event Event) {
 			result.Evicted++
 			continue
 		}
-		if r.evictRuntimeChannel(key, rc, "bench runtime evict") {
+		if r.evictRuntimeChannel(key, rc, RuntimeEvictionReasonBench) {
 			result.Evicted++
 			continue
 		}

@@ -65,7 +65,7 @@ func (r *Reactor) applyLifecycleActions(rc *runtimeChannel, actions []lifecycleA
 				r.scheduleLifecycleDue(rc, action.due)
 			}
 		case lifecycleActionEvictRuntime:
-			if rc != nil && rc.state != nil && r.evictRuntimeChannel(rc.state.Key, rc, "lifecycle decision") {
+			if rc != nil && rc.state != nil && r.evictRuntimeChannel(rc.state.Key, rc, RuntimeEvictionReasonIdle) {
 				r.clearAppendSubmitState(rc.state.Key)
 			}
 		}
@@ -164,7 +164,7 @@ func (r *Reactor) applyStoppedAckDone(rc *runtimeChannel, event lifecycleEvent, 
 	rc.replication.lastError = nil
 	rc.lifecycle.stoppedAck.retryAt = time.Time{}
 	rc.lifecycle.stage = lifecycleFollowerReadyToEvict
-	if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {
+	if !r.evictRuntimeChannel(rc.state.Key, rc, RuntimeEvictionReasonIdle) {
 		rc.lifecycle.finalCheck.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
 		r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleReplication}}, now)
 		return
@@ -193,7 +193,7 @@ func (r *Reactor) applyFinalLeaderEviction(rc *runtimeChannel, event lifecycleEv
 	for _, action := range actions {
 		switch action.kind {
 		case lifecycleActionEvictRuntime:
-			evicted := r.evictRuntimeChannel(key, rc, "leader idle checkpoint")
+			evicted := r.evictRuntimeChannel(key, rc, RuntimeEvictionReasonIdle)
 			if evicted {
 				r.clearAppendSubmitStateLocked(key)
 				r.submitMu.Unlock()

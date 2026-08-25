@@ -628,6 +628,20 @@ func (o channelMetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Ro
 	o.metrics.ChannelRuntime.SetChannelRuntimeCount(reactorID, channelRoleLabel(role), count)
 }
 
+func (o channelMetricsObserver) ObserveRuntimeLoad(role ch.Role) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveRuntimeLoad(channelRoleLabel(role))
+}
+
+func (o channelMetricsObserver) ObserveRuntimeEviction(role ch.Role, reason reactor.RuntimeEvictionReason) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveRuntimeEviction(channelRoleLabel(role), channelRuntimeEvictionReasonLabel(reason))
+}
+
 func (o channelMetricsObserver) ObserveChannelActivationRejected(reason string) {
 	if o.metrics == nil {
 		return
@@ -1862,6 +1876,24 @@ func (o multiChannelObserver) SetChannelRuntimeReactorCount(count int) {
 	}
 }
 
+func (o multiChannelObserver) ObserveRuntimeLoad(role ch.Role) {
+	for _, observer := range o {
+		lifecycleObserver, ok := observer.(reactor.RuntimeLifecycleMetricsObserver)
+		if ok {
+			lifecycleObserver.ObserveRuntimeLoad(role)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveRuntimeEviction(role ch.Role, reason reactor.RuntimeEvictionReason) {
+	for _, observer := range o {
+		lifecycleObserver, ok := observer.(reactor.RuntimeLifecycleMetricsObserver)
+		if ok {
+			lifecycleObserver.ObserveRuntimeEviction(role, reason)
+		}
+	}
+}
+
 func (o multiChannelObserver) ObserveChannelActivationRejected(reason string) {
 	for _, observer := range o {
 		runtimeObserver, ok := observer.(reactor.RuntimeObserver)
@@ -2436,6 +2468,17 @@ func channelRoleLabel(role ch.Role) string {
 	}
 }
 
+func channelRuntimeEvictionReasonLabel(reason reactor.RuntimeEvictionReason) string {
+	switch reason {
+	case reactor.RuntimeEvictionReasonIdle:
+		return "idle"
+	case reactor.RuntimeEvictionReasonBench:
+		return "bench"
+	default:
+		return "unknown"
+	}
+}
+
 func channelPullHintReasonLabel(reason channeltransport.PullHintReason) string {
 	switch reason {
 	case channeltransport.PullHintReasonAppend:
@@ -2533,6 +2576,7 @@ var _ reactor.Observer = channelMetricsObserver{}
 var _ reactor.MailboxPressureObserver = channelMetricsObserver{}
 var _ reactor.AppendQueuePressureObserver = channelMetricsObserver{}
 var _ reactor.RuntimeObserver = channelMetricsObserver{}
+var _ reactor.RuntimeLifecycleMetricsObserver = channelMetricsObserver{}
 var _ reactor.ReplicationObserver = channelMetricsObserver{}
 var _ reactor.ReplicationStageObserver = channelMetricsObserver{}
 var _ reactor.PullBatchObserver = channelMetricsObserver{}
@@ -2564,6 +2608,7 @@ var _ reactor.MailboxPressureObserver = multiChannelObserver{}
 var _ worker.AntsPoolObserver = multiChannelObserver{}
 var _ reactor.AppendQueuePressureObserver = multiChannelObserver{}
 var _ reactor.RuntimeObserver = multiChannelObserver{}
+var _ reactor.RuntimeLifecycleMetricsObserver = multiChannelObserver{}
 var _ reactor.ReplicationObserver = multiChannelObserver{}
 var _ reactor.ReplicationStageObserver = multiChannelObserver{}
 var _ reactor.PullBatchObserver = multiChannelObserver{}

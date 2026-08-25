@@ -201,6 +201,16 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_meta_create_batch_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
           "legendFormat": "meta create batch items p95 {{result}}",
           "refId": "N"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_runtime_load_total{node_name=~\"$node_name\"}[$__rate_interval])) by (role)",
+          "legendFormat": "runtime load {{role}}",
+          "refId": "O"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_runtime_eviction_total{node_name=~\"$node_name\"}[$__rate_interval])) by (role, reason)",
+          "legendFormat": "runtime eviction {{role}} {{reason}}",
+          "refId": "P"
         }
       ],
       "title": "Channel Runtime Replication Counters",

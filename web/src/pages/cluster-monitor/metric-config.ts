@@ -186,6 +186,22 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
     stage: "channelReplication",
     tone: "normal",
   },
+  channelRuntimeLoadRate: {
+    titleId: "clusterMonitor.metrics.channelRuntimeLoadRate",
+    helpId: "clusterMonitor.help.channelRuntimeLoadRate",
+    chartColor: "#0891b2",
+    precision: 2,
+    stage: "channelReplication",
+    tone: "normal",
+  },
+  channelRuntimeIdleEvictionRate: {
+    titleId: "clusterMonitor.metrics.channelRuntimeIdleEvictionRate",
+    helpId: "clusterMonitor.help.channelRuntimeIdleEvictionRate",
+    chartColor: "#65a30d",
+    precision: 2,
+    stage: "channelReplication",
+    tone: "normal",
+  },
   channelAppendBatchRecordsP95: {
     titleId: "clusterMonitor.metrics.channelAppendBatchRecordsP95",
     helpId: "clusterMonitor.help.channelAppendBatchRecordsP95",

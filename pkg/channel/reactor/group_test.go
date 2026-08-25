@@ -225,6 +225,9 @@ func TestObserverSeesChannelRuntimeEvicted(t *testing.T) {
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 
 	require.Equal(t, 1, obs.RuntimeEvicted())
+	require.Equal(t, 1, obs.RuntimeLoads(ch.RoleLeader))
+	require.Equal(t, 0, obs.RuntimeLoads(0))
+	require.Equal(t, 1, obs.RuntimeEvictions(RuntimeEvictionReasonIdle))
 }
 
 func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
@@ -447,6 +450,8 @@ type captureObserver struct {
 	pullHintDrop   int
 	followerStop   int
 	runtimeEvict   int
+	runtimeLoads   map[ch.Role]int
+	runtimeReasons map[RuntimeEvictionReason]int
 	followerParked int
 	recoveryProbes map[string]int
 	reactorCount   int
@@ -477,6 +482,24 @@ func (o *captureObserver) ObserveChannelRuntimeEvicted(key ch.ChannelKey, role c
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.runtimeEvict++
+}
+
+func (o *captureObserver) ObserveRuntimeLoad(role ch.Role) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.runtimeLoads == nil {
+		o.runtimeLoads = make(map[ch.Role]int)
+	}
+	o.runtimeLoads[role]++
+}
+
+func (o *captureObserver) ObserveRuntimeEviction(role ch.Role, reason RuntimeEvictionReason) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.runtimeReasons == nil {
+		o.runtimeReasons = make(map[RuntimeEvictionReason]int)
+	}
+	o.runtimeReasons[reason]++
 }
 
 func (o *captureObserver) ObservePullHintSent(key ch.ChannelKey, follower ch.NodeID, reason transport.PullHintReason) {
@@ -581,6 +604,18 @@ func (o *captureObserver) RuntimeEvicted() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.runtimeEvict
+}
+
+func (o *captureObserver) RuntimeLoads(role ch.Role) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.runtimeLoads[role]
+}
+
+func (o *captureObserver) RuntimeEvictions(reason RuntimeEvictionReason) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.runtimeReasons[reason]
 }
 
 func (o *captureObserver) FollowerParked() int {

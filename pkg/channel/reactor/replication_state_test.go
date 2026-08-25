@@ -706,7 +706,7 @@ func TestFollowerParkedCountUpdatesWhenRuntimeEvicted(t *testing.T) {
 	r.observeFollowerParkedCountIfChanged(false, rc)
 	require.Equal(t, 1, obs.FollowerParked())
 
-	require.True(t, r.evictRuntimeChannel(meta.Key, rc, "test"))
+	require.True(t, r.evictRuntimeChannel(meta.Key, rc, RuntimeEvictionReasonBench))
 
 	require.Equal(t, 0, obs.FollowerParked())
 }

@@ -390,6 +390,8 @@ func TestManagerMonitorPrometheusProviderReturnsChannelOperatorCards(t *testing.
 	wantKeys := []string{
 		"channelAppendLatencyP99",
 		"activeChannels",
+		"channelRuntimeLoadRate",
+		"channelRuntimeIdleEvictionRate",
 		"channelAppendBatchRecordsP95",
 		"channelAppendBatchBytesP95",
 		"channelAppendErrorRate",
@@ -410,6 +412,8 @@ func TestManagerMonitorPrometheusProviderReturnsChannelOperatorCards(t *testing.
 	for _, want := range []string{
 		`wukongim_channelv2_append_duration_seconds_bucket{job="wukongim"}[1m]`,
 		`wukongim_channelv2_active_runtimes{job="wukongim"}`,
+		`wukongim_channelv2_runtime_load_total{job="wukongim"}[1m]`,
+		`wukongim_channelv2_runtime_eviction_total{job="wukongim",reason="idle"}[1m]`,
 		`wukongim_channelv2_append_batch_records_bucket{job="wukongim"}[1m]`,
 		`wukongim_channelv2_append_batch_bytes_bucket{job="wukongim"}[1m]`,
 		`wukongim_channelv2_append_stage_duration_seconds_count{job="wukongim",result!="ok"}[1m]`,

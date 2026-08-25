@@ -163,8 +163,7 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 	rc.failPendingRetentionWaiters(err)
 }
 
-func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, reason string) bool {
-	_ = reason
+func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, reason RuntimeEvictionReason) bool {
 	if r == nil || rc == nil || rc.state == nil || r.channels[key] != rc {
 		return false
 	}
@@ -186,7 +185,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	r.clearLoadedMetaRefresh(key)
 	delete(r.channels, key)
 	r.closeStoreAsync(key, rc.state.Generation, storeHandle)
-	r.observeChannelRuntimeEvicted(key, role)
+	r.observeChannelRuntimeEvicted(key, role, reason)
 	if wasParkedFollower {
 		if r.parkedFollowerRuntimeCount > 0 {
 			r.parkedFollowerRuntimeCount--
