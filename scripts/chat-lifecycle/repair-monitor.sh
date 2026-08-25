@@ -14,8 +14,13 @@ source "$script_dir/../cloud-sim/local-runtime.sh"
 poll_seconds="${WK_CHAT_REPAIR_POLL_SECONDS:-5}"
 max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"
 stage_service="${WK_CHAT_REPAIR_SERVICE:-wkbench-rehearsal.service}"
+qualification_finalize_seconds="${WK_CHAT_REPAIR_QUALIFICATION_FINALIZE_SECONDS:-600}"
+qualified_report_remote=/var/lib/wukongim-cloud/reports/rehearsal/final.json
+qualified_report_max_bytes=4194304
 [[ "$poll_seconds" =~ ^[1-9][0-9]*$ && "$max_seconds" =~ ^[1-9][0-9]*$ ]]
 (( poll_seconds <= 30 && max_seconds >= 60 && max_seconds <= 260100 ))
+[[ "$qualification_finalize_seconds" =~ ^[1-9][0-9]*$ ]]
+(( qualification_finalize_seconds >= 30 && qualification_finalize_seconds <= 900 ))
 [[ -x "$WK_CHAT_REPAIR_TOOL" && -f "$WK_CHAT_REPAIR_STATE" && -f "$WK_CHAT_REPAIR_SSH_CONFIG" ]]
 [[ "$stage_service" =~ ^[A-Za-z0-9@._-]{1,128}\.service$ ]]
 [[ "$WK_CHAT_REPAIR_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
@@ -41,6 +46,115 @@ stop_stage() {
      ! sudo systemctl is-active --quiet wkbench-worker@3.service" >/dev/null 2>&1
 }
 trap 'stop_stage || true; exit 130' INT TERM
+
+stop_workers() {
+  wk_run_bounded 60 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+    "sudo systemctl stop wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service &&
+     ! sudo systemctl is-active --quiet wkbench-worker@1.service &&
+     ! sudo systemctl is-active --quiet wkbench-worker@2.service &&
+     ! sudo systemctl is-active --quiet wkbench-worker@3.service" >/dev/null 2>&1
+}
+
+request_qualified_stage_stop() {
+  wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+    "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service'" >/dev/null 2>&1
+}
+
+fetch_qualified_report() {
+  local output="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-final.json" temporary size
+  temporary="${output}.next"
+  rm -f -- "$temporary"
+  if ! wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+    "sudo test -s '$qualified_report_remote' && sudo head -c $(( qualified_report_max_bytes + 1 )) -- '$qualified_report_remote'" \
+    >"$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  size="$(stat -c '%s' "$temporary" 2>/dev/null || stat -f '%z' "$temporary")"
+  if [[ ! "$size" =~ ^[1-9][0-9]*$ ]] || (( size > qualified_report_max_bytes )); then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  chmod 0600 "$temporary"
+  mv -f -- "$temporary" "$output"
+}
+
+validate_qualified_report() {
+  local report="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-final.json"
+  local result="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-result.json"
+  if ! "$WK_CHAT_REPAIR_TOOL" validate-rehearsal-report --report "$report" >"${result}.next"; then
+    rm -f -- "${result}.next"
+    return 1
+  fi
+  if ! jq -e '
+    .schema == "wukongim.chat_lifecycle.rehearsal_result/v1" and
+    .stage == "rehearsal" and .outcome == "operator_stop" and
+    .cause == "operator_requested" and (.end | type == "string")
+  ' "${result}.next" >/dev/null; then
+    rm -f -- "${result}.next"
+    return 1
+  fi
+  chmod 0600 "${result}.next"
+  mv -f -- "${result}.next" "$result"
+}
+
+prove_qualified_stage_exit() {
+  local output="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-service-state.txt" temporary size
+  temporary="${output}.next"
+  rm -f -- "$temporary"
+  if ! wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+    "sudo systemctl show '$stage_service' --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus --no-pager" \
+    >"$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  size="$(stat -c '%s' "$temporary" 2>/dev/null || stat -f '%z' "$temporary")"
+  if [[ ! "$size" =~ ^[1-9][0-9]*$ ]] || (( size > 4096 )) ||
+    [[ "$(grep -c '^ActiveState=inactive$' "$temporary" || true)" != 1 ]] ||
+    [[ "$(grep -c '^SubState=dead$' "$temporary" || true)" != 1 ]] ||
+    [[ "$(grep -c '^Result=success$' "$temporary" || true)" != 1 ]] ||
+    [[ "$(grep -c '^ExecMainCode=exited$' "$temporary" || true)" != 1 ]] ||
+    [[ "$(grep -c '^ExecMainStatus=130$' "$temporary" || true)" != 1 ]]; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  chmod 0600 "$temporary"
+  mv -f -- "$temporary" "$output"
+}
+
+finalize_qualified_stage() {
+  local deadline service_state report_validated=false inactive_proof_attempts=0
+  request_qualified_stage_stop || return 1
+  deadline=$(( $(date -u +%s) + qualification_finalize_seconds ))
+  while (( $(date -u +%s) < deadline )); do
+    if [[ "$report_validated" != true ]] && fetch_qualified_report; then
+      validate_qualified_report || return 1
+      report_validated=true
+    fi
+    if [[ "$report_validated" == true ]] && prove_qualified_stage_exit; then
+      stop_workers || return 1
+      jq -n --arg schema 'wukongim.chat_lifecycle.qualification_finalization/v1' \
+        --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg report 'qualified-final.json' --arg result 'qualified-result.json' \
+        '{schema:$schema,state:"qualified",observed_at:$observed_at,
+          report:$report,result:$result,stage_exit_proven:true,workers_stopped:true}' \
+        >"$WK_CHAT_REPAIR_OUTPUT_DIR/qualification-finalization.json"
+      chmod 0600 "$WK_CHAT_REPAIR_OUTPUT_DIR/qualification-finalization.json"
+      return 0
+    fi
+    service_state="$(query_stage_service_state || true)"
+    case "$service_state" in
+      active|activating|reloading|refreshing|deactivating) ;;
+      inactive)
+        inactive_proof_attempts=$(( inactive_proof_attempts + 1 ))
+        (( inactive_proof_attempts < 3 )) || return 1
+        ;;
+      *) return 1 ;;
+    esac
+    sleep "$poll_seconds"
+  done
+  return 1
+}
 
 operator_stop_requested() {
   if [[ -n "${WK_CHAT_REPAIR_OPERATOR_STOP_FILE:-}" ]]; then
@@ -247,8 +361,9 @@ while true; do
     qualified)
       persist_terminal_cut
       install -m 0600 "$work_dir/step.json" "$WK_CHAT_REPAIR_OUTPUT_DIR/repair-decision.json"
-      if ! stop_stage; then
-        record_diagnosis service_inactive "$observed_at"
+      if ! finalize_qualified_stage; then
+        stop_stage || true
+        record_diagnosis qualification_finalize_failed "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         exit 20
       fi
       exit 0

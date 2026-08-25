@@ -482,6 +482,7 @@ EnvironmentFile=/etc/wukongim/secrets/load.env
 Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle-rehearsal.yaml
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
 ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh rehearsal
+SuccessExitStatus=130
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576

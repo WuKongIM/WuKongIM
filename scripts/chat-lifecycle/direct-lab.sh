@@ -719,8 +719,12 @@ run_request() {
         '{schema:"wukongim.chat_lifecycle.direct_lab_run/v1",request_id:$request_id,generation:$generation,state:"qualified",official_evidence_eligible:false}'
       ;;
     10|20)
-      reason="$(jq -er '.decision.reason | select(type == "string" and length > 0 and length <= 128)' \
-        "$generation_dir/repair-decision.json" 2>/dev/null || true)"
+      reason="$(jq -er '.reason | select(type == "string" and length > 0 and length <= 128)' \
+        "$generation_dir/repair-diagnosis.json" 2>/dev/null || true)"
+      if [[ -z "$reason" ]]; then
+        reason="$(jq -er '.decision.reason | select(type == "string" and length > 0 and length <= 128)' \
+          "$generation_dir/repair-decision.json" 2>/dev/null || true)"
+      fi
       [[ -n "$reason" ]] || reason=monitor_failed
       write_run_state "$directory" diagnosis_ready "$reason"
       jq -n --arg request_id "$request_id" --argjson generation "$generation" --arg reason "$reason" \

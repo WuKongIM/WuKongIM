@@ -313,6 +313,127 @@ fi
 	}
 }
 
+func TestChatLifecycleRepairMonitorFinalizesQualifiedStageBeforeStoppingWorkers(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	state := filepath.Join(directory, "state.json")
+	if err := os.WriteFile(state, []byte(`{"schema":"test-state"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	callLog := filepath.Join(directory, "calls.log")
+	tool := filepath.Join(directory, "wkchatlifecycle")
+	writeRepairExecutable(t, tool, `#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  repair-capture)
+    printf '{"schema":"test-observation"}\n'
+    ;;
+  repair-observe)
+    printf '{"state":{"schema":"test-qualified"},"decision":{"action":"qualified","reason":"none","observed_at":"2026-08-26T00:00:00Z"}}\n'
+    ;;
+  validate-rehearsal-report)
+    printf 'validate-report\n' >>"$WK_TEST_CALL_LOG"
+    report=''
+    shift
+    while (( $# > 0 )); do
+      case "$1" in
+        --report) report="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    [[ -s "$report" ]]
+    printf '{"schema":"wukongim.chat_lifecycle.rehearsal_result/v1","stage":"rehearsal","outcome":"operator_stop","cause":"operator_requested","end":"2026-08-26T00:00:01Z"}\n'
+    ;;
+  *) exit 91 ;;
+esac
+`)
+
+	fakeBin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(fakeBin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	signalMarker := filepath.Join(directory, "stage-signaled")
+	serviceShowCalls := filepath.Join(directory, "service-show-calls")
+	writeRepairExecutable(t, filepath.Join(fakeBin, "ssh"), `#!/usr/bin/env bash
+set -euo pipefail
+command_line="$*"
+case "$command_line" in
+  *"systemctl kill --kill-who=main --signal=SIGTERM"*)
+    printf 'signal-stage\n' >>"$WK_TEST_CALL_LOG"
+    : >"$WK_TEST_SIGNAL_MARKER"
+    ;;
+  *"/var/lib/wukongim-cloud/reports/rehearsal/final.json"*)
+    printf 'fetch-report\n' >>"$WK_TEST_CALL_LOG"
+    printf '{"schema":"test-final-report"}\n'
+    ;;
+  *"systemctl show"*)
+    printf 'prove-stage-exit\n' >>"$WK_TEST_CALL_LOG"
+    calls=0
+    [[ -f "$WK_TEST_SERVICE_SHOW_CALLS" ]] && calls="$(cat "$WK_TEST_SERVICE_SHOW_CALLS")"
+    calls=$(( calls + 1 ))
+    printf '%s\n' "$calls" >"$WK_TEST_SERVICE_SHOW_CALLS"
+    if [[ "$calls" == 1 ]]; then
+      printf 'ActiveState=deactivating\nSubState=stop-sigterm\nResult=success\nExecMainCode=exited\nExecMainStatus=0\n'
+    else
+      printf 'ActiveState=inactive\nSubState=dead\nResult=success\nExecMainCode=exited\nExecMainStatus=130\n'
+    fi
+    ;;
+  *"systemctl stop wkbench-worker@1.service"*)
+    printf 'stop-workers\n' >>"$WK_TEST_CALL_LOG"
+    ;;
+  *"systemctl is-active --quiet"*) exit 1 ;;
+  *"systemctl is-active"*)
+    if [[ -f "$WK_TEST_SIGNAL_MARKER" ]]; then
+      printf 'deactivating\n'
+    else
+      printf 'active\n'
+    fi
+    ;;
+  *"journalctl"*) printf '%064d\n' 0 ;;
+  *":19091/v1/chat-lifecycle/"*|*":19092/v1/chat-lifecycle/"*|*":19093/v1/chat-lifecycle/"*)
+    printf '{}\n'
+    ;;
+  *) exit 92 ;;
+esac
+`)
+	sshConfig := filepath.Join(directory, "ssh-config")
+	if err := os.WriteFile(sshConfig, []byte("Host wukong-load\n  HostName 127.0.0.1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := filepath.Join(directory, "output")
+	operatorStop := filepath.Join(directory, "operator-stop")
+	monitor := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "repair-monitor.sh"))
+	monitor.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_CHAT_REPAIR_TOOL="+tool,
+		"WK_CHAT_REPAIR_STATE="+state,
+		"WK_CHAT_REPAIR_OUTPUT_DIR="+outputDir,
+		"WK_CHAT_REPAIR_SSH_CONFIG="+sshConfig,
+		"WK_CHAT_REPAIR_REQUEST_ID=repair-monitor-qualified",
+		"WK_CHAT_REPAIR_OPERATOR_STOP_FILE="+operatorStop,
+		"WK_CHAT_REPAIR_POLL_SECONDS=1",
+		"WK_CHAT_REPAIR_MAX_SECONDS=4500",
+		"WK_TEST_CALL_LOG="+callLog,
+		"WK_TEST_SIGNAL_MARKER="+signalMarker,
+		"WK_TEST_SERVICE_SHOW_CALLS="+serviceShowCalls,
+	)
+	if output, err := monitor.CombinedOutput(); err != nil {
+		t.Fatalf("qualified repair monitor failed: %v\n%s", err, output)
+	}
+	calls, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(calls), "signal-stage\nfetch-report\nvalidate-report\nprove-stage-exit\nprove-stage-exit\nstop-workers\n"; got != want {
+		t.Fatalf("qualification finalization order = %q, want %q", got, want)
+	}
+	for _, name := range []string{"qualified-final.json", "qualified-result.json", "qualification-finalization.json"} {
+		if info, statErr := os.Stat(filepath.Join(outputDir, name)); statErr != nil || info.Size() == 0 {
+			t.Fatalf("qualified finalization artifact %s missing: %v", name, statErr)
+		}
+	}
+}
+
 func TestChatLifecycleDirectLabPreservesTypedReasonWhenStopCannotBeProven(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()

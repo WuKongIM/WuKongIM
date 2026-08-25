@@ -26,15 +26,16 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"WK_CHAT_REPAIR_POLL_SECONDS", "WK_CHAT_REPAIR_MAX_SECONDS",
 		"operator-stop-requested.sh", "WK_CHAT_REPAIR_REQUEST_ID", "operator_stop",
 		"query_stage_service_state", "for attempt in 1 2 3", "observation_unavailable",
+		"request_qualified_stage_stop", "systemctl kill --kill-who=main --signal=SIGTERM",
+		"fetch_qualified_report", "validate-rehearsal-report", "prove_qualified_stage_exit",
+		"qualified-final.json", "qualified-result.json", "qualification-finalization.json",
+		"stop_workers", "qualification_finalize_failed",
 		`max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"`,
 		"max_seconds <= 260100",
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("repair monitor missing %q", fragment)
 		}
-	}
-	if strings.Contains(text, "systemctl kill --kill-who=main") {
-		t.Fatal("repair monitor still treats a signal request as proof that the workload stopped")
 	}
 	for _, forbidden := range []string{"cloud-lease-release", "wkcloudlease", "rm -rf", "docker", "podman"} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {

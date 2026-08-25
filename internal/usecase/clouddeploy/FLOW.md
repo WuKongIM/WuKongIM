@@ -45,6 +45,10 @@ non-secret Lease inventory and has no provider lifecycle authority.
   it never restarts services/workers, clears data, or splices process lifetimes.
 - Direct repair may pass one validated process-duration override only to the
   rehearsal unit; repository YAML and formal execution remain unchanged.
+- Direct-repair qualification gracefully signals only the rehearsal
+  coordinator, validates its terminal operator-stop report and clean systemd
+  exit, and stops worker units only after that proof. Exit 130 is successful
+  only for the rehearsal unit's handled operator-stop path.
 - SSH activation records first-use host keys in one private Lease-scoped file,
   retains that file across repair generations, and never reads or mutates the
   operator's global user known-hosts file.
