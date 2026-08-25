@@ -652,6 +652,7 @@ func TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis(t *testi
 	}
 	for path, body := range map[string]string{
 		filepath.Join(requestDirectory, "state.json"):              `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "receipt.json"):            `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"lease_id":"lease-direct","request_id":"` + requestID + `","state":"active","expires_at":"2099-01-01T00:00:00Z"}}`,
 		filepath.Join(requestDirectory, "run-policy.json"):         `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
 		filepath.Join(requestDirectory, "deployment-ssh-config"):   "Host wukong-load\n",
 		filepath.Join(generationDirectory, "deployment-plan.json"): `{"schema":"wukongim.cloud_deployment.plan/v2"}`,
@@ -732,6 +733,7 @@ func TestChatLifecycleDirectLabRunStopsRemoteStageWhenDurationHandoffDiffers(t *
 	}
 	for path, body := range map[string]string{
 		filepath.Join(requestDirectory, "state.json"):            `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "receipt.json"):          `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"lease_id":"lease-direct","request_id":"` + requestID + `","state":"active","expires_at":"2099-01-01T00:00:00Z"}}`,
 		filepath.Join(requestDirectory, "run-policy.json"):       `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
 		filepath.Join(requestDirectory, "deployment-ssh-config"): "Host wukong-load\n",
 	} {

@@ -203,7 +203,6 @@ while true; do
     done
     if [[ "$capture_failed" == true ]]; then
       persist_observation_failure remote_fetch_failed "$observed_at" "$capture_attempt"
-      break
     elif "$WK_CHAT_REPAIR_TOOL" "${capture_args[@]}" >"$work_dir/observation.json"; then
       capture_succeeded=true
       break

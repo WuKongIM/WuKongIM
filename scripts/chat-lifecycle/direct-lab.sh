@@ -613,6 +613,7 @@ stop_remote_rehearsal_best_effort() {
 run_request() {
   local request_id="$1" directory root generation generation_dir starter chat monitor run_start started_at
   local repair_state monitor_status reason duration_seconds max_seconds started_epoch expected_epoch
+  local receipt lease_expires_at lease_expires_epoch now_epoch lease_remaining_seconds
   directory="$(resolve_request_dir "$request_id")"
   jq -e '.schema == "wukongim.chat_lifecycle.direct_lab_state/v1" and .state == "deployed" and .generation > 0' \
     "$directory/state.json" >/dev/null || die 'request must have one gated deployment before a stability run'
@@ -631,6 +632,21 @@ run_request() {
   ' "$directory/run-policy.json" >/dev/null || die 'immutable run policy is invalid'
   duration_seconds="$(jq -er .duration_seconds "$directory/run-policy.json")"
   max_seconds="$(jq -er .max_duration_seconds "$directory/run-policy.json")"
+  receipt="$directory/receipt.json"
+  [[ -f "$receipt" && ! -L "$receipt" ]] || die 'immutable lease receipt is unavailable'
+  jq -e --arg request_id "$request_id" --arg lease_id "$(jq -er .lease_id "$directory/state.json")" '
+    .schema == "wukongim.cloud_lease.receipt/v1" and
+    .receipt.request_id == $request_id and .receipt.lease_id == $lease_id and
+    .receipt.state == "active" and
+    (.receipt.expires_at | type == "string" and length > 0)
+  ' "$receipt" >/dev/null || die 'immutable lease receipt is invalid'
+  lease_expires_at="$(jq -er .receipt.expires_at "$receipt")"
+  lease_expires_epoch="$(rfc3339_epoch "$lease_expires_at")" || die 'lease expiry is invalid'
+  now_epoch="$(date -u +%s)"
+  lease_remaining_seconds=$((lease_expires_epoch - now_epoch))
+  if (( lease_remaining_seconds < max_seconds )); then
+    die "lease remaining lifetime is shorter than the bounded workload (remaining=${lease_remaining_seconds}s required=${max_seconds}s)"
+  fi
   root="$(repository_root)"
   starter="${WK_CHAT_LAB_STAGE_STARTER:-$root/scripts/chat-lifecycle/start-local-stage.sh}"
   chat="$(chat_tool "$directory")"

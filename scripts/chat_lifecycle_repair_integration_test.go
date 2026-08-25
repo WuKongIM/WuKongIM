@@ -116,7 +116,7 @@ fi
 	}
 }
 
-func TestChatLifecycleRepairMonitorRetriesOneInconsistentWorkerCut(t *testing.T) {
+func TestChatLifecycleRepairMonitorRetriesTransientRemoteAndInconsistentCuts(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
 	tool := filepath.Join(directory, "wkchatlifecycle")
@@ -148,6 +148,7 @@ func TestChatLifecycleRepairMonitorRetriesOneInconsistentWorkerCut(t *testing.T)
 		t.Fatal(err)
 	}
 	callState := filepath.Join(directory, "snapshot-calls")
+	failureMarker := filepath.Join(directory, "worker-2-snapshot-failed")
 	writeRepairExecutable(t, filepath.Join(fakeBin, "ssh"), `#!/usr/bin/env bash
 command_line="$*"
 case "$command_line" in
@@ -160,12 +161,16 @@ case "$command_line" in *19091*) worker=0 ;; *19092*) worker=1 ;; *19093*) worke
 if [[ "$command_line" == *"/v1/chat-lifecycle/status"* ]]; then
   printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"running","generation":1,"worker_id":%s,"worker_count":3,"unexpected":false,"traffic_ready":true}\n' "$worker"
 elif [[ "$command_line" == *"/v1/chat-lifecycle/snapshot"* ]]; then
+  if [[ "$worker" == 1 && ! -f "$WK_TEST_FAILURE_MARKER" ]]; then
+    : >"$WK_TEST_FAILURE_MARKER"
+    exit 255
+  fi
   calls=0
   [[ -f "$WK_TEST_SNAPSHOT_CALLS" ]] && calls="$(cat "$WK_TEST_SNAPSHOT_CALLS")"
   calls=$(( calls + 1 ))
   printf '%s\n' "$calls" >"$WK_TEST_SNAPSHOT_CALLS"
   phase=running
-  [[ "$calls" == 1 ]] && phase=final
+  [[ "$calls" == 3 ]] && phase=final
   uptime=$(( $(date +%s) * 1000000000 + worker + 1 ))
   printf '{"run_id":"repair-run","assignment_id":"repair-assignment","phase":"%s","generation":1,"worker_id":%s,"worker_count":3,"uptime":%s,"sessions":{"target":3333,"online":3333,"traffic_ready":3333},"messages":{"sent":100,"send_acknowledged":90},"harness":{}}\n' "$phase" "$worker" "$uptime"
 else
@@ -188,6 +193,7 @@ fi
 		"WK_CHAT_REPAIR_POLL_SECONDS=1",
 		"WK_CHAT_REPAIR_MAX_SECONDS=4500",
 		"WK_TEST_SNAPSHOT_CALLS="+callState,
+		"WK_TEST_FAILURE_MARKER="+failureMarker,
 	)
 	if output, err := monitor.CombinedOutput(); err == nil {
 		t.Fatal("repair monitor unexpectedly qualified stalled traffic")
@@ -199,7 +205,7 @@ fi
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(decisionBody), `"reason":"message_progress_stalled"`) {
-		t.Fatalf("repair monitor did not recover from one inconsistent cut: %s", decisionBody)
+		t.Fatalf("repair monitor did not recover from transient remote and inconsistent cuts: %s", decisionBody)
 	}
 	for worker := 1; worker <= 3; worker++ {
 		for _, kind := range []string{"status", "snapshot"} {
@@ -318,6 +324,7 @@ func TestChatLifecycleDirectLabPreservesTypedReasonWhenStopCannotBeProven(t *tes
 	}
 	for path, body := range map[string]string{
 		filepath.Join(requestDirectory, "state.json"):            `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "receipt.json"):          `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"lease_id":"lease-direct","request_id":"` + requestID + `","state":"active","expires_at":"2099-01-01T00:00:00Z"}}`,
 		filepath.Join(requestDirectory, "run-policy.json"):       `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
 		filepath.Join(requestDirectory, "deployment-ssh-config"): "Host wukong-load\n",
 	} {
@@ -359,6 +366,56 @@ exit 20
 	if readErr != nil || !strings.Contains(string(state), `"state": "diagnosis_ready"`) ||
 		!strings.Contains(string(state), `"reason": "observation_unavailable"`) {
 		t.Fatalf("typed monitor reason was lost: state=%s, err=%v", state, readErr)
+	}
+}
+
+func TestChatLifecycleDirectLabRefusesRunThatOutlivesLease(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	requestID := "chat-20260825T020304Z-22334455"
+	requestDirectory := filepath.Join(directory, requestID)
+	generationDirectory := filepath.Join(requestDirectory, "generations", "1")
+	if err := os.MkdirAll(generationDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	expiresAt := time.Now().UTC().Add(30 * time.Minute).Format(time.RFC3339)
+	for path, body := range map[string]string{
+		filepath.Join(requestDirectory, "state.json"):            `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "receipt.json"):          `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"lease_id":"lease-direct","request_id":"` + requestID + `","state":"active","expires_at":"` + expiresAt + `"}}`,
+		filepath.Join(requestDirectory, "run-policy.json"):       `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
+		filepath.Join(requestDirectory, "deployment-ssh-config"): "Host wukong-load\n",
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	starterMarker := filepath.Join(directory, "stage-starter-called")
+	stageStarter := filepath.Join(directory, "stage-starter")
+	writeRepairExecutable(t, stageStarter, `#!/usr/bin/env bash
+set -euo pipefail
+: >"$WK_TEST_STAGE_STARTER_MARKER"
+exit 99
+`)
+	chatTool := filepath.Join(directory, "wkchatlifecycle")
+	writeRepairExecutable(t, chatTool, "#!/usr/bin/env bash\nexit 99\n")
+	monitor := filepath.Join(directory, "repair-monitor")
+	writeRepairExecutable(t, monitor, "#!/usr/bin/env bash\nexit 99\n")
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "run", requestID)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"WK_CHAT_LAB_STATE_ROOT="+directory,
+		"WK_CHAT_LAB_CHAT_TOOL="+chatTool,
+		"WK_CHAT_LAB_STAGE_STARTER="+stageStarter,
+		"WK_CHAT_LAB_REPAIR_MONITOR="+monitor,
+		"WK_TEST_STAGE_STARTER_MARKER="+starterMarker,
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "lease remaining lifetime is shorter than the bounded workload") {
+		t.Fatalf("short lease run result = %v\n%s", err, output)
+	}
+	if _, statErr := os.Stat(starterMarker); !os.IsNotExist(statErr) {
+		t.Fatalf("short lease contacted the stage starter: %v", statErr)
 	}
 }
 
