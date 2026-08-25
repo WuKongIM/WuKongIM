@@ -985,11 +985,12 @@ func (a *App) newManagerMonitorProvider(control managerClusterControlReader) acc
 		nodeID = a.cfg.Cluster.NodeID
 	}
 	base := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
-		Enabled:  a.cfg.Observability.MetricsEnabled && strings.TrimSpace(prometheusBaseURL) != "",
-		BaseURL:  prometheusBaseURL,
-		NodeID:   nodeID,
-		NodeName: fmt.Sprintf("node-%d", nodeID),
-		Control:  control,
+		Enabled:    a.cfg.Observability.MetricsEnabled && strings.TrimSpace(prometheusBaseURL) != "",
+		BaseURL:    prometheusBaseURL,
+		NodeID:     nodeID,
+		NodeName:   fmt.Sprintf("node-%d", nodeID),
+		Control:    control,
+		Goroutines: a.goroutines,
 	})
 	var remote managerGoroutineSnapshotReader
 	if node, ok := a.cluster.(accessnode.PresenceRPCNode); ok {

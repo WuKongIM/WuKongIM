@@ -81,6 +81,7 @@ const (
 	TaskManagerDiagnosticsFanout         TaskID = "manager/diagnostics_fanout"
 	TaskManagerLatestMessagesFanout      TaskID = "manager/latest_messages_fanout"
 	TaskManagerOpsMCPAuditFanout         TaskID = "manager/ops_mcp_audit_fanout"
+	TaskManagerPrometheusQueryFanout     TaskID = "manager/prometheus_query_fanout"
 	TaskGatewayAsyncDispatch             TaskID = "gateway/async_dispatch"
 	TaskGatewayAsyncAuth                 TaskID = "gateway/async_auth"
 	TaskGatewayIdleMonitor               TaskID = "gateway/idle_monitor"
@@ -177,6 +178,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskManagerDiagnosticsFanout, Module: ModuleManager, Name: "diagnostics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerLatestMessagesFanout, Module: ModuleManager, Name: "latest_messages_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerOpsMCPAuditFanout, Module: ModuleManager, Name: "ops_mcp_audit_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskManagerPrometheusQueryFanout, Module: ModuleManager, Name: "prometheus_query_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskGatewayAsyncDispatch, Module: ModuleGateway, Name: "async_dispatch", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskGatewayAsyncAuth, Module: ModuleGateway, Name: "async_auth", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskGatewayIdleMonitor, Module: ModuleGateway, Name: "idle_monitor", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

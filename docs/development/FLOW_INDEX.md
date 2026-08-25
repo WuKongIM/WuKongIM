@@ -82,7 +82,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 62 | ok |
 | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 49 | ok |
 | [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 92 | ok |
-| [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 60 | ok |
+| [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 62 | ok |
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
 | [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 89 | ok |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |

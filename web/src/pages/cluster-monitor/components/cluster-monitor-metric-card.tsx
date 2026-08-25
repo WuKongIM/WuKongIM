@@ -191,7 +191,11 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
         {card.stats.map((stat) => {
           const label = stat.label ?? (stat.labelId ? intl.formatMessage({ id: stat.labelId }) : "")
           return (
-            <div className="min-w-0 rounded-md border border-border bg-background px-2 py-2" key={`${label}:${stat.value}`}>
+            <div
+              className="min-w-0 rounded-md border border-border bg-background px-2 py-2"
+              data-series-key={stat.seriesKey}
+              key={stat.seriesKey ?? `${label}:${stat.value}`}
+            >
               <dt className="truncate text-[11px] text-muted-foreground">{label}</dt>
               <dd className="mt-1 truncate text-xs font-semibold text-foreground">{stat.value}</dd>
             </div>

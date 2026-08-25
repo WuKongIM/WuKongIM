@@ -267,6 +267,8 @@ type RealtimeMonitorStat struct {
 	Key string `json:"key"`
 	// Label is an optional display label for dynamic statistics such as per-node values.
 	Label string `json:"label,omitempty"`
+	// SeriesKey is the stable series identity used when display labels are not unique.
+	SeriesKey string `json:"series_key,omitempty"`
 	// Value is the numeric statistic value. Zero is meaningful and must be serialized.
 	Value float64 `json:"value"`
 	// Text is the textual statistic value when the stat is a label or reason.

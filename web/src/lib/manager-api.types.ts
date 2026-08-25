@@ -404,6 +404,7 @@ export type RealtimeMonitorPoint = {
 export type RealtimeMonitorStat = {
   key: string
   label?: string
+  series_key?: string
   value?: number
   text?: string
   unit?: string

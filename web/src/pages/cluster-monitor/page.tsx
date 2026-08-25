@@ -22,6 +22,7 @@ import { ClusterMonitorToolbar } from "./components/cluster-monitor-toolbar"
 import { GoroutineMonitorTable } from "./components/goroutine-monitor-table"
 import {
   clusterMonitorMetricConfig,
+  clusterMonitorMetricOperationalPriority,
   clusterMonitorSnapshotLabelIds,
   clusterMonitorStageLabelIds,
   clusterMonitorStatLabelIds,
@@ -195,7 +196,7 @@ function buildRealtimeMonitorModel(
   const cards = response.cards.flatMap((card) => {
     const mapped = mapClusterRealtimeCard(card)
     return mapped ? [mapped] : []
-  })
+  }).sort((left, right) => clusterMonitorMetricOperationalPriority(left.key) - clusterMonitorMetricOperationalPriority(right.key))
 
   return {
     generatedAt: response.generated_at,
@@ -270,6 +271,7 @@ function mapClusterStats(stats: ApiStat[], rawCardUnit: string, displayCardUnit:
       {
         labelId,
         label: stat.label,
+        seriesKey: stat.series_key,
         value: formatApiStatValue(value, displayUnit, precision),
       },
     ]

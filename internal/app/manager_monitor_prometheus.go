@@ -12,14 +12,17 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
 	managerMonitorPrometheusQueryTimeout = 5 * time.Second
 	managerMonitorPrometheusJobName      = "wukongim"
+	managerMonitorQueryConcurrency       = 8
 )
 
 var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b((?:wukongim|go)_[a-zA-Z0-9_:]+)(\{[^{}]*\})?`)
@@ -27,15 +30,20 @@ var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b((?:wukongi
 var managerRealtimeMonitorCommonMetricKeys = map[string]struct{}{
 	"activeConnections":               {},
 	"channelAppendLatencyP99":         {},
+	"channelISRAnomalies":             {},
+	"channelPostCommitRetryDepth":     {},
 	"conversationDirectoryLatencyP99": {},
 	"conversationUnresolved":          {},
 	"controllerApplyGap":              {},
+	"controllerOldestTaskAge":         {},
 	"controllerRaftStepQueueUsage":    {},
 	"deliveryLatencyP99":              {},
+	"diagnosticsDroppedRate":          {},
 	"entryLatencyP99":                 {},
 	"nodeCpuPercent":                  {},
 	"nodeMemoryRSS":                   {},
 	"pathErrorRate":                   {},
+	"presenceEndpointLookupErrorRate": {},
 	"retryQueueDepth":                 {},
 	"rpcSuccessRate":                  {},
 	"sendRate":                        {},
@@ -59,12 +67,19 @@ type managerPrometheusMonitorOptions struct {
 	Now func() time.Time
 	// Control reads bounded manager control snapshots for current cluster health values.
 	Control managerClusterControlReader
+	// Goroutines supervises bounded Prometheus query fanout.
+	Goroutines *goruntimeregistry.Registry
 }
 
 type managerPrometheusMonitorProvider struct {
 	options managerPrometheusMonitorOptions
 	client  *http.Client
 	now     func() time.Time
+}
+
+type managerMonitorCardResult struct {
+	card accessmanager.RealtimeMonitorCard
+	err  error
 }
 
 type monitorMetricDefinition struct {
@@ -77,6 +92,21 @@ type monitorMetricDefinition struct {
 	noDataMessage     string
 	query             func(rateWindow string) string
 	seriesLabelKeys   []string
+	maxSeries         int
+	summary           monitorSeriesSummary
+	clusterScoped     bool
+}
+
+type monitorSeriesSummary uint8
+
+const (
+	monitorSummaryLatestMax monitorSeriesSummary = iota
+	monitorSummaryLatestSum
+)
+
+type monitorMetricQueryResult struct {
+	series    []accessmanager.RealtimeMonitorPoint
+	allSeries []accessmanager.RealtimeMonitorPoint
 }
 
 type prometheusQueryRangeResponse struct {
@@ -115,50 +145,44 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 	businessDefs := filterMonitorMetricDefinitions(managerMonitorMetricDefinitions(), query.Category)
 	clusterDefs := filterClusterMonitorMetricDefinitions(managerClusterMonitorMetricDefinitions(), query.Category)
 	totalDefs := len(businessDefs) + len(clusterDefs)
-	cards := make([]accessmanager.RealtimeMonitorCard, 0, totalDefs)
+	results := make([]managerMonitorCardResult, totalDefs)
 	rateWindow := managerMonitorRateWindow(query.Window, query.Step)
 	end := now
 	start := end.Add(-query.Window)
+	semaphore := make(chan struct{}, managerMonitorQueryConcurrency)
+	var queries sync.WaitGroup
+	for index, def := range businessDefs {
+		queries.Add(1)
+		goruntimeregistry.SafeGo(p.options.Goroutines, goruntimeregistry.TaskManagerPrometheusQueryFanout, func() {
+			defer queries.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			results[index] = p.businessMonitorCard(ctx, def, rateWindow, start, end, query.Step, query.NodeID)
+		})
+	}
+	for clusterIndex, def := range clusterDefs {
+		index := len(businessDefs) + clusterIndex
+		queries.Add(1)
+		goruntimeregistry.SafeGo(p.options.Goroutines, goruntimeregistry.TaskManagerPrometheusQueryFanout, func() {
+			defer queries.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			results[index] = p.clusterMonitorCard(ctx, def, rateWindow, start, end, query.Step, query.NodeID)
+		})
+	}
+	queries.Wait()
+
+	cards := make([]accessmanager.RealtimeMonitorCard, 0, totalDefs)
 	var firstErr error
 	var available int
-
-	for _, def := range businessDefs {
-		promQL := prometheusFilterNodeID(def.query(rateWindow), query.NodeID)
-		series, err := p.queryRangeForDefinition(ctx, def, promQL, start, end, query.Step)
-		card := accessmanager.RealtimeMonitorCard{
-			Key:       def.key,
-			Category:  def.category,
-			Stage:     def.stage,
-			Source:    accessmanager.RealtimeMonitorSourcePrometheus,
-			Tone:      def.tone,
-			Unit:      def.unit,
-			Series:    series,
-			Available: len(series) > 0 && err == nil,
-		}
-		if err != nil {
-			card.Error = err.Error()
-			card.UnavailableReason = "prometheus_query_error"
-			if firstErr == nil {
-				firstErr = err
-			}
-		} else if len(series) == 0 {
-			card.Error = monitorNoDataMessage(def.noDataMessage)
-			card.UnavailableReason = monitorUnavailableReason(def.unavailableReason, "prometheus_no_data")
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %s", def.key, card.Error)
-			}
-		} else {
+	for _, result := range results {
+		cards = append(cards, result.card)
+		if result.card.Available {
 			available++
-			card.Value = clusterMonitorLatestValue(series)
-			card.Stats = monitorCardStats(series, query.Step, def.unit)
 		}
-		cards = append(cards, card)
-	}
-	clusterCards, clusterAvailable, clusterErr := p.clusterCards(ctx, clusterDefs, rateWindow, start, end, query.Step, query.NodeID)
-	cards = append(cards, clusterCards...)
-	available += clusterAvailable
-	if firstErr == nil && clusterErr != nil {
-		firstErr = clusterErr
+		if firstErr == nil && result.err != nil {
+			firstErr = result.err
+		}
 	}
 
 	controlSnapshot := managerClusterControlSnapshot{}
@@ -207,6 +231,39 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 	}, nil
 }
 
+func (p *managerPrometheusMonitorProvider) businessMonitorCard(ctx context.Context, def monitorMetricDefinition, rateWindow string, start, end time.Time, step time.Duration, nodeID uint64) managerMonitorCardResult {
+	card := accessmanager.RealtimeMonitorCard{
+		Key:      def.key,
+		Category: def.category,
+		Stage:    def.stage,
+		Source:   accessmanager.RealtimeMonitorSourcePrometheus,
+		Tone:     def.tone,
+		Unit:     def.unit,
+	}
+	if def.clusterScoped && nodeID != 0 {
+		card.Error = "metric is cluster-scoped and unavailable in node view"
+		card.UnavailableReason = "cluster_scoped_metric"
+		return managerMonitorCardResult{card: card}
+	}
+	promQL := prometheusFilterNodeID(def.query(rateWindow), nodeID)
+	queryResult, err := p.queryRangeForDefinition(ctx, def, promQL, start, end, step)
+	card.Series = queryResult.series
+	card.Available = len(queryResult.allSeries) > 0 && err == nil
+	if err != nil {
+		card.Error = err.Error()
+		card.UnavailableReason = "prometheus_query_error"
+		return managerMonitorCardResult{card: card, err: err}
+	}
+	if len(queryResult.allSeries) == 0 {
+		card.Error = monitorNoDataMessage(def.noDataMessage)
+		card.UnavailableReason = monitorUnavailableReason(def.unavailableReason, "prometheus_no_data")
+		return managerMonitorCardResult{card: card, err: fmt.Errorf("%s: %s", def.key, card.Error)}
+	}
+	card.Value = monitorSeriesSummaryValue(queryResult.allSeries, def.summary)
+	card.Stats = monitorCardStats(queryResult.allSeries, step, def.unit)
+	return managerMonitorCardResult{card: card}
+}
+
 func (p *managerPrometheusMonitorProvider) monitorDisabledResponse(query accessmanager.RealtimeMonitorQuery, now time.Time) accessmanager.RealtimeMonitorResponse {
 	return accessmanager.RealtimeMonitorResponse{
 		Status:        accessmanager.RealtimeMonitorStatusPrometheusDisabled,
@@ -244,11 +301,21 @@ func (p *managerPrometheusMonitorProvider) queryRange(ctx context.Context, promQ
 	return managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
 }
 
-func (p *managerPrometheusMonitorProvider) queryRangeForDefinition(ctx context.Context, def monitorMetricDefinition, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
+func (p *managerPrometheusMonitorProvider) queryRangeForDefinition(ctx context.Context, def monitorMetricDefinition, promQL string, start, end time.Time, step time.Duration) (monitorMetricQueryResult, error) {
+	var series []accessmanager.RealtimeMonitorPoint
+	var err error
 	if len(def.seriesLabelKeys) == 0 {
-		return p.queryRange(ctx, promQL, start, end, step)
+		series, err = p.queryRange(ctx, promQL, start, end, step)
+	} else {
+		series, err = managerMonitorQueryRangeWithLabels(ctx, p.client, p.options.BaseURL, promQL, start, end, step, def.seriesLabelKeys)
 	}
-	return managerMonitorQueryRangeWithLabels(ctx, p.client, p.options.BaseURL, promQL, start, end, step, def.seriesLabelKeys)
+	if err != nil {
+		return monitorMetricQueryResult{}, err
+	}
+	return monitorMetricQueryResult{
+		series:    limitMonitorSeries(series, def.maxSeries),
+		allSeries: series,
+	}, nil
 }
 
 func filterMonitorMetricDefinitions(defs []monitorMetricDefinition, category string) []monitorMetricDefinition {
@@ -417,7 +484,7 @@ func prometheusSelectorHasLabel(labels string, name string) bool {
 }
 
 func managerMonitorMetricDefinitions() []monitorMetricDefinition {
-	return withMonitorCategories([]monitorMetricDefinition{
+	definitions := []monitorMetricDefinition{
 		{
 			key:             "goroutineProcessHistory",
 			category:        accessmanager.RealtimeMonitorCategoryGoroutines,
@@ -425,6 +492,7 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:            accessmanager.RealtimeMonitorToneWarning,
 			unit:            "goroutines",
 			seriesLabelKeys: []string{"node_id", "node_name"},
+			maxSeries:       8,
 			query: func(string) string {
 				return "sum by (node_id, node_name) (wukongim_node_goroutines)"
 			},
@@ -436,8 +504,9 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:            accessmanager.RealtimeMonitorToneNormal,
 			unit:            "goroutines",
 			seriesLabelKeys: []string{"node_id", "node_name", "module"},
+			maxSeries:       8,
 			query: func(string) string {
-				return "topk(12, sum by (node_id, node_name, module) (wukongim_goroutines_active))"
+				return "sum by (node_id, node_name, module) (wukongim_goroutines_active)"
 			},
 		},
 		{
@@ -684,12 +753,19 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			stage:             accessmanager.RealtimeMonitorStageOnlineDelivery,
 			tone:              accessmanager.RealtimeMonitorToneWarning,
 			unit:              "ms",
+			seriesLabelKeys:   []string{"stage"},
+			maxSeries:         8,
+			summary:           monitorSummaryLatestMax,
 			unavailableReason: "no_delivery_latency_samples",
 			noDataMessage:     "no delivery latency samples in selected window",
 			query: func(rateWindow string) string {
-				recipientWorkerP99 := "histogram_quantile(0.99, sum(rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{result=\"ok\"}[" + rateWindow + "])) by (le)) * 1000"
-				pushRPCP99 := "histogram_quantile(0.99, sum(rate(wukongim_delivery_push_rpc_duration_seconds_bucket{result=\"ok\"}[" + rateWindow + "])) by (le)) * 1000"
-				return prometheusFirstAvailable(recipientWorkerP99, pushRPCP99)
+				return prometheusAnySeries(
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_resolve_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "route_resolution", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "recipient_authority", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "recipient_worker", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_push_rpc_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "push_rpc", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_ack_batch_duration_seconds_bucket{outcome="ok"}[`+rateWindow+`])) * 1000, "stage", "ack_batch", "__name__", ".*")`,
+				)
 			},
 		},
 		{
@@ -831,6 +907,8 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:            accessmanager.RealtimeMonitorToneWarning,
 			unit:            "conn/s",
 			seriesLabelKeys: []string{"reason"},
+			maxSeries:       8,
+			summary:         monitorSummaryLatestSum,
 			query: func(rateWindow string) string {
 				return prometheusZeroFallback("sum by (reason) (rate(wukongim_gateway_connection_closes_total[" + rateWindow + "]))")
 			},
@@ -976,7 +1054,9 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 				return prometheusZeroFallback("max((" + bytes + " / (" + capacity + " > 0)) * 100)")
 			},
 		},
-	})
+	}
+	definitions = append(definitions, managerAdditionalMonitorMetricDefinitions()...)
+	return withMonitorCategories(definitions)
 }
 
 func withMonitorCategories(defs []monitorMetricDefinition) []monitorMetricDefinition {
@@ -1050,7 +1130,15 @@ func monitorNoDataMessage(configured string) string {
 }
 
 func prometheusZeroWhenPresent(query, presence string) string {
-	return "((" + query + ") or on() ((" + presence + ") * 0))"
+	return prometheusZeroWhenPresentBy(query, presence)
+}
+
+func prometheusZeroWhenPresentBy(query, presence string, matchLabels ...string) string {
+	matcher := "on()"
+	if len(matchLabels) > 0 {
+		matcher = "on(" + strings.Join(matchLabels, ", ") + ")"
+	}
+	return "((" + query + ") or " + matcher + " ((" + presence + ") * 0))"
 }
 
 func prometheusAnySeries(queries ...string) string {
@@ -1219,6 +1307,81 @@ func monitorCardStats(series []accessmanager.RealtimeMonitorPoint, step time.Dur
 		stats = append(stats, accessmanager.RealtimeMonitorStat{Key: "total", Value: sum * step.Seconds()})
 	}
 	return stats
+}
+
+func monitorSeriesSummaryValue(series []accessmanager.RealtimeMonitorPoint, summary monitorSeriesSummary) float64 {
+	if summary != monitorSummaryLatestSum {
+		return clusterMonitorLatestValue(series)
+	}
+	if len(series) == 0 {
+		return 0
+	}
+	latest := series[0].Timestamp
+	for _, point := range series[1:] {
+		if point.Timestamp > latest {
+			latest = point.Timestamp
+		}
+	}
+	var value float64
+	for _, point := range series {
+		if point.Timestamp == latest {
+			value += point.Value
+		}
+	}
+	return value
+}
+
+func limitMonitorSeries(series []accessmanager.RealtimeMonitorPoint, maxSeries int) []accessmanager.RealtimeMonitorPoint {
+	if maxSeries <= 0 || len(series) == 0 {
+		return series
+	}
+	type score struct {
+		key       string
+		latestAt  int64
+		latestVal float64
+	}
+	byKey := make(map[string]score)
+	for _, point := range series {
+		key := point.SeriesKey
+		if key == "" {
+			key = point.Label
+		}
+		if key == "" {
+			return series
+		}
+		current, ok := byKey[key]
+		if !ok || point.Timestamp > current.latestAt || point.Timestamp == current.latestAt && point.Value > current.latestVal {
+			byKey[key] = score{key: key, latestAt: point.Timestamp, latestVal: point.Value}
+		}
+	}
+	if len(byKey) <= maxSeries {
+		return series
+	}
+	ranked := make([]score, 0, len(byKey))
+	for _, item := range byKey {
+		ranked = append(ranked, item)
+	}
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].latestVal != ranked[j].latestVal {
+			return ranked[i].latestVal > ranked[j].latestVal
+		}
+		return ranked[i].key < ranked[j].key
+	})
+	selected := make(map[string]struct{}, maxSeries)
+	for _, item := range ranked[:maxSeries] {
+		selected[item.key] = struct{}{}
+	}
+	out := make([]accessmanager.RealtimeMonitorPoint, 0, len(series))
+	for _, point := range series {
+		key := point.SeriesKey
+		if key == "" {
+			key = point.Label
+		}
+		if _, ok := selected[key]; ok {
+			out = append(out, point)
+		}
+	}
+	return out
 }
 
 func monitorSnapshotFromCards(cards []accessmanager.RealtimeMonitorCard) []accessmanager.RealtimeMonitorSnapshotEntry {

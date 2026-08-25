@@ -20,14 +20,17 @@ type managerClusterControlReader interface {
 }
 
 type clusterMonitorMetricDefinition struct {
-	key       string
-	category  string
-	stage     string
-	tone      string
-	unit      string
-	query     func(rateWindow string) string
-	transform func(float64) float64
-	nodeStats bool
+	key             string
+	category        string
+	stage           string
+	tone            string
+	unit            string
+	query           func(rateWindow string) string
+	transform       func(float64) float64
+	nodeStats       bool
+	seriesLabelKeys []string
+	maxSeries       int
+	summary         monitorSeriesSummary
 }
 
 type managerClusterControlSnapshot struct {
@@ -44,59 +47,75 @@ func (p *managerPrometheusMonitorProvider) clusterCards(ctx context.Context, def
 	var firstErr error
 	var available int
 	for _, def := range defs {
-		promQL := prometheusFilterNodeID(def.query(rateWindow), nodeID)
-		series, stats, err := p.clusterCardSeries(ctx, def, promQL, start, end, step)
-		card := accessmanager.RealtimeMonitorCard{
-			Key:       def.key,
-			Category:  def.category,
-			Stage:     def.stage,
-			Tone:      def.tone,
-			Unit:      def.unit,
-			Source:    accessmanager.RealtimeMonitorSourcePrometheus,
-			Series:    series,
-			Available: len(series) > 0 && err == nil,
-		}
-		if err != nil {
-			card.Error = err.Error()
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %w", def.key, err)
-			}
-		} else if len(series) == 0 {
-			card.Error = "prometheus returned no data"
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %s", def.key, card.Error)
-			}
-		} else {
+		result := p.clusterMonitorCard(ctx, def, rateWindow, start, end, step, nodeID)
+		cards = append(cards, result.card)
+		if result.card.Available {
 			available++
-			card.Value = clusterMonitorLatestValue(series)
-			card.Stats = stats
 		}
-		cards = append(cards, card)
+		if firstErr == nil && result.err != nil {
+			firstErr = result.err
+		}
 	}
 	return cards, available, firstErr
 }
 
-func (p *managerPrometheusMonitorProvider) clusterCardSeries(ctx context.Context, def clusterMonitorMetricDefinition, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, []accessmanager.RealtimeMonitorStat, error) {
+func (p *managerPrometheusMonitorProvider) clusterMonitorCard(ctx context.Context, def clusterMonitorMetricDefinition, rateWindow string, start, end time.Time, step time.Duration, nodeID uint64) managerMonitorCardResult {
+	promQL := prometheusFilterNodeID(def.query(rateWindow), nodeID)
+	queryResult, stats, err := p.clusterCardSeries(ctx, def, promQL, start, end, step)
+	card := accessmanager.RealtimeMonitorCard{
+		Key:       def.key,
+		Category:  def.category,
+		Stage:     def.stage,
+		Tone:      def.tone,
+		Unit:      def.unit,
+		Source:    accessmanager.RealtimeMonitorSourcePrometheus,
+		Series:    queryResult.series,
+		Available: len(queryResult.allSeries) > 0 && err == nil,
+	}
+	if err != nil {
+		card.Error = err.Error()
+		card.UnavailableReason = "prometheus_query_error"
+		return managerMonitorCardResult{card: card, err: fmt.Errorf("%s: %w", def.key, err)}
+	}
+	if len(queryResult.allSeries) == 0 {
+		card.Error = "prometheus returned no data"
+		card.UnavailableReason = "prometheus_no_data"
+		return managerMonitorCardResult{card: card, err: fmt.Errorf("%s: %s", def.key, card.Error)}
+	}
+	card.Value = monitorSeriesSummaryValue(queryResult.allSeries, def.summary)
+	card.Stats = stats
+	return managerMonitorCardResult{card: card}
+}
+
+func (p *managerPrometheusMonitorProvider) clusterCardSeries(ctx context.Context, def clusterMonitorMetricDefinition, promQL string, start, end time.Time, step time.Duration) (monitorMetricQueryResult, []accessmanager.RealtimeMonitorStat, error) {
 	if def.nodeStats {
 		results, err := managerMonitorQueryRangeResults(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
 		if err != nil {
-			return nil, nil, err
+			return monitorMetricQueryResult{}, nil, err
 		}
 		series, stats, err := clusterMonitorNodeSeries(results, def.unit, def.transform)
 		if err != nil {
-			return nil, nil, err
+			return monitorMetricQueryResult{}, nil, err
 		}
 		if len(stats) == 0 {
 			stats = clusterMonitorStats(series, def.unit, step)
 		}
-		return series, stats, nil
+		displaySeries := limitMonitorSeries(series, def.maxSeries)
+		stats = limitClusterMonitorNodeStats(stats, displaySeries)
+		return monitorMetricQueryResult{series: displaySeries, allSeries: series}, stats, nil
 	}
-	rawSeries, err := managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
+	var rawSeries []accessmanager.RealtimeMonitorPoint
+	var err error
+	if len(def.seriesLabelKeys) == 0 {
+		rawSeries, err = managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
+	} else {
+		rawSeries, err = managerMonitorQueryRangeWithLabels(ctx, p.client, p.options.BaseURL, promQL, start, end, step, def.seriesLabelKeys)
+	}
 	if err != nil {
-		return nil, nil, err
+		return monitorMetricQueryResult{}, nil, err
 	}
 	series := clusterMonitorTransformSeries(rawSeries, def.transform)
-	return series, clusterMonitorStats(series, def.unit, step), nil
+	return monitorMetricQueryResult{series: limitMonitorSeries(series, def.maxSeries), allSeries: series}, clusterMonitorStats(series, def.unit, step), nil
 }
 
 func (p *managerPrometheusMonitorProvider) controlSnapshot(ctx context.Context, nodeID uint64) (managerClusterControlSnapshot, accessmanager.RealtimeMonitorSource) {
@@ -177,7 +196,7 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 	return []clusterMonitorMetricDefinition{
 		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerApplyGap", accessmanager.RealtimeMonitorStageControlPlane, accessmanager.RealtimeMonitorToneWarning, "entries", "max(wukongim_controller_apply_gap)"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerRaftStepQueueUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(max(wukongim_controller_raft_step_queue_depth) / clamp_min(max(wukongim_controller_raft_step_queue_capacity), 1)) * 100")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerRaftStepEnqueueLatencyP99", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", prometheusZeroFallback("histogram_quantile(0.99, sum(rate(wukongim_controller_raft_step_enqueue_duration_seconds_bucket[%s])) by (le)) * 1000")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerRaftStepEnqueueLatencyP99", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_controller_raft_step_enqueue_duration_seconds_bucket[%s])) by (le)) * 1000"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerRaftStepEnqueueErrorRate", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneCritical, "%", prometheusZeroFallback("(sum(rate(wukongim_controller_raft_step_enqueue_duration_seconds_count{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_controller_raft_step_enqueue_duration_seconds_count[%s])), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerStateRevision", accessmanager.RealtimeMonitorStageControlPlane, accessmanager.RealtimeMonitorToneNormal, "", prometheusZeroFallback("max(wukongim_controller_state_revision)")),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerActiveTasks", accessmanager.RealtimeMonitorStageControlPlane, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("sum(max by (type) (wukongim_controller_tasks_active))")),
@@ -187,11 +206,11 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 		clusterMetric(accessmanager.RealtimeMonitorCategoryControl, "controllerLeaderPresent", accessmanager.RealtimeMonitorStageControlPlane, accessmanager.RealtimeMonitorToneNormal, "", prometheusZeroFallback("min(wukongim_controller_leader_present)")),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotLeaderStability", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneNormal, "%", "(1 - clamp_max(sum(rate(wukongim_slot_leader_elections_total[%s])) / 10, 1)) * 100"),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotProposeRate", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneNormal, "cmd/s", prometheusZeroFallback("sum(rate(wukongim_slot_proposals_total[%s]))")),
-		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotApplyGap", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "entries", prometheusZeroFallback("max(wukongim_slot_apply_gap)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotLatencyP99", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "ms", prometheusZeroFallback("histogram_quantile(0.99, sum(rate(wukongim_slot_apply_duration_seconds_bucket[%s])) by (le)) * 1000")),
-		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotProposalAdmissionRejectRate", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneCritical, "%", prometheusZeroFallback("(sum(rate(wukongim_slot_proposal_admission_total{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_slot_proposal_admission_total[%s])), 1)) * 100")),
-		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotLeaderChangeRate", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "events/s", prometheusZeroFallback("sum(rate(wukongim_slot_leader_changes_total[%s]))")),
-		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotReplicaLagMax", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "s", prometheusZeroFallback("max(wukongim_slot_replica_lag_seconds)")),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategorySlot, "slotApplyGap", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "entries", "max by (slot_id) (wukongim_slot_apply_gap)", []string{"slot_id"}, monitorSummaryLatestMax),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategorySlot, "slotLatencyP99", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum by (le, slot_id) (rate(wukongim_slot_apply_duration_seconds_bucket[%s]))) * 1000", []string{"slot_id"}, monitorSummaryLatestMax),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategorySlot, "slotProposalAdmissionRejectRate", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneCritical, "%", "(sum by (class, result) (rate(wukongim_slot_proposal_admission_total{result!=\"ok\"}[%s])) / on (class) group_left clamp_min(sum by (class) (rate(wukongim_slot_proposal_admission_total[%s])), 1)) * 100", []string{"class", "result"}, monitorSummaryLatestMax),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategorySlot, "slotLeaderChangeRate", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "events/s", "sum by (slot_id, cause) (rate(wukongim_slot_leader_changes_total[%s]))", []string{"slot_id", "cause"}, monitorSummaryLatestSum),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategorySlot, "slotReplicaLagMax", accessmanager.RealtimeMonitorStageSlotReplication, accessmanager.RealtimeMonitorToneWarning, "s", "max by (slot_id, replica_node) (wukongim_slot_replica_lag_seconds)", []string{"slot_id", "replica_node"}, monitorSummaryLatestMax),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotSchedulerQueueUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(sum(wukongim_runtime_pool_queue_depth{component=\"slot\",pool=\"scheduler\"}) / clamp_min(sum(wukongim_runtime_pool_queue_capacity{component=\"slot\",pool=\"scheduler\"}), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotSchedulerInflightUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(sum(wukongim_runtime_pool_inflight{component=\"slot\",pool=\"scheduler\"}) / clamp_min(sum(wukongim_runtime_pool_workers{component=\"slot\",pool=\"scheduler\"}), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotSchedulerTaskLatencyP99", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_runtime_pool_task_duration_seconds_bucket{component=\"slot\",pool=\"scheduler\"}[%s])) by (le)) * 1000"),
@@ -215,9 +234,9 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePhysicalCommitP99", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_storage_commit_batch_duration_seconds_bucket{stage=\"commit\"}[%s])) by (le)) * 1000"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storageCommitBatchRecordsP95", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneNormal, "records", "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_batch_records_bucket[%s])) by (le))"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storageCommitBatchBytesP95", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneNormal, "B", "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_batch_bytes_bucket[%s])) by (le))"),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePebbleDiskUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "B", prometheusZeroFallback("sum(wukongim_storage_pebble_disk_usage_bytes)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePebbleReadAmplification", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("max(wukongim_storage_pebble_read_amplification)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePebbleCompactionDebt", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "B", prometheusZeroFallback("sum(wukongim_storage_pebble_compaction_estimated_debt_bytes)")),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePebbleDiskUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "B", "sum by (store) (wukongim_storage_pebble_disk_usage_bytes)", []string{"store"}, monitorSummaryLatestSum),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePebbleReadAmplification", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", "max by (store) (wukongim_storage_pebble_read_amplification)", []string{"store"}, monitorSummaryLatestMax),
+		clusterLabeledMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storagePebbleCompactionDebt", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "B", "sum by (store) (wukongim_storage_pebble_compaction_estimated_debt_bytes)", []string{"store"}, monitorSummaryLatestSum),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryInternal, "internalTraffic", accessmanager.RealtimeMonitorStageInternalNetwork, accessmanager.RealtimeMonitorToneNormal, "B/s", "sum(rate(wukongim_transport_sent_bytes_total[%s])) + sum(rate(wukongim_transport_received_bytes_total[%s]))"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryInternal, "rpcSuccessRate", accessmanager.RealtimeMonitorStageInternalNetwork, accessmanager.RealtimeMonitorToneNormal, "%", "(sum(rate(wukongim_transport_rpc_total{result=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_transport_rpc_total[%s])), 1)) * 100"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryInternal, "rpcLatencyP95", accessmanager.RealtimeMonitorStageInternalNetwork, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.95, sum(rate(wukongim_transport_rpc_duration_seconds_bucket[%s])) by (le)) * 1000"),
@@ -263,6 +282,41 @@ func clusterMetricWithTransform(category, key, stage, tone, unit, pattern string
 func clusterNodeMetric(category, key, stage, tone, unit, pattern string) clusterMonitorMetricDefinition {
 	def := clusterMetric(category, key, stage, tone, unit, pattern)
 	def.nodeStats = true
+	def.maxSeries = 8
+	originalQuery := def.query
+	def.query = func(rateWindow string) string {
+		return strings.ReplaceAll(originalQuery(rateWindow), ") or vector(0)", ") or on() vector(0)")
+	}
+	return def
+}
+
+func limitClusterMonitorNodeStats(stats []accessmanager.RealtimeMonitorStat, series []accessmanager.RealtimeMonitorPoint) []accessmanager.RealtimeMonitorStat {
+	if len(stats) == 0 || len(series) == 0 {
+		return stats
+	}
+	selected := make(map[string]struct{})
+	for _, point := range series {
+		if point.SeriesKey != "" {
+			selected[point.SeriesKey] = struct{}{}
+		}
+	}
+	if len(selected) == 0 {
+		return nil
+	}
+	out := make([]accessmanager.RealtimeMonitorStat, 0, len(selected))
+	for _, stat := range stats {
+		if _, ok := selected[stat.SeriesKey]; ok {
+			out = append(out, stat)
+		}
+	}
+	return out
+}
+
+func clusterLabeledMetric(category, key, stage, tone, unit, pattern string, labelKeys []string, summary monitorSeriesSummary) clusterMonitorMetricDefinition {
+	def := clusterMetric(category, key, stage, tone, unit, pattern)
+	def.seriesLabelKeys = labelKeys
+	def.maxSeries = 8
+	def.summary = summary
 	return def
 }
 
@@ -313,7 +367,7 @@ func clusterMonitorNodeSeries(results []prometheusMatrixElement, unit string, tr
 			value := points[len(points)-1].Value
 			stats = append(stats, clusterMonitorNodeStat{
 				sortKey: sortKey,
-				stat:    accessmanager.RealtimeMonitorStat{Key: "node", Label: label, Value: value, Unit: unit},
+				stat:    accessmanager.RealtimeMonitorStat{Key: "node", Label: label, SeriesKey: seriesKey, Value: value, Unit: unit},
 			})
 		}
 	}
