@@ -175,6 +175,52 @@ func TestRepairTemplateAcceptsOnlyDerivedCustomDurationEnvelope(t *testing.T) {
 	}
 }
 
+func TestRepairTemplateAcceptsStructurallyValidExplicitBudget(t *testing.T) {
+	template := loadRepositoryTemplateNamed(t, "repair-v1.json")
+	template.Budget.HardLimitMicros = 450_000_000
+	template.Budget.OperationalStopMicros = 430_000_000
+	body, err := json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeTemplate(bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("bounded explicit repair budget rejected before trusted binding: %v", err)
+	}
+	input := OperatorInput{
+		SourceSHA: strings.Repeat("a", 40), Operator: "tangtaoit",
+		CodexDiagnosticPubKey: testPublicKey(t), RequestID: "explicit-repair-budget",
+	}
+	trusted := TrustedContext{
+		Repository: "WuKongIM/WuKongIM", BundleDigest: "sha256:" + strings.Repeat("b", 64),
+		DeploymentPubKey: testPublicKey(t), Now: time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC), Attempt: 1,
+	}
+	if _, err := Materialize(decoded, input, trusted); err == nil {
+		t.Fatal("explicit repair budget without independent trusted authorization was accepted")
+	}
+	trusted.AuthorizedRepairBudgetCNY = 450
+	plan, err := Materialize(decoded, input, trusted)
+	if err != nil {
+		t.Fatalf("exact trusted explicit repair budget rejected: %v", err)
+	}
+	if plan.LeasePlan.Budget.LimitMicros != 450_000_000 || plan.OperationalStopMicros != 430_000_000 {
+		t.Fatalf("materialized explicit budget = %+v", plan.LeasePlan.Budget)
+	}
+	trusted.AuthorizedRepairBudgetCNY = 451
+	if _, err := Materialize(decoded, input, trusted); err == nil {
+		t.Fatal("repair budget mismatching trusted authorization was accepted")
+	}
+
+	template.Budget.OperationalStopMicros = 429_000_000
+	body, err = json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodeTemplate(bytes.NewReader(body)); err == nil {
+		t.Fatal("explicit repair budget without the bounded stop reserve was accepted")
+	}
+}
+
 func TestTemplateAndOperatorSurfaceFailClosed(t *testing.T) {
 	template := loadRepositoryTemplate(t)
 	body, err := os.ReadFile(filepath.Join("..", "..", "..", "configs", "cloud", "chat-lifecycle", "rehearsal-v1.json"))

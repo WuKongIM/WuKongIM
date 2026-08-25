@@ -337,6 +337,23 @@ func TestSessionAcceptsOneHourStabilityWindow(t *testing.T) {
 	}
 }
 
+func TestSessionAcceptsBounded72HourStabilityWindow(t *testing.T) {
+	config := testConfig()
+	config.QualifyAfter = 72 * time.Hour
+	started := time.Date(2026, 8, 25, 2, 50, 0, 0, time.UTC)
+	candidate := repair.Candidate{
+		RequestID: "chat-repair-72h", LeaseID: "lease-72h", Generation: 3,
+		SourceSHA: "1111111111111111111111111111111111111111", BundleDigest: digest('a'),
+	}
+	if _, err := repair.Begin(config, candidate, started); err != nil {
+		t.Fatalf("Begin(72h) error = %v", err)
+	}
+	config.QualifyAfter++
+	if _, err := repair.Begin(config, candidate, started); !errors.Is(err, repair.ErrInvalidConfig) {
+		t.Fatalf("Begin(above 72h) error = %v", err)
+	}
+}
+
 func TestSessionFailureIsTerminalUntilANewGenerationBegins(t *testing.T) {
 	started := time.Date(2026, 8, 22, 16, 0, 0, 0, time.UTC)
 	config := testConfig()

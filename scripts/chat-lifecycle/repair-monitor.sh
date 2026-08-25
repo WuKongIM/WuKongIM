@@ -50,6 +50,29 @@ operator_stop_requested() {
   "$script_dir/operator-stop-requested.sh" "$WK_CHAT_REPAIR_REQUEST_ID" >/dev/null
 }
 
+query_stage_service_state() {
+  local attempt candidate=''
+  for attempt in 1 2 3; do
+    candidate=''
+    if candidate="$(wk_run_bounded 5 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+      "sudo systemctl is-active '$stage_service' || true" 2>/dev/null)"; then
+      candidate="${candidate//$'\r'/}"
+      if [[ "$candidate" != *$'\n'* && ${#candidate} -le 64 ]]; then
+        case "$candidate" in
+          active|activating|reloading|refreshing|inactive|failed|deactivating|maintenance|unknown)
+            printf '%s\n' "$candidate"
+            return 0
+            ;;
+        esac
+      fi
+    fi
+    if (( attempt < 3 )); then
+      sleep 1
+    fi
+  done
+  return 1
+}
+
 remote_get() {
   local port="$1" path="$2" output="$3" temporary
   [[ "$port" =~ ^1909[1-3]$ ]]
@@ -73,8 +96,7 @@ remote_get() {
 
 record_diagnosis() {
   local reason="$1" observed_at="$2" service_state journal_digest
-  service_state="$(wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
-    "sudo systemctl is-active '$stage_service' || true" 2>/dev/null | head -c 64 || true)"
+  service_state="$(query_stage_service_state || true)"
   journal_digest="$(wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
     "sudo journalctl -u '$stage_service' --no-pager -n 500 -o cat | sha256sum | awk '{print \$1}'" \
     2>/dev/null | head -c 64 || true)"
@@ -127,7 +149,7 @@ seal_abort() {
   chmod 0600 "${WK_CHAT_REPAIR_STATE}.next"
   mv -f -- "${WK_CHAT_REPAIR_STATE}.next" "$WK_CHAT_REPAIR_STATE"
   if ! stop_stage; then
-    record_diagnosis service_inactive "$observed_at"
+    record_diagnosis "$reason" "$observed_at"
     return 20
   fi
   record_diagnosis "$reason" "$observed_at"
@@ -155,9 +177,12 @@ while true; do
     seal_abort monitor_timeout "$observed_at"
     exit $?
   fi
-  service_state="$(wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
-    "sudo systemctl is-active '$stage_service' || true" 2>/dev/null | head -c 64 || true)"
-  if [[ "$service_state" != active && "$service_state" != activating ]]; then
+  if ! service_state="$(query_stage_service_state)"; then
+    seal_abort observation_unavailable "$observed_at"
+    exit $?
+  fi
+  if [[ "$service_state" != active && "$service_state" != activating &&
+    "$service_state" != reloading && "$service_state" != refreshing ]]; then
     seal_abort service_inactive "$observed_at"
     exit $?
   fi
@@ -178,7 +203,6 @@ while true; do
     done
     if [[ "$capture_failed" == true ]]; then
       persist_observation_failure remote_fetch_failed "$observed_at" "$capture_attempt"
-      break
     elif "$WK_CHAT_REPAIR_TOOL" "${capture_args[@]}" >"$work_dir/observation.json"; then
       capture_succeeded=true
       break
@@ -212,11 +236,12 @@ while true; do
     stop_and_diagnose)
       persist_terminal_cut
       install -m 0600 "$work_dir/step.json" "$WK_CHAT_REPAIR_OUTPUT_DIR/repair-decision.json"
+      reason="$(jq -er .decision.reason "$work_dir/step.json")"
       if ! stop_stage; then
-        record_diagnosis service_inactive "$observed_at"
+        record_diagnosis "$reason" "$observed_at"
         exit 20
       fi
-      record_diagnosis "$(jq -er .decision.reason "$work_dir/step.json")" "$observed_at"
+      record_diagnosis "$reason" "$observed_at"
       exit 10
       ;;
     qualified)

@@ -408,14 +408,17 @@ set -euo pipefail
 [[ "$1" == materialize ]]
 shift
 template=''
+authorized_budget=''
 while (( $# > 0 )); do
   case "$1" in
     --template) template="$2"; shift 2 ;;
+    --authorized-repair-budget-cny) authorized_budget="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
 jq -e '.workload_duration_seconds == 260100 and .lease_duration_seconds == 277200 and
   .budget.hard_limit_micros == 450000000 and .budget.operational_stop_micros == 430000000' "$template" >/dev/null
+[[ "$authorized_budget" == 450 ]]
 : >"$WK_TEST_VALIDATED"
 exit 55
 `)
@@ -443,14 +446,24 @@ exit 99
 		"ALIBABA_CLOUD_SECURITY_TOKEN=test-token",
 		"WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease",
 	)
-	if output, err := command.CombinedOutput(); err == nil || command.ProcessState.ExitCode() != 55 {
-		t.Fatalf("custom start exit = %v, code=%d\n%s", err, command.ProcessState.ExitCode(), output)
+	if output, err := command.CombinedOutput(); err == nil {
+		t.Fatalf("custom start unexpectedly succeeded\n%s", output)
 	}
 	if _, err := os.Stat(validated); err != nil {
 		t.Fatalf("custom duration did not reach materialized template: %v", err)
 	}
 	if _, err := os.Stat(providerMarker); !os.IsNotExist(err) {
 		t.Fatalf("failed materialization contacted provider: %v", err)
+	}
+	state, err := os.ReadFile(filepath.Join(directory, requestID, "state.json"))
+	if err != nil || !strings.Contains(string(state), `"state": "released"`) ||
+		!strings.Contains(string(state), `"failure": "materialization_failed_before_acquire"`) {
+		t.Fatalf("failed materialization state = %s, %v", state, err)
+	}
+	zeroInventory, err := os.ReadFile(filepath.Join(directory, requestID, "zero-inventory.json"))
+	if err != nil || !strings.Contains(string(zeroInventory), `"acquire_invoked": false`) ||
+		!strings.Contains(string(zeroInventory), `"residual_resources": 0`) {
+		t.Fatalf("failed materialization zero inventory = %s, %v", zeroInventory, err)
 	}
 	policy, err := os.ReadFile(filepath.Join(directory, requestID, "run-policy.json"))
 	if err != nil || !strings.Contains(string(policy), `"duration_seconds": 259200`) ||
@@ -639,6 +652,7 @@ func TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis(t *testi
 	}
 	for path, body := range map[string]string{
 		filepath.Join(requestDirectory, "state.json"):              `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "receipt.json"):            `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"lease_id":"lease-direct","request_id":"` + requestID + `","state":"active","expires_at":"2099-01-01T00:00:00Z"}}`,
 		filepath.Join(requestDirectory, "run-policy.json"):         `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
 		filepath.Join(requestDirectory, "deployment-ssh-config"):   "Host wukong-load\n",
 		filepath.Join(generationDirectory, "deployment-plan.json"): `{"schema":"wukongim.cloud_deployment.plan/v2"}`,
@@ -719,6 +733,7 @@ func TestChatLifecycleDirectLabRunStopsRemoteStageWhenDurationHandoffDiffers(t *
 	}
 	for path, body := range map[string]string{
 		filepath.Join(requestDirectory, "state.json"):            `{"schema":"wukongim.chat_lifecycle.direct_lab_state/v1","request_id":"` + requestID + `","lease_id":"lease-direct","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","state":"deployed","generation":1}`,
+		filepath.Join(requestDirectory, "receipt.json"):          `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"lease_id":"lease-direct","request_id":"` + requestID + `","state":"active","expires_at":"2099-01-01T00:00:00Z"}}`,
 		filepath.Join(requestDirectory, "run-policy.json"):       `{"schema":"wukongim.chat_lifecycle.direct_lab_run_policy/v1","duration":"60m","duration_seconds":3600,"max_duration_seconds":4500,"qualification_reserve_seconds":900,"lease_duration_seconds":21600}`,
 		filepath.Join(requestDirectory, "deployment-ssh-config"): "Host wukong-load\n",
 	} {

@@ -25,6 +25,7 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"for capture_attempt in 1 2 3", "capture_succeeded",
 		"WK_CHAT_REPAIR_POLL_SECONDS", "WK_CHAT_REPAIR_MAX_SECONDS",
 		"operator-stop-requested.sh", "WK_CHAT_REPAIR_REQUEST_ID", "operator_stop",
+		"query_stage_service_state", "for attempt in 1 2 3", "observation_unavailable",
 		`max_seconds="${WK_CHAT_REPAIR_MAX_SECONDS:-4500}"`,
 		"max_seconds <= 260100",
 	} {
