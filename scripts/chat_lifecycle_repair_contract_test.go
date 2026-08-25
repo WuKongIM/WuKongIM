@@ -28,6 +28,7 @@ func TestChatLifecycleRepairMonitorStopsOnTypedFailureWithoutReleasingLease(t *t
 		"query_stage_service_state", "for attempt in 1 2 3", "observation_unavailable",
 		"request_qualified_stage_stop", "systemctl kill --kill-who=main --signal=SIGTERM",
 		"fetch_qualified_report", "validate-rehearsal-report", "prove_qualified_stage_exit",
+		"NRestarts", "MainPID", "qualification-service-state-last.txt",
 		"WK_CHAT_REPAIR_RUN_START", "--run-start", "stop_stage_with_retries",
 		"qualified-final.json", "qualified-result.json", "qualification-finalization.json",
 		"stop_workers", "qualification_finalize_failed",

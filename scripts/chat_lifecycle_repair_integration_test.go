@@ -378,9 +378,9 @@ case "$command_line" in
     calls=$(( calls + 1 ))
     printf '%s\n' "$calls" >"$WK_TEST_SERVICE_SHOW_CALLS"
     if [[ "$calls" == 1 ]]; then
-      printf 'ActiveState=deactivating\nSubState=stop-sigterm\nResult=success\nExecMainCode=0\nExecMainStatus=0\n'
+      printf 'ActiveState=deactivating\nSubState=stop-sigterm\nResult=success\nNRestarts=0\nMainPID=123\nExecMainCode=0\nExecMainStatus=0\n'
     else
-      printf 'ActiveState=inactive\nSubState=dead\nResult=success\nExecMainCode=1\nExecMainStatus=130\n'
+      printf 'ActiveState=inactive\nSubState=dead\nResult=success\nNRestarts=0\nMainPID=0\nExecMainCode=0\nExecMainStatus=0\n'
     fi
     ;;
   *"systemctl stop wkbench-worker@1.service"*)
@@ -437,6 +437,9 @@ esac
 		if info, statErr := os.Stat(filepath.Join(outputDir, name)); statErr != nil || info.Size() == 0 {
 			t.Fatalf("qualified finalization artifact %s missing: %v", name, statErr)
 		}
+	}
+	if _, statErr := os.Stat(filepath.Join(outputDir, "qualification-service-state-last.txt")); !os.IsNotExist(statErr) {
+		t.Fatalf("successful finalization retained rejected service-state evidence: %v", statErr)
 	}
 }
 

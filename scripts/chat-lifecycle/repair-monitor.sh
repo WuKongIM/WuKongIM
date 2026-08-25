@@ -117,27 +117,33 @@ validate_qualified_report() {
 }
 
 prove_qualified_stage_exit() {
-  local output="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-service-state.txt" temporary size
-  temporary="${output}.next"
-  rm -f -- "$temporary"
-  if ! wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
-    "sudo systemctl show '$stage_service' --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus --no-pager" \
-    >"$temporary"; then
-    rm -f -- "$temporary"
-    return 1
-  fi
-  size="$(stat -c '%s' "$temporary" 2>/dev/null || stat -f '%z' "$temporary")"
-  if [[ ! "$size" =~ ^[1-9][0-9]*$ ]] || (( size > 4096 )) ||
-    [[ "$(grep -c '^ActiveState=inactive$' "$temporary" || true)" != 1 ]] ||
-    [[ "$(grep -c '^SubState=dead$' "$temporary" || true)" != 1 ]] ||
-    [[ "$(grep -c '^Result=success$' "$temporary" || true)" != 1 ]] ||
-    [[ "$(grep -c '^ExecMainCode=1$' "$temporary" || true)" != 1 ]] ||
-    [[ "$(grep -c '^ExecMainStatus=130$' "$temporary" || true)" != 1 ]]; then
-    rm -f -- "$temporary"
-    return 1
-  fi
-  chmod 0600 "$temporary"
-  mv -f -- "$temporary" "$output"
+	local output="$WK_CHAT_REPAIR_OUTPUT_DIR/qualified-service-state.txt" rejected temporary size
+	rejected="$WK_CHAT_REPAIR_OUTPUT_DIR/qualification-service-state-last.txt"
+	temporary="${output}.next"
+	rm -f -- "$temporary"
+	if ! wk_run_bounded 30 ssh -F "$WK_CHAT_REPAIR_SSH_CONFIG" wukong-load \
+		"sudo systemctl show '$stage_service' --property=ActiveState,SubState,Result,NRestarts,MainPID --no-pager" \
+		>"$temporary"; then
+		rm -f -- "$temporary"
+		return 1
+	fi
+	size="$(stat -c '%s' "$temporary" 2>/dev/null || stat -f '%z' "$temporary")"
+	if [[ ! "$size" =~ ^[1-9][0-9]*$ ]] || (( size > 4096 )); then
+		rm -f -- "$temporary"
+		return 1
+	fi
+	if [[ "$(grep -c '^ActiveState=inactive$' "$temporary" || true)" != 1 ]] ||
+		[[ "$(grep -c '^SubState=dead$' "$temporary" || true)" != 1 ]] ||
+		[[ "$(grep -c '^Result=success$' "$temporary" || true)" != 1 ]] ||
+		[[ "$(grep -c '^NRestarts=0$' "$temporary" || true)" != 1 ]] ||
+		[[ "$(grep -c '^MainPID=0$' "$temporary" || true)" != 1 ]]; then
+		chmod 0600 "$temporary"
+		mv -f -- "$temporary" "$rejected"
+		return 1
+	fi
+	rm -f -- "$rejected"
+	chmod 0600 "$temporary"
+	mv -f -- "$temporary" "$output"
 }
 
 finalize_qualified_stage() {
