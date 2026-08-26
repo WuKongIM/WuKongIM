@@ -27,7 +27,11 @@ It does not subscribe users, deliver messages, or implement storage and transpor
    cursor, coverage, completion, and tombstone retention metadata.
 2. `Retry` point-reads bounded keys, converts missing or tombstoned rows to
    deletes, batch-hydrates the rest, and does not rewind directory coverage.
-3. Personal commands monotonically update `read_seq`, `deleted_to_seq`, or
+3. `SyncLegacy` walks at most 1,000 membership candidates, applies the v2.2
+   page, unread, excluded-type, version, and per-Channel cursor semantics, then
+   reads recent committed messages and their stream-event summaries in aligned
+   batches of at most 200 Channels.
+4. Personal commands monotonically update `read_seq`, `deleted_to_seq`, or
    `activated_at` after exact membership and Channel-head reads.
 
 ## Invariants and Failure Semantics
@@ -38,6 +42,15 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 - Empty results do not imply completion; only `done=true` completes a pass.
 - Disbanded channels become deletes. Temporary leader failure becomes
   unresolved and does not block cursor progress.
+- The canonical `List` flow exposes temporary hydration failures as
+  `unresolved`. Because old sync clients have no equivalent response field,
+  `SyncLegacy` retries those keys once and fails the whole request if any stay
+  unresolved; it must not turn a temporary failure into silent conversation
+  loss.
+- A legacy client cursor overrides excluded-type and unread filtering for that
+  Channel. Without such a cursor, positive `version` and `only_unread` reads
+  start after the effective badge floor. Recent messages are returned newest
+  first in the old raw-array envelope.
 - Inactive empty membership is omitted; explicit activation returns an empty
   conversation without a last message.
 - SEND, receive, delivery, and pull never mutate `read_seq` or `activated_at`.
@@ -51,6 +64,7 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 - [Unread calculation](unread.go)
 - [Conversation contracts](types.go)
 - [Membership pagination tests](membership_list_test.go)
+- [Legacy sync compatibility](legacy_sync.go)
 
 ## Update Triggers
 

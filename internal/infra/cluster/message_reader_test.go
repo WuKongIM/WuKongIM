@@ -101,6 +101,28 @@ func TestChannelMessageReaderMapsPullDownAndReturnsAscending(t *testing.T) {
 	}
 }
 
+func TestChannelMessageReaderPreservesLegacyMessageTimestamp(t *testing.T) {
+	node := &recordingReadNode{
+		batchResults: []clusterchannels.CommittedReadResult{{
+			Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{
+				MessageID: 1, MessageSeq: 1, ChannelID: "g1", ChannelType: 2,
+				ServerTimestampMS: 1_700_000_000_123,
+			}}},
+		}},
+	}
+	reader := NewChannelMessageReader(node)
+
+	page, err := reader.SyncMessages(context.Background(), message.ChannelMessageQuery{
+		ChannelID: message.ChannelID{ID: "g1", Type: 2}, Limit: 1, PullMode: message.PullModeDown,
+	})
+	if err != nil {
+		t.Fatalf("SyncMessages(): %v", err)
+	}
+	if len(page.Messages) != 1 || page.Messages[0].Timestamp != 1_700_000_000 {
+		t.Fatalf("messages = %#v, want durable server timestamp in legacy seconds", page.Messages)
+	}
+}
+
 func TestChannelMessageReaderSingleUsesRoutedOneItemBatch(t *testing.T) {
 	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{{
 		Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{

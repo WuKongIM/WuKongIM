@@ -31,6 +31,11 @@ product HTTP request
   -> message, CMD, conversation, channel, or user use case
   -> stable HTTP envelope
 
+legacy /conversation/sync
+  -> decode v2.2 pagination, per-Channel cursors, unread, and exclusion fields
+  -> conversation legacy-sync use case
+  -> raw legacy conversation array with embedded recent messages
+
 bench or debug request
   -> feature-enabled and bearer-capability gates
   -> bounded runtime/read-model port or strict terminal-fence prepare
@@ -66,12 +71,16 @@ bench or debug request
   post-commit effects directly.
 - Conversation-list serialization borrows the usecase-owned immutable payload
   only for the synchronous response write; it does not retain it afterward.
+- `/conversation/sync` preserves the old raw-array envelope and person-channel
+  projection, including system-UID hiding and full stream-event fields. Its
+  business pagination, filters, cursor floors, and unresolved failure policy
+  remain owned by the conversation use case.
 
 ## Read First
 
 - [server.go](server.go)
-- [message_send.go](message_send.go)
 - [conversation_list.go](conversation_list.go)
+- [conversation_sync_legacy.go](conversation_sync_legacy.go)
 - [bench_runtime.go](bench_runtime.go)
 - [debug.go](debug.go)
 

@@ -28,6 +28,8 @@ second implementation of those layers.
 validated Config
   -> construct cluster and shared runtime foundations
   -> construct use cases and infrastructure ports
+  -> adapt the message use case's committed batch read into the narrow
+     conversation legacy-sync message port
   -> when bearer and all real drain ports exist, bind one terminal controller
      to both the already-created gateway handler and API prepare route
   -> register node RPC and access adapters
@@ -52,6 +54,9 @@ Stop or startup rollback
   must not introduce a local business bypass.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- The legacy conversation-sync adapter only translates sibling DTOs; directory
+  scanning, filtering, unresolved handling, and message ordering stay in the
+  conversation use case.
 - The benchmark terminal controller is advertised only with a non-empty token,
   the real Gateway SEND drainer, Channel append group, and Online Delivery
   runtime. Partial compositions cannot mint a terminal capability.

@@ -67,6 +67,8 @@ type Options struct {
 	Hydrator HeadHydrator
 	// MembershipMutations owns ordinary per-user badge, hide, and activation state.
 	MembershipMutations MembershipMutationStore
+	// LegacyMessages reads bounded committed message tails for /conversation/sync compatibility.
+	LegacyMessages LegacyMessageReader
 	// Now returns the current time for mutation timestamps.
 	Now func() time.Time
 	// TombstonesRetainedSince reports the oldest deletion coverage still guaranteed.
@@ -79,6 +81,7 @@ type App struct {
 	directory               DirectoryStore
 	hydrator                HeadHydrator
 	memberships             MembershipMutationStore
+	legacyMessages          LegacyMessageReader
 	now                     func() time.Time
 	tombstonesRetainedSince func() int64
 }
@@ -95,6 +98,7 @@ func New(opts Options) *App {
 		directory:               opts.Directory,
 		hydrator:                opts.Hydrator,
 		memberships:             opts.MembershipMutations,
+		legacyMessages:          opts.LegacyMessages,
 		now:                     opts.Now,
 		tombstonesRetainedSince: opts.TombstonesRetainedSince,
 	}
