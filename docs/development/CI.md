@@ -41,6 +41,12 @@ one first-time external contributor session.
 
 There is no Review Agent Cron or periodic scan.
 
+Relevant Manager frontend and backend pull-request changes also trigger the
+credential-free `Safety Automation - Manager Browser Smoke`. It builds the
+embedded production bundle and exercises desktop and mobile Chromium journeys
+against a real three-node cluster. This deterministic check supplies no review
+authority and receives no repository-write or product credential.
+
 ## Commands
 
 Commands must be one exact, unedited, single-line pull-request comment:
