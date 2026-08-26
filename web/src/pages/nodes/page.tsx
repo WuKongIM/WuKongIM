@@ -173,6 +173,17 @@ function nodeMembershipRole(node: ManagerNode) {
   return node.membership?.role ?? "unknown"
 }
 
+function nodeMembershipRoleLabel(intl: IntlShape, node: ManagerNode) {
+  const role = nodeMembershipRole(node)
+  const messageId = {
+    data: "nodes.membershipRole.data",
+    replica: "nodes.membershipRole.replica",
+    observer: "nodes.membershipRole.observer",
+    unknown: "status.unknown",
+  }[role]
+  return messageId ? intl.formatMessage({ id: messageId }) : role.replaceAll("_", " ")
+}
+
 function nodeJoinState(node: ManagerNode) {
   return node.membership?.join_state ?? "unknown"
 }
@@ -788,9 +799,9 @@ export function NodeClusterListPanel() {
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
             {intl.formatMessage({ id: "nav.nodes.title" })}
-          </h1>
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {state.nodes
               ? intl.formatMessage({ id: "nodes.totalValue" }, { total: state.nodes.total })
@@ -887,8 +898,8 @@ export function NodeClusterListPanel() {
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
-                          <div className="font-medium text-foreground">{nodeMembershipRole(node)}</div>
-                          <div className="mt-1">{nodeJoinState(node)}</div>
+                          <div className="font-medium text-foreground">{nodeMembershipRoleLabel(intl, node)}</div>
+                          <div className="mt-1"><StatusBadge value={nodeJoinState(node)} /></div>
                           <div className="mt-1 text-xs">{nodeSchedulableText(intl, node)}</div>
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
@@ -901,7 +912,7 @@ export function NodeClusterListPanel() {
                           ) : null}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
-                          <div className="font-medium text-foreground">{node.controller.role}</div>
+                          <StatusBadge value={node.controller.role} />
                           <div className="mt-1 text-xs">{nodeControllerVoterText(intl, node)}</div>
                           {hasControllerRaftSummary(node) ? (
                             <div className="mt-2">
@@ -1222,11 +1233,11 @@ export function NodeClusterListPanel() {
                   },
                   {
                     label: intl.formatMessage({ id: "nodes.detail.membershipRole" }),
-                    value: nodeMembershipRole(detail),
+                    value: nodeMembershipRoleLabel(intl, detail),
                   },
                   {
                     label: intl.formatMessage({ id: "nodes.detail.joinState" }),
-                    value: nodeJoinState(detail),
+                    value: <StatusBadge value={nodeJoinState(detail)} />,
                   },
                   {
                     label: intl.formatMessage({ id: "nodes.detail.schedulable" }),
@@ -1234,7 +1245,7 @@ export function NodeClusterListPanel() {
                   },
                   {
                     label: intl.formatMessage({ id: "nodes.detail.controllerRole" }),
-                    value: detail.controller.role,
+                    value: <StatusBadge value={detail.controller.role} />,
                   },
                   {
                     label: intl.formatMessage({ id: "nodes.detail.controllerVoter" }),
@@ -1531,8 +1542,8 @@ export function NodeClusterUnhealthyPanel() {
                         <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
                         <td className="px-3 py-3 text-sm text-foreground"><StatusBadge value={nodeHealthStatus(node)} /></td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
-                          <div className="font-medium text-foreground">{nodeMembershipRole(node)}</div>
-                          <div className="mt-1">{nodeJoinState(node)}</div>
+                          <div className="font-medium text-foreground">{nodeMembershipRoleLabel(intl, node)}</div>
+                          <div className="mt-1"><StatusBadge value={nodeJoinState(node)} /></div>
                           <div className="mt-1 text-xs">{nodeSchedulableText(intl, node)}</div>
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">

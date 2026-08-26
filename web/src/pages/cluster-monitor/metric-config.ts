@@ -83,6 +83,55 @@ const clusterMonitorLatencyMetrics: ReadonlySet<ClusterMonitorMetricKey> = new S
   "storageWriteP99",
 ])
 
+const clusterMonitorZeroMeansHealthyMetrics: ReadonlySet<ClusterMonitorMetricKey> = new Set([
+  "channelISRAnomalies",
+  "channelMetaCreateErrorRate",
+  "channelPostCommitRetryDepth",
+  "channelPullErrorRate",
+  "channelRouterErrorRate",
+  "channelWorkerAdmissionErrorRate",
+  "controllerApplyGap",
+  "controllerFailedTasks",
+  "controllerNodesUnhealthy",
+  "controllerTaskFailureRate",
+  "controllerVoterPromotionBlockers",
+  "deliveryAckFailureRate",
+  "deliveryAdmissionErrorRate",
+  "deliveryErrorRate",
+  "diagnosticsDroppedRate",
+  "goroutinePanicRate",
+  "goroutinePoolRejectionRate",
+  "internalTransportAdmissionErrorRate",
+  "messageAppendErrorRate",
+  "messageDispatchOverflowRate",
+  "messageEventErrorRate",
+  "nodeLifecycleBlockers",
+  "nodeLifecycleFailureRate",
+  "pathErrorRate",
+  "pendingCommitBacklog",
+  "presenceEndpointLookupErrorRate",
+  "presenceMaintenanceErrorRate",
+  "retryQueueDepth",
+  "rpcClientErrorRate",
+  "rpcErrorRate",
+  "runtimePoolAdmissionErrorRate",
+  "slotApplyGap",
+  "slotProposalAdmissionRejectRate",
+  "slotReplicaMoveFailureRate",
+  "storageCommitErrorRate",
+  "transportEnqueueErrorRate",
+])
+
+/** Converts a metric category tone into a value-aware operational status. */
+export function clusterMonitorMetricTone(
+  key: ClusterMonitorMetricKey,
+  value: number,
+  fallback: ClusterMonitorTone,
+): ClusterMonitorTone {
+  if (value === 0 && clusterMonitorZeroMeansHealthyMetrics.has(key)) return "normal"
+  return fallback === "preview" ? "normal" : fallback
+}
+
 function importantMetric(
   key: ClusterMonitorMetricKey,
   stage: ClusterMonitorStage,

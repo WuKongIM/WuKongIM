@@ -174,7 +174,7 @@ test("renders channel rows from the runtime metadata list and opens messages que
   expect(screen.getByText("2")).toBeInTheDocument()
   expect(screen.getByText("1, 2, 3")).toBeInTheDocument()
   expect(screen.getByText("7")).toBeInTheDocument()
-  expect(screen.getByText("active")).toBeInTheDocument()
+  expect(screen.getByText("Active")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "View channel alpha messages" }))
 
   expect(await screen.findByText("/messages?channel_id=alpha&channel_type=1")).toBeInTheDocument()

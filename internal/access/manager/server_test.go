@@ -682,6 +682,7 @@ func TestManagerRealtimeMonitorReturnsUnifiedPayload(t *testing.T) {
 			Stats: []RealtimeMonitorStat{{
 				Key:   "avg",
 				Value: 12.5,
+				Unit:  "msg/s",
 			}},
 		}, {
 			Key:       "rpcSuccessRate",
@@ -732,7 +733,7 @@ func TestManagerRealtimeMonitorReturnsUnifiedPayload(t *testing.T) {
 		],
 		"snapshot":[],
 		"cards":[
-			{"key":"sendRate","category":"gateway","stage":"sendEntry","source":"prometheus","tone":"normal","unit":"msg/s","value":12.5,"series":[{"timestamp":1781767200000,"value":12.5}],"stats":[{"key":"avg","value":12.5}],"available":true,"error":""},
+			{"key":"sendRate","category":"gateway","stage":"sendEntry","source":"prometheus","tone":"normal","unit":"msg/s","value":12.5,"series":[{"timestamp":1781767200000,"value":12.5}],"stats":[{"key":"avg","value":12.5,"unit":"msg/s"}],"available":true,"error":""},
 			{"key":"rpcSuccessRate","category":"internal","stage":"internalNetwork","source":"prometheus","tone":"normal","unit":"%","value":99.96,"series":[{"timestamp":1781767200000,"value":99.96}],"stats":[],"available":true,"error":""}
 		]
 	}`) {

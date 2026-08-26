@@ -1,3 +1,6 @@
+import { useIntl } from "react-intl"
+
+import { getStatusLabelMessageId } from "@/components/manager/status-labels"
 import { cn } from "@/lib/utils"
 
 type StatusBadgeProps = {
@@ -11,6 +14,13 @@ function resolveVariant(value: string) {
     case "in_sync":
     case "active":
     case "healthy":
+    case "completed":
+    case "compacted":
+    case "done":
+    case "online":
+    case "succeeded":
+    case "verified":
+    case "complete":
       return "success"
     case "quorum_lost":
     case "leader_missing":
@@ -27,6 +37,14 @@ function resolveVariant(value: string) {
     case "missing":
     case "not_ready":
     case "stale":
+    case "closing":
+    case "created":
+    case "deleting":
+    case "exporting":
+    case "joining":
+    case "leaving":
+    case "rolling_back":
+    case "staged":
       return "warning"
     case "failed":
     case "dead":
@@ -43,7 +61,10 @@ function formatValue(value: string) {
 }
 
 export function StatusBadge({ value }: StatusBadgeProps) {
+  const intl = useIntl()
   const variant = resolveVariant(value)
+  const normalized = value.toLowerCase()
+  const messageId = getStatusLabelMessageId(normalized)
 
   return (
     <span
@@ -56,7 +77,7 @@ export function StatusBadge({ value }: StatusBadgeProps) {
       )}
       data-variant={variant}
     >
-      {formatValue(value)}
+      {messageId ? intl.formatMessage({ id: messageId }) : formatValue(value)}
     </span>
   )
 }

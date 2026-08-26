@@ -124,7 +124,7 @@ test("searches users by UID", async () => {
   const user = userEvent.setup()
   renderUsersPage()
 
-  await screen.findByText("No manager data is available for this view yet.")
+  await screen.findByText("No registered users were returned. Refresh after clients have registered or search for an exact UID.")
   await user.type(screen.getByPlaceholderText("Search UID"), "bob")
   await user.click(screen.getByRole("button", { name: "Search" }))
 

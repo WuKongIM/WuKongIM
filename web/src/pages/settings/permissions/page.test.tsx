@@ -58,13 +58,37 @@ test("renders auth summary, users, and permission catalog", async () => {
   renderPermissionsPage()
 
   expect(await screen.findByText("Auth enabled")).toBeInTheDocument()
-  expect(screen.getByText("Current user: admin")).toBeInTheDocument()
-  expect(screen.getByText("admin")).toBeInTheDocument()
+  expect(within(await screen.findByTestId("permissions-summary-strip")).getByText("admin")).toBeInTheDocument()
   expect(screen.getByText("viewer")).toBeInTheDocument()
   expect(screen.getByText("*:*")).toBeInTheDocument()
   expect(screen.getByText("cluster.node:r")).toBeInTheDocument()
   expect(screen.getByText("cluster.permission")).toBeInTheDocument()
   expect(screen.getByText("r / w")).toBeInTheDocument()
+})
+
+test("localizes permission descriptions and avoids repeated summary labels in Chinese", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  getPermissionsMock.mockResolvedValueOnce({
+    auth_enabled: true,
+    current_user: "admin",
+    users: [
+      { username: "admin", permissions: [{ resource: "*", actions: ["*"] }] },
+      { username: "viewer", permissions: [{ resource: "cluster.node", actions: ["r"] }] },
+    ],
+    resources: [
+      { resource: "cluster.permission", actions: ["r"], description: "Read manager authentication and permission configuration snapshots." },
+      { resource: "cluster.node", actions: ["r", "w"], description: "Read node inventory and perform node lifecycle actions." },
+    ],
+  })
+
+  renderPermissionsPage()
+
+  const summary = await screen.findByTestId("permissions-summary-strip")
+  expect(within(summary).getByText("admin")).toBeInTheDocument()
+  expect(within(summary).getAllByText("2")).toHaveLength(2)
+  expect(within(summary).queryByText("当前用户：admin")).not.toBeInTheDocument()
+  expect(screen.getByText("读取节点清单并执行节点生命周期操作。")).toBeInTheDocument()
+  expect(screen.queryByText("Read node inventory and perform node lifecycle actions.")).not.toBeInTheDocument()
 })
 
 test("uses compact permission summary and named table surfaces", async () => {

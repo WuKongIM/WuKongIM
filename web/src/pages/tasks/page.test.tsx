@@ -162,8 +162,20 @@ test("renders active Controller tasks and retained audit history", async () => {
 
   expect(await screen.findByRole("heading", { name: "Controller Tasks" })).toBeInTheDocument()
   expect(screen.getAllByText("slot-1-replica-move-2-to-4-r9").length).toBeGreaterThan(0)
-  expect(screen.getAllByText("slot_replica_move").length).toBeGreaterThan(0)
-  expect(screen.getByText("completed slot_replica_move task for slot 1")).toBeInTheDocument()
+  expect(screen.getAllByText("Slot replica move").length).toBeGreaterThan(0)
+  expect(screen.getByText("Slot replica move task for slot 1 completed.")).toBeInTheDocument()
+})
+
+test("localizes task kinds, statuses, summaries, and timestamps in Chinese", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+
+  renderTasksPage()
+
+  expect((await screen.findAllByText("槽位副本迁移")).length).toBeGreaterThan(0)
+  expect(screen.getAllByText("已完成").length).toBeGreaterThan(0)
+  expect(screen.getByText("槽位 1 的槽位副本迁移任务已完成。")).toBeInTheDocument()
+  expect(screen.queryByText("2026-06-29T08:01:00Z")).not.toBeInTheDocument()
+  expect(screen.getAllByText(/2026年6月29日/)).toHaveLength(2)
 })
 
 test("uses a compact task-center summary strip and filter toolbar", async () => {
@@ -189,7 +201,7 @@ test("uses a compact task-center summary strip and filter toolbar", async () => 
   const auditSurface = auditTable.closest("[data-tasks-surface='audit']")
   expect(auditSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
   expect(auditTable).toHaveClass("w-full", "min-w-[980px]", "border-collapse", "text-left", "text-sm")
-  expect(within(auditTable).getByText("completed slot_replica_move task for slot 1")).toBeInTheDocument()
+  expect(within(auditTable).getByText("Slot replica move task for slot 1 completed.")).toBeInTheDocument()
 })
 
 test("filters Controller tasks by kind, status, slot, node, and keyword", async () => {
@@ -226,7 +238,9 @@ test("opens retained task audit timeline", async () => {
 
   const dialog = await screen.findByRole("dialog")
   expect(within(dialog).getByText("event-created")).toBeInTheDocument()
-  expect(within(dialog).getByText((_content, element) => element?.textContent === "Command: complete_task")).toBeInTheDocument()
+  expect(within(dialog).getByText((_content, element) => element?.textContent === "Command: Complete task")).toBeInTheDocument()
+  expect(within(dialog).getByText("Slot replica move task for slot 1 was created.")).toBeInTheDocument()
+  expect(within(dialog).getByText("Slot replica move task for slot 1 completed.")).toBeInTheDocument()
   expect(getControllerTaskAuditEventsMock).toHaveBeenCalledWith("slot-1-replica-move-2-to-4-r9")
 })
 

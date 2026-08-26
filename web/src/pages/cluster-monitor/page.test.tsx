@@ -1409,6 +1409,78 @@ test("renders cluster monitor cards from realtime API data", async () => {
   })
 })
 
+test("treats zero error, backlog, and apply-gap values as normal", async () => {
+  const response = readyClusterMonitorResponse()
+  response.snapshot = []
+  response.cards = [
+    {
+      ...response.cards[0],
+      key: "controllerApplyGap",
+      tone: "warning",
+      value: 0,
+      series: [{ timestamp: 1781767220000, value: 0 }],
+      stats: [],
+    },
+    {
+      ...response.cards[0],
+      key: "retryQueueDepth",
+      category: "message",
+      stage: "offlineRetry",
+      tone: "warning",
+      unit: "",
+      value: 0,
+      series: [{ timestamp: 1781767220000, value: 0 }],
+      stats: [],
+    },
+    {
+      ...response.cards[0],
+      key: "pathErrorRate",
+      category: "message",
+      stage: "errorClosure",
+      tone: "critical",
+      unit: "%",
+      value: 0,
+      series: [{ timestamp: 1781767220000, value: 0 }],
+      stats: [],
+    },
+  ]
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(response)
+
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(3)
+  for (const card of cards) {
+    expect(within(card).getByText("Normal")).toBeInTheDocument()
+  }
+  expect(screen.queryByText("Critical")).not.toBeInTheDocument()
+  expect(screen.queryByText("Watch")).not.toBeInTheDocument()
+})
+
+test("shows a localized no-samples reason without exposing raw Prometheus errors", async () => {
+  const response = readyClusterMonitorResponse()
+  response.snapshot = []
+  response.cards = [{
+    ...response.cards[0],
+    key: "deliveryLatencyP99",
+    category: "message",
+    stage: "onlineDelivery",
+    available: false,
+    unavailable_reason: "no_delivery_latency_samples",
+    error: "prometheus query_range returned 400: parse error: unclosed left parenthesis",
+    series: [],
+    stats: [],
+  }]
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(response)
+
+  renderClusterMonitorPage()
+
+  const card = await screen.findByTestId("cluster-monitor-metric-card")
+  expect(within(card).getByText("No samples")).toBeInTheDocument()
+  expect(within(card).getByText("No samples in the selected time range.")).toBeInTheDocument()
+  expect(screen.queryByText(/unclosed left parenthesis/i)).not.toBeInTheDocument()
+})
+
 test("renders former business realtime monitor cards in cluster monitor page", async () => {
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(businessRealtimeMonitorResponse())
   renderClusterMonitorPage()
@@ -1477,10 +1549,11 @@ test("keeps known unavailable cards visible during partial responses", async () 
   expect(screen.queryByText("Cluster monitor data is partially available")).not.toBeInTheDocument()
   expect(screen.queryByText("query timed out for apply gap")).not.toBeInTheDocument()
   expect(within(cards[0]).getByText("Controller Apply Gap")).toBeInTheDocument()
-  expect(within(cards[0]).getByText("Metric unavailable")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("Query failed")).toBeInTheDocument()
   expect(within(cards[0]).getByText("No series data")).toBeInTheDocument()
   expect(within(cards[0]).queryByTestId("cluster-monitor-chart")).not.toBeInTheDocument()
-  expect(within(cards[0]).getByText("prometheus series unavailable")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("The metric query failed. Retry or check Prometheus health.")).toBeInTheDocument()
+  expect(within(cards[0]).queryByText("prometheus series unavailable")).not.toBeInTheDocument()
   expect(screen.queryByText("unknownMetric")).not.toBeInTheDocument()
 })
 
@@ -1685,7 +1758,7 @@ test("shows unavailable guidance for source errors and rejected requests", async
   const unavailableTitle = await screen.findByText("Prometheus is unavailable")
   expect(unavailableTitle).toBeInTheDocument()
   expect(unavailableTitle.closest("section")).toHaveAttribute("data-cluster-monitor-surface", "source-state")
-  expect(screen.getByText("dial tcp 127.0.0.1:9090: connect: connection refused")).toBeInTheDocument()
+  expect(screen.queryByText("dial tcp 127.0.0.1:9090: connect: connection refused")).not.toBeInTheDocument()
   expect(screen.queryByTestId("cluster-monitor-metric-card")).not.toBeInTheDocument()
 
   unmount()
@@ -1695,7 +1768,7 @@ test("shows unavailable guidance for source errors and rejected requests", async
   const rejectedTitle = await screen.findByText("Prometheus is unavailable")
   expect(rejectedTitle).toBeInTheDocument()
   expect(rejectedTitle.closest("section")).toHaveAttribute("data-cluster-monitor-surface", "source-state")
-  expect(screen.getByText("manager api unavailable")).toBeInTheDocument()
+  expect(screen.queryByText("manager api unavailable")).not.toBeInTheDocument()
 })
 
 test("updates selected time range and auto refresh interval from the toolbar", async () => {

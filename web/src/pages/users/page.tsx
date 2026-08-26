@@ -333,7 +333,14 @@ export function UsersPage() {
               ) : null}
             </div>
           ) : (
-            <ResourceState kind="empty" title={intl.formatMessage({ id: "users.title" })} />
+            <ResourceState
+              description={intl.formatMessage(
+                { id: activeKeyword ? "users.empty.search" : "users.empty.default" },
+                { keyword: activeKeyword },
+              )}
+              kind="empty"
+              title={intl.formatMessage({ id: activeKeyword ? "users.empty.searchTitle" : "users.empty.defaultTitle" })}
+            />
           )
         ) : null}
       </SectionCard>

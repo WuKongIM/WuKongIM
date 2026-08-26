@@ -523,9 +523,9 @@ export function ChannelClusterUnhealthyPanel({
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.table.node" })}</th>
-                      <th className="px-3 py-3">Role</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.replicaDetail.role" })}</th>
                       <th className="px-3 py-3">ISR</th>
-                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.replicaDetail.status" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.replicaDetail.commitSeq" })}</th>
                       <th className="px-3 py-3">LEO</th>
                       <th className="px-3 py-3">Checkpoint HW</th>
@@ -541,8 +541,10 @@ export function ChannelClusterUnhealthyPanel({
                           <td className="px-3 py-3 text-sm font-medium text-foreground">
                             {intl.formatMessage({ id: "channelCluster.nodeValue" }, { id: replica.node_id })}
                           </td>
-                          <td className="px-3 py-3 text-sm text-muted-foreground">{replica.role}</td>
-                          <td className="px-3 py-3 text-sm text-muted-foreground">{replica.in_isr ? "yes" : "no"}</td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground"><StatusBadge value={replica.role} /></td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">
+                            {intl.formatMessage({ id: replica.in_isr ? "common.yes" : "common.no" })}
+                          </td>
                           <td className="px-3 py-3 text-sm text-foreground">
                             {replica.reported
                               ? intl.formatMessage({ id: "channelCluster.replicaDetail.reported" })

@@ -107,7 +107,7 @@ test("resource state uses translated retry copy", () => {
 })
 
 test("status badge distinguishes runtime states", () => {
-  render(
+  renderWithI18n(
     <div>
       <StatusBadge value="alive" />
       <StatusBadge value="quorum_lost" />
@@ -116,10 +116,28 @@ test("status badge distinguishes runtime states", () => {
     </div>,
   )
 
-  expect(screen.getByText("alive")).toHaveAttribute("data-variant", "success")
-  expect(screen.getByText("quorum lost")).toHaveAttribute("data-variant", "warning")
-  expect(screen.getByText("no leader")).toHaveAttribute("data-variant", "warning")
-  expect(screen.getByText("failed")).toHaveAttribute("data-variant", "danger")
+  expect(screen.getByText("Alive")).toHaveAttribute("data-variant", "success")
+  expect(screen.getByText("Quorum lost")).toHaveAttribute("data-variant", "warning")
+  expect(screen.getByText("No leader")).toHaveAttribute("data-variant", "warning")
+  expect(screen.getByText("Failed")).toHaveAttribute("data-variant", "danger")
+})
+
+test("status badge localizes known runtime states in Chinese", () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+
+  renderWithI18n(
+    <div>
+      <StatusBadge value="alive" />
+      <StatusBadge value="quorum_lost" />
+      <StatusBadge value="completed" />
+      <StatusBadge value="follower" />
+    </div>,
+  )
+
+  expect(screen.getByText("存活")).toHaveAttribute("data-variant", "success")
+  expect(screen.getByText("法定人数丢失")).toHaveAttribute("data-variant", "warning")
+  expect(screen.getByText("已完成")).toBeInTheDocument()
+  expect(screen.getByText("从节点")).toBeInTheDocument()
 })
 
 test("detail sheet shows heading copy and children", () => {

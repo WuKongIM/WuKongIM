@@ -228,6 +228,24 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 			t.Fatalf("card %q = %#v, want available prometheus card", want, card)
 		}
 	}
+	sendRate := requireMonitorCardForTest(t, resp.Cards, "sendRate")
+	foundTotal := false
+	for _, stat := range sendRate.Stats {
+		if stat.Key == "total" {
+			foundTotal = true
+			if math.Abs(stat.Value-550) > 1e-9 || stat.Unit != "msg" {
+				t.Fatalf("send rate total = %#v, want value 550 unit msg", stat)
+			}
+		}
+	}
+	if !foundTotal {
+		t.Fatalf("send rate stats = %#v, want an integrated total", sendRate.Stats)
+	}
+	for _, stat := range requireMonitorCardForTest(t, resp.Cards, "deliveryLatencyP99").Stats {
+		if stat.Key == "total" {
+			t.Fatalf("delivery latency stats = %#v, do not want a total for a latency gauge", stat)
+		}
+	}
 	controlCard := requireMonitorCardForTest(t, resp.Cards, "controllerApplyGap")
 	if controlCard.Stage != accessmanager.RealtimeMonitorStageControlPlane || controlCard.Value != 15 {
 		t.Fatalf("control card = %#v, want control-plane latest value 15", controlCard)
@@ -307,6 +325,20 @@ func TestManagerClusterMonitorProviderFiltersCommonCards(t *testing.T) {
 	requireMonitorSnapshotForTest(t, resp, "send")
 	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 7, accessmanager.RealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
+}
+
+func TestClusterMonitorSnapshotTreatsZeroProblemMetricsAsNormal(t *testing.T) {
+	cards := []accessmanager.RealtimeMonitorCard{
+		{Key: "controllerApplyGap", Value: 0, Unit: "entries", Tone: accessmanager.RealtimeMonitorToneWarning, Available: true},
+		{Key: "rpcSuccessRate", Value: 100, Unit: "%", Tone: accessmanager.RealtimeMonitorToneNormal, Available: true},
+		{Key: "workqueuePressure", Value: 0, Unit: "%", Tone: accessmanager.RealtimeMonitorToneWarning, Available: true},
+		{Key: "storageWriteP99", Value: 0, Unit: "ms", Tone: accessmanager.RealtimeMonitorToneWarning, Available: true},
+	}
+
+	snapshot := clusterMonitorSnapshot(cards, managerClusterControlSnapshot{})
+	for _, key := range []string{"controllerApplyGap", "rpcErrorRate", "queuePressure", "storageWriteP99"} {
+		requireClusterSnapshotTone(t, snapshot, key, accessmanager.RealtimeMonitorToneNormal)
+	}
 }
 
 func TestManagerClusterMonitorProviderReturnsInternalOperatorCards(t *testing.T) {
@@ -854,6 +886,19 @@ func requireClusterSnapshotValue(t *testing.T, snapshot []accessmanager.Realtime
 		if item.Key == key {
 			if item.Value != want || item.Source != source {
 				t.Fatalf("snapshot[%s] = %#v, want value %v source %s", key, item, want, source)
+			}
+			return
+		}
+	}
+	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
+}
+
+func requireClusterSnapshotTone(t *testing.T, snapshot []accessmanager.RealtimeMonitorSnapshotEntry, key, want string) {
+	t.Helper()
+	for _, item := range snapshot {
+		if item.Key == key {
+			if item.Tone != want {
+				t.Fatalf("snapshot[%s] tone = %q, want %q", key, item.Tone, want)
 			}
 			return
 		}

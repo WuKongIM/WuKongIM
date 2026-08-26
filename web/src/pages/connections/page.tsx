@@ -208,8 +208,19 @@ export function ConnectionsPage() {
       {!state.loading && !state.error && state.connections ? (
         <div className="rounded-lg border border-border bg-card p-3 shadow-none" data-connections-surface="inventory">
           {state.connections.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-md border border-border">
-              <table aria-label={intl.formatMessage({ id: "nav.connections.title" })} className="w-full border-collapse text-sm">
+            <div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {intl.formatMessage(
+                  {
+                    id: state.connections.items.length >= connectionPageLimit
+                      ? "connections.resultLimitNotice"
+                      : "connections.resultCount",
+                  },
+                  { shown: state.connections.items.length },
+                )}
+              </p>
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table aria-label={intl.formatMessage({ id: "nav.connections.title" })} className="w-full border-collapse text-sm">
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.session" })}</th>
@@ -262,7 +273,8 @@ export function ConnectionsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.connections.title" })} />

@@ -22,6 +22,7 @@ import { ClusterMonitorToolbar } from "./components/cluster-monitor-toolbar"
 import { GoroutineMonitorTable } from "./components/goroutine-monitor-table"
 import {
   clusterMonitorMetricConfig,
+  clusterMonitorMetricTone,
   clusterMonitorMetricOperationalPriority,
   clusterMonitorSnapshotLabelIds,
   clusterMonitorStageLabelIds,
@@ -121,10 +122,9 @@ export function ClusterMonitorPage() {
 
   const model = useMemo(() => {
     if (state.kind !== "ready" || !isRenderableClusterMonitor(state.response)) return null
-    return buildRealtimeMonitorModel(state.response, timeRange, refreshInterval === "off")
-  }, [refreshInterval, state, timeRange])
+    return buildRealtimeMonitorModel(state.response, timeRange, refreshInterval === "off", intl.locale)
+  }, [intl.locale, refreshInterval, state, timeRange])
   const generatedAt = state.kind === "ready" ? state.response.generated_at : new Date().toISOString()
-  const sourceError = state.kind === "ready" ? getSourceError(state.response) : undefined
   const scopeLabel = selectedNodeId
     ? intl.formatMessage({ id: "clusterMonitor.scope.node" }, { node: selectedMonitorNodeLabel(intl, nodes, selectedNodeId) })
     : undefined
@@ -154,12 +154,12 @@ export function ClusterMonitorPage() {
       />
 
       {state.kind === "loading" ? <ClusterMonitorLoadingState /> : null}
-      {state.kind === "error" ? <ClusterMonitorSourceState kind="unavailable" message={state.message} /> : null}
+      {state.kind === "error" ? <ClusterMonitorSourceState kind="unavailable" /> : null}
       {state.kind === "ready" && state.response.status === "prometheus_disabled" ? (
-        <ClusterMonitorSourceState kind="disabled" message={sourceError} />
+        <ClusterMonitorSourceState kind="disabled" />
       ) : null}
       {state.kind === "ready" && state.response.status === "prometheus_unavailable" ? (
-        <ClusterMonitorSourceState kind="unavailable" message={sourceError} />
+        <ClusterMonitorSourceState kind="unavailable" />
       ) : null}
       {model ? (
         <>
@@ -192,9 +192,10 @@ function buildRealtimeMonitorModel(
   response: RealtimeMonitorResponse,
   timeRange: ClusterMonitorTimeRange,
   isPaused: boolean,
+  locale: string,
 ): PreviewClusterMonitorModel {
   const cards = response.cards.flatMap((card) => {
-    const mapped = mapClusterRealtimeCard(card)
+    const mapped = mapClusterRealtimeCard(card, locale)
     return mapped ? [mapped] : []
   }).sort((left, right) => clusterMonitorMetricOperationalPriority(left.key) - clusterMonitorMetricOperationalPriority(right.key))
 
@@ -204,29 +205,33 @@ function buildRealtimeMonitorModel(
     timeRange,
     isPaused,
     snapshot: response.snapshot.flatMap((entry) => {
-      const mapped = mapClusterRealtimeSnapshot(entry)
+      const mapped = mapClusterRealtimeSnapshot(entry, locale)
       return mapped ? [mapped] : []
     }),
     cards,
   }
 }
 
-function mapClusterRealtimeCard(card: RealtimeMonitorCard): ClusterMonitorMetricCard | null {
+function mapClusterRealtimeCard(card: RealtimeMonitorCard, locale: string): ClusterMonitorMetricCard | null {
   if (!isClusterMonitorMetricKey(card.key)) return null
 
   const config = clusterMonitorMetricConfig[card.key]
   const stage = normalizeStage(card.stage, config.stage)
-  const tone = normalizeTone(card.tone, config.tone)
+  const fallbackTone = normalizeTone(card.tone, config.tone)
+  const tone = card.available
+    ? clusterMonitorMetricTone(card.key, card.value, fallbackTone)
+    : "preview"
   const rawUnit = card.unit ?? ""
   const rawSeries = clusterCardSeries(card)
   const rawStats = clusterCardStats(card)
   const displayScale = clusterDisplayScale(card)
   const unit = displayScale.unit
   const series = card.available ? scaleClusterSeries(rawSeries, displayScale.factor) : []
-  const value = card.available ? formatApiValue(scaleClusterValue(card, displayScale.factor), config.precision) : "-"
+  const value = card.available ? formatApiValue(scaleClusterValue(card, displayScale.factor), config.precision, locale) : "-"
   const stats = card.available
-    ? mapClusterStats(rawStats, rawUnit, unit, config.precision, displayScale.factor)
-    : unavailableStats(card.error)
+    ? mapClusterStats(rawStats, rawUnit, unit, config.precision, displayScale.factor, locale)
+    : unavailableStats(card.unavailable_reason)
+  const unavailable = unavailablePresentation(card.unavailable_reason)
 
   return {
     key: card.key,
@@ -234,32 +239,39 @@ function mapClusterRealtimeCard(card: RealtimeMonitorCard): ClusterMonitorMetric
     helpId: config.helpId,
     stage,
     stageLabelId: clusterMonitorStageLabelIds[stage],
-    statusId: card.available ? clusterMonitorStatusByTone[tone] : "clusterMonitor.status.unavailable",
+    statusId: card.available ? clusterMonitorStatusByTone[tone] : unavailable.statusId,
     tone,
     unit,
     value,
     available: card.available,
-    error: card.error,
+    error: undefined,
     series,
     stats,
     chartColor: config.chartColor,
   }
 }
 
-function mapClusterRealtimeSnapshot(entry: ApiSnapshotEntry): ClusterMonitorSnapshotEntry | null {
+function mapClusterRealtimeSnapshot(entry: ApiSnapshotEntry, locale: string): ClusterMonitorSnapshotEntry | null {
   const labelId = clusterMonitorSnapshotLabelIds[entry.key]
   if (!labelId) return null
 
   return {
     key: entry.key,
     labelId,
-    value: formatApiValue(entry, entry.unit === "%" ? 2 : entry.unit ? 1 : 0),
+    value: formatApiValue(entry, entry.unit === "%" ? 2 : entry.unit ? 1 : 0, locale),
     unit: entry.unit,
     tone: normalizeTone(entry.tone, "normal"),
   }
 }
 
-function mapClusterStats(stats: ApiStat[], rawCardUnit: string, displayCardUnit: string, precision: number, displayFactor: number) {
+function mapClusterStats(
+  stats: ApiStat[],
+  rawCardUnit: string,
+  displayCardUnit: string,
+  precision: number,
+  displayFactor: number,
+  locale: string,
+) {
   return stats.flatMap((stat) => {
     const labelId = clusterMonitorStatLabelIds[stat.key]
     if (!labelId && !stat.label) return []
@@ -272,19 +284,34 @@ function mapClusterStats(stats: ApiStat[], rawCardUnit: string, displayCardUnit:
         labelId,
         label: stat.label,
         seriesKey: stat.series_key,
-        value: formatApiStatValue(value, displayUnit, precision),
+        value: formatApiStatValue(value, displayUnit, precision, locale),
       },
     ]
   })
 }
 
-function unavailableStats(error: string) {
+function unavailableStats(reason: string | undefined) {
+  const unavailable = unavailablePresentation(reason)
   return [
     {
       labelId: "clusterMonitor.stat.unavailableReason",
-      value: error || "-",
+      value: "",
+      valueId: unavailable.descriptionId,
     },
   ]
+}
+
+function unavailablePresentation(reason: string | undefined) {
+  const noSamples = reason === "prometheus_no_data" || Boolean(reason?.startsWith("no_"))
+  return noSamples
+    ? {
+      statusId: "clusterMonitor.status.noSamples",
+      descriptionId: "clusterMonitor.unavailable.noSamples",
+    }
+    : {
+      statusId: "clusterMonitor.status.queryFailed",
+      descriptionId: "clusterMonitor.unavailable.queryFailed",
+    }
 }
 
 function isKnownClusterCard(card: RealtimeMonitorCard) {
@@ -305,20 +332,20 @@ function normalizeTone(tone: RealtimeMonitorTone | string | undefined, fallback:
   return fallback === "preview" ? "normal" : fallback
 }
 
-function formatApiValue(value: { value?: number; text?: string; unit?: string }, precision: number) {
+function formatApiValue(value: { value?: number; text?: string; unit?: string }, precision: number, locale: string) {
   if (value.text !== undefined && value.text !== "") return value.text
-  if (typeof value.value === "number") return formatClusterNumber(value.value, precision)
+  if (typeof value.value === "number") return formatClusterNumber(value.value, precision, locale)
   return "-"
 }
 
-function formatApiStatValue(stat: ApiStat, unit: string, precision: number) {
+function formatApiStatValue(stat: ApiStat, unit: string, precision: number, locale: string) {
   if (stat.text !== undefined && stat.text !== "") return stat.text
   if (typeof stat.value !== "number") return "-"
-  return appendClusterUnit(formatClusterNumber(stat.value, precision), unit)
+  return appendClusterUnit(formatClusterNumber(stat.value, precision, locale), unit)
 }
 
-function formatClusterNumber(value: number, precision: number) {
-  return value.toLocaleString("en-US", {
+function formatClusterNumber(value: number, precision: number, locale: string) {
+  return value.toLocaleString(locale, {
     maximumFractionDigits: precision,
     minimumFractionDigits: precision > 0 && Math.abs(value) < 10 ? precision : 0,
   })
@@ -402,10 +429,6 @@ function scaleClusterSeries(series: RealtimeMonitorCard["series"], factor: numbe
   }))
 }
 
-function getSourceError(response: RealtimeMonitorResponse) {
-  return response.sources.goroutines?.error || response.sources.prometheus.error || response.sources.control_snapshot.error
-}
-
 function ClusterMonitorLoadingState() {
   const intl = useIntl()
 
@@ -420,7 +443,7 @@ function ClusterMonitorLoadingState() {
   )
 }
 
-function ClusterMonitorSourceState({ kind, message }: { kind: "disabled" | "unavailable"; message?: string }) {
+function ClusterMonitorSourceState({ kind }: { kind: "disabled" | "unavailable" }) {
   const intl = useIntl()
   const isDisabled = kind === "disabled"
 
@@ -441,7 +464,6 @@ function ClusterMonitorSourceState({ kind, message }: { kind: "disabled" | "unav
           id: isDisabled ? "clusterMonitor.prometheus.disabledDescription" : "clusterMonitor.prometheus.unavailableDescription",
         })}
       </p>
-      {message ? <p className="mt-2 max-w-3xl text-xs leading-5 text-muted-foreground">{message}</p> : null}
       {isDisabled ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <code className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground">WK_METRICS_ENABLE=true</code>

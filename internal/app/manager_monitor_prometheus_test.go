@@ -120,6 +120,34 @@ func TestManagerMonitorPrometheusProviderReturnsDisabledWhenNotEnabled(t *testin
 	}
 }
 
+func TestManagerMonitorDeliveryLatencyQueryHasBalancedParentheses(t *testing.T) {
+	var query string
+	for _, definition := range managerMonitorMetricDefinitions() {
+		if definition.key == "deliveryLatencyP99" {
+			query = definition.query("5m")
+			break
+		}
+	}
+	if query == "" {
+		t.Fatal("deliveryLatencyP99 query is missing")
+	}
+	depth := 0
+	for _, char := range query {
+		switch char {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth < 0 {
+				t.Fatalf("deliveryLatencyP99 query closes a parenthesis before it opens: %q", query)
+			}
+		}
+	}
+	if depth != 0 {
+		t.Fatalf("deliveryLatencyP99 query has %d unclosed parenthesis: %q", depth, query)
+	}
+}
+
 func TestManagerMonitorPrometheusProviderReturnsGoroutineHistory(t *testing.T) {
 	var queries monitorQueryRecorder
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

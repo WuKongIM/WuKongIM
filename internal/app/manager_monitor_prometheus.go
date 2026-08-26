@@ -760,11 +760,11 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			noDataMessage:     "no delivery latency samples in selected window",
 			query: func(rateWindow string) string {
 				return prometheusAnySeries(
-					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_resolve_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "route_resolution", "__name__", ".*")`,
-					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "recipient_authority", "__name__", ".*")`,
-					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "recipient_worker", "__name__", ".*")`,
-					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_push_rpc_duration_seconds_bucket{result="ok"}[`+rateWindow+`])) * 1000, "stage", "push_rpc", "__name__", ".*")`,
-					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_ack_batch_duration_seconds_bucket{outcome="ok"}[`+rateWindow+`])) * 1000, "stage", "ack_batch", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_resolve_duration_seconds_bucket{result="ok"}[`+rateWindow+`]))) * 1000, "stage", "route_resolution", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{result="ok"}[`+rateWindow+`]))) * 1000, "stage", "recipient_authority", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{result="ok"}[`+rateWindow+`]))) * 1000, "stage", "recipient_worker", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_push_rpc_duration_seconds_bucket{result="ok"}[`+rateWindow+`]))) * 1000, "stage", "push_rpc", "__name__", ".*")`,
+					`label_replace(histogram_quantile(0.99, sum by (le) (rate(wukongim_delivery_ack_batch_duration_seconds_bucket{outcome="ok"}[`+rateWindow+`]))) * 1000, "stage", "ack_batch", "__name__", ".*")`,
 				)
 			},
 		},
@@ -1300,13 +1300,25 @@ func monitorCardStats(series []accessmanager.RealtimeMonitorPoint, step time.Dur
 		}
 	}
 	stats := []accessmanager.RealtimeMonitorStat{
-		{Key: "avg", Value: sum / float64(len(series))},
-		{Key: "peak", Value: peak},
+		{Key: "avg", Value: sum / float64(len(series)), Unit: unit},
+		{Key: "peak", Value: peak, Unit: unit},
 	}
-	if unit != "%" {
-		stats = append(stats, accessmanager.RealtimeMonitorStat{Key: "total", Value: sum * step.Seconds()})
+	if integratedUnit, ok := monitorIntegratedUnit(unit); ok {
+		stats = append(stats, accessmanager.RealtimeMonitorStat{Key: "total", Value: sum * step.Seconds(), Unit: integratedUnit})
 	}
 	return stats
+}
+
+// monitorIntegratedUnit returns the count unit produced by integrating a per-second rate.
+func monitorIntegratedUnit(unit string) (string, bool) {
+	if !strings.HasSuffix(unit, "/s") {
+		return "", false
+	}
+	integrated := strings.TrimSuffix(unit, "/s")
+	if integrated == "" {
+		return "", false
+	}
+	return integrated, true
 }
 
 func monitorSeriesSummaryValue(series []accessmanager.RealtimeMonitorPoint, summary monitorSeriesSummary) float64 {

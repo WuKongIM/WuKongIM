@@ -46,6 +46,25 @@ function actionLabel(actions: string[]) {
   return actions.join(" / ")
 }
 
+const permissionDescriptionMessageIds: Record<string, string> = {
+  "*": "permissions.resource.all.description",
+  "cluster.backup": "permissions.resource.backup.description",
+  "cluster.channel": "permissions.resource.channel.description",
+  "cluster.connection": "permissions.resource.connection.description",
+  "cluster.controller": "permissions.resource.controller.description",
+  "cluster.db": "permissions.resource.db.description",
+  "cluster.diagnostics": "permissions.resource.diagnostics.description",
+  "cluster.log": "permissions.resource.log.description",
+  "cluster.mcp": "permissions.resource.mcp.description",
+  "cluster.node": "permissions.resource.node.description",
+  "cluster.permission": "permissions.resource.permission.description",
+  "cluster.plugin": "permissions.resource.plugin.description",
+  "cluster.restore": "permissions.resource.restore.description",
+  "cluster.slot": "permissions.resource.slot.description",
+  "cluster.user": "permissions.resource.user.description",
+  "cluster.webhook": "permissions.resource.webhook.description",
+}
+
 export function PermissionsPage() {
   const intl = useIntl()
   const [state, setState] = useState<PermissionsState>(emptyPermissionsState)
@@ -115,9 +134,7 @@ export function PermissionsPage() {
               >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.currentUser" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
-                  {snapshot.current_user
-                    ? intl.formatMessage({ id: "permissions.currentUser" }, { user: snapshot.current_user })
-                    : intl.formatMessage({ id: "permissions.currentUser.empty" })}
+                  {snapshot.current_user || "-"}
                 </div>
               </div>
               <div
@@ -126,7 +143,7 @@ export function PermissionsPage() {
               >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.staticUsers" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
-                  {intl.formatMessage({ id: "permissions.staticUsers" }, { count: snapshot.users.length })}
+                  {intl.formatNumber(snapshot.users.length)}
                 </div>
               </div>
               <div
@@ -135,7 +152,7 @@ export function PermissionsPage() {
               >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.catalog" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
-                  {intl.formatMessage({ id: "permissions.catalogResources" }, { count: snapshot.resources.length })}
+                  {intl.formatNumber(snapshot.resources.length)}
                 </div>
               </div>
             </div>
@@ -200,6 +217,9 @@ export function PermissionsPage() {
             description={intl.formatMessage({ id: "permissions.catalog.description" })}
             title={intl.formatMessage({ id: "permissions.catalog.title" })}
           >
+            <p className="mb-3 text-xs text-muted-foreground">
+              {intl.formatMessage({ id: "permissions.actionLegend" })}
+            </p>
             <div
               className="overflow-x-auto rounded-md border border-border"
               data-permissions-surface="catalog"
@@ -220,7 +240,11 @@ export function PermissionsPage() {
                     <tr className="border-t border-border" key={resource.resource}>
                       <td className="px-3 py-3 text-sm font-medium text-foreground">{resource.resource}</td>
                       <td className="px-3 py-3 text-sm text-muted-foreground">{actionLabel(resource.actions)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{resource.description}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {permissionDescriptionMessageIds[resource.resource]
+                          ? intl.formatMessage({ id: permissionDescriptionMessageIds[resource.resource] })
+                          : resource.description}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
