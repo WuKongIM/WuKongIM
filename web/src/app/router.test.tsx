@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -173,6 +174,38 @@ test("renders the app shell for authenticated routes", async () => {
   await waitFor(() => {
     expect(document.title).toBe("Nodes · WuKongIM Manager")
   })
+})
+
+test("explicit logout redirects without an anonymous permissions probe", async () => {
+  useAuthStore.setState(authenticatedState())
+  const user = userEvent.setup()
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  await user.click(await screen.findByRole("button", { name: "Logout" }))
+
+  expect(await screen.findByRole("heading", { name: /sign in/i })).toBeInTheDocument()
+  expect(getPermissionsMock).not.toHaveBeenCalled()
+})
+
+test("redirects the sample business dashboard route to live business data", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/business/dashboard"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect((await screen.findAllByRole("heading", { name: "Connections" })).length).toBeGreaterThan(0)
+  expect(router.state.location.pathname).toBe("/business/connections")
+  expect(screen.queryByText("UI preview")).not.toBeInTheDocument()
 })
 
 test("renders a localized not-found page for unknown manager routes", async () => {

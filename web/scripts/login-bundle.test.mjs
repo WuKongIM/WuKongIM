@@ -24,7 +24,6 @@ const expectedLazyRoutes = [
   "src/pages/app-logs/page.tsx",
   "src/pages/cluster/diagnostics/page.tsx",
   "src/pages/backups/page.tsx",
-  "src/pages/business-dashboard/page.tsx",
   "src/pages/users/page.tsx",
   "src/pages/channels-biz/page.tsx",
   "src/pages/messages/page.tsx",

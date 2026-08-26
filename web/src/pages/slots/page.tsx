@@ -708,29 +708,33 @@ export function SlotClusterListPanel() {
         <>
           <div data-slot-surface="inventory" className="rounded-lg border border-border bg-card p-3">
             {state.slots.items.length > 0 ? (
-              <div className="overflow-x-auto rounded-md border border-border">
+              <>
+              <p className="mb-2 text-xs text-muted-foreground lg:hidden">
+                {intl.formatMessage({ id: "slots.table.scrollHint" })}
+              </p>
+              <div className="relative overflow-x-auto rounded-md border border-border">
                 <table
                   aria-label={intl.formatMessage({ id: "slots.inventoryTitle" })}
-                  className="w-full border-collapse text-sm"
+                  className="w-full min-w-[78rem] border-collapse text-sm"
                 >
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.slot" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.hashSlots" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.quorum" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.sync" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.desiredPeerSet" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.currentPeerSet" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.leader" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.status" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.logHeight" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.actions" })}</th>
+                      <th className="sticky left-0 z-20 border-r border-border bg-muted px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.slot" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.hashSlots" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.quorum" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.sync" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.desiredPeerSet" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.currentPeerSet" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.leader" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.status" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.logHeight" })}</th>
+                      <th className="sticky right-0 z-20 border-l border-border bg-muted px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "slots.table.actions" })}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {state.slots.items.map((slot) => (
                       <tr className="border-t border-border" key={slot.slot_id}>
-                        <td className="px-3 py-3 text-sm font-medium text-foreground">
+                        <td className="sticky left-0 z-10 border-r border-border bg-card px-3 py-3 text-sm font-medium text-foreground">
                           {intl.formatMessage({ id: "slots.slotValue" }, { id: slot.slot_id })}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
@@ -753,7 +757,7 @@ export function SlotClusterListPanel() {
                           <StatusBadge value={nodeRaftStatus(slot)} />
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeLog(intl, slot)}</td>
-                        <td className="px-3 py-3 text-sm text-foreground">
+                        <td className="sticky right-0 z-10 border-l border-border bg-card px-3 py-3 text-sm text-foreground">
                           <Button
                             aria-label={intl.formatMessage({ id: "slots.inspectSlot" }, { id: slot.slot_id })}
                             onClick={() => {
@@ -770,6 +774,7 @@ export function SlotClusterListPanel() {
                   </tbody>
                 </table>
               </div>
+              </>
             ) : (
               <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.slots.title" })} />
             )}
@@ -1282,7 +1287,7 @@ export function SlotClusterOverviewPanel() {
       {!state.loading && !state.error && overview ? (
         <>
           <div
-            className="grid gap-0 border-y border-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            className="grid grid-cols-2 gap-0 border-y border-border lg:grid-cols-3 xl:grid-cols-6"
             data-testid="slots-overview-summary-strip"
           >
             <SlotSummaryCell label={intl.formatMessage({ id: "slots.metric.total" })} value={overview.slots.total} />

@@ -51,6 +51,25 @@ func TestManagerMessagesReturnsClusterLatestByDefault(t *testing.T) {
 	}
 }
 
+func TestManagerMessagesReportsLatestIndexBackpressure(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{
+		messagesErr: managementusecase.ErrLatestMessagesBackpressured,
+	}})
+
+	rec := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manager/messages?limit=50", nil))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"latest_messages_backpressured","message":"latest message scan is temporarily backpressured; retry later"}`) {
+		t.Fatalf("body = %s, want bounded backpressure reason", rec.Body.String())
+	}
+	if got := rec.Header().Get("Retry-After"); got != "2" {
+		t.Fatalf("Retry-After = %q, want 2", got)
+	}
+}
+
 func TestManagerMessagesReturnsPagedList(t *testing.T) {
 	var gotReq managementusecase.ListMessagesRequest
 	inputCursor := managementusecase.MessageListCursor{BeforeSeq: 11}

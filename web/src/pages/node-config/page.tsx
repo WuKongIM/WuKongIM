@@ -16,6 +16,12 @@ import type {
   ManagerNodeConfigResponse,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
+import {
+  nodeConfigGroupTitle,
+  nodeConfigItemLabel,
+  nodeConfigSourceLabel,
+  nodeConfigValueLabel,
+} from "@/lib/node-config-i18n"
 import { cn } from "@/lib/utils"
 
 const allGroupsId = "all"
@@ -327,7 +333,7 @@ export function NodeConfigPage() {
                       active={activeGroup === group.id}
                       id={group.id}
                       key={group.id}
-                      label={group.title}
+                      label={nodeConfigGroupTitle(intl, group)}
                       onSelect={setActiveGroup}
                     />
                   ))}
@@ -384,7 +390,7 @@ function ConfigSummary({
     },
     {
       label: intl.formatMessage({ id: "nodeConfig.summary.source" }),
-      value: config?.source ?? "-",
+      value: config ? nodeConfigSourceLabel(intl, config.source) : "-",
     },
     {
       label: intl.formatMessage({ id: "nodeConfig.summary.restart" }),
@@ -446,10 +452,10 @@ function ConfigGroups({ groups }: { groups: ManagerNodeConfigGroup[] }) {
       {groups.map((group) => (
         <section className="space-y-2" key={group.id}>
           <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {group.title}
+            {nodeConfigGroupTitle(intl, group)}
           </h3>
           <div className="max-h-[520px] overflow-auto rounded-md border border-border bg-background">
-            <table aria-label={group.title} className="w-full min-w-[680px] border-collapse text-left text-sm">
+            <table aria-label={nodeConfigGroupTitle(intl, group)} className="w-full min-w-[680px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 bg-muted/60 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
                   <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.config.table.key" })}</th>
@@ -469,9 +475,9 @@ function ConfigGroups({ groups }: { groups: ManagerNodeConfigGroup[] }) {
                       <td className="max-w-[280px] break-words px-3 py-3 font-mono text-xs text-muted-foreground">
                         {item.key}
                       </td>
-                      <td className="px-3 py-3 text-foreground">{item.label}</td>
+                      <td className="px-3 py-3 text-foreground">{nodeConfigItemLabel(intl, item)}</td>
                       <td className="max-w-[360px] break-words px-3 py-3 font-mono text-xs text-foreground">
-                        {item.value || "-"}
+                        {nodeConfigValueLabel(intl, item.value) || "-"}
                       </td>
                       <td className="px-3 py-3">
                         {flags.length > 0 ? (

@@ -144,6 +144,17 @@ test("renders summary and pressure rows", async () => {
   expect(screen.getByText("0.30/s")).toBeInTheDocument()
 })
 
+test("renders consistent Chinese workqueue terminology", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
+
+  renderPage()
+
+  expect(await screen.findByRole("heading", { name: "工作队列监控" })).toBeInTheDocument()
+  expect(screen.getByRole("option", { name: "当前管理节点" })).toBeInTheDocument()
+  expect(screen.queryByText(/Workqueue|worker/)).not.toBeInTheDocument()
+})
+
 test("uses an editorial workqueue toolbar status strip and named table", async () => {
   getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
   renderPage()
@@ -151,6 +162,7 @@ test("uses an editorial workqueue toolbar status strip and named table", async (
   const toolbar = await screen.findByTestId("workqueues-query-toolbar")
   expect(toolbar).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
   expect(within(toolbar).getByLabelText("Node")).toBeInTheDocument()
+  expect(within(toolbar).getByRole("option", { name: "Current manager node" })).toBeInTheDocument()
   expect(within(toolbar).getByLabelText("Window")).toBeInTheDocument()
   expect(within(toolbar).getByLabelText("Component")).toBeInTheDocument()
 

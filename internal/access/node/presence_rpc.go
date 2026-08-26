@@ -27,6 +27,7 @@ const (
 	rpcStatusContextDeadlineExceeded = "context_deadline_exceeded"
 	rpcStatusNotFound                = "not_found"
 	rpcStatusInvalidArgument         = "invalid_argument"
+	rpcStatusBackpressured           = "backpressured"
 	rpcStatusRejected                = "rejected"
 
 	presenceOpRegisterRoute      = "register_route"

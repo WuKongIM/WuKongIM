@@ -459,6 +459,7 @@ func (s *Server) registerRoutes() {
 		nodes.Use(s.requirePermission("cluster.node", "r"))
 	}
 	nodes.GET("/nodes", s.handleNodes)
+	nodes.GET("/nodes/:node_id", s.handleNode)
 	nodes.GET("/nodes/:node_id/config", s.handleNodeConfig)
 	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
 	nodes.GET("/realtime-monitor", s.handleRealtimeMonitor)

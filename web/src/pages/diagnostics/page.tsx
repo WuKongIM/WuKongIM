@@ -190,15 +190,22 @@ function statusTone(status: string) {
   return "border-destructive/30 bg-destructive/10 text-destructive"
 }
 
-function StatusPill({ value }: { value: string }) {
-  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone(value)}`}>{value}</span>
+function diagnosticsStatusLabel(intl: IntlShape, value: string) {
+  const known = new Set(["ok", "error", "timeout", "partial", "not_found", "unavailable", "skipped", "dropped", "canceled"])
+  if (!known.has(value)) return value
+  const suffix = value === "not_found" ? "notFound" : value
+  return intl.formatMessage({ id: `diagnostics.status.${suffix}` })
 }
 
-function trackingRuleLabel(rule: ManagerDiagnosticsTrackingRule) {
+function StatusPill({ intl, value }: { intl: IntlShape; value: string }) {
+  return <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone(value)}`}>{diagnosticsStatusLabel(intl, value)}</span>
+}
+
+function trackingRuleLabel(rule: ManagerDiagnosticsTrackingRule, intl: IntlShape) {
   if (rule.target === "sender_uid") {
-    return `Sender UID: ${rule.uid ?? "-"}`
+    return `${intl.formatMessage({ id: "diagnostics.tracking.target.senderUid" })}: ${rule.uid ?? "-"}`
   }
-  return `Channel: ${rule.channel_key ?? rule.channel_id ?? "-"}`
+  return `${intl.formatMessage({ id: "diagnostics.tracking.target.channel" })}: ${rule.channel_key ?? rule.channel_id ?? "-"}`
 }
 
 function upsertTrackingRule(rules: ManagerDiagnosticsTrackingRule[], next: ManagerDiagnosticsTrackingRule) {
@@ -206,13 +213,14 @@ function upsertTrackingRule(rules: ManagerDiagnosticsTrackingRule[], next: Manag
   return [next, ...existing]
 }
 
-function trackingResponseNotice(status: string, notes: string[], nodes: { node_id: number; status: string; notes: string[] }[]) {
-  const nodeNotes = nodes.flatMap((node) => node.notes.map((note) => `node ${node.node_id}: ${note}`))
+function trackingResponseNotice(intl: IntlShape, status: string, notes: string[], nodes: { node_id: number; status: string; notes: string[] }[]) {
+  const nodeNotes = nodes.flatMap((node) => node.notes.map((note) => `${intl.formatMessage({ id: "diagnostics.nodes.node" }, { id: node.node_id })}: ${note}`))
   const details = [...notes, ...nodeNotes]
+  const statusLabel = diagnosticsStatusLabel(intl, status)
   if (details.length > 0) {
-    return `${status}: ${details.join("; ")}`
+    return `${statusLabel}: ${details.join("; ")}`
   }
-  return status === "partial" || status === "error" ? status : ""
+  return status === "partial" || status === "error" ? statusLabel : ""
 }
 
 function HeaderBadge({ label, value }: { label: string; value: string }) {
@@ -234,21 +242,21 @@ function SummaryCard({ label, value, detail }: { label: string; value: string; d
   )
 }
 
-function timelineContext(event: ManagerDiagnosticsEvent) {
+function timelineContext(event: ManagerDiagnosticsEvent, intl: IntlShape) {
   const parts: string[] = []
-  if (event.node_id) parts.push(`Node ${event.node_id}`)
-  if (event.peer_node_id) parts.push(`Peer ${event.peer_node_id}`)
-  if (event.slot_id) parts.push(`Slot ${event.slot_id}`)
-  if (event.message_seq) parts.push(`Seq ${event.message_seq}`)
-  return parts.length > 0 ? parts.join(" · ") : "Cluster"
+  if (event.node_id) parts.push(intl.formatMessage({ id: "diagnostics.context.node" }, { id: event.node_id }))
+  if (event.peer_node_id) parts.push(intl.formatMessage({ id: "diagnostics.context.peer" }, { id: event.peer_node_id }))
+  if (event.slot_id) parts.push(intl.formatMessage({ id: "diagnostics.context.slot" }, { id: event.slot_id }))
+  if (event.message_seq) parts.push(intl.formatMessage({ id: "diagnostics.context.seq" }, { id: event.message_seq }))
+  return parts.length > 0 ? parts.join(" · ") : intl.formatMessage({ id: "diagnostics.context.cluster" })
 }
 
-function timelineDetails(event: ManagerDiagnosticsEvent) {
+function timelineDetails(event: ManagerDiagnosticsEvent, intl: IntlShape) {
   const details: string[] = []
   if (event.channel_key) details.push(event.channel_key)
   if (event.service) details.push(event.service)
-  if (event.attempt) details.push(`attempt ${event.attempt}`)
-  if (event.queue_depth) details.push(`queue ${event.queue_depth}`)
+  if (event.attempt) details.push(intl.formatMessage({ id: "diagnostics.context.attempt" }, { value: event.attempt }))
+  if (event.queue_depth) details.push(intl.formatMessage({ id: "diagnostics.context.queue" }, { value: event.queue_depth }))
   return details
 }
 
@@ -260,27 +268,28 @@ function parseChannelKey(channelKey: string | undefined) {
 }
 
 function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
+  const intl = useIntl()
   const links = new Map<string, { href: string; label: string }>()
 
   for (const event of response.events) {
     if (event.slot_id && event.node_id) {
       links.set(`slot-${event.slot_id}-${event.node_id}`, {
         href: `/cluster/slots?tab=logs&slot_id=${event.slot_id}&node_id=${event.node_id}`,
-        label: `Slot ${event.slot_id} logs on node ${event.node_id}`,
+        label: intl.formatMessage({ id: "diagnostics.related.slotLogs" }, { slot: event.slot_id, node: event.node_id }),
       })
     }
     if (event.node_id) {
       links.set(`conn-${event.node_id}`, {
         href: `/business/connections?node_id=${event.node_id}`,
-        label: `Connections on node ${event.node_id}`,
+        label: intl.formatMessage({ id: "diagnostics.related.connections" }, { node: event.node_id }),
       })
-      links.set("nodes", { href: "/cluster/nodes", label: "Nodes" })
+      links.set("nodes", { href: "/cluster/nodes", label: intl.formatMessage({ id: "diagnostics.related.nodes" }) })
     }
     const parsed = parseChannelKey(event.channel_key)
     if (parsed) {
       links.set(`channel-${event.channel_key}`, {
         href: `/business/messages?channel_id=${encodeURIComponent(parsed.channelId)}&channel_type=${parsed.channelType}`,
-        label: `Messages for ${event.channel_key}`,
+        label: intl.formatMessage({ id: "diagnostics.related.messages" }, { channel: event.channel_key }),
       })
     }
   }
@@ -289,12 +298,12 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
   if (parsedSummary && response.summary.channel_key) {
     links.set(`summary-channel-${response.summary.channel_key}`, {
       href: `/messages?channel_id=${encodeURIComponent(parsedSummary.channelId)}&channel_type=${parsedSummary.channelType}`,
-      label: `Messages for ${response.summary.channel_key}`,
+      label: intl.formatMessage({ id: "diagnostics.related.messages" }, { channel: response.summary.channel_key }),
     })
   }
 
   return (
-    <SectionCard title="Related Links" description="Contextual jumps built only from safe diagnostics fields.">
+    <SectionCard title={intl.formatMessage({ id: "diagnostics.related.title" })} description={intl.formatMessage({ id: "diagnostics.related.description" })}>
       <div className="flex flex-wrap gap-2">
         {Array.from(links.values()).map((link) => (
           <Link key={link.href} className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted" to={link.href}>
@@ -303,10 +312,10 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
         ))}
         {response.summary.channel_key && !parseChannelKey(response.summary.channel_key) ? (
           <span className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
-            Channel key: {response.summary.channel_key}
+            {intl.formatMessage({ id: "diagnostics.related.channelKey" }, { channel: response.summary.channel_key })}
           </span>
         ) : null}
-        {links.size === 0 && !response.summary.channel_key ? <span className="text-sm text-muted-foreground">No related links available.</span> : null}
+        {links.size === 0 && !response.summary.channel_key ? <span className="text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.related.empty" })}</span> : null}
       </div>
     </SectionCard>
   )
@@ -337,14 +346,14 @@ export function DiagnosticsTracePanel() {
     try {
       const response = await listDiagnosticsTrackingRules()
       setTrackingRules(response.rules)
-      setTrackingNotice(trackingResponseNotice(response.status, response.notes, response.nodes))
+      setTrackingNotice(trackingResponseNotice(intl, response.status, response.notes, response.nodes))
       setTrackingErrors([])
     } catch (error) {
-      setTrackingErrors([error instanceof Error ? error.message : "failed to load tracking rules"])
+      setTrackingErrors([error instanceof Error ? error.message : intl.formatMessage({ id: "diagnostics.error.loadTracking" })])
     } finally {
       setTrackingLoading(false)
     }
-  }, [])
+  }, [intl])
 
   useEffect(() => {
     void refreshTrackingRules()
@@ -374,7 +383,7 @@ export function DiagnosticsTracePanel() {
       }
       setState({ response, loading: false, refreshing: false, error: null, queried: true })
     } catch (error) {
-      setState({ response: null, loading: false, refreshing: false, error: error instanceof Error ? error : new Error("diagnostics query failed"), queried: true })
+      setState({ response: null, loading: false, refreshing: false, error: error instanceof Error ? error : new Error(intl.formatMessage({ id: "diagnostics.error.query" })), queried: true })
     }
   }, [form, intl])
 
@@ -396,10 +405,10 @@ export function DiagnosticsTracePanel() {
     try {
       const response = await createDiagnosticsTrackingRule(input)
       setTrackingRules((current) => upsertTrackingRule(current, response.rule))
-      setTrackingNotice(trackingResponseNotice(response.status, response.notes, response.nodes))
+      setTrackingNotice(trackingResponseNotice(intl, response.status, response.notes, response.nodes))
       setTrackingErrors([])
     } catch (error) {
-      setTrackingErrors([error instanceof Error ? error.message : "failed to create tracking rule"])
+      setTrackingErrors([error instanceof Error ? error.message : intl.formatMessage({ id: "diagnostics.error.createTracking" })])
     } finally {
       setTrackingLoading(false)
     }
@@ -414,23 +423,23 @@ export function DiagnosticsTracePanel() {
         : await getDiagnosticsEvents({ channelKey: rule.channel_key, limit })
       setState({ response, loading: false, refreshing: false, error: null, queried: true })
     } catch (error) {
-      setState({ response: null, loading: false, refreshing: false, error: error instanceof Error ? error : new Error("diagnostics query failed"), queried: true })
+      setState({ response: null, loading: false, refreshing: false, error: error instanceof Error ? error : new Error(intl.formatMessage({ id: "diagnostics.error.query" })), queried: true })
     }
-  }, [form.limit])
+  }, [form.limit, intl])
 
   const stopTrackingRule = useCallback(async (ruleId: string) => {
     setTrackingLoading(true)
     try {
       const response = await deleteDiagnosticsTrackingRule(ruleId)
-      setTrackingNotice(trackingResponseNotice(response.status, response.notes, response.nodes))
+      setTrackingNotice(trackingResponseNotice(intl, response.status, response.notes, response.nodes))
       setTrackingErrors([])
       await refreshTrackingRules()
     } catch (error) {
-      setTrackingErrors([error instanceof Error ? error.message : "failed to delete tracking rule"])
+      setTrackingErrors([error instanceof Error ? error.message : intl.formatMessage({ id: "diagnostics.error.deleteTracking" })])
     } finally {
       setTrackingLoading(false)
     }
-  }, [refreshTrackingRules])
+  }, [intl, refreshTrackingRules])
 
   const response = state.response
   const partialNodes = response?.nodes.filter((node) => node.status === "unavailable" || node.status === "skipped") ?? []
@@ -448,12 +457,12 @@ export function DiagnosticsTracePanel() {
               {intl.formatMessage({ id: "diagnostics.description" })}
             </p>
           </div>
-          {response ? <Button onClick={exportJSON} size="sm" variant="outline">Export JSON</Button> : null}
+          {response ? <Button onClick={exportJSON} size="sm" variant="outline">{intl.formatMessage({ id: "diagnostics.export" })}</Button> : null}
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <HeaderBadge label="Scope" value={response?.scope ?? "cluster"} />
-          <HeaderBadge label="Generated" value={response ? timestamp(intl, response.generated_at) : "pending"} />
-          <HeaderBadge label="Events" value={response ? `${response.summary.event_count} events` : "0 events"} />
+          <HeaderBadge label={intl.formatMessage({ id: "diagnostics.header.scope" })} value={response?.scope === "cluster" || !response ? intl.formatMessage({ id: "diagnostics.scope.cluster" }) : response.scope} />
+          <HeaderBadge label={intl.formatMessage({ id: "diagnostics.header.generated" })} value={response ? timestamp(intl, response.generated_at) : intl.formatMessage({ id: "diagnostics.pending" })} />
+          <HeaderBadge label={intl.formatMessage({ id: "diagnostics.header.events" })} value={intl.formatMessage({ id: "diagnostics.eventCount" }, { count: response?.summary.event_count ?? 0 })} />
         </div>
       </section>
 
@@ -469,8 +478,8 @@ export function DiagnosticsTracePanel() {
               value={trackingForm.target}
               onChange={(event) => setTrackingForm((current) => ({ ...current, target: event.target.value as TrackingForm["target"] }))}
             >
-              <option value="sender_uid">sender_uid</option>
-              <option value="channel">channel</option>
+              <option value="sender_uid">{intl.formatMessage({ id: "diagnostics.tracking.target.senderUid" })}</option>
+              <option value="channel">{intl.formatMessage({ id: "diagnostics.tracking.target.channel" })}</option>
             </select>
           </label>
           {trackingForm.target === "sender_uid" ? (
@@ -488,14 +497,14 @@ export function DiagnosticsTracePanel() {
               value={trackingForm.ttlSeconds}
               onChange={(event) => setTrackingForm((current) => ({ ...current, ttlSeconds: event.target.value }))}
             >
-              <option value="600">10 minutes</option>
-              <option value="3600">1 hour</option>
-              <option value="21600">6 hours</option>
-              <option value="custom">custom</option>
+              <option value="600">{intl.formatMessage({ id: "diagnostics.tracking.ttl.10m" })}</option>
+              <option value="3600">{intl.formatMessage({ id: "diagnostics.tracking.ttl.1h" })}</option>
+              <option value="21600">{intl.formatMessage({ id: "diagnostics.tracking.ttl.6h" })}</option>
+              <option value="custom">{intl.formatMessage({ id: "diagnostics.tracking.ttl.custom" })}</option>
             </select>
           </label>
           {trackingForm.ttlSeconds === "custom" ? (
-            <TextInput label="Custom TTL" value={trackingForm.customTTLSeconds} onChange={(customTTLSeconds) => setTrackingForm((current) => ({ ...current, customTTLSeconds }))} />
+            <TextInput label={intl.formatMessage({ id: "diagnostics.tracking.customTTL" })} value={trackingForm.customTTLSeconds} onChange={(customTTLSeconds) => setTrackingForm((current) => ({ ...current, customTTLSeconds }))} />
           ) : null}
           <TextInput label={intl.formatMessage({ id: "diagnostics.tracking.sampleRate" })} value={trackingForm.sampleRate} onChange={(sampleRate) => setTrackingForm((current) => ({ ...current, sampleRate }))} />
         </div>
@@ -506,18 +515,21 @@ export function DiagnosticsTracePanel() {
         ) : null}
         {trackingNotice ? <div className="mt-3 text-sm text-muted-foreground">{trackingNotice}</div> : null}
         <Button className="mt-4" disabled={trackingLoading} onClick={() => void createTrackingRule()}>
-          {trackingLoading ? "Working..." : intl.formatMessage({ id: "diagnostics.tracking.start" })}
+          {trackingLoading ? intl.formatMessage({ id: "diagnostics.tracking.working" }) : intl.formatMessage({ id: "diagnostics.tracking.start" })}
         </Button>
         <div className="mt-4 grid gap-3">
           {trackingRules.map((rule) => (
             <div key={rule.rule_id} className="rounded-lg border border-border bg-muted/20 p-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-medium text-foreground">{trackingRuleLabel(rule)}</div>
+                  <div className="font-medium text-foreground">{trackingRuleLabel(rule, intl)}</div>
                   {rule.target === "sender_uid" && rule.uid ? <div className="text-sm text-foreground">{rule.uid}</div> : null}
                   {rule.target === "channel" && rule.channel_key ? <div className="text-sm text-foreground">{rule.channel_key}</div> : null}
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {rule.rule_id} · sample {rule.sample_rate} · expires {rule.expires_at ? timestamp(intl, rule.expires_at) : "-"}
+                    {intl.formatMessage(
+                      { id: "diagnostics.tracking.ruleMeta" },
+                      { id: rule.rule_id, sample: rule.sample_rate, expires: rule.expires_at ? timestamp(intl, rule.expires_at) : "-" },
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -531,14 +543,14 @@ export function DiagnosticsTracePanel() {
               </div>
             </div>
           ))}
-          {trackingRules.length === 0 ? <div className="text-sm text-muted-foreground">No active tracking rules.</div> : null}
+          {trackingRules.length === 0 ? <div className="text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.tracking.empty" })}</div> : null}
         </div>
       </SectionCard>
 
-      <SectionCard title={intl.formatMessage({ id: "diagnostics.query.title" })} description="Query only through /manager/diagnostics endpoints.">
+      <SectionCard title={intl.formatMessage({ id: "diagnostics.query.title" })} description={intl.formatMessage({ id: "diagnostics.query.description" })}>
         <div className="grid gap-3 md:grid-cols-4">
           <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
-            Query mode
+            {intl.formatMessage({ id: "diagnostics.query.mode" })}
             <select
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={form.mode}
@@ -551,31 +563,31 @@ export function DiagnosticsTracePanel() {
             </select>
           </label>
 
-          {form.mode === "trace" ? <TextInput label="Trace ID" value={form.traceId} onChange={(traceId) => setForm((current) => ({ ...current, traceId }))} /> : null}
-          {form.mode === "client_msg_no" ? <TextInput label="Client Msg No" value={form.clientMsgNo} onChange={(clientMsgNo) => setForm((current) => ({ ...current, clientMsgNo }))} /> : null}
+          {form.mode === "trace" ? <TextInput label={intl.formatMessage({ id: "diagnostics.query.traceId" })} value={form.traceId} onChange={(traceId) => setForm((current) => ({ ...current, traceId }))} /> : null}
+          {form.mode === "client_msg_no" ? <TextInput label={intl.formatMessage({ id: "diagnostics.query.clientMsgNoLabel" })} value={form.clientMsgNo} onChange={(clientMsgNo) => setForm((current) => ({ ...current, clientMsgNo }))} /> : null}
           {form.mode === "channel_seq" ? (
             <>
-              <TextInput label="Channel Key" value={form.channelKey} onChange={(channelKey) => setForm((current) => ({ ...current, channelKey }))} />
-              <TextInput label="Message Seq" value={form.messageSeq} onChange={(messageSeq) => setForm((current) => ({ ...current, messageSeq }))} />
+              <TextInput label={intl.formatMessage({ id: "diagnostics.query.channelKey" })} value={form.channelKey} onChange={(channelKey) => setForm((current) => ({ ...current, channelKey }))} />
+              <TextInput label={intl.formatMessage({ id: "diagnostics.query.messageSeq" })} value={form.messageSeq} onChange={(messageSeq) => setForm((current) => ({ ...current, messageSeq }))} />
             </>
           ) : null}
           {form.mode === "recent_errors" ? (
             <>
-              <TextInput label="Stage" value={form.stage} onChange={(stage) => setForm((current) => ({ ...current, stage }))} />
+              <TextInput label={intl.formatMessage({ id: "diagnostics.query.stage" })} value={form.stage} onChange={(stage) => setForm((current) => ({ ...current, stage }))} />
               <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
-                Result
+                {intl.formatMessage({ id: "diagnostics.query.result" })}
                 <select
                   className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={form.result}
                   onChange={(event) => setForm((current) => ({ ...current, result: event.target.value as DiagnosticsResultFilter }))}
                 >
-                  {resultOptions.map((result) => <option key={result || "all"} value={result}>{result || "all"}</option>)}
+                  {resultOptions.map((result) => <option key={result || "all"} value={result}>{result ? diagnosticsStatusLabel(intl, result) : intl.formatMessage({ id: "diagnostics.query.allResults" })}</option>)}
                 </select>
               </label>
             </>
           ) : null}
-          <TextInput label="Node ID" value={form.nodeId} onChange={(nodeId) => setForm((current) => ({ ...current, nodeId }))} />
-          <TextInput label="Limit" value={form.limit} onChange={(limit) => setForm((current) => ({ ...current, limit }))} />
+          <TextInput label={intl.formatMessage({ id: "diagnostics.query.nodeId" })} value={form.nodeId} onChange={(nodeId) => setForm((current) => ({ ...current, nodeId }))} />
+          <TextInput label={intl.formatMessage({ id: "diagnostics.query.limit" })} value={form.limit} onChange={(limit) => setForm((current) => ({ ...current, limit }))} />
         </div>
         {validationErrors.length > 0 ? (
           <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
@@ -583,7 +595,7 @@ export function DiagnosticsTracePanel() {
           </div>
         ) : null}
         <Button className="mt-4" disabled={state.loading || state.refreshing} onClick={() => void submit()}>
-          {state.loading || state.refreshing ? "Running..." : "Run diagnostics"}
+          {state.loading || state.refreshing ? intl.formatMessage({ id: "diagnostics.query.running" }) : intl.formatMessage({ id: "diagnostics.query.run" })}
         </Button>
       </SectionCard>
 
@@ -591,8 +603,8 @@ export function DiagnosticsTracePanel() {
       {!state.loading && state.error ? (
         <ResourceState
           kind={errorKind}
-          title={errorKind === "forbidden" ? "Diagnostics permission required" : intl.formatMessage({ id: "diagnostics.title" })}
-          description={errorKind === "forbidden" ? "The current manager user is missing cluster.diagnostics:r." : undefined}
+          title={errorKind === "forbidden" ? intl.formatMessage({ id: "diagnostics.permission.title" }) : intl.formatMessage({ id: "diagnostics.title" })}
+          description={errorKind === "forbidden" ? intl.formatMessage({ id: "diagnostics.permission.description" }) : undefined}
           onRetry={() => void submit()}
         />
       ) : null}
@@ -600,8 +612,8 @@ export function DiagnosticsTracePanel() {
       {!state.loading && !state.error && response?.status === "not_found" ? (
         <ResourceState
           kind="empty"
-          title="No diagnostics events found"
-          description="Diagnostics may be disabled, sampling missed the event, the ring buffer may have overwritten it, the query fields may be incorrect, or the selected node may not contain the event."
+          title={intl.formatMessage({ id: "diagnostics.notFound.title" })}
+          description={intl.formatMessage({ id: "diagnostics.notFound.description" })}
         />
       ) : null}
 
@@ -609,21 +621,21 @@ export function DiagnosticsTracePanel() {
         <>
           {response.status === "partial" ? (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800" role="status">
-              <div className="font-semibold">Partial diagnostics result</div>
-              <div className="mt-1">Some nodes were unavailable or skipped; inspect node notes before treating returned events as complete.</div>
+              <div className="font-semibold">{intl.formatMessage({ id: "diagnostics.partial.title" })}</div>
+              <div className="mt-1">{intl.formatMessage({ id: "diagnostics.partial.description" })}</div>
             </div>
           ) : null}
 
           <section className="grid gap-3 md:grid-cols-4">
-            <SummaryCard label="Status" value={response.status} detail={response.summary.first_failure_error_code} />
-            <SummaryCard label="First failure" value={response.summary.first_failure_stage ?? "-"} detail={response.summary.first_failure_result} />
-            <SummaryCard label="Slowest stage" value={response.summary.slowest_stage ?? "-"} detail={response.summary.slowest_duration_ms ? `${response.summary.slowest_duration_ms} ms` : undefined} />
-            <SummaryCard label="Involved nodes" value={response.summary.involved_nodes.length ? response.summary.involved_nodes.join(", ") : "-"} detail={`${response.summary.event_count} events`} />
+            <SummaryCard label={intl.formatMessage({ id: "diagnostics.summary.status" })} value={diagnosticsStatusLabel(intl, response.status)} detail={response.summary.first_failure_error_code} />
+            <SummaryCard label={intl.formatMessage({ id: "diagnostics.summary.firstFailure" })} value={response.summary.first_failure_stage ?? "-"} detail={response.summary.first_failure_result ? diagnosticsStatusLabel(intl, response.summary.first_failure_result) : undefined} />
+            <SummaryCard label={intl.formatMessage({ id: "diagnostics.summary.slowestStage" })} value={response.summary.slowest_stage ?? "-"} detail={response.summary.slowest_duration_ms ? `${response.summary.slowest_duration_ms} ms` : undefined} />
+            <SummaryCard label={intl.formatMessage({ id: "diagnostics.summary.involvedNodes" })} value={response.summary.involved_nodes.length ? response.summary.involved_nodes.join(", ") : "-"} detail={intl.formatMessage({ id: "diagnostics.eventCount" }, { count: response.summary.event_count })} />
           </section>
 
-          <SectionCard title="Timeline" description="Diagnostics stages ordered by event time.">
+          <SectionCard title={intl.formatMessage({ id: "diagnostics.timeline.title" })} description={intl.formatMessage({ id: "diagnostics.timeline.description" })}>
             {events.length > 0 ? (
-              <ol aria-label="Diagnostics timeline" className="overflow-hidden rounded-lg border border-border bg-background">
+              <ol aria-label={intl.formatMessage({ id: "diagnostics.timeline.aria" })} className="overflow-hidden rounded-lg border border-border bg-background">
                 {events.map((event, index) => (
                   <TimelineEventItem
                     key={`${event.at}-${event.stage}-${index}`}
@@ -633,56 +645,56 @@ export function DiagnosticsTracePanel() {
                   />
                 ))}
               </ol>
-            ) : <div className="text-sm text-muted-foreground">No timeline events.</div>}
+            ) : <div className="text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.timeline.empty" })}</div>}
           </SectionCard>
 
-          <SectionCard title="Node Results" description="Per-node diagnostics status, event counts, and unavailable or skipped notes.">
+          <SectionCard title={intl.formatMessage({ id: "diagnostics.nodes.title" })} description={intl.formatMessage({ id: "diagnostics.nodes.description" })}>
             <div className="grid gap-3 md:grid-cols-2">
               {response.nodes.map((node) => (
                 <div key={node.node_id} className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-foreground">Node {node.node_id}</span>
-                    <StatusPill value={node.status} />
+                    <span className="font-medium text-foreground">{intl.formatMessage({ id: "diagnostics.nodes.node" }, { id: node.node_id })}</span>
+                    <StatusPill intl={intl} value={node.status} />
                   </div>
-                  <div className="mt-2 text-sm text-muted-foreground">{node.event_count} events · {node.duration_ms} ms</div>
+                  <div className="mt-2 text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.eventCount" }, { count: node.event_count })} · {node.duration_ms} ms</div>
                   {node.notes.map((note) => <div key={note} className="mt-1 text-sm text-amber-700">{note}</div>)}
                 </div>
               ))}
-              {response.nodes.length === 0 ? <div className="text-sm text-muted-foreground">No node results.</div> : null}
+              {response.nodes.length === 0 ? <div className="text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.nodes.empty" })}</div> : null}
             </div>
-            {partialNodes.length > 0 ? <div className="mt-3 text-sm text-amber-700">Unavailable/skipped nodes: {partialNodes.map((node) => node.node_id).join(", ")}</div> : null}
+            {partialNodes.length > 0 ? <div className="mt-3 text-sm text-amber-700">{intl.formatMessage({ id: "diagnostics.nodes.partial" }, { nodes: partialNodes.map((node) => node.node_id).join(", ") })}</div> : null}
             {response.notes.map((note) => <div key={note} className="mt-2 text-sm text-muted-foreground">{note}</div>)}
           </SectionCard>
 
-          <SectionCard title="Event Table" description="Raw diagnostics events with duration_ms and routing fields.">
+          <SectionCard title={intl.formatMessage({ id: "diagnostics.events.title" })} description={intl.formatMessage({ id: "diagnostics.events.description" })}>
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse text-sm">
+              <table aria-label={intl.formatMessage({ id: "diagnostics.events.title" })} className="w-full min-w-[72rem] border-collapse text-sm">
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-3">Stage</th>
-                    <th className="px-3 py-3">Result</th>
-                    <th className="px-3 py-3">duration_ms</th>
-                    <th className="px-3 py-3">Node</th>
-                    <th className="px-3 py-3">Peer</th>
-                    <th className="px-3 py-3">Slot</th>
-                    <th className="px-3 py-3">Channel Key</th>
-                    <th className="px-3 py-3">Message Seq</th>
-                    <th className="px-3 py-3">Error Code</th>
-                    <th className="px-3 py-3">Service</th>
-                    <th className="px-3 py-3">Attempt</th>
-                    <th className="px-3 py-3">Queue Depth</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.stage" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.result" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.duration" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.node" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.peer" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.slot" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.channelKey" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.messageSeq" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.errorCode" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.service" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.attempt" })}</th>
+                    <th className="whitespace-nowrap px-3 py-3">{intl.formatMessage({ id: "diagnostics.events.queueDepth" })}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {events.map((event, index) => <EventRow key={`${event.at}-${event.stage}-row-${index}`} event={event} />)}
-                  {events.length === 0 ? <tr><td className="px-3 py-4 text-muted-foreground" colSpan={12}>No events.</td></tr> : null}
+                  {events.map((event, index) => <EventRow key={`${event.at}-${event.stage}-row-${index}`} event={event} intl={intl} />)}
+                  {events.length === 0 ? <tr><td className="px-3 py-4 text-muted-foreground" colSpan={12}>{intl.formatMessage({ id: "diagnostics.events.empty" })}</td></tr> : null}
                 </tbody>
               </table>
             </div>
           </SectionCard>
 
           <RelatedLinks response={response} />
-          {exported ? <div className="text-sm text-muted-foreground" role="status">Diagnostics JSON copied.</div> : null}
+          {exported ? <div className="text-sm text-muted-foreground" role="status">{intl.formatMessage({ id: "diagnostics.exported" })}</div> : null}
         </>
       ) : null}
     </>
@@ -713,7 +725,7 @@ function valueOrDash(value: string | number | undefined) {
 
 function TimelineEventItem({ event, intl, isLast }: { event: ManagerDiagnosticsEvent; intl: IntlShape; isLast: boolean }) {
   const failed = failureResults.has(event.result)
-  const details = timelineDetails(event)
+  const details = timelineDetails(event, intl)
   return (
     <li className={`grid grid-cols-[1.25rem_minmax(0,1fr)] border-b border-border/70 last:border-b-0 ${failed ? "bg-destructive/5" : "hover:bg-muted/25"}`}>
       <div className="relative flex justify-center py-3" aria-hidden="true">
@@ -725,11 +737,11 @@ function TimelineEventItem({ event, intl, isLast }: { event: ManagerDiagnosticsE
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-foreground" title={event.stage}>{event.stage}</div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{timelineContext(event)}</span>
+              <span>{timelineContext(event, intl)}</span>
               {details.map((detail, detailIndex) => <span key={`${detail}-${detailIndex}`} className="max-w-full truncate">{detail}</span>)}
             </div>
           </div>
-          <StatusPill value={event.result} />
+          <StatusPill intl={intl} value={event.result} />
           <span className="text-xs font-medium tabular-nums text-muted-foreground">{typeof event.duration_ms === "number" ? `${event.duration_ms} ms` : "-"}</span>
           <time className="text-xs tabular-nums text-muted-foreground" dateTime={event.at}>{timestamp(intl, event.at)}</time>
         </div>
@@ -739,11 +751,11 @@ function TimelineEventItem({ event, intl, isLast }: { event: ManagerDiagnosticsE
   )
 }
 
-function EventRow({ event }: { event: ManagerDiagnosticsEvent }) {
+function EventRow({ event, intl }: { event: ManagerDiagnosticsEvent; intl: IntlShape }) {
   return (
     <tr className="border-t border-border align-top">
       <td className="px-3 py-3 font-medium text-foreground">{event.stage}</td>
-      <td className="px-3 py-3"><StatusPill value={event.result} /></td>
+      <td className="px-3 py-3"><StatusPill intl={intl} value={event.result} /></td>
       <td className="px-3 py-3 text-muted-foreground">{valueOrDash(event.duration_ms)}</td>
       <td className="px-3 py-3 text-muted-foreground">{valueOrDash(event.node_id)}</td>
       <td className="px-3 py-3 text-muted-foreground">{valueOrDash(event.peer_node_id)}</td>

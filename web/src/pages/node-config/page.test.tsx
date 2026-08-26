@@ -70,9 +70,27 @@ test("defaults to the local node and renders grouped effective config", async ()
   const nodeRail = screen.getByTestId("node-config-node-rail")
   expect(await within(nodeRail).findByText("node-1 · local")).toBeInTheDocument()
   expect(await screen.findByText("WK_CLUSTER_HASH_SLOT_COUNT")).toBeInTheDocument()
-  expect(screen.getByText("effective_startup_config")).toBeInTheDocument()
+  expect(screen.getByText("Effective startup configuration")).toBeInTheDocument()
   expect(screen.getByText("restart required")).toBeInTheDocument()
   expect(getNodeConfigMock).toHaveBeenCalledWith(1)
+})
+
+test("localizes server-provided config metadata in the Chinese UI", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+
+  renderNodeConfigPage()
+
+  expect(await screen.findByRole("heading", { name: "节点配置" })).toBeInTheDocument()
+  expect(await screen.findByRole("tab", { name: "集群" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "管理端" })).toBeInTheDocument()
+  expect(screen.getByText("哈希槽位数量")).toBeInTheDocument()
+  expect(screen.getByText("JWT 密钥")).toBeInTheDocument()
+  expect(screen.getByText("JWT 签发方")).toBeInTheDocument()
+  expect(screen.getByText("JWT 有效期")).toBeInTheDocument()
+  expect(screen.getByText("管理端用户")).toBeInTheDocument()
+  expect(screen.getByText("启动时生效配置")).toBeInTheDocument()
+  expect(screen.queryByText("Hash slot count")).not.toBeInTheDocument()
+  expect(screen.queryByText("effective_startup_config")).not.toBeInTheDocument()
 })
 
 test("honors node_id query params and selects the matching node", async () => {
@@ -184,14 +202,40 @@ function configFixture(nodeId: number): ManagerNodeConfigResponse {
       {
         id: "manager",
         title: "Manager",
-        items: [{
-          key: "WK_MANAGER_JWT_SECRET",
-          label: "JWT secret",
-          value: "******",
-          source: "env",
-          sensitive: true,
-          redacted: true,
-        }],
+        items: [
+          {
+            key: "WK_MANAGER_JWT_SECRET",
+            label: "JWT secret",
+            value: "******",
+            source: "env",
+            sensitive: true,
+            redacted: true,
+          },
+          {
+            key: "WK_MANAGER_JWT_ISSUER",
+            label: "Manager JWT issuer",
+            value: "wukongim-manager",
+            source: "default",
+            sensitive: false,
+            redacted: false,
+          },
+          {
+            key: "WK_MANAGER_JWT_EXPIRE",
+            label: "Manager JWT expiration",
+            value: "24h",
+            source: "default",
+            sensitive: false,
+            redacted: false,
+          },
+          {
+            key: "WK_MANAGER_USERS",
+            label: "Manager users",
+            value: "configured",
+            source: "toml",
+            sensitive: true,
+            redacted: false,
+          },
+        ],
       },
     ],
   }

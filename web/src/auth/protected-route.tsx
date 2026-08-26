@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Navigate, useLocation } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
@@ -18,8 +18,15 @@ export function ProtectedRoute({ children }: RouteGateProps) {
   const status = useAuthStore((state) => state.status)
   const location = useLocation()
   const [probeComplete, setProbeComplete] = useState(false)
+  const previousStatusRef = useRef(status)
 
   useEffect(() => {
+    const explicitlyLoggedOut = previousStatusRef.current === "authenticated" && status === "anonymous"
+    previousStatusRef.current = status
+    if (explicitlyLoggedOut) {
+      setProbeComplete(true)
+      return
+    }
     if (!isHydrated || status !== "anonymous") {
       return
     }

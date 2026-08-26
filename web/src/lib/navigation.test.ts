@@ -49,7 +49,7 @@ describe("navigationSections", () => {
     expect(pageMetadata.get("/cluster/dashboard")?.pathLabelMessageId).toBe("nav.path.cluster.dashboard")
     expect(pageMetadata.get("/cluster/monitor")?.titleMessageId).toBe("nav.clusterMonitor.title")
     expect(pageMetadata.get("/cluster/monitor")?.pathLabelMessageId).toBe("nav.path.cluster.monitor")
-    expect(pageMetadata.get("/business/dashboard")?.titleMessageId).toBe("nav.businessDashboard.title")
+    expect(pageMetadata.has("/business/dashboard")).toBe(false)
     expect(pageMetadata.has("/business/monitor")).toBe(false)
     expect(pageMetadata.get("/business/connections")?.pathLabelMessageId).toBe("nav.path.business.connections")
     expect(pageMetadata.get("/cluster/nodes")?.titleMessageId).toBe("nav.nodes.title")

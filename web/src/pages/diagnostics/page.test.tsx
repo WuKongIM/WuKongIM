@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
+import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
 import type { ManagerDiagnosticsResponse } from "@/lib/manager-api.types"
 import { DiagnosticsPage } from "@/pages/diagnostics/page"
@@ -186,7 +187,7 @@ test("runs a trace query and renders the summary", async () => {
 
   await waitFor(() => expect(getDiagnosticsTraceMock).toHaveBeenCalledWith("tr-1", { limit: 100 }))
   expect(await screen.findByText("Status")).toBeInTheDocument()
-  expect(screen.getAllByText("ok").length).toBeGreaterThan(0)
+  expect(screen.getAllByText("OK").length).toBeGreaterThan(0)
   expect(screen.getAllByText("2 events").length).toBeGreaterThan(0)
   expect(screen.getAllByText("store_append").length).toBeGreaterThan(0)
   expect(screen.getByRole("list", { name: "Diagnostics timeline" })).toBeInTheDocument()
@@ -198,7 +199,7 @@ test("validates channel sequence input", async () => {
   renderPage()
 
   await user.selectOptions(screen.getByLabelText("Query mode"), "channel_seq")
-  await user.type(screen.getByLabelText("Message Seq"), "0")
+  await user.type(screen.getByLabelText("Message sequence"), "0")
   await user.click(screen.getByRole("button", { name: "Run diagnostics" }))
 
   expect(getDiagnosticsMessageMock).not.toHaveBeenCalled()
@@ -244,7 +245,7 @@ test("renders not_found empty state", async () => {
   await user.click(screen.getByRole("button", { name: "Run diagnostics" }))
 
   expect(await screen.findByText("No diagnostics events found"))
-  expect(screen.getByText(/sampling missed the event/i))
+  expect(screen.getByText(/sampling may have missed the event/i))
 })
 
 test("renders forbidden state from ManagerApiError", async () => {
@@ -294,4 +295,27 @@ test("exports the current diagnostics JSON", async () => {
   await user.click(await screen.findByRole("button", { name: "Export JSON" }))
 
   expect(writeText).toHaveBeenCalledWith(JSON.stringify(response, null, 2))
+})
+
+test("renders the diagnostics controls and empty states in Chinese", async () => {
+  const user = userEvent.setup()
+  resetLocale()
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+
+  renderPage()
+
+  expect(await screen.findByLabelText("查询模式")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "执行诊断查询" })).toBeInTheDocument()
+  expect(screen.getByText("暂无生效中的追踪规则。")).toBeInTheDocument()
+  expect(screen.getByText("范围")).toBeInTheDocument()
+  expect(screen.getByText("集群")).toBeInTheDocument()
+  expect(screen.getByText("待查询")).toBeInTheDocument()
+  expect(screen.getByText("0 个事件")).toBeInTheDocument()
+  expect(screen.getByText("通过管理端诊断接口，按追踪 ID、客户端消息号、频道序号或最近错误查询。")).toBeInTheDocument()
+  expect(screen.getAllByText("追踪 ID")).toHaveLength(2)
+  expect(screen.queryByText("No active tracking rules.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Run diagnostics")).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "执行诊断查询" }))
+  expect(await screen.findByText("追踪 ID 不能为空。")).toBeInTheDocument()
 })

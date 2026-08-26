@@ -334,8 +334,11 @@ test("renders layered node inventory fields and slot move row actions", async ()
   renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  expect(screen.getByTestId("nodes-summary-strip")).toBeInTheDocument()
-  expect(screen.getByRole("table", { name: /nodes/i })).toHaveClass("w-full")
+  expect(screen.getByTestId("nodes-summary-strip")).toHaveClass("grid-cols-2")
+  const nodesTable = screen.getByRole("table", { name: /nodes/i })
+  expect(nodesTable).toHaveClass("w-full", "min-w-[88rem]")
+  expect(screen.getByRole("columnheader", { name: "Node" })).toHaveClass("sticky", "left-0")
+  expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveClass("sticky", "right-0")
   expect(screen.getByText("Data node")).toBeInTheDocument()
   expect(screen.getByText("Active")).toBeInTheDocument()
   expect(screen.getByText("schedulable")).toBeInTheDocument()
@@ -345,7 +348,10 @@ test("renders layered node inventory fields and slot move row actions", async ()
   expect(screen.getByText("5 active")).toBeInTheDocument()
   expect(screen.getByText("leaders 2 / followers 3")).toBeInTheDocument()
   expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Inspect node 1" })).toBeInTheDocument()
+  const inspectButton = screen.getByRole("button", { name: "Inspect node 1" })
+  expect(inspectButton).toBeInTheDocument()
+  expect(inspectButton.closest("td")).toHaveClass("sticky", "right-0")
+  expect(screen.getByText("Scroll horizontally to view all columns; the node and actions columns stay visible.")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Move slots in for node 1" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Move slots out for node 1" })).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "More actions for node 1" })).not.toBeInTheDocument()
@@ -445,7 +451,7 @@ test("renders selected node effective config in the node detail sheet", async ()
 
   const configSurface = (await screen.findByText("Effective Configuration"))
     .closest("[data-node-surface='config']")
-  expect(configSurface).toHaveTextContent("effective_startup_config")
+  expect(configSurface).toHaveTextContent("Effective startup configuration")
   expect(configSurface).toHaveTextContent("restart required")
   expect(within(configSurface as HTMLElement).getByText("Cluster")).toBeInTheDocument()
   expect(within(configSurface as HTMLElement).getByText("WK_CLUSTER_HASH_SLOT_COUNT")).toBeInTheDocument()
@@ -720,8 +726,38 @@ test("renders dynamic node health freshness evidence", async () => {
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
   expect(screen.getByText("Missing")).toBeInTheDocument()
-  expect(screen.getByText("freshness missing / ready no / age 0 ms / ttl 30000 ms")).toBeInTheDocument()
+  expect(screen.getByText("freshness Missing / ready no / report age 0 ms / valid for 30000 ms")).toBeInTheDocument()
   expect(screen.getByText("not schedulable")).toBeInTheDocument()
+})
+
+test("localizes node health freshness evidence in Chinese", async () => {
+  resetLocale()
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{
+      ...nodeRow,
+      health: {
+        status: "alive",
+        last_heartbeat_at: "2026-04-23T08:00:00Z",
+        fresh: true,
+        freshness: "fresh",
+        runtime_ready: true,
+        report_age_ms: 125,
+        report_ttl_ms: 30000,
+        observed_control_revision: 1,
+        observed_slot_revision: 1,
+        error_code: "",
+      },
+    }],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("新鲜度 数据新鲜 / 就绪 是 / 上报延迟 125 毫秒 / 有效期 30000 毫秒")).toBeInTheDocument()
+  expect(screen.queryByText(/fresh|age|ttl/)).not.toBeInTheDocument()
 })
 
 test("renders controller raft health summary in the node list and detail", async () => {

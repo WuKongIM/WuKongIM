@@ -14,6 +14,9 @@ var ErrMessageRetentionUnavailable = errors.New("management: message retention u
 // ErrLatestMessagesUnavailable reports that cluster-wide latest-message reads are not wired.
 var ErrLatestMessagesUnavailable = errors.New("management: latest messages unavailable")
 
+// ErrLatestMessagesBackpressured reports that the bounded latest-message scan could not yet establish a complete page.
+var ErrLatestMessagesBackpressured = errors.New("management: latest messages backpressured")
+
 // MessageReader exposes committed channel message reads for manager pages.
 type MessageReader interface {
 	// QueryMessages returns a manager-facing channel message page.

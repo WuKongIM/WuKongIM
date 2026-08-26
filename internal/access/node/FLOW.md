@@ -51,6 +51,8 @@ scheduled backup or restore
   appends outside local authority, or runs post-commit effects elsewhere.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
+- Manager latest-message RPC preserves bounded scan saturation as its stable
+  backpressure status instead of collapsing it into general unavailability.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.

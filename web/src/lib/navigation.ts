@@ -240,13 +240,6 @@ const pageOnlyNavigationItems: NavigationItem[] = [
     icon: LayoutDashboard,
     aliases: ["/dashboard"],
   },
-  {
-    href: "/business/dashboard",
-    titleMessageId: "nav.businessDashboard.title",
-    descriptionMessageId: "nav.businessDashboard.description",
-    pathLabelMessageId: "nav.path.business.dashboard",
-    icon: LayoutDashboard,
-  },
 ]
 
 export const pageMetadata = new Map(

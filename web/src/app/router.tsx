@@ -86,10 +86,7 @@ export const routes: RouteObject[] = [
         lazy: lazyComponent(async () => (await import("@/pages/backups/page")).BackupsPage),
       },
       // Business management
-      {
-        path: "business/dashboard",
-        lazy: lazyComponent(async () => (await import("@/pages/business-dashboard/page")).BusinessDashboardPage),
-      },
+      { path: "business/dashboard", element: <Navigate replace to="/business/connections" /> },
       {
         path: "business/users",
         lazy: lazyComponent(async () => (await import("@/pages/users/page")).UsersPage),

@@ -78,6 +78,12 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
+function isLatestMessagesBackpressured(error: Error | null) {
+  return error instanceof ManagerApiError
+    && error.status === 503
+    && error.error === "latest_messages_backpressured"
+}
+
 function formatTimestamp(timestamp: number) {
   if (!timestamp) {
     return "-"
@@ -582,6 +588,9 @@ export function MessagesPage() {
         {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.messages.title" })} /> : null}
         {!state.loading && state.error ? (
           <ResourceState
+            description={isLatestMessagesBackpressured(state.error)
+              ? intl.formatMessage({ id: "messages.latestBackpressured" })
+              : undefined}
             kind={mapErrorKind(state.error)}
             onRetry={submitted ? () => {
               void refresh()

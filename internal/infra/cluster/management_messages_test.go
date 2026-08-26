@@ -2,11 +2,13 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 func TestManagementMessageReaderReadsCommittedMessagesDescending(t *testing.T) {
@@ -64,11 +66,55 @@ func TestMergeLatestMessagePagesRejectsReplicaMismatch(t *testing.T) {
 	}
 }
 
+func TestManagementMessageReaderClassifiesLocalBackpressure(t *testing.T) {
+	node := &backpressuredLatestMessageNode{err: channelruntime.ErrBackpressured}
+	reader := NewManagementMessageReader(node)
+
+	_, err := reader.ListLocalLatestMessages(context.Background(), 0, 50)
+
+	if !errors.Is(err, managementusecase.ErrLatestMessagesBackpressured) {
+		t.Fatalf("ListLocalLatestMessages() error = %v, want latest-message backpressure", err)
+	}
+}
+
+func TestManagementMessageReaderPreservesLocalLatestMessageContextErrors(t *testing.T) {
+	for _, want := range []error{context.Canceled, context.DeadlineExceeded} {
+		t.Run(want.Error(), func(t *testing.T) {
+			reader := NewManagementMessageReader(&backpressuredLatestMessageNode{err: want})
+
+			_, err := reader.ListLocalLatestMessages(context.Background(), 0, 50)
+
+			if !errors.Is(err, want) {
+				t.Fatalf("ListLocalLatestMessages() error = %v, want %v identity", err, want)
+			}
+		})
+	}
+}
+
 type recordingManagementMessageNode struct {
 	channelID channelruntime.ChannelID
 	req       channelstore.ReadCommittedRequest
 	result    channelstore.ReadCommittedResult
 	err       error
+}
+
+type backpressuredLatestMessageNode struct {
+	recordingManagementMessageNode
+	err error
+}
+
+func (n *backpressuredLatestMessageNode) NodeID() uint64 { return 1 }
+
+func (n *backpressuredLatestMessageNode) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return control.Snapshot{}, nil
+}
+
+func (n *backpressuredLatestMessageNode) ReadLocalLatestMessages(context.Context, uint64, int) ([]channelruntime.Message, bool, uint64, error) {
+	return nil, false, 0, n.err
+}
+
+func (n *backpressuredLatestMessageNode) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return nil, errors.New("unexpected RPC call")
 }
 
 func (n *recordingManagementMessageNode) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {

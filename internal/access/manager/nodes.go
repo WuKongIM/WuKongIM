@@ -131,6 +131,22 @@ type NodeSlotsSummaryDTO struct {
 	UnreportedCount int `json:"unreported_count"`
 }
 
+// NodeDetailSlotsDTO contains exact Slot placement IDs for one selected node.
+type NodeDetailSlotsDTO struct {
+	// HostedIDs contains Slot IDs whose desired replica set includes the node.
+	HostedIDs []uint32 `json:"hosted_ids"`
+	// LeaderIDs contains Slot IDs whose observed Raft leader is the node.
+	LeaderIDs []uint32 `json:"leader_ids"`
+	NodeSlotsSummaryDTO
+}
+
+// NodeDetailDTO is the manager-facing response for one exact node.
+type NodeDetailDTO struct {
+	NodeDTO
+	// Slots replaces the list summary with exact placement identifiers.
+	Slots NodeDetailSlotsDTO `json:"slots"`
+}
+
 // NodeChannelRuntimeDTO contains node-local active Channel runtime counts.
 type NodeChannelRuntimeDTO struct {
 	// ActiveTotal is the number of loaded Channel runtimes on the node.
@@ -205,6 +221,49 @@ func (s *Server) handleNodes(c *gin.Context) {
 		Total:              len(list.Items),
 		Items:              nodeDTOs(list.Items),
 	})
+}
+
+func (s *Server) handleNode(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	nodeID, err := parseRequiredLogNodeID(c.Param("node_id"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		return
+	}
+	list, err := s.management.ListNodes(c.Request.Context())
+	if err != nil {
+		if controlSnapshotUnavailable(err) {
+			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller snapshot unavailable")
+			return
+		}
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	for _, item := range list.Items {
+		if item.NodeID != nodeID {
+			continue
+		}
+		detail := NodeDetailDTO{
+			NodeDTO: nodeDTO(item),
+			Slots: NodeDetailSlotsDTO{
+				HostedIDs: append([]uint32(nil), item.Slots.HostedIDs...),
+				LeaderIDs: append([]uint32(nil), item.Slots.LeaderIDs...),
+				NodeSlotsSummaryDTO: NodeSlotsSummaryDTO{
+					ReplicaCount:    item.Slots.ReplicaCount,
+					LeaderCount:     item.Slots.LeaderCount,
+					FollowerCount:   item.Slots.FollowerCount,
+					QuorumLostCount: item.Slots.QuorumLostCount,
+					UnreportedCount: item.Slots.UnreportedCount,
+				},
+			},
+		}
+		c.JSON(http.StatusOK, detail)
+		return
+	}
+	jsonError(c, http.StatusNotFound, "not_found", "node not found")
 }
 
 func nodeDTOs(items []managementusecase.Node) []NodeDTO {

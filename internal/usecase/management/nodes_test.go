@@ -62,6 +62,10 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 	if first.Slots.ReplicaCount != 1 || first.Slots.LeaderCount != 1 || first.Slots.FollowerCount != 0 {
 		t.Fatalf("first slots = %#v, want one leader replica", first.Slots)
 	}
+	if len(first.Slots.HostedIDs) != 1 || first.Slots.HostedIDs[0] != 1 ||
+		len(first.Slots.LeaderIDs) != 1 || first.Slots.LeaderIDs[0] != 1 {
+		t.Fatalf("first slot ids = hosted %v / leaders %v, want [1] / [1]", first.Slots.HostedIDs, first.Slots.LeaderIDs)
+	}
 	if first.Runtime.NodeID != 1 || !first.Runtime.Unknown {
 		t.Fatalf("first runtime = %#v, want unknown runtime for node 1", first.Runtime)
 	}
@@ -79,6 +83,10 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 	}
 	if second.Slots.ReplicaCount != 2 || second.Slots.LeaderCount != 1 || second.Slots.FollowerCount != 1 {
 		t.Fatalf("second slots = %#v, want two replicas with one leader", second.Slots)
+	}
+	if len(second.Slots.HostedIDs) != 2 || second.Slots.HostedIDs[0] != 1 || second.Slots.HostedIDs[1] != 2 ||
+		len(second.Slots.LeaderIDs) != 1 || second.Slots.LeaderIDs[0] != 2 {
+		t.Fatalf("second slot ids = hosted %v / leaders %v, want [1 2] / [2]", second.Slots.HostedIDs, second.Slots.LeaderIDs)
 	}
 }
 

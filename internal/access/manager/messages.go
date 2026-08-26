@@ -191,6 +191,9 @@ func writeMessageError(c *gin.Context, err error, badRequestMessage string) {
 		jsonError(c, http.StatusNotFound, "not_found", "channel not found")
 	case errors.Is(err, managementusecase.ErrMessageRetentionUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "message retention unavailable")
+	case errors.Is(err, managementusecase.ErrLatestMessagesBackpressured):
+		c.Header("Retry-After", "2")
+		jsonError(c, http.StatusServiceUnavailable, "latest_messages_backpressured", "latest message scan is temporarily backpressured; retry later")
 	case errors.Is(err, managementusecase.ErrLatestMessagesUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "latest messages unavailable")
 	case errors.Is(err, channelappend.ErrNotLeader), errors.Is(err, channelappend.ErrStaleRoute), errors.Is(err, channelappend.ErrRouteNotReady):

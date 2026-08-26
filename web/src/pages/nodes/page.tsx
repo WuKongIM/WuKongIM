@@ -37,6 +37,12 @@ import type {
   ManagerNodeDetailResponse,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
+import {
+  nodeConfigGroupTitle,
+  nodeConfigItemLabel,
+  nodeConfigSourceLabel,
+  nodeConfigValueLabel,
+} from "@/lib/node-config-i18n"
 
 type NodesState = {
   nodes: ManagerNodesResponse | null
@@ -145,10 +151,18 @@ function nodeHealthEvidenceText(intl: IntlShape, node: ManagerNode) {
   if (!health?.freshness) {
     return null
   }
+  const freshnessMessageId = {
+    fresh: "status.fresh",
+    stale: "status.stale",
+    missing: "status.missing",
+    unknown: "status.unknown",
+  }[health.freshness]
   return intl.formatMessage(
     { id: "nodes.healthEvidence" },
     {
-      freshness: health.freshness,
+      freshness: freshnessMessageId
+        ? intl.formatMessage({ id: freshnessMessageId })
+        : health.freshness.replaceAll("_", " "),
       runtimeReady: formatBooleanValue(intl, health.runtime_ready ?? false),
       age: health.report_age_ms ?? 0,
       ttl: health.report_ttl_ms ?? 0,
@@ -399,7 +413,7 @@ function NodeConfigSection({
               {intl.formatMessage(
                 { id: "nodes.config.meta" },
                 {
-                  source: config.source,
+                  source: nodeConfigSourceLabel(intl, config.source),
                   restart: intl.formatMessage({
                     id: config.requires_restart
                       ? "nodes.config.restartRequired"
@@ -446,11 +460,11 @@ function NodeConfigSection({
             {config.groups.map((group) => (
               <section className="border-t border-border pt-3 first:border-t-0 first:pt-0" key={group.id}>
                 <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {group.title}
+                  {nodeConfigGroupTitle(intl, group)}
                 </h4>
                 {group.items.length > 0 ? (
                   <div className="mt-2 overflow-x-auto rounded-md border border-border">
-                    <table aria-label={group.title} className="w-full min-w-[560px] border-collapse text-left text-sm">
+                    <table aria-label={nodeConfigGroupTitle(intl, group)} className="w-full min-w-[560px] border-collapse text-left text-sm">
                       <thead className="bg-background text-xs uppercase tracking-[0.14em] text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2">{intl.formatMessage({ id: "nodes.config.table.key" })}</th>
@@ -470,9 +484,9 @@ function NodeConfigSection({
                               <td className="break-all px-3 py-2 font-mono text-xs text-muted-foreground">
                                 {item.key}
                               </td>
-                              <td className="px-3 py-2 text-foreground">{item.label}</td>
+                              <td className="px-3 py-2 text-foreground">{nodeConfigItemLabel(intl, item)}</td>
                               <td className="break-all px-3 py-2 font-mono text-xs text-foreground">
-                                {item.value || "-"}
+                                {nodeConfigValueLabel(intl, item.value) || "-"}
                               </td>
                               <td className="px-3 py-2">
                                 {flags.length > 0 ? (
@@ -844,7 +858,7 @@ export function NodeClusterListPanel() {
       {!state.loading && !state.error && state.nodes ? (
         <>
           <div
-            className="grid gap-0 border-y border-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            className="grid grid-cols-2 gap-0 border-y border-border lg:grid-cols-3 xl:grid-cols-6"
             data-testid="nodes-summary-strip"
           >
             <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.total" })} value={nodes.length} />
@@ -856,19 +870,23 @@ export function NodeClusterListPanel() {
           </div>
           <div className="border border-border bg-card">
             {state.nodes.items.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table aria-label={intl.formatMessage({ id: "nav.nodes.title" })} className="w-full border-collapse">
+              <>
+                <p className="px-3 pt-3 text-xs text-muted-foreground lg:hidden">
+                  {intl.formatMessage({ id: "nodes.table.scrollHint" })}
+                </p>
+                <div className="relative overflow-x-auto">
+                <table aria-label={intl.formatMessage({ id: "nav.nodes.title" })} className="w-full min-w-[88rem] border-collapse">
                   <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.node" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.address" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.health" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.channels" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
+                      <th className="sticky left-0 z-20 border-r border-border bg-background px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.node" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.address" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.health" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.channels" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
+                      <th className="sticky right-0 z-20 border-l border-border bg-background px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -890,7 +908,7 @@ export function NodeClusterListPanel() {
                     const onboardingStatusLoading = onboardingStatus?.loading === true
                     return (
                       <tr className="border-t border-border align-top hover:bg-muted/45" key={node.node_id}>
-                        <td className="px-3 py-3 text-sm font-medium text-foreground">
+                        <td className="sticky left-0 z-10 border-r border-border bg-card px-3 py-3 text-sm font-medium text-foreground">
                           <div>{node.node_id}</div>
                           {node.name ? (
                             <div className="mt-1 text-xs font-normal text-muted-foreground">{node.name}</div>
@@ -953,7 +971,7 @@ export function NodeClusterListPanel() {
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           {nodeRuntimeSummaryText(intl, node)}
                         </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
+                        <td className="sticky right-0 z-10 border-l border-border bg-card px-3 py-3 text-sm text-foreground">
                           <div className="flex items-center gap-2">
                             {currentJoinState === "joining" ? (
                               <Button
@@ -1118,7 +1136,8 @@ export function NodeClusterListPanel() {
                   })}
                 </tbody>
               </table>
-            </div>
+                </div>
+              </>
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "nodes.inventoryTitle" })} />
           )}
@@ -1385,7 +1404,7 @@ export function NodeClusterOverviewPanel() {
       {!state.loading && !state.error && state.nodes ? (
         <>
           <div
-            className="grid gap-0 border-y border-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            className="grid grid-cols-2 gap-0 border-y border-border lg:grid-cols-3 xl:grid-cols-6"
             data-testid="nodes-summary-strip"
           >
             <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.total" })} value={nodes.length} />

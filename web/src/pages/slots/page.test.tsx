@@ -345,6 +345,11 @@ test("marks slot inventory and operation results as editorial workbench surfaces
   const inventorySurface = inventoryTable.closest("[data-slot-surface='inventory']")
   expect(inventorySurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
   expect(inventorySurface).not.toHaveClass("rounded-xl")
+  expect(inventoryTable).toHaveClass("min-w-[78rem]")
+  expect(screen.getByRole("columnheader", { name: "Slot" })).toHaveClass("sticky", "left-0")
+  expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveClass("sticky", "right-0")
+  expect(screen.getByRole("button", { name: "Inspect slot 9" }).closest("td")).toHaveClass("sticky", "right-0")
+  expect(screen.getByText("Scroll horizontally to view all columns; the slot and actions columns stay visible.")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Rebalance slots" }))
   await user.click(screen.getByRole("button", { name: "Confirm" }))

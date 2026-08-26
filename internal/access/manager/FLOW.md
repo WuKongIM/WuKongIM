@@ -55,6 +55,9 @@ remote node read or action
   accepted work and preserve idempotent/no-op results as `200`.
 - Missing, stale, partial, or unavailable distributed evidence remains unknown
   or unsafe; it is never projected as zero, healthy, or safe to remove.
+- Latest-message scan saturation returns the stable
+  `latest_messages_backpressured` error with retry guidance; general
+  unavailability remains `service_unavailable`.
 - Backup, config, diagnostics, log, plugin, and DB-inspect responses remain
   bounded and redacted. Credentials, filesystem paths, raw provider errors,
   complete UID sets, and secret material are never returned.

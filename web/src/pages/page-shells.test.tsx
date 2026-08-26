@@ -20,7 +20,6 @@ const getMessagesMock = vi.fn()
 const getRecentConversationsMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
-const getDashboardMetricsMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
 const getDiagnosticsEventsMock = vi.fn()
@@ -35,13 +34,6 @@ const getBusinessChannelsMock = vi.fn()
 const getSystemUsersMock = vi.fn()
 const getPermissionsMock = vi.fn()
 const getWebhookConfigMock = vi.fn()
-
-const dashboardMetricSeries = (latest: number, peak = latest, avg = latest) => ({
-  latest,
-  peak,
-  avg,
-  series: [avg, latest],
-})
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -60,7 +52,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getRecentConversations: (...args: unknown[]) => getRecentConversationsMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
-    getDashboardMetrics: (...args: unknown[]) => getDashboardMetricsMock(...args),
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
     getDiagnosticsEvents: (...args: unknown[]) => getDiagnosticsEventsMock(...args),
@@ -94,7 +85,6 @@ beforeEach(() => {
   getRecentConversationsMock.mockReset()
   getSlotsMock.mockReset()
   getNetworkSummaryMock.mockReset()
-  getDashboardMetricsMock.mockReset()
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
   getDiagnosticsEventsMock.mockReset()
@@ -328,25 +318,6 @@ beforeEach(() => {
     },
     events: [],
   })
-  getDashboardMetricsMock.mockResolvedValue({
-    generated_at: "2026-05-15T08:30:00Z",
-    window_seconds: 300,
-    step_seconds: 30,
-    points: 10,
-    metrics: {
-      send_per_sec: dashboardMetricSeries(2800),
-      deliver_per_sec: dashboardMetricSeries(2700),
-      connections: dashboardMetricSeries(18400),
-      send_latency_p99_ms: dashboardMetricSeries(31),
-      delivery_latency_p99_ms: dashboardMetricSeries(42),
-      send_fail_rate_percent: dashboardMetricSeries(0.02),
-      delivery_fail_rate_percent: dashboardMetricSeries(0.01),
-      active_channels: dashboardMetricSeries(2143),
-      retry_queue_depth: dashboardMetricSeries(8),
-      fan_out_rate: dashboardMetricSeries(3.4),
-    },
-  })
-
   useAuthStore.setState({
     status: "authenticated",
     isHydrated: true,
@@ -360,7 +331,6 @@ beforeEach(() => {
 
 it.each([
   ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
-  ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
   ["/cluster/nodes", "Nodes", "127.0.0.1:7000"],
   ["/cluster/node-config", "Node Config", "Effective configuration"],
   ["/cluster/slots", "Slots", "Slot 9"],
@@ -399,7 +369,6 @@ it.each([
   ["/cluster/plugins", "CLUSTER / PLUGINS"],
   ["/cluster/tasks", "Controller Tasks"],
   ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
-  ["/business/dashboard", "BUSINESS / DASHBOARD"],
   ["/business/users", "BUSINESS / USERS"],
   ["/business/channels", "BUSINESS / CHANNELS"],
   ["/business/messages", "BUSINESS / MESSAGES"],
@@ -422,13 +391,12 @@ it.each([
 
 it.each([
   ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
-  ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
   ["/cluster/nodes", "节点", "127.0.0.1:7000"],
   ["/cluster/node-config", "节点配置", "有效配置"],
   ["/cluster/slots", "槽位", "槽位 9"],
   ["/cluster/channels", "频道集群", "当前视图还没有可用的管理面数据。"],
   ["/cluster/plugins", "插件管理", "节点插件清单"],
-  ["/cluster/tasks", "Controller 任务", "任务审计历史"],
+  ["/cluster/tasks", "控制器任务", "任务审计历史"],
   ["/cluster/diagnostics", "诊断", "消息诊断"],
   ["/business/users", "用户管理", "用户"],
   ["/business/channels", "频道管理", "业务频道"],

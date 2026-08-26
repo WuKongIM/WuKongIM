@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -44,6 +45,19 @@ func TestManagerLatestMessagesRPCClientReadsPeer(t *testing.T) {
 	}
 	if node.nodeID != 2 || node.serviceID != ManagerLatestMessagesRPCServiceID || len(page.Items) != 1 || page.Items[0].MessageID != 99 {
 		t.Fatalf("rpc/page = node:%d service:%d page:%#v", node.nodeID, node.serviceID, page)
+	}
+}
+
+func TestManagerLatestMessagesRPCPreservesBackpressure(t *testing.T) {
+	adapter := New(Options{ManagerLatestMessages: &fakeManagerLatestMessageReader{
+		err: managementusecase.ErrLatestMessagesBackpressured,
+	}})
+	node := &fakeManagerConnectionRPCNode{handler: adapter.HandleManagerLatestMessagesRPC}
+
+	_, err := NewClient(node).ListManagerLatestMessages(context.Background(), 2, 0, 50)
+
+	if !errors.Is(err, managementusecase.ErrLatestMessagesBackpressured) {
+		t.Fatalf("ListManagerLatestMessages() error = %v, want latest-message backpressure", err)
 	}
 }
 

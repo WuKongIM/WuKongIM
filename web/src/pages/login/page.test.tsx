@@ -112,6 +112,8 @@ test("shows translated Chinese login copy and a translated 401 error", async () 
   )
 
   expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument()
+  expect(screen.getByText("使用管理员账号登录。")).toBeInTheDocument()
+  expect(screen.getByText("登录后将按账号权限展示可执行操作。")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "登录" }))
 
   expect(await screen.findByText("用户名或密码错误。")).toBeInTheDocument()

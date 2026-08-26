@@ -62,6 +62,8 @@ func managerLatestMessagesStatusForError(err error) string {
 		return rpcStatusContextDeadlineExceeded
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		return rpcStatusInvalidArgument
+	case errors.Is(err, managementusecase.ErrLatestMessagesBackpressured):
+		return rpcStatusBackpressured
 	default:
 		return rpcStatusRejected
 	}
@@ -77,6 +79,8 @@ func managerLatestMessagesErrorForStatus(status string) error {
 		return context.DeadlineExceeded
 	case rpcStatusInvalidArgument:
 		return metadb.ErrInvalidArgument
+	case rpcStatusBackpressured:
+		return managementusecase.ErrLatestMessagesBackpressured
 	case rpcStatusRejected:
 		return managementusecase.ErrLatestMessagesUnavailable
 	default:

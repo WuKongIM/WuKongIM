@@ -49,7 +49,7 @@ func (r *ManagementMessageReader) ListLocalLatestMessages(ctx context.Context, b
 	}
 	items, hasMore, next, err := r.latest.ReadLocalLatestMessages(ctx, beforeMessageID, limit)
 	if err != nil {
-		return managementusecase.ListMessagesResponse{}, err
+		return managementusecase.ListMessagesResponse{}, latestMessagesUnavailable(err)
 	}
 	resp := managementusecase.ListMessagesResponse{Items: managementMessagesFromChannel(items), HasMore: hasMore}
 	if hasMore {
@@ -122,8 +122,11 @@ launch:
 }
 
 func latestMessagesUnavailable(err error) error {
-	if err == nil || errors.Is(err, managementusecase.ErrLatestMessagesUnavailable) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, managementusecase.ErrLatestMessagesUnavailable) || errors.Is(err, managementusecase.ErrLatestMessagesBackpressured) {
 		return err
+	}
+	if errors.Is(err, channelruntime.ErrBackpressured) {
+		return fmt.Errorf("%w: %v", managementusecase.ErrLatestMessagesBackpressured, err)
 	}
 	return fmt.Errorf("%w: %v", managementusecase.ErrLatestMessagesUnavailable, err)
 }
