@@ -119,7 +119,7 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
 
       <div className="mt-4 h-[120px]">
         {hasSeries ? (
-          <ResponsiveContainer data-testid="cluster-monitor-chart" height="100%" width="100%">
+          <ResponsiveContainer data-testid="cluster-monitor-chart" height="100%" minHeight={1} minWidth={1} width="100%">
             <AreaChart data={chartModel.data} margin={{ bottom: 0, left: 0, right: 4, top: 8 }}>
               <defs>
                 {chartModel.series.map((series, index) => (
@@ -141,7 +141,7 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
                 axisLine={false}
                 domain={["dataMin", "dataMax"]}
                 fontSize={10}
-                tickFormatter={formatClusterChartAxisValue}
+                tickFormatter={(value) => formatClusterChartAxisValue(value, intl.locale)}
                 tickLine={false}
                 width={44}
               />
@@ -157,7 +157,7 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
                               {item.name}:
                             </span>
                           ) : null}
-                          {formatClusterChartValue(item.value, card.unit)}
+                          {formatClusterChartValue(item.value, card.unit, intl.locale)}
                         </p>
                       ))}
                       <p className="text-muted-foreground">{payload[0].payload.time}</p>
@@ -197,7 +197,9 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
               key={stat.seriesKey ?? `${label}:${stat.value}`}
             >
               <dt className="truncate text-[11px] text-muted-foreground">{label}</dt>
-              <dd className="mt-1 truncate text-xs font-semibold text-foreground">{stat.value}</dd>
+              <dd className="mt-1 truncate text-xs font-semibold text-foreground">
+                {stat.valueId ? intl.formatMessage({ id: stat.valueId }) : stat.value}
+              </dd>
             </div>
           )
         })}
@@ -242,16 +244,16 @@ function MetricHelpButton({ description, label }: { description: string; label: 
   )
 }
 
-export function formatClusterChartValue(value: unknown, unit: string) {
+export function formatClusterChartValue(value: unknown, unit: string, locale = "en-US") {
   const numeric = normalizeChartNumber(value)
   if (numeric === null) return "-"
-  return appendClusterChartUnit(formatClusterChartNumber(numeric, unit), unit)
+  return appendClusterChartUnit(formatClusterChartNumber(numeric, unit, locale), unit)
 }
 
-function formatClusterChartAxisValue(value: unknown) {
+function formatClusterChartAxisValue(value: unknown, locale: string) {
   const numeric = normalizeChartNumber(value)
   if (numeric === null) return "-"
-  return formatClusterChartNumber(numeric, "")
+  return formatClusterChartNumber(numeric, "", locale)
 }
 
 function normalizeChartNumber(value: unknown) {
@@ -259,9 +261,9 @@ function normalizeChartNumber(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null
 }
 
-function formatClusterChartNumber(value: number, unit: string) {
+function formatClusterChartNumber(value: number, unit: string, locale: string) {
   const maximumFractionDigits = clusterChartFractionDigits(value, unit)
-  return value.toLocaleString("en-US", {
+  return value.toLocaleString(locale, {
     maximumFractionDigits,
     minimumFractionDigits: 0,
   })

@@ -238,6 +238,7 @@ export type ClusterMonitorStat = {
   label?: string
   seriesKey?: string
   value: string
+  valueId?: string
 }
 
 export type ClusterMonitorMetricCard = {

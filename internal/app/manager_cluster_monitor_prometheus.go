@@ -98,7 +98,7 @@ func (p *managerPrometheusMonitorProvider) clusterCardSeries(ctx context.Context
 			return monitorMetricQueryResult{}, nil, err
 		}
 		if len(stats) == 0 {
-			stats = clusterMonitorStats(series, def.unit, step)
+			stats = monitorCardStats(series, step, def.unit)
 		}
 		displaySeries := limitMonitorSeries(series, def.maxSeries)
 		stats = limitClusterMonitorNodeStats(stats, displaySeries)
@@ -115,7 +115,7 @@ func (p *managerPrometheusMonitorProvider) clusterCardSeries(ctx context.Context
 		return monitorMetricQueryResult{}, nil, err
 	}
 	series := clusterMonitorTransformSeries(rawSeries, def.transform)
-	return monitorMetricQueryResult{series: limitMonitorSeries(series, def.maxSeries), allSeries: series}, clusterMonitorStats(series, def.unit, step), nil
+	return monitorMetricQueryResult{series: limitMonitorSeries(series, def.maxSeries), allSeries: series}, monitorCardStats(series, step, def.unit), nil
 }
 
 func (p *managerPrometheusMonitorProvider) controlSnapshot(ctx context.Context, nodeID uint64) (managerClusterControlSnapshot, accessmanager.RealtimeMonitorSource) {
@@ -471,15 +471,6 @@ func clusterMonitorTransformSeries(series []accessmanager.RealtimeMonitorPoint, 
 	return out
 }
 
-func clusterMonitorStats(series []accessmanager.RealtimeMonitorPoint, unit string, step time.Duration) []accessmanager.RealtimeMonitorStat {
-	base := monitorCardStats(series, step, unit)
-	out := make([]accessmanager.RealtimeMonitorStat, 0, len(base))
-	for _, stat := range base {
-		out = append(out, accessmanager.RealtimeMonitorStat{Key: stat.Key, Value: stat.Value, Unit: unit})
-	}
-	return out
-}
-
 func clusterMonitorSnapshot(cards []accessmanager.RealtimeMonitorCard, control managerClusterControlSnapshot) []accessmanager.RealtimeMonitorSnapshotEntry {
 	byKey := make(map[string]accessmanager.RealtimeMonitorCard, len(cards))
 	for _, card := range cards {
@@ -527,11 +518,15 @@ func appendClusterCardSnapshot(out []accessmanager.RealtimeMonitorSnapshotEntry,
 	return appendClusterCardSnapshotEntry(out, card, key, metricKey, tone, card.Unit, value)
 }
 
-func appendClusterCardSnapshotEntry(out []accessmanager.RealtimeMonitorSnapshotEntry, card accessmanager.RealtimeMonitorCard, key, metricKey, tone, unit string, value func(float64) float64) []accessmanager.RealtimeMonitorSnapshotEntry {
+func appendClusterCardSnapshotEntry(out []accessmanager.RealtimeMonitorSnapshotEntry, card accessmanager.RealtimeMonitorCard, key, metricKey, tone, unit string, transform func(float64) float64) []accessmanager.RealtimeMonitorSnapshotEntry {
+	value := transform(card.Value)
+	if value == 0 {
+		tone = accessmanager.RealtimeMonitorToneNormal
+	}
 	return append(out, accessmanager.RealtimeMonitorSnapshotEntry{
 		Key:       key,
 		MetricKey: metricKey,
-		Value:     value(card.Value),
+		Value:     value,
 		Unit:      unit,
 		Tone:      tone,
 		Source:    accessmanager.RealtimeMonitorSourcePrometheus,

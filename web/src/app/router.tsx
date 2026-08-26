@@ -25,6 +25,7 @@ import { SystemUsersPage } from "@/pages/system-users/page"
 import { TasksPage } from "@/pages/tasks/page"
 import { UsersPage } from "@/pages/users/page"
 import { WebhooksPage } from "@/pages/settings/webhooks/page"
+import { NotFoundPage, RouteErrorPage } from "@/pages/system/route-state-page"
 import { WorkqueuesPage } from "@/pages/workqueues/page"
 import { defaultAppPath } from "@/lib/navigation"
 
@@ -49,6 +50,7 @@ export const routes: RouteObject[] = [
   },
   {
     path: "/",
+    errorElement: <RouteErrorPage />,
     element: (
       <ProtectedRoute>
         <AppShell />
@@ -109,6 +111,7 @@ export const routes: RouteObject[] = [
       { path: "settings/mcp", element: <Navigate replace to="/system/mcp" /> },
       { path: "settings/webhooks", element: <Navigate replace to="/system/webhooks" /> },
       { path: "connections", element: <RedirectWithSearch to="/business/connections" /> },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ]

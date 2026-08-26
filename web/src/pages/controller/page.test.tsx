@@ -191,13 +191,13 @@ test("renders controller raft status and peer snapshot progress", async () => {
 
   expect(await screen.findByText("Controller Raft Status")).toBeInTheDocument()
   expect(getControllerRaftStatusMock).toHaveBeenCalledWith(2)
-  expect(screen.getAllByText("snapshot transferring")).not.toHaveLength(0)
+  expect(screen.getAllByText("Snapshot transferring")).not.toHaveLength(0)
   expect(screen.getByText("commit 40 / applied 39")).toBeInTheDocument()
   expect(screen.getByText("snapshot 9 / term 3")).toBeInTheDocument()
   expect(screen.getByText("Follower Progress")).toBeInTheDocument()
   expect(screen.getByText("Node 3")).toBeInTheDocument()
   expect(screen.getByText("match 21 / next 22")).toBeInTheDocument()
-  expect(screen.getByText("needs snapshot")).toBeInTheDocument()
+  expect(screen.getByText("Needs snapshot")).toBeInTheDocument()
 })
 
 test("preselects the controller node from the URL query", async () => {

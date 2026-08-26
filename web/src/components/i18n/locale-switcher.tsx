@@ -1,12 +1,15 @@
+import { useIntl } from "react-intl"
+
 import { Button } from "@/components/ui/button"
 import { LOCALE_LABELS } from "@/i18n/constants"
 import { useLocale } from "@/i18n/use-locale"
 
 export function LocaleSwitcher() {
+  const intl = useIntl()
   const { locale, setLocale } = useLocale()
 
   return (
-    <div aria-label="Language switcher" className="inline-flex items-center gap-1">
+    <div aria-label={intl.formatMessage({ id: "locale.switcher" })} className="inline-flex items-center gap-1">
       <Button
         aria-pressed={locale === "zh-CN"}
         onClick={() => setLocale("zh-CN")}

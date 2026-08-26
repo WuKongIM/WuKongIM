@@ -561,8 +561,8 @@ export async function loginManager(credentials: ManagerLoginCredentials): Promis
   }
 }
 
-export function getOverview() {
-  return jsonManagerFetch<ManagerOverviewResponse>("/manager/overview")
+export function getOverview(init?: RequestInit) {
+  return jsonManagerFetch<ManagerOverviewResponse>("/manager/overview", init)
 }
 
 export function getPermissions() {

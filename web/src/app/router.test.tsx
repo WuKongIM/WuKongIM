@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -165,6 +165,26 @@ test("renders the app shell for authenticated routes", async () => {
   expect(await screen.findByLabelText("Primary navigation")).toBeInTheDocument()
   expect(screen.getByRole("banner")).toBeInTheDocument()
   expect(screen.getByRole("main")).toBeInTheDocument()
+  await waitFor(() => {
+    expect(document.title).toBe("Nodes · WuKongIM Manager")
+  })
+})
+
+test("renders a localized not-found page for unknown manager routes", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/unknown-manager-page"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { level: 1, name: "Page not found" })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Return to live monitor" })).toHaveAttribute("href", "/cluster/monitor")
+  await waitFor(() => {
+    expect(document.title).toBe("Page not found · WuKongIM Manager")
+  })
 })
 
 test("renders the shell for redesigned cluster routes", async () => {

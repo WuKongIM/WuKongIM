@@ -95,7 +95,8 @@ test("uses compact connection page chrome without summary cards", async () => {
   renderConnectionsPage()
 
   expect(await screen.findByText("u1")).toBeInTheDocument()
-  expect(screen.getByText("Total: 1")).toBeInTheDocument()
+  expect(screen.getByText("Returned: 1")).toBeInTheDocument()
+  expect(screen.getByText("1 connection returned by this node.")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
   expect(screen.queryByText("Scope: local node")).not.toBeInTheDocument()
   expect(screen.queryByText("Connection inventory and transport state.")).not.toBeInTheDocument()
@@ -111,6 +112,19 @@ test("uses compact connection page chrome without summary cards", async () => {
   expect(screen.queryByText("Current local connection records from the manager connections endpoints.")).not.toBeInTheDocument()
   expect(screen.queryByText("Local connections")).not.toBeInTheDocument()
   expect(screen.queryByText("Inspect one connection to view addresses, slot ownership, and session metadata.")).not.toBeInTheDocument()
+})
+
+test("discloses when the node connection result is truncated", async () => {
+  const connections = Array.from({ length: 100 }, (_, index) => ({
+    ...connectionRow,
+    session_id: connectionRow.session_id + index,
+    uid: `u${index + 1}`,
+  }))
+  getConnectionsMock.mockResolvedValueOnce({ total: connections.length, items: connections })
+
+  renderConnectionsPage()
+
+  expect(await screen.findByText("Showing the first 100 connections returned by this node; additional records may exist.")).toBeInTheDocument()
 })
 
 test("uses an editorial connection filter toolbar and inventory table", async () => {

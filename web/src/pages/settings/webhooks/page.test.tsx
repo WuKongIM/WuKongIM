@@ -95,7 +95,7 @@ test("renders enabled webhook config with endpoint and selected focus events", a
   const deliveryTable = screen.getByRole("table", { name: "Delivery and retry settings" })
   expect(within(deliveryTable).getByText("Queue size")).toBeInTheDocument()
   expect(within(deliveryTable).getByText("2,048")).toBeInTheDocument()
-  expect(within(deliveryTable).getByText("Workers")).toBeInTheDocument()
+  expect(within(deliveryTable).getByText("Worker concurrency")).toBeInTheDocument()
   expect(within(deliveryTable).getByText("4")).toBeInTheDocument()
   expect(within(deliveryTable).getByText("Message batch wait")).toBeInTheDocument()
   expect(within(deliveryTable).getByText("500ms")).toBeInTheDocument()
@@ -128,7 +128,7 @@ test("renders disabled webhook config with empty endpoint and all events", async
 
   expect(await screen.findByText("Webhook Status")).toBeInTheDocument()
   expect(screen.getByText("Disabled")).toBeInTheDocument()
-  expect(screen.getByText("Off")).toBeInTheDocument()
+  expect(screen.getByText("Not configured")).toBeInTheDocument()
   expect(screen.getAllByText("All supported events").length).toBeGreaterThan(0)
   expect(screen.getByText("No restart required")).toBeInTheDocument()
   expect(screen.getByText("environment")).toBeInTheDocument()

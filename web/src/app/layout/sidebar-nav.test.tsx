@@ -1,15 +1,44 @@
 import { render, screen, within } from "@testing-library/react"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
-import { beforeEach } from "vitest"
+import { beforeEach, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
 import { routes } from "@/app/router"
 import { useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
 
+const getOverviewMock = vi.fn()
+
+vi.mock("@/lib/manager-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/manager-api")>()
+  return {
+    ...actual,
+    getOverview: (...args: unknown[]) => getOverviewMock(...args),
+  }
+})
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
+  getOverviewMock.mockReset()
+  getOverviewMock.mockResolvedValue({
+    generated_at: "2026-08-26T03:30:00Z",
+    cluster: { controller_leader_id: 1 },
+    nodes: { total: 3, alive: 3, suspect: 0, dead: 0, draining: 0 },
+    slots: { total: 10, ready: 10, quorum_lost: 0, leader_missing: 0, unreported: 0, peer_mismatch: 0, epoch_lag: 0 },
+    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    anomalies: {
+      slots: {
+        quorum_lost: { count: 0, items: [] },
+        leader_missing: { count: 0, items: [] },
+        sync_mismatch: { count: 0, items: [] },
+      },
+      tasks: {
+        failed: { count: 0, items: [] },
+        retrying: { count: 0, items: [] },
+      },
+    },
+  })
   useAuthStore.setState({
     status: "authenticated",
     isHydrated: true,
@@ -36,7 +65,7 @@ test("shows only the active section navigation items", async () => {
   expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument()
 })
 
-test("keeps the cluster context visible in the sidebar", async () => {
+test("keeps the live cluster context visible in the sidebar", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
 
   render(
@@ -46,7 +75,8 @@ test("keeps the cluster context visible in the sidebar", async () => {
   )
 
   expect(await screen.findByText("Cluster status")).toBeInTheDocument()
-  expect(screen.getByText("Single-node cluster")).toBeInTheDocument()
+  expect(await screen.findByText("3-node cluster")).toBeInTheDocument()
+  expect(screen.getByText("3/3 alive")).toBeInTheDocument()
 })
 
 test("keeps the primary menu outside the scrollable content area", async () => {
@@ -62,7 +92,7 @@ test("keeps the primary menu outside the scrollable content area", async () => {
   const contentFrame = main.parentElement
   const appShell = contentFrame?.parentElement
 
-  expect(appShell).toHaveClass("h-screen", "overflow-hidden")
+  expect(appShell).toHaveClass("h-svh", "overflow-hidden")
   expect(contentFrame).toHaveClass("min-h-0", "flex-1")
   expect(main).toHaveClass("min-h-0", "overflow-y-auto")
   expect(screen.getByRole("navigation", { name: "Primary navigation" }).parentElement).toBe(contentFrame)
@@ -78,8 +108,8 @@ test("shows the cockpit health context in the topbar", async () => {
     </AppProviders>,
   )
 
-  expect((await screen.findAllByText("Operations cockpit")).length).toBeGreaterThan(0)
-  expect(screen.getByText("Single-node cluster · healthy")).toBeInTheDocument()
+  expect((await screen.findAllByText("Operations Console")).length).toBeGreaterThan(0)
+  expect(await screen.findByText("3 nodes · healthy")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument()
 })
 
@@ -95,7 +125,8 @@ test("renders Chinese navigation labels and cluster context", async () => {
 
   expect(await screen.findByRole("link", { name: "节点" })).toHaveAttribute("aria-current", "page")
   expect(screen.getAllByText("集群运维").length).toBeGreaterThan(0)
-  expect(screen.getByText("单节点集群")).toBeInTheDocument()
+  expect(await screen.findByText("3 节点集群")).toBeInTheDocument()
+  expect(screen.getByText("3/3 存活")).toBeInTheDocument()
 })
 
 
@@ -140,7 +171,7 @@ test("uses the shortened Chinese config label and node logs menu label", async (
     </AppProviders>,
   )
 
-  const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
+  const nav = await screen.findByRole("navigation", { name: "主要导航" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("节点配置")
   expect(links).not.toContain("拓扑")

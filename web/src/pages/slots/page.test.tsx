@@ -195,7 +195,7 @@ test("renders the slot list tab from the tab search param", async () => {
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
   expect(screen.getByRole("columnheader", { name: "Leader" })).toBeInTheDocument()
   expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
-  expect(screen.getByText("follower")).toBeInTheDocument()
+  expect(screen.getByText("Follower")).toBeInTheDocument()
   expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
 })
 
@@ -323,7 +323,6 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(screen.queryByText("Slots currently reporting a leader.")).not.toBeInTheDocument()
   expect(screen.queryByText("Ready slots")).not.toBeInTheDocument()
   expect(screen.queryByText("Slots whose quorum state is ready.")).not.toBeInTheDocument()
-  expect(screen.queryByText("In sync")).not.toBeInTheDocument()
   expect(screen.queryByText("Slots whose sync state is in sync.")).not.toBeInTheDocument()
   expect(screen.queryByText("Tracked slots")).not.toBeInTheDocument()
   expect(screen.queryByText("Physical slots currently tracked.")).not.toBeInTheDocument()
@@ -368,7 +367,7 @@ test("marks slot overview secondary surfaces", async () => {
 
   const summaryStrip = await screen.findByTestId("slots-overview-summary-strip")
   expect(summaryStrip).toHaveClass("grid", "gap-0", "border-y", "border-border")
-  expect(summaryStrip).toHaveTextContent("Total slots")
+  expect(summaryStrip).toHaveTextContent("Physical slots")
   expect(summaryStrip).toHaveTextContent("Ready slots")
   expect(summaryStrip).toHaveTextContent("1")
 

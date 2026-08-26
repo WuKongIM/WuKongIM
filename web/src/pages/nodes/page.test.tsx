@@ -336,8 +336,8 @@ test("renders layered node inventory fields and slot move row actions", async ()
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
   expect(screen.getByTestId("nodes-summary-strip")).toBeInTheDocument()
   expect(screen.getByRole("table", { name: /nodes/i })).toHaveClass("w-full")
-  expect(screen.getByText("data")).toBeInTheDocument()
-  expect(screen.getByText("active")).toBeInTheDocument()
+  expect(screen.getByText("Data node")).toBeInTheDocument()
+  expect(screen.getByText("Active")).toBeInTheDocument()
   expect(screen.getByText("schedulable")).toBeInTheDocument()
   expect(screen.getByText("controller voter")).toBeInTheDocument()
   expect(screen.getByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
@@ -719,7 +719,7 @@ test("renders dynamic node health freshness evidence", async () => {
   renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  expect(screen.getByText("missing")).toBeInTheDocument()
+  expect(screen.getByText("Missing")).toBeInTheDocument()
   expect(screen.getByText("freshness missing / ready no / age 0 ms / ttl 30000 ms")).toBeInTheDocument()
   expect(screen.getByText("not schedulable")).toBeInTheDocument()
 })
@@ -743,7 +743,7 @@ test("renders controller raft health summary in the node list and detail", async
   const user = userEvent.setup()
   renderNodesPage()
 
-  expect(await screen.findByText("snapshot required")).toBeInTheDocument()
+  expect(await screen.findByText("Snapshot required")).toBeInTheDocument()
   expect(screen.getByText("first 10 / applied 20 / snapshot 9")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Open Controller Raft for node 1" })).toHaveAttribute(
     "href",
@@ -752,7 +752,7 @@ test("renders controller raft health summary in the node list and detail", async
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 
   expect(await screen.findByText("Controller Raft Health")).toBeInTheDocument()
-  expect(screen.getAllByText("snapshot required")).not.toHaveLength(0)
+  expect(screen.getAllByText("Snapshot required")).not.toHaveLength(0)
   expect(screen.getAllByText("first 10 / applied 20 / snapshot 9")).not.toHaveLength(0)
   expect(screen.getAllByRole("link", { name: "Open Controller Raft for node 1" })).not.toHaveLength(0)
 })
@@ -806,7 +806,7 @@ test("requires a complete controller raft watermark before rendering watermark v
   const user = userEvent.setup()
   renderNodesPage()
 
-  expect(await screen.findByText("healthy")).toBeInTheDocument()
+  expect(await screen.findByText("Healthy")).toBeInTheDocument()
   expect(screen.queryByText("first 0 / applied 20 / snapshot 0")).not.toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 

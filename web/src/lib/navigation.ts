@@ -288,8 +288,7 @@ function matchesItem(pathname: string, item: NavigationItem) {
 export function getActiveNavigationItem(pathname: string) {
   return (
     navigationItems.find((item) => matchesItem(pathname, item)) ??
-    pageOnlyNavigationItems.find((item) => matchesItem(pathname, item)) ??
-    pageMetadata.get("/cluster/monitor")
+    pageOnlyNavigationItems.find((item) => matchesItem(pathname, item))
   )
 }
 
