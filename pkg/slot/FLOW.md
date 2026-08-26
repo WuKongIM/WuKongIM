@@ -42,6 +42,9 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 2. A Multi-Raft worker persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
+   Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
+   only the matching index, term, and membership boundary and loads the payload
+   from durable storage only when a lagging peer needs snapshot transfer.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.

@@ -1585,7 +1585,12 @@ observationComplete:
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 			return result
 		}
-		if terminalSnapshotsNeedTrafficRecovery(checkpoint) {
+		// A natural final cut can become pass evidence, so it must prove an
+		// exact, churn-free session population. An operator-owned cut cannot
+		// become a successful completion; preserve its current fenced snapshot
+		// and finish within the cleanup budget instead of waiting for a
+		// transient all-online instant that may never occur under steady churn.
+		if !stopRequested && terminalSnapshotsNeedTrafficRecovery(checkpoint) {
 			statuses, statusDisposition := c.statusRoundWithin(ctx, assignments, terminalRoundTimeout)
 			if statusDisposition != coordinatorRoundSucceeded {
 				c.stopAfterFailure(fence, attempted)

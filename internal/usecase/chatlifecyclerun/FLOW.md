@@ -15,8 +15,9 @@ private credentials.
 ## Boundaries
 
 - Infrastructure quantities and workload thresholds come from a reviewed
-  template. The direct repair controller may derive only its bounded workload
-  and Lease durations from the operator's qualification window.
+  template. The direct repair controller may derive its bounded workload and
+  Lease durations from the operator's qualification window and bind an
+  explicitly authorized whole-CNY repair budget independently of the template.
 - Each stage has exactly one procurement attempt. Deployment readiness repairs
   reuse the exact Lease, bundle, sealed identity, and request-bound control fix.
 - Runtime YAML owns workload details; this use case owns cross-stage identity,
@@ -41,7 +42,9 @@ private credentials.
   two-hour readiness windows.
 - Direct repair accepts a 16-minute through 72-hour-15-minute workload ceiling
   and derives its Lease as the larger of six hours or workload plus four hours
-  45 minutes; its CNY 300/250 limits and every other quantity remain fixed.
+  45 minutes. Its default hard/stop limits are CNY 300/250; an exact explicit
+  whole-CNY authorization may raise the hard limit through CNY 1,500, with a
+  CNY 20 operational reserve, while every other quantity remains fixed.
 - No fresh Lease is created for deployment retry.
 - The exact release selector is derived before paid Acquire so ambiguous or
   artifact-losing acquisition remains cleanup-capable.

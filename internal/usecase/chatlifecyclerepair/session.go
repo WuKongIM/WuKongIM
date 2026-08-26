@@ -13,6 +13,7 @@ import (
 const (
 	StateSchemaV2       = "wukongim.chat_lifecycle.repair_state/v2"
 	ObservationSchemaV2 = "wukongim.chat_lifecycle.repair_observation/v2"
+	maximumQualifyAfter = 72 * time.Hour
 )
 
 var (
@@ -297,7 +298,7 @@ func validConfig(config Config) bool {
 		config.MaximumAckBacklog > 0 && config.MaximumAckBacklog <= 100_000_000 &&
 		config.StallAfter >= time.Second && config.WarmupTimeout >= config.StallAfter &&
 		config.WarmupTimeout <= 10*time.Minute && config.QualifyAfter >= config.StallAfter &&
-		config.QualifyAfter <= time.Hour
+		config.QualifyAfter <= maximumQualifyAfter
 }
 
 func validCandidate(candidate Candidate) bool {

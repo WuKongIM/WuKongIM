@@ -193,7 +193,7 @@ type materializeOptions struct {
 	templatePath, sourceSHA, operator, codexPubKey, requestID string
 	repository, bundleDigest, deploymentPubKey, nowValue      string
 	transitionPath                                            string
-	attempt, committedMicros                                  int64
+	attempt, committedMicros, authorizedRepairBudgetCNY       int64
 }
 
 func addMaterializeCommand(root *cobra.Command) {
@@ -217,6 +217,7 @@ func addMaterializeCommand(root *cobra.Command) {
 	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
+	flags.Int64Var(&options.authorizedRepairBudgetCNY, "authorized-repair-budget-cny", 0, "independently authorized whole-CNY direct repair budget")
 	for _, name := range []string{"template", "source-sha", "operator", "codex-diagnostic-pubkey", "request-id", "repository", "bundle-digest", "deployment-pubkey", "now", "attempt"} {
 		if err := command.MarkFlagRequired(name); err != nil {
 			panic(err)
@@ -243,6 +244,7 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
 		Repository: options.repository, BundleDigest: options.bundleDigest,
 		DeploymentPubKey: options.deploymentPubKey, Now: now,
 		Attempt: int(options.attempt), CommittedMicros: options.committedMicros,
+		AuthorizedRepairBudgetCNY: options.authorizedRepairBudgetCNY,
 	}
 	if options.transitionPath != "" {
 		var transition chatlifecyclerun.StageTransition
@@ -344,7 +346,7 @@ type reportResult struct {
 }
 
 func addReportCommand(root *cobra.Command) {
-	var path string
+	var path, runStartPath string
 	command := &cobra.Command{
 		Use: "validate-rehearsal-report", Short: "Validate one terminal bounded rehearsal report", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -353,6 +355,13 @@ func addReportCommand(root *cobra.Command) {
 				!report.Final || report.Continue || !report.Verdict.Terminal {
 				return chatlifecyclerun.ErrInvalidInput
 			}
+			var runStart chatlifecycle.RunStartReceipt
+			if err := readStrict(runStartPath, &runStart); err != nil {
+				return err
+			}
+			if err := validateRehearsalReportRunStart(report, runStart); err != nil {
+				return err
+			}
 			return json.NewEncoder(command.OutOrStdout()).Encode(reportResult{
 				Schema: "wukongim.chat_lifecycle.rehearsal_result/v1", Stage: report.Stage,
 				Outcome: report.Verdict.Outcome, Cause: report.Verdict.Cause, End: report.Window.End,
@@ -360,10 +369,26 @@ func addReportCommand(root *cobra.Command) {
 		},
 	}
 	command.Flags().StringVar(&path, "report", "", "bounded chat-lifecycle report")
-	if err := command.MarkFlagRequired("report"); err != nil {
-		panic(err)
+	command.Flags().StringVar(&runStartPath, "run-start", "", "exact run-start receipt for the report generation")
+	for _, name := range []string{"report", "run-start"} {
+		if err := command.MarkFlagRequired(name); err != nil {
+			panic(err)
+		}
 	}
 	root.AddCommand(command)
+}
+
+func validateRehearsalReportRunStart(report chatlifecycle.Report, runStart chatlifecycle.RunStartReceipt) error {
+	if runStart.Schema != chatlifecycle.RunStartReceiptSchemaV1 ||
+		runStart.Stage != chatlifecycle.StageRehearsal ||
+		runStart.StartedAt.IsZero() || !runStart.ExpectedEndAt.After(runStart.StartedAt) ||
+		report.Stage != runStart.Stage || report.Fence.RunHash != runStart.RunHash ||
+		report.Fence.AssignmentHash != runStart.AssignmentHash ||
+		report.Fence.Generation != runStart.Generation ||
+		!report.Window.Start.Equal(runStart.StartedAt) {
+		return chatlifecyclerun.ErrInvalidInput
+	}
+	return nil
 }
 
 func readStrict(path string, output any) error {

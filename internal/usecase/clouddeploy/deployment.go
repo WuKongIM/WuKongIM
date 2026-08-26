@@ -42,6 +42,9 @@ const (
 	FormalBudgetStopMicros  = int64(1_350_000_000)
 	RepairBudgetHardMicros  = int64(300_000_000)
 	RepairBudgetStopMicros  = int64(250_000_000)
+	RepairBudgetMaxMicros   = int64(1_500_000_000)
+	RepairBudgetReserve     = int64(20_000_000)
+	wholeCNYMicros          = int64(1_000_000)
 )
 
 // DeploymentPurpose separates immutable evidence-bearing activation from a
@@ -732,14 +735,7 @@ func minimumDataBytes(role string) int64 {
 }
 
 func validDeploymentBudget(purpose DeploymentPurpose, budget DeploymentBudget) bool {
-	hardLimit, stopLimit := FormalBudgetHardMicros, FormalBudgetStopMicros
-	if purpose == DeploymentPurposeRepair {
-		hardLimit, stopLimit = RepairBudgetHardMicros, RepairBudgetStopMicros
-	} else if purpose != DeploymentPurposeImmutable {
-		return false
-	}
-	if budget.Currency != "CNY" || budget.LimitMicros != hardLimit ||
-		budget.OperationalStopMicros != stopLimit || budget.CommittedMicros < 0 ||
+	if budget.Currency != "CNY" || !validDeploymentBudgetLimits(purpose, budget) || budget.CommittedMicros < 0 ||
 		budget.EstimatedCostMicros <= 0 || budget.CommittedMicros >= budget.OperationalStopMicros || len(budget.LineItems) == 0 {
 		return false
 	}
@@ -752,6 +748,22 @@ func validDeploymentBudget(purpose DeploymentPurpose, budget DeploymentBudget) b
 		total += item.CostMicros
 	}
 	return total == budget.EstimatedCostMicros && budget.EstimatedCostMicros <= budget.OperationalStopMicros-budget.CommittedMicros
+}
+
+func validDeploymentBudgetLimits(purpose DeploymentPurpose, budget DeploymentBudget) bool {
+	switch purpose {
+	case DeploymentPurposeImmutable:
+		return budget.LimitMicros == FormalBudgetHardMicros && budget.OperationalStopMicros == FormalBudgetStopMicros
+	case DeploymentPurposeRepair:
+		if budget.LimitMicros == RepairBudgetHardMicros {
+			return budget.OperationalStopMicros == RepairBudgetStopMicros
+		}
+		return budget.LimitMicros > RepairBudgetHardMicros && budget.LimitMicros <= RepairBudgetMaxMicros &&
+			budget.LimitMicros%wholeCNYMicros == 0 &&
+			budget.OperationalStopMicros == budget.LimitMicros-RepairBudgetReserve
+	default:
+		return false
+	}
 }
 
 func hostOrder(role string) int {

@@ -76,6 +76,39 @@ func TestBuildRepairPlanReusesOnlyRepairLeaseForNewBundleGeneration(t *testing.T
 	}
 }
 
+func TestBuildRepairPlanAcceptsExplicitBoundedBudget(t *testing.T) {
+	now := time.Date(2026, 8, 25, 2, 0, 0, 0, time.UTC)
+	lease := deploymentLease(now)
+	lease.Tags = map[string]string{"stage": "repair"}
+	lease.Budget.LimitMicros = 450_000_000
+	lease.Budget.OperationalStopMicros = 430_000_000
+	lease.Budget.EstimatedCostMicros = 408_000_000
+	lease.Budget.LineItems[0].CostMicros = lease.Budget.EstimatedCostMicros
+
+	plan, err := clouddeploy.BuildRepairPlan(lease, deploymentManifest(), 1, now)
+	if err != nil {
+		t.Fatalf("BuildRepairPlan(explicit budget) error = %v", err)
+	}
+	if plan.Budget.LimitMicros != 450_000_000 || plan.Budget.OperationalStopMicros != 430_000_000 {
+		t.Fatalf("repair budget = %+v", plan.Budget)
+	}
+
+	for name, limits := range map[string][2]int64{
+		"wrong stop reserve": {450_000_000, 429_000_000},
+		"fractional CNY":     {450_500_000, 430_500_000},
+		"above maximum":      {1_501_000_000, 1_481_000_000},
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := lease
+			candidate.Budget.LimitMicros = limits[0]
+			candidate.Budget.OperationalStopMicros = limits[1]
+			if _, err := clouddeploy.BuildRepairPlan(candidate, deploymentManifest(), 1, now); !errors.Is(err, clouddeploy.ErrInvalidDeployment) {
+				t.Fatalf("BuildRepairPlan() error = %v", err)
+			}
+		})
+	}
+}
+
 func TestBuildPlanRejectsWrongInventoryAndArtifactIdentity(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
 	for name, mutate := range map[string]func(*clouddeploy.LeaseInventory, *clouddeploy.Manifest){

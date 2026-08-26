@@ -82,6 +82,42 @@ func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T)
 	}
 }
 
+func TestValidateRehearsalReportRunStartRejectsStaleGeneration(t *testing.T) {
+	startedAt := time.Date(2026, 8, 26, 1, 2, 3, 456_000_000, time.UTC)
+	runHash := "sha256:" + strings.Repeat("a", 64)
+	assignmentHash := "sha256:" + strings.Repeat("b", 64)
+	report := chatlifecycle.Report{
+		Stage: chatlifecycle.StageRehearsal,
+		Fence: chatlifecycle.ReportFence{
+			RunHash: runHash, AssignmentHash: assignmentHash, Generation: 7,
+		},
+		Window: chatlifecycle.ReportTimeWindow{Start: startedAt},
+	}
+	receipt := chatlifecycle.RunStartReceipt{
+		Schema: chatlifecycle.RunStartReceiptSchemaV1, Stage: chatlifecycle.StageRehearsal,
+		StartedAt: startedAt, ExpectedEndAt: startedAt.Add(4*time.Hour + 15*time.Minute),
+		RunHash: runHash, AssignmentHash: assignmentHash, Generation: 7,
+	}
+	if err := validateRehearsalReportRunStart(report, receipt); err != nil {
+		t.Fatalf("matching report/run-start rejected: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*chatlifecycle.RunStartReceipt){
+		"run hash":        func(value *chatlifecycle.RunStartReceipt) { value.RunHash = "sha256:" + strings.Repeat("c", 64) },
+		"assignment hash": func(value *chatlifecycle.RunStartReceipt) { value.AssignmentHash = "sha256:" + strings.Repeat("d", 64) },
+		"generation":      func(value *chatlifecycle.RunStartReceipt) { value.Generation++ },
+		"start":           func(value *chatlifecycle.RunStartReceipt) { value.StartedAt = value.StartedAt.Add(time.Nanosecond) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			stale := receipt
+			mutate(&stale)
+			if err := validateRehearsalReportRunStart(report, stale); err == nil {
+				t.Fatalf("report from stale %s was accepted", name)
+			}
+		})
+	}
+}
+
 func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	var output bytes.Buffer
 	command := newRootCommand(&output)
@@ -108,6 +144,56 @@ func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	if plan.Schema != chatlifecyclerun.RunPlanSchemaV1 || plan.Stage != chatlifecyclerun.StageRehearsal ||
 		plan.Attempt != 1 || plan.LeasePlan.HostGroups[0].Count != 3 || plan.LeasePlan.HostGroups[1].Count != 1 {
 		t.Fatalf("materialized plan = %+v", plan)
+	}
+}
+
+func TestMaterializeCommandBindsExplicitRepairBudgetFromTrustedFlag(t *testing.T) {
+	templatePath := filepath.Join("..", "..", "configs", "cloud", "chat-lifecycle", "repair-v1.json")
+	templateFile, err := os.Open(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := chatlifecyclerun.DecodeTemplate(templateFile)
+	templateFile.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	template.Budget.HardLimitMicros = 450_000_000
+	template.Budget.OperationalStopMicros = 430_000_000
+	customTemplate := filepath.Join(t.TempDir(), "repair.json")
+	body, err := json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(customTemplate, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	args := []string{
+		"materialize", "--template", customTemplate,
+		"--source-sha", strings.Repeat("a", 40), "--operator", "tangtaoit",
+		"--codex-diagnostic-pubkey", commandPublicKey(t), "--request-id", "command-repair-budget",
+		"--repository", "WuKongIM/WuKongIM", "--bundle-digest", "sha256:" + strings.Repeat("b", 64),
+		"--deployment-pubkey", commandPublicKey(t), "--now", "2026-08-25T01:00:00Z", "--attempt", "1",
+	}
+	command := newRootCommand(&bytes.Buffer{})
+	command.SetArgs(args)
+	if err := command.Execute(); err == nil {
+		t.Fatal("explicit repair budget without trusted flag was accepted")
+	}
+
+	var output bytes.Buffer
+	command = newRootCommand(&output)
+	command.SetArgs(append(args, "--authorized-repair-budget-cny", "450"))
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var plan chatlifecyclerun.RunPlan
+	if err := json.Unmarshal(output.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.LeasePlan.Budget.LimitMicros != 450_000_000 || plan.OperationalStopMicros != 430_000_000 {
+		t.Fatalf("materialized repair budget = %+v", plan.LeasePlan.Budget)
 	}
 }
 

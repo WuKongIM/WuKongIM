@@ -202,7 +202,8 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		}
 	}
 	rehearsalUnit := read("systemd/wkbench-rehearsal.service")
-	if !strings.Contains(rehearsalUnit, "ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh rehearsal") {
+	if !strings.Contains(rehearsalUnit, "ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh rehearsal") ||
+		!strings.Contains(rehearsalUnit, "SuccessExitStatus=130") {
 		t.Fatalf("rehearsal systemd ownership = %s", rehearsalUnit)
 	}
 	for _, script := range []string{"scripts/wait-coordinator-dependencies.sh", "scripts/run-chat-lifecycle-stage.sh"} {

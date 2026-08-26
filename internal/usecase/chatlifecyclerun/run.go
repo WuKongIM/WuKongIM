@@ -31,6 +31,11 @@ const (
 	maximumRepairWorkload    = int64((72*time.Hour + 15*time.Minute) / time.Second)
 	minimumRepairLease       = int64((6 * time.Hour) / time.Second)
 	repairLeaseReserve       = int64((4*time.Hour + 45*time.Minute) / time.Second)
+	defaultRepairBudgetCNY   = int64(300)
+	defaultRepairStopCNY     = int64(250)
+	maximumRepairBudgetCNY   = int64(1500)
+	customRepairStopReserve  = int64(20)
+	microsPerCNY             = int64(1_000_000)
 )
 
 var (
@@ -43,7 +48,8 @@ var (
 )
 
 // Template is the reviewed, versioned policy source. Direct repair may derive
-// only its bounded workload and Lease durations before this package validates it.
+// its bounded workload and Lease durations plus an explicitly authorized
+// repair budget before this package validates it.
 type Template struct {
 	Schema                  string              `json:"schema"`
 	Stage                   string              `json:"stage"`
@@ -115,6 +121,9 @@ type TrustedContext struct {
 	Attempt int
 	// CommittedMicros is authenticated spend from all earlier attempts and stages.
 	CommittedMicros int64
+	// AuthorizedRepairBudgetCNY is the whole-CNY repair ceiling independently
+	// bound by the direct controller. Zero preserves the reviewed default.
+	AuthorizedRepairBudgetCNY int64
 	// Transition authorizes formal procurement only after released rehearsal evidence.
 	Transition *StageTransition
 }
@@ -279,8 +288,7 @@ func validTemplate(template Template) bool {
 			template.WorkloadDurationSeconds > maximumRepairWorkload ||
 			template.LeaseDurationSeconds != expectedLease ||
 			template.ReadinessTimeoutSeconds != int64((30*time.Minute)/time.Second) ||
-			template.Budget.HardLimitMicros != 300_000_000 ||
-			template.Budget.OperationalStopMicros != 250_000_000 {
+			!validRepairBudget(template.Budget) {
 			return false
 		}
 	case StageRehearsal:
@@ -317,6 +325,9 @@ func validTrustedContext(template Template, trusted TrustedContext) bool {
 		trusted.CommittedMicros >= template.Budget.HardLimitMicros {
 		return false
 	}
+	if !validTrustedRepairBudget(template, trusted.AuthorizedRepairBudgetCNY) {
+		return false
+	}
 	baseCommitted := int64(0)
 	if template.Stage == StageFormal {
 		transition := trusted.Transition
@@ -332,6 +343,37 @@ func validTrustedContext(template Template, trusted TrustedContext) bool {
 		return false
 	}
 	return trusted.Attempt == 1 && trusted.CommittedMicros == baseCommitted
+}
+
+func validRepairBudget(budget BudgetTemplate) bool {
+	if budget.HardLimitMicros == defaultRepairBudgetCNY*microsPerCNY {
+		return budget.OperationalStopMicros == defaultRepairStopCNY*microsPerCNY
+	}
+	if budget.HardLimitMicros%microsPerCNY != 0 {
+		return false
+	}
+	hardLimitCNY := budget.HardLimitMicros / microsPerCNY
+	return hardLimitCNY > defaultRepairBudgetCNY && hardLimitCNY <= maximumRepairBudgetCNY &&
+		budget.OperationalStopMicros == (hardLimitCNY-customRepairStopReserve)*microsPerCNY
+}
+
+func validTrustedRepairBudget(template Template, authorizedCNY int64) bool {
+	if template.Stage != StageRepair {
+		return authorizedCNY == 0
+	}
+	if authorizedCNY == 0 {
+		return template.Budget.HardLimitMicros == defaultRepairBudgetCNY*microsPerCNY &&
+			template.Budget.OperationalStopMicros == defaultRepairStopCNY*microsPerCNY
+	}
+	if authorizedCNY < defaultRepairBudgetCNY || authorizedCNY > maximumRepairBudgetCNY {
+		return false
+	}
+	expectedStopCNY := authorizedCNY - customRepairStopReserve
+	if authorizedCNY == defaultRepairBudgetCNY {
+		expectedStopCNY = defaultRepairStopCNY
+	}
+	return template.Budget.HardLimitMicros == authorizedCNY*microsPerCNY &&
+		template.Budget.OperationalStopMicros == expectedStopCNY*microsPerCNY
 }
 
 func normalizeEd25519PublicKey(value string) (string, error) {
