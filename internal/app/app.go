@@ -252,7 +252,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	conversationReadStore := app.newConversationReadStore()
-	app.wireConversations(conversationReadStore)
 	app.wirePresence()
 	if err := app.wireBackup(clusterCfg); err != nil {
 		return nil, err
@@ -282,6 +281,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	app.wireMessages()
+	app.wireConversations(conversationReadStore)
 	app.wireCMDSync()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)

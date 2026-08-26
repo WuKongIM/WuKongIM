@@ -5119,6 +5119,45 @@ func TestAppWiresConversationListRouteToUsecase(t *testing.T) {
 	}
 }
 
+func TestAppWiresLegacyConversationSyncRouteToDirectoryAndMessageReads(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
+	cluster.memberships = map[fakeMembershipKey]metadb.UserChannelMembership{
+		{uid: "u1", channelID: "g1", channelType: 2}: {
+			UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 1, ActivatedAt: 100,
+		},
+	}
+	cluster.messages = map[metadb.ChannelKey][]channelruntime.Message{
+		{ChannelID: "g1", ChannelType: 2}: {{
+			MessageID: 9, MessageSeq: 1, ChannelID: "g1", ChannelType: 2,
+			FromUID: "u2", ClientMsgNo: "client-1", ServerTimestampMS: 1_700_000_000_000,
+			Payload: []byte("legacy"),
+		}},
+	}
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:0"},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversation/sync", strings.NewReader(`{"uid":"u1","msg_count":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	apiSrv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"channel_id":"g1"`) || !strings.Contains(rec.Body.String(), `"last_msg_seq":1`) || !strings.Contains(rec.Body.String(), `"payload":"bGVnYWN5"`) {
+		t.Fatalf("body = %s, want legacy conversation with committed message", rec.Body.String())
+	}
+}
+
 func TestAppWiresMessageSyncRouteToCMDSyncUsecase(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
@@ -6907,12 +6946,44 @@ func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id chann
 	return channelruntime.Message{}, false, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
-	return channelstore.ReadCommittedResult{}, nil
+func (f *fakePresenceCluster) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	source := f.messages[metadb.ChannelKey{ChannelID: id.ID, ChannelType: int64(id.Type)}]
+	messages := make([]channelruntime.Message, 0, len(source))
+	for _, message := range source {
+		if req.MinSeq > 0 && message.MessageSeq < req.MinSeq {
+			continue
+		}
+		if req.MaxSeq > 0 && message.MessageSeq > req.MaxSeq {
+			continue
+		}
+		if !req.Reverse && req.FromSeq > 0 && message.MessageSeq < req.FromSeq {
+			continue
+		}
+		if req.Reverse && req.FromSeq > 0 && message.MessageSeq > req.FromSeq {
+			continue
+		}
+		message.Payload = append([]byte(nil), message.Payload...)
+		messages = append(messages, message)
+	}
+	if req.Reverse {
+		for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+			messages[left], messages[right] = messages[right], messages[left]
+		}
+	}
+	if req.Limit > 0 && len(messages) > req.Limit {
+		messages = messages[:req.Limit]
+	}
+	return channelstore.ReadCommittedResult{Messages: messages}, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
-	return make([]clusterchannels.CommittedReadResult, len(reads)), nil
+func (f *fakePresenceCluster) ReadChannelCommittedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	results := make([]clusterchannels.CommittedReadResult, len(reads))
+	for index, read := range reads {
+		results[index].Read, results[index].Err = f.ReadChannelCommitted(ctx, read.ChannelID, read.Request)
+	}
+	return results, nil
 }
 
 func (f *fakePresenceCluster) AppendMessageEvent(_ context.Context, event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {

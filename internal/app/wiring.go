@@ -349,6 +349,9 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 				Hydrator:            conversationReadStore,
 				MembershipMutations: conversationReadStore,
 			}
+			if a.messages != nil {
+				options.LegacyMessages = conversationLegacyMessageReader{messages: a.messages}
+			}
 			a.conversations = conversationusecase.New(options)
 		}
 	}

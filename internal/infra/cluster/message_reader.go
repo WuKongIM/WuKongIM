@@ -177,6 +177,7 @@ func syncedMessagesFromChannel(in []channelruntime.Message) []message.SyncedMess
 			Setting:     msg.Setting,
 			FromUID:     msg.FromUID,
 			ClientMsgNo: msg.ClientMsgNo,
+			Timestamp:   int32(msg.ServerTimestampMS / 1000),
 			Payload:     append([]byte(nil), msg.Payload...),
 		})
 	}

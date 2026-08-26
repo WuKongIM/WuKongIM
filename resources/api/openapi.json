@@ -1756,6 +1756,38 @@
         }
       }
     },
+    "/conversation/sync": {
+      "post": {
+        "summary": "Sync Conversations (Legacy)",
+        "description": "Compatibility endpoint for v2.2.x clients. It accepts the legacy pagination, message cursor, unread, and channel-type filter fields and returns the legacy conversation array. Temporary hydration failures fail the request instead of silently omitting conversations.",
+        "tags": ["Conversation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyConversationSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Legacy conversation synchronization result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LegacyConversationSyncItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/conversations/activate": {
       "post": {
         "summary": "Activate Conversation",
@@ -3532,6 +3564,55 @@
           }
         }
       },
+      "LegacyConversationSyncRequest": {
+        "type": "object",
+        "required": ["uid"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Legacy sync version. A positive value resumes from the effective read position when no channel cursor is supplied."
+          },
+          "last_msg_seqs": {
+            "type": "string",
+            "description": "Legacy per-channel cursors encoded as channel_id:channel_type:last_message_seq entries separated by |.",
+            "example": "group123:2:100|user456:1:20"
+          },
+          "msg_count": {
+            "type": "integer",
+            "description": "Maximum recent messages returned per conversation.",
+            "example": 20
+          },
+          "only_unread": {
+            "type": "integer",
+            "format": "uint8",
+            "enum": [0, 1],
+            "description": "Return unread conversations and channels explicitly present in last_msg_seqs."
+          },
+          "exclude_channel_types": {
+            "type": "array",
+            "description": "Legacy channel types to exclude unless explicitly present in last_msg_seqs.",
+            "items": {
+              "type": "integer",
+              "format": "uint8"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "description": "Legacy one-based page number. Zero disables pagination."
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 500,
+            "description": "Legacy page size. Values at or below zero default to 100 when page is positive."
+          }
+        }
+      },
       "ConversationListKey": {
         "type": "object",
         "required": ["channel_id", "channel_type"],
@@ -3623,6 +3704,54 @@
           "coverage": {"type": "integer", "format": "int64"},
           "tombstones_retained_since": {"type": "integer", "format": "int64"},
           "reset_required": {"type": "boolean"}
+        }
+      },
+      "LegacyConversationSyncItem": {
+        "type": "object",
+        "required": ["channel_id", "channel_type", "unread", "timestamp", "last_msg_seq", "last_client_msg_no", "offset_msg_seq", "readed_to_msg_seq", "version", "recents"],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8"
+          },
+          "unread": {
+            "type": "integer",
+            "format": "uint64"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Last returned message timestamp in Unix seconds."
+          },
+          "last_msg_seq": {
+            "type": "integer",
+            "format": "uint64"
+          },
+          "last_client_msg_no": {
+            "type": "string"
+          },
+          "offset_msg_seq": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "readed_to_msg_seq": {
+            "type": "integer",
+            "format": "uint64"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Last returned message timestamp expressed as Unix nanoseconds."
+          },
+          "recents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            }
+          }
         }
       },
 
