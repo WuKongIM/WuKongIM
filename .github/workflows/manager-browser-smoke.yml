@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/manager-browser-smoke.yml"
+      - "cmd/wukongim/**"
       - "go.mod"
       - "go.sum"
       - "internal/access/manager/**"

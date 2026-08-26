@@ -2,7 +2,10 @@ import { fileURLToPath } from "node:url"
 
 import { defineConfig, devices } from "@playwright/test"
 
-const managerURL = requiredEnvironment("WK_MANAGER_E2E_URL").replace(/\/+$/, "")
+const managerURL = process.env.WK_MANAGER_E2E_URL?.trim().replace(/\/+$/, "")
+if (!managerURL) {
+  throw new Error("WK_MANAGER_E2E_URL is required")
+}
 
 export default defineConfig({
   testDir: fileURLToPath(new URL("../test/e2e/cluster/manager_browser_smoke", import.meta.url)),
@@ -36,11 +39,3 @@ export default defineConfig({
     },
   ],
 })
-
-function requiredEnvironment(name: string) {
-  const value = process.env[name]?.trim()
-  if (!value) {
-    throw new Error(`${name} is required`)
-  }
-  return value
-}

@@ -7,11 +7,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,8 @@ import (
 )
 
 const managerBrowserUsername = "manager-browser-e2e"
+
+const managerBrowserOutputTailLimit = 64 << 10
 
 func TestManagerProductionBundleInChromium(t *testing.T) {
 	if os.Getenv("WK_E2E_MANAGER_BROWSER") != "1" {
@@ -67,7 +71,10 @@ func TestManagerProductionBundleInChromium(t *testing.T) {
 		"WK_MANAGER_E2E_USERNAME": managerBrowserUsername,
 		"WK_MANAGER_E2E_PASSWORD": password,
 	})
-	output, err := cmd.CombinedOutput()
+	output := &boundedTailBuffer{limit: managerBrowserOutputTailLimit}
+	cmd.Stdout = output
+	cmd.Stderr = output
+	err = cmd.Run()
 	if err != nil {
 		t.Fatalf("Manager browser smoke failed: %v\n%s\n%s", err, output, cluster.DumpDiagnostics())
 	}
@@ -109,4 +116,44 @@ func managerBrowserEnvironment(overrides map[string]string) []string {
 		env = append(env, key+"="+value)
 	}
 	return env
+}
+
+// boundedTailBuffer retains only the final bytes from browser process output.
+type boundedTailBuffer struct {
+	mu    sync.Mutex
+	data  []byte
+	total int
+	limit int
+}
+
+func (b *boundedTailBuffer) Write(value []byte) (int, error) {
+	written := len(value)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.total += written
+	if written >= b.limit {
+		b.data = append(b.data[:0], value[written-b.limit:]...)
+		return written, nil
+	}
+
+	overflow := len(b.data) + written - b.limit
+	if overflow > 0 {
+		copy(b.data, b.data[overflow:])
+		b.data = b.data[:len(b.data)-overflow]
+	}
+	b.data = append(b.data, value...)
+	return written, nil
+}
+
+func (b *boundedTailBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	output := string(b.data)
+	omitted := b.total - len(b.data)
+	if omitted <= 0 {
+		return output
+	}
+	return fmt.Sprintf("[truncated %d browser output bytes; showing final %d bytes]\n%s", omitted, len(b.data), output)
 }

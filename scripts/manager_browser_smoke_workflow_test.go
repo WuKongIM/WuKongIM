@@ -12,6 +12,7 @@ func TestManagerBrowserSmokeWorkflowRunsRealThreeNodeChromiumGate(t *testing.T) 
 		"permissions:\n  contents: read",
 		"pull_request:",
 		"workflow_dispatch:",
+		"cmd/wukongim/**",
 		"oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
 		"bun-version: \"1.3.11\"",
 		"actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
