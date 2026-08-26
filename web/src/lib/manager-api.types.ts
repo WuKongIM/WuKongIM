@@ -144,7 +144,7 @@ export type ManagerOverviewResponse = {
   tasks: {
     total: number
     pending: number
-    retrying: number
+    running: number
     failed: number
   }
   anomalies: {
@@ -155,7 +155,6 @@ export type ManagerOverviewResponse = {
     }
     tasks: {
       failed: ManagerOverviewTaskAnomalyGroup
-      retrying: ManagerOverviewTaskAnomalyGroup
     }
   }
 }

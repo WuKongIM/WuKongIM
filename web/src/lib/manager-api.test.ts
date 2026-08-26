@@ -147,6 +147,7 @@ describe("manager api client", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.unstubAllEnvs()
   })
@@ -229,40 +230,162 @@ describe("manager api client", () => {
     })
   })
 
-  it("fetches overview data from the manager overview endpoint", async () => {
+  it("builds overview data from the manager endpoints exposed by the server", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime("2026-04-23T08:00:01Z")
     const overview = {
-      generated_at: "2026-04-23T08:00:00Z",
+      generated_at: "2026-04-23T08:00:01.000Z",
       cluster: { controller_leader_id: 1 },
-      nodes: { total: 3, alive: 3, suspect: 0, dead: 0, draining: 0 },
+      nodes: { total: 4, alive: 2, suspect: 1, dead: 1, draining: 1 },
       slots: {
-        total: 64,
-        ready: 63,
+        total: 4,
+        ready: 1,
         quorum_lost: 1,
-        leader_missing: 0,
-        unreported: 0,
-        peer_mismatch: 0,
-        epoch_lag: 0,
+        leader_missing: 1,
+        unreported: 1,
+        peer_mismatch: 1,
+        epoch_lag: 1,
       },
-      tasks: { total: 2, pending: 1, retrying: 1, failed: 0 },
+      tasks: { total: 4, pending: 2, running: 1, failed: 1 },
       anomalies: {
         slots: {
-          quorum_lost: { count: 0, items: [] },
-          leader_missing: { count: 0, items: [] },
-          sync_mismatch: { count: 0, items: [] },
+          quorum_lost: {
+            count: 1,
+            items: [{
+              slot_id: 2,
+              quorum: "lost",
+              sync: "matched",
+              leader_id: 2,
+              desired_peers: [1, 2, 3],
+              current_peers: [1, 2],
+              last_report_at: "2026-04-23T07:59:58Z",
+            }],
+          },
+          leader_missing: {
+            count: 1,
+            items: [{
+              slot_id: 3,
+              quorum: "ready",
+              sync: "mismatch",
+              leader_id: 0,
+              desired_peers: [1, 2, 3],
+              current_peers: [1, 2],
+              last_report_at: "2026-04-23T07:59:57Z",
+            }],
+          },
+          sync_mismatch: {
+            count: 1,
+            items: [{
+              slot_id: 3,
+              quorum: "ready",
+              sync: "mismatch",
+              leader_id: 0,
+              desired_peers: [1, 2, 3],
+              current_peers: [1, 2],
+              last_report_at: "2026-04-23T07:59:57Z",
+            }],
+          },
         },
         tasks: {
-          failed: { count: 0, items: [] },
-          retrying: { count: 0, items: [] },
+          failed: {
+            count: 1,
+            items: [{
+              slot_id: 3,
+              kind: "leader_transfer",
+              step: "apply",
+              status: "failed",
+              source_node: 1,
+              target_node: 2,
+              attempt: 2,
+              next_run_at: null,
+              last_error: "timed out",
+            }],
+          },
         },
       },
     }
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(overview), { status: 200 }))
+    const nodes = {
+      generated_at: "2026-04-23T08:00:00Z",
+      controller_leader_id: 1,
+      total: 4,
+      items: [
+        { node_id: 1, status: "alive" },
+        { node_id: 2, status: "suspect" },
+        { node_id: 3, status: "dead" },
+        { node_id: 4, status: "alive", membership: { join_state: "leaving" }, runtime: { draining: true } },
+      ],
+    }
+    const slots = {
+      total: 4,
+      items: [
+        {
+          slot_id: 1,
+          state: { quorum: "ready", sync: "matched" },
+          assignment: { desired_peers: [1, 2, 3], config_epoch: 2, balance_version: 0 },
+          runtime: { current_peers: [1, 2, 3], leader_id: 1, preferred_leader_id: 1, healthy_voters: 3, has_quorum: true, observed_config_epoch: 0, last_report_at: "2026-04-23T07:59:59Z" },
+        },
+        {
+          slot_id: 2,
+          state: { quorum: "lost", sync: "matched" },
+          assignment: { desired_peers: [1, 2, 3], config_epoch: 2, balance_version: 0 },
+          runtime: { current_peers: [1, 2], leader_id: 2, preferred_leader_id: 1, healthy_voters: 1, has_quorum: false, observed_config_epoch: 2, last_report_at: "2026-04-23T07:59:58Z" },
+        },
+        {
+          slot_id: 3,
+          state: { quorum: "ready", sync: "mismatch" },
+          assignment: { desired_peers: [1, 2, 3], config_epoch: 3, balance_version: 0 },
+          runtime: { current_peers: [1, 2], leader_id: 0, preferred_leader_id: 1, healthy_voters: 2, has_quorum: true, observed_config_epoch: 2, last_report_at: "2026-04-23T07:59:57Z" },
+        },
+        {
+          slot_id: 4,
+          state: { quorum: "unknown", sync: "unreported" },
+          assignment: { desired_peers: [1, 2, 3], config_epoch: 3, balance_version: 0 },
+          runtime: { current_peers: [], leader_id: 0, preferred_leader_id: 1, healthy_voters: 0, has_quorum: false, observed_config_epoch: 0, last_report_at: "" },
+        },
+      ],
+    }
+    const failedTask = {
+      task_id: "task-3",
+      slot_id: 3,
+      kind: "leader_transfer",
+      step: "apply",
+      status: "failed",
+      source_node: 1,
+      target_node: 2,
+      target_peers: [],
+      completion_policy: "all",
+      config_epoch: 3,
+      attempt: 2,
+      last_error: "timed out",
+      participants: [],
+    }
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === "/manager/nodes") return new Response(JSON.stringify(nodes), { status: 200 })
+      if (path === "/manager/slots") return new Response(JSON.stringify(slots), { status: 200 })
+      if (path === "/manager/controller/tasks?status=pending&limit=500") {
+        return new Response(JSON.stringify({ total: 2, items: [] }), { status: 200 })
+      }
+      if (path === "/manager/controller/tasks?status=running&limit=500") {
+        return new Response(JSON.stringify({ total: 1, items: [] }), { status: 200 })
+      }
+      if (path === "/manager/controller/tasks?status=failed&limit=500") {
+        return new Response(JSON.stringify({ total: 1, items: [failedTask] }), { status: 200 })
+      }
+      return new Response(null, { status: 404 })
+    })
+    const controller = new AbortController()
 
-    await expect(getOverview()).resolves.toEqual(overview)
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/manager/overview",
-      expect.objectContaining({ headers: expect.any(Headers) }),
-    )
+    await expect(getOverview({ signal: controller.signal })).resolves.toEqual(overview)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(fetchMock).not.toHaveBeenCalledWith("/manager/overview", expect.anything())
+    for (const [, requestInit] of fetchMock.mock.calls) {
+      expect(requestInit).toEqual(expect.objectContaining({
+        headers: expect.any(Headers),
+        signal: controller.signal,
+      }))
+    }
+    vi.useRealTimers()
   })
 
   it("fetches manager permissions", async () => {

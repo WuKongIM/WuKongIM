@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && bun run build:check",
+    "build:check": "bun run scripts/check-build-output.mjs",
     "preview": "vite preview",
     "lint": "bun run scripts/eslint-baseline.mjs --check",
     "lint:update-baseline": "bun run scripts/eslint-baseline.mjs --update",

@@ -5,8 +5,10 @@ import { beforeEach, expect, test, vi } from "vitest"
 import { AppProviders } from "@/app/providers"
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { routes } from "@/app/router"
+import { healthyManagerOverview } from "@/test/manager-fixtures"
 
 const getNodesMock = vi.fn()
+const getOverviewMock = vi.fn()
 const getApplicationLogSourcesMock = vi.fn()
 const getApplicationLogEntriesMock = vi.fn()
 const getPermissionsMock = vi.fn()
@@ -17,6 +19,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   return {
     ...actual,
     getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getOverview: (...args: unknown[]) => getOverviewMock(...args),
     getApplicationLogSources: (...args: unknown[]) => getApplicationLogSourcesMock(...args),
     getApplicationLogEntries: (...args: unknown[]) => getApplicationLogEntriesMock(...args),
     getPermissions: (...args: unknown[]) => getPermissionsMock(...args),
@@ -39,6 +42,7 @@ function authenticatedState() {
 beforeEach(() => {
   localStorage.clear()
   getNodesMock.mockReset()
+  getOverviewMock.mockReset()
   getApplicationLogSourcesMock.mockReset()
   getApplicationLogEntriesMock.mockReset()
   getPermissionsMock.mockReset()
@@ -66,6 +70,7 @@ beforeEach(() => {
       channel_runtime: { active_total: 0, active_leader: 0, active_follower: 0, unknown: false },
     }],
   })
+  getOverviewMock.mockResolvedValue(healthyManagerOverview(1))
   getApplicationLogSourcesMock.mockResolvedValue({
     node_id: 1,
     sources: [{ name: "app", file: "app.log", available: true, size_bytes: 0 }],
@@ -133,7 +138,7 @@ test("confines the auth-disabled readonly session to backup management", async (
 
   expect(await screen.findByRole("heading", { name: "Backups" })).toBeInTheDocument()
   expect(router.state.location.pathname).toBe("/cluster/backups")
-  expect(getNodesMock).not.toHaveBeenCalled()
+  expect(getOverviewMock).toHaveBeenCalledTimes(1)
 })
 
 test("redirects authenticated /login visits to the cluster live monitor", async () => {

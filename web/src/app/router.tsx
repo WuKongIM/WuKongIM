@@ -1,33 +1,23 @@
+import { lazy, Suspense, type ComponentType } from "react"
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from "react-router-dom"
 
 import { AppShell } from "@/app/layout/app-shell"
 import { ProtectedRoute, PublicOnlyRoute } from "@/auth/protected-route"
-import { AppLogsPage } from "@/pages/app-logs/page"
-import { BackupsPage } from "@/pages/backups/page"
-import { BusinessDashboardPage } from "@/pages/business-dashboard/page"
-import { ChannelsBizPage } from "@/pages/channels-biz/page"
-import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
-import { ClusterDiagnosticsPage } from "@/pages/cluster/diagnostics/page"
-import { ClusterMonitorPage } from "@/pages/cluster-monitor/page"
-import { ConnectionsPage } from "@/pages/connections/page"
-import { ConversationsPage } from "@/pages/conversations/page"
-import { ClusterDashboardPage } from "@/pages/cluster-dashboard/page"
-import { DBInspectPage } from "@/pages/db-inspect/page"
-import { LoginPage } from "@/pages/login/page"
-import { MessagesPage } from "@/pages/messages/page"
-import { NodeConfigPage } from "@/pages/node-config/page"
-import { NodesPage } from "@/pages/nodes/page"
-import { PermissionsPage } from "@/pages/settings/permissions/page"
-import { MCPSettingsPage } from "@/pages/settings/mcp/page"
-import { PluginsPage } from "@/pages/plugins/page"
-import { SlotsPage } from "@/pages/slots/page"
-import { SystemUsersPage } from "@/pages/system-users/page"
-import { TasksPage } from "@/pages/tasks/page"
-import { UsersPage } from "@/pages/users/page"
-import { WebhooksPage } from "@/pages/settings/webhooks/page"
-import { NotFoundPage, RouteErrorPage } from "@/pages/system/route-state-page"
-import { WorkqueuesPage } from "@/pages/workqueues/page"
+import { NotFoundPage, RouteErrorPage, RouteLoadingPage, RouteLoadingState } from "@/pages/system/route-state-page"
 import { defaultAppPath } from "@/lib/navigation"
+
+function lazyRouteElement<TModule, TExport extends keyof TModule>(
+  load: () => Promise<TModule>,
+  exportName: TExport,
+  fullPage = false,
+) {
+  const LazyPage = lazy(async () => ({ default: (await load())[exportName] as ComponentType }))
+  return (
+    <Suspense fallback={fullPage ? <RouteLoadingPage /> : <RouteLoadingState />}>
+      <LazyPage />
+    </Suspense>
+  )
+}
 
 function RedirectWithSearch({ tab, to }: { tab?: string; to: string }) {
   const location = useLocation()
@@ -44,7 +34,7 @@ export const routes: RouteObject[] = [
     path: "/login",
     element: (
       <PublicOnlyRoute>
-        <LoginPage />
+        {lazyRouteElement(() => import("@/pages/login/page"), "LoginPage", true)}
       </PublicOnlyRoute>
     ),
   },
@@ -59,31 +49,31 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate replace to={defaultAppPath} /> },
       // Cluster operations
-      { path: "cluster/dashboard", element: <ClusterDashboardPage /> },
-      { path: "cluster/monitor", element: <ClusterMonitorPage /> },
-      { path: "cluster/nodes", element: <NodesPage /> },
-      { path: "cluster/node-config", element: <NodeConfigPage /> },
-      { path: "cluster/slots", element: <SlotsPage /> },
-      { path: "cluster/channels", element: <ClusterChannelsPage /> },
-      { path: "cluster/plugins", element: <PluginsPage /> },
-      { path: "cluster/tasks", element: <TasksPage /> },
-      { path: "cluster/workqueues", element: <WorkqueuesPage /> },
-      { path: "cluster/system-logs", element: <AppLogsPage /> },
-      { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
-      { path: "cluster/backups", element: <BackupsPage /> },
+      { path: "cluster/dashboard", element: lazyRouteElement(() => import("@/pages/cluster-dashboard/page"), "ClusterDashboardPage") },
+      { path: "cluster/monitor", element: lazyRouteElement(() => import("@/pages/cluster-monitor/page"), "ClusterMonitorPage") },
+      { path: "cluster/nodes", element: lazyRouteElement(() => import("@/pages/nodes/page"), "NodesPage") },
+      { path: "cluster/node-config", element: lazyRouteElement(() => import("@/pages/node-config/page"), "NodeConfigPage") },
+      { path: "cluster/slots", element: lazyRouteElement(() => import("@/pages/slots/page"), "SlotsPage") },
+      { path: "cluster/channels", element: lazyRouteElement(() => import("@/pages/cluster/channels/page"), "ClusterChannelsPage") },
+      { path: "cluster/plugins", element: lazyRouteElement(() => import("@/pages/plugins/page"), "PluginsPage") },
+      { path: "cluster/tasks", element: lazyRouteElement(() => import("@/pages/tasks/page"), "TasksPage") },
+      { path: "cluster/workqueues", element: lazyRouteElement(() => import("@/pages/workqueues/page"), "WorkqueuesPage") },
+      { path: "cluster/system-logs", element: lazyRouteElement(() => import("@/pages/app-logs/page"), "AppLogsPage") },
+      { path: "cluster/diagnostics", element: lazyRouteElement(() => import("@/pages/cluster/diagnostics/page"), "ClusterDiagnosticsPage") },
+      { path: "cluster/backups", element: lazyRouteElement(() => import("@/pages/backups/page"), "BackupsPage") },
       // Business management
-      { path: "business/dashboard", element: <BusinessDashboardPage /> },
-      { path: "business/users", element: <UsersPage /> },
-      { path: "business/channels", element: <ChannelsBizPage /> },
-      { path: "business/messages", element: <MessagesPage /> },
-      { path: "business/conversations", element: <ConversationsPage /> },
-      { path: "business/system-users", element: <SystemUsersPage /> },
-      { path: "business/connections", element: <ConnectionsPage /> },
+      { path: "business/dashboard", element: lazyRouteElement(() => import("@/pages/business-dashboard/page"), "BusinessDashboardPage") },
+      { path: "business/users", element: lazyRouteElement(() => import("@/pages/users/page"), "UsersPage") },
+      { path: "business/channels", element: lazyRouteElement(() => import("@/pages/channels-biz/page"), "ChannelsBizPage") },
+      { path: "business/messages", element: lazyRouteElement(() => import("@/pages/messages/page"), "MessagesPage") },
+      { path: "business/conversations", element: lazyRouteElement(() => import("@/pages/conversations/page"), "ConversationsPage") },
+      { path: "business/system-users", element: lazyRouteElement(() => import("@/pages/system-users/page"), "SystemUsersPage") },
+      { path: "business/connections", element: lazyRouteElement(() => import("@/pages/connections/page"), "ConnectionsPage") },
       // System
-      { path: "system/permissions", element: <PermissionsPage /> },
-      { path: "system/mcp", element: <MCPSettingsPage /> },
-      { path: "system/db", element: <DBInspectPage /> },
-      { path: "system/webhooks", element: <WebhooksPage /> },
+      { path: "system/permissions", element: lazyRouteElement(() => import("@/pages/settings/permissions/page"), "PermissionsPage") },
+      { path: "system/mcp", element: lazyRouteElement(() => import("@/pages/settings/mcp/page"), "MCPSettingsPage") },
+      { path: "system/db", element: lazyRouteElement(() => import("@/pages/db-inspect/page"), "DBInspectPage") },
+      { path: "system/webhooks", element: lazyRouteElement(() => import("@/pages/settings/webhooks/page"), "WebhooksPage") },
       { path: "system/connections", element: <RedirectWithSearch to="/business/connections" /> },
       // Legacy redirects
       { path: "dashboard", element: <Navigate replace to="/cluster/dashboard" /> },

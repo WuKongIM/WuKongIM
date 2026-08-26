@@ -10,6 +10,11 @@ type ManagerProxyConfig = {
   changeOrigin?: boolean
 }
 
+type CodeSplittingGroupConfig = {
+  name: string
+  maxSize?: number
+}
+
 function getManagerProxy(config: UserConfig) {
   const proxy = config.server?.proxy
   if (!proxy || Array.isArray(proxy)) {
@@ -47,5 +52,25 @@ describe("vite production output", () => {
       path.resolve(__dirname, "../internal/access/manager/webui/dist"),
     )
     expect(config.build?.emptyOutDir).toBe(true)
+  })
+
+  it("splits initial dependencies along stable package boundaries", () => {
+    const config = createViteConfig({ mode: "production" }, {})
+    const output = config.build?.rolldownOptions?.output
+    const resolvedOutput = Array.isArray(output) ? output[0] : output
+    const codeSplitting = resolvedOutput?.codeSplitting
+    const groups = typeof codeSplitting === "object"
+      ? codeSplitting.groups as CodeSplittingGroupConfig[] | undefined
+      : undefined
+
+    expect(groups?.map((group) => group.name)).toEqual([
+      "react-core",
+      "router",
+      "internationalization",
+      "ui-primitives",
+      "icons",
+      "utilities",
+    ])
+    expect(groups?.every((group) => group.maxSize === undefined)).toBe(true)
   })
 })

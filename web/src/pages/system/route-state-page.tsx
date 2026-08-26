@@ -6,6 +6,32 @@ import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
 import { defaultAppPath } from "@/lib/navigation"
 
+export function RouteLoadingPage() {
+  return (
+    <main className="grid min-h-svh place-items-center bg-background p-4 text-foreground">
+      <RouteLoadingState />
+    </main>
+  )
+}
+
+export function RouteLoadingState() {
+  const intl = useIntl()
+
+  return (
+    <div className="m-4 w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-card p-6" role="status">
+      <div className="flex items-center gap-3">
+        <span className="size-2 animate-pulse rounded-full bg-[var(--status-running)]" />
+        <span className="text-sm font-semibold">
+          {intl.formatMessage({ id: "route.loading.title" })}
+        </span>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {intl.formatMessage({ id: "route.loading.description" })}
+      </p>
+    </div>
+  )
+}
+
 export function NotFoundPage() {
   const intl = useIntl()
 

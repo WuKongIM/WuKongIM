@@ -31,7 +31,7 @@ const overviewFixture = {
   cluster: { controller_leader_id: 1 },
   nodes: { total: 3, alive: 3, suspect: 0, dead: 0, draining: 1 },
   slots: { total: 64, ready: 63, quorum_lost: 1, leader_missing: 0, unreported: 0, peer_mismatch: 1, epoch_lag: 0 },
-  tasks: { total: 2, pending: 1, retrying: 1, failed: 0 },
+  tasks: { total: 2, pending: 1, running: 1, failed: 0 },
   anomalies: {
     slots: {
       quorum_lost: { count: 1, items: [{ slot_id: 9, quorum: "quorum_lost", sync: "peer_mismatch", leader_id: 0, desired_peers: [1, 2, 3], current_peers: [1, 2], last_report_at: "2026-05-15T08:00:00Z" }] },
@@ -40,7 +40,6 @@ const overviewFixture = {
     },
     tasks: {
       failed: { count: 0, items: [] },
-      retrying: { count: 1, items: [{ slot_id: 9, kind: "rebalance", step: "plan", status: "retrying", source_node: 1, target_node: 2, attempt: 3, next_run_at: null, last_error: "temporary failure" }] },
     },
   },
 }

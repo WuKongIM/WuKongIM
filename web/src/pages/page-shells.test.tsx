@@ -123,7 +123,7 @@ beforeEach(() => {
       peer_mismatch: 0,
       epoch_lag: 0,
     },
-    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    tasks: { total: 0, pending: 0, running: 0, failed: 0 },
     anomalies: {
       slots: {
         quorum_lost: { count: 0, items: [] },
@@ -132,7 +132,6 @@ beforeEach(() => {
       },
       tasks: {
         failed: { count: 0, items: [] },
-        retrying: { count: 0, items: [] },
       },
     },
   })
@@ -386,8 +385,8 @@ it.each([
     </AppProviders>,
   )
 
+  expect((await screen.findAllByRole("heading", { name: title })).length).toBeGreaterThan(0)
   await screen.findAllByText(section)
-  expect(screen.getAllByRole("heading", { name: title }).length).toBeGreaterThan(0)
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
 })
 

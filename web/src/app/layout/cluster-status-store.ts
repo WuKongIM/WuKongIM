@@ -82,8 +82,7 @@ function classifyClusterHealth(overview: Awaited<ReturnType<typeof getOverview>>
     nodes.draining > 0 ||
     slots.unreported > 0 ||
     slots.peer_mismatch > 0 ||
-    slots.epoch_lag > 0 ||
-    tasks.retrying > 0
+    slots.epoch_lag > 0
   ) {
     return "warning"
   }

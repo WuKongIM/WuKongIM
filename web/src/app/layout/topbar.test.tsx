@@ -8,14 +8,17 @@ import { routes } from "@/app/router"
 import { resetThemePreference, THEME_STORAGE_KEY } from "@/app/theme-store"
 import { useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
+import { healthyManagerNodes, healthyManagerOverview } from "@/test/manager-fixtures"
 
 const getOverviewMock = vi.fn()
+const getNodesMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
   return {
     ...actual,
     getOverview: (...args: unknown[]) => getOverviewMock(...args),
+    getNodes: (...args: unknown[]) => getNodesMock(...args),
   }
 })
 
@@ -25,24 +28,9 @@ beforeEach(() => {
   resetThemePreference()
   document.documentElement.classList.remove("dark", "light")
   getOverviewMock.mockReset()
-  getOverviewMock.mockResolvedValue({
-    generated_at: "2026-08-26T03:30:00Z",
-    cluster: { controller_leader_id: 1 },
-    nodes: { total: 3, alive: 3, suspect: 0, dead: 0, draining: 0 },
-    slots: { total: 10, ready: 10, quorum_lost: 0, leader_missing: 0, unreported: 0, peer_mismatch: 0, epoch_lag: 0 },
-    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
-    anomalies: {
-      slots: {
-        quorum_lost: { count: 0, items: [] },
-        leader_missing: { count: 0, items: [] },
-        sync_mismatch: { count: 0, items: [] },
-      },
-      tasks: {
-        failed: { count: 0, items: [] },
-        retrying: { count: 0, items: [] },
-      },
-    },
-  })
+  getOverviewMock.mockResolvedValue(healthyManagerOverview())
+  getNodesMock.mockReset()
+  getNodesMock.mockResolvedValue(healthyManagerNodes())
   useAuthStore.setState({
     status: "authenticated",
     isHydrated: true,

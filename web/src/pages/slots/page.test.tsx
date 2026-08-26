@@ -156,7 +156,7 @@ beforeEach(() => {
       peer_mismatch: 0,
       epoch_lag: 0,
     },
-    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    tasks: { total: 0, pending: 0, running: 0, failed: 0 },
     anomalies: {
       slots: {
         quorum_lost: { count: 0, items: [] },
@@ -165,7 +165,6 @@ beforeEach(() => {
       },
       tasks: {
         failed: { count: 0, items: [] },
-        retrying: { count: 0, items: [] },
       },
     },
   })
@@ -378,7 +377,7 @@ test("marks slot overview secondary surfaces", async () => {
 
   const runtimeSurface = screen.getByText("Epoch lag").closest("[data-slot-surface='overview-runtime']")
   expect(runtimeSurface).toHaveClass("grid", "gap-3", "sm:grid-cols-3")
-  expect(runtimeSurface).toHaveTextContent("Retrying tasks")
+  expect(runtimeSurface).toHaveTextContent("Running tasks")
   expect(runtimeSurface).toHaveTextContent("Failed tasks")
 })
 
@@ -396,7 +395,7 @@ test("marks slot unhealthy rows as an accessible incident table", async () => {
       peer_mismatch: 0,
       epoch_lag: 0,
     },
-    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    tasks: { total: 0, pending: 0, running: 0, failed: 0 },
     anomalies: {
       slots: {
         quorum_lost: {
@@ -416,7 +415,6 @@ test("marks slot unhealthy rows as an accessible incident table", async () => {
       },
       tasks: {
         failed: { count: 0, items: [] },
-        retrying: { count: 0, items: [] },
       },
     },
   })
