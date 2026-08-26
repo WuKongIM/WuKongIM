@@ -63,7 +63,7 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
     </AppProviders>,
   )
 
-  const banner = screen.getByRole("banner")
+  const banner = await screen.findByRole("banner")
   expect(banner).toHaveClass("bg-background", "border-b")
   expect(banner.querySelector("[data-brand-mark]")).toHaveClass("rounded-sm")
   expect(within(banner).getByText("WUKONGIM")).toBeInTheDocument()
@@ -92,7 +92,8 @@ test("uses a high-contrast active top section pill in Chinese", async () => {
     </AppProviders>,
   )
 
-  const activeSection = await within(screen.getByRole("banner")).findByRole("link", { name: "集群运维" })
+  const banner = await screen.findByRole("banner")
+  const activeSection = await within(banner).findByRole("link", { name: "集群运维" })
 
   expect(activeSection).toHaveClass("top-section-link-active")
   expect(activeSection).not.toHaveClass("bg-[#c8ffd8]", "text-[#06120b]")
@@ -109,7 +110,7 @@ test("shows the live cluster health context and lets the user log out", async ()
     </AppProviders>,
   )
 
-  const banner = screen.getByRole("banner")
+  const banner = await screen.findByRole("banner")
   expect(await within(banner).findByText("3 nodes · healthy")).toBeInTheDocument()
   expect(within(banner).queryByRole("button", { name: /refresh/i })).not.toBeInTheDocument()
   expect(within(banner).queryByRole("button", { name: /search/i })).not.toBeInTheDocument()
@@ -132,13 +133,14 @@ test("switches topbar actions and sections to Chinese", async () => {
     </AppProviders>,
   )
 
-  await user.click(await within(screen.getByRole("banner")).findByRole("button", { name: "中文" }))
+  const banner = await screen.findByRole("banner")
+  await user.click(await within(banner).findByRole("button", { name: "中文" }))
 
-  expect(within(screen.getByRole("banner")).getByRole("link", { name: "集群运维" })).toHaveAttribute("aria-current", "page")
-  expect(within(screen.getByRole("banner")).getByRole("group", { name: "主题切换" })).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByRole("button", { name: "跟随系统" })).toBeInTheDocument()
-  expect(await within(screen.getByRole("banner")).findByText("3 个节点 · 运行正常")).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByRole("button", { name: "退出登录" })).toBeInTheDocument()
+  expect(within(banner).getByRole("link", { name: "集群运维" })).toHaveAttribute("aria-current", "page")
+  expect(within(banner).getByRole("group", { name: "主题切换" })).toBeInTheDocument()
+  expect(within(banner).getByRole("button", { name: "跟随系统" })).toBeInTheDocument()
+  expect(await within(banner).findByText("3 个节点 · 运行正常")).toBeInTheDocument()
+  expect(within(banner).getByRole("button", { name: "退出登录" })).toBeInTheDocument()
   expect(localStorage.getItem("wukongim_manager_locale")).toBe("zh-CN")
 })
 
@@ -152,7 +154,8 @@ test("opens complete navigation from the mobile menu", async () => {
     </AppProviders>,
   )
 
-  await user.click(within(screen.getByRole("banner")).getByRole("button", { name: "Open navigation" }))
+  const banner = await screen.findByRole("banner")
+  await user.click(within(banner).getByRole("button", { name: "Open navigation" }))
 
   const dialog = await screen.findByRole("dialog", { name: "Navigation" })
   expect(within(dialog).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")

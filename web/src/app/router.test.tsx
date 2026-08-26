@@ -222,8 +222,9 @@ test.each([
     </AppProviders>,
   )
 
-  await screen.findByRole("main")
-  expect(router.state.location.pathname + router.state.location.search).toBe(to)
+  await waitFor(() => {
+    expect(router.state.location.pathname + router.state.location.search).toBe(to)
+  })
 })
 
 test("does not register retired monitor route aliases", () => {

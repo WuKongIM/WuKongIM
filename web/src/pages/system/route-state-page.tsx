@@ -6,6 +6,22 @@ import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
 import { defaultAppPath } from "@/lib/navigation"
 
+export function RouteLoadingPage() {
+  const intl = useIntl()
+
+  return (
+    <div className="grid min-h-svh place-items-center bg-background p-4 text-foreground">
+      <div
+        aria-live="polite"
+        className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm"
+        role="status"
+      >
+        {intl.formatMessage({ id: "common.loading" })}
+      </div>
+    </div>
+  )
+}
+
 export function NotFoundPage() {
   const intl = useIntl()
 
