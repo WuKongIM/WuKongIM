@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && bun run build:check",
+    "build:check": "bun run scripts/check-build-output.mjs",
     "preview": "vite preview",
     "lint": "bun run scripts/eslint-baseline.mjs --check",
     "lint:update-baseline": "bun run scripts/eslint-baseline.mjs --update",
     "test": "vitest run",
+    "test:e2e:manager": "playwright test --config playwright.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -36,6 +38,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

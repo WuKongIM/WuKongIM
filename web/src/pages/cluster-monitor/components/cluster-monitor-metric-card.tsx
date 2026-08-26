@@ -119,7 +119,14 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
 
       <div className="mt-4 h-[120px]">
         {hasSeries ? (
-          <ResponsiveContainer data-testid="cluster-monitor-chart" height="100%" minHeight={1} minWidth={1} width="100%">
+          <ResponsiveContainer
+            data-testid="cluster-monitor-chart"
+            height="100%"
+            initialDimension={{ height: 120, width: 320 }}
+            minHeight={1}
+            minWidth={1}
+            width="100%"
+          >
             <AreaChart data={chartModel.data} margin={{ bottom: 0, left: 0, right: 4, top: 8 }}>
               <defs>
                 {chartModel.series.map((series, index) => (

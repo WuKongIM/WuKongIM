@@ -1409,6 +1409,20 @@ test("renders cluster monitor cards from realtime API data", async () => {
   })
 })
 
+test("initializes realtime charts with renderable dimensions", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+
+  try {
+    vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
+    renderClusterMonitorPage()
+
+    expect(await screen.findAllByTestId("cluster-monitor-metric-card")).toHaveLength(2)
+    expect(warn.mock.calls.flatMap((call) => call.map(String)).join("\n")).not.toContain("The width(-1)")
+  } finally {
+    warn.mockRestore()
+  }
+})
+
 test("treats zero error, backlog, and apply-gap values as normal", async () => {
   const response = readyClusterMonitorResponse()
   response.snapshot = []

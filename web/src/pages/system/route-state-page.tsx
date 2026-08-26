@@ -7,17 +7,27 @@ import { PageContainer } from "@/components/shell/page-container"
 import { defaultAppPath } from "@/lib/navigation"
 
 export function RouteLoadingPage() {
+  return (
+    <div className="grid min-h-svh place-items-center bg-background p-4 text-foreground">
+      <RouteLoadingState />
+    </div>
+  )
+}
+
+export function RouteLoadingState() {
   const intl = useIntl()
 
   return (
-    <div className="grid min-h-svh place-items-center bg-background p-4 text-foreground">
-      <div
-        aria-live="polite"
-        className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm"
-        role="status"
-      >
-        {intl.formatMessage({ id: "common.loading" })}
+    <div className="m-4 w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-card p-6" role="status">
+      <div className="flex items-center gap-3">
+        <span className="size-2 animate-pulse rounded-full bg-[var(--status-running)]" />
+        <span className="text-sm font-semibold">
+          {intl.formatMessage({ id: "route.loading.title" })}
+        </span>
       </div>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {intl.formatMessage({ id: "route.loading.description" })}
+      </p>
     </div>
   )
 }

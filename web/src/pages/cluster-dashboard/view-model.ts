@@ -77,7 +77,7 @@ export function computeClusterVerdict(
   if (nodes.items.some((node) => node.controller.raft_health && CRITICAL_RAFT_STATES.has(node.controller.raft_health))) {
     return "critical"
   }
-  if (overview.slots.quorum_lost > 0 || overview.slots.leader_missing > 0 || overview.tasks.retrying > 0) {
+  if (overview.slots.quorum_lost > 0 || overview.slots.leader_missing > 0) {
     return "degraded"
   }
   if (nodes.items.some((node) => node.controller.raft_health && DEGRADED_RAFT_STATES.has(node.controller.raft_health))) {
@@ -147,18 +147,6 @@ export function buildClusterIncidents(
         { id: "clusterDashboard.incidents.taskDetail" },
         { kind: item.kind, step: item.step, attempt: item.attempt, error: item.last_error },
       ),
-      href: `/cluster/tasks?focus=slot-${item.slot_id}`,
-      ariaLabel: title,
-    })
-  }
-
-  for (const item of overview.anomalies.tasks.retrying.items) {
-    const title = intl.formatMessage({ id: "clusterDashboard.incidents.taskRetryingTitle" }, { kind: item.kind, id: item.slot_id })
-    incidents.push({
-      key: `task-retrying-${item.slot_id}-${item.kind}`,
-      severity: "warning",
-      title,
-      detail: "",
       href: `/cluster/tasks?focus=slot-${item.slot_id}`,
       ariaLabel: title,
     })
@@ -279,7 +267,7 @@ export function buildClusterMetricStrip(
   return [
     metric("nodes", "clusterDashboard.metric.nodes", overview.nodes.alive, `${overview.nodes.alive}/${overview.nodes.total}`, "alive/total", overview.nodes.dead > 0 ? "danger" : "default", "real", "/cluster/nodes"),
     metric("slots", "clusterDashboard.metric.slots", overview.slots.ready, `${overview.slots.ready}/${overview.slots.total}`, "ready/total", overview.slots.quorum_lost > 0 ? "danger" : overview.slots.leader_missing > 0 ? "warning" : "default", "real", "/cluster/slots"),
-    metric("tasks", "clusterDashboard.metric.tasks", overview.tasks.failed + overview.tasks.retrying, `${overview.tasks.failed}/${overview.tasks.retrying}`, "failed/retrying", overview.tasks.failed > 0 ? "danger" : overview.tasks.retrying > 0 ? "warning" : "default", "real", "/cluster/tasks"),
+    metric("tasks", "clusterDashboard.metric.tasks", overview.tasks.failed + overview.tasks.running, `${overview.tasks.failed}/${overview.tasks.running}`, "failed/running", overview.tasks.failed > 0 ? "danger" : "default", "real", "/cluster/tasks"),
     metric("channels", "clusterDashboard.metric.channels", channelCluster.isr_insufficient + channelCluster.no_leader, `${channelCluster.healthy}/${channelCluster.total}`, "healthy/total", channelCluster.no_leader > 0 ? "danger" : channelCluster.isr_insufficient > 0 ? "warning" : "default", "real", "/cluster/channels"),
     linkMetrics.internalMessagesPerSecond,
     linkMetrics.rpcErrorRate,

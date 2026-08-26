@@ -1323,9 +1323,9 @@ export function SlotClusterOverviewPanel() {
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                    {intl.formatMessage({ id: "slots.metric.taskRetrying" })}
+                    {intl.formatMessage({ id: "slots.metric.taskRunning" })}
                   </div>
-                  <div className="mt-2 text-2xl font-semibold text-foreground">{overview.tasks.retrying}</div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{overview.tasks.running}</div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">

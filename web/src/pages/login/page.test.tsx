@@ -43,7 +43,7 @@ test("submits credentials and redirects to the cluster live monitor on success",
     </AppProviders>,
   )
 
-  await user.type(screen.getByLabelText(/username/i), "admin")
+  await user.type(await screen.findByLabelText(/username/i), "admin")
   await user.type(screen.getByLabelText("Password", { selector: "input" }), "secret")
   await user.click(screen.getByRole("button", { name: /sign in/i }))
 
@@ -67,9 +67,9 @@ test("shows the invalid credentials message for 401 responses", async () => {
     </AppProviders>,
   )
 
-  await user.type(screen.getByLabelText(/username/i), "admin")
+  await user.type(await screen.findByLabelText(/username/i), "admin")
   await user.type(screen.getByLabelText("Password", { selector: "input" }), "bad")
-  await user.click(screen.getByRole("button", { name: /sign in/i }))
+  await user.click(await screen.findByRole("button", { name: /sign in/i }))
 
   expect(await screen.findByText("Invalid username or password.")).toBeInTheDocument()
   expect(useAuthStore.getState().status).toBe("anonymous")
@@ -111,7 +111,7 @@ test("shows translated Chinese login copy and a translated 401 error", async () 
     </AppProviders>,
   )
 
-  expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "登录" }))
 
   expect(await screen.findByText("用户名或密码错误。")).toBeInTheDocument()
@@ -134,7 +134,7 @@ test("shows a loading state while the login request is in flight", async () => {
     </AppProviders>,
   )
 
-  await user.type(screen.getByLabelText(/username/i), "admin")
+  await user.type(await screen.findByLabelText(/username/i), "admin")
   await user.type(screen.getByLabelText("Password", { selector: "input" }), "secret")
   await user.click(screen.getByRole("button", { name: /sign in/i }))
 
@@ -162,7 +162,7 @@ test("switches the login page copy without navigating away", async () => {
     </AppProviders>,
   )
 
-  expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "中文" }))
 
@@ -170,7 +170,7 @@ test("switches the login page copy without navigating away", async () => {
   expect(localStorage.getItem("wukongim_manager_locale")).toBe("zh-CN")
 })
 
-test("renders a focused manager access experience", () => {
+test("renders a focused manager access experience", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
 
   render(
@@ -179,7 +179,7 @@ test("renders a focused manager access experience", () => {
     </AppProviders>,
   )
 
-  expect(screen.getAllByText("WuKongIM Manager")).toHaveLength(2)
+  expect(await screen.findAllByText("WuKongIM Manager")).toHaveLength(2)
   expect(screen.getByRole("heading", { name: "See the signal. Run the cluster." })).toBeInTheDocument()
   expect(screen.getByText("256 hash slots")).toBeInTheDocument()
   expect(screen.getByText("Permission-scoped")).toBeInTheDocument()
@@ -199,7 +199,7 @@ test("toggles password visibility without clearing the field", async () => {
     </AppProviders>,
   )
 
-  const passwordInput = screen.getByLabelText("Password")
+  const passwordInput = await screen.findByLabelText("Password")
   await user.type(passwordInput, "secret")
 
   expect(passwordInput).toHaveAttribute("type", "password")

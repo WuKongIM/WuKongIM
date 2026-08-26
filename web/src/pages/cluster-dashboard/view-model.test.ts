@@ -22,10 +22,10 @@ const intl = {
 
 function makeOverview(
   overrides: Partial<{
-    tasksRetrying: number
+    tasksRunning: number
     tasksFailed: number
     slotsQuorumLost: number
-    retryingItems: ManagerOverviewResponse["anomalies"]["tasks"]["retrying"]["items"]
+    failedItems: ManagerOverviewResponse["anomalies"]["tasks"]["failed"]["items"]
   }> = {},
 ): ManagerOverviewResponse {
   return {
@@ -44,7 +44,7 @@ function makeOverview(
     tasks: {
       total: 2,
       pending: 0,
-      retrying: overrides.tasksRetrying ?? 0,
+      running: overrides.tasksRunning ?? 0,
       failed: overrides.tasksFailed ?? 0,
     },
     anomalies: {
@@ -54,22 +54,21 @@ function makeOverview(
         sync_mismatch: { count: 0, items: [] },
       },
       tasks: {
-        failed: { count: 0, items: [] },
-        retrying: { count: overrides.retryingItems?.length ?? 0, items: overrides.retryingItems ?? [] },
+        failed: { count: overrides.failedItems?.length ?? 0, items: overrides.failedItems ?? [] },
       },
     },
   }
 }
 
-function makeOverviewWithOneRetry() {
+function makeOverviewWithOneFailure() {
   return makeOverview({
-    tasksRetrying: 1,
-    retryingItems: [
+    tasksFailed: 1,
+    failedItems: [
       {
         slot_id: 9,
         kind: "rebalance",
         step: "move",
-        status: "retrying",
+        status: "failed",
         source_node: 1,
         target_node: 2,
         attempt: 2,
@@ -216,9 +215,8 @@ describe("computeClusterVerdict", () => {
     expect(computeClusterVerdict(makeOverview(), makeNodes())).toBe("healthy")
   })
 
-  it("returns degraded for slot quorum loss or retrying tasks", () => {
+  it("returns degraded for slot quorum loss", () => {
     expect(computeClusterVerdict(makeOverview({ slotsQuorumLost: 1 }), makeNodes())).toBe("degraded")
-    expect(computeClusterVerdict(makeOverview({ tasksRetrying: 1 }), makeNodes())).toBe("degraded")
   })
 
   it("returns critical for failed tasks or restore_failed raft health", () => {
@@ -231,12 +229,12 @@ describe("buildClusterIncidents", () => {
   it("includes slot, task, raft, and network event incidents", () => {
     const incidents = buildClusterIncidents(
       intl,
-      makeOverviewWithOneRetry(),
+      makeOverviewWithOneFailure(),
       makeNodes([{ raft_health: "snapshot_required" }]),
       makeNetworkSummary(),
     )
 
-    expect(incidents.map((item) => item.key)).toContain("task-retrying-9-rebalance")
+    expect(incidents.map((item) => item.key)).toContain("task-failed-9-rebalance")
     expect(incidents.some((item) => item.key.startsWith("controller-raft-"))).toBe(true)
     expect(incidents.some((item) => item.key.startsWith("network-event-"))).toBe(true)
   })

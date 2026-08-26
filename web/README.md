@@ -13,6 +13,24 @@
 
 `bun run build` writes the production bundle to `internal/access/manager/webui/dist`. The complete generated directory is committed because `cmd/wukongim` embeds it at Go build time. Commit the regenerated bundle with every production web source change; CI rebuilds it and rejects drift.
 
+## Browser release smoke
+
+The opt-in browser scenario builds the embedded production bundle, starts a
+real three-node cluster with 256 Hash Slots and ephemeral Manager credentials,
+then runs the desktop/mobile Chromium matrix against the public Manager URL:
+
+```bash
+(bun install --frozen-lockfile && bunx playwright install chromium && bun run build)
+cd ..
+WK_E2E_MANAGER_BROWSER=1 GOWORK=off go test -tags=e2e ./test/e2e/cluster/manager_browser_smoke -count=1 -timeout 5m -p=1 -v
+```
+
+The scenario rejects failed HTTP responses, browser console warnings/errors,
+and uncaught page errors. The
+[`manager-browser-smoke.yml`](../.github/workflows/manager-browser-smoke.yml)
+Safety Automation runs the same gate for relevant pull-request changes and
+uploads Playwright screenshots, video, and traces when it fails.
+
 ## Runtime Scope
 
 The web app provides the authenticated manager shell for WuKongIM operations:
