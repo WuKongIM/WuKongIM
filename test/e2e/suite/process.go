@@ -70,6 +70,19 @@ type NodeProcess struct {
 	closeLogsOnce sync.Once
 }
 
+// PrepareCommandProcessTree makes cmd the leader of a process tree owned by the caller.
+func PrepareCommandProcessTree(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	configureProcessTree(cmd)
+}
+
+// ReapCommandProcessTree escalates TERM to KILL and waits for all owned descendants to exit.
+func ReapCommandProcessTree(process *os.Process, timeout time.Duration) error {
+	return reapProcessTree(process, normalizedStopTimeout(timeout))
+}
+
 // Start launches the child process and redirects stdout and stderr to files.
 func (p *NodeProcess) Start() error {
 	if p == nil {

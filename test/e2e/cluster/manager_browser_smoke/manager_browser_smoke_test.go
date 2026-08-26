@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,7 +24,10 @@ import (
 
 const managerBrowserUsername = "manager-browser-e2e"
 
-const managerBrowserOutputTailLimit = 64 << 10
+const (
+	managerBrowserOutputTailLimit    = 64 << 10
+	managerBrowserProcessStopTimeout = 5 * time.Second
+)
 
 func TestManagerProductionBundleInChromium(t *testing.T) {
 	if os.Getenv("WK_E2E_MANAGER_BROWSER") != "1" {
@@ -64,7 +68,7 @@ func TestManagerProductionBundleInChromium(t *testing.T) {
 	browserCtx, cancelBrowser := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancelBrowser()
 	root := repositoryRoot(t)
-	cmd := exec.CommandContext(browserCtx, "bun", "run", "test:e2e:manager")
+	cmd := exec.Command("bun", "run", "test:e2e:manager")
 	cmd.Dir = filepath.Join(root, "web")
 	cmd.Env = managerBrowserEnvironment(map[string]string{
 		"WK_MANAGER_E2E_URL":      "http://" + cluster.MustNode(1).ManagerAddr(),
@@ -74,11 +78,47 @@ func TestManagerProductionBundleInChromium(t *testing.T) {
 	output := &boundedTailBuffer{limit: managerBrowserOutputTailLimit}
 	cmd.Stdout = output
 	cmd.Stderr = output
-	err = cmd.Run()
+	err = runBrowserCommand(browserCtx, cmd, managerBrowserProcessStopTimeout)
 	if err != nil {
 		t.Fatalf("Manager browser smoke failed: %v\n%s\n%s", err, output, cluster.DumpDiagnostics())
 	}
 	t.Logf("Manager browser smoke passed:\n%s", output)
+}
+
+func runBrowserCommand(ctx context.Context, cmd *exec.Cmd, cleanupTimeout time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	suite.PrepareCommandProcessTree(cmd)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	waitResult := make(chan error, 1)
+	go func() {
+		waitResult <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitResult:
+		return errors.Join(err, suite.ReapCommandProcessTree(cmd.Process, cleanupTimeout))
+	case <-ctx.Done():
+		select {
+		case err := <-waitResult:
+			return errors.Join(err, suite.ReapCommandProcessTree(cmd.Process, cleanupTimeout))
+		default:
+		}
+
+		cleanupErr := suite.ReapCommandProcessTree(cmd.Process, cleanupTimeout)
+		timer := time.NewTimer(cleanupTimeout)
+		defer timer.Stop()
+		select {
+		case <-waitResult:
+		case <-timer.C:
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("wait for browser parent exceeded %s", cleanupTimeout))
+		}
+		return errors.Join(ctx.Err(), cleanupErr)
+	}
 }
 
 func randomSecret(t *testing.T) string {
