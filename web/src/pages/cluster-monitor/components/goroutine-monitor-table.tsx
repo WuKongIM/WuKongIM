@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useIntl } from "react-intl"
 
+import { StatusBadge } from "@/components/manager/status-badge"
 import type { GoroutineModuleSnapshot, RealtimeMonitorGoroutines } from "@/lib/manager-api.types"
 import { cn } from "@/lib/utils"
 
@@ -28,7 +29,7 @@ export function GoroutineMonitorTable({ data, showComplete }: GoroutineMonitorTa
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-foreground">{node.name || `node-${node.node_id}`}</h3>
                 <span className="font-mono text-xs text-muted-foreground">#{node.node_id}</span>
-                <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">{node.status}</span>
+                <StatusBadge value={node.status} />
               </div>
               {node.snapshot ? (
                 <p className="mt-1 font-mono text-[11px] text-muted-foreground">

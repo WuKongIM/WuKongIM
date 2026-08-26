@@ -237,7 +237,10 @@ export function ChannelClusterListPanel({
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {state.channels
-              ? intl.formatMessage({ id: "channels.loadedValue" }, { count: state.channels.items.length })
+              ? intl.formatMessage(
+                  { id: state.channels.has_more ? "channels.loadedMoreValue" : "channels.loadedValue" },
+                  { count: state.channels.items.length },
+                )
               : intl.formatMessage({ id: "channels.loadedPending" })}
           </p>
         </div>
@@ -294,8 +297,8 @@ export function ChannelClusterListPanel({
           {state.channels.items.length > 0 ? (
             <>
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <table className="block w-full border-collapse md:table">
+                  <thead className="hidden bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground md:table-header-group">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.channelId" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.type" })}</th>
@@ -308,26 +311,26 @@ export function ChannelClusterListPanel({
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.actions" })}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="block space-y-3 p-3 md:table-row-group md:space-y-0 md:p-0">
                     {state.channels.items.map((channel) => (
-                      <tr className="border-t border-border" key={`${channel.channel_type}-${channel.channel_id}`}>
-                        <td className="px-3 py-3 text-sm font-medium text-foreground">{channel.channel_id}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                      <tr className="block rounded-md border border-border md:table-row md:rounded-none md:border-x-0 md:border-b-0" key={`${channel.channel_type}-${channel.channel_id}`}>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-3 py-2 text-sm font-medium text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.channelId" })}>{channel.channel_id}</td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.type" })}>
                           {channelTypeLabel(intl, channel.channel_type)}
                         </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.slot_id}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.leader || "-"}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.replicas.join(", ") || "-"}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.slot" })}>{channel.slot_id}</td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.leader" })}>{channel.leader || "-"}</td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.replicas" })}>{channel.replicas.join(", ") || "-"}</td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelCluster.unhealthy.table.isr" })}>
                           {channel.isr.join(", ") || "-"} / {channel.min_isr}
                         </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.maxMessageSeq" })}>
                           {channel.max_message_seq ?? "-"}
                         </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.status" })}>
                           <StatusBadge value={channel.status} />
                         </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.actions" })}>
                           <Button
                             aria-label={intl.formatMessage(
                               { id: "channels.viewMessages" },

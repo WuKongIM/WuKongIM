@@ -120,6 +120,9 @@ test("uses compact channel page chrome without summary cards", async () => {
     limit: 50,
     includeMaxMessageSeq: true,
   })
+  const table = screen.getByRole("table")
+  expect(table).toHaveClass("block", "md:table")
+  expect(screen.getByText("alpha").closest("td")).toHaveAttribute("data-label", "Channel ID")
   expect(screen.queryByText("Scope: all channels")).not.toBeInTheDocument()
   expect(screen.queryByText("Channel lists and runtime drill-in status.")).not.toBeInTheDocument()
   expect(screen.queryByText("Loaded channels")).not.toBeInTheDocument()

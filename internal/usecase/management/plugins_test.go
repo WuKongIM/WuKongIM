@@ -16,6 +16,10 @@ func TestListNodePluginsReadsLocalPluginReader(t *testing.T) {
 	createdAt := time.Unix(1713859100, 0).UTC()
 	updatedAt := time.Unix(1713859150, 0).UTC()
 	local := &fakePluginReader{plugins: []pluginusecase.LocalPlugin{{
+		NodeID: 1,
+		No:     "__wukongim_plugin_host_ready__",
+		Status: pluginusecase.StatusOffline,
+	}, {
 		NodeID:           1,
 		No:               "wk.persist",
 		Name:             "Persist",
@@ -80,7 +84,10 @@ func TestListNodePluginsReturnsEmptyWhenLocalPluginReaderUnavailable(t *testing.
 func TestListNodePluginsRoutesRemoteNodeReads(t *testing.T) {
 	local := &fakePluginReader{}
 	remote := &fakeRemotePluginReader{
-		plugins: []Plugin{{NodeID: 2, No: "wk.remote", Status: "running", Enabled: true}},
+		plugins: []Plugin{
+			{NodeID: 2, No: "__wukongim_plugin_host_ready__", Status: "offline"},
+			{NodeID: 2, No: "wk.remote", Status: "running", Enabled: true},
+		},
 	}
 	app := New(Options{
 		Cluster:       fakeNodeSnapshotReader{nodeID: 1},
@@ -99,7 +106,7 @@ func TestListNodePluginsRoutesRemoteNodeReads(t *testing.T) {
 	if remote.listNodeID != 2 {
 		t.Fatalf("remote list node = %d, want 2", remote.listNodeID)
 	}
-	want := NodePluginList{NodeID: 2, Plugins: remote.plugins}
+	want := NodePluginList{NodeID: 2, Plugins: remote.plugins[1:]}
 	if !sameNodePluginList(got, want) {
 		t.Fatalf("plugins = %#v, want %#v", got, want)
 	}
@@ -129,6 +136,34 @@ func TestGetNodePluginReturnsLocalDetailAndNotFound(t *testing.T) {
 	_, err = app.GetNodePlugin(context.Background(), 1, "missing")
 	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
 		t.Fatalf("GetNodePlugin(missing) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+}
+
+func TestReservedPluginNumbersAreNotAddressable(t *testing.T) {
+	local := &fakePluginReader{}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{nodeID: 1},
+		Plugins: local,
+	})
+	reserved := "__wukongim_plugin_host_ready__"
+
+	_, err := app.GetNodePlugin(context.Background(), 1, reserved)
+	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("GetNodePlugin(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	_, err = app.UpdateNodePluginConfig(context.Background(), 1, reserved, json.RawMessage(`{}`))
+	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("UpdateNodePluginConfig(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	_, err = app.RestartNodePlugin(context.Background(), 1, reserved)
+	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("RestartNodePlugin(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	if err := app.UninstallNodePlugin(context.Background(), 1, reserved); !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("UninstallNodePlugin(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	if local.updatePluginNo != "" || local.restartPluginNo != "" || local.uninstallPluginNo != "" {
+		t.Fatalf("reserved plugin reached local mutation reader: %#v", local)
 	}
 }
 
@@ -291,6 +326,49 @@ func TestPluginBindingsRejectMissingOrAmbiguousSelector(t *testing.T) {
 	_, err = app.ListPluginBindings(context.Background(), PluginBindingListRequest{UID: "u1", PluginNo: "wk.receive"})
 	if !errors.Is(err, ErrPluginBindingSelectorAmbiguous) {
 		t.Fatalf("ListPluginBindings(ambiguous) error = %v, want %v", err, ErrPluginBindingSelectorAmbiguous)
+	}
+}
+
+func TestPluginBindingsHideAndRejectReservedPluginNumbers(t *testing.T) {
+	const reserved = "__wukongim_plugin_host_ready__"
+	store := &fakePluginBindingStore{
+		byUID: map[string][]PluginBinding{
+			"u1": {
+				{UID: "u1", PluginNo: reserved},
+				{UID: "u1", PluginNo: "wk.receive"},
+			},
+		},
+		byPlugin: map[string]pluginBindingScanPage{
+			reserved: {bindings: []PluginBinding{{UID: "u1", PluginNo: reserved}}},
+		},
+	}
+	app := New(Options{PluginBindings: store})
+
+	byUID, err := app.ListPluginBindings(context.Background(), PluginBindingListRequest{UID: "u1"})
+	if err != nil {
+		t.Fatalf("ListPluginBindings(uid) error = %v", err)
+	}
+	if got := byUID.Bindings; len(got) != 1 || got[0].PluginNo != "wk.receive" {
+		t.Fatalf("uid bindings = %#v, want only the public plugin", got)
+	}
+
+	_, err = app.ListPluginBindings(context.Background(), PluginBindingListRequest{PluginNo: reserved})
+	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("ListPluginBindings(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	if store.lastPluginNo != "" {
+		t.Fatalf("reserved plugin reached binding scanner as %q", store.lastPluginNo)
+	}
+
+	_, err = app.BindPluginUser(context.Background(), PluginBindingMutationRequest{UID: "u1", PluginNo: reserved})
+	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("BindPluginUser(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	if err := app.UnbindPluginUser(context.Background(), PluginBindingMutationRequest{UID: "u1", PluginNo: reserved}); !errors.Is(err, pluginusecase.ErrPluginNotFound) {
+		t.Fatalf("UnbindPluginUser(reserved) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+	if len(store.bound) != 0 || len(store.unbound) != 0 {
+		t.Fatalf("reserved plugin reached binding mutation store: bound=%#v unbound=%#v", store.bound, store.unbound)
 	}
 }
 

@@ -2,6 +2,7 @@ import { Pause, Play, RefreshCw, Search } from "lucide-react"
 import { useIntl } from "react-intl"
 
 import { NodeFilter } from "@/components/manager/node-filter"
+import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
 import type { ManagerApplicationLogSource, ManagerNodesResponse } from "@/lib/manager-api.types"
 import {
@@ -52,7 +53,7 @@ export function AppLogsToolbar(props: AppLogsToolbarProps) {
                 {intl.formatMessage({ id: "appLogs.nodeLocal" })}
               </span>
             ) : null}
-            {activeNode?.status ? <span className="text-xs text-muted-foreground">{activeNode.status}</span> : null}
+            {activeNode?.status ? <StatusBadge value={activeNode.status} /> : null}
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{activeNode?.addr ?? "-"}</span>

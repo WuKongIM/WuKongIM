@@ -103,7 +103,7 @@ export function ClusterMonitorToolbar({
         <div className="inline-flex h-8 items-center rounded-md border border-border bg-card p-1">
           {ranges.map((range) => (
             <button
-              aria-label={`${range} time range`}
+              aria-label={intl.formatMessage({ id: "clusterMonitor.controls.timeRange" }, { range })}
               aria-pressed={timeRange === range}
               className={cn(
                 "h-6 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",

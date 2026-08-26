@@ -12,7 +12,6 @@ const webRoot = fileURLToPath(new URL("..", import.meta.url))
 const initialGzipBudgetBytes = 220_000
 const expectedLazyRoutes = [
   "src/app/protected-app-shell.tsx",
-  "src/pages/cluster-dashboard/page.tsx",
   "src/pages/cluster-monitor/page.tsx",
   "src/pages/nodes/page.tsx",
   "src/pages/node-config/page.tsx",

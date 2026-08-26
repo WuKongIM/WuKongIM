@@ -11,6 +11,7 @@ import {
   formatFields,
   importantLogFields,
   logLevelClassName,
+  redactLogText,
 } from "@/pages/app-logs/log-format"
 
 type AppLogRowProps = {
@@ -28,10 +29,16 @@ export function AppLogRow({ entry }: AppLogRowProps) {
   const intl = useIntl()
   const [expanded, setExpanded] = useState(false)
   const fields = importantLogFields(entry)
-  const details = formatFields(entry.fields)
+  const details = redactLogText(formatFields(entry.fields))
   const slot = entry.fields?.slot_id
   const slotLabel = slot === undefined || slot === null ? null : String(slot)
   const seq = entry.seq
+  const raw = redactLogText(entry.raw)
+  const message = redactLogText(entry.message || entry.raw)
+  const caller = redactLogText(entry.caller)
+  const displayedLevel = displayLogLevel(entry.level) === "STACK"
+    ? intl.formatMessage({ id: "appLogs.level.stack" })
+    : displayLogLevel(entry.level)
 
   return (
     <article
@@ -41,20 +48,20 @@ export function AppLogRow({ entry }: AppLogRowProps) {
       <div className="whitespace-nowrap text-slate-500">{entry.time || "-"}</div>
       <div
         className={`h-fit max-w-[4.5rem] overflow-hidden truncate rounded border px-1.5 py-0.5 text-[11px] font-semibold leading-none ${logLevelClassName(entry.level)}`}
-        title={entry.level || displayLogLevel(entry.level)}
+        title={displayedLevel}
       >
-        {displayLogLevel(entry.level)}
+        {displayedLevel}
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           {entry.module ? <span className="text-slate-400">{entry.module}</span> : null}
-          <span className="break-all text-slate-100">{entry.message || entry.raw}</span>
+          <span className="break-all text-slate-100">{message}</span>
         </div>
         <div
           className="mt-1 flex flex-wrap gap-1.5 break-all text-[11px] text-slate-400"
           data-system-log-entry="metadata"
         >
-          {entry.caller ? <span className="break-all">{entry.caller}</span> : null}
+          {caller ? <span className="break-all">{caller}</span> : null}
           {fields.map(([key, value]) => (
             <span
               className="rounded-sm border border-white/10 px-1.5 py-0.5"
@@ -78,14 +85,14 @@ export function AppLogRow({ entry }: AppLogRowProps) {
               className="whitespace-pre-wrap break-all text-slate-500"
               data-system-log-entry="raw"
             >
-              {entry.raw}
+              {raw}
             </pre>
             {details ? (
               <pre className="whitespace-pre-wrap break-words text-slate-400">{details}</pre>
             ) : null}
             <Button
               aria-label={intl.formatMessage({ id: "appLogs.copyRawAria" }, { seq })}
-              onClick={() => copyText(entry.raw)}
+              onClick={() => copyText(raw)}
               size="sm"
               type="button"
               variant="outline"
@@ -99,7 +106,7 @@ export function AppLogRow({ entry }: AppLogRowProps) {
       <div className="flex items-start gap-1">
         <Button
           aria-label={intl.formatMessage({ id: "appLogs.copyMessageAria" }, { seq })}
-          onClick={() => copyText(entry.message || entry.raw)}
+          onClick={() => copyText(message)}
           size="icon"
           type="button"
           variant="ghost"

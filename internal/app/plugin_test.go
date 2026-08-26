@@ -365,6 +365,14 @@ func TestPluginRuntimeAdapterPreservesRuntimeFields(t *testing.T) {
 	require.Equal(t, lastSeenAt, plugins[0].LastSeenAt)
 }
 
+func TestPluginRuntimeAdapterDoesNotCreateUnknownPluginOnClose(t *testing.T) {
+	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{Registry: pluginhost.NewRegistry()})
+	adapter := pluginRuntimeAdapter{runtime: runtime}
+
+	require.NoError(t, adapter.MarkClosed(context.Background(), "__wukongim_plugin_host_ready__"))
+	require.Empty(t, adapter.List())
+}
+
 func TestPluginLifecycleStartsBeforeChannelAppendAndStopsAfter(t *testing.T) {
 	var calls []string
 	var app *App

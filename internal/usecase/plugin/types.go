@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,10 +63,17 @@ var (
 
 const (
 	// SecretHidden is the manager-visible placeholder for configured secret values.
-	SecretHidden = "******"
+	SecretHidden           = "******"
+	reservedPluginNoPrefix = "__wukongim_"
 )
 
 var pluginNoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// IsReservedPluginNo reports whether a plugin number belongs to WuKongIM's
+// internal runtime namespace and must never be exposed as an operator plugin.
+func IsReservedPluginNo(no string) bool {
+	return strings.HasPrefix(strings.TrimSpace(no), reservedPluginNoPrefix)
+}
 
 // Method identifies a plugin hook advertised by a plugin manifest.
 type Method string

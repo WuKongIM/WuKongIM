@@ -256,6 +256,9 @@ func (a *App) GetNodePlugin(ctx context.Context, nodeID uint64, pluginNo string)
 	if no == "" {
 		return Plugin{}, pluginusecase.ErrPluginNoRequired
 	}
+	if pluginusecase.IsReservedPluginNo(no) {
+		return Plugin{}, pluginusecase.ErrPluginNotFound
+	}
 	localNodeID := a.localNodeID()
 	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
 		if a == nil || a.remotePlugins == nil {
@@ -288,6 +291,9 @@ func (a *App) UpdateNodePluginConfig(ctx context.Context, nodeID uint64, pluginN
 	no := strings.TrimSpace(pluginNo)
 	if no == "" {
 		return Plugin{}, pluginusecase.ErrPluginNoRequired
+	}
+	if pluginusecase.IsReservedPluginNo(no) {
+		return Plugin{}, pluginusecase.ErrPluginNotFound
 	}
 	localNodeID := a.localNodeID()
 	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
@@ -322,6 +328,9 @@ func (a *App) RestartNodePlugin(ctx context.Context, nodeID uint64, pluginNo str
 	if no == "" {
 		return Plugin{}, pluginusecase.ErrPluginNoRequired
 	}
+	if pluginusecase.IsReservedPluginNo(no) {
+		return Plugin{}, pluginusecase.ErrPluginNotFound
+	}
 	localNodeID := a.localNodeID()
 	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
 		if a == nil || a.remotePlugins == nil {
@@ -355,6 +364,9 @@ func (a *App) UninstallNodePlugin(ctx context.Context, nodeID uint64, pluginNo s
 	if no == "" {
 		return pluginusecase.ErrPluginNoRequired
 	}
+	if pluginusecase.IsReservedPluginNo(no) {
+		return pluginusecase.ErrPluginNotFound
+	}
 	localNodeID := a.localNodeID()
 	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
 		if a == nil || a.remotePlugins == nil {
@@ -380,6 +392,9 @@ func (a *App) ListPluginBindings(ctx context.Context, req PluginBindingListReque
 		return PluginBindingListResponse{}, ErrPluginBindingSelectorRequired
 	case uid != "" && pluginNo != "":
 		return PluginBindingListResponse{}, ErrPluginBindingSelectorAmbiguous
+	}
+	if pluginNo != "" && pluginusecase.IsReservedPluginNo(pluginNo) {
+		return PluginBindingListResponse{}, pluginusecase.ErrPluginNotFound
 	}
 	if a == nil || a.pluginBindings == nil {
 		return PluginBindingListResponse{}, ErrPluginBindingsUnavailable
@@ -465,6 +480,9 @@ func normalizePluginBindingMutation(req PluginBindingMutationRequest) (string, s
 	if pluginNo == "" {
 		return "", "", pluginusecase.ErrPluginNoRequired
 	}
+	if pluginusecase.IsReservedPluginNo(pluginNo) {
+		return "", "", pluginusecase.ErrPluginNotFound
+	}
 	return uid, pluginNo, nil
 }
 
@@ -541,6 +559,9 @@ func pluginBindingWarning(binding PluginBinding, code, message string) PluginBin
 func managementPluginsFromLocal(nodeID uint64, local []pluginusecase.LocalPlugin) []Plugin {
 	out := make([]Plugin, 0, len(local))
 	for _, plugin := range local {
+		if pluginusecase.IsReservedPluginNo(plugin.No) {
+			continue
+		}
 		out = append(out, managementPluginFromLocal(nodeID, plugin))
 	}
 	return out
@@ -572,6 +593,9 @@ func managementPluginFromLocal(nodeID uint64, plugin pluginusecase.LocalPlugin) 
 func cloneManagementPlugins(nodeID uint64, plugins []Plugin) []Plugin {
 	out := make([]Plugin, 0, len(plugins))
 	for _, plugin := range plugins {
+		if pluginusecase.IsReservedPluginNo(plugin.No) {
+			continue
+		}
 		out = append(out, cloneManagementPlugin(nodeID, plugin))
 	}
 	return out
@@ -620,7 +644,14 @@ func cloneTimePtr(t *time.Time) *time.Time {
 }
 
 func clonePluginBindings(bindings []PluginBinding) []PluginBinding {
-	return append([]PluginBinding(nil), bindings...)
+	out := make([]PluginBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if pluginusecase.IsReservedPluginNo(binding.PluginNo) {
+			continue
+		}
+		out = append(out, binding)
+	}
+	return out
 }
 
 func clonePluginBindingWarnings(warnings []PluginBindingWarning) []PluginBindingWarning {

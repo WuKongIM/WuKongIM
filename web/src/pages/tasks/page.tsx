@@ -65,6 +65,8 @@ const taskCommandMessageIds: Record<string, string> = {
   upsert_slot_assignment_and_task: "tasks.command.upsertSlotAssignmentAndTask",
   upsert_slot_replica_move_task: "tasks.command.upsertSlotReplicaMoveTask",
 }
+const responsiveTaskCellClass = "grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] first:border-t-0 md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden"
+const responsiveTaskRowClass = "block rounded-md border border-border md:table-row md:rounded-none md:border-x-0 md:border-b-0"
 
 function emptyTasksState(): TasksState {
   return {
@@ -98,7 +100,7 @@ function formatNodePair(sourceNode: number, targetNode: number) {
   if (!sourceNode && !targetNode) {
     return "-"
   }
-  return `${sourceNode || "-"} -> ${targetNode || "-"}`
+  return `${sourceNode || "—"} → ${targetNode || "—"}`
 }
 
 function formatNodeList(nodes?: number[] | null) {
@@ -336,12 +338,12 @@ export function TasksPage() {
       ) : (
         <>
           <div
-            className="grid overflow-hidden rounded-lg border border-border bg-card md:grid-cols-5"
+            className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card md:grid-cols-5"
             data-testid="tasks-summary-strip"
           >
             {summaryCards.map((card, index) => (
               <div
-                className="border-b border-border px-4 py-3 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                className="border-b border-border px-4 py-3 odd:border-r last:col-span-2 last:border-b-0 md:col-span-1 md:border-r md:border-b-0 md:last:col-span-1 md:last:border-r-0"
                 data-task-summary-cell=""
                 key={card.label}
               >
@@ -424,9 +426,9 @@ export function TasksPage() {
               >
                 <table
                   aria-label={intl.formatMessage({ id: "tasks.activeTitle" })}
-                  className="w-full min-w-[960px] border-collapse text-left text-sm"
+                  className="block w-full border-collapse text-left text-sm md:table md:min-w-[960px]"
                 >
-                  <thead className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  <thead className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground md:table-header-group">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.id" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.kind" })}</th>
@@ -439,18 +441,18 @@ export function TasksPage() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.error" })}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="block space-y-3 p-3 md:table-row-group md:space-y-0 md:p-0">
                     {activeTasks.map((task) => (
-                      <tr className="border-t border-border" key={task.task_id}>
-                        <td className="px-3 py-3 font-mono text-xs text-foreground">{task.task_id}</td>
-                        <td className="px-3 py-3 text-sm text-foreground">{taskKindLabel(intl, task.kind)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.slot_id}</td>
-                        <td className="px-3 py-3"><StatusBadge value={task.status} /></td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.step ? taskStepLabel(intl, task.step) : "-"}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodePair(task.source_node, task.target_node)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeList(task.target_peers)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatParticipants(intl, task)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.last_error || "-"}</td>
+                      <tr className={responsiveTaskRowClass} key={task.task_id}>
+                        <td className={`${responsiveTaskCellClass} font-mono text-xs text-foreground`} data-label={intl.formatMessage({ id: "tasks.table.id" })}>{task.task_id}</td>
+                        <td className={`${responsiveTaskCellClass} text-foreground`} data-label={intl.formatMessage({ id: "tasks.table.kind" })}>{taskKindLabel(intl, task.kind)}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.slot" })}>{task.slot_id}</td>
+                        <td className={responsiveTaskCellClass} data-label={intl.formatMessage({ id: "tasks.table.status" })}><StatusBadge value={task.status} /></td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.step" })}>{task.step ? taskStepLabel(intl, task.step) : "—"}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.nodes" })}>{formatNodePair(task.source_node, task.target_node)}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.peers" })}>{formatNodeList(task.target_peers)}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.participants" })}>{formatParticipants(intl, task)}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.error" })}>{task.last_error || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -476,9 +478,9 @@ export function TasksPage() {
               >
                 <table
                   aria-label={intl.formatMessage({ id: "tasks.auditTitle" })}
-                  className="w-full min-w-[980px] border-collapse text-left text-sm"
+                  className="block w-full border-collapse text-left text-sm md:table md:min-w-[980px]"
                 >
-                  <thead className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  <thead className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground md:table-header-group">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.id" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.kind" })}</th>
@@ -491,18 +493,18 @@ export function TasksPage() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.actions" })}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="block space-y-3 p-3 md:table-row-group md:space-y-0 md:p-0">
                     {auditTasks.map((task) => (
-                      <tr className="border-t border-border" key={task.task_id}>
-                        <td className="px-3 py-3 font-mono text-xs text-foreground">{task.task_id}</td>
-                        <td className="px-3 py-3 text-sm text-foreground">{taskKindLabel(intl, task.kind)}</td>
-                        <td className="px-3 py-3"><StatusBadge value={task.status} /></td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.slot_id}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodePair(task.source_node, task.target_node)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.first_applied_raft_index}{" -> "}{task.last_applied_raft_index}</td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatTime(intl, task.completed_at ?? task.started_at)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatTaskSummary(intl, task)}</td>
-                        <td className="px-3 py-3">
+                      <tr className={responsiveTaskRowClass} key={task.task_id}>
+                        <td className={`${responsiveTaskCellClass} font-mono text-xs text-foreground`} data-label={intl.formatMessage({ id: "tasks.table.id" })}>{task.task_id}</td>
+                        <td className={`${responsiveTaskCellClass} text-foreground`} data-label={intl.formatMessage({ id: "tasks.table.kind" })}>{taskKindLabel(intl, task.kind)}</td>
+                        <td className={responsiveTaskCellClass} data-label={intl.formatMessage({ id: "tasks.table.status" })}><StatusBadge value={task.status} /></td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.slot" })}>{task.slot_id}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.nodes" })}>{formatNodePair(task.source_node, task.target_node)}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.raft" })}>{task.first_applied_raft_index}{" → "}{task.last_applied_raft_index}</td>
+                        <td className={`${responsiveTaskCellClass} whitespace-nowrap text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.updated" })}>{formatTime(intl, task.completed_at ?? task.started_at)}</td>
+                        <td className={`${responsiveTaskCellClass} text-muted-foreground`} data-label={intl.formatMessage({ id: "tasks.table.summary" })}>{formatTaskSummary(intl, task)}</td>
+                        <td className={responsiveTaskCellClass} data-label={intl.formatMessage({ id: "tasks.table.actions" })}>
                           <Button onClick={() => void openTimeline(task)} size="sm" type="button" variant="outline">
                             {intl.formatMessage({ id: "tasks.actions.viewTimeline" })}
                           </Button>
@@ -543,7 +545,7 @@ export function TasksPage() {
                 { label: "ID", value: timeline.task.task_id },
                 { label: intl.formatMessage({ id: "tasks.table.status" }), value: <StatusBadge value={timeline.task.status} /> },
                 { label: intl.formatMessage({ id: "tasks.table.nodes" }), value: formatNodePair(timeline.task.source_node, timeline.task.target_node) },
-                { label: intl.formatMessage({ id: "tasks.table.raft" }), value: `${timeline.task.first_applied_raft_index} -> ${timeline.task.last_applied_raft_index}` },
+                { label: intl.formatMessage({ id: "tasks.table.raft" }), value: `${timeline.task.first_applied_raft_index} → ${timeline.task.last_applied_raft_index}` },
               ]}
             />
             <div className="space-y-3">

@@ -128,7 +128,7 @@ test("renders the first business channel page", async () => {
   renderChannelsBizPage()
 
   expect(await screen.findByText("g1")).toBeInTheDocument()
-  expect(screen.getByText("send banned")).toBeInTheDocument()
+  expect(screen.getByText("Send banned")).toBeInTheDocument()
   expect(getBusinessChannelsMock).toHaveBeenCalledWith({ limit: 50 })
 })
 
@@ -141,6 +141,8 @@ test("uses editorial business channel inventory and member surfaces", async () =
   renderChannelsBizPage()
 
   const table = await screen.findByRole("table", { name: "Business channels" })
+  expect(table).toHaveClass("block", "md:table")
+  expect(within(table).getByText("g1").closest("td")).toHaveAttribute("data-label", "Channel")
   const inventorySurface = table.closest("[data-channels-biz-surface='inventory']")
   expect(inventorySurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
   expect(inventorySurface).not.toHaveClass("rounded-xl")
@@ -231,7 +233,7 @@ test("creates or updates channel metadata and refreshes the list", async () => {
   await user.type(screen.getByLabelText("Channel ID"), "new-room")
   await user.selectOptions(screen.getByLabelText("Metadata channel type"), "2")
   await user.click(screen.getByLabelText("Ban channel"))
-  await user.click(screen.getByRole("button", { name: "Save channel" }))
+  await user.click(screen.getByRole("button", { name: "Create channel" }))
 
   expect(createBusinessChannelMock).toHaveBeenCalledWith({
     channelId: "new-room",
@@ -269,7 +271,7 @@ test("adds normalized members and removes one member", async () => {
   expect(await screen.findByText("u1")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Add members" }))
-  await user.type(screen.getByLabelText("UIDs"), "u2, u3\nu2")
+  await user.type(screen.getByLabelText("User UIDs"), "u2, u3\nu2")
   const dialogs = screen.getAllByRole("dialog")
   await user.click(within(dialogs[dialogs.length - 1]).getByRole("button", { name: "Add members" }))
 
@@ -385,7 +387,7 @@ test("performs exact UID hit and miss searches and clear returns to page one", a
   await user.click(screen.getByRole("button", { name: "Add missing-u" }))
   const addDialog = screen.getAllByRole("dialog").at(-1)
   expect(addDialog).toBeDefined()
-  expect(within(addDialog as HTMLElement).getByLabelText("UIDs")).toHaveValue("missing-u")
+  expect(within(addDialog as HTMLElement).getByLabelText("User UIDs")).toHaveValue("missing-u")
   await user.click(within(addDialog as HTMLElement).getByRole("button", { name: "Cancel" }))
 
   await user.click(screen.getByRole("button", { name: "Clear search" }))
@@ -495,7 +497,7 @@ test("rejects an invalid UID batch before writing", async () => {
 
   await screen.findByText("u1")
   await user.click(screen.getByRole("button", { name: "Add members" }))
-  await user.type(screen.getByLabelText("UIDs"), "valid-u, invalid uid")
+  await user.type(screen.getByLabelText("User UIDs"), "valid-u, invalid uid")
   const dialog = screen.getAllByRole("dialog").at(-1)
   expect(dialog).toBeDefined()
   await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Add members" }))

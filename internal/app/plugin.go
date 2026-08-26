@@ -168,7 +168,7 @@ func (a pluginRuntimeAdapter) MarkClosed(_ context.Context, pluginNo string) err
 	}
 	plugin, ok := a.runtime.Registry().Get(pluginNo)
 	if !ok {
-		plugin = pluginhost.ObservedPlugin{No: pluginNo}
+		return nil
 	}
 	plugin.Status = pluginhost.StatusOffline
 	a.runtime.Registry().Upsert(plugin)

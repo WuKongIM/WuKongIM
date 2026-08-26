@@ -75,7 +75,7 @@ function pathLikeLogEntry(seq = 3) {
   const path = "/src/internal/runtime/channelappend/append.go:84"
   return {
     ...logEntry(path, seq),
-    level: path,
+    level: "STACK",
     caller: path,
     raw: path,
   }
@@ -118,7 +118,7 @@ test("loads node process logs for the default local node", async () => {
   expect(toolbar).not.toBeNull()
   expect(within(toolbar as HTMLElement).getByText("app.log")).toBeInTheDocument()
   expect(within(toolbar as HTMLElement).queryByText("/var/lib/wukongim/logs/app.log")).not.toBeInTheDocument()
-  expect(screen.getAllByText("1 line").length).toBeGreaterThan(0)
+  expect(screen.getAllByText("1 event").length).toBeGreaterThan(0)
 
   await waitFor(() => {
     expect(getApplicationLogSourcesMock).toHaveBeenCalledWith(1)
@@ -185,9 +185,9 @@ test("uses node process log wording for empty states", async () => {
 
   renderPanel()
 
-  expect(await screen.findByText("No node process log lines were returned from WK_LOG_DIR.")).toBeInTheDocument()
+  expect(await screen.findByText("No node process log events were returned from WK_LOG_DIR.")).toBeInTheDocument()
   await user.type(screen.getByLabelText("Keyword"), "fatal")
-  expect(await screen.findByText("No node process log lines from WK_LOG_DIR match the current filters.")).toBeInTheDocument()
+  expect(await screen.findByText("No node process log events from WK_LOG_DIR match the current filters.")).toBeInTheDocument()
 })
 
 test("renders returned log lines inside a terminal console surface", async () => {
@@ -225,11 +225,12 @@ test("keeps path-like log metadata from overlapping the console message", async 
   renderPanel()
 
   const log = await screen.findByRole("log")
-  expect((await within(log).findAllByText("/src/internal/runtime/channelappend/append.go:84")).length).toBe(2)
-  expect(within(log).getByText("UNKNOWN")).toBeInTheDocument()
+  expect(within(log).queryByText("/src/internal/runtime/channelappend/append.go:84")).not.toBeInTheDocument()
+  expect((await within(log).findAllByText("append.go:84")).length).toBe(2)
+  expect(within(log).getByText("STACK")).toBeInTheDocument()
   expect(log.querySelector("[data-system-log-entry='raw']")).toBeNull()
   await user.click(screen.getByRole("button", { name: "Show log details 3" }))
-  expect((within(log).getAllByText("/src/internal/runtime/channelappend/append.go:84")).length).toBe(3)
+  expect((within(log).getAllByText("append.go:84")).length).toBe(3)
   expect(log.querySelector("[data-system-log-entry='raw']")).not.toBeNull()
   expect(within(log).getByRole("button", { name: "Copy raw log 3" })).toBeInTheDocument()
 })
@@ -326,14 +327,14 @@ test("appends rotation and line events when live follow is enabled", async () =>
   renderPanel()
 
   await screen.findByRole("heading", { name: "Node Process Logs" })
-  expect(await screen.findByText("0 lines")).toBeInTheDocument()
+  expect(await screen.findByText("0 events")).toBeInTheDocument()
   await user.click(screen.getByLabelText("Follow tail"))
 
   expect((await screen.findAllByText("Log rotated; cursor moved to the new file.")).length).toBeGreaterThan(0)
-  expect(await screen.findByText("Log rotated; cursor moved to the new file. · 1 new live line")).toBeInTheDocument()
+  expect(await screen.findByText("Log rotated; cursor moved to the new file. · 1 new live event")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Jump to latest logs" })).toBeInTheDocument()
   expect(await screen.findByText("live warning")).toBeInTheDocument()
-  expect(screen.getAllByText("1 line").length).toBeGreaterThan(0)
+  expect(screen.getAllByText("1 event").length).toBeGreaterThan(0)
   await waitFor(() => {
     expect(streamApplicationLogEntriesMock).toHaveBeenCalledWith(expect.objectContaining({
       nodeId: 1,
@@ -360,7 +361,7 @@ test("shows live appended count and clears it from the console banner", async ()
   renderPanel()
 
   await user.click(await screen.findByLabelText("Follow tail"))
-  expect(await screen.findByText("1 new live line")).toBeInTheDocument()
+  expect(await screen.findByText("1 new live event")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Jump to latest logs" }))
   expect(screen.queryByText("1 new live line")).not.toBeInTheDocument()

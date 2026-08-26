@@ -39,7 +39,7 @@ export const routes: RouteObject[] = [
       // Cluster operations
       {
         path: "cluster/dashboard",
-        lazy: lazyComponent(async () => (await import("@/pages/cluster-dashboard/page")).ClusterDashboardPage),
+        element: <Navigate replace to="/cluster/monitor" />,
       },
       {
         path: "cluster/monitor",
@@ -130,7 +130,7 @@ export const routes: RouteObject[] = [
       },
       { path: "system/connections", element: <RedirectWithSearch to="/business/connections" /> },
       // Legacy redirects
-      { path: "dashboard", element: <Navigate replace to="/cluster/dashboard" /> },
+      { path: "dashboard", element: <Navigate replace to="/cluster/monitor" /> },
       { path: "nodes", element: <Navigate replace to="/cluster/nodes" /> },
       { path: "onboarding", element: <Navigate replace to="/cluster/nodes" /> },
       { path: "slots", element: <Navigate replace to="/cluster/slots" /> },

@@ -1,8 +1,9 @@
-import type { ReactNode } from "react"
+import { useId, useRef, type ReactNode } from "react"
 
 import { useIntl } from "react-intl"
 
 import { Button } from "@/components/ui/button"
+import { useModalFocus } from "@/components/manager/use-modal-focus"
 
 type DetailSheetProps = {
   open: boolean
@@ -22,27 +23,32 @@ export function DetailSheet({
   footer,
 }: DetailSheetProps) {
   const intl = useIntl()
+  const titleId = useId()
+  const descriptionId = useId()
+  const contentRef = useRef<HTMLDivElement>(null)
+  useModalFocus(open, contentRef, () => onOpenChange(false), "[data-sheet-close]")
 
   if (!open) {
     return null
   }
 
-  const titleId = "manager-detail-sheet-title"
-
   return (
     <div
+      aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
+      aria-modal="true"
       className="fixed inset-0 z-40 flex justify-end bg-black/10"
       role="dialog"
     >
-      <div className="flex h-full w-full max-w-2xl flex-col border-l border-border bg-background shadow-lg">
+      <div className="flex h-full w-full max-w-2xl flex-col border-l border-border bg-background shadow-lg" ref={contentRef}>
         <div className="border-b border-border px-4 py-4 pr-14">
           <h2 className="text-base font-medium text-foreground" id={titleId}>
             {title}
           </h2>
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+          {description ? <p className="mt-1 text-sm text-muted-foreground" id={descriptionId}>{description}</p> : null}
           <Button
             className="absolute right-3 top-3"
+            data-sheet-close=""
             onClick={() => onOpenChange(false)}
             size="sm"
             type="button"

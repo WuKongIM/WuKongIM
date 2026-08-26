@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -54,6 +55,12 @@ var appLogSources = []appLogSource{
 	{Source: AppLogSourceDebug, Filename: "debug.log"},
 }
 
+var (
+	absoluteGoSourcePathPattern     = regexp.MustCompile(`(?m)(?:[A-Za-z]:)?(?:(?:/|\\{1,2})[^\s:/\\]+)+(?:/|\\{1,2})([^\s:/\\]+\.go(?::\d+)?)`)
+	qualifiedGoStackFunctionPattern = regexp.MustCompile(`^(?:[^\s()]+/)+[^\s()]+(?:\.\(\*?[^)\s]+\))?\.[^\s()]+(?:\([^)]*\))?$`)
+	simpleGoStackFunctionPattern    = regexp.MustCompile(`^[A-Za-z0-9_.~]+(?:\.\(\*?[^)\s]+\))?\.[A-Za-z0-9_.~]+\([^)]*\)$`)
+)
+
 type appLogSource struct {
 	Source   string
 	Filename string
@@ -65,7 +72,7 @@ type AppLogReaderOptions struct {
 	Dir string
 	// MaxTailScanBytes bounds bytes scanned when serving an initial tail request.
 	MaxTailScanBytes int64
-	// MaxLineBytes bounds the raw bytes returned for each log entry line.
+	// MaxLineBytes bounds the raw bytes returned for each logical log event.
 	MaxLineBytes int64
 }
 
@@ -75,7 +82,7 @@ type AppLogReader struct {
 	dir string
 	// maxTailScanBytes bounds initial tail scans.
 	maxTailScanBytes int64
-	// maxLineBytes bounds returned raw line bytes.
+	// maxLineBytes bounds returned raw event bytes.
 	maxLineBytes int64
 }
 
@@ -119,21 +126,21 @@ type AppLogEntriesRequest struct {
 	Limit int
 	// Cursor is an opaque cursor returned by a previous Entries call.
 	Cursor string
-	// Keyword filters returned entries by raw line substring after reading.
+	// Keyword filters returned entries by raw event substring after reading.
 	Keyword string
 	// Levels filters returned entries by parsed level after reading.
 	Levels []string
-	// Before requests lines immediately before Cursor when context mode is used.
+	// Before requests logical events immediately before Cursor when context mode is used.
 	Before int
-	// After requests lines immediately after Cursor when context mode is used.
+	// After requests logical events immediately after Cursor when context mode is used.
 	After int
 }
 
-// AppLogEntry is one parsed application log line.
+// AppLogEntry is one parsed application log event. Go stack continuations are folded into Raw.
 type AppLogEntry struct {
-	// Seq is the byte offset where this line starts in the active file.
+	// Seq is the byte offset where this event starts in the active file.
 	Seq uint64
-	// Offset is the byte offset where this line begins in the active file.
+	// Offset is the byte offset where this event begins in the active file.
 	Offset uint64
 	// Time is the parsed time field when available.
 	Time time.Time
@@ -147,7 +154,7 @@ type AppLogEntry struct {
 	Message string
 	// Fields preserves parsed structured fields not promoted to common fields.
 	Fields map[string]any
-	// Raw is the raw log line without the trailing newline.
+	// Raw is the redacted event text without the trailing newline.
 	Raw string
 	// Truncated reports whether Raw was shortened to the configured line byte limit.
 	Truncated bool
@@ -317,11 +324,54 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 	}
 	var entries []AppLogEntry
 	var pending []byte
+	var current *AppLogEntry
+	var currentRaw []byte
+	currentEnd := startOffset
 	offset := startOffset
 	pendingStart := startOffset
 	buffer := make([]byte, 32*1024)
 	scanned := int64(0)
 	scanBudget := r.maxTailScanBytes
+	flushCurrent := func(nextOffset int64) bool {
+		if current == nil {
+			return false
+		}
+		if appLogEntryMatches(*current, currentRaw, req.Keyword, levels) {
+			entries = append(entries, *current)
+		}
+		current = nil
+		currentRaw = nil
+		currentEnd = nextOffset
+		return len(entries) >= limit
+	}
+	consumeLine := func(lineStart, lineEnd int64, line []byte, forceTruncated bool) bool {
+		line = bytes.TrimSuffix(line, []byte("\r"))
+		if current != nil && isAppLogContinuation(line) {
+			currentRaw = append(currentRaw, '\n')
+			currentRaw = append(currentRaw, line...)
+			redacted := redactAppLogText(string(line))
+			joined := current.Raw + "\n" + redacted
+			if int64(len(joined)) > r.maxLineBytes {
+				joined = joined[:r.maxLineBytes]
+				current.Truncated = true
+			}
+			current.Raw = joined
+			current.Truncated = current.Truncated || forceTruncated
+			currentEnd = lineEnd
+			return false
+		}
+		if flushCurrent(lineStart) {
+			return true
+		}
+		entry := r.parseEntry(lineStart, line, forceTruncated)
+		if isAppLogContinuation(line) {
+			entry.Level = "STACK"
+		}
+		current = &entry
+		currentRaw = append(currentRaw[:0], line...)
+		currentEnd = lineEnd
+		return false
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, offset, err
@@ -348,12 +398,8 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 				line := pending[:idx]
 				pending = pending[idx+1:]
 				pendingStart = lineStart + int64(idx) + 1
-				entry := r.parseEntry(lineStart, line, false)
-				if appLogEntryMatches(entry, line, req.Keyword, levels) {
-					entries = append(entries, entry)
-					if len(entries) >= limit {
-						return entries, pendingStart, nil
-					}
+				if consumeLine(lineStart, pendingStart, line, false) {
+					return entries, lineStart, nil
 				}
 			}
 		}
@@ -365,12 +411,12 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 		}
 	}
 	if len(pending) > 0 {
-		entry := r.parseEntry(pendingStart, pending, scanned >= scanBudget && offset < fileSize)
-		if appLogEntryMatches(entry, pending, req.Keyword, levels) {
-			entries = append(entries, entry)
+		if consumeLine(pendingStart, offset, pending, scanned >= scanBudget && offset < fileSize) {
+			return entries, pendingStart, nil
 		}
 	}
-	return entries, offset, nil
+	flushCurrent(currentEnd)
+	return entries, currentEnd, nil
 }
 
 func (r *AppLogReader) parseEntry(offset int64, line []byte, forceTruncated bool) AppLogEntry {
@@ -389,10 +435,74 @@ func (r *AppLogReader) parseEntry(offset int64, line []byte, forceTruncated bool
 		Truncated: truncated,
 	}
 	if parseJSONAppLogEntry(&entry, rawLine) {
+		redactAppLogEntry(&entry)
 		return entry
 	}
 	parseConsoleAppLogEntry(&entry, string(rawLine))
+	redactAppLogEntry(&entry)
 	return entry
+}
+
+func isAppLogContinuation(line []byte) bool {
+	if len(line) == 0 {
+		return true
+	}
+	trimmed := bytes.TrimSpace(line)
+	if json.Valid(trimmed) {
+		return false
+	}
+	if line[0] == ' ' || line[0] == '\t' {
+		return true
+	}
+	value := string(trimmed)
+	if strings.HasPrefix(value, "goroutine ") || strings.HasPrefix(value, "created by ") {
+		return true
+	}
+	return qualifiedGoStackFunctionPattern.MatchString(value) || simpleGoStackFunctionPattern.MatchString(value)
+}
+
+func redactAppLogEntry(entry *AppLogEntry) {
+	entry.Raw = redactAppLogText(entry.Raw)
+	entry.Module = redactAppLogText(entry.Module)
+	entry.Caller = redactAppLogCaller(entry.Caller)
+	entry.Message = redactAppLogText(entry.Message)
+	for key, value := range entry.Fields {
+		entry.Fields[key] = redactAppLogValue(value)
+	}
+}
+
+func redactAppLogText(value string) string {
+	return absoluteGoSourcePathPattern.ReplaceAllString(value, "$1")
+}
+
+func redactAppLogCaller(value string) string {
+	value = redactAppLogText(value)
+	if strings.HasPrefix(value, "/") || len(value) >= 3 && value[1] == ':' && (value[2] == '/' || value[2] == '\\') {
+		value = strings.ReplaceAll(value, "\\", "/")
+		if slash := strings.LastIndex(value, "/"); slash >= 0 {
+			return value[slash+1:]
+		}
+	}
+	return value
+}
+
+func redactAppLogValue(value any) any {
+	switch typed := value.(type) {
+	case string:
+		return redactAppLogText(typed)
+	case []any:
+		for idx := range typed {
+			typed[idx] = redactAppLogValue(typed[idx])
+		}
+		return typed
+	case map[string]any:
+		for key, item := range typed {
+			typed[key] = redactAppLogValue(item)
+		}
+		return typed
+	default:
+		return value
+	}
 }
 
 func parseJSONAppLogEntry(entry *AppLogEntry, line []byte) bool {
@@ -644,14 +754,25 @@ func tailStartOffset(file *os.File, size, maxScanBytes int64, limit int) (int64,
 			data = data[idx+1:]
 		}
 	}
-	lineStarts := []int64{start}
-	for idx, b := range data {
-		if b == '\n' && idx+1 < len(data) {
-			lineStarts = append(lineStarts, start+int64(idx)+1)
+	eventStarts := make([]int64, 0, limit+1)
+	lineStart := start
+	for len(data) > 0 {
+		idx := bytes.IndexByte(data, '\n')
+		line := data
+		if idx >= 0 {
+			line = data[:idx]
 		}
+		if !isAppLogContinuation(bytes.TrimSuffix(line, []byte("\r"))) {
+			eventStarts = append(eventStarts, lineStart)
+		}
+		if idx < 0 {
+			break
+		}
+		lineStart += int64(idx) + 1
+		data = data[idx+1:]
 	}
-	if len(lineStarts) > limit {
-		return lineStarts[len(lineStarts)-limit], nil
+	if len(eventStarts) > limit {
+		return eventStarts[len(eventStarts)-limit], nil
 	}
 	return start, nil
 }

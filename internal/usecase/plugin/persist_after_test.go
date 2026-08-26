@@ -50,6 +50,16 @@ func TestStartPluginRejectsCallerMismatch(t *testing.T) {
 	require.True(t, errors.Is(err, ErrPluginCallerMismatch))
 }
 
+func TestStartPluginRejectsReservedInternalNumber(t *testing.T) {
+	app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: &recordingInvoker{}})
+	require.NoError(t, err)
+
+	_, err = app.StartPlugin(context.Background(), &pluginproto.PluginInfo{
+		No: "__wukongim_plugin_host_ready__",
+	}, "__wukongim_plugin_host_ready__")
+	require.ErrorIs(t, err, ErrInvalidPluginNo)
+}
+
 func TestNewAppRequiresRuntimeAndInvoker(t *testing.T) {
 	_, err := NewApp(Options{Invoker: &recordingInvoker{}})
 	require.True(t, errors.Is(err, ErrRuntimeRequired))

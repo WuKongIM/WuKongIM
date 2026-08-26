@@ -412,7 +412,7 @@ func secretFields(template *pluginproto.ConfigTemplate) []string {
 }
 
 func validatePluginNo(no string) error {
-	if no == "." || no == ".." || !pluginNoPattern.MatchString(no) {
+	if no == "." || no == ".." || IsReservedPluginNo(no) || !pluginNoPattern.MatchString(no) {
 		return fmt.Errorf("%w: %q", ErrInvalidPluginNo, no)
 	}
 	return nil

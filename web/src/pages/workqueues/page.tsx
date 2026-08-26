@@ -109,11 +109,17 @@ function levelClassName(level: string) {
 }
 
 function LevelPill({ level }: { level: string }) {
+  const intl = useIntl()
   return (
     <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${levelClassName(level)}`}>
-      {level}
+      {workqueueLevelLabel(intl, level)}
     </span>
   )
+}
+
+function workqueueLevelLabel(intl: ReturnType<typeof useIntl>, level: string) {
+  const messageId = `workqueues.level.${level.toLowerCase()}`
+  return intl.messages[messageId] ? intl.formatMessage({ id: messageId }) : level.replaceAll("_", " ")
 }
 
 function ColumnHeader({ description, label }: { description: string; label: string }) {
@@ -161,7 +167,7 @@ export function WorkqueuesPage() {
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
-  const [abnormalOnly, setAbnormalOnly] = useState(false)
+  const [abnormalOnly, setAbnormalOnly] = useState(true)
   const [component, setComponent] = useState("")
   const [state, setState] = useState<WorkqueuesState>(emptyState)
 
@@ -345,17 +351,18 @@ export function WorkqueuesPage() {
           >
             <span>{intl.formatMessage({ id: "workqueues.scope.node" })}: {nodeLabel}</span>
             <span>{intl.formatMessage({ id: "workqueues.scope.samples" })}: {sampleCount}</span>
+            <span>{intl.formatMessage({ id: "workqueues.scope.rows" }, { visible: filteredItems.length, total: allItems.length })}</span>
           </div>
         </div>
 
         {response ? (
           <div
-            className="grid overflow-hidden rounded-md border border-border bg-card sm:grid-cols-2 xl:grid-cols-5"
+            className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-card xl:grid-cols-5"
             data-testid="workqueues-status-strip"
           >
             <SummaryStripItem
               label={intl.formatMessage({ id: "workqueues.summary.level" })}
-              value={intl.formatMessage({ id: "workqueues.summary.overallValue" }, { level: response.summary.overall_level })}
+              value={intl.formatMessage({ id: "workqueues.summary.overallValue" }, { level: workqueueLevelLabel(intl, response.summary.overall_level) })}
             />
             <SummaryStripItem
               label={intl.formatMessage({ id: "workqueues.summary.total" })}

@@ -648,7 +648,7 @@ test("previews and executes a batch slot leader transfer plan", async () => {
     targetPolicy: "least_leaders",
   })
   expect(await screen.findByText("Candidates 1 · Would create 1 · Skipped 0")).toBeInTheDocument()
-  expect(screen.getByText("Slot 9 -> Node 2")).toBeInTheDocument()
+  expect(screen.getByText("Slot 9 → Node 2")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Execute plan" }))
 

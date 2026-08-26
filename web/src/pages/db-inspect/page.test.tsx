@@ -368,6 +368,6 @@ test("shows configuration guidance when db inspect is unavailable", async () => 
 
   renderPage()
 
-  expect(await screen.findByText("DB Inspect is not enabled. Configure WK_NODE_DATA_DIR in wukongim.conf so the manager can open node-local storage, then restart the node.")).toBeInTheDocument()
+  expect(await screen.findByText("DB Inspect is not enabled. Configure node.data_dir in wukongim.toml or set WK_NODE_DATA_DIR so the manager can open node-local storage, then restart the node.")).toBeInTheDocument()
   expect(screen.queryByText("db inspect unavailable")).not.toBeInTheDocument()
 })

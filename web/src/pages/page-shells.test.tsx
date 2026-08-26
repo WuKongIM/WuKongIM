@@ -330,7 +330,7 @@ beforeEach(() => {
 })
 
 it.each([
-  ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
+  ["/cluster/dashboard", "Live Monitor", "Common"],
   ["/cluster/nodes", "Nodes", "127.0.0.1:7000"],
   ["/cluster/node-config", "Node Config", "Effective configuration"],
   ["/cluster/slots", "Slots", "Slot 9"],
@@ -361,7 +361,6 @@ it.each([
 })
 
 it.each([
-  ["/cluster/dashboard", "CLUSTER / DASHBOARD"],
   ["/cluster/nodes", "CLUSTER / NODES"],
   ["/cluster/node-config", "CLUSTER / CONFIG"],
   ["/cluster/slots", "CLUSTER / SLOTS"],
@@ -390,7 +389,7 @@ it.each([
 })
 
 it.each([
-  ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
+  ["/cluster/dashboard", "实时监控", "常用"],
   ["/cluster/nodes", "节点", "127.0.0.1:7000"],
   ["/cluster/node-config", "节点配置", "有效配置"],
   ["/cluster/slots", "槽位", "槽位 9"],

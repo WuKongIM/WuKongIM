@@ -97,6 +97,7 @@ test("configures an owner and displays a generated token exactly once", async ()
   renderPage()
 
   expect(await screen.findByRole("heading", { name: "Operations MCP" })).toBeInTheDocument()
+  expect(screen.getByText("Select and save an execution owner before starting MCP.")).toBeInTheDocument()
   expect(getNodesMock).not.toHaveBeenCalled()
   expect(screen.getByText("Plain HTTP")).toBeInTheDocument()
   fireEvent.change(screen.getByLabelText("Execution owner"), { target: { value: "2" } })

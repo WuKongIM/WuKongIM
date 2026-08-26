@@ -184,7 +184,7 @@ test("uses a compact task-center summary strip and filter toolbar", async () => 
   expect(await screen.findByRole("heading", { name: "Controller Tasks" })).toBeInTheDocument()
 
   const summaryStrip = screen.getByTestId("tasks-summary-strip")
-  expect(summaryStrip).toHaveClass("overflow-hidden", "rounded-lg", "border", "border-border", "bg-card")
+  expect(summaryStrip).toHaveClass("grid-cols-2", "overflow-hidden", "rounded-lg", "border", "border-border", "bg-card")
   expect(summaryStrip.querySelectorAll("[data-task-summary-cell]")).toHaveLength(5)
   expect(summaryStrip.querySelector("[data-task-summary-cell]")).not.toHaveClass("rounded-lg")
 
@@ -194,13 +194,14 @@ test("uses a compact task-center summary strip and filter toolbar", async () => 
   const activeTable = screen.getByRole("table", { name: "Active tasks" })
   const activeSurface = activeTable.closest("[data-tasks-surface='active']")
   expect(activeSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
-  expect(activeTable).toHaveClass("w-full", "min-w-[960px]", "border-collapse", "text-left", "text-sm")
+  expect(activeTable).toHaveClass("block", "w-full", "md:table", "md:min-w-[960px]", "text-sm")
+  expect(within(activeTable).getByText("slot-1-replica-move-2-to-4-r9").closest("td")).toHaveAttribute("data-label", "ID")
   expect(within(activeTable).getByText("slot-1-replica-move-2-to-4-r9")).toBeInTheDocument()
 
   const auditTable = screen.getByRole("table", { name: "Task audit history" })
   const auditSurface = auditTable.closest("[data-tasks-surface='audit']")
   expect(auditSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
-  expect(auditTable).toHaveClass("w-full", "min-w-[980px]", "border-collapse", "text-left", "text-sm")
+  expect(auditTable).toHaveClass("block", "w-full", "md:table", "md:min-w-[980px]", "text-sm")
   expect(within(auditTable).getByText("Slot replica move task for slot 1 completed.")).toBeInTheDocument()
 })
 

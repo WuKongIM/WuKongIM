@@ -80,7 +80,11 @@ function mapErrorKind(error: Error | null) {
 
 function formatTimestamp(intl: IntlShape, value?: string | null) {
   if (!value) {
-    return intl.formatMessage({ id: "plugins.none" })
+    return intl.formatMessage({ id: "plugins.neverReported" })
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() <= 1) {
+    return intl.formatMessage({ id: "plugins.neverReported" })
   }
   return new Intl.DateTimeFormat(intl.locale, {
     year: "numeric",
@@ -89,7 +93,7 @@ function formatTimestamp(intl: IntlShape, value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-  }).format(new Date(value))
+  }).format(date)
 }
 
 function formatMethods(plugin: ManagerPlugin, intl: IntlShape) {
@@ -533,7 +537,7 @@ export function PluginsPage() {
       />
 
       <div
-        className="grid gap-0 border-y border-border sm:grid-cols-2 xl:grid-cols-4"
+        className="grid grid-cols-2 gap-0 border-y border-border xl:grid-cols-4"
         data-testid="plugins-summary-strip"
       >
         <SummaryPill label={intl.formatMessage({ id: "plugins.totalValue" }, { count: summary.total })} />
@@ -571,9 +575,9 @@ export function PluginsPage() {
               >
                 <table
                   aria-label={intl.formatMessage({ id: "plugins.inventory.title" })}
-                  className="w-full border-collapse text-sm"
+                  className="block w-full border-collapse text-sm md:table"
                 >
-                  <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <thead className="hidden border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground md:table-header-group">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.plugin" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.status" })}</th>
@@ -582,14 +586,14 @@ export function PluginsPage() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.actions" })}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="block space-y-3 p-3 md:table-row-group md:space-y-0 md:p-0">
                     {filteredPlugins.map((plugin) => (
-                      <tr className="border-t border-border align-top hover:bg-muted/45" key={plugin.plugin_no}>
-                        <td className="px-3 py-3 text-sm">
+                      <tr className="block rounded-md border border-border align-top hover:bg-muted/45 md:table-row md:rounded-none md:border-x-0 md:border-b-0" key={plugin.plugin_no}>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-3 py-2 text-sm before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "plugins.table.plugin" })}>
                           <div className="font-medium text-foreground">{plugin.plugin_no}</div>
                           <div className="text-xs text-muted-foreground">{plugin.name} · {plugin.version}</div>
                         </td>
-                        <td className="px-3 py-3 text-sm">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "plugins.table.status" })}>
                           <div className="flex flex-col gap-1">
                             <StatusBadge value={plugin.status} />
                             <span className="text-xs text-muted-foreground">
@@ -597,14 +601,14 @@ export function PluginsPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatMethods(plugin, intl)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "plugins.table.capabilities" })}>{formatMethods(plugin, intl)}</td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "plugins.table.lastSignal" })}>
                           <div>{formatTimestamp(intl, plugin.last_seen_at)}</div>
                           {plugin.last_error ? (
                             <div className="mt-1 max-w-[280px] truncate text-xs text-destructive">{plugin.last_error}</div>
                           ) : null}
                         </td>
-                        <td className="px-3 py-3 text-sm">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "plugins.table.actions" })}>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               aria-label={intl.formatMessage({ id: "plugins.action.viewDetails" }, { pluginNo: plugin.plugin_no })}

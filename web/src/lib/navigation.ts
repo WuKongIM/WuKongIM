@@ -8,7 +8,6 @@ import {
   Database,
   FileText,
   Gauge,
-  LayoutDashboard,
   MessageSquare,
   Network,
   Puzzle,
@@ -53,6 +52,7 @@ export const navigationSections: NavigationSection[] = [
         descriptionMessageId: "nav.clusterMonitor.description",
         pathLabelMessageId: "nav.path.cluster.monitor",
         icon: Activity,
+        aliases: ["/dashboard", "/cluster/dashboard"],
       },
       {
         href: "/cluster/nodes",
@@ -231,23 +231,12 @@ export const navigationSections: NavigationSection[] = [
 
 export const navigationItems = navigationSections.flatMap((section) => section.items)
 
-const pageOnlyNavigationItems: NavigationItem[] = [
-  {
-    href: "/cluster/dashboard",
-    titleMessageId: "nav.clusterDashboard.title",
-    descriptionMessageId: "nav.clusterDashboard.description",
-    pathLabelMessageId: "nav.path.cluster.dashboard",
-    icon: LayoutDashboard,
-    aliases: ["/dashboard"],
-  },
-]
-
 export const pageMetadata = new Map(
-  [...navigationItems, ...pageOnlyNavigationItems].map((item) => [item.href, item] as const),
+  navigationItems.map((item) => [item.href, item] as const),
 )
 
 export const legacyRouteRedirects: Record<string, string> = {
-  "/dashboard": "/cluster/dashboard",
+  "/dashboard": "/cluster/monitor",
   "/nodes": "/cluster/nodes",
   "/onboarding": "/cluster/nodes",
   "/slots": "/cluster/slots",
@@ -279,10 +268,7 @@ function matchesItem(pathname: string, item: NavigationItem) {
 }
 
 export function getActiveNavigationItem(pathname: string) {
-  return (
-    navigationItems.find((item) => matchesItem(pathname, item)) ??
-    pageOnlyNavigationItems.find((item) => matchesItem(pathname, item))
-  )
+  return navigationItems.find((item) => matchesItem(pathname, item))
 }
 
 export function getActiveNavigationSection(pathname: string) {

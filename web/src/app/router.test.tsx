@@ -241,7 +241,8 @@ test("renders the shell for redesigned cluster routes", async () => {
 
 test.each([
   ["/", "/cluster/monitor"],
-  ["/dashboard", "/cluster/dashboard"],
+  ["/dashboard", "/cluster/monitor"],
+  ["/cluster/dashboard", "/cluster/monitor"],
   ["/nodes", "/cluster/nodes"],
   ["/workqueues", "/cluster/workqueues"],
   ["/channel-cluster/unhealthy", "/cluster/channels"],

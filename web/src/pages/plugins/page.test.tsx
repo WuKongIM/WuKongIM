@@ -141,10 +141,25 @@ test("renders node plugin inventory with summary counts", async () => {
   expect(screen.getByText("1 failed")).toBeInTheDocument()
   expect(screen.getByText("1 enabled")).toBeInTheDocument()
   expect(screen.getByTestId("plugins-summary-strip")).toBeInTheDocument()
-  expect(screen.getByRole("table", { name: /plugin inventory/i })).toHaveClass("w-full")
+  expect(screen.getByTestId("plugins-summary-strip")).toHaveClass("grid-cols-2")
+  expect(screen.getByRole("table", { name: /plugin inventory/i })).toHaveClass("block", "md:table")
+  expect(screen.getByText("wk.echo").closest("td")).toHaveAttribute("data-label", "Plugin")
   expect(screen.getByRole("form", { name: /plugin bindings/i })).toBeInTheDocument()
   expect(screen.getByText("Route, Send")).toBeInTheDocument()
   expect(screen.getByText("process exited")).toBeInTheDocument()
+})
+
+test("renders missing and zero plugin timestamps as never reported", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({
+    node_id: 2,
+    total: 1,
+    items: [{ ...pluginRow, last_seen_at: "0001-01-01T00:00:00Z" }],
+  })
+
+  renderPluginsPage()
+
+  expect(await screen.findByText("Never reported")).toBeInTheDocument()
+  expect(screen.queryByText(/01\/01\/1/)).not.toBeInTheDocument()
 })
 
 test("uses editorial plugin inventory and binding table surfaces", async () => {

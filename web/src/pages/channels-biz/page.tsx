@@ -763,12 +763,18 @@ export function ChannelsBizPage() {
         {!state.loading && !state.error ? (
           state.items.length > 0 ? (
             <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                {intl.formatMessage(
+                  { id: state.hasMore ? "channelsBiz.list.loadedMore" : "channelsBiz.list.loaded" },
+                  { count: state.items.length },
+                )}
+              </p>
               <div className="overflow-x-auto rounded-md border border-border" data-channels-biz-surface="inventory">
                 <table
                   aria-label={intl.formatMessage({ id: "channelsBiz.list.title" })}
-                  className="w-full border-collapse text-sm"
+                  className="block w-full border-collapse text-sm md:table"
                 >
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <thead className="hidden bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground md:table-header-group">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelsBiz.table.channel" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelsBiz.table.type" })}</th>
@@ -778,28 +784,28 @@ export function ChannelsBizPage() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelsBiz.table.actions" })}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="block space-y-3 p-3 md:table-row-group md:space-y-0 md:p-0">
                     {state.items.map((channel) => (
-                      <tr className="border-t border-border" key={`${channel.channel_type}:${channel.channel_id}`}>
-                        <td className="px-3 py-3 text-sm font-medium text-foreground">{channel.channel_id}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                      <tr className="block rounded-md border border-border md:table-row md:rounded-none md:border-x-0 md:border-b-0" key={`${channel.channel_type}:${channel.channel_id}`}>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-3 py-2 text-sm font-medium text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelsBiz.table.channel" })}>{channel.channel_id}</td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelsBiz.table.type" })}>
                           {channelTypeLabel(intl, channel.channel_type)}
                         </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelsBiz.table.flags" })}>
                           <div className="flex flex-wrap gap-1">
                             {flagValues(channel).map((flag) => <StatusBadge key={flag} value={flag} />)}
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelsBiz.table.routing" })}>
                           {intl.formatMessage(
                             { id: "channelsBiz.routing.value" },
                             { slot: channel.slot_id, hash: channel.hash_slot },
                           )}
                         </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelsBiz.table.version" })}>
                           {channel.subscriber_mutation_version}
                         </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channelsBiz.table.actions" })}>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               aria-label={intl.formatMessage(
@@ -1248,13 +1254,19 @@ export function ChannelsBizPage() {
 
       {canWrite ? (
         <ActionFormDialog
-          description={intl.formatMessage({ id: "channelsBiz.form.description" })}
+          description={intl.formatMessage({
+            id: upsertInitial
+              ? "channelsBiz.form.editDescription"
+              : "channelsBiz.form.createDescription",
+          })}
           error={upsertError}
           onOpenChange={setUpsertOpen}
           onSubmit={submitUpsert}
           open={upsertOpen}
           pending={upsertPending}
-          submitLabel={intl.formatMessage({ id: "channelsBiz.form.save" })}
+          submitLabel={intl.formatMessage({
+            id: upsertInitial ? "channelsBiz.form.update" : "channelsBiz.form.create",
+          })}
           title={upsertTitle}
         >
           <label className="block text-sm">

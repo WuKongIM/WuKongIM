@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Copy, RefreshCw, ShieldCheck } from "lucide-react"
-import { useIntl } from "react-intl"
+import { useIntl, type IntlShape } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { ResourceState } from "@/components/manager/resource-state"
+import { getStatusLabelMessageId } from "@/components/manager/status-labels"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
@@ -80,6 +81,11 @@ function auditTarget(audit: ManagerMCPAudit) {
   return target.join(" · ") || "-"
 }
 
+function statusLabel(intl: IntlShape, status: string) {
+  const messageId = getStatusLabelMessageId(status)
+  return messageId ? intl.formatMessage({ id: messageId }) : status.replaceAll("_", " ")
+}
+
 async function copyText(value: string) {
   await navigator.clipboard?.writeText(value)
 }
@@ -130,6 +136,15 @@ export function MCPSettingsPage() {
   }, [load])
 
   const status = state.status
+  const startBlockedReason = status && !status.enabled
+    ? !canWrite
+      ? intl.formatMessage({ id: "mcp.startBlocked.permission" })
+      : status.owner_node_id === 0
+        ? intl.formatMessage({ id: "mcp.startBlocked.owner" })
+        : status.credentials.length === 0
+          ? intl.formatMessage({ id: "mcp.startBlocked.token" })
+          : ""
+    : ""
 
   return (
     <PageContainer>
@@ -191,6 +206,9 @@ export function MCPSettingsPage() {
                 <RefreshCw /> {intl.formatMessage({ id: "common.refresh" })}
               </Button>
             </div>
+            {startBlockedReason ? (
+              <p className="mt-3 text-sm text-muted-foreground" role="note">{startBlockedReason}</p>
+            ) : null}
           </SectionCard>
 
           <SectionCard
@@ -209,7 +227,7 @@ export function MCPSettingsPage() {
                   <option value={0}>-</option>
                   {status.owner_candidates.map((node) => (
                     <option key={node.node_id} value={node.node_id}>
-                      {`node-${node.node_id}`} · {node.status}
+                      {`node-${node.node_id}`} · {statusLabel(intl, node.status)}
                     </option>
                   ))}
                 </select>

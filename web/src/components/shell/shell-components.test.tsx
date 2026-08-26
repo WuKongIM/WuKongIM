@@ -1,6 +1,6 @@
-import type { ReactNode } from "react"
-import { render, screen, within } from "@testing-library/react"
-import { beforeEach } from "vitest"
+import { useState, type ReactNode } from "react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { beforeEach, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
@@ -147,6 +147,7 @@ test("detail sheet shows heading copy and children", () => {
     </DetailSheet>,
   )
 
+  expect(screen.getByRole("dialog", { name: "Node 1" })).toHaveAttribute("aria-modal", "true")
   expect(screen.getByRole("heading", { name: "Node 1" })).toBeInTheDocument()
   expect(screen.getByText("Node detail panel")).toBeInTheDocument()
   expect(screen.getByText("Hosted IDs")).toBeInTheDocument()
@@ -169,6 +170,7 @@ test("confirm dialog disables submit while pending", () => {
 })
 
 test("action form dialog renders fields and error copy", () => {
+  const onOpenChange = vi.fn()
   renderWithI18n(
     <ActionFormDialog
       open
@@ -177,7 +179,7 @@ test("action form dialog renders fields and error copy", () => {
       submitLabel="Transfer"
       error="target node is required"
       onSubmit={(event) => event.preventDefault()}
-      onOpenChange={() => undefined}
+      onOpenChange={onOpenChange}
     >
       <label htmlFor="target-node">Target node</label>
       <input id="target-node" name="target-node" />
@@ -187,4 +189,45 @@ test("action form dialog renders fields and error copy", () => {
   expect(screen.getByLabelText("Target node")).toBeInTheDocument()
   expect(screen.getByText("target node is required")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Transfer" })).toBeInTheDocument()
+  expect(screen.getByRole("dialog", { name: "Transfer leader" })).toHaveAttribute("aria-modal", "true")
+  expect(screen.getByLabelText("Target node")).toHaveFocus()
+
+  fireEvent.keyDown(document, { key: "Escape" })
+  expect(onOpenChange).toHaveBeenCalledWith(false)
+})
+
+function NestedModalHarness() {
+  const [sheetOpen, setSheetOpen] = useState(true)
+  const [confirmOpen, setConfirmOpen] = useState(true)
+
+  return (
+    <>
+      <DetailSheet open={sheetOpen} title="Plugin details" onOpenChange={setSheetOpen}>
+        <div>Plugin runtime</div>
+      </DetailSheet>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Uninstall plugin"
+        confirmLabel="Uninstall"
+        onConfirm={() => undefined}
+        onOpenChange={setConfirmOpen}
+      />
+    </>
+  )
+}
+
+test("Escape closes only the topmost nested modal", () => {
+  renderWithI18n(<NestedModalHarness />)
+
+  expect(screen.getByRole("dialog", { name: "Uninstall plugin" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus()
+
+  fireEvent.keyDown(document, { key: "Escape" })
+
+  expect(screen.queryByRole("dialog", { name: "Uninstall plugin" })).not.toBeInTheDocument()
+  expect(screen.getByRole("dialog", { name: "Plugin details" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Close" })).toHaveFocus()
+
+  fireEvent.keyDown(document, { key: "Escape" })
+  expect(screen.queryByRole("dialog", { name: "Plugin details" })).not.toBeInTheDocument()
 })

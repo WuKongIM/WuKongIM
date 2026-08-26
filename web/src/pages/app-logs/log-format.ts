@@ -20,10 +20,17 @@ export function normalizedLogLevel(level: string) {
     case "WARNING":
     case "ERROR":
     case "FATAL":
+    case "STACK":
       return normalized
     default:
       return ""
   }
+}
+
+const absoluteGoSourcePathPattern = /(?:[A-Za-z]:)?(?:[/\\][^\s:/\\]+)+[/\\]([^\s:/\\]+\.go:\d+)/g
+
+export function redactLogText(value: string) {
+  return value.replace(absoluteGoSourcePathPattern, "$1")
 }
 
 export function displayLogLevel(level: string) {

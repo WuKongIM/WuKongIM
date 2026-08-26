@@ -309,6 +309,92 @@ func TestAppLogReaderParsesConsoleEntryWithoutModuleWithFields(t *testing.T) {
 	}
 }
 
+func TestAppLogReaderGroupsStackTraceAndRedactsAbsolutePaths(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", strings.Join([]string{
+		"2026-06-17 12:00:00.000\tERROR\t/Users/build/WuKongIM/internal/access/manager/messages.go:119\tquery failed",
+		"github.com/WuKongIM/WuKongIM/internal/access/manager.(*Server).handleMessages",
+		"\t/Users/build/WuKongIM/internal/access/manager/messages.go:121",
+		"github.com/gin-gonic/gin.(*Context).Next",
+		"\t/go/pkg/mod/github.com/gin-gonic/gin@v1.10.0/context.go:185",
+		"2026-06-17 12:00:01.000\tINFO\tapp/server.go:10\trecovered",
+		"",
+	}, "\n"))
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("entry count = %d, want 2 logical events: %#v", len(resp.Items), resp.Items)
+	}
+
+	entry := resp.Items[0]
+	if entry.Level != "ERROR" || entry.Message != "query failed" {
+		t.Fatalf("first event = %+v, want ERROR query failed", entry)
+	}
+	if entry.Caller != "messages.go:119" {
+		t.Fatalf("Caller = %q, want basename and line only", entry.Caller)
+	}
+	if !strings.Contains(entry.Raw, "handleMessages") || !strings.Contains(entry.Raw, "messages.go:121") {
+		t.Fatalf("Raw = %q, want folded stack frames", entry.Raw)
+	}
+	for _, leaked := range []string{"/Users/build/", "/go/pkg/mod/"} {
+		if strings.Contains(entry.Raw, leaked) || strings.Contains(entry.Caller, leaked) {
+			t.Fatalf("entry exposed local path %q: %+v", leaked, entry)
+		}
+	}
+	if resp.Items[1].Level != "INFO" || resp.Items[1].Message != "recovered" {
+		t.Fatalf("second event = %+v, want INFO recovered", resp.Items[1])
+	}
+}
+
+func TestAppLogReaderKeepsJSONEventsWithParenthesesSeparate(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", strings.Join([]string{
+		`{"time":"2026-06-17 12:00:00.000","level":"INFO","msg":"ready"}`,
+		`{"time":"2026-06-17 12:00:01.000","level":"WARN","msg":"retry (1)"}`,
+		"",
+	}, "\n"))
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("entry count = %d, want 2 JSON events: %#v", len(resp.Items), resp.Items)
+	}
+	if resp.Items[0].Message != "ready" || resp.Items[1].Message != "retry (1)" {
+		t.Fatalf("messages = %q, %q, want separate JSON records", resp.Items[0].Message, resp.Items[1].Message)
+	}
+}
+
+func TestAppLogReaderRedactsAbsoluteGoPathsWithoutLineNumbers(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", `{"time":"2026-06-17 12:00:00.000","level":"ERROR","msg":"failed at /Users/build/project/main.go","source":"C:\\build\\project\\worker.go"}`+"\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+	entry := resp.Items[0]
+	if strings.Contains(entry.Raw, "/Users/build/") ||
+		strings.Contains(entry.Raw, `C:\\build\\`) ||
+		strings.Contains(entry.Message, "/Users/build/") ||
+		strings.Contains(entry.Fields["source"].(string), `C:\build\`) {
+		t.Fatalf("entry exposed absolute Go path: %#v", entry)
+	}
+	if !strings.Contains(entry.Raw, `"source":"worker.go"`) || !strings.Contains(entry.Message, "main.go") || entry.Fields["source"] != "worker.go" {
+		t.Fatalf("redacted entry = %#v, want Go basenames", entry)
+	}
+}
+
 func TestAppLogReaderParsesOversizedConsoleBeforeTruncatingRaw(t *testing.T) {
 	dir := t.TempDir()
 	message := "oversized console still parses " + strings.Repeat("x", 96)

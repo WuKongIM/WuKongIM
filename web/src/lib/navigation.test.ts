@@ -45,8 +45,7 @@ describe("navigationSections", () => {
   })
 
   test("exposes metadata and path label message ids for page headers", () => {
-    expect(pageMetadata.get("/cluster/dashboard")?.titleMessageId).toBe("nav.clusterDashboard.title")
-    expect(pageMetadata.get("/cluster/dashboard")?.pathLabelMessageId).toBe("nav.path.cluster.dashboard")
+    expect(pageMetadata.has("/cluster/dashboard")).toBe(false)
     expect(pageMetadata.get("/cluster/monitor")?.titleMessageId).toBe("nav.clusterMonitor.title")
     expect(pageMetadata.get("/cluster/monitor")?.pathLabelMessageId).toBe("nav.path.cluster.monitor")
     expect(pageMetadata.has("/business/dashboard")).toBe(false)
@@ -62,7 +61,7 @@ describe("navigationSections", () => {
   })
 
   test("maps legacy routes to new routes", () => {
-    expect(legacyRouteRedirects["/dashboard"]).toBe("/cluster/dashboard")
+    expect(legacyRouteRedirects["/dashboard"]).toBe("/cluster/monitor")
     expect(legacyRouteRedirects["/monitor"]).toBeUndefined()
     expect(legacyRouteRedirects["/business/monitor"]).toBeUndefined()
     expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels")
@@ -70,6 +69,8 @@ describe("navigationSections", () => {
     expect(legacyRouteRedirects["/app-logs"]).toBe("/cluster/system-logs")
     expect(legacyRouteRedirects["/connections"]).toBe("/business/connections")
     expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
+    expect(getActiveNavigationItem("/dashboard")?.href).toBe("/cluster/monitor")
+    expect(getActiveNavigationItem("/cluster/dashboard")?.href).toBe("/cluster/monitor")
   })
 
   test("includes system logs in cluster operations navigation", () => {
