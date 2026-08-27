@@ -333,29 +333,26 @@ export const deviceLevels: ProtocolValueDefinition[] = [
 
 export interface MessageHeaderFlagDefinition extends ProtocolValueDefinition {
   bit: number;
-  jsonName: string;
 }
 
 function messageHeaderFlag(
   bit: number,
   name: string,
-  jsonName: string,
   zh: string,
   en: string,
 ): MessageHeaderFlagDefinition {
   return {
     ...protocolValue(bit, name, 'wire', zh, en),
     bit,
-    jsonName,
   };
 }
 
 /** WKProto fixed-header flag bits calibrated against pkg/protocol/codec/common.go. */
 export const messageHeaderFlags: MessageHeaderFlagDefinition[] = [
-  messageHeaderFlag(0, 'NoPersist', 'no_persist', '普通非命令分支只返回兼容成功且不投递；只有命令式分支进入瞬时在线投递。两者都没有持久序号或离线恢复。', 'The plain non-command branch returns compatibility success without delivery; only the command-style branch enters transient online delivery. Neither has a durable sequence or offline recovery.'),
-  messageHeaderFlag(1, 'RedDot', 'red_dot', '携带红点展示意图；它不是消息已读回执，也不单独证明服务端未读数发生变化。', 'Carries red-dot display intent; it is not a read receipt and does not by itself prove a server unread-count change.'),
-  messageHeaderFlag(2, 'SyncOnce', 'sync_once', '把命令式消息路由到独立 CMD Channel；可恢复命令还需要绑定与 CMD 同步流程。', 'Routes command-style messages through a separate CMD Channel; recoverable commands additionally require binding and CMD synchronization.'),
-  messageHeaderFlag(3, 'DUP', 'wire-only', '协议重发标记；业务幂等仍以稳定 client_msg_no 和结果关联为准。', 'Protocol retransmission marker; product idempotency still relies on a stable client_msg_no and result correlation.'),
+  messageHeaderFlag(0, 'NoPersist', '普通非命令分支只返回兼容成功且不投递；只有命令式分支进入瞬时在线投递。两者都没有持久序号或离线恢复。', 'The plain non-command branch returns compatibility success without delivery; only the command-style branch enters transient online delivery. Neither has a durable sequence or offline recovery.'),
+  messageHeaderFlag(1, 'RedDot', '携带红点展示意图；它不是消息已读回执，也不单独证明服务端未读数发生变化。', 'Carries red-dot display intent; it is not a read receipt and does not by itself prove a server unread-count change.'),
+  messageHeaderFlag(2, 'SyncOnce', '把命令式消息路由到独立 CMD Channel；可恢复命令还需要绑定与 CMD 同步流程。', 'Routes command-style messages through a separate CMD Channel; recoverable commands additionally require binding and CMD synchronization.'),
+  messageHeaderFlag(3, 'DUP', '协议重发标记；业务幂等仍以稳定 client_msg_no 和结果关联为准。', 'Protocol retransmission marker; product idempotency still relies on a stable client_msg_no and result correlation.'),
 ];
 
 /** Message Setting bits calibrated against pkg/protocol/frame/setting.go. */
@@ -367,7 +364,7 @@ export const messageSettings: ProtocolValueDefinition[] = [
   protocolValue(2, 'SettingStream', 'wire', '表示兼容流消息字段；流式 AI 的持久投影与实时增量仍是不同路径。', 'Indicates compatible stream-message fields; durable AI stream projection and realtime deltas remain separate paths.'),
 ];
 
-const protocolScopeLabels: Record<
+export const protocolScopeLabels: Record<
   DeveloperContractLocale,
   Record<ProtocolValueScope, string>
 > = {

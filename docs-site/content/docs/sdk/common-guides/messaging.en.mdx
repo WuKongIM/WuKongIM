@@ -75,7 +75,7 @@ Overlapping protocol attempts need distinct `client_seq` values to correlate eac
 
 ## Security boundary
 
-A message payload is not a secret store. Use TLS even when session payload encryption is active, and avoid tokens, passwords, complete identity documents, or unnecessary personal data.
+A message payload is not a secret store. Use TLS even when session payload encryption is active, and avoid tokens, passwords, complete identity documents, or unnecessary personal data. The default v3 Beta composition does not enable stored-token CONNECT verification; production must wire a trusted verifier and prove that invalid, expired, and revoked credentials are rejected.
 
 ## Next step
 

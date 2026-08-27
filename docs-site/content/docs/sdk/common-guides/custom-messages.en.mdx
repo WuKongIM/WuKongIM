@@ -63,6 +63,8 @@ Do not embed attachment bytes in a message. The product service first stores a f
 - Allowlist URLs and safe navigation; never permit payload-injected scripts or local files.
 - If product events require end-to-end authenticity, design separate keys, versions, and rotation. TLS is not a payload signature.
 
+The default v3 Beta composition does not enable stored-token CONNECT verification; production must wire a trusted verifier and prove that invalid, expired, and revoked credentials are rejected. Payload safety cannot compensate for a missing connection-identity boundary.
+
 ## Troubleshooting
 
 - **Only one platform fails to decode:** compare actual payload bytes, character encoding, and exact SDK version before changing the server Channel.

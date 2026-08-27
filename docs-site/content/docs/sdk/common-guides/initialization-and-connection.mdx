@@ -82,7 +82,7 @@ WKProto 连接必须以 CONNECT 作为第一个数据包。认证等待期间发
 
 ## 安全边界
 
-CONNECT 协商的会话 Payload 加密不替代 TLS。路由地址、Token 和设备材料只能来自受信配置；不要接受页面参数注入任意 Gateway。
+CONNECT 协商的会话 Payload 加密不替代 TLS。路由地址、Token 和设备材料只能来自受信配置；不要接受页面参数注入任意 Gateway。当前默认 v3 Beta 组合未启用已存 Token 的 CONNECT 校验；生产环境必须接入可信 verifier，并证明无效、过期和撤销凭据都会被拒绝。
 
 ## 下一步
 

@@ -70,7 +70,7 @@ Treat it as “state may have changed.” Restore product login, establish the W
 
 ## Security boundary
 
-The push service is trusted product infrastructure, but it still receives neither Manager credentials nor direct message-storage mutation. Treat notification text as lock-screen-visible and minimize it by default.
+The push service is trusted product infrastructure, but it still receives neither Manager credentials nor direct message-storage mutation. Treat notification text as lock-screen-visible and minimize it by default. The default v3 Beta composition does not enable stored-token CONNECT verification; production must wire a trusted verifier and prove that invalid, expired, and revoked credentials are rejected.
 
 ## Next step
 

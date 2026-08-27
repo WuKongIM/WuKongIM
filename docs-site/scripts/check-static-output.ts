@@ -351,9 +351,19 @@ export async function checkStaticOutput() {
       }
     }
     const protocolDictionaryFacts = {
-      'channel-types': ['ChannelTypePerson', 'ChannelTypeAgentGroup'],
-      'device-flags': ['APP', 'SYSTEM', 'DeviceLevelMaster'],
-      'message-flags': ['NoPersist', 'SettingReceiptEnabled', 'SettingStream'],
+      'channel-types': ['| 1 | `ChannelTypePerson` |', '| 12 | `ChannelTypeAgentGroup` |'],
+      'device-flags': [
+        '| 0 | `APP` |',
+        '| 99 | `SYSTEM` |',
+        '| 0 | `DeviceLevelSlave` |',
+        '| 1 | `DeviceLevelMaster` |',
+      ],
+      'message-flags': [
+        '| 0 | `NoPersist` |',
+        '| 3 | `DUP` |',
+        '| 128 | `SettingReceiptEnabled` |',
+        '| 2 | `SettingStream` |',
+      ],
     } as const;
     for (const [dictionary, facts] of Object.entries(protocolDictionaryFacts)) {
       const markdown = await text(

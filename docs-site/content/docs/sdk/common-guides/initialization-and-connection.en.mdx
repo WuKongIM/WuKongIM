@@ -82,7 +82,7 @@ Publish product-ready state only when all are true:
 
 ## Security boundary
 
-Negotiated CONNECT payload encryption does not replace TLS. Route addresses, tokens, and device material must come from trusted configuration; do not accept arbitrary Gateway injection from page parameters.
+Negotiated CONNECT payload encryption does not replace TLS. Route addresses, tokens, and device material must come from trusted configuration; do not accept arbitrary Gateway injection from page parameters. The default v3 Beta composition does not enable stored-token CONNECT verification; production must wire a trusted verifier and prove that invalid, expired, and revoked credentials are rejected.
 
 ## Next step
 

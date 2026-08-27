@@ -6,9 +6,9 @@ import {
   goldenPathHTTPPaths,
   messageHeaderFlags,
   messageSettings,
+  protocolScopeLabels,
   reasonCodes,
   type ProtocolValueDefinition,
-  type ProtocolValueScope,
   type ReasonReachability,
   type ReasonRetryGuidance,
 } from '@/lib/developer-contracts';
@@ -61,25 +61,6 @@ const verificationLabels = {
     mismatch: 'Unverified: verification receipt does not match this build',
   },
 } as const;
-
-const protocolScopeLabels: Record<Locale, Record<ProtocolValueScope, string>> = {
-  zh: {
-    baseline: '基础接入',
-    specialized: '专用类型',
-    legacy: '兼容 / 旧类型',
-    client: '客户端',
-    internal: '服务端保留',
-    wire: 'Wire 标志',
-  },
-  en: {
-    baseline: 'Integration baseline',
-    specialized: 'Specialized',
-    legacy: 'Compatibility / legacy',
-    client: 'Client',
-    internal: 'Server-reserved',
-    wire: 'Wire flag',
-  },
-};
 
 /** Renders the human-readable form of the public compatibility.json artifact. */
 export function CompatibilitySnapshot({ locale = 'en' }: { locale?: Locale }) {

@@ -25,6 +25,40 @@ async function content(path: string) {
   return Bun.file(new URL(path, contentRoot)).text();
 }
 
+function parseGoIotaBlock(source: string, memberName: string) {
+  const block = [...source.matchAll(/const\s*\(\s*([\s\S]*?)\n\)/gu)]
+    .map(([, body]) => body)
+    .find((body) => body.includes(memberName));
+  if (!block) {
+    throw new Error(`Go const block containing ${memberName} was not found`);
+  }
+
+  const values: Array<{ name: string; value: number }> = [];
+  let previousExpression = '';
+  let iota = 0;
+  for (const rawLine of block.split('\n')) {
+    const line = rawLine.replace(/\/\/.*$/u, '').trim();
+    if (!line) continue;
+
+    const declaration = line.match(
+      /^([A-Za-z_][A-Za-z0-9_]*)(?:\s+[A-Za-z_][A-Za-z0-9_]*)?(?:\s*=\s*(iota|\d+))?$/u,
+    );
+    if (!declaration) {
+      throw new Error(`Unsupported Go const declaration: ${line}`);
+    }
+
+    const [, name, explicitExpression] = declaration;
+    const expression = explicitExpression || previousExpression;
+    if (!expression) {
+      throw new Error(`Go const declaration has no reusable expression: ${line}`);
+    }
+    previousExpression = expression;
+    values.push({ name, value: expression === 'iota' ? iota : Number(expression) });
+    iota += 1;
+  }
+  return values;
+}
+
 describe('Phase 13 integrator contracts', () => {
   test('publishes independently written bilingual common-guide pages with one shared boundary', async () => {
     for (const slug of commonGuideSlugs) {
@@ -35,6 +69,8 @@ describe('Phase 13 integrator contracts', () => {
       expect(en).toContain('cross-SDK behavior guide');
       expect(zh).toContain('/zh/sdk/compatibility');
       expect(en).toContain('/en/sdk/compatibility');
+      expect(zh).toMatch(/默认[\s\S]*(?:已存 Token|stored-token)[\s\S]*(?:CONNECT 校验|verifier)/u);
+      expect(en).toMatch(/default[\s\S]*stored-token[\s\S]*(?:CONNECT verification|verifier)/u);
       expect(zh).not.toBe(en);
     }
   });
@@ -79,16 +115,14 @@ describe('Phase 13 integrator contracts', () => {
     const goSource = await Bun.file(
       new URL('../../internal/contracts/protocolmeta/types.go', import.meta.url),
     ).text();
-    for (const fact of [
-      'DeviceFlagApp DeviceFlag = iota',
-      'DeviceFlagWeb',
-      'DeviceFlagPC',
-      'DeviceFlagSystem DeviceFlag = 99',
-      'DeviceLevelSlave DeviceLevel = iota',
-      'DeviceLevelMaster',
-    ]) {
-      expect(goSource).toContain(fact);
-    }
+    const flagAuthority = parseGoIotaBlock(goSource, 'DeviceFlagApp')
+      .filter(({ name }) => name.startsWith('DeviceFlag'))
+      .map(({ name, value }) => ({ name: name.slice('DeviceFlag'.length).toUpperCase(), value }));
+    const levelAuthority = parseGoIotaBlock(goSource, 'DeviceLevelSlave').filter(({ name }) =>
+      name.startsWith('DeviceLevel'),
+    );
+    expect(deviceFlags.map(({ name, value }) => ({ name, value }))).toEqual(flagAuthority);
+    expect(deviceLevels.map(({ name, value }) => ({ name, value }))).toEqual(levelAuthority);
   });
 
   test('keeps message header and setting bits aligned with codec authorities', async () => {

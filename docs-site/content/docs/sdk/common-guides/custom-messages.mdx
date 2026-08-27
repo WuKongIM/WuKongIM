@@ -63,6 +63,8 @@ Gateway SDK 发送的是字节 Payload；Product HTTP JSON 中的 `payload` 是 
 - URL 使用允许列表和安全跳转，不允许 Payload 注入任意脚本或本地文件；
 - 业务签名若需要端到端真实性，必须有独立密钥、版本和轮换设计，不能把 TLS 当作 Payload 签名。
 
+当前默认 v3 Beta 组合未启用已存 Token 的 CONNECT 校验；生产环境必须接入可信 verifier，并证明无效、过期和撤销凭据都会被拒绝。Payload 安全不能弥补连接身份边界缺失。
+
 ## 失败诊断
 
 - **只有某个平台解码失败**：比较实际 Payload 字节、字符集和该 SDK 版本，不要先修改服务端 Channel。

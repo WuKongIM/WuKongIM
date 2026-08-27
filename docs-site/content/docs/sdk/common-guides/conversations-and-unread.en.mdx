@@ -68,7 +68,7 @@ Multiple devices normally share UID-owned conversation state and `read_seq`. Cle
 
 ## Security boundary
 
-A conversation list can expose relationships and activity timing. Return only membership and messages observable by the current UID, and avoid complete UID or Channel samples in logs.
+A conversation list can expose relationships and activity timing. Return only membership and messages observable by the current UID, and avoid complete UID or Channel samples in logs. The default v3 Beta composition does not enable stored-token CONNECT verification; production must wire a trusted verifier and prove that invalid, expired, and revoked credentials are rejected.
 
 ## Next step
 

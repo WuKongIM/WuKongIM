@@ -73,7 +73,7 @@ Cover Wi-Fi/cellular change, DNS failure, TLS error, Gateway restart, route move
 
 ## Security boundary
 
-Infinite retry after authentication failure is both a security and capacity risk. When a token expires or is revoked, return to product login instead of probing multiple ingress points with the old credential.
+Infinite retry after authentication failure is both a security and capacity risk. When a token expires or is revoked, return to product login instead of probing multiple ingress points with the old credential. The default v3 Beta composition does not enable stored-token CONNECT verification; production must wire a trusted verifier and prove that invalid, expired, and revoked credentials are rejected.
 
 ## Next step
 
