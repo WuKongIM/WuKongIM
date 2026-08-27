@@ -1,0 +1,57 @@
+---
+title: Channel Type
+description: Reference current Channel Type values 1–12 and separate baseline, specialized, and compatibility types.
+---
+
+`channel_id + channel_type` jointly identifies one Channel. The numeric value crosses protocol, HTTP, storage, and routing contracts. Integrators transmit the number and retain the name as readable metadata.
+
+## Goal and completion criteria
+
+After choosing a Channel Type, you can name its membership model, message recovery, conversation projection, and source of product authorization. “Present in the enum” does not mean the current SDK or public API publishes a complete integration path.
+
+## Authority
+
+The table aligns with current `ChannelType*` constants 1–12 in `pkg/protocol/frame/common.go`; tests check names and values. It belongs to the current source snapshot and is not a promise across arbitrary versions.
+
+<ChannelTypeTable locale="en" />
+
+## Integrator defaults
+
+- Start one-to-one communication with `ChannelTypePerson=1`; callers use the peer UID.
+- Start ordinary group chat with `ChannelTypeGroup=2`; the product service first owns group ID, membership, and policy.
+- Use community, information, live, visitor, or Agent types only when product requirements and the selected client explicitly cover them.
+- New visitor-support flows should not select `ChannelTypeCustomerService=3`, which source marks as deprecated.
+- A temporary Channel is not a stable product group ID.
+
+<Callout type="warn" title="A type is not mutable after release">
+  Changing `channel_type` for one product Channel creates a different routing and storage identity. Treat it as an explicit data and client-compatibility migration, not a configuration edit.
+</Callout>
+
+## Direct-chat identity
+
+When Alice sends to Bob, the caller uses Bob's UID. The server entry normalizes both UIDs into an internal person-Channel identity; responses or webhooks may expose that canonical value. Product friendship still uses the two UIDs and never writes the internal value back as “peer UID.”
+
+## Specialized-type checklist
+
+Before using a specialized type, verify:
+
+1. the current server path provides the required membership, permission, persistence, and conversation semantics;
+2. the exact SDK version encodes, decodes, and presents the type correctly;
+3. offline sync, push, callbacks, and historical migration have coverage;
+4. a 100,000-member or high-rate workload uses bounded membership mutation and paged fanout;
+5. old clients that do not recognize the type degrade safely.
+
+## Troubleshooting
+
+- **ReasonNotSupportChannelType:** confirm protocol version and value; do not blindly retry as another type.
+- **Direct history splits:** inspect using both peer UID and canonical person ID as caller input.
+- **Group send is denied:** inspect membership, allow/deny lists, ban, and disband instead of switching to Person to bypass policy.
+- **Old client cannot render:** preserve server data and degrade through payload/client compatibility policy.
+
+## Security boundary
+
+Channel Type is not authorization. Even with the correct type, the product service owns relationship creation, membership, roles, content governance, and tenant isolation.
+
+## Next step
+
+Use [Device Flags](/en/api/dictionaries/device-flags) for client identity and [Message Flags](/en/api/dictionaries/message-flags) for message behavior bits.

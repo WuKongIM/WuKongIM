@@ -1,0 +1,75 @@
+---
+title: Message Flags
+description: 查阅 WKProto 固定 Header 与 Setting 位，并理解持久化、红点、命令、回执、加密和流边界。
+---
+
+消息行为由两组不同位控制：固定 Header 的低位布尔标志，以及消息 `Setting` 位。集成者应使用 SDK 暴露的类型，不手写魔法数字；本页用于跨语言核对 Wire 含义。
+
+## 目标与完成标准
+
+看到任一标志时，你应能说明它是否影响持久化、路由、展示或编码，并避免把协议意图误解为业务完成证明。
+
+## 权威来源
+
+固定 Header 位与 `pkg/protocol/codec/common.go` 对齐；Setting 值与 `pkg/protocol/frame/setting.go` 对齐。测试冻结位序、名称和值。
+
+<MessageFlagTable locale="zh" />
+
+## `NoPersist` 必须结合命令语义
+
+<Callout type="error" title="普通 NoPersist 不会实时投递">
+  普通非命令 `NoPersist`（没有 `SyncOnce`，也不是命令 Channel）只在预路由检查后返回兼容成功，不解析 authority、不追加日志、也不在线投递。只有命令式 `NoPersist` 才进入瞬时在线投递；两者都不能离线恢复。
+</Callout>
+
+因此：
+
+- 可靠聊天、通知、审计和可重放业务事件使用普通持久消息；
+- 在线瞬时命令需要命令语义，并接受目标离线时不可恢复；
+- 可恢复命令使用持久 `SyncOnce` 与独立 CMD bind/sync/ack；
+- 不要用 `NoPersist` 成功响应作为“设备已收到”的证据。
+
+## `RedDot` 与回执
+
+`RedDot` 携带客户端展示意图，会随消息进入存储、投递和兼容回调，但它不等于：
+
+- 服务端已经修改某个 Conversation 的 `read_seq`；
+- 最终用户看过消息；
+- 接收端发出了业务回执。
+
+`SettingReceiptEnabled` 也只是协议回执意图。SENDACK 是 Channel 提交结果，RECVACK 是 Session 传输反馈，最终用户已读与设备执行结果需要独立业务合同。
+
+## 加密相关位
+
+- `SettingNoEncrypt` 会让兼容 WKProto 适配器跳过已协商的 Session Payload 加密；它不关闭或提供 TLS；
+- 敏感消息不要启用该位；
+- `SettingSignal` 是专用 signal 模式，只在精确 SDK 与协议版本明确支持时使用；
+- 不要根据一个位自行发明端到端加密保证，密钥分发、身份验证和轮换仍需完整设计。
+
+## Topic 与 Stream
+
+`SettingTopic` 表示数据包包含 Topic 字段。`SettingStream` 表示兼容流字段；它不自动承诺实时 token 推送、持久事件投影或重连恢复全部同时存在。当前 AI 流教程使用 durable base + message-event projection，并明确区分实时增量路径。
+
+## 组合检查
+
+| 需求 | 选择 |
+| --- | --- |
+| 普通可恢复聊天消息 | `NoPersist=false`、`SyncOnce=false` |
+| 在线瞬时命令 | `NoPersist=true`、`SyncOnce=true`，接受无历史 |
+| 可恢复命令 | `NoPersist=false`、`SyncOnce=true`，另做 CMD 绑定与同步 |
+| 业务已读 | 独立持久回执，不依赖 `RedDot` / RECVACK |
+| 流式 AI | 先阅读 [AI 与 IoT](/zh/guide/tutorials/ai-and-iot)，不要只设置 Stream 位 |
+
+## 失败诊断
+
+- **NoPersist 返回成功但对端没收到**：确认是否缺少命令式 `SyncOnce`；普通分支按设计不投递。
+- **消息无法离线恢复**：检查是否使用 NoPersist 或未建立 CMD 恢复流程。
+- **红点与未读数不一致**：分开检查 Message Flag 与 Conversation Badge floor。
+- **设置位后某 SDK 解码失败**：核对精确 SDK/协议版本，不盲目保留未知位。
+
+## 安全边界
+
+未知位应 fail closed 或由兼容 SDK 安全忽略，不能默认启用。原始 `setting` 与 Header 可以进入受控诊断，但不能连同完整敏感 Payload 写入普通日志。
+
+## 下一步
+
+在[消息收发](/zh/sdk/common-guides/messaging)中应用这些位，错误结果按 [Reason Code](/zh/api/dictionaries/reason-codes)分类。

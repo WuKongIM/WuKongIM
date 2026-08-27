@@ -1,0 +1,75 @@
+---
+title: 多设备同步
+description: 设计 Device Flag、Device Level、并发 Session、共享会话状态和业务设备登记。
+---
+
+同一 UID 可以拥有多个设备类别和多个活动 Session。集成者必须先定义“哪些端点可以同时在线”和“哪些状态按 UID 共享”，再把策略映射到 SDK。
+
+<Callout type="info" title="跨 SDK 行为指南">
+  本页是**跨 SDK 行为指南**，不声明各平台的多端 API 完全一致。当前可执行兼容证据仍只覆盖 [JavaScript/Web 快照](/zh/sdk/compatibility)。
+</Callout>
+
+## 目标与完成标准
+
+产品应有一张业务设备登记表，能把一个稳定 UID 映射到具体安装、设备类别、推送 Token、凭据状态和最后活动时间；连接冲突、消息恢复和退出行为都有可测试规则。
+
+## 协议设备维度
+
+查看完整 [Device Flag 与 Device Level](/zh/api/dictionaries/device-flags)：
+
+- `APP=0`、`WEB=1`、`PC=2` 是客户端设备类别；
+- `SYSTEM=99` 由服务端保留，终端不能使用；
+- `device_id` 区分同一类别的具体安装；
+- `DeviceLevelSlave=0` 允许同类多个端点共存；
+- `DeviceLevelMaster=1` 声明同类单活冲突策略。
+
+Device Level 不是客户端权限等级。它只参与同一 UID、同一 `device_flag` 下的连接冲突，不能表达管理员、付费用户或群角色。
+
+## 当前生效边界
+
+用户 Token 更新为 Master 时，用户用例会在持久化设备元数据后计划关闭匹配类别的 owner-local Session。Presence authority 也会对同 UID、同类别的 Master 冲突进行 owner fencing。
+
+但是默认 v3 Beta Gateway 没有 stored-token verifier，CONNECT 会话默认得到 Slave 级别。因此仅调用 `/user/token` 写入 Master 元数据并不能证明后续 CONNECT 会执行预期冲突策略。生产必须把 Token verifier 与 device level 一起接入，并做跨节点端到端测试。
+
+## 建议产品策略
+
+| 场景 | 建议 |
+| --- | --- |
+| 手机 + Web + PC 同时在线 | 使用不同 `device_flag`，分别管理具体 `device_id` |
+| 同类允许多台设备 | 使用 Slave，并让本地消息处理和通知按设备幂等 |
+| 同类只允许一个端点 | 由后端签发 Master；新连接成功后观察旧 Session 关闭 |
+| 重装应用 | 生成新 `device_id`，撤销旧凭据并迁移/作废旧推送 Token |
+| 用户主动移除设备 | 先撤销凭据，再关闭在线 Session，最后删除业务设备记录 |
+
+## 哪些状态共享
+
+- Channel 消息与 sequence 是集群权威，所有有权限设备从同一日志恢复；
+- Conversation、`read_seq`、删除范围和激活状态按 UID 所有，通常跨设备共享；
+- 本地下载进度、草稿、加密缓存和 UI 滚动位置是设备本地状态；
+- 厂商推送 Token、系统权限和后台限制按具体设备维护；
+- Presence 表示活动 owner route，不等于业务设备登记或最近一次可靠登录。
+
+如果一个设备清除未读，另一个设备的下一次会话同步可能看到新的 UID-owned Badge floor。客户端必须允许较新的服务端状态覆盖旧本地投影。
+
+## 消息与通知
+
+普通持久消息可向多个在线 Session 投递。每个 Session 的 RECVACK 独立，不能用一个设备 ACK 推断其他设备。`msg.offline` 只给 UID 候选，不列举每个离线设备；按设备推送仍由业务设备表决定。
+
+## 退出与切换
+
+身份切换时先停止旧 UID 的发送 admission，等待或取消本地任务，关闭旧 Session，清除旧 UID 的消息/会话游标和推送绑定，再初始化新 UID。不要在同一 SDK 单例上并发替换身份。
+
+## 失败诊断
+
+- **Master 设备仍能多开**：检查 Gateway verifier 是否实际返回持久化的 Device Level。
+- **不同平台互相踢下线**：检查是否错误复用了同一 `device_flag`。
+- **重装后旧设备仍在线**：旧 Token、旧 device ID 和 owner Session 是否完成撤销与关闭。
+- **某设备没有推送**：不要只看 UID presence；检查具体设备 Token 与业务推送策略。
+
+## 安全边界
+
+设备列表属于敏感账号数据。显示和移除设备需要重新认证、审计和反自动化保护；不要向一个设备返回其他设备的完整 Token、地址或 Session 标识。
+
+## 下一步
+
+多设备规则确定后，继续[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)，为网络切换、冲突关闭和路由漂移设计统一恢复。

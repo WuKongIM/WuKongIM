@@ -1,0 +1,70 @@
+---
+title: Identity & Token
+description: Design UID, device, token acquisition, rotation, revocation, and the current connection-authentication boundary.
+---
+
+Before integrating WuKongIM, separate the product account, protocol identity, and concrete device. Your system still authenticates the product account. WuKongIM routes a stable UID, uses `device_flag` for a device category, and uses `device_id` for a concrete endpoint.
+
+<Callout type="info" title="Cross-SDK behavior guide">
+  This page is a **cross-SDK behavior guide** and promises no platform method names. Check the [JavaScript/Web compatibility snapshot](/en/sdk/compatibility), then map these behaviors to the versioned documentation of your selected SDK.
+</Callout>
+
+## Goal and completion criteria
+
+Finish with a backend-controlled session-material contract. A client may obtain only its own UID, device parameters, short-lived token, and usable ingress. It cannot create arbitrary identities, select a privileged device level, or receive Product HTTP management capability.
+
+## Identity model
+
+| Field | Integrator rule |
+| --- | --- |
+| `uid` | Stable, non-recycled product user ID; never a display name, phone number, or mutable email |
+| `device_flag` | Choose APP, WEB, or PC from current [Device Flags](/en/api/dictionaries/device-flags); end-user clients never use SYSTEM |
+| `device_id` | One concrete installation or endpoint; define behavior after reinstall, cleared storage, and device migration |
+| `device_level` | Server policy chooses same-category multi-active or single-active behavior; clients cannot self-promote to Master |
+| `token` | High entropy, short lived, and revocable; return only through product login protected by TLS |
+
+## Recommended issuance flow
+
+1. The client signs in to the product service, which checks account, tenant, device, risk, and policy.
+2. The backend maps the account to a stable UID and selects `device_flag`, `device_id`, and conflict policy from its device registry.
+3. It creates a WuKongIM session token independent of passwords, OAuth access tokens, and Manager credentials.
+4. Only trusted services call user-token management entries; browsers and mobile apps never call Product HTTP directly.
+5. The client receives only current session material and stores the token with platform-appropriate secure storage.
+6. The client still inspects CONNACK after Gateway CONNECT; “token received” is not “session established.”
+
+## Current v3 Beta limitation
+
+`POST /user/token` writes device-token metadata through the user use case, but the default app composition creates the Gateway Authenticator without `TokenAuthOn` and without an injected stored-token verifier. Therefore:
+
+- successful token metadata mutation does not prove that a later CONNECT validates it;
+- `/user/device_quit` can clear metadata and close matching owner-local sessions, but cannot alone prove an attacker cannot CONNECT again;
+- session encryption does not replace identity authentication, TLS, or Product HTTP access control.
+
+<Callout type="error" title="Production blocker">
+  A deployment using the default authentication composition is not a complete production identity boundary. Wire Gateway verification to the same trusted credential source and run end-to-end rejection tests for invalid, expired, revoked, and cross-device tokens before release.
+</Callout>
+
+## Rotation and revocation
+
+- Define either a short explicit overlap or immediate invalidation when rotating tokens.
+- Persist revocation first, close existing sessions second, and finally prove reconnect is rejected.
+- Audit UID, device category, and concrete device without recording plaintext tokens.
+- Product bans, tenant suspension, and risk policy must take effect in the trusted backend or wired Gateway verifier.
+- Logout also clears local messages, cursors, and push tokens; disconnecting the socket alone is insufficient.
+
+## Troubleshooting
+
+| Symptom | Check first |
+| --- | --- |
+| Token API succeeds but arbitrary tokens connect | Whether the default stored-token verifier is still absent |
+| Same-category devices unexpectedly replace or coexist | Whether one backend policy produced `device_flag`, `device_id`, and `device_level` |
+| An old session remains usable after revocation | Whether durable revocation, owner-local close, and reconnect rejection all completed |
+| Credentials appear in logs | Remove and rotate immediately; tokens, CONNECT payloads, and headers must not enter logs |
+
+## Security boundary
+
+Keep Product HTTP behind a private network, service mesh, or reverse proxy with service-identity authentication. CORS is browser compatibility, not product authentication.
+
+## Next step
+
+After fixing the identity contract, continue with [Initialization & Connection](/en/sdk/common-guides/initialization-and-connection) and separate CONNECT, recovery, and send-ready state.

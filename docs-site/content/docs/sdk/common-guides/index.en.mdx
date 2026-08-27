@@ -1,0 +1,75 @@
+---
+title: SDK Common Guides
+description: Plan identity, connection, messaging, conversations, offline recovery, and multi-device integration through server-proven behavior.
+---
+
+SDK class names and callback shapes vary by platform, but integrators face the same responsibility boundary: the product service supplies trusted identity and policy, the SDK owns connection and protocol state, and the WuKongIM cluster owns Channel ordering, persistence, routing, and online delivery.
+
+<Callout type="info" title="Cross-SDK behavior guide">
+  This area is a **cross-SDK behavior guide**. It publishes only semantics supported by the current server, wire contracts, and JavaScript golden path. It does not promise Android, iOS, Flutter, UniApp, or HarmonyOS method names, nor mark those platforms as verified. The only client path with an executable compatibility receipt remains the [JavaScript/Web snapshot](/en/sdk/compatibility).
+</Callout>
+
+## Goal and completion criteria
+
+After this guide set, you should be able to draw your integration state machine and name the authority, completion signal, and compensation for every step. You should be able to answer:
+
+- who creates, rotates, and revokes the UID, device identity, and token;
+- when a TCP/WebSocket is merely open and when the session may send;
+- what SENDACK, realtime RECV, RECVACK, and offline synchronization each prove;
+- which layer owns conversations, unread state, push, and multi-device state;
+- which failures may retry with the same idempotency key and which require identity or policy repair first.
+
+## Integrator reading path
+
+<Cards>
+  <Card title="Identity & Token" description="Establish UID, device, credential, and revocation boundaries first." href="/en/sdk/common-guides/identity-and-token" />
+  <Card title="Initialization & Connection" description="Turn routing, CONNECT, recovery, and readiness into a state machine." href="/en/sdk/common-guides/initialization-and-connection" />
+  <Card title="Messaging" description="Implement send, acknowledgements, receive, idempotency, and transient branches." href="/en/sdk/common-guides/messaging" />
+  <Card title="Custom Messages" description="Version product payloads and define safe fallback." href="/en/sdk/common-guides/custom-messages" />
+  <Card title="Conversations & Unread" description="Separate message logs, conversation projections, and badge floors." href="/en/sdk/common-guides/conversations-and-unread" />
+  <Card title="Offline Messages & Push" description="Combine durable sync, offline candidates, and provider notifications." href="/en/sdk/common-guides/offline-and-push" />
+  <Card title="Multi-device Sync" description="Design device categories, conflict policy, and shared state." href="/en/sdk/common-guides/multi-device" />
+  <Card title="Reconnect & Errors" description="Classify failures by phase and perform bounded recovery." href="/en/sdk/common-guides/reconnect-and-errors" />
+</Cards>
+
+## A releasable loop
+
+```text
+product login
+  -> trusted backend issues session material
+  -> discover Gateway ingress
+  -> SDK CONNECT; inspect CONNACK separately
+  -> recover and deduplicate missing durable messages
+  -> expose an application-ready state to the UI
+  -> SEND; retain client_msg_no and SENDACK separately
+  -> RECV; process and then send RECVACK
+  -> conversation/unread projection and mobile push converge independently
+```
+
+Do not treat “socket open” as the final readiness signal. Application readiness normally requires successful connection, still-valid identity, completed recovery, and merged local state.
+
+## Shared fact entry points
+
+- [Channel Types](/en/api/dictionaries/channel-types) for current direct, group, and specialized Channel values and boundaries;
+- [Device Flags](/en/api/dictionaries/device-flags) for device categories and same-category conflict policy;
+- [Message Flags](/en/api/dictionaries/message-flags) for ordinary durable messages, command-style transient messages, red dots, and Setting bits;
+- [Reason Codes](/en/api/dictionaries/reason-codes) for retry decisions in the CONNACK or SENDACK phase.
+
+## Release evidence
+
+Retain repeatable evidence instead of one “message sent” screenshot:
+
+1. connect with a named server revision, exact SDK version, and reviewed configuration;
+2. exchange durable messages both ways and observe SENDACK separately from realtime receipt;
+3. send while the receiver is offline, then recover from durable sync after reconnect;
+4. deduplicate duplicate or overlapping results by message identity;
+5. drive invalid credentials, denied policy, stale routing, network change, and server pressure into expected states;
+6. prove logs, metrics, and error reporting contain neither tokens nor complete sensitive payloads.
+
+## Security boundary
+
+The default v3 Beta composition does not yet enable stored-token CONNECT verification, and Product HTTP has no general product-authentication middleware. These common guides do not present the development sample as a production identity design. Add authentication, TLS, network isolation, rate limits, audit, and revocation tests before release.
+
+## Next step
+
+Complete [Identity & Token](/en/sdk/common-guides/identity-and-token), then map [Initialization & Connection](/en/sdk/common-guides/initialization-and-connection) to your selected platform SDK.

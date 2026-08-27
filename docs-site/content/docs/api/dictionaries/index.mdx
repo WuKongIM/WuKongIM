@@ -1,44 +1,45 @@
 ---
 title: 公共数据字典
-description: 查阅 Phase 12 已校准的协议 Reason Code，并区分仍在规划中的其他字典。
+description: 查阅与当前源码校准的 Channel Type、Device Flag、Message Flags 和 Reason Code。
 ---
 
 ## 目标与完成标准
 
-本区域集中维护跨 Gateway 和兼容 HTTP 响应复用的枚举。Phase 12 只发布已与当前 Go 权威定义校准的 Reason Code；其他字典仍保持规划状态。
+本区域集中维护客户端 SDK、Gateway 和兼容 HTTP 响应复用的 Wire 值。Phase 13 在 Reason Code 之外发布 Channel Type、Device Flag / Level 与 Message Flags，帮助集成者跨语言核对数值和行为边界。
 
 ## 兼容目标
 
-Reason Code 表从当前 `pkg/protocol/frame` 权威枚举生成，并由 CI 检查 0–29 的值与名称。它与[兼容性快照](/zh/api/compatibility)绑定。
+所有表都与当前 Go 权威定义对齐并由测试检查名称、值或位序。它们属于当前源码快照；[兼容性快照](/zh/api/compatibility)仍只证明 JavaScript 黄金场景，不自动证明每个 SDK 平台。
 
 ## 前置条件
 
-- 先区分 HTTP 状态和协议 Reason Code；
-- 记录出现该码的阶段，例如 CONNACK 或 SENDACK；
-- 不把“枚举中存在”解释为“当前每条路径都能产生”。
+- 数值是 Wire 合同，名称用于可读诊断；
+- 不把“枚举中存在”解释为“当前 SDK 已发布完整能力”；
+- 遇到未知值时保留原始数字并 fail closed。
 
 ## 已发布字典
 
 <Cards>
+  <Card title="Channel Type" description="当前 1–12 类型及基础、专用与旧类型边界。" href="/zh/api/dictionaries/channel-types" />
+  <Card title="Device Flag" description="APP、WEB、PC、SYSTEM 与同类连接冲突级别。" href="/zh/api/dictionaries/device-flags" />
+  <Card title="Message Flags" description="固定 Header 与 Setting 位的真实行为。" href="/zh/api/dictionaries/message-flags" />
   <Card title="Reason Code" description="完整列出当前 0–29 名称、适用阶段、重试建议与可达性。" href="/zh/api/dictionaries/reason-codes" />
 </Cards>
 
-Channel Type、Device Flag 和 Message Flags 仍在规划中；黄金路径只在对应合同正文中说明它实际使用的窄值，不提前发布不完整字典。
-
 ## 预期结果
 
-开发者应先按数值匹配，再同时记录名称、阶段与请求关联信息。未知值必须保留原始数字并按未知失败处理，不能默认成功。
+开发者应按数值匹配，并同时记录字典名称、协议阶段与兼容快照。应用代码不手写分散的魔法数字；由 SDK 类型或一个内部共享模块映射。
 
 ## 失败诊断
 
-- **名称与数值不一致**：让生成校验失败并重新校准，不要手工维护第二张表。
-- **同一数值出现在不同阶段**：结合 CONNACK、SENDACK 或其他包类型解释。
+- **名称与数值不一致**：让校验失败并重新校准，不要手工维护第二张表。
+- **功能存在于字典但 SDK 找不到入口**：该平台能力可能仍未发布，按精确版本文档确认。
 - **收到表外数值**：记录数值和兼容快照，升级字典前保持 fail closed。
 
 ## 安全与责任边界
 
-Reason Code 是协议结果，不是适合直接展示给最终用户的本地化错误。业务服务应映射安全文案，避免暴露内部拓扑、权限策略或敏感请求内容。
+Wire 字典不是授权，也不是适合直接展示给最终用户的本地化文案。业务服务应映射安全含义，避免暴露内部拓扑、权限策略或敏感请求内容。
 
 ## 下一步
 
-查看完整的[Reason Code](/zh/api/dictionaries/reason-codes) 表，或返回[错误响应](/zh/api/product-http/errors)了解 HTTP 与协议结果如何组合。
+从 [Channel Type](/zh/api/dictionaries/channel-types) 与 [Device Flag](/zh/api/dictionaries/device-flags)建立身份，再用 [Message Flags](/zh/api/dictionaries/message-flags)和 [Reason Code](/zh/api/dictionaries/reason-codes)解释消息结果。

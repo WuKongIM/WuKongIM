@@ -3,11 +3,11 @@ title: API & Protocols
 description: Reference the Product HTTP compatibility target and Reason Codes for the v3 Beta JavaScript/Web golden path.
 ---
 
-This area now publishes executable contracts for application integration developers. Phase 12 promises only the Product HTTP subset required by the golden sample, its shared conventions, compatibility snapshot, error handling, and complete Reason Code enum.
+This area publishes executable contracts for application integration developers. Product HTTP still promises only the Beta subset required by the golden sample. Phase 13 additionally aligns Channel Type, Device Flag / Level, and Message Flags with current authoritative Go definitions.
 
 ## Goal and completion criteria
 
-A developer should create a development identity, discover Gateway ingress, recover offline messages from a trusted backend, and handle HTTP and protocol outcomes precisely without promoting other source routes to public API.
+A developer should create a development identity, discover Gateway ingress, recover offline messages from a trusted backend, and handle HTTP, protocol outcomes, and shared wire values precisely without promoting other source routes or enums to published platform capabilities.
 
 <Callout type="warn" title="Not the complete v3 API">
   This is a Beta golden-path subset. The repository's older OpenAPI still contains v2 material. Complete OpenAPI, client protocols, webhooks, operations APIs, and other domain references remain planned.
@@ -30,12 +30,12 @@ Server revision, SDK, Node.js, Chromium, and contract summary appear on [API Com
   <Card title="Conventions" description="Base URL, JSON, identifiers, response shapes, and retry boundaries." href="/en/api/conventions" />
   <Card title="Authentication & Security" description="Development BFF, Product HTTP, and Gateway token-validation boundaries." href="/en/api/authentication" />
   <Card title="Product HTTP API" description="The three published token, route, and message-sync entries." href="/en/api/product-http" />
-  <Card title="Reason Code" description="The current enum 0–29 with phase, retry guidance, and reachability." href="/en/api/dictionaries/reason-codes" />
+  <Card title="Shared Dictionaries" description="Source-aligned Channel, device, message-flag, and Reason Code values." href="/en/api/dictionaries" />
 </Cards>
 
 ## Expected result
 
-The golden BFF is the browser-side boundary for all three HTTP entries; realtime messages use the SDK; error classification preserves HTTP separately from CONNACK/SENDACK; Reason Code remains automatically aligned with the Go enum.
+The golden BFF is the browser-side boundary for all three HTTP entries; realtime messages use the SDK; error classification preserves HTTP separately from CONNACK/SENDACK; shared protocol dictionaries remain automatically aligned with Go authorities.
 
 ## Troubleshooting
 
@@ -49,4 +49,4 @@ Product HTTP has no general business-authentication middleware and the default G
 
 ## Next step
 
-Begin with [Conventions](/en/api/conventions), or follow the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) to observe how the three contracts cooperate.
+Begin with [Conventions](/en/api/conventions) and [Shared Dictionaries](/en/api/dictionaries), or follow the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) to observe how the three HTTP contracts cooperate.

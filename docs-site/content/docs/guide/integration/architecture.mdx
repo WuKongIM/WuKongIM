@@ -52,7 +52,7 @@ WuKongIM Gateway <-> WuKongIM 集群
 ## 故障边界
 
 - 对默认持久化消息，SENDACK 成功表示频道权威写入已作出持久化成功决定。
-- 显式标记 `no_persist` 的消息走实时非持久化路径，不具备相同的恢复保证。
+- 普通非命令 `NoPersist` 只返回兼容成功而不投递；只有命令式 `NoPersist` 才进入瞬时在线投递。两者都不具备持久 sequence 或恢复保证，详见 [Message Flags](/zh/api/dictionaries/message-flags)。
 - 在线投递、会话活跃投影、Webhook 和插件属于提交后的独立副作用。
 - Webhook 失败不会把已经成功的 SENDACK 改成失败。
 - 客户端断线恢复依赖 SDK 的重连与消息同步，不依赖 Webhook 重放。

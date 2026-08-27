@@ -1,0 +1,55 @@
+---
+title: Device Flag
+description: 查阅 APP、WEB、PC、SYSTEM 和 Device Level 的当前值与连接冲突边界。
+---
+
+Device Flag 表示客户端设备类别，Device Level 表示同一 UID、同一类别内的连接冲突策略。它们不是操作系统版本、具体设备 ID 或业务角色。
+
+## 目标与完成标准
+
+业务后端应为每个端点选择稳定的 `device_flag`、具体 `device_id` 和由服务端控制的 `device_level`，并能解释同类设备是共存还是单活。
+
+## 权威来源
+
+下表与 `internal/contracts/protocolmeta/types.go` 及 `pkg/protocol/frame/common.go` 对齐。测试同时冻结客户端类别、服务端保留值和两种冲突级别。
+
+<DeviceFlagTable locale="zh" />
+
+## 三个字段不能混用
+
+| 字段 | 回答的问题 |
+| --- | --- |
+| `device_flag` | 这是 APP、WEB、PC 还是服务端 SYSTEM 类别？ |
+| `device_id` | 这是该类别下哪一个具体安装或端点？ |
+| `device_level` | 同 UID、同类别的多个端点允许共存还是执行单活冲突策略？ |
+
+不要把手机品牌、浏览器 UA 或系统版本直接作为 `device_id`。生成稳定随机标识，并明确重装、清缓存、设备迁移和恢复备份时是否创建新 ID。
+
+## 当前鉴权限制
+
+Token 元数据可以保存 Device Level，用户用例也能在 Master 更新或设备退出后计划关闭匹配本地 Session。但默认 v3 Beta Gateway 没有注入 stored-token verifier，CONNECT 默认采用 Slave 级别。
+
+因此，配置 `device_level=1` 不自动证明后续连接会单活。上线前必须把 verifier 接入 Gateway，并验证新 Master 连接、旧 Session 关闭、跨节点冲突、撤销和重连拒绝。
+
+## 集成建议
+
+- APP、WEB、PC 同时在线时使用不同类别；
+- 同类别多端使用 Slave，并让每个 Session 独立处理 RECVACK；
+- 单活要求由后端签发 Master，客户端不能选择；
+- SYSTEM 仅供受信服务端身份，终端传入应拒绝；
+- 业务设备表另存厂商推送 Token、系统权限、风险和撤销状态，不把 Presence 当设备数据库。
+
+## 失败诊断
+
+- **PC 显示成数字名称**：Wire 值仍是 2；日志/管理展示的 String 方法不是数值权威。
+- **同类 Master 未互斥**：检查 CONNECT verifier 返回的实际 Device Level。
+- **不同平台互相替换**：检查是否复用了同一 Device Flag。
+- **退出后可重新连接**：检查 Token 撤销与 Gateway 校验，而不只是 Session close。
+
+## 安全边界
+
+设备类别不能授予业务权限。SYSTEM 也不是普通客户端的“管理员模式”；只允许受信内部组件使用，并从公网入口拒绝伪造。
+
+## 下一步
+
+把这些值应用到[多设备同步](/zh/sdk/common-guides/multi-device)，再查看[身份与 Token](/zh/sdk/common-guides/identity-and-token)的签发与撤销流程。

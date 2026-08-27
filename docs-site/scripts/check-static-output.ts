@@ -350,6 +350,21 @@ export async function checkStaticOutput() {
         throw new Error(`${locale} ReasonCode Markdown is missing shared fact: ${fact}`);
       }
     }
+    const protocolDictionaryFacts = {
+      'channel-types': ['ChannelTypePerson', 'ChannelTypeAgentGroup'],
+      'device-flags': ['APP', 'SYSTEM', 'DeviceLevelMaster'],
+      'message-flags': ['NoPersist', 'SettingReceiptEnabled', 'SettingStream'],
+    } as const;
+    for (const [dictionary, facts] of Object.entries(protocolDictionaryFacts)) {
+      const markdown = await text(
+        `llms.mdx/${locale}/api/dictionaries/${dictionary}/content.md`,
+      );
+      for (const fact of facts) {
+        if (!markdown.includes(fact)) {
+          throw new Error(`${locale} ${dictionary} Markdown is missing shared fact: ${fact}`);
+        }
+      }
+    }
   }
 
   const llmsIndex = await text('llms.txt');
@@ -402,7 +417,9 @@ export async function checkStaticOutput() {
 
   const criticalPages = locales.flatMap((locale) => [
     { path: `${locale}/index.html`, locale },
+    { path: `${locale}/sdk/common-guides/index.html`, locale },
     { path: `${locale}/sdk/javascript/quickstart/index.html`, locale },
+    { path: `${locale}/api/dictionaries/message-flags/index.html`, locale },
     { path: `${locale}/api/product-http/users/index.html`, locale },
   ]);
   for (const critical of criticalPages) {

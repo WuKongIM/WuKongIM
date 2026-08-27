@@ -1,0 +1,75 @@
+---
+title: Message Flags
+description: Reference WKProto fixed-header and Setting bits and understand persistence, red-dot, command, receipt, encryption, and stream boundaries.
+---
+
+Two different bit sets affect a message: low fixed-header booleans and message `Setting` bits. Integrators use SDK-exposed types instead of hand-written magic numbers; this page cross-checks wire meaning across languages.
+
+## Goal and completion criteria
+
+For any flag, you can explain whether it affects persistence, routing, display, or encoding and avoid interpreting protocol intent as proof of business completion.
+
+## Authority
+
+Fixed-header bits align with `pkg/protocol/codec/common.go`; Setting values align with `pkg/protocol/frame/setting.go`. Tests freeze bit order, names, and values.
+
+<MessageFlagTable locale="en" />
+
+## `NoPersist` requires command semantics
+
+<Callout type="error" title="Plain NoPersist does not deliver in real time">
+  Plain non-command `NoPersist`, without `SyncOnce` and without a command Channel, returns compatibility success after pre-route checks but does not resolve authority, append, or deliver online. Only command-style `NoPersist` enters transient online delivery. Neither branch supports offline recovery.
+</Callout>
+
+Therefore:
+
+- reliable chat, notification, audit, and replayable product events use ordinary durable messages;
+- online-only commands use command semantics and accept that an offline target cannot recover them;
+- recoverable commands use durable `SyncOnce` with separate CMD bind/sync/ack;
+- never treat a successful `NoPersist` result as proof that a device received anything.
+
+## `RedDot` and receipts
+
+`RedDot` carries client display intent through storage, delivery, and compatibility callbacks, but it does not mean:
+
+- the server changed a Conversation `read_seq`;
+- the end user viewed the message;
+- the receiver emitted a product receipt.
+
+`SettingReceiptEnabled` is also protocol receipt intent. SENDACK is a Channel commit result, RECVACK is Session transport feedback, and end-user read or device execution needs a separate product contract.
+
+## Encryption-related bits
+
+- `SettingNoEncrypt` makes compatible WKProto adapters skip negotiated Session payload encryption. It neither disables nor supplies TLS.
+- Never enable it for sensitive messages.
+- `SettingSignal` is specialized signal mode and requires explicit support from the exact SDK and protocol version.
+- Do not invent an end-to-end encryption guarantee from one bit; key distribution, identity verification, and rotation require a complete design.
+
+## Topic and Stream
+
+`SettingTopic` indicates that the packet carries a Topic field. `SettingStream` indicates compatible stream fields; it does not automatically promise realtime token push, durable event projection, and reconnect recovery together. The current AI stream tutorial uses a durable base plus message-event projection and explicitly separates a realtime delta path.
+
+## Combination guide
+
+| Requirement | Selection |
+| --- | --- |
+| Ordinary recoverable chat | `NoPersist=false`, `SyncOnce=false` |
+| Online-only command | `NoPersist=true`, `SyncOnce=true`; accept no history |
+| Recoverable command | `NoPersist=false`, `SyncOnce=true`; add CMD binding and sync |
+| Product read receipt | Separate durable receipt; do not rely on `RedDot` or RECVACK |
+| Streaming AI | Read [AI & IoT](/en/guide/tutorials/ai-and-iot) instead of setting only the Stream bit |
+
+## Troubleshooting
+
+- **NoPersist succeeds but peer receives nothing:** check for missing command-style `SyncOnce`; the plain branch intentionally does not deliver.
+- **Message cannot recover offline:** inspect NoPersist or a missing CMD recovery flow.
+- **Red dot and unread disagree:** inspect Message Flag separately from Conversation badge floor.
+- **One SDK fails after a Setting bit is enabled:** verify exact SDK and protocol version rather than retaining an unknown bit blindly.
+
+## Security boundary
+
+Unknown bits fail closed or are ignored safely by a compatible SDK; they never default to enabled. Raw `setting` and Header may enter controlled diagnostics, but never write them together with a complete sensitive payload into ordinary logs.
+
+## Next step
+
+Apply these bits in [Messaging](/en/sdk/common-guides/messaging), and classify outcomes through [Reason Codes](/en/api/dictionaries/reason-codes).

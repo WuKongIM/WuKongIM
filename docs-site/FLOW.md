@@ -10,9 +10,10 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 `docs-site` is the standalone Fumadocs application for public WuKongIM v3
 documentation under `/zh` and `/en`. It owns shared information architecture,
 MDX publication, static search, sitemap/SEO, and LLM/Markdown outputs.
-It also owns the narrow JavaScript Web golden-path laboratory and its generated
-compatibility/OpenAPI artifacts. It does not define product runtime behavior or
-replace authoritative code contracts.
+It also owns the narrow JavaScript Web golden-path laboratory, its generated
+compatibility/OpenAPI artifacts, platform-neutral SDK behavior guides, and
+source-checked protocol dictionaries. It does not define product runtime
+behavior or replace authoritative code contracts.
 
 ## Boundaries
 
@@ -29,9 +30,10 @@ replace authoritative code contracts.
    and the planning reference.
 2. Published bilingual MDX is filtered through that registry and feeds pages,
    search, sitemap, LLM output, and per-page Markdown.
-3. `lib/developer-contracts.ts` joins source-checked Reason Codes, build identity,
-   SDK/runtime pins, and the three-endpoint Product HTTP Beta subset into both
-   human pages and machine-readable outputs.
+3. `lib/developer-contracts.ts` joins source-checked Reason Codes, Channel
+   Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
+   pins, and the three-endpoint Product HTTP Beta subset into both human pages
+   and machine-readable outputs.
 4. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
    the real single-node-cluster/Chromium verification evidence.
@@ -48,6 +50,12 @@ replace authoritative code contracts.
 - Product facts must preserve cluster-only/256-hash-slot semantics, authority
   versus observation, durable commit versus side effects, and current security
   boundaries.
+- Common SDK guides publish server- and wire-proven behavior only. They do not
+  claim platform method names or expand compatibility beyond the executable
+  JavaScript/Web snapshot.
+- Plain non-command `NoPersist` is terminal compatibility success without
+  realtime delivery. Only command-style `NoPersist` enters transient online
+  delivery, and neither branch has durable recovery.
 - Operational guidance must use `/readyz`, retain Manager safety gates, avoid
   invented compatibility/image promises, and keep unimplemented procedures
   visibly planned.
@@ -65,7 +73,7 @@ replace authoritative code contracts.
 ## Read First
 
 - [Navigation registry](lib/navigation.ts)
-- [Phase 12 developer specification](PHASE_12_SPEC.md)
+- [Phase 13 integrator specification](PHASE_13_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
 - [JavaScript Web golden sample](examples/javascript-web-quickstart/README.md)
 - [Documentation landing page](content/docs/guide/index.mdx)

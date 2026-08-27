@@ -52,7 +52,7 @@ Both paths converge on the same message use case and channel append path. A prod
 ## Failure boundaries
 
 - For a default persistent message, a successful SENDACK means the channel authority made a successful durable-append decision.
-- A message explicitly marked `no_persist` is a realtime, non-durable path and does not carry the same recovery guarantee.
+- Plain non-command `NoPersist` returns compatibility success without delivery; only command-style `NoPersist` enters transient online delivery. Neither has a durable sequence or recovery guarantee; see [Message Flags](/en/api/dictionaries/message-flags).
 - Online delivery, webhooks, and plugins are independent post-commit effects; conversation construction happens later during membership sync.
 - A webhook failure does not turn an already-successful SENDACK into a failure.
 - Client disconnect recovery uses SDK reconnect and message synchronization, not webhook replay.

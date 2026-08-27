@@ -1,0 +1,57 @@
+---
+title: Channel Type
+description: 查阅当前 1–12 Channel Type 值，并区分基础、专用和兼容类型。
+---
+
+`channel_id + channel_type` 共同标识一个 Channel。数值会进入协议、HTTP、存储与路由合同；集成者必须按数值传输，并把名称作为可读元数据保存。
+
+## 目标与完成标准
+
+选择 Channel Type 后，你应能说明该类型的成员模型、消息恢复、会话投影和业务权限来源。仅仅“枚举存在”不代表当前 SDK 或公开 API 已发布完整接入能力。
+
+## 权威来源
+
+下表与当前 `pkg/protocol/frame/common.go` 的 `ChannelType*` 常量 1–12 对齐，由测试检查名称和值。它属于当前源码快照，不是跨任意版本永远不变的承诺。
+
+<ChannelTypeTable locale="zh" />
+
+## 集成者默认选择
+
+- 一对一通信从 `ChannelTypePerson=1` 开始，调用方使用对端 UID；
+- 普通群聊从 `ChannelTypeGroup=2` 开始，业务服务先维护群 ID、成员和策略；
+- 只有产品需求和所选客户端明确覆盖时才使用社区、资讯、直播、访客或 Agent 类型；
+- 新访客客服流程不要继续选择源码已标记过时的 `ChannelTypeCustomerService=3`；
+- 临时 Channel 不能作为稳定业务群 ID 持久化。
+
+<Callout type="warn" title="类型不能在上线后随意修改">
+  同一个业务 Channel 改变 `channel_type` 会形成不同的路由与存储身份。迁移必须作为显式的数据与客户端兼容方案，而不是更新一个配置值。
+</Callout>
+
+## 单聊身份
+
+调用方为 Alice 发送给 Bob 时使用 Bob 的 UID。服务端在入口边界把双方 UID 规范化为内部 person Channel 身份；响应或 Webhook 中可能看到该 canonical 值。业务好友关系仍以双方 UID 为主键，不能把内部值回写为“对端 UID”。
+
+## 专用类型检查
+
+使用专用类型前至少验证：
+
+1. 服务端当前路径是否包含所需的成员、权限、持久化和会话语义；
+2. 精确 SDK 版本是否能正确编码、解码并展示该类型；
+3. 离线同步、推送、回调和历史迁移是否有覆盖测试；
+4. 十万成员或高消息率场景是否使用有界成员变更与分页 fanout；
+5. 未识别该类型的旧客户端是否安全降级。
+
+## 失败诊断
+
+- **ReasonNotSupportChannelType**：先确认协议版本与调用值，不对其他类型盲重试。
+- **单聊历史分裂**：检查是否同时使用对端 UID 和 canonical person ID 作为输入。
+- **群聊发送被拒绝**：检查成员、黑白名单、封禁与解散状态，而不是改成 Person 绕过策略。
+- **旧客户端无法展示**：维持服务端数据不变，按 Payload/客户端兼容方案降级。
+
+## 安全边界
+
+Channel Type 不是授权。即使类型正确，业务服务仍负责创建关系、成员、角色、内容治理和租户隔离。
+
+## 下一步
+
+客户端身份使用 [Device Flag](/zh/api/dictionaries/device-flags)；消息行为位见 [Message Flags](/zh/api/dictionaries/message-flags)。

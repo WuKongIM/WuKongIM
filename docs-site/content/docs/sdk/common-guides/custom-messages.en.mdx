@@ -1,0 +1,75 @@
+---
+title: Custom Messages
+description: Define application payload versioning, encoding, compatibility, fallback, size, and security contracts.
+---
+
+WuKongIM transports payload bytes. It does not define your order update, support card, location, notification, or AI message model. A custom message is first a product-protocol design problem and only then a platform SDK registration or decoding concern.
+
+<Callout type="info" title="Cross-SDK behavior guide">
+  This page is a **cross-SDK behavior guide** and does not assume every SDK exposes the same message-registration API. The executable payload example remains scoped to the [JavaScript/Web compatibility snapshot](/en/sdk/compatibility).
+</Callout>
+
+## Goal and completion criteria
+
+Senders and receivers on different versions can identify the type, validate structure, ignore unknown fields, and degrade safely for an unknown type without crashing, losing the cursor, or exposing raw sensitive content.
+
+## Recommended envelope
+
+```json
+{
+  "version": 2,
+  "type": "order.status.changed",
+  "id": "evt_01J...",
+  "occurred_at": "2026-08-27T08:30:00Z",
+  "body": {
+    "order_id": "o_10001",
+    "status": "shipped"
+  }
+}
+```
+
+| Field | Rule |
+| --- | --- |
+| `version` | Evolves monotonically within one `type`; never infer payload shape from app version alone |
+| `type` | Stable and namespaced; renaming is a compatibility change |
+| `id` | Product-event idempotency key; it does not replace `client_msg_no` or server `message_id` |
+| `occurred_at` | Product occurrence time; message sequence still orders one Channel |
+| `body` | Contains only consumer-required fields with bounded nesting, arrays, and strings |
+
+## Compatibility strategy
+
+- Add optional fields and let old clients ignore unknown fields.
+- Increase `version` when changing meaning or type; use a new `type` when necessary.
+- For an unknown `type`, show a safe placeholder such as “Update the app to view this message” while retaining message identity and sequence.
+- Do not omit an unknown message from the local cursor, or synchronization will repeatedly return it.
+- Roll out receiver compatibility before senders begin producing the new version.
+- Before rollback, prove old receivers can still process already-committed new payloads.
+
+## Encoding boundary
+
+Gateway SDKs send payload bytes. In Product HTTP JSON, `payload` is Base64. Do not Base64 a value twice before giving it to an SDK, and do not copy an HTTP example directly into a client method argument.
+
+For binary or compressed content, declare content type and version and enforce a decompressed-size limit. Check compressed size before decoding and cap output to prevent compression bombs.
+
+## Large content and attachments
+
+Do not embed attachment bytes in a message. The product service first stores a file in controlled object storage. The message carries only short-lived, least-privilege object location, size, media type, and integrity metadata. Download still requires product authorization.
+
+## Security and privacy
+
+- Never send passwords, tokens, private keys, or management credentials.
+- Minimize personal data and define retention and deletion policy.
+- Render text, Markdown, HTML, and rich media as untrusted input.
+- Allowlist URLs and safe navigation; never permit payload-injected scripts or local files.
+- If product events require end-to-end authenticity, design separate keys, versions, and rotation. TLS is not a payload signature.
+
+## Troubleshooting
+
+- **Only one platform fails to decode:** compare actual payload bytes, character encoding, and exact SDK version before changing the server Channel.
+- **Old clients crash:** the unknown-type fallback is missing or sender rollout happened first.
+- **HTTP and SDK content differ:** inspect the Product HTTP Base64 boundary and accidental double encoding.
+- **Retries repeat a business action:** consumers deduplicate by product `id` while retaining message-level `client_msg_no`.
+
+## Next step
+
+After stabilizing the payload contract, continue with [Conversations & Unread Counts](/en/sdk/common-guides/conversations-and-unread) and decide how messages project into lists and badges.

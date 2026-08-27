@@ -1,0 +1,89 @@
+---
+title: Initialization & Connection
+description: Turn SDK instances, route discovery, CONNECT, recovery, send-ready state, and logout into an explicit lifecycle.
+---
+
+A reliable client does not treat “SDK object created” and “product may send messages” as the same moment. Initialization first binds environment and identity. A successful connection still needs state recovery before the UI becomes ready.
+
+<Callout type="info" title="Cross-SDK behavior guide">
+  This page is a **cross-SDK behavior guide**. Its state names are application recommendations, not promises about every platform API. The only implementation covered by an executable scenario is the [JavaScript/Web compatibility snapshot](/en/sdk/compatibility).
+</Callout>
+
+## Goal and completion criteria
+
+The application has one explicit connection owner that serializes connect, disconnect, identity switch, and recovery. Screens and components may observe state but must not create competing SDK sessions independently.
+
+## Recommended state machine
+
+```text
+idle
+  -> preparing      load environment, login state, and local cursors
+  -> discovering    obtain Gateway ingress from a trusted backend
+  -> connecting     open transport and send CONNECT
+  -> connected      CONNACK succeeded; recovery is not complete
+  -> recovering     synchronize missing messages and merge local state
+  -> ready          allow ordinary product sends
+
+any active state
+  -> degraded       network or partial recovery is unavailable
+  -> reconnecting   bounded backoff; refresh routing when required
+  -> logging-out    stop sends, close session, clear local identity state
+  -> idle
+```
+
+Keep `connected` separate from `ready`. CONNECT establishes a protocol Session; it proves neither product authorization, offline recovery, nor convergence of the local conversation list.
+
+## Initialization order
+
+1. Select one server environment and an exact SDK version instead of drifting `latest`.
+2. Obtain UID, device material, and a short-lived token through product login.
+3. Register connection, message, error, and lifecycle observers before connecting so early events cannot be missed.
+4. Discover ingress through a trusted backend. Current `/route` returns configured `tcp_addr`, `ws_addr`, and `wss_addr`; it is not UID-specific product authorization.
+5. Browsers prefer a reachable `wss_addr`; other platforms choose a TLS-protected ingress according to their versioned docs.
+6. The SDK sends CONNECT and inspects the CONNACK Reason Code separately.
+7. After connection, perform offline synchronization and local deduplication before publishing `ready`.
+
+A WKProto connection requires CONNECT as its first packet. A second packet while authentication is pending is a protocol violation. Avoid duplicate connect calls from concurrently mounted screens.
+
+## Routing and environments
+
+- A route result is configured ingress, not proof that one user belongs to a particular owner node.
+- Refresh routing after a disconnect when appropriate; do not cache a failed node forever.
+- Development, staging, and production use separate UID/token material, storage namespaces, and ingress settings.
+- Every deployment is a cluster. A single-node cluster still follows routing and Channel authority.
+- Load-balancer and proxy idle timeouts must tolerate the effective heartbeat policy and WebSocket upgrades.
+
+## Lifecycle ownership
+
+| Event | Application action |
+| --- | --- |
+| Enter foreground | Confirm identity is current; connect or finish recovery when necessary |
+| Network change | Mark degraded, cancel old dialing, refresh routing, and reconnect with bounded backoff |
+| Background or sleep | Respect platform limits; never promise an always-open socket |
+| UID switch | Stop old-identity sends, log out fully, clear local state, then create the new session |
+| Explicit logout | Revoke credentials, close the Session, and clear cursors, cache, and push binding |
+
+## Completion signal
+
+Publish product-ready state only when all are true:
+
+- CONNACK succeeded and a newer connection attempt did not replace the Session;
+- current UID, device, and environment still match;
+- required durable-message recovery completed or entered a visible degraded mode;
+- event observers and local persistence can accept subsequent messages;
+- no logout, credential rotation, or application termination is pending.
+
+## Troubleshooting
+
+- **Socket opens but no CONNACK:** inspect protocol selection, CONNECT-first behavior, client key, and authentication-queue pressure.
+- **Connection succeeds but send does not:** inspect product policy, SENDACK Reason Code, and the recovery gate separately.
+- **The client repeatedly dials an unreachable address:** stop using the stale cache and rediscover ingress.
+- **One screen creates two sessions:** converge on one connection owner and serialize lifecycle commands.
+
+## Security boundary
+
+Negotiated CONNECT payload encryption does not replace TLS. Route addresses, tokens, and device material must come from trusted configuration; do not accept arbitrary Gateway injection from page parameters.
+
+## Next step
+
+Once the connection state machine is stable, continue with [Messaging](/en/sdk/common-guides/messaging) and separate commit, delivery, and receive acknowledgement.

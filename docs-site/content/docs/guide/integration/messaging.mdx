@@ -25,7 +25,7 @@ SDK SEND
 - `client_msg_no` 由发送方生成并保存，用于请求关联和重试跟踪。
 - 发送方必须检查 SENDACK 或 HTTP 响应中的 `reason`，不能只看传输是否成功。
 - 对默认持久化消息，在线投递和其他提交后副作用不延长已经完成的持久化确认。
-- 显式 `no_persist` 消息走实时非持久化路径；确认成功也不代表它能从持久化历史中恢复。
+- 普通非命令 `NoPersist` 只返回兼容成功且不投递；只有命令式 `NoPersist` 才进入瞬时在线投递。两者都不能从持久历史恢复，详见 [Message Flags](/zh/api/dictionaries/message-flags)。
 
 ## 服务端发送
 

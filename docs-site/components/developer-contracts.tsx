@@ -1,7 +1,14 @@
 import {
+  channelTypes,
   compatibilitySnapshot,
+  deviceFlags,
+  deviceLevels,
   goldenPathHTTPPaths,
+  messageHeaderFlags,
+  messageSettings,
   reasonCodes,
+  type ProtocolValueDefinition,
+  type ProtocolValueScope,
   type ReasonReachability,
   type ReasonRetryGuidance,
 } from '@/lib/developer-contracts';
@@ -54,6 +61,25 @@ const verificationLabels = {
     mismatch: 'Unverified: verification receipt does not match this build',
   },
 } as const;
+
+const protocolScopeLabels: Record<Locale, Record<ProtocolValueScope, string>> = {
+  zh: {
+    baseline: '基础接入',
+    specialized: '专用类型',
+    legacy: '兼容 / 旧类型',
+    client: '客户端',
+    internal: '服务端保留',
+    wire: 'Wire 标志',
+  },
+  en: {
+    baseline: 'Integration baseline',
+    specialized: 'Specialized',
+    legacy: 'Compatibility / legacy',
+    client: 'Client',
+    internal: 'Server-reserved',
+    wire: 'Wire flag',
+  },
+};
 
 /** Renders the human-readable form of the public compatibility.json artifact. */
 export function CompatibilitySnapshot({ locale = 'en' }: { locale?: Locale }) {
@@ -215,5 +241,113 @@ export function ReasonCodeTable({ locale = 'en' }: { locale?: Locale }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ProtocolValueTable({
+  locale,
+  values,
+  valueLabel,
+  caption,
+}: {
+  locale: Locale;
+  values: readonly ProtocolValueDefinition[];
+  valueLabel: string;
+  caption: string;
+}) {
+  const isZh = locale === 'zh';
+
+  return (
+    <div className="not-prose my-6 overflow-x-auto rounded-xl border">
+      <table className="w-full min-w-[680px] border-collapse text-left text-sm">
+        <caption className="sr-only">{caption}</caption>
+        <thead className="bg-fd-muted/60">
+          <tr>
+            <th className="border-b px-3 py-2" scope="col">
+              {valueLabel}
+            </th>
+            <th className="border-b px-3 py-2" scope="col">
+              {isZh ? '名称' : 'Name'}
+            </th>
+            <th className="border-b px-3 py-2" scope="col">
+              {isZh ? '范围' : 'Scope'}
+            </th>
+            <th className="border-b px-3 py-2" scope="col">
+              {isZh ? '集成说明' : 'Integrator guidance'}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {values.map((item) => (
+            <tr className="align-top odd:bg-fd-muted/20" key={item.name}>
+              <th className="border-b px-3 py-2 font-normal" scope="row">
+                <code>{item.value}</code>
+              </th>
+              <td className="border-b px-3 py-2">
+                <code>{item.name}</code>
+              </td>
+              <td className="border-b px-3 py-2">{protocolScopeLabels[locale][item.scope]}</td>
+              <td className="border-b px-3 py-2">{item.summary[locale]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Renders every current wire Channel Type from the source-checked catalog. */
+export function ChannelTypeTable({ locale = 'en' }: { locale?: Locale }) {
+  return (
+    <ProtocolValueTable
+      caption={locale === 'zh' ? 'WuKongIM Channel Type 当前枚举' : 'Current WuKongIM Channel Type enum'}
+      locale={locale}
+      valueLabel={locale === 'zh' ? '值' : 'Value'}
+      values={channelTypes}
+    />
+  );
+}
+
+/** Renders device categories and their same-category connection policy. */
+export function DeviceFlagTable({ locale = 'en' }: { locale?: Locale }) {
+  return (
+    <>
+      <ProtocolValueTable
+        caption={locale === 'zh' ? 'WuKongIM Device Flag 当前枚举' : 'Current WuKongIM Device Flag enum'}
+        locale={locale}
+        valueLabel={locale === 'zh' ? '值' : 'Value'}
+        values={deviceFlags}
+      />
+      <h3>{locale === 'zh' ? 'Device Level' : 'Device Levels'}</h3>
+      <ProtocolValueTable
+        caption={locale === 'zh' ? 'WuKongIM Device Level 当前枚举' : 'Current WuKongIM Device Level enum'}
+        locale={locale}
+        valueLabel={locale === 'zh' ? '值' : 'Value'}
+        values={deviceLevels}
+      />
+    </>
+  );
+}
+
+/** Renders fixed-header flags and message Setting bits from shared catalogs. */
+export function MessageFlagTable({ locale = 'en' }: { locale?: Locale }) {
+  const isZh = locale === 'zh';
+  return (
+    <>
+      <h3>{isZh ? '固定 Header 位' : 'Fixed-header bits'}</h3>
+      <ProtocolValueTable
+        caption={isZh ? 'WKProto 消息固定 Header 位' : 'WKProto message fixed-header bits'}
+        locale={locale}
+        valueLabel="Bit"
+        values={messageHeaderFlags.map((item) => ({ ...item, value: item.bit }))}
+      />
+      <h3>{isZh ? 'Setting 位值' : 'Setting bit values'}</h3>
+      <ProtocolValueTable
+        caption={isZh ? 'WKProto 消息 Setting 位值' : 'WKProto message Setting bit values'}
+        locale={locale}
+        valueLabel={isZh ? '值' : 'Value'}
+        values={messageSettings}
+      />
+    </>
   );
 }

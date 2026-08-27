@@ -726,68 +726,68 @@ export const domains: DocumentationDomain[] = [
       ),
     ],
     groups: [
-      plannedGroup(
+      publishedGroup(
         'common-guides',
         '公共指南',
         'Common Guides',
-        '统一说明所有客户端 SDK 共有的接入行为。',
-        'Explains integration behavior shared by all client SDKs.',
+        '以服务端可证明语义说明跨 SDK 接入行为，不替代平台 API 文档。',
+        'Explains cross-SDK integration behavior through server-proven semantics without replacing platform API docs.',
         [
-          plannedPage(
+          publishedPage(
             'identity-and-token',
             '身份与 Token',
             'Identity & Token',
-            '说明用户、设备、Token 获取和失效处理。',
-            'Explains users, devices, token acquisition, and invalidation.',
+            '设计 UID、设备、Token 获取、轮换和失效边界。',
+            'Designs UID, device, token acquisition, rotation, and invalidation boundaries.',
           ),
-          plannedPage(
+          publishedPage(
             'initialization-and-connection',
             '初始化与连接',
             'Initialization & Connection',
-            '说明 SDK 初始化、连接状态、生命周期和退出。',
-            'Covers SDK initialization, connection state, lifecycle, and logout.',
+            '组织 SDK 实例、路由、连接状态、恢复门和退出生命周期。',
+            'Organizes SDK instances, routing, connection states, recovery gates, and logout lifecycle.',
           ),
-          plannedPage(
+          publishedPage(
             'messaging',
             '消息收发',
             'Messaging',
-            '解释发送、接收、确认、消息状态和错误处理。',
-            'Explains send, receive, acknowledgement, message state, and error handling.',
+            '解释发送、接收、确认、幂等、消息状态与瞬时分支。',
+            'Explains send, receive, acknowledgements, idempotency, message state, and transient branches.',
           ),
-          plannedPage(
+          publishedPage(
             'custom-messages',
             '自定义消息',
             'Custom Messages',
-            '定义自定义消息的编码、注册、兼容和降级。',
-            'Defines encoding, registration, compatibility, and fallback for custom messages.',
+            '设计应用 Payload 的版本、编码、兼容、降级和安全边界。',
+            'Designs application payload versioning, encoding, compatibility, fallback, and security boundaries.',
           ),
-          plannedPage(
+          publishedPage(
             'conversations-and-unread',
             '会话与未读数',
             'Conversations & Unread Counts',
-            '说明会话、最近消息、未读数和已读状态。',
-            'Explains conversations, latest messages, unread counts, and read state.',
+            '区分会话投影、最近消息、Badge floor、已读状态和拉取游标。',
+            'Separates conversation projections, latest messages, badge floors, read state, and pull cursors.',
           ),
-          plannedPage(
+          publishedPage(
             'offline-and-push',
             '离线消息与推送',
             'Offline Messages & Push',
-            '区分离线同步和系统推送，并说明协作方式。',
-            'Distinguishes offline synchronization from system push and explains how they cooperate.',
+            '区分持久消息恢复、离线候选 Webhook 和厂商通知。',
+            'Separates durable message recovery, offline-candidate webhooks, and provider notifications.',
           ),
-          plannedPage(
+          publishedPage(
             'multi-device',
             '多设备同步',
             'Multi-device Sync',
-            '说明多端登录、消息同步和设备状态一致性。',
-            'Explains multi-device login, message sync, and device-state consistency.',
+            '说明设备类别、冲突等级、多端连接、共享投影和产品设备状态。',
+            'Explains device categories, conflict levels, concurrent sessions, shared projections, and product device state.',
           ),
-          plannedPage(
+          publishedPage(
             'reconnect-and-errors',
             '重连与异常处理',
             'Reconnect & Errors',
-            '说明断线、网络切换、超时、重试和常见错误。',
-            'Covers disconnects, network changes, timeouts, retries, and common errors.',
+            '按网络、路由、连接、发送和同步阶段处理重连与错误。',
+            'Handles reconnects and errors across network, route, connection, send, and synchronization phases.',
           ),
         ],
       ),
@@ -1022,29 +1022,29 @@ export const domains: DocumentationDomain[] = [
         'dictionaries',
         '公共数据字典',
         'Shared Dictionaries',
-        '发布已校准的 Reason Code 字典；其他跨协议常量仍在规划中。',
-        'Publishes the calibrated Reason Code dictionary while other cross-protocol constants remain planned.',
+        '发布源码校准的 Channel、设备、消息标志与 Reason Code 字典。',
+        'Publishes source-aligned Channel, device, message-flag, and Reason Code dictionaries.',
         [
-          plannedPage(
+          publishedPage(
             'channel-types',
             'Channel Type',
             'Channel Type',
-            '定义单聊、群聊和其他频道类型。',
-            'Defines direct, group, and other channel types.',
+            '列出当前 1–12 Channel Type，并标注基础、专用和旧类型边界。',
+            'Lists current Channel Types 1–12 with baseline, specialized, and legacy boundaries.',
           ),
-          plannedPage(
+          publishedPage(
             'device-flags',
             'Device Flag',
             'Device Flag',
-            '定义 App、Web、System 等设备标识。',
-            'Defines App, Web, System, and other device identifiers.',
+            '列出 APP、WEB、PC、SYSTEM 与 Device Level 冲突策略。',
+            'Lists APP, WEB, PC, SYSTEM, and Device Level conflict policies.',
           ),
-          plannedPage(
+          publishedPage(
             'message-flags',
             'Message Flags',
             'Message Flags',
-            '定义持久化、红点、回执和流式消息标志。',
-            'Defines persistence, red-dot, receipt, and streaming-message flags.',
+            '列出固定 Header 与 Setting 位，并解释持久化、红点、命令、回执和流语义。',
+            'Lists fixed-header and Setting bits for persistence, red dots, commands, receipts, and streams.',
           ),
           publishedPage(
             'reason-codes',

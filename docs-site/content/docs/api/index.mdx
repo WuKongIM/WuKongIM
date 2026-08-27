@@ -3,11 +3,11 @@ title: API 与协议
 description: 查阅 v3 Beta JavaScript/Web 黄金路径的 Product HTTP 兼容目标与 Reason Code。
 ---
 
-本区域开始发布面向应用集成开发者的可执行合同。Phase 12 只承诺黄金样例需要的 Product HTTP 子集、共同约定、兼容快照、错误处理和完整 Reason Code 枚举。
+本区域发布面向应用集成开发者的可执行合同。Product HTTP 仍只承诺黄金样例需要的 Beta 子集；Phase 13 另补充了与当前 Go 权威定义校准的 Channel Type、Device Flag / Level 和 Message Flags。
 
 ## 目标与完成标准
 
-开发者应能从受信后端创建开发身份、发现 Gateway 地址、恢复离线消息，并准确处理 HTTP 与协议结果；不会把源码中其他路由自动当作公共 API。
+开发者应能从受信后端创建开发身份、发现 Gateway 地址、恢复离线消息，并准确处理 HTTP、协议结果与共享 Wire 值；不会把源码中其他路由或枚举自动当作已发布平台能力。
 
 <Callout type="warn" title="不是完整 v3 API">
   当前发布的是 Beta 黄金路径子集。仓库旧 OpenAPI 仍包含 v2 内容，完整 OpenAPI、客户端协议、Webhook、运维 API 和其他领域参考仍在规划中。
@@ -30,12 +30,12 @@ description: 查阅 v3 Beta JavaScript/Web 黄金路径的 Product HTTP 兼容�
   <Card title="通用约定" description="Base URL、JSON、标识、响应形状与重试边界。" href="/zh/api/conventions" />
   <Card title="认证与安全" description="开发 BFF、Product HTTP 与 Gateway Token 校验边界。" href="/zh/api/authentication" />
   <Card title="Product HTTP API" description="Token、路由和消息同步三个已发布入口。" href="/zh/api/product-http" />
-  <Card title="Reason Code" description="当前 0–29 枚举、阶段、重试建议与可达性。" href="/zh/api/dictionaries/reason-codes" />
+  <Card title="公共数据字典" description="Channel、设备、消息标志与 Reason Code 的源码校准值。" href="/zh/api/dictionaries" />
 </Cards>
 
 ## 预期结果
 
-Golden BFF 是三个 HTTP 入口的唯一浏览器侧边界；实时消息通过 SDK；错误分类保留 HTTP 阶段与 CONNACK/SENDACK 阶段；Reason Code 与 Go 枚举自动校准。
+Golden BFF 是三个 HTTP 入口的唯一浏览器侧边界；实时消息通过 SDK；错误分类保留 HTTP 阶段与 CONNACK/SENDACK 阶段；共享协议字典与 Go 权威值自动校准。
 
 ## 失败诊断
 
@@ -49,4 +49,4 @@ Product HTTP 没有通用业务鉴权中间件；默认 Gateway 没有 stored-to
 
 ## 下一步
 
-从[通用约定](/zh/api/conventions)开始，或直接跟随[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)观察三个合同如何协作。
+从[通用约定](/zh/api/conventions)和[公共数据字典](/zh/api/dictionaries)开始，或跟随[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)观察三个 HTTP 合同如何协作。

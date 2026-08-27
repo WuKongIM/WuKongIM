@@ -271,6 +271,179 @@ export const reasonCodes: ReasonCodeDefinition[] = [
 
 type DeveloperContractLocale = 'zh' | 'en';
 
+export type ProtocolDictionaryName =
+  | 'channel-types'
+  | 'device-flags'
+  | 'message-flags';
+
+export type ProtocolValueScope =
+  | 'baseline'
+  | 'specialized'
+  | 'legacy'
+  | 'client'
+  | 'internal'
+  | 'wire';
+
+export interface ProtocolValueDefinition {
+  value: number;
+  name: string;
+  scope: ProtocolValueScope;
+  summary: { zh: string; en: string };
+}
+
+function protocolValue(
+  value: number,
+  name: string,
+  scope: ProtocolValueScope,
+  zh: string,
+  en: string,
+): ProtocolValueDefinition {
+  return { value, name, scope, summary: { zh, en } };
+}
+
+/** Channel Type values calibrated against pkg/protocol/frame/common.go. */
+export const channelTypes: ProtocolValueDefinition[] = [
+  protocolValue(1, 'ChannelTypePerson', 'baseline', '单聊；调用方使用对端 UID，服务端入口负责规范化双方 UID 的 Channel 身份。', 'Direct chat; callers use the peer UID and the server entry normalizes the two-UID Channel identity.'),
+  protocolValue(2, 'ChannelTypeGroup', 'baseline', '群聊；业务服务必须先维护稳定 Channel ID、成员和发送策略。', 'Group chat; the product service must first maintain a stable Channel ID, membership, and send policy.'),
+  protocolValue(3, 'ChannelTypeCustomerService', 'legacy', '旧客服频道类型；源码已标注过时，新访客流程使用 ChannelTypeVisitors。', 'Legacy customer-service type; source marks it deprecated in favor of ChannelTypeVisitors for new visitor flows.'),
+  protocolValue(4, 'ChannelTypeCommunity', 'specialized', '社区容器类型；只在所选 SDK 与业务流程明确支持时使用。', 'Community container type; use only when the selected SDK and product flow explicitly support it.'),
+  protocolValue(5, 'ChannelTypeCommunityTopic', 'specialized', '社区话题类型；不要把它与社区容器或普通群聊互换。', 'Community-topic type; do not interchange it with a community container or ordinary group chat.'),
+  protocolValue(6, 'ChannelTypeInfo', 'specialized', '资讯频道，包含临时订阅者语义；接入前验证对应成员生命周期。', 'Information Channel with temporary-subscriber semantics; verify the matching membership lifecycle before integration.'),
+  protocolValue(7, 'ChannelTypeData', 'specialized', '数据频道；枚举存在不等于当前平台已发布完整接入流程。', 'Data Channel; enum presence does not mean a complete platform integration flow is published.'),
+  protocolValue(8, 'ChannelTypeTemp', 'specialized', '临时或请求级目标频道；不能当作持久业务群 ID。', 'Temporary or request-scoped target Channel; do not persist it as a product group ID.'),
+  protocolValue(9, 'ChannelTypeLive', 'specialized', '直播频道；当前语义不保存最近会话数据。', 'Live Channel; current semantics do not retain recent-conversation data.'),
+  protocolValue(10, 'ChannelTypeVisitors', 'specialized', '访客频道；Channel ID 是访客 UID，可对应一个访客和多个客服订阅者。', 'Visitor Channel; the Channel ID is the visitor UID and may represent one visitor with multiple support subscribers.'),
+  protocolValue(11, 'ChannelTypeAgent', 'specialized', '单聊 Agent 频道；内部身份形如 UID@AgentID，业务服务仍负责 Agent 授权。', 'Direct Agent Channel; its internal identity is shaped like UID@AgentID while the product service still owns Agent authorization.'),
+  protocolValue(12, 'ChannelTypeAgentGroup', 'specialized', '群聊 Agent 频道；用于多 Agent 协同，不是普通群聊的透明别名。', 'Group Agent Channel for multi-Agent collaboration; it is not a transparent alias for ordinary group chat.'),
+];
+
+/** Device category values calibrated against protocolmeta and the frame authority. */
+export const deviceFlags: ProtocolValueDefinition[] = [
+  protocolValue(0, 'APP', 'client', '原生移动应用设备类别。', 'Native mobile-application device category.'),
+  protocolValue(1, 'WEB', 'client', 'Web 浏览器或 Web 应用设备类别。', 'Web browser or web-application device category.'),
+  protocolValue(2, 'PC', 'client', '桌面客户端设备类别。', 'Desktop-client device category.'),
+  protocolValue(99, 'SYSTEM', 'internal', '服务端保留的系统设备类别；终端应用不能冒充。', 'Server-reserved system device category; end-user clients must not impersonate it.'),
+];
+
+/** Same-category connection-conflict policies calibrated against protocolmeta. */
+export const deviceLevels: ProtocolValueDefinition[] = [
+  protocolValue(0, 'DeviceLevelSlave', 'client', '允许同一设备类别的多个端点共存。', 'Allows multiple endpoints in the same device category to coexist.'),
+  protocolValue(1, 'DeviceLevelMaster', 'client', '声明同一设备类别的单活冲突策略；是否生效仍取决于已验证的连接鉴权与组合。', 'Declares single-active conflict policy within one device category; enforcement still depends on verified connection authentication and composition.'),
+];
+
+export interface MessageHeaderFlagDefinition extends ProtocolValueDefinition {
+  bit: number;
+  jsonName: string;
+}
+
+function messageHeaderFlag(
+  bit: number,
+  name: string,
+  jsonName: string,
+  zh: string,
+  en: string,
+): MessageHeaderFlagDefinition {
+  return {
+    ...protocolValue(bit, name, 'wire', zh, en),
+    bit,
+    jsonName,
+  };
+}
+
+/** WKProto fixed-header flag bits calibrated against pkg/protocol/codec/common.go. */
+export const messageHeaderFlags: MessageHeaderFlagDefinition[] = [
+  messageHeaderFlag(0, 'NoPersist', 'no_persist', '普通非命令分支只返回兼容成功且不投递；只有命令式分支进入瞬时在线投递。两者都没有持久序号或离线恢复。', 'The plain non-command branch returns compatibility success without delivery; only the command-style branch enters transient online delivery. Neither has a durable sequence or offline recovery.'),
+  messageHeaderFlag(1, 'RedDot', 'red_dot', '携带红点展示意图；它不是消息已读回执，也不单独证明服务端未读数发生变化。', 'Carries red-dot display intent; it is not a read receipt and does not by itself prove a server unread-count change.'),
+  messageHeaderFlag(2, 'SyncOnce', 'sync_once', '把命令式消息路由到独立 CMD Channel；可恢复命令还需要绑定与 CMD 同步流程。', 'Routes command-style messages through a separate CMD Channel; recoverable commands additionally require binding and CMD synchronization.'),
+  messageHeaderFlag(3, 'DUP', 'wire-only', '协议重发标记；业务幂等仍以稳定 client_msg_no 和结果关联为准。', 'Protocol retransmission marker; product idempotency still relies on a stable client_msg_no and result correlation.'),
+];
+
+/** Message Setting bits calibrated against pkg/protocol/frame/setting.go. */
+export const messageSettings: ProtocolValueDefinition[] = [
+  protocolValue(128, 'SettingReceiptEnabled', 'wire', '开启协议回执意图；不能把它等同于 Channel 提交、设备业务执行或最终用户已读。', 'Enables protocol receipt intent; do not equate it with Channel commit, device-side business execution, or end-user read state.'),
+  protocolValue(32, 'SettingSignal', 'wire', '标记兼容 signal 模式；只在所选 SDK 和协议版本明确支持时使用。', 'Marks compatible signal mode; use only when the selected SDK and protocol version explicitly support it.'),
+  protocolValue(16, 'SettingNoEncrypt', 'wire', '跳过已协商的会话 Payload 加密；它不替代 TLS，敏感消息不应启用。', 'Skips negotiated session payload encryption; it does not replace TLS and should not be enabled for sensitive messages.'),
+  protocolValue(8, 'SettingTopic', 'wire', '表示数据包携带 Topic 字段；Topic 生命周期仍由兼容客户端与业务约定。', 'Indicates that the packet carries a Topic field; Topic lifecycle remains a compatible-client and product contract.'),
+  protocolValue(2, 'SettingStream', 'wire', '表示兼容流消息字段；流式 AI 的持久投影与实时增量仍是不同路径。', 'Indicates compatible stream-message fields; durable AI stream projection and realtime deltas remain separate paths.'),
+];
+
+const protocolScopeLabels: Record<
+  DeveloperContractLocale,
+  Record<ProtocolValueScope, string>
+> = {
+  zh: {
+    baseline: '基础接入',
+    specialized: '专用类型',
+    legacy: '兼容 / 旧类型',
+    client: '客户端',
+    internal: '服务端保留',
+    wire: 'Wire 标志',
+  },
+  en: {
+    baseline: 'Integration baseline',
+    specialized: 'Specialized',
+    legacy: 'Compatibility / legacy',
+    client: 'Client',
+    internal: 'Server-reserved',
+    wire: 'Wire flag',
+  },
+};
+
+function renderProtocolValueTable(
+  locale: DeveloperContractLocale,
+  values: readonly ProtocolValueDefinition[],
+  firstHeading: string,
+): string[] {
+  const scopeHeading = locale === 'zh' ? '范围' : 'Scope';
+  const meaningHeading = locale === 'zh' ? '集成说明' : 'Integrator guidance';
+  return [
+    `| ${firstHeading} | ${locale === 'zh' ? '名称' : 'Name'} | ${scopeHeading} | ${meaningHeading} |`,
+    '| --- | --- | --- | --- |',
+    ...values.map(
+      (item) =>
+        `| ${item.value} | \`${item.name}\` | ${protocolScopeLabels[locale][item.scope]} | ${item.summary[locale]} |`,
+    ),
+  ];
+}
+
+/** Renders source-checked protocol dictionaries into Markdown and LLM exports. */
+export function renderProtocolDictionaryMarkdown(
+  locale: DeveloperContractLocale,
+  dictionary: ProtocolDictionaryName,
+): string {
+  if (dictionary === 'channel-types') {
+    return [
+      `## ${locale === 'zh' ? 'Channel Type（共享契约）' : 'Channel Types (shared contract)'}`,
+      '',
+      ...renderProtocolValueTable(locale, channelTypes, locale === 'zh' ? '值' : 'Value'),
+    ].join('\n');
+  }
+  if (dictionary === 'device-flags') {
+    return [
+      `## ${locale === 'zh' ? 'Device Flag（共享契约）' : 'Device Flags (shared contract)'}`,
+      '',
+      ...renderProtocolValueTable(locale, deviceFlags, locale === 'zh' ? '值' : 'Value'),
+      '',
+      `### ${locale === 'zh' ? 'Device Level' : 'Device Levels'}`,
+      '',
+      ...renderProtocolValueTable(locale, deviceLevels, locale === 'zh' ? '值' : 'Value'),
+    ].join('\n');
+  }
+
+  const headerRows = messageHeaderFlags.map((item) => ({ ...item, value: item.bit }));
+  return [
+    `## ${locale === 'zh' ? '消息标志（共享契约）' : 'Message flags (shared contract)'}`,
+    '',
+    `### ${locale === 'zh' ? '固定 Header 位' : 'Fixed-header bits'}`,
+    '',
+    ...renderProtocolValueTable(locale, headerRows, locale === 'zh' ? 'Bit' : 'Bit'),
+    '',
+    `### ${locale === 'zh' ? 'Setting 位值' : 'Setting bit values'}`,
+    '',
+    ...renderProtocolValueTable(locale, messageSettings, locale === 'zh' ? '值' : 'Value'),
+  ].join('\n');
+}
+
 /** Renders the compatibility snapshot into Markdown exports and LLM indexes. */
 export function renderCompatibilityMarkdown(
   locale: DeveloperContractLocale,
@@ -376,6 +549,12 @@ export function renderDeveloperContractSupplement(
   }
   if (route === 'api/dictionaries/reason-codes') {
     sections.push(renderReasonCodeMarkdown(locale));
+  }
+  const protocolDictionary = route.match(
+    /^api\/dictionaries\/(channel-types|device-flags|message-flags)$/,
+  )?.[1] as ProtocolDictionaryName | undefined;
+  if (protocolDictionary) {
+    sections.push(renderProtocolDictionaryMarkdown(locale, protocolDictionary));
   }
   return sections.join('\n\n');
 }

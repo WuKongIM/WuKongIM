@@ -1,0 +1,82 @@
+---
+title: 消息收发
+description: 实现 Channel 选择、Payload、幂等发送、SENDACK、RECV、RECVACK 和瞬时消息分支。
+---
+
+WuKongIM 中每条消息属于一个 Channel。集成者需要同时保存业务语义、客户端请求身份和服务端结果，不能用一个“发送成功”布尔值折叠整个链路。
+
+<Callout type="info" title="跨 SDK 行为指南">
+  本页是**跨 SDK 行为指南**，不规定平台方法签名。可执行的双向消息与离线恢复基线见 [JavaScript/Web 兼容快照](/zh/sdk/compatibility)。
+</Callout>
+
+## 目标与完成标准
+
+一次发送必须保留稳定 `client_msg_no`，检查 SENDACK Reason Code，并把“已提交”“已实时写入某个 Session”“接收端已 RECVACK”“业务已处理”作为四种不同状态。
+
+## 发送前准备
+
+1. 从 [Channel Type](/zh/api/dictionaries/channel-types) 选择当前业务确实支持的类型。
+2. 单聊使用对端 UID 作为调用方 Channel ID；不要持久化服务端规范化后的内部 person Channel 身份作为业务关系主键。
+3. 群聊先由受信业务服务维护群 ID、成员、黑白名单和发送策略。
+4. 使用版本化 Payload，并限制大小、字段与敏感数据。
+5. 为每个业务发送生成稳定、可追踪但不含隐私的 `client_msg_no`。
+
+## 持久消息链路
+
+```text
+SDK SEND
+  -> Gateway 入站与权限策略
+  -> 当前 Channel append authority
+  -> 有序持久化提交
+  -> SENDACK
+  -> 在线投递计划
+  -> RECV
+  -> 客户端处理后 RECVACK
+```
+
+- `message_seq` 只在一个 Channel 内有序；
+- `message_id` 由服务端分配，JavaScript 应保留字符串形式以避免大整数精度损失；
+- 默认持久消息 SENDACK 成功表示 durable append 决策成功，不表示每个设备收到或业务执行；
+- 在线投递、Webhook、插件和会话投影是独立的提交后效果，失败不会回滚已经成功的 SENDACK。
+
+## 瞬时与命令分支
+
+不要把 `no_persist` 解释成统一的“在线消息”开关：
+
+- 普通非命令 `NoPersist`（没有 `SyncOnce`，也不是命令 Channel）在安全预路由检查后返回兼容成功，但**不会**解析 authority、写日志或实时投递；
+- 命令式 `NoPersist`（设置 `SyncOnce` 或使用命令 Channel）才进入 authority 与在线投递计划；它没有 durable sequence、离线恢复或重连重放；
+- 可恢复命令需要持久 `SyncOnce`、CMD 绑定、`/message/sync` 与 `/message/syncack` 流程，不能由普通消息同步替代。
+
+完整位值见 [Message Flags](/zh/api/dictionaries/message-flags)。必须可靠到达或可审计的业务事件使用普通持久消息。
+
+## 接收与本地提交
+
+接收处理建议按以下顺序：
+
+1. 验证 Channel、发送者和 Payload 版本；
+2. 以 `message_id`，必要时结合 Channel 和 sequence 去重；
+3. 把消息与当前本地游标写入同一原子事务；
+4. 更新 UI 投影；
+5. 只有本地处理达到你的接收完成边界后再允许 SDK 发 RECVACK。
+
+RECVACK 是传输反馈，不是最终用户已读，也不是设备已执行某个 IoT 指令。业务回执应使用独立、可持久化且幂等的业务消息。
+
+## 重试规则
+
+| 结果 | 动作 |
+| --- | --- |
+| 未观察到 SENDACK，连接已断开 | 恢复连接后查询/同步结果；若重试，复用 `client_msg_no` |
+| `ReasonNodeNotMatch` | 刷新路由，复用原幂等键并有界重试 |
+| 认证、成员或策略拒绝 | 不盲目重试；先修复身份或业务状态 |
+| 系统压力或暂时错误 | 指数退避、抖动、最大次数和总截止时间 |
+| SENDACK 成功但接收端未实时看到 | 让接收端同步持久历史；不要重发成一条新业务消息 |
+
+并发重试需要不同的协议 `client_seq` 关联各自 ACK，但继续复用同一 `client_msg_no` 表示同一业务尝试。
+
+## 安全边界
+
+消息 Payload 不是密钥仓库。即使协议会话加密开启，也使用 TLS，避免发送 Token、密码、完整身份证件或不必要的个人数据。
+
+## 下一步
+
+为业务 Payload 建立[自定义消息](/zh/sdk/common-guides/custom-messages)版本合同，再处理[会话与未读数](/zh/sdk/common-guides/conversations-and-unread)。

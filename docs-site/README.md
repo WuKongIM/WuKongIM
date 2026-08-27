@@ -32,6 +32,13 @@ loopback-only BFF, three slice-level Product HTTP contracts, generated
 compatibility and Reason Code facts, and a real Alice/Bob reconnect-and-sync
 smoke scenario. It deliberately remains a v3 Beta golden-path subset rather
 than a complete SDK or API reference.
+Phase 13 publishes the platform-neutral integration foundation: eight common
+SDK behavior guides for identity, connection, messaging, payloads,
+conversations, offline recovery, push, multi-device state, and bounded
+reconnect handling, plus source-checked Channel Type, Device Flag / Level, and
+Message Flag dictionaries. It keeps JavaScript/Web as the only executable
+client compatibility target and does not turn planned SDK platforms into
+support claims.
 
 ## Develop
 
@@ -58,7 +65,10 @@ menu plan, lint and TypeScript, static export, language-isolated search indexes,
 the inclusion of every published route, and the exclusion of planned routes
 from sitemap and LLM outputs. Phase 12 also checks the golden sample build,
 shared compatibility and slice-level OpenAPI facts, Reason Code alignment, and
-unique executable source anchors plus MDX publication checkpoints. Relevant
+unique executable source anchors plus MDX publication checkpoints. Phase 13
+also checks every common-guide publication boundary and compares protocol
+dictionary names, values, and bit positions with their current Go authorities.
+Relevant
 sample or runtime-contract changes select the real Chromium integration check.
 
 ## Golden-path attestation
@@ -131,4 +141,5 @@ the guide-foundation and plugin boundaries. `PHASE_10_SPEC.md` defines the
 direct-chat and group-tutorial boundaries. `PHASE_11_SPEC.md` defines the
 message-push and AI/IoT tutorial boundaries. `PHASE_12_SPEC.md` defines the
 JavaScript/Web golden path, Product HTTP subset, generated contract facts, and
-integration-test boundaries.
+integration-test boundaries. `PHASE_13_SPEC.md` defines the cross-SDK behavior
+guides, source-checked protocol dictionaries, and platform-support boundary.

@@ -1,0 +1,75 @@
+---
+title: SDK 公共指南
+description: 用服务端可证明的行为语义规划身份、连接、消息、会话、离线恢复和多设备接入。
+---
+
+客户端 SDK 的类名与回调形式会随平台变化，但集成者面对的责任边界相同：业务服务提供可信身份和权限，SDK 管理连接与协议状态，WuKongIM 集群负责 Channel 顺序、持久化、路由和在线投递。
+
+<Callout type="info" title="跨 SDK 行为指南">
+  本区域是**跨 SDK 行为指南**，只发布能由当前服务端、Wire 契约和 JavaScript 黄金路径共同证明的语义。它不声明 Android、iOS、Flutter、UniApp 或 HarmonyOS 的具体方法名，也不把这些平台标记为已验证。唯一带可执行兼容 receipt 的客户端路径仍是 [JavaScript/Web 快照](/zh/sdk/compatibility)。
+</Callout>
+
+## 目标与完成标准
+
+完成本组指南后，你应能画出自己的接入状态机，明确每一步的权威来源、完成信号和失败补偿，并回答：
+
+- UID、设备和 Token 由谁创建、轮换和撤销；
+- 何时只是 TCP/WebSocket 已连接，何时会话才可发送；
+- SENDACK、实时 RECV、RECVACK、离线同步分别证明什么；
+- 会话列表、未读数、推送和多设备状态由哪一层维护；
+- 哪些失败可以复用幂等键重试，哪些必须先修复身份或权限。
+
+## 集成者阅读路径
+
+<Cards>
+  <Card title="身份与 Token" description="先建立 UID、设备、凭据和撤销边界。" href="/zh/sdk/common-guides/identity-and-token" />
+  <Card title="初始化与连接" description="把路由、CONNECT、恢复和可用状态组织成状态机。" href="/zh/sdk/common-guides/initialization-and-connection" />
+  <Card title="消息收发" description="实现发送、确认、接收、幂等和瞬时分支。" href="/zh/sdk/common-guides/messaging" />
+  <Card title="自定义消息" description="定义业务 Payload 的版本与降级策略。" href="/zh/sdk/common-guides/custom-messages" />
+  <Card title="会话与未读数" description="分开理解消息日志、会话投影和 Badge floor。" href="/zh/sdk/common-guides/conversations-and-unread" />
+  <Card title="离线消息与推送" description="组合持久同步、离线候选和厂商通知。" href="/zh/sdk/common-guides/offline-and-push" />
+  <Card title="多设备同步" description="设计设备类别、冲突策略和共享状态。" href="/zh/sdk/common-guides/multi-device" />
+  <Card title="重连与异常处理" description="按阶段分类失败并执行有界恢复。" href="/zh/sdk/common-guides/reconnect-and-errors" />
+</Cards>
+
+## 一条可上线的闭环
+
+```text
+产品登录
+  -> 受信业务后端签发会话材料
+  -> 发现 Gateway 地址
+  -> SDK CONNECT，单独检查 CONNACK
+  -> 恢复缺失的持久消息并去重
+  -> 对 UI 开放“可发送”状态
+  -> SEND，单独保存 client_msg_no 与 SENDACK
+  -> RECV，处理后发送 RECVACK
+  -> 会话/未读投影与移动推送各自收敛
+```
+
+不要把“Socket 打开”作为最终就绪信号。应用就绪通常至少需要连接成功、身份仍有效、恢复步骤结束、本地状态合并完成。
+
+## 共享事实入口
+
+- [Channel Type](/zh/api/dictionaries/channel-types)：选择单聊、群聊或专用 Channel 时先核对当前值和边界；
+- [Device Flag](/zh/api/dictionaries/device-flags)：统一设备类别与同类连接冲突策略；
+- [Message Flags](/zh/api/dictionaries/message-flags)：区分普通持久消息、命令式瞬时消息、红点与 Setting；
+- [Reason Code](/zh/api/dictionaries/reason-codes)：按 CONNACK 或 SENDACK 阶段决定重试策略。
+
+## 上线证据
+
+至少保留以下可重复证据，而不是只保存一次“发送成功”截图：
+
+1. 指定服务端 revision、SDK 精确版本和配置完成连接；
+2. 双向持久消息分别观察 SENDACK 与实时接收；
+3. 接收端离线期间发送消息，重连后从持久同步恢复；
+4. 重复或重叠结果按消息身份去重；
+5. 无效凭据、无权限、过期路由、网络切换和服务端背压均进入预期状态；
+6. 日志、指标和错误上报不包含 Token 或完整敏感 Payload。
+
+## 安全边界
+
+当前 v3 Beta 默认组合尚未启用已存 Token 的 CONNECT 校验，Product HTTP 也没有通用业务鉴权中间件。公共指南不会把开发样例描述成生产身份方案；上线前必须补齐鉴权、TLS、网络隔离、限流、审计和撤销验证。
+
+## 下一步
+
+先完成[身份与 Token](/zh/sdk/common-guides/identity-and-token)，再把[初始化与连接](/zh/sdk/common-guides/initialization-and-connection)映射到你选择的平台 SDK。

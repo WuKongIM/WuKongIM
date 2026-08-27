@@ -152,6 +152,31 @@ describe('documentation navigation contract', () => {
     );
   });
 
+  test('publishes the Phase 13 integrator foundations without claiming new platform support', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+    const phase13Routes = [
+      '/en/sdk/common-guides',
+      '/en/sdk/common-guides/identity-and-token',
+      '/en/sdk/common-guides/initialization-and-connection',
+      '/en/sdk/common-guides/messaging',
+      '/en/sdk/common-guides/custom-messages',
+      '/en/sdk/common-guides/conversations-and-unread',
+      '/en/sdk/common-guides/offline-and-push',
+      '/en/sdk/common-guides/multi-device',
+      '/en/sdk/common-guides/reconnect-and-errors',
+      '/en/api/dictionaries/channel-types',
+      '/en/api/dictionaries/device-flags',
+      '/en/api/dictionaries/message-flags',
+    ];
+
+    expect(published).toEqual(expect.arrayContaining(phase13Routes));
+    expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('planned');
+    for (const platform of ['android', 'ios', 'flutter', 'uniapp', 'harmonyos']) {
+      expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
+    }
+    expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -233,6 +258,15 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/architecture/user-routing`,
         `/${locale}/sdk`,
         `/${locale}/sdk/compatibility`,
+        `/${locale}/sdk/common-guides`,
+        `/${locale}/sdk/common-guides/identity-and-token`,
+        `/${locale}/sdk/common-guides/initialization-and-connection`,
+        `/${locale}/sdk/common-guides/messaging`,
+        `/${locale}/sdk/common-guides/custom-messages`,
+        `/${locale}/sdk/common-guides/conversations-and-unread`,
+        `/${locale}/sdk/common-guides/offline-and-push`,
+        `/${locale}/sdk/common-guides/multi-device`,
+        `/${locale}/sdk/common-guides/reconnect-and-errors`,
         `/${locale}/sdk/javascript`,
         `/${locale}/sdk/javascript/installation`,
         `/${locale}/sdk/javascript/quickstart`,
@@ -246,6 +280,9 @@ describe('documentation navigation contract', () => {
         `/${locale}/api/product-http/routing`,
         `/${locale}/api/product-http/errors`,
         `/${locale}/api/dictionaries`,
+        `/${locale}/api/dictionaries/channel-types`,
+        `/${locale}/api/dictionaries/device-flags`,
+        `/${locale}/api/dictionaries/message-flags`,
         `/${locale}/api/dictionaries/reason-codes`,
       ]);
       expect(indexed.every((entry) => entry.status === 'published')).toBe(true);

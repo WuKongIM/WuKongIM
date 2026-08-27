@@ -1,0 +1,82 @@
+---
+title: Messaging
+description: Implement Channel selection, payloads, idempotent send, SENDACK, RECV, RECVACK, and transient-message branches.
+---
+
+Every WuKongIM message belongs to one Channel. Integrators must retain product semantics, client request identity, and server outcome separately instead of collapsing the entire path into one “sent” boolean.
+
+<Callout type="info" title="Cross-SDK behavior guide">
+  This page is a **cross-SDK behavior guide** and defines no platform method signature. The executable two-way messaging and offline-recovery baseline is the [JavaScript/Web compatibility snapshot](/en/sdk/compatibility).
+</Callout>
+
+## Goal and completion criteria
+
+Every send retains a stable `client_msg_no`, inspects the SENDACK Reason Code, and treats “committed,” “written to one Session in real time,” “RECVACK received,” and “business action completed” as four different states.
+
+## Before sending
+
+1. Choose a type from [Channel Types](/en/api/dictionaries/channel-types) that the current product flow actually supports.
+2. For direct chat, callers use the peer UID as Channel ID. Never persist the server-normalized internal person-Channel identity as the product relationship key.
+3. For group chat, a trusted product service first owns group ID, membership, deny/allow lists, and send policy.
+4. Use a versioned payload with explicit size, field, and sensitive-data limits.
+5. Generate a stable, traceable, non-sensitive `client_msg_no` for each product send.
+
+## Durable message path
+
+```text
+SDK SEND
+  -> Gateway admission and permission policy
+  -> current Channel append authority
+  -> ordered durable commit
+  -> SENDACK
+  -> online delivery plan
+  -> RECV
+  -> RECVACK after client processing
+```
+
+- `message_seq` is ordered only within one Channel.
+- `message_id` is server-assigned; JavaScript retains the string form to avoid large-integer precision loss.
+- A successful SENDACK for an ordinary durable message proves the durable-append decision, not receipt by every device or business execution.
+- Online delivery, webhooks, plugins, and conversation projection are independent post-commit effects. Their failure does not roll back a successful SENDACK.
+
+## Transient and command branches
+
+Do not interpret `no_persist` as one universal “online message” switch:
+
+- a plain non-command `NoPersist` send, without `SyncOnce` and without a command Channel, returns compatibility success after side-effect-safe pre-route checks but does **not** resolve authority, append, or deliver in real time;
+- command-style `NoPersist`, with `SyncOnce` or a command Channel, enters authority and online-delivery admission but has no durable sequence, offline recovery, or reconnect replay;
+- recoverable commands require durable `SyncOnce`, CMD binding, `/message/sync`, and `/message/syncack`; ordinary message sync cannot replace that flow.
+
+See [Message Flags](/en/api/dictionaries/message-flags) for exact bits. Product events that must arrive reliably or remain auditable use ordinary durable messages.
+
+## Receive and local commit
+
+A useful receive order is:
+
+1. validate Channel, sender, and payload version;
+2. deduplicate by `message_id`, optionally with Channel and sequence;
+3. commit the message and current local cursor in one transaction;
+4. update the UI projection;
+5. allow the SDK to issue RECVACK only after reaching your receive-completion boundary.
+
+RECVACK is transport feedback. It is neither end-user read state nor proof that a device executed an IoT command. Model product receipts as separate durable, idempotent business messages.
+
+## Retry rules
+
+| Outcome | Action |
+| --- | --- |
+| No SENDACK observed and connection closed | Recover, query or sync outcome, then retry with the same `client_msg_no` if needed |
+| `ReasonNodeNotMatch` | Refresh routing and retry with the original idempotency key, within bounds |
+| Authentication, membership, or policy rejection | Do not retry blindly; repair identity or product state first |
+| Pressure or temporary system failure | Exponential backoff with jitter, maximum attempts, and total deadline |
+| SENDACK succeeded but receiver saw no realtime message | Receiver synchronizes durable history; sender does not create a new product message |
+
+Overlapping protocol attempts need distinct `client_seq` values to correlate each ACK while continuing to reuse one `client_msg_no` for the same product attempt.
+
+## Security boundary
+
+A message payload is not a secret store. Use TLS even when session payload encryption is active, and avoid tokens, passwords, complete identity documents, or unnecessary personal data.
+
+## Next step
+
+Create a version contract through [Custom Messages](/en/sdk/common-guides/custom-messages), then implement [Conversations & Unread Counts](/en/sdk/common-guides/conversations-and-unread).

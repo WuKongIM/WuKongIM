@@ -1,44 +1,45 @@
 ---
 title: Shared Dictionaries
-description: Reference the Phase 12 aligned protocol Reason Codes and distinguish the dictionaries that remain planned.
+description: Reference Channel Types, Device Flags, Message Flags, and Reason Codes aligned with current source.
 ---
 
 ## Goal and completion criteria
 
-This area centralizes enums reused across Gateway and compatible HTTP results. Phase 12 publishes only Reason Code, aligned with the current authoritative Go definition. Other dictionaries remain planned.
+This area centralizes wire values reused across client SDKs, Gateway, and compatible HTTP results. Phase 13 adds Channel Type, Device Flag / Level, and Message Flags to Reason Code so integrators can cross-check numeric values and behavior across languages.
 
 ## Compatibility target
 
-The Reason Code table is generated from the authoritative current enum in `pkg/protocol/frame`, and CI checks values and names 0–29. It is tied to the [compatibility snapshot](/en/api/compatibility).
+Every table aligns with current authoritative Go definitions, and tests check names, values, or bit order. They belong to the current source snapshot. The [compatibility snapshot](/en/api/compatibility) still attests only the JavaScript golden scenario, not every SDK platform.
 
 ## Prerequisites
 
-- Distinguish HTTP status from protocol Reason Code first;
-- retain the phase in which the code appeared, such as CONNACK or SENDACK;
-- do not interpret “present in the enum” as “currently emitted by every path.”
+- Numeric values are the wire contract; names support readable diagnosis.
+- Never interpret “present in the enum” as “the current SDK publishes a complete capability.”
+- Preserve unknown raw values and fail closed.
 
-## Published dictionary
+## Published dictionaries
 
 <Cards>
+  <Card title="Channel Type" description="Current types 1–12 with baseline, specialized, and legacy boundaries." href="/en/api/dictionaries/channel-types" />
+  <Card title="Device Flag" description="APP, WEB, PC, SYSTEM, and same-category conflict levels." href="/en/api/dictionaries/device-flags" />
+  <Card title="Message Flags" description="Actual behavior of fixed-header and Setting bits." href="/en/api/dictionaries/message-flags" />
   <Card title="Reason Code" description="List all current names 0–29 with phase, retry guidance, and reachability." href="/en/api/dictionaries/reason-codes" />
 </Cards>
 
-Channel Type, Device Flag, and Message Flags remain planned. The golden-path contract documents only the narrow values it actually uses instead of prematurely publishing incomplete dictionaries.
-
 ## Expected result
 
-Match by numeric value first, then retain name, phase, and request-correlation details. Preserve an unknown raw value and treat it as an unknown failure; never default it to success.
+Match by numeric value and retain dictionary name, protocol phase, and compatibility snapshot. Application code avoids scattered magic numbers and maps through SDK types or one internal shared module.
 
 ## Troubleshooting
 
-- **Name and value disagree:** fail generated validation and realign it; do not maintain a second handwritten table.
-- **One value appears in different phases:** interpret it with CONNACK, SENDACK, or the other packet type.
+- **Name and value disagree:** fail validation and realign it; do not maintain a second handwritten table.
+- **A dictionary names a feature but the SDK has no entry:** that platform capability may remain unpublished; check exact version docs.
 - **A value is absent from the table:** record the raw value and compatibility snapshot and remain fail closed until the dictionary is upgraded.
 
 ## Security and responsibility boundary
 
-A Reason Code is a protocol outcome, not a localized error safe for direct display to an end user. Map it to product-safe text without exposing topology, authorization policy, or sensitive request content.
+A wire dictionary is neither authorization nor localized text safe for direct display. Map values to product-safe meaning without exposing topology, authorization policy, or sensitive request content.
 
 ## Next step
 
-Open the complete [Reason Code](/en/api/dictionaries/reason-codes) table or return to [Error Responses](/en/api/product-http/errors) to see how HTTP and protocol outcomes compose.
+Start with [Channel Types](/en/api/dictionaries/channel-types) and [Device Flags](/en/api/dictionaries/device-flags), then use [Message Flags](/en/api/dictionaries/message-flags) and [Reason Codes](/en/api/dictionaries/reason-codes) to interpret message outcomes.
