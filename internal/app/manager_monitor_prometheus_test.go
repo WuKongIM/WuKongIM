@@ -1169,6 +1169,13 @@ func TestManagerAdditionalMonitorCatalogUsesPresenceAwareRPCClientErrorZero(t *t
 	}
 }
 
+func TestManagerControlMonitorCatalogExcludesCompletedTaskAge(t *testing.T) {
+	query := requireMonitorDefinitionForTest(t, "controllerOldestTaskAge").query("1m")
+	if !strings.Contains(query, `wukongim_controller_task_oldest_age_seconds{status!="completed"}`) {
+		t.Fatalf("controllerOldestTaskAge query = %q, want completed task exclusion", query)
+	}
+}
+
 func TestManagerMonitorPrometheusProviderKeepsSlotOwnedMetadataQueriesClusterScoped(t *testing.T) {
 	var queries monitorQueryRecorder
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

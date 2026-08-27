@@ -34,7 +34,7 @@ var (
 	}
 )
 
-// ControllerTaskAgeKey groups retained task audit age without high-cardinality task identifiers.
+// ControllerTaskAgeKey groups retained non-completed task audit age without high-cardinality task identifiers.
 type ControllerTaskAgeKey struct {
 	Kind   string
 	Status string
@@ -361,7 +361,7 @@ func newControllerTaskOldestAgeCollector(labels prometheus.Labels) *controllerTa
 	return &controllerTaskOldestAgeCollector{
 		desc: prometheus.NewDesc(
 			"wukongim_controller_task_oldest_age_seconds",
-			"Oldest retained Controller task age in seconds grouped by bounded audit labels.",
+			"Oldest retained non-completed Controller task age in seconds grouped by bounded audit labels.",
 			[]string{"kind", "status", "step", "source"},
 			labels,
 		),

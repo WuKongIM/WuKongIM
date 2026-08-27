@@ -532,7 +532,7 @@ func controllerTaskAuditNow(r *controllerTaskAuditRuntime) time.Time {
 func controllerTaskAuditOldestAges(snapshots []taskaudit.Snapshot, now time.Time) map[obsmetrics.ControllerTaskAgeKey]float64 {
 	ages := make(map[obsmetrics.ControllerTaskAgeKey]float64)
 	for _, snapshot := range snapshots {
-		if snapshot.StartedAt.IsZero() {
+		if snapshot.StartedAt.IsZero() || snapshot.Status == string(taskaudit.EventCompleted) {
 			continue
 		}
 		age := now.Sub(snapshot.StartedAt).Seconds()

@@ -1437,6 +1437,16 @@ test("treats zero error, backlog, and apply-gap values as normal", async () => {
     },
     {
       ...response.cards[0],
+      key: "controllerOldestTaskAge",
+      stage: "incidentClosure",
+      tone: "critical",
+      unit: "s",
+      value: 0,
+      series: [{ timestamp: 1781767220000, value: 0 }],
+      stats: [],
+    },
+    {
+      ...response.cards[0],
       key: "retryQueueDepth",
       category: "message",
       stage: "offlineRetry",
@@ -1463,7 +1473,7 @@ test("treats zero error, backlog, and apply-gap values as normal", async () => {
   renderClusterMonitorPage()
 
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
-  expect(cards).toHaveLength(3)
+  expect(cards).toHaveLength(4)
   for (const card of cards) {
     expect(within(card).getByText("Normal")).toBeInTheDocument()
   }

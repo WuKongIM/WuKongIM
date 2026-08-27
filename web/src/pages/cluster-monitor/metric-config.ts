@@ -93,6 +93,7 @@ const clusterMonitorZeroMeansHealthyMetrics: ReadonlySet<ClusterMonitorMetricKey
   "controllerApplyGap",
   "controllerFailedTasks",
   "controllerNodesUnhealthy",
+  "controllerOldestTaskAge",
   "controllerTaskFailureRate",
   "controllerVoterPromotionBlockers",
   "deliveryAckFailureRate",

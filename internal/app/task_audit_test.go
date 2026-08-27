@@ -297,6 +297,74 @@ func TestControllerTaskAuditRuntimeReportsOldestTaskAgeMetric(t *testing.T) {
 	}
 }
 
+func TestControllerTaskAuditCompletedTaskDoesNotReportOldestTaskAgeMetric(t *testing.T) {
+	ctx := context.Background()
+	reg := obsmetrics.New(1, "node-1")
+	now := time.Unix(100, 0).UTC()
+	audit := newControllerTaskAuditRuntime(filepath.Join(t.TempDir(), controllerTaskAuditFileName), wklog.NewNop())
+	audit.metrics = reg
+	audit.opts.Now = func() time.Time { return now }
+	t.Cleanup(func() {
+		if err := audit.Close(); err != nil {
+			t.Fatalf("audit Close() error = %v", err)
+		}
+	})
+
+	task := controller.ReconcileTask{
+		TaskID: "slot-1-replica-move-2-to-4-r7",
+		Kind:   controller.TaskKindSlotReplicaMove,
+		Status: controller.TaskStatusRunning,
+		Step:   controller.TaskStepCommitAssignment,
+		SlotID: 1,
+	}
+	if err := audit.AppendSnapshotTasks(ctx, control.Snapshot{
+		Revision: 7,
+		Tasks: []control.ReconcileTask{{
+			TaskID: task.TaskID,
+			Kind:   control.TaskKindSlotReplicaMove,
+			Status: control.TaskStatusRunning,
+			Step:   control.TaskStepCommitAssignment,
+			SlotID: task.SlotID,
+		}},
+	}); err != nil {
+		t.Fatalf("AppendSnapshotTasks() error = %v", err)
+	}
+
+	now = now.Add(time.Minute)
+	audit.ObserveControllerTaskTransitions([]controller.TaskTransition{{
+		AppliedRaftIndex: 8,
+		CommandKind:      command.KindCompleteTask,
+		IssuedAt:         now,
+		Before:           task,
+		BeforeValid:      true,
+	}})
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		list, err := audit.ListControllerTaskAudits(ctx, managementusecase.ControllerTaskAuditListRequest{})
+		if err != nil {
+			t.Fatalf("ListControllerTaskAudits() error = %v", err)
+		}
+		if len(list.Items) == 1 && list.Items[0].Status == "completed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("task audit status = %+v, want completed", list.Items)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() == "wukongim_controller_task_oldest_age_seconds" {
+			t.Fatalf("completed task still reports %s", family.GetName())
+		}
+	}
+}
+
 func waitForControllerTaskAuditList(t *testing.T, audit *controllerTaskAuditRuntime, req managementusecase.ControllerTaskAuditListRequest) managementusecase.ControllerTaskAuditListResponse {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
