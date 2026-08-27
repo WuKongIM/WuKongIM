@@ -14,7 +14,8 @@ It also owns the SDK chooser and official-source directory, source-aligned
 WuKongEasySDK tutorials for iOS, Android, Flutter, and Web, the narrow
 JavaScript Web golden-path laboratory, its generated compatibility/OpenAPI
 artifacts and Fumadocs operation pages, platform-neutral SDK behavior guides,
-and source-checked protocol dictionaries. It does not define product runtime
+the source-calibrated Product HTTP Channel/Conversation management subset, and
+source-checked protocol dictionaries. It does not define product runtime
 behavior or replace authoritative code contracts. The JavaScript laboratory
 also owns a bounded local integration-acceptance report. The report identifies
 its harness and observed installed SDK, proves only its compatibility smoke,
@@ -50,10 +51,12 @@ and leaves the tested cluster source and production readiness unassessed.
    Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
    pins, and the three-endpoint Product HTTP Beta subset into both human pages
    and machine-readable outputs.
-6. `scripts/generate-openapi.ts` turns the bounded OpenAPI 3.1 contract and
-   bilingual narrative supplements into six tracked Fumadocs operation pages.
-   Static rendering preloads that exact contract, disables the HTTP playground,
-   and exposes only contract-owned trusted-backend examples.
+6. `scripts/generate-openapi.ts` turns two bounded OpenAPI 3.1 contracts and
+   bilingual narrative supplements into ten tracked Fumadocs pages: six
+   one-operation golden-path variants and four tag-grouped Channel/Conversation
+   management variants. Static rendering preloads both exact contracts,
+   disables the HTTP playground, and exposes only contract-owned
+   trusted-backend examples.
 7. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
    the real single-node cluster/Chromium verification evidence and can write a
@@ -100,6 +103,16 @@ and leaves the tested cluster source and production readiness unassessed.
 - Browsers never call Product HTTP directly in the JavaScript golden path. The
   localhost BFF owns `/user/token`, `/route`, and `/channel/messagesync`; it is
   a development boundary, not production authentication.
+- The management contract publishes only its reviewed 10-Channel/6-Conversation
+  whitelist. Its `security: []` records missing built-in authentication rather
+  than granting anonymous access. Weakly validated Channel operations, the
+  unbounded allowlist read, and legacy `/conversation/sync` remain explicitly
+  deferred.
+- Golden-path verification attests only the fixed three-operation whitelist and
+  receipt tuple. Phase 16 corrects the shared restore-maintenance response
+  Schema without expanding that scope. Source alignment and entry/use-case
+  tests calibrate the separate management contract; they are not a scenario
+  receipt.
 - Fumadocs OpenAPI applies only to published Product HTTP operations. TCP
   binary frames, WKProto lifecycle, JSON-RPC, and shared protocol dictionaries
   remain protocol-specific content and MUST NOT be modeled as fake HTTP paths.
@@ -122,14 +135,9 @@ and leaves the tested cluster source and production readiness unassessed.
 
 - [Navigation registry](lib/navigation.ts)
 - [Phase 15 EasySDK specification](PHASE_15_SPEC.md)
-- [EasySDK overview](content/docs/sdk/easy/index.en.mdx)
-- [Phase 14 acceptance specification](PHASE_14_SPEC.md)
+- [Phase 16 Product HTTP management specification](PHASE_16_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
 - [OpenAPI page generator](scripts/generate-openapi.ts)
-- [Bounded Product HTTP contract](contracts/javascript-web-quickstart.openapi.json)
-- [SDK chooser](content/docs/sdk/choose-sdk.en.mdx)
-- [JavaScript Web golden sample](examples/javascript-web-quickstart/README.md)
-- [Documentation landing page](content/docs/guide/index.mdx)
 
 ## Update Triggers
 

@@ -1,10 +1,15 @@
 import openapiDocument from '../contracts/javascript-web-quickstart.openapi.json';
+import managementOpenAPIDocument from '../contracts/product-http-management.openapi.json';
 import type { Locale } from './navigation';
-import { localizeOpenAPIDocument, productHTTPOpenAPIPages } from './openapi';
+import {
+  localizeOpenAPIDocument,
+  productHTTPManagementOpenAPIPages,
+  productHTTPOpenAPIPages,
+} from './openapi';
 
 interface SchemaObject {
   $ref?: string;
-  type?: string;
+  type?: string | string[];
   format?: string;
   contentEncoding?: string;
   description?: string;
@@ -16,10 +21,16 @@ interface SchemaObject {
   minimum?: number;
   maximum?: number;
   minLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  pattern?: string;
   additionalProperties?: boolean | SchemaObject;
   required?: string[];
   properties?: Record<string, SchemaObject>;
   items?: SchemaObject;
+  oneOf?: SchemaObject[];
+  anyOf?: SchemaObject[];
+  allOf?: SchemaObject[];
 }
 
 interface ExampleObject {
@@ -46,6 +57,7 @@ interface CodeSample {
 
 interface OperationObject {
   operationId?: string;
+  summary?: string;
   description?: string;
   'x-codeSamples'?: CodeSample[];
   requestBody?: {
@@ -100,10 +112,15 @@ function jsonValue(value: unknown) {
 
 function schemaType(schema: SchemaObject): string {
   if (schema.$ref) return `\`${schemaReferenceName(schema) ?? schema.$ref}\``;
+  for (const alternatives of [schema.oneOf, schema.anyOf]) {
+    if (alternatives) return alternatives.map(schemaType).join(' | ');
+  }
+  if (schema.allOf) return schema.allOf.map(schemaType).join(' & ');
   if (schema.type === 'array' && schema.items) {
     return `array<${schemaType(schema.items)}>`;
   }
-  return `\`${schema.type ?? 'unknown'}${schema.format ? `:${schema.format}` : ''}\``;
+  const type = Array.isArray(schema.type) ? schema.type.join(' | ') : schema.type;
+  return `\`${type ?? 'unknown'}${schema.format ? `:${schema.format}` : ''}\``;
 }
 
 function schemaConstraints(schema: SchemaObject) {
@@ -116,6 +133,9 @@ function schemaConstraints(schema: SchemaObject) {
     constraints.push(`${schema.minimum ?? '−∞'}–${schema.maximum ?? '∞'}`);
   }
   if (schema.minLength !== undefined) constraints.push(`minLength: ${schema.minLength}`);
+  if (schema.minItems !== undefined) constraints.push(`minItems: ${schema.minItems}`);
+  if (schema.maxItems !== undefined) constraints.push(`maxItems: ${schema.maxItems}`);
+  if (schema.pattern !== undefined) constraints.push(`pattern: \`${schema.pattern}\``);
   if (schema.default !== undefined) {
     constraints.push(`default: \`${jsonValue(schema.default)}\``);
   }
@@ -179,12 +199,18 @@ function collectReferencedSchemas(
     }
     for (const field of Object.values(resolved.properties ?? {})) visit(field);
     visit(resolved.items);
+    for (const item of resolved.oneOf ?? []) visit(item);
+    for (const item of resolved.anyOf ?? []) visit(item);
+    for (const item of resolved.allOf ?? []) visit(item);
     if (typeof resolved.additionalProperties === 'object') visit(resolved.additionalProperties);
   }
 
   const root = resolveSchema(document, schema);
   for (const field of Object.values(root?.properties ?? {})) visit(field);
   visit(root?.items);
+  for (const item of root?.oneOf ?? []) visit(item);
+  for (const item of root?.anyOf ?? []) visit(item);
+  for (const item of root?.allOf ?? []) visit(item);
   return result;
 }
 
@@ -218,13 +244,14 @@ function appendSchemaTree(
   schema: SchemaObject | undefined,
   label: string,
   renderedNames: Set<string>,
+  headingLevel = 4,
 ) {
   if (!schema) return;
   const name = schemaReferenceName(schema);
   if (name && renderedNames.has(name)) return;
   if (name) renderedNames.add(name);
 
-  lines.push('', `### ${label}${name ? ` — \`${name}\`` : ''}`, '');
+  lines.push('', `${'#'.repeat(headingLevel)} ${label}${name ? ` — \`${name}\`` : ''}`, '');
   lines.push(...schemaDetails(document, locale, schema));
 
   for (const referenced of collectReferencedSchemas(document, schema)) {
@@ -232,7 +259,7 @@ function appendSchemaTree(
     renderedNames.add(referenced.name);
     lines.push(
       '',
-      `#### ${locale === 'zh' ? '引用 Schema' : 'Referenced schema'} — \`${referenced.name}\``,
+      `${'#'.repeat(headingLevel + 1)} ${locale === 'zh' ? '引用 Schema' : 'Referenced schema'} — \`${referenced.name}\``,
       '',
       ...schemaDetails(document, locale, referenced.schema),
     );
@@ -252,107 +279,255 @@ function appendExamples(
   lines: string[],
   label: string,
   media: MediaObject | undefined,
+  headingLevel = 4,
 ) {
   const examples = mediaExamples(media);
   if (examples.length === 0) return;
-  lines.push('', `### ${label}`, '');
+  lines.push('', `${'#'.repeat(headingLevel)} ${label}`, '');
   for (const example of examples) {
-    lines.push(`#### ${example.name}`, '', '```json', JSON.stringify(example.value, null, 2), '```', '');
+    lines.push(
+      `${'#'.repeat(headingLevel + 1)} ${example.name}`,
+      '',
+      '```json',
+      JSON.stringify(example.value, null, 2),
+      '```',
+      '',
+    );
   }
 }
 
-/** Renders one published operation from the same OpenAPI contract used by Fumadocs. */
-export function renderOpenAPIOperationMarkdown(locale: Locale, slugs: readonly string[]) {
-  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return '';
-  const page = productHTTPOpenAPIPages.find((candidate) => candidate.slug === slugs[2]);
-  if (!page) return '';
+function resolvePublishedPage(locale: Locale, slug: string) {
+  const goldenPathPage = productHTTPOpenAPIPages.find((page) => page.slug === slug);
+  if (goldenPathPage) {
+    return {
+      document: localizeOpenAPIDocument(openapiDocument, locale) as unknown as ContractDocument,
+      operations: [{ method: goldenPathPage.method, path: goldenPathPage.path }],
+      scope:
+        locale === 'zh'
+          ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。'
+          : 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
+      contractPath: '/contracts/javascript-web-quickstart.openapi.json',
+      contractLabel: locale === 'zh' ? '黄金路径子集' : 'golden-path subset',
+    };
+  }
 
-  const document = localizeOpenAPIDocument(
-    openapiDocument,
-    locale,
-  ) as unknown as ContractDocument;
-  const operation = document.paths[page.path]?.[page.method];
-  if (!operation) return '';
+  const managementPage = productHTTPManagementOpenAPIPages.find(
+    (page) => page.slug === slug,
+  );
+  if (!managementPage) return undefined;
+  return {
+    document: localizeOpenAPIDocument(
+      managementOpenAPIDocument,
+      locale,
+    ) as unknown as ContractDocument,
+    operations: managementPage.operations,
+    scope:
+      locale === 'zh'
+        ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。'
+        : 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.',
+    contractPath: '/contracts/product-http-management.openapi.json',
+    contractLabel: locale === 'zh' ? '管理子集' : 'management subset',
+  };
+}
 
-  const requestMedia = operation.requestBody?.content?.['application/json'];
-  const responseEntries = Object.entries(operation.responses ?? {}).map(([status, item]) => {
-    const response = resolveResponse(document, item);
-    return { status, response, media: response?.content?.['application/json'] };
-  });
-  const lines = [
-    `## ${locale === 'zh' ? 'OpenAPI 3.1 操作合同' : 'OpenAPI 3.1 operation contract'}`,
-    '',
-    locale === 'zh'
-      ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份 Beta 子集合同；Product HTTP 只能由受信后端调用。'
-      : 'This machine-readable summary and the Fumadocs reference on the page come from the same Beta subset contract. Product HTTP is callable only from a trusted backend.',
-    '',
-    `- ${locale === 'zh' ? '方法' : 'Method'}: \`${page.method.toUpperCase()}\``,
-    `- ${locale === 'zh' ? '路径' : 'Path'}: \`${page.path}\``,
-    `- Operation ID: \`${operation.operationId ?? '—'}\``,
-    '',
-    operation.description ?? '',
+function appendSchemaSearchFacts(
+  facts: Set<string>,
+  document: ContractDocument,
+  schema: SchemaObject | undefined,
+) {
+  const resolved = resolveSchema(document, schema);
+  if (!resolved) return;
+
+  const schemas: NamedSchema[] = [
+    { name: schemaReferenceName(schema) ?? '', schema: resolved },
+    ...collectReferencedSchemas(document, schema),
   ];
-
-  const codeSamples = operation['x-codeSamples'] ?? [];
-  if (codeSamples.length > 0) {
-    lines.push('', `### ${locale === 'zh' ? '受信后端代码样例' : 'Trusted-backend code samples'}`, '');
-    for (const sample of codeSamples) {
-      lines.push(
-        `#### ${sample.label ?? sample.lang ?? 'sample'}`,
-        '',
-        `\`\`\`${sample.lang ?? 'text'}`,
-        sample.source ?? '',
-        '\`\`\`',
-        '',
+  for (const entry of schemas) {
+    if (entry.name) facts.add(entry.name);
+    if (entry.schema.description) facts.add(entry.schema.description);
+    if (entry.schema.additionalProperties !== undefined) {
+      facts.add(
+        `additionalProperties ${
+          typeof entry.schema.additionalProperties === 'boolean'
+            ? entry.schema.additionalProperties
+            : schemaType(entry.schema.additionalProperties)
+        }`,
+      );
+    }
+    for (const [name, field] of Object.entries(entry.schema.properties ?? {})) {
+      const resolvedField = resolveSchema(document, field) ?? field;
+      facts.add(
+        [name, schemaType(field), schemaConstraints(resolvedField), resolvedField.description]
+          .filter(Boolean)
+          .join(' '),
       );
     }
   }
+}
 
-  const renderedSchemaNames = new Set<string>();
-  appendSchemaTree(
-    lines,
-    document,
-    locale,
-    requestMedia?.schema,
-    locale === 'zh' ? '请求 Schema' : 'Request schema',
-    renderedSchemaNames,
-  );
-  appendExamples(
-    lines,
-    locale === 'zh' ? '请求示例' : 'Request examples',
-    requestMedia,
-  );
+/** Returns source-derived request, response, nested-schema, and error text for search. */
+export function renderOpenAPISearchText(locale: Locale, slugs: readonly string[]) {
+  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return '';
+  const page = resolvePublishedPage(locale, slugs[2]);
+  if (!page) return '';
 
-  lines.push(
+  const facts = new Set<string>();
+  for (const publishedOperation of page.operations) {
+    const operation = page.document.paths[publishedOperation.path]?.[publishedOperation.method];
+    if (!operation) continue;
+    facts.add(`${publishedOperation.method.toUpperCase()} ${publishedOperation.path}`);
+    if (operation.operationId) facts.add(operation.operationId);
+    if (operation.summary) facts.add(operation.summary);
+    if (operation.description) facts.add(operation.description);
+
+    const requestMedia = operation.requestBody?.content?.['application/json'];
+    appendSchemaSearchFacts(facts, page.document, requestMedia?.schema);
+    for (const example of mediaExamples(requestMedia)) {
+      facts.add(JSON.stringify(example.value));
+    }
+
+    for (const [status, item] of Object.entries(operation.responses ?? {})) {
+      const response = resolveResponse(page.document, item);
+      facts.add(`${status} ${response?.description ?? ''}`.trim());
+      const responseMedia = response?.content?.['application/json'];
+      appendSchemaSearchFacts(facts, page.document, responseMedia?.schema);
+      for (const example of mediaExamples(responseMedia)) {
+        facts.add(JSON.stringify(example.value));
+      }
+    }
+  }
+  return [...facts].join('\n');
+}
+
+function operationHeadingId(summary: string, seen: Map<string, number>) {
+  const base = summary
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .replaceAll(' ', '-');
+  const count = seen.get(base) ?? 0;
+  seen.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count}`;
+}
+
+/** Extends Fumadocs' operation-only index data with the complete published schema facts. */
+export function getOpenAPISearchStructuredData(locale: Locale, slugs: readonly string[]) {
+  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return undefined;
+  const page = resolvePublishedPage(locale, slugs[2]);
+  if (!page) return undefined;
+
+  const seenHeadings = new Map<string, number>();
+  const headings: Array<{ content: string; id: string }> = [];
+  const contents: Array<{ content: string; heading?: string }> = [];
+  for (const publishedOperation of page.operations) {
+    const operation = page.document.paths[publishedOperation.path]?.[publishedOperation.method];
+    if (!operation) continue;
+    const title = operation.summary ?? operation.operationId ?? publishedOperation.path;
+    const id = operationHeadingId(title, seenHeadings);
+    headings.push({ content: title, id });
+    if (operation.description) contents.push({ content: operation.description, heading: id });
+  }
+
+  const searchText = renderOpenAPISearchText(locale, slugs);
+  if (searchText) contents.push({ content: searchText });
+  return { headings, contents };
+}
+
+/** Renders every operation on a published Fumadocs OpenAPI page. */
+export function renderOpenAPIOperationMarkdown(locale: Locale, slugs: readonly string[]) {
+  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return '';
+  const page = resolvePublishedPage(locale, slugs[2]);
+  if (!page) return '';
+
+  const { document } = page;
+  const lines = [
+    `## ${locale === 'zh' ? 'OpenAPI 3.1 操作合同' : 'OpenAPI 3.1 operation contract'}`,
     '',
-    `### ${locale === 'zh' ? '响应状态' : 'Response statuses'}`,
-    '',
-    `| ${locale === 'zh' ? '状态' : 'Status'} | ${locale === 'zh' ? '说明' : 'Description'} |`,
-    '| --- | --- |',
-    ...responseEntries.map(
-      ({ status, response }) => `| \`${status}\` | ${markdownCell(response?.description)} |`,
-    ),
-  );
+    page.scope,
+  ];
 
-  for (const { status, media } of responseEntries) {
+  for (const publishedOperation of page.operations) {
+    const operation = document.paths[publishedOperation.path]?.[publishedOperation.method];
+    if (!operation) continue;
+    const requestMedia = operation.requestBody?.content?.['application/json'];
+    const responseEntries = Object.entries(operation.responses ?? {}).map(([status, item]) => {
+      const response = resolveResponse(document, item);
+      return { status, response, media: response?.content?.['application/json'] };
+    });
+    lines.push(
+      '',
+      `### \`${publishedOperation.method.toUpperCase()}\` \`${publishedOperation.path}\``,
+      '',
+      `- Operation ID: \`${operation.operationId ?? '—'}\``,
+      '',
+      operation.description ?? '',
+    );
+
+    const codeSamples = operation['x-codeSamples'] ?? [];
+    if (codeSamples.length > 0) {
+      lines.push(
+        '',
+        `#### ${locale === 'zh' ? '受信后端代码样例' : 'Trusted-backend code samples'}`,
+        '',
+      );
+      for (const sample of codeSamples) {
+        lines.push(
+          `##### ${sample.label ?? sample.lang ?? 'sample'}`,
+          '',
+          `\`\`\`${sample.lang ?? 'text'}`,
+          sample.source ?? '',
+          '\`\`\`',
+          '',
+        );
+      }
+    }
+
+    const renderedSchemaNames = new Set<string>();
     appendSchemaTree(
       lines,
       document,
       locale,
-      media?.schema,
-      `${locale === 'zh' ? '响应 Schema' : 'Response schema'} (\`${status}\`)`,
+      requestMedia?.schema,
+      locale === 'zh' ? '请求 Schema' : 'Request schema',
       renderedSchemaNames,
     );
     appendExamples(
       lines,
-      `${locale === 'zh' ? '响应示例' : 'Response examples'} (\`${status}\`)`,
-      media,
+      locale === 'zh' ? '请求示例' : 'Request examples',
+      requestMedia,
     );
+
+    lines.push(
+      '',
+      `#### ${locale === 'zh' ? '响应状态' : 'Response statuses'}`,
+      '',
+      `| ${locale === 'zh' ? '状态' : 'Status'} | ${locale === 'zh' ? '说明' : 'Description'} |`,
+      '| --- | --- |',
+      ...responseEntries.map(
+        ({ status, response }) =>
+          `| \`${status}\` | ${markdownCell(response?.description)} |`,
+      ),
+    );
+
+    for (const { status, media } of responseEntries) {
+      appendSchemaTree(
+        lines,
+        document,
+        locale,
+        media?.schema,
+        `${locale === 'zh' ? '响应 Schema' : 'Response schema'} (\`${status}\`)`,
+        renderedSchemaNames,
+      );
+      appendExamples(
+        lines,
+        `${locale === 'zh' ? '响应示例' : 'Response examples'} (\`${status}\`)`,
+        media,
+      );
+    }
   }
 
   lines.push(
     '',
-    `[OpenAPI 3.1 ${locale === 'zh' ? '子集' : 'subset'}](/contracts/javascript-web-quickstart.openapi.json)`,
+    `[OpenAPI 3.1 ${page.contractLabel}](${page.contractPath})`,
   );
   return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }

@@ -239,6 +239,22 @@ describe('documentation navigation contract', () => {
     }
   });
 
+  test('publishes the Phase 16 trusted Product HTTP management pages only', () => {
+    expect(getNavigationEntry('en', 'api', ['product-http', 'channels'])?.status).toBe(
+      'published',
+    );
+    expect(
+      getNavigationEntry('en', 'api', ['product-http', 'conversations'])?.status,
+    ).toBe('published');
+    expect(getNavigationEntry('en', 'api', ['specifications', 'openapi'])?.status).toBe(
+      'planned',
+    );
+    expect(
+      getNavigationEntry('en', 'api', ['operations-http', 'health-and-readiness'])
+        ?.status,
+    ).toBe('planned');
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -346,7 +362,9 @@ describe('documentation navigation contract', () => {
         `/${locale}/api/compatibility`,
         `/${locale}/api/product-http`,
         `/${locale}/api/product-http/users`,
+        `/${locale}/api/product-http/channels`,
         `/${locale}/api/product-http/messages`,
+        `/${locale}/api/product-http/conversations`,
         `/${locale}/api/product-http/routing`,
         `/${locale}/api/product-http/errors`,
         `/${locale}/api/dictionaries`,

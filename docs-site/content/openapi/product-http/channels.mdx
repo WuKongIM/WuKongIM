@@ -1,0 +1,45 @@
+## 目标与完成标准
+
+本页发布 10 个经过源码与入口测试校准的 Channel 管理操作。完成后，受信业务后端应能说明每次变更影响的是 Channel 元数据、持久订阅者、临时订阅者，还是派生的允许/拒绝名单，并且不会让浏览器直连 Product HTTP。
+
+## 信任与兼容边界
+
+这些入口没有自身的业务鉴权中间件。OpenAPI 中的 `security: []` 是对当前运行时事实的描述，**不是匿名公网调用许可**。调用方必须位于受信网络或鉴权代理之后，由业务后端验证租户、操作者、Channel 与 UID 权限。
+
+当前路径沿用兼容命名：`blacklist` 对应领域 denylist，`whitelist` 对应 allowlist。整数标志只有值恰好为 `1` 时表示 true。`ChannelSubscriberAddRequest.subscribers` 与 `ChannelAllowlistMutationRequest.uids` 使用 `NonBlankUID`；其 `\S` pattern 与运行时拒绝纯空白成员的规则一致。
+
+成功变更返回 `{"status":200}`；校验、路由与存储错误使用 `CompatibilityError`，通常为 `400 {"msg","status":400}`；恢复维护栅栏使用 `MaintenanceError`：`503 {"error":"maintenance","message":"restore maintenance is active"}`。
+
+## 高规模语义
+
+- `/channel/subscriber_add` 可以用 `reset=1` 替换快照，但 100,000 成员群应由业务后端分批控制输入与重试，不能依赖一个无界 JSON 请求；
+- remove-all 操作在服务端使用有界内部遍历，不会把完整成员列表读回调用方；
+- 普通持久订阅者与 `/tmpchannel/subscriber_set` 的临时成员是不同命名空间；
+- allowlist 与 denylist 也是由 Channel 键派生的独立成员集合；
+- 个人 Channel（Type 1）不接受普通订阅者维护。
+
+## 暂缓发布的现存路由
+
+以下路由确实存在，但当前行为不足以成为本 Beta 合同的一部分：
+
+| 路径 | 暂缓原因 |
+| --- | --- |
+| `POST /channel/info` | 无字段校验且实际是完整覆盖，不是名称容易暗示的 partial patch。 |
+| `POST /channel/delete` | key 校验不足，实际行为是不可逆 disband 而非物理删除，错误文案也不准确。 |
+| `POST /channel/subscriber_remove` | 省略 `channel_type` 时传入 0，与 add 的兼容默认 group 行为不一致。 |
+| `POST /channel/blacklist_set` | 只校验 `channel_id`，允许 type 0 与空名单进入 replace 路径。 |
+| `POST /channel/whitelist_set` | 与 blacklist set 相同，尚无一致的强校验合同。 |
+| `GET /channel/whitelist` | query 未校验，并聚合完整名单形成无界响应，不符合 100,000 成员规模要求。 |
+
+源码存在不等于公开支持。调用方不得从旧版 `resources/api/openapi.json` 补齐这些缺口；该文件包含已删除路由与过时响应结构。
+
+## 错误与诊断
+
+- **返回 400 且文本不稳定**：按 HTTP 状态分支，并记录经过脱敏的 `msg`；不要枚举或解析当前中英文错误文本。
+- **Channel Type 1 的 subscriber 操作失败**：个人 Channel membership 由个人关系与消息路径维护，不要转成群组订阅操作。
+- **临时成员被 subscriber_add 拒绝**：使用 `/tmpchannel/subscriber_set`，不要发送 `temp_subscriber=1`。
+- **503 maintenance**：有界退避并观察 `/readyz`；不要绕过到节点本地路径。
+
+## OpenAPI 合同
+
+本页由独立的非穷举 Product HTTP 管理 OpenAPI 3.1 合同按 `Channels` tag 生成。可下载[管理子集合同](/contracts/product-http-management.openapi.json)。黄金路径继续固定三操作白名单与 receipt 边界；Phase 16 仅把其共享维护响应 Schema 重新校准到当前运行时。两者不能合并解释为完整 v3 API。

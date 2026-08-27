@@ -7,6 +7,7 @@ import {
   type Locale,
 } from '../lib/navigation';
 import { getDomainPublicationCounts } from '../lib/navigation-tree';
+import { productHTTPManagementOpenAPIPages } from '../lib/openapi';
 import { canonicalUrl, isPreviewBuild, siteUrl } from '../lib/shared';
 
 const out = new URL('../out/', import.meta.url);
@@ -288,6 +289,39 @@ export async function checkStaticOutput() {
     throw new Error('golden-path OpenAPI artifact escaped its three-endpoint Beta boundary');
   }
 
+  const managementOpenAPI = JSON.parse(
+    await text('contracts/product-http-management.openapi.json'),
+  ) as {
+    paths?: Record<string, Record<string, { security?: unknown[]; 'x-wukongim-trust'?: string }>>;
+    'x-wukongim-scope'?: string;
+  };
+  const managementOpenAPIPaths = Object.keys(managementOpenAPI.paths ?? {});
+  const expectedManagementOpenAPIOperations: Array<{ method: string; path: string }> = [];
+  for (const page of productHTTPManagementOpenAPIPages) {
+    expectedManagementOpenAPIOperations.push(...page.operations);
+  }
+  const expectedManagementOpenAPIPaths = expectedManagementOpenAPIOperations.map(
+    (operation) => operation.path,
+  );
+  if (
+    managementOpenAPI['x-wukongim-scope'] !==
+      'non-exhaustive-trusted-product-management-beta' ||
+    managementOpenAPIPaths.join('\n') !== expectedManagementOpenAPIPaths.join('\n')
+  ) {
+    throw new Error('management OpenAPI artifact escaped its reviewed 16-operation boundary');
+  }
+  for (const expected of expectedManagementOpenAPIOperations) {
+    const operation = managementOpenAPI.paths?.[expected.path]?.[expected.method];
+    if (
+      operation?.['x-wukongim-trust'] !== 'trusted-backend-only' ||
+      JSON.stringify(operation.security) !== '[]'
+    ) {
+      throw new Error(
+        `management OpenAPI operation lost its trust boundary: ${expected.method.toUpperCase()} ${expected.path}`,
+      );
+    }
+  }
+
   const openAPIPages = [
     {
       slug: 'users',
@@ -354,6 +388,74 @@ export async function checkStaticOutput() {
       }
       if (page.slug === 'messages' && !markdown.includes('1–100')) {
         throw new Error(`${locale} Product HTTP messages Markdown lost the limit constraint`);
+      }
+    }
+  }
+
+  const managementOpenAPIPages = [
+    {
+      slug: 'channels',
+      facts: ['/channel', '/tmpchannel/subscriber_set', 'temp_subscriber'],
+      schemaFacts: [
+        'NonBlankUID',
+        'CompatibilityError',
+        'MaintenanceError',
+        'restore maintenance is active',
+      ],
+      enDescription: 'Creates or updates one Channel',
+      zhDescription: '创建或更新一个 Channel',
+    },
+    {
+      slug: 'conversations',
+      facts: ['/conversation/list', '/conversations/activate', 'completed_coverage'],
+      schemaFacts: [
+        'ConversationListResponse',
+        'ConversationLastMessage',
+        'message_idstr',
+        'payload',
+        'tombstones_retained_since',
+        'CompatibilityError',
+        'MaintenanceError',
+        'restore maintenance is active',
+      ],
+      enDescription: 'Canonical endpoint that incrementally scans',
+      zhDescription: 'Canonical 入口会增量扫描',
+    },
+  ] as const;
+  for (const locale of locales) {
+    for (const page of managementOpenAPIPages) {
+      const html = visibleHtml(
+        await text(`${locale}/api/product-http/${page.slug}/index.html`),
+      );
+      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
+      for (const fact of ['POST', ...page.facts, ...page.schemaFacts, description]) {
+        if (!html.includes(fact)) {
+          throw new Error(
+            `${locale} Product HTTP ${page.slug} page is missing management OpenAPI fact: ${fact}`,
+          );
+        }
+      }
+      const requestBodyLabel = locale === 'zh' ? '请求主体' : 'Request Body';
+      const responseBodyLabel = locale === 'zh' ? '响应主体' : 'Response Body';
+      if (!html.includes(requestBodyLabel) || !html.includes(responseBodyLabel)) {
+        throw new Error(`${locale} Product HTTP ${page.slug} lost its management schemas`);
+      }
+      if (/<form\b/i.test(html) || /<button\b[^>]*\btype=["']submit["']/i.test(html)) {
+        throw new Error(`${locale} Product HTTP ${page.slug} exposes an interactive playground`);
+      }
+
+      const markdown = await text(
+        `llms.mdx/${locale}/api/product-http/${page.slug}/content.md`,
+      );
+      for (const fact of [...page.facts, ...page.schemaFacts]) {
+        if (!markdown.includes(fact)) {
+          throw new Error(
+            `${locale} Product HTTP ${page.slug} Markdown is missing management OpenAPI fact: ${fact}`,
+          );
+        }
+      }
+      if (!markdown.includes('| `503` |')) {
+        throw new Error(`${locale} Product HTTP ${page.slug} Markdown lost maintenance`);
       }
     }
   }
@@ -488,6 +590,14 @@ export async function checkStaticOutput() {
     'const: `200`',
     'Referenced schema — `SyncedMessage`',
     '`message_idstr`',
+    '`/tmpchannel/subscriber_set`',
+    '`completed_coverage`',
+    'Referenced schema — `ConversationLastMessage`',
+    '`payload`',
+    '`tombstones_retained_since`',
+    '`CompatibilityError`',
+    '`MaintenanceError`',
+    'restore maintenance is active',
   ]) {
     if (!llmsFull.includes(fact)) {
       throw new Error(`llms-full.txt is missing OpenAPI fact: ${fact}`);
@@ -553,6 +663,21 @@ export async function checkStaticOutput() {
         throw new Error(`${locale} search index is missing OpenAPI text for ${pageId}`);
       }
     }
+    for (const page of managementOpenAPIPages) {
+      const pageId = `/${locale}/api/product-http/${page.slug}`;
+      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
+      for (const fact of [description, ...page.facts, ...page.schemaFacts]) {
+        if (
+          !indexedDocuments.some(
+            (document) => document.page_id === pageId && document.content?.includes(fact),
+          )
+        ) {
+          throw new Error(
+            `${locale} search index is missing management OpenAPI fact for ${pageId}: ${fact}`,
+          );
+        }
+      }
+    }
   }
 
   const robots = await text('robots.txt');
@@ -568,6 +693,8 @@ export async function checkStaticOutput() {
     { path: `${locale}/guide/integration/acceptance/index.html`, locale },
     { path: `${locale}/api/dictionaries/message-flags/index.html`, locale },
     { path: `${locale}/api/product-http/users/index.html`, locale },
+    { path: `${locale}/api/product-http/channels/index.html`, locale },
+    { path: `${locale}/api/product-http/conversations/index.html`, locale },
   ]);
   for (const critical of criticalPages) {
     const html = await text(critical.path);

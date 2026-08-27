@@ -1,17 +1,17 @@
 ---
 title: Conventions
-description: Understand addressing, JSON, identifiers, responses, and retries for the v3 Beta golden-path HTTP subset.
+description: Understand addressing, JSON, identifiers, responses, cursors, and retries for the published Product HTTP Beta subsets.
 ---
 
-This page applies only to the Product HTTP subset used by the Phase 12 golden sample. It records the real compatible surface without promoting other internal or historical routes to a stable public API.
+This page applies to the published Product HTTP golden-path and trusted-management Beta subsets. It records their real compatibility surface without promoting other internal, weakly validated, or historical routes to a stable public API.
 
 ## Goal and completion criteria
 
-When finished, you should call `/user/token`, `/route`, and `/channel/messagesync` correctly from a trusted backend, parse each endpoint's own response, and avoid conflating HTTP success, protocol Reason Code, and durable message commit.
+When finished, you should call the golden-path, Channel-management, and canonical Conversation operations from a trusted backend, parse endpoint-specific responses and cursors, and avoid conflating HTTP success, protocol Reason Code, and durable message commit.
 
 ## Compatibility target
 
-These contracts belong to the v3 Beta snapshot on [API Compatibility](/en/api/compatibility). The coverage below is generated from a slice-level OpenAPI contract; it is not a complete v3 OpenAPI document.
+The three golden entries belong to the v3 Beta snapshot on [API Compatibility](/en/api/compatibility). The 16 management entries are calibrated against current source and tests but remain outside that receipt. The coverage below describes only the golden path; neither contract is a complete v3 OpenAPI document.
 
 <GoldenPathContract locale="en" />
 
@@ -24,16 +24,16 @@ These contracts belong to the v3 Beta snapshot on [API Compatibility](/en/api/co
 
 ## Addressing and format
 
-| Convention | Golden-path behavior |
+| Convention | Published-subset behavior |
 | --- | --- |
 | Base URL | Local development uses `http://127.0.0.1:5001`; all paths start at `/` |
 | Request format | POST endpoints use UTF-8 JSON; `/route` uses a GET query |
-| Response format | JSON, but the three compatible endpoints have no universal envelope |
+| Response format | JSON, but the published compatibility endpoints have no universal envelope |
 | UID / Channel ID | Product-owned strings; a person-Channel query uses the peer UID |
-| Channel type | The golden-path direct chat uses numeric value `1` |
+| Channel type | Identifies a Channel with `channel_id`; the golden-path direct chat uses numeric value `1` |
 | Message sequence | Ordered only inside one Channel, never globally |
 
-Do not force compatible responses into one `{ data, error }` type. `/user/token` returns `status`, `/route` returns address fields, and `/channel/messagesync` returns a synchronization window and message array. Error bodies can also differ by entry stage.
+Do not force compatible responses into one `{ data, error }` type. Mutations generally return `status`, `/route` returns address fields, and message and Conversation reads return their own synchronization structures. A `400` generally uses `{msg,status}`, while restore-maintenance `503` uses `{error,message}`.
 
 ## Identifiers and numbers
 
@@ -50,8 +50,11 @@ Do not force compatible responses into one `{ data, error }` type. `/user/token`
 | `GET /route` | Back off and retry network failures or temporary `5xx`; success is not product authorization |
 | `POST /user/token` | Retry the same identity intent only from a trusted caller; do not mint a fresh token in a loop |
 | `POST /channel/messagesync` | Retry a read failure with the same cursor; tolerate overlap with realtime delivery |
+| Channel mutation | Retry only while the product intent remains valid; audit `reset` and remove-all operations |
+| `POST /conversation/list` | Echo `next_cursor` unchanged until `done=true`; an empty page cannot stop the traversal |
+| `POST /conversation/retry` | Retry only the bounded unresolved keys without rewinding full-list coverage |
 
-This subset declares no universal Idempotency-Key request header. Message sending uses the SDK, whose logical message identity must be retained by the sender; these three HTTP routes do not replace that behavior.
+These subsets declare no universal Idempotency-Key request header. Message sending uses the SDK, whose logical message identity must be retained by the sender; Product HTTP management routes do not replace that behavior.
 
 ## Expected result
 
@@ -70,4 +73,4 @@ Browsers and mobile apps must never access Product HTTP directly. CORS compatibi
 
 ## Next step
 
-Read [Authentication & Security](/en/api/authentication), then inspect [User Token](/en/api/product-http/users), [Route Discovery](/en/api/product-http/routing), and [Message Sync](/en/api/product-http/messages).
+Read [Authentication & Security](/en/api/authentication), then choose the [golden path](/en/api/product-http) or continue into [Channels](/en/api/product-http/channels) and [Conversations](/en/api/product-http/conversations).

@@ -177,20 +177,20 @@ Route: `/{lang}/sdk`
 
 Route: `/{lang}/api`
 
-查阅 HTTP API、Webhook 和客户端协议。 / Reference HTTP APIs, webhooks, and client protocols.
+查阅已校准的 HTTP API、公共字典，以及规划中的 Webhook 与客户端协议。 / Reference calibrated HTTP APIs and shared dictionaries, plus planned webhooks and client protocols.
 
-- **通用约定 / Conventions** `/{lang}/api/conventions` — 定义 v3 Beta 黄金路径子集使用的 Base URL、JSON、标识和兼容响应结构。 / Defines base URLs, JSON, identifiers, and compatible response envelopes used by the v3 Beta golden-path subset.
+- **通用约定 / Conventions** `/{lang}/api/conventions` — 定义已发布 Product HTTP Beta 子集使用的 Base URL、JSON、标识和兼容响应结构。 / Defines base URLs, JSON, identifiers, and compatible response shapes used by the published Product HTTP Beta subsets.
 
 - **认证与安全 / Authentication & Security** `/{lang}/api/authentication` — 说明开发身份、受信 BFF，以及默认组合尚未提供的生产鉴权保证。 / Explains development identities, the trusted BFF, and the production authentication guarantees absent from the default composition.
 
-- **版本与兼容性 / Versions & Compatibility** `/{lang}/api/compatibility` — 记录黄金路径 HTTP 子集、客户端协议与服务端快照的兼容目标和 receipt 状态。 / Records the compatibility target and receipt status for the golden-path HTTP subset, client protocol, and server snapshot.
+- **版本与兼容性 / Versions & Compatibility** `/{lang}/api/compatibility` — 区分有 receipt 的黄金路径合同与源码校准但未纳入场景证明的管理子集。 / Separates the receipted golden-path contract from the source-calibrated management subset outside scenario attestation.
 
-- **产品 HTTP API（Beta 子集） / Product HTTP API (Beta subset)** `/{lang}/api/product-http` — 仅发布 JavaScript 黄金路径声明使用的受信服务端接口。 / Publishes only the trusted server-side endpoints declared by the JavaScript golden path.
+- **产品 HTTP API（Beta 子集） / Product HTTP API (Beta subsets)** `/{lang}/api/product-http` — 发布固定的三操作黄金路径范围与源码校准的受信管理子集；不声称完整 v3 API。 / Publishes the fixed three-operation golden-path scope and a source-calibrated trusted-management subset without claiming a complete v3 API.
 
   - **用户 / Users** `/{lang}/api/product-http/users` — 记录黄金路径用于开发身份准备的 `/user/token` 合同与安全边界。 / Documents the `/user/token` contract and security boundary used to prepare golden-path development identities.
-  - **频道 / Channels** `/{lang}/api/product-http/channels` — 频道、订阅者、黑名单、白名单和临时频道接口。 / Channel, subscriber, blacklist, whitelist, and temporary-channel endpoints.
+  - **频道 / Channels** `/{lang}/api/product-http/channels` — 记录 10 个经过校准的 Channel、持久/临时订阅者与允许/拒绝名单变更入口，并列出暂缓路由。 / Documents 10 calibrated Channel, durable/temporary subscriber, and allow/deny-list mutations with explicit deferrals.
   - **消息 / Messages** `/{lang}/api/product-http/messages` — 记录黄金路径用于离线恢复的 `/channel/messagesync` 合同。 / Documents the `/channel/messagesync` contract used for golden-path offline recovery.
-  - **会话 / Conversations** `/{lang}/api/product-http/conversations` — 会话列表、同步、未读数和删除接口。 / Conversation list, sync, unread-count, and deletion endpoints.
+  - **会话 / Conversations** `/{lang}/api/product-http/conversations` — 记录 6 个 canonical 有界会话同步、重试、未读、隐藏与激活入口。 / Documents six canonical bounded Conversation sync, retry, unread, hide, and activation endpoints.
   - **路由发现 / Route Discovery** `/{lang}/api/product-http/routing` — 获取服务端配置的 TCP 和 WebSocket 客户端入口地址。 / Discovers the configured TCP and WebSocket client-ingress addresses.
   - **错误响应 / Error Responses** `/{lang}/api/product-http/errors` — 解释 HTTP 状态、业务状态和 Reason Code 的关系。 / Relates HTTP status, business status, and protocol reason codes.
 

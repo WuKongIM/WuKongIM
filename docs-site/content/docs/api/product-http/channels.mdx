@@ -1,0 +1,339 @@
+---
+title: 频道（Beta 管理子集）
+description: 通过受信后端管理 Channel 元数据、持久或临时订阅者，以及允许和拒绝名单。
+full: true
+_openapi:
+  preload:
+    - wukongim-product-http-management-beta-zh
+  toc:
+    - depth: 2
+      title: 创建或更新 Channel 元数据
+      url: '#创建或更新-channel-元数据'
+    - depth: 2
+      title: 添加或替换 Channel 持久订阅者
+      url: '#添加或替换-channel-持久订阅者'
+    - depth: 2
+      title: 移除 Channel 的全部持久订阅者
+      url: '#移除-channel-的全部持久订阅者'
+    - depth: 2
+      title: 替换临时 Channel 订阅者
+      url: '#替换临时-channel-订阅者'
+    - depth: 2
+      title: 添加 Channel 黑名单成员
+      url: '#添加-channel-黑名单成员'
+    - depth: 2
+      title: 移除 Channel 黑名单成员
+      url: '#移除-channel-黑名单成员'
+    - depth: 2
+      title: 移除 Channel 的全部黑名单成员
+      url: '#移除-channel-的全部黑名单成员'
+    - depth: 2
+      title: 添加 Channel 白名单成员
+      url: '#添加-channel-白名单成员'
+    - depth: 2
+      title: 移除 Channel 白名单成员
+      url: '#移除-channel-白名单成员'
+    - depth: 2
+      title: 移除 Channel 的全部白名单成员
+      url: '#移除-channel-的全部白名单成员'
+  structuredData:
+    headings:
+      - content: 创建或更新 Channel 元数据
+        id: 创建或更新-channel-元数据
+      - content: 添加或替换 Channel 持久订阅者
+        id: 添加或替换-channel-持久订阅者
+      - content: 移除 Channel 的全部持久订阅者
+        id: 移除-channel-的全部持久订阅者
+      - content: 替换临时 Channel 订阅者
+        id: 替换临时-channel-订阅者
+      - content: 添加 Channel 黑名单成员
+        id: 添加-channel-黑名单成员
+      - content: 移除 Channel 黑名单成员
+        id: 移除-channel-黑名单成员
+      - content: 移除 Channel 的全部黑名单成员
+        id: 移除-channel-的全部黑名单成员
+      - content: 添加 Channel 白名单成员
+        id: 添加-channel-白名单成员
+      - content: 移除 Channel 白名单成员
+        id: 移除-channel-白名单成员
+      - content: 移除 Channel 的全部白名单成员
+        id: 移除-channel-的全部白名单成员
+    contents:
+      - content: 创建或更新一个 Channel。整数标志仅在值恰好为 1 时为 true。reset=1 会替换持久订阅者快照；个人 Channel 不能携带
+          subscribers。当前运行时中的 disband 是终态，后续 upsert 不会清除它。
+        heading: 创建或更新-channel-元数据
+      - content: 添加持久订阅者；必要时会先创建空 Channel 元数据。兼容行为中省略 channel_type（或传 0）会选择群组类型
+          2。reset=1 替换订阅者快照。个人 Channel 与 temp_subscriber=1 会被拒绝；临时成员应使用
+          /tmpchannel/subscriber_set。
+        heading: 添加或替换-channel-持久订阅者
+      - content: 通过内部有界遍历移除完整持久订阅者集合。个人 Channel 会被拒绝。此操作不会删除或解散 Channel。
+        heading: 移除-channel-的全部持久订阅者
+      - content: 替换 channel_id 所标识的内部临时 Channel（Channel Type 8）的完整成员集合。临时 membership
+          与普通持久订阅者变更相互独立。
+        heading: 替换临时-channel-订阅者
+      - content: 向 Channel 范围的拒绝列表添加 UID。当前兼容路径保留 blacklist 命名；领域行为是 denylist 变更。
+        heading: 添加-channel-黑名单成员
+      - content: 从 Channel 范围的拒绝列表中移除给定 UID。
+        heading: 移除-channel-黑名单成员
+      - content: 通过内部有界遍历清空 Channel 范围的拒绝列表。
+        heading: 移除-channel-的全部黑名单成员
+      - content: 向 Channel 范围的允许列表添加非空 UID。当前兼容路径保留 whitelist 命名；领域行为是 allowlist 变更。
+        heading: 添加-channel-白名单成员
+      - content: 从 Channel 范围的允许列表中移除给定非空 UID。
+        heading: 移除-channel-白名单成员
+      - content: 通过内部有界遍历清空 Channel 范围的允许列表。
+        heading: 移除-channel-的全部白名单成员
+      - content: >-
+          POST /channel
+
+          upsertChannel
+
+          创建或更新 Channel 元数据
+
+          创建或更新一个 Channel。整数标志仅在值恰好为 1 时为 true。reset=1 会替换持久订阅者快照；个人 Channel
+          不能携带 subscribers。当前运行时中的 disband 是终态，后续 upsert 不会清除它。
+
+          ChannelUpsertRequest
+
+          additionalProperties false
+
+          channel_id `ChannelID` minLength: 1; pattern: `^[^#@]+$` 业务 Channel
+          标识；已发布合同排除 # 与 @ namespace 分隔符。
+
+          channel_type `integer` 1–255 Channel Type。类型 1 是个人 Channel，不能包含
+          subscribers。
+
+          large `BinaryFlag` enum: `0`, `1`; default: `0` 兼容整数标志；只有 1 表示 true。
+
+          ban `BinaryFlag` enum: `0`, `1`; default: `0` 兼容整数标志；只有 1 表示 true。
+
+          disband `BinaryFlag` enum: `0`, `1`; default: `0` 兼容整数标志；只有 1 表示 true。
+
+          send_ban `BinaryFlag` enum: `0`, `1`; default: `0` 兼容整数标志；只有 1 表示
+          true。
+
+          allow_stranger `BinaryFlag` enum: `0`, `1`; default: `0` 兼容整数标志；只有 1
+          表示 true。
+
+          reset `BinaryFlag` enum: `0`, `1`; default: `0` 1 表示在应用 subscribers
+          前替换持久订阅者快照。
+
+          subscribers array<`UID`> — 持久订阅者 UID；个人 Channel 不得提供。
+
+          ChannelID
+
+          业务 Channel 标识；已发布合同排除 # 与 @ namespace 分隔符。
+
+          BinaryFlag
+
+          兼容整数标志；只有 1 表示 true。
+
+          UID
+
+          非空业务用户身份。
+
+          200 变更已完成
+
+          MutationStatus
+
+          status `integer` const: `200` 兼容成功状态，固定为 200。
+
+          {"status":200}
+
+          400 输入格式错误、校验失败、路由不可用，或 usecase/存储错误
+
+          CompatibilityError
+
+          msg `string` — 供人阅读的运行时消息；精确文本不是稳定的机器合同。
+
+          status `integer` const: `400` 这些入口的兼容业务错误状态固定为 400。
+
+          {"msg":"invalid request","status":400}
+
+          503 恢复维护已启用；请退避并观察 /readyz
+
+          MaintenanceError
+
+          error `string` const: `"maintenance"` 机器可读的恢复维护类别。
+
+          message `string` const: `"restore maintenance is active"` 当前维护详情。
+
+          {"error":"maintenance","message":"restore maintenance is active"}
+
+          POST /channel/subscriber_add
+
+          addChannelSubscribers
+
+          添加或替换 Channel 持久订阅者
+
+          添加持久订阅者；必要时会先创建空 Channel 元数据。兼容行为中省略 channel_type（或传 0）会选择群组类型
+          2。reset=1 替换订阅者快照。个人 Channel 与 temp_subscriber=1 会被拒绝；临时成员应使用
+          /tmpchannel/subscriber_set。
+
+          ChannelSubscriberAddRequest
+
+          channel_type `integer` 0–255; default: `2` 省略或传 0 会选择群组类型 2；类型 1 会被拒绝。
+
+          reset `BinaryFlag` enum: `0`, `1`; default: `0` 1 表示替换当前持久订阅者快照。
+
+          temp_subscriber `integer` const: `0`; default: `0` 必须保持为 0；临时订阅者使用
+          /tmpchannel/subscriber_set。
+
+          subscribers array<`NonBlankUID`> minItems: 1 非空且元素非空白的持久订阅者 UID。
+
+          1 表示替换当前持久订阅者快照。
+
+          NonBlankUID
+
+          至少包含一个非空白字符的业务用户身份。
+
+          POST /channel/subscriber_remove_all
+
+          removeAllChannelSubscribers
+
+          移除 Channel 的全部持久订阅者
+
+          通过内部有界遍历移除完整持久订阅者集合。个人 Channel 会被拒绝。此操作不会删除或解散 Channel。
+
+          NonPersonChannelKeyRequest
+
+          channel_type `integer` 2–255 subscriber_remove_all 要求的非个人 Channel
+          Type。
+
+          POST /tmpchannel/subscriber_set
+
+          setTemporaryChannelSubscribers
+
+          替换临时 Channel 订阅者
+
+          替换 channel_id 所标识的内部临时 Channel（Channel Type 8）的完整成员集合。临时 membership
+          与普通持久订阅者变更相互独立。
+
+          TemporarySubscriberSetRequest
+
+          uids array<`UID`> minItems: 1 完整的临时订阅者快照。
+
+          POST /channel/blacklist_add
+
+          addChannelDenylistMembers
+
+          添加 Channel 黑名单成员
+
+          向 Channel 范围的拒绝列表添加 UID。当前兼容路径保留 blacklist 命名；领域行为是 denylist 变更。
+
+          ChannelMemberMutationRequest
+
+          channel_type `integer` 1–255 拥有派生 allowlist 或 denylist 的 Channel Type。
+
+          uids array<`UID`> minItems: 1 要添加或移除的 UID。
+
+          POST /channel/blacklist_remove
+
+          removeChannelDenylistMembers
+
+          移除 Channel 黑名单成员
+
+          从 Channel 范围的拒绝列表中移除给定 UID。
+
+          POST /channel/blacklist_remove_all
+
+          removeAllChannelDenylistMembers
+
+          移除 Channel 的全部黑名单成员
+
+          通过内部有界遍历清空 Channel 范围的拒绝列表。
+
+          ChannelKeyRequest
+
+          channel_type `integer` 1–255 拥有派生成员列表的 Channel Type。
+
+          POST /channel/whitelist_add
+
+          addChannelAllowlistMembers
+
+          添加 Channel 白名单成员
+
+          向 Channel 范围的允许列表添加非空 UID。当前兼容路径保留 whitelist 命名；领域行为是 allowlist 变更。
+
+          ChannelAllowlistMutationRequest
+
+          channel_type `integer` 1–255 拥有派生 allowlist 的 Channel Type。
+
+          uids array<`NonBlankUID`> minItems: 1 要添加或移除的非空白 UID。
+
+          POST /channel/whitelist_remove
+
+          removeChannelAllowlistMembers
+
+          移除 Channel 白名单成员
+
+          从 Channel 范围的允许列表中移除给定非空 UID。
+
+          POST /channel/whitelist_remove_all
+
+          removeAllChannelAllowlistMembers
+
+          移除 Channel 的全部白名单成员
+
+          通过内部有界遍历清空 Channel 范围的允许列表。
+---
+
+{/* This file is generated from the Product HTTP management OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
+
+export default function Layout(props) {
+  const { APIPage, OpenAPIPage } = props.components ?? {};
+  // "APIPage" is the old name from v10, this allows both for backward compatibility
+  const Comp = OpenAPIPage ?? APIPage;
+  return (
+    <>
+      {props.children}
+      <Comp document="wukongim-product-http-management-beta-zh" webhooks={[]} operations={[{"path":"/channel","method":"post"},{"path":"/channel/subscriber_add","method":"post"},{"path":"/channel/subscriber_remove_all","method":"post"},{"path":"/tmpchannel/subscriber_set","method":"post"},{"path":"/channel/blacklist_add","method":"post"},{"path":"/channel/blacklist_remove","method":"post"},{"path":"/channel/blacklist_remove_all","method":"post"},{"path":"/channel/whitelist_add","method":"post"},{"path":"/channel/whitelist_remove","method":"post"},{"path":"/channel/whitelist_remove_all","method":"post"}]} showTitle showDescription />
+    </>
+  );
+}
+
+## 目标与完成标准
+
+本页发布 10 个经过源码与入口测试校准的 Channel 管理操作。完成后，受信业务后端应能说明每次变更影响的是 Channel 元数据、持久订阅者、临时订阅者，还是派生的允许/拒绝名单，并且不会让浏览器直连 Product HTTP。
+
+## 信任与兼容边界
+
+这些入口没有自身的业务鉴权中间件。OpenAPI 中的 `security: []` 是对当前运行时事实的描述，**不是匿名公网调用许可**。调用方必须位于受信网络或鉴权代理之后，由业务后端验证租户、操作者、Channel 与 UID 权限。
+
+当前路径沿用兼容命名：`blacklist` 对应领域 denylist，`whitelist` 对应 allowlist。整数标志只有值恰好为 `1` 时表示 true。`ChannelSubscriberAddRequest.subscribers` 与 `ChannelAllowlistMutationRequest.uids` 使用 `NonBlankUID`；其 `\S` pattern 与运行时拒绝纯空白成员的规则一致。
+
+成功变更返回 `{"status":200}`；校验、路由与存储错误使用 `CompatibilityError`，通常为 `400 {"msg","status":400}`；恢复维护栅栏使用 `MaintenanceError`：`503 {"error":"maintenance","message":"restore maintenance is active"}`。
+
+## 高规模语义
+
+- `/channel/subscriber_add` 可以用 `reset=1` 替换快照，但 100,000 成员群应由业务后端分批控制输入与重试，不能依赖一个无界 JSON 请求；
+- remove-all 操作在服务端使用有界内部遍历，不会把完整成员列表读回调用方；
+- 普通持久订阅者与 `/tmpchannel/subscriber_set` 的临时成员是不同命名空间；
+- allowlist 与 denylist 也是由 Channel 键派生的独立成员集合；
+- 个人 Channel（Type 1）不接受普通订阅者维护。
+
+## 暂缓发布的现存路由
+
+以下路由确实存在，但当前行为不足以成为本 Beta 合同的一部分：
+
+| 路径 | 暂缓原因 |
+| --- | --- |
+| `POST /channel/info` | 无字段校验且实际是完整覆盖，不是名称容易暗示的 partial patch。 |
+| `POST /channel/delete` | key 校验不足，实际行为是不可逆 disband 而非物理删除，错误文案也不准确。 |
+| `POST /channel/subscriber_remove` | 省略 `channel_type` 时传入 0，与 add 的兼容默认 group 行为不一致。 |
+| `POST /channel/blacklist_set` | 只校验 `channel_id`，允许 type 0 与空名单进入 replace 路径。 |
+| `POST /channel/whitelist_set` | 与 blacklist set 相同，尚无一致的强校验合同。 |
+| `GET /channel/whitelist` | query 未校验，并聚合完整名单形成无界响应，不符合 100,000 成员规模要求。 |
+
+源码存在不等于公开支持。调用方不得从旧版 `resources/api/openapi.json` 补齐这些缺口；该文件包含已删除路由与过时响应结构。
+
+## 错误与诊断
+
+- **返回 400 且文本不稳定**：按 HTTP 状态分支，并记录经过脱敏的 `msg`；不要枚举或解析当前中英文错误文本。
+- **Channel Type 1 的 subscriber 操作失败**：个人 Channel membership 由个人关系与消息路径维护，不要转成群组订阅操作。
+- **临时成员被 subscriber_add 拒绝**：使用 `/tmpchannel/subscriber_set`，不要发送 `temp_subscriber=1`。
+- **503 maintenance**：有界退避并观察 `/readyz`；不要绕过到节点本地路径。
+
+## OpenAPI 合同
+
+本页由独立的非穷举 Product HTTP 管理 OpenAPI 3.1 合同按 `Channels` tag 生成。可下载[管理子集合同](/contracts/product-http-management.openapi.json)。黄金路径继续固定三操作白名单与 receipt 边界；Phase 16 仅把其共享维护响应 Schema 重新校准到当前运行时。两者不能合并解释为完整 v3 API。

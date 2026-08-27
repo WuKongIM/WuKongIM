@@ -1,0 +1,1189 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WuKongIM Trusted Product Management Beta Subset",
+    "version": "3.0.0-beta-snapshot",
+    "description": "A deliberately non-exhaustive Product HTTP contract for reviewed Channel management and canonical Conversation synchronization. Every operation is for a trusted backend or operator boundary. The default server composition does not authenticate these routes."
+  },
+  "x-wukongim-scope": "non-exhaustive-trusted-product-management-beta",
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5001",
+      "description": "Default Product HTTP listener for a local single-node cluster"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Channels",
+      "description": "Reviewed Channel metadata, durable subscriber, temporary subscriber, denylist, and allowlist mutations.",
+      "x-i18n": {
+        "zh": {
+          "description": "经过校准的 Channel 元数据、持久订阅者、临时订阅者、黑名单与白名单变更入口。"
+        }
+      }
+    },
+    {
+      "name": "Conversations",
+      "description": "Canonical bounded Conversation-list synchronization, retries, badge floors, hiding, and explicit activation.",
+      "x-i18n": {
+        "zh": {
+          "description": "Canonical 有界会话列表同步、重试、红点下界、隐藏与显式激活入口。"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/channel": {
+      "post": {
+        "operationId": "upsertChannel",
+        "summary": "Create or update Channel metadata",
+        "description": "Creates or updates one Channel. Integer flags are true only when exactly 1. With reset=1 the durable subscriber snapshot is replaced; a person Channel cannot carry subscribers. Disband is terminal in the current runtime and is not cleared by a later upsert.",
+        "x-i18n": {
+          "zh": {
+            "summary": "创建或更新 Channel 元数据",
+            "description": "创建或更新一个 Channel。整数标志仅在值恰好为 1 时为 true。reset=1 会替换持久订阅者快照；个人 Channel 不能携带 subscribers。当前运行时中的 disband 是终态，后续 upsert 不会清除它。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"reset\":1,\"subscribers\":[\"alice\",\"bob\"]}'",
+            "x-i18n": {
+              "zh": {
+                "label": "受信后端（cURL）",
+                "source": "# 只在受信后端或运维边界运行。\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"reset\":1,\"subscribers\":[\"alice\",\"bob\"]}'"
+              }
+            }
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelUpsertRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/subscriber_add": {
+      "post": {
+        "operationId": "addChannelSubscribers",
+        "summary": "Add or replace durable Channel subscribers",
+        "description": "Adds durable subscribers, creating empty Channel metadata if needed. Omitting channel_type (or sending 0) selects group type 2 for compatibility. reset=1 replaces the subscriber snapshot. Person Channels and temp_subscriber=1 are rejected; use /tmpchannel/subscriber_set for temporary membership.",
+        "x-i18n": {
+          "zh": {
+            "summary": "添加或替换 Channel 持久订阅者",
+            "description": "添加持久订阅者；必要时会先创建空 Channel 元数据。兼容行为中省略 channel_type（或传 0）会选择群组类型 2。reset=1 替换订阅者快照。个人 Channel 与 temp_subscriber=1 会被拒绝；临时成员应使用 /tmpchannel/subscriber_set。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/subscriber_add \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"reset\":0,\"temp_subscriber\":0,\"subscribers\":[\"carol\"]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelSubscriberAddRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/subscriber_remove_all": {
+      "post": {
+        "operationId": "removeAllChannelSubscribers",
+        "summary": "Remove all durable Channel subscribers",
+        "description": "Removes the complete durable subscriber set through bounded internal traversal. Person Channels are rejected. This does not delete or disband the Channel.",
+        "x-i18n": {
+          "zh": {
+            "summary": "移除 Channel 的全部持久订阅者",
+            "description": "通过内部有界遍历移除完整持久订阅者集合。个人 Channel 会被拒绝。此操作不会删除或解散 Channel。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/subscriber_remove_all \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NonPersonChannelKeyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/tmpchannel/subscriber_set": {
+      "post": {
+        "operationId": "setTemporaryChannelSubscribers",
+        "summary": "Replace temporary Channel subscribers",
+        "description": "Replaces the complete member set of the internal temporary Channel (Channel Type 8) identified by channel_id. Temporary membership is separate from ordinary durable subscriber mutation.",
+        "x-i18n": {
+          "zh": {
+            "summary": "替换临时 Channel 订阅者",
+            "description": "替换 channel_id 所标识的内部临时 Channel（Channel Type 8）的完整成员集合。临时 membership 与普通持久订阅者变更相互独立。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/tmpchannel/subscriber_set \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"ephemeral-42\",\"uids\":[\"alice\",\"bob\"]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TemporarySubscriberSetRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_add": {
+      "post": {
+        "operationId": "addChannelDenylistMembers",
+        "summary": "Add Channel denylist members",
+        "description": "Adds UIDs to the Channel-scoped denylist. The current compatibility path retains the blacklist name; the domain behavior is a denylist mutation.",
+        "x-i18n": {
+          "zh": {
+            "summary": "添加 Channel 黑名单成员",
+            "description": "向 Channel 范围的拒绝列表添加 UID。当前兼容路径保留 blacklist 命名；领域行为是 denylist 变更。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/blacklist_add \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"uids\":[\"blocked-user\"]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelMemberMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_remove": {
+      "post": {
+        "operationId": "removeChannelDenylistMembers",
+        "summary": "Remove Channel denylist members",
+        "description": "Removes the listed UIDs from the Channel-scoped denylist.",
+        "x-i18n": {
+          "zh": {
+            "summary": "移除 Channel 黑名单成员",
+            "description": "从 Channel 范围的拒绝列表中移除给定 UID。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/blacklist_remove \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"uids\":[\"blocked-user\"]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelMemberMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_remove_all": {
+      "post": {
+        "operationId": "removeAllChannelDenylistMembers",
+        "summary": "Remove all Channel denylist members",
+        "description": "Clears the Channel-scoped denylist through bounded internal traversal.",
+        "x-i18n": {
+          "zh": {
+            "summary": "移除 Channel 的全部黑名单成员",
+            "description": "通过内部有界遍历清空 Channel 范围的拒绝列表。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/blacklist_remove_all \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelKeyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_add": {
+      "post": {
+        "operationId": "addChannelAllowlistMembers",
+        "summary": "Add Channel allowlist members",
+        "description": "Adds non-empty UIDs to the Channel-scoped allowlist. The current compatibility path retains the whitelist name; the domain behavior is an allowlist mutation.",
+        "x-i18n": {
+          "zh": {
+            "summary": "添加 Channel 白名单成员",
+            "description": "向 Channel 范围的允许列表添加非空 UID。当前兼容路径保留 whitelist 命名；领域行为是 allowlist 变更。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/whitelist_add \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"uids\":[\"moderator\"]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelAllowlistMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_remove": {
+      "post": {
+        "operationId": "removeChannelAllowlistMembers",
+        "summary": "Remove Channel allowlist members",
+        "description": "Removes the listed non-empty UIDs from the Channel-scoped allowlist.",
+        "x-i18n": {
+          "zh": {
+            "summary": "移除 Channel 白名单成员",
+            "description": "从 Channel 范围的允许列表中移除给定非空 UID。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/whitelist_remove \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2,\"uids\":[\"moderator\"]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelAllowlistMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_remove_all": {
+      "post": {
+        "operationId": "removeAllChannelAllowlistMembers",
+        "summary": "Remove all Channel allowlist members",
+        "description": "Clears the Channel-scoped allowlist through bounded internal traversal.",
+        "x-i18n": {
+          "zh": {
+            "summary": "移除 Channel 的全部白名单成员",
+            "description": "通过内部有界遍历清空 Channel 范围的允许列表。"
+          }
+        },
+        "tags": ["Channels"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend or operator boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/whitelist_remove_all \\\n  --header 'content-type: application/json' \\\n  --data '{\"channel_id\":\"team-42\",\"channel_type\":2}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChannelKeyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversation/list": {
+      "post": {
+        "operationId": "listConversations",
+        "summary": "Synchronize one bounded Conversation page",
+        "description": "Canonical endpoint that incrementally scans a UID-owned membership page, hydrates current Channel heads, and returns visible conversations, deletions, and retryable keys. Treat next_cursor as opaque and continue until done=true; an empty page is not proof of completion.",
+        "x-i18n": {
+          "zh": {
+            "summary": "同步一页有界会话",
+            "description": "Canonical 入口会增量扫描 UID 所属的一页 membership，读取当前 Channel head，并返回可见会话、删除项和待重试键。next_cursor 必须视为不透明值并持续请求到 done=true；空页不代表完成。"
+          }
+        },
+        "tags": ["Conversations"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversation/list \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"cursor\":\"\",\"limit\":50,\"completed_coverage\":0}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConversationListRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ConversationPage" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversation/retry": {
+      "post": {
+        "operationId": "retryConversations",
+        "summary": "Retry unresolved Conversation keys",
+        "description": "Re-reads at most 200 unresolved keys without rewinding the completed list coverage. Duplicate keys are coalesced. Person-Channel input uses the peer UID. The response separates rebuilt conversations, deleted keys, and keys that remain unresolved.",
+        "x-i18n": {
+          "zh": {
+            "summary": "重试未解析的会话键",
+            "description": "重新读取最多 200 个未解析键，不回退已完成的列表 coverage。重复键会合并。个人 Channel 输入使用对端 UID。响应分别返回已重建会话、已删除键和仍未解析键。"
+          }
+        },
+        "tags": ["Conversations"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversation/retry \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"channels\":[{\"channel_id\":\"team-42\",\"channel_type\":2}]}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConversationRetryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ConversationPage" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/clearUnread": {
+      "post": {
+        "operationId": "clearConversationUnread",
+        "summary": "Clear a Conversation unread badge",
+        "description": "Monotonically advances read_seq to the latest committed Channel head. The request does not accept message_seq; an extra legacy message_seq field is ignored by the runtime and is intentionally absent from this contract.",
+        "x-i18n": {
+          "zh": {
+            "summary": "清除会话未读红点",
+            "description": "把 read_seq 单调推进到最新已提交 Channel head。请求不接收 message_seq；运行时会忽略额外的旧 message_seq 字段，因此本合同刻意不发布它。"
+          }
+        },
+        "tags": ["Conversations"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversations/clearUnread \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"channel_id\":\"team-42\",\"channel_type\":2}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConversationMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/setUnread": {
+      "post": {
+        "operationId": "setConversationUnread",
+        "summary": "Reduce a Conversation unread badge",
+        "description": "Advances read_seq so at most unread messages remain. It never moves read_seq backwards, so it cannot increase an unread count. This contract requires unread explicitly even though omitted JSON currently decodes as zero.",
+        "x-i18n": {
+          "zh": {
+            "summary": "降低会话未读红点",
+            "description": "推进 read_seq，使剩余未读消息至多为 unread。它不会倒退 read_seq，因此不能增加未读数。尽管当前运行时会把缺省 JSON 值解码为 0，本合同仍要求显式提供 unread。"
+          }
+        },
+        "tags": ["Conversations"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversations/setUnread \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"channel_id\":\"team-42\",\"channel_type\":2,\"unread\":3}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConversationSetUnreadRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/delete": {
+      "post": {
+        "operationId": "hideConversation",
+        "summary": "Hide a Conversation through the current head",
+        "description": "Persists deleted_to_seq through the latest committed Channel head for this user. It does not delete the Channel or membership; a later committed message can make the Conversation visible again. message_seq is not a request field.",
+        "x-i18n": {
+          "zh": {
+            "summary": "把会话隐藏到当前 head",
+            "description": "为该用户把 deleted_to_seq 持久推进到最新已提交 Channel head。它不会删除 Channel 或 membership；后续已提交消息可使会话再次可见。message_seq 不是请求字段。"
+          }
+        },
+        "tags": ["Conversations"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversations/delete \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"channel_id\":\"team-42\",\"channel_type\":2}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConversationMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/activate": {
+      "post": {
+        "operationId": "activateConversation",
+        "summary": "Record explicit Conversation activation",
+        "description": "Records an explicit open, switch, or restore action in activated_at so the Conversation is prioritized in later list synchronization. Send, receive, delivery, and pull paths do not activate it implicitly.",
+        "x-i18n": {
+          "zh": {
+            "summary": "记录显式会话激活",
+            "description": "在 activated_at 中记录显式打开、切换或恢复动作，使该会话在后续列表同步中优先。发送、接收、投递和拉取路径不会隐式激活它。"
+          }
+        },
+        "tags": ["Conversations"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversations/activate \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"channel_id\":\"team-42\",\"channel_type\":2}'"
+          }
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConversationMutationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MutationAccepted" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "MutationAccepted": {
+        "description": "Mutation completed",
+        "x-i18n": { "zh": { "description": "变更已完成" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MutationStatus" },
+            "example": { "status": 200 }
+          }
+        }
+      },
+      "ConversationPage": {
+        "description": "Bounded Conversation synchronization result",
+        "x-i18n": { "zh": { "description": "有界会话同步结果" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ConversationListResponse" },
+            "example": {
+              "conversations": [
+                {
+                  "channel_id": "team-42",
+                  "channel_type": 2,
+                  "active_at": 1720000000000000000,
+                  "read_seq": 8,
+                  "deleted_to_seq": 0,
+                  "unread": 2,
+                  "last_message": {
+                    "message_id": 1234567890,
+                    "message_idstr": "1234567890",
+                    "message_seq": 10,
+                    "from_uid": "bob",
+                    "client_msg_no": "client-10",
+                    "server_timestamp_ms": 1720000000000,
+                    "payload": "eyJ0eXBlIjoxLCJjb250ZW50IjoiaGkifQ=="
+                  }
+                }
+              ],
+              "deletes": [],
+              "unresolved": [],
+              "next_cursor": "AQ...",
+              "done": false,
+              "coverage": 1720000000000000000,
+              "tombstones_retained_since": 0,
+              "reset_required": false
+            }
+          }
+        }
+      },
+      "CompatibilityBadRequest": {
+        "description": "Malformed input, failed validation, unavailable routing, or a use-case/storage error",
+        "x-i18n": {
+          "zh": {
+            "description": "输入格式错误、校验失败、路由不可用，或 usecase/存储错误"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CompatibilityError" },
+            "example": { "msg": "invalid request", "status": 400 }
+          }
+        }
+      },
+      "MaintenanceUnavailable": {
+        "description": "Restore maintenance is active; back off and observe /readyz",
+        "x-i18n": {
+          "zh": {
+            "description": "恢复维护已启用；请退避并观察 /readyz"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MaintenanceError" },
+            "example": {
+              "error": "maintenance",
+              "message": "restore maintenance is active"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "MutationStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "const": 200,
+            "description": "Compatibility success status, always 200.",
+            "x-i18n": { "zh": { "description": "兼容成功状态，固定为 200。" } }
+          }
+        }
+      },
+      "CompatibilityError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["msg", "status"],
+        "properties": {
+          "msg": {
+            "type": "string",
+            "description": "Human-readable runtime message; exact text is not a stable machine contract.",
+            "x-i18n": { "zh": { "description": "供人阅读的运行时消息；精确文本不是稳定的机器合同。" } }
+          },
+          "status": {
+            "type": "integer",
+            "const": 400,
+            "description": "Compatibility business-error status, always 400 on these routes.",
+            "x-i18n": { "zh": { "description": "这些入口的兼容业务错误状态固定为 400。" } }
+          }
+        }
+      },
+      "MaintenanceError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "const": "maintenance",
+            "description": "Machine-readable restore-maintenance category.",
+            "x-i18n": { "zh": { "description": "机器可读的恢复维护类别。" } }
+          },
+          "message": {
+            "type": "string",
+            "const": "restore maintenance is active",
+            "description": "Current maintenance detail.",
+            "x-i18n": { "zh": { "description": "当前维护详情。" } }
+          }
+        }
+      },
+      "BinaryFlag": {
+        "type": "integer",
+        "enum": [0, 1],
+        "default": 0,
+        "description": "Compatibility integer flag; only 1 means true.",
+        "x-i18n": { "zh": { "description": "兼容整数标志；只有 1 表示 true。" } }
+      },
+      "ChannelUpsertRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type. Type 1 is a person Channel and cannot include subscribers.",
+            "x-i18n": { "zh": { "description": "Channel Type。类型 1 是个人 Channel，不能包含 subscribers。" } }
+          },
+          "large": { "$ref": "#/components/schemas/BinaryFlag" },
+          "ban": { "$ref": "#/components/schemas/BinaryFlag" },
+          "disband": { "$ref": "#/components/schemas/BinaryFlag" },
+          "send_ban": { "$ref": "#/components/schemas/BinaryFlag" },
+          "allow_stranger": { "$ref": "#/components/schemas/BinaryFlag" },
+          "reset": {
+            "$ref": "#/components/schemas/BinaryFlag",
+            "description": "1 replaces the durable subscriber snapshot before applying subscribers.",
+            "x-i18n": { "zh": { "description": "1 表示在应用 subscribers 前替换持久订阅者快照。" } }
+          },
+          "subscribers": {
+            "type": "array",
+            "description": "Durable subscriber UIDs. Do not supply them for a person Channel.",
+            "x-i18n": { "zh": { "description": "持久订阅者 UID；个人 Channel 不得提供。" } },
+            "items": { "$ref": "#/components/schemas/UID" }
+          }
+        }
+      },
+      "ChannelSubscriberAddRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "subscribers"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "default": 2,
+            "description": "Omitted or 0 selects group type 2. Type 1 is rejected.",
+            "x-i18n": { "zh": { "description": "省略或传 0 会选择群组类型 2；类型 1 会被拒绝。" } }
+          },
+          "reset": {
+            "$ref": "#/components/schemas/BinaryFlag",
+            "description": "1 replaces the current durable subscriber snapshot.",
+            "x-i18n": { "zh": { "description": "1 表示替换当前持久订阅者快照。" } }
+          },
+          "temp_subscriber": {
+            "type": "integer",
+            "const": 0,
+            "default": 0,
+            "description": "Must remain 0. Temporary subscribers use /tmpchannel/subscriber_set.",
+            "x-i18n": { "zh": { "description": "必须保持为 0；临时订阅者使用 /tmpchannel/subscriber_set。" } }
+          },
+          "subscribers": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Non-empty, non-blank durable subscriber UIDs.",
+            "x-i18n": { "zh": { "description": "非空且元素非空白的持久订阅者 UID。" } },
+            "items": { "$ref": "#/components/schemas/NonBlankUID" }
+          }
+        }
+      },
+      "ChannelKeyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type owning the derived member list.",
+            "x-i18n": { "zh": { "description": "拥有派生成员列表的 Channel Type。" } }
+          }
+        }
+      },
+      "NonPersonChannelKeyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 255,
+            "description": "Non-person Channel Type required by subscriber_remove_all.",
+            "x-i18n": { "zh": { "description": "subscriber_remove_all 要求的非个人 Channel Type。" } }
+          }
+        }
+      },
+      "TemporarySubscriberSetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "uids"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "uids": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Complete temporary subscriber snapshot.",
+            "x-i18n": { "zh": { "description": "完整的临时订阅者快照。" } },
+            "items": { "$ref": "#/components/schemas/UID" }
+          }
+        }
+      },
+      "ChannelMemberMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type", "uids"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type owning the derived allowlist or denylist.",
+            "x-i18n": { "zh": { "description": "拥有派生 allowlist 或 denylist 的 Channel Type。" } }
+          },
+          "uids": {
+            "type": "array",
+            "minItems": 1,
+            "description": "UIDs to add or remove.",
+            "x-i18n": { "zh": { "description": "要添加或移除的 UID。" } },
+            "items": { "$ref": "#/components/schemas/UID" }
+          }
+        }
+      },
+      "ChannelAllowlistMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type", "uids"],
+        "properties": {
+          "channel_id": { "$ref": "#/components/schemas/ChannelID" },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type owning the derived allowlist.",
+            "x-i18n": { "zh": { "description": "拥有派生 allowlist 的 Channel Type。" } }
+          },
+          "uids": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Non-blank UIDs to add or remove.",
+            "x-i18n": { "zh": { "description": "要添加或移除的非空白 UID。" } },
+            "items": { "$ref": "#/components/schemas/NonBlankUID" }
+          }
+        }
+      },
+      "ChannelID": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^#@]+$",
+        "description": "Business Channel identifier; the published contract excludes # and @ namespace separators.",
+        "x-i18n": { "zh": { "description": "业务 Channel 标识；已发布合同排除 # 与 @ namespace 分隔符。" } }
+      },
+      "UID": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Non-empty product user identity.",
+        "x-i18n": { "zh": { "description": "非空业务用户身份。" } }
+      },
+      "NonBlankUID": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S",
+        "description": "Product user identity containing at least one non-whitespace character.",
+        "x-i18n": { "zh": { "description": "至少包含一个非空白字符的业务用户身份。" } }
+      },
+      "ConversationListRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uid"],
+        "properties": {
+          "uid": { "$ref": "#/components/schemas/UID" },
+          "cursor": {
+            "type": "string",
+            "default": "",
+            "description": "Opaque base64url next_cursor returned by the previous page. Do not construct or edit it.",
+            "x-i18n": { "zh": { "description": "上一页返回的不透明 base64url next_cursor；不要构造或修改。" } }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200,
+            "default": 50,
+            "description": "Membership candidates scanned per page. Omitted or 0 selects 50.",
+            "x-i18n": { "zh": { "description": "每页扫描的 membership 候选数；省略或 0 会选择 50。" } }
+          },
+          "completed_coverage": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "default": 0,
+            "description": "Coverage saved from a previous pass only after that pass returned done=true.",
+            "x-i18n": { "zh": { "description": "仅在上一次完整遍历返回 done=true 后保存并回传的 coverage。" } }
+          }
+        }
+      },
+      "ConversationRetryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uid", "channels"],
+        "properties": {
+          "uid": { "$ref": "#/components/schemas/UID" },
+          "channels": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "description": "Unresolved keys returned by /conversation/list or a previous retry.",
+            "x-i18n": { "zh": { "description": "由 /conversation/list 或上一次重试返回的未解析键。" } },
+            "items": { "$ref": "#/components/schemas/ConversationKey" }
+          }
+        }
+      },
+      "ConversationMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uid", "channel_id", "channel_type"],
+        "properties": {
+          "uid": { "$ref": "#/components/schemas/UID" },
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Visible Channel ID. For Channel Type 1, use the peer UID.",
+            "x-i18n": { "zh": { "description": "可见 Channel ID；Channel Type 1 使用对端 UID。" } }
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type.",
+            "x-i18n": { "zh": { "description": "Channel Type。" } }
+          }
+        }
+      },
+      "ConversationSetUnreadRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uid", "channel_id", "channel_type", "unread"],
+        "properties": {
+          "uid": { "$ref": "#/components/schemas/UID" },
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Visible Channel ID. For Channel Type 1, use the peer UID.",
+            "x-i18n": { "zh": { "description": "可见 Channel ID；Channel Type 1 使用对端 UID。" } }
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type.",
+            "x-i18n": { "zh": { "description": "Channel Type。" } }
+          },
+          "unread": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Maximum unread count to leave after monotonically advancing read_seq.",
+            "x-i18n": { "zh": { "description": "单调推进 read_seq 后最多保留的未读数。" } }
+          }
+        }
+      },
+      "ConversationListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["conversations", "deletes", "unresolved", "done", "coverage", "tombstones_retained_since", "reset_required"],
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "description": "Visible hydrated Conversations from this membership page.",
+            "x-i18n": { "zh": { "description": "本 membership 页中已 hydrate 的可见会话。" } },
+            "items": { "$ref": "#/components/schemas/ConversationListItem" }
+          },
+          "deletes": {
+            "type": "array",
+            "description": "Keys the client must remove from its local Conversation projection.",
+            "x-i18n": { "zh": { "description": "客户端必须从本地会话投影中移除的键。" } },
+            "items": { "$ref": "#/components/schemas/ConversationKey" }
+          },
+          "unresolved": {
+            "type": "array",
+            "description": "Keys whose Channel head was temporarily unavailable; retry them with /conversation/retry.",
+            "x-i18n": { "zh": { "description": "Channel head 暂时不可用的键；使用 /conversation/retry 重试。" } },
+            "items": { "$ref": "#/components/schemas/ConversationKey" }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Opaque cursor for the next page. It can be present on an empty page.",
+            "x-i18n": { "zh": { "description": "下一页的不透明游标；空页也可能携带它。" } }
+          },
+          "done": {
+            "type": "boolean",
+            "description": "True only when this full membership traversal is complete.",
+            "x-i18n": { "zh": { "description": "仅在本轮完整 membership 遍历完成时为 true。" } }
+          },
+          "coverage": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Nanosecond coverage token for the current pass. Persist it only after done=true.",
+            "x-i18n": { "zh": { "description": "本轮遍历的纳秒级 coverage token；仅在 done=true 后持久保存。" } }
+          },
+          "tombstones_retained_since": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Oldest deletion coverage still guaranteed; 0 means tombstones have not been expired.",
+            "x-i18n": { "zh": { "description": "仍有保证的最早删除 coverage；0 表示 tombstone 尚未过期。" } }
+          },
+          "reset_required": {
+            "type": "boolean",
+            "description": "True when completed_coverage predates retained tombstones and the local projection must be rebuilt.",
+            "x-i18n": { "zh": { "description": "当 completed_coverage 早于保留的 tombstone 时为 true，此时必须重建本地投影。" } }
+          }
+        }
+      },
+      "ConversationKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Visible Channel ID; a person Conversation uses the peer UID.",
+            "x-i18n": { "zh": { "description": "可见 Channel ID；个人会话使用对端 UID。" } }
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel Type.",
+            "x-i18n": { "zh": { "description": "Channel Type。" } }
+          }
+        }
+      },
+      "ConversationListItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type", "active_at", "read_seq", "deleted_to_seq", "unread", "last_message"],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Visible Channel ID; a person Conversation is projected to the peer UID.",
+            "x-i18n": { "zh": { "description": "可见 Channel ID；个人会话会投影为对端 UID。" } }
+          },
+          "channel_type": { "type": "integer", "minimum": 1, "maximum": 255 },
+          "active_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Nanosecond timestamp of the last explicit activation; 0 means not explicitly activated.",
+            "x-i18n": { "zh": { "description": "最近一次显式激活的纳秒时间戳；0 表示未显式激活。" } }
+          },
+          "read_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Monotonic badge floor. It is not a message pull cursor or a read receipt.",
+            "x-i18n": { "zh": { "description": "单调的红点下界；它不是消息拉取游标或已读回执。" } }
+          },
+          "deleted_to_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Messages through this committed sequence are hidden for this user.",
+            "x-i18n": { "zh": { "description": "截至此已提交 sequence 的消息对该用户隐藏。" } }
+          },
+          "unread": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Unread count after applying join, retention, deletion, own-send, and read floors.",
+            "x-i18n": { "zh": { "description": "应用加入、保留、删除、自发送与已读下界后的未读数。" } }
+          },
+          "last_message": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/ConversationLastMessage" },
+              { "type": "null" }
+            ],
+            "description": "Latest visible committed message, or null when no visible message exists.",
+            "x-i18n": { "zh": { "description": "最新可见的已提交消息；不存在可见消息时为 null。" } }
+          }
+        }
+      },
+      "ConversationLastMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message_id", "message_idstr", "message_seq", "from_uid", "client_msg_no", "server_timestamp_ms", "payload"],
+        "properties": {
+          "message_id": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0,
+            "description": "Numeric server message ID. JavaScript consumers should prefer message_idstr.",
+            "x-i18n": { "zh": { "description": "数值型服务端消息 ID；JavaScript 消费者应优先使用 message_idstr。" } }
+          },
+          "message_idstr": {
+            "type": "string",
+            "description": "Precision-safe decimal server message ID.",
+            "x-i18n": { "zh": { "description": "不会丢失精度的服务端消息 ID 十进制字符串。" } }
+          },
+          "message_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Committed sequence within the Channel.",
+            "x-i18n": { "zh": { "description": "消息在 Channel 内的已提交 sequence。" } }
+          },
+          "from_uid": { "type": "string", "description": "Sender UID." },
+          "client_msg_no": { "type": "string", "description": "Client-generated message identifier." },
+          "server_timestamp_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Server timestamp in Unix milliseconds.",
+            "x-i18n": { "zh": { "description": "Unix 毫秒服务端时间戳。" } }
+          },
+          "payload": {
+            "type": ["string", "null"],
+            "contentEncoding": "base64",
+            "description": "Go JSON representation of payload bytes; nil bytes encode as null.",
+            "x-i18n": { "zh": { "description": "Payload 字节的 Go JSON 表示；nil 字节编码为 null。" } }
+          }
+        }
+      }
+    }
+  }
+}

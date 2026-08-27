@@ -4,10 +4,13 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import openapiDocument from '../contracts/javascript-web-quickstart.openapi.json';
 import {
+  createProductHTTPManagementOpenAPI,
   createProductHTTPOpenAPI,
   localizeOpenAPIDocument,
+  productHTTPManagementOpenAPIPages,
   productHTTPOpenAPIPages,
 } from '../lib/openapi';
+import { getOpenAPISearchStructuredData } from '../lib/openapi-markdown';
 
 type Locale = 'zh' | 'en';
 
@@ -17,6 +20,8 @@ const generatedRoot = resolve(docsRoot, 'content/docs/api/product-http');
 const supplementRoot = resolve(docsRoot, 'content/openapi/product-http');
 const generatedComment =
   'This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly.';
+const managementGeneratedComment =
+  'This file is generated from the Product HTTP management OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly.';
 
 if (mode !== '--check' && mode !== '--write') {
   throw new Error('usage: bun run scripts/generate-openapi.ts --check|--write');
@@ -28,7 +33,7 @@ function pageForOperation(path: string, method: string) {
   );
 }
 
-async function generatedFiles(locale: Locale) {
+async function generatedGoldenPathFiles(locale: Locale) {
   const localized = localizeOpenAPIDocument(openapiDocument, locale) as unknown as {
     paths: Record<string, Record<string, { summary?: string }>>;
   };
@@ -88,15 +93,86 @@ async function generatedFiles(locale: Locale) {
   );
 }
 
-const files = [...(await generatedFiles('zh')), ...(await generatedFiles('en'))].sort((a, b) =>
-  a.path.localeCompare(b.path),
-);
+async function generatedManagementFiles(locale: Locale) {
+  const files = await generateFilesOnly({
+    input: createProductHTTPManagementOpenAPI(locale),
+    per: 'tag',
+    includeDescription: true,
+    addGeneratedComment: managementGeneratedComment,
+    name(output) {
+      if (output.type !== 'page' || !output.tag) {
+        throw new Error(`unexpected management OpenAPI output type: ${output.type}`);
+      }
+      const tagName = output.tag.name;
+      const page = productHTTPManagementOpenAPIPages.find(
+        (candidate) => candidate.tag === tagName,
+      );
+      if (!page) {
+        throw new Error(`OpenAPI tag is outside the published management subset: ${tagName}`);
+      }
+      const generatedOperations = output.operations.map((operation) => ({
+        method: operation.method,
+        path: operation.path,
+      }));
+      if (JSON.stringify(generatedOperations) !== JSON.stringify(page.operations)) {
+        throw new Error(`OpenAPI tag operation list drifted: ${tagName}`);
+      }
+      return `${page.slug}${locale === 'en' ? '.en' : ''}`;
+    },
+    frontmatter(title) {
+      const page = productHTTPManagementOpenAPIPages.find(
+        (candidate) => candidate.tag === title,
+      );
+      if (!page) throw new Error(`missing localized metadata for management page: ${title}`);
+      const structuredData = getOpenAPISearchStructuredData(locale, [
+        'api',
+        'product-http',
+        page.slug,
+      ]);
+      if (!structuredData) {
+        throw new Error(`missing searchable OpenAPI data for management page: ${title}`);
+      }
+      return {
+        title: page.title[locale],
+        description: page.description[locale],
+        full: true,
+        _openapi: { structuredData },
+      };
+    },
+  });
+
+  return Promise.all(
+    files.map(async (file) => {
+      const page = productHTTPManagementOpenAPIPages.find((candidate) =>
+        file.path.startsWith(candidate.slug),
+      );
+      if (!page) throw new Error(`unexpected generated management file: ${file.path}`);
+      const supplementName = `${page.slug}${locale === 'en' ? '.en' : ''}.mdx`;
+      const supplement = await readFile(resolve(supplementRoot, supplementName), 'utf8');
+
+      return {
+        path: file.path,
+        content: `${file.content.trimEnd()}\n\n${supplement.trim()}\n`,
+      };
+    }),
+  );
+}
+
+const files = [
+  ...(await generatedGoldenPathFiles('zh')),
+  ...(await generatedGoldenPathFiles('en')),
+  ...(await generatedManagementFiles('zh')),
+  ...(await generatedManagementFiles('en')),
+].sort((a, b) => a.path.localeCompare(b.path));
 const expectedPaths = new Set(
-  productHTTPOpenAPIPages.flatMap((page) => [`${page.slug}.mdx`, `${page.slug}.en.mdx`]),
+  [...productHTTPOpenAPIPages, ...productHTTPManagementOpenAPIPages].flatMap((page) => [
+    `${page.slug}.mdx`,
+    `${page.slug}.en.mdx`,
+  ]),
 );
 
 if (files.length !== expectedPaths.size || files.some((file) => !expectedPaths.has(file.path))) {
-  throw new Error('generated OpenAPI pages differ from the bounded bilingual page registry');
+  throw new Error('generated OpenAPI pages differ from the bilingual page registries');
 }
 
 const drifted: string[] = [];

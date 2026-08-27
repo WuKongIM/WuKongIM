@@ -1,11 +1,11 @@
 ---
 title: API Versions & Compatibility
-description: Check the golden-path Product HTTP subset, client protocol, and server source snapshot.
+description: Separate the receipted golden-path contract from the source-calibrated Product HTTP management contract.
 ---
 
 ## Goal and completion criteria
 
-This page defines the API compatibility target precisely: three Product HTTP entries in one build tuple. Only a matching successful receipt attests that the golden sample and real smoke test covered that exact tuple. It does not mean every repository HTTP route is covered or that v3 has a final stability guarantee.
+This page separates two evidence classes: a golden-scenario receipt for three Product HTTP entries in one build tuple, and current-source calibration for 16 Channel/Conversation management entries. Only a matching successful receipt attests the exact three-entry golden tuple. It attests neither the management contract nor every repository HTTP route, and it is not a final v3 stability guarantee.
 
 ## Compatibility snapshot
 
@@ -13,11 +13,12 @@ This page defines the API compatibility target precisely: three Product HTTP ent
 
 The component above is the only authority for this build's verification state. No receipt means `false/missing`; only a successful exact-tuple receipt means `true/verified`. Declared target values, malformed receipts, and drifted receipts cannot attest a build.
 
-The slice-level OpenAPI contract, `compatibility.json`, page tables, BFF types, and CI must derive from one technical truth. The repository's older OpenAPI material still contains v2 content; Phase 12 does not relabel it as a complete v3 specification.
+The golden-path OpenAPI, `compatibility.json`, page tables, BFF types, and CI must derive from one technical truth. A separate Product HTTP management OpenAPI is calibrated against current entries, DTOs, use cases, and tests and is not written into the golden receipt. The repository's older OpenAPI still contains v2 and removed routes and cannot supply schemas for either contract.
 
 ## Prerequisites
 
 - Keep the older complete OpenAPI distinct from the Phase 12 slice-level contract;
+- keep the three-entry golden contract's evidence distinct from the 16-entry management contract;
 - be able to read the current build revision and verification attestation;
 - allow only trusted backends to reach Product HTTP;
 - rerun the golden scenario when contract, BFF, docs, or runtime changes.
@@ -30,7 +31,9 @@ The slice-level OpenAPI contract, `compatibility.json`, page tables, BFF types, 
 | `GET /route` | Golden-path subset | BFF contract test plus real WebSocket discovery |
 | `POST /channel/messagesync` | Golden-path subset | BFF contract test plus Bob reconnect recovery |
 
-Realtime message sending goes through the JavaScript SDK and Gateway, so `/message/send` is not part of this HTTP subset. Other Product HTTP, operations APIs, webhooks, TCP details, JSON-RPC Schema, and complete OpenAPI remain planned.
+The management contract separately publishes 10 Channel mutations and six canonical Conversation operations. They are source- and entry-test-calibrated but remain “outside golden-scenario attestation”; the `verified` value above is not runtime-smoke evidence for them. See [Channels](/en/api/product-http/channels) and [Conversations](/en/api/product-http/conversations) for the exact scope.
+
+Realtime message sending goes through the JavaScript SDK and Gateway, so `/message/send` belongs to neither HTTP subset. Other unlisted Product HTTP, operations APIs, webhooks, TCP details, JSON-RPC Schema, and complete OpenAPI remain planned.
 
 ## URL and version strategy
 
@@ -43,7 +46,7 @@ Current documentation paths remain `/{lang}/api/...`; they do not move under `/v
 
 ## Expected result
 
-With one snapshot, the BFF creates development identities, discovers a WebSocket address, and recovers a committed message when Bob reconnects. A contract change triggers documentation-integration validation instead of silently changing page fields.
+With one golden snapshot, the BFF creates development identities, discovers a WebSocket address, and recovers a committed message when Bob reconnects. Management-contract changes also trigger documentation-integration validation, but only a future dedicated scenario can provide them with a runtime receipt.
 
 ## Troubleshooting
 
@@ -51,6 +54,7 @@ With one snapshot, the BFF creates development identities, discovers a WebSocket
 - **The HTTP subset passes but SDK send fails:** inspect SDK/protocol compatibility; HTTP success cannot be projected onto Gateway behavior.
 - **The source revision is absent from the snapshot:** mark it unverified and run the complete smoke test.
 - **An older OpenAPI conflicts with this page:** that file is not authoritative for Phase 12; do not use it to expand the published promise.
+- **Management pages are published while `verified=false`:** that field describes only the golden three-entry tuple; use source-calibration gates to judge management-contract alignment.
 
 ## Security and responsibility boundary
 
@@ -58,4 +62,4 @@ API compatibility does not mean the API is safe for public exposure. Default Pro
 
 ## Next step
 
-Read [Conventions](/en/api/conventions), then enter the three published contracts from [Product HTTP API](/en/api/product-http).
+Read [Conventions](/en/api/conventions), then choose either the golden path or trusted-management contract from [Product HTTP API](/en/api/product-http).

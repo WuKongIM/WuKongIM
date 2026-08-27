@@ -1,4 +1,5 @@
 import openapiDocument from '../contracts/javascript-web-quickstart.openapi.json';
+import managementOpenAPIDocument from '../contracts/product-http-management.openapi.json';
 import { createOpenAPI } from 'fumadocs-openapi/server';
 
 type OpenAPIOptions = NonNullable<Parameters<typeof createOpenAPI>[0]>;
@@ -10,6 +11,15 @@ export const productHTTPOpenAPIDocumentId = 'wukongim-product-http-beta';
 export const productHTTPOpenAPIDocumentIds = {
   zh: `${productHTTPOpenAPIDocumentId}-zh`,
   en: `${productHTTPOpenAPIDocumentId}-en`,
+} as const;
+
+/** Stable schema ID embedded into the generated trusted-management pages. */
+export const productHTTPManagementOpenAPIDocumentId =
+  'wukongim-product-http-management-beta';
+
+export const productHTTPManagementOpenAPIDocumentIds = {
+  zh: `${productHTTPManagementOpenAPIDocumentId}-zh`,
+  en: `${productHTTPManagementOpenAPIDocumentId}-en`,
 } as const;
 
 /** Locale metadata and route mapping for the three published OpenAPI operations. */
@@ -46,6 +56,48 @@ export const productHTTPOpenAPIPages = [
   },
 ] as const;
 
+/** Locale metadata and exact operation whitelist for the management Beta pages. */
+export const productHTTPManagementOpenAPIPages = [
+  {
+    slug: 'channels',
+    tag: 'Channels',
+    title: { zh: '频道（Beta 管理子集）', en: 'Channels (Beta Management Subset)' },
+    description: {
+      zh: '通过受信后端管理 Channel 元数据、持久或临时订阅者，以及允许和拒绝名单。',
+      en: 'Manage Channel metadata, durable or temporary subscribers, and allow or deny lists from a trusted backend.',
+    },
+    operations: [
+      { method: 'post', path: '/channel' },
+      { method: 'post', path: '/channel/subscriber_add' },
+      { method: 'post', path: '/channel/subscriber_remove_all' },
+      { method: 'post', path: '/tmpchannel/subscriber_set' },
+      { method: 'post', path: '/channel/blacklist_add' },
+      { method: 'post', path: '/channel/blacklist_remove' },
+      { method: 'post', path: '/channel/blacklist_remove_all' },
+      { method: 'post', path: '/channel/whitelist_add' },
+      { method: 'post', path: '/channel/whitelist_remove' },
+      { method: 'post', path: '/channel/whitelist_remove_all' },
+    ],
+  },
+  {
+    slug: 'conversations',
+    tag: 'Conversations',
+    title: { zh: '会话（Canonical Beta 子集）', en: 'Conversations (Canonical Beta Subset)' },
+    description: {
+      zh: '以有界游标同步会话投影、重试未解析项，并单调维护未读、隐藏与激活状态。',
+      en: 'Synchronize the Conversation projection with bounded cursors, retry unresolved keys, and monotonically maintain unread, hide, and activation state.',
+    },
+    operations: [
+      { method: 'post', path: '/conversation/list' },
+      { method: 'post', path: '/conversation/retry' },
+      { method: 'post', path: '/conversations/clearUnread' },
+      { method: 'post', path: '/conversations/setUnread' },
+      { method: 'post', path: '/conversations/delete' },
+      { method: 'post', path: '/conversations/activate' },
+    ],
+  },
+] as const;
+
 type OpenAPILocale = keyof typeof productHTTPOpenAPIDocumentIds;
 
 /** Applies reviewed x-i18n text without duplicating the OpenAPI structure. */
@@ -79,6 +131,13 @@ function localizedDocument(locale: OpenAPILocale) {
   return localizeOpenAPIDocument(openapiDocument, locale) as unknown as OpenAPISchemaRecord[string];
 }
 
+function localizedManagementDocument(locale: OpenAPILocale) {
+  return localizeOpenAPIDocument(
+    managementOpenAPIDocument,
+    locale,
+  ) as unknown as OpenAPISchemaRecord[string];
+}
+
 /** Creates the one-locale source used by deterministic MDX generation. */
 export function createProductHTTPOpenAPI(locale: OpenAPILocale) {
   return createOpenAPI({
@@ -88,10 +147,22 @@ export function createProductHTTPOpenAPI(locale: OpenAPILocale) {
   });
 }
 
-/** Server-only OpenAPI loader for the bounded JavaScript/Web golden-path contract. */
+/** Creates the one-locale source used by deterministic management-page generation. */
+export function createProductHTTPManagementOpenAPI(locale: OpenAPILocale) {
+  return createOpenAPI({
+    input: {
+      [productHTTPManagementOpenAPIDocumentIds[locale]]:
+        localizedManagementDocument(locale),
+    },
+  });
+}
+
+/** Server-only loader for all published golden-path and management OpenAPI pages. */
 export const openapi = createOpenAPI({
   input: {
     [productHTTPOpenAPIDocumentIds.zh]: localizedDocument('zh'),
     [productHTTPOpenAPIDocumentIds.en]: localizedDocument('en'),
+    [productHTTPManagementOpenAPIDocumentIds.zh]: localizedManagementDocument('zh'),
+    [productHTTPManagementOpenAPIDocumentIds.en]: localizedManagementDocument('en'),
   },
 });

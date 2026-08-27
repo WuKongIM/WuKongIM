@@ -877,8 +877,8 @@ export const domains: DocumentationDomain[] = [
     key: 'api',
     label: text('API 与协议', 'API & Protocols'),
     description: text(
-      '查阅 HTTP API、Webhook 和客户端协议。',
-      'Reference HTTP APIs, webhooks, and client protocols.',
+      '查阅已校准的 HTTP API、公共字典，以及规划中的 Webhook 与客户端协议。',
+      'Reference calibrated HTTP APIs and shared dictionaries, plus planned webhooks and client protocols.',
     ),
     status: 'published',
     pages: [
@@ -886,8 +886,8 @@ export const domains: DocumentationDomain[] = [
         'conventions',
         '通用约定',
         'Conventions',
-        '定义 v3 Beta 黄金路径子集使用的 Base URL、JSON、标识和兼容响应结构。',
-        'Defines base URLs, JSON, identifiers, and compatible response envelopes used by the v3 Beta golden-path subset.',
+        '定义已发布 Product HTTP Beta 子集使用的 Base URL、JSON、标识和兼容响应结构。',
+        'Defines base URLs, JSON, identifiers, and compatible response shapes used by the published Product HTTP Beta subsets.',
       ),
       publishedPage(
         'authentication',
@@ -900,17 +900,17 @@ export const domains: DocumentationDomain[] = [
         'compatibility',
         '版本与兼容性',
         'Versions & Compatibility',
-        '记录黄金路径 HTTP 子集、客户端协议与服务端快照的兼容目标和 receipt 状态。',
-        'Records the compatibility target and receipt status for the golden-path HTTP subset, client protocol, and server snapshot.',
+        '区分有 receipt 的黄金路径合同与源码校准但未纳入场景证明的管理子集。',
+        'Separates the receipted golden-path contract from the source-calibrated management subset outside scenario attestation.',
       ),
     ],
     groups: [
       publishedGroup(
         'product-http',
         '产品 HTTP API（Beta 子集）',
-        'Product HTTP API (Beta subset)',
-        '仅发布 JavaScript 黄金路径声明使用的受信服务端接口。',
-        'Publishes only the trusted server-side endpoints declared by the JavaScript golden path.',
+        'Product HTTP API (Beta subsets)',
+        '发布固定的三操作黄金路径范围与源码校准的受信管理子集；不声称完整 v3 API。',
+        'Publishes the fixed three-operation golden-path scope and a source-calibrated trusted-management subset without claiming a complete v3 API.',
         [
           publishedPage(
             'users',
@@ -919,12 +919,12 @@ export const domains: DocumentationDomain[] = [
             '记录黄金路径用于开发身份准备的 `/user/token` 合同与安全边界。',
             'Documents the `/user/token` contract and security boundary used to prepare golden-path development identities.',
           ),
-          plannedPage(
+          publishedPage(
             'channels',
             '频道',
             'Channels',
-            '频道、订阅者、黑名单、白名单和临时频道接口。',
-            'Channel, subscriber, blacklist, whitelist, and temporary-channel endpoints.',
+            '记录 10 个经过校准的 Channel、持久/临时订阅者与允许/拒绝名单变更入口，并列出暂缓路由。',
+            'Documents 10 calibrated Channel, durable/temporary subscriber, and allow/deny-list mutations with explicit deferrals.',
           ),
           publishedPage(
             'messages',
@@ -933,12 +933,12 @@ export const domains: DocumentationDomain[] = [
             '记录黄金路径用于离线恢复的 `/channel/messagesync` 合同。',
             'Documents the `/channel/messagesync` contract used for golden-path offline recovery.',
           ),
-          plannedPage(
+          publishedPage(
             'conversations',
             '会话',
             'Conversations',
-            '会话列表、同步、未读数和删除接口。',
-            'Conversation list, sync, unread-count, and deletion endpoints.',
+            '记录 6 个 canonical 有界会话同步、重试、未读、隐藏与激活入口。',
+            'Documents six canonical bounded Conversation sync, retry, unread, hide, and activation endpoints.',
           ),
           publishedPage(
             'routing',

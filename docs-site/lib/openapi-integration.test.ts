@@ -73,6 +73,17 @@ describe('Fumadocs OpenAPI integration', () => {
       });
       expect(operation?.['x-codeSamples']?.[0]?.source).toContain('127.0.0.1:5001');
     }
+
+    expect(
+      openapiDocument.components.responses.MaintenanceUnavailable.content["application/json"]
+        .schema.$ref,
+    ).toBe('#/components/schemas/MaintenanceError');
+    expect(openapiDocument.components.schemas.MaintenanceError.properties.error.const).toBe(
+      'maintenance',
+    );
+    expect(openapiDocument.components.schemas.MaintenanceError.properties.message.const).toBe(
+      'restore maintenance is active',
+    );
   });
 
   test('wires the server preload, localized UI, stylesheet, and disabled playground', async () => {

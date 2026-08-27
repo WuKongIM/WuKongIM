@@ -54,6 +54,14 @@ for iOS, Android, Flutter, and Web. Each path pins one released package and
 source revision, provides a trusted-backend Alice/Bob acceptance scaffold, and
 exposes current platform adoption blockers without claiming a new executable
 compatibility receipt.
+Phase 16 publishes the two remaining pages in the Product HTTP group from a
+separate, non-exhaustive management OpenAPI contract: ten reviewed Channel
+mutations and six canonical Conversation operations. It records the missing
+built-in authentication boundary, exact compatibility error shapes, bounded
+Conversation traversal, and explicitly defers weakly validated, unbounded, and
+legacy routes. The Phase 12 three-operation whitelist and receipt remain
+frozen; Phase 16 only corrects their shared restore-maintenance response Schema
+to the current runtime body.
 
 ## Develop
 
@@ -69,9 +77,10 @@ bun run dev
 Open `http://localhost:3000`. The canonical local entry points are `/zh` and
 `/en`.
 
-The three published Product HTTP operation pages are generated from the
-bounded OpenAPI 3.1 contract plus bilingual narrative supplements. After
-changing either source, regenerate and review the tracked MDX:
+Five published Product HTTP pages are generated from two bounded OpenAPI 3.1
+contracts plus bilingual narrative supplements: three one-operation golden
+pages and two tag-grouped management pages containing 16 operations. After
+changing a contract or supplement, regenerate and review the tracked MDX:
 
 ```bash
 bun run openapi:write
@@ -104,6 +113,9 @@ production readiness. Phase 15 also checks exact EasySDK package/source pins,
 bilingual route parity, source-versus-runtime wording, Alice/Bob acceptance,
 listener cleanup, and platform-specific adoption boundaries. Relevant
 sample or runtime-contract changes select the real Chromium integration check.
+Phase 16 also checks the exact management-operation whitelist, explicit route
+deferrals, bilingual tag-page generation, nested Conversation schemas, search
+and LLM output, and continued separation from the golden receipt.
 
 ## Golden-path attestation
 
@@ -158,10 +170,10 @@ WK_DOCS_REQUIRE_VERIFIED=1 bun run test:output
 
 - Edit the full bilingual plan in `lib/navigation.ts`.
 - Run `bun run navigation:write` to update `NAVIGATION.md`.
-- Edit `contracts/javascript-web-quickstart.openapi.json` and
-  `content/openapi/product-http/`, then run `bun run openapi:write`, for the
-  three published Product HTTP operation pages; do not edit their generated
-  files under `content/docs/api/product-http/` directly.
+- Edit `contracts/javascript-web-quickstart.openapi.json`,
+  `contracts/product-http-management.openapi.json`, and
+  `content/openapi/product-http/`, then run `bun run openapi:write`; do not edit
+  generated files under `content/docs/api/product-http/` directly.
 - Add both `page.mdx` and `page.en.mdx` content variants before changing a menu
   entry from `planned` to `published`.
 - Keep planned routes visible, but never include them in public indexes.
@@ -186,3 +198,6 @@ dictionaries, and the platform-support boundary.
 report, production gate, and publication-attestation boundaries.
 `PHASE_15_SPEC.md` defines the source-aligned EasySDK overview and iOS, Android,
 Flutter, and Web tutorial boundaries.
+`PHASE_16_SPEC.md` defines the trusted Product HTTP Channel/Conversation
+management subset, its exact deferrals, and its separation from golden-path
+attestation.

@@ -272,13 +272,13 @@
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/ErrorEnvelope"
+              "$ref": "#/components/schemas/MaintenanceError"
             },
             "examples": {
               "maintenance": {
                 "value": {
-                  "msg": "maintenance",
-                  "status": 503
+                  "error": "maintenance",
+                  "message": "restore maintenance is active"
                 }
               }
             }
@@ -379,6 +379,33 @@
             "x-i18n": {
               "zh": {
                 "description": "与 HTTP 对齐的错误状态。"
+              }
+            }
+          }
+        }
+      },
+      "MaintenanceError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "const": "maintenance",
+            "description": "Machine-readable restore-maintenance category.",
+            "x-i18n": {
+              "zh": {
+                "description": "机器可读的恢复维护类别。"
+              }
+            }
+          },
+          "message": {
+            "type": "string",
+            "const": "restore maintenance is active",
+            "description": "Current maintenance detail.",
+            "x-i18n": {
+              "zh": {
+                "description": "当前维护详情。"
               }
             }
           }

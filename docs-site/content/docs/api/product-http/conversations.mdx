@@ -1,0 +1,195 @@
+---
+title: 会话（Canonical Beta 子集）
+description: 以有界游标同步会话投影、重试未解析项，并单调维护未读、隐藏与激活状态。
+full: true
+_openapi:
+  preload:
+    - wukongim-product-http-management-beta-zh
+  toc:
+    - depth: 2
+      title: 同步一页有界会话
+      url: '#同步一页有界会话'
+    - depth: 2
+      title: 重试未解析的会话键
+      url: '#重试未解析的会话键'
+    - depth: 2
+      title: 清除会话未读红点
+      url: '#清除会话未读红点'
+    - depth: 2
+      title: 降低会话未读红点
+      url: '#降低会话未读红点'
+    - depth: 2
+      title: 把会话隐藏到当前 head
+      url: '#把会话隐藏到当前-head'
+    - depth: 2
+      title: 记录显式会话激活
+      url: '#记录显式会话激活'
+  structuredData:
+    headings:
+      - content: 同步一页有界会话
+        id: 同步一页有界会话
+      - content: 重试未解析的会话键
+        id: 重试未解析的会话键
+      - content: 清除会话未读红点
+        id: 清除会话未读红点
+      - content: 降低会话未读红点
+        id: 降低会话未读红点
+      - content: 把会话隐藏到当前 head
+        id: 把会话隐藏到当前-head
+      - content: 记录显式会话激活
+        id: 记录显式会话激活
+    contents:
+      - content: Canonical 入口会增量扫描 UID 所属的一页 membership，读取当前 Channel
+          head，并返回可见会话、删除项和待重试键。next_cursor 必须视为不透明值并持续请求到 done=true；空页不代表完成。
+        heading: 同步一页有界会话
+      - content: 重新读取最多 200 个未解析键，不回退已完成的列表 coverage。重复键会合并。个人 Channel 输入使用对端
+          UID。响应分别返回已重建会话、已删除键和仍未解析键。
+        heading: 重试未解析的会话键
+      - content: 把 read_seq 单调推进到最新已提交 Channel head。请求不接收 message_seq；运行时会忽略额外的旧
+          message_seq 字段，因此本合同刻意不发布它。
+        heading: 清除会话未读红点
+      - content: 推进 read_seq，使剩余未读消息至多为 unread。它不会倒退 read_seq，因此不能增加未读数。尽管当前运行时会把缺省 JSON
+          值解码为 0，本合同仍要求显式提供 unread。
+        heading: 降低会话未读红点
+      - content: 为该用户把 deleted_to_seq 持久推进到最新已提交 Channel head。它不会删除 Channel 或
+          membership；后续已提交消息可使会话再次可见。message_seq 不是请求字段。
+        heading: 把会话隐藏到当前-head
+      - content: 在 activated_at 中记录显式打开、切换或恢复动作，使该会话在后续列表同步中优先。发送、接收、投递和拉取路径不会隐式激活它。
+        heading: 记录显式会话激活
+      - content: |-
+          POST /conversation/list
+          listConversations
+          同步一页有界会话
+          Canonical 入口会增量扫描 UID 所属的一页 membership，读取当前 Channel head，并返回可见会话、删除项和待重试键。next_cursor 必须视为不透明值并持续请求到 done=true；空页不代表完成。
+          ConversationListRequest
+          additionalProperties false
+          uid `UID` minLength: 1 非空业务用户身份。
+          cursor `string` default: `""` 上一页返回的不透明 base64url next_cursor；不要构造或修改。
+          limit `integer` 0–200; default: `50` 每页扫描的 membership 候选数；省略或 0 会选择 50。
+          completed_coverage `integer:int64` 0–∞; default: `0` 仅在上一次完整遍历返回 done=true 后保存并回传的 coverage。
+          UID
+          非空业务用户身份。
+          200 有界会话同步结果
+          ConversationListResponse
+          conversations array<`ConversationListItem`> — 本 membership 页中已 hydrate 的可见会话。
+          deletes array<`ConversationKey`> — 客户端必须从本地会话投影中移除的键。
+          unresolved array<`ConversationKey`> — Channel head 暂时不可用的键；使用 /conversation/retry 重试。
+          next_cursor `string` — 下一页的不透明游标；空页也可能携带它。
+          done `boolean` — 仅在本轮完整 membership 遍历完成时为 true。
+          coverage `integer:int64` 0–∞ 本轮遍历的纳秒级 coverage token；仅在 done=true 后持久保存。
+          tombstones_retained_since `integer:int64` 0–∞ 仍有保证的最早删除 coverage；0 表示 tombstone 尚未过期。
+          reset_required `boolean` — 当 completed_coverage 早于保留的 tombstone 时为 true，此时必须重建本地投影。
+          ConversationListItem
+          channel_id `string` — 可见 Channel ID；个人会话会投影为对端 UID。
+          channel_type `integer` 1–255
+          active_at `integer:int64` 0–∞ 最近一次显式激活的纳秒时间戳；0 表示未显式激活。
+          read_seq `integer` 0–∞ 单调的红点下界；它不是消息拉取游标或已读回执。
+          deleted_to_seq `integer` 0–∞ 截至此已提交 sequence 的消息对该用户隐藏。
+          unread `integer` 0–∞ 应用加入、保留、删除、自发送与已读下界后的未读数。
+          last_message `ConversationLastMessage` | `null` — 最新可见的已提交消息；不存在可见消息时为 null。
+          ConversationLastMessage
+          message_id `integer:uint64` 0–∞ 数值型服务端消息 ID；JavaScript 消费者应优先使用 message_idstr。
+          message_idstr `string` — 不会丢失精度的服务端消息 ID 十进制字符串。
+          message_seq `integer` 0–∞ 消息在 Channel 内的已提交 sequence。
+          from_uid `string` — Sender UID.
+          client_msg_no `string` — Client-generated message identifier.
+          server_timestamp_ms `integer:int64` 0–∞ Unix 毫秒服务端时间戳。
+          payload `string | null` encoding: base64 Payload 字节的 Go JSON 表示；nil 字节编码为 null。
+          ConversationKey
+          channel_id `string` minLength: 1 可见 Channel ID；个人会话使用对端 UID。
+          channel_type `integer` 1–255 Channel Type。
+          {"conversations":[{"channel_id":"team-42","channel_type":2,"active_at":1720000000000000000,"read_seq":8,"deleted_to_seq":0,"unread":2,"last_message":{"message_id":1234567890,"message_idstr":"1234567890","message_seq":10,"from_uid":"bob","client_msg_no":"client-10","server_timestamp_ms":1720000000000,"payload":"eyJ0eXBlIjoxLCJjb250ZW50IjoiaGkifQ=="}}],"deletes":[],"unresolved":[],"next_cursor":"AQ...","done":false,"coverage":1720000000000000000,"tombstones_retained_since":0,"reset_required":false}
+          400 输入格式错误、校验失败、路由不可用，或 usecase/存储错误
+          CompatibilityError
+          msg `string` — 供人阅读的运行时消息；精确文本不是稳定的机器合同。
+          status `integer` const: `400` 这些入口的兼容业务错误状态固定为 400。
+          {"msg":"invalid request","status":400}
+          503 恢复维护已启用；请退避并观察 /readyz
+          MaintenanceError
+          error `string` const: `"maintenance"` 机器可读的恢复维护类别。
+          message `string` const: `"restore maintenance is active"` 当前维护详情。
+          {"error":"maintenance","message":"restore maintenance is active"}
+          POST /conversation/retry
+          retryConversations
+          重试未解析的会话键
+          重新读取最多 200 个未解析键，不回退已完成的列表 coverage。重复键会合并。个人 Channel 输入使用对端 UID。响应分别返回已重建会话、已删除键和仍未解析键。
+          ConversationRetryRequest
+          channels array<`ConversationKey`> minItems: 1; maxItems: 200 由 /conversation/list 或上一次重试返回的未解析键。
+          POST /conversations/clearUnread
+          clearConversationUnread
+          清除会话未读红点
+          把 read_seq 单调推进到最新已提交 Channel head。请求不接收 message_seq；运行时会忽略额外的旧 message_seq 字段，因此本合同刻意不发布它。
+          ConversationMutationRequest
+          channel_id `string` minLength: 1 可见 Channel ID；Channel Type 1 使用对端 UID。
+          200 变更已完成
+          MutationStatus
+          status `integer` const: `200` 兼容成功状态，固定为 200。
+          {"status":200}
+          POST /conversations/setUnread
+          setConversationUnread
+          降低会话未读红点
+          推进 read_seq，使剩余未读消息至多为 unread。它不会倒退 read_seq，因此不能增加未读数。尽管当前运行时会把缺省 JSON 值解码为 0，本合同仍要求显式提供 unread。
+          ConversationSetUnreadRequest
+          unread `integer` 0–∞ 单调推进 read_seq 后最多保留的未读数。
+          POST /conversations/delete
+          hideConversation
+          把会话隐藏到当前 head
+          为该用户把 deleted_to_seq 持久推进到最新已提交 Channel head。它不会删除 Channel 或 membership；后续已提交消息可使会话再次可见。message_seq 不是请求字段。
+          POST /conversations/activate
+          activateConversation
+          记录显式会话激活
+          在 activated_at 中记录显式打开、切换或恢复动作，使该会话在后续列表同步中优先。发送、接收、投递和拉取路径不会隐式激活它。
+---
+
+{/* This file is generated from the Product HTTP management OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
+
+export default function Layout(props) {
+  const { APIPage, OpenAPIPage } = props.components ?? {};
+  // "APIPage" is the old name from v10, this allows both for backward compatibility
+  const Comp = OpenAPIPage ?? APIPage;
+  return (
+    <>
+      {props.children}
+      <Comp document="wukongim-product-http-management-beta-zh" webhooks={[]} operations={[{"path":"/conversation/list","method":"post"},{"path":"/conversation/retry","method":"post"},{"path":"/conversations/clearUnread","method":"post"},{"path":"/conversations/setUnread","method":"post"},{"path":"/conversations/delete","method":"post"},{"path":"/conversations/activate","method":"post"}]} showTitle showDescription />
+    </>
+  );
+}
+
+## 目标与完成标准
+
+本页发布 canonical 会话投影的 6 个操作：有界列表遍历、未解析项重试，以及清未读、设置未读上限、隐藏和显式激活。完成后，受信业务后端应能持续请求到 `done=true`，独立处理 `deletes` 与 `unresolved`，并在需要时重建本地投影。
+
+## 列表同步状态机
+
+1. 首次调用 `/conversation/list` 时使用空 `cursor`、有界 `limit` 与已保存的 `completed_coverage`；
+2. 应用 `conversations`，删除 `deletes`，把 `unresolved` 交给 `/conversation/retry`；
+3. 即使本页数组为空，只要 `done=false`，仍按原样回传不透明 `next_cursor`；
+4. 只在 `done=true` 后保存本轮 `coverage`；
+5. 若 `reset_required=true`，丢弃陈旧的本地会话投影并从空游标重建。
+
+`read_seq` 是红点计算的单调下界，不是消息拉取游标或已读回执。`unread` 还会应用加入、保留、删除与当前用户最近发送等可见性下界。个人 Channel 的 `channel_id` 在 HTTP 边界投影为对端 UID。
+
+`ConversationListResponse` 通过 `tombstones_retained_since` 支持 reset 判断。每个可见项可携带 nullable `ConversationLastMessage`；消息身份应使用字符串安全的 `message_idstr`，而 JSON 中的 `payload` 是 nullable base64 编码字符串。兼容失败使用 `CompatibilityError`（`400 {"msg","status":400}`）；恢复维护使用 `MaintenanceError`（`503 {"error":"maintenance","message":"restore maintenance is active"}`）。
+
+## 变更语义
+
+- `/conversations/clearUnread` 推进到调用时的最新已提交 head，不接收 `message_seq`；
+- `/conversations/setUnread` 只会向前推进 `read_seq`，因此最多把未读数降低到目标，不能增加未读；
+- `/conversations/delete` 只把该用户的投影隐藏到当前已提交 head，不删除 Channel 或 membership，后续新消息可使它再次出现；
+- `/conversations/activate` 记录显式打开、切换或恢复，发送、接收、投递和拉取不会隐式调用它。
+
+## Legacy 同步暂缓
+
+`POST /conversation/sync` 仍是运行时中的 legacy compatibility 路由，但不属于本 canonical Beta 合同。它使用分隔字符串 `last_msg_seqs`、裸数组响应、旧消息投影和最多 1000 个 candidate 的兼容扫描，且没有 completion/truncation 标志。新集成应使用 `/conversation/list` 与 `/conversation/retry`；旧调用方应在单独完成精确版本校准前保持现状。
+
+## 错误与诊断
+
+- **空页导致提前结束**：只有 `done=true` 表示完整遍历结束；空 `conversations` 不等于完成。
+- **游标返回 400**：游标是版本化 base64url 值，只能原样回传，不能解析后重组。
+- **反复 unresolved**：使用最多 200 个键调用 retry，并把仍未解析的键保留到有界退避队列；不要回退完整列表 coverage。
+- **reset_required=true**：已保存 coverage 早于仍保留的 tombstone 范围，必须重建本地投影。
+- **503 maintenance**：暂停业务调用并观察 `/readyz`。
+
+## 安全与 OpenAPI 合同
+
+请求中的 `uid` 只是字段，不是可信身份。默认 Product HTTP 没有业务鉴权，业务后端必须证明调用方可代表该 UID 并访问对应 Channel。页面由独立管理合同的 `Conversations` tag 生成；可下载[管理子集合同](/contracts/product-http-management.openapi.json)。

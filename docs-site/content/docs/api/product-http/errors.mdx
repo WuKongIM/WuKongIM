@@ -1,6 +1,6 @@
 ---
 title: 错误响应
-description: 区分黄金路径中的网络失败、HTTP 状态、兼容错误体和协议 Reason Code。
+description: 区分已发布 Product HTTP 子集中的网络失败、HTTP 状态、兼容错误体和协议 Reason Code。
 ---
 
 ## 目标与完成标准
@@ -9,7 +9,7 @@ description: 区分黄金路径中的网络失败、HTTP 状态、兼容错误�
 
 ## 兼容目标
 
-本页只覆盖[黄金路径 API 快照](/zh/api/compatibility)和 JavaScript SDK smoke 场景。兼容 HTTP 入口没有统一错误信封；协议 Reason Code 则由当前 0–29 枚举定义。
+本页覆盖[黄金路径 API 快照](/zh/api/compatibility)与源码校准的管理子集。只有黄金三入口带 JavaScript SDK smoke receipt；两类兼容 HTTP 入口都没有统一错误信封，协议 Reason Code 则由当前 0–29 枚举定义。
 
 ## 前置条件
 
@@ -24,7 +24,7 @@ description: 区分黄金路径中的网络失败、HTTP 状态、兼容错误�
 | --- | --- | --- |
 | 浏览器/BFF | fetch 失败、同源拒绝、localhost 拒绝 | 修正本地边界或网络，不触碰 Product HTTP 公网暴露 |
 | HTTP transport | `400`、`503`、非 JSON | 按状态分类，保留有界响应尾部 |
-| 端点结果 | `{"status":200}`、route 地址、sync page | 使用端点专属解析器 |
+| 端点结果 | `{"status":200}`、route 地址、消息/会话 sync page | 使用端点专属解析器 |
 | Gateway 协议 | CONNACK / SENDACK Reason Code | 查阅 Reason Code，并结合包类型解释 |
 
 HTTP `200` 不会自动把 Reason Code 变成成功；反过来，发送 SENDACK 成功也不证明在线投递或离线同步已经完成。
@@ -70,4 +70,4 @@ HTTP `200` 不会自动把 Reason Code 变成成功；反过来，发送 SENDACK
 
 ## 下一步
 
-查阅[Reason Code](/zh/api/dictionaries/reason-codes)，或返回[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)复现每个可观察阶段。
+查阅[Reason Code](/zh/api/dictionaries/reason-codes)，进入[频道](/zh/api/product-http/channels)或[会话](/zh/api/product-http/conversations)，或返回[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)复现黄金路径阶段。

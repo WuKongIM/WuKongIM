@@ -1,6 +1,6 @@
 ---
 title: Error Responses
-description: Separate network failures, HTTP status, compatible error bodies, and protocol Reason Code in the golden path.
+description: Separate network failures, HTTP status, compatible error bodies, and protocol Reason Code across the published Product HTTP subsets.
 ---
 
 ## Goal and completion criteria
@@ -9,7 +9,7 @@ When finished, the caller should make a bounded decision at the failing stage: c
 
 ## Compatibility target
 
-This page covers only the [golden-path API snapshot](/en/api/compatibility) and JavaScript SDK smoke scenario. Compatible HTTP entries have no universal error envelope; protocol results use the current Reason Code enum 0–29.
+This page covers the [golden-path API snapshot](/en/api/compatibility) and the source-calibrated management subset. Only the three golden entries carry a JavaScript SDK smoke receipt. Neither compatibility family has a universal HTTP error envelope; protocol results use the current Reason Code enum 0–29.
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ This page covers only the [golden-path API snapshot](/en/api/compatibility) and 
 | --- | --- | --- |
 | Browser/BFF | fetch failure, same-origin rejection, localhost rejection | Correct the local boundary or network; do not expose Product HTTP publicly |
 | HTTP transport | `400`, `503`, non-JSON body | Classify by status and retain a bounded response tail |
-| Endpoint result | `{"status":200}`, route addresses, sync page | Use an endpoint-specific parser |
+| Endpoint result | `{"status":200}`, route addresses, message/Conversation sync page | Use an endpoint-specific parser |
 | Gateway protocol | CONNACK / SENDACK Reason Code | Consult Reason Code in the context of the packet type |
 
 HTTP `200` does not automatically make a Reason Code successful. Conversely, a successful send SENDACK does not prove that online delivery or offline synchronization completed.
@@ -70,4 +70,4 @@ Never display raw server errors, topology, UIDs, tokens, or Payloads directly to
 
 ## Next step
 
-Consult [Reason Code](/en/api/dictionaries/reason-codes) or return to the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) to reproduce each observable stage.
+Consult [Reason Code](/en/api/dictionaries/reason-codes), continue to [Channels](/en/api/product-http/channels) or [Conversations](/en/api/product-http/conversations), or return to the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) for the golden stages.
