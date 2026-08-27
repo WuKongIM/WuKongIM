@@ -69,6 +69,12 @@ func TestDocumentationIntegrationPlanUsesOnlyTheFocusedGoldenPath(t *testing.T) 
 			{
 				directory:   "/workspace/docs-site",
 				name:        "bun",
+				arguments:   []string{"run", "test"},
+				environment: unverifiedEnvironment,
+			},
+			{
+				directory:   "/workspace/docs-site",
+				name:        "bun",
 				arguments:   []string{"run", "build"},
 				environment: unverifiedEnvironment,
 			},

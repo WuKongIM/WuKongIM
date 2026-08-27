@@ -230,6 +230,26 @@ func TestReviewAgentPolicy(t *testing.T) {
 		documentationIntegrationRule.Paths,
 		"internal/access/api/channel_messagesync.go",
 	)
+	for _, path := range []string{
+		"docs-site/app/(root)/layout.tsx",
+		"docs-site/app/global.css",
+		"docs-site/content/docs/api/authentication.en.mdx",
+		"docs-site/content/docs/api/authentication.mdx",
+		"docs-site/content/docs/api/conventions.en.mdx",
+		"docs-site/content/docs/api/conventions.mdx",
+		"docs-site/content/docs/api/dictionaries/index.en.mdx",
+		"docs-site/content/docs/api/dictionaries/index.mdx",
+		"internal/access/api/user_legacy.go",
+		"pkg/gateway/core/async_auth.go",
+	} {
+		require.Contains(t, documentationIntegrationRule.Paths, path)
+	}
+	for _, prefix := range []string{
+		"docs-site/app/[lang]/",
+		"docs-site/components/",
+	} {
+		require.Contains(t, documentationIntegrationRule.Prefixes, prefix)
+	}
 	require.Contains(t, documentationIntegrationRule.Paths, "internal/access/gateway/error_map.go")
 	require.Contains(t, documentationIntegrationRule.Paths, "internal/infra/cluster/user_metadata.go")
 	require.Contains(t, documentationIntegrationRule.Paths, "pkg/cluster/node.go")

@@ -106,6 +106,12 @@ func documentationIntegrationCheckPlan(root, receiptPath string) documentationIn
 			{
 				directory:   docsRoot,
 				name:        "bun",
+				arguments:   []string{"run", "test"},
+				environment: unverifiedEnvironment,
+			},
+			{
+				directory:   docsRoot,
+				name:        "bun",
 				arguments:   []string{"run", "build"},
 				environment: unverifiedEnvironment,
 			},

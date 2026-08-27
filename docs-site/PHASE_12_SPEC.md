@@ -194,8 +194,8 @@ Important semantics are frozen as follows:
 - The default v3 Beta app composition does not enable stored-token validation
   in the Gateway Authenticator. This gap must appear prominently in SDK, API,
   and Quickstart pages.
-- `GET /route` currently returns configured ingress addresses. The UID query is
-  retained for the integration shape, but route success is neither business
+- `GET /route` currently returns configured ingress addresses. The sample does
+  not put a UID in the query string; route success is neither business
   authorization nor proof of one Session's owner node.
 - The BFF prefers `wss_addr`, falling back to `ws_addr`; a browser does not use
   `tcp_addr` in this sample.
@@ -293,19 +293,24 @@ Every `docs-site` change runs:
 - site lint, typecheck, static export, link, search, SEO, sitemap, and LLM-output
   checks;
 - published inclusion and planned exclusion assertions;
-- desktop and mobile horizontal-overflow checks for the new developer pages.
+- static accessibility-structure and landmark checks.
 
 ### Real integration gate
 
 The real single-node-cluster + BFF + browser scenario is selected only when the
-golden sample, published SDK/API content, shared contract facts, or their narrow
-runtime source dependencies change. Selection includes the relevant token,
-route, sync, Reason Code, Gateway protocol/authentication, and SDK-version
-sources rather than every Go change.
+golden sample, published SDK/API content, shared contract facts, shared
+developer-page presentation sources, or their narrow runtime source
+dependencies change. Selection includes the relevant token, route, sync,
+Reason Code, Gateway protocol/authentication, and SDK-version sources rather
+than every documentation or Go change.
 
 It is a protected docs integration named check, separate from the default Go
-unit tier and the repository-wide E2E suite. It runs the exact acceptance
-scenario in Playwright Chromium.
+unit tier and the repository-wide E2E suite. It reruns the source-alignment
+contracts before the exact acceptance scenario in Playwright Chromium. Each
+selected run also checks the bilingual home entry, JavaScript Quickstart, and
+Product HTTP overview, users, messages, routing, and errors pages at desktop
+and mobile viewports for horizontal overflow, serious accessibility findings,
+and visible keyboard focus (14 documentation URLs in total).
 
 ### Accessibility
 

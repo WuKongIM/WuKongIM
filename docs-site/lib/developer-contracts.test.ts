@@ -68,6 +68,34 @@ const expectedReasonCodeNames = [
   'ReasonMessageSeqExhausted',
 ];
 
+function parseGoReasonCodeAuthority(source: string): Array<{ name: string; value: number }> {
+  const reasonBlock = source.match(/type ReasonCode uint8[\s\S]*?const \(([\s\S]*?)\n\)/)?.[1];
+  if (!reasonBlock) throw new Error('Go ReasonCode const block is missing');
+
+  const declarations = reasonBlock
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/u, '').trim())
+    .filter((line) => line.length > 0);
+
+  return declarations.map((declaration, index) => {
+    const match = declaration.match(
+      /^(Reason[A-Za-z0-9]+)(?:\s+ReasonCode)?(?:\s*=\s*(.+))?$/u,
+    );
+    if (!match) throw new Error(`unsupported Go ReasonCode declaration: ${declaration}`);
+
+    const [, name, expression] = match;
+    const normalizedExpression = expression?.replace(/\s+/gu, '');
+    if (index === 0) {
+      if (name !== 'ReasonUnknown' || normalizedExpression !== 'iota') {
+        throw new Error('Go ReasonCode authority must begin with ReasonUnknown = iota');
+      }
+    } else if (normalizedExpression !== undefined) {
+      throw new Error(`Go ReasonCode values must remain contiguous iota values: ${name}`);
+    }
+    return { name, value: index };
+  });
+}
+
 describe('Phase 12 developer contracts', () => {
   test('builds a reproducible compatibility snapshot from build identity', () => {
     expect(
@@ -211,7 +239,7 @@ describe('Phase 12 developer contracts', () => {
     ).toBe(100);
   });
 
-  test('documents every wire ReasonCode in exact numeric order', async () => {
+  test('documents every wire ReasonCode name and value in exact numeric order', async () => {
     expect(reasonCodes.map((reason) => reason.name)).toEqual(expectedReasonCodeNames);
     expect(reasonCodes.map((reason) => reason.value)).toEqual(
       expectedReasonCodeNames.map((_, index) => index),
@@ -223,12 +251,9 @@ describe('Phase 12 developer contracts', () => {
     const goSource = await Bun.file(
       new URL('../../pkg/protocol/frame/common.go', import.meta.url),
     ).text();
-    const reasonBlock = goSource.match(/type ReasonCode uint8[\s\S]*?const \(([\s\S]*?)\n\)/)?.[1];
-    const goNames = [...(reasonBlock ?? '').matchAll(/^\s*(Reason[A-Za-z0-9]+)(?:\s|$)/gm)].map(
-      (match) => match[1],
+    expect(parseGoReasonCodeAuthority(goSource)).toEqual(
+      expectedReasonCodeNames.map((name, value) => ({ name, value })),
     );
-
-    expect(goNames).toEqual(expectedReasonCodeNames);
     expect(
       reasonCodes.filter((reason) => reason.reachability === 'reserved').map((reason) => reason.name),
     ).toEqual([
@@ -252,6 +277,20 @@ describe('Phase 12 developer contracts', () => {
       zh: 'SEND 请求（字段或载荷）格式错误或不受支持，包括解码失败。',
       en: 'Malformed or unsupported SEND request (fields or payload), including decode failures.',
     });
+  });
+
+  test('rejects explicit Go ReasonCode value drift even when names stay unchanged', () => {
+    const driftedSource = `
+type ReasonCode uint8
+
+const (
+  ReasonUnknown ReasonCode = iota
+  ReasonSuccess ReasonCode = 7
+)
+`;
+    expect(() => parseGoReasonCodeAuthority(driftedSource)).toThrow(
+      'Go ReasonCode values must remain contiguous iota values: ReasonSuccess',
+    );
   });
 
   test('renders shared facts into LLM-friendly Markdown without test internals', () => {
