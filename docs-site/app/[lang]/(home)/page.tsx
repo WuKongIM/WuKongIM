@@ -1,4 +1,6 @@
 import { domains, parseLocale } from '@/lib/navigation';
+import { getDomainPublicationCounts } from '@/lib/navigation-tree';
+import { canonicalUrl, getRobotsMetadata } from '@/lib/shared';
 import {
   ArrowRight,
   Blocks,
@@ -27,18 +29,19 @@ const copy = {
     eyebrow: 'WuKongIM v3 · 公开文档',
     title: '从第一条消息，走向可靠的大规模通信',
     description:
-      '面向应用开发者、服务端部署者和运维人员的统一文档入口。当前第一阶段已完成信息架构，规划内容会清晰标注。',
-    quickstart: '开始快速上手',
-    browseApi: '浏览 API 结构',
+      '面向应用开发者、服务端部署者和运维人员的统一文档入口。已发布内容可直接使用，仍在规划的页面会清晰标注。',
+    quickstart: '开始 JavaScript / Web 接入',
+    browseApi: '浏览 API 文档',
     domainsTitle: '按工作内容进入',
-    domainsDescription: '四个文档域共享同一套术语和版本规则，各自保持清晰的阅读路径。',
+    domainsDescription: '四个文档域共享同一套术语和版本规则，并显示当前实际发布进度。',
     rolesTitle: '按你的角色开始',
-    planned: '菜单骨架已就绪，正文规划中',
+    published: '已发布',
+    planned: '规划中',
     roles: [
       {
         title: '应用开发者',
         description: '理解消息模型，选择 SDK，并完成身份、连接和消息收发。',
-        href: '/zh/guide/quick-start',
+        href: '/zh/sdk/javascript/quickstart',
         icon: Smartphone,
       },
       {
@@ -62,19 +65,20 @@ const copy = {
     eyebrow: 'WuKongIM v3 · Public Documentation',
     title: 'From the first message to dependable communication at scale',
     description:
-      'One documentation home for application developers, server deployers, and operators. The phase-one information architecture is ready, and planned content is clearly marked.',
-    quickstart: 'Start the quickstart',
-    browseApi: 'Browse the API structure',
+      'One documentation home for application developers, server deployers, and operators. Published guidance is ready to use, while unfinished pages remain clearly marked.',
+    quickstart: 'Start the JavaScript / Web quickstart',
+    browseApi: 'Browse the API docs',
     domainsTitle: 'Choose your area',
     domainsDescription:
-      'Four documentation domains share one vocabulary and version policy while preserving focused reading paths.',
+      'Four documentation domains share one vocabulary and version policy, with their actual publication progress shown below.',
     rolesTitle: 'Start from your role',
-    planned: 'Navigation ready · detailed content planned',
+    published: 'published',
+    planned: 'planned',
     roles: [
       {
         title: 'Application developer',
         description: 'Learn the message model, choose an SDK, and implement identity, connection, and messaging.',
-        href: '/en/guide/quick-start',
+        href: '/en/sdk/javascript/quickstart',
         icon: Smartphone,
       },
       {
@@ -110,9 +114,10 @@ export async function generateMetadata({
     title: locale === 'zh' ? 'WuKongIM v3 文档' : 'WuKongIM v3 Documentation',
     description: copy[locale].description,
     alternates: {
-      canonical: `/${locale}`,
-      languages: { zh: '/zh', en: '/en' },
+      canonical: canonicalUrl(`/${locale}`),
+      languages: { zh: canonicalUrl('/zh'), en: canonicalUrl('/en') },
     },
+    robots: getRobotsMetadata(true),
   };
 }
 
@@ -123,7 +128,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
   const content = copy[locale];
 
   return (
-    <main className="overflow-hidden">
+    <div className="overflow-hidden">
       <section className="relative border-b border-fd-border">
         <div className="docs-grid absolute inset-0 opacity-60" aria-hidden="true" />
         <div className="relative mx-auto max-w-6xl px-6 py-20 sm:py-28 lg:px-8 lg:py-32">
@@ -140,7 +145,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
-                href={`/${locale}/guide/quick-start`}
+                href={`/${locale}/sdk/javascript/quickstart`}
                 className="inline-flex items-center gap-2 rounded-full bg-fd-primary px-5 py-3 text-sm font-semibold text-fd-primary-foreground transition hover:-translate-y-0.5 hover:shadow-lg"
               >
                 {content.quickstart}
@@ -166,6 +171,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {domains.map((domain) => {
             const Icon = domainIcons[domain.key];
+            const counts = getDomainPublicationCounts(locale, domain.key);
             return (
               <Link
                 key={domain.key}
@@ -182,8 +188,13 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
                 <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">
                   {domain.description[locale]}
                 </p>
-                <p className="mt-5 text-xs font-medium text-orange-600 dark:text-orange-300">
-                  {content.planned}
+                <p className="mt-5 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium">
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    {counts.published} {content.published}
+                  </span>
+                  <span className="text-fd-muted-foreground">
+                    {counts.planned} {content.planned}
+                  </span>
                 </p>
               </Link>
             );
@@ -229,6 +240,6 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
           {content.github}
         </Link>
       </section>
-    </main>
+    </div>
   );
 }

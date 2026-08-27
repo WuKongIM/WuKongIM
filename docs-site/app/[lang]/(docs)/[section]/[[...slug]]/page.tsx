@@ -1,5 +1,11 @@
 import { getMDXComponents } from '@/components/mdx';
-import { gitConfig, siteUrl } from '@/lib/shared';
+import { DocsMainContainer } from '@/components/docs-main-container';
+import {
+  canonicalUrl,
+  getDocumentationFeedbackUrl,
+  getRobotsMetadata,
+  gitConfig,
+} from '@/lib/shared';
 import {
   domains,
   getAllNavigationEntries,
@@ -9,6 +15,7 @@ import {
   type DocumentationDomain,
 } from '@/lib/navigation';
 import { getPageMarkdownUrl, source } from '@/lib/source';
+import { getPublishedFooterItems } from '@/lib/navigation-tree';
 import {
   DocsBody,
   DocsDescription,
@@ -18,7 +25,7 @@ import {
   ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
-import { Clock3 } from 'lucide-react';
+import { Clock3, MessageSquareWarning, PencilLine } from 'lucide-react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
@@ -55,7 +62,7 @@ export default async function DocumentationPage({
 
   if (entry.status === 'planned') {
     return (
-      <DocsPage toc={[]}>
+      <DocsPage toc={[]} footer={{ enabled: false }} slots={{ container: DocsMainContainer }}>
         <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
           <Clock3 className="size-3.5" />
           {locale === 'zh' ? '规划中' : 'Planned'}
@@ -80,17 +87,48 @@ export default async function DocumentationPage({
   if (!page) notFound();
   const MDX = page.data.body;
   const markdownUrl = getPageMarkdownUrl(page).url;
+  const githubSourceUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/docs-site/content/docs/${page.path}`;
+  const githubEditUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/edit/${gitConfig.branch}/docs-site/content/docs/${page.path}`;
+  const feedbackUrl = getDocumentationFeedbackUrl({
+    locale,
+    pageTitle: page.data.title,
+    pagePath: entry.url,
+  });
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      footer={{ items: getPublishedFooterItems(locale, domain.key, entry.url) }}
+      slots={{ container: DocsMainContainer }}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
-      <div className="flex flex-row items-center gap-2 border-b pb-6">
+      <div
+        className="flex flex-row flex-wrap items-center gap-2 border-b pb-6"
+        role="group"
+        aria-label={locale === 'zh' ? '页面操作' : 'Page actions'}
+      >
         <MarkdownCopyButton markdownUrl={markdownUrl} />
-        <ViewOptionsPopover
-          markdownUrl={markdownUrl}
-          githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/docs-site/content/docs/${page.path}`}
-        />
+        <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubSourceUrl} />
+        <a
+          href={githubEditUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-fd-border bg-fd-secondary px-3 text-sm font-medium transition-colors hover:bg-fd-accent"
+        >
+          <PencilLine className="size-3.5" aria-hidden="true" />
+          {locale === 'zh' ? '编辑此页' : 'Edit this page'}
+        </a>
+        <a
+          href={feedbackUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-fd-border bg-fd-secondary px-3 text-sm font-medium transition-colors hover:bg-fd-accent"
+        >
+          <MessageSquareWarning className="size-3.5" aria-hidden="true" />
+          {locale === 'zh' ? '报告文档问题' : 'Report a docs issue'}
+        </a>
       </div>
       <DocsBody>
         <MDX
@@ -126,21 +164,18 @@ export async function generateMetadata({
     title: entry.label,
     description: entry.description,
     alternates: {
-      canonical: entry.url,
+      canonical: canonicalUrl(entry.url),
       languages: {
-        zh: entry.url.replace(`/${locale}/`, '/zh/'),
-        en: entry.url.replace(`/${locale}/`, '/en/'),
+        zh: canonicalUrl(entry.url.replace(`/${locale}/`, '/zh/')),
+        en: canonicalUrl(entry.url.replace(`/${locale}/`, '/en/')),
       },
     },
-    robots:
-      entry.status === 'published'
-        ? { index: true, follow: true }
-        : { index: false, follow: true, googleBot: { index: false, follow: true } },
+    robots: getRobotsMetadata(entry.status === 'published'),
     openGraph:
       entry.status === 'published'
         ? {
             type: 'article',
-            url: new URL(entry.url, siteUrl),
+            url: canonicalUrl(entry.url),
             title: entry.label,
             description: entry.description,
           }

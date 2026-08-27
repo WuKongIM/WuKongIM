@@ -3,8 +3,9 @@
 @import 'fumadocs-ui/css/preset.css';
 
 :root {
-  --color-fd-primary: hsl(11, 89%, 60%);
+  --color-fd-primary: hsl(11, 80%, 40%);
   --color-fd-primary-foreground: hsl(0, 0%, 100%);
+  --color-fd-muted-foreground: hsl(0, 0%, 40%);
   --color-fd-background: hsl(24, 25%, 98%);
   --color-fd-card: hsl(0, 0%, 100%);
   --color-fd-accent: hsl(18, 35%, 94%);
@@ -29,6 +30,17 @@ html > body[data-scroll-locked] {
 
 ::selection {
   background: color-mix(in oklab, var(--color-fd-primary) 28%, transparent);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--color-fd-primary);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-toc-popover] span {
+    transition: none !important;
+  }
 }
 
 .docs-grid {

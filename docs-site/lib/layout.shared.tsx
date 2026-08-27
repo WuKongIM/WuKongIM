@@ -61,7 +61,6 @@ export function baseOptions(locale: Locale): BaseLayoutProps {
       url: `/${locale}`,
       transparentMode: 'top',
     },
-    githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
     links: [
       ...domains.map((domain) => ({
         text: domain.label[locale],
@@ -72,6 +71,11 @@ export function baseOptions(locale: Locale): BaseLayoutProps {
         type: 'menu',
         text: locale === 'zh' ? '资源' : 'Resources',
         items: [
+          {
+            text: 'GitHub',
+            url: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
+            external: true,
+          },
           {
             text: locale === 'zh' ? '官网' : 'Website',
             url: 'https://githubim.com',
