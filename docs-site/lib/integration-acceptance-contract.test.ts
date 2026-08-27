@@ -55,11 +55,26 @@ describe('Phase 14 integration acceptance contracts', () => {
   });
 
   test('keeps compatibility smoke separate from production acceptance', async () => {
-    const [zhAcceptance, enAcceptance, zhCapabilities, enCapabilities] = await Promise.all([
+    const [
+      zhAcceptance,
+      enAcceptance,
+      zhCapabilities,
+      enCapabilities,
+      zhSdkIndex,
+      enSdkIndex,
+      zhJavaScriptIndex,
+      enJavaScriptIndex,
+      navigationSource,
+    ] = await Promise.all([
       text(contentRoot, 'guide/integration/acceptance.mdx'),
       text(contentRoot, 'guide/integration/acceptance.en.mdx'),
       text(contentRoot, 'sdk/javascript/platform-capabilities.mdx'),
       text(contentRoot, 'sdk/javascript/platform-capabilities.en.mdx'),
+      text(contentRoot, 'sdk/index.mdx'),
+      text(contentRoot, 'sdk/index.en.mdx'),
+      text(contentRoot, 'sdk/javascript/index.mdx'),
+      text(contentRoot, 'sdk/javascript/index.en.mdx'),
+      Bun.file(new URL('./navigation.ts', import.meta.url)).text(),
     ]);
 
     for (const page of [zhAcceptance, enAcceptance]) {
@@ -80,6 +95,17 @@ describe('Phase 14 integration acceptance contracts', () => {
     expect(enCapabilities).toContain('<JavaScriptCapabilityMatrix locale="en" />');
     expect(zhCapabilities).toContain('/zh/guide/integration/acceptance');
     expect(enCapabilities).toContain('/en/guide/integration/acceptance');
+    for (const source of [zhSdkIndex, zhJavaScriptIndex, navigationSource]) {
+      expect(source).toContain('场景覆盖');
+      expect(source).not.toContain('已验证范围');
+      expect(source).not.toContain('已验证能力');
+    }
+    for (const source of [enSdkIndex, enJavaScriptIndex, navigationSource]) {
+      expect(source).toContain('scenario-covered');
+    }
+    expect(enSdkIndex).not.toContain('Review verified scope');
+    expect(enJavaScriptIndex).not.toContain('capabilities proven by the real scenario');
+    expect(navigationSource).not.toContain('Separates verified capabilities');
   });
 
   test('keeps the executable command and E2E page coverage wired', async () => {
@@ -93,6 +119,9 @@ describe('Phase 14 integration acceptance contracts', () => {
     expect(verifier).toContain('runIntegrationAcceptanceVerification');
     expect(e2e).toContain('guide/integration/acceptance/');
     expect(e2e).toContain('sdk/javascript/platform-capabilities/');
+    expect(e2e).toContain('response?.ok()');
+    expect(e2e).toContain('document.documentElement.lang');
+    expect(e2e).toContain('link[rel="canonical"]');
   });
 
   test('documents isolated participants and bounded person-directory convergence', async () => {
@@ -122,8 +151,12 @@ describe('Phase 14 integration acceptance contracts', () => {
     expect(productClient).toContain('valid channel membership required');
     expect(verifier).toContain('JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.package');
     expect(sampleReadme).toContain('isolated development UIDs');
-    expect(zhQuickstart).toContain('异步建立');
-    expect(enQuickstart).toContain('asynchronously');
+    expect(zhQuickstart).toContain('append 提交前');
+    expect(zhQuickstart).toContain('投影任务');
+    expect(enQuickstart).toContain('Before append submission');
+    expect(enQuickstart).toContain('projection task');
+    expect(zhQuickstart).not.toContain('首条持久个人消息提交时');
+    expect(enQuickstart).not.toContain('when the first persistent person message commits');
     expect(zhAcceptance).toContain('精确成员关系未就绪');
     expect(enAcceptance).toContain('exact membership-not-ready');
   });

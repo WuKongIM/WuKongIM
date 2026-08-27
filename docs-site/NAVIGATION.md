@@ -138,7 +138,7 @@ Route: `/{lang}/sdk`
 
   - **安装与配置 / Installation** `/{lang}/sdk/javascript/installation` — 安装精确版本的 JavaScript SDK，并配置框架无关的 TypeScript 黄金样例。 / Install the exact JavaScript SDK version and configure the framework-neutral TypeScript golden sample.
   - **快速接入 / Quickstart** `/{lang}/sdk/javascript/quickstart` — 通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。 / Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.
-  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/javascript/platform-capabilities` — 按真实 Chromium 场景区分已验证能力、安全边界和未验证范围。 / Separates verified capabilities, security boundaries, and unverified scope through the real Chromium scenario.
+  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/javascript/platform-capabilities` — 按真实 Chromium 场景区分场景覆盖能力、安全边界和未验证范围。 / Separates scenario-covered capabilities, security boundaries, and unverified scope through the real Chromium scenario.
   - **API 参考 / API Reference** `/{lang}/sdk/javascript/api-reference` — JavaScript / Web SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/javascript/upgrade` — JavaScript / Web SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the JavaScript / Web SDK.
 

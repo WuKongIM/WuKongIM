@@ -215,8 +215,8 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
         'platform-capabilities',
         '平台专属能力',
         'Platform Capabilities',
-        '按真实 Chromium 场景区分已验证能力、安全边界和未验证范围。',
-        'Separates verified capabilities, security boundaries, and unverified scope through the real Chromium scenario.',
+        '按真实 Chromium 场景区分场景覆盖能力、安全边界和未验证范围。',
+        'Separates scenario-covered capabilities, security boundaries, and unverified scope through the real Chromium scenario.',
       ),
       plannedPage(
         'api-reference',

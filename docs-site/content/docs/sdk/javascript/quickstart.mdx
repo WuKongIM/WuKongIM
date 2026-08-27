@@ -62,7 +62,7 @@ npm run dev
 4. 在 Bob 面板点击 **Reconnect + sync**。
 5. 确认 Bob 的事件类型为 `synced`、事件文本包含 `recovered`，且没有把这条恢复结果标记成 `realtime`。
 
-BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 Bob 为 `login_uid`、Alice 为对端 `channel_id`、`channel_type=1`。首条持久个人消息提交时，服务端会异步建立双方 UID 的频道目录成员关系；这个后台投影可能稍晚于 SENDACK。样例只对精确的“成员关系尚未就绪”响应做最多 20 次、间隔 250ms 的有界等待，其他 HTTP 400 立即失败。客户端还必须允许在线投递和同步结果重复，并按消息身份与 Channel sequence 合并。
+BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 Bob 为 `login_uid`、Alice 为对端 `channel_id`、`channel_type=1`。服务端会在首条持久普通个人消息的 append 提交前，持久接纳一个由源 Slot 负责的目录投影任务；双方 UID 的频道目录成员关系随后异步物化，因此可能稍晚于 SENDACK。样例只对精确的“成员关系尚未就绪”响应做最多 20 次、间隔 250ms 的有界等待，其他 HTTP 400 立即失败。客户端还必须允许在线投递和同步结果重复，并按消息身份与 Channel sequence 合并。
 
 {/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
 

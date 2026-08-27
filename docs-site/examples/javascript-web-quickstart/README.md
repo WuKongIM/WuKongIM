@@ -52,10 +52,11 @@ bounds request bodies and sync pages, and keeps Product HTTP addresses out of
 the client bundle. The browser receives only its development UID, ephemeral
 development token, and discovered WebSocket address.
 
-The first persistent person message admits asynchronous directory projection
-for both UID-owned memberships. Message recovery retries only the exact
-membership-not-ready Product HTTP response, at 250ms intervals for at most 20
-attempts; unrelated failures are never retried.
+Before append submission for the first persistent ordinary person message, the
+server durably admits a source-owned directory projection task. Both UID-owned
+memberships materialize asynchronously and can trail SENDACK. Message recovery
+retries only the exact membership-not-ready Product HTTP response, at 250ms
+intervals for at most 20 attempts; unrelated failures are never retried.
 
 The pinned SDK logs decoded packets and retry payloads unconditionally in its
 published browser module. This sample's browser build therefore removes all

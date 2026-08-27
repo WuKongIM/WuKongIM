@@ -47,7 +47,7 @@ test-results/integration-acceptance.json
 2. 单聊双方各发送一条持久消息；
 3. SENDACK 与对端 `realtime` 接收分别被观察；
 4. Bob 离线期间 Alice 的消息仍能提交，但 Bob 没有实时事件；
-5. Bob 重连后通过有界 person-message sync 恢复该消息；首条持久个人消息触发的 UID 目录投影是异步的，样例仅对精确成员关系未就绪错误做最多 20 次、间隔 250ms 的等待；
+5. Bob 重连后通过有界 person-message sync 恢复该消息；服务端在首条持久普通个人消息 append 前接纳投影任务，但 UID 目录成员关系异步物化，因此样例仅对精确成员关系未就绪错误做最多 20 次、间隔 250ms 的等待；
 6. 已实时观察的消息不会被同步重复标记，离线消息只恢复一次；
 7. 样例页面通过当前可访问性基线；只有设置 `WK_DOCS_SITE_E2E_URL` 时，双语文档页面也进入独立的文档质量检查。
 
@@ -118,7 +118,7 @@ test-results/integration-acceptance.json
 
 - **`sample-check` 失败：** 先修复依赖、单元测试或 TypeScript，不要连接集群规避本地错误。
 - **`real-e2e` 失败：** 按 route、CONNACK、SENDACK、realtime、sync 阶段定位，保留 Reason Code 和版本快照。
-- **sync 返回 membership required：** 首条持久个人消息会异步建立双方 UID 目录。样例只在该精确未就绪响应上做有界等待；持续失败说明目录投影没有在窗口内收敛，不能改成无限重试。
+- **sync 返回 membership required：** 服务端已在首条持久普通个人消息 append 前接纳源 Slot 负责的投影任务，但双方 UID 目录成员关系异步物化。样例只在该精确未就绪响应上做有界等待；持续失败说明目录投影没有在窗口内收敛，不能改成无限重试。
 - **没有报告：** 这是预期的 fail-closed 行为；命令只在所有步骤通过后写文件。
 - **报告为 dirty harness source：** 提交或还原明确范围内的变更，再从精确 revision 重跑；仍需从部署清单或独立证明取得集群源码身份。
 

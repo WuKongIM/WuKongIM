@@ -106,7 +106,17 @@ const viewports: Array<{ name: string; size: ViewportSize }> = [
   { name: "mobile", size: { width: 390, height: 844 } },
 ];
 
-const accessiblePages = [
+interface AccessiblePage {
+  name: string;
+  path: string;
+}
+
+interface DocumentationPage extends AccessiblePage {
+  locale: "zh" | "en";
+  canonicalPath: string;
+}
+
+const accessiblePages: Array<AccessiblePage | DocumentationPage> = [
   { name: "lab", path: "/" },
   { name: "Alice session", path: "/session.html?uid=alice&peer=bob" },
   { name: "Bob session", path: "/session.html?uid=bob&peer=alice" },
@@ -128,7 +138,13 @@ for (const viewport of viewports) {
 
     try {
       for (const entry of accessiblePages) {
-        await page.goto(entry.path);
+        const response = await page.goto(entry.path);
+        expect(response?.ok(), `${entry.name} must return a successful document`).toBe(
+          true,
+        );
+        if ("locale" in entry) {
+          await assertDocumentationPageIdentity(page, entry);
+        }
         await settlePageForAccessibility(page);
         await assertNoHorizontalOverflow(page, entry.name);
         await assertNoSeriousAccessibilityViolations(page, entry.name);
@@ -467,7 +483,7 @@ function requireBaseUrl(baseURL: string | undefined): string {
   return baseURL;
 }
 
-function documentationPages(): Array<{ name: string; path: string }> {
+function documentationPages(): DocumentationPage[] {
   const raw = process.env.WK_DOCS_SITE_E2E_URL;
   if (!raw) return [];
 
@@ -491,10 +507,34 @@ function documentationPages(): Array<{ name: string; path: string }> {
     "api/product-http/routing/",
     "api/product-http/errors/",
   ];
-  return ["zh", "en"].flatMap((locale) =>
-    routes.map((route) => ({
-      name: `docs ${locale}/${route || "home"}`,
-      path: new URL(`/${locale}/${route}`, url.origin).toString(),
-    })),
+  return (["zh", "en"] as const).flatMap((locale) =>
+    routes.map((route) => {
+      const canonicalPath = `/${locale}/${route}`;
+      return {
+        name: `docs ${locale}/${route || "home"}`,
+        path: new URL(canonicalPath, url.origin).toString(),
+        locale,
+        canonicalPath,
+      };
+    }),
+  );
+}
+
+async function assertDocumentationPageIdentity(
+  page: Page,
+  entry: DocumentationPage,
+): Promise<void> {
+  const identity = await page.evaluate(() => ({
+    language: document.documentElement.lang,
+    canonical: document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+      ?.href,
+  }));
+
+  expect(identity.language, `${entry.name} must retain its requested locale`).toBe(
+    entry.locale,
+  );
+  expect(identity.canonical, `${entry.name} must expose a canonical identity`).toBeTruthy();
+  expect(new URL(identity.canonical ?? "about:blank").pathname).toBe(
+    entry.canonicalPath,
   );
 }
