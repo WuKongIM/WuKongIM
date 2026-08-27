@@ -10,9 +10,16 @@ A Device is not the User and is not one network connection. A network change or 
 ## Why devices matter
 
 - **Enable multi-endpoint use:** One UID can send and receive from phone, Web, and desktop clients.
-- **Define synchronization scope:** Messages and conversations are generally UID-scoped, while drafts, download progress, and push tokens belong to a concrete device.
+- **Define synchronization scope:** Ordinary persistent messages and conversations are generally UID-scoped, while drafts, download progress, and push tokens belong to a concrete device.
 - **Control online policy:** A product can allow same-category devices to coexist or let a new connection replace an old one.
 - **Support removal and revocation:** Removing a device requires more than disconnecting its current socket; credentials and product device state also need cleanup.
+
+## Relationship to other concepts
+
+- A **User** can own multiple devices, all sharing one UID.
+- An ordinary persistent **Message** leaves through one concrete connection and may reach the user's other active devices or synchronize later.
+- A **Channel** and its persistent history do not belong to one device; a replacement device can recover them when authorized.
+- A **Conversation** is generally UID-scoped, while each device owns final presentation and local caches.
 
 ## Four terms that are easy to confuse
 
@@ -31,7 +38,7 @@ See [Device Flags](/en/api/dictionaries/device-flags) for current values and enf
 
 | Generally shared by UID | Generally owned by one device |
 | --- | --- |
-| Channel messages and message order | Local drafts, scroll position, and download progress |
+| Ordinary persistent Channel messages and message order | Local drafts, scroll position, and download progress |
 | Conversations, unread baseline, and hidden range | Provider push token, notification permission, and background limits |
 | Account and group relationships from the product backend | Local cache, encryption material, and device risk information |
 
@@ -48,12 +55,5 @@ When one device clears unread state, another device may observe the new value du
 <Callout type="warn" title="A trusted backend controls multi-device policy">
   A client cannot promote its own Device Level. The current v3 Beta default Gateway also does not automatically turn stored token and Device Level metadata into a complete verification chain. Implement and test the policy through [Multi-device Sync](/en/sdk/common-guides/multi-device).
 </Callout>
-
-## Relationship to other concepts
-
-- A **User** can own multiple devices, all sharing one UID.
-- A **Message** leaves through one concrete connection and may reach the user's other active devices or synchronize later.
-- A **Channel** and its history do not belong to one device; a replacement device can recover them when authorized.
-- A **Conversation** is generally UID-scoped, while each device owns final presentation and local caches.
 
 Continue with [Conversation](/en/guide/core-concepts/conversations) and [Multi-device Sync](/en/sdk/common-guides/multi-device).

@@ -11,8 +11,15 @@ The combination of `channel_id` and `channel_type` identifies a Channel. The sam
 
 - **Select a target:** Sending to a person or a group is fundamentally selecting a Channel.
 - **Organize participants:** Channel type and membership together determine who may send and receive.
-- **Hold continuous history:** Each Channel numbers, orders, and recovers its own messages without mixing unrelated chats.
+- **Hold continuous history:** Each Channel numbers, orders, and recovers its ordinary persistent messages without mixing unrelated chats.
 - **Reuse communication primitives:** Notifications, support, live interaction, communities, and Agents can also build on Channels.
+
+## Relationship to other concepts
+
+- Sending a **Message** identifies a target Channel; ordinary persistent message order is scoped to that Channel.
+- A **User** participates in direct, group, or other communication through Channels.
+- A **Device** is only an endpoint through which a user accesses a Channel; it does not change Channel identity.
+- A **Conversation** is one user's entry to a Channel. The same Channel has user-specific unread and visibility state.
 
 ## The two most common Channel types
 
@@ -36,13 +43,6 @@ A group chat often shares a group ID with its Channel, but the responsibilities 
 | Content rules, tenant isolation, and moderation | Message persistence, realtime delivery, and offline recovery |
 
 After creating a product group, a trusted backend must still synchronize membership and policy with WuKongIM. Knowing a Channel ID alone does not grant permission to join or send.
-
-## Relationship to other concepts
-
-- A **Message** belongs to one Channel, and its ordering boundary is that Channel.
-- A **User** participates in direct, group, or other communication through Channels.
-- A **Device** is only an endpoint through which a user accesses a Channel; it does not change Channel identity.
-- A **Conversation** is one user's entry to a Channel. The same Channel has user-specific unread and visibility state.
 
 ## Remember when building
 

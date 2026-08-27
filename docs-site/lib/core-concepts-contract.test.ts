@@ -30,6 +30,14 @@ describe('core concept content contract', () => {
       expect(zh).toContain('## 与其他概念的关系');
       expect(en).toMatch(/^## Why /mu);
       expect(en).toContain('## Relationship to other concepts');
+      expect(zh.match(/^## .+$/gmu)?.slice(0, 2)).toEqual([
+        expect.stringMatching(/^## 为什么/u),
+        '## 与其他概念的关系',
+      ]);
+      expect(en.match(/^## .+$/gmu)?.slice(0, 2)).toEqual([
+        expect.stringMatching(/^## Why /u),
+        '## Relationship to other concepts',
+      ]);
       expect(zh).not.toMatch(/Presence Authority|Slot Leader|Channel Leader|write fence|owner-push|tombstone|quorum/u);
       expect(en).not.toMatch(/Presence Authority|Slot Leader|Channel Leader|write fence|owner-push|tombstone|quorum/u);
       expect(zh).not.toBe(en);

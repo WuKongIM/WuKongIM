@@ -13,6 +13,13 @@ The UID comes from your product system. WuKongIM uses it for connection, routing
 - **Connect the other concepts:** Messages have senders, devices belong to users, and conversations are built from one user's viewpoint.
 - **Anchor product boundaries:** Account bans, tenant isolation, contacts, and group roles all depend on a trusted user identity.
 
+## Relationship to other concepts
+
+- A **Message** records a sender UID and reaches other users through a Channel.
+- A **Channel** organizes communication among users; a direct-chat target is normally the peer UID.
+- A **Device** belongs to one UID, and one user can have multiple devices.
+- A **Conversation** belongs to a user's viewpoint, so unread and visibility state can differ across users in the same Channel.
+
 ## Designing a UID
 
 A good UID is:
@@ -45,12 +52,5 @@ Online state means “an active connection is observed now.” It is not a suffi
 <Callout type="warn" title="Production authentication boundary">
   In the current v3 Beta default composition, writing token metadata alone does not create complete CONNECT authentication. Clients must not call Product HTTP directly. Keep credentials under a trusted backend and wire Gateway verification as described in [Identity & Token](/en/sdk/common-guides/identity-and-token).
 </Callout>
-
-## Relationship to other concepts
-
-- A **Message** records a sender UID and reaches other users through a Channel.
-- A **Channel** organizes communication among users; a direct-chat target is normally the peer UID.
-- A **Device** belongs to one UID, and one user can have multiple devices.
-- A **Conversation** belongs to a user's viewpoint, so unread and visibility state can differ across users in the same Channel.
 
 Continue with [Device](/en/guide/core-concepts/devices) and [Identity & Token](/en/sdk/common-guides/identity-and-token). For distributed online routing, read [User Connection Routing](/en/server/architecture/user-routing).

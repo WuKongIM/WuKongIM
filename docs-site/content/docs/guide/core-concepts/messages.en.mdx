@@ -5,13 +5,20 @@ description: Understand what a message is, how it finds its recipients, and why 
 
 A Message is the basic unit of information transported by WuKongIM. Text, images, files, notifications, audio/video signaling, and IoT commands can all be represented as message content.
 
-WuKongIM gets a message to its target Channel. Your application defines what the content means and how clients display or process it.
+An ordinary persistent message enters its target Channel for realtime delivery and later offline synchronization. Your application defines what the content means and how clients display or process it; specialized transient and command branches have different boundaries.
 
 ## Why messages matter
 
 - **Carry product content:** The same messaging path can carry chat content or custom business events.
-- **Work online and offline:** An online recipient can receive a message in realtime; an offline or reconnecting device can recover committed Channel history.
+- **Work online and offline:** An ordinary persistent message can arrive in realtime and be recovered from committed Channel history after reconnecting.
 - **Support tracking and deduplication:** A client send number, server message ID, and per-Channel sequence serve different retry, lookup, and ordering needs.
+
+## Relationship to other concepts
+
+- A **Channel** determines the target, possible recipients, and ordering boundary.
+- A **User** sends a message or participates in its Channel.
+- A **Device** is a concrete endpoint for sending, realtime receive, and later recovery.
+- A **Conversation** presents the Channel's latest message and unread projection to one user.
 
 ## What a message contains
 
@@ -57,13 +64,6 @@ Your business and clients agree on the meaning of `type` and the remaining field
 | `message_seq` | Channel message log | Represent the message's position and order inside that Channel |
 
 Message order is meaningful only within one Channel. Never compare `message_seq` values from different Channels to infer a global order.
-
-## Relationship to other concepts
-
-- A **Channel** determines the target, possible recipients, and ordering boundary.
-- A **User** sends a message or participates in its Channel.
-- A **Device** is a concrete endpoint for sending, realtime receive, and later recovery.
-- A **Conversation** presents the Channel's latest message and unread projection to one user.
 
 ## Remember when building
 

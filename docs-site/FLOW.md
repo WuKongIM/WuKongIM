@@ -22,6 +22,9 @@ and leaves the tested cluster source and production readiness unassessed.
 
 - Repository `docs/` and the legacy v2 site are separate sources; older wiki
   material is not authoritative unless recalibrated against promoted code.
+- Guide Core Concepts is the reader-first application vocabulary for Message,
+  Channel, User, Device, and Conversation. Cluster, node, Slot, replica, and
+  leadership mechanics belong in Server Architecture rather than that path.
 - `lib/navigation.ts` is the shared bilingual publication registry. Phase specs
   own detailed content plans and claims.
 - Static export produces artifacts only; deployment, DNS, redirects, and

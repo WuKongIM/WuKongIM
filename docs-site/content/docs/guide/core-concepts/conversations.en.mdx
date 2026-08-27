@@ -9,10 +9,17 @@ A Conversation is not another container of messages. Messages remain in the Chan
 
 ## Why conversations matter
 
-- **Organize the chat list:** Gather Channels that a user joined or explicitly opened into a list they can revisit.
+- **Organize the chat list:** Gather Channels with visible messages or explicit user activation into a list the user can revisit.
 - **Highlight new content:** Calculate unread and visibility state for the current user.
 - **Support offline recovery:** A client first discovers conversations, then synchronizes missing messages for each Channel.
 - **Enable personal actions:** Hiding a conversation or clearing unread affects the current user, not the shared Channel history.
+
+## Relationship to other concepts
+
+- A **Channel** is the communication space a Conversation opens and the source of message history.
+- A **Message** changes the latest content and unread projection that a Conversation can present.
+- A **User** owns a personal conversation view, independent from other users' state.
+- A **Device** synchronizes UID-scoped conversation state while keeping its own local UI state.
 
 ## Conversation versus Channel
 
@@ -35,6 +42,8 @@ Suppose Alice and Bob both belong to the “Weekend Trip” group Channel. The l
 | Read and visibility boundaries | Determine the unread baseline and which history remains visible |
 | Local presentation state | Pinning, drafts, and final ordering are normally client-owned |
 
+The server uses `activated_at` to order the active conversation directory. It records explicit Channel activation, not latest-message time; an inactive empty Channel with no visible messages is omitted. After receiving latest-message data, the client decides pinning, grouping, and final UI order.
+
 The server-side conversation list and each Channel's message list use separate synchronization positions. A client cannot use one cursor for both.
 
 ## Understanding common actions
@@ -47,12 +56,5 @@ The server-side conversation list and each Channel's message list use separate s
 <Callout type="info" title="The client owns final chat-list presentation">
   WuKongIM supplies conversation, latest-message, and unread state. Pinning, drafts, grouping, and final UI ordering remain product-client responsibilities.
 </Callout>
-
-## Relationship to other concepts
-
-- A **Channel** is the communication space a Conversation opens and the source of message history.
-- A **Message** changes the latest content and unread projection that a Conversation can present.
-- A **User** owns a personal conversation view, independent from other users' state.
-- A **Device** synchronizes UID-scoped conversation state while keeping its own local UI state.
 
 Continue with [Message](/en/guide/core-concepts/messages) and [Conversations & Unread Counts](/en/sdk/common-guides/conversations-and-unread). For server-side construction and paging, continue to the [message-flow architecture guide](/en/server/architecture/message-flow).
