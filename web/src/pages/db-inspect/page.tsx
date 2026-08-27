@@ -185,7 +185,11 @@ export function DBInspectPage() {
   const selectedNodeId = state.selectedNodeId || state.nodes[0]?.node_id || 0
 
   const loadInitial = useCallback(async () => {
-    setState((current) => ({ ...current, loading: true, error: null }))
+    setState((current) => ({
+      ...current,
+      loading: true,
+      error: current.error && isDBInspectUnavailable(current.error) ? current.error : null,
+    }))
     try {
       const nodes = await getNodes()
       const selected = nodes.items.find((node) => node.is_local)?.node_id ?? nodes.items[0]?.node_id ?? 0
@@ -259,21 +263,25 @@ export function DBInspectPage() {
   const filteredTables = useMemo(() => filterTables(state.tables, state.tableFilter), [state.tables, state.tableFilter])
   const tablesByDomain = useMemo(() => groupTables(filteredTables), [filteredTables])
   const tableCount = formatTableCount(intl, filteredTables.length, state.tables.length)
+  const unavailable = state.error ? isDBInspectUnavailable(state.error) : false
 
   return (
     <PageContainer>
       <PageHeader
-        actions={(
+        actions={!unavailable ? (
           <Button onClick={() => void loadInitial()} size="sm" variant="outline">
             <RefreshCw className="mr-2 size-4" />
             {intl.formatMessage({ id: "common.refresh" })}
           </Button>
-        )}
+        ) : undefined}
         description={intl.formatMessage({ id: "dbInspect.description" })}
         title={intl.formatMessage({ id: "dbInspect.title" })}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      {unavailable ? (
+        <DBInspectEnablement checking={state.loading} onRetry={() => void loadInitial()} />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
         <div className="overflow-hidden" data-testid="db-inspect-table-rail">
           <SectionCard
             action={!state.loading ? <span className="font-mono text-xs text-muted-foreground">{tableCount}</span> : null}
@@ -435,8 +443,117 @@ export function DBInspectPage() {
             </SectionCard>
           ) : null}
         </div>
-      </div>
+        </div>
+      )}
     </PageContainer>
+  )
+}
+
+function DBInspectEnablement({
+  checking,
+  onRetry,
+}: {
+  checking: boolean
+  onRetry: () => void
+}) {
+  const intl = useIntl()
+  const tomlSnippet = `[node]\ndata_dir = "/path/to/wukongim-data"`
+  const envSnippet = "WK_NODE_DATA_DIR=/path/to/wukongim-data"
+
+  return (
+    <section
+      aria-labelledby="db-inspect-enablement-title"
+      className="overflow-hidden rounded-2xl border border-warning/30 bg-card shadow-[0_18px_60px_-44px_var(--status-warning)]"
+      data-testid="db-inspect-enablement"
+      role="status"
+    >
+      <div className="border-b border-warning/20 bg-warning/6 px-5 py-5 sm:px-7 sm:py-6">
+        <div className="flex items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-warning/25 bg-warning/10 text-warning">
+            <Database aria-hidden="true" className="size-5" />
+          </div>
+          <div className="min-w-0 space-y-2">
+            <span className="inline-flex rounded-full border border-warning/25 bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">
+              {intl.formatMessage({ id: "dbInspect.enablement.badge" })}
+            </span>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground" id="db-inspect-enablement-title">
+              {intl.formatMessage({ id: "dbInspect.enablement.title" })}
+            </h2>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              {intl.formatMessage({ id: "dbInspect.enablement.description" })}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-5 px-5 py-5 sm:px-7 sm:py-6">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <EnablementMethod
+            description={intl.formatMessage({ id: "dbInspect.enablement.file.description" })}
+            label="01"
+            snippet={tomlSnippet}
+            title={intl.formatMessage({ id: "dbInspect.enablement.file.title" })}
+          />
+          <EnablementMethod
+            description={intl.formatMessage({ id: "dbInspect.enablement.env.description" })}
+            label="02"
+            snippet={envSnippet}
+            title={intl.formatMessage({ id: "dbInspect.enablement.env.title" })}
+          />
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/25 px-4 py-4 sm:flex sm:items-center sm:justify-between sm:gap-6">
+          <div className="flex min-w-0 gap-3">
+            <span className="font-mono text-xs font-semibold text-primary">03</span>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">
+                {intl.formatMessage({ id: "dbInspect.enablement.restart.title" })}
+              </h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                {intl.formatMessage({ id: "dbInspect.enablement.restart.description" })}
+              </p>
+            </div>
+          </div>
+          <Button className="mt-4 shrink-0 sm:mt-0" disabled={checking} onClick={onRetry}>
+            <RefreshCw className={cn("mr-2 size-4", checking && "animate-spin")} />
+            {intl.formatMessage({
+              id: checking ? "dbInspect.enablement.checking" : "dbInspect.enablement.retry",
+            })}
+          </Button>
+        </div>
+
+        <p className="border-l-2 border-warning/40 pl-3 text-xs leading-5 text-muted-foreground">
+          {intl.formatMessage({ id: "dbInspect.enablement.pathHint" })}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function EnablementMethod({
+  description,
+  label,
+  snippet,
+  title,
+}: {
+  description: string
+  label: string
+  snippet: string
+  title: string
+}) {
+  return (
+    <article className="rounded-xl border border-border bg-background p-4">
+      <div className="flex gap-3">
+        <span className="font-mono text-xs font-semibold text-primary">{label}</span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <pre className="mt-4 overflow-x-auto rounded-lg border border-border bg-muted/35 px-4 py-3 text-xs leading-6 text-foreground">
+        <code>{snippet}</code>
+      </pre>
+    </article>
   )
 }
 

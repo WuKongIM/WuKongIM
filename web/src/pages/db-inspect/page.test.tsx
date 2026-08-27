@@ -362,12 +362,49 @@ test("keeps query text when the query fails", async () => {
   expect(screen.getByLabelText("Inspect query")).toHaveValue("select * from meta.user order by uid")
 })
 
-test("shows configuration guidance when db inspect is unavailable", async () => {
+test("replaces the disabled workbench with server enablement guidance", async () => {
   getNodesMock.mockResolvedValueOnce(nodesResponse())
   getDBInspectTablesMock.mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "db inspect unavailable"))
 
   renderPage()
 
-  expect(await screen.findByText("DB Inspect is not enabled. Configure node.data_dir in wukongim.toml or set WK_NODE_DATA_DIR so the manager can open node-local storage, then restart the node.")).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Enable DB Inspect" })).toBeInTheDocument()
+  expect(screen.getByText("Server configuration required")).toBeInTheDocument()
+  expect(screen.getByText(/\[node\]\s+data_dir = "\/path\/to\/wukongim-data"/)).toBeInTheDocument()
+  expect(screen.getByText("WK_NODE_DATA_DIR=/path/to/wukongim-data")).toBeInTheDocument()
+  expect(screen.getByText("Use the existing data directory for this node; do not point to a new empty directory.")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument()
+  expect(screen.queryByTestId("db-inspect-table-rail")).not.toBeInTheDocument()
+  expect(screen.queryByTestId("db-inspect-query-workbench")).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Run query" })).not.toBeInTheDocument()
   expect(screen.queryByText("db inspect unavailable")).not.toBeInTheDocument()
+})
+
+test("keeps the enablement guide visible while checking again and opens the workbench after recovery", async () => {
+  let resolveRetry: ((value: unknown) => void) | undefined
+  const retryResponse = new Promise((resolve) => {
+    resolveRetry = resolve
+  })
+  getNodesMock.mockResolvedValue(nodesResponse())
+  getDBInspectTablesMock
+    .mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "db inspect unavailable"))
+    .mockReturnValueOnce(retryResponse)
+
+  const user = userEvent.setup()
+  renderPage()
+
+  await user.click(await screen.findByRole("button", { name: "Check again" }))
+  expect(screen.getByRole("button", { name: "Checking..." })).toBeDisabled()
+  expect(screen.getByTestId("db-inspect-enablement")).toBeInTheDocument()
+  expect(screen.queryByTestId("db-inspect-query-workbench")).not.toBeInTheDocument()
+
+  resolveRetry?.({
+    node_id: 1,
+    generated_at: "2026-06-17T10:00:00Z",
+    rows: [{ domain: "meta", name: "user", table: "meta.user" }],
+    stats: { scan_mode: "", scanned_hash_slots: [], scanned_rows: 0, returned_rows: 1, has_more: false, next_cursor: "" },
+  })
+
+  expect(await screen.findByTestId("db-inspect-query-workbench")).toBeInTheDocument()
+  expect(screen.queryByTestId("db-inspect-enablement")).not.toBeInTheDocument()
 })
