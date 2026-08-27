@@ -297,7 +297,7 @@ Every `docs-site` change runs:
 
 ### Real integration gate
 
-The real single-node-cluster + BFF + browser scenario is selected only when the
+The real single-node cluster + BFF + browser scenario is selected only when the
 golden sample, published SDK/API content, shared contract facts, shared
 developer-page presentation sources, or their narrow runtime source
 dependencies change. Selection includes the relevant token, route, sync,

@@ -12,7 +12,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [cmd/wkcloudbundle/FLOW.md](../../cmd/wkcloudbundle/FLOW.md) | `package` | Seals and verifies immutable offline deployment bundles without cloud, credential, build, or service authority. | 50 | ok |
 | [cmd/wkcloudlease/FLOW.md](../../cmd/wkcloudlease/FLOW.md) | `package` | Exposes synchronous provider-neutral Cloud Lease commands while separating read-only inspection from paid mutation authority. | 52 | ok |
 | [cmd/wkcloudleaseoidc/FLOW.md](../../cmd/wkcloudleaseoidc/FLOW.md) | `package` | Creates, verifies, and removes repository-owned Alibaba OIDC identity without Cloud Lease acquisition authority. | 48 | ok |
-| [docs-site/FLOW.md](../../docs-site/FLOW.md) | `subtree` | Owns the bilingual static v3 documentation site, shared navigation, publication state, search, SEO, and machine-readable outputs. | 92 | ok |
+| [docs-site/FLOW.md](../../docs-site/FLOW.md) | `subtree` | Owns the bilingual static v3 documentation site, shared navigation, publication state, search, SEO, and machine-readable outputs. | 95 | ok |
 | [internal/access/api/FLOW.md](../../internal/access/api/FLOW.md) | `package` | Adapts product, benchmark, debug, and compatibility HTTP requests to internal use cases. | 92 | ok |
 | [internal/access/cloudanalysismcp/FLOW.md](../../internal/access/cloudanalysismcp/FLOW.md) | `package` | Adapts authenticated Analysis MCP and token requests to a closed, bounded observation usecase surface. | 53 | ok |
 | [internal/access/cloudview/FLOW.md](../../internal/access/cloudview/FLOW.md) | `package` | Proxies one Simulation Run's public HTTP and WebSocket traffic while preserving health routing and benchmark-purity evidence. | 55 | ok |

@@ -381,7 +381,7 @@ export async function checkStaticOutput() {
     );
     const capabilityFacts = [
       '`route-connect`',
-      locale === 'zh' ? '已验证' : 'Verified',
+      locale === 'zh' ? '场景覆盖' : 'Scenario-covered',
       '`production-connection-authentication`',
       locale === 'zh' ? '边界' : 'Boundary',
       '`transient-and-background-behavior`',

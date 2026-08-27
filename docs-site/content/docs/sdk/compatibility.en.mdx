@@ -51,7 +51,7 @@ curl --fail https://docs.githubim.com/compatibility.json
 1. Read the server revision and exact SDK version from `compatibility.json`.
 2. Check out that server source instead of a moving `main` or SDK `latest`.
 3. Run `npm ci` in the golden-sample directory and preserve its lockfile.
-4. Run the sample checks, then complete the real single-node-cluster smoke scenario in the [Quickstart](/en/sdk/javascript/quickstart).
+4. Run the sample checks, then complete the real single-node cluster smoke scenario in the [Quickstart](/en/sdk/javascript/quickstart).
 5. After any component changes, rerun the entire scenario and let the integration gate emit a new exact receipt; do not mark the combination manually.
 
 ## Expected result

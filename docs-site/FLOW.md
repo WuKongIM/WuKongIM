@@ -14,8 +14,9 @@ It also owns the narrow JavaScript Web golden-path laboratory, its generated
 compatibility/OpenAPI artifacts, platform-neutral SDK behavior guides, and
 source-checked protocol dictionaries. It does not define product runtime
 behavior or replace authoritative code contracts. The JavaScript laboratory
-also owns a bounded local integration-acceptance report that proves only its
-compatibility smoke and leaves production readiness unassessed.
+also owns a bounded local integration-acceptance report. The report identifies
+its harness and observed installed SDK, proves only its compatibility smoke,
+and leaves the tested cluster source and production readiness unassessed.
 
 ## Boundaries
 
@@ -38,7 +39,7 @@ compatibility smoke and leaves production readiness unassessed.
    and machine-readable outputs.
 4. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
-   the real single-node-cluster/Chromium verification evidence and can write a
+   the real single-node cluster/Chromium verification evidence and can write a
    redacted local acceptance report only after fast and real gates pass.
 5. Next.js static export writes `out/`, whose publication, canonical, link,
    accessibility-structure, and machine-artifact boundaries are checked before
@@ -74,8 +75,10 @@ compatibility smoke and leaves production readiness unassessed.
   explicitly unverified.
 - The local acceptance report uses its own exact schema, records no endpoint,
   token, UID, message body, DOM, or browser capture, and always marks production
-  readiness `not_assessed` and publication attestation `not_issued`. It cannot
-  be supplied as the protected golden-path verification receipt.
+  readiness `not_assessed`, tested cluster source `not_assessed`, and publication
+  attestation `not_issued`. Its documentation-quality result passes only when
+  both locale routes participate in the browser run. It cannot be supplied as
+  the protected golden-path verification receipt.
 
 ## Read First
 

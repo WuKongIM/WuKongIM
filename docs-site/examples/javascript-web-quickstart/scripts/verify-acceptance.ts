@@ -11,6 +11,7 @@ import {
   serializeIntegrationAcceptanceReport,
   type IntegrationAcceptanceReportInput,
 } from "../src/acceptance/report";
+import { JAVASCRIPT_WEB_QUICKSTART_TARGET } from "../src/acceptance/target";
 import { runIntegrationAcceptanceVerification } from "../src/acceptance/verification";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -55,6 +56,7 @@ try {
   console.log(
     `Compatibility smoke: ${report.compatibility_smoke.result}; production readiness: ${report.production_readiness.result}`,
   );
+  console.log(`Documentation quality: ${report.documentation_quality.result}`);
 } catch (error) {
   await Promise.all([
     rm(reportPath, { force: true }),
@@ -69,6 +71,14 @@ try {
 
 async function collectReportInput(): Promise<IntegrationAcceptanceReportInput> {
   const packageLock = await readFile(path.join(packageRoot, "package-lock.json"));
+  const sdkManifest = JSON.parse(
+    await readFile(
+      require.resolve(
+        `${JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.package}/package.json`,
+      ),
+      "utf8",
+    ),
+  ) as { name?: string; version?: string };
   const playwrightManifest = JSON.parse(
     await readFile(require.resolve("@playwright/test/package.json"), "utf8"),
   ) as { version?: string };
@@ -100,6 +110,10 @@ async function collectReportInput(): Promise<IntegrationAcceptanceReportInput> {
     playwrightVersion: playwrightManifest.version,
     chromiumRevision: chromiumEntry.revision,
     chromiumVersion,
+    sdkPackage: sdkManifest.name ?? "unavailable",
+    sdkVersion: sdkManifest.version ?? "unavailable",
+    documentationPagesIncluded:
+      (process.env.WK_DOCS_SITE_E2E_URL?.trim().length ?? 0) > 0,
   };
 }
 

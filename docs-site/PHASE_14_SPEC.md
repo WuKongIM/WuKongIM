@@ -29,7 +29,9 @@ After this phase, that integrator can:
    redacted JSON report;
 3. distinguish SENDACK, realtime receipt, offline absence, recovery, and
    deduplication evidence;
-4. see which browser, SDK, and source identities produced the report;
+4. see the actual browser and installed SDK identities, distinguish the
+   acceptance-harness revision from the tested cluster, and retain the cluster
+   source identity as `not_assessed` when the target cannot attest it;
 5. stop a production release when connection authentication or another
    deployment-owned gate lacks evidence; and
 6. prepare a review packet without copying tokens, UIDs, message bodies,
@@ -60,7 +62,10 @@ compatibility claims.
 5. record no supplied endpoint, development token, UID, message body, DOM,
    screenshot, trace, video, console payload, or Product HTTP response;
 6. write the report below the already-ignored `test-results/` directory; and
-7. leave a failed run without a stale passing report.
+7. leave a failed run without a stale passing report; and
+8. report bilingual documentation quality `passed` only when a configured
+   loopback documentation server actually joins the Chromium route matrix,
+   otherwise preserving it as `not_assessed`.
 
 The smoke continues to prove the existing scenario only:
 
@@ -75,8 +80,9 @@ The smoke continues to prove the existing scenario only:
   membership-not-ready response; and
 - deduplication when realtime and synchronized observations overlap.
 
-The accessibility checks remain laboratory and documentation quality evidence,
-not JavaScript SDK capability claims.
+The sample accessibility check always runs. Bilingual documentation quality is
+a separate result and runs only when `WK_DOCS_SITE_E2E_URL` is configured. Both
+remain quality evidence, not JavaScript SDK capability claims.
 
 ### Production-readiness gates
 
@@ -103,9 +109,15 @@ The local report schema is
 `wukongim.docs.integration-acceptance/v1`. It has exact top-level sections for:
 
 - generation time;
-- source revision and clean/dirty state;
-- sample lockfile, scenario, SDK, Node.js, Playwright, and Chromium identity;
-- the fixed compatibility-smoke checks, all marked `passed`; and
+- acceptance-harness revision and clean/dirty state, explicitly not the tested
+  cluster's source revision;
+- a cluster source identity fixed to `not_assessed` because an arbitrary
+  Product HTTP endpoint provides no trusted build attestation;
+- sample lockfile, scenario, observed-and-validated installed SDK, Node.js,
+  Playwright, and Chromium identity;
+- the fixed compatibility-smoke checks, all marked `passed`;
+- a separate bilingual documentation-quality check marked `passed` only when
+  its configured routes ran, otherwise `not_assessed`; and
 - the fixed production gates, all marked `not_assessed`.
 
 The report schema is intentionally different from
@@ -114,8 +126,9 @@ integration gate may issue the latter publication receipt. Renaming or feeding
 the local report to the documentation build must not set
 `compatibility.json.verified=true`.
 
-The report builder validates bounded strings, a hexadecimal source revision,
-a SHA-256 lock identity, an ISO timestamp, and the fixed check/gate vocabulary.
+The report builder validates bounded strings, a hexadecimal harness revision,
+a SHA-256 lock identity, an ISO timestamp, the installed SDK against the shared
+target identity, and the fixed check/gate vocabulary.
 It rejects any serialized report containing URL schemes or the development
 token prefix and caps output at 16 KiB.
 
@@ -124,12 +137,14 @@ token prefix and caps output at 16 KiB.
 The platform-capability page renders from one shared catalog used by both the
 human table and Markdown/LLM supplement. Status vocabulary is:
 
-- `verified`: exercised by the pinned real Chromium scenario;
+- `scenario-covered`: the repository has a pinned real Chromium scenario for
+  the capability; current-revision pass still requires a matching receipt or
+  acceptance report;
 - `boundary`: a current product or security limit the integrator must retain;
 - `unverified`: enum/API presence or generic SDK guidance without executable
   evidence in this snapshot.
 
-Verified entries are limited to route/connection, persistent person messaging,
+Scenario-covered entries are limited to route/connection, persistent person messaging,
 SENDACK and realtime separation, reconnect/offline synchronization, and
 deduplication in Chromium. Production authentication is a boundary. Other
 browsers, groups, custom messages, conversation APIs, push, multi-device
@@ -145,7 +160,7 @@ presence.
 Both routes enter locale-correct navigation, static parameters, search,
 sitemap, `llms-full.txt`, and per-page Markdown. The capability page receives
 its generated Markdown matrix from the same catalog as the React table.
-Static-output checks assert representative `verified`, `boundary`, and
+Static-output checks assert representative `scenario-covered`, `boundary`, and
 `unverified` facts plus the production `not_assessed` boundary.
 
 ## Validation
@@ -166,7 +181,7 @@ The fast gate must cover:
 
 Because Phase 14 changes the executable sample, its E2E harness, and published
 JavaScript contract pages, the protected `docs-integration` check must run the
-real 256-Hash-Slot single-node-cluster/Chromium scenario before completion.
+real 256-Hash-Slot single-node cluster Chromium scenario before completion.
 
 ## Excluded
 

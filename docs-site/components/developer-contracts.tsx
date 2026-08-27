@@ -146,7 +146,7 @@ function SnapshotFact({ label, children }: { label: string; children: React.Reac
 }
 
 const capabilityStatusClasses: Record<JavaScriptCapabilityStatus, string> = {
-  verified: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  'scenario-covered': 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
   boundary: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
   unverified: 'bg-fd-muted text-fd-muted-foreground',
 };
@@ -155,7 +155,12 @@ const capabilityStatusClasses: Record<JavaScriptCapabilityStatus, string> = {
 export function JavaScriptCapabilityMatrix({ locale = 'en' }: { locale?: Locale }) {
   const isZh = locale === 'zh';
   return (
-    <div className="not-prose my-6 overflow-x-auto rounded-xl border">
+    <div
+      aria-label={isZh ? 'JavaScript / Web 能力证据矩阵' : 'JavaScript / Web capability evidence matrix'}
+      className="not-prose my-6 overflow-x-auto rounded-xl border"
+      role="region"
+      tabIndex={0}
+    >
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
         <caption className="sr-only">
           {isZh

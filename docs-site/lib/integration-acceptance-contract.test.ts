@@ -5,6 +5,7 @@ import {
 } from './developer-contracts';
 import {
   ACCEPTANCE_CHECK_IDS,
+  DOCUMENTATION_QUALITY_CHECK_IDS,
   PRODUCTION_GATE_IDS,
 } from '../examples/javascript-web-quickstart/src/acceptance/report';
 
@@ -18,11 +19,11 @@ async function text(root: URL, path: string) {
 describe('Phase 14 integration acceptance contracts', () => {
   test('publishes only evidence-backed JavaScript capability statuses', () => {
     expect(javascriptWebCapabilities.map(({ id, status }) => [id, status])).toEqual([
-      ['route-connect', 'verified'],
-      ['persistent-person-messaging', 'verified'],
-      ['sendack-realtime-separation', 'verified'],
-      ['reconnect-offline-sync', 'verified'],
-      ['realtime-sync-deduplication', 'verified'],
+      ['route-connect', 'scenario-covered'],
+      ['persistent-person-messaging', 'scenario-covered'],
+      ['sendack-realtime-separation', 'scenario-covered'],
+      ['reconnect-offline-sync', 'scenario-covered'],
+      ['realtime-sync-deduplication', 'scenario-covered'],
       ['production-connection-authentication', 'boundary'],
       ['browser-product-http-access', 'boundary'],
       ['non-chromium-browsers', 'unverified'],
@@ -45,10 +46,10 @@ describe('Phase 14 integration acceptance contracts', () => {
       expect(zh).toContain(fact);
       expect(en).toContain(fact);
     }
-    expect(zh).toContain('已验证');
+    expect(zh).toContain('场景覆盖');
     expect(zh).toContain('边界');
     expect(zh).toContain('未验证');
-    expect(en).toContain('Verified');
+    expect(en).toContain('Scenario-covered');
     expect(en).toContain('Boundary');
     expect(en).toContain('Unverified');
   });
@@ -66,9 +67,15 @@ describe('Phase 14 integration acceptance contracts', () => {
       expect(page).toContain('wukongim.docs.integration-acceptance/v1');
       expect(page).toContain('not_assessed');
       expect(page).toContain('/readyz');
+      expect(page).toContain('cluster.source_identity');
+      expect(page).toContain('documentation_quality.result');
     }
     expect(zhAcceptance).toContain('默认 v3 Beta');
     expect(enAcceptance).toContain('default v3 Beta');
+    expect(zhAcceptance).toContain('事故诊断');
+    expect(zhAcceptance).toContain('版本固定');
+    expect(enAcceptance).toContain('incident diagnostics');
+    expect(enAcceptance).toContain('version pinning');
     expect(zhCapabilities).toContain('<JavaScriptCapabilityMatrix locale="zh" />');
     expect(enCapabilities).toContain('<JavaScriptCapabilityMatrix locale="en" />');
     expect(zhCapabilities).toContain('/zh/guide/integration/acceptance');
@@ -92,6 +99,7 @@ describe('Phase 14 integration acceptance contracts', () => {
     const [
       e2e,
       productClient,
+      verifier,
       sampleReadme,
       zhQuickstart,
       enQuickstart,
@@ -100,6 +108,7 @@ describe('Phase 14 integration acceptance contracts', () => {
     ] = await Promise.all([
       text(sampleRoot, 'e2e/quickstart.spec.ts'),
       text(sampleRoot, 'src/server/product-http-client.ts'),
+      text(sampleRoot, 'scripts/verify-acceptance.ts'),
       text(sampleRoot, 'README.md'),
       text(contentRoot, 'sdk/javascript/quickstart.mdx'),
       text(contentRoot, 'sdk/javascript/quickstart.en.mdx'),
@@ -111,6 +120,7 @@ describe('Phase 14 integration acceptance contracts', () => {
     expect(productClient).toContain('maxAttempts: 20');
     expect(productClient).toContain('delayMs: 250');
     expect(productClient).toContain('valid channel membership required');
+    expect(verifier).toContain('JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.package');
     expect(sampleReadme).toContain('isolated development UIDs');
     expect(zhQuickstart).toContain('异步建立');
     expect(enQuickstart).toContain('asynchronously');
@@ -118,7 +128,7 @@ describe('Phase 14 integration acceptance contracts', () => {
     expect(enAcceptance).toContain('exact membership-not-ready');
   });
 
-  test('binds report checks and verified capability claims to the real scenario', async () => {
+  test('binds report checks and scenario-covered capability claims to the real scenario', async () => {
     expect(ACCEPTANCE_CHECK_IDS).toEqual([
       'sample-contracts',
       'route-connect',
@@ -127,7 +137,10 @@ describe('Phase 14 integration acceptance contracts', () => {
       'offline-realtime-absence',
       'reconnect-sync-recovery',
       'realtime-sync-deduplication',
-      'accessibility-baseline',
+      'sample-accessibility-baseline',
+    ]);
+    expect(DOCUMENTATION_QUALITY_CHECK_IDS).toEqual([
+      'bilingual-documentation-accessibility',
     ]);
     expect(PRODUCTION_GATE_IDS).toContain('gateway-stored-token-verification');
 

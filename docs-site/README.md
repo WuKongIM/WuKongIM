@@ -42,8 +42,11 @@ support claims.
 Phase 14 publishes an integrator acceptance loop: an evidence-backed
 JavaScript/Web capability matrix, a bilingual production gate guide, and a
 one-command local compatibility smoke report. The report is bounded and
-redacted, keeps production readiness `not_assessed`, and cannot replace the
-protected clean-HEAD publication receipt.
+redacted. It records the acceptance-harness revision and observed installed SDK
+identity, leaves the tested cluster source and production readiness
+`not_assessed`, and cannot replace the protected clean-HEAD publication
+receipt. Documentation quality passes only when the bilingual pages participate
+in the browser run.
 
 ## Develop
 
@@ -73,8 +76,9 @@ shared compatibility and slice-level OpenAPI facts, Reason Code alignment, and
 unique executable source anchors plus MDX publication checkpoints. Phase 13
 also checks every common-guide publication boundary and compares protocol
 dictionary names, values, and bit positions with their current Go authorities.
-Phase 14 also checks capability status drift, exact local-report shape,
-fail-closed write ordering, and the separation between compatibility smoke and
+Phase 14 also checks capability-status drift, exact local-report shape,
+fail-closed write ordering, observed SDK identity, and the separation between
+the harness, tested cluster, documentation quality, compatibility smoke, and
 production readiness. Relevant
 sample or runtime-contract changes select the real Chromium integration check.
 

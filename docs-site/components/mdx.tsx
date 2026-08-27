@@ -1,5 +1,6 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { MDXComponents } from 'mdx/types';
+import type { ComponentProps } from 'react';
 import {
   ChannelTypeTable,
   CompatibilitySnapshot,
@@ -10,9 +11,21 @@ import {
   ReasonCodeTable,
 } from './developer-contracts';
 
+function ScrollableTable(props: ComponentProps<'table'>) {
+  return (
+    <div
+      className="relative my-6 overflow-auto prose-no-margin focus-visible:outline-2 focus-visible:outline-offset-2"
+      tabIndex={0}
+    >
+      <table {...props} />
+    </div>
+  );
+}
+
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
+    table: ScrollableTable,
     ChannelTypeTable,
     CompatibilitySnapshot,
     DeviceFlagTable,

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ACCEPTANCE_CHECK_IDS,
+  DOCUMENTATION_QUALITY_CHECK_IDS,
   PRODUCTION_GATE_IDS,
   buildIntegrationAcceptanceReport,
   serializeIntegrationAcceptanceReport,
@@ -20,6 +21,9 @@ const input: IntegrationAcceptanceReportInput = {
   playwrightVersion: "1.62.1",
   chromiumRevision: "1234",
   chromiumVersion: "151.0.7922.34",
+  sdkPackage: "wukongimjssdk",
+  sdkVersion: "1.3.5",
+  documentationPagesIncluded: false,
 };
 
 test("acceptance runs use isolated participant UIDs within the Product HTTP contract", () => {
@@ -44,9 +48,10 @@ test("the acceptance report proves compatibility smoke without claiming producti
   assert.deepEqual(Object.keys(report), [
     "schema",
     "generated_at",
-    "source",
+    "harness_source",
     "target",
     "compatibility_smoke",
+    "documentation_quality",
     "production_readiness",
     "publication_attestation",
   ]);
@@ -56,12 +61,42 @@ test("the acceptance report proves compatibility smoke without claiming producti
     report.compatibility_smoke.checks.map(({ id, result }) => [id, result]),
     ACCEPTANCE_CHECK_IDS.map((id) => [id, "passed"]),
   );
+  assert.equal(report.target.cluster.source_identity, "not_assessed");
+  assert.equal(report.documentation_quality.result, "not_assessed");
+  assert.deepEqual(
+    report.documentation_quality.checks.map(({ id, result }) => [id, result]),
+    DOCUMENTATION_QUALITY_CHECK_IDS.map((id) => [id, "not_assessed"]),
+  );
   assert.equal(report.production_readiness.result, "not_assessed");
   assert.deepEqual(
     report.production_readiness.gates.map(({ id, result }) => [id, result]),
     PRODUCTION_GATE_IDS.map((id) => [id, "not_assessed"]),
   );
   assert.equal(report.publication_attestation, "not_issued");
+});
+
+test("documentation quality is passed only when bilingual routes joined the E2E run", () => {
+  const report = buildIntegrationAcceptanceReport({
+    ...input,
+    documentationPagesIncluded: true,
+  });
+
+  assert.equal(report.documentation_quality.result, "passed");
+  assert.deepEqual(
+    report.documentation_quality.checks.map(({ result }) => result),
+    DOCUMENTATION_QUALITY_CHECK_IDS.map(() => "passed"),
+  );
+});
+
+test("the report rejects an installed SDK identity that drifts from the shared target", () => {
+  assert.throws(
+    () =>
+      buildIntegrationAcceptanceReport({
+        ...input,
+        sdkVersion: "1.3.6",
+      }),
+    /SDK identity/,
+  );
 });
 
 test("the serialized report stays bounded and excludes endpoints and development tokens", () => {
@@ -74,13 +109,19 @@ test("the serialized report stays bounded and excludes endpoints and development
   assert.throws(() =>
     serializeIntegrationAcceptanceReport({
       ...report,
-      source: { ...report.source, revision: "docs-dev-secret" },
+      harness_source: {
+        ...report.harness_source,
+        revision: "docs-dev-secret",
+      },
     }),
   );
   assert.throws(() =>
     serializeIntegrationAcceptanceReport({
       ...report,
-      source: { ...report.source, revision: "https://cluster.example" },
+      harness_source: {
+        ...report.harness_source,
+        revision: "https://cluster.example",
+      },
     }),
   );
 });

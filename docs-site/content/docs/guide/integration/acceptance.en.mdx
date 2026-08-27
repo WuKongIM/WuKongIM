@@ -13,7 +13,7 @@ A page that can chat and a socket that can connect are not release decisions. Fi
 
 | Layer | Owner | What it proves | What it cannot prove |
 | --- | --- | --- | --- |
-| Compatibility smoke | Pinned JavaScript sample and real Chromium | The current source, lockfile, SDK, and browser complete the defined message loop | Production authentication, TLS, capacity, webhook reliability, or product policy |
+| Compatibility smoke | Pinned JavaScript sample and real Chromium | The acceptance-harness revision, lockfile, observed installed SDK, and browser complete the defined loop against the configured cluster endpoint | Tested-cluster source identity, production authentication, TLS, capacity, webhook reliability, or product policy |
 | Production gates | Product, platform, security, and operations owners | This deployment's identity, network, policy, capacity, and recovery design are releasable | It cannot rewrite SDK compatibility evidence |
 
 Either layer can stop a release. A manual production checklist cannot excuse a broken executable scenario, and a green smoke report cannot waive production security review.
@@ -29,7 +29,7 @@ WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
 npm run verify:acceptance
 ```
 
-The command starts its own sample BFF. Stop a manually running Quickstart on the same UI port first, or choose another unused loopback port.
+The command starts its own sample BFF. Stop a manually running Quickstart on the same UI port first, or choose another unused loopback port. By default it checks only the laboratory pages. To include bilingual documentation routes in the same Chromium run, first serve `docs-site/out` on loopback and also set `WK_DOCS_SITE_E2E_URL`; otherwise documentation quality remains `not_assessed`.
 
 The command runs fast tests and the typechecked build, executes the complete real Chromium E2E, and only then writes:
 
@@ -49,7 +49,7 @@ The pinned scenario proves that:
 4. Alice can commit while Bob is offline and Bob records no realtime event;
 5. Bob reconnects and recovers through bounded person-message synchronization; the UID-directory projection triggered by the first persistent person message is asynchronous, so the sample waits at 250ms intervals, at most 20 times, only for the exact membership-not-ready response;
 6. realtime observations are not relabeled by synchronization and the offline message is recovered once; and
-7. the laboratory and selected documentation pages pass the current accessibility baseline.
+7. the laboratory pages pass the current accessibility baseline; bilingual documentation routes join the separate documentation-quality check only when `WK_DOCS_SITE_E2E_URL` is set.
 
 See [JavaScript / Web Platform Capabilities](/en/sdk/javascript/platform-capabilities) for the complete boundary. Accessibility is laboratory and documentation quality evidence; it is not a claim about SDK assistive-technology support or full conformance.
 
@@ -60,10 +60,19 @@ The report uses `wukongim.docs.integration-acceptance/v1` and has this core shap
 ```json
 {
   "schema": "wukongim.docs.integration-acceptance/v1",
-  "source": { "revision": "<full-git-revision>", "clean": true },
+  "harness_source": { "revision": "<full-git-revision>", "clean": true },
+  "target": {
+    "cluster": { "source_identity": "not_assessed" }
+  },
   "compatibility_smoke": {
     "result": "passed",
     "checks": [{ "id": "route-connect", "result": "passed" }]
+  },
+  "documentation_quality": {
+    "result": "not_assessed",
+    "checks": [
+      { "id": "bilingual-documentation-accessibility", "result": "not_assessed" }
+    ]
   },
   "production_readiness": {
     "result": "not_assessed",
@@ -75,8 +84,10 @@ The report uses `wukongim.docs.integration-acceptance/v1` and has this core shap
 }
 ```
 
-- `source.clean=false` means the reviewer should first pin a revision and rerun.
-- `target` binds the sample lockfile, scenario, SDK, Node.js, Playwright, and actual Chromium identity.
+- `harness_source.clean=false` means the acceptance harness worktree is dirty; pin a revision and rerun. It is not the tested cluster's source identity.
+- `target` binds the sample lockfile, scenario, observed-and-validated installed SDK, Node.js, Playwright, and actual Chromium identity.
+- `target.cluster.source_identity=not_assessed` means an arbitrary Product HTTP target supplied no verifiable server-build identity; never substitute `harness_source.revision` for the cluster revision.
+- `documentation_quality.result=passed` appears only when `WK_DOCS_SITE_E2E_URL` is set and the bilingual routes actually join this E2E; otherwise it is `not_assessed`.
 - `publication_attestation=not_issued` means this is not the documentation publication receipt. Only the protected clean-HEAD `docs-integration` gate can issue the existing golden-path verification receipt.
 - The report contains no token, UID, message body, endpoint, DOM, screenshot, trace, video, or server response.
 
@@ -91,7 +102,7 @@ The report uses `wukongim.docs.integration-acceptance/v1` and has this core shap
 | Authorization and content policy | Membership, allow/deny, mute, moderation, and rejection cases | Product-driven |
 | Capacity and backpressure | Target-scale load, queue thresholds, retry bounds, limits, and degradation criteria | Not covered by smoke |
 | Webhook reliability | Trusted network, persist-before-200, idempotency, exhausted-retry handling, and reconciliation | Current sender adds no signature header |
-| Operations and rollback | Metrics, alerts, backup/restore rehearsal, change audit, canary, and rollback rehearsal | Requires separate run evidence |
+| Operations and rollback | Metrics, alerts, incident diagnostics, backup/restore rehearsal, change audit, version pinning, canary, rollback criteria, and rollback rehearsal | Requires separate run evidence |
 
 Every deployment is a cluster. A single-node cluster still follows Controller, Slot, and Channel authority. Capacity evidence must match the product workload and retain the default 256 physical Hash Slot semantics.
 
@@ -109,7 +120,7 @@ Your release process owns the final Go/No-Go. This page defines evidence boundar
 - **`real-e2e` fails:** classify the failure by route, CONNACK, SENDACK, realtime, or sync stage and retain Reason Code plus version identity.
 - **Sync returns membership required:** the first persistent person message establishes both UID directories asynchronously. The sample retries only that exact not-ready response within a fixed window; continued failure means projection did not converge and must not be hidden by an unbounded retry.
 - **No report exists:** this is expected fail-closed behavior; the command writes only after all steps pass.
-- **The report says dirty source:** commit or deliberately remove scoped changes, then rerun from an exact revision.
+- **The report says dirty harness source:** commit or deliberately remove scoped changes, then rerun from an exact revision; obtain cluster source identity from deployment inventory or separate attestation.
 
 ## Evidence safety
 

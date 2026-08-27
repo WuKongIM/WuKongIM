@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import openapi from '../contracts/javascript-web-quickstart.openapi.json';
+import { JAVASCRIPT_WEB_QUICKSTART_TARGET } from '../examples/javascript-web-quickstart/src/acceptance/target';
 import { MAX_PERSON_MESSAGE_SYNC_LIMIT } from '../examples/javascript-web-quickstart/src/server/bff';
 
 const sampleRoot = new URL('../examples/javascript-web-quickstart/', import.meta.url);
@@ -22,14 +23,18 @@ describe('JavaScript Web golden sample contract', () => {
     };
 
     expect(manifest.engines.node).toBe('>=20.11');
-    expect(manifest.dependencies.wukongimjssdk).toBe('1.3.5');
+    expect(manifest.dependencies[JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.package]).toBe(
+      JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.version,
+    );
     expect(manifest.devDependencies['@axe-core/playwright']).toBe('4.13.0');
     expect(manifest.devDependencies['@playwright/test']).toBe('1.62.1');
     expect(manifest.scripts.check).toBeTruthy();
     expect(manifest.scripts['test:e2e']).toBeTruthy();
     expect(manifest.scripts['verify:acceptance']).toBe('tsx scripts/verify-acceptance.ts');
     expect(lock.lockfileVersion).toBe(3);
-    expect(lock.packages['node_modules/wukongimjssdk']?.version).toBe('1.3.5');
+    expect(
+      lock.packages[`node_modules/${JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.package}`]?.version,
+    ).toBe(JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk.version);
     expect(lock.packages['node_modules/@axe-core/playwright']?.version).toBe('4.13.0');
     expect(lock.packages['node_modules/@playwright/test']?.version).toBe('1.62.1');
   });

@@ -44,7 +44,7 @@ A user can have multiple devices, and each device can create many connections ov
 
 - Business accounts and authorization belong to the business service; connections and message transport belong to WuKongIM.
 - Message commit and online delivery are separate stages. A temporarily offline recipient does not change the committed message.
-- Single-node clusters and multi-node clusters use the same path; integrations must not add a single-node-cluster bypass.
+- Single-node clusters and multi-node clusters use the same path; integrations must not add a single-node cluster bypass.
 - Designs for 100,000-member groups, many online users, and high message rates must consider fan-out, queue bounds, backpressure, memory, and storage latency together.
 
 ## Explore each concept

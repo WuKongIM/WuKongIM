@@ -58,7 +58,7 @@ When the real integration test fails, CI may retain only capped PNG screenshots 
 
 ## Diagnostic order
 
-1. Confirm single-node-cluster `/readyz`.
+1. Confirm the single-node cluster `/readyz` endpoint.
 2. Confirm the BFF listens only on loopback with the correct Host/Origin.
 3. Record Product HTTP method, path, and status without request secrets.
 4. If HTTP succeeds, inspect WebSocket, CONNACK, or SENDACK Reason Code.

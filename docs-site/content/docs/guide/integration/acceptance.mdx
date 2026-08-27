@@ -13,7 +13,7 @@ description: 用可执行兼容性证据和独立生产门禁判断 WuKongIM 集
 
 | 层次 | 谁执行 | 能证明什么 | 不能证明什么 |
 | --- | --- | --- | --- |
-| 兼容性 Smoke | 固定 JavaScript 样例与真实 Chromium | 当前源码、锁文件、SDK 和浏览器组合能完成既定消息闭环 | 生产鉴权、TLS、容量、Webhook 可靠性或业务权限 |
+| 兼容性 Smoke | 固定 JavaScript 样例与真实 Chromium | 当前验收工具 revision、锁文件、实际安装 SDK 和浏览器能针对配置的集群端点完成既定消息闭环 | 被测集群源码身份、生产鉴权、TLS、容量、Webhook 可靠性或业务权限 |
 | 生产门禁 | 产品、平台、安全和运维负责人 | 当前部署的身份、网络、策略、容量与恢复设计满足发布要求 | 不能反向改变 SDK 兼容性事实 |
 
 任一层失败都应停止发布。不能用手工勾选生产清单掩盖可执行场景失败，也不能用一份通过的 Smoke 报告跳过生产安全评审。
@@ -29,7 +29,7 @@ WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
 npm run verify:acceptance
 ```
 
-该命令会自行启动样例 BFF；如果手工 Quickstart 仍占用同一 UI 端口，先停止它或选择另一个未占用的 loopback 端口。
+该命令会自行启动样例 BFF；如果手工 Quickstart 仍占用同一 UI 端口，先停止它或选择另一个未占用的 loopback 端口。默认命令只检查样例页面。若要把双语文档页面纳入同一 Chromium 运行，先启动 `docs-site/out` 的 loopback 静态服务，再额外设置 `WK_DOCS_SITE_E2E_URL`；否则报告中的文档质量保持 `not_assessed`。
 
 命令会依次执行快速测试与 TypeScript 构建、真实 Chromium E2E，最后才写入：
 
@@ -49,7 +49,7 @@ test-results/integration-acceptance.json
 4. Bob 离线期间 Alice 的消息仍能提交，但 Bob 没有实时事件；
 5. Bob 重连后通过有界 person-message sync 恢复该消息；首条持久个人消息触发的 UID 目录投影是异步的，样例仅对精确成员关系未就绪错误做最多 20 次、间隔 250ms 的等待；
 6. 已实时观察的消息不会被同步重复标记，离线消息只恢复一次；
-7. 样例及纳入矩阵的文档页面通过当前可访问性基线。
+7. 样例页面通过当前可访问性基线；只有设置 `WK_DOCS_SITE_E2E_URL` 时，双语文档页面也进入独立的文档质量检查。
 
 完整能力边界见 [JavaScript / Web 平台专属能力](/zh/sdk/javascript/platform-capabilities)。可访问性结果是样例与文档质量证据，不代表 SDK 支持某种辅助技术或达到完整合规认证。
 
@@ -60,10 +60,19 @@ test-results/integration-acceptance.json
 ```json
 {
   "schema": "wukongim.docs.integration-acceptance/v1",
-  "source": { "revision": "<full-git-revision>", "clean": true },
+  "harness_source": { "revision": "<full-git-revision>", "clean": true },
+  "target": {
+    "cluster": { "source_identity": "not_assessed" }
+  },
   "compatibility_smoke": {
     "result": "passed",
     "checks": [{ "id": "route-connect", "result": "passed" }]
+  },
+  "documentation_quality": {
+    "result": "not_assessed",
+    "checks": [
+      { "id": "bilingual-documentation-accessibility", "result": "not_assessed" }
+    ]
   },
   "production_readiness": {
     "result": "not_assessed",
@@ -75,8 +84,10 @@ test-results/integration-acceptance.json
 }
 ```
 
-- `source.clean=false` 表示报告对应的工作树还有变更，评审者应先固定 revision 后重跑。
-- `target` 绑定样例锁文件、场景、SDK、Node.js、Playwright 和实际 Chromium 身份。
+- `harness_source.clean=false` 表示验收工具对应的工作树还有变更，评审者应先固定 revision 后重跑；它不是被测集群的源码身份。
+- `target` 绑定样例锁文件、场景、实际安装并核对过的 SDK、Node.js、Playwright 和实际 Chromium 身份。
+- `target.cluster.source_identity=not_assessed` 表示任意 Product HTTP 地址没有提供可验证的服务端构建身份；不能把 `harness_source.revision` 当成集群 revision。
+- `documentation_quality.result=passed` 只在设置 `WK_DOCS_SITE_E2E_URL`、双语路由真实进入本次 E2E 时出现，否则为 `not_assessed`。
 - `publication_attestation=not_issued` 表示这不是文档发布 receipt；只有受保护的 clean-HEAD `docs-integration` 门禁能签发既有黄金路径验证 receipt。
 - 报告不包含 Token、UID、消息正文、端点、DOM、截图、trace、video 或服务端响应。
 
@@ -91,7 +102,7 @@ test-results/integration-acceptance.json
 | 业务授权与内容策略 | 成员、黑白名单、禁言、内容治理及拒绝用例 | 由业务系统驱动 |
 | 容量与背压 | 目标规模压测、队列水位、重试上限、限流和降级标准 | Smoke 不覆盖 |
 | Webhook 可靠性 | 受信网络、先持久化再 200、幂等、重试耗尽和对账 | 当前发送器不附加签名 Header |
-| 运维与回滚 | 指标告警、备份恢复演练、变更审计、灰度和回滚演练 | 需独立运行证据 |
+| 运维与回滚 | 指标告警、事故诊断、备份恢复演练、变更审计、版本固定、灰度、回滚条件和回滚演练 | 需独立运行证据 |
 
 所有部署都是集群；单节点集群也不能绕过 Controller、Slot 或 Channel authority。容量验收按业务目标设计，并保持默认 256 个物理 Hash Slot 的语义。
 
@@ -109,7 +120,7 @@ test-results/integration-acceptance.json
 - **`real-e2e` 失败：** 按 route、CONNACK、SENDACK、realtime、sync 阶段定位，保留 Reason Code 和版本快照。
 - **sync 返回 membership required：** 首条持久个人消息会异步建立双方 UID 目录。样例只在该精确未就绪响应上做有界等待；持续失败说明目录投影没有在窗口内收敛，不能改成无限重试。
 - **没有报告：** 这是预期的 fail-closed 行为；命令只在所有步骤通过后写文件。
-- **报告为 dirty source：** 提交或还原明确范围内的变更，再从精确 revision 重跑。
+- **报告为 dirty harness source：** 提交或还原明确范围内的变更，再从精确 revision 重跑；仍需从部署清单或独立证明取得集群源码身份。
 
 ## 安全处理
 

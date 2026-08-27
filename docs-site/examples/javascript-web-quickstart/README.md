@@ -92,12 +92,20 @@ npm run verify:acceptance
 
 The command removes any stale report before starting and writes
 `test-results/integration-acceptance.json` only after both gates pass. The
-report records source/lock/SDK/runtime identity and fixed check results, but no
-configured endpoint, token, UID, message body, DOM, screenshot, trace, video,
-or server response. Its schema is
+report records the acceptance-harness revision, lock identity, the actual
+installed SDK version after validating it against the shared target, and
+runtime identity. It marks the tested cluster's source identity
+`not_assessed`, because an arbitrary Product HTTP endpoint does not prove its
+build revision. It records no configured endpoint, token, UID, message body,
+DOM, screenshot, trace, video, or server response. Its schema is
 `wukongim.docs.integration-acceptance/v1`; it deliberately reports production
 readiness as `not_assessed` and publication attestation as `not_issued`. It is
 not accepted in place of the protected golden-path publication receipt.
+
+The sample accessibility baseline always runs. Documentation quality is a
+separate report section: it remains `not_assessed` unless
+`WK_DOCS_SITE_E2E_URL` points to a loopback static documentation server, in
+which case the bilingual route matrix joins the E2E and can report `passed`.
 
 `test:e2e` builds and starts the BFF/UI itself. It optionally accepts
 `WK_DOCS_QUICKSTART_E2E_OUTPUT_DIR` for bounded failure screenshots. Automatic

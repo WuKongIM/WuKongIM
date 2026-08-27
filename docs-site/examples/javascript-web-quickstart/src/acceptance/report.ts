@@ -1,3 +1,5 @@
+import { JAVASCRIPT_WEB_QUICKSTART_TARGET } from "./target";
+
 export const INTEGRATION_ACCEPTANCE_REPORT_SCHEMA =
   "wukongim.docs.integration-acceptance/v1" as const;
 
@@ -9,7 +11,11 @@ export const ACCEPTANCE_CHECK_IDS = [
   "offline-realtime-absence",
   "reconnect-sync-recovery",
   "realtime-sync-deduplication",
-  "accessibility-baseline",
+  "sample-accessibility-baseline",
+] as const;
+
+export const DOCUMENTATION_QUALITY_CHECK_IDS = [
+  "bilingual-documentation-accessibility",
 ] as const;
 
 export const PRODUCTION_GATE_IDS = [
@@ -23,10 +29,9 @@ export const PRODUCTION_GATE_IDS = [
   "operations-backup-audit-and-rollback",
 ] as const;
 
-const GOLDEN_SCENARIO =
-  "javascript-web-quickstart/alice-bob-reconnect-sync/v1";
 const MAX_REPORT_BYTES = 16 * 1024;
-const SDK = { package: "wukongimjssdk", version: "1.3.5" } as const;
+const GOLDEN_SCENARIO = JAVASCRIPT_WEB_QUICKSTART_TARGET.scenario;
+const SDK = JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk;
 
 export interface IntegrationAcceptanceReportInput {
   generatedAt: string;
@@ -37,12 +42,15 @@ export interface IntegrationAcceptanceReportInput {
   playwrightVersion: string;
   chromiumRevision: string;
   chromiumVersion: string;
+  sdkPackage: string;
+  sdkVersion: string;
+  documentationPagesIncluded: boolean;
 }
 
 export interface IntegrationAcceptanceReport {
   schema: typeof INTEGRATION_ACCEPTANCE_REPORT_SCHEMA;
   generated_at: string;
-  source: {
+  harness_source: {
     revision: string;
     clean: boolean;
   };
@@ -50,6 +58,9 @@ export interface IntegrationAcceptanceReport {
     scenario: typeof GOLDEN_SCENARIO;
     package_lock_sha256: string;
     sdk: typeof SDK;
+    cluster: {
+      source_identity: "not_assessed";
+    };
     runtime: {
       node: string;
       browser: {
@@ -66,6 +77,13 @@ export interface IntegrationAcceptanceReport {
     checks: Array<{
       id: (typeof ACCEPTANCE_CHECK_IDS)[number];
       result: "passed";
+    }>;
+  };
+  documentation_quality: {
+    result: "passed" | "not_assessed";
+    checks: Array<{
+      id: (typeof DOCUMENTATION_QUALITY_CHECK_IDS)[number];
+      result: "passed" | "not_assessed";
     }>;
   };
   production_readiness: {
@@ -87,7 +105,7 @@ export function buildIntegrationAcceptanceReport(
   return {
     schema: INTEGRATION_ACCEPTANCE_REPORT_SCHEMA,
     generated_at: input.generatedAt,
-    source: {
+    harness_source: {
       revision: input.sourceRevision,
       clean: input.sourceClean,
     },
@@ -95,6 +113,9 @@ export function buildIntegrationAcceptanceReport(
       scenario: GOLDEN_SCENARIO,
       package_lock_sha256: input.sampleLockSha256,
       sdk: SDK,
+      cluster: {
+        source_identity: "not_assessed",
+      },
       runtime: {
         node: input.nodeVersion,
         browser: {
@@ -109,6 +130,13 @@ export function buildIntegrationAcceptanceReport(
     compatibility_smoke: {
       result: "passed",
       checks: ACCEPTANCE_CHECK_IDS.map((id) => ({ id, result: "passed" })),
+    },
+    documentation_quality: {
+      result: input.documentationPagesIncluded ? "passed" : "not_assessed",
+      checks: DOCUMENTATION_QUALITY_CHECK_IDS.map((id) => ({
+        id,
+        result: input.documentationPagesIncluded ? "passed" : "not_assessed",
+      })),
     },
     production_readiness: {
       result: "not_assessed",
@@ -154,15 +182,19 @@ function validateInput(input: IntegrationAcceptanceReportInput): void {
       throw new Error(`${name} must be a bounded runtime identifier`);
     }
   }
+  if (input.sdkPackage !== SDK.package || input.sdkVersion !== SDK.version) {
+    throw new Error("installed SDK identity does not match the shared target");
+  }
 }
 
 function validateReport(value: unknown): asserts value is IntegrationAcceptanceReport {
   if (!isExactRecord(value, [
     "schema",
     "generated_at",
-    "source",
+    "harness_source",
     "target",
     "compatibility_smoke",
+    "documentation_quality",
     "production_readiness",
     "publication_attestation",
   ])) {
@@ -176,22 +208,25 @@ function validateReport(value: unknown): asserts value is IntegrationAcceptanceR
     throw new Error("acceptance report identity is invalid");
   }
 
-  const source = value.source;
+  const source = value.harness_source;
   const target = value.target;
   const smoke = value.compatibility_smoke;
+  const documentation = value.documentation_quality;
   const readiness = value.production_readiness;
   if (
     !isExactRecord(source, ["revision", "clean"]) ||
     typeof source.revision !== "string" ||
     typeof source.clean !== "boolean" ||
-    !isExactRecord(target, ["scenario", "package_lock_sha256", "sdk", "runtime"]) ||
+    !isExactRecord(target, ["scenario", "package_lock_sha256", "sdk", "cluster", "runtime"]) ||
     !isExactRecord(smoke, ["result", "checks"]) ||
+    !isExactRecord(documentation, ["result", "checks"]) ||
     !isExactRecord(readiness, ["result", "gates"])
   ) {
     throw new Error("acceptance report sections have an invalid shape");
   }
 
   const sdk = target.sdk;
+  const cluster = target.cluster;
   const runtime = target.runtime;
   if (
     target.scenario !== GOLDEN_SCENARIO ||
@@ -199,6 +234,8 @@ function validateReport(value: unknown): asserts value is IntegrationAcceptanceR
     !isExactRecord(sdk, ["package", "version"]) ||
     sdk.package !== SDK.package ||
     sdk.version !== SDK.version ||
+    !isExactRecord(cluster, ["source_identity"]) ||
+    cluster.source_identity !== "not_assessed" ||
     !isExactRecord(runtime, ["node", "browser"]) ||
     typeof runtime.node !== "string" ||
     !isExactRecord(runtime.browser, [
@@ -226,10 +263,20 @@ function validateReport(value: unknown): asserts value is IntegrationAcceptanceR
     playwrightVersion: runtime.browser.playwright_version,
     chromiumRevision: runtime.browser.revision,
     chromiumVersion: runtime.browser.browser_version,
+    sdkPackage: sdk.package,
+    sdkVersion: sdk.version,
+    documentationPagesIncluded: documentation.result === "passed",
   });
   if (
     smoke.result !== "passed" ||
     !hasExactResults(smoke.checks, ACCEPTANCE_CHECK_IDS, "passed") ||
+    (documentation.result !== "passed" &&
+      documentation.result !== "not_assessed") ||
+    !hasExactResults(
+      documentation.checks,
+      DOCUMENTATION_QUALITY_CHECK_IDS,
+      documentation.result,
+    ) ||
     readiness.result !== "not_assessed" ||
     !hasExactResults(readiness.gates, PRODUCTION_GATE_IDS, "not_assessed")
   ) {
