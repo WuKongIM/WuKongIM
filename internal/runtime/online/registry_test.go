@@ -72,6 +72,29 @@ func TestRegistryListsLocalSessionCopiesAcrossStates(t *testing.T) {
 	}
 }
 
+func TestRegistryRangesLocalSessionCopiesAndStops(t *testing.T) {
+	reg := NewRegistry(RegistryOptions{ShardCount: 1})
+	for sessionID := uint64(1); sessionID <= 3; sessionID++ {
+		require.NoError(t, reg.RegisterPending(LocalSession{Route: OwnerRoute{
+			UID: "u1", HashSlot: 1, SessionID: sessionID, ConnectedUnix: 10,
+		}}))
+	}
+
+	visited := 0
+	reg.RangeLocalSessions(func(session LocalSession) bool {
+		visited++
+		session.Route.UID = "mutated"
+		return visited < 2
+	})
+
+	require.Equal(t, 2, visited)
+	for sessionID := uint64(1); sessionID <= 3; sessionID++ {
+		session, ok := reg.LocalSession(sessionID)
+		require.True(t, ok)
+		require.Equal(t, "u1", session.Route.UID)
+	}
+}
+
 func TestRegistrySnapshotCountsLocalRouteStatesAndDirtyTouches(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
 	pending := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 1, ConnectedUnix: 10}

@@ -62,6 +62,8 @@ export function ConnectionsPage() {
   })
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
+  const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined)
+  const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([])
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
   const [selectedDetailNodeId, setSelectedDetailNodeId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ManagerConnectionDetailResponse | null>(null)
@@ -93,7 +95,7 @@ export function ConnectionsPage() {
     }
   }, [])
 
-  const loadConnections = useCallback(async (refreshing: boolean, nodeId: number | null) => {
+  const loadConnections = useCallback(async (refreshing: boolean, nodeId: number | null, cursor?: string) => {
     if (!nodeId) {
       setState({ connections: null, loading: false, refreshing: false, error: null })
       return
@@ -107,7 +109,11 @@ export function ConnectionsPage() {
     }))
 
     try {
-      const connections = await getConnections({ nodeId, limit: connectionPageLimit })
+      const connections = await getConnections({
+        nodeId,
+        limit: connectionPageLimit,
+        ...(cursor ? { cursor } : {}),
+      })
       setState({ connections, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
@@ -140,9 +146,15 @@ export function ConnectionsPage() {
 
   useEffect(() => {
     if (selectedNodeId !== null) {
-      void loadConnections(false, selectedNodeId)
+      void loadConnections(false, selectedNodeId, currentCursor)
     }
-  }, [loadConnections, selectedNodeId])
+  }, [currentCursor, loadConnections, selectedNodeId])
+
+  const changeSelectedNode = useCallback((nodeId: number | null) => {
+    setCurrentCursor(undefined)
+    setPreviousCursors([])
+    setSelectedNodeId(nodeId)
+  }, [])
 
   const openDetail = useCallback(
     async (sessionId: number, nodeId: number | null) => {
@@ -180,10 +192,10 @@ export function ConnectionsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2" data-testid="connections-filter-toolbar">
-          <NodeFilter nodes={nodes} onNodeChange={setSelectedNodeId} selectedNodeId={selectedNodeId} />
+          <NodeFilter nodes={nodes} onNodeChange={changeSelectedNode} selectedNodeId={selectedNodeId} />
           <Button
             onClick={() => {
-              void loadConnections(true, selectedNodeId)
+              void loadConnections(true, selectedNodeId, currentCursor)
             }}
             size="sm"
             variant="outline"
@@ -200,7 +212,7 @@ export function ConnectionsPage() {
         <ResourceState
           kind={mapErrorKind(state.error)}
           onRetry={() => {
-            void loadConnections(false, selectedNodeId)
+            void loadConnections(false, selectedNodeId, currentCursor)
           }}
           title={intl.formatMessage({ id: "nav.connections.title" })}
         />
@@ -211,12 +223,11 @@ export function ConnectionsPage() {
             <div>
               <p className="mb-3 text-xs text-muted-foreground">
                 {intl.formatMessage(
+                  { id: "connections.resultRange" },
                   {
-                    id: state.connections.items.length >= connectionPageLimit
-                      ? "connections.resultLimitNotice"
-                      : "connections.resultCount",
+					shown: state.connections.items.length,
+                    total: state.connections.total,
                   },
-                  { shown: state.connections.items.length },
                 )}
               </p>
               <div className="overflow-x-auto rounded-md border border-border">
@@ -279,6 +290,48 @@ export function ConnectionsPage() {
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.connections.title" })} />
           )}
+          {state.connections.items.length > 0 || previousCursors.length > 0 ? (
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <Button
+                disabled={state.refreshing || previousCursors.length === 0}
+                onClick={() => {
+                  const previousCursor = previousCursors[previousCursors.length - 1]
+                  setPreviousCursors((cursors) => cursors.slice(0, -1))
+                  setCurrentCursor(previousCursor)
+                }}
+                size="sm"
+                variant="outline"
+              >
+                {intl.formatMessage({ id: "connections.pagination.previous" })}
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {intl.formatMessage(
+                  { id: "connections.pagination.page" },
+                  {
+                    page: previousCursors.length + 1,
+                    pages: Math.max(
+                      previousCursors.length + 1,
+                      Math.ceil(state.connections.total / connectionPageLimit),
+                    ),
+                  },
+                )}
+              </span>
+              <Button
+                disabled={state.refreshing || !state.connections.has_more || !state.connections.next_cursor}
+                onClick={() => {
+                  if (!state.connections?.next_cursor) {
+                    return
+                  }
+                  setPreviousCursors((cursors) => [...cursors, currentCursor])
+                  setCurrentCursor(state.connections.next_cursor)
+                }}
+                size="sm"
+                variant="outline"
+              >
+                {intl.formatMessage({ id: "connections.pagination.next" })}
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

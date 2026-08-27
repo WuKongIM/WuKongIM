@@ -1565,7 +1565,7 @@ type managerNodesStub struct {
 	businessChannelMutation            managementusecase.MutateBusinessChannelMembersResponse
 	recentConversations                managementusecase.RecentConversationsResponse
 	messagesPage                       managementusecase.ListMessagesResponse
-	connections                        []managementusecase.Connection
+	connectionsPage                    managementusecase.ListConnectionsResponse
 	connectionDetail                   managementusecase.ConnectionDetail
 	pluginList                         managementusecase.NodePluginList
 	pluginDetail                       managementusecase.Plugin
@@ -2138,11 +2138,13 @@ func (s managerNodesStub) ListMessages(_ context.Context, req managementusecase.
 	return s.messagesPage, s.messagesErr
 }
 
-func (s managerNodesStub) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+func (s managerNodesStub) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
 	if s.connectionsReqSink != nil {
 		*s.connectionsReqSink = req
 	}
-	return append([]managementusecase.Connection(nil), s.connections...), s.connectionsErr
+	resp := s.connectionsPage
+	resp.Items = append([]managementusecase.Connection(nil), s.connectionsPage.Items...)
+	return resp, s.connectionsErr
 }
 
 func (s managerNodesStub) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {

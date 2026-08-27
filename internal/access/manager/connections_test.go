@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,16 @@ import (
 
 func TestManagerConnectionsReturnsList(t *testing.T) {
 	connectedAt := time.Date(2026, 4, 23, 8, 0, 0, 0, time.UTC)
+	cursor := managementusecase.ConnectionListCursor{ConnectedAt: connectedAt.Add(time.Minute), SessionID: 100}
+	nextCursor := managementusecase.ConnectionListCursor{ConnectedAt: connectedAt, SessionID: 101}
+	rawCursor, err := encodeConnectionListCursor(cursor)
+	if err != nil {
+		t.Fatalf("encode cursor: %v", err)
+	}
+	rawNextCursor, err := encodeConnectionListCursor(nextCursor)
+	if err != nil {
+		t.Fatalf("encode next cursor: %v", err)
+	}
 	var received managementusecase.ListConnectionsRequest
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
@@ -21,17 +32,20 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 		}}),
 		Management: managerNodesStub{
 			connectionsReqSink: &received,
-			connections: []managementusecase.Connection{{
-				NodeID: 2, SessionID: 101, UID: "u1", DeviceID: "device-a",
-				DeviceFlag: "app", DeviceLevel: "master", SlotID: 9, State: "active",
-				Listener: "tcp", ConnectedAt: connectedAt,
-				RemoteAddr: "10.0.0.1:5000", LocalAddr: "127.0.0.1:7000",
-			}},
+			connectionsPage: managementusecase.ListConnectionsResponse{
+				Total: 250, HasMore: true, NextCursor: nextCursor,
+				Items: []managementusecase.Connection{{
+					NodeID: 2, SessionID: 101, UID: "u1", DeviceID: "device-a",
+					DeviceFlag: "app", DeviceLevel: "master", SlotID: 9, State: "active",
+					Listener: "tcp", ConnectedAt: connectedAt,
+					RemoteAddr: "10.0.0.1:5000", LocalAddr: "127.0.0.1:7000",
+				}},
+			},
 		},
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=2&limit=100", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=2&limit=100&cursor="+rawCursor, nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
@@ -39,11 +53,11 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if received != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}) {
-		t.Fatalf("request = %#v, want node_id 2 limit 100", received)
+	if received != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100, Cursor: cursor}) {
+		t.Fatalf("request = %#v, want node_id 2 limit 100 with cursor", received)
 	}
-	if !jsonEqual(rec.Body.String(), `{
-		"total": 1,
+	wantBody := fmt.Sprintf(`{
+		"total": 250,
 		"items": [{
 			"node_id": 2,
 			"session_id": 101,
@@ -57,8 +71,11 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 			"connected_at": "2026-04-23T08:00:00Z",
 			"remote_addr": "10.0.0.1:5000",
 			"local_addr": "127.0.0.1:7000"
-		}]
-	}`) {
+		}],
+		"has_more": true,
+		"next_cursor": %q
+	}`, rawNextCursor)
+	if !jsonEqual(rec.Body.String(), wantBody) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
 }
@@ -91,6 +108,26 @@ func TestManagerConnectionsRejectsInvalidLimit(t *testing.T) {
 		if !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"invalid limit"}`) {
 			t.Fatalf("%s body = %s", target, rec.Body.String())
 		}
+	}
+}
+
+func TestManagerConnectionsRejectsInvalidCursor(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "admin",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.connection", Actions: []string{"r"}}},
+		}}),
+		Management: managerNodesStub{},
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections?cursor=bad", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest || !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"invalid cursor"}`) {
+		t.Fatalf("response = %d %s, want invalid cursor", rec.Code, rec.Body.String())
 	}
 }
 

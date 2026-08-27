@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"strconv"
+	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 )
@@ -22,7 +23,47 @@ var (
 	businessChannelMemberMagic = [...]byte{'W', 'K', 'C', 'M'}
 	channelRuntimeCursorMagic  = [...]byte{'W', 'K', 'R', 'M'}
 	userListCursorMagic        = [...]byte{'W', 'K', 'U', 'L'}
+	connectionListCursorMagic  = [...]byte{'W', 'K', 'C', 'N'}
 )
+
+func encodeConnectionListCursor(cursor managementusecase.ConnectionListCursor) (string, error) {
+	if cursor == (managementusecase.ConnectionListCursor{}) {
+		return "", nil
+	}
+	if cursor.ConnectedAt.IsZero() || cursor.SessionID == 0 || cursor.ConnectedAt.UnixNano() <= 0 {
+		return "", strconv.ErrSyntax
+	}
+	var data [len(connectionListCursorMagic) + 1 + 8 + 8]byte
+	copy(data[:], connectionListCursorMagic[:])
+	data[len(connectionListCursorMagic)] = managerCursorVersion
+	binary.BigEndian.PutUint64(data[len(connectionListCursorMagic)+1:], uint64(cursor.ConnectedAt.UnixNano()))
+	binary.BigEndian.PutUint64(data[len(connectionListCursorMagic)+1+8:], cursor.SessionID)
+	return base64.RawURLEncoding.EncodeToString(data[:]), nil
+}
+
+func decodeConnectionListCursor(raw string) (managementusecase.ConnectionListCursor, error) {
+	if raw == "" {
+		return managementusecase.ConnectionListCursor{}, nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return managementusecase.ConnectionListCursor{}, err
+	}
+	if !hasCursorMagic(payload, connectionListCursorMagic) ||
+		len(payload) != len(connectionListCursorMagic)+1+8+8 ||
+		payload[len(connectionListCursorMagic)] != managerCursorVersion {
+		return managementusecase.ConnectionListCursor{}, strconv.ErrSyntax
+	}
+	connectedAt := int64(binary.BigEndian.Uint64(payload[len(connectionListCursorMagic)+1:]))
+	sessionID := binary.BigEndian.Uint64(payload[len(connectionListCursorMagic)+1+8:])
+	if connectedAt <= 0 || sessionID == 0 {
+		return managementusecase.ConnectionListCursor{}, strconv.ErrSyntax
+	}
+	return managementusecase.ConnectionListCursor{
+		ConnectedAt: time.Unix(0, connectedAt).UTC(),
+		SessionID:   sessionID,
+	}, nil
+}
 
 func encodeMessageCursor(cursor managementusecase.MessageListCursor) (string, error) {
 	if cursor == (managementusecase.MessageListCursor{}) {

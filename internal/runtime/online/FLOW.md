@@ -30,7 +30,8 @@ owner-local session handles. It is not a distributed presence directory.
 
 - Pending and active indexes remain separate from concrete session handles.
 - Local inventory methods return copies and are restricted to owner-local
-  maintenance and diagnostics.
+  maintenance and diagnostics. Bulk traversal uses a callback so large
+  registries do not require an inventory-sized allocation.
 - Requeue skips removed or superseded sessions and occurs after a bounded flush
   so one failing route cannot be redrained indefinitely.
 - Snapshot reports only aggregate pending, active, and dirty counts.

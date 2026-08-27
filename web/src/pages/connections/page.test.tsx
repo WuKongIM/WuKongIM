@@ -95,8 +95,8 @@ test("uses compact connection page chrome without summary cards", async () => {
   renderConnectionsPage()
 
   expect(await screen.findByText("u1")).toBeInTheDocument()
-  expect(screen.getByText("Returned: 1")).toBeInTheDocument()
-  expect(screen.getByText("1 connection returned by this node.")).toBeInTheDocument()
+  expect(screen.getByText("Total: 1")).toBeInTheDocument()
+  expect(screen.getByText("Showing 1 connections on this page; 1 total.")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
   expect(screen.queryByText("Scope: local node")).not.toBeInTheDocument()
   expect(screen.queryByText("Connection inventory and transport state.")).not.toBeInTheDocument()
@@ -114,17 +114,60 @@ test("uses compact connection page chrome without summary cards", async () => {
   expect(screen.queryByText("Inspect one connection to view addresses, slot ownership, and session metadata.")).not.toBeInTheDocument()
 })
 
-test("discloses when the node connection result is truncated", async () => {
+test("shows the total and supports next and previous connection pages", async () => {
   const connections = Array.from({ length: 100 }, (_, index) => ({
     ...connectionRow,
     session_id: connectionRow.session_id + index,
     uid: `u${index + 1}`,
   }))
-  getConnectionsMock.mockResolvedValueOnce({ total: connections.length, items: connections })
+  getConnectionsMock
+    .mockResolvedValueOnce({ total: 101, items: connections, has_more: true, next_cursor: "cursor-2" })
+    .mockResolvedValueOnce({
+      total: 101,
+      items: [{ ...connectionRow, session_id: 301, uid: "u101" }],
+      has_more: false,
+    })
+    .mockResolvedValueOnce({ total: 101, items: connections, has_more: true, next_cursor: "cursor-2" })
 
+  const user = userEvent.setup()
   renderConnectionsPage()
 
-  expect(await screen.findByText("Showing the first 100 connections returned by this node; additional records may exist.")).toBeInTheDocument()
+  expect(await screen.findByText("Showing 100 connections on this page; 101 total.")).toBeInTheDocument()
+  expect(screen.getByText("Page 1 of 2")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled()
+
+  await user.click(screen.getByRole("button", { name: "Next page" }))
+
+  expect(await screen.findByText("u101")).toBeInTheDocument()
+  expect(screen.getByText("Showing 1 connections on this page; 101 total.")).toBeInTheDocument()
+  expect(screen.getByText("Page 2 of 2")).toBeInTheDocument()
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 2, limit: 100, cursor: "cursor-2" })
+
+  await user.click(screen.getByRole("button", { name: "Previous page" }))
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 2, limit: 100 })
+})
+
+test("keeps previous-page navigation when a stale cursor returns an empty page", async () => {
+  getConnectionsMock
+    .mockResolvedValueOnce({ total: 101, items: [connectionRow], has_more: true, next_cursor: "cursor-2" })
+    .mockResolvedValueOnce({ total: 0, items: [], has_more: false })
+    .mockResolvedValueOnce({ total: 1, items: [connectionRow], has_more: false })
+
+  const user = userEvent.setup()
+  renderConnectionsPage()
+
+  await screen.findByText("u1")
+  await user.click(screen.getByRole("button", { name: "Next page" }))
+
+  expect(await screen.findByText(/no manager data is available/i)).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled()
+
+  await user.click(screen.getByRole("button", { name: "Previous page" }))
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 2, limit: 100 })
 })
 
 test("uses an editorial connection filter toolbar and inventory table", async () => {

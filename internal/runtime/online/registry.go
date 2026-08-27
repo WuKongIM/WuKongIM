@@ -114,6 +114,31 @@ func (r *Registry) LocalSession(sessionID uint64) (LocalSession, bool) {
 	return session, ok
 }
 
+// RangeLocalSessions visits copies of owner-local session records without
+// allocating an inventory-sized slice. Returning false stops the traversal.
+// The visitor must not mutate this Registry because one shard read lock is held
+// while its records are visited.
+func (r *Registry) RangeLocalSessions(visit func(LocalSession) bool) {
+	if r == nil || visit == nil {
+		return
+	}
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		keepGoing := true
+		for _, session := range shard.bySession {
+			if !visit(session) {
+				keepGoing = false
+				break
+			}
+		}
+		shard.mu.RUnlock()
+		if !keepGoing {
+			return
+		}
+	}
+}
+
 // LocalSessionsByUID returns copies of local sessions currently indexed for uid.
 func (r *Registry) LocalSessionsByUID(uid string) []LocalSession {
 	if r == nil || uid == "" {

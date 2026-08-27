@@ -15,12 +15,16 @@ const (
 	maxConnectionListLimit     = 100
 )
 
-// ConnectionsResponse is the manager local connection list response body.
+// ConnectionsResponse is one manager connection inventory page.
 type ConnectionsResponse struct {
-	// Total is the number of returned local connections.
+	// Total is the number of active connections on the selected node.
 	Total int `json:"total"`
-	// Items contains the ordered local connection DTO list.
+	// Items contains the ordered connection page.
 	Items []ConnectionDTO `json:"items"`
+	// HasMore reports whether another older page exists.
+	HasMore bool `json:"has_more"`
+	// NextCursor is the opaque cursor for the next page when HasMore is true.
+	NextCursor string `json:"next_cursor,omitempty"`
 }
 
 func (s *Server) handleConnections(c *gin.Context) {
@@ -33,14 +37,21 @@ func (s *Server) handleConnections(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", badRequestMessage)
 		return
 	}
-	items, err := s.management.ListConnections(c.Request.Context(), req)
+	page, err := s.management.ListConnections(c.Request.Context(), req)
 	if err != nil {
 		writeConnectionError(c, err, "invalid node_id")
 		return
 	}
+	nextCursor, err := encodeConnectionListCursor(page.NextCursor)
+	if err != nil {
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
 	c.JSON(http.StatusOK, ConnectionsResponse{
-		Total: len(items),
-		Items: connectionDTOs(items),
+		Total:      page.Total,
+		Items:      connectionDTOs(page.Items),
+		HasMore:    page.HasMore,
+		NextCursor: nextCursor,
 	})
 }
 
@@ -79,7 +90,11 @@ func parseListConnectionsRequest(c *gin.Context) (managementusecase.ListConnecti
 	if err != nil {
 		return managementusecase.ListConnectionsRequest{}, "invalid limit", err
 	}
-	return managementusecase.ListConnectionsRequest{NodeID: nodeID, Limit: limit}, "", nil
+	cursor, err := decodeConnectionListCursor(c.Query("cursor"))
+	if err != nil {
+		return managementusecase.ListConnectionsRequest{}, "invalid cursor", err
+	}
+	return managementusecase.ListConnectionsRequest{NodeID: nodeID, Limit: limit, Cursor: cursor}, "", nil
 }
 
 func parseConnectionListLimit(raw string) (int, error) {

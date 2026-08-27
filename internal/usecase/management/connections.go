@@ -1,6 +1,7 @@
 package management
 
 import (
+	"container/heap"
 	"context"
 	"errors"
 	"sort"
@@ -15,18 +16,28 @@ import (
 // ErrConnectionReaderUnavailable reports that a requested node connection source is not available.
 var ErrConnectionReaderUnavailable = errors.New("internal/usecase/management: connection reader unavailable")
 
-// ConnectionReader exposes owner-local gateway session snapshots.
+// ConnectionReader exposes owner-local gateway sessions.
 type ConnectionReader interface {
-	// LocalSessions returns currently indexed owner-local session records.
-	LocalSessions() []online.LocalSession
+	// LocalSession returns one currently indexed owner-local session record.
+	LocalSession(sessionID uint64) (online.LocalSession, bool)
+	// RangeLocalSessions visits currently indexed owner-local session records.
+	RangeLocalSessions(visit func(online.LocalSession) bool)
 }
 
 // RemoteConnectionReader reads connection inventory from another owner node.
 type RemoteConnectionReader interface {
 	// NodeConnections returns active connections currently registered on one cluster node.
-	NodeConnections(ctx context.Context, nodeID uint64, limit int) ([]Connection, error)
+	NodeConnections(ctx context.Context, req ListConnectionsRequest) (ListConnectionsResponse, error)
 	// NodeConnection returns one connection currently registered on one cluster node.
 	NodeConnection(ctx context.Context, nodeID, sessionID uint64) (ConnectionDetail, error)
+}
+
+// ConnectionListCursor identifies the last emitted connection in freshness order.
+type ConnectionListCursor struct {
+	// ConnectedAt is the connection timestamp of the last emitted row.
+	ConnectedAt time.Time
+	// SessionID disambiguates connections with the same timestamp.
+	SessionID uint64
 }
 
 // ListConnectionsRequest selects the connection inventory to read.
@@ -35,6 +46,20 @@ type ListConnectionsRequest struct {
 	NodeID uint64
 	// Limit bounds the returned active connection rows. Zero uses the default.
 	Limit int
+	// Cursor resumes after the last row emitted by the previous page.
+	Cursor ConnectionListCursor
+}
+
+// ListConnectionsResponse is one bounded connection inventory page.
+type ListConnectionsResponse struct {
+	// Total is the number of active connections in the selected node snapshot.
+	Total int
+	// Items contains the current page ordered by freshness.
+	Items []Connection
+	// HasMore reports whether another older page exists.
+	HasMore bool
+	// NextCursor resumes after the last item when HasMore is true.
+	NextCursor ConnectionListCursor
 }
 
 // GetConnectionRequest selects one owner-local connection detail to read.
@@ -53,50 +78,82 @@ type connectionAddressSource interface {
 	LocalAddr() string
 }
 
-// ListConnections returns manager-facing local active connections ordered by freshness.
-func (a *App) ListConnections(ctx context.Context, req ListConnectionsRequest) ([]Connection, error) {
+// ListConnections returns one manager-facing active connection page ordered by freshness.
+func (a *App) ListConnections(ctx context.Context, req ListConnectionsRequest) (ListConnectionsResponse, error) {
 	if err := ctxErr(ctx); err != nil {
-		return nil, err
+		return ListConnectionsResponse{}, err
+	}
+	if (req.Cursor.ConnectedAt.IsZero()) != (req.Cursor.SessionID == 0) {
+		return ListConnectionsResponse{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.connections == nil {
-		return nil, nil
+		return ListConnectionsResponse{}, ErrConnectionReaderUnavailable
 	}
 	limit := normalizeConnectionListLimit(req.Limit)
 	localNodeID := a.localNodeID()
 	if !a.connectionRequestTargetsLocal(req.NodeID, localNodeID) {
 		if a.remoteConnections == nil {
-			return nil, ErrConnectionReaderUnavailable
+			return ListConnectionsResponse{}, ErrConnectionReaderUnavailable
 		}
-		return a.remoteConnections.NodeConnections(ctx, req.NodeID, limit)
+		req.Limit = limit
+		return a.remoteConnections.NodeConnections(ctx, req)
 	}
 	snapshot, err := a.localControlSnapshot(ctx)
 	if err != nil {
-		return nil, err
+		return ListConnectionsResponse{}, err
 	}
-	items := make([]Connection, 0, limit)
-	for _, session := range a.connections.LocalSessions() {
-		if session.State != online.RouteStateActive {
-			continue
-		}
-		item := managerConnection(localNodeID, snapshot.HashSlots, session)
-		if len(items) < limit {
-			items = append(items, item)
-			continue
-		}
-		worst := 0
-		for i := 1; i < len(items); i++ {
-			if connectionLessFresh(items[i], items[worst]) {
-				worst = i
+	candidates := make(connectionPageHeap, 0, limit+1)
+	heap.Init(&candidates)
+	total := 0
+	visited := 0
+	var scanErr error
+	a.connections.RangeLocalSessions(func(session online.LocalSession) bool {
+		visited++
+		if visited&255 == 0 {
+			if err := ctxErr(ctx); err != nil {
+				scanErr = err
+				return false
 			}
 		}
-		if connectionLessFresh(items[worst], item) {
-			items[worst] = item
+		if session.State != online.RouteStateActive {
+			return true
 		}
+		total++
+		item := managerConnection(localNodeID, snapshot.HashSlots, session)
+		if !connectionComesAfterCursor(item, req.Cursor) {
+			return true
+		}
+		if candidates.Len() < limit+1 {
+			heap.Push(&candidates, item)
+			return true
+		}
+		if connectionLessFresh(candidates[0], item) {
+			heap.Pop(&candidates)
+			heap.Push(&candidates, item)
+		}
+		return true
+	})
+	if scanErr != nil {
+		return ListConnectionsResponse{}, scanErr
 	}
+	if err := ctxErr(ctx); err != nil {
+		return ListConnectionsResponse{}, err
+	}
+	items := []Connection(candidates)
 	sort.Slice(items, func(i, j int) bool {
 		return connectionComesBefore(items[i], items[j])
 	})
-	return items, nil
+	resp := ListConnectionsResponse{Total: total}
+	if len(items) > limit {
+		resp.HasMore = true
+		items = items[:limit]
+	}
+	resp.Items = items
+	if resp.HasMore {
+		last := items[len(items)-1]
+		resp.NextCursor = ConnectionListCursor{ConnectedAt: last.ConnectedAt, SessionID: last.SessionID}
+	}
+	return resp, nil
 }
 
 func normalizeConnectionListLimit(limit int) int {
@@ -123,6 +180,36 @@ func connectionLessFresh(a, b Connection) bool {
 	return a.ConnectedAt.Before(b.ConnectedAt)
 }
 
+func connectionComesAfterCursor(item Connection, cursor ConnectionListCursor) bool {
+	if cursor == (ConnectionListCursor{}) {
+		return true
+	}
+	if item.ConnectedAt.Equal(cursor.ConnectedAt) {
+		return item.SessionID > cursor.SessionID
+	}
+	return item.ConnectedAt.Before(cursor.ConnectedAt)
+}
+
+type connectionPageHeap []Connection
+
+func (h connectionPageHeap) Len() int { return len(h) }
+
+func (h connectionPageHeap) Less(i, j int) bool { return connectionLessFresh(h[i], h[j]) }
+
+func (h connectionPageHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+
+func (h *connectionPageHeap) Push(value any) {
+	*h = append(*h, value.(Connection))
+}
+
+func (h *connectionPageHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	value := old[last]
+	*h = old[:last]
+	return value
+}
+
 // GetConnection returns one manager-facing local connection detail DTO.
 func (a *App) GetConnection(ctx context.Context, req GetConnectionRequest) (ConnectionDetail, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -132,7 +219,7 @@ func (a *App) GetConnection(ctx context.Context, req GetConnectionRequest) (Conn
 		return ConnectionDetail{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.connections == nil {
-		return ConnectionDetail{}, metadb.ErrNotFound
+		return ConnectionDetail{}, ErrConnectionReaderUnavailable
 	}
 	localNodeID := a.localNodeID()
 	if !a.connectionRequestTargetsLocal(req.NodeID, localNodeID) {
@@ -145,10 +232,9 @@ func (a *App) GetConnection(ctx context.Context, req GetConnectionRequest) (Conn
 	if err != nil {
 		return ConnectionDetail{}, err
 	}
-	for _, session := range a.connections.LocalSessions() {
-		if session.Route.SessionID == req.SessionID {
-			return managerConnection(localNodeID, snapshot.HashSlots, session), nil
-		}
+	session, ok := a.connections.LocalSession(req.SessionID)
+	if ok {
+		return managerConnection(localNodeID, snapshot.HashSlots, session), nil
 	}
 	return ConnectionDetail{}, metadb.ErrNotFound
 }

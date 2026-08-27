@@ -130,9 +130,9 @@ func (w managementGatewayDrainWriter) setLocalDrainMode(ctx context.Context, nod
 	return managementRuntimeSummaryReader{app: w.app, localNodeID: w.localNodeID}.localRuntimeSummary(ctx, nodeID), nil
 }
 
-func (s managerConnectionRPCService) ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+func (s managerConnectionRPCService) ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
 	if s.reads == nil {
-		return nil, managementusecase.ErrConnectionReaderUnavailable
+		return managementusecase.ListConnectionsResponse{}, managementusecase.ErrConnectionReaderUnavailable
 	}
 	return s.reads.ListConnections(ctx, req)
 }

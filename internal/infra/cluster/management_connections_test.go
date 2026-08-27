@@ -10,7 +10,9 @@ import (
 
 func TestManagementConnectionReaderRoutesRemoteList(t *testing.T) {
 	service := &fakeManagerConnectionService{
-		connections: []managementusecase.Connection{{NodeID: 2, SessionID: 101, UID: "u1"}},
+		page: managementusecase.ListConnectionsResponse{
+			Total: 1, Items: []managementusecase.Connection{{NodeID: 2, SessionID: 101, UID: "u1"}},
+		},
 	}
 	adapter := accessnode.New(accessnode.Options{ManagerConnections: service})
 	node := &fakeManagementConnectionNode{
@@ -19,13 +21,14 @@ func TestManagementConnectionReaderRoutesRemoteList(t *testing.T) {
 	}
 	reader := NewManagementConnectionReader(node)
 
-	got, err := reader.NodeConnections(context.Background(), 2, 100)
+	req := managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}
+	got, err := reader.NodeConnections(context.Background(), req)
 	if err != nil {
 		t.Fatalf("NodeConnections() error = %v", err)
 	}
 
-	if !sameManagementConnections(got, service.connections) {
-		t.Fatalf("connections = %#v, want %#v", got, service.connections)
+	if got.Total != 1 || !sameManagementConnections(got.Items, service.page.Items) {
+		t.Fatalf("page = %#v, want %#v", got, service.page)
 	}
 	if service.listReq != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}) {
 		t.Fatalf("list request = %#v, want node 2 limit 100", service.listReq)
@@ -114,16 +117,18 @@ func (f *fakeManagementConnectionNode) CallRPC(ctx context.Context, nodeID uint6
 }
 
 type fakeManagerConnectionService struct {
-	connections []managementusecase.Connection
-	listReq     managementusecase.ListConnectionsRequest
-	drainReq    managementusecase.SetNodeDrainModeRequest
-	detail      managementusecase.ConnectionDetail
-	runtime     managementusecase.NodeRuntimeSummary
+	page     managementusecase.ListConnectionsResponse
+	listReq  managementusecase.ListConnectionsRequest
+	drainReq managementusecase.SetNodeDrainModeRequest
+	detail   managementusecase.ConnectionDetail
+	runtime  managementusecase.NodeRuntimeSummary
 }
 
-func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
 	f.listReq = req
-	return append([]managementusecase.Connection(nil), f.connections...), nil
+	resp := f.page
+	resp.Items = append([]managementusecase.Connection(nil), f.page.Items...)
+	return resp, nil
 }
 
 func (f *fakeManagerConnectionService) GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {

@@ -26,29 +26,32 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 		return nil, err
 	}
 	if a == nil || a.managerConnections == nil {
-		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: rpcStatusRejected})
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Version: req.Version, Status: rpcStatusRejected})
 	}
 	switch req.Op {
 	case managerConnectionOpList:
-		items, err := a.managerConnections.ListConnections(ctx, managementusecase.ListConnectionsRequest{NodeID: req.NodeID, Limit: req.Limit})
+		page, err := a.managerConnections.ListConnections(ctx, managementusecase.ListConnectionsRequest{NodeID: req.NodeID, Limit: req.Limit, Cursor: req.Cursor})
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
-		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Connections: items})
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{
+			Version: req.Version, Status: status, Total: page.Total, HasMore: page.HasMore,
+			NextCursor: page.NextCursor, Connections: page.Items,
+		})
 	case managerConnectionOpGet:
 		item, err := a.managerConnections.GetConnection(ctx, managementusecase.GetConnectionRequest{NodeID: req.NodeID, SessionID: req.SessionID})
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
-		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Connection: item})
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Version: req.Version, Status: status, Connection: item})
 	case managerConnectionOpRuntimeSummary:
 		summary, err := a.managerConnections.NodeRuntimeSummary(ctx, req.NodeID)
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
-		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Summary: summary})
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Version: req.Version, Status: status, Summary: summary})
 	case managerConnectionOpSetDrainMode:
 		drain, err := a.managerConnections.SetNodeDrainMode(ctx, managementusecase.SetNodeDrainModeRequest{NodeID: req.NodeID, Draining: req.Draining})
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
-		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Summary: managerConnectionDrainSummary(drain)})
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Version: req.Version, Status: status, Summary: managerConnectionDrainSummary(drain)})
 	default:
 		err := fmt.Errorf("internal/access/node: unknown manager connection op %q", req.Op)
 		a.rpcLogger().Warn("manager connection rpc unknown operation",
@@ -74,16 +77,21 @@ func managerConnectionDrainSummary(resp managementusecase.SetNodeDrainModeRespon
 	}
 }
 
-// ListManagerConnections reads owner-node connection inventory from nodeID.
-func (c *Client) ListManagerConnections(ctx context.Context, nodeID uint64, limit int) ([]managementusecase.Connection, error) {
-	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: nodeID, Limit: limit})
+// ListManagerConnections reads one owner-node connection inventory page.
+func (c *Client) ListManagerConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
+	resp, err := c.callManagerConnection(ctx, req.NodeID, managerConnectionRPCRequest{
+		Op: managerConnectionOpList, NodeID: req.NodeID, Limit: req.Limit, Cursor: req.Cursor,
+	})
 	if err != nil {
-		return nil, err
+		return managementusecase.ListConnectionsResponse{}, err
 	}
 	if err := managerConnectionRPCErrorForStatus(resp.Status); err != nil {
-		return nil, err
+		return managementusecase.ListConnectionsResponse{}, err
 	}
-	return append([]managementusecase.Connection(nil), resp.Connections...), nil
+	return managementusecase.ListConnectionsResponse{
+		Total: resp.Total, Items: append([]managementusecase.Connection(nil), resp.Connections...),
+		HasMore: resp.HasMore, NextCursor: resp.NextCursor,
+	}, nil
 }
 
 // GetManagerConnection reads one owner-node connection detail from nodeID.

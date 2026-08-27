@@ -9,11 +9,16 @@ import (
 )
 
 var (
-	managerConnectionRequestMagic  = [...]byte{'W', 'K', 'V', 'M', 2}
-	managerConnectionResponseMagic = [...]byte{'W', 'K', 'V', 'm', 2}
+	managerConnectionRequestMagicV2  = [...]byte{'W', 'K', 'V', 'M', 2}
+	managerConnectionResponseMagicV2 = [...]byte{'W', 'K', 'V', 'm', 2}
+	managerConnectionRequestMagic    = [...]byte{'W', 'K', 'V', 'M', 3}
+	managerConnectionResponseMagic   = [...]byte{'W', 'K', 'V', 'm', 3}
 )
 
 const (
+	managerConnectionRPCVersion2 byte = 2
+	managerConnectionRPCVersion3 byte = 3
+
 	managerConnectionOpList           = "list_connections"
 	managerConnectionOpGet            = "get_connection"
 	managerConnectionOpRuntimeSummary = "runtime_summary"
@@ -28,15 +33,21 @@ const (
 )
 
 type managerConnectionRPCRequest struct {
+	Version   byte
 	Op        string
 	NodeID    uint64
 	SessionID uint64
 	Limit     int
+	Cursor    managementusecase.ConnectionListCursor
 	Draining  bool
 }
 
 type managerConnectionRPCResponse struct {
+	Version     byte
 	Status      string
+	Total       int
+	HasMore     bool
+	NextCursor  managementusecase.ConnectionListCursor
 	Connections []managementusecase.Connection
 	Connection  managementusecase.ConnectionDetail
 	Summary     managementusecase.NodeRuntimeSummary
@@ -47,21 +58,48 @@ func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	dst := make([]byte, 0, 64)
-	dst = append(dst, managerConnectionRequestMagic[:]...)
+	version := req.Version
+	if version == 0 {
+		version = managerConnectionRPCVersion3
+	}
+	dst := make([]byte, 0, 80)
+	switch version {
+	case managerConnectionRPCVersion2:
+		if req.Cursor != (managementusecase.ConnectionListCursor{}) {
+			return nil, fmt.Errorf("internal/access/node: manager connection v2 request does not support cursors")
+		}
+		dst = append(dst, managerConnectionRequestMagicV2[:]...)
+	case managerConnectionRPCVersion3:
+		dst = append(dst, managerConnectionRequestMagic[:]...)
+	default:
+		return nil, fmt.Errorf("internal/access/node: unsupported manager connection request version %d", version)
+	}
 	dst = append(dst, opID)
 	dst = appendUvarint(dst, req.NodeID)
 	dst = appendUvarint(dst, req.SessionID)
 	dst = appendUvarint(dst, uint64(req.Limit))
 	dst = appendBoolByte(dst, req.Draining)
+	if version >= 3 {
+		dst = appendVarint(dst, managerConnectionCursorUnixNano(req.Cursor))
+		dst = appendUvarint(dst, req.Cursor.SessionID)
+	}
 	return dst, nil
 }
 
 func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, error) {
-	if !hasMagic(body, managerConnectionRequestMagic[:]) {
+	version := byte(0)
+	magicLen := 0
+	switch {
+	case hasMagic(body, managerConnectionRequestMagic[:]):
+		version = 3
+		magicLen = len(managerConnectionRequestMagic)
+	case hasMagic(body, managerConnectionRequestMagicV2[:]):
+		version = 2
+		magicLen = len(managerConnectionRequestMagicV2)
+	default:
 		return managerConnectionRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager connection request codec")
 	}
-	offset := len(managerConnectionRequestMagic)
+	offset := magicLen
 	opID, next, err := readByte(body, offset, "manager connection op")
 	if err != nil {
 		return managerConnectionRPCRequest{}, err
@@ -87,16 +125,50 @@ func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, e
 	if err != nil {
 		return managerConnectionRPCRequest{}, err
 	}
+	var cursor managementusecase.ConnectionListCursor
+	if version >= 3 {
+		connectedAt, next, err := readVarint(body, offset)
+		if err != nil {
+			return managerConnectionRPCRequest{}, err
+		}
+		offset = next
+		cursorSessionID, next, err := readUvarint(body, offset)
+		if err != nil {
+			return managerConnectionRPCRequest{}, err
+		}
+		offset = next
+		if connectedAt > 0 {
+			cursor.ConnectedAt = time.Unix(0, connectedAt).UTC()
+		}
+		cursor.SessionID = cursorSessionID
+	}
 	if offset != len(body) {
 		return managerConnectionRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager connection request bytes")
 	}
-	return managerConnectionRPCRequest{Op: op, NodeID: nodeID, SessionID: sessionID, Limit: int(limit), Draining: draining}, nil
+	return managerConnectionRPCRequest{Version: version, Op: op, NodeID: nodeID, SessionID: sessionID, Limit: int(limit), Cursor: cursor, Draining: draining}, nil
 }
 
 func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte, error) {
+	version := resp.Version
+	if version == 0 {
+		version = managerConnectionRPCVersion3
+	}
 	dst := make([]byte, 0, 128)
-	dst = append(dst, managerConnectionResponseMagic[:]...)
+	switch version {
+	case managerConnectionRPCVersion2:
+		dst = append(dst, managerConnectionResponseMagicV2[:]...)
+	case managerConnectionRPCVersion3:
+		dst = append(dst, managerConnectionResponseMagic[:]...)
+	default:
+		return nil, fmt.Errorf("internal/access/node: unsupported manager connection response version %d", version)
+	}
 	dst = appendString(dst, resp.Status)
+	if version >= 3 {
+		dst = appendManagerConnectionInt(dst, resp.Total)
+		dst = appendBoolByte(dst, resp.HasMore)
+		dst = appendVarint(dst, managerConnectionCursorUnixNano(resp.NextCursor))
+		dst = appendUvarint(dst, resp.NextCursor.SessionID)
+	}
 	dst = appendManagerConnections(dst, resp.Connections)
 	dst = appendManagerConnection(dst, resp.Connection)
 	dst = appendNodeRuntimeSummary(dst, resp.Summary)
@@ -104,14 +176,41 @@ func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte,
 }
 
 func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse, error) {
-	if !hasMagic(body, managerConnectionResponseMagic[:]) {
+	version := byte(0)
+	magicLen := 0
+	switch {
+	case hasMagic(body, managerConnectionResponseMagic[:]):
+		version = 3
+		magicLen = len(managerConnectionResponseMagic)
+	case hasMagic(body, managerConnectionResponseMagicV2[:]):
+		version = 2
+		magicLen = len(managerConnectionResponseMagicV2)
+	default:
 		return managerConnectionRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager connection response codec")
 	}
-	offset := len(managerConnectionResponseMagic)
-	var resp managerConnectionRPCResponse
+	offset := magicLen
+	resp := managerConnectionRPCResponse{Version: version}
 	var err error
 	if resp.Status, offset, err = readString(body, offset); err != nil {
 		return managerConnectionRPCResponse{}, err
+	}
+	if version >= 3 {
+		if resp.Total, offset, err = readManagerConnectionInt(body, offset); err != nil {
+			return managerConnectionRPCResponse{}, err
+		}
+		if resp.HasMore, offset, err = readBoolByte(body, offset, "manager connection has more"); err != nil {
+			return managerConnectionRPCResponse{}, err
+		}
+		var connectedAt int64
+		if connectedAt, offset, err = readVarint(body, offset); err != nil {
+			return managerConnectionRPCResponse{}, err
+		}
+		if resp.NextCursor.SessionID, offset, err = readUvarint(body, offset); err != nil {
+			return managerConnectionRPCResponse{}, err
+		}
+		if connectedAt > 0 {
+			resp.NextCursor.ConnectedAt = time.Unix(0, connectedAt).UTC()
+		}
 	}
 	if resp.Connections, offset, err = readManagerConnections(body, offset); err != nil {
 		return managerConnectionRPCResponse{}, err
@@ -125,7 +224,17 @@ func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse,
 	if offset != len(body) {
 		return managerConnectionRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager connection response bytes")
 	}
+	if version == 2 {
+		resp.Total = len(resp.Connections)
+	}
 	return resp, nil
+}
+
+func managerConnectionCursorUnixNano(cursor managementusecase.ConnectionListCursor) int64 {
+	if cursor.ConnectedAt.IsZero() {
+		return 0
+	}
+	return cursor.ConnectedAt.UnixNano()
 }
 
 func appendManagerConnections(dst []byte, items []managementusecase.Connection) []byte {

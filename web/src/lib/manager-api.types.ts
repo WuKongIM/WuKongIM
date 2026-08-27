@@ -1813,6 +1813,8 @@ export type ManagerConnection = {
 export type ManagerConnectionsResponse = {
   total: number
   items: ManagerConnection[]
+  has_more: boolean
+  next_cursor?: string
 }
 
 export type ManagerConnectionDetailResponse = ManagerConnection
@@ -1906,6 +1908,7 @@ export type ChannelClusterUnhealthyParams = {
 export type ConnectionListParams = {
   nodeId?: number
   limit?: number
+  cursor?: string
 }
 
 export type ConnectionDetailParams = {

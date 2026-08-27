@@ -162,7 +162,7 @@ type Management interface {
 	// AdvanceMessageRetention advances one channel's message retention boundary.
 	AdvanceMessageRetention(ctx context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error)
 	// ListConnections returns manager-facing local connection DTOs.
-	ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
+	ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error)
 	// GetConnection returns one manager-facing local connection detail DTO.
 	GetConnection(ctx context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
 	// ListNodePlugins returns one node's local plugin inventory.

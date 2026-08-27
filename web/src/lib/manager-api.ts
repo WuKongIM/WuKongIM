@@ -295,6 +295,9 @@ function buildConnectionListPath(params?: ConnectionListParams) {
   if (typeof params?.limit === "number") {
     search.set("limit", String(params.limit))
   }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
 
   const query = search.toString()
   return query ? `/manager/connections?${query}` : "/manager/connections"

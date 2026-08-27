@@ -26,9 +26,9 @@ contracts; it does not grant additional authority.
 ```text
 Manager request
   -> authentication and resource permission
-  -> bounded path/query/body validation
+  -> bounded path/query/body validation and opaque cursor decoding
   -> entry-independent use case or read-model port
-  -> stable status and redacted response
+  -> stable status, pagination metadata, and redacted response
 
 irreversible operator request
   -> exact permission plus operation-specific confirmation/fences

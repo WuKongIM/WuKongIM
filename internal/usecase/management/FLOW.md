@@ -51,6 +51,9 @@ user, message, and operations concerns while keeping one stable usecase API.
   Channel placement, message rows, process state, or filesystem contents.
 - Plans and scans have stable ordering and hard page, item, concurrency, and
   time bounds suitable for 256 hash slots and large clusters.
+- Connection inventory pages report the active count from the selected node
+  snapshot and use the last `(connected_at, session_id)` row as an opaque
+  freshness cursor; only one bounded page is retained while scanning.
 - Read failures remain visible as bounded warnings, blocker reasons, partial
   rows, or typed unavailable errors. Mutation conflicts never degrade into an
   unfenced retry.

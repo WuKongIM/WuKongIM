@@ -10,16 +10,21 @@ import (
 )
 
 func TestManagerConnectionRPCListsConnections(t *testing.T) {
+	cursor := managementusecase.ConnectionListCursor{ConnectedAt: time.Unix(1713859300, 0).UTC(), SessionID: 100}
+	nextCursor := managementusecase.ConnectionListCursor{ConnectedAt: time.Unix(1713859200, 0).UTC(), SessionID: 101}
 	service := &fakeManagerConnectionService{
-		connections: []managementusecase.Connection{{
-			NodeID: 2, SessionID: 101, UID: "u1", DeviceID: "d1",
-			DeviceFlag: "app", DeviceLevel: "master", SlotID: 9, State: "active",
-			Listener: "tcp", ConnectedAt: time.Unix(1713859200, 0).UTC(),
-			RemoteAddr: "10.0.0.1:5000", LocalAddr: "127.0.0.1:7000",
-		}},
+		page: managementusecase.ListConnectionsResponse{
+			Total: 250, HasMore: true, NextCursor: nextCursor,
+			Items: []managementusecase.Connection{{
+				NodeID: 2, SessionID: 101, UID: "u1", DeviceID: "d1",
+				DeviceFlag: "app", DeviceLevel: "master", SlotID: 9, State: "active",
+				Listener: "tcp", ConnectedAt: time.Unix(1713859200, 0).UTC(),
+				RemoteAddr: "10.0.0.1:5000", LocalAddr: "127.0.0.1:7000",
+			}},
+		},
 	}
 	adapter := New(Options{ManagerConnections: service})
-	req := managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: 2, Limit: 100}
+	req := managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: 2, Limit: 100, Cursor: cursor}
 	body, err := encodeManagerConnectionRequest(req)
 	if err != nil {
 		t.Fatalf("encodeManagerConnectionRequest() error = %v", err)
@@ -34,11 +39,12 @@ func TestManagerConnectionRPCListsConnections(t *testing.T) {
 		t.Fatalf("decodeManagerConnectionResponse() error = %v", err)
 	}
 
-	if resp.Status != rpcStatusOK || len(resp.Connections) != 1 || resp.Connections[0].SessionID != 101 {
+	if resp.Status != rpcStatusOK || resp.Total != 250 || !resp.HasMore || resp.NextCursor != nextCursor ||
+		len(resp.Connections) != 1 || resp.Connections[0].SessionID != 101 {
 		t.Fatalf("response = %#v, want one ok connection", resp)
 	}
-	if service.listReq != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}) {
-		t.Fatalf("list request = %#v, want node 2 limit 100", service.listReq)
+	if service.listReq != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100, Cursor: cursor}) {
+		t.Fatalf("list request = %#v, want node 2 limit 100 after cursor", service.listReq)
 	}
 }
 
@@ -156,15 +162,17 @@ type fakeManagerConnectionService struct {
 	detailReq     managementusecase.GetConnectionRequest
 	runtimeNodeID uint64
 	drainReq      managementusecase.SetNodeDrainModeRequest
-	connections   []managementusecase.Connection
+	page          managementusecase.ListConnectionsResponse
 	detail        managementusecase.ConnectionDetail
 	runtime       managementusecase.NodeRuntimeSummary
 	err           error
 }
 
-func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
 	f.listReq = req
-	return append([]managementusecase.Connection(nil), f.connections...), nil
+	resp := f.page
+	resp.Items = append([]managementusecase.Connection(nil), f.page.Items...)
+	return resp, nil
 }
 
 func (f *fakeManagerConnectionService) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {

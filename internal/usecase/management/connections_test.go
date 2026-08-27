@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,17 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
+
+func TestConnectionsReturnUnavailableWithoutLocalReader(t *testing.T) {
+	app := New(Options{})
+
+	if _, err := app.ListConnections(context.Background(), ListConnectionsRequest{}); !errors.Is(err, ErrConnectionReaderUnavailable) {
+		t.Fatalf("ListConnections() error = %v, want %v", err, ErrConnectionReaderUnavailable)
+	}
+	if _, err := app.GetConnection(context.Background(), GetConnectionRequest{SessionID: 1}); !errors.Is(err, ErrConnectionReaderUnavailable) {
+		t.Fatalf("GetConnection() error = %v, want %v", err, ErrConnectionReaderUnavailable)
+	}
+}
 
 func TestListConnectionsReturnsActiveLocalSessionsOrderedByConnectedAtDesc(t *testing.T) {
 	registry := online.NewRegistry(online.RegistryOptions{ShardCount: 2})
@@ -45,8 +57,46 @@ func TestListConnectionsReturnsActiveLocalSessionsOrderedByConnectedAtDesc(t *te
 			RemoteAddr: "10.0.0.2:5000", LocalAddr: "127.0.0.1:7100",
 		},
 	}
-	if !sameConnections(got, want) {
-		t.Fatalf("connections = %#v, want %#v", got, want)
+	if got.Total != 2 || !got.HasMore || got.NextCursor != (ConnectionListCursor{ConnectedAt: want[0].ConnectedAt, SessionID: want[0].SessionID}) {
+		t.Fatalf("page = %#v, want total 2 with a next cursor after session 12", got)
+	}
+	if !sameConnections(got.Items, want) {
+		t.Fatalf("connections = %#v, want %#v", got.Items, want)
+	}
+
+	next, err := app.ListConnections(context.Background(), ListConnectionsRequest{Limit: 1, Cursor: got.NextCursor})
+	if err != nil {
+		t.Fatalf("ListConnections(next) error = %v", err)
+	}
+	if next.Total != 2 || next.HasMore || len(next.Items) != 1 || next.Items[0].SessionID != older.SessionID {
+		t.Fatalf("next page = %#v, want final page with session %d and total 2", next, older.SessionID)
+	}
+}
+
+func TestListConnectionsCursorUsesSessionIDForEqualTimestamps(t *testing.T) {
+	registry := online.NewRegistry(online.RegistryOptions{ShardCount: 2})
+	for _, sessionID := range []uint64{12, 10, 11} {
+		route := online.OwnerRoute{
+			UID: "u", HashSlot: 1, OwnerNodeID: 1, SessionID: sessionID, ConnectedUnix: 100,
+		}
+		requireNoError(t, registry.RegisterPending(online.LocalSession{Route: route}))
+		requireNoError(t, registry.MarkActive(route.SessionID))
+	}
+	app := New(Options{
+		Cluster:     fakeNodeSnapshotReader{snapshot: singleUserSlotSnapshot(), nodeID: 1},
+		Connections: registry,
+	})
+
+	cursor := ConnectionListCursor{}
+	for pageNumber, wantSessionID := range []uint64{10, 11, 12} {
+		page, err := app.ListConnections(context.Background(), ListConnectionsRequest{Limit: 1, Cursor: cursor})
+		if err != nil {
+			t.Fatalf("ListConnections(page %d) error = %v", pageNumber+1, err)
+		}
+		if page.Total != 3 || len(page.Items) != 1 || page.Items[0].SessionID != wantSessionID {
+			t.Fatalf("page %d = %#v, want session %d of total 3", pageNumber+1, page, wantSessionID)
+		}
+		cursor = page.NextCursor
 	}
 }
 
@@ -83,8 +133,8 @@ func TestGetConnectionReturnsLocalSessionDetailAndNotFound(t *testing.T) {
 
 func TestConnectionsUseRemoteReaderForNonLocalNode(t *testing.T) {
 	remote := &fakeConnectionRemoteReader{
-		connections: []Connection{{NodeID: 2, SessionID: 22, UID: "u2"}},
-		detail:      ConnectionDetail{NodeID: 2, SessionID: 23, UID: "u3"},
+		page:   ListConnectionsResponse{Total: 1, Items: []Connection{{NodeID: 2, SessionID: 22, UID: "u2"}}},
+		detail: ConnectionDetail{NodeID: 2, SessionID: 23, UID: "u3"},
 	}
 	app := New(Options{
 		Cluster:           fakeNodeSnapshotReader{snapshot: singleUserSlotSnapshot(), nodeID: 1},
@@ -92,12 +142,12 @@ func TestConnectionsUseRemoteReaderForNonLocalNode(t *testing.T) {
 		RemoteConnections: remote,
 	})
 
-	items, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2, Limit: 100})
+	page, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListConnections(remote) error = %v", err)
 	}
-	if !sameConnections(items, remote.connections) || remote.listNodeID != 2 || remote.listLimit != 100 {
-		t.Fatalf("remote list = %#v node=%d limit=%d, want %#v node 2 limit 100", items, remote.listNodeID, remote.listLimit, remote.connections)
+	if !sameConnections(page.Items, remote.page.Items) || remote.listReq != (ListConnectionsRequest{NodeID: 2, Limit: 100}) {
+		t.Fatalf("remote page = %#v request=%#v, want %#v", page, remote.listReq, remote.page)
 	}
 
 	detail, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 2, SessionID: 23})
@@ -130,18 +180,18 @@ func requireNoError(t *testing.T, err error) {
 }
 
 type fakeConnectionRemoteReader struct {
-	listNodeID      uint64
-	listLimit       int
+	listReq         ListConnectionsRequest
 	detailNodeID    uint64
 	detailSessionID uint64
-	connections     []Connection
+	page            ListConnectionsResponse
 	detail          ConnectionDetail
 }
 
-func (f *fakeConnectionRemoteReader) NodeConnections(_ context.Context, nodeID uint64, limit int) ([]Connection, error) {
-	f.listNodeID = nodeID
-	f.listLimit = limit
-	return append([]Connection(nil), f.connections...), nil
+func (f *fakeConnectionRemoteReader) NodeConnections(_ context.Context, req ListConnectionsRequest) (ListConnectionsResponse, error) {
+	f.listReq = req
+	resp := f.page
+	resp.Items = append([]Connection(nil), f.page.Items...)
+	return resp, nil
 }
 
 func (f *fakeConnectionRemoteReader) NodeConnection(_ context.Context, nodeID, sessionID uint64) (ConnectionDetail, error) {

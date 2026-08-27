@@ -79,7 +79,7 @@ type DeliveryOwnerPush interface {
 
 // ManagerConnectionReader handles owner-local manager connection inventory requests.
 type ManagerConnectionReader interface {
-	ListConnections(context.Context, managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
+	ListConnections(context.Context, managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error)
 	GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
 	NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error)
 	SetNodeDrainMode(context.Context, managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error)
