@@ -2,6 +2,8 @@ import { docs } from 'collections/server';
 import { loader } from 'fumadocs-core/source';
 import { i18n } from './i18n';
 import { isPublishedContentPath } from './navigation';
+import { openapi } from './openapi';
+import { renderOpenAPIOperationMarkdown } from './openapi-markdown';
 import { docsContentRoute } from './shared';
 import { renderDeveloperContractSupplement } from './developer-contracts';
 
@@ -19,7 +21,7 @@ export const source = loader({
   url(slugs, locale) {
     return `/${[locale, ...slugs].filter(Boolean).join('/')}`;
   },
-  plugins: [],
+  plugins: [openapi.loaderPlugin()],
 });
 
 export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {
@@ -34,7 +36,14 @@ export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {
 export async function getLLMText(page: (typeof source)['$inferPage']) {
   const processed = await page.data.getText('processed');
   const locale = page.locale === 'zh' || page.locale === 'en' ? page.locale : undefined;
-  const supplement = locale ? renderDeveloperContractSupplement(locale, page.slugs) : '';
+  const supplement = locale
+    ? [
+        renderDeveloperContractSupplement(locale, page.slugs),
+        renderOpenAPIOperationMarkdown(locale, page.slugs),
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+    : '';
 
   return `# ${page.data.title} (${page.url})
 

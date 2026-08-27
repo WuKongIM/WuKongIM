@@ -1,35 +1,3 @@
----
-title: Route Discovery (Beta Subset)
-description: Use GET /route from a trusted BFF to obtain the currently
-  configured client-ingress addresses.
-full: true
-_openapi:
-  preload:
-    - wukongim-product-http-beta-en
-  method: GET
-  webhook: false
-  toc: []
-  structuredData:
-    headings: []
-    contents:
-      - content: Returns configured gateway addresses. The quickstart BFF forwards only
-          the address required by the browser SDK.
----
-
-{/* This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
-
-export default function Layout(props) {
-  const { APIPage, OpenAPIPage } = props.components ?? {};
-  // "APIPage" is the old name from v10, this allows both for backward compatibility
-  const Comp = OpenAPIPage ?? APIPage;
-  return (
-    <>
-      {props.children}
-      <Comp document="wukongim-product-http-beta-en" operations={[{"path":"/route","method":"get"}]} showDescription />
-    </>
-  );
-}
-
 ## Goal and completion criteria
 
 This page publishes only the golden-path shape of `GET /route`. When finished, the BFF can select a secure or ordinary WebSocket address for the browser without treating address discovery as product authorization or dynamic user-ownership proof.

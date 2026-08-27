@@ -1,5 +1,6 @@
 import { getMDXComponents } from '@/components/mdx';
 import { DocsMainContainer } from '@/components/docs-main-container';
+import { OpenAPIPage } from '@/components/openapi-page';
 import {
   canonicalUrl,
   getDocumentationFeedbackUrl,
@@ -15,6 +16,7 @@ import {
   type DocumentationDomain,
 } from '@/lib/navigation';
 import { getPageMarkdownUrl, source } from '@/lib/source';
+import { openapi } from '@/lib/openapi';
 import { getPublishedFooterItems } from '@/lib/navigation-tree';
 import {
   DocsBody,
@@ -87,8 +89,11 @@ export default async function DocumentationPage({
   if (!page) notFound();
   const MDX = page.data.body;
   const markdownUrl = getPageMarkdownUrl(page).url;
-  const githubSourceUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/docs-site/content/docs/${page.path}`;
-  const githubEditUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/edit/${gitConfig.branch}/docs-site/content/docs/${page.path}`;
+  const githubContentPath = page.data._openapi
+    ? `docs-site/content/openapi/${page.path.replace(/^api\//, '')}`
+    : `docs-site/content/docs/${page.path}`;
+  const githubSourceUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/${githubContentPath}`;
+  const githubEditUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/edit/${gitConfig.branch}/${githubContentPath}`;
   const feedbackUrl = getDocumentationFeedbackUrl({
     locale,
     pageTitle: page.data.title,
@@ -134,6 +139,9 @@ export default async function DocumentationPage({
         <MDX
           components={getMDXComponents({
             a: createRelativeLink(source, page),
+            OpenAPIPage: async (props) => (
+              <OpenAPIPage {...(await openapi.preloadOpenAPIPage(page))} {...props} />
+            ),
           })}
         />
       </DocsBody>

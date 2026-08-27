@@ -1,33 +1,3 @@
----
-title: 用户（Beta 子集）
-description: 使用 POST /user/token 从受信 BFF 保存开发身份的设备 Token 元数据。
-full: true
-_openapi:
-  preload:
-    - wukongim-product-http-beta-zh
-  method: POST
-  webhook: false
-  toc: []
-  structuredData:
-    headings: []
-    contents:
-      - content: 浏览器连接前由 localhost BFF 调用的兼容入口。Beta 快速开始 Token 只是开发凭据；此入口不构成生产鉴权设计。
----
-
-{/* This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
-
-export default function Layout(props) {
-  const { APIPage, OpenAPIPage } = props.components ?? {};
-  // "APIPage" is the old name from v10, this allows both for backward compatibility
-  const Comp = OpenAPIPage ?? APIPage;
-  return (
-    <>
-      {props.children}
-      <Comp document="wukongim-product-http-beta-zh" operations={[{"path":"/user/token","method":"post"}]} showDescription />
-    </>
-  );
-}
-
 ## 目标与完成标准
 
 本页只发布 `POST /user/token`。完成后，受信 BFF 应能为当前浏览器 Session 创建 UID 并保存设备 Token 元数据，而浏览器本身不知道 Product HTTP 管理地址。

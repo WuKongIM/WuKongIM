@@ -65,6 +65,20 @@ bun run dev
 Open `http://localhost:3000`. The canonical local entry points are `/zh` and
 `/en`.
 
+The three published Product HTTP operation pages are generated from the
+bounded OpenAPI 3.1 contract plus bilingual narrative supplements. After
+changing either source, regenerate and review the tracked MDX:
+
+```bash
+bun run openapi:write
+bun run openapi:check
+```
+
+The static reference intentionally disables the request playground because the
+documented endpoints belong behind a trusted BFF. TCP/WKProto and JSON-RPC
+protocol material remains ordinary protocol documentation rather than fake
+OpenAPI paths.
+
 ## Validate
 
 ```bash
@@ -138,6 +152,10 @@ WK_DOCS_REQUIRE_VERIFIED=1 bun run test:output
 
 - Edit the full bilingual plan in `lib/navigation.ts`.
 - Run `bun run navigation:write` to update `NAVIGATION.md`.
+- Edit `contracts/javascript-web-quickstart.openapi.json` and
+  `content/openapi/product-http/`, then run `bun run openapi:write`, for the
+  three published Product HTTP operation pages; do not edit their generated
+  files under `content/docs/api/product-http/` directly.
 - Add both `page.mdx` and `page.en.mdx` content variants before changing a menu
   entry from `planned` to `published`.
 - Keep planned routes visible, but never include them in public indexes.

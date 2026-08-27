@@ -1,5 +1,7 @@
 import Image from 'next/image';
+import { zhCN } from '@fumadocs/language/zh-cn';
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
+import { openapiTranslations } from 'fumadocs-openapi/i18n';
 import { uiTranslations } from 'fumadocs-ui/i18n';
 import { domains, type Locale } from './navigation';
 import { i18n } from './i18n';
@@ -8,6 +10,8 @@ import { appName, gitConfig } from './shared';
 export const translations = i18n
   .translations()
   .extend(uiTranslations())
+  .extend(openapiTranslations())
+  .preset('zh', zhCN())
   .add({
     zh: {
       displayName: '中文',

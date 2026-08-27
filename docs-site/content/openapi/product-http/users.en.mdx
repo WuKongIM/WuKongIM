@@ -1,36 +1,3 @@
----
-title: Users (Beta Subset)
-description: Use POST /user/token from a trusted BFF to store device-token
-  metadata for a development identity.
-full: true
-_openapi:
-  preload:
-    - wukongim-product-http-beta-en
-  method: POST
-  webhook: false
-  toc: []
-  structuredData:
-    headings: []
-    contents:
-      - content: Compatibility endpoint used by the localhost BFF before a browser
-          connects. The Beta quickstart token is a development credential; this
-          endpoint does not establish a production authentication design.
----
-
-{/* This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
-
-export default function Layout(props) {
-  const { APIPage, OpenAPIPage } = props.components ?? {};
-  // "APIPage" is the old name from v10, this allows both for backward compatibility
-  const Comp = OpenAPIPage ?? APIPage;
-  return (
-    <>
-      {props.children}
-      <Comp document="wukongim-product-http-beta-en" operations={[{"path":"/user/token","method":"post"}]} showDescription />
-    </>
-  );
-}
-
 ## Goal and completion criteria
 
 This page publishes only `POST /user/token`. When finished, the trusted BFF can create a UID and store device-token metadata for the current browser Session while the browser remains unaware of the Product HTTP management address.

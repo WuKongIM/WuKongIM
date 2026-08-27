@@ -13,6 +13,11 @@ description: 查阅 v3 Beta JavaScript/Web 黄金路径的 Product HTTP 兼容�
   当前发布的是 Beta 黄金路径子集。仓库旧 OpenAPI 仍包含 v2 内容，完整 OpenAPI、客户端协议、Webhook、运维 API 和其他领域参考仍在规划中。
 </Callout>
 
+## 规范呈现边界
+
+- 三个已发布 Product HTTP operation 由同一份 OpenAPI 3.1 合同生成 Fumadocs 请求、响应、Schema、示例和类型参考；
+- TCP/WKProto 生命周期、JSON-RPC 与共享 Wire 字典不是 HTTP operation，继续采用协议专用正文和源码校准表，不能伪造为 OpenAPI path。
+
 ## 兼容目标
 
 服务端 revision、SDK、Node.js、Chromium 与合同摘要记录在[API 兼容性](/zh/api/compatibility)和 `/compatibility.json`。URL 保持无版本路径，但快照不承诺任意 revision 都兼容。

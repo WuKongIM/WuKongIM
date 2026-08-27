@@ -183,9 +183,13 @@ A slice-level OpenAPI contract is the machine-readable source for exactly:
 | `GET` | `/route` | Obtain configured TCP/WebSocket ingress addresses |
 | `POST` | `/channel/messagesync` | Read committed person-Channel messages after reconnect |
 
-The shared contract renders through `GoldenPathContract`, supplies BFF types or
-validation, and is checked against the runnable sample. It is visibly labeled
-“Beta golden-path subset” and must never be offered as the complete v3 OpenAPI.
+The shared contract renders through `GoldenPathContract` and the generated
+Fumadocs OpenAPI operation pages, supplies BFF types or validation, and is
+checked against the runnable sample. Each operation page combines generated
+request/response/schema content with a bilingual narrative supplement. The
+static request playground stays disabled because Product HTTP belongs behind a
+trusted BFF. The contract is visibly labeled “Beta golden-path subset” and must
+never be offered as the complete v3 OpenAPI.
 
 Important semantics are frozen as follows:
 
@@ -286,6 +290,8 @@ Every `docs-site` change runs:
 - navigation and bilingual publication contracts;
 - unique executable source-anchor pairing and MDX publication checkpoints;
 - slice-level OpenAPI and BFF contract alignment;
+- deterministic bilingual Fumadocs OpenAPI page generation and disabled
+  playground boundaries;
 - complete Reason Code 0–29 alignment;
 - compatibility-manifest generation and render checks;
 - default unverified output plus exact-receipt verified-output checks;

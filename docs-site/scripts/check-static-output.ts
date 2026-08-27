@@ -122,6 +122,10 @@ async function exists(path: string) {
   return Bun.file(new URL(path, out)).exists();
 }
 
+function visibleHtml(html: string) {
+  return html.replace(/<script\b[\s\S]*?<\/script>/gi, '');
+}
+
 async function loadOutputInventory() {
   const outputPaths: string[] = [];
   const htmlPages: StaticHtmlPage[] = [];
@@ -284,6 +288,76 @@ export async function checkStaticOutput() {
     throw new Error('golden-path OpenAPI artifact escaped its three-endpoint Beta boundary');
   }
 
+  const openAPIPages = [
+    {
+      slug: 'users',
+      method: 'POST',
+      path: '/user/token',
+      requestBody: true,
+      field: '`device_flag`',
+      enDescription: 'Compatibility endpoint used by the localhost BFF before a browser connects',
+      zhDescription: '浏览器连接前由 localhost BFF 调用的兼容入口',
+    },
+    {
+      slug: 'routing',
+      method: 'GET',
+      path: '/route',
+      requestBody: false,
+      field: '`wss_addr`',
+      enDescription: 'Returns configured gateway addresses',
+      zhDescription: '返回已配置的 Gateway 地址',
+    },
+    {
+      slug: 'messages',
+      method: 'POST',
+      path: '/channel/messagesync',
+      requestBody: true,
+      field: '`pull_mode`',
+      enDescription: 'Compatibility endpoint used by the localhost BFF after reconnect',
+      zhDescription: '重连后由 localhost BFF 使用的兼容入口',
+    },
+  ] as const;
+  for (const locale of locales) {
+    for (const page of openAPIPages) {
+      const html = visibleHtml(
+        await text(`${locale}/api/product-http/${page.slug}/index.html`),
+      );
+      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
+      for (const fact of [page.method, page.path, page.field.slice(1, -1), description]) {
+        if (!html.includes(fact)) {
+          throw new Error(
+            `${locale} Product HTTP ${page.slug} page is missing OpenAPI fact: ${fact}`,
+          );
+        }
+      }
+      const requestBodyLabel = locale === 'zh' ? '请求主体' : 'Request Body';
+      const responseBodyLabel = locale === 'zh' ? '响应主体' : 'Response Body';
+      if (page.requestBody && !html.includes(requestBodyLabel)) {
+        throw new Error(`${locale} Product HTTP ${page.slug} is missing its request schema`);
+      }
+      if (!html.includes(responseBodyLabel)) {
+        throw new Error(`${locale} Product HTTP ${page.slug} is missing its response schema`);
+      }
+      if (/<form\b/i.test(html) || /<button\b[^>]*\btype=["']submit["']/i.test(html)) {
+        throw new Error(`${locale} Product HTTP ${page.slug} exposes an interactive playground`);
+      }
+
+      const markdown = await text(
+        `llms.mdx/${locale}/api/product-http/${page.slug}/content.md`,
+      );
+      for (const fact of [`\`${page.method}\``, `\`${page.path}\``, page.field, '| `503` |']) {
+        if (!markdown.includes(fact)) {
+          throw new Error(
+            `${locale} Product HTTP ${page.slug} Markdown is missing OpenAPI fact: ${fact}`,
+          );
+        }
+      }
+      if (page.slug === 'messages' && !markdown.includes('1–100')) {
+        throw new Error(`${locale} Product HTTP messages Markdown lost the limit constraint`);
+      }
+    }
+  }
+
   for (const locale of locales) {
     for (const entry of getIndexedNavigationEntries(locale)) {
       const published = await text(`${entry.url.slice(1)}/index.html`);
@@ -408,7 +482,18 @@ export async function checkStaticOutput() {
   }
 
   const llmsIndex = await text('llms.txt');
-  const llms = `${llmsIndex}\n${await text('llms-full.txt')}`;
+  const llmsFull = await text('llms-full.txt');
+  for (const fact of [
+    'server-generated-development-secret',
+    'const: `200`',
+    'Referenced schema — `SyncedMessage`',
+    '`message_idstr`',
+  ]) {
+    if (!llmsFull.includes(fact)) {
+      throw new Error(`llms-full.txt is missing OpenAPI fact: ${fact}`);
+    }
+  }
+  const llms = `${llmsIndex}\n${llmsFull}`;
   for (const locale of locales) {
     for (const entry of getIndexedNavigationEntries(locale)) {
       if (!llms.includes(entry.url)) {
@@ -426,9 +511,16 @@ export async function checkStaticOutput() {
     }
   }
 
-  const search = JSON.parse(await text('api/search')) as {
+  const searchPayload = await text('api/search');
+  const search = JSON.parse(searchPayload) as {
     type: string;
-    data: Record<string, { internalDocumentIDStore: { internalIdToId: string[] } }>;
+    data: Record<
+      string,
+      {
+        internalDocumentIDStore: { internalIdToId: string[] };
+        docs?: { docs?: Record<string, { page_id?: string; content?: string }> };
+      }
+    >;
   };
   if (search.type !== 'i18n') throw new Error('search index must be locale-aware');
   if (Object.keys(search.data).sort().join(',') !== 'en,zh') {
@@ -447,6 +539,19 @@ export async function checkStaticOutput() {
     const localePlannedRoutes = plannedRoutes.filter((route) => route.startsWith(`/${locale}/`));
     if (ids.some((id) => localePlannedRoutes.includes(id))) {
       throw new Error(`${locale} search index contains a planned page`);
+    }
+    const indexedDocuments = Object.values(search.data[locale]?.docs?.docs ?? {});
+    for (const page of openAPIPages) {
+      const pageId = `/${locale}/api/product-http/${page.slug}`;
+      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
+      if (
+        !indexedDocuments.some(
+          (document) =>
+            document.page_id === pageId && document.content?.includes(description),
+        )
+      ) {
+        throw new Error(`${locale} search index is missing OpenAPI text for ${pageId}`);
+      }
     }
   }
 
@@ -473,6 +578,9 @@ export async function checkStaticOutput() {
     if (critical.path === `${critical.locale}/index.html`) continue;
     const feedbackLabel = critical.locale === 'zh' ? '报告文档问题' : 'Report a docs issue';
     const editLabel = critical.locale === 'zh' ? '编辑此页' : 'Edit this page';
+    const editSource = critical.path.includes('/api/product-http/')
+      ? 'https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/content/openapi/product-http/'
+      : 'https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/content/docs/';
     if (
       !html.includes(feedbackLabel) ||
       !html.includes('https://github.com/WuKongIM/WuKongIM/issues/new?')
@@ -481,7 +589,7 @@ export async function checkStaticOutput() {
     }
     if (
       !html.includes(editLabel) ||
-      !html.includes('https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/content/docs/')
+      !html.includes(editSource)
     ) {
       throw new Error(`published page is missing its edit link: ${critical.path}`);
     }

@@ -13,6 +13,11 @@ A developer should create a development identity, discover Gateway ingress, reco
   This is a Beta golden-path subset. The repository's older OpenAPI still contains v2 material. Complete OpenAPI, client protocols, webhooks, operations APIs, and other domain references remain planned.
 </Callout>
 
+## Representation boundary
+
+- One OpenAPI 3.1 contract generates the Fumadocs request, response, schema, example, and type references for the three published Product HTTP operations.
+- TCP/WKProto lifecycle, JSON-RPC, and shared wire dictionaries are not HTTP operations. They remain protocol-specific narrative and source-aligned tables instead of fabricated OpenAPI paths.
+
 ## Compatibility target
 
 Server revision, SDK, Node.js, Chromium, and contract summary appear on [API Compatibility](/en/api/compatibility) and in `/compatibility.json`. URLs remain unversioned, but a snapshot does not promise compatibility with every revision.

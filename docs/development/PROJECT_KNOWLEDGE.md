@@ -397,6 +397,12 @@
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs.
 - `docs-site` is a Bun-managed Fumadocs/Next.js static export. Phase 1 does not deploy it, cut over DNS, migrate legacy page bodies, or publish the known-stale v2 OpenAPI document as v3 reference.
+- The only published v3 Product HTTP OpenAPI is the bounded JavaScript/Web
+  golden-path contract for `POST /user/token`, `GET /route`, and
+  `POST /channel/messagesync`. Fumadocs operation pages are deterministically
+  generated from that contract plus bilingual supplements, and their static
+  request playground remains disabled. TCP/WKProto, JSON-RPC, and protocol
+  dictionaries must not be represented as fake OpenAPI paths.
 - Phase 5 configuration reference pages are checked against every public field returned by `internal/config.SchemaFields()` in both locales. `wukongim.toml.example` is a loadable development baseline, not a promise that its explicit values are runtime defaults for omitted fields.
 - Phase 6 public operations guidance treats Manager as a privileged boundary,
   distinguishes `/healthz` liveness from `/readyz` admission, keeps dynamic

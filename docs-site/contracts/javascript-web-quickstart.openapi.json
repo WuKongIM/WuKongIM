@@ -12,12 +12,47 @@
       "description": "Default Product HTTP listener for the local single-node cluster walkthrough"
     }
   ],
+  "tags": [
+    {
+      "name": "Users",
+      "description": "Development identity metadata used by the bounded JavaScript/Web golden path."
+    },
+    {
+      "name": "Routing",
+      "description": "Configured client-ingress discovery for the bounded JavaScript/Web golden path."
+    },
+    {
+      "name": "Messages",
+      "description": "Bounded durable-message recovery used by the JavaScript/Web golden path."
+    }
+  ],
   "paths": {
     "/user/token": {
       "post": {
         "operationId": "setQuickstartUserToken",
         "summary": "Register the quickstart user's development token",
         "description": "Compatibility endpoint used by the localhost BFF before a browser connects. The Beta quickstart token is a development credential; this endpoint does not establish a production authentication design.",
+        "x-i18n": {
+          "zh": {
+            "summary": "登记快速开始用户的开发 Token",
+            "description": "浏览器连接前由 localhost BFF 调用的兼容入口。Beta 快速开始 Token 只是开发凭据；此入口不构成生产鉴权设计。"
+          }
+        },
+        "tags": ["Users"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/user/token \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"token\":\"server-generated-development-secret\",\"device_flag\":1,\"device_level\":0}'",
+            "x-i18n": {
+              "zh": {
+                "label": "受信后端（cURL）",
+                "source": "# 只在受信后端边界运行。\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/user/token \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"token\":\"server-generated-development-secret\",\"device_flag\":1,\"device_level\":0}'"
+              }
+            }
+          }
+        ],
         "security": [],
         "requestBody": {
           "required": true,
@@ -42,6 +77,11 @@
         "responses": {
           "200": {
             "description": "Token mutation accepted",
+            "x-i18n": {
+              "zh": {
+                "description": "Token 变更已接受"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -67,10 +107,36 @@
         "operationId": "getQuickstartGatewayRoute",
         "summary": "Resolve the browser-facing gateway addresses",
         "description": "Returns configured gateway addresses. The quickstart BFF forwards only the address required by the browser SDK.",
+        "x-i18n": {
+          "zh": {
+            "summary": "解析面向浏览器的 Gateway 地址",
+            "description": "返回已配置的 Gateway 地址。快速开始 BFF 只转发浏览器 SDK 所需的地址。"
+          }
+        },
+        "tags": ["Routing"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body http://127.0.0.1:5001/route",
+            "x-i18n": {
+              "zh": {
+                "label": "受信后端（cURL）",
+                "source": "# 只在受信后端边界运行。\ncurl --fail-with-body http://127.0.0.1:5001/route"
+              }
+            }
+          }
+        ],
         "security": [],
         "responses": {
           "200": {
             "description": "Configured gateway addresses",
+            "x-i18n": {
+              "zh": {
+                "description": "已配置的 Gateway 地址"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -98,6 +164,27 @@
         "operationId": "syncQuickstartChannelMessages",
         "summary": "Pull durable messages for one channel",
         "description": "Compatibility endpoint used by the localhost BFF after reconnect. The quickstart uses a person channel (channel_type 1) and a bounded forward pull.",
+        "x-i18n": {
+          "zh": {
+            "summary": "拉取一个 Channel 的持久消息",
+            "description": "重连后由 localhost BFF 使用的兼容入口。快速开始使用个人 Channel（channel_type 1）和有界向前拉取。"
+          }
+        },
+        "tags": ["Messages"],
+        "x-wukongim-trust": "trusted-backend-only",
+        "x-codeSamples": [
+          {
+            "lang": "bash",
+            "label": "Trusted backend (cURL)",
+            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/messagesync \\\n  --header 'content-type: application/json' \\\n  --data '{\"login_uid\":\"bob\",\"channel_id\":\"alice\",\"channel_type\":1,\"start_message_seq\":0,\"end_message_seq\":0,\"limit\":100,\"pull_mode\":1,\"include_event_meta\":0,\"event_summary_mode\":\"\"}'",
+            "x-i18n": {
+              "zh": {
+                "label": "受信后端（cURL）",
+                "source": "# 只在受信后端边界运行。\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/channel/messagesync \\\n  --header 'content-type: application/json' \\\n  --data '{\"login_uid\":\"bob\",\"channel_id\":\"alice\",\"channel_type\":1,\"start_message_seq\":0,\"end_message_seq\":0,\"limit\":100,\"pull_mode\":1,\"include_event_meta\":0,\"event_summary_mode\":\"\"}'"
+              }
+            }
+          }
+        ],
         "security": [],
         "requestBody": {
           "required": true,
@@ -127,6 +214,11 @@
         "responses": {
           "200": {
             "description": "Bounded page of durable messages",
+            "x-i18n": {
+              "zh": {
+                "description": "有界的持久消息分页"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -149,6 +241,11 @@
     "responses": {
       "CompatibilityBadRequest": {
         "description": "Compatibility error envelope",
+        "x-i18n": {
+          "zh": {
+            "description": "兼容错误信封"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
@@ -167,6 +264,11 @@
       },
       "MaintenanceUnavailable": {
         "description": "The cluster is behind the restore-maintenance fence; back off and observe /readyz",
+        "x-i18n": {
+          "zh": {
+            "description": "集群处于恢复维护栅栏后；请退避并观察 /readyz"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
@@ -187,27 +289,56 @@
     "schemas": {
       "UpdateTokenRequest": {
         "type": "object",
+        "description": "Development identity metadata accepted only from the trusted backend boundary.",
+        "x-i18n": {
+          "zh": {
+            "description": "仅从受信后端边界接收的开发身份元数据。"
+          }
+        },
         "additionalProperties": false,
         "required": ["uid", "token", "device_flag", "device_level"],
         "properties": {
           "uid": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Stable product identity to create or update. It must not contain @, #, or &.",
+            "x-i18n": {
+              "zh": {
+                "description": "要创建或更新的稳定业务身份；不能包含 @、# 或 &。"
+              }
+            }
           },
           "token": {
             "type": "string",
             "minLength": 1,
-            "description": "Development-only token in the Beta quickstart. Keep it on the trusted BFF side."
+            "description": "Development-only token in the Beta quickstart. Keep it on the trusted BFF side.",
+            "x-i18n": {
+              "zh": {
+                "description": "Beta 快速开始中的仅开发 Token；只保留在受信 BFF 一侧。"
+              }
+            }
           },
           "device_flag": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 255
+            "maximum": 255,
+            "description": "Client device category. The JavaScript/Web quickstart uses 1 for Web.",
+            "x-i18n": {
+              "zh": {
+                "description": "客户端设备类别；JavaScript/Web 快速开始使用 Web 值 1。"
+              }
+            }
           },
           "device_level": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 255
+            "maximum": 255,
+            "description": "Device conflict level. The quickstart uses 0 for a slave device.",
+            "x-i18n": {
+              "zh": {
+                "description": "设备冲突级别；快速开始使用从设备值 0。"
+              }
+            }
           }
         }
       },
@@ -217,7 +348,13 @@
         "properties": {
           "status": {
             "type": "integer",
-            "const": 200
+            "const": 200,
+            "description": "Compatibility success status, always 200.",
+            "x-i18n": {
+              "zh": {
+                "description": "兼容成功状态，固定为 200。"
+              }
+            }
           }
         }
       },
@@ -226,12 +363,24 @@
         "required": ["msg", "status"],
         "properties": {
           "msg": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable compatibility error message.",
+            "x-i18n": {
+              "zh": {
+                "description": "供人阅读的兼容错误消息。"
+              }
+            }
           },
           "status": {
             "type": "integer",
             "minimum": 400,
-            "maximum": 599
+            "maximum": 599,
+            "description": "HTTP-compatible error status.",
+            "x-i18n": {
+              "zh": {
+                "description": "与 HTTP 对齐的错误状态。"
+              }
+            }
           }
         }
       },
@@ -240,87 +389,192 @@
         "required": ["tcp_addr", "ws_addr", "wss_addr"],
         "properties": {
           "tcp_addr": {
-            "type": "string"
+            "type": "string",
+            "description": "TCP client-ingress address. The browser quickstart does not use it.",
+            "x-i18n": {
+              "zh": {
+                "description": "TCP 客户端接入地址；浏览器快速开始不使用它。"
+              }
+            }
           },
           "ws_addr": {
-            "type": "string"
+            "type": "string",
+            "description": "Plain WebSocket ingress used only when a secure address is unavailable and the page permits it.",
+            "x-i18n": {
+              "zh": {
+                "description": "仅在安全地址不可用且页面允许时使用的普通 WebSocket 入口。"
+              }
+            }
           },
           "wss_addr": {
-            "type": "string"
+            "type": "string",
+            "description": "TLS WebSocket ingress preferred by HTTPS browser applications when non-empty.",
+            "x-i18n": {
+              "zh": {
+                "description": "非空时由 HTTPS 浏览器应用优先使用的 TLS WebSocket 入口。"
+              }
+            }
           }
         }
       },
       "ChannelMessageSyncRequest": {
         "type": "object",
+        "description": "Bounded committed-message recovery request for one visible channel.",
+        "x-i18n": {
+          "zh": {
+            "description": "针对一个可见 Channel 的有界已提交消息恢复请求。"
+          }
+        },
         "additionalProperties": false,
         "required": ["login_uid", "channel_id", "channel_type"],
         "properties": {
           "login_uid": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Current user represented by the trusted backend; used for person-channel normalization and membership visibility.",
+            "x-i18n": {
+              "zh": {
+                "description": "受信后端代表的当前用户；用于个人 Channel 归一化和 membership 可见性。"
+              }
+            }
           },
           "channel_id": {
             "type": "string",
             "minLength": 1,
-            "description": "For the person-channel quickstart, use the peer UID."
+            "description": "For the person-channel quickstart, use the peer UID.",
+            "x-i18n": {
+              "zh": {
+                "description": "个人 Channel 快速开始使用对端 UID。"
+              }
+            }
           },
           "channel_type": {
             "type": "integer",
             "minimum": 0,
             "maximum": 255,
-            "description": "The quickstart uses 1 for a person channel."
+            "description": "The quickstart uses 1 for a person channel.",
+            "x-i18n": {
+              "zh": {
+                "description": "快速开始使用 1 表示个人 Channel。"
+              }
+            }
           },
           "start_message_seq": {
             "type": "integer",
             "minimum": 0,
-            "default": 0
+            "default": 0,
+            "description": "Inclusive starting sequence when non-zero. With an end boundary of 0, a zero start selects the recent-page compatibility behavior.",
+            "x-i18n": {
+              "zh": {
+                "description": "非零时为包含式起点；结束边界也为 0 时，全零边界选择最近页兼容行为。"
+              }
+            }
           },
           "end_message_seq": {
             "type": "integer",
             "minimum": 0,
-            "default": 0
+            "default": 0,
+            "description": "Exclusive ending sequence when non-zero. With a start boundary of 0, a zero end leaves the recent page without an upper bound.",
+            "x-i18n": {
+              "zh": {
+                "description": "非零时为排除式结束边界；起点也为 0 时，最近页不设置上界。"
+              }
+            }
           },
           "limit": {
             "type": "integer",
             "minimum": 1,
             "maximum": 100,
             "default": 100,
-            "description": "Golden-path BFF bound; the compatible runtime has a broader internal cap."
+            "description": "Golden-path BFF bound; the compatible runtime has a broader internal cap.",
+            "x-i18n": {
+              "zh": {
+                "description": "黄金路径 BFF 边界；兼容运行时内部上限更宽。"
+              }
+            }
           },
           "pull_mode": {
             "type": "integer",
             "enum": [0, 1],
-            "default": 1
+            "default": 1,
+            "description": "Direction selector: 0 pulls older messages; 1 pulls newer messages.",
+            "x-i18n": {
+              "zh": {
+                "description": "拉取方向：0 拉取更旧消息，1 拉取更新消息。"
+              }
+            }
           },
           "include_event_meta": {
             "type": "integer",
             "enum": [0, 1],
-            "default": 0
+            "default": 0,
+            "description": "Set to 1 to request compact event metadata when available. The golden path uses 0.",
+            "x-i18n": {
+              "zh": {
+                "description": "设为 1 时请求可用的紧凑事件元数据；黄金路径使用 0。"
+              }
+            }
           },
           "event_summary_mode": {
             "type": "string",
-            "default": ""
+            "default": "",
+            "description": "Compatibility event-summary selector. The golden path leaves it empty.",
+            "x-i18n": {
+              "zh": {
+                "description": "兼容事件摘要选择器；黄金路径保持为空。"
+              }
+            }
           }
         }
       },
       "ChannelMessageSyncResponse": {
         "type": "object",
+        "description": "One bounded page of committed messages in ascending sequence order.",
+        "x-i18n": {
+          "zh": {
+            "description": "按 sequence 升序排列的一页有界已提交消息。"
+          }
+        },
         "required": ["start_message_seq", "end_message_seq", "more", "messages"],
         "properties": {
           "start_message_seq": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Starting boundary echoed from the request.",
+            "x-i18n": {
+              "zh": {
+                "description": "从请求回显的起始边界。"
+              }
+            }
           },
           "end_message_seq": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Ending boundary echoed from the request.",
+            "x-i18n": {
+              "zh": {
+                "description": "从请求回显的结束边界。"
+              }
+            }
           },
           "more": {
             "type": "integer",
-            "enum": [0, 1]
+            "enum": [0, 1],
+            "description": "1 means another bounded page may be available; advance the cursor before requesting it.",
+            "x-i18n": {
+              "zh": {
+                "description": "1 表示可能还有下一页；再次请求前必须推进游标。"
+              }
+            }
           },
           "messages": {
             "type": "array",
+            "description": "Committed visible messages, ordered by message_seq ascending.",
+            "x-i18n": {
+              "zh": {
+                "description": "按 message_seq 升序排列的已提交可见消息。"
+              }
+            },
             "items": {
               "$ref": "#/components/schemas/SyncedMessage"
             }
@@ -329,6 +583,12 @@
       },
       "SyncedMessage": {
         "type": "object",
+        "description": "One committed message projected into the compatibility response shape.",
+        "x-i18n": {
+          "zh": {
+            "description": "投影为兼容响应结构的一条已提交消息。"
+          }
+        },
         "required": [
           "header",
           "setting",
@@ -345,71 +605,172 @@
         ],
         "properties": {
           "header": {
-            "$ref": "#/components/schemas/MessageHeader"
+            "$ref": "#/components/schemas/MessageHeader",
+            "description": "Fixed message behavior flags.",
+            "x-i18n": {
+              "zh": {
+                "description": "固定消息行为标志。"
+              }
+            }
           },
           "setting": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 255
+            "maximum": 255,
+            "description": "WKProto message-setting bitset; interpret it with the shared Message Flags dictionary.",
+            "x-i18n": {
+              "zh": {
+                "description": "WKProto 消息 Setting 位集合；按共享消息标志字典解释。"
+              }
+            }
           },
           "message_id": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Numeric server message ID. JavaScript consumers should prefer message_idstr to avoid precision loss.",
+            "x-i18n": {
+              "zh": {
+                "description": "数值型服务端消息 ID；JavaScript 消费者应优先使用 message_idstr，避免精度损失。"
+              }
+            }
           },
           "message_idstr": {
-            "type": "string"
+            "type": "string",
+            "description": "Precision-safe decimal form of the server message ID; primary recovery deduplication key.",
+            "x-i18n": {
+              "zh": {
+                "description": "不会丢失精度的服务端消息 ID 十进制字符串；恢复去重的首选键。"
+              }
+            }
           },
           "client_msg_no": {
-            "type": "string"
+            "type": "string",
+            "description": "Client-generated message identifier used as the secondary deduplication key.",
+            "x-i18n": {
+              "zh": {
+                "description": "客户端生成的消息标识；作为次级去重键。"
+              }
+            }
           },
           "message_seq": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Committed sequence within the channel; responses are ordered by this value ascending.",
+            "x-i18n": {
+              "zh": {
+                "description": "消息在 Channel 内的已提交序号；响应按此值升序排列。"
+              }
+            }
           },
           "from_uid": {
-            "type": "string"
+            "type": "string",
+            "description": "UID of the message sender.",
+            "x-i18n": {
+              "zh": {
+                "description": "消息发送者 UID。"
+              }
+            }
           },
           "channel_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Visible channel identifier. Person-channel responses project the canonical ID back to the peer UID.",
+            "x-i18n": {
+              "zh": {
+                "description": "可见的 Channel 标识；个人 Channel 响应会把 canonical ID 投影回对端 UID。"
+              }
+            }
           },
           "channel_type": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 255
+            "maximum": 255,
+            "description": "Wire Channel Type; the golden path uses 1 for a person channel.",
+            "x-i18n": {
+              "zh": {
+                "description": "Wire Channel Type；黄金路径使用个人 Channel 值 1。"
+              }
+            }
           },
           "topic": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional compatibility topic.",
+            "x-i18n": {
+              "zh": {
+                "description": "可选的兼容 Topic。"
+              }
+            }
           },
           "expire": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Message expiration value from the compatibility response.",
+            "x-i18n": {
+              "zh": {
+                "description": "兼容响应中的消息过期值。"
+              }
+            }
           },
           "timestamp": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "Server message timestamp.",
+            "x-i18n": {
+              "zh": {
+                "description": "服务端消息时间戳。"
+              }
+            }
           },
           "payload": {
             "type": "string",
             "contentEncoding": "base64",
-            "description": "Go JSON encoding of the wire payload bytes."
+            "description": "Go JSON encoding of the wire payload bytes.",
+            "x-i18n": {
+              "zh": {
+                "description": "Wire Payload 字节的 Go JSON 编码。"
+              }
+            }
           }
         }
       },
       "MessageHeader": {
         "type": "object",
+        "description": "Fixed message-header flags represented as numeric 0/1 values.",
+        "x-i18n": {
+          "zh": {
+            "description": "以数值 0/1 表示的固定消息 Header 标志。"
+          }
+        },
         "required": ["no_persist", "red_dot", "sync_once"],
         "properties": {
           "no_persist": {
             "type": "integer",
-            "enum": [0, 1]
+            "enum": [0, 1],
+            "description": "1 marks a non-persistent message.",
+            "x-i18n": {
+              "zh": {
+                "description": "1 表示非持久消息。"
+              }
+            }
           },
           "red_dot": {
             "type": "integer",
-            "enum": [0, 1]
+            "enum": [0, 1],
+            "description": "1 requests unread/red-dot treatment.",
+            "x-i18n": {
+              "zh": {
+                "description": "1 表示请求未读/红点处理。"
+              }
+            }
           },
           "sync_once": {
             "type": "integer",
-            "enum": [0, 1]
+            "enum": [0, 1],
+            "description": "1 marks a sync-once message.",
+            "x-i18n": {
+              "zh": {
+                "description": "1 表示仅同步一次的消息。"
+              }
+            }
           }
         }
       }

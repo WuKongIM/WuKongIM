@@ -12,8 +12,8 @@ documentation under `/zh` and `/en`. It owns shared information architecture,
 MDX publication, static search, sitemap/SEO, and LLM/Markdown outputs.
 It also owns the SDK chooser and official-source directory, the narrow
 JavaScript Web golden-path laboratory, its generated compatibility/OpenAPI
-artifacts, platform-neutral SDK behavior guides, and source-checked protocol
-dictionaries. It does not define product runtime
+artifacts and Fumadocs operation pages, platform-neutral SDK behavior guides,
+and source-checked protocol dictionaries. It does not define product runtime
 behavior or replace authoritative code contracts. The JavaScript laboratory
 also owns a bounded local integration-acceptance report. The report identifies
 its harness and observed installed SDK, proves only its compatibility smoke,
@@ -45,11 +45,15 @@ and leaves the tested cluster source and production readiness unassessed.
    Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
    pins, and the three-endpoint Product HTTP Beta subset into both human pages
    and machine-readable outputs.
-5. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
+5. `scripts/generate-openapi.ts` turns the bounded OpenAPI 3.1 contract and
+   bilingual narrative supplements into six tracked Fumadocs operation pages.
+   Static rendering preloads that exact contract, disables the HTTP playground,
+   and exposes only contract-owned trusted-backend examples.
+6. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
    the real single-node cluster/Chromium verification evidence and can write a
    redacted local acceptance report only after fast and real gates pass.
-6. Next.js static export writes `out/`, whose publication, canonical, link,
+7. Next.js static export writes `out/`, whose publication, canonical, link,
    accessibility-structure, and machine-artifact boundaries are checked before
    any external hosting step.
 
@@ -80,6 +84,12 @@ and leaves the tested cluster source and production readiness unassessed.
 - Browsers never call Product HTTP directly in the JavaScript golden path. The
   localhost BFF owns `/user/token`, `/route`, and `/channel/messagesync`; it is
   a development boundary, not production authentication.
+- Fumadocs OpenAPI applies only to published Product HTTP operations. TCP
+  binary frames, WKProto lifecycle, JSON-RPC, and shared protocol dictionaries
+  remain protocol-specific content and MUST NOT be modeled as fake HTTP paths.
+- The static API reference keeps its playground disabled. Generated request
+  examples come only from reviewed `x-codeSamples` that state the trusted
+  backend boundary.
 - Compatibility output identifies the exact source revision, sample lockfile,
   SDK, Node.js, Playwright, and Chromium target. Verification defaults to false
   and becomes true only when a successful receipt matches that complete tuple.
@@ -97,6 +107,8 @@ and leaves the tested cluster source and production readiness unassessed.
 - [Navigation registry](lib/navigation.ts)
 - [Phase 14 acceptance specification](PHASE_14_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
+- [OpenAPI page generator](scripts/generate-openapi.ts)
+- [Bounded Product HTTP contract](contracts/javascript-web-quickstart.openapi.json)
 - [SDK chooser](content/docs/sdk/choose-sdk.en.mdx)
 - [JavaScript Web golden sample](examples/javascript-web-quickstart/README.md)
 - [Documentation landing page](content/docs/guide/index.mdx)

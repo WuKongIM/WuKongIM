@@ -1,36 +1,3 @@
----
-title: Messages (Beta Sync Subset)
-description: Use POST /channel/messagesync to recover offline messages from a
-  committed person-Channel log.
-full: true
-_openapi:
-  preload:
-    - wukongim-product-http-beta-en
-  method: POST
-  webhook: false
-  toc: []
-  structuredData:
-    headings: []
-    contents:
-      - content: Compatibility endpoint used by the localhost BFF after reconnect. The
-          quickstart uses a person channel (channel_type 1) and a bounded
-          forward pull.
----
-
-{/* This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
-
-export default function Layout(props) {
-  const { APIPage, OpenAPIPage } = props.components ?? {};
-  // "APIPage" is the old name from v10, this allows both for backward compatibility
-  const Comp = OpenAPIPage ?? APIPage;
-  return (
-    <>
-      {props.children}
-      <Comp document="wukongim-product-http-beta-en" operations={[{"path":"/channel/messagesync","method":"post"}]} showDescription />
-    </>
-  );
-}
-
 The Phase 12 HTTP message contract publishes only synchronization. The JavaScript SDK and Gateway own realtime send and receive; `/message/send` is outside this golden-path subset.
 
 ## Goal and completion criteria

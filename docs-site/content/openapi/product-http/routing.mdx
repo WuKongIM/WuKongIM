@@ -1,33 +1,3 @@
----
-title: 路由发现（Beta 子集）
-description: 使用 GET /route 从受信 BFF 获取当前配置的客户端接入地址。
-full: true
-_openapi:
-  preload:
-    - wukongim-product-http-beta-zh
-  method: GET
-  webhook: false
-  toc: []
-  structuredData:
-    headings: []
-    contents:
-      - content: 返回已配置的 Gateway 地址。快速开始 BFF 只转发浏览器 SDK 所需的地址。
----
-
-{/* This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
-
-export default function Layout(props) {
-  const { APIPage, OpenAPIPage } = props.components ?? {};
-  // "APIPage" is the old name from v10, this allows both for backward compatibility
-  const Comp = OpenAPIPage ?? APIPage;
-  return (
-    <>
-      {props.children}
-      <Comp document="wukongim-product-http-beta-zh" operations={[{"path":"/route","method":"get"}]} showDescription />
-    </>
-  );
-}
-
 ## 目标与完成标准
 
 本页只发布 `GET /route` 的黄金路径形状。完成后，BFF 应能为浏览器选择安全 WebSocket 或普通 WebSocket 地址，同时不把“能取得地址”当作业务鉴权或动态用户归属证明。

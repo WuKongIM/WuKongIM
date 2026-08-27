@@ -10,24 +10,29 @@
     "sample:check": "npm --prefix examples/javascript-web-quickstart ci --no-audit --no-fund && npm --prefix examples/javascript-web-quickstart run check",
     "test": "bun test ./lib",
     "test:output": "bun run scripts/check-static-output.ts",
+    "openapi:write": "bun run scripts/generate-openapi.ts --write",
+    "openapi:check": "bun run scripts/generate-openapi.ts --check",
     "navigation:write": "bun run scripts/generate-navigation.ts --write",
     "navigation:check": "bun run scripts/generate-navigation.ts --check",
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
     "postinstall": "fumadocs-mdx",
     "lint": "eslint",
-    "verify": "bun run sample:check && bun run test && bun run navigation:check && bun run lint && bun run types:check && bun run build && bun run test:output"
+    "verify": "bun run sample:check && bun run test && bun run navigation:check && bun run openapi:check && bun run lint && bun run types:check && bun run build && bun run test:output"
   },
   "dependencies": {
+    "@fumadocs/language": "0.2.4",
     "@orama/orama": "^3.1.18",
     "@orama/tokenizers": "^3.1.18",
     "cnfast": "^0.0.8",
     "fumadocs-core": "16.13.0",
     "fumadocs-mdx": "15.2.0",
+    "fumadocs-openapi": "11.2.4",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.13.0",
     "lucide-react": "^1.25.0",
     "next": "16.2.11",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "shiki": "4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
