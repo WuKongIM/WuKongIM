@@ -1,0 +1,106 @@
+---
+title: JavaScript / Web 快速接入
+description: 通过 localhost BFF 完成连接、双向持久消息、断开、重连和离线同步。
+---
+
+这是 Phase 12 的唯一端到端黄金路径。它使用真实 WuKongIM 单节点集群、真实 `wukongimjssdk@1.3.5` 和两个隔离的 Chromium 会话。
+
+## 目标与完成标准
+
+你将创建 Alice 与 Bob 开发身份，完成双向在线消息，再让 Bob 断开并恢复一条离线消息。完成标志是事件日志能够分别证明：
+
+1. 发送方收到持久消息的 SENDACK；
+2. 在线接收方收到实时投递；
+3. 断线消息在重连后由同步路径恢复。
+
+## 兼容目标
+
+先核对[兼容性快照](/zh/sdk/compatibility)。本页固定 SDK `1.3.5`，CI 证据使用 Node.js `22.12.0` 和 Chromium `151.0.7922.34`（revision `1234`）；样例最低允许 Node.js `20.11`，但其他运行组合不属于该验证证明。
+
+## 前置条件
+
+- 已按[启动单节点集群](/zh/guide/quick-start/single-node-cluster)运行服务；
+- `curl --fail http://127.0.0.1:5001/readyz` 成功；
+- 已完成[样例安装与检查](/zh/sdk/javascript/installation)；
+- 端口 `5001`、`5200` 和样例启动输出列出的 loopback 端口可用。
+
+## 1. 启动黄金样例
+
+在仓库根目录打开第二个终端：
+
+```bash
+cd docs-site/examples/javascript-web-quickstart
+npm run dev
+```
+
+这个命令同时启动静态 Web 页面和 localhost BFF。以终端打印的地址为准；默认开发入口为 `http://127.0.0.1:5173`。
+
+{/* PHASE12:GOLDEN_SAMPLE_START_SNIPPET */}
+
+## 2. 创建两个开发身份
+
+1. 打开样例页面；它已经把 Alice 与 Bob 放在两个隔离的 iframe browsing context 中，以适配 SDK 单例约束。
+2. 在 Alice 面板点击 **Connect**，等待状态变为 `connected`，并记录 UI 显示的节点 ID。
+3. 在 Bob 面板重复连接操作。每次连接都会通过 BFF 创建对应的临时开发身份。
+
+浏览器请求的是样例 BFF。BFF 在服务端生成临时开发 Token，调用 `/user/token` 保存元数据，再调用 `/route` 取得 WebSocket 地址；浏览器从不直接调用这两个 Product HTTP 接口。
+
+## 3. 验证双向在线消息
+
+1. Alice 向 Bob 发送 `hello from alice`。
+2. 在 Alice 日志确认出现成功 SENDACK，在 Bob 日志确认来源为 `realtime`。
+3. Bob 向 Alice 回复 `hello from bob`。
+4. 再次确认发送确认和实时接收是两个独立事件。
+
+发送使用持久消息。SENDACK 成功表示 Channel 权威已经作出持久提交成功决定；它不表示 Bob 的每个 Session 都已收到，也不表示任何业务动作已经完成。
+
+## 4. 验证断线与离线恢复
+
+1. 在 Bob 面板点击 **Disconnect**，确认 Bob 状态不再是 `connected`。
+2. Alice 向 Bob 发送 `while bob was offline`。
+3. 确认 Alice 仍收到成功 SENDACK，同时 Bob 没有实时接收事件。
+4. 在 Bob 面板点击 **Reconnect + sync**。
+5. 确认 Bob 的事件类型为 `synced`、事件文本包含 `recovered`，且没有把这条恢复结果标记成 `realtime`。
+
+BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 Bob 为 `login_uid`、Alice 为对端 `channel_id`、`channel_type=1`。客户端必须允许在线投递和同步结果重复，并按消息身份与 Channel sequence 合并。
+
+{/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
+
+## 预期结果
+
+| 观察 | 能证明什么 | 不能证明什么 |
+| --- | --- | --- |
+| `connected` | 一个 SDK Session 已完成当前连接 | 业务身份已被生产级鉴权 |
+| SENDACK 成功 | 持久消息达到 Channel commit 边界 | 接收端在线收到或已读 |
+| `realtime` 接收 | 一个在线 Session 收到投递 | 离线恢复已经完成 |
+| `synced` / `recovered` 恢复 | 已提交消息能从日志恢复 | 它最初曾实时送达 |
+
+## 失败诊断
+
+### 身份创建返回错误
+
+检查集群 `/readyz`、BFF 终端和 `http://127.0.0.1:5001`。不要把 Product HTTP 地址改成公网环境来绕过本机问题。
+
+### 一直停留在 connecting
+
+查看 BFF 返回的 WebSocket 地址，确认 `5200` 可访问。`/route` 是地址发现，不是业务授权证明。
+
+### SENDACK 失败
+
+记录 Reason Code 并查阅[Reason Code](/zh/api/dictionaries/reason-codes)。只有成功值才表示本次持久发送完成；对拒绝类结果不要盲目重试。
+
+### Bob 重连后没有消息
+
+确认离线消息曾收到成功 SENDACK，再按共享合同核对 BFF 同步请求中的当前 UID、对端 UID、方向、游标和 HTTP 状态。样例不会把 Token、UID 或消息正文写入普通日志；在线投递缺失与同步缺失需要分别诊断。
+
+## 安全、清理与责任边界
+
+<Callout type="error" title="仅限本地开发">
+  默认 v3 Beta Gateway 不会自动校验 `/user/token` 保存的 Token。样例 BFF 无账号系统、无授权、无持久 Token 生命周期，只能绑定 loopback。浏览器不得直接访问 Product HTTP。
+</Callout>
+
+按 `Ctrl+C` 停止样例。按服务端终端的 `Ctrl+C` 停止节点；本地消息数据仍保留在示例数据目录，除非你显式清理该目录。
+
+## 下一步
+
+阅读[认证与安全](/zh/api/authentication)、[消息同步合同](/zh/api/product-http/messages)和[错误响应](/zh/api/product-http/errors)。生产接入还必须自行实现账号、授权、Token 验证、TLS、限流、审计、容量与故障恢复。

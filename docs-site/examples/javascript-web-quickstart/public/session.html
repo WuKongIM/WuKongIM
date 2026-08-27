@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WuKongIM quickstart session</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="session-shell">
+    <main class="session-card" data-testid="session-root">
+      <header class="session-header">
+        <div>
+          <p class="eyebrow">Browser session</p>
+          <h1><span data-testid="identity">—</span> → <span data-testid="peer">—</span></h1>
+        </div>
+        <dl class="connection-facts">
+          <div>
+            <dt>Status</dt>
+            <dd data-testid="connection-status" data-state="idle">idle</dd>
+          </div>
+          <div>
+            <dt>Node</dt>
+            <dd data-testid="node-id">—</dd>
+          </div>
+        </dl>
+      </header>
+
+      <section class="controls" aria-label="Connection controls">
+        <button type="button" data-testid="connect-button">Connect</button>
+        <button type="button" data-testid="disconnect-button" disabled>Disconnect</button>
+        <button type="button" data-testid="reconnect-sync-button" disabled>Reconnect + sync</button>
+      </section>
+
+      <form class="message-form" data-testid="message-form">
+        <label for="message-input">Persistent text message</label>
+        <div>
+          <input
+            id="message-input"
+            data-testid="message-input"
+            maxlength="500"
+            autocomplete="off"
+            placeholder="Type a message"
+            disabled
+          />
+          <button type="submit" data-testid="send-button" disabled>Send</button>
+        </div>
+      </form>
+
+      <p class="ui-error" data-testid="ui-error" role="alert" hidden></p>
+
+      <section class="event-section" aria-labelledby="event-heading">
+        <div class="event-heading-row">
+          <h3 id="event-heading">Bounded event log</h3>
+          <span>latest 40</span>
+        </div>
+        <ol data-testid="event-log" aria-live="polite" aria-relevant="additions"></ol>
+      </section>
+    </main>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

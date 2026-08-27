@@ -26,10 +26,18 @@ user/conversation concepts, and the current node-local plugin boundary. Phase
 bounded 100,000-member membership and fanout workflows. Phase 11 completes the
 scenario set with application-owned mobile push, recoverable AI stream
 projections, bounded device telemetry, and durable or online-only IoT commands.
+Phase 12 publishes the first reproducible application-developer path: a pinned
+JavaScript/Web SDK snapshot, a framework-neutral TypeScript laboratory behind a
+loopback-only BFF, three slice-level Product HTTP contracts, generated
+compatibility and Reason Code facts, and a real Alice/Bob reconnect-and-sync
+smoke scenario. It deliberately remains a v3 Beta golden-path subset rather
+than a complete SDK or API reference.
 
 ## Develop
 
-Requires Bun.
+The site requires Bun `1.3.11`. The standalone golden sample uses Node.js
+`>=20.11` and npm so application developers can run it without adopting the
+site toolchain.
 
 ```bash
 bun install
@@ -48,7 +56,59 @@ bun run verify
 The verification suite checks the navigation contract, redirect seed, generated
 menu plan, lint and TypeScript, static export, language-isolated search indexes,
 the inclusion of every published route, and the exclusion of planned routes
-from sitemap and LLM outputs.
+from sitemap and LLM outputs. Phase 12 also checks the golden sample build,
+shared compatibility and slice-level OpenAPI facts, Reason Code alignment, and
+unique executable source anchors plus MDX publication checkpoints. Relevant
+sample or runtime-contract changes select the real Chromium integration check.
+
+## Golden-path attestation
+
+A normal build is fail-closed: without a receipt, `/compatibility.json` reports
+`verified: false` and `verification.status: "missing"`. A publishing build may
+set `WK_DOCS_GOLDEN_PATH_ATTESTATION_PATH` to a non-empty JSON file no larger
+than 16 KiB. Relative paths resolve from this `docs-site` directory; absolute
+paths are accepted. There is no boolean override.
+
+The receipt has an exact-key schema. The real E2E gate writes it only after the
+complete scenario passes:
+
+```json
+{
+  "schema": "wukongim.docs.golden-path-verification/v1",
+  "result": "passed",
+  "source_revision": "0123456789abcdef0123456789abcdef01234567",
+  "sample": {
+    "scenario": "javascript-web-quickstart/alice-bob-reconnect-sync/v1",
+    "package_lock_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "sdk": {
+    "package": "wukongimjssdk",
+    "version": "1.3.5"
+  },
+  "runtime": {
+    "node": "22.12.0",
+    "browser": {
+      "engine": "chromium",
+      "playwright_package": "@playwright/test",
+      "playwright_version": "1.62.1",
+      "revision": "1234",
+      "browser_version": "151.0.7922.34"
+    }
+  }
+}
+```
+
+Only an exact match against the build's source revision, computed sample-lock
+SHA-256, scenario, SDK, Node.js, Playwright, and Chromium identifiers produces
+`verified: true`. Missing, unreadable, malformed, oversized, extra-field, or
+drifted receipts remain unverified. The raw `WK_DOCS_GOLDEN_PATH_RECEIPT_JSON`
+variable is internal to the build wrapper; setting it alongside the path is an
+error and setting it alone is not a supported publishing input.
+
+```bash
+WK_DOCS_GOLDEN_PATH_ATTESTATION_PATH=/tmp/wukongim-docs-receipt.json bun run build
+WK_DOCS_REQUIRE_VERIFIED=1 bun run test:output
+```
 
 ## Content lifecycle
 
@@ -69,4 +129,6 @@ defines troubleshooting and official-tool boundaries. `PHASE_8_SPEC.md`
 defines the current server-architecture boundaries. `PHASE_9_SPEC.md` defines
 the guide-foundation and plugin boundaries. `PHASE_10_SPEC.md` defines the
 direct-chat and group-tutorial boundaries. `PHASE_11_SPEC.md` defines the
-message-push and AI/IoT tutorial boundaries.
+message-push and AI/IoT tutorial boundaries. `PHASE_12_SPEC.md` defines the
+JavaScript/Web golden path, Product HTTP subset, generated contract facts, and
+integration-test boundaries.

@@ -1,0 +1,418 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WuKongIM JavaScript Web Golden Path Subset",
+    "version": "3.0.0-beta-snapshot",
+    "description": "A deliberately non-exhaustive Product HTTP API fragment for the JavaScript Web quickstart. It documents only the three server calls made by the trusted localhost BFF. It is not the complete WuKongIM Product HTTP API and does not define a production authentication scheme."
+  },
+  "x-wukongim-scope": "non-exhaustive-v3-beta-snapshot",
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5001",
+      "description": "Default Product HTTP listener for the local single-node cluster walkthrough"
+    }
+  ],
+  "paths": {
+    "/user/token": {
+      "post": {
+        "operationId": "setQuickstartUserToken",
+        "summary": "Register the quickstart user's development token",
+        "description": "Compatibility endpoint used by the localhost BFF before a browser connects. The Beta quickstart token is a development credential; this endpoint does not establish a production authentication design.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTokenRequest"
+              },
+              "examples": {
+                "alice": {
+                  "value": {
+                    "uid": "alice",
+                    "token": "alice-dev-token",
+                    "device_flag": 1,
+                    "device_level": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token mutation accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                },
+                "example": {
+                  "status": 200
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/CompatibilityBadRequest"
+          },
+          "503": {
+            "$ref": "#/components/responses/MaintenanceUnavailable"
+          }
+        }
+      }
+    },
+    "/route": {
+      "get": {
+        "operationId": "getQuickstartGatewayRoute",
+        "summary": "Resolve the browser-facing gateway addresses",
+        "description": "Returns configured gateway addresses. The quickstart BFF forwards only the address required by the browser SDK.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Configured gateway addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResponse"
+                },
+                "example": {
+                  "tcp_addr": "127.0.0.1:5100",
+                  "ws_addr": "ws://127.0.0.1:5200",
+                  "wss_addr": ""
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/CompatibilityBadRequest"
+          },
+          "503": {
+            "$ref": "#/components/responses/MaintenanceUnavailable"
+          }
+        }
+      }
+    },
+    "/channel/messagesync": {
+      "post": {
+        "operationId": "syncQuickstartChannelMessages",
+        "summary": "Pull durable messages for one channel",
+        "description": "Compatibility endpoint used by the localhost BFF after reconnect. The quickstart uses a person channel (channel_type 1) and a bounded forward pull.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelMessageSyncRequest"
+              },
+              "examples": {
+                "bobPullsAlice": {
+                  "value": {
+                    "login_uid": "bob",
+                    "channel_id": "alice",
+                    "channel_type": 1,
+                    "start_message_seq": 0,
+                    "end_message_seq": 0,
+                    "limit": 100,
+                    "pull_mode": 1,
+                    "include_event_meta": 0,
+                    "event_summary_mode": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bounded page of durable messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageSyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/CompatibilityBadRequest"
+          },
+          "503": {
+            "$ref": "#/components/responses/MaintenanceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "CompatibilityBadRequest": {
+        "description": "Compatibility error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            },
+            "examples": {
+              "invalidRequest": {
+                "value": {
+                  "msg": "invalid request",
+                  "status": 400
+                }
+              }
+            }
+          }
+        }
+      },
+      "MaintenanceUnavailable": {
+        "description": "The cluster is behind the restore-maintenance fence; back off and observe /readyz",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            },
+            "examples": {
+              "maintenance": {
+                "value": {
+                  "msg": "maintenance",
+                  "status": 503
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "UpdateTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uid", "token", "device_flag", "device_level"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Development-only token in the Beta quickstart. Keep it on the trusted BFF side."
+          },
+          "device_flag": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "device_level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          }
+        }
+      },
+      "StatusEnvelope": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "const": 200
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["msg", "status"],
+        "properties": {
+          "msg": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          }
+        }
+      },
+      "RouteResponse": {
+        "type": "object",
+        "required": ["tcp_addr", "ws_addr", "wss_addr"],
+        "properties": {
+          "tcp_addr": {
+            "type": "string"
+          },
+          "ws_addr": {
+            "type": "string"
+          },
+          "wss_addr": {
+            "type": "string"
+          }
+        }
+      },
+      "ChannelMessageSyncRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["login_uid", "channel_id", "channel_type"],
+        "properties": {
+          "login_uid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For the person-channel quickstart, use the peer UID."
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "description": "The quickstart uses 1 for a person channel."
+          },
+          "start_message_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "end_message_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 100,
+            "description": "Golden-path BFF bound; the compatible runtime has a broader internal cap."
+          },
+          "pull_mode": {
+            "type": "integer",
+            "enum": [0, 1],
+            "default": 1
+          },
+          "include_event_meta": {
+            "type": "integer",
+            "enum": [0, 1],
+            "default": 0
+          },
+          "event_summary_mode": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "ChannelMessageSyncResponse": {
+        "type": "object",
+        "required": ["start_message_seq", "end_message_seq", "more", "messages"],
+        "properties": {
+          "start_message_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end_message_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "more": {
+            "type": "integer",
+            "enum": [0, 1]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncedMessage"
+            }
+          }
+        }
+      },
+      "SyncedMessage": {
+        "type": "object",
+        "required": [
+          "header",
+          "setting",
+          "message_id",
+          "message_idstr",
+          "client_msg_no",
+          "message_seq",
+          "from_uid",
+          "channel_id",
+          "channel_type",
+          "expire",
+          "timestamp",
+          "payload"
+        ],
+        "properties": {
+          "header": {
+            "$ref": "#/components/schemas/MessageHeader"
+          },
+          "setting": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "message_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message_idstr": {
+            "type": "string"
+          },
+          "client_msg_no": {
+            "type": "string"
+          },
+          "message_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "from_uid": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "topic": {
+            "type": "string"
+          },
+          "expire": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "payload": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "description": "Go JSON encoding of the wire payload bytes."
+          }
+        }
+      },
+      "MessageHeader": {
+        "type": "object",
+        "required": ["no_persist", "red_dot", "sync_once"],
+        "properties": {
+          "no_persist": {
+            "type": "integer",
+            "enum": [0, 1]
+          },
+          "red_dot": {
+            "type": "integer",
+            "enum": [0, 1]
+          },
+          "sync_once": {
+            "type": "integer",
+            "enum": [0, 1]
+          }
+        }
+      }
+    }
+  }
+}

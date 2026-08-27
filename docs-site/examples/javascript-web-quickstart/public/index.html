@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WuKongIM JavaScript / Web quickstart lab</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="lab-shell">
+    <header class="lab-header">
+      <div>
+        <p class="eyebrow">v3 Beta snapshot · wukongimjssdk 1.3.5</p>
+        <h1>JavaScript / Web connection lab</h1>
+        <p>
+          Alice and Bob run in isolated frame contexts because the SDK is a singleton.
+          Product HTTP stays behind the localhost-only BFF.
+        </p>
+      </div>
+      <aside class="boundary-note">
+        <strong>Development helper only</strong>
+        <span>Your product must own accounts, authorization, and token lifecycle.</span>
+      </aside>
+    </header>
+    <main class="lab-grid" aria-label="Alice and Bob messaging sessions">
+      <iframe
+        data-testid="alice-frame"
+        title="Alice session"
+        src="/session.html?uid=alice&amp;peer=bob"
+      ></iframe>
+      <iframe
+        data-testid="bob-frame"
+        title="Bob session"
+        src="/session.html?uid=bob&amp;peer=alice"
+      ></iframe>
+    </main>
+    <footer>
+      Connect both sessions, send in both directions, disconnect Bob, send from Alice,
+      then choose “Reconnect + sync” in Bob.
+    </footer>
+  </body>
+</html>
