@@ -182,13 +182,13 @@ run the protected `docs-integration` check against a real single-node cluster
 and Chromium. Any mixed or non-allowlisted change still receives the union of
 its applicable checks.
 
-The `docs-integration` check pins Bun 1.3.11 and Node.js 22.12.0. It performs a
-frozen docs install, reruns the source-alignment contract tests, and completes
-an initial unverified build/output gate before the browser smoke, so the same
-static export is available to the accessibility checks. It then installs the
-locked JavaScript sample and Chromium, runs the focused real-process E2E
-against a 256-Hash-Slot single-node cluster, and accepts a verification receipt
-only from a clean committed HEAD. The helper
+The `docs-integration` check pins Bun 1.3.11 and Node.js 22.12.0. It installs
+the frozen docs tree and locked JavaScript sample before any typechecked build,
+reruns the source-alignment contract tests, and completes an initial unverified
+build/output gate before the browser smoke, so the same static export is
+available to the accessibility checks. It then installs locked Chromium, runs
+the focused real-process E2E against a 256-Hash-Slot single-node cluster, and
+accepts a verification receipt only from a clean committed HEAD. The helper
 strictly validates the bounded receipt against the current source revision,
 sample lock hash, SDK, Node.js, Playwright, and Chromium identities before a
 second verified build and output gate. Its unique receipt directory is always

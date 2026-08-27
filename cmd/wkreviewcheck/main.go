@@ -104,6 +104,11 @@ func documentationIntegrationCheckPlan(root, receiptPath string) documentationIn
 				arguments: []string{"install", "--frozen-lockfile"},
 			},
 			{
+				directory: sampleRoot,
+				name:      "npm",
+				arguments: []string{"ci"},
+			},
+			{
 				directory:   docsRoot,
 				name:        "bun",
 				arguments:   []string{"run", "test"},
@@ -120,11 +125,6 @@ func documentationIntegrationCheckPlan(root, receiptPath string) documentationIn
 				name:        "bun",
 				arguments:   []string{"run", "test:output"},
 				environment: unverifiedEnvironment,
-			},
-			{
-				directory: sampleRoot,
-				name:      "npm",
-				arguments: []string{"ci"},
 			},
 			{
 				directory: sampleRoot,

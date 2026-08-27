@@ -67,6 +67,11 @@ func TestDocumentationIntegrationPlanUsesOnlyTheFocusedGoldenPath(t *testing.T) 
 				arguments: []string{"install", "--frozen-lockfile"},
 			},
 			{
+				directory: "/workspace/docs-site/examples/javascript-web-quickstart",
+				name:      "npm",
+				arguments: []string{"ci"},
+			},
+			{
 				directory:   "/workspace/docs-site",
 				name:        "bun",
 				arguments:   []string{"run", "test"},
@@ -83,11 +88,6 @@ func TestDocumentationIntegrationPlanUsesOnlyTheFocusedGoldenPath(t *testing.T) 
 				name:        "bun",
 				arguments:   []string{"run", "test:output"},
 				environment: unverifiedEnvironment,
-			},
-			{
-				directory: "/workspace/docs-site/examples/javascript-web-quickstart",
-				name:      "npm",
-				arguments: []string{"ci"},
 			},
 			{
 				directory: "/workspace/docs-site/examples/javascript-web-quickstart",
