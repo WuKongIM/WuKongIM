@@ -1,0 +1,67 @@
+---
+title: JavaScript / Web
+description: Use the framework-neutral TypeScript golden sample to connect a browser, exchange persistent messages, reconnect, and recover offline messages.
+---
+
+JavaScript/Web is the only client integration path published in Phase 12. A tiny localhost BFF and framework-neutral TypeScript page prove the real SDK lifecycle without requiring React or Vue.
+
+## Goal and completion criteria
+
+At the end of this path, you should connect Alice and Bob in two isolated browser sessions, distinguish send acknowledgement, online receipt, and offline synchronization, and explain which security responsibilities still belong to the product backend.
+
+<Callout type="warn" title="v3 Beta golden-path subset">
+  This area promises only Installation and Quickstart for the pinned compatibility target; the receipt decides this build's verification status. Platform-specific capabilities, the complete API reference, and upgrade guidance remain planned.
+</Callout>
+
+## Compatibility target
+
+Use `wukongimjssdk@1.3.5` with the server revision, Node.js, and Chromium combination on [Versions & Compatibility](/en/sdk/compatibility). Do not switch to `latest` before establishing this baseline.
+
+## Prerequisites
+
+- A WuKongIM single-node cluster that passes `/readyz`;
+- Node.js `>=20.11` and npm;
+- Two isolated browser contexts, such as a normal and private window;
+- The golden-sample BFF running only on the local machine.
+
+## Recommended path
+
+<Cards>
+  <Card title="Installation" description="Install the exact SDK version from the npm lockfile and verify the sample build." href="/en/sdk/javascript/installation" />
+  <Card title="Quickstart" description="Connect Alice and Bob, exchange messages, disconnect, reconnect, and synchronize offline data." href="/en/sdk/javascript/quickstart" />
+  <Card title="Versions & Compatibility" description="Check the server, SDK, Node.js, and Chromium snapshot." href="/en/sdk/compatibility" />
+  <Card title="Product HTTP subset" description="Understand the token, route, and message-sync contracts used by the BFF." href="/en/api/product-http" />
+</Cards>
+
+## Observable success model
+
+```text
+browser -> localhost BFF -> /user/token + /route
+browser -> JavaScript SDK -> CONNECT -> SEND -> SENDACK
+                                           -> Bob RECV (online)
+Bob reconnects -> localhost BFF -> /channel/messagesync (offline recovery)
+```
+
+The sample event log explicitly labels connection state, SENDACK, online receipt, and synchronization source. A durable commit, receipt by one online Session, and recovery during reconnect are three different outcomes.
+
+## Expected result
+
+- Alice and Bob both show a connected state and the selected WebSocket node;
+- each direction records a persistent send acknowledgement and online receipt;
+- a message sent while Bob is disconnected still commits;
+- after reconnect, Bob recovers that message through synchronization and the UI does not label it as a realtime receipt.
+
+## Troubleshooting
+
+- **Identity creation fails:** confirm that both the BFF and cluster run locally, then check `/readyz`.
+- **The page opens but cannot connect:** inspect the `/route` `ws_addr` and port `5200`.
+- **SENDACK succeeds but Bob sees nothing:** treat this first as an online-delivery problem; the durable commit does not automatically roll back.
+- **Reconnect recovers nothing:** verify that the BFF sync uses Bob as `login_uid`, Alice as the peer UID, and `channel_type=1`.
+
+## Security and responsibility boundary
+
+The browser calls only the sample BFF, never WuKongIM Product HTTP directly. This stateless BFF binds to loopback and creates development identities; it does not implement accounts, authorization, token lifecycle, or a production database. The default Gateway also does not automatically validate stored tokens.
+
+## Next step
+
+Complete [Installation](/en/sdk/javascript/installation), then continue to the [Quickstart](/en/sdk/javascript/quickstart). Before productization, read [Authentication & Security](/en/api/authentication) and [Integration Architecture](/en/guide/integration/architecture).

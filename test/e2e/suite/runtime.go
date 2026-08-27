@@ -71,6 +71,7 @@ type suiteOptions struct {
 	workspaceRootDir       string
 	nodeLogRootDir         string
 	managerHTTP            bool
+	webSocketGateway       bool
 	sharedBackupRepository bool
 	dynamicJoinToken       string
 	nodeConfigOverrides    map[uint64]map[string]string
@@ -95,6 +96,14 @@ func WithNodeLogRootDir(rootDir string) Option {
 func WithManagerHTTP() Option {
 	return optionFunc(func(options *suiteOptions) {
 		options.managerHTTP = true
+	})
+}
+
+// WithWebSocketGateway enables one browser-addressable WKProto-over-WebSocket
+// listener while retaining the suite's default TCP WKProto listener.
+func WithWebSocketGateway() Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.webSocketGateway = true
 	})
 }
 
@@ -553,6 +562,11 @@ func (n StartedNode) GatewayAddr() string {
 	return n.Spec.GatewayAddr
 }
 
+// WebSocketURL returns the browser-addressable WKProto WebSocket route.
+func (n StartedNode) WebSocketURL() string {
+	return browserWebSocketURL(n.Spec.WebSocketAddr)
+}
+
 // DumpDiagnostics returns diagnostics for the started node process.
 func (n StartedNode) DumpDiagnostics() string {
 	if n.Process != nil {
@@ -646,6 +660,10 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		}
 		configOverrides[pluginSocketConfigKey] = workspace.pluginSocketPath(nodeID)
 	}
+	webSocketAddr := ""
+	if options.webSocketGateway {
+		webSocketAddr = ports.WebSocketAddr
+	}
 	return NodeSpec{
 		ID:              nodeID,
 		Name:            "node-" + strconv.FormatUint(nodeID, 10),
@@ -656,6 +674,7 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		StderrPath:      workspace.NodeStderrPath(nodeID),
 		ClusterAddr:     ports.ClusterAddr,
 		GatewayAddr:     ports.GatewayAddr,
+		WebSocketAddr:   webSocketAddr,
 		APIAddr:         ports.APIAddr,
 		ManagerAddr:     managerAddr,
 		LogDir:          workspace.NodeLogDir(nodeID),

@@ -1,0 +1,106 @@
+---
+title: JavaScript / Web Quickstart
+description: Use the localhost BFF to connect, exchange persistent messages, disconnect, reconnect, and synchronize offline messages.
+---
+
+This is the only end-to-end golden path in Phase 12. It uses a real WuKongIM single-node cluster, real `wukongimjssdk@1.3.5`, and two isolated Chromium sessions.
+
+## Goal and completion criteria
+
+You will create Alice and Bob development identities, exchange online messages in both directions, then disconnect Bob and recover one offline message. Completion requires distinct evidence that:
+
+1. the sender received SENDACK for a persistent message;
+2. the online recipient received realtime delivery;
+3. the disconnected message was recovered through synchronization after reconnect.
+
+## Compatibility target
+
+Check the [compatibility snapshot](/en/sdk/compatibility) first. This page pins SDK `1.3.5`; CI evidence uses Node.js `22.12.0` and Chromium `151.0.7922.34` (revision `1234`). The sample allows Node.js `20.11` as a minimum, but other runtime combinations are outside that attestation.
+
+## Prerequisites
+
+- The server is running as described in [Start a Single-node Cluster](/en/guide/quick-start/single-node-cluster);
+- `curl --fail http://127.0.0.1:5001/readyz` succeeds;
+- [sample installation and checks](/en/sdk/javascript/installation) are complete;
+- ports `5001`, `5200`, and the loopback port printed by the sample are free.
+
+## 1. Start the golden sample
+
+Open a second terminal at the repository root:
+
+```bash
+cd docs-site/examples/javascript-web-quickstart
+npm run dev
+```
+
+This one command starts the static web page and localhost BFF. Follow the URL printed by the process; the default development entry is `http://127.0.0.1:5173`.
+
+{/* PHASE12:GOLDEN_SAMPLE_START_SNIPPET */}
+
+## 2. Create two development identities
+
+1. Open the sample page. It already places Alice and Bob in two isolated iframe browsing contexts to accommodate the SDK singleton constraint.
+2. Select **Connect** in the Alice panel, wait for `connected`, and record the node ID shown by the UI.
+3. Repeat in the Bob panel. Each connection asks the BFF to create its temporary development identity.
+
+The browser calls the sample BFF. The BFF creates a temporary development token server-side, stores its metadata through `/user/token`, then obtains a WebSocket address through `/route`. The browser never calls those Product HTTP routes directly.
+
+## 3. Verify two-way online messages
+
+1. Send `hello from alice` from Alice to Bob.
+2. Confirm a successful SENDACK in Alice's log and a `realtime` source in Bob's log.
+3. Reply with `hello from bob` from Bob to Alice.
+4. Again confirm that send acknowledgement and realtime receipt are separate events.
+
+These are persistent messages. A successful SENDACK means the Channel authority made a successful durable-commit decision. It does not mean every Bob Session received the message or that any product action completed.
+
+## 4. Verify disconnect and offline recovery
+
+1. Select **Disconnect** in the Bob panel and confirm that Bob is no longer `connected`.
+2. Send `while bob was offline` from Alice to Bob.
+3. Confirm that Alice still receives a successful SENDACK while Bob records no realtime receipt.
+4. Select **Reconnect + sync** in the Bob panel.
+5. Confirm that Bob's event kind is `synced`, its event text contains `recovered`, and the recovered result is not labeled `realtime`.
+
+The BFF reads the committed log through `/channel/messagesync`. For a person Channel it sends Bob as `login_uid`, Alice as peer `channel_id`, and `channel_type=1`. Clients must tolerate duplicate online and sync results and merge them by message identity and Channel sequence.
+
+{/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
+
+## Expected result
+
+| Observation | What it proves | What it does not prove |
+| --- | --- | --- |
+| `connected` | One SDK Session completed its current connection | Product identity received production-grade authentication |
+| Successful SENDACK | A persistent message reached the Channel commit boundary | The recipient received or read it |
+| `realtime` receipt | One online Session received a delivery | Offline recovery completed |
+| `synced` / `recovered` recovery | A committed message was recovered from the log | It was originally delivered in realtime |
+
+## Troubleshooting
+
+### Identity creation returns an error
+
+Check cluster `/readyz`, the BFF terminal, and `http://127.0.0.1:5001`. Do not point Product HTTP at a public environment to work around a local problem.
+
+### The state remains connecting
+
+Inspect the WebSocket address returned by the BFF and confirm that port `5200` is reachable. `/route` is address discovery, not evidence of product authorization.
+
+### SENDACK fails
+
+Record the Reason Code and consult [Reason Code](/en/api/dictionaries/reason-codes). Only success completes this persistent send; do not blindly retry rejection outcomes.
+
+### Bob recovers no message
+
+First confirm that the offline send received a successful SENDACK. Then compare the BFF synchronization request's current UID, peer UID, direction, cursor, and HTTP status with the shared contract. The sample does not put tokens, UIDs, or message bodies in ordinary logs. Missing online delivery and missing synchronization are separate failures.
+
+## Security, cleanup, and responsibility boundary
+
+<Callout type="error" title="Local development only">
+  The default v3 Beta Gateway does not automatically validate the token stored by `/user/token`. The sample BFF has no account system, authorization, or durable token lifecycle and must bind only to loopback. A browser must never access Product HTTP directly.
+</Callout>
+
+Press `Ctrl+C` to stop the sample. Press `Ctrl+C` in the server terminal to stop the node. Local message data remains in the example data directory unless you explicitly remove that directory.
+
+## Next step
+
+Read [Authentication & Security](/en/api/authentication), the [message-sync contract](/en/api/product-http/messages), and [Error Responses](/en/api/product-http/errors). A production integration must still implement accounts, authorization, token verification, TLS, rate limits, audit, capacity, and failure recovery.

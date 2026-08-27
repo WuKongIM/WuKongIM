@@ -1,0 +1,62 @@
+---
+title: Reason Code
+description: Reference every current protocol reason value 0–29 with name, phase, retry guidance, and reachability.
+---
+
+## Goal and completion criteria
+
+This page maps the complete current `pkg/protocol/frame.ReasonCode` enum to developer decisions. When finished, you should preserve the raw value, interpret it in a CONNACK, SENDACK, or other phase, and apply bounded retries that do not amplify failure.
+
+## Compatibility target
+
+The table is generated from the authoritative Go enum and shared metadata, and CI verifies values `0–29` and their names. It is tied to the [current API compatibility snapshot](/en/api/compatibility), with no separate handwritten copy in each MDX locale.
+
+<ReasonCodeTable locale="en" />
+
+## Prerequisites
+
+- Retain the packet type that carried the value instead of a bare number;
+- distinguish HTTP status, CONNACK, SENDACK, online delivery, and synchronization;
+- implement retries with idempotent identity, backoff, a cap, and cancellation;
+- redact identity and message content from logs and metrics.
+
+## Read the table
+
+- **Phase** identifies whether the value belongs to CONNECT/CONNACK, SEND/SENDACK, disconnect, or a compatible-path context.
+- **Retry** is a safe default, not permission for endless retries. Combine it with idempotent identity, backoff, a cap, and cancellation.
+- **Reachability** distinguishes values emitted by a current production path, values requiring a specific configuration/state, and compatible enum values not evidenced by the current golden path.
+- Presence in the enum does not mean every endpoint or SDK call can return the value.
+
+## Client processing order
+
+1. Record packet type, numeric Reason Code, compatibility snapshot, and request correlation first.
+2. Only explicit Success completes the current protocol phase.
+3. Stop blind retries for identity, authorization, denylist/allowlist, ban, disband, invalid-field, or unsupported outcomes.
+4. Retry route movement, rate limit, and system errors only with bounded exponential backoff, rediscovering required state first.
+5. Fail closed on an unknown numeric value. Preserve it and never map it to Success.
+
+## Send outcome and message stages
+
+For a persistent SEND, a successful SENDACK means the Channel authority made a successful durable-commit decision. It does not prove online receipt, RECVACK, webhook, plugin, offline synchronization, or product action.
+
+A successful CONNACK means only that the current Gateway connection stage completed. The default v3 Beta composition does not yet automatically validate CONNECT against stored tokens, so it is not proof of production product identity.
+
+## Expected result
+
+The golden sample records SENDACK success/failure and message sequence. Failure text preserves the raw Reason Code value so it can be interpreted with this table. The event log does not display token or Payload; a product UI maps its own localized product copy.
+
+## Troubleshooting
+
+- **Value and name disagree:** generation or version has drifted, and validation must fail.
+- **A value marked unverified in the golden path appears:** preserve the raw evidence and source revision; do not rewrite reachability to accommodate one observation.
+- **A retryable result repeats:** stop at the retry budget and inspect routing, rate limits, queue pressure, and cluster state.
+- **An authorization result persists:** correct the authoritative product account, membership, allowlist/denylist, or Channel state.
+- **The value is unknown:** treat it as failure and update the compatibility manifest and dictionary alignment.
+
+## Security and responsibility boundary
+
+Reason Code handling must not disclose topology, risk decisions, or sensitive identity. Keep metric fields low-cardinality and exclude UID, token, Channel ID, and message body from metric labels. End-user language belongs to the product.
+
+## Next step
+
+Return to [Error Responses](/en/api/product-http/errors) to combine HTTP and protocol handling, or observe the difference between SENDACK and synchronization in the [Quickstart](/en/sdk/javascript/quickstart).

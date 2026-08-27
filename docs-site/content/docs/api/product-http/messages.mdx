@@ -1,0 +1,94 @@
+---
+title: 消息（Beta 同步子集）
+description: 使用 POST /channel/messagesync 从已提交的个人 Channel 日志恢复离线消息。
+---
+
+Phase 12 的 HTTP 消息合同只发布同步入口。实时发送和接收由 JavaScript SDK 与 Gateway 完成；`/message/send` 不属于这个黄金路径子集。
+
+## 目标与完成标准
+
+完成后，BFF 应能在 Bob 重连后读取 Alice/Bob 个人 Channel 的已提交消息，并让浏览器把同步恢复与实时接收合并、去重且分别标记来源。
+
+## 兼容目标
+
+该入口属于[黄金路径 API 快照](/zh/api/compatibility)。HTTP DTO 位于 `internal/access/api/channel_messagesync.go`，游标、membership 与可见性逻辑位于 `internal/usecase/message/sync.go`，样例调用位于 `product-http-message-sync` 命名片段。
+
+## 前置条件
+
+- 当前用户已经重新 CONNECT；
+- BFF 已确认当前开发 Session 的 `uid` 与对端 UID；
+- 离线消息曾收到成功 SENDACK，即已经达到持久提交边界；
+- Product HTTP 只对 BFF 可达。
+
+## 合同
+
+| 项目 | 值 |
+| --- | --- |
+| 方法 | `POST` |
+| 路径 | `/channel/messagesync` |
+| 信任级别 | 仅本地开发 BFF 或受信业务后端 |
+| Content-Type | `application/json` |
+| 成功状态 | `200` |
+
+黄金样例用全零 sequence 边界读取个人 Channel 的最近一个有界页面：
+
+```json
+{
+  "login_uid": "bob",
+  "channel_id": "alice",
+  "channel_type": 1,
+  "start_message_seq": 0,
+  "end_message_seq": 0,
+  "limit": 50,
+  "pull_mode": 1
+}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `login_uid` | 当前恢复消息的 UID；个人 Channel 归一化和 membership 可见性使用它 |
+| `channel_id` | 单聊时为对端 UID |
+| `channel_type` | 单聊固定为 `1` |
+| `start_message_seq` | 非零时是包含式起点；与结束边界同时为 `0` 时走最近页兼容行为 |
+| `end_message_seq` | 非零时是排除式边界；与起点同时为 `0` 时不限制最近页上界 |
+| `limit` | 页大小；黄金 BFF 限制为 `1–100` |
+| `pull_mode` | `0` 向旧消息拉取，`1` 向新消息拉取 |
+
+运行时在未提供正数 limit 时默认 `100`，并把上限钳制到 `10000`；黄金 BFF 使用更窄的 `1–100` 合同以保持恢复有界。
+当两个 sequence 边界都为 `0` 时，当前兼容读取会选择最近页并最终按 sequence 升序返回；后续分页必须显式推进游标，不能一直重复全零请求。
+
+## 响应与合并
+
+兼容响应包含 `start_message_seq`、`end_message_seq`、数值 `more` 和 `messages` 数组。单条消息的黄金适配器读取：
+
+- `message_idstr`（优先保留为字符串）；
+- `message_seq`；
+- `client_msg_no`；
+- `from_uid`；
+- `timestamp`；
+- `payload`。
+
+个人 Channel 响应会把内部 canonical ID 投影回对端 UID。返回消息按 `message_seq` 升序，读取只覆盖已提交数据。用户必须拥有可见 membership；加入序号与删除游标会形成可见性下界。
+
+在线 RECV 和同步页可能包含同一消息。黄金样例优先按 `message_idstr`，再按 `client_msg_no`，最后按发送方与 sequence 形成去重键；恢复事件类型为 `synced`，事件文本包含 `recovered`。
+
+## 预期结果
+
+Bob 断开期间 Alice 的持久消息先获得 SENDACK。Bob 重连后，本入口返回该消息，UI 显示一次同步恢复而不是伪造一条 realtime 事件。空 `messages` 数组是合法结果，不等于 HTTP 错误。
+
+## 错误与诊断
+
+- **缺少 `login_uid`、`channel_id` 或 `channel_type`**：修正请求；不要重试无效合同。
+- **membership 不可见**：确认业务关系和个人 Channel 元数据已由发送路径建立，不要绕过权限读取节点存储。
+- **`messages` 为空**：先确认发送获得成功 SENDACK，再核对方向、起点、对端 UID 和可见性游标。
+- **出现重复**：检查去重键；重复可能来自实时投递与同步重叠。
+- **`more=1`**：用上页最后 sequence 推进游标，保持页大小有界。
+- **`503 maintenance`**：退避并观察 `/readyz`。
+
+## 安全与责任边界
+
+`login_uid` 只是请求字段，不是自带可信身份。业务后端必须先验证调用者确实可以代表该 UID，并验证其 Channel 读取权限。默认 Product HTTP 不提供这层业务鉴权，浏览器不得直调。
+
+## 下一步
+
+在[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)验证断线恢复，并阅读[错误响应](/zh/api/product-http/errors)和[消息概念](/zh/guide/core-concepts/messages)。

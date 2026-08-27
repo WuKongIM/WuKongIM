@@ -124,6 +124,34 @@ describe('documentation navigation contract', () => {
     ]);
   });
 
+  test('publishes the Phase 12 JavaScript golden path and only its supporting API slice', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+    const phase12Routes = [
+      '/en/sdk/compatibility',
+      '/en/sdk/javascript',
+      '/en/sdk/javascript/installation',
+      '/en/sdk/javascript/quickstart',
+      '/en/api/conventions',
+      '/en/api/authentication',
+      '/en/api/compatibility',
+      '/en/api/product-http',
+      '/en/api/product-http/users',
+      '/en/api/product-http/messages',
+      '/en/api/product-http/routing',
+      '/en/api/product-http/errors',
+      '/en/api/dictionaries',
+      '/en/api/dictionaries/reason-codes',
+    ];
+
+    expect(published).toEqual(expect.arrayContaining(phase12Routes));
+    expect(getNavigationEntry('en', 'sdk', ['javascript', 'api-reference'])?.status).toBe(
+      'planned',
+    );
+    expect(getNavigationEntry('en', 'api', ['specifications', 'openapi'])?.status).toBe(
+      'planned',
+    );
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -204,7 +232,21 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/architecture/message-flow`,
         `/${locale}/server/architecture/user-routing`,
         `/${locale}/sdk`,
+        `/${locale}/sdk/compatibility`,
+        `/${locale}/sdk/javascript`,
+        `/${locale}/sdk/javascript/installation`,
+        `/${locale}/sdk/javascript/quickstart`,
         `/${locale}/api`,
+        `/${locale}/api/conventions`,
+        `/${locale}/api/authentication`,
+        `/${locale}/api/compatibility`,
+        `/${locale}/api/product-http`,
+        `/${locale}/api/product-http/users`,
+        `/${locale}/api/product-http/messages`,
+        `/${locale}/api/product-http/routing`,
+        `/${locale}/api/product-http/errors`,
+        `/${locale}/api/dictionaries`,
+        `/${locale}/api/dictionaries/reason-codes`,
       ]);
       expect(indexed.every((entry) => entry.status === 'published')).toBe(true);
     }

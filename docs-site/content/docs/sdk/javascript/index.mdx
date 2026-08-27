@@ -1,0 +1,67 @@
+---
+title: JavaScript / Web
+description: 使用框架无关的 TypeScript 黄金样例完成浏览器连接、双向持久消息、重连和离线恢复。
+---
+
+JavaScript/Web 是 Phase 12 唯一发布的客户端接入路径。它用一个极小的 localhost BFF 和框架无关 TypeScript 页面证明真实 SDK 生命周期，不要求 React 或 Vue。
+
+## 目标与完成标准
+
+完成本路径后，你应能在两个独立浏览器会话中连接 Alice 和 Bob，区分发送确认、在线接收和离线同步，并说明哪些安全职责仍属于业务后端。
+
+<Callout type="warn" title="v3 Beta 黄金路径子集">
+  本区只承诺固定兼容目标中的安装与 Quickstart；当前构建的验证状态由 receipt 决定。平台专属能力、完整 API Reference 和升级指南仍处于规划状态。
+</Callout>
+
+## 兼容目标
+
+使用 `wukongimjssdk@1.3.5` 和[兼容性页面](/zh/sdk/compatibility)列出的服务端 revision、Node.js 与 Chromium 组合。不要在完成基线前改用 `latest`。
+
+## 前置条件
+
+- 一个已经通过 `/readyz` 的 WuKongIM 单节点集群；
+- Node.js `>=20.11` 与 npm；
+- 两个隔离的浏览器上下文，例如普通窗口和隐私窗口；
+- 只在本机运行的黄金样例 BFF。
+
+## 推荐路径
+
+<Cards>
+  <Card title="安装与配置" description="用 npm lockfile 安装精确 SDK 版本并验证样例构建。" href="/zh/sdk/javascript/installation" />
+  <Card title="快速接入" description="完成 Alice/Bob 连接、双向消息、断开、重连和离线同步。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="版本与兼容性" description="核对服务端、SDK、Node 与 Chromium 快照。" href="/zh/sdk/compatibility" />
+  <Card title="Product HTTP 子集" description="理解 BFF 使用的 Token、路由和消息同步合同。" href="/zh/api/product-http" />
+</Cards>
+
+## 可观察的成功模型
+
+```text
+浏览器 -> localhost BFF -> /user/token + /route
+浏览器 -> JavaScript SDK -> CONNECT -> SEND -> SENDACK
+                                           -> Bob RECV（在线）
+Bob 重连 -> localhost BFF -> /channel/messagesync（离线恢复）
+```
+
+样例事件日志会明确标记连接状态、SENDACK、在线接收与同步来源。持久提交成功、某个在线 Session 收到消息、重连同步恢复消息是三个不同结果。
+
+## 预期结果
+
+- Alice 和 Bob 都显示已连接及当前 WebSocket 节点；
+- 两个方向各有一次持久发送确认和在线接收；
+- Bob 断开期间的消息仍能提交；
+- Bob 重连后从同步路径恢复该消息，且 UI 不把它误标为实时接收。
+
+## 常见故障
+
+- **身份创建失败**：确认 BFF 与集群都在本机运行，并检查 `/readyz`。
+- **浏览器能打开但无法连接**：检查 `/route` 返回的 `ws_addr`，以及端口 `5200`。
+- **SENDACK 成功但 Bob 页面没有消息**：先把它视为在线投递问题；持久提交不会因此自动回滚。
+- **重连后没有恢复**：检查 BFF 的同步请求使用 Bob 的 `login_uid`、Alice 的对端 UID 和 `channel_type=1`。
+
+## 安全与责任边界
+
+浏览器只能调用样例 BFF，不能直接调用 WuKongIM Product HTTP。这个无状态 BFF 只绑定 loopback，用于开发身份；它不实现账号、授权、Token 生命周期或生产数据库。默认 Gateway 也不会自动校验已存 Token。
+
+## 下一步
+
+先完成[安装与配置](/zh/sdk/javascript/installation)，再进入[快速接入](/zh/sdk/javascript/quickstart)。准备产品化时，继续阅读[认证与安全](/zh/api/authentication)和[集成架构](/zh/guide/integration/architecture)。

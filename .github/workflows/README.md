@@ -171,8 +171,29 @@ removing the protected check tools.
 
 The exclusive documentation fast path covers `docs/`, `docs-site/`,
 `README.md`, and `README_CN.md`. It runs `docs-contracts` without falling
-through to repository-default Go checks; any mixed or non-allowlisted change
-still receives the union of its applicable checks.
+through to repository-default Go checks. That protected check includes the
+documentation source contracts, the complete `docs-site` verification and
+static export, broken-link and metadata gates, and the buildable JavaScript Web
+sample. Changes to the sample, its published SDK/API contract pages and machine
+artifacts, shared developer-page presentation sources, the Product
+HTTP/use-case/cluster-read path used by it, Gateway authentication or
+WKProto/WebSocket transport, the E2E harness, or the wire ReasonCode enum also
+run the protected `docs-integration` check against a real single-node cluster
+and Chromium. Any mixed or non-allowlisted change still receives the union of
+its applicable checks.
+
+The `docs-integration` check pins Bun 1.3.11 and Node.js 22.12.0. It performs a
+frozen docs install, reruns the source-alignment contract tests, and completes
+an initial unverified build/output gate before the browser smoke, so the same
+static export is available to the accessibility checks. It then installs the
+locked JavaScript sample and Chromium, runs the focused real-process E2E
+against a 256-Hash-Slot single-node cluster, and accepts a verification receipt
+only from a clean committed HEAD. The helper
+strictly validates the bounded receipt against the current source revision,
+sample lock hash, SDK, Node.js, Playwright, and Chromium identities before a
+second verified build and output gate. Its unique receipt directory is always
+removed; a failed browser run may retain only three redacted PNG screenshots,
+each no larger than 2 MiB, under the ignored `tmp/docs-site-e2e/` directory.
 
 Worker dispatch is serialized per pull request. The exact run title derived
 from pull request, signed lease, and infrastructure attempt is the idempotency

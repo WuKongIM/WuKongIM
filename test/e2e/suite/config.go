@@ -26,9 +26,11 @@ type NodeSpec struct {
 	StderrPath  string
 	ClusterAddr string
 	GatewayAddr string
-	APIAddr     string
-	ManagerAddr string
-	LogDir      string
+	// WebSocketAddr is an optional loopback WKProto-over-WebSocket listener.
+	WebSocketAddr string
+	APIAddr       string
+	ManagerAddr   string
+	LogDir        string
 	// ConfigOverrides appends or replaces rendered WK_* config keys for one node.
 	ConfigOverrides map[string]string
 	// Env appends process environment variables for this node after rendered config values.
@@ -61,9 +63,12 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 		{key: "WK_CLUSTER_SLOT_REPLICA_N", value: fmt.Sprintf("%d", replicaN)},
 		{key: "WK_API_LISTEN_ADDR", value: local.APIAddr},
 		{key: "WK_METRICS_ENABLE", value: "true"},
-		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr)},
+		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr, local.WebSocketAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
 		{key: "WK_PLUGIN_ENABLE", value: "false"},
+	}
+	if local.WebSocketAddr != "" {
+		lines = append(lines, configLine{key: "WK_EXTERNAL_WSADDR", value: browserWebSocketURL(local.WebSocketAddr)})
 	}
 	if local.ManagerAddr != "" {
 		lines = append(lines, configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr})
@@ -106,9 +111,12 @@ func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
 		{key: "WK_CLUSTER_SLOT_REPLICA_N", value: "3"},
 		{key: "WK_API_LISTEN_ADDR", value: local.APIAddr},
 		{key: "WK_METRICS_ENABLE", value: "true"},
-		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr)},
+		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr, local.WebSocketAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
 		{key: "WK_PLUGIN_ENABLE", value: "false"},
+	}
+	if local.WebSocketAddr != "" {
+		lines = append(lines, configLine{key: "WK_EXTERNAL_WSADDR", value: browserWebSocketURL(local.WebSocketAddr)})
 	}
 	if local.ManagerAddr != "" {
 		lines = append(lines, configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr})
@@ -121,8 +129,21 @@ func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
 	return renderConfigTOML(lines)
 }
 
-func renderGatewayListeners(gatewayAddr string) string {
-	return fmt.Sprintf(`[{"name":"tcp-wkproto","network":"tcp","address":"%s","transport":"gnet","protocol":"wkproto"}]`, gatewayAddr)
+func renderGatewayListeners(gatewayAddr, webSocketAddr string) string {
+	tcpListener := fmt.Sprintf(`{"name":"tcp-wkproto","network":"tcp","address":"%s","transport":"gnet","protocol":"wkproto"}`, gatewayAddr)
+	if strings.TrimSpace(webSocketAddr) == "" {
+		return "[" + tcpListener + "]"
+	}
+	webSocketListener := fmt.Sprintf(`{"name":"ws-wkproto","network":"websocket","address":"%s","path":"/ws","transport":"gnet","protocol":"wsmux"}`, webSocketAddr)
+	return "[" + tcpListener + "," + webSocketListener + "]"
+}
+
+func browserWebSocketURL(webSocketAddr string) string {
+	webSocketAddr = strings.TrimSpace(webSocketAddr)
+	if webSocketAddr == "" {
+		return ""
+	}
+	return "ws://" + webSocketAddr + "/ws"
 }
 
 func marshalClusterNodes(nodes []NodeSpec) string {

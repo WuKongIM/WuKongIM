@@ -34,7 +34,7 @@ WuKongIM Gateway <-> WuKongIM 集群
 
 1. 终端使用你的登录机制向业务服务认证。
 2. 业务服务返回稳定 UID、设备标识以及当前环境允许的连接参数。
-3. 客户端调用 `GET /route?uid=<uid>`，获得 `tcp_addr`、`ws_addr` 和 `wss_addr`。
+3. 受信后端调用 `GET /route`，获得 `tcp_addr`、`ws_addr` 和 `wss_addr`。
 4. SDK 选择可用入口并发送 CONNECT，协商协议版本和加密材料。
 5. 连接成功后再发送业务消息；连接状态不能替代业务授权状态。
 

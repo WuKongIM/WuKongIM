@@ -1,0 +1,73 @@
+---
+title: Error Responses
+description: Separate network failures, HTTP status, compatible error bodies, and protocol Reason Code in the golden path.
+---
+
+## Goal and completion criteria
+
+When finished, the caller should make a bounded decision at the failing stage: correct invalid requests, back off for temporary infrastructure failures, stop retrying authorization rejection, and retain sufficient but redacted diagnostic evidence.
+
+## Compatibility target
+
+This page covers only the [golden-path API snapshot](/en/api/compatibility) and JavaScript SDK smoke scenario. Compatible HTTP entries have no universal error envelope; protocol results use the current Reason Code enum 0–29.
+
+## Prerequisites
+
+- Retain endpoint, method, compatibility snapshot, and client request correlation for each operation;
+- never record tokens, Authorization, cookies, or message bodies;
+- observe the BFF, Product HTTP, Gateway, and SDK separately;
+- treat SENDACK and an HTTP response as different protocol layers.
+
+## Four result layers
+
+| Layer | Example | First response |
+| --- | --- | --- |
+| Browser/BFF | fetch failure, same-origin rejection, localhost rejection | Correct the local boundary or network; do not expose Product HTTP publicly |
+| HTTP transport | `400`, `503`, non-JSON body | Classify by status and retain a bounded response tail |
+| Endpoint result | `{"status":200}`, route addresses, sync page | Use an endpoint-specific parser |
+| Gateway protocol | CONNACK / SENDACK Reason Code | Consult Reason Code in the context of the packet type |
+
+HTTP `200` does not automatically make a Reason Code successful. Conversely, a successful send SENDACK does not prove that online delivery or offline synchronization completed.
+
+## HTTP classification
+
+| Result | Retry? | Guidance |
+| --- | --- | --- |
+| `400` | No, unless the request changes first | Validate JSON, UID, Channel, cursor, and endpoint fields |
+| `403` from BFF | No | Correct Host/Origin or stop non-loopback use |
+| `404` from BFF | No | Use a published local BFF path |
+| `503 maintenance` | Yes, with bounded backoff | Observe `/readyz` and wait for restore maintenance to finish |
+| Other `5xx` / network timeout | Conditional | Exponential backoff, jitter, cap, and cancellation; retain the same logical operation |
+| `2xx` with invalid shape | No; diagnose drift first | Compare the shared contract and compatibility snapshot |
+
+Compatible error bodies may use `{ "msg", "status" }`, restore maintenance uses `{ "error", "message" }`, and the sample BFF uses `{ "error" }`. Check HTTP status first instead of depending on one global field.
+
+## Protocol Reason Code
+
+See [Reason Code](/en/api/dictionaries/reason-codes) for every value, name, phase, retry note, and current reachability. Processing rules:
+
+1. retain the raw number and packet type;
+2. only explicit Success enters the success path;
+3. stop and correct state for permission, ban, disband, or invalid-request outcomes;
+4. retry system pressure, rate limit, or route movement only under a bounded policy;
+5. fail closed on an unknown value and report it with the compatibility snapshot.
+
+## Expected result
+
+When the real integration test fails, CI may retain only capped PNG screenshots taken after the harness replaces the event log, inputs, identities, and message text with fixed redaction text. It publishes only subprocess byte counts, never raw browser, BFF, or server tails. Successful runs remove the screenshot directory. A compatibility-manifest copy, native Playwright trace, and video stay disabled because those channels can contain development credentials or message data.
+
+## Diagnostic order
+
+1. Confirm single-node-cluster `/readyz`.
+2. Confirm the BFF listens only on loopback with the correct Host/Origin.
+3. Record Product HTTP method, path, and status without request secrets.
+4. If HTTP succeeds, inspect WebSocket, CONNACK, or SENDACK Reason Code.
+5. If SENDACK succeeds but Bob sees no message, diagnose online delivery and message synchronization separately.
+
+## Security and responsibility boundary
+
+Never display raw server errors, topology, UIDs, tokens, or Payloads directly to end users. Production should map stable error categories, assign a separate request ID, and align log retention and access with data policy.
+
+## Next step
+
+Consult [Reason Code](/en/api/dictionaries/reason-codes) or return to the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) to reproduce each observable stage.

@@ -1,0 +1,61 @@
+---
+title: API Versions & Compatibility
+description: Check the golden-path Product HTTP subset, client protocol, and server source snapshot.
+---
+
+## Goal and completion criteria
+
+This page defines the API compatibility target precisely: three Product HTTP entries in one build tuple. Only a matching successful receipt attests that the golden sample and real smoke test covered that exact tuple. It does not mean every repository HTTP route is covered or that v3 has a final stability guarantee.
+
+## Compatibility snapshot
+
+<CompatibilitySnapshot locale="en" />
+
+The component above is the only authority for this build's verification state. No receipt means `false/missing`; only a successful exact-tuple receipt means `true/verified`. Declared target values, malformed receipts, and drifted receipts cannot attest a build.
+
+The slice-level OpenAPI contract, `compatibility.json`, page tables, BFF types, and CI must derive from one technical truth. The repository's older OpenAPI material still contains v2 content; Phase 12 does not relabel it as a complete v3 specification.
+
+## Prerequisites
+
+- Keep the older complete OpenAPI distinct from the Phase 12 slice-level contract;
+- be able to read the current build revision and verification attestation;
+- allow only trusted backends to reach Product HTTP;
+- rerun the golden scenario when contract, BFF, docs, or runtime changes.
+
+## Published scope
+
+| Entry | Phase 12 status | Scenario evidence target |
+| --- | --- | --- |
+| `POST /user/token` | Golden-path subset | BFF contract test plus real identity creation |
+| `GET /route` | Golden-path subset | BFF contract test plus real WebSocket discovery |
+| `POST /channel/messagesync` | Golden-path subset | BFF contract test plus Bob reconnect recovery |
+
+Realtime message sending goes through the JavaScript SDK and Gateway, so `/message/send` is not part of this HTTP subset. Other Product HTTP, operations APIs, webhooks, TCP details, JSON-RPC Schema, and complete OpenAPI remain planned.
+
+## URL and version strategy
+
+Current documentation paths remain `/{lang}/api/...`; they do not move under `/v3/`. Build revision and the compatibility manifest carry version identity:
+
+- “v3 Beta snapshot” is a reproducible source combination, not a final semantic version;
+- an unchanged URL does not make every source revision compatible;
+- changing server, SDK, or contract requires rerunning the real golden scenario;
+- a combination that has not passed that scenario is unverified.
+
+## Expected result
+
+With one snapshot, the BFF creates development identities, discovers a WebSocket address, and recovers a committed message when Bob reconnects. A contract change triggers documentation-integration validation instead of silently changing page fields.
+
+## Troubleshooting
+
+- **Endpoint fields differ from the page:** fail shared-contract validation; do not make the BFF and docs independently tolerate two truths.
+- **The HTTP subset passes but SDK send fails:** inspect SDK/protocol compatibility; HTTP success cannot be projected onto Gateway behavior.
+- **The source revision is absent from the snapshot:** mark it unverified and run the complete smoke test.
+- **An older OpenAPI conflicts with this page:** that file is not authoritative for Phase 12; do not use it to expand the published promise.
+
+## Security and responsibility boundary
+
+API compatibility does not mean the API is safe for public exposure. Default Product HTTP lacks general product authentication and the default Gateway lacks stored-token CONNECT validation. Compatibility tests do not replace those production controls.
+
+## Next step
+
+Read [Conventions](/en/api/conventions), then enter the three published contracts from [Product HTTP API](/en/api/product-http).

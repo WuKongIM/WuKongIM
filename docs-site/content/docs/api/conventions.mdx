@@ -1,0 +1,73 @@
+---
+title: 通用约定
+description: 理解 v3 Beta 黄金路径 HTTP 子集的地址、JSON、标识、响应和重试边界。
+---
+
+本页只适用于 Phase 12 黄金样例使用的 Product HTTP 子集。它描述兼容入口的真实形状，不把其余内部或历史路由承诺为稳定公共 API。
+
+## 目标与完成标准
+
+完成后，你应能从受信后端正确调用 `/user/token`、`/route` 和 `/channel/messagesync`，按端点解析响应，并且不会把 HTTP 成功、协议 Reason Code 和消息持久提交混为一谈。
+
+## 兼容目标
+
+这些合同属于[API 兼容快照](/zh/api/compatibility)中的 v3 Beta snapshot。站点从切片级 OpenAPI 合同生成以下覆盖表；它不是完整 v3 OpenAPI。
+
+<GoldenPathContract locale="zh" />
+
+## 前置条件
+
+- Product HTTP Base URL 指向受信网络中的 WuKongIM HTTP 监听；本地样例为 `http://127.0.0.1:5001`。
+- 调用方是样例 localhost BFF 或完成服务身份认证的业务后端。
+- 发送 JSON 的请求设置 `Content-Type: application/json`。
+- 生产环境使用 TLS，并由反向代理、API Gateway 或服务网格提供访问控制。
+
+## 地址与格式
+
+| 约定 | 黄金路径行为 |
+| --- | --- |
+| Base URL | 本地为 `http://127.0.0.1:5001`；路径均从 `/` 开始 |
+| 请求格式 | POST 端点使用 UTF-8 JSON；`/route` 使用 GET 查询参数 |
+| 响应格式 | JSON，但三个兼容端点没有统一响应信封 |
+| UID / Channel ID | 字符串，由业务系统拥有；单聊查询使用对端 UID |
+| Channel type | 黄金路径单聊固定为数值 `1` |
+| Message sequence | 只在单个 Channel 内有序，不是全局序号 |
+
+不要为兼容响应强行套一个 `{ data, error }` 类型。`/user/token` 返回 `status`，`/route` 返回地址字段，`/channel/messagesync` 返回同步窗口和消息数组；失败体也可能因入口阶段不同而具有不同字段。
+
+## 标识与数字
+
+- `uid` 是业务身份，不使用昵称、连接 ID 或设备 ID 替代。
+- `channel_id` 与 `channel_type` 一起标识 Channel；个人 Channel 的客户端视图使用对端 UID。
+- `message_seq` 是 Channel 内游标。
+- 同步消息同时提供 `message_id` 与十进制字符串 `message_idstr`；JavaScript 应优先保留字符串形式，避免大整数精度损失。
+- Payload 在 HTTP JSON 响应中按 Go `[]byte` 兼容编码呈现；黄金样例由适配器解码，不把该编码当作业务 Schema。
+
+## 重试规则
+
+| 操作 | 重试前提 |
+| --- | --- |
+| `GET /route` | 网络失败或临时 `5xx` 可退避重试；成功结果不代表业务授权 |
+| `POST /user/token` | 只由受信端以同一身份意图重试；不要不断生成新 Token |
+| `POST /channel/messagesync` | 读取失败可用同一游标重试；客户端必须容忍与实时投递重复 |
+
+本子集没有声明通用 Idempotency-Key 请求头。消息发送走 SDK，发送方必须保存 SDK 使用的逻辑消息标识；该行为不由这三个 HTTP 入口替代。
+
+## 预期结果
+
+调用方应先检查 HTTP 状态，再按端点解析 JSON。收到 `2xx` 只表示该 HTTP 操作完成：它不会把 CONNECT 变成生产级鉴权，也不会证明某个消息已经实时投递或被用户读取。
+
+## 失败诊断
+
+- **JSON 解析失败**：保留 HTTP 状态、`Content-Type` 和有界脱敏后的响应体；不要假设错误一定在 `error` 字段。
+- **`400`**：修正请求字段、UID、Channel 或游标，不要原样无限重试。
+- **`503 maintenance`**：集群处于恢复维护栅栏；退避并观察 `/readyz`，不要绕过到节点本地路径。
+- **同步结果重复**：这是在线接收和离线恢复合并时允许的情况，应按消息身份与 Channel sequence 去重。
+
+## 安全与责任边界
+
+浏览器和移动端不得直接访问 Product HTTP。CORS 兼容处理不等于鉴权。业务后端必须拥有账号、权限、限流、审计和 Token 生命周期，并避免记录明文 Token 或消息正文。
+
+## 下一步
+
+阅读[认证与安全](/zh/api/authentication)，然后分别查看[用户 Token](/zh/api/product-http/users)、[路由发现](/zh/api/product-http/routing)和[消息同步](/zh/api/product-http/messages)。

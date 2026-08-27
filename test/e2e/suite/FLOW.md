@@ -23,6 +23,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 1. Allocate isolated workspace and non-overlapping loopback port block, render
    node TOML, obtain the repository/OS/architecture-scoped cached E2E binary,
    and start each product as an independently owned process group.
+   `WithWebSocketGateway` adds a browser-addressable `/ws` wsmux listener and
+   published route while retaining the default TCP WKProto listener.
 2. Wait for readiness or stable Slot authority through public evidence; restart
    or reconfigure only after previous process-group cleanup completes.
 3. Cleanup stops static nodes concurrently, joins repeated stops, escalates
@@ -34,6 +36,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   child exit. Restart never reuses ports/data before prior group cleanup.
 - Binary publication is atomic. Plugin runtime is disabled by default and
   enabled only by plugin scenarios.
+- WebSocket gateway opt-in publishes only the allocated loopback listener;
+  TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
   schema validation; invalid structure is fully omitted, and sensitive leaves
   plus nested secret-like keys are redacted.

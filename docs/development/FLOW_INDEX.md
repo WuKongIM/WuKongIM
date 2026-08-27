@@ -12,7 +12,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [cmd/wkcloudbundle/FLOW.md](../../cmd/wkcloudbundle/FLOW.md) | `package` | Seals and verifies immutable offline deployment bundles without cloud, credential, build, or service authority. | 50 | ok |
 | [cmd/wkcloudlease/FLOW.md](../../cmd/wkcloudlease/FLOW.md) | `package` | Exposes synchronous provider-neutral Cloud Lease commands while separating read-only inspection from paid mutation authority. | 52 | ok |
 | [cmd/wkcloudleaseoidc/FLOW.md](../../cmd/wkcloudleaseoidc/FLOW.md) | `package` | Creates, verifies, and removes repository-owned Alibaba OIDC identity without Cloud Lease acquisition authority. | 48 | ok |
-| [docs-site/FLOW.md](../../docs-site/FLOW.md) | `subtree` | Owns the bilingual static v3 documentation site, shared navigation, publication state, search, SEO, and machine-readable outputs. | 60 | ok |
+| [docs-site/FLOW.md](../../docs-site/FLOW.md) | `subtree` | Owns the bilingual static v3 documentation site, shared navigation, publication state, search, SEO, and machine-readable outputs. | 77 | ok |
 | [internal/access/api/FLOW.md](../../internal/access/api/FLOW.md) | `package` | Adapts product, benchmark, debug, and compatibility HTTP requests to internal use cases. | 92 | ok |
 | [internal/access/cloudanalysismcp/FLOW.md](../../internal/access/cloudanalysismcp/FLOW.md) | `package` | Adapts authenticated Analysis MCP and token requests to a closed, bounded observation usecase surface. | 53 | ok |
 | [internal/access/cloudview/FLOW.md](../../internal/access/cloudview/FLOW.md) | `package` | Proxies one Simulation Run's public HTTP and WebSocket traffic while preserving health routing and benchmark-purity evidence. | 55 | ok |
@@ -86,4 +86,4 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
 | [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 92 | ok |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |
-| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 57 | ok |
+| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 61 | ok |

@@ -189,6 +189,53 @@ function platformGroup(
   ]);
 }
 
+function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
+  return publishedGroup(
+    'javascript',
+    'JavaScript / Web',
+    'JavaScript / Web',
+    '使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息和离线恢复；其余平台能力仍在规划中。',
+    'Complete browser installation, connection, two-way messaging, and offline recovery with the pinned SDK compatibility target; remaining platform material stays planned.',
+    [
+      publishedPage(
+        'installation',
+        '安装与配置',
+        'Installation',
+        '安装精确版本的 JavaScript SDK，并配置框架无关的 TypeScript 黄金样例。',
+        'Install the exact JavaScript SDK version and configure the framework-neutral TypeScript golden sample.',
+      ),
+      publishedPage(
+        'quickstart',
+        '快速接入',
+        'Quickstart',
+        '通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。',
+        'Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.',
+      ),
+      plannedPage(
+        'platform-capabilities',
+        '平台专属能力',
+        'Platform Capabilities',
+        'JavaScript / Web 平台的生命周期、后台运行和推送等差异。',
+        'Lifecycle, background execution, push, and other JavaScript / Web-specific behavior.',
+      ),
+      plannedPage(
+        'api-reference',
+        'API 参考',
+        'API Reference',
+        'JavaScript / Web SDK 的类、方法、事件、参数和错误定义。',
+        'Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.',
+      ),
+      plannedPage(
+        'upgrade',
+        '升级指南',
+        'Upgrade Guide',
+        'JavaScript / Web SDK 的破坏性变更、迁移步骤和发布记录。',
+        'Breaking changes, migration steps, and release history for the JavaScript / Web SDK.',
+      ),
+    ],
+  );
+}
+
 export const domains: DocumentationDomain[] = [
   {
     key: 'guide',
@@ -670,12 +717,12 @@ export const domains: DocumentationDomain[] = [
         '根据应用平台、框架和运行环境选择客户端 SDK。',
         'Choose a client SDK by platform, framework, and runtime.',
       ),
-      plannedPage(
+      publishedPage(
         'compatibility',
         '版本与兼容性',
         'Versions & Compatibility',
-        '汇总 SDK 版本、服务端兼容范围、系统要求和维护状态。',
-        'Lists SDK versions, server compatibility, system requirements, and maintenance status.',
+        '记录 v3 Beta 黄金路径的服务端 revision、SDK、Node、浏览器兼容目标与 receipt 状态。',
+        'Records the server revision, SDK, Node, and browser compatibility target plus receipt status for the v3 Beta golden path.',
       ),
     ],
     groups: [
@@ -756,12 +803,7 @@ export const domains: DocumentationDomain[] = [
         'iOS SDK 的支持范围、系统要求和接入入口。',
         'Support scope, system requirements, and entry points for the iOS SDK.',
       ),
-      platformGroup(
-        'javascript',
-        'JavaScript / Web',
-        'JavaScript SDK 的浏览器支持范围和接入入口。',
-        'Browser support and entry points for the JavaScript SDK.',
-      ),
+      publishedJavaScriptGoldenPathGroup(),
       platformGroup(
         'flutter',
         'Flutter',
@@ -791,42 +833,42 @@ export const domains: DocumentationDomain[] = [
     ),
     status: 'published',
     pages: [
-      plannedPage(
+      publishedPage(
         'conventions',
         '通用约定',
         'Conventions',
-        '定义 Base URL、JSON、时间、ID、分页、幂等和响应结构。',
-        'Defines base URLs, JSON, time, identifiers, pagination, idempotency, and response envelopes.',
+        '定义 v3 Beta 黄金路径子集使用的 Base URL、JSON、标识和兼容响应结构。',
+        'Defines base URLs, JSON, identifiers, and compatible response envelopes used by the v3 Beta golden-path subset.',
       ),
-      plannedPage(
+      publishedPage(
         'authentication',
         '认证与安全',
         'Authentication & Security',
-        '说明 API 凭证、Token、请求保护和生产安全要求。',
-        'Explains API credentials, tokens, request protection, and production security.',
+        '说明开发身份、受信 BFF，以及默认组合尚未提供的生产鉴权保证。',
+        'Explains development identities, the trusted BFF, and the production authentication guarantees absent from the default composition.',
       ),
-      plannedPage(
+      publishedPage(
         'compatibility',
         '版本与兼容性',
         'Versions & Compatibility',
-        '说明 API、客户端协议与服务端版本的兼容规则。',
-        'Defines compatibility among APIs, client protocols, and server versions.',
+        '记录黄金路径 HTTP 子集、客户端协议与服务端快照的兼容目标和 receipt 状态。',
+        'Records the compatibility target and receipt status for the golden-path HTTP subset, client protocol, and server snapshot.',
       ),
     ],
     groups: [
-      plannedGroup(
+      publishedGroup(
         'product-http',
-        '产品 HTTP API',
-        'Product HTTP API',
-        '面向稳定产品能力的规范驱动 HTTP 参考。',
-        'Specification-driven HTTP reference for stable product capabilities.',
+        '产品 HTTP API（Beta 子集）',
+        'Product HTTP API (Beta subset)',
+        '仅发布 JavaScript 黄金路径声明使用的受信服务端接口。',
+        'Publishes only the trusted server-side endpoints declared by the JavaScript golden path.',
         [
-          plannedPage(
+          publishedPage(
             'users',
             '用户',
             'Users',
-            'Token、设备退出、在线状态和系统用户接口。',
-            'Token, device logout, online status, and system-user endpoints.',
+            '记录黄金路径用于开发身份准备的 `/user/token` 合同与安全边界。',
+            'Documents the `/user/token` contract and security boundary used to prepare golden-path development identities.',
           ),
           plannedPage(
             'channels',
@@ -835,12 +877,12 @@ export const domains: DocumentationDomain[] = [
             '频道、订阅者、黑名单、白名单和临时频道接口。',
             'Channel, subscriber, blacklist, whitelist, and temporary-channel endpoints.',
           ),
-          plannedPage(
+          publishedPage(
             'messages',
             '消息',
             'Messages',
-            '消息发送、同步、确认和消息事件接口。',
-            'Message send, sync, acknowledgement, and event endpoints.',
+            '记录黄金路径用于离线恢复的 `/channel/messagesync` 合同。',
+            'Documents the `/channel/messagesync` contract used for golden-path offline recovery.',
           ),
           plannedPage(
             'conversations',
@@ -849,14 +891,14 @@ export const domains: DocumentationDomain[] = [
             '会话列表、同步、未读数和删除接口。',
             'Conversation list, sync, unread-count, and deletion endpoints.',
           ),
-          plannedPage(
+          publishedPage(
             'routing',
             '路由发现',
             'Route Discovery',
-            '获取目标节点 TCP 和 WebSocket 接入地址。',
-            'Discovers TCP and WebSocket addresses for the target node.',
+            '获取服务端配置的 TCP 和 WebSocket 客户端入口地址。',
+            'Discovers the configured TCP and WebSocket client-ingress addresses.',
           ),
-          plannedPage(
+          publishedPage(
             'errors',
             '错误响应',
             'Error Responses',
@@ -976,12 +1018,12 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'dictionaries',
         '公共数据字典',
         'Shared Dictionaries',
-        '集中定义跨 API 和协议复用的常量。',
-        'Centralizes constants shared across APIs and protocols.',
+        '发布已校准的 Reason Code 字典；其他跨协议常量仍在规划中。',
+        'Publishes the calibrated Reason Code dictionary while other cross-protocol constants remain planned.',
         [
           plannedPage(
             'channel-types',
@@ -1004,12 +1046,12 @@ export const domains: DocumentationDomain[] = [
             '定义持久化、红点、回执和流式消息标志。',
             'Defines persistence, red-dot, receipt, and streaming-message flags.',
           ),
-          plannedPage(
+          publishedPage(
             'reason-codes',
             'Reason Code',
             'Reason Code',
-            '定义成功、鉴权失败、重试和拒绝等原因码。',
-            'Defines success, authentication failure, retry, refusal, and other reason codes.',
+            '完整列出当前 0–29 协议枚举并标注使用阶段、重试和可达性。',
+            'Lists the complete current 0–29 protocol enum with stage, retry, and reachability guidance.',
           ),
         ],
       ),

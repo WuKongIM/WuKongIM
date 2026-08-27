@@ -1,17 +1,49 @@
 ---
 title: SDK
-description: Integrate WuKongIM across supported client platforms.
+description: Begin with the pinned JavaScript/Web golden-path compatibility target for WuKongIM integration.
 ---
 
-SDK documentation centralizes cross-platform workflows and platform-specific integration details.
+SDK documentation now publishes one narrow but complete JavaScript/Web path: install an exact version, create development identity through a localhost BFF, connect to a real cluster, exchange persistent messages, and verify offline recovery after disconnect.
+
+## Goal and completion criteria
+
+From this page, developers should enter the published compatibility target instead of mistaking planned SDK menus for support. The compatibility snapshot's receipt status decides whether this build carries complete verification evidence. After the JavaScript/Web Quickstart, they should distinguish durable commit, realtime delivery, and offline synchronization.
+
+## Compatibility target
+
+Phase 12 pins `wukongimjssdk@1.3.5` and records server revision, Node.js, and Chromium in the [compatibility snapshot](/en/sdk/compatibility). This is not a support matrix for every platform or browser.
+
+## Prerequisites
+
+- A WuKongIM single-node cluster that passes `/readyz`;
+- Node.js `>=20.11` and npm for the golden sample;
+- an understanding that the browser calls only the localhost BFF, never Product HTTP.
 
 ## Start here
 
 <Cards>
-  <Card title="Choose an SDK" description="Choose a client by platform, framework, and runtime." href="/en/sdk/choose-sdk" />
-  <Card title="Versions & compatibility" description="Verify SDK, operating system, and server versions." href="/en/sdk/compatibility" />
-  <Card title="Common guides" description="Learn identity, connection, messaging, conversations, and error handling." href="/en/sdk/common-guides" />
-  <Card title="Android" description="Review the planned Android SDK structure." href="/en/sdk/android" />
-  <Card title="iOS" description="Review the planned iOS SDK structure." href="/en/sdk/ios" />
-  <Card title="JavaScript / Web" description="Review the planned browser SDK structure." href="/en/sdk/javascript" />
+  <Card title="JavaScript / Web" description="Enter the only published client golden path." href="/en/sdk/javascript" />
+  <Card title="Installation" description="Install the pinned SDK and verify the TypeScript sample." href="/en/sdk/javascript/installation" />
+  <Card title="Quickstart" description="Complete Alice/Bob messages, disconnect, reconnect, and offline synchronization." href="/en/sdk/javascript/quickstart" />
+  <Card title="Versions & Compatibility" description="Check the complete target tuple and receipt status." href="/en/sdk/compatibility" />
 </Cards>
+
+Android, iOS, Flutter, UniApp, HarmonyOS, common guides, the complete JavaScript API reference, and upgrade guide remain Planned and stay outside search, sitemap, and LLM output.
+
+## Expected result
+
+When the golden path passes, Alice and Bob each connect; two-way messages show SENDACK separately from realtime receipt; a message committed while Bob is disconnected appears as sync recovery after reconnect.
+
+## Troubleshooting
+
+- **You are unsure which SDK to choose:** Phase 12 verifies only JavaScript/Web; do not infer support from another platform's planned menu.
+- **Versions differ:** return to the compatibility snapshot and use the lockfile instead of `latest`.
+- **The sample connects but fails security review:** it is a development path without production token validation or HTTP business authentication.
+
+## Security and responsibility boundary
+
+An SDK does not own product accounts, authorization, or token issuance. The default v3 Beta Gateway does not automatically validate stored tokens. Production must add identity enforcement, TLS, rate limits, audit, and revocation.
+
+## Next step
+
+Go directly to the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart), or prepare the sample through [Installation](/en/sdk/javascript/installation) first.

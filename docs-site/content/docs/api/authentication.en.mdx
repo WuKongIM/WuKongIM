@@ -1,0 +1,78 @@
+---
+title: Authentication & Security
+description: Separate development identity, the localhost BFF, Product HTTP, and the default Gateway token-validation boundary.
+---
+
+## Goal and completion criteria
+
+When finished, you should be able to draw the trust boundary among the browser, product backend, Product HTTP, and Gateway and state clearly that a successful `/user/token` write does not mean a later CONNECT validated that token.
+
+## Compatibility target
+
+This page describes the default v3 Beta app composition in the [compatibility snapshot](/en/api/compatibility). It is a statement of current behavior, not a permanent security promise for future releases.
+
+## Prerequisites
+
+- Read [Integration Architecture](/en/guide/integration/architecture) first;
+- model product login, WuKongIM UID, device, and Session separately;
+- allow only trusted backends to reach Product HTTP;
+- plan TLS, service authentication, rate limits, and audit for production ingress.
+
+## Golden-sample trust flow
+
+```text
+browser
+  -> localhost BFF: request its own development identity, route, and offline sync
+
+localhost BFF
+  -> POST /user/token: store development-token metadata
+  -> GET /route: discover a WebSocket address
+  -> POST /channel/messagesync: synchronize for the current development identity
+
+browser + SDK
+  -> Gateway: CONNECT / SEND / RECVACK
+```
+
+The browser receives only the UID, development token, and WebSocket address required by its current connection. It gets neither Product HTTP management capability nor a server credential.
+
+## Current default behavior
+
+`POST /user/token` creates missing UID metadata and updates the token for a device category. A master device level also schedules closure of owner-local Sessions in the same device category.
+
+<Callout type="error" title="Stored tokens do not automatically validate CONNECT">
+  The current default app composition does not enable stored-token validation in the Gateway Authenticator. CONNECT negotiation and protocol encryption still occur, but an invalid, expired, or revoked token is not guaranteed to be rejected merely because `/user/token` was called.
+</Callout>
+
+Protocol session encryption also does not replace TLS ingress governance, product-account authentication, or HTTP service authorization.
+
+## Production responsibility checklist
+
+| Responsibility | Owner |
+| --- | --- |
+| Account login, tenant, and risk policy | Product identity service |
+| Stable UID and device policy | Product backend |
+| High-entropy, short-lived, revocable token | Product backend and trusted credential store |
+| CONNECT token validation and rejection tests | Production Gateway composition |
+| Product HTTP service identity, permissions, and rate limits | API Gateway / service mesh / product backend |
+| TLS, key rotation, audit, and alerts | Production platform |
+
+Phase 12 implements none of those production controls. Its golden BFF is only a stateless development helper.
+
+## Expected result
+
+The local sample can create Alice/Bob metadata and connect, while both docs and UI label those identities as development-only. A production design must prove that forged, expired, and revoked tokens cannot CONNECT and that untrusted clients cannot call token or synchronization routes.
+
+## Troubleshooting
+
+- **`/user/token` succeeds but CONNECT fails:** inspect route, Gateway address, protocol, and Reason Code separately; token storage is not connection success.
+- **An invalid token still CONNECTs:** this is a known boundary of the default composition, not an acceptable production result; install an explicit validator.
+- **A browser can call Product HTTP directly:** tighten network and proxy policy; CORS is not authorization.
+- **A token appears in logs or screenshots:** stop propagation, rotate it, and fix redaction.
+
+## Security and responsibility boundary
+
+The sample BFF must bind to loopback, validate Host/Origin, and return only fields needed by the current development Session. Do not deploy it to the public internet, a shared test environment, or real-user traffic. A real product must not copy its development-token policy.
+
+## Next step
+
+Inspect the [`/user/token` contract](/en/api/product-http/users) and [Error Responses](/en/api/product-http/errors), then verify the development path in the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart).
