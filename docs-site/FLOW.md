@@ -10,9 +10,10 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 `docs-site` is the standalone Fumadocs application for public WuKongIM v3
 documentation under `/zh` and `/en`. It owns shared information architecture,
 MDX publication, static search, sitemap/SEO, and LLM/Markdown outputs.
-It also owns the narrow JavaScript Web golden-path laboratory, its generated
-compatibility/OpenAPI artifacts, platform-neutral SDK behavior guides, and
-source-checked protocol dictionaries. It does not define product runtime
+It also owns the SDK chooser and official-source directory, the narrow
+JavaScript Web golden-path laboratory, its generated compatibility/OpenAPI
+artifacts, platform-neutral SDK behavior guides, and source-checked protocol
+dictionaries. It does not define product runtime
 behavior or replace authoritative code contracts. The JavaScript laboratory
 also owns a bounded local integration-acceptance report. The report identifies
 its harness and observed installed SDK, proves only its compatibility smoke,
@@ -36,15 +37,19 @@ and leaves the tested cluster source and production readiness unassessed.
    and the planning reference.
 2. Published bilingual MDX is filtered through that registry and feeds pages,
    search, sitemap, LLM output, and per-page Markdown.
-3. `lib/developer-contracts.ts` joins source-checked Reason Codes, Channel
+3. The published SDK chooser separates official repository availability,
+   tutorial publication, and exact-version executable verification. Repository
+   links do not expand the JavaScript compatibility snapshot or publish planned
+   platform APIs.
+4. `lib/developer-contracts.ts` joins source-checked Reason Codes, Channel
    Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
    pins, and the three-endpoint Product HTTP Beta subset into both human pages
    and machine-readable outputs.
-4. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
+5. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
    the real single-node cluster/Chromium verification evidence and can write a
    redacted local acceptance report only after fast and real gates pass.
-5. Next.js static export writes `out/`, whose publication, canonical, link,
+6. Next.js static export writes `out/`, whose publication, canonical, link,
    accessibility-structure, and machine-artifact boundaries are checked before
    any external hosting step.
 
@@ -60,6 +65,10 @@ and leaves the tested cluster source and production readiness unassessed.
 - Common SDK guides publish server- and wire-proven behavior only. They do not
   claim platform method names or expand compatibility beyond the executable
   JavaScript/Web snapshot.
+- The SDK chooser may link current official repositories, but must label source
+  availability, site tutorial status, and executable verification separately.
+  Legacy timing, universal-platform, or family-wide capability claims are not
+  republished without exact-version evidence.
 - Plain non-command `NoPersist` is terminal compatibility success without
   realtime delivery. Only command-style `NoPersist` enters transient online
   delivery, and neither branch has durable recovery.
@@ -88,6 +97,7 @@ and leaves the tested cluster source and production readiness unassessed.
 - [Navigation registry](lib/navigation.ts)
 - [Phase 14 acceptance specification](PHASE_14_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
+- [SDK chooser](content/docs/sdk/choose-sdk.en.mdx)
 - [JavaScript Web golden sample](examples/javascript-web-quickstart/README.md)
 - [Documentation landing page](content/docs/guide/index.mdx)
 

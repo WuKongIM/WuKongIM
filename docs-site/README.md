@@ -33,12 +33,14 @@ loopback-only BFF, three slice-level Product HTTP contracts, generated
 compatibility and Reason Code facts, and a real Alice/Bob reconnect-and-sync
 smoke scenario. It deliberately remains a v3 Beta golden-path subset rather
 than a complete SDK or API reference.
-Phase 13 publishes the platform-neutral integration foundation: eight common
-SDK behavior guides for identity, connection, messaging, payloads,
+Phase 13 publishes a reader-oriented SDK chooser with current official source
+discovery, followed by the platform-neutral integration foundation: eight
+common SDK behavior guides for identity, connection, messaging, payloads,
 conversations, offline recovery, push, multi-device state, and bounded
 reconnect handling, plus source-checked Channel Type, Device Flag / Level, and
-Message Flag dictionaries. It keeps JavaScript/Web as the only executable
-client compatibility target and does not turn planned SDK platforms into
+Message Flag dictionaries. Repository availability, tutorial publication, and
+executable verification stay distinct. JavaScript/Web remains the only
+executable client compatibility target, so planned SDK platforms do not become
 support claims.
 Phase 14 publishes an integrator acceptance loop: an evidence-backed
 JavaScript/Web capability matrix, a bilingual production gate guide, and a
@@ -153,7 +155,8 @@ the guide-foundation and plugin boundaries. `PHASE_10_SPEC.md` defines the
 direct-chat and group-tutorial boundaries. `PHASE_11_SPEC.md` defines the
 message-push and AI/IoT tutorial boundaries. `PHASE_12_SPEC.md` defines the
 JavaScript/Web golden path, Product HTTP subset, generated contract facts, and
-integration-test boundaries. `PHASE_13_SPEC.md` defines the cross-SDK behavior
-guides, source-checked protocol dictionaries, and platform-support boundary.
+integration-test boundaries. `PHASE_13_SPEC.md` defines SDK selection and
+source-discovery boundaries, cross-SDK behavior guides, source-checked protocol
+dictionaries, and the platform-support boundary.
 `PHASE_14_SPEC.md` defines the JavaScript capability evidence, local acceptance
 report, production gate, and publication-attestation boundaries.

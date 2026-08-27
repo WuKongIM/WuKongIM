@@ -3,7 +3,7 @@ title: JavaScript / Web 快速接入
 description: 通过 localhost BFF 完成连接、双向持久消息、断开、重连和离线同步。
 ---
 
-这是 Phase 12 的唯一端到端黄金路径。它使用真实 WuKongIM 单节点集群、真实 `wukongimjssdk@1.3.5` 和两个隔离的 Chromium 会话。
+这是当前站点唯一可从头运行的客户端黄金路径。它使用真实 WuKongIM 单节点集群、真实 `wukongimjssdk@1.3.5` 和两个隔离的 Chromium 会话。
 
 ## 目标与完成标准
 
@@ -66,6 +66,75 @@ BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 
 
 {/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
 
+## 5. 看懂背后的 SDK 代码
+
+页面按钮只是为了让结果可观察。真实应用中的顺序是：先注册监听，再写入后端返回的身份与地址，然后连接、发送，最后在页面销毁或退出登录时移除监听。
+
+```ts
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  ConnectStatus,
+  MessageText,
+  type ConnectStatusListener,
+  type MessageListener,
+  type MessageStatusListener,
+} from 'wukongimjssdk';
+
+const sdk = WKSDK.shared();
+
+const onConnectStatus: ConnectStatusListener = (status, reasonCode) => {
+  if (status === ConnectStatus.Connected) {
+    setConnectionState('connected');
+  } else if (status === ConnectStatus.ConnectFail) {
+    handleConnectFailure(reasonCode);
+  }
+};
+const onMessage: MessageListener = (message) => {
+  handleIncomingMessage(message);
+};
+const onMessageStatus: MessageStatusListener = (ack) => {
+  recordSendAcknowledgement(ack.reasonCode, ack.messageSeq);
+};
+
+sdk.connectManager.addConnectStatusListener(onConnectStatus);
+sdk.chatManager.addMessageListener(onMessage);
+sdk.chatManager.addMessageStatusListener(onMessageStatus);
+```
+
+这里的 `setConnectionState`、`handleConnectFailure`、`handleIncomingMessage` 和 `recordSendAcknowledgement` 代表你的应用处理函数。日志和指标不要记录 Token、完整消息正文或高基数身份字段。
+
+`identity` 必须由受信业务后端返回，不能把真实 Token 写进前端源码：
+
+```ts
+const config = sdk.config;
+config.uid = identity.uid;
+config.token = identity.token;
+config.addr = identity.websocketUrl;
+sdk.config = config;
+sdk.connect();
+```
+
+连接状态变为 `Connected` 后，向个人 Channel 发送文本消息：
+
+```ts
+await sdk.chatManager.send(
+  new MessageText('hello from alice'),
+  new Channel('bob', ChannelTypePerson),
+);
+```
+
+页面卸载或用户退出时，使用同一个函数引用移除监听并断开：
+
+```ts
+sdk.connectManager.removeConnectStatusListener(onConnectStatus);
+sdk.chatManager.removeMessageListener(onMessage);
+sdk.chatManager.removeMessageStatusListener(onMessageStatus);
+sdk.disconnect();
+```
+
+上面的骨架刻意省略了离线同步适配。完整样例还把个人频道同步回调接到 BFF，并对重复的实时与同步结果去重；请直接查看可执行的 [`sdk-runtime.ts`](https://github.com/WuKongIM/WuKongIM/blob/main/docs-site/examples/javascript-web-quickstart/src/client/sdk-runtime.ts)，不要让浏览器为补齐同步而直连 Product HTTP。
+
 ## 预期结果
 
 | 观察 | 能证明什么 | 不能证明什么 |
@@ -93,7 +162,7 @@ BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 
 
 确认离线消息曾收到成功 SENDACK，再按共享合同核对 BFF 同步请求中的当前 UID、对端 UID、方向、游标和 HTTP 状态。样例不会把 Token、UID 或消息正文写入普通日志；在线投递缺失与同步缺失需要分别诊断。
 
-## 5. 生成验收报告
+## 6. 生成验收报告
 
 手工理解事件边界后，可以让相同场景生成有界、脱敏的机器报告：
 

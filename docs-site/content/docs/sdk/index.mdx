@@ -1,53 +1,71 @@
 ---
-title: SDK
-description: 从跨 SDK 行为指南规划接入，再用固定的 JavaScript/Web 黄金路径验证最小闭环。
+title: SDK 教程
+description: 选择客户端 SDK，跑通第一条消息，再逐步补齐身份、重连、离线、会话和上线验收。
 ---
 
-SDK 文档现在分成两层：公共指南用当前服务端和 Wire 契约解释所有集成者都要处理的身份、连接、消息、会话、离线和多设备边界；JavaScript/Web 黄金路径提供唯一可执行、可出具 receipt 的客户端样例。
+WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议状态。你不需要先掌握底层协议；从自己的平台和目标开始，先跑通最小闭环，再补生产能力。
 
-## 目标与完成标准
+<Callout type="info" title="第一次接入从这里开始">
+  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)；做 Web 应用时可直接进入[安装与配置](/zh/sdk/javascript/installation)。Android、iOS、Flutter、UniApp 和 HarmonyOS 的官方源码可以从选择页找到，但本站对应的平台教程仍在规划中。
+</Callout>
 
-开发者应先完成跨 SDK 行为设计，再把它映射到精确平台版本。当前构建是否附带完整执行证据，仍以 JavaScript 兼容快照的 receipt 状态为准；公共指南发布不等于 Android、iOS、Flutter、UniApp 或 HarmonyOS 已验证。
-
-## 兼容目标
-
-Phase 12 固定 `wukongimjssdk@1.3.5`，并把服务端 revision、Node.js 与 Chromium 写入[兼容性快照](/zh/sdk/compatibility)。Phase 13 的公共指南和协议字典与当前源码校准，但没有扩大该快照的平台支持范围。
-
-## 前置条件
-
-- 一个通过 `/readyz` 的 WuKongIM 单节点集群；
-- Node.js `>=20.11` 与 npm，用于黄金样例；
-- 业务后端拥有账号、权限和 Product HTTP 信任边界；
-- 理解浏览器只能访问 localhost BFF，不能直连 Product HTTP。
-
-## 从这里开始
+## 你现在想完成什么
 
 <Cards>
-  <Card title="SDK 公共指南" description="先设计身份、连接、消息、会话、离线与多设备行为。" href="/zh/sdk/common-guides" />
-  <Card title="JavaScript / Web" description="进入唯一已发布的客户端黄金路径。" href="/zh/sdk/javascript" />
-  <Card title="安装与配置" description="安装固定 SDK 版本并验证 TypeScript 样例。" href="/zh/sdk/javascript/installation" />
-  <Card title="快速接入" description="完成 Alice/Bob 双向消息、断开、重连和离线同步。" href="/zh/sdk/javascript/quickstart" />
-  <Card title="能力与验收" description="核对场景覆盖范围，生成当前运行的兼容性证据并关闭生产门禁。" href="/zh/sdk/javascript/platform-capabilities" />
-  <Card title="版本与兼容性" description="核对完整目标 tuple 与 receipt 状态。" href="/zh/sdk/compatibility" />
+  <Card title="选择合适的 SDK" description="按平台找到候选仓库，再逐个 tag 核对能力、要求和验证状态。" href="/zh/sdk/choose-sdk" />
+  <Card title="跑通 Web 第一条消息" description="安装固定版本，连接 Alice 与 Bob，验证在线消息和离线恢复。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="设计完整客户端" description="按身份、连接、消息、会话、推送、多设备和异常逐项实现。" href="/zh/sdk/common-guides" />
+  <Card title="确认版本证据" description="核对服务端、SDK、Node.js 和 Chromium 是否属于同一兼容快照。" href="/zh/sdk/compatibility" />
 </Cards>
 
-Android、iOS、Flutter、UniApp、HarmonyOS、完整 JavaScript API Reference 和升级指南仍标记为“规划中”，不会进入搜索、Sitemap 或 LLM 输出。JavaScript 能力页只发布现有可执行场景的证据，不扩展其他平台支持。
+## 一次完整接入会经历什么
 
-## 预期结果
+1. **选择并锁定 SDK**：确认平台、必需能力和精确版本，不从 `latest` 猜兼容性。
+2. **准备业务身份**：用户先登录你的产品；受信后端再返回 UID、短期 Token 和连接所需材料。
+3. **初始化并监听事件**：配置当前用户，先注册连接、消息和发送状态监听，再发起连接。
+4. **连接并恢复状态**：等待 SDK 真正连接成功；重连时先同步缺失消息并去重，再把 UI 标记为可用。
+5. **发送与接收消息**：分别处理发送确认、在线接收和业务处理结果，不能把它们合成一个“成功”。
+6. **补齐产品体验**：根据需求加入自定义消息、会话与未读、移动推送和多设备策略。
+7. **完成上线验收**：验证失败与恢复路径，并单独关闭鉴权、TLS、限流、容量、审计和回滚门禁。
 
-完成公共指南后，你应有一份可评审的客户端状态机和上线证据清单。黄金路径通过时，Alice 与 Bob 各自连接；双向消息分别显示 SENDACK 与 realtime 接收；Bob 断开期间提交的消息在重连后显示为 sync 恢复。
+这七步在不同平台上的类名和回调形式会变化，但职责和验收问题相同。[SDK 公共指南](/zh/sdk/common-guides)按这个顺序解释共享行为，平台仓库负责精确 API。
 
-## 失败诊断
+## 当前教程覆盖到哪里
 
-- **不确定从哪个 SDK 开始**：Phase 12 只验证 JavaScript/Web；其他平台不要从规划菜单推断支持。
-- **有平台 SDK，但不知道如何组织生命周期**：先使用公共指南定义行为，再查该 SDK 的精确版本 API。
-- **版本不一致**：回到兼容快照并使用 lockfile，不要改用 `latest`。
-- **示例能连接但安全评审失败**：这是开发路径，不具备生产 Token 校验和 HTTP 业务鉴权。
+| 内容 | 当前状态 | 适合谁 |
+| --- | --- | --- |
+| [选择 SDK](/zh/sdk/choose-sdk)与官方源码目录 | 已发布 | 还在比较平台或 SDK 系列的开发者 |
+| [JavaScript / Web](/zh/sdk/javascript) | 已发布且有场景覆盖的可执行样例 | 想用浏览器完成首个客户端闭环的开发者 |
+| [公共指南](/zh/sdk/common-guides) | 已发布，平台无关 | 正在设计生产客户端生命周期的团队 |
+| Android、iOS、Flutter、UniApp、HarmonyOS 平台教程 | 规划中 | 先以所选官方仓库的精确 tag 和自带示例为准 |
+| 完整 JavaScript API Reference 与升级指南 | 规划中 | 先使用当前教程覆盖的 API 与固定兼容快照 |
+
+<Callout type="warn" title="不要混淆三种状态">
+  “有官方源码”表示可以评估仓库；“有本站教程”表示内容已公开；“已验证”表示某个精确版本组合通过了可执行场景。当前本站的可执行客户端证据只覆盖 `wukongimjssdk@1.3.5` 的 JavaScript/Web 路径。
+</Callout>
+
+## Web 教程会带你完成什么
+
+按照[安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)操作后，你将看到：
+
+- Alice 与 Bob 各自完成连接；
+- Alice 发送后收到 SENDACK，Bob 另行收到实时消息；
+- Bob 断开时，Alice 的持久消息仍可提交；
+- Bob 重连后从同步路径恢复消息，且不会把恢复结果误标为实时接收。
+
+这比只看“发送成功”更接近真实应用，因为持久提交、在线投递和离线恢复本来就是三个不同结果。
+
+## 常见问题
+
+- **不知道选哪一个仓库**：先列出平台、最低系统版本和必需能力，再使用[选择 SDK](/zh/sdk/choose-sdk)逐项核对。
+- **仓库示例能运行，但本站没有平台教程**：把仓库的精确 tag 作为 API 来源，并按公共指南建立自己的连接与消息验收用例。
+- **Web 样例能构建但连接失败**：继续按快速接入检查集群 `/readyz`、路由地址、Gateway 端口和 BFF 输出。
+- **消息发送成功但对方没显示**：先区分 SENDACK、在线接收和同步恢复，分别诊断。
 
 ## 安全与责任边界
 
-SDK 不拥有业务账号、授权或 Token 签发。默认 v3 Beta Gateway 不自动校验已存 Token，生产系统必须自行补齐身份边界、TLS、限流、审计和撤销。
+SDK 不负责产品账号、授权或 Token 签发。Web 浏览器不能直接调用 WuKongIM Product HTTP；这些接口应位于受信业务后端。默认 v3 Beta Gateway 也不会自动把已保存 Token 变成生产级身份校验，上线前必须补齐鉴权、TLS、网络隔离、限流、审计和撤销。
 
 ## 下一步
 
-先阅读 [SDK 公共指南](/zh/sdk/common-guides)形成接入设计，再进入[JavaScript/Web 快速接入](/zh/sdk/javascript/quickstart)验证最小闭环，最后按[上线验收](/zh/guide/integration/acceptance)收集发布证据。
+先[选择 SDK](/zh/sdk/choose-sdk)。如果目标是 Web，继续完成[安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)；其他平台则从官方仓库示例开始，并用[公共指南](/zh/sdk/common-guides)设计完整生命周期。

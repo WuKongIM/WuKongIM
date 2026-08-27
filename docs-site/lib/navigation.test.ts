@@ -159,9 +159,10 @@ describe('documentation navigation contract', () => {
     );
   });
 
-  test('publishes the Phase 13 integrator foundations without claiming new platform support', () => {
+  test('publishes the SDK chooser and integrator foundations without claiming new platform support', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const phase13Routes = [
+      '/en/sdk/choose-sdk',
       '/en/sdk/common-guides',
       '/en/sdk/common-guides/identity-and-token',
       '/en/sdk/common-guides/initialization-and-connection',
@@ -177,7 +178,7 @@ describe('documentation navigation contract', () => {
     ];
 
     expect(published).toEqual(expect.arrayContaining(phase13Routes));
-    expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('planned');
+    expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('published');
     for (const platform of ['android', 'ios', 'flutter', 'uniapp', 'harmonyos']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
@@ -286,6 +287,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/architecture/message-flow`,
         `/${locale}/server/architecture/user-routing`,
         `/${locale}/sdk`,
+        `/${locale}/sdk/choose-sdk`,
         `/${locale}/sdk/compatibility`,
         `/${locale}/sdk/common-guides`,
         `/${locale}/sdk/common-guides/identity-and-token`,
@@ -401,6 +403,8 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/acceptance.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/acceptance.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/choose-sdk.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/choose-sdk.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);

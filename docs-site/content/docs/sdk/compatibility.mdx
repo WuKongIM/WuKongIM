@@ -15,7 +15,7 @@ description: 核对 v3 Beta JavaScript/Web 黄金路径的服务端、SDK、Node
 
 未提供 attestation 文件时，共享快照输出 `verified: false` 和 `verification.status: "missing"`。只有成功 receipt 中完整的源码、锁文件、场景、SDK、Node.js、Playwright 与 Chromium tuple 和当前构建精确一致时，才会输出 `verified: true`。下表只是目标值，不是证据；格式错误或发生漂移的 receipt 仍保持未验证。
 
-| 组成 | Phase 12 承诺 |
+| 组成 | 当前兼容目标 |
 | --- | --- |
 | WuKongIM 服务端 | 构建时注入的源码 revision；按完整集群语义运行 |
 | JavaScript SDK | `wukongimjssdk@1.3.5`，精确锁定 |
@@ -34,8 +34,8 @@ curl --fail https://docs.githubim.com/compatibility.json
 | 引擎 | 状态 |
 | --- | --- |
 | Chromium `151.0.7922.34`（revision `1234`） | 唯一的阻断性 smoke 验证目标；当前构建是否已附证据以上方 `verified` 为准 |
-| Firefox | Phase 12 未验证 |
-| WebKit / Safari | Phase 12 未验证 |
+| Firefox | 当前快照未验证 |
+| WebKit / Safari | 当前快照未验证 |
 
 “未验证”不等于“一定不可用”，但也不能写成受支持保证。不要把本页概括为“支持所有现代浏览器”。
 

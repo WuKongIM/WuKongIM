@@ -40,4 +40,17 @@ describe('legacy redirect seed', () => {
       ]),
     );
   });
+
+  test('routes legacy SDK overview and source discovery into the published chooser', () => {
+    expect(manifest.mappings).toEqual(
+      expect.arrayContaining(
+        ['zh', 'en'].flatMap((locale) =>
+          ['/sdk/overview', '/sdk/easy/overview', '/sdk/source-code'].map((source) => ({
+            source: `/${locale}${source}`,
+            destination: `/${locale}/sdk/choose-sdk`,
+          })),
+        ),
+      ),
+    );
+  });
 });

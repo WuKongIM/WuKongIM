@@ -1,69 +1,81 @@
 ---
 title: JavaScript / Web
-description: 使用框架无关的 TypeScript 黄金样例完成浏览器连接、双向持久消息、重连和离线恢复。
+description: 用固定版本的 JavaScript SDK，从安装开始完成浏览器连接、消息收发、重连和离线恢复。
 ---
 
-JavaScript/Web 是 Phase 12 唯一发布的客户端接入路径。它用一个极小的 localhost BFF 和框架无关 TypeScript 页面证明真实 SDK 生命周期，不要求 React 或 Vue。
+这套教程面向第一次把 WuKongIM 接入浏览器应用的开发者。它不依赖 React 或 Vue，而是用框架无关的 TypeScript、一个仅限本机的 BFF，以及 Alice/Bob 两个会话展示完整的客户端生命周期。
 
-## 目标与完成标准
-
-完成本路径后，你应能在两个独立浏览器会话中连接 Alice 和 Bob，区分发送确认、在线接收和离线同步，并说明哪些安全职责仍属于业务后端。
-
-<Callout type="warn" title="v3 Beta 黄金路径子集">
-  本区只承诺固定兼容目标中的安装、Quickstart 和能力证据矩阵；当前构建的验证状态由 receipt 决定。完整 API Reference 和升级指南仍处于规划状态。
+<Callout type="warn" title="先明确当前覆盖范围">
+  教程固定使用 `wukongimjssdk@1.3.5` 和兼容快照中的 Chromium。它能证明这套样例里的安装、连接、双向持久消息、重连与离线恢复；不能自动证明其他浏览器、JavaScript SDK、运行时或平台版本兼容。
 </Callout>
 
-## 兼容目标
+## 适合谁
 
-使用 `wukongimjssdk@1.3.5` 和[兼容性页面](/zh/sdk/compatibility)列出的服务端 revision、Node.js 与 Chromium 组合。不要在完成基线前改用 `latest`。
+- 你正在开发浏览器端聊天、客服、协作或实时通知界面；
+- 你可以在受信后端中准备 UID、Token 和连接地址；
+- 你希望先跑通一个可观察的消息闭环，再接入自己的框架和状态管理。
 
-## 前置条件
+如果你还没决定使用 EasySDK 还是 WuKongIMSDK，先看[选择 SDK](/zh/sdk/choose-sdk)。本教程使用 WuKongIMJSSDK，不应把其中的方法名复制到其他 SDK。
+
+## 你将搭建什么
+
+```text
+Alice 浏览器 ─┐                         ┌─ Gateway WebSocket
+              ├─ localhost BFF ────────┤
+Bob 浏览器 ───┘   身份、路由、离线同步    └─ WuKongIM 单节点集群
+```
+
+- 浏览器中的 SDK 管理连接、发送、接收和重连状态；
+- BFF 代表受信业务后端调用 Product HTTP，并且只绑定 loopback；
+- WuKongIM 集群负责持久消息的顺序、提交、路由和在线投递。
+
+浏览器不会获得 Product HTTP 管理能力。迁移到真实产品时，你的业务后端要替换样例 BFF，接入自己的登录、授权和 Token 生命周期。
+
+## 推荐学习顺序
+
+<Cards>
+  <Card title="1. 安装与配置" description="先运行固定依赖的样例，再把精确版本加入现有项目。" href="/zh/sdk/javascript/installation" />
+  <Card title="2. 快速接入" description="连接 Alice 与 Bob，观察监听、发送、确认、断线与恢复对应的 SDK 调用。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="3. 平台能力" description="确认场景覆盖了什么，哪些能力还需要你自己验证。" href="/zh/sdk/javascript/platform-capabilities" />
+  <Card title="4. 公共指南" description="继续设计身份、会话、推送、多设备和异常策略。" href="/zh/sdk/common-guides" />
+  <Card title="5. 上线验收" description="生成兼容性 Smoke，并单独关闭生产安全与运维门禁。" href="/zh/guide/integration/acceptance" />
+  <Card title="版本快照" description="核对 SDK、服务端、Node.js 和浏览器的精确组合。" href="/zh/sdk/compatibility" />
+</Cards>
+
+## 第一次运行前准备
 
 - 一个已经通过 `/readyz` 的 WuKongIM 单节点集群；
 - Node.js `>=20.11` 与 npm；
-- 两个隔离的浏览器上下文，例如普通窗口和隐私窗口；
-- 只在本机运行的黄金样例 BFF。
+- 端口 `5001`、`5200` 和样例使用的 loopback 端口可用；
+- 当前仓库源码，用于运行 `docs-site/examples/javascript-web-quickstart`。
 
-## 推荐路径
+## 第一条消息会经过什么
 
-<Cards>
-  <Card title="安装与配置" description="用 npm lockfile 安装精确 SDK 版本并验证样例构建。" href="/zh/sdk/javascript/installation" />
-  <Card title="快速接入" description="完成 Alice/Bob 连接、双向消息、断开、重连和离线同步。" href="/zh/sdk/javascript/quickstart" />
-  <Card title="平台专属能力" description="区分仓库真实场景覆盖的能力、安全边界和未验证范围。" href="/zh/sdk/javascript/platform-capabilities" />
-  <Card title="版本与兼容性" description="核对服务端、SDK、Node 与 Chromium 快照。" href="/zh/sdk/compatibility" />
-  <Card title="上线验收" description="生成本地兼容性报告，并单独关闭生产门禁。" href="/zh/guide/integration/acceptance" />
-  <Card title="Product HTTP 子集" description="理解 BFF 使用的 Token、路由和消息同步合同。" href="/zh/api/product-http" />
-</Cards>
+| 阶段 | 你做什么 | 你应该看到什么 |
+| --- | --- | --- |
+| 安装 | 使用 lockfile 安装固定 SDK | 测试、TypeScript 与构建检查通过 |
+| 身份 | Alice 与 Bob 分别向 BFF 请求开发身份 | 浏览器得到 UID、临时 Token 和 WebSocket 地址 |
+| 连接 | SDK 注册监听并发起连接 | 两边状态分别变为 `connected` |
+| 发送 | Alice 给 Bob 发送持久文本消息 | Alice 收到 SENDACK，Bob 收到 `realtime` 事件 |
+| 断线 | Bob 断开，Alice 再发送 | Alice 仍收到 SENDACK，Bob 没有实时事件 |
+| 恢复 | Bob 重连并同步 | Bob 看到一次 `recovered` 结果 |
 
-## 可观察的成功模型
+SENDACK、在线接收和离线恢复是三个独立结果。教程会让你分别观察它们，而不是只显示一个模糊的“发送成功”。
 
-```text
-浏览器 -> localhost BFF -> /user/token + /route
-浏览器 -> JavaScript SDK -> CONNECT -> SEND -> SENDACK
-                                           -> Bob RECV（在线）
-Bob 重连 -> localhost BFF -> /channel/messagesync（离线恢复）
-```
+## 完成标志
 
-样例事件日志会明确标记连接状态、SENDACK、在线接收与同步来源。持久提交成功、某个在线 Session 收到消息、重连同步恢复消息是三个不同结果。
-
-## 预期结果
-
-- Alice 和 Bob 都显示已连接及当前 WebSocket 节点；
-- 两个方向各有一次持久发送确认和在线接收；
-- Bob 断开期间的消息仍能提交；
-- Bob 重连后从同步路径恢复该消息，且 UI 不把它误标为实时接收。
+- 你能解释 Token 和连接地址为什么来自后端，而不是写死在浏览器；
+- 你能在代码中找到连接状态、消息和发送确认的监听器；
+- 你能区分持久提交、在线投递和同步恢复；
+- 你知道样例通过后还需要哪些生产门禁。
 
 ## 常见故障
 
-- **身份创建失败**：确认 BFF 与集群都在本机运行，并检查 `/readyz`。
-- **浏览器能打开但无法连接**：检查 `/route` 返回的 `ws_addr`，以及端口 `5200`。
-- **SENDACK 成功但 Bob 页面没有消息**：先把它视为在线投递问题；持久提交不会因此自动回滚。
-- **重连后没有恢复**：检查 BFF 的同步请求使用 Bob 的 `login_uid`、Alice 的对端 UID 和 `channel_type=1`。
-
-## 安全与责任边界
-
-浏览器只能调用样例 BFF，不能直接调用 WuKongIM Product HTTP。这个无状态 BFF 只绑定 loopback，用于开发身份；它不实现账号、授权、Token 生命周期或生产数据库。默认 Gateway 也不会自动校验已存 Token。
+- **安装阶段失败**：回到 lockfile 和 Node.js 版本，不要改用 `latest` 绕过。
+- **身份创建失败**：确认集群 `/readyz`、BFF 输出和 Product HTTP 地址。
+- **一直连接中**：检查 `/route` 返回地址和 Gateway WebSocket 端口。
+- **对方没收到**：分别检查 SENDACK、在线事件和离线同步，不要把三条路径混在一起。
 
 ## 下一步
 
-先完成[安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)，再核对[平台专属能力](/zh/sdk/javascript/platform-capabilities)并执行[上线验收](/zh/guide/integration/acceptance)。
+从[安装与配置](/zh/sdk/javascript/installation)开始。完成样例构建后，再按[快速接入](/zh/sdk/javascript/quickstart)发送第一条真实消息。

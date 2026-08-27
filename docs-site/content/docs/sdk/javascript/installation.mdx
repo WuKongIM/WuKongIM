@@ -3,9 +3,9 @@ title: 安装与配置
 description: 安装精确版本的 JavaScript SDK，并验证框架无关 TypeScript 黄金样例。
 ---
 
-## 目标与完成标准
+## 你会完成什么
 
-本页把本地工具链固定到兼容目标。完成后，黄金样例应能通过测试、构建和 TypeScript 检查，且依赖树中的 `wukongimjssdk` 精确为 `1.3.5`；当前构建的验证状态仍由 receipt 决定。
+本页先让你运行仓库中的可执行样例，再说明如何把同一个精确版本加入自己的前端项目。完成后，样例应通过测试、构建和 TypeScript 检查，依赖树中的 `wukongimjssdk` 应精确为 `1.3.5`。
 
 ## 兼容目标
 
@@ -27,7 +27,7 @@ npm --version
 
 如果 Node.js 低于 `20.11`，先升级运行时；需要与已验证证据完全一致时使用 Node.js `22.12.0`。不要通过修改 `engines` 绕过样例的验证边界。
 
-## 安装黄金样例
+## 1. 先安装并检查黄金样例
 
 样例源码位于 [`docs-site/examples/javascript-web-quickstart`](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/javascript-web-quickstart)。
 
@@ -41,7 +41,28 @@ npm run check
 
 {/* PHASE12:GOLDEN_SAMPLE_INSTALL_SNIPPET */}
 
-## 配置模型
+## 2. 把固定版本加入现有项目
+
+黄金样例通过后，在你自己的 npm 项目中安装相同版本：
+
+```bash
+npm install --save-exact wukongimjssdk@1.3.5
+npm ls wukongimjssdk
+```
+
+`--save-exact` 会把 `package.json` 写成精确版本，而不是允许自动漂移的范围。提交生成的 lockfile，并让开发、CI 和生产构建使用同一个包管理器。若你的项目不是 npm 工程，应使用对应工具的精确版本锁定方式，并在接入证据中记录 lockfile。
+
+应用代码从包中导入 SDK；下一页会把监听、配置、连接和发送对应到可执行样例：
+
+```ts
+import WKSDK from 'wukongimjssdk';
+
+const sdk = WKSDK.shared();
+```
+
+SDK 是单例。一个页面需要模拟多个用户时，应像黄金样例一样把用户放进隔离的 browsing context，而不是在同一个上下文反复覆盖身份。
+
+## 3. 理解配置模型
 
 黄金样例由两部分组成：
 
@@ -57,6 +78,7 @@ npm run check
 - `npm ci` 按 lockfile 完成；
 - `npm run check` 以状态码 `0` 退出；
 - `npm ls wukongimjssdk` 显示 `1.3.5`；
+- 自己项目的 `package.json` 和 lockfile 都锁定 `1.3.5`；
 - 生成物和源码中不包含明文固定生产凭据。
 
 可额外检查版本：
@@ -69,6 +91,7 @@ npm ls wukongimjssdk
 
 - **`npm ci` 报 lockfile 不一致**：不要改用 `npm install` 掩盖漂移；先核对当前源码 revision。
 - **TypeScript 检查失败**：确认使用受支持的 Node.js，并撤销本地 SDK 升级。
+- **自己的项目仍安装了其他版本**：检查 workspace 根目录、overrides/resolutions 和旧 lockfile，不要同时维护两份版本事实。
 - **测试通过但真实连接失败**：本页只验证本地构建；继续按 Quickstart 检查集群、路由和 Gateway。
 - **端口已占用**：先停止冲突进程，再按样例 README 更改仅限本机的监听配置。
 

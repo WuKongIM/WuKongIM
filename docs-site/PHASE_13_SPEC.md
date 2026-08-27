@@ -2,11 +2,13 @@
 
 ## Goal
 
-Publish the platform-neutral client-integration foundation that sits between
-the executable JavaScript/Web golden path and SDK-specific API references.
-An integrator must be able to design identity, connection, messaging,
-payload, conversation, offline, push, multi-device, reconnect, and error
-behavior without guessing method names or promoting an unverified SDK platform.
+Publish a reader-oriented SDK chooser and the platform-neutral
+client-integration foundation that sits between the executable JavaScript/Web
+golden path and SDK-specific API references. An integrator must be able to find
+current official source, select an exact platform candidate, and design
+identity, connection, messaging, payload, conversation, offline, push,
+multi-device, reconnect, and error behavior without guessing method names or
+promoting an unverified SDK platform.
 
 Phase 13 also publishes source-checked Channel Type, Device Flag / Level, and
 Message Flag dictionaries so prose, clients, protocol tooling, and LLM output
@@ -17,21 +19,24 @@ share one current set of numeric facts.
 The primary audience owns an end-user client plus a trusted product backend.
 After this phase, that integrator can produce:
 
-1. a backend-controlled identity and credential contract;
-2. a client state machine that separates transport open, CONNECT, recovery,
+1. a platform and SDK shortlist that separates repository availability,
+   tutorial publication, and executable verification;
+2. a backend-controlled identity and credential contract;
+3. a client state machine that separates transport open, CONNECT, recovery,
    and product-ready state;
-3. a message state model that separates durable commit, online write,
+4. a message state model that separates durable commit, online write,
    RECVACK, and business completion;
-4. distinct conversation, unread, message-pull, and pagination cursors;
-5. a push design in which durable sync remains the message authority;
-6. a multi-device policy backed by a product device registry;
-7. a bounded, phase-aware reconnect and retry policy;
-8. repeatable release evidence tied to an exact compatibility target.
+5. distinct conversation, unread, message-pull, and pagination cursors;
+6. a push design in which durable sync remains the message authority;
+7. a multi-device policy backed by a product device registry;
+8. a bounded, phase-aware reconnect and retry policy;
+9. repeatable release evidence tied to an exact compatibility target.
 
 ## Published routes
 
-Phase 13 adds matching Chinese and English MDX for exactly these 12 routes:
+Phase 13 adds matching Chinese and English MDX for exactly these 13 routes:
 
+- `/sdk/choose-sdk`
 - `/sdk/common-guides`
 - `/sdk/common-guides/identity-and-token`
 - `/sdk/common-guides/initialization-and-connection`
@@ -46,8 +51,26 @@ Phase 13 adds matching Chinese and English MDX for exactly these 12 routes:
 - `/api/dictionaries/message-flags`
 
 The SDK and dictionary indexes are updated to route readers into this material.
-`/sdk/choose-sdk`, every non-JavaScript platform group, complete platform API
-references, platform capability guides, and upgrade guides remain planned.
+Every non-JavaScript platform group, complete platform API references, platform
+capability guides, and upgrade guides remain planned.
+
+## SDK chooser publication boundary
+
+The chooser preserves the legacy EasySDK and WuKongIMSDK names only as source
+discovery aids. It must:
+
+- link repositories under the current official WuKongIM organization;
+- separate source availability, site tutorial publication, and executable
+  exact-version verification;
+- keep JavaScript/Web `wukongimjssdk@1.3.5` as the only client snapshot eligible
+  for the existing receipt;
+- send non-JavaScript readers to the current official repository, require them
+  to select and record an exact tag, and link Common Guides without publishing
+  platform method names;
+- avoid unqualified integration-time, universal-platform, family-wide feature,
+  current-version, system-requirement, or license claims;
+- use capability requirements and a minimal acceptance loop instead of
+  selecting only from an “IM app / non-IM app” label.
 
 ## Cross-SDK publication boundary
 
@@ -188,8 +211,9 @@ LLM artifacts cannot silently diverge.
 
 The fast gate must cover:
 
-- the exact 12-route publication set and bilingual MDX parity;
-- continued planned status for Choose SDK and non-JavaScript platforms;
+- the exact 13-route publication set and bilingual MDX parity;
+- official SDK source discovery without broadening executable compatibility;
+- continued planned status for non-JavaScript platform tutorials;
 - common-guide boundary text plus compatibility links;
 - Channel Type names and values against `pkg/protocol/frame/common.go`;
 - Device Flag and Device Level constants against `protocolmeta`;
@@ -210,7 +234,7 @@ SDK platforms.
 - Runtime, authentication, SDK, protocol, configuration, or Product HTTP
   behavior changes.
 - Claims that default v3 Beta token storage is production CONNECT validation.
-- SDK selection rankings, current release matrices, or platform-specific API
+- unqualified SDK rankings, current release matrices, or platform-specific API
   methods without versioned executable evidence.
 - Publishing Android, iOS, Flutter, UniApp, HarmonyOS, JavaScript API reference,
   platform capabilities, or upgrade guides.

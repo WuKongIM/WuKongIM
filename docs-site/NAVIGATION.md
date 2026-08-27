@@ -101,9 +101,9 @@ Route: `/{lang}/server`
 
 Route: `/{lang}/sdk`
 
-在不同客户端平台接入 WuKongIM。 / Integrate WuKongIM across supported client platforms.
+在不同客户端平台接入 WuKongIM。 / Integrate WuKongIM across client platforms.
 
-- **选择 SDK / Choose an SDK** `/{lang}/sdk/choose-sdk` — 根据应用平台、框架和运行环境选择客户端 SDK。 / Choose a client SDK by platform, framework, and runtime.
+- **选择 SDK / Choose an SDK** `/{lang}/sdk/choose-sdk` — 按应用平台、能力需求和验证状态选择客户端 SDK，并找到官方源码。 / Choose a client SDK by platform, capability needs, and verification status, then find official source.
 
 - **版本与兼容性 / Versions & Compatibility** `/{lang}/sdk/compatibility` — 记录 v3 Beta 黄金路径的服务端 revision、SDK、Node、浏览器兼容目标与 receipt 状态。 / Records the server revision, SDK, Node, and browser compatibility target plus receipt status for the v3 Beta golden path.
 

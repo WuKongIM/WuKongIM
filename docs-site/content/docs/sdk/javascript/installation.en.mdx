@@ -3,9 +3,9 @@ title: Installation
 description: Install the exact JavaScript SDK version and verify the framework-neutral TypeScript golden sample.
 ---
 
-## Goal and completion criteria
+## What you will complete
 
-This page pins the local toolchain to the compatibility target. When finished, the golden sample should pass tests, build, and TypeScript checks, with exactly `wukongimjssdk@1.3.5` in its dependency tree; the receipt still decides this build's verification status.
+This page first runs the repository's executable sample and then adds the same exact version to an existing frontend project. When finished, the sample should pass tests, build, and TypeScript checks, with exactly `wukongimjssdk@1.3.5` in its dependency tree.
 
 ## Compatibility target
 
@@ -27,7 +27,7 @@ npm --version
 
 Upgrade the runtime if Node.js is older than `20.11`; use Node.js `22.12.0` when reproducing the verified evidence exactly. Do not edit `engines` to bypass the sample's verification boundary.
 
-## Install the golden sample
+## 1. Install and check the golden sample first
 
 The sample source lives at [`docs-site/examples/javascript-web-quickstart`](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/javascript-web-quickstart).
 
@@ -41,7 +41,28 @@ npm run check
 
 {/* PHASE12:GOLDEN_SAMPLE_INSTALL_SNIPPET */}
 
-## Configuration model
+## 2. Add the pinned version to an existing project
+
+After the golden sample passes, install the same version in your own npm project:
+
+```bash
+npm install --save-exact wukongimjssdk@1.3.5
+npm ls wukongimjssdk
+```
+
+`--save-exact` writes an exact package version instead of a range that may drift. Commit the generated lockfile and use the same package manager in development, CI, and production builds. For a non-npm project, use that tool's exact-version mechanism and record its lockfile in the integration evidence.
+
+Import the SDK from the package. The next page maps listeners, configuration, connection, and send to the executable sample:
+
+```ts
+import WKSDK from 'wukongimjssdk';
+
+const sdk = WKSDK.shared();
+```
+
+The SDK is a singleton. To simulate multiple users in one page, use isolated browsing contexts as the golden sample does instead of overwriting identities in one context.
+
+## 3. Understand the configuration model
 
 The golden sample has two parts:
 
@@ -57,6 +78,7 @@ The sample adds no React, Vue, product database, or account system. Treat the sa
 - `npm ci` completes from the lockfile;
 - `npm run check` exits with status `0`;
 - `npm ls wukongimjssdk` reports `1.3.5`;
+- your application's `package.json` and lockfile both pin `1.3.5`;
 - generated files and source contain no fixed plaintext production credentials.
 
 You can inspect the installed version explicitly:
@@ -69,6 +91,7 @@ npm ls wukongimjssdk
 
 - **`npm ci` reports lockfile drift:** do not hide it with `npm install`; first verify the current source revision.
 - **TypeScript checks fail:** confirm the supported Node.js version and remove local SDK upgrades.
+- **Your project still installs another version:** inspect the workspace root, overrides/resolutions, and old lockfile instead of maintaining two version truths.
 - **Checks pass but a real connection fails:** this page validates only the local build; use Quickstart to inspect the cluster, route, and Gateway.
 - **A port is occupied:** stop the conflicting process, then change only the local listener setting documented by the sample README.
 

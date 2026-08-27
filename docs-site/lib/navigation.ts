@@ -713,16 +713,16 @@ export const domains: DocumentationDomain[] = [
     label: text('SDK', 'SDK'),
     description: text(
       '在不同客户端平台接入 WuKongIM。',
-      'Integrate WuKongIM across supported client platforms.',
+      'Integrate WuKongIM across client platforms.',
     ),
     status: 'published',
     pages: [
-      plannedPage(
+      publishedPage(
         'choose-sdk',
         '选择 SDK',
         'Choose an SDK',
-        '根据应用平台、框架和运行环境选择客户端 SDK。',
-        'Choose a client SDK by platform, framework, and runtime.',
+        '按应用平台、能力需求和验证状态选择客户端 SDK，并找到官方源码。',
+        'Choose a client SDK by platform, capability needs, and verification status, then find official source.',
       ),
       publishedPage(
         'compatibility',

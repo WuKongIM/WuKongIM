@@ -3,15 +3,15 @@ title: SDK Common Guides
 description: Plan identity, connection, messaging, conversations, offline recovery, and multi-device integration through server-proven behavior.
 ---
 
-SDK class names and callback shapes vary by platform, but integrators face the same responsibility boundary: the product service supplies trusted identity and policy, the SDK owns connection and protocol state, and the WuKongIM cluster owns Channel ordering, persistence, routing, and online delivery.
+SDK syntax varies by platform, but integration usually follows the same path: prepare identity, initialize, connect, exchange messages, handle disconnects, then add conversations, push, and multi-device behavior. These guides explain the problem and completion signal at each step without requiring wire-protocol knowledge first.
 
 <Callout type="info" title="Cross-SDK behavior guide">
-  This area is a **cross-SDK behavior guide**. It publishes only semantics supported by the current server, wire contracts, and JavaScript golden path. It does not promise Android, iOS, Flutter, UniApp, or HarmonyOS method names, nor mark those platforms as verified. The only client path with an executable compatibility receipt remains the [JavaScript/Web snapshot](/en/sdk/compatibility).
+  This remains a **cross-SDK behavior guide**, not a platform API reference. Take classes and methods from the repository version you pin after [choosing an SDK](/en/sdk/choose-sdk). Only the [JavaScript/Web snapshot](/en/sdk/compatibility) currently has an executable verification entry point on this site.
 </Callout>
 
-## Goal and completion criteria
+## What you will have when finished
 
-After this guide set, you should be able to draw your integration state machine and name the authority, completion signal, and compensation for every step. You should be able to answer:
+After this guide set, you will have a product-backend/client responsibility checklist, a client flow from login through offline recovery, and repeatable release cases. You should be able to answer:
 
 - who creates, rotates, and revokes the UID, device identity, and token;
 - when a TCP/WebSocket is merely open and when the session may send;
@@ -19,7 +19,7 @@ After this guide set, you should be able to draw your integration state machine 
 - which layer owns conversations, unread state, push, and multi-device state;
 - which failures may retry with the same idempotency key and which require identity or policy repair first.
 
-## Integrator reading path
+## Read in integration order
 
 <Cards>
   <Card title="Identity & Token" description="Establish UID, device, credential, and revocation boundaries first." href="/en/sdk/common-guides/identity-and-token" />

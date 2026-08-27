@@ -3,15 +3,15 @@ title: SDK 公共指南
 description: 用服务端可证明的行为语义规划身份、连接、消息、会话、离线恢复和多设备接入。
 ---
 
-客户端 SDK 的类名与回调形式会随平台变化，但集成者面对的责任边界相同：业务服务提供可信身份和权限，SDK 管理连接与协议状态，WuKongIM 集群负责 Channel 顺序、持久化、路由和在线投递。
+不同平台的 SDK 写法不一样，但接入顺序很相似：准备身份、初始化、连接、收发消息、处理断线，再补会话、推送和多设备体验。这里不要求你先理解底层协议，而是把每一步要解决的问题和完成标志讲清楚。
 
 <Callout type="info" title="跨 SDK 行为指南">
-  本区域是**跨 SDK 行为指南**，只发布能由当前服务端、Wire 契约和 JavaScript 黄金路径共同证明的语义。它不声明 Android、iOS、Flutter、UniApp 或 HarmonyOS 的具体方法名，也不把这些平台标记为已验证。唯一带可执行兼容 receipt 的客户端路径仍是 [JavaScript/Web 快照](/zh/sdk/compatibility)。
+  这些页面是接入清单，不是某个平台的 API Reference。类名和方法请以[选择 SDK](/zh/sdk/choose-sdk)后锁定的仓库版本为准；当前只有 [JavaScript/Web 快照](/zh/sdk/compatibility)具备本站可执行验证入口。
 </Callout>
 
-## 目标与完成标准
+## 读完后你会得到什么
 
-完成本组指南后，你应能画出自己的接入状态机，明确每一步的权威来源、完成信号和失败补偿，并回答：
+完成本组指南后，你会得到一份业务后端与客户端的职责清单、一条从登录到离线恢复的客户端流程，以及一组可重复的上线验收用例。你应能回答：
 
 - UID、设备和 Token 由谁创建、轮换和撤销；
 - 何时只是 TCP/WebSocket 已连接，何时会话才可发送；
@@ -19,7 +19,7 @@ description: 用服务端可证明的行为语义规划身份、连接、消息�
 - 会话列表、未读数、推送和多设备状态由哪一层维护；
 - 哪些失败可以复用幂等键重试，哪些必须先修复身份或权限。
 
-## 集成者阅读路径
+## 按接入顺序阅读
 
 <Cards>
   <Card title="身份与 Token" description="先建立 UID、设备、凭据和撤销边界。" href="/zh/sdk/common-guides/identity-and-token" />

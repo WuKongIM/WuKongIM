@@ -3,7 +3,7 @@ title: JavaScript / Web Quickstart
 description: Use the localhost BFF to connect, exchange persistent messages, disconnect, reconnect, and synchronize offline messages.
 ---
 
-This is the only end-to-end golden path in Phase 12. It uses a real WuKongIM single-node cluster, real `wukongimjssdk@1.3.5`, and two isolated Chromium sessions.
+This is the only client golden path on this site that can currently be run end to end. It uses a real WuKongIM single-node cluster, real `wukongimjssdk@1.3.5`, and two isolated Chromium sessions.
 
 ## Goal and completion criteria
 
@@ -66,6 +66,75 @@ The BFF reads the committed log through `/channel/messagesync`. For a person Cha
 
 {/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
 
+## 5. Understand the SDK code behind the controls
+
+The buttons make outcomes observable. A real application follows the same order: register listeners first, apply identity and address returned by the backend, connect, send, and finally remove listeners when the page is destroyed or the user logs out.
+
+```ts
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  ConnectStatus,
+  MessageText,
+  type ConnectStatusListener,
+  type MessageListener,
+  type MessageStatusListener,
+} from 'wukongimjssdk';
+
+const sdk = WKSDK.shared();
+
+const onConnectStatus: ConnectStatusListener = (status, reasonCode) => {
+  if (status === ConnectStatus.Connected) {
+    setConnectionState('connected');
+  } else if (status === ConnectStatus.ConnectFail) {
+    handleConnectFailure(reasonCode);
+  }
+};
+const onMessage: MessageListener = (message) => {
+  handleIncomingMessage(message);
+};
+const onMessageStatus: MessageStatusListener = (ack) => {
+  recordSendAcknowledgement(ack.reasonCode, ack.messageSeq);
+};
+
+sdk.connectManager.addConnectStatusListener(onConnectStatus);
+sdk.chatManager.addMessageListener(onMessage);
+sdk.chatManager.addMessageStatusListener(onMessageStatus);
+```
+
+`setConnectionState`, `handleConnectFailure`, `handleIncomingMessage`, and `recordSendAcknowledgement` stand for application handlers. Do not put tokens, complete message bodies, or high-cardinality identity fields into logs or metrics.
+
+`identity` must come from a trusted product backend. Never put a real token in frontend source:
+
+```ts
+const config = sdk.config;
+config.uid = identity.uid;
+config.token = identity.token;
+config.addr = identity.websocketUrl;
+sdk.config = config;
+sdk.connect();
+```
+
+After connection state becomes `Connected`, send a text message to a person Channel:
+
+```ts
+await sdk.chatManager.send(
+  new MessageText('hello from alice'),
+  new Channel('bob', ChannelTypePerson),
+);
+```
+
+On page teardown or logout, remove listeners with the same function references and disconnect:
+
+```ts
+sdk.connectManager.removeConnectStatusListener(onConnectStatus);
+sdk.chatManager.removeMessageListener(onMessage);
+sdk.chatManager.removeMessageStatusListener(onMessageStatus);
+sdk.disconnect();
+```
+
+This skeleton deliberately omits the offline-sync adapter. The complete sample also connects person-Channel synchronization to the BFF and deduplicates overlapping realtime and synchronized results. Read the executable [`sdk-runtime.ts`](https://github.com/WuKongIM/WuKongIM/blob/main/docs-site/examples/javascript-web-quickstart/src/client/sdk-runtime.ts) instead of giving the browser direct Product HTTP access to fill that gap.
+
 ## Expected result
 
 | Observation | What it proves | What it does not prove |
@@ -93,7 +162,7 @@ Record the Reason Code and consult [Reason Code](/en/api/dictionaries/reason-cod
 
 First confirm that the offline send received a successful SENDACK. Then compare the BFF synchronization request's current UID, peer UID, direction, cursor, and HTTP status with the shared contract. The sample does not put tokens, UIDs, or message bodies in ordinary logs. Missing online delivery and missing synchronization are separate failures.
 
-## 5. Generate an acceptance report
+## 6. Generate an acceptance report
 
 After understanding the event boundaries manually, run the same scenario as a bounded, redacted machine report:
 

@@ -15,7 +15,7 @@ Before integration, confirm that your server revision, `wukongimjssdk`, Node.js,
 
 Without an attestation file, the shared snapshot reports `verified: false` and `verification.status: "missing"`. Only a successful receipt whose complete source, lockfile, scenario, SDK, Node.js, Playwright, and Chromium tuple exactly matches this build can report `verified: true`. The target values below are not evidence by themselves; malformed or drifted receipts stay unverified.
 
-| Component | Phase 12 commitment |
+| Component | Current compatibility target |
 | --- | --- |
 | WuKongIM server | Source revision injected at build time; runs full cluster semantics |
 | JavaScript SDK | Exactly `wukongimjssdk@1.3.5` |
@@ -34,8 +34,8 @@ curl --fail https://docs.githubim.com/compatibility.json
 | Engine | Status |
 | --- | --- |
 | Chromium `151.0.7922.34` (revision `1234`) | The only blocking smoke target; the `verified` attestation above decides whether this build carries complete evidence |
-| Firefox | Not verified in Phase 12 |
-| WebKit / Safari | Not verified in Phase 12 |
+| Firefox | Not verified by the current snapshot |
+| WebKit / Safari | Not verified by the current snapshot |
 
 “Not verified” does not mean “known to fail,” but it is not a support guarantee either. Do not summarize this page as support for all modern browsers.
 
