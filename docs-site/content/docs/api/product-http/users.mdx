@@ -1,0 +1,83 @@
+---
+title: 用户（Beta 子集）
+description: 使用 POST /user/token 从受信 BFF 保存开发身份的设备 Token 元数据。
+---
+
+## 目标与完成标准
+
+本页只发布 `POST /user/token`。完成后，受信 BFF 应能为当前浏览器 Session 创建 UID 并保存设备 Token 元数据，而浏览器本身不知道 Product HTTP 管理地址。
+
+## 兼容目标
+
+该入口属于[黄金路径 API 快照](/zh/api/compatibility)。权威入口 DTO 位于 `internal/access/api/user_token.go`，业务校验与写入位于 `internal/usecase/user`；切片级 OpenAPI 和 BFF 类型对齐这些定义。
+
+## 前置条件
+
+- 调用方位于受信后端；
+- 集群 `/readyz` 成功；
+- 业务系统已经决定稳定 UID 和设备类别；
+- Token 由服务端安全随机数生成器产生，不由浏览器自报。
+
+## 合同
+
+| 项目 | 值 |
+| --- | --- |
+| 方法 | `POST` |
+| 路径 | `/user/token` |
+| 信任级别 | 仅本地开发 BFF 或受信业务后端 |
+| Content-Type | `application/json` |
+| 成功状态 | `200` |
+
+黄金样例发送：
+
+```json
+{
+  "uid": "alice",
+  "token": "server-generated-development-secret",
+  "device_flag": 1,
+  "device_level": 0
+}
+```
+
+| 字段 | 类型 | 黄金路径含义 |
+| --- | --- | --- |
+| `uid` | string | 必填，稳定业务身份；不能为空，不含 `@`、`#`、`&` |
+| `token` | string | 必填，BFF 生成的开发凭据 |
+| `device_flag` | integer | Web 设备类别，黄金样例使用 `1` |
+| `device_level` | integer | 设备冲突级别，黄金样例使用从设备值 `0` |
+
+成功响应：
+
+```json
+{"status": 200}
+```
+
+可运行调用实现位于黄金样例的 `src/server/product-http-client.ts` 中 `product-http-token` 命名片段；浏览器只调用 BFF 的 `/api/development/identity`。
+
+## 行为语义
+
+如果 UID 不存在，用户用例会创建用户元数据，然后 upsert 对应设备类别的 Token。主设备级别会在持久变更后安排关闭 owner-local 同类设备 Session；黄金样例使用从设备级别，不测试产品级多设备冲突策略。
+
+<Callout type="error" title="存储成功不是 CONNECT 鉴权成功">
+  默认 v3 Beta Gateway 组合不会自动根据这里保存的 Token 校验后续 CONNECT。`{"status":200}` 只说明本次元数据操作成功。
+</Callout>
+
+## 预期结果
+
+BFF 收到 `200` 后再调用 `/route`，最后只向浏览器返回自己的 UID、临时开发 Token 和 WebSocket 地址。响应不应被缓存，Token 不应出现在日志、URL 或截图中。
+
+## 错误与诊断
+
+- **无效 JSON**：返回 `400` 兼容错误体；修正 Content-Type 与请求体。
+- **UID 或 Token 为空**：返回 `400`；不要原样重试。
+- **UID 含保留字符**：选择符合业务 ID 策略的稳定 UID。
+- **`200` 后连接仍失败**：分别检查 `/route`、Gateway 与 CONNACK；不要重新生成 Token 来掩盖路由或协议问题。
+- **恢复维护中**：Product HTTP 可能返回 `503 maintenance`；退避并观察 `/readyz`。
+
+## 安全与责任边界
+
+此入口会改变持久身份元数据，不能暴露给浏览器或公网。黄金 BFF 只绑定 loopback、校验同源并生成短暂开发 Token；它没有账号认证、授权、撤销存储或生产生命周期。生产实现必须补齐这些能力和 Gateway Token 校验。
+
+## 下一步
+
+调用成功后执行[路由发现](/zh/api/product-http/routing)，然后由 JavaScript SDK CONNECT。完整限制见[认证与安全](/zh/api/authentication)。

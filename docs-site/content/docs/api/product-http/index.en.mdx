@@ -1,0 +1,67 @@
+---
+title: Product HTTP API (Beta Subset)
+description: Reference the token, route-discovery, and message-sync contracts used by the trusted golden-path BFF.
+---
+
+Product HTTP currently publishes only three compatible entries required by the v3 Beta golden path. “Published” means this **declared subset** is complete and contract-checked; the receipt decides whether this build carries real-scenario evidence. It does not promote every user, message, or routing endpoint to a public contract.
+
+## Goal and completion criteria
+
+When finished, you should identify the method, path, trust level, request, response, and failure handling for each call and prove that the browser calls none of them directly.
+
+## Compatibility target
+
+The contracts belong to the [API compatibility snapshot](/en/api/compatibility) and are jointly checked by the slice-level OpenAPI contract, BFF types, and real Chromium smoke test.
+
+<GoldenPathContract locale="en" />
+
+## Prerequisites
+
+- Product HTTP is behind a trusted network or authenticated proxy;
+- the local golden sample calls it through a loopback-only BFF;
+- cluster `/readyz` succeeds;
+- the caller understands [Conventions](/en/api/conventions) and the [authentication boundary](/en/api/authentication).
+
+## Published entries
+
+<Cards>
+  <Card title="User Token" description="POST /user/token stores device-token metadata for a development identity." href="/en/api/product-http/users" />
+  <Card title="Route Discovery" description="GET /route returns configured TCP, WebSocket, and secure-WebSocket addresses." href="/en/api/product-http/routing" />
+  <Card title="Message Sync" description="POST /channel/messagesync recovers messages from a committed Channel log." href="/en/api/product-http/messages" />
+  <Card title="Error Responses" description="Separate HTTP status, compatible error bodies, and protocol Reason Code." href="/en/api/product-http/errors" />
+</Cards>
+
+## Golden-path call order
+
+```text
+create development Session
+  -> POST /user/token
+  -> GET /route
+  -> browser SDK CONNECT
+
+disconnect recovery
+  -> SDK reconnect
+  -> POST /channel/messagesync
+  -> merge sync and realtime results
+```
+
+Message sending itself uses the JavaScript SDK, not browser HTTP. `/message/send`, device quit, online status, batch sync, channel, conversation, and other compatible entries are outside the Phase 12 published promise.
+
+## Expected result
+
+The BFF completes identity creation, address discovery, and offline recovery with endpoint-specific response types. Any route absent from this list remains unpublished in this public reference.
+
+## Troubleshooting
+
+- **An expected domain endpoint is missing:** first check the three-entry list; source-code existence does not imply public support.
+- **The browser issues a Product HTTP request:** this violates the architecture and must be replaced with a BFF call.
+- **Compatible responses have no shared envelope:** use the endpoint-specific parsers described by [Conventions](/en/api/conventions).
+- **Contract and runtime drift:** update the shared OpenAPI slice, BFF, bilingual docs, and smoke evidence together—not one in isolation.
+
+## Security and responsibility boundary
+
+Product HTTP has no general business-authentication middleware. Restrict network reachability and let the product backend verify user, tenant, permission, and request intent. The golden BFF is only a local development tool.
+
+## Next step
+
+Follow the call order through [Users](/en/api/product-http/users), [Route Discovery](/en/api/product-http/routing), and [Messages](/en/api/product-http/messages).

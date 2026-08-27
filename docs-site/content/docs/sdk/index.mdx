@@ -1,17 +1,49 @@
 ---
 title: SDK
-description: 在不同客户端平台接入 WuKongIM。
+description: 从固定的 JavaScript/Web 黄金路径兼容目标开始接入 WuKongIM。
 ---
 
-SDK 文档集中维护跨平台公共流程以及各客户端平台的专属接入说明。
+SDK 文档当前发布一条窄而完整的 JavaScript/Web 路径：安装精确版本、通过 localhost BFF 建立开发身份、连接真实集群、双向发送持久消息，并验证断线后的离线恢复。
+
+## 目标与完成标准
+
+从本页出发，开发者应能选择已发布的兼容目标入口，而不是进入仍在规划的 SDK 菜单。当前构建是否附带完整验证证据，以兼容快照中的 receipt 状态为准。完成 JavaScript/Web Quickstart 后，应能区分持久提交、实时投递和离线同步。
+
+## 兼容目标
+
+Phase 12 固定 `wukongimjssdk@1.3.5`，并把服务端 revision、Node.js 与 Chromium 写入[兼容性快照](/zh/sdk/compatibility)。这不是所有平台或浏览器的支持矩阵。
+
+## 前置条件
+
+- 一个通过 `/readyz` 的 WuKongIM 单节点集群；
+- Node.js `>=20.11` 与 npm，用于黄金样例；
+- 理解浏览器只能访问 localhost BFF，不能直连 Product HTTP。
 
 ## 从这里开始
 
 <Cards>
-  <Card title="选择 SDK" description="根据平台、框架和运行环境选择客户端。" href="/zh/sdk/choose-sdk" />
-  <Card title="版本与兼容性" description="核对 SDK、系统和服务端版本。" href="/zh/sdk/compatibility" />
-  <Card title="公共指南" description="了解身份、连接、消息、会话和异常处理。" href="/zh/sdk/common-guides" />
-  <Card title="Android" description="查看 Android SDK 的规划结构。" href="/zh/sdk/android" />
-  <Card title="iOS" description="查看 iOS SDK 的规划结构。" href="/zh/sdk/ios" />
-  <Card title="JavaScript / Web" description="查看浏览器 SDK 的规划结构。" href="/zh/sdk/javascript" />
+  <Card title="JavaScript / Web" description="进入唯一已发布的客户端黄金路径。" href="/zh/sdk/javascript" />
+  <Card title="安装与配置" description="安装固定 SDK 版本并验证 TypeScript 样例。" href="/zh/sdk/javascript/installation" />
+  <Card title="快速接入" description="完成 Alice/Bob 双向消息、断开、重连和离线同步。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="版本与兼容性" description="核对完整目标 tuple 与 receipt 状态。" href="/zh/sdk/compatibility" />
 </Cards>
+
+Android、iOS、Flutter、UniApp、HarmonyOS、公共指南、完整 JavaScript API Reference 和升级指南仍标记为“规划中”，不会进入搜索、Sitemap 或 LLM 输出。
+
+## 预期结果
+
+黄金路径通过时，Alice 与 Bob 各自连接；双向消息分别显示 SENDACK 与 realtime 接收；Bob 断开期间提交的消息在重连后显示为 sync 恢复。
+
+## 失败诊断
+
+- **不确定从哪个 SDK 开始**：Phase 12 只验证 JavaScript/Web；其他平台不要从规划菜单推断支持。
+- **版本不一致**：回到兼容快照并使用 lockfile，不要改用 `latest`。
+- **示例能连接但安全评审失败**：这是开发路径，不具备生产 Token 校验和 HTTP 业务鉴权。
+
+## 安全与责任边界
+
+SDK 不拥有业务账号、授权或 Token 签发。默认 v3 Beta Gateway 不自动校验已存 Token，生产系统必须自行补齐身份边界、TLS、限流、审计和撤销。
+
+## 下一步
+
+直接进入[JavaScript/Web 快速接入](/zh/sdk/javascript/quickstart)，或先阅读[安装与配置](/zh/sdk/javascript/installation)。

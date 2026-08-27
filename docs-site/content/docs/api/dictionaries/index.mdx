@@ -1,0 +1,44 @@
+---
+title: 公共数据字典
+description: 查阅 Phase 12 已校准的协议 Reason Code，并区分仍在规划中的其他字典。
+---
+
+## 目标与完成标准
+
+本区域集中维护跨 Gateway 和兼容 HTTP 响应复用的枚举。Phase 12 只发布已与当前 Go 权威定义校准的 Reason Code；其他字典仍保持规划状态。
+
+## 兼容目标
+
+Reason Code 表从当前 `pkg/protocol/frame` 权威枚举生成，并由 CI 检查 0–29 的值与名称。它与[兼容性快照](/zh/api/compatibility)绑定。
+
+## 前置条件
+
+- 先区分 HTTP 状态和协议 Reason Code；
+- 记录出现该码的阶段，例如 CONNACK 或 SENDACK；
+- 不把“枚举中存在”解释为“当前每条路径都能产生”。
+
+## 已发布字典
+
+<Cards>
+  <Card title="Reason Code" description="完整列出当前 0–29 名称、适用阶段、重试建议与可达性。" href="/zh/api/dictionaries/reason-codes" />
+</Cards>
+
+Channel Type、Device Flag 和 Message Flags 仍在规划中；黄金路径只在对应合同正文中说明它实际使用的窄值，不提前发布不完整字典。
+
+## 预期结果
+
+开发者应先按数值匹配，再同时记录名称、阶段与请求关联信息。未知值必须保留原始数字并按未知失败处理，不能默认成功。
+
+## 失败诊断
+
+- **名称与数值不一致**：让生成校验失败并重新校准，不要手工维护第二张表。
+- **同一数值出现在不同阶段**：结合 CONNACK、SENDACK 或其他包类型解释。
+- **收到表外数值**：记录数值和兼容快照，升级字典前保持 fail closed。
+
+## 安全与责任边界
+
+Reason Code 是协议结果，不是适合直接展示给最终用户的本地化错误。业务服务应映射安全文案，避免暴露内部拓扑、权限策略或敏感请求内容。
+
+## 下一步
+
+查看完整的[Reason Code](/zh/api/dictionaries/reason-codes) 表，或返回[错误响应](/zh/api/product-http/errors)了解 HTTP 与协议结果如何组合。

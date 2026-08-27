@@ -104,7 +104,7 @@ Route: `/{lang}/sdk`
 
 - **选择 SDK / Choose an SDK** `/{lang}/sdk/choose-sdk` — 根据应用平台、框架和运行环境选择客户端 SDK。 / Choose a client SDK by platform, framework, and runtime.
 
-- **版本与兼容性 / Versions & Compatibility** `/{lang}/sdk/compatibility` — 汇总 SDK 版本、服务端兼容范围、系统要求和维护状态。 / Lists SDK versions, server compatibility, system requirements, and maintenance status.
+- **版本与兼容性 / Versions & Compatibility** `/{lang}/sdk/compatibility` — 记录 v3 Beta 黄金路径的服务端 revision、SDK、Node、浏览器兼容目标与 receipt 状态。 / Records the server revision, SDK, Node, and browser compatibility target plus receipt status for the v3 Beta golden path.
 
 - **公共指南 / Common Guides** `/{lang}/sdk/common-guides` — 统一说明所有客户端 SDK 共有的接入行为。 / Explains integration behavior shared by all client SDKs.
 
@@ -133,10 +133,10 @@ Route: `/{lang}/sdk`
   - **API 参考 / API Reference** `/{lang}/sdk/ios/api-reference` — iOS SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the iOS SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/ios/upgrade` — iOS SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the iOS SDK.
 
-- **JavaScript / Web / JavaScript / Web** `/{lang}/sdk/javascript` — JavaScript SDK 的浏览器支持范围和接入入口。 / Browser support and entry points for the JavaScript SDK.
+- **JavaScript / Web / JavaScript / Web** `/{lang}/sdk/javascript` — 使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息和离线恢复；其余平台能力仍在规划中。 / Complete browser installation, connection, two-way messaging, and offline recovery with the pinned SDK compatibility target; remaining platform material stays planned.
 
-  - **安装与配置 / Installation** `/{lang}/sdk/javascript/installation` — JavaScript / Web SDK 的依赖、权限和构建配置。 / Dependencies, permissions, and build configuration for the JavaScript / Web SDK.
-  - **快速接入 / Quickstart** `/{lang}/sdk/javascript/quickstart` — 在 JavaScript / Web 应用中完成首次连接和消息收发。 / Connect and exchange the first messages with the JavaScript / Web SDK.
+  - **安装与配置 / Installation** `/{lang}/sdk/javascript/installation` — 安装精确版本的 JavaScript SDK，并配置框架无关的 TypeScript 黄金样例。 / Install the exact JavaScript SDK version and configure the framework-neutral TypeScript golden sample.
+  - **快速接入 / Quickstart** `/{lang}/sdk/javascript/quickstart` — 通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。 / Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.
   - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/javascript/platform-capabilities` — JavaScript / Web 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other JavaScript / Web-specific behavior.
   - **API 参考 / API Reference** `/{lang}/sdk/javascript/api-reference` — JavaScript / Web SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/javascript/upgrade` — JavaScript / Web SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the JavaScript / Web SDK.
@@ -171,19 +171,19 @@ Route: `/{lang}/api`
 
 查阅 HTTP API、Webhook 和客户端协议。 / Reference HTTP APIs, webhooks, and client protocols.
 
-- **通用约定 / Conventions** `/{lang}/api/conventions` — 定义 Base URL、JSON、时间、ID、分页、幂等和响应结构。 / Defines base URLs, JSON, time, identifiers, pagination, idempotency, and response envelopes.
+- **通用约定 / Conventions** `/{lang}/api/conventions` — 定义 v3 Beta 黄金路径子集使用的 Base URL、JSON、标识和兼容响应结构。 / Defines base URLs, JSON, identifiers, and compatible response envelopes used by the v3 Beta golden-path subset.
 
-- **认证与安全 / Authentication & Security** `/{lang}/api/authentication` — 说明 API 凭证、Token、请求保护和生产安全要求。 / Explains API credentials, tokens, request protection, and production security.
+- **认证与安全 / Authentication & Security** `/{lang}/api/authentication` — 说明开发身份、受信 BFF，以及默认组合尚未提供的生产鉴权保证。 / Explains development identities, the trusted BFF, and the production authentication guarantees absent from the default composition.
 
-- **版本与兼容性 / Versions & Compatibility** `/{lang}/api/compatibility` — 说明 API、客户端协议与服务端版本的兼容规则。 / Defines compatibility among APIs, client protocols, and server versions.
+- **版本与兼容性 / Versions & Compatibility** `/{lang}/api/compatibility` — 记录黄金路径 HTTP 子集、客户端协议与服务端快照的兼容目标和 receipt 状态。 / Records the compatibility target and receipt status for the golden-path HTTP subset, client protocol, and server snapshot.
 
-- **产品 HTTP API / Product HTTP API** `/{lang}/api/product-http` — 面向稳定产品能力的规范驱动 HTTP 参考。 / Specification-driven HTTP reference for stable product capabilities.
+- **产品 HTTP API（Beta 子集） / Product HTTP API (Beta subset)** `/{lang}/api/product-http` — 仅发布 JavaScript 黄金路径声明使用的受信服务端接口。 / Publishes only the trusted server-side endpoints declared by the JavaScript golden path.
 
-  - **用户 / Users** `/{lang}/api/product-http/users` — Token、设备退出、在线状态和系统用户接口。 / Token, device logout, online status, and system-user endpoints.
+  - **用户 / Users** `/{lang}/api/product-http/users` — 记录黄金路径用于开发身份准备的 `/user/token` 合同与安全边界。 / Documents the `/user/token` contract and security boundary used to prepare golden-path development identities.
   - **频道 / Channels** `/{lang}/api/product-http/channels` — 频道、订阅者、黑名单、白名单和临时频道接口。 / Channel, subscriber, blacklist, whitelist, and temporary-channel endpoints.
-  - **消息 / Messages** `/{lang}/api/product-http/messages` — 消息发送、同步、确认和消息事件接口。 / Message send, sync, acknowledgement, and event endpoints.
+  - **消息 / Messages** `/{lang}/api/product-http/messages` — 记录黄金路径用于离线恢复的 `/channel/messagesync` 合同。 / Documents the `/channel/messagesync` contract used for golden-path offline recovery.
   - **会话 / Conversations** `/{lang}/api/product-http/conversations` — 会话列表、同步、未读数和删除接口。 / Conversation list, sync, unread-count, and deletion endpoints.
-  - **路由发现 / Route Discovery** `/{lang}/api/product-http/routing` — 获取目标节点 TCP 和 WebSocket 接入地址。 / Discovers TCP and WebSocket addresses for the target node.
+  - **路由发现 / Route Discovery** `/{lang}/api/product-http/routing` — 获取服务端配置的 TCP 和 WebSocket 客户端入口地址。 / Discovers the configured TCP and WebSocket client-ingress addresses.
   - **错误响应 / Error Responses** `/{lang}/api/product-http/errors` — 解释 HTTP 状态、业务状态和 Reason Code 的关系。 / Relates HTTP status, business status, and protocol reason codes.
 
 - **运维 HTTP API / Operations HTTP API** `/{lang}/api/operations-http` — 发布稳定且受支持的运维接口。 / Publishes stable and supported operations endpoints.
@@ -207,12 +207,12 @@ Route: `/{lang}/api`
   - **数据包类型 / Packet Types** `/{lang}/api/client-protocols/packet-types` — 说明 Connect、Send、Recv、Ack 和 Ping/Pong 字段。 / Documents Connect, Send, Recv, Ack, and Ping/Pong fields.
   - **加密与安全 / Encryption & Security** `/{lang}/api/client-protocols/encryption` — 说明握手密钥、负载保护和协议安全约束。 / Covers handshake keys, payload protection, and protocol security constraints.
 
-- **公共数据字典 / Shared Dictionaries** `/{lang}/api/dictionaries` — 集中定义跨 API 和协议复用的常量。 / Centralizes constants shared across APIs and protocols.
+- **公共数据字典 / Shared Dictionaries** `/{lang}/api/dictionaries` — 发布已校准的 Reason Code 字典；其他跨协议常量仍在规划中。 / Publishes the calibrated Reason Code dictionary while other cross-protocol constants remain planned.
 
   - **Channel Type / Channel Type** `/{lang}/api/dictionaries/channel-types` — 定义单聊、群聊和其他频道类型。 / Defines direct, group, and other channel types.
   - **Device Flag / Device Flag** `/{lang}/api/dictionaries/device-flags` — 定义 App、Web、System 等设备标识。 / Defines App, Web, System, and other device identifiers.
   - **Message Flags / Message Flags** `/{lang}/api/dictionaries/message-flags` — 定义持久化、红点、回执和流式消息标志。 / Defines persistence, red-dot, receipt, and streaming-message flags.
-  - **Reason Code / Reason Code** `/{lang}/api/dictionaries/reason-codes` — 定义成功、鉴权失败、重试和拒绝等原因码。 / Defines success, authentication failure, retry, refusal, and other reason codes.
+  - **Reason Code / Reason Code** `/{lang}/api/dictionaries/reason-codes` — 完整列出当前 0–29 协议枚举并标注使用阶段、重试和可达性。 / Lists the complete current 0–29 protocol enum with stage, retry, and reachability guidance.
 
 - **规范下载 / Specifications** `/{lang}/api/specifications` — 提供校准后、可机器读取的接口与协议规范。 / Provides aligned, machine-readable API and protocol specifications.
 

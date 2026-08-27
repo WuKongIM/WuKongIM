@@ -1,19 +1,52 @@
 ---
 title: API & Protocols
-description: Reference HTTP APIs, webhooks, and client protocols.
+description: Reference the Product HTTP compatibility target and Reason Codes for the v3 Beta JavaScript/Web golden path.
 ---
 
-This area plans the WuKongIM v3 product API, operations API, webhooks, client protocols, and shared dictionaries.
+This area now publishes executable contracts for application integration developers. Phase 12 promises only the Product HTTP subset required by the golden sample, its shared conventions, compatibility snapshot, error handling, and complete Reason Code enum.
 
-<Callout type="warn" title="OpenAPI status">
-  The existing OpenAPI file still contains v2 material. Phase one does not publish it as the v3 reference; specification rendering starts after alignment.
+## Goal and completion criteria
+
+A developer should create a development identity, discover Gateway ingress, recover offline messages from a trusted backend, and handle HTTP and protocol outcomes precisely without promoting other source routes to public API.
+
+<Callout type="warn" title="Not the complete v3 API">
+  This is a Beta golden-path subset. The repository's older OpenAPI still contains v2 material. Complete OpenAPI, client protocols, webhooks, operations APIs, and other domain references remain planned.
 </Callout>
+
+## Compatibility target
+
+Server revision, SDK, Node.js, Chromium, and contract summary appear on [API Compatibility](/en/api/compatibility) and in `/compatibility.json`. URLs remain unversioned, but a snapshot does not promise compatibility with every revision.
+
+## Prerequisites
+
+- Product HTTP is open only to the localhost BFF or a trusted product backend;
+- the default Gateway stored-token gap is explicitly accepted as a local-development limitation;
+- the single-node cluster passes `/readyz`;
+- the caller parses each compatible endpoint response separately.
 
 ## Reference entry points
 
 <Cards>
-  <Card title="Conventions" description="Base URLs, formats, pagination, idempotency, and response envelopes." href="/en/api/conventions" />
-  <Card title="Product HTTP API" description="Users, channels, messages, conversations, and route discovery." href="/en/api/product-http" />
-  <Card title="Client protocols" description="TCP binary protocol and WebSocket JSON-RPC." href="/en/api/client-protocols" />
-  <Card title="Specifications" description="OpenAPI, JSON-RPC schema, and protocol changelog." href="/en/api/specifications" />
+  <Card title="Conventions" description="Base URL, JSON, identifiers, response shapes, and retry boundaries." href="/en/api/conventions" />
+  <Card title="Authentication & Security" description="Development BFF, Product HTTP, and Gateway token-validation boundaries." href="/en/api/authentication" />
+  <Card title="Product HTTP API" description="The three published token, route, and message-sync entries." href="/en/api/product-http" />
+  <Card title="Reason Code" description="The current enum 0–29 with phase, retry guidance, and reachability." href="/en/api/dictionaries/reason-codes" />
 </Cards>
+
+## Expected result
+
+The golden BFF is the browser-side boundary for all three HTTP entries; realtime messages use the SDK; error classification preserves HTTP separately from CONNACK/SENDACK; Reason Code remains automatically aligned with the Go enum.
+
+## Troubleshooting
+
+- **A required endpoint is absent from Product HTTP subset:** it remains unpublished; do not infer support from old OpenAPI or source location.
+- **The browser calls the server directly:** replace it with a same-origin BFF call and tighten the network.
+- **Fields disagree with the docs:** fail shared-contract validation and repair runtime, sample, and bilingual pages together.
+
+## Security and responsibility boundary
+
+Product HTTP has no general business-authentication middleware and the default Gateway has no stored-token CONNECT validation. Phase 12 does not describe its local development loop as a production security solution.
+
+## Next step
+
+Begin with [Conventions](/en/api/conventions), or follow the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) to observe how the three contracts cooperate.

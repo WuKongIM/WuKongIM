@@ -3,6 +3,7 @@ import { loader } from 'fumadocs-core/source';
 import { i18n } from './i18n';
 import { isPublishedContentPath } from './navigation';
 import { docsContentRoute } from './shared';
+import { renderDeveloperContractSupplement } from './developer-contracts';
 
 const generatedSource = docs.toFumadocsSource();
 
@@ -32,8 +33,10 @@ export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {
 
 export async function getLLMText(page: (typeof source)['$inferPage']) {
   const processed = await page.data.getText('processed');
+  const locale = page.locale === 'zh' || page.locale === 'en' ? page.locale : undefined;
+  const supplement = locale ? renderDeveloperContractSupplement(locale, page.slugs) : '';
 
   return `# ${page.data.title} (${page.url})
 
-${processed}`;
+${processed}${supplement ? `\n\n${supplement}` : ''}`;
 }

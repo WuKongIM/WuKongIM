@@ -34,7 +34,7 @@ Every deployment is a cluster. A one-node deployment is a single-node cluster; i
 
 1. The app authenticates with the product service through your login mechanism.
 2. The product service returns a stable UID, device identity, and connection settings allowed for that environment.
-3. The client calls `GET /route?uid=<uid>` and receives `tcp_addr`, `ws_addr`, and `wss_addr`.
+3. The trusted backend calls `GET /route` and receives `tcp_addr`, `ws_addr`, and `wss_addr`.
 4. The SDK selects an available ingress and sends CONNECT to negotiate protocol version and encryption material.
 5. Only after connection success does it send product messages. Connection state is not product authorization state.
 

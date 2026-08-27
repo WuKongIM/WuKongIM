@@ -1,0 +1,67 @@
+---
+title: Product HTTP API（Beta 子集）
+description: 查阅黄金路径由受信 BFF 使用的 Token、路由发现和消息同步合同。
+---
+
+Product HTTP 区域当前只发布 v3 Beta 黄金路径所需的三个兼容入口。页面“已发布”表示这个**声明子集**完整且经过合同校验；当前构建是否附带真实场景证据由 receipt 决定。这不表示用户、消息或路由领域的所有接口都已成为公共合同。
+
+## 目标与完成标准
+
+完成后，你应能为每次调用指出方法、路径、信任级别、请求、响应和失败处理，并确保浏览器没有直接调用这些入口。
+
+## 兼容目标
+
+合同属于[API 兼容快照](/zh/api/compatibility)，由切片级 OpenAPI、BFF 类型和真实 Chromium smoke test 共同校验。
+
+<GoldenPathContract locale="zh" />
+
+## 前置条件
+
+- Product HTTP 位于可信网络或已鉴权代理之后；
+- 本地黄金样例通过仅绑定 loopback 的 BFF 调用；
+- 集群 `/readyz` 成功；
+- 调用方理解[通用约定](/zh/api/conventions)和[认证边界](/zh/api/authentication)。
+
+## 已发布入口
+
+<Cards>
+  <Card title="用户 Token" description="POST /user/token：保存开发身份的设备 Token 元数据。" href="/zh/api/product-http/users" />
+  <Card title="路由发现" description="GET /route：获得配置的 TCP、WebSocket 和安全 WebSocket 地址。" href="/zh/api/product-http/routing" />
+  <Card title="消息同步" description="POST /channel/messagesync：从已提交 Channel 日志恢复消息。" href="/zh/api/product-http/messages" />
+  <Card title="错误响应" description="区分 HTTP 状态、兼容错误体和协议 Reason Code。" href="/zh/api/product-http/errors" />
+</Cards>
+
+## 黄金路径调用顺序
+
+```text
+创建开发 Session
+  -> POST /user/token
+  -> GET /route
+  -> 浏览器 SDK CONNECT
+
+断线恢复
+  -> SDK reconnect
+  -> POST /channel/messagesync
+  -> 合并 sync 与 realtime 结果
+```
+
+消息发送本身走 JavaScript SDK，不走浏览器 HTTP。`/message/send`、用户退出、在线状态、批量同步、频道、会话和其他兼容入口不属于 Phase 12 的发布承诺。
+
+## 预期结果
+
+BFF 能以端点专属响应类型完成身份创建、地址发现和离线恢复；任何未列出的路由在这套公开参考中仍被视为未发布。
+
+## 失败诊断
+
+- **找不到期望的领域接口**：先检查它是否在三入口清单；不要从源码存在推断公共支持。
+- **浏览器出现 Product HTTP 网络请求**：这是架构违规，应改为调用 BFF。
+- **兼容响应没有统一信封**：按[通用约定](/zh/api/conventions)使用端点专属解析器。
+- **合同与运行时漂移**：更新共享 OpenAPI 切片、BFF、双语文档和 smoke 证据，不能只改其中一处。
+
+## 安全与责任边界
+
+Product HTTP 没有通用业务鉴权中间件。必须限制网络可达性，并由业务后端验证用户、租户、权限和请求意图。Golden BFF 只是本地开发工具。
+
+## 下一步
+
+按调用顺序阅读[用户](/zh/api/product-http/users)、[路由发现](/zh/api/product-http/routing)和[消息](/zh/api/product-http/messages)。

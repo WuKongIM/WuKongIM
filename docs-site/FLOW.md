@@ -10,7 +10,9 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 `docs-site` is the standalone Fumadocs application for public WuKongIM v3
 documentation under `/zh` and `/en`. It owns shared information architecture,
 MDX publication, static search, sitemap/SEO, and LLM/Markdown outputs.
-It does not define product runtime behavior or replace authoritative code contracts.
+It also owns the narrow JavaScript Web golden-path laboratory and its generated
+compatibility/OpenAPI artifacts. It does not define product runtime behavior or
+replace authoritative code contracts.
 
 ## Boundaries
 
@@ -27,8 +29,15 @@ It does not define product runtime behavior or replace authoritative code contra
    and the planning reference.
 2. Published bilingual MDX is filtered through that registry and feeds pages,
    search, sitemap, LLM output, and per-page Markdown.
-3. Next.js static export writes `out/`, whose publishing boundaries are checked
-   before any external hosting step.
+3. `lib/developer-contracts.ts` joins source-checked Reason Codes, build identity,
+   SDK/runtime pins, and the three-endpoint Product HTTP Beta subset into both
+   human pages and machine-readable outputs.
+4. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
+   isolated SDK singleton per browser context; its opt-in E2E scenario supplies
+   the real single-node-cluster/Chromium verification evidence.
+5. Next.js static export writes `out/`, whose publication, canonical, link,
+   accessibility-structure, and machine-artifact boundaries are checked before
+   any external hosting step.
 
 ## Invariants and Failure Semantics
 
@@ -44,13 +53,21 @@ It does not define product runtime behavior or replace authoritative code contra
   visibly planned.
 - Configuration reference covers every public schema field exactly once and
   distinguishes examples from runtime defaults.
+- Browsers never call Product HTTP directly in the JavaScript golden path. The
+  localhost BFF owns `/user/token`, `/route`, and `/channel/messagesync`; it is
+  a development boundary, not production authentication.
+- Compatibility output identifies the exact source revision, sample lockfile,
+  SDK, Node.js, Playwright, and Chromium target. Verification defaults to false
+  and becomes true only when a successful receipt matches that complete tuple.
+  Chromium is the only eligible browser target; other browsers remain
+  explicitly unverified.
 
 ## Read First
 
 - [Navigation registry](lib/navigation.ts)
-- [Navigation plan](NAVIGATION.md)
-- [Site configuration](next.config.mjs)
-- [Phase 9 specification](PHASE_9_SPEC.md)
+- [Phase 12 developer specification](PHASE_12_SPEC.md)
+- [Developer contract source](lib/developer-contracts.ts)
+- [JavaScript Web golden sample](examples/javascript-web-quickstart/README.md)
 - [Documentation landing page](content/docs/guide/index.mdx)
 
 ## Update Triggers

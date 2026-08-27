@@ -54,7 +54,7 @@ Example compatible response for an accepted commit:
 ```
 
 <Callout type="warn" title="HTTP 200 is not the business result">
-  `reason` is a protocol Reason Code. Callers must distinguish success, retryable outcomes, rejection, and route changes. The complete Reason Code dictionary belongs to the API reference phase.
+  `reason` is a protocol Reason Code. Callers must distinguish success, retryable outcomes, rejection, and route changes; use the complete [Reason Code dictionary](/en/api/dictionaries/reason-codes).
 </Callout>
 
 Do not let browsers or mobile apps call this server route directly. Current product HTTP routes have no product-authentication middleware and must be called by a trusted service through a private network or protected proxy.

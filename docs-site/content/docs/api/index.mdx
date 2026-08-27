@@ -1,19 +1,52 @@
 ---
 title: API 与协议
-description: 查阅 HTTP API、Webhook 和客户端协议。
+description: 查阅 v3 Beta JavaScript/Web 黄金路径的 Product HTTP 兼容目标与 Reason Code。
 ---
 
-本区域规划 WuKongIM v3 的产品 API、运维 API、Webhook、客户端协议和公共数据字典。
+本区域开始发布面向应用集成开发者的可执行合同。Phase 12 只承诺黄金样例需要的 Product HTTP 子集、共同约定、兼容快照、错误处理和完整 Reason Code 枚举。
 
-<Callout type="warn" title="OpenAPI 状态">
-  仓库现有 OpenAPI 仍包含 v2 内容，本阶段不会把它作为 v3 参考文档发布。校准完成后再启用规范渲染。
+## 目标与完成标准
+
+开发者应能从受信后端创建开发身份、发现 Gateway 地址、恢复离线消息，并准确处理 HTTP 与协议结果；不会把源码中其他路由自动当作公共 API。
+
+<Callout type="warn" title="不是完整 v3 API">
+  当前发布的是 Beta 黄金路径子集。仓库旧 OpenAPI 仍包含 v2 内容，完整 OpenAPI、客户端协议、Webhook、运维 API 和其他领域参考仍在规划中。
 </Callout>
+
+## 兼容目标
+
+服务端 revision、SDK、Node.js、Chromium 与合同摘要记录在[API 兼容性](/zh/api/compatibility)和 `/compatibility.json`。URL 保持无版本路径，但快照不承诺任意 revision 都兼容。
+
+## 前置条件
+
+- Product HTTP 只对 localhost BFF 或受信业务后端开放；
+- 默认 Gateway stored-token 校验缺口已经被明确接受为本地开发限制；
+- 单节点集群通过 `/readyz`；
+- 调用方按端点解析兼容响应。
 
 ## 参考入口
 
 <Cards>
-  <Card title="通用约定" description="Base URL、格式、分页、幂等和响应结构。" href="/zh/api/conventions" />
-  <Card title="产品 HTTP API" description="用户、频道、消息、会话和路由发现。" href="/zh/api/product-http" />
-  <Card title="客户端协议" description="TCP 二进制协议和 WebSocket JSON-RPC。" href="/zh/api/client-protocols" />
-  <Card title="规范下载" description="OpenAPI、JSON-RPC Schema 和协议变更记录。" href="/zh/api/specifications" />
+  <Card title="通用约定" description="Base URL、JSON、标识、响应形状与重试边界。" href="/zh/api/conventions" />
+  <Card title="认证与安全" description="开发 BFF、Product HTTP 与 Gateway Token 校验边界。" href="/zh/api/authentication" />
+  <Card title="Product HTTP API" description="Token、路由和消息同步三个已发布入口。" href="/zh/api/product-http" />
+  <Card title="Reason Code" description="当前 0–29 枚举、阶段、重试建议与可达性。" href="/zh/api/dictionaries/reason-codes" />
 </Cards>
+
+## 预期结果
+
+Golden BFF 是三个 HTTP 入口的唯一浏览器侧边界；实时消息通过 SDK；错误分类保留 HTTP 阶段与 CONNACK/SENDACK 阶段；Reason Code 与 Go 枚举自动校准。
+
+## 失败诊断
+
+- **需要的接口不在 Product HTTP 子集中**：它仍未发布；不要根据旧 OpenAPI 或源码位置推断支持。
+- **浏览器直接调用服务端**：转为同源 BFF 调用并收紧网络。
+- **字段与文档不一致**：让共享合同校验失败，统一修复运行时、样例和双语页面。
+
+## 安全与责任边界
+
+Product HTTP 没有通用业务鉴权中间件；默认 Gateway 没有 stored-token CONNECT 校验。Phase 12 不把本地开发闭环描述为生产安全方案。
+
+## 下一步
+
+从[通用约定](/zh/api/conventions)开始，或直接跟随[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)观察三个合同如何协作。

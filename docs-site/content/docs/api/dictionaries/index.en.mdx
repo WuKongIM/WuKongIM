@@ -1,0 +1,44 @@
+---
+title: Shared Dictionaries
+description: Reference the Phase 12 aligned protocol Reason Codes and distinguish the dictionaries that remain planned.
+---
+
+## Goal and completion criteria
+
+This area centralizes enums reused across Gateway and compatible HTTP results. Phase 12 publishes only Reason Code, aligned with the current authoritative Go definition. Other dictionaries remain planned.
+
+## Compatibility target
+
+The Reason Code table is generated from the authoritative current enum in `pkg/protocol/frame`, and CI checks values and names 0–29. It is tied to the [compatibility snapshot](/en/api/compatibility).
+
+## Prerequisites
+
+- Distinguish HTTP status from protocol Reason Code first;
+- retain the phase in which the code appeared, such as CONNACK or SENDACK;
+- do not interpret “present in the enum” as “currently emitted by every path.”
+
+## Published dictionary
+
+<Cards>
+  <Card title="Reason Code" description="List all current names 0–29 with phase, retry guidance, and reachability." href="/en/api/dictionaries/reason-codes" />
+</Cards>
+
+Channel Type, Device Flag, and Message Flags remain planned. The golden-path contract documents only the narrow values it actually uses instead of prematurely publishing incomplete dictionaries.
+
+## Expected result
+
+Match by numeric value first, then retain name, phase, and request-correlation details. Preserve an unknown raw value and treat it as an unknown failure; never default it to success.
+
+## Troubleshooting
+
+- **Name and value disagree:** fail generated validation and realign it; do not maintain a second handwritten table.
+- **One value appears in different phases:** interpret it with CONNACK, SENDACK, or the other packet type.
+- **A value is absent from the table:** record the raw value and compatibility snapshot and remain fail closed until the dictionary is upgraded.
+
+## Security and responsibility boundary
+
+A Reason Code is a protocol outcome, not a localized error safe for direct display to an end user. Map it to product-safe text without exposing topology, authorization policy, or sensitive request content.
+
+## Next step
+
+Open the complete [Reason Code](/en/api/dictionaries/reason-codes) table or return to [Error Responses](/en/api/product-http/errors) to see how HTTP and protocol outcomes compose.

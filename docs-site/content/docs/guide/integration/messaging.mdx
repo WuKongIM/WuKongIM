@@ -54,7 +54,7 @@ curl -sS http://127.0.0.1:5001/message/send \
 ```
 
 <Callout type="warn" title="HTTP 200 不等于业务成功">
-  `reason` 是协议 Reason Code。调用方必须把成功值与可重试、拒绝和路由变化分别处理。完整 Reason Code 字典将在 API 参考阶段发布。
+  `reason` 是协议 Reason Code。调用方必须把成功值与可重试、拒绝和路由变化分别处理，并使用完整的 [Reason Code 字典](/zh/api/dictionaries/reason-codes)。
 </Callout>
 
 不要让浏览器或移动端直接调用这个服务端接口。当前产品 HTTP 路由没有业务鉴权中间件，应由受信业务服务通过私网或受保护代理调用。
