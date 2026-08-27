@@ -249,12 +249,17 @@
     },
     "docs-contracts": {
       "arguments": [
-        "go",
-        "test",
-        "./scripts/...",
-        "-run",
-        "Docs|Markdown|Link",
-        "-count=1"
+        "review-agent-check",
+        "docs"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    },
+    "docs-integration": {
+      "arguments": [
+        "review-agent-check",
+        "docs-integration"
       ],
       "working_dir": ".",
       "timeout_seconds": 600,
@@ -317,6 +322,58 @@
     }
   },
   "path_rules": [
+    {
+      "name": "documentation-golden-path-integration",
+      "paths": [
+        "docs-site/components/developer-contracts.tsx",
+        "docs-site/content/docs/api/compatibility.en.mdx",
+        "docs-site/content/docs/api/compatibility.mdx",
+        "docs-site/content/docs/api/dictionaries/reason-codes.en.mdx",
+        "docs-site/content/docs/api/dictionaries/reason-codes.mdx",
+        "docs-site/content/docs/sdk/compatibility.en.mdx",
+        "docs-site/content/docs/sdk/compatibility.mdx",
+        "docs-site/lib/developer-contracts.test.ts",
+        "docs-site/lib/developer-contracts.ts",
+        "internal/access/api/channel_messagesync.go",
+        "internal/access/api/message_legacy_model.go",
+        "internal/access/api/message_send.go",
+        "internal/access/api/route.go",
+        "internal/access/api/server.go",
+        "internal/access/api/user_token.go",
+        "internal/access/gateway/error_map.go",
+        "internal/app/app.go",
+        "internal/app/wiring.go",
+        "internal/infra/cluster/message_reader.go",
+        "internal/infra/cluster/user_metadata.go",
+        "pkg/cluster/node.go",
+        "pkg/cluster/node_meta.go",
+        "pkg/gateway/auth.go",
+        "pkg/gateway/binding/builtin.go",
+        "pkg/gateway/core/server.go",
+        "pkg/gateway/gateway.go",
+        "pkg/protocol/frame/common.go"
+      ],
+      "prefixes": [
+        "docs-site/contracts/",
+        "docs-site/content/docs/api/product-http/",
+        "docs-site/content/docs/sdk/javascript/",
+        "docs-site/examples/javascript-web-quickstart/",
+        "internal/config/",
+        "internal/usecase/message/",
+        "internal/usecase/user/",
+        "pkg/cluster/channels/",
+        "pkg/gateway/protocol/wkproto/",
+        "pkg/gateway/protocol/wsmux/",
+        "test/e2e/message/javascript_web_quickstart/",
+        "test/e2e/suite/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "docs-integration"
+      ],
+      "exclusive": false,
+      "always": true
+    },
     {
       "name": "flow-documents",
       "paths": [
@@ -531,10 +588,7 @@
         "docs/",
         "docs-site/"
       ],
-      "suffixes": [
-        ".md",
-        ".mdx"
-      ],
+      "suffixes": [],
       "checks": [
         "docs-contracts"
       ],

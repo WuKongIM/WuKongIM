@@ -40,6 +40,23 @@ func TestRenderSingleNodeConfigUsesWukongIMTOML(t *testing.T) {
 	require.NotContains(t, cfg, "[manager]")
 }
 
+func TestWebSocketGatewayOptionPublishesBrowserRouteWithoutReplacingTCP(t *testing.T) {
+	options := resolveSuiteOptions(WithWebSocketGateway())
+	spec := buildNodeSpec(1, PortSet{
+		ClusterAddr:   "127.0.0.1:11001",
+		GatewayAddr:   "127.0.0.1:12001",
+		WebSocketAddr: "127.0.0.1:12501",
+		APIAddr:       "127.0.0.1:13001",
+	}, Workspace{RootDir: t.TempDir(), pluginSocketRoot: t.TempDir()}, options)
+
+	cfg := RenderSingleNodeConfig(spec)
+
+	require.Contains(t, cfg, `{ address = "127.0.0.1:12001", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }`)
+	require.Contains(t, cfg, `{ address = "127.0.0.1:12501", name = "ws-wkproto", network = "websocket", path = "/ws", protocol = "wsmux", transport = "gnet" }`)
+	require.Contains(t, cfg, `external_ws_addr = "ws://127.0.0.1:12501/ws"`)
+	require.Equal(t, "ws://127.0.0.1:12501/ws", (StartedNode{Spec: spec}).WebSocketURL())
+}
+
 func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
 	nodes := []NodeSpec{
 		{ID: 1, DataDir: "/tmp/node-1/data", ClusterAddr: "127.0.0.1:11001", GatewayAddr: "127.0.0.1:12001", APIAddr: "127.0.0.1:13001", ManagerAddr: "127.0.0.1:14001"},

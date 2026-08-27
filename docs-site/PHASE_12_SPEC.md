@@ -320,10 +320,11 @@ This is a verified baseline, not a claim of full WCAG 2.2 AA certification.
 
 ### Failure evidence
 
-A failing Playwright run may retain only capped PNG failure screenshots under
-the repository-ignored `tmp/docs-site-e2e/` directory. Successful runs remove
-that directory. The Go harness bounds browser subprocess output in memory but
-publishes only its byte counts, never the raw browser, BFF, or server log tail.
+A failing Playwright run may retain at most three capped PNG failure
+screenshots under the repository-ignored `tmp/docs-site-e2e/` directory.
+Successful runs remove only their unique run directory. The Go harness bounds
+browser subprocess output in memory but publishes only its byte counts, never
+the raw browser, BFF, or server log tail.
 Playwright automatic screenshots are disabled. Before the E2E suite creates its
 one viewport PNG for that failed test, it replaces the event/error log, clears
 inputs, removes session frames, redacts the development UIDs and sent message

@@ -23,8 +23,10 @@ const (
 	diagnosticsTailBytes = 4096
 	diagnosticsTailLines = 16
 	e2eHarnessEnvPrefix  = "WK_E2E_"
-	redactedConfigValue  = "[REDACTED]"
-	omittedConfigValue   = "[invalid or unsupported TOML; content omitted]"
+	// The Review helper must keep its receipt destination out of product configuration.
+	docsGoldenPathAttestationOutputEnv = "WK_DOCS_GOLDEN_PATH_ATTESTATION_OUTPUT"
+	redactedConfigValue                = "[REDACTED]"
+	omittedConfigValue                 = "[invalid or unsupported TOML; content omitted]"
 )
 
 var sensitiveConfigKeyMarkers = [...]string{
@@ -164,7 +166,8 @@ func (p *NodeProcess) waitForExit(cmd *exec.Cmd, done, cleanupDone chan struct{}
 
 func appendChildEnvironment(dst, src []string) []string {
 	for _, entry := range src {
-		if strings.HasPrefix(entry, e2eHarnessEnvPrefix) {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, e2eHarnessEnvPrefix) || key == docsGoldenPathAttestationOutputEnv {
 			continue
 		}
 		dst = append(dst, entry)

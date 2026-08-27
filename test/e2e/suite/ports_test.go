@@ -25,7 +25,7 @@ func TestReserveLoopbackPortsReturnsDistinctNonEphemeralPorts(t *testing.T) {
 	seen := make(map[string]struct{})
 	for range 16 {
 		ports := ReserveLoopbackPorts(t)
-		for _, addr := range []string{ports.ClusterAddr, ports.GatewayAddr, ports.APIAddr, ports.ManagerAddr} {
+		for _, addr := range []string{ports.ClusterAddr, ports.GatewayAddr, ports.WebSocketAddr, ports.APIAddr, ports.ManagerAddr} {
 			if _, ok := seen[addr]; ok {
 				t.Fatalf("ReserveLoopbackPorts() reused %s", addr)
 			}
@@ -98,7 +98,7 @@ func TestReserveLoopbackPortsReturnsDisjointAddressesAcrossProcesses(t *testing.
 		}
 	}
 
-	seen := make(map[string]int, processCount*portSetsPerProcess*4)
+	seen := make(map[string]int, processCount*portSetsPerProcess*5)
 	for index := range helpers {
 		if err := helpers[index].command.Wait(); err != nil {
 			t.Fatalf("wait helper %d: %v\n%s", index, err, helpers[index].output.String())
@@ -115,7 +115,7 @@ func TestReserveLoopbackPortsReturnsDisjointAddressesAcrossProcesses(t *testing.
 			t.Fatalf("helper %d returned %d port sets, want %d", index, len(sets), portSetsPerProcess)
 		}
 		for _, ports := range sets {
-			for _, addr := range []string{ports.ClusterAddr, ports.GatewayAddr, ports.APIAddr, ports.ManagerAddr} {
+			for _, addr := range []string{ports.ClusterAddr, ports.GatewayAddr, ports.WebSocketAddr, ports.APIAddr, ports.ManagerAddr} {
 				if previous, ok := seen[addr]; ok {
 					t.Fatalf("loopback address %s returned by helper processes %d and %d", addr, previous, index)
 				}

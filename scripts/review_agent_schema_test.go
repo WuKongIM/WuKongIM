@@ -134,11 +134,25 @@ func TestReviewAgentPolicy(t *testing.T) {
 		[]string{"go", "run", "./scripts/flowcheck", "--mode", "check"},
 		flowCheck.Arguments,
 	)
+	docsCheck, ok := policy.TrustedChecks["docs-contracts"]
+	require.True(t, ok)
+	require.Equal(t, []string{"review-agent-check", "docs"}, docsCheck.Arguments)
+	require.Equal(t, 600, docsCheck.TimeoutSeconds)
+	docsIntegrationCheck, ok := policy.TrustedChecks["docs-integration"]
+	require.True(t, ok)
+	require.Equal(
+		t,
+		[]string{"review-agent-check", "docs-integration"},
+		docsIntegrationCheck.Arguments,
+	)
+	require.Equal(t, 600, docsIntegrationCheck.TimeoutSeconds)
+	require.LessOrEqual(t, docsCheck.TimeoutSeconds+docsIntegrationCheck.TimeoutSeconds, 1200)
 	require.NotEmpty(t, policy.PathRules)
 	var javascriptRule *reviewAgentPathRule
 	var documentationRule *reviewAgentPathRule
 	var flowDocumentsRule *reviewAgentPathRule
 	var flowToolingRule *reviewAgentPathRule
+	var documentationIntegrationRule *reviewAgentPathRule
 	for index := range policy.PathRules {
 		switch policy.PathRules[index].Name {
 		case "review-agent-javascript":
@@ -149,6 +163,8 @@ func TestReviewAgentPolicy(t *testing.T) {
 			flowDocumentsRule = &policy.PathRules[index]
 		case "flow-tooling":
 			flowToolingRule = &policy.PathRules[index]
+		case "documentation-golden-path-integration":
+			documentationIntegrationRule = &policy.PathRules[index]
 		}
 	}
 	require.NotNil(t, javascriptRule)
@@ -163,6 +179,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 		documentationRule.Paths,
 	)
 	require.Equal(t, []string{"docs-contracts"}, documentationRule.Checks)
+	require.Empty(t, documentationRule.Suffixes)
 	require.NotNil(t, flowDocumentsRule)
 	require.ElementsMatch(
 		t,
@@ -195,6 +212,36 @@ func TestReviewAgentPolicy(t *testing.T) {
 	require.Empty(t, flowToolingRule.Suffixes)
 	require.Equal(t, []string{"flow-doc-contracts"}, flowToolingRule.Checks)
 	require.True(t, flowToolingRule.Always)
+	require.NotNil(t, documentationIntegrationRule)
+	require.True(t, documentationIntegrationRule.Always)
+	require.False(t, documentationIntegrationRule.Exclusive)
+	require.Equal(
+		t,
+		[]string{"docs-integration"},
+		documentationIntegrationRule.Checks,
+	)
+	require.Contains(
+		t,
+		documentationIntegrationRule.Prefixes,
+		"docs-site/examples/javascript-web-quickstart/",
+	)
+	require.Contains(
+		t,
+		documentationIntegrationRule.Paths,
+		"internal/access/api/channel_messagesync.go",
+	)
+	require.Contains(t, documentationIntegrationRule.Paths, "internal/access/gateway/error_map.go")
+	require.Contains(t, documentationIntegrationRule.Paths, "internal/infra/cluster/user_metadata.go")
+	require.Contains(t, documentationIntegrationRule.Paths, "pkg/cluster/node.go")
+	require.Contains(t, documentationIntegrationRule.Paths, "pkg/cluster/node_meta.go")
+	require.Contains(t, documentationIntegrationRule.Paths, "pkg/gateway/auth.go")
+	require.Contains(t, documentationIntegrationRule.Paths, "pkg/gateway/core/server.go")
+	require.Contains(t, documentationIntegrationRule.Prefixes, "pkg/gateway/protocol/wkproto/")
+	require.Contains(t, documentationIntegrationRule.Prefixes, "pkg/gateway/protocol/wsmux/")
+	require.Contains(t, documentationIntegrationRule.Prefixes, "internal/usecase/message/")
+	require.Contains(t, documentationIntegrationRule.Prefixes, "internal/usecase/user/")
+	require.Contains(t, documentationIntegrationRule.Prefixes, "pkg/cluster/channels/")
+	require.Contains(t, documentationIntegrationRule.Prefixes, "test/e2e/suite/")
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
 	require.Contains(t, policy.Credentials.Denied, "github")
 	require.Contains(t, policy.Credentials.Denied, "cloud")

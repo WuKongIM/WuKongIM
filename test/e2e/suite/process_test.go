@@ -264,6 +264,7 @@ func TestNodeProcessStartStripsHarnessEnvironment(t *testing.T) {
 	t.Setenv("WK_E2E_BINARY", "inherited-binary")
 	t.Setenv("WK_E2E_GOFAIL_DYNAMIC_NODE", "inherited-gofail")
 	t.Setenv("WK_E2E_100K_CONVERSATION", "inherited-conversation")
+	t.Setenv("WK_DOCS_GOLDEN_PATH_ATTESTATION_OUTPUT", "inherited-receipt")
 	t.Setenv("E2E_ENV_PROBE_INHERITED", "inherited-kept")
 
 	envBinary, err := exec.LookPath("env")
@@ -284,6 +285,7 @@ func TestNodeProcessStartStripsHarnessEnvironment(t *testing.T) {
 				"WK_E2E_BINARY=explicit-binary",
 				"WK_E2E_GOFAIL_DYNAMIC_NODE=explicit-gofail",
 				"WK_E2E_100K_CONVERSATION=explicit-conversation",
+				"WK_DOCS_GOLDEN_PATH_ATTESTATION_OUTPUT=explicit-receipt",
 				"E2E_ENV_PROBE_EXPLICIT=explicit-kept",
 			},
 			ordinary: "E2E_ENV_PROBE_EXPLICIT=explicit-kept",
@@ -321,6 +323,7 @@ func TestNodeProcessStartStripsHarnessEnvironment(t *testing.T) {
 				"WK_E2E_GOFAIL_DYNAMIC_NODE",
 				"WK_E2E_100K_CONVERSATION",
 				"WK_E2E_NODE_OVERRIDE",
+				"WK_DOCS_GOLDEN_PATH_ATTESTATION_OUTPUT",
 			} {
 				_, leaked := env[name]
 				require.False(t, leaked, "harness variable %s leaked into child process", name)
