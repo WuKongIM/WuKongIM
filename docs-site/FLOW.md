@@ -10,7 +10,8 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 `docs-site` is the standalone Fumadocs application for public WuKongIM v3
 documentation under `/zh` and `/en`. It owns shared information architecture,
 MDX publication, static search, sitemap/SEO, and LLM/Markdown outputs.
-It also owns the SDK chooser and official-source directory, the narrow
+It also owns the SDK chooser and official-source directory, source-aligned
+WuKongEasySDK tutorials for iOS, Android, Flutter, and Web, the narrow
 JavaScript Web golden-path laboratory, its generated compatibility/OpenAPI
 artifacts and Fumadocs operation pages, platform-neutral SDK behavior guides,
 and source-checked protocol dictionaries. It does not define product runtime
@@ -41,19 +42,23 @@ and leaves the tested cluster source and production readiness unassessed.
    tutorial publication, and exact-version executable verification. Repository
    links do not expand the JavaScript compatibility snapshot or publish planned
    platform APIs.
-4. `lib/developer-contracts.ts` joins source-checked Reason Codes, Channel
+4. Published EasySDK tutorials preserve the legacy short integration sequence
+   while pinning current released packages and exact source revisions. They
+   route every platform through trusted-backend identity, listener lifecycle,
+   and an Alice/Bob acceptance proof without issuing a runtime receipt.
+5. `lib/developer-contracts.ts` joins source-checked Reason Codes, Channel
    Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
    pins, and the three-endpoint Product HTTP Beta subset into both human pages
    and machine-readable outputs.
-5. `scripts/generate-openapi.ts` turns the bounded OpenAPI 3.1 contract and
+6. `scripts/generate-openapi.ts` turns the bounded OpenAPI 3.1 contract and
    bilingual narrative supplements into six tracked Fumadocs operation pages.
    Static rendering preloads that exact contract, disables the HTTP playground,
    and exposes only contract-owned trusted-backend examples.
-6. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
+7. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
    the real single-node cluster/Chromium verification evidence and can write a
    redacted local acceptance report only after fast and real gates pass.
-7. Next.js static export writes `out/`, whose publication, canonical, link,
+8. Next.js static export writes `out/`, whose publication, canonical, link,
    accessibility-structure, and machine-artifact boundaries are checked before
    any external hosting step.
 
@@ -73,6 +78,17 @@ and leaves the tested cluster source and production readiness unassessed.
   availability, site tutorial status, and executable verification separately.
   Legacy timing, universal-platform, or family-wide capability claims are not
   republished without exact-version evidence.
+- EasySDK platform tutorials may name public methods only when they record the
+  exact released package, tag, and source revision used for review. Source
+  alignment is not a compatibility receipt and cannot expand the protected
+  JavaScript/Web golden-path evidence.
+- EasySDK adoption guidance must retain the iOS availability discrepancy,
+  iOS/Android device and Payload drift, Android JSON-field drift, Flutter
+  receive decoding and listener lifecycle, and all four platforms' sensitive
+  request/response or parse-error logging risks until upstream source or
+  executable evidence closes each item.
+- The EasySDK Web client receives connection material through a trusted BFF;
+  Product HTTP management calls remain outside every untrusted client.
 - Plain non-command `NoPersist` is terminal compatibility success without
   realtime delivery. Only command-style `NoPersist` enters transient online
   delivery, and neither branch has durable recovery.
@@ -105,6 +121,8 @@ and leaves the tested cluster source and production readiness unassessed.
 ## Read First
 
 - [Navigation registry](lib/navigation.ts)
+- [Phase 15 EasySDK specification](PHASE_15_SPEC.md)
+- [EasySDK overview](content/docs/sdk/easy/index.en.mdx)
 - [Phase 14 acceptance specification](PHASE_14_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
 - [OpenAPI page generator](scripts/generate-openapi.ts)

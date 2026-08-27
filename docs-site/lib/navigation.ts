@@ -9,6 +9,7 @@ export interface LocalizedText {
 }
 
 export interface NavigationPage {
+  /** Relative route path below its parent; nested pages use slash-separated segments. */
   slug: string;
   label: LocalizedText;
   description: LocalizedText;
@@ -187,6 +188,46 @@ function platformGroup(
       `Breaking changes, migration steps, and release history for the ${label} SDK.`,
     ),
   ]);
+}
+
+function publishedEasySDKGroup(): NavigationGroup {
+  return publishedGroup(
+    'easy',
+    'WuKongEasySDK',
+    'WuKongEasySDK',
+    '按当前发布 tag 完成 iOS、Android、Flutter 与 Web 的安装、连接、消息收发和资源清理。',
+    'Install a current release tag and complete connection, messaging, and cleanup on iOS, Android, Flutter, or Web.',
+    [
+      publishedPage(
+        'ios/getting-started',
+        '5 分钟集成 iOS',
+        '5-minute iOS integration',
+        '按 WuKongEasySDK iOS v1.0.2 搭建双端验收，并识别当前采用阻断项。',
+        'Prepare two-client acceptance for WuKongEasySDK iOS v1.0.2 and identify current adoption blockers.',
+      ),
+      publishedPage(
+        'android/getting-started',
+        '5 分钟集成 Android',
+        '5-minute Android integration',
+        '按 WuKongEasySDK Android v1.0.2 搭建双端验收，并识别当前采用阻断项。',
+        'Prepare two-client acceptance for WuKongEasySDK Android v1.0.2 and identify current adoption blockers.',
+      ),
+      publishedPage(
+        'flutter/getting-started',
+        '5 分钟集成 Flutter',
+        '5-minute Flutter integration',
+        '按 WuKongEasySDK Flutter v1.0.3 搭建双端验收，并关闭接收与日志边界。',
+        'Prepare two-client acceptance for WuKongEasySDK Flutter v1.0.3 and close receive/logging boundaries.',
+      ),
+      publishedPage(
+        'javascript/getting-started',
+        '5 分钟集成 Web',
+        '5-minute Web integration',
+        '按 easyjssdk v2.0.1 搭建浏览器双端验收，并关闭敏感日志阻断项。',
+        'Prepare two-client browser acceptance for easyjssdk v2.0.1 and close its sensitive-logging blocker.',
+      ),
+    ],
+  );
 }
 
 function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
@@ -733,6 +774,7 @@ export const domains: DocumentationDomain[] = [
       ),
     ],
     groups: [
+      publishedEasySDKGroup(),
       publishedGroup(
         'common-guides',
         '公共指南',
@@ -1120,19 +1162,33 @@ function entryFromPage(
   };
 }
 
+/** Converts one validated relative navigation path into Next.js route segments. */
+export function navigationPathSegments(slug: string): string[] {
+  const segments = slug.split('/');
+  if (segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')) {
+    throw new Error(`invalid navigation path: ${slug}`);
+  }
+  return segments;
+}
+
 /** Returns every domain, folder index, and leaf page in display order. */
 export function getAllNavigationEntries(locale: Locale): NavigationEntry[] {
   return domains.flatMap((domain) => {
     const entries = [entryFromPage(locale, domain, domain, [], 'domain')];
 
     for (const page of domain.pages) {
-      entries.push(entryFromPage(locale, domain, page, [page.slug], 'page'));
+      entries.push(entryFromPage(locale, domain, page, navigationPathSegments(page.slug), 'page'));
     }
 
     for (const group of domain.groups) {
       entries.push(entryFromPage(locale, domain, group, [group.slug], 'group'));
       for (const page of group.children) {
-        entries.push(entryFromPage(locale, domain, page, [group.slug, page.slug], 'page'));
+        entries.push(
+          entryFromPage(locale, domain, page, [
+            group.slug,
+            ...navigationPathSegments(page.slug),
+          ], 'page'),
+        );
       }
     }
 

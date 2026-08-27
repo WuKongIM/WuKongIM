@@ -1,0 +1,204 @@
+---
+title: 5 分钟集成 Web
+description: 锁定 easyjssdk v2.0.1，在浏览器应用中通过业务 BFF 完成连接、事件监听、消息发送与页面清理。
+---
+
+本页只覆盖浏览器接入。浏览器先向你的业务 BFF 请求当前用户的连接材料，再使用 EasyJSSDK 建立 WebSocket JSON-RPC 连接；它从不直接持有 Product HTTP 管理凭据。
+
+<Callout type="warn" title="证据边界">
+  示例按官方 [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.1`、源码 revision `f13b7fb911fdb2912025e289dcd7749350a54469` 校对。这是源码级教程，不是本站运行验证，也不是现有 `wukongimjssdk@1.3.5` Web 黄金路径的兼容性凭据。
+</Callout>
+
+<Callout type="error" title="v2.0.1 日志是生产阻断项">
+  当前源码会通过 `console.debug` / `console.log` 输出 JSON-RPC 请求、响应和连接细节，其中连接请求可能包含 Token，发送请求可能包含 Payload。用于生产前必须先升级或修复为默认关闭且敏感字段脱敏，并在浏览器构建产物中验证；不要依赖用户“不开 DevTools”保护凭据。
+</Callout>
+
+## 完成后你会得到什么
+
+- 锁定为 `easyjssdk@2.0.1` 的 npm 依赖；
+- 一个只消费业务 BFF 最小响应的浏览器客户端；
+- 可精确 `off` 的事件回调和页面退出清理；
+- Alice 发送结果与 Bob 实时接收两份独立观察。
+
+## 开始前
+
+准备以下条件：
+
+- 使用支持原生 WebSocket、`TextEncoder` 与 `TextDecoder` 的现代浏览器；
+- 一个 `/readyz` 正常且浏览器可访问 WebSocket Gateway 的 WuKongIM 单节点集群或多节点集群；
+- 一个同源或正确配置跨域策略的业务 BFF；
+- BFF 能在验证产品 Session 后返回当前用户的 `uid`、短期 `token` 与 `websocketUrl`。
+
+先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。生产页面与 WebSocket 使用 HTTPS/WSS，Token 不写入 URL、Local Storage、日志或分析事件。
+
+## 步骤 1：安装精确版本
+
+在现有 Vite、Next.js 或其他打包工程中执行：
+
+```bash
+npm install --save-exact easyjssdk@2.0.1
+```
+
+提交 `package-lock.json`。本教程不使用 CDN 的浮动版本，避免页面刷新后静默更换 SDK。
+
+## 步骤 2：从业务 BFF 取得连接材料
+
+下面的 `/api/im/bootstrap` 是你的产品接口，不是 WuKongIM Product HTTP。BFF 在服务端验证登录态、签发短期 Token，并安全选择 `/route` 返回的 WebSocket 地址：
+
+```ts
+interface IMBootstrap {
+  uid: string;
+  token: string;
+  websocketUrl: string;
+}
+
+async function fetchIMBootstrap(): Promise<IMBootstrap> {
+  const response = await fetch('/api/im/bootstrap', {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`IM bootstrap failed: ${response.status}`);
+  return response.json() as Promise<IMBootstrap>;
+}
+```
+
+浏览器不能直接调用 `/user/token` 或 `/route`。这些接口的管理边界、服务端凭据和响应筛选都留在 BFF。
+
+## 步骤 3：初始化、监听并连接
+
+`on` 接收函数引用，`off` 必须拿到同一个引用。下面使用非全局单例模式，避免热更新、测试或多实例页面静默销毁另一个客户端：
+
+```ts
+import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
+
+export class EasyChatClient {
+  private im?: WKIM;
+  private readonly messages = new Map<string, unknown>();
+
+  private readonly onConnect = (result: unknown) => {
+    console.info('EasySDK connected', result);
+  };
+
+  private readonly onDisconnect = (info: unknown) => {
+    console.info('EasySDK disconnected', info);
+  };
+
+  private readonly onMessage = (message: any) => {
+    if (this.messages.has(message.messageId)) return;
+    this.messages.set(message.messageId, message);
+    // 把去重后的消息交给应用状态层。
+  };
+
+  private readonly onError = (error: unknown) => {
+    console.error('EasySDK error', error);
+  };
+
+  async start(bootstrap: IMBootstrap): Promise<void> {
+    this.stop();
+
+    const im = WKIM.init(
+      bootstrap.websocketUrl,
+      { uid: bootstrap.uid, token: bootstrap.token },
+      { singleton: false },
+    );
+    im.on(WKIMEvent.Connect, this.onConnect);
+    im.on(WKIMEvent.Disconnect, this.onDisconnect);
+    im.on(WKIMEvent.Message, this.onMessage);
+    im.on(WKIMEvent.Error, this.onError);
+
+    this.im = im;
+    await this.connectWithin(im, 10_000);
+  }
+
+  private async connectWithin(im: WKIM, timeoutMs: number): Promise<void> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        im.connect(),
+        new Promise<void>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error(`EasySDK connect exceeded ${timeoutMs} ms`)),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } catch (error) {
+      im.destroy();
+      if (this.im === im) this.im = undefined;
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+  }
+
+  async sendText(targetUid: string, text: string) {
+    if (!this.im?.isConnected) throw new Error('EasySDK is not connected');
+
+    return this.im.send(targetUid, WKIMChannelType.Person, {
+      type: 1,
+      version: 1,
+      content: text,
+    });
+  }
+
+  stop(): void {
+    const im = this.im;
+    if (!im) return;
+
+    im.off(WKIMEvent.Connect, this.onConnect);
+    im.off(WKIMEvent.Disconnect, this.onDisconnect);
+    im.off(WKIMEvent.Message, this.onMessage);
+    im.off(WKIMEvent.Error, this.onError);
+    im.destroy();
+    this.im = undefined;
+  }
+}
+```
+
+应用通常只创建一个 `EasyChatClient`。SDK 的 CONNECT JSON-RPC 请求有内部超时，但 WebSocket 打开阶段仍可能悬挂；`connectWithin` 因此把完整等待限制为 10 秒，并在失败后 `destroy`。React 中可以在根级 Provider 持有它，并在 Effect 清理函数中调用 `stop()`；Vue/Svelte 同样在组件或应用卸载钩子里释放。
+
+## 步骤 4：发送第一条消息
+
+```ts
+const chat = new EasyChatClient();
+const alice = await fetchIMBootstrap();
+
+await chat.start(alice);
+const result = await chat.sendText('bob', 'Hello from Web EasySDK');
+console.info(
+  'SEND result',
+  result.messageId,
+  result.messageSeq,
+  result.reasonCode,
+);
+
+window.addEventListener('pagehide', () => chat.stop(), { once: true });
+```
+
+Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍需在独立页面的 `WKIMEvent.Message` 回调中看到消息；不要把发送结果直接渲染成对方“已读”或“已处理”。
+
+## 步骤 5：用 Alice 和 Bob 验收
+
+1. 打开两个独立浏览器 Profile 或两个隔离的浏览器上下文，分别登录 Alice 与 Bob；
+2. 两端都从各自的产品 Session 获取连接材料并观察 `WKIMEvent.Connect`；
+3. Alice 向个人 Channel `bob` 发送消息，记录发送结果；
+4. Bob 核对 `fromUid`、`channelId`、`messageId` 和 Payload；
+5. Bob 向 Alice 回发，验证反向链路；
+6. 模拟不可达地址，确认 10 秒内失败并 `destroy`，页面不会永久停在 Connecting；
+7. 刷新、关闭或退出账号，确认旧实例已 `off` 并 `destroy`，没有重复连接；
+8. 检查生产构建的 Console 与日志采集，确认 Token 和 Payload 不会泄露。`v2.0.1` 未完成这项前不得通过生产门禁。
+
+这个闭环没有覆盖离线同步。如果 Bob 离线，应用不能仅等待 EasySDK 的实时事件；必须用产品设计的持久同步路径恢复消息。
+
+## 常见问题
+
+- **页面提示 WebSocket 或编码 API 不存在**：确认目标浏览器与构建环境提供 WebSocket、`TextEncoder`、`TextDecoder`；不要从浏览器路径推断小程序支持。
+- **连接前就被拒绝**：检查 BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade 和 Gateway 可达性。
+- **刷新后重复收消息**：不要在每次组件渲染时调用 `on`；保留回调并在卸载时 `off`/`destroy`。
+- **Console 出现 Token 或 Payload**：这是当前 tag 的已知采用阻断项，升级或修复并验证脱敏后再上线。
+- **需要可执行 Web 场景入口**：使用本站具备受保护验证流程的 [WuKongIMJSSDK Web 教程](/zh/sdk/javascript)，并在[版本与兼容性](/zh/sdk/compatibility)查看当前 receipt 状态；不要把两套 SDK 的方法名混用。
+
+## 下一步
+
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[离线消息与推送](/zh/sdk/common-guides/offline-and-push)和[上线验收](/zh/guide/integration/acceptance)。

@@ -49,7 +49,11 @@ redacted. It records the acceptance-harness revision and observed installed SDK
 identity, leaves the tested cluster source and production readiness
 `not_assessed`, and cannot replace the protected clean-HEAD publication
 receipt. Documentation quality passes only when the bilingual pages participate
-in the browser run.
+in the browser run. Phase 15 publishes bilingual, source-aligned EasySDK paths
+for iOS, Android, Flutter, and Web. Each path pins one released package and
+source revision, provides a trusted-backend Alice/Bob acceptance scaffold, and
+exposes current platform adoption blockers without claiming a new executable
+compatibility receipt.
 
 ## Develop
 
@@ -96,7 +100,9 @@ dictionary names, values, and bit positions with their current Go authorities.
 Phase 14 also checks capability-status drift, exact local-report shape,
 fail-closed write ordering, observed SDK identity, and the separation between
 the harness, tested cluster, documentation quality, compatibility smoke, and
-production readiness. Relevant
+production readiness. Phase 15 also checks exact EasySDK package/source pins,
+bilingual route parity, source-versus-runtime wording, Alice/Bob acceptance,
+listener cleanup, and platform-specific adoption boundaries. Relevant
 sample or runtime-contract changes select the real Chromium integration check.
 
 ## Golden-path attestation
@@ -178,3 +184,5 @@ source-discovery boundaries, cross-SDK behavior guides, source-checked protocol
 dictionaries, and the platform-support boundary.
 `PHASE_14_SPEC.md` defines the JavaScript capability evidence, local acceptance
 report, production gate, and publication-attestation boundaries.
+`PHASE_15_SPEC.md` defines the source-aligned EasySDK overview and iOS, Android,
+Flutter, and Web tutorial boundaries.

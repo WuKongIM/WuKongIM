@@ -1,0 +1,204 @@
+---
+title: 5-minute Web integration
+description: Pin easyjssdk v2.0.1 and use a product BFF to connect, subscribe, send, and clean up a browser application.
+---
+
+This page covers browser integration only. The browser asks your product BFF for the current user's connection material, then uses EasyJSSDK to establish a WebSocket JSON-RPC connection. It never holds a Product HTTP management credential directly.
+
+<Callout type="warn" title="Evidence boundary">
+  The example is aligned with the official [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.1` source at revision `f13b7fb911fdb2912025e289dcd7749350a54469`. This is a source-level tutorial, not runtime verification, and it is not a compatibility receipt for the existing `wukongimjssdk@1.3.5` Web golden path.
+</Callout>
+
+<Callout type="error" title="v2.0.1 logging blocks production adoption">
+  The current source writes JSON-RPC requests, responses, and connection details through `console.debug` / `console.log`. A connection request can contain the token, and a send request can contain payload data. Before production, upgrade or fix the SDK so this output is disabled by default and sensitive fields are redacted, then verify the browser artifact. A user keeping DevTools closed is not a credential boundary.
+</Callout>
+
+## What you will have
+
+- An npm dependency pinned to `easyjssdk@2.0.1`.
+- A browser client that consumes only a minimal product-BFF response.
+- Event callbacks that can be removed precisely with `off`, plus page-exit cleanup.
+- Two independent observations: Alice's send result and Bob's realtime receive.
+
+## Before you begin
+
+Prepare the following:
+
+- A modern browser with native WebSocket, `TextEncoder`, and `TextDecoder`.
+- A WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is browser-reachable.
+- A same-origin product BFF, or one with a deliberately configured cross-origin policy.
+- A BFF that validates the product session and returns `uid`, a short-lived `token`, and `websocketUrl` for the current user.
+
+Read [Identity & Token](/en/sdk/common-guides/identity-and-token) first. Production pages and WebSockets use HTTPS/WSS, and tokens never belong in URLs, Local Storage, logs, or analytics events.
+
+## Step 1: install an exact version
+
+Run this in an existing Vite, Next.js, or other bundled application:
+
+```bash
+npm install --save-exact easyjssdk@2.0.1
+```
+
+Commit `package-lock.json`. This tutorial does not use a floating CDN version that could silently replace the SDK after a page refresh.
+
+## Step 2: obtain connection material from the product BFF
+
+`/api/im/bootstrap` below is your product route, not WuKongIM Product HTTP. The BFF validates the server-side login session, issues a short-lived token, and safely selects the WebSocket address returned by `/route`:
+
+```ts
+interface IMBootstrap {
+  uid: string;
+  token: string;
+  websocketUrl: string;
+}
+
+async function fetchIMBootstrap(): Promise<IMBootstrap> {
+  const response = await fetch('/api/im/bootstrap', {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`IM bootstrap failed: ${response.status}`);
+  return response.json() as Promise<IMBootstrap>;
+}
+```
+
+The browser never calls `/user/token` or `/route` directly. Their management boundary, server credential, and response filtering remain inside the BFF.
+
+## Step 3: initialize, subscribe, and connect
+
+`on` receives a function reference; `off` must receive the same reference. This example disables global-singleton mode so hot reload, tests, or a multi-instance page cannot silently destroy another client:
+
+```ts
+import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
+
+export class EasyChatClient {
+  private im?: WKIM;
+  private readonly messages = new Map<string, unknown>();
+
+  private readonly onConnect = (result: unknown) => {
+    console.info('EasySDK connected', result);
+  };
+
+  private readonly onDisconnect = (info: unknown) => {
+    console.info('EasySDK disconnected', info);
+  };
+
+  private readonly onMessage = (message: any) => {
+    if (this.messages.has(message.messageId)) return;
+    this.messages.set(message.messageId, message);
+    // Pass the deduplicated message to application state.
+  };
+
+  private readonly onError = (error: unknown) => {
+    console.error('EasySDK error', error);
+  };
+
+  async start(bootstrap: IMBootstrap): Promise<void> {
+    this.stop();
+
+    const im = WKIM.init(
+      bootstrap.websocketUrl,
+      { uid: bootstrap.uid, token: bootstrap.token },
+      { singleton: false },
+    );
+    im.on(WKIMEvent.Connect, this.onConnect);
+    im.on(WKIMEvent.Disconnect, this.onDisconnect);
+    im.on(WKIMEvent.Message, this.onMessage);
+    im.on(WKIMEvent.Error, this.onError);
+
+    this.im = im;
+    await this.connectWithin(im, 10_000);
+  }
+
+  private async connectWithin(im: WKIM, timeoutMs: number): Promise<void> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        im.connect(),
+        new Promise<void>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error(`EasySDK connect exceeded ${timeoutMs} ms`)),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } catch (error) {
+      im.destroy();
+      if (this.im === im) this.im = undefined;
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+  }
+
+  async sendText(targetUid: string, text: string) {
+    if (!this.im?.isConnected) throw new Error('EasySDK is not connected');
+
+    return this.im.send(targetUid, WKIMChannelType.Person, {
+      type: 1,
+      version: 1,
+      content: text,
+    });
+  }
+
+  stop(): void {
+    const im = this.im;
+    if (!im) return;
+
+    im.off(WKIMEvent.Connect, this.onConnect);
+    im.off(WKIMEvent.Disconnect, this.onDisconnect);
+    im.off(WKIMEvent.Message, this.onMessage);
+    im.off(WKIMEvent.Error, this.onError);
+    im.destroy();
+    this.im = undefined;
+  }
+}
+```
+
+An application normally creates one `EasyChatClient`. The SDK has an internal timeout for the CONNECT JSON-RPC request, but the WebSocket-open phase can still hang; `connectWithin` bounds the complete wait at 10 seconds and calls `destroy` after failure. React can keep the client in a root-level Provider and call `stop()` from an Effect cleanup. Vue and Svelte use the corresponding component or application unmount hook.
+
+## Step 4: send the first message
+
+```ts
+const chat = new EasyChatClient();
+const alice = await fetchIMBootstrap();
+
+await chat.start(alice);
+const result = await chat.sendText('bob', 'Hello from Web EasySDK');
+console.info(
+  'SEND result',
+  result.messageId,
+  result.messageSeq,
+  result.reasonCode,
+);
+
+window.addEventListener('pagehide', () => chat.stop(), { once: true });
+```
+
+Alice's resolved Promise means the send request received a server result. Bob must still observe the message in an independent page through `WKIMEvent.Message`. Do not render Alice's send result as proof that Bob read or processed it.
+
+## Step 5: accept with Alice and Bob
+
+1. Open two independent browser profiles or isolated browser contexts and sign in as Alice and Bob.
+2. Both sides obtain connection material from their own product session and observe `WKIMEvent.Connect`.
+3. Have Alice send to the person Channel `bob`, retaining the send result.
+4. On Bob, verify `fromUid`, `channelId`, `messageId`, and payload.
+5. Have Bob send back to Alice and prove the reverse direction.
+6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
+7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
+8. Inspect production console output and log collection to prove tokens and payloads cannot leak. `v2.0.1` must not pass a production gate before this is fixed.
+
+This loop does not cover offline synchronization. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
+
+## Troubleshooting
+
+- **The page says WebSocket or encoding APIs are missing:** confirm the browser and build environment provide WebSocket, `TextEncoder`, and `TextDecoder`; do not infer Mini Program support from the browser path.
+- **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
+- **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
+- **The console contains a token or payload:** this is a known adoption blocker in the current tag. Upgrade or fix and verify redaction before production.
+- **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and inspect the current receipt under [Versions & Compatibility](/en/sdk/compatibility). Do not mix method names between the two SDKs.
+
+## Next
+
+Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/sdk/common-guides/messaging), [Offline Messages & Push](/en/sdk/common-guides/offline-and-push), and [Integration Acceptance](/en/guide/integration/acceptance).

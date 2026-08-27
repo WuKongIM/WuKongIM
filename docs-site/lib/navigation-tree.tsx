@@ -4,6 +4,7 @@ import {
   domains,
   getAllNavigationEntries,
   getIndexedNavigationEntries,
+  navigationPathSegments,
   type DocumentationDomain,
   type Locale,
 } from './navigation';
@@ -78,7 +79,7 @@ export function buildPageTree(
       pageNode(
         locale,
         domain,
-        [page.slug],
+        navigationPathSegments(page.slug),
         page.label[locale],
         page.description[locale],
         page.status === 'planned',
@@ -104,7 +105,7 @@ export function buildPageTree(
         pageNode(
           locale,
           domain,
-          [group.slug, page.slug],
+          [group.slug, ...navigationPathSegments(page.slug)],
           page.label[locale],
           page.description[locale],
           page.status === 'planned',

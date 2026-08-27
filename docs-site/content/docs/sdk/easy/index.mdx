@@ -1,0 +1,89 @@
+---
+title: WuKongEasySDK
+description: 用更小的客户端 API 在 iOS、Android、Flutter 和 Web 上完成连接、消息收发与生命周期清理。
+---
+
+WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业务状态的应用。它通过 WebSocket JSON-RPC 连接 WuKongIM Gateway，把第一次接入收敛为四件事：取得连接材料、初始化 SDK、监听事件、发送一条消息。
+
+<Callout type="warn" title="源码校对不等于本站运行验证">
+  本组教程按四个官方仓库的精确发布 tag 与源码 revision 校对，并与当前服务端 JSON-RPC 结构核对；本站没有为这些 EasySDK 版本签发可执行兼容性凭据。当前唯一具有本站完整客户端场景证据的仍是[版本与兼容性](/zh/sdk/compatibility)中记录的 WuKongIMJSSDK Web 黄金路径。
+</Callout>
+
+“5 分钟”描述的是阅读路径：安装、初始化、监听、连接和发送。它不是完成时间承诺，也不包含业务账号、授权、群成员、离线同步、推送、容量与上线验收。
+
+## 选择你的平台
+
+<Cards>
+  <Card title="iOS" description="使用 Swift Package Manager 或 CocoaPods 安装 v1.0.2。" href="/zh/sdk/easy/ios/getting-started" />
+  <Card title="Android" description="从 Maven Central 安装 v1.0.2，并按 Activity 生命周期清理监听器。" href="/zh/sdk/easy/android/getting-started" />
+  <Card title="Flutter" description="从 pub.dev 安装 v1.0.3，并在 State.dispose 中释放资源。" href="/zh/sdk/easy/flutter/getting-started" />
+  <Card title="Web" description="锁定 easyjssdk v2.0.1，通过业务 BFF 取得浏览器连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
+</Cards>
+
+## EasySDK 负责什么
+
+| EasySDK 当前源码提供 | 仍由你的应用负责 |
+| --- | --- |
+| WebSocket 建连与 JSON-RPC CONNECT | 产品登录、UID 分配、Token 签发和撤销 |
+| 单聊或群聊 Channel 的消息发送 | 好友、群成员、权限、内容安全和业务回执 |
+| 连接、断开、消息、错误等事件 | 页面状态、消息展示、持久化和未知消息降级 |
+| 发送结果与实时消息接收 | 离线消息同步、会话与未读、推送和多设备策略 |
+| 有界自动重连能力 | TLS/WSS、限流、容量、监控、升级与回滚证据 |
+
+EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服务端对本次发送给出了结果；它不等于对方已经在线收到、已经展示或已经处理。继续阅读[消息收发](/zh/sdk/common-guides/messaging)，把发送确认、实时接收和业务完成分开建模。
+
+## 四个平台采用的源码快照
+
+| 平台 | 发布 tag | 源码 revision | 分发入口 |
+| --- | --- | --- | --- |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.2` | `6257d9ddcc2872e20ff23446a2f368c2c2c1f481` | Swift Package Manager / CocoaPods |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.2` | `2e9c9023428571b56eeddc053608aefe5d6a9a5f` | Maven Central |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.3` | `7888867a9f22ec22d768dcfe0c6c95b418fcb458` | pub.dev |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.1` | `f13b7fb911fdb2912025e289dcd7749350a54469` | npm |
+
+教程故意锁定这些版本，不使用版本范围或 `latest`。准备升级时，先在独立分支重复 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
+
+## 开始前准备连接材料
+
+客户端不应该自己授予身份。用户先登录你的产品，受信业务后端再返回本次连接所需的最小材料：
+
+```json
+{
+  "uid": "alice",
+  "token": "short-lived-token",
+  "websocketUrl": "wss://im.example.com/ws"
+}
+```
+
+- `uid` 是产品中的稳定用户标识；
+- `token` 应短期、可撤销，且不能授予 Product HTTP 管理权限；
+- `websocketUrl` 来自部署配置或后端调用 `/route` 后的安全选择；
+- 生产环境使用 `wss://`，并让反向代理正确支持 WebSocket Upgrade。
+
+先完成[身份与 Token](/zh/sdk/common-guides/identity-and-token)。当前默认 v3 Beta 组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器并证明无效、过期和撤销 Token 会被拒绝。
+
+<Callout type="warn" title="不要复制设备枚举数值">
+  iOS 与 Android `v1.0.2` 的 APP 值是 `1`，当前服务端[设备字典](/zh/api/dictionaries/device-flags)的 APP 值是 `0`；使用默认 `.app` / `APP` 也不能避开差异。两个平台还存在当前 v3 Payload 或字段形态不匹配。请先升级或修复 SDK，再针对目标服务端实测设备归类与 Alice/Bob 链路。
+</Callout>
+
+<Callout type="error" title="先关闭 SDK 敏感日志再进入生产">
+  当前四个平台的固定源码都存在可能泄露 Token 或 Payload 的日志路径：Android `v1.0.2` 的部分解析错误日志不受 `debugLogging` 控制，iOS `v1.0.2` 的 JSON 日志配置开关没有真正拦截输出，Flutter `v1.0.3` 与 Web `v2.0.1` 会记录完整请求或响应。各平台教程列出了具体边界。完成修复、构建产物复核与脱敏测试前，不得通过生产门禁。
+</Callout>
+
+## 用 Alice 和 Bob 验收
+
+每个平台都采用同一个最小闭环：
+
+1. 为 Alice 和 Bob 分别取得 UID、短期 Token 与 WebSocket 地址；
+2. 建立两个独立 SDK 实例或两个独立应用进程；
+3. 两端都观察到连接成功后，Alice 向 Bob 的个人 Channel 发送文本 Payload；
+4. Alice 记录发送结果中的消息 ID、序号和 Reason Code（若该 SDK 暴露）；
+5. Bob 独立观察实时消息事件，并按 `messageId` 去重；
+6. 反向由 Bob 向 Alice 发送，再验证一次；
+7. 页面、Activity、Widget 或应用退出时移除监听器并断开连接。
+
+这个闭环只证明当前环境的连接和在线消息。离线恢复、会话、推送、多设备、重连边界和生产安全仍要单独验收。
+
+## 下一步
+
+选择上方平台完成第一条消息，然后继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)和[上线验收](/zh/guide/integration/acceptance)。如果需要本地消息库、会话、未读和更完整的平台 API，请回到[选择 SDK](/zh/sdk/choose-sdk)评估 WuKongIMSDK 系列。

@@ -1,0 +1,220 @@
+---
+title: 5 分钟集成 iOS
+description: 锁定 WuKongEasySDK iOS v1.0.2，在 Swift 应用中完成连接、事件监听、单聊发送与资源清理。
+---
+
+本页把旧版“5 分钟集成”整理成一个可验收的 iOS 最小闭环：先由业务后端提供连接材料，再让 Alice 与 Bob 分别连接、互发一条消息，最后正确移除监听器。
+
+<Callout type="warn" title="证据边界">
+  示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.2`、源码 revision `6257d9ddcc2872e20ff23446a2f368c2c2c1f481` 校对。这是源码级教程，不是本站运行验证，也不扩大[版本与兼容性](/zh/sdk/compatibility)中的可执行客户端范围。
+</Callout>
+
+<Callout type="error" title="v1.0.2 JSON 日志是生产阻断项">
+  该 tag 的 `LogManager.logJsonData` 没有实际执行 `enableJsonLogging` 与日志级别判断，会输出 JSON-RPC 请求和响应。Token 字段会尝试掩码，但消息 Payload 仍可能进入设备日志。即使配置 `enableJsonLogging: false` 也不能把它当成已关闭；用于生产前必须升级或修复 SDK，并在 Release 构建与日志采集链路中验证无敏感数据。
+</Callout>
+
+<Callout type="error" title="v1.0.2 不能直接通过当前 v3 消息验收">
+  当前服务端要求 `deviceFlag` 的 APP 值为 `0`，SEND 与 RECV 的 `payload` 是 Base64 编码字节；该 tag 的 `.app` 值为 `1`，SEND 直接发送 JSON 对象，RECV 又把 Payload 解码为字典。未修改的客户端会被错误归类设备，并在发送或接收解析阶段失败。下面代码用于说明公开 API 与验收骨架；必须先采用包含这些修复的上游版本或经过评审的 fork，再执行 Alice/Bob 闭环。
+</Callout>
+
+## 完成后你会得到什么
+
+- 一个锁定到 `1.0.2` 的 iOS 依赖；
+- 一个应用级客户端对象，负责初始化、监听、连接和退出；
+- 一套 Alice 发送结果与 Bob 实时接收事件的双端验收骨架；
+- 明确的 Token、WSS、离线恢复和生产验收待办。
+
+## 开始前
+
+准备以下条件：
+
+- iOS 部署目标使用 **iOS 15 或更高版本**。包清单声明 iOS 13，但 `v1.0.2` 的公开 `WuKongEasySDK` 类标记为 `@available(iOS 15.0, ...)`，因此本教程采用更保守的真实 API 下限；
+- 使用支持 Swift 5.7 Package 的 Xcode 工具链；
+- 一个 `/readyz` 正常、WebSocket Gateway 可从设备访问的 WuKongIM 单节点集群或多节点集群；
+- 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
+
+先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。不要把固定 Token 写进 App、源码仓库、日志或截图。
+
+## 步骤 1：安装精确版本
+
+### Swift Package Manager
+
+在 Xcode 中选择 **File → Add Package Dependencies**，输入：
+
+```text
+https://github.com/WuKongIM/WuKongEasySDK-iOS.git
+```
+
+Dependency Rule 选择 **Exact Version**，填写 `1.0.2`。如果项目维护 `Package.swift`，使用精确规则：
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/WuKongIM/WuKongEasySDK-iOS.git",
+        exact: "1.0.2"
+    )
+]
+```
+
+### CocoaPods
+
+```ruby
+target 'YourApp' do
+  pod 'WuKongEasySDK', '1.0.2'
+end
+```
+
+然后运行 `pod install`，并从 `.xcworkspace` 打开项目。两种安装方式选择一种即可。
+
+## 步骤 2：接收业务后端的连接材料
+
+把业务后端响应映射到应用模型。真实实现应通过 HTTPS 获取，不要在客户端调用 Product HTTP 管理接口：
+
+```swift
+struct IMBootstrap: Decodable {
+    let uid: String
+    let token: String
+    let websocketUrl: String
+}
+```
+
+`websocketUrl` 在本地开发可以是 `ws://`；生产环境应是由业务后端选择并返回的 `wss://` 地址。
+
+## 步骤 3：封装客户端生命周期
+
+下面的对象先注册监听器，再连接；退出时使用创建监听器时返回的 `EventListener` 精确移除，避免页面重进后重复处理消息。
+
+```swift
+import Combine
+import Foundation
+import WuKongEasySDK
+
+@MainActor
+final class EasyChatClient: ObservableObject {
+    @Published private(set) var isConnected = false
+    @Published private(set) var messages: [Message] = []
+
+    private var sdk: WuKongEasySDK?
+    private var listeners: [EventListener] = []
+
+    func start(with bootstrap: IMBootstrap) async throws {
+        stop()
+
+        let config = try WuKongConfig(
+            serverUrl: bootstrap.websocketUrl,
+            uid: bootstrap.uid,
+            token: bootstrap.token,
+            connectionTimeout: 15,
+            requestTimeout: 15,
+            maxReconnectAttempts: 5,
+            enableDebugLogging: false,
+            logLevel: .error,
+            enableJsonLogging: false // v1.0.2 仍需修复源码中的日志守卫。
+        )
+        let sdk = WuKongEasySDK(config: config)
+
+        listeners.append(sdk.onConnect { [weak self] _ in
+            Task { @MainActor in self?.isConnected = true }
+        })
+        listeners.append(sdk.onDisconnect { [weak self] info in
+            Task { @MainActor in
+                self?.isConnected = false
+                print("Disconnected: \(info.code) \(info.reason)")
+            }
+        })
+        listeners.append(sdk.onMessage { [weak self] message in
+            Task { @MainActor in
+                guard self?.messages.contains(where: { $0.messageId == message.messageId }) == false
+                else { return }
+                self?.messages.append(message)
+            }
+        })
+        listeners.append(sdk.onError { error in
+            print("WuKongEasySDK error: \(error.localizedDescription)")
+        })
+
+        self.sdk = sdk
+        do {
+            try await sdk.connect()
+        } catch {
+            stop() // 超时、认证或网络失败后释放 socket 与监听器。
+            throw error
+        }
+    }
+
+    func sendText(to uid: String, text: String) async throws -> SendResult {
+        guard let sdk, isConnected else { throw WuKongError.notConnected }
+
+        let payload: MessagePayload = [
+            "type": 1,
+            "version": 1,
+            "content": text
+        ]
+        return try await sdk.send(
+            channelId: uid,
+            channelType: .person,
+            payload: payload
+        )
+    }
+
+    func stop() {
+        if let sdk {
+            listeners.forEach { sdk.removeListener($0) }
+            sdk.disconnect()
+        }
+        listeners.removeAll()
+        sdk = nil
+        isConnected = false
+    }
+
+    deinit {
+        // 视图或应用生命周期仍应主动调用 stop()。
+    }
+}
+```
+
+不要把 `onMessage` 的匿名闭包丢掉；`removeListener` 需要注册时返回的监听器对象。示例把连接与请求上限固定为 15 秒，失败后立即 `stop()`；自动重连最多 5 次，但 UI 仍要显示未就绪状态。SwiftUI 可以让一个上层 `@StateObject` 持有 `EasyChatClient`，在退出账号或应用根视图销毁时调用 `stop()`。
+
+## 步骤 4：发送第一条消息
+
+先升级或修复前述设备标志与 Payload 合同，再在用户完成产品登录后取得 Alice 的 `IMBootstrap` 并启动：
+
+```swift
+let aliceBootstrap = try await productAPI.fetchIMBootstrap()
+try await chatClient.start(with: aliceBootstrap)
+
+let result = try await chatClient.sendText(
+    to: "bob",
+    text: "Hello from iOS EasySDK"
+)
+print("SEND result: \(result.messageId), seq=\(result.messageSeq)")
+```
+
+返回 `SendResult` 说明 Alice 获得了服务端发送结果。Bob 还必须在自己的 `onMessage` 回调中独立看到相同业务 Payload；不要仅凭本地列表插入判断对方已收到。
+
+## 步骤 5：用 Alice 和 Bob 验收
+
+1. 在两台设备或两个独立 App 进程中分别登录 Alice 与 Bob；
+2. 两端都等到 `onConnect` 后再启用发送按钮；
+3. Alice 向个人 Channel `bob` 发送消息，保存 `messageId` 与 `messageSeq`；
+4. Bob 在 `onMessage` 中核对 `fromUid == "alice"`、Channel 和 Payload；
+5. Bob 向 Alice 回发，再验证反向链路；
+6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接；
+7. 检查 Release 构建与设备日志，证明 Token、Payload 和完整 JSON-RPC 数据不会被记录；`v1.0.2` 原始源码未修复前不得通过生产门禁。
+
+未修改的 `v1.0.2` 预期会在该闭环暴露设备类型、SEND Payload 或 RECV Payload 问题；不能把失败隐藏为本地成功。这一步即使在修复后通过，也只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要按[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)另行设计。
+
+## 常见问题
+
+- **编译提示 API 仅 iOS 15 可用**：把部署目标提高到 iOS 15，不能只看 `Package.swift` 中较低的平台声明。
+- **连接一直失败**：从设备网络访问业务后端返回的 WebSocket 地址，检查反向代理 Upgrade、证书和 `wss://`；不要把容器内地址返回给手机。
+- **认证失败**：刷新业务后端签发的短期 Token。`/user/token` 成功不代表默认部署已启用 CONNECT Token 校验。
+- **关闭 `enableJsonLogging` 后仍出现 JSON**：这是 `v1.0.2` 源码中的已知日志守卫问题；升级或修复并验证 Release 产物，不能只改配置。
+- **SEND 报 Payload 解码失败，或 RECV 无法构造 `Message`**：核对服务端 Base64 字节合同；`v1.0.2` 的对象发送和字典接收不能直接匹配当前 v3，需升级或修复 SDK。
+- **设备被识别为 Web**：`v1.0.2` 的 `.app.rawValue == 1`，而当前服务端 APP 为 `0`；不要用业务代码篡改设备策略，需修复 SDK 枚举后重新验收。
+- **消息重复出现**：确认监听器只注册一次，并按 `messageId` 合并实时和后续同步结果。
+- **发送成功但 Bob 没收到**：分别检查 Alice 的发送结果、Bob 的实时连接以及产品后续的离线同步，不要自动重发一个已经提交的消息。
+
+## 下一步
+
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[自定义消息](/zh/sdk/common-guides/custom-messages)与[上线验收](/zh/guide/integration/acceptance)。

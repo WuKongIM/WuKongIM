@@ -1,0 +1,261 @@
+---
+title: 5 分钟集成 Flutter
+description: 锁定 WuKongEasySDK Flutter v1.0.3，在 Flutter 应用中完成初始化、连接、消息收发与 State 生命周期清理。
+---
+
+本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的最小流程：从业务后端取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
+
+<Callout type="warn" title="证据边界">
+  示例按官方 [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.3`、源码 revision `7888867a9f22ec22d768dcfe0c6c95b418fcb458` 校对。这是源码级教程，不是本站运行验证，也不表示所有 Flutter 目标平台都通过了同一服务端组合。
+</Callout>
+
+<Callout type="error" title="v1.0.3 请求日志是生产阻断项">
+  该 tag 会通过 `developer.log` 无条件记录完整 JSON-RPC 请求与响应；CONNECT 请求包含 Token，SEND 请求包含编码后的 Payload，而且没有公开的日志关闭配置。用于生产前必须升级或修复 SDK，并在各目标平台的 Release 构建和日志采集链路中验证脱敏。
+</Callout>
+
+<Callout type="warn" title="接收 Payload 需要应用解码">
+  `v1.0.3` 会按当前 v3 要求把 SEND Payload 编成 Base64，但收到 RECV 后把服务端 Base64 字符串原样放进 `Message.payload`。示例显式做 Base64 → UTF-8 解码；业务层随后再按 `type` 分派 JSON，不能假设 `message.payload` 已经是 Map。
+</Callout>
+
+## 完成后你会得到什么
+
+- `pubspec.yaml` 中锁定为 `1.0.3` 的依赖；
+- 一个不会在 Widget 重建时重复注册监听器的页面；
+- Alice 的发送结果与 Bob 的实时消息事件；
+- 清晰的退出、去重、Token、WSS 与后续离线能力边界。
+
+## 开始前
+
+准备以下条件：
+
+- Flutter 3.0 或更高版本；
+- Dart 3.0 或更高版本；
+- 一个 `/readyz` 正常、目标设备可访问 WebSocket Gateway 的 WuKongIM 单节点集群或多节点集群；
+- 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
+
+先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。如果应用同时构建移动端、桌面端和 Web，请把每个目标分别验收，不能用一个平台的结果推断全部平台。
+
+## 步骤 1：安装精确版本
+
+在 `pubspec.yaml` 中添加精确版本：
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  wukong_easy_sdk: 1.0.3
+```
+
+然后执行：
+
+```bash
+flutter pub get
+```
+
+提交更新后的 `pubspec.lock`，确保 CI 与开发机安装同一版本。
+
+## 步骤 2：接收业务后端的连接材料
+
+```dart
+class IMBootstrap {
+  const IMBootstrap({
+    required this.uid,
+    required this.token,
+    required this.websocketUrl,
+  });
+
+  final String uid;
+  final String token;
+  final String websocketUrl;
+}
+```
+
+业务后端先验证产品登录，再返回这三个字段。客户端不持有 Product HTTP 管理凭据，生产地址使用 `wss://`。
+
+## 步骤 3：初始化并保存监听器引用
+
+以下页面只在 `initState` 触发一次初始化。每个回调都保存为字段，才能在 `dispose` 中传回同一个函数引用。
+
+```dart
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:wukong_easy_sdk/wukong_easy_sdk.dart';
+
+class ChatPage extends StatefulWidget {
+  const ChatPage({required this.bootstrap, super.key});
+
+  final IMBootstrap bootstrap;
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final easySDK = WuKongEasySDK.getInstance();
+  final messagesById = <String, Message>{};
+
+  late final WuKongEventListener<ConnectResult> connectListener;
+  late final WuKongEventListener<DisconnectInfo> disconnectListener;
+  late final WuKongEventListener<Message> messageListener;
+  late final WuKongEventListener<WuKongError> errorListener;
+
+  bool listenersRegistered = false;
+  bool connected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _createListeners();
+    _start();
+  }
+
+  void _createListeners() {
+    connectListener = (result) {
+      if (!mounted) return;
+      setState(() => connected = true);
+      debugPrint('connected: reason=${result.reasonCode}');
+    };
+    disconnectListener = (info) {
+      if (!mounted) return;
+      setState(() => connected = false);
+      debugPrint('disconnected: ${info.code} ${info.reason}');
+    };
+    messageListener = (message) {
+      if (!mounted) return;
+      setState(() => messagesById[message.messageId] = message);
+    };
+    errorListener = (error) {
+      debugPrint('EasySDK error: ${error.code} ${error.message}');
+    };
+  }
+
+  Future<void> _start() async {
+    final config = WuKongConfig(
+      serverUrl: widget.bootstrap.websocketUrl,
+      uid: widget.bootstrap.uid,
+      token: widget.bootstrap.token,
+    );
+
+    try {
+      await easySDK.init(config);
+      if (!mounted) {
+        easySDK.dispose();
+        return;
+      }
+      _registerListeners();
+      await easySDK.connect().timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          easySDK.disconnect();
+          throw TimeoutException('EasySDK connect exceeded 20 seconds');
+        },
+      );
+    } catch (error) {
+      easySDK.disconnect();
+      debugPrint('connect failed: $error');
+    }
+  }
+
+  void _registerListeners() {
+    if (listenersRegistered) return;
+    easySDK.addEventListener(WuKongEvent.connect, connectListener);
+    easySDK.addEventListener(WuKongEvent.disconnect, disconnectListener);
+    easySDK.addEventListener(WuKongEvent.message, messageListener);
+    easySDK.addEventListener(WuKongEvent.error, errorListener);
+    listenersRegistered = true;
+  }
+
+  @override
+  void dispose() {
+    if (listenersRegistered) {
+      easySDK.removeEventListener(WuKongEvent.connect, connectListener);
+      easySDK.removeEventListener(WuKongEvent.disconnect, disconnectListener);
+      easySDK.removeEventListener(WuKongEvent.message, messageListener);
+      easySDK.removeEventListener(WuKongEvent.error, errorListener);
+    }
+    easySDK.disconnect();
+    easySDK.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(connected ? 'Online' : 'Connecting')),
+      body: ListView(
+        children: messagesById.values
+            .map((message) => ListTile(title: Text(_displayPayload(message.payload))))
+            .toList(),
+      ),
+    );
+  }
+
+  String _displayPayload(dynamic payload) {
+    if (payload is String) {
+      try {
+        return utf8.decode(base64Decode(payload));
+      } catch (_) {
+        return payload; // 保留未知或非 Base64 Payload，交给降级 UI。
+      }
+    }
+    return jsonEncode(payload);
+  }
+}
+```
+
+页面级 `dispose()` 适合最小示例。`Future.timeout` 把完整连接等待限制为 20 秒，并在超时或其他失败后断开；不要让页面永久停在 Connecting。真实应用如果希望切换页面时连接保持，应让 Provider、Riverpod、Bloc 或其他应用级状态容器拥有 SDK；页面只添加和移除自己的监听器，最终退出账号时再 `disconnect` 与 `dispose`。
+
+## 步骤 4：发送第一条消息
+
+在 `_ChatPageState` 中加入：
+
+```dart
+Future<void> sendText(String targetUid, String text) async {
+  if (!connected) throw StateError('EasySDK is not connected');
+
+  final result = await easySDK.send(
+    channelId: targetUid,
+    channelType: WuKongChannelType.person,
+    payload: {
+      'type': 1,
+      'version': 1,
+      'content': text,
+    },
+  );
+
+  debugPrint(
+    'SEND result: ${result.messageId}, '
+    'seq=${result.messageSeq}, reason=${result.reasonCode.value}',
+  );
+}
+```
+
+调用 `sendText('bob', 'Hello from Flutter EasySDK')` 后，Alice 记录 `SendResult`。Bob 必须在自己的 `messageListener` 中独立看到消息；发送结果和实时接收不是同一个事件。
+
+## 步骤 5：用 Alice 和 Bob 验收
+
+1. 在两台设备、两个模拟器或两个独立浏览器上下文中分别启动 Alice 与 Bob；
+2. 两端都等到 `WuKongEvent.connect` 后再启用发送；
+3. Alice 向个人 Channel `bob` 发送消息，记录 ID、序号和 Reason Code；
+4. Bob 核对 `fromUid`、`channelId`，先解码 Base64 Payload 再检查 `type` 与 `content`，并按 `messageId` 去重；
+5. Bob 向 Alice 回发，验证反向链路；
+6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放；
+7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.3` 原始源码未修复前不得通过生产门禁。
+
+该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/sdk/common-guides/messaging)和[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)补齐。
+
+## 常见问题
+
+- **`SDK not initialized`**：等待 `easySDK.init(config)` 完成后再连接或发送。
+- **Widget 重建后重复收消息**：不要在 `build` 中注册监听器；保存回调引用并在 `dispose` 移除。
+- **切到新 UID 后仍看到旧状态**：先移除监听、断开并 `dispose`，再用新配置初始化；同时清空产品本地状态。
+- **系统日志出现 Token 或 Payload**：这是 `v1.0.3` 的已知采用阻断项；升级或修复日志路径并验证 Release 产物后再上线。
+- **`message.payload` 是一段字符串**：当前 v3 在线 Payload 以 Base64 字节进入 JSON-RPC；先解码为 UTF-8 JSON，再按消息类型解析，未知格式保留原值并降级展示。
+- **真机连不上本地地址**：`localhost` 指向真机自身，让业务后端返回设备可达的 WSS 地址。
+- **发送成功但 UI 没有对方消息**：把发送结果、实时接收和离线恢复分开检查。
+
+## 下一步
+
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[会话与未读数](/zh/sdk/common-guides/conversations-and-unread)和[上线验收](/zh/guide/integration/acceptance)。

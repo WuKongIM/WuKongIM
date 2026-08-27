@@ -47,6 +47,7 @@ describe('documentation navigation contract', () => {
       'architecture',
     ]);
     expect(byKey.sdk.groups.map((group) => group.slug)).toEqual([
+      'easy',
       'common-guides',
       'android',
       'ios',
@@ -159,7 +160,7 @@ describe('documentation navigation contract', () => {
     );
   });
 
-  test('publishes the SDK chooser and integrator foundations without claiming new platform support', () => {
+  test('publishes the SDK chooser and integrator foundations without claiming new WuKongIMSDK platform support', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const phase13Routes = [
       '/en/sdk/choose-sdk',
@@ -202,6 +203,38 @@ describe('documentation navigation contract', () => {
     );
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
     for (const platform of ['android', 'ios', 'flutter', 'uniapp', 'harmonyos']) {
+      expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
+    }
+  });
+
+  test('publishes the source-aligned EasySDK getting-started path', () => {
+    const sdk = domains.find((domain) => domain.key === 'sdk');
+    const easy = sdk?.groups.find((group) => group.slug === 'easy');
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+
+    expect(easy?.status).toBe('published');
+    expect(easy?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['ios/getting-started', 'published'],
+      ['android/getting-started', 'published'],
+      ['flutter/getting-started', 'published'],
+      ['javascript/getting-started', 'published'],
+    ]);
+    expect(published).toEqual(
+      expect.arrayContaining([
+        '/en/sdk/easy',
+        '/en/sdk/easy/ios/getting-started',
+        '/en/sdk/easy/android/getting-started',
+        '/en/sdk/easy/flutter/getting-started',
+        '/en/sdk/easy/javascript/getting-started',
+      ]),
+    );
+    expect(getNavigationEntry('en', 'sdk', ['easy', 'ios', 'getting-started'])?.slugs).toEqual([
+      'easy',
+      'ios',
+      'getting-started',
+    ]);
+
+    for (const platform of ['android', 'ios', 'flutter']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
   });
@@ -289,6 +322,11 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk`,
         `/${locale}/sdk/choose-sdk`,
         `/${locale}/sdk/compatibility`,
+        `/${locale}/sdk/easy`,
+        `/${locale}/sdk/easy/ios/getting-started`,
+        `/${locale}/sdk/easy/android/getting-started`,
+        `/${locale}/sdk/easy/flutter/getting-started`,
+        `/${locale}/sdk/easy/javascript/getting-started`,
         `/${locale}/sdk/common-guides`,
         `/${locale}/sdk/common-guides/identity-and-token`,
         `/${locale}/sdk/common-guides/initialization-and-connection`,
