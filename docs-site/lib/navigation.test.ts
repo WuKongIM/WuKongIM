@@ -102,10 +102,10 @@ describe('documentation navigation contract', () => {
       ['use-cases', 'published'],
     ]);
     expect(coreConcepts?.children.map((page) => [page.slug, page.status])).toEqual([
-      ['cluster-and-nodes', 'published'],
       ['messages', 'published'],
       ['channels', 'published'],
-      ['users-and-devices', 'published'],
+      ['users', 'published'],
+      ['devices', 'published'],
       ['conversations', 'published'],
     ]);
     expect(
@@ -235,10 +235,10 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/quick-start/chat-demo`,
         `/${locale}/guide/quick-start/next-steps`,
         `/${locale}/guide/core-concepts`,
-        `/${locale}/guide/core-concepts/cluster-and-nodes`,
         `/${locale}/guide/core-concepts/messages`,
         `/${locale}/guide/core-concepts/channels`,
-        `/${locale}/guide/core-concepts/users-and-devices`,
+        `/${locale}/guide/core-concepts/users`,
+        `/${locale}/guide/core-concepts/devices`,
         `/${locale}/guide/core-concepts/conversations`,
         `/${locale}/guide/integration`,
         `/${locale}/guide/integration/architecture`,
@@ -385,16 +385,18 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/product-overview/capabilities.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/product-overview/use-cases.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/product-overview/use-cases.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/core-concepts/messages.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/core-concepts/messages.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/core-concepts/channels.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/core-concepts/channels.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/users.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/users.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/devices.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/devices.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/core-concepts/conversations.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/core-concepts/conversations.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/acceptance.mdx')).toBe(true);

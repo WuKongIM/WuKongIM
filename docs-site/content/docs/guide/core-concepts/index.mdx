@@ -1,60 +1,56 @@
 ---
 title: 核心概念
-description: 建立理解 WuKongIM 接入、消息路径和集群行为所需的统一术语。
+description: 用消息、频道、用户、设备和会话五个概念，理解 WuKongIM 如何组织一次即时通信。
 ---
 
-## 业务与连接
+刚接触 WuKongIM 时，不需要先理解节点、Raft 或数据分片。先记住下面五个业务概念，就能看懂大多数接入文档：
 
-| 概念 | 含义 |
+| 概念 | 它回答的问题 | 一句话理解 |
+| --- | --- | --- |
+| 消息（Message） | 传递什么？ | 用户发出的一份内容，例如文字、图片、通知或业务指令 |
+| 频道（Channel） | 发到哪里？ | 消息的目标和接收范围，可以表示单聊、群聊或其他通信场景 |
+| 用户（User） | 谁在通信？ | 由业务系统定义、用稳定 UID 标识的通信身份 |
+| 设备（Device） | 从哪个端点通信？ | 用户使用的手机、浏览器、桌面端或其他客户端实例 |
+| 会话（Conversation） | 用户如何找到最近的聊天？ | 某个用户视角下的频道入口，通常显示最近消息和未读数 |
+
+## 五个概念如何配合
+
+以 Alice 给 Bob 发消息为例：
+
+```text
+Alice（用户）在手机（设备）上发送一条消息
+                     ↓
+              消息进入单聊频道
+                     ↓
+      Bob 的在线设备实时接收，离线设备稍后同步
+                     ↓
+       Alice 和 Bob 各自在会话列表中看到这次聊天
+```
+
+如果换成群聊，变化的主要是频道：频道 ID 变成群 ID，接收范围变成群成员。用户、设备、消息和会话的基本关系不变。
+
+## WuKongIM 与业务系统的分工
+
+WuKongIM 是通信基础设施，不替代你的账号和业务系统。
+
+| 你的业务系统负责 | WuKongIM 负责 |
 | --- | --- |
-| 用户（User） | 由业务系统定义的稳定身份，使用 UID 标识 |
-| 设备（Device） | 用户的一类客户端身份，由设备标记和设备级别区分 |
-| 连接（Connection） | 一个客户端到某个节点的在线传输会话 |
-| 频道（Channel） | 消息路由、顺序和存储的核心单位，由频道 ID 与频道类型共同标识 |
-| 消息（Message） | 发布到频道的有序记录，包含客户端编号、内容和消息设置 |
-| 会话（Conversation） | 面向用户的最近交互视图，包含最近消息、已读位置和未读状态 |
+| 注册登录、昵称头像、好友与群资料 | 客户端连接、消息路由和实时投递 |
+| 群成员、角色权限、内容审核 | 频道内消息顺序、持久化和离线同步 |
+| 业务 Token 签发、风控、移动推送 | 设备在线连接和面向 UID 的会话数据 |
 
-一个用户可以有多个设备，每个设备可以经历多次连接。不要把连接 ID 当作业务用户身份，也不要假设用户只会在一个节点上在线。
-
-## 集群与存储
-
-| 概念 | 含义 |
-| --- | --- |
-| 集群（Cluster） | 所有 WuKongIM 部署的统一运行模型；一个节点时称为单节点集群 |
-| 节点（Node） | 运行接入、运行时、存储和节点间通信能力的进程实例 |
-| Controller | 维护集群成员、节点健康、物理哈希槽表、逻辑 Slot 放置和运维任务的控制面 |
-| 物理哈希槽（Hash Slot） | 用户和频道键稳定映射到的权威 fence；默认固定数量是 256 |
-| 逻辑 Slot | 持有一个或多个物理哈希槽及其用户、频道、成员、会话等元数据的 Raft Group |
-| Channel | 维护一个频道的有序消息日志、Leader/Replica 和提交进度 |
-
-## 一条消息经过什么
-
-1. 客户端用 UID、设备信息和 Token 建立连接。
-2. 发送请求指定频道 ID、频道类型和客户端消息编号。
-3. Hash Slot 与集群元数据把请求路由到正确的 Channel Leader。
-4. Channel 按顺序追加消息，并等待持久化提交。
-5. 提交成功后，发送者得到确认；在线接收者获得投递。
-6. 离线或重连设备分页同步 membership 目录，并拉取缺失的已提交 Channel 消息。
-
-<Callout type="info" title="顺序边界">
-  WuKongIM 的消息顺序以频道为核心理解。不同频道之间不应假设存在全局顺序。
+<Callout type="info" title="面向应用开发者的阅读路径">
+  核心概念只解释产品语义。需要了解节点、Slot、Leader、副本和故障转移时，请进入[服务端架构](/zh/server/architecture)。
 </Callout>
-
-## 设计时应保留的边界
-
-- 业务账号和权限属于业务服务，连接和消息传输属于 WuKongIM。
-- 消息提交与在线投递是不同阶段；接收者暂时离线不应改变已提交消息。
-- 单节点集群与多节点集群使用同一套路径，接入代码不应为单节点集群增加旁路。
-- 面向十万成员群、大量在线用户和高消息速率时，要同时考虑 Fan-out、队列边界、背压、内存和存储延迟。
 
 ## 深入每个概念
 
 <Cards>
-  <Card title="集群与节点" description="区分 Controller、物理哈希槽、逻辑 Slot 与 Channel。" href="/zh/guide/core-concepts/cluster-and-nodes" />
-  <Card title="消息" description="理解标识、频道内顺序、提交、投递和确认。" href="/zh/guide/core-concepts/messages" />
-  <Card title="频道" description="理解 Channel 身份、成员策略、日志与副本。" href="/zh/guide/core-concepts/channels" />
-  <Card title="用户与设备" description="区分 UID、Device、Session 与 Presence route。" href="/zh/guide/core-concepts/users-and-devices" />
-  <Card title="会话" description="理解 membership-backed 目录同步、未读和删除可见性。" href="/zh/guide/core-concepts/conversations" />
+  <Card title="消息" description="理解消息内容、发送结果、频道内顺序和离线恢复。" href="/zh/guide/core-concepts/messages" />
+  <Card title="频道" description="理解消息发到哪里，以及单聊、群聊与成员关系。" href="/zh/guide/core-concepts/channels" />
+  <Card title="用户" description="理解 UID，以及 WuKongIM 与业务账号系统的职责边界。" href="/zh/guide/core-concepts/users" />
+  <Card title="设备" description="区分设备、连接和多端在线，理解哪些状态会跨设备共享。" href="/zh/guide/core-concepts/devices" />
+  <Card title="会话" description="理解聊天列表、最近消息、未读数和个人可见状态。" href="/zh/guide/core-concepts/conversations" />
 </Cards>
 
-下一步可以运行[快速开始](/zh/guide/quick-start)，或查看[服务端架构](/zh/server/architecture)。
+理解这些概念后，可以直接运行[快速开始](/zh/guide/quick-start)，完成第一条消息的收发。

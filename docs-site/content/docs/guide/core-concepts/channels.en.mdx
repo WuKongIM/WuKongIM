@@ -1,57 +1,54 @@
 ---
-title: Channels
-description: Understand Channel identity, types, membership policy, message logs, runtime replicas, and large-group boundaries.
+title: Channel
+description: Understand how a Channel represents a message target and organizes direct chat, group chat, membership, and history.
 ---
 
-A Channel is the core unit of message routing, ordering, and persistence. It is identified jointly by `channel_id` and `channel_type`; the same ID under another type is a different Channel.
+A Channel is the message “address” or “room.” Every message belongs to one Channel, which determines where the message goes, who may receive it, and the scope in which messages remain ordered.
 
-## Business Channels
+The combination of `channel_id` and `channel_type` identifies a Channel. The same ID under another type is a different Channel.
 
-| Shape | Typical use | Important consideration |
+## Why Channels matter
+
+- **Select a target:** Sending to a person or a group is fundamentally selecting a Channel.
+- **Organize participants:** Channel type and membership together determine who may send and receive.
+- **Hold continuous history:** Each Channel numbers, orders, and recovers its own messages without mixing unrelated chats.
+- **Reuse communication primitives:** Notifications, support, live interaction, communities, and Agents can also build on Channels.
+
+## The two most common Channel types
+
+| Scenario | Choosing the Channel ID | Who owns participation |
 | --- | --- | --- |
-| Person Channel | Messages between two users | The server normalizes both viewpoints into a stable canonical ID |
-| Group Channel | Group chat, community, or room | The business system maintains the group lifecycle and synchronizes membership |
-| Custom Channel | Notifications, IoT, live interaction, and business topics | Type and value ranges need a stable business/client contract |
-| Temporary recipient list | One request targets a bounded recipient set | Request-scoped membership does not replace a persistent group model |
+| Direct chat | Use the other user's UID when sending | The product system owns contact, stranger, and other send policy |
+| Group chat | Use a stable group ID from the product system | The product system creates the group and synchronizes members, deny/allow lists, and related state to WuKongIM |
 
-A command Channel is a derived identity for internal compatibility and synchronization semantics. Applications should use supported Send/Sync capabilities instead of constructing internal suffixes.
+When Alice sends directly to Bob, Alice uses Bob's UID as the target. Bob uses Alice's UID when replying. WuKongIM normalizes those two viewpoints to one internal direct-chat history; applications do not construct that internal Channel ID.
 
-## Two classes of Channel state
+WuKongIM also defines specialized types for communities, feeds, live interaction, visitors, and Agents. Use one only when the server, selected SDK, and complete product flow support it. See [Channel Types](/en/api/dictionaries/channel-types) for the current values.
 
-### Slot metadata
+## A Channel is not the same as a product group
 
-Slot stores Channel business metadata, subscribers, denylist, allowlist, ban/disband/send-ban flags, and `ChannelRuntimeMeta`. These values route by the Channel ID's physical hash slot to the current logical Slot Raft Leader.
+A group chat often shares a group ID with its Channel, but the responsibilities differ:
 
-### Channel message log
+| Product system owns | WuKongIM owns |
+| --- | --- |
+| Group name, avatar, announcement, and roles | Channel identity, message routing, and per-Channel order |
+| Who may create, join, invite, or leave | Membership and Channel policy synchronized by trusted services |
+| Content rules, tenant isolation, and moderation | Message persistence, realtime delivery, and offline recovery |
 
-Channel runtime stores the sequence-ordered log. Authoritative metadata supplies Leader, Replicas, ISR, Channel Epoch, Leader Epoch, retention boundary, and write fence. Runtime replicas enforce those fences while appending, replicating, and advancing HW.
+After creating a product group, a trusted backend must still synchronize membership and policy with WuKongIM. Knowing a Channel ID alone does not grant permission to join or send.
 
-```text
-Slot metadata: policy / members / runtime intent / migration fence
-                              |
-                              v
-Channel runtime: ordered append -> replica progress -> committed HW
-```
+## Relationship to other concepts
 
-The Slot Leader and Channel Leader may be different nodes; neither can be inferred from the other.
+- A **Message** belongs to one Channel, and its ordering boundary is that Channel.
+- A **User** participates in direct, group, or other communication through Channels.
+- A **Device** is only an endpoint through which a user accesses a Channel; it does not change Channel identity.
+- A **Conversation** is one user's entry to a Channel. The same Channel has user-specific unread and visibility state.
 
-## Send permission
+## Remember when building
 
-Depending on Channel type and metadata, the message usecase checks sender ban, Channel ban/disband, subscription, denylist, allowlist, stranger policy, system users, and compatible agent/visitor relationships. The business service still decides who should be a member, when membership ends, and whether content is permitted.
+- Store `channel_id + channel_type` as the complete Channel key, never the ID alone.
+- For direct chat, send to the peer UID; do not write the server's normalized internal identity back as a product contact ID.
+- Channel Type is not authorization. The product system still owns membership, roles, and content policy.
+- For 100,000-member groups, use bounded membership updates and paged delivery work as described in the [Large Groups tutorial](/en/guide/tutorials/large-groups).
 
-## 100,000-member groups
-
-Ordinary membership mutations are de-duplicated, chunked, and written under one monotonic mutation version. A single underlying membership command has UID-count and encoded-byte limits, so higher layers must operate in chunks. Post-commit fanout pages members, groups them by Presence Authority, and creates bounded delivery plans; it does not persist one message copy per member.
-
-Observe these stages separately:
-
-- Channel append and quorum-commit latency;
-- member paging and authority resolution;
-- online-delivery queues, owner push, and Session writes;
-- CPU, network, and tail latency for hot Channels.
-
-## Lifecycle and migration
-
-A Channel runtime activates on demand and can checkpoint and unload when idle; messages remain durable. Leader transfer or replica replacement uses Slot-authoritative tasks, epochs, and write fences to drain the old Leader before committing the new placement. A node-local timeout cannot clear an authoritative fence.
-
-Continue with [Messages](/en/guide/core-concepts/messages), [Cluster Configuration](/en/server/configuration/cluster), and [Channel Messaging Layer](/en/server/architecture/channels).
+Continue with [User](/en/guide/core-concepts/users) and [Conversation](/en/guide/core-concepts/conversations). For replicas, commit, and migration, read the [Channel Messaging Layer](/en/server/architecture/channels).

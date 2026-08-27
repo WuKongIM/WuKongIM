@@ -1,61 +1,75 @@
 ---
-title: Messages
-description: Understand message identity, per-Channel ordering, durable commit, delivery acknowledgement, idempotency, and NoPersist.
+title: Message
+description: Understand what a message is, how it finds its recipients, and why sent, delivered, and read are different outcomes.
 ---
 
-A message is a record published to one Channel. The most important application boundary is that client request, Channel durable commit, online delivery, and receive acknowledgement are four different stages.
+A Message is the basic unit of information transported by WuKongIM. Text, images, files, notifications, audio/video signaling, and IoT commands can all be represented as message content.
 
-## Three common identifiers
+WuKongIM gets a message to its target Channel. Your application defines what the content means and how clients display or process it.
 
-| Identifier | Supplied by | Purpose |
+## Why messages matter
+
+- **Carry product content:** The same messaging path can carry chat content or custom business events.
+- **Work online and offline:** An online recipient can receive a message in realtime; an offline or reconnecting device can recover committed Channel history.
+- **Support tracking and deduplication:** A client send number, server message ID, and per-Channel sequence serve different retry, lookup, and ordering needs.
+
+## What a message contains
+
+For an application developer, a message answers “who sent what, and where?”
+
+| Information | Purpose | Common field |
 | --- | --- | --- |
-| `client_msg_no` | Sender | Identifies one logical send and supports idempotent retry; keep it stable across retries |
-| Message ID | Server | Global server message identity for outcomes and diagnostics |
-| `message_seq` | Channel log | Ordered position inside that Channel; values from different Channels are not comparable |
+| Sender | Identifies the user who sent the message | `from_uid` |
+| Target | Identifies the Channel that owns the message | `channel_id`, `channel_type` |
+| Content | Holds text, image metadata, or custom data | `payload` |
+| Client send number | Identifies one logical send for idempotent retry | `client_msg_no` |
+| Server identity and position | Supports lookup, deduplication, and per-Channel order | message ID, `message_seq` |
 
-Reusing `client_msg_no` with a different payload inside the same idempotency scope is a conflict, not a reliable way to create another message.
+For example, an application might define a text Payload as:
 
-## Durable message path
-
-```text
-SEND
-  -> Gateway admission and protocol mapping
-  -> permission and optional synchronous Send hooks
-  -> exact Channel authority
-  -> ordered durable append and replica progress
-  -> committed high watermark
-  -> SENDACK
-  -> delivery / webhook / post-commit plugins
+```json
+{
+  "type": 1,
+  "content": "Meet at 9 a.m. on Saturday"
+}
 ```
 
-A successful SENDACK for a durable send means the Channel append reached quorum commit. It does not mean every online device received the message or that a webhook, plugin, or business action completed.
+Your business and clients agree on the meaning of `type` and the remaining fields. Version custom Payloads and define backward-compatible behavior.
 
-## Ordering boundary
+## The life of an ordinary persistent message
 
-- `message_seq` defines order inside one Channel.
-- There is no global message order across different Channels.
-- The Channel Leader accepts writes only when leader, epoch, ISR, and write-fence conditions hold.
-- A reconnecting recipient recovers from the committed log and sync cursor rather than relying on an earlier in-memory online delivery.
+1. The client creates a stable `client_msg_no` and selects a Channel and Payload.
+2. WuKongIM checks identity, Channel state, and send policy.
+3. The message is appended in order and reaches the Channel's commit boundary.
+4. The sender receives a send acknowledgement and online recipients receive realtime delivery.
+5. Devices that missed realtime delivery synchronize the missing messages after reconnecting.
 
-## NoPersist is not one uniform realtime message
+<Callout type="warn" title="Sent does not mean read">
+  A send acknowledgement says that the send reached its defined server boundary. It does not prove that every device received the message, and it does not prove that a person read it. Model delivery receipts, read receipts, and business execution results separately.
+</Callout>
 
-A plain non-command-Channel `NoPersist` send—without `SyncOnce` and without a command-channel ID—returns compatibility success after safe pre-route checks. It does not resolve authority, append a log, or dispatch realtime delivery.
+## Three identifiers that are easy to confuse
 
-Only command-style `NoPersist` enters command-channel authority and online delivery-plan admission. It has no durable sequence, offline recovery, or reconnect replay, and fails when no online-delivery capability is available.
+| Identifier | Created by | Typical use |
+| --- | --- | --- |
+| `client_msg_no` | Sender | Idempotently retry the same logical send; keep it unchanged |
+| Message ID | Server | Identify one server-accepted message for result correlation and diagnostics |
+| `message_seq` | Channel message log | Represent the message's position and order inside that Channel |
 
-## Delivery and acknowledgement
+Message order is meaningful only within one Channel. Never compare `message_seq` values from different Channels to infer a global order.
 
-Online delivery resolves the UID Presence Authority to an owner route. The owner node then validates the concrete Session and writes `RECV`. When acknowledgement is required, `RECVACK` removes only the matching owner-local pending state; it does not change Channel commit order.
+## Relationship to other concepts
 
-| Result | What it proves |
-| --- | --- |
-| SENDACK succeeds | A durable message reached its commit boundary, or a transient branch completed its defined admission semantics |
-| Client receives RECV | One concrete Session received a delivery |
-| Client sends RECVACK | That owner-local receive state was acknowledged |
-| Webhook/plugin succeeds | The asynchronous consumer succeeded; message commit is unchanged |
+- A **Channel** determines the target, possible recipients, and ordering boundary.
+- A **User** sends a message or participates in its Channel.
+- A **Device** is a concrete endpoint for sending, realtime receive, and later recovery.
+- A **Conversation** presents the Channel's latest message and unread projection to one user.
 
-## Streaming message events
+## Remember when building
 
-Message events are anchored by `(channel_id, channel_type, client_msg_no)` and support stream open/delta/snapshot plus terminal projections. Active deltas may remain in a bounded Slot-Leader cache; a terminal event creates the durable projection. If leadership changes and cached evidence is missing, finish fails closed and the caller must replay the complete deltas or final snapshot.
+- Use ordinary persistent messages for anything that must be recoverable or reliably delivered.
+- Reuse the original `client_msg_no` when retrying the same send; do not create another business message.
+- Treat Payload as a product contract: bound its size, validate its fields, and version it.
+- Do not infer behavior from names such as `NoPersist` or `SyncOnce`; read [Message Flags](/en/api/dictionaries/message-flags) before using them.
 
-Continue with [Channels](/en/guide/core-concepts/channels), [Messaging Integration](/en/guide/integration/messaging), and [Message Flow](/en/server/architecture/message-flow).
+Continue with [Channel](/en/guide/core-concepts/channels). For integration, read [Messaging](/en/sdk/common-guides/messaging); for commit, replication, and delivery internals, read [Message Flow](/en/server/architecture/message-flow).

@@ -1,60 +1,56 @@
 ---
 title: Core Concepts
-description: Establish the shared vocabulary required to understand integration, message flow, and cluster behavior.
+description: Use five concepts—message, channel, user, device, and conversation—to understand how WuKongIM organizes communication.
 ---
 
-## Product and connection concepts
+You do not need to understand nodes, Raft, or data sharding before integrating WuKongIM. Start with five product concepts and most application guides will make sense:
 
-| Concept | Meaning |
+| Concept | Question it answers | In one sentence |
+| --- | --- | --- |
+| Message | What is being sent? | A piece of content such as text, an image, a notification, or a business command |
+| Channel | Where is it sent? | The message target and recipient scope, such as a direct chat or group chat |
+| User | Who is communicating? | A product-defined communication identity with a stable UID |
+| Device | From which endpoint? | A phone, browser, desktop client, or another client instance used by a user |
+| Conversation | How does a user return to a chat? | That user's view of a channel, usually with a latest message and unread count |
+
+## How the five concepts work together
+
+Consider Alice sending a message to Bob:
+
+```text
+Alice (user) sends a message from her phone (device)
+                         ↓
+            The message enters a direct channel
+                         ↓
+  Bob's online devices receive it; offline devices sync later
+                         ↓
+      Alice and Bob each see the chat in their conversation list
+```
+
+For a group chat, the channel changes from a direct target to a group ID and its members. The basic relationship among users, devices, messages, and conversations stays the same.
+
+## WuKongIM and your product system
+
+WuKongIM is communication infrastructure. It does not replace your account and product services.
+
+| Your product system owns | WuKongIM owns |
 | --- | --- |
-| User | A stable identity defined by the business system and identified by a UID |
-| Device | A class of client identity for a user, distinguished by device flag and level |
-| Connection | One online transport session from a client to a node |
-| Channel | The primary unit of message routing, ordering, and storage, identified by channel ID and type |
-| Message | An ordered record published to a channel, with a client number, content, and message settings |
-| Conversation | A user's recent-interaction view, including latest message, read position, and unread state |
+| Registration, sign-in, profiles, contacts, and group details | Client connections, message routing, and realtime delivery |
+| Group membership, roles, content policy, and moderation | Per-channel order, persistence, and offline synchronization |
+| Product-token issuance, risk controls, and mobile push | Online device connections and UID-scoped conversation data |
 
-A user can have multiple devices, and each device can create many connections over time. Do not treat a connection ID as the business identity or assume that a user is online on only one node.
-
-## Cluster and storage concepts
-
-| Concept | Meaning |
-| --- | --- |
-| Cluster | The unified runtime model for every WuKongIM deployment; one node is a single-node cluster |
-| Node | A process instance that runs access, runtime, storage, and node-transport capabilities |
-| Controller | The control plane for membership, node health, the physical hash-slot table, logical Slot placement, and operator tasks |
-| Physical hash slot | The stable authority fence to which user and Channel keys map; the fixed default count is 256 |
-| Logical Slot | A Raft Group hosting one or more physical hash slots and their user, Channel, membership, conversation, and related metadata |
-| Channel | The runtime that owns an ordered message log, leaders and replicas, and commit progress for one channel |
-
-## A message path
-
-1. A client connects with a UID, device information, and token.
-2. A send request names a channel ID, channel type, and client message number.
-3. Hash-slot and cluster metadata route the request to the correct Channel leader.
-4. The Channel appends the message in order and waits for durable commit.
-5. After commit, the sender receives an acknowledgement and online recipients receive delivery.
-6. Offline or reconnecting devices page their membership directory and synchronize missing committed Channel messages.
-
-<Callout type="info" title="Ordering boundary">
-  Understand WuKongIM message ordering at the channel boundary. Do not assume a global order across different channels.
+<Callout type="info" title="An application-developer reading path">
+  Core Concepts explains product semantics. For nodes, Slots, Leaders, replicas, and failover, go to [Server Architecture](/en/server/architecture).
 </Callout>
-
-## Boundaries to preserve in a design
-
-- Business accounts and authorization belong to the business service; connections and message transport belong to WuKongIM.
-- Message commit and online delivery are separate stages. A temporarily offline recipient does not change the committed message.
-- Single-node clusters and multi-node clusters use the same path; integrations must not add a single-node cluster bypass.
-- Designs for 100,000-member groups, many online users, and high message rates must consider fan-out, queue bounds, backpressure, memory, and storage latency together.
 
 ## Explore each concept
 
 <Cards>
-  <Card title="Clusters & Nodes" description="Distinguish Controller, physical hash slots, logical Slots, and Channels." href="/en/guide/core-concepts/cluster-and-nodes" />
-  <Card title="Messages" description="Understand identity, per-Channel order, commit, delivery, and acknowledgement." href="/en/guide/core-concepts/messages" />
-  <Card title="Channels" description="Understand Channel identity, membership policy, logs, and replicas." href="/en/guide/core-concepts/channels" />
-  <Card title="Users & Devices" description="Distinguish UID, Device, Session, and Presence routes." href="/en/guide/core-concepts/users-and-devices" />
-  <Card title="Conversations" description="Understand membership-backed directory sync, unread state, and delete visibility." href="/en/guide/core-concepts/conversations" />
+  <Card title="Message" description="Understand message content, send outcomes, per-channel order, and offline recovery." href="/en/guide/core-concepts/messages" />
+  <Card title="Channel" description="Understand message targets, direct and group chat, and membership." href="/en/guide/core-concepts/channels" />
+  <Card title="User" description="Understand UID and the boundary between WuKongIM and your account system." href="/en/guide/core-concepts/users" />
+  <Card title="Device" description="Separate devices from connections and learn which state is shared across endpoints." href="/en/guide/core-concepts/devices" />
+  <Card title="Conversation" description="Understand chat lists, latest messages, unread counts, and personal visibility." href="/en/guide/core-concepts/conversations" />
 </Cards>
 
-Next, run the [Quick Start](/en/guide/quick-start) or review [Server Architecture](/en/server/architecture).
+With these concepts in place, run the [Quick Start](/en/guide/quick-start) and exchange your first message.

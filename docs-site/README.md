@@ -20,8 +20,9 @@ guides. Phase 8 publishes the server-architecture path: Controller intent and
 materialization, 256 physical hash-slot routing into logical Slot Raft Groups,
 Channel quorum commit, bounded transport, the end-to-end send flow, and
 target-fenced online routing. Phase 9 completes the guide foundation with
-workload-qualified capabilities and use cases, precise cluster/message/Channel/
-user/conversation concepts, and the current node-local plugin boundary. Phase
+workload-qualified capabilities and use cases, approachable message/Channel/
+user/device/conversation concepts, a separate server-architecture path for
+cluster internals, and the current node-local plugin boundary. Phase
 10 publishes the first scenario tutorials: direct chat plus group chat through
 bounded 100,000-member membership and fanout workflows. Phase 11 completes the
 scenario set with application-owned mobile push, recoverable AI stream

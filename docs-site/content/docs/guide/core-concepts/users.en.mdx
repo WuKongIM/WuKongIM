@@ -1,0 +1,56 @@
+---
+title: User
+description: Understand how a stable UID enters WuKongIM and what remains the responsibility of your account system.
+---
+
+A User is the identity that sends and receives messages in WuKongIM, uniquely identified by a UID. It may represent a person, support account, bot, Agent, or another trusted service identity.
+
+The UID comes from your product system. WuKongIM uses it for connection, routing, device association, and message delivery, but it does not replace registration, sign-in, user profiles, or product authorization.
+
+## Why users matter
+
+- **One communication identity:** The same UID still represents the same product user on phone, Web, and desktop clients.
+- **Connect the other concepts:** Messages have senders, devices belong to users, and conversations are built from one user's viewpoint.
+- **Anchor product boundaries:** Account bans, tenant isolation, contacts, and group roles all depend on a trusted user identity.
+
+## Designing a UID
+
+A good UID is:
+
+- stable for the lifetime of a product account and never reassigned to another user;
+- selected by a trusted backend, never freely chosen by a client;
+- independent of display names, phone numbers, and mutable email addresses;
+- handled in logs and metrics without exposing unnecessary personal information.
+
+If Alice changes her display name or phone, for example, her UID can remain `alice_123`. Message history, Channel membership, and conversations remain attached to the same identity.
+
+## What WuKongIM knows
+
+| WuKongIM needs | The product system still stores and decides |
+| --- | --- |
+| Stable UID and connection device information | Passwords, OAuth identity, phone number, and profile |
+| Messages, Channels, and conversation state associated with the UID | Contacts, group roles, subscriptions, and content permissions |
+| A transient view of active connections | Reliable login history, risk decisions, and account status |
+
+Online state means “an active connection is observed now.” It is not a sufficient source of truth for payments, authorization, or one-time business actions.
+
+## How a user connects
+
+1. The client signs in to your product service.
+2. The product backend verifies the account and permissions and maps it to a stable UID.
+3. A trusted backend issues connection material for the current device.
+4. The client connects to WuKongIM with the UID, device information, and token.
+5. After the connection succeeds, the client can send messages and synchronize conversations as that UID.
+
+<Callout type="warn" title="Production authentication boundary">
+  In the current v3 Beta default composition, writing token metadata alone does not create complete CONNECT authentication. Clients must not call Product HTTP directly. Keep credentials under a trusted backend and wire Gateway verification as described in [Identity & Token](/en/sdk/common-guides/identity-and-token).
+</Callout>
+
+## Relationship to other concepts
+
+- A **Message** records a sender UID and reaches other users through a Channel.
+- A **Channel** organizes communication among users; a direct-chat target is normally the peer UID.
+- A **Device** belongs to one UID, and one user can have multiple devices.
+- A **Conversation** belongs to a user's viewpoint, so unread and visibility state can differ across users in the same Channel.
+
+Continue with [Device](/en/guide/core-concepts/devices) and [Identity & Token](/en/sdk/common-guides/identity-and-token). For distributed online routing, read [User Connection Routing](/en/server/architecture/user-routing).

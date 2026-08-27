@@ -24,13 +24,13 @@ Route: `/{lang}/guide`
   - **运行聊天演示 / Run the Chat Demo** `/{lang}/guide/quick-start/chat-demo` — 使用内置聊天演示验证两个测试用户之间的通信。 / Uses the embedded chat demo to verify communication between two test users.
   - **下一步 / Next Steps** `/{lang}/guide/quick-start/next-steps` — 按接入、部署、运维和参考需求引导后续阅读。 / Routes readers to integration, deployment, operations, and reference material.
 
-- **核心概念 / Core Concepts** `/{lang}/guide/core-concepts` — 建立应用开发所需的统一业务术语。 / Establishes the shared product vocabulary needed by application developers.
+- **核心概念 / Core Concepts** `/{lang}/guide/core-concepts` — 用消息、频道、用户、设备和会话理解 WuKongIM 如何组织即时通信。 / Explains how WuKongIM organizes communication through messages, channels, users, devices, and conversations.
 
-  - **集群与节点 / Clusters & Nodes** `/{lang}/guide/core-concepts/cluster-and-nodes` — 解释所有部署都是集群，以及节点、Slot、副本和 Leader 的关系。 / Explains cluster-only deployment semantics and the relationship among nodes, slots, replicas, and leaders.
-  - **消息 / Messages** `/{lang}/guide/core-concepts/messages` — 解释消息标识、序号、顺序、持久化、去重和离线生命周期。 / Explains identifiers, sequence, ordering, persistence, deduplication, and offline lifecycle.
-  - **频道 / Channels** `/{lang}/guide/core-concepts/channels` — 解释频道作为消息路由和存储核心单位的职责。 / Explains channels as the core unit for message routing and storage.
-  - **用户与设备 / Users & Devices** `/{lang}/guide/core-concepts/users-and-devices` — 区分用户、设备、连接、登录状态和多端在线。 / Distinguishes users, devices, connections, login state, and multi-device presence.
-  - **会话 / Conversations** `/{lang}/guide/core-concepts/conversations` — 解释会话列表、最近消息、未读数和状态同步。 / Explains conversation lists, latest messages, unread counts, and state synchronization.
+  - **消息 / Message** `/{lang}/guide/core-concepts/messages` — 消息是什么、如何找到接收范围，以及发送成功、送达和已读的区别。 / Explains what a message is, how it finds recipients, and why sent, delivered, and read are different outcomes.
+  - **频道 / Channel** `/{lang}/guide/core-concepts/channels` — 频道如何表示单聊、群聊等消息目标，并组织参与者和消息历史。 / Explains how a Channel represents direct and group targets and organizes participants and message history.
+  - **用户 / User** `/{lang}/guide/core-concepts/users` — 用户如何通过稳定 UID 接入，以及 WuKongIM 与业务账号系统的职责边界。 / Explains how a stable UID enters WuKongIM and what remains the responsibility of the product account system.
+  - **设备 / Device** `/{lang}/guide/core-concepts/devices` — 设备、连接与多端在线的区别，以及哪些状态会跨设备共享。 / Separates devices from connections and explains multi-endpoint presence and shared state.
+  - **会话 / Conversation** `/{lang}/guide/core-concepts/conversations` — 会话如何把频道呈现为聊天列表，并管理未读和个人可见状态。 / Explains how a Conversation presents a Channel in a chat list with unread and personal visibility state.
 
 - **集成指南 / Integration** `/{lang}/guide/integration` — 从业务系统视角完成 WuKongIM 接入。 / Integrates WuKongIM from the perspective of an existing product system.
 

@@ -1,75 +1,58 @@
 ---
 title: 会话
-description: 理解 membership-backed 会话目录、服务端 badge 计算、分页、可见性边界和 CMD 隔离。
+description: 理解会话为什么是用户自己的聊天列表视图，以及它与频道、未读和删除的关系。
 ---
 
-Conversation 是服务端为某个 UID 临时构建的视图。WuKongIM 不持久化
-conversation 行，也不会在发送消息时更新每一个接收者。Channel 日志持有消息与
-sequence 顺序；UID-owned membership 持有目录发现和个人可见性状态。
+会话（Conversation）是某个用户看到的一项聊天记录，通常对应聊天列表中的一行：它指向一个频道，并展示最近消息、未读数和其他个人状态。
 
-## 持久状态
+会话不是另一个装消息的容器。消息仍然保存在频道中；WuKongIM 根据用户的频道关系、已提交消息和个人可见状态构建会话视图。
 
-普通频道使用 `user_channel_membership`：
+## 为什么会话重要
 
-| 字段 | 含义 |
+- **组织聊天列表**：把用户参与过或主动打开过的频道汇总成可进入的列表。
+- **提示新消息**：为当前用户计算未读数和可见范围。
+- **帮助离线恢复**：客户端先找到有哪些会话，再分别同步各频道缺失的消息。
+- **支持个人操作**：隐藏、清除未读等操作只影响当前用户，不改变其他成员的频道历史。
+
+## 会话与频道的区别
+
+| 频道 | 会话 |
 | --- | --- |
-| `join_seq` | 当前入群周期内第一条可见 sequence |
-| `read_seq` | 只由清除/设置未读命令单调推进的红点 floor |
-| `deleted_to_seq` | 单调隐藏边界 |
-| `activated_at` | 用户显式进入频道后用于目录同步的优先级 |
-| tombstone 字段 | 成员移除证据 |
-| `source_version` | 拒绝陈旧订阅者派生写的 fence |
+| 是多人共享的通信空间 | 是某个用户对该频道的个人视图 |
+| 保存频道内有序消息 | 引用最近消息并呈现未读、隐藏等状态 |
+| 由 `channel_id + channel_type` 标识 | 还必须结合当前 UID 才有完整含义 |
+| 成员看到同一份已提交历史范围 | 每个成员可以有不同的已读位置和可见范围 |
 
-`activated_at` 不是最后消息时间。SEND、接收、在线投递和消息拉取都不更新它。
-置顶和最终 UI 排序由客户端决定。
+例如，Alice 和 Bob 都在“周末出行”群频道中。频道里最新消息只有一份，但 Alice 可能已经读完，Bob 仍有 5 条未读，所以两个人看到的会话状态不同。
 
-CMD 发现使用独立的 `user_cmd_channel_membership`，字段包含
-`start_seq`、`ack_seq` 和 tombstone。CMD/SyncOnce 消息使用独立命令
-Channel 日志，不占用普通 sequence，也不改变普通红点。
+## 一个会话通常展示什么
 
-## 目录同步
+| 信息 | 用途 |
+| --- | --- |
+| 频道 ID 与类型 | 确定打开哪个单聊或群聊 |
+| 最近消息 | 在聊天列表中显示摘要 |
+| 未读数 | 提示当前用户还有多少新内容 |
+| 已读与可见边界 | 决定从哪里计算未读、哪些历史仍对当前用户可见 |
+| 本地展示状态 | 置顶、草稿和最终排序通常由客户端维护 |
 
-```text
-按 (activated_at desc, channel_id, channel_type) 分页扫描 membership
-  -> tombstone 直接返回 delete
-  -> live Channel 按 exact Channel Leader 分组
-  -> 批量读取 committed head、retention floor、最近展示消息、
-     当前 UID 最后一条已提交普通 SEND
-  -> 返回 conversations + deletes + unresolved + cursor + done
-```
+服务端会话列表和每个频道的消息列表使用不同的同步进度。客户端不能用一个游标同时代替两者。
 
-limit 限制扫描的 membership 候选数，而不是返回的 conversation 数。因此空页也可能
-尚未完成；只有 `done=true` 表示一次遍历结束。cursor 是不透明的，扫描采用最终一致
-语义。客户端按 Channel key 去重，先同步活跃页，再后台补齐不活跃页，并独立重试
-`unresolved`。
+## 常见操作如何理解
 
-## 红点与可见性
+- **清除未读**：推进当前 UID 的未读基线，不等于向对方发送“已读回执”。
+- **隐藏或删除会话**：只隐藏当前用户此刻的会话视图，不会退群，也不会删除其他成员的消息；之后出现更高序号的新消息时，会话可以再次出现。
+- **退出或被移除**：改变频道成员关系，与隐藏聊天列表不是一回事。
+- **多设备同步**：会话和未读通常按 UID 共享，一个设备的更新可能在其他设备下一次同步时出现。
 
-对一条有效 membership：
-
-```text
-visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)
-effective_read   = max(visibility_floor, read_seq, current_user_last_send_seq)
-unread           = max(0, last_committed_seq - effective_read)
-```
-
-发送者 sequence 来自与普通消息同批原子写入的 Channel-local 索引。这样 SEND
-无需写 membership，同时用户自己的消息不会产生自己的红点。
-
-未激活且没有入群后消息的 membership 不返回；显式激活的空频道可以返回且没有
-last message。隐藏会推进 `deleted_to_seq` 并清零 activation，但不会退出频道；
-更高 sequence 的新消息可以让它再次可见。真正移除会写 tombstone，重新加入会建立
-新的 join 边界。
-
-## 消息拉取
-
-普通消息拉取要求 membership 有效，不再次查询 subscriber。服务端把客户端 cursor
-钳制到 join、hide 和 retention 边界。批量拉取会先验证全部 membership，再执行一次
-按 Leader 分组的 Channel 批量读取。目录 cursor 与各 Channel 的消息 cursor 相互独立。
-
-<Callout type="info" title="SEND 成本">
-  普通 SEND 只追加 Channel 消息和 sender index，再执行在线投递；它不写接收者
-  membership，也不写 conversation 行，因此持久写成本不随群成员数增长。
+<Callout type="info" title="聊天列表的最终展示由客户端决定">
+  WuKongIM 提供会话、最近消息和未读等服务端状态；置顶、草稿、分组以及最终 UI 排序仍应由客户端产品逻辑维护。
 </Callout>
 
-继续阅读[消息](/zh/guide/core-concepts/messages)、[用户与设备](/zh/guide/core-concepts/users-and-devices)和[消息收发集成](/zh/guide/integration/messaging)。
+## 与其他概念的关系
+
+- **频道**是会话指向的通信空间，也是消息历史的来源。
+- **消息**会改变会话中可展示的最近内容和未读投影。
+- **用户**拥有自己的会话视图，不同用户的状态彼此独立。
+- **设备**同步同一 UID 的会话状态，同时保留各自的本地 UI 状态。
+
+继续阅读[消息](/zh/guide/core-concepts/messages)和[会话与未读数](/zh/sdk/common-guides/conversations-and-unread)。需要理解目录分页和服务端构建过程时，再查看[会话目录相关架构说明](/zh/server/architecture/message-flow)。

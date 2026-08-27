@@ -1,61 +1,75 @@
 ---
 title: 消息
-description: 理解消息标识、频道内顺序、持久化提交、投递确认、幂等与 NoPersist。
+description: 理解消息是什么、如何找到接收范围，以及发送成功、送达和已读为什么不是一回事。
 ---
 
-消息是发布到某个 Channel 的记录。对应用最重要的边界是：客户端请求、Channel 持久提交、在线投递和接收确认是四个不同阶段。
+消息（Message）是 WuKongIM 传递和保存信息的基本单位。文字、图片、文件、通知、音视频信令或 IoT 指令，都可以作为消息内容发送。
 
-## 三种常见标识
+WuKongIM 负责把消息可靠地送到目标频道；消息里的业务含义和展示方式由你的应用定义。
 
-| 标识 | 谁提供 | 用途 |
+## 为什么消息重要
+
+- **承载业务内容**：同一条消息通道可以承载聊天内容，也可以承载自定义业务事件。
+- **支持实时与离线场景**：接收者在线时可以实时收到，离线或重连后可以从已提交的频道历史中恢复。
+- **可以追踪与去重**：客户端发送编号、服务端消息 ID 和频道内序号分别帮助重试、查询和排序。
+
+## 一条消息包含什么
+
+从应用开发者的角度，可以把一条消息理解为“谁，把什么，发到哪里”：
+
+| 信息 | 作用 | 常见字段 |
 | --- | --- | --- |
-| `client_msg_no` | 发送方 | 标识一次逻辑发送并支持幂等重试；重试必须保持不变 |
-| message ID | 服务端 | 全局服务端消息身份，用于结果与诊断 |
-| `message_seq` | Channel 日志 | 该 Channel 内的有序位置；不同 Channel 不能直接比较 |
+| 发送者 | 标识消息来自哪个用户 | `from_uid` |
+| 目标 | 指定消息所属的频道 | `channel_id`、`channel_type` |
+| 内容 | 保存文字、图片信息或自定义数据 | `payload` |
+| 客户端发送编号 | 标识一次逻辑发送，重试时用于幂等 | `client_msg_no` |
+| 服务端身份与位置 | 用于查询、去重和频道内排序 | message ID、`message_seq` |
 
-相同幂等作用域内复用 `client_msg_no` 但改变 Payload 是冲突，而不是创建一条新消息的可靠方式。
+例如，应用可以把一条文本消息的 Payload 定义为：
 
-## 持久消息路径
-
-```text
-SEND
-  -> Gateway admission and protocol mapping
-  -> permission and optional synchronous Send hooks
-  -> exact Channel authority
-  -> ordered durable append and replica progress
-  -> committed high watermark
-  -> SENDACK
-  -> delivery / webhook / post-commit plugins
+```json
+{
+  "type": 1,
+  "content": "周六上午 9 点集合"
+}
 ```
 
-durable SEND 的 SENDACK 成功表示 Channel append 已达到 quorum commit，不表示每个在线设备都已收到，也不表示 Webhook、插件或业务动作完成。
+`type` 的取值和其他字段由业务与客户端共同约定。建议为自定义 Payload 设计版本和兼容策略。
 
-## 顺序边界
+## 一条持久消息经历什么
 
-- `message_seq` 定义单个 Channel 内的顺序。
-- 不同 Channel 之间没有全局消息顺序。
-- Channel Leader 只接受满足 leader、epoch、ISR 和 write-fence 条件的写入。
-- 接收者重新连接时按已提交日志和同步游标恢复，而不是依赖之前的在线投递仍在内存中。
+1. 客户端生成稳定的 `client_msg_no`，并指定频道与 Payload。
+2. WuKongIM 检查身份、频道状态和发送权限。
+3. 消息按顺序写入该频道并达到提交边界。
+4. 发送方收到发送确认，在线接收者获得实时投递。
+5. 未实时收到的设备在重连后按频道进度同步缺失消息。
 
-## NoPersist 不是一种统一的实时消息
+<Callout type="warn" title="发送成功不等于对方已读">
+  发送确认表示这次发送已经达到对应的服务端处理边界。它不表示每台设备都已收到，更不表示最终用户已经阅读。送达回执、已读回执和业务执行结果应分别设计。
+</Callout>
 
-普通非命令 Channel 的 `NoPersist`（未设置 `SyncOnce`，也不是命令频道 ID）在安全的预路由校验后直接返回兼容成功；它不会解析 authority、追加日志或执行实时投递。
+## 三个容易混淆的编号
 
-命令式 `NoPersist` 才会进入命令频道 authority 和在线投递计划。它没有持久 sequence、离线恢复或重连重放保证，没有在线投递能力时会失败。
+| 编号 | 谁生成 | 你通常用它做什么 |
+| --- | --- | --- |
+| `client_msg_no` | 发送方 | 对同一次发送进行幂等重试；重试时保持不变 |
+| message ID | 服务端 | 标识服务端接受的一条消息，用于结果关联和诊断 |
+| `message_seq` | 频道消息日志 | 表示消息在当前频道中的位置和顺序 |
 
-## 投递与确认
+消息顺序只在同一个频道内有意义。不要用两个不同频道的 `message_seq` 推断全局先后关系。
 
-在线投递先通过 UID Presence Authority 找到 owner route，再由 owner 节点验证具体 Session 并写出 `RECV`。需要确认时，`RECVACK` 只清理匹配的 owner-local pending 状态；它不会改变 Channel 的提交顺序。
+## 与其他概念的关系
 
-| 结果 | 可以得出的结论 |
-| --- | --- |
-| SENDACK 成功 | durable 消息已达到提交边界，或对应瞬态分支已完成其 admission 语义 |
-| 客户端收到 RECV | 某个具体 Session 已获得投递 |
-| 客户端发送 RECVACK | 该 owner-local 接收状态已确认 |
-| Webhook/插件成功 | 对应异步消费者处理成功，不改变消息 commit |
+- **频道**决定消息发到哪里、谁有机会接收，以及消息在哪个范围内排序。
+- **用户**是消息的发送者或频道参与者。
+- **设备**是用户发送、实时接收和离线恢复消息的具体端点。
+- **会话**把频道中的最近消息和未读状态呈现给某个用户。
 
-## 流式消息事件
+## 开发时记住
 
-消息事件以 `(channel_id, channel_type, client_msg_no)` 为锚点，支持流式 open/delta/snapshot 与终态投影。活动增量可以先保存在 Slot Leader 的有界缓存中；终态才形成 durable projection。领导权变化导致缓存证据缺失时，finish 会保持 fail-closed，调用方需要重放完整增量或终态快照。
+- 必须可靠到达或需要离线恢复的内容，应使用普通持久消息。
+- 重试同一次发送时复用原 `client_msg_no`，不要生成一条新的业务消息。
+- Payload 是业务合同，需要限制大小、校验字段并做好版本兼容。
+- `NoPersist`、`SyncOnce` 等特殊行为不要仅凭名称猜测，使用前查看 [Message Flags](/zh/api/dictionaries/message-flags)。
 
-继续阅读[Channel](/zh/guide/core-concepts/channels)、[消息收发集成](/zh/guide/integration/messaging)和[消息发送链路](/zh/server/architecture/message-flow)。
+继续阅读[频道](/zh/guide/core-concepts/channels)。开始接入时查看[消息收发](/zh/sdk/common-guides/messaging)；需要理解提交、副本和投递链路时查看[消息发送链路](/zh/server/architecture/message-flow)。

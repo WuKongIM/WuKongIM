@@ -17,4 +17,27 @@ describe('legacy redirect seed', () => {
       expect(mapping.destination.slice(1, 3)).toBe(mapping.source.slice(1, 3));
     }
   });
+
+  test('preserves the routes replaced by the reader-first core concepts', () => {
+    expect(manifest.mappings).toEqual(
+      expect.arrayContaining([
+        {
+          source: '/zh/guide/core-concepts/cluster-and-nodes',
+          destination: '/zh/server/architecture',
+        },
+        {
+          source: '/en/guide/core-concepts/cluster-and-nodes',
+          destination: '/en/server/architecture',
+        },
+        {
+          source: '/zh/guide/core-concepts/users-and-devices',
+          destination: '/zh/guide/core-concepts/users',
+        },
+        {
+          source: '/en/guide/core-concepts/users-and-devices',
+          destination: '/en/guide/core-concepts/users',
+        },
+      ]),
+    );
+  });
 });

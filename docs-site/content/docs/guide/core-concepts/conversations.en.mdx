@@ -1,84 +1,58 @@
 ---
-title: Conversations
-description: Understand the membership-backed directory, server-built badges, pagination, visibility floors, and CMD isolation.
+title: Conversation
+description: Understand why a Conversation is one user's chat-list view and how it relates to Channels, unread state, and hiding.
 ---
 
-A Conversation is a transient server-built view for one UID. WuKongIM does not
-persist a conversation row and does not update every recipient when a message
-is sent. The Channel log owns messages and sequence order; UID-owned membership
-owns discovery and personal visibility state.
+A Conversation is one chat entry visible to one user, usually one row in a chat list. It points to a Channel and presents its latest message, unread count, and other personal state.
 
-## Durable state
+A Conversation is not another container of messages. Messages remain in the Channel; WuKongIM builds the conversation view from the user's Channel relationship, committed messages, and personal visibility state.
 
-Ordinary channels use `user_channel_membership`:
+## Why conversations matter
 
-| Field | Meaning |
+- **Organize the chat list:** Gather Channels that a user joined or explicitly opened into a list they can revisit.
+- **Highlight new content:** Calculate unread and visibility state for the current user.
+- **Support offline recovery:** A client first discovers conversations, then synchronizes missing messages for each Channel.
+- **Enable personal actions:** Hiding a conversation or clearing unread affects the current user, not the shared Channel history.
+
+## Conversation versus Channel
+
+| Channel | Conversation |
 | --- | --- |
-| `join_seq` | First sequence visible in the current membership period |
-| `read_seq` | Monotonic badge floor changed only by clear/set-unread |
-| `deleted_to_seq` | Monotonic hide floor |
-| `activated_at` | Explicit navigation priority for directory sync |
-| tombstone fields | Removal evidence |
-| `source_version` | Fence against stale subscriber-derived writes |
+| A communication space shared by participants | One user's personal view of that Channel |
+| Stores ordered Channel messages | Refers to the latest message and presents unread and hidden state |
+| Identified by `channel_id + channel_type` | Has complete meaning only when combined with the current UID |
+| Participants observe the same committed history within their visibility range | Each participant may have a different read position and visibility range |
 
-`activated_at` is not last-message time. SEND, receive, online delivery, and
-message pull do not update it. The client owns pinning and final UI order.
+Suppose Alice and Bob both belong to the “Weekend Trip” group Channel. The latest Channel message exists only once, but Alice may have read everything while Bob still has five unread messages. Their conversation state is therefore different.
 
-CMD discovery uses a separate `user_cmd_channel_membership` table with
-`start_seq`, `ack_seq`, and tombstone state. CMD/SyncOnce messages use a
-separate command Channel log, so they never consume ordinary sequence space or
-change ordinary badges.
+## What a conversation usually presents
 
-## Directory synchronization
+| Information | Purpose |
+| --- | --- |
+| Channel ID and type | Determines which direct or group chat to open |
+| Latest message | Provides the chat-list preview |
+| Unread count | Signals new content to the current user |
+| Read and visibility boundaries | Determine the unread baseline and which history remains visible |
+| Local presentation state | Pinning, drafts, and final ordering are normally client-owned |
 
-```text
-page memberships by (activated_at desc, channel_id, channel_type)
-  -> emit tombstones as deletes
-  -> group live channels by exact Channel Leader
-  -> batch-read committed head, retention floor, last display message,
-     and this UID's latest committed ordinary SEND
-  -> return conversations + deletes + unresolved + cursor + done
-```
+The server-side conversation list and each Channel's message list use separate synchronization positions. A client cannot use one cursor for both.
 
-The page limit bounds membership candidates scanned, not conversations
-returned. A page can therefore contain no conversations while the pass is still
-incomplete; only `done=true` completes a pass. The cursor is opaque and the
-scan is eventually consistent. Clients deduplicate by Channel key, synchronize
-active pages first, complete inactive pages in the background, and retry
-`unresolved` keys separately.
+## Understanding common actions
 
-## Badge and visibility
+- **Clear unread:** Advances the current UID's unread baseline; it does not send a peer-read receipt.
+- **Hide or delete a conversation:** Hides the current user's present view. It does not leave the Channel or delete messages for other participants. A later message above the hidden range can make the conversation appear again.
+- **Leave or remove a member:** Changes Channel membership and is different from hiding a chat-list entry.
+- **Synchronize multiple devices:** Conversation and unread state are generally UID-scoped, so another device may observe an update during its next sync.
 
-For a live membership:
-
-```text
-visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)
-effective_read   = max(visibility_floor, read_seq, current_user_last_send_seq)
-unread           = max(0, last_committed_seq - effective_read)
-```
-
-The sender sequence comes from a Channel-local index written atomically with
-the ordinary message. It avoids a membership write on SEND while preventing
-the user's own sent message from creating a badge.
-
-An inactive empty membership is omitted. An explicitly activated empty Channel
-may appear without a last message. Hiding advances `deleted_to_seq` and clears
-activation without leaving the Channel; a later message above the floor can
-make it visible again. Remove writes a tombstone, and a true rejoin establishes
-a new join boundary.
-
-## Message pull
-
-Ordinary message pull requires a live membership and does not recheck the
-subscriber table. The server clamps the requested cursor to the join, hide, and
-retention boundaries. Batch pull validates every membership before issuing one
-Leader-grouped Channel read batch. Directory cursors and per-Channel message
-cursors are independent.
-
-<Callout type="info" title="SEND cost">
-  Ordinary SEND appends the Channel message and sender index, then performs
-  online delivery. It writes no recipient membership or conversation rows, so
-  durable write cost does not grow with group membership.
+<Callout type="info" title="The client owns final chat-list presentation">
+  WuKongIM supplies conversation, latest-message, and unread state. Pinning, drafts, grouping, and final UI ordering remain product-client responsibilities.
 </Callout>
 
-Continue with [Messages](/en/guide/core-concepts/messages), [Users & Devices](/en/guide/core-concepts/users-and-devices), and [Messaging Integration](/en/guide/integration/messaging).
+## Relationship to other concepts
+
+- A **Channel** is the communication space a Conversation opens and the source of message history.
+- A **Message** changes the latest content and unread projection that a Conversation can present.
+- A **User** owns a personal conversation view, independent from other users' state.
+- A **Device** synchronizes UID-scoped conversation state while keeping its own local UI state.
+
+Continue with [Message](/en/guide/core-concepts/messages) and [Conversations & Unread Counts](/en/sdk/common-guides/conversations-and-unread). For server-side construction and paging, continue to the [message-flow architecture guide](/en/server/architecture/message-flow).

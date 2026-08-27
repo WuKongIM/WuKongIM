@@ -50,6 +50,22 @@
     {
       "source": "/en/api/introduction",
       "destination": "/en/api/conventions"
+    },
+    {
+      "source": "/zh/guide/core-concepts/cluster-and-nodes",
+      "destination": "/zh/server/architecture"
+    },
+    {
+      "source": "/en/guide/core-concepts/cluster-and-nodes",
+      "destination": "/en/server/architecture"
+    },
+    {
+      "source": "/zh/guide/core-concepts/users-and-devices",
+      "destination": "/zh/guide/core-concepts/users"
+    },
+    {
+      "source": "/en/guide/core-concepts/users-and-devices",
+      "destination": "/en/guide/core-concepts/users"
     }
   ]
 }
