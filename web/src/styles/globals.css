@@ -191,7 +191,7 @@ a {
 .top-section-link-active {
   background: var(--top-section-active);
   color: var(--top-section-active-foreground);
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
 }
 
 .top-section-link-active:hover {
