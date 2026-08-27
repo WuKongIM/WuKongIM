@@ -39,6 +39,11 @@ reconnect handling, plus source-checked Channel Type, Device Flag / Level, and
 Message Flag dictionaries. It keeps JavaScript/Web as the only executable
 client compatibility target and does not turn planned SDK platforms into
 support claims.
+Phase 14 publishes an integrator acceptance loop: an evidence-backed
+JavaScript/Web capability matrix, a bilingual production gate guide, and a
+one-command local compatibility smoke report. The report is bounded and
+redacted, keeps production readiness `not_assessed`, and cannot replace the
+protected clean-HEAD publication receipt.
 
 ## Develop
 
@@ -68,7 +73,9 @@ shared compatibility and slice-level OpenAPI facts, Reason Code alignment, and
 unique executable source anchors plus MDX publication checkpoints. Phase 13
 also checks every common-guide publication boundary and compares protocol
 dictionary names, values, and bit positions with their current Go authorities.
-Relevant
+Phase 14 also checks capability status drift, exact local-report shape,
+fail-closed write ordering, and the separation between compatibility smoke and
+production readiness. Relevant
 sample or runtime-contract changes select the real Chromium integration check.
 
 ## Golden-path attestation
@@ -143,3 +150,5 @@ message-push and AI/IoT tutorial boundaries. `PHASE_12_SPEC.md` defines the
 JavaScript/Web golden path, Product HTTP subset, generated contract facts, and
 integration-test boundaries. `PHASE_13_SPEC.md` defines the cross-SDK behavior
 guides, source-checked protocol dictionaries, and platform-support boundary.
+`PHASE_14_SPEC.md` defines the JavaScript capability evidence, local acceptance
+report, production gate, and publication-attestation boundaries.

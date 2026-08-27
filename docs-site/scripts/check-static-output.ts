@@ -375,6 +375,36 @@ export async function checkStaticOutput() {
         }
       }
     }
+
+    const capabilityMarkdown = await text(
+      `llms.mdx/${locale}/sdk/javascript/platform-capabilities/content.md`,
+    );
+    const capabilityFacts = [
+      '`route-connect`',
+      locale === 'zh' ? '已验证' : 'Verified',
+      '`production-connection-authentication`',
+      locale === 'zh' ? '边界' : 'Boundary',
+      '`transient-and-background-behavior`',
+      locale === 'zh' ? '未验证' : 'Unverified',
+    ];
+    for (const fact of capabilityFacts) {
+      if (!capabilityMarkdown.includes(fact)) {
+        throw new Error(`${locale} capability Markdown is missing shared fact: ${fact}`);
+      }
+    }
+
+    const acceptanceMarkdown = await text(
+      `llms.mdx/${locale}/guide/integration/acceptance/content.md`,
+    );
+    for (const fact of [
+      'wukongim.docs.integration-acceptance/v1',
+      'not_assessed',
+      'publication_attestation',
+    ]) {
+      if (!acceptanceMarkdown.includes(fact)) {
+        throw new Error(`${locale} acceptance Markdown is missing boundary: ${fact}`);
+      }
+    }
   }
 
   const llmsIndex = await text('llms.txt');
@@ -429,6 +459,8 @@ export async function checkStaticOutput() {
     { path: `${locale}/index.html`, locale },
     { path: `${locale}/sdk/common-guides/index.html`, locale },
     { path: `${locale}/sdk/javascript/quickstart/index.html`, locale },
+    { path: `${locale}/sdk/javascript/platform-capabilities/index.html`, locale },
+    { path: `${locale}/guide/integration/acceptance/index.html`, locale },
     { path: `${locale}/api/dictionaries/message-flags/index.html`, locale },
     { path: `${locale}/api/product-http/users/index.html`, locale },
   ]);

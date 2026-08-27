@@ -13,7 +13,9 @@ MDX publication, static search, sitemap/SEO, and LLM/Markdown outputs.
 It also owns the narrow JavaScript Web golden-path laboratory, its generated
 compatibility/OpenAPI artifacts, platform-neutral SDK behavior guides, and
 source-checked protocol dictionaries. It does not define product runtime
-behavior or replace authoritative code contracts.
+behavior or replace authoritative code contracts. The JavaScript laboratory
+also owns a bounded local integration-acceptance report that proves only its
+compatibility smoke and leaves production readiness unassessed.
 
 ## Boundaries
 
@@ -36,7 +38,8 @@ behavior or replace authoritative code contracts.
    and machine-readable outputs.
 4. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
-   the real single-node-cluster/Chromium verification evidence.
+   the real single-node-cluster/Chromium verification evidence and can write a
+   redacted local acceptance report only after fast and real gates pass.
 5. Next.js static export writes `out/`, whose publication, canonical, link,
    accessibility-structure, and machine-artifact boundaries are checked before
    any external hosting step.
@@ -69,11 +72,15 @@ behavior or replace authoritative code contracts.
   and becomes true only when a successful receipt matches that complete tuple.
   Chromium is the only eligible browser target; other browsers remain
   explicitly unverified.
+- The local acceptance report uses its own exact schema, records no endpoint,
+  token, UID, message body, DOM, or browser capture, and always marks production
+  readiness `not_assessed` and publication attestation `not_issued`. It cannot
+  be supplied as the protected golden-path verification receipt.
 
 ## Read First
 
 - [Navigation registry](lib/navigation.ts)
-- [Phase 13 integrator specification](PHASE_13_SPEC.md)
+- [Phase 14 acceptance specification](PHASE_14_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
 - [JavaScript Web golden sample](examples/javascript-web-quickstart/README.md)
 - [Documentation landing page](content/docs/guide/index.mdx)

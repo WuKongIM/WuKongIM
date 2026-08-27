@@ -1,6 +1,7 @@
 # JavaScript / Web quickstart laboratory
 
-This is the executable source for the Phase 12 JavaScript / Web quickstart. It
+This is the executable source for the Phase 12 JavaScript / Web quickstart and
+the Phase 14 local acceptance report. It
 uses framework-independent TypeScript, a minimal HTML interface, a
 localhost-only Node.js BFF, and exactly `wukongimjssdk@1.3.5`.
 
@@ -51,6 +52,11 @@ bounds request bodies and sync pages, and keeps Product HTTP addresses out of
 the client bundle. The browser receives only its development UID, ephemeral
 development token, and discovered WebSocket address.
 
+The first persistent person message admits asynchronous directory projection
+for both UID-owned memberships. Message recovery retries only the exact
+membership-not-ready Product HTTP response, at 250ms intervals for at most 20
+attempts; unrelated failures are never retried.
+
 The pinned SDK logs decoded packets and retry payloads unconditionally in its
 published browser module. This sample's browser build therefore removes all
 `console` calls; use the bounded, text-only event panel for diagnostics. Do not
@@ -75,6 +81,24 @@ WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
 npm run test:e2e
 ```
 
+To run the fast checks and complete Chromium scenario as one fail-closed flow,
+then write a bounded local evidence report:
+
+```bash
+WK_DOCS_QUICKSTART_E2E_PRODUCT_HTTP_URL=http://127.0.0.1:5001 \
+WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
+npm run verify:acceptance
+```
+
+The command removes any stale report before starting and writes
+`test-results/integration-acceptance.json` only after both gates pass. The
+report records source/lock/SDK/runtime identity and fixed check results, but no
+configured endpoint, token, UID, message body, DOM, screenshot, trace, video,
+or server response. Its schema is
+`wukongim.docs.integration-acceptance/v1`; it deliberately reports production
+readiness as `not_assessed` and publication attestation as `not_issued`. It is
+not accepted in place of the protected golden-path publication receipt.
+
 `test:e2e` builds and starts the BFF/UI itself. It optionally accepts
 `WK_DOCS_QUICKSTART_E2E_OUTPUT_DIR` for bounded failure screenshots. Automatic
 Playwright screenshots, trace, and video capture remain disabled because the
@@ -85,10 +109,11 @@ that neither the token prefix nor development UIDs remain in the DOM. Only then
 does it write a viewport PNG capped at 2 MiB; CI must not retain an unredacted
 network trace or screenshot.
 
-The functional scenario opens Alice and Bob in two independent, ephemeral
-Chromium contexts and drives connect, send, disconnect, and reconnect controls
-with `Tab` and `Enter`. It also proves that an online message is not duplicated
-by sync and that the offline message appears exactly once as `recovered`.
+The functional scenario uses isolated development UIDs for the Alice and Bob
+roles on every run, opens them in two independent Chromium contexts, and drives
+connect, send, disconnect, and reconnect controls with `Tab` and `Enter`. It
+also proves that an online message is not duplicated by sync and that the
+offline message appears exactly once as `recovered`.
 Separate checks run axe on the lab and both session pages, fail on serious or
 critical findings, and check horizontal overflow at 1440×900 and 390×844. This
 scenario also asserts the real computed `:focus-visible` indicator used by its

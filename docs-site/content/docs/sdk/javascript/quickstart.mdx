@@ -62,7 +62,7 @@ npm run dev
 4. 在 Bob 面板点击 **Reconnect + sync**。
 5. 确认 Bob 的事件类型为 `synced`、事件文本包含 `recovered`，且没有把这条恢复结果标记成 `realtime`。
 
-BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 Bob 为 `login_uid`、Alice 为对端 `channel_id`、`channel_type=1`。客户端必须允许在线投递和同步结果重复，并按消息身份与 Channel sequence 合并。
+BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 Bob 为 `login_uid`、Alice 为对端 `channel_id`、`channel_type=1`。首条持久个人消息提交时，服务端会异步建立双方 UID 的频道目录成员关系；这个后台投影可能稍晚于 SENDACK。样例只对精确的“成员关系尚未就绪”响应做最多 20 次、间隔 250ms 的有界等待，其他 HTTP 400 立即失败。客户端还必须允许在线投递和同步结果重复，并按消息身份与 Channel sequence 合并。
 
 {/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
 
@@ -93,6 +93,18 @@ BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 
 
 确认离线消息曾收到成功 SENDACK，再按共享合同核对 BFF 同步请求中的当前 UID、对端 UID、方向、游标和 HTTP 状态。样例不会把 Token、UID 或消息正文写入普通日志；在线投递缺失与同步缺失需要分别诊断。
 
+## 5. 生成验收报告
+
+手工理解事件边界后，可以让相同场景生成有界、脱敏的机器报告：
+
+```bash
+WK_DOCS_QUICKSTART_E2E_PRODUCT_HTTP_URL=http://127.0.0.1:5001 \
+WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
+npm run verify:acceptance
+```
+
+命令会自行启动 BFF；先停止占用同一 UI 端口的手工 `npm run dev`。报告位于 `test-results/integration-acceptance.json`。命令开始前删除旧报告，并且只在快速检查与真实 E2E 都成功后写入新报告。它证明兼容性 Smoke，但把生产就绪保持为 `not_assessed`；具体判定见[上线验收](/zh/guide/integration/acceptance)。
+
 ## 安全、清理与责任边界
 
 <Callout type="error" title="仅限本地开发">
@@ -103,4 +115,4 @@ BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 
 
 ## 下一步
 
-阅读[认证与安全](/zh/api/authentication)、[消息同步合同](/zh/api/product-http/messages)和[错误响应](/zh/api/product-http/errors)。生产接入还必须自行实现账号、授权、Token 验证、TLS、限流、审计、容量与故障恢复。
+核对[平台专属能力](/zh/sdk/javascript/platform-capabilities)并完成[上线验收](/zh/guide/integration/acceptance)。生产接入仍必须自行实现账号、授权、Token 验证、TLS、限流、审计、容量与故障恢复。

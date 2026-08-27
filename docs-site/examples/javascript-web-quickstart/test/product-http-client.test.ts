@@ -116,6 +116,78 @@ test("the trusted client maps person-message recovery to POST /channel/messagesy
   ]);
 });
 
+test("person-message recovery waits only for the asynchronous directory projection", async () => {
+  let requests = 0;
+  const waits: number[] = [];
+  const client = new ProductHttpClient({
+    baseUrl: "http://127.0.0.1:5001",
+    fetch: async () => {
+      requests += 1;
+      if (requests < 3) {
+        return Response.json(
+          {
+            msg: "internal/message: valid channel membership required",
+            status: 400,
+          },
+          { status: 400 },
+        );
+      }
+      return Response.json({ messages: [] });
+    },
+    personDirectoryRetry: {
+      maxAttempts: 3,
+      delayMs: 7,
+      wait: async (delayMs) => {
+        waits.push(delayMs);
+      },
+    },
+  });
+
+  const messages = await client.syncPersonMessages({
+    loginUid: "bob",
+    peerUid: "alice",
+    startMessageSeq: 0,
+    endMessageSeq: 0,
+    limit: 50,
+    pullMode: 1,
+  });
+
+  assert.deepEqual(messages, []);
+  assert.equal(requests, 3);
+  assert.deepEqual(waits, [7, 7]);
+});
+
+test("person-message recovery does not retry unrelated Product HTTP failures", async () => {
+  let requests = 0;
+  const client = new ProductHttpClient({
+    baseUrl: "http://127.0.0.1:5001",
+    fetch: async () => {
+      requests += 1;
+      return Response.json({ msg: "invalid cursor", status: 400 }, { status: 400 });
+    },
+    personDirectoryRetry: {
+      maxAttempts: 3,
+      delayMs: 0,
+      wait: async () => {
+        throw new Error("unrelated failures must not wait");
+      },
+    },
+  });
+
+  await assert.rejects(
+    client.syncPersonMessages({
+      loginUid: "bob",
+      peerUid: "alice",
+      startMessageSeq: 0,
+      endMessageSeq: 0,
+      limit: 50,
+      pullMode: 1,
+    }),
+    /POST \/channel\/messagesync failed with HTTP 400/,
+  );
+  assert.equal(requests, 1);
+});
+
 test("message sync rejects a response without the precision-safe message_idstr", async () => {
   const client = new ProductHttpClient({
     baseUrl: "http://127.0.0.1:5001",

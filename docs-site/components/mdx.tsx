@@ -5,6 +5,7 @@ import {
   CompatibilitySnapshot,
   DeviceFlagTable,
   GoldenPathContract,
+  JavaScriptCapabilityMatrix,
   MessageFlagTable,
   ReasonCodeTable,
 } from './developer-contracts';
@@ -16,6 +17,7 @@ export function getMDXComponents(components?: MDXComponents) {
     CompatibilitySnapshot,
     DeviceFlagTable,
     GoldenPathContract,
+    JavaScriptCapabilityMatrix,
     MessageFlagTable,
     ReasonCodeTable,
     ...components,

@@ -108,7 +108,14 @@ describe('documentation navigation contract', () => {
       ['users-and-devices', 'published'],
       ['conversations', 'published'],
     ]);
-    expect(integration?.children.find((page) => page.slug === 'plugins')?.status).toBe('published');
+    expect(
+      integration?.children
+        .filter((page) => ['plugins', 'acceptance'].includes(page.slug))
+        .map((page) => [page.slug, page.status]),
+    ).toEqual([
+      ['plugins', 'published'],
+      ['acceptance', 'published'],
+    ]);
   });
 
   test('publishes the complete scenario tutorial set', () => {
@@ -177,6 +184,27 @@ describe('documentation navigation contract', () => {
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
   });
 
+  test('publishes the Phase 14 acceptance loop without broadening SDK support', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+
+    expect(published).toEqual(
+      expect.arrayContaining([
+        '/en/guide/integration/acceptance',
+        '/en/sdk/javascript/platform-capabilities',
+      ]),
+    );
+    expect(
+      getNavigationEntry('en', 'sdk', ['javascript', 'platform-capabilities'])?.status,
+    ).toBe('published');
+    expect(getNavigationEntry('en', 'sdk', ['javascript', 'api-reference'])?.status).toBe(
+      'planned',
+    );
+    expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
+    for (const platform of ['android', 'ios', 'flutter', 'uniapp', 'harmonyos']) {
+      expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
+    }
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -218,6 +246,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/integration/messaging`,
         `/${locale}/guide/integration/webhooks`,
         `/${locale}/guide/integration/plugins`,
+        `/${locale}/guide/integration/acceptance`,
         `/${locale}/guide/tutorials`,
         `/${locale}/guide/tutorials/direct-chat`,
         `/${locale}/guide/tutorials/large-groups`,
@@ -270,6 +299,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/javascript`,
         `/${locale}/sdk/javascript/installation`,
         `/${locale}/sdk/javascript/quickstart`,
+        `/${locale}/sdk/javascript/platform-capabilities`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,
@@ -367,6 +397,10 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/core-concepts/conversations.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/acceptance.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/acceptance.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/javascript/platform-capabilities.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/javascript/platform-capabilities.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);

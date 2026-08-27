@@ -204,6 +204,139 @@ export const compatibilitySnapshot = buildCompatibilitySnapshot({
   verificationReceiptJson: process.env.WK_DOCS_GOLDEN_PATH_RECEIPT_JSON,
 });
 
+export type JavaScriptCapabilityStatus = 'verified' | 'boundary' | 'unverified';
+
+export interface JavaScriptCapabilityDefinition {
+  id: string;
+  status: JavaScriptCapabilityStatus;
+  capability: { zh: string; en: string };
+  evidence: { zh: string; en: string };
+}
+
+function javascriptCapability(
+  id: string,
+  status: JavaScriptCapabilityStatus,
+  capabilityZh: string,
+  capabilityEn: string,
+  evidenceZh: string,
+  evidenceEn: string,
+): JavaScriptCapabilityDefinition {
+  return {
+    id,
+    status,
+    capability: { zh: capabilityZh, en: capabilityEn },
+    evidence: { zh: evidenceZh, en: evidenceEn },
+  };
+}
+
+/** Capabilities and boundaries proven by the pinned JavaScript/Web snapshot. */
+export const javascriptWebCapabilities: JavaScriptCapabilityDefinition[] = [
+  javascriptCapability(
+    'route-connect',
+    'verified',
+    '路由发现与 CONNECT/CONNACK',
+    'Route discovery and CONNECT/CONNACK',
+    '真实 Chromium 场景通过 loopback BFF 获取路由，并让两个隔离 Session 完成连接。',
+    'The real Chromium scenario discovers routing through the loopback BFF and connects two isolated Sessions.',
+  ),
+  javascriptCapability(
+    'persistent-person-messaging',
+    'verified',
+    '持久单聊双向发送',
+    'Bidirectional persistent person messaging',
+    'Alice 与 Bob 使用 ChannelTypePerson=1 双向发送持久文本。',
+    'Alice and Bob exchange persistent text in both directions with ChannelTypePerson=1.',
+  ),
+  javascriptCapability(
+    'sendack-realtime-separation',
+    'verified',
+    'SENDACK 与实时接收分离',
+    'SENDACK separated from realtime receipt',
+    '场景分别断言发送确认计数和对端 realtime 事件。',
+    'The scenario asserts sender acknowledgement counts separately from peer realtime events.',
+  ),
+  javascriptCapability(
+    'reconnect-offline-sync',
+    'verified',
+    '断线、重连与离线同步',
+    'Disconnect, reconnect, and offline synchronization',
+    '离线期间消息先提交，接收端重连后通过有界 person-message sync 恢复；首次个人频道目录异步投影只重试精确未就绪响应。',
+    'A message commits while the peer is offline and is recovered through bounded person-message sync; first-use asynchronous directory projection retries only the exact not-ready response.',
+  ),
+  javascriptCapability(
+    'realtime-sync-deduplication',
+    'verified',
+    '实时与同步结果去重',
+    'Realtime/synchronization deduplication',
+    '在线已观察消息不会被后续同步再次标记为 recovered，离线消息只出现一次。',
+    'An already observed realtime message is not relabeled as recovered, and the offline message appears once.',
+  ),
+  javascriptCapability(
+    'production-connection-authentication',
+    'boundary',
+    '生产连接身份校验',
+    'Production connection authentication',
+    '默认 v3 Beta 组合未启用已存 Token verifier；开发连接成功不是生产鉴权证据。',
+    'The default v3 Beta composition has no stored-token verifier; a successful development connection is not production-authentication evidence.',
+  ),
+  javascriptCapability(
+    'browser-product-http-access',
+    'boundary',
+    '浏览器与 Product HTTP 隔离',
+    'Browser isolation from Product HTTP',
+    '浏览器只访问 loopback BFF；Product HTTP 调用属于受信服务端边界。',
+    'The browser calls only the loopback BFF; Product HTTP calls belong to a trusted server-side boundary.',
+  ),
+  javascriptCapability(
+    'non-chromium-browsers',
+    'unverified',
+    'Firefox、Safari/WebKit 与其他浏览器',
+    'Firefox, Safari/WebKit, and other browsers',
+    '当前 receipt 只接受固定 Chromium 目标；没有第二浏览器矩阵。',
+    'The current receipt accepts only the pinned Chromium target; no second browser matrix exists.',
+  ),
+  javascriptCapability(
+    'groups-and-specialized-channels',
+    'unverified',
+    '群聊与专用 Channel Type',
+    'Groups and specialized Channel Types',
+    '服务端枚举存在，但当前 JavaScript 可执行场景只覆盖单聊。',
+    'Server enums exist, but the executable JavaScript scenario covers person messaging only.',
+  ),
+  javascriptCapability(
+    'custom-messages-and-conversations',
+    'unverified',
+    '自定义消息与会话 API',
+    'Custom messages and conversation APIs',
+    '公共指南定义行为边界，当前固定 SDK 场景未验证平台 API。',
+    'Common guides define behavior boundaries; the pinned SDK scenario does not verify platform APIs.',
+  ),
+  javascriptCapability(
+    'push-and-multi-device',
+    'unverified',
+    '推送与多设备产品策略',
+    'Push and multi-device product policy',
+    '这些能力依赖应用后端、设备登记和厂商服务，不在浏览器黄金路径中。',
+    'These capabilities depend on the product backend, device registry, and providers and are outside the browser golden path.',
+  ),
+  javascriptCapability(
+    'transient-and-background-behavior',
+    'unverified',
+    'NoPersist、后台生命周期与完整 SDK 面',
+    'NoPersist, background lifecycle, and complete SDK surface',
+    '当前场景不执行瞬时消息、OS 后台约束、完整 API Reference 或升级行为。',
+    'The current scenario does not exercise transient messaging, OS background constraints, the complete API reference, or upgrades.',
+  ),
+];
+
+export const javascriptCapabilityStatusLabels: Record<
+  DeveloperContractLocale,
+  Record<JavaScriptCapabilityStatus, string>
+> = {
+  zh: { verified: '已验证', boundary: '边界', unverified: '未验证' },
+  en: { verified: 'Verified', boundary: 'Boundary', unverified: 'Unverified' },
+};
+
 export type ReasonRetryGuidance =
   | 'not-applicable'
   | 'do-not-retry'
@@ -503,6 +636,26 @@ export function renderGoldenPathContractMarkdown(locale: DeveloperContractLocale
   ].join('\n');
 }
 
+/** Renders the JavaScript/Web evidence matrix into Markdown exports. */
+export function renderJavaScriptCapabilityMarkdown(
+  locale: DeveloperContractLocale,
+): string {
+  const headings =
+    locale === 'zh'
+      ? ['ID', '能力', '状态', '证据或边界']
+      : ['ID', 'Capability', 'Status', 'Evidence or boundary'];
+  return [
+    `## ${locale === 'zh' ? 'JavaScript / Web 能力证据矩阵（共享契约）' : 'JavaScript / Web capability evidence matrix (shared contract)'}`,
+    '',
+    `| ${headings.join(' | ')} |`,
+    `| ${headings.map(() => '---').join(' | ')} |`,
+    ...javascriptWebCapabilities.map(
+      (item) =>
+        `| \`${item.id}\` | ${item.capability[locale]} | ${javascriptCapabilityStatusLabels[locale][item.status]} | ${item.evidence[locale]} |`,
+    ),
+  ].join('\n');
+}
+
 /** Renders the complete source-checked wire ReasonCode table into Markdown exports. */
 export function renderReasonCodeMarkdown(locale: DeveloperContractLocale): string {
   const headings =
@@ -543,6 +696,9 @@ export function renderDeveloperContractSupplement(
     route === 'sdk/javascript/quickstart'
   ) {
     sections.push(renderGoldenPathContractMarkdown(locale));
+  }
+  if (route === 'sdk/javascript/platform-capabilities') {
+    sections.push(renderJavaScriptCapabilityMarkdown(locale));
   }
   if (route === 'api/dictionaries/reason-codes') {
     sections.push(renderReasonCodeMarkdown(locale));

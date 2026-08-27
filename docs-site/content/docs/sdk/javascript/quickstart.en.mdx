@@ -62,7 +62,7 @@ These are persistent messages. A successful SENDACK means the Channel authority 
 4. Select **Reconnect + sync** in the Bob panel.
 5. Confirm that Bob's event kind is `synced`, its event text contains `recovered`, and the recovered result is not labeled `realtime`.
 
-The BFF reads the committed log through `/channel/messagesync`. For a person Channel it sends Bob as `login_uid`, Alice as peer `channel_id`, and `channel_type=1`. Clients must tolerate duplicate online and sync results and merge them by message identity and Channel sequence.
+The BFF reads the committed log through `/channel/messagesync`. For a person Channel it sends Bob as `login_uid`, Alice as peer `channel_id`, and `channel_type=1`. The server establishes both UID-owned Channel-directory memberships asynchronously when the first persistent person message commits, so that background projection can trail SENDACK briefly. The sample waits at most 20 times at 250ms intervals only for the exact membership-not-ready response; every other HTTP 400 fails immediately. Clients must also tolerate duplicate online and sync results and merge them by message identity and Channel sequence.
 
 {/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
 
@@ -93,6 +93,18 @@ Record the Reason Code and consult [Reason Code](/en/api/dictionaries/reason-cod
 
 First confirm that the offline send received a successful SENDACK. Then compare the BFF synchronization request's current UID, peer UID, direction, cursor, and HTTP status with the shared contract. The sample does not put tokens, UIDs, or message bodies in ordinary logs. Missing online delivery and missing synchronization are separate failures.
 
+## 5. Generate an acceptance report
+
+After understanding the event boundaries manually, run the same scenario as a bounded, redacted machine report:
+
+```bash
+WK_DOCS_QUICKSTART_E2E_PRODUCT_HTTP_URL=http://127.0.0.1:5001 \
+WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
+npm run verify:acceptance
+```
+
+The command starts its own BFF, so stop a manual `npm run dev` that occupies the same UI port. The report is written to `test-results/integration-acceptance.json`. The command removes stale evidence before starting and writes a new report only after both fast checks and the real E2E pass. It proves compatibility smoke while retaining production readiness as `not_assessed`; see [Integration Acceptance](/en/guide/integration/acceptance) for the release decision.
+
 ## Security, cleanup, and responsibility boundary
 
 <Callout type="error" title="Local development only">
@@ -103,4 +115,4 @@ Press `Ctrl+C` to stop the sample. Press `Ctrl+C` in the server terminal to stop
 
 ## Next step
 
-Read [Authentication & Security](/en/api/authentication), the [message-sync contract](/en/api/product-http/messages), and [Error Responses](/en/api/product-http/errors). A production integration must still implement accounts, authorization, token verification, TLS, rate limits, audit, capacity, and failure recovery.
+Review [Platform Capabilities](/en/sdk/javascript/platform-capabilities) and complete [Integration Acceptance](/en/guide/integration/acceptance). A production integration must still implement accounts, authorization, token verification, TLS, rate limits, audit, capacity, and failure recovery.

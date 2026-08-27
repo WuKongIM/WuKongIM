@@ -27,6 +27,7 @@ describe('JavaScript Web golden sample contract', () => {
     expect(manifest.devDependencies['@playwright/test']).toBe('1.62.1');
     expect(manifest.scripts.check).toBeTruthy();
     expect(manifest.scripts['test:e2e']).toBeTruthy();
+    expect(manifest.scripts['verify:acceptance']).toBe('tsx scripts/verify-acceptance.ts');
     expect(lock.lockfileVersion).toBe(3);
     expect(lock.packages['node_modules/wukongimjssdk']?.version).toBe('1.3.5');
     expect(lock.packages['node_modules/@axe-core/playwright']?.version).toBe('4.13.0');

@@ -17,6 +17,7 @@ WuKongIM owns real-time connections, channel messaging, persistence, cluster rou
   <Card title="Messaging" description="Understand client and server send paths, acknowledgements, and recovery boundaries." href="/en/guide/integration/messaging" />
   <Card title="Webhooks" description="Consume message and presence events securely and idempotently." href="/en/guide/integration/webhooks" />
   <Card title="Plugin Extensions" description="Evaluate node-local hooks, lifecycle, UID bindings, and safety boundaries." href="/en/guide/integration/plugins" />
+  <Card title="Integration Acceptance" description="Separate compatibility smoke from production identity, network, capacity, and rollback gates." href="/en/guide/integration/acceptance" />
 </Cards>
 
 For client implementation, use [SDK Common Guides](/en/sdk/common-guides) to turn these boundaries into identity, connection, messaging, conversation, offline, and multi-device state machines. They define cross-SDK behavior without inventing platform methods.
@@ -42,3 +43,5 @@ For client implementation, use [SDK Common Guides](/en/sdk/common-guides) to tur
 | Operations | Queue pressure, failures, retry exhaustion, and end-to-end latency are monitored |
 
 Begin with stable server boundaries and webhooks. Introduce [Plugin Extensions](/en/guide/integration/plugins) only when a synchronous or post-commit hook genuinely needs to run near a node.
+
+After implementation, follow [Integration Acceptance](/en/guide/integration/acceptance) to produce reproducible compatibility evidence and separately close every production gate the laboratory cannot prove.

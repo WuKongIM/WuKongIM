@@ -4,10 +4,13 @@ import {
   deviceFlags,
   deviceLevels,
   goldenPathHTTPPaths,
+  javascriptCapabilityStatusLabels,
+  javascriptWebCapabilities,
   messageHeaderFlags,
   messageSettings,
   protocolScopeLabels,
   reasonCodes,
+  type JavaScriptCapabilityStatus,
   type ProtocolValueDefinition,
   type ReasonReachability,
   type ReasonRetryGuidance,
@@ -138,6 +141,62 @@ function SnapshotFact({ label, children }: { label: string; children: React.Reac
     <div>
       <dt className="text-xs font-medium text-fd-muted-foreground">{label}</dt>
       <dd className="mt-1 break-words">{children}</dd>
+    </div>
+  );
+}
+
+const capabilityStatusClasses: Record<JavaScriptCapabilityStatus, string> = {
+  verified: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  boundary: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  unverified: 'bg-fd-muted text-fd-muted-foreground',
+};
+
+/** Renders the evidence-backed JavaScript/Web capability boundary. */
+export function JavaScriptCapabilityMatrix({ locale = 'en' }: { locale?: Locale }) {
+  const isZh = locale === 'zh';
+  return (
+    <div className="not-prose my-6 overflow-x-auto rounded-xl border">
+      <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+        <caption className="sr-only">
+          {isZh
+            ? 'JavaScript / Web 能力证据矩阵'
+            : 'JavaScript / Web capability evidence matrix'}
+        </caption>
+        <thead className="bg-fd-muted/60">
+          <tr>
+            <th className="border-b px-3 py-2" scope="col">
+              ID
+            </th>
+            <th className="border-b px-3 py-2" scope="col">
+              {isZh ? '能力' : 'Capability'}
+            </th>
+            <th className="border-b px-3 py-2" scope="col">
+              {isZh ? '状态' : 'Status'}
+            </th>
+            <th className="border-b px-3 py-2" scope="col">
+              {isZh ? '证据或边界' : 'Evidence or boundary'}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {javascriptWebCapabilities.map((item) => (
+            <tr className="align-top odd:bg-fd-muted/20" key={item.id}>
+              <th className="border-b px-3 py-2 font-normal" scope="row">
+                <code>{item.id}</code>
+              </th>
+              <td className="border-b px-3 py-2">{item.capability[locale]}</td>
+              <td className="border-b px-3 py-2">
+                <span
+                  className={`rounded-full px-2 py-1 text-xs ${capabilityStatusClasses[item.status]}`}
+                >
+                  {javascriptCapabilityStatusLabels[locale][item.status]}
+                </span>
+              </td>
+              <td className="border-b px-3 py-2">{item.evidence[locale]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

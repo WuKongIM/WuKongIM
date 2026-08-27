@@ -10,7 +10,7 @@ JavaScript/Web is the only client integration path published in Phase 12. A tiny
 At the end of this path, you should connect Alice and Bob in two isolated browser sessions, distinguish send acknowledgement, online receipt, and offline synchronization, and explain which security responsibilities still belong to the product backend.
 
 <Callout type="warn" title="v3 Beta golden-path subset">
-  This area promises only Installation and Quickstart for the pinned compatibility target; the receipt decides this build's verification status. Platform-specific capabilities, the complete API reference, and upgrade guidance remain planned.
+  This area promises only Installation, Quickstart, and the capability evidence matrix for the pinned compatibility target; the receipt decides this build's verification status. The complete API reference and upgrade guidance remain planned.
 </Callout>
 
 ## Compatibility target
@@ -29,7 +29,9 @@ Use `wukongimjssdk@1.3.5` with the server revision, Node.js, and Chromium combin
 <Cards>
   <Card title="Installation" description="Install the exact SDK version from the npm lockfile and verify the sample build." href="/en/sdk/javascript/installation" />
   <Card title="Quickstart" description="Connect Alice and Bob, exchange messages, disconnect, reconnect, and synchronize offline data." href="/en/sdk/javascript/quickstart" />
+  <Card title="Platform Capabilities" description="Separate capabilities proven by the real scenario from boundaries and unverified scope." href="/en/sdk/javascript/platform-capabilities" />
   <Card title="Versions & Compatibility" description="Check the server, SDK, Node.js, and Chromium snapshot." href="/en/sdk/compatibility" />
+  <Card title="Integration Acceptance" description="Generate local compatibility evidence and close production gates separately." href="/en/guide/integration/acceptance" />
   <Card title="Product HTTP subset" description="Understand the token, route, and message-sync contracts used by the BFF." href="/en/api/product-http" />
 </Cards>
 
@@ -64,4 +66,4 @@ The browser calls only the sample BFF, never WuKongIM Product HTTP directly. Thi
 
 ## Next step
 
-Complete [Installation](/en/sdk/javascript/installation), then continue to the [Quickstart](/en/sdk/javascript/quickstart). Before productization, read [Authentication & Security](/en/api/authentication) and [Integration Architecture](/en/guide/integration/architecture).
+Complete [Installation](/en/sdk/javascript/installation) and the [Quickstart](/en/sdk/javascript/quickstart), review [Platform Capabilities](/en/sdk/javascript/platform-capabilities), and then run [Integration Acceptance](/en/guide/integration/acceptance).

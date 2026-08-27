@@ -39,6 +39,7 @@ Route: `/{lang}/guide`
   - **消息收发 / Messaging** `/{lang}/guide/integration/messaging` — 串联连接、发送、接收、确认、重连和离线补偿。 / Connects sending, receiving, acknowledgements, reconnects, and offline recovery.
   - **Webhook / Webhooks** `/{lang}/guide/integration/webhooks` — 介绍事件回调、签名、重试、幂等和失败处理。 / Introduces event callbacks, signatures, retries, idempotency, and failure handling.
   - **插件扩展 / Plugin Extensions** `/{lang}/guide/integration/plugins` — 说明插件的适用问题、生命周期和安全边界。 / Explains suitable plugin use cases, lifecycle, and security boundaries.
+  - **上线验收 / Integration Acceptance** `/{lang}/guide/integration/acceptance` — 把可执行兼容性证据与生产身份、网络、回调、容量和回滚门禁分开。 / Separates executable compatibility evidence from production identity, network, callback, capacity, and rollback gates.
 
 - **场景教程 / Tutorials** `/{lang}/guide/tutorials` — 提供面向典型业务场景的端到端方案。 / Provides end-to-end solutions for representative product scenarios.
 
@@ -133,11 +134,11 @@ Route: `/{lang}/sdk`
   - **API 参考 / API Reference** `/{lang}/sdk/ios/api-reference` — iOS SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the iOS SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/ios/upgrade` — iOS SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the iOS SDK.
 
-- **JavaScript / Web / JavaScript / Web** `/{lang}/sdk/javascript` — 使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息和离线恢复；其余平台能力仍在规划中。 / Complete browser installation, connection, two-way messaging, and offline recovery with the pinned SDK compatibility target; remaining platform material stays planned.
+- **JavaScript / Web / JavaScript / Web** `/{lang}/sdk/javascript` — 使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息、离线恢复、能力核对和验收报告；完整 API 与升级仍在规划中。 / Complete browser installation, connection, two-way messaging, offline recovery, capability review, and acceptance reporting with the pinned SDK compatibility target; complete API and upgrade material remain planned.
 
   - **安装与配置 / Installation** `/{lang}/sdk/javascript/installation` — 安装精确版本的 JavaScript SDK，并配置框架无关的 TypeScript 黄金样例。 / Install the exact JavaScript SDK version and configure the framework-neutral TypeScript golden sample.
   - **快速接入 / Quickstart** `/{lang}/sdk/javascript/quickstart` — 通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。 / Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.
-  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/javascript/platform-capabilities` — JavaScript / Web 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other JavaScript / Web-specific behavior.
+  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/javascript/platform-capabilities` — 按真实 Chromium 场景区分已验证能力、安全边界和未验证范围。 / Separates verified capabilities, security boundaries, and unverified scope through the real Chromium scenario.
   - **API 参考 / API Reference** `/{lang}/sdk/javascript/api-reference` — JavaScript / Web SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/javascript/upgrade` — JavaScript / Web SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the JavaScript / Web SDK.
 

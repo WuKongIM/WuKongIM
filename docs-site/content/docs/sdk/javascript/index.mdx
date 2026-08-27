@@ -10,7 +10,7 @@ JavaScript/Web 是 Phase 12 唯一发布的客户端接入路径。它用一个�
 完成本路径后，你应能在两个独立浏览器会话中连接 Alice 和 Bob，区分发送确认、在线接收和离线同步，并说明哪些安全职责仍属于业务后端。
 
 <Callout type="warn" title="v3 Beta 黄金路径子集">
-  本区只承诺固定兼容目标中的安装与 Quickstart；当前构建的验证状态由 receipt 决定。平台专属能力、完整 API Reference 和升级指南仍处于规划状态。
+  本区只承诺固定兼容目标中的安装、Quickstart 和能力证据矩阵；当前构建的验证状态由 receipt 决定。完整 API Reference 和升级指南仍处于规划状态。
 </Callout>
 
 ## 兼容目标
@@ -29,7 +29,9 @@ JavaScript/Web 是 Phase 12 唯一发布的客户端接入路径。它用一个�
 <Cards>
   <Card title="安装与配置" description="用 npm lockfile 安装精确 SDK 版本并验证样例构建。" href="/zh/sdk/javascript/installation" />
   <Card title="快速接入" description="完成 Alice/Bob 连接、双向消息、断开、重连和离线同步。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="平台专属能力" description="区分真实场景已验证能力、安全边界和未验证范围。" href="/zh/sdk/javascript/platform-capabilities" />
   <Card title="版本与兼容性" description="核对服务端、SDK、Node 与 Chromium 快照。" href="/zh/sdk/compatibility" />
+  <Card title="上线验收" description="生成本地兼容性报告，并单独关闭生产门禁。" href="/zh/guide/integration/acceptance" />
   <Card title="Product HTTP 子集" description="理解 BFF 使用的 Token、路由和消息同步合同。" href="/zh/api/product-http" />
 </Cards>
 
@@ -64,4 +66,4 @@ Bob 重连 -> localhost BFF -> /channel/messagesync（离线恢复）
 
 ## 下一步
 
-先完成[安装与配置](/zh/sdk/javascript/installation)，再进入[快速接入](/zh/sdk/javascript/quickstart)。准备产品化时，继续阅读[认证与安全](/zh/api/authentication)和[集成架构](/zh/guide/integration/architecture)。
+先完成[安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)，再核对[平台专属能力](/zh/sdk/javascript/platform-capabilities)并执行[上线验收](/zh/guide/integration/acceptance)。

@@ -12,6 +12,7 @@
     "start": "node dist/server.mjs",
     "test": "tsx --test test/*.test.ts",
     "test:e2e": "playwright test",
+    "verify:acceptance": "tsx scripts/verify-acceptance.ts",
     "check": "npm test && npm run build"
   },
   "dependencies": {

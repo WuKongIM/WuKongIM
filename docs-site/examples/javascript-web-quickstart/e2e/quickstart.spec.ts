@@ -10,14 +10,25 @@ import {
   type ViewportSize,
 } from "@playwright/test";
 
+import { acceptanceParticipantUids } from "../src/acceptance/scenario";
+
 const MAX_FAILURE_SCREENSHOT_BYTES = 2 * 1024 * 1024;
-const DEVELOPMENT_UIDS = ["alice", "bob"];
+const messageFlowParticipants = acceptanceParticipantUids(
+  `${Date.now().toString(36)}-${process.pid.toString(36)}`,
+);
+const DEVELOPMENT_UIDS = [
+  "alice",
+  "bob",
+  messageFlowParticipants.aliceUid,
+  messageFlowParticipants.bobUid,
+];
 
 test("Alice and Bob exchange persistent messages and recover one after reconnect", async ({
   browser,
   baseURL,
 }, testInfo) => {
   const origin = requireBaseUrl(baseURL);
+  const { aliceUid, bobUid } = messageFlowParticipants;
   const [aliceContext, bobContext] = await Promise.all([
     browser.newContext({ baseURL: origin }),
     browser.newContext({ baseURL: origin }),
@@ -26,8 +37,14 @@ test("Alice and Bob exchange persistent messages and recover one after reconnect
 
   try {
     const [alice, bob] = await Promise.all([
-      openSession(aliceContext, "/session.html?uid=alice&peer=bob"),
-      openSession(bobContext, "/session.html?uid=bob&peer=alice"),
+      openSession(
+        aliceContext,
+        `/session.html?uid=${encodeURIComponent(aliceUid)}&peer=${encodeURIComponent(bobUid)}`,
+      ),
+      openSession(
+        bobContext,
+        `/session.html?uid=${encodeURIComponent(bobUid)}&peer=${encodeURIComponent(aliceUid)}`,
+      ),
     ]);
     await Promise.all([connect(alice), connect(bob)]);
 
@@ -466,6 +483,8 @@ function documentationPages(): Array<{ name: string; path: string }> {
   const routes = [
     "",
     "sdk/javascript/quickstart/",
+    "sdk/javascript/platform-capabilities/",
+    "guide/integration/acceptance/",
     "api/product-http/",
     "api/product-http/users/",
     "api/product-http/messages/",

@@ -194,8 +194,8 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
     'javascript',
     'JavaScript / Web',
     'JavaScript / Web',
-    '使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息和离线恢复；其余平台能力仍在规划中。',
-    'Complete browser installation, connection, two-way messaging, and offline recovery with the pinned SDK compatibility target; remaining platform material stays planned.',
+    '使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息、离线恢复、能力核对和验收报告；完整 API 与升级仍在规划中。',
+    'Complete browser installation, connection, two-way messaging, offline recovery, capability review, and acceptance reporting with the pinned SDK compatibility target; complete API and upgrade material remain planned.',
     [
       publishedPage(
         'installation',
@@ -211,12 +211,12 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
         '通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。',
         'Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.',
       ),
-      plannedPage(
+      publishedPage(
         'platform-capabilities',
         '平台专属能力',
         'Platform Capabilities',
-        'JavaScript / Web 平台的生命周期、后台运行和推送等差异。',
-        'Lifecycle, background execution, push, and other JavaScript / Web-specific behavior.',
+        '按真实 Chromium 场景区分已验证能力、安全边界和未验证范围。',
+        'Separates verified capabilities, security boundaries, and unverified scope through the real Chromium scenario.',
       ),
       plannedPage(
         'api-reference',
@@ -406,6 +406,13 @@ export const domains: DocumentationDomain[] = [
             'Plugin Extensions',
             '说明插件的适用问题、生命周期和安全边界。',
             'Explains suitable plugin use cases, lifecycle, and security boundaries.',
+          ),
+          publishedPage(
+            'acceptance',
+            '上线验收',
+            'Integration Acceptance',
+            '把可执行兼容性证据与生产身份、网络、回调、容量和回滚门禁分开。',
+            'Separates executable compatibility evidence from production identity, network, callback, capacity, and rollback gates.',
           ),
         ],
       ),
