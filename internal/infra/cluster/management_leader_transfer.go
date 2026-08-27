@@ -15,6 +15,14 @@ type ManagementLeaderTransferNode interface {
 	RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error)
 }
 
+type managementLeaderTransferControllerSnapshotNode interface {
+	LocalControllerSnapshot(context.Context) (control.Snapshot, error)
+}
+
+type managementLeaderTransferAppliedSnapshotNode interface {
+	LocalControlSnapshot(context.Context) (control.Snapshot, error)
+}
+
 // ManagementLeaderTransferAdapter adapts cluster control writes to management usecases.
 type ManagementLeaderTransferAdapter struct {
 	node ManagementLeaderTransferNode
@@ -31,6 +39,20 @@ func (a *ManagementLeaderTransferAdapter) RequestSlotLeaderTransfer(ctx context.
 		return control.SlotLeaderTransferResult{}, managementusecase.ErrSlotLeaderTransferUnavailable
 	}
 	return a.node.RequestSlotLeaderTransfer(ctx, req)
+}
+
+// SlotLeaderTransferControlSnapshot returns the write-side Controller snapshot used for revision fencing.
+func (a *ManagementLeaderTransferAdapter) SlotLeaderTransferControlSnapshot(ctx context.Context) (control.Snapshot, error) {
+	if a == nil || a.node == nil {
+		return control.Snapshot{}, managementusecase.ErrSlotLeaderTransferUnavailable
+	}
+	if reader, ok := a.node.(managementLeaderTransferControllerSnapshotNode); ok {
+		return reader.LocalControllerSnapshot(ctx)
+	}
+	if reader, ok := a.node.(managementLeaderTransferAppliedSnapshotNode); ok {
+		return reader.LocalControlSnapshot(ctx)
+	}
+	return control.Snapshot{}, managementusecase.ErrSlotLeaderTransferUnavailable
 }
 
 // ManagementSlotReplicaMoveNode exposes Controller-backed staged Slot replica move intents.

@@ -377,6 +377,16 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 	if r == nil || r.backend == nil {
 		return SlotLeaderTransferResult{}, controller.ErrNotStarted
 	}
+	if r.canForwardControlWriteToLeader() {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:             ControlWriteActionSlotLeaderTransfer,
+			SlotLeaderTransfer: req,
+		})
+		if err != nil {
+			return SlotLeaderTransferResult{}, err
+		}
+		return resp.SlotLeaderTransfer, nil
+	}
 	result, err := r.backend.RequestSlotLeaderTransfer(ctx, controller.SlotLeaderTransferRequest{
 		SlotID:        req.SlotID,
 		SourceNode:    req.SourceNode,
@@ -385,37 +395,22 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 		ConfigEpoch:   req.ConfigEpoch,
 		StateRevision: req.StateRevision,
 	})
-	if shouldForwardTaskWrite(err) {
-		if err := r.forwardTaskRequest(ctx, TaskRequest{
-			Action:         TaskActionLeaderTransfer,
-			LeaderTransfer: req,
-		}); err != nil {
+	if shouldForwardControlWrite(err) {
+		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
+			Action:             ControlWriteActionSlotLeaderTransfer,
+			SlotLeaderTransfer: req,
+		}, err)
+		if err != nil {
 			return SlotLeaderTransferResult{}, err
 		}
-		task := leaderTransferTaskFromRequest(req)
-		return SlotLeaderTransferResult{Created: true, Task: &task}, nil
+		return resp.SlotLeaderTransfer, nil
 	}
 	if err != nil {
 		return SlotLeaderTransferResult{}, err
 	}
 	task := leaderTransferTaskFromRequest(req)
 	if result.Task != nil {
-		task = ReconcileTask{
-			TaskID:           result.Task.TaskID,
-			SlotID:           result.Task.SlotID,
-			Kind:             TaskKind(result.Task.Kind),
-			Step:             TaskStep(result.Task.Step),
-			SourceNode:       result.Task.SourceNode,
-			TargetNode:       result.Task.TargetNode,
-			TargetPeers:      append([]uint64(nil), result.Task.TargetPeers...),
-			CompletionPolicy: TaskCompletionPolicy(result.Task.CompletionPolicy),
-			ParticipantProgress: append([]TaskParticipantProgress(nil),
-				result.Task.ParticipantProgress...),
-			ConfigEpoch: result.Task.ConfigEpoch,
-			Attempt:     result.Task.Attempt,
-			Status:      TaskStatus(result.Task.Status),
-			LastError:   result.Task.LastError,
-		}
+		task = reconcileTaskFromController(*result.Task)
 	}
 	return SlotLeaderTransferResult{Created: result.Created, Task: &task}, nil
 }

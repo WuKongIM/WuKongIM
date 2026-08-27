@@ -20,6 +20,8 @@ type ControlWriteApplier interface {
 	MarkNodeLeaving(context.Context, MarkNodeLeavingRequest) (MarkNodeLeavingResult, error)
 	// MarkNodeRemoved submits a node removed intent.
 	MarkNodeRemoved(context.Context, MarkNodeRemovedRequest) (MarkNodeRemovedResult, error)
+	// RequestSlotLeaderTransfer submits a Slot leader transfer intent.
+	RequestSlotLeaderTransfer(context.Context, SlotLeaderTransferRequest) (SlotLeaderTransferResult, error)
 	// RequestSlotReplicaMove submits a staged Slot replica move intent.
 	RequestSlotReplicaMove(context.Context, SlotReplicaMoveRequest) (SlotReplicaMoveResult, error)
 	// PromoteControllerVoter submits an online Controller voter promotion.
@@ -96,6 +98,12 @@ func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 				return encodeControlWriteErrorResponse(err)
 			}
 			resp.MarkNodeRemoved = result
+		case ControlWriteActionSlotLeaderTransfer:
+			result, err := applier.RequestSlotLeaderTransfer(ctx, req.SlotLeaderTransfer)
+			if err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+			resp.SlotLeaderTransfer = result
 		case ControlWriteActionSlotReplicaMove:
 			result, err := applier.RequestSlotReplicaMove(ctx, req.SlotReplicaMove)
 			if err != nil {

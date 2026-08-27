@@ -307,6 +307,44 @@ func TestControlWriteClientPreservesWrappedSemanticErrorIdentity(t *testing.T) {
 	}
 }
 
+func TestControlWriteClientForwardsSlotLeaderTransferWithSemanticRevisionError(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	task := leaderTransferTaskFromRequest(SlotLeaderTransferRequest{
+		SlotID: 1, SourceNode: 1, TargetNode: 2, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, StateRevision: 9,
+	})
+	applier := &recordingControlWriteApplier{
+		slotLeaderTransferResult: SlotLeaderTransferResult{Created: true, Task: &task},
+	}
+	network.Register(1, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+	client := NewControlWriteClient(network)
+	req := SlotLeaderTransferRequest{
+		SlotID: 1, SourceNode: 1, TargetNode: 2, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, StateRevision: 9,
+	}
+
+	result, err := client.Submit(context.Background(), 1, ControlWriteRequest{
+		Action:             ControlWriteActionSlotLeaderTransfer,
+		SlotLeaderTransfer: req,
+	})
+	if err != nil {
+		t.Fatalf("Submit(slot leader transfer) error = %v", err)
+	}
+	if len(applier.slotLeaderTransfers) != 1 || !reflect.DeepEqual(applier.slotLeaderTransfers[0], req) {
+		t.Fatalf("slotLeaderTransfers = %#v, want %#v", applier.slotLeaderTransfers, req)
+	}
+	if !reflect.DeepEqual(result.SlotLeaderTransfer, applier.slotLeaderTransferResult) {
+		t.Fatalf("Submit(slot leader transfer) = %#v, want %#v", result.SlotLeaderTransfer, applier.slotLeaderTransferResult)
+	}
+
+	applier.slotLeaderTransferErr = controller.ErrExpectedRevisionMismatch
+	_, err = client.Submit(context.Background(), 1, ControlWriteRequest{
+		Action:             ControlWriteActionSlotLeaderTransfer,
+		SlotLeaderTransfer: req,
+	})
+	if !errors.Is(err, controller.ErrExpectedRevisionMismatch) {
+		t.Fatalf("Submit(stale slot leader transfer) error = %v, want ErrExpectedRevisionMismatch", err)
+	}
+}
+
 func TestControlWriteClientReplacesScheduledBackupAndPreservesRevisionMismatch(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	applier := &recordingControlWriteApplier{}
@@ -518,6 +556,9 @@ type recordingControlWriteApplier struct {
 	markNodeRemoved               []MarkNodeRemovedRequest
 	markNodeRemovedResult         MarkNodeRemovedResult
 	markNodeRemovedErr            error
+	slotLeaderTransfers           []SlotLeaderTransferRequest
+	slotLeaderTransferResult      SlotLeaderTransferResult
+	slotLeaderTransferErr         error
 	slotReplicaMoves              []SlotReplicaMoveRequest
 	slotReplicaMoveResult         SlotReplicaMoveResult
 	slotReplicaMoveErr            error
@@ -569,6 +610,11 @@ func (a *recordingControlWriteApplier) MarkNodeRemoved(ctx context.Context, req 
 		return MarkNodeRemovedResult{}, a.markNodeRemovedErr
 	}
 	return a.markNodeRemovedResult, nil
+}
+
+func (a *recordingControlWriteApplier) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+	a.slotLeaderTransfers = append(a.slotLeaderTransfers, req)
+	return a.slotLeaderTransferResult, a.slotLeaderTransferErr
 }
 
 func (a *recordingControlWriteApplier) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {

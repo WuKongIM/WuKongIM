@@ -347,24 +347,24 @@ func TestRuntimeLifecycleWritesNotStartedWithoutForwardPreserveNotStarted(t *tes
 
 func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	taskClient := NewTaskClient(network)
+	controlWriteClient := NewControlWriteClient(network)
 	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
 	runtimes := make([]*Runtime, 0, len(voters))
 	for _, voter := range voters {
 		rt, err := NewRuntime(RuntimeConfig{
-			NodeID:           voter.NodeID,
-			Addr:             voter.Addr,
-			StateDir:         t.TempDir(),
-			ClusterID:        "cluster-forward-transfer",
-			Role:             RuntimeRoleVoter,
-			Voters:           voters,
-			AllowBootstrap:   true,
-			InitialSlotCount: 1,
-			HashSlotCount:    4,
-			ReplicaCount:     3,
-			TickInterval:     10 * time.Millisecond,
-			RaftTransport:    NewRaftTransport(network),
-			TaskClient:       taskClient,
+			NodeID:             voter.NodeID,
+			Addr:               voter.Addr,
+			StateDir:           t.TempDir(),
+			ClusterID:          "cluster-forward-transfer",
+			Role:               RuntimeRoleVoter,
+			Voters:             voters,
+			AllowBootstrap:     true,
+			InitialSlotCount:   1,
+			HashSlotCount:      4,
+			ReplicaCount:       3,
+			TickInterval:       10 * time.Millisecond,
+			RaftTransport:      NewRaftTransport(network),
+			ControlWriteClient: controlWriteClient,
 		})
 		if err != nil {
 			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
@@ -409,8 +409,13 @@ func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
 		t.Fatal("timeout waiting for follower runtime")
 	}
 
-	applier := &recordingTaskApplier{}
-	network.Register(leaderID, clusternet.RPCControlTaskResult, NewTaskHandler(applier))
+	task := leaderTransferTaskFromRequest(SlotLeaderTransferRequest{
+		SlotID: 1, SourceNode: 1, TargetNode: 2, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, StateRevision: 9,
+	})
+	applier := &recordingControlWriteApplier{
+		slotLeaderTransferResult: SlotLeaderTransferResult{Created: true, Task: &task},
+	}
+	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
 	req := SlotLeaderTransferRequest{
 		SlotID:        1,
 		SourceNode:    1,
@@ -423,8 +428,8 @@ func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
 	}
-	if len(applier.leaderTransfers) != 1 || applier.leaderTransfers[0].TargetNode != 2 {
-		t.Fatalf("leaderTransfers = %#v, want one forwarded transfer", applier.leaderTransfers)
+	if len(applier.slotLeaderTransfers) != 1 || applier.slotLeaderTransfers[0].TargetNode != 2 {
+		t.Fatalf("slotLeaderTransfers = %#v, want one forwarded transfer", applier.slotLeaderTransfers)
 	}
 	if !result.Created || result.Task == nil || result.Task.TaskID != "slot-1-leader-transfer-7-r9" {
 		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want deterministic forwarded task", result)

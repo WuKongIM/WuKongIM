@@ -51,7 +51,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/cluster/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary`, `GET /manager/network/summary` | Implemented |
 | `/cluster/monitor` | `GET /manager/realtime-monitor`, optional `node_id` and `category` filters | Implemented |
 | `/cluster/nodes` | `GET /manager/nodes`, `GET /manager/nodes/:id`, `POST /manager/nodes/join`, `POST /manager/nodes/:id/activate`, per-node onboarding APIs, per-node scale-in APIs, and `GET /manager/nodes/:id/diagnostics` | Implemented |
-| `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, `GET /manager/slots/:id`, Slot leader single/batch transfer, recovery, and rebalance APIs | Implemented |
+| `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, and Controller-backed Slot leader single/batch transfer APIs. The list response is the detail read model; physical Slot add/remove, recovery, and hash-slot rebalance are not exposed without current Manager contracts. | Implemented |
 | `/cluster/channels?tab=overview` | `GET /manager/channel-cluster/summary` | Implemented |
 | `/cluster/channels?tab=list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
 | `/cluster/channels?tab=unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |

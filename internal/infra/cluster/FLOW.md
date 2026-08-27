@@ -41,7 +41,9 @@ and bounded operations observations.
    owner, and choose the local authority or one typed RPC envelope per owner.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read
-   models with partial evidence explicit.
+   models with partial evidence explicit. Revision-fenced management writes may
+   read the Controller-visible snapshot separately from the Node-applied read
+   model so runtime reconciliation cannot stall their CAS convergence.
 
 ## Invariants and Failure Semantics
 

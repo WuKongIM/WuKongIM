@@ -35,6 +35,13 @@ type SlotLeaderTransferWriter interface {
 	RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error)
 }
 
+// SlotLeaderTransferControlSnapshotReader reads Controller-visible state from
+// the write side without waiting for Node runtime reconciliation.
+type SlotLeaderTransferControlSnapshotReader interface {
+	// SlotLeaderTransferControlSnapshot returns the snapshot used for write revision fencing.
+	SlotLeaderTransferControlSnapshot(context.Context) (control.Snapshot, error)
+}
+
 // SlotRuntimeStatusReader reads live Slot Raft status for transfer validation and inventory summaries.
 type SlotRuntimeStatusReader interface {
 	// SlotRuntimeStatus returns the currently observed leader and voter set for a Slot.

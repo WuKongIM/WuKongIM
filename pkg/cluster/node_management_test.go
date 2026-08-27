@@ -87,6 +87,31 @@ func TestLocalControlSnapshotRequiresForegroundNode(t *testing.T) {
 	}
 }
 
+func TestLocalControllerSnapshotBypassesNodeApplyLag(t *testing.T) {
+	controllerSnapshot := control.Snapshot{Revision: 12, ControllerID: 1}
+	node := &Node{
+		control:         control.NewStaticController(controllerSnapshot),
+		controlSnapshot: control.Snapshot{Revision: 11, ControllerID: 1},
+	}
+	node.started.Store(true)
+
+	got, err := node.LocalControllerSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalControllerSnapshot() error = %v", err)
+	}
+	if got.Revision != 12 {
+		t.Fatalf("LocalControllerSnapshot().Revision = %d, want 12", got.Revision)
+	}
+	got.Revision = 99
+	again, err := node.LocalControllerSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalControllerSnapshot() second error = %v", err)
+	}
+	if again.Revision != 12 {
+		t.Fatalf("LocalControllerSnapshot() reused mutable result: revision = %d, want 12", again.Revision)
+	}
+}
+
 func TestNodeRequestSlotLeaderTransferDelegatesToControl(t *testing.T) {
 	controller := control.NewStaticController(control.Snapshot{})
 	node := &Node{control: controller}

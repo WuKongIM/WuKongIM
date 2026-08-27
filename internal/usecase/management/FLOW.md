@@ -37,7 +37,12 @@ user, message, and operations concerns while keeping one stable usecase API.
    validate Manager input and delegate through the narrow owning port.
 3. Irreversible and batch operations build a deterministic plan from current
    evidence, recompute it before execution, verify revision, plan identity, and
-   runtime proof, then submit one bounded control intent.
+   runtime proof, then submit one bounded control intent. Slot leader-transfer
+   batches use the write-side Controller snapshot independently of Node runtime
+   apply progress, then project only approved task creation, strictly equivalent
+   task reuse, and terminal transitions across sequential writes. Any other
+   durable Controller mutation or exhaustion of the batch-wide catch-up budget
+   closes the fence for all remaining candidates.
 
 ## Invariants and Failure Semantics
 

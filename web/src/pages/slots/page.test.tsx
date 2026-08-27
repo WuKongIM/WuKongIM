@@ -15,17 +15,12 @@ import {
 
 const getOverviewMock = vi.fn()
 const getSlotsMock = vi.fn()
-const getSlotMock = vi.fn()
 const getNodesMock = vi.fn()
 const getSlotLogsMock = vi.fn()
 const compactSlotRaftLogOnNodeMock = vi.fn()
-const addSlotMock = vi.fn()
-const removeSlotMock = vi.fn()
 const transferSlotLeaderMock = vi.fn()
 const planSlotLeaderTransfersMock = vi.fn()
 const executeSlotLeaderTransferBatchMock = vi.fn()
-const recoverSlotMock = vi.fn()
-const rebalanceSlotsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -33,17 +28,12 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getOverview: (...args: unknown[]) => getOverviewMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
-    getSlot: (...args: unknown[]) => getSlotMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
     compactSlotRaftLogOnNode: (...args: unknown[]) => compactSlotRaftLogOnNodeMock(...args),
-    addSlot: (...args: unknown[]) => addSlotMock(...args),
-    removeSlot: (...args: unknown[]) => removeSlotMock(...args),
     transferSlotLeader: (...args: unknown[]) => transferSlotLeaderMock(...args),
     planSlotLeaderTransfers: (...args: unknown[]) => planSlotLeaderTransfersMock(...args),
     executeSlotLeaderTransferBatch: (...args: unknown[]) => executeSlotLeaderTransferBatchMock(...args),
-    recoverSlot: (...args: unknown[]) => recoverSlotMock(...args),
-    rebalanceSlots: (...args: unknown[]) => rebalanceSlotsMock(...args),
   }
 })
 
@@ -79,14 +69,16 @@ const nodeRow = {
 const slotDetail = {
   ...slotRow,
   task: {
-    slot_id: 9,
+    task_id: "slot-9-replica-move-7-r22",
     kind: "rebalance",
     step: "plan",
     status: "retrying",
     source_node: 1,
     target_node: 2,
+    target_peers: [1, 2, 3],
+    completion_policy: "all_participants",
+    config_epoch: 7,
     attempt: 2,
-    next_run_at: null,
     last_error: "temporary failure",
   },
 }
@@ -111,22 +103,48 @@ function slotLogsPage() {
   }
 }
 
+function slotLeaderTransferPlan() {
+  return {
+    generated_at: "2026-06-20T09:30:00Z",
+    state_revision: 22,
+    plan_id: "plan-22",
+    source_node_id: 1,
+    target_policy: "least_leaders",
+    max_tasks: 8,
+    summary: {
+      scanned: 1,
+      candidates: 1,
+      skipped: 0,
+      existing_tasks: 0,
+      would_create: 1,
+    },
+    candidates: [{
+      slot_id: 9,
+      source_node_id: 1,
+      target_node_id: 2,
+      preferred_leader: 1,
+      actual_leader: 1,
+      desired_peers: [1, 2, 3],
+      current_voters: [1, 2, 3],
+      config_epoch: 7,
+      existing_task_id: "",
+      action: "create",
+    }],
+    skipped: [],
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getOverviewMock.mockReset()
   getSlotsMock.mockReset()
-  getSlotMock.mockReset()
   getNodesMock.mockReset()
   getSlotLogsMock.mockReset()
   compactSlotRaftLogOnNodeMock.mockReset()
-  addSlotMock.mockReset()
-  removeSlotMock.mockReset()
   transferSlotLeaderMock.mockReset()
   planSlotLeaderTransfersMock.mockReset()
   executeSlotLeaderTransferBatchMock.mockReset()
-  recoverSlotMock.mockReset()
-  rebalanceSlotsMock.mockReset()
   useAuthStore.setState({
     ...createAnonymousAuthState(),
     isHydrated: true,
@@ -198,6 +216,38 @@ test("renders the slot list tab from the tab search param", async () => {
   expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
 })
 
+test("opens slot detail from the current list response without the retired detail endpoint", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [{ ...slotRow, task: slotDetail.task }] })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+
+  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+  expect(screen.getByText("temporary failure")).toBeInTheDocument()
+  expect(getSlotsMock).toHaveBeenCalledTimes(1)
+})
+
+test("only exposes slot mutations backed by current manager routes", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [{ ...slotRow, task: slotDetail.task }] })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Batch transfer leaders" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "Add slot" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Rebalance slots" })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+
+  expect(await screen.findByRole("button", { name: "Transfer leader" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "Recover slot" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Remove slot" })).not.toBeInTheDocument()
+})
+
 test("renders slot distributed logs from the logs tab", async () => {
   getSlotsMock.mockResolvedValue({ total: 1, items: [slotRow] })
 
@@ -219,66 +269,8 @@ test("slot tab clicks update the selected tab", async () => {
   expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true")
 })
 
-test("enables slot write actions for wildcard manager permissions", async () => {
-  useAuthStore.setState({
-    permissions: [{ resource: "*", actions: ["*"] }],
-  })
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
-
-  const user = userEvent.setup()
-  renderSlotsPage()
-
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Add slot" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "Rebalance slots" })).toBeEnabled()
-
-  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
-
-  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Transfer leader" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "Recover slot" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "Remove slot" })).toBeEnabled()
-})
-
-test("adds a physical slot and opens the returned detail", async () => {
-  const addedSlot = {
-    ...slotRow,
-    slot_id: 11,
-    state: { quorum: "unknown", sync: "unreported" },
-    assignment: { desired_peers: [1, 2, 3], config_epoch: 1, balance_version: 0 },
-    runtime: {
-      ...slotRow.runtime,
-      current_peers: [],
-      leader_id: 0,
-      preferred_leader_id: 0,
-      healthy_voters: 0,
-      has_quorum: false,
-      observed_config_epoch: 0,
-    },
-    node_log: null,
-    task: null,
-  }
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  addSlotMock.mockResolvedValueOnce(addedSlot)
-  getSlotsMock.mockResolvedValueOnce({ total: 2, items: [slotRow, addedSlot] })
-
-  const user = userEvent.setup()
-  renderSlotsPage()
-
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Add slot" }))
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-
-  expect(addSlotMock).toHaveBeenCalledTimes(1)
-  expect(getSlotsMock).toHaveBeenCalledTimes(2)
-  expect(await screen.findByRole("heading", { name: "Slot 11" })).toBeInTheDocument()
-  expect(screen.getByText("Leader -")).toBeInTheDocument()
-})
-
 test("marks slot detail as a compact inspection surface", async () => {
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [{ ...slotRow, task: slotDetail.task }] })
 
   const user = userEvent.setup()
   renderSlotsPage()
@@ -291,8 +283,6 @@ test("marks slot detail as a compact inspection surface", async () => {
   expect(detailSurface).toHaveTextContent("1, 2, 3")
   expect(detailSurface).toHaveTextContent("temporary failure")
   expect(screen.getByRole("button", { name: "Transfer leader" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "Recover slot" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "Remove slot" })).toBeEnabled()
 })
 
 function renderSlotsPage(path = "/cluster/slots?tab=list") {
@@ -315,8 +305,7 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
   expect(screen.getByText("Total: 1")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Add slot" })).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Rebalance slots" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Batch transfer leaders" })).toBeInTheDocument()
   expect(screen.queryByText("Scope: all slots")).not.toBeInTheDocument()
   expect(screen.queryByText("Leader coverage")).not.toBeInTheDocument()
   expect(screen.queryByText("Slots currently reporting a leader.")).not.toBeInTheDocument()
@@ -331,14 +320,8 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(screen.queryByText("Inspect one slot to view task state or run operator actions.")).not.toBeInTheDocument()
 })
 
-test("marks slot inventory and operation results as editorial workbench surfaces", async () => {
+test("marks slot inventory as an editorial workbench surface", async () => {
   getSlotsMock.mockResolvedValue({ total: 1, items: [slotRow] })
-  rebalanceSlotsMock.mockResolvedValue({
-    total: 1,
-    items: [{ hash_slot: 3, from_slot_id: 9, to_slot_id: 11 }],
-  })
-
-  const user = userEvent.setup()
   renderSlotsPage()
 
   const inventoryTable = await screen.findByRole("table", { name: "Slot Inventory" })
@@ -350,16 +333,6 @@ test("marks slot inventory and operation results as editorial workbench surfaces
   expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveClass("sticky", "right-0")
   expect(screen.getByRole("button", { name: "Inspect slot 9" }).closest("td")).toHaveClass("sticky", "right-0")
   expect(screen.getByText("Scroll horizontally to view all columns; the slot and actions columns stay visible.")).toBeInTheDocument()
-
-  await user.click(screen.getByRole("button", { name: "Rebalance slots" }))
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-
-  const rebalanceSurface = (await screen.findByText("From slot 9 to slot 11")).closest(
-    "[data-slot-surface='rebalance-result']",
-  )
-  expect(rebalanceSurface).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
-  expect(rebalanceSurface).not.toHaveClass("rounded-xl")
-  expect(rebalanceSurface).not.toHaveClass("rounded-lg")
 })
 
 test("marks slot overview secondary surfaces", async () => {
@@ -496,7 +469,6 @@ test("defaults to the local node filter and shows selected-node log height", asy
 
 test("opens slot detail without the moved slot log query", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
 
   const user = userEvent.setup()
   renderSlotsPage()
@@ -510,11 +482,9 @@ test("opens slot detail without the moved slot log query", async () => {
 })
 
 test("opens slot detail and transfers the leader", async () => {
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [{ ...slotRow, task: slotDetail.task }] })
   transferSlotLeaderMock.mockResolvedValueOnce(slotDetail)
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
 
   const user = userEvent.setup()
   renderSlotsPage()
@@ -530,85 +500,11 @@ test("opens slot detail and transfers the leader", async () => {
 
   expect(transferSlotLeaderMock).toHaveBeenCalledWith(9, { targetNodeId: 2 })
   expect(getSlotsMock).toHaveBeenCalledTimes(2)
-  expect(getSlotMock).toHaveBeenCalledTimes(2)
-})
-
-test("submits the recover action using the selected strategy", async () => {
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
-  recoverSlotMock.mockResolvedValueOnce({
-    strategy: "latest_live_replica",
-    result: "scheduled",
-    slot: slotDetail,
-  })
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
-
-  const user = userEvent.setup()
-  renderSlotsPage()
-
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
-  expect(await screen.findByText("Task status")).toBeInTheDocument()
-
-  await user.click(screen.getByRole("button", { name: "Recover slot" }))
-  await user.selectOptions(screen.getByLabelText("Recovery strategy"), "latest_live_replica")
-  await user.click(screen.getByRole("button", { name: "Recover" }))
-
-  expect(recoverSlotMock).toHaveBeenCalledWith(9, { strategy: "latest_live_replica" })
-  expect(getSlotsMock).toHaveBeenCalledTimes(2)
-  expect(getSlotMock).toHaveBeenCalledTimes(2)
-})
-
-test("shows rebalance plan results after confirmation", async () => {
-  getSlotsMock.mockResolvedValue({ total: 1, items: [slotRow] })
-  rebalanceSlotsMock.mockResolvedValue({
-    total: 1,
-    items: [{ hash_slot: 3, from_slot_id: 9, to_slot_id: 11 }],
-  })
-
-  const user = userEvent.setup()
-  renderSlotsPage()
-
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-
-  await user.click(screen.getByRole("button", { name: "Rebalance slots" }))
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-
-  expect(rebalanceSlotsMock).toHaveBeenCalledTimes(1)
-  expect(await screen.findByText("From slot 9 to slot 11")).toBeInTheDocument()
 })
 
 test("previews and executes a batch slot leader transfer plan", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  planSlotLeaderTransfersMock.mockResolvedValueOnce({
-    generated_at: "2026-06-20T09:30:00Z",
-    state_revision: 22,
-    plan_id: "plan-22",
-    source_node_id: 1,
-    target_policy: "least_leaders",
-    max_tasks: 8,
-    summary: {
-      scanned: 1,
-      candidates: 1,
-      skipped: 0,
-      existing_tasks: 0,
-      would_create: 1,
-    },
-    candidates: [{
-      slot_id: 9,
-      source_node_id: 1,
-      target_node_id: 2,
-      preferred_leader: 1,
-      actual_leader: 1,
-      desired_peers: [1, 2, 3],
-      current_voters: [1, 2, 3],
-      config_epoch: 7,
-      existing_task_id: "",
-      action: "create",
-    }],
-    skipped: [],
-  })
+  planSlotLeaderTransfersMock.mockResolvedValueOnce(slotLeaderTransferPlan())
   executeSlotLeaderTransferBatchMock.mockResolvedValueOnce({
     generated_at: "2026-06-20T09:35:00Z",
     state_revision: 22,
@@ -663,6 +559,7 @@ test("previews and executes a batch slot leader transfer plan", async () => {
   })
   expect(getSlotsMock).toHaveBeenCalledTimes(2)
   expect(await screen.findByText("Created 1 · Existing 0 · Failed 0")).toBeInTheDocument()
+  expect(screen.getByText("leader transfer task created")).toBeInTheDocument()
   const batchSurface = screen
     .getByText("Created 1 · Existing 0 · Failed 0")
     .closest("[data-slot-surface='batch-transfer-result']")
@@ -671,26 +568,25 @@ test("previews and executes a batch slot leader transfer plan", async () => {
   expect(batchSurface).not.toHaveClass("rounded-lg")
 })
 
-test("starts physical slot removal and refreshes the list", async () => {
+test("requires a new preview after a stale batch plan conflict", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
-  removeSlotMock.mockResolvedValueOnce({ slot_id: 9, result: "removal_started" })
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  planSlotLeaderTransfersMock.mockResolvedValueOnce(slotLeaderTransferPlan())
+  executeSlotLeaderTransferBatchMock.mockRejectedValueOnce(
+    new ManagerApiError(409, "conflict", "slot leader transfer plan is stale"),
+  )
 
   const user = userEvent.setup()
   renderSlotsPage()
 
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
-  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Batch transfer leaders" }))
+  await user.type(screen.getByLabelText("Source node ID"), "1")
+  await user.type(screen.getByLabelText("Target node ID"), "2")
+  await user.click(screen.getByRole("button", { name: "Preview plan" }))
+  await user.click(await screen.findByRole("button", { name: "Execute plan" }))
 
-  await user.click(screen.getByRole("button", { name: "Remove slot" }))
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-
-  expect(removeSlotMock).toHaveBeenCalledWith(9)
-  expect(getSlotsMock).toHaveBeenCalledTimes(2)
-  expect(await screen.findByText("Total: 1")).toBeInTheDocument()
-  expect(screen.queryByText("Desired peers")).not.toBeInTheDocument()
+  expect(await screen.findByText("slot leader transfer plan is stale")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Preview plan" })).toBeInTheDocument()
 })
 
 test("renders unavailable state when the slot list request fails", async () => {
@@ -718,45 +614,9 @@ test("retries the selected node slot request after a list failure", async () => 
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
 })
 
-test("shows conflict feedback when slot rebalance is rejected", async () => {
-  getSlotsMock.mockResolvedValue({ total: 1, items: [slotRow] })
-  rebalanceSlotsMock.mockRejectedValueOnce(
-    new ManagerApiError(409, "conflict", "slot migrations already in progress"),
-  )
-
-  const user = userEvent.setup()
-  renderSlotsPage()
-
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Rebalance slots" }))
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-
-  expect(await screen.findByText("slot migrations already in progress")).toBeInTheDocument()
-})
-
-test("shows conflict feedback when slot remove is rejected", async () => {
-  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
-  removeSlotMock.mockRejectedValueOnce(
-    new ManagerApiError(409, "conflict", "slot migrations already in progress"),
-  )
-
-  const user = userEvent.setup()
-  renderSlotsPage()
-
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
-  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Remove slot" }))
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-
-  expect(await screen.findByText("slot migrations already in progress")).toBeInTheDocument()
-})
-
 test("shows translated Chinese validation when the transfer target is invalid", async () => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
-  getSlotMock.mockResolvedValueOnce(slotDetail)
 
   const user = userEvent.setup()
   renderSlotsPage()

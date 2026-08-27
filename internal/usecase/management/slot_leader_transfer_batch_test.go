@@ -3,10 +3,12 @@ package management
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -510,14 +512,13 @@ func TestExecuteSlotLeaderTransferBatchRejectsPlanMismatchBeforeWrites(t *testin
 
 func TestExecuteSlotLeaderTransferBatchCreatesAndReportsPerSlotResults(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 20, 10, 0, 0, 0, time.UTC)
-	writer := &fakeSlotLeaderTransferBatchWriter{
-		results: []control.SlotLeaderTransferResult{
-			{Created: true, Task: batchLeaderTransferTaskPtr("slot-1-transfer", 1, 1, 2, []uint64{1, 2, 3}, 7)},
-			{Created: true, Task: batchLeaderTransferTaskPtr("slot-2-transfer", 2, 1, 2, []uint64{1, 2, 3}, 7)},
-		},
+	snapshot := batchLeaderTransferSnapshot()
+	writer := &revisionAdvancingSlotLeaderTransferBatchRuntime{
+		state:   snapshot.Clone(),
+		visible: snapshot.Clone(),
 	}
 	app := New(Options{
-		Cluster: fakeNodeSnapshotReader{snapshot: batchLeaderTransferSnapshot()},
+		Cluster: writer,
 		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
 			statuses: map[uint32]SlotRuntimeStatus{
 				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
@@ -567,6 +568,370 @@ func TestExecuteSlotLeaderTransferBatchCreatesAndReportsPerSlotResults(t *testin
 		if result.Status != SlotLeaderTransferBatchResultCreated || result.TaskID == "" || result.Message != SlotLeaderTransferMessageCreated {
 			t.Fatalf("result = %#v, want created status with task id", result)
 		}
+	}
+}
+
+func TestExecuteSlotLeaderTransferBatchReusesEquivalentTaskReturnedByWriter(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	snapshot.Slots = snapshot.Slots[:1]
+	writer := &fakeSlotLeaderTransferWriter{
+		result: control.SlotLeaderTransferResult{
+			Created: false,
+			Task:    batchLeaderTransferTaskPtr("slot-1-concurrent-transfer", 1, 1, 2, []uint64{1, 2, 3}, 7),
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		}},
+		LeaderTransfer: writer,
+	})
+	plan, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: 1,
+		TargetNodeID: 2,
+		SlotIDs:      []uint32{1},
+		MaxTasks:     1,
+		TargetPolicy: SlotLeaderTransferTargetPolicyLeastLeaders,
+	})
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+	if len(plan.Candidates) != 1 || plan.Candidates[0].Action != SlotLeaderTransferBatchActionCreate {
+		t.Fatalf("plan candidates = %#v, want one create candidate", plan.Candidates)
+	}
+
+	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
+		SourceNodeID:  1,
+		TargetNodeID:  2,
+		SlotIDs:       []uint32{1},
+		MaxTasks:      1,
+		TargetPolicy:  SlotLeaderTransferTargetPolicyLeastLeaders,
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
+	}
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 1, Existing: 1}) {
+		t.Fatalf("summary = %#v, want one equivalent existing task", got.Summary)
+	}
+	if len(got.Results) != 1 || got.Results[0].Status != SlotLeaderTransferBatchResultExisting || got.Results[0].TaskID != "slot-1-concurrent-transfer" {
+		t.Fatalf("results = %#v, want the equivalent task returned by the writer", got.Results)
+	}
+}
+
+func TestExecuteSlotLeaderTransferBatchRefreshesRevisionBetweenWrites(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	runtime := &revisionAdvancingSlotLeaderTransferBatchRuntime{
+		state:                          snapshot.Clone(),
+		visible:                        snapshot.Clone(),
+		completeImmediately:            true,
+		publishOnMismatch:              true,
+		staleReadsAfterAcceptedRequest: 2,
+	}
+	app := New(Options{
+		Cluster: runtime,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+				2: {SlotID: 2, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+				3: {SlotID: 3, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+		LeaderTransfer: runtime,
+	})
+	plan, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: 1,
+		TargetNodeID: 3,
+		SlotIDs:      []uint32{1, 2, 3},
+		MaxTasks:     8,
+		TargetPolicy: SlotLeaderTransferTargetPolicyLeastLeaders,
+	})
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+
+	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
+		SourceNodeID:  1,
+		TargetNodeID:  3,
+		SlotIDs:       []uint32{1, 2, 3},
+		MaxTasks:      8,
+		TargetPolicy:  SlotLeaderTransferTargetPolicyLeastLeaders,
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+	})
+
+	if err != nil {
+		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
+	}
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 3, Created: 3}) {
+		t.Fatalf("summary = %#v, want requested 3 created 3", got.Summary)
+	}
+	if len(runtime.requests) != 3 {
+		t.Fatalf("writer requests = %#v, want three accepted writes after snapshot catch-up", runtime.requests)
+	}
+	wantSlots := []uint32{1, 2, 3}
+	wantRevisions := []uint64{22, 24, 26}
+	for i, request := range runtime.requests {
+		if request.SlotID != wantSlots[i] || request.StateRevision != wantRevisions[i] {
+			t.Fatalf("writer request %d = slot %d revision %d, want slot %d revision %d", i, request.SlotID, request.StateRevision, wantSlots[i], wantRevisions[i])
+		}
+	}
+	if runtime.acceptedRequests != 3 {
+		t.Fatalf("accepted requests = %d, want 3", runtime.acceptedRequests)
+	}
+}
+
+func TestExecuteSlotLeaderTransferBatchUsesWriteSideSnapshotWhileNodeApplyLags(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	runtime := &writeSideSnapshotSlotLeaderTransferBatchRuntime{
+		revisionAdvancingSlotLeaderTransferBatchRuntime: &revisionAdvancingSlotLeaderTransferBatchRuntime{
+			state:                          snapshot.Clone(),
+			visible:                        snapshot.Clone(),
+			completeImmediately:            true,
+			staleReadsAfterAcceptedRequest: 100,
+		},
+	}
+	app := New(Options{
+		Cluster: runtime,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			2: {SlotID: 2, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			3: {SlotID: 3, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		}},
+		LeaderTransfer: runtime,
+	})
+	plan, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: 1,
+		TargetNodeID: 3,
+		SlotIDs:      []uint32{1, 2, 3},
+		MaxTasks:     8,
+		TargetPolicy: SlotLeaderTransferTargetPolicyLeastLeaders,
+	})
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+
+	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
+		SourceNodeID:  1,
+		TargetNodeID:  3,
+		SlotIDs:       []uint32{1, 2, 3},
+		MaxTasks:      8,
+		TargetPolicy:  SlotLeaderTransferTargetPolicyLeastLeaders,
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
+	}
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 3, Created: 3}) {
+		t.Fatalf("summary = %#v, want requested 3 created 3", got.Summary)
+	}
+	if len(runtime.requests) != 3 {
+		t.Fatalf("writer requests = %#v, want three writes without stale Node snapshot retries", runtime.requests)
+	}
+	wantRevisions := []uint64{22, 24, 26}
+	for index, request := range runtime.requests {
+		if request.StateRevision != wantRevisions[index] {
+			t.Fatalf("writer request %d revision = %d, want %d", index, request.StateRevision, wantRevisions[index])
+		}
+	}
+	if runtime.remainingStaleReads == 0 {
+		t.Fatal("Node-applied snapshot unexpectedly caught up during the batch")
+	}
+}
+
+func TestRefreshSlotLeaderTransferBatchCandidateWaitsForWriteSideSnapshotCatchUp(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	candidate := SlotLeaderTransferBatchCandidate{
+		SlotID:          1,
+		SourceNodeID:    1,
+		TargetNodeID:    2,
+		PreferredLeader: 1,
+		ActualLeader:    1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		CurrentVoters:   []uint64{1, 2, 3},
+		ConfigEpoch:     7,
+		Action:          SlotLeaderTransferBatchActionCreate,
+	}
+	fence, err := newSlotLeaderTransferBatchExecutionFence(snapshot, []SlotLeaderTransferBatchCandidate{candidate})
+	if err != nil {
+		t.Fatalf("newSlotLeaderTransferBatchExecutionFence() error = %v", err)
+	}
+	if err := fence.recordWriterResult(candidate, control.SlotLeaderTransferResult{
+		Created: true,
+		Task:    batchLeaderTransferTaskPtr("slot-1-transfer", 1, 1, 2, []uint64{1, 2, 3}, 7),
+	}, snapshot.Revision); err != nil {
+		t.Fatalf("recordWriterResult() error = %v", err)
+	}
+
+	writer := &fixedWriteSideSnapshotSlotLeaderTransferWriter{snapshot: snapshot}
+	app := New(Options{
+		Cluster:        fakeNodeSnapshotReader{snapshot: snapshot},
+		LeaderTransfer: writer,
+	})
+	refreshed, revision, caughtUp, err := app.refreshSlotLeaderTransferBatchCandidate(
+		context.Background(),
+		candidate,
+		SlotLeaderTransferTargetPolicyLeastLeaders,
+		fence,
+	)
+	if err != nil {
+		t.Fatalf("refreshSlotLeaderTransferBatchCandidate() error = %v", err)
+	}
+	if caughtUp || revision != 0 || refreshed.SlotID != 0 {
+		t.Fatalf("refresh = (%#v, %d, %v), want an unchanged not-caught-up result", refreshed, revision, caughtUp)
+	}
+}
+
+func TestSlotLeaderTransferBatchFenceRejectsMalformedWriterResults(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	candidate := SlotLeaderTransferBatchCandidate{
+		SlotID:          1,
+		SourceNodeID:    1,
+		TargetNodeID:    2,
+		PreferredLeader: 1,
+		ActualLeader:    1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		CurrentVoters:   []uint64{1, 2, 3},
+		ConfigEpoch:     7,
+		Action:          SlotLeaderTransferBatchActionCreate,
+	}
+	runningTask := batchLeaderTransferTaskPtr("slot-1-transfer", 1, 1, 2, []uint64{1, 2, 3}, 7)
+	runningTask.Status = control.TaskStatusRunning
+
+	for _, testCase := range []struct {
+		name   string
+		result control.SlotLeaderTransferResult
+	}{
+		{name: "missing task", result: control.SlotLeaderTransferResult{Created: false}},
+		{name: "non canonical task", result: control.SlotLeaderTransferResult{Created: false, Task: runningTask}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			fence, err := newSlotLeaderTransferBatchExecutionFence(snapshot, []SlotLeaderTransferBatchCandidate{candidate})
+			if err != nil {
+				t.Fatalf("newSlotLeaderTransferBatchExecutionFence() error = %v", err)
+			}
+			if err := fence.recordWriterResult(candidate, testCase.result, snapshot.Revision); err == nil {
+				t.Fatal("recordWriterResult() error = nil, want malformed result rejection")
+			}
+		})
+	}
+}
+
+func TestExecuteSlotLeaderTransferBatchRejectsCompletedApprovedExistingTask(t *testing.T) {
+	visible := batchLeaderTransferSnapshot()
+	visible.Tasks = []control.ReconcileTask{
+		batchLeaderTransferTask("existing-transfer", 1, 1, 2, []uint64{1, 2, 3}, 7),
+	}
+	state := visible.Clone()
+	state.Tasks = nil
+	state.Revision++
+	runtime := &writeSideSnapshotSlotLeaderTransferBatchRuntime{
+		revisionAdvancingSlotLeaderTransferBatchRuntime: &revisionAdvancingSlotLeaderTransferBatchRuntime{
+			state:               state,
+			visible:             visible,
+			remainingStaleReads: 100,
+		},
+	}
+	app := New(Options{
+		Cluster: runtime,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		}},
+		LeaderTransfer: runtime,
+	})
+	plan, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{SourceNodeID: 1, TargetNodeID: 2, SlotIDs: []uint32{1}})
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+	if len(plan.Candidates) != 1 || plan.Candidates[0].Action != SlotLeaderTransferBatchActionExisting {
+		t.Fatalf("plan = %#v, want one approved existing task", plan)
+	}
+
+	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
+		SourceNodeID:  1,
+		TargetNodeID:  2,
+		SlotIDs:       []uint32{1},
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
+	}
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 1, Failed: 1}) {
+		t.Fatalf("summary = %#v, want completed existing task rejected", got.Summary)
+	}
+	if len(runtime.requests) != 0 {
+		t.Fatalf("writer requests = %#v, want no write for completed existing task", runtime.requests)
+	}
+}
+
+func TestSlotLeaderTransferBatchCatchUpWindowBoundsControllerReplicaLag(t *testing.T) {
+	// Keep the retry window above normal Controller replication and refresh
+	// cadence while preserving one hard batch-wide bound.
+	if slotLeaderTransferBatchCatchUpWindow < 2*time.Second {
+		t.Fatalf("catch-up window = %s, want at least 2s", slotLeaderTransferBatchCatchUpWindow)
+	}
+	if got := time.Duration(slotLeaderTransferBatchRetryLimit) * slotLeaderTransferBatchRetryDelay; got != slotLeaderTransferBatchCatchUpWindow {
+		t.Fatalf("retry window = %s, want %s", got, slotLeaderTransferBatchCatchUpWindow)
+	}
+}
+
+func TestExecuteSlotLeaderTransferBatchRejectsUnrelatedMutationBetweenWrites(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	runtime := &revisionAdvancingSlotLeaderTransferBatchRuntime{
+		state:                          snapshot.Clone(),
+		visible:                        snapshot.Clone(),
+		completeImmediately:            true,
+		publishOnMismatch:              true,
+		staleReadsAfterAcceptedRequest: 2,
+		mutateNodeAfterAcceptedRequest: 1,
+	}
+	app := New(Options{
+		Cluster: runtime,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+				2: {SlotID: 2, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+				3: {SlotID: 3, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+		LeaderTransfer: runtime,
+	})
+	plan, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: 1,
+		TargetNodeID: 3,
+		SlotIDs:      []uint32{1, 2, 3},
+		MaxTasks:     8,
+		TargetPolicy: SlotLeaderTransferTargetPolicyLeastLeaders,
+	})
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+
+	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
+		SourceNodeID:  1,
+		TargetNodeID:  3,
+		SlotIDs:       []uint32{1, 2, 3},
+		MaxTasks:      8,
+		TargetPolicy:  SlotLeaderTransferTargetPolicyLeastLeaders,
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+	})
+
+	if err != nil {
+		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
+	}
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 3, Created: 1, Failed: 2}) {
+		t.Fatalf("summary = %#v, want requested 3 created 1 failed 2", got.Summary)
+	}
+	if runtime.acceptedRequests != 1 {
+		t.Fatalf("accepted requests = %d, want only the first write accepted", runtime.acceptedRequests)
+	}
+	if len(runtime.requests) != 1 || runtime.requests[0].SlotID != 1 {
+		t.Fatalf("writer requests = %#v, want no write after the fence observes the unrelated mutation", runtime.requests)
 	}
 }
 
@@ -654,20 +1019,16 @@ func TestExecuteSlotLeaderTransferBatchReportsAllExistingWithNilWriter(t *testin
 	}
 }
 
-func TestExecuteSlotLeaderTransferBatchRetriesMatchingFailedTask(t *testing.T) {
+func TestExecuteSlotLeaderTransferBatchSkipsMatchingFailedTask(t *testing.T) {
 	snapshot := batchLeaderTransferSnapshot()
+	snapshot.Revision = 24
 	snapshot.Slots = snapshot.Slots[:1]
 	failedTask := batchLeaderTransferTask("slot-1-leader-transfer-7-r22", 1, 1, 2, []uint64{1, 2, 3}, 7)
 	failedTask.Status = control.TaskStatusFailed
 	failedTask.Attempt = 1
 	failedTask.LastError = "leader transfer timed out"
 	snapshot.Tasks = []control.ReconcileTask{failedTask}
-	writer := &fakeSlotLeaderTransferWriter{
-		result: control.SlotLeaderTransferResult{
-			Created: true,
-			Task:    batchLeaderTransferTaskPtr("slot-1-leader-transfer-7-r22", 1, 1, 2, []uint64{1, 2, 3}, 7),
-		},
-	}
+	writer := &fakeSlotLeaderTransferWriter{}
 	app := New(Options{
 		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
 		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
@@ -681,8 +1042,8 @@ func TestExecuteSlotLeaderTransferBatchRetriesMatchingFailedTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
 	}
-	if len(plan.Candidates) != 1 || plan.Candidates[0].Action != SlotLeaderTransferBatchActionCreate || plan.Summary.ExistingTasks != 0 || plan.Summary.WouldCreate != 1 {
-		t.Fatalf("plan = %#v, want failed matching task to be retried as create candidate", plan)
+	if len(plan.Candidates) != 0 || len(plan.Skipped) != 1 || plan.Skipped[0].Reason != SlotLeaderTransferBatchSkipMatchingTaskExists {
+		t.Fatalf("plan = %#v, want matching failed task to be skipped", plan)
 	}
 
 	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
@@ -696,14 +1057,14 @@ func TestExecuteSlotLeaderTransferBatchRetriesMatchingFailedTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
 	}
-	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 1, Created: 1}) {
-		t.Fatalf("summary = %#v, want requested 1 created 1", got.Summary)
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{}) {
+		t.Fatalf("summary = %#v, want no executable candidates", got.Summary)
 	}
-	if len(writer.requests) != 1 || writer.requests[0].SlotID != 1 || writer.requests[0].TargetNode != 2 {
-		t.Fatalf("writer requests = %#v, want one retry request to target 2", writer.requests)
+	if len(writer.requests) != 0 {
+		t.Fatalf("writer requests = %#v, want no impossible failed-task replacement", writer.requests)
 	}
-	if len(got.Results) != 1 || got.Results[0].Status != SlotLeaderTransferBatchResultCreated {
-		t.Fatalf("results = %#v, want created retry result", got.Results)
+	if len(got.Results) != 0 {
+		t.Fatalf("results = %#v, want no execute rows", got.Results)
 	}
 }
 
@@ -803,6 +1164,86 @@ type fakeSlotLeaderTransferBatchWriter struct {
 	requests []control.SlotLeaderTransferRequest
 	results  []control.SlotLeaderTransferResult
 	errs     []error
+}
+
+type revisionAdvancingSlotLeaderTransferBatchRuntime struct {
+	state                          control.Snapshot
+	visible                        control.Snapshot
+	requests                       []control.SlotLeaderTransferRequest
+	acceptedRequests               int
+	completeImmediately            bool
+	publishOnMismatch              bool
+	staleReadsAfterAcceptedRequest int
+	remainingStaleReads            int
+	mutateNodeAfterAcceptedRequest int
+}
+
+type writeSideSnapshotSlotLeaderTransferBatchRuntime struct {
+	*revisionAdvancingSlotLeaderTransferBatchRuntime
+}
+
+type fixedWriteSideSnapshotSlotLeaderTransferWriter struct {
+	snapshot control.Snapshot
+}
+
+func (f *fixedWriteSideSnapshotSlotLeaderTransferWriter) SlotLeaderTransferControlSnapshot(context.Context) (control.Snapshot, error) {
+	return f.snapshot.Clone(), nil
+}
+
+func (f *fixedWriteSideSnapshotSlotLeaderTransferWriter) RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
+	return control.SlotLeaderTransferResult{}, nil
+}
+
+func (r *writeSideSnapshotSlotLeaderTransferBatchRuntime) SlotLeaderTransferControlSnapshot(context.Context) (control.Snapshot, error) {
+	return r.state.Clone(), nil
+}
+
+func (r *revisionAdvancingSlotLeaderTransferBatchRuntime) NodeID() uint64 { return 1 }
+
+func (r *revisionAdvancingSlotLeaderTransferBatchRuntime) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	if r.remainingStaleReads > 0 {
+		r.remainingStaleReads--
+		return r.visible.Clone(), nil
+	}
+	r.visible = r.state.Clone()
+	return r.visible.Clone(), nil
+}
+
+func (r *revisionAdvancingSlotLeaderTransferBatchRuntime) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
+	r.requests = append(r.requests, req)
+	if req.StateRevision != r.state.Revision {
+		if r.publishOnMismatch {
+			r.visible = r.state.Clone()
+		}
+		return control.SlotLeaderTransferResult{}, controller.ErrExpectedRevisionMismatch
+	}
+	for index := range r.state.Slots {
+		if r.state.Slots[index].SlotID == req.SlotID {
+			r.state.Slots[index].PreferredLeader = req.TargetNode
+			break
+		}
+	}
+	task := batchLeaderTransferTaskPtr(
+		fmt.Sprintf("slot-%d-leader-transfer-%d-r%d", req.SlotID, req.ConfigEpoch, req.StateRevision),
+		req.SlotID,
+		req.SourceNode,
+		req.TargetNode,
+		req.TargetPeers,
+		req.ConfigEpoch,
+	)
+	r.state.Tasks = append(r.state.Tasks, *task)
+	r.state.Revision++
+	if r.completeImmediately {
+		r.state.Tasks = r.state.Tasks[:len(r.state.Tasks)-1]
+		r.state.Revision++
+	}
+	r.acceptedRequests++
+	if r.acceptedRequests == r.mutateNodeAfterAcceptedRequest {
+		r.state.Nodes[1].Addr = "n2-concurrently-updated"
+		r.state.Revision++
+	}
+	r.remainingStaleReads = r.staleReadsAfterAcceptedRequest
+	return control.SlotLeaderTransferResult{Created: true, Task: task}, nil
 }
 
 func (f *fakeSlotLeaderTransferBatchWriter) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {

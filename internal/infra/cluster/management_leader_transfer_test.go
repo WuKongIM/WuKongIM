@@ -16,7 +16,8 @@ var _ ManagementSlotReplicaMoveNode = (*cluster.Node)(nil)
 
 func TestManagementLeaderTransferAdapterUsesControlIntent(t *testing.T) {
 	node := &fakeManagementLeaderTransferNode{
-		result: control.SlotLeaderTransferResult{Created: true},
+		snapshot: control.Snapshot{Revision: 9},
+		result:   control.SlotLeaderTransferResult{Created: true},
 	}
 	adapter := NewManagementLeaderTransferAdapter(node)
 
@@ -33,6 +34,13 @@ func TestManagementLeaderTransferAdapterUsesControlIntent(t *testing.T) {
 	}
 	if node.request.TargetNode != 2 {
 		t.Fatalf("target node = %d, want 2", node.request.TargetNode)
+	}
+	snapshot, err := adapter.SlotLeaderTransferControlSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("SlotLeaderTransferControlSnapshot() error = %v", err)
+	}
+	if snapshot.Revision != 9 {
+		t.Fatalf("SlotLeaderTransferControlSnapshot().Revision = %d, want 9", snapshot.Revision)
 	}
 }
 
@@ -119,8 +127,13 @@ func TestManagementSlotRuntimeStatusReaderSkipsLocalSlotNotFoundAndReadsRemoteCa
 }
 
 type fakeManagementLeaderTransferNode struct {
-	request control.SlotLeaderTransferRequest
-	result  control.SlotLeaderTransferResult
+	request  control.SlotLeaderTransferRequest
+	snapshot control.Snapshot
+	result   control.SlotLeaderTransferResult
+}
+
+func (f *fakeManagementLeaderTransferNode) LocalControllerSnapshot(context.Context) (control.Snapshot, error) {
+	return f.snapshot.Clone(), nil
 }
 
 func (f *fakeManagementLeaderTransferNode) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {

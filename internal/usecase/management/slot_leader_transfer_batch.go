@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -19,6 +21,13 @@ const (
 	DefaultSlotLeaderTransferBatchMaxTasks = 32
 	// MaxSlotLeaderTransferBatchMaxTasks is the largest create-task cap accepted by the planner.
 	MaxSlotLeaderTransferBatchMaxTasks = 128
+	// slotLeaderTransferBatchRetryDelay bounds polling pressure while the write-side Controller snapshot catches up.
+	slotLeaderTransferBatchRetryDelay = 25 * time.Millisecond
+	// slotLeaderTransferBatchCatchUpWindow bounds how long a batch waits for its
+	// local Controller replica to observe already committed write-side revisions.
+	slotLeaderTransferBatchCatchUpWindow = 2 * time.Second
+	// slotLeaderTransferBatchRetryLimit bounds stale-snapshot retries across the whole batch.
+	slotLeaderTransferBatchRetryLimit = int(slotLeaderTransferBatchCatchUpWindow / slotLeaderTransferBatchRetryDelay)
 
 	// SlotLeaderTransferTargetPolicyLeastLeaders selects the eligible target with the fewest projected leaders.
 	SlotLeaderTransferTargetPolicyLeastLeaders = "least_leaders"
@@ -281,6 +290,17 @@ func (a *App) ExecuteSlotLeaderTransferBatch(ctx context.Context, req SlotLeader
 	if hasCreate && (a == nil || a.leaderTransfer == nil) {
 		return SlotLeaderTransferBatchExecuteResponse{}, ErrSlotLeaderTransferUnavailable
 	}
+	baseline, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return SlotLeaderTransferBatchExecuteResponse{}, err
+	}
+	if baseline.Revision != plan.StateRevision {
+		return SlotLeaderTransferBatchExecuteResponse{}, ErrSlotLeaderTransferPlanStale
+	}
+	executionFence, err := newSlotLeaderTransferBatchExecutionFence(baseline, plan.Candidates)
+	if err != nil {
+		return SlotLeaderTransferBatchExecuteResponse{}, fmt.Errorf("%w: %v", ErrSlotLeaderTransferPlanMismatch, err)
+	}
 
 	response := SlotLeaderTransferBatchExecuteResponse{
 		GeneratedAt:   a.now(),
@@ -288,6 +308,7 @@ func (a *App) ExecuteSlotLeaderTransferBatch(ctx context.Context, req SlotLeader
 		PlanID:        plan.PlanID,
 		Results:       make([]SlotLeaderTransferBatchExecuteResult, 0, len(plan.Candidates)),
 	}
+	retryBudget := slotLeaderTransferBatchRetryLimit
 	for _, candidate := range plan.Candidates {
 		if err := ctxErr(ctx); err != nil {
 			return SlotLeaderTransferBatchExecuteResponse{}, err
@@ -295,53 +316,458 @@ func (a *App) ExecuteSlotLeaderTransferBatch(ctx context.Context, req SlotLeader
 		switch candidate.Action {
 		case SlotLeaderTransferBatchActionExisting:
 			response.Summary.Requested++
-			response.Summary.Existing++
-			response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
-				SlotID:       candidate.SlotID,
-				TargetNodeID: candidate.TargetNodeID,
-				Status:       SlotLeaderTransferBatchResultExisting,
-				TaskID:       candidate.ExistingTaskID,
-				Message:      SlotLeaderTransferMessageExistingTask,
-			})
+			for {
+				refreshed, _, caughtUp, err := a.refreshSlotLeaderTransferBatchCandidate(ctx, candidate, plan.TargetPolicy, executionFence)
+				if err != nil {
+					if contextErr := ctxErr(ctx); contextErr != nil {
+						return SlotLeaderTransferBatchExecuteResponse{}, contextErr
+					}
+					appendSlotLeaderTransferBatchFailure(&response, candidate, err)
+					break
+				}
+				if !caughtUp {
+					if retryBudget <= 0 {
+						appendSlotLeaderTransferBatchFailure(&response, candidate, executionFence.close("Controller snapshot did not catch up within the batch retry budget"))
+						break
+					}
+					retryBudget--
+					if err := waitSlotLeaderTransferBatchRetry(ctx); err != nil {
+						return SlotLeaderTransferBatchExecuteResponse{}, err
+					}
+					continue
+				}
+				if refreshed.Action != SlotLeaderTransferBatchActionExisting || refreshed.ExistingTaskID != candidate.ExistingTaskID {
+					appendSlotLeaderTransferBatchFailure(&response, candidate, fmt.Errorf("slot %d approved existing task changed before execution", candidate.SlotID))
+					break
+				}
+				response.Summary.Existing++
+				response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+					SlotID:       refreshed.SlotID,
+					TargetNodeID: refreshed.TargetNodeID,
+					Status:       SlotLeaderTransferBatchResultExisting,
+					TaskID:       refreshed.ExistingTaskID,
+					Message:      SlotLeaderTransferMessageExistingTask,
+				})
+				break
+			}
 		case SlotLeaderTransferBatchActionCreate:
 			response.Summary.Requested++
-			result, err := a.leaderTransfer.RequestSlotLeaderTransfer(ctx, control.SlotLeaderTransferRequest{
-				SlotID:        candidate.SlotID,
-				SourceNode:    candidate.SourceNodeID,
-				TargetNode:    candidate.TargetNodeID,
-				TargetPeers:   append([]uint64(nil), candidate.DesiredPeers...),
-				ConfigEpoch:   candidate.ConfigEpoch,
-				StateRevision: plan.StateRevision,
-			})
-			if err != nil {
-				response.Summary.Failed++
-				response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
-					SlotID:       candidate.SlotID,
-					TargetNodeID: candidate.TargetNodeID,
-					Status:       SlotLeaderTransferBatchResultFailed,
-					Message:      err.Error(),
+			for {
+				refreshed, stateRevision, caughtUp, err := a.refreshSlotLeaderTransferBatchCandidate(ctx, candidate, plan.TargetPolicy, executionFence)
+				if err != nil {
+					if contextErr := ctxErr(ctx); contextErr != nil {
+						return SlotLeaderTransferBatchExecuteResponse{}, contextErr
+					}
+					appendSlotLeaderTransferBatchFailure(&response, candidate, err)
+					break
+				}
+				if !caughtUp {
+					if retryBudget <= 0 {
+						appendSlotLeaderTransferBatchFailure(&response, candidate, executionFence.close("Controller snapshot did not catch up within the batch retry budget"))
+						break
+					}
+					retryBudget--
+					if err := waitSlotLeaderTransferBatchRetry(ctx); err != nil {
+						return SlotLeaderTransferBatchExecuteResponse{}, err
+					}
+					continue
+				}
+				if refreshed.Action == SlotLeaderTransferBatchActionExisting {
+					response.Summary.Existing++
+					response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+						SlotID:       refreshed.SlotID,
+						TargetNodeID: refreshed.TargetNodeID,
+						Status:       SlotLeaderTransferBatchResultExisting,
+						TaskID:       refreshed.ExistingTaskID,
+						Message:      SlotLeaderTransferMessageExistingTask,
+					})
+					break
+				}
+
+				result, err := a.leaderTransfer.RequestSlotLeaderTransfer(ctx, control.SlotLeaderTransferRequest{
+					SlotID:        refreshed.SlotID,
+					SourceNode:    refreshed.SourceNodeID,
+					TargetNode:    refreshed.TargetNodeID,
+					TargetPeers:   append([]uint64(nil), refreshed.DesiredPeers...),
+					ConfigEpoch:   refreshed.ConfigEpoch,
+					StateRevision: stateRevision,
 				})
-				continue
+				if err != nil && controller.IsExpectedRevisionMismatch(err) {
+					if retryBudget <= 0 {
+						appendSlotLeaderTransferBatchFailure(&response, candidate, executionFence.close("Controller revision did not catch up within the batch retry budget"))
+						break
+					}
+					retryBudget--
+					if err := waitSlotLeaderTransferBatchRetry(ctx); err != nil {
+						return SlotLeaderTransferBatchExecuteResponse{}, err
+					}
+					continue
+				}
+				if err != nil {
+					appendSlotLeaderTransferBatchFailure(&response, candidate, err)
+					break
+				}
+				if err := executionFence.recordWriterResult(refreshed, result, stateRevision); err != nil {
+					appendSlotLeaderTransferBatchFailure(&response, candidate, err)
+					break
+				}
+
+				status := SlotLeaderTransferBatchResultExisting
+				message := SlotLeaderTransferMessageExistingTask
+				if result.Created {
+					status = SlotLeaderTransferBatchResultCreated
+					message = SlotLeaderTransferMessageCreated
+					response.Summary.Created++
+				} else {
+					response.Summary.Existing++
+				}
+				response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+					SlotID:       refreshed.SlotID,
+					TargetNodeID: refreshed.TargetNodeID,
+					Status:       status,
+					TaskID:       slotLeaderTransferBatchTaskID(result.Task),
+					Message:      message,
+				})
+				break
 			}
-			status := SlotLeaderTransferBatchResultExisting
-			message := SlotLeaderTransferMessageExistingTask
-			if result.Created {
-				status = SlotLeaderTransferBatchResultCreated
-				message = SlotLeaderTransferMessageCreated
-				response.Summary.Created++
-			} else {
-				response.Summary.Existing++
-			}
-			response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
-				SlotID:       candidate.SlotID,
-				TargetNodeID: candidate.TargetNodeID,
-				Status:       status,
-				TaskID:       slotLeaderTransferBatchTaskID(result.Task),
-				Message:      message,
-			})
 		}
 	}
 	return response, nil
+}
+
+func (a *App) refreshSlotLeaderTransferBatchCandidate(ctx context.Context, approved SlotLeaderTransferBatchCandidate, targetPolicy string, executionFence *slotLeaderTransferBatchExecutionFence) (SlotLeaderTransferBatchCandidate, uint64, bool, error) {
+	snapshot, err := a.slotLeaderTransferBatchControlSnapshot(ctx)
+	if err != nil {
+		return SlotLeaderTransferBatchCandidate{}, 0, false, err
+	}
+	caughtUp, err := executionFence.observe(snapshot)
+	if err != nil {
+		return SlotLeaderTransferBatchCandidate{}, 0, false, err
+	}
+	if !caughtUp {
+		return SlotLeaderTransferBatchCandidate{}, 0, false, nil
+	}
+	if approved.Action == SlotLeaderTransferBatchActionExisting {
+		if err := executionFence.validateExistingCandidate(approved); err != nil {
+			return SlotLeaderTransferBatchCandidate{}, 0, false, err
+		}
+	}
+	plan, err := a.PlanSlotLeaderTransfers(ctx, SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: approved.SourceNodeID,
+		TargetNodeID: approved.TargetNodeID,
+		SlotIDs:      []uint32{approved.SlotID},
+		MaxTasks:     1,
+		TargetPolicy: targetPolicy,
+	})
+	if err != nil {
+		return SlotLeaderTransferBatchCandidate{}, 0, false, err
+	}
+	if len(plan.Candidates) != 1 {
+		message := "slot is no longer eligible for the approved transfer"
+		if len(plan.Skipped) > 0 && plan.Skipped[0].Message != "" {
+			message = plan.Skipped[0].Message
+		}
+		return SlotLeaderTransferBatchCandidate{}, 0, false, fmt.Errorf("slot %d no longer matches the approved plan: %s", approved.SlotID, message)
+	}
+	refreshed := plan.Candidates[0]
+	if !sameSlotLeaderTransferBatchCandidateFence(approved, refreshed) {
+		return SlotLeaderTransferBatchCandidate{}, 0, false, fmt.Errorf("slot %d changed after the batch plan was approved", approved.SlotID)
+	}
+	return refreshed, executionFence.expectedRevision(), true, nil
+}
+
+func (a *App) slotLeaderTransferBatchControlSnapshot(ctx context.Context) (control.Snapshot, error) {
+	if reader, ok := a.leaderTransfer.(SlotLeaderTransferControlSnapshotReader); ok {
+		return reader.SlotLeaderTransferControlSnapshot(ctx)
+	}
+	return a.cluster.LocalControlSnapshot(ctx)
+}
+
+func sameSlotLeaderTransferBatchCandidateFence(approved, refreshed SlotLeaderTransferBatchCandidate) bool {
+	return approved.SlotID == refreshed.SlotID &&
+		approved.SourceNodeID == refreshed.SourceNodeID &&
+		approved.TargetNodeID == refreshed.TargetNodeID &&
+		approved.PreferredLeader == refreshed.PreferredLeader &&
+		approved.ConfigEpoch == refreshed.ConfigEpoch &&
+		sameUint64Set(approved.DesiredPeers, refreshed.DesiredPeers)
+}
+
+// slotLeaderTransferBatchExecutionFence projects only mutations caused by tasks
+// that were already approved by the batch. Any other durable Controller change
+// permanently closes the fence for the remaining candidates.
+type slotLeaderTransferBatchExecutionFence struct {
+	expected       control.Snapshot
+	allowedTaskIDs map[string]struct{}
+	conflictErr    error
+}
+
+func newSlotLeaderTransferBatchExecutionFence(snapshot control.Snapshot, candidates []SlotLeaderTransferBatchCandidate) (*slotLeaderTransferBatchExecutionFence, error) {
+	fence := &slotLeaderTransferBatchExecutionFence{
+		expected:       snapshot.Clone(),
+		allowedTaskIDs: make(map[string]struct{}),
+	}
+	for _, candidate := range candidates {
+		if candidate.Action != SlotLeaderTransferBatchActionExisting {
+			continue
+		}
+		index := slotLeaderTransferBatchTaskIndexByID(snapshot.Tasks, candidate.ExistingTaskID)
+		if index < 0 || !slotLeaderTransferBatchTaskMatchesCandidate(snapshot.Tasks[index], candidate) {
+			return nil, fmt.Errorf("existing task for slot %d changed before execution", candidate.SlotID)
+		}
+		status := snapshot.Tasks[index].Status
+		if status != control.TaskStatusPending && status != control.TaskStatusRunning {
+			return nil, fmt.Errorf("existing task for slot %d is no longer active", candidate.SlotID)
+		}
+		fence.allowedTaskIDs[candidate.ExistingTaskID] = struct{}{}
+	}
+	return fence, nil
+}
+
+func (f *slotLeaderTransferBatchExecutionFence) expectedRevision() uint64 {
+	if f == nil {
+		return 0
+	}
+	return f.expected.Revision
+}
+
+func (f *slotLeaderTransferBatchExecutionFence) observe(current control.Snapshot) (bool, error) {
+	if f == nil {
+		return false, errors.New("slot leader transfer batch execution fence is unavailable")
+	}
+	if f.conflictErr != nil {
+		return false, f.conflictErr
+	}
+	if current.Revision < f.expected.Revision {
+		return false, nil
+	}
+
+	projected := f.expected.Clone()
+	if current.Revision > projected.Revision {
+		taskIDs := make([]string, 0, len(f.allowedTaskIDs))
+		for taskID := range f.allowedTaskIDs {
+			taskIDs = append(taskIDs, taskID)
+		}
+		sort.Strings(taskIDs)
+		for _, taskID := range taskIDs {
+			expectedIndex := slotLeaderTransferBatchTaskIndexByID(projected.Tasks, taskID)
+			if expectedIndex < 0 {
+				continue
+			}
+			currentIndex := slotLeaderTransferBatchTaskIndexByID(current.Tasks, taskID)
+			if currentIndex < 0 {
+				projected.Tasks = append(projected.Tasks[:expectedIndex], projected.Tasks[expectedIndex+1:]...)
+				projected.Revision++
+				continue
+			}
+			expectedTask := projected.Tasks[expectedIndex]
+			currentTask := current.Tasks[currentIndex]
+			if reflect.DeepEqual(expectedTask, currentTask) {
+				continue
+			}
+			if !slotLeaderTransferBatchTaskFailureTransition(expectedTask, currentTask) {
+				return f.reject("approved task %s changed outside its allowed lifecycle", taskID)
+			}
+			projected.Tasks[expectedIndex] = cloneSlotLeaderTransferBatchTask(currentTask)
+			projected.Revision++
+		}
+	}
+	if projected.Revision != current.Revision || !sameSlotLeaderTransferBatchControlState(projected, current) {
+		return f.reject("Controller state changed outside the approved batch task lifecycle")
+	}
+	f.expected = current.Clone()
+	return true, nil
+}
+
+func (f *slotLeaderTransferBatchExecutionFence) recordWriterResult(candidate SlotLeaderTransferBatchCandidate, result control.SlotLeaderTransferResult, stateRevision uint64) error {
+	if f == nil {
+		return errors.New("slot leader transfer batch execution fence is unavailable")
+	}
+	if f.conflictErr != nil {
+		return f.conflictErr
+	}
+	if f.expected.Revision != stateRevision {
+		return fmt.Errorf("slot %d write used revision %d while fenced state is revision %d", candidate.SlotID, stateRevision, f.expected.Revision)
+	}
+	if result.Task == nil {
+		return fmt.Errorf("slot %d writer accepted a transfer without returning its task identity", candidate.SlotID)
+	}
+	task := cloneSlotLeaderTransferBatchTask(*result.Task)
+	if !slotLeaderTransferBatchTaskMatchesCandidate(task, candidate) {
+		return fmt.Errorf("slot %d writer returned a task outside the approved candidate fence", candidate.SlotID)
+	}
+	if existingIndex := slotLeaderTransferBatchTaskIndexByID(f.expected.Tasks, task.TaskID); existingIndex >= 0 {
+		if result.Created || !reflect.DeepEqual(f.expected.Tasks[existingIndex], task) {
+			return fmt.Errorf("slot %d writer returned an inconsistent existing task", candidate.SlotID)
+		}
+		f.allowedTaskIDs[task.TaskID] = struct{}{}
+		return nil
+	}
+
+	assignmentIndex := slotLeaderTransferBatchAssignmentIndex(f.expected.Slots, candidate.SlotID)
+	if assignmentIndex < 0 {
+		return fmt.Errorf("slot %d assignment disappeared from the fenced state", candidate.SlotID)
+	}
+	if activeIndex := slotLeaderTransferBatchTaskIndexBySlot(f.expected.Tasks, candidate.SlotID); activeIndex >= 0 {
+		return fmt.Errorf("slot %d active task changed before the approved write", candidate.SlotID)
+	}
+	if task.Status != control.TaskStatusPending || task.Attempt != 0 || task.LastError != "" || len(task.ParticipantProgress) != 0 {
+		return fmt.Errorf("slot %d writer returned a non-canonical new task", candidate.SlotID)
+	}
+	f.expected.Slots[assignmentIndex].PreferredLeader = candidate.TargetNodeID
+	f.expected.Tasks = append(f.expected.Tasks, task)
+	f.expected.Revision++
+	f.allowedTaskIDs[task.TaskID] = struct{}{}
+	return nil
+}
+
+func (f *slotLeaderTransferBatchExecutionFence) reject(message string, args ...any) (bool, error) {
+	f.conflictErr = fmt.Errorf("slot leader transfer batch fence rejected: "+message, args...)
+	return false, f.conflictErr
+}
+
+func (f *slotLeaderTransferBatchExecutionFence) close(message string) error {
+	_, err := f.reject(message)
+	return err
+}
+
+func (f *slotLeaderTransferBatchExecutionFence) validateExistingCandidate(candidate SlotLeaderTransferBatchCandidate) error {
+	if f == nil {
+		return errors.New("slot leader transfer batch execution fence is unavailable")
+	}
+	index := slotLeaderTransferBatchTaskIndexByID(f.expected.Tasks, candidate.ExistingTaskID)
+	if index < 0 || !slotLeaderTransferBatchTaskMatchesCandidate(f.expected.Tasks[index], candidate) {
+		return fmt.Errorf("slot %d approved existing task is no longer active", candidate.SlotID)
+	}
+	status := f.expected.Tasks[index].Status
+	if status != control.TaskStatusPending && status != control.TaskStatusRunning {
+		return fmt.Errorf("slot %d approved existing task is no longer reusable", candidate.SlotID)
+	}
+	return nil
+}
+
+func sameSlotLeaderTransferBatchControlState(left, right control.Snapshot) bool {
+	return reflect.DeepEqual(normalizeSlotLeaderTransferBatchControlState(left), normalizeSlotLeaderTransferBatchControlState(right))
+}
+
+func normalizeSlotLeaderTransferBatchControlState(snapshot control.Snapshot) control.Snapshot {
+	normalized := snapshot.Clone()
+	normalized.Revision = 0
+	normalized.ControllerID = 0
+	normalized.HashSlots.Revision = 0
+	normalized.ChannelDataPlaneLease = control.ChannelDataPlaneLease{}
+	for index := range normalized.Nodes {
+		// Health reports do not advance logical Controller Revision and are not
+		// used by this planner's active-membership target eligibility checks.
+		normalized.Nodes[index].Health = control.NodeHealth{}
+		sort.Slice(normalized.Nodes[index].Roles, func(i, j int) bool {
+			return normalized.Nodes[index].Roles[i] < normalized.Nodes[index].Roles[j]
+		})
+	}
+	for index := range normalized.Slots {
+		sort.Slice(normalized.Slots[index].DesiredPeers, func(i, j int) bool {
+			return normalized.Slots[index].DesiredPeers[i] < normalized.Slots[index].DesiredPeers[j]
+		})
+	}
+	for index := range normalized.Tasks {
+		sort.Slice(normalized.Tasks[index].TargetPeers, func(i, j int) bool {
+			return normalized.Tasks[index].TargetPeers[i] < normalized.Tasks[index].TargetPeers[j]
+		})
+		sort.Slice(normalized.Tasks[index].ObservedVoters, func(i, j int) bool {
+			return normalized.Tasks[index].ObservedVoters[i] < normalized.Tasks[index].ObservedVoters[j]
+		})
+		sort.Slice(normalized.Tasks[index].ObservedLearners, func(i, j int) bool {
+			return normalized.Tasks[index].ObservedLearners[i] < normalized.Tasks[index].ObservedLearners[j]
+		})
+	}
+	sort.Slice(normalized.Nodes, func(i, j int) bool { return normalized.Nodes[i].NodeID < normalized.Nodes[j].NodeID })
+	sort.Slice(normalized.Slots, func(i, j int) bool { return normalized.Slots[i].SlotID < normalized.Slots[j].SlotID })
+	sort.Slice(normalized.Tasks, func(i, j int) bool { return normalized.Tasks[i].TaskID < normalized.Tasks[j].TaskID })
+	sort.Slice(normalized.HashSlots.Ranges, func(i, j int) bool { return normalized.HashSlots.Ranges[i].From < normalized.HashSlots.Ranges[j].From })
+	if normalized.OpsMCP != nil {
+		sort.Slice(normalized.OpsMCP.Credentials, func(i, j int) bool {
+			return normalized.OpsMCP.Credentials[i].ID < normalized.OpsMCP.Credentials[j].ID
+		})
+	}
+	return normalized
+}
+
+func slotLeaderTransferBatchTaskFailureTransition(expected, current control.ReconcileTask) bool {
+	if current.Status != control.TaskStatusFailed || current.Attempt != expected.Attempt+1 {
+		return false
+	}
+	normalized := cloneSlotLeaderTransferBatchTask(current)
+	normalized.Status = expected.Status
+	normalized.Attempt = expected.Attempt
+	normalized.LastError = expected.LastError
+	return reflect.DeepEqual(expected, normalized)
+}
+
+func slotLeaderTransferBatchTaskMatchesCandidate(task control.ReconcileTask, candidate SlotLeaderTransferBatchCandidate) bool {
+	return task.TaskID != "" &&
+		task.SlotID == candidate.SlotID &&
+		task.Kind == control.TaskKindLeaderTransfer &&
+		task.Step == control.TaskStepTransferLeader &&
+		task.SourceNode == candidate.SourceNodeID &&
+		task.TargetNode == candidate.TargetNodeID &&
+		task.CompletionPolicy == control.TaskCompletionPolicySingleObserver &&
+		task.ConfigEpoch == candidate.ConfigEpoch &&
+		sameUint64Set(task.TargetPeers, candidate.DesiredPeers)
+}
+
+func slotLeaderTransferBatchTaskIndexByID(tasks []control.ReconcileTask, taskID string) int {
+	for index := range tasks {
+		if tasks[index].TaskID == taskID {
+			return index
+		}
+	}
+	return -1
+}
+
+func slotLeaderTransferBatchTaskIndexBySlot(tasks []control.ReconcileTask, slotID uint32) int {
+	for index := range tasks {
+		if tasks[index].SlotID == slotID {
+			return index
+		}
+	}
+	return -1
+}
+
+func slotLeaderTransferBatchAssignmentIndex(assignments []control.SlotAssignment, slotID uint32) int {
+	for index := range assignments {
+		if assignments[index].SlotID == slotID {
+			return index
+		}
+	}
+	return -1
+}
+
+func cloneSlotLeaderTransferBatchTask(task control.ReconcileTask) control.ReconcileTask {
+	task.TargetPeers = append([]uint64(nil), task.TargetPeers...)
+	task.ParticipantProgress = append([]control.TaskParticipantProgress(nil), task.ParticipantProgress...)
+	task.ObservedVoters = append([]uint64(nil), task.ObservedVoters...)
+	task.ObservedLearners = append([]uint64(nil), task.ObservedLearners...)
+	return task
+}
+
+func appendSlotLeaderTransferBatchFailure(response *SlotLeaderTransferBatchExecuteResponse, candidate SlotLeaderTransferBatchCandidate, err error) {
+	response.Summary.Failed++
+	response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+		SlotID:       candidate.SlotID,
+		TargetNodeID: candidate.TargetNodeID,
+		Status:       SlotLeaderTransferBatchResultFailed,
+		Message:      err.Error(),
+	})
+}
+
+func waitSlotLeaderTransferBatchRetry(ctx context.Context) error {
+	timer := time.NewTimer(slotLeaderTransferBatchRetryDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (a *App) planSlotLeaderTransfers(ctx context.Context, req SlotLeaderTransferBatchPlanRequest, allowedSlots []uint32) (SlotLeaderTransferBatchPlanResponse, error) {
@@ -436,11 +862,13 @@ func planOneSlotLeaderTransfer(snapshot control.Snapshot, req SlotLeaderTransfer
 
 	activeTask, hasActiveTask := findActiveSlotTask(snapshot.Tasks, assignment.SlotID)
 	reusableActiveTask := false
-	retryableFailedTask := false
 	if hasActiveTask {
 		reusableActiveTask = canReuseLeaderTransferTask(activeTask, req.SourceNodeID, req.TargetNodeID, assignment)
-		retryableFailedTask = canRetryFailedLeaderTransferTask(activeTask, req.SourceNodeID, req.TargetNodeID, assignment)
-		if !reusableActiveTask && !retryableFailedTask {
+		if !reusableActiveTask && leaderTransferTaskMatches(activeTask, req.SourceNodeID, req.TargetNodeID, assignment) {
+			appendBatchSkip(response, assignment.SlotID, SlotLeaderTransferBatchSkipMatchingTaskExists, "matching non-active leader transfer task already exists")
+			return
+		}
+		if !reusableActiveTask {
 			appendBatchSkip(response, assignment.SlotID, SlotLeaderTransferBatchSkipActiveTaskConflict, "different active task already owns the slot")
 			return
 		}
@@ -545,13 +973,6 @@ func uint32Set(items []uint32) map[uint32]struct{} {
 
 func canReuseLeaderTransferTask(task control.ReconcileTask, sourceNode, requestedTarget uint64, assignment control.SlotAssignment) bool {
 	if task.Status != control.TaskStatusPending && task.Status != control.TaskStatusRunning {
-		return false
-	}
-	return leaderTransferTaskMatches(task, sourceNode, requestedTarget, assignment)
-}
-
-func canRetryFailedLeaderTransferTask(task control.ReconcileTask, sourceNode, requestedTarget uint64, assignment control.SlotAssignment) bool {
-	if task.Status != control.TaskStatusFailed {
 		return false
 	}
 	return leaderTransferTaskMatches(task, sourceNode, requestedTarget, assignment)

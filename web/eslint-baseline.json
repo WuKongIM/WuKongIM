@@ -199,20 +199,6 @@
     },
     {
       "file": "src/pages/slots/page.tsx",
-      "severity": 1,
-      "ruleId": "react-hooks/exhaustive-deps",
-      "messageId": null,
-      "message": "React Hook useCallback has a missing dependency: 'intl'. Either include it or remove the dependency array."
-    },
-    {
-      "file": "src/pages/slots/page.tsx",
-      "severity": 1,
-      "ruleId": "react-hooks/exhaustive-deps",
-      "messageId": null,
-      "message": "React Hook useCallback has a missing dependency: 'recoverStrategies'. Either include it or remove the dependency array."
-    },
-    {
-      "file": "src/pages/slots/page.tsx",
       "severity": 2,
       "ruleId": "react-hooks/set-state-in-effect",
       "messageId": null,

@@ -5,7 +5,6 @@ import { useSearchParams } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
-import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
@@ -18,16 +17,11 @@ import { Button } from "@/components/ui/button"
 import { SlotLogsPanel } from "@/pages/slot-logs/page"
 import {
   ManagerApiError,
-  addSlot,
   executeSlotLeaderTransferBatch,
   getNodes,
   getOverview,
-  getSlot,
   getSlots,
   planSlotLeaderTransfers,
-  removeSlot,
-  rebalanceSlots,
-  recoverSlot,
   transferSlotLeader,
 } from "@/lib/manager-api"
 import type {
@@ -35,11 +29,9 @@ import type {
   ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerOverviewSlotAnomalyItem,
-  ManagerSlotDetailResponse,
   ManagerSlotHashSlots,
   ManagerSlotLeaderTransferBatchExecuteResponse,
   ManagerSlotLeaderTransferBatchPlanResponse,
-  ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
 } from "@/lib/manager-api.types"
 
@@ -68,7 +60,6 @@ const tabs = [
 
 type SlotClusterTab = (typeof tabs)[number]["id"]
 
-const recoverStrategyValues = ["latest_live_replica"] as const
 const defaultBatchTargetPolicy = "least_leaders"
 const defaultBatchMaxTasks = "8"
 
@@ -270,15 +261,6 @@ function HashSlotOwnershipValue({
 
 export function SlotClusterListPanel() {
   const intl = useIntl()
-  const recoverStrategies = useMemo(
-    () => [
-      {
-        value: recoverStrategyValues[0],
-        label: intl.formatMessage({ id: "slots.recoveryStrategy.latestLiveReplica" }),
-      },
-    ],
-    [intl],
-  )
   const permissions = useAuthStore((state) => state.permissions)
   const canWriteSlots = useMemo(
     () => hasPermission(permissions, "cluster.slot", "w"),
@@ -293,27 +275,11 @@ export function SlotClusterListPanel() {
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null)
-  const [detail, setDetail] = useState<ManagerSlotDetailResponse | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState<Error | null>(null)
+  const [detail, setDetail] = useState<ManagerSlotsResponse["items"][number] | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferPending, setTransferPending] = useState(false)
   const [transferError, setTransferError] = useState("")
   const [targetNodeId, setTargetNodeId] = useState("")
-  const [recoverOpen, setRecoverOpen] = useState(false)
-  const [recoverPending, setRecoverPending] = useState(false)
-  const [recoverError, setRecoverError] = useState("")
-  const [recoverStrategy, setRecoverStrategy] = useState<string>(recoverStrategies[0].value)
-  const [addOpen, setAddOpen] = useState(false)
-  const [addPending, setAddPending] = useState(false)
-  const [addError, setAddError] = useState("")
-  const [removeOpen, setRemoveOpen] = useState(false)
-  const [removePending, setRemovePending] = useState(false)
-  const [removeError, setRemoveError] = useState("")
-  const [rebalanceOpen, setRebalanceOpen] = useState(false)
-  const [rebalancePending, setRebalancePending] = useState(false)
-  const [rebalanceError, setRebalanceError] = useState("")
-  const [rebalancePlan, setRebalancePlan] = useState<ManagerSlotRebalanceResponse | null>(null)
   const [batchTransferOpen, setBatchTransferOpen] = useState(false)
   const [batchTransferPending, setBatchTransferPending] = useState(false)
   const [batchTransferError, setBatchTransferError] = useState("")
@@ -366,6 +332,12 @@ export function SlotClusterListPanel() {
     try {
       const slots = await getSlots({ nodeId })
       setState({ slots, loading: false, refreshing: false, error: null })
+      setDetail((current) => {
+        if (!current) {
+          return null
+        }
+        return slots.items.find((slot) => slot.slot_id === current.slot_id) ?? current
+      })
     } catch (error) {
       setState({
         slots: null,
@@ -373,21 +345,6 @@ export function SlotClusterListPanel() {
         refreshing: false,
         error: error instanceof Error ? error : new Error("slot request failed"),
       })
-    }
-  }, [])
-
-  const loadSlotDetail = useCallback(async (slotId: number) => {
-    setDetailLoading(true)
-    setDetailError(null)
-
-    try {
-      const nextDetail = await getSlot(slotId)
-      setDetail(nextDetail)
-    } catch (error) {
-      setDetail(null)
-      setDetailError(error instanceof Error ? error : new Error("slot detail failed"))
-    } finally {
-      setDetailLoading(false)
     }
   }, [])
 
@@ -401,13 +358,10 @@ export function SlotClusterListPanel() {
     }
   }, [loadSlots, selectedNodeId])
 
-  const openDetail = useCallback(
-    async (slotId: number) => {
-      setSelectedSlotId(slotId)
-      await loadSlotDetail(slotId)
-    },
-    [loadSlotDetail],
-  )
+  const openDetail = useCallback((slot: ManagerSlotsResponse["items"][number]) => {
+    setSelectedSlotId(slot.slot_id)
+    setDetail(slot)
+  }, [])
 
   const closeDetail = useCallback((open: boolean) => {
     if (open) {
@@ -415,21 +369,10 @@ export function SlotClusterListPanel() {
     }
     setSelectedSlotId(null)
     setDetail(null)
-    setDetailError(null)
     setTransferOpen(false)
     setTransferError("")
     setTargetNodeId("")
-    setRecoverOpen(false)
-    setRecoverError("")
-    setRecoverStrategy(recoverStrategies[0].value)
-    setRemoveOpen(false)
-    setRemoveError("")
   }, [])
-
-  const refreshOpenDetail = useCallback(async (slotId: number) => {
-    await loadSlots(true, selectedNodeId)
-    await loadSlotDetail(slotId)
-  }, [loadSlotDetail, loadSlots, selectedNodeId])
 
   const submitTransfer = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -451,54 +394,13 @@ export function SlotClusterListPanel() {
       await transferSlotLeader(selectedSlotId, { targetNodeId: parsedTargetNodeId })
       setTransferOpen(false)
       setTargetNodeId("")
-      await refreshOpenDetail(selectedSlotId)
+      await loadSlots(true, selectedNodeId)
     } catch (error) {
       setTransferError(error instanceof Error ? error.message : "slot transfer failed")
     } finally {
       setTransferPending(false)
     }
-  }, [intl, refreshOpenDetail, selectedSlotId, targetNodeId])
-
-  const submitRecover = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!selectedSlotId) {
-      return
-    }
-
-    if (!recoverStrategy) {
-      setRecoverError(intl.formatMessage({ id: "slots.validation.recoveryStrategy" }))
-      return
-    }
-
-    setRecoverPending(true)
-    setRecoverError("")
-
-    try {
-      await recoverSlot(selectedSlotId, { strategy: recoverStrategy })
-      setRecoverOpen(false)
-      await refreshOpenDetail(selectedSlotId)
-    } catch (error) {
-      setRecoverError(error instanceof Error ? error.message : "slot recovery failed")
-    } finally {
-      setRecoverPending(false)
-    }
-  }, [recoverStrategy, refreshOpenDetail, selectedSlotId])
-
-  const runRebalance = useCallback(async () => {
-    setRebalancePending(true)
-    setRebalanceError("")
-
-    try {
-      const nextPlan = await rebalanceSlots()
-      setRebalancePlan(nextPlan)
-      setRebalanceOpen(false)
-    } catch (error) {
-      setRebalanceError(error instanceof Error ? error.message : "slot rebalance failed")
-    } finally {
-      setRebalancePending(false)
-    }
-  }, [])
+  }, [intl, loadSlots, selectedNodeId, selectedSlotId, targetNodeId])
 
   const resetBatchTransferPlan = useCallback(() => {
     setBatchTransferPlan(null)
@@ -556,6 +458,9 @@ export function SlotClusterListPanel() {
       setBatchTransferOpen(false)
       await loadSlots(true, selectedNodeId)
     } catch (error) {
+      if (error instanceof ManagerApiError && error.status === 409) {
+        setBatchTransferPlan(null)
+      }
       setBatchTransferError(error instanceof Error ? error.message : "slot leader transfer batch failed")
     } finally {
       setBatchTransferPending(false)
@@ -571,45 +476,6 @@ export function SlotClusterListPanel() {
     loadSlots,
     selectedNodeId,
   ])
-
-  const runAddSlot = useCallback(async () => {
-    setAddPending(true)
-    setAddError("")
-
-    try {
-      const nextDetail = await addSlot()
-      setDetail(nextDetail)
-      setSelectedSlotId(nextDetail.slot_id)
-      setAddOpen(false)
-      await loadSlots(true, selectedNodeId)
-    } catch (error) {
-      setAddError(error instanceof Error ? error.message : "slot add failed")
-    } finally {
-      setAddPending(false)
-    }
-  }, [loadSlots, selectedNodeId])
-
-  const runRemoveSlot = useCallback(async () => {
-    if (!selectedSlotId) {
-      return
-    }
-
-    setRemovePending(true)
-    setRemoveError("")
-
-    try {
-      await removeSlot(selectedSlotId)
-      setRemoveOpen(false)
-      setSelectedSlotId(null)
-      setDetail(null)
-      setDetailError(null)
-      await loadSlots(true, selectedNodeId)
-    } catch (error) {
-      setRemoveError(error instanceof Error ? error.message : "slot remove failed")
-    } finally {
-      setRemovePending(false)
-    }
-  }, [loadSlots, selectedNodeId, selectedSlotId])
 
   return (
     <>
@@ -657,17 +523,6 @@ export function SlotClusterListPanel() {
           <Button
             disabled={!canWriteSlots}
             onClick={() => {
-              setAddOpen(true)
-              setAddError("")
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {intl.formatMessage({ id: "slots.addSlot" })}
-          </Button>
-          <Button
-            disabled={!canWriteSlots}
-            onClick={() => {
               setBatchTransferOpen(true)
               setBatchTransferError("")
               setBatchTransferPlan(null)
@@ -676,16 +531,6 @@ export function SlotClusterListPanel() {
             variant="outline"
           >
             {intl.formatMessage({ id: "slots.batchTransferLeader" })}
-          </Button>
-          <Button
-            disabled={!canWriteSlots}
-            onClick={() => {
-              setRebalanceOpen(true)
-              setRebalanceError("")
-            }}
-            size="sm"
-          >
-            {intl.formatMessage({ id: "slots.rebalance" })}
           </Button>
         </div>
       </div>
@@ -761,7 +606,7 @@ export function SlotClusterListPanel() {
                           <Button
                             aria-label={intl.formatMessage({ id: "slots.inspectSlot" }, { id: slot.slot_id })}
                             onClick={() => {
-                              void openDetail(slot.slot_id)
+                              openDetail(slot)
                             }}
                             size="sm"
                             variant="outline"
@@ -779,30 +624,6 @@ export function SlotClusterListPanel() {
               <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.slots.title" })} />
             )}
           </div>
-
-          {rebalancePlan ? (
-            <div data-slot-surface="rebalance-result" className="rounded-md border border-border bg-card p-3">
-              {rebalancePlan.items.length > 0 ? (
-                <div className="space-y-3">
-                  {rebalancePlan.items.map((item) => (
-                    <div className="rounded-md border border-border bg-muted/20 px-3 py-3" key={item.hash_slot}>
-                      <div className="text-sm font-medium text-foreground">
-                        {intl.formatMessage({ id: "slots.rebalancePlan.hashSlotValue" }, { id: item.hash_slot })}
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {intl.formatMessage(
-                          { id: "slots.rebalancePlan.fromToValue" },
-                          { from: item.from_slot_id, to: item.to_slot_id },
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <ResourceState kind="empty" title={intl.formatMessage({ id: "slots.rebalancePlan.title" })} />
-              )}
-            </div>
-          ) : null}
 
           {batchTransferResult ? (
             <div data-slot-surface="batch-transfer-result" className="rounded-md border border-border bg-card p-3">
@@ -827,6 +648,9 @@ export function SlotClusterListPanel() {
                         )}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">{item.status}</div>
+                      {item.message ? (
+                        <div className="mt-1 break-words text-xs text-muted-foreground">{item.message}</div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -844,18 +668,7 @@ export function SlotClusterListPanel() {
         }
         footer={
           detail ? (
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                disabled={!canWriteSlots}
-                onClick={() => {
-                  setRemoveOpen(true)
-                  setRemoveError("")
-                }}
-                size="sm"
-                variant="destructive"
-              >
-                {intl.formatMessage({ id: "slots.removeSlot" })}
-              </Button>
+            <div className="flex items-center justify-end">
               <Button
                 disabled={!canWriteSlots}
                 onClick={() => {
@@ -866,16 +679,6 @@ export function SlotClusterListPanel() {
                 variant="outline"
               >
                 {intl.formatMessage({ id: "slots.transferLeader" })}
-              </Button>
-              <Button
-                disabled={!canWriteSlots}
-                onClick={() => {
-                  setRecoverOpen(true)
-                  setRecoverError("")
-                }}
-                size="sm"
-              >
-                {intl.formatMessage({ id: "slots.recoverSlot" })}
               </Button>
             </div>
           ) : null
@@ -888,21 +691,7 @@ export function SlotClusterListPanel() {
             : intl.formatMessage({ id: "slots.detailTitleFallback" })
         }
       >
-        {detailLoading ? (
-          <ResourceState kind="loading" title={intl.formatMessage({ id: "slots.detailTitleFallback" })} />
-        ) : null}
-        {!detailLoading && detailError ? (
-          <ResourceState
-            kind={mapErrorKind(detailError)}
-            onRetry={() => {
-              if (selectedSlotId) {
-                void loadSlotDetail(selectedSlotId)
-              }
-            }}
-            title={intl.formatMessage({ id: "slots.detailTitleFallback" })}
-          />
-        ) : null}
-        {!detailLoading && !detailError && detail ? (
+        {detail ? (
           <div className="rounded-md border border-border bg-card p-3" data-slot-surface="detail">
             <KeyValueList
               items={[
@@ -1114,101 +903,6 @@ export function SlotClusterListPanel() {
         ) : null}
       </ActionFormDialog>
 
-      <ActionFormDialog
-        description={
-          selectedSlotId
-            ? intl.formatMessage({ id: "slots.recoverDescription" }, { id: selectedSlotId })
-            : undefined
-        }
-        error={recoverError}
-        onOpenChange={(open) => {
-          setRecoverOpen(open)
-          if (!open) {
-            setRecoverError("")
-            setRecoverStrategy(recoverStrategies[0].value)
-          }
-        }}
-        onSubmit={(event) => {
-          void submitRecover(event)
-        }}
-        open={recoverOpen}
-        pending={recoverPending}
-        submitLabel={intl.formatMessage({ id: "slots.recover" })}
-        title={intl.formatMessage({ id: "slots.recoverSlot" })}
-      >
-        <label className="grid gap-2 text-sm text-foreground">
-          <span>{intl.formatMessage({ id: "slots.recoveryStrategy" })}</span>
-          <select
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
-            onChange={(event) => setRecoverStrategy(event.target.value)}
-            value={recoverStrategy}
-          >
-            {recoverStrategies.map((strategy) => (
-              <option key={strategy.value} value={strategy.value}>
-                {strategy.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </ActionFormDialog>
-
-      <ConfirmDialog
-        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
-        description={intl.formatMessage({ id: "slots.rebalanceDescription" })}
-        error={rebalanceError}
-        onConfirm={() => {
-          void runRebalance()
-        }}
-        onOpenChange={(open) => {
-          setRebalanceOpen(open)
-          if (!open) {
-            setRebalanceError("")
-          }
-        }}
-        open={rebalanceOpen}
-        pending={rebalancePending}
-        title={intl.formatMessage({ id: "slots.rebalance" })}
-      />
-
-      <ConfirmDialog
-        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
-        description={intl.formatMessage({ id: "slots.addDescription" })}
-        error={addError}
-        onConfirm={() => {
-          void runAddSlot()
-        }}
-        onOpenChange={(open) => {
-          setAddOpen(open)
-          if (!open) {
-            setAddError("")
-          }
-        }}
-        open={addOpen}
-        pending={addPending}
-        title={intl.formatMessage({ id: "slots.addSlot" })}
-      />
-
-      <ConfirmDialog
-        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
-        description={
-          selectedSlotId
-            ? intl.formatMessage({ id: "slots.removeDescription" }, { id: selectedSlotId })
-            : undefined
-        }
-        error={removeError}
-        onConfirm={() => {
-          void runRemoveSlot()
-        }}
-        onOpenChange={(open) => {
-          setRemoveOpen(open)
-          if (!open) {
-            setRemoveError("")
-          }
-        }}
-        open={removeOpen}
-        pending={removePending}
-        title={intl.formatMessage({ id: "slots.removeSlot" })}
-      />
     </>
   )
 }

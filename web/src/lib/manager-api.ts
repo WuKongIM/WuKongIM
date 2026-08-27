@@ -87,15 +87,11 @@ import type {
   ManagerPluginMutationResponse,
   ManagerUserDetailResponse,
   ManagerUsersResponse,
-  ManagerSlotDetailResponse,
   ManagerSlotLeaderTransferBatchExecuteResponse,
   ManagerSlotLeaderTransferBatchPlanResponse,
   ManagerSlotLeaderTransferResponse,
   ManagerSlotLogsResponse,
   ManagerSlotRaftCompactResponse,
-  ManagerSlotRemoveResponse,
-  ManagerSlotRecoverResponse,
-  ManagerSlotRebalanceResponse,
   ManagerSystemUsersResponse,
   ManagerSlotsResponse,
   ManagerTaskDetailResponse,
@@ -110,7 +106,6 @@ import type {
   PluginBindingListParams,
   SlotListParams,
   SlotLogListParams,
-  RecoverSlotInput,
   ResetUserTokenInput,
   ResetUserTokenResponse,
   RealtimeMonitorCategory,
@@ -957,10 +952,6 @@ export function getSlots(params: SlotListParams = {}) {
   return jsonManagerFetch<ManagerSlotsResponse>(`/manager/slots${query ? `?${query}` : ""}`)
 }
 
-export function getSlot(slotId: number) {
-  return jsonManagerFetch<ManagerSlotDetailResponse>(`/manager/slots/${slotId}`)
-}
-
 function buildLogListSearch(params: { nodeId: number; limit?: number; cursor?: number }) {
   const search = new URLSearchParams()
   search.set("node_id", String(params.nodeId))
@@ -1042,18 +1033,6 @@ export function compactControllerRaftLogOnNode(nodeId: number) {
   })
 }
 
-export function addSlot() {
-  return jsonManagerFetch<ManagerSlotDetailResponse>("/manager/slots", {
-    method: "POST",
-  })
-}
-
-export function removeSlot(slotId: number) {
-  return jsonManagerFetch<ManagerSlotRemoveResponse>(`/manager/slots/${slotId}`, {
-    method: "DELETE",
-  })
-}
-
 function slotLeaderTransferBatchBody(input: SlotLeaderTransferBatchInput) {
   return {
     source_node_id: input.sourceNodeId,
@@ -1086,19 +1065,6 @@ export function executeSlotLeaderTransferBatch(input: ExecuteSlotLeaderTransferB
       state_revision: input.stateRevision,
       plan_id: input.planId,
     }),
-  })
-}
-
-export function recoverSlot(slotId: number, input: RecoverSlotInput) {
-  return jsonManagerFetch<ManagerSlotRecoverResponse>(`/manager/slots/${slotId}/recover`, {
-    method: "POST",
-    body: JSON.stringify({ strategy: input.strategy }),
-  })
-}
-
-export function rebalanceSlots() {
-  return jsonManagerFetch<ManagerSlotRebalanceResponse>("/manager/slots/rebalance", {
-    method: "POST",
   })
 }
 

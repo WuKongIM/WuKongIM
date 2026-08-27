@@ -46,6 +46,14 @@ It does not own Manager or product business policy.
 4. Conversation hydration batch-reads business lifecycle and runtime route
    metadata by physical Slot, preserves input alignment and item errors, then
    groups committed-head reads by exact Channel Leader.
+5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
+   revision-fenced management adapters may use `LocalControllerSnapshot` to read
+   Controller-visible state without waiting for synchronous runtime task
+   reconciliation.
+6. Controller-backed management mutations, including Slot leader-transfer task
+   creation, forward through the typed control-write envelope so semantic CAS
+   errors and returned task identity survive remote Controller-leader routing;
+   the task-result RPC remains for executor progress and terminal observations.
 
 ## Invariants and Failure Semantics
 

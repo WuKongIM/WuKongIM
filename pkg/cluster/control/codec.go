@@ -160,6 +160,8 @@ const (
 	ControlWriteActionMarkNodeLeaving ControlWriteAction = "mark_node_leaving"
 	// ControlWriteActionMarkNodeRemoved submits a node removed intent.
 	ControlWriteActionMarkNodeRemoved ControlWriteAction = "mark_node_removed"
+	// ControlWriteActionSlotLeaderTransfer submits a Slot leader transfer intent.
+	ControlWriteActionSlotLeaderTransfer ControlWriteAction = "slot_leader_transfer"
 	// ControlWriteActionSlotReplicaMove submits a staged Slot replica move intent.
 	ControlWriteActionSlotReplicaMove ControlWriteAction = "slot_replica_move"
 	// ControlWriteActionPromoteControllerVoter promotes one active node into Controller Raft voting membership.
@@ -201,6 +203,8 @@ type ControlWriteRequest struct {
 	MarkNodeLeaving MarkNodeLeavingRequest `json:"mark_node_leaving,omitempty"`
 	// MarkNodeRemoved carries a node removed intent.
 	MarkNodeRemoved MarkNodeRemovedRequest `json:"mark_node_removed,omitempty"`
+	// SlotLeaderTransfer carries a Slot leader transfer intent.
+	SlotLeaderTransfer SlotLeaderTransferRequest `json:"slot_leader_transfer,omitempty"`
 	// SlotReplicaMove carries a staged Slot replica move intent.
 	SlotReplicaMove SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
 	// PromoteControllerVoter carries a Controller voter promotion intent.
@@ -219,6 +223,7 @@ type controlWriteRequestJSON struct {
 	ActivateNode           *ActivateNodeRequest           `json:"activate_node,omitempty"`
 	MarkNodeLeaving        *MarkNodeLeavingRequest        `json:"mark_node_leaving,omitempty"`
 	MarkNodeRemoved        *MarkNodeRemovedRequest        `json:"mark_node_removed,omitempty"`
+	SlotLeaderTransfer     *SlotLeaderTransferRequest     `json:"slot_leader_transfer,omitempty"`
 	SlotReplicaMove        *SlotReplicaMoveRequest        `json:"slot_replica_move,omitempty"`
 	PromoteControllerVoter *PromoteControllerVoterRequest `json:"promote_controller_voter,omitempty"`
 	ReportNodeHealth       *NodeReport                    `json:"report_node_health,omitempty"`
@@ -238,6 +243,8 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 		wire.MarkNodeLeaving = &req.MarkNodeLeaving
 	case ControlWriteActionMarkNodeRemoved:
 		wire.MarkNodeRemoved = &req.MarkNodeRemoved
+	case ControlWriteActionSlotLeaderTransfer:
+		wire.SlotLeaderTransfer = &req.SlotLeaderTransfer
 	case ControlWriteActionSlotReplicaMove:
 		wire.SlotReplicaMove = &req.SlotReplicaMove
 	case ControlWriteActionPromoteControllerVoter:
@@ -262,6 +269,8 @@ type ControlWriteResponse struct {
 	MarkNodeLeaving MarkNodeLeavingResult `json:"mark_node_leaving,omitempty"`
 	// MarkNodeRemoved carries the result of a node removed intent.
 	MarkNodeRemoved MarkNodeRemovedResult `json:"mark_node_removed,omitempty"`
+	// SlotLeaderTransfer carries the result of a Slot leader transfer intent.
+	SlotLeaderTransfer SlotLeaderTransferResult `json:"slot_leader_transfer,omitempty"`
 	// SlotReplicaMove carries the result of a staged Slot replica move intent.
 	SlotReplicaMove SlotReplicaMoveResult `json:"slot_replica_move,omitempty"`
 	// PromoteControllerVoter carries the result of a Controller voter promotion intent.
@@ -273,6 +282,7 @@ type controlWriteResponseJSON struct {
 	ActivateNode           *ActivateNodeResult           `json:"activate_node,omitempty"`
 	MarkNodeLeaving        *MarkNodeLeavingResult        `json:"mark_node_leaving,omitempty"`
 	MarkNodeRemoved        *MarkNodeRemovedResult        `json:"mark_node_removed,omitempty"`
+	SlotLeaderTransfer     *SlotLeaderTransferResult     `json:"slot_leader_transfer,omitempty"`
 	SlotReplicaMove        *SlotReplicaMoveResult        `json:"slot_replica_move,omitempty"`
 	PromoteControllerVoter *PromoteControllerVoterResult `json:"promote_controller_voter,omitempty"`
 }
@@ -291,6 +301,9 @@ func (resp ControlWriteResponse) MarshalJSON() ([]byte, error) {
 	}
 	if !reflect.DeepEqual(resp.MarkNodeRemoved, MarkNodeRemovedResult{}) {
 		wire.MarkNodeRemoved = &resp.MarkNodeRemoved
+	}
+	if !reflect.DeepEqual(resp.SlotLeaderTransfer, SlotLeaderTransferResult{}) {
+		wire.SlotLeaderTransfer = &resp.SlotLeaderTransfer
 	}
 	if !reflect.DeepEqual(resp.SlotReplicaMove, SlotReplicaMoveResult{}) {
 		wire.SlotReplicaMove = &resp.SlotReplicaMove

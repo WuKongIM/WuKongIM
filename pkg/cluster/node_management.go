@@ -29,6 +29,21 @@ func (n *Node) LocalControlSnapshot(ctx context.Context) (control.Snapshot, erro
 	return snapshot, nil
 }
 
+// LocalControllerSnapshot returns the latest Controller-visible snapshot
+// without waiting for Node-owned runtime reconciliation to finish applying it.
+func (n *Node) LocalControllerSnapshot(ctx context.Context) (control.Snapshot, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.Snapshot{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.Snapshot{}, err
+	}
+	if n.control == nil {
+		return control.Snapshot{}, ErrNotStarted
+	}
+	return n.control.LocalSnapshot(ctx)
+}
+
 // RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
 func (n *Node) RequestSlotLeaderTransfer(ctx context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
 	if err := ctxErr(ctx); err != nil {
