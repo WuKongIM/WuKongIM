@@ -970,8 +970,8 @@ export const domains: DocumentationDomain[] = [
         'operations-http',
         '运维 HTTP API',
         'Operations HTTP API',
-        '发布稳定且受支持的运维接口。',
-        'Publishes stable and supported operations endpoints.',
+        '发布四个运维观测接口，并逐项标明稳定性。',
+        'Publishes four operations observation endpoints with per-operation stability.',
         [
           publishedPage(
             'health-and-readiness',

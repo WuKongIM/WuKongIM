@@ -203,7 +203,7 @@ Route: `/{lang}/api`
     - **把会话隐藏到当前 head / Hide Conversation through the current head** **POST** `/{lang}/api/product-http/conversations/hideConversation` — 把 deleted_to_seq 推进到当前已提交 head，但不删除 Channel 成员关系。 / Advances deleted_to_seq to the current committed head without deleting Channel membership.
     - **激活会话 / Activate a Conversation** **POST** `/{lang}/api/product-http/conversations/activateConversation` — 记录显式打开、切换或恢复动作以参与排序；消息路径不会隐式激活。 / Records an explicit open, switch, or resume action for ordering; message paths do not activate it.
   - **错误响应 / Error Responses** `/{lang}/api/product-http/errors` — 解释 HTTP 状态、业务状态和 Reason Code 的关系。 / Relates HTTP status, business status, and protocol reason codes.
-- **运维 HTTP API / Operations HTTP API** `/{lang}/api/operations-http` — 发布稳定且受支持的运维接口。 / Publishes stable and supported operations endpoints.
+- **运维 HTTP API / Operations HTTP API** `/{lang}/api/operations-http` — 发布四个运维观测接口，并逐项标明稳定性。 / Publishes four operations observation endpoints with per-operation stability.
   - **健康与就绪 / Health & Readiness** `/{lang}/api/operations-http/health-and-readiness` — 说明健康检查、就绪检查和负载均衡使用方式。 / Covers health checks, readiness checks, and load-balancer usage.
   - **Metrics / Metrics** `/{lang}/api/operations-http/metrics` — 说明 Prometheus 指标入口、访问控制和抓取建议。 / Explains the Prometheus endpoint, access control, and scrape guidance.
   - **只读运维接口 / Read-only Operations** `/{lang}/api/operations-http/read-only` — 记录节点本地 Top 快照以及条件启用的 Debug、Bench 清单。 / Documents node-local Top snapshots and conditional Debug and Bench inventories.

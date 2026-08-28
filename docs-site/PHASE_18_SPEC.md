@@ -54,7 +54,7 @@ state that none of these endpoints has built-in authentication.
 event selector, payload alternatives, HTTP-200-only success rule, finite retry,
 bounded in-memory queues, lack of signing headers, and lack of crash replay.
 
-Debug and Bench endpoints are not mixed into the stable Operations contract.
+Debug and Bench endpoints are not mixed into the separate Operations contract.
 Their exact route inventory, enablement, bearer behavior, and instability are
 published on the interface-inventory and stability pages.
 
