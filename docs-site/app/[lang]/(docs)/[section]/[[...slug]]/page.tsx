@@ -17,6 +17,7 @@ import {
 } from '@/lib/navigation';
 import { getPageMarkdownUrl, source } from '@/lib/source';
 import { openapi } from '@/lib/openapi';
+import { productHTTPOpenAPIReferenceGroups } from '@/lib/product-http-openapi';
 import { getPublishedFooterItems } from '@/lib/navigation-tree';
 import {
   DocsBody,
@@ -89,8 +90,14 @@ export default async function DocumentationPage({
   if (!page) notFound();
   const MDX = page.data.body;
   const markdownUrl = getPageMarkdownUrl(page).url;
-  const githubContentPath = page.data._openapi
-    ? `docs-site/content/openapi/${page.path.replace(/^api\//, '')}`
+  const openAPIGroup =
+    domain.key === 'api' && slugs[0] === 'product-http'
+      ? productHTTPOpenAPIReferenceGroups.find((group) => group.slug === slugs[1])
+      : undefined;
+  const githubContentPath = openAPIGroup || page.data._openapi
+    ? openAPIGroup?.contract === 'management'
+      ? 'docs-site/contracts/product-http-management.openapi.json'
+      : 'docs-site/contracts/javascript-web-quickstart.openapi.json'
     : `docs-site/content/docs/${page.path}`;
   const githubSourceUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/${githubContentPath}`;
   const githubEditUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/edit/${gitConfig.branch}/${githubContentPath}`;

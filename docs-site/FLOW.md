@@ -51,10 +51,10 @@ and leaves the tested cluster source and production readiness unassessed.
    Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
    pins, and the three-endpoint Product HTTP Beta subset into both human pages
    and machine-readable outputs.
-6. `scripts/generate-openapi.ts` turns two bounded OpenAPI 3.1 contracts and
-   bilingual narrative supplements into ten tracked Fumadocs pages: six
-   one-operation golden-path variants and four tag-grouped Channel/Conversation
-   management variants. Static rendering preloads both exact contracts,
+6. `scripts/generate-openapi.ts` turns two bounded OpenAPI 3.1 contracts into
+   48 tracked Fumadocs pages: 38 bilingual one-operation variants and ten
+   concise tag indexes. The navigation mirrors the official tag-to-operation
+   hierarchy and shows the HTTP method beside each operation. Static rendering preloads both exact contracts,
    disables the HTTP playground, and exposes only contract-owned
    trusted-backend examples.
 7. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one

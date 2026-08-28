@@ -1,22 +1,42 @@
-import { domains, type DocumentationDomain, type NavigationPage } from '../lib/navigation';
+import {
+  domains,
+  isNavigationGroup,
+  navigationPathSegments,
+  type DocumentationDomain,
+  type NavigationNode,
+  type NavigationPage,
+} from '../lib/navigation';
 
 const outputPath = new URL('../NAVIGATION.md', import.meta.url);
 
-function route(domain: DocumentationDomain, page?: NavigationPage, child?: NavigationPage) {
-  const segments = ['{lang}', domain.key];
-  if (page) segments.push(page.slug);
-  if (child) segments.push(child.slug);
-  return `/${segments.join('/')}`;
+function route(domain: DocumentationDomain, slugs: string[]) {
+  return `/${['{lang}', domain.key, ...slugs].join('/')}`;
 }
 
 function item(
   domain: DocumentationDomain,
   page: NavigationPage,
+  slugs: string[],
   indent = '',
-  parent?: NavigationPage,
 ) {
-  const path = parent ? route(domain, parent, page) : route(domain, page);
-  return `${indent}- **${page.label.zh} / ${page.label.en}** \`${path}\` — ${page.description.zh} / ${page.description.en}`;
+  const method = page.method ? ` **${page.method}**` : '';
+  return `${indent}- **${page.label.zh} / ${page.label.en}**${method} \`${route(domain, slugs)}\` — ${page.description.zh} / ${page.description.en}`;
+}
+
+function appendNodes(
+  lines: string[],
+  domain: DocumentationDomain,
+  nodes: NavigationNode[],
+  parentSlugs: string[],
+  depth: number,
+) {
+  for (const node of nodes) {
+    const slugs = [...parentSlugs, ...navigationPathSegments(node.slug)];
+    lines.push(item(domain, node, slugs, '  '.repeat(depth)));
+    if (isNavigationGroup(node)) {
+      appendNodes(lines, domain, node.children, slugs, depth + 1);
+    }
+  }
 }
 
 function render() {
@@ -40,16 +60,11 @@ function render() {
     );
 
     for (const page of domain.pages) {
-      lines.push(item(domain, page), '');
+      lines.push(item(domain, page, navigationPathSegments(page.slug)), '');
     }
 
-    for (const group of domain.groups) {
-      lines.push(item(domain, group), '');
-      for (const child of group.children) {
-        lines.push(item(domain, child, '  ', group));
-      }
-      lines.push('');
-    }
+    appendNodes(lines, domain, domain.groups, [], 0);
+    lines.push('');
   }
 
   return `${lines.join('\n').trim()}\n`;

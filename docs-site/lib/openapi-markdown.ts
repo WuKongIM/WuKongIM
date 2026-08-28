@@ -3,9 +3,8 @@ import managementOpenAPIDocument from '../contracts/product-http-management.open
 import type { Locale } from './navigation';
 import {
   localizeOpenAPIDocument,
-  productHTTPManagementOpenAPIPages,
-  productHTTPOpenAPIPages,
-} from './openapi';
+  productHTTPOpenAPIReferenceOperations,
+} from './product-http-openapi';
 
 interface SchemaObject {
   $ref?: string;
@@ -296,37 +295,39 @@ function appendExamples(
   }
 }
 
-function resolvePublishedPage(locale: Locale, slug: string) {
-  const goldenPathPage = productHTTPOpenAPIPages.find((page) => page.slug === slug);
-  if (goldenPathPage) {
-    return {
-      document: localizeOpenAPIDocument(openapiDocument, locale) as unknown as ContractDocument,
-      operations: [{ method: goldenPathPage.method, path: goldenPathPage.path }],
-      scope:
-        locale === 'zh'
-          ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。'
-          : 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
-      contractPath: '/contracts/javascript-web-quickstart.openapi.json',
-      contractLabel: locale === 'zh' ? '黄金路径子集' : 'golden-path subset',
-    };
+function resolvePublishedPage(locale: Locale, slugs: readonly string[]) {
+  if (slugs.length !== 4 || slugs[0] !== 'api' || slugs[1] !== 'product-http') {
+    return undefined;
   }
-
-  const managementPage = productHTTPManagementOpenAPIPages.find(
-    (page) => page.slug === slug,
+  const publishedOperation = productHTTPOpenAPIReferenceOperations.find(
+    (operation) => operation.groupSlug === slugs[2] && operation.slug === slugs[3],
   );
-  if (!managementPage) return undefined;
+  if (!publishedOperation) return undefined;
+  const management = publishedOperation.contract === 'management';
   return {
     document: localizeOpenAPIDocument(
-      managementOpenAPIDocument,
+      management ? managementOpenAPIDocument : openapiDocument,
       locale,
     ) as unknown as ContractDocument,
-    operations: managementPage.operations,
+    operations: [publishedOperation],
     scope:
-      locale === 'zh'
-        ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。'
-        : 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.',
-    contractPath: '/contracts/product-http-management.openapi.json',
-    contractLabel: locale === 'zh' ? '管理子集' : 'management subset',
+      management
+        ? locale === 'zh'
+          ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。'
+          : 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.'
+        : locale === 'zh'
+          ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。'
+          : 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
+    contractPath: management
+      ? '/contracts/product-http-management.openapi.json'
+      : '/contracts/javascript-web-quickstart.openapi.json',
+    contractLabel: management
+      ? locale === 'zh'
+        ? '管理子集'
+        : 'management subset'
+      : locale === 'zh'
+        ? '黄金路径子集'
+        : 'golden-path subset',
   };
 }
 
@@ -367,8 +368,7 @@ function appendSchemaSearchFacts(
 
 /** Returns source-derived request, response, nested-schema, and error text for search. */
 export function renderOpenAPISearchText(locale: Locale, slugs: readonly string[]) {
-  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return '';
-  const page = resolvePublishedPage(locale, slugs[2]);
+  const page = resolvePublishedPage(locale, slugs);
   if (!page) return '';
 
   const facts = new Set<string>();
@@ -411,8 +411,7 @@ function operationHeadingId(summary: string, seen: Map<string, number>) {
 
 /** Extends Fumadocs' operation-only index data with the complete published schema facts. */
 export function getOpenAPISearchStructuredData(locale: Locale, slugs: readonly string[]) {
-  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return undefined;
-  const page = resolvePublishedPage(locale, slugs[2]);
+  const page = resolvePublishedPage(locale, slugs);
   if (!page) return undefined;
 
   const seenHeadings = new Map<string, number>();
@@ -432,10 +431,9 @@ export function getOpenAPISearchStructuredData(locale: Locale, slugs: readonly s
   return { headings, contents };
 }
 
-/** Renders every operation on a published Fumadocs OpenAPI page. */
+/** Renders the one operation on a published Fumadocs OpenAPI page. */
 export function renderOpenAPIOperationMarkdown(locale: Locale, slugs: readonly string[]) {
-  if (slugs.length !== 3 || slugs[0] !== 'api' || slugs[1] !== 'product-http') return '';
-  const page = resolvePublishedPage(locale, slugs[2]);
+  const page = resolvePublishedPage(locale, slugs);
   if (!page) return '';
 
   const { document } = page;

@@ -11,5 +11,4 @@ const codeUsages = createCodeUsageGeneratorRegistry();
 export const OpenAPIPage = createOpenAPIPage({
   codeUsages,
   playground: { enabled: false },
-  schemaUI: { showExample: true },
 });

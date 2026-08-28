@@ -54,9 +54,8 @@ for iOS, Android, Flutter, and Web. Each path pins one released package and
 source revision, provides a trusted-backend Alice/Bob acceptance scaffold, and
 exposes current platform adoption blockers without claiming a new executable
 compatibility receipt.
-Phase 16 publishes the two remaining pages in the Product HTTP group from a
-separate, non-exhaustive management OpenAPI contract: ten reviewed Channel
-mutations and six canonical Conversation operations. It records the missing
+Phase 16 publishes a separate, non-exhaustive management OpenAPI contract:
+ten reviewed Channel mutations and six canonical Conversation operations. It records the missing
 built-in authentication boundary, exact compatibility error shapes, bounded
 Conversation traversal, and explicitly defers weakly validated, unbounded, and
 legacy routes. The Phase 12 three-operation whitelist and receipt remain
@@ -77,10 +76,10 @@ bun run dev
 Open `http://localhost:3000`. The canonical local entry points are `/zh` and
 `/en`.
 
-Five published Product HTTP pages are generated from two bounded OpenAPI 3.1
-contracts plus bilingual narrative supplements: three one-operation golden
-pages and two tag-grouped management pages containing 16 operations. After
-changing a contract or supplement, regenerate and review the tracked MDX:
+The Product HTTP reference is generated from two bounded OpenAPI 3.1 contracts.
+It follows the Fumadocs example structure: five tag indexes and 19 independent
+operation pages per locale, for 48 tracked MDX files. After changing a
+contract, regenerate and review the tracked MDX:
 
 ```bash
 bun run openapi:write
@@ -114,7 +113,7 @@ bilingual route parity, source-versus-runtime wording, Alice/Bob acceptance,
 listener cleanup, and platform-specific adoption boundaries. Relevant
 sample or runtime-contract changes select the real Chromium integration check.
 Phase 16 also checks the exact management-operation whitelist, explicit route
-deferrals, bilingual tag-page generation, nested Conversation schemas, search
+deferrals, bilingual operation-per-page generation grouped by tag, nested Conversation schemas, search
 and LLM output, and continued separation from the golden receipt.
 
 ## Golden-path attestation
@@ -171,8 +170,8 @@ WK_DOCS_REQUIRE_VERIFIED=1 bun run test:output
 - Edit the full bilingual plan in `lib/navigation.ts`.
 - Run `bun run navigation:write` to update `NAVIGATION.md`.
 - Edit `contracts/javascript-web-quickstart.openapi.json`,
-  `contracts/product-http-management.openapi.json`, and
-  `content/openapi/product-http/`, then run `bun run openapi:write`; do not edit
+  `contracts/product-http-management.openapi.json`, then run
+  `bun run openapi:write`; do not edit
   generated files under `content/docs/api/product-http/` directly.
 - Add both `page.mdx` and `page.en.mdx` content variants before changing a menu
   entry from `planned` to `published`.

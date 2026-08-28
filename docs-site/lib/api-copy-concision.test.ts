@@ -17,13 +17,7 @@ const readerPages = [
   '../content/docs/api/product-http/errors.en.mdx',
 ] as const;
 
-const supplementBudgets = {
-  users: 24,
-  routing: 24,
-  messages: 28,
-  channels: 34,
-  conversations: 30,
-} as const;
+const tagIndexes = ['users', 'routing', 'messages', 'channels', 'conversations'] as const;
 
 const boilerplateHeadings = [
   '## 目标与完成标准',
@@ -66,13 +60,17 @@ describe('API copy concision', () => {
     }
   });
 
-  test('keeps endpoint supplements short in both locales', async () => {
-    for (const [slug, budget] of Object.entries(supplementBudgets)) {
+  test('keeps generated tag indexes short in both locales', async () => {
+    for (const slug of tagIndexes) {
       for (const suffix of ['.mdx', '.en.mdx']) {
-        const supplement = await source(`../content/openapi/product-http/${slug}${suffix}`);
-        expect(lineCount(supplement)).toBeLessThanOrEqual(budget);
-        for (const heading of boilerplateHeadings) expect(supplement).not.toContain(heading);
-        expect(supplement).not.toMatch(/Phase (12|16)/);
+        const index = await source(
+          `../content/docs/api/product-http/${slug}/index${suffix}`,
+        );
+        expect(lineCount(index)).toBeLessThanOrEqual(32);
+        expect(index).toContain('<Cards>');
+        expect(index).not.toContain('operations={[');
+        for (const heading of boilerplateHeadings) expect(index).not.toContain(heading);
+        expect(index).not.toMatch(/Phase (12|16)/);
       }
     }
   });
@@ -91,5 +89,11 @@ describe('API copy concision', () => {
         }
       }
     }
+  });
+
+  test('uses the concise default schema presentation', async () => {
+    const component = await source('../components/openapi-page.tsx');
+
+    expect(component).not.toContain('showExample: true');
   });
 });

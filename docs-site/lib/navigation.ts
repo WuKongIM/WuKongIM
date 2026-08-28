@@ -1,7 +1,13 @@
+import {
+  productHTTPOpenAPIReferenceGroups,
+  type ProductHTTPOpenAPIMethod,
+} from './product-http-openapi';
+
 export const locales = ['zh', 'en'] as const;
 
 export type Locale = (typeof locales)[number];
 export type PublicationStatus = 'published' | 'planned';
+export type NavigationHTTPMethod = Uppercase<ProductHTTPOpenAPIMethod>;
 
 export interface LocalizedText {
   zh: string;
@@ -14,11 +20,15 @@ export interface NavigationPage {
   label: LocalizedText;
   description: LocalizedText;
   status: PublicationStatus;
+  /** HTTP method shown beside one OpenAPI operation in the sidebar. */
+  method?: NavigationHTTPMethod;
 }
 
 export interface NavigationGroup extends NavigationPage {
-  children: NavigationPage[];
+  children: NavigationNode[];
 }
+
+export type NavigationNode = NavigationPage | NavigationGroup;
 
 export interface DocumentationDomain extends Omit<NavigationPage, 'slug'> {
   key: 'guide' | 'server' | 'sdk' | 'api';
@@ -99,7 +109,7 @@ function navigationGroup(
   enLabel: string,
   zhDescription: string,
   enDescription: string,
-  children: NavigationPage[],
+  children: NavigationNode[],
 ): NavigationGroup {
   return {
     ...navigationPage(status, slug, zhLabel, enLabel, zhDescription, enDescription),
@@ -113,7 +123,7 @@ function plannedGroup(
   enLabel: string,
   zhDescription: string,
   enDescription: string,
-  children: NavigationPage[],
+  children: NavigationNode[],
 ): NavigationGroup {
   return navigationGroup(
     'planned',
@@ -132,7 +142,7 @@ function publishedGroup(
   enLabel: string,
   zhDescription: string,
   enDescription: string,
-  children: NavigationPage[],
+  children: NavigationNode[],
 ): NavigationGroup {
   return navigationGroup(
     'published',
@@ -275,6 +285,49 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
       ),
     ],
   );
+}
+
+function publishedProductHTTPGroup(): NavigationGroup {
+  return publishedGroup(
+    'product-http',
+    '产品 HTTP API（Beta 子集）',
+    'Product HTTP API (Beta subsets)',
+    '浏览当前 Product HTTP Beta 接口。',
+    'Browse the current Product HTTP Beta APIs.',
+    [
+      ...productHTTPOpenAPIReferenceGroups.map((group) =>
+        publishedGroup(
+          group.slug,
+          group.title.zh,
+          group.title.en,
+          group.description.zh,
+          group.description.en,
+          group.operations.map((operation) => ({
+            ...publishedPage(
+              operation.slug,
+              operation.title.zh,
+              operation.title.en,
+              operation.description.zh,
+              operation.description.en,
+            ),
+            method: operation.method === 'get' ? 'GET' : 'POST',
+          })),
+        ),
+      ),
+      publishedPage(
+        'errors',
+        '错误响应',
+        'Error Responses',
+        '解释 HTTP 状态、业务状态和 Reason Code 的关系。',
+        'Relates HTTP status, business status, and protocol reason codes.',
+      ),
+    ],
+  );
+}
+
+/** Distinguishes folders from leaf pages in the recursive navigation tree. */
+export function isNavigationGroup(node: NavigationNode): node is NavigationGroup {
+  return 'children' in node;
 }
 
 export const domains: DocumentationDomain[] = [
@@ -905,57 +958,7 @@ export const domains: DocumentationDomain[] = [
       ),
     ],
     groups: [
-      publishedGroup(
-        'product-http',
-        '产品 HTTP API（Beta 子集）',
-        'Product HTTP API (Beta subsets)',
-        '浏览当前 Product HTTP Beta 接口。',
-        'Browse the current Product HTTP Beta APIs.',
-        [
-          publishedPage(
-            'users',
-            '用户',
-            'Users',
-            '保存用户设备 Token 元数据。',
-            'Store user device-token metadata.',
-          ),
-          publishedPage(
-            'channels',
-            '频道',
-            'Channels',
-            '管理 Channel、订阅者及允许或拒绝名单。',
-            'Manage Channels, subscribers, and allow or deny lists.',
-          ),
-          publishedPage(
-            'messages',
-            '消息',
-            'Messages',
-            '同步已提交的 Channel 消息。',
-            'Synchronize committed Channel messages.',
-          ),
-          publishedPage(
-            'conversations',
-            '会话',
-            'Conversations',
-            '同步会话并管理未读、隐藏和激活状态。',
-            'Synchronize Conversations and manage their state.',
-          ),
-          publishedPage(
-            'routing',
-            '路由发现',
-            'Route Discovery',
-            '获取服务端配置的 TCP 和 WebSocket 客户端入口地址。',
-            'Discovers the configured TCP and WebSocket client-ingress addresses.',
-          ),
-          publishedPage(
-            'errors',
-            '错误响应',
-            'Error Responses',
-            '解释 HTTP 状态、业务状态和 Reason Code 的关系。',
-            'Relates HTTP status, business status, and protocol reason codes.',
-          ),
-        ],
-      ),
+      publishedProductHTTPGroup(),
       plannedGroup(
         'operations-http',
         '运维 HTTP API',
@@ -1176,21 +1179,27 @@ export function getAllNavigationEntries(locale: Locale): NavigationEntry[] {
   return domains.flatMap((domain) => {
     const entries = [entryFromPage(locale, domain, domain, [], 'domain')];
 
+    function appendNodes(nodes: NavigationNode[], parentSlugs: string[]) {
+      for (const node of nodes) {
+        const slugs = [...parentSlugs, ...navigationPathSegments(node.slug)];
+        entries.push(
+          entryFromPage(
+            locale,
+            domain,
+            node,
+            slugs,
+            isNavigationGroup(node) ? 'group' : 'page',
+          ),
+        );
+        if (isNavigationGroup(node)) appendNodes(node.children, slugs);
+      }
+    }
+
     for (const page of domain.pages) {
       entries.push(entryFromPage(locale, domain, page, navigationPathSegments(page.slug), 'page'));
     }
 
-    for (const group of domain.groups) {
-      entries.push(entryFromPage(locale, domain, group, [group.slug], 'group'));
-      for (const page of group.children) {
-        entries.push(
-          entryFromPage(locale, domain, page, [
-            group.slug,
-            ...navigationPathSegments(page.slug),
-          ], 'page'),
-        );
-      }
-    }
+    appendNodes(domain.groups, []);
 
     return entries;
   });

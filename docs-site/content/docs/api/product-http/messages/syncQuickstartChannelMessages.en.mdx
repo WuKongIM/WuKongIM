@@ -1,0 +1,87 @@
+---
+title: Pull durable messages for one channel
+full: true
+_openapi:
+  preload:
+    - wukongim-product-http-beta-en
+  method: POST
+  webhook: false
+  toc: []
+  structuredData:
+    headings:
+      - content: Pull durable messages for one channel
+        id: pull-durable-messages-for-one-channel
+    contents:
+      - content: Pulls a bounded page of committed messages after reconnect. The
+          quickstart uses a person Channel (channel_type 1).
+        heading: pull-durable-messages-for-one-channel
+      - content: |-
+          POST /channel/messagesync
+          syncQuickstartChannelMessages
+          Pull durable messages for one channel
+          Pulls a bounded page of committed messages after reconnect. The quickstart uses a person Channel (channel_type 1).
+          ChannelMessageSyncRequest
+          Bounded committed-message recovery request for one visible channel.
+          additionalProperties false
+          login_uid `string` minLength: 1 Current user represented by the trusted backend; used for person-channel normalization and membership visibility.
+          channel_id `string` minLength: 1 For the person-channel quickstart, use the peer UID.
+          channel_type `integer` 0–255 The quickstart uses 1 for a person channel.
+          start_message_seq `integer` 0–∞; default: `0` Inclusive starting sequence when non-zero. With an end boundary of 0, a zero start selects the recent-page compatibility behavior.
+          end_message_seq `integer` 0–∞; default: `0` Exclusive ending sequence when non-zero. With a start boundary of 0, a zero end leaves the recent page without an upper bound.
+          limit `integer` 1–100; default: `100` Golden-path BFF bound; the compatible runtime has a broader internal cap.
+          pull_mode `integer` enum: `0`, `1`; default: `1` Direction selector: 0 pulls older messages; 1 pulls newer messages.
+          include_event_meta `integer` enum: `0`, `1`; default: `0` Set to 1 to request compact event metadata when available. The golden path uses 0.
+          event_summary_mode `string` default: `""` Compatibility event-summary selector. The golden path leaves it empty.
+          {"login_uid":"bob","channel_id":"alice","channel_type":1,"start_message_seq":0,"end_message_seq":0,"limit":100,"pull_mode":1,"include_event_meta":0,"event_summary_mode":""}
+          200 Bounded page of durable messages
+          ChannelMessageSyncResponse
+          One bounded page of committed messages in ascending sequence order.
+          start_message_seq `integer` 0–∞ Starting boundary echoed from the request.
+          end_message_seq `integer` 0–∞ Ending boundary echoed from the request.
+          more `integer` enum: `0`, `1` 1 means another bounded page may be available; advance the cursor before requesting it.
+          messages array<`SyncedMessage`> — Committed visible messages, ordered by message_seq ascending.
+          SyncedMessage
+          One committed message projected into the compatibility response shape.
+          header `MessageHeader` — Fixed message behavior flags.
+          setting `integer` 0–255 WKProto message-setting bitset; interpret it with the shared Message Flags dictionary.
+          message_id `integer:int64` — Numeric server message ID. JavaScript consumers should prefer message_idstr to avoid precision loss.
+          message_idstr `string` — Precision-safe decimal form of the server message ID; primary recovery deduplication key.
+          client_msg_no `string` — Client-generated message identifier used as the secondary deduplication key.
+          message_seq `integer` 0–∞ Committed sequence within the channel; responses are ordered by this value ascending.
+          from_uid `string` — UID of the message sender.
+          channel_id `string` — Visible channel identifier. Person-channel responses project the canonical ID back to the peer UID.
+          channel_type `integer` 0–255 Wire Channel Type; the golden path uses 1 for a person channel.
+          topic `string` — Optional compatibility topic.
+          expire `integer` 0–∞ Message expiration value from the compatibility response.
+          timestamp `integer:int32` — Server message timestamp.
+          payload `string` encoding: base64 Go JSON encoding of the wire payload bytes.
+          MessageHeader
+          Fixed message behavior flags.
+          no_persist `integer` enum: `0`, `1` 1 marks a non-persistent message.
+          red_dot `integer` enum: `0`, `1` 1 requests unread/red-dot treatment.
+          sync_once `integer` enum: `0`, `1` 1 marks a sync-once message.
+          400 Compatibility error envelope
+          ErrorEnvelope
+          msg `string` — Human-readable compatibility error message.
+          status `integer` 400–599 HTTP-compatible error status.
+          {"msg":"invalid request","status":400}
+          503 The cluster is behind the restore-maintenance fence; back off and observe /readyz
+          MaintenanceError
+          error `string` const: `"maintenance"` Machine-readable restore-maintenance category.
+          message `string` const: `"restore maintenance is active"` Current maintenance detail.
+          {"error":"maintenance","message":"restore maintenance is active"}
+---
+
+{/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
+
+export default function Layout(props) {
+  const { APIPage, OpenAPIPage } = props.components ?? {};
+  // "APIPage" is the old name from v10, this allows both for backward compatibility
+  const Comp = OpenAPIPage ?? APIPage;
+  return (
+    <>
+      {props.children}
+      <Comp document="wukongim-product-http-beta-en" operations={[{"path":"/channel/messagesync","method":"post"}]} showDescription />
+    </>
+  );
+}

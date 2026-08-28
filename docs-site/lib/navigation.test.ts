@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { isValidElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   domains,
   getAllNavigationEntries,
@@ -10,6 +11,7 @@ import {
   parseLocale,
 } from './navigation';
 import { buildLayoutTabs, buildPageTree } from './navigation-tree';
+import { productHTTPOpenAPIReferenceGroups } from './product-http-openapi';
 
 describe('documentation navigation contract', () => {
   test('exposes the agreed locales and documentation domains in order', () => {
@@ -361,11 +363,13 @@ describe('documentation navigation contract', () => {
         `/${locale}/api/authentication`,
         `/${locale}/api/compatibility`,
         `/${locale}/api/product-http`,
-        `/${locale}/api/product-http/users`,
-        `/${locale}/api/product-http/channels`,
-        `/${locale}/api/product-http/messages`,
-        `/${locale}/api/product-http/conversations`,
-        `/${locale}/api/product-http/routing`,
+        ...productHTTPOpenAPIReferenceGroups.flatMap((group) => [
+          `/${locale}/api/product-http/${group.slug}`,
+          ...group.operations.map(
+            (operation) =>
+              `/${locale}/api/product-http/${group.slug}/${operation.slug}`,
+          ),
+        ]),
         `/${locale}/api/product-http/errors`,
         `/${locale}/api/dictionaries`,
         `/${locale}/api/dictionaries/channel-types`,
@@ -429,6 +433,30 @@ describe('documentation navigation contract', () => {
       if (isValidElement(kubernetes.name)) {
         expect(kubernetes.name.key).toBe('planned:zh:Kubernetes 部署（Beta）');
       }
+    }
+  });
+
+  test('groups Product HTTP operations by tag and shows their methods', () => {
+    const tree = buildPageTree('en', 'api');
+    const productHTTP = tree.children.find(
+      (node) => node.type === 'folder' && node.index?.url === '/en/api/product-http',
+    );
+    expect(productHTTP?.type).toBe('folder');
+    if (productHTTP?.type !== 'folder') return;
+
+    const tagFolders = productHTTP.children.filter((node) => node.type === 'folder');
+    expect(tagFolders.map((folder) => folder.index?.url)).toEqual(
+      productHTTPOpenAPIReferenceGroups.map(
+        (group) => `/en/api/product-http/${group.slug}`,
+      ),
+    );
+    const users = tagFolders.find(
+      (folder) => folder.index?.url === '/en/api/product-http/users',
+    );
+    const operation = users?.children[0];
+    expect(operation?.type).toBe('page');
+    if (operation?.type === 'page' && isValidElement(operation.name)) {
+      expect(renderToStaticMarkup(operation.name)).toContain('POST');
     }
   });
 

@@ -7,7 +7,12 @@ import {
   type Locale,
 } from '../lib/navigation';
 import { getDomainPublicationCounts } from '../lib/navigation-tree';
-import { productHTTPManagementOpenAPIPages } from '../lib/openapi';
+import {
+  productHTTPManagementOpenAPIGroups,
+  productHTTPOpenAPIReferenceGroups,
+  productHTTPOpenAPIReferenceOperations,
+  type ProductHTTPOpenAPIOperation,
+} from '../lib/product-http-openapi';
 import { canonicalUrl, isPreviewBuild, siteUrl } from '../lib/shared';
 
 const out = new URL('../out/', import.meta.url);
@@ -297,8 +302,8 @@ export async function checkStaticOutput() {
   };
   const managementOpenAPIPaths = Object.keys(managementOpenAPI.paths ?? {});
   const expectedManagementOpenAPIOperations: Array<{ method: string; path: string }> = [];
-  for (const page of productHTTPManagementOpenAPIPages) {
-    expectedManagementOpenAPIOperations.push(...page.operations);
+  for (const group of productHTTPManagementOpenAPIGroups) {
+    expectedManagementOpenAPIOperations.push(...group.operations);
   }
   const expectedManagementOpenAPIPaths = expectedManagementOpenAPIOperations.map(
     (operation) => operation.path,
@@ -322,134 +327,89 @@ export async function checkStaticOutput() {
     }
   }
 
-  const openAPIPages = [
-    {
-      slug: 'users',
-      method: 'POST',
-      path: '/user/token',
-      requestBody: true,
-      field: '`device_flag`',
-    },
-    {
-      slug: 'routing',
-      method: 'GET',
-      path: '/route',
-      requestBody: false,
-      field: '`wss_addr`',
-    },
-    {
-      slug: 'messages',
-      method: 'POST',
-      path: '/channel/messagesync',
-      requestBody: true,
-      field: '`pull_mode`',
-    },
-  ] as const;
+  const operationFacts: Record<string, string[]> = {
+    setQuickstartUserToken: ['device_flag'],
+    getQuickstartGatewayRoute: ['wss_addr'],
+    syncQuickstartChannelMessages: ['pull_mode', '1–100'],
+    addChannelSubscribers: ['NonBlankUID'],
+    setTemporaryChannelSubscribers: ['uids'],
+    listConversations: [
+      'completed_coverage',
+      'ConversationListResponse',
+      'ConversationLastMessage',
+      'message_idstr',
+      'payload',
+      'tombstones_retained_since',
+    ],
+  };
+  function contractFacts(operation: ProductHTTPOpenAPIOperation) {
+    return [
+      ...(operationFacts[operation.slug] ?? []),
+      ...(operation.contract === 'management'
+        ? ['CompatibilityError', 'MaintenanceError', 'restore maintenance is active']
+        : []),
+    ];
+  }
   for (const locale of locales) {
-    for (const page of openAPIPages) {
-      const html = visibleHtml(
-        await text(`${locale}/api/product-http/${page.slug}/index.html`),
+    for (const group of productHTTPOpenAPIReferenceGroups) {
+      const indexHtml = visibleHtml(
+        await text(`${locale}/api/product-http/${group.slug}/index.html`),
       );
-      for (const fact of [page.method, page.path, page.field.slice(1, -1)]) {
-        if (!html.includes(fact)) {
-          throw new Error(
-            `${locale} Product HTTP ${page.slug} page is missing OpenAPI fact: ${fact}`,
-          );
+      for (const operation of group.operations) {
+        const href = `/${locale}/api/product-http/${group.slug}/${operation.slug}`;
+        if (!indexHtml.includes(href)) {
+          throw new Error(`${locale} Product HTTP ${group.slug} index is missing ${href}`);
         }
-      }
-      const requestBodyLabel = locale === 'zh' ? '请求主体' : 'Request Body';
-      const responseBodyLabel = locale === 'zh' ? '响应主体' : 'Response Body';
-      if (page.requestBody && !html.includes(requestBodyLabel)) {
-        throw new Error(`${locale} Product HTTP ${page.slug} is missing its request schema`);
-      }
-      if (!html.includes(responseBodyLabel)) {
-        throw new Error(`${locale} Product HTTP ${page.slug} is missing its response schema`);
-      }
-      if (/<form\b/i.test(html) || /<button\b[^>]*\btype=["']submit["']/i.test(html)) {
-        throw new Error(`${locale} Product HTTP ${page.slug} exposes an interactive playground`);
       }
 
-      const markdown = await text(
-        `llms.mdx/${locale}/api/product-http/${page.slug}/content.md`,
-      );
-      for (const fact of [`\`${page.method}\``, `\`${page.path}\``, page.field, '| `503` |']) {
-        if (!markdown.includes(fact)) {
-          throw new Error(
-            `${locale} Product HTTP ${page.slug} Markdown is missing OpenAPI fact: ${fact}`,
-          );
-        }
+      if (indexHtml.includes('Request Body') || indexHtml.includes('请求主体')) {
+        throw new Error(`${locale} Product HTTP ${group.slug} index is not concise`);
       }
-      if (page.slug === 'messages' && !markdown.includes('1–100')) {
-        throw new Error(`${locale} Product HTTP messages Markdown lost the limit constraint`);
+      const indexMarkdown = await text(
+        `llms.mdx/${locale}/api/product-http/${group.slug}/content.md`,
+      );
+      const normalizedIndexMarkdown = indexMarkdown.replaceAll('\\_', '_');
+      for (const deferral of group.deferrals?.items ?? []) {
+        for (const fact of [...deferral.routes, deferral.reason[locale]]) {
+          if (!indexHtml.includes(fact) || !normalizedIndexMarkdown.includes(fact)) {
+            throw new Error(
+              `${locale} Product HTTP ${group.slug} index is missing deferral: ${fact}`,
+            );
+          }
+        }
       }
     }
-  }
 
-  const managementOpenAPIPages = [
-    {
-      slug: 'channels',
-      facts: ['/channel', '/tmpchannel/subscriber_set', 'temp_subscriber'],
-      schemaFacts: [
-        'NonBlankUID',
-        'CompatibilityError',
-        'MaintenanceError',
-        'restore maintenance is active',
-      ],
-    },
-    {
-      slug: 'conversations',
-      facts: ['/conversation/list', '/conversations/activate', 'completed_coverage'],
-      schemaFacts: [
-        'ConversationListResponse',
-        'ConversationLastMessage',
-        'message_idstr',
-        'payload',
-        'tombstones_retained_since',
-        'CompatibilityError',
-        'MaintenanceError',
-        'restore maintenance is active',
-      ],
-    },
-  ] as const;
-  for (const locale of locales) {
-    for (const page of managementOpenAPIPages) {
-      const pageHtml = await text(`${locale}/api/product-http/${page.slug}/index.html`);
-      const html = visibleHtml(pageHtml);
-      for (const fact of ['POST', ...page.facts]) {
+    for (const operation of productHTTPOpenAPIReferenceOperations) {
+      const route = `${locale}/api/product-http/${operation.groupSlug}/${operation.slug}`;
+      const html = visibleHtml(await text(`${route}/index.html`));
+      for (const fact of [operation.method.toUpperCase(), operation.path]) {
         if (!html.includes(fact)) {
-          throw new Error(
-            `${locale} Product HTTP ${page.slug} page is missing management OpenAPI fact: ${fact}`,
-          );
-        }
-      }
-      for (const fact of [...page.schemaFacts, '\\"400\\"', '\\"503\\"']) {
-        if (!pageHtml.includes(fact)) {
-          throw new Error(
-            `${locale} Product HTTP ${page.slug} HTML is missing embedded OpenAPI fact: ${fact}`,
-          );
+          throw new Error(`${route} page is missing OpenAPI fact: ${fact}`);
         }
       }
       const requestBodyLabel = locale === 'zh' ? '请求主体' : 'Request Body';
       const responseBodyLabel = locale === 'zh' ? '响应主体' : 'Response Body';
-      if (!html.includes(requestBodyLabel) || !html.includes(responseBodyLabel)) {
-        throw new Error(`${locale} Product HTTP ${page.slug} lost its management schemas`);
+      if (operation.path !== '/route' && !html.includes(requestBodyLabel)) {
+        throw new Error(`${route} is missing its request schema`);
+      }
+      if (!html.includes(responseBodyLabel)) {
+        throw new Error(`${route} is missing its response schema`);
       }
       if (/<form\b/i.test(html) || /<button\b[^>]*\btype=["']submit["']/i.test(html)) {
-        throw new Error(`${locale} Product HTTP ${page.slug} exposes an interactive playground`);
+        throw new Error(`${route} exposes an interactive playground`);
       }
 
-      const markdown = await text(
-        `llms.mdx/${locale}/api/product-http/${page.slug}/content.md`,
-      );
-      for (const fact of [...page.facts, ...page.schemaFacts]) {
+      const markdown = await text(`llms.mdx/${route}/content.md`);
+      for (const fact of [
+        `\`${operation.method.toUpperCase()}\``,
+        `\`${operation.path}\``,
+        ...contractFacts(operation),
+        '| `503` |',
+      ]) {
         if (!markdown.includes(fact)) {
-          throw new Error(
-            `${locale} Product HTTP ${page.slug} Markdown is missing management OpenAPI fact: ${fact}`,
-          );
+          throw new Error(`${route} Markdown is missing OpenAPI fact: ${fact}`);
         }
-      }
-      if (!markdown.includes('| `503` |')) {
-        throw new Error(`${locale} Product HTTP ${page.slug} Markdown lost maintenance`);
       }
     }
 
@@ -654,27 +614,34 @@ export async function checkStaticOutput() {
       throw new Error(`${locale} search index contains a planned page`);
     }
     const indexedDocuments = Object.values(search.data[locale]?.docs?.docs ?? {});
-    for (const page of openAPIPages) {
-      const pageId = `/${locale}/api/product-http/${page.slug}`;
-      if (
-        !indexedDocuments.some(
-          (document) =>
-            document.page_id === pageId && document.content?.includes(page.path),
-        )
-      ) {
-        throw new Error(`${locale} search index is missing OpenAPI path for ${pageId}`);
+    for (const group of productHTTPOpenAPIReferenceGroups) {
+      const pageId = `/${locale}/api/product-http/${group.slug}`;
+      for (const deferral of group.deferrals?.items ?? []) {
+        for (const fact of [...deferral.routes, deferral.reason[locale]]) {
+          if (
+            !indexedDocuments.some(
+              (document) =>
+                document.page_id === pageId &&
+                document.content?.replaceAll('\\_', '_').includes(fact),
+            )
+          ) {
+            throw new Error(
+              `${locale} search index is missing deferral for ${pageId}: ${fact}`,
+            );
+          }
+        }
       }
     }
-    for (const page of managementOpenAPIPages) {
-      const pageId = `/${locale}/api/product-http/${page.slug}`;
-      for (const fact of [...page.facts, ...page.schemaFacts]) {
+    for (const operation of productHTTPOpenAPIReferenceOperations) {
+      const pageId = `/${locale}/api/product-http/${operation.groupSlug}/${operation.slug}`;
+      for (const fact of [operation.path, ...contractFacts(operation)]) {
         if (
           !indexedDocuments.some(
             (document) => document.page_id === pageId && document.content?.includes(fact),
           )
         ) {
           throw new Error(
-            `${locale} search index is missing management OpenAPI fact for ${pageId}: ${fact}`,
+            `${locale} search index is missing OpenAPI fact for ${pageId}: ${fact}`,
           );
         }
       }
@@ -694,8 +661,17 @@ export async function checkStaticOutput() {
     { path: `${locale}/guide/integration/acceptance/index.html`, locale },
     { path: `${locale}/api/dictionaries/message-flags/index.html`, locale },
     { path: `${locale}/api/product-http/users/index.html`, locale },
+    {
+      path: `${locale}/api/product-http/users/setQuickstartUserToken/index.html`,
+      locale,
+    },
     { path: `${locale}/api/product-http/channels/index.html`, locale },
+    { path: `${locale}/api/product-http/channels/upsertChannel/index.html`, locale },
     { path: `${locale}/api/product-http/conversations/index.html`, locale },
+    {
+      path: `${locale}/api/product-http/conversations/listConversations/index.html`,
+      locale,
+    },
   ]);
   for (const critical of criticalPages) {
     const html = await text(critical.path);
@@ -706,8 +682,11 @@ export async function checkStaticOutput() {
     if (critical.path === `${critical.locale}/index.html`) continue;
     const feedbackLabel = critical.locale === 'zh' ? '报告文档问题' : 'Report a docs issue';
     const editLabel = critical.locale === 'zh' ? '编辑此页' : 'Edit this page';
-    const editSource = critical.path.includes('/api/product-http/')
-      ? 'https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/content/openapi/product-http/'
+    const openAPIGroup = productHTTPOpenAPIReferenceGroups.find((group) =>
+      critical.path.includes(`/api/product-http/${group.slug}/`),
+    );
+    const editSource = openAPIGroup
+      ? `https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/contracts/${openAPIGroup.contract === 'management' ? 'product-http-management.openapi.json' : 'javascript-web-quickstart.openapi.json'}`
       : 'https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/content/docs/';
     if (
       !html.includes(feedbackLabel) ||

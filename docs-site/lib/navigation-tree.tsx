@@ -4,9 +4,11 @@ import {
   domains,
   getAllNavigationEntries,
   getIndexedNavigationEntries,
+  isNavigationGroup,
   navigationPathSegments,
   type DocumentationDomain,
   type Locale,
+  type NavigationNode,
 } from './navigation';
 
 export interface DomainPublicationCounts {
@@ -46,12 +48,71 @@ function pageNode(
   name: string,
   description: string,
   planned: boolean,
+  method?: string,
 ): PageTree.Item {
+  const nameLabel = label(name, planned, locale);
+  const methodColor =
+    method === 'POST'
+      ? 'text-blue-600 dark:text-blue-400'
+      : method === 'DELETE'
+        ? 'text-red-600 dark:text-red-400'
+        : method === 'PUT'
+          ? 'text-yellow-600 dark:text-yellow-400'
+          : method === 'PATCH'
+            ? 'text-orange-600 dark:text-orange-400'
+            : 'text-green-600 dark:text-green-400';
   return {
     type: 'page',
-    name: label(name, planned, locale),
+    name: method ? (
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate">{nameLabel}</span>
+        <span className={`ms-auto font-mono text-xs font-medium text-nowrap ${methodColor}`}>
+          {method}
+        </span>
+      </span>
+    ) : (
+      nameLabel
+    ),
     description,
     url: `/${[locale, domain.key, ...slugs].join('/')}`,
+  };
+}
+
+function navigationNode(
+  locale: Locale,
+  domain: DocumentationDomain,
+  node: NavigationNode,
+  parentSlugs: string[],
+): PageTree.Node {
+  const slugs = [...parentSlugs, ...navigationPathSegments(node.slug)];
+  if (!isNavigationGroup(node)) {
+    return pageNode(
+      locale,
+      domain,
+      slugs,
+      node.label[locale],
+      node.description[locale],
+      node.status === 'planned',
+      node.method,
+    );
+  }
+
+  return {
+    type: 'folder',
+    name: label(node.label[locale], node.status === 'planned', locale),
+    description: node.description[locale],
+    defaultOpen: false,
+    index: pageNode(
+      locale,
+      domain,
+      slugs,
+      node.label[locale],
+      node.description[locale],
+      node.status === 'planned',
+    ),
+    children: node.children.map((child) =>
+      navigationNode(locale, domain, child, slugs),
+    ),
   };
 }
 
@@ -87,32 +148,7 @@ export function buildPageTree(
     );
   }
 
-  for (const group of domain.groups) {
-    children.push({
-      type: 'folder',
-      name: label(group.label[locale], group.status === 'planned', locale),
-      description: group.description[locale],
-      defaultOpen: false,
-      index: pageNode(
-        locale,
-        domain,
-        [group.slug],
-        group.label[locale],
-        group.description[locale],
-        group.status === 'planned',
-      ),
-      children: group.children.map((page) =>
-        pageNode(
-          locale,
-          domain,
-          [group.slug, ...navigationPathSegments(page.slug)],
-          page.label[locale],
-          page.description[locale],
-          page.status === 'planned',
-        ),
-      ),
-    });
-  }
+  children.push(...domain.groups.map((group) => navigationNode(locale, domain, group, [])));
 
   return {
     type: 'root',
