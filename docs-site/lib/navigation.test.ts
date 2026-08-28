@@ -257,6 +257,34 @@ describe('documentation navigation contract', () => {
     ).toBe('planned');
   });
 
+  test('publishes the Phase 17 message-send and client-protocol baseline only', () => {
+    expect(
+      getNavigationEntry('en', 'api', [
+        'product-http',
+        'message-send',
+        'sendChannelMessage',
+      ])?.status,
+    ).toBe('published');
+    expect(getNavigationEntry('en', 'api', ['client-protocols'])?.status).toBe(
+      'published',
+    );
+    for (const page of ['connection-lifecycle', 'packet-types']) {
+      expect(getNavigationEntry('en', 'api', ['client-protocols', page])?.status).toBe(
+        'published',
+      );
+    }
+    for (const page of ['tcp-binary', 'json-rpc', 'encryption']) {
+      expect(getNavigationEntry('en', 'api', ['client-protocols', page])?.status).toBe(
+        'planned',
+      );
+    }
+    for (const page of ['openapi', 'json-rpc-schema', 'protocol-changelog']) {
+      expect(getNavigationEntry('en', 'api', ['specifications', page])?.status).toBe(
+        'planned',
+      );
+    }
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -371,6 +399,9 @@ describe('documentation navigation contract', () => {
           ),
         ]),
         `/${locale}/api/product-http/errors`,
+        `/${locale}/api/client-protocols`,
+        `/${locale}/api/client-protocols/connection-lifecycle`,
+        `/${locale}/api/client-protocols/packet-types`,
         `/${locale}/api/dictionaries`,
         `/${locale}/api/dictionaries/channel-types`,
         `/${locale}/api/dictionaries/device-flags`,
@@ -529,6 +560,15 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/architecture/message-flow.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/architecture/user-routing.mdx')).toBe(true);
     expect(isPublishedContentPath('server/architecture/user-routing.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/client-protocols/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/client-protocols/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/client-protocols/connection-lifecycle.mdx')).toBe(
+      true,
+    );
+    expect(isPublishedContentPath('api/client-protocols/packet-types.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/client-protocols/tcp-binary.mdx')).toBe(false);
+    expect(isPublishedContentPath('api/client-protocols/json-rpc.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('api/client-protocols/encryption.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/index.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(true);

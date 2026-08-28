@@ -930,8 +930,8 @@ export const domains: DocumentationDomain[] = [
     key: 'api',
     label: text('API 与协议', 'API & Protocols'),
     description: text(
-      '查阅已校准的 HTTP API、公共字典，以及规划中的 Webhook 与客户端协议。',
-      'Reference calibrated HTTP APIs and shared dictionaries, plus planned webhooks and client protocols.',
+      '查阅已校准的 HTTP API、客户端协议核心与公共字典，以及规划中的 Webhook。',
+      'Reference calibrated HTTP APIs, the client-protocol core, and shared dictionaries, plus planned webhooks.',
     ),
     status: 'published',
     pages: [
@@ -1026,19 +1026,26 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'client-protocols',
         '客户端协议',
         'Client Protocols',
-        '说明 TCP 二进制协议与 WebSocket JSON-RPC。',
-        'Documents the TCP binary protocol and WebSocket JSON-RPC.',
+        '说明当前连接生命周期与 WKProto 数据包范围。',
+        'Documents the current connection lifecycle and WKProto packet scope.',
         [
-          plannedPage(
+          publishedPage(
             'connection-lifecycle',
             '连接生命周期',
             'Connection Lifecycle',
-            '说明 Connect、认证、心跳、断开和重连。',
-            'Covers connect, authentication, heartbeat, disconnect, and reconnect.',
+            '说明 CONNECT 认证、CONNACK、心跳、关闭和恢复边界。',
+            'Covers CONNECT authentication, CONNACK, heartbeat, close, and recovery boundaries.',
+          ),
+          publishedPage(
+            'packet-types',
+            '数据包类型',
+            'Packet Types',
+            '列出当前 Frame Type、方向、支持范围和版本差异。',
+            'Lists current Frame Types, directions, support scope, and version differences.',
           ),
           plannedPage(
             'tcp-binary',
@@ -1053,13 +1060,6 @@ export const domains: DocumentationDomain[] = [
             'WebSocket JSON-RPC',
             '定义方法、参数、结果、通知和请求关联。',
             'Defines methods, parameters, results, notifications, and request correlation.',
-          ),
-          plannedPage(
-            'packet-types',
-            '数据包类型',
-            'Packet Types',
-            '说明 Connect、Send、Recv、Ack 和 Ping/Pong 字段。',
-            'Documents Connect, Send, Recv, Ack, and Ping/Pong fields.',
           ),
           plannedPage(
             'encryption',

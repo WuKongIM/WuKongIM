@@ -1,4 +1,5 @@
 import managementDocument from '../contracts/product-http-management.openapi.json';
+import messagingDocument from '../contracts/product-http-messaging.openapi.json';
 import goldenPathDocument from '../contracts/javascript-web-quickstart.openapi.json';
 import { describe, expect, test } from 'bun:test';
 
@@ -15,9 +16,22 @@ const readerPages = [
   '../content/docs/api/product-http/index.en.mdx',
   '../content/docs/api/product-http/errors.mdx',
   '../content/docs/api/product-http/errors.en.mdx',
+  '../content/docs/api/client-protocols/index.mdx',
+  '../content/docs/api/client-protocols/index.en.mdx',
+  '../content/docs/api/client-protocols/connection-lifecycle.mdx',
+  '../content/docs/api/client-protocols/connection-lifecycle.en.mdx',
+  '../content/docs/api/client-protocols/packet-types.mdx',
+  '../content/docs/api/client-protocols/packet-types.en.mdx',
 ] as const;
 
-const tagIndexes = ['users', 'routing', 'messages', 'channels', 'conversations'] as const;
+const tagIndexes = [
+  'users',
+  'routing',
+  'messages',
+  'message-send',
+  'channels',
+  'conversations',
+] as const;
 
 const boilerplateHeadings = [
   '## 目标与完成标准',
@@ -56,7 +70,7 @@ describe('API copy concision', () => {
 
     for (const page of pages) {
       for (const heading of boilerplateHeadings) expect(page).not.toContain(heading);
-      expect(page).not.toMatch(/Phase (12|16)/);
+      expect(page).not.toMatch(/Phase (12|16|17)/);
     }
   });
 
@@ -70,13 +84,17 @@ describe('API copy concision', () => {
         expect(index).toContain('<Cards>');
         expect(index).not.toContain('operations={[');
         for (const heading of boilerplateHeadings) expect(index).not.toContain(heading);
-        expect(index).not.toMatch(/Phase (12|16)/);
+        expect(index).not.toMatch(/Phase (12|16|17)/);
       }
     }
   });
 
   test('keeps OpenAPI operation descriptions scannable', () => {
-    const documents = [goldenPathDocument, managementDocument] as unknown as ConciseDocument[];
+    const documents = [
+      goldenPathDocument,
+      managementDocument,
+      messagingDocument,
+    ] as unknown as ConciseDocument[];
 
     for (const document of documents) {
       expect(document.info.description.length).toBeLessThanOrEqual(180);

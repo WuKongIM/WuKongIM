@@ -5,7 +5,7 @@ description: Reference user, route, message, Channel, and Conversation operation
 
 Product HTTP provides basic integration and trusted-management operations. The current documentation covers only the operations listed below.
 
-OpenAPI: [basic integration contract](/contracts/javascript-web-quickstart.openapi.json) · [Channel and Conversation contract](/contracts/product-http-management.openapi.json)
+OpenAPI: [basic integration](/contracts/javascript-web-quickstart.openapi.json) · [message sending](/contracts/product-http-messaging.openapi.json) · [Channel and Conversation](/contracts/product-http-management.openapi.json)
 
 <Callout type="error" title="Trusted backends only">
   Product HTTP has no general business authentication. Restrict network reachability and provide authentication, authorization, limits, and audit at an API Gateway, service mesh, or product backend.
@@ -17,6 +17,7 @@ OpenAPI: [basic integration contract](/contracts/javascript-web-quickstart.opena
   <Card title="User Token" description="POST /user/token stores device-token metadata." href="/en/api/product-http/users" />
   <Card title="Route Discovery" description="GET /route returns client TCP and WebSocket ingress." href="/en/api/product-http/routing" />
   <Card title="Message Sync" description="POST /channel/messagesync recovers committed messages." href="/en/api/product-http/messages" />
+  <Card title="Message Sending" description="POST /message/send submits ordinary persistent messages." href="/en/api/product-http/message-send" />
   <Card title="Channels" description="Manage Channels, subscribers, and allow or deny lists." href="/en/api/product-http/channels" />
   <Card title="Conversations" description="List, retry, unread, hide, and activate Conversations." href="/en/api/product-http/conversations" />
   <Card title="Error Responses" description="HTTP status, error bodies, and retry guidance." href="/en/api/product-http/errors" />
@@ -26,4 +27,4 @@ OpenAPI: [basic integration contract](/contracts/javascript-web-quickstart.opena
 
 <GoldenPathContract locale="en" />
 
-Realtime message send and receive use the SDK and Gateway. Product HTTP operations absent from the current OpenAPI contracts are outside the published scope.
+Realtime client send and receive use the SDK and Gateway. Product HTTP operations absent from these three OpenAPI contracts are outside the published scope.

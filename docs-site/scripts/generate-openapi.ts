@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createProductHTTPManagementOpenAPI,
+  createProductHTTPMessagingOpenAPI,
   createProductHTTPOpenAPI,
 } from '../lib/openapi';
 import { getOpenAPISearchStructuredData } from '../lib/openapi-markdown';
@@ -23,6 +24,20 @@ if (mode !== '--check' && mode !== '--write') {
 
 function groupsFor(contract: ProductHTTPOpenAPIContract) {
   return productHTTPOpenAPIReferenceGroups.filter((group) => group.contract === contract);
+}
+
+function openAPIFor(
+  contract: ProductHTTPOpenAPIContract,
+  locale: ProductHTTPOpenAPILocale,
+) {
+  switch (contract) {
+    case 'golden-path':
+      return createProductHTTPOpenAPI(locale);
+    case 'management':
+      return createProductHTTPManagementOpenAPI(locale);
+    case 'messaging':
+      return createProductHTTPMessagingOpenAPI(locale);
+  }
 }
 
 function localizedSuffix(locale: ProductHTTPOpenAPILocale) {
@@ -66,12 +81,12 @@ async function generatedContractFiles(
   }
 
   const files = await generateFilesOnly({
-    input:
-      contract === 'golden-path'
-        ? createProductHTTPOpenAPI(locale)
-        : createProductHTTPManagementOpenAPI(locale),
+    input: openAPIFor(contract, locale),
     per: 'operation',
     groupBy: 'tag',
+    slugify(name) {
+      return groups.find((group) => group.tag === name)?.slug ?? name.replace(/\s+/g, '-').toLowerCase();
+    },
     includeDescription: true,
     addGeneratedComment: true,
     name(output) {
@@ -146,7 +161,7 @@ async function generatedContractFiles(
 const files = (
   await Promise.all(
     (['zh', 'en'] as const).flatMap((locale) =>
-      (['golden-path', 'management'] as const).map((contract) =>
+      (['golden-path', 'management', 'messaging'] as const).map((contract) =>
         generatedContractFiles(contract, locale),
       ),
     ),

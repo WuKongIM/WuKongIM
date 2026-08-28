@@ -14,9 +14,9 @@ It also owns the SDK chooser and official-source directory, source-aligned
 WuKongEasySDK tutorials for iOS, Android, Flutter, and Web, the narrow
 JavaScript Web golden-path laboratory, its generated compatibility/OpenAPI
 artifacts and Fumadocs operation pages, platform-neutral SDK behavior guides,
-the source-calibrated Product HTTP Channel/Conversation management subset, and
-source-checked protocol dictionaries. It does not define product runtime
-behavior or replace authoritative code contracts. The JavaScript laboratory
+the source-calibrated Product HTTP management and message-send subsets,
+source-checked protocol dictionaries, and the published WKProto lifecycle and
+Frame Type baseline. It does not define runtime behavior or replace code contracts. The JavaScript laboratory
 also owns a bounded local integration-acceptance report. The report identifies
 its harness and observed installed SDK, proves only its compatibility smoke,
 and leaves the tested cluster source and production readiness unassessed.
@@ -51,12 +51,11 @@ and leaves the tested cluster source and production readiness unassessed.
    Types, Device Flags / Levels, Message Flags, build identity, SDK/runtime
    pins, and the three-endpoint Product HTTP Beta subset into both human pages
    and machine-readable outputs.
-6. `scripts/generate-openapi.ts` turns two bounded OpenAPI 3.1 contracts into
-   48 tracked Fumadocs pages: 38 bilingual one-operation variants and ten
-   concise tag indexes. The navigation mirrors the official tag-to-operation
-   hierarchy and shows the HTTP method beside each operation. Static rendering preloads both exact contracts,
-   disables the HTTP playground, and exposes only contract-owned
-   trusted-backend examples.
+6. `scripts/generate-openapi.ts` turns three bounded OpenAPI 3.1 contracts into
+   52 tracked Fumadocs pages: 40 bilingual one-operation variants and 12 concise
+   tag indexes. Navigation mirrors the tag hierarchy and HTTP methods; static
+   rendering preloads all three contracts, disables the playground, and uses
+   only contract-owned trusted-backend examples.
 7. `examples/javascript-web-quickstart/` runs a loopback-only Node.js BFF and one
    isolated SDK singleton per browser context; its opt-in E2E scenario supplies
    the real single-node cluster/Chromium verification evidence and can write a
@@ -108,14 +107,18 @@ and leaves the tested cluster source and production readiness unassessed.
   than granting anonymous access. Weakly validated Channel operations, the
   unbounded allowlist read, and legacy `/conversation/sync` remain explicitly
   deferred.
+- The message-send contract publishes only ordinary persistent `POST
+  /message/send` with five canonical required fields. Legacy aliases,
+  request-scoped subscribers, and transient flags remain outside it. `security:
+  []` records missing built-in authentication, so it is trusted-backend-only.
 - Golden-path verification attests only the fixed three-operation whitelist and
   receipt tuple. Phase 16 corrects the shared restore-maintenance response
   Schema without expanding that scope. Source alignment and entry/use-case
   tests calibrate the separate management contract; they are not a scenario
   receipt.
-- Fumadocs OpenAPI applies only to published Product HTTP operations. TCP
-  binary frames, WKProto lifecycle, JSON-RPC, and shared protocol dictionaries
-  remain protocol-specific content and MUST NOT be modeled as fake HTTP paths.
+- Fumadocs OpenAPI applies only to Product HTTP. WKProto lifecycle, Frame Types,
+  TCP framing, JSON-RPC, encryption, and dictionaries MUST NOT become fake HTTP
+  paths. Lifecycle and Frame Types are published; the rest remain planned.
 - The static API reference keeps its playground disabled. Generated request
   examples come only from reviewed `x-codeSamples` that state the trusted
   backend boundary.
@@ -134,8 +137,7 @@ and leaves the tested cluster source and production readiness unassessed.
 ## Read First
 
 - [Navigation registry](lib/navigation.ts)
-- [Phase 15 EasySDK specification](PHASE_15_SPEC.md)
-- [Phase 16 Product HTTP management specification](PHASE_16_SPEC.md)
+- [Phase 17 API and client-protocol specification](PHASE_17_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
 - [OpenAPI page generator](scripts/generate-openapi.ts)
 

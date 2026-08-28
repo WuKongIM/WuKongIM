@@ -1,5 +1,6 @@
 import openapiDocument from '../contracts/javascript-web-quickstart.openapi.json';
 import managementOpenAPIDocument from '../contracts/product-http-management.openapi.json';
+import messagingOpenAPIDocument from '../contracts/product-http-messaging.openapi.json';
 import { createOpenAPI } from 'fumadocs-openapi/server';
 import {
   localizeOpenAPIDocument,
@@ -28,6 +29,15 @@ export const productHTTPManagementOpenAPIDocumentIds = {
   en: `${productHTTPManagementOpenAPIDocumentId}-en`,
 } as const;
 
+/** Stable schema ID embedded into the generated message-sending pages. */
+export const productHTTPMessagingOpenAPIDocumentId =
+  'wukongim-product-http-messaging-beta';
+
+export const productHTTPMessagingOpenAPIDocumentIds = {
+  zh: `${productHTTPMessagingOpenAPIDocumentId}-zh`,
+  en: `${productHTTPMessagingOpenAPIDocumentId}-en`,
+} as const;
+
 function localizedDocument(locale: ProductHTTPOpenAPILocale) {
   return localizeOpenAPIDocument(openapiDocument, locale) as unknown as OpenAPISchemaRecord[string];
 }
@@ -35,6 +45,13 @@ function localizedDocument(locale: ProductHTTPOpenAPILocale) {
 function localizedManagementDocument(locale: ProductHTTPOpenAPILocale) {
   return localizeOpenAPIDocument(
     managementOpenAPIDocument,
+    locale,
+  ) as unknown as OpenAPISchemaRecord[string];
+}
+
+function localizedMessagingDocument(locale: ProductHTTPOpenAPILocale) {
+  return localizeOpenAPIDocument(
+    messagingOpenAPIDocument,
     locale,
   ) as unknown as OpenAPISchemaRecord[string];
 }
@@ -58,12 +75,24 @@ export function createProductHTTPManagementOpenAPI(locale: ProductHTTPOpenAPILoc
   });
 }
 
-/** Server-only loader for all published golden-path and management OpenAPI pages. */
+/** Creates the one-locale source used by deterministic message-page generation. */
+export function createProductHTTPMessagingOpenAPI(locale: ProductHTTPOpenAPILocale) {
+  return createOpenAPI({
+    input: {
+      [productHTTPMessagingOpenAPIDocumentIds[locale]]:
+        localizedMessagingDocument(locale),
+    },
+  });
+}
+
+/** Server-only loader for every published Product HTTP OpenAPI page. */
 export const openapi = createOpenAPI({
   input: {
     [productHTTPOpenAPIDocumentIds.zh]: localizedDocument('zh'),
     [productHTTPOpenAPIDocumentIds.en]: localizedDocument('en'),
     [productHTTPManagementOpenAPIDocumentIds.zh]: localizedManagementDocument('zh'),
     [productHTTPManagementOpenAPIDocumentIds.en]: localizedManagementDocument('en'),
+    [productHTTPMessagingOpenAPIDocumentIds.zh]: localizedMessagingDocument('zh'),
+    [productHTTPMessagingOpenAPIDocumentIds.en]: localizedMessagingDocument('en'),
   },
 });

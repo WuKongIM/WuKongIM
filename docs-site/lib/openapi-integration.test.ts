@@ -101,7 +101,7 @@ describe('Fumadocs OpenAPI integration', () => {
     expect(page).toContain('openapi.preloadOpenAPIPage(page)');
     expect(page).toContain('OpenAPIPage: async');
     expect(page).toContain('page.data._openapi');
-    expect(page).toContain('docs-site/contracts/');
+    expect(page).toContain('productHTTPOpenAPIContractFiles');
     expect(component).toContain('createOpenAPIPage');
     expect(component).toContain('playground: { enabled: false }');
     expect(component).toContain('createCodeUsageGeneratorRegistry()');

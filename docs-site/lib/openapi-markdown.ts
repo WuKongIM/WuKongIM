@@ -1,9 +1,12 @@
 import openapiDocument from '../contracts/javascript-web-quickstart.openapi.json';
 import managementOpenAPIDocument from '../contracts/product-http-management.openapi.json';
+import messagingOpenAPIDocument from '../contracts/product-http-messaging.openapi.json';
 import type { Locale } from './navigation';
 import {
   localizeOpenAPIDocument,
+  productHTTPOpenAPIContractFiles,
   productHTTPOpenAPIReferenceOperations,
+  type ProductHTTPOpenAPIContract,
 } from './product-http-openapi';
 
 interface SchemaObject {
@@ -303,31 +306,40 @@ function resolvePublishedPage(locale: Locale, slugs: readonly string[]) {
     (operation) => operation.groupSlug === slugs[2] && operation.slug === slugs[3],
   );
   if (!publishedOperation) return undefined;
-  const management = publishedOperation.contract === 'management';
+  const documents = {
+    'golden-path': openapiDocument,
+    management: managementOpenAPIDocument,
+    messaging: messagingOpenAPIDocument,
+  } satisfies Record<ProductHTTPOpenAPIContract, unknown>;
+  const scope = {
+    'golden-path': {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
+    },
+    management: {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.',
+    },
+    messaging: {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举消息发送 Beta 子集合同；该无内建鉴权的 Product HTTP 入口只能由受信后端调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive message-sending Beta subset contract. This Product HTTP route has no built-in authentication and is callable only from a trusted backend.',
+    },
+  } satisfies Record<ProductHTTPOpenAPIContract, Record<Locale, string>>;
+  const labels = {
+    'golden-path': { zh: '黄金路径子集', en: 'golden-path subset' },
+    management: { zh: '管理子集', en: 'management subset' },
+    messaging: { zh: '消息发送子集', en: 'message-sending subset' },
+  } satisfies Record<ProductHTTPOpenAPIContract, Record<Locale, string>>;
+  const contract = publishedOperation.contract;
   return {
     document: localizeOpenAPIDocument(
-      management ? managementOpenAPIDocument : openapiDocument,
+      documents[contract],
       locale,
     ) as unknown as ContractDocument,
     operations: [publishedOperation],
-    scope:
-      management
-        ? locale === 'zh'
-          ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。'
-          : 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.'
-        : locale === 'zh'
-          ? '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。'
-          : 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
-    contractPath: management
-      ? '/contracts/product-http-management.openapi.json'
-      : '/contracts/javascript-web-quickstart.openapi.json',
-    contractLabel: management
-      ? locale === 'zh'
-        ? '管理子集'
-        : 'management subset'
-      : locale === 'zh'
-        ? '黄金路径子集'
-        : 'golden-path subset',
+    scope: scope[contract][locale],
+    contractPath: productHTTPOpenAPIContractFiles[contract].download,
+    contractLabel: labels[contract][locale],
   };
 }
 

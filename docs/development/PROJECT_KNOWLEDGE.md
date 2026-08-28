@@ -397,12 +397,14 @@
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs.
 - `docs-site` is a Bun-managed Fumadocs/Next.js static export. Phase 1 does not deploy it, cut over DNS, migrate legacy page bodies, or publish the known-stale v2 OpenAPI document as v3 reference.
-- The only published v3 Product HTTP OpenAPI is the bounded JavaScript/Web
-  golden-path contract for `POST /user/token`, `GET /route`, and
-  `POST /channel/messagesync`. Fumadocs operation pages are deterministically
-  generated from that contract plus bilingual supplements, and their static
-  request playground remains disabled. TCP/WKProto, JSON-RPC, and protocol
-  dictionaries must not be represented as fake OpenAPI paths.
+- Published v3 Product HTTP reference pages are generated per operation and tag
+  from three bounded OpenAPI contracts: the JavaScript/Web golden path,
+  reviewed Channel/Conversation management, and ordinary persistent message
+  send. Their static request playground remains disabled. WKProto, JSON-RPC,
+  and protocol dictionaries are protocol content and must never be represented
+  as fake OpenAPI paths. The public WKProto baseline covers the authenticated
+  connection lifecycle and the complete Frame Type catalog; exact byte layout,
+  JSON-RPC, and encryption details remain planned.
 - Phase 5 configuration reference pages are checked against every public field returned by `internal/config.SchemaFields()` in both locales. `wukongim.toml.example` is a loadable development baseline, not a promise that its explicit values are runtime defaults for omitted fields.
 - Phase 6 public operations guidance treats Manager as a privileged boundary,
   distinguishes `/healthz` liveness from `/readyz` admission, keeps dynamic
@@ -598,6 +600,13 @@
 - Typed Raft receive services must preserve message order from each stable peer connection; concurrent handling can apply a later Heartbeat before its earlier Append and advance commit beyond the follower log.
 - Public v3 developer documentation has one reproducible JavaScript Web golden path: browser contexts use `wukongimjssdk@1.3.5` only for Gateway traffic, while a loopback-only Node.js BFF owns the non-exhaustive Product HTTP Beta subset `/user/token`, `/route`, and `/channel/messagesync`. Its compatibility artifact pins source, lockfile, Node.js, Playwright, and Chromium identity; only the opt-in real single-node cluster/Chromium E2E may attest the snapshot as verified, and this development path is not production authentication.
 - Public Product HTTP management documentation uses a second, non-exhaustive OpenAPI contract for exactly ten reviewed Channel mutations and six canonical Conversation operations. Those routes have no built-in business authentication: `security: []` records runtime truth and never grants anonymous access. The contract is calibrated against current entries, DTOs, use cases, and tests but is outside the three-operation golden-path receipt. The golden operation whitelist and receipt tuple stay fixed even when their shared restore-maintenance `503` Schema is corrected to the runtime `{error,message}` body. Weakly validated Channel info/delete/remove/set routes, the unbounded allowlist read, and legacy `/conversation/sync` stay explicitly unpublished rather than inheriting claims from the stale v2 OpenAPI.
+- Public Product HTTP message-send documentation uses a third, non-exhaustive
+  OpenAPI contract for only ordinary persistent `POST /message/send`. Its
+  request requires `from_uid`, `channel_id`, `channel_type`, `client_msg_no`,
+  and Base64 `payload`; legacy aliases, request-scoped subscribers, and
+  transient flags remain unpublished. HTTP 200 callers must still inspect
+  `reason`. `security: []` records missing built-in authentication, so the route
+  is trusted-backend-only and remains outside the golden-path receipt.
 - Public SDK common guides are platform-neutral integration behavior contracts, not platform API or support claims. Their Channel Type, Device Flag / Level, fixed-header Message Flag, and Setting tables are source-checked against current Go authorities; JavaScript/Web remains the only executable client compatibility target. Plain non-command `NoPersist` is compatibility success without delivery, while only command-style `NoPersist` enters transient online delivery and neither branch has durable recovery.
 - Public WuKongEasySDK tutorials are source-aligned guides, not executable compatibility receipts. They must pin an exact released package, tag, and revision; retain trusted-backend identity and browser BFF boundaries; and expose current protocol, device-enum, lifecycle, and sensitive-logging blockers instead of expanding the protected JavaScript/Web golden-path claim.
 - The JavaScript/Web acceptance command issues only a bounded local compatibility-smoke report. It records the acceptance-harness revision and observed installed SDK, leaves tested-cluster source identity and production readiness `not_assessed`, records no endpoints or development credentials, and cannot replace the protected clean-HEAD golden-path publication receipt. Documentation quality passes only when both locale routes participate in the real browser run.

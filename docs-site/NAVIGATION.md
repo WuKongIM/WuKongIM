@@ -144,7 +144,7 @@ Route: `/{lang}/sdk`
 
 Route: `/{lang}/api`
 
-查阅已校准的 HTTP API、公共字典，以及规划中的 Webhook 与客户端协议。 / Reference calibrated HTTP APIs and shared dictionaries, plus planned webhooks and client protocols.
+查阅已校准的 HTTP API、客户端协议核心与公共字典，以及规划中的 Webhook。 / Reference calibrated HTTP APIs, the client-protocol core, and shared dictionaries, plus planned webhooks.
 
 - **通用约定 / Conventions** `/{lang}/api/conventions` — Product HTTP 的地址、格式、标识和重试规则。 / Product HTTP addressing, formats, identifiers, and retry rules.
 
@@ -159,6 +159,8 @@ Route: `/{lang}/api`
     - **解析面向浏览器的 Gateway 地址 / Resolve the browser-facing gateway addresses** **GET** `/{lang}/api/product-http/routing/getQuickstartGatewayRoute` — 返回已配置的 Gateway 地址；BFF 只转发浏览器 SDK 所需的 WebSocket 地址。 / Returns configured Gateway addresses; the BFF forwards the WebSocket address required by the browser SDK.
   - **消息 / Messages** `/{lang}/api/product-http/messages` — 已提交 Channel 消息的有界同步。 / Bounded synchronization of committed Channel messages.
     - **拉取一个 Channel 的持久消息 / Pull durable messages for one channel** **POST** `/{lang}/api/product-http/messages/syncQuickstartChannelMessages` — 重连后有界拉取已提交消息；快速开始使用个人 Channel（channel_type 1）。 / Pulls a bounded page of committed messages after reconnect. The quickstart uses a person Channel (channel_type 1).
+  - **消息发送 / Message Sending** `/{lang}/api/product-http/message-send` — 向 Channel 提交普通持久消息。 / Submit ordinary persistent messages to a Channel.
+    - **发送持久 Channel 消息 / Send a durable Channel message** **POST** `/{lang}/api/product-http/message-send/sendChannelMessage` — 受信后端提交一条普通持久消息。HTTP 200 仅表示传输成功，业务结果必须检查 reason。 / A trusted backend submits one ordinary durable message. HTTP 200 is transport success; inspect reason for the business result.
   - **Channel / Channels** `/{lang}/api/product-http/channels` — Channel 元数据、订阅者与允许或拒绝名单。 / Channel metadata, subscribers, and allow or deny lists.
     - **创建或更新 Channel 元数据 / Create or update Channel metadata** **POST** `/{lang}/api/product-http/channels/upsertChannel` — 创建或更新 Channel。reset=1 替换持久订阅者；个人 Channel 不接受订阅者；disband 为终态。 / Creates or updates a Channel. reset=1 replaces durable subscribers; person Channels reject subscribers. Disband is terminal.
     - **添加或替换持久订阅者 / Add or replace durable subscribers** **POST** `/{lang}/api/product-http/channels/addChannelSubscribers` — 添加持久订阅者；Channel 不存在时创建元数据。channel_type 缺省或为 0 时使用类型 2；临时成员使用 /tmpchannel/subscriber_set。 / Adds durable subscribers, creating Channel metadata when absent. Missing or zero channel_type means type 2; temporary members use /tmpchannel/subscriber_set.
@@ -187,11 +189,11 @@ Route: `/{lang}/api`
   - **事件类型 / Event Types** `/{lang}/api/webhooks/events` — 列出消息、在线状态和其他受支持事件。 / Lists messages, presence, and other supported events.
   - **请求结构 / Payloads** `/{lang}/api/webhooks/payloads` — 定义通用信封、事件负载和示例。 / Defines the common envelope, event payloads, and examples.
   - **安全与可靠性 / Security & Reliability** `/{lang}/api/webhooks/reliability-and-security` — 说明签名、重试、顺序、幂等和失败处理。 / Covers signatures, retries, ordering, idempotency, and failure handling.
-- **客户端协议 / Client Protocols** `/{lang}/api/client-protocols` — 说明 TCP 二进制协议与 WebSocket JSON-RPC。 / Documents the TCP binary protocol and WebSocket JSON-RPC.
-  - **连接生命周期 / Connection Lifecycle** `/{lang}/api/client-protocols/connection-lifecycle` — 说明 Connect、认证、心跳、断开和重连。 / Covers connect, authentication, heartbeat, disconnect, and reconnect.
+- **客户端协议 / Client Protocols** `/{lang}/api/client-protocols` — 说明当前连接生命周期与 WKProto 数据包范围。 / Documents the current connection lifecycle and WKProto packet scope.
+  - **连接生命周期 / Connection Lifecycle** `/{lang}/api/client-protocols/connection-lifecycle` — 说明 CONNECT 认证、CONNACK、心跳、关闭和恢复边界。 / Covers CONNECT authentication, CONNACK, heartbeat, close, and recovery boundaries.
+  - **数据包类型 / Packet Types** `/{lang}/api/client-protocols/packet-types` — 列出当前 Frame Type、方向、支持范围和版本差异。 / Lists current Frame Types, directions, support scope, and version differences.
   - **TCP 二进制协议 / TCP Binary Protocol** `/{lang}/api/client-protocols/tcp-binary` — 定义帧格式、编码、标志位和包边界。 / Defines frame format, encoding, flags, and packet boundaries.
   - **WebSocket JSON-RPC / WebSocket JSON-RPC** `/{lang}/api/client-protocols/json-rpc` — 定义方法、参数、结果、通知和请求关联。 / Defines methods, parameters, results, notifications, and request correlation.
-  - **数据包类型 / Packet Types** `/{lang}/api/client-protocols/packet-types` — 说明 Connect、Send、Recv、Ack 和 Ping/Pong 字段。 / Documents Connect, Send, Recv, Ack, and Ping/Pong fields.
   - **加密与安全 / Encryption & Security** `/{lang}/api/client-protocols/encryption` — 说明握手密钥、负载保护和协议安全约束。 / Covers handshake keys, payload protection, and protocol security constraints.
 - **公共数据字典 / Shared Dictionaries** `/{lang}/api/dictionaries` — 发布源码校准的 Channel、设备、消息标志与 Reason Code 字典。 / Publishes source-aligned Channel, device, message-flag, and Reason Code dictionaries.
   - **Channel Type / Channel Type** `/{lang}/api/dictionaries/channel-types` — 列出当前 1–12 Channel Type，并标注基础、专用和旧类型边界。 / Lists current Channel Types 1–12 with baseline, specialized, and legacy boundaries.

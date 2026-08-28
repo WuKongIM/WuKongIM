@@ -10,6 +10,7 @@ import {
   MessageFlagTable,
   ReasonCodeTable,
 } from './developer-contracts';
+import { ClientProtocolPacketTable } from './client-protocol-contracts';
 
 function ScrollableTable(props: ComponentProps<'table'>) {
   return (
@@ -27,6 +28,7 @@ export function getMDXComponents(components?: MDXComponents) {
     ...defaultMdxComponents,
     table: ScrollableTable,
     ChannelTypeTable,
+    ClientProtocolPacketTable,
     CompatibilitySnapshot,
     DeviceFlagTable,
     GoldenPathContract,

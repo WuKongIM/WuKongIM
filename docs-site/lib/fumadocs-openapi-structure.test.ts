@@ -5,6 +5,7 @@ const operationPages = [
   ['users', 'setQuickstartUserToken', 'post', '/user/token'],
   ['routing', 'getQuickstartGatewayRoute', 'get', '/route'],
   ['messages', 'syncQuickstartChannelMessages', 'post', '/channel/messagesync'],
+  ['message-send', 'sendChannelMessage', 'post', '/message/send'],
   ['channels', 'upsertChannel', 'post', '/channel'],
   ['channels', 'addChannelSubscribers', 'post', '/channel/subscriber_add'],
   ['channels', 'removeAllChannelSubscribers', 'post', '/channel/subscriber_remove_all'],
@@ -57,7 +58,14 @@ describe('Fumadocs OpenAPI reference structure', () => {
   });
 
   test('keeps tag routes as concise generated indexes', async () => {
-    for (const tag of ['users', 'routing', 'messages', 'channels', 'conversations']) {
+    for (const tag of [
+      'users',
+      'routing',
+      'messages',
+      'message-send',
+      'channels',
+      'conversations',
+    ]) {
       for (const suffix of ['.mdx', '.en.mdx']) {
         const page = await source(`../content/docs/api/product-http/${tag}/index${suffix}`);
 

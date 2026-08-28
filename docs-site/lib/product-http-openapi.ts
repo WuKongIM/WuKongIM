@@ -1,8 +1,9 @@
 import goldenPathDocument from '../contracts/javascript-web-quickstart.openapi.json';
 import managementDocument from '../contracts/product-http-management.openapi.json';
+import messagingDocument from '../contracts/product-http-messaging.openapi.json';
 
 export type ProductHTTPOpenAPILocale = 'zh' | 'en';
-export type ProductHTTPOpenAPIContract = 'golden-path' | 'management';
+export type ProductHTTPOpenAPIContract = 'golden-path' | 'management' | 'messaging';
 export type ProductHTTPOpenAPIMethod = 'get' | 'post';
 
 interface LocalizedText {
@@ -26,6 +27,24 @@ interface OperationObject {
 interface ContractDocument {
   paths: Record<string, Record<string, OperationObject>>;
 }
+
+export const productHTTPOpenAPIContractFiles = {
+  'golden-path': {
+    source: 'docs-site/contracts/javascript-web-quickstart.openapi.json',
+    download: '/contracts/javascript-web-quickstart.openapi.json',
+  },
+  management: {
+    source: 'docs-site/contracts/product-http-management.openapi.json',
+    download: '/contracts/product-http-management.openapi.json',
+  },
+  messaging: {
+    source: 'docs-site/contracts/product-http-messaging.openapi.json',
+    download: '/contracts/product-http-messaging.openapi.json',
+  },
+} as const satisfies Record<
+  ProductHTTPOpenAPIContract,
+  { source: string; download: string }
+>;
 
 export interface ProductHTTPOpenAPIOperation {
   /** Contract document that owns the operation. */
@@ -116,6 +135,16 @@ const groupDefinitions: GroupDefinition[] = [
     },
   },
   {
+    contract: 'messaging',
+    slug: 'message-send',
+    tag: 'Message Sending',
+    title: { zh: '消息发送', en: 'Message Sending' },
+    description: {
+      zh: '向 Channel 提交普通持久消息。',
+      en: 'Submit ordinary persistent messages to a Channel.',
+    },
+  },
+  {
     contract: 'management',
     slug: 'channels',
     tag: 'Channels',
@@ -190,7 +219,12 @@ const groupDefinitions: GroupDefinition[] = [
 ];
 
 function documentFor(contract: ProductHTTPOpenAPIContract): ContractDocument {
-  return (contract === 'golden-path' ? goldenPathDocument : managementDocument) as ContractDocument;
+  const documents = {
+    'golden-path': goldenPathDocument,
+    management: managementDocument,
+    messaging: messagingDocument,
+  } satisfies Record<ProductHTTPOpenAPIContract, unknown>;
+  return documents[contract] as ContractDocument;
 }
 
 function isProductHTTPOpenAPIMethod(method: string): method is ProductHTTPOpenAPIMethod {
@@ -233,7 +267,7 @@ function operationsFor(definition: GroupDefinition): ProductHTTPOpenAPIOperation
   return operations;
 }
 
-/** Route and navigation registry derived from the two published OpenAPI contracts. */
+/** Route and navigation registry derived from the three published OpenAPI contracts. */
 export const productHTTPOpenAPIReferenceGroups: ProductHTTPOpenAPIGroup[] =
   groupDefinitions.map((definition) => ({
     ...definition,
@@ -245,6 +279,9 @@ export const productHTTPOpenAPIReferenceOperations =
 
 export const productHTTPManagementOpenAPIGroups =
   productHTTPOpenAPIReferenceGroups.filter((group) => group.contract === 'management');
+
+export const productHTTPMessagingOpenAPIGroups =
+  productHTTPOpenAPIReferenceGroups.filter((group) => group.contract === 'messaging');
 
 /** Applies reviewed x-i18n text without duplicating the OpenAPI structure. */
 export function localizeOpenAPIDocument<T>(

@@ -29,7 +29,7 @@ scenario set with application-owned mobile push, recoverable AI stream
 projections, bounded device telemetry, and durable or online-only IoT commands.
 Phase 12 publishes the first reproducible application-developer path: a pinned
 JavaScript/Web SDK snapshot, a framework-neutral TypeScript laboratory behind a
-loopback-only BFF, three slice-level Product HTTP contracts, generated
+loopback-only BFF, one three-operation Product HTTP contract, generated
 compatibility and Reason Code facts, and a real Alice/Bob reconnect-and-sync
 smoke scenario. It deliberately remains a v3 Beta golden-path subset rather
 than a complete SDK or API reference.
@@ -61,6 +61,11 @@ Conversation traversal, and explicitly defers weakly validated, unbounded, and
 legacy routes. The Phase 12 three-operation whitelist and receipt remain
 frozen; Phase 16 only corrects their shared restore-maintenance response Schema
 to the current runtime body.
+Phase 17 publishes a third bounded OpenAPI contract for ordinary persistent
+`POST /message/send`, plus concise client-protocol pages for the authenticated
+connection lifecycle and the complete Frame Type catalog. Byte-level framing,
+JSON-RPC, and encryption details remain planned until their separate contracts
+are reconciled and security-reviewed.
 
 ## Develop
 
@@ -76,9 +81,9 @@ bun run dev
 Open `http://localhost:3000`. The canonical local entry points are `/zh` and
 `/en`.
 
-The Product HTTP reference is generated from two bounded OpenAPI 3.1 contracts.
-It follows the Fumadocs example structure: five tag indexes and 19 independent
-operation pages per locale, for 48 tracked MDX files. After changing a
+The Product HTTP reference is generated from three bounded OpenAPI 3.1 contracts.
+It follows the Fumadocs example structure: six tag indexes and 20 independent
+operation pages per locale, for 52 tracked MDX files. After changing a
 contract, regenerate and review the tracked MDX:
 
 ```bash
@@ -115,6 +120,9 @@ sample or runtime-contract changes select the real Chromium integration check.
 Phase 16 also checks the exact management-operation whitelist, explicit route
 deferrals, bilingual operation-per-page generation grouped by tag, nested Conversation schemas, search
 and LLM output, and continued separation from the golden receipt.
+Phase 17 also checks the exact message-send contract, trusted-backend boundary,
+Frame Type values, lifecycle claims, and the publication or deferral state of
+each client-protocol page.
 
 ## Golden-path attestation
 
@@ -170,7 +178,8 @@ WK_DOCS_REQUIRE_VERIFIED=1 bun run test:output
 - Edit the full bilingual plan in `lib/navigation.ts`.
 - Run `bun run navigation:write` to update `NAVIGATION.md`.
 - Edit `contracts/javascript-web-quickstart.openapi.json`,
-  `contracts/product-http-management.openapi.json`, then run
+  `contracts/product-http-management.openapi.json`, or
+  `contracts/product-http-messaging.openapi.json`, then run
   `bun run openapi:write`; do not edit
   generated files under `content/docs/api/product-http/` directly.
 - Add both `page.mdx` and `page.en.mdx` content variants before changing a menu
@@ -200,3 +209,5 @@ Flutter, and Web tutorial boundaries.
 `PHASE_16_SPEC.md` defines the trusted Product HTTP Channel/Conversation
 management subset, its exact deferrals, and its separation from golden-path
 attestation.
+`PHASE_17_SPEC.md` defines the Product HTTP message-send subset and the first
+published client-protocol baseline.

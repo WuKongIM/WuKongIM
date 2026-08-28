@@ -8,7 +8,9 @@ import {
 } from '../lib/navigation';
 import { getDomainPublicationCounts } from '../lib/navigation-tree';
 import {
+  productHTTPOpenAPIContractFiles,
   productHTTPManagementOpenAPIGroups,
+  productHTTPMessagingOpenAPIGroups,
   productHTTPOpenAPIReferenceGroups,
   productHTTPOpenAPIReferenceOperations,
   type ProductHTTPOpenAPIOperation,
@@ -327,6 +329,33 @@ export async function checkStaticOutput() {
     }
   }
 
+  const messagingOpenAPI = JSON.parse(
+    await text('contracts/product-http-messaging.openapi.json'),
+  ) as {
+    paths?: Record<string, Record<string, { security?: unknown[]; 'x-wukongim-trust'?: string }>>;
+    'x-wukongim-scope'?: string;
+  };
+  const expectedMessagingOperations = productHTTPMessagingOpenAPIGroups.flatMap(
+    (group) => group.operations,
+  );
+  if (
+    messagingOpenAPI['x-wukongim-scope'] !==
+      'non-exhaustive-trusted-message-sending-beta' ||
+    expectedMessagingOperations.length !== 1 ||
+    Object.keys(messagingOpenAPI.paths ?? {}).join('\n') !== '/message/send'
+  ) {
+    throw new Error('message-sending OpenAPI escaped its one-operation boundary');
+  }
+  for (const expected of expectedMessagingOperations) {
+    const operation = messagingOpenAPI.paths?.[expected.path]?.[expected.method];
+    if (
+      operation?.['x-wukongim-trust'] !== 'trusted-backend-only' ||
+      JSON.stringify(operation.security) !== '[]'
+    ) {
+      throw new Error('message-sending OpenAPI lost its trusted-backend boundary');
+    }
+  }
+
   const operationFacts: Record<string, string[]> = {
     setQuickstartUserToken: ['device_flag'],
     getQuickstartGatewayRoute: ['wss_addr'],
@@ -341,13 +370,21 @@ export async function checkStaticOutput() {
       'payload',
       'tombstones_retained_since',
     ],
+    sendChannelMessage: [
+      'SendChannelMessageRequest',
+      'client_msg_no',
+      'payload',
+      'reason',
+    ],
   };
   function contractFacts(operation: ProductHTTPOpenAPIOperation) {
     return [
       ...(operationFacts[operation.slug] ?? []),
       ...(operation.contract === 'management'
         ? ['CompatibilityError', 'MaintenanceError', 'restore maintenance is active']
-        : []),
+        : operation.contract === 'messaging'
+          ? ['RetryRequiredError', 'MaintenanceError', 'restore maintenance is active']
+          : []),
     ];
   }
   for (const locale of locales) {
@@ -515,6 +552,24 @@ export async function checkStaticOutput() {
       }
     }
 
+    const clientProtocolFacts = {
+      'connection-lifecycle': ['CONNECT', 'CONNACK', 'PING', 'SENDACK', 'RECVACK'],
+      'packet-types': ['UNKNOWN', 'CONNECT', 'SENDACK', 'RECVACK', 'EVENT'],
+    } as const;
+    for (const [page, facts] of Object.entries(clientProtocolFacts)) {
+      const markdown = await text(
+        `llms.mdx/${locale}/api/client-protocols/${page}/content.md`,
+      );
+      const html = visibleHtml(
+        await text(`${locale}/api/client-protocols/${page}/index.html`),
+      );
+      for (const fact of facts) {
+        if (!markdown.includes(fact) || !html.includes(fact)) {
+          throw new Error(`${locale} ${page} output is missing protocol fact: ${fact}`);
+        }
+      }
+    }
+
     const capabilityMarkdown = await text(
       `llms.mdx/${locale}/sdk/javascript/platform-capabilities/content.md`,
     );
@@ -561,6 +616,11 @@ export async function checkStaticOutput() {
     '`CompatibilityError`',
     '`MaintenanceError`',
     'restore maintenance is active',
+    '`SendChannelMessageRequest`',
+    '`client_msg_no`',
+    '`RetryRequiredError`',
+    '| 0 | `UNKNOWN` |',
+    '| 12 | `EVENT` |',
   ]) {
     if (!llmsFull.includes(fact)) {
       throw new Error(`llms-full.txt is missing OpenAPI fact: ${fact}`);
@@ -646,6 +706,23 @@ export async function checkStaticOutput() {
         }
       }
     }
+    for (const [page, facts] of Object.entries({
+      'connection-lifecycle': ['CONNECT', 'CONNACK', 'RECVACK'],
+      'packet-types': ['UNKNOWN', 'EVENT', 'message_seq'],
+    })) {
+      const pageId = `/${locale}/api/client-protocols/${page}`;
+      for (const fact of facts) {
+        if (
+          !indexedDocuments.some(
+            (document) => document.page_id === pageId && document.content?.includes(fact),
+          )
+        ) {
+          throw new Error(
+            `${locale} search index is missing protocol fact for ${pageId}: ${fact}`,
+          );
+        }
+      }
+    }
   }
 
   const robots = await text('robots.txt');
@@ -672,6 +749,14 @@ export async function checkStaticOutput() {
       path: `${locale}/api/product-http/conversations/listConversations/index.html`,
       locale,
     },
+    { path: `${locale}/api/product-http/message-send/index.html`, locale },
+    {
+      path: `${locale}/api/product-http/message-send/sendChannelMessage/index.html`,
+      locale,
+    },
+    { path: `${locale}/api/client-protocols/index.html`, locale },
+    { path: `${locale}/api/client-protocols/connection-lifecycle/index.html`, locale },
+    { path: `${locale}/api/client-protocols/packet-types/index.html`, locale },
   ]);
   for (const critical of criticalPages) {
     const html = await text(critical.path);
@@ -686,7 +771,7 @@ export async function checkStaticOutput() {
       critical.path.includes(`/api/product-http/${group.slug}/`),
     );
     const editSource = openAPIGroup
-      ? `https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/contracts/${openAPIGroup.contract === 'management' ? 'product-http-management.openapi.json' : 'javascript-web-quickstart.openapi.json'}`
+      ? `https://github.com/WuKongIM/WuKongIM/edit/main/${productHTTPOpenAPIContractFiles[openAPIGroup.contract].source}`
       : 'https://github.com/WuKongIM/WuKongIM/edit/main/docs-site/content/docs/';
     if (
       !html.includes(feedbackLabel) ||

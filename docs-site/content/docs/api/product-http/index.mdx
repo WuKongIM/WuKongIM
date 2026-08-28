@@ -5,7 +5,7 @@ description: 查阅用户、路由、消息、Channel 与 Conversation 接口。
 
 Product HTTP 提供基础接入与受信管理接口。当前文档只覆盖下方列出的操作。
 
-OpenAPI：[基础接入合同](/contracts/javascript-web-quickstart.openapi.json) · [Channel 与 Conversation 合同](/contracts/product-http-management.openapi.json)
+OpenAPI：[基础接入](/contracts/javascript-web-quickstart.openapi.json) · [消息发送](/contracts/product-http-messaging.openapi.json) · [Channel 与 Conversation](/contracts/product-http-management.openapi.json)
 
 <Callout type="error" title="仅供受信后端调用">
   Product HTTP 没有通用业务鉴权。请限制网络可达性，并在 API Gateway、服务网格或业务后端完成认证、授权、限流和审计。
@@ -17,6 +17,7 @@ OpenAPI：[基础接入合同](/contracts/javascript-web-quickstart.openapi.json
   <Card title="用户 Token" description="POST /user/token：保存设备 Token 元数据。" href="/zh/api/product-http/users" />
   <Card title="路由发现" description="GET /route：获取客户端 TCP 与 WebSocket 入口。" href="/zh/api/product-http/routing" />
   <Card title="消息同步" description="POST /channel/messagesync：恢复已提交消息。" href="/zh/api/product-http/messages" />
+  <Card title="消息发送" description="POST /message/send：提交普通持久消息。" href="/zh/api/product-http/message-send" />
   <Card title="频道" description="Channel、订阅者与允许/拒绝名单管理。" href="/zh/api/product-http/channels" />
   <Card title="会话" description="会话列表、重试、未读、隐藏与激活。" href="/zh/api/product-http/conversations" />
   <Card title="错误响应" description="HTTP 状态、错误体与重试建议。" href="/zh/api/product-http/errors" />
@@ -26,4 +27,4 @@ OpenAPI：[基础接入合同](/contracts/javascript-web-quickstart.openapi.json
 
 <GoldenPathContract locale="zh" />
 
-消息实时发送与接收通过 SDK 和 Gateway 完成。未出现在当前 OpenAPI 合同中的 Product HTTP 接口不属于公开范围。
+客户端实时收发通过 SDK 和 Gateway 完成。未出现在这三份 OpenAPI 合同中的 Product HTTP 接口不属于公开范围。

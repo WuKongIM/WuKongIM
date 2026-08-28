@@ -6,6 +6,7 @@ import { openapi } from './openapi';
 import { renderOpenAPIOperationMarkdown } from './openapi-markdown';
 import { docsContentRoute } from './shared';
 import { renderDeveloperContractSupplement } from './developer-contracts';
+import { renderClientProtocolPacketMarkdown } from './client-protocol-contracts';
 
 const generatedSource = docs.toFumadocsSource();
 
@@ -37,8 +38,11 @@ export async function getLLMText(page: (typeof source)['$inferPage']) {
   const processed = await page.data.getText('processed');
   const locale = page.locale === 'zh' || page.locale === 'en' ? page.locale : undefined;
   const supplement = locale
-    ? [
+      ? [
         renderDeveloperContractSupplement(locale, page.slugs),
+        page.slugs.join('/') === 'api/client-protocols/packet-types'
+          ? renderClientProtocolPacketMarkdown(locale)
+          : '',
         renderOpenAPIOperationMarkdown(locale, page.slugs),
       ]
         .filter(Boolean)
