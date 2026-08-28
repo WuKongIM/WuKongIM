@@ -1,0 +1,1517 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WuKongIM Product HTTP Runtime API",
+    "version": "3.0.0-beta-snapshot",
+    "description": "Complete source-aligned contract for the 41 Product HTTP operations registered by the current runtime. These routes have no built-in authentication.",
+    "x-i18n": {
+      "zh": {
+        "title": "WuKongIM Product HTTP 运行时 API",
+        "description": "与当前运行时注册的 41 个 Product HTTP 操作对齐的完整合同；这些路由没有内建鉴权。"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5001",
+      "description": "Local single-node cluster example",
+      "x-i18n": {
+        "zh": {
+          "description": "本地单节点集群示例"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Users",
+      "description": "User device metadata, presence, and system identities.",
+      "x-i18n": { "zh": { "description": "用户设备元数据、在线状态与系统身份。" } }
+    },
+    {
+      "name": "Routing",
+      "description": "Configured client Gateway addresses.",
+      "x-i18n": { "zh": { "description": "已配置的客户端 Gateway 地址。" } }
+    },
+    {
+      "name": "Messages",
+      "description": "Message recovery, events, and command-message compatibility.",
+      "x-i18n": { "zh": { "description": "消息恢复、事件与命令消息兼容接口。" } }
+    },
+    {
+      "name": "Message Sending",
+      "description": "Trusted-backend message submission.",
+      "x-i18n": { "zh": { "description": "受信后端消息提交。" } }
+    },
+    {
+      "name": "Channels",
+      "description": "Channel metadata and member-list administration.",
+      "x-i18n": { "zh": { "description": "Channel 元数据与成员列表管理。" } }
+    },
+    {
+      "name": "Conversations",
+      "description": "Conversation synchronization and per-user state.",
+      "x-i18n": { "zh": { "description": "会话同步与用户侧状态。" } }
+    }
+  ],
+  "x-wukongim-scope": "complete-source-aligned-product-http-runtime",
+  "security": [],
+  "paths": {
+    "/route": {
+      "get": {
+        "operationId": "getQuickstartGatewayRoute",
+        "summary": "Resolve Gateway addresses",
+        "description": "Returns the configured public or intranet addresses; node aliases are checked in node_id, nodeId, nodeID order.",
+        "x-i18n": { "zh": { "summary": "解析 Gateway 地址", "description": "返回已配置的公网或内网地址；节点别名按 node_id、nodeId、nodeID 顺序读取。" } },
+        "tags": ["Routing"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "parameters": [
+          { "$ref": "#/components/parameters/NodeIDSnake" },
+          { "$ref": "#/components/parameters/NodeIDCamel" },
+          { "$ref": "#/components/parameters/NodeIDUpperCamel" },
+          { "$ref": "#/components/parameters/Intranet" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/RouteOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/route/batch": {
+      "post": {
+        "operationId": "getGatewayRoutesBatch",
+        "summary": "Resolve one address group for UIDs",
+        "description": "Echoes an unbounded UID array inside the selected address group; retained for compatibility.",
+        "x-i18n": { "zh": { "summary": "批量解析 UID 地址组", "description": "在所选地址组中回显无上限 UID 数组；该接口仅为兼容保留。" } },
+        "tags": ["Routing"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "parameters": [
+          { "$ref": "#/components/parameters/NodeIDSnake" },
+          { "$ref": "#/components/parameters/NodeIDCamel" },
+          { "$ref": "#/components/parameters/NodeIDUpperCamel" },
+          { "$ref": "#/components/parameters/Intranet" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/RouteBatch" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/RouteBatchOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/token": {
+      "post": {
+        "operationId": "setQuickstartUserToken",
+        "summary": "Create or update a device token",
+        "description": "Creates missing UID metadata and upserts one device token; the current product composition does not enable CONNECT token authentication.",
+        "x-i18n": { "zh": { "summary": "创建或更新设备 Token", "description": "创建缺失的 UID 元数据并更新一个设备 Token；当前产品装配未启用 CONNECT Token 鉴权。" } },
+        "tags": ["Users"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/UpdateToken" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/device_quit": {
+      "post": {
+        "operationId": "quitUserDevice",
+        "summary": "Clear a user device token",
+        "description": "Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.",
+        "x-i18n": { "zh": { "summary": "退出用户设备", "description": "清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。" } },
+        "tags": ["Users"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/DeviceQuit" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/onlinestatus": {
+      "post": {
+        "operationId": "listUserOnlineStatus",
+        "summary": "List active user routes",
+        "description": "Returns one row per active authority route; an empty UID array returns the legacy status object instead of an array.",
+        "x-i18n": { "zh": { "summary": "查询用户在线路由", "description": "每条活跃权威路由返回一行；空 UID 数组返回旧式 status 对象而不是数组。" } },
+        "tags": ["Users"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/OnlineStatus" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/OnlineStatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/systemuids_add": {
+      "post": {
+        "operationId": "addSystemUIDs",
+        "summary": "Add system UIDs",
+        "description": "Persists system identities and adds them to the current process cache.",
+        "x-i18n": { "zh": { "summary": "添加系统 UID", "description": "持久化系统身份并加入当前进程缓存。" } },
+        "tags": ["Users"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/SystemUIDs" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/systemuids_remove": {
+      "post": {
+        "operationId": "removeSystemUIDs",
+        "summary": "Remove system UIDs",
+        "description": "Removes persisted system identities and current-process cache entries.",
+        "x-i18n": { "zh": { "summary": "移除系统 UID", "description": "移除持久化系统身份与当前进程缓存项。" } },
+        "tags": ["Users"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/SystemUIDs" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/systemuids": {
+      "get": {
+        "operationId": "listSystemUIDs",
+        "summary": "List all system UIDs",
+        "description": "Aggregates the complete persisted system UID set into one unbounded response.",
+        "x-i18n": { "zh": { "summary": "列出全部系统 UID", "description": "把完整持久化系统 UID 集合聚合为一个无界响应。" } },
+        "tags": ["Users"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "responses": {
+          "200": { "$ref": "#/components/responses/SystemUIDListOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/systemuids_add_to_cache": {
+      "post": {
+        "operationId": "addSystemUIDsToLocalCache",
+        "summary": "Add node-local system UID cache entries",
+        "description": "Mutates only the current process cache and does not persist or replicate the change.",
+        "x-i18n": { "zh": { "summary": "添加节点本地系统 UID 缓存", "description": "只修改当前进程缓存，不持久化也不复制该变更。" } },
+        "tags": ["Users"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "node-local-operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/SystemUIDs" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/user/systemuids_remove_from_cache": {
+      "post": {
+        "operationId": "removeSystemUIDsFromLocalCache",
+        "summary": "Remove node-local system UID cache entries",
+        "description": "Mutates only the current process cache and does not change durable system identities.",
+        "x-i18n": { "zh": { "summary": "移除节点本地系统 UID 缓存", "description": "只修改当前进程缓存，不改变持久化系统身份。" } },
+        "tags": ["Users"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "node-local-operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/SystemUIDs" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel": {
+      "post": {
+        "operationId": "upsertChannel",
+        "summary": "Create or update Channel metadata",
+        "description": "Upserts all metadata flags and optionally resets subscribers; disband is terminal.",
+        "x-i18n": { "zh": { "summary": "创建或更新 Channel 元数据", "description": "全量更新元数据标志并可重置订阅者；disband 为终态。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelUpsert" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/info": {
+      "post": {
+        "operationId": "updateChannelInfo",
+        "summary": "Replace Channel metadata",
+        "description": "Passes the zero-valued full record to UpdateInfo when fields are omitted; retained for compatibility.",
+        "x-i18n": { "zh": { "summary": "替换 Channel 元数据", "description": "字段省略时仍把零值完整记录交给 UpdateInfo；该接口仅为兼容保留。" } },
+        "tags": ["Channels"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelInfo" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/delete": {
+      "post": {
+        "operationId": "disbandChannel",
+        "summary": "Terminally disband a Channel",
+        "description": "Sets the durable disband flag without deleting Channel identity; request-key validation is weak.",
+        "x-i18n": { "zh": { "summary": "终态解散 Channel", "description": "设置持久化 disband 标志但不删除 Channel 身份；请求 Key 校验较弱。" } },
+        "tags": ["Channels"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/WeakChannelKey" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/subscriber_add": {
+      "post": {
+        "operationId": "addChannelSubscribers",
+        "summary": "Add or replace durable subscribers",
+        "description": "Adds non-blank subscribers; channel_type 0 becomes group type 2 and reset=1 replaces the snapshot.",
+        "x-i18n": { "zh": { "summary": "添加或替换持久订阅者", "description": "添加非空白订阅者；channel_type=0 转为群组类型 2，reset=1 替换快照。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelSubscriberAdd" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/subscriber_remove": {
+      "post": {
+        "operationId": "removeChannelSubscribers",
+        "summary": "Remove durable subscribers",
+        "description": "Removes non-blank subscribers; unlike subscriber_add, channel_type 0 is not normalized.",
+        "x-i18n": { "zh": { "summary": "移除持久订阅者", "description": "移除非空白订阅者；与 subscriber_add 不同，channel_type=0 不会被归一化。" } },
+        "tags": ["Channels"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelSubscriberRemove" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/subscriber_remove_all": {
+      "post": {
+        "operationId": "removeAllChannelSubscribers",
+        "summary": "Remove all durable subscribers",
+        "description": "Clears ordinary subscribers through bounded internal pages; person Channels are rejected.",
+        "x-i18n": { "zh": { "summary": "移除全部持久订阅者", "description": "通过内部有界分页清空普通订阅者；个人 Channel 会被拒绝。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/NonPersonChannelKey" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/tmpchannel/subscriber_set": {
+      "post": {
+        "operationId": "setTemporaryChannelSubscribers",
+        "summary": "Replace temporary Channel subscribers",
+        "description": "Replaces the derived Type-8 temporary subscriber list; UID elements are not validated by the entry adapter.",
+        "x-i18n": { "zh": { "summary": "替换临时 Channel 订阅者", "description": "替换派生 Type-8 临时订阅者列表；入口适配器不校验 UID 元素。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/TemporarySubscribers" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_add": {
+      "post": {
+        "operationId": "addChannelDenylistMembers",
+        "summary": "Add Channel denylist members",
+        "description": "Adds the supplied UID strings to the derived Channel denylist.",
+        "x-i18n": { "zh": { "summary": "添加 Channel 拒绝列表成员", "description": "把给定 UID 字符串加入派生 Channel 拒绝列表。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelMembers" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_set": {
+      "post": {
+        "operationId": "setChannelDenylistMembers",
+        "summary": "Replace Channel denylist members",
+        "description": "Removes the old list before adding the supplied values; only channel_id is validated at entry.",
+        "x-i18n": { "zh": { "summary": "替换 Channel 拒绝列表", "description": "先移除旧列表再添加给定值；入口只校验 channel_id。" } },
+        "tags": ["Channels"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelMemberSet" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_remove": {
+      "post": {
+        "operationId": "removeChannelDenylistMembers",
+        "summary": "Remove Channel denylist members",
+        "description": "Removes the supplied UID strings from the derived Channel denylist.",
+        "x-i18n": { "zh": { "summary": "移除 Channel 拒绝列表成员", "description": "从派生 Channel 拒绝列表移除给定 UID 字符串。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelMembers" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/blacklist_remove_all": {
+      "post": {
+        "operationId": "removeAllChannelDenylistMembers",
+        "summary": "Remove all Channel denylist members",
+        "description": "Clears the derived denylist through bounded internal traversal.",
+        "x-i18n": { "zh": { "summary": "移除全部 Channel 拒绝列表成员", "description": "通过内部有界遍历清空派生拒绝列表。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelKey" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_add": {
+      "post": {
+        "operationId": "addChannelAllowlistMembers",
+        "summary": "Add Channel allowlist members",
+        "description": "Adds non-blank UIDs to the derived Channel allowlist.",
+        "x-i18n": { "zh": { "summary": "添加 Channel 允许列表成员", "description": "把非空白 UID 加入派生 Channel 允许列表。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelAllowlistMembers" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_set": {
+      "post": {
+        "operationId": "setChannelAllowlistMembers",
+        "summary": "Replace Channel allowlist members",
+        "description": "Removes the old list before adding supplied values; only channel_id is validated at entry.",
+        "x-i18n": { "zh": { "summary": "替换 Channel 允许列表", "description": "先移除旧列表再添加给定值；入口只校验 channel_id。" } },
+        "tags": ["Channels"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelMemberSet" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_remove": {
+      "post": {
+        "operationId": "removeChannelAllowlistMembers",
+        "summary": "Remove Channel allowlist members",
+        "description": "Removes non-blank UIDs from the derived Channel allowlist.",
+        "x-i18n": { "zh": { "summary": "移除 Channel 允许列表成员", "description": "从派生 Channel 允许列表移除非空白 UID。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelAllowlistMembers" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist_remove_all": {
+      "post": {
+        "operationId": "removeAllChannelAllowlistMembers",
+        "summary": "Remove all Channel allowlist members",
+        "description": "Clears the derived allowlist through bounded internal traversal.",
+        "x-i18n": { "zh": { "summary": "移除全部 Channel 允许列表成员", "description": "通过内部有界遍历清空派生允许列表。" } },
+        "tags": ["Channels"],
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelKey" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/whitelist": {
+      "get": {
+        "operationId": "listChannelAllowlistMembers",
+        "summary": "List all Channel allowlist members",
+        "description": "Returns an unbounded full list; missing or invalid channel_type is silently treated as 0.",
+        "x-i18n": { "zh": { "summary": "列出全部 Channel 允许列表成员", "description": "返回无界完整列表；channel_type 缺失或无效时会静默视为 0。" } },
+        "tags": ["Channels"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "operator-only",
+        "parameters": [
+          { "$ref": "#/components/parameters/ChannelIDQuery" },
+          { "$ref": "#/components/parameters/ChannelTypeQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ChannelMemberListOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/message/send": {
+      "post": {
+        "operationId": "sendChannelMessage",
+        "summary": "Submit a message",
+        "description": "Accepts the complete compatibility parser, including legacy aliases, transient flags, and request-scoped subscribers; inspect reason on HTTP 200.",
+        "x-i18n": { "zh": { "summary": "提交消息", "description": "接受完整兼容 parser，包括旧别名、瞬时标志与请求级订阅者；HTTP 200 时仍需检查 reason。" } },
+        "tags": ["Message Sending"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/SendMessage" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SendCompleted" },
+          "400": { "$ref": "#/components/responses/SendBadRequest" },
+          "404": { "$ref": "#/components/responses/SendNotFound" },
+          "408": { "$ref": "#/components/responses/SendTimedOut" },
+          "500": { "$ref": "#/components/responses/SendInternalError" },
+          "503": { "$ref": "#/components/responses/SendUnavailable" }
+        }
+      }
+    },
+    "/message/event": {
+      "post": {
+        "operationId": "appendMessageEvent",
+        "summary": "Append a message event",
+        "description": "Validates and applies one message-scoped event projection; non-null headers are unsupported.",
+        "x-i18n": { "zh": { "summary": "追加消息事件", "description": "校验并应用一次消息级事件投影；不支持非 null headers。" } },
+        "tags": ["Messages"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/AppendMessageEvent" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MessageEventOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/message/sync": {
+      "post": {
+        "operationId": "syncCommandMessages",
+        "summary": "Synchronize command messages",
+        "description": "Returns the latest durable CMD generation; message_seq is accepted but ignored.",
+        "x-i18n": { "zh": { "summary": "同步命令消息", "description": "返回最新持久 CMD generation；message_seq 仅兼容接收但会被忽略。" } },
+        "tags": ["Messages"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/MessageSync" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/LegacyMessageListOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/message/syncack": {
+      "post": {
+        "operationId": "ackCommandMessages",
+        "summary": "Acknowledge the latest command sync",
+        "description": "Requires a positive last_message_seq but acknowledges the server's latest recorded generation, not that supplied value.",
+        "x-i18n": { "zh": { "summary": "确认最新命令消息同步", "description": "要求 last_message_seq 为正数，但确认的是服务端最近记录的 generation，而不是该输入值。" } },
+        "tags": ["Messages"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/MessageSyncAck" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/message/cmd/bind": {
+      "post": {
+        "operationId": "bindCommandChannel",
+        "summary": "Bind command-channel discovery",
+        "description": "Starts durable offline discovery after the current command-channel tail.",
+        "x-i18n": { "zh": { "summary": "绑定命令 Channel 发现", "description": "从当前命令 Channel tail 之后开始持久离线发现。" } },
+        "tags": ["Messages"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/MessageCMDBinding" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/message/cmd/unbind": {
+      "post": {
+        "operationId": "unbindCommandChannel",
+        "summary": "Unbind command-channel discovery",
+        "description": "Tombstones durable discovery without deleting command messages.",
+        "x-i18n": { "zh": { "summary": "解绑命令 Channel 发现", "description": "为持久发现写入 tombstone，但不删除命令消息。" } },
+        "tags": ["Messages"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/MessageCMDBinding" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/messagesync": {
+      "post": {
+        "operationId": "syncQuickstartChannelMessages",
+        "summary": "Synchronize one Channel's committed messages",
+        "description": "Checks membership visibility and returns an ascending page; limit is 100 by default and capped at 10000.",
+        "x-i18n": { "zh": { "summary": "同步一个 Channel 的已提交消息", "description": "校验成员可见性并返回升序分页；limit 默认 100，最大 10000。" } },
+        "tags": ["Messages"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelMessageSync" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ChannelMessageSyncOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/channel/messagesyncbatch": {
+      "post": {
+        "operationId": "syncChannelMessagesBatch",
+        "summary": "Synchronize up to 200 Channels",
+        "description": "Validates all memberships before one aligned batch read; item failures are embedded in the HTTP-200 response.",
+        "x-i18n": { "zh": { "summary": "同步最多 200 个 Channel", "description": "批量读取前校验全部成员关系；单项失败嵌入 HTTP 200 响应。" } },
+        "tags": ["Messages"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ChannelMessageSyncBatch" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ChannelMessageSyncBatchOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversation/list": {
+      "post": {
+        "operationId": "listConversations",
+        "summary": "Synchronize a Conversation page",
+        "description": "Returns one bounded membership page; only done=true completes the pass.",
+        "x-i18n": { "zh": { "summary": "同步一页会话", "description": "返回一页有界 membership；只有 done=true 才表示本轮完成。" } },
+        "tags": ["Conversations"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationList" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ConversationListOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversation/retry": {
+      "post": {
+        "operationId": "retryConversations",
+        "summary": "Retry unresolved Conversations",
+        "description": "Rehydrates up to 200 keys without rewinding completed coverage; duplicate keys are merged.",
+        "x-i18n": { "zh": { "summary": "重试未解析会话", "description": "重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。" } },
+        "tags": ["Conversations"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationRetry" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ConversationListOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversation/sync": {
+      "post": {
+        "operationId": "syncConversationsLegacy",
+        "summary": "Synchronize legacy Conversations",
+        "description": "Parses delimited per-Channel cursors and returns the old bare array without a completion signal.",
+        "x-i18n": { "zh": { "summary": "同步旧式会话", "description": "解析分隔式逐 Channel 游标并返回没有完成标记的旧式裸数组。" } },
+        "tags": ["Conversations"],
+        "deprecated": true,
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationSyncLegacy" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ConversationSyncLegacyOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/clearUnread": {
+      "post": {
+        "operationId": "clearConversationUnread",
+        "summary": "Clear Conversation unread",
+        "description": "Advances read_seq to the current committed head; unknown legacy fields such as message_seq are ignored.",
+        "x-i18n": { "zh": { "summary": "清除会话未读", "description": "把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。" } },
+        "tags": ["Conversations"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationMutation" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/setUnread": {
+      "post": {
+        "operationId": "setConversationUnread",
+        "summary": "Set maximum Conversation unread",
+        "description": "Monotonically advances read_seq so no more than unread messages remain.",
+        "x-i18n": { "zh": { "summary": "设置会话最大未读数", "description": "单调推进 read_seq，使剩余未读消息不超过 unread。" } },
+        "tags": ["Conversations"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationSetUnread" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/delete": {
+      "post": {
+        "operationId": "hideConversation",
+        "summary": "Hide Conversation through the current head",
+        "description": "Advances deleted_to_seq to the current committed head without deleting Channel membership.",
+        "x-i18n": { "zh": { "summary": "把会话隐藏到当前 head", "description": "把 deleted_to_seq 推进到当前已提交 head，但不删除 Channel 成员关系。" } },
+        "tags": ["Conversations"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationMutation" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    },
+    "/conversations/activate": {
+      "post": {
+        "operationId": "activateConversation",
+        "summary": "Activate a Conversation",
+        "description": "Records an explicit open, switch, or resume action for ordering; message paths do not activate it.",
+        "x-i18n": { "zh": { "summary": "激活会话", "description": "记录显式打开、切换或恢复动作以参与排序；消息路径不会隐式激活。" } },
+        "tags": ["Conversations"],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": { "$ref": "#/components/requestBodies/ConversationMutation" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatusOK" },
+          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
+          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "NodeIDSnake": {
+        "name": "node_id",
+        "in": "query",
+        "required": false,
+        "description": "Preferred node selector. A specified value must be a configured positive uint64.",
+        "schema": { "type": "integer", "format": "uint64", "minimum": 1 }
+      },
+      "NodeIDCamel": {
+        "name": "nodeId",
+        "in": "query",
+        "required": false,
+        "deprecated": true,
+        "description": "Legacy alias read only when node_id is absent.",
+        "schema": { "type": "integer", "format": "uint64", "minimum": 1 }
+      },
+      "NodeIDUpperCamel": {
+        "name": "nodeID",
+        "in": "query",
+        "required": false,
+        "deprecated": true,
+        "description": "Legacy alias read after node_id and nodeId.",
+        "schema": { "type": "integer", "format": "uint64", "minimum": 1 }
+      },
+      "Intranet": {
+        "name": "intranet",
+        "in": "query",
+        "required": false,
+        "description": "Any parseable non-zero integer selects intranet addresses; invalid text behaves as 0.",
+        "schema": { "type": "integer", "default": 0 }
+      },
+      "ChannelIDQuery": {
+        "name": "channel_id",
+        "in": "query",
+        "required": false,
+        "description": "Unvalidated Channel ID used by the legacy full-list route.",
+        "schema": { "type": "string", "default": "" }
+      },
+      "ChannelTypeQuery": {
+        "name": "channel_type",
+        "in": "query",
+        "required": false,
+        "description": "Parsed as uint8; missing or invalid text is silently treated as 0.",
+        "schema": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }
+      }
+    },
+    "requestBodies": {
+      "RouteBatch": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RouteBatchRequest" } } } },
+      "UpdateToken": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateTokenRequest" } } } },
+      "DeviceQuit": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceQuitRequest" } } } },
+      "OnlineStatus": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OnlineStatusRequest" } } } },
+      "SystemUIDs": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemUIDsRequest" } } } },
+      "ChannelInfo": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelInfoRequest" } } } },
+      "ChannelUpsert": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelUpsertRequest" } } } },
+      "WeakChannelKey": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WeakChannelKeyRequest" } } } },
+      "ChannelSubscriberAdd": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelSubscriberAddRequest" } } } },
+      "ChannelSubscriberRemove": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelSubscriberRemoveRequest" } } } },
+      "NonPersonChannelKey": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NonPersonChannelKeyRequest" } } } },
+      "TemporarySubscribers": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TemporarySubscriberSetRequest" } } } },
+      "ChannelMembers": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMemberMutationRequest" } } } },
+      "ChannelMemberSet": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMemberSetRequest" } } } },
+      "ChannelAllowlistMembers": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelAllowlistMutationRequest" } } } },
+      "ChannelKey": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelKeyRequest" } } } },
+      "SendMessage": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendMessageRequest" } } } },
+      "AppendMessageEvent": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppendMessageEventRequest" } } } },
+      "MessageSync": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageSyncRequest" } } } },
+      "MessageSyncAck": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageSyncAckRequest" } } } },
+      "MessageCMDBinding": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageCMDBindingRequest" } } } },
+      "ChannelMessageSync": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMessageSyncRequest" } } } },
+      "ChannelMessageSyncBatch": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMessageSyncBatchRequest" } } } },
+      "ConversationList": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationListRequest" } } } },
+      "ConversationRetry": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationRetryRequest" } } } },
+      "ConversationMutation": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationMutationRequest" } } } },
+      "ConversationSetUnread": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationSetUnreadRequest" } } } },
+      "ConversationSyncLegacy": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationSyncLegacyRequest" } } } }
+    },
+    "responses": {
+      "StatusOK": { "description": "Mutation accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusEnvelope" } } } },
+      "CompatibilityBadRequest": { "description": "Input, validation, dependency, or downstream error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CompatibilityError" } } } },
+      "MaintenanceUnavailable": { "description": "Controller restore maintenance is active", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MaintenanceError" } } } },
+      "RouteOK": { "description": "Selected Gateway addresses", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RouteResponse" } } } },
+      "RouteBatchOK": { "description": "One selected address group", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RouteBatchResponse" } } } },
+      "OnlineStatusOK": { "description": "Active routes or the empty-request status object", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OnlineStatusResponse" } } } },
+      "SystemUIDListOK": { "description": "Complete system UID list", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemUIDListResponse" } } } },
+      "ChannelMemberListOK": { "description": "Complete legacy allowlist member array", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMemberListResponse" } } } },
+      "SendCompleted": { "description": "Transport completed; inspect reason", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendMessageResponse" } } } },
+      "SendBadRequest": { "description": "Invalid request or payload", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendError" } } } },
+      "SendNotFound": { "description": "Channel not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendError" } } } },
+      "SendTimedOut": { "description": "Request cancelled or timed out", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendError" } } } },
+      "SendInternalError": { "description": "Unmapped send failure", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendError" } } } },
+      "SendUnavailable": { "description": "Retry-required routing failure or restore maintenance", "content": { "application/json": { "schema": { "oneOf": [ { "$ref": "#/components/schemas/RetryRequiredError" }, { "$ref": "#/components/schemas/MaintenanceError" } ] } } } },
+      "MessageEventOK": { "description": "Applied event projection", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppendMessageEventResponse" } } } },
+      "LegacyMessageListOK": { "description": "Bare legacy message array", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LegacyMessage" } } } } },
+      "ChannelMessageSyncOK": { "description": "One committed-message page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMessageSyncResponse" } } } },
+      "ChannelMessageSyncBatchOK": { "description": "Aligned batch result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMessageSyncBatchResponse" } } } },
+      "ConversationListOK": { "description": "Canonical Conversation page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationListResponse" } } } },
+      "ConversationSyncLegacyOK": { "description": "Bare legacy Conversation array", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationSyncLegacyItem" } } } } }
+    },
+    "schemas": {
+      "StatusEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": { "status": { "type": "integer", "const": 200 } }
+      },
+      "CompatibilityError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["msg", "status"],
+        "properties": {
+          "msg": { "type": "string", "description": "Human-readable and not stable for machine matching." },
+          "status": { "type": "integer", "const": 400 }
+        }
+      },
+      "MaintenanceError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string", "const": "maintenance" },
+          "message": { "type": "string", "const": "restore maintenance is active" }
+        }
+      },
+      "RouteResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tcp_addr", "ws_addr", "wss_addr"],
+        "properties": {
+          "tcp_addr": { "type": "string" },
+          "ws_addr": { "type": "string" },
+          "wss_addr": { "type": "string" }
+        }
+      },
+      "RouteBatchRequest": {
+        "type": "array",
+        "description": "Unbounded by the current Product HTTP entry.",
+        "items": { "type": "string" }
+      },
+      "RouteBatchItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tcp_addr", "ws_addr", "wss_addr"],
+        "properties": {
+          "tcp_addr": { "type": "string" },
+          "ws_addr": { "type": "string" },
+          "wss_addr": { "type": "string" },
+          "uids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "RouteBatchResponse": { "type": "array", "items": { "$ref": "#/components/schemas/RouteBatchItem" } },
+      "UpdateTokenRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid", "token"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1, "description": "Must not contain @, #, or &." },
+          "token": { "type": "string", "minLength": 1 },
+          "device_flag": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 },
+          "device_level": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 }
+        }
+      },
+      "DeviceQuitRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "uid": { "type": "string", "default": "", "description": "The entry adapter does not validate this field." },
+          "device_flag": { "type": "integer", "default": 0, "description": "-1 selects APP, Web, and PC; other values are converted to uint8 by the use case." }
+        }
+      },
+      "OnlineStatusRequest": {
+        "type": "array",
+        "description": "Unbounded by the current Product HTTP entry.",
+        "items": { "type": "string" }
+      },
+      "UserOnlineStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uid", "device_flag", "online"],
+        "properties": {
+          "uid": { "type": "string" },
+          "device_flag": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "online": { "type": "integer", "const": 1 }
+        }
+      },
+      "OnlineStatusResponse": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/StatusEnvelope" },
+          { "type": "array", "items": { "$ref": "#/components/schemas/UserOnlineStatus" } }
+        ]
+      },
+      "SystemUIDsRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "uids": { "type": "array", "description": "May be empty; no entry-level element validation.", "items": { "type": "string" } }
+        }
+      },
+      "SystemUIDListResponse": { "type": ["array", "null"], "items": { "type": "string" } },
+      "CompatibilityFlag": {
+        "type": "integer",
+        "default": 0,
+        "description": "Exactly 1 means true; every other integer means false."
+      },
+      "ChannelInfoRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "channel_id": { "type": "string", "default": "" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 },
+          "large": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "disband": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "send_ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "allow_stranger": { "$ref": "#/components/schemas/CompatibilityFlag" }
+        }
+      },
+      "ChannelUpsertRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "large": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "disband": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "send_ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "allow_stranger": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "subscribers": { "type": "array", "description": "Elements are not validated at entry; a non-empty list is rejected for person Channels.", "items": { "type": "string" } }
+        }
+      },
+      "WeakChannelKeyRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "channel_id": { "type": "string", "default": "" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 }
+        }
+      },
+      "ChannelSubscriberAddRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "subscribers"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 2, "description": "0 or omission becomes group type 2; type 1 is rejected." },
+          "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "temp_subscriber": { "type": "integer", "description": "Exactly 1 is rejected; other values are ignored." },
+          "subscribers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        }
+      },
+      "ChannelSubscriberRemoveRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "subscribers"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "description": "Type 1 is rejected; type 0 is passed through." },
+          "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "temp_subscriber": { "type": "integer", "description": "Accepted and ignored." },
+          "subscribers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        }
+      },
+      "NonPersonChannelKeyRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 2, "maximum": 255 }
+        }
+      },
+      "TemporarySubscriberSetRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "uids"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "uids": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      },
+      "ChannelMemberMutationRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type", "uids"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "uids": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      },
+      "ChannelMemberSetRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 },
+          "uids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "ChannelAllowlistMutationRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type", "uids"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "uids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        }
+      },
+      "ChannelKeyRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 }
+        }
+      },
+      "ChannelMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "uid"],
+        "properties": {
+          "id": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "uid": { "type": "string" }
+        }
+      },
+      "ChannelMemberListResponse": { "type": "array", "items": { "$ref": "#/components/schemas/ChannelMember" } },
+      "SendMessageHeaderRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "no_persist": { "type": "integer", "default": 0, "description": "Any non-zero value means true." },
+          "sync_once": { "type": "integer", "default": 0, "description": "Any non-zero value means true." }
+        }
+      },
+      "SendMessageRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["payload"],
+        "anyOf": [ { "required": ["from_uid"] }, { "required": ["sender_uid"] } ],
+        "properties": {
+          "from_uid": { "type": "string", "minLength": 1 },
+          "sender_uid": { "type": "string", "minLength": 1, "deprecated": true, "description": "Used only when from_uid is empty." },
+          "device_id": { "type": "string" },
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "client_msg_no": { "type": "string", "description": "Optional; an empty value disables idempotency lookup." },
+          "setting": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "topic": { "type": "string" },
+          "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
+          "payload": { "type": "string", "minLength": 1, "contentEncoding": "base64" },
+          "subscribers": { "type": "array", "description": "A non-empty array selects request-scoped delivery, requires an empty channel_id, and requires sync_once.", "items": { "type": "string" } },
+          "header": { "$ref": "#/components/schemas/SendMessageHeaderRequest" },
+          "no_persist": { "type": "integer", "default": 0, "description": "Any non-zero value means true." },
+          "sync_once": { "type": "integer", "default": 0, "description": "Any non-zero value means true." }
+        }
+      },
+      "SendMessageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message_id", "message_seq", "reason"],
+        "properties": {
+          "message_id": { "type": "integer", "format": "int64" },
+          "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "reason": { "type": "integer", "format": "uint8", "enum": [1, 2, 3, 4, 5, 9, 11, 13, 15, 18, 19, 24, 25] }
+        }
+      },
+      "SendError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": { "error": { "type": "string" } }
+      },
+      "RetryRequiredError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": { "error": { "type": "string", "const": "retry required" } }
+      },
+      "AppendMessageEventRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type", "client_msg_no", "event_id", "event_type"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "from_uid": { "type": "string" },
+          "message_id": { "type": "integer", "format": "int64", "description": "Positive values are converted to uint64; zero and negative values are omitted from the command." },
+          "client_msg_no": { "type": "string", "minLength": 1 },
+          "event_id": { "type": "string", "minLength": 1 },
+          "event_type": { "type": "string", "minLength": 1 },
+          "event_key": { "type": "string", "description": "Empty selects the default lane; stream.finish forces the finish lane." },
+          "visibility": { "type": "string" },
+          "occurred_at": { "type": "integer", "format": "int64" },
+          "payload": {},
+          "headers": { "type": "null", "deprecated": true, "description": "Only absent or null is accepted." }
+        }
+      },
+      "AppendMessageEventData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["client_msg_no", "event_key", "event_id", "msg_event_seq", "stream_status", "channel_id", "channel_type", "from_uid"],
+        "properties": {
+          "client_msg_no": { "type": "string" },
+          "event_key": { "type": "string" },
+          "event_id": { "type": "string" },
+          "msg_event_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "stream_status": { "type": "string" },
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "from_uid": { "type": "string" }
+        }
+      },
+      "AppendMessageEventResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "data"],
+        "properties": {
+          "status": { "type": "integer", "const": 200 },
+          "data": { "$ref": "#/components/schemas/AppendMessageEventData" }
+        }
+      },
+      "MessageSyncRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1 },
+          "message_seq": { "type": "integer", "format": "uint64", "minimum": 0, "deprecated": true, "description": "Accepted and ignored." },
+          "limit": { "type": "integer", "minimum": 0, "default": 200, "description": "0 selects 200; values above 10000 are capped." }
+        }
+      },
+      "MessageSyncAckRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid", "last_message_seq"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1 },
+          "last_message_seq": { "type": "integer", "format": "uint64", "minimum": 1, "deprecated": true, "description": "Required by the entry but ignored by the use case." }
+        }
+      },
+      "MessageCMDBindingRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid", "channel_id", "channel_type"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 }
+        }
+      },
+      "ChannelMessageSyncRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["login_uid", "channel_id", "channel_type"],
+        "properties": {
+          "login_uid": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "start_message_seq": { "type": "integer", "format": "uint64", "minimum": 0, "default": 0 },
+          "end_message_seq": { "type": "integer", "format": "uint64", "minimum": 0, "default": 0 },
+          "limit": { "type": "integer", "default": 100, "description": "Values <=0 select 100; values above 10000 are capped." },
+          "pull_mode": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "description": "1 pulls newer messages; every other uint8 value follows the older-message branch." },
+          "include_event_meta": { "type": "integer", "default": 0, "description": "Any non-zero value requests event metadata." },
+          "event_summary_mode": { "type": "string", "default": "" }
+        }
+      },
+      "ChannelMessageSyncBatchItemRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "login_uid": { "type": "string", "deprecated": true, "description": "Accepted by JSON decoding but ignored; the top-level login_uid is used." },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "start_message_seq": { "type": "integer", "format": "uint64", "minimum": 0, "default": 0 },
+          "end_message_seq": { "type": "integer", "format": "uint64", "minimum": 0, "default": 0 },
+          "limit": { "type": "integer", "default": 100, "description": "Values <=0 select 100; values above 10000 are capped." },
+          "pull_mode": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 },
+          "include_event_meta": { "type": "integer", "default": 0 },
+          "event_summary_mode": { "type": "string", "default": "" }
+        }
+      },
+      "ChannelMessageSyncBatchRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["login_uid", "items"],
+        "properties": {
+          "login_uid": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "items": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "#/components/schemas/ChannelMessageSyncBatchItemRequest" } }
+        }
+      },
+      "LegacyMessageHeader": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["no_persist", "red_dot", "sync_once"],
+        "properties": {
+          "no_persist": { "type": "integer", "enum": [0, 1] },
+          "red_dot": { "type": "integer", "enum": [0, 1] },
+          "sync_once": { "type": "integer", "enum": [0, 1] }
+        }
+      },
+      "LegacyMessageEventKeyMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["event_key", "status"],
+        "properties": {
+          "event_key": { "type": "string" },
+          "status": { "type": "string" },
+          "last_msg_event_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "snapshot": {},
+          "end_reason": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "error": { "type": "string" }
+        }
+      },
+      "LegacyMessageEventMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["has_events", "completed"],
+        "properties": {
+          "has_events": { "type": "boolean" },
+          "completed": { "type": "boolean" },
+          "event_version": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "last_msg_event_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "event_count": { "type": "integer", "minimum": 0 },
+          "open_event_count": { "type": "integer", "minimum": 0 },
+          "events": { "type": "array", "items": { "$ref": "#/components/schemas/LegacyMessageEventKeyMeta" } }
+        }
+      },
+      "LegacyMessageEventSyncHint": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["client_msg_no", "from_msg_event_seq"],
+        "properties": {
+          "client_msg_no": { "type": "string" },
+          "from_msg_event_seq": { "type": "integer", "format": "uint64", "minimum": 0 }
+        }
+      },
+      "LegacyMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["header", "setting", "message_id", "message_idstr", "client_msg_no", "message_seq", "from_uid", "channel_id", "channel_type", "expire", "timestamp", "payload"],
+        "properties": {
+          "header": { "$ref": "#/components/schemas/LegacyMessageHeader" },
+          "setting": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "message_id": { "type": "integer", "format": "int64" },
+          "message_idstr": { "type": "string" },
+          "client_msg_no": { "type": "string" },
+          "end": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "end_reason": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "error": { "type": "string" },
+          "stream_data": { "type": ["string", "null"], "contentEncoding": "base64" },
+          "event_meta": { "$ref": "#/components/schemas/LegacyMessageEventMeta" },
+          "event_sync_hint": { "$ref": "#/components/schemas/LegacyMessageEventSyncHint" },
+          "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "from_uid": { "type": "string" },
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "topic": { "type": "string" },
+          "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
+          "timestamp": { "type": "integer", "format": "int32" },
+          "payload": { "type": ["string", "null"], "contentEncoding": "base64" }
+        }
+      },
+      "ChannelMessageSyncResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start_message_seq", "end_message_seq", "more", "messages"],
+        "properties": {
+          "start_message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "end_message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "more": { "type": "integer", "enum": [0, 1] },
+          "messages": { "type": "array", "items": { "$ref": "#/components/schemas/LegacyMessage" } }
+        }
+      },
+      "ChannelMessageSyncBatchItemResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type", "start_message_seq", "end_message_seq", "more", "messages"],
+        "properties": {
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "start_message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "end_message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "more": { "type": "integer", "enum": [0, 1] },
+          "messages": { "type": "array", "items": { "$ref": "#/components/schemas/LegacyMessage" } },
+          "error": { "type": "string", "description": "Raw item-scoped error text; omitted on success." }
+        }
+      },
+      "ChannelMessageSyncBatchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["items"],
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/ChannelMessageSyncBatchItemResponse" } } }
+      },
+      "ConversationListRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1 },
+          "cursor": { "type": "string", "default": "" },
+          "limit": { "type": "integer", "minimum": 0, "maximum": 200, "default": 50 },
+          "completed_coverage": { "type": "integer", "format": "int64", "minimum": 0, "default": 0 }
+        }
+      },
+      "ConversationKey": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "minimum": 1, "maximum": 255 }
+        }
+      },
+      "ConversationRetryRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid", "channels"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1 },
+          "channels": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "#/components/schemas/ConversationKey" } }
+        }
+      },
+      "ConversationMutationRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid", "channel_id", "channel_type"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1 },
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 }
+        }
+      },
+      "ConversationSetUnreadRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid", "channel_id", "channel_type", "unread"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1 },
+          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
+          "unread": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "ConversationListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["conversations", "deletes", "unresolved", "done", "coverage", "tombstones_retained_since", "reset_required"],
+        "properties": {
+          "conversations": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationListItem" } },
+          "deletes": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationKey" } },
+          "unresolved": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationKey" } },
+          "next_cursor": { "type": "string" },
+          "done": { "type": "boolean" },
+          "coverage": { "type": "integer", "format": "int64", "minimum": 0 },
+          "tombstones_retained_since": { "type": "integer", "format": "int64", "minimum": 0 },
+          "reset_required": { "type": "boolean" }
+        }
+      },
+      "ConversationListItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type", "active_at", "read_seq", "deleted_to_seq", "unread", "last_message"],
+        "properties": {
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "minimum": 1, "maximum": 255 },
+          "active_at": { "type": "integer", "format": "int64" },
+          "read_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "deleted_to_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "unread": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "last_message": { "oneOf": [ { "$ref": "#/components/schemas/ConversationLastMessage" }, { "type": "null" } ] }
+        }
+      },
+      "ConversationLastMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message_id", "message_idstr", "message_seq", "from_uid", "client_msg_no", "server_timestamp_ms", "payload"],
+        "properties": {
+          "message_id": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "message_idstr": { "type": "string" },
+          "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "from_uid": { "type": "string" },
+          "client_msg_no": { "type": "string" },
+          "server_timestamp_ms": { "type": "integer", "format": "int64" },
+          "payload": { "type": ["string", "null"], "contentEncoding": "base64" }
+        }
+      },
+      "ConversationSyncLegacyRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["uid"],
+        "properties": {
+          "uid": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "version": { "type": "integer", "format": "int64", "default": 0 },
+          "last_msg_seqs": { "type": "string", "default": "", "description": "Legacy channel_id:channel_type:message_seq entries separated by |; malformed entries are skipped." },
+          "msg_count": { "type": "integer", "default": 0, "description": "Values <=0 return an empty array; downstream sync caps positive values at 10000." },
+          "only_unread": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "description": "Exactly 1 means true." },
+          "exclude_channel_types": { "type": "array", "items": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 } },
+          "page": { "type": "integer", "default": 0, "description": "Values <=0 disable legacy page slicing." },
+          "page_size": { "type": "integer", "default": 100, "description": "When page>0, values <=0 become 100 and values above 500 are capped." }
+        }
+      },
+      "ConversationSyncLegacyItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_id", "channel_type", "unread", "timestamp", "last_msg_seq", "last_client_msg_no", "offset_msg_seq", "readed_to_msg_seq", "version", "recents"],
+        "properties": {
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "unread": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "timestamp": { "type": "integer", "format": "int64" },
+          "last_msg_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "last_client_msg_no": { "type": "string" },
+          "offset_msg_seq": { "type": "integer", "format": "int64" },
+          "readed_to_msg_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "version": { "type": "integer", "format": "int64" },
+          "recents": { "type": "array", "items": { "$ref": "#/components/schemas/LegacyMessage" } }
+        }
+      }
+    }
+  }
+}
