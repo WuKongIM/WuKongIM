@@ -89,6 +89,23 @@ describe('API copy concision', () => {
     }
   });
 
+  test('keeps client-protocol pages concise in both locales', async () => {
+    const pages = [
+      ['index', 30],
+      ['connection-lifecycle', 45],
+      ['packet-types', 45],
+    ] as const;
+
+    for (const [page, maximum] of pages) {
+      for (const suffix of ['.mdx', '.en.mdx']) {
+        const content = await source(
+          `../content/docs/api/client-protocols/${page}${suffix}`,
+        );
+        expect(lineCount(content)).toBeLessThanOrEqual(maximum);
+      }
+    }
+  });
+
   test('keeps OpenAPI operation descriptions scannable', () => {
     const documents = [
       goldenPathDocument,

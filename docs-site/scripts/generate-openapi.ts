@@ -2,13 +2,10 @@ import { generateFilesOnly } from 'fumadocs-openapi';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  createProductHTTPManagementOpenAPI,
-  createProductHTTPMessagingOpenAPI,
-  createProductHTTPOpenAPI,
-} from '../lib/openapi';
+import { createProductHTTPOpenAPIContract } from '../lib/openapi';
 import { getOpenAPISearchStructuredData } from '../lib/openapi-markdown';
 import {
+  productHTTPOpenAPIContractNames,
   productHTTPOpenAPIReferenceGroups,
   type ProductHTTPOpenAPIContract,
   type ProductHTTPOpenAPILocale,
@@ -24,20 +21,6 @@ if (mode !== '--check' && mode !== '--write') {
 
 function groupsFor(contract: ProductHTTPOpenAPIContract) {
   return productHTTPOpenAPIReferenceGroups.filter((group) => group.contract === contract);
-}
-
-function openAPIFor(
-  contract: ProductHTTPOpenAPIContract,
-  locale: ProductHTTPOpenAPILocale,
-) {
-  switch (contract) {
-    case 'golden-path':
-      return createProductHTTPOpenAPI(locale);
-    case 'management':
-      return createProductHTTPManagementOpenAPI(locale);
-    case 'messaging':
-      return createProductHTTPMessagingOpenAPI(locale);
-  }
 }
 
 function localizedSuffix(locale: ProductHTTPOpenAPILocale) {
@@ -81,7 +64,7 @@ async function generatedContractFiles(
   }
 
   const files = await generateFilesOnly({
-    input: openAPIFor(contract, locale),
+    input: createProductHTTPOpenAPIContract(contract, locale),
     per: 'operation',
     groupBy: 'tag',
     slugify(name) {
@@ -161,7 +144,7 @@ async function generatedContractFiles(
 const files = (
   await Promise.all(
     (['zh', 'en'] as const).flatMap((locale) =>
-      (['golden-path', 'management', 'messaging'] as const).map((contract) =>
+      productHTTPOpenAPIContractNames.map((contract) =>
         generatedContractFiles(contract, locale),
       ),
     ),

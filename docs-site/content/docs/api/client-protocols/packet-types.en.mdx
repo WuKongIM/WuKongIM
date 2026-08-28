@@ -3,8 +3,6 @@ title: Packet Types
 description: Reference WKProto FrameType values, directions, core fields, and current publication scope.
 ---
 
-import { ClientProtocolPacketTable } from '@/components/client-protocol-contracts';
-
 `FrameType` occupies the high four bits of the fixed header. `UNKNOWN=0` is reserved and must not be sent. Enum presence does not mean the product Gateway supports that packet.
 
 <ClientProtocolPacketTable locale="en" />
@@ -23,8 +21,8 @@ import { ClientProtocolPacketTable } from '@/components/client-protocol-contract
 
 Protocol v5 and earlier use a 32-bit `message_seq`; v6 uses 64 bits. The wire width of `client_seq` is always 32 bits. The current encoder limits SEND Payload to 32,767 bytes; the decoder rejects frames whose remaining length exceeds 1 MiB.
 
-See [Message Flags](/en/api/dictionaries/message-flags) for fixed-header and Setting bits, and [Channel Types](/en/api/dictionaries/channel-types) for Channel values.
+See [Message Flags](/en/api/dictionaries/message-flags) for fixed-header and Setting bits, [Device Flags](/en/api/dictionaries/device-flags) for device values, [Channel Types](/en/api/dictionaries/channel-types) for Channel values, and [Reason Codes](/en/api/dictionaries/reason-codes) for outcomes.
 
 <Callout type="warn" title="Do not use unpublished packets">
-  The current product Gateway does not accept ordinary inbound `DISCONNECT`, `SUB`, or arbitrary `EVENT` packets. `EVENT` is reserved for strictly validated internal protocols; applications must not construct or probe its data.
+  The current product Gateway accepts no ordinary inbound `DISCONNECT`, `SUB`, or arbitrary `EVENT`; `EVENT` is only for benchmark terminal-fence. `UNKNOWN=0` never reaches product handling. Unknown numeric types, malformed frames, and decoded-but-unpublished packets fail closed through protocol-error, handler-error, or bounded-timeout paths.
 </Callout>

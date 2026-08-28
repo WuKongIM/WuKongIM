@@ -18,7 +18,7 @@ description: 查阅当前 Gateway 连接生命周期与 WKProto 数据包边界�
 
 - 公共核心只包含 CONNECT/CONNACK、SEND/SENDACK、RECV/RECVACK 和 PING/PONG。
 - `DISCONNECT`、`SUB`、`SUBACK` 目前只是 codec 合同，不代表产品 Gateway 已发布对应入口。
-- `EVENT` 保留给受控内部协议，不是应用事件 API。
+- 当前产品 Gateway 仅为 benchmark terminal-fence 请求与确认保留 `EVENT`；它不是应用事件 API。
 - WebSocket JSON-RPC、精确二进制布局和加密细节仍在校准，不能从本页推断方法或安全保证。
 
 数值含义见 [公共数据字典](/zh/api/dictionaries)，生产信任边界见[认证与安全](/zh/api/authentication)。

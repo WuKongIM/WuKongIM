@@ -14,9 +14,8 @@ Transport open
 ```
 
 - `CONNECT` must be the sole first packet. A batch tail or another packet while authentication is pending closes the connection.
-- The server negotiates the protocol version, stores UID and device state plus encryption Session state when enabled, then activates online Presence.
+- The server negotiates the protocol version (currently v6; client values `0` or above v6 select v6), stores UID and device state plus encryption Session state when enabled, then activates online Presence.
 - A non-success `CONNACK` is written before close. If a successful `CONNACK` cannot be written, completed activation is rolled back.
-- The current latest version is v6. A client value of `0` or above v6 negotiates to v6.
 
 <Callout type="error" title="CONNACK success is not product ready">
   Success proves only that the protocol Session exists. Recover durable messages and merge local state before ordinary product sends are enabled.
@@ -34,8 +33,13 @@ The default read-idle timeout is three minutes. Only inbound activity refreshes 
 
 ## Close and recover
 
-After close, stop new sends and reconnect with bounded backoff and jitter. Rediscover Gateway ingress when needed. Reuse a stable `client_msg_no` for the same product send; concurrent wire attempts use distinct `client_seq` values. Return to ready only after CONNACK succeeds and durable-message recovery completes.
+- `ReasonAuthFail` or `ReasonBan`: stop automatic reconnect and repair credentials or policy state.
+- `ReasonClientKeyIsEmpty` or `ReasonProtocolUpgradeRequired`: fix client configuration or version first.
+- `ReasonRateLimit`, `ReasonSystemError`, or transport loss: use only bounded backoff with jitter; rediscover Gateway ingress when needed.
+- Any other failure: preserve the raw Reason Code and fail closed; do not guess that it is retryable.
 
-The current default composition enables Session payload encryption; CONNECT without `client_key` returns `ReasonClientKeyIsEmpty`. This encryption does not replace TLS or token verification. The default composition also does not automatically turn a stored token into a CONNECT verifier; production must wire explicit verification and revocation policy.
+After close, stop new sends. Reuse a stable `client_msg_no` for the same product send and distinct `client_seq` values for concurrent wire attempts. Return to ready only after CONNACK succeeds and durable-message recovery completes.
+
+The current default composition enables Session payload encryption; CONNECT without `client_key` returns `ReasonClientKeyIsEmpty`. This encryption does not replace TLS, product identity and token verification, or Product HTTP protection. The default composition also does not automatically turn a stored token into a CONNECT verifier; production must wire explicit verification and revocation policy.
 
 Continue with [Packet Types](/en/api/client-protocols/packet-types) and [Reason Codes](/en/api/dictionaries/reason-codes).

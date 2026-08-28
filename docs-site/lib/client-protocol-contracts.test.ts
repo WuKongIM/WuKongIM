@@ -107,6 +107,48 @@ describe('client protocol contracts', () => {
     expect(clientProtocolFrames.find((item) => item.name === 'EVENT')?.scope).toBe('reserved');
   });
 
+  test('keeps DISCONNECT direction separate from its unpublished product scope', async () => {
+    const [client, jsonrpc] = await Promise.all([
+      Bun.file(new URL('../../pkg/client/reader.go', import.meta.url)).text(),
+      Bun.file(new URL('../../pkg/protocol/jsonrpc/codec.go', import.meta.url)).text(),
+    ]);
+    const disconnect = clientProtocolFrames.find((item) => item.name === 'DISCONNECT');
+
+    expect(client).toContain('case *frame.DisconnectPacket:');
+    expect(jsonrpc).toContain('case DisconnectRequest:');
+    expect(jsonrpc).toContain('case frame.DISCONNECT:');
+    expect(disconnect?.direction).toBe('bidirectional');
+    expect(disconnect?.scope).toBe('codec-only');
+  });
+
+  test('aligns fail-closed publication rules with decoder and Gateway defaults', async () => {
+    const [codec, server, handler, page] = await Promise.all([
+      Bun.file(new URL('../../pkg/protocol/codec/protocol.go', import.meta.url)).text(),
+      Bun.file(new URL('../../pkg/gateway/core/server.go', import.meta.url)).text(),
+      Bun.file(new URL('../../internal/access/gateway/handler.go', import.meta.url)).text(),
+      Bun.file(
+        new URL('../content/docs/api/client-protocols/packet-types.en.mdx', import.meta.url),
+      ).text(),
+    ]);
+
+    expect(codec).toMatch(/if decodeFunc == nil \{[\s\S]*?return nil, 0, errors\.New/u);
+    expect(server).toMatch(
+      /listener\.adapter\.Decode\(state\.session, data\)[\s\S]*?CloseReasonProtocolError/u,
+    );
+    expect(server).toMatch(/CloseOnHandlerError[\s\S]*?state\.close\(reason, err\)/u);
+    expect(handler).toContain('return ErrUnsupportedFrame');
+    expect(page).toContain('UNKNOWN=0` never reaches product handling');
+    expect(page).toContain('fail closed through');
+    for (const dictionary of [
+      'message-flags',
+      'device-flags',
+      'channel-types',
+      'reason-codes',
+    ]) {
+      expect(page).toContain(`/en/api/dictionaries/${dictionary}`);
+    }
+  });
+
   test('matches current codec, version, and session limits', async () => {
     const codec = await Bun.file(
       new URL('../../pkg/protocol/codec/common.go', import.meta.url),
@@ -158,13 +200,66 @@ describe('client protocol contracts', () => {
     expect(inboundTypes).toEqual(['PING', 'SEND', 'RECVACK', 'EVENT']);
   });
 
+  test('keeps connection lifecycle claims aligned with Gateway authentication', async () => {
+    const [server, auth, wiring, lifecycleZh, lifecycleEn] = await Promise.all([
+      Bun.file(new URL('../../pkg/gateway/core/server.go', import.meta.url)).text(),
+      Bun.file(new URL('../../pkg/gateway/auth.go', import.meta.url)).text(),
+      Bun.file(new URL('../../internal/app/wiring.go', import.meta.url)).text(),
+      Bun.file(
+        new URL('../content/docs/api/client-protocols/connection-lifecycle.mdx', import.meta.url),
+      ).text(),
+      Bun.file(
+        new URL('../content/docs/api/client-protocols/connection-lifecycle.en.mdx', import.meta.url),
+      ).text(),
+    ]);
+    const authGate = server.match(
+      /func \(s \*Server\) handleAuthFrame[\s\S]*?\n\}/u,
+    )?.[0];
+    const authTask = server.match(/func \(s \*Server\) runAuthTask[\s\S]*?\n\}/u)?.[0];
+    if (!authGate || !authTask) throw new Error('Gateway authentication flow is missing');
+
+    expect(authGate).toContain('if state.isAuthPending()');
+    expect(authGate).toContain('connect, ok := f.(*frame.ConnectPacket)');
+    expect(authGate).toContain('if hasBatchTail');
+    expect(authTask).toMatch(
+      /OnSessionActivate[\s\S]*beginAuthenticatedOpen[\s\S]*writeImmediateFrame\(state, connack\)/u,
+    );
+    expect(authTask).toContain('rollbackActivatedSession');
+    expect(server.match(/\.touchReadActivity\(\)/gu)).toHaveLength(2);
+
+    expect(auth).toContain('encryptionEnabled := true');
+    expect(auth).toContain('ReasonClientKeyIsEmpty');
+    expect(auth).toMatch(
+      /serverVersion == 0 \|\| serverVersion > frame\.LatestVersion/u,
+    );
+    expect(auth).toContain('connack.HasServerVersion = connect.Version > 3');
+    expect(auth).toContain('if opts.TokenAuthOn && !isVisitor');
+    expect(wiring).toContain(
+      'gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: nodeID})',
+    );
+    for (const lifecycle of [lifecycleZh, lifecycleEn]) {
+      for (const reason of [
+        'ReasonAuthFail',
+        'ReasonBan',
+        'ReasonClientKeyIsEmpty',
+        'ReasonProtocolUpgradeRequired',
+        'ReasonRateLimit',
+        'ReasonSystemError',
+      ]) {
+        expect(lifecycle).toContain(reason);
+      }
+      expect(lifecycle).toContain('fail closed');
+      expect(lifecycle).toContain('Product HTTP');
+    }
+  });
+
   test('renders a bilingual LLM-friendly packet table', () => {
     const zh = renderClientProtocolPacketMarkdown('zh');
     const en = renderClientProtocolPacketMarkdown('en');
 
     expect(zh).toContain('| 0 | `UNKNOWN` | — | 保留 |');
-    expect(zh).toContain('| 9 | `DISCONNECT` | 编解码定义 | 仅编解码 |');
-    expect(zh).toContain('| 12 | `EVENT` | 内部双向 | 保留 |');
+    expect(zh).toContain('| 9 | `DISCONNECT` | 客户端 ↔ 服务端 | 仅编解码 |');
+    expect(zh).toContain('| 12 | `EVENT` | 客户端 ↔ 服务端 | 保留 |');
     expect(en).toContain('| 1 | `CONNECT` | Client → Server | Public core |');
     expect(en).toContain('Protocol v6 uses a 64-bit `message_seq`');
   });

@@ -107,10 +107,10 @@ and leaves the tested cluster source and production readiness unassessed.
   than granting anonymous access. Weakly validated Channel operations, the
   unbounded allowlist read, and legacy `/conversation/sync` remain explicitly
   deferred.
-- The message-send contract publishes only ordinary persistent `POST
-  /message/send` with five canonical required fields. Legacy aliases,
-  request-scoped subscribers, and transient flags remain outside it. `security:
-  []` records missing built-in authentication, so it is trusted-backend-only.
+- The message-send contract publishes only ordinary persistent
+  `POST /message/send` with five canonical required fields. Legacy aliases,
+  request-scoped subscribers, and transient flags remain outside it. Its
+  `security: []` records missing built-in authentication, so it is trusted-backend-only.
 - Golden-path verification attests only the fixed three-operation whitelist and
   receipt tuple. Phase 16 corrects the shared restore-maintenance response
   Schema without expanding that scope. Source alignment and entry/use-case

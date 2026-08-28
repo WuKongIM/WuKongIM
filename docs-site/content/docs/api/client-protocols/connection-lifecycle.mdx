@@ -14,9 +14,8 @@ Transport open
 ```
 
 - `CONNECT` 必须是唯一首包；同批携带其他包或鉴权等待期间再发包都会关闭连接。
-- 服务端协商协议版本并写入 UID、设备以及启用时的加密 Session 状态，再激活在线 Presence。
+- 服务端协商协议版本（当前最新 v6；客户端传 `0` 或高于 v6 时采用 v6），写入 UID、设备以及启用时的加密 Session 状态，再激活在线 Presence。
 - 非成功 `CONNACK` 写回后连接关闭。成功 `CONNACK` 写失败时，已完成的 activation 会回滚。
-- 当前最新版本为 v6；客户端传 `0` 或高于 v6 时协商为 v6。
 
 <Callout type="error" title="CONNACK 成功不等于业务 ready">
   成功只证明协议 Session 已建立。客户端仍需恢复持久消息、合并本地状态，再开放普通业务发送。
@@ -34,8 +33,13 @@ Transport open
 
 ## 关闭与恢复
 
-连接关闭后，客户端应停止新发送，使用有界退避和抖动重连，必要时重新发现 Gateway 地址。恢复同一业务发送时复用稳定的 `client_msg_no`；并发 Wire 尝试使用不同 `client_seq`。只有 CONNACK 成功且持久消息恢复完成后才重新进入 ready。
+- `ReasonAuthFail` 或 `ReasonBan`：停止自动重连，先修复凭据或策略状态。
+- `ReasonClientKeyIsEmpty` 或 `ReasonProtocolUpgradeRequired`：先修复客户端配置或版本。
+- `ReasonRateLimit`、`ReasonSystemError` 或传输中断：仅使用有界退避与抖动，必要时重新发现 Gateway。
+- 其他失败：保留原始 Reason Code 并 fail closed，不猜测为可重试。
 
-当前默认组合启用 Session Payload 加密；CONNECT 缺少 `client_key` 会返回 `ReasonClientKeyIsEmpty`。该加密不替代 TLS 或 Token 校验。默认组合也未把已存 Token 自动变成 CONNECT verifier；生产环境必须接入明确的验证与撤销策略。
+关闭后停止新发送。恢复同一业务发送时复用稳定的 `client_msg_no`，并发 Wire 尝试使用不同 `client_seq`；只有 CONNACK 成功且持久消息恢复完成后才重新进入 ready。
+
+当前默认组合启用 Session Payload 加密；CONNECT 缺少 `client_key` 会返回 `ReasonClientKeyIsEmpty`。该加密不替代 TLS、产品身份与 Token 校验或 Product HTTP 防护。默认组合也未把已存 Token 自动变成 CONNECT verifier；生产环境必须接入明确的验证与撤销策略。
 
 下一步查看[数据包类型](/zh/api/client-protocols/packet-types)和 [Reason Code](/zh/api/dictionaries/reason-codes)。

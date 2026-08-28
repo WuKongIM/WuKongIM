@@ -3,8 +3,6 @@ title: 数据包类型
 description: 查阅 WKProto FrameType 值、方向、核心字段和当前发布范围。
 ---
 
-import { ClientProtocolPacketTable } from '@/components/client-protocol-contracts';
-
 `FrameType` 位于固定 Header 的高四位。`UNKNOWN=0` 是保留值，不能发送；枚举存在也不代表产品 Gateway 已支持该包。
 
 <ClientProtocolPacketTable locale="zh" />
@@ -23,8 +21,8 @@ import { ClientProtocolPacketTable } from '@/components/client-protocol-contract
 
 协议 v5 及以下使用 32 位 `message_seq`，v6 使用 64 位；`client_seq` 的 Wire 宽度始终为 32 位。当前编码器限制 SEND Payload 最多 32767 字节；解码器拒绝 remaining length 超过 1 MiB 的帧。
 
-固定 Header 与 Setting 位见 [Message Flags](/zh/api/dictionaries/message-flags)，Channel 数值见 [Channel Type](/zh/api/dictionaries/channel-types)。
+固定 Header 与 Setting 位见 [Message Flags](/zh/api/dictionaries/message-flags)，设备值见 [Device Flag](/zh/api/dictionaries/device-flags)，Channel 数值见 [Channel Type](/zh/api/dictionaries/channel-types)，结果见 [Reason Code](/zh/api/dictionaries/reason-codes)。
 
 <Callout type="warn" title="不要使用未发布的包">
-  当前产品 Gateway 不接受普通 `DISCONNECT`、`SUB` 或任意 `EVENT` 入站。`EVENT` 只保留给严格校验的内部协议；应用不要构造或探测其数据。
+  当前产品 Gateway 不接受普通 `DISCONNECT`、`SUB` 或任意 `EVENT` 入站；`EVENT` 只用于 benchmark terminal-fence。`UNKNOWN=0` 不进入产品处理；未知数值、畸形帧或已解码但未发布的包通过协议错误、处理器错误或有界超时 fail closed。
 </Callout>

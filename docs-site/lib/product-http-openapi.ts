@@ -3,13 +3,21 @@ import managementDocument from '../contracts/product-http-management.openapi.jso
 import messagingDocument from '../contracts/product-http-messaging.openapi.json';
 
 export type ProductHTTPOpenAPILocale = 'zh' | 'en';
-export type ProductHTTPOpenAPIContract = 'golden-path' | 'management' | 'messaging';
+export const productHTTPOpenAPIContractNames = [
+  'golden-path',
+  'management',
+  'messaging',
+] as const;
+export type ProductHTTPOpenAPIContract =
+  (typeof productHTTPOpenAPIContractNames)[number];
 export type ProductHTTPOpenAPIMethod = 'get' | 'post';
 
-interface LocalizedText {
+export interface ProductHTTPOpenAPILocalizedText {
   zh: string;
   en: string;
 }
+
+type LocalizedText = ProductHTTPOpenAPILocalizedText;
 
 interface OperationObject {
   operationId?: string;
@@ -28,23 +36,73 @@ interface ContractDocument {
   paths: Record<string, Record<string, OperationObject>>;
 }
 
-export const productHTTPOpenAPIContractFiles = {
+export interface ProductHTTPOpenAPIContractDescriptor {
+  /** Imported OpenAPI document used by generation, rendering, and search exports. */
+  document: { paths: Record<string, unknown> };
+  /** Repository-relative source path used by edit links. */
+  source: string;
+  /** Public static-export URL for the downloadable contract. */
+  download: string;
+  /** Stable base schema ID; the locale suffix is added by the loader. */
+  documentId: string;
+  /** Localized short name used by machine-readable Markdown exports. */
+  label: LocalizedText;
+  /** Localized trust and publication boundary used by Markdown exports. */
+  llmScope: LocalizedText;
+}
+
+/** Single source of truth for every published Product HTTP OpenAPI contract. */
+export const productHTTPOpenAPIContracts = {
   'golden-path': {
+    document: goldenPathDocument,
     source: 'docs-site/contracts/javascript-web-quickstart.openapi.json',
     download: '/contracts/javascript-web-quickstart.openapi.json',
+    documentId: 'wukongim-product-http-beta',
+    label: { zh: '黄金路径子集', en: 'golden-path subset' },
+    llmScope: {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
+    },
   },
   management: {
+    document: managementDocument,
     source: 'docs-site/contracts/product-http-management.openapi.json',
     download: '/contracts/product-http-management.openapi.json',
+    documentId: 'wukongim-product-http-management-beta',
+    label: { zh: '管理子集', en: 'management subset' },
+    llmScope: {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.',
+    },
   },
   messaging: {
+    document: messagingDocument,
     source: 'docs-site/contracts/product-http-messaging.openapi.json',
     download: '/contracts/product-http-messaging.openapi.json',
+    documentId: 'wukongim-product-http-messaging-beta',
+    label: { zh: '消息发送子集', en: 'message-sending subset' },
+    llmScope: {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举消息发送 Beta 子集合同；该无内建鉴权的 Product HTTP 入口只能由受信后端调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive message-sending Beta subset contract. This Product HTTP route has no built-in authentication and is callable only from a trusted backend.',
+    },
   },
 } as const satisfies Record<
   ProductHTTPOpenAPIContract,
-  { source: string; download: string }
+  ProductHTTPOpenAPIContractDescriptor
 >;
+
+/** Backward-compatible source/download projection used by edit links. */
+export const productHTTPOpenAPIContractFiles = Object.fromEntries(
+  productHTTPOpenAPIContractNames.map((contract) => {
+    const { source, download } = productHTTPOpenAPIContracts[contract];
+    return [contract, { source, download }];
+  }),
+) as {
+  [Contract in ProductHTTPOpenAPIContract]: Pick<
+    (typeof productHTTPOpenAPIContracts)[Contract],
+    'source' | 'download'
+  >;
+};
 
 export interface ProductHTTPOpenAPIOperation {
   /** Contract document that owns the operation. */
@@ -219,12 +277,7 @@ const groupDefinitions: GroupDefinition[] = [
 ];
 
 function documentFor(contract: ProductHTTPOpenAPIContract): ContractDocument {
-  const documents = {
-    'golden-path': goldenPathDocument,
-    management: managementDocument,
-    messaging: messagingDocument,
-  } satisfies Record<ProductHTTPOpenAPIContract, unknown>;
-  return documents[contract] as ContractDocument;
+  return productHTTPOpenAPIContracts[contract].document as ContractDocument;
 }
 
 function isProductHTTPOpenAPIMethod(method: string): method is ProductHTTPOpenAPIMethod {

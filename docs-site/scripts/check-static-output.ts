@@ -553,8 +553,26 @@ export async function checkStaticOutput() {
     }
 
     const clientProtocolFacts = {
-      'connection-lifecycle': ['CONNECT', 'CONNACK', 'PING', 'SENDACK', 'RECVACK'],
-      'packet-types': ['UNKNOWN', 'CONNECT', 'SENDACK', 'RECVACK', 'EVENT'],
+      'connection-lifecycle': [
+        'CONNECT',
+        'CONNACK',
+        'PING',
+        'SENDACK',
+        'RECVACK',
+        'ReasonAuthFail',
+        'ReasonClientKeyIsEmpty',
+        'ReasonProtocolUpgradeRequired',
+        'TLS',
+      ],
+      'packet-types': [
+        'UNKNOWN',
+        'CONNECT',
+        'SENDACK',
+        'RECVACK',
+        'EVENT',
+        'terminal-fence',
+        'fail closed',
+      ],
     } as const;
     for (const [page, facts] of Object.entries(clientProtocolFacts)) {
       const markdown = await text(
@@ -567,6 +585,17 @@ export async function checkStaticOutput() {
         if (!markdown.includes(fact) || !html.includes(fact)) {
           throw new Error(`${locale} ${page} output is missing protocol fact: ${fact}`);
         }
+      }
+    }
+    const protocolIndexMarkdown = await text(
+      `llms.mdx/${locale}/api/client-protocols/content.md`,
+    );
+    const protocolIndexHtml = visibleHtml(
+      await text(`${locale}/api/client-protocols/index.html`),
+    );
+    for (const fact of ['JSON-RPC', 'DISCONNECT', 'EVENT']) {
+      if (!protocolIndexMarkdown.includes(fact) || !protocolIndexHtml.includes(fact)) {
+        throw new Error(`${locale} client-protocol index is missing boundary: ${fact}`);
       }
     }
 
@@ -621,6 +650,7 @@ export async function checkStaticOutput() {
     '`RetryRequiredError`',
     '| 0 | `UNKNOWN` |',
     '| 12 | `EVENT` |',
+    '`ReasonClientKeyIsEmpty`',
   ]) {
     if (!llmsFull.includes(fact)) {
       throw new Error(`llms-full.txt is missing OpenAPI fact: ${fact}`);
@@ -707,8 +737,14 @@ export async function checkStaticOutput() {
       }
     }
     for (const [page, facts] of Object.entries({
-      'connection-lifecycle': ['CONNECT', 'CONNACK', 'RECVACK'],
-      'packet-types': ['UNKNOWN', 'EVENT', 'message_seq'],
+      'connection-lifecycle': [
+        'CONNECT',
+        'CONNACK',
+        'RECVACK',
+        'ReasonAuthFail',
+        'ReasonClientKeyIsEmpty',
+      ],
+      'packet-types': ['UNKNOWN', 'EVENT', 'message_seq', 'terminal-fence', 'fail closed'],
     })) {
       const pageId = `/${locale}/api/client-protocols/${page}`;
       for (const fact of facts) {
@@ -721,6 +757,19 @@ export async function checkStaticOutput() {
             `${locale} search index is missing protocol fact for ${pageId}: ${fact}`,
           );
         }
+      }
+    }
+    const clientProtocolIndexId = `/${locale}/api/client-protocols`;
+    for (const fact of ['JSON-RPC', 'DISCONNECT', 'EVENT']) {
+      if (
+        !indexedDocuments.some(
+          (document) =>
+            document.page_id === clientProtocolIndexId && document.content?.includes(fact),
+        )
+      ) {
+        throw new Error(
+          `${locale} search index is missing protocol boundary for ${clientProtocolIndexId}: ${fact}`,
+        );
       }
     }
   }

@@ -2,9 +2,18 @@ import openapiDocument from '../contracts/javascript-web-quickstart.openapi.json
 import { describe, expect, test } from 'bun:test';
 import {
   createProductHTTPOpenAPI,
+  createProductHTTPOpenAPIContract,
+  productHTTPManagementOpenAPIDocumentIds,
+  productHTTPMessagingOpenAPIDocumentIds,
+  productHTTPOpenAPIDocumentId,
   productHTTPOpenAPIDocumentIds,
 } from './openapi';
 import { renderOpenAPIOperationMarkdown } from './openapi-markdown';
+import {
+  productHTTPOpenAPIContractFiles,
+  productHTTPOpenAPIContractNames,
+  productHTTPOpenAPIContracts,
+} from './product-http-openapi';
 
 const documentId = 'wukongim-product-http-beta';
 interface TestedOperation {
@@ -90,10 +99,11 @@ describe('Fumadocs OpenAPI integration', () => {
   });
 
   test('wires the server preload, localized UI, stylesheet, and disabled playground', async () => {
-    const [page, component, openapi, layout, stylesheet] = await Promise.all([
+    const [page, component, openapi, registry, layout, stylesheet] = await Promise.all([
       source('../app/[lang]/(docs)/[section]/[[...slug]]/page.tsx'),
       source('../components/openapi-page.tsx'),
       source('./openapi.ts'),
+      source('./product-http-openapi.ts'),
       source('./layout.shared.tsx'),
       source('../app/global.css'),
     ]);
@@ -105,13 +115,55 @@ describe('Fumadocs OpenAPI integration', () => {
     expect(component).toContain('createOpenAPIPage');
     expect(component).toContain('playground: { enabled: false }');
     expect(component).toContain('createCodeUsageGeneratorRegistry()');
-    expect(openapi).toContain(`export const productHTTPOpenAPIDocumentId = '${documentId}'`);
+    expect(productHTTPOpenAPIDocumentId).toBe(documentId);
     expect(openapi).toContain('localizeOpenAPIDocument');
-    expect(openapi).toContain('javascript-web-quickstart.openapi.json');
+    expect(openapi).toContain('productHTTPOpenAPIContracts');
+    expect(registry).toContain('javascript-web-quickstart.openapi.json');
     expect(openapi).not.toContain('resources/api/openapi.json');
     expect(layout).toContain('.extend(openapiTranslations())');
     expect(layout).toContain(".preset('zh', zhCN())");
     expect(stylesheet).toContain("@import 'fumadocs-openapi/css/preset.css';");
+  });
+
+  test('keeps contract documents and publication metadata in one typed registry', async () => {
+    const exactDocumentIds: [
+      'wukongim-product-http-beta-zh',
+      'wukongim-product-http-management-beta-en',
+      'wukongim-product-http-messaging-beta-zh',
+    ] = [
+      productHTTPOpenAPIDocumentIds.zh,
+      productHTTPManagementOpenAPIDocumentIds.en,
+      productHTTPMessagingOpenAPIDocumentIds.zh,
+    ];
+    expect(exactDocumentIds).toEqual([
+      'wukongim-product-http-beta-zh',
+      'wukongim-product-http-management-beta-en',
+      'wukongim-product-http-messaging-beta-zh',
+    ]);
+
+    expect(Object.keys(productHTTPOpenAPIContracts)).toEqual(
+      [...productHTTPOpenAPIContractNames],
+    );
+
+    for (const contract of productHTTPOpenAPIContractNames) {
+      const descriptor = productHTTPOpenAPIContracts[contract];
+      expect(descriptor.document).toHaveProperty('paths');
+      expect(descriptor.source).toStartWith('docs-site/contracts/');
+      expect(descriptor.download).toStartWith('/contracts/');
+      expect(descriptor.documentId).toStartWith('wukongim-product-http');
+      expect(descriptor.label.zh).not.toBe('');
+      expect(descriptor.label.en).not.toBe('');
+      expect(descriptor.llmScope.zh).toContain('Fumadocs');
+      expect(descriptor.llmScope.en).toContain('Fumadocs');
+      expect(productHTTPOpenAPIContractFiles[contract].source).toBe(descriptor.source);
+      expect(productHTTPOpenAPIContractFiles[contract].download).toBe(
+        descriptor.download,
+      );
+
+      const server = createProductHTTPOpenAPIContract(contract, 'en');
+      const schema = await server.getSchema(`${descriptor.documentId}-en`);
+      expect(schema.bundled.paths).toBeDefined();
+    }
   });
 
   test('generates bilingual operation pages from one bounded contract', async () => {

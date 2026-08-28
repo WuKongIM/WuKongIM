@@ -125,6 +125,7 @@ describe('Product HTTP message-sending OpenAPI contract', () => {
     const sample = operation?.['x-codeSamples']?.[0]?.source ?? '';
     expect(sample).toContain('trusted backend');
     expect(sample).toContain('http://127.0.0.1:5001/message/send');
+    expect(sample).not.toContain('\n+');
     for (const hidden of [
       'sender_uid',
       'device_id',

@@ -18,7 +18,7 @@ Clients establish long-lived connections through Gateway TCP or WebSocket listen
 
 - The public core contains only CONNECT/CONNACK, SEND/SENDACK, RECV/RECVACK, and PING/PONG.
 - `DISCONNECT`, `SUB`, and `SUBACK` are currently codec contracts, not published product Gateway entry points.
-- `EVENT` is reserved for controlled internal protocols; it is not an application event API.
+- The current product Gateway reserves `EVENT` only for benchmark terminal-fence request and acknowledgement; it is not an application event API.
 - WebSocket JSON-RPC, exact binary layout, and encryption details remain under calibration. Do not infer methods or security guarantees from this page.
 
 See [Shared Dictionaries](/en/api/dictionaries) for numeric meanings and [Authentication & Security](/en/api/authentication) for the production trust boundary.

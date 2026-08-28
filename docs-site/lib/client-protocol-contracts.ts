@@ -4,8 +4,7 @@ export type ClientProtocolDirection =
   | 'none'
   | 'client-to-server'
   | 'server-to-client'
-  | 'codec-defined'
-  | 'internal-bidirectional';
+  | 'bidirectional';
 
 export interface ClientProtocolFrameDefinition {
   value: number;
@@ -28,7 +27,7 @@ function protocolFrame(
 
 /** FrameType catalog calibrated against pkg/protocol/frame/common.go and Gateway ingress. */
 export const clientProtocolFrames: readonly ClientProtocolFrameDefinition[] = [
-  protocolFrame(0, 'UNKNOWN', 'none', 'reserved', 'Wire 保留值；不能发送。', 'Wire-reserved value; do not send.'),
+  protocolFrame(0, 'UNKNOWN', 'none', 'reserved', 'Wire 保留值；不得发送，也不进入产品处理。', 'Wire-reserved; do not send; it never reaches product handling.'),
   protocolFrame(1, 'CONNECT', 'client-to-server', 'public-core', '必须是连接上的唯一首包。', 'Must be the sole first packet on a connection.'),
   protocolFrame(2, 'CONNACK', 'server-to-client', 'public-core', '返回连接结果和会话材料；v4+ 请求另带协商版本。', 'Returns connection result and session material; v4+ requests also receive the negotiated version.'),
   protocolFrame(3, 'SEND', 'client-to-server', 'public-core', '提交一条 Channel 消息。', 'Submits one Channel message.'),
@@ -37,10 +36,10 @@ export const clientProtocolFrames: readonly ClientProtocolFrameDefinition[] = [
   protocolFrame(6, 'RECVACK', 'client-to-server', 'public-core', '确认客户端处理了指定 RECV。', 'Acknowledges client handling of a specific RECV.'),
   protocolFrame(7, 'PING', 'client-to-server', 'public-core', '刷新入站活动并请求 PONG。', 'Refreshes inbound activity and requests PONG.'),
   protocolFrame(8, 'PONG', 'server-to-client', 'public-core', '无正文的 PING 响应。', 'Bodyless response to PING.'),
-  protocolFrame(9, 'DISCONNECT', 'codec-defined', 'codec-only', '存在编解码器；当前产品 Gateway 入站未发布。', 'Codec exists; current product Gateway ingress is unpublished.'),
+  protocolFrame(9, 'DISCONNECT', 'bidirectional', 'codec-only', '双向 codec 合同；当前产品 Gateway 未发布客户端入站或服务端发送语义。', 'Bidirectional codec contract; the current product Gateway publishes neither client ingress nor server emission.'),
   protocolFrame(10, 'SUB', 'client-to-server', 'codec-only', '存在编解码器；当前产品 Gateway 入站未支持。', 'Codec exists; current product Gateway ingress does not support it.'),
   protocolFrame(11, 'SUBACK', 'server-to-client', 'codec-only', 'SUB 的编解码响应；当前产品入口未发布。', 'Codec response for SUB; current product entry is unpublished.'),
-  protocolFrame(12, 'EVENT', 'internal-bidirectional', 'reserved', '仅保留给受控内部协议；不是应用事件 API。', 'Reserved for controlled internal protocols; not an application event API.'),
+  protocolFrame(12, 'EVENT', 'bidirectional', 'reserved', '当前产品 Gateway 仅用于 benchmark terminal-fence 请求与确认；不是应用事件 API。', 'The current product Gateway uses it only for benchmark terminal-fence request and acknowledgement; it is not an application event API.'),
 ];
 
 /** Source-aligned limits used by the concise client-protocol reference. */
@@ -79,15 +78,13 @@ export const clientProtocolDirectionLabels: Record<
     none: '—',
     'client-to-server': '客户端 → 服务端',
     'server-to-client': '服务端 → 客户端',
-    'codec-defined': '编解码定义',
-    'internal-bidirectional': '内部双向',
+    bidirectional: '客户端 ↔ 服务端',
   },
   en: {
     none: '—',
     'client-to-server': 'Client → Server',
     'server-to-client': 'Server → Client',
-    'codec-defined': 'Codec-defined',
-    'internal-bidirectional': 'Internal bidirectional',
+    bidirectional: 'Client ↔ Server',
   },
 };
 
