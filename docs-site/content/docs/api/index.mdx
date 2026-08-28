@@ -1,58 +1,25 @@
 ---
 title: API 与协议
-description: 查阅 v3 Beta 的 Product HTTP 黄金路径与受信管理子集，以及源码校准的公共 Wire 字典。
+description: 查阅 Product HTTP API、公共数据字典与协议结果。
 ---
 
-本区域面向应用集成开发者发布可执行合同。Product HTTP 包含固定的三入口黄金路径范围和独立的 16 入口受信管理子集；公共 Channel Type、Device Flag / Level、Message Flags 与 Reason Code 继续与当前 Go 权威定义校准。
+这里汇总应用接入所需的 Product HTTP API 与公共协议字典。
 
-## 目标与完成标准
-
-开发者应能从受信后端完成开发身份、Gateway 发现、离线恢复、Channel 管理与 canonical 会话同步，准确处理 HTTP 与协议结果，并且不会把源码中其他路由或旧枚举自动当作已发布平台能力。
-
-<Callout type="warn" title="仍不是完整 v3 API">
-  当前发布的是两个非穷举 Product HTTP Beta 子集。仓库旧 OpenAPI 包含 v2 与已删除路由；完整 OpenAPI、客户端协议、Webhook、运维 API 和其他领域参考仍在规划中。
+<Callout type="warn" title="当前范围有限">
+  文档只承诺页面与 OpenAPI 合同中列出的接口；未列出的 HTTP、Webhook、运维和协议能力仍未公开。
 </Callout>
 
-## 规范呈现边界
-
-- OpenAPI 3.1 分别生成三操作黄金路径页面与 16 操作管理页面的 Fumadocs 请求、响应、Schema、示例和类型参考；
-- 黄金路径的兼容清单与 receipt 只覆盖三操作，不为管理合同提供场景证明；
-- TCP/WKProto 生命周期、JSON-RPC 与共享 Wire 字典不是 HTTP operation，继续采用协议专用正文和源码校准表，不能伪造为 OpenAPI path。
-
-## 兼容目标
-
-服务端 revision、SDK、Node.js、Chromium 与黄金合同摘要记录在[API 兼容性](/zh/api/compatibility)和 `/compatibility.json`。管理合同则以当前入口、DTO、usecase 和测试为校准证据；URL 不变不表示任意 revision 都兼容。
-
-## 前置条件
-
-- Product HTTP 只对 localhost BFF 或受信业务后端开放；
-- 生产调用由反向代理、API Gateway 或服务网格完成服务鉴权与授权；
-- 集群通过 `/readyz`；
-- 调用方按端点解析兼容响应，并区分 `{msg,status}` 与维护 `{error,message}`。
-
-## 参考入口
+## 快速入口
 
 <Cards>
-  <Card title="通用约定" description="Base URL、JSON、标识、响应形状、游标与重试边界。" href="/zh/api/conventions" />
-  <Card title="认证与安全" description="开发 BFF、Product HTTP 与 Gateway Token 校验边界。" href="/zh/api/authentication" />
-  <Card title="Product HTTP API" description="黄金路径三入口，以及 Channel 与 Conversation 受信管理子集。" href="/zh/api/product-http" />
-  <Card title="公共数据字典" description="Channel、设备、消息标志与 Reason Code 的源码校准值。" href="/zh/api/dictionaries" />
+  <Card title="通用约定" description="Base URL、JSON、标识、游标和重试规则。" href="/zh/api/conventions" />
+  <Card title="认证与安全" description="Product HTTP 与 Gateway 的信任边界。" href="/zh/api/authentication" />
+  <Card title="Product HTTP API" description="用户、路由、消息、Channel 与 Conversation 接口。" href="/zh/api/product-http" />
+  <Card title="公共数据字典" description="Channel、设备、消息标志与 Reason Code。" href="/zh/api/dictionaries" />
 </Cards>
 
-## 预期结果
+## 使用边界
 
-浏览器只通过 SDK 或同源 BFF 参与应用链路；受信后端按已发布合同执行管理操作；错误分类保留 HTTP 阶段与 CONNACK/SENDACK 阶段；共享协议字典继续与 Go 权威值自动校准。
-
-## 失败诊断
-
-- **需要的接口不在任一 Product HTTP 合同中**：它仍未发布；不要根据旧 OpenAPI 或源码位置推断支持。
-- **浏览器直接调用服务端**：转为同源 BFF 或业务后端调用并收紧网络。
-- **字段与文档不一致**：让合同校验失败，统一修复运行时、OpenAPI 和双语页面。
-
-## 安全与责任边界
-
-Product HTTP 没有通用业务鉴权中间件；默认 Gateway 也没有 stored-token CONNECT 校验。Beta 文档不会把当前开发闭环或 `security: []` 描述为生产安全方案。
-
-## 下一步
-
-从[通用约定](/zh/api/conventions)和[Product HTTP API](/zh/api/product-http)开始，或按[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)运行有 receipt 的三入口黄金路径。
+- Product HTTP 仅供受信后端调用，不应直接暴露给浏览器或移动端。
+- HTTP 状态、端点响应与 CONNACK/SENDACK Reason Code 属于不同层，需分别处理。
+- 版本和验证范围见 [API 兼容性](/zh/api/compatibility)，错误处理见 [错误响应](/zh/api/product-http/errors)。

@@ -1,48 +1,13 @@
-## 目标与完成标准
+`GET /route` 返回已配置的客户端 Gateway 地址。
 
-本页只发布 `GET /route` 的黄金路径形状。完成后，BFF 应能为浏览器选择安全 WebSocket 或普通 WebSocket 地址，同时不把“能取得地址”当作业务鉴权或动态用户归属证明。
+## 使用要点
 
-## 兼容目标
-
-该入口属于[黄金路径 API 快照](/zh/api/compatibility)。权威兼容处理位于 `internal/access/api/route.go`，样例调用位于 `src/server/product-http-client.ts` 的 `product-http-route` 命名片段。
-
-## 前置条件
-
-- 已通过受信 BFF 完成当前开发身份的 Token 元数据写入；
-- Product HTTP Base URL 仅对 BFF 可达；
-- 服务端配置了浏览器可访问的 `ws_addr` 或 `wss_addr`；
-- 生产页面使用 HTTPS 时提供 `wss_addr`，避免混合内容。
-
-## 当前路由语义
-
-当前兼容入口返回配置的客户端接入地址。黄金路径不发送 UID；默认处理既不会验证某个身份的业务权限，也不会证明具体在线 Session 的 owner 节点。黄金 BFF 优先选择非空 `wss_addr`，否则使用 `ws_addr`；浏览器样例不使用 `tcp_addr`。
+- HTTPS 页面优先使用非空 `wss_addr`，否则使用 `ws_addr`；
+- 浏览器样例不使用 `tcp_addr`；
+- 断线后重新发现地址，不要永久缓存旧结果。
 
 <Callout type="warn" title="地址发现不是鉴权">
-  `/route` 成功只说明 BFF 获得一个配置入口。业务授权、CONNECT 身份和在线 Presence Authority 是不同阶段。
+  `/route` 成功不代表 UID 已授权，也不代表 CONNECT 成功。
 </Callout>
 
-客户端在断线后应重新发现地址，不要无限缓存失效节点。多节点集群仍使用完整集群语义；不要因为当前本地环境是单节点集群就绕过路由入口。
-
-## 预期结果
-
-BFF 返回一个非空、浏览器可访问的 WebSocket URL，并只把该 URL 与当前开发身份返回给浏览器。SDK 随后发起 CONNECT，并单独报告 CONNACK 结果。
-
-## 错误与诊断
-
-- **`ws_addr` 与 `wss_addr` 都为空**：修正服务端 Gateway 外部地址配置；不要让浏览器猜测端口。
-- **浏览器报告 mixed content**：HTTPS 页面必须使用 `wss://`。
-- **地址可达但 CONNECT 失败**：检查 Gateway、协议版本和 Reason Code；路由 `200` 不是 CONNECT 成功。
-- **`400` 节点参数错误**：黄金路径不发送 `node_id`；检查是否有代理或旧客户端添加额外参数。
-- **`503 maintenance`**：退避并观察 `/readyz`。
-
-## 安全与责任边界
-
-路由响应可能暴露内部入口信息。生产环境应只返回受控的公网 Gateway 地址，不泄露节点间 Transport、Manager 或诊断监听；TLS、DNS、访问策略和容量由运营方负责。
-
-## 下一步
-
-把选定地址交给固定版本的 JavaScript SDK，按[Quickstart](/zh/sdk/javascript/quickstart) CONNECT。断线后使用[消息同步](/zh/api/product-http/messages)恢复已提交消息。
-
-## OpenAPI 合同
-
-本页面中的 Fumadocs 参考直接由受边界约束的 OpenAPI 3.1 合同渲染响应结构、示例和 TypeScript 定义；逐页 Markdown 的机器摘要也从同一合同生成。
+地址为空时检查 Gateway 外部地址配置；地址可达但连接失败时检查协议版本和 CONNACK Reason Code。

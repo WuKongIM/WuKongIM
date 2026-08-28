@@ -1,81 +1,67 @@
 ---
-title: Conversations (Canonical Beta Subset)
-description: Synchronize the Conversation projection with bounded cursors, retry
-  unresolved keys, and monotonically maintain unread, hide, and activation
-  state.
+title: Conversation API (Beta)
+description: Synchronize Conversations and manage unread, hide, and activation state.
 full: true
 _openapi:
   preload:
     - wukongim-product-http-management-beta-en
   toc:
     - depth: 2
-      title: Synchronize one bounded Conversation page
-      url: '#synchronize-one-bounded-conversation-page'
+      title: Synchronize a Conversation page
+      url: '#synchronize-a-conversation-page'
     - depth: 2
       title: Retry unresolved Conversation keys
       url: '#retry-unresolved-conversation-keys'
     - depth: 2
-      title: Clear a Conversation unread badge
-      url: '#clear-a-conversation-unread-badge'
+      title: Clear Conversation unread
+      url: '#clear-conversation-unread'
     - depth: 2
-      title: Reduce a Conversation unread badge
-      url: '#reduce-a-conversation-unread-badge'
+      title: Set maximum Conversation unread
+      url: '#set-maximum-conversation-unread'
     - depth: 2
-      title: Hide a Conversation through the current head
-      url: '#hide-a-conversation-through-the-current-head'
+      title: Hide Conversation through the current head
+      url: '#hide-conversation-through-the-current-head'
     - depth: 2
-      title: Record explicit Conversation activation
-      url: '#record-explicit-conversation-activation'
+      title: Activate Conversation
+      url: '#activate-conversation'
   structuredData:
     headings:
-      - content: Synchronize one bounded Conversation page
-        id: synchronize-one-bounded-conversation-page
+      - content: Synchronize a Conversation page
+        id: synchronize-a-conversation-page
       - content: Retry unresolved Conversation keys
         id: retry-unresolved-conversation-keys
-      - content: Clear a Conversation unread badge
-        id: clear-a-conversation-unread-badge
-      - content: Reduce a Conversation unread badge
-        id: reduce-a-conversation-unread-badge
-      - content: Hide a Conversation through the current head
-        id: hide-a-conversation-through-the-current-head
-      - content: Record explicit Conversation activation
-        id: record-explicit-conversation-activation
+      - content: Clear Conversation unread
+        id: clear-conversation-unread
+      - content: Set maximum Conversation unread
+        id: set-maximum-conversation-unread
+      - content: Hide Conversation through the current head
+        id: hide-conversation-through-the-current-head
+      - content: Activate Conversation
+        id: activate-conversation
     contents:
-      - content: Canonical endpoint that incrementally scans a UID-owned membership
-          page, hydrates current Channel heads, and returns visible
-          conversations, deletions, and retryable keys. Treat next_cursor as
-          opaque and continue until done=true; an empty page is not proof of
-          completion.
-        heading: synchronize-one-bounded-conversation-page
-      - content: Re-reads at most 200 unresolved keys without rewinding the completed
-          list coverage. Duplicate keys are coalesced. Person-Channel input uses
-          the peer UID. The response separates rebuilt conversations, deleted
-          keys, and keys that remain unresolved.
+      - content: Returns one bounded Conversation page. Reuse next_cursor unchanged
+          until done=true; an empty page is not completion.
+        heading: synchronize-a-conversation-page
+      - content: Retries up to 200 unresolved keys without rewinding completed list
+          coverage; duplicate keys are merged.
         heading: retry-unresolved-conversation-keys
-      - content: Monotonically advances read_seq to the latest committed Channel head.
-          The request does not accept message_seq; an extra legacy message_seq
-          field is ignored by the runtime and is intentionally absent from this
-          contract.
-        heading: clear-a-conversation-unread-badge
-      - content: Advances read_seq so at most unread messages remain. It never moves
-          read_seq backwards, so it cannot increase an unread count. This
-          contract requires unread explicitly even though omitted JSON currently
-          decodes as zero.
-        heading: reduce-a-conversation-unread-badge
-      - content: Persists deleted_to_seq through the latest committed Channel head for
-          this user. It does not delete the Channel or membership; a later
-          committed message can make the Conversation visible again. message_seq
-          is not a request field.
-        heading: hide-a-conversation-through-the-current-head
-      - content: Records an explicit open, switch, or restore action in activated_at so
-          the Conversation is prioritized in later list synchronization. Send,
-          receive, delivery, and pull paths do not activate it implicitly.
-        heading: record-explicit-conversation-activation
+      - content: Advances read_seq to the latest committed Channel head. The contract
+          omits legacy message_seq; the runtime ignores it.
+        heading: clear-conversation-unread
+      - content: Advances read_seq so no more than unread messages remain. It never
+          increases the unread count.
+        heading: set-maximum-conversation-unread
+      - content: Hides this Conversation through the current committed head. It does not
+          delete the Channel or membership.
+        heading: hide-conversation-through-the-current-head
+      - content: Records an explicit open, switch, or restore action for Conversation
+          ordering; message paths do not activate it.
+        heading: activate-conversation
       - content: |-
           POST /conversation/list
           listConversations
-          Synchronize one bounded Conversation page
-          Canonical endpoint that incrementally scans a UID-owned membership page, hydrates current Channel heads, and returns visible conversations, deletions, and retryable keys. Treat next_cursor as opaque and continue until done=true; an empty page is not proof of completion.
+          Synchronize a Conversation page
+          Returns one bounded Conversation page. Reuse next_cursor unchanged until done=true; an empty page is not completion.
           ConversationListRequest
           additionalProperties false
           uid `UID` minLength: 1 Non-empty product user identity.
@@ -127,13 +113,13 @@ _openapi:
           POST /conversation/retry
           retryConversations
           Retry unresolved Conversation keys
-          Re-reads at most 200 unresolved keys without rewinding the completed list coverage. Duplicate keys are coalesced. Person-Channel input uses the peer UID. The response separates rebuilt conversations, deleted keys, and keys that remain unresolved.
+          Retries up to 200 unresolved keys without rewinding completed list coverage; duplicate keys are merged.
           ConversationRetryRequest
           channels array<`ConversationKey`> minItems: 1; maxItems: 200 Unresolved keys returned by /conversation/list or a previous retry.
           POST /conversations/clearUnread
           clearConversationUnread
-          Clear a Conversation unread badge
-          Monotonically advances read_seq to the latest committed Channel head. The request does not accept message_seq; an extra legacy message_seq field is ignored by the runtime and is intentionally absent from this contract.
+          Clear Conversation unread
+          Advances read_seq to the latest committed Channel head. The contract omits legacy message_seq; the runtime ignores it.
           ConversationMutationRequest
           channel_id `string` minLength: 1 Visible Channel ID. For Channel Type 1, use the peer UID.
           200 Mutation completed
@@ -142,18 +128,18 @@ _openapi:
           {"status":200}
           POST /conversations/setUnread
           setConversationUnread
-          Reduce a Conversation unread badge
-          Advances read_seq so at most unread messages remain. It never moves read_seq backwards, so it cannot increase an unread count. This contract requires unread explicitly even though omitted JSON currently decodes as zero.
+          Set maximum Conversation unread
+          Advances read_seq so no more than unread messages remain. It never increases the unread count.
           ConversationSetUnreadRequest
           unread `integer` 0–∞ Maximum unread count to leave after monotonically advancing read_seq.
           POST /conversations/delete
           hideConversation
-          Hide a Conversation through the current head
-          Persists deleted_to_seq through the latest committed Channel head for this user. It does not delete the Channel or membership; a later committed message can make the Conversation visible again. message_seq is not a request field.
+          Hide Conversation through the current head
+          Hides this Conversation through the current committed head. It does not delete the Channel or membership.
           POST /conversations/activate
           activateConversation
-          Record explicit Conversation activation
-          Records an explicit open, switch, or restore action in activated_at so the Conversation is prioritized in later list synchronization. Send, receive, delivery, and pull paths do not activate it implicitly.
+          Activate Conversation
+          Records an explicit open, switch, or restore action for Conversation ordering; message paths do not activate it.
 ---
 
 {/* This file is generated from the Product HTTP management OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
@@ -170,41 +156,23 @@ export default function Layout(props) {
   );
 }
 
-## Goal and completion criteria
+<Callout type="warn" title="Trusted backends only">
+  The request `uid` is not a credential. The product backend must verify authority to represent that UID.
+</Callout>
 
-This page publishes six operations for the canonical Conversation projection: bounded list traversal, unresolved-key retry, clear unread, set an unread ceiling, hide, and explicit activation. The trusted product backend should continue until `done=true`, handle `deletes` and `unresolved` independently, and rebuild its local projection when required.
+## List synchronization
 
-## List synchronization state machine
+1. Start `/conversation/list` with an empty `cursor`.
+2. Apply `conversations`, remove `deletes`, and send `unresolved` to `/conversation/retry`.
+3. While `done=false`, return `next_cursor` unchanged even when the page is empty.
+4. Save `coverage` only after `done=true`.
+5. When `reset_required=true`, clear the local Conversation projection and resynchronize.
 
-1. Call `/conversation/list` first with an empty `cursor`, a bounded `limit`, and the saved `completed_coverage`;
-2. apply `conversations`, remove `deletes`, and send `unresolved` to `/conversation/retry`;
-3. even when the page arrays are empty, pass the opaque `next_cursor` back unchanged while `done=false`;
-4. persist this pass's `coverage` only after `done=true`;
-5. when `reset_required=true`, discard the stale local Conversation projection and rebuild from an empty cursor.
+## Key points
 
-`read_seq` is a monotonic badge floor, not a message-pull cursor or read receipt. `unread` also applies join, retention, deletion, and current-user-last-send visibility floors. A person Channel projects `channel_id` to the peer UID at the HTTP boundary.
+- `read_seq` is a monotonic unread floor, not a message cursor or read receipt.
+- `setUnread` can only reduce unread.
+- `delete` hides the current projection; it deletes neither the Channel nor membership.
+- `message_idstr` avoids JavaScript integer precision loss.
 
-`ConversationListResponse` exposes `tombstones_retained_since` for reset decisions. Each visible item can carry a nullable `ConversationLastMessage`; use its string-safe `message_idstr` as the message identity, while `payload` is a nullable base64-encoded string in JSON. Compatibility failures use `CompatibilityError` (`400 {"msg","status":400}`); restore maintenance uses `MaintenanceError` (`503 {"error":"maintenance","message":"restore maintenance is active"}`).
-
-## Mutation semantics
-
-- `/conversations/clearUnread` advances to the latest committed head at call time and accepts no `message_seq`;
-- `/conversations/setUnread` only advances `read_seq`, so it can reduce unread to at most the target but cannot increase unread;
-- `/conversations/delete` hides this user's projection through the current committed head; it deletes neither the Channel nor membership, and a later message can make it visible again;
-- `/conversations/activate` records an explicit open, switch, or restore action; send, receive, delivery, and pull paths do not call it implicitly.
-
-## Legacy synchronization deferred
-
-`POST /conversation/sync` remains a legacy compatibility route in the runtime, but it is outside this canonical Beta contract. It uses a delimited `last_msg_seqs` string, a bare-array response, legacy message projection, and a compatibility scan of at most 1,000 candidates without completion or truncation indicators. New integrations should use `/conversation/list` and `/conversation/retry`; existing callers should remain pinned until that route receives a separate exact-version calibration.
-
-## Errors and troubleshooting
-
-- **An empty page ends the loop early:** only `done=true` proves traversal completion; an empty `conversations` array does not.
-- **A cursor returns 400:** the cursor is a versioned base64url value; echo it unchanged instead of decoding and reconstructing it.
-- **Keys remain unresolved:** retry at most 200 keys and retain failures in a bounded backoff queue; do not rewind full-list coverage.
-- **reset_required=true:** saved coverage predates retained tombstones, so rebuild the local projection.
-- **503 maintenance:** pause business calls and observe `/readyz`.
-
-## Security and OpenAPI contract
-
-The request `uid` is merely a field, not authenticated identity. Default Product HTTP has no business-authentication middleware, so the product backend must prove authority to represent that UID and access each Channel. The page is generated from the management contract's `Conversations` tag; download the [management subset contract](/contracts/product-http-management.openapi.json).
+Legacy `POST /conversation/sync` is outside this contract. New integrations use `/conversation/list` and `/conversation/retry`. See [Error Responses](/en/api/product-http/errors) for shared failures.

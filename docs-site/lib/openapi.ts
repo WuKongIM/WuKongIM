@@ -28,30 +28,30 @@ export const productHTTPOpenAPIPages = [
     slug: 'users',
     method: 'post',
     path: '/user/token',
-    title: { zh: '用户（Beta 子集）', en: 'Users (Beta Subset)' },
+    title: { zh: '用户 Token API（Beta）', en: 'User Token API (Beta)' },
     description: {
-      zh: '使用 POST /user/token 从受信 BFF 保存开发身份的设备 Token 元数据。',
-      en: 'Use POST /user/token from a trusted BFF to store device-token metadata for a development identity.',
+      zh: '保存开发身份的设备 Token 元数据。',
+      en: 'Store device-token metadata for a development identity.',
     },
   },
   {
     slug: 'routing',
     method: 'get',
     path: '/route',
-    title: { zh: '路由发现（Beta 子集）', en: 'Route Discovery (Beta Subset)' },
+    title: { zh: 'Gateway 路由 API（Beta）', en: 'Gateway Route API (Beta)' },
     description: {
-      zh: '使用 GET /route 从受信 BFF 获取当前配置的客户端接入地址。',
-      en: 'Use GET /route from a trusted BFF to obtain the currently configured client-ingress addresses.',
+      zh: '获取当前配置的客户端接入地址。',
+      en: 'Get the configured client-ingress addresses.',
     },
   },
   {
     slug: 'messages',
     method: 'post',
     path: '/channel/messagesync',
-    title: { zh: '消息（Beta 同步子集）', en: 'Messages (Beta Sync Subset)' },
+    title: { zh: '消息同步 API（Beta）', en: 'Message Sync API (Beta)' },
     description: {
-      zh: '使用 POST /channel/messagesync 从已提交的个人 Channel 日志恢复离线消息。',
-      en: 'Use POST /channel/messagesync to recover offline messages from a committed person-Channel log.',
+      zh: '从已提交的 Channel 日志恢复消息。',
+      en: 'Recover messages from a committed Channel log.',
     },
   },
 ] as const;
@@ -61,10 +61,10 @@ export const productHTTPManagementOpenAPIPages = [
   {
     slug: 'channels',
     tag: 'Channels',
-    title: { zh: '频道（Beta 管理子集）', en: 'Channels (Beta Management Subset)' },
+    title: { zh: 'Channel 管理 API（Beta）', en: 'Channel Management API (Beta)' },
     description: {
-      zh: '通过受信后端管理 Channel 元数据、持久或临时订阅者，以及允许和拒绝名单。',
-      en: 'Manage Channel metadata, durable or temporary subscribers, and allow or deny lists from a trusted backend.',
+      zh: '管理 Channel、订阅者及允许或拒绝名单。',
+      en: 'Manage Channels, subscribers, and allow or deny lists.',
     },
     operations: [
       { method: 'post', path: '/channel' },
@@ -82,10 +82,10 @@ export const productHTTPManagementOpenAPIPages = [
   {
     slug: 'conversations',
     tag: 'Conversations',
-    title: { zh: '会话（Canonical Beta 子集）', en: 'Conversations (Canonical Beta Subset)' },
+    title: { zh: '会话 API（Beta）', en: 'Conversation API (Beta)' },
     description: {
-      zh: '以有界游标同步会话投影、重试未解析项，并单调维护未读、隐藏与激活状态。',
-      en: 'Synchronize the Conversation projection with bounded cursors, retry unresolved keys, and monotonically maintain unread, hide, and activation state.',
+      zh: '同步会话，并管理未读、隐藏与激活状态。',
+      en: 'Synchronize Conversations and manage unread, hide, and activation state.',
     },
     operations: [
       { method: 'post', path: '/conversation/list' },

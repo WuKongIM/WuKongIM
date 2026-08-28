@@ -1,78 +1,37 @@
 ---
 title: 认证与安全
-description: 划分开发身份、localhost BFF、Product HTTP 与默认 Gateway Token 校验的真实边界。
+description: 理解浏览器、业务后端、Product HTTP 与 Gateway 的信任边界。
 ---
 
-## 目标与完成标准
+Product HTTP 面向受信后端；浏览器通过 SDK 连接 Gateway，或通过同源 BFF 请求服务端能力。
 
-完成后，你应能画出浏览器、业务后端、Product HTTP 和 Gateway 的信任边界，并明确说明：`/user/token` 保存成功不等于后续 CONNECT 已验证该 Token。
-
-## 兼容目标
-
-本页描述[兼容快照](/zh/api/compatibility)中的默认 v3 Beta 应用组合。它是当前行为说明，不是未来版本的永久安全承诺。
-
-## 前置条件
-
-- 先阅读[集成架构](/zh/guide/integration/architecture)；
-- 把产品登录、WuKongIM UID、设备和 Session 分开建模；
-- 只有受信后端能够到达 Product HTTP；
-- 生产入口已有 TLS、服务身份认证、限流和审计计划。
-
-## 黄金样例信任流
+## 信任边界
 
 ```text
-浏览器
-  -> localhost BFF：请求自己的开发身份、路由与离线同步
-
-localhost BFF
-  -> POST /user/token：保存开发 Token 元数据
-  -> GET /route：发现 WebSocket 地址
-  -> POST /channel/messagesync：代表当前开发身份同步
-
-浏览器 + SDK
-  -> Gateway：CONNECT / SEND / RECVACK
+浏览器 -> 同源 BFF -> Product HTTP
+浏览器 + SDK -> Gateway
 ```
 
-浏览器只得到自己本次连接所需的 UID、开发 Token 和 WebSocket 地址。它不获得 Product HTTP Base URL 的管理能力，也不持有服务端凭据。
+浏览器只应获得当前连接所需的 UID、临时 Token 和 WebSocket 地址，不应获得 Product HTTP 地址或服务端凭据。
 
-## 当前默认行为
-
-`POST /user/token` 会创建缺失的 UID 元数据并更新指定设备类别的 Token。若使用主设备级别，还会安排关闭 owner-local 的同类设备 Session。
-
-<Callout type="error" title="已存 Token 默认不会自动验证 CONNECT">
-  当前默认应用组合创建 Gateway Authenticator 时没有启用 stored-token 校验。会话仍进行 CONNECT 协商和协议加密，但错误、过期或撤销 Token 并不会仅因为调用过 `/user/token` 就必然被拒绝。
+<Callout type="error" title="保存 Token 不等于 CONNECT 鉴权">
+  `POST /user/token` 只保存设备 Token 元数据。默认 Gateway 不会自动用该记录校验后续 CONNECT；生产环境必须接入明确的 Token 校验与拒绝策略。
 </Callout>
 
-协议会话加密也不能替代 TLS 入口治理、业务账号认证或 HTTP 服务鉴权。
+## 生产要求
 
-## 生产责任清单
-
-| 责任 | 所有者 |
+| 能力 | 责任方 |
 | --- | --- |
-| 账号登录、租户、风控 | 业务身份服务 |
-| 稳定 UID 与设备策略 | 业务后端 |
-| 高熵、短生命周期、可撤销 Token | 业务后端与可信凭据存储 |
-| CONNECT Token 验证与拒绝测试 | 生产 Gateway 组合 |
-| Product HTTP 服务身份、权限和限流 | API Gateway / 服务网格 / 业务后端 |
-| TLS、密钥轮换、审计与告警 | 生产平台 |
+| 账号、租户、UID 与设备策略 | 业务身份服务和业务后端 |
+| Token 生成、过期、撤销与安全存储 | 业务后端 |
+| CONNECT Token 校验 | Gateway |
+| Product HTTP 鉴权、授权、限流与审计 | API Gateway、服务网格或业务后端 |
+| TLS、密钥轮换与告警 | 生产平台 |
 
-Phase 12 不实现这些生产能力；黄金 BFF 只是无状态开发辅助程序。
+协议加密不能替代 TLS、账号认证或 HTTP 服务鉴权。Token 不得出现在 URL、日志或截图中。
 
-## 预期结果
+<Callout type="warn" title="示例 BFF 仅用于本地开发">
+  示例 BFF 必须绑定 loopback 并校验 Host/Origin；不要部署到公网、共享测试环境或真实用户流量。
+</Callout>
 
-本地样例能够创建 Alice/Bob 元数据并连接，但文档与 UI 都必须把它标为开发身份。生产设计必须证明伪造、过期和撤销 Token 无法 CONNECT，且不可信客户端无法调用 Token 或同步接口。
-
-## 失败诊断
-
-- **`/user/token` 成功但 CONNECT 失败**：分别检查路由、Gateway 地址、协议和 Reason Code；不要把存储成功当成连接成功。
-- **无效 Token 仍可 CONNECT**：在默认组合中这是已知边界，不是生产可接受结果；必须接入显式校验器。
-- **浏览器能直接调用 Product HTTP**：收紧网络和代理规则；CORS 不是权限控制。
-- **Token 出现在日志或截图**：立即停止传播，轮换凭据，并修复日志脱敏。
-
-## 安全与责任边界
-
-样例 BFF 必须绑定 loopback，校验 Host/Origin，并只返回当前开发 Session 所需字段。它不应被部署到公网、共享测试环境或真实用户流量。真实产品不得复制开发 Token 策略。
-
-## 下一步
-
-查看[`/user/token` 合同](/zh/api/product-http/users)和[错误响应](/zh/api/product-http/errors)，然后按[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)验证开发链路。
+相关参考：[`/user/token`](/zh/api/product-http/users)、[错误响应](/zh/api/product-http/errors)和[集成架构](/zh/guide/integration/architecture)。

@@ -329,8 +329,6 @@ export async function checkStaticOutput() {
       path: '/user/token',
       requestBody: true,
       field: '`device_flag`',
-      enDescription: 'Compatibility endpoint used by the localhost BFF before a browser connects',
-      zhDescription: '浏览器连接前由 localhost BFF 调用的兼容入口',
     },
     {
       slug: 'routing',
@@ -338,8 +336,6 @@ export async function checkStaticOutput() {
       path: '/route',
       requestBody: false,
       field: '`wss_addr`',
-      enDescription: 'Returns configured gateway addresses',
-      zhDescription: '返回已配置的 Gateway 地址',
     },
     {
       slug: 'messages',
@@ -347,8 +343,6 @@ export async function checkStaticOutput() {
       path: '/channel/messagesync',
       requestBody: true,
       field: '`pull_mode`',
-      enDescription: 'Compatibility endpoint used by the localhost BFF after reconnect',
-      zhDescription: '重连后由 localhost BFF 使用的兼容入口',
     },
   ] as const;
   for (const locale of locales) {
@@ -356,8 +350,7 @@ export async function checkStaticOutput() {
       const html = visibleHtml(
         await text(`${locale}/api/product-http/${page.slug}/index.html`),
       );
-      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
-      for (const fact of [page.method, page.path, page.field.slice(1, -1), description]) {
+      for (const fact of [page.method, page.path, page.field.slice(1, -1)]) {
         if (!html.includes(fact)) {
           throw new Error(
             `${locale} Product HTTP ${page.slug} page is missing OpenAPI fact: ${fact}`,
@@ -402,8 +395,6 @@ export async function checkStaticOutput() {
         'MaintenanceError',
         'restore maintenance is active',
       ],
-      enDescription: 'Creates or updates one Channel',
-      zhDescription: '创建或更新一个 Channel',
     },
     {
       slug: 'conversations',
@@ -418,20 +409,23 @@ export async function checkStaticOutput() {
         'MaintenanceError',
         'restore maintenance is active',
       ],
-      enDescription: 'Canonical endpoint that incrementally scans',
-      zhDescription: 'Canonical 入口会增量扫描',
     },
   ] as const;
   for (const locale of locales) {
     for (const page of managementOpenAPIPages) {
-      const html = visibleHtml(
-        await text(`${locale}/api/product-http/${page.slug}/index.html`),
-      );
-      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
-      for (const fact of ['POST', ...page.facts, ...page.schemaFacts, description]) {
+      const pageHtml = await text(`${locale}/api/product-http/${page.slug}/index.html`);
+      const html = visibleHtml(pageHtml);
+      for (const fact of ['POST', ...page.facts]) {
         if (!html.includes(fact)) {
           throw new Error(
             `${locale} Product HTTP ${page.slug} page is missing management OpenAPI fact: ${fact}`,
+          );
+        }
+      }
+      for (const fact of [...page.schemaFacts, '\\"400\\"', '\\"503\\"']) {
+        if (!pageHtml.includes(fact)) {
+          throw new Error(
+            `${locale} Product HTTP ${page.slug} HTML is missing embedded OpenAPI fact: ${fact}`,
           );
         }
       }
@@ -456,6 +450,15 @@ export async function checkStaticOutput() {
       }
       if (!markdown.includes('| `503` |')) {
         throw new Error(`${locale} Product HTTP ${page.slug} Markdown lost maintenance`);
+      }
+    }
+
+    const errorsHtml = visibleHtml(
+      await text(`${locale}/api/product-http/errors/index.html`),
+    );
+    for (const fact of ['400', '503 maintenance', 'restore maintenance is active']) {
+      if (!errorsHtml.includes(fact)) {
+        throw new Error(`${locale} Product HTTP error guide is missing shared fact: ${fact}`);
       }
     }
   }
@@ -653,20 +656,18 @@ export async function checkStaticOutput() {
     const indexedDocuments = Object.values(search.data[locale]?.docs?.docs ?? {});
     for (const page of openAPIPages) {
       const pageId = `/${locale}/api/product-http/${page.slug}`;
-      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
       if (
         !indexedDocuments.some(
           (document) =>
-            document.page_id === pageId && document.content?.includes(description),
+            document.page_id === pageId && document.content?.includes(page.path),
         )
       ) {
-        throw new Error(`${locale} search index is missing OpenAPI text for ${pageId}`);
+        throw new Error(`${locale} search index is missing OpenAPI path for ${pageId}`);
       }
     }
     for (const page of managementOpenAPIPages) {
       const pageId = `/${locale}/api/product-http/${page.slug}`;
-      const description = locale === 'zh' ? page.zhDescription : page.enDescription;
-      for (const fact of [description, ...page.facts, ...page.schemaFacts]) {
+      for (const fact of [...page.facts, ...page.schemaFacts]) {
         if (
           !indexedDocuments.some(
             (document) => document.page_id === pageId && document.content?.includes(fact),

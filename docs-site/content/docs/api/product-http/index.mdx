@@ -1,70 +1,29 @@
 ---
-title: Product HTTP API（Beta 子集）
-description: 查阅固定的三入口黄金范围，以及源码校准的 Channel 与 Conversation 受信管理合同。
+title: Product HTTP API（Beta）
+description: 查阅用户、路由、消息、Channel 与 Conversation 接口。
 ---
 
-Product HTTP 当前发布两份彼此独立、均非穷举的 OpenAPI 3.1 合同：Phase 12 的三入口黄金路径合同，以及 Phase 16 的 16 入口受信管理合同。页面“已发布”只表示其**声明子集**完整且经过合同校验，不表示仓库中的全部 HTTP 路由已经成为公共 API。
+Product HTTP 提供基础接入与受信管理接口。当前文档只覆盖下方列出的操作。
 
-黄金路径的操作白名单与 receipt tuple 继续固定。Phase 16 只把共享恢复维护 `503` Schema 修正为当前运行时的 `{error,message}` 响应；该修正不会扩大 receipt 场景。
+OpenAPI：[基础接入合同](/contracts/javascript-web-quickstart.openapi.json) · [Channel 与 Conversation 合同](/contracts/product-http-management.openapi.json)
 
-## 目标与完成标准
+<Callout type="error" title="仅供受信后端调用">
+  Product HTTP 没有通用业务鉴权。请限制网络可达性，并在 API Gateway、服务网格或业务后端完成认证、授权、限流和审计。
+</Callout>
 
-完成后，你应能为已发布操作指出方法、路径、信任级别、请求、响应和失败处理，区分场景 receipt 与源码校准证据，并确保浏览器或移动端没有直接调用 Product HTTP。
+## 接口目录
 
-## 两份合同的证据边界
+<Cards>
+  <Card title="用户 Token" description="POST /user/token：保存设备 Token 元数据。" href="/zh/api/product-http/users" />
+  <Card title="路由发现" description="GET /route：获取客户端 TCP 与 WebSocket 入口。" href="/zh/api/product-http/routing" />
+  <Card title="消息同步" description="POST /channel/messagesync：恢复已提交消息。" href="/zh/api/product-http/messages" />
+  <Card title="频道" description="Channel、订阅者与允许/拒绝名单管理。" href="/zh/api/product-http/channels" />
+  <Card title="会话" description="会话列表、重试、未读、隐藏与激活。" href="/zh/api/product-http/conversations" />
+  <Card title="错误响应" description="HTTP 状态、错误体与重试建议。" href="/zh/api/product-http/errors" />
+</Cards>
 
-| 合同 | 范围 | 证据 |
-| --- | --- | --- |
-| [JavaScript/Web 黄金路径](/contracts/javascript-web-quickstart.openapi.json) | `/user/token`、`/route`、`/channel/messagesync` | BFF 合同、构建 tuple 与可选真实 Chromium receipt |
-| [Product HTTP 管理子集](/contracts/product-http-management.openapi.json) | 10 个 Channel 操作与 6 个 canonical Conversation 操作 | 当前入口、DTO、usecase 与测试的源码校准；不纳入黄金场景 receipt |
+## 基础接入合同
 
 <GoldenPathContract locale="zh" />
 
-## 前置条件
-
-- Product HTTP 位于可信网络或已鉴权代理之后；
-- 业务后端验证服务身份、租户、UID、Channel 与请求意图；
-- 单节点集群或多节点集群的 `/readyz` 成功；
-- 调用方理解[通用约定](/zh/api/conventions)和[认证边界](/zh/api/authentication)。
-
-## 已发布页面
-
-<Cards>
-  <Card title="用户 Token" description="POST /user/token：保存开发身份的设备 Token 元数据。" href="/zh/api/product-http/users" />
-  <Card title="频道" description="10 个经过校准的 Channel、持久/临时订阅者与允许/拒绝名单变更。" href="/zh/api/product-http/channels" />
-  <Card title="消息同步" description="POST /channel/messagesync：从已提交 Channel 日志恢复消息。" href="/zh/api/product-http/messages" />
-  <Card title="会话" description="6 个 canonical 有界列表、重试、未读、隐藏与激活操作。" href="/zh/api/product-http/conversations" />
-  <Card title="路由发现" description="GET /route：获得配置的客户端 TCP 与 WebSocket 入口。" href="/zh/api/product-http/routing" />
-  <Card title="错误响应" description="区分 HTTP 状态、兼容错误体、维护栅栏与协议 Reason Code。" href="/zh/api/product-http/errors" />
-</Cards>
-
-## 典型调用流
-
-```text
-黄金路径
-  POST /user/token -> GET /route -> SDK CONNECT
-  SDK reconnect -> POST /channel/messagesync
-
-受信管理
-  POST /channel -> subscriber / allowlist / denylist mutations
-  POST /conversation/list -> retry unresolved -> continue until done=true
-  clearUnread / setUnread / delete / activate
-```
-
-消息发送本身仍走 JavaScript SDK。`/message/send`、用户退出、在线状态、批量同步、弱校验 Channel 路由、legacy `/conversation/sync` 和其他兼容入口不属于本次发布承诺。
-
-## 失败诊断
-
-- **接口不在任一合同中**：它仍未发布；不要从源码存在或旧 `resources/api/openapi.json` 推断公共支持。
-- **浏览器出现 Product HTTP 请求**：这是架构违规，应改为调用同源 BFF 或业务后端。
-- **管理操作返回 400**：按 HTTP 状态处理，并仅记录脱敏后的 `msg`；精确错误文本不是稳定机器合同。
-- **维护栅栏返回 503**：响应使用 `{error,message}`；有界退避并观察 `/readyz`。
-- **会话空页提前结束**：只以 `done=true` 为完成条件，并原样传递 `next_cursor`。
-
-## 安全与责任边界
-
-Product HTTP 没有通用业务鉴权中间件，`security: []` 只是当前事实而非匿名访问授权。必须限制网络可达性，并由业务后端实现认证、授权、限流、审计与输入上限。Golden BFF 只是本地开发工具。
-
-## 下一步
-
-沿应用接入阅读[用户](/zh/api/product-http/users)、[路由发现](/zh/api/product-http/routing)和[消息](/zh/api/product-http/messages)；沿业务管理阅读[频道](/zh/api/product-http/channels)和[会话](/zh/api/product-http/conversations)。
+消息实时发送与接收通过 SDK 和 Gateway 完成。未出现在当前 OpenAPI 合同中的 Product HTTP 接口不属于公开范围。

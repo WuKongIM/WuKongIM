@@ -1,49 +1,15 @@
-Phase 12 的 HTTP 消息合同只发布同步入口。实时发送和接收由 JavaScript SDK 与 Gateway 完成；`/message/send` 不属于这个黄金路径子集。
+`POST /channel/messagesync` 有界拉取一个 Channel 的已提交消息；实时收发仍由 SDK 与 Gateway 完成。
 
-## 目标与完成标准
+## 使用要点
 
-完成后，BFF 应能在 Bob 重连后读取 Alice/Bob 个人 Channel 的已提交消息，并让浏览器把同步恢复与实时接收合并、去重且分别标记来源。
+- 当前样例把 `limit` 限制为 `1–100`；
+- 分页时推进 sequence 游标，不要持续使用全零边界；
+- 个人 Channel 的 `channel_id` 使用对端 UID；
+- 在线 RECV 与同步结果可能重叠，优先按 `message_idstr` 去重；
+- 空 `messages` 数组是合法结果。
 
-## 兼容目标
+<Callout type="warn" title="请求 UID 不是身份凭据">
+  `login_uid` 只是字段。受信后端仍须验证调用方可代表该 UID 并读取对应 Channel。
+</Callout>
 
-该入口属于[黄金路径 API 快照](/zh/api/compatibility)。HTTP DTO 位于 `internal/access/api/channel_messagesync.go`，游标、membership 与可见性逻辑位于 `internal/usecase/message/sync.go`，样例调用位于 `product-http-message-sync` 命名片段。
-
-## 前置条件
-
-- 当前用户已经重新 CONNECT；
-- BFF 已确认当前开发 Session 的 `uid` 与对端 UID；
-- 离线消息曾收到成功 SENDACK，即已经达到持久提交边界；
-- Product HTTP 只对 BFF 可达。
-
-## 游标与合并语义
-
-运行时在未提供正数 limit 时默认 `100`，并把上限钳制到 `10000`；黄金 BFF 使用更窄的 `1–100` 合同以保持恢复有界。当两个 sequence 边界都为 `0` 时，当前兼容读取会选择最近页并最终按 sequence 升序返回；后续分页必须显式推进游标，不能一直重复全零请求。
-
-个人 Channel 响应会把内部 canonical ID 投影回对端 UID。读取只覆盖已提交数据；用户必须拥有可见 membership，加入序号与删除游标会形成可见性下界。
-
-在线 RECV 和同步页可能包含同一消息。黄金样例优先按 `message_idstr`，再按 `client_msg_no`，最后按发送方与 sequence 形成去重键；恢复事件类型为 `synced`，事件文本包含 `recovered`。
-
-## 预期结果
-
-Bob 断开期间 Alice 的持久消息先获得 SENDACK。Bob 重连后，本入口返回该消息，UI 显示一次同步恢复而不是伪造一条 realtime 事件。空 `messages` 数组是合法结果，不等于 HTTP 错误。
-
-## 错误与诊断
-
-- **缺少 `login_uid`、`channel_id` 或 `channel_type`**：修正请求；不要重试无效合同。
-- **membership 不可见**：确认业务关系和个人 Channel 元数据已由发送路径建立，不要绕过权限读取节点存储。
-- **`messages` 为空**：先确认发送获得成功 SENDACK，再核对方向、起点、对端 UID 和可见性游标。
-- **出现重复**：检查去重键；重复可能来自实时投递与同步重叠。
-- **`more=1`**：用上页最后 sequence 推进游标，保持页大小有界。
-- **`503 maintenance`**：退避并观察 `/readyz`。
-
-## 安全与责任边界
-
-`login_uid` 只是请求字段，不是自带可信身份。业务后端必须先验证调用者确实可以代表该 UID，并验证其 Channel 读取权限。默认 Product HTTP 不提供这层业务鉴权，浏览器不得直调。
-
-## 下一步
-
-在[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)验证断线恢复，并阅读[错误响应](/zh/api/product-http/errors)和[消息概念](/zh/guide/core-concepts/messages)。
-
-## OpenAPI 合同
-
-本页面中的 Fumadocs 参考直接由受边界约束的 OpenAPI 3.1 合同渲染请求体、游标字段、响应、示例和 TypeScript 定义；逐页 Markdown 的机器摘要也从同一合同生成。
+若结果为空，先确认发送已获得成功 SENDACK，再检查方向、游标和成员可见性。`more=1` 时从本页最后一个 sequence 继续。

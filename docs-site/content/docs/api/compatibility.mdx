@@ -1,65 +1,28 @@
 ---
 title: API 版本与兼容性
-description: 区分有 receipt 的黄金路径合同与源码校准的 Product HTTP 管理合同。
+description: 查看当前 Product HTTP 合同与验证范围。
 ---
 
-## 目标与完成标准
+API 页面描述当前构建对应的合同。URL 不变不代表不同服务端、SDK 或合同版本自动兼容。
 
-本页区分两种证据：同一构建 tuple 中三个 Product HTTP 入口的黄金场景 receipt，以及 16 个 Channel/Conversation 管理入口的当前源码校准。只有匹配的成功 receipt 才能证明黄金样例覆盖其精确三入口 tuple；它不证明管理合同，也不代表仓库全部 HTTP 路由或正式 v3 稳定性承诺。
-
-## 兼容快照
+## 当前快照
 
 <CompatibilitySnapshot locale="zh" />
 
-上方组件是当前构建验证状态的唯一权威。无 receipt 时为 `false/missing`；只有成功且精确匹配 tuple 的 receipt 才是 `true/verified`。声明的目标值、格式错误或发生漂移的 receipt 都不能证明构建已通过。
+快照中的验证状态只覆盖以下基础接入流程：
 
-黄金路径 OpenAPI、`compatibility.json`、页面表格、BFF 类型和 CI 必须来自同一技术事实。独立的 Product HTTP 管理 OpenAPI 由当前入口、DTO、usecase 与测试校准，不写入黄金 receipt。现有仓库中的旧 OpenAPI 仍包含 v2 与已删除路由，不能作为两份合同的 Schema 来源。
+| 接口 | 验证内容 |
+| --- | --- |
+| `POST /user/token` | 创建开发身份 |
+| `GET /route` | 发现 WebSocket 入口 |
+| `POST /channel/messagesync` | 重连后恢复已提交消息 |
 
-## 前置条件
+Channel 与 Conversation 管理接口另有 OpenAPI 合同和合同校验，但不包含在上方端到端验证状态中。
 
-- 已区分旧完整 OpenAPI 与 Phase 12 切片级合同；
-- 已区分三入口黄金合同与 16 入口管理合同的证据范围；
-- 能读取当前构建 revision 和验证证明；
-- Product HTTP 只允许受信后端访问；
-- 合同、BFF、文档或运行时任何一处变化都会重新运行黄金场景。
+## 版本规则
 
-## 发布范围
+- 升级服务端、SDK 或合同后，应重新验证应用接入流程。
+- 未验证的组合应视为未知兼容性，而不是默认兼容。
+- 只使用当前页面与 OpenAPI 合同列出的字段和接口。
 
-| 入口 | Phase 12 状态 | 场景证据目标 |
-| --- | --- | --- |
-| `POST /user/token` | 黄金路径子集 | BFF 合同测试 + 真实身份创建 |
-| `GET /route` | 黄金路径子集 | BFF 合同测试 + 真实 WebSocket 发现 |
-| `POST /channel/messagesync` | 黄金路径子集 | BFF 合同测试 + Bob 重连离线恢复 |
-
-管理合同另发布 10 个 Channel 变更和 6 个 canonical Conversation 操作。它们具有源码与入口测试校准，但状态是“未纳入黄金场景证明”，不能读取上方 `verified` 值作为运行时 smoke 证据。精确范围见[频道](/zh/api/product-http/channels)与[会话](/zh/api/product-http/conversations)。
-
-消息实时发送通过 JavaScript SDK 与 Gateway 完成，不把 `/message/send` 加入任一 HTTP 子集。其他未列出的 Product HTTP、运维 API、Webhook、TCP 细节、JSON-RPC Schema 和完整 OpenAPI 仍处于规划状态。
-
-## URL 与版本策略
-
-当前路径保持 `/{lang}/api/...`，不迁移到 `/v3/`。版本身份记录在构建 revision 和兼容清单中：
-
-- “v3 Beta snapshot” 是可复现源码组合，不是正式语义化版本；
-- URL 不变不表示任意源码 revision 都兼容；
-- 更新服务端、SDK 或合同后，必须重新执行真实黄金场景；
-- 未通过该场景的组合只能标为未验证。
-
-## 预期结果
-
-使用同一黄金快照时，BFF 能创建开发身份、发现 WebSocket 地址，并在 Bob 重连时恢复已提交消息。管理合同变化同样会触发文档集成校验，但只有专门的后续场景证据才能为其提供 runtime receipt。
-
-## 失败诊断
-
-- **端点字段与页面不同**：以共享合同校验失败处理，不能人工让 BFF 和文档各自兼容一套。
-- **HTTP 子集通过、SDK 发送失败**：继续检查 SDK/协议兼容性；HTTP 成功不能外推 Gateway 行为。
-- **源码 revision 不在快照中**：将结果标记为未验证，并运行完整 smoke test。
-- **旧 OpenAPI 与本页冲突**：旧文件不属于本阶段权威；不要用它扩大已发布承诺。
-- **管理页面已发布但 `verified=false`**：该字段只描述黄金三入口 tuple；用源码校准门禁判断管理合同是否对齐。
-
-## 安全与责任边界
-
-API 兼容不等于 API 可直接公网暴露。默认 Product HTTP 缺少通用业务鉴权，默认 Gateway 缺少 stored-token CONNECT 校验；兼容测试不会替代这些生产控制。
-
-## 下一步
-
-先阅读[通用约定](/zh/api/conventions)，再从[Product HTTP API](/zh/api/product-http)选择黄金路径或受信管理合同。
+兼容不等于可直接公网暴露。Product HTTP 仍须放在受信网络或已鉴权代理之后。接口范围见 [Product HTTP API](/zh/api/product-http)。

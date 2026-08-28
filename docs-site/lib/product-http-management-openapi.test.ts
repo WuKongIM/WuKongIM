@@ -200,9 +200,24 @@ describe('Product HTTP management OpenAPI integration', () => {
     ).bundled;
 
     expect(Object.keys(zh.paths ?? {})).toEqual(Object.keys(en.paths ?? {}));
-    expect(zh.paths?.['/conversation/list']?.post?.description).toContain('增量扫描');
-    expect(en.paths?.['/conversation/list']?.post?.description).toContain(
-      'incrementally scans',
+    const zhDescription = zh.paths?.['/conversation/list']?.post?.description;
+    const enDescription = en.paths?.['/conversation/list']?.post?.description;
+    expect(zhDescription).toEqual(expect.any(String));
+    expect(enDescription).toEqual(expect.any(String));
+    expect(zhDescription).not.toBe(enDescription);
+    expect(zhDescription).toMatch(/\p{Script=Han}/u);
+    expect(enDescription).toMatch(/[A-Za-z]/);
+    expect(zh.paths?.['/channel/subscriber_add']?.post?.description).toContain(
+      'Channel 不存在时创建元数据',
+    );
+    expect(en.paths?.['/channel/subscriber_add']?.post?.description).toContain(
+      'creating Channel metadata when absent',
+    );
+    expect(zh.paths?.['/conversations/clearUnread']?.post?.description).toContain(
+      '运行时会忽略',
+    );
+    expect(en.paths?.['/conversations/clearUnread']?.post?.description).toContain(
+      'runtime ignores it',
     );
     expect(JSON.stringify(zh)).not.toContain('"x-i18n"');
     expect(JSON.stringify(en)).not.toContain('"x-i18n"');

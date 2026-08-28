@@ -1,38 +1,20 @@
-## 目标与完成标准
+<Callout type="warn" title="仅限受信后端">
+  请求中的 `uid` 不是身份凭据。业务后端必须验证调用方可代表该 UID。
+</Callout>
 
-本页发布 canonical 会话投影的 6 个操作：有界列表遍历、未解析项重试，以及清未读、设置未读上限、隐藏和显式激活。完成后，受信业务后端应能持续请求到 `done=true`，独立处理 `deletes` 与 `unresolved`，并在需要时重建本地投影。
+## 列表同步
 
-## 列表同步状态机
-
-1. 首次调用 `/conversation/list` 时使用空 `cursor`、有界 `limit` 与已保存的 `completed_coverage`；
+1. 首次调用 `/conversation/list` 时使用空 `cursor`；
 2. 应用 `conversations`，删除 `deletes`，把 `unresolved` 交给 `/conversation/retry`；
-3. 即使本页数组为空，只要 `done=false`，仍按原样回传不透明 `next_cursor`；
-4. 只在 `done=true` 后保存本轮 `coverage`；
-5. 若 `reset_required=true`，丢弃陈旧的本地会话投影并从空游标重建。
+3. `done=false` 时原样回传 `next_cursor`，即使本页为空；
+4. 仅在 `done=true` 后保存 `coverage`；
+5. `reset_required=true` 时清空本地会话投影并重新同步。
 
-`read_seq` 是红点计算的单调下界，不是消息拉取游标或已读回执。`unread` 还会应用加入、保留、删除与当前用户最近发送等可见性下界。个人 Channel 的 `channel_id` 在 HTTP 边界投影为对端 UID。
+## 使用要点
 
-`ConversationListResponse` 通过 `tombstones_retained_since` 支持 reset 判断。每个可见项可携带 nullable `ConversationLastMessage`；消息身份应使用字符串安全的 `message_idstr`，而 JSON 中的 `payload` 是 nullable base64 编码字符串。兼容失败使用 `CompatibilityError`（`400 {"msg","status":400}`）；恢复维护使用 `MaintenanceError`（`503 {"error":"maintenance","message":"restore maintenance is active"}`）。
+- `read_seq` 是单调未读下界，不是消息游标或已读回执；
+- `setUnread` 只能减少未读数；
+- `delete` 只隐藏当前投影，不删除 Channel 或成员关系；
+- `message_idstr` 可避免 JavaScript 大整数精度损失。
 
-## 变更语义
-
-- `/conversations/clearUnread` 推进到调用时的最新已提交 head，不接收 `message_seq`；
-- `/conversations/setUnread` 只会向前推进 `read_seq`，因此最多把未读数降低到目标，不能增加未读；
-- `/conversations/delete` 只把该用户的投影隐藏到当前已提交 head，不删除 Channel 或 membership，后续新消息可使它再次出现；
-- `/conversations/activate` 记录显式打开、切换或恢复，发送、接收、投递和拉取不会隐式调用它。
-
-## Legacy 同步暂缓
-
-`POST /conversation/sync` 仍是运行时中的 legacy compatibility 路由，但不属于本 canonical Beta 合同。它使用分隔字符串 `last_msg_seqs`、裸数组响应、旧消息投影和最多 1000 个 candidate 的兼容扫描，且没有 completion/truncation 标志。新集成应使用 `/conversation/list` 与 `/conversation/retry`；旧调用方应在单独完成精确版本校准前保持现状。
-
-## 错误与诊断
-
-- **空页导致提前结束**：只有 `done=true` 表示完整遍历结束；空 `conversations` 不等于完成。
-- **游标返回 400**：游标是版本化 base64url 值，只能原样回传，不能解析后重组。
-- **反复 unresolved**：使用最多 200 个键调用 retry，并把仍未解析的键保留到有界退避队列；不要回退完整列表 coverage。
-- **reset_required=true**：已保存 coverage 早于仍保留的 tombstone 范围，必须重建本地投影。
-- **503 maintenance**：暂停业务调用并观察 `/readyz`。
-
-## 安全与 OpenAPI 合同
-
-请求中的 `uid` 只是字段，不是可信身份。默认 Product HTTP 没有业务鉴权，业务后端必须证明调用方可代表该 UID 并访问对应 Channel。页面由独立管理合同的 `Conversations` tag 生成；可下载[管理子集合同](/contracts/product-http-management.openapi.json)。
+旧 `POST /conversation/sync` 不在当前合同内；新接入使用 `/conversation/list` 与 `/conversation/retry`。通用错误处理见[错误响应](/zh/api/product-http/errors)。

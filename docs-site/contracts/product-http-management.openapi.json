@@ -3,7 +3,7 @@
   "info": {
     "title": "WuKongIM Trusted Product Management Beta Subset",
     "version": "3.0.0-beta-snapshot",
-    "description": "A deliberately non-exhaustive Product HTTP contract for reviewed Channel management and canonical Conversation synchronization. Every operation is for a trusted backend or operator boundary. The default server composition does not authenticate these routes."
+    "description": "A non-exhaustive Product HTTP contract for trusted-backend Channel management and Conversation synchronization. These routes have no built-in authentication."
   },
   "x-wukongim-scope": "non-exhaustive-trusted-product-management-beta",
   "servers": [
@@ -15,19 +15,19 @@
   "tags": [
     {
       "name": "Channels",
-      "description": "Reviewed Channel metadata, durable subscriber, temporary subscriber, denylist, and allowlist mutations.",
+      "description": "Channel metadata and membership mutations.",
       "x-i18n": {
         "zh": {
-          "description": "经过校准的 Channel 元数据、持久订阅者、临时订阅者、黑名单与白名单变更入口。"
+          "description": "Channel 元数据与成员变更。"
         }
       }
     },
     {
       "name": "Conversations",
-      "description": "Canonical bounded Conversation-list synchronization, retries, badge floors, hiding, and explicit activation.",
+      "description": "Bounded Conversation synchronization and state mutations.",
       "x-i18n": {
         "zh": {
-          "description": "Canonical 有界会话列表同步、重试、红点下界、隐藏与显式激活入口。"
+          "description": "有界会话同步与状态变更。"
         }
       }
     }
@@ -37,11 +37,11 @@
       "post": {
         "operationId": "upsertChannel",
         "summary": "Create or update Channel metadata",
-        "description": "Creates or updates one Channel. Integer flags are true only when exactly 1. With reset=1 the durable subscriber snapshot is replaced; a person Channel cannot carry subscribers. Disband is terminal in the current runtime and is not cleared by a later upsert.",
+        "description": "Creates or updates a Channel. reset=1 replaces durable subscribers; person Channels reject subscribers. Disband is terminal.",
         "x-i18n": {
           "zh": {
             "summary": "创建或更新 Channel 元数据",
-            "description": "创建或更新一个 Channel。整数标志仅在值恰好为 1 时为 true。reset=1 会替换持久订阅者快照；个人 Channel 不能携带 subscribers。当前运行时中的 disband 是终态，后续 upsert 不会清除它。"
+            "description": "创建或更新 Channel。reset=1 替换持久订阅者；个人 Channel 不接受订阅者；disband 为终态。"
           }
         },
         "tags": ["Channels"],
@@ -78,12 +78,12 @@
     "/channel/subscriber_add": {
       "post": {
         "operationId": "addChannelSubscribers",
-        "summary": "Add or replace durable Channel subscribers",
-        "description": "Adds durable subscribers, creating empty Channel metadata if needed. Omitting channel_type (or sending 0) selects group type 2 for compatibility. reset=1 replaces the subscriber snapshot. Person Channels and temp_subscriber=1 are rejected; use /tmpchannel/subscriber_set for temporary membership.",
+        "summary": "Add or replace durable subscribers",
+        "description": "Adds durable subscribers, creating Channel metadata when absent. Missing or zero channel_type means type 2; temporary members use /tmpchannel/subscriber_set.",
         "x-i18n": {
           "zh": {
-            "summary": "添加或替换 Channel 持久订阅者",
-            "description": "添加持久订阅者；必要时会先创建空 Channel 元数据。兼容行为中省略 channel_type（或传 0）会选择群组类型 2。reset=1 替换订阅者快照。个人 Channel 与 temp_subscriber=1 会被拒绝；临时成员应使用 /tmpchannel/subscriber_set。"
+            "summary": "添加或替换持久订阅者",
+            "description": "添加持久订阅者；Channel 不存在时创建元数据。channel_type 缺省或为 0 时使用类型 2；临时成员使用 /tmpchannel/subscriber_set。"
           }
         },
         "tags": ["Channels"],
@@ -115,11 +115,11 @@
       "post": {
         "operationId": "removeAllChannelSubscribers",
         "summary": "Remove all durable Channel subscribers",
-        "description": "Removes the complete durable subscriber set through bounded internal traversal. Person Channels are rejected. This does not delete or disband the Channel.",
+        "description": "Removes all durable subscribers without deleting or disbanding the Channel. Person Channels are rejected.",
         "x-i18n": {
           "zh": {
             "summary": "移除 Channel 的全部持久订阅者",
-            "description": "通过内部有界遍历移除完整持久订阅者集合。个人 Channel 会被拒绝。此操作不会删除或解散 Channel。"
+            "description": "移除全部持久订阅者，但不删除或解散 Channel；个人 Channel 会被拒绝。"
           }
         },
         "tags": ["Channels"],
@@ -151,11 +151,11 @@
       "post": {
         "operationId": "setTemporaryChannelSubscribers",
         "summary": "Replace temporary Channel subscribers",
-        "description": "Replaces the complete member set of the internal temporary Channel (Channel Type 8) identified by channel_id. Temporary membership is separate from ordinary durable subscriber mutation.",
+        "description": "Replaces all members of the temporary Channel (Type 8). Temporary and durable subscribers are separate.",
         "x-i18n": {
           "zh": {
             "summary": "替换临时 Channel 订阅者",
-            "description": "替换 channel_id 所标识的内部临时 Channel（Channel Type 8）的完整成员集合。临时 membership 与普通持久订阅者变更相互独立。"
+            "description": "替换临时 Channel（Type 8）的全部成员；临时与持久订阅者相互独立。"
           }
         },
         "tags": ["Channels"],
@@ -187,11 +187,11 @@
       "post": {
         "operationId": "addChannelDenylistMembers",
         "summary": "Add Channel denylist members",
-        "description": "Adds UIDs to the Channel-scoped denylist. The current compatibility path retains the blacklist name; the domain behavior is a denylist mutation.",
+        "description": "Adds UIDs to the Channel denylist; the route retains its legacy blacklist name.",
         "x-i18n": {
           "zh": {
             "summary": "添加 Channel 黑名单成员",
-            "description": "向 Channel 范围的拒绝列表添加 UID。当前兼容路径保留 blacklist 命名；领域行为是 denylist 变更。"
+            "description": "向 Channel 拒绝列表添加 UID；路由沿用 blacklist 命名。"
           }
         },
         "tags": ["Channels"],
@@ -295,11 +295,11 @@
       "post": {
         "operationId": "addChannelAllowlistMembers",
         "summary": "Add Channel allowlist members",
-        "description": "Adds non-empty UIDs to the Channel-scoped allowlist. The current compatibility path retains the whitelist name; the domain behavior is an allowlist mutation.",
+        "description": "Adds non-blank UIDs to the Channel allowlist; the route retains its legacy whitelist name.",
         "x-i18n": {
           "zh": {
             "summary": "添加 Channel 白名单成员",
-            "description": "向 Channel 范围的允许列表添加非空 UID。当前兼容路径保留 whitelist 命名；领域行为是 allowlist 变更。"
+            "description": "向 Channel 允许列表添加非空白 UID；路由沿用 whitelist 命名。"
           }
         },
         "tags": ["Channels"],
@@ -402,12 +402,12 @@
     "/conversation/list": {
       "post": {
         "operationId": "listConversations",
-        "summary": "Synchronize one bounded Conversation page",
-        "description": "Canonical endpoint that incrementally scans a UID-owned membership page, hydrates current Channel heads, and returns visible conversations, deletions, and retryable keys. Treat next_cursor as opaque and continue until done=true; an empty page is not proof of completion.",
+        "summary": "Synchronize a Conversation page",
+        "description": "Returns one bounded Conversation page. Reuse next_cursor unchanged until done=true; an empty page is not completion.",
         "x-i18n": {
           "zh": {
-            "summary": "同步一页有界会话",
-            "description": "Canonical 入口会增量扫描 UID 所属的一页 membership，读取当前 Channel head，并返回可见会话、删除项和待重试键。next_cursor 必须视为不透明值并持续请求到 done=true；空页不代表完成。"
+            "summary": "同步一页会话",
+            "description": "返回一页有界会话。原样回传 next_cursor 直到 done=true；空页不表示完成。"
           }
         },
         "tags": ["Conversations"],
@@ -439,11 +439,11 @@
       "post": {
         "operationId": "retryConversations",
         "summary": "Retry unresolved Conversation keys",
-        "description": "Re-reads at most 200 unresolved keys without rewinding the completed list coverage. Duplicate keys are coalesced. Person-Channel input uses the peer UID. The response separates rebuilt conversations, deleted keys, and keys that remain unresolved.",
+        "description": "Retries up to 200 unresolved keys without rewinding completed list coverage; duplicate keys are merged.",
         "x-i18n": {
           "zh": {
             "summary": "重试未解析的会话键",
-            "description": "重新读取最多 200 个未解析键，不回退已完成的列表 coverage。重复键会合并。个人 Channel 输入使用对端 UID。响应分别返回已重建会话、已删除键和仍未解析键。"
+            "description": "重试最多 200 个未解析键，不回退已完成的列表 coverage；重复键会合并。"
           }
         },
         "tags": ["Conversations"],
@@ -474,12 +474,12 @@
     "/conversations/clearUnread": {
       "post": {
         "operationId": "clearConversationUnread",
-        "summary": "Clear a Conversation unread badge",
-        "description": "Monotonically advances read_seq to the latest committed Channel head. The request does not accept message_seq; an extra legacy message_seq field is ignored by the runtime and is intentionally absent from this contract.",
+        "summary": "Clear Conversation unread",
+        "description": "Advances read_seq to the latest committed Channel head. The contract omits legacy message_seq; the runtime ignores it.",
         "x-i18n": {
           "zh": {
-            "summary": "清除会话未读红点",
-            "description": "把 read_seq 单调推进到最新已提交 Channel head。请求不接收 message_seq；运行时会忽略额外的旧 message_seq 字段，因此本合同刻意不发布它。"
+            "summary": "清除会话未读",
+            "description": "把 read_seq 推进到最新已提交 Channel head；合同不发布旧 message_seq，运行时会忽略它。"
           }
         },
         "tags": ["Conversations"],
@@ -510,12 +510,12 @@
     "/conversations/setUnread": {
       "post": {
         "operationId": "setConversationUnread",
-        "summary": "Reduce a Conversation unread badge",
-        "description": "Advances read_seq so at most unread messages remain. It never moves read_seq backwards, so it cannot increase an unread count. This contract requires unread explicitly even though omitted JSON currently decodes as zero.",
+        "summary": "Set maximum Conversation unread",
+        "description": "Advances read_seq so no more than unread messages remain. It never increases the unread count.",
         "x-i18n": {
           "zh": {
-            "summary": "降低会话未读红点",
-            "description": "推进 read_seq，使剩余未读消息至多为 unread。它不会倒退 read_seq，因此不能增加未读数。尽管当前运行时会把缺省 JSON 值解码为 0，本合同仍要求显式提供 unread。"
+            "summary": "设置会话未读上限",
+            "description": "推进 read_seq，使未读数不超过 unread；该操作不会增加未读数。"
           }
         },
         "tags": ["Conversations"],
@@ -546,12 +546,12 @@
     "/conversations/delete": {
       "post": {
         "operationId": "hideConversation",
-        "summary": "Hide a Conversation through the current head",
-        "description": "Persists deleted_to_seq through the latest committed Channel head for this user. It does not delete the Channel or membership; a later committed message can make the Conversation visible again. message_seq is not a request field.",
+        "summary": "Hide Conversation through the current head",
+        "description": "Hides this Conversation through the current committed head. It does not delete the Channel or membership.",
         "x-i18n": {
           "zh": {
-            "summary": "把会话隐藏到当前 head",
-            "description": "为该用户把 deleted_to_seq 持久推进到最新已提交 Channel head。它不会删除 Channel 或 membership；后续已提交消息可使会话再次可见。message_seq 不是请求字段。"
+            "summary": "隐藏会话至当前 head",
+            "description": "把会话隐藏到当前已提交 head；不会删除 Channel 或成员关系。"
           }
         },
         "tags": ["Conversations"],
@@ -582,12 +582,12 @@
     "/conversations/activate": {
       "post": {
         "operationId": "activateConversation",
-        "summary": "Record explicit Conversation activation",
-        "description": "Records an explicit open, switch, or restore action in activated_at so the Conversation is prioritized in later list synchronization. Send, receive, delivery, and pull paths do not activate it implicitly.",
+        "summary": "Activate Conversation",
+        "description": "Records an explicit open, switch, or restore action for Conversation ordering; message paths do not activate it.",
         "x-i18n": {
           "zh": {
-            "summary": "记录显式会话激活",
-            "description": "在 activated_at 中记录显式打开、切换或恢复动作，使该会话在后续列表同步中优先。发送、接收、投递和拉取路径不会隐式激活它。"
+            "summary": "激活会话",
+            "description": "记录显式打开、切换或恢复动作，用于会话排序；消息路径不会隐式激活。"
           }
         },
         "tags": ["Conversations"],

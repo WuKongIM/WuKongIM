@@ -1,7 +1,6 @@
 ---
-title: Channels (Beta Management Subset)
-description: Manage Channel metadata, durable or temporary subscribers, and
-  allow or deny lists from a trusted backend.
+title: Channel Management API (Beta)
+description: Manage Channels, subscribers, and allow or deny lists.
 full: true
 _openapi:
   preload:
@@ -11,8 +10,8 @@ _openapi:
       title: Create or update Channel metadata
       url: '#create-or-update-channel-metadata'
     - depth: 2
-      title: Add or replace durable Channel subscribers
-      url: '#add-or-replace-durable-channel-subscribers'
+      title: Add or replace durable subscribers
+      url: '#add-or-replace-durable-subscribers'
     - depth: 2
       title: Remove all durable Channel subscribers
       url: '#remove-all-durable-channel-subscribers'
@@ -41,8 +40,8 @@ _openapi:
     headings:
       - content: Create or update Channel metadata
         id: create-or-update-channel-metadata
-      - content: Add or replace durable Channel subscribers
-        id: add-or-replace-durable-channel-subscribers
+      - content: Add or replace durable subscribers
+        id: add-or-replace-durable-subscribers
       - content: Remove all durable Channel subscribers
         id: remove-all-durable-channel-subscribers
       - content: Replace temporary Channel subscribers
@@ -60,36 +59,28 @@ _openapi:
       - content: Remove all Channel allowlist members
         id: remove-all-channel-allowlist-members
     contents:
-      - content: Creates or updates one Channel. Integer flags are true only when
-          exactly 1. With reset=1 the durable subscriber snapshot is replaced; a
-          person Channel cannot carry subscribers. Disband is terminal in the
-          current runtime and is not cleared by a later upsert.
+      - content: Creates or updates a Channel. reset=1 replaces durable subscribers;
+          person Channels reject subscribers. Disband is terminal.
         heading: create-or-update-channel-metadata
-      - content: Adds durable subscribers, creating empty Channel metadata if needed.
-          Omitting channel_type (or sending 0) selects group type 2 for
-          compatibility. reset=1 replaces the subscriber snapshot. Person
-          Channels and temp_subscriber=1 are rejected; use
-          /tmpchannel/subscriber_set for temporary membership.
-        heading: add-or-replace-durable-channel-subscribers
-      - content: Removes the complete durable subscriber set through bounded internal
-          traversal. Person Channels are rejected. This does not delete or
-          disband the Channel.
+      - content: Adds durable subscribers, creating Channel metadata when absent.
+          Missing or zero channel_type means type 2; temporary members use
+          /tmpchannel/subscriber_set.
+        heading: add-or-replace-durable-subscribers
+      - content: Removes all durable subscribers without deleting or disbanding the
+          Channel. Person Channels are rejected.
         heading: remove-all-durable-channel-subscribers
-      - content: Replaces the complete member set of the internal temporary Channel
-          (Channel Type 8) identified by channel_id. Temporary membership is
-          separate from ordinary durable subscriber mutation.
+      - content: Replaces all members of the temporary Channel (Type 8). Temporary and
+          durable subscribers are separate.
         heading: replace-temporary-channel-subscribers
-      - content: Adds UIDs to the Channel-scoped denylist. The current compatibility
-          path retains the blacklist name; the domain behavior is a denylist
-          mutation.
+      - content: Adds UIDs to the Channel denylist; the route retains its legacy
+          blacklist name.
         heading: add-channel-denylist-members
       - content: Removes the listed UIDs from the Channel-scoped denylist.
         heading: remove-channel-denylist-members
       - content: Clears the Channel-scoped denylist through bounded internal traversal.
         heading: remove-all-channel-denylist-members
-      - content: Adds non-empty UIDs to the Channel-scoped allowlist. The current
-          compatibility path retains the whitelist name; the domain behavior is
-          an allowlist mutation.
+      - content: Adds non-blank UIDs to the Channel allowlist; the route retains its
+          legacy whitelist name.
         heading: add-channel-allowlist-members
       - content: Removes the listed non-empty UIDs from the Channel-scoped allowlist.
         heading: remove-channel-allowlist-members
@@ -102,10 +93,8 @@ _openapi:
 
           Create or update Channel metadata
 
-          Creates or updates one Channel. Integer flags are true only when
-          exactly 1. With reset=1 the durable subscriber snapshot is replaced; a
-          person Channel cannot carry subscribers. Disband is terminal in the
-          current runtime and is not cleared by a later upsert.
+          Creates or updates a Channel. reset=1 replaces durable subscribers;
+          person Channels reject subscribers. Disband is terminal.
 
           ChannelUpsertRequest
 
@@ -190,13 +179,11 @@ _openapi:
 
           addChannelSubscribers
 
-          Add or replace durable Channel subscribers
+          Add or replace durable subscribers
 
-          Adds durable subscribers, creating empty Channel metadata if needed.
-          Omitting channel_type (or sending 0) selects group type 2 for
-          compatibility. reset=1 replaces the subscriber snapshot. Person
-          Channels and temp_subscriber=1 are rejected; use
-          /tmpchannel/subscriber_set for temporary membership.
+          Adds durable subscribers, creating Channel metadata when absent.
+          Missing or zero channel_type means type 2; temporary members use
+          /tmpchannel/subscriber_set.
 
           ChannelSubscriberAddRequest
 
@@ -225,9 +212,8 @@ _openapi:
 
           Remove all durable Channel subscribers
 
-          Removes the complete durable subscriber set through bounded internal
-          traversal. Person Channels are rejected. This does not delete or
-          disband the Channel.
+          Removes all durable subscribers without deleting or disbanding the
+          Channel. Person Channels are rejected.
 
           NonPersonChannelKeyRequest
 
@@ -240,9 +226,8 @@ _openapi:
 
           Replace temporary Channel subscribers
 
-          Replaces the complete member set of the internal temporary Channel
-          (Channel Type 8) identified by channel_id. Temporary membership is
-          separate from ordinary durable subscriber mutation.
+          Replaces all members of the temporary Channel (Type 8). Temporary and
+          durable subscribers are separate.
 
           TemporarySubscriberSetRequest
 
@@ -254,9 +239,8 @@ _openapi:
 
           Add Channel denylist members
 
-          Adds UIDs to the Channel-scoped denylist. The current compatibility
-          path retains the blacklist name; the domain behavior is a denylist
-          mutation.
+          Adds UIDs to the Channel denylist; the route retains its legacy
+          blacklist name.
 
           ChannelMemberMutationRequest
 
@@ -292,9 +276,8 @@ _openapi:
 
           Add Channel allowlist members
 
-          Adds non-empty UIDs to the Channel-scoped allowlist. The current
-          compatibility path retains the whitelist name; the domain behavior is
-          an allowlist mutation.
+          Adds non-blank UIDs to the Channel allowlist; the route retains its
+          legacy whitelist name.
 
           ChannelAllowlistMutationRequest
 
@@ -335,48 +318,27 @@ export default function Layout(props) {
   );
 }
 
-## Goal and completion criteria
+<Callout type="warn" title="Trusted backends only">
+  Product HTTP has no built-in business authentication. Call it behind a trusted network or authenticated proxy and verify operator, Channel, and UID authority.
+</Callout>
 
-This page publishes 10 Channel-management operations calibrated against current source and entry tests. The trusted product backend should be able to distinguish mutations to Channel metadata, durable subscribers, temporary subscribers, and derived allow or deny lists, while keeping browsers away from Product HTTP.
+## Key points
 
-## Trust and compatibility boundary
+- Integer flags are true only when their value is `1`.
+- `reset=1` replaces the durable-subscriber snapshot; bound request size for large groups.
+- Durable subscribers and `/tmpchannel/subscriber_set` temporary members are separate.
+- Person Channels (Type 1) do not support ordinary subscriber management.
+- Route names retain `blacklist` / `whitelist`; they mean denylist / allowlist.
 
-These routes have no business-authentication middleware of their own. `security: []` in OpenAPI records that runtime fact; it is **not permission for anonymous public access**. Put the listener behind a trusted network or authenticated proxy and let the product backend validate tenant, operator, Channel, and UID authority.
+## Current scope
 
-The compatibility paths retain `blacklist` for the domain denylist and `whitelist` for the allowlist. Integer flags mean true only when exactly `1`. `ChannelSubscriberAddRequest.subscribers` and `ChannelAllowlistMutationRequest.uids` use `NonBlankUID`; its `\S` pattern matches the runtime rule that rejects whitespace-only members.
+The 10 operations above are in the current contract. These existing routes remain unpublished:
 
-Successful mutations return `{"status":200}`. Validation, routing, and storage failures use `CompatibilityError`, normally `400 {"msg","status":400}`. The restore-maintenance fence uses `MaintenanceError`: `503 {"error":"maintenance","message":"restore maintenance is active"}`.
+- `POST /channel/info`
+- `POST /channel/delete`
+- `POST /channel/subscriber_remove`
+- `POST /channel/blacklist_set`
+- `POST /channel/whitelist_set`
+- `GET /channel/whitelist`
 
-## High-scale semantics
-
-- `/channel/subscriber_add` can replace a snapshot with `reset=1`, but a product backend should bound and retry input batches for a 100,000-member group instead of relying on one unbounded JSON request;
-- remove-all operations use bounded internal traversal and never return the full member set;
-- ordinary durable subscribers and `/tmpchannel/subscriber_set` temporary members occupy different namespaces;
-- allowlists and denylists are separate member sets derived from the Channel key;
-- a person Channel (Type 1) does not accept ordinary subscriber management.
-
-## Existing routes intentionally deferred
-
-The following routes exist, but their current behavior is not strong enough for this Beta contract:
-
-| Path | Why it is deferred |
-| --- | --- |
-| `POST /channel/info` | It validates no fields and performs a full replacement, not the partial patch its name can suggest. |
-| `POST /channel/delete` | Key validation is weak; the behavior is terminal disband rather than physical deletion, and its error text is inaccurate. |
-| `POST /channel/subscriber_remove` | An omitted `channel_type` reaches type 0, unlike add's compatibility default to group. |
-| `POST /channel/blacklist_set` | It validates only `channel_id`, allowing type 0 and an empty list into the replace path. |
-| `POST /channel/whitelist_set` | It has the same issue as blacklist set and lacks a consistent strong-validation contract. |
-| `GET /channel/whitelist` | Query fields are not validated and it aggregates the complete list into an unbounded response, unsuitable for 100,000-member scale. |
-
-Source-code existence does not imply public support. Do not fill these gaps from the legacy `resources/api/openapi.json`; that file contains removed routes and obsolete response shapes.
-
-## Errors and troubleshooting
-
-- **A 400 carries unstable text:** branch on the HTTP status and record only redacted `msg`; do not enumerate or parse the current Chinese or English message text.
-- **A subscriber operation fails for Channel Type 1:** person-Channel membership belongs to person relationships and messaging paths, not group-style subscription mutation.
-- **subscriber_add rejects a temporary member:** use `/tmpchannel/subscriber_set`; do not send `temp_subscriber=1`.
-- **503 maintenance:** back off within a bound and observe `/readyz`; never bypass into a node-local path.
-
-## OpenAPI contract
-
-This page is generated by the `Channels` tag of a separate, non-exhaustive Product HTTP management OpenAPI 3.1 contract. Download the [management subset contract](/contracts/product-http-management.openapi.json). The golden path retains its fixed three-operation whitelist and receipt boundary; Phase 16 only recalibrates its shared maintenance response schema to the current runtime. The two contracts do not combine into a complete v3 API.
+Routes absent from the contract are outside the current public scope. See [Error Responses](/en/api/product-http/errors) for shared failures.

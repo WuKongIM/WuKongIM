@@ -1,48 +1,13 @@
-## Goal and completion criteria
+`GET /route` returns the configured client Gateway addresses.
 
-This page publishes only the golden-path shape of `GET /route`. When finished, the BFF can select a secure or ordinary WebSocket address for the browser without treating address discovery as product authorization or dynamic user-ownership proof.
+## Key points
 
-## Compatibility target
+- On HTTPS pages, prefer a non-empty `wss_addr`; otherwise use `ws_addr`.
+- The browser sample does not use `tcp_addr`.
+- Rediscover after disconnect instead of caching an old address forever.
 
-This entry belongs to the [golden-path API snapshot](/en/api/compatibility). The authoritative compatible handler is `internal/access/api/route.go`; the executable sample call is the `product-http-route` named region in `src/server/product-http-client.ts`.
-
-## Prerequisites
-
-- The trusted BFF has stored token metadata for the current development identity;
-- only the BFF can reach the Product HTTP base URL;
-- server configuration publishes a browser-reachable `ws_addr` or `wss_addr`;
-- an HTTPS production page has `wss_addr` to avoid mixed content.
-
-## Current routing semantics
-
-The current compatible entry returns configured client-ingress addresses. It accepts no UID in the golden path: the default handler neither validates product permission for an identity nor proves the owner node of a concrete online Session. The golden BFF prefers a non-empty `wss_addr`, falling back to `ws_addr`; the browser sample does not use `tcp_addr`.
-
-<Callout type="warn" title="Address discovery is not authentication">
-  A successful `/route` means the BFF obtained a configured ingress. Product authorization, CONNECT identity, and online Presence Authority are separate stages.
+<Callout type="warn" title="Discovery is not authentication">
+  A successful `/route` call proves neither UID authorization nor CONNECT success.
 </Callout>
 
-Rediscover an address after disconnect rather than caching a failed node forever. A multi-node cluster still uses full cluster semantics; do not bypass route discovery merely because the current environment is a single-node cluster.
-
-## Expected result
-
-The BFF returns one non-empty, browser-reachable WebSocket URL and gives only that URL and the current development identity to the browser. The SDK then initiates CONNECT and reports CONNACK separately.
-
-## Errors and troubleshooting
-
-- **Both `ws_addr` and `wss_addr` are empty:** correct the server's external Gateway address configuration instead of making the browser guess a port.
-- **The browser reports mixed content:** an HTTPS page must use `wss://`.
-- **The address is reachable but CONNECT fails:** inspect Gateway, protocol version, and Reason Code; route `200` is not CONNECT success.
-- **`400` reports an invalid node parameter:** the golden path sends no `node_id`; check for a proxy or old client adding it.
-- **`503 maintenance`:** back off and observe `/readyz`.
-
-## Security and responsibility boundary
-
-A route response can reveal ingress details. Production should return only controlled public Gateway addresses, never node transport, Manager, or diagnostic listeners. Operators own TLS, DNS, access policy, and capacity.
-
-## Next step
-
-Give the selected address to the pinned JavaScript SDK and CONNECT through the [Quickstart](/en/sdk/javascript/quickstart). After a disconnect, use [Message Sync](/en/api/product-http/messages) to recover committed messages.
-
-## OpenAPI contract
-
-The Fumadocs reference on this page renders the response shape, examples, and TypeScript definitions directly from the bounded OpenAPI 3.1 contract. The per-page Markdown machine summary is generated from the same contract.
+If addresses are empty, check the external Gateway configuration. If the address is reachable but CONNECT fails, inspect the protocol version and CONNACK Reason Code.

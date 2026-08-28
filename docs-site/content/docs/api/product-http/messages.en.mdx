@@ -1,7 +1,6 @@
 ---
-title: Messages (Beta Sync Subset)
-description: Use POST /channel/messagesync to recover offline messages from a
-  committed person-Channel log.
+title: Message Sync API (Beta)
+description: Recover messages from a committed Channel log.
 full: true
 _openapi:
   preload:
@@ -12,9 +11,8 @@ _openapi:
   structuredData:
     headings: []
     contents:
-      - content: Compatibility endpoint used by the localhost BFF after reconnect. The
-          quickstart uses a person channel (channel_type 1) and a bounded
-          forward pull.
+      - content: Pulls a bounded page of committed messages after reconnect. The
+          quickstart uses a person Channel (channel_type 1).
 ---
 
 {/* This file is generated from the bounded Product HTTP OpenAPI contract and its locale supplement. Run `bun run openapi:write` instead of editing it directly. */}
@@ -31,52 +29,18 @@ export default function Layout(props) {
   );
 }
 
-The Phase 12 HTTP message contract publishes only synchronization. The JavaScript SDK and Gateway own realtime send and receive; `/message/send` is outside this golden-path subset.
+`POST /channel/messagesync` pulls a bounded page of committed Channel messages. Realtime send and receive remain on the SDK and Gateway.
 
-## Goal and completion criteria
+## Key points
 
-When finished, the BFF can read the committed Alice/Bob person Channel after Bob reconnects, and the browser merges and deduplicates sync recovery and realtime receipts while keeping their sources distinct.
+- The sample limits `limit` to `1–100`.
+- Advance the sequence cursor between pages; do not keep sending zero boundaries.
+- For a person Channel, `channel_id` is the peer UID.
+- Realtime RECV and sync may overlap; deduplicate with `message_idstr` first.
+- An empty `messages` array is valid.
 
-## Compatibility target
+<Callout type="warn" title="A request UID is not a credential">
+  `login_uid` is only a field. The trusted backend must still verify authority to represent that UID and read the Channel.
+</Callout>
 
-This entry belongs to the [golden-path API snapshot](/en/api/compatibility). The HTTP DTO is in `internal/access/api/channel_messagesync.go`, cursor, membership, and visibility logic are in `internal/usecase/message/sync.go`, and the executable sample call is the `product-http-message-sync` named region.
-
-## Prerequisites
-
-- The current user has reconnected successfully;
-- the BFF has confirmed the development Session's `uid` and peer UID;
-- the offline message received a successful SENDACK and therefore reached durable commit;
-- only the BFF can reach Product HTTP.
-
-## Cursor and merge semantics
-
-The runtime defaults a non-positive limit to `100` and caps it at `10000`. The golden BFF deliberately exposes a narrower `1–100` contract to keep recovery bounded. When both sequence boundaries are zero, the current compatible reader selects a recent page and returns it in ascending sequence order. Subsequent pagination must advance an explicit cursor instead of repeatedly sending zero boundaries.
-
-A person-Channel response projects its internal canonical ID back to the peer UID. Reads cover committed data only. The user must have visible membership; join sequence and delete cursor establish the visibility floor.
-
-Online RECV and a sync page can contain the same message. The golden sample deduplicates first by `message_idstr`, then `client_msg_no`, then a sender-and-sequence fallback. A recovered event has kind `synced` and text containing `recovered`.
-
-## Expected result
-
-Alice's persistent message receives SENDACK while Bob is disconnected. After reconnect, this entry returns the message and the UI shows one synchronized recovery instead of inventing a realtime event. An empty `messages` array is a valid result, not an HTTP error.
-
-## Errors and troubleshooting
-
-- **`login_uid`, `channel_id`, or `channel_type` is missing:** fix the request rather than retrying an invalid contract.
-- **Membership is not visible:** confirm the product relationship and person-Channel metadata were established by the send path; never bypass authorization by reading node storage.
-- **`messages` is empty:** first prove the send had a successful SENDACK, then inspect direction, start cursor, peer UID, and visibility cursor.
-- **Duplicates appear:** inspect the deduplication key; overlap between realtime and synchronization is allowed.
-- **`more=1`:** advance from the last sequence in the page and keep page size bounded.
-- **`503 maintenance`:** back off and observe `/readyz`.
-
-## Security and responsibility boundary
-
-`login_uid` is a request field, not trusted identity by itself. The product backend must prove that the caller may represent that UID and read that Channel. Default Product HTTP supplies no such business-authentication layer, so the browser must not call it directly.
-
-## Next step
-
-Verify disconnect recovery in the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart), then read [Error Responses](/en/api/product-http/errors) and the [Messages concept](/en/guide/core-concepts/messages).
-
-## OpenAPI contract
-
-The Fumadocs reference on this page renders the request body, cursor fields, responses, examples, and TypeScript definitions directly from the bounded OpenAPI 3.1 contract. The per-page Markdown machine summary is generated from the same contract.
+For an empty result, first confirm a successful SENDACK, then check direction, cursors, and membership visibility. When `more=1`, continue from the page's last sequence.

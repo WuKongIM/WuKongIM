@@ -3,7 +3,7 @@
   "info": {
     "title": "WuKongIM JavaScript Web Golden Path Subset",
     "version": "3.0.0-beta-snapshot",
-    "description": "A deliberately non-exhaustive Product HTTP API fragment for the JavaScript Web quickstart. It documents only the three server calls made by the trusted localhost BFF. It is not the complete WuKongIM Product HTTP API and does not define a production authentication scheme."
+    "description": "A non-exhaustive Product HTTP contract for the three trusted-BFF calls used by the JavaScript Web quickstart."
   },
   "x-wukongim-scope": "non-exhaustive-v3-beta-snapshot",
   "servers": [
@@ -31,11 +31,11 @@
       "post": {
         "operationId": "setQuickstartUserToken",
         "summary": "Register the quickstart user's development token",
-        "description": "Compatibility endpoint used by the localhost BFF before a browser connects. The Beta quickstart token is a development credential; this endpoint does not establish a production authentication design.",
+        "description": "Stores device-token metadata for a development identity. It does not enable production CONNECT authentication.",
         "x-i18n": {
           "zh": {
             "summary": "登记快速开始用户的开发 Token",
-            "description": "浏览器连接前由 localhost BFF 调用的兼容入口。Beta 快速开始 Token 只是开发凭据；此入口不构成生产鉴权设计。"
+            "description": "保存开发身份的设备 Token 元数据；它不会启用生产 CONNECT 鉴权。"
           }
         },
         "tags": ["Users"],
@@ -106,11 +106,11 @@
       "get": {
         "operationId": "getQuickstartGatewayRoute",
         "summary": "Resolve the browser-facing gateway addresses",
-        "description": "Returns configured gateway addresses. The quickstart BFF forwards only the address required by the browser SDK.",
+        "description": "Returns configured Gateway addresses; the BFF forwards the WebSocket address required by the browser SDK.",
         "x-i18n": {
           "zh": {
             "summary": "解析面向浏览器的 Gateway 地址",
-            "description": "返回已配置的 Gateway 地址。快速开始 BFF 只转发浏览器 SDK 所需的地址。"
+            "description": "返回已配置的 Gateway 地址；BFF 只转发浏览器 SDK 所需的 WebSocket 地址。"
           }
         },
         "tags": ["Routing"],
@@ -163,11 +163,11 @@
       "post": {
         "operationId": "syncQuickstartChannelMessages",
         "summary": "Pull durable messages for one channel",
-        "description": "Compatibility endpoint used by the localhost BFF after reconnect. The quickstart uses a person channel (channel_type 1) and a bounded forward pull.",
+        "description": "Pulls a bounded page of committed messages after reconnect. The quickstart uses a person Channel (channel_type 1).",
         "x-i18n": {
           "zh": {
             "summary": "拉取一个 Channel 的持久消息",
-            "description": "重连后由 localhost BFF 使用的兼容入口。快速开始使用个人 Channel（channel_type 1）和有界向前拉取。"
+            "description": "重连后有界拉取已提交消息；快速开始使用个人 Channel（channel_type 1）。"
           }
         },
         "tags": ["Messages"],

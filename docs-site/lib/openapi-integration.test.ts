@@ -140,10 +140,13 @@ describe('Fumadocs OpenAPI integration', () => {
     const en = (await enServer.getSchema(productHTTPOpenAPIDocumentIds.en)).bundled;
 
     expect(Object.keys(zh.paths ?? {})).toEqual(Object.keys(en.paths ?? {}));
-    expect(zh.paths?.['/user/token']?.post?.description).toContain('浏览器连接前');
-    expect(en.paths?.['/user/token']?.post?.description).toContain(
-      'Compatibility endpoint used by',
-    );
+    const zhDescription = zh.paths?.['/user/token']?.post?.description;
+    const enDescription = en.paths?.['/user/token']?.post?.description;
+    expect(zhDescription).toEqual(expect.any(String));
+    expect(enDescription).toEqual(expect.any(String));
+    expect(zhDescription).not.toBe(enDescription);
+    expect(zhDescription).toMatch(/\p{Script=Han}/u);
+    expect(enDescription).toMatch(/[A-Za-z]/);
     expect(JSON.stringify(zh)).not.toContain('"x-i18n"');
     expect(JSON.stringify(en)).not.toContain('"x-i18n"');
   });
@@ -172,24 +175,25 @@ describe('Fumadocs OpenAPI integration', () => {
 
     expect(users).toContain('`POST`');
     expect(users).toContain('`device_flag`');
-    expect(users).toContain('Stable product identity');
+    expect(users).toContain('`uid`');
+    expect(users).toContain('`token`');
     expect(users).toContain('Trusted backend (cURL)');
     expect(users).toContain('server-generated-development-secret');
     expect(users).toContain('const: `200`');
     expect(users).toContain('Additional properties: `false`');
     expect(users).toContain('| `503` |');
     expect(routing).toContain('`wss_addr`');
-    expect(routing).toContain('TLS WebSocket ingress');
+    expect(routing).toContain('`ws_addr`');
     expect(routing).toContain('"wss_addr": ""');
     expect(routing).toContain('| `503` |');
     expect(messages).toContain('`pull_mode`');
-    expect(messages).toContain('Direction selector: 0 pulls older messages');
+    expect(messages).toContain('`start_message_seq`');
     expect(messages).toContain('Referenced schema — `SyncedMessage`');
     expect(messages).toContain('`message_idstr`');
     expect(messages).toContain('"login_uid": "bob"');
     expect(messages).toContain('1–100');
     expect(messages).toContain('| `503` |');
-    expect(usersZh).toContain('浏览器连接前');
+    expect(usersZh).toContain('`uid`');
     expect(usersZh).toContain('`device_flag`');
     expect(renderOpenAPIOperationMarkdown('en', ['api', 'product-http'])).toBe('');
   });

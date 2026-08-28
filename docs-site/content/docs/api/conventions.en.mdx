@@ -1,76 +1,39 @@
 ---
 title: Conventions
-description: Understand addressing, JSON, identifiers, responses, cursors, and retries for the published Product HTTP Beta subsets.
+description: Addressing, JSON, identifiers, cursors, and retry rules for Product HTTP.
 ---
 
-This page applies to the published Product HTTP golden-path and trusted-management Beta subsets. It records their real compatibility surface without promoting other internal, weakly validated, or historical routes to a stable public API.
-
-## Goal and completion criteria
-
-When finished, you should call the golden-path, Channel-management, and canonical Conversation operations from a trusted backend, parse endpoint-specific responses and cursors, and avoid conflating HTTP success, protocol Reason Code, and durable message commit.
-
-## Compatibility target
-
-The three golden entries belong to the v3 Beta snapshot on [API Compatibility](/en/api/compatibility). The 16 management entries are calibrated against current source and tests but remain outside that receipt. The coverage below describes only the golden path; neither contract is a complete v3 OpenAPI document.
-
-<GoldenPathContract locale="en" />
-
-## Prerequisites
-
-- The Product HTTP base URL points to a WuKongIM HTTP listener inside a trusted network; the local sample uses `http://127.0.0.1:5001`.
-- The caller is the sample localhost BFF or a product backend with authenticated service identity.
-- JSON POST requests set `Content-Type: application/json`.
-- Production uses TLS and access control at a reverse proxy, API Gateway, or service mesh.
+The following rules apply to the currently published Product HTTP operations.
 
 ## Addressing and format
 
-| Convention | Published-subset behavior |
+| Convention | Behavior |
 | --- | --- |
-| Base URL | Local development uses `http://127.0.0.1:5001`; all paths start at `/` |
-| Request format | POST endpoints use UTF-8 JSON; `/route` uses a GET query |
-| Response format | JSON, but the published compatibility endpoints have no universal envelope |
-| UID / Channel ID | Product-owned strings; a person-Channel query uses the peer UID |
-| Channel type | Identifies a Channel with `channel_id`; the golden-path direct chat uses numeric value `1` |
-| Message sequence | Ordered only inside one Channel, never globally |
+| Base URL | Local example: `http://127.0.0.1:5001`; all paths start at `/` |
+| Request | POST uses UTF-8 JSON; `/route` uses GET query parameters |
+| Response | JSON; endpoints do not share a universal envelope |
+| UID / Channel ID | Strings owned by the product |
+| Channel | Identified by `channel_id` plus `channel_type` |
+| Message sequence | Ordered only within one Channel |
 
-Do not force compatible responses into one `{ data, error }` type. Mutations generally return `status`, `/route` returns address fields, and message and Conversation reads return their own synchronization structures. A `400` generally uses `{msg,status}`, while restore-maintenance `503` uses `{error,message}`.
+Check HTTP status first, then parse the endpoint-specific schema. Do not force responses into a universal `{data,error}` type.
 
-## Identifiers and numbers
+## Identifiers and cursors
 
 - `uid` is a product identity, not a nickname, connection ID, or device ID.
-- `channel_id` plus `channel_type` identifies a Channel; the client view of a person Channel uses the peer UID.
-- `message_seq` is a per-Channel cursor.
-- A synchronized message has both `message_id` and decimal string `message_idstr`; JavaScript should preserve the string form to avoid large-integer precision loss.
-- HTTP JSON represents message Payload through the compatible Go `[]byte` encoding. The golden-sample adapter decodes it; that transport encoding is not your product schema.
+- The client view of a person Channel uses the peer UID.
+- `message_seq` is a per-Channel cursor; JavaScript should preserve `message_idstr` to avoid large-integer precision loss.
+- `next_cursor` is opaque. Echo it unchanged until `done=true`.
 
-## Retry rules
+## Retries
 
-| Operation | Retry condition |
+| Operation | Rule |
 | --- | --- |
-| `GET /route` | Back off and retry network failures or temporary `5xx`; success is not product authorization |
-| `POST /user/token` | Retry the same identity intent only from a trusted caller; do not mint a fresh token in a loop |
-| `POST /channel/messagesync` | Retry a read failure with the same cursor; tolerate overlap with realtime delivery |
-| Channel mutation | Retry only while the product intent remains valid; audit `reset` and remove-all operations |
-| `POST /conversation/list` | Echo `next_cursor` unchanged until `done=true`; an empty page cannot stop the traversal |
-| `POST /conversation/retry` | Retry only the bounded unresolved keys without rewinding full-list coverage |
+| `/route` | Back off and retry network failures or temporary `5xx` |
+| `/user/token` | Retry the same identity intent; do not mint tokens in a loop |
+| `/channel/messagesync` | Retry with the same cursor and tolerate overlap with realtime delivery |
+| Channel mutation | Retry only while the product intent remains valid; treat `reset` and remove-all with care |
+| `/conversation/list` | Echo `next_cursor` unchanged and stop only at `done=true` |
+| `/conversation/retry` | Retry only the bounded unresolved keys returned by the API |
 
-These subsets declare no universal Idempotency-Key request header. Message sending uses the SDK, whose logical message identity must be retained by the sender; Product HTTP management routes do not replace that behavior.
-
-## Expected result
-
-The caller checks HTTP status first, then parses endpoint-specific JSON. A `2xx` means only that the HTTP operation completed. It does not turn CONNECT into production-grade authentication or prove that a message reached a realtime recipient or was read.
-
-## Troubleshooting
-
-- **JSON parsing fails:** retain HTTP status, `Content-Type`, and a bounded redacted response tail; do not assume every error has an `error` field.
-- **`400`:** correct the request fields, UID, Channel, or cursor instead of retrying unchanged forever.
-- **`503 maintenance`:** the cluster is behind the restore-maintenance fence. Back off and observe `/readyz`; do not bypass into a node-local path.
-- **Synchronization contains duplicates:** overlap with online delivery is allowed; merge by message identity and Channel sequence.
-
-## Security and responsibility boundary
-
-Browsers and mobile apps must never access Product HTTP directly. CORS compatibility is not authentication. The product backend owns accounts, authorization, rate limits, audit, and token lifecycle and must not log plaintext tokens or message bodies.
-
-## Next step
-
-Read [Authentication & Security](/en/api/authentication), then choose the [golden path](/en/api/product-http) or continue into [Channels](/en/api/product-http/channels) and [Conversations](/en/api/product-http/conversations).
+These operations define no universal `Idempotency-Key`. See [Authentication & Security](/en/api/authentication) for security requirements and [Error Responses](/en/api/product-http/errors) for failure classification.

@@ -1,46 +1,13 @@
-## Goal and completion criteria
+`POST /user/token` stores device-token metadata for a UID from a trusted backend.
 
-This page publishes only `POST /user/token`. When finished, the trusted BFF can create a UID and store device-token metadata for the current browser Session while the browser remains unaware of the Product HTTP management address.
+## Key points
 
-## Compatibility target
+- Generate the token on the server; never accept one asserted by the browser.
+- `device_flag` identifies the device category; `device_level` controls same-category Session policy.
+- `200` confirms only that the metadata write succeeded.
 
-This entry belongs to the [golden-path API snapshot](/en/api/compatibility). The authoritative entry DTO is in `internal/access/api/user_token.go`, with validation and mutation in `internal/usecase/user`; the Fumadocs OpenAPI reference below and the BFF types align with those definitions.
-
-## Prerequisites
-
-- The caller is inside a trusted backend;
-- cluster `/readyz` succeeds;
-- the product has chosen a stable UID and device category;
-- a server-side secure random generator creates the token instead of accepting one asserted by the browser.
-
-## Behavior semantics
-
-If the UID is missing, the user use case creates user metadata and then upserts the token for the device category. A master device level schedules closure of owner-local same-category Sessions after the durable change. The golden sample uses a slave device level and does not test product multi-device conflict policy.
-
-<Callout type="error" title="Storage success is not CONNECT authentication success">
-  The default v3 Beta Gateway composition does not automatically validate a later CONNECT against this stored token. `{"status":200}` proves only that this metadata operation succeeded.
+<Callout type="error" title="CONNECT authentication is separate">
+  The default Gateway does not validate later CONNECT packets against this stored token. Production must configure explicit token validation.
 </Callout>
 
-## Expected result
-
-After `200`, the BFF calls `/route` and returns only the browser's UID, temporary development token, and WebSocket address. The response is not cacheable, and the token never appears in logs, URLs, or screenshots.
-
-## Errors and troubleshooting
-
-- **Invalid JSON:** the endpoint returns a compatible `400` body; fix Content-Type and the request body.
-- **UID or token is empty:** it returns `400`; do not retry unchanged.
-- **UID contains a reserved character:** choose a stable UID that follows the product's identifier policy.
-- **Connection fails after `200`:** inspect `/route`, Gateway, and CONNACK separately; do not mint tokens to hide routing or protocol errors.
-- **Restore maintenance is active:** Product HTTP may return `503 maintenance`; back off and observe `/readyz`.
-
-## Security and responsibility boundary
-
-This entry mutates durable identity metadata and must not be exposed to a browser or the public internet. The golden BFF binds to loopback, checks same-origin requests, and creates temporary development tokens. It has no account authentication, authorization, revocation store, or production lifecycle. Production must add those capabilities and Gateway token validation.
-
-## Next step
-
-After success, perform [Route Discovery](/en/api/product-http/routing), then CONNECT with the JavaScript SDK. See [Authentication & Security](/en/api/authentication) for the complete limitation.
-
-## OpenAPI contract
-
-The Fumadocs reference on this page renders the request body, responses, examples, and TypeScript definitions directly from the bounded OpenAPI 3.1 contract. The per-page Markdown machine summary is generated from the same contract. The executable call is the `product-http-token` named region in the golden sample's `src/server/product-http-client.ts`.
+For request failures, check required fields. For connection failures, inspect `/route`, Gateway, and CONNACK separately. See [Authentication & Security](/en/api/authentication).

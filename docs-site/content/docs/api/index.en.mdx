@@ -1,58 +1,25 @@
 ---
 title: API & Protocols
-description: Reference the v3 Beta Product HTTP golden-path and trusted-management subsets plus source-aligned shared wire dictionaries.
+description: Reference Product HTTP APIs, shared dictionaries, and protocol outcomes.
 ---
 
-This area publishes executable contracts for application integration developers. Product HTTP contains a fixed three-entry golden-path scope and a separate 16-entry trusted-management subset. Channel Type, Device Flag / Level, Message Flags, and Reason Codes remain aligned with current authoritative Go definitions.
+This section collects the Product HTTP APIs and shared protocol dictionaries needed for application integration.
 
-## Goal and completion criteria
-
-A developer should prepare a development identity, discover Gateway ingress, recover offline messages, manage Channels, and synchronize the canonical Conversation projection from a trusted backend. They should handle HTTP and protocol outcomes precisely without promoting other source routes or old enums to published platform capabilities.
-
-<Callout type="warn" title="Still not the complete v3 API">
-  The site publishes two deliberately non-exhaustive Product HTTP Beta subsets. The repository's older OpenAPI contains v2 and removed routes. Complete OpenAPI, client protocols, webhooks, operations APIs, and other domain references remain planned.
+<Callout type="warn" title="Limited current scope">
+  Only operations listed on these pages and in the OpenAPI contracts are supported. Unlisted HTTP, webhook, operations, and protocol capabilities remain unpublished.
 </Callout>
 
-## Representation boundary
-
-- Separate OpenAPI 3.1 contracts generate Fumadocs request, response, schema, example, and type references for the three golden operations and 16 management operations.
-- The golden-path compatibility manifest and receipt cover only its three operations and do not provide scenario attestation for the management contract.
-- TCP/WKProto lifecycle, JSON-RPC, and shared wire dictionaries are not HTTP operations. They remain protocol-specific narrative and source-aligned tables instead of fabricated OpenAPI paths.
-
-## Compatibility target
-
-Server revision, SDK, Node.js, Chromium, and the golden-contract summary appear on [API Compatibility](/en/api/compatibility) and in `/compatibility.json`. The management contract is calibrated against current entries, DTOs, use cases, and tests. Unversioned URLs do not promise compatibility with every revision.
-
-## Prerequisites
-
-- Product HTTP is open only to the localhost BFF or a trusted product backend;
-- production calls receive service authentication and authorization at a reverse proxy, API Gateway, or service mesh;
-- the cluster passes `/readyz`;
-- callers parse endpoint-specific responses and distinguish `{msg,status}` from maintenance `{error,message}`.
-
-## Reference entry points
+## Quick links
 
 <Cards>
-  <Card title="Conventions" description="Base URL, JSON, identifiers, response shapes, cursors, and retry boundaries." href="/en/api/conventions" />
-  <Card title="Authentication & Security" description="Development BFF, Product HTTP, and Gateway token-validation boundaries." href="/en/api/authentication" />
-  <Card title="Product HTTP API" description="The three-entry golden path plus trusted Channel and Conversation management subsets." href="/en/api/product-http" />
-  <Card title="Shared Dictionaries" description="Source-aligned Channel, device, message-flag, and Reason Code values." href="/en/api/dictionaries" />
+  <Card title="Conventions" description="Base URL, JSON, identifiers, cursors, and retry rules." href="/en/api/conventions" />
+  <Card title="Authentication & Security" description="Trust boundaries for Product HTTP and Gateway." href="/en/api/authentication" />
+  <Card title="Product HTTP API" description="User, route, message, Channel, and Conversation operations." href="/en/api/product-http" />
+  <Card title="Shared Dictionaries" description="Channel, device, message-flag, and Reason Code values." href="/en/api/dictionaries" />
 </Cards>
 
-## Expected result
+## Usage boundaries
 
-Browsers participate only through the SDK or same-origin BFF. Trusted backends perform management operations under the published contracts. Error classification preserves HTTP separately from CONNACK/SENDACK, and shared protocol dictionaries remain automatically aligned with Go authorities.
-
-## Troubleshooting
-
-- **A required endpoint is absent from both Product HTTP contracts:** it remains unpublished; do not infer support from old OpenAPI or source location.
-- **The browser calls the server directly:** replace it with a same-origin BFF or product-backend call and tighten the network.
-- **Fields disagree with the docs:** fail contract validation and repair runtime, OpenAPI, and bilingual pages together.
-
-## Security and responsibility boundary
-
-Product HTTP has no general business-authentication middleware, and the default Gateway has no stored-token CONNECT validation. Beta documentation does not describe the development loop or `security: []` as a production security design.
-
-## Next step
-
-Begin with [Conventions](/en/api/conventions) and [Product HTTP API](/en/api/product-http), or run the receipted three-entry golden path in the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart).
+- Product HTTP is for trusted backends only; do not expose it directly to browsers or mobile clients.
+- HTTP status, endpoint responses, and CONNACK/SENDACK Reason Codes belong to separate layers and must be handled separately.
+- See [API Compatibility](/en/api/compatibility) for version coverage and [Error Responses](/en/api/product-http/errors) for failure handling.

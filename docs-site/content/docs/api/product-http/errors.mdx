@@ -1,73 +1,34 @@
 ---
 title: 错误响应
-description: 区分已发布 Product HTTP 子集中的网络失败、HTTP 状态、兼容错误体和协议 Reason Code。
+description: 按 HTTP 状态和协议层正确处理失败。
 ---
 
-## 目标与完成标准
+先判断网络与 HTTP 状态，再按端点 Schema 解析响应。不要依赖统一错误字段或错误文本。
 
-完成后，调用方应按失败阶段做出有界决策：修正无效请求、对临时基础设施错误退避重试、对权限拒绝停止重试，并保留足够但脱敏的诊断证据。
+## HTTP 处理
 
-## 兼容目标
-
-本页覆盖[黄金路径 API 快照](/zh/api/compatibility)与源码校准的管理子集。只有黄金三入口带 JavaScript SDK smoke receipt；两类兼容 HTTP 入口都没有统一错误信封，协议 Reason Code 则由当前 0–29 枚举定义。
-
-## 前置条件
-
-- 为每次操作保留端点、方法、兼容快照和客户端请求关联信息；
-- 不记录 Token、Authorization、Cookie 或消息正文；
-- 分别观察 BFF、Product HTTP、Gateway 和 SDK；
-- 把 SENDACK 与 HTTP 响应视为不同协议层。
-
-## 四层结果
-
-| 层 | 示例 | 首要处理 |
+| 结果 | 是否重试 | 处理方式 |
 | --- | --- | --- |
-| 浏览器/BFF | fetch 失败、同源拒绝、localhost 拒绝 | 修正本地边界或网络，不触碰 Product HTTP 公网暴露 |
-| HTTP transport | `400`、`503`、非 JSON | 按状态分类，保留有界响应尾部 |
-| 端点结果 | `{"status":200}`、route 地址、消息/会话 sync page | 使用端点专属解析器 |
-| Gateway 协议 | CONNACK / SENDACK Reason Code | 查阅 Reason Code，并结合包类型解释 |
+| `400` | 否，除非先修改请求 | 校验 JSON、UID、Channel、游标和必填字段 |
+| `503 maintenance` | 是，有界退避 | 等待恢复维护结束，并观察 `/readyz` |
+| 其他 `5xx` 或网络超时 | 条件重试 | 使用指数退避、抖动、上限和取消 |
+| `2xx` 但响应不符合 Schema | 否 | 停止处理并检查版本或合同漂移 |
 
-HTTP `200` 不会自动把 Reason Code 变成成功；反过来，发送 SENDACK 成功也不证明在线投递或离线同步已经完成。
+常见错误体：
 
-## HTTP 分类
+```json
+{"msg":"...","status":400}
+{"error":"maintenance","message":"restore maintenance is active"}
+```
 
-| 结果 | 是否重试 | 建议 |
-| --- | --- | --- |
-| `400` | 否，除非先修改请求 | 校验 JSON、UID、Channel、游标与端点字段 |
-| `403`（BFF） | 否 | 修正 Host/Origin 或停止非 loopback 使用 |
-| `404`（BFF） | 否 | 使用已发布的本地 BFF 路径 |
-| `503 maintenance` | 是，有界退避 | 观察 `/readyz`，等待恢复维护结束 |
-| 其他 `5xx` / 网络超时 | 条件重试 | 指数退避、抖动、上限与取消；保留同一逻辑操作 |
-| `2xx` 但响应形状无效 | 否，先诊断漂移 | 比对共享合同和兼容快照 |
+错误文本不是稳定机器合同；客户端应根据 HTTP 状态和 Schema 分支。
 
-兼容错误体可能使用 `{ "msg", "status" }`，恢复维护使用 `{ "error", "message" }`，样例 BFF 使用 `{ "error" }`。客户端必须先看 HTTP 状态，不能依赖一个全局字段。
+## 协议边界
 
-## 协议 Reason Code
+HTTP 成功不代表 CONNECT、SENDACK、实时投递或已读成功。CONNACK 与 SENDACK 应按对应包类型和 [Reason Code](/zh/api/dictionaries/reason-codes) 单独处理；未知值应停止并报告。
 
-完整值、名称、阶段、重试建议与当前可达性见[Reason Code](/zh/api/dictionaries/reason-codes)。处理原则：
+## 日志安全
 
-1. 保留原始数值和包类型；
-2. 只有明确的 Success 才进入成功路径；
-3. 权限、封禁、解散或无效请求先停止并修正状态；
-4. 系统压力、速率限制或路由变化只在有界策略下重试；
-5. 未知值 fail closed，并带兼容快照报告。
-
-## 预期结果
-
-真实集成测试失败时，CI 只可保留有大小上限的 PNG：截图前，测试工具会把事件日志、输入、身份和消息文本替换为固定脱敏文本。CI 只公布子进程输出字节数，不公布浏览器、BFF 或服务端原始尾部；成功运行会删除截图目录。兼容清单副本、原生 Playwright trace 与视频保持关闭，因为这些通道可能包含开发凭据或消息数据。
-
-## 故障诊断顺序
-
-1. 确认单节点集群 `/readyz`。
-2. 确认 BFF 只在 loopback 监听且 Host/Origin 正确。
-3. 记录 Product HTTP 方法、路径和状态，不记录请求秘密。
-4. 若 HTTP 成功，再检查 WebSocket、CONNACK 或 SENDACK Reason Code。
-5. 若 SENDACK 成功但 Bob 未收到，分别诊断在线投递和消息同步。
-
-## 安全与责任边界
-
-不要把原始服务端错误、拓扑、UID、Token 或 Payload 直接显示给最终用户。生产系统应映射稳定错误类别、生成独立请求 ID，并让日志保留周期和访问权限符合数据政策。
-
-## 下一步
-
-查阅[Reason Code](/zh/api/dictionaries/reason-codes)，进入[频道](/zh/api/product-http/channels)或[会话](/zh/api/product-http/conversations)，或返回[JavaScript/Web Quickstart](/zh/sdk/javascript/quickstart)复现黄金路径阶段。
+- 记录方法、路径、HTTP 状态和独立请求 ID。
+- 不记录 Token、Authorization、Cookie、UID、消息正文或完整原始错误体。
+- 对可重试错误设置次数、时长和并发上限。
