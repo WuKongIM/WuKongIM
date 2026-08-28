@@ -102,7 +102,7 @@ describe('API specification pages', () => {
     const schema = JSON.parse(rawSchema) as {
       $schema: string;
       'x-wukongim-stability': string;
-      oneOf: unknown[];
+      anyOf: unknown[];
     };
 
     for (const content of [zh, en]) {
@@ -118,7 +118,7 @@ describe('API specification pages', () => {
     expect(en).toContain('/en/api/client-protocols/json-rpc');
     expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
     expect(schema['x-wukongim-stability']).toBe('experimental-not-supported');
-    expect(schema.oneOf.length).toBeGreaterThan(1);
+    expect(schema.anyOf.length).toBeGreaterThan(1);
   });
 
   test('records the source-defined v5 to v6 sequence-width change', async () => {

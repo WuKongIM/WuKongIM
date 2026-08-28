@@ -77,6 +77,8 @@ The JSON-RPC page and downloadable schema describe codec capability separately
 from Product Gateway support. They must not advertise connect, send,
 subscribe, or unsubscribe as supported until runtime authentication,
 correlation, bridge mappings, and end-to-end tests are fixed.
+EasySDK tutorials that depend on those operations remain planned, `noindex`,
+and excluded from machine-readable output until that same evidence exists.
 
 The interface inventory records Manager HTTP, Operations MCP, Cloud Analysis
 MCP, Review Check MCP, node transport, and plugin RPC as private or tool

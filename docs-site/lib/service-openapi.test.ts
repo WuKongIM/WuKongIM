@@ -12,7 +12,7 @@ async function source(relativePath: string) {
 }
 
 describe('service OpenAPI contracts', () => {
-  test('keeps the stable Operations contract aligned with API registration', async () => {
+  test('keeps the Operations contract aligned with API registration and stability', async () => {
     const server = await source('../../internal/access/api/server.go');
     const contracted = Object.keys(operations.paths).sort();
 
@@ -26,6 +26,8 @@ describe('service OpenAPI contracts', () => {
     expect(server).toContain('s.engine.GET("/readyz"');
     expect(server).toContain('s.engine.Any("/metrics"');
     expect(server).toContain('s.engine.GET("/top/v1/snapshot"');
+    expect(operations['x-wukongim-scope']).toBe('operations-http-beta');
+    expect(operations.info.description).toContain('Top is unstable');
 
     for (const pathItem of Object.values(operations.paths)) {
       const operation = pathItem.get;
@@ -85,8 +87,11 @@ describe('service OpenAPI contracts', () => {
     expect(offline.allOf[1].oneOf).toHaveLength(2);
     expect(webhooks.webhooks['user.onlinestatus'].post.requestBody.content[
       'application/json'
-    ].schema.items.description).toBe(
+    ].schema.items.description).toContain(
       'uid-deviceFlag-online-sessionID-deviceOnlineCount-totalOnlineCount',
+    );
+    expect(webhooks.webhooks['user.onlinestatus'].post.description).toContain(
+      "UID owner's current node",
     );
   });
 

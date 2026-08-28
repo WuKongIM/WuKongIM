@@ -34,7 +34,7 @@ Only HTTP 200 is success. Connection errors, timeouts, and other status codes re
 | --- | --- | --- |
 | `msg.notify` | Array of committed messages | Audit, search indexing, asynchronous notification |
 | `msg.offline` | One message and a bounded batch of offline UIDs | Offline-push candidate calculation |
-| `user.onlinestatus` | Array of compatible online-status strings | Asynchronous product presence projection |
+| `user.onlinestatus` | Array of compatibility status strings | UID-owner-local, best-effort session hint |
 
 Representative `msg.notify` request:
 
@@ -59,6 +59,14 @@ Representative `msg.notify` request:
 
 JSON encodes `payload` as Base64. For small recipient sets, `msg.offline` uses `to_uids`. At the compression threshold it may instead use `compress: "gzip"` with Base64-encoded `compress_to_uids`; receivers must support both forms.
 
+Each `user.onlinestatus` item has this form:
+
+```text
+{uid}-{device_flag}-{online:0|1}-{session_id}-{device_online_count}-{total_online_count}
+```
+
+The counts cover active sessions on the UID owner's current node only. They are not cluster-global presence and the event stream is neither complete nor ordered. A UID may contain `-`; parse the final five numeric fields from the right and treat the remaining prefix as the UID.
+
 ## Reliability boundary
 
 <Callout type="warn" title="Webhook delivery is bounded and best effort">
@@ -77,7 +85,7 @@ Suggested idempotency keys:
 
 - `msg.notify`: `event + message_id`;
 - `msg.offline`: `event + message_id + uid`, deduplicated per recipient;
-- `user.onlinestatus`: overwrite the latest state per user and device rather than requiring every transition.
+- `user.onlinestatus`: deduplicate the complete string and treat it only as a local-session hint, never global online truth.
 
 ## Security
 

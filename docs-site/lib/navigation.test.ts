@@ -210,27 +210,27 @@ describe('documentation navigation contract', () => {
     }
   });
 
-  test('publishes the source-aligned EasySDK getting-started path', () => {
+  test('keeps EasySDK planned while Product JSON-RPC CONNECT is unsupported', () => {
     const sdk = domains.find((domain) => domain.key === 'sdk');
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
-    expect(easy?.status).toBe('published');
+    expect(easy?.status).toBe('planned');
     expect(easy?.children.map((page) => [page.slug, page.status])).toEqual([
-      ['ios/getting-started', 'published'],
-      ['android/getting-started', 'published'],
-      ['flutter/getting-started', 'published'],
-      ['javascript/getting-started', 'published'],
+      ['ios/getting-started', 'planned'],
+      ['android/getting-started', 'planned'],
+      ['flutter/getting-started', 'planned'],
+      ['javascript/getting-started', 'planned'],
     ]);
-    expect(published).toEqual(
-      expect.arrayContaining([
-        '/en/sdk/easy',
-        '/en/sdk/easy/ios/getting-started',
-        '/en/sdk/easy/android/getting-started',
-        '/en/sdk/easy/flutter/getting-started',
-        '/en/sdk/easy/javascript/getting-started',
-      ]),
-    );
+    for (const url of [
+      '/en/sdk/easy',
+      '/en/sdk/easy/ios/getting-started',
+      '/en/sdk/easy/android/getting-started',
+      '/en/sdk/easy/flutter/getting-started',
+      '/en/sdk/easy/javascript/getting-started',
+    ]) {
+      expect(published).not.toContain(url);
+    }
     expect(getNavigationEntry('en', 'sdk', ['easy', 'ios', 'getting-started'])?.slugs).toEqual([
       'easy',
       'ios',
@@ -382,11 +382,6 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk`,
         `/${locale}/sdk/choose-sdk`,
         `/${locale}/sdk/compatibility`,
-        `/${locale}/sdk/easy`,
-        `/${locale}/sdk/easy/ios/getting-started`,
-        `/${locale}/sdk/easy/android/getting-started`,
-        `/${locale}/sdk/easy/flutter/getting-started`,
-        `/${locale}/sdk/easy/javascript/getting-started`,
         `/${locale}/sdk/common-guides`,
         `/${locale}/sdk/common-guides/identity-and-token`,
         `/${locale}/sdk/common-guides/initialization-and-connection`,

@@ -6,14 +6,14 @@ description: 选择客户端 SDK，跑通第一条消息，再逐步补齐身份
 WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议状态。你不需要先掌握底层协议；从自己的平台和目标开始，先跑通最小闭环，再补生产能力。
 
 <Callout type="info" title="第一次接入从这里开始">
-  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)。只需要轻量通信 API 时，可从 [WuKongEasySDK](/zh/sdk/easy) 进入 iOS、Android、Flutter 或 Web 教程；需要有本站可执行场景证据的浏览器路径，则进入 [WuKongIMJSSDK 安装与配置](/zh/sdk/javascript/installation)。
+  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)。WuKongEasySDK 仅保留源码发现入口：它依赖的 JSON-RPC CONNECT 当前不受 Product Gateway 支持，教程维持规划状态。需要有本站可执行场景证据的浏览器路径，请进入 [WuKongIMJSSDK 安装与配置](/zh/sdk/javascript/installation)。
 </Callout>
 
 ## 你现在想完成什么
 
 <Cards>
   <Card title="选择合适的 SDK" description="按平台找到候选仓库，再逐个 tag 核对能力、要求和验证状态。" href="/zh/sdk/choose-sdk" />
-  <Card title="评估并接入 EasySDK" description="按精确发布 tag 搭建 iOS、Android、Flutter 或 Web 的双端验收，并先关闭当前阻断项。" href="/zh/sdk/easy" />
+  <Card title="评估 EasySDK 源码" description="先确认 JSON-RPC CONNECT 阻断；当前不能把源码示例作为可执行接入路径。" href="/zh/sdk/choose-sdk" />
   <Card title="跑通 Web 第一条消息" description="安装固定版本，连接 Alice 与 Bob，验证在线消息和离线恢复。" href="/zh/sdk/javascript/quickstart" />
   <Card title="设计完整客户端" description="按身份、连接、消息、会话、推送、多设备和异常逐项实现。" href="/zh/sdk/common-guides" />
   <Card title="确认版本证据" description="核对服务端、SDK、Node.js 和 Chromium 是否属于同一兼容快照。" href="/zh/sdk/compatibility" />
@@ -36,7 +36,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 | 内容 | 当前状态 | 适合谁 |
 | --- | --- | --- |
 | [选择 SDK](/zh/sdk/choose-sdk)与官方源码目录 | 已发布 | 还在比较平台或 SDK 系列的开发者 |
-| [WuKongEasySDK](/zh/sdk/easy) iOS、Android、Flutter、Web | 已发布，按精确 tag 校对源码；未获得本站运行凭据 | 先评估轻量连接与在线消息 API 的开发者 |
+| WuKongEasySDK iOS、Android、Flutter、Web | 规划中；已记录源码 tag，但当前 Gateway 不支持 JSON-RPC CONNECT | 仅做源码评估的开发者 |
 | [JavaScript / Web](/zh/sdk/javascript) | 已发布且有场景覆盖的可执行样例 | 想用浏览器完成首个客户端闭环的开发者 |
 | [公共指南](/zh/sdk/common-guides) | 已发布，平台无关 | 正在设计生产客户端生命周期的团队 |
 | WuKongIMSDK Android、iOS、Flutter、UniApp、HarmonyOS 平台教程 | 规划中 | 先以所选官方仓库的精确 tag 和自带示例为准 |
@@ -60,7 +60,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 ## 常见问题
 
 - **不知道选哪一个仓库**：先列出平台、最低系统版本和必需能力，再使用[选择 SDK](/zh/sdk/choose-sdk)逐项核对。
-- **只需要连接和在线消息**：从 [WuKongEasySDK](/zh/sdk/easy) 选择平台，并保留 Alice/Bob 验收结果；源码教程不等于兼容性证明。
+- **只需要连接和在线消息**：当前不要选择 EasySDK 作为 v3 接入路径；先看 [JSON-RPC 支持矩阵](/zh/api/client-protocols/json-rpc)，或使用已有可执行证据的 JavaScript/Web 路径。
 - **需要本地消息、会话和未读**：评估对应 WuKongIMSDK 仓库；其非 Web 平台教程仍在规划中。
 - **Web 样例能构建但连接失败**：继续按快速接入检查集群 `/readyz`、路由地址、Gateway 端口和 BFF 输出。
 - **消息发送成功但对方没显示**：先区分 SENDACK、在线接收和同步恢复，分别诊断。
@@ -71,4 +71,4 @@ SDK 不负责产品账号、授权或 Token 签发。Web 浏览器不能直接�
 
 ## 下一步
 
-先[选择 SDK](/zh/sdk/choose-sdk)。选择 EasySDK 后从 [WuKongEasySDK 概览](/zh/sdk/easy)进入对应平台；选择有可执行证据的 Web 路径则继续完成[安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)。两条路径都要用[公共指南](/zh/sdk/common-guides)补齐完整生命周期。
+先[选择 SDK](/zh/sdk/choose-sdk)。EasySDK 必须等待 JSON-RPC 运行时修复与端到端验证；当前有可执行证据的 Web 路径请继续完成[安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)，再用[公共指南](/zh/sdk/common-guides)补齐完整生命周期。

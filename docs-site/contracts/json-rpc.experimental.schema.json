@@ -4,7 +4,7 @@
   "title": "WuKongIM WebSocket JSON-RPC codec schema (experimental)",
   "description": "Codec-level JSON shapes. The current Product Gateway does not support JSON-RPC as a client integration protocol; only ping/pong is exercised successfully.",
   "x-wukongim-stability": "experimental-not-supported",
-  "oneOf": [
+  "anyOf": [
     { "$ref": "#/$defs/ConnectRequest" },
     { "$ref": "#/$defs/SendRequest" },
     { "$ref": "#/$defs/PingRequest" },
@@ -18,7 +18,8 @@
     { "$ref": "#/$defs/ConnectResponse" },
     { "$ref": "#/$defs/SendResponse" },
     { "$ref": "#/$defs/PongResponse" },
-    { "$ref": "#/$defs/ErrorResponse" }
+    { "$ref": "#/$defs/ErrorResponse" },
+    { "$ref": "#/$defs/GenericResponse" }
   ],
   "$defs": {
     "JSONRPCVersion": {
@@ -49,7 +50,8 @@
       "properties": {
         "jsonrpc": { "$ref": "#/$defs/JSONRPCVersion" },
         "id": { "type": "string", "minLength": 1 }
-      }
+      },
+      "not": { "required": ["method"] }
     },
     "Header": {
       "type": "object",
@@ -364,6 +366,34 @@
           "type": "object",
           "required": ["error"],
           "properties": { "error": { "$ref": "#/$defs/ErrorObject" } }
+        }
+      ]
+    },
+    "GenericResponse": {
+      "description": "The decoder returns GenericResponse for every response because the request method is not carried in the response object.",
+      "allOf": [
+        { "$ref": "#/$defs/ResponseBase" },
+        {
+          "type": "object",
+          "properties": {
+            "result": true,
+            "error": {
+              "oneOf": [
+                { "$ref": "#/$defs/ErrorObject" },
+                { "type": "null" }
+              ]
+            }
+          },
+          "oneOf": [
+            {
+              "required": ["result"],
+              "not": { "required": ["error"] }
+            },
+            {
+              "required": ["error"],
+              "not": { "required": ["result"] }
+            }
+          ]
         }
       ]
     }

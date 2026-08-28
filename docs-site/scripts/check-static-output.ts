@@ -399,7 +399,7 @@ export async function checkStaticOutput() {
     await text('contracts/operations-http.openapi.json'),
   ) as { paths?: Record<string, { get?: unknown }>; 'x-wukongim-scope'?: string };
   if (
-    operationsOpenAPI['x-wukongim-scope'] !== 'stable-operations-http-beta' ||
+    operationsOpenAPI['x-wukongim-scope'] !== 'operations-http-beta' ||
     Object.keys(operationsOpenAPI.paths ?? {}).sort().join('\n') !==
       ['/healthz', '/metrics', '/readyz', '/top/v1/snapshot'].join('\n') ||
     Object.values(operationsOpenAPI.paths ?? {}).some((item) => !item.get)
@@ -426,11 +426,11 @@ export async function checkStaticOutput() {
 
   const jsonRPCSchema = JSON.parse(
     await text('contracts/json-rpc.experimental.schema.json'),
-  ) as { '$schema'?: string; 'x-wukongim-stability'?: string; oneOf?: unknown[] };
+  ) as { '$schema'?: string; 'x-wukongim-stability'?: string; anyOf?: unknown[] };
   if (
     jsonRPCSchema.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
     jsonRPCSchema['x-wukongim-stability'] !== 'experimental-not-supported' ||
-    jsonRPCSchema.oneOf?.length !== 14
+    jsonRPCSchema.anyOf?.length !== 15
   ) {
     throw new Error('JSON-RPC codec Schema lost its experimental unsupported boundary');
   }

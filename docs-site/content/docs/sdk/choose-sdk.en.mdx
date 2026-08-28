@@ -26,10 +26,10 @@ Inspect the README, APIs, examples, and changelog for the exact tag of each cand
 
 | Application platform | Official source to evaluate | Tutorial status on this site |
 | --- | --- | --- |
-| Browser / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK), [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) | The [JavaScript/Web tutorial](/en/sdk/javascript) has a pinned executable snapshot; the [EasySDK Web tutorial](/en/sdk/easy/javascript/getting-started) is source-aligned to `v2.0.1`, records the sensitive-logging blocker, and has no site runtime receipt |
-| iOS / Apple platforms | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK), [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | The [EasySDK iOS tutorial](/en/sdk/easy/ios/getting-started) is source-aligned to `v1.0.2` and records current device-value, payload, and logging blockers; the full WuKongIMSDK tutorial remains planned |
-| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK), [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | The [EasySDK Android tutorial](/en/sdk/easy/android/getting-started) is source-aligned to `v1.0.2` and records current field, payload, device-value, and sensitive-logging blockers; the full WuKongIMSDK tutorial remains planned |
-| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK), [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | The [EasySDK Flutter tutorial](/en/sdk/easy/flutter/getting-started) is source-aligned to `v1.0.3` and records receive-decoding plus sensitive-logging boundaries; the full WuKongIMSDK tutorial remains planned |
+| Browser / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK), [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) | The [JavaScript/Web tutorial](/en/sdk/javascript) has an executable snapshot. EasySDK depends on JSON-RPC CONNECT, which is currently unsupported; its tutorial remains planned |
+| iOS / Apple platforms | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK), [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | EasySDK depends on unsupported JSON-RPC CONNECT; both EasySDK and full WuKongIMSDK tutorials remain planned |
+| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK), [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | EasySDK depends on unsupported JSON-RPC CONNECT; both EasySDK and full WuKongIMSDK tutorials remain planned |
+| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK), [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | EasySDK depends on unsupported JSON-RPC CONNECT; both EasySDK and full WuKongIMSDK tutorials remain planned |
 | HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) | Source is discoverable; the platform tutorial on this site remains planned |
 | Mini programs, UniApp, Node.js, or another runtime | Check the README, examples, and release notes for the exact version of both JavaScript candidates | There is no executable snapshot for that runtime on this site; do not infer support from another runtime's notes |
 
@@ -39,10 +39,10 @@ The legacy source links have been checked against the current WuKongIM GitHub or
 
 ### EasySDK
 
-- [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS): [site tutorial](/en/sdk/easy/javascript/getting-started)
-- [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS): [site tutorial](/en/sdk/easy/ios/getting-started)
-- [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android): [site tutorial](/en/sdk/easy/android/getting-started)
-- [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter): [site tutorial](/en/sdk/easy/flutter/getting-started)
+- [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS): tutorial planned; JSON-RPC CONNECT unsupported
+- [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS): tutorial planned; JSON-RPC CONNECT unsupported
+- [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android): tutorial planned; JSON-RPC CONNECT unsupported
+- [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter): tutorial planned; JSON-RPC CONNECT unsupported
 
 ### WuKongIMSDK
 
@@ -69,10 +69,8 @@ If a candidate repository cannot answer one of these questions, build a small pr
 
 ### EasySDK
 
-1. Start with the [EasySDK overview](/en/sdk/easy) to confirm capability boundaries, the server endpoint, and versions to pin.
-2. Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/easy/android/getting-started), [Flutter](/en/sdk/easy/flutter/getting-started), or [Web](/en/sdk/easy/javascript/getting-started) tutorial, identifying and closing that tag's adoption blockers first.
-3. Then have a trusted product backend issue connection material for Alice and Bob, and accept connection, the send result, online receipt, and lifecycle cleanup.
-4. Accept reconnect and offline recovery separately through the Common Guides before production review. Source alignment is not a site runtime receipt for the server tuple.
+1. Start with the [JSON-RPC support matrix](/en/api/client-protocols/json-rpc). The Product Gateway does not currently support CONNECT, so do not begin implementation.
+2. You may inspect the official repositories and pinned tags above. This site will publish integration tutorials only after the runtime supplies authentication, request correlation, and bridge mappings and passes end-to-end tests.
 
 ### JavaScript / Web
 
@@ -97,4 +95,4 @@ If a candidate repository cannot answer one of these questions, build a small pr
 
 ## Next step
 
-For EasySDK, start at the [EasySDK overview](/en/sdk/easy) and choose a platform tutorial. For the full Web SDK, continue to [Installation](/en/sdk/javascript/installation). If you are still comparing options, turn the [SDK Common Guides](/en/sdk/common-guides) into a testable requirement list before selecting a repository.
+EasySDK must wait for a JSON-RPC runtime fix and end-to-end verification. For Web today, continue to [Installation](/en/sdk/javascript/installation). If you are still comparing options, turn the [SDK Common Guides](/en/sdk/common-guides) into a testable requirement list before selecting a repository.

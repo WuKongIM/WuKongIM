@@ -3,11 +3,11 @@ title: 稳定性与私有边界
 description: 运维、Debug、Bench 与 Manager 的发布范围。
 ---
 
-| Surface | 受众 | 稳定性 | 是否进入公共 OpenAPI |
+| Surface | 受众 | 稳定性 | Operations OpenAPI |
 | --- | --- | --- | --- |
-| `/healthz`、`/readyz` | Operator | 稳定 | 可作为独立 Operations HTTP 合同 |
-| `/metrics` | Operator | Prometheus 格式稳定 | 否；它不是 JSON API |
-| `/top/v1/snapshot` | Operator | 不稳定 | 否；记录版本与边界即可 |
+| `/healthz`、`/readyz` | Operator | 稳定 | 已发布 |
+| `/metrics` | Operator | Prometheus 格式稳定 | 已发布；响应不是 JSON |
+| `/top/v1/snapshot` | Operator | 不稳定 | 已发布，但不承诺稳定兼容 |
 | `/debug/*` | Operator | 不稳定、默认关闭 | 否；只列内部接口和暴露风险 |
 | `/bench/v1/*` | Agent / benchmark | 不稳定、默认关闭 | 否；只列 Benchmark 私有合同 |
 | Manager 108 路由 | Operator | 私有运维合同 | 不与 Product HTTP 合并 |

@@ -3,11 +3,11 @@ title: Stability & Private Boundaries
 description: Publication scope for Operations, Debug, Bench, and Manager surfaces.
 ---
 
-| Surface | Audience | Stability | Public OpenAPI? |
+| Surface | Audience | Stability | Operations OpenAPI |
 | --- | --- | --- | --- |
-| `/healthz`, `/readyz` | Operator | Stable | May form a separate Operations HTTP contract |
-| `/metrics` | Operator | Stable Prometheus format | No; it is not a JSON API |
-| `/top/v1/snapshot` | Operator | Unstable | No; document version and boundary only |
+| `/healthz`, `/readyz` | Operator | Stable | Published |
+| `/metrics` | Operator | Stable Prometheus format | Published; response is not JSON |
+| `/top/v1/snapshot` | Operator | Unstable | Published without a stability promise |
 | `/debug/*` | Operator | Unstable, disabled by default | No; internal inventory and exposure risk only |
 | `/bench/v1/*` | Agent / benchmark | Unstable, disabled by default | No; benchmark-private contract only |
 | 108 Manager routes | Operator | Private operations contract | Never merge with Product HTTP |

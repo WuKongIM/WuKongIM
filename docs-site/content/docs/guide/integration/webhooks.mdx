@@ -34,7 +34,7 @@ Content-Type: application/json
 | --- | --- | --- |
 | `msg.notify` | 已提交消息数组 | 业务审计、搜索索引、异步通知 |
 | `msg.offline` | 一条消息及一批离线 UID | 离线推送候选计算 |
-| `user.onlinestatus` | 兼容在线状态字符串数组 | 在线状态的异步业务投影 |
+| `user.onlinestatus` | 兼容在线状态字符串数组 | UID Owner 本地、尽力而为的会话提示 |
 
 `msg.notify` 的代表性请求：
 
@@ -59,6 +59,14 @@ Content-Type: application/json
 
 JSON 中的 `payload` 是 Base64。`msg.offline` 在 UID 数量较小时使用 `to_uids`；达到压缩阈值时可能改为 `compress: "gzip"` 与 Base64 编码的 `compress_to_uids`，接收端必须支持两种形式。
 
+`user.onlinestatus` 的每项是：
+
+```text
+{uid}-{device_flag}-{online:0|1}-{session_id}-{device_online_count}-{total_online_count}
+```
+
+这些计数只来自 UID Owner 当前节点上的活跃 Session，不是集群全局 Presence，也不保证事件完整或有序。UID 可以含 `-`；需要解析时从右侧取最后五个数字段，其余前缀才是 UID。
+
 ## 可靠性边界
 
 <Callout type="warn" title="Webhook 是有界、尽力而为的">
@@ -77,7 +85,7 @@ JSON 中的 `payload` 是 Base64。`msg.offline` 在 UID 数量较小时使用 `
 
 - `msg.notify`：`event + message_id`；
 - `msg.offline`：`event + message_id + uid`，逐个接收者去重；
-- `user.onlinestatus`：按用户和设备覆盖为最新状态，不依赖每次过渡都到达。
+- `user.onlinestatus`：按完整字符串去重，仅作为本地会话提示；不要据此构建全局在线真值。
 
 ## 安全
 

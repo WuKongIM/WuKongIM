@@ -98,11 +98,11 @@
       "post": {
         "operationId": "onUserOnlineStatus",
         "summary": "Receive user presence changes",
-        "description": "Receives a bounded array of legacy presence strings.",
+        "description": "Receives a bounded, best-effort array of legacy status strings derived from active sessions on the UID owner's current node; it is not cluster-global presence.",
         "x-i18n": {
           "zh": {
             "summary": "接收用户在线状态变化",
-            "description": "接收一批有界的兼容在线状态字符串。"
+            "description": "接收一批有界、尽力而为的兼容状态字符串；它们来自 UID Owner 当前节点的活跃会话，不是集群全局在线状态。"
           }
         },
         "tags": ["Presence"],
@@ -121,7 +121,7 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "description": "uid-deviceFlag-online-sessionID-deviceOnlineCount-totalOnlineCount"
+                  "description": "uid-deviceFlag-online-sessionID-deviceOnlineCount-totalOnlineCount; parse the final five numeric fields from the right because UID may contain hyphens"
                 }
               },
               "example": ["alice-1-1-42-1-2"]

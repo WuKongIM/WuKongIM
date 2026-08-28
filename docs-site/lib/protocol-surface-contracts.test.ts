@@ -526,13 +526,15 @@ describe('protocol surface contracts', () => {
       expect(en).not.toContain('<APIPage');
     }
 
-    const [tcp, jsonrpc, encryption, events, payloads, reliability] = await Promise.all([
+    const [tcp, jsonrpc, encryption, events, payloads, reliability, guideZh, guideEn] = await Promise.all([
       page('api/client-protocols/tcp-binary.en.mdx'),
       page('api/client-protocols/json-rpc.en.mdx'),
       page('api/client-protocols/encryption.en.mdx'),
       page('api/webhooks/events.en.mdx'),
       page('api/webhooks/payloads.en.mdx'),
       page('api/webhooks/reliability-and-security.en.mdx'),
+      page('guide/integration/webhooks.mdx'),
+      page('guide/integration/webhooks.en.mdx'),
     ]);
     expect(tcp).toContain('CONNECT');
     expect(tcp).toContain('device_flag');
@@ -549,5 +551,9 @@ describe('protocol surface contracts', () => {
     expect(payloads).toContain('compress_to_uids');
     expect(reliability).toContain('Only HTTP `200`');
     expect(reliability).toContain('no signature');
+    expect(guideZh).toContain('UID Owner 当前节点');
+    expect(guideZh).toContain('从右侧取最后五个数字段');
+    expect(guideEn).toContain("UID owner's current node only");
+    expect(guideEn).toContain('final five numeric fields from the right');
   });
 });

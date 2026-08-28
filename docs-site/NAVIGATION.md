@@ -89,11 +89,11 @@ Route: `/{lang}/sdk`
 
 - **版本与兼容性 / Versions & Compatibility** `/{lang}/sdk/compatibility` — 记录 v3 Beta 黄金路径的服务端 revision、SDK、Node、浏览器兼容目标与 receipt 状态。 / Records the server revision, SDK, Node, and browser compatibility target plus receipt status for the v3 Beta golden path.
 
-- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 按当前发布 tag 完成 iOS、Android、Flutter 与 Web 的安装、连接、消息收发和资源清理。 / Install a current release tag and complete connection, messaging, and cleanup on iOS, Android, Flutter, or Web.
-  - **5 分钟集成 iOS / 5-minute iOS integration** `/{lang}/sdk/easy/ios/getting-started` — 按 WuKongEasySDK iOS v1.0.2 搭建双端验收，并识别当前采用阻断项。 / Prepare two-client acceptance for WuKongEasySDK iOS v1.0.2 and identify current adoption blockers.
-  - **5 分钟集成 Android / 5-minute Android integration** `/{lang}/sdk/easy/android/getting-started` — 按 WuKongEasySDK Android v1.0.2 搭建双端验收，并识别当前采用阻断项。 / Prepare two-client acceptance for WuKongEasySDK Android v1.0.2 and identify current adoption blockers.
-  - **5 分钟集成 Flutter / 5-minute Flutter integration** `/{lang}/sdk/easy/flutter/getting-started` — 按 WuKongEasySDK Flutter v1.0.3 搭建双端验收，并关闭接收与日志边界。 / Prepare two-client acceptance for WuKongEasySDK Flutter v1.0.3 and close receive/logging boundaries.
-  - **5 分钟集成 Web / 5-minute Web integration** `/{lang}/sdk/easy/javascript/getting-started` — 按 easyjssdk v2.0.1 搭建浏览器双端验收，并关闭敏感日志阻断项。 / Prepare two-client browser acceptance for easyjssdk v2.0.1 and close its sensitive-logging blocker.
+- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 当前 Product Gateway 不支持 EasySDK 使用的 JSON-RPC CONNECT；修复并完成端到端验证后再发布。 / The Product Gateway does not currently support EasySDK JSON-RPC CONNECT; publish only after a runtime fix and end-to-end verification.
+  - **5 分钟集成 iOS / 5-minute iOS integration** `/{lang}/sdk/easy/ios/getting-started` — JSON-RPC CONNECT 尚未受支持；保留 v1.0.2 源码评估，等待运行时验证。 / JSON-RPC CONNECT is unsupported; retain the v1.0.2 source review until runtime verification exists.
+  - **5 分钟集成 Android / 5-minute Android integration** `/{lang}/sdk/easy/android/getting-started` — JSON-RPC CONNECT 尚未受支持；保留 v1.0.2 源码评估，等待运行时验证。 / JSON-RPC CONNECT is unsupported; retain the v1.0.2 source review until runtime verification exists.
+  - **5 分钟集成 Flutter / 5-minute Flutter integration** `/{lang}/sdk/easy/flutter/getting-started` — JSON-RPC CONNECT 尚未受支持；保留 v1.0.3 源码评估，等待运行时验证。 / JSON-RPC CONNECT is unsupported; retain the v1.0.3 source review until runtime verification exists.
+  - **5 分钟集成 Web / 5-minute Web integration** `/{lang}/sdk/easy/javascript/getting-started` — JSON-RPC CONNECT 尚未受支持；保留 v2.0.1 源码评估，等待运行时验证。 / JSON-RPC CONNECT is unsupported; retain the v2.0.1 source review until runtime verification exists.
 - **公共指南 / Common Guides** `/{lang}/sdk/common-guides` — 以服务端可证明语义说明跨 SDK 接入行为，不替代平台 API 文档。 / Explains cross-SDK integration behavior through server-proven semantics without replacing platform API docs.
   - **身份与 Token / Identity & Token** `/{lang}/sdk/common-guides/identity-and-token` — 设计 UID、设备、Token 获取、轮换和失效边界。 / Designs UID, device, token acquisition, rotation, and invalidation boundaries.
   - **初始化与连接 / Initialization & Connection** `/{lang}/sdk/common-guides/initialization-and-connection` — 组织 SDK 实例、路由、连接状态、恢复门和退出生命周期。 / Organizes SDK instances, routing, connection states, recovery gates, and logout lifecycle.

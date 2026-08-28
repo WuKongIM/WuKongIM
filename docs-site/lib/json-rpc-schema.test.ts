@@ -73,6 +73,20 @@ describe('experimental JSON-RPC schema', () => {
       'string',
       'null',
     ]);
+    expect(schema.anyOf).toContainEqual({ $ref: '#/$defs/GenericResponse' });
+    expect(schema).not.toHaveProperty('oneOf');
+    expect(schema.$defs.ResponseBase.not).toEqual({ required: ['method'] });
+    expect(schema.$defs.GenericResponse.allOf[1].oneOf).toEqual([
+      {
+        required: ['result'],
+        not: { required: ['error'] },
+      },
+      {
+        required: ['error'],
+        not: { required: ['result'] },
+      },
+    ]);
+    expect(types).toContain('type GenericResponse struct');
   });
 
   test('publishes the schema from a deterministic static route', async () => {

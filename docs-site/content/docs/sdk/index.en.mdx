@@ -6,14 +6,14 @@ description: Choose a client SDK, prove the first message, then add identity, re
 A WuKongIM SDK manages the connection, message exchange, and protocol state between a client and the Gateway. You do not need to learn the wire protocol first. Start from your platform and outcome, prove a minimal loop, and then add production behavior.
 
 <Callout type="info" title="Start your first integration here">
-  If you have not selected a repository, begin with [Choose an SDK](/en/sdk/choose-sdk). For a smaller communication API, use [WuKongEasySDK](/en/sdk/easy) to enter the iOS, Android, Flutter, or Web tutorial. For a browser path carrying this site's executable scenario evidence, begin with [WuKongIMJSSDK Installation](/en/sdk/javascript/installation).
+  If you have not selected a repository, begin with [Choose an SDK](/en/sdk/choose-sdk). WuKongEasySDK remains available for source discovery only: its JSON-RPC CONNECT is not supported by the current Product Gateway, so its tutorials remain planned. For a browser path carrying this site's executable scenario evidence, begin with [WuKongIMJSSDK Installation](/en/sdk/javascript/installation).
 </Callout>
 
 ## What do you want to accomplish now?
 
 <Cards>
   <Card title="Choose the right SDK" description="Find candidates by platform, then inspect each tag's capabilities, requirements, and verification status." href="/en/sdk/choose-sdk" />
-  <Card title="Evaluate and integrate EasySDK" description="Use an exact release tag to prepare two-client acceptance on iOS, Android, Flutter, or Web and close current blockers first." href="/en/sdk/easy" />
+  <Card title="Evaluate EasySDK source" description="Confirm the JSON-RPC CONNECT blocker first; the source examples are not a current integration path." href="/en/sdk/choose-sdk" />
   <Card title="Send the first Web message" description="Install a pinned version, connect Alice and Bob, and prove online messaging plus offline recovery." href="/en/sdk/javascript/quickstart" />
   <Card title="Design a complete client" description="Implement identity, connection, messaging, conversations, push, multi-device, and failure behavior." href="/en/sdk/common-guides" />
   <Card title="Confirm version evidence" description="Check whether server, SDK, Node.js, and Chromium belong to one compatibility snapshot." href="/en/sdk/compatibility" />
@@ -36,7 +36,7 @@ Class names and callback shapes differ by platform, but these responsibilities a
 | Content | Current status | Best for |
 | --- | --- | --- |
 | [Choose an SDK](/en/sdk/choose-sdk) and official source directory | Published | Developers still comparing platforms or SDK families |
-| [WuKongEasySDK](/en/sdk/easy) for iOS, Android, Flutter, and Web | Published and aligned to exact source tags; no site runtime receipt | Developers evaluating a smaller connection and online-messaging API |
+| WuKongEasySDK for iOS, Android, Flutter, and Web | Planned; source tags recorded, but JSON-RPC CONNECT is unsupported by the current Gateway | Source evaluation only |
 | [JavaScript / Web](/en/sdk/javascript) | Published with a scenario-covered executable sample | Developers proving the first browser client loop |
 | [Common Guides](/en/sdk/common-guides) | Published and platform-neutral | Teams designing a production client lifecycle |
 | WuKongIMSDK Android, iOS, Flutter, UniApp, and HarmonyOS tutorials | Planned | Use the exact tag and included example in the selected official repository for now |
@@ -60,7 +60,7 @@ This is more useful than a single “send succeeded” result because durable co
 ## Common questions
 
 - **Which repository should I choose?** List the platform, minimum runtime, and required capabilities, then use [Choose an SDK](/en/sdk/choose-sdk) to compare them.
-- **I need only connection and online messages:** select a platform under [WuKongEasySDK](/en/sdk/easy) and retain the Alice/Bob acceptance result. A source tutorial is not compatibility proof.
+- **I need only connection and online messages:** do not select EasySDK as a current v3 integration path. Read the [JSON-RPC support matrix](/en/api/client-protocols/json-rpc), or use the JavaScript/Web path with executable evidence.
 - **I need local messages, conversations, and unread counts:** evaluate the corresponding WuKongIMSDK repository. Its non-Web platform tutorials remain planned.
 - **The Web sample builds but does not connect:** follow the Quickstart checks for cluster `/readyz`, route address, Gateway port, and BFF output.
 - **Sending succeeds but the peer shows nothing:** separate SENDACK, online receipt, and synchronized recovery, then diagnose each path.
@@ -71,4 +71,4 @@ An SDK does not own product accounts, authorization, or token issuance. A Web br
 
 ## Next step
 
-Start with [Choose an SDK](/en/sdk/choose-sdk). After selecting EasySDK, enter the platform tutorial from the [WuKongEasySDK overview](/en/sdk/easy). For the evidence-backed Web path, complete [Installation](/en/sdk/javascript/installation) and the [Quickstart](/en/sdk/javascript/quickstart). Use the [Common Guides](/en/sdk/common-guides) to complete either lifecycle.
+Start with [Choose an SDK](/en/sdk/choose-sdk). EasySDK must wait for a JSON-RPC runtime fix and end-to-end verification. For the evidence-backed Web path, complete [Installation](/en/sdk/javascript/installation) and the [Quickstart](/en/sdk/javascript/quickstart), then use the [Common Guides](/en/sdk/common-guides) to complete its lifecycle.

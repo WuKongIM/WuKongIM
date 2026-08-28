@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
 const sdkRoot = new URL('../content/docs/sdk/easy/', import.meta.url);
+const docsRoot = new URL('../content/docs/', import.meta.url);
 
 async function content(fileName: string) {
   return Bun.file(new URL(fileName, sdkRoot)).text();
+}
+
+async function doc(fileName: string) {
+  return Bun.file(new URL(fileName, docsRoot)).text();
 }
 
 const platforms = [
@@ -62,7 +67,7 @@ const platforms = [
 ] as const;
 
 describe('EasySDK tutorial content contract', () => {
-  test('publishes a bilingual overview with four platform paths and exact source snapshots', async () => {
+  test('retains a bilingual source scaffold with exact platform snapshots', async () => {
     const [zh, en] = await Promise.all([content('index.mdx'), content('index.en.mdx')]);
 
     for (const [locale, page] of [
@@ -84,6 +89,22 @@ describe('EasySDK tutorial content contract', () => {
     expect(en).toContain('Source alignment is not runtime verification');
     expect(zh).toContain('“5 分钟”描述的是阅读路径');
     expect(en).toContain('“5 minutes” describes the shape of the path');
+  });
+
+  test('keeps published SDK selectors honest about the unsupported JSON-RPC path', async () => {
+    const pages = await Promise.all([
+      doc('sdk/index.mdx'),
+      doc('sdk/index.en.mdx'),
+      doc('sdk/choose-sdk.mdx'),
+      doc('sdk/choose-sdk.en.mdx'),
+      doc('sdk/compatibility.mdx'),
+      doc('sdk/compatibility.en.mdx'),
+    ]);
+    for (const page of pages) {
+      expect(page).toContain('JSON-RPC CONNECT');
+    }
+    expect(pages[0]).toContain('教程维持规划状态');
+    expect(pages[1]).toContain('tutorials remain planned');
   });
 
   test('keeps every platform tutorial pinned, lifecycle-safe, and explicit about evidence', async () => {

@@ -43,7 +43,7 @@ them; the Web laboratory's bounded report proves only its compatibility smoke.
    with current Go authorities.
 5. SDK pages distinguish source availability, tutorial publication, and exact
    executable verification. The Web laboratory uses a loopback BFF and isolated
-   SDK clients to produce bounded single-node-cluster/Chromium evidence.
+   SDK clients to produce bounded single-node cluster and Chromium evidence.
 6. Static export writes `out/`; publication, canonical, link, structure, and
    machine-artifact checks run before any external hosting step.
 

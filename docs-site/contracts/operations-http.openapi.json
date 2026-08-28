@@ -3,15 +3,15 @@
   "info": {
     "title": "WuKongIM Operations HTTP API",
     "version": "3.0.0-beta-snapshot",
-    "description": "Stable process and node-local observation endpoints on the Product HTTP listener. They have no built-in authentication.",
+    "description": "Process and node-local observation endpoints. Health, readiness, and Prometheus output are stable; Top is unstable. None has built-in authentication.",
     "x-i18n": {
       "zh": {
         "title": "WuKongIM 运维 HTTP API",
-        "description": "Product HTTP 监听器上的稳定进程与节点本地观测接口；它们没有内建鉴权。"
+        "description": "Product HTTP 监听器上的进程与节点本地观测接口；健康、就绪与 Prometheus 输出稳定，Top 仍不稳定；它们都没有内建鉴权。"
       }
     }
   },
-  "x-wukongim-scope": "stable-operations-http-beta",
+  "x-wukongim-scope": "operations-http-beta",
   "servers": [
     {
       "url": "http://127.0.0.1:5001",
