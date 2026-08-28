@@ -1,0 +1,60 @@
+---
+title: TCP 二进制协议
+description: WKProto 固定头、长度编码、版本条件与逐包 Wire 字段顺序。
+---
+
+WKProto 运行在 TCP 字节流上；WebSocket 的 WKProto 模式承载相同字节序列。下表给出当前编码器的**精确正文顺序**，不是 HTTP OpenAPI。
+
+## 帧边界
+
+```text
+普通帧 = fixed_header:u8 + remaining_length:varuint + body
+PING/PONG = fixed_header:u8
+```
+
+- `fixed_header` 高 4 位（7..4）是 `FrameType`。
+- 除 `CONNACK` 外，低 4 位依次是 `DUP`(bit 3)、`SyncOnce`(2)、`RedDot`(1)、`NoPersist`(0)。
+- `CONNACK` 编码器只使用 bit 0 表示 `HasServerVersion`。
+- `remaining_length` 是正文长度，按 base-128 编码：低 7 位组先写，后续字节设置 `0x80`。
+- 多字节整数均为大端。`str16be` 是 `i16be` 字节长度加原始字节，最大 32767 字节；`bytes-rest` 消耗正文余下全部字节。
+- 解码器拒绝 `remaining_length > 1 MiB`；SEND 编码器拒绝 Payload 超过 32767 字节。
+
+## WebSocket 承载
+
+- Upgrade 必须使用 WebSocket v13、`GET` 和 Listener 配置的精确 Path；Path 为空时是 `/`。
+- 客户端帧必须 Mask，服务端帧不 Mask；分片的 Text/Binary 消息会先重组，并受默认 1 MiB Session 入站上限约束。
+- WKProto 使用 Binary 消息。WebSocket Control `PING/PONG` 只由承载层应答，不会替代或进入 WKProto `PING/PONG` 心跳。
+
+## 正文布局
+
+`v` 是协商版本，`S` 是 Setting，`H0` 是固定头 bit 0。
+
+| 值 | 包 / 方向 | 正文字段（从左到右） |
+| ---: | --- | --- |
+| 0 | `UNKNOWN` / 保留 | 无；不得发送 |
+| 1 | `CONNECT` C→S | `version:u8`, `device_flag:u8`, `device_id:str16be`, `uid:str16be`, `token:str16be`, `client_timestamp:i64be(ms)`, `client_key:str16be` |
+| 2 | `CONNACK` S→C | `[server_version:u8 if H0]`, `time_diff:i64be(ms)`, `reason_code:u8`, `server_key:str16be`, `salt:str16be`, `[node_id:u64be if v>=4]` |
+| 3 | `SEND` C→S | `setting:u8`, `client_seq:u32be`, `client_msg_no:str16be`, `[stream_no:str16be if 2<=v<5 and S.Stream]`, `channel_id:str16be`, `channel_type:u8`, `[expire:u32be if v>=3]`, `msg_key:str16be`, `[topic:str16be if S.Topic]`, `payload:bytes-rest` |
+| 4 | `SENDACK` S→C | `message_id:i64be`, `client_seq:u32be`, `message_seq:seq(v)`, `reason_code:u8`, `[client_msg_no:str16be if non-empty]` |
+| 5 | `RECV` S→C | `setting:u8`, `msg_key:str16be`, `from_uid:str16be`, `channel_id:str16be`, `channel_type:u8`, `[expire:u32be if v>=3]`, `client_msg_no:str16be`, `[stream_flag:u8, stream_no:str16be, stream_id:u64be if 2<=v<5 and S.Stream]`, `message_id:i64be`, `message_seq:seq(v)`, `timestamp:i32be(s)`, `[topic:str16be if S.Topic]`, `payload:bytes-rest` |
+| 6 | `RECVACK` C→S | `message_id:i64be`, `message_seq:seq(v)` |
+| 7 | `PING` C→S | 无正文，也没有 `remaining_length` |
+| 8 | `PONG` S→C | 无正文，也没有 `remaining_length` |
+| 9 | `DISCONNECT` 双向 / codec-only | `reason_code:u8`, `reason:str16be` |
+| 10 | `SUB` C→S / codec-only | `setting:u8`, `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `param:str16be` |
+| 11 | `SUBACK` S→C / codec-only | `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `reason_code:u8` |
+| 12 | `EVENT` 双向 / tooling-only | `id:str16be`, `type:str16be`, `timestamp:i64be`, `data:bytes-rest` |
+
+`seq(v)` 在 v5 及以下是 `u32be`，v6 是 `u64be`。当前 SENDACK 解码器还接受兼容顺序：`message_id, client_seq, client_msg_no, message_seq, reason_code`；新编码器始终使用表中主顺序。
+
+## 版本与 Setting
+
+- 服务端当前版本为 v6。CONNECT 的 `version=0` 或大于 6 会协商为 6；1–6 保持原值。
+- 客户端请求版本大于 3 时，CONNACK 设置 `H0` 并携带 `server_version`。
+- Setting 位：`Receipt=0x80`、`Signal=0x20`、`NoEncrypt=0x10`、`Topic=0x08`、`Stream=0x02`。
+
+<Callout type="warn" title="Codec 枚举不等于产品入口">
+  产品 Gateway 的公共入站面只处理 `PING`、`SEND`、`RECVACK`；`CONNECT` 必须是唯一首包并由连接阶段处理。普通 `DISCONNECT`、`SUB`、`SUBACK` 不受支持，`EVENT` 只服务 benchmark terminal-fence 工具流程。
+</Callout>
+
+连接状态与心跳见[连接生命周期](/zh/api/client-protocols/connection-lifecycle)，数值含义见[公共数据字典](/zh/api/dictionaries)。

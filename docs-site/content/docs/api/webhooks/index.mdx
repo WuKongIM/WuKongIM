@@ -1,0 +1,52 @@
+---
+title: Webhook
+description: 配置 WuKongIM 向业务端点投递的三个异步回调事件。
+---
+
+Webhook 把已提交消息、离线候选接收者和在线状态变化 POST 到一个业务端点。它是服务端出站协议，不是客户端收件箱，也不属于 Product HTTP 的入站 `paths`。
+
+[下载 OpenAPI 3.1 Webhook 合同](/contracts/webhooks.openapi.json)
+
+## 请求
+
+```text
+POST {http_addr}?event={event_name}
+Content-Type: application/json
+```
+
+已有查询参数会保留，并覆盖或追加 `event`。事件名只出现在 Query 中；请求体**没有通用信封**，结构由事件决定。当前仅支持：
+
+| 事件 | 顶层 JSON |
+| --- | --- |
+| `msg.notify` | 已提交消息数组 |
+| `msg.offline` | 一条消息与离线 UID 的扁平对象 |
+| `user.onlinestatus` | 兼容状态字符串数组 |
+
+## 配置
+
+`http_addr` 非空即启用 Webhook；`focus_events=[]` 表示投递全部三个事件。
+
+```toml
+[webhook]
+http_addr = "https://events.example.com/wukongim"
+focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
+queue_size = 1024
+workers = 16
+msg_notify_batch_max_items = 100
+msg_notify_batch_max_wait = "500ms"
+online_status_batch_max_items = 512
+online_status_batch_max_wait = "2s"
+offline_uid_batch_size = 512
+request_timeout = "5s"
+retry_max_attempts = 3
+```
+
+<Cards>
+  <Card title="事件类型" description="三个事件及其触发边界。" href="/zh/api/webhooks/events" />
+  <Card title="请求结构" description="消息字段、离线 UID 压缩与状态字符串。" href="/zh/api/webhooks/payloads" />
+  <Card title="可靠性与安全" description="有限重试、幂等、丢失边界与网络信任。" href="/zh/api/webhooks/reliability-and-security" />
+</Cards>
+
+<Callout type="warn" title="有界、尽力而为">
+  当前使用节点内存队列，没有磁盘 Outbox 或崩溃重放。接收端应先持久化并去重，再快速返回 HTTP 200。
+</Callout>

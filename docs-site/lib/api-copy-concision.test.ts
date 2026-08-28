@@ -1,6 +1,9 @@
 import managementDocument from '../contracts/product-http-management.openapi.json';
 import messagingDocument from '../contracts/product-http-messaging.openapi.json';
 import goldenPathDocument from '../contracts/javascript-web-quickstart.openapi.json';
+import completeDocument from '../contracts/product-http.openapi.json';
+import operationsDocument from '../contracts/operations-http.openapi.json';
+import webhooksDocument from '../contracts/webhooks.openapi.json';
 import { describe, expect, test } from 'bun:test';
 
 const readerPages = [
@@ -53,7 +56,8 @@ interface ConciseOperation {
 
 interface ConciseDocument {
   info: { description: string };
-  paths: Record<string, Record<string, ConciseOperation>>;
+  paths?: Record<string, Record<string, ConciseOperation>>;
+  webhooks?: Record<string, Record<string, ConciseOperation>>;
 }
 
 async function source(relativePath: string) {
@@ -94,6 +98,9 @@ describe('API copy concision', () => {
       ['index', 30],
       ['connection-lifecycle', 45],
       ['packet-types', 45],
+      ['tcp-binary', 65],
+      ['json-rpc', 40],
+      ['encryption', 55],
     ] as const;
 
     for (const [page, maximum] of pages) {
@@ -111,12 +118,19 @@ describe('API copy concision', () => {
       goldenPathDocument,
       managementDocument,
       messagingDocument,
+      completeDocument,
+      operationsDocument,
+      webhooksDocument,
     ] as unknown as ConciseDocument[];
 
     for (const document of documents) {
       expect(document.info.description.length).toBeLessThanOrEqual(180);
 
-      for (const item of Object.values(document.paths)) {
+      const pathItems = [
+        ...Object.values(document.paths ?? {}),
+        ...Object.values(document.webhooks ?? {}),
+      ];
+      for (const item of pathItems) {
         for (const operation of Object.values(item)) {
           expect(operation.description.length).toBeLessThanOrEqual(160);
           const zh = operation['x-i18n']?.zh;

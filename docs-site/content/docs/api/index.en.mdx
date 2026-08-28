@@ -1,26 +1,28 @@
 ---
 title: API & Protocols
-description: Reference Product HTTP APIs, the client-protocol core, and shared dictionaries.
+description: Reference Product HTTP, operations HTTP, webhooks, WKProto, and internal-interface boundaries.
 ---
 
-This section collects the Product HTTP APIs, client-protocol core, and shared dictionaries needed for application integration.
-
-<Callout type="warn" title="Limited current scope">
-  Only operations listed on these pages and in the OpenAPI contracts are supported. Unlisted HTTP, webhook, operations, and protocol capabilities remain unpublished.
-</Callout>
+This section classifies every current source interface by audience and protocol. Public contracts are downloadable; private, conditional, and experimental entries are documented as boundaries, not compatibility promises.
 
 ## Quick links
 
 <Cards>
   <Card title="Conventions" description="Base URL, JSON, identifiers, cursors, and retry rules." href="/en/api/conventions" />
   <Card title="Authentication & Security" description="Trust boundaries for Product HTTP and Gateway." href="/en/api/authentication" />
-  <Card title="Product HTTP API" description="User, route, message, Channel, and Conversation operations." href="/en/api/product-http" />
-  <Card title="Client Protocols" description="Connection lifecycle and WKProto packet scope." href="/en/api/client-protocols" />
+  <Card title="Product HTTP API" description="All 41 business HTTP operations registered by the current source." href="/en/api/product-http" />
+  <Card title="Operations HTTP API" description="Health, readiness, metrics, Top, Debug, and Bench boundaries." href="/en/api/operations-http" />
+  <Card title="Webhooks" description="Three outbound events, payloads, and reliability semantics." href="/en/api/webhooks" />
+  <Card title="Client Protocols" description="WKProto frames, lifecycle, encryption, and experimental JSON-RPC." href="/en/api/client-protocols" />
   <Card title="Shared Dictionaries" description="Channel, device, message-flag, and Reason Code values." href="/en/api/dictionaries" />
+  <Card title="Interface Inventory" description="Manager, node transport, MCP, plugin, and agent-private contracts." href="/en/api/interface-inventory" />
+  <Card title="Specifications" description="OpenAPI 3.1 and the experimental JSON-RPC Schema." href="/en/api/specifications" />
 </Cards>
 
 ## Usage boundaries
 
 - Product HTTP is for trusted backends only; do not expose it directly to browsers or mobile clients.
+- Operations HTTP and Manager belong on an isolated operator network; they are separate contracts.
+- JSON-RPC has a codec contract only; the current Product Gateway does not support it as a client integration.
 - HTTP status, endpoint responses, and CONNACK/SENDACK Reason Codes belong to separate layers and must be handled separately.
 - See [API Compatibility](/en/api/compatibility) for version coverage and [Error Responses](/en/api/product-http/errors) for failure handling.

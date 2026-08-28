@@ -1,0 +1,26 @@
+---
+title: Operations HTTP
+description: Health, readiness, metrics, and read-only snapshots on the API listener.
+---
+
+Operations HTTP shares the API listener with Product HTTP, but it is for operators, not business integrations.
+
+[Download the Operations HTTP OpenAPI 3.1 contract](/contracts/operations-http.openapi.json)
+
+| Method | Path | Condition | Stability |
+| --- | --- | --- | --- |
+| `GET` | `/healthz` | Always registered | Stable |
+| `GET` | `/readyz` | Always registered | Stable |
+| `ANY` | `/metrics` | Registered with a Prometheus handler | Stable Prometheus exposition |
+| `GET` | `/top/v1/snapshot` | Always registered; 404 without a provider | Unstable |
+
+<Callout type="error" title="No operations authentication on this listener">
+  These four endpoints have no built-in authentication. Expose them only to a controlled network; add TLS, access control, and limits at a reverse proxy, service mesh, or firewall.
+</Callout>
+
+<Cards>
+  <Card title="Health & readiness" description="Separate process liveness from traffic admission." href="/en/api/operations-http/health-and-readiness" />
+  <Card title="Prometheus metrics" description="Check registration, format, and exposure boundaries." href="/en/api/operations-http/metrics" />
+  <Card title="Snapshots & gated routes" description="See the exact Top, Debug, and Bench inventory." href="/en/api/operations-http/read-only" />
+  <Card title="Stability & private boundaries" description="Know which contracts are integrable and which are operations-only." href="/en/api/operations-http/stability" />
+</Cards>

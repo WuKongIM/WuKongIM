@@ -1,0 +1,59 @@
+---
+title: 只读快照与受限入口
+description: Top、Debug 和 Bench 的精确路由、开关与认证边界。
+full: true
+_openapi:
+  preload:
+    - wukongim-operations-http-beta-zh
+---
+
+## Top 快照
+
+`GET /top/v1/snapshot` 返回节点本地 JSON，`version=top/v1`、`scope=local_node`。它不依赖 Prometheus，也不做集群 Fan-out。
+
+| Query | 默认值 | 约束 |
+| --- | --- | --- |
+| `window` | `10s` | Go duration，最小 `2s` |
+| `view` | `overview` | `overview`、`runtime`、`traffic`、`channel`、`storage`、`delivery`、`all` |
+| `limit` | `20` | 正整数；超过 `100` 时收敛为 `100` |
+
+无 Provider 返回 404，采集器预热返回 503，非法 Query 返回 400。入口没有内建认证，合同不稳定。
+
+<OpenAPIPage document="wukongim-operations-http-beta-zh" operations={[{"path":"/top/v1/snapshot","method":"get"}]} showDescription />
+
+## Debug：9 条注册
+
+全部要求 `observability.debug_api_enable=true`。配置了 `bench.api_token` 时，所有 `/debug/*` 还要求精确 Bearer；未配置时没有内建认证。
+
+| Method | Path | 附加条件 |
+| --- | --- | --- |
+| `GET` | `/debug/config` | 需要 Config Provider |
+| `GET` | `/debug/cluster` | 需要 Cluster Provider |
+| `GET` | `/debug/diagnostics/trace/:trace_id` | 需要 Diagnostics Store |
+| `GET` | `/debug/diagnostics/message` | 需要 Diagnostics Store |
+| `GET` | `/debug/diagnostics/events` | 需要 Diagnostics Store |
+| `GET` | `/debug/goroutines` | 无 |
+| `GET` | `/debug/goroutines/summary` | 无 Registry Provider 时返回 404 |
+| `ANY` | `/debug/pprof` | 无 |
+| `ANY` | `/debug/pprof/*name` | CPU、heap、goroutine 等标准 pprof 子路由 |
+
+## Bench：12 条注册
+
+全部要求 `bench.api_enable=true`。`bench.api_token` 非空时全部要求精确 Bearer；空值保留无认证兼容行为。恢复维护会拒绝 Bench 请求。
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/bench/v1/capabilities` |
+| `GET` | `/bench/v1/capacity-target` |
+| `GET` | `/bench/v1/snapshot` |
+| `GET` | `/bench/v1/presence/snapshot` |
+| `POST` | `/bench/v1/terminal-fence/prepare` |
+| `GET` | `/bench/v1/channel-runtime/snapshot` |
+| `POST` | `/bench/v1/channel-runtime/probe` |
+| `POST` | `/bench/v1/channel-runtime/evict` |
+| `POST` | `/bench/v1/users/tokens` |
+| `POST` | `/bench/v1/channels` |
+| `POST` | `/bench/v1/channels/subscribers` |
+| `POST` | `/bench/v1/channels/subscribers/remove` |
+
+`terminal-fence/prepare` 还要求 Terminal Fence Controller 和非空 Token。Bench 包含数据准备、运行时驱逐和终止栅栏，不是只读接口，也不是公共集成合同。

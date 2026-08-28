@@ -1,0 +1,74 @@
+---
+title: Webhook 请求结构
+description: 消息字段、离线 UID 两种表示与在线状态字符串格式。
+full: true
+_openapi:
+  preload:
+    - wukongim-webhooks-beta-zh
+---
+
+事件名通过 `?event=...` 传递，请求体没有公共信封。
+
+## 消息对象
+
+`msg.notify` 的请求体是下列对象的数组；`msg.offline` 把同一对象直接展开到顶层。
+
+| 字段 | JSON 类型 | 含义 |
+| --- | --- | --- |
+| `header.no_persist` | number | 对已提交消息固定为 `0` |
+| `header.red_dot` | number | `0` 或 `1` |
+| `header.sync_once` | number | `0` 或 `1` |
+| `setting` | number | WKProto Setting 位掩码 |
+| `topic` | string，可省略 | 空值时省略 |
+| `expire` | number (u32) | 过期值 |
+| `message_id` | number (u64) | 全局消息 ID；JavaScript 可能丢失精度 |
+| `message_idstr` | string | `message_id` 的十进制字符串；跨语言优先使用它 |
+| `client_msg_no` | string | 客户端幂等标识 |
+| `message_seq` | number (u64) | Channel 内消息序号 |
+| `from_uid` | string | 发送者 UID |
+| `channel_id` | string | Channel ID |
+| `channel_type` | number (u8) | Channel Type |
+| `timestamp` | number (i32) | Unix 秒 |
+| `payload` | string \| null | 非空 Go `[]byte` 使用标准 Base64；空 Payload 编码为 `null` |
+
+```json
+[
+  {
+    "header": {"no_persist": 0, "red_dot": 1, "sync_once": 0},
+    "setting": 0,
+    "expire": 0,
+    "message_id": 123456789,
+    "message_idstr": "123456789",
+    "client_msg_no": "order-0001",
+    "message_seq": 42,
+    "from_uid": "system",
+    "channel_id": "u1001",
+    "channel_type": 1,
+    "timestamp": 1785398400,
+    "payload": "eyJ0eXBlIjoib3JkZXJfdXBkYXRlIn0="
+  }
+]
+```
+
+## `msg.offline`
+
+除消息字段外，顶层还包含以下两种**互斥**接收者表示：
+
+| 情况 | 字段 |
+| --- | --- |
+| UID 数量小于压缩阈值 | `to_uids: string[]` |
+| UID 数量达到阈值 | `compress: "gzip"` 与 `compress_to_uids: string` |
+
+`compress_to_uids` 是“JSON 字符串数组 → gzip → 标准 Base64”。默认 `offline_uid_batch_size=512` 同时是 UID 分块上限和压缩阈值。发送节点 ID 非零时还会出现数值字段 `source_id`。
+
+## `user.onlinestatus`
+
+请求体是字符串数组，每项格式为：
+
+```text
+{uid}-{device_flag}-{online:0|1}-{session_id}-{device_online_count}-{total_online_count}
+```
+
+计数来自 UID Owner 的本地活跃会话投影。UID 本身可能包含连字符；兼容接收端应把整串视为不透明值，或从右侧解析最后五个数字段，不能直接按 `-` 固定切片。
+
+<OpenAPIPage document="wukongim-webhooks-beta-zh" webhooks={[{"name":"msg.notify","method":"post"},{"name":"msg.offline","method":"post"},{"name":"user.onlinestatus","method":"post"}]} showDescription />

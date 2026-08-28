@@ -1,0 +1,49 @@
+---
+title: 加密与安全
+description: WKProto 兼容会话密钥、Payload 与 msg_key 算法及安全边界。
+---
+
+当前默认组合启用 WKProto 会话 Payload 加密。它是客户端兼容算法，只保护 SEND/RECV Payload；CONNECT、Header 和路由元数据不在这层加密内。
+
+## 握手与密钥
+
+1. 客户端生成临时 X25519 密钥对，把 32 字节公钥按标准 Base64 放入 CONNECT `client_key`。
+2. 服务端生成临时 X25519 密钥对，计算共享密钥，并在 CONNACK 返回 Base64 `server_key` 与 `salt`。
+3. 双方计算 `shared = X25519(private, peer_public)`。
+4. `AES key = lowercase_hex(MD5(Base64(shared)))[0:16]`；这 16 个 ASCII 字节作为 AES-128 key。
+5. `salt` 是 16 个随机字母数字 ASCII 字节，作为 IV 并在整个会话中复用。
+
+启用加密时，缺少 `client_key` 返回 `ReasonClientKeyIsEmpty`。
+
+## Payload
+
+```text
+wire_payload = Base64(AES-128-CBC(PKCS#7(plain_payload), key, iv))
+```
+
+服务端在 SEND 上先校验 `msg_key`，再解密 Payload；生成 RECV 时先加密 Payload，再计算 `msg_key`。设置 `SettingNoEncrypt (0x10)` 会让该包跳过这两步。
+
+## msg_key
+
+字段按表中顺序转为十进制文本或原始字节，**不加分隔符**拼接；其中 `encrypted_payload` 是 Wire 上的 Base64 Payload 字节。
+
+| 包 | verification bytes |
+| --- | --- |
+| SEND | `client_seq + client_msg_no + channel_id + channel_type + encrypted_payload` |
+| RECV | `message_id + message_seq + client_msg_no + timestamp + from_uid + channel_id + channel_type + encrypted_payload` |
+
+随后计算：
+
+```text
+msg_key = lowercase_hex(MD5(Base64(AES-128-CBC(PKCS#7(verification_bytes), key, iv))))
+```
+
+当前服务端会验证 SEND `msg_key`。仓库内 Go 工具客户端会解密 RECV，但目前**不会验证 RECV `msg_key`**；其他客户端必须按各自实现确认行为。
+
+## 安全边界
+
+<Callout type="danger" title="必须使用 TLS / WSS">
+  该兼容方案不会认证 X25519 对端，使用复用 IV 的 CBC 与 MD5 校验，也不是 AEAD；它不能抵抗主动中间人，不能替代 TLS、Token 验证、身份认证或端到端加密。CONNECT 中的 Token 在会话密钥建立前发送，没有 TLS 时可被观察。
+</Callout>
+
+生产环境应使用 TLS/WSS 或等价的受信私网边界，并在 Gateway 入口完成证书、身份与 Token 验证。不要为敏感消息设置 `SettingNoEncrypt`。

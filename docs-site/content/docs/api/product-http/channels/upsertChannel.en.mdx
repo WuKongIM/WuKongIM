@@ -3,7 +3,7 @@ title: Create or update Channel metadata
 full: true
 _openapi:
   preload:
-    - wukongim-product-http-management-beta-en
+    - wukongim-product-http-complete-beta-en
   method: POST
   webhook: false
   toc: []
@@ -12,8 +12,8 @@ _openapi:
       - content: Create or update Channel metadata
         id: create-or-update-channel-metadata
     contents:
-      - content: Creates or updates a Channel. reset=1 replaces durable subscribers;
-          person Channels reject subscribers. Disband is terminal.
+      - content: Upserts all metadata flags and optionally resets subscribers; disband
+          is terminal.
         heading: create-or-update-channel-metadata
       - content: >-
           POST /channel
@@ -22,87 +22,65 @@ _openapi:
 
           Create or update Channel metadata
 
-          Creates or updates a Channel. reset=1 replaces durable subscribers;
-          person Channels reject subscribers. Disband is terminal.
+          Upserts all metadata flags and optionally resets subscribers; disband
+          is terminal.
 
           ChannelUpsertRequest
 
+          additionalProperties true
+
+          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+
+          channel_type `integer:uint8` 1–255
+
+          large `CompatibilityFlag` default: `0` Exactly 1 means true; every
+          other integer means false.
+
+          ban `CompatibilityFlag` default: `0` Exactly 1 means true; every other
+          integer means false.
+
+          disband `CompatibilityFlag` default: `0` Exactly 1 means true; every
+          other integer means false.
+
+          send_ban `CompatibilityFlag` default: `0` Exactly 1 means true; every
+          other integer means false.
+
+          allow_stranger `CompatibilityFlag` default: `0` Exactly 1 means true;
+          every other integer means false.
+
+          reset `CompatibilityFlag` default: `0` Exactly 1 means true; every
+          other integer means false.
+
+          subscribers array<`string`> — Elements are not validated at entry; a
+          non-empty list is rejected for person Channels.
+
+          CompatibilityFlag
+
+          Exactly 1 means true; every other integer means false.
+
+          200 Mutation accepted
+
+          StatusEnvelope
+
           additionalProperties false
 
-          channel_id `ChannelID` minLength: 1; pattern: `^[^#@]+$` Business
-          Channel identifier; the published contract excludes # and @ namespace
-          separators.
+          status `integer` const: `200`
 
-          channel_type `integer` 1–255 Channel Type. Type 1 is a person Channel
-          and cannot include subscribers.
-
-          large `BinaryFlag` enum: `0`, `1`; default: `0` Compatibility integer
-          flag; only 1 means true.
-
-          ban `BinaryFlag` enum: `0`, `1`; default: `0` Compatibility integer
-          flag; only 1 means true.
-
-          disband `BinaryFlag` enum: `0`, `1`; default: `0` Compatibility
-          integer flag; only 1 means true.
-
-          send_ban `BinaryFlag` enum: `0`, `1`; default: `0` Compatibility
-          integer flag; only 1 means true.
-
-          allow_stranger `BinaryFlag` enum: `0`, `1`; default: `0` Compatibility
-          integer flag; only 1 means true.
-
-          reset `BinaryFlag` enum: `0`, `1`; default: `0` 1 replaces the durable
-          subscriber snapshot before applying subscribers.
-
-          subscribers array<`UID`> — Durable subscriber UIDs. Do not supply them
-          for a person Channel.
-
-          ChannelID
-
-          Business Channel identifier; the published contract excludes # and @
-          namespace separators.
-
-          BinaryFlag
-
-          Compatibility integer flag; only 1 means true.
-
-          UID
-
-          Non-empty product user identity.
-
-          200 Mutation completed
-
-          MutationStatus
-
-          status `integer` const: `200` Compatibility success status, always
-          200.
-
-          {"status":200}
-
-          400 Malformed input, failed validation, unavailable routing, or a
-          use-case/storage error
+          400 Input, validation, dependency, or downstream error
 
           CompatibilityError
 
-          msg `string` — Human-readable runtime message; exact text is not a
-          stable machine contract.
+          msg `string` — Human-readable and not stable for machine matching.
 
-          status `integer` const: `400` Compatibility business-error status,
-          always 400 on these routes.
+          status `integer` const: `400`
 
-          {"msg":"invalid request","status":400}
-
-          503 Restore maintenance is active; back off and observe /readyz
+          503 Controller restore maintenance is active
 
           MaintenanceError
 
-          error `string` const: `"maintenance"` Machine-readable
-          restore-maintenance category.
+          error `string` const: `"maintenance"`
 
-          message `string` const: `"restore maintenance is active"` Current
-          maintenance detail.
-
-          {"error":"maintenance","message":"restore maintenance is active"}
+          message `string` const: `"restore maintenance is active"`
 ---
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
@@ -114,7 +92,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="wukongim-product-http-management-beta-en" operations={[{"path":"/channel","method":"post"}]} showDescription />
+      <Comp document="wukongim-product-http-complete-beta-en" operations={[{"path":"/channel","method":"post"}]} showDescription />
     </>
   );
 }

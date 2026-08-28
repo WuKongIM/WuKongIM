@@ -66,6 +66,13 @@ Phase 17 publishes a third bounded OpenAPI contract for ordinary persistent
 connection lifecycle and the complete Frame Type catalog. Byte-level framing,
 JSON-RPC, and encryption details remain planned until their separate contracts
 are reconciled and security-reviewed.
+Phase 18 publishes the complete current API and protocol reference: all 41
+Product HTTP registrations, separate Operations HTTP and outbound Webhook
+OpenAPI 3.1 contracts, exact WKProto wire and compatibility-encryption pages,
+an explicitly unsupported experimental JSON-RPC Schema, and exhaustive private
+Manager, transport, MCP, plugin, worker, and agent interface inventories. The
+older OpenAPI files remain narrow adoption profiles and keep their original
+verification boundaries.
 
 ## Develop
 
@@ -81,10 +88,10 @@ bun run dev
 Open `http://localhost:3000`. The canonical local entry points are `/zh` and
 `/en`.
 
-The Product HTTP reference is generated from three bounded OpenAPI 3.1 contracts.
-It follows the Fumadocs example structure: six tag indexes and 20 independent
-operation pages per locale, for 52 tracked MDX files. After changing a
-contract, regenerate and review the tracked MDX:
+The Product HTTP reference is generated from the complete 41-operation OpenAPI
+3.1 contract. It follows the Fumadocs example structure: six tag indexes and 41
+independent operation pages per locale, for 94 tracked MDX files. After changing
+the contract, regenerate and review the tracked MDX:
 
 ```bash
 bun run openapi:write
@@ -92,9 +99,10 @@ bun run openapi:check
 ```
 
 The static reference intentionally disables the request playground because the
-documented endpoints belong behind a trusted BFF. TCP/WKProto and JSON-RPC
-protocol material remains ordinary protocol documentation rather than fake
-OpenAPI paths.
+documented endpoints require trusted network boundaries. Operations HTTP and
+outbound Webhooks use separate OpenAPI documents; Webhooks use the top-level
+`webhooks` object. TCP/WKProto and JSON-RPC remain protocol documentation rather
+than fake OpenAPI paths.
 
 ## Validate
 
@@ -123,6 +131,10 @@ and LLM output, and continued separation from the golden receipt.
 Phase 17 also checks the exact message-send contract, trusted-backend boundary,
 Frame Type values, lifecycle claims, and the publication or deferral state of
 each client-protocol page.
+Phase 18 also checks the exact 41-operation Product surface, Operations,
+Debug/Bench, Manager, node transport, MCP/agent/plugin inventories, WKProto
+layout, WebSocket carrier, JSON-RPC bridge, encryption, Webhook delivery, and
+all downloadable specifications against current source.
 
 ## Golden-path attestation
 
@@ -211,3 +223,5 @@ management subset, its exact deferrals, and its separation from golden-path
 attestation.
 `PHASE_17_SPEC.md` defines the Product HTTP message-send subset and the first
 published client-protocol baseline.
+`PHASE_18_SPEC.md` defines the complete source-aligned API and protocol surface,
+publication classes, machine-readable artifacts, and drift checks.

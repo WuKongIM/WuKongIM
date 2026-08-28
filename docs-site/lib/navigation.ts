@@ -290,10 +290,10 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
 function publishedProductHTTPGroup(): NavigationGroup {
   return publishedGroup(
     'product-http',
-    '产品 HTTP API（Beta 子集）',
-    'Product HTTP API (Beta subsets)',
-    '浏览当前 Product HTTP Beta 接口。',
-    'Browse the current Product HTTP Beta APIs.',
+    'Product HTTP API',
+    'Product HTTP API',
+    '浏览当前源码注册的全部 41 条 Product HTTP 操作。',
+    'Browse all 41 Product HTTP operations registered by the current source.',
     [
       ...productHTTPOpenAPIReferenceGroups.map((group) =>
         publishedGroup(
@@ -930,8 +930,8 @@ export const domains: DocumentationDomain[] = [
     key: 'api',
     label: text('API 与协议', 'API & Protocols'),
     description: text(
-      '查阅已校准的 HTTP API、客户端协议核心与公共字典，以及规划中的 Webhook。',
-      'Reference calibrated HTTP APIs, the client-protocol core, and shared dictionaries, plus planned webhooks.',
+      '查阅源码校准的 HTTP、Webhook、客户端协议与私有接口边界。',
+      'Reference source-aligned HTTP, webhook, client-protocol, and private-interface boundaries.',
     ),
     status: 'published',
     pages: [
@@ -956,38 +956,45 @@ export const domains: DocumentationDomain[] = [
         '查看构建快照和接口覆盖状态。',
         'View the build snapshot and API coverage status.',
       ),
+      publishedPage(
+        'interface-inventory',
+        '接口清单与信任边界',
+        'Interface Inventory & Trust Boundaries',
+        '盘点 Manager、Node transport、MCP、插件与 Agent 私有合同。',
+        'Inventories Manager, node transport, MCP, plugin, and agent-private contracts.',
+      ),
     ],
     groups: [
       publishedProductHTTPGroup(),
-      plannedGroup(
+      publishedGroup(
         'operations-http',
         '运维 HTTP API',
         'Operations HTTP API',
         '发布稳定且受支持的运维接口。',
         'Publishes stable and supported operations endpoints.',
         [
-          plannedPage(
+          publishedPage(
             'health-and-readiness',
             '健康与就绪',
             'Health & Readiness',
             '说明健康检查、就绪检查和负载均衡使用方式。',
             'Covers health checks, readiness checks, and load-balancer usage.',
           ),
-          plannedPage(
+          publishedPage(
             'metrics',
             'Metrics',
             'Metrics',
             '说明 Prometheus 指标入口、访问控制和抓取建议。',
             'Explains the Prometheus endpoint, access control, and scrape guidance.',
           ),
-          plannedPage(
+          publishedPage(
             'read-only',
             '只读运维接口',
             'Read-only Operations',
-            '记录正式支持的节点状态和资源快照查询。',
-            'Documents supported node-state and resource-snapshot queries.',
+            '记录节点本地 Top 快照以及条件启用的 Debug、Bench 清单。',
+            'Documents node-local Top snapshots and conditional Debug and Bench inventories.',
           ),
-          plannedPage(
+          publishedPage(
             'stability',
             '接口稳定性',
             'API Stability',
@@ -996,28 +1003,28 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'webhooks',
         'Webhook',
         'Webhooks',
         '说明服务端向业务系统投递事件的契约。',
         'Defines how the server delivers events to business systems.',
         [
-          plannedPage(
+          publishedPage(
             'events',
             '事件类型',
             'Event Types',
             '列出消息、在线状态和其他受支持事件。',
             'Lists messages, presence, and other supported events.',
           ),
-          plannedPage(
+          publishedPage(
             'payloads',
             '请求结构',
             'Payloads',
-            '定义通用信封、事件负载和示例。',
-            'Defines the common envelope, event payloads, and examples.',
+            '定义三种事件负载，并明确请求体没有通用信封。',
+            'Defines the three event payloads and the absence of a common envelope.',
           ),
-          plannedPage(
+          publishedPage(
             'reliability-and-security',
             '安全与可靠性',
             'Security & Reliability',
@@ -1047,21 +1054,21 @@ export const domains: DocumentationDomain[] = [
             '列出当前 Frame Type、方向、支持范围和版本差异。',
             'Lists current Frame Types, directions, support scope, and version differences.',
           ),
-          plannedPage(
+          publishedPage(
             'tcp-binary',
             'TCP 二进制协议',
             'TCP Binary Protocol',
             '定义帧格式、编码、标志位和包边界。',
             'Defines frame format, encoding, flags, and packet boundaries.',
           ),
-          plannedPage(
+          publishedPage(
             'json-rpc',
             'WebSocket JSON-RPC',
             'WebSocket JSON-RPC',
             '定义方法、参数、结果、通知和请求关联。',
             'Defines methods, parameters, results, notifications, and request correlation.',
           ),
-          plannedPage(
+          publishedPage(
             'encryption',
             '加密与安全',
             'Encryption & Security',
@@ -1107,28 +1114,28 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'specifications',
         '规范下载',
         'Specifications',
         '提供校准后、可机器读取的接口与协议规范。',
         'Provides aligned, machine-readable API and protocol specifications.',
         [
-          plannedPage(
+          publishedPage(
             'openapi',
             'OpenAPI',
             'OpenAPI',
             '在线浏览并下载校准后的 v3 HTTP API 规范。',
             'Browse and download the aligned v3 HTTP API specification.',
           ),
-          plannedPage(
+          publishedPage(
             'json-rpc-schema',
             'JSON-RPC Schema',
             'JSON-RPC Schema',
             '浏览并下载 WebSocket JSON-RPC Schema。',
             'Browse and download the WebSocket JSON-RPC schema.',
           ),
-          plannedPage(
+          publishedPage(
             'protocol-changelog',
             '协议变更记录',
             'Protocol Changelog',

@@ -1,13 +1,16 @@
 import goldenPathDocument from '../contracts/javascript-web-quickstart.openapi.json';
 import managementDocument from '../contracts/product-http-management.openapi.json';
 import messagingDocument from '../contracts/product-http-messaging.openapi.json';
+import completeDocument from '../contracts/product-http.openapi.json';
 
 export type ProductHTTPOpenAPILocale = 'zh' | 'en';
 export const productHTTPOpenAPIContractNames = [
+  'complete',
   'golden-path',
   'management',
   'messaging',
 ] as const;
+export const productHTTPOpenAPIReferenceContractNames = ['complete'] as const;
 export type ProductHTTPOpenAPIContract =
   (typeof productHTTPOpenAPIContractNames)[number];
 export type ProductHTTPOpenAPIMethod = 'get' | 'post';
@@ -53,6 +56,17 @@ export interface ProductHTTPOpenAPIContractDescriptor {
 
 /** Single source of truth for every published Product HTTP OpenAPI contract. */
 export const productHTTPOpenAPIContracts = {
+  complete: {
+    document: completeDocument,
+    source: 'docs-site/contracts/product-http.openapi.json',
+    download: '/contracts/product-http.openapi.json',
+    documentId: 'wukongim-product-http-complete-beta',
+    label: { zh: '完整运行时合同', en: 'complete runtime contract' },
+    llmScope: {
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自完整的 41 操作运行时合同；Product HTTP 没有内建鉴权，只能由受信后端或运维边界调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the complete 41-operation runtime contract. Product HTTP has no built-in authentication and is callable only from a trusted backend or operator boundary.',
+    },
+  },
   'golden-path': {
     document: goldenPathDocument,
     source: 'docs-site/contracts/javascript-web-quickstart.openapi.json',
@@ -161,7 +175,71 @@ interface GroupDefinition {
   deferrals?: ProductHTTPOpenAPIDeferrals;
 }
 
-const groupDefinitions: GroupDefinition[] = [
+const referenceGroupDefinitions: GroupDefinition[] = [
+  {
+    contract: 'complete',
+    slug: 'users',
+    tag: 'Users',
+    title: { zh: '用户', en: 'Users' },
+    description: {
+      zh: '设备 Token、在线状态与系统身份。',
+      en: 'Device tokens, presence, and system identities.',
+    },
+  },
+  {
+    contract: 'complete',
+    slug: 'routing',
+    tag: 'Routing',
+    title: { zh: '路由发现', en: 'Route Discovery' },
+    description: {
+      zh: '客户端 Gateway 公网或内网地址。',
+      en: 'Public or intranet client Gateway addresses.',
+    },
+  },
+  {
+    contract: 'complete',
+    slug: 'messages',
+    tag: 'Messages',
+    title: { zh: '消息', en: 'Messages' },
+    description: {
+      zh: '消息恢复、事件与命令消息兼容接口。',
+      en: 'Message recovery, events, and command-message compatibility.',
+    },
+  },
+  {
+    contract: 'complete',
+    slug: 'message-send',
+    tag: 'Message Sending',
+    title: { zh: '消息发送', en: 'Message Sending' },
+    description: {
+      zh: '由受信后端提交消息。',
+      en: 'Submit messages from a trusted backend.',
+    },
+  },
+  {
+    contract: 'complete',
+    slug: 'channels',
+    tag: 'Channels',
+    title: { zh: 'Channel', en: 'Channels' },
+    description: {
+      zh: 'Channel 元数据、订阅者与名单管理。',
+      en: 'Channel metadata, subscribers, and list administration.',
+    },
+  },
+  {
+    contract: 'complete',
+    slug: 'conversations',
+    tag: 'Conversations',
+    title: { zh: '会话', en: 'Conversations' },
+    description: {
+      zh: '会话同步、未读、隐藏与激活状态。',
+      en: 'Conversation sync, unread, hide, and activation state.',
+    },
+  },
+];
+
+/** Narrow profile groups retained for profile-specific tests and downloads. */
+const profileGroupDefinitions: GroupDefinition[] = [
   {
     contract: 'golden-path',
     slug: 'users',
@@ -320,9 +398,9 @@ function operationsFor(definition: GroupDefinition): ProductHTTPOpenAPIOperation
   return operations;
 }
 
-/** Route and navigation registry derived from the three published OpenAPI contracts. */
+/** Route and navigation registry derived from the complete Product HTTP contract. */
 export const productHTTPOpenAPIReferenceGroups: ProductHTTPOpenAPIGroup[] =
-  groupDefinitions.map((definition) => ({
+  referenceGroupDefinitions.map((definition) => ({
     ...definition,
     operations: operationsFor(definition),
   }));
@@ -330,11 +408,17 @@ export const productHTTPOpenAPIReferenceGroups: ProductHTTPOpenAPIGroup[] =
 export const productHTTPOpenAPIReferenceOperations =
   productHTTPOpenAPIReferenceGroups.flatMap((group) => group.operations);
 
+const productHTTPOpenAPIProfileGroups: ProductHTTPOpenAPIGroup[] =
+  profileGroupDefinitions.map((definition) => ({
+    ...definition,
+    operations: operationsFor(definition),
+  }));
+
 export const productHTTPManagementOpenAPIGroups =
-  productHTTPOpenAPIReferenceGroups.filter((group) => group.contract === 'management');
+  productHTTPOpenAPIProfileGroups.filter((group) => group.contract === 'management');
 
 export const productHTTPMessagingOpenAPIGroups =
-  productHTTPOpenAPIReferenceGroups.filter((group) => group.contract === 'messaging');
+  productHTTPOpenAPIProfileGroups.filter((group) => group.contract === 'messaging');
 
 /** Applies reviewed x-i18n text without duplicating the OpenAPI structure. */
 export function localizeOpenAPIDocument<T>(

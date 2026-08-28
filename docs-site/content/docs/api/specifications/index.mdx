@@ -1,0 +1,20 @@
+---
+title: 规格与下载
+description: 下载当前源码快照对应的 OpenAPI、JSON Schema，并查看协议变更规则。
+---
+
+这里集中列出机器可读合同。它们描述当前仓库快照，不自动证明任意服务端、SDK 和合同版本兼容。
+
+<Cards>
+  <Card title="OpenAPI 合同" description="完整 Product HTTP、Operations、Webhook 和三份窄 Profile。" href="/zh/api/specifications/openapi" />
+  <Card title="JSON-RPC Schema" description="实验性 codec 结构；当前产品不支持作为客户端集成协议。" href="/zh/api/specifications/json-rpc-schema" />
+  <Card title="协议变更记录" description="当前快照、WKProto v5→v6 和破坏性变更规则。" href="/zh/api/specifications/protocol-changelog" />
+</Cards>
+
+| 格式 | 适用范围 | 不适用范围 |
+| --- | --- | --- |
+| OpenAPI 3.1 | HTTP 请求、响应和 Webhook 回调 | WKProto、MCP、Node transport、Unix-socket RPC |
+| JSON Schema 2020-12 | 实验性 JSON-RPC codec 数据形状 | 产品支持或兼容性承诺 |
+| 协议页面 | 二进制布局、协商、稳定性与信任边界 | HTTP SDK 自动生成 |
+
+业务后端从完整 Product HTTP 合同开始；只实现一个受限场景时，可选择窄 Profile。客户端实时连接必须使用 [WKProto](/zh/api/client-protocols/tcp-binary)。

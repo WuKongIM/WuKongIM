@@ -1,0 +1,20 @@
+---
+title: Experimental JSON-RPC Schema
+description: Download codec shapes and understand the current unsupported product boundary.
+---
+
+<Callout type="error" title="Experimental · not supported">
+  This schema records shapes that the WebSocket JSON-RPC codec/bridge can parse or encode. The current Product Gateway cannot establish an authenticated JSON-RPC product session. Do not generate a production SDK from it.
+</Callout>
+
+[Download JSON Schema 2020-12](/contracts/json-rpc.experimental.schema.json)
+
+The schema's `x-wukongim-stability` is `experimental-not-supported`. Current behavior is:
+
+- `ping` is the only normal product round trip;
+- `connect` is rejected after the session has been pre-opened;
+- `send` lacks authenticated UID and `clientSeq` correlation and returns authentication failure;
+- `subscribe`, `unsubscribe`, and several notifications are codec-only or lack a frame bridge;
+- `[` selects JSON mode, but batch arrays are unimplemented; request IDs must be strings and Payload is Base64.
+
+Structural presence is not runtime support or a compatibility promise. Production clients use the [WKProto binary protocol](/en/api/client-protocols/tcp-binary); see [WebSocket JSON-RPC](/en/api/client-protocols/json-rpc) for the full matrix.

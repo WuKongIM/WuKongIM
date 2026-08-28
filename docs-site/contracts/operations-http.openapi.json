@@ -1,0 +1,518 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WuKongIM Operations HTTP API",
+    "version": "3.0.0-beta-snapshot",
+    "description": "Stable process and node-local observation endpoints on the Product HTTP listener. They have no built-in authentication.",
+    "x-i18n": {
+      "zh": {
+        "title": "WuKongIM 运维 HTTP API",
+        "description": "Product HTTP 监听器上的稳定进程与节点本地观测接口；它们没有内建鉴权。"
+      }
+    }
+  },
+  "x-wukongim-scope": "stable-operations-http-beta",
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5001",
+      "description": "Default API listener for a local single-node cluster",
+      "x-i18n": {
+        "zh": {
+          "description": "本地单节点集群的默认 API 监听地址"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Process liveness and traffic readiness.",
+      "x-i18n": { "zh": { "description": "进程存活与流量就绪。" } }
+    },
+    {
+      "name": "Metrics",
+      "description": "Prometheus exposition when metrics are enabled.",
+      "x-i18n": { "zh": { "description": "启用指标后的 Prometheus exposition。" } }
+    },
+    {
+      "name": "Top",
+      "description": "Bounded node-local runtime snapshots.",
+      "x-i18n": { "zh": { "description": "有界的节点本地运行时快照。" } }
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Check process liveness",
+        "description": "Returns 200 while the HTTP process can serve requests. It does not prove cluster readiness.",
+        "x-i18n": {
+          "zh": {
+            "summary": "检查进程存活",
+            "description": "HTTP 进程能响应时返回 200；不代表集群已就绪。"
+          }
+        },
+        "tags": ["Health"],
+        "security": [],
+        "x-wukongim-trust": "operator-network-only",
+        "responses": {
+          "200": {
+            "description": "Process is alive.",
+            "x-i18n": { "zh": { "description": "进程存活。" } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" },
+                "example": { "status": "ok" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "getReadiness",
+        "summary": "Check traffic readiness",
+        "description": "Returns 200 only when this node can accept product traffic; 503 retains the current reason.",
+        "x-i18n": {
+          "zh": {
+            "summary": "检查流量就绪",
+            "description": "仅当当前节点可接收产品流量时返回 200；503 保留当前原因。"
+          }
+        },
+        "tags": ["Health"],
+        "security": [],
+        "x-wukongim-trust": "operator-network-only",
+        "responses": {
+          "200": {
+            "description": "Node is ready.",
+            "x-i18n": { "zh": { "description": "节点已就绪。" } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReadinessResponse" },
+                "example": { "ready": true }
+              }
+            }
+          },
+          "503": {
+            "description": "Node is not ready.",
+            "x-i18n": { "zh": { "description": "节点未就绪。" } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReadinessResponse" },
+                "example": { "ready": false, "reason": "cluster write routing not ready" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "getPrometheusMetrics",
+        "summary": "Scrape Prometheus metrics",
+        "description": "Returns Prometheus exposition when a metrics handler is configured; otherwise the route is absent.",
+        "x-i18n": {
+          "zh": {
+            "summary": "抓取 Prometheus 指标",
+            "description": "配置 Metrics Handler 后返回 Prometheus exposition；否则该路由不存在。"
+          }
+        },
+        "tags": ["Metrics"],
+        "security": [],
+        "x-wukongim-trust": "operator-network-only",
+        "responses": {
+          "200": {
+            "description": "Prometheus text exposition.",
+            "x-i18n": { "zh": { "description": "Prometheus 文本 exposition。" } },
+            "content": {
+              "text/plain": {
+                "schema": { "type": "string" },
+                "example": "# HELP wukongim_connections Current Gateway sessions\n# TYPE wukongim_connections gauge\nwukongim_connections 42\n"
+              }
+            }
+          },
+          "404": {
+            "description": "Metrics are not configured.",
+            "x-i18n": { "zh": { "description": "未配置指标。" } }
+          }
+        }
+      }
+    },
+    "/top/v1/snapshot": {
+      "get": {
+        "operationId": "getTopSnapshot",
+        "summary": "Read a node-local Top snapshot",
+        "description": "Returns a bounded local-node observation. It is not a cluster-wide consistent snapshot.",
+        "x-i18n": {
+          "zh": {
+            "summary": "读取节点本地 Top 快照",
+            "description": "返回有界的节点本地观测；它不是集群全局一致快照。"
+          }
+        },
+        "tags": ["Top"],
+        "security": [],
+        "x-wukongim-trust": "operator-network-only",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "description": "Go duration; minimum 2s.",
+            "x-i18n": { "zh": { "description": "Go duration，最小 2s。" } },
+            "schema": { "type": "string", "default": "10s", "example": "10s" }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "description": "Snapshot section selector.",
+            "x-i18n": { "zh": { "description": "快照分区选择器。" } },
+            "schema": {
+              "type": "string",
+              "enum": ["overview", "runtime", "traffic", "channel", "storage", "delivery", "all"],
+              "default": "overview"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Pressure-item limit; values above 100 are clamped.",
+            "x-i18n": { "zh": { "description": "压力项上限；超过 100 会被截断。" } },
+            "schema": { "type": "integer", "minimum": 1, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top snapshot.",
+            "x-i18n": { "zh": { "description": "Top 快照。" } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TopSnapshot" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/TopBadRequest" },
+          "404": { "$ref": "#/components/responses/TopNotConfigured" },
+          "500": { "$ref": "#/components/responses/TopInternalError" },
+          "503": { "$ref": "#/components/responses/TopWarmingUp" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "const": "ok" }
+        }
+      },
+      "ReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ready"],
+        "properties": {
+          "ready": { "type": "boolean" },
+          "reason": { "type": "string" }
+        }
+      },
+      "TopError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "TopSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "scope", "generated_at", "window_seconds", "node", "verdict", "sources"],
+        "properties": {
+          "version": { "type": "string", "const": "top/v1" },
+          "scope": { "type": "string", "const": "local_node" },
+          "generated_at": { "type": "string", "format": "date-time" },
+          "window_seconds": { "type": "integer", "minimum": 2 },
+          "node": { "$ref": "#/components/schemas/TopNode" },
+          "verdict": { "$ref": "#/components/schemas/TopVerdict" },
+          "traffic": { "$ref": "#/components/schemas/TopTraffic" },
+          "clients": { "$ref": "#/components/schemas/TopClients" },
+          "resources": { "$ref": "#/components/schemas/TopResources" },
+          "alerts": { "$ref": "#/components/schemas/TopAlerts" },
+          "pressure": { "$ref": "#/components/schemas/TopPressure" },
+          "channelv2": { "$ref": "#/components/schemas/TopChannelRuntime" },
+          "storage": { "$ref": "#/components/schemas/TopStorage" },
+          "delivery": { "$ref": "#/components/schemas/TopDelivery" },
+          "sources": { "$ref": "#/components/schemas/TopSources" }
+        }
+      },
+      "TopNode": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "ready"],
+        "properties": {
+          "id": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "name": { "type": "string" },
+          "ready": { "type": "boolean" },
+          "ready_parts": { "type": "object", "additionalProperties": { "type": "boolean" } },
+          "state_revision": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "controller_leader": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "slot_count": { "type": "integer", "format": "uint32", "minimum": 0 },
+          "hash_slot_count": { "type": "integer", "format": "uint16", "minimum": 0 }
+        }
+      },
+      "TopVerdict": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["level", "summary"],
+        "properties": {
+          "level": { "type": "string", "enum": ["ok", "busy", "degraded", "critical"] },
+          "summary": { "type": "string" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TopTraffic": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["send_per_sec", "sendack_per_sec", "sendack_error_per_sec", "sendack_error_rate", "append_per_sec", "append_p50_ms", "append_p99_ms", "deliver_per_sec", "fanout_rate"],
+        "properties": {
+          "send_per_sec": { "type": "number" },
+          "sendack_per_sec": { "type": "number" },
+          "sendack_error_per_sec": { "type": "number" },
+          "sendack_error_rate": { "type": "number" },
+          "append_per_sec": { "type": "number" },
+          "append_p50_ms": { "type": "number" },
+          "append_p99_ms": { "type": "number" },
+          "deliver_per_sec": { "type": "number" },
+          "fanout_rate": { "type": "number" }
+        }
+      },
+      "TopClients": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["connections", "auth_fail_per_sec", "close_per_sec"],
+        "properties": {
+          "connections": { "type": "integer", "format": "int64" },
+          "connections_by_protocol": { "type": "object", "additionalProperties": { "type": "integer", "format": "int64" } },
+          "auth_fail_per_sec": { "type": "number" },
+          "close_per_sec": { "type": "number" }
+        }
+      },
+      "TopResources": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cpu_percent", "memory_rss_bytes", "memory_vms_bytes", "goroutines", "threads"],
+        "properties": {
+          "cpu_percent": { "type": "number" },
+          "memory_rss_bytes": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "memory_vms_bytes": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "goroutines": { "type": "integer", "minimum": 0 },
+          "threads": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "TopAlerts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["counts"],
+        "properties": {
+          "counts": { "$ref": "#/components/schemas/TopAlertCounts" },
+          "active": { "type": "array", "items": { "$ref": "#/components/schemas/TopAlert" } },
+          "recent": { "type": "array", "items": { "$ref": "#/components/schemas/TopAlert" } }
+        }
+      },
+      "TopAlertCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["active", "recent", "warning", "error", "critical"],
+        "properties": {
+          "active": { "type": "integer", "minimum": 0 },
+          "recent": { "type": "integer", "minimum": 0 },
+          "warning": { "type": "integer", "minimum": 0 },
+          "error": { "type": "integer", "minimum": 0 },
+          "critical": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "TopAlert": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "component", "kind", "message", "first_seen", "last_seen", "count", "active"],
+        "properties": {
+          "id": { "type": "string" },
+          "fingerprint": { "type": "string" },
+          "node_id": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "node_name": { "type": "string" },
+          "severity": { "type": "string", "enum": ["warn", "error", "critical"] },
+          "component": { "type": "string" },
+          "kind": { "type": "string" },
+          "message": { "type": "string" },
+          "hint": { "type": "string" },
+          "evidence": { "type": "object", "additionalProperties": { "type": "string" } },
+          "first_seen": { "type": "string", "format": "date-time" },
+          "last_seen": { "type": "string", "format": "date-time" },
+          "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+          "count": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "active": { "type": "boolean" }
+        }
+      },
+      "TopPressure": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["overall_level"],
+        "properties": {
+          "overall_level": { "type": "string" },
+          "component_scores": { "type": "object", "additionalProperties": { "type": "number" } },
+          "top": { "type": "array", "items": { "$ref": "#/components/schemas/TopPressureItem" } }
+        }
+      },
+      "TopPressureItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["component", "level", "score"],
+        "properties": {
+          "component": { "type": "string" },
+          "pool": { "type": "string" },
+          "queue": { "type": "string" },
+          "priority": { "type": "string" },
+          "level": { "type": "string" },
+          "score": { "type": "number" },
+          "depth": { "type": "integer", "format": "int64" },
+          "capacity": { "type": "integer", "format": "int64" },
+          "inflight": { "type": "integer", "format": "int64" },
+          "workers": { "type": "integer", "format": "int64" },
+          "wait_p99_ms": { "type": "number" },
+          "task_p99_ms": { "type": "number" },
+          "admission_error_per_sec": { "type": "number" },
+          "hint": { "type": "string" }
+        }
+      },
+      "TopChannelRuntime": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["active_total", "active_leader", "active_follower", "follower_parked", "reactor_mailbox_depth_max", "reactor_mailbox_capacity_max", "append_p99_ms"],
+        "properties": {
+          "active_total": { "type": "integer", "format": "int64" },
+          "active_leader": { "type": "integer", "format": "int64" },
+          "active_follower": { "type": "integer", "format": "int64" },
+          "follower_parked": { "type": "integer", "format": "int64" },
+          "reactor_mailbox_depth_max": { "type": "integer", "format": "int64" },
+          "reactor_mailbox_capacity_max": { "type": "integer", "format": "int64" },
+          "worker_queue_depth_by_pool": { "type": "object", "additionalProperties": { "type": "integer", "format": "int64" } },
+          "worker_queue_capacity_by_pool": { "type": "object", "additionalProperties": { "type": "integer", "format": "int64" } },
+          "worker_inflight_by_pool": { "type": "object", "additionalProperties": { "type": "integer", "format": "int64" } },
+          "worker_capacity_by_pool": { "type": "object", "additionalProperties": { "type": "integer", "format": "int64" } },
+          "append_p99_ms": { "type": "number" },
+          "hot_stage": { "type": "string" },
+          "stage_p99_ms": { "type": "object", "additionalProperties": { "type": "number" } }
+        }
+      },
+      "TopStorage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commit_queues": { "type": "array", "items": { "$ref": "#/components/schemas/TopStorageCommitQueue" } }
+        }
+      },
+      "TopStorageCommitQueue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["store", "depth", "capacity", "batch_records_p50", "batch_commit_p99_ms"],
+        "properties": {
+          "store": { "type": "string" },
+          "depth": { "type": "integer", "format": "int64" },
+          "capacity": { "type": "integer", "format": "int64" },
+          "request_p99_ms_by_lane": { "type": "object", "additionalProperties": { "type": "number" } },
+          "batch_records_p50": { "type": "number" },
+          "batch_commit_p99_ms": { "type": "number" }
+        }
+      },
+      "TopDelivery": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["push_per_sec", "routes_per_sec", "push_p99_ms", "retry_queue_depth", "ack_bindings", "recipient_queue_depth", "recipient_queue_capacity", "error_rate"],
+        "properties": {
+          "push_per_sec": { "type": "number" },
+          "routes_per_sec": { "type": "number" },
+          "push_p99_ms": { "type": "number" },
+          "retry_queue_depth": { "type": "integer", "format": "int64" },
+          "ack_bindings": { "type": "integer", "format": "int64" },
+          "recipient_queue_depth": { "type": "integer", "format": "int64" },
+          "recipient_queue_capacity": { "type": "integer", "format": "int64" },
+          "error_rate": { "type": "number" }
+        }
+      },
+      "TopSources": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["collector", "cluster_snapshot", "metrics"],
+        "properties": {
+          "collector": { "$ref": "#/components/schemas/TopSourceStatus" },
+          "cluster_snapshot": { "$ref": "#/components/schemas/TopSourceStatus" },
+          "metrics": { "$ref": "#/components/schemas/TopMetricsSource" },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TopSourceStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["available"],
+        "properties": {
+          "available": { "type": "boolean" },
+          "sample_count": { "type": "integer", "minimum": 0 },
+          "warming_up": { "type": "boolean" }
+        }
+      },
+      "TopMetricsSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled", "required"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "required": { "type": "boolean", "const": false }
+        }
+      }
+    },
+    "responses": {
+      "TopBadRequest": {
+        "description": "Invalid query.",
+        "x-i18n": { "zh": { "description": "查询参数无效。" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TopError" },
+            "example": { "error": "window must be at least 2s" }
+          }
+        }
+      },
+      "TopNotConfigured": {
+        "description": "Top provider is not configured.",
+        "x-i18n": { "zh": { "description": "未配置 Top Provider。" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TopError" },
+            "example": { "error": "top snapshot provider is not configured" }
+          }
+        }
+      },
+      "TopInternalError": {
+        "description": "Top provider failed.",
+        "x-i18n": { "zh": { "description": "Top Provider 失败。" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TopError" },
+            "example": { "error": "top snapshot provider failed" }
+          }
+        }
+      },
+      "TopWarmingUp": {
+        "description": "Collector lacks enough samples.",
+        "x-i18n": { "zh": { "description": "Collector 样本不足。" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TopError" },
+            "example": { "error": "top collector warming up" }
+          }
+        }
+      }
+    }
+  }
+}

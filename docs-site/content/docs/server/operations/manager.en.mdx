@@ -9,7 +9,7 @@ Manager is a dedicated administrative listener with an embedded Web console. It 
 
 Enable `manager.auth_on` in production, replace fixed-user passwords and `manager.jwt_secret`, expose `manager.listen_addr` only to an administrative network, and terminate TLS at the external boundary. Do not share an unprotected entry point with product HTTP APIs, client traffic, or public metrics.
 
-Disabling authentication does not open mutation access. A fresh Web client can enter only the read-only Backups view; it receives no synthetic persisted session, and all writes remain denied.
+With `manager.auth_on=false`, ordinary read and write groups install no permission middleware, so most administrative mutations can still reach their handlers. Only backup writes, restore, and MCP administration keep explicit fail-closed gates; `/mcp` uses a separate Bearer. Do not treat disabled authentication as read-only mode.
 
 ## Main views
 

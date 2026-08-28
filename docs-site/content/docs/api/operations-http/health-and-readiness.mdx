@@ -1,0 +1,24 @@
+---
+title: 健康与就绪
+description: 正确使用 /healthz 和 /readyz。
+full: true
+_openapi:
+  preload:
+    - wukongim-operations-http-beta-zh
+---
+
+| Endpoint | 成功 | 失败与含义 |
+| --- | --- | --- |
+| `GET /healthz` | `200 {"status":"ok"}` | 只证明 HTTP 进程可响应 |
+| `GET /readyz` | 默认 `200 {"ready":true}`，或 Provider 给出的就绪正文 | Provider 未就绪时返回 `503` 及其正文 |
+
+两条路由始终注册且没有内建认证。`/healthz` 适合作为进程重启探针；只有 `/readyz` 可用于负载均衡接流量。就绪仍不证明容量、消息端到端送达、备份可恢复或高风险变更安全。
+
+```bash
+curl --fail http://127.0.0.1:5001/healthz
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+恢复维护期间这些入口仍可读取。保留 `/readyz` 的原始失败正文，不要用 `/healthz` 的 200 恢复业务流量。
+
+<OpenAPIPage document="wukongim-operations-http-beta-zh" operations={[{"path":"/healthz","method":"get"},{"path":"/readyz","method":"get"}]} showDescription />

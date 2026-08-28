@@ -1,0 +1,80 @@
+---
+title: Interface Inventory & Trust Boundaries
+description: Private Manager, node transport, MCP, Cloud View, plugin, webhook, and agent contracts.
+---
+
+This page answers “what other entry surfaces exist in source?” It inventories boundaries; it does not promote internal interfaces into public compatibility promises.
+
+## Manager: 108 private routes
+
+The authoritative registrations are `internal/access/manager/server.go`, `backups.go`, and `restore.go`.
+
+| Group | Count | Permission with `auth_on=true` | With `auth_on=false` |
+| --- | ---: | --- | --- |
+| Operations MCP endpoint | 1 | Dedicated MCP Bearer | Dedicated MCP Bearer |
+| Login | 1 | Fixed-user login | Not registered |
+| Permissions | 1 | `cluster.permission:r` | Unguarded |
+| MCP read / write | 2 / 5 | `cluster.mcp:r` / `cluster.mcp:w` | Fail closed |
+| Node read / write | 8 / 12 | `cluster.node:r` / `cluster.node:w` | Unguarded |
+| Slot read / write | 3 / 3 | `cluster.slot:r` / `cluster.slot:w` | Unguarded |
+| Controller read / write | 6 / 3 | `cluster.controller:r` / `cluster.controller:w` | Unguarded |
+| Diagnostics read / write | 4 / 2 | `cluster.diagnostics:r` / `cluster.diagnostics:w` | Unguarded |
+| Application log read | 3 | `cluster.log:r` | Unguarded |
+| Database inspect | 3 | `cluster.db:r` | Unguarded |
+| Channel read / write | 8 / 12 | `cluster.channel:r` / `cluster.channel:w` | Unguarded |
+| Migration read | 2 | `cluster.channel:r` | Unguarded |
+| Connection read | 2 | `cluster.connection:r` | Unguarded |
+| Webhook config read | 1 | `cluster.webhook:r` | Unguarded |
+| Plugin read / write | 3 / 5 | `cluster.plugin:r` / `cluster.plugin:w` | Unguarded |
+| User read / write | 3 / 4 | `cluster.user:r` / `cluster.user:w` | Unguarded |
+| Backup read / write | 2 / 7 | `cluster.backup:r` / `cluster.backup:w` | Reads unguarded; writes fail closed |
+| Restore write | 2 | Exact `cluster.restore:w` | Fail closed |
+
+Total: `108`. `POST /manager/slots/leader-transfer-plan` is a planning-only route under read permission. The MCP handler behind `ANY /mcp` accepts only POST and rejects non-empty Origin; all other Manager routes use open CORS. `lib/api-surface-contracts.ts` retains the complete method/path set and a source test checks it.
+
+## Node transport: 56 shared IDs
+
+The audience is **cluster-internal**. The shared TCP transport has no per-call Bearer or TLS identity. Only join validates the Join Token; other calls trust cluster routing and an isolated network.
+
+| ID | Catalog names |
+| --- | --- |
+| `1–31` | `slot_forward_propose`, `channel_pull`, `channel_ack`, `channel_pull_hint`, `channel_notify`, `control_state_sync`, `control_report_node`, `control_report_slots`, `channel_append`, `channel_append_batch`, `control_raft`, `control_task_result`, `presence_authority`, `presence_owner`, `delivery_push`, `delivery_fanout`, `channel_pull_batch`, `channel_pull_hint_batch`, `channel_last_visible`, `reserved_conversation`, `channel_authority_send`, `manager_connection`, `manager_logs`, `manager_controller_raft`, `manager_slot_raft`, `manager_channels`, `manager_db_inspect`, `manager_app_logs`, `manager_diagnostics`, `manager_plugins`, `plugin_binding_scan` |
+| `32–33` | `msg_slot_raft`, `msg_slot_raft_batch` |
+| `64–86` | `control_write`, `manager_message_retention`, `node_lifecycle`, `slot_status`, `manager_task_audit`, `channel_migration_meta`, `message_event_append`, `manager_node_config`, `manager_latest_messages`, `scheduled_backup_messages`, `scheduled_backup_slot`, `scheduled_backup_probe`, `scheduled_backup_restore`, `operations_mcp`, `manager_goroutines`, `slot_subscriber_metadata`, `slot_channel_metadata`, `channel_conversation_heads`, `channel_committed_reads`, `slot_user_membership`, `slot_runtime_metadata`, `slot_permission_metadata_batch`, `channel_quorum_exchange` |
+
+ID `16` is retired-reserved and ID `20` reserves a removed feature; neither may be reused. The default Slot proxy uses promoted IDs `79/80/83/84/85`. The generic, non-default Slot Store still declares private IDs `4/47/53`; `4` overlaps shared `channel_pull_hint`, so this is catalog debt, not a stable contract. Keep these protocols in an unstable internal inventory and never generate fake OpenAPI paths for them.
+
+## MCP
+
+| Surface | Exact tools | Boundary |
+| --- | --- | --- |
+| Operations MCP `POST /mcp` | `cluster_health`, `node_inspect`, `slot_inspect`, `channel_runtime_inspect`, `controller_tasks_query`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `config_read_redacted`, `backup_inspect`, `pprof_analyze` | Dedicated `wko_*` Bearer; Manager JWT rejected; non-empty Origin rejected; read-only except bounded `pprof_analyze` |
+| Cloud Analysis MCP `POST /mcp` | `run_inspect`, `cluster_snapshot`, `workload_inspect`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `task_audits_query`, `trace_start`, `trace_query`, `profile_capture`, `profile_top`, `profile_list`, `config_read_redacted` | Non-renewable Analysis Bearer scoped to one live Run; `trace_start` and `profile_capture` are bounded active diagnostics |
+| Review Check stdio MCP | `check_list`, `check_result`, `check_run` | Local credential-free stdio; named checks only, never arbitrary commands, arguments, or paths |
+
+The Cloud Analysis Gateway also exposes unauthenticated `GET /healthz`, unauthenticated `GET /self-check`, and optional GitHub-OIDC `POST /analysis/token`. All are **agent-internal**, not product APIs.
+
+## Cloud View
+
+Cloud View is an unauthenticated Simulation Viewer reverse proxy. `ANY /cloud-view/status` returns no-store state, `/prometheus[/...]` proxies Prometheus, and any WebSocket Upgrade proxies Gateway. Known Product prefixes proxy API; every other path defaults to Manager. It adds per-IP/global limits and WS concurrency bounds, but no identity. `X-WuKongIM-Cloud-View-Gate` affects benchmark-purity marking only; it does not authorize a request.
+
+## Agent and benchmark controls
+
+- `wkissueagent`: `reconcile-github`, `recover-task`, `build-context`, `capture-candidate`, `verify-candidate`, `mint-app-token`, `publish-candidate`.
+- `wkreviewagent`: `normalize-review-result`, `reconcile-github`, `recover-review`, `build-context`, `verify-baseline`, `validate-review-result`, `validate-explanation`, `append-state`, `publish-review`.
+- `wkreviewcheck`: `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`.
+- Generic benchmark worker: 14 `/healthz` and `/v1/*` control routes; all except Health require a Control Token or explicitly enabled insecure control.
+- Chat-lifecycle worker: 12 `/healthz`, `/v1/info`, and `/v1/chat-lifecycle/*` routes; every endpoint, including Health, requires Bearer authentication.
+
+These are strict JSON/stdin or private HTTP process contracts. Maintain them only in agent and benchmark inventories.
+
+## Public integration boundary
+
+| Surface | Audience | Publication decision |
+| --- | --- | --- |
+| Plugin host RPC: 8 Unix-socket routes | Plugin author | Separate Beta Plugin Protocol; protobuf/wkrpc, not OpenAPI |
+| Webhook: `msg.notify`, `msg.offline`, `user.onlinestatus` | Public integration | Publish a callback contract; currently POST JSON, HTTP 200-only success, no signature |
+| Operations HTTP | Operator | Separate operations documentation; never mix with Product HTTP |
+| Manager, Node, Cloud View, Cloud Analysis, Agent, Bench | Private | Document boundary, stability, and risk only; no public compatibility promise |
+
+The exact local plugin paths are `/plugin/start`, `/close`, `/message/send`, `/channel/messages`, `/cluster/config`, `/cluster/channels/belongNode`, `/conversation/channels`, and `/plugin/httpForward`. Caller identity comes from the Unix-socket wkrpc UID. Webhook delivery uses best-effort in-memory retry with no crash replay; receivers must add source authentication and idempotency.

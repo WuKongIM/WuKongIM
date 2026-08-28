@@ -1,0 +1,26 @@
+---
+title: OpenAPI Contracts
+description: Download the complete HTTP contracts or a narrower adoption profile.
+---
+
+Every file uses OpenAPI 3.1. Complete contracts describe the current source surface. Narrow profiles are bounded adoption subsets of the same snapshot, not the complete API.
+
+## Complete contracts
+
+| Contract | Scope | Trust boundary | Download |
+| --- | --- | --- | --- |
+| Product HTTP | 41 current business HTTP operations | No built-in business authentication; trusted backends only | [JSON](/contracts/product-http.openapi.json) |
+| Operations HTTP | `/healthz`, `/readyz`, `/metrics`, `/top/v1/snapshot` | No built-in authentication; operations network only | [JSON](/contracts/operations-http.openapi.json) |
+| Webhooks | `msg.notify`, `msg.offline`, `user.onlinestatus` | Outbound POST JSON; unsigned and best effort | [JSON](/contracts/webhooks.openapi.json) |
+
+The Webhook contract uses the OpenAPI `webhooks` object; it does not fake callbacks as inbound server `paths`. Prometheus `/metrics` remains exposition format rather than an ordinary JSON resource.
+
+## Narrow profiles
+
+| Profile | Operations | Use | Download |
+| --- | ---: | --- | --- |
+| JavaScript Web quickstart | 3 | Controlled Token, Route, and reconnect-sync example | [JSON](/contracts/javascript-web-quickstart.openapi.json) |
+| Message sending | 1 | Ordinary persistent `POST /message/send` | [JSON](/contracts/product-http-messaging.openapi.json) |
+| Channel & Conversation | 16 | Reviewed 10-Channel and 6-Conversation subset | [JSON](/contracts/product-http-management.openapi.json) |
+
+A profile's end-to-end verification status does not extend to complete Product HTTP. Before generating an SDK, pin the contract file, server revision, and outer authentication policy; rerun contract and business acceptance after upgrades.

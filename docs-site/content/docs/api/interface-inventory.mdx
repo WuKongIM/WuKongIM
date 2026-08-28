@@ -1,0 +1,80 @@
+---
+title: 接口清单与信任边界
+description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 Agent 私有合同。
+---
+
+本页回答“源码里还有哪些入口”。它是边界清单，不把内部接口升级为公共兼容承诺。
+
+## Manager：108 条私有路由
+
+权威注册点是 `internal/access/manager/server.go`、`backups.go` 和 `restore.go`。
+
+| 分组 | 数量 | `auth_on=true` 权限 | `auth_on=false` |
+| --- | ---: | --- | --- |
+| Operations MCP endpoint | 1 | 独立 MCP Bearer | 独立 MCP Bearer |
+| Login | 1 | 固定用户登录 | 不注册 |
+| Permissions | 1 | `cluster.permission:r` | 无权限门槛 |
+| MCP read / write | 2 / 5 | `cluster.mcp:r` / `cluster.mcp:w` | 失败关闭 |
+| Node read / write | 8 / 12 | `cluster.node:r` / `cluster.node:w` | 无权限门槛 |
+| Slot read / write | 3 / 3 | `cluster.slot:r` / `cluster.slot:w` | 无权限门槛 |
+| Controller read / write | 6 / 3 | `cluster.controller:r` / `cluster.controller:w` | 无权限门槛 |
+| Diagnostics read / write | 4 / 2 | `cluster.diagnostics:r` / `cluster.diagnostics:w` | 无权限门槛 |
+| Application log read | 3 | `cluster.log:r` | 无权限门槛 |
+| Database inspect | 3 | `cluster.db:r` | 无权限门槛 |
+| Channel read / write | 8 / 12 | `cluster.channel:r` / `cluster.channel:w` | 无权限门槛 |
+| Migration read | 2 | `cluster.channel:r` | 无权限门槛 |
+| Connection read | 2 | `cluster.connection:r` | 无权限门槛 |
+| Webhook config read | 1 | `cluster.webhook:r` | 无权限门槛 |
+| Plugin read / write | 3 / 5 | `cluster.plugin:r` / `cluster.plugin:w` | 无权限门槛 |
+| User read / write | 3 / 4 | `cluster.user:r` / `cluster.user:w` | 无权限门槛 |
+| Backup read / write | 2 / 7 | `cluster.backup:r` / `cluster.backup:w` | 读无门槛；写失败关闭 |
+| Restore write | 2 | 精确 `cluster.restore:w` | 失败关闭 |
+
+合计 `108`。`POST /manager/slots/leader-transfer-plan` 是只生成计划的读权限路由。`ANY /mcp` 的 MCP Handler 实际只接受 POST，拒绝非空 Origin；其余 Manager 路由使用开放 CORS。完整 method/path 集合由 `lib/api-surface-contracts.ts` 保存并由源码测试校验。
+
+## Node transport：56 个共享编号
+
+受众是 **cluster-internal**。共享 TCP transport 没有逐调用 Bearer 或 TLS 身份；只有加入流程检查 Join Token，其余调用信任集群路由和隔离网络。
+
+| ID | 目录名称 |
+| --- | --- |
+| `1–31` | `slot_forward_propose`, `channel_pull`, `channel_ack`, `channel_pull_hint`, `channel_notify`, `control_state_sync`, `control_report_node`, `control_report_slots`, `channel_append`, `channel_append_batch`, `control_raft`, `control_task_result`, `presence_authority`, `presence_owner`, `delivery_push`, `delivery_fanout`, `channel_pull_batch`, `channel_pull_hint_batch`, `channel_last_visible`, `reserved_conversation`, `channel_authority_send`, `manager_connection`, `manager_logs`, `manager_controller_raft`, `manager_slot_raft`, `manager_channels`, `manager_db_inspect`, `manager_app_logs`, `manager_diagnostics`, `manager_plugins`, `plugin_binding_scan` |
+| `32–33` | `msg_slot_raft`, `msg_slot_raft_batch` |
+| `64–86` | `control_write`, `manager_message_retention`, `node_lifecycle`, `slot_status`, `manager_task_audit`, `channel_migration_meta`, `message_event_append`, `manager_node_config`, `manager_latest_messages`, `scheduled_backup_messages`, `scheduled_backup_slot`, `scheduled_backup_probe`, `scheduled_backup_restore`, `operations_mcp`, `manager_goroutines`, `slot_subscriber_metadata`, `slot_channel_metadata`, `channel_conversation_heads`, `channel_committed_reads`, `slot_user_membership`, `slot_runtime_metadata`, `slot_permission_metadata_batch`, `channel_quorum_exchange` |
+
+ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复用。默认 Slot proxy 使用已晋升的 `79/80/83/84/85`；通用但非默认的 Slot Store 仍声明私有 `4/47/53`，其中 `4` 与共享 `channel_pull_hint` 冲突，因此不能视为稳定目录。这些协议只能进入“不稳定内部合同”页，不能生成伪 OpenAPI 路径。
+
+## MCP
+
+| Surface | 精确工具 | 边界 |
+| --- | --- | --- |
+| Operations MCP `POST /mcp` | `cluster_health`, `node_inspect`, `slot_inspect`, `channel_runtime_inspect`, `controller_tasks_query`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `config_read_redacted`, `backup_inspect`, `pprof_analyze` | `wko_*` 专用 Bearer；Manager JWT 无效；拒绝非空 Origin；除有界 `pprof_analyze` 外只读 |
+| Cloud Analysis MCP `POST /mcp` | `run_inspect`, `cluster_snapshot`, `workload_inspect`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `task_audits_query`, `trace_start`, `trace_query`, `profile_capture`, `profile_top`, `profile_list`, `config_read_redacted` | 单个 live Run 的不可续期 Analysis Bearer；`trace_start` 和 `profile_capture` 是有界主动诊断 |
+| Review Check stdio MCP | `check_list`, `check_result`, `check_run` | 本机 stdio、无凭据；只执行命名检查，不接受任意命令、参数或路径 |
+
+Cloud Analysis Gateway 另有无认证 `GET /healthz`、无认证 `GET /self-check`，以及可选的 GitHub OIDC `POST /analysis/token`。它们都属于 **agent-internal**，不是产品 API。
+
+## Cloud View
+
+Cloud View 是 Simulation Viewer 的无认证反向代理：`ANY /cloud-view/status` 返回 no-store 状态，`/prometheus[/...]` 代理 Prometheus，任意 WebSocket Upgrade 代理 Gateway；已知 Product 前缀代理 API，其余路径默认代理 Manager。它只提供按 IP/全局限流和 WS 并发限制，不新增身份认证。`X-WuKongIM-Cloud-View-Gate` 只影响 benchmark-purity 标记，不授权请求。
+
+## Agent 与 benchmark 控制面
+
+- `wkissueagent`：`reconcile-github`, `recover-task`, `build-context`, `capture-candidate`, `verify-candidate`, `mint-app-token`, `publish-candidate`。
+- `wkreviewagent`：`normalize-review-result`, `reconcile-github`, `recover-review`, `build-context`, `verify-baseline`, `validate-review-result`, `validate-explanation`, `append-state`, `publish-review`。
+- `wkreviewcheck`：`go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`。
+- Generic benchmark worker：14 条 `/healthz`、`/v1/*` 控制路由；除 Health 外要求 Control Token，或显式启用 insecure control。
+- Chat-lifecycle worker：12 条 `/healthz`、`/v1/info`、`/v1/chat-lifecycle/*` 路由；包括 Health 在内全部要求 Bearer。
+
+这些是严格 JSON/stdin 或私有 HTTP 进程合同，只应在 Agent/benchmark 内部清单中维护。
+
+## 公共集成边界
+
+| Surface | 受众 | 发布建议 |
+| --- | --- | --- |
+| Plugin host RPC：8 条 Unix-socket 路由 | Plugin author | 单独的 Beta Plugin Protocol；protobuf/wkrpc，不用 OpenAPI |
+| Webhook：`msg.notify`, `msg.offline`, `user.onlinestatus` | Public integration | 发布正式回调合同；当前 POST JSON、仅 200 成功、无签名 |
+| Operations HTTP | Operator | 独立运维文档；不要混入 Product HTTP |
+| Manager、Node、Cloud View、Cloud Analysis、Agent、Bench | Private | 只列边界、稳定性和风险，不承诺公共兼容性 |
+
+Plugin host 的精确本机路径为 `/plugin/start`、`/close`、`/message/send`、`/channel/messages`、`/cluster/config`、`/cluster/channels/belongNode`、`/conversation/channels`、`/plugin/httpForward`。调用者身份来自 Unix-socket wkrpc UID。Webhook 是 best-effort 内存重试，进程崩溃后不重放；接收方必须自行建立来源认证与幂等。

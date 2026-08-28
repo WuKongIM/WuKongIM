@@ -1,0 +1,254 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WuKongIM Outbound Webhooks",
+    "version": "3.0.0-beta-snapshot",
+    "description": "The three outbound callback events emitted by the bounded in-memory Webhook runtime.",
+    "x-i18n": {
+      "zh": {
+        "title": "WuKongIM 出站 Webhook",
+        "description": "有界内存 Webhook Runtime 发出的三个出站回调事件。"
+      }
+    }
+  },
+  "x-wukongim-scope": "outbound-webhooks-beta",
+  "tags": [
+    {
+      "name": "Messages",
+      "description": "Committed messages and offline-recipient candidates.",
+      "x-i18n": { "zh": { "description": "已提交消息与离线接收候选。" } }
+    },
+    {
+      "name": "Presence",
+      "description": "Legacy-compatible user presence strings.",
+      "x-i18n": { "zh": { "description": "兼容格式的用户在线状态字符串。" } }
+    }
+  ],
+  "webhooks": {
+    "msg.notify": {
+      "post": {
+        "operationId": "onMessageNotify",
+        "summary": "Receive committed messages",
+        "description": "Receives one bounded batch of committed durable messages.",
+        "x-i18n": {
+          "zh": {
+            "summary": "接收已提交消息",
+            "description": "接收一批有界的已提交持久消息。"
+          }
+        },
+        "tags": ["Messages"],
+        "security": [],
+        "x-wukongim-delivery": "best-effort-memory-queue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MsgNotifyEvent"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/WebhookMessage" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Accepted" },
+          "default": { "$ref": "#/components/responses/RetryableFailure" }
+        }
+      }
+    },
+    "msg.offline": {
+      "post": {
+        "operationId": "onMessageOffline",
+        "summary": "Receive offline-recipient candidates",
+        "description": "Receives one committed message and one bounded UID chunk, either plain or gzip-compressed.",
+        "x-i18n": {
+          "zh": {
+            "summary": "接收离线接收候选",
+            "description": "接收一条已提交消息与一批有界 UID；UID 为明文数组或 gzip 压缩形式。"
+          }
+        },
+        "tags": ["Messages"],
+        "security": [],
+        "x-wukongim-delivery": "best-effort-memory-queue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MsgOfflineEvent"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/OfflineWebhook" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Accepted" },
+          "default": { "$ref": "#/components/responses/RetryableFailure" }
+        }
+      }
+    },
+    "user.onlinestatus": {
+      "post": {
+        "operationId": "onUserOnlineStatus",
+        "summary": "Receive user presence changes",
+        "description": "Receives a bounded array of legacy presence strings.",
+        "x-i18n": {
+          "zh": {
+            "summary": "接收用户在线状态变化",
+            "description": "接收一批有界的兼容在线状态字符串。"
+          }
+        },
+        "tags": ["Presence"],
+        "security": [],
+        "x-wukongim-delivery": "best-effort-memory-queue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserOnlineStatusEvent"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "uid-deviceFlag-online-sessionID-deviceOnlineCount-totalOnlineCount"
+                }
+              },
+              "example": ["alice-1-1-42-1-2"]
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Accepted" },
+          "default": { "$ref": "#/components/responses/RetryableFailure" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "MsgNotifyEvent": {
+        "name": "event",
+        "in": "query",
+        "required": true,
+        "schema": { "type": "string", "const": "msg.notify" }
+      },
+      "MsgOfflineEvent": {
+        "name": "event",
+        "in": "query",
+        "required": true,
+        "schema": { "type": "string", "const": "msg.offline" }
+      },
+      "UserOnlineStatusEvent": {
+        "name": "event",
+        "in": "query",
+        "required": true,
+        "schema": { "type": "string", "const": "user.onlinestatus" }
+      }
+    },
+    "schemas": {
+      "WebhookMessageHeader": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["no_persist", "red_dot", "sync_once"],
+        "properties": {
+          "no_persist": { "type": "integer", "const": 0 },
+          "red_dot": { "type": "integer", "enum": [0, 1] },
+          "sync_once": { "type": "integer", "enum": [0, 1] }
+        }
+      },
+      "WebhookMessageFields": {
+        "type": "object",
+        "required": ["header", "setting", "expire", "message_id", "message_idstr", "client_msg_no", "message_seq", "from_uid", "channel_id", "channel_type", "timestamp", "payload"],
+        "properties": {
+          "header": { "$ref": "#/components/schemas/WebhookMessageHeader" },
+          "setting": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "topic": { "type": "string" },
+          "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
+          "message_id": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "message_idstr": { "type": "string", "pattern": "^[0-9]+$" },
+          "client_msg_no": { "type": "string" },
+          "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+          "from_uid": { "type": "string" },
+          "channel_id": { "type": "string" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+          "timestamp": { "type": "integer", "format": "int32", "description": "Unix seconds." },
+          "payload": {
+            "oneOf": [
+              { "type": "string", "contentEncoding": "base64" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "WebhookMessage": {
+        "allOf": [
+          { "$ref": "#/components/schemas/WebhookMessageFields" }
+        ],
+        "unevaluatedProperties": false
+      },
+      "OfflineWebhook": {
+        "allOf": [
+          { "$ref": "#/components/schemas/WebhookMessageFields" },
+          {
+            "type": "object",
+            "properties": {
+              "source_id": { "type": "integer", "format": "int64" }
+            },
+            "oneOf": [
+              {
+                "required": ["to_uids"],
+                "properties": {
+                  "to_uids": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              },
+              {
+                "required": ["compress", "compress_to_uids"],
+                "properties": {
+                  "compress": { "type": "string", "const": "gzip" },
+                  "compress_to_uids": {
+                    "type": "string",
+                    "contentEncoding": "base64",
+                    "description": "Base64 of gzip(JSON string array plus trailing newline)."
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "unevaluatedProperties": false
+      }
+    },
+    "responses": {
+      "Accepted": {
+        "description": "Receiver persisted the callback. Only HTTP 200 is success.",
+        "x-i18n": {
+          "zh": {
+            "description": "接收端已持久化回调；只有 HTTP 200 算成功。"
+          }
+        }
+      },
+      "RetryableFailure": {
+        "description": "Any non-200 status is retried within the current in-memory task and dropped after the configured attempt limit.",
+        "x-i18n": {
+          "zh": {
+            "description": "任何非 200 状态会在当前内存任务内重试，达到配置次数后丢弃。"
+          }
+        }
+      }
+    }
+  }
+}

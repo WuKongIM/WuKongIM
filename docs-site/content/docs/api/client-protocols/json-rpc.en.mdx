@@ -1,0 +1,33 @@
+---
+title: WebSocket JSON-RPC
+description: The actual support matrix and limits of the current experimental wsmux JSON-RPC bridge.
+---
+
+<Callout type="warn" title="Experimental and not supported">
+  The current JSON-RPC bridge cannot establish an authenticated product session. It is experimental codec/bridge code, not a WKProto replacement, and application clients must not depend on it.
+</Callout>
+
+## wsmux selection
+
+WebSocket `wsmux` selects JSON-RPC when the first non-whitespace byte is `{` or `[`, and WKProto otherwise. The choice persists for the session. JSON-RPC output uses text messages; WKProto output uses binary messages.
+
+`[` selects JSON mode, but the decoder does **not** implement batch arrays. An omitted `jsonrpc` field defaults to `2.0`. Request IDs must be JSON strings; numeric IDs do not unmarshal into the current Go type. `payload` is a Go `[]byte`: non-empty values use Base64 strings, and `null` also decodes as an empty value.
+
+## Actual inbound matrix
+
+| Kind | Method | Decode / bridge | Product result |
+| --- | --- | --- | --- |
+| request | `connect` | → `CONNECT` | wsmux already marks the session open; the handler rejects it and closes |
+| request | `send` | → `SEND` | the session has no UID, so it returns `SENDACK` / `ReasonAuthFail`; params also lack `clientSeq` |
+| request | `ping` | → `PING` | emits a PONG-shaped response with the request ID; current output omits `result/error` |
+| request | `disconnect` | → `DISCONNECT` | unsupported by the product handler; closes |
+| request | `subscribe` / `unsubscribe` | decoded only | frame bridge missing |
+| notification | `recvack` | → `RECVACK` | ignored because the session has no UID |
+| notification | `recv` / `disconnect` / `event` | decoded only | frame bridge missing |
+| response | any structurally valid response | decoded to a generic response | frame bridge missing |
+
+Only `ping` reaches a correlated response through the current product Gateway. Even then, output without `result/error` is not a strict JSON-RPC 2.0 success response. Frame-to-JSON mappings are not a support guarantee: the codec maps `CONNACK`, `SENDACK`, `RECV`, `EVENT`, `DISCONNECT`, and `PONG`, but no authenticated JSON-RPC delivery session exists.
+
+## What to use
+
+Production clients must use the [WKProto binary protocol](/en/api/client-protocols/tcp-binary). Do not generate a JSON-RPC SDK from older repository README or schema files; they are not the current runtime publication contract.

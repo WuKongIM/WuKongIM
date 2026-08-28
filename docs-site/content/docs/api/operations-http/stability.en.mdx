@@ -1,0 +1,23 @@
+---
+title: Stability & Private Boundaries
+description: Publication scope for Operations, Debug, Bench, and Manager surfaces.
+---
+
+| Surface | Audience | Stability | Public OpenAPI? |
+| --- | --- | --- | --- |
+| `/healthz`, `/readyz` | Operator | Stable | May form a separate Operations HTTP contract |
+| `/metrics` | Operator | Stable Prometheus format | No; it is not a JSON API |
+| `/top/v1/snapshot` | Operator | Unstable | No; document version and boundary only |
+| `/debug/*` | Operator | Unstable, disabled by default | No; internal inventory and exposure risk only |
+| `/bench/v1/*` | Agent / benchmark | Unstable, disabled by default | No; benchmark-private contract only |
+| 108 Manager routes | Operator | Private operations contract | Never merge with Product HTTP |
+| Node transport | Cluster internal | Unstable compatibility IDs | Never fake it as HTTP/OpenAPI |
+| MCP / Agent CLI | Operator / Agent | Closed tool contract | Use tool or CLI tables, not OpenAPI |
+
+<Callout type="error" title="What manager.auth_on=false actually does">
+  With Manager authentication disabled, ordinary read and write groups do not install permission middleware, so most management mutations reach their handlers. Only backup writes, restore, and MCP administration explicitly fail closed; `/mcp` uses its separate MCP Bearer. Authentication-off is not read-only mode.
+</Callout>
+
+Manager reflects the caller Origin on every route except `/mcp` (or uses `*` without an Origin), so keep it on an isolated administration network and terminate TLS outside the process. With authentication enabled, Manager JWT plus each route's `cluster.*:r|w` permission applies. Restore requires exact `cluster.restore:w`; wildcard permission is insufficient.
+
+These pages inventory source; they do not promote private or unstable entries into compatibility promises. Public backend integration stays under [Product HTTP](/en/api/product-http), and realtime clients use [WKProto](/en/api/client-protocols).

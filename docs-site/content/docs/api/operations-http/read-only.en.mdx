@@ -1,0 +1,59 @@
+---
+title: Snapshots & Gated Routes
+description: Exact Top, Debug, and Bench routes, switches, and authentication boundaries.
+full: true
+_openapi:
+  preload:
+    - wukongim-operations-http-beta-en
+---
+
+## Top snapshot
+
+`GET /top/v1/snapshot` returns node-local JSON with `version=top/v1` and `scope=local_node`. It neither depends on Prometheus nor fans out across the cluster.
+
+| Query | Default | Constraint |
+| --- | --- | --- |
+| `window` | `10s` | Go duration, minimum `2s` |
+| `view` | `overview` | `overview`, `runtime`, `traffic`, `channel`, `storage`, `delivery`, or `all` |
+| `limit` | `20` | Positive integer; values above `100` clamp to `100` |
+
+A missing provider returns 404, collector warm-up returns 503, and an invalid query returns 400. There is no built-in authentication, and the contract is unstable.
+
+<OpenAPIPage document="wukongim-operations-http-beta-en" operations={[{"path":"/top/v1/snapshot","method":"get"}]} showDescription />
+
+## Debug: 9 registrations
+
+All require `observability.debug_api_enable=true`. When `bench.api_token` is configured, every `/debug/*` request also needs that exact Bearer; with an empty token there is no built-in authentication.
+
+| Method | Path | Extra condition |
+| --- | --- | --- |
+| `GET` | `/debug/config` | Config provider required |
+| `GET` | `/debug/cluster` | Cluster provider required |
+| `GET` | `/debug/diagnostics/trace/:trace_id` | Diagnostics store required |
+| `GET` | `/debug/diagnostics/message` | Diagnostics store required |
+| `GET` | `/debug/diagnostics/events` | Diagnostics store required |
+| `GET` | `/debug/goroutines` | None |
+| `GET` | `/debug/goroutines/summary` | Returns 404 without a registry provider |
+| `ANY` | `/debug/pprof` | None |
+| `ANY` | `/debug/pprof/*name` | Standard CPU, heap, goroutine, and other pprof subroutes |
+
+## Bench: 12 registrations
+
+All require `bench.api_enable=true`. A non-empty `bench.api_token` protects every route with an exact Bearer; an empty token preserves unauthenticated compatibility. Restore maintenance rejects Bench requests.
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/bench/v1/capabilities` |
+| `GET` | `/bench/v1/capacity-target` |
+| `GET` | `/bench/v1/snapshot` |
+| `GET` | `/bench/v1/presence/snapshot` |
+| `POST` | `/bench/v1/terminal-fence/prepare` |
+| `GET` | `/bench/v1/channel-runtime/snapshot` |
+| `POST` | `/bench/v1/channel-runtime/probe` |
+| `POST` | `/bench/v1/channel-runtime/evict` |
+| `POST` | `/bench/v1/users/tokens` |
+| `POST` | `/bench/v1/channels` |
+| `POST` | `/bench/v1/channels/subscribers` |
+| `POST` | `/bench/v1/channels/subscribers/remove` |
+
+`terminal-fence/prepare` additionally requires a Terminal Fence Controller and a non-empty token. Bench performs data preparation, runtime eviction, and terminal fencing; it is neither read-only nor a public integration contract.

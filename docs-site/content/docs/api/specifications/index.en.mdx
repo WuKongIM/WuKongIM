@@ -1,0 +1,20 @@
+---
+title: Specifications & Downloads
+description: Download current-snapshot OpenAPI and JSON Schema artifacts and read protocol change rules.
+---
+
+This section collects machine-readable contracts. They describe the current repository snapshot; they do not automatically prove compatibility across arbitrary server, SDK, and contract versions.
+
+<Cards>
+  <Card title="OpenAPI contracts" description="Complete Product HTTP, Operations, Webhooks, and three narrow profiles." href="/en/api/specifications/openapi" />
+  <Card title="JSON-RPC Schema" description="Experimental codec shapes; unsupported as a current product client protocol." href="/en/api/specifications/json-rpc-schema" />
+  <Card title="Protocol changelog" description="Current snapshot, WKProto v5→v6, and breaking-change rules." href="/en/api/specifications/protocol-changelog" />
+</Cards>
+
+| Format | Use for | Do not use for |
+| --- | --- | --- |
+| OpenAPI 3.1 | HTTP requests, responses, and webhook callbacks | WKProto, MCP, node transport, or Unix-socket RPC |
+| JSON Schema 2020-12 | Experimental JSON-RPC codec shapes | Product support or compatibility claims |
+| Protocol pages | Binary layout, negotiation, stability, and trust boundaries | HTTP SDK generation |
+
+Backends should start with the complete Product HTTP contract. Choose a narrow profile only for its bounded scenario. Realtime clients must use [WKProto](/en/api/client-protocols/tcp-binary).

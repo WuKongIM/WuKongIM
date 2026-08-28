@@ -11,6 +11,7 @@ import {
   productHTTPOpenAPIContractFiles,
   productHTTPManagementOpenAPIGroups,
   productHTTPMessagingOpenAPIGroups,
+  productHTTPOpenAPIContracts,
   productHTTPOpenAPIReferenceGroups,
   productHTTPOpenAPIReferenceOperations,
   type ProductHTTPOpenAPIOperation,
@@ -356,11 +357,89 @@ export async function checkStaticOutput() {
     }
   }
 
+  const completeProductOpenAPI = JSON.parse(
+    await text('contracts/product-http.openapi.json'),
+  ) as {
+    paths?: Record<
+      string,
+      Record<string, { security?: unknown[]; 'x-wukongim-trust'?: string }>
+    >;
+    'x-wukongim-scope'?: string;
+  };
+  const actualCompleteOperations = Object.entries(
+    completeProductOpenAPI.paths ?? {},
+  ).flatMap(([path, item]) => Object.keys(item).map((method) => `${method} ${path}`));
+  const expectedCompleteOperations = productHTTPOpenAPIReferenceOperations.map(
+    (operation) => `${operation.method} ${operation.path}`,
+  );
+  if (
+    completeProductOpenAPI['x-wukongim-scope'] !==
+      'complete-source-aligned-product-http-runtime' ||
+    actualCompleteOperations.sort().join('\n') !==
+      expectedCompleteOperations.sort().join('\n') ||
+    expectedCompleteOperations.length !== 41
+  ) {
+    throw new Error('complete Product HTTP OpenAPI does not match the 41-operation registry');
+  }
+  for (const operation of productHTTPOpenAPIReferenceOperations) {
+    const contracted = completeProductOpenAPI.paths?.[operation.path]?.[operation.method];
+    if (
+      JSON.stringify(contracted?.security) !== '[]' ||
+      !['trusted-backend-only', 'operator-only', 'node-local-operator-only'].includes(
+        contracted?.['x-wukongim-trust'] ?? '',
+      )
+    ) {
+      throw new Error(
+        `complete Product HTTP operation lost its trust boundary: ${operation.method.toUpperCase()} ${operation.path}`,
+      );
+    }
+  }
+
+  const operationsOpenAPI = JSON.parse(
+    await text('contracts/operations-http.openapi.json'),
+  ) as { paths?: Record<string, { get?: unknown }>; 'x-wukongim-scope'?: string };
+  if (
+    operationsOpenAPI['x-wukongim-scope'] !== 'stable-operations-http-beta' ||
+    Object.keys(operationsOpenAPI.paths ?? {}).sort().join('\n') !==
+      ['/healthz', '/metrics', '/readyz', '/top/v1/snapshot'].join('\n') ||
+    Object.values(operationsOpenAPI.paths ?? {}).some((item) => !item.get)
+  ) {
+    throw new Error('Operations HTTP OpenAPI lost its exact four-entry boundary');
+  }
+
+  const webhooksOpenAPI = JSON.parse(
+    await text('contracts/webhooks.openapi.json'),
+  ) as {
+    paths?: Record<string, unknown>;
+    webhooks?: Record<string, { post?: unknown }>;
+    'x-wukongim-scope'?: string;
+  };
+  if (
+    webhooksOpenAPI['x-wukongim-scope'] !== 'outbound-webhooks-beta' ||
+    Object.keys(webhooksOpenAPI.paths ?? {}).length !== 0 ||
+    Object.keys(webhooksOpenAPI.webhooks ?? {}).sort().join('\n') !==
+      ['msg.notify', 'msg.offline', 'user.onlinestatus'].join('\n') ||
+    Object.values(webhooksOpenAPI.webhooks ?? {}).some((item) => !item.post)
+  ) {
+    throw new Error('Webhook OpenAPI must use exactly three top-level webhooks');
+  }
+
+  const jsonRPCSchema = JSON.parse(
+    await text('contracts/json-rpc.experimental.schema.json'),
+  ) as { '$schema'?: string; 'x-wukongim-stability'?: string; oneOf?: unknown[] };
+  if (
+    jsonRPCSchema.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
+    jsonRPCSchema['x-wukongim-stability'] !== 'experimental-not-supported' ||
+    jsonRPCSchema.oneOf?.length !== 14
+  ) {
+    throw new Error('JSON-RPC codec Schema lost its experimental unsupported boundary');
+  }
+
   const operationFacts: Record<string, string[]> = {
     setQuickstartUserToken: ['device_flag'],
     getQuickstartGatewayRoute: ['wss_addr'],
-    syncQuickstartChannelMessages: ['pull_mode', '1–100'],
-    addChannelSubscribers: ['NonBlankUID'],
+    syncQuickstartChannelMessages: ['pull_mode', 'LegacyMessage', 'message_idstr', '10000'],
+    addChannelSubscribers: ['subscribers', 'minItems: 1'],
     setTemporaryChannelSubscribers: ['uids'],
     listConversations: [
       'completed_coverage',
@@ -371,7 +450,7 @@ export async function checkStaticOutput() {
       'tombstones_retained_since',
     ],
     sendChannelMessage: [
-      'SendChannelMessageRequest',
+      'SendMessageRequest',
       'client_msg_no',
       'payload',
       'reason',
@@ -380,11 +459,8 @@ export async function checkStaticOutput() {
   function contractFacts(operation: ProductHTTPOpenAPIOperation) {
     return [
       ...(operationFacts[operation.slug] ?? []),
-      ...(operation.contract === 'management'
-        ? ['CompatibilityError', 'MaintenanceError', 'restore maintenance is active']
-        : operation.contract === 'messaging'
-          ? ['RetryRequiredError', 'MaintenanceError', 'restore maintenance is active']
-          : []),
+      'MaintenanceError',
+      'restore maintenance is active',
     ];
   }
   for (const locale of locales) {
@@ -427,7 +503,17 @@ export async function checkStaticOutput() {
       }
       const requestBodyLabel = locale === 'zh' ? '请求主体' : 'Request Body';
       const responseBodyLabel = locale === 'zh' ? '响应主体' : 'Response Body';
-      if (operation.path !== '/route' && !html.includes(requestBodyLabel)) {
+      const contractPaths = productHTTPOpenAPIContracts[
+        operation.contract
+      ].document.paths as Record<
+        string,
+        Record<string, { requestBody?: unknown }>
+      >;
+      const contractPathItem = contractPaths[operation.path] as
+        | Record<string, { requestBody?: unknown }>
+        | undefined;
+      const contractOperation = contractPathItem?.[operation.method];
+      if (contractOperation?.requestBody && !html.includes(requestBodyLabel)) {
         throw new Error(`${route} is missing its request schema`);
       }
       if (!html.includes(responseBodyLabel)) {
@@ -573,6 +659,14 @@ export async function checkStaticOutput() {
         'terminal-fence',
         'fail closed',
       ],
+      'tcp-binary': [
+        'remaining_length',
+        'WebSocket v13',
+        '1 MiB',
+        'PING/PONG',
+      ],
+      'json-rpc': ['JSON-RPC', 'ping', 'connect', 'subscribe'],
+      encryption: ['X25519', 'CBC', 'MD5', 'TLS'],
     } as const;
     for (const [page, facts] of Object.entries(clientProtocolFacts)) {
       const markdown = await text(
@@ -596,6 +690,34 @@ export async function checkStaticOutput() {
     for (const fact of ['JSON-RPC', 'DISCONNECT', 'EVENT']) {
       if (!protocolIndexMarkdown.includes(fact) || !protocolIndexHtml.includes(fact)) {
         throw new Error(`${locale} client-protocol index is missing boundary: ${fact}`);
+      }
+    }
+
+    const alignedSurfaceFacts = {
+      'operations-http/health-and-readiness': ['/healthz', '/readyz', '503'],
+      'operations-http/metrics': ['/metrics', 'Prometheus'],
+      'operations-http/read-only': ['/top/v1/snapshot', '/debug/', '/bench/v1/'],
+      'operations-http/stability': ['auth_on=false', 'Manager', 'Node transport'],
+      'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
+      'webhooks/payloads': ['message_idstr', 'compress_to_uids', 'msg.notify'],
+      'webhooks/reliability-and-security': ['HTTP `200`', 'Authorization'],
+      'specifications/openapi': [
+        '/contracts/product-http.openapi.json',
+        '/contracts/operations-http.openapi.json',
+        '/contracts/webhooks.openapi.json',
+      ],
+      'specifications/json-rpc-schema': [
+        '/contracts/json-rpc.experimental.schema.json',
+        'Experimental',
+      ],
+      'interface-inventory': ['108', '56', 'cluster_health', '/plugin/start'],
+    } as const;
+    for (const [page, facts] of Object.entries(alignedSurfaceFacts)) {
+      const markdown = await text(`llms.mdx/${locale}/api/${page}/content.md`);
+      for (const fact of facts) {
+        if (!markdown.includes(fact)) {
+          throw new Error(`${locale} ${page} Markdown is missing aligned fact: ${fact}`);
+        }
       }
     }
 
@@ -633,9 +755,8 @@ export async function checkStaticOutput() {
   const llmsIndex = await text('llms.txt');
   const llmsFull = await text('llms-full.txt');
   for (const fact of [
-    'server-generated-development-secret',
     'const: `200`',
-    'Referenced schema — `SyncedMessage`',
+    'Referenced schema — `LegacyMessage`',
     '`message_idstr`',
     '`/tmpchannel/subscriber_set`',
     '`completed_coverage`',
@@ -645,12 +766,20 @@ export async function checkStaticOutput() {
     '`CompatibilityError`',
     '`MaintenanceError`',
     'restore maintenance is active',
-    '`SendChannelMessageRequest`',
+    '`SendMessageRequest`',
     '`client_msg_no`',
     '`RetryRequiredError`',
     '| 0 | `UNKNOWN` |',
     '| 12 | `EVENT` |',
     '`ReasonClientKeyIsEmpty`',
+    '`/user/systemuids_add_to_cache`',
+    '`/channel/whitelist`',
+    '`/conversation/sync`',
+    'WebSocket v13',
+    'AES-128-CBC',
+    'msg.notify',
+    '/contracts/operations-http.openapi.json',
+    '/contracts/webhooks.openapi.json',
   ]) {
     if (!llmsFull.includes(fact)) {
       throw new Error(`llms-full.txt is missing OpenAPI fact: ${fact}`);
@@ -745,6 +874,9 @@ export async function checkStaticOutput() {
         'ReasonClientKeyIsEmpty',
       ],
       'packet-types': ['UNKNOWN', 'EVENT', 'message_seq', 'terminal-fence', 'fail closed'],
+      'tcp-binary': ['remaining_length', 'WebSocket v13', '1 MiB', 'PING/PONG'],
+      'json-rpc': ['JSON-RPC', 'ping', 'connect', 'subscribe'],
+      encryption: ['X25519', 'CBC', 'MD5', 'TLS'],
     })) {
       const pageId = `/${locale}/api/client-protocols/${page}`;
       for (const fact of facts) {
@@ -770,6 +902,27 @@ export async function checkStaticOutput() {
         throw new Error(
           `${locale} search index is missing protocol boundary for ${clientProtocolIndexId}: ${fact}`,
         );
+      }
+    }
+    for (const [page, facts] of Object.entries({
+      'operations-http/health-and-readiness': ['/healthz', '/readyz'],
+      'operations-http/read-only': ['/top/v1/snapshot', '/bench/v1/'],
+      'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
+      'webhooks/payloads': ['message_idstr', 'compress_to_uids'],
+      'specifications/openapi': ['OpenAPI 3.1', '41', 'webhooks'],
+      'interface-inventory': ['108', '56', '/plugin/start'],
+    })) {
+      const pageId = `/${locale}/api/${page}`;
+      for (const fact of facts) {
+        if (
+          !indexedDocuments.some(
+            (document) => document.page_id === pageId && document.content?.includes(fact),
+          )
+        ) {
+          throw new Error(
+            `${locale} search index is missing aligned fact for ${pageId}: ${fact}`,
+          );
+        }
       }
     }
   }

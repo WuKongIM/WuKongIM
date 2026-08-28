@@ -71,6 +71,7 @@ describe('documentation navigation contract', () => {
       'conventions',
       'authentication',
       'compatibility',
+      'interface-inventory',
     ]);
   });
 
@@ -134,7 +135,7 @@ describe('documentation navigation contract', () => {
     ]);
   });
 
-  test('publishes the Phase 12 JavaScript golden path and only its supporting API slice', () => {
+  test('keeps the Phase 12 JavaScript golden path published as a narrow profile', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const phase12Routes = [
       '/en/sdk/compatibility',
@@ -158,7 +159,7 @@ describe('documentation navigation contract', () => {
       'planned',
     );
     expect(getNavigationEntry('en', 'api', ['specifications', 'openapi'])?.status).toBe(
-      'planned',
+      'published',
     );
   });
 
@@ -241,7 +242,7 @@ describe('documentation navigation contract', () => {
     }
   });
 
-  test('publishes the Phase 16 trusted Product HTTP management pages only', () => {
+  test('keeps the Phase 16 trusted Product HTTP management pages published', () => {
     expect(getNavigationEntry('en', 'api', ['product-http', 'channels'])?.status).toBe(
       'published',
     );
@@ -249,15 +250,15 @@ describe('documentation navigation contract', () => {
       getNavigationEntry('en', 'api', ['product-http', 'conversations'])?.status,
     ).toBe('published');
     expect(getNavigationEntry('en', 'api', ['specifications', 'openapi'])?.status).toBe(
-      'planned',
+      'published',
     );
     expect(
       getNavigationEntry('en', 'api', ['operations-http', 'health-and-readiness'])
         ?.status,
-    ).toBe('planned');
+    ).toBe('published');
   });
 
-  test('publishes the Phase 17 message-send and client-protocol baseline only', () => {
+  test('publishes the complete Phase 18 API and protocol reference', () => {
     expect(
       getNavigationEntry('en', 'api', [
         'product-http',
@@ -275,14 +276,27 @@ describe('documentation navigation contract', () => {
     }
     for (const page of ['tcp-binary', 'json-rpc', 'encryption']) {
       expect(getNavigationEntry('en', 'api', ['client-protocols', page])?.status).toBe(
-        'planned',
+        'published',
       );
     }
     for (const page of ['openapi', 'json-rpc-schema', 'protocol-changelog']) {
       expect(getNavigationEntry('en', 'api', ['specifications', page])?.status).toBe(
-        'planned',
+        'published',
       );
     }
+    for (const page of ['health-and-readiness', 'metrics', 'read-only', 'stability']) {
+      expect(getNavigationEntry('en', 'api', ['operations-http', page])?.status).toBe(
+        'published',
+      );
+    }
+    for (const page of ['events', 'payloads', 'reliability-and-security']) {
+      expect(getNavigationEntry('en', 'api', ['webhooks', page])?.status).toBe(
+        'published',
+      );
+    }
+    expect(getNavigationEntry('en', 'api', ['interface-inventory'])?.status).toBe(
+      'published',
+    );
   });
 
   test('gives every bilingual menu item a unique canonical route', () => {
@@ -390,6 +404,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,
         `/${locale}/api/compatibility`,
+        `/${locale}/api/interface-inventory`,
         `/${locale}/api/product-http`,
         ...productHTTPOpenAPIReferenceGroups.flatMap((group) => [
           `/${locale}/api/product-http/${group.slug}`,
@@ -399,14 +414,30 @@ describe('documentation navigation contract', () => {
           ),
         ]),
         `/${locale}/api/product-http/errors`,
+        `/${locale}/api/operations-http`,
+        `/${locale}/api/operations-http/health-and-readiness`,
+        `/${locale}/api/operations-http/metrics`,
+        `/${locale}/api/operations-http/read-only`,
+        `/${locale}/api/operations-http/stability`,
+        `/${locale}/api/webhooks`,
+        `/${locale}/api/webhooks/events`,
+        `/${locale}/api/webhooks/payloads`,
+        `/${locale}/api/webhooks/reliability-and-security`,
         `/${locale}/api/client-protocols`,
         `/${locale}/api/client-protocols/connection-lifecycle`,
         `/${locale}/api/client-protocols/packet-types`,
+        `/${locale}/api/client-protocols/tcp-binary`,
+        `/${locale}/api/client-protocols/json-rpc`,
+        `/${locale}/api/client-protocols/encryption`,
         `/${locale}/api/dictionaries`,
         `/${locale}/api/dictionaries/channel-types`,
         `/${locale}/api/dictionaries/device-flags`,
         `/${locale}/api/dictionaries/message-flags`,
         `/${locale}/api/dictionaries/reason-codes`,
+        `/${locale}/api/specifications`,
+        `/${locale}/api/specifications/openapi`,
+        `/${locale}/api/specifications/json-rpc-schema`,
+        `/${locale}/api/specifications/protocol-changelog`,
       ]);
       expect(indexed.every((entry) => entry.status === 'published')).toBe(true);
     }
@@ -566,9 +597,12 @@ describe('documentation navigation contract', () => {
       true,
     );
     expect(isPublishedContentPath('api/client-protocols/packet-types.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('api/client-protocols/tcp-binary.mdx')).toBe(false);
-    expect(isPublishedContentPath('api/client-protocols/json-rpc.en.mdx')).toBe(false);
-    expect(isPublishedContentPath('api/client-protocols/encryption.mdx')).toBe(false);
+    expect(isPublishedContentPath('api/client-protocols/tcp-binary.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/client-protocols/json-rpc.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/client-protocols/encryption.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/operations-http/metrics.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/webhooks/payloads.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('api/specifications/openapi.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/index.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(true);

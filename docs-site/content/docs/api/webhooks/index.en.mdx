@@ -1,0 +1,52 @@
+---
+title: Webhooks
+description: Configure the three asynchronous callbacks WuKongIM sends to a product endpoint.
+---
+
+Webhooks POST committed messages, offline-candidate recipients, and presence changes to one product endpoint. This is a server-outbound protocol, not a client inbox and not an inbound Product HTTP `path`.
+
+[Download the OpenAPI 3.1 Webhook contract](/contracts/webhooks.openapi.json)
+
+## Request
+
+```text
+POST {http_addr}?event={event_name}
+Content-Type: application/json
+```
+
+Existing query parameters are preserved and `event` is set or replaced. The event name exists only in the query. There is **no common body envelope**; each event has its own top-level JSON shape.
+
+| Event | Top-level JSON |
+| --- | --- |
+| `msg.notify` | array of committed messages |
+| `msg.offline` | flattened message object with offline UIDs |
+| `user.onlinestatus` | array of compatibility status strings |
+
+## Configuration
+
+A non-empty `http_addr` enables webhooks. `focus_events=[]` delivers all three events.
+
+```toml
+[webhook]
+http_addr = "https://events.example.com/wukongim"
+focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
+queue_size = 1024
+workers = 16
+msg_notify_batch_max_items = 100
+msg_notify_batch_max_wait = "500ms"
+online_status_batch_max_items = 512
+online_status_batch_max_wait = "2s"
+offline_uid_batch_size = 512
+request_timeout = "5s"
+retry_max_attempts = 3
+```
+
+<Cards>
+  <Card title="Event Types" description="The three events and their trigger boundaries." href="/en/api/webhooks/events" />
+  <Card title="Payloads" description="Message fields, offline UID compression, and status strings." href="/en/api/webhooks/payloads" />
+  <Card title="Reliability & Security" description="Bounded retries, idempotency, loss boundaries, and network trust." href="/en/api/webhooks/reliability-and-security" />
+</Cards>
+
+<Callout type="warn" title="Bounded and best effort">
+  The current runtime uses node-memory queues with no disk outbox or crash replay. Receivers should durably enqueue and deduplicate before returning HTTP 200 promptly.
+</Callout>

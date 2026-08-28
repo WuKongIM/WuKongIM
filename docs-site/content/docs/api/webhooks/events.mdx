@@ -1,0 +1,35 @@
+---
+title: Webhook 事件类型
+description: 三个受支持事件的触发条件、批次与用途。
+---
+
+当前运行时只产生以下三个事件。`focus_events` 只用于筛选这些精确名称；空数组表示全部启用。
+
+| 事件 | 触发边界 | 请求体 / 默认批次 |
+| --- | --- | --- |
+| `msg.notify` | 普通消息完成多数派持久提交后 | 消息数组；最多 100 条，最多等待 500ms |
+| `msg.offline` | 合格的持久消息存在无在线路由的接收者时 | 单个扁平对象；UID 每批最多 512 个 |
+| `user.onlinestatus` | UID Owner 本地活跃会话上线，或最后一个本地会话下线时 | 状态字符串数组；最多 512 条，最多等待 2s |
+
+## `msg.notify`
+
+用于审计、索引或异步业务通知。它位于持久提交之后；Webhook 失败不会撤销消息，也不会把已成功的 SENDACK 改为失败。
+
+## `msg.offline`
+
+只有同时满足以下条件的提交才进入离线候选计算：
+
+- `message_seq > 0`；
+- `sync_once` 为 false；
+- 消息没有 `message_scoped_uids` 精确目标列表；
+- 接收者属于持久投递集合，且当前没有在线路由。
+
+这是**推送候选**，不是未读消息真相，也不能代替客户端重连同步。一个接收者后来上线或另一节点状态变化时，回调仍可能已经发出。
+
+## `user.onlinestatus`
+
+事件记录 Owner 上观察到的会话过渡。它是兼容字符串，不保证每个中间状态都到达，也不是全局有序的 Presence 日志。字段格式见[请求结构](/zh/api/webhooks/payloads)。
+
+<Callout type="info" title="没有其他事件">
+  Plugin 的 Send/Receive/PersistAfter Hook、集群 RPC 和 benchmark `EVENT` 帧都不是 HTTP Webhook 事件。
+</Callout>

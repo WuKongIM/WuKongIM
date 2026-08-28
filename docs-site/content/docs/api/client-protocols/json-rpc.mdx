@@ -1,0 +1,33 @@
+---
+title: WebSocket JSON-RPC
+description: 说明当前 wsmux JSON-RPC 实验桥接的真实支持矩阵与限制。
+---
+
+<Callout type="warn" title="实验性，产品不支持">
+  当前 JSON-RPC 桥没有可认证的产品会话。它是实验性 codec/桥接代码，不能替代 WKProto，也不应被应用客户端依赖。
+</Callout>
+
+## wsmux 选择规则
+
+WebSocket `wsmux` 在首个非空白字节为 `{` 或 `[` 时选择 JSON-RPC，否则选择 WKProto；选择结果在会话内保持。JSON-RPC 出站使用文本消息，WKProto 使用二进制消息。
+
+`[` 只会触发 JSON 模式，当前解码器**不支持 batch 数组**。`jsonrpc` 省略时按 `2.0` 处理；请求 ID 必须是 JSON 字符串，数字 ID 无法解码到当前 Go 类型。`payload` 是 Go `[]byte`，非空值表示为 Base64 字符串，空值也可解码为 `null`。
+
+## 实际入站矩阵
+
+| 类型 | 方法 | 解码 / 桥接 | 产品结果 |
+| --- | --- | --- | --- |
+| request | `connect` | → `CONNECT` | 会话已被 wsmux 标为打开，处理器拒绝并关闭 |
+| request | `send` | → `SEND` | 会话没有 UID，返回 `SENDACK` / `ReasonAuthFail`；参数也没有 `clientSeq` |
+| request | `ping` | → `PING` | 返回关联请求 ID 的 PONG 形状；当前输出省略 `result/error` |
+| request | `disconnect` | → `DISCONNECT` | 产品处理器不支持并关闭 |
+| request | `subscribe` / `unsubscribe` | 仅解码 | 缺少 frame bridge |
+| notification | `recvack` | → `RECVACK` | 没有 UID，当前被忽略 |
+| notification | `recv` / `disconnect` / `event` | 仅解码 | 缺少 frame bridge |
+| response | 任意合法 response | 仅解码为 generic response | 缺少 frame bridge |
+
+只有 `ping` 能在当前产品 Gateway 中到达关联响应；即使如此，省略 `result/error` 的输出也不是严格的 JSON-RPC 2.0 成功响应。存在 frame→JSON 映射并不表示功能可用：codec 可映射 `CONNACK`、`SENDACK`、`RECV`、`EVENT`、`DISCONNECT` 和 `PONG`，但没有可认证的 JSON-RPC 投递会话。
+
+## 应用选择
+
+生产客户端使用 [WKProto 二进制协议](/zh/api/client-protocols/tcp-binary)。不要根据仓库中的旧 README 或 schema 生成 JSON-RPC SDK；它们不是当前运行时的发布合同。

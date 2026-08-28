@@ -1,0 +1,24 @@
+---
+title: Health & Readiness
+description: Use /healthz and /readyz correctly.
+full: true
+_openapi:
+  preload:
+    - wukongim-operations-http-beta-en
+---
+
+| Endpoint | Success | Failure and meaning |
+| --- | --- | --- |
+| `GET /healthz` | `200 {"status":"ok"}` | Proves only that the HTTP process responds |
+| `GET /readyz` | Default `200 {"ready":true}`, or the provider's readiness body | Returns `503` with the provider body when not ready |
+
+Both routes are always registered and have no built-in authentication. Use `/healthz` for process restart probes and `/readyz` for load-balancer admission. Readiness still does not prove spare capacity, end-to-end delivery, backup recoverability, or the safety of a high-risk change.
+
+```bash
+curl --fail http://127.0.0.1:5001/healthz
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+Both remain observable during restore maintenance. Retain the raw `/readyz` failure body; never restore product traffic because `/healthz` returned 200.
+
+<OpenAPIPage document="wukongim-operations-http-beta-en" operations={[{"path":"/healthz","method":"get"},{"path":"/readyz","method":"get"}]} showDescription />

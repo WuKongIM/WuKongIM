@@ -1,0 +1,36 @@
+---
+title: Protocol Changelog
+description: Current contract snapshot, the WKProto v5→v6 change, and breaking-change rules.
+---
+
+## Current snapshot
+
+| Surface | Current contract |
+| --- | --- |
+| Product HTTP | Complete 41-operation OpenAPI plus narrow 3 / 1 / 16-operation profiles |
+| Operations HTTP | 4-operation OpenAPI |
+| Webhooks | 3 OpenAPI Webhooks |
+| WKProto | Latest protocol version `6` |
+| WebSocket JSON-RPC | `experimental-not-supported` |
+| Manager, Debug, Bench, MCP, node transport | Private or unstable inventory, not a public compatibility promise |
+
+This is a current source snapshot, not proof of compatibility with arbitrary historical releases. Revalidate whenever the server, SDK, or contract artifact changes.
+
+## WKProto v5 → v6
+
+Version 6 widens the wire representation of `SENDACK.message_seq` and `RECV.message_seq` from 32 to 64 bits. Version 5 and earlier retain 32-bit encoding. The wire width of `client_seq` remains 32 bits. Decode field order and width from the negotiated protocol version, never from the apparent integer size.
+
+Clients must negotiate through `CONNECT` / `CONNACK` and use that codec version for the whole session. A replay, proxy, or store that persists binary frames across versions must retain the protocol version with them.
+
+## Breaking-change rules
+
+Breaking changes include removing or renaming a method/path, changing status or established semantics, adding a required field, narrowing accepted input, changing a field type/order/bit width, reusing an enum or reserved ID, changing authentication/trust boundaries, or changing Webhook payload, success, or delivery semantics.
+
+Every breaking change must:
+
+1. introduce a new contract or protocol version rather than overwrite old semantics;
+2. update schemas, bilingual docs, source-drift tests, and migration guidance;
+3. state server and SDK support windows, rollback boundaries, and verification evidence;
+4. preserve retired or reserved Frame, Reason Code, and node RPC IDs without reuse.
+
+A new optional field or operation is additive only when old consumers can safely ignore it and the trust boundary is unchanged. Experimental and internal surfaces may evolve, but must stay explicitly labeled and must not silently become public dependencies.

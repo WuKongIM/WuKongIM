@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createProductHTTPOpenAPIContract } from '../lib/openapi';
 import { getOpenAPISearchStructuredData } from '../lib/openapi-markdown';
 import {
-  productHTTPOpenAPIContractNames,
+  productHTTPOpenAPIReferenceContractNames,
   productHTTPOpenAPIReferenceGroups,
   type ProductHTTPOpenAPIContract,
   type ProductHTTPOpenAPILocale,
@@ -144,7 +144,7 @@ async function generatedContractFiles(
 const files = (
   await Promise.all(
     (['zh', 'en'] as const).flatMap((locale) =>
-      productHTTPOpenAPIContractNames.map((contract) =>
+      productHTTPOpenAPIReferenceContractNames.map((contract) =>
         generatedContractFiles(contract, locale),
       ),
     ),

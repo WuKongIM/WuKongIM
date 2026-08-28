@@ -1,0 +1,23 @@
+---
+title: Prometheus Metrics
+description: Registration, format, and security boundaries for /metrics.
+full: true
+_openapi:
+  preload:
+    - wukongim-operations-http-beta-en
+---
+
+`ANY /metrics` is registered only when the app wires a Prometheus handler; otherwise the route is absent and returns 404. Its response is Prometheus exposition, not JSON, and it is outside the Product HTTP contract. Scrapers should use `GET`.
+
+```yaml
+scrape_configs:
+  - job_name: wukongim
+    static_configs:
+      - targets: ['127.0.0.1:5001']
+```
+
+The endpoint has no built-in authentication and remains readable during restore maintenance. Expose it only on a monitoring network; add TLS and authentication at the outer boundary when crossing an untrusted network. Base alerts on the same release and representative load, including latency percentiles, queues, rejection, drops, and node skew.
+
+Metrics show trends and alerts; they do not alone prove readiness or safe topology mutation. Use [`/readyz`](/en/api/operations-http/health-and-readiness) for traffic admission.
+
+<OpenAPIPage document="wukongim-operations-http-beta-en" operations={[{"path":"/metrics","method":"get"}]} showDescription />

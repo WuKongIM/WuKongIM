@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.githubim.com/contracts/json-rpc.experimental.schema.json",
+  "title": "WuKongIM WebSocket JSON-RPC codec schema (experimental)",
+  "description": "Codec-level JSON shapes. The current Product Gateway does not support JSON-RPC as a client integration protocol; only ping/pong is exercised successfully.",
+  "x-wukongim-stability": "experimental-not-supported",
+  "oneOf": [
+    { "$ref": "#/$defs/ConnectRequest" },
+    { "$ref": "#/$defs/SendRequest" },
+    { "$ref": "#/$defs/PingRequest" },
+    { "$ref": "#/$defs/DisconnectRequest" },
+    { "$ref": "#/$defs/SubscribeRequest" },
+    { "$ref": "#/$defs/UnsubscribeRequest" },
+    { "$ref": "#/$defs/RecvAckNotification" },
+    { "$ref": "#/$defs/RecvNotification" },
+    { "$ref": "#/$defs/EventNotification" },
+    { "$ref": "#/$defs/DisconnectNotification" },
+    { "$ref": "#/$defs/ConnectResponse" },
+    { "$ref": "#/$defs/SendResponse" },
+    { "$ref": "#/$defs/PongResponse" },
+    { "$ref": "#/$defs/ErrorResponse" }
+  ],
+  "$defs": {
+    "JSONRPCVersion": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "RequestBase": {
+      "type": "object",
+      "required": ["method", "id"],
+      "properties": {
+        "jsonrpc": { "$ref": "#/$defs/JSONRPCVersion" },
+        "method": { "type": "string" },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "NotificationBase": {
+      "type": "object",
+      "required": ["method"],
+      "properties": {
+        "jsonrpc": { "$ref": "#/$defs/JSONRPCVersion" },
+        "method": { "type": "string" }
+      },
+      "not": { "required": ["id"] }
+    },
+    "ResponseBase": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "jsonrpc": { "$ref": "#/$defs/JSONRPCVersion" },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Header": {
+      "type": "object",
+      "properties": {
+        "noPersist": { "type": "boolean" },
+        "redDot": { "type": "boolean" },
+        "syncOnce": { "type": "boolean" },
+        "dup": { "type": "boolean" },
+        "end": { "type": "boolean" }
+      }
+    },
+    "Setting": {
+      "type": "object",
+      "properties": {
+        "receipt": { "type": "boolean" },
+        "signal": { "type": "boolean" },
+        "stream": { "type": "boolean" },
+        "topic": { "type": "boolean" }
+      }
+    },
+    "ErrorObject": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "integer" },
+        "message": { "type": "string" },
+        "data": true
+      }
+    },
+    "ConnectParams": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "version": { "type": "integer", "description": "0 defaults to protocol v6 before bridging." },
+        "clientKey": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "deviceFlag": { "type": "integer" },
+        "clientTimestamp": { "type": "integer", "format": "int64" },
+        "uid": { "type": "string" },
+        "token": { "type": "string" }
+      }
+    },
+    "ConnectRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/RequestBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "connect" },
+            "params": { "$ref": "#/$defs/ConnectParams" }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "rejected-after-the-session-is-preopened"
+    },
+    "SendParams": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "setting": { "$ref": "#/$defs/Setting" },
+        "msgKey": { "type": "string" },
+        "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
+        "clientMsgNo": { "type": "string" },
+        "streamNo": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelType": { "type": "integer" },
+        "topic": { "type": "string" },
+        "payload": { "type": ["string", "null"], "contentEncoding": "base64" }
+      }
+    },
+    "SendRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/RequestBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "send" },
+            "params": { "$ref": "#/$defs/SendParams" }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "unauthenticated-and-missing-client-sequence-correlation"
+    },
+    "PingRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/RequestBase" },
+        {
+          "type": "object",
+          "properties": {
+            "method": { "const": "ping" },
+            "params": { "type": ["object", "null"], "maxProperties": 0 }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "works"
+    },
+    "DisconnectParams": {
+      "type": "object",
+      "properties": {
+        "reasonCode": { "type": "integer" },
+        "reason": { "type": "string" }
+      }
+    },
+    "DisconnectRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/RequestBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "disconnect" },
+            "params": { "$ref": "#/$defs/DisconnectParams" }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "decoded-but-product-handler-rejects-disconnect"
+    },
+    "SubscribeParams": {
+      "type": "object",
+      "properties": {
+        "subNo": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelType": { "type": "integer" },
+        "param": { "type": "string" }
+      }
+    },
+    "SubscribeRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/RequestBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "subscribe" },
+            "params": { "$ref": "#/$defs/SubscribeParams" }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "decoder-only-bridge-missing"
+    },
+    "UnsubscribeParams": {
+      "type": "object",
+      "properties": {
+        "subNo": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelType": { "type": "integer" }
+      }
+    },
+    "UnsubscribeRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/RequestBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "unsubscribe" },
+            "params": { "$ref": "#/$defs/UnsubscribeParams" }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "decoder-only-bridge-missing"
+    },
+    "RecvAckParams": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "messageId": { "type": "string" },
+        "messageSeq": { "type": "integer", "format": "uint64", "minimum": 0 }
+      }
+    },
+    "RecvAckNotification": {
+      "allOf": [
+        { "$ref": "#/$defs/NotificationBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "recvack" },
+            "params": { "$ref": "#/$defs/RecvAckParams" }
+          }
+        }
+      ],
+      "x-wukongim-product-status": "decoded-but-ignored-without-an-authenticated-session"
+    },
+    "ConnectResult": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "serverVersion": { "type": "integer" },
+        "serverKey": { "type": "string" },
+        "salt": { "type": "string" },
+        "timeDiff": { "type": "integer", "format": "int64" },
+        "reasonCode": { "type": "integer" },
+        "nodeId": { "type": "integer", "format": "uint64", "minimum": 0 }
+      }
+    },
+    "ConnectResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/ResponseBase" },
+        {
+          "type": "object",
+          "required": ["result"],
+          "properties": { "result": { "$ref": "#/$defs/ConnectResult" } }
+        }
+      ]
+    },
+    "SendResult": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "messageId": { "type": "string" },
+        "messageSeq": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "reasonCode": { "type": "integer" }
+      }
+    },
+    "SendResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/ResponseBase" },
+        {
+          "type": "object",
+          "required": ["result"],
+          "properties": { "result": { "$ref": "#/$defs/SendResult" } }
+        }
+      ]
+    },
+    "PongResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/ResponseBase" },
+        {
+          "type": "object",
+          "properties": { "result": { "type": ["null", "object"] } }
+        }
+      ],
+      "x-wukongim-product-status": "works"
+    },
+    "RecvParams": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "setting": { "$ref": "#/$defs/Setting" },
+        "msgKey": { "type": "string" },
+        "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
+        "messageId": { "type": "string" },
+        "messageSeq": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "clientMsgNo": { "type": "string" },
+        "streamNo": { "type": "string" },
+        "streamId": { "type": "string" },
+        "streamFlag": { "type": "integer" },
+        "timestamp": { "type": "integer", "format": "int32" },
+        "channelId": { "type": "string" },
+        "channelType": { "type": "integer" },
+        "topic": { "type": "string" },
+        "fromUid": { "type": "string" },
+        "payload": { "type": ["string", "null"], "contentEncoding": "base64" }
+      }
+    },
+    "RecvNotification": {
+      "allOf": [
+        { "$ref": "#/$defs/NotificationBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "recv" },
+            "params": { "$ref": "#/$defs/RecvParams" }
+          }
+        }
+      ]
+    },
+    "EventParams": {
+      "type": "object",
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "integer", "format": "int64" },
+        "data": { "type": "string" }
+      }
+    },
+    "EventNotification": {
+      "allOf": [
+        { "$ref": "#/$defs/NotificationBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "event" },
+            "params": { "$ref": "#/$defs/EventParams" }
+          }
+        }
+      ]
+    },
+    "DisconnectNotification": {
+      "allOf": [
+        { "$ref": "#/$defs/NotificationBase" },
+        {
+          "type": "object",
+          "required": ["params"],
+          "properties": {
+            "method": { "const": "disconnect" },
+            "params": { "$ref": "#/$defs/DisconnectParams" }
+          }
+        }
+      ]
+    },
+    "ErrorResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/ResponseBase" },
+        {
+          "type": "object",
+          "required": ["error"],
+          "properties": { "error": { "$ref": "#/$defs/ErrorObject" } }
+        }
+      ]
+    }
+  }
+}

@@ -12,6 +12,9 @@ description: 查阅当前 Gateway 连接生命周期与 WKProto 数据包边界�
 <Cards>
   <Card title="连接生命周期" description="CONNECT 首包、CONNACK、活跃会话、空闲关闭与恢复。" href="/zh/api/client-protocols/connection-lifecycle" />
   <Card title="数据包类型" description="FrameType 0–12、方向和当前发布范围。" href="/zh/api/client-protocols/packet-types" />
+  <Card title="TCP 二进制协议" description="固定头、Remaining Length、字段顺序与版本边界。" href="/zh/api/client-protocols/tcp-binary" />
+  <Card title="加密与安全" description="X25519、AES-CBC、msg_key 与安全限制。" href="/zh/api/client-protocols/encryption" />
+  <Card title="实验性 JSON-RPC" description="Codec 矩阵与当前 Product Gateway 缺口。" href="/zh/api/client-protocols/json-rpc" />
 </Cards>
 
 ## 当前边界
@@ -19,6 +22,6 @@ description: 查阅当前 Gateway 连接生命周期与 WKProto 数据包边界�
 - 公共核心只包含 CONNECT/CONNACK、SEND/SENDACK、RECV/RECVACK 和 PING/PONG。
 - `DISCONNECT`、`SUB`、`SUBACK` 目前只是 codec 合同，不代表产品 Gateway 已发布对应入口。
 - 当前产品 Gateway 仅为 benchmark terminal-fence 请求与确认保留 `EVENT`；它不是应用事件 API。
-- WebSocket JSON-RPC、精确二进制布局和加密细节仍在校准，不能从本页推断方法或安全保证。
+- WebSocket 可承载 WKProto bytes；JSON-RPC bridge 虽有 codec，当前不能作为受支持的产品接入方式。
 
 数值含义见 [公共数据字典](/zh/api/dictionaries)，生产信任边界见[认证与安全](/zh/api/authentication)。

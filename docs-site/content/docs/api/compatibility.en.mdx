@@ -1,6 +1,6 @@
 ---
 title: API Versions & Compatibility
-description: View the current Product HTTP contracts and verification scope.
+description: Separate complete source contracts, narrow profiles, and end-to-end verification scope.
 ---
 
 API pages describe contracts for the current build. An unchanged URL does not make different server, SDK, or contract versions automatically compatible.
@@ -17,12 +17,12 @@ The snapshot's verification status covers only this basic integration flow:
 | `GET /route` | Discover WebSocket ingress |
 | `POST /channel/messagesync` | Recover committed messages after reconnect |
 
-Channel/Conversation management and message sending have separate OpenAPI contracts and contract checks, but are outside the end-to-end status above. The client-protocol pages are source-aligned and do not extend that status.
+The complete [Product HTTP OpenAPI](/contracts/product-http.openapi.json) covers all 41 current registrations; Operations and Webhooks have separate contracts. Three narrow profiles remain available for controlled adoption, but the end-to-end status above covers only the three basic-integration operations. Source alignment, Schema checks, and protocol pages do not expand that runtime evidence.
 
 ## Version rules
 
 - Revalidate the application flow after changing the server, SDK, or contract.
 - Treat an unverified combination as unknown, not compatible by default.
-- Use only fields and operations listed on the current pages and in the OpenAPI contracts.
+- Use the complete contract for the current source surface and a narrow profile for a specific adoption scope.
 
-Compatibility does not make an API safe for public exposure. Keep Product HTTP behind a trusted network or authenticated proxy. See [Product HTTP API](/en/api/product-http) for the published scope.
+Compatibility does not make an API safe for public exposure. Keep Product HTTP behind a trusted network or authenticated proxy; see the [Interface Inventory](/en/api/interface-inventory) for private and experimental boundaries.

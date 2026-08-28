@@ -1,0 +1,60 @@
+---
+title: TCP Binary Protocol
+description: Exact WKProto fixed header, length encoding, version conditions, and packet wire order.
+---
+
+WKProto runs over a TCP byte stream. WKProto over WebSocket carries the same bytes. The table below is the current encoder's **exact body order**, not an HTTP OpenAPI surface.
+
+## Frame boundary
+
+```text
+ordinary frame = fixed_header:u8 + remaining_length:varuint + body
+PING/PONG = fixed_header:u8
+```
+
+- Bits 7..4 of `fixed_header` contain `FrameType`.
+- Except for `CONNACK`, bits 3..0 are `DUP`, `SyncOnce`, `RedDot`, and `NoPersist`.
+- The `CONNACK` encoder uses only bit 0 for `HasServerVersion`.
+- `remaining_length` is the body length encoded base-128, least-significant 7-bit group first; `0x80` means another byte follows.
+- Multibyte scalars are big-endian. `str16be` is an `i16be` byte length followed by raw bytes, with a 32767-byte maximum. `bytes-rest` consumes the rest of the body.
+- The decoder rejects `remaining_length > 1 MiB`; the SEND encoder rejects a Payload over 32767 bytes.
+
+## WebSocket carrier
+
+- Upgrade requires WebSocket v13, `GET`, and the listener's exact configured path; an empty path means `/`.
+- Client frames must be masked and server frames are unmasked. Fragmented Text/Binary messages are reassembled under the default 1 MiB session inbound limit.
+- WKProto uses Binary messages. WebSocket control `PING/PONG` is answered by the carrier and neither replaces nor reaches the WKProto `PING/PONG` heartbeat.
+
+## Body layouts
+
+`v` is the negotiated version, `S` is Setting, and `H0` is fixed-header bit 0.
+
+| Value | Packet / direction | Body fields, left to right |
+| ---: | --- | --- |
+| 0 | `UNKNOWN` / reserved | none; never send |
+| 1 | `CONNECT` C→S | `version:u8`, `device_flag:u8`, `device_id:str16be`, `uid:str16be`, `token:str16be`, `client_timestamp:i64be(ms)`, `client_key:str16be` |
+| 2 | `CONNACK` S→C | `[server_version:u8 if H0]`, `time_diff:i64be(ms)`, `reason_code:u8`, `server_key:str16be`, `salt:str16be`, `[node_id:u64be if v>=4]` |
+| 3 | `SEND` C→S | `setting:u8`, `client_seq:u32be`, `client_msg_no:str16be`, `[stream_no:str16be if 2<=v<5 and S.Stream]`, `channel_id:str16be`, `channel_type:u8`, `[expire:u32be if v>=3]`, `msg_key:str16be`, `[topic:str16be if S.Topic]`, `payload:bytes-rest` |
+| 4 | `SENDACK` S→C | `message_id:i64be`, `client_seq:u32be`, `message_seq:seq(v)`, `reason_code:u8`, `[client_msg_no:str16be if non-empty]` |
+| 5 | `RECV` S→C | `setting:u8`, `msg_key:str16be`, `from_uid:str16be`, `channel_id:str16be`, `channel_type:u8`, `[expire:u32be if v>=3]`, `client_msg_no:str16be`, `[stream_flag:u8, stream_no:str16be, stream_id:u64be if 2<=v<5 and S.Stream]`, `message_id:i64be`, `message_seq:seq(v)`, `timestamp:i32be(s)`, `[topic:str16be if S.Topic]`, `payload:bytes-rest` |
+| 6 | `RECVACK` C→S | `message_id:i64be`, `message_seq:seq(v)` |
+| 7 | `PING` C→S | no body and no `remaining_length` |
+| 8 | `PONG` S→C | no body and no `remaining_length` |
+| 9 | `DISCONNECT` bidirectional / codec-only | `reason_code:u8`, `reason:str16be` |
+| 10 | `SUB` C→S / codec-only | `setting:u8`, `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `param:str16be` |
+| 11 | `SUBACK` S→C / codec-only | `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `reason_code:u8` |
+| 12 | `EVENT` bidirectional / tooling-only | `id:str16be`, `type:str16be`, `timestamp:i64be`, `data:bytes-rest` |
+
+`seq(v)` is `u32be` through v5 and `u64be` in v6. The current SENDACK decoder also accepts the compatibility order `message_id, client_seq, client_msg_no, message_seq, reason_code`; new encoders use the primary order above.
+
+## Version and Setting
+
+- The current server version is v6. CONNECT `version=0` or a value above 6 selects v6; values 1–6 remain unchanged.
+- When the requested version is above 3, CONNACK sets `H0` and includes `server_version`.
+- Setting bits are `Receipt=0x80`, `Signal=0x20`, `NoEncrypt=0x10`, `Topic=0x08`, and `Stream=0x02`.
+
+<Callout type="warn" title="A codec enum is not a product entry point">
+  The public product Gateway accepts only `PING`, `SEND`, and `RECVACK` after open; `CONNECT` must be the sole first packet and is handled during connection setup. Ordinary `DISCONNECT`, `SUB`, and `SUBACK` input is unsupported. `EVENT` is reserved for the benchmark terminal-fence tooling flow.
+</Callout>
+
+See [Connection Lifecycle](/en/api/client-protocols/connection-lifecycle) for session state and heartbeat, and [Shared Dictionaries](/en/api/dictionaries) for numeric meanings.

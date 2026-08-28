@@ -1,0 +1,23 @@
+---
+title: Prometheus 指标
+description: /metrics 的注册条件、格式和安全边界。
+full: true
+_openapi:
+  preload:
+    - wukongim-operations-http-beta-zh
+---
+
+`ANY /metrics` 仅在应用装配 Prometheus Handler 时注册；未装配时路由不存在并返回 404。响应是 Prometheus exposition，不是 JSON，也不属于 Product HTTP 合同。采集器应使用 `GET`。
+
+```yaml
+scrape_configs:
+  - job_name: wukongim
+    static_configs:
+      - targets: ['127.0.0.1:5001']
+```
+
+入口没有内建认证，恢复维护期间仍可读取。仅在监控网络暴露；跨不可信网络时由外层提供 TLS 和认证。告警应基于同一版本和代表性负载建立基线，并同时观察延迟分位数、队列、拒绝、丢弃和节点偏斜。
+
+指标用于趋势和告警，不单独证明节点就绪或拓扑变更安全。接流量仍看 [`/readyz`](/zh/api/operations-http/health-and-readiness)。
+
+<OpenAPIPage document="wukongim-operations-http-beta-zh" operations={[{"path":"/metrics","method":"get"}]} showDescription />

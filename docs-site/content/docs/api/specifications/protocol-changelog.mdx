@@ -1,0 +1,36 @@
+---
+title: 协议变更记录
+description: 当前合同快照、WKProto v5→v6 变化和破坏性变更规则。
+---
+
+## 当前快照
+
+| Surface | 当前合同 |
+| --- | --- |
+| Product HTTP | 41 条完整 OpenAPI；另有 3 / 1 / 16 条操作的窄 Profile |
+| Operations HTTP | 4 条 OpenAPI |
+| Webhooks | 3 个 OpenAPI Webhook |
+| WKProto | 最新协议版本 `6` |
+| WebSocket JSON-RPC | `experimental-not-supported` |
+| Manager、Debug、Bench、MCP、Node transport | 私有或不稳定清单，不是公共兼容承诺 |
+
+这是当前源码快照，不是任意历史发布版本的兼容证明。升级服务端、SDK 或合同文件后都应重新验证。
+
+## WKProto v5 → v6
+
+v6 把 `SENDACK.message_seq` 和 `RECV.message_seq` 的 Wire 宽度从 32 位扩展为 64 位；v5 及以下仍按 32 位编码。`client_seq` 的 Wire 宽度保持 32 位。字段顺序和宽度由协商后的协议版本决定，不能仅按整数大小猜测。
+
+客户端必须通过 `CONNECT` / `CONNACK` 协商版本，使用该版本的 codec 读写整个会话。跨版本回放、代理或持久化二进制帧时，应同时保存协议版本。
+
+## 破坏性变更规则
+
+以下变化视为破坏性：删除或重命名 method/path、改变状态码或既有语义、增加必填字段、收窄合法输入、改变字段类型/顺序/位宽、复用枚举或保留编号、改变认证/信任边界、Webhook Payload/成功规则/投递语义变化。
+
+每个破坏性变更必须：
+
+1. 提供新的合同或协议版本，不覆盖旧语义；
+2. 更新 Schema、双语文档、源码漂移测试和迁移说明；
+3. 标明服务端与 SDK 的支持窗口、回滚边界和验证证据；
+4. 保留已退役或保留的 Frame、Reason Code、Node RPC 编号，不复用。
+
+新增可选字段或新操作只有在旧消费者可安全忽略且信任边界不变时才可视为兼容。Experimental 和内部接口可以变化，但必须继续显式标注，不能悄然成为公共依赖。

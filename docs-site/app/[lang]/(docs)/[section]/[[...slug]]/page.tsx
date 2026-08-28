@@ -21,6 +21,10 @@ import {
   productHTTPOpenAPIContractFiles,
   productHTTPOpenAPIReferenceGroups,
 } from '@/lib/product-http-openapi';
+import {
+  serviceOpenAPIContractForSlugs,
+  serviceOpenAPIContracts,
+} from '@/lib/service-openapi';
 import { getPublishedFooterItems } from '@/lib/navigation-tree';
 import {
   DocsBody,
@@ -97,9 +101,17 @@ export default async function DocumentationPage({
     domain.key === 'api' && slugs[0] === 'product-http'
       ? productHTTPOpenAPIReferenceGroups.find((group) => group.slug === slugs[1])
       : undefined;
-  const githubContentPath = openAPIGroup || page.data._openapi
-    ? productHTTPOpenAPIContractFiles[openAPIGroup?.contract ?? 'golden-path'].source
-    : `docs-site/content/docs/${page.path}`;
+  const serviceOpenAPIContract = serviceOpenAPIContractForSlugs([
+    domain.key,
+    ...slugs,
+  ]);
+  const githubContentPath = openAPIGroup
+    ? productHTTPOpenAPIContractFiles[openAPIGroup.contract].source
+    : serviceOpenAPIContract
+      ? serviceOpenAPIContracts[serviceOpenAPIContract].source
+      : page.data._openapi
+        ? productHTTPOpenAPIContractFiles['golden-path'].source
+        : `docs-site/content/docs/${page.path}`;
   const githubSourceUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/${githubContentPath}`;
   const githubEditUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/edit/${gitConfig.branch}/${githubContentPath}`;
   const feedbackUrl = getDocumentationFeedbackUrl({

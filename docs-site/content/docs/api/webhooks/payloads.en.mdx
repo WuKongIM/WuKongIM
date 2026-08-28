@@ -1,0 +1,74 @@
+---
+title: Webhook Payloads
+description: Message fields, the two offline UID representations, and the presence-string format.
+full: true
+_openapi:
+  preload:
+    - wukongim-webhooks-beta-en
+---
+
+The event name travels in `?event=...`; request bodies have no common envelope.
+
+## Message object
+
+The `msg.notify` body is an array of these objects. `msg.offline` flattens the same object into its top level.
+
+| Field | JSON type | Meaning |
+| --- | --- | --- |
+| `header.no_persist` | number | always `0` for these committed messages |
+| `header.red_dot` | number | `0` or `1` |
+| `header.sync_once` | number | `0` or `1` |
+| `setting` | number | WKProto Setting bit mask |
+| `topic` | string, optional | omitted when empty |
+| `expire` | number (u32) | expiry value |
+| `message_id` | number (u64) | global message ID; JavaScript can lose precision |
+| `message_idstr` | string | decimal `message_id`; prefer this across languages |
+| `client_msg_no` | string | client idempotency identifier |
+| `message_seq` | number (u64) | sequence within the Channel |
+| `from_uid` | string | sender UID |
+| `channel_id` | string | Channel ID |
+| `channel_type` | number (u8) | Channel Type |
+| `timestamp` | number (i32) | Unix seconds |
+| `payload` | string \| null | non-empty Go `[]byte` uses standard Base64; an empty Payload encodes as `null` |
+
+```json
+[
+  {
+    "header": {"no_persist": 0, "red_dot": 1, "sync_once": 0},
+    "setting": 0,
+    "expire": 0,
+    "message_id": 123456789,
+    "message_idstr": "123456789",
+    "client_msg_no": "order-0001",
+    "message_seq": 42,
+    "from_uid": "system",
+    "channel_id": "u1001",
+    "channel_type": 1,
+    "timestamp": 1785398400,
+    "payload": "eyJ0eXBlIjoib3JkZXJfdXBkYXRlIn0="
+  }
+]
+```
+
+## `msg.offline`
+
+In addition to the message fields, the top level has one of these **mutually exclusive** recipient representations:
+
+| Condition | Fields |
+| --- | --- |
+| UID count below the compression threshold | `to_uids: string[]` |
+| UID count at or above the threshold | `compress: "gzip"` and `compress_to_uids: string` |
+
+`compress_to_uids` is a JSON string array, gzip-compressed, then standard-Base64 encoded. The default `offline_uid_batch_size=512` is both the UID chunk limit and compression threshold. Numeric `source_id` is included when the sending node ID is nonzero.
+
+## `user.onlinestatus`
+
+The body is an array of strings in this format:
+
+```text
+{uid}-{device_flag}-{online:0|1}-{session_id}-{device_online_count}-{total_online_count}
+```
+
+Counts come from the UID owner's local active-session projection. A UID can contain hyphens. Treat the whole record as opaque for compatibility, or parse the final five numeric fields from the right; do not use a fixed naïve `-` split.
+
+<OpenAPIPage document="wukongim-webhooks-beta-en" webhooks={[{"name":"msg.notify","method":"post"},{"name":"msg.offline","method":"post"},{"name":"user.onlinestatus","method":"post"}]} showDescription />

@@ -6,6 +6,7 @@ import {
   type ProductHTTPOpenAPIContract,
   type ProductHTTPOpenAPILocale,
 } from './product-http-openapi';
+import { serviceOpenAPISchemas } from './service-openapi';
 
 export { localizeOpenAPIDocument } from './product-http-openapi';
 
@@ -25,6 +26,14 @@ function localizedDocumentIds<const DocumentId extends string>(documentId: Docum
 
 export const productHTTPOpenAPIDocumentIds = localizedDocumentIds(
   productHTTPOpenAPIDocumentId,
+);
+
+/** Stable schema ID embedded into the complete Product HTTP reference. */
+export const productHTTPCompleteOpenAPIDocumentId =
+  productHTTPOpenAPIContracts.complete.documentId;
+
+export const productHTTPCompleteOpenAPIDocumentIds = localizedDocumentIds(
+  productHTTPCompleteOpenAPIDocumentId,
 );
 
 /** Stable schema ID embedded into the generated trusted-management pages. */
@@ -99,5 +108,8 @@ const productHTTPOpenAPISchemas = Object.fromEntries(
 
 /** Server-only loader for every published Product HTTP OpenAPI page. */
 export const openapi = createOpenAPI({
-  input: productHTTPOpenAPISchemas,
+  input: {
+    ...productHTTPOpenAPISchemas,
+    ...serviceOpenAPISchemas,
+  } as OpenAPISchemaRecord,
 });

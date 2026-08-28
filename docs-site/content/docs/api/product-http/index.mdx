@@ -1,11 +1,11 @@
 ---
-title: Product HTTP API（Beta）
-description: 查阅用户、路由、消息、Channel 与 Conversation 接口。
+title: Product HTTP API
+description: 查阅当前源码注册的全部 41 条业务 HTTP 操作。
 ---
 
-Product HTTP 提供基础接入与受信管理接口。当前文档只覆盖下方列出的操作。
+Product HTTP 提供基础接入与受信管理接口。完整 OpenAPI 与当前 `internal/access/api` 注册的 41 条操作一一对应。
 
-OpenAPI：[基础接入](/contracts/javascript-web-quickstart.openapi.json) · [消息发送](/contracts/product-http-messaging.openapi.json) · [Channel 与 Conversation](/contracts/product-http-management.openapi.json)
+OpenAPI：[完整合同](/contracts/product-http.openapi.json) · 窄 Profile：[基础接入](/contracts/javascript-web-quickstart.openapi.json) · [消息发送](/contracts/product-http-messaging.openapi.json) · [Channel 与 Conversation](/contracts/product-http-management.openapi.json)
 
 <Callout type="error" title="仅供受信后端调用">
   Product HTTP 没有通用业务鉴权。请限制网络可达性，并在 API Gateway、服务网格或业务后端完成认证、授权、限流和审计。
@@ -27,4 +27,4 @@ OpenAPI：[基础接入](/contracts/javascript-web-quickstart.openapi.json) · [
 
 <GoldenPathContract locale="zh" />
 
-客户端实时收发通过 SDK 和 Gateway 完成。未出现在这三份 OpenAPI 合同中的 Product HTTP 接口不属于公开范围。
+上方快照只证明三条黄金路径操作的示例范围，不代表完整合同已做端到端验收。客户端实时收发仍通过 SDK 和 Gateway 完成。

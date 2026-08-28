@@ -1,26 +1,28 @@
 ---
 title: API 与协议
-description: 查阅 Product HTTP API、客户端协议核心与公共数据字典。
+description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接口边界。
 ---
 
-这里汇总应用接入所需的 Product HTTP API、客户端协议核心与公共字典。
-
-<Callout type="warn" title="当前范围有限">
-  文档只承诺页面与 OpenAPI 合同中列出的接口；未列出的 HTTP、Webhook、运维和协议能力仍未公开。
-</Callout>
+这里按受众和协议类型拆分当前源码中的全部接口。公开合同可直接下载；私有、条件启用和实验性入口只记录边界，不升级为兼容承诺。
 
 ## 快速入口
 
 <Cards>
   <Card title="通用约定" description="Base URL、JSON、标识、游标和重试规则。" href="/zh/api/conventions" />
   <Card title="认证与安全" description="Product HTTP 与 Gateway 的信任边界。" href="/zh/api/authentication" />
-  <Card title="Product HTTP API" description="用户、路由、消息、Channel 与 Conversation 接口。" href="/zh/api/product-http" />
-  <Card title="客户端协议" description="连接生命周期与 WKProto 数据包范围。" href="/zh/api/client-protocols" />
+  <Card title="Product HTTP API" description="当前源码注册的 41 条业务 HTTP 操作。" href="/zh/api/product-http" />
+  <Card title="运维 HTTP API" description="健康、就绪、指标、Top、Debug 与 Bench 边界。" href="/zh/api/operations-http" />
+  <Card title="Webhook" description="三个出站事件、负载和可靠性语义。" href="/zh/api/webhooks" />
+  <Card title="客户端协议" description="WKProto 帧、连接、加密与实验性 JSON-RPC。" href="/zh/api/client-protocols" />
   <Card title="公共数据字典" description="Channel、设备、消息标志与 Reason Code。" href="/zh/api/dictionaries" />
+  <Card title="接口清单" description="Manager、Node transport、MCP、插件与 Agent 私有合同。" href="/zh/api/interface-inventory" />
+  <Card title="规范下载" description="OpenAPI 3.1 与实验性 JSON-RPC Schema。" href="/zh/api/specifications" />
 </Cards>
 
 ## 使用边界
 
 - Product HTTP 仅供受信后端调用，不应直接暴露给浏览器或移动端。
+- Operations HTTP 与 Manager 仅应位于隔离的运维网络；两者不是同一合同。
+- JSON-RPC 只有 codec 合同，当前 Product Gateway 不支持把它作为客户端接入方式。
 - HTTP 状态、端点响应与 CONNACK/SENDACK Reason Code 属于不同层，需分别处理。
 - 版本和验证范围见 [API 兼容性](/zh/api/compatibility)，错误处理见 [错误响应](/zh/api/product-http/errors)。

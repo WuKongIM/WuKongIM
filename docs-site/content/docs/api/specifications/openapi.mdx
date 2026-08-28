@@ -1,0 +1,26 @@
+---
+title: OpenAPI 合同
+description: 下载完整 HTTP 合同或一个边界更窄的接入 Profile。
+---
+
+所有文件使用 OpenAPI 3.1。完整合同描述当前源码 Surface；窄 Profile 只是同一快照的受限采用子集，不代表完整 API。
+
+## 完整合同
+
+| 合同 | 范围 | 信任边界 | 下载 |
+| --- | --- | --- | --- |
+| Product HTTP | 41 条当前业务 HTTP 操作 | 无内建业务认证；仅可信后端 | [JSON](/contracts/product-http.openapi.json) |
+| Operations HTTP | `/healthz`、`/readyz`、`/metrics`、`/top/v1/snapshot` | 无内建认证；仅运维网络 | [JSON](/contracts/operations-http.openapi.json) |
+| Webhooks | `msg.notify`、`msg.offline`、`user.onlinestatus` | 出站 POST JSON；无签名、best effort | [JSON](/contracts/webhooks.openapi.json) |
+
+Webhook 合同使用 OpenAPI `webhooks` 对象，不把回调伪装成服务端入站 `paths`。Prometheus `/metrics` 仍是 exposition format，不是普通 JSON 资源。
+
+## 窄 Profile
+
+| Profile | 操作数 | 用途 | 下载 |
+| --- | ---: | --- | --- |
+| JavaScript Web quickstart | 3 | Token、Route、断线消息同步的受控示例 | [JSON](/contracts/javascript-web-quickstart.openapi.json) |
+| Message sending | 1 | 普通持久化 `POST /message/send` | [JSON](/contracts/product-http-messaging.openapi.json) |
+| Channel & Conversation | 16 | 已复核的 10 条 Channel 与 6 条 Conversation 操作 | [JSON](/contracts/product-http-management.openapi.json) |
+
+Profile 的端到端验证状态不能外推到完整 Product HTTP。生成 SDK 前先固定合同文件、服务端修订和外层认证策略；升级时重新执行合同与业务验收。

@@ -3,7 +3,7 @@ title: Synchronize a Conversation page
 full: true
 _openapi:
   preload:
-    - wukongim-product-http-management-beta-en
+    - wukongim-product-http-complete-beta-en
   method: POST
   webhook: false
   toc: []
@@ -12,62 +12,103 @@ _openapi:
       - content: Synchronize a Conversation page
         id: synchronize-a-conversation-page
     contents:
-      - content: Returns one bounded Conversation page. Reuse next_cursor unchanged
-          until done=true; an empty page is not completion.
+      - content: Returns one bounded membership page; only done=true completes the pass.
         heading: synchronize-a-conversation-page
-      - content: |-
+      - content: >-
           POST /conversation/list
+
           listConversations
+
           Synchronize a Conversation page
-          Returns one bounded Conversation page. Reuse next_cursor unchanged until done=true; an empty page is not completion.
+
+          Returns one bounded membership page; only done=true completes the
+          pass.
+
           ConversationListRequest
-          additionalProperties false
-          uid `UID` minLength: 1 Non-empty product user identity.
-          cursor `string` default: `""` Opaque base64url next_cursor returned by the previous page. Do not construct or edit it.
-          limit `integer` 0–200; default: `50` Membership candidates scanned per page. Omitted or 0 selects 50.
-          completed_coverage `integer:int64` 0–∞; default: `0` Coverage saved from a previous pass only after that pass returned done=true.
-          UID
-          Non-empty product user identity.
-          200 Bounded Conversation synchronization result
+
+          additionalProperties true
+
+          uid `string` minLength: 1
+
+          cursor `string` default: `""`
+
+          limit `integer` 0–200; default: `50`
+
+          completed_coverage `integer:int64` 0–∞; default: `0`
+
+          200 Canonical Conversation page
+
           ConversationListResponse
-          conversations array<`ConversationListItem`> — Visible hydrated Conversations from this membership page.
-          deletes array<`ConversationKey`> — Keys the client must remove from its local Conversation projection.
-          unresolved array<`ConversationKey`> — Keys whose Channel head was temporarily unavailable; retry them with /conversation/retry.
-          next_cursor `string` — Opaque cursor for the next page. It can be present on an empty page.
-          done `boolean` — True only when this full membership traversal is complete.
-          coverage `integer:int64` 0–∞ Nanosecond coverage token for the current pass. Persist it only after done=true.
-          tombstones_retained_since `integer:int64` 0–∞ Oldest deletion coverage still guaranteed; 0 means tombstones have not been expired.
-          reset_required `boolean` — True when completed_coverage predates retained tombstones and the local projection must be rebuilt.
+
+          additionalProperties false
+
+          conversations array<`ConversationListItem`> —
+
+          deletes array<`ConversationKey`> —
+
+          unresolved array<`ConversationKey`> —
+
+          next_cursor `string` —
+
+          done `boolean` —
+
+          coverage `integer:int64` 0–∞
+
+          tombstones_retained_since `integer:int64` 0–∞
+
+          reset_required `boolean` —
+
           ConversationListItem
-          channel_id `string` — Visible Channel ID; a person Conversation is projected to the peer UID.
+
+          channel_id `string` —
+
           channel_type `integer` 1–255
-          active_at `integer:int64` 0–∞ Nanosecond timestamp of the last explicit activation; 0 means not explicitly activated.
-          read_seq `integer` 0–∞ Monotonic badge floor. It is not a message pull cursor or a read receipt.
-          deleted_to_seq `integer` 0–∞ Messages through this committed sequence are hidden for this user.
-          unread `integer` 0–∞ Unread count after applying join, retention, deletion, own-send, and read floors.
-          last_message `ConversationLastMessage` | `null` — Latest visible committed message, or null when no visible message exists.
+
+          active_at `integer:int64` —
+
+          read_seq `integer:uint64` 0–∞
+
+          deleted_to_seq `integer:uint64` 0–∞
+
+          unread `integer:uint64` 0–∞
+
+          last_message `ConversationLastMessage` | `null` —
+
           ConversationLastMessage
-          message_id `integer:uint64` 0–∞ Numeric server message ID. JavaScript consumers should prefer message_idstr.
-          message_idstr `string` — Precision-safe decimal server message ID.
-          message_seq `integer` 0–∞ Committed sequence within the Channel.
-          from_uid `string` — Sender UID.
-          client_msg_no `string` — Client-generated message identifier.
-          server_timestamp_ms `integer:int64` 0–∞ Server timestamp in Unix milliseconds.
-          payload `string | null` encoding: base64 Go JSON representation of payload bytes; nil bytes encode as null.
+
+          message_id `integer:uint64` 0–∞
+
+          message_idstr `string` —
+
+          message_seq `integer:uint64` 0–∞
+
+          from_uid `string` —
+
+          client_msg_no `string` —
+
+          server_timestamp_ms `integer:int64` —
+
+          payload `string | null` encoding: base64
+
           ConversationKey
-          channel_id `string` minLength: 1 Visible Channel ID; a person Conversation uses the peer UID.
-          channel_type `integer` 1–255 Channel Type.
-          {"conversations":[{"channel_id":"team-42","channel_type":2,"active_at":1720000000000000000,"read_seq":8,"deleted_to_seq":0,"unread":2,"last_message":{"message_id":1234567890,"message_idstr":"1234567890","message_seq":10,"from_uid":"bob","client_msg_no":"client-10","server_timestamp_ms":1720000000000,"payload":"eyJ0eXBlIjoxLCJjb250ZW50IjoiaGkifQ=="}}],"deletes":[],"unresolved":[],"next_cursor":"AQ...","done":false,"coverage":1720000000000000000,"tombstones_retained_since":0,"reset_required":false}
-          400 Malformed input, failed validation, unavailable routing, or a use-case/storage error
+
+          channel_id `string` minLength: 1
+
+          400 Input, validation, dependency, or downstream error
+
           CompatibilityError
-          msg `string` — Human-readable runtime message; exact text is not a stable machine contract.
-          status `integer` const: `400` Compatibility business-error status, always 400 on these routes.
-          {"msg":"invalid request","status":400}
-          503 Restore maintenance is active; back off and observe /readyz
+
+          msg `string` — Human-readable and not stable for machine matching.
+
+          status `integer` const: `400`
+
+          503 Controller restore maintenance is active
+
           MaintenanceError
-          error `string` const: `"maintenance"` Machine-readable restore-maintenance category.
-          message `string` const: `"restore maintenance is active"` Current maintenance detail.
-          {"error":"maintenance","message":"restore maintenance is active"}
+
+          error `string` const: `"maintenance"`
+
+          message `string` const: `"restore maintenance is active"`
 ---
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
@@ -79,7 +120,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="wukongim-product-http-management-beta-en" operations={[{"path":"/conversation/list","method":"post"}]} showDescription />
+      <Comp document="wukongim-product-http-complete-beta-en" operations={[{"path":"/conversation/list","method":"post"}]} showDescription />
     </>
   );
 }

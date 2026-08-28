@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   createProductHTTPOpenAPI,
   createProductHTTPOpenAPIContract,
+  productHTTPCompleteOpenAPIDocumentIds,
   productHTTPManagementOpenAPIDocumentIds,
   productHTTPMessagingOpenAPIDocumentIds,
   productHTTPOpenAPIDocumentId,
@@ -127,15 +128,18 @@ describe('Fumadocs OpenAPI integration', () => {
 
   test('keeps contract documents and publication metadata in one typed registry', async () => {
     const exactDocumentIds: [
+      'wukongim-product-http-complete-beta-zh',
       'wukongim-product-http-beta-zh',
       'wukongim-product-http-management-beta-en',
       'wukongim-product-http-messaging-beta-zh',
     ] = [
+      productHTTPCompleteOpenAPIDocumentIds.zh,
       productHTTPOpenAPIDocumentIds.zh,
       productHTTPManagementOpenAPIDocumentIds.en,
       productHTTPMessagingOpenAPIDocumentIds.zh,
     ];
     expect(exactDocumentIds).toEqual([
+      'wukongim-product-http-complete-beta-zh',
       'wukongim-product-http-beta-zh',
       'wukongim-product-http-management-beta-en',
       'wukongim-product-http-messaging-beta-zh',
@@ -166,11 +170,11 @@ describe('Fumadocs OpenAPI integration', () => {
     }
   });
 
-  test('generates bilingual operation pages from one bounded contract', async () => {
+  test('generates bilingual operation pages from the complete contract', async () => {
     for (const operationPage of operationPages) {
       for (const suffix of ['.mdx', '.en.mdx']) {
         const locale = suffix === '.mdx' ? 'zh' : 'en';
-        const localizedDocumentId = productHTTPOpenAPIDocumentIds[locale];
+        const localizedDocumentId = productHTTPCompleteOpenAPIDocumentIds[locale];
         const page = await source(
           `../content/docs/api/product-http/${operationPage.groupSlug}/${operationPage.slug}${suffix}`,
         );
@@ -236,21 +240,17 @@ describe('Fumadocs OpenAPI integration', () => {
     expect(users).toContain('`device_flag`');
     expect(users).toContain('`uid`');
     expect(users).toContain('`token`');
-    expect(users).toContain('Trusted backend (cURL)');
-    expect(users).toContain('server-generated-development-secret');
     expect(users).toContain('const: `200`');
     expect(users).toContain('Additional properties: `false`');
     expect(users).toContain('| `503` |');
     expect(routing).toContain('`wss_addr`');
     expect(routing).toContain('`ws_addr`');
-    expect(routing).toContain('"wss_addr": ""');
     expect(routing).toContain('| `503` |');
     expect(messages).toContain('`pull_mode`');
     expect(messages).toContain('`start_message_seq`');
-    expect(messages).toContain('Referenced schema — `SyncedMessage`');
+    expect(messages).toContain('Referenced schema — `LegacyMessage`');
     expect(messages).toContain('`message_idstr`');
-    expect(messages).toContain('"login_uid": "bob"');
-    expect(messages).toContain('1–100');
+    expect(messages).toContain('10000');
     expect(messages).toContain('| `503` |');
     expect(usersZh).toContain('`uid`');
     expect(usersZh).toContain('`device_flag`');

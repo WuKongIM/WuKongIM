@@ -1,11 +1,11 @@
 ---
-title: Product HTTP API (Beta)
-description: Reference user, route, message, Channel, and Conversation operations.
+title: Product HTTP API
+description: Reference all 41 business HTTP operations registered by the current source.
 ---
 
-Product HTTP provides basic integration and trusted-management operations. The current documentation covers only the operations listed below.
+Product HTTP provides basic integration and trusted-management operations. The complete OpenAPI contract matches all 41 current `internal/access/api` registrations.
 
-OpenAPI: [basic integration](/contracts/javascript-web-quickstart.openapi.json) · [message sending](/contracts/product-http-messaging.openapi.json) · [Channel and Conversation](/contracts/product-http-management.openapi.json)
+OpenAPI: [complete contract](/contracts/product-http.openapi.json) · narrow profiles: [basic integration](/contracts/javascript-web-quickstart.openapi.json) · [message sending](/contracts/product-http-messaging.openapi.json) · [Channel and Conversation](/contracts/product-http-management.openapi.json)
 
 <Callout type="error" title="Trusted backends only">
   Product HTTP has no general business authentication. Restrict network reachability and provide authentication, authorization, limits, and audit at an API Gateway, service mesh, or product backend.
@@ -27,4 +27,4 @@ OpenAPI: [basic integration](/contracts/javascript-web-quickstart.openapi.json) 
 
 <GoldenPathContract locale="en" />
 
-Realtime client send and receive use the SDK and Gateway. Product HTTP operations absent from these three OpenAPI contracts are outside the published scope.
+The snapshot above proves only the example scope of the three golden-path operations; it is not end-to-end acceptance for the complete contract. Realtime client send and receive still use the SDK and Gateway.

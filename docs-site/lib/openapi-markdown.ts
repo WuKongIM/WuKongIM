@@ -47,6 +47,21 @@ interface ResponseObject {
   content?: Record<string, MediaObject>;
 }
 
+interface RequestBodyObject {
+  $ref?: string;
+  content?: Record<string, MediaObject>;
+}
+
+interface ParameterObject {
+  $ref?: string;
+  name?: string;
+  in?: string;
+  required?: boolean;
+  description?: string;
+  schema?: SchemaObject;
+  example?: unknown;
+}
+
 interface CodeSample {
   lang?: string;
   label?: string;
@@ -58,9 +73,8 @@ interface OperationObject {
   summary?: string;
   description?: string;
   'x-codeSamples'?: CodeSample[];
-  requestBody?: {
-    content?: Record<string, MediaObject>;
-  };
+  parameters?: ParameterObject[];
+  requestBody?: RequestBodyObject;
   responses?: Record<string, ResponseObject>;
 }
 
@@ -69,6 +83,8 @@ interface ContractDocument {
   components?: {
     schemas?: Record<string, SchemaObject>;
     responses?: Record<string, ResponseObject>;
+    requestBodies?: Record<string, RequestBodyObject>;
+    parameters?: Record<string, ParameterObject>;
   };
 }
 
@@ -77,7 +93,10 @@ interface NamedSchema {
   schema: SchemaObject;
 }
 
-function localReferenceName(reference: string, group: 'schemas' | 'responses') {
+function localReferenceName(
+  reference: string,
+  group: 'schemas' | 'responses' | 'requestBodies' | 'parameters',
+) {
   const prefix = `#/components/${group}/`;
   return reference.startsWith(prefix) ? reference.slice(prefix.length) : undefined;
 }
@@ -96,6 +115,23 @@ function resolveSchema(document: ContractDocument, schema: SchemaObject | undefi
 function resolveResponse(document: ContractDocument, response: ResponseObject) {
   const name = response.$ref ? localReferenceName(response.$ref, 'responses') : undefined;
   return name ? document.components?.responses?.[name] : response;
+}
+
+function resolveRequestBody(
+  document: ContractDocument,
+  requestBody: RequestBodyObject | undefined,
+) {
+  const name = requestBody?.$ref
+    ? localReferenceName(requestBody.$ref, 'requestBodies')
+    : undefined;
+  return name ? document.components?.requestBodies?.[name] : requestBody;
+}
+
+function resolveParameter(document: ContractDocument, parameter: ParameterObject) {
+  const name = parameter.$ref
+    ? localReferenceName(parameter.$ref, 'parameters')
+    : undefined;
+  return name ? document.components?.parameters?.[name] : parameter;
 }
 
 function markdownCell(value: unknown) {
@@ -351,6 +387,27 @@ function appendSchemaSearchFacts(
   }
 }
 
+function appendParameterSearchFacts(
+  facts: Set<string>,
+  document: ContractDocument,
+  parameter: ParameterObject,
+) {
+  const resolved = resolveParameter(document, parameter);
+  if (!resolved) return;
+  facts.add(
+    [
+      resolved.name,
+      resolved.in,
+      resolved.required ? 'required' : 'optional',
+      resolved.schema ? schemaType(resolved.schema) : undefined,
+      resolved.schema ? schemaConstraints(resolved.schema) : undefined,
+      resolved.description,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+}
+
 /** Returns source-derived request, response, nested-schema, and error text for search. */
 export function renderOpenAPISearchText(locale: Locale, slugs: readonly string[]) {
   const page = resolvePublishedPage(locale, slugs);
@@ -365,7 +422,12 @@ export function renderOpenAPISearchText(locale: Locale, slugs: readonly string[]
     if (operation.summary) facts.add(operation.summary);
     if (operation.description) facts.add(operation.description);
 
-    const requestMedia = operation.requestBody?.content?.['application/json'];
+    for (const parameter of operation.parameters ?? []) {
+      appendParameterSearchFacts(facts, page.document, parameter);
+    }
+
+    const requestBody = resolveRequestBody(page.document, operation.requestBody);
+    const requestMedia = requestBody?.content?.['application/json'];
     appendSchemaSearchFacts(facts, page.document, requestMedia?.schema);
     for (const example of mediaExamples(requestMedia)) {
       facts.add(JSON.stringify(example.value));
@@ -431,7 +493,11 @@ export function renderOpenAPIOperationMarkdown(locale: Locale, slugs: readonly s
   for (const publishedOperation of page.operations) {
     const operation = document.paths[publishedOperation.path]?.[publishedOperation.method];
     if (!operation) continue;
-    const requestMedia = operation.requestBody?.content?.['application/json'];
+    const parameters = (operation.parameters ?? [])
+      .map((parameter) => resolveParameter(document, parameter))
+      .filter((parameter): parameter is ParameterObject => parameter !== undefined);
+    const requestBody = resolveRequestBody(document, operation.requestBody);
+    const requestMedia = requestBody?.content?.['application/json'];
     const responseEntries = Object.entries(operation.responses ?? {}).map(([status, item]) => {
       const response = resolveResponse(document, item);
       return { status, response, media: response?.content?.['application/json'] };
@@ -462,6 +528,20 @@ export function renderOpenAPIOperationMarkdown(locale: Locale, slugs: readonly s
           '',
         );
       }
+    }
+
+    if (parameters.length > 0) {
+      lines.push(
+        '',
+        `#### ${locale === 'zh' ? '参数' : 'Parameters'}`,
+        '',
+        `| ${locale === 'zh' ? '名称' : 'Name'} | ${locale === 'zh' ? '位置' : 'In'} | ${locale === 'zh' ? '必填' : 'Required'} | ${locale === 'zh' ? '类型' : 'Type'} | ${locale === 'zh' ? '约束' : 'Constraints'} | ${locale === 'zh' ? '说明' : 'Description'} |`,
+        '| --- | --- | --- | --- | --- | --- |',
+        ...parameters.map(
+          (parameter) =>
+            `| \`${markdownCell(parameter.name)}\` | ${markdownCell(parameter.in)} | ${parameter.required ? (locale === 'zh' ? '是' : 'yes') : locale === 'zh' ? '否' : 'no'} | ${parameter.schema ? schemaType(parameter.schema) : '—'} | ${parameter.schema ? markdownCell(schemaConstraints(parameter.schema)) : '—'} | ${markdownCell(parameter.description)} |`,
+        ),
+      );
     }
 
     const renderedSchemaNames = new Set<string>();

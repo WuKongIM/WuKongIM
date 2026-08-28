@@ -1,0 +1,26 @@
+---
+title: 运维 HTTP
+description: API 监听器上的健康、就绪、指标和只读快照入口。
+---
+
+运维 HTTP 与 Product HTTP 共用 API 监听器，但面向运维系统，不是业务集成 API。
+
+[下载 Operations HTTP OpenAPI 3.1](/contracts/operations-http.openapi.json)
+
+| Method | Path | 条件 | 稳定性 |
+| --- | --- | --- | --- |
+| `GET` | `/healthz` | 始终注册 | 稳定 |
+| `GET` | `/readyz` | 始终注册 | 稳定 |
+| `ANY` | `/metrics` | 配置 Prometheus Handler 后注册 | 稳定的 Prometheus 暴露格式 |
+| `GET` | `/top/v1/snapshot` | 始终注册；无 Provider 时返回 404 | 不稳定 |
+
+<Callout type="error" title="监听器没有运维认证">
+  这四个入口没有内建认证。仅向受控网络暴露，并在反向代理、Service Mesh 或防火墙处添加 TLS、访问控制和限流。
+</Callout>
+
+<Cards>
+  <Card title="健康与就绪" description="区分进程存活和业务接流量条件。" href="/zh/api/operations-http/health-and-readiness" />
+  <Card title="Prometheus 指标" description="了解注册条件、格式和暴露边界。" href="/zh/api/operations-http/metrics" />
+  <Card title="只读快照与受限入口" description="查看 Top、Debug 和 Bench 的精确清单。" href="/zh/api/operations-http/read-only" />
+  <Card title="稳定性与私有边界" description="判断哪些合同可集成，哪些只能运维使用。" href="/zh/api/operations-http/stability" />
+</Cards>

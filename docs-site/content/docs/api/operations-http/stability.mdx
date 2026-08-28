@@ -1,0 +1,23 @@
+---
+title: 稳定性与私有边界
+description: 运维、Debug、Bench 与 Manager 的发布范围。
+---
+
+| Surface | 受众 | 稳定性 | 是否进入公共 OpenAPI |
+| --- | --- | --- | --- |
+| `/healthz`、`/readyz` | Operator | 稳定 | 可作为独立 Operations HTTP 合同 |
+| `/metrics` | Operator | Prometheus 格式稳定 | 否；它不是 JSON API |
+| `/top/v1/snapshot` | Operator | 不稳定 | 否；记录版本与边界即可 |
+| `/debug/*` | Operator | 不稳定、默认关闭 | 否；只列内部接口和暴露风险 |
+| `/bench/v1/*` | Agent / benchmark | 不稳定、默认关闭 | 否；只列 Benchmark 私有合同 |
+| Manager 108 路由 | Operator | 私有运维合同 | 不与 Product HTTP 合并 |
+| Node transport | Cluster internal | 不稳定兼容编号 | 绝不伪装成 HTTP/OpenAPI |
+| MCP / Agent CLI | Operator / Agent | 闭集工具合同 | 用工具表或 CLI 表，不用 OpenAPI |
+
+<Callout type="error" title="manager.auth_on=false 的真实行为">
+  关闭 Manager 认证时，普通读写路由不会安装权限中间件，因此多数管理写入可直接到达 Handler。只有备份写入、恢复和 MCP 管理明确失败关闭；`/mcp` 使用独立 MCP Bearer。不要把关闭认证理解为只读模式。
+</Callout>
+
+Manager 除 `/mcp` 外会反射调用者 Origin（无 Origin 时为 `*`），因此必须位于隔离的管理网络并在外层终止 TLS。启用认证后，Manager JWT 与各路由 `cluster.*:r|w` 权限才生效；恢复要求精确 `cluster.restore:w`，通配权限不能替代。
+
+这些页面是源码清单，不把私有或不稳定入口升级为兼容承诺。公共业务集成继续使用 [Product HTTP](/zh/api/product-http)，客户端实时协议继续使用 [WKProto](/zh/api/client-protocols)。

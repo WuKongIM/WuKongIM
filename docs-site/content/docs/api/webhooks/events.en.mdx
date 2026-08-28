@@ -1,0 +1,35 @@
+---
+title: Webhook Event Types
+description: Trigger conditions, batches, and uses for the three supported events.
+---
+
+The current runtime emits exactly these three events. `focus_events` filters these exact names; an empty list enables all of them.
+
+| Event | Trigger boundary | Body / default batch |
+| --- | --- | --- |
+| `msg.notify` | after quorum-durable commit of an ordinary message | message array; up to 100 items or 500ms |
+| `msg.offline` | when an eligible durable message has recipients without an online route | one flattened object; up to 512 UIDs per chunk |
+| `user.onlinestatus` | when a UID owner's local active session comes online or its last local session goes offline | status-string array; up to 512 items or 2s |
+
+## `msg.notify`
+
+Use this event for audit, indexing, or asynchronous product notification. It runs after durable commit. A webhook failure neither rolls the message back nor changes a successful SENDACK into a failure.
+
+## `msg.offline`
+
+A commit is eligible for offline-candidate calculation only when all of these are true:
+
+- `message_seq > 0`;
+- `sync_once` is false;
+- the message has no `message_scoped_uids` exact-target list;
+- the recipient belongs to the durable delivery set and currently has no online route.
+
+This event is a **push candidate**, not unread-message truth and not a replacement for reconnect synchronization. A recipient may come online, or routing state may change, after the callback was admitted.
+
+## `user.onlinestatus`
+
+This event reports session transitions observed at the UID owner. It is a compatibility string, not a globally ordered presence log, and intermediate states can be missing. See [Payloads](/en/api/webhooks/payloads) for its format.
+
+<Callout type="info" title="There are no other webhook events">
+  Plugin Send/Receive/PersistAfter hooks, cluster RPC, and the benchmark `EVENT` frame are not HTTP webhook events.
+</Callout>

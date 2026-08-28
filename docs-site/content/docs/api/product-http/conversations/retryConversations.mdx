@@ -1,70 +1,65 @@
 ---
-title: 重试未解析的会话键
+title: 重试未解析会话
 full: true
 _openapi:
   preload:
-    - wukongim-product-http-management-beta-zh
+    - wukongim-product-http-complete-beta-zh
   method: POST
   webhook: false
   toc: []
   structuredData:
     headings:
-      - content: 重试未解析的会话键
-        id: 重试未解析的会话键
+      - content: 重试未解析会话
+        id: 重试未解析会话
     contents:
-      - content: 重试最多 200 个未解析键，不回退已完成的列表 coverage；重复键会合并。
-        heading: 重试未解析的会话键
+      - content: 重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。
+        heading: 重试未解析会话
       - content: |-
           POST /conversation/retry
           retryConversations
-          重试未解析的会话键
-          重试最多 200 个未解析键，不回退已完成的列表 coverage；重复键会合并。
+          重试未解析会话
+          重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。
           ConversationRetryRequest
-          additionalProperties false
-          uid `UID` minLength: 1 非空业务用户身份。
-          channels array<`ConversationKey`> minItems: 1; maxItems: 200 由 /conversation/list 或上一次重试返回的未解析键。
-          UID
-          非空业务用户身份。
+          additionalProperties true
+          uid `string` minLength: 1
+          channels array<`ConversationKey`> minItems: 1; maxItems: 200
           ConversationKey
-          channel_id `string` minLength: 1 可见 Channel ID；个人会话使用对端 UID。
-          channel_type `integer` 1–255 Channel Type。
-          200 有界会话同步结果
-          ConversationListResponse
-          conversations array<`ConversationListItem`> — 本 membership 页中已 hydrate 的可见会话。
-          deletes array<`ConversationKey`> — 客户端必须从本地会话投影中移除的键。
-          unresolved array<`ConversationKey`> — Channel head 暂时不可用的键；使用 /conversation/retry 重试。
-          next_cursor `string` — 下一页的不透明游标；空页也可能携带它。
-          done `boolean` — 仅在本轮完整 membership 遍历完成时为 true。
-          coverage `integer:int64` 0–∞ 本轮遍历的纳秒级 coverage token；仅在 done=true 后持久保存。
-          tombstones_retained_since `integer:int64` 0–∞ 仍有保证的最早删除 coverage；0 表示 tombstone 尚未过期。
-          reset_required `boolean` — 当 completed_coverage 早于保留的 tombstone 时为 true，此时必须重建本地投影。
-          ConversationListItem
-          channel_id `string` — 可见 Channel ID；个人会话会投影为对端 UID。
+          channel_id `string` minLength: 1
           channel_type `integer` 1–255
-          active_at `integer:int64` 0–∞ 最近一次显式激活的纳秒时间戳；0 表示未显式激活。
-          read_seq `integer` 0–∞ 单调的红点下界；它不是消息拉取游标或已读回执。
-          deleted_to_seq `integer` 0–∞ 截至此已提交 sequence 的消息对该用户隐藏。
-          unread `integer` 0–∞ 应用加入、保留、删除、自发送与已读下界后的未读数。
-          last_message `ConversationLastMessage` | `null` — 最新可见的已提交消息；不存在可见消息时为 null。
+          200 Canonical Conversation page
+          ConversationListResponse
+          additionalProperties false
+          conversations array<`ConversationListItem`> —
+          deletes array<`ConversationKey`> —
+          unresolved array<`ConversationKey`> —
+          next_cursor `string` —
+          done `boolean` —
+          coverage `integer:int64` 0–∞
+          tombstones_retained_since `integer:int64` 0–∞
+          reset_required `boolean` —
+          ConversationListItem
+          channel_id `string` —
+          active_at `integer:int64` —
+          read_seq `integer:uint64` 0–∞
+          deleted_to_seq `integer:uint64` 0–∞
+          unread `integer:uint64` 0–∞
+          last_message `ConversationLastMessage` | `null` —
           ConversationLastMessage
-          message_id `integer:uint64` 0–∞ 数值型服务端消息 ID；JavaScript 消费者应优先使用 message_idstr。
-          message_idstr `string` — 不会丢失精度的服务端消息 ID 十进制字符串。
-          message_seq `integer` 0–∞ 消息在 Channel 内的已提交 sequence。
-          from_uid `string` — Sender UID.
-          client_msg_no `string` — Client-generated message identifier.
-          server_timestamp_ms `integer:int64` 0–∞ Unix 毫秒服务端时间戳。
-          payload `string | null` encoding: base64 Payload 字节的 Go JSON 表示；nil 字节编码为 null。
-          {"conversations":[{"channel_id":"team-42","channel_type":2,"active_at":1720000000000000000,"read_seq":8,"deleted_to_seq":0,"unread":2,"last_message":{"message_id":1234567890,"message_idstr":"1234567890","message_seq":10,"from_uid":"bob","client_msg_no":"client-10","server_timestamp_ms":1720000000000,"payload":"eyJ0eXBlIjoxLCJjb250ZW50IjoiaGkifQ=="}}],"deletes":[],"unresolved":[],"next_cursor":"AQ...","done":false,"coverage":1720000000000000000,"tombstones_retained_since":0,"reset_required":false}
-          400 输入格式错误、校验失败、路由不可用，或 usecase/存储错误
+          message_id `integer:uint64` 0–∞
+          message_idstr `string` —
+          message_seq `integer:uint64` 0–∞
+          from_uid `string` —
+          client_msg_no `string` —
+          server_timestamp_ms `integer:int64` —
+          payload `string | null` encoding: base64
+          400 Input, validation, dependency, or downstream error
           CompatibilityError
-          msg `string` — 供人阅读的运行时消息；精确文本不是稳定的机器合同。
-          status `integer` const: `400` 这些入口的兼容业务错误状态固定为 400。
-          {"msg":"invalid request","status":400}
-          503 恢复维护已启用；请退避并观察 /readyz
+          msg `string` — Human-readable and not stable for machine matching.
+          status `integer` const: `400`
+          503 Controller restore maintenance is active
           MaintenanceError
-          error `string` const: `"maintenance"` 机器可读的恢复维护类别。
-          message `string` const: `"restore maintenance is active"` 当前维护详情。
-          {"error":"maintenance","message":"restore maintenance is active"}
+          error `string` const: `"maintenance"`
+          message `string` const: `"restore maintenance is active"`
 ---
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
@@ -76,7 +71,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="wukongim-product-http-management-beta-zh" operations={[{"path":"/conversation/retry","method":"post"}]} showDescription />
+      <Comp document="wukongim-product-http-complete-beta-zh" operations={[{"path":"/conversation/retry","method":"post"}]} showDescription />
     </>
   );
 }

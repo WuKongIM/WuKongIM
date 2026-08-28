@@ -1,0 +1,49 @@
+---
+title: Encryption & Security
+description: WKProto compatibility session keys, Payload and msg_key algorithms, and their security boundary.
+---
+
+The current default composition enables WKProto session Payload encryption. This is a client-compatibility algorithm that protects SEND/RECV Payloads only; CONNECT, headers, and routing metadata remain outside this layer.
+
+## Handshake and keys
+
+1. The client generates an ephemeral X25519 key pair and sends the standard Base64 encoding of its 32-byte public key as CONNECT `client_key`.
+2. The server generates an ephemeral X25519 pair, computes the shared secret, and returns Base64 `server_key` plus `salt` in CONNACK.
+3. Both sides calculate `shared = X25519(private, peer_public)`.
+4. `AES key = lowercase_hex(MD5(Base64(shared)))[0:16]`; those 16 ASCII bytes are the AES-128 key.
+5. `salt` is 16 random alphanumeric ASCII bytes used as the IV and reused for the session.
+
+When encryption is enabled, a missing `client_key` returns `ReasonClientKeyIsEmpty`.
+
+## Payload
+
+```text
+wire_payload = Base64(AES-128-CBC(PKCS#7(plain_payload), key, iv))
+```
+
+For SEND, the server validates `msg_key` before decrypting the Payload. For RECV, it encrypts the Payload before calculating `msg_key`. `SettingNoEncrypt (0x10)` bypasses both steps for that packet.
+
+## msg_key
+
+Convert numeric fields to decimal text and concatenate fields in this exact order **without delimiters**. `encrypted_payload` is the Base64 Payload bytes carried on the wire.
+
+| Packet | Verification bytes |
+| --- | --- |
+| SEND | `client_seq + client_msg_no + channel_id + channel_type + encrypted_payload` |
+| RECV | `message_id + message_seq + client_msg_no + timestamp + from_uid + channel_id + channel_type + encrypted_payload` |
+
+Then calculate:
+
+```text
+msg_key = lowercase_hex(MD5(Base64(AES-128-CBC(PKCS#7(verification_bytes), key, iv))))
+```
+
+The server validates SEND `msg_key`. The repository Go tooling client decrypts RECV but currently **does not validate its `msg_key`**; verify the behavior of each other client implementation separately.
+
+## Security boundary
+
+<Callout type="danger" title="TLS / WSS is required">
+  This compatibility design does not authenticate the X25519 peer, uses CBC with a reused IV and an MD5 check, and is not AEAD. It does not replace TLS, token verification, identity authentication, or end-to-end encryption. The CONNECT token is sent before session keys exist and is observable without TLS.
+</Callout>
+
+Production deployments must use TLS/WSS or an equivalent trusted private boundary and enforce certificate, identity, and token verification at ingress. Do not set `SettingNoEncrypt` for sensitive messages.

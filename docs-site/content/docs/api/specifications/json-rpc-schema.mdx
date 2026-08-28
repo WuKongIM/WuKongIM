@@ -1,0 +1,20 @@
+---
+title: JSON-RPC 实验 Schema
+description: 下载 codec 数据形状，并理解当前产品不支持的边界。
+---
+
+<Callout type="error" title="Experimental · 产品不支持">
+  此 Schema 记录 WebSocket JSON-RPC codec/bridge 能解析或编码的形状。当前 Product Gateway 无法建立可认证的 JSON-RPC 产品会话；不要据此生成生产 SDK。
+</Callout>
+
+[下载 JSON Schema 2020-12](/contracts/json-rpc.experimental.schema.json)
+
+Schema 的 `x-wukongim-stability` 为 `experimental-not-supported`。当前行为是：
+
+- `ping` 是唯一能正常往返的产品路径；
+- `connect` 在预打开会话后被拒绝；
+- `send` 没有认证 UID 和 `clientSeq` 关联，返回认证失败；
+- `subscribe`、`unsubscribe` 及多种 notification 只有 codec 结构或缺少 frame bridge；
+- `[` 会选择 JSON 模式，但 batch 数组未实现；请求 ID 必须是字符串，Payload 是 Base64。
+
+结构存在不等于运行时支持，也不产生兼容性承诺。生产客户端使用 [WKProto 二进制协议](/zh/api/client-protocols/tcp-binary)；完整矩阵见 [WebSocket JSON-RPC](/zh/api/client-protocols/json-rpc)。
