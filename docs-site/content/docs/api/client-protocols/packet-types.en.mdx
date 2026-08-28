@@ -1,0 +1,30 @@
+---
+title: Packet Types
+description: Reference WKProto FrameType values, directions, core fields, and current publication scope.
+---
+
+import { ClientProtocolPacketTable } from '@/components/client-protocol-contracts';
+
+`FrameType` occupies the high four bits of the fixed header. `UNKNOWN=0` is reserved and must not be sent. Enum presence does not mean the product Gateway supports that packet.
+
+<ClientProtocolPacketTable locale="en" />
+
+## Core fields
+
+| Packet | Body fields |
+| --- | --- |
+| `CONNECT` | `version`, `client_key`, `device_id`, `device_flag`, millisecond timestamp, `uid`, `token` |
+| `CONNACK` | negotiated version for v4+ requests, `server_key`, `salt`, time difference, Reason Code, v4+ `node_id` |
+| `SEND` | Setting, 32-bit wire `client_seq`, `client_msg_no`, Channel, v3+ `expire`, `msg_key`, optional Topic, Payload |
+| `SENDACK` | `message_id`, `client_seq`, `message_seq`, Reason Code, optional `client_msg_no` |
+| `RECV` | Setting, `msg_key`, sender, Channel, v3+ `expire`, `client_msg_no`, `message_id`, `message_seq`, second timestamp, optional Topic, Payload |
+| `RECVACK` | `message_id`, `message_seq` |
+| `PING` / `PONG` | No body; the complete packet is one fixed-header byte |
+
+Protocol v5 and earlier use a 32-bit `message_seq`; v6 uses 64 bits. The wire width of `client_seq` is always 32 bits. The current encoder limits SEND Payload to 32,767 bytes; the decoder rejects frames whose remaining length exceeds 1 MiB.
+
+See [Message Flags](/en/api/dictionaries/message-flags) for fixed-header and Setting bits, and [Channel Types](/en/api/dictionaries/channel-types) for Channel values.
+
+<Callout type="warn" title="Do not use unpublished packets">
+  The current product Gateway does not accept ordinary inbound `DISCONNECT`, `SUB`, or arbitrary `EVENT` packets. `EVENT` is reserved for strictly validated internal protocols; applications must not construct or probe its data.
+</Callout>

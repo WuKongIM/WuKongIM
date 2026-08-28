@@ -1,0 +1,24 @@
+---
+title: Client Protocols
+description: Reference the current Gateway lifecycle and WKProto packet boundary.
+---
+
+Clients establish long-lived connections through Gateway TCP or WebSocket listeners. The current public baseline uses the same WKProto semantics for negotiation, send, receive acknowledgement, and heartbeat.
+
+<Callout type="info" title="A protocol is not an HTTP API">
+  TCP binary frames and WebSocket messages do not belong in OpenAPI. This section records wire and Gateway behavior without inventing HTTP paths.
+</Callout>
+
+<Cards>
+  <Card title="Connection Lifecycle" description="CONNECT-first behavior, CONNACK, active sessions, idle close, and recovery." href="/en/api/client-protocols/connection-lifecycle" />
+  <Card title="Packet Types" description="FrameType values 0–12, directions, and current publication scope." href="/en/api/client-protocols/packet-types" />
+</Cards>
+
+## Current boundary
+
+- The public core contains only CONNECT/CONNACK, SEND/SENDACK, RECV/RECVACK, and PING/PONG.
+- `DISCONNECT`, `SUB`, and `SUBACK` are currently codec contracts, not published product Gateway entry points.
+- `EVENT` is reserved for controlled internal protocols; it is not an application event API.
+- WebSocket JSON-RPC, exact binary layout, and encryption details remain under calibration. Do not infer methods or security guarantees from this page.
+
+See [Shared Dictionaries](/en/api/dictionaries) for numeric meanings and [Authentication & Security](/en/api/authentication) for the production trust boundary.

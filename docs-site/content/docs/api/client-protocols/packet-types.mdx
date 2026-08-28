@@ -1,0 +1,30 @@
+---
+title: 数据包类型
+description: 查阅 WKProto FrameType 值、方向、核心字段和当前发布范围。
+---
+
+import { ClientProtocolPacketTable } from '@/components/client-protocol-contracts';
+
+`FrameType` 位于固定 Header 的高四位。`UNKNOWN=0` 是保留值，不能发送；枚举存在也不代表产品 Gateway 已支持该包。
+
+<ClientProtocolPacketTable locale="zh" />
+
+## 核心字段
+
+| 包 | 正文字段 |
+| --- | --- |
+| `CONNECT` | `version`、`client_key`、`device_id`、`device_flag`、毫秒时间戳、`uid`、`token` |
+| `CONNACK` | v4+ 请求的协商版本、`server_key`、`salt`、时间差、Reason Code、v4+ `node_id` |
+| `SEND` | Setting、32 位 Wire `client_seq`、`client_msg_no`、Channel、v3+ `expire`、`msg_key`、可选 Topic、Payload |
+| `SENDACK` | `message_id`、`client_seq`、`message_seq`、Reason Code、可选 `client_msg_no` |
+| `RECV` | Setting、`msg_key`、发送者、Channel、v3+ `expire`、`client_msg_no`、`message_id`、`message_seq`、秒级时间戳、可选 Topic、Payload |
+| `RECVACK` | `message_id`、`message_seq` |
+| `PING` / `PONG` | 无正文；整个包只有一个固定 Header 字节 |
+
+协议 v5 及以下使用 32 位 `message_seq`，v6 使用 64 位；`client_seq` 的 Wire 宽度始终为 32 位。当前编码器限制 SEND Payload 最多 32767 字节；解码器拒绝 remaining length 超过 1 MiB 的帧。
+
+固定 Header 与 Setting 位见 [Message Flags](/zh/api/dictionaries/message-flags)，Channel 数值见 [Channel Type](/zh/api/dictionaries/channel-types)。
+
+<Callout type="warn" title="不要使用未发布的包">
+  当前产品 Gateway 不接受普通 `DISCONNECT`、`SUB` 或任意 `EVENT` 入站。`EVENT` 只保留给严格校验的内部协议；应用不要构造或探测其数据。
+</Callout>

@@ -1,0 +1,41 @@
+---
+title: Connection Lifecycle
+description: Handle CONNECT, CONNACK, heartbeat, close, and recovery against the current Gateway implementation.
+---
+
+## Establish a connection
+
+```text
+Transport open
+  -> CONNECT (sole first packet)
+  -> authentication and Session activation
+  -> CONNACK
+  -> active
+```
+
+- `CONNECT` must be the sole first packet. A batch tail or another packet while authentication is pending closes the connection.
+- The server negotiates the protocol version, stores UID and device state plus encryption Session state when enabled, then activates online Presence.
+- A non-success `CONNACK` is written before close. If a successful `CONNACK` cannot be written, completed activation is rolled back.
+- The current latest version is v6. A client value of `0` or above v6 negotiates to v6.
+
+<Callout type="error" title="CONNACK success is not product ready">
+  Success proves only that the protocol Session exists. Recover durable messages and merge local state before ordinary product sends are enabled.
+</Callout>
+
+## Active session
+
+| Direction | Exchange | Completion boundary |
+| --- | --- | --- |
+| Client → Server | `PING` → `PONG` | Heartbeat response only |
+| Client → Server | `SEND` → `SENDACK` | Protocol send result; not peer receipt or product execution |
+| Server → Client | `RECV` → `RECVACK` | Session receive feedback; not end-user read state |
+
+The default read-idle timeout is three minutes. Only inbound activity refreshes it; server outbound traffic does not. Proxy and load-balancer idle policies must accommodate the effective heartbeat.
+
+## Close and recover
+
+After close, stop new sends and reconnect with bounded backoff and jitter. Rediscover Gateway ingress when needed. Reuse a stable `client_msg_no` for the same product send; concurrent wire attempts use distinct `client_seq` values. Return to ready only after CONNACK succeeds and durable-message recovery completes.
+
+The current default composition enables Session payload encryption; CONNECT without `client_key` returns `ReasonClientKeyIsEmpty`. This encryption does not replace TLS or token verification. The default composition also does not automatically turn a stored token into a CONNECT verifier; production must wire explicit verification and revocation policy.
+
+Continue with [Packet Types](/en/api/client-protocols/packet-types) and [Reason Codes](/en/api/dictionaries/reason-codes).
