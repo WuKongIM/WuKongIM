@@ -6,7 +6,7 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 选择 SDK 时，先看你的运行平台和真正需要的能力，再看仓库名称。WuKongIM 的旧版文档把客户端分为 EasySDK 与 WuKongIMSDK 两组；这里保留这组线索帮助你发现源码，但不再用“应用是不是 IM”作为唯一判断标准。
 
 <Callout type="warn" title="源码存在不等于本站已验证">
-  官方仓库、本站教程和可执行兼容 receipt 是三件事。iOS `1.1.1` 的教程已经发布并完成源码/公开头文件校对，但没有本站运行 receipt；当前只有使用 `wukongimjssdk@1.3.5` 的 JavaScript/Web 黄金路径具有本站的可执行验证入口。
+  官方仓库、本站教程和可执行兼容 receipt 是三件事。Android `1.5.5` 的源码与 JitPack AAR 已校对，iOS `1.1.1` 的源码与公开头文件已校对，两套教程都没有本站运行 receipt；当前只有使用 `wukongimjssdk@1.3.5` 的 JavaScript/Web 黄金路径具有本站的可执行验证入口。
 </Callout>
 
 ## 先写需求，不先选系列
@@ -28,7 +28,7 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 | --- | --- | --- |
 | 浏览器 / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK)、[WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) | [JavaScript/Web 教程](/zh/sdk/javascript)具有可执行快照；EasySDK 依赖的 JSON-RPC CONNECT 当前不受支持，教程维持规划状态 |
 | iOS / Apple 平台 | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK)、[WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | 完整 SDK 的[入口、安装与快速接入](/zh/sdk/ios)已按 `1.1.1` 源码和分发头文件发布，但没有运行 receipt；EasySDK 的 JSON-RPC CONNECT 仍不受支持 |
-| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK)、[WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | EasySDK 依赖的 JSON-RPC CONNECT 当前不受支持；EasySDK 与完整 WuKongIMSDK 教程均维持规划状态 |
+| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK)、[WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | 完整 SDK 的[入口、安装与快速接入](/zh/sdk/android)已按 `1.5.5` 源码和 JitPack AAR 发布，但没有 Android 运行 receipt；EasySDK 的 JSON-RPC CONNECT 仍不受支持 |
 | Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK)、[WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | EasySDK 依赖的 JSON-RPC CONNECT 当前不受支持；EasySDK 与完整 WuKongIMSDK 教程均维持规划状态 |
 | HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) | 源码可发现；本站平台教程仍在规划中 |
 | 小程序、UniApp、Node.js 或其他运行时 | 先查看两个 JavaScript 仓库中准备使用版本的 README、示例和发布记录 | 本站尚无对应的可执行兼容快照，不要从其他运行时的说明推断支持 |
@@ -50,7 +50,7 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 
 - [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK)
 - [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK)：tag `1.1.1`，源码 revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`；[CocoaPods `WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK)，framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`；[教程](/zh/sdk/ios)已发布，无运行 receipt
-- [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK)
+- [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK)：tag `1.5.5`，源码 revision `662a559a50d181540a0448454beb57e939b0c50e`；JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5` 与同一 revision 对齐；[教程](/zh/sdk/android)已发布，无 Android 运行 receipt
 - [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK)
 - [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK)
 
@@ -88,6 +88,13 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 3. 在自己的 Xcode、设备和服务端 revision 上保存运行证据，不把源码/头文件校对当作本站 receipt；
 4. 在发布前关闭原始 TCP、TLS、RECV Payload 日志和生产鉴权阻断，再单独验证离线、会话、推送与后台能力。
 
+### Android
+
+1. 按[Android 安装与配置](/zh/sdk/android/installation)精确锁定 JitPack `1.5.5`、revision `662a559a50d181540a0448454beb57e939b0c50e` 和 AAR 校验和；
+2. 按[Android 快速接入](/zh/sdk/android/quickstart)在两个独立进程中完成会话同步门禁、本地入库、SENDACK 与在线接收；
+3. 在自己的 AGP、JDK、设备、系统和服务端 revision 上保存运行 receipt，不把源码/AAR 校对当作 Android 执行证据；
+4. 发布前关闭原始 TCP/TLS、SharedPreferences Token、UID SQLCipher key 和 Payload 日志阻断，再单独验证离线、推送、后台与多设备。
+
 ### 其他 WuKongIMSDK 平台
 
 1. 从上面的官方仓库选择一个精确 tag，并先运行仓库自带示例；
@@ -104,4 +111,4 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 
 ## 下一步
 
-目标是 iOS 时，进入[iOS 教程](/zh/sdk/ios)并为自己的运行 tuple 建立 receipt；目标是 Web 时，进入有本站可执行证据的[安装与配置](/zh/sdk/javascript/installation)。EasySDK 必须等待 JSON-RPC 运行时修复与端到端验证。
+目标是 Android 时，进入[Android 教程](/zh/sdk/android)并为自己的 `1.5.5` 运行 tuple 建立 receipt；目标是 iOS 时进入[iOS 教程](/zh/sdk/ios)；目标是 Web 时进入有本站可执行证据的[安装与配置](/zh/sdk/javascript/installation)。EasySDK 必须等待 JSON-RPC 运行时修复与端到端验证。

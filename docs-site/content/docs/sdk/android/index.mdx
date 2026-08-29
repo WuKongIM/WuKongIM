@@ -1,0 +1,85 @@
+---
+title: Android SDK
+description: 从 WuKongIM Android SDK 1.5.5 的精确源码与 JitPack AAR 开始，理解模块、接入路径与生产边界。
+---
+
+WuKongIM Android SDK 是面向原生 Android 应用的完整客户端 SDK。它通过 `WKIM.getInstance()` 提供连接、消息、本地会话、频道、成员、提醒、命令和机器人等 manager；应用负责产品登录、业务授权、后端数据源和 UI。
+
+<Callout type="warn" title="这不是本站 Android 运行验证">
+  本教程固定到 `1.5.5`，已校对源码、JitPack 构建记录、AAR 校验和与公开类签名，但**不是本站 Android 运行验证**。这里没有 Android SDK toolchain 构建、模拟器/设备 Alice-Bob 闭环或兼容性 receipt。无 TLS 原始 TCP、普通 SharedPreferences Token、UID 数据库 key 和 Payload 日志仍是**生产阻断项**。
+</Callout>
+
+## 先建立正确心智模型
+
+SDK 不是一套聊天 UI，也不替产品后端创建账号。一次典型接入由三方配合：
+
+1. **Android 应用**：完成产品登录，展示本地消息与会话，并管理页面/账号生命周期；
+2. **受信业务后端**：校验产品用户，签发或获取短期 IM Token，返回 Gateway 路由，并提供会话/频道消息同步数据；
+3. **Android SDK**：保存本地状态、连接 Gateway、编码协议、重试消息并通过 listener 把状态交给应用。
+
+客户端不能持有 Product HTTP 管理凭据，也不能用本地 UID 自行授予权限。默认 v3 Beta 的 Gateway Token 校验仍要在服务端部署中单独验收。
+
+## 你最常用的 manager
+
+| 入口 | 负责什么 | 第一次接入是否需要 |
+| --- | --- | --- |
+| `getConnectionManager()` | Gateway 路由、连接、连接状态、断开与账号退出 | 是 |
+| `getMsgManager()` | 消息创建、入库、发送确认、在线接收、历史消息与频道同步 | 是 |
+| `getConversationManager()` | 本地会话、未读和连接阶段的会话同步 | 是；默认 READ 模式没有同步 provider 会停在 `syncMsg` |
+| `getChannelManager()` | 用户/群资料、频道缓存与频道状态 | 按 UI 需求 |
+| `getChannelMembersManager()` | 群成员数据与变更 | 群聊需要 |
+| `getReminderManager()` | @、申请和自定义提醒 | 按产品需求 |
+| `getCMDManager()` | 服务端命令消息 | 按产品协议 |
+| `getRobotManager()` | 机器人菜单和查询 | 机器人场景 |
+
+旧文档的 manager 导航仍有帮助，但代码片段不是版本权威。例如 `1.5.5` 的非废弃基础发送入口是 `MsgManager.send(...)` 或 `sendMessage(WKMsg)`，不是 `ConnectionManager.sendMessage(...)`；连接失败常量是 `WKConnectStatus.fail`，不是 `failed`。
+
+## 本教程固定的快照
+
+| 组成 | 精确值 | 当前证据 |
+| --- | --- | --- |
+| 源码 | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK) tag `1.5.5`，revision `662a559a50d181540a0448454beb57e939b0c50e` | 源码已校对 |
+| 分发 | JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5` | AAR 可下载，JitPack 指向同一 revision |
+| AAR | SHA-256 `5a797f1fac53c4fbcf015afca2686ecbeebd24b5e64dea598881b814b1322792` | 公共签名已用 `javap` 校对 |
+| Android | `minSdk 21`、`compileSdk 34`、`targetSdk 34` | 来自 tag 源码，不是设备支持矩阵 |
+| JVM | Java/Kotlin 17；AAR `WKIM.class` major version 61 | 产物检查 |
+| 运行验收 | 无 | 必须在你的 AGP、设备、系统与服务端 revision 上补做 |
+
+`WKIM.getVersion()` 在这个 AAR 中仍返回 `V1.5.0`，源码的本地 Maven publication 仍写 `1.0.7`。两者都不能证明安装的是 `1.5.5`；应以 Gradle lock、JitPack 坐标、revision 和 AAR 校验和为准。
+
+## 推荐接入顺序
+
+1. 用[安装与配置](/zh/sdk/android/installation)固定依赖、构建要求和 R8 规则；
+2. 用[快速接入](/zh/sdk/android/quickstart)为两个全新测试账号完成连接、SENDACK 与在线接收；
+3. 按[身份与 Token](/zh/sdk/common-guides/identity-and-token)把登录和路由留在受信后端；
+4. 为真实用户实现会话与频道消息同步 provider，再验收离线恢复；
+5. 按[上线验收](/zh/guide/integration/acceptance)关闭鉴权、传输、日志、本地数据、容量和回滚门禁。
+
+平台能力、完整 API Reference 和升级页在获得对应版本证据前仍保持规划状态。
+
+## `1.5.5` 的关键行为
+
+- `WKIM.init(context, uid, token)` 会切换 UID 数据库、保存 UID/Token、初始化协议密钥，并通过 `updateLastSendingMsgFail()` 把上次遗留的 sending 记录标为失败，而不是自动恢复/重发；请传 `getApplicationContext()`，不要把 Activity 作为弱引用上下文。
+- 默认 READ 同步模式在 CONNACK 后依次出现第一次 `success`、`syncMsg`、`syncCompleted` 和最终 `success`。只有完成同步后的最终 `success` 才能开放发送 UI。
+- `MsgManager.send(...)` 返回 `void`。本地入库、服务端 SENDACK 和对端在线接收是三个事件；用 `clientMsgNO` / `clientSeq` 关联，不要用尚未分配的 `messageID` / `messageSeq`。
+- listener map 使用业务提供的 key；页面、会话或测试结束时必须调用精确的 remove 方法。
+- `disconnect(false)` 停止当前连接与重连但保留身份；`disconnect(true)` 会清空 Token 并异步关闭 UID 数据库，但不会清空进程内 `sendingMsgHashMap`，因此它不是安全的换号边界。
+- CONNECT 的设备类别固定为 `0`，与当前服务端字典 `0=APP`、`1=WEB`、`2=PC` 一致。
+
+## 生产阻断项
+
+- **传输**：源码通过 xSocket `NonBlockingConnection` 打开原始 **TCP**，没有 TLS/`startTLS`。WKProto 的 Curve25519 + AES-CBC Payload 兼容加密不验证服务端身份，不能替代认证 TLS。
+- **凭据**：`WKIM.init` 把 UID 和 Token 写入普通 `MODE_PRIVATE` **SharedPreferences**。应用沙箱不是独立凭据保险库，需要 SDK 修复或受审的凭据存储方案。
+- **本地数据**：**SQLCipher** 直接使用 UID 作为数据库密码；UID 不是机密 key，必须补独立密钥管理、系统备份与擦除策略。
+- **日志**：启用 debug 后，解码路径会记录 `WKReceivedMsg.toString()`，其中包含解密后的消息 **Payload**。即使 debug 关闭，logger 仍会输出少量 warning；Release 产物和采集链路都要审查。
+- **混淆**：AAR 的 `proguard.txt` 和源码 `consumer-rules.pro` 都为空，应用不会自动继承源码 `proguard-rules.pro`；必须自己配置并测试 minified Release。
+- **账号切换**：`disconnect(true)` 保留可重发发送队列；另一个 UID 随后连接时可能重发前一账号的未确认消息。退出前必须等待所有终止 SENDACK；生产换号还需要 SDK 修复或进程隔离。
+- **身份**：客户端获得 Token 不等于 Gateway 已完成生产级校验；服务端验证、轮换、撤销和设备冲突策略仍需单独验收。
+
+## 当前没有承诺什么
+
+本页不证明推送、后台保活、多设备、离线/会话恢复、媒体上传、所有 manager API 或所有 Android 设备可用。它只建立 `1.5.5` 的源码/AAR 基线和第一条在线消息路径。真实产品必须为自己的完整 tuple 保存构建、运行与失败恢复证据。
+
+## 下一步
+
+先进入[安装与配置](/zh/sdk/android/installation)锁定 JitPack 产物，再按[快速接入](/zh/sdk/android/quickstart)运行两个独立应用进程。若你需要本站现有的可执行兼容 receipt，当前仍只有 [JavaScript/Web](/zh/sdk/javascript) 黄金路径具备该证据。

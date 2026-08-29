@@ -1,0 +1,85 @@
+---
+title: Android SDK
+description: Start from the exact WuKongIM Android SDK 1.5.5 source and JitPack AAR, then understand its modules, integration path, and production boundaries.
+---
+
+WuKongIM Android SDK is the full native Android client. `WKIM.getInstance()` exposes managers for connection, messaging, local conversations, channels, members, reminders, commands, and robots. The application owns product login, business authorization, trusted-backend data sources, and UI.
+
+<Callout type="warn" title="This is not Android runtime verification">
+  This tutorial pins `1.5.5` and aligns its source, JitPack build record, AAR checksum, and public class signatures, but it is **not Android runtime verification**. There is no Android SDK toolchain build, emulator/device Alice-Bob loop, or compatibility receipt on this site. Raw TCP without TLS, a SharedPreferences token, a UID database key, and Payload logging remain **production blocker** items.
+</Callout>
+
+## Start with the right model
+
+The SDK is not a chat UI and does not create product accounts. A normal integration has three owners:
+
+1. **Android application:** completes product login, presents local messages and conversations, and owns page/account lifecycle.
+2. **Trusted product backend:** authorizes the product user, creates or obtains a short-lived IM token, returns the Gateway route, and supplies conversation/channel synchronization data.
+3. **Android SDK:** stores local state, connects to the Gateway, encodes the protocol, retries messages, and reports state through listeners.
+
+The client must not hold Product HTTP management credentials or grant policy from a local UID. The default v3 Beta Gateway token-validation boundary still needs separate server acceptance.
+
+## Managers used most often
+
+| Entry point | Responsibility | Needed for the first integration? |
+| --- | --- | --- |
+| `getConnectionManager()` | Gateway route, connection, status, disconnect, and account logout | Yes |
+| `getMsgManager()` | Message creation, local insert, send acknowledgement, online receive, history, and channel sync | Yes |
+| `getConversationManager()` | Local conversations, unread state, and connection-phase conversation sync | Yes; default READ mode stays at `syncMsg` without a provider |
+| `getChannelManager()` | User/group information, channel cache, and channel state | As UI requires |
+| `getChannelMembersManager()` | Group members and changes | For groups |
+| `getReminderManager()` | Mentions, requests, and custom reminders | As required |
+| `getCMDManager()` | Server command messages | Per product protocol |
+| `getRobotManager()` | Robot menus and queries | For robot scenarios |
+
+The legacy manager-oriented navigation remains useful, but its snippets are not a version authority. In `1.5.5`, for example, the non-deprecated basic send entry is `MsgManager.send(...)` or `sendMessage(WKMsg)`, not `ConnectionManager.sendMessage(...)`; the failed-connection constant is `WKConnectStatus.fail`, not `failed`.
+
+## Snapshot pinned by this tutorial
+
+| Component | Exact value | Evidence state |
+| --- | --- | --- |
+| Source | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK) tag `1.5.5`, revision `662a559a50d181540a0448454beb57e939b0c50e` | Source reviewed |
+| Distribution | JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5` | AAR available; JitPack points to the same revision |
+| AAR | SHA-256 `5a797f1fac53c4fbcf015afca2686ecbeebd24b5e64dea598881b814b1322792` | Public signatures inspected with `javap` |
+| Android | `minSdk 21`, `compileSdk 34`, `targetSdk 34` | Tag source, not a device support matrix |
+| JVM | Java/Kotlin 17; AAR `WKIM.class` major version 61 | Artifact inspection |
+| Runtime acceptance | None | Add evidence for your AGP, device, system, and server revision |
+
+`WKIM.getVersion()` still returns `V1.5.0` from this AAR, while the source's local Maven publication says `1.0.7`. Neither attests the installed `1.5.5` package. Use the Gradle lock, JitPack coordinate, exact revision, and AAR checksum.
+
+## Recommended path
+
+1. Use [Installation](/en/sdk/android/installation) to pin dependencies, build requirements, and R8 rules.
+2. Use the [Quickstart](/en/sdk/android/quickstart) with two fresh test accounts to prove connection, SENDACK, and online receipt.
+3. Keep login and routing behind a trusted backend through [Identity & Token](/en/sdk/common-guides/identity-and-token).
+4. Implement real conversation and channel-message providers, then accept offline recovery.
+5. Close authentication, transport, logging, local-data, capacity, and rollback gates through [Integration Acceptance](/en/guide/integration/acceptance).
+
+Platform capabilities, the complete API reference, and upgrades remain planned until matching evidence exists.
+
+## Important `1.5.5` behavior
+
+- `WKIM.init(context, uid, token)` switches the UID database, persists UID/token, initializes protocol keys, and calls `updateLastSendingMsgFail()` to mark leftover sending records failed rather than recovering or retrying them. Pass `getApplicationContext()` so the weak context is not an Activity.
+- Default READ sync emits an initial `success`, then `syncMsg`, `syncCompleted`, and the final `success` after CONNACK. Enable sending only after the final success.
+- `MsgManager.send(...)` returns `void`. Local insertion, server SENDACK, and peer online receipt are separate events. Correlate with `clientMsgNO` / `clientSeq`, not pending `messageID` / `messageSeq` values.
+- Listener maps retain entries under application-provided keys. Remove the exact keys when the page, account session, or test ends.
+- `disconnect(false)` stops the connection/reconnect loop while retaining identity. `disconnect(true)` clears the token and asynchronously closes the UID database, but it does not clear the process-wide `sendingMsgHashMap`, so it is not a safe account-switch boundary.
+- CONNECT fixes the device category at `0`, matching the server dictionary `0=APP`, `1=WEB`, `2=PC`.
+
+## Production blockers
+
+- **Transport:** source opens raw **TCP** through xSocket `NonBlockingConnection` and has no TLS or `startTLS`. WKProto Curve25519 + AES-CBC Payload compatibility encryption does not authenticate the server or replace authenticated TLS.
+- **Credentials:** `WKIM.init` writes UID and token to ordinary `MODE_PRIVATE` **SharedPreferences**. An app sandbox is not an independently managed credential vault.
+- **Local data:** **SQLCipher** uses the UID directly as the database password. A UID is not a secret key; add reviewed key management, backup, and erasure behavior.
+- **Logging:** with debug enabled, the decoder logs `WKReceivedMsg.toString()`, including decrypted message **Payload**. Some warnings still log with debug disabled, so inspect the Release artifact and full collection pipeline.
+- **Shrinking:** AAR `proguard.txt` and source `consumer-rules.pro` are empty. Consumers do not inherit source `proguard-rules.pro`; own the rules and test a minified Release.
+- **Account switching:** `disconnect(true)` retains the resend queue, so a later connection under another UID can resend an earlier account's unacknowledged message. Wait for terminal SENDACKs before logout; production account switching also requires an SDK fix or process isolation.
+- **Identity:** obtaining a token does not prove production Gateway validation. Accept server verification, rotation, revocation, and device-conflict behavior separately.
+
+## What this page does not promise
+
+This page does not prove push, background execution, multi-device behavior, offline/conversation recovery, media upload, every manager API, or all Android devices. It establishes only the `1.5.5` source/AAR baseline and first online-message path. A product must retain build, runtime, and failure-recovery evidence for its complete tuple.
+
+## Next step
+
+Start with [Installation](/en/sdk/android/installation), then run the [Quickstart](/en/sdk/android/quickstart) in two independent application processes. If you need this site's current executable compatibility receipt, only the [JavaScript/Web](/en/sdk/javascript) golden path carries it today.

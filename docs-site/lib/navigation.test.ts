@@ -183,7 +183,7 @@ describe('documentation navigation contract', () => {
 
     expect(published).toEqual(expect.arrayContaining(phase13Routes));
     expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('published');
-    for (const platform of ['android', 'flutter', 'uniapp', 'harmonyos']) {
+    for (const platform of ['flutter', 'uniapp', 'harmonyos']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
@@ -205,7 +205,7 @@ describe('documentation navigation contract', () => {
       'planned',
     );
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
-    for (const platform of ['android', 'flutter', 'uniapp', 'harmonyos']) {
+    for (const platform of ['flutter', 'uniapp', 'harmonyos']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
   });
@@ -224,6 +224,28 @@ describe('documentation navigation contract', () => {
       ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
         slug,
         getNavigationEntry('en', 'sdk', ['ios', slug])?.status,
+      ]),
+    ).toEqual([
+      ['platform-capabilities', 'planned'],
+      ['api-reference', 'planned'],
+      ['upgrade', 'planned'],
+    ]);
+  });
+
+  test('publishes the narrow Phase 20 Android path without claiming runtime verification', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+
+    expect(published).toEqual(
+      expect.arrayContaining([
+        '/en/sdk/android',
+        '/en/sdk/android/installation',
+        '/en/sdk/android/quickstart',
+      ]),
+    );
+    expect(
+      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
+        slug,
+        getNavigationEntry('en', 'sdk', ['android', slug])?.status,
       ]),
     ).toEqual([
       ['platform-capabilities', 'planned'],
@@ -271,7 +293,7 @@ describe('documentation navigation contract', () => {
       'getting-started',
     ]);
 
-    for (const platform of ['android', 'flutter']) {
+    for (const platform of ['flutter']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
   });
@@ -425,6 +447,9 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/common-guides/offline-and-push`,
         `/${locale}/sdk/common-guides/multi-device`,
         `/${locale}/sdk/common-guides/reconnect-and-errors`,
+        `/${locale}/sdk/android`,
+        `/${locale}/sdk/android/installation`,
+        `/${locale}/sdk/android/quickstart`,
         `/${locale}/sdk/ios`,
         `/${locale}/sdk/ios/installation`,
         `/${locale}/sdk/ios/quickstart`,

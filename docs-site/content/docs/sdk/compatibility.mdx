@@ -13,6 +13,10 @@ description: 核对 v3 Beta JavaScript/Web 黄金路径的服务端、SDK、Node
   [完整版 iOS 教程](/zh/sdk/ios)固定使用 `WuKongIMSDK` `1.1.1`，并已校对源码、CocoaPods 元数据和分发公开头文件；它**不属于本页 receipt**。没有对应 Xcode/设备消息场景与精确 attestation 前，不能从 JavaScript/Web 的 `verified` 状态推断 iOS 兼容性。
 </Callout>
 
+<Callout type="info" title="Android 教程也不扩展这份兼容快照">
+  [完整版 Android 教程](/zh/sdk/android)固定使用 `WuKongIMAndroidSDK` `1.5.5`。源码、JitPack build revision、AAR SHA 与公开签名已经校对，但该路径**不属于本页 receipt**。单次用户侧“已验证”只有在提交精确 AGP/JDK、构建变体、设备/系统、服务端 revision 与 Alice/Bob 结果并通过评审后，才可能形成独立 Android attestation。
+</Callout>
+
 ## 目标与完成标准
 
 开始接入前，确认你的服务端 revision、`wukongimjssdk`、Node.js 和浏览器与同一份兼容快照一致。完成后，你应能指出当前组合是“已验证”“未验证”还是“已发生漂移”，而不是根据 `latest` 猜测兼容性。
@@ -79,4 +83,4 @@ curl --fail https://docs.githubim.com/compatibility.json
 
 ## 下一步
 
-需要本页 receipt 时，按 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)完成固定场景。目标是 iOS 时，从[iOS 教程](/zh/sdk/ios)开始，并为自己的 Xcode、设备、服务端和 `1.1.1` tuple 单独保存证据。HTTP 子集的版本边界见 [API 兼容性](/zh/api/compatibility)。
+需要本页 receipt 时，按 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)完成固定场景。目标是 Android 时，从[Android 教程](/zh/sdk/android)开始，并为自己的 AGP、设备、服务端和 `1.5.5` tuple 单独保存证据；iOS 对应从[iOS 教程](/zh/sdk/ios)开始。HTTP 子集的版本边界见 [API 兼容性](/zh/api/compatibility)。

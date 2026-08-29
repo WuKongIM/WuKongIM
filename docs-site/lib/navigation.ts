@@ -200,6 +200,53 @@ function platformGroup(
   ]);
 }
 
+function publishedAndroidSDKGroup(): NavigationGroup {
+  return publishedGroup(
+    'android',
+    'Android',
+    'Android',
+    '按 WuKongIMAndroidSDK 1.5.5 的源码与 JitPack AAR 完成精确安装、同步门禁和首条消息；平台能力、完整 API、升级和可执行兼容性仍待验证。',
+    'Install, pass the synchronization gate, and exchange a first message against the WuKongIMAndroidSDK 1.5.5 source and JitPack AAR; platform capabilities, full API, upgrades, and executable compatibility remain unverified.',
+    [
+      publishedPage(
+        'installation',
+        '安装与配置',
+        'Installation',
+        '通过 JitPack 精确安装 WuKongIMAndroidSDK 1.5.5，并核对 AAR、构建、R8 和安全边界。',
+        'Install WuKongIMAndroidSDK 1.5.5 exactly through JitPack and review AAR, build, R8, and security boundaries.',
+      ),
+      publishedPage(
+        'quickstart',
+        '快速接入',
+        'Quickstart',
+        '用公开 Java API 完成会话同步门禁、Alice/Bob 文本发送、SENDACK、在线接收和 listener 清理。',
+        'Use the public Java API for conversation-sync gating, Alice/Bob text send, SENDACK, online receipt, and listener cleanup.',
+      ),
+      plannedPage(
+        'platform-capabilities',
+        '平台专属能力',
+        'Platform Capabilities',
+        'Android 生命周期、后台运行、推送、离线恢复和设备矩阵仍待验证。',
+        'Android lifecycle, background execution, push, offline recovery, and device matrix remain to be verified.',
+      ),
+      plannedPage(
+        'api-reference',
+        'API 参考',
+        'API Reference',
+        'Android SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
+        'The complete Android SDK classes, methods, events, parameters, and errors remain planned.',
+      ),
+      plannedPage(
+        'upgrade',
+        '升级指南',
+        'Upgrade Guide',
+        'Android SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
+        'Breaking changes, migration steps, and release history for the Android SDK remain planned.',
+      ),
+    ],
+  );
+}
+
 function publishedIOSSDKGroup(): NavigationGroup {
   return publishedGroup(
     'ios',
@@ -940,12 +987,7 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      platformGroup(
-        'android',
-        'Android',
-        'Android SDK 的支持范围、系统要求和接入入口。',
-        'Support scope, system requirements, and entry points for the Android SDK.',
-      ),
+      publishedAndroidSDKGroup(),
       publishedIOSSDKGroup(),
       publishedJavaScriptGoldenPathGroup(),
       platformGroup(

@@ -1,0 +1,532 @@
+---
+title: Android Quickstart
+description: Use the exact WuKongIMAndroidSDK 1.5.5 Java API for synchronization gating, text send, SENDACK, online receipt, and cleanup.
+---
+
+This page maps the public `WuKongIMAndroidSDK` `1.5.5` API into a minimal online-message loop. Alice and Bob must run in separate application processes, emulators, or devices because `WKIM.getInstance()` is a process singleton. Do not overwrite two accounts in one process.
+
+<Callout type="warn" title="This is not Android runtime verification">
+  The example is aligned with tag `1.5.5`, revision `662a559a50d181540a0448454beb57e939b0c50e`, and the JitPack AAR public signatures, but it is **not Android runtime verification** by this site. There is no Android toolchain, emulator/device loop, or shared compatibility receipt. Raw TCP without TLS through `NonBlockingConnection`, an ordinary SharedPreferences token, the UID as the SQLCipher key, and decrypted Payload exposure through `WKReceivedMsg.toString()` remain **production blocker** items. The current device dictionary is `0=APP`, `1=WEB`, `2=PC`.
+</Callout>
+
+## Goal and completion criteria
+
+At the end, independently prove that:
+
+1. Alice and Bob each pass the first `success`, `syncMsg`, and `syncCompleted` before the final send-ready `success`.
+2. Alice receives a local-insert callback before a server SENDACK.
+3. Both send events correlate through the same `clientMsgNO` / `clientSeq`.
+4. Bob receives the same person text through the online new-message listener.
+5. Teardown removes the same listener keys and calls `disconnect(false)` or `disconnect(true)` for the intended lifecycle.
+
+The first `success` means CONNACK was accepted. The SDK immediately enters default READ conversation synchronization. It is not the final send-ready state. A direct low-level send is inserted locally and added to the resend queue, but network transmission is deferred during `syncMsg`. This wrapper rejects the call until the final `success` so the UI cannot confuse queued with sent.
+
+## Prerequisites
+
+- Complete [Installation](/en/sdk/android/installation) with exactly `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5`.
+- A reachable WuKongIM single-node cluster whose exact server revision is recorded.
+- Alice and Bob development accounts authenticated by a trusted product backend.
+- Separate backend responses containing `uid`, short-lived `token`, Gateway `host`, and `port`.
+- For real users, a backend implementation of recent-conversation/message synchronization.
+
+The client consumes connection material only. It must not hold Product HTTP management credentials or grant a UID to itself. The default v3 Beta Gateway token-validation boundary still needs separate acceptance for the deployed server.
+
+## 1. Define the product-backend response
+
+After product login, the application requests an authenticated response such as:
+
+```json
+{
+  "uid": "alice",
+  "token": "short-lived-secret",
+  "host": "im-gateway.internal.example",
+  "port": 5100
+}
+```
+
+Map the validated response to an application value object. `Bootstrap` below is not an SDK type:
+
+```java
+public final class Bootstrap {
+    public final String uid;
+    public final String token;
+    public final String host;
+    public final int port;
+
+    public Bootstrap(String uid, String token, String host, int port) {
+        if (uid == null || uid.trim().isEmpty()) throw new IllegalArgumentException("uid");
+        if (token == null || token.trim().isEmpty()) throw new IllegalArgumentException("token");
+        if (host == null || host.trim().isEmpty() || host.contains("://")) {
+            throw new IllegalArgumentException("host must not contain a URL scheme");
+        }
+        if (port < 1 || port > 65_535) throw new IllegalArgumentException("port");
+        this.uid = uid;
+        this.token = token;
+        this.host = host;
+        this.port = port;
+    }
+}
+```
+
+The backend owns token issuance, expiry, rotation, and revocation. Never log the real token, full Payload, or a high-cardinality UID.
+
+## 2. Install application-scoped route and sync providers
+
+`1.5.5` stores one route provider and one conversation-sync provider, with no public remove methods. Give them an `Application` or account-coordinator lifetime. Do not let a temporary Activity lambda retain a token.
+
+```java
+import android.os.Looper;
+
+import com.xinbida.wukongim.WKIM;
+import com.xinbida.wukongim.entity.WKSyncChat;
+
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+public final class WKProviders {
+    public interface SyncResult {
+        void onResult(WKSyncChat result);
+    }
+
+    public interface ConversationSource {
+        void fetch(
+            String uid,
+            String lastMsgSeqs,
+            int msgCount,
+            long version,
+            SyncResult result
+        );
+    }
+
+    private final ConversationSource source;
+    private volatile Bootstrap active;
+    private volatile long activationEpoch;
+    private volatile long deliveredEpoch = -1;
+    private String processUid;
+    private boolean restartBlocked;
+    private boolean installed;
+
+    public WKProviders(ConversationSource source) {
+        this.source = source;
+    }
+
+    public void install() {
+        requireMainThread();
+        if (installed) return;
+        installed = true;
+
+        WKIM.getInstance().getConnectionManager().addOnGetIpAndPortListener(result -> {
+            Bootstrap bootstrap = active;
+            if (bootstrap != null) {
+                result.onGetSocketIpAndPort(bootstrap.host, bootstrap.port);
+            }
+        });
+
+        WKIM.getInstance().getConversationManager().addOnSyncConversationListener(
+            (lastMsgSeqs, msgCount, version, callback) -> {
+                Bootstrap bootstrap = active;
+                if (bootstrap == null) return;
+                long epoch = activationEpoch;
+                AtomicBoolean completed = new AtomicBoolean();
+                source.fetch(
+                    bootstrap.uid,
+                    lastMsgSeqs,
+                    msgCount,
+                    version,
+                    syncChat -> {
+                        if (!completed.compareAndSet(false, true)) return;
+                        if (active == bootstrap && activationEpoch == epoch) {
+                            deliveredEpoch = epoch;
+                            callback.onBack(syncChat);
+                        }
+                    }
+                );
+            }
+        );
+    }
+
+    public long activate(Bootstrap bootstrap) {
+        requireMainThread();
+        if (restartBlocked) {
+            throw new IllegalStateException("restart the process before another connection attempt");
+        }
+        if (processUid != null && !processUid.equals(bootstrap.uid)) {
+            throw new IllegalStateException("use process isolation to switch uid");
+        }
+        processUid = bootstrap.uid;
+        active = bootstrap;
+        deliveredEpoch = -1;
+        return ++activationEpoch;
+    }
+
+    public void requireProcessRestart() {
+        requireMainThread();
+        restartBlocked = true;
+    }
+
+    public boolean didDeliver(long epoch) {
+        return deliveredEpoch == epoch;
+    }
+
+    public void deactivate(Bootstrap bootstrap, long epoch) {
+        requireMainThread();
+        if (active == bootstrap && activationEpoch == epoch) {
+            active = null;
+            deliveredEpoch = -1;
+            ++activationEpoch;
+        }
+    }
+
+    // For an online loop with fresh test accounts only; never for existing or production data.
+    public static ConversationSource freshAccountsOnly() {
+        return (uid, lastMsgSeqs, msgCount, version, result) -> {
+            WKSyncChat empty = new WKSyncChat();
+            empty.uid = uid;
+            empty.conversations = Collections.emptyList();
+            empty.cmds = Collections.emptyList();
+            empty.channel_status = Collections.emptyList();
+            result.onResult(empty);
+        };
+    }
+
+    private static void requireMainThread() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            throw new IllegalStateException("WKProviders must run on the main thread");
+        }
+    }
+}
+```
+
+A production `ConversationSource.fetch(...)` maps the complete trusted-backend response into `WKSyncChat` and defines completion or retry for both empty and failed requests. `activationEpoch` rejects a late result from an earlier connection generation, `AtomicBoolean` permits one completion per request, and the session listener uses that epoch to filter `syncCompleted`. The empty object above is for **fresh test accounts only** in an online Alice/Bob acceptance. It does not recover history, offline messages, commands, or channel state, and must not masquerade as completed synchronization for a real account.
+
+Install it once from the main thread in `Application.onCreate()`:
+
+```java
+providers = new WKProviders(productionConversationSource);
+providers.install();
+```
+
+## 3. Initialize, register listeners, then connect
+
+The following session object serializes its public entries and SDK manager callbacks on the main thread. It activates the providers, disables debug/file logging, initializes with `getApplicationContext()`, registers keyed listeners, and calls `connection()` last:
+
+```java
+import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+
+import com.xinbida.wukongim.WKIM;
+import com.xinbida.wukongim.entity.WKChannelType;
+import com.xinbida.wukongim.entity.WKMsg;
+import com.xinbida.wukongim.message.type.WKConnectStatus;
+import com.xinbida.wukongim.message.type.WKSendMsgResult;
+import com.xinbida.wukongim.msgmodel.WKTextContent;
+
+import java.util.List;
+import java.util.UUID;
+
+public final class WKSession {
+    public interface Observer {
+        void onConnectionState(int code, String reason);
+        void onReady();
+        void onTimeout();
+        void onLocalInsert(WKMsg message);
+        void onSendSucceeded(WKMsg message);
+        void onSendRejected(WKMsg message);
+        void onNewMessages(List<WKMsg> messages);
+    }
+
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final String listenerKey = "wk-session-" + UUID.randomUUID();
+    private final WKProviders providers;
+    private final Observer observer;
+
+    private Bootstrap bootstrap;
+    private long providerEpoch;
+    private Runnable timeout;
+    private long attempt;
+    private boolean sawSyncCompleted;
+    private boolean accepted;
+    private String pendingClientMsgNo;
+    private long pendingClientSeq;
+
+    public WKSession(WKProviders providers, Observer observer) {
+        this.providers = providers;
+        this.observer = observer;
+    }
+
+    public void start(Context context, Bootstrap next) {
+        requireMainThread();
+        if (bootstrap != null) {
+            throw new IllegalStateException("finish the active session before starting another");
+        }
+        if (pendingClientMsgNo != null) {
+            throw new IllegalStateException("restart the process after an unresolved send");
+        }
+
+        long currentAttempt = ++attempt;
+        bootstrap = next;
+        providerEpoch = providers.activate(next);
+
+        WKIM sdk = WKIM.getInstance();
+        sdk.setDebug(false);
+        sdk.setWriteLog(false);
+        WKIM.getInstance().init(context.getApplicationContext(), next.uid, next.token);
+
+        sawSyncCompleted = false;
+        accepted = false;
+        pendingClientMsgNo = null;
+        pendingClientSeq = 0;
+        registerListeners(currentAttempt, providerEpoch);
+
+        timeout = () -> {
+            if (currentAttempt != attempt || accepted) return;
+            providers.requireProcessRestart();
+            finish(false);
+            observer.onTimeout();
+        };
+        main.postDelayed(timeout, 15_000);
+
+        sdk.getConnectionManager().connection();
+    }
+
+    private void registerListeners(long currentAttempt, long currentProviderEpoch) {
+        WKIM sdk = WKIM.getInstance();
+
+        sdk.getConnectionManager().addOnConnectionStatusListener(
+            listenerKey,
+            (code, reason) -> {
+                if (currentAttempt != attempt) return;
+                observer.onConnectionState(code, reason);
+
+                if (code == WKConnectStatus.kicked) {
+                    providers.requireProcessRestart();
+                    finish(false);
+                    return;
+                }
+                if (code == WKConnectStatus.fail
+                    || code == WKConnectStatus.noNetwork) {
+                    providers.requireProcessRestart();
+                    finish(false);
+                    return;
+                }
+                if (code == WKConnectStatus.connecting) {
+                    sawSyncCompleted = false;
+                    accepted = false;
+                    return;
+                }
+                if (code == WKConnectStatus.syncMsg) {
+                    sawSyncCompleted = false;
+                    accepted = false;
+                    return;
+                }
+                if (code == WKConnectStatus.syncCompleted
+                    && providers.didDeliver(currentProviderEpoch)) {
+                    sawSyncCompleted = true;
+                    return;
+                }
+                if (code == WKConnectStatus.success && sawSyncCompleted) {
+                    accepted = true;
+                    cancelTimeout();
+                    observer.onReady();
+                }
+            }
+        );
+
+        sdk.getMsgManager().addOnSendMsgCallback(listenerKey, message -> {
+            if (samePendingMessage(message)) {
+                pendingClientSeq = message.clientSeq;
+                observer.onLocalInsert(message);
+            }
+        });
+
+        sdk.getMsgManager().addOnSendMsgAckListener(listenerKey, message -> {
+            if (samePendingMessage(message)
+                && pendingClientSeq > 0
+                && message.clientSeq == pendingClientSeq) {
+                boolean succeeded = message.status == WKSendMsgResult.send_success;
+                pendingClientMsgNo = null;
+                pendingClientSeq = 0;
+                if (succeeded) {
+                    observer.onSendSucceeded(message);
+                } else {
+                    observer.onSendRejected(message);
+                }
+            }
+        });
+
+        sdk.getMsgManager().addOnNewMsgListener(
+            listenerKey,
+            messages -> observer.onNewMessages(messages)
+        );
+    }
+
+    public WKMsg sendText(String text, String peerUid) {
+        requireMainThread();
+        if (!accepted) throw new IllegalStateException("conversation sync is incomplete");
+        if (text == null || text.trim().isEmpty()) throw new IllegalArgumentException("text");
+        if (peerUid == null || peerUid.trim().isEmpty()) throw new IllegalArgumentException("peerUid");
+        if (pendingClientMsgNo != null) {
+            throw new IllegalStateException("this acceptance helper allows one in-flight message");
+        }
+
+        WKTextContent content = new WKTextContent(text);
+        WKMsg message = new WKMsg();
+        message.type = content.type;
+        message.channelID = peerUid;
+        message.channelType = WKChannelType.PERSONAL;
+        message.baseContentMsgModel = content;
+
+        // WKMsg() has created clientMsgNO; save it because local insertion can call back inline.
+        pendingClientMsgNo = message.clientMsgNO;
+        pendingClientSeq = 0;
+        WKIM.getInstance().getMsgManager().sendMessage(message);
+        pendingClientSeq = message.clientSeq;
+        return message;
+    }
+
+    private boolean samePendingMessage(WKMsg message) {
+        return message != null
+            && pendingClientMsgNo != null
+            && pendingClientMsgNo.equals(message.clientMsgNO);
+    }
+
+    private void finish(boolean logout) {
+        requireMainThread();
+        if (bootstrap == null) return;
+
+        ++attempt;
+        cancelTimeout();
+        accepted = false;
+        sawSyncCompleted = false;
+        pendingClientMsgNo = null;
+        pendingClientSeq = 0;
+
+        WKIM sdk = WKIM.getInstance();
+        sdk.getConnectionManager().removeOnConnectionStatusListener(listenerKey);
+        sdk.getMsgManager().removeSendMsgCallBack(listenerKey);
+        sdk.getMsgManager().removeSendMsgAckListener(listenerKey);
+        sdk.getMsgManager().removeNewMsgListener(listenerKey);
+
+        Bootstrap previous = bootstrap;
+        long previousProviderEpoch = providerEpoch;
+        bootstrap = null;
+        providerEpoch = 0;
+        providers.deactivate(previous, previousProviderEpoch);
+        sdk.getConnectionManager().disconnect(logout);
+    }
+
+    public void pauseSession() {
+        requireNoInFlightSend();
+        if (!accepted) providers.requireProcessRestart();
+        finish(false); // Stop the connection/reconnect loop while retaining SDK identity.
+    }
+
+    public void logout() {
+        requireNoInFlightSend();
+        if (!accepted) providers.requireProcessRestart();
+        finish(true); // Clear token/caches and asynchronously close the UID database.
+    }
+
+    private void requireNoInFlightSend() {
+        requireMainThread();
+        if (pendingClientMsgNo != null) {
+            throw new IllegalStateException("wait for a terminal SENDACK before teardown");
+        }
+    }
+
+    private void cancelTimeout() {
+        if (timeout != null) {
+            main.removeCallbacks(timeout);
+            timeout = null;
+        }
+    }
+
+    private static void requireMainThread() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            throw new IllegalStateException("WKSession must run on the main thread");
+        }
+    }
+}
+```
+
+`connection()` returns `void`; it means started, not accepted. The `15_000` milliseconds is the tutorial's application acceptance bound, not an SDK socket timeout. Timeout, `kicked`, `fail`, and `noNetwork` each invalidate the current attempt, remove listeners, clear the active bootstrap, and stop the connection. Although the SDK itself may reconnect automatically, this tutorial does not let an old sync request cross a connection generation. Transparent reconnect in a production application first requires an SDK-visible connection/sync generation or cancellation mechanism, then foreground/background policy, authentication handling, and bounded reconnect backoff.
+
+The public synchronization provider has no cancellation handle, and it does not carry the application's attempt ID into the SDK save stage. The application can therefore reject a late result before handing it to the SDK, but it cannot retract an old result already handed off. On timeout, `kicked`, `fail`, `noNetwork`, or explicit teardown before final ready, this tutorial calls `requireProcessRestart()` and permanently rejects another `activate(...)` in that process. Restart the application process before reconnecting. This is a conservative fence against an old sync save/status contaminating a new attempt, not an SDK recovery feature.
+
+## 4. Apply the synchronization gate correctly
+
+The default `WKSyncMsgMode.READ` sequence comes from the exact `1.5.5` source:
+
+```text
+connecting → success → syncMsg → syncCompleted → success
+                         syncing                 send-ready
+```
+
+- The first `success` is CONNACK; do not enable the composer there.
+- During `WKConnectStatus.syncMsg`, low-level `sendMessage(WKMsg)` still inserts locally and adds the item to `sendingMsgHashMap`, but network transmission is deferred; `resendMsg()` sends it after final synchronization succeeds.
+- After the provider returns a `WKSyncChat`, the SDK saves it and emits `WKConnectStatus.syncCompleted`.
+- Only the following `WKConnectStatus.success` is accepted as ready in this tutorial.
+
+Without `addOnSyncConversationListener`, the default READ path remains at `syncMsg`. If the provider never completes, the 15-second bound disconnects. A production provider must not return an unconditional empty object merely to become ready.
+
+## 5. Separate local insert, SENDACK, and online receipt
+
+On Alice, call:
+
+```java
+WKMsg pending = session.sendText("hello from alice", "bob");
+String correlationId = pending.clientMsgNO;
+long localSequence = pending.clientSeq;
+```
+
+`new WKTextContent(...)` constructs the content. `new WKMsg()` creates the `clientMsgNO`; `sendMessage(message)` synchronously performs local insertion and assigns `clientSeq` before network delivery. The listeners represent different events:
+
+| Listener | Observer | What it proves |
+| --- | --- | --- |
+| `addOnSendMsgCallback` | Alice | The message entered the local send path; the server has not necessarily accepted it |
+| `addOnSendMsgAckListener` | Alice | The server returned SENDACK; for the same `clientMsgNO` / `clientSeq`, `send_success` calls `onSendSucceeded` and every other status calls `onSendRejected` |
+| `addOnNewMsgListener` | Bob | Bob received online messages; it does not prove offline recovery or push |
+
+Do not correlate a pending send by server `messageID` / `messageSeq`, which are not assigned yet. This sample permits one in-flight acceptance message. A product needs a bounded map keyed by `clientMsgNO`, updated on the main thread or its own serial executor.
+
+## 6. Cleanup and logout semantics
+
+`pauseSession()` calls exactly `disconnect(false)`: it stops the active connection and SDK reconnect loop while retaining UID/token identity. `logout()` calls `disconnect(true)`: it clears the token, stops the connection, clears manager caches, and asynchronously closes the UID-scoped database. Both require the acceptance message to have a terminal SENDACK; the sample refuses teardown while a send is in flight. Calling either path before final ready also marks the process as requiring restart.
+
+Both paths first call the exact cleanup APIs:
+
+```text
+removeOnConnectionStatusListener
+removeSendMsgCallBack
+removeSendMsgAckListener
+removeNewMsgListener
+```
+
+The listener key must exactly match the add key. Do not drop a temporary `WKSession` and rely on GC. Give it an account-session or application-coordinator owner and invoke cleanup from explicit lifecycle entries. Route/sync providers have no remove API, so `WKProviders` remains application-scoped and clears only its active bootstrap at account end.
+
+There is also a source-level account-switch blocker: `disconnect(true)` does not clear `WKConnection.sendingMsgHashMap`, and a later successful connection calls `resendMsg()`. If logout occurs with an unacknowledged send, another UID can resend the earlier account's message. The minimal acceptance must wait for a successful or rejected SENDACK. Production account switching additionally requires an SDK queue-isolation/cleanup fix or process isolation. Do not continue connecting in the same process after any terminal connection status, pre-ready teardown, or unresolved send.
+
+## 7. Run the Alice/Bob acceptance
+
+Use two independent application processes:
+
+1. Alice and Bob each receive their own `uid`, `token`, `host`, and `port` from the trusted backend.
+2. Both start a session and observe the full synchronization sequence plus final ready state within 15 seconds.
+3. Alice sends `hello from alice` to Bob and records only a redacted `clientMsgNO` / `clientSeq`.
+4. Alice receives local insertion and then a `WKSendMsgResult.send_success` SENDACK for the same identity.
+5. Bob's new-message listener receives a person-channel text from Alice.
+6. Bob replies and repeats the same checks.
+7. After proving that no send is in flight, both call `pauseSession()` and show that listeners no longer fire and SDK reconnect stops. Use `logout()` separately for sign-out, without immediately switching UID in the same process.
+
+Retain SDK `1.5.5`, the source revision, JitPack coordinate and AAR SHA, server revision, AGP/JDK, build variant, device/system tuple, time, and redacted result. A user's “verified” result applies to that environment only. It does not become this site's receipt until its evidence is reviewed and added to a compatibility tuple.
+
+## Boundaries still blocking production
+
+- `NonBlockingConnection` uses raw **TCP** without authenticated **TLS**; WKProto payload encryption is not TLS.
+- UID/token are stored in ordinary **SharedPreferences**, and **SQLCipher** uses the UID directly as its password.
+- Debug decode logging calls `WKReceivedMsg.toString()`, which contains plaintext **Payload**. Keep `setDebug(false)` and `setWriteLog(false)`, then inspect the Release logging pipeline.
+- `disconnect(true)` does not clear `sendingMsgHashMap`; safe account switching requires an SDK fix or process isolation.
+- CONNECT uses device category `0`. Although it matches `0=APP`, `1=WEB`, `2=PC`, it does not prove kick, push, or multi-device policy.
+
+This online loop is therefore not a production attestation. Offline/conversation recovery, push, background behavior, media, TLS, credential storage, and database key management each need a separate implementation and receipt.
