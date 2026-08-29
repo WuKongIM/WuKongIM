@@ -1,25 +1,29 @@
 ---
 title: 5 分钟集成 Flutter
-description: 锁定 WuKongEasySDK Flutter v1.0.3，在 Flutter 应用中完成初始化、连接、消息收发与 State 生命周期清理。
+description: 锁定 WuKongEasySDK Flutter v1.0.4，在 Flutter 应用中完成初始化、连接、消息收发与 State 生命周期清理。
 ---
 
 本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的最小流程：从业务后端取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
 
 <Callout type="warn" title="证据边界">
-  示例按官方 [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.3`、源码 revision `7888867a9f22ec22d768dcfe0c6c95b418fcb458` 校对。这是源码级教程，不是本站运行验证，也不表示所有 Flutter 目标平台都通过了同一服务端组合。
+  示例按官方 [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.4`、源码 revision `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` 校对，发布包可在 [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) 核对。这是源码级教程，不是本站运行验证，也不表示所有 Flutter 目标平台都通过了同一服务端组合。
 </Callout>
 
-<Callout type="error" title="v1.0.3 请求日志是生产阻断项">
+<Callout type="info" title="设备类型线路值">
+  `v1.0.4` 的 `WuKongDeviceFlag` 与服务端一致：APP `0`、WEB `1`、PC `2`；默认值是 `WuKongDeviceFlag.app`。业务代码应传枚举，不要复制整数。
+</Callout>
+
+<Callout type="error" title="v1.0.4 请求日志是生产阻断项">
   该 tag 会通过 `developer.log` 无条件记录完整 JSON-RPC 请求与响应；CONNECT 请求包含 Token，SEND 请求包含编码后的 Payload，而且没有公开的日志关闭配置。用于生产前必须升级或修复 SDK，并在各目标平台的 Release 构建和日志采集链路中验证脱敏。
 </Callout>
 
 <Callout type="warn" title="接收 Payload 需要应用解码">
-  `v1.0.3` 会按当前 v3 要求把 SEND Payload 编成 Base64，但收到 RECV 后把服务端 Base64 字符串原样放进 `Message.payload`。示例显式做 Base64 → UTF-8 解码；业务层随后再按 `type` 分派 JSON，不能假设 `message.payload` 已经是 Map。
+  `v1.0.4` 会按当前 v3 要求把 SEND Payload 编成 Base64，但收到 RECV 后把服务端 Base64 字符串原样放进 `Message.payload`。示例显式做 Base64 → UTF-8 解码；业务层随后再按 `type` 分派 JSON，不能假设 `message.payload` 已经是 Map。
 </Callout>
 
 ## 完成后你会得到什么
 
-- `pubspec.yaml` 中锁定为 `1.0.3` 的依赖；
+- `pubspec.yaml` 中锁定为 `1.0.4` 的依赖；
 - 一个不会在 Widget 重建时重复注册监听器的页面；
 - Alice 的发送结果与 Bob 的实时消息事件；
 - 清晰的退出、去重、Token、WSS 与后续离线能力边界。
@@ -43,7 +47,7 @@ description: 锁定 WuKongEasySDK Flutter v1.0.3，在 Flutter 应用中完成�
 dependencies:
   flutter:
     sdk: flutter
-  wukong_easy_sdk: 1.0.3
+  wukong_easy_sdk: 1.0.4
 ```
 
 然后执行：
@@ -242,7 +246,7 @@ Future<void> sendText(String targetUid, String text) async {
 4. Bob 核对 `fromUid`、`channelId`，先解码 Base64 Payload 再检查 `type` 与 `content`，并按 `messageId` 去重；
 5. Bob 向 Alice 回发，验证反向链路；
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放；
-7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.3` 原始源码未修复前不得通过生产门禁。
+7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.4` 原始源码未修复前不得通过生产门禁。
 
 该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/sdk/common-guides/messaging)和[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)补齐。
 
@@ -251,7 +255,7 @@ Future<void> sendText(String targetUid, String text) async {
 - **`SDK not initialized`**：等待 `easySDK.init(config)` 完成后再连接或发送。
 - **Widget 重建后重复收消息**：不要在 `build` 中注册监听器；保存回调引用并在 `dispose` 移除。
 - **切到新 UID 后仍看到旧状态**：先移除监听、断开并 `dispose`，再用新配置初始化；同时清空产品本地状态。
-- **系统日志出现 Token 或 Payload**：这是 `v1.0.3` 的已知采用阻断项；升级或修复日志路径并验证 Release 产物后再上线。
+- **系统日志出现 Token 或 Payload**：这是 `v1.0.4` 的已知采用阻断项；升级或修复日志路径并验证 Release 产物后再上线。
 - **`message.payload` 是一段字符串**：当前 v3 在线 Payload 以 Base64 字节进入 JSON-RPC；先解码为 UTF-8 JSON，再按消息类型解析，未知格式保留原值并降级展示。
 - **真机连不上本地地址**：`localhost` 指向真机自身，让业务后端返回设备可达的 WSS 地址。
 - **发送成功但 UI 没有对方消息**：把发送结果、实时接收和离线恢复分开检查。

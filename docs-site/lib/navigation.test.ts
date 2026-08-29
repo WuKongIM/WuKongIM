@@ -214,6 +214,12 @@ describe('documentation navigation contract', () => {
     const sdk = domains.find((domain) => domain.key === 'sdk');
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+    const snapshots = new Map([
+      ['ios/getting-started', 'v1.0.3'],
+      ['android/getting-started', 'v1.0.3'],
+      ['flutter/getting-started', 'v1.0.4'],
+      ['javascript/getting-started', 'v2.0.2'],
+    ]);
 
     expect(easy?.status).toBe('planned');
     expect(easy?.children.map((page) => [page.slug, page.status])).toEqual([
@@ -222,6 +228,12 @@ describe('documentation navigation contract', () => {
       ['flutter/getting-started', 'planned'],
       ['javascript/getting-started', 'planned'],
     ]);
+    for (const page of easy?.children ?? []) {
+      const snapshot = snapshots.get(page.slug);
+      expect(snapshot).toBeDefined();
+      expect(page.description.zh).toContain(snapshot!);
+      expect(page.description.en).toContain(snapshot!);
+    }
     for (const url of [
       '/en/sdk/easy',
       '/en/sdk/easy/ios/getting-started',

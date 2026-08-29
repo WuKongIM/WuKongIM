@@ -14,10 +14,10 @@ WuKongEasySDK is for applications that need realtime communication while keeping
 ## Choose your platform
 
 <Cards>
-  <Card title="iOS" description="Install v1.0.2 with Swift Package Manager or CocoaPods." href="/en/sdk/easy/ios/getting-started" />
-  <Card title="Android" description="Install v1.0.2 from Maven Central and clean up listeners with the Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
-  <Card title="Flutter" description="Install v1.0.3 from pub.dev and release resources from State.dispose." href="/en/sdk/easy/flutter/getting-started" />
-  <Card title="Web" description="Pin easyjssdk v2.0.1 and obtain browser connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="iOS" description="Install v1.0.3 with Swift Package Manager or CocoaPods." href="/en/sdk/easy/ios/getting-started" />
+  <Card title="Android" description="Install v1.0.3 from Maven Central and clean up listeners with the Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
+  <Card title="Flutter" description="Install v1.0.4 from pub.dev and release resources from State.dispose." href="/en/sdk/easy/flutter/getting-started" />
+  <Card title="Web" description="Pin easyjssdk v2.0.2 and obtain browser connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
 </Cards>
 
 ## What EasySDK owns
@@ -36,10 +36,10 @@ EasySDK is neither a chat UI nor a complete product backend. A successful `send`
 
 | Platform | Release tag | Source revision | Distribution |
 | --- | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.2` | `6257d9ddcc2872e20ff23446a2f368c2c2c1f481` | Swift Package Manager / CocoaPods |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.2` | `2e9c9023428571b56eeddc053608aefe5d6a9a5f` | Maven Central |
-| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.3` | `7888867a9f22ec22d768dcfe0c6c95b418fcb458` | pub.dev |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.1` | `f13b7fb911fdb2912025e289dcd7749350a54469` | npm |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.3` | `643848f85be70e3e3f2be22fceb86ae428b6cc38` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.3` | `62084632cd8d1f26c751b053b0fb82d6aaa63892` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) |
 
 The tutorials deliberately pin these versions instead of using ranges or `latest`. Before an upgrade, repeat the Alice/Bob acceptance loop on an isolated branch, then update the application lockfile and your compatibility record.
 
@@ -62,12 +62,12 @@ A client must not grant its own identity. The user first signs in to your produc
 
 Complete [Identity & Token](/en/sdk/common-guides/identity-and-token) first. In the default v3 Beta composition, storing data through `/user/token` does not automatically provide production-grade CONNECT validation. A deployment must wire a trusted verifier and prove rejection of invalid, expired, and revoked tokens.
 
-<Callout type="warn" title="Do not copy device enum numbers">
-  APP is `1` in the iOS and Android `v1.0.2` sources but `0` in the current server [Device Flag dictionary](/en/api/dictionaries/device-flags); using the default `.app` / `APP` does not avoid the mismatch. Both platforms also have current-v3 payload or field-shape mismatches. Upgrade or patch the SDK first, then test device classification and the Alice/Bob path against the target server.
+<Callout type="info" title="Device categories are aligned; application code should still use enums">
+  All four pinned versions use the same wire values as the [Device Flag dictionary](/en/api/dictionaries/device-flags): APP `0`, WEB `1`, and PC `2`. Mobile clients use `.app` / `APP`, while the browser defaults to WEB; do not copy integers into product code. Aligned device values do not prove the remaining protocol shapes are compatible: the iOS and Android tutorials still document their payload or field blockers.
 </Callout>
 
 <Callout type="error" title="Close sensitive SDK logging before production">
-  The pinned source on all four platforms has logging paths that can expose tokens or payloads: some Android `v1.0.2` parse-error logs ignore `debugLogging`, the iOS `v1.0.2` JSON-logging setting does not actually gate output, and Flutter `v1.0.3` plus Web `v2.0.1` log complete requests or responses. Each platform tutorial records its exact boundary. Production remains blocked until the SDK is fixed, the built artifact is inspected, and redaction tests pass.
+  The pinned source on all four platforms has logging paths that can expose tokens or payloads: some Android `v1.0.3` parse-error logs ignore `debugLogging`, the iOS `v1.0.3` JSON-logging setting does not actually gate output, and Flutter `v1.0.4` plus Web `v2.0.2` log complete requests or responses. Each platform tutorial records its exact boundary. Production remains blocked until the SDK is fixed, the built artifact is inspected, and redaction tests pass.
 </Callout>
 
 ## Accept with Alice and Bob

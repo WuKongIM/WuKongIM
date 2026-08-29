@@ -1,25 +1,29 @@
 ---
 title: 5-minute Flutter integration
-description: Pin WuKongEasySDK Flutter v1.0.3 and complete initialization, connection, messaging, and State lifecycle cleanup.
+description: Pin WuKongEasySDK Flutter v1.0.4 and complete initialization, connection, messaging, and State lifecycle cleanup.
 ---
 
 This page joins the minimal Flutter EasySDK flow inside one `StatefulWidget`: obtain connection material from the product backend, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
 
 <Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.3` source at revision `7888867a9f22ec22d768dcfe0c6c95b418fcb458`. This is a source-level tutorial, not runtime verification, and it does not mean every Flutter target passed against the same server combination.
+  The example is aligned with the official [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.4` source at revision `6179251b49414401fe0eac4bfa3fec3f9b13a9fc`; the published package is available on [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4). This is a source-level tutorial, not runtime verification, and it does not mean every Flutter target passed against the same server combination.
 </Callout>
 
-<Callout type="error" title="v1.0.3 request logging blocks production adoption">
+<Callout type="info" title="Device-category wire values">
+  `WuKongDeviceFlag` in `v1.0.4` matches the server: APP `0`, WEB `1`, and PC `2`; the default is `WuKongDeviceFlag.app`. Product code should pass the enum instead of copying an integer.
+</Callout>
+
+<Callout type="error" title="v1.0.4 request logging blocks production adoption">
   This tag unconditionally records complete JSON-RPC requests and responses through `developer.log`. CONNECT includes the token, SEND includes the encoded payload, and there is no public logging-off setting. Before production, upgrade or fix the SDK and verify redaction in every target's Release artifact and log-collection path.
 </Callout>
 
 <Callout type="warn" title="The application must decode received payloads">
-  `v1.0.3` Base64-encodes SEND payloads as current v3 requires, but leaves a received server Base64 string unchanged in `Message.payload`. The sample explicitly performs Base64 → UTF-8 decoding. Product code then dispatches the JSON by `type`; it must not assume `message.payload` is already a Map.
+  `v1.0.4` Base64-encodes SEND payloads as current v3 requires, but leaves a received server Base64 string unchanged in `Message.payload`. The sample explicitly performs Base64 → UTF-8 decoding. Product code then dispatches the JSON by `type`; it must not assume `message.payload` is already a Map.
 </Callout>
 
 ## What you will have
 
-- A dependency pinned to `1.0.3` in `pubspec.yaml`.
+- A dependency pinned to `1.0.4` in `pubspec.yaml`.
 - A screen that does not register duplicate listeners during Widget rebuilds.
 - Alice's send result and Bob's independent realtime message event.
 - Clear boundaries for logout, deduplication, tokens, WSS, and later offline behavior.
@@ -43,7 +47,7 @@ Add the exact version to `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  wukong_easy_sdk: 1.0.3
+  wukong_easy_sdk: 1.0.4
 ```
 
 Then run:
@@ -242,7 +246,7 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 4. On Bob, verify `fromUid` and `channelId`, decode the Base64 payload before checking `type` and `content`, and deduplicate by `messageId`.
 5. Have Bob send to Alice and prove the reverse direction.
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
-7. Inspect system logs and collectors for every Release target to prove that tokens, payloads, and complete JSON-RPC data cannot leak. Unmodified `v1.0.3` must not pass the production gate.
+7. Inspect system logs and collectors for every Release target to prove that tokens, payloads, and complete JSON-RPC data cannot leak. Unmodified `v1.0.4` must not pass the production gate.
 
 This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/sdk/common-guides/messaging) and [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
 
@@ -251,7 +255,7 @@ This loop does not prove application-background recovery, offline message synchr
 - **`SDK not initialized`:** wait for `easySDK.init(config)` before connecting or sending.
 - **Messages duplicate after Widget rebuild:** never register listeners from `build`; retain callbacks and remove them from `dispose`.
 - **A new UID still sees old state:** remove listeners, disconnect, and `dispose` before initializing the new configuration, and clear product-local state too.
-- **System logs contain a token or payload:** this is a known `v1.0.3` adoption blocker. Upgrade or patch the logging path and verify the Release artifact before production.
+- **System logs contain a token or payload:** this is a known `v1.0.4` adoption blocker. Upgrade or patch the logging path and verify the Release artifact before production.
 - **`message.payload` is a string:** current v3 carries online payload bytes as Base64 in JSON-RPC. Decode them to UTF-8 JSON before dispatching by message type; preserve unknown formats for fallback UI.
 - **A physical device cannot reach the local address:** `localhost` means the device itself; have the product backend return a device-reachable WSS ingress.
 - **Send succeeds but the peer message is absent from the UI:** inspect send result, realtime receipt, and offline recovery separately.

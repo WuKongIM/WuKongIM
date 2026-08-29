@@ -1,21 +1,21 @@
 ---
 title: 5 分钟集成 Android
-description: 锁定 WuKongEasySDK Android v1.0.2，在 Kotlin 应用中完成安装、连接、事件监听、单聊发送与资源清理。
+description: 锁定 WuKongEasySDK Android v1.0.3，在 Kotlin 应用中完成安装、连接、事件监听、单聊发送与资源清理。
 ---
 
 本页沿用旧版教程的“安装 → 初始化 → 监听 → 连接 → 发送”顺序，同时补上精确版本、Activity 生命周期、双端验收与当前 v3 协议边界。
 
 <Callout type="warn" title="证据边界">
-  示例按官方 [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.2`、源码 revision `2e9c9023428571b56eeddc053608aefe5d6a9a5f` 校对。这是源码级教程，不是本站运行验证，也不代表该版本已经通过当前 WuKongIM v3 的完整兼容性场景。
+  示例按官方 [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3`、源码 revision `62084632cd8d1f26c751b053b0fb82d6aaa63892` 校对，发布包可在 [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) 核对。这是源码级教程，不是本站运行验证，也不代表该版本已经通过当前 WuKongIM v3 的完整兼容性场景。
 </Callout>
 
 <Callout type="error" title="采用前必须关闭协议与日志阻断项">
-  Android `v1.0.2` 的 CONNECT、SEND、RECVACK 与结果模型仍有下划线字段，SEND 还直接传 JSON 对象；当前 v3 JSON-RPC Schema 使用驼峰字段，Payload 是 Base64 编码字节。若只修字段名，SDK 的 APP 设备值 `1` 仍与服务端 APP 值 `0` 不同。此外，JSON-RPC 未知消息、解析失败和 RECV 解析异常路径会不受 `debugLogging` 控制地把完整消息或 `Params` 写入 Logcat，其中可能含 Token 或 Payload。未修改的 tag 不能直接通过当前 v3 消息闭环，也不能通过生产日志门禁。下面代码用于说明公开 API 与验收骨架；先采用包含协议修复与日志脱敏的上游版本或经过评审的 fork，再执行 Alice/Bob 实测，不能在业务层伪造成功结果。
+  Android `v1.0.3` 的 CONNECT、SEND、RECVACK 与结果模型仍有下划线字段，SEND 还直接传 JSON 对象；当前 v3 JSON-RPC Schema 使用驼峰字段，Payload 是 Base64 编码字节。该版本已把设备线路值修正为 APP `0`、WEB `1`、PC `2`，但这不会修复字段和 Payload 形态。此外，JSON-RPC 未知消息、解析失败和 RECV 解析异常路径会不受 `debugLogging` 控制地把完整消息或 `Params` 写入 Logcat，其中可能含 Token 或 Payload。未修改的 tag 不能直接通过当前 v3 消息闭环，也不能通过生产日志门禁。下面代码用于说明公开 API 与验收骨架；先采用包含协议修复与日志脱敏的上游版本或经过评审的 fork，再执行 Alice/Bob 实测，不能在业务层伪造成功结果。
 </Callout>
 
 ## 完成后你会得到什么
 
-- Maven Central 中锁定为 `1.0.2` 的 Android 依赖；
+- Maven Central 中锁定为 `1.0.3` 的 Android 依赖；
 - 一个按正确顺序初始化和注册监听器的 Kotlin 页面；
 - 一套 Alice 发送结果与 Bob 实时接收的双端验收骨架；
 - 对单例身份切换、字段兼容、Token 与生产安全的明确阻断项。
@@ -37,7 +37,7 @@ description: 锁定 WuKongEasySDK Android v1.0.2，在 Kotlin 应用中完成安
 
 ```kotlin
 dependencies {
-    implementation("com.githubim:easysdk-android:1.0.2")
+    implementation("com.githubim:easysdk-android:1.0.3")
 }
 ```
 
@@ -45,7 +45,7 @@ Groovy DSL 对应写法为：
 
 ```groovy
 dependencies {
-    implementation 'com.githubim:easysdk-android:1.0.2'
+    implementation 'com.githubim:easysdk-android:1.0.3'
 }
 ```
 
@@ -80,7 +80,7 @@ data class IMBootstrap(
 
 ## 步骤 4：初始化、监听并连接
 
-Android EasySDK 是进程内单例，而且 `v1.0.2` 初始化后不能用另一份配置再次 `init`。下面示例适合一个进程只登录一个 UID 的最小验证；生产应用若支持账号切换，必须先针对该限制设计并实测完整退出策略。
+Android EasySDK 是进程内单例，而且 `v1.0.3` 初始化后不能用另一份配置再次 `init`。下面示例适合一个进程只登录一个 UID 的最小验证；生产应用若支持账号切换，必须先针对该限制设计并实测完整退出策略。
 
 ```kotlin
 import android.os.Bundle
@@ -156,7 +156,7 @@ class ChatActivity : AppCompatActivity() {
                     current.deviceFlag == config.deviceFlag &&
                     current.debugLogging == config.debugLogging
             ) {
-                "WuKongEasySDK v1.0.2 cannot apply changed identity or configuration; " +
+                "WuKongEasySDK v1.0.3 cannot apply changed identity or configuration; " +
                     "stop and restart the process or upgrade the SDK"
             }
         }
@@ -240,14 +240,14 @@ fun sendText(targetUid: String, text: String) {
 6. 在评审后的构建中以唯一假 Token 和消息文本执行成功及解析失败路径，确认 Logcat 与崩溃报告都没有这些值；
 7. 重建 Activity，确认监听器没有重复；退出应用时确认连接已关闭。
 
-未修改的 `v1.0.2` 预期会在当前 v3 的字段、设备类型或 Payload 阶段失败；这正是前述兼容性阻断项的证据。保留服务端 revision、Android tag 与错误阶段，不要用盲目重试掩盖。只有修复后的构建通过，才能保留 Alice 与 Bob 的发送和接收证据。
+未修改的 `v1.0.3` 预期会在当前 v3 的字段或 Payload 阶段失败；这正是前述兼容性阻断项的证据。保留服务端 revision、Android tag 与错误阶段，不要用盲目重试掩盖。只有修复后的构建通过，才能保留 Alice 与 Bob 的发送和接收证据。
 
 ## 常见问题
 
 - **`SDK is not initialized`**：严格执行 `init → addEventListener → connect` 顺序。
-- **同一 UID 刷新 Token 或路由后提示配置变化**：`v1.0.2` 没有公开重置配置 API；显式停止流程并重启进程，或升级 SDK，不能继续使用旧 Token 或旧地址。
+- **同一 UID 刷新 Token 或路由后提示配置变化**：`v1.0.3` 没有公开重置配置 API；显式停止流程并重启进程，或升级 SDK，不能继续使用旧 Token 或旧地址。
 - **连接地址在模拟器可用、真机不可用**：检查地址是否只在宿主机或容器内部可达；让业务后端返回设备可达的 WSS 入口。
-- **CONNECT、SEND 或 RECVACK 解析失败**：核对驼峰字段、Base64 Payload 和设备值；这些都是 `v1.0.2` 与当前 v3 的已知兼容阻断项。
+- **CONNECT、SEND 或 RECVACK 解析失败**：优先核对驼峰字段与 Base64 Payload；它们仍是 `v1.0.3` 与当前 v3 的已知兼容阻断项。设备值已经统一为 APP `0`、WEB `1`、PC `2`，不要继续沿用旧整数。
 - **关闭 `debugLogging` 后仍在 Logcat 看到原始 JSON 或 `Params`**：这是该 tag 的无条件日志路径；不要用生产 Token 或消息继续测试，改用已删除或脱敏这些输出的评审构建。
 - **消息重复**：避免重复注册监听器，并按 `messageId` 去重。
 

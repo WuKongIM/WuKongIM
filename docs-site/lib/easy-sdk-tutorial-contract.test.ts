@@ -15,9 +15,10 @@ const platforms = [
   {
     path: 'ios/getting-started',
     repository: 'WuKongEasySDK-iOS',
-    tag: 'v1.0.2',
-    revision: '6257d9ddcc2872e20ff23446a2f368c2c2c1f481',
-    install: ["pod 'WuKongEasySDK', '1.0.2'", 'exact: "1.0.2"'],
+    tag: 'v1.0.3',
+    revision: '643848f85be70e3e3f2be22fceb86ae428b6cc38',
+    distribution: 'https://cocoapods.org/pods/WuKongEasySDK',
+    install: ["pod 'WuKongEasySDK', '1.0.3'", 'exact: "1.0.3"'],
     api: ['WuKongConfig', 'onConnect', 'onMessage', 'removeListener', 'sdk.connect()', 'sdk.send('],
     bounded: ['connectionTimeout: 15', 'requestTimeout: 15'],
     cleanup: ['sdk.disconnect()', 'listeners.forEach { sdk.removeListener($0) }'],
@@ -25,9 +26,10 @@ const platforms = [
   {
     path: 'android/getting-started',
     repository: 'WuKongEasySDK-Android',
-    tag: 'v1.0.2',
-    revision: '2e9c9023428571b56eeddc053608aefe5d6a9a5f',
-    install: ['implementation("com.githubim:easysdk-android:1.0.2")'],
+    tag: 'v1.0.3',
+    revision: '62084632cd8d1f26c751b053b0fb82d6aaa63892',
+    distribution: 'https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3',
+    install: ['implementation("com.githubim:easysdk-android:1.0.3")'],
     api: [
       'WuKongConfig.Builder()',
       'addEventListener',
@@ -41,9 +43,10 @@ const platforms = [
   {
     path: 'flutter/getting-started',
     repository: 'WuKongEasySDK-Flutter',
-    tag: 'v1.0.3',
-    revision: '7888867a9f22ec22d768dcfe0c6c95b418fcb458',
-    install: ['wukong_easy_sdk: 1.0.3'],
+    tag: 'v1.0.4',
+    revision: '6179251b49414401fe0eac4bfa3fec3f9b13a9fc',
+    distribution: 'https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4',
+    install: ['wukong_easy_sdk: 1.0.4'],
     api: [
       'WuKongEasySDK.getInstance()',
       'addEventListener',
@@ -57,9 +60,10 @@ const platforms = [
   {
     path: 'javascript/getting-started',
     repository: 'WuKongEasySDK-JS',
-    tag: 'v2.0.1',
-    revision: 'f13b7fb911fdb2912025e289dcd7749350a54469',
-    install: ['npm install --save-exact easyjssdk@2.0.1'],
+    tag: 'v2.0.2',
+    revision: 'c59c80551944c9e5d9b4a902ebd2629d3defb2e6',
+    distribution: 'https://www.npmjs.com/package/easyjssdk/v/2.0.2',
+    install: ['npm install --save-exact easyjssdk@2.0.2'],
     api: ['WKIM.init', 'im.on', 'im.off', 'im.connect()', 'im.send('],
     bounded: ['Promise.race', '10_000'],
     cleanup: ['im.off', 'im.destroy()'],
@@ -67,6 +71,18 @@ const platforms = [
 ] as const;
 
 describe('EasySDK tutorial content contract', () => {
+  test('keeps the Phase 15 snapshot contract aligned with maintained tutorials', async () => {
+    const specification = await Bun.file(
+      new URL('../PHASE_15_SPEC.md', import.meta.url),
+    ).text();
+
+    for (const platform of platforms) {
+      expect(specification).toContain(platform.tag);
+      expect(specification).toContain(platform.revision);
+    }
+    expect(specification).toContain('Phase 18 subsequently moved this group back to planned');
+  });
+
   test('retains a bilingual source scaffold with exact platform snapshots', async () => {
     const [zh, en] = await Promise.all([content('index.mdx'), content('index.en.mdx')]);
 
@@ -79,6 +95,7 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).toContain(`https://github.com/WuKongIM/${platform.repository}`);
         expect(page).toContain(platform.tag);
         expect(page).toContain(platform.revision);
+        expect(page).toContain(platform.distribution);
       }
       expect(page).toContain(`/${locale}/sdk/common-guides/identity-and-token`);
       expect(page).toContain(`/${locale}/sdk/common-guides/messaging`);
@@ -121,6 +138,7 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).toContain(`https://github.com/WuKongIM/${platform.repository}`);
         expect(page).toContain(platform.tag);
         expect(page).toContain(platform.revision);
+        expect(page).toContain(platform.distribution);
         for (const command of platform.install) expect(page).toContain(command);
         for (const api of platform.api) expect(page).toContain(api);
         for (const boundary of platform.bounded) expect(page).toContain(boundary);
@@ -159,12 +177,14 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).toContain('LogManager.logJsonData');
       expect(page).toMatch(/Base64/u);
       expect(page).toMatch(/APP[^\n.]*`0`|`0`[^\n.]*APP/u);
+      expect(page).not.toMatch(/\.app(?:\.rawValue)?\s*(?:==|is|为)\s*`?1`?/u);
     }
     for (const page of [androidZh, androidEn]) {
       expect(page).toMatch(/下划线字段|underscore fields?/u);
       expect(page).toMatch(/驼峰字段|camel-case fields?/u);
       expect(page).toMatch(/Base64/u);
       expect(page).toMatch(/APP[^\n.]*`0`|`0`[^\n.]*APP/u);
+      expect(page).not.toMatch(/APP (?:device )?value `?1`?|APP 设备值 `?1`?/u);
       expect(page).toContain('debugLogging(false)');
       expect(page).toContain('Params');
       expect(page).toMatch(/Logcat/u);
@@ -180,6 +200,10 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).toContain('console.log');
       expect(page).toMatch(/Token|token/u);
       expect(page).toMatch(/Payload|payload/u);
+    }
+
+    for (const page of [iosZh, iosEn, androidZh, androidEn, flutterZh, flutterEn, webZh, webEn]) {
+      expect(page).toMatch(/APP[^\n.]*`0`[^\n.]*WEB[^\n.]*`1`[^\n.]*PC[^\n.]*`2`/u);
     }
   });
 });

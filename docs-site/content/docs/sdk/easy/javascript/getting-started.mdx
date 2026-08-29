@@ -1,21 +1,25 @@
 ---
 title: 5 分钟集成 Web
-description: 锁定 easyjssdk v2.0.1，在浏览器应用中通过业务 BFF 完成连接、事件监听、消息发送与页面清理。
+description: 锁定 easyjssdk v2.0.2，在浏览器应用中通过业务 BFF 完成连接、事件监听、消息发送与页面清理。
 ---
 
 本页只覆盖浏览器接入。浏览器先向你的业务 BFF 请求当前用户的连接材料，再使用 EasyJSSDK 建立 WebSocket JSON-RPC 连接；它从不直接持有 Product HTTP 管理凭据。
 
 <Callout type="warn" title="证据边界">
-  示例按官方 [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.1`、源码 revision `f13b7fb911fdb2912025e289dcd7749350a54469` 校对。这是源码级教程，不是本站运行验证，也不是现有 `wukongimjssdk@1.3.5` Web 黄金路径的兼容性凭据。
+  示例按官方 [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.2`、源码 revision `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` 校对，发布包可在 [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) 核对。这是源码级教程，不是本站运行验证，也不是现有 `wukongimjssdk@1.3.5` Web 黄金路径的兼容性凭据。
 </Callout>
 
-<Callout type="error" title="v2.0.1 日志是生产阻断项">
+<Callout type="info" title="浏览器默认使用 WEB 设备类型">
+  `v2.0.2` 的线路值是 APP `0`、WEB `1`、PC `2`，浏览器连接未显式传值时默认使用 `WKIMDeviceFlag.Web`。业务代码应使用导出的枚举，不要复制整数。
+</Callout>
+
+<Callout type="error" title="v2.0.2 日志是生产阻断项">
   当前源码会通过 `console.debug` / `console.log` 输出 JSON-RPC 请求、响应和连接细节，其中连接请求可能包含 Token，发送请求可能包含 Payload。用于生产前必须先升级或修复为默认关闭且敏感字段脱敏，并在浏览器构建产物中验证；不要依赖用户“不开 DevTools”保护凭据。
 </Callout>
 
 ## 完成后你会得到什么
 
-- 锁定为 `easyjssdk@2.0.1` 的 npm 依赖；
+- 锁定为 `easyjssdk@2.0.2` 的 npm 依赖；
 - 一个只消费业务 BFF 最小响应的浏览器客户端；
 - 可精确 `off` 的事件回调和页面退出清理；
 - Alice 发送结果与 Bob 实时接收两份独立观察。
@@ -36,7 +40,7 @@ description: 锁定 easyjssdk v2.0.1，在浏览器应用中通过业务 BFF 完
 在现有 Vite、Next.js 或其他打包工程中执行：
 
 ```bash
-npm install --save-exact easyjssdk@2.0.1
+npm install --save-exact easyjssdk@2.0.2
 ```
 
 提交 `package-lock.json`。本教程不使用 CDN 的浮动版本，避免页面刷新后静默更换 SDK。
@@ -187,7 +191,7 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 5. Bob 向 Alice 回发，验证反向链路；
 6. 模拟不可达地址，确认 10 秒内失败并 `destroy`，页面不会永久停在 Connecting；
 7. 刷新、关闭或退出账号，确认旧实例已 `off` 并 `destroy`，没有重复连接；
-8. 检查生产构建的 Console 与日志采集，确认 Token 和 Payload 不会泄露。`v2.0.1` 未完成这项前不得通过生产门禁。
+8. 检查生产构建的 Console 与日志采集，确认 Token 和 Payload 不会泄露。`v2.0.2` 未完成这项前不得通过生产门禁。
 
 这个闭环没有覆盖离线同步。如果 Bob 离线，应用不能仅等待 EasySDK 的实时事件；必须用产品设计的持久同步路径恢复消息。
 

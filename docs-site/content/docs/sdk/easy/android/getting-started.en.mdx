@@ -1,21 +1,21 @@
 ---
 title: 5-minute Android integration
-description: Pin WuKongEasySDK Android v1.0.2 and complete installation, connection, event handling, person-Channel send, and cleanup in Kotlin.
+description: Pin WuKongEasySDK Android v1.0.3 and complete installation, connection, event handling, person-Channel send, and cleanup in Kotlin.
 ---
 
 This page keeps the legacy install → initialize → listen → connect → send sequence, while adding an exact version, Activity lifecycle, two-client acceptance, and the current v3 protocol boundary.
 
 <Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.2` source at revision `2e9c9023428571b56eeddc053608aefe5d6a9a5f`. This is a source-level tutorial, not runtime verification, and it does not mean this version has passed a complete compatibility scenario against current WuKongIM v3.
+  The example is aligned with the official [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3` source at revision `62084632cd8d1f26c751b053b0fb82d6aaa63892`; the published artifact is available on [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3). This is a source-level tutorial, not runtime verification, and it does not mean this version has passed a complete compatibility scenario against current WuKongIM v3.
 </Callout>
 
 <Callout type="error" title="Close protocol and logging blockers before adoption">
-  Android `v1.0.2` still uses underscore fields in CONNECT, SEND, RECVACK, and result models, and SEND passes a JSON object directly. Current v3 uses camel-case fields and Base64-encoded payload bytes. Even after field names are fixed, the SDK's APP device value `1` differs from server APP value `0`. Unknown-message, JSON-RPC parse-error, and RECV parse-error paths also write the complete message or `Params` to Logcat without honoring `debugLogging`; those values can contain a token or payload. The unmodified tag can neither pass the current v3 messaging loop directly nor satisfy a production logging gate. The code below documents the public API and acceptance scaffold; first adopt an upstream release containing the protocol fixes and log redaction or a reviewed fork, then run Alice and Bob. Never fabricate success in product code.
+  Android `v1.0.3` still uses underscore fields in CONNECT, SEND, RECVACK, and result models, and SEND passes a JSON object directly. Current v3 uses camel-case fields and Base64-encoded payload bytes. This release corrects the device wire values to APP `0`, WEB `1`, and PC `2`, but that does not fix the field and payload shapes. Unknown-message, JSON-RPC parse-error, and RECV parse-error paths also write the complete message or `Params` to Logcat without honoring `debugLogging`; those values can contain a token or payload. The unmodified tag can neither pass the current v3 messaging loop directly nor satisfy a production logging gate. The code below documents the public API and acceptance scaffold; first adopt an upstream release containing the protocol fixes and log redaction or a reviewed fork, then run Alice and Bob. Never fabricate success in product code.
 </Callout>
 
 ## What you will have
 
-- An Android dependency pinned to Maven Central version `1.0.2`.
+- An Android dependency pinned to Maven Central version `1.0.3`.
 - A Kotlin screen that initializes and registers listeners in the required order.
 - A two-client acceptance scaffold for Alice's send result and Bob's realtime receive.
 - Explicit blockers for singleton identity switching, field compatibility, tokens, and production security.
@@ -37,7 +37,7 @@ Add this to the application module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.githubim:easysdk-android:1.0.2")
+    implementation("com.githubim:easysdk-android:1.0.3")
 }
 ```
 
@@ -45,7 +45,7 @@ The equivalent Groovy DSL is:
 
 ```groovy
 dependencies {
-    implementation 'com.githubim:easysdk-android:1.0.2'
+    implementation 'com.githubim:easysdk-android:1.0.3'
 }
 ```
 
@@ -80,7 +80,7 @@ The product backend authenticates the current product user and selects a WebSock
 
 ## Step 4: initialize, listen, and connect
 
-Android EasySDK is a process singleton, and `v1.0.2` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
+Android EasySDK is a process singleton, and `v1.0.3` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
 
 ```kotlin
 import android.os.Bundle
@@ -156,7 +156,7 @@ class ChatActivity : AppCompatActivity() {
                     current.deviceFlag == config.deviceFlag &&
                     current.debugLogging == config.debugLogging
             ) {
-                "WuKongEasySDK v1.0.2 cannot apply changed identity or configuration; " +
+                "WuKongEasySDK v1.0.3 cannot apply changed identity or configuration; " +
                     "stop and restart the process or upgrade the SDK"
             }
         }
@@ -240,14 +240,14 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 6. In the reviewed build, exercise success and parse-failure paths with unique fake token and message canaries; confirm neither value appears in Logcat or crash reports.
 7. Recreate the Activity and confirm listeners are not duplicated; exit the application and confirm the connection closes.
 
-Unmodified `v1.0.2` is expected to fail against current v3 at a field, device-type, or payload phase. That is evidence for the compatibility blockers above. Retain the server revision, Android tag, and failing phase instead of hiding it with blind retries. Only a fixed build can produce retained Alice/Bob send and receive evidence.
+Unmodified `v1.0.3` is expected to fail against current v3 at a field or payload phase. That is evidence for the compatibility blockers above. Retain the server revision, Android tag, and failing phase instead of hiding it with blind retries. Only a fixed build can produce retained Alice/Bob send and receive evidence.
 
 ## Troubleshooting
 
 - **`SDK is not initialized`:** preserve the `init → addEventListener → connect` order.
-- **The same UID gets a refreshed token or route and configuration changes:** `v1.0.2` has no public reset API. Stop explicitly and restart the process or upgrade the SDK; do not continue with a stale token or URL.
+- **The same UID gets a refreshed token or route and configuration changes:** `v1.0.3` has no public reset API. Stop explicitly and restart the process or upgrade the SDK; do not continue with a stale token or URL.
 - **The emulator connects but a physical device does not:** confirm that the address is reachable outside the host or container and have the product backend return the device-reachable WSS ingress.
-- **CONNECT, SEND, or RECVACK parsing fails:** compare camel-case fields, Base64 payloads, and device values. These are known `v1.0.2` compatibility blockers against current v3.
+- **CONNECT, SEND, or RECVACK parsing fails:** compare camel-case fields and Base64 payloads first; they remain known `v1.0.3` compatibility blockers against current v3. Device values are now aligned as APP `0`, WEB `1`, and PC `2`; do not carry forward older literals.
 - **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** this tag contains unconditional log paths. Stop testing with production tokens or messages and use a reviewed build that removes or redacts those outputs.
 - **Messages are duplicated:** prevent repeated listener registration and deduplicate by `messageId`.
 

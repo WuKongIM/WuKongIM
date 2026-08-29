@@ -30,11 +30,31 @@ describe('SDK tutorial content contract', () => {
       content('choose-sdk.mdx'),
       content('choose-sdk.en.mdx'),
     ]);
+    const easySnapshots = [
+      {
+        repository: 'WuKongEasySDK-JS',
+        tag: 'v2.0.2',
+        distribution: 'https://www.npmjs.com/package/easyjssdk/v/2.0.2',
+      },
+      {
+        repository: 'WuKongEasySDK-iOS',
+        tag: 'v1.0.3',
+        distribution: 'https://cocoapods.org/pods/WuKongEasySDK',
+      },
+      {
+        repository: 'WuKongEasySDK-Android',
+        tag: 'v1.0.3',
+        distribution:
+          'https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3',
+      },
+      {
+        repository: 'WuKongEasySDK-Flutter',
+        tag: 'v1.0.4',
+        distribution: 'https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4',
+      },
+    ] as const;
     const repositories = [
-      'WuKongEasySDK-JS',
-      'WuKongEasySDK-iOS',
-      'WuKongEasySDK-Android',
-      'WuKongEasySDK-Flutter',
+      ...easySnapshots.map(({ repository }) => repository),
       'WuKongIMJSSDK',
       'WuKongIMiOSSDK',
       'WuKongIMAndroidSDK',
@@ -43,8 +63,18 @@ describe('SDK tutorial content contract', () => {
     ];
 
     for (const page of [zh, en]) {
+      const easySection = page.split('### EasySDK')[1]?.split('### WuKongIMSDK')[0];
+      expect(easySection).toBeDefined();
       for (const repository of repositories) {
         expect(page).toContain(`https://github.com/WuKongIM/${repository}`);
+      }
+      for (const { repository, tag, distribution } of easySnapshots) {
+        const snapshotLine = easySection!
+          .split('\n')
+          .find((line) => line.includes(`https://github.com/WuKongIM/${repository}`));
+        expect(snapshotLine).toBeDefined();
+        expect(snapshotLine).toContain(tag);
+        expect(snapshotLine).toContain(distribution);
       }
       expect(page).toContain('wukongimjssdk@1.3.5');
       expect(page).not.toMatch(/5\s*分钟|5-minute|five-minute|全平台|all platforms|zero[- ]config/iu);

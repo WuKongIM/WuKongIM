@@ -14,10 +14,10 @@ WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业
 ## 选择你的平台
 
 <Cards>
-  <Card title="iOS" description="使用 Swift Package Manager 或 CocoaPods 安装 v1.0.2。" href="/zh/sdk/easy/ios/getting-started" />
-  <Card title="Android" description="从 Maven Central 安装 v1.0.2，并按 Activity 生命周期清理监听器。" href="/zh/sdk/easy/android/getting-started" />
-  <Card title="Flutter" description="从 pub.dev 安装 v1.0.3，并在 State.dispose 中释放资源。" href="/zh/sdk/easy/flutter/getting-started" />
-  <Card title="Web" description="锁定 easyjssdk v2.0.1，通过业务 BFF 取得浏览器连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
+  <Card title="iOS" description="使用 Swift Package Manager 或 CocoaPods 安装 v1.0.3。" href="/zh/sdk/easy/ios/getting-started" />
+  <Card title="Android" description="从 Maven Central 安装 v1.0.3，并按 Activity 生命周期清理监听器。" href="/zh/sdk/easy/android/getting-started" />
+  <Card title="Flutter" description="从 pub.dev 安装 v1.0.4，并在 State.dispose 中释放资源。" href="/zh/sdk/easy/flutter/getting-started" />
+  <Card title="Web" description="锁定 easyjssdk v2.0.2，通过业务 BFF 取得浏览器连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
 </Cards>
 
 ## EasySDK 负责什么
@@ -36,10 +36,10 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 
 | 平台 | 发布 tag | 源码 revision | 分发入口 |
 | --- | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.2` | `6257d9ddcc2872e20ff23446a2f368c2c2c1f481` | Swift Package Manager / CocoaPods |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.2` | `2e9c9023428571b56eeddc053608aefe5d6a9a5f` | Maven Central |
-| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.3` | `7888867a9f22ec22d768dcfe0c6c95b418fcb458` | pub.dev |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.1` | `f13b7fb911fdb2912025e289dcd7749350a54469` | npm |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.3` | `643848f85be70e3e3f2be22fceb86ae428b6cc38` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.3` | `62084632cd8d1f26c751b053b0fb82d6aaa63892` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) |
 
 教程故意锁定这些版本，不使用版本范围或 `latest`。准备升级时，先在独立分支重复 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
 
@@ -62,12 +62,12 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 
 先完成[身份与 Token](/zh/sdk/common-guides/identity-and-token)。当前默认 v3 Beta 组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器并证明无效、过期和撤销 Token 会被拒绝。
 
-<Callout type="warn" title="不要复制设备枚举数值">
-  iOS 与 Android `v1.0.2` 的 APP 值是 `1`，当前服务端[设备字典](/zh/api/dictionaries/device-flags)的 APP 值是 `0`；使用默认 `.app` / `APP` 也不能避开差异。两个平台还存在当前 v3 Payload 或字段形态不匹配。请先升级或修复 SDK，再针对目标服务端实测设备归类与 Alice/Bob 链路。
+<Callout type="info" title="设备类型已经统一，业务代码仍应使用枚举">
+  这四个固定版本都采用 [设备字典](/zh/api/dictionaries/device-flags)中的同一组线路值：APP `0`、WEB `1`、PC `2`。移动端使用 `.app` / `APP`，浏览器默认使用 WEB；不要在业务代码中复制整数。设备值已对齐不代表其余协议形态已兼容，iOS 与 Android 仍有各自教程列出的 Payload 或字段问题。
 </Callout>
 
 <Callout type="error" title="先关闭 SDK 敏感日志再进入生产">
-  当前四个平台的固定源码都存在可能泄露 Token 或 Payload 的日志路径：Android `v1.0.2` 的部分解析错误日志不受 `debugLogging` 控制，iOS `v1.0.2` 的 JSON 日志配置开关没有真正拦截输出，Flutter `v1.0.3` 与 Web `v2.0.1` 会记录完整请求或响应。各平台教程列出了具体边界。完成修复、构建产物复核与脱敏测试前，不得通过生产门禁。
+  当前四个平台的固定源码都存在可能泄露 Token 或 Payload 的日志路径：Android `v1.0.3` 的部分解析错误日志不受 `debugLogging` 控制，iOS `v1.0.3` 的 JSON 日志配置开关没有真正拦截输出，Flutter `v1.0.4` 与 Web `v2.0.2` 会记录完整请求或响应。各平台教程列出了具体边界。完成修复、构建产物复核与脱敏测试前，不得通过生产门禁。
 </Callout>
 
 ## 用 Alice 和 Bob 验收

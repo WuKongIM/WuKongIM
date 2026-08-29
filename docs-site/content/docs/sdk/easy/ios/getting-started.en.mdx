@@ -1,25 +1,25 @@
 ---
 title: 5-minute iOS integration
-description: Pin WuKongEasySDK iOS v1.0.2 and complete connection, event handling, person-Channel send, and cleanup in a Swift application.
+description: Pin WuKongEasySDK iOS v1.0.3 and complete connection, event handling, person-Channel send, and cleanup in a Swift application.
 ---
 
 This page turns the legacy “5-minute integration” into an acceptance-friendly iOS loop. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
 
 <Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.2` source at revision `6257d9ddcc2872e20ff23446a2f368c2c2c1f481`. This is a source-level tutorial, not runtime verification, and it does not expand the executable client scope under [Versions & Compatibility](/en/sdk/compatibility).
+  The example is aligned with the official [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.3` source at revision `643848f85be70e3e3f2be22fceb86ae428b6cc38`; the published package is available on [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK). This is a source-level tutorial, not runtime verification, and it does not expand the executable client scope under [Versions & Compatibility](/en/sdk/compatibility).
 </Callout>
 
-<Callout type="error" title="v1.0.2 JSON logging blocks production adoption">
+<Callout type="error" title="v1.0.3 JSON logging blocks production adoption">
   In this tag, `LogManager.logJsonData` does not enforce the `enableJsonLogging` or log-level guard and writes JSON-RPC requests and responses. Token fields are masked where recognized, but message payloads can still reach device logs. Setting `enableJsonLogging: false` is not sufficient. Before production, upgrade or fix the SDK and verify the Release artifact plus every log-collection path contains no sensitive data.
 </Callout>
 
-<Callout type="error" title="v1.0.2 cannot pass the current v3 messaging loop unchanged">
-  The current server uses `0` for the APP `deviceFlag` and represents SEND and RECV `payload` as Base64-encoded bytes. This tag uses `1` for `.app`, sends a JSON object directly, and decodes a received payload as a dictionary. The unmodified client can be classified as the wrong device and fail during send or receive parsing. The code below documents the public API and acceptance scaffold; first adopt an upstream release with these fixes or a reviewed fork, then run Alice and Bob.
+<Callout type="error" title="v1.0.3 still cannot pass the current v3 messaging loop unchanged">
+  `v1.0.3` corrects the device wire values to APP `0`, WEB `1`, and PC `2`, so the default `.app` no longer classifies a mobile client as Web. The current server still represents SEND and RECV `payload` as Base64-encoded bytes, while this tag sends a JSON object directly and decodes a received payload as a dictionary. The unmodified client can therefore fail during send or receive parsing. The code below documents the public API and acceptance scaffold; first adopt an upstream release with the payload fixes or a reviewed fork, then run Alice and Bob.
 </Callout>
 
 ## What you will have
 
-- An iOS dependency pinned to `1.0.2`.
+- An iOS dependency pinned to `1.0.3`.
 - One application-level client object that owns initialization, listeners, connection, and logout.
 - A two-client acceptance scaffold for Alice's send result and Bob's realtime message event.
 - Explicit follow-up work for tokens, WSS, offline recovery, and production acceptance.
@@ -28,7 +28,7 @@ This page turns the legacy “5-minute integration” into an acceptance-friendl
 
 Prepare the following:
 
-- Set the iOS deployment target to **iOS 15 or later**. The package manifest declares iOS 13, but the public `WuKongEasySDK` class in `v1.0.2` is marked `@available(iOS 15.0, ...)`, so this tutorial uses the more conservative API limit.
+- Set the iOS deployment target to **iOS 15 or later**. The package manifest declares iOS 13, but the public `WuKongEasySDK` class in `v1.0.3` is marked `@available(iOS 15.0, ...)`, so this tutorial uses the more conservative API limit.
 - Use an Xcode toolchain that supports Swift 5.7 packages.
 - Run a WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is reachable from the device.
 - Have the product backend return `uid`, a short-lived `token`, and `websocketUrl` separately for Alice and Bob.
@@ -45,13 +45,13 @@ In Xcode, choose **File → Add Package Dependencies** and enter:
 https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 ```
 
-Choose **Exact Version** and enter `1.0.2`. If the project owns a `Package.swift`, use an exact rule:
+Choose **Exact Version** and enter `1.0.3`. If the project owns a `Package.swift`, use an exact rule:
 
 ```swift
 dependencies: [
     .package(
         url: "https://github.com/WuKongIM/WuKongEasySDK-iOS.git",
-        exact: "1.0.2"
+        exact: "1.0.3"
     )
 ]
 ```
@@ -60,7 +60,7 @@ dependencies: [
 
 ```ruby
 target 'YourApp' do
-  pod 'WuKongEasySDK', '1.0.2'
+  pod 'WuKongEasySDK', '1.0.3'
 end
 ```
 
@@ -109,7 +109,7 @@ final class EasyChatClient: ObservableObject {
             maxReconnectAttempts: 5,
             enableDebugLogging: false,
             logLevel: .error,
-            enableJsonLogging: false // v1.0.2 still needs its source guard fixed.
+            enableJsonLogging: false // v1.0.3 still needs its source guard fixed.
         )
         let sdk = WuKongEasySDK(config: config)
 
@@ -177,7 +177,7 @@ Do not discard the anonymous closure passed to `onMessage`: `removeListener` nee
 
 ## Step 4: send the first message
 
-First upgrade or patch the device-flag and payload contracts above. After product login, obtain Alice's `IMBootstrap` and start the client:
+The device flag is aligned in this release. First upgrade or patch the remaining payload contract above. After product login, obtain Alice's `IMBootstrap` and start the client:
 
 ```swift
 let aliceBootstrap = try await productAPI.fetchIMBootstrap()
@@ -200,18 +200,18 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 4. On Bob, verify `fromUid == "alice"`, the Channel, and the payload in `onMessage`.
 5. Send from Bob to Alice and prove the reverse direction.
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
-7. Inspect the Release artifact and device logs to prove tokens, payloads, and complete JSON-RPC data are not recorded. Unmodified `v1.0.2` must not pass the production gate.
+7. Inspect the Release artifact and device logs to prove tokens, payloads, and complete JSON-RPC data are not recorded. Unmodified `v1.0.3` must not pass the production gate.
 
-Unmodified `v1.0.2` is expected to expose a device-type, SEND-payload, or RECV-payload failure in this loop; never hide that failure as local success. Even after a fixed build passes, this covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
+Unmodified `v1.0.3` is expected to expose a SEND-payload or RECV-payload failure in this loop; never hide that failure as local success. Even after a fixed build passes, this covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
 
 ## Troubleshooting
 
 - **The compiler says the API requires iOS 15:** raise the deployment target to iOS 15; do not rely only on the lower platform declaration in `Package.swift`.
 - **Connection never succeeds:** reach the returned WebSocket address from the device network and inspect proxy Upgrade, certificates, and `wss://`. Never return a container-only address to the phone.
 - **Authentication fails:** refresh the short-lived token issued by the product backend. A successful `/user/token` call does not prove that the default deployment validates CONNECT tokens.
-- **JSON still appears after disabling `enableJsonLogging`:** this is the known missing log guard in `v1.0.2`. Upgrade or patch the source and verify the Release artifact; configuration alone is insufficient.
-- **SEND reports payload decoding failure, or RECV cannot build `Message`:** compare against the server's Base64 byte contract. The object-send and dictionary-receive paths in `v1.0.2` do not directly match current v3; upgrade or patch the SDK.
-- **The device is classified as Web:** `.app.rawValue == 1` in `v1.0.2`, while current server APP is `0`. Do not compensate by corrupting product device policy; fix the SDK enum and repeat acceptance.
+- **JSON still appears after disabling `enableJsonLogging`:** this is the known missing log guard in `v1.0.3`. Upgrade or patch the source and verify the Release artifact; configuration alone is insufficient.
+- **SEND reports payload decoding failure, or RECV cannot build `Message`:** compare against the server's Base64 byte contract. The object-send and dictionary-receive paths in `v1.0.3` do not directly match current v3; upgrade or patch the SDK.
+- **The device category is unexpected:** ensure product code has not overridden `.app`, then compare the wire values as APP `0`, WEB `1`, and PC `2`. `v1.0.3` fixes the enum; do not carry forward an older literal.
 - **Messages appear more than once:** register listeners only once and merge realtime and later synchronized results by `messageId`.
 - **Alice gets a send result but Bob sees nothing:** inspect Alice's send result, Bob's realtime connection, and the product's later offline-sync path separately. Do not automatically resend a message that may already be committed.
 

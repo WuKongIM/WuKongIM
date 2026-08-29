@@ -39,6 +39,11 @@ The SDK landing page and chooser link these routes. The existing full
 WuKongIMJSSDK golden path remains separate. Full WuKongIMSDK tutorials for
 iOS, Android, Flutter, HarmonyOS, and other runtimes remain planned.
 
+Phase 18 subsequently moved this group back to planned publication because the
+current Product Gateway does not implement the EasySDK JSON-RPC CONNECT path.
+The files remain maintained source-aligned tutorials, but they must stay out of
+public indexes until runtime support and executable acceptance exist.
+
 ## Source snapshots
 
 Every platform tutorial identifies one exact released tag, source revision,
@@ -46,10 +51,10 @@ and package version:
 
 | Platform | Repository tag | Source revision | Package |
 | --- | --- | --- | --- |
-| iOS | `v1.0.2` | `6257d9ddcc2872e20ff23446a2f368c2c2c1f481` | CocoaPods `WuKongEasySDK` `1.0.2` |
-| Android | `v1.0.2` | `2e9c9023428571b56eeddc053608aefe5d6a9a5f` | Maven `com.githubim:easysdk-android:1.0.2` |
-| Flutter | `v1.0.3` | `7888867a9f22ec22d768dcfe0c6c95b418fcb458` | pub.dev `wukong_easy_sdk` `1.0.3` |
-| Web | `v2.0.1` | `f13b7fb911fdb2912025e289dcd7749350a54469` | npm `easyjssdk` `2.0.1` |
+| iOS | `v1.0.3` | `643848f85be70e3e3f2be22fceb86ae428b6cc38` | CocoaPods `WuKongEasySDK` `1.0.3` |
+| Android | `v1.0.3` | `62084632cd8d1f26c751b053b0fb82d6aaa63892` | Maven `com.githubim:easysdk-android:1.0.3` |
+| Flutter | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | pub.dev `wukong_easy_sdk` `1.0.4` |
+| Web | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | npm `easyjssdk` `2.0.2` |
 
 Install snippets pin these exact versions. They must not use `latest`, broad
 version ranges, a default branch, or a legacy package version as evidence.
@@ -94,25 +99,27 @@ conservative application deployment target until upstream reconciles the two.
 It records the listener tokens and removes them during teardown. The tag's JSON
 logger does not enforce its configuration guard and can expose payloads, so an
 upstream upgrade or reviewed patch plus Release-log verification is a
-production blocker. Its APP device value and object-shaped SEND/dictionary
-RECV payloads also do not match the current server enum and Base64-byte
-contract, so an unmodified tag cannot pass the current v3 messaging loop.
+production blocker. `v1.0.3` aligns device values as APP `0`, WEB `1`, and PC
+`2`, while its object-shaped SEND/dictionary RECV payloads still do not match
+the current Base64-byte contract. An unmodified tag therefore still cannot
+pass the current v3 messaging loop.
 
 ### Android
 
-The `v1.0.2` client contains underscore request/response names, object-shaped
-SEND payloads, and an APP device value that do not match the current camelCase,
-Base64-byte, and device-enum Gateway JSON-RPC contracts. The tutorial marks
-these as adoption blockers and requires a fixed build plus a real Alice/Bob
-proof against the exact target server. Unknown-message and parse-error paths
-also log complete JSON-RPC messages or parameters without honoring
-`debugLogging`; removing or redacting those paths and testing the built artifact
-is a production blocker. The process-wide singleton cannot be silently
+The `v1.0.3` client contains underscore request/response names and
+object-shaped SEND payloads that do not match the current camelCase and
+Base64-byte Gateway JSON-RPC contracts. Its device values are now aligned as
+APP `0`, WEB `1`, and PC `2`. The tutorial marks the remaining shapes as
+adoption blockers and requires a fixed build plus a real Alice/Bob proof
+against the exact target server. Unknown-message and parse-error paths also log
+complete JSON-RPC messages or parameters without honoring `debugLogging`;
+removing or redacting those paths and testing the built artifact is a
+production blocker. The process-wide singleton cannot be silently
 reinitialized for another UID or configuration.
 
 ### Flutter
 
-The tutorial preserves the package's Dart 3 / Flutter 3 floor, listener-key
+The `v1.0.4` tutorial preserves the package's Dart 3 / Flutter 3 floor, listener-key
 ownership, and widget lifecycle cleanup. Application code must not leave
 connection or message callbacks attached after disposal. The tag logs complete
 requests and responses without a public disable switch, so an upstream upgrade
@@ -122,7 +129,7 @@ decode it explicitly before message-type dispatch.
 
 ### Web
 
-The `v2.0.1` source logs JSON-RPC request and response details. Because those
+The `v2.0.2` source logs JSON-RPC request and response details. Because those
 details can include tokens or message payloads, production adoption is blocked
 until the integrator suppresses or sanitizes that logging in a reviewed build.
 The page also preserves one SDK instance per identity/context and browser BFF
@@ -139,8 +146,9 @@ The fast gate must cover:
 - trusted-backend identity and Alice/Bob acceptance;
 - listener removal, disconnect, and lifecycle cleanup;
 - bounded connection waits with cleanup after timeout;
-- the iOS and Android device/payload contracts, Android JSON-field contract,
-  iOS availability, Flutter receive decoding/lifecycle, and all four
+- the aligned device values and remaining iOS/Android payload contracts,
+  Android JSON-field contract, iOS availability, Flutter receive
+  decoding/lifecycle, and all four
   platforms' sensitive-logging boundaries;
 - continued separation from the full JavaScript golden path and planned
   WuKongIMSDK platform groups; and
