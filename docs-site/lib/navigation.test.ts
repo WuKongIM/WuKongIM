@@ -163,7 +163,7 @@ describe('documentation navigation contract', () => {
     );
   });
 
-  test('publishes the SDK chooser and integrator foundations without claiming new WuKongIMSDK platform support', () => {
+  test('keeps the Phase 13 integrator foundations without claiming unrelated platform support', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const phase13Routes = [
       '/en/sdk/choose-sdk',
@@ -183,7 +183,7 @@ describe('documentation navigation contract', () => {
 
     expect(published).toEqual(expect.arrayContaining(phase13Routes));
     expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('published');
-    for (const platform of ['android', 'ios', 'flutter', 'uniapp', 'harmonyos']) {
+    for (const platform of ['android', 'flutter', 'uniapp', 'harmonyos']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
@@ -205,9 +205,31 @@ describe('documentation navigation contract', () => {
       'planned',
     );
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
-    for (const platform of ['android', 'ios', 'flutter', 'uniapp', 'harmonyos']) {
+    for (const platform of ['android', 'flutter', 'uniapp', 'harmonyos']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
+  });
+
+  test('publishes the narrow Phase 19 iOS path without publishing unverified chapters', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+
+    expect(published).toEqual(
+      expect.arrayContaining([
+        '/en/sdk/ios',
+        '/en/sdk/ios/installation',
+        '/en/sdk/ios/quickstart',
+      ]),
+    );
+    expect(
+      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
+        slug,
+        getNavigationEntry('en', 'sdk', ['ios', slug])?.status,
+      ]),
+    ).toEqual([
+      ['platform-capabilities', 'planned'],
+      ['api-reference', 'planned'],
+      ['upgrade', 'planned'],
+    ]);
   });
 
   test('keeps EasySDK planned while Product JSON-RPC CONNECT is unsupported', () => {
@@ -249,7 +271,7 @@ describe('documentation navigation contract', () => {
       'getting-started',
     ]);
 
-    for (const platform of ['android', 'ios', 'flutter']) {
+    for (const platform of ['android', 'flutter']) {
       expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
     }
   });
@@ -403,6 +425,9 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/common-guides/offline-and-push`,
         `/${locale}/sdk/common-guides/multi-device`,
         `/${locale}/sdk/common-guides/reconnect-and-errors`,
+        `/${locale}/sdk/ios`,
+        `/${locale}/sdk/ios/installation`,
+        `/${locale}/sdk/ios/quickstart`,
         `/${locale}/sdk/javascript`,
         `/${locale}/sdk/javascript/installation`,
         `/${locale}/sdk/javascript/quickstart`,

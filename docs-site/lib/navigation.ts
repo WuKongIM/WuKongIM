@@ -200,6 +200,53 @@ function platformGroup(
   ]);
 }
 
+function publishedIOSSDKGroup(): NavigationGroup {
+  return publishedGroup(
+    'ios',
+    'iOS',
+    'iOS',
+    '按 WuKongIMSDK 1.1.1 的源码与分发头文件完成精确安装、连接和首条消息；平台能力、完整 API、升级和可执行兼容性仍待验证。',
+    'Install, connect, and exchange a first message against the WuKongIMSDK 1.1.1 source and distributed headers; platform capabilities, full API, upgrades, and executable compatibility remain unverified.',
+    [
+      publishedPage(
+        'installation',
+        '安装与配置',
+        'Installation',
+        '通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物、构建和安全边界。',
+        'Install WuKongIMSDK 1.1.1 exactly through CocoaPods and review artifact, build, and security boundaries.',
+      ),
+      publishedPage(
+        'quickstart',
+        '快速接入',
+        'Quickstart',
+        '用公开 Objective-C API 配置身份、连接 Alice 与 Bob，并区分本地发送、确认和在线接收。',
+        'Use the public Objective-C API to configure identity, connect Alice and Bob, and separate local send, acknowledgement, and online receipt.',
+      ),
+      plannedPage(
+        'platform-capabilities',
+        '平台专属能力',
+        'Platform Capabilities',
+        'iOS 生命周期、后台运行、推送、离线恢复和其他平台能力仍待验证。',
+        'iOS lifecycle, background execution, push, offline recovery, and other platform capabilities remain to be verified.',
+      ),
+      plannedPage(
+        'api-reference',
+        'API 参考',
+        'API Reference',
+        'iOS SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
+        'The complete iOS SDK classes, methods, events, parameters, and errors remain planned.',
+      ),
+      plannedPage(
+        'upgrade',
+        '升级指南',
+        'Upgrade Guide',
+        'iOS SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
+        'Breaking changes, migration steps, and release history for the iOS SDK remain planned.',
+      ),
+    ],
+  );
+}
+
 function plannedEasySDKGroup(): NavigationGroup {
   return plannedGroup(
     'easy',
@@ -899,12 +946,7 @@ export const domains: DocumentationDomain[] = [
         'Android SDK 的支持范围、系统要求和接入入口。',
         'Support scope, system requirements, and entry points for the Android SDK.',
       ),
-      platformGroup(
-        'ios',
-        'iOS',
-        'iOS SDK 的支持范围、系统要求和接入入口。',
-        'Support scope, system requirements, and entry points for the iOS SDK.',
-      ),
+      publishedIOSSDKGroup(),
       publishedJavaScriptGoldenPathGroup(),
       platformGroup(
         'flutter',

@@ -109,12 +109,12 @@ Route: `/{lang}/sdk`
   - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/android/platform-capabilities` — Android 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other Android-specific behavior.
   - **API 参考 / API Reference** `/{lang}/sdk/android/api-reference` — Android SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the Android SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/android/upgrade` — Android SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the Android SDK.
-- **iOS / iOS** `/{lang}/sdk/ios` — iOS SDK 的支持范围、系统要求和接入入口。 / Support scope, system requirements, and entry points for the iOS SDK.
-  - **安装与配置 / Installation** `/{lang}/sdk/ios/installation` — iOS SDK 的依赖、权限和构建配置。 / Dependencies, permissions, and build configuration for the iOS SDK.
-  - **快速接入 / Quickstart** `/{lang}/sdk/ios/quickstart` — 在 iOS 应用中完成首次连接和消息收发。 / Connect and exchange the first messages with the iOS SDK.
-  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/ios/platform-capabilities` — iOS 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other iOS-specific behavior.
-  - **API 参考 / API Reference** `/{lang}/sdk/ios/api-reference` — iOS SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the iOS SDK.
-  - **升级指南 / Upgrade Guide** `/{lang}/sdk/ios/upgrade` — iOS SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the iOS SDK.
+- **iOS / iOS** `/{lang}/sdk/ios` — 按 WuKongIMSDK 1.1.1 的源码与分发头文件完成精确安装、连接和首条消息；平台能力、完整 API、升级和可执行兼容性仍待验证。 / Install, connect, and exchange a first message against the WuKongIMSDK 1.1.1 source and distributed headers; platform capabilities, full API, upgrades, and executable compatibility remain unverified.
+  - **安装与配置 / Installation** `/{lang}/sdk/ios/installation` — 通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物、构建和安全边界。 / Install WuKongIMSDK 1.1.1 exactly through CocoaPods and review artifact, build, and security boundaries.
+  - **快速接入 / Quickstart** `/{lang}/sdk/ios/quickstart` — 用公开 Objective-C API 配置身份、连接 Alice 与 Bob，并区分本地发送、确认和在线接收。 / Use the public Objective-C API to configure identity, connect Alice and Bob, and separate local send, acknowledgement, and online receipt.
+  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/ios/platform-capabilities` — iOS 生命周期、后台运行、推送、离线恢复和其他平台能力仍待验证。 / iOS lifecycle, background execution, push, offline recovery, and other platform capabilities remain to be verified.
+  - **API 参考 / API Reference** `/{lang}/sdk/ios/api-reference` — iOS SDK 的完整类、方法、事件、参数和错误定义仍在规划中。 / The complete iOS SDK classes, methods, events, parameters, and errors remain planned.
+  - **升级指南 / Upgrade Guide** `/{lang}/sdk/ios/upgrade` — iOS SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。 / Breaking changes, migration steps, and release history for the iOS SDK remain planned.
 - **JavaScript / Web / JavaScript / Web** `/{lang}/sdk/javascript` — 使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息、离线恢复、能力核对和验收报告；完整 API 与升级仍在规划中。 / Complete browser installation, connection, two-way messaging, offline recovery, capability review, and acceptance reporting with the pinned SDK compatibility target; complete API and upgrade material remain planned.
   - **安装与配置 / Installation** `/{lang}/sdk/javascript/installation` — 安装精确版本的 JavaScript SDK，并配置框架无关的 TypeScript 黄金样例。 / Install the exact JavaScript SDK version and configure the framework-neutral TypeScript golden sample.
   - **快速接入 / Quickstart** `/{lang}/sdk/javascript/quickstart` — 通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。 / Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.

@@ -1,0 +1,124 @@
+---
+title: iOS 安装与配置
+description: 通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物来源、部署目标、模拟器架构和安全边界。
+---
+
+本页只完成依赖与构建环境准备。结束时，你的项目应精确安装 `WuKongIMSDK` `1.1.1`，能够导入公开头文件，并且不会把旧文档中的 Swift Package Manager 或浮动版本写进依赖配置。
+
+<Callout type="warn" title="证据状态">
+  以下内容来自 CocoaPods 分发元数据、tag 源码和 framework 公开头文件校对，**不是本站运行验证**。本站尚未附加 Xcode 构建或真机 receipt；`1.1.1` 的无 TLS 原始 TCP、Payload 日志和本地数据保护风险仍是**生产阻断项**。
+</Callout>
+
+## 精确依赖快照
+
+| 组成 | 精确值 |
+| --- | --- |
+| CocoaPods 页面 | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) |
+| 源码仓库 | [`WuKongIM/WuKongIMiOSSDK`](https://github.com/WuKongIM/WuKongIMiOSSDK)，tag `1.1.1`，revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
+| 分发仓库 | [`WuKongIM/WuKongIMiOSSDK-Framework`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework)，tag `1.1.1`，revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
+| Pod 部署目标 | iOS `11.0` |
+
+源码仓库 tag 内的 podspec 仍写着 `1.1.0`，所以本教程不把它当作 `1.1.1` 的分发事实源。CocoaPods trunk 和 framework 仓库共同指向实际可安装产物；教程用源码仓库审计实现，用分发仓库核对用户最终导入的公开头文件。
+
+还有两处内嵌版本没有随发布更新：源码中的 `WKSDK.sdkVersion` 返回 `1.0.0`，framework 的 `CFBundleShortVersionString` 也是 `1.0.0`。它们不能证明当前安装的是 `1.1.1`。在上游修复运行时版本报告前，以 `Podfile.lock`、源码 tag/revision 和 framework tag/revision 共同记录产物来源。
+
+## 前置条件
+
+- 一个已有的 Xcode iOS 应用工程；
+- 本机已安装与团队锁定版本一致的 CocoaPods；
+- 应用的 Deployment Target 不低于 iOS `11.0`；
+- 能从受信业务后端取得开发环境的 UID、Token、Gateway host 与 port，但现在不要把它们写进源码。
+
+记录 Xcode、CocoaPods、macOS、目标设备或模拟器版本。它们不属于本站现有 receipt，后续验收需要把实际 tuple 一起保存。
+
+## 1. 精确安装 CocoaPods 产物
+
+在应用工程旁的 `Podfile` 中使用精确版本，不要使用 `latest`、`~>` 或默认分支：
+
+```ruby
+platform :ios, '11.0'
+
+target 'YourApp' do
+  use_frameworks!
+  pod 'WuKongIMSDK', '1.1.1'
+end
+```
+
+安装并确认解析结果：
+
+```bash
+pod install --repo-update
+grep -A 2 'WuKongIMSDK' Podfile.lock
+open YourApp.xcworkspace
+```
+
+后续必须打开生成的 `.xcworkspace`，而不是原来的 `.xcodeproj`。提交 `Podfile` 与 `Podfile.lock`，让本地和 CI 使用同一个精确依赖图。
+
+## 2. 核对导入与链接
+
+在一个 Objective-C 源文件中加入：
+
+```objc
+#import <WuKongIMSDK/WuKongIMSDK.h>
+```
+
+然后为通用 iOS Device 目标执行一次无签名构建，或使用团队的实际开发设备构建。能导入头文件只证明依赖已链接；它不证明连接、消息或生产安全。
+
+如果你的主工程使用 Swift，可以通过 bridging header 调用这些 Objective-C 公开类型。但本教程不会发明 Swift 包装 API，快速开始直接展示发行头文件中的选择器。
+
+## 3. 不要使用 Swift Package Manager
+
+精确 `1.1.1` 的源码和 framework tag 都没有 `Package.swift`，因此该快照**不支持 Swift Package Manager** 安装。不要复制旧教程中的 SPM 地址，也不要把默认分支临时生成的清单当成 `1.1.1` 发行事实。
+
+如果未来仓库发布 `Package.swift` 或 XCFramework，应把新 tag、校验 revision、Xcode tuple 和运行结果作为一套新证据，不能静默修改本页的固定快照。
+
+## 4. 处理模拟器架构限制
+
+分发的是传统 `.framework`，包含设备 `arm64` 与模拟器 `x86_64` slice；podspec 对模拟器设置：
+
+```text
+EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64
+```
+
+因此 Apple Silicon 上的原生 `arm64` Simulator 不是这个产物提供的 slice。可选方案是：
+
+1. 优先在真实 iOS 设备或通用 iOS Device 目标构建；
+2. 仅在团队已验证时，用兼容 `x86_64`/Rosetta 的模拟器工具链；
+3. 推动上游发布经过验证的 XCFramework，再建立新的兼容性证据。
+
+不要删除 `EXCLUDED_ARCHS` 后就宣称兼容；缺失的 slice 不能通过 build setting 生成。
+
+## 5. 权限与网络配置
+
+本教程只发送文本，并通过 `GCDAsyncSocket` 打开未使用传输层 TLS 的原始 **TCP** 连接，因此无需相机、麦克风、照片库权限，也无需为它添加全局 ATS 绕过。后续图片、语音、相册或推送能力应按实际功能最小化增加权限，并在各自平台能力验收中验证。
+
+“不需要 ATS 绕过”不表示连接有 TLS。精确 `1.1.1` 没有公开 TLS 开关或 `startTLS` 路径；生产必须使用受控私网入口，或采用提供认证 TLS 的受审 SDK/传输升级。
+
+## 6. 关闭调试日志，但保留阻断判断
+
+`WKOptions.isDebug` 默认开启。下一页会在连接前设置 `options.isDebug = NO`。这只能关闭受该开关保护的日志，不能解决全部泄露风险：`1.1.1` 接收路径仍有无条件包日志，RECV 描述可能包含解码后的消息 **Payload**。
+
+在生产发布前必须移除或脱敏该路径，并检查 Release 二进制、系统日志、崩溃采集与远程日志链路。仅看到 `isDebug = NO` 不能把生产阻断项标记为关闭。
+
+本地数据库虽然依赖 SQLCipher，源码却直接使用 UID 作为数据库 key。UID 是隔离标识，不是机密密钥；不能仅凭 SQLCipher 依赖就宣称静态消息受强密钥保护。生产前还要评审受审密钥管理、iOS 文件保护、备份、换号和数据擦除策略。
+
+## 预期结果
+
+- `Podfile.lock` 精确记录 `WuKongIMSDK (1.1.1)`；
+- 应用通过 `.xcworkspace` 构建并能导入 `<WuKongIMSDK/WuKongIMSDK.h>`；
+- 团队知道 Apple Silicon Simulator 的 `arm64` slice 不在当前 framework 中；
+- 项目没有虚构的 `Package.swift` 依赖、浮动 SDK 版本或客户端管理凭据；
+- 团队不会用 `WKSDK.sdkVersion` 或 `CFBundleShortVersionString` 的 `1.0.0` 误判安装版本；
+- TCP/TLS、RECV Payload 日志与 UID 派生 SQLCipher key 仍作为上线前阻断项跟踪。
+
+## 失败诊断
+
+- **解析到的版本不是 `1.1.1`**：检查 workspace 上层 Podfile、旧 `Podfile.lock` 和内部 spec 源，不要改用浮动范围。
+- **打开 `.xcodeproj` 后找不到模块**：关闭它并打开 CocoaPods 生成的 `.xcworkspace`。
+- **Apple Silicon Simulator 链接失败**：核对目标架构；当前产物没有模拟器 `arm64` slice。
+- **Swift 代码找不到类型**：检查 bridging header 和 module import；不要改写不存在的 Swift API。
+- **构建成功但无法连接**：本页不验证运行时，继续按[快速接入](/zh/sdk/ios/quickstart)检查身份、host、port 和连接状态。
+
+## 下一步
+
+依赖与构建环境核对完成后，进入[iOS 快速接入](/zh/sdk/ios/quickstart)，按公开 Objective-C API 配置 Alice 与 Bob。

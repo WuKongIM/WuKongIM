@@ -9,6 +9,10 @@ This page records the combination targeted by the **JavaScript/Web golden path**
   EasySDK uses WebSocket JSON-RPC, and the current Product Gateway does not support JSON-RPC CONNECT. Its iOS, Android, Flutter, and Web tutorials stay out of search, sitemap, and this receipt until the runtime is fixed and verified end to end. Source alignment is not executable compatibility.
 </Callout>
 
+<Callout type="info" title="The iOS tutorial does not broaden this compatibility snapshot">
+  The [full iOS tutorial](/en/sdk/ios) pins `WuKongIMSDK` `1.1.1` and aligns source, CocoaPods metadata, and distributed public headers. It **is not covered by this receipt**. Until an exact Xcode/device message scenario and attestation exist, the JavaScript/Web `verified` state cannot be projected onto iOS.
+</Callout>
+
 ## Goal and completion criteria
 
 Before integration, confirm that your server revision, `wukongimjssdk`, Node.js, and browser belong to one compatibility snapshot. When finished, you should be able to classify the combination as verified, unverified, or drifted instead of guessing from `latest`.
@@ -75,4 +79,4 @@ Compatibility verification does not complete production authentication. The defa
 
 ## Next step
 
-Prepare the pinned dependency in [Installation](/en/sdk/javascript/installation), then complete the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart). See [API Compatibility](/en/api/compatibility) for the HTTP-subset boundary.
+For this receipt, prepare the pinned Web dependency in [Installation](/en/sdk/javascript/installation), then complete the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart). For iOS, begin with the [iOS tutorial](/en/sdk/ios) and retain separate evidence for your Xcode, device, server, and `1.1.1` tuple. See [API Compatibility](/en/api/compatibility) for the HTTP-subset boundary.

@@ -1,0 +1,82 @@
+---
+title: iOS
+description: 基于 WuKongIMSDK 1.1.1 的公开头文件，完成 CocoaPods 安装、连接与第一条在线文本消息。
+---
+
+这套教程面向第一次在原生 iOS 应用中接入完整版 WuKongIMSDK 的开发者。它用 `WuKongIMSDK` `1.1.1` 的 Objective-C 公开 API 讲清最短生命周期：业务后端准备身份，客户端配置 SDK，等待连接结果，再分别观察发送状态与在线接收。
+
+<Callout type="warn" title="先看证据边界">
+  本教程已按 `1.1.1` 的源码、CocoaPods 元数据和分发框架公开头文件校对，但**不是本站运行验证**。本站没有为这个版本附加 Xcode 构建、模拟器/真机消息闭环或兼容性 receipt；文中列出的无 TLS 原始 TCP、日志与本地数据保护问题也是当前**生产阻断项**。
+</Callout>
+
+## 适合谁
+
+- 你需要 SDK 管理连接、消息、本地数据库、会话等客户端状态，而不是只调用一组无状态接口；
+- 你的受信业务后端能够在用户登录后返回 UID、Token、Gateway host 与 port；
+- 你愿意先完成 Alice/Bob 在线文本闭环，再单独验证离线同步、推送、后台运行和生产安全。
+
+如果还在比较 EasySDK 与完整版 SDK，先看[选择 SDK](/zh/sdk/choose-sdk)。本教程使用 `WuKongIMiOSSDK`，不要把 EasySDK 或旧文档的方法名复制进来。
+
+## 精确版本快照
+
+| 组成 | 本教程固定值 | 证据用途 |
+| --- | --- | --- |
+| CocoaPods | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) | 可安装分发入口 |
+| SDK 源码 | [`WuKongIMiOSSDK` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/1.1.1) | 公开 API 与实现审计 |
+| 二进制产物 | [`WuKongIMiOSSDK-Framework` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/tree/1.1.1) | CocoaPods 分发头文件与 framework |
+| 最低部署目标 | iOS `11.0` | 来自分发 podspec，不代表所有 Xcode/设备组合已验证 |
+
+源码 tag 与 framework tag 的教程所用公开头文件一致；这能支持“示例方法确实存在”，不能证明目标环境能够构建或运行。
+
+## 你将搭建什么
+
+```text
+Alice iOS ─┐                         ┌─ Gateway TCP
+           ├─ 受信业务后端提供身份 ──┤
+Bob iOS ───┘   uid/token/host/port   └─ WuKongIM 单节点集群
+```
+
+- 业务后端负责产品登录、授权、UID、Token、路由、过期与撤销；
+- iOS SDK 负责连接状态、发送队列、在线接收和 UID 隔离的本地数据库；
+- WuKongIM 集群负责频道日志、持久提交、路由与在线投递。
+
+客户端只接收连接所需的最小材料，不能持有 Product HTTP 管理凭据。
+
+## 推荐学习顺序
+
+<Cards>
+  <Card title="1. 安装与配置" description="精确安装 CocoaPods 产物，核对 iOS 目标、模拟器架构和分发来源。" href="/zh/sdk/ios/installation" />
+  <Card title="2. 快速接入" description="按公开 Objective-C API 配置身份、连接、发送、确认、接收和清理。" href="/zh/sdk/ios/quickstart" />
+  <Card title="3. 身份与 Token" description="把 UID、Token、轮换和撤销留在受信业务后端。" href="/zh/sdk/common-guides/identity-and-token" />
+  <Card title="4. 消息语义" description="区分本地待发送、服务端确认、在线接收与业务处理结果。" href="/zh/sdk/common-guides/messaging" />
+  <Card title="5. 上线验收" description="补齐失败路径、兼容性、安全、容量、升级和回滚证据。" href="/zh/guide/integration/acceptance" />
+</Cards>
+
+## 最小闭环与未覆盖范围
+
+| 阶段 | 本教程会展示 | 本教程不会证明 |
+| --- | --- | --- |
+| 安装 | `pod 'WuKongIMSDK', '1.1.1'` 与公开头文件来源 | 任意 Xcode、模拟器或真机都兼容 |
+| 连接 | `connect` 后等待连接状态回调，并设置 15 秒接受超时 | 调用 `connect` 本身等于连接成功 |
+| 发送 | 创建 `WKTextContent` 和个人频道，取得本地 `WKMessage` | 返回对象已经得到服务端确认 |
+| 确认与接收 | 分别处理消息更新和 RECV 回调 | 对方业务已处理、离线同步已完成 |
+| 清理 | 移除 delegate、强制断开；账号退出时调用 `logout` | 自动满足产品的数据删除策略 |
+
+## 上线前必须关闭的阻断项
+
+精确 `1.1.1` 源码通过 `GCDAsyncSocket` 建立未使用传输层 TLS 的原始 **TCP** 连接，没有公开 TLS 开关，也没有 `startTLS` 路径。WKProto 的兼容性 Payload 加密不能验证服务端身份，也不能替代认证 TLS；生产环境必须使用受控私网入口，或采用经过评审、提供认证 TLS 的 SDK/传输升级。
+
+`WKOptions.isDebug` 默认开启，教程会显式关闭 `isDebug`。但这还不够：`1.1.1` 的接收路径仍会无条件打印解码后的包，RECV 描述可能包含明文消息 **Payload**。在上游或受审补丁完成脱敏，并验证 Release 产物和日志采集链路前，这仍是生产阻断项。
+
+本地消息数据库使用 SQLCipher，但源码直接把 UID 作为数据库 key。UID 用于隔离数据库文件，不是机密密钥；不要把它当成独立的静态数据保密保证。生产方案还要评审密钥管理、iOS 文件保护、备份、换号与数据擦除。
+
+## 完成标志
+
+- 你能指出安装的精确 CocoaPods 版本和两份审计 revision；
+- 你知道连接结果来自 delegate，而不是 `connect` 方法返回值；
+- 你能区分本地待发送消息、发送确认与 Bob 的在线接收；
+- 你不会把源码校对写成兼容性 receipt，也不会忽略 TCP/TLS 与 Payload 日志风险。
+
+## 下一步
+
+从[安装与配置](/zh/sdk/ios/installation)开始。完成依赖和构建环境核对后，进入[快速接入](/zh/sdk/ios/quickstart)实现 Alice/Bob 在线消息闭环。

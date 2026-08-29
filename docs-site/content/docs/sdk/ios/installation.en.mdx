@@ -1,0 +1,124 @@
+---
+title: iOS Installation
+description: Install WuKongIMSDK 1.1.1 exactly through CocoaPods and review provenance, deployment target, simulator architecture, and security boundaries.
+---
+
+This page prepares only the dependency and build environment. At the end, the project should install exactly `WuKongIMSDK` `1.1.1`, import its public headers, and avoid carrying legacy Swift Package Manager instructions or a floating version into the dependency configuration.
+
+<Callout type="warn" title="Evidence state">
+  The material below is aligned with CocoaPods distribution metadata, tagged source, and framework public headers; it is **not runtime verification**. This site has no Xcode-build or device receipt for the tuple. Raw TCP without TLS, Payload logging, and local-data protection in `1.1.1` remain **production blocker** items.
+</Callout>
+
+## Exact dependency snapshot
+
+| Component | Exact value |
+| --- | --- |
+| CocoaPods entry | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) |
+| Source repository | [`WuKongIM/WuKongIMiOSSDK`](https://github.com/WuKongIM/WuKongIMiOSSDK), tag `1.1.1`, revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
+| Distribution repository | [`WuKongIM/WuKongIMiOSSDK-Framework`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework), tag `1.1.1`, revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
+| Pod deployment target | iOS `11.0` |
+
+The source tag's local podspec still says `1.1.0`, so this tutorial does not use it as the distribution authority for `1.1.1`. CocoaPods trunk and the framework repository identify the installable artifact. The source repository supports implementation review, while the distribution repository confirms the public headers an application imports.
+
+Two embedded version surfaces also missed the release update: source returns `1.0.0` from `WKSDK.sdkVersion`, and the framework's `CFBundleShortVersionString` is `1.0.0`. Neither attests an installed `1.1.1` package. Until upstream runtime version reporting is fixed, preserve `Podfile.lock`, the source tag/revision, and the framework tag/revision together as provenance.
+
+## Prerequisites
+
+- An existing Xcode iOS application project.
+- A team-pinned CocoaPods installation.
+- An application Deployment Target of at least iOS `11.0`.
+- A trusted product backend capable of issuing development UID, token, Gateway host, and port; do not place them in source now.
+
+Record Xcode, CocoaPods, macOS, and target device or simulator versions. They are not part of this site's current receipt, so retain the actual tuple with later acceptance evidence.
+
+## 1. Install the exact CocoaPods artifact
+
+Use an exact version in a `Podfile` beside the application project. Do not use `latest`, `~>`, or a default branch:
+
+```ruby
+platform :ios, '11.0'
+
+target 'YourApp' do
+  use_frameworks!
+  pod 'WuKongIMSDK', '1.1.1'
+end
+```
+
+Install and inspect the resolution:
+
+```bash
+pod install --repo-update
+grep -A 2 'WuKongIMSDK' Podfile.lock
+open YourApp.xcworkspace
+```
+
+Open the generated `.xcworkspace` from then on, not the original `.xcodeproj`. Commit `Podfile` and `Podfile.lock` so local and CI builds use the same exact dependency graph.
+
+## 2. Check import and linkage
+
+Add this import to an Objective-C source file:
+
+```objc
+#import <WuKongIMSDK/WuKongIMSDK.h>
+```
+
+Perform an unsigned generic-iOS-device build or build for the team's actual development device. Importing the header proves linkage only; it does not prove connection, messaging, or production security.
+
+A Swift application can call the Objective-C public types through a bridging header. This tutorial does not invent Swift wrappers; the Quickstart uses selectors from the distributed public headers directly.
+
+## 3. Do not use Swift Package Manager
+
+Neither exact `1.1.1` tag—the source nor the framework—contains `Package.swift`, so this snapshot **does not support Swift Package Manager** installation. Do not copy an SPM URL from legacy documentation or treat a manifest later added to the default branch as a `1.1.1` release fact.
+
+If a future tag ships `Package.swift` or an XCFramework, record that tag, verified revision, Xcode tuple, and runtime result as a new evidence set instead of silently changing this pinned snapshot.
+
+## 4. Handle the simulator architecture limit
+
+The package distributes a classic `.framework` with a device `arm64` slice and a simulator `x86_64` slice. Its podspec sets:
+
+```text
+EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64
+```
+
+The artifact therefore does not supply the slice required by an Apple Silicon native `arm64` Simulator. Options are:
+
+1. Prefer a real iOS device or generic iOS Device build.
+2. Use an `x86_64`/Rosetta-compatible simulator toolchain only if your team has verified it.
+3. Obtain a verified upstream XCFramework, then establish a new compatibility record.
+
+Removing `EXCLUDED_ARCHS` does not create a missing binary slice and is not compatibility evidence.
+
+## 5. Permissions and network configuration
+
+This tutorial sends text only and opens a raw **TCP** connection without transport TLS through `GCDAsyncSocket`. It needs no camera, microphone, photo-library permission, or global ATS bypass. Add the minimum platform permissions later for image, voice, library, or push features and verify each capability independently.
+
+“No ATS bypass required” does not mean the connection has TLS. Exact `1.1.1` exposes no TLS option or `startTLS` path. Production requires controlled/private ingress or a reviewed SDK or transport upgrade with authenticated TLS.
+
+## 6. Disable debug logging without closing the blocker
+
+`WKOptions.isDebug` defaults to enabled. The next page sets `options.isDebug = NO` before connecting. This disables only guarded logs and is not enough: the `1.1.1` receive path has an unconditional packet log, and a RECV description can contain a decoded message **Payload**.
+
+Remove or redact that path before production and inspect the Release binary, system logs, crash collection, and remote log pipeline. Seeing `isDebug = NO` alone does not close this production blocker.
+
+The local database depends on SQLCipher, but source supplies the UID directly as its database key. A UID is a scoping identifier, not a secret key; the SQLCipher dependency alone is not evidence of strong at-rest confidentiality. Review key management, iOS file protection, backup, account-switch, and erasure policy before production.
+
+## Expected result
+
+- `Podfile.lock` records exactly `WuKongIMSDK (1.1.1)`.
+- The application builds from `.xcworkspace` and imports `<WuKongIMSDK/WuKongIMSDK.h>`.
+- The team knows the current framework lacks an Apple Silicon Simulator `arm64` slice.
+- The project contains no invented `Package.swift` dependency, floating SDK version, or client-side management credential.
+- The team does not mistake the `1.0.0` from `WKSDK.sdkVersion` or `CFBundleShortVersionString` for the installed package version.
+- TCP/TLS, RECV Payload logging, and the UID-derived SQLCipher key remain tracked release blockers.
+
+## Troubleshooting
+
+- **Resolution is not `1.1.1`:** inspect parent-workspace Podfiles, the old `Podfile.lock`, and internal spec sources; do not switch to a floating range.
+- **The module is missing from `.xcodeproj`:** close it and open the generated `.xcworkspace`.
+- **Apple Silicon Simulator link fails:** inspect the target architecture; the artifact has no simulator `arm64` slice.
+- **Swift cannot find the type:** check the bridging header and module import; do not rewrite the sample with nonexistent Swift APIs.
+- **The app builds but cannot connect:** this page does not verify runtime behavior. Continue with the [Quickstart](/en/sdk/ios/quickstart) and inspect identity, host, port, and connection state.
+
+## Next step
+
+After checking dependency and build environment, continue to the [iOS Quickstart](/en/sdk/ios/quickstart) and configure Alice and Bob through the public Objective-C API.
