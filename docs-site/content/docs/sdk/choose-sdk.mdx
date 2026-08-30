@@ -31,7 +31,7 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 | Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK)、[WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | 完整 SDK 的[入口、安装与快速接入](/zh/sdk/android)已按 `1.5.5` 源码和 JitPack AAR 发布，但没有 Android 运行 receipt；EasySDK 的 JSON-RPC CONNECT 仍不受支持 |
 | Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK)、[WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | 完整 SDK 的[入口、安装与快速接入](/zh/sdk/flutter)已按 pub.dev `1.7.9` 归档和匹配源码发布，但没有运行 receipt；EasySDK 的 JSON-RPC CONNECT 仍不受支持 |
 | HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) | 完整 SDK 的[入口、安装与快速接入](/zh/sdk/harmonyos)已按 OHPM `@wukong/wkim 1.1.7` HAR 和匹配源码发布，但没有本站安装、编译或设备运行 receipt |
-| 小程序、UniApp、Node.js 或其他运行时 | 先查看两个 JavaScript 仓库中准备使用版本的 README、示例和发布记录；[WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK) 已弃用并指向 JSSDK | 本站尚无对应的可执行兼容快照，不要从浏览器或其他运行时的说明推断支持 |
+| 小程序、UniApp、Node.js 或其他运行时 | 先查看两个 JavaScript 仓库中准备使用版本的 README、示例和发布记录；[WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK) 已弃用并指向 JSSDK | UniApp 现有项目按[退役与迁移指南](/zh/sdk/uniapp)固定 `wukongimjssdk@1.3.5`；本站尚无对应运行 receipt，不要从浏览器说明推断支持 |
 
 ## 官方源码目录
 
@@ -53,7 +53,7 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 - [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK)：tag `1.5.5`，源码 revision `662a559a50d181540a0448454beb57e939b0c50e`；JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5` 与同一 revision 对齐；[教程](/zh/sdk/android)已发布，无 Android 运行 receipt
 - [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK)：pub.dev `wukongimfluttersdk` `1.7.9`，归档 SHA-256 `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a`，匹配源码 revision `de1024276523119e38305c49a3a873caae4d5c59`；[教程](/zh/sdk/flutter)已发布，无运行 receipt
 - [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK)：OHPM `@wukong/wkim` `1.1.7`，HAR SHA-256 `d98d1523bc60ad204dd74d9cfa776935a5547fc3ab352322dfa17f5dbc7a3cd8`，匹配源码 revision `0c41810a1e0a5fc2936929d63ca32a50ffb11bec`；[教程](/zh/sdk/harmonyos)已发布，无运行 receipt
-- [WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK)：官方仓库已标记弃用并要求使用 JSSDK；不要继续选择为新的独立 SDK
+- [WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK)：官方仓库已标记弃用并要求使用 JSSDK；不要继续选择为新的独立 SDK，现有项目从 [UniApp 迁移指南](/zh/sdk/uniapp)开始
 
 开始接入前，至少检查仓库的 README、示例、tags 或 releases（如果仓库提供）、变更记录、LICENSE 和未解决问题。安装命令必须锁定精确分发版本或产物，并记录匹配的源码 revision；不能假设每个仓库都有 tag，也不能把默认分支或 `latest` 当作兼容性结论。
 
@@ -110,9 +110,16 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 3. 在自己的 DevEco、HarmonyOS SDK、ohpm/hvigor、设备和服务端 revision 上保存运行 receipt，不把 HAR/源码校对当作安装、编译或设备运行证明；
 4. 发布前关闭原始 TCP/TLS、RelationalStore `encrypt: false`、Payload/`hilog.info` 日志、数据库错误传播和 `sendingMsgMap` 账号隔离阻断，再单独验证离线、推送、后台与多设备。
 
+### UniApp 迁移
+
+1. 按 [UniApp 退役与迁移指南](/zh/sdk/uniapp)移除已弃用的 `wukongimuniappsdk`，精确安装 `wukongimjssdk@1.3.5`，并保留锁文件；
+2. 只从 `wukongimjssdk` 包根导入，让 `1.3.5` 按全局 `uni` → `wx` → 原生 `WebSocket` 自动检测；不要把当前失效的 `config.platform` 显式适配路径当作修复方案；
+3. 分别在 HBuilderX 记录 App、H5 与每种小程序目标的构建、连接、SENDACK、在线接收和恢复结果；Chromium receipt 不能替代这些证据；
+4. 让受信业务后端签发身份与连接材料；未修改的 `1.3.5` 会无条件记录明文 Payload，发布前必须评审日志补丁并关闭 WSS、鉴权、本地数据和升级回滚门禁。
+
 ### 其他 WuKongIMSDK 平台
 
-1. 从上面的官方仓库选择一个精确 tag 或包版本，并先运行仓库自带示例；UniApp 仓库已弃用，不能继续作为新项目候选；
+1. 从上面的官方仓库选择一个精确 tag 或包版本，并先运行仓库自带示例；UniApp 仓库已弃用，应走上面的迁移路径，不能继续作为新项目候选；
 2. 把[身份与 Token](/zh/sdk/common-guides/identity-and-token)、[初始化与连接](/zh/sdk/common-guides/initialization-and-connection)和[消息收发](/zh/sdk/common-guides/messaging)映射到该版本 API；
 3. 自己保留连接、发送确认、在线接收和离线恢复的执行证据；
 4. 在本站发布平台教程前，以仓库和你的验证结果作为平台 API 的事实源。
@@ -126,4 +133,4 @@ description: 按应用平台、能力需求和验证状态选择 WuKongIM SDK，
 
 ## 下一步
 
-目标是 Android、iOS、Flutter 或 HarmonyOS 时，分别进入 [Android 教程](/zh/sdk/android)、[iOS 教程](/zh/sdk/ios)、[Flutter 教程](/zh/sdk/flutter)、[HarmonyOS 教程](/zh/sdk/harmonyos)，并为自己的精确运行 tuple 建立 receipt；目标是 Web 时进入有本站可执行证据的[安装与配置](/zh/sdk/javascript/installation)。EasySDK 必须等待 JSON-RPC 运行时修复与端到端验证。
+目标是 Android、iOS、Flutter 或 HarmonyOS 时，分别进入 [Android 教程](/zh/sdk/android)、[iOS 教程](/zh/sdk/ios)、[Flutter 教程](/zh/sdk/flutter)、[HarmonyOS 教程](/zh/sdk/harmonyos)，并为自己的精确运行 tuple 建立 receipt；现有 UniApp 项目进入[退役与迁移指南](/zh/sdk/uniapp)；目标是 Web 时进入有本站可执行证据的[安装与配置](/zh/sdk/javascript/installation)。EasySDK 必须等待 JSON-RPC 运行时修复与端到端验证。

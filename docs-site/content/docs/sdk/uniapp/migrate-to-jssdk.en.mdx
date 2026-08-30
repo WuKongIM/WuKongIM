@@ -1,0 +1,202 @@
+---
+title: Migrate from the UniApp SDK to JSSDK
+description: Remove deprecated wukongimuniappsdk, pin wukongimjssdk 1.3.5, and validate the adapter, device category, and message loop per target.
+---
+
+This page is for projects that still use `wukongimuniappsdk`. The goal is not a package-name swap followed by release. Migrate to exact `wukongimjssdk@1.3.5`, then produce separate acceptance results for App, H5, and mini-program targets.
+
+<Callout type="warn" title="This site has no UniApp runtime receipt">
+  The source and npm artifacts were inspected, but this site did not use HBuilderX to build App, H5, or a mini-program and did not call `uni.connectSocket` or `wx.connectSocket` on a device. The existing Chromium receipt belongs only to the browser golden path; it does not attest a migrated target runtime.
+</Callout>
+
+## 1. Pin both sides of the migration
+
+### Retired source
+
+| Item | Exact value |
+| --- | --- |
+| Official repository HEAD | `582cacb5ed7a559b66ed4f66fe71dd1a3608e21d`, with no git tag |
+| Revision adding the deprecation notice | `88da7bff68046bd4f2299b511e0dcb91a705c8de` |
+| npm package | `wukongimuniappsdk@1.0.3`, published 2023-06-26 |
+| Tarball SHA-256 | `a2dfcb7a2317ea6f123ac4fbd8f92a2ecee6f48eaa10d6629e77abc1a1540db7` |
+| Integrity | `sha512-3IYWWKqRAVloLn7MVkoPJO0diF16UIPWxnLgO8/SaqTE06dxUkynVD0kxRoOzsnBM4UX+su5IoHpxWYH5wEwWA==` |
+
+The old tarball README has no retirement notice, npm metadata has no deprecated field, and the package declares `wukongimuniappsdk@^1.0.1` as its own dependency. Do not treat the registry page, matching version number, or successful installation as maintenance evidence.
+
+### Migration target
+
+| Item | Exact value |
+| --- | --- |
+| npm package | `wukongimjssdk@1.3.5` |
+| Tag / source revision | `3c507ea3ebc08eae9d74fc1f76b150c380752008` |
+| Tarball SHA-256 | `b053c9623ac36b7ce78dfd874240ac48abaee48e20dd78d824f28881c5504cfc` |
+| Integrity | `sha512-Y3RY4IdkLfCB2MCJFQlamSe5EQ6SU3PGphdoV9MJjJTSUAzZTTw5gBxmMi2jbwLRDqM+cSFaIb1vhQ+Rl0ftnQ==` |
+
+These values pin the evaluation target. Source/tarball alignment is not a UniApp build or runtime result.
+
+## 2. Preserve a baseline first
+
+Record reproducible current behavior before changing dependencies:
+
+- the old version in `package.json` and the lockfile;
+- every `wukongimuniappsdk` and `wukongimjssdk/lib/*` deep import;
+- UID, Token, and route acquisition flow, without retaining real credentials;
+- providers, custom-message registration, connection/message/SENDACK listeners;
+- connection, online message, and reconnect recovery for each App, H5, and mini-program target;
+- current HBuilderX/CLI, uni-app/Vue, target device/OS, and server revision.
+
+The baseline supports comparison and rollback; it is not a reason to keep adopting the deprecated package.
+
+## 3. Remove the old package and pin the new one
+
+Choose only the command block matching the existing lockfile. Do not run npm in a Yarn/pnpm project and create a second lockfile.
+
+### npm (`package-lock.json`)
+
+```bash
+npm uninstall wukongimuniappsdk
+npm install --save-exact wukongimjssdk@1.3.5
+npm ls wukongimuniappsdk
+npm ls wukongimjssdk
+```
+
+When `npm ls wukongimuniappsdk` reports `(empty)`, it normally exits with exit code `1`; that is the expected negative check here. `npm ls wukongimjssdk` should report exact `1.3.5` and exit `0`. In CI, evaluate output and status separately instead of using `|| true` to hide real dependency errors.
+
+### Yarn (`yarn.lock`)
+
+```bash
+yarn remove wukongimuniappsdk
+yarn add --exact wukongimjssdk@1.3.5
+yarn why wukongimuniappsdk
+yarn why wukongimjssdk
+```
+
+### pnpm (`pnpm-lock.yaml`)
+
+```bash
+pnpm remove wukongimuniappsdk
+pnpm add --save-exact wukongimjssdk@1.3.5
+pnpm why wukongimuniappsdk
+pnpm why wukongimjssdk
+```
+
+Every path should leave the old package absent and the new package exactly `1.3.5`. Review and commit only the complete diff of the existing lockfile. If the old package remains transitively installed, identify its owner instead of ignoring the error.
+
+The `1.3.5` export map exposes only the package root and `package.json`. Use root imports:
+
+```typescript
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  ConnectStatus,
+  MessageText,
+  SendackPacket
+} from 'wukongimjssdk'
+```
+
+Remove `wukongimjssdk/lib/*` deep imports. They are outside the current export map and are not a stable API contract. Map each call against exact `1.3.5` declarations rather than assuming the old wrapper is drop-in compatible.
+
+## 4. Verify the UniApp socket adapter first
+
+Exact `1.3.5` detection order is global `uni` → `uni.connectSocket`, then global `wx` → `wx.connectSocket`, then native `WebSocket` when neither global exists. A platform branch stores the selected function in the module variable `wkconnectSocket`. Verify the actual branch during startup for every target:
+
+```typescript
+const runtime = globalThis as typeof globalThis & {
+  uni?: { connectSocket?: unknown }
+  wx?: { connectSocket?: unknown }
+}
+
+let transport: 'uni.connectSocket' | 'wx.connectSocket' | 'WebSocket'
+if (runtime.uni !== undefined) {
+  if (typeof runtime.uni.connectSocket !== 'function') {
+    throw new Error('global uni exists but uni.connectSocket is not callable')
+  }
+  transport = 'uni.connectSocket'
+} else if (runtime.wx !== undefined) {
+  if (typeof runtime.wx.connectSocket !== 'function') {
+    throw new Error('global wx exists but wx.connectSocket is not callable')
+  }
+  transport = 'wx.connectSocket'
+} else {
+  if (typeof WebSocket !== 'function') {
+    throw new Error('This target exposes no supported socket transport')
+  }
+  transport = 'WebSocket'
+}
+```
+
+<Callout type="warn" title="Do not use config.platform = uni / wx as a fix">
+  Although current source exposes `config.platform`, explicitly passing `uni` or `wx` does not initialize or refresh `wkconnectSocket`. On first use the constructor can create a native `WebSocket` and then call platform-style `onOpen` / `onMessage` methods on it; after earlier auto-detection it can reuse a stale adapter. Do not recommend or depend on either path until the SDK is fixed.
+</Callout>
+
+An H5 target without global `uni` / `wx` can take the native `WebSocket` branch and must validate it in that H5 build. Maintain a reviewed adapter fork only when a target requires a platform socket but exposes neither global `uni` nor global `wx`; socket creation and event APIs must come from the same platform object. Retain the fork revision, patch, and target runtime receipt. An H5 pass cannot attest App or a mini-program.
+
+## 5. Choose Device Flag and WSS deliberately
+
+`wukongimjssdk@1.3.5` defaults to `deviceFlag = 1`. Set the protocol category before connection and keep trusted-backend token metadata aligned:
+
+| Device category | Value | Common target |
+| --- | --- | --- |
+| `0 = APP` | `0` | Native App container |
+| `1 = WEB` | `1` | H5 / browser |
+| `2 = PC` | `2` | Desktop client |
+
+Do not classify a mini-program only because it uses JavaScript. Make an explicit product decision, keep client, Token metadata, and server policy aligned, and accept it separately.
+
+```typescript
+const sdk = WKSDK.shared()
+sdk.config.uid = bootstrap.uid
+sdk.config.token = bootstrap.shortLivedToken
+sdk.config.addr = bootstrap.wssAddress
+sdk.config.deviceFlag = targetDeviceFlag // 0 = APP, 1 = WEB, 2 = PC
+// On 1.3.5, do not set sdk.config.platform; let uni → wx → WebSocket detection run.
+```
+
+App and mini-program domain allowlists, certificate chains, and network policies differ. Use a WSS address returned by a trusted backend and test domain, certificate, proxy, poor-network, and network-switch behavior on every target. Never store Product HTTP administrative credentials or mint Tokens in the client.
+
+## 6. Reconnect application responsibilities in order
+
+1. Obtain UID, short-lived Token, and WSS route from the trusted backend.
+2. Set `uid`, `token`, `addr`, and `deviceFlag`.
+3. Install message-sync and other providers; reject explicit failures.
+4. Register each custom-content factory with `WKSDK.shared().register(contentType, factory)` first; otherwise a received payload decodes as `UnknownContent`.
+5. Register connection, message, and SENDACK listeners separately through `connectManager.addConnectStatusListener`, `chatManager.addMessageListener`, and `chatManager.addMessageStatusListener`.
+6. Call `WKSDK.shared().connect()`.
+7. After connection, send one personal text and record SENDACK separately from peer online receipt.
+8. Disconnect Bob, commit another persistent message, reconnect, recover it through synchronization, and deduplicate overlap.
+9. On exit, call the matching `removeConnectStatusListener`, `removeMessageListener`, and `removeMessageStatusListener`, then use a fresh process or proven lifecycle isolation for another account.
+
+The [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart) explains JSSDK message semantics. Reuse the API model, not its Chromium verification conclusion.
+
+## 7. Accept every target separately
+
+| Target | Minimum retained result |
+| --- | --- |
+| App | HBuilderX/CLI, App base/signing, device and OS, `0 = APP`, WSS, foreground/background and network switching, Alice/Bob loop |
+| H5 | Build mode, browser/WebView, `1 = WEB`, WSS, SENDACK, online receipt, and offline recovery |
+| Mini-program | Platform and base library, domain allowlist, Device Flag decision, actual `uni.connectSocket` / `wx.connectSocket` branch, foreground/background, and recovery |
+
+A reviewable receipt contains at least:
+
+```text
+wukongimjssdk 1.3.5 + lockfile digest + tarball integrity
+JSSDK source revision + any adapter-fork revision
+HBuilderX/CLI + uni-app/Vue + exact target
+build/signing + device/OS or browser/WebView
+server revision + WSS route class (not credentials)
+Alice/Bob redacted connection timestamps
+local send correlation + SENDACK + online receipt
+disconnect + offline send + reconnect recovery + dedup result
+```
+
+This site has no UniApp runtime receipt for that tuple. A pass on App, H5, or a mini-program cannot replace another target's separate acceptance.
+
+## 8. Release and rollback gates
+
+<Callout type="warn" title="The plaintext Payload logs in 1.3.5 block release">
+  The receive path decrypts `RecvPacket.payload` and then unconditionally sends the whole packet to `console.log`; reconnect queue flushing also logs `SendPacket` objects containing plaintext Payload. Those paths do not check `config.debug`, so `config.debug = false` cannot disable them. Unmodified `1.3.5` cannot pass a production release gate. Use a reviewed removal/redaction patch or verified build-time stripping, then inspect the exact release artifact and log collection path.
+</Callout>
+
+Expand rollout only after the old package is absent, exact version and lockfile are reviewed, every target passes its minimal loop, Token and WSS come from a trusted backend, the plaintext-log patch and final artifact are verified, logs exclude Tokens and complete Payloads, and failure/network/background/recovery/rollback paths have been rehearsed.
+
+If migration fails, roll back the application version and matching lockfile. Do not keep both SDKs in one build competing for singletons, providers, or sockets. Record the failed target, toolchain, and logs before repairing the adapter or application mapping.

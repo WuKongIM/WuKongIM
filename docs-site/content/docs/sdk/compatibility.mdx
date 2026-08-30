@@ -25,6 +25,10 @@ description: 核对 v3 Beta JavaScript/Web 黄金路径的服务端、SDK、Node
   [完整版 HarmonyOS 教程](/zh/sdk/harmonyos)固定 OHPM `@wukong/wkim` `1.1.7`，并已校对 HAR SHA、匹配源码 revision 与包内 ArkTS API。它**不属于本页 receipt**，本站也没有 HarmonyOS 安装、编译或设备运行 receipt；只有提交精确 `oh-package-lock.json5`、DevEco/HarmonyOS SDK/ohpm/hvigor、HAP/签名、设备/系统、服务端 revision 与 Alice/Bob 结果并通过评审后，才能形成独立 attestation。
 </Callout>
 
+<Callout type="info" title="UniApp 迁移也不属于浏览器 receipt">
+  旧 `WuKongIMUniappSDK` 仓库与 `wukongimuniappsdk` 已弃用；[UniApp 退役与迁移指南](/zh/sdk/uniapp)把目标固定为 `wukongimjssdk@1.3.5`。该包依次检测全局 `uni.connectSocket`、`wx.connectSocket`，否则使用原生 `WebSocket`，但本站 Chromium 场景只证明浏览器路径，不能证明 HBuilderX 下的 App、H5 或小程序。每个目标必须单独保存构建与 Alice/Bob 运行证据。
+</Callout>
+
 ## 目标与完成标准
 
 开始接入前，确认你的服务端 revision、`wukongimjssdk`、Node.js 和浏览器与同一份兼容快照一致。完成后，你应能指出当前组合是“已验证”“未验证”还是“已发生漂移”，而不是根据 `latest` 猜测兼容性。
@@ -91,4 +95,4 @@ curl --fail https://docs.githubim.com/compatibility.json
 
 ## 下一步
 
-需要本页 receipt 时，按 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)完成固定场景。目标是 Android、iOS、Flutter 或 HarmonyOS 时，分别从 [Android 教程](/zh/sdk/android)、[iOS 教程](/zh/sdk/ios)、[Flutter 教程](/zh/sdk/flutter)、[HarmonyOS 教程](/zh/sdk/harmonyos)开始，并为自己的精确运行 tuple 单独保存证据。HTTP 子集的版本边界见 [API 兼容性](/zh/api/compatibility)。
+需要本页 receipt 时，按 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)完成固定场景。目标是 Android、iOS、Flutter 或 HarmonyOS 时，分别从 [Android 教程](/zh/sdk/android)、[iOS 教程](/zh/sdk/ios)、[Flutter 教程](/zh/sdk/flutter)、[HarmonyOS 教程](/zh/sdk/harmonyos)开始，并为自己的精确运行 tuple 单独保存证据。UniApp 现有项目从[退役与迁移指南](/zh/sdk/uniapp)开始，不能沿用本页 Chromium receipt。HTTP 子集的版本边界见 [API 兼容性](/zh/api/compatibility)。

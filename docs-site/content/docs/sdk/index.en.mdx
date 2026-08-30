@@ -6,7 +6,7 @@ description: Choose a client SDK, prove the first message, then add identity, re
 A WuKongIM SDK manages the connection, message exchange, and protocol state between a client and the Gateway. You do not need to learn the wire protocol first. Start from your platform and outcome, prove a minimal loop, and then add production behavior.
 
 <Callout type="info" title="Start your first integration here">
-  If you have not selected a repository, begin with [Choose an SDK](/en/sdk/choose-sdk). Android `1.5.5`, iOS `1.1.1`, Flutter `1.7.9`, and HarmonyOS `1.1.7` now have full-SDK tutorials aligned to source/distribution artifacts, but none has a corresponding platform runtime receipt on this site. For a browser path carrying this site's executable scenario evidence, begin with [WuKongIMJSSDK Installation](/en/sdk/javascript/installation). WuKongEasySDK tutorials remain planned because the current Product Gateway does not support their JSON-RPC CONNECT path.
+  If you have not selected a repository, begin with [Choose an SDK](/en/sdk/choose-sdk). Android `1.5.5`, iOS `1.1.1`, Flutter `1.7.9`, and HarmonyOS `1.1.7` now have full-SDK tutorials aligned to source/distribution artifacts, but none has a corresponding platform runtime receipt on this site. For a browser path carrying this site's executable scenario evidence, begin with [WuKongIMJSSDK Installation](/en/sdk/javascript/installation). The old UniApp SDK is deprecated; existing projects should use the [UniApp migration guide](/en/sdk/uniapp) to evaluate migration to `wukongimjssdk@1.3.5`. WuKongEasySDK tutorials remain planned because the current Product Gateway does not support their JSON-RPC CONNECT path.
 </Callout>
 
 ## What do you want to accomplish now?
@@ -18,6 +18,7 @@ A WuKongIM SDK manages the connection, message exchange, and protocol state betw
   <Card title="Send the first iOS message" description="Pin 1.1.1 and use its public Objective-C API for connection, send acknowledgement, and online receipt." href="/en/sdk/ios" />
   <Card title="Send the first Flutter message" description="Pin 1.7.9 and use the real Dart API for the sync gate, SENDACK, and online receipt." href="/en/sdk/flutter" />
   <Card title="Send the first HarmonyOS message" description="Pin OHPM 1.1.7 and use the real ArkTS API for the sync gate, SENDACK, and online receipt." href="/en/sdk/harmonyos" />
+  <Card title="Migrate a UniApp project" description="Remove the deprecated standalone package, pin JSSDK 1.3.5, and accept App, H5, and mini-program targets separately." href="/en/sdk/uniapp" />
   <Card title="Send the first Web message" description="Install a pinned version, connect Alice and Bob, and prove online messaging plus offline recovery." href="/en/sdk/javascript/quickstart" />
   <Card title="Design a complete client" description="Implement identity, connection, messaging, conversations, push, multi-device, and failure behavior." href="/en/sdk/common-guides" />
   <Card title="Confirm version evidence" description="Check whether server, SDK, Node.js, and Chromium belong to one compatibility snapshot." href="/en/sdk/compatibility" />
@@ -47,7 +48,7 @@ Class names and callback shapes differ by platform, but these responsibilities a
 | [WuKongIMSDK HarmonyOS](/en/sdk/harmonyos) `1.1.7` | Overview, installation, and quickstart published; OHPM HAR and matching source aligned, with no site install, compile, or device runtime receipt | HarmonyOS NEXT teams retaining acceptance evidence on their own DevEco/device/server tuple |
 | [JavaScript / Web](/en/sdk/javascript) | Published with a scenario-covered executable sample | Developers proving the first browser client loop |
 | [Common Guides](/en/sdk/common-guides) | Published and platform-neutral | Teams designing a production client lifecycle |
-| WuKongIMSDK UniApp | Its official repository is deprecated; an independent tutorial must not promise continued support | Evaluate the JavaScript SDK for the target runtime and do not project browser evidence onto UniApp |
+| [WuKongIMSDK UniApp migration](/en/sdk/uniapp) | The old repository and `wukongimuniappsdk` are deprecated; the migration target is exactly `wukongimjssdk@1.3.5` | Existing projects that must remove the old package and retain separate App, H5, and mini-program acceptance evidence |
 | Complete JavaScript API reference and upgrade guide | Planned | Stay within the tutorial-covered APIs and pinned compatibility snapshot |
 
 <Callout type="warn" title="Do not confuse three statuses">
@@ -73,7 +74,7 @@ This is more useful than a single “send succeeded” result because durable co
 - **I need local messages, conversations, and unread counts on Android:** begin with the [Android installation and quickstart](/en/sdk/android) for the `1.5.5` synchronization gate and online path. Source/AAR alignment is not a device runtime receipt.
 - **I need local messages, conversations, and unread counts on Flutter:** begin with the [Flutter installation and quickstart](/en/sdk/flutter) for the `1.7.9` singleton, synchronization, and send path. A macOS build is not an Android/iOS/macOS runtime receipt.
 - **I need local messages, conversations, and unread counts on HarmonyOS:** begin with the [HarmonyOS installation and quickstart](/en/sdk/harmonyos) for the `1.1.7` HAR, deep-path API, synchronization, and send path. Source/HAR alignment is not a DevEco or device runtime receipt.
-- **How should I integrate UniApp?** The official `WuKongIMUniappSDK` repository is deprecated and points to the JavaScript SDK. Validate the target runtime independently instead of projecting browser support.
+- **How should I integrate UniApp?** The official `WuKongIMUniappSDK` repository is deprecated and points to the JavaScript SDK. Follow the [UniApp migration guide](/en/sdk/uniapp) to remove the old package and pin `wukongimjssdk@1.3.5`, then validate each target runtime independently instead of projecting browser support.
 - **The Web sample builds but does not connect:** follow the Quickstart checks for cluster `/readyz`, route address, Gateway port, and BFF output.
 - **Sending succeeds but the peer shows nothing:** separate SENDACK, online receipt, and synchronized recovery, then diagnose each path.
 
@@ -83,4 +84,4 @@ An SDK does not own product accounts, authorization, or token issuance. A client
 
 ## Next step
 
-Start with [Choose an SDK](/en/sdk/choose-sdk). For Android, iOS, Flutter, or HarmonyOS, use the corresponding [Android](/en/sdk/android), [iOS](/en/sdk/ios), [Flutter](/en/sdk/flutter), or [HarmonyOS](/en/sdk/harmonyos) tutorial to pin `1.5.5`, `1.1.1`, `1.7.9`, or `1.1.7`, then retain runtime evidence in your own environment. For this site's existing executable receipt, complete Web [Installation](/en/sdk/javascript/installation) and the [Quickstart](/en/sdk/javascript/quickstart). EasySDK must still wait for a JSON-RPC runtime fix and end-to-end verification.
+Start with [Choose an SDK](/en/sdk/choose-sdk). For Android, iOS, Flutter, or HarmonyOS, use the corresponding [Android](/en/sdk/android), [iOS](/en/sdk/ios), [Flutter](/en/sdk/flutter), or [HarmonyOS](/en/sdk/harmonyos) tutorial to pin `1.5.5`, `1.1.1`, `1.7.9`, or `1.1.7`, then retain runtime evidence in your own environment. Existing UniApp projects should begin with the [retirement and migration entry](/en/sdk/uniapp). For this site's existing executable receipt, complete Web [Installation](/en/sdk/javascript/installation) and the [Quickstart](/en/sdk/javascript/quickstart). EasySDK must still wait for a JSON-RPC runtime fix and end-to-end verification.

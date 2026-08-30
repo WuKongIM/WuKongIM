@@ -388,6 +388,25 @@ function publishedHarmonyOSSDKGroup(): NavigationGroup {
   );
 }
 
+function publishedUniAppMigrationGroup(): NavigationGroup {
+  return publishedGroup(
+    'uniapp',
+    'UniApp 迁移',
+    'UniApp Migration',
+    '官方 WuKongIMUniappSDK 已弃用；停止采用旧包，并按目标运行时独立评估迁移到 wukongimjssdk 1.3.5。',
+    'The official WuKongIMUniappSDK is deprecated; stop adopting the old package and evaluate migration to wukongimjssdk 1.3.5 separately for each target runtime.',
+    [
+      publishedPage(
+        'migrate-to-jssdk',
+        '迁移到 JSSDK',
+        'Migrate to JSSDK',
+        '移除旧包、固定 JSSDK 1.3.5，并验证 UniApp adapter、Device Flag、WSS、消息闭环和目标平台证据。',
+        'Remove the old package, pin JSSDK 1.3.5, and validate the UniApp adapter, Device Flag, WSS, message loop, and target-specific evidence.',
+      ),
+    ],
+  );
+}
+
 function plannedEasySDKGroup(): NavigationGroup {
   return plannedGroup(
     'easy',
@@ -1085,12 +1104,7 @@ export const domains: DocumentationDomain[] = [
       publishedIOSSDKGroup(),
       publishedJavaScriptGoldenPathGroup(),
       publishedFlutterSDKGroup(),
-      platformGroup(
-        'uniapp',
-        'UniApp',
-        'UniApp SDK 的支持范围、平台差异和接入入口。',
-        'Support scope, platform differences, and entry points for the UniApp SDK.',
-      ),
+      publishedUniAppMigrationGroup(),
       publishedHarmonyOSSDKGroup(),
     ],
   },

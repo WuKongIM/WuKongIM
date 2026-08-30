@@ -183,7 +183,6 @@ describe('documentation navigation contract', () => {
 
     expect(published).toEqual(expect.arrayContaining(phase13Routes));
     expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('published');
-    expect(getNavigationEntry('en', 'sdk', ['uniapp'])?.status).toBe('planned');
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
   });
 
@@ -203,7 +202,6 @@ describe('documentation navigation contract', () => {
       'planned',
     );
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
-    expect(getNavigationEntry('en', 'sdk', ['uniapp'])?.status).toBe('planned');
   });
 
   test('publishes the narrow Phase 19 iOS path without publishing unverified chapters', () => {
@@ -292,6 +290,24 @@ describe('documentation navigation contract', () => {
       ['api-reference', 'planned'],
       ['upgrade', 'planned'],
     ]);
+  });
+
+  test('publishes the Phase 23 UniApp retirement path without reviving the old SDK', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+    const sdk = domains.find((domain) => domain.key === 'sdk');
+    const uniapp = sdk?.groups.find((group) => group.slug === 'uniapp');
+
+    expect(published).toEqual(
+      expect.arrayContaining([
+        '/en/sdk/uniapp',
+        '/en/sdk/uniapp/migrate-to-jssdk',
+      ]),
+    );
+    expect(uniapp?.status).toBe('published');
+    expect(uniapp?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['migrate-to-jssdk', 'published'],
+    ]);
+    expect(uniapp?.description.en).toContain('deprecated');
   });
 
   test('keeps EasySDK planned while Product JSON-RPC CONNECT is unsupported', () => {
@@ -500,6 +516,8 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/flutter`,
         `/${locale}/sdk/flutter/installation`,
         `/${locale}/sdk/flutter/quickstart`,
+        `/${locale}/sdk/uniapp`,
+        `/${locale}/sdk/uniapp/migrate-to-jssdk`,
         `/${locale}/sdk/harmonyos`,
         `/${locale}/sdk/harmonyos/installation`,
         `/${locale}/sdk/harmonyos/quickstart`,
