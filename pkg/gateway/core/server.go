@@ -81,6 +81,8 @@ type listenerRuntime struct {
 	options gatewaytypes.ListenerOptions
 	factory transport.Factory
 	adapter protocol.Adapter
+	// auth declares the selected wire protocol's CONNECT handshake requirement.
+	auth    protocol.ConnectAuthenticationPolicy
 	tracker protocol.ReplyTokenTracker
 	// ownsDecodedFrames allows SEND async dispatch to retain decoded payload bytes without copying.
 	ownsDecodedFrames bool
@@ -185,6 +187,9 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		}
 		if tracker, ok := adapter.(protocol.ReplyTokenTracker); ok {
 			runtime.tracker = tracker
+		}
+		if policy, ok := adapter.(protocol.ConnectAuthenticationPolicy); ok {
+			runtime.auth = policy
 		}
 		if owner, ok := adapter.(protocol.DecodedFrameOwner); ok && owner.OwnsDecodedFrames() {
 			runtime.ownsDecodedFrames = true
@@ -436,10 +441,6 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 		closedCh: make(chan struct{}),
 	}
 	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
-	state.setAuthRequired(listener.options.Protocol == "wkproto" && s.options.Authenticator != nil)
-	if !state.requiresAuth() && listener.options.Protocol != "wsmux" {
-		state.setAuthenticated(true)
-	}
 	state.touchReadActivity()
 
 	sess := session.New(session.Config{
@@ -464,13 +465,11 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 		return nil
 	}
 
-	if !state.requiresAuth() && listener.options.Protocol != "wsmux" {
-		if err := s.dispatchSessionOpen(state); err != nil {
-			s.handleHandlerError(state, err)
-		}
-		if state.isClosed() {
-			return nil
-		}
+	if err := s.syncSessionProtocol(state); err != nil {
+		s.handleHandlerError(state, err)
+	}
+	if state.isClosed() {
+		return nil
 	}
 
 	return nil
@@ -745,7 +744,7 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 			suppressObservation = true
 			return
 		}
-		if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
+		if writeErr := s.writeImmediateFrame(state, task.replyToken, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
 			return
 		}
@@ -771,7 +770,7 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 			suppressObservation = true
 			return
 		}
-		if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
+		if writeErr := s.writeImmediateFrame(state, task.replyToken, connack); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPeerClosed), writeErr)
 			return
 		}
@@ -802,7 +801,7 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 				suppressObservation = true
 				return
 			}
-			if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
+			if writeErr := s.writeImmediateFrame(state, task.replyToken, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 				state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
 				return
 			}
@@ -845,7 +844,7 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 			return
 		}
 	}
-	if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
+	if writeErr := s.writeImmediateFrame(state, task.replyToken, connack); writeErr != nil {
 		if connack.ReasonCode == frame.ReasonSuccess {
 			failure = authFailureConnackWriteError
 		}
@@ -888,7 +887,7 @@ func (s *Server) handleAuthQueueFull(state *sessionState, replyToken string, sta
 	if state == nil || state.isClosed() {
 		return
 	}
-	if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
+	if writeErr := s.writeImmediateFrame(state, replyToken, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 		s.observeAuth(state, authStatusFail, authFailureQueueFull, time.Since(start))
 		state.close(gatewaytypes.CloseReasonAsyncAuthQueueFull, writeErr)
 		return
@@ -986,12 +985,12 @@ func (s *Server) encodeAndWrite(state *sessionState, f frame.Frame, meta session
 	return s.writePayloadDirectObserved(state, encoded, f)
 }
 
-func (s *Server) writeImmediateFrame(state *sessionState, f frame.Frame) error {
+func (s *Server) writeImmediateFrame(state *sessionState, replyToken string, f frame.Frame) error {
 	if state == nil || state.listener == nil {
 		return session.ErrSessionClosed
 	}
 
-	encoded, err := state.listener.adapter.Encode(state.session, f, session.OutboundMeta{})
+	encoded, err := state.listener.adapter.Encode(state.session, f, session.OutboundMeta{ReplyToken: replyToken})
 	if err != nil {
 		return err
 	}
@@ -1235,11 +1234,17 @@ func (s *Server) syncSessionProtocol(state *sessionState) error {
 		return nil
 	}
 
-	protocol := state.protocolName()
-	if protocol == "" || protocol == "wsmux" {
+	if state.listener == nil {
 		return nil
 	}
-	if protocol == "wkproto" && s.options.Authenticator != nil {
+	required, resolved := false, true
+	if state.listener.auth != nil {
+		required, resolved = state.listener.auth.ConnectAuthenticationRequired(state.session)
+	}
+	if !resolved {
+		return nil
+	}
+	if required && s.options.Authenticator != nil {
 		state.setAuthRequired(true)
 		return nil
 	}

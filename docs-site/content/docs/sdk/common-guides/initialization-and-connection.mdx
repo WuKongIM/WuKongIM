@@ -6,7 +6,7 @@ description: 把 SDK 实例、路由发现、CONNECT、恢复、可发送状态�
 可靠的客户端不会把“创建 SDK 对象”和“业务可以发送消息”视为同一时刻。初始化需要先绑定环境与身份，连接成功后还要恢复缺失状态，最后才向 UI 发布 ready。
 
 <Callout type="info" title="跨 SDK 行为指南">
-  本页是**跨 SDK 行为指南**，状态名是应用侧建议，不是对每个平台 API 的承诺。当前唯一经过可执行场景验证的实现见 [JavaScript/Web 兼容快照](/zh/sdk/compatibility)。
+  本页是**跨 SDK 行为指南**，状态名是应用侧建议，不是对每个平台 API 的承诺。[JavaScript/Web 兼容快照](/zh/sdk/compatibility)是唯一执行了客户端制品与浏览器的场景；[EasySDK](/zh/sdk/easy)另有四端 wire fixture 和使用 iOS/Android profile 的真实服务端进程 E2E，但没有平台制品运行 receipt。
 </Callout>
 
 ## 目标与完成标准

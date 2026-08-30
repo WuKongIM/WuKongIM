@@ -9,8 +9,8 @@ description: 核对 v3 Beta JavaScript/Web 黄金路径的服务端、SDK、Node
   Android、iOS、Flutter、HarmonyOS 的平台能力、API Reference 与升级页，以及 JavaScript 的 [API Reference](/zh/sdk/javascript/api-reference)和[升级指南](/zh/sdk/javascript/upgrade)现已发布。它们是按固定源码和制品校对的参考资料；发布状态不会给本页 receipt 增加平台、设备、API 或生产就绪结论。
 </Callout>
 
-<Callout type="warn" title="EasySDK 教程已发布，但没有运行 receipt">
-  [EasySDK iOS、Android、Flutter 和 Web 教程](/zh/sdk/easy)已作为源码校对资料进入搜索与 Sitemap；它们不进入本页 receipt。EasySDK 使用 WebSocket JSON-RPC，而当前 Product Gateway 不支持 JSON-RPC CONNECT，实际接入仍须等待运行时修复与端到端验证，不能把教程发布或源码校对当作可执行兼容性。
+<Callout type="info" title="EasySDK 有独立的服务端线协议 receipt">
+  [EasySDK iOS、Android、Flutter 和 Web 教程](/zh/sdk/easy)不进入本页的 JavaScript/Web 浏览器 receipt。四个固定版本都有 JSON-RPC CONNECT、Ping 与在线双向消息的服务端 wire fixture；真实 `cmd/wukongim` 端到端场景使用 iOS 与 Android profile。该证据不包含平台构建、设备运行、离线同步、推送或生产 Token 校验。
 </Callout>
 
 <Callout type="info" title="iOS 教程不扩展这份兼容快照">

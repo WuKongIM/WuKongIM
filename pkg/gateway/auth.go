@@ -49,7 +49,7 @@ func NewWKProtoAuthenticator(opts WKProtoAuthOptions) Authenticator {
 		encryptionEnabled = true
 	}
 
-	return AuthenticatorFunc(func(_ *Context, connect *frame.ConnectPacket) (*AuthResult, error) {
+	return AuthenticatorFunc(func(ctx *Context, connect *frame.ConnectPacket) (*AuthResult, error) {
 		if connect == nil {
 			return &AuthResult{
 				Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonAuthFail},
@@ -91,9 +91,14 @@ func NewWKProtoAuthenticator(opts WKProtoAuthOptions) Authenticator {
 			serverVersion = frame.LatestVersion
 		}
 
+		timeDiff := nowFn().UnixMilli() - connect.ClientTimestamp
+		isJSONRPC := ctx != nil && ctx.Protocol == "jsonrpc"
+		if isJSONRPC && connect.ClientTimestamp == 0 {
+			timeDiff = 0
+		}
 		connack := &frame.ConnackPacket{
 			ReasonCode:    frame.ReasonSuccess,
-			TimeDiff:      nowFn().UnixMilli() - connect.ClientTimestamp,
+			TimeDiff:      timeDiff,
 			ServerVersion: serverVersion,
 			NodeId:        opts.NodeID,
 		}
@@ -106,7 +111,7 @@ func NewWKProtoAuthenticator(opts WKProtoAuthOptions) Authenticator {
 			SessionValueDeviceLevel:     deviceLevel,
 			SessionValueProtocolVersion: serverVersion,
 		}
-		if encryptionEnabled {
+		if encryptionEnabled && !isJSONRPC {
 			if connect.ClientKey == "" {
 				return &AuthResult{
 					Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonClientKeyIsEmpty},

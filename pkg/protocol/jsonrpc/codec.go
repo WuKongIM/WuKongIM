@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	// Ensure io is imported
 )
 
 // JSON-RPC Version
@@ -409,6 +408,15 @@ func FromFrame(reqId string, f frame.Frame) (interface{}, error) {
 	switch f.GetFrameType() {
 	case frame.CONNACK:
 		connack := f.(*frame.ConnackPacket)
+		if connack.ReasonCode != frame.ReasonSuccess {
+			return ConnectResponse{
+				BaseResponse: BaseResponse{Jsonrpc: jsonRPCVersion, ID: reqId},
+				Error: &ErrorObject{
+					Code:    int(connack.ReasonCode),
+					Message: connack.ReasonCode.String(),
+				},
+			}, nil
+		}
 		params := FromProtoConnectAck(connack)
 		return ConnectResponse{
 			BaseResponse: BaseResponse{
@@ -419,6 +427,15 @@ func FromFrame(reqId string, f frame.Frame) (interface{}, error) {
 		}, nil
 	case frame.SENDACK:
 		sendack := f.(*frame.SendackPacket)
+		if sendack.ReasonCode != frame.ReasonSuccess {
+			return SendResponse{
+				BaseResponse: BaseResponse{Jsonrpc: jsonRPCVersion, ID: reqId},
+				Error: &ErrorObject{
+					Code:    int(sendack.ReasonCode),
+					Message: sendack.ReasonCode.String(),
+				},
+			}, nil
+		}
 		result := FromProtoSendAck(sendack)
 		return SendResponse{
 			BaseResponse: BaseResponse{
@@ -451,6 +468,7 @@ func FromFrame(reqId string, f frame.Frame) (interface{}, error) {
 				Jsonrpc: jsonRPCVersion,
 				ID:      reqId,
 			},
+			Result: json.RawMessage("null"),
 		}, nil
 	}
 	return nil, fmt.Errorf("jsonrpc: unknown frame type: %d", f.GetFrameType())

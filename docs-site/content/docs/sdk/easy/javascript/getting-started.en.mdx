@@ -1,12 +1,12 @@
 ---
 title: 5-minute Web integration
-description: Walk through the pinned easyjssdk v2.0.2 browser APIs; the current Product Gateway does not support its JSON-RPC CONNECT path.
+description: Walk through the pinned easyjssdk v2.0.2 browser APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
-This page covers the browser source APIs and a post-fix acceptance scaffold. The browser asks your product BFF for the current user's connection material, then EasyJSSDK attempts a WebSocket JSON-RPC connection. It never holds a Product HTTP management credential directly.
+This page covers the browser source APIs and online acceptance path. The browser asks your product BFF for the current user's connection material, then EasyJSSDK establishes a WebSocket JSON-RPC connection. It never holds a Product HTTP management credential directly.
 
-<Callout type="error" title="The current Product Gateway does not support this connection path">
-  The current Product Gateway does not support this EasySDK version's JSON-RPC CONNECT as a client integration path. This page is a pinned-source API walkthrough and a post-fix acceptance scaffold, not a currently executable quickstart. Do not claim a successful run until the Gateway/SDK path is fixed and the Alice/Bob loop passes end to end.
+<Callout type="info" title="The current Product Gateway supports this connection path">
+  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover JS requests without `jsonrpc`, Base64 SEND, object RECV, correlated CONNECT/SEND/PING responses, and RECVACK. The browser artifact, WSS, BFF, and production token verification still require evidence from your environment.
 </Callout>
 
 The install → initialize → listen → connect → send reading order follows the [legacy Web EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started). The old page is not API evidence; the pinned `v2.0.2` source and npm artifact govern the method names, parameters, and lifecycle boundaries below.

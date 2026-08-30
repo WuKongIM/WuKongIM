@@ -433,10 +433,10 @@ export async function checkStaticOutput() {
   ) as { '$schema'?: string; 'x-wukongim-stability'?: string; anyOf?: unknown[] };
   if (
     jsonRPCSchema.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
-    jsonRPCSchema['x-wukongim-stability'] !== 'experimental-not-supported' ||
+    jsonRPCSchema['x-wukongim-stability'] !== 'experimental-easysdk-core-supported' ||
     jsonRPCSchema.anyOf?.length !== 15
   ) {
-    throw new Error('JSON-RPC codec Schema lost its experimental unsupported boundary');
+    throw new Error('JSON-RPC codec Schema lost its bounded EasySDK support boundary');
   }
 
   const operationFacts: Record<string, string[]> = {

@@ -1,12 +1,12 @@
 ---
 title: 5-minute iOS integration
-description: Walk through the pinned WuKongEasySDK iOS v1.0.3 Swift APIs; the current Product Gateway does not support its JSON-RPC CONNECT path.
+description: Walk through the pinned WuKongEasySDK iOS v1.0.3 Swift APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
-This page turns the legacy “5-minute integration” into an iOS source-API walkthrough and a post-fix acceptance scaffold. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
+This page turns the legacy “5-minute integration” into an iOS source-API walkthrough and online acceptance path. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
 
-<Callout type="error" title="The current Product Gateway does not support this connection path">
-  The current Product Gateway does not support this EasySDK version's JSON-RPC CONNECT as a client integration path. This page is a pinned-source API walkthrough and a post-fix acceptance scaffold, not a currently executable quickstart. Do not claim a successful run until the Gateway/SDK path is fixed and the Alice/Bob loop passes end to end.
+<Callout type="info" title="The current Product Gateway supports this connection path">
+  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover binary WebSocket JSON from iOS, object payloads, correlated CONNECT/SEND responses, and the camelCase RECVACK carrying both `messageId` and `messageSeq`. Platform builds, physical-device runs, WSS, and production token verification still require evidence from your environment.
 </Callout>
 
 The install → initialize → listen → connect → send reading order follows the [legacy iOS EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started). The old page supplies only the learning path; the pinned `v1.0.3` source and distribution govern the method signatures, version, and limits below.
@@ -19,8 +19,8 @@ The install → initialize → listen → connect → send reading order follows
   In this tag, `LogManager.logJsonData` does not enforce the `enableJsonLogging` or log-level guard and writes JSON-RPC requests and responses. Token fields are masked where recognized, but message payloads can still reach device logs. Setting `enableJsonLogging: false` is not sufficient. Before production, upgrade or fix the SDK and verify the Release artifact plus every log-collection path contains no sensitive data.
 </Callout>
 
-<Callout type="error" title="v1.0.3 still cannot pass the current v3 messaging loop unchanged">
-  `v1.0.3` corrects the device wire values to APP `0`, WEB `1`, and PC `2`, so the default `.app` no longer classifies a mobile client as Web. The current server still represents SEND and RECV `payload` as Base64-encoded bytes, while this tag sends a JSON object directly and decodes a received payload as a dictionary. The unmodified client can therefore fail during send or receive parsing. The code below documents the public API and acceptance scaffold; first adopt an upstream release with the payload fixes or a reviewed fork, then run Alice and Bob.
+<Callout type="info" title="The server boundary supports the v1.0.3 object payload">
+  `v1.0.3` uses APP `0`, sends a JSON object directly, and decodes the RECV payload as a dictionary. The current JSON-RPC boundary normalizes object and Base64 input to internal bytes and emits an object for RECV, so this pinned client needs no online-message payload fork. Payload logging and platform execution remain separate production gates.
 </Callout>
 
 ## What you will have
@@ -183,7 +183,7 @@ Do not discard the anonymous closure passed to `onMessage`: `removeListener` nee
 
 ## Step 4: send the first message
 
-The device flag is aligned in this release. First upgrade or patch the remaining payload contract above. After product login, obtain Alice's `IMBootstrap` and start the client:
+The device flag and payload shape are compatible with the current server. After product login, obtain Alice's `IMBootstrap` and start the client:
 
 ```swift
 let aliceBootstrap = try await productAPI.fetchIMBootstrap()
@@ -208,7 +208,7 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
 7. Inspect the Release artifact and device logs to prove tokens, payloads, and complete JSON-RPC data are not recorded. Unmodified `v1.0.3` must not pass the production gate.
 
-Unmodified `v1.0.3` is expected to expose a SEND-payload or RECV-payload failure in this loop; never hide that failure as local success. Even after a fixed build passes, this covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
+The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
 
 ## Troubleshooting
 
@@ -216,7 +216,7 @@ Unmodified `v1.0.3` is expected to expose a SEND-payload or RECV-payload failure
 - **Connection never succeeds:** reach the returned WebSocket address from the device network and inspect proxy Upgrade, certificates, and `wss://`. Never return a container-only address to the phone.
 - **Authentication fails:** refresh the short-lived token issued by the product backend. A successful `/user/token` call does not prove that the default deployment validates CONNECT tokens.
 - **JSON still appears after disabling `enableJsonLogging`:** this is the known missing log guard in `v1.0.3`. Upgrade or patch the source and verify the Release artifact; configuration alone is insufficient.
-- **SEND reports payload decoding failure, or RECV cannot build `Message`:** compare against the server's Base64 byte contract. The object-send and dictionary-receive paths in `v1.0.3` do not directly match current v3; upgrade or patch the SDK.
+- **SEND reports payload decoding failure, or RECV cannot build `Message`:** confirm the server includes the EasySDK JSON-RPC compatibility implementation and that the reverse proxy does not rewrite WebSocket messages. The current server accepts object SEND and emits object RECV.
 - **The device category is unexpected:** ensure product code has not overridden `.app`, then compare the wire values as APP `0`, WEB `1`, and PC `2`. `v1.0.3` fixes the enum; do not carry forward an older literal.
 - **Messages appear more than once:** register listeners only once and merge realtime and later synchronized results by `messageId`.
 - **Alice gets a send result but Bob sees nothing:** inspect Alice's send result, Bob's realtime connection, and the product's later offline-sync path separately. Do not automatically resend a message that may already be committed.

@@ -24,6 +24,17 @@ func TestAdapterOwnsDecodedFrames(t *testing.T) {
 	}
 }
 
+func TestAdapterRequiresConnectAuthentication(t *testing.T) {
+	policy, ok := any(adapterpkg.New()).(protocol.ConnectAuthenticationPolicy)
+	if !ok {
+		t.Fatal("wkproto adapter does not declare its CONNECT authentication policy")
+	}
+	required, resolved := policy.ConnectAuthenticationRequired(testkit.NewProtocolSession())
+	if !resolved || !required {
+		t.Fatalf("ConnectAuthenticationRequired() = (%v, %v), want (true, true)", required, resolved)
+	}
+}
+
 func TestAdapterDecodeReturnsZeroUntilFrameIsComplete(t *testing.T) {
 	adapter := adapterpkg.New()
 	sess := testkit.NewProtocolSession()

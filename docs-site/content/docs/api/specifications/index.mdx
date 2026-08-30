@@ -7,14 +7,14 @@ description: 下载当前源码快照对应的 OpenAPI、JSON Schema，并查看
 
 <Cards>
   <Card title="OpenAPI 合同" description="完整 Product HTTP、Operations、Webhook 和三份窄 Profile。" href="/zh/api/specifications/openapi" />
-  <Card title="JSON-RPC Schema" description="实验性 codec 结构；当前产品不支持作为客户端集成协议。" href="/zh/api/specifications/json-rpc-schema" />
+  <Card title="JSON-RPC Schema" description="EasySDK 核心在线路径已支持；其余 RPC 结构保持实验性。" href="/zh/api/specifications/json-rpc-schema" />
   <Card title="协议变更记录" description="当前快照、WKProto v5→v6 和破坏性变更规则。" href="/zh/api/specifications/protocol-changelog" />
 </Cards>
 
 | 格式 | 适用范围 | 不适用范围 |
 | --- | --- | --- |
 | OpenAPI 3.1 | HTTP 请求、响应和 Webhook 回调 | WKProto、MCP、Node transport、Unix-socket RPC |
-| JSON Schema 2020-12 | 实验性 JSON-RPC codec 数据形状 | 产品支持或兼容性承诺 |
+| JSON Schema 2020-12 | 固定 EasySDK 核心路径与其余实验性 JSON-RPC 数据形状 | 通用 JSON-RPC 或平台运行兼容承诺 |
 | 协议页面 | 二进制布局、协商、稳定性与信任边界 | HTTP SDK 自动生成 |
 
-业务后端从完整 Product HTTP 合同开始；只实现一个受限场景时，可选择窄 Profile。客户端实时连接必须使用 [WKProto](/zh/api/client-protocols/tcp-binary)。
+业务后端从完整 Product HTTP 合同开始；只实现一个受限场景时，可选择窄 Profile。完整 SDK 实时连接使用 [WKProto](/zh/api/client-protocols/tcp-binary)；四个固定 EasySDK 的轻量在线路径可使用受支持的 [WebSocket JSON-RPC 核心合同](/zh/api/client-protocols/json-rpc)。

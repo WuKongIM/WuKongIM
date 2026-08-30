@@ -1,12 +1,12 @@
 ---
 title: 5-minute Flutter integration
-description: Walk through the pinned WuKongEasySDK Flutter v1.0.4 Dart APIs; the current Product Gateway does not support its JSON-RPC CONNECT path.
+description: Walk through the pinned WuKongEasySDK Flutter v1.0.4 Dart APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
-This page joins the Flutter EasySDK source APIs and post-fix acceptance scaffold inside one `StatefulWidget`: obtain connection material, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
+This page joins the Flutter EasySDK source APIs and online acceptance path inside one `StatefulWidget`: obtain connection material, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
 
-<Callout type="error" title="The current Product Gateway does not support this connection path">
-  The current Product Gateway does not support this EasySDK version's JSON-RPC CONNECT as a client integration path. This page is a pinned-source API walkthrough and a post-fix acceptance scaffold, not a currently executable quickstart. Do not claim a successful run until the Gateway/SDK path is fixed and the Alice/Bob loop passes end to end.
+<Callout type="info" title="The current Product Gateway supports this connection path">
+  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover Flutter text WebSocket messages, camelCase, Base64 SEND, object RECV, correlated CONNECT/SEND responses, and RECVACK. Platform builds, device runs, WSS, and production token verification still require evidence from your environment.
 </Callout>
 
 The install → initialize → listen → connect → send reading order follows the [legacy Flutter EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started). The old page is not API evidence; the pinned `v1.0.4` source and distribution govern the method names, version, and lifecycle boundaries below.
@@ -23,8 +23,8 @@ The install → initialize → listen → connect → send reading order follows
   This tag unconditionally records complete JSON-RPC requests and responses through `developer.log`. CONNECT includes the token, SEND includes the encoded payload, and there is no public logging-off setting. Before production, upgrade or fix the SDK and verify redaction in every target's Release artifact and log-collection path.
 </Callout>
 
-<Callout type="warn" title="The application must decode received payloads">
-  `v1.0.4` Base64-encodes SEND payloads as current v3 requires, but leaves a received server Base64 string unchanged in `Message.payload`. The sample explicitly performs Base64 → UTF-8 decoding. Product code then dispatches the JSON by `type`; it must not assume `message.payload` is already a Map.
+<Callout type="info" title="The current server returns payloads as objects">
+  `v1.0.4` Base64-encodes SEND payloads. The current server decodes them to internal bytes and emits a JSON object in RECV, so `Message.payload` can be handled as a Map. The sample still accepts a Base64 string for older servers or non-object custom payloads; preserve unknown formats for fallback UI.
 </Callout>
 
 ## What you will have
@@ -249,7 +249,7 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 1. Start Alice and Bob on two devices, two simulators, or two independent browser contexts.
 2. Enable send only after both sides observe `WuKongEvent.connect`.
 3. Have Alice send to the person Channel `bob`, recording ID, sequence, and Reason Code.
-4. On Bob, verify `fromUid` and `channelId`, decode the Base64 payload before checking `type` and `content`, and deduplicate by `messageId`.
+4. On Bob, verify `fromUid` and `channelId`, inspect `type` and `content` in the object payload, and deduplicate by `messageId`.
 5. Have Bob send to Alice and prove the reverse direction.
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
 7. Inspect system logs and collectors for every Release target to prove that tokens, payloads, and complete JSON-RPC data cannot leak. Unmodified `v1.0.4` must not pass the production gate.
@@ -262,7 +262,7 @@ This loop does not prove application-background recovery, offline message synchr
 - **Messages duplicate after Widget rebuild:** never register listeners from `build`; retain callbacks and remove them from `dispose`.
 - **A new UID still sees old state:** remove listeners, disconnect, and `dispose` before initializing the new configuration, and clear product-local state too.
 - **System logs contain a token or payload:** this is a known `v1.0.4` adoption blocker. Upgrade or patch the logging path and verify the Release artifact before production.
-- **`message.payload` is a string:** current v3 carries online payload bytes as Base64 in JSON-RPC. Decode them to UTF-8 JSON before dispatching by message type; preserve unknown formats for fallback UI.
+- **`message.payload` is a string:** the current server emits valid JSON objects as objects. If a string remains, confirm the server revision, then try Base64 → UTF-8 JSON and preserve unknown formats for fallback UI.
 - **A physical device cannot reach the local address:** `localhost` means the device itself; have the product backend return a device-reachable WSS ingress.
 - **Send succeeds but the peer message is absent from the UI:** inspect send result, realtime receipt, and offline recovery separately.
 

@@ -1,12 +1,12 @@
 ---
 title: 5-minute Android integration
-description: Walk through the pinned WuKongEasySDK Android v1.0.3 Kotlin APIs; the current Product Gateway does not support its JSON-RPC CONNECT path.
+description: Walk through the pinned WuKongEasySDK Android v1.0.3 Kotlin APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
-This page keeps the legacy install → initialize → listen → connect → send sequence as an Android source-API walkthrough and post-fix acceptance scaffold, while adding an exact version, Activity lifecycle, and the current v3 protocol boundary.
+This page keeps the legacy install → initialize → listen → connect → send sequence as an Android source-API walkthrough and online acceptance path, while adding an exact version, Activity lifecycle, and the current v3 protocol boundary.
 
-<Callout type="error" title="The current Product Gateway does not support this connection path">
-  The current Product Gateway does not support this EasySDK version's JSON-RPC CONNECT as a client integration path. This page is a pinned-source API walkthrough and a post-fix acceptance scaffold, not a currently executable quickstart. Do not claim a successful run until the Gateway/SDK path is fixed and the Alice/Bob loop passes end to end.
+<Callout type="info" title="The current Product Gateway supports this connection path">
+  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover Android text WebSocket messages, snake_case fields, JSON text-string payloads, correlated CONNECT/SEND responses, and RECVACK. Platform builds, physical-device runs, WSS, and production token verification still require evidence from your environment.
 </Callout>
 
 That learning sequence follows the [legacy Android EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/android/getting-started). The old page supplies only the reading path; the pinned `v1.0.3` source and Maven Central artifact govern the package coordinate, method signatures, version, and limits below.
@@ -16,7 +16,7 @@ That learning sequence follows the [legacy Android EasySDK tutorial](https://wuk
 </Callout>
 
 <Callout type="error" title="Close protocol and logging blockers before adoption">
-  Android `v1.0.3` still uses underscore fields in CONNECT, SEND, RECVACK, and result models, and SEND passes a JSON object directly. Current v3 uses camel-case fields and Base64-encoded payload bytes. This release corrects the device wire values to APP `0`, WEB `1`, and PC `2`, but that does not fix the field and payload shapes. Unknown-message, JSON-RPC parse-error, and RECV parse-error paths also write the complete message or `Params` to Logcat without honoring `debugLogging`; those values can contain a token or payload. The unmodified tag can neither pass the current v3 messaging loop directly nor satisfy a production logging gate. The code below documents the public API and acceptance scaffold; first adopt an upstream release containing the protocol fixes and log redaction or a reviewed fork, then run Alice and Bob. Never fabricate success in product code.
+  Android `v1.0.3` uses underscore fields in CONNECT, SEND, RECVACK, and result models. Its README builds the message as JSON text and passes that `String` to SEND rather than passing a JSON object directly. The current server accepts both underscore and camel-case fields plus JSON text strings, JSON objects, and Base64 payloads at the JSON-RPC boundary, then returns snake_case results for Android, so fields and payload no longer block online messaging. Unknown-message, JSON-RPC parse-error, and RECV parse-error paths in this tag still write the complete message or `Params` to Logcat without honoring `debugLogging`; those values can contain a token or payload. The protocol path is testable, but the original tag cannot satisfy a production logging gate. Upgrade or patch log redaction and inspect the Release artifact before production.
 </Callout>
 
 ## What you will have
@@ -211,11 +211,11 @@ Listeners are registered only after `init`, and the same object references are r
 fun sendText(targetUid: String, text: String) {
     check(connected) { "EasySDK is not connected" }
     lifecycleScope.launch {
-        val payload = mapOf(
-            "type" to 1,
-            "version" to 1,
-            "content" to text,
-        )
+        val payload: String = org.json.JSONObject()
+            .put("type", 1)
+            .put("version", 1)
+            .put("content", text)
+            .toString()
 
         runCatching {
             easySDK.send(
@@ -246,14 +246,14 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 6. In the reviewed build, exercise success and parse-failure paths with unique fake token and message canaries; confirm neither value appears in Logcat or crash reports.
 7. Recreate the Activity and confirm listeners are not duplicated; exit the application and confirm the connection closes.
 
-Unmodified `v1.0.3` is expected to fail against current v3 at a field or payload phase. That is evidence for the compatibility blockers above. Retain the server revision, Android tag, and failing phase instead of hiding it with blind retries. Only a fixed build can produce retained Alice/Bob send and receive evidence.
+The current server covers this loop with the Android `v1.0.3` snake_case field profile and the README-aligned JSON text-string SEND payload. Retain the server revision, Android tag, device, and network environment instead of hiding failures with blind retries. Log redaction, offline recovery, and production security require separate acceptance.
 
 ## Troubleshooting
 
 - **`SDK is not initialized`:** preserve the `init → addEventListener → connect` order.
 - **The same UID gets a refreshed token or route and configuration changes:** `v1.0.3` has no public reset API. Stop explicitly and restart the process or upgrade the SDK; do not continue with a stale token or URL.
 - **The emulator connects but a physical device does not:** confirm that the address is reachable outside the host or container and have the product backend return the device-reachable WSS ingress.
-- **CONNECT, SEND, or RECVACK parsing fails:** compare camel-case fields and Base64 payloads first; they remain known `v1.0.3` compatibility blockers against current v3. Device values are now aligned as APP `0`, WEB `1`, and PC `2`; do not carry forward older literals.
+- **CONNECT, SEND, or RECVACK parsing fails:** confirm the server includes the EasySDK JSON-RPC compatibility implementation. The current server accepts snake_case fields and the README-aligned Android JSON text-string payload, as well as JSON objects and Base64 payloads, and returns snake_case results for Android. Use APP `0`, WEB `1`, and PC `2`; do not carry forward older literals.
 - **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** this tag contains unconditional log paths. Stop testing with production tokens or messages and use a reviewed build that removes or redacts those outputs.
 - **Messages are duplicated:** prevent repeated listener registration and deduplicate by `messageId`.
 

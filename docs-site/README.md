@@ -39,9 +39,9 @@ common SDK behavior guides for identity, connection, messaging, payloads,
 conversations, offline recovery, push, multi-device state, and bounded
 reconnect handling, plus source-checked Channel Type, Device Flag / Level, and
 Message Flag dictionaries. Repository availability, tutorial publication, and
-executable verification stay distinct. JavaScript/Web remains the only
-executable client compatibility target, so publishing other SDK platform
-chapters does not turn them into support claims.
+executable verification stay distinct. The JavaScript/Web golden path remains
+the only client-artifact/browser execution target, so publishing other SDK
+platform chapters does not turn them into platform-runtime support claims.
 Phase 14 publishes an integrator acceptance loop: an evidence-backed
 JavaScript/Web capability matrix, a bilingual production gate guide, and a
 one-command local compatibility smoke report. The report is bounded and
@@ -51,8 +51,10 @@ identity, leaves the tested cluster source and production readiness
 receipt. Documentation quality passes only when the bilingual pages participate
 in the browser run. Phase 15 introduced bilingual, source-aligned EasySDK
 tutorials for iOS, Android, Flutter, and Web. They are published as reviewable
-documentation, while the current Product Gateway still rejects their JSON-RPC
-CONNECT path; source pins remain review material, not executable compatibility.
+documentation. A later server change added JSON-RPC CONNECT and online
+bidirectional-message fixtures for all four wire profiles plus a real-process
+iOS/Android-profile E2E; platform builds and device runs remain separate
+evidence.
 Phase 16 publishes a separate, non-exhaustive management OpenAPI contract:
 ten reviewed Channel mutations and six canonical Conversation operations. It records the missing
 built-in authentication boundary, exact compatibility error shapes, bounded
@@ -66,13 +68,14 @@ connection lifecycle and the complete Frame Type catalog. At the end of Phase
 17, byte-level framing, JSON-RPC, and encryption details were deferred pending
 separate contract reconciliation and security review; Phase 18 below publishes
 those references.
-Phase 18 publishes the complete current API and protocol reference: all 41
-Product HTTP registrations, separate Operations HTTP and outbound Webhook
-OpenAPI 3.1 contracts, exact WKProto wire and compatibility-encryption pages,
-an explicitly unsupported experimental JSON-RPC Schema, and exhaustive private
+Phase 18 published the then-current API and protocol reference: all 41 Product
+HTTP registrations, separate Operations HTTP and outbound Webhook OpenAPI 3.1
+contracts, exact WKProto wire and compatibility-encryption pages, an
+experimental JSON-RPC Schema then marked unsupported, and exhaustive private
 Manager, transport, MCP, plugin, worker, and agent interface inventories. The
-older OpenAPI files remain narrow adoption profiles and keep their original
-verification boundaries.
+later server change described above promoted only the pinned EasySDK core path;
+the wider JSON-RPC Schema remains experimental. Older OpenAPI files remain
+narrow adoption profiles and keep their original verification boundaries.
 Phases 19 through 22 publish pinned, source/artifact-aligned first-message paths
 for iOS `1.1.1`, Android `1.5.5`, Flutter `1.7.9`, and HarmonyOS `1.1.7` without
 claiming site device receipts. Phase 23 retires the deprecated UniApp package
@@ -132,8 +135,8 @@ fail-closed write ordering, observed SDK identity, and the separation between
 the harness, tested cluster, documentation quality, compatibility smoke, and
 production readiness. Phase 15 also checks exact EasySDK package/source pins,
 source tutorials, listener cleanup, and platform-specific adoption boundaries;
-navigation publishes the content while every page keeps JSON-RPC runtime support
-and executable verification explicitly unclaimed. Relevant sample or
+navigation publishes the content while every page distinguishes server wire
+verification from platform runtime and production-readiness evidence. Relevant sample or
 runtime-contract changes select the real Chromium integration check.
 Phase 16 also checks the exact management-operation whitelist, explicit route
 deferrals, bilingual operation-per-page generation grouped by tag, nested Conversation schemas, search

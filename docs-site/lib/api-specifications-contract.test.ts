@@ -93,7 +93,7 @@ describe('API specification pages', () => {
     }
   });
 
-  test('labels the JSON-RPC schema experimental and unsupported in both locales', async () => {
+  test('labels the bounded EasySDK core supported while keeping the wider JSON-RPC surface experimental', async () => {
     const [zh, en, rawSchema] = await Promise.all([
       page('json-rpc-schema', 'zh'),
       page('json-rpc-schema', 'en'),
@@ -107,17 +107,17 @@ describe('API specification pages', () => {
 
     for (const content of [zh, en]) {
       expect(content).toContain('/contracts/json-rpc.experimental.schema.json');
-      expect(content).toContain('experimental-not-supported');
+      expect(content).toContain('experimental-easysdk-core-supported');
       expect(content).toContain('ping');
       expect(content).toContain('connect');
       expect(content).toContain('send');
     }
-    expect(zh).toContain('产品不支持');
-    expect(en).toContain('Experimental · not supported');
+    expect(zh).toContain('EasySDK 核心路径已支持');
+    expect(en).toContain('EasySDK core path supported');
     expect(zh).toContain('/zh/api/client-protocols/json-rpc');
     expect(en).toContain('/en/api/client-protocols/json-rpc');
     expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-    expect(schema['x-wukongim-stability']).toBe('experimental-not-supported');
+    expect(schema['x-wukongim-stability']).toBe('experimental-easysdk-core-supported');
     expect(schema.anyOf.length).toBeGreaterThan(1);
   });
 
@@ -148,7 +148,7 @@ describe('API specification pages', () => {
       expect(content).toContain('client_seq');
       expect(content).toContain('32');
       expect(content).toContain('64');
-      expect(content).toContain('experimental-not-supported');
+      expect(content).toContain('experimental-easysdk-core-supported');
     }
     expect(zh).toContain('破坏性变更');
     expect(en).toContain('Breaking changes');

@@ -1,12 +1,12 @@
 ---
 title: 5 分钟集成 Flutter
-description: 对照 WuKongEasySDK Flutter v1.0.4 固定源码学习 Dart 接入 API；当前 Product Gateway 不支持其 JSON-RPC CONNECT。
+description: 对照 WuKongEasySDK Flutter v1.0.4 固定源码学习 Dart 接入 API；当前 Product Gateway 支持其 JSON-RPC CONNECT 与在线双向收发。
 ---
 
-本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的源码 API 和修复后验收骨架：取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
+本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的源码 API 和在线验收路径：取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
 
-<Callout type="error" title="当前 Product Gateway 不支持这条连接路径">
-  当前 Product Gateway 不支持将此版本 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。因此本页是固定源码的 API 导读和修复后的验收骨架，不是当前可执行的快速接入。必须先修复 Gateway/SDK 运行路径并通过 Alice/Bob 端到端闭环，才能宣称运行成功。
+<Callout type="info" title="当前 Product Gateway 支持这条连接路径">
+  当前 Product Gateway 支持此固定版本的 JSON-RPC CONNECT 和在线双向收发。服务端测试覆盖 Flutter 文本 WebSocket、camelCase、Base64 SEND、对象 RECV、关联 CONNECT/SEND 响应与 RECVACK；平台构建、设备运行、WSS 与生产 Token 校验仍须在你的环境验收。
 </Callout>
 
 “安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 Flutter EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started)。旧页不作为 API 证据；下面的方法名、版本与生命周期边界以固定的 `v1.0.4` 源码和分发产物为准。
@@ -23,8 +23,8 @@ description: 对照 WuKongEasySDK Flutter v1.0.4 固定源码学习 Dart 接入 
   该 tag 会通过 `developer.log` 无条件记录完整 JSON-RPC 请求与响应；CONNECT 请求包含 Token，SEND 请求包含编码后的 Payload，而且没有公开的日志关闭配置。用于生产前必须升级或修复 SDK，并在各目标平台的 Release 构建和日志采集链路中验证脱敏。
 </Callout>
 
-<Callout type="warn" title="接收 Payload 需要应用解码">
-  `v1.0.4` 会按当前 v3 要求把 SEND Payload 编成 Base64，但收到 RECV 后把服务端 Base64 字符串原样放进 `Message.payload`。示例显式做 Base64 → UTF-8 解码；业务层随后再按 `type` 分派 JSON，不能假设 `message.payload` 已经是 Map。
+<Callout type="info" title="当前服务端以对象形式返回 Payload">
+  `v1.0.4` 把 SEND Payload 编成 Base64，当前服务端会解码为内部字节，并在 RECV 中输出 JSON 对象，因此 `Message.payload` 可直接按 Map 使用。示例仍兼容 Base64 字符串，便于连接旧服务端或处理非对象自定义 Payload；未知格式必须保留并降级展示。
 </Callout>
 
 ## 完成后你会得到什么
@@ -249,7 +249,7 @@ Future<void> sendText(String targetUid, String text) async {
 1. 在两台设备、两个模拟器或两个独立浏览器上下文中分别启动 Alice 与 Bob；
 2. 两端都等到 `WuKongEvent.connect` 后再启用发送；
 3. Alice 向个人 Channel `bob` 发送消息，记录 ID、序号和 Reason Code；
-4. Bob 核对 `fromUid`、`channelId`，先解码 Base64 Payload 再检查 `type` 与 `content`，并按 `messageId` 去重；
+4. Bob 核对 `fromUid`、`channelId`，检查对象 Payload 的 `type` 与 `content`，并按 `messageId` 去重；
 5. Bob 向 Alice 回发，验证反向链路；
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放；
 7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.4` 原始源码未修复前不得通过生产门禁。
@@ -262,7 +262,7 @@ Future<void> sendText(String targetUid, String text) async {
 - **Widget 重建后重复收消息**：不要在 `build` 中注册监听器；保存回调引用并在 `dispose` 移除。
 - **切到新 UID 后仍看到旧状态**：先移除监听、断开并 `dispose`，再用新配置初始化；同时清空产品本地状态。
 - **系统日志出现 Token 或 Payload**：这是 `v1.0.4` 的已知采用阻断项；升级或修复日志路径并验证 Release 产物后再上线。
-- **`message.payload` 是一段字符串**：当前 v3 在线 Payload 以 Base64 字节进入 JSON-RPC；先解码为 UTF-8 JSON，再按消息类型解析，未知格式保留原值并降级展示。
+- **`message.payload` 是一段字符串**：当前服务端对有效 JSON 对象输出对象；若仍收到字符串，先确认服务端 revision，再尝试按 Base64 → UTF-8 JSON 解码，未知格式保留原值并降级展示。
 - **真机连不上本地地址**：`localhost` 指向真机自身，让业务后端返回设备可达的 WSS 地址。
 - **发送成功但 UI 没有对方消息**：把发送结果、实时接收和离线恢复分开检查。
 

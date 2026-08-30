@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import Ajv2020 from 'ajv/dist/2020';
 import schema from '../contracts/json-rpc.experimental.schema.json';
 import {
   jsonRPCInboundSurface,
@@ -10,14 +11,14 @@ async function source(relativePath: string) {
 }
 
 describe('experimental JSON-RPC schema', () => {
-  test('is a codec schema and never a supported-product claim', () => {
+  test('publishes the bounded EasySDK core while keeping other RPC methods experimental', () => {
     expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-    expect(schema['x-wukongim-stability']).toBe('experimental-not-supported');
-    expect(schema.description).toContain('does not support JSON-RPC');
+    expect(schema['x-wukongim-stability']).toBe('experimental-easysdk-core-supported');
+    expect(schema.description).toContain('supports the pinned EasySDK');
     expect(schema.$defs.PingRequest['x-wukongim-product-status']).toBe('works');
-    expect(schema.$defs.ConnectRequest['x-wukongim-product-status']).toContain(
-      'rejected',
-    );
+    expect(schema.$defs.ConnectRequest['x-wukongim-product-status']).toContain('supported');
+    expect(schema.$defs.SendRequest['x-wukongim-product-status']).toContain('supported');
+    expect(schema.$defs.RecvAckNotification['x-wukongim-product-status']).toContain('supported');
     expect(schema.$defs.SubscribeRequest['x-wukongim-product-status']).toContain(
       'bridge-missing',
     );
@@ -59,7 +60,7 @@ describe('experimental JSON-RPC schema', () => {
   test('matches the permissive Go parser instead of the stale checked-in schema', async () => {
     const types = await source('../../pkg/protocol/jsonrpc/types.go');
     expect(types).toContain('DeviceApp DeviceFlagEnum = 0');
-    expect(types).toContain('Payload     []byte');
+    expect(types).toContain('func (p *SendParams) UnmarshalJSON');
     expect(schema.$defs.ConnectParams.properties.deviceFlag).toEqual({
       type: 'integer',
     });
@@ -69,10 +70,16 @@ describe('experimental JSON-RPC schema', () => {
     expect(
       (schema.$defs.SendParams as { required?: string[] }).required,
     ).toBeUndefined();
-    expect(schema.$defs.SendParams.properties.payload.type).toEqual([
-      'string',
-      'null',
+    expect(schema.$defs.SendParams.properties.payload.oneOf).toEqual([
+      {
+        type: 'string',
+        description: expect.stringContaining('JSON-text string'),
+      },
+      { type: 'object' },
+      { type: 'null' },
     ]);
+    expect(schema.$defs.ConnectParams.properties.device_flag).toEqual({ type: 'integer' });
+    expect(schema.$defs.RecvParams.required).toContain('header');
     expect(schema.anyOf).toContainEqual({ $ref: '#/$defs/GenericResponse' });
     expect(schema).not.toHaveProperty('oneOf');
     expect(schema.$defs.ResponseBase.not).toEqual({ required: ['method'] });
@@ -87,6 +94,51 @@ describe('experimental JSON-RPC schema', () => {
       },
     ]);
     expect(types).toContain('type GenericResponse struct');
+  });
+
+  test('validates runtime response exclusivity and the fixed pong result', () => {
+    const ajv = new Ajv2020({ strict: false, validateFormats: false });
+    ajv.addSchema(schema);
+    const validateEnvelope = ajv.getSchema(schema.$id);
+    const validatePong = ajv.getSchema(`${schema.$id}#/$defs/PongResponse`);
+    expect(validateEnvelope).toBeDefined();
+    expect(validatePong).toBeDefined();
+
+    expect(
+      validateEnvelope?.({
+        jsonrpc: '2.0',
+        id: 'connect-1',
+        result: { reasonCode: 1 },
+        error: { code: -32000, message: 'must not coexist' },
+      }),
+    ).toBe(false);
+    expect(
+      validateEnvelope?.({
+        jsonrpc: '2.0',
+        id: 'connect-1',
+        result: { reasonCode: 1 },
+      }),
+    ).toBe(true);
+    expect(validatePong?.({ jsonrpc: '2.0', id: 'ping-1', result: null })).toBe(true);
+    expect(validatePong?.({ jsonrpc: '2.0', id: 'ping-1', result: {} })).toBe(false);
+  });
+
+  test('validates the released Android JSON-text SEND payload shape', () => {
+    const ajv = new Ajv2020({ strict: false, validateFormats: false });
+    const validateEnvelope = ajv.compile(schema);
+    expect(
+      validateEnvelope({
+        jsonrpc: '2.0',
+        id: 'android-send',
+        method: 'send',
+        params: {
+          client_msg_no: 'android-1',
+          channel_id: 'bob',
+          channel_type: 1,
+          payload: '{"content":"hello","type":1}',
+        },
+      }),
+    ).toBe(true);
   });
 
   test('publishes the schema from a deterministic static route', async () => {

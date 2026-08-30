@@ -25,6 +25,7 @@ type replyTokenQueue struct {
 }
 
 var _ protocol.DecodedFrameOwner = (*Adapter)(nil)
+var _ protocol.ConnectAuthenticationPolicy = (*Adapter)(nil)
 var _ protocol.ReplyTokenTracker = (*Adapter)(nil)
 
 func New() *Adapter {
@@ -41,6 +42,11 @@ func (a *Adapter) Name() string {
 // OwnsDecodedFrames reports that JSON-RPC Decode returns frames backed by decoder-owned values.
 func (a *Adapter) OwnsDecodedFrames() bool {
 	return a != nil
+}
+
+// ConnectAuthenticationRequired reports that JSON-RPC starts with CONNECT.
+func (a *Adapter) ConnectAuthenticationRequired(session.Session) (bool, bool) {
+	return a != nil, a != nil
 }
 
 func (a *Adapter) Decode(sess session.Session, in []byte) ([]frame.Frame, int, error) {

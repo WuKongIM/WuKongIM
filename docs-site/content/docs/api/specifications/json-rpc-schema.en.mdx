@@ -1,20 +1,20 @@
 ---
 title: Experimental JSON-RPC Schema
-description: Download codec shapes and understand the current unsupported product boundary.
+description: Download JSON-RPC shapes and understand the supported EasySDK core plus the remaining experimental boundary.
 ---
 
-<Callout type="error" title="Experimental · not supported">
-  This schema records shapes that the WebSocket JSON-RPC codec/bridge can parse or encode. The current Product Gateway cannot establish an authenticated JSON-RPC product session. Do not generate a production SDK from it.
+<Callout type="info" title="Experimental · EasySDK core path supported">
+  This schema records the WebSocket JSON-RPC boundary. Product Gateway supports CONNECT, ping, and online bidirectional messaging for the pinned EasySDKs; batches, subscriptions, offline sync, and general-purpose JSON-RPC remain experimental or unimplemented.
 </Callout>
 
 [Download JSON Schema 2020-12](/contracts/json-rpc.experimental.schema.json)
 
-The schema's `x-wukongim-stability` is `experimental-not-supported`. Current behavior is:
+The schema's `x-wukongim-stability` is `experimental-easysdk-core-supported`. Current behavior is:
 
-- `ping` is the only normal product round trip;
-- `connect` is rejected after the session has been pre-opened;
-- `send` lacks authenticated UID and `clientSeq` correlation and returns authentication failure;
+- `connect` is the first request and returns a correlated result/error after authentication and activation;
+- `send` and `ping` correlate SENDACK/PONG through the request ID;
+- `recv` notifications and `recvack` complete online-delivery acknowledgement;
 - `subscribe`, `unsubscribe`, and several notifications are codec-only or lack a frame bridge;
-- `[` selects JSON mode, but batch arrays are unimplemented; request IDs must be strings and Payload is Base64.
+- `[` selects JSON mode, but batch arrays are unimplemented; request IDs must be strings, and SEND payload may be an object, Base64, or `null`.
 
-Structural presence is not runtime support or a compatibility promise. Production clients use the [WKProto binary protocol](/en/api/client-protocols/tcp-binary); see [WebSocket JSON-RPC](/en/api/client-protocols/json-rpc) for the full matrix.
+Schema entries outside the EasySDK core path remain non-promises. See [WebSocket JSON-RPC](/en/api/client-protocols/json-rpc) for the full matrix, pinned versions, and evidence boundary.

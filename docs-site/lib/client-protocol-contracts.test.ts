@@ -222,7 +222,7 @@ describe('client protocol contracts', () => {
     expect(authGate).toContain('connect, ok := f.(*frame.ConnectPacket)');
     expect(authGate).toContain('if hasBatchTail');
     expect(authTask).toMatch(
-      /OnSessionActivate[\s\S]*beginAuthenticatedOpen[\s\S]*writeImmediateFrame\(state, connack\)/u,
+      /OnSessionActivate[\s\S]*beginAuthenticatedOpen[\s\S]*writeImmediateFrame\(state, task\.replyToken, connack\)/u,
     );
     expect(authTask).toContain('rollbackActivatedSession');
     expect(server.match(/\.touchReadActivity\(\)/gu)).toHaveLength(2);

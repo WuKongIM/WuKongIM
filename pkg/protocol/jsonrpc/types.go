@@ -1,11 +1,11 @@
 package jsonrpc
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-
-	// Import the WuKongIMGoProto package
-	"strconv" // Added for MessageID parsing
+	"strconv"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -55,6 +55,50 @@ type Header struct {
 	End       bool `json:"end,omitempty"`
 }
 
+// UnmarshalJSON accepts both naming conventions used by EasySDK headers.
+func (h *Header) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		NoPersist      *bool `json:"noPersist"`
+		NoPersistSnake *bool `json:"no_persist"`
+		RedDot         *bool `json:"redDot"`
+		RedDotSnake    *bool `json:"red_dot"`
+		SyncOnce       *bool `json:"syncOnce"`
+		SyncOnceSnake  *bool `json:"sync_once"`
+		Dup            *bool `json:"dup"`
+		DupUpper       *bool `json:"DUP"`
+		End            *bool `json:"end"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	*h = Header{}
+	if wire.NoPersist != nil {
+		h.NoPersist = *wire.NoPersist
+	} else if wire.NoPersistSnake != nil {
+		h.NoPersist = *wire.NoPersistSnake
+	}
+	if wire.RedDot != nil {
+		h.RedDot = *wire.RedDot
+	} else if wire.RedDotSnake != nil {
+		h.RedDot = *wire.RedDotSnake
+	}
+	if wire.SyncOnce != nil {
+		h.SyncOnce = *wire.SyncOnce
+	} else if wire.SyncOnceSnake != nil {
+		h.SyncOnce = *wire.SyncOnceSnake
+	}
+	if wire.Dup != nil {
+		h.Dup = *wire.Dup
+	} else if wire.DupUpper != nil {
+		h.Dup = *wire.DupUpper
+	}
+	if wire.End != nil {
+		h.End = *wire.End
+	}
+	return nil
+}
+
 type SettingFlags struct {
 	Receipt bool `json:"receipt,omitempty"`
 	Signal  bool `json:"signal,omitempty"`
@@ -100,6 +144,56 @@ type ConnectParams struct {
 	Token           string         `json:"token"`
 }
 
+// UnmarshalJSON accepts the field names emitted by the released EasySDKs.
+// Android uses snake_case while iOS, Flutter, and JavaScript use camelCase.
+func (p *ConnectParams) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Header               Header          `json:"header"`
+		Version              int             `json:"version"`
+		ClientKey            *string         `json:"clientKey"`
+		ClientKeySnake       *string         `json:"client_key"`
+		DeviceID             *string         `json:"deviceId"`
+		DeviceIDSnake        *string         `json:"device_id"`
+		DeviceFlag           *DeviceFlagEnum `json:"deviceFlag"`
+		DeviceFlagSnake      *DeviceFlagEnum `json:"device_flag"`
+		ClientTimestamp      *int64          `json:"clientTimestamp"`
+		ClientTimestampSnake *int64          `json:"client_timestamp"`
+		UID                  string          `json:"uid"`
+		Token                string          `json:"token"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	*p = ConnectParams{
+		Header:  wire.Header,
+		Version: wire.Version,
+		UID:     wire.UID,
+		Token:   wire.Token,
+	}
+	if wire.ClientKey != nil {
+		p.ClientKey = *wire.ClientKey
+	} else if wire.ClientKeySnake != nil {
+		p.ClientKey = *wire.ClientKeySnake
+	}
+	if wire.DeviceID != nil {
+		p.DeviceID = *wire.DeviceID
+	} else if wire.DeviceIDSnake != nil {
+		p.DeviceID = *wire.DeviceIDSnake
+	}
+	if wire.DeviceFlag != nil {
+		p.DeviceFlag = *wire.DeviceFlag
+	} else if wire.DeviceFlagSnake != nil {
+		p.DeviceFlag = *wire.DeviceFlagSnake
+	}
+	if wire.ClientTimestamp != nil {
+		p.ClientTimestamp = *wire.ClientTimestamp
+	} else if wire.ClientTimestampSnake != nil {
+		p.ClientTimestamp = *wire.ClientTimestampSnake
+	}
+	return nil
+}
+
 type SendParams struct {
 	Header      Header       `json:"header,omitempty"`
 	Setting     SettingFlags `json:"setting,omitempty"`
@@ -113,10 +207,131 @@ type SendParams struct {
 	Payload     []byte       `json:"payload"`
 }
 
+// UnmarshalJSON accepts the payload and field-name variants emitted by the
+// released EasySDK clients. Android uses snake_case with JSON encoded as a
+// string, while the other clients use camelCase with objects or Base64.
+func (p *SendParams) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Header           Header          `json:"header"`
+		Setting          SettingFlags    `json:"setting"`
+		MsgKey           *string         `json:"msgKey"`
+		MsgKeySnake      *string         `json:"msg_key"`
+		Expire           uint32          `json:"expire"`
+		ClientMsgNo      *string         `json:"clientMsgNo"`
+		ClientMsgNoSnake *string         `json:"client_msg_no"`
+		StreamNo         *string         `json:"streamNo"`
+		StreamNoSnake    *string         `json:"stream_no"`
+		ChannelID        *string         `json:"channelId"`
+		ChannelIDSnake   *string         `json:"channel_id"`
+		ChannelType      *int            `json:"channelType"`
+		ChannelTypeSnake *int            `json:"channel_type"`
+		Topic            string          `json:"topic"`
+		Payload          json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	payload, err := decodeEasySDKPayload(wire.Payload)
+	if err != nil {
+		return err
+	}
+
+	*p = SendParams{
+		Header:  wire.Header,
+		Setting: wire.Setting,
+		Expire:  wire.Expire,
+		Topic:   wire.Topic,
+		Payload: payload,
+	}
+	if wire.MsgKey != nil {
+		p.MsgKey = *wire.MsgKey
+	} else if wire.MsgKeySnake != nil {
+		p.MsgKey = *wire.MsgKeySnake
+	}
+	if wire.ClientMsgNo != nil {
+		p.ClientMsgNo = *wire.ClientMsgNo
+	} else if wire.ClientMsgNoSnake != nil {
+		p.ClientMsgNo = *wire.ClientMsgNoSnake
+	}
+	if wire.StreamNo != nil {
+		p.StreamNo = *wire.StreamNo
+	} else if wire.StreamNoSnake != nil {
+		p.StreamNo = *wire.StreamNoSnake
+	}
+	if wire.ChannelID != nil {
+		p.ChannelID = *wire.ChannelID
+	} else if wire.ChannelIDSnake != nil {
+		p.ChannelID = *wire.ChannelIDSnake
+	}
+	if wire.ChannelType != nil {
+		p.ChannelType = *wire.ChannelType
+	} else if wire.ChannelTypeSnake != nil {
+		p.ChannelType = *wire.ChannelTypeSnake
+	}
+	return nil
+}
+
+func decodeEasySDKPayload(raw json.RawMessage) ([]byte, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, nil
+	}
+	if trimmed[0] == '"' {
+		var text string
+		if err := json.Unmarshal(trimmed, &text); err != nil {
+			return nil, err
+		}
+		// Android v1.0.3 serializes its already-encoded JSON message content as
+		// a JSON string. Prefer that source-aligned representation before the
+		// Base64 form used by Flutter and JavaScript.
+		if json.Valid([]byte(text)) {
+			return []byte(text), nil
+		}
+		payload, err := base64.StdEncoding.DecodeString(text)
+		if err != nil {
+			return nil, fmt.Errorf("invalid base64 payload: %w", err)
+		}
+		return payload, nil
+	}
+	if !json.Valid(trimmed) {
+		return nil, fmt.Errorf("invalid JSON payload")
+	}
+	return append([]byte(nil), trimmed...), nil
+}
+
 type RecvAckParams struct {
 	Header     Header `json:"header,omitempty"`
 	MessageID  string `json:"messageId"`
 	MessageSeq uint64 `json:"messageSeq"`
+}
+
+// UnmarshalJSON accepts Android's snake_case acknowledgment fields and the
+// camelCase notification shape used by the other EasySDKs. A missing sequence
+// remains zero, matching the frame protocol's optional-sequence behavior.
+func (p *RecvAckParams) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Header          Header  `json:"header"`
+		MessageID       *string `json:"messageId"`
+		MessageIDSnake  *string `json:"message_id"`
+		MessageSeq      *uint64 `json:"messageSeq"`
+		MessageSeqSnake *uint64 `json:"message_seq"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	*p = RecvAckParams{Header: wire.Header}
+	if wire.MessageID != nil {
+		p.MessageID = *wire.MessageID
+	} else if wire.MessageIDSnake != nil {
+		p.MessageID = *wire.MessageIDSnake
+	}
+	if wire.MessageSeq != nil {
+		p.MessageSeq = *wire.MessageSeq
+	} else if wire.MessageSeqSnake != nil {
+		p.MessageSeq = *wire.MessageSeqSnake
+	}
+	return nil
 }
 
 type SubscribeParams struct {
@@ -153,11 +368,64 @@ type ConnectResult struct {
 	NodeID        uint64         `json:"nodeId"`
 }
 
+// MarshalJSON exposes both EasySDK response dialects. Android v1.0.3 reads
+// snake_case result fields while the other released clients read camelCase.
+func (r ConnectResult) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Header             *Header        `json:"header,omitempty"`
+		ServerVersion      int            `json:"serverVersion"`
+		ServerVersionSnake int            `json:"server_version"`
+		ServerKey          string         `json:"serverKey"`
+		ServerKeySnake     string         `json:"server_key"`
+		Salt               string         `json:"salt"`
+		TimeDiff           int64          `json:"timeDiff"`
+		TimeDiffSnake      int64          `json:"time_diff"`
+		ReasonCode         ReasonCodeEnum `json:"reasonCode"`
+		ReasonCodeSnake    ReasonCodeEnum `json:"reason_code"`
+		NodeID             uint64         `json:"nodeId"`
+		NodeIDSnake        uint64         `json:"node_id"`
+	}{
+		Header:             r.Header,
+		ServerVersion:      r.ServerVersion,
+		ServerVersionSnake: r.ServerVersion,
+		ServerKey:          r.ServerKey,
+		ServerKeySnake:     r.ServerKey,
+		Salt:               r.Salt,
+		TimeDiff:           r.TimeDiff,
+		TimeDiffSnake:      r.TimeDiff,
+		ReasonCode:         r.ReasonCode,
+		ReasonCodeSnake:    r.ReasonCode,
+		NodeID:             r.NodeID,
+		NodeIDSnake:        r.NodeID,
+	})
+}
+
 type SendResult struct {
 	Header     *Header        `json:"header,omitempty"`
 	MessageID  string         `json:"messageId"`
 	MessageSeq uint64         `json:"messageSeq"`
 	ReasonCode ReasonCodeEnum `json:"reasonCode"`
+}
+
+// MarshalJSON exposes both result naming conventions used by EasySDKs.
+func (r SendResult) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Header          *Header        `json:"header,omitempty"`
+		MessageID       string         `json:"messageId"`
+		MessageIDSnake  string         `json:"message_id"`
+		MessageSeq      uint64         `json:"messageSeq"`
+		MessageSeqSnake uint64         `json:"message_seq"`
+		ReasonCode      ReasonCodeEnum `json:"reasonCode"`
+		ReasonCodeSnake ReasonCodeEnum `json:"reason_code"`
+	}{
+		Header:          r.Header,
+		MessageID:       r.MessageID,
+		MessageIDSnake:  r.MessageID,
+		MessageSeq:      r.MessageSeq,
+		MessageSeqSnake: r.MessageSeq,
+		ReasonCode:      r.ReasonCode,
+		ReasonCodeSnake: r.ReasonCode,
+	})
 }
 
 type SubscriptionResult struct {
@@ -190,6 +458,76 @@ type RecvNotificationParams struct {
 	Topic       string         `json:"topic,omitempty"`
 	FromUID     string         `json:"fromUid"`
 	Payload     []byte         `json:"payload"`
+}
+
+// UnmarshalJSON mirrors the flexible payload handling used for SEND so receive
+// notifications remain round-trippable through the public codec.
+func (p *RecvNotificationParams) UnmarshalJSON(data []byte) error {
+	type plain RecvNotificationParams
+	*p = RecvNotificationParams{}
+	wire := struct {
+		*plain
+		Payload json.RawMessage `json:"payload"`
+	}{plain: (*plain)(p)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	payload, err := decodeEasySDKPayload(wire.Payload)
+	if err != nil {
+		return err
+	}
+	p.Payload = payload
+	return nil
+}
+
+// MarshalJSON emits the receive shape all released EasySDK clients can parse:
+// header is always an object, and JSON object payload bytes stay JSON objects.
+func (p RecvNotificationParams) MarshalJSON() ([]byte, error) {
+	header := Header{}
+	if p.Header != nil {
+		header = *p.Header
+	}
+	payload := any(base64.StdEncoding.EncodeToString(p.Payload))
+	trimmed := bytes.TrimSpace(p.Payload)
+	if len(trimmed) > 0 && trimmed[0] == '{' && json.Valid(trimmed) {
+		payload = json.RawMessage(trimmed)
+	}
+
+	return json.Marshal(struct {
+		Header      Header         `json:"header"`
+		Setting     *SettingFlags  `json:"setting,omitempty"`
+		MsgKey      string         `json:"msgKey,omitempty"`
+		Expire      uint32         `json:"expire,omitempty"`
+		MessageID   string         `json:"messageId"`
+		MessageSeq  uint64         `json:"messageSeq"`
+		ClientMsgNo string         `json:"clientMsgNo,omitempty"`
+		StreamNo    string         `json:"streamNo,omitempty"`
+		StreamID    string         `json:"streamId,omitempty"`
+		StreamFlag  StreamFlagEnum `json:"streamFlag,omitempty"`
+		Timestamp   int32          `json:"timestamp"`
+		ChannelID   string         `json:"channelId"`
+		ChannelType int            `json:"channelType"`
+		Topic       string         `json:"topic,omitempty"`
+		FromUID     string         `json:"fromUid"`
+		Payload     any            `json:"payload"`
+	}{
+		Header:      header,
+		Setting:     p.Setting,
+		MsgKey:      p.MsgKey,
+		Expire:      p.Expire,
+		MessageID:   p.MessageID,
+		MessageSeq:  p.MessageSeq,
+		ClientMsgNo: p.ClientMsgNo,
+		StreamNo:    p.StreamNo,
+		StreamID:    p.StreamID,
+		StreamFlag:  p.StreamFlag,
+		Timestamp:   p.Timestamp,
+		ChannelID:   p.ChannelID,
+		ChannelType: p.ChannelType,
+		Topic:       p.Topic,
+		FromUID:     p.FromUID,
+		Payload:     payload,
+	})
 }
 
 // DisconnectNotificationParams are same as DisconnectParams
@@ -265,7 +603,7 @@ type SubscriptionResponse struct {
 
 type PongResponse struct {
 	BaseResponse
-	Result json.RawMessage `json:"result,omitempty"`
+	Result json.RawMessage `json:"result"`
 }
 
 type RecvAckResponse struct {

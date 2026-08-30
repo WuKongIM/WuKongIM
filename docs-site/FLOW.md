@@ -75,9 +75,10 @@ them; the Web laboratory's bounded report proves only its compatibility smoke.
   outbound callbacks through OpenAPI's `webhooks` object. WKProto, JSON-RPC,
   MCP, plugin RPC, and node transport MUST NOT become fake HTTP paths.
 - WKProto wire layout and compatibility encryption are published as protocol
-  contracts. JSON-RPC is published only as an experimental codec Schema and
-  support matrix; the current Product Gateway does not support it as a client
-  integration.
+  contracts. JSON-RPC remains a bounded client surface: Product Gateway
+  supports the pinned EasySDK CONNECT, ping, online SEND/SENDACK,
+  RECV/RECVACK, and reconnect path, while batch RPC, subscriptions, offline
+  sync, push, and production token verification remain outside that receipt.
 - Webhook delivery is unsigned, bounded, in-memory, HTTP-200-only, and has no
   crash replay. Manager with `auth_on=false` exposes most ordinary mutations;
   only explicitly gated backup, restore, and MCP administration fail closed.

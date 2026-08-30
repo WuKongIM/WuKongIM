@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/testkit"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
@@ -2421,6 +2422,24 @@ func newScriptedProtocol(name string) *scriptedProtocol {
 }
 
 func (p *scriptedProtocol) Name() string { return p.name }
+
+func (p *scriptedProtocol) ConnectAuthenticationRequired(sess session.Session) (bool, bool) {
+	if p == nil {
+		return false, false
+	}
+	switch p.name {
+	case "wkproto", "jsonrpc":
+		return true, true
+	case "wsmux":
+		selected, _ := sess.Value(gatewaytypes.SessionValueProtocolName).(string)
+		if selected == "" || selected == "wsmux" {
+			return false, false
+		}
+		return selected == "wkproto" || selected == "jsonrpc", true
+	default:
+		return false, true
+	}
+}
 
 func (p *scriptedProtocol) Decode(_ session.Session, in []byte) ([]frame.Frame, int, error) {
 	p.mu.Lock()

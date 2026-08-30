@@ -14,7 +14,7 @@ Clients establish long-lived connections through Gateway TCP or WebSocket listen
   <Card title="Packet Types" description="FrameType values 0–12, directions, and current publication scope." href="/en/api/client-protocols/packet-types" />
   <Card title="TCP Binary Protocol" description="Fixed header, Remaining Length, field order, and version boundaries." href="/en/api/client-protocols/tcp-binary" />
   <Card title="Encryption & Security" description="X25519, AES-CBC, msg_key, and security limits." href="/en/api/client-protocols/encryption" />
-  <Card title="Experimental JSON-RPC" description="Codec matrix and current Product Gateway gaps." href="/en/api/client-protocols/json-rpc" />
+  <Card title="EasySDK JSON-RPC" description="Core online path, four-client wire compatibility, and experimental boundaries." href="/en/api/client-protocols/json-rpc" />
 </Cards>
 
 ## Current boundary
@@ -22,6 +22,6 @@ Clients establish long-lived connections through Gateway TCP or WebSocket listen
 - The public core contains only CONNECT/CONNACK, SEND/SENDACK, RECV/RECVACK, and PING/PONG.
 - `DISCONNECT`, `SUB`, and `SUBACK` are currently codec contracts, not published product Gateway entry points.
 - The current product Gateway reserves `EVENT` only for benchmark terminal-fence request and acknowledgement; it is not an application event API.
-- WebSocket can carry WKProto bytes. A JSON-RPC bridge codec exists, but it is not a supported product integration path today.
+- WebSocket can carry WKProto bytes. The JSON-RPC bridge supports the pinned EasySDK core online path; the matrix marks every other method experimental or missing.
 
 See [Shared Dictionaries](/en/api/dictionaries) for numeric meanings and [Authentication & Security](/en/api/authentication) for the production trust boundary.

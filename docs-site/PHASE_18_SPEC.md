@@ -7,6 +7,20 @@ turning private or experimental interfaces into public integration promises.
 Phase 18 changes documentation, schemas, generation, and drift checks only. It
 does not change runtime routes, authentication, wire behavior, or storage.
 
+## Superseding current state
+
+The unsupported JSON-RPC statements below describe the Phase 18 source
+revision. A later server implementation added a bounded EasySDK core path:
+CONNECT-first authentication, request correlation, Ping, online SEND/SENDACK,
+RECV/RECVACK, and reconnect for four pinned wire profiles. Codec fixtures cover
+iOS, Android, Flutter, and Web; a real `cmd/wukongim` 256-slot single-node
+cluster E2E runs the iOS and Android profiles. Batches, subscriptions, offline
+sync, push, general-purpose RPC, platform artifact execution, and production
+token verification remain outside that support boundary. In the pinned wire
+facts, iOS `v1.0.3` RECVACK contains both `messageId` and `messageSeq`, while the
+Android `v1.0.3` README sends already-encoded JSON text as a string; the current
+boundary accepts that JSON text form as well as direct JSON objects and Base64.
+
 ## Surface classification
 
 Every discovered interface belongs to one documented class:
@@ -17,7 +31,7 @@ Every discovered interface belongs to one documented class:
 | Operations HTTP | OpenAPI 3.1 plus concise Fumadocs reference pages | Health, readiness, metrics, and node-local Top; protect with the operator network |
 | Outbound Webhook | OpenAPI 3.1 `webhooks` plus protocol guidance | Three callback events; bounded, best effort, and unsigned |
 | WKProto | Protocol pages and source-checked tables | Public binary core, codec-only packets, and reserved packets are distinct |
-| WebSocket JSON-RPC | Experimental schema and support matrix | Codec exists, but the current Product Gateway path is not a supported client integration |
+| WebSocket JSON-RPC | Experimental schema and support matrix | At Phase 18 the codec existed without a supported Product Gateway path; later work supports only the pinned EasySDK core described above |
 | Manager, Debug, Bench, MCP, node transport, and plugin RPC | Exhaustive inventory and boundary page | Operator-only, conditional, tool-specific, or cluster-internal; not Product HTTP |
 
 The inventory closes documentation gaps by naming private interfaces and their
@@ -73,15 +87,17 @@ including X25519, Base64/MD5 key derivation, AES-CBC with PKCS#7, `msg_key`, and
 `NoEncrypt`. It must explicitly state that this is not TLS, authenticated
 encryption, or a modern AEAD construction.
 
-The JSON-RPC page and downloadable schema describe codec capability separately
-from Product Gateway support. They must not advertise connect, send,
-subscribe, or unsubscribe as supported until runtime authentication,
-correlation, bridge mappings, and end-to-end tests are fixed.
+The Phase 18 JSON-RPC page and downloadable schema described codec capability
+separately from Product Gateway support. At that revision they did not
+advertise connect, send, subscribe, or unsubscribe because runtime
+authentication, correlation, bridge mappings, and end-to-end tests were absent.
 Phase 18 initially moved EasySDK tutorials that depend on those operations to
 planned, `noindex`, and machine-readable exclusion. A later documentation-only
 publication exposes the completed source-aligned tutorials while preserving
-the unsupported-runtime warning and excluding EasySDK from compatibility
-receipts. Publication must not advertise those operations as supported.
+that then-current unsupported-runtime warning. The subsequent server work
+summarized above now permits the maintained pages to advertise the bounded
+CONNECT, Ping, and online messaging core, while the wider JSON-RPC surface and
+platform-artifact execution remain unsupported.
 
 The interface inventory records Manager HTTP, Operations MCP, Cloud Analysis
 MCP, Review Check MCP, node transport, and plugin RPC as private or tool

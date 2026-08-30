@@ -7,14 +7,14 @@ This section collects machine-readable contracts. They describe the current repo
 
 <Cards>
   <Card title="OpenAPI contracts" description="Complete Product HTTP, Operations, Webhooks, and three narrow profiles." href="/en/api/specifications/openapi" />
-  <Card title="JSON-RPC Schema" description="Experimental codec shapes; unsupported as a current product client protocol." href="/en/api/specifications/json-rpc-schema" />
+  <Card title="JSON-RPC Schema" description="EasySDK core online path supported; all other RPC shapes remain experimental." href="/en/api/specifications/json-rpc-schema" />
   <Card title="Protocol changelog" description="Current snapshot, WKProto v5→v6, and breaking-change rules." href="/en/api/specifications/protocol-changelog" />
 </Cards>
 
 | Format | Use for | Do not use for |
 | --- | --- | --- |
 | OpenAPI 3.1 | HTTP requests, responses, and webhook callbacks | WKProto, MCP, node transport, or Unix-socket RPC |
-| JSON Schema 2020-12 | Experimental JSON-RPC codec shapes | Product support or compatibility claims |
+| JSON Schema 2020-12 | The pinned EasySDK core plus remaining experimental JSON-RPC shapes | General-purpose JSON-RPC or platform-runtime compatibility claims |
 | Protocol pages | Binary layout, negotiation, stability, and trust boundaries | HTTP SDK generation |
 
-Backends should start with the complete Product HTTP contract. Choose a narrow profile only for its bounded scenario. Realtime clients must use [WKProto](/en/api/client-protocols/tcp-binary).
+Backends should start with the complete Product HTTP contract. Choose a narrow profile only for its bounded scenario. Full SDK realtime clients use [WKProto](/en/api/client-protocols/tcp-binary); the four pinned EasySDKs may use the supported lightweight [WebSocket JSON-RPC core contract](/en/api/client-protocols/json-rpc).

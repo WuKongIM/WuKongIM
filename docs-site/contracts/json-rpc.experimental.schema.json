@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://docs.githubim.com/contracts/json-rpc.experimental.schema.json",
   "title": "WuKongIM WebSocket JSON-RPC codec schema (experimental)",
-  "description": "Codec-level JSON shapes. The current Product Gateway does not support JSON-RPC as a client integration protocol; only ping/pong is exercised successfully.",
-  "x-wukongim-stability": "experimental-not-supported",
+  "description": "Bounded WebSocket JSON-RPC shapes. Product Gateway supports the pinned EasySDK CONNECT, ping, online SEND/SENDACK, and RECV/RECVACK path; other JSON-RPC methods remain experimental.",
+  "x-wukongim-stability": "experimental-easysdk-core-supported",
   "anyOf": [
     { "$ref": "#/$defs/ConnectRequest" },
     { "$ref": "#/$defs/SendRequest" },
@@ -57,8 +57,11 @@
       "type": "object",
       "properties": {
         "noPersist": { "type": "boolean" },
+        "no_persist": { "type": "boolean" },
         "redDot": { "type": "boolean" },
+        "red_dot": { "type": "boolean" },
         "syncOnce": { "type": "boolean" },
+        "sync_once": { "type": "boolean" },
         "dup": { "type": "boolean" },
         "end": { "type": "boolean" }
       }
@@ -87,9 +90,13 @@
         "header": { "$ref": "#/$defs/Header" },
         "version": { "type": "integer", "description": "0 defaults to protocol v6 before bridging." },
         "clientKey": { "type": "string" },
-        "deviceId": { "type": "string" },
+        "client_key": { "type": "string" },
+        "deviceId": { "type": ["string", "null"] },
+        "device_id": { "type": ["string", "null"] },
         "deviceFlag": { "type": "integer" },
+        "device_flag": { "type": "integer" },
         "clientTimestamp": { "type": "integer", "format": "int64" },
+        "client_timestamp": { "type": "integer", "format": "int64" },
         "uid": { "type": "string" },
         "token": { "type": "string" }
       }
@@ -106,7 +113,7 @@
           }
         }
       ],
-      "x-wukongim-product-status": "rejected-after-the-session-is-preopened"
+      "x-wukongim-product-status": "supported-easysdk-connect-first"
     },
     "SendParams": {
       "type": "object",
@@ -114,13 +121,27 @@
         "header": { "$ref": "#/$defs/Header" },
         "setting": { "$ref": "#/$defs/Setting" },
         "msgKey": { "type": "string" },
+        "msg_key": { "type": "string" },
         "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
         "clientMsgNo": { "type": "string" },
+        "client_msg_no": { "type": "string" },
         "streamNo": { "type": "string" },
+        "stream_no": { "type": "string" },
         "channelId": { "type": "string" },
+        "channel_id": { "type": "string" },
         "channelType": { "type": "integer" },
+        "channel_type": { "type": "integer" },
         "topic": { "type": "string" },
-        "payload": { "type": ["string", "null"], "contentEncoding": "base64" }
+        "payload": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "A JSON-text string as emitted by EasySDK Android v1.0.3, or Base64 as emitted by the pinned Flutter and JavaScript clients. Valid JSON text takes precedence when decoding."
+            },
+            { "type": "object" },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "SendRequest": {
@@ -135,7 +156,7 @@
           }
         }
       ],
-      "x-wukongim-product-status": "unauthenticated-and-missing-client-sequence-correlation"
+      "x-wukongim-product-status": "supported-after-connect-with-request-id-correlation"
     },
     "PingRequest": {
       "allOf": [
@@ -221,7 +242,9 @@
       "properties": {
         "header": { "$ref": "#/$defs/Header" },
         "messageId": { "type": "string" },
-        "messageSeq": { "type": "integer", "format": "uint64", "minimum": 0 }
+        "message_id": { "type": "string" },
+        "messageSeq": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 }
       }
     },
     "RecvAckNotification": {
@@ -236,18 +259,23 @@
           }
         }
       ],
-      "x-wukongim-product-status": "decoded-but-ignored-without-an-authenticated-session"
+      "x-wukongim-product-status": "supported-on-authenticated-session-message-sequence-optional"
     },
     "ConnectResult": {
       "type": "object",
       "properties": {
         "header": { "$ref": "#/$defs/Header" },
         "serverVersion": { "type": "integer" },
+        "server_version": { "type": "integer" },
         "serverKey": { "type": "string" },
+        "server_key": { "type": "string" },
         "salt": { "type": "string" },
         "timeDiff": { "type": "integer", "format": "int64" },
+        "time_diff": { "type": "integer", "format": "int64" },
         "reasonCode": { "type": "integer" },
-        "nodeId": { "type": "integer", "format": "uint64", "minimum": 0 }
+        "reason_code": { "type": "integer" },
+        "nodeId": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "node_id": { "type": "integer", "format": "uint64", "minimum": 0 }
       }
     },
     "ConnectResponse": {
@@ -256,7 +284,8 @@
         {
           "type": "object",
           "required": ["result"],
-          "properties": { "result": { "$ref": "#/$defs/ConnectResult" } }
+          "properties": { "result": { "$ref": "#/$defs/ConnectResult" } },
+          "not": { "required": ["error"] }
         }
       ]
     },
@@ -265,8 +294,11 @@
       "properties": {
         "header": { "$ref": "#/$defs/Header" },
         "messageId": { "type": "string" },
+        "message_id": { "type": "string" },
         "messageSeq": { "type": "integer", "format": "uint64", "minimum": 0 },
-        "reasonCode": { "type": "integer" }
+        "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "reasonCode": { "type": "integer" },
+        "reason_code": { "type": "integer" }
       }
     },
     "SendResponse": {
@@ -275,7 +307,8 @@
         {
           "type": "object",
           "required": ["result"],
-          "properties": { "result": { "$ref": "#/$defs/SendResult" } }
+          "properties": { "result": { "$ref": "#/$defs/SendResult" } },
+          "not": { "required": ["error"] }
         }
       ]
     },
@@ -284,13 +317,16 @@
         { "$ref": "#/$defs/ResponseBase" },
         {
           "type": "object",
-          "properties": { "result": { "type": ["null", "object"] } }
+          "required": ["result"],
+          "properties": { "result": { "type": "null" } },
+          "not": { "required": ["error"] }
         }
       ],
       "x-wukongim-product-status": "works"
     },
     "RecvParams": {
       "type": "object",
+      "required": ["header"],
       "properties": {
         "header": { "$ref": "#/$defs/Header" },
         "setting": { "$ref": "#/$defs/Setting" },
@@ -307,7 +343,12 @@
         "channelType": { "type": "integer" },
         "topic": { "type": "string" },
         "fromUid": { "type": "string" },
-        "payload": { "type": ["string", "null"], "contentEncoding": "base64" }
+        "payload": {
+          "oneOf": [
+            { "type": "object" },
+            { "type": "string", "contentEncoding": "base64" }
+          ]
+        }
       }
     },
     "RecvNotification": {
@@ -365,7 +406,8 @@
         {
           "type": "object",
           "required": ["error"],
-          "properties": { "error": { "$ref": "#/$defs/ErrorObject" } }
+          "properties": { "error": { "$ref": "#/$defs/ErrorObject" } },
+          "not": { "required": ["result"] }
         }
       ]
     },

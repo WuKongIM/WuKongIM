@@ -6,14 +6,14 @@ description: 选择客户端 SDK，跑通第一条消息，再逐步补齐身份
 WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议状态。你不需要先掌握底层协议；从自己的平台和目标开始，先跑通最小闭环，再补生产能力。
 
 <Callout type="info" title="第一次接入从这里开始">
-  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)。Android `1.5.5`、iOS `1.1.1`、Flutter `1.7.9` 与 HarmonyOS `1.1.7` 都已有源码/分发产物对齐的完整 SDK 教程，但没有本站对应平台运行 receipt。需要本站可执行场景证据的浏览器路径，请进入 [WuKongIMJSSDK 安装与配置](/zh/sdk/javascript/installation)。旧 UniApp SDK 已弃用，现有项目应按 [UniApp 迁移指南](/zh/sdk/uniapp)评估迁移到 `wukongimjssdk@1.3.5`。WuKongEasySDK 教程已发布为源码校对资料；其 JSON-RPC CONNECT 当前仍不受 Product Gateway 支持，不能视为可执行接入路径。
+  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)。Android `1.5.5`、iOS `1.1.1`、Flutter `1.7.9` 与 HarmonyOS `1.1.7` 都已有源码/分发产物对齐的完整 SDK 教程，但没有本站对应平台运行 receipt。需要本站可执行场景证据的浏览器路径，请进入 [WuKongIMJSSDK 安装与配置](/zh/sdk/javascript/installation)。旧 UniApp SDK 已弃用，现有项目应按 [UniApp 迁移指南](/zh/sdk/uniapp)评估迁移到 `wukongimjssdk@1.3.5`。WuKongEasySDK 的四个固定版本已有 JSON-RPC CONNECT 与在线双向收发的服务端线协议凭据，但平台构建、设备运行和生产 Token 校验仍需自验。
 </Callout>
 
 ## 你现在想完成什么
 
 <Cards>
   <Card title="选择合适的 SDK" description="按平台找到候选仓库，再逐个 tag 核对能力、要求和验证状态。" href="/zh/sdk/choose-sdk" />
-  <Card title="阅读 EasySDK 教程" description="按平台查看固定版本的源码教程，同时保留 JSON-RPC CONNECT 阻断边界。" href="/zh/sdk/easy" />
+  <Card title="接入 EasySDK 第一条消息" description="按平台固定版本，使用已验证的 JSON-RPC CONNECT 核心在线路径。" href="/zh/sdk/easy" />
   <Card title="接入 Android 第一条消息" description="精确安装 1.5.5，完成会话同步门禁、本地入库、SENDACK 和在线接收。" href="/zh/sdk/android" />
   <Card title="接入 iOS 第一条消息" description="精确安装 1.1.1，按公开 Objective-C API 完成连接、发送确认和在线接收。" href="/zh/sdk/ios" />
   <Card title="接入 Flutter 第一条消息" description="固定 1.7.9，按真实 Dart API 完成同步门禁、SENDACK 与在线接收。" href="/zh/sdk/flutter" />
@@ -43,7 +43,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 | 内容 | 当前状态 | 适合谁 |
 | --- | --- | --- |
 | [选择 SDK](/zh/sdk/choose-sdk)与官方源码目录 | 已发布 | 还在比较平台或 SDK 系列的开发者 |
-| [WuKongEasySDK iOS、Android、Flutter、Web](/zh/sdk/easy) | 源码校对教程已发布；当前 Gateway 不支持 JSON-RPC CONNECT，且没有运行 receipt | 需要评估固定 SDK 源码、API 与采用阻断项的开发者 |
+| [WuKongEasySDK iOS、Android、Flutter、Web](/zh/sdk/easy) | 固定源码教程已发布；JSON-RPC CONNECT 与在线双向消息具有服务端线协议 receipt，平台运行和生产安全尚需自验 | 只需要轻量连接与在线消息，并能自行维护 UI、离线同步和产品状态的开发者 |
 | [WuKongIMSDK Android](/zh/sdk/android) `1.5.5` | 安装、快速接入、[平台能力](/zh/sdk/android/platform-capabilities)、[API Reference](/zh/sdk/android/api-reference)与[升级指南](/zh/sdk/android/upgrade)均已发布；源码与 JitPack AAR 已校对，没有本站 Android 运行 receipt | 需要在自己的 AGP、设备和服务端 tuple 上保存验收证据的 Android 团队 |
 | [WuKongIMSDK iOS](/zh/sdk/ios) `1.1.1` | 安装、快速接入、[平台能力](/zh/sdk/ios/platform-capabilities)、[API Reference](/zh/sdk/ios/api-reference)与[升级指南](/zh/sdk/ios/upgrade)均已发布；源码与公开头文件已校对，没有本站运行 receipt | 需要在自己的 Xcode 与设备上保留验收证据的原生 iOS 团队 |
 | [WuKongIMSDK Flutter](/zh/sdk/flutter) `1.7.9` | 安装、快速接入、[平台能力](/zh/sdk/flutter/platform-capabilities)、[API Reference](/zh/sdk/flutter/api-reference)与[升级指南](/zh/sdk/flutter/upgrade)均已发布；pub.dev 归档与匹配源码已校对，消费端 analyze/macOS Release build 通过，没有本站运行 receipt | 需要在自己的 Flutter/Dart、目标设备和服务端 tuple 上保存验收证据的跨端团队 |
@@ -53,7 +53,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 | [WuKongIMSDK UniApp 迁移](/zh/sdk/uniapp) | 旧仓库与 `wukongimuniappsdk` 已弃用；迁移目标固定为 `wukongimjssdk@1.3.5` | 需要移除旧包，并为 App、H5 与小程序分别保存验收证据的现有项目 |
 
 <Callout type="warn" title="不要混淆三种状态">
-  “有官方源码”表示可以评估仓库；“有本站教程”表示内容已公开；“已验证”表示某个精确版本组合通过了可执行场景。当前本站的可执行客户端证据只覆盖 `wukongimjssdk@1.3.5` 的 JavaScript/Web 路径。
+  “有官方源码”表示可以评估仓库；“有本站教程”表示内容已公开；“已验证”必须说明证据层级。`wukongimjssdk@1.3.5` 有浏览器场景 receipt；四个固定 EasySDK 都有服务端 wire fixture，真实进程 E2E 使用 iOS 与 Android profile；没有任何 EasySDK 平台构建或设备运行 receipt。
 </Callout>
 
 ## Web 教程会带你完成什么
@@ -70,7 +70,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 ## 常见问题
 
 - **不知道选哪一个仓库**：先列出平台、最低系统版本和必需能力，再使用[选择 SDK](/zh/sdk/choose-sdk)逐项核对。
-- **只需要连接和在线消息**：当前不要选择 EasySDK 作为 v3 接入路径；先看 [JSON-RPC 支持矩阵](/zh/api/client-protocols/json-rpc)，或使用已有可执行证据的 JavaScript/Web 路径。
+- **只需要连接和在线消息**：可以从固定版本的 [EasySDK 教程](/zh/sdk/easy)开始，并用 [JSON-RPC 支持矩阵](/zh/api/client-protocols/json-rpc)核对在线范围；离线同步、推送、生产鉴权和平台运行仍需独立设计与验收。
 - **iOS 需要本地消息、会话和未读**：先用 [iOS 安装与快速接入](/zh/sdk/ios)核对 `1.1.1` 的最小在线路径，再按公共指南补需求；离线与会话恢复还没有本站运行证据。
 - **Android 需要本地消息、会话和未读**：先用 [Android 安装与快速接入](/zh/sdk/android)核对 `1.5.5` 的同步门禁与在线路径；源码/AAR 校对不是设备运行 receipt。
 - **Flutter 需要本地消息、会话和未读**：先用 [Flutter 安装与快速接入](/zh/sdk/flutter)核对 `1.7.9` 的单例、同步和发送路径；macOS 构建证据不是 Android/iOS/macOS 运行 receipt。
@@ -85,4 +85,4 @@ SDK 不负责产品账号、授权或 Token 签发。客户端不能获得 WuKon
 
 ## 下一步
 
-先[选择 SDK](/zh/sdk/choose-sdk)。目标是 Android、iOS、Flutter 或 HarmonyOS 时，分别从对应的 [Android](/zh/sdk/android)、[iOS](/zh/sdk/ios)、[Flutter](/zh/sdk/flutter)、[HarmonyOS](/zh/sdk/harmonyos) 教程固定 `1.5.5`、`1.1.1`、`1.7.9`、`1.1.7`，并在自己的环境保留运行证据。现有 UniApp 项目从[退役说明与迁移入口](/zh/sdk/uniapp)开始。需要本站现有可执行 receipt 时，完成 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)。需要研究轻量 API 时可阅读 [EasySDK 教程](/zh/sdk/easy)，但实际接入仍须等待 JSON-RPC 运行时修复与端到端验证。
+先[选择 SDK](/zh/sdk/choose-sdk)。只需要轻量在线通信时，从固定版本的 [EasySDK 教程](/zh/sdk/easy)完成 JSON-RPC CONNECT 与双向消息。目标是完整 Android、iOS、Flutter 或 HarmonyOS 能力时，分别从对应教程固定 `1.5.5`、`1.1.1`、`1.7.9`、`1.1.7`，并在自己的环境保留运行证据。现有 UniApp 项目从[退役说明与迁移入口](/zh/sdk/uniapp)开始；浏览器完整黄金路径使用 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)。

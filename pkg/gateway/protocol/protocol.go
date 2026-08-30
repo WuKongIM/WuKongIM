@@ -20,6 +20,13 @@ type DecodedFrameOwner interface {
 	OwnsDecodedFrames() bool
 }
 
+// ConnectAuthenticationPolicy declares whether a selected wire protocol starts
+// with an authenticated CONNECT handshake. Multiplexers report resolved=false
+// until Decode has selected their nested protocol for the session.
+type ConnectAuthenticationPolicy interface {
+	ConnectAuthenticationRequired(session session.Session) (required bool, resolved bool)
+}
+
 type ReplyTokenTracker interface {
 	TakeReplyTokens(session session.Session, count int) []string
 }

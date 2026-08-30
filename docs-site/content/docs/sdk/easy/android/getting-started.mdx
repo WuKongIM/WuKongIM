@@ -1,12 +1,12 @@
 ---
 title: 5 分钟集成 Android
-description: 对照 WuKongEasySDK Android v1.0.3 固定源码学习 Kotlin 接入 API；当前 Product Gateway 不支持其 JSON-RPC CONNECT。
+description: 对照 WuKongEasySDK Android v1.0.3 固定源码学习 Kotlin 接入 API；当前 Product Gateway 支持其 JSON-RPC CONNECT 与在线双向收发。
 ---
 
-本页沿用旧版教程的“安装 → 初始化 → 监听 → 连接 → 发送”顺序，将其整理成 Android 源码 API 导读和修复后的验收骨架，并补上精确版本、Activity 生命周期与当前 v3 协议边界。
+本页沿用旧版教程的“安装 → 初始化 → 监听 → 连接 → 发送”顺序，将其整理成 Android 源码 API 导读和在线验收路径，并补上精确版本、Activity 生命周期与当前 v3 协议边界。
 
-<Callout type="error" title="当前 Product Gateway 不支持这条连接路径">
-  当前 Product Gateway 不支持将此版本 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。因此本页是固定源码的 API 导读和修复后的验收骨架，不是当前可执行的快速接入。必须先修复 Gateway/SDK 运行路径并通过 Alice/Bob 端到端闭环，才能宣称运行成功。
+<Callout type="info" title="当前 Product Gateway 支持这条连接路径">
+  当前 Product Gateway 支持此固定版本的 JSON-RPC CONNECT 和在线双向收发。服务端测试覆盖 Android 文本 WebSocket、snake_case 字段、JSON 文本字符串 Payload、关联 CONNECT/SEND 响应与 RECVACK；平台构建、真机运行、WSS 与生产 Token 校验仍须在你的环境验收。
 </Callout>
 
 这一学习顺序参考[旧版 Android EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)。旧页只提供阅读路径；下面的包坐标、方法签名、版本与限制以固定的 `v1.0.3` 源码和 Maven Central 产物为准。
@@ -16,7 +16,7 @@ description: 对照 WuKongEasySDK Android v1.0.3 固定源码学习 Kotlin 接�
 </Callout>
 
 <Callout type="error" title="采用前必须关闭协议与日志阻断项">
-  Android `v1.0.3` 的 CONNECT、SEND、RECVACK 与结果模型仍有下划线字段，SEND 还直接传 JSON 对象；当前 v3 JSON-RPC Schema 使用驼峰字段，Payload 是 Base64 编码字节。该版本已把设备线路值修正为 APP `0`、WEB `1`、PC `2`，但这不会修复字段和 Payload 形态。此外，JSON-RPC 未知消息、解析失败和 RECV 解析异常路径会不受 `debugLogging` 控制地把完整消息或 `Params` 写入 Logcat，其中可能含 Token 或 Payload。未修改的 tag 不能直接通过当前 v3 消息闭环，也不能通过生产日志门禁。下面代码用于说明公开 API 与验收骨架；先采用包含协议修复与日志脱敏的上游版本或经过评审的 fork，再执行 Alice/Bob 实测，不能在业务层伪造成功结果。
+  Android `v1.0.3` 的 CONNECT、SEND、RECVACK 与结果模型使用下划线字段。其 README 先把消息编码成 JSON 文本，再将该 `String` 传给 SEND，并非直接传 JSON 对象。当前服务端会在 JSON-RPC 边界同时兼容下划线字段与驼峰字段、JSON 文本字符串、JSON 对象与 Base64 Payload，并按 Android 结果模型返回 snake_case，因此字段与 Payload 不再阻断在线消息。该 tag 的未知消息、解析失败和 RECV 解析异常路径仍会绕过 `debugLogging`，把完整消息或 `Params` 写入 Logcat，其中可能含 Token 或 Payload。协议路径可验收，但原始 tag 不能通过生产日志门禁；上线前仍需升级或修复日志脱敏并检查 Release 产物。
 </Callout>
 
 ## 完成后你会得到什么
@@ -211,11 +211,11 @@ class ChatActivity : AppCompatActivity() {
 fun sendText(targetUid: String, text: String) {
     check(connected) { "EasySDK is not connected" }
     lifecycleScope.launch {
-        val payload = mapOf(
-            "type" to 1,
-            "version" to 1,
-            "content" to text,
-        )
+        val payload: String = org.json.JSONObject()
+            .put("type", 1)
+            .put("version", 1)
+            .put("content", text)
+            .toString()
 
         runCatching {
             easySDK.send(
@@ -246,14 +246,14 @@ fun sendText(targetUid: String, text: String) {
 6. 在评审后的构建中以唯一假 Token 和消息文本执行成功及解析失败路径，确认 Logcat 与崩溃报告都没有这些值；
 7. 重建 Activity，确认监听器没有重复；退出应用时确认连接已关闭。
 
-未修改的 `v1.0.3` 预期会在当前 v3 的字段或 Payload 阶段失败；这正是前述兼容性阻断项的证据。保留服务端 revision、Android tag 与错误阶段，不要用盲目重试掩盖。只有修复后的构建通过，才能保留 Alice 与 Bob 的发送和接收证据。
+当前服务端已用 Android `v1.0.3` 的 snake_case 字段与 README 对齐的 JSON 文本字符串 SEND Payload 覆盖该闭环。仍应保留服务端 revision、Android tag、设备与网络环境，不要用盲目重试掩盖失败；日志脱敏、离线恢复与生产安全需要另外验收。
 
 ## 常见问题
 
 - **`SDK is not initialized`**：严格执行 `init → addEventListener → connect` 顺序。
 - **同一 UID 刷新 Token 或路由后提示配置变化**：`v1.0.3` 没有公开重置配置 API；显式停止流程并重启进程，或升级 SDK，不能继续使用旧 Token 或旧地址。
 - **连接地址在模拟器可用、真机不可用**：检查地址是否只在宿主机或容器内部可达；让业务后端返回设备可达的 WSS 入口。
-- **CONNECT、SEND 或 RECVACK 解析失败**：优先核对驼峰字段与 Base64 Payload；它们仍是 `v1.0.3` 与当前 v3 的已知兼容阻断项。设备值已经统一为 APP `0`、WEB `1`、PC `2`，不要继续沿用旧整数。
+- **CONNECT、SEND 或 RECVACK 解析失败**：确认服务端包含 EasySDK JSON-RPC 兼容实现；当前服务端接受 snake_case 字段与 Android README 对齐的 JSON 文本字符串 Payload，也兼容 JSON 对象和 Base64 Payload，并为 Android 返回 snake_case 结果。设备值使用 APP `0`、WEB `1`、PC `2`，不要沿用旧整数。
 - **关闭 `debugLogging` 后仍在 Logcat 看到原始 JSON 或 `Params`**：这是该 tag 的无条件日志路径；不要用生产 Token 或消息继续测试，改用已删除或脱敏这些输出的评审构建。
 - **消息重复**：避免重复注册监听器，并按 `messageId` 去重。
 

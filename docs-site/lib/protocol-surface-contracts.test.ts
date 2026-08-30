@@ -321,13 +321,13 @@ describe('protocol surface contracts', () => {
 
   test('records the actual JSON-RPC bridge instead of the declared-only schema', async () => {
     expect(jsonRPCInboundSurface).toEqual([
-      { kind: 'request', method: 'connect', decoded: true, bridgedFrame: 'CONNECT', productStatus: 'rejected' },
-      { kind: 'request', method: 'send', decoded: true, bridgedFrame: 'SEND', productStatus: 'auth-fail' },
+      { kind: 'request', method: 'connect', decoded: true, bridgedFrame: 'CONNECT', productStatus: 'works' },
+      { kind: 'request', method: 'send', decoded: true, bridgedFrame: 'SEND', productStatus: 'works' },
       { kind: 'request', method: 'ping', decoded: true, bridgedFrame: 'PING', productStatus: 'works' },
       { kind: 'request', method: 'disconnect', decoded: true, bridgedFrame: 'DISCONNECT', productStatus: 'rejected' },
       { kind: 'request', method: 'subscribe', decoded: true, productStatus: 'bridge-missing' },
       { kind: 'request', method: 'unsubscribe', decoded: true, productStatus: 'bridge-missing' },
-      { kind: 'notification', method: 'recvack', decoded: true, bridgedFrame: 'RECVACK', productStatus: 'ignored' },
+      { kind: 'notification', method: 'recvack', decoded: true, bridgedFrame: 'RECVACK', productStatus: 'works' },
       { kind: 'notification', method: 'recv', decoded: true, productStatus: 'bridge-missing' },
       { kind: 'notification', method: 'disconnect', decoded: true, productStatus: 'bridge-missing' },
       { kind: 'notification', method: 'event', decoded: true, productStatus: 'bridge-missing' },
@@ -361,11 +361,12 @@ describe('protocol surface contracts', () => {
       jsonRPCOutboundSurface.map((item) => item.frame),
     );
     const pongMapping = functionBody(fromFrame, 'case frame.PONG:', '\n\t}');
-    expect(pongMapping).not.toContain('Result:');
+    expect(pongMapping).toContain('Result: json.RawMessage("null")');
     expect(types).toMatch(/type SendParams struct \{[\s\S]*?Payload\s+\[\]byte/u);
     expect(types.match(/type SendParams struct \{[\s\S]*?\n\}/u)?.[0]).not.toContain('ClientSeq');
     expect(mux).toContain("case '{', '[':");
-    expect(server).toContain('listener.options.Protocol == "wkproto" && s.options.Authenticator != nil');
+    expect(server).toContain('adapter.(protocol.ConnectAuthenticationPolicy)');
+    expect(server).toContain('state.listener.auth.ConnectAuthenticationRequired(state.session)');
     expect(server).toContain('state.setAuthRequired(false)');
     expect(server).toContain('state.setAuthenticated(true)');
     expect(handler).toContain('return ErrUnsupportedFrame');
@@ -542,8 +543,8 @@ describe('protocol surface contracts', () => {
     expect(tcp).toContain('WebSocket v13');
     expect(tcp).toContain('Client frames must be masked');
     expect(tcp).toContain('WebSocket control `PING/PONG`');
-    expect(jsonrpc).toContain('Experimental and not supported');
-    expect(jsonrpc).toContain('Only `ping`');
+    expect(jsonrpc).toContain('EasySDK core path supported');
+    expect(jsonrpc).toContain('CONNECT-first');
     expect(encryption).toContain('AES-128-CBC');
     expect(encryption).toContain('does not replace TLS');
     for (const event of webhookEventContracts) expect(events).toContain(event.name);

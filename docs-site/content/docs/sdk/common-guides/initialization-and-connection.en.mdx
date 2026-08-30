@@ -6,7 +6,7 @@ description: Turn SDK instances, route discovery, CONNECT, recovery, send-ready 
 A reliable client does not treat “SDK object created” and “product may send messages” as the same moment. Initialization first binds environment and identity. A successful connection still needs state recovery before the UI becomes ready.
 
 <Callout type="info" title="Cross-SDK behavior guide">
-  This page is a **cross-SDK behavior guide**. Its state names are application recommendations, not promises about every platform API. The only implementation covered by an executable scenario is the [JavaScript/Web compatibility snapshot](/en/sdk/compatibility).
+  This page is a **cross-SDK behavior guide**. Its state names are application recommendations, not promises about every platform API. The [JavaScript/Web compatibility snapshot](/en/sdk/compatibility) is the only scenario that executes a client artifact and browser; [EasySDK](/en/sdk/easy) separately has four wire fixtures and a real server-process E2E using the iOS/Android profiles, but no platform-artifact runtime receipt.
 </Callout>
 
 ## Goal and completion criteria

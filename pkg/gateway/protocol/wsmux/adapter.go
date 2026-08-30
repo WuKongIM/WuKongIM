@@ -20,6 +20,7 @@ type Adapter struct {
 }
 
 var _ protocol.DecodedFrameOwner = (*Adapter)(nil)
+var _ protocol.ConnectAuthenticationPolicy = (*Adapter)(nil)
 var _ protocol.ReplyTokenTracker = (*Adapter)(nil)
 
 func New() *Adapter {
@@ -44,6 +45,19 @@ func (a *Adapter) OwnsDecodedFrames() bool {
 	wkOwner, wkOK := any(a.wkproto).(protocol.DecodedFrameOwner)
 	jsonOwner, jsonOK := any(a.jsonrpc).(protocol.DecodedFrameOwner)
 	return wkOK && wkOwner.OwnsDecodedFrames() && jsonOK && jsonOwner.OwnsDecodedFrames()
+}
+
+// ConnectAuthenticationRequired delegates to the protocol selected by Decode.
+func (a *Adapter) ConnectAuthenticationRequired(sess session.Session) (bool, bool) {
+	adapter, _, err := a.resolveAdapter(sess, nil)
+	if err != nil || adapter == nil {
+		return false, false
+	}
+	policy, ok := adapter.(protocol.ConnectAuthenticationPolicy)
+	if !ok {
+		return false, true
+	}
+	return policy.ConnectAuthenticationRequired(sess)
 }
 
 func (a *Adapter) Decode(sess session.Session, in []byte) ([]frame.Frame, int, error) {

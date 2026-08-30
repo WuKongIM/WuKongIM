@@ -312,7 +312,7 @@ describe('documentation navigation contract', () => {
     expect(uniapp?.description.en).toContain('deprecated');
   });
 
-  test('publishes source-aligned EasySDK tutorials without claiming runtime support', () => {
+  test('publishes source-aligned EasySDK tutorials with a bounded server wire receipt', () => {
     const sdk = domains.find((domain) => domain.key === 'sdk');
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
@@ -335,7 +335,11 @@ describe('documentation navigation contract', () => {
       expect(snapshot).toBeDefined();
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
+      expect(page.description.zh).toContain('JSON-RPC CONNECT');
+      expect(page.description.en).toContain('JSON-RPC CONNECT');
     }
+    expect(easy?.description.zh).toContain('服务端线协议');
+    expect(easy?.description.en).toContain('server-side wire');
     for (const url of [
       '/en/sdk/easy',
       '/en/sdk/easy/ios/getting-started',

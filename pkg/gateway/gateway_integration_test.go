@@ -371,7 +371,8 @@ func (h *activationHandler) callOrder() []string {
 func TestGatewayStartStopWSJSONRPC(t *testing.T) {
 	handler := testkit.NewRecordingHandler()
 	gw, err := gateway.New(gateway.Options{
-		Handler: handler,
+		Handler:       handler,
+		Authenticator: gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{}),
 		Listeners: []gateway.ListenerOptions{
 			binding.WSJSONRPC("ws-jsonrpc", "127.0.0.1:0"),
 		},
@@ -390,6 +391,10 @@ func TestGatewayStartStopWSJSONRPC(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
+	writeJSONRPCIntegrationMessage(t, conn, websocket.TextMessage, `{"jsonrpc":"2.0","method":"connect","params":{"uid":"u1","deviceId":"d1","deviceFlag":0},"id":"connect-1"}`)
+	connack := readJSONRPCIntegrationResponse(t, conn)
+	assertJSONRPCIntegrationID(t, connack, "connect-1")
+	assertJSONRPCIntegrationSuccessReason(t, connack)
 
 	payload, err := pkgjsonrpc.Encode(pkgjsonrpc.PingRequest{
 		BaseRequest: pkgjsonrpc.BaseRequest{
@@ -438,6 +443,10 @@ func TestGatewayWSMuxSupportsJSONRPCAndWKProto(t *testing.T) {
 		t.Fatalf("Dial(jsonrpc): %v", err)
 	}
 	t.Cleanup(func() { _ = jsonConn.Close() })
+	writeJSONRPCIntegrationMessage(t, jsonConn, websocket.TextMessage, `{"jsonrpc":"2.0","method":"connect","params":{"uid":"json-u1","deviceId":"json-d1","deviceFlag":0},"id":"json-connect"}`)
+	jsonConnack := readJSONRPCIntegrationResponse(t, jsonConn)
+	assertJSONRPCIntegrationID(t, jsonConnack, "json-connect")
+	assertJSONRPCIntegrationSuccessReason(t, jsonConnack)
 
 	jsonPayload, err := pkgjsonrpc.Encode(pkgjsonrpc.PingRequest{
 		BaseRequest: pkgjsonrpc.BaseRequest{

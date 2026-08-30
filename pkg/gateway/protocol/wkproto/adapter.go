@@ -16,6 +16,7 @@ type Adapter struct {
 }
 
 var _ protocol.DecodedFrameOwner = (*Adapter)(nil)
+var _ protocol.ConnectAuthenticationPolicy = (*Adapter)(nil)
 
 func New() *Adapter {
 	return &Adapter{
@@ -33,6 +34,11 @@ func (a *Adapter) Name() string {
 // OwnsDecodedFrames reports that WKProto Decode detaches payload bytes used by async dispatch.
 func (a *Adapter) OwnsDecodedFrames() bool {
 	return a != nil
+}
+
+// ConnectAuthenticationRequired reports that WKProto starts with CONNECT.
+func (a *Adapter) ConnectAuthenticationRequired(session.Session) (bool, bool) {
+	return a != nil, a != nil
 }
 
 func (a *Adapter) Decode(sess session.Session, in []byte) ([]frame.Frame, int, error) {

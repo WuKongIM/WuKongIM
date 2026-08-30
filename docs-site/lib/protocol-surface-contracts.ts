@@ -182,13 +182,13 @@ export interface JSONRPCInboundSurface {
 
 /** Decoder-to-frame behavior for data received from a JSON-RPC WebSocket client. */
 export const jsonRPCInboundSurface: readonly JSONRPCInboundSurface[] = [
-  { kind: 'request', method: 'connect', decoded: true, bridgedFrame: 'CONNECT', productStatus: 'rejected' },
-  { kind: 'request', method: 'send', decoded: true, bridgedFrame: 'SEND', productStatus: 'auth-fail' },
+  { kind: 'request', method: 'connect', decoded: true, bridgedFrame: 'CONNECT', productStatus: 'works' },
+  { kind: 'request', method: 'send', decoded: true, bridgedFrame: 'SEND', productStatus: 'works' },
   { kind: 'request', method: 'ping', decoded: true, bridgedFrame: 'PING', productStatus: 'works' },
   { kind: 'request', method: 'disconnect', decoded: true, bridgedFrame: 'DISCONNECT', productStatus: 'rejected' },
   { kind: 'request', method: 'subscribe', decoded: true, productStatus: 'bridge-missing' },
   { kind: 'request', method: 'unsubscribe', decoded: true, productStatus: 'bridge-missing' },
-  { kind: 'notification', method: 'recvack', decoded: true, bridgedFrame: 'RECVACK', productStatus: 'ignored' },
+  { kind: 'notification', method: 'recvack', decoded: true, bridgedFrame: 'RECVACK', productStatus: 'works' },
   { kind: 'notification', method: 'recv', decoded: true, productStatus: 'bridge-missing' },
   { kind: 'notification', method: 'disconnect', decoded: true, productStatus: 'bridge-missing' },
   { kind: 'notification', method: 'event', decoded: true, productStatus: 'bridge-missing' },
@@ -202,15 +202,15 @@ export interface JSONRPCOutboundSurface {
 
 /** Frame-to-JSON mappings present in the codec; mapping does not imply a reachable product flow. */
 export const jsonRPCOutboundSurface: readonly JSONRPCOutboundSurface[] = [
-  { frame: 'CONNACK', shape: 'connect response', productBoundary: 'unreachable because connect is not authenticated' },
-  { frame: 'SENDACK', shape: 'send response', productBoundary: 'unauthenticated send returns ReasonAuthFail' },
-  { frame: 'RECV', shape: 'recv notification', productBoundary: 'no authenticated JSON-RPC delivery session' },
+  { frame: 'CONNACK', shape: 'correlated connect result or error', productBoundary: 'reachable after JSON-RPC CONNECT authentication and activation' },
+  { frame: 'SENDACK', shape: 'correlated send result or error', productBoundary: 'reachable on an authenticated JSON-RPC session' },
+  { frame: 'RECV', shape: 'recv notification with header object and object payload', productBoundary: 'online delivery only; offline sync is outside EasySDK' },
   { frame: 'EVENT', shape: 'event notification', productBoundary: 'tooling-only EVENT scope' },
   { frame: 'DISCONNECT', shape: 'disconnect notification', productBoundary: 'no published product emission contract' },
   {
     frame: 'PONG',
-    shape: 'pong-shaped response with no result/error field',
-    productBoundary: 'reachable for ping correlation, but not a strict JSON-RPC success response',
+    shape: 'correlated response with result null',
+    productBoundary: 'reachable after CONNECT as a strict JSON-RPC success response',
   },
 ];
 

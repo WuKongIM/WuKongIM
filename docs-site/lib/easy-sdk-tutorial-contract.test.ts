@@ -81,8 +81,10 @@ describe('EasySDK tutorial content contract', () => {
       expect(specification).toContain(platform.revision);
     }
     expect(specification).toContain('republished as source-aligned tutorials');
-    expect(specification).toContain('post-fix Alice/Bob acceptance plan');
-    expect(specification).toContain('not currently executable');
+    expect(specification).toContain('Superseding current state');
+    expect(specification).toContain('Codec fixtures cover iOS, Android, Flutter, and Web');
+    expect(specification).toContain('E2E runs the iOS and Android');
+    expect(specification).not.toContain('not currently executable');
   });
 
   test('retains a bilingual source scaffold with exact platform snapshots', async () => {
@@ -104,14 +106,14 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/u);
     }
 
-    expect(zh).toContain('源码校对不等于本站运行验证');
-    expect(en).toContain('Source alignment is not runtime verification');
+    expect(zh).toContain('服务端线协议凭据不等于平台运行验证');
+    expect(en).toContain('A server-side wire receipt is not platform runtime verification');
     expect(zh).toContain('“5 分钟”描述的是阅读路径');
     expect(en).toContain('“5 minutes” describes the shape of the path');
-    expect(zh).toContain('Gateway/SDK 修复后再用 Alice 和 Bob 验收');
-    expect(en).toContain('After the Gateway/SDK path is fixed, accept with Alice and Bob');
-    expect(zh).not.toContain('选择上方平台完成第一条消息');
-    expect(en).not.toContain('Choose a platform above and send the first message');
+    expect(zh).toContain('用 Alice 和 Bob 验收在线双向收发');
+    expect(en).toContain('Accept online bidirectional messaging with Alice and Bob');
+    expect(zh).toContain('选择上方平台完成第一条消息');
+    expect(en).toContain('Choose a platform above and send the first message');
   });
 
   test('links the exact legacy learning paths while keeping current source authoritative', async () => {
@@ -141,7 +143,7 @@ describe('EasySDK tutorial content contract', () => {
     }
   });
 
-  test('publishes tutorial discovery while keeping the unsupported JSON-RPC path explicit', async () => {
+  test('publishes tutorial discovery with the supported pinned EasySDK path explicit', async () => {
     const pages = await Promise.all([
       doc('sdk/index.mdx'),
       doc('sdk/index.en.mdx'),
@@ -154,7 +156,29 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).toContain('JSON-RPC CONNECT');
     }
     expect(pages[0]).toContain('教程已发布');
-    expect(pages[1]).toContain('tutorials are published');
+    expect(pages[1]).toContain('Pinned tutorials published');
+    expect(pages[0]).toContain('服务端线协议');
+    expect(pages[1]).toContain('server-side wire');
+  });
+
+  test('separates four-profile fixtures from the iOS/Android real-process E2E', async () => {
+    const pages = await Promise.all([
+      content('index.mdx'),
+      content('index.en.mdx'),
+      doc('sdk/index.mdx'),
+      doc('sdk/index.en.mdx'),
+      doc('sdk/choose-sdk.mdx'),
+      doc('sdk/choose-sdk.en.mdx'),
+      doc('sdk/compatibility.mdx'),
+      doc('sdk/compatibility.en.mdx'),
+      doc('api/client-protocols/json-rpc.mdx'),
+      doc('api/client-protocols/json-rpc.en.mdx'),
+    ]);
+
+    for (const page of pages) {
+      expect(page).toMatch(/四端|四个固定|all four|four pinned|iOS `v1\.0\.3`/u);
+      expect(page).toMatch(/iOS 与 Android profile|iOS and Android profiles/u);
+    }
   });
 
   test('keeps every platform tutorial pinned, lifecycle-safe, and explicit about evidence', async () => {
@@ -191,7 +215,7 @@ describe('EasySDK tutorial content contract', () => {
     }
   });
 
-  test('warns direct readers that current Product Gateway cannot run EasySDK CONNECT', async () => {
+  test('tells direct readers that current Product Gateway supports the pinned EasySDK core path', async () => {
     for (const platform of platforms) {
       const [zh, en] = await Promise.all([
         content(`${platform.path}.mdx`),
@@ -199,9 +223,11 @@ describe('EasySDK tutorial content contract', () => {
       ]);
 
       expect(zh).toContain('JSON-RPC CONNECT');
-      expect(zh).toContain('当前 Product Gateway 不支持');
+      expect(zh).toContain('当前 Product Gateway 支持');
+      expect(zh).toContain('在线双向收发');
       expect(en).toContain('JSON-RPC CONNECT');
-      expect(en).toContain('The current Product Gateway does not support');
+      expect(en).toContain('The current Product Gateway supports');
+      expect(en).toContain('online bidirectional messaging');
     }
   });
 

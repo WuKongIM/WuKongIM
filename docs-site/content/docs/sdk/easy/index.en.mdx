@@ -1,16 +1,16 @@
 ---
 title: WuKongEasySDK
-description: Read the pinned EasySDK source APIs and post-fix acceptance flow for iOS, Android, Flutter, and Web; the current Product Gateway does not support JSON-RPC CONNECT.
+description: Read the pinned EasySDK APIs for iOS, Android, Flutter, and Web, then use the current Product Gateway for JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
-WuKongEasySDK is for applications that need realtime communication while keeping their own UI and product state. These tutorials use pinned source to explain how it models connection, events, and sending over WebSocket JSON-RPC; those API shapes do not mean the current Product Gateway can run this path.
+WuKongEasySDK is for applications that need realtime communication while keeping their own UI and product state. These tutorials use pinned source to explain how it models connection, events, and sending over WebSocket JSON-RPC; the current Product Gateway supports the core online path for these four pinned versions.
 
-<Callout type="warn" title="Source alignment is not runtime verification">
-  These tutorials were checked against exact release tags and source revisions in the four official repositories and against the current server JSON-RPC shape. This site has not issued an executable compatibility receipt for these EasySDK versions. The only client path with the site's complete scenario evidence remains the WuKongIMJSSDK Web golden path recorded under [Versions & Compatibility](/en/sdk/compatibility).
+<Callout type="warn" title="A server-side wire receipt is not platform runtime verification">
+  These tutorials were checked against exact release tags and source revisions in the four official repositories. Server fixtures cover all four wire profiles; the real `cmd/wukongim` 256-slot single-node cluster E2E uses the iOS and Android profiles for its Alice/Bob bidirectional loop. It does not compile or execute the published iOS, Android, Flutter, or Web artifacts, so platform builds, device runs, and proxy configuration remain deployment-owned evidence.
 </Callout>
 
-<Callout type="error" title="Current v3 cannot run this path directly">
-  The Product Gateway does not currently support EasySDK's JSON-RPC CONNECT as a client integration path. These source-aligned tutorials are now published and included in search and the sitemap, but “documentation published” does not mean “the SDK can connect to the current server” and does not create a compatibility receipt. The material below explains the pinned source; it is not an availability promise for the current server.
+<Callout type="info" title="The current Product Gateway supports the EasySDK core path">
+  The current server supports JSON-RPC CONNECT, request correlation, ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for these four pinned versions. It accepts camelCase, Android snake_case, JSON text-string payloads, JSON object payloads, Base64 payloads, and JS requests without `jsonrpc`; iOS `v1.0.3` sends a camelCase RECVACK containing both `messageId` and `messageSeq`. This receipt excludes offline sync, push, subscription RPC, batch RPC, and production-grade token verification in the default composition.
 </Callout>
 
 “5 minutes” describes the shape of the path: install, initialize, listen, connect, and send. It is not a completion-time promise and does not include product accounts, authorization, group membership, offline synchronization, push, capacity, or release acceptance.
@@ -34,7 +34,7 @@ WuKongEasySDK is for applications that need realtime communication while keeping
 | Send results and realtime receive | Offline sync, conversations, unread counts, push, and multi-device policy |
 | Bounded automatic reconnect behavior | TLS/WSS, rate limits, capacity, observability, upgrade, and rollback evidence |
 
-EasySDK is neither a chat UI nor a complete product backend. After the Gateway/SDK path is fixed and passes end-to-end verification, a successful `send` result means the server returned a result for that send. It still does not prove that the peer received, displayed, or processed the message. Continue with [Messaging](/en/sdk/common-guides/messaging) and model send acknowledgement, realtime receipt, and product completion separately.
+EasySDK is neither a chat UI nor a complete product backend. A successful `send` result means the server returned a result for that send. It still does not prove that the peer received, displayed, or processed the message. Continue with [Messaging](/en/sdk/common-guides/messaging) and model send acknowledgement, realtime receipt, and product completion separately.
 
 ## One flow, different lifecycle owners
 
@@ -60,9 +60,9 @@ This group preserves the learning sequence from the [legacy WuKongEasySDK overvi
 | [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) |
 | [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) |
 
-The tutorials deliberately pin these versions instead of using ranges or `latest`. After the Gateway/SDK runtime path is fixed, complete the Alice/Bob acceptance loop on an isolated branch before updating the application lockfile and your compatibility record.
+The tutorials deliberately pin these versions instead of using ranges or `latest`. The server-side wire receipt covers only the versions in this table. Re-run the Alice/Bob loop before updating the application lockfile and your compatibility record for an SDK upgrade.
 
-## Prepare connection material for post-fix acceptance
+## Prepare connection material
 
 A client must not grant its own identity. The user first signs in to your product. A trusted product backend then returns only the material needed for this connection:
 
@@ -82,16 +82,16 @@ A client must not grant its own identity. The user first signs in to your produc
 Complete [Identity & Token](/en/sdk/common-guides/identity-and-token) first. In the default v3 Beta composition, storing data through `/user/token` does not automatically provide production-grade CONNECT validation. A deployment must wire a trusted verifier and prove rejection of invalid, expired, and revoked tokens.
 
 <Callout type="info" title="Device categories are aligned; application code should still use enums">
-  All four pinned versions use the same wire values as the [Device Flag dictionary](/en/api/dictionaries/device-flags): APP `0`, WEB `1`, and PC `2`. Mobile clients use `.app` / `APP`, while the browser defaults to WEB; do not copy integers into product code. Aligned device values do not prove the remaining protocol shapes are compatible: the iOS and Android tutorials still document their payload or field blockers.
+  All four pinned versions use the same wire values as the [Device Flag dictionary](/en/api/dictionaries/device-flags): APP `0`, WEB `1`, and PC `2`. Mobile clients use `.app` / `APP`, while the browser defaults to WEB; do not copy integers into product code. The server normalizes each JSON-RPC field and payload shape at the protocol boundary; applications must still apply the lifecycle and logging safeguards in each platform tutorial.
 </Callout>
 
 <Callout type="error" title="Close sensitive SDK logging before production">
   The pinned source on all four platforms has logging paths that can expose tokens or payloads: some Android `v1.0.3` parse-error logs ignore `debugLogging`, the iOS `v1.0.3` JSON-logging setting does not actually gate output, and Flutter `v1.0.4` plus Web `v2.0.2` log complete requests or responses. Each platform tutorial records its exact boundary. Production remains blocked until the SDK is fixed, the built artifact is inspected, and redaction tests pass.
 </Callout>
 
-## After the Gateway/SDK path is fixed, accept with Alice and Bob
+## Accept online bidirectional messaging with Alice and Bob
 
-Run the following minimal loop only after the Gateway/SDK runtime path is fixed:
+Run the following minimal loop in your deployment:
 
 1. Obtain a UID, short-lived token, and WebSocket address separately for Alice and Bob.
 2. Create two independent SDK instances or run two independent application processes.
@@ -101,8 +101,8 @@ Run the following minimal loop only after the Gateway/SDK runtime path is fixed:
 6. Send once from Bob to Alice and verify the reverse direction.
 7. Remove listeners and disconnect when the page, Activity, Widget, or application exits.
 
-Even after the runtime fix, this loop proves only connection and online messaging in the tested environment. Offline recovery, conversations, push, multi-device behavior, reconnect boundaries, and production security require separate evidence.
+This loop proves only connection and online messaging in the tested environment. Offline recovery, conversations, push, multi-device behavior, reconnect boundaries, and production security require separate evidence.
 
 ## Next
 
-Choose a platform above to read its pinned-source APIs, lifecycle, and adoption blockers. After the Gateway/SDK runtime path is fixed, run that page's Alice/Bob acceptance and continue with [Messaging](/en/sdk/common-guides/messaging), [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors), and [Integration Acceptance](/en/guide/integration/acceptance). If you need a local message store, conversations, unread counts, and a broader platform API, return to [Choose an SDK](/en/sdk/choose-sdk) and evaluate the WuKongIMSDK family.
+Choose a platform above and send the first message, run that page's Alice/Bob acceptance, and continue with [Messaging](/en/sdk/common-guides/messaging), [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors), and [Integration Acceptance](/en/guide/integration/acceptance). If you need a local message store, conversations, unread counts, and a broader platform API, return to [Choose an SDK](/en/sdk/choose-sdk) and evaluate the WuKongIMSDK family.

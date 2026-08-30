@@ -35,10 +35,12 @@ It does not own message, presence, Channel, or Controller business policy.
 1. Startup validates and builds listeners, protocols, transports, bounded
    auth/SEND runtimes, and idle tracking; connection open applies drain
    admission, creates Session state, and decodes bounded inbound protocol data.
-2. WKProto CONNECT authenticates and activates off the transport loop, writes
-   CONNACK, then opens the callback gate; authenticated SEND uses bounded
-   session-sharded batching, other frames dispatch synchronously, and all
-   outbound frames serialize through protocol-aware Session writes.
+2. WKProto and JSON-RPC CONNECT authenticate and activate off the transport
+   loop, write a protocol-correlated CONNACK, then open the callback gate;
+   authenticated SEND uses bounded session-sharded batching, other frames
+   dispatch synchronously, and all outbound frames serialize through
+   protocol-aware Session writes. WSMux delegates the CONNECT requirement after
+   selecting its nested wire protocol.
    A terminal session sealer shares that write lock, permanently closes ordinary
    outbound admission, and enqueues the unique marker ACK before later inbound
    frames can reach the handler.

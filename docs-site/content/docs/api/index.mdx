@@ -13,7 +13,7 @@ description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接�
   <Card title="Product HTTP API" description="当前源码注册的 41 条业务 HTTP 操作。" href="/zh/api/product-http" />
   <Card title="运维 HTTP API" description="健康、就绪、指标、Top、Debug 与 Bench 边界。" href="/zh/api/operations-http" />
   <Card title="Webhook" description="三个出站事件、负载和可靠性语义。" href="/zh/api/webhooks" />
-  <Card title="客户端协议" description="WKProto 帧、连接、加密与实验性 JSON-RPC。" href="/zh/api/client-protocols" />
+  <Card title="客户端协议" description="WKProto 帧、连接、加密与 EasySDK JSON-RPC 核心路径。" href="/zh/api/client-protocols" />
   <Card title="公共数据字典" description="Channel、设备、消息标志与 Reason Code。" href="/zh/api/dictionaries" />
   <Card title="接口清单" description="Manager、Node transport、MCP、插件与 Agent 私有合同。" href="/zh/api/interface-inventory" />
   <Card title="规范下载" description="OpenAPI 3.1 与实验性 JSON-RPC Schema。" href="/zh/api/specifications" />
@@ -23,6 +23,6 @@ description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接�
 
 - Product HTTP 仅供受信后端调用，不应直接暴露给浏览器或移动端。
 - Operations HTTP 与 Manager 仅应位于隔离的运维网络；两者不是同一合同。
-- JSON-RPC 只有 codec 合同，当前 Product Gateway 不支持把它作为客户端接入方式。
+- JSON-RPC 支持固定 EasySDK 的 CONNECT、Ping 与在线 SEND/SENDACK、RECV/RECVACK；batch、订阅、离线同步和通用 RPC 不在该合同内。
 - HTTP 状态、端点响应与 CONNACK/SENDACK Reason Code 属于不同层，需分别处理。
 - 版本和验证范围见 [API 兼容性](/zh/api/compatibility)，错误处理见 [错误响应](/zh/api/product-http/errors)。
