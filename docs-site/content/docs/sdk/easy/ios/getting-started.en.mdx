@@ -5,7 +5,7 @@ description: Pin WuKongEasySDK iOS v1.0.3 and complete connection, event handlin
 
 This page turns the legacy “5-minute integration” into an acceptance-friendly iOS loop. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
 
-The install → initialize → listen → connect → send learning order comes from the [legacy iOS EasySDK tutorial](https://docs.githubim.com/en/sdk/easy/ios/getting-started). That page supplies only the learning sequence; the method signatures, versions, and limits below are governed by the pinned `v1.0.3` tag, source revision, and distributed artifact.
+The install → initialize → listen → connect → send reading order follows the [legacy iOS EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started). The old page supplies only the learning path; the pinned `v1.0.3` source and distribution govern the method signatures, version, and limits below.
 
 <Callout type="warn" title="Evidence boundary">
   The example is aligned with the official [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.3` source at revision `643848f85be70e3e3f2be22fceb86ae428b6cc38`; the published package is available on [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK). This is a source-level tutorial, not runtime verification, and it does not expand the executable client scope under [Versions & Compatibility](/en/sdk/compatibility).
@@ -177,71 +177,6 @@ final class EasyChatClient: ObservableObject {
 
 Do not discard the anonymous closure passed to `onMessage`: `removeListener` needs the listener object returned during registration. The sample bounds connection and request handling at 15 seconds and calls `stop()` after failure; automatic reconnect is capped at 5 attempts, while the UI remains not ready. In SwiftUI, let a higher-level `@StateObject` own `EasyChatClient` and call `stop()` on logout or when the application-level owner exits.
 
-### Hand ownership to the SwiftUI account root
-
-The account or application root should own `EasyChatClient`; do not recreate it in a leaf view such as a message list. This compact example shows only the ownership handoff: `start(with:)` retains the 15-second connection/request bounds and failure cleanup above, send stays disabled until `onConnect` has set `isConnected`, and a real account exit calls `stop()`. Ordinary navigation does not tear down the account-level connection.
-
-```swift
-import SwiftUI
-
-struct AccountChatRoot: View {
-    let bootstrap: IMBootstrap
-    let onAccountExit: () -> Void
-
-    @StateObject private var chatClient = EasyChatClient()
-    @State private var draft = ""
-    @State private var startupError: String?
-
-    var body: some View {
-        VStack {
-            if let startupError {
-                Text(startupError).foregroundStyle(.red)
-            }
-
-            TextField("Message", text: $draft)
-            Button("Send to Bob") {
-                let text = draft
-                Task {
-                    do {
-                        _ = try await chatClient.sendText(to: "bob", text: text)
-                        draft = ""
-                    } catch {
-                        startupError = error.localizedDescription
-                    }
-                }
-            }
-            .disabled(!chatClient.isConnected || draft.isEmpty)
-
-            Button("Sign out") {
-                chatClient.stop()
-                onAccountExit()
-            }
-        }
-        .task(id: bootstrap.uid) {
-            startupError = nil
-            do {
-                try await chatClient.start(with: bootstrap)
-            } catch {
-                startupError = error.localizedDescription
-            }
-        }
-    }
-}
-```
-
-This is not a chat UI architecture. The product Session owner must start each account root only once and call `stop()` when the account exits, the root owner is replaced, or the application explicitly ends that Session.
-
-### Drive UI state from public events
-
-| Public callback | UI state | Application response |
-| --- | --- | --- |
-| `onConnect` | Ready | Mark connected and enable send; a WebSocket open alone is not sufficient. |
-| `onDisconnect(info)` | Not ready | Disable send immediately and, if useful, display the safe `info.code` and `info.reason`; wait for a new `onConnect` instead of creating a duplicate client. |
-| `onMessage(message)` | Connection state unchanged | Deduplicate by `messageId` before updating the list; a realtime event does not prove offline synchronization is complete. |
-| `onError(error)` | No automatic connection transition | Give the UI only a redacted, generic error and keep send gated by `isConnected`. Never log a token, payload, or complete JSON-RPC record, and do not assume an error enum the public source does not expose. |
-
-When `connect()` throws or reaches the bound above, keep the root not ready and expose an explicit retry. Reuse the same trusted connection material, or refresh it through the product backend before starting again.
-
 ## Step 4: send the first message
 
 The device flag is aligned in this release. First upgrade or patch the remaining payload contract above. After product login, obtain Alice's `IMBootstrap` and start the client:
@@ -266,7 +201,7 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 3. Have Alice send to the person Channel `bob`, retaining `messageId` and `messageSeq`.
 4. On Bob, verify `fromUid == "alice"`, the Channel, and the payload in `onMessage`.
 5. Send from Bob to Alice and prove the reverse direction.
-6. On a real account exit or account-root replacement, call `stop()` and confirm that no duplicate listener or background connection remains; ordinary leaf-view navigation should not tear down the account-level connection.
+6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
 7. Inspect the Release artifact and device logs to prove tokens, payloads, and complete JSON-RPC data are not recorded. Unmodified `v1.0.3` must not pass the production gate.
 
 Unmodified `v1.0.3` is expected to expose a SEND-payload or RECV-payload failure in this loop; never hide that failure as local success. Even after a fixed build passes, this covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).

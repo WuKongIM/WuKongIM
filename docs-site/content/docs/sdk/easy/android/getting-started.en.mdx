@@ -5,7 +5,7 @@ description: Pin WuKongEasySDK Android v1.0.3 and complete installation, connect
 
 This page keeps the legacy install → initialize → listen → connect → send sequence, while adding an exact version, Activity lifecycle, two-client acceptance, and the current v3 protocol boundary.
 
-That learning sequence comes from the [legacy Android EasySDK tutorial](https://docs.githubim.com/en/sdk/easy/android/getting-started). The legacy page supplies only the reading path; the package coordinate, method signatures, version, and limits below are governed by the pinned `v1.0.3` tag, source revision, and Maven Central artifact.
+That learning sequence follows the [legacy Android EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/android/getting-started). The old page supplies only the reading path; the pinned `v1.0.3` source and Maven Central artifact govern the package coordinate, method signatures, version, and limits below.
 
 <Callout type="warn" title="Evidence boundary">
   The example is aligned with the official [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3` source at revision `62084632cd8d1f26c751b053b0fb82d6aaa63892`; the published artifact is available on [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3). This is a source-level tutorial, not runtime verification, and it does not mean this version has passed a complete compatibility scenario against current WuKongIM v3.
@@ -199,100 +199,7 @@ class ChatActivity : AppCompatActivity() {
 }
 ```
 
-Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly, but that cannot intercept the tag's unconditional error logs and is not a substitute for fixing the SDK. This runnable minimum lets the Activity own both connection and screen lifecycles, so it must disconnect when `isFinishing` to avoid leaving a background connection. Only after moving `connect(bootstrap)` into an Application/account owner should the Activity give up disconnect ownership and subscribe only to UI events, as in the Fragment handoff below.
-
-### Hand ownership to a Fragment and account owner
-
-A Fragment must not call `init` or try to reset the process singleton with another configuration during view recreation. It first verifies that the account owner initialized the SDK, registers listeners for the current View, and removes the exact same objects in `onDestroyView`. It does not call `disconnect()` because a Fragment View does not own the process Session:
-
-```kotlin
-import android.os.Bundle
-import android.view.View
-import androidx.fragment.app.Fragment
-
-class ChatFragment : Fragment(R.layout.fragment_chat) {
-    private val easySDK = WuKongEasySDK.getInstance()
-    private var viewListenersRegistered = false
-
-    private val connectListener = object : WuKongEventListener<ConnectResult> {
-        override fun onEvent(result: ConnectResult) {
-            activity?.runOnUiThread {
-                // Render connected in the current View and enable send.
-            }
-        }
-    }
-    private val disconnectListener = object : WuKongEventListener<DisconnectInfo> {
-        override fun onEvent(info: DisconnectInfo) {
-            activity?.runOnUiThread {
-                // Render info.code / info.reason and disable send in the current View.
-            }
-        }
-    }
-    private val messageListener = object : WuKongEventListener<Message> {
-        override fun onEvent(message: Message) {
-            activity?.runOnUiThread {
-                // Deduplicate by message.messageId before updating the current View.
-            }
-        }
-    }
-    private val errorListener = object : WuKongEventListener<WuKongError> {
-        override fun onEvent(error: WuKongError) {
-            activity?.runOnUiThread {
-                // Show only a redacted generic failure; never log raw Params.
-            }
-        }
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        checkNotNull(easySDK.getConfig()) {
-            "Application/account owner must initialize WuKongEasySDK first"
-        }
-        if (!viewListenersRegistered) {
-            easySDK.addEventListener(WuKongEvent.CONNECT, connectListener)
-            easySDK.addEventListener(WuKongEvent.DISCONNECT, disconnectListener)
-            easySDK.addEventListener(WuKongEvent.MESSAGE, messageListener)
-            easySDK.addEventListener(WuKongEvent.ERROR, errorListener)
-            viewListenersRegistered = true
-        }
-        // Initialize the current View from easySDK.isConnected(); do not await replay.
-    }
-
-    override fun onDestroyView() {
-        if (viewListenersRegistered) {
-            easySDK.removeEventListener(WuKongEvent.CONNECT, connectListener)
-            easySDK.removeEventListener(WuKongEvent.DISCONNECT, disconnectListener)
-            easySDK.removeEventListener(WuKongEvent.MESSAGE, messageListener)
-            easySDK.removeEventListener(WuKongEvent.ERROR, errorListener)
-            viewListenersRegistered = false
-        }
-        super.onDestroyView()
-        // No disconnect: the Fragment View does not own the process Session.
-    }
-}
-
-class AccountConnectionOwner {
-    private val easySDK = WuKongEasySDK.getInstance()
-
-    fun exitAccount() {
-        easySDK.disconnect()
-        // v1.0.3 remains initialized; restart the process or upgrade before another config.
-    }
-}
-```
-
-Create `AccountConnectionOwner` exactly once from the Application or account-Session container, and move initialization, exact-configuration validation, and bounded connection into it. Only that owner disconnects on a real account exit; Fragment or Compose screens add and remove their own observers. If the UID, token, URL, or another setting changes, retain the explicit check above and restart the process or upgrade the SDK instead of silently calling `init` again.
-
-### Drive UI state from public events
-
-| Public event | UI state | Application response |
-| --- | --- | --- |
-| `CONNECT` | Ready | Mark connected and enable send. On Activity/Fragment recreation, use `isConnected()` for the current snapshot. |
-| `DISCONNECT` | Not ready | Disable send immediately and, if useful, display `code` and `reason`; wait for the same owner's next `CONNECT` instead of creating or resetting the singleton. |
-| `MESSAGE` | Connection state unchanged | Deduplicate by `messageId` before updating the current View; a realtime event does not prove offline synchronization is complete. |
-| `ERROR` | No automatic connection transition | Show only a redacted generic error and keep send gated by the current connection state. Do not guess an unpublished error enum or write a token, payload, raw JSON, or `Params` to application logs. |
-
-After a connection timeout or `connect()` failure, the account owner cleans up that failed connection, keeps the UI not ready, and retries explicitly only with the same validated configuration.
+Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly, but that cannot intercept the tag's unconditional error logs and is not a substitute for fixing the SDK. A production application normally lets an Application-scoped connection manager own the SDK while Activities or Fragments subscribe only to UI events. The screen-level owner above makes the minimal lifecycle visible.
 
 ## Step 5: send the first message
 
@@ -333,7 +240,7 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 4. Bob checks `fromUid`, `channelId`, `messageId`, and the payload.
 5. Bob sends back to Alice and proves the reverse direction.
 6. In the reviewed build, exercise success and parse-failure paths with unique fake token and message canaries; confirm neither value appears in Logcat or crash reports.
-7. Recreate the Activity or Fragment View and confirm listeners are not duplicated; have the account owner exit the account and confirm the connection closes.
+7. Recreate the Activity and confirm listeners are not duplicated; exit the application and confirm the connection closes.
 
 Unmodified `v1.0.3` is expected to fail against current v3 at a field or payload phase. That is evidence for the compatibility blockers above. Retain the server revision, Android tag, and failing phase instead of hiding it with blind retries. Only a fixed build can produce retained Alice/Bob send and receive evidence.
 

@@ -5,7 +5,7 @@ description: 锁定 WuKongEasySDK iOS v1.0.3，在 Swift 应用中完成连接�
 
 本页把旧版“5 分钟集成”整理成一个可验收的 iOS 最小闭环：先由业务后端提供连接材料，再让 Alice 与 Bob 分别连接、互发一条消息，最后正确移除监听器。
 
-本文的“安装 → 初始化 → 监听 → 连接 → 发送”阅读顺序参考[旧版 iOS EasySDK 教程](https://docs.githubim.com/zh/sdk/easy/ios/getting-started)。旧文档只提供学习顺序；下面的方法签名、版本与限制以当前固定的 `v1.0.3` tag、源码 revision 和分发产物为准。
+“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 iOS EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)。旧页只提供学习路径；下面的方法签名、版本与限制以固定的 `v1.0.3` 源码和分发产物为准。
 
 <Callout type="warn" title="证据边界">
   示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.3`、源码 revision `643848f85be70e3e3f2be22fceb86ae428b6cc38` 校对，发布包可在 [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) 核对。这是源码级教程，不是本站运行验证，也不扩大[版本与兼容性](/zh/sdk/compatibility)中的可执行客户端范围。
@@ -177,71 +177,6 @@ final class EasyChatClient: ObservableObject {
 
 不要把 `onMessage` 的匿名闭包丢掉；`removeListener` 需要注册时返回的监听器对象。示例把连接与请求上限固定为 15 秒，失败后立即 `stop()`；自动重连最多 5 次，但 UI 仍要显示未就绪状态。SwiftUI 可以让一个上层 `@StateObject` 持有 `EasyChatClient`，在退出账号或应用根视图销毁时调用 `stop()`。
 
-### 交给 SwiftUI 的账号根视图持有
-
-`EasyChatClient` 应由账号或应用根视图持有，而不是在消息列表等叶子页面中反复创建。下面只展示所有权交接：`start(with:)` 继续使用前面的 15 秒连接/请求上限并在失败时清理；发送按钮只在 `onConnect` 已把 `isConnected` 设为 `true` 后启用；真正退出账号时先 `stop()`，普通页面跳转不销毁账号级连接。
-
-```swift
-import SwiftUI
-
-struct AccountChatRoot: View {
-    let bootstrap: IMBootstrap
-    let onAccountExit: () -> Void
-
-    @StateObject private var chatClient = EasyChatClient()
-    @State private var draft = ""
-    @State private var startupError: String?
-
-    var body: some View {
-        VStack {
-            if let startupError {
-                Text(startupError).foregroundStyle(.red)
-            }
-
-            TextField("Message", text: $draft)
-            Button("Send to Bob") {
-                let text = draft
-                Task {
-                    do {
-                        _ = try await chatClient.sendText(to: "bob", text: text)
-                        draft = ""
-                    } catch {
-                        startupError = error.localizedDescription
-                    }
-                }
-            }
-            .disabled(!chatClient.isConnected || draft.isEmpty)
-
-            Button("Sign out") {
-                chatClient.stop()
-                onAccountExit()
-            }
-        }
-        .task(id: bootstrap.uid) {
-            startupError = nil
-            do {
-                try await chatClient.start(with: bootstrap)
-            } catch {
-                startupError = error.localizedDescription
-            }
-        }
-    }
-}
-```
-
-这个片段没有定义聊天 UI 架构。产品 Session 的 owner 必须保证同一账号根只启动一次；账号退出、根 owner 被替换或应用明确结束该 Session 时调用 `stop()`。
-
-### 用公开事件驱动 UI 状态
-
-| 公开回调 | UI 状态 | 应用响应 |
-| --- | --- | --- |
-| `onConnect` | 已就绪 | 设为已连接并启用发送；不要仅凭 WebSocket 打开就启用。 |
-| `onDisconnect(info)` | 未就绪 | 立即禁用发送，可安全展示 `info.code` 与 `info.reason`；等待新的 `onConnect`，不要另建重复客户端。 |
-| `onMessage(message)` | 连接状态不变 | 按 `messageId` 去重后更新列表；不要把实时事件当成离线同步完成。 |
-| `onError(error)` | 不自动改变连接状态 | 只向 UI 提供经过脱敏的通用错误信息，发送仍由 `isConnected` 门禁；不要把 Token、Payload 或完整 JSON-RPC 写入日志，也不要假设未公开的错误枚举。 |
-
-`connect()` 抛错或达到前述上限时，根视图保持未就绪并显示可重试提示；再次启动前沿用同一受信连接材料，或先从业务后端刷新材料。
-
 ## 步骤 4：发送第一条消息
 
 设备标志已在该版本对齐；先升级或修复前述 Payload 合同，再在用户完成产品登录后取得 Alice 的 `IMBootstrap` 并启动：
@@ -266,7 +201,7 @@ print("SEND result: \(result.messageId), seq=\(result.messageSeq)")
 3. Alice 向个人 Channel `bob` 发送消息，保存 `messageId` 与 `messageSeq`；
 4. Bob 在 `onMessage` 中核对 `fromUid == "alice"`、Channel 和 Payload；
 5. Bob 向 Alice 回发，再验证反向链路；
-6. 真正退出账号或替换账号根 owner 时调用 `stop()`，确认没有重复监听和后台连接；普通叶子页面跳转不应销毁账号级连接；
+6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接；
 7. 检查 Release 构建与设备日志，证明 Token、Payload 和完整 JSON-RPC 数据不会被记录；`v1.0.3` 原始源码未修复前不得通过生产门禁。
 
 未修改的 `v1.0.3` 预期会在该闭环暴露 SEND Payload 或 RECV Payload 问题；不能把失败隐藏为本地成功。这一步即使在修复后通过，也只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要按[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)另行设计。

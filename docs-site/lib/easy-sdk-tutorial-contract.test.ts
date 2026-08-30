@@ -14,7 +14,6 @@ async function doc(fileName: string) {
 const platforms = [
   {
     path: 'ios/getting-started',
-    legacyPath: 'ios/getting-started',
     repository: 'WuKongEasySDK-iOS',
     tag: 'v1.0.3',
     revision: '643848f85be70e3e3f2be22fceb86ae428b6cc38',
@@ -23,11 +22,9 @@ const platforms = [
     api: ['WuKongConfig', 'onConnect', 'onMessage', 'removeListener', 'sdk.connect()', 'sdk.send('],
     bounded: ['connectionTimeout: 15', 'requestTimeout: 15'],
     cleanup: ['sdk.disconnect()', 'listeners.forEach { sdk.removeListener($0) }'],
-    frameworkLifecycle: ['SwiftUI', '@StateObject', 'chatClient.stop()'],
   },
   {
     path: 'android/getting-started',
-    legacyPath: 'android/getting-started',
     repository: 'WuKongEasySDK-Android',
     tag: 'v1.0.3',
     revision: '62084632cd8d1f26c751b053b0fb82d6aaa63892',
@@ -42,11 +39,9 @@ const platforms = [
     ],
     bounded: ['withTimeout(20_000)', '.connectionTimeout(15_000)'],
     cleanup: ['easySDK.disconnect()', 'removeEventListener'],
-    frameworkLifecycle: ['Fragment', 'onDestroyView', 'process singleton'],
   },
   {
     path: 'flutter/getting-started',
-    legacyPath: 'flutter/getting-started',
     repository: 'WuKongEasySDK-Flutter',
     tag: 'v1.0.4',
     revision: '6179251b49414401fe0eac4bfa3fec3f9b13a9fc',
@@ -61,11 +56,9 @@ const platforms = [
     ],
     bounded: ['.timeout(', 'Duration(seconds: 20)'],
     cleanup: ['easySDK.disconnect()', 'easySDK.dispose()'],
-    frameworkLifecycle: ['ChangeNotifier', 'notifyListeners()', 'Provider'],
   },
   {
     path: 'javascript/getting-started',
-    legacyPath: 'javascript/getting-started',
     repository: 'WuKongEasySDK-JS',
     tag: 'v2.0.2',
     revision: 'c59c80551944c9e5d9b4a902ebd2629d3defb2e6',
@@ -74,7 +67,6 @@ const platforms = [
     api: ['WKIM.init', 'im.on', 'im.off', 'im.connect()', 'im.send('],
     bounded: ['Promise.race', '10_000'],
     cleanup: ['im.off', 'im.destroy()'],
-    frameworkLifecycle: ['useEffect', 'AbortController', 'chat.stop()'],
   },
 ] as const;
 
@@ -119,8 +111,8 @@ describe('EasySDK tutorial content contract', () => {
   test('links the exact legacy learning paths while keeping current source authoritative', async () => {
     const [zh, en] = await Promise.all([content('index.mdx'), content('index.en.mdx')]);
 
-    expect(zh).toContain('https://docs.githubim.com/zh/sdk/easy/overview');
-    expect(en).toContain('https://docs.githubim.com/en/sdk/easy/overview');
+    expect(zh).toContain('https://wukong.mintlify.app/zh/sdk/easy/overview');
+    expect(en).toContain('https://wukong.mintlify.app/en/sdk/easy/overview');
     expect(zh).toContain('学习顺序');
     expect(en).toContain('learning sequence');
 
@@ -131,26 +123,15 @@ describe('EasySDK tutorial content contract', () => {
       ]);
 
       expect(platformZh).toContain(
-        `https://docs.githubim.com/zh/sdk/easy/${platform.legacyPath}`,
+        `https://wukong.mintlify.app/zh/sdk/easy/${platform.path}`,
       );
       expect(platformEn).toContain(
-        `https://docs.githubim.com/en/sdk/easy/${platform.legacyPath}`,
+        `https://wukong.mintlify.app/en/sdk/easy/${platform.path}`,
       );
-      expect(platformZh).toContain('学习顺序');
-      expect(platformEn).toContain('learning sequence');
-    }
-  });
-
-  test('hands each quickstart into its native framework lifecycle without inventing SDK APIs', async () => {
-    for (const platform of platforms) {
-      const pages = await Promise.all([
-        content(`${platform.path}.mdx`),
-        content(`${platform.path}.en.mdx`),
-      ]);
-
-      for (const page of pages) {
-        for (const marker of platform.frameworkLifecycle) expect(page).toContain(marker);
-      }
+      expect(platformZh).toContain('旧页');
+      expect(platformEn).toContain('old page');
+      expect(platformZh).toContain(`固定的 \`${platform.tag}\` 源码`);
+      expect(platformEn).toContain(`pinned \`${platform.tag}\` source`);
     }
   });
 

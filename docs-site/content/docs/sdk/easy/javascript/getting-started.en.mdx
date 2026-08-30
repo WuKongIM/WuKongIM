@@ -5,9 +5,7 @@ description: Pin easyjssdk v2.0.2 and use a product BFF to connect, subscribe, s
 
 This page covers browser integration only. The browser asks your product BFF for the current user's connection material, then uses EasyJSSDK to establish a WebSocket JSON-RPC connection. It never holds a Product HTTP management credential directly.
 
-<Callout type="info" title="The legacy guide supplies only the learning sequence">
-  The [legacy Web EasySDK getting-started guide](https://docs.githubim.com/en/sdk/easy/javascript/getting-started) remains useful for understanding the “install → initialize → listen → connect → send” learning sequence. This page is still a planned source evaluation: the legacy guide is not API evidence, and method names, parameters, and lifecycle boundaries come from the pinned `v2.0.2` source and revision below. The current Product Gateway does not support the JSON-RPC CONNECT path EasySDK needs, so this material cannot establish runtime compatibility.
-</Callout>
+The install → initialize → listen → connect → send reading order follows the [legacy Web EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started). The old page is not API evidence; the pinned `v2.0.2` source and npm artifact govern the method names, parameters, and lifecycle boundaries below.
 
 <Callout type="warn" title="Evidence boundary">
   The example is aligned with the official [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.2` source at revision `c59c80551944c9e5d9b4a902ebd2629d3defb2e6`; the published package is available on [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2). This is a source-level tutorial, not runtime verification, and it is not a compatibility receipt for the existing `wukongimjssdk@1.3.5` Web golden path.
@@ -60,12 +58,11 @@ interface IMBootstrap {
   websocketUrl: string;
 }
 
-async function fetchIMBootstrap(signal?: AbortSignal): Promise<IMBootstrap> {
+async function fetchIMBootstrap(): Promise<IMBootstrap> {
   const response = await fetch('/api/im/bootstrap', {
     credentials: 'include',
     cache: 'no-store',
     headers: { accept: 'application/json' },
-    signal,
   });
   if (!response.ok) throw new Error(`IM bootstrap failed: ${response.status}`);
   return response.json() as Promise<IMBootstrap>;
@@ -81,40 +78,26 @@ The browser never calls `/user/token` or `/route` directly. Their management bou
 ```ts
 import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
 
-type EasyChatClientEvent =
-  | { type: 'connect' }
-  | { type: 'disconnect' }
-  | { type: 'message' }
-  | { type: 'error' };
-
 export class EasyChatClient {
   private im?: WKIM;
   private readonly messages = new Map<string, unknown>();
 
-  constructor(
-    private readonly observe: (event: EasyChatClientEvent) => void = () => {},
-  ) {}
-
   private readonly onConnect = (result: unknown) => {
     console.info('EasySDK connected', result);
-    this.observe({ type: 'connect' });
   };
 
   private readonly onDisconnect = (info: unknown) => {
     console.info('EasySDK disconnected', info);
-    this.observe({ type: 'disconnect' });
   };
 
   private readonly onMessage = (message: any) => {
     if (this.messages.has(message.messageId)) return;
     this.messages.set(message.messageId, message);
     // Pass the deduplicated message to application state.
-    this.observe({ type: 'message' });
   };
 
   private readonly onError = (error: unknown) => {
     console.error('EasySDK error', error);
-    this.observe({ type: 'error' });
   };
 
   async start(bootstrap: IMBootstrap): Promise<void> {
@@ -180,70 +163,6 @@ export class EasyChatClient {
 ```
 
 An application normally creates one `EasyChatClient`. The SDK has an internal timeout for the CONNECT JSON-RPC request, but the WebSocket-open phase can still hang; `connectWithin` bounds the complete wait at 10 seconds and calls `destroy` after failure. React can keep the client in a root-level Provider and call `stop()` from an Effect cleanup. Vue and Svelte use the corresponding component or application unmount hook.
-
-### React lifecycle handoff: a `useEffect` adapter
-
-The `observe` callback above belongs to the application wrapper; it is not a new EasyJSSDK API. React can use it to project the existing `WKIMEvent.Connect`, `Disconnect`, and `Error` events into UI state, while an `AbortController` cancels an unfinished BFF request. Connection material arrives only from the BFF at runtime. No token appears in source, initial state, or error copy.
-
-```tsx
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-type EasyChatViewState = 'connecting' | 'online' | 'offline' | 'error';
-
-export function useEasyChatClient() {
-  const chatRef = useRef<EasyChatClient | null>(null);
-  const [state, setState] = useState<EasyChatViewState>('connecting');
-
-  useEffect(() => {
-    const request = new AbortController();
-    let active = true;
-    const chat = new EasyChatClient((event) => {
-      if (!active) return;
-      if (event.type === 'connect') setState('online');
-      if (event.type === 'disconnect') setState('offline');
-      if (event.type === 'error') setState('error');
-    });
-    chatRef.current = chat;
-
-    void (async () => {
-      try {
-        const bootstrap = await fetchIMBootstrap(request.signal);
-        if (!active) return;
-        await chat.start(bootstrap);
-      } catch (_) {
-        if (!active || request.signal.aborted) return;
-        setState('error');
-      }
-    })();
-
-    return () => {
-      active = false;
-      request.abort();
-      chat.stop();
-      if (chatRef.current === chat) chatRef.current = null;
-    };
-  }, []);
-
-  const sendText = useCallback((targetUid: string, text: string) => {
-    const chat = chatRef.current;
-    if (!chat) return Promise.reject(new Error('EasySDK client is not ready'));
-    return chat.sendText(targetUid, text);
-  }, []);
-
-  return { state, sendText };
-}
-```
-
-Do not create `EasyChatClient` during component render. Do not place `IMBootstrap` in a module constant, frontend environment variable, persistent store, or sample source. Component unmount, account switching, and authenticated-Provider disposal all use the same cleanup path above. The cancellation guard prevents a late Promise from updating an unmounted UI, while `chat.stop()` performs the exact `off` and `destroy` cleanup.
-
-| Documented public event | UI state | Application response |
-| --- | --- | --- |
-| `WKIMEvent.Connect` | Online | Enable send; do not treat connection as proof that Bob received a message or offline synchronization completed |
-| `WKIMEvent.Disconnect` | Offline | Disable send and wait for another Connect event or re-enter the connection flow under the product retry policy |
-| `WKIMEvent.Error` | Error | Show a generic error without token, payload, or raw parameters, and offer a bounded retry |
-| `WKIMEvent.Message` | Unchanged | Deduplicate by `messageId` and hand the message to application state without mixing it into connection state |
-
-These states are only a React projection of existing events. They do not change the tutorial's planned status or the JSON-RPC CONNECT blocker.
 
 ## Step 4: send the first message
 

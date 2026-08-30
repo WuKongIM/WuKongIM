@@ -45,22 +45,11 @@ describe('legacy redirect seed', () => {
     expect(manifest.mappings).toEqual(
       expect.arrayContaining(
         ['zh', 'en'].flatMap((locale) =>
-          ['/sdk/overview', '/sdk/source-code'].map((source) => ({
+          ['/sdk/overview', '/sdk/easy/overview', '/sdk/source-code'].map((source) => ({
             source: `/${locale}${source}`,
             destination: `/${locale}/sdk/choose-sdk`,
           })),
         ),
-      ),
-    );
-  });
-
-  test('routes the legacy EasySDK overview to its exact maintained counterpart', () => {
-    expect(manifest.mappings).toEqual(
-      expect.arrayContaining(
-        ['zh', 'en'].map((locale) => ({
-          source: `/${locale}/sdk/easy/overview`,
-          destination: `/${locale}/sdk/easy`,
-        })),
       ),
     );
   });

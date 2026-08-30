@@ -31,6 +31,8 @@ Source revision of this repository: `83d6f81871c5667c8ea9bb980b094075fa015d45`
 
 英文镜像使用完全相同的路由结构，只把 `/zh/` 换为 `/en/`。旧页顶部导航和官方索引都只显示上述四个平台。
 
+表中保留用户提供的 `docs.githubim.com` 原地址用于审计。迁移后的教程改用独立的 [wukong.mintlify.app 旧站镜像](https://wukong.mintlify.app/zh/sdk/easy/overview)，避免新站接管 `docs.githubim.com` 后同路径链接指回当前页面。
+
 ## 共享教学结构
 
 ### 旧站概览页的实质内容
@@ -191,12 +193,12 @@ Source: [旧站 Web 页](https://docs.githubim.com/zh/sdk/easy/javascript/gettin
 
 | 平台 | 精确源码 | 发布包证据 | 已核对的公开入口 |
 | --- | --- | --- | --- |
-| iOS | [`v1.0.3` / `643848f85be70e3e3f2be22fceb86ae428b6cc38`](https://github.com/WuKongIM/WuKongEasySDK-iOS/tree/643848f85be70e3e3f2be22fceb86ae428b6cc38) | [CocoaPods Trunk API](https://trunk.cocoapods.org/api/v1/pods/WuKongEasySDK) 列出 `1.0.3`；公开 cocoapods.org HTML 可能滞后 | `WuKongConfig`、`WuKongEasySDK`、`on*`、`removeListener`、`connect`、`disconnect`、`send` |
+| iOS | [`v1.0.3` / `643848f85be70e3e3f2be22fceb86ae428b6cc38`](https://github.com/WuKongIM/WuKongEasySDK-iOS/tree/643848f85be70e3e3f2be22fceb86ae428b6cc38) | [CocoaPods 页面](https://cocoapods.org/pods/WuKongEasySDK)与 [Trunk API](https://trunk.cocoapods.org/api/v1/pods/WuKongEasySDK) 均列出 `1.0.3` | `WuKongConfig`、`WuKongEasySDK`、`on*`、`removeListener`、`connect`、`disconnect`、`send` |
 | Android | [`v1.0.3` / `62084632cd8d1f26c751b053b0fb82d6aaa63892`](https://github.com/WuKongIM/WuKongEasySDK-Android/tree/62084632cd8d1f26c751b053b0fb82d6aaa63892) | [Maven Central metadata](https://repo1.maven.org/maven2/com/githubim/easysdk-android/maven-metadata.xml) 的 latest/release 是 `1.0.3` | `WuKongConfig.Builder`、`getInstance`、`init`、`add/removeEventListener`、`connect`、`disconnect`、`send` |
 | Flutter | [`v1.0.4` / `6179251b49414401fe0eac4bfa3fec3f9b13a9fc`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/tree/6179251b49414401fe0eac4bfa3fec3f9b13a9fc) | [pub.dev API](https://pub.dev/api/packages/wukong_easy_sdk) 的 latest 是 `1.0.4` | `WuKongEasySDK.getInstance`、`init`、`add/removeEventListener`、`connect`、`disconnect`、`dispose`、`send` |
 | Web | [`v2.0.2` / `c59c80551944c9e5d9b4a902ebd2629d3defb2e6`](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/c59c80551944c9e5d9b4a902ebd2629d3defb2e6) | [npm registry](https://registry.npmjs.org/easyjssdk/2.0.2) 发布 `2.0.2` | `WKIM.init`、`on`、`off`、`connect`、`disconnect`、`destroy`、`send`；导出 `WKIMChannelType/WKIMEvent/WKIMDeviceFlag` |
 
-注：CocoaPods 的普通 HTML 页在本次研究时仍显示缓存的 `1.0.2`，但 Trunk API 已列出 `1.0.3` 且记录了 2026-08-27 的发布时间。版本判断应以 Trunk API 为准。
+注：检索初期曾出现显示 `1.0.2` 的旧缓存结果；复核时 CocoaPods 直达页与 Trunk API 均显示 `1.0.3`。版本判断以包注册表与 API 的当前结果为准。
 
 ## 当前 v3 协议边界
 
@@ -244,14 +246,14 @@ Source: [旧站 Web 页](https://docs.githubim.com/zh/sdk/easy/javascript/gettin
 | 优先级 | 素材 | 如何迁入 |
 | --- | --- | --- |
 | P1 | “保存 listener 引用”正反例 | 在每个平台的生命周期段落加一个很短的“正确 / 错误”对照；不需要复制旧页整个大类 |
-| P1 | 平台 UI 所有权 | iOS 补 UIKit/SwiftUI 小节，Android 补 Activity/Fragment，Flutter 补 Widget/应用级状态容器，Web 补 React/Vue/Svelte cleanup；每节同时说明何时只移除页面 listener，何时断开应用级 SDK |
+| P1 | 平台生命周期所有权 | 用简短提示区分页面 listener 与应用级连接 owner，并明确何时移除监听、何时断开 SDK；不扩展为 UIKit/SwiftUI、Fragment、Provider 或 React 的 UI 架构教程 |
 | P1 | 安装语法的同等变体 | Android 保留 Groovy + Kotlin DSL；Web 可补 yarn/pnpm 的精确版本写法；不增加不存在的 CDN 或 iOS framework |
 | P2 | 五步集成流程图 | 在 EasySDK 概览上用简短流程或有序列表表达“安装 → 后端 bootstrap → 监听 → 连接 → Alice/Bob 验收 → 清理” |
 | P2 | 使用场景决策表 | 保留“原型/MVP/简单实时事件”作为意图，但在表中显式写出当前 CONNECT、离线、日志和兼容性阻断，不做现时采用建议 |
 | P2 | 多监听器行为 | 说明同一事件可有多个 listener，页面订阅者之间不应使用全局 `removeAll*` 相互破坏 |
 | P3 | 错误分类入口 | 不复制旧错误代码；用精确 tag 的错误类型给出认证、网络、超时、未连接、无效 Channel 的处理策略 |
 
-当前新站已经覆盖了精确版本、受信后端 bootstrap、生命周期封装、发送、Alice/Bob 验收、Payload/字段阻断、日志风险与常见问题。因此上表建议应优先以简短的对照、可折叠框架片段或表格增补，避免再造一套冗长快速接入代码。
+当前新站已经覆盖了精确版本、受信后端 bootstrap、生命周期封装、发送、Alice/Bob 验收、Payload/字段阻断、日志风险与常见问题。因此上表建议应优先以简短对照或表格增补，避免再造一套冗长快速接入代码或平台 UI 架构。
 
 ### 明确不应从旧站迁入的内容
 

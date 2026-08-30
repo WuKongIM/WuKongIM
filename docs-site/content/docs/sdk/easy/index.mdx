@@ -10,7 +10,7 @@ WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业
 </Callout>
 
 <Callout type="error" title="当前 v3 还不能直接运行这条路径">
-  Product Gateway 尚未实现 EasySDK 依赖的 JSON-RPC CONNECT，因此这组教程继续保持“规划中”，不进入搜索、Sitemap 或兼容性凭据。下文是对固定源码的接入说明，不是当前服务端的可用性承诺。
+  Product Gateway 当前不支持将 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径，因此这组教程继续保持“规划中”，不进入搜索、Sitemap 或兼容性凭据。下文是对固定源码的接入说明，不是当前服务端的可用性承诺。
 </Callout>
 
 “5 分钟”描述的是阅读路径：安装、初始化、监听、连接和发送。它不是完成时间承诺，也不包含业务账号、授权、群成员、离线同步、推送、容量与上线验收。
@@ -45,11 +45,11 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 | 连接就绪 | `onConnect` 后才启用发送 | `CONNECT` 后才启用发送 | `connect` 事件后才启用发送 | `Connect` 事件后才启用发送 |
 | 退出账号 | 移除 token 并 `disconnect` | 由进程/账号 owner 移除监听并断开 | 移除监听、`disconnect` 并 `dispose` | `off` 后 `destroy` |
 
-页面可以订阅状态，但不应因为页面重建而创建第二个连接。四个平台页面都给出了一个简短的框架交接方式；它们说明“谁创建、谁清理”，不是完整聊天 UI 架构。
+页面可以订阅状态，但不应因为页面重建而创建第二个连接。各平台页面分别说明“谁创建、谁清理”，但不规定应用的 UI 架构。
 
 ## 教程依据与校准规则
 
-本组保留[旧版 WuKongEasySDK 概览](https://docs.githubim.com/zh/sdk/easy/overview)的学习顺序，并分别对照旧版 [iOS](https://docs.githubim.com/zh/sdk/easy/ios/getting-started)、[Android](https://docs.githubim.com/zh/sdk/easy/android/getting-started)、[Flutter](https://docs.githubim.com/zh/sdk/easy/flutter/getting-started) 和 [Web](https://docs.githubim.com/zh/sdk/easy/javascript/getting-started) 页面。旧站只决定“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序；方法签名、版本、平台下限、协议形态和安全边界都以下面的固定发布源码为准。旧页中的浮动版本、“零配置”和未经证明的兼容结论不会被原样迁移。
+本组保留[旧版 WuKongEasySDK 概览](https://wukong.mintlify.app/zh/sdk/easy/overview)的学习顺序，并分别对照旧版 [iOS](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)、[Android](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)、[Flutter](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started) 和 [Web](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started) 页面。旧站只决定“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序；方法签名、版本、平台下限、协议形态和安全边界都以下面的固定发布源码为准。旧页中的浮动版本、“零配置”和未经证明的兼容结论不会被原样迁移。
 
 ## 四个平台采用的源码快照
 

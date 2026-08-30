@@ -5,9 +5,7 @@ description: Pin WuKongEasySDK Flutter v1.0.4 and complete initialization, conne
 
 This page joins the minimal Flutter EasySDK flow inside one `StatefulWidget`: obtain connection material from the product backend, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
 
-<Callout type="info" title="The legacy guide supplies only the learning sequence">
-  The [legacy Flutter EasySDK getting-started guide](https://docs.githubim.com/en/sdk/easy/flutter/getting-started) remains useful for understanding the “install → initialize → listen → connect → send” learning sequence. This page is still a planned source evaluation: the legacy guide is not API evidence, and method names, parameters, and lifecycle boundaries come from the pinned `v1.0.4` source and revision below. The current Product Gateway does not support the JSON-RPC CONNECT path EasySDK needs, so this material cannot establish runtime compatibility.
-</Callout>
+The install → initialize → listen → connect → send reading order follows the [legacy Flutter EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started). The old page is not API evidence; the pinned `v1.0.4` source and distribution govern the method names, version, and lifecycle boundaries below.
 
 <Callout type="warn" title="Evidence boundary">
   The example is aligned with the official [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.4` source at revision `6179251b49414401fe0eac4bfa3fec3f9b13a9fc`; the published package is available on [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4). This is a source-level tutorial, not runtime verification, and it does not mean every Flutter target passed against the same server combination.
@@ -214,116 +212,6 @@ class _ChatPageState extends State<ChatPage> {
 ```
 
 Page-level `dispose()` is appropriate for the minimal example. `Future.timeout` bounds the complete connection wait at 20 seconds and disconnects after timeout or another failure; the page must not remain in Connecting forever. If a real application keeps the connection while navigating, let Provider, Riverpod, Bloc, or another application-level state owner hold the SDK. A page adds and removes only its own listeners; final logout performs `disconnect` and `dispose`.
-
-### Application-level lifecycle handoff: ChangeNotifier / Provider
-
-If the connection must survive navigation, hand the same initialization and callbacks to a `ChangeNotifier` in the authenticated application scope. This example shows ownership handoff only, not a complete UI architecture. Each of the four `late final` callbacks is created once, so registration and removal use the identical function reference.
-
-```dart
-enum EasyConnectionPhase { idle, connecting, online, offline, failed }
-
-class EasyChatSession extends ChangeNotifier {
-  EasyChatSession() {
-    connectListener = (_) => _setPhase(EasyConnectionPhase.online);
-    disconnectListener = (_) => _setPhase(EasyConnectionPhase.offline);
-    messageListener = (message) {
-      if (_closed) return;
-      messagesById[message.messageId] = message;
-      notifyListeners();
-    };
-    errorListener = (_) => _setPhase(EasyConnectionPhase.failed);
-  }
-
-  final easySDK = WuKongEasySDK.getInstance();
-  final messagesById = <String, Message>{};
-
-  late final WuKongEventListener<ConnectResult> connectListener;
-  late final WuKongEventListener<DisconnectInfo> disconnectListener;
-  late final WuKongEventListener<Message> messageListener;
-  late final WuKongEventListener<WuKongError> errorListener;
-
-  EasyConnectionPhase phase = EasyConnectionPhase.idle;
-  bool _listenersRegistered = false;
-  bool _closed = false;
-
-  Future<void> start(IMBootstrap bootstrap) async {
-    if (_closed) throw StateError('EasyChatSession is closed');
-    _setPhase(EasyConnectionPhase.connecting);
-
-    try {
-      await easySDK.init(WuKongConfig(
-        serverUrl: bootstrap.websocketUrl,
-        uid: bootstrap.uid,
-        token: bootstrap.token,
-      ));
-      if (_closed) return;
-      _registerListeners();
-      await easySDK.connect().timeout(
-        const Duration(seconds: 20),
-        onTimeout: () {
-          easySDK.disconnect();
-          throw TimeoutException('EasySDK connect exceeded 20 seconds');
-        },
-      );
-    } catch (_) {
-      if (_closed) return;
-      easySDK.disconnect();
-      _setPhase(EasyConnectionPhase.failed);
-    }
-  }
-
-  void _registerListeners() {
-    if (_closed || _listenersRegistered) return;
-    easySDK.addEventListener(WuKongEvent.connect, connectListener);
-    easySDK.addEventListener(WuKongEvent.disconnect, disconnectListener);
-    easySDK.addEventListener(WuKongEvent.message, messageListener);
-    easySDK.addEventListener(WuKongEvent.error, errorListener);
-    _listenersRegistered = true;
-  }
-
-  void _setPhase(EasyConnectionPhase next) {
-    if (_closed) return;
-    phase = next;
-    notifyListeners();
-  }
-
-  void logout() => _release(notify: true);
-
-  void _release({required bool notify}) {
-    if (_closed) return;
-    _closed = true;
-    if (_listenersRegistered) {
-      easySDK.removeEventListener(WuKongEvent.connect, connectListener);
-      easySDK.removeEventListener(WuKongEvent.disconnect, disconnectListener);
-      easySDK.removeEventListener(WuKongEvent.message, messageListener);
-      easySDK.removeEventListener(WuKongEvent.error, errorListener);
-      _listenersRegistered = false;
-    }
-    easySDK.disconnect();
-    easySDK.dispose();
-    messagesById.clear();
-    phase = EasyConnectionPhase.idle;
-    if (notify) notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _release(notify: false);
-    super.dispose();
-  }
-}
-```
-
-Create one `EasyChatSession` in the authenticated scope of the application's existing Provider and call `start`; screens only read `phase`, messages, and send actions. Never recreate the owner from `build`. On sign-out, call `logout()` first. Provider disposal is only a fallback, keeping listener removal, `disconnect`, and `dispose` idempotent.
-
-| Documented public event | UI state | Application response |
-| --- | --- | --- |
-| `WuKongEvent.connect` | Online | Enable send; do not treat connection as completed offline synchronization |
-| `WuKongEvent.disconnect` | Offline | Disable send and wait for another connect event or re-enter the connection flow under the product retry policy |
-| `WuKongEvent.error` | Error | Show a generic error without token, payload, or raw parameters, and offer a bounded retry |
-| `WuKongEvent.message` | Unchanged | Deduplicate by `messageId`, decode the payload, then notify the screen |
-
-These states are an application projection of existing events, not new EasySDK APIs. They do not change the tutorial's planned status or the JSON-RPC CONNECT blocker.
 
 ## Step 4: send the first message
 
