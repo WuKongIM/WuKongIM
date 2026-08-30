@@ -119,19 +119,21 @@ iOS/macOS/Android 还要按产品部署方式处理局域网权限、后台限�
 身份和路由来自受信业务后端。SDK 的 `addr` 被源码用 `split(":")` 解析，只接受一个 DNS/IPv4 `host:port`，不要传 `tcp://`、`https://` 或 IPv6 literal。
 
 ```dart
+const deviceFlag = 0; // Android/iOS；macOS 桌面构建使用 2。
+
 final options = Options.newDefault(
   uidFromBackend,
   tokenFromBackend,
   addr: 'im.example.internal:5100',
 )
   ..debug = false
-  ..deviceFlag = 0;
+  ..deviceFlag = deviceFlag;
 
 final initialized = await WKIM.shared.setup(options);
 if (!initialized) throw StateError('WKIM setup failed');
 ```
 
-`deviceFlag = 0` 对应 `0=APP`；`1=WEB`、`2=PC` 不适用于本移动/桌面 app 验收。`Options.debug` 默认是 `true`，必须在 setup 前关闭。debug 解码路径会输出带明文 **Payload** 的 `RecvPacket.toString()`；`ConnectPacket.toString()` 还包含 UID 和 Token，业务日志也不能打印它。
+设备字典是 `0=APP`、`1=WEB`、`2=PC`：Android/iOS 原生应用使用 `0`，macOS 使用 `2`。Windows/Linux 移植只有在另行实现并完成兼容验收后才能采用同一个协议值 `2`；本包快照与本站 receipt 不声明支持这两个平台。浏览器应改用 Web/JSSDK，而不是把这里配置为 `1`。`Options.debug` 默认是 `true`，必须在 setup 前关闭。debug 解码路径会输出带明文 **Payload** 的 `RecvPacket.toString()`；`ConnectPacket.toString()` 还包含 UID 和 Token，业务日志也不能打印它。
 
 ## 7. 理解本地数据
 

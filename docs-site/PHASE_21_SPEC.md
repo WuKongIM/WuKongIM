@@ -49,7 +49,7 @@ The exact public package was consumed by a temporary application using Flutter
 `3.41.4`, Dart `3.11.1`, and macOS `15.1` arm64. The documented wrapper passed
 `flutter analyze`, `flutter pub get --enforce-lockfile`, and a macOS Release
 build. The published wrapper is `/examples/flutter/wk_acceptance.dart`, SHA-256
-`c2a6f4a2c39029b945ad8e251420f18afef871fb574fc3ccf3cbe474f7d8050c`.
+`b0a0b4aef4ddf2d77b9f928931ea6b60ab5cf0d53dd82d4b1abbec1c79a920e6`.
 Its hash is a documentation contract so the download cannot drift from the
 compile-checked source without failing verification.
 
@@ -76,8 +76,12 @@ After the three pages, a reader can:
 2. pin `wukongimfluttersdk: 1.7.9`, commit the content-hash lockfile, and run a
    lock-enforced build;
 3. initialize the process singleton exactly once with `await
-   WKIM.shared.setup(...)`, `debug = false`, `deviceFlag = 0`, and a trusted
-   DNS/IPv4 `host:port` route;
+   WKIM.shared.setup(...)`, `debug = false`, a trusted DNS/IPv4 `host:port`
+   route, and a caller-supplied Device Flag: Android/iOS use `0=APP`, while
+   macOS uses `2=PC`. A separately supported and verified Windows/Linux port
+   would use the same protocol category, but this package snapshot and receipt
+   do not claim either platform. Browser targets use the Web SDK rather than
+   this `dart:io`/sqflite package;
 4. install the unkeyed conversation-sync and local-insert providers once at
    application scope;
 5. accept readiness only after `success -> syncMsg -> syncCompleted`, with the
@@ -120,7 +124,10 @@ durable local insertion is observed through the unkeyed
 `addOnMsgInsertedListener`; terminal SENDACK state arrives through keyed
 `addOnRefreshMsgListener`. Correlation uses both `clientMsgNO` and `clientSeq`.
 `WKSendMsgResult.sendSuccess` is success; every other terminal reason is a
-rejection. Bob's keyed `addOnNewMsgListener` is online receipt only.
+rejection. The SENDACK timer or an already-staged terminal refresh is installed
+before observer delivery, so an application observer exception cannot leave an
+unbounded in-flight send. Bob's keyed `addOnNewMsgListener` is online receipt
+only.
 
 The unkeyed sync and insert providers have no remove API and must remain owned
 by one application-scoped dispatcher. Keyed connection, refresh, and new-message

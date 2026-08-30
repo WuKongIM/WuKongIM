@@ -97,19 +97,33 @@ The quickstart must map the exact Java public API into this bounded lifecycle:
    `addOnSyncConversationListener`: after CONNACK the SDK emits an initial
    `success`, then `syncMsg`, then `syncCompleted`, and finally the accepted
    `success`. The application must not enable sending on the first success.
+   The bounded tutorial accepts only the first `connecting`; a second direct
+   `connecting` has no public connection/sync generation, may arrive after the
+   first acceptance timer was cancelled, and is terminal/process-restart-
+   required rather than reusing the old provider epoch.
 4. A fresh-user, online-only development acceptance may return an explicit
    empty `WKSyncChat`; existing users and production must use a real trusted
    backend mapping. An empty provider is not offline/conversation recovery.
    Provider completion must be single-shot and fenced by a monotonic activation
    epoch so a stale result cannot complete a newer attempt.
 5. The session registers keyed connection, local-insert, SENDACK, and new-
-   message listeners before `connection()`, enforces a 15-second application
-   acceptance bound, and removes the same keys on teardown.
+   message listeners before `connection()`, enforces independent 15-second
+   application bounds for connection acceptance and each terminal SENDACK, and
+   removes the same keys on teardown. Internal terminal state, cleanup, and
+   send timers must be committed before observer notifications. Every queued
+   notification is fenced by the active attempt; message events cross that
+   asynchronous boundary only as application-owned immutable snapshots, and
+   teardown invalidates already-queued callbacks before same-UID restart.
 6. Alice creates a durable `WKMsg` with `WKTextContent`, a personal channel,
    and the SDK-created `clientMsgNO`, then calls the non-deprecated
    `sendMessage(WKMsg)`. Local insertion, SENDACK, and Bob's online receive are
    separate events; ACK correlation uses `clientMsgNO`/`clientSeq`, not a
-   pending server `messageID` or `messageSeq`. The SENDACK path must branch
+   pending server `messageID` or `messageSeq`. Because the local-insert callback
+   can occur inline, it must be staged until `sendMessage` returns and accepted
+   only with a positive `clientSeq`; a missing/non-positive insert or mismatched
+   early ACK is terminal and process-restart-required because a sequence-zero
+   send may already have entered the network path. The SENDACK timer is armed
+   before `onLocalInsert` delivery, and the SENDACK path must branch
    `WKSendMsgResult.send_success` from rejection statuses instead of naming
    every response successful.
 7. `disconnect(false)` stops the current connection and reconnect loop while
@@ -119,10 +133,11 @@ The quickstart must map the exact Java public API into this bounded lifecycle:
    still in flight, and timeout/kick paths must invalidate the attempt, remove
    keyed listeners, and deactivate providers. Because the provider API has no
    cancellation handle or SDK-side attempt identity after callback handoff, a
-   timeout, kick, `fail`, `noNetwork`, or explicit teardown before final ready
-   must also block further connection attempts until the application process
-   restarts. The tutorial treats `fail` and `noNetwork` as terminal instead of
-   permitting an unidentifiable automatic-reconnect generation.
+   timeout, kick, `fail`, `noNetwork`, unresolved-send timeout, uncertain local
+   insertion, or explicit teardown before final ready must also block further
+   connection attempts until the application process restarts. The tutorial
+   treats `fail` and `noNetwork` as terminal instead of permitting an
+   unidentifiable automatic-reconnect generation.
 
 Calling the low-level send API during `syncMsg` still performs local insertion
 and adds the item to `sendingMsgHashMap`; only network transmission is deferred

@@ -37,14 +37,14 @@ The client must not hold Product HTTP administrative credentials or mint its own
 [Download `wk_acceptance.dart`](/examples/flutter/wk_acceptance.dart) and place it under the application's `lib/` directory. Its SHA-256 is:
 
 ```text
-c2a6f4a2c39029b945ad8e251420f18afef871fb574fc3ccf3cbe474f7d8050c
+b0a0b4aef4ddf2d77b9f928931ea6b60ab5cf0d53dd82d4b1abbec1c79a920e6
 ```
 
 The file calls the exact public `1.7.9` API:
 
 | Responsibility | Exact SDK API |
 | --- | --- |
-| Initialization | `await WKIM.shared.setup(Options.newDefault(...))`, with `debug = false` and `deviceFlag = 0` |
+| Initialization | `await WKIM.shared.setup(Options.newDefault(...))`, with `debug = false` and a target-specific `deviceFlag` from the bootstrap |
 | Conversation sync | `addOnSyncConversationListener` completes a `WKSyncConversation` |
 | Readiness gate | `addOnConnectionStatus` with `WKConnectStatus.connecting`, `success`, `syncMsg`, `syncCompleted`, `kicked`, and `noNetwork` |
 | Text send | `await sendWithOption(WKTextContent(...), WKChannel(..., WKChannelType.personal), ...)` |
@@ -90,20 +90,21 @@ final alice = WKBootstrap(
   uid: bootstrap.uid,
   token: bootstrap.shortLivedToken,
   address: '${bootstrap.gatewayHost}:${bootstrap.gatewayPort}',
+  deviceFlag: 0, // Android/iOS; use 2 for a macOS desktop build.
 );
 ```
 
 `address` must be one DNS/IPv4 `host:port`. Do not pass `tcp://`, `https://`, or an IPv6 literal. Internally, the harness executes exactly:
 
 ```dart
-final options = Options.newDefault(uid, token, addr: address)
+final options = Options.newDefault(next.uid, next.token, addr: next.address)
   ..debug = false
-  ..deviceFlag = 0;
+  ..deviceFlag = next.deviceFlag;
 
 final initialized = await WKIM.shared.setup(options);
 ```
 
-The current device dictionary is `0=APP`, `1=WEB`, and `2=PC`; this mobile/desktop Flutter acceptance uses `0`.
+The current device dictionary is `0=APP`, `1=WEB`, and `2=PC`. Native Android/iOS applications pass `0`, while macOS passes `2`. A separately implemented and compatibility-tested Windows/Linux port would also select protocol category `2`, but this package snapshot and site receipt claim support for neither platform. This SDK uses `dart:io` and `sqflite`; a browser target must use the Web/JSSDK instead of passing `1`. The downloadable harness rejects `1` and unknown values in Release builds rather than relying on a Dart `assert`.
 
 ## 4. Create an observer and start one side
 

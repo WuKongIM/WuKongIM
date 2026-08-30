@@ -37,14 +37,14 @@ description: 用 wukongimfluttersdk 1.7.9 的真实 Dart API 完成同步门禁�
 [下载完整 `wk_acceptance.dart`](/examples/flutter/wk_acceptance.dart)，放到应用的 `lib/` 目录。文件 SHA-256 为：
 
 ```text
-c2a6f4a2c39029b945ad8e251420f18afef871fb574fc3ccf3cbe474f7d8050c
+b0a0b4aef4ddf2d77b9f928931ea6b60ab5cf0d53dd82d4b1abbec1c79a920e6
 ```
 
 该文件直接使用 `1.7.9` 的公开 API：
 
 | 责任 | 精确 SDK API |
 | --- | --- |
-| 初始化 | `await WKIM.shared.setup(Options.newDefault(...))`，并设置 `debug = false`、`deviceFlag = 0` |
+| 初始化 | `await WKIM.shared.setup(Options.newDefault(...))`，设置 `debug = false`，并从 bootstrap 传入目标平台的 `deviceFlag` |
 | 会话同步 | `addOnSyncConversationListener` 返回 `WKSyncConversation` |
 | 状态门禁 | `addOnConnectionStatus` 与 `WKConnectStatus.connecting`、`success`、`syncMsg`、`syncCompleted`、`kicked`、`noNetwork` |
 | 文本发送 | `await sendWithOption(WKTextContent(...), WKChannel(..., WKChannelType.personal), ...)` |
@@ -90,20 +90,21 @@ final alice = WKBootstrap(
   uid: bootstrap.uid,
   token: bootstrap.shortLivedToken,
   address: '${bootstrap.gatewayHost}:${bootstrap.gatewayPort}',
+  deviceFlag: 0, // Android/iOS；macOS 桌面端使用 2。
 );
 ```
 
 `address` 必须是一个 DNS/IPv4 `host:port`，不能带 `tcp://`、`https://`，也不能传 IPv6 literal。封装内部精确执行：
 
 ```dart
-final options = Options.newDefault(uid, token, addr: address)
+final options = Options.newDefault(next.uid, next.token, addr: next.address)
   ..debug = false
-  ..deviceFlag = 0;
+  ..deviceFlag = next.deviceFlag;
 
 final initialized = await WKIM.shared.setup(options);
 ```
 
-当前设备字典是 `0=APP`、`1=WEB`、`2=PC`，移动/桌面 Flutter 验收使用 `0`。
+当前设备字典是 `0=APP`、`1=WEB`、`2=PC`。Android/iOS 原生应用传 `0`，macOS 传 `2`。单独实现并完成兼容验收的 Windows/Linux 移植在协议上也应选 `2`，但本包快照与本站 receipt 不声明这两个平台可用。这个 SDK 使用 `dart:io` 与 `sqflite`，浏览器目标不应传 `1`，而应改用 Web/JSSDK。下载封装在 Release 构建也会拒绝 `1` 或未知值，不能依赖 Dart `assert` 做校验。
 
 ## 4. 创建观察者并启动一端
 

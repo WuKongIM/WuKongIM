@@ -119,19 +119,21 @@ iOS, macOS, and Android also need product-specific local-network permission, bac
 Identity and route come from a trusted application backend. Source parses `addr` with `split(":")`, so provide exactly one DNS/IPv4 `host:port`, not `tcp://`, `https://`, or an IPv6 literal.
 
 ```dart
+const deviceFlag = 0; // Android/iOS; use 2 for a macOS desktop build.
+
 final options = Options.newDefault(
   uidFromBackend,
   tokenFromBackend,
   addr: 'im.example.internal:5100',
 )
   ..debug = false
-  ..deviceFlag = 0;
+  ..deviceFlag = deviceFlag;
 
 final initialized = await WKIM.shared.setup(options);
 if (!initialized) throw StateError('WKIM setup failed');
 ```
 
-`deviceFlag = 0` is `0=APP`; `1=WEB` and `2=PC` do not describe this mobile/desktop app acceptance. `Options.debug` defaults to `true`, so disable it before setup. Debug decode logs emit `RecvPacket.toString()` with plaintext **Payload**. `ConnectPacket.toString()` also contains UID and Token and must not enter application logs.
+The device dictionary is `0=APP`, `1=WEB`, and `2=PC`: native Android/iOS applications use `0`, while macOS uses `2`. A Windows/Linux port may adopt the same protocol value only after separate implementation and compatibility testing; this package snapshot and site receipt claim support for neither platform. Browser targets must use the Web/JSSDK instead of setting this value to `1`. `Options.debug` defaults to `true`, so disable it before setup. Debug decode logs emit `RecvPacket.toString()` with plaintext **Payload**. `ConnectPacket.toString()` also contains UID and Token and must not enter application logs.
 
 ## 7. Understand local data
 

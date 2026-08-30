@@ -14,11 +14,13 @@ class WKBootstrap {
     required this.uid,
     required this.token,
     required this.address,
+    required this.deviceFlag,
   });
 
   final String uid;
   final String token;
   final String address;
+  final int deviceFlag;
 }
 
 typedef WKConversationSource =
@@ -218,13 +220,16 @@ class WKSession {
     if (next.address.split(':').length != 2) {
       throw ArgumentError('address must be a DNS-or-IPv4 host:port pair');
     }
+    if (next.deviceFlag != 0 && next.deviceFlag != 2) {
+      throw ArgumentError('native Flutter targets must use 0=APP or 2=PC');
+    }
 
     _activationEpoch = _providers.activate(this, next);
     _bootstrap = next;
 
     final options = Options.newDefault(next.uid, next.token, addr: next.address)
       ..debug = false
-      ..deviceFlag = 0;
+      ..deviceFlag = next.deviceFlag;
 
     try {
       final initialized = await WKIM.shared.setup(options);
@@ -353,15 +358,16 @@ class WKSession {
     }
 
     _insertReported = true;
-    _observer.onLocalInsert(inserted);
     final early = _earlyTerminalRefresh;
-    if (early != null) {
-      _completeSend(early);
-    } else {
+    if (early == null) {
       _sendTimer = Timer(sendTimeout, () {
         _scheduleTerminal(TimeoutException('SENDACK timed out', sendTimeout));
       });
     }
+    scheduleMicrotask(() {
+      _observer.onLocalInsert(inserted);
+    });
+    if (early != null) _completeSend(early);
     return inserted;
   }
 

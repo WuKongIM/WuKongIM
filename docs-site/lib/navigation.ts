@@ -155,51 +155,6 @@ function publishedGroup(
   );
 }
 
-function platformGroup(
-  slug: string,
-  label: string,
-  zhPlatformDescription: string,
-  enPlatformDescription: string,
-): NavigationGroup {
-  return plannedGroup(slug, label, label, zhPlatformDescription, enPlatformDescription, [
-    plannedPage(
-      'installation',
-      '安装与配置',
-      'Installation',
-      `${label} SDK 的依赖、权限和构建配置。`,
-      `Dependencies, permissions, and build configuration for the ${label} SDK.`,
-    ),
-    plannedPage(
-      'quickstart',
-      '快速接入',
-      'Quickstart',
-      `在 ${label} 应用中完成首次连接和消息收发。`,
-      `Connect and exchange the first messages with the ${label} SDK.`,
-    ),
-    plannedPage(
-      'platform-capabilities',
-      '平台专属能力',
-      'Platform Capabilities',
-      `${label} 平台的生命周期、后台运行和推送等差异。`,
-      `Lifecycle, background execution, push, and other ${label}-specific behavior.`,
-    ),
-    plannedPage(
-      'api-reference',
-      'API 参考',
-      'API Reference',
-      `${label} SDK 的类、方法、事件、参数和错误定义。`,
-      `Classes, methods, events, parameters, and errors for the ${label} SDK.`,
-    ),
-    plannedPage(
-      'upgrade',
-      '升级指南',
-      'Upgrade Guide',
-      `${label} SDK 的破坏性变更、迁移步骤和发布记录。`,
-      `Breaking changes, migration steps, and release history for the ${label} SDK.`,
-    ),
-  ]);
-}
-
 function publishedAndroidSDKGroup(): NavigationGroup {
   return publishedGroup(
     'android',

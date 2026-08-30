@@ -147,6 +147,19 @@ describe('full Android SDK tutorial contract', () => {
       'requireProcessRestart',
       'onSendSucceeded',
       'onSendRejected',
+      'onTerminalError',
+      'stagedLocalInsert',
+      'earlySendAck',
+      'sendAckTimeout',
+      'armSendAckTimeout',
+      'cancelSendAckTimeout',
+      'MessageSnapshot',
+      'Collections.unmodifiableList',
+      'notifyActiveObserver',
+      'notifyTerminalObserver',
+      'connectingCount',
+      'reconnectWithoutFence',
+      'automatic reconnect has no public generation fence',
       'requireNoInFlightSend',
       'resendMsg()',
     ];
@@ -175,6 +188,46 @@ describe('full Android SDK tutorial contract', () => {
     expect(pages[1]).toContain('first `success`');
     expect(pages[0]).toContain('仅限全新测试账号');
     expect(pages[1]).toContain('fresh test accounts only');
+  });
+
+  test('bounds uncertain local insertion and SENDACK paths before observer delivery', async () => {
+    const pages = await Promise.all([
+      sdkDoc('android/quickstart.mdx'),
+      sdkDoc('android/quickstart.en.mdx'),
+    ]);
+
+    for (const page of pages) {
+      expect(page).toContain('main.postDelayed(sendAckTimeout, 15_000);');
+      expect(page).toContain('inserted == null || inserted.clientSeq <= 0');
+      expect(page).toContain('stagedLocalInsert = message;');
+      expect(page).toContain('earlySendAck = message;');
+      expect(page.indexOf('armSendAckTimeout(')).toBeLessThan(
+        page.indexOf('observer.onLocalInsert(insertedSnapshot)'),
+      );
+      expect(page).toMatch(
+        /providers\.requireProcessRestart\(\);[\s\S]*finish\(false\);[\s\S]*observer\.onConnectionState/u,
+      );
+      expect(page).toMatch(/本地入库.*进程重启|local insertion.*process restart/iu);
+      expect(page).toMatch(/SENDACK.*15.*(?:超时|timeout)/iu);
+      expect(page).toContain('public MessageSnapshot sendText(');
+      expect(page).toContain('currentAttempt == attempt && bootstrap != null');
+      expect(page).toContain('terminalAttempt == attempt && bootstrap == null');
+      expect(page).toContain('++connectingCount > 1');
+      expect(page).not.toContain('void onLocalInsert(WKMsg message)');
+      expect(page).not.toContain('void onNewMessages(List<WKMsg> messages)');
+      expect(page).toMatch(
+        /MessageSnapshot\.from\(inserted\)[\s\S]*notifyActiveObserver/u,
+      );
+      expect(page).toMatch(
+        /List<MessageSnapshot>[\s\S]*Collections\.unmodifiableList/u,
+      );
+      expect(page).toMatch(
+        /不可变快照.*旧会话|immutable snapshots?.*stale session/iu,
+      );
+      expect(page).toMatch(
+        /第二次 `connecting`.*进程重启|second `connecting`.*process restart/iu,
+      );
+    }
   });
 
   test('documents failed-send initialization and the unsafe same-process account switch', async () => {

@@ -10,6 +10,14 @@ import {
 
 const docsRoot = join(import.meta.dir, '..', 'content', 'docs', 'sdk');
 const phaseSpec = join(import.meta.dir, '..', 'PHASE_21_SPEC.md');
+const projectKnowledge = join(
+  import.meta.dir,
+  '..',
+  '..',
+  'docs',
+  'development',
+  'PROJECT_KNOWLEDGE.md',
+);
 const acceptanceExample = join(
   import.meta.dir,
   '..',
@@ -19,7 +27,7 @@ const acceptanceExample = join(
   'wk_acceptance.dart',
 );
 const acceptanceExampleSha =
-  'c2a6f4a2c39029b945ad8e251420f18afef871fb574fc3ccf3cbe474f7d8050c';
+  'b0a0b4aef4ddf2d77b9f928931ea6b60ab5cf0d53dd82d4b1abbec1c79a920e6';
 
 const snapshot = {
   package: 'wukongimfluttersdk',
@@ -43,6 +51,8 @@ describe('full Flutter SDK tutorial contract', () => {
     expect(spec).toContain('93');
     expect(spec).toContain('RangeError');
     expect(spec).toContain('macOS Release');
+    expect(spec).toMatch(/macOS.*`2=PC`/u);
+    expect(spec).not.toMatch(/other desktop targets/u);
     expect(spec).toMatch(/No Alice\/Bob server scenario|没有运行 Alice\/Bob/u);
     expect(spec).toMatch(/does not tag `1\.7\.9`|没有.*`1\.7\.9`.*tag/u);
   });
@@ -122,7 +132,10 @@ describe('full Flutter SDK tutorial contract', () => {
       'WKIM.shared.setup',
       'Options.newDefault',
       '..debug = false',
-      '..deviceFlag = 0',
+      'required this.deviceFlag',
+      'final int deviceFlag',
+      'next.deviceFlag != 0 && next.deviceFlag != 2',
+      '..deviceFlag = next.deviceFlag',
       'addOnSyncConversationListener',
       'WKSyncConversation',
       'addOnConnectionStatus',
@@ -149,6 +162,9 @@ describe('full Flutter SDK tutorial contract', () => {
     ];
 
     for (const api of requiredApi) expect(example).toContain(api);
+    expect(example.indexOf('_sendTimer = Timer(sendTimeout')).toBeLessThan(
+      example.indexOf('_observer.onLocalInsert(inserted)'),
+    );
     for (const page of pages) {
       expect(page).toContain('/examples/flutter/wk_acceptance.dart');
       expect(page).toContain(acceptanceExampleSha);
@@ -161,6 +177,12 @@ describe('full Flutter SDK tutorial contract', () => {
       expect(page).toMatch(/fail\(null\).*connecting.*success.*syncMsg.*syncCompleted/su);
       expect(page).toMatch(/全新测试账号|brand-new test accounts/u);
       expect(page).toMatch(/不等待|does not await/u);
+      expect(page).toMatch(/Android\/iOS.*`0`|Android\/iOS.*0=APP/u);
+      expect(page).toMatch(/macOS.*`2`|desktop.*2=PC/u);
+      expect(page).not.toMatch(/其他桌面应用|other desktop applications/u);
+      expect(page).not.toMatch(
+        /移动\/桌面.*使用 `0`|mobile\/desktop.*uses `0`/u,
+      );
       expect(page).not.toMatch(/syncCompleted\s*(?:→|->)\s*success/u);
     }
   });
@@ -202,5 +224,9 @@ describe('full Flutter SDK tutorial contract', () => {
       expect(page).toMatch(/\/zh\/sdk\/flutter|\/en\/sdk\/flutter/u);
       expect(page).toMatch(/没有.*运行 receipt|no.*runtime receipt/u);
     }
+
+    const knowledge = await readFile(projectKnowledge, 'utf8');
+    expect(knowledge).toMatch(/macOS.*`2=PC`/u);
+    expect(knowledge).not.toMatch(/`2=PC` for desktop targets/u);
   });
 });
