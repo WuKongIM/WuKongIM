@@ -5,6 +5,10 @@ description: 锁定 easyjssdk v2.0.2，在浏览器应用中通过业务 BFF 完
 
 本页只覆盖浏览器接入。浏览器先向你的业务 BFF 请求当前用户的连接材料，再使用 EasyJSSDK 建立 WebSocket JSON-RPC 连接；它从不直接持有 Product HTTP 管理凭据。
 
+<Callout type="info" title="旧文档只提供学习顺序">
+  [旧版 Web EasySDK 入门文档](https://docs.githubim.com/zh/sdk/easy/javascript/getting-started)仍可用来理解“安装 → 初始化 → 监听 → 连接 → 发送”的学习顺序。本页当前仍是规划中的源码评估：旧文档不作为 API 证据，方法名、参数与生命周期边界以本文固定的 `v2.0.2` 源码和 revision 为准；当前 Product Gateway 尚不支持 EasySDK 所需的 JSON-RPC CONNECT，不能据此宣称运行兼容。
+</Callout>
+
 <Callout type="warn" title="证据边界">
   示例按官方 [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.2`、源码 revision `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` 校对，发布包可在 [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) 核对。这是源码级教程，不是本站运行验证，也不是现有 `wukongimjssdk@1.3.5` Web 黄金路径的兼容性凭据。
 </Callout>
@@ -56,11 +60,12 @@ interface IMBootstrap {
   websocketUrl: string;
 }
 
-async function fetchIMBootstrap(): Promise<IMBootstrap> {
+async function fetchIMBootstrap(signal?: AbortSignal): Promise<IMBootstrap> {
   const response = await fetch('/api/im/bootstrap', {
     credentials: 'include',
     cache: 'no-store',
     headers: { accept: 'application/json' },
+    signal,
   });
   if (!response.ok) throw new Error(`IM bootstrap failed: ${response.status}`);
   return response.json() as Promise<IMBootstrap>;
@@ -76,26 +81,40 @@ async function fetchIMBootstrap(): Promise<IMBootstrap> {
 ```ts
 import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
 
+type EasyChatClientEvent =
+  | { type: 'connect' }
+  | { type: 'disconnect' }
+  | { type: 'message' }
+  | { type: 'error' };
+
 export class EasyChatClient {
   private im?: WKIM;
   private readonly messages = new Map<string, unknown>();
 
+  constructor(
+    private readonly observe: (event: EasyChatClientEvent) => void = () => {},
+  ) {}
+
   private readonly onConnect = (result: unknown) => {
     console.info('EasySDK connected', result);
+    this.observe({ type: 'connect' });
   };
 
   private readonly onDisconnect = (info: unknown) => {
     console.info('EasySDK disconnected', info);
+    this.observe({ type: 'disconnect' });
   };
 
   private readonly onMessage = (message: any) => {
     if (this.messages.has(message.messageId)) return;
     this.messages.set(message.messageId, message);
     // 把去重后的消息交给应用状态层。
+    this.observe({ type: 'message' });
   };
 
   private readonly onError = (error: unknown) => {
     console.error('EasySDK error', error);
+    this.observe({ type: 'error' });
   };
 
   async start(bootstrap: IMBootstrap): Promise<void> {
@@ -161,6 +180,70 @@ export class EasyChatClient {
 ```
 
 应用通常只创建一个 `EasyChatClient`。SDK 的 CONNECT JSON-RPC 请求有内部超时，但 WebSocket 打开阶段仍可能悬挂；`connectWithin` 因此把完整等待限制为 10 秒，并在失败后 `destroy`。React 中可以在根级 Provider 持有它，并在 Effect 清理函数中调用 `stop()`；Vue/Svelte 同样在组件或应用卸载钩子里释放。
+
+### React 生命周期交接：`useEffect` 适配器
+
+上面的 `observe` 是应用包装层回调，不是 EasyJSSDK 新 API。React 可以用它把已有的 `WKIMEvent.Connect`、`Disconnect` 和 `Error` 投影成 UI 状态，同时用 `AbortController` 取消尚未完成的 BFF 请求。连接材料只在运行时从 BFF 取得；源码、初始 state 和错误文案都不包含 Token。
+
+```tsx
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+type EasyChatViewState = 'connecting' | 'online' | 'offline' | 'error';
+
+export function useEasyChatClient() {
+  const chatRef = useRef<EasyChatClient | null>(null);
+  const [state, setState] = useState<EasyChatViewState>('connecting');
+
+  useEffect(() => {
+    const request = new AbortController();
+    let active = true;
+    const chat = new EasyChatClient((event) => {
+      if (!active) return;
+      if (event.type === 'connect') setState('online');
+      if (event.type === 'disconnect') setState('offline');
+      if (event.type === 'error') setState('error');
+    });
+    chatRef.current = chat;
+
+    void (async () => {
+      try {
+        const bootstrap = await fetchIMBootstrap(request.signal);
+        if (!active) return;
+        await chat.start(bootstrap);
+      } catch (_) {
+        if (!active || request.signal.aborted) return;
+        setState('error');
+      }
+    })();
+
+    return () => {
+      active = false;
+      request.abort();
+      chat.stop();
+      if (chatRef.current === chat) chatRef.current = null;
+    };
+  }, []);
+
+  const sendText = useCallback((targetUid: string, text: string) => {
+    const chat = chatRef.current;
+    if (!chat) return Promise.reject(new Error('EasySDK client is not ready'));
+    return chat.sendText(targetUid, text);
+  }, []);
+
+  return { state, sendText };
+}
+```
+
+不要在组件 render 中创建 `EasyChatClient`，也不要把 `IMBootstrap` 放进模块常量、前端环境变量、持久化 store 或示例源码。组件卸载、账号切换和登录态 Provider 销毁都必须走上面的同一清理路径；取消守卫阻止晚到的 Promise 更新已卸载 UI，`chat.stop()` 则精确执行 `off` 与 `destroy`。
+
+| 已记录的公开事件 | UI 状态 | 应用响应 |
+| --- | --- | --- |
+| `WKIMEvent.Connect` | Online | 启用发送；不要把连接成功当作 Bob 已接收或离线同步完成 |
+| `WKIMEvent.Disconnect` | Offline | 禁用发送，等待下一次 Connect 事件或按产品重试策略重新进入连接流程 |
+| `WKIMEvent.Error` | Error | 展示不含 Token、Payload 或原始参数的通用错误，并提供有界重试 |
+| `WKIMEvent.Message` | 状态不变 | 按 `messageId` 去重后交给应用状态层，不把它混入连接状态 |
+
+这些状态只是 React 对已有事件的投影，不能改变当前教程的规划状态或 JSON-RPC CONNECT 阻断事实。
 
 ## 步骤 4：发送第一条消息
 

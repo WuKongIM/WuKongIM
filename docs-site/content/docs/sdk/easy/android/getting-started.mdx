@@ -5,6 +5,8 @@ description: 锁定 WuKongEasySDK Android v1.0.3，在 Kotlin 应用中完成安
 
 本页沿用旧版教程的“安装 → 初始化 → 监听 → 连接 → 发送”顺序，同时补上精确版本、Activity 生命周期、双端验收与当前 v3 协议边界。
 
+这一学习顺序参考[旧版 Android EasySDK 教程](https://docs.githubim.com/zh/sdk/easy/android/getting-started)。旧文档只提供阅读路径；下面的包坐标、方法签名、版本与限制以当前固定的 `v1.0.3` tag、源码 revision 和 Maven Central 产物为准。
+
 <Callout type="warn" title="证据边界">
   示例按官方 [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3`、源码 revision `62084632cd8d1f26c751b053b0fb82d6aaa63892` 校对，发布包可在 [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) 核对。这是源码级教程，不是本站运行验证，也不代表该版本已经通过当前 WuKongIM v3 的完整兼容性场景。
 </Callout>
@@ -197,7 +199,100 @@ class ChatActivity : AppCompatActivity() {
 }
 ```
 
-监听器必须在 `init` 之后注册，并保留同一个对象引用供 `removeEventListener` 使用。外层 `withTimeout` 把完整连接等待限制为 20 秒，失败后断开；SDK 内部连接与请求上限为 15 秒，自动重连最多 5 次。Activity 重建时先读取 `isConnected()`，不会等待一个不会重放的 `CONNECT` 事件。身份、Token、URL 或连接配置变化会显式停止，而不是静默沿用旧值。示例显式设置 `debugLogging(false)`，但这不能拦截该 tag 的无条件错误日志，因此不能替代 SDK 修复。生产应用通常由 Application 级连接管理器持有 SDK，Activity 或 Fragment 只订阅 UI 所需事件；上面的页面级写法用于看清最小生命周期。
+监听器必须在 `init` 之后注册，并保留同一个对象引用供 `removeEventListener` 使用。外层 `withTimeout` 把完整连接等待限制为 20 秒，失败后断开；SDK 内部连接与请求上限为 15 秒，自动重连最多 5 次。Activity 重建时先读取 `isConnected()`，不会等待一个不会重放的 `CONNECT` 事件。身份、Token、URL 或连接配置变化会显式停止，而不是静默沿用旧值。示例显式设置 `debugLogging(false)`，但这不能拦截该 tag 的无条件错误日志，因此不能替代 SDK 修复。这个可运行的最小示例由 Activity 同时拥有建连与页面生命周期，所以 `isFinishing` 时必须断开，避免退出后留下后台连接。生产应用把上面的 `connect(bootstrap)` 逻辑迁移到 Application/账号级 owner 后，才应移除 Activity 的断开职责，让 Activity 或 Fragment 只订阅 UI 所需事件。
+
+### 交给 Fragment 与账号级 owner
+
+Fragment 不得调用 `init`，也不能在视图重建时尝试用另一份配置重置进程单例（process singleton）。它先确认账号级 owner 已初始化 SDK，再为当前 View 注册监听器；`onDestroyView` 使用相同对象引用完整移除，但不调用 `disconnect()`：
+
+```kotlin
+import android.os.Bundle
+import android.view.View
+import androidx.fragment.app.Fragment
+
+class ChatFragment : Fragment(R.layout.fragment_chat) {
+    private val easySDK = WuKongEasySDK.getInstance()
+    private var viewListenersRegistered = false
+
+    private val connectListener = object : WuKongEventListener<ConnectResult> {
+        override fun onEvent(result: ConnectResult) {
+            activity?.runOnUiThread {
+                // 当前 View 显示“已连接”，并启用发送。
+            }
+        }
+    }
+    private val disconnectListener = object : WuKongEventListener<DisconnectInfo> {
+        override fun onEvent(info: DisconnectInfo) {
+            activity?.runOnUiThread {
+                // 当前 View 显示 info.code / info.reason，并禁用发送。
+            }
+        }
+    }
+    private val messageListener = object : WuKongEventListener<Message> {
+        override fun onEvent(message: Message) {
+            activity?.runOnUiThread {
+                // 按 message.messageId 去重后更新当前 View。
+            }
+        }
+    }
+    private val errorListener = object : WuKongEventListener<WuKongError> {
+        override fun onEvent(error: WuKongError) {
+            activity?.runOnUiThread {
+                // 只显示脱敏的通用失败提示，不记录原始 Params。
+            }
+        }
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        checkNotNull(easySDK.getConfig()) {
+            "Application/account owner must initialize WuKongEasySDK first"
+        }
+        if (!viewListenersRegistered) {
+            easySDK.addEventListener(WuKongEvent.CONNECT, connectListener)
+            easySDK.addEventListener(WuKongEvent.DISCONNECT, disconnectListener)
+            easySDK.addEventListener(WuKongEvent.MESSAGE, messageListener)
+            easySDK.addEventListener(WuKongEvent.ERROR, errorListener)
+            viewListenersRegistered = true
+        }
+        // 用 easySDK.isConnected() 初始化当前 View；不要等待事件重放。
+    }
+
+    override fun onDestroyView() {
+        if (viewListenersRegistered) {
+            easySDK.removeEventListener(WuKongEvent.CONNECT, connectListener)
+            easySDK.removeEventListener(WuKongEvent.DISCONNECT, disconnectListener)
+            easySDK.removeEventListener(WuKongEvent.MESSAGE, messageListener)
+            easySDK.removeEventListener(WuKongEvent.ERROR, errorListener)
+            viewListenersRegistered = false
+        }
+        super.onDestroyView()
+        // 不 disconnect：Fragment View 不拥有进程级 Session。
+    }
+}
+
+class AccountConnectionOwner {
+    private val easySDK = WuKongEasySDK.getInstance()
+
+    fun exitAccount() {
+        easySDK.disconnect()
+        // v1.0.3 仍保持已初始化；切换到另一份配置前须重启进程或升级 SDK。
+    }
+}
+```
+
+`AccountConnectionOwner` 必须由 Application 或账号 Session 容器只创建一次，并接管前面的初始化、精确配置一致性检查与有界连接。只有它在真正退出账号时断开；Fragment/Compose 页面只增删自己的观察者。若 UID、Token、URL 或其他配置变化，仍按前面的检查显式停止并重启进程或升级 SDK，不能静默再次 `init`。
+
+### 用公开事件驱动 UI 状态
+
+| 公开事件 | UI 状态 | 应用响应 |
+| --- | --- | --- |
+| `CONNECT` | 已就绪 | 标记已连接并启用发送；Activity/Fragment 重建时再用 `isConnected()` 取得当前快照。 |
+| `DISCONNECT` | 未就绪 | 立即禁用发送，可安全展示 `code` 与 `reason`；等待同一 owner 后续的 `CONNECT`，不要新建或重置单例。 |
+| `MESSAGE` | 连接状态不变 | 按 `messageId` 去重后更新当前 View；不要把实时事件当作离线同步完成。 |
+| `ERROR` | 不自动改变连接状态 | 只显示经过脱敏的通用错误，发送仍由当前连接状态门禁；不猜测未公开的错误枚举，也不把 Token、Payload、原始 JSON 或 `Params` 写入应用日志。 |
+
+连接超时或 `connect()` 失败时，账号级 owner 清理本次失败连接，UI 保持未就绪，并只针对同一份已核对配置执行显式重试。
 
 ## 步骤 5：发送第一条消息
 
@@ -238,7 +333,7 @@ fun sendText(targetUid: String, text: String) {
 4. Bob 核对 `fromUid`、`channelId`、`messageId` 和 Payload；
 5. Bob 向 Alice 回发，验证反向链路；
 6. 在评审后的构建中以唯一假 Token 和消息文本执行成功及解析失败路径，确认 Logcat 与崩溃报告都没有这些值；
-7. 重建 Activity，确认监听器没有重复；退出应用时确认连接已关闭。
+7. 重建 Activity 或 Fragment View，确认监听器没有重复；由账号级 owner 退出账号，并确认连接已关闭。
 
 未修改的 `v1.0.3` 预期会在当前 v3 的字段或 Payload 阶段失败；这正是前述兼容性阻断项的证据。保留服务端 revision、Android tag 与错误阶段，不要用盲目重试掩盖。只有修复后的构建通过，才能保留 Alice 与 Bob 的发送和接收证据。
 

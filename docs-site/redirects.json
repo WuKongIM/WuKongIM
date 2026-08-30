@@ -37,11 +37,11 @@
     },
     {
       "source": "/zh/sdk/easy/overview",
-      "destination": "/zh/sdk/choose-sdk"
+      "destination": "/zh/sdk/easy"
     },
     {
       "source": "/en/sdk/easy/overview",
-      "destination": "/en/sdk/choose-sdk"
+      "destination": "/en/sdk/easy"
     },
     {
       "source": "/zh/sdk/source-code",

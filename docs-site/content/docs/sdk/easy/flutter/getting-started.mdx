@@ -5,6 +5,10 @@ description: 锁定 WuKongEasySDK Flutter v1.0.4，在 Flutter 应用中完成�
 
 本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的最小流程：从业务后端取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
 
+<Callout type="info" title="旧文档只提供学习顺序">
+  [旧版 Flutter EasySDK 入门文档](https://docs.githubim.com/zh/sdk/easy/flutter/getting-started)仍可用来理解“安装 → 初始化 → 监听 → 连接 → 发送”的学习顺序。本页当前仍是规划中的源码评估：旧文档不作为 API 证据，方法名、参数与生命周期边界以本文固定的 `v1.0.4` 源码和 revision 为准；当前 Product Gateway 尚不支持 EasySDK 所需的 JSON-RPC CONNECT，不能据此宣称运行兼容。
+</Callout>
+
 <Callout type="warn" title="证据边界">
   示例按官方 [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.4`、源码 revision `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` 校对，发布包可在 [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) 核对。这是源码级教程，不是本站运行验证，也不表示所有 Flutter 目标平台都通过了同一服务端组合。
 </Callout>
@@ -210,6 +214,116 @@ class _ChatPageState extends State<ChatPage> {
 ```
 
 页面级 `dispose()` 适合最小示例。`Future.timeout` 把完整连接等待限制为 20 秒，并在超时或其他失败后断开；不要让页面永久停在 Connecting。真实应用如果希望切换页面时连接保持，应让 Provider、Riverpod、Bloc 或其他应用级状态容器拥有 SDK；页面只添加和移除自己的监听器，最终退出账号时再 `disconnect` 与 `dispose`。
+
+### 应用级生命周期交接：ChangeNotifier / Provider
+
+如果连接需要跨页面保持，可把上面的同一套初始化和回调交给登录态作用域中的 `ChangeNotifier`。下面只展示所有权交接，不定义完整 UI 架构；四个 `late final` 回调只创建一次，因此注册和移除使用的是同一个函数引用。
+
+```dart
+enum EasyConnectionPhase { idle, connecting, online, offline, failed }
+
+class EasyChatSession extends ChangeNotifier {
+  EasyChatSession() {
+    connectListener = (_) => _setPhase(EasyConnectionPhase.online);
+    disconnectListener = (_) => _setPhase(EasyConnectionPhase.offline);
+    messageListener = (message) {
+      if (_closed) return;
+      messagesById[message.messageId] = message;
+      notifyListeners();
+    };
+    errorListener = (_) => _setPhase(EasyConnectionPhase.failed);
+  }
+
+  final easySDK = WuKongEasySDK.getInstance();
+  final messagesById = <String, Message>{};
+
+  late final WuKongEventListener<ConnectResult> connectListener;
+  late final WuKongEventListener<DisconnectInfo> disconnectListener;
+  late final WuKongEventListener<Message> messageListener;
+  late final WuKongEventListener<WuKongError> errorListener;
+
+  EasyConnectionPhase phase = EasyConnectionPhase.idle;
+  bool _listenersRegistered = false;
+  bool _closed = false;
+
+  Future<void> start(IMBootstrap bootstrap) async {
+    if (_closed) throw StateError('EasyChatSession is closed');
+    _setPhase(EasyConnectionPhase.connecting);
+
+    try {
+      await easySDK.init(WuKongConfig(
+        serverUrl: bootstrap.websocketUrl,
+        uid: bootstrap.uid,
+        token: bootstrap.token,
+      ));
+      if (_closed) return;
+      _registerListeners();
+      await easySDK.connect().timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          easySDK.disconnect();
+          throw TimeoutException('EasySDK connect exceeded 20 seconds');
+        },
+      );
+    } catch (_) {
+      if (_closed) return;
+      easySDK.disconnect();
+      _setPhase(EasyConnectionPhase.failed);
+    }
+  }
+
+  void _registerListeners() {
+    if (_closed || _listenersRegistered) return;
+    easySDK.addEventListener(WuKongEvent.connect, connectListener);
+    easySDK.addEventListener(WuKongEvent.disconnect, disconnectListener);
+    easySDK.addEventListener(WuKongEvent.message, messageListener);
+    easySDK.addEventListener(WuKongEvent.error, errorListener);
+    _listenersRegistered = true;
+  }
+
+  void _setPhase(EasyConnectionPhase next) {
+    if (_closed) return;
+    phase = next;
+    notifyListeners();
+  }
+
+  void logout() => _release(notify: true);
+
+  void _release({required bool notify}) {
+    if (_closed) return;
+    _closed = true;
+    if (_listenersRegistered) {
+      easySDK.removeEventListener(WuKongEvent.connect, connectListener);
+      easySDK.removeEventListener(WuKongEvent.disconnect, disconnectListener);
+      easySDK.removeEventListener(WuKongEvent.message, messageListener);
+      easySDK.removeEventListener(WuKongEvent.error, errorListener);
+      _listenersRegistered = false;
+    }
+    easySDK.disconnect();
+    easySDK.dispose();
+    messagesById.clear();
+    phase = EasyConnectionPhase.idle;
+    if (notify) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _release(notify: false);
+    super.dispose();
+  }
+}
+```
+
+在应用已有的 Provider 中，应在登录态作用域创建一次 `EasyChatSession` 并调用 `start`，页面只读取 `phase`、消息和发送动作；不要在 `build` 中重新创建它。退出账号先调用 `logout()`，Provider 销毁只是兜底，确保监听器移除、`disconnect` 和 `dispose` 只执行一次。
+
+| 已记录的公开事件 | UI 状态 | 应用响应 |
+| --- | --- | --- |
+| `WuKongEvent.connect` | Online | 启用发送；不要把连接成功当作离线同步完成 |
+| `WuKongEvent.disconnect` | Offline | 禁用发送，等待下一次 connect 事件或由产品重试策略重新进入连接流程 |
+| `WuKongEvent.error` | Error | 展示不含 Token、Payload 或原始参数的通用错误，并提供有界重试 |
+| `WuKongEvent.message` | 状态不变 | 按 `messageId` 去重、解码 Payload，再通知页面刷新 |
+
+这些状态是应用对已有事件的投影，不是 EasySDK 新增 API，也不能改变当前教程的规划状态或 JSON-RPC CONNECT 阻断事实。
 
 ## 步骤 4：发送第一条消息
 

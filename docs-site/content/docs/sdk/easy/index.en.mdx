@@ -9,6 +9,10 @@ WuKongEasySDK is for applications that need realtime communication while keeping
   These tutorials were checked against exact release tags and source revisions in the four official repositories and against the current server JSON-RPC shape. This site has not issued an executable compatibility receipt for these EasySDK versions. The only client path with the site's complete scenario evidence remains the WuKongIMJSSDK Web golden path recorded under [Versions & Compatibility](/en/sdk/compatibility).
 </Callout>
 
+<Callout type="error" title="Current v3 cannot run this path directly">
+  The Product Gateway does not implement the JSON-RPC CONNECT operation that EasySDK depends on. This group therefore remains planned and stays out of search, the sitemap, and compatibility receipts. The material below explains the pinned source; it is not an availability promise for the current server.
+</Callout>
+
 “5 minutes” describes the shape of the path: install, initialize, listen, connect, and send. It is not a completion-time promise and does not include product accounts, authorization, group membership, offline synchronization, push, capacity, or release acceptance.
 
 ## Choose your platform
@@ -31,6 +35,21 @@ WuKongEasySDK is for applications that need realtime communication while keeping
 | Bounded automatic reconnect behavior | TLS/WSS, rate limits, capacity, observability, upgrade, and rollback evidence |
 
 EasySDK is neither a chat UI nor a complete product backend. A successful `send` result means the server returned a result for that send. It does not prove that the peer received, displayed, or processed the message. Continue with [Messaging](/en/sdk/common-guides/messaging) and model send acknowledgement, realtime receipt, and product completion separately.
+
+## One flow, different lifecycle owners
+
+| Task | iOS | Android | Flutter | Web |
+| --- | --- | --- | --- | --- |
+| Create and initialize | Application-owned `WuKongEasySDK` instance | Process singleton via `getInstance()` + `init` | Application-owned singleton + `init` | One `WKIM` instance per identity/browser context |
+| Listener ownership | Retain each `EventListener` token | Retain the same listener object | Retain the same callback reference | Pass the same function reference to `on` and `off` |
+| Connection readiness | Enable send only after `onConnect` | Enable send only after `CONNECT` | Enable send only after the `connect` event | Enable send only after the `Connect` event |
+| Account exit | Remove tokens and `disconnect` | Process/account owner removes listeners and disconnects | Remove listeners, `disconnect`, then `dispose` | `off`, then `destroy` |
+
+A view can subscribe to state, but a view rebuild must not create a second connection. Each platform page provides a compact framework handoff that establishes who creates and who cleans up the client; none is a complete chat UI architecture.
+
+## Tutorial basis and calibration rules
+
+This group preserves the learning sequence from the [legacy WuKongEasySDK overview](https://docs.githubim.com/en/sdk/easy/overview) and checks the corresponding legacy [iOS](https://docs.githubim.com/en/sdk/easy/ios/getting-started), [Android](https://docs.githubim.com/en/sdk/easy/android/getting-started), [Flutter](https://docs.githubim.com/en/sdk/easy/flutter/getting-started), and [Web](https://docs.githubim.com/en/sdk/easy/javascript/getting-started) pages. The legacy site determines only the install → initialize → listen → connect → send learning sequence. Method signatures, versions, platform floors, protocol shapes, and security boundaries come from the pinned release source below. Floating versions, “zero configuration,” and unproven compatibility claims from the old pages are not copied forward.
 
 ## Source snapshots used by the four tutorials
 

@@ -12,6 +12,11 @@ The four platform labels retain the familiar five-minute tutorial shape. That
 label describes a short happy-path walkthrough, not an installation-time or
 production-readiness guarantee.
 
+Every overview and platform page links its exact locale-matching legacy source
+so the learning sequence is traceable. Legacy pages never override the pinned
+release source, distribution metadata, current server contract, or evidence
+boundary.
+
 ## Audience and completion outcome
 
 The primary reader owns an existing application and trusted product backend.
@@ -83,7 +88,9 @@ Each platform page must cover the same integration loop in native idiom:
 6. persistent person-Channel sending;
 7. listener removal, disconnect, and lifecycle cleanup;
 8. an Alice/Bob acceptance checklist; and
-9. platform-specific troubleshooting and adoption gates.
+9. a compact native-framework lifecycle handoff that shows who owns and cleans
+   up the client without becoming a complete UI architecture; and
+10. platform-specific troubleshooting and adoption gates.
 
 The client never invents its own production UID or token. Browser clients do
 not call Product HTTP management endpoints directly; a trusted backend or BFF
@@ -140,11 +147,13 @@ boundaries.
 The fast gate must cover:
 
 - exact bilingual publication and navigation order for all five routes;
+- exact locale-matching legacy overview and platform source links;
 - exact source tag, revision, and package pin per platform;
 - absence of floating install versions;
 - explicit source-aligned-versus-runtime-evidence language;
 - trusted-backend identity and Alice/Bob acceptance;
 - listener removal, disconnect, and lifecycle cleanup;
+- SwiftUI, Android Fragment, Flutter Provider, and React lifecycle handoffs;
 - bounded connection waits with cleanup after timeout;
 - the aligned device values and remaining iOS/Android payload contracts,
   Android JSON-field contract, iOS availability, Flutter receive
@@ -161,6 +170,7 @@ The fast gate must cover:
 - Claiming a production-ready or universally compatible server/SDK tuple.
 - Issuing a golden-path or local acceptance receipt for EasySDK.
 - Publishing a complete API reference, migration guide, push guide, or
-  platform UI architecture.
+  platform UI architecture. Compact owner/cleanup adapters inside the
+  getting-started pages remain in scope.
 - Moving Product HTTP management calls into an untrusted client.
 - Publishing the planned full WuKongIMSDK platform tutorials.
