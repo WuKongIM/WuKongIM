@@ -183,9 +183,7 @@ describe('documentation navigation contract', () => {
 
     expect(published).toEqual(expect.arrayContaining(phase13Routes));
     expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('published');
-    for (const platform of ['uniapp', 'harmonyos']) {
-      expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
-    }
+    expect(getNavigationEntry('en', 'sdk', ['uniapp'])?.status).toBe('planned');
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
   });
 
@@ -205,9 +203,7 @@ describe('documentation navigation contract', () => {
       'planned',
     );
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
-    for (const platform of ['uniapp', 'harmonyos']) {
-      expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('planned');
-    }
+    expect(getNavigationEntry('en', 'sdk', ['uniapp'])?.status).toBe('planned');
   });
 
   test('publishes the narrow Phase 19 iOS path without publishing unverified chapters', () => {
@@ -268,6 +264,28 @@ describe('documentation navigation contract', () => {
       ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
         slug,
         getNavigationEntry('en', 'sdk', ['flutter', slug])?.status,
+      ]),
+    ).toEqual([
+      ['platform-capabilities', 'planned'],
+      ['api-reference', 'planned'],
+      ['upgrade', 'planned'],
+    ]);
+  });
+
+  test('publishes the narrow Phase 22 HarmonyOS path without claiming a site build', () => {
+    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+
+    expect(published).toEqual(
+      expect.arrayContaining([
+        '/en/sdk/harmonyos',
+        '/en/sdk/harmonyos/installation',
+        '/en/sdk/harmonyos/quickstart',
+      ]),
+    );
+    expect(
+      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
+        slug,
+        getNavigationEntry('en', 'sdk', ['harmonyos', slug])?.status,
       ]),
     ).toEqual([
       ['platform-capabilities', 'planned'],
@@ -482,6 +500,9 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/flutter`,
         `/${locale}/sdk/flutter/installation`,
         `/${locale}/sdk/flutter/quickstart`,
+        `/${locale}/sdk/harmonyos`,
+        `/${locale}/sdk/harmonyos/installation`,
+        `/${locale}/sdk/harmonyos/quickstart`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,

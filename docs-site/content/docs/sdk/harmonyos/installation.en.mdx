@@ -1,0 +1,130 @@
+---
+title: HarmonyOS Installation
+description: Install @wukong/wkim 1.1.7 exactly and lock the HAR, API 20, permissions, deep imports, and production security boundary.
+---
+
+This page pins a HarmonyOS NEXT application to OHPM `@wukong/wkim` `1.1.7`. Make the dependency, lockfile, and minimum imports reproducible before integrating identity or messages. Do not use `latest` or the repository's moving `main` as a release identity.
+
+<Callout type="warn" title="This site did not run a HarmonyOS build">
+  The site downloaded and aligned the HAR with source, but it has no ohpm, hvigor, DevEco SDK, signing, or device runtime receipt. The steps below are checks the consuming application must perform, not site-owned passes. The raw `TCPSocket` TCP transport, `WKLogger` / `hilog.info` logging, the `encrypt: false` database, and retained `sendingMsgMap` are still production blockers; restart the process after the acceptance.
+</Callout>
+
+## 1. Prepare a compatible project
+
+Create a HarmonyOS NEXT Stage-model application and confirm:
+
+- the application targets HarmonyOS API `20` or newer; package metadata declares `compatibleSdkVersion: 20`;
+- if reproducing the publisher build, record compile SDK `6.1.1.125` without mislabeling it as a proven minimum DevEco version;
+- your own DevEco, ohpm, hvigor, and signing configuration own the build;
+- CI and developer machines use one exact toolchain tuple and retain its version output.
+
+## 2. Pin the OHPM dependency
+
+Use an exact version in the consuming module's `oh-package.json5`; do not add `^` or `~`:
+
+```json5
+{
+  "dependencies": {
+    "@wukong/wkim": "1.1.7"
+  }
+}
+```
+
+Then run in the project:
+
+```bash
+ohpm install
+ohpm list @wukong/wkim@1.1.7
+```
+
+Commit the generated `oh-package-lock.json5`. CI should install from that lockfile instead of resolving a moving version during release.
+
+## 3. Check the lockfile and HAR
+
+This audit observed:
+
+```text
+package:   @wukong/wkim 1.1.7
+resolved:  https://repo.harmonyos.com/ohpm/@wukong/wkim/-/wkim-1.1.7.har
+integrity: sha512-864btKpDkxGQ9ACUGur6LJ7gIsmFGDub6WdY+znWQTXFjyNoJziiaGby/7ZE9owwvHRwE10E4V9ZMfU0ZO2DFA==
+SHA-256:  d98d1523bc60ad204dd74d9cfa776935a5547fc3ab352322dfa17f5dbc7a3cd8
+```
+
+Lockfile layout can vary across ohpm versions, but the exact version, resolved URL, and integrity semantics must agree. To check a cached HAR independently:
+
+```bash
+openssl dgst -sha256 /absolute/path/to/wkim-1.1.7.har
+```
+
+It must produce the SHA-256 above. A matching package name and version string alone do not prove identical content.
+
+## 4. Check the source identity
+
+The HAR's `src/main/ets` and root `index.ets` align with official repository revision:
+
+```text
+0c41810a1e0a5fc2936929d63ca32a50ffb11bec
+```
+
+The repository has no git tags; do not invent `v1.1.7`. Later HEAD `42505190601967d6a9fc8f321692689917b13a91` changes only the README documentation URL. The HAR additionally contains `.DS_Store` files and generated package metadata, and declares `obfuscated: false`.
+
+## 5. Verify merged permissions
+
+The HAR module metadata requests:
+
+- `ohos.permission.INTERNET` for the Gateway connection;
+- `ohos.permission.GET_NETWORK_INFO` for available, unavailable, and lost-network events.
+
+Verify both in the final built artifact. If your build flow does not merge HAR permissions, declare them explicitly in the application module's `module.json5`. Do not copy unrelated permissions without understanding their use.
+
+## 6. Compile a minimum import probe
+
+The root `index.ets` exports only `WKIM`:
+
+```typescript
+import { WKIM } from '@wukong/wkim'
+```
+
+`WKChannel`, statuses, message beans, `WKTextContent`, and the logger switch require **deep import** paths from the actual HAR structure:
+
+```typescript
+import {
+  WKChannel,
+  WKChannelType,
+  WKConnectStatus,
+  WKMsg,
+  WKSendMsgResult,
+  WKSendOptions,
+  WKSyncConversation
+} from '@wukong/wkim/src/main/ets/entity/Bean'
+import { WKTextContent } from '@wukong/wkim/src/main/ets/model/WKTextContent'
+import { WKLogger } from '@wukong/wkim/src/main/ets/common/WKLogger'
+```
+
+Those paths exist in the exact HAR and match the official demo's local-module usage, but they are not a stable root API. Put this probe in the consuming module and complete your own Release build; the site has not compiled it.
+
+## 7. Set production-oriented defaults
+
+Around `WKIM.shared.init(...)`, explicitly:
+
+- obtain UID, short-lived Token, and DNS/IPv4 `host:port` from a trusted backend;
+- pass an application `Context` so the SDK does not fall back to deprecated global `getContext()`;
+- set `WKIM.shared.config.deviceFlagApp = 0`; the dictionary is `0=APP`, `1=WEB`, `2=PC`;
+- call `WKLogger.setShowLog(false)` while accepting that it cannot suppress two direct `hilog.info` send traces;
+- do not treat `WKIM.shared.config.debug = false` as a logging control because `1.1.7` never reads it.
+
+## 8. Release gate
+
+Retain at least:
+
+```text
+oh-package.json5 + oh-package-lock.json5 digest
+DevEco + HarmonyOS SDK + ohpm + hvigor versions
+Release build + HAP/signing result
+device model + HarmonyOS version
+server revision + redacted Alice/Bob result
+```
+
+The exact version still uses a no-TLS `TCPSocket`, writes decrypted Payload into an `encrypt: false` UID database, defaults to potentially sensitive logs, and does not clear `sendingMsgMap` on SENDACK/logout. WKProto encryption does not replace TLS. Do not turn one compile or online message into a production approval before those issues are fixed or formally accepted.
+
+Continue to the [Quickstart](/en/sdk/harmonyos/quickstart).

@@ -1,0 +1,130 @@
+---
+title: HarmonyOS 安装与配置
+description: 精确安装 @wukong/wkim 1.1.7，锁定 HAR、API 20、权限、深路径导入和生产安全边界。
+---
+
+本页把 HarmonyOS NEXT 应用固定到 OHPM `@wukong/wkim` `1.1.7`。先让依赖、锁文件和最小导入可复现，再接入身份和消息；不要用 `latest` 或官方仓库移动中的 `main` 作为发布身份。
+
+<Callout type="warn" title="本站没有执行 HarmonyOS 构建">
+  本站只下载并核对了 HAR 与源码，没有 ohpm、hvigor、DevEco SDK、签名或设备运行 receipt。下面是消费端必须执行的检查，不是本站已经通过的结果。`TCPSocket` 原始 TCP、`WKLogger` / `hilog.info` 日志、`encrypt: false` 数据库和 `sendingMsgMap` 残留仍是生产阻断项；验收结束后按进程重启处理。
+</Callout>
+
+## 1. 准备兼容工程
+
+创建 HarmonyOS NEXT Stage 模型应用，并确认：
+
+- 应用使用 HarmonyOS API `20` 或更高；包元数据是 `compatibleSdkVersion: 20`；
+- 如需复现发布者构建环境，记录 compile SDK `6.1.1.125`，但不要把它误写成已证明的最低 DevEco 版本；
+- 构建由项目自己的 DevEco、ohpm、hvigor 与签名配置完成；
+- CI 和开发机使用同一套精确工具链并保存版本输出。
+
+## 2. 固定 OHPM 依赖
+
+在消费模块的 `oh-package.json5` 中使用精确版本，不加 `^` 或 `~`：
+
+```json5
+{
+  "dependencies": {
+    "@wukong/wkim": "1.1.7"
+  }
+}
+```
+
+然后在工程中运行：
+
+```bash
+ohpm install
+ohpm list @wukong/wkim@1.1.7
+```
+
+提交生成的 `oh-package-lock.json5`。CI 应从该 lockfile 安装，而不是在发布时重新解析滚动版本。
+
+## 3. 核对锁文件与 HAR
+
+这次审计观察到：
+
+```text
+package:   @wukong/wkim 1.1.7
+resolved:  https://repo.harmonyos.com/ohpm/@wukong/wkim/-/wkim-1.1.7.har
+integrity: sha512-864btKpDkxGQ9ACUGur6LJ7gIsmFGDub6WdY+znWQTXFjyNoJziiaGby/7ZE9owwvHRwE10E4V9ZMfU0ZO2DFA==
+SHA-256:  d98d1523bc60ad204dd74d9cfa776935a5547fc3ab352322dfa17f5dbc7a3cd8
+```
+
+不同 ohpm 版本的 lockfile 排版可能变化，但精确版本、resolved 与 integrity 语义必须一致。若要独立核对缓存 HAR：
+
+```bash
+openssl dgst -sha256 /absolute/path/to/wkim-1.1.7.har
+```
+
+应得到上面的 SHA-256。不要仅凭包名或版本字符串认为内容相同。
+
+## 4. 核对源码身份
+
+HAR 中的 `src/main/ets` 与根 `index.ets` 对齐官方仓库 revision：
+
+```text
+0c41810a1e0a5fc2936929d63ca32a50ffb11bec
+```
+
+仓库没有 git tag；不要写成 `v1.1.7`。后续 HEAD `42505190601967d6a9fc8f321692689917b13a91` 只修改 README 文档地址。HAR 额外包含 `.DS_Store` 和生成的 package metadata，且声明 `obfuscated: false`。
+
+## 5. 验证权限合并
+
+HAR 的模块元数据请求：
+
+- `ohos.permission.INTERNET`：连接 Gateway；
+- `ohos.permission.GET_NETWORK_INFO`：监听网络可用、不可用和丢失事件。
+
+在最终构建产物中确认这两项已经合并。若你的构建流程不合并 HAR 权限，再在应用模块 `module.json5` 中显式声明；不要在不理解用途时复制额外权限。
+
+## 6. 做最小导入编译探针
+
+根 `index.ets` 只导出 `WKIM`：
+
+```typescript
+import { WKIM } from '@wukong/wkim'
+```
+
+`WKChannel`、状态、消息 bean、`WKTextContent` 与日志开关需要按 HAR 实际结构做**深路径**导入：
+
+```typescript
+import {
+  WKChannel,
+  WKChannelType,
+  WKConnectStatus,
+  WKMsg,
+  WKSendMsgResult,
+  WKSendOptions,
+  WKSyncConversation
+} from '@wukong/wkim/src/main/ets/entity/Bean'
+import { WKTextContent } from '@wukong/wkim/src/main/ets/model/WKTextContent'
+import { WKLogger } from '@wukong/wkim/src/main/ets/common/WKLogger'
+```
+
+这些路径存在于精确 HAR，也与官方 Demo 的本地模块用法一致，但不属于稳定根 API。把这段放进消费模块并完成你自己的 Release 编译；本站没有编译过它。
+
+## 7. 配置生产默认值
+
+在 `WKIM.shared.init(...)` 前后明确完成：
+
+- 从受信后端取得 UID、短期 Token 和 DNS/IPv4 `host:port`；
+- 传入应用 `Context`，避免 SDK 回退到已弃用的全局 `getContext()`；
+- 设置 `WKIM.shared.config.deviceFlagApp = 0`，设备字典是 `0=APP`、`1=WEB`、`2=PC`；
+- 调用 `WKLogger.setShowLog(false)`，同时接受它无法关闭两个直接 `hilog.info` 发送 trace 的事实；
+- 不把 `WKIM.shared.config.debug = false` 当成有效日志开关，因为 `1.1.7` 没有读取它。
+
+## 8. 发布前门禁
+
+至少保留以下结果：
+
+```text
+oh-package.json5 + oh-package-lock.json5 digest
+DevEco + HarmonyOS SDK + ohpm + hvigor version
+Release build + HAP/signing result
+device model + HarmonyOS version
+server revision + redacted Alice/Bob result
+```
+
+精确版本仍使用无 TLS `TCPSocket`，把解密 Payload 写入 `encrypt: false` 的 UID 数据库，日志默认可暴露正文，且 `sendingMsgMap` 不随 SENDACK/退出清理。WKProto 加密不能替代 TLS；在这些问题修复或完成正式风险接受前，不要把一次编译或在线消息当成生产许可。
+
+下一步进入[快速接入](/zh/sdk/harmonyos/quickstart)。

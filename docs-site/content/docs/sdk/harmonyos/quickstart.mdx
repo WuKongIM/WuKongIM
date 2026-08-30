@@ -1,0 +1,178 @@
+---
+title: HarmonyOS 快速接入
+description: 用 @wukong/wkim 1.1.7 的真实 ArkTS API 完成同步门禁、文本入库、SENDACK 与在线接收。
+---
+
+本页用 `@wukong/wkim` `1.1.7` 完成一个有边界的在线消息闭环：Alice 与 Bob 分别连接，Alice 发送一条个人文本消息，应用区分本地入库、服务端 SENDACK 和 Bob 在线接收。两端必须运行在两个独立进程、模拟器或设备中，因为 `WKIM.shared` 及其 manager 都是进程单例。
+
+<Callout type="warn" title="这是源码对齐的验收骨架，不是运行 receipt">
+  下载文件未在本站用 DevEco 编译，也没有设备运行 receipt。`TCPSocket` 仍是原始 TCP；`WKLogger` 关闭后两个直接 `hilog.info` trace 仍存在；本地数据库是 `encrypt: false`；`sendingMsgMap` 退出后仍残留。示例把完成、超时、断网、踢出和失败都视为终止路径，并要求进程重启，不能把一次在线通过解释为生产可用。
+</Callout>
+
+## 目标与完成标准
+
+一次成功验收必须同时证明：
+
+1. Alice 和 Bob 都观察到 `connecting → success → syncing → syncCompleted`；
+2. `syncCompleted` 对应当前启动中由应用 provider 交付的会话结果，之后才开放发送；
+3. Alice 调用发送后，应用先记录持久化本地插入及 `clientMsgNo` / `clientSeq`；
+4. 同一 `clientSeq` 收到 SENDACK，且 `reasonCode === WKSendMsgResult.success`；
+5. Bob 的在线新消息 listener 收到相同文本；
+6. ready 和 SENDACK 阶段各有 15 秒超时；正常完成时移除所有可移除 listener，尚有 SENDACK 未决的超时则保留连接和 send listener，直接结束进程。
+
+第一次 `success` 只表示 CONNACK 成功。`syncConversationCallback` 缺失时，SDK 仍会发出 `syncCompleted`，所以不能只看状态数字就认定同步完成。
+
+## 前置条件
+
+- 已按[安装与配置](/zh/sdk/harmonyos/installation)固定 HAR、`oh-package-lock.json5`、API 20 和权限；
+- 一个可访问的 WuKongIM 单节点集群，并记录精确服务端 revision；
+- 由受信业务后端认证的 Alice、Bob 两个开发账号；
+- 后端分别返回 `uid`、短期 `token` 与 DNS/IPv4 `host:port`；
+- 对已有数据的账号，后端已实现完整最近会话同步映射。
+
+客户端不能持有 Product HTTP 管理凭据，也不能自行签发 Token。不要把 Token、完整 Payload 或高基数 UID 写入业务日志。
+
+## 1. 下载验收骨架
+
+[下载 `WKAcceptanceSession.ets`](/examples/harmonyos/WKAcceptanceSession.ets)，放入应用自己的 service 目录。文件 SHA-256 为：
+
+```text
+589554efcb4667ba41930358a7708d828900d70d4090abb2082ea95e810c37f1
+```
+
+它直接使用精确 HAR 中的 API：
+
+| 责任 | 精确 SDK API |
+| --- | --- |
+| 初始化 | `await WKIM.shared.init(uid, token, address, context)`，`deviceFlagApp = 0` |
+| 会话同步 | `config.provider.syncConversationCallback` 返回 `WKSyncConversation` |
+| 状态门禁 | `addConnectStatusListener` 与 `connecting`、`success`、`syncing`、`syncCompleted` |
+| 文本发送 | `sendWithOption(new WKTextContent(...), new WKChannel(..., WKChannelType.personal), ...)` |
+| 本地入库 | 无 remove API 的 `addInsertedListener` |
+| SENDACK | `addSendStatusListener` 与 `WKSendMsgResult.success` |
+| 在线接收 | `addNewMsgListener` |
+| 清理 | `removeConnectStatusListener`、`removeSendStatusListener`、`removeNewMsgListener` |
+
+根 `index.ets` 只导出 `WKIM`，因此骨架按精确 HAR 使用 `entity/Bean`、`model/WKTextContent` 和 `common/WKLogger` 深路径。先在你的 DevEco 工程完成编译；这些路径可能在未来版本改变。
+
+## 2. 提供真实会话数据源
+
+构造 session 时传入一个应用级 provider：
+
+```typescript
+const session = new WKAcceptanceSession(observer, async (
+  lastMsgSeqs: string,
+  msgCount: number,
+  version: number
+): Promise<WKSyncConversation> => {
+  return await trustedBackend.syncConversations(lastMsgSeqs, msgCount, version)
+})
+```
+
+provider 必须调用受信业务后端，并完整映射会话、最近消息、未读和版本。网络失败要抛出错误，不能伪装为空成功。只有全新测试账号可以使用下载文件中的 shortcut：
+
+```typescript
+const session = new WKAcceptanceSession(
+  observer,
+  freshAccountConversationSource('alice')
+)
+```
+
+已有消息、离线数据或生产账号使用空结果会丢失同步语义。
+
+## 3. 初始化一端
+
+从 `UIAbility` 或应用级容器传入 `Context`，不要依赖 SDK 内部已弃用的全局 `getContext()`：
+
+```typescript
+await session.start({
+  uid: bootstrap.uid,
+  token: bootstrap.shortLivedToken,
+  address: `${bootstrap.gatewayHost}:${bootstrap.gatewayPort}`
+}, applicationContext)
+```
+
+`address` 只能是一个 DNS/IPv4 `host:port`，不能带 `tcp://`、`https://`，也不能传 IPv6 literal。骨架会：
+
+1. 调用 `WKLogger.setShowLog(false)`；
+2. `await WKIM.shared.init(...)`；
+3. 设置 `debug = false` 记录意图，并设置有效的 `deviceFlagApp = 0`；
+4. 安装 provider 和所有 listener；
+5. 调用 `connection()`，等待应用门禁后的 `syncCompleted`。
+
+骨架在模块作用域抢占一次进程 activation，之后不会释放。即使重新 `new WKAcceptanceSession(...)`，也不能再次初始化 `WKIM.shared`、切换 UID 或覆盖 provider/listener；下一轮必须启动新进程。
+
+注意：`WKConfig.debug` 在 `1.1.7` 未被读取；真正可控的开关是 `WKLogger`，而直接 `hilog.info` 仍绕过它。数据库打开失败也只记日志，所以 init Promise 正常返回不能单独证明本地存储可用。
+
+## 4. 实现观察者
+
+`WKAcceptanceObserver` 的回调含义如下：
+
+| 回调 | 业务含义 |
+| --- | --- |
+| `onConnectionStatus` | 原始 SDK 状态和 reason；不是单独的 ready 判断 |
+| `onReady` | 当前单次连接同时完成 provider 交付与 `syncCompleted` |
+| `onLocalInsert` | 文本已写入 UID 对应的本地 RelationalStore，记录 `clientMsgNo` / `clientSeq` |
+| `onSendSucceeded` | 同一 `clientSeq` 收到成功 SENDACK |
+| `onSendRejected` | 收到非成功终态，不能显示为“已发送” |
+| `onLateSendTerminal` | 本轮超时或失败后才到达的 SENDACK；只留证据，不能把失败改判为成功 |
+| `onNewMessages` | 当前在线连接收到消息，不是离线恢复或推送证明 |
+| `requireProcessRestart` | 本轮已终止；停止使用该进程中的 SDK 单例 |
+
+连接、发送状态和新消息 listener 都用同一函数对象移除。`addInsertedListener` 只有一个槽位、无 remove API，后注册会覆盖前者；必须由应用级 dispatcher 安装一次，不能由每个页面重复注册。
+
+## 5. 运行 Alice/Bob 闭环
+
+在两个独立进程中执行：
+
+1. 先启动 Bob，等 `onReady()`；
+2. 再启动 Alice，等 `onReady()`；
+3. Alice 发送：
+
+```typescript
+const inserted = aliceSession.sendText('hello from Alice', 'bob')
+```
+
+`sendWithOption(...)` 返回 `void`。对于持久文本，它会同步写本地库并调用 inserted listener，然后才发协议包；网络结果必须另等 SENDACK。只有 `clientSeq > 0` 才会触发骨架的 `onLocalInsert`，返回的 `WKMsg` 只方便记录，不能当成发送成功。
+
+`1.1.7` 在数据库插入失败并返回 `clientSeq === 0` 时仍会调用 inserted callback 并发送协议包。骨架会立即判定本轮失败，但把 dispatch 保持为未决，不移除 send listener，也不调用 `disConnection(true)`；随后到达的序号 `0` SENDACK 只能进入 `onLateSendTerminal`，不能补写一条“持久入库成功”或推翻失败结论。
+
+4. Alice 的 `onLocalInsert` 记录 `clientMsgNo` 和 `clientSeq`；
+5. Alice 的 `onSendSucceeded` 必须带同一 `clientSeq`；非 `WKSendMsgResult.success` 或 15 秒超时都失败；
+6. Bob 的 `onNewMessages` 必须出现来自 Alice、频道类型为个人、内容相同的消息。
+
+不要用 Bob 在线收到消息代替 Alice 的成功 SENDACK，也不要用 Alice 的 SENDACK 代替 Bob 的接收证明。
+
+## 6. 清理与重试
+
+Alice 只有收到成功终态 SENDACK 后才能调用：
+
+```typescript
+aliceSession.closeAfterTerminalAck()
+```
+
+该方法显式要求本轮确实发送过消息且成功 ACK 已到达，不能在发送前误报完成。Bob 的 observer 验证发送者、个人频道和文本均符合预期后，走独立的接收端清理路径：
+
+```typescript
+bobSession.closeReceiverAfterVerifiedOnlineReceipt()
+```
+
+正常完成时，骨架移除所有可移除 listener，并调用 `disConnection(true)`。如果 SENDACK 超时但包仍未决，本轮立即判定失败，却不会移除 send listener 或调用断开；迟到的 SENDACK 只通过 `onLateSendTerminal` 记录，不能改变超时结论，此时必须直接结束进程。
+
+SDK 不清空 `sendingMsgMap`、provider、inserted callback 或所有 manager listener；SENDACK 也没有从 map 删除对应包。因此同一进程禁止切换 UID 或开始第二次验收。完成、超时、踢出、断网、同步失败和发送失败后都必须**进程重启**。
+
+## 7. 保存运行证据
+
+一次可评审 receipt 至少包含：
+
+```text
+@wukong/wkim version + HAR SHA + oh-package-lock.json5 digest
+DevEco + HarmonyOS SDK + ohpm + hvigor
+Release/Debug + HAP/signing + device/OS
+server revision
+Alice/Bob redacted status timestamps
+local insert clientMsgNo/clientSeq + SENDACK
+Bob online receive result
+```
+
+本站尚未取得这组证据。精确源码还使用无 TLS 原始 TCP、`encrypt: false` 本地存储、可能泄露 Payload 的日志和不会清理的发送 map；离线、推送、后台、多设备和高负载也都需要独立验收。因此本页让你证明自己的精确 `1.1.7` 在线 API 闭环，不构成生产发布许可。

@@ -341,6 +341,53 @@ function publishedIOSSDKGroup(): NavigationGroup {
   );
 }
 
+function publishedHarmonyOSSDKGroup(): NavigationGroup {
+  return publishedGroup(
+    'harmonyos',
+    'HarmonyOS',
+    'HarmonyOS',
+    '按 @wukong/wkim 1.1.7 的 OHPM HAR 与匹配源码完成精确安装、同步门禁和首条消息；平台能力、完整 API、升级和运行兼容性仍待验证。',
+    'Install, pass the synchronization gate, and exchange a first message against the @wukong/wkim 1.1.7 OHPM HAR and matching source; platform capabilities, full API, upgrades, and runtime compatibility remain unverified.',
+    [
+      publishedPage(
+        'installation',
+        '安装与配置',
+        'Installation',
+        '精确安装 @wukong/wkim 1.1.7，并核对 HAR、锁文件、API 20、权限、深路径导入和安全边界。',
+        'Install @wukong/wkim 1.1.7 exactly and review its HAR, lockfile, API 20, permissions, deep imports, and security boundaries.',
+      ),
+      publishedPage(
+        'quickstart',
+        '快速接入',
+        'Quickstart',
+        '用真实 ArkTS API 完成会话同步门禁、Alice/Bob 文本入库、SENDACK、在线接收和 listener 清理。',
+        'Use the real ArkTS API for conversation-sync gating, Alice/Bob text insertion, SENDACK, online receipt, and listener cleanup.',
+      ),
+      plannedPage(
+        'platform-capabilities',
+        '平台专属能力',
+        'Platform Capabilities',
+        'HarmonyOS 生命周期、后台运行、推送、离线恢复和设备矩阵仍待验证。',
+        'HarmonyOS lifecycle, background execution, push, offline recovery, and device matrices remain to be verified.',
+      ),
+      plannedPage(
+        'api-reference',
+        'API 参考',
+        'API Reference',
+        'HarmonyOS SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
+        'The complete HarmonyOS SDK classes, methods, events, parameters, and errors remain planned.',
+      ),
+      plannedPage(
+        'upgrade',
+        '升级指南',
+        'Upgrade Guide',
+        'HarmonyOS SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
+        'Breaking changes, migration steps, and release history for the HarmonyOS SDK remain planned.',
+      ),
+    ],
+  );
+}
+
 function plannedEasySDKGroup(): NavigationGroup {
   return plannedGroup(
     'easy',
@@ -1044,12 +1091,7 @@ export const domains: DocumentationDomain[] = [
         'UniApp SDK 的支持范围、平台差异和接入入口。',
         'Support scope, platform differences, and entry points for the UniApp SDK.',
       ),
-      platformGroup(
-        'harmonyos',
-        'HarmonyOS',
-        'HarmonyOS SDK 的支持范围、系统要求和接入入口。',
-        'Support scope, system requirements, and entry points for the HarmonyOS SDK.',
-      ),
+      publishedHarmonyOSSDKGroup(),
     ],
   },
   {

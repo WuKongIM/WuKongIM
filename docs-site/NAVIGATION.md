@@ -133,12 +133,12 @@ Route: `/{lang}/sdk`
   - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/uniapp/platform-capabilities` — UniApp 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other UniApp-specific behavior.
   - **API 参考 / API Reference** `/{lang}/sdk/uniapp/api-reference` — UniApp SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the UniApp SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/uniapp/upgrade` — UniApp SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the UniApp SDK.
-- **HarmonyOS / HarmonyOS** `/{lang}/sdk/harmonyos` — HarmonyOS SDK 的支持范围、系统要求和接入入口。 / Support scope, system requirements, and entry points for the HarmonyOS SDK.
-  - **安装与配置 / Installation** `/{lang}/sdk/harmonyos/installation` — HarmonyOS SDK 的依赖、权限和构建配置。 / Dependencies, permissions, and build configuration for the HarmonyOS SDK.
-  - **快速接入 / Quickstart** `/{lang}/sdk/harmonyos/quickstart` — 在 HarmonyOS 应用中完成首次连接和消息收发。 / Connect and exchange the first messages with the HarmonyOS SDK.
-  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/harmonyos/platform-capabilities` — HarmonyOS 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other HarmonyOS-specific behavior.
-  - **API 参考 / API Reference** `/{lang}/sdk/harmonyos/api-reference` — HarmonyOS SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the HarmonyOS SDK.
-  - **升级指南 / Upgrade Guide** `/{lang}/sdk/harmonyos/upgrade` — HarmonyOS SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the HarmonyOS SDK.
+- **HarmonyOS / HarmonyOS** `/{lang}/sdk/harmonyos` — 按 @wukong/wkim 1.1.7 的 OHPM HAR 与匹配源码完成精确安装、同步门禁和首条消息；平台能力、完整 API、升级和运行兼容性仍待验证。 / Install, pass the synchronization gate, and exchange a first message against the @wukong/wkim 1.1.7 OHPM HAR and matching source; platform capabilities, full API, upgrades, and runtime compatibility remain unverified.
+  - **安装与配置 / Installation** `/{lang}/sdk/harmonyos/installation` — 精确安装 @wukong/wkim 1.1.7，并核对 HAR、锁文件、API 20、权限、深路径导入和安全边界。 / Install @wukong/wkim 1.1.7 exactly and review its HAR, lockfile, API 20, permissions, deep imports, and security boundaries.
+  - **快速接入 / Quickstart** `/{lang}/sdk/harmonyos/quickstart` — 用真实 ArkTS API 完成会话同步门禁、Alice/Bob 文本入库、SENDACK、在线接收和 listener 清理。 / Use the real ArkTS API for conversation-sync gating, Alice/Bob text insertion, SENDACK, online receipt, and listener cleanup.
+  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/harmonyos/platform-capabilities` — HarmonyOS 生命周期、后台运行、推送、离线恢复和设备矩阵仍待验证。 / HarmonyOS lifecycle, background execution, push, offline recovery, and device matrices remain to be verified.
+  - **API 参考 / API Reference** `/{lang}/sdk/harmonyos/api-reference` — HarmonyOS SDK 的完整类、方法、事件、参数和错误定义仍在规划中。 / The complete HarmonyOS SDK classes, methods, events, parameters, and errors remain planned.
+  - **升级指南 / Upgrade Guide** `/{lang}/sdk/harmonyos/upgrade` — HarmonyOS SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。 / Breaking changes, migration steps, and release history for the HarmonyOS SDK remain planned.
 
 ## API 与协议 / API & Protocols
 

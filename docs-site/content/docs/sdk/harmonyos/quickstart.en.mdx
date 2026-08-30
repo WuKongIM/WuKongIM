@@ -1,0 +1,178 @@
+---
+title: HarmonyOS Quickstart
+description: Use the real @wukong/wkim 1.1.7 ArkTS API for synchronization gating, local text insertion, SENDACK, and online receipt.
+---
+
+This page runs a bounded online loop with `@wukong/wkim` `1.1.7`: Alice and Bob connect independently, Alice sends one personal text, and the application separates local insertion, server SENDACK, and Bob's online receive. The two users must run in separate processes, emulators, or devices because `WKIM.shared` and its managers are process singletons.
+
+<Callout type="warn" title="This is a source-aligned acceptance skeleton, not a runtime receipt">
+  The download has not been compiled with DevEco by this site and has no device runtime receipt. `TCPSocket` remains raw TCP; two direct `hilog.info` traces remain after disabling `WKLogger`; the local database is `encrypt: false`; and `sendingMsgMap` survives logout. The skeleton treats completion, timeout, network loss, kick, and failure as terminal and requires a process restart. One online pass is not production readiness.
+</Callout>
+
+## Goal and completion criteria
+
+A successful acceptance proves all of the following:
+
+1. Alice and Bob each observe `connecting → success → syncing → syncCompleted`.
+2. `syncCompleted` belongs to a conversation result delivered by the application provider during the current activation; only then is send enabled.
+3. Alice records durable local insertion plus `clientMsgNo` / `clientSeq` after invoking send.
+4. The same `clientSeq` receives a SENDACK with `reasonCode === WKSendMsgResult.success`.
+5. Bob's online new-message listener receives the same text.
+6. Ready and SENDACK phases each have a 15-second timeout. Normal completion removes every removable listener; a timeout with unresolved SENDACK keeps the connection and send listener intact and terminates the process directly.
+
+The first `success` is CONNACK success only. The SDK still emits `syncCompleted` when `syncConversationCallback` is absent, so a status number alone cannot prove synchronization.
+
+## Prerequisites
+
+- The HAR, `oh-package-lock.json5`, API 20, and permissions are pinned through [Installation](/en/sdk/harmonyos/installation).
+- A reachable WuKongIM single-node cluster with its exact server revision recorded.
+- Two development accounts, Alice and Bob, authenticated by a trusted business backend.
+- A backend response for each user containing `uid`, a short-lived `token`, and DNS/IPv4 `host:port`.
+- A complete recent-conversation mapping for any account that already has data.
+
+The client must not hold Product HTTP administrative credentials or mint Tokens. Do not put Tokens, complete Payloads, or high-cardinality UIDs into application logs.
+
+## 1. Download the acceptance skeleton
+
+[Download `WKAcceptanceSession.ets`](/examples/harmonyos/WKAcceptanceSession.ets) into an application service directory. Its SHA-256 is:
+
+```text
+589554efcb4667ba41930358a7708d828900d70d4090abb2082ea95e810c37f1
+```
+
+It calls API shipped by the exact HAR:
+
+| Responsibility | Exact SDK API |
+| --- | --- |
+| Initialization | `await WKIM.shared.init(uid, token, address, context)` and `deviceFlagApp = 0` |
+| Conversation sync | `config.provider.syncConversationCallback` returns `WKSyncConversation` |
+| Readiness gate | `addConnectStatusListener` with `connecting`, `success`, `syncing`, and `syncCompleted` |
+| Text send | `sendWithOption(new WKTextContent(...), new WKChannel(..., WKChannelType.personal), ...)` |
+| Local insert | `addInsertedListener`, which has no remove API |
+| SENDACK | `addSendStatusListener` and `WKSendMsgResult.success` |
+| Online receive | `addNewMsgListener` |
+| Cleanup | `removeConnectStatusListener`, `removeSendStatusListener`, and `removeNewMsgListener` |
+
+Root `index.ets` exports only `WKIM`, so the skeleton follows the exact HAR's deep paths for `entity/Bean`, `model/WKTextContent`, and `common/WKLogger`. Compile it in your DevEco project first; those paths can change in a future version.
+
+## 2. Provide the real conversation source
+
+Pass an application-level provider when creating the session:
+
+```typescript
+const session = new WKAcceptanceSession(observer, async (
+  lastMsgSeqs: string,
+  msgCount: number,
+  version: number
+): Promise<WKSyncConversation> => {
+  return await trustedBackend.syncConversations(lastMsgSeqs, msgCount, version)
+})
+```
+
+The provider must call a trusted business backend and completely map conversations, recent messages, unread state, and version. Network failure must reject rather than masquerade as empty success. Only brand-new test accounts may use the download's shortcut:
+
+```typescript
+const session = new WKAcceptanceSession(
+  observer,
+  freshAccountConversationSource('alice')
+)
+```
+
+An empty result loses synchronization semantics for accounts with history, offline data, or production state.
+
+## 3. Initialize one side
+
+Pass a `Context` from `UIAbility` or an application container instead of relying on the SDK's deprecated global `getContext()` fallback:
+
+```typescript
+await session.start({
+  uid: bootstrap.uid,
+  token: bootstrap.shortLivedToken,
+  address: `${bootstrap.gatewayHost}:${bootstrap.gatewayPort}`
+}, applicationContext)
+```
+
+`address` must be one DNS/IPv4 `host:port`, with no `tcp://`, `https://`, or IPv6 literal. The skeleton:
+
+1. calls `WKLogger.setShowLog(false)`;
+2. awaits `WKIM.shared.init(...)`;
+3. sets `debug = false` to record intent and the effective `deviceFlagApp = 0`;
+4. installs the provider and all listeners;
+5. calls `connection()` and waits for application-gated `syncCompleted`.
+
+The skeleton claims one process activation in module scope and never releases it. Creating another `WKAcceptanceSession` cannot initialize `WKIM.shared` again, switch UID, or replace providers/listeners; a new run needs a new process.
+
+`WKConfig.debug` is not read in `1.1.7`. `WKLogger` is the controllable switch, while direct `hilog.info` bypasses it. Database-open failures are also logged and swallowed, so a fulfilled init Promise is not sufficient storage proof.
+
+## 4. Implement the observer
+
+`WKAcceptanceObserver` callbacks mean:
+
+| Callback | Application meaning |
+| --- | --- |
+| `onConnectionStatus` | Raw SDK status and reason, not a ready decision by itself |
+| `onReady` | The current one-shot activation completed provider delivery and `syncCompleted` |
+| `onLocalInsert` | Text entered the UID RelationalStore; record `clientMsgNo` / `clientSeq` |
+| `onSendSucceeded` | The same `clientSeq` received a successful SENDACK |
+| `onSendRejected` | A non-success terminal reason; do not display “sent” |
+| `onLateSendTerminal` | SENDACK arrived only after the run timed out or failed; retain it as evidence without reclassifying the failure |
+| `onNewMessages` | Online receive on this connection, not offline recovery or push proof |
+| `requireProcessRestart` | The run is terminal; stop using the SDK singleton in this process |
+
+Connection, send-status, and new-message listeners are removed with the same function objects. `addInsertedListener` is one overwriteable slot with no remove API. Own it in one application dispatcher rather than registering it from every page.
+
+## 5. Run the Alice/Bob loop
+
+Use two independent processes:
+
+1. Start Bob and wait for `onReady()`.
+2. Start Alice and wait for `onReady()`.
+3. Send from Alice:
+
+```typescript
+const inserted = aliceSession.sendText('hello from Alice', 'bob')
+```
+
+`sendWithOption(...)` returns `void`. For durable text it writes locally and invokes the inserted listener synchronously before sending the protocol packet; the network result still requires SENDACK. Only `clientSeq > 0` reaches the skeleton's `onLocalInsert`; the returned `WKMsg` is for correlation, not success.
+
+When database insertion fails and returns `clientSeq === 0`, `1.1.7` still invokes the inserted callback and sends the protocol packet. The skeleton fails the run immediately but leaves dispatch unresolved, keeps the send listener, and does not call `disConnection(true)`. A later sequence-zero SENDACK can enter only `onLateSendTerminal`; it cannot create durable-insert evidence or reverse the failed result.
+
+4. Alice's `onLocalInsert` records `clientMsgNo` and `clientSeq`.
+5. Alice's `onSendSucceeded` must carry the same `clientSeq`; a non-`WKSendMsgResult.success` reason or 15-second timeout fails the run.
+6. Bob's `onNewMessages` must contain a personal-channel message from Alice with the same content.
+
+Do not substitute Bob's online receive for Alice's successful SENDACK, or Alice's SENDACK for Bob's receipt.
+
+## 6. Clean up and retry
+
+Alice calls this only after a successful terminal SENDACK:
+
+```typescript
+aliceSession.closeAfterTerminalAck()
+```
+
+The method explicitly requires that this run sent a message and observed its successful ACK, so it cannot report completion before send. After Bob's observer verifies the expected sender, personal channel, and text, use the separate receive-side path:
+
+```typescript
+bobSession.closeReceiverAfterVerifiedOnlineReceipt()
+```
+
+On normal completion, the skeleton removes every removable listener and calls `disConnection(true)`. If SENDACK times out while its packet is unresolved, the run fails immediately but does not remove the send listener or disconnect. A late SENDACK is recorded only through `onLateSendTerminal` and cannot change the timeout result; terminate the process directly.
+
+The SDK does not clear `sendingMsgMap`, providers, the inserted callback, or every manager listener, and SENDACK does not remove its packet from the map. Do not switch UID or begin a second acceptance in the same process. Completion, timeout, kick, network loss, synchronization failure, and send failure all require a **process restart**.
+
+## 7. Retain runtime evidence
+
+A reviewable receipt contains at least:
+
+```text
+@wukong/wkim version + HAR SHA + oh-package-lock.json5 digest
+DevEco + HarmonyOS SDK + ohpm + hvigor
+Release/Debug + HAP/signing + device/OS
+server revision
+Alice/Bob redacted status timestamps
+local insert clientMsgNo/clientSeq + SENDACK
+Bob online receive result
+```
+
+The site does not have this evidence. Exact source still uses raw no-TLS TCP, `encrypt: false` local storage, potentially sensitive Payload logging, and a send map that is never cleared. Offline, push, background, multi-device, and high-load behavior also require separate acceptance. This page lets you prove your exact `1.1.7` online API loop; it is not a production release approval.

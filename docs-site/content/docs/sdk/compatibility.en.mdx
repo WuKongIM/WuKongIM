@@ -21,6 +21,10 @@ This page records the combination targeted by the **JavaScript/Web golden path**
   The [full Flutter tutorial](/en/sdk/flutter) pins pub.dev `wukongimfluttersdk` `1.7.9` and aligns its archive hash, matching source revision, public Dart API, static analysis, and macOS Release build. It **is not covered by this receipt** and has no site Android, iOS, or macOS runtime receipt. A separate Flutter attestation requires an exact `pubspec.lock`, Flutter/Dart/native toolchain, device/system, server revision, and Alice/Bob result to be submitted and reviewed.
 </Callout>
 
+<Callout type="info" title="The HarmonyOS tutorial also has no install, compile, or runtime receipt">
+  The [full HarmonyOS tutorial](/en/sdk/harmonyos) pins OHPM `@wukong/wkim` `1.1.7` and aligns its HAR SHA, matching source revision, and packaged ArkTS API. It **is not covered by this receipt** and has no site HarmonyOS install, compile, or device runtime receipt. A separate attestation requires an exact `oh-package-lock.json5`, DevEco/HarmonyOS SDK/ohpm/hvigor tuple, HAP/signing result, device/system, server revision, and Alice/Bob result to be submitted and reviewed.
+</Callout>
+
 ## Goal and completion criteria
 
 Before integration, confirm that your server revision, `wukongimjssdk`, Node.js, and browser belong to one compatibility snapshot. When finished, you should be able to classify the combination as verified, unverified, or drifted instead of guessing from `latest`.
@@ -87,4 +91,4 @@ Compatibility verification does not complete production authentication. The defa
 
 ## Next step
 
-For this receipt, prepare the pinned Web dependency in [Installation](/en/sdk/javascript/installation), then complete the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart). For Android, iOS, or Flutter, use the corresponding [Android](/en/sdk/android), [iOS](/en/sdk/ios), or [Flutter](/en/sdk/flutter) tutorial and retain separate evidence for your exact runtime tuple. See [API Compatibility](/en/api/compatibility) for the HTTP-subset boundary.
+For this receipt, prepare the pinned Web dependency in [Installation](/en/sdk/javascript/installation), then complete the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart). For Android, iOS, Flutter, or HarmonyOS, use the corresponding [Android](/en/sdk/android), [iOS](/en/sdk/ios), [Flutter](/en/sdk/flutter), or [HarmonyOS](/en/sdk/harmonyos) tutorial and retain separate evidence for your exact runtime tuple. See [API Compatibility](/en/api/compatibility) for the HTTP-subset boundary.

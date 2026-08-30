@@ -1,0 +1,75 @@
+---
+title: HarmonyOS SDK
+description: Start from the exact @wukong/wkim 1.1.7 OHPM HAR and matching source, then understand HarmonyOS NEXT integration, synchronization gating, and production boundaries.
+---
+
+`@wukong/wkim` is the full HarmonyOS NEXT SDK with local message, conversation, channel, and reminder state. Its process singleton, `WKIM.shared`, exposes the managers. The application supplies identity, a TCP route, and synchronization data sources; the SDK owns the protocol connection, HarmonyOS RelationalStore data, and event dispatch.
+
+<Callout type="warn" title="This is not a compile or device runtime receipt">
+  This tutorial pins OHPM `@wukong/wkim` `1.1.7` and aligns the HAR hash, matching source revision, and packaged ArkTS API. This site has no DevEco, ohpm, hvigor, or HarmonyOS device, so it has no install, compile, HAP, or Alice/Bob runtime receipt. A human “verified” statement is only an acceptance signal; a separate receipt still needs the exact toolchain, lockfile, device, server, and redacted result.
+</Callout>
+
+## What it owns in an application
+
+| Module | SDK responsibility | Application responsibility |
+| --- | --- | --- |
+| `connectionManager()` | Connection, heartbeat, states, and protocol packets | Trusted identity, DNS/IPv4 `host:port`, and failure policy |
+| `messageManager()` | Local insertion, text/media send, SENDACK, and new messages | Attachment upload, UI, business outcomes, and idempotency |
+| `conversationManager()` | Recent conversations, unread counts, and synchronization entry | Complete `WKSyncConversation` mapping from a trusted backend |
+| `channelManager()` / `channelMemberManager()` | Channel and member caches | User, group, and membership profile sources |
+| `cmdManager()` / `reminderManager()` | Command and reminder data | Product command handling and remote synchronization APIs |
+
+The first-message path needs only connection, conversation synchronization, and message managers. History, profiles, media, push, multi-device behavior, background execution, and upgrades are outside this quickstart's proof.
+
+## Exact snapshot
+
+| Item | Pinned value |
+| --- | --- |
+| OHPM package | `@wukong/wkim 1.1.7` |
+| HAR SHA-256 | `d98d1523bc60ad204dd74d9cfa776935a5547fc3ab352322dfa17f5dbc7a3cd8` |
+| Matching source revision | `0c41810a1e0a5fc2936929d63ca32a50ffb11bec` |
+| Package compatibility declaration | HarmonyOS `compatibleSdkVersion: 20` |
+| Published artifact build metadata | compile SDK `6.1.1.125`, release, `default` / `tablet` |
+
+The official repository has no git tags. `1.1.7` is an OHPM package version, not a nonexistent `v1.1.7` ref. The dependency identity consumed by an application comes from the exact version, resolved URL, and integrity in `oh-package-lock.json5`.
+
+## The real first-connection gate
+
+After installing providers and listeners, call `connection()`. A successful first connection reports:
+
+```text
+connecting → success → syncing → syncCompleted
+```
+
+- `success` is CONNACK success; recent-conversation synchronization follows it;
+- there is no second `success` after `syncCompleted`;
+- exact source still emits `syncCompleted` when `syncConversationCallback` is absent;
+- the application must therefore require both its own provider-delivered flag and `syncCompleted` from the same one-shot activation before enabling send.
+
+A real account must map conversations, recent messages, and version state from a trusted backend. An empty `WKSyncConversation` is only for brand-new test accounts in the bounded online loop.
+
+## Root entry and deep imports
+
+The HAR root `index.ets` exports only `WKIM`. The official demo obtains `WKChannel`, `WKMsg`, status constants, and `WKTextContent` from **deep import** paths below `src/main/ets/...`. This tutorial uses the paths actually shipped in the artifact, but they are not a stable root-export contract. Recompile on every upgrade instead of assuming those directories remain compatible.
+
+## Current evidence and production blockers
+
+Exact `1.1.7` source has these adoption boundaries:
+
+- `@ohos.net.socket` `TCPSocket` uses raw **TCP** with no authenticated TLS;
+- `WKLogger` defaults on and logs the complete outbound Payload; two direct `hilog.info` send traces still log channel/client identifiers when it is disabled;
+- `WKConfig.debug` exists but is never read, so `debug = false` is not a logging control;
+- decrypted messages enter `${uid}.db` with RelationalStore configured as `encrypt: false`;
+- `sendingMsgMap` is not cleared by SENDACK or logout, while its resend flag is never enabled;
+- database-open failures are logged and swallowed, so `await WKIM.shared.init(...)` can still fulfill;
+- the package has only generated template tests, is unobfuscated, and contains `.DS_Store` files.
+
+WKProto Payload protection does not replace TLS. Run the acceptance as one process, one UID, one connection, and one message; require a **process restart** after completion or any terminal path. Production still requires transport, logging, at-rest storage, database error propagation, queue cleanup, and account isolation to be fixed or explicitly accepted and validated.
+
+## Start here
+
+1. Use [Installation](/en/sdk/harmonyos/installation) to pin the HAR, lockfile, API 20, and permissions.
+2. Use the [Quickstart](/en/sdk/harmonyos/quickstart) to run Alice and Bob in two independent processes.
+3. Retain your own DevEco/device runtime receipt, then implement identity, offline recovery, conversations, push, multi-device behavior, and recovery from the [Common Guides](/en/sdk/common-guides).
+
+Complete platform capabilities, API Reference, and upgrade material remain planned until matching version and runtime evidence exists.

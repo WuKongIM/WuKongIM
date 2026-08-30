@@ -1,0 +1,75 @@
+---
+title: HarmonyOS SDK
+description: 从 @wukong/wkim 1.1.7 的精确 OHPM HAR 与匹配源码开始，理解 HarmonyOS NEXT 接入、同步门禁和生产边界。
+---
+
+`@wukong/wkim` 是带本地消息、会话、频道和提醒数据的完整 HarmonyOS NEXT SDK。它通过进程单例 `WKIM.shared` 暴露各个 manager；应用提供身份、TCP 路由和同步数据源，SDK 负责协议连接、HarmonyOS RelationalStore 数据与事件分发。
+
+<Callout type="warn" title="本页不是编译或设备运行证明">
+  本教程固定 OHPM `@wukong/wkim` `1.1.7`，已核对 HAR 哈希、匹配源码 revision 和包内 ArkTS API。本站没有 DevEco、ohpm、hvigor 或 HarmonyOS 设备，因此没有安装、编译、HAP 或 Alice/Bob 运行 receipt。人工“已验证”只能作为验收信号；只有提交精确工具链、锁文件、设备、服务端和脱敏结果后，才能形成独立 receipt。
+</Callout>
+
+## 它在应用里负责什么
+
+| 模块 | 应用看到的职责 | 应用仍要提供 |
+| --- | --- | --- |
+| `connectionManager()` | 建连、心跳、状态和协议包 | 受信身份、DNS/IPv4 `host:port`、失败策略 |
+| `messageManager()` | 本地入库、文本/媒体发送、SENDACK、新消息 | 附件上传、UI、业务结果和幂等 |
+| `conversationManager()` | 最近会话、未读和同步入口 | 受信后端的完整 `WKSyncConversation` 映射 |
+| `channelManager()` / `channelMemberManager()` | 频道与成员缓存 | 用户、群组和成员资料源 |
+| `cmdManager()` / `reminderManager()` | 命令与提醒数据 | 产品命令处理和远端同步接口 |
+
+第一条消息只需要连接、会话同步和消息 manager。历史消息、频道资料、媒体、推送、多设备、后台运行和升级不属于本快速接入的证明范围。
+
+## 精确快照
+
+| 项目 | 本教程固定值 |
+| --- | --- |
+| OHPM package | `@wukong/wkim 1.1.7` |
+| HAR SHA-256 | `d98d1523bc60ad204dd74d9cfa776935a5547fc3ab352322dfa17f5dbc7a3cd8` |
+| 匹配源码 revision | `0c41810a1e0a5fc2936929d63ca32a50ffb11bec` |
+| Package 兼容声明 | HarmonyOS `compatibleSdkVersion: 20` |
+| 发布产物构建信息 | compile SDK `6.1.1.125`、release、`default` / `tablet` |
+
+官方仓库没有 git tag。`1.1.7` 是 OHPM 包版本，不是可以检出的 `v1.1.7` 标签；应用真正消费的身份由 `oh-package-lock.json5` 中的精确版本、resolved URL 和 integrity 决定。
+
+## 第一次连接的真实门禁
+
+注册 provider 与 listener 后调用 `connection()`，首次成功连接依次报告：
+
+```text
+connecting → success → syncing → syncCompleted
+```
+
+- `success` 只表示 CONNACK 成功，随后才同步最近会话；
+- `syncCompleted` 后没有第二个 `success`；
+- 如果没有设置 `syncConversationCallback`，源码仍会报告 `syncCompleted`；
+- 因此应用必须同时确认“自己的 provider 已交付”和“当前单次连接已到 `syncCompleted`”，才能开放发送。
+
+真实账号必须从受信后端映射会话、最近消息和版本。空 `WKSyncConversation` 只允许全新测试账号做在线闭环。
+
+## 公开入口与深路径
+
+HAR 根 `index.ets` 只导出 `WKIM`。官方 Demo 的 `WKChannel`、`WKMsg`、状态常量和 `WKTextContent` 都来自包内 `src/main/ets/...` **深路径**；教程按产物里的真实路径使用它们，但这些路径不是稳定的根导出合同。升级前必须重新编译，不能假设目录结构永远兼容。
+
+## 当前证据与生产阻断项
+
+精确 `1.1.7` 源码还有这些上线边界：
+
+- `@ohos.net.socket` 的 `TCPSocket` 使用原始 **TCP**，没有认证 TLS；
+- `WKLogger` 默认开启并记录完整发送 Payload；即使关闭它，两个直接 `hilog.info` 仍记录频道和客户端标识；
+- `WKConfig.debug` 存在但源码没有读取，不能用 `debug = false` 代替关闭日志；
+- 消息明文写入 `${uid}.db`，RelationalStore 明确配置 `encrypt: false`；
+- `sendingMsgMap` 收到 SENDACK 或退出后都不清理，且当前重发标志没有真正启用；
+- 数据库打开失败只写日志，`await WKIM.shared.init(...)` 仍可能正常返回；
+- 包只有生成的模板测试、未混淆，还带有 `.DS_Store` 文件。
+
+WKProto Payload 加密不能替代 TLS。快速验收按一个进程、一个 UID、一次连接、一条消息执行；结束或任一终止状态后要求**进程重启**。上线前还需修复或正式接受传输、日志、静态存储、数据库错误传播、发送队列和账号隔离风险。
+
+## 从哪里开始
+
+1. 在[安装与配置](/zh/sdk/harmonyos/installation)固定 HAR、锁文件、API 20 与权限；
+2. 在[快速接入](/zh/sdk/harmonyos/quickstart)用两个独立进程跑 Alice/Bob 在线消息；
+3. 保存自己的 DevEco/设备运行 receipt，再按[公共指南](/zh/sdk/common-guides)补身份、离线、会话、推送、多设备和异常恢复。
+
+完整平台能力、API Reference 和升级指南仍保持规划状态，直到取得对应版本和运行证据。
