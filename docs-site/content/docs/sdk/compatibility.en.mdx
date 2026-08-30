@@ -17,6 +17,10 @@ This page records the combination targeted by the **JavaScript/Web golden path**
   The [full Android tutorial](/en/sdk/android) pins `WuKongIMAndroidSDK` `1.5.5`. Its source, JitPack build revision, AAR SHA, and public signatures are aligned, but the path **is not covered by this receipt**. A user-side “verified” result can become a separate Android attestation only after an exact AGP/JDK, build variant, device/system, server revision, and Alice/Bob result are submitted and reviewed.
 </Callout>
 
+<Callout type="info" title="The Flutter tutorial also has no runtime receipt">
+  The [full Flutter tutorial](/en/sdk/flutter) pins pub.dev `wukongimfluttersdk` `1.7.9` and aligns its archive hash, matching source revision, public Dart API, static analysis, and macOS Release build. It **is not covered by this receipt** and has no site Android, iOS, or macOS runtime receipt. A separate Flutter attestation requires an exact `pubspec.lock`, Flutter/Dart/native toolchain, device/system, server revision, and Alice/Bob result to be submitted and reviewed.
+</Callout>
+
 ## Goal and completion criteria
 
 Before integration, confirm that your server revision, `wukongimjssdk`, Node.js, and browser belong to one compatibility snapshot. When finished, you should be able to classify the combination as verified, unverified, or drifted instead of guessing from `latest`.
@@ -83,4 +87,4 @@ Compatibility verification does not complete production authentication. The defa
 
 ## Next step
 
-For this receipt, prepare the pinned Web dependency in [Installation](/en/sdk/javascript/installation), then complete the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart). For Android, begin with the [Android tutorial](/en/sdk/android) and retain separate evidence for your AGP, device, server, and `1.5.5` tuple; for iOS, use the [iOS tutorial](/en/sdk/ios). See [API Compatibility](/en/api/compatibility) for the HTTP-subset boundary.
+For this receipt, prepare the pinned Web dependency in [Installation](/en/sdk/javascript/installation), then complete the [JavaScript/Web Quickstart](/en/sdk/javascript/quickstart). For Android, iOS, or Flutter, use the corresponding [Android](/en/sdk/android), [iOS](/en/sdk/ios), or [Flutter](/en/sdk/flutter) tutorial and retain separate evidence for your exact runtime tuple. See [API Compatibility](/en/api/compatibility) for the HTTP-subset boundary.

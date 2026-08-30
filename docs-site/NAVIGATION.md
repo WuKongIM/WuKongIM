@@ -121,12 +121,12 @@ Route: `/{lang}/sdk`
   - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/javascript/platform-capabilities` — 按真实 Chromium 场景区分场景覆盖能力、安全边界和未验证范围。 / Separates scenario-covered capabilities, security boundaries, and unverified scope through the real Chromium scenario.
   - **API 参考 / API Reference** `/{lang}/sdk/javascript/api-reference` — JavaScript / Web SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.
   - **升级指南 / Upgrade Guide** `/{lang}/sdk/javascript/upgrade` — JavaScript / Web SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the JavaScript / Web SDK.
-- **Flutter / Flutter** `/{lang}/sdk/flutter` — Flutter SDK 的支持范围、系统要求和接入入口。 / Support scope, system requirements, and entry points for the Flutter SDK.
-  - **安装与配置 / Installation** `/{lang}/sdk/flutter/installation` — Flutter SDK 的依赖、权限和构建配置。 / Dependencies, permissions, and build configuration for the Flutter SDK.
-  - **快速接入 / Quickstart** `/{lang}/sdk/flutter/quickstart` — 在 Flutter 应用中完成首次连接和消息收发。 / Connect and exchange the first messages with the Flutter SDK.
-  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/flutter/platform-capabilities` — Flutter 平台的生命周期、后台运行和推送等差异。 / Lifecycle, background execution, push, and other Flutter-specific behavior.
-  - **API 参考 / API Reference** `/{lang}/sdk/flutter/api-reference` — Flutter SDK 的类、方法、事件、参数和错误定义。 / Classes, methods, events, parameters, and errors for the Flutter SDK.
-  - **升级指南 / Upgrade Guide** `/{lang}/sdk/flutter/upgrade` — Flutter SDK 的破坏性变更、迁移步骤和发布记录。 / Breaking changes, migration steps, and release history for the Flutter SDK.
+- **Flutter / Flutter** `/{lang}/sdk/flutter` — 按 wukongimfluttersdk 1.7.9 的 pub.dev 归档与匹配源码完成精确安装、同步门禁和首条消息；完整平台矩阵、API、升级和运行兼容性仍待验证。 / Install, pass the synchronization gate, and exchange a first message against the wukongimfluttersdk 1.7.9 pub.dev archive and matching source; the full platform matrix, API, upgrades, and runtime compatibility remain unverified.
+  - **安装与配置 / Installation** `/{lang}/sdk/flutter/installation` — 精确安装 wukongimfluttersdk 1.7.9，锁定归档哈希、传递依赖、Flutter/Dart 构建和平台边界。 / Install wukongimfluttersdk 1.7.9 exactly and lock its archive hash, transitive dependencies, Flutter/Dart build, and platform boundaries.
+  - **快速接入 / Quickstart** `/{lang}/sdk/flutter/quickstart` — 用公开 Dart API 完成会话同步门禁、Alice/Bob 文本发送、本地入库、SENDACK 刷新、在线接收和清理。 / Use the public Dart API for conversation-sync gating, Alice/Bob text send, local insert, SENDACK refresh, online receipt, and cleanup.
+  - **平台专属能力 / Platform Capabilities** `/{lang}/sdk/flutter/platform-capabilities` — Android、iOS、macOS 的生命周期、后台、推送、离线恢复和设备矩阵仍待验证。 / Android, iOS, and macOS lifecycle, background, push, offline recovery, and device matrices remain to be verified.
+  - **API 参考 / API Reference** `/{lang}/sdk/flutter/api-reference` — Flutter SDK 的完整类、方法、事件、参数和错误定义仍在规划中。 / The complete Flutter SDK classes, methods, events, parameters, and errors remain planned.
+  - **升级指南 / Upgrade Guide** `/{lang}/sdk/flutter/upgrade` — Flutter SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。 / Breaking changes, migration steps, and release history for the Flutter SDK remain planned.
 - **UniApp / UniApp** `/{lang}/sdk/uniapp` — UniApp SDK 的支持范围、平台差异和接入入口。 / Support scope, platform differences, and entry points for the UniApp SDK.
   - **安装与配置 / Installation** `/{lang}/sdk/uniapp/installation` — UniApp SDK 的依赖、权限和构建配置。 / Dependencies, permissions, and build configuration for the UniApp SDK.
   - **快速接入 / Quickstart** `/{lang}/sdk/uniapp/quickstart` — 在 UniApp 应用中完成首次连接和消息收发。 / Connect and exchange the first messages with the UniApp SDK.

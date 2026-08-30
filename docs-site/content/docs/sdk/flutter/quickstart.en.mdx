@@ -1,0 +1,193 @@
+---
+title: Flutter quickstart
+description: Use the real wukongimfluttersdk 1.7.9 Dart API for the sync gate, durable text send, SENDACK, and online receive.
+---
+
+This page builds one bounded online-message loop with `wukongimfluttersdk 1.7.9`: Alice and Bob connect separately, Alice sends one personal text, and the application distinguishes durable local insertion, the server SENDACK, and Bob's online receive. The two users must run in separate processes, emulators, or devices because `WKIM.shared` and all of its managers are process singletons.
+
+<Callout type="warn" title="Acceptance harness, not a production wrapper">
+  The site has statically analyzed the exact package API and built a macOS Release consumer, but has no Android, iOS, or macOS Alice/Bob runtime receipt. `Socket.connect` still uses raw TCP without authenticated TLS; plain sqflite, SharedPreferences, plaintext Payload logging, `_sendingMsgMap` retained after logout, and uncancellable reconnects are production blockers. The sample requires a process restart after every terminal path, so one online pass must not be presented as production readiness.
+</Callout>
+
+## Goal and completion criteria
+
+A successful acceptance must prove all of the following:
+
+1. Alice and Bob each observe `fail(null) → connecting → success → syncMsg → syncCompleted`;
+2. `syncCompleted` is accepted only after the conversation result for the current `connectionEpoch` was delivered;
+3. after Alice invokes send, the application records the durable local insert before the terminal SENDACK;
+4. both send events have the same `clientMsgNO` and `clientSeq`, and the terminal state is `WKSendMsgResult.sendSuccess`;
+5. Bob receives the same text from the keyed online-message listener;
+6. each phase has a 15-second timeout, and every keyed listener is removed at the end.
+
+The first `success` means only that CONNACK was accepted. Flutter then enters `syncMsg`, and it emits no second `success` after `syncCompleted`. Without a conversation-sync provider, the connection remains at `syncMsg`.
+
+## Prerequisites
+
+- Pin the package, archive hash, and `pubspec.lock` as described in [Installation](/en/sdk/flutter/installation).
+- Run an accessible WuKongIM single-node cluster and record its exact server revision.
+- Authenticate two development identities, Alice and Bob, through a trusted product backend.
+- Return a `uid`, short-lived `token`, and DNS/IPv4 `host:port` for each identity.
+- For identities with existing data, implement the complete recent-conversation and message-sync mapping in the backend.
+
+The client must not hold Product HTTP administrative credentials or mint its own Token. Do not write a Token, full Payload, or high-cardinality UID into application logs.
+
+## 1. Download the compile-checked harness
+
+[Download `wk_acceptance.dart`](/examples/flutter/wk_acceptance.dart) and place it under the application's `lib/` directory. Its SHA-256 is:
+
+```text
+c2a6f4a2c39029b945ad8e251420f18afef871fb574fc3ccf3cbe474f7d8050c
+```
+
+The file calls the exact public `1.7.9` API:
+
+| Responsibility | Exact SDK API |
+| --- | --- |
+| Initialization | `await WKIM.shared.setup(Options.newDefault(...))`, with `debug = false` and `deviceFlag = 0` |
+| Conversation sync | `addOnSyncConversationListener` completes a `WKSyncConversation` |
+| Readiness gate | `addOnConnectionStatus` with `WKConnectStatus.connecting`, `success`, `syncMsg`, `syncCompleted`, `kicked`, and `noNetwork` |
+| Text send | `await sendWithOption(WKTextContent(...), WKChannel(..., WKChannelType.personal), ...)` |
+| Local insert | Unkeyed `addOnMsgInsertedListener` |
+| SENDACK | Keyed `addOnRefreshMsgListener` |
+| Online receive | Keyed `addOnNewMsgListener` |
+| Cleanup | `removeOnConnectionStatus`, `removeOnRefreshMsgListener`, and `removeNewMsgListener` |
+
+The SDK's convenience `sendMessage(...)` **does not await** its internal asynchronous `sendWithOption(...)`. The harness therefore awaits `sendWithOption(...)` directly. That confirms the invocation and local insertion path only; the network result still comes from a terminal refresh event.
+
+## 2. Install singleton providers during application startup
+
+Initialize Flutter bindings first. Conversation sync and local insertion have neither keys nor public remove APIs, so the application-scoped `WKProviders` dispatcher must be installed exactly once:
+
+```dart
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final providers = WKProviders(productionConversationSource);
+  providers.install();
+
+  runApp(MyApp(providers: providers));
+}
+```
+
+`productionConversationSource` receives the SDK's `lastMsgSeqs`, `msgCount`, and `version`, calls the trusted product backend, and maps the full response into `WKSyncConversation`. It must preserve historical conversations, recent messages, versioning, and all product-required synchronization data. A network error must not be converted into an empty success.
+
+The downloadable sample also exposes `WKProviders.freshAccountsOnly()`, which returns an empty `WKSyncConversation`:
+
+```dart
+final providers = WKProviders(WKProviders.freshAccountsOnly());
+providers.install();
+```
+
+This shortcut is only for **brand-new test accounts** in the bounded online Alice/Bob loop. Using it for existing or production identities discards synchronization semantics.
+
+## 3. Obtain connection material from the product backend
+
+Map the validated backend response into the application's `WKBootstrap`:
+
+```dart
+final alice = WKBootstrap(
+  uid: bootstrap.uid,
+  token: bootstrap.shortLivedToken,
+  address: '${bootstrap.gatewayHost}:${bootstrap.gatewayPort}',
+);
+```
+
+`address` must be one DNS/IPv4 `host:port`. Do not pass `tcp://`, `https://`, or an IPv6 literal. Internally, the harness executes exactly:
+
+```dart
+final options = Options.newDefault(uid, token, addr: address)
+  ..debug = false
+  ..deviceFlag = 0;
+
+final initialized = await WKIM.shared.setup(options);
+```
+
+The current device dictionary is `0=APP`, `1=WEB`, and `2=PC`; this mobile/desktop Flutter acceptance uses `0`.
+
+## 4. Create an observer and start one side
+
+Implement `WKSessionObserver` for a UI, test log, or state container. The important callback meanings are:
+
+| Callback | Product meaning |
+| --- | --- |
+| `onConnectionState` | Raw SDK state; `fail(null)` is the cleanup performed by `connect()`, not a server rejection |
+| `onReady` | Provider delivery and `syncCompleted` belong to the active connection generation; this acceptance may now send |
+| `onLocalInsert` | The message is in the UID-scoped local sqflite database; record `clientMsgNO` / `clientSeq` |
+| `onSendSucceeded` | The same message received a successful SENDACK |
+| `onSendRejected` | A non-success terminal state; never render it as sent |
+| `onNewMessages` | The active connection received an online message; this is not offline recovery or push proof |
+| `onTimeout` / `onTerminalError` | The run is terminal; clean up and restart the process before retrying |
+
+Create one one-shot session:
+
+```dart
+final session = WKSession(
+  providers,
+  observer,
+  acceptanceTimeout: const Duration(seconds: 15),
+  sendTimeout: const Duration(seconds: 15),
+);
+
+await session.start(alice);
+```
+
+`start` awaits `WKIM.shared.setup`, registers the keyed listeners, and only then calls `connect()`. The harness accepts one `connecting` generation. Because the SDK's delayed reconnect has no public cancellation handle or generation, a second `connecting` becomes terminal and calls `requireProcessRestart()`.
+
+## 5. Run the Alice/Bob loop
+
+Use this order in two isolated processes:
+
+1. Start Bob and wait for `onReady()`.
+2. Start Alice and wait for `onReady()`.
+3. Send from Alice:
+
+```dart
+final inserted = await aliceSession.sendText(
+  'hello from Alice',
+  'bob',
+);
+```
+
+4. Alice's `onLocalInsert` records `inserted.clientMsgNO` and `inserted.clientSeq`.
+5. Alice's `onSendSucceeded` must contain those same correlation values. `onSendRejected` or a 15-second timeout fails the run.
+6. Bob's `onNewMessages` must contain a personal-channel message from Alice with the same text.
+
+The harness permits one in-flight message and queues a terminal refresh that arrives before the local-insert report, preserving the application-visible insert-before-SENDACK order. Bob's online receive cannot replace Alice's successful SENDACK, and Alice's SENDACK cannot replace Bob's receive evidence.
+
+## 6. Clean up and retry
+
+Call this only after a terminal SENDACK:
+
+```dart
+session.close();
+```
+
+`close()` invokes `removeOnConnectionStatus`, `removeOnRefreshMsgListener`, and `removeNewMsgListener` with the original key, then runs `disconnect(true)`. Because `disconnect(true)` does not clear the SDK's `_sendingMsgMap`, and a queued automatic reconnect cannot be cancelled, close, timeout, kick, no-network, sync failure, and send failure all require a **process restart** before another connection. Switching UID within the same process is also rejected.
+
+## 7. Preserve runtime evidence
+
+A reviewable runtime receipt contains at least:
+
+```text
+wukongimfluttersdk version + archive SHA + pubspec.lock digest
+Flutter + Dart + Android/iOS/macOS toolchain
+Release/Debug mode + device/OS
+server revision
+redacted Alice/Bob status timestamps
+local-insert and SENDACK clientMsgNO/clientSeq
+Bob online-receive result
+```
+
+The site does not yet have this evidence. A user statement that the SDK is “verified” can precede submission of the receipt, but it cannot replace the exact tuple and redacted result.
+
+## Remaining production blockers
+
+- `Socket.connect` uses raw TCP; WKProto encryption does not replace authenticated TLS.
+- Plain sqflite and SharedPreferences provide no SDK-level encryption at rest.
+- `Options.debug` defaults on, and decoded logs can contain plaintext Payload.
+- `_sendingMsgMap`, the reconnect Future, and providers without remove APIs lack safe generation/account isolation.
+- The package's own parser test still fails with a `RangeError`.
+- Offline sync, push, background recovery, multiple devices, and load need independent acceptance.
+
+This page therefore provides a bounded path for you to prove the exact `1.7.9` online API loop in your own environment; it is not itself a runtime proof or permission to release the SDK to production.

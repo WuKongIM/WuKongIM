@@ -17,6 +17,10 @@ description: 核对 v3 Beta JavaScript/Web 黄金路径的服务端、SDK、Node
   [完整版 Android 教程](/zh/sdk/android)固定使用 `WuKongIMAndroidSDK` `1.5.5`。源码、JitPack build revision、AAR SHA 与公开签名已经校对，但该路径**不属于本页 receipt**。单次用户侧“已验证”只有在提交精确 AGP/JDK、构建变体、设备/系统、服务端 revision 与 Alice/Bob 结果并通过评审后，才可能形成独立 Android attestation。
 </Callout>
 
+<Callout type="info" title="Flutter 教程同样没有运行 receipt">
+  [完整版 Flutter 教程](/zh/sdk/flutter)固定 pub.dev `wukongimfluttersdk` `1.7.9`，并已校对归档哈希、匹配源码 revision、公开 Dart API、静态分析与 macOS Release build。它**不属于本页 receipt**，也没有本站 Android、iOS 或 macOS 运行 receipt；只有提交精确 `pubspec.lock`、Flutter/Dart/原生工具链、设备/系统、服务端 revision 与 Alice/Bob 结果并通过评审后，才能形成独立 Flutter attestation。
+</Callout>
+
 ## 目标与完成标准
 
 开始接入前，确认你的服务端 revision、`wukongimjssdk`、Node.js 和浏览器与同一份兼容快照一致。完成后，你应能指出当前组合是“已验证”“未验证”还是“已发生漂移”，而不是根据 `latest` 猜测兼容性。
@@ -83,4 +87,4 @@ curl --fail https://docs.githubim.com/compatibility.json
 
 ## 下一步
 
-需要本页 receipt 时，按 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)完成固定场景。目标是 Android 时，从[Android 教程](/zh/sdk/android)开始，并为自己的 AGP、设备、服务端和 `1.5.5` tuple 单独保存证据；iOS 对应从[iOS 教程](/zh/sdk/ios)开始。HTTP 子集的版本边界见 [API 兼容性](/zh/api/compatibility)。
+需要本页 receipt 时，按 Web [安装与配置](/zh/sdk/javascript/installation)和[快速接入](/zh/sdk/javascript/quickstart)完成固定场景。目标是 Android、iOS 或 Flutter 时，分别从 [Android 教程](/zh/sdk/android)、[iOS 教程](/zh/sdk/ios)、[Flutter 教程](/zh/sdk/flutter)开始，并为自己的精确运行 tuple 单独保存证据。HTTP 子集的版本边界见 [API 兼容性](/zh/api/compatibility)。

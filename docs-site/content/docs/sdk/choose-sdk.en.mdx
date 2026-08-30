@@ -6,7 +6,7 @@ description: Choose a WuKongIM SDK by platform, capability needs, and verificati
 Choose by runtime and required capabilities before choosing by repository name. The legacy documentation grouped clients into EasySDK and WuKongIMSDK families. This page preserves that useful discovery path, but no longer treats “chat app or non-chat app” as the only decision.
 
 <Callout type="warn" title="Source availability is not verification">
-  An official repository, a tutorial on this site, and an executable compatibility receipt are three different things. Android `1.5.5` is source/JitPack-AAR aligned and iOS `1.1.1` is source/public-header aligned, but neither tutorial has a site runtime receipt. Only the JavaScript/Web golden path with `wukongimjssdk@1.3.5` currently has an executable verification entry point on this site.
+  An official repository, a tutorial on this site, and an executable compatibility receipt are three different things. Android `1.5.5`, iOS `1.1.1`, and Flutter `1.7.9` are aligned to source and their corresponding distribution artifacts, but none of those tutorials has a site runtime receipt. Only the JavaScript/Web golden path with `wukongimjssdk@1.3.5` currently has an executable verification entry point on this site.
 </Callout>
 
 ## Write requirements before choosing a family
@@ -29,7 +29,7 @@ Inspect the README, APIs, examples, and changelog for the exact tag of each cand
 | Browser / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK), [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) | The [JavaScript/Web tutorial](/en/sdk/javascript) has an executable snapshot. EasySDK depends on JSON-RPC CONNECT, which is currently unsupported; its tutorial remains planned |
 | iOS / Apple platforms | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK), [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | The full SDK [overview, installation, and quickstart](/en/sdk/ios) are published against `1.1.1` source and distributed headers, without a runtime receipt; EasySDK JSON-RPC CONNECT remains unsupported |
 | Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK), [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | The full SDK [overview, installation, and quickstart](/en/sdk/android) are published against `1.5.5` source and JitPack AAR, without an Android runtime receipt; EasySDK JSON-RPC CONNECT remains unsupported |
-| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK), [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | EasySDK depends on unsupported JSON-RPC CONNECT; both EasySDK and full WuKongIMSDK tutorials remain planned |
+| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK), [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | The full-SDK [overview, installation, and quickstart](/en/sdk/flutter) are published against the pub.dev `1.7.9` archive and matching source, without a runtime receipt; EasySDK JSON-RPC CONNECT remains unsupported |
 | HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) | Source is discoverable; the platform tutorial on this site remains planned |
 | Mini programs, UniApp, Node.js, or another runtime | Check the README, examples, and release notes for the exact version of both JavaScript candidates | There is no executable snapshot for that runtime on this site; do not infer support from another runtime's notes |
 
@@ -51,7 +51,7 @@ These are exact source snapshots reviewed by this site and their real distributi
 - [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK)
 - [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK): tag `1.1.1`, source revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`; [CocoaPods `WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK), framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`; [tutorial](/en/sdk/ios) published without a runtime receipt
 - [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK): tag `1.5.5`, source revision `662a559a50d181540a0448454beb57e939b0c50e`; JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5` aligns to the same revision; [tutorial](/en/sdk/android) published without an Android runtime receipt
-- [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK)
+- [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK): pub.dev `wukongimfluttersdk` `1.7.9`, archive SHA-256 `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a`, matching source revision `de1024276523119e38305c49a3a873caae4d5c59`; [tutorial](/en/sdk/flutter) published without a runtime receipt
 - [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK)
 
 Before integration, inspect the repository README, examples, tags or releases, changelog, LICENSE, and open issues. Pin an exact version. A default branch or `latest` is not a compatibility statement.
@@ -95,6 +95,13 @@ If a candidate repository cannot answer one of these questions, build a small pr
 3. Retain a runtime receipt for your own AGP, JDK, device, system, and server revision instead of treating source/AAR alignment as Android execution evidence.
 4. Before release, close raw-TCP/TLS, SharedPreferences-token, UID-SQLCipher-key, and Payload-logging blockers, then verify offline, push, background, and multi-device behavior separately.
 
+### Flutter
+
+1. Use [Flutter Installation](/en/sdk/flutter/installation) to pin pub.dev `wukongimfluttersdk 1.7.9`, the archive hash, and the application `pubspec.lock`.
+2. Use the [Flutter Quickstart](/en/sdk/flutter/quickstart) in two independent processes to prove the conversation-sync gate, local insert, SENDACK, and online receipt.
+3. Retain a runtime receipt for your own Flutter, Dart, target toolchain, device, and server revision instead of treating static analysis/macOS build evidence as Android, iOS, or macOS execution proof.
+4. Before release, close raw-TCP/TLS, sqflite/SharedPreferences data protection, Payload logging, reconnect-generation, and account-queue isolation blockers, then verify offline, push, background, and multi-device behavior separately.
+
 ### Other WuKongIMSDK platforms
 
 1. Select an exact tag from the official repository above and run its included example first.
@@ -111,4 +118,4 @@ If a candidate repository cannot answer one of these questions, build a small pr
 
 ## Next step
 
-For Android, begin with the [Android tutorial](/en/sdk/android) and create a receipt for your own `1.5.5` runtime tuple. For iOS, use the [iOS tutorial](/en/sdk/ios). For Web, continue to [Installation](/en/sdk/javascript/installation) with this site's executable evidence. EasySDK must wait for a JSON-RPC runtime fix and end-to-end verification.
+For Android, iOS, or Flutter, use the corresponding [Android](/en/sdk/android), [iOS](/en/sdk/ios), or [Flutter](/en/sdk/flutter) tutorial and create a receipt for your exact runtime tuple. For Web, continue to [Installation](/en/sdk/javascript/installation) with this site's executable evidence. EasySDK must wait for a JSON-RPC runtime fix and end-to-end verification.

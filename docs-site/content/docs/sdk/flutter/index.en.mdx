@@ -1,0 +1,84 @@
+---
+title: Flutter SDK
+description: Start from the exact wukongimfluttersdk 1.7.9 pub.dev archive and matching source, then understand its integration path, state gate, and production boundaries.
+---
+
+`wukongimfluttersdk` is the full Flutter SDK with local message, conversation, channel, and reminder data. It exposes managers through the process singleton `WKIM.shared`. The application supplies identity, a TCP route, and synchronization sources; the SDK owns protocol connection, local sqflite data, and event dispatch.
+
+<Callout type="warn" title="This is not a device runtime attestation">
+  This tutorial pins `1.7.9` and aligns the pub.dev archive, matching source, and public Dart API. A temporary consumer also passed analysis and a macOS Release build with Flutter `3.41.4` / Dart `3.11.1`. The site has not completed an Android, iOS, or macOS Alice/Bob runtime loop, so there is no Flutter runtime receipt. A user-side “verified” result becomes a separate receipt only after its exact toolchain, device, server, and redacted result are submitted and reviewed.
+</Callout>
+
+## What it owns in an application
+
+| Module | Responsibility visible to the app | The app still supplies |
+| --- | --- | --- |
+| `connectionManager` | Connection, heartbeat, status, and protocol packets | Trusted identity, DNS/IPv4 `host:port`, and failure policy |
+| `messageManager` | Local insert, text/media send, SENDACK refresh, and new messages | Attachment upload, UI, business outcome, and idempotency |
+| `conversationManager` | Recent conversations, unread state, and sync entry | A complete trusted-backend `WKSyncConversation` mapping |
+| `channelManager` / `channelMemberManager` | Channel and member caches | User, group, and member data sources |
+| `cmdManager` / `reminderManager` | Command and reminder data | Product command handling and remote synchronization APIs |
+
+The first-message path needs only connection, conversation synchronization, and message managers. Offline history, channel data, media, push, multi-device, and background behavior are outside the quickstart proof.
+
+## Exact snapshot
+
+| Item | Value pinned here |
+| --- | --- |
+| pub.dev package | `wukongimfluttersdk 1.7.9` |
+| Archive SHA-256 | `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` |
+| Matching source revision | `de1024276523119e38305c49a3a873caae4d5c59` |
+| Declared Dart range | `>=2.17.0 <4.0.0` |
+| Site consumer check | Flutter `3.41.4`, Dart `3.11.1`, macOS `15.1` arm64; analysis and macOS Release build passed |
+
+The repository has no `1.7.9` tag, and the pub.dev uploader is not a verified publisher. The source revision identifies the implementation for review; the application actually consumes the version and content hash recorded in `pubspec.lock`.
+
+## The real first-connection gate
+
+First `await WKIM.shared.setup(...)`, then register listeners and call `connect()`. `connect()` invokes `disconnect(false)` before opening a socket, so the initial sequence is:
+
+```text
+fail(null) → connecting → success → syncMsg → syncCompleted
+```
+
+- `fail(null)` is synthetic pre-cleanup in this implementation, not a CONNACK rejection.
+- `success` means CONNACK succeeded; recent-conversation synchronization follows.
+- Do not enable sending during `syncMsg`.
+- The quickstart becomes ready only after the provider returns and `syncCompleted` fires.
+- The Flutter implementation has **no second `success`** after `syncCompleted`.
+
+Without `addOnSyncConversationListener`, the path remains at `syncMsg`. A real account needs a trusted-backend mapping for conversations, recent messages, commands, and versions. An empty `WKSyncConversation` is permitted only for brand-new test accounts in an online loop.
+
+## A send has multiple outcomes
+
+In `1.7.9`, `sendMessage(...)` does not await its internal asynchronous `sendWithOption(...)`. The tutorial calls and awaits `sendWithOption(...)` directly, then observes:
+
+1. `addOnMsgInsertedListener`: the durable item was inserted locally and has `clientMsgNO` / `clientSeq`.
+2. `addOnRefreshMsgListener`: SENDACK updated that same item; only `WKSendMsgResult.sendSuccess` is success.
+3. `addOnNewMsgListener`: Bob received it online; this does not prove offline recovery or push.
+
+The insert and synchronization providers are unkeyed singleton callbacks without remove APIs. Install them once through an application-scoped dispatcher. Connection, refresh, and new-message listeners are keyed and must be removed with the same key.
+
+## Current evidence and known debt
+
+The package itself reports 93 analysis warnings/info findings on the observed toolchain. Its `flutter test` `cust data` case also throws a `RangeError` from `ReadData.readString` in the packet cutting/decoding path. This does not prevent public-API compile alignment, but it prevents a claim that the package's own suite passes.
+
+The exact source also has these adoption boundaries:
+
+- `Socket.connect` uses raw **TCP** with no `SecureSocket` or authenticated TLS.
+- `Options.debug` defaults to `true` and logs decrypted `RecvPacket.toString()` including plaintext **Payload**.
+- Messages and conversations live in a normal UID-named **sqflite** database without SDK-level at-rest encryption.
+- **SharedPreferences** stores a UID-scoped device ID and database migration version.
+- `disconnect(true)` does not clear in-memory `_sendingMsgMap`, so unresolved work can survive logout in the process.
+- `ConnectPacket.toString()` contains UID and Token and must not enter application logs.
+- Delayed automatic reconnect has no public cancellation handle or connection generation, so a safe terminal path requires a **process restart**.
+
+WKProto Payload encryption is not TLS. Production adoption still needs SDK fixes for transport, logs, local storage, parser safety, reconnect generations, and per-account queue isolation, plus separate offline, push, background, and multi-device receipts.
+
+## Where to start
+
+1. Use [Installation](/en/sdk/flutter/installation) to pin the package, archive hash, lockfile, and platform configuration.
+2. Use the [Quickstart](/en/sdk/flutter/quickstart) in two independent processes for an Alice/Bob online message.
+3. Continue with the [Common Guides](/en/sdk/common-guides) for identity, offline state, conversations, push, multi-device, and error recovery.
+
+For a browser target, use the [JavaScript/Web SDK](/en/sdk/javascript). This Flutter package imports `dart:io` and depends on sqflite, so a successful Web compilation alone is not runtime support.

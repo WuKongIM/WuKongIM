@@ -247,6 +247,53 @@ function publishedAndroidSDKGroup(): NavigationGroup {
   );
 }
 
+function publishedFlutterSDKGroup(): NavigationGroup {
+  return publishedGroup(
+    'flutter',
+    'Flutter',
+    'Flutter',
+    '按 wukongimfluttersdk 1.7.9 的 pub.dev 归档与匹配源码完成精确安装、同步门禁和首条消息；完整平台矩阵、API、升级和运行兼容性仍待验证。',
+    'Install, pass the synchronization gate, and exchange a first message against the wukongimfluttersdk 1.7.9 pub.dev archive and matching source; the full platform matrix, API, upgrades, and runtime compatibility remain unverified.',
+    [
+      publishedPage(
+        'installation',
+        '安装与配置',
+        'Installation',
+        '精确安装 wukongimfluttersdk 1.7.9，锁定归档哈希、传递依赖、Flutter/Dart 构建和平台边界。',
+        'Install wukongimfluttersdk 1.7.9 exactly and lock its archive hash, transitive dependencies, Flutter/Dart build, and platform boundaries.',
+      ),
+      publishedPage(
+        'quickstart',
+        '快速接入',
+        'Quickstart',
+        '用公开 Dart API 完成会话同步门禁、Alice/Bob 文本发送、本地入库、SENDACK 刷新、在线接收和清理。',
+        'Use the public Dart API for conversation-sync gating, Alice/Bob text send, local insert, SENDACK refresh, online receipt, and cleanup.',
+      ),
+      plannedPage(
+        'platform-capabilities',
+        '平台专属能力',
+        'Platform Capabilities',
+        'Android、iOS、macOS 的生命周期、后台、推送、离线恢复和设备矩阵仍待验证。',
+        'Android, iOS, and macOS lifecycle, background, push, offline recovery, and device matrices remain to be verified.',
+      ),
+      plannedPage(
+        'api-reference',
+        'API 参考',
+        'API Reference',
+        'Flutter SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
+        'The complete Flutter SDK classes, methods, events, parameters, and errors remain planned.',
+      ),
+      plannedPage(
+        'upgrade',
+        '升级指南',
+        'Upgrade Guide',
+        'Flutter SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
+        'Breaking changes, migration steps, and release history for the Flutter SDK remain planned.',
+      ),
+    ],
+  );
+}
+
 function publishedIOSSDKGroup(): NavigationGroup {
   return publishedGroup(
     'ios',
@@ -990,12 +1037,7 @@ export const domains: DocumentationDomain[] = [
       publishedAndroidSDKGroup(),
       publishedIOSSDKGroup(),
       publishedJavaScriptGoldenPathGroup(),
-      platformGroup(
-        'flutter',
-        'Flutter',
-        'Flutter SDK 的支持范围、系统要求和接入入口。',
-        'Support scope, system requirements, and entry points for the Flutter SDK.',
-      ),
+      publishedFlutterSDKGroup(),
       platformGroup(
         'uniapp',
         'UniApp',
