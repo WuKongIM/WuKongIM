@@ -1,0 +1,168 @@
+---
+title: Flutter API Reference
+description: Look up wukongimfluttersdk 1.7.9 singleton, configuration, managers, providers, listeners, models, and result codes.
+---
+
+This reference is pinned to `wukongimfluttersdk 1.7.9` and source revision [`de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/de1024276523119e38305c49a3a873caae4d5c59). It enumerates the managers' public Dart symbols while separating recommended application entry points from implementation-facing methods that merely lack a leading underscore. Source visibility is not a stability promise.
+
+<Callout type="warn" title="API alignment is not runtime verification">
+  Method names come from the pinned pub.dev archive and matching source. This is not Android, iOS, or macOS runtime verification and not a production-security endorsement. An available call does not prove your server, provider, device, or Release build passed acceptance.
+</Callout>
+
+## Import boundary and authoritative source
+
+The package does not provide a stable barrel aggregating its SDK types; `lib/main.dart` is still a Flutter template application. The exact sample therefore imports package subpaths:
+
+```dart
+import 'package:wukongimfluttersdk/common/options.dart';
+import 'package:wukongimfluttersdk/entity/channel.dart';
+import 'package:wukongimfluttersdk/entity/conversation.dart';
+import 'package:wukongimfluttersdk/entity/msg.dart';
+import 'package:wukongimfluttersdk/manager/connect_manager.dart';
+import 'package:wukongimfluttersdk/model/wk_text_content.dart';
+import 'package:wukongimfluttersdk/type/const.dart';
+import 'package:wukongimfluttersdk/wkim.dart';
+```
+
+Those paths exist in archive `1.7.9`, but a future version can move them. Recompile every deep-path import during an upgrade.
+
+| Scope | Pinned source |
+| --- | --- |
+| Unified entry | [`lib/wkim.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/wkim.dart) |
+| Configuration | [`lib/common/options.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/common/options.dart) |
+| Connection | [`lib/manager/connect_manager.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/connect_manager.dart) |
+| Messages | [`lib/manager/message_manager.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/message_manager.dart) |
+| Conversations | [`lib/manager/conversation_manager.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/conversation_manager.dart) |
+| Models and constants | [`lib/entity/msg.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/entity/msg.dart), [`lib/type/const.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/type/const.dart) |
+
+## `WKIM` and `Options`
+
+`WKIM.shared` is the process singleton. `setup(Options opts)` stores configuration, registers built-in content, and opens the UID database in app mode. After a successful open it starts `updateSendingMsgFail()`, but neither call layer awaits the underlying sqflite update. This is a **best-effort, unawaited** state correction; successful `setup` does not prove earlier sending rows were persisted as failed.
+
+```dart
+final options = Options.newDefault(uid, token, addr: hostPort)
+  ..debug = false
+  ..deviceFlag = 0;
+
+final opened = await WKIM.shared.setup(options);
+```
+
+| `Options` field | `1.7.9` meaning |
+| --- | --- |
+| `uid` / `token` | CONNECT identity supplied by a trusted business backend |
+| `addr` | One DNS/IPv4 `host:port`, not a URI |
+| `getAddr` | Callback route provider receiving `complete(addr)`; the app must bound it with a timeout |
+| `protoVersion` | Defaults to `0x04`; do not override without cross-client evidence |
+| `deviceFlag` | Android/iOS use `0=APP`; the checked macOS wrapper uses `2=PC` |
+| `debug` | Defaults to `true`; set `false` in production and still audit final logs |
+| `proto` | Replaceable protocol object; normally retain `Proto()` |
+
+`setup` returns the database-open result, not connection, synchronization, or runtime compatibility. `WKIM.shared` exposes `runMode`, `options`, `deviceFlagApp`, plus the `connectionManager`, `messageManager`, `conversationManager`, `channelManager`, `channelMemberManager`, `reminderManager`, and `cmdManager` singleton fields. `isApp()` reads the run mode; `setDeviceFlag(...)` is deprecated in favor of `Options.deviceFlag`.
+
+## `WKConnectionManager`
+
+| API | Contract |
+| --- | --- |
+| `addOnConnectionStatus(String key, callback)` | Register `(status, reasonCode, ConnectionInfo?)` with a stable key |
+| `removeOnConnectionStatus(String key)` | Remove with the **same key** |
+| `connect()` | Calls `disconnect(false)` first, resolves the route, and connects; it does not return a ready Future |
+| `disconnect(bool isLogout)` | `false` keeps identity; `true` clears UID/Token, starts an unawaited best-effort sending-to-failed update, then immediately requests database close; it does not prove persistence |
+| `sendMessage(WKMsg)` | Low-level manager entry; applications normally use `WKMessageManager.sendWithOption` |
+
+`setConnectionStatus(...)` and `testCutData(...)` are also Dart-public, but they are SDK state-advancement and packet-splitting test entries. Applications must not use them to fabricate connection states or feed production traffic. `_WKSocket` starts with `_` and is library-private, not a public contract.
+
+The first connection can expose `fail(null) → connecting → success → syncMsg → syncCompleted`. `success` is CONNACK success. Enable send only after the application provider completes and `WKConnectStatus.syncCompleted` arrives.
+
+| `WKConnectStatus` | Value | Handling |
+| --- | ---: | --- |
+| `fail` | `0` | Failure; the first `connect()` also produces a synthetic null reason |
+| `success` | `1` | CONNACK success, not final readiness |
+| `kicked` | `2` | Terminal; require process restart |
+| `syncMsg` | `3` | Synchronizing |
+| `connecting` | `4` | New connection attempt |
+| `noNetwork` | `5` | Terminate the bounded attempt |
+| `syncCompleted` | `6` | Send gate after provider delivery |
+
+## `WKMessageManager`
+
+### Content and send
+
+| API | Purpose |
+| --- | --- |
+| `registerMsgContent(type, factory)` | Register a custom content decoder |
+| `getMessageModel(type, json)` | Decode content, falling back to `WKUnknownContent` |
+| `sendMessage(content, channel)` | Convenience wrapper; source does not await its internal `sendWithOption` |
+| `sendWithOption(content, channel, options)` | Persist, optionally upload media, and dispatch; callers should `await` it directly |
+| `getOrSyncHistoryMessages(...)` | Read locally and invoke the channel-history provider when needed |
+| `search(...)` / `searchWithChannel(...)` | Local global/channel search |
+| `searchMsgWithChannelAndContentTypes(...)` | Query by channel, cursor, limit, and content types |
+| `getWithClientMsgNo(...)` | Lookup by client identifier |
+| `getMessageOrderSeq(...)` / `getOrNearbyMsgSeq(...)` / `getMaxMessageSeq(...)` | Navigate between message sequence and local order sequence |
+| `updateViewedAt(...)` | Update local viewed time |
+| `getMaxExtraVersionWithChannel(...)` / `getMaxReactionSeqWithChannel(...)` | Read message-extra/reaction delta cursors |
+| `updateContent(...)` / `updateLocalExtraWithClientMsgNo(...)` / `updateMsgEdit(...)` | Update local content, local extras, or an edit extra awaiting upload |
+| `clearWithChannel(...)` / `deleteWithClientMsgNo(...)` | Clear a local channel or delete one local message |
+| `sendMessageWithSetting(...)` / `sendMessageWithSettingAndHeader(...)` | Deprecated; migrate to `sendWithOption(...)` |
+
+`WKSendOptions` contains `header`, `setting`, `expire`, and `topicID`. `MessageHeader.noPersist=true` skips local insertion, so there is no persistent `clientSeq` claim. Media content requires `addOnUploadAttachmentListener` first.
+
+### Providers and events
+
+| Registration | Ownership/removal |
+| --- | --- |
+| `addOnMsgInsertedListener(callback)` | Application-level **single slot** with no remove API; later registration overwrites it |
+| `addOnUploadAttachmentListener(callback)` | Application-level single slot for business media upload |
+| `addOnSyncChannelMsgListener(callback)` | Application-level single slot for channel history |
+| `addOnUploadMsgExtra(callback)` | Application-level single slot for message-extra upload |
+| `addOnNewMsgListener(key, callback)` | Keyed; `removeNewMsgListener(key)` |
+| `addOnRefreshMsgListener(key, callback)` | Keyed; `removeOnRefreshMsgListener(key)` |
+| `addOnDeleteMsgListener(key, callback)` | Keyed; `removeDeleteMsgListener(key)` |
+| `addOnClearChannelMsgListener(key, callback)` | Keyed; `removeClearChannelMsgListener(key)` |
+
+Correlate sends by `clientMsgNO` and positive `clientSeq`. Local insertion is not a server result; only `WKSendMsgResult.sendSuccess` is terminal success.
+
+The pinned source also exposes implementation-flow methods: `parsingMsg`, `saveMsg`, `generateClientMsgNo`, `saveRemoteExtraMsg`, `setSyncChannelMsgListener`, `wkSyncExtraMsg2WKMsgExtra`, `saveMessageReactions`, `getMsgReactionsAndRefreshMsg`, `pushNewMsg`, `setRefreshMsg`, `setOnMsgInserted`, `updateSendResult`, `updateMsgStatusFail`, and `updateSendingMsgFail`. Receive, synchronization, database, or SENDACK flows drive them. Their missing `_` only makes them Dart-accessible; wrap stable use-case entries instead of advancing SDK state directly.
+
+| `WKSendMsgResult` | Value |
+| --- | ---: |
+| `sendLoading` | `0` |
+| `sendSuccess` | `1` |
+| `sendFail` | `2` |
+| `noRelation` | `3` |
+| `blackList` | `4` |
+| `notOnWhiteList` | `13` |
+
+## Public conversation, channel, member, reminder, and CMD surface
+
+The table groups every public method in the pinned manager source. `set...` notification/sync entries are public implementation surface invoked by SDK flow; applications normally register the matching listener/provider instead.
+
+| Manager | Public API | Provider/cleanup focus |
+| --- | --- | --- |
+| `WKConversationManager` | `getAll`, `getWithChannel`, `saveWithLiMMsg`, `deleteMsg`, `clearAll`, `getAllUnreadCount`, `getExtraMaxVersion`, `updateRedDot`, `clearAllRedDot`, `addOnSyncConversationListener`, `setSyncConversation`, `addOnRefreshMsgListListener` / `removeOnRefreshMsgListListener`, `addOnClearAllRedDotListener` / `removeClearAllRedDotListener`, `addOnDeleteMsgListener` / `removeDeleteMsgListener`, deprecated `addOnRefreshMsgListener` / `removeOnRefreshMsg`, `setRefreshUIMsgs` | Sync provider is unkeyed/single-slot; remove every keyed listener with the same key; `saveWithLiMMsg`, `setSyncConversation`, and `setRefreshUIMsgs` primarily serve SDK flow |
+| `WKChannelManager` | `fetchChannelInfo`, `getChannel`, `getWithFollowAndStatus`, `search`, `searchWithChannelTypeAndFollow`, `addOrUpdateChannel`, `addOrUpdateChannels`, `updateAvatarCacheKey`, `addOnGetChannelListener`, `addOnRefreshListener` / `removeOnRefreshListener`, `addOnRefreshAvatarListener` / `removeOnRefreshAvatarListener` | Channel provider has no removal API; refresh/avatar listeners are keyed |
+| `WKChannelMemberManager` | `getMaxVersion`, `getMembers`, `getMember`, `saveOrUpdateList`, `addOnRefreshMemberListener` / `removeRefreshMemberListener`, `addOnDeleteMemberListener` / `removeDeleteMemberListener`, `addOnNewMemberListener` / `removeNewMemberListener` | Archive has no business pagination provider; design large-group pagination/sync before delivering `saveOrUpdateList` |
+| `WKReminderManager` | `getWithChannel`, `getWithChannelAndType`, `getMaxVersion`, `saveOrUpdateReminders`, `setNewReminder`, `addOnNewReminderListener` / `removeOnNewReminderListener` | `setNewReminder` is an internal notification entry; listener is keyed |
+| `WKCMDManager` | `handleCMD`, `addOnCmdListener` / `removeCmdListener` | Content parsing calls `handleCMD`; listener is keyed |
+
+The `addOnSyncConversationListener` callback receives `lastMsgSeqs`, `msgCount`, `version`, and `back(WKSyncConversation)`. A production provider must map conversations, recent messages, unread state, and version completely and finish once. Network failure must not masquerade as empty success.
+
+## Core models
+
+- `WKChannel(channelID, channelType)`; common values are `WKChannelType.personal = 1` and `WKChannelType.group = 2`.
+- `WKMsg` combines `messageID` / `messageSeq`, `clientMsgNO` / `clientSeq`, channel, content, status, extras, and reactions. `getFrom()` / `getMemberOfFrom()` read current caches; `1.7.9` adds on-demand manager lookups through `getFromAsync()` / `getMemberOfFromAsync()`.
+- `WKMessageContent` provides `encodeJson()`, `decodeJson()`, `displayText()`, and `searchableWord()`.
+- Built-ins are `WKTextContent`, `WKCardContent`, `WKImageContent`, `WKVoiceContent`, and `WKVideoContent`.
+- `WKSyncConversation` / `WKSyncConvMsg` carry conversation sync; `WKSyncChannelMsg` carries one channel page.
+
+These objects are mutable and tied to singleton database state. Copy an application-owned immutable snapshot across isolates, asynchronous attempts, or UI boundaries, and verify the active activation.
+
+## Security and lifecycle floor
+
+- Raw `Socket.connect` has no authenticated TLS.
+- `sqflite` data and `SharedPreferences` state have no independent encryption proof.
+- Debug logs may contain decrypted Payload.
+- `_sendingMsgMap` and delayed reconnect have no safe same-process reset boundary.
+- The app-level owner must manage single-slot providers and keyed listeners.
+- Timeout, kick, network loss, sync failure, uncertain send, or UID change requires a process restart.
+
+Complete the [Quickstart](/en/sdk/flutter/quickstart) for a first integration. Before replacing an installed package, follow the [Upgrade Guide](/en/sdk/flutter/upgrade) and retain lockfile, database, and rollback evidence.

@@ -1,0 +1,137 @@
+---
+title: iOS 版本升级
+description: 以可回滚证据把 iOS SDK 升级到固定的 1.1.1，并核对 Pod、公开 API、数据库、架构和安全边界。
+---
+
+本页说明如何把已有应用迁移到本站固定的 `WuKongIMSDK` `1.1.1` 快照。它不把 tag 名或旧站示例扩写成未经证实的 changelog；升级结论必须来自依赖、头文件 diff、构建、数据库副本和运行场景。
+
+<Callout type="warn" title="证据状态">
+  源码、framework 公开头文件与 CocoaPods 元数据已校对，但**不是本站运行验证**。本站没有替你的应用执行 Xcode build、设备消息环、数据库迁移或回滚演练；iOS 也不在 JavaScript/Web `compatibility.json` receipt 中。
+</Callout>
+
+## 目标快照
+
+| 组成 | 固定值 |
+| --- | --- |
+| Pod | `pod 'WuKongIMSDK', '1.1.1'` |
+| 源码 | tag `1.1.1`，revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
+| framework | tag `1.1.1`，revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
+| Deployment Target 声明 | [source podspec](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK.podspec)为 iOS `11.0`；[framework podspec](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/blob/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/WuKongIMSDK.podspec)同时声明 iOS `13.0` deployment target 与 iOS `11.0` platform |
+| 二进制 slice | 设备 `arm64`、模拟器 `x86_64` |
+
+版本来源是 `Podfile.lock`、源码 tag/revision 和 framework tag/revision。源码 tag 的 podspec 仍写 `1.1.0`，`WKSDK.sdkVersion` 与 framework `CFBundleShortVersionString` 都是 `1.0.0`；这些陈旧字段不能证明当前包版本。两个 podspec 的最低版本声明冲突，本文不能据此选定最低支持版本。
+
+## 版本历史能证明什么
+
+官方[标签列表](https://github.com/WuKongIM/WuKongIMiOSSDK/tags)至少展示 `v1.0.1`、`1.0.9`、`1.1.0` 与 `1.1.1` 源码快照。tag 能确定一个 revision，但 `1.1.1` 根目录没有可作为完整逐版本说明的 changelog。
+
+因此：
+
+1. **没有发布说明就不推断变更**，不能写“`1.1.1` 新增/修复了某能力”；
+2. 版本升级必须比较应用当前锁定版本与目标公开头文件，并用实际构建、数据和消息场景验证；
+3. [旧站 iOS 集成指南](https://docs.githubim.com/zh/sdk/wukongim/ios/integration)只提供学习顺序，不是固定版本 API 权威。浮动 pod、默认分支、`setup()`、`connectAddr` 或 Swift Package Manager 示例不能复制到 `1.1.1`。
+
+### 精确边界：`1.1.0 → 1.1.1`
+
+固定源码的[精确比较](https://github.com/WuKongIM/WuKongIMiOSSDK/compare/1.1.0...1.1.1)把 `1.1.0` revision `bb22a7659a7e5734d6dde5746aad71f85fb8ea59` 与目标 revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` 绑定。公开头文件未变，应用不需要为这个版本边界迁移 Objective-C selector；但 `WKChatManager.filterNoCMDAndNoStreamMessages` 的过滤行为发生了变化。`1.1.0` 只保留 `message.isDeleted == 0 && message.contentType != WK_CMD` 的消息，`1.1.1` 不再排除 `isDeleted != 0`。该过滤结果只由 `handleMessages` 传给 `callRecvMessagesDelegate`，最终经 `onRecvMessages:left:` 分发，因此固定 diff 能证明的是：已删除的非 CMD 包现在可能到达接收 delegate。
+
+这是固定源码 diff 能证明的行为边界，不是根据 tag 名或缺失的发布说明猜测。迁移验收必须覆盖删除消息通过**接收 delegate** 的可见性，并记录调用方是否需要在产品层继续隐藏这些消息。历史查询、同步 provider 返回路径和会话列表没有出现在这次 diff 中；若产品会把接收事件传播到这些界面，可把它们列为**额外探索性覆盖**，但不能声称它们由这次源码变化直接改变。framework 的**公开头文件同样未变**（public headers unchanged），但二进制不同；回归不能只做编译检查。
+
+## 1. 冻结升级前基线
+
+在改 `Podfile` 前记录：
+
+- 当前 `Podfile` / `Podfile.lock`、spec repo 来源和 checksum；
+- Xcode、CocoaPods、macOS、Deployment Target、Swift/Objective-C、设备/模拟器架构；
+- framework 是静态/动态、嵌入方式、bridging header 和 build settings；
+- 当前 UID 数据库的脱敏副本、schema migration 版本和文件保护策略；
+- 已注册的 connection/chat/channel/conversation/media/provider 与 delegate；
+- Alice/Bob 连接、消息更新、在线接收、离线同步、登出和失败路径结果。
+
+禁止把 token、消息 Payload 或 Product HTTP 管理凭据写进升级记录。
+
+## 2. 精确更新 CocoaPods
+
+```ruby
+target 'YourApp' do
+  use_frameworks!
+  pod 'WuKongIMSDK', '1.1.1'
+end
+```
+
+更新后核对：
+
+```bash
+pod install --repo-update
+grep -A 2 'WuKongIMSDK' Podfile.lock
+open YourApp.xcworkspace
+```
+
+保留并评审应用自己的 `platform :ios, '…'`；不要从本文复制一个“最低版本”。`pod install` 后核对解析结果和 build settings，因为 source podspec 的 iOS `11.0` 与 framework podspec 的 iOS `13.0` deployment target / iOS `11.0` platform 存在冲突。提交 `Podfile` 与 `Podfile.lock`，并在实际 Xcode、模拟器和设备组合上验证。不要用 `~>`、默认分支或 `WKSDK.sdkVersion` 代替锁定证据。精确 source/framework tag 都没有 `Package.swift`，所以此次升级不应顺便改成 Swift Package Manager。
+
+## 3. 校正公开 API 迁移
+
+以固定 [`WKSDK.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKSDK.h)、[`WKConnectionManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConnectionManager.h) 和 [`WKChatManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChatManager.h) 编译调用方：
+
+| 旧/风险形态 | `1.1.1` 目标 |
+| --- | --- |
+| `WKSDK.shared.setup()` | 不存在；构造 `WKOptions` / `WKConnectInfo` 并赋给 `[WKSDK shared].options` |
+| `connectAddr` / `apiURL` / `uploadURL` | 不存在于目标公开头；路由用 `host` / `port`，产品 API 留在受信后端 |
+| 直接把 `connect` 当成功 | 监听 `onConnectStatus:reasonCode:`，接受 `WKConnected` + `WK_REASON_SUCCESS` |
+| 发文本到标量 channel ID | 构造 `WKTextContent`、`WKChannel`，调用 `sendMessage:channel:` |
+| 只看立即返回值 | 立即对象是 local/pending；通过 `onMessageUpdate:left:` / `onSendack:left:` 观察终态 |
+| 忘记 delegate 清理 | teardown 对 connection/chat manager 调用 `removeDelegate:` |
+
+Swift 项目通过 bridging header 调 Objective-C API；不要为文档中不存在的 wrapper 继续保留兼容层，除非它是你自己的、已有测试的代码。
+
+## 4. 处理 architecture 与分发变化
+
+`1.1.1` 分发的是传统 framework，设备 slice 为 `arm64`，模拟器 slice 为 `x86_64`，podspec 排除 simulator `arm64`。升级验收至少包含：
+
+- 团队实际设备或 generic iOS Device build；
+- 如仍需模拟器，明确使用已验证的 `x86_64`/Rosetta tuple；
+- archive、链接、嵌入/sign 和启动；
+- Objective-C module import 与 Swift bridging header。
+
+移除 `EXCLUDED_ARCHS` 不会生成缺失 slice。只有新发布并验证的 XCFramework 才能改变这项证据。
+
+## 5. 把数据库迁移当作不可逆边界
+
+固定源码包含 [`WKDBMigrationManager`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/db/WKDBMigrationManager.h)，它发现并顺序执行 SQL migration，记录已应用版本，失败时回滚当前 transaction。
+
+但该快照没有发布反向 migration，也没有声明旧 SDK 能读取升级后的 schema，因此**没有公开的降级契约**。`migrateDatabaseToVersion:` 的 target 只限制继续应用到哪个版本，不会撤销已经应用的 migration。
+
+升级前应：
+
+1. 在脱敏 UID 数据库副本上先运行新 SDK；
+2. 验证消息、会话、频道、未读、搜索和媒体引用；
+3. 保存升级前快照；回滚演练用该快照或隔离的新安装；
+4. 未经证明，不要让旧 framework 原地打开已升级数据库。
+
+这不宣称回滚永远不可能，而是拒绝在没有证据时承诺安全降级。
+
+## 6. 重跑生命周期与安全验收
+
+- 连接有独立 15 秒接受超时，认证失败、kick、断网、旧 attempt 回调都终止/隔离；
+- Alice 的 local pending、终止消息更新/ACK 与 Bob 在线接收分别记录；
+- 真实 offline/channel/conversation provider 有超时、单次完成与幂等 ACK；
+- teardown 移除 delegates 并 `disconnect:YES`，账户退出使用 `logout`；
+- `isDebug = NO` 后继续检查系统/崩溃/远程日志链，不允许 RECV Payload 泄露；
+- `GCDAsyncSocket` 原始 TCP 无认证 TLS、UID SQLCipher key 与凭据生命周期仍是生产阻断项；
+- 媒体权限、上传/下载、APNs 与后台行为按实际设备单独验收。
+
+## 7. 发布与回滚判定
+
+先向受控 cohort 发布，观察连接接受率、消息失败原因、重复/丢失、数据库 migration failure、crash 与日志泄露。只有 build/device/runtime 证据通过后才扩大范围。
+
+回滚前必须回答：旧构建能否恢复、服务端协议是否仍兼容、旧 framework 是否会读取新 schema、是否有未决发送、账号数据是否已切换。任一答案未知时，不做原地降级，使用升级前数据库快照或经验证的隔离恢复流程。
+
+## 完成清单
+
+- `Podfile.lock` 固定 `1.1.1`，两个 revision 已记录；
+- 已记录 podspec 的 iOS `11.0` / iOS `13.0` 声明冲突，并用目标 Xcode、模拟器和设备验证应用自己的 Deployment Target；
+- `1.1.0 → 1.1.1` 的删除消息可见性已在 `onRecvMessages:left:` 接收 delegate 中回归；历史、同步结果和会话列表仅按产品传播路径做额外探索性覆盖；
+- 应用只使用目标公开 Objective-C selector，不含旧站虚构/浮动 API；
+- 真实 Xcode/device、archive、数据库副本、Alice/Bob 与失败路径有可复现证据；
+- architecture、TCP/TLS、Payload 日志、UID key、provider 与 rollback 风险仍明确可见；
+- 不把源码/头文件对齐或页面发布写成 iOS `compatibility.json` receipt。

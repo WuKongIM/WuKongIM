@@ -73,3 +73,6 @@ search, sitemap, LLM outputs, and per-page Markdown.
   raw profile download, and automatic credential or network provisioning.
 - Cloud Simulation and architecture internals; Architecture remains planned for
   a later phase.
+
+This is the Phase 7 boundary. Phase 8 later publishes the Architecture routes;
+the historical exclusion above is not current status.

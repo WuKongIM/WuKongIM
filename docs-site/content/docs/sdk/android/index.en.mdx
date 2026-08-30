@@ -51,11 +51,14 @@ The legacy manager-oriented navigation remains useful, but its snippets are not 
 
 1. Use [Installation](/en/sdk/android/installation) to pin dependencies, build requirements, and R8 rules.
 2. Use the [Quickstart](/en/sdk/android/quickstart) with two fresh test accounts to prove connection, SENDACK, and online receipt.
-3. Keep login and routing behind a trusted backend through [Identity & Token](/en/sdk/common-guides/identity-and-token).
-4. Implement real conversation and channel-message providers, then accept offline recovery.
-5. Close authentication, transport, logging, local-data, capacity, and rollback gates through [Integration Acceptance](/en/guide/integration/acceptance).
+3. Use [Platform Capabilities](/en/sdk/android/platform-capabilities) to separate source-aligned behavior, Android integration ownership, and device-unverified scope.
+4. Use the [API Reference](/en/sdk/android/api-reference) to find `1.5.5` managers, providers, listeners, message models, and error states.
+5. Before changing the pin, follow the [Upgrade Guide](/en/sdk/android/upgrade) and retain dependency, call-site, scenario, and rollback evidence.
+6. Keep login and routing behind a trusted backend through [Identity & Token](/en/sdk/common-guides/identity-and-token).
+7. Implement real conversation and channel-message providers, then accept offline recovery.
+8. Close authentication, transport, logging, local-data, capacity, and rollback gates through [Integration Acceptance](/en/guide/integration/acceptance).
 
-Platform capabilities, the complete API reference, and upgrades remain planned until matching evidence exists.
+[Platform Capabilities](/en/sdk/android/platform-capabilities), the [API Reference](/en/sdk/android/api-reference), and the [Upgrade Guide](/en/sdk/android/upgrade) are published against the pinned `1.5.5` source and AAR. They add source, artifact, and migration-boundary evidence, not a site Android runtime receipt.
 
 ## Important `1.5.5` behavior
 
@@ -82,4 +85,4 @@ This page does not prove push, background execution, multi-device behavior, offl
 
 ## Next step
 
-Start with [Installation](/en/sdk/android/installation), then run the [Quickstart](/en/sdk/android/quickstart) in two independent application processes. If you need this site's current executable compatibility receipt, only the [JavaScript/Web](/en/sdk/javascript) golden path carries it today.
+Start with [Installation](/en/sdk/android/installation), then run the [Quickstart](/en/sdk/android/quickstart) in two independent application processes. Continue through [Platform Capabilities](/en/sdk/android/platform-capabilities), the [API Reference](/en/sdk/android/api-reference), and the [Upgrade Guide](/en/sdk/android/upgrade). If you need this site's current executable compatibility receipt, only the [JavaScript/Web](/en/sdk/javascript) golden path carries it today.

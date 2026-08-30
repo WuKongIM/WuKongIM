@@ -32,6 +32,10 @@ this phase. EasySDK was also planned at this phase because its JSON-RPC CONNECT
 path was unsupported by the Product Gateway; a later documentation-only change
 published the source-aligned tutorials without claiming runtime compatibility.
 
+This is the Phase 19 publication boundary. Phase 24 later publishes the three
+iOS chapters above from the same pinned headers and source while retaining the
+absence of an Xcode, simulator, or device receipt.
+
 ## Exact source and artifact snapshot
 
 The tutorial is pinned to this auditable tuple:

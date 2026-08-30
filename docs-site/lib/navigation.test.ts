@@ -156,7 +156,7 @@ describe('documentation navigation contract', () => {
 
     expect(published).toEqual(expect.arrayContaining(phase12Routes));
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'api-reference'])?.status).toBe(
-      'planned',
+      'published',
     );
     expect(getNavigationEntry('en', 'api', ['specifications', 'openapi'])?.status).toBe(
       'published',
@@ -186,7 +186,7 @@ describe('documentation navigation contract', () => {
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
   });
 
-  test('publishes the Phase 14 acceptance loop without broadening SDK support', () => {
+  test('publishes the Phase 14 acceptance loop and later JavaScript reference chapters without broadening runtime support', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -199,12 +199,14 @@ describe('documentation navigation contract', () => {
       getNavigationEntry('en', 'sdk', ['javascript', 'platform-capabilities'])?.status,
     ).toBe('published');
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'api-reference'])?.status).toBe(
-      'planned',
+      'published',
     );
-    expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe('planned');
+    expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe(
+      'published',
+    );
   });
 
-  test('publishes the narrow Phase 19 iOS path without publishing unverified chapters', () => {
+  test('retains the Phase 19 iOS baseline and publishes later source-aligned chapters', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -220,13 +222,13 @@ describe('documentation navigation contract', () => {
         getNavigationEntry('en', 'sdk', ['ios', slug])?.status,
       ]),
     ).toEqual([
-      ['platform-capabilities', 'planned'],
-      ['api-reference', 'planned'],
-      ['upgrade', 'planned'],
+      ['platform-capabilities', 'published'],
+      ['api-reference', 'published'],
+      ['upgrade', 'published'],
     ]);
   });
 
-  test('publishes the narrow Phase 20 Android path without claiming runtime verification', () => {
+  test('retains the Phase 20 Android baseline and publishes later source-aligned chapters', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -242,13 +244,13 @@ describe('documentation navigation contract', () => {
         getNavigationEntry('en', 'sdk', ['android', slug])?.status,
       ]),
     ).toEqual([
-      ['platform-capabilities', 'planned'],
-      ['api-reference', 'planned'],
-      ['upgrade', 'planned'],
+      ['platform-capabilities', 'published'],
+      ['api-reference', 'published'],
+      ['upgrade', 'published'],
     ]);
   });
 
-  test('publishes the narrow Phase 21 Flutter path without claiming runtime verification', () => {
+  test('retains the Phase 21 Flutter baseline and publishes later source-aligned chapters', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -264,13 +266,13 @@ describe('documentation navigation contract', () => {
         getNavigationEntry('en', 'sdk', ['flutter', slug])?.status,
       ]),
     ).toEqual([
-      ['platform-capabilities', 'planned'],
-      ['api-reference', 'planned'],
-      ['upgrade', 'planned'],
+      ['platform-capabilities', 'published'],
+      ['api-reference', 'published'],
+      ['upgrade', 'published'],
     ]);
   });
 
-  test('publishes the narrow Phase 22 HarmonyOS path without claiming a site build', () => {
+  test('retains the Phase 22 HarmonyOS baseline and publishes later source-aligned chapters', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -286,9 +288,9 @@ describe('documentation navigation contract', () => {
         getNavigationEntry('en', 'sdk', ['harmonyos', slug])?.status,
       ]),
     ).toEqual([
-      ['platform-capabilities', 'planned'],
-      ['api-reference', 'planned'],
-      ['upgrade', 'planned'],
+      ['platform-capabilities', 'published'],
+      ['api-reference', 'published'],
+      ['upgrade', 'published'],
     ]);
   });
 
@@ -352,6 +354,22 @@ describe('documentation navigation contract', () => {
     expect(getNavigationEntry('en', 'sdk', ['flutter'])?.status).toBe(
       'published',
     );
+  });
+
+  test('renders the published EasySDK group and tutorials without planned badges', () => {
+    const tree = buildPageTree('zh', 'sdk');
+    const easy = tree.children.find(
+      (node) => node.type === 'folder' && node.index?.url === '/zh/sdk/easy',
+    );
+
+    expect(easy?.type).toBe('folder');
+    if (easy?.type !== 'folder') return;
+    expect(isValidElement(easy.name)).toBe(false);
+    expect(easy.name).toBe('WuKongEasySDK');
+    for (const page of easy.children) {
+      expect(page.type).toBe('page');
+      if (page.type === 'page') expect(isValidElement(page.name)).toBe(false);
+    }
   });
 
   test('keeps the Phase 16 trusted Product HTTP management pages published', () => {
@@ -424,7 +442,7 @@ describe('documentation navigation contract', () => {
     }
   });
 
-  test('keeps planned pages out of public indexes', () => {
+  test('indexes every currently published route in canonical order', () => {
     for (const locale of locales) {
       const indexed = getIndexedNavigationEntries(locale);
 
@@ -463,6 +481,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/deployment/choosing`,
         `/${locale}/server/deployment/docker`,
         `/${locale}/server/deployment/linux`,
+        `/${locale}/server/deployment/kubernetes`,
         `/${locale}/server/deployment/multi-node`,
         `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
@@ -511,21 +530,35 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/android`,
         `/${locale}/sdk/android/installation`,
         `/${locale}/sdk/android/quickstart`,
+        `/${locale}/sdk/android/platform-capabilities`,
+        `/${locale}/sdk/android/api-reference`,
+        `/${locale}/sdk/android/upgrade`,
         `/${locale}/sdk/ios`,
         `/${locale}/sdk/ios/installation`,
         `/${locale}/sdk/ios/quickstart`,
+        `/${locale}/sdk/ios/platform-capabilities`,
+        `/${locale}/sdk/ios/api-reference`,
+        `/${locale}/sdk/ios/upgrade`,
         `/${locale}/sdk/javascript`,
         `/${locale}/sdk/javascript/installation`,
         `/${locale}/sdk/javascript/quickstart`,
         `/${locale}/sdk/javascript/platform-capabilities`,
+        `/${locale}/sdk/javascript/api-reference`,
+        `/${locale}/sdk/javascript/upgrade`,
         `/${locale}/sdk/flutter`,
         `/${locale}/sdk/flutter/installation`,
         `/${locale}/sdk/flutter/quickstart`,
+        `/${locale}/sdk/flutter/platform-capabilities`,
+        `/${locale}/sdk/flutter/api-reference`,
+        `/${locale}/sdk/flutter/upgrade`,
         `/${locale}/sdk/uniapp`,
         `/${locale}/sdk/uniapp/migrate-to-jssdk`,
         `/${locale}/sdk/harmonyos`,
         `/${locale}/sdk/harmonyos/installation`,
         `/${locale}/sdk/harmonyos/quickstart`,
+        `/${locale}/sdk/harmonyos/platform-capabilities`,
+        `/${locale}/sdk/harmonyos/api-reference`,
+        `/${locale}/sdk/harmonyos/upgrade`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,
@@ -569,19 +602,193 @@ describe('documentation navigation contract', () => {
     }
   });
 
+  test('publishes every maintained route after the planned-document backlog is complete', () => {
+    for (const locale of locales) {
+      expect(
+        getAllNavigationEntries(locale)
+          .filter((entry) => entry.status === 'planned')
+          .map((entry) => entry.url),
+      ).toEqual([]);
+    }
+  });
+
+  test('pins every Phase 24 upgrade guide to an exact source interval', async () => {
+    const specification = await Bun.file(
+      new URL('../PHASE_24_SPEC.md', import.meta.url),
+    ).text();
+
+    for (const row of [
+      '| Android | [`1.5.4 → 1.5.5`](https://github.com/WuKongIM/WuKongIMAndroidSDK/compare/1.5.4...1.5.5) | Android 8/8.1 VPN capability failure gains the `NetworkInfo` fallback; public Java signatures do not change |',
+      '| iOS | [`1.1.0 → 1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK/compare/1.1.0...1.1.1) | `filterNoCMDAndNoStreamMessages` stops filtering `isDeleted != 0`; public headers do not change |',
+      '| Flutter | [`d99990f41ecb31166af82b9d20c121f33ff8385d → de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/compare/d99990f41ecb31166af82b9d20c121f33ff8385d...de1024276523119e38305c49a3a873caae4d5c59) | async sender/member lookup, awaited reaction persistence, maximum reaction sequence, and populated conversation results |',
+      '| HarmonyOS | [`a79df83f2794c581096850f0f77d34b95566a9ae → 0c41810a1e0a5fc2936929d63ca32a50ffb11bec`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/compare/a79df83f2794c581096850f0f77d34b95566a9ae...0c41810a1e0a5fc2936929d63ca32a50ffb11bec) | new channel/message/conversation queries, connection-generation changes, failed-sending initialization, and extra/reaction persistence |',
+      '| JavaScript direct | [`533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c → 3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/compare/533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c...3c507ea3ebc08eae9d74fc1f76b150c380752008) | `WKEvent.dataText → dataJson` with JSON parsing |',
+      '| JavaScript wide | [`3747f4477829cf87d9003725038506aa5591b1ab → 3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/compare/3747f4477829cf87d9003725038506aa5591b1ab...3c507ea3ebc08eae9d74fc1f76b150c380752008) | protocol-version, stream-removal, event-manager, and build-version changes in addition to the direct delta |',
+    ]) {
+      expect(specification).toContain(row);
+    }
+
+    expect(specification).toContain(
+      'JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5`',
+    );
+    expect(specification).toContain(
+      'framework podspec conflicts between iOS platform `11.0` and deployment target `13.0`',
+    );
+    expect(specification).toContain(
+      'generated compatibility state remains `verified: false` / `verification.status: missing`',
+    );
+    expect(specification).not.toContain('The existing receipt');
+  });
+
   test('backs every published route with matching Chinese and English MDX', async () => {
+    const missing: string[] = [];
+
     for (const entry of getIndexedNavigationEntries('zh')) {
       const segments = [entry.domain, ...entry.slugs];
       if (entry.kind !== 'page') segments.push('index');
       const stem = segments.join('/');
 
-      expect(await Bun.file(new URL(`../content/docs/${stem}.mdx`, import.meta.url)).exists()).toBe(
-        true,
-      );
-      expect(
-        await Bun.file(new URL(`../content/docs/${stem}.en.mdx`, import.meta.url)).exists(),
-      ).toBe(true);
+      for (const suffix of ['.mdx', '.en.mdx']) {
+        if (!(await Bun.file(new URL(`../content/docs/${stem}${suffix}`, import.meta.url)).exists())) {
+          missing.push(`${stem}${suffix}`);
+        }
+      }
     }
+
+    expect(missing).toEqual([]);
+  });
+
+  test('never hides an existing MDX page behind planned or unknown navigation', async () => {
+    const hidden: string[] = [];
+    const content = new Bun.Glob('../content/docs/**/*.mdx');
+
+    for await (const file of content.scan({ cwd: import.meta.dir, absolute: true })) {
+      const relative = file.split('/content/docs/').at(1);
+      if (!relative || isPublishedContentPath(relative)) continue;
+      hidden.push(relative);
+    }
+
+    expect(hidden.sort()).toEqual([]);
+  });
+
+  test('does not leave obsolete planned-backlog claims in published pages', async () => {
+    const staleClaims = [
+      '仍保持规划状态',
+      '在获得对应证据前仍保持规划状态',
+      '规划中的升级文档',
+      '侧栏仍会显示后续规划页面',
+      '标记为“规划中”',
+      'remain planned',
+      'sidebar still shows planned pages',
+      'marked “Planned”',
+    ];
+    const findings: string[] = [];
+    const content = new Bun.Glob('../content/docs/**/*.mdx');
+
+    for await (const file of content.scan({ cwd: import.meta.dir, absolute: true })) {
+      const body = await Bun.file(file).text();
+      for (const claim of staleClaims) {
+        if (body.toLocaleLowerCase().includes(claim.toLocaleLowerCase())) {
+          findings.push(`${file.split('/content/docs/').at(1)}: ${claim}`);
+        }
+      }
+    }
+
+    expect(findings.sort()).toEqual([]);
+  });
+
+  test('marks historical planned-route statements as phase boundaries', async () => {
+    const historicalBoundaries = new Map<string, RegExp>([
+      [
+        'PHASE_1_SPEC.md',
+        /all descendant menu entries\s+are visible as planned pages\.[\s\S]{0,500}This list records the Phase 1 skeleton boundary,[\s\S]{0,200}Phase 24 leaves/,
+      ],
+      [
+        'PHASE_6_SPEC.md',
+        /Troubleshooting remains a planned route\.[\s\S]{0,200}This is the Phase 6 boundary\. Phase 7 later publishes/,
+      ],
+      [
+        'PHASE_7_SPEC.md',
+        /Architecture remains planned for\s+a later phase\.[\s\S]{0,200}This is the Phase 7 boundary\. Phase 8 later publishes/,
+      ],
+      [
+        'PHASE_8_SPEC.md',
+        /keep Kubernetes, SDK, API, tutorials, and remaining guide pages\s+planned\.[\s\S]{0,1000}This is the Phase 8 boundary\.[\s\S]{0,200}Phase 24 leaves/,
+      ],
+      [
+        'PHASE_9_SPEC.md',
+        /keep tutorials, SDK, API, Kubernetes, and all other\s+planned routes excluded from public indexes\.[\s\S]{0,1000}This is the Phase 9 boundary\.[\s\S]{0,200}Phase 24 leaves/,
+      ],
+      [
+        'PHASE_12_SPEC.md',
+        /All other SDK platforms,[\s\S]{0,300}remain planned\.[\s\S]{0,100}This is the Phase 12 boundary, not the current publication status\. Phase 24/,
+      ],
+      [
+        'PHASE_13_SPEC.md',
+        /At the Phase 13 boundary,[\s\S]{0,200}remained\s+planned\.[\s\S]{0,200}Phases\s+19 through 24 published/,
+      ],
+      [
+        'PHASE_14_SPEC.md',
+        /The complete JavaScript API reference and upgrade guide remain planned\.[\s\S]{0,200}This paragraph records the Phase 14 boundary\. Phase 24 later publishes/,
+      ],
+      [
+        'PHASE_15_SPEC.md',
+        /At the Phase 15 boundary,[\s\S]{0,200}remained planned\. Phases 19 through 24 later published/,
+      ],
+      [
+        'PHASE_17_SPEC.md',
+        /These routes remain planned:[\s\S]{0,1500}This is the Phase 17 boundary\. Phase 18 later publishes[\s\S]{0,200}not current publication status/,
+      ],
+      [
+        'PHASE_19_SPEC.md',
+        /The following iOS routes remain planned and excluded from indexed output:[\s\S]{0,800}This is the Phase 19 publication boundary\. Phase 24 later publishes/,
+      ],
+      [
+        'PHASE_20_SPEC.md',
+        /The following routes remain planned and excluded from indexed output:[\s\S]{0,800}This is the Phase 20 publication boundary\. Phase 24 later publishes/,
+      ],
+      [
+        'PHASE_21_SPEC.md',
+        /Flutter platform capabilities, a complete API reference, and an upgrade guide\s+remain planned\.[\s\S]{0,100}This is the Phase 21 publication boundary\. Phase 24 later publishes/,
+      ],
+      [
+        'PHASE_22_SPEC.md',
+        /HarmonyOS platform capabilities, a complete API reference, and an upgrade guide\s+remain planned\.[\s\S]{0,200}This is the Phase 22 publication boundary\. Phase 24 later publishes/,
+      ],
+    ]);
+
+    for (const [file, boundary] of historicalBoundaries) {
+      const body = await Bun.file(new URL(`../${file}`, import.meta.url)).text();
+      expect(body).toMatch(boundary);
+    }
+  });
+
+  test('keeps localized links in published pages on maintained routes', async () => {
+    const publishedUrls = new Set(
+      locales.flatMap((locale) =>
+        getIndexedNavigationEntries(locale).map((entry) => entry.url),
+      ),
+    );
+    publishedUrls.add('/zh');
+    publishedUrls.add('/en');
+
+    const findings: string[] = [];
+    const content = new Bun.Glob('../content/docs/**/*.mdx');
+
+    for await (const file of content.scan({ cwd: import.meta.dir, absolute: true })) {
+      const body = await Bun.file(file).text();
+      const targets = [
+        ...body.matchAll(/\]\((\/(?:zh|en)(?:\/[^)\s?#]*)?)(?:[?#][^)\s]*)?(?:\s+"[^"]*")?\)/g),
+        ...body.matchAll(/href=["'](\/(?:zh|en)(?:\/[^"'?#]*)?)(?:[?#][^"']*)?["']/g),
+      ].map((match) => match[1]?.replace(/\/$/, ''));
+
+      for (const target of new Set(targets)) {
+        if (!target || publishedUrls.has(target)) continue;
+        findings.push(`${file.split('/content/docs/').at(1)}: ${target}`);
+      }
+    }
+
+    expect(findings.sort()).toEqual([]);
   });
 
   test('builds a Fumadocs tree and top tabs from the same registry', () => {
@@ -617,10 +824,8 @@ describe('documentation navigation contract', () => {
     ]);
     expect(kubernetes?.type).toBe('page');
     if (kubernetes?.type === 'page') {
-      expect(isValidElement(kubernetes.name)).toBe(true);
-      if (isValidElement(kubernetes.name)) {
-        expect(kubernetes.name.key).toBe('planned:zh:Kubernetes 部署（Beta）');
-      }
+      expect(isValidElement(kubernetes.name)).toBe(false);
+      expect(kubernetes.name).toBe('Kubernetes 部署（Beta）');
     }
   });
 
@@ -689,10 +894,17 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('sdk/easy/javascript/getting-started.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.en.mdx')).toBe(true);
+    for (const platform of ['android', 'ios', 'flutter', 'harmonyos', 'javascript']) {
+      for (const chapter of ['platform-capabilities', 'api-reference', 'upgrade']) {
+        if (platform === 'javascript' && chapter === 'platform-capabilities') continue;
+        expect(isPublishedContentPath(`sdk/${platform}/${chapter}.mdx`)).toBe(true);
+        expect(isPublishedContentPath(`sdk/${platform}/${chapter}.en.mdx`)).toBe(true);
+      }
+    }
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);
-    expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/cluster.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/cluster.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/reference.mdx')).toBe(true);

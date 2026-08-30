@@ -29,11 +29,11 @@ const copy = {
     eyebrow: 'WuKongIM v3 · 公开文档',
     title: '从第一条消息，走向可靠的大规模通信',
     description:
-      '面向应用开发者、服务端部署者和运维人员的统一文档入口。已发布内容可直接使用，仍在规划的页面会清晰标注。',
+      '面向应用开发者、服务端部署者和运维人员的统一文档入口。当前维护内容已全部发布，页面会分别说明运行证据和生产边界。',
     quickstart: '开始 JavaScript / Web 接入',
     browseApi: '浏览 API 文档',
     domainsTitle: '按工作内容进入',
-    domainsDescription: '四个文档域共享同一套术语和版本规则，并显示当前实际发布进度。',
+    domainsDescription: '四个文档域共享同一套术语和版本规则；当前维护路由已全部发布。',
     rolesTitle: '按你的角色开始',
     published: '已发布',
     planned: '规划中',
@@ -65,12 +65,12 @@ const copy = {
     eyebrow: 'WuKongIM v3 · Public Documentation',
     title: 'From the first message to dependable communication at scale',
     description:
-      'One documentation home for application developers, server deployers, and operators. Published guidance is ready to use, while unfinished pages remain clearly marked.',
+      'One documentation home for application developers, server deployers, and operators. Every maintained page is published, with runtime evidence and production boundaries stated separately.',
     quickstart: 'Start the JavaScript / Web quickstart',
     browseApi: 'Browse the API docs',
     domainsTitle: 'Choose your area',
     domainsDescription:
-      'Four documentation domains share one vocabulary and version policy, with their actual publication progress shown below.',
+      'Four documentation domains share one vocabulary and version policy; every maintained route is now published.',
     rolesTitle: 'Start from your role',
     published: 'published',
     planned: 'planned',
@@ -192,9 +192,11 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
                   <span className="text-emerald-700 dark:text-emerald-300">
                     {counts.published} {content.published}
                   </span>
-                  <span className="text-fd-muted-foreground">
-                    {counts.planned} {content.planned}
-                  </span>
+                  {counts.planned > 0 ? (
+                    <span className="text-fd-muted-foreground">
+                      {counts.planned} {content.planned}
+                    </span>
+                  ) : null}
                 </p>
               </Link>
             );

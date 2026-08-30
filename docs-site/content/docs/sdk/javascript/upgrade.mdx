@@ -1,0 +1,138 @@
+---
+title: JavaScript 升级指南
+description: 用固定依赖、调用点审计、真实场景和可回滚发布升级到 wukongimjssdk 1.3.5。
+---
+
+本指南的目标版本是 `wukongimjssdk@1.3.5`，对应源码提交 [`3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/tree/3c507ea3ebc08eae9d74fc1f76b150c380752008)。它不假设 npm 的 semver 变化等同于兼容性保证。
+
+<Callout type="warn" title="把小版本升级当成迁移">
+  从 `1.3.0` 到 `1.3.5` 的源码差异包含协议默认值和流式/事件 API 变化。不要只更新版本号后直接发布，也不要用浮动版本绕过失败。
+</Callout>
+
+## 1. 冻结升级前基线
+
+在独立分支记录：
+
+```bash
+node --version
+npm --version
+npm ls wukongimjssdk
+git status --short
+```
+
+同时保存当前 `package.json`、`package-lock.json`、构建产物摘要以及至少一份真实场景结果。场景应分别断言连接、SENDACK、对端实时接收、断线和离线恢复；一个“页面能打开”结果不足以作为升级基线。
+
+搜索所有 SDK 调用点：
+
+```bash
+rg -n "WKSDK|streamManager|streamNo|dataText|eventManager|dataJson|protoVersion" src test
+```
+
+如果项目没有 `src` 或 `test` 目录，替换为实际源码路径。还应记录自定义 `MessageContent`、Provider 回调、设备值、运行平台适配器和监听器清理方式。
+
+## 2. 精确安装并提交 lockfile
+
+```bash
+npm install --save-exact wukongimjssdk@1.3.5
+npm ls wukongimjssdk
+```
+
+检查 `package.json` 中不是 `^1.3.5` 或 `~1.3.5`，并审阅 `package-lock.json` 的包版本、resolved 地址和 integrity 变化。CI 应使用 `npm ci`，使未提交或无法复现的 lockfile 直接失败。
+
+本站 golden sample 的固定安装方式是：
+
+```bash
+npm --prefix docs-site/examples/javascript-web-quickstart ci --no-audit --no-fund
+npm --prefix docs-site/examples/javascript-web-quickstart run check
+```
+
+## 3. 按实际起始版本审计变化
+
+### `1.3.4 → 1.3.5`
+
+从固定 `1.3.4` 提交 [`533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c`](https://github.com/WuKongIM/WuKongIMJSSDK/tree/533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c) 直接升级时，应用可见的迁移重点是 `WKEvent.dataText?: string` 变为 `dataJson?: any`。`1.3.5` 构造事件时会直接执行 JSON 解析，因此需要同时测试合法 JSON、schema 不匹配和非 JSON 数据；不能只把字段重命名后结束验收。
+
+`1.3.4` 包里还存在没有从 package root/export map 暴露、且缺少匹配实现的孤立声明文件；`1.3.5` 清理这些文件不应被描述成根公共 API 删除。可核对[精确比较](https://github.com/WuKongIM/WuKongIMJSSDK/compare/533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c...3c507ea3ebc08eae9d74fc1f76b150c380752008)。
+
+### `1.3.0 → 1.3.5`
+
+固定提交差异里与应用最相关的变化如下：
+
+| 变化 | 迁移动作 |
+| --- | --- |
+| `WKConfig.protoVersion` 默认值从 `4` 变为 `5` | 删除无证据的手工覆盖；与目标服务端一起验证 CONNECT、SEND/RECV、事件和重连。 |
+| `streamManager` 和导出的 `Stream` 被移除 | 停止调用旧流监听器；按业务协议评估 `eventManager`，不能机械改名。 |
+| `Setting.streamNo`、`Message.streamNo` / `streamId` / `streamFlag` 被移除 | 重新设计所有依赖这些字段的 UI、存储与去重逻辑。 |
+| 新增 `eventManager`、`WKEvent`、`EventType` 和事件包 | 使用匹配的 add/remove 监听器，并对事件顺序、重复、断线恢复建立场景。 |
+| `WKEvent.dataText` 变为解析后的 `dataJson` | 删除字符串解析假设；验证业务 payload schema 和 JSON 解析失败策略。 |
+| `sdkVersion` 改由构建生成 | 观察值应与安装包一致，但不能把它当作服务端兼容性协商结果。 |
+
+源差异可直接比较 [`v1.3.0 对应提交 3747f44`](https://github.com/WuKongIM/WuKongIMJSSDK/commit/3747f44) 与 [`v1.3.5`](https://github.com/WuKongIM/WuKongIMJSSDK/commit/3c507ea3ebc08eae9d74fc1f76b150c380752008)。如果你的起始版本更旧，应从实际 lockfile 版本逐提交检查，不能只套用上表。
+
+### 事件迁移骨架
+
+```ts
+import { EventType, type WKEvent } from 'wukongimjssdk';
+
+const onEvent = (event: WKEvent) => {
+  if (event.type === EventType.TextMessageContent) {
+    const data = event.dataJson;
+    // 先由业务 schema 校验 data，再进入状态管理。
+  }
+};
+
+sdk.eventManager.addEventListener(onEvent);
+
+// 生命周期结束时
+sdk.eventManager.removeEventListener(onEvent);
+```
+
+事件 API 不是旧 `streamManager` 的逐字段替代。`dataJson` 的业务结构不由 TypeScript 声明约束，必须用你的协议 schema 校验；还要定义 start/content/end 缺失、重复和乱序时的行为。
+
+## 4. 复核配置与 Provider
+
+- `uid`、`token` 和 WebSocket 地址仍由受信后端提供，不把开发 Token 放进前端环境变量或静态文件。
+- 直接地址和 `connectAddrCallback` 二选一时，明确超时、失败和重新取路由的策略。
+- `syncMessagesCallback` 的序列号边界、方向、上限和去重规则与服务端/BFF 保持一致。
+- 对自定义内容重新运行 encode/decode 往返测试；未知 `contentType` 必须安全降级。
+- 每个 `addConnectStatusListener`、`addMessageListener`、`addMessageStatusListener` 和 `addEventListener` 都有同引用的 remove。
+- 如果使用 `config.platform`，单独验证对应运行时；本站的 Chromium receipt 不能覆盖 uni-app、小程序或 WebView。
+
+## 5. 关闭日志泄漏门禁
+
+`1.3.5` 源码会输出未受 `config.debug` 控制的日志，其中包含解密后的接收包和重试发送包。升级构建必须检查最终 bundle，而不是只在应用代码里搜索：
+
+```bash
+npm run build
+rg -n "消息内容|重试消息|console\.log" dist
+```
+
+根据项目调整 `dist`。仓库 golden sample 通过构建器删除 `console`；若你的产品需要保留日志，应在受控 fork 或构建步骤中做字段级脱敏，并用测试证明 Token、Payload 和密钥不会进入日志。
+
+## 6. 分层验证
+
+先运行项目自己的静态检查与单元测试，再运行真实环境：
+
+```bash
+npm run check
+npm run verify:acceptance
+```
+
+第二条命令是本站 golden sample 的验收入口；在其他项目中应映射为等价命令。它生成的报告仍会保留 `production_readiness.result=not_assessed`，不会证明 TLS、Token verifier、容量、告警或回滚。
+
+升级至少要验证：
+
+1. 正确与错误 Token 的 CONNECT 结果；
+2. SENDACK 成功与拒绝，且不会把本地 `Promise<Message>` 当成服务端成功；
+3. 对端实时接收、自发消息去重和自定义内容解码；
+4. 网络中断后的状态、重连、离线同步和重复控制；
+5. 事件的 start/content/end 生命周期及异常 JSON；
+6. 生产 bundle、Sourcemap 和浏览器日志不泄漏敏感 Payload。
+
+## 7. 灰度与回滚
+
+把 SDK 版本、服务端 revision、lockfile 哈希、浏览器/运行时和场景 receipt 绑定为一个发布单元。先对内部或小比例用户灰度，观察连接失败、踢下线、SENDACK 原因码、重连次数、同步重复和前端异常。
+
+回滚时同时恢复 `package.json` 与 `package-lock.json`，重新 `npm ci`、构建并运行旧基线场景。若升级同时改变了业务事件 schema、客户端存储或服务端协议，旧 bundle 是否能读取新状态必须事先演练；不能假设换回 JavaScript 文件就完成回滚。
+
+升级完成后在[兼容性快照](/zh/sdk/compatibility)登记精确组合，并用[API Reference](/zh/sdk/javascript/api-reference)复核实际采用的导出面。

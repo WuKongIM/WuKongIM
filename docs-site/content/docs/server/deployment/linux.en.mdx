@@ -107,6 +107,6 @@ WuKongIM does not replace production TLS termination or the external authenticat
 
 ## Upgrade boundary
 
-Do not overwrite a running binary. Validate the target commit and configuration outside production, stage the new binary, then remove one node at a time from traffic, stop it, replace the binary atomically, start it, and wait for `/readyz`. The complete rolling-upgrade, data-compatibility, and rollback matrix remains part of the planned upgrade documentation.
+Do not overwrite a running binary. Validate the target commit, artifact, configuration, backup, and recovery path outside production. Roll one node at a time only when the target release explicitly supports mixed operation with the current version; otherwise use a full maintenance window. See [Upgrade & Migration](/en/server/operations/upgrade-and-migration) for compatibility decisions, rolling steps, irreversible boundaries, rollback, and v2-to-v3 limits.
 
 For multi-node configuration, continue to [Multi-node Cluster](/en/server/deployment/multi-node).

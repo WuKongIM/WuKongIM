@@ -24,9 +24,9 @@ description: 基于 WuKongIMSDK 1.1.1 的公开头文件，完成 CocoaPods 安�
 | CocoaPods | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) | 可安装分发入口 |
 | SDK 源码 | [`WuKongIMiOSSDK` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/1.1.1) | 公开 API 与实现审计 |
 | 二进制产物 | [`WuKongIMiOSSDK-Framework` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/tree/1.1.1) | CocoaPods 分发头文件与 framework |
-| 最低部署目标 | iOS `11.0` | 来自分发 podspec，不代表所有 Xcode/设备组合已验证 |
+| Podspec 部署声明 | iOS `11.0` / iOS `13.0` 冲突 | 源码与 framework podspec 声明不一致；不能据此拍板最低支持版本 |
 
-源码 tag 与 framework tag 的教程所用公开头文件一致；这能支持“示例方法确实存在”，不能证明目标环境能够构建或运行。
+源码 tag 与 framework tag 的教程所用公开头文件一致；这能支持“示例方法确实存在”，不能证明目标环境能够构建或运行。源码 podspec 写 iOS `11.0`，而 framework podspec 同时写 iOS `13.0` deployment target 与 iOS `11.0` platform；接入方必须用自己的 Deployment Target、Xcode、模拟器和设备组合解决并验证这个 podspec 冲突。
 
 ## 你将搭建什么
 
@@ -47,9 +47,12 @@ Bob iOS ───┘   uid/token/host/port   └─ WuKongIM 单节点集群
 <Cards>
   <Card title="1. 安装与配置" description="精确安装 CocoaPods 产物，核对 iOS 目标、模拟器架构和分发来源。" href="/zh/sdk/ios/installation" />
   <Card title="2. 快速接入" description="按公开 Objective-C API 配置身份、连接、发送、确认、接收和清理。" href="/zh/sdk/ios/quickstart" />
-  <Card title="3. 身份与 Token" description="把 UID、Token、轮换和撤销留在受信业务后端。" href="/zh/sdk/common-guides/identity-and-token" />
-  <Card title="4. 消息语义" description="区分本地待发送、服务端确认、在线接收与业务处理结果。" href="/zh/sdk/common-guides/messaging" />
-  <Card title="5. 上线验收" description="补齐失败路径、兼容性、安全、容量、升级和回滚证据。" href="/zh/guide/integration/acceptance" />
+  <Card title="3. 平台专属能力" description="区分已按源码校对的能力、iOS 应用责任、生产阻断项和仍需设备验证的范围。" href="/zh/sdk/ios/platform-capabilities" />
+  <Card title="4. API Reference" description="按固定 1.1.1 公开头文件查找管理器、Provider、委托、模型和状态。" href="/zh/sdk/ios/api-reference" />
+  <Card title="5. 升级指南" description="用精确 Pod、锁文件、调用点审计、设备场景和可回滚灰度规划版本变更。" href="/zh/sdk/ios/upgrade" />
+  <Card title="6. 身份与 Token" description="把 UID、Token、轮换和撤销留在受信业务后端。" href="/zh/sdk/common-guides/identity-and-token" />
+  <Card title="7. 消息语义" description="区分本地待发送、服务端确认、在线接收与业务处理结果。" href="/zh/sdk/common-guides/messaging" />
+  <Card title="8. 上线验收" description="补齐失败路径、兼容性、安全、容量、升级和回滚证据。" href="/zh/guide/integration/acceptance" />
 </Cards>
 
 ## 最小闭环与未覆盖范围
@@ -73,10 +76,11 @@ Bob iOS ───┘   uid/token/host/port   └─ WuKongIM 单节点集群
 ## 完成标志
 
 - 你能指出安装的精确 CocoaPods 版本和两份审计 revision；
+- 你能说明 iOS `11.0` / iOS `13.0` podspec 冲突，并用目标环境验证应用自己的 Deployment Target；
 - 你知道连接结果来自 delegate，而不是 `connect` 方法返回值；
 - 你能区分本地待发送消息、发送确认与 Bob 的在线接收；
 - 你不会把源码校对写成兼容性 receipt，也不会忽略 TCP/TLS 与 Payload 日志风险。
 
 ## 下一步
 
-从[安装与配置](/zh/sdk/ios/installation)开始。完成依赖和构建环境核对后，进入[快速接入](/zh/sdk/ios/quickstart)实现 Alice/Bob 在线消息闭环。
+从[安装与配置](/zh/sdk/ios/installation)开始。完成依赖和构建环境核对后，进入[快速接入](/zh/sdk/ios/quickstart)实现 Alice/Bob 在线消息闭环，再依次核对[平台专属能力](/zh/sdk/ios/platform-capabilities)、[API Reference](/zh/sdk/ios/api-reference)与[升级指南](/zh/sdk/ios/upgrade)。这些新增资料按源码和公开头文件发布，不增加本站 Xcode、模拟器或真机运行 receipt。

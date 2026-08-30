@@ -51,11 +51,14 @@ SDK 不是一套聊天 UI，也不替产品后端创建账号。一次典型接�
 
 1. 用[安装与配置](/zh/sdk/android/installation)固定依赖、构建要求和 R8 规则；
 2. 用[快速接入](/zh/sdk/android/quickstart)为两个全新测试账号完成连接、SENDACK 与在线接收；
-3. 按[身份与 Token](/zh/sdk/common-guides/identity-and-token)把登录和路由留在受信后端；
-4. 为真实用户实现会话与频道消息同步 provider，再验收离线恢复；
-5. 按[上线验收](/zh/guide/integration/acceptance)关闭鉴权、传输、日志、本地数据、容量和回滚门禁。
+3. 用[平台专属能力](/zh/sdk/android/platform-capabilities)区分已按源码校对的能力、Android 集成责任和仍需设备验收的范围；
+4. 按 [API Reference](/zh/sdk/android/api-reference)查找 `1.5.5` 的 manager、Provider、listener、消息模型与错误状态；
+5. 改变固定版本前执行[升级指南](/zh/sdk/android/upgrade)，保留依赖、调用点、场景和回滚证据；
+6. 按[身份与 Token](/zh/sdk/common-guides/identity-and-token)把登录和路由留在受信后端；
+7. 为真实用户实现会话与频道消息同步 provider，再验收离线恢复；
+8. 按[上线验收](/zh/guide/integration/acceptance)关闭鉴权、传输、日志、本地数据、容量和回滚门禁。
 
-平台能力、完整 API Reference 和升级页在获得对应版本证据前仍保持规划状态。
+[平台专属能力](/zh/sdk/android/platform-capabilities)、[API Reference](/zh/sdk/android/api-reference)与[升级指南](/zh/sdk/android/upgrade)已经按固定 `1.5.5` 源码和 AAR 发布；这些页面补充的是源码、产物与迁移边界，不构成本站 Android 运行 receipt。
 
 ## `1.5.5` 的关键行为
 
@@ -82,4 +85,4 @@ SDK 不是一套聊天 UI，也不替产品后端创建账号。一次典型接�
 
 ## 下一步
 
-先进入[安装与配置](/zh/sdk/android/installation)锁定 JitPack 产物，再按[快速接入](/zh/sdk/android/quickstart)运行两个独立应用进程。若你需要本站现有的可执行兼容 receipt，当前仍只有 [JavaScript/Web](/zh/sdk/javascript) 黄金路径具备该证据。
+先进入[安装与配置](/zh/sdk/android/installation)锁定 JitPack 产物，再按[快速接入](/zh/sdk/android/quickstart)运行两个独立应用进程；随后依次核对[平台专属能力](/zh/sdk/android/platform-capabilities)、[API Reference](/zh/sdk/android/api-reference)与[升级指南](/zh/sdk/android/upgrade)。若你需要本站现有的可执行兼容 receipt，当前仍只有 [JavaScript/Web](/zh/sdk/javascript) 黄金路径具备该证据。

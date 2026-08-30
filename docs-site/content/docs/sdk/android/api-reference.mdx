@@ -1,0 +1,252 @@
+---
+title: Android API 参考
+description: WuKongIMAndroidSDK 1.5.5 的入口、manager、连接事件、消息发送、模型、状态码与数据源速查。
+---
+
+本参考固定到 `WuKongIMAndroidSDK` tag `1.5.5`、revision `662a559a50d181540a0448454beb57e939b0c50e`。它覆盖应用集成时使用的公开入口和核心 manager，不把源码内所有数据库辅助方法当作稳定产品契约。
+
+<Callout type="warn" title="使用边界">
+  这里是源码/API 对照，不是本站 Android 运行验证，也不是生产安全背书。调用存在不代表你的 Gateway、数据源、设备或 Release 已通过验收；`compatibility.json` 仍只覆盖 JavaScript/Web golden path。
+</Callout>
+
+旧站的 [Android SDK 介绍](https://docs.githubim.com/zh/sdk/wukongim/android/intro)只用于学习顺序和 manager 主题覆盖。下面的方法名、参数和状态以固定源码为准。
+
+## 权威源码入口
+
+| 范围 | 固定源码 |
+| --- | --- |
+| 统一入口与配置 | [`WKIM.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/WKIM.java) |
+| 连接生命周期 | [`ConnectionManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ConnectionManager.java) |
+| 消息、监听与发送 | [`MsgManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/MsgManager.java) |
+| 频道与频道成员 | [`ChannelManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelManager.java)、[`ChannelMembersManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelMembersManager.java) |
+| 最近会话 | [`ConversationManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ConversationManager.java) |
+| 提醒 | [`ReminderManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ReminderManager.java) |
+| CMD | [`CMDManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/CMDManager.java) |
+| 机器人 | [`RobotManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/RobotManager.java) |
+| 消息模型 | [`WKMsg.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/entity/WKMsg.java) 与 [`WKMessageContent.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/msgmodel/WKMessageContent.java) |
+| 状态常量 | [`WKConnectStatus.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/message/type/WKConnectStatus.java)、[`WKSendMsgResult.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/message/type/WKSendMsgResult.java) |
+
+产物仍固定为 `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5`。不要用 `WKIM.getVersion()` 返回的 `V1.5.0` 证明安装版本。
+
+## `WKIM` 入口与配置
+
+先通过 `WKIM.getInstance()` 取得单例。
+
+| API | 作用 | 注意 |
+| --- | --- | --- |
+| `init(Context, String, String)` | 用 application context、UID、Token 初始化 manager、加密状态和 UID 数据库 | 传入 `context.getApplicationContext()`；会切换 UID 作用域状态 |
+| `setDebug(boolean)` | 控制 debug 日志 | 生产设为 `false`；不是全局无日志保证 |
+| `setWriteLog(boolean)` | 控制 SDK 文件日志 | 生产设为 `false` |
+| `setFileCacheDir(String)` | 覆盖文件缓存目录 | 在初始化/媒体任务前设置并验证权限与清理策略 |
+| `setDeviceId(String)` / `getDeviceID()` | 设置生成 `clientMsgNO` 使用的设备片段 | 不是服务器设备类型或安全身份 |
+| `getVersion()` | 返回内嵌 `V1.5.0` | 值已落后于 `1.5.5`，只能视为观测缺口 |
+
+`WKIM.getInstance()` 暴露的 manager：
+
+| Getter | 类型 | 核心职责 |
+| --- | --- | --- |
+| `getConnectionManager()` | `ConnectionManager` | 路由、连接、断开、登出和状态监听 |
+| `getMsgManager()` | `MsgManager` | 正文注册、消息查询/同步/发送及事件 |
+| `getConversationManager()` | `ConversationManager` | 最近会话、未读、本地更新和同步数据源 |
+| `getChannelManager()` | `ChannelManager` | 频道资料缓存、查询、刷新与变化监听 |
+| `getChannelMembersManager()` | `ChannelMembersManager` | 成员查询、分页、同步和变化监听 |
+| `getReminderManager()` | `ReminderManager` | 会话提醒的缓存、持久化与事件 |
+| `getCMDManager()` | `CMDManager` | CMD 解析、监听和 RSA public key 配置 |
+| `getRobotManager()` | `RobotManager` | 机器人及菜单查询、保存和变化事件 |
+
+这些 manager 同时包含大量本地查询/更新方法。涉及服务端事实的数据仍要由业务后端提供；SDK manager 不是 Product HTTP 客户端，Android 应用不得持有 Product HTTP 管理凭据。
+
+## 连接生命周期
+
+### 路由、连接与清理
+
+| API | 契约 |
+| --- | --- |
+| `addOnGetIpAndPortListener(IGetIpAndPort)` | 注册唯一的 host/port 数据源；回调必须终止 |
+| `addOnConnectionStatusListener(String, IConnectionStatus)` | 以稳定 key 注册状态监听 |
+| `removeOnConnectionStatusListener(String)` | 用相同 key 移除 |
+| `connection()` | 发起/恢复连接；返回 `void`，不能当成连接成功 |
+| `disconnect(false)` | 停止当前连接与自动重连，保留身份 |
+| `disconnect(true)` | 登出并清 token、缓存并异步关闭 UID 数据库；有未决发送时不能作为安全换号边界 |
+
+公开签名是 `disconnect(boolean)`；上表用 `false` / `true` 展开两种语义。
+
+每个 session 都要成对注册/移除监听。精确源码没有公开 connection generation 或 provider cancellation handle；超时、kick、`fail`、`noNetwork`、二次 `connecting` 或不确定发送后，应隔离旧回调并要求进程重启，而不是把旧代际当成新连接。
+
+### `WKConnectStatus` 与 `WKConnectReason`
+
+| 状态 | 值 | 含义 |
+| --- | ---: | --- |
+| `WKConnectStatus.fail` | `0` | 连接/认证失败，原因看回调字符串 |
+| `WKConnectStatus.success` | `1` | 状态机成功事件；READ 模式第一次 success 后仍可能进入同步 |
+| `WKConnectStatus.kicked` | `2` | 被踢 |
+| `WKConnectStatus.syncMsg` | `3` | 同步中，应用不可发送 |
+| `WKConnectStatus.connecting` | `4` | 连接中 |
+| `WKConnectStatus.noNetwork` | `5` | 无网络 |
+| `WKConnectStatus.syncCompleted` | `6` | 同步完成；等待随后接受用的 success |
+
+对应字符串常量位于 `WKConnectReason`：`ReasonAuthFail`、`ReasonConnectKick`、`NoNetwork`、`Connecting`、`SyncMsg`、`ConnectSuccess`。`WKConnectStatus` 没有名为 `failed` 的成员。
+
+## 消息正文、频道与消息模型
+
+### 正文
+
+- `WKMessageContent` 是基类，公开 `type`、`content`、`mentionInfo`、`reply`、`entities`，并提供 `encodeMsg()`、`decodeMsg()`、`getSearchableWord()`、`getDisplayContent()`。
+- `WKTextContent` 用 `new WKTextContent(text)` 创建。
+- 内置媒体正文包括 `WKImageContent`、`WKVoiceContent`、`WKVideoContent`。
+- 自定义类型通过 `registerContentMsg(Class<? extends WKMessageContent>)` 注册；类必须能无参构造且 content type 跨平台唯一。
+- `WKChannel` 由 `channelID` 与 `channelType` 组成；常用值是 `WKChannelType.PERSONAL` 和 `WKChannelType.GROUP`。
+
+### `WKMsg`
+
+`WKMsg` 把本地状态和服务端状态放在同一个可变对象中：
+
+| 字段 | 含义 |
+| --- | --- |
+| `clientMsgNO` | SDK 创建的客户端消息编号；待发送关联键 |
+| `clientSeq` | 本地数据库序号；本地入库后应为正数 |
+| `messageID` | 服务端全局 ID；SENDACK 前可能为空/未赋值 |
+| `messageSeq` | 服务端频道内序号；SENDACK 前可能为 `0` |
+| `channelID` / `channelType` | 目标频道 |
+| `baseContentMsgModel` | 解码后的 `WKMessageContent` |
+| `status` | `WKSendMsgResult` 状态 |
+| `header` / `setting` / `remoteExtra` | 消息控制位和扩展 |
+
+不要把 `WKMsg` 直接跨线程/跨 session 传给 UI。先复制应用自有不可变快照，并用当前 attempt fence 检查回调是否仍有效。
+
+## 发送 API 与事件
+
+| API | 状态 |
+| --- | --- |
+| `sendMessage(WKMsg)` | 非 deprecated 的低层发送；调用方构造 `WKMsg` |
+| `send(WKMessageContent, WKChannel)` | 推荐的普通正文发送入口 |
+| `sendWithOptions(WKMessageContent, WKChannel, WKSendOptions)` | 设置 expire、topic、flame、robot、header 等 |
+| `sendMessage(WKMessageContent, String, byte)` | `@Deprecated`；不要在新代码使用标量频道重载 |
+| `sendMessage(WKMessageContent, WKMsgSetting, String, byte)` | `@Deprecated` |
+
+`WKSendOptions` 字段包括 `expire`、`topicID`、`flame`、`flameSecond`、`robotID`、`setting`、`header`。
+
+| 注册 | 回调语义 | 移除 |
+| --- | --- | --- |
+| `addOnSendMsgCallback(key, listener)` | `onInsertMsg(WKMsg)`；可能在 `sendMessage` 返回前同步发生 | `removeSendMsgCallBack(key)` |
+| `addOnSendMsgAckListener(key, listener)` | `msgACK(WKMsg)`；读取终止状态 | `removeSendMsgAckListener(key)` |
+| `addOnNewMsgListener(key, listener)` | `newMsg(List<WKMsg>)`；在线新消息 | `removeNewMsgListener(key)` |
+| `addOnRefreshMsgListener(key, listener)` | 消息状态/内容刷新 | `removeRefreshMsgListener(key)` |
+
+注意方法实际拼写是 `removeSendMsgCallBack`；注册和移除的命名并不对称。
+
+## SENDACK 状态与错误处理
+
+`WKSendMsgResult` 同时用于本地等待和服务端结果：
+
+| 常量 | 值 | 处理 |
+| --- | ---: | --- |
+| `WKSendMsgResult.send_loading` | `0` | 本地等待/发送中，不是成功 |
+| `WKSendMsgResult.send_success` | `1` | 终止成功 |
+| `WKSendMsgResult.send_fail` | `2` | 终止失败 |
+| `WKSendMsgResult.no_relation` | `3` | 不是好友或不在群内 |
+| `WKSendMsgResult.black_list` | `4` | 黑名单拒绝 |
+| `WKSendMsgResult.not_on_white_list` | `13` | 不在白名单 |
+
+应用应为每条发送设置独立超时，并将所有非 `send_success` 终止 ACK 交给拒绝分支。错误回调里保留 `clientMsgNO`、状态和当前 attempt，日志不得记录 token 或 Payload。
+
+## `MsgManager`：消息公开面
+
+固定 [`MsgManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/MsgManager.java)除前述发送方法外，还公开以下集成面：
+
+| 类别 | 方法 | 边界 |
+| --- | --- | --- |
+| 正文/编号 | `registerContentMsg`、`getMsgContentModel`、`createClientMsgNO` | 自定义正文必须可无参构造；编号不是服务端消息 ID |
+| 历史与查询 | `getOrSyncHistoryMessages`、`getWithMessageID`、`getWithClientMsgNO`、`searchMsgWithChannelAndContentTypes` | 前者先读本地再通过已注册 provider 补齐；其回调有 `onSyncing()` / `onResult(...)` |
+| 本地清理 | `clearWithChannel`、`clearWithChannelAndFromUID`、`deleteWithClientMsgNos` | 这些是本地数据库变更，不是服务端撤回/删除授权 |
+| single-provider slot | `addOnSyncOfflineMsgListener`、`addOnSyncChannelMsgListener`、`addOnUploadAttachListener`、`addMessageStoreBeforeIntercept`、`addOnUploadMsgExtraListener` | 后注册会覆盖前一个；没有统一取消或代际参数 |
+| keyed listener | `addOnDeleteMsgListener` / `removeDeleteMsgListener`、`addOnClearMsgListener` / `removeClearMsg` | 另有前述 insert、SENDACK、new-message、refresh 监听；都以 same key 移除 |
+
+`getOrSyncHistoryMessages` 的后台异常路径只记录日志，没有专用 error 回调；应用必须给调用设置超时，不能把永不完成当成空历史。Provider 的业务请求也必须自行定义认证、分页、重试和幂等。
+
+## `ChannelManager`：频道资料
+
+固定 [`ChannelManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelManager.java)的公开面：
+
+| 类别 | 方法 | 边界 |
+| --- | --- | --- |
+| 本地读取 | `getChannel(String, byte)`、`search(String)`、`getChannels`、`getWithStatus` | 先看内存/本地数据库；本地 miss 不证明服务端不存在 |
+| 远端资料 | `getChannel(String, byte, IChannelInfoListener)`、`fetchChannelInfo`、`addOnGetChannelInfoListener` | provider 可以立即返回频道并稍后回调；provider 缺失或参数无效时重载 `returns null` |
+| 保存/更新 | `saveOrUpdateChannel`、`saveOrUpdateChannels`、`updateMute`、`updateTop`、`updateRemark`、`updateFollow` | 更新内存和本地数据库；不是 Product HTTP 写入 |
+| 生命周期 | `addOnRefreshChannelAvatar`、`addOnRefreshChannelInfo` / `removeRefreshChannelInfo`、`clearARMCache` | 资料刷新是 keyed listener；头像回调是不可移除的单槽回调 |
+
+`addOnGetChannelInfoListener` 和 `addOnRefreshChannelAvatar` 都是 single-provider slot / single-listener slot，固定源码没有对应的 no public remove method；应由 process/account lifetime 的协调器持有，不能捕获短生命周期 Activity。
+
+## `ChannelMembersManager`：频道成员
+
+固定 [`ChannelMembersManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelMembersManager.java)的公开面：
+
+| 类别 | 方法 | 边界 |
+| --- | --- | --- |
+| 读取/版本 | `getMaxVersion(String, byte)`、`getRobotMembers`、`getWithRole`、`getMember(String, byte, String)`、`getMembers`、`getDeletedMembers`、`getMemberCount` | `getMaxVersionMember` 已 `@Deprecated`，新代码用数值版本 |
+| 保存/变更 | `save(WKChannelMember)`、`save(List<WKChannelMember>)`、`delete`、`updateRemarkName`、`updateMemberName`、`updateMemberStatus` | 批量 `save` 在后台线程执行；布尔更新 `returns false` 只表示本地数据库更新失败 |
+| 分页/资料 provider | `addOnGetChannelMembersListener` + `getWithPageOrSearch`；`addOnGetChannelMemberListener` + `getMember(String, byte, String, IChannelMemberInfoListener)` | 分页先回调本地 `isRemote=false`；只有 `groupType == 1` 且 provider 存在时才回调远端结果 |
+| 同步触发 | `addOnSyncChannelMembers` | CMD 等路径通过 `setOnSyncChannelMembers` 请求业务层同步；无结果回调和移除 API |
+| keyed listener | `addOnRefreshChannelMemberInfo` / `removeRefreshChannelMemberInfo`、`addOnAddChannelMemberListener` / `removeAddChannelMemberListener`、`addOnRemoveChannelMemberListener` / `removeRemoveChannelMemberListener` | 以 same key 清理；事件说明本地 manager 变化，不等同服务端授权成功 |
+
+三个 provider 注册方法都是 single-provider slot 且 no public remove method。资料 provider 缺失时带回调的 `getMember(...)` `returns null`；必须把“没有 provider”“本地 miss”“远端不存在”和超时建模成不同应用错误。
+
+## `ConversationManager`：最近会话
+
+固定 [`ConversationManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ConversationManager.java)的公开面：
+
+| 类别 | 方法 | 边界 |
+| --- | --- | --- |
+| 读取 | `getAll()`、`getAll(IAllConversations)`、`getWithChannel`、`getUIConversationMsg`、`getMsgExtraWithChannel`、`getMsgExtraMaxVersion` | 同步重载直接读库；异步重载在后台线程返回 |
+| 本地变更 | `deleteWitchChannel`、`updateRedDot`、`updateMsgExtra`、`saveSyncMsgExtras` | `deleteWitchChannel` 是固定源码中的真实拼写；不要改写成不存在的 `deleteWithChannel` public API |
+| keyed listener | `addOnRefreshMsgListListener` / `removeOnRefreshMsgListListener`、`addOnRefreshMsgListener` / `removeOnRefreshMsgListener`、`addOnDeleteMsgListener` / `removeOnDeleteMsgListener` | 以 same key 清理；回调在 main thread 分发 |
+| 同步 provider | `addOnSyncConversationListener` | single-provider slot；`setSyncConversationListener` 触发同步、保存结果并刷新会话 |
+
+`getAll(IAllConversations)` 捕获数据库异常后也回调空列表，因此**空列表不能区分“没有会话”和数据库读取失败**。同步保存异常可能只写日志而不完成外部回调；应用仍需超时、代际 fence 和独立错误观测。
+
+## `ReminderManager`：提醒
+
+固定 [`ReminderManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ReminderManager.java)公开 `getReminder(String, byte, int)`、`getReminders`、`getRemindersWithType`、`saveOrUpdateReminders`、`getMaxVersion()`、`clearAllCache`，以及 keyed listener `addOnNewReminderListener` / `removeNewReminderListener`。
+
+`saveOrUpdateReminders` 以 `reminderID` 更新缓存，`done == 1` 时从缓存移除并持久化。固定 `1.5.5` 的 `ReminderManager.done()` 方法体为空，是 **no-op**；不要用它确认提醒、提交服务端状态或等待完成。
+
+## `CMDManager`：CMD
+
+固定 [`CMDManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/CMDManager.java)公开 `handleCMD(JSONObject)`、`handleCMD(JSONObject, String, byte)`、`handleCMD(String, String, String)`，keyed listener `addCmdListener` / `removeCmdListener`，以及 `setRSAPublicKey` / `getRSAPublicKey`。
+
+在固定源码中，签名拼接与 RSA 检查代码被注释，`setRSAPublicKey` 只保存 key；它 **does not enforce CMD signature verification**。`handleCMD` 仍会执行内置频道/会话/消息更新并把 `WKCMD` 分发给监听器，因此不得把 public key 配置误写成 CMD 真实性或授权证明。JSON 组装失败只记录日志并返回，没有结构化 error。
+
+## `RobotManager`：机器人与菜单
+
+固定 [`RobotManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/RobotManager.java)公开 `getWithRobotID`、`getWithUsername`、`getWithRobotIds`、`getRobotMenus(String)`、`getRobotMenus(List<String>)`、`saveOrUpdateRobots`、`saveOrUpdateRobotMenus`，以及 keyed listener `addOnRefreshRobotMenu` / `removeRefreshRobotMenu`。
+
+这些方法只查询/保存本地机器人数据；manager 没有远端 robot provider。业务层必须从自己的已授权接口取得资料，再传入保存方法。菜单保存后的刷新事件不证明远端写入或跨客户端一致。
+
+## 数据源与同步 API
+
+- `ConversationManager.addOnSyncConversationListener(ISyncConversationChat)` 提供最近会话同步；回调返回 `WKSyncChat`。
+- `MsgManager.addOnSyncChannelMsgListener` / `getOrSyncHistoryMessages` 支持按需频道消息同步。
+- `MsgManager.addOnUploadAttachListener` 把媒体上传交给业务层。
+- `ChannelManager.addOnGetChannelInfoListener` 与 `ChannelMembersManager.addOnSyncChannelMembers` 需要业务数据源。
+
+Provider 都要保证单次完成、设置超时，并以应用自己的 activation epoch 拒绝陈旧结果。公开 API 没有统一取消句柄；不要在 teardown 后让旧 provider 完成新 session。
+
+### Provider、listener 与错误生命周期
+
+- 所有 manager 都是进程单例。`single-provider slot`（消息同步/上传、频道、成员、会话同步）后注册覆盖前一个，而且这些 provider 多数没有 public remover；把它们放在 **process/account lifetime**，不要放在 Activity/Fragment。
+- `keyed listener` 必须以 **same key** 调用精确 remover。登出、终止状态或 attempt teardown 先移除监听，再释放应用快照；不存在统一 `removeAll`。
+- 部分读取在 miss 或 provider 未配置时 `returns null`，部分本地更新在数据库失败时 `returns false`，异步异常还可能只写日志。API 没有统一 `Result`/exception/error callback；应用要为每次远端工作定义超时、取消、错误分类和可观测性。
+- `WKIM.init` 对空 context、UID 或 token 抛出 `NullPointerException`。在调用 SDK 前先校验输入，错误日志不要复制 token。
+- **源码可见不等于运行已证明**。这里列出的是 revision `662a559...` 的 Java public surface 和源码分支，不证明 provider、数据库、main-thread 回调或设备消息环已运行通过。
+
+## 安全与证据边界
+
+- 传输由 xSocket `NonBlockingConnection` 建立原始 TCP，没有认证 TLS；
+- UID/Token 写入普通 `SharedPreferences`，SQLCipher 使用 UID 作为 key；
+- debug decode 路径可记录 `WKReceivedMsg.toString()`，其中可能含明文 Payload；
+- `disconnect(true)` 不清理内部 `sendingMsgHashMap`，有未决发送时不支持安全的同进程换号；
+- `compatibility.json` 不包含 Android build、设备、消息环或这些 API 的运行 receipt。
+
+## 下一步
+
+首次接入请先完成[快速接入](/zh/sdk/android/quickstart)。替换已有依赖前，按[版本升级](/zh/sdk/android/upgrade)记录旧版本、数据库与回滚边界。

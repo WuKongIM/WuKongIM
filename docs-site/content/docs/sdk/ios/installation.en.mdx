@@ -16,9 +16,9 @@ This page prepares only the dependency and build environment. At the end, the pr
 | CocoaPods entry | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) |
 | Source repository | [`WuKongIM/WuKongIMiOSSDK`](https://github.com/WuKongIM/WuKongIMiOSSDK), tag `1.1.1`, revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
 | Distribution repository | [`WuKongIM/WuKongIMiOSSDK-Framework`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework), tag `1.1.1`, revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
-| Pod deployment target | iOS `11.0` |
+| Podspec deployment declarations | The [source podspec](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK.podspec) says iOS `11.0`; the [framework podspec](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/blob/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/WuKongIMSDK.podspec) says deployment target iOS `13.0` while also declaring platform iOS `11.0` |
 
-The source tag's local podspec still says `1.1.0`, so this tutorial does not use it as the distribution authority for `1.1.1`. CocoaPods trunk and the framework repository identify the installable artifact. The source repository supports implementation review, while the distribution repository confirms the public headers an application imports.
+The source tag's local podspec still says `1.1.0`, so this tutorial does not use it as the distribution authority for `1.1.1`. CocoaPods trunk and the framework repository identify the installable artifact. The source repository supports implementation review, while the distribution repository confirms the public headers an application imports. The two podspecs have an iOS `11.0` / iOS `13.0` deployment conflict, so they do not establish one minimum supported version.
 
 Two embedded version surfaces also missed the release update: source returns `1.0.0` from `WKSDK.sdkVersion`, and the framework's `CFBundleShortVersionString` is `1.0.0`. Neither attests an installed `1.1.1` package. Until upstream runtime version reporting is fixed, preserve `Podfile.lock`, the source tag/revision, and the framework tag/revision together as provenance.
 
@@ -26,7 +26,7 @@ Two embedded version surfaces also missed the release update: source returns `1.
 
 - An existing Xcode iOS application project.
 - A team-pinned CocoaPods installation.
-- An application Deployment Target of at least iOS `11.0`.
+- The application's own Deployment Target recorded and ready for validation against the podspec conflict on the actual Xcode, simulator, and device tuple.
 - A trusted product backend capable of issuing development UID, token, Gateway host, and port; do not place them in source now.
 
 Record Xcode, CocoaPods, macOS, and target device or simulator versions. They are not part of this site's current receipt, so retain the actual tuple with later acceptance evidence.
@@ -36,8 +36,6 @@ Record Xcode, CocoaPods, macOS, and target device or simulator versions. They ar
 Use an exact version in a `Podfile` beside the application project. Do not use `latest`, `~>`, or a default branch:
 
 ```ruby
-platform :ios, '11.0'
-
 target 'YourApp' do
   use_frameworks!
   pod 'WuKongIMSDK', '1.1.1'
@@ -52,7 +50,7 @@ grep -A 2 'WuKongIMSDK' Podfile.lock
 open YourApp.xcworkspace
 ```
 
-Open the generated `.xcworkspace` from then on, not the original `.xcodeproj`. Commit `Podfile` and `Podfile.lock` so local and CI builds use the same exact dependency graph.
+Keep and review the application's existing `platform :ios, '…'`; do not copy a claimed minimum version from this guide. After installation, inspect CocoaPods resolution and build settings: the source podspec declares iOS `11.0`, while the framework podspec declares deployment target iOS `13.0` and platform iOS `11.0`. Open the generated `.xcworkspace` from then on, not the original `.xcodeproj`. Commit `Podfile` and `Podfile.lock` so local and CI builds use the same exact dependency graph.
 
 ## 2. Check import and linkage
 
@@ -105,6 +103,7 @@ The local database depends on SQLCipher, but source supplies the UID directly as
 ## Expected result
 
 - `Podfile.lock` records exactly `WuKongIMSDK (1.1.1)`.
+- The team records the iOS `11.0` / iOS `13.0` podspec conflict and validates its own Deployment Target.
 - The application builds from `.xcworkspace` and imports `<WuKongIMSDK/WuKongIMSDK.h>`.
 - The team knows the current framework lacks an Apple Silicon Simulator `arm64` slice.
 - The project contains no invented `Package.swift` dependency, floating SDK version, or client-side management credential.
@@ -114,6 +113,7 @@ The local database depends on SQLCipher, but source supplies the UID directly as
 ## Troubleshooting
 
 - **Resolution is not `1.1.1`:** inspect parent-workspace Podfiles, the old `Podfile.lock`, and internal spec sources; do not switch to a floating range.
+- **CocoaPods reports an incompatible Deployment Target:** inspect the fixed podspecs' iOS `11.0` / iOS `13.0` conflict; confirm the product's minimum OS before changing it, then validate on the target Xcode, simulator, and device tuple.
 - **The module is missing from `.xcodeproj`:** close it and open the generated `.xcworkspace`.
 - **Apple Silicon Simulator link fails:** inspect the target architecture; the artifact has no simulator `arm64` slice.
 - **Swift cannot find the type:** check the bridging header and module import; do not rewrite the sample with nonexistent Swift APIs.

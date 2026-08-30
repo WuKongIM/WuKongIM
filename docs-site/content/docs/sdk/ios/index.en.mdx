@@ -24,9 +24,9 @@ If you are still comparing EasySDK and the full SDK, start with [Choose an SDK](
 | CocoaPods | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) | Installable distribution entry |
 | SDK source | [`WuKongIMiOSSDK` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/1.1.1) | Public API and implementation review |
 | Binary artifact | [`WuKongIMiOSSDK-Framework` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/tree/1.1.1) | CocoaPods public headers and framework |
-| Deployment target | iOS `11.0` | From the distributed podspec; not a claim for every Xcode/device tuple |
+| Podspec deployment declarations | iOS `11.0` / iOS `13.0` conflict | Source and framework podspecs disagree; they do not establish one minimum supported version |
 
-The tutorial-facing public headers match between the source and framework tags. That supports “the shown methods exist,” but it does not prove a target environment builds or runs.
+The tutorial-facing public headers match between the source and framework tags. That supports “the shown methods exist,” but it does not prove a target environment builds or runs. The source podspec says iOS `11.0`, while the framework podspec says deployment target iOS `13.0` and platform iOS `11.0`; integrators must resolve and validate this podspec conflict with their own Deployment Target, Xcode, simulator, and device tuple.
 
 ## What you will build
 
@@ -47,9 +47,12 @@ The client receives only minimal connection material and never Product HTTP mana
 <Cards>
   <Card title="1. Installation" description="Install the exact CocoaPods artifact and review the iOS target, simulator architecture, and distribution provenance." href="/en/sdk/ios/installation" />
   <Card title="2. Quickstart" description="Map identity, connection, send, acknowledgement, receipt, and cleanup to the public Objective-C API." href="/en/sdk/ios/quickstart" />
-  <Card title="3. Identity & Token" description="Keep UID, token, rotation, and revocation behind a trusted product backend." href="/en/sdk/common-guides/identity-and-token" />
-  <Card title="4. Messaging" description="Separate local pending state, server acknowledgement, online receipt, and product processing." href="/en/sdk/common-guides/messaging" />
-  <Card title="5. Integration Acceptance" description="Add failure-path, compatibility, security, capacity, upgrade, and rollback evidence." href="/en/guide/integration/acceptance" />
+  <Card title="3. Platform Capabilities" description="Separate source-aligned behavior, iOS application ownership, production blockers, and device-unverified scope." href="/en/sdk/ios/platform-capabilities" />
+  <Card title="4. API Reference" description="Find managers, providers, delegates, models, and statuses in the pinned 1.1.1 public headers." href="/en/sdk/ios/api-reference" />
+  <Card title="5. Upgrade Guide" description="Plan version changes with an exact Pod, lockfile, call-site review, device scenarios, and reversible rollout." href="/en/sdk/ios/upgrade" />
+  <Card title="6. Identity & Token" description="Keep UID, token, rotation, and revocation behind a trusted product backend." href="/en/sdk/common-guides/identity-and-token" />
+  <Card title="7. Messaging" description="Separate local pending state, server acknowledgement, online receipt, and product processing." href="/en/sdk/common-guides/messaging" />
+  <Card title="8. Integration Acceptance" description="Add failure-path, compatibility, security, capacity, upgrade, and rollback evidence." href="/en/guide/integration/acceptance" />
 </Cards>
 
 ## Minimal loop and excluded scope
@@ -73,10 +76,11 @@ The local message database uses SQLCipher, but source supplies the UID directly 
 ## Completion check
 
 - You can identify the exact CocoaPods version and both reviewed revisions.
+- You can explain the iOS `11.0` / iOS `13.0` podspec conflict and validate the application's own Deployment Target on its target environment.
 - You know connection success comes from a delegate rather than the `connect` return value.
 - You can distinguish a local pending message, send acknowledgement, and Bob's online receipt.
 - You do not present source review as a compatibility receipt or ignore TCP/TLS and Payload logging risk.
 
 ## Next step
 
-Begin with [Installation](/en/sdk/ios/installation). After checking the dependency and build environment, use the [Quickstart](/en/sdk/ios/quickstart) to implement the Alice/Bob online-message loop.
+Begin with [Installation](/en/sdk/ios/installation). After checking the dependency and build environment, use the [Quickstart](/en/sdk/ios/quickstart) to implement the Alice/Bob online-message loop, then continue through [Platform Capabilities](/en/sdk/ios/platform-capabilities), the [API Reference](/en/sdk/ios/api-reference), and the [Upgrade Guide](/en/sdk/ios/upgrade). These new pages are source/header-aligned publications, not an added site Xcode, simulator, or device runtime receipt.

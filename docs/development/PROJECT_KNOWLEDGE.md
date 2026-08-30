@@ -395,7 +395,7 @@
 ### Public documentation
 - The public WuKongIM v3 documentation application lives in `docs-site/`; the repository-level `docs/` tree remains the engineering knowledge base.
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.
-- A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs.
+- A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs. Phase 24 leaves no maintained route planned; navigation tests also fail when an existing MDX file is planned or unknown, so disk content cannot silently remain hidden from public indexes.
 - `docs-site` is a Bun-managed Fumadocs/Next.js static export. Phase 1 does not deploy it, cut over DNS, migrate legacy page bodies, or publish the known-stale v2 OpenAPI document as v3 reference.
 - Published v3 Product HTTP reference pages are generated per operation and tag
   from three bounded OpenAPI contracts: the JavaScript/Web golden path,
@@ -403,8 +403,10 @@
   send. Their static request playground remains disabled. WKProto, JSON-RPC,
   and protocol dictionaries are protocol content and must never be represented
   as fake OpenAPI paths. The public WKProto baseline covers the authenticated
-  connection lifecycle and the complete Frame Type catalog; exact byte layout,
-  JSON-RPC, and encryption details remain planned.
+  connection lifecycle, complete Frame Type catalog, exact byte layout, and
+  compatibility encryption. JSON-RPC is published only as an explicitly
+  experimental Schema and support matrix: the current Product Gateway exposes
+  no supported JSON-RPC CONNECT integration.
 - Phase 5 configuration reference pages are checked against every public field returned by `internal/config.SchemaFields()` in both locales. `wukongim.toml.example` is a loadable development baseline, not a promise that its explicit values are runtime defaults for omitted fields.
 - Phase 6 public operations guidance treats Manager as a privileged boundary,
   distinguishes `/healthz` liveness from `/readyz` admission, keeps dynamic
@@ -464,7 +466,14 @@
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level
-  `/healthz`; Kubernetes remains a planned route.
+  `/healthz`. The published Kubernetes Beta page is a reference architecture,
+  not an official chart or manifest: it uses an immutable image digest,
+  StatefulSet ordinals mapped to stable unique WuKongIM node IDs, one shared
+  full member list, a Headless Service, independent PVCs, 256 physical hash
+  slots, explicit replica policy, `enableServiceLinks: false`, `/healthz` for
+  startup/liveness, `/readyz` for traffic, topology spread, a bounded PDB, and
+  an operator-controlled `OnDelete` node-by-node upgrade. Changing StatefulSet
+  replicas alone is not a WuKongIM membership or scale-in procedure.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
@@ -610,6 +619,9 @@
 - The public HarmonyOS SDK guide pins OHPM `@wukong/wkim` 1.1.7 and HAR SHA-256 `d98d1523bc60ad204dd74d9cfa776935a5547fc3ab352322dfa17f5dbc7a3cd8` to matching source revision `0c41810a1e0a5fc2936929d63ca32a50ffb11bec`; the repository has no tags, the package root exports only `WKIM`, and the documented beans, text model, and logger are artifact deep imports. The source-aligned one-shot harness requires provider delivery plus `connecting -> success -> syncing -> syncCompleted`, separates positive local `clientSeq` from terminal SENDACK and online receipt, and keeps teardown pending when a failed insert still dispatches sequence zero, but there is no DevEco build or device runtime receipt. Production adoption remains blocked by raw `TCPSocket` without TLS, plaintext `encrypt: false` RelationalStore data, payload/direct `hilog.info` logging, swallowed database-open failures, and `sendingMsgMap` plus singleton callbacks surviving logout; terminal paths and UID switches therefore require process isolation until the SDK is repaired.
 - The retired UniApp source at revision `582cacb5ed7a559b66ed4f66fe71dd1a3608e21d` directs users away from `wukongimuniappsdk`; its stale 1.0.3 npm artifact has SHA-256 `a2dfcb7a2317ea6f123ac4fbd8f92a2ecee6f48eaa10d6629e77abc1a1540db7`. The documented migration target is `wukongimjssdk@1.3.5`, source revision `3c507ea3ebc08eae9d74fc1f76b150c380752008`, npm archive SHA-256 `b053c9623ac36b7ce78dfd874240ac48abaee48e20dd78d824f28881c5504cfc`: it auto-selects global `uni.connectSocket`, then `wx.connectSocket`, then native `WebSocket`, while explicit `config.platform` does not initialize or refresh `wkconnectSocket` and can yield either an undefined first-use value or a stale adapter from prior auto-detection. Its decrypted receive-packet and queued plaintext send-packet logs are not guarded by `config.debug = false`, so production requires a reviewed removal/redaction patch or verified build-time stripping. Protocol Device Flag remains `0 = APP`, `1 = WEB`, `2 = PC`; the Chromium golden-path receipt is not a UniApp App, H5, or mini-program runtime receipt.
 - WuKongEasySDK tutorials pin exact releases and revisions and are published as source-aligned documentation for iOS, Android, Flutter, and Web. Publication makes the pages readable and indexable but does not create a compatibility receipt: EasySDK uses JSON-RPC CONNECT, which the current Product Gateway rejects. Runtime authentication, request correlation, bridge mappings, and end-to-end verification remain required before adoption, and source alignment cannot expand the JavaScript/Web golden-path claim.
+- Phase 24 publishes platform-capability, API-reference, and upgrade chapters for the pinned Android 1.5.5, iOS 1.1.1, Flutter 1.7.9, and HarmonyOS 1.1.7 artifacts. These chapters organize the exact public distribution surface and retain each platform's transport, logging, local-data, singleton/provider, queue, listener, and account-isolation blockers; they do not add an Android, Xcode, Flutter-device, DevEco, emulator, or device runtime receipt. The legacy documentation is a learning-order and topic-discovery input only; pinned artifacts and matching source override old versions, signatures, install commands, and support claims.
+- Phase 24 upgrade claims use exact source intervals rather than inferred changelogs. Android `1.5.4 -> 1.5.5` changes only the Android 8/8.1 VPN-capability failure fallback to active `NetworkInfo`, with no public Java signature change. iOS `1.1.0 -> 1.1.1` stops filtering `isDeleted != 0` in `filterNoCMDAndNoStreamMessages`, while the distributed podspec itself conflicts between iOS platform `11.0` and deployment target `13.0`, so neither value is a universal minimum without a real Pod/Xcode/device tuple. Flutter `d99990f41ecb31166af82b9d20c121f33ff8385d -> de1024276523119e38305c49a3a873caae4d5c59` adds async sender/member lookup, awaited reaction persistence, maximum reaction sequence, and populated conversation results. HarmonyOS `a79df83f2794c581096850f0f77d34b95566a9ae -> 0c41810a1e0a5fc2936929d63ca32a50ffb11bec` adds channel/message/conversation queries and changes connection, failed-sending initialization, extra, and reaction persistence behavior.
+- The published JavaScript API reference remains pinned to `wukongimjssdk@1.3.5` / `3c507ea3ebc08eae9d74fc1f76b150c380752008`. Its upgrade guide treats `1.3.0 -> 1.3.5` as a migration because the default `protoVersion` changes from 4 to 5, `streamManager` and stream fields are removed, `eventManager` is added, and `WKEvent.dataText` becomes parsed `dataJson`. Documentation publication does not expand the pinned Chromium receipt, and an unmodified `1.3.5` production bundle still requires verified stripping or redaction of unconditional decrypted receive and queued-send Payload logs.
 - The JavaScript/Web acceptance command issues only a bounded local compatibility-smoke report. It records the acceptance-harness revision and observed installed SDK, leaves tested-cluster source identity and production readiness `not_assessed`, records no endpoints or development credentials, and cannot replace the protected clean-HEAD golden-path publication receipt. Documentation quality passes only when both locale routes participate in the real browser run.
 - Shell scripts that must stop and wait for a background sampler must start it in the owning shell; command substitution creates a subshell-owned child that the parent cannot reliably wait or clean up.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.

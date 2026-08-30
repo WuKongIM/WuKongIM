@@ -1,19 +1,19 @@
 ---
 title: 部署方式选择
-description: 按环境、升级责任、故障域和运维能力选择 Docker、Linux 或后续 Kubernetes 路径。
+description: 按环境、升级责任、故障域和运维能力选择 Docker、Linux 或 Kubernetes 路径。
 ---
 
 先选择谁负责构建、进程生命周期、网络、存储和升级，再选择具体部署工具。运行介质不会自动提供高可用或生产安全。
 
 ## 对比
 
-| 维度 | Docker | Linux + systemd | Kubernetes（Beta，规划中） |
+| 维度 | Docker | Linux + systemd | Kubernetes（Beta） |
 | --- | --- | --- | --- |
-| 制品 | 从当前源码构建本地镜像 | 从当前源码构建二进制 | 尚无本阶段发布合同 |
+| 制品 | 从当前源码构建本地镜像 | 从当前源码构建二进制 | 从当前源码构建并固定镜像摘要 |
 | 进程管理 | 容器运行时 | systemd | 编排控制器 |
 | 状态 | 独立 Volume/磁盘 | 独立主机目录/磁盘 | 需要稳定持久卷设计 |
 | 网络 | 显式端口和容器网络 | 主机监听与防火墙 | 需要 Service、入口和节点 Transport 设计 |
-| 适用 | 已有容器平台的团队 | 熟悉 Linux 运维的团队 | 等待 Beta 资产和边界校准 |
+| 适用 | 已有容器平台的团队 | 熟悉 Linux 运维的团队 | 能维护 StatefulSet、PVC、Secret、网络策略和逐节点升级的团队 |
 
 仓库根目录的 Compose 只用于开发和验证，不等于上表中的生产 Docker 方案。
 
@@ -39,6 +39,6 @@ description: 按环境、升级责任、故障域和运维能力选择 Docker、
 - **第一次评估**：使用仓库 Compose，验证三节点配置、就绪和观察面。
 - **已有容器平台**：构建不可变镜像，另行维护生产编排、密钥和持久卷。
 - **传统主机环境**：使用 Linux 二进制与 systemd，保持配置、状态和日志路径显式。
-- **需要 Kubernetes**：暂时保持该路由为规划状态，不从开发 Compose 推导生产 StatefulSet。
+- **需要 Kubernetes**：使用已发布的 Beta 参考架构，但由平台团队审阅并维护最终 StatefulSet、PVC、Secret、网络和升级证据。
 
-确定介质后，继续阅读 [Docker](/zh/server/deployment/docker) 或 [Linux](/zh/server/deployment/linux)。
+确定介质后，继续阅读 [Docker](/zh/server/deployment/docker)、[Linux](/zh/server/deployment/linux) 或 [Kubernetes（Beta）](/zh/server/deployment/kubernetes)。

@@ -137,7 +137,7 @@ if (!initialized) throw StateError('WKIM setup failed');
 
 ## 7. 理解本地数据
 
-`setup` 会打开 `wk_<uid>.db` 普通 **sqflite** 数据库，并调用 `updateSendingMsgFail()` 把上次遗留的发送中记录标为失败；它不是发送恢复。SDK 没有提供数据库静态加密。**SharedPreferences** 还保存 UID 关联的设备 ID 与 SQL 迁移版本。
+`setup` 会打开 `wk_<uid>.db` 普通 **sqflite** 数据库，并发起 `updateSendingMsgFail()`。该 manager 方法没有等待底层 update，所以这只是 **best-effort、未等待**的旧 sending 状态修正，不是发送恢复；`setup` 的成功结果也不证明更新已经落盘。SDK 没有提供数据库静态加密。**SharedPreferences** 还保存 UID 关联的设备 ID 与 SQL 迁移版本。
 
 在采用前明确：
 

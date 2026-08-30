@@ -79,6 +79,11 @@ WKProto Payload 加密不能替代 TLS。生产采用还需要 SDK 侧关闭传�
 
 1. 在[安装与配置](/zh/sdk/flutter/installation)固定 package、归档哈希、lockfile 与平台配置；
 2. 在[快速接入](/zh/sdk/flutter/quickstart)用两个独立进程跑 Alice/Bob 在线消息；
-3. 再按[公共指南](/zh/sdk/common-guides)补身份、离线、会话、推送、多设备和异常恢复。
+3. 用[平台专属能力](/zh/sdk/flutter/platform-capabilities)区分已按源码校对的 Dart 能力、宿主平台责任和仍需运行验证的范围；
+4. 按 [API Reference](/zh/sdk/flutter/api-reference)查找 `1.7.9` 的单例、Provider、listener、消息模型与错误状态；
+5. 改变固定版本前执行[升级指南](/zh/sdk/flutter/upgrade)，保留 pubspec、锁文件、逐平台场景和回滚证据；
+6. 再按[公共指南](/zh/sdk/common-guides)补身份、离线、会话、推送、多设备和异常恢复。
+
+平台能力、API 与升级资料已经按固定 `1.7.9` 归档和匹配源码发布；这些页面不会把静态分析或 macOS Release build 扩展成 Android、iOS 或 macOS 运行 receipt。
 
 如果目标是浏览器，请使用 [JavaScript/Web SDK](/zh/sdk/javascript)；当前 Flutter 包导入 `dart:io` 并依赖 sqflite，不能从一次 Web 编译推断可运行支持。

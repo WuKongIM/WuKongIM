@@ -33,6 +33,10 @@ EasySDK was also planned at this phase while its JSON-RPC CONNECT path was
 unsupported by the Product Gateway; a later documentation-only change
 published the source-aligned tutorials without claiming runtime compatibility.
 
+This is the Phase 20 publication boundary. Phase 24 later publishes the three
+Android chapters above from the same pinned AAR and source while retaining the
+absence of an Android build, emulator, or device receipt.
+
 ## Exact source and artifact snapshot
 
 | Component | Exact snapshot |

@@ -1,0 +1,86 @@
+---
+title: iOS 平台能力
+description: 基于 WuKongIMSDK 1.1.1 固定源码与分发 framework，核对 iOS 基线、消息能力、数据源和生产边界。
+---
+
+本页将“公开头文件里存在的能力”与“某个 Xcode/设备组合已经跑通”分开。所有判断固定到 CocoaPods `WuKongIMSDK` `1.1.1`、源码 revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` 和 framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`。
+
+<Callout type="warn" title="证据状态">
+  以下矩阵来自 tag 源码、分发公开头文件与 pod 元数据，**不是本站运行验证**。本站没有 Xcode build、模拟器/真机 Alice/Bob 消息环，也没有把 iOS 纳入 JavaScript/Web 的 `compatibility.json` receipt。
+</Callout>
+
+## 参考边界
+
+旧站只用于学习顺序和主题覆盖；不作为版本、API 或兼容性权威。
+
+- [旧站 iOS SDK 介绍](https://docs.githubim.com/zh/sdk/wukongim/ios/intro)只用于学习顺序和主题覆盖：统一入口、连接、聊天、频道、会话、多媒体。
+- 方法与属性以固定 [`WKSDK.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKSDK.h) 和 framework 公开头文件为准。
+- 旧站若出现 `setup()`、`connectAddr`、浮动 pod、Swift Package Manager 或未验证能力，不适用于这个 `1.1.1` 快照。
+
+| 组成 | 固定值 |
+| --- | --- |
+| CocoaPods | `pod 'WuKongIMSDK', '1.1.1'` |
+| 源码 | [`WuKongIM/WuKongIMiOSSDK`](https://github.com/WuKongIM/WuKongIMiOSSDK)，tag `1.1.1`，revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
+| 分发 framework | [`WuKongIM/WuKongIMiOSSDK-Framework`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework)，tag `1.1.1`，revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
+| Podspec 声明 | [源码 podspec](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK.podspec)同时写 `platform = iOS 11.0` 与 `deployment_target = iOS 11.0`；[分发 framework podspec](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/blob/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/WuKongIMSDK.podspec)同时写 `platform = iOS 11.0` 与 `deployment_target = iOS 13.0` |
+| 二进制 slice | 设备 `arm64`、模拟器 `x86_64`；无模拟器 `arm64` |
+
+两个 podspec 对最低版本的声明存在冲突，因此本文**不能拍板最低支持版本**。精确 tag 中也没有 `Package.swift`，所以不能从这个快照推导 Swift Package Manager 支持。接入方必须在自己的 Pod 解析结果、Deployment Target、Xcode、模拟器和真机组合上验证；iOS `11.0` 与 iOS `13.0` 都只是冲突的制品声明，不是本站运行兼容性承诺。
+
+## 能力矩阵
+
+| 主题 | `1.1.1` 公开面 | 接入方必须补齐 |
+| --- | --- | --- |
+| 入口与身份 | `[WKSDK shared]`、`WKOptions`、`WKConnectInfo` | 受信业务后端签发 UID/Token/host/port；客户端不得持有 Product HTTP 管理凭据 |
+| 连接 | `WKConnectionManager`、`connect`、`disconnect:`、`logout`、delegate | 应用超时、失败/踢下线处理、旧 attempt 隔离 |
+| 频道 | `WKChannel personWithChannelID:`、`groupWithChannelID:`；`WK_PERSON` / `WK_GROUP` | 服务端频道、订阅关系、授权与大群策略 |
+| 文本 | `WKTextContent` | 发送更新与 Bob 在线接收验收 |
+| 媒体正文 | `WKImageContent`、`WKVoiceContent`、`WKMultiMediaMessageContent` | `uploadTaskProvider`、权限、文件服务、进度和失败恢复 |
+| 自定义正文 | 继承 `WKMessageContent`，实现 JSON codec，调用 `registerMessageContent:` | 跨平台固定相同 `contentType` 和版本策略 |
+| 发送 | `sendMessage:channel:`、topic/setting 重载、`resendMessage:` | 区分本地 pending、ACK/更新与对端接收；用 `clientMsgNo` 关联 |
+| 在线事件 | `WKChatManagerDelegate` 的 `onRecvMessages:left:`、`onMessageUpdate:left:`、`onSendack:left:` | delegate 生命周期、主线程策略和应用自有快照 |
+| 离线/频道消息 | `offlineMessagePull` / `offlineMessageAck`、`syncChannelMessageProvider` | 可信业务 API、分页、幂等 ACK、超时和真实离线恢复 |
+| 最近会话 | `WKConversationManager` 与 sync provider/ack | 服务端会话源、未读/版本语义和容量验收 |
+| 频道资料 | `WKChannelManager` 与 `channelInfoUpdate` | 业务侧资料 API、授权、缓存失效 |
+| 本地数据 | FMDB + SQLCipher、UID 作用域数据库、消息/会话/频道 manager | UID 不是机密 key；需评审 iOS 文件保护、密钥、备份、换号和擦除 |
+| 回执/回应/提醒 | `WKReceiptManager`、`WKReactionManager`、`WKPinnedMessageManager`、`WKReminderManager` | 对应 provider、服务端契约和 UI/产品验收 |
+| CMD/机器人/阅后即焚 | `WKCMDManager`、`WKRobotManager`、`WKFlameManager` | 授权、签名、产品规则与跨端一致性 |
+
+公开入口可从 [`WuKongIMSDKHeader.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WuKongIMSDKHeader.h)、[`WKChatManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChatManager.h) 与 [`WKConnectionManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConnectionManager.h) 复核。
+
+## 消息与自定义正文
+
+`WKMessageContent` 提供 `encodeWithJSON`、`decodeWithJSON:`、`contentType`、`searchableWord` 和 `conversationDigest`。自定义类型必须在各个平台使用相同且稳定的类型编号，并在连接/解码前通过 `registerMessageContent:` 或 `registerMessageContent:contentType:` 注册。
+
+内置内容在源码中包括 `WKTextContent`、`WKImageContent`、`WKVoiceContent`、`WKMultiMediaMessageContent`、系统/CMD/unknown 类型。存在类不代表关联的图片选取、录音、视频编码或上传服务已经实现；媒体通过 `WKMediaManager.uploadTaskProvider` / `downloadTaskProvider` 交给产品层。
+
+发送有不同证据层：
+
+1. `sendMessage:channel:` 立即返回的 `WKMessage` 是本地/pending；
+2. `onMessageUpdate:left:` / `onSendack:left:` 反映本地状态与 ACK；
+3. Bob 的 `onRecvMessages:left:` 才证明在线接收。
+
+`messageId`、`messageSeq` 在服务器确认前不能用作待发送关联键；使用 `clientMsgNo`，并记录 `clientSeq`。
+
+## 平台与安全边界
+
+- `1.1.1` 通过 `GCDAsyncSocket` 建立原始 TCP，没有公开 TLS 选项或 `startTLS`；Payload 兼容加密不认证服务端。
+- 传统 framework 的模拟器只有 `x86_64`。Apple Silicon 原生 Simulator `arm64`、XCFramework 与所有当前 Xcode tuple 都没有由本站证明。
+- 源码与公开头文件没有形成 APNs 注册、device token 上传、后台唤醒和通知展示的端到端 receipt；推送不能标为已验证。
+- `WKOptions.isDebug` 默认开启；关闭它仍不能移除接收路径的无条件 RECV 包日志，描述可能包含解码后 Payload。
+- SQLCipher key 直接来自 UID。UID 是作用域标识，不是独立管理的秘密。
+- 相机、麦克风、照片、通知等权限只应按启用的产品能力最小化增加，并在真实设备上单独验证。
+
+## 生产采用前的最小验收
+
+- 固定 `pod 'WuKongIMSDK', '1.1.1'` 与 `Podfile.lock`，记录两个 revision；
+- 在实际 Xcode/macOS/device tuple 编译 Objective-C/bridging-header 调用；
+- 验证连接超时、认证失败、kick、断网、重连和 delegate 清理；
+- 验证 Alice pending、终止更新/ACK、Bob 在线接收和真实离线/会话 provider；
+- 验证媒体、权限、APNs、后台、文件上传和缓存清理；
+- 关闭或隔离 TCP/TLS、RECV Payload 日志和 UID 数据库 key 风险；
+- 产生 iOS 自己的构建/设备/运行 receipt，不能复用 `compatibility.json`。
+
+## 下一步
+
+用 [iOS API 参考](/zh/sdk/ios/api-reference)核对具体 selector、delegate 与状态；已有应用迁移时，继续阅读[版本升级](/zh/sdk/ios/upgrade)。

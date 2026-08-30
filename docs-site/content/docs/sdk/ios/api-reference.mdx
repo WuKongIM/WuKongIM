@@ -1,0 +1,249 @@
+---
+title: iOS API 参考
+description: WuKongIMSDK 1.1.1 的 WKSDK 入口、配置、manager、delegate、消息模型、发送状态与 provider 速查。
+---
+
+本参考固定到 iOS SDK tag `1.1.1`、源码 revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` 和 framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`。示例使用分发公开头文件中的 Objective-C selector，不发明 Swift wrapper。
+
+<Callout type="warn" title="使用边界">
+  本页是源码/公开头文件对照，**不是本站运行验证**或生产安全背书。`compatibility.json` 仍只覆盖 JavaScript/Web；它不证明 Xcode build、设备消息环或下面任一 iOS API 的运行兼容性。
+</Callout>
+
+[旧站 iOS SDK 介绍](https://docs.githubim.com/zh/sdk/wukongim/ios/intro)只用于学习顺序和 manager 主题覆盖。下面的方法名、参数、delegate 与枚举来自固定源码。
+
+## 权威公开头文件
+
+| 范围 | 固定源码 |
+| --- | --- |
+| 单例与 manager | [`WKSDK.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKSDK.h) |
+| 配置与连接身份 | [`WKOptions.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKOptions.h)、[`WKConnectInfo.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/model/WKConnectInfo.h) |
+| 连接生命周期 | [`WKConnectionManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConnectionManager.h) |
+| 消息与事件 | [`WKChatManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChatManager.h) |
+| 模型与状态 | [`WKMessage.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/model/WKMessage.h)、[`WKConst.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKConst.h) |
+
+分发 framework 的 [`Headers` 目录](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/tree/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/ios/WuKongIMSDK.framework/Headers)是消费者实际看到的制品面，但 umbrella 把应用 API 与实现头一起暴露。本文按稳定性意图分层：
+
+| 层级 | 范围 | 使用规则 |
+| --- | --- | --- |
+| 推荐 **app-facing** | `WKSDK.h`、options、manager、model、message content、protocol、provider/delegate | 应用调用从这些入口开始，并继续固定 Pod、revision 与公开 selector |
+| **public-but-not-recommended** | `WKDB.h`、`WKFMDatabaseQueue.h`、`WKMessageQueueManager.h`、`WKChatManagerInner.h`、`WKConversationManagerInner.h`、request queue、cache、crypto/util 头 | 它们因 umbrella 而可见，但属于数据库、队列或实现辅助面；不要把直接 import 写成跨版本稳定合同 |
+| 排除 | framework 的 `PrivateHeaders` | `PrivateHeaders` 不进入公共参考，也不能从可链接性推导支持承诺 |
+
+公开可见不等于推荐依赖。若现有应用直接导入 public-but-not-recommended 头，升级前必须把每个调用点列为实现耦合风险；本文不为这些实现类补兼容 wrapper。
+
+安装仍以 `pod 'WuKongIMSDK', '1.1.1'` 和 `Podfile.lock` 为准；`WKSDK.sdkVersion` 返回的 `1.0.0` 不能证明包版本。
+
+## `[WKSDK shared]` 与 `WKOptions`
+
+`[WKSDK shared]` 是唯一入口。连接前构造 `WKOptions`，设置 `WKConnectInfo` 和路由，再赋给 `WKSDK.shared.options`。
+
+### 核心配置
+
+| 属性/API | 含义 | 边界 |
+| --- | --- | --- |
+| `host` / `port` | Gateway TCP 地址 | 来源必须是受信业务后端/路由策略 |
+| `connectInfo` | 当前 `WKConnectInfo` | 包含 `uid`、`token`、`name`、`avatar` |
+| `connectInfoCallback` | 连接时提供身份 | 每次调用返回当前、最小连接身份 |
+| `hasLogin` | 判断是否存在登录信息 | 不代表连接已成功 |
+| `isDebug` | debug 日志开关 | 生产设 `NO`，但不能关闭全部 RECV 日志 |
+| `heartbeatInterval` | 心跳秒数 | 修改后必须做网络/功耗验收 |
+| `dbDir` / `dbPrefix` | 数据库目录/前缀 | 影响 UID 数据隔离与迁移 |
+| `messageFileRootDir` | 消息文件根目录 | 需配合文件保护、备份与擦除策略 |
+| `messageRetryInterval` / `messageRetryCount` | 发送重试参数 | 不能替代应用级终止超时 |
+| `offlineMessageLimit` | 离线拉取批量 | 需要 provider 与容量验收 |
+| `syncChannelMessageLimit` | 频道同步批量 | 100,000 成员群仍需场景容量验证 |
+| `receiptFlushInterval` | 已读回执 flush 周期 | 需与服务端 provider 一致 |
+| `protoVersion` / `proto` | 协议选择 | 默认 `WK_PROTO_WK`；不要随意猜值 |
+
+其他公开配置还有 `imageMaxBytes`、扩展/提醒重试参数、`traceDBLog`、过期消息检查和发送批量参数。它们存在于头文件不等于任意取值都被验证。
+
+## manager 目录
+
+| `[WKSDK shared]` 属性 | 类型 | 核心职责 |
+| --- | --- | --- |
+| `connectionManager` | `WKConnectionManager` | 连接、断开、登出、状态与 kick |
+| `chatManager` | `WKChatManager` | 发送、接收、查询、同步、消息事件 |
+| `channelManager` | `WKChannelManager` | 频道资料与成员缓存/provider |
+| `conversationManager` | `WKConversationManager` | 最近会话、未读、同步/provider |
+| `mediaManager` | `WKMediaManager` | 上传、下载、语音播放与缓存 |
+| `receiptManager` | `WKReceiptManager` | 已读回执队列/provider |
+| `reactionManager` | `WKReactionManager` | 消息回应与同步/provider |
+| `robotManager` | `WKRobotManager` | 机器人资料同步 |
+| `pinnedMessageManager` | `WKPinnedMessageManager` | 置顶消息本地状态/事件 |
+| `reminderManager` | `WKReminderManager` | 提醒同步、done 与 delegate |
+| `cmdManager` | `WKCMDManager` | CMD 事件与 public key |
+| `flameManager` | `WKFlameManager` | 阅后即焚本地处理 |
+
+SDK manager 不是 Product HTTP 管理客户端。频道、会话、上传等 server fact 由应用受信后端/provider 提供；iOS 客户端不得包含 Product HTTP 管理凭据。
+
+### 频道与成员方法面
+
+`WKChannelManager` 同时管理频道资料和本地成员数据；以下 selector 来自固定 [`WKChannelManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChannelManager.h)：
+
+| Selector | 作用与边界 |
+| --- | --- |
+| `fetchChannelInfo:completion:` / `fetchChannelInfo:` | 经应用配置的数据源拉取频道资料；返回任务或异步通知，不是 Product HTTP 直连 |
+| `getChannelInfo:` / `getChannelInfoOfUser:` | 读取当前本地频道资料 |
+| `addOrUpdateChannelInfo:` / `addOrUpdateChannelInfos:` / `deleteChannelInfo:` | 维护本地资料与缓存；不等于修改服务端频道 |
+| `getMembersWithChannel:` / `getMembersWithChannel:limit:` | 读取本地成员集合；`limit` 不是 100,000 成员群的完整分页合同 |
+| `getMember:uid:` / `getMemberCount:` / `isManager:memberUID:` | 查询本地成员、数量与角色快照 |
+| `addOrUpdateMembers:` / `deleteMembers:` | 更新或清理本地成员数据；服务端授权与同步仍由业务 provider 负责 |
+| `addDelegate:` / `removeDelegate:` | 观察频道资料变化；teardown 传入同一个 delegate 实例 |
+
+### 会话方法面
+
+固定 [`WKConversationManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConversationManager.h)公开：
+
+| Selector | 作用与边界 |
+| --- | --- |
+| `getConversationList` / `getConversation:` / `getConversations:` | 读取本地最近会话；返回不证明服务端同步已完成 |
+| `addConversation:` / `deleteConversation:` / `recoveryConversation:` | 添加、删除或恢复本地会话状态 |
+| `clearConversationUnreadCount:` / `setConversationUnreadCount:unread:` | 修改本地未读；业务已读上报是独立 server contract |
+| `getAllConversationUnreadCount` | 汇总本地会话未读快照 |
+| `updateOrAddExtra:` / `syncExtra` | 持久化或触发会话扩展同步 |
+| `setSyncConversationProviderAndAck:ack:` | 注入会话同步与 ACK；provider 必须有超时、单次完成和幂等语义 |
+| `addDelegate:` / `removeDelegate:` | 监听更新、未读与删除；用同一 delegate 实例清理 |
+
+### 媒体、回执、回应、提醒与扩展 manager
+
+| Manager | 公开 selector | 使用边界 |
+| --- | --- | --- |
+| `WKMediaManager` | `upload:`、`download:`、`download:callback:`、`playAudio:playerDidFinish:progress:`、`cleanMessageCache` | 上传/下载实际工作来自 `uploadTaskProvider` / `downloadTaskProvider`；权限与文件服务属于产品 |
+| `WKReceiptManager` | `addReceiptMessages:messages:` | 加入本地回执队列；服务端提交结果由 receipt provider 决定 |
+| `WKReactionManager` | `addOrCancelReaction:messageID:complete:`、`sync:`、delegate add/remove | completion 的 `NSError` 与同步 delegate 分开处理 |
+| `WKPinnedMessageManager` | `getPinnedMessagesByChannel:`、`getMaxVersion:`、`addOrUpdatePinnedMessages:`、删除与 delegate | 操作本地置顶快照；远端事实来自产品同步 |
+| `WKReminderManager` | `sync`、`done:`、`addDelegate:` / `removeDelegate:` | 同步/完成调用依赖 reminder provider，不能把本地变化当远端成功 |
+| `WKCMDManager` | `pullCMDMessages`、`addDelegate:` / `removeDelegate:` | CMD 交付通过 `cmdManager:onCMD:`；应用仍需鉴权和幂等处理 |
+| `WKRobotManager` | `sync:complete:`、`syncWithUsernames:complete:`、`getRobotWithUsername:` | 资料由 robot provider 提供；block 错误必须进入失败路径 |
+| `WKFlameManager` | `didViewed:`、`getMessagesOfNeedFlame` | 只说明本地阅后即焚处理面，不证明跨端删除完成 |
+
+这些 selector 分别可在固定的 [`manager` 头文件目录](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager)复核。公开方法存在只证明源码/制品面，不扩展本站运行 receipt。
+
+## 连接生命周期与错误
+
+| API | 契约 |
+| --- | --- |
+| `addDelegate:` | 注册 `WKConnectionManagerDelegate` |
+| `removeDelegate:` | 在 teardown 用同一个实例移除 |
+| `connect` | 发起连接，返回 `void`；成功由 delegate 决定 |
+| `disconnect:` | `force=YES` 时停止自动重连；不清登录身份 |
+| `logout` | 强制断开并清登录信息 |
+| `wakeup:complete:` | 唤醒连接尝试并以 `NSError` 回调 |
+
+### `WKConnectStatus`
+
+| 常量 | 含义 |
+| --- | --- |
+| `WKNoConnect` | 未连接 |
+| `WKConnecting` | 连接中 |
+| `WKPullingOffline` | 拉取离线中 |
+| `WKConnected` | 已建立连接 |
+| `WKDisconnected` | 已断开 |
+
+`WKConnectionManagerDelegate` 提供：
+
+公开 selector 名是 `onConnectStatus:reasonCode:` 与 `onKick:reason:`。
+
+```objc
+- (void)onConnectStatus:(WKConnectStatus)status reasonCode:(WKReason)reasonCode;
+- (void)onKick:(uint8_t)reasonCode reason:(NSString *)reason;
+```
+
+`WKReason` 的公开值包括 `WK_REASON_SUCCESS`、`WK_REASON_AUTHFAIL`、`WK_REASON_IN_BLACKLIST`、`WK_REASON_KICK`、`WK_REASON_NOT_IN_WHITELIST`。不要把 `connect` 方法返回当作成功；仅在 `status == WKConnected && reasonCode == WK_REASON_SUCCESS` 后接受连接。
+
+## 频道、正文与 `WKMessage`
+
+### 频道和正文
+
+- `WKChannel` 用 `channelId` + `channelType` 标识目标；常用构造是 `personWithChannelID:` 和 `groupWithChannelID:`。
+- `WKMessageContent` 自定义正文实现 `encodeWithJSON`、`decodeWithJSON:`、`contentType`、`searchableWord`、`conversationDigest`。
+- 文本正文使用 `WKTextContent` 与 `initWithContent:`。
+- 注册自定义正文使用 `[WKSDK.shared registerMessageContent:YourClass]` 或 `registerMessageContent:contentType:`。
+
+### `WKMessage` 核心字段
+
+| 字段 | 含义 |
+| --- | --- |
+| `clientMsgNo` | 客户端唯一编号；pending 关联键 |
+| `clientSeq` | 本地序号 |
+| `messageId` | 服务端消息 ID；确认前不能用于关联 |
+| `messageSeq` | 服务端频道序号；确认前可能为 `0` |
+| `channel` / `fromUid` | 目标频道与发送者 |
+| `contentType` / `content` | 正文类型与 `WKMessageContent` |
+| `status` / `reasonCode` | `WKMessageStatus` 与 `WKReason` |
+| `header` / `setting` / `remoteExtra` | 控制位、设置与远程扩展 |
+
+`WKMessage` 是可变对象。跨队列或 teardown 边界前复制应用自有快照，并以 session attempt 拒绝旧 delegate 回调。
+
+## 发送、ACK 与消息事件
+
+| API | 语义 |
+| --- | --- |
+| `sendMessage:channel:` | 发送并保存，立即返回本地/pending `WKMessage` |
+| `sendMessage:channel:topic:` | 携带 topic |
+| `sendMessage:channel:setting:` | 携带 `WKSetting` |
+| `sendMessage:` | 发送调用方构造的 `WKMessage`，头文件说明为仅发送/不保存 |
+| `sendMessage:addRetryQueue:` | 显式决定失败重试队列 |
+| `resendMessage:` | 重发已有消息 |
+| `saveMessage:channel:` | 仅保存本地消息，不是服务器发送证据 |
+
+查询与本地变更同样属于公开 `WKChatManager` 面：
+
+| Selector | 语义 |
+| --- | --- |
+| `pullLastMessages:limit:complete:` | 拉取频道最后一页，结果经本地数据与同步 provider 合并 |
+| `pullDown:startOrderSeq:limit:complete:` / `pullUp:startOrderSeq:limit:complete:` | 按 order sequence 向下/向上分页 |
+| `pullAround:orderSeq:limit:complete:` | 读取指定 order sequence 周围消息 |
+| `pullMessages:startOrderSeq:endOrderSeq:limit:pullMode:complete:` | 显式边界与方向的通用分页入口 |
+| `editMessage:newContent:` / `revokeMessage:` | 触发编辑或撤回 provider；返回/本地变化不是远端成功证明 |
+| `deleteMessage:` / `clearMessages:` / `clearAllMessages` | 清理本地消息；不要误写成服务端历史删除 |
+| `syncMessageExtra:complete:` | 同步消息扩展；completion 错误与 delegate 更新都要处理 |
+
+`WKChatManagerDelegate` 核心事件：
+
+公开 selector 名是 `onRecvMessages:left:`、`onMessageUpdate:left:` 与 `onSendack:left:`。
+
+```objc
+- (void)onRecvMessages:(WKMessage *)message left:(NSInteger)left;
+- (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left;
+- (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left total:(NSInteger)total;
+- (void)onSendack:(WKSendackPacket *)sendackPacket left:(NSInteger)left;
+```
+
+`left == 0` 只表示当前批次回调结束，不等于产品处理或离线恢复完成。发送关联优先使用 `clientMsgNo`。
+
+### `WKMessageStatus`
+
+| 常量 | 含义 |
+| --- | --- |
+| `WK_MESSAGE_WAITSEND` | 等待发送 |
+| `WK_MESSAGE_SUCCESS` | 发送成功 |
+| `WK_MESSAGE_ONLYSAVE` | 仅本地保存 |
+| `WK_MESSAGE_UPLOADING` | 附件上传中 |
+| `WK_MESSAGE_FAIL` | 发送失败；读取 `reasonCode` |
+
+连接、发送和 provider API 还会通过 `WKReason`、`NSError` 或 block 的 `error` 返回错误。应用要保留阶段、`clientMsgNo`、reason domain/code 和当前 attempt，但不得把 token 或 Payload 写入日志。
+
+## Provider 与扩展面
+
+- `[WKSDK shared] setOfflineMessageProvider:offlineMessagesAck:`：离线消息批量与 ACK；回调必须单次完成。
+- `WKChatManager.syncChannelMessageProvider`：按频道/start/end/limit/pull mode 同步消息。
+- `syncMessageExtraProvider`、`updateMessageExtraProvider`、`messageEditProvider`：扩展和编辑依赖业务 API。
+- `WKConversationManager.setSyncConversationProviderAndAck:ack:`：最近会话 provider 与 ACK。
+- `WKSDK.channelInfoUpdate`：频道资料 provider。
+- `WKMediaManager.uploadTaskProvider` / `downloadTaskProvider`：媒体文件任务。
+- receipt、reaction、robot、reminder manager 也公开对应 provider。
+
+所有 provider 必须有超时、单次完成、幂等和 session fence。头文件存在不证明你的后端已实现其 server contract。
+
+## 安全与证据边界
+
+- `GCDAsyncSocket` 使用原始 TCP，没有认证 TLS；
+- `isDebug = NO` 仍不能消除无条件 RECV 日志，描述可能包含 Payload；
+- SQLCipher 使用 UID 作为 key，不构成独立静态加密密钥管理；
+- framework 是经典二进制，模拟器只有 `x86_64`；
+- `compatibility.json` 不包含 iOS build、设备、消息环或 API receipt。
+
+## 下一步
+
+首次接入请从[快速接入](/zh/sdk/ios/quickstart)开始。替换已有 pod 前，按[版本升级](/zh/sdk/ios/upgrade)冻结旧版本、数据库和回滚证据。

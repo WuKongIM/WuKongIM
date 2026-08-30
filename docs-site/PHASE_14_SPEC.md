@@ -49,6 +49,10 @@ The complete JavaScript API reference and upgrade guide remain planned. Every
 non-JavaScript platform remains planned and outside search, sitemap, LLM, and
 compatibility claims.
 
+This paragraph records the Phase 14 boundary. Phase 24 later publishes the
+JavaScript reference/upgrade chapters and the source-aligned native-platform
+chapters; it does not broaden this phase's browser runtime receipt.
+
 ## Evidence layers
 
 ### Automated compatibility smoke

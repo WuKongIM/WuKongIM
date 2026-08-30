@@ -1,19 +1,19 @@
 ---
 title: Choose a Deployment
-description: Choose Docker, Linux, or a future Kubernetes path by environment, upgrade ownership, failure domains, and operating capability.
+description: Choose Docker, Linux, or Kubernetes by environment, upgrade ownership, failure domains, and operating capability.
 ---
 
 First decide who owns builds, process lifecycle, networking, storage, and upgrades. Then choose the deployment tool. A runtime medium does not provide high availability or production security by itself.
 
 ## Comparison
 
-| Dimension | Docker | Linux + systemd | Kubernetes (Beta, planned) |
+| Dimension | Docker | Linux + systemd | Kubernetes (Beta) |
 | --- | --- | --- | --- |
-| Artifact | Local image built from the current source | Binary built from the current source | No published contract in this phase |
+| Artifact | Local image built from the current source | Binary built from the current source | Image built from current source and pinned by digest |
 | Process management | Container runtime | systemd | Orchestration controller |
 | State | Independent volumes/disks | Independent host directories/disks | Requires a stable persistent-volume design |
 | Network | Explicit ports and container networks | Host listeners and firewall | Requires Service, ingress, and node-transport design |
-| Fit | Teams with a container platform | Teams comfortable operating Linux | Wait for calibrated Beta assets and boundaries |
+| Fit | Teams with a container platform | Teams comfortable operating Linux | Teams that can own StatefulSet, PVC, Secret, network policy, and node-by-node upgrade evidence |
 
 The repository-root Compose stack is only for development and validation. It is not the production Docker option in this table.
 
@@ -39,6 +39,6 @@ A multi-node cluster supports cross-node replication and failure handling, but o
 - **First evaluation:** use repository Compose to verify the three-node configuration, readiness, and observability surfaces.
 - **Existing container platform:** build an immutable image and own the production orchestration, secrets, and persistent volumes separately.
 - **Traditional hosts:** use the Linux binary with systemd and keep configuration, state, and log paths explicit.
-- **Kubernetes required:** keep the route planned for now; do not derive a production StatefulSet from development Compose.
+- **Kubernetes required:** use the published Beta reference, while the platform team reviews and owns the final StatefulSet, PVC, Secret, network, and upgrade evidence.
 
-After choosing the medium, continue to [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux).
+After choosing the medium, continue to [Docker](/en/server/deployment/docker), [Linux](/en/server/deployment/linux), or [Kubernetes (Beta)](/en/server/deployment/kubernetes).

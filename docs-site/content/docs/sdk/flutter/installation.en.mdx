@@ -137,7 +137,7 @@ The device dictionary is `0=APP`, `1=WEB`, and `2=PC`: native Android/iOS applic
 
 ## 7. Understand local data
 
-`setup` opens a normal **sqflite** database named `wk_<uid>.db` and calls `updateSendingMsgFail()` to mark prior sending rows failed; it does not recover the send. The SDK provides no at-rest database encryption. **SharedPreferences** also stores a UID-scoped device ID and SQL migration version.
+`setup` opens a normal **sqflite** database named `wk_<uid>.db` and starts `updateSendingMsgFail()`. The manager does not await the underlying update, so this is a **best-effort, unawaited** correction of prior sending state, not send recovery; successful `setup` does not prove the update persisted. The SDK provides no at-rest database encryption. **SharedPreferences** also stores a UID-scoped device ID and SQL migration version.
 
 Before adoption, decide:
 

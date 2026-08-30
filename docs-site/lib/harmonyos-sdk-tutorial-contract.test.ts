@@ -48,7 +48,7 @@ describe('full HarmonyOS SDK tutorial contract', () => {
     expect(spec).toMatch(/template assertion|模板断言/iu);
   });
 
-  test('publishes only the bilingual HarmonyOS overview, installation, and quickstart', async () => {
+  test('publishes the complete bilingual HarmonyOS documentation path', async () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -56,11 +56,14 @@ describe('full HarmonyOS SDK tutorial contract', () => {
         '/en/sdk/harmonyos',
         '/en/sdk/harmonyos/installation',
         '/en/sdk/harmonyos/quickstart',
+        '/en/sdk/harmonyos/platform-capabilities',
+        '/en/sdk/harmonyos/api-reference',
+        '/en/sdk/harmonyos/upgrade',
       ]),
     );
     for (const slug of ['platform-capabilities', 'api-reference', 'upgrade']) {
       expect(getNavigationEntry('en', 'sdk', ['harmonyos', slug])?.status).toBe(
-        'planned',
+        'published',
       );
     }
 
@@ -71,10 +74,196 @@ describe('full HarmonyOS SDK tutorial contract', () => {
       'harmonyos/installation.en.mdx',
       'harmonyos/quickstart.mdx',
       'harmonyos/quickstart.en.mdx',
+      'harmonyos/platform-capabilities.mdx',
+      'harmonyos/platform-capabilities.en.mdx',
+      'harmonyos/api-reference.mdx',
+      'harmonyos/api-reference.en.mdx',
+      'harmonyos/upgrade.mdx',
+      'harmonyos/upgrade.en.mdx',
     ]) {
       const page = await sdkDoc(route);
       expect(page).toContain(snapshot.version);
       expect(page).toContain(snapshot.package);
+    }
+  });
+
+  test('documents source-aligned HarmonyOS capabilities without inventing a device receipt', async () => {
+    const pages = await Promise.all([
+      sdkDoc('harmonyos/platform-capabilities.mdx'),
+      sdkDoc('harmonyos/platform-capabilities.en.mdx'),
+    ]);
+    const required = [
+      snapshot.package,
+      snapshot.version,
+      snapshot.revision,
+      snapshot.archiveSha,
+      snapshot.integrity,
+      'compatibleSdkVersion',
+      'default',
+      'tablet',
+      'ohos.permission.INTERNET',
+      'ohos.permission.GET_NETWORK_INFO',
+      'TCPSocket',
+      'RelationalStore',
+      'encrypt: false',
+      'WKTextContent',
+      'WKImageContent',
+      'WKVoiceContent',
+      'WKVideoContent',
+      'ChannelMemberManager',
+      'ConversationManager',
+      'ReminderManager',
+      'CMDManager',
+      'sendingMsgMap',
+    ];
+    for (const page of pages) {
+      for (const value of required) expect(page).toContain(value);
+      expect(page).toMatch(/根.*只导出.*WKIM|root.*exports only.*WKIM/iu);
+      expect(page).toMatch(/深路径|deep import/iu);
+      expect(page).toMatch(/没有.*运行 receipt|no.*runtime receipt/iu);
+      expect(page).toMatch(/没有.*编译|not.*compiled/iu);
+    }
+  });
+
+  test('maps the HarmonyOS API reference to the exact root export, providers, listeners, and results', async () => {
+    const pages = await Promise.all([
+      sdkDoc('harmonyos/api-reference.mdx'),
+      sdkDoc('harmonyos/api-reference.en.mdx'),
+    ]);
+    const required = [
+      snapshot.package,
+      snapshot.version,
+      snapshot.revision,
+      "from '@wukong/wkim'",
+      'WKIM.shared.init',
+      'channelManager()',
+      'channelMemberManager()',
+      'messageManager()',
+      'cmdManager()',
+      'connectionManager()',
+      'conversationManager()',
+      'reminderManager()',
+      'WKProvider',
+      'connectAddrCallback',
+      'syncConversationCallback',
+      'syncMessageCallback',
+      'uploadAttachmentCallback',
+      'addConnectStatusListener',
+      'removeConnectStatusListener',
+      'disConnection(isLogout: boolean)',
+      'sendWithOption',
+      'getMaxOrderSeqWithChannel',
+      'getMaxMessageSeqWithChannel',
+      'getMinMessageSeqWithChannel',
+      'getMaxReactionSeqWithChannel',
+      'getMessageOrderSeq',
+      'updateContent',
+      'updateViewedAt',
+      'updateLocalExtra',
+      'updateEdit',
+      'addInsertedListener',
+      'addSendStatusListener',
+      'addNewMsgListener',
+      'WKSendMsgResult.success',
+      'WKConnectStatus.syncCompleted',
+      'clientMsgNo',
+      'clientSeq',
+      'updateMsgExtra',
+      'getMsgExtraWithChannel',
+      'syncExtra',
+      'addRefreshExtrasListener',
+      'updateName',
+      'updateRemark',
+      'getWithPageOrSearch',
+      'getMaxVersion',
+      'addCmdListener',
+      'setRefresh',
+      'setRefreshExtras',
+      'setDeleted',
+      'setSendStatus',
+      'setRefreshReactions',
+      'pushNewMsgs',
+      'generateClientMsgNo',
+      'parsingMsg',
+      'updateMsgSendStatus',
+    ];
+    for (const page of pages) {
+      for (const value of required) expect(page).toContain(value);
+      expect(page).toMatch(/根.*只导出.*WKIM|root.*exports only.*WKIM/iu);
+      expect(page).toMatch(
+        /这些路径.*artifact.*不是稳定 root API|Those are.*artifact facts, not a stable root API/iu,
+      );
+      expect(page).toMatch(
+        /源码公开但不推荐由应用调用的方法|Source-public methods that applications should not call directly/iu,
+      );
+      expect(page).toMatch(
+        /manager deep path.*不是稳定 package-root 产品合同|manager deep-path artifact facts, not stable package-root product contracts/iu,
+      );
+      expect(page).not.toMatch(
+        /import\s*\{[^}]*\b(?:MessageManager|ConversationManager|WKChannel)\b[^}]*\}\s*from\s*['"]@wukong\/wkim['"]/u,
+      );
+      expect(page).toMatch(/相同.*函数对象|same function object/iu);
+      expect(page).toMatch(/单槽位|single slot/iu);
+      expect(page).toMatch(/不是.*运行验证|not.*runtime verification/iu);
+    }
+  });
+
+  test('upgrades to HarmonyOS 1.1.7 through a pinned HAR, deep-import audit, and database rollback boundary', async () => {
+    const pages = await Promise.all([
+      sdkDoc('harmonyos/upgrade.mdx'),
+      sdkDoc('harmonyos/upgrade.en.mdx'),
+    ]);
+    const comparison =
+      'https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/compare/a79df83f2794c581096850f0f77d34b95566a9ae...0c41810a1e0a5fc2936929d63ca32a50ffb11bec';
+    for (const page of pages) {
+      expect(page).toContain(`"${snapshot.package}": "${snapshot.version}"`);
+      expect(page).toContain(snapshot.archiveSha);
+      expect(page).toContain(snapshot.integrity);
+      expect(page).toContain(snapshot.revision);
+      expect(page).toContain('oh-package-lock.json5');
+      expect(page).toContain('ohpm install');
+      expect(page).toContain('ohpm list @wukong/wkim@1.1.7');
+      expect(page).toContain('getWithFollowAndStatus');
+      expect(page).toContain('getMaxReactionSeqWithChannel');
+      expect(page).toContain('a79df83f2794c581096850f0f77d34b95566a9ae');
+      expect(page).toContain(comparison);
+      expect(page).toContain('getMinMessageSeqWithChannel');
+      expect(page).toContain('getMessageOrderSeq');
+      expect(page).toContain('updateMsgExtra');
+      expect(page).toContain('getWithChannel');
+      expect(page).toContain('getMsgExtraWithChannel');
+      expect(page).toContain('updateSendingToFail');
+      expect(page).toContain('1.1.2');
+      expect(page).toContain('1.1.7');
+      expect(page).toMatch(/没有.*tag|no.*tag/iu);
+      expect(page).toMatch(/深路径|deep import/iu);
+      expect(page).toMatch(/数据库.*快照|database.*snapshot/iu);
+      expect(page).toMatch(/降级契约|downgrade contract/iu);
+      expect(page).toMatch(/进程重启|process restart/iu);
+      expect(page).toMatch(/运行 receipt|runtime receipt/u);
+
+      const diffStart = page.indexOf('## 3.');
+      const diffEnd = page.indexOf('## 4.');
+      expect(diffStart).toBeGreaterThanOrEqual(0);
+      expect(diffEnd).toBeGreaterThan(diffStart);
+      const exactDiff = page.slice(diffStart, diffEnd);
+      expect(exactDiff).toContain(comparison);
+      expect(exactDiff).toMatch(/1\.1\.6[\s\S]*1\.1\.7/u);
+      expect(exactDiff).toMatch(
+        /连接停滞恢复.*attempt\/timer|stalled connection recovery.*attempt\/timer/iu,
+      );
+      expect(exactDiff).toMatch(
+        /路由超时[\s\S]*陈旧地址[\s\S]*重复 reconnect|route timeout[\s\S]*stale addresses[\s\S]*duplicate reconnect/iu,
+      );
+      expect(exactDiff).toMatch(
+        /同步消息持久化调整[\s\S]*clientMsgNo[\s\S]*reaction|Changes synchronized-message persistence[\s\S]*clientMsgNo[\s\S]*reactions/iu,
+      );
+      expect(exactDiff).toMatch(
+        /SENDACK 本地更新调整[\s\S]*messageId[\s\S]*messageSeq[\s\S]*orderSeq[\s\S]*clientSeq|Changes local SENDACK update[\s\S]*messageId[\s\S]*messageSeq[\s\S]*orderSeq[\s\S]*clientSeq/iu,
+      );
+      expect(exactDiff).toMatch(
+        /没有移除旧调用签名的证据|no source evidence.*remove an old call signature/iu,
+      );
     }
   });
 

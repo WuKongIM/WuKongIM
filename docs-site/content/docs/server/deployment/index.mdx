@@ -28,9 +28,9 @@ WuKongIM 节点
 | 容器化环境 | 从当前源码构建 Docker 镜像 | 仓库未在此文档中承诺官方镜像仓库或标签 |
 | Linux 主机 | 构建二进制并由 systemd 托管 | 服务单元由部署者维护 |
 | 高可用生产环境 | 多节点集群 + 独立故障域 | 需要外部 TLS、负载均衡、监控、备份和演练 |
-| Kubernetes | 暂不发布 | Beta 页面仍处于规划状态 |
+| Kubernetes | StatefulSet 参考架构 | Beta；平台团队负责最终清单与生产证据 |
 
-先阅读[部署方式选择](/zh/server/deployment/choosing)。确定运行环境后，再进入 [Docker](/zh/server/deployment/docker) 或 [Linux](/zh/server/deployment/linux)。
+先阅读[部署方式选择](/zh/server/deployment/choosing)。确定运行环境后，再进入 [Docker](/zh/server/deployment/docker)、[Linux](/zh/server/deployment/linux) 或 [Kubernetes（Beta）](/zh/server/deployment/kubernetes)。
 
 ## 所有部署共享的合同
 
@@ -53,6 +53,6 @@ curl --fail http://127.0.0.1:5001/readyz
 
 ## 本阶段不替你完成的工作
 
-这些页面提供当前源码的部署合同和参考步骤，但不会执行 DNS、证书、云资源、密钥分发、防火墙或生产切流，也不会把开发 Compose、参考 systemd 单元或规划中的 Kubernetes 页面包装成官方生产方案。
+这些页面提供当前源码的部署合同和参考步骤，但不会执行 DNS、证书、云资源、密钥分发、防火墙或生产切流，也不会把开发 Compose、参考 systemd 单元或 Kubernetes Beta 片段包装成官方生产方案。
 
 完成部署前，逐项执行[生产检查清单](/zh/server/deployment/production-checklist)。

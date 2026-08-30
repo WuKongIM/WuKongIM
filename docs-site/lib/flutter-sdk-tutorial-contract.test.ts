@@ -39,6 +39,13 @@ const snapshot = {
   dart: '3.11.1',
 };
 
+const upgradeBaseline = {
+  version: '1.7.7',
+  revision: 'd99990f41ecb31166af82b9d20c121f33ff8385d',
+};
+const upgradeComparison =
+  'https://github.com/WuKongIM/WuKongIMFlutterSDK/compare/d99990f41ecb31166af82b9d20c121f33ff8385d...de1024276523119e38305c49a3a873caae4d5c59';
+
 async function sdkDoc(path: string): Promise<string> {
   return readFile(join(docsRoot, path), 'utf8');
 }
@@ -57,7 +64,7 @@ describe('full Flutter SDK tutorial contract', () => {
     expect(spec).toMatch(/does not tag `1\.7\.9`|没有.*`1\.7\.9`.*tag/u);
   });
 
-  test('publishes only the bilingual Flutter overview, installation, and quickstart', async () => {
+  test('publishes the complete bilingual Flutter documentation path', async () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
@@ -65,11 +72,14 @@ describe('full Flutter SDK tutorial contract', () => {
         '/en/sdk/flutter',
         '/en/sdk/flutter/installation',
         '/en/sdk/flutter/quickstart',
+        '/en/sdk/flutter/platform-capabilities',
+        '/en/sdk/flutter/api-reference',
+        '/en/sdk/flutter/upgrade',
       ]),
     );
     for (const slug of ['platform-capabilities', 'api-reference', 'upgrade']) {
       expect(getNavigationEntry('en', 'sdk', ['flutter', slug])?.status).toBe(
-        'planned',
+        'published',
       );
     }
 
@@ -80,9 +90,191 @@ describe('full Flutter SDK tutorial contract', () => {
       'flutter/installation.en.mdx',
       'flutter/quickstart.mdx',
       'flutter/quickstart.en.mdx',
+      'flutter/platform-capabilities.mdx',
+      'flutter/platform-capabilities.en.mdx',
+      'flutter/api-reference.mdx',
+      'flutter/api-reference.en.mdx',
+      'flutter/upgrade.mdx',
+      'flutter/upgrade.en.mdx',
     ]) {
       const page = await sdkDoc(route);
       expect(page).toContain(snapshot.version);
+    }
+  });
+
+  test('documents source-aligned Flutter capabilities without widening the platform receipt', async () => {
+    const pages = await Promise.all([
+      sdkDoc('flutter/platform-capabilities.mdx'),
+      sdkDoc('flutter/platform-capabilities.en.mdx'),
+    ]);
+
+    const required = [
+      snapshot.version,
+      snapshot.revision,
+      snapshot.archiveSha,
+      'Android',
+      'iOS',
+      'macOS',
+      'Socket.connect',
+      'sqflite',
+      'SharedPreferences',
+      'WKTextContent',
+      'WKImageContent',
+      'WKVoiceContent',
+      'WKVideoContent',
+      'WKCardContent',
+      'WKChannelType.personal',
+      'WKChannelType.group',
+      'WKConversationManager',
+      'WKChannelMemberManager',
+      'WKReminderManager',
+      'WKCMDManager',
+      '_sendingMsgMap',
+    ];
+    for (const page of pages) {
+      for (const value of required) expect(page).toContain(value);
+      expect(page).toMatch(/不支持 Web|does not support Web/u);
+      expect(page).toMatch(/Windows.*Linux.*未|Windows.*Linux.*not/u);
+      expect(page).toMatch(/运行 receipt|runtime receipt/u);
+    }
+  });
+
+  test('maps the Flutter API reference to the exact singleton, providers, listeners, models, and results', async () => {
+    const pages = await Promise.all([
+      sdkDoc('flutter/api-reference.mdx'),
+      sdkDoc('flutter/api-reference.en.mdx'),
+    ]);
+    const required = [
+      snapshot.version,
+      snapshot.revision,
+      'WKIM.shared',
+      'setup(Options',
+      'Options.newDefault',
+      'WKConnectionManager',
+      'addOnConnectionStatus',
+      'removeOnConnectionStatus',
+      'connect()',
+      'disconnect(bool isLogout)',
+      'WKMessageManager',
+      'registerMsgContent',
+      'sendWithOption',
+      'addOnMsgInsertedListener',
+      'addOnRefreshMsgListener',
+      'addOnNewMsgListener',
+      'addOnSyncChannelMsgListener',
+      'addOnSyncConversationListener',
+      'addOnUploadAttachmentListener',
+      'addOnGetChannelListener',
+      'clientMsgNO',
+      'clientSeq',
+      'WKSendMsgResult.sendSuccess',
+      'WKConnectStatus.syncCompleted',
+      'setDeviceFlag',
+      'testCutData',
+      'searchMsgWithChannelAndContentTypes',
+      'getMaxExtraVersionWithChannel',
+      'saveRemoteExtraMsg',
+      'getMaxReactionSeqWithChannel',
+      'sendMessageWithSetting',
+      'updateLocalExtraWithClientMsgNo',
+      'updateMsgEdit',
+      'getExtraMaxVersion',
+      'clearAll',
+      'removeOnRefreshMsgListListener',
+      'searchWithChannelTypeAndFollow',
+      'removeOnRefreshAvatarListener',
+      'getMaxVersion',
+      'removeNewMemberListener',
+      'setNewReminder',
+      'removeOnNewReminderListener',
+      'handleCMD',
+      'removeCmdListener',
+      'getFromAsync',
+      'getMemberOfFromAsync',
+    ];
+    const implementationSurface = [
+      'parsingMsg',
+      'saveMsg',
+      'generateClientMsgNo',
+      'saveRemoteExtraMsg',
+      'setSyncChannelMsgListener',
+      'wkSyncExtraMsg2WKMsgExtra',
+      'saveMessageReactions',
+      'getMsgReactionsAndRefreshMsg',
+      'pushNewMsg',
+      'setRefreshMsg',
+      'setOnMsgInserted',
+      'updateSendResult',
+      'updateMsgStatusFail',
+      'updateSendingMsgFail',
+    ];
+    const managerSurface = [
+      'saveWithLiMMsg',
+      'deleteMsg',
+      'getAllUnreadCount',
+      'setSyncConversation',
+      'removeClearAllRedDotListener',
+      'removeDeleteMsgListener',
+      'removeOnRefreshMsg',
+      'addOrUpdateChannel',
+      'addOrUpdateChannels',
+      'updateAvatarCacheKey',
+      'removeOnRefreshListener',
+      'getMembers',
+      'getMember',
+      'saveOrUpdateList',
+      'removeRefreshMemberListener',
+      'removeDeleteMemberListener',
+      'saveOrUpdateReminders',
+    ];
+    for (const page of pages) {
+      for (const value of required) expect(page).toContain(value);
+      for (const value of implementationSurface) expect(page).toContain(value);
+      for (const value of managerSurface) expect(page).toContain(value);
+      expect(page).toMatch(/相同.*key|same.*key/iu);
+      expect(page).toMatch(/单槽位|single slot/iu);
+      expect(page).toMatch(/不是.*运行验证|not.*runtime verification/iu);
+      expect(page).toContain('best-effort');
+      expect(page).toMatch(/未等待|unawaited/iu);
+      expect(page).toMatch(/不证明.*落盘|does not prove.*persist/iu);
+    }
+  });
+
+  test('upgrades to Flutter 1.7.9 through an exact lock, database boundary, and reversible receipt', async () => {
+    const pages = await Promise.all([
+      sdkDoc('flutter/upgrade.mdx'),
+      sdkDoc('flutter/upgrade.en.mdx'),
+    ]);
+    for (const page of pages) {
+      expect(page).toContain(`${snapshot.package}: ${snapshot.version}`);
+      expect(page).toContain(snapshot.archiveSha);
+      expect(page).toContain(snapshot.revision);
+      expect(page).toContain(upgradeBaseline.version);
+      expect(page).toContain(upgradeBaseline.revision);
+      expect(page).toContain(upgradeComparison);
+      expect(page).toContain('1.7.8');
+      expect(page).toContain('1.7.9');
+      expect(page).toContain('queryAll');
+      expect(page).toMatch(/最后消息|last message/iu);
+      expect(page).toMatch(/message extra/iu);
+      expect(page).toMatch(/发送者|sender/iu);
+      expect(page).toContain('getFromAsync');
+      expect(page).toContain('getMemberOfFromAsync');
+      expect(page).toContain('getMaxReactionSeqWithChannel');
+      expect(page).toContain('ReactionDB.shared.insertOrUpdateReactionList');
+      expect(page).toMatch(/等待 reaction 入库|awaited reaction persistence/iu);
+      expect(page).toContain('pubspec.lock');
+      expect(page).toContain('flutter pub get --enforce-lockfile');
+      expect(page).toContain('flutter analyze');
+      expect(page).toContain('flutter build macos --release');
+      expect(page).toMatch(/没有.*1\.7\.9.*tag|no.*1\.7\.9.*tag/iu);
+      expect(page).toMatch(/数据库.*快照|database.*snapshot/iu);
+      expect(page).toMatch(/降级契约|downgrade contract/iu);
+      expect(page).toMatch(/进程重启|process restart/iu);
+      expect(page).toMatch(/运行 receipt|runtime receipt/u);
+      expect(page).toMatch(/量化观察阈值|quantified observation thresholds/iu);
+      expect(page).toMatch(/停止条件|stop condition/iu);
+      expect(page).toMatch(/留空.*不允许|empty field.*may not start/iu);
     }
   });
 
@@ -116,6 +308,8 @@ describe('full Flutter SDK tutorial contract', () => {
       expect(page).toContain('flutter pub get --enforce-lockfile');
       expect(page).toContain('>=2.17.0 <4.0.0');
       for (const dependency of dependencies) expect(page).toContain(dependency);
+      expect(page).toContain('best-effort');
+      expect(page).toMatch(/未等待|unawaited/iu);
     }
   });
 

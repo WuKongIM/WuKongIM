@@ -88,6 +88,10 @@ search, sitemap, LLM outputs, and per-page Markdown.
   extensions in both locales at desktop and mobile widths, including console
   output and horizontal overflow.
 
+This is the Phase 9 boundary. Later phases publish the maintained tutorials,
+SDK, API, and Kubernetes routes; Phase 24 leaves no maintained navigation
+entry planned.
+
 ## Excluded
 
 - Runtime refactors, new feature promises, configuration changes, or

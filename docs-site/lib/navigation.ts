@@ -160,8 +160,8 @@ function publishedAndroidSDKGroup(): NavigationGroup {
     'android',
     'Android',
     'Android',
-    '按 WuKongIMAndroidSDK 1.5.5 的源码与 JitPack AAR 完成精确安装、同步门禁和首条消息；平台能力、完整 API、升级和可执行兼容性仍待验证。',
-    'Install, pass the synchronization gate, and exchange a first message against the WuKongIMAndroidSDK 1.5.5 source and JitPack AAR; platform capabilities, full API, upgrades, and executable compatibility remain unverified.',
+    '按 WuKongIMAndroidSDK 1.5.5 的源码与 JitPack AAR 完成安装、首条消息、能力核对、API 查找和升级规划；可执行兼容性仍需独立验证。',
+    'Use the WuKongIMAndroidSDK 1.5.5 source and JitPack AAR for installation, first-message flow, capability review, API lookup, and upgrade planning; executable compatibility still requires independent evidence.',
     [
       publishedPage(
         'installation',
@@ -177,26 +177,26 @@ function publishedAndroidSDKGroup(): NavigationGroup {
         '用公开 Java API 完成会话同步门禁、Alice/Bob 文本发送、SENDACK、在线接收和 listener 清理。',
         'Use the public Java API for conversation-sync gating, Alice/Bob text send, SENDACK, online receipt, and listener cleanup.',
       ),
-      plannedPage(
+      publishedPage(
         'platform-capabilities',
         '平台专属能力',
         'Platform Capabilities',
-        'Android 生命周期、后台运行、推送、离线恢复和设备矩阵仍待验证。',
-        'Android lifecycle, background execution, push, offline recovery, and device matrix remain to be verified.',
+        '区分 Android 已校对的源码能力、平台集成责任、生产阻断项和仍需运行验证的范围。',
+        'Separates source-aligned Android capabilities, platform integration ownership, production blockers, and runtime-unverified scope.',
       ),
-      plannedPage(
+      publishedPage(
         'api-reference',
         'API 参考',
         'API Reference',
-        'Android SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
-        'The complete Android SDK classes, methods, events, parameters, and errors remain planned.',
+        '按固定 1.5.5 AAR 与源码查找管理器、Provider、监听器、模型和结果码。',
+        'Find managers, providers, listeners, models, and result codes in the pinned 1.5.5 AAR and source.',
       ),
-      plannedPage(
+      publishedPage(
         'upgrade',
         '升级指南',
         'Upgrade Guide',
-        'Android SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
-        'Breaking changes, migration steps, and release history for the Android SDK remain planned.',
+        '用精确坐标、依赖校验、调用点审计、设备场景和可回滚灰度升级到 1.5.5。',
+        'Upgrade to 1.5.5 with exact coordinates, dependency verification, call-site review, device scenarios, and reversible rollout.',
       ),
     ],
   );
@@ -207,8 +207,8 @@ function publishedFlutterSDKGroup(): NavigationGroup {
     'flutter',
     'Flutter',
     'Flutter',
-    '按 wukongimfluttersdk 1.7.9 的 pub.dev 归档与匹配源码完成精确安装、同步门禁和首条消息；完整平台矩阵、API、升级和运行兼容性仍待验证。',
-    'Install, pass the synchronization gate, and exchange a first message against the wukongimfluttersdk 1.7.9 pub.dev archive and matching source; the full platform matrix, API, upgrades, and runtime compatibility remain unverified.',
+    '按 wukongimfluttersdk 1.7.9 的 pub.dev 归档与匹配源码完成安装、首条消息、能力核对、API 查找和升级规划；运行兼容性仍需独立验证。',
+    'Use the wukongimfluttersdk 1.7.9 pub.dev archive and matching source for installation, first-message flow, capability review, API lookup, and upgrade planning; runtime compatibility still requires independent evidence.',
     [
       publishedPage(
         'installation',
@@ -224,26 +224,26 @@ function publishedFlutterSDKGroup(): NavigationGroup {
         '用公开 Dart API 完成会话同步门禁、Alice/Bob 文本发送、本地入库、SENDACK 刷新、在线接收和清理。',
         'Use the public Dart API for conversation-sync gating, Alice/Bob text send, local insert, SENDACK refresh, online receipt, and cleanup.',
       ),
-      plannedPage(
+      publishedPage(
         'platform-capabilities',
         '平台专属能力',
         'Platform Capabilities',
-        'Android、iOS、macOS 的生命周期、后台、推送、离线恢复和设备矩阵仍待验证。',
-        'Android, iOS, and macOS lifecycle, background, push, offline recovery, and device matrices remain to be verified.',
+        '区分 Flutter 已校对的源码能力、目标平台责任、生产阻断项和仍需运行验证的矩阵。',
+        'Separates source-aligned Flutter capabilities, target-platform ownership, production blockers, and runtime-unverified matrices.',
       ),
-      plannedPage(
+      publishedPage(
         'api-reference',
         'API 参考',
         'API Reference',
-        'Flutter SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
-        'The complete Flutter SDK classes, methods, events, parameters, and errors remain planned.',
+        '按固定 1.7.9 归档与源码查找单例、Provider、监听器、模型和结果码。',
+        'Find singleton APIs, providers, listeners, models, and result codes in the pinned 1.7.9 archive and source.',
       ),
-      plannedPage(
+      publishedPage(
         'upgrade',
         '升级指南',
         'Upgrade Guide',
-        'Flutter SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
-        'Breaking changes, migration steps, and release history for the Flutter SDK remain planned.',
+        '用精确 pubspec、锁文件、调用点审计、逐平台场景和可回滚灰度升级到 1.7.9。',
+        'Upgrade to 1.7.9 with an exact pubspec, lockfile, call-site review, per-platform scenarios, and reversible rollout.',
       ),
     ],
   );
@@ -254,8 +254,8 @@ function publishedIOSSDKGroup(): NavigationGroup {
     'ios',
     'iOS',
     'iOS',
-    '按 WuKongIMSDK 1.1.1 的源码与分发头文件完成精确安装、连接和首条消息；平台能力、完整 API、升级和可执行兼容性仍待验证。',
-    'Install, connect, and exchange a first message against the WuKongIMSDK 1.1.1 source and distributed headers; platform capabilities, full API, upgrades, and executable compatibility remain unverified.',
+    '按 WuKongIMSDK 1.1.1 的源码与分发头文件完成安装、首条消息、能力核对、API 查找和升级规划；可执行兼容性仍需独立验证。',
+    'Use the WuKongIMSDK 1.1.1 source and distributed headers for installation, first-message flow, capability review, API lookup, and upgrade planning; executable compatibility still requires independent evidence.',
     [
       publishedPage(
         'installation',
@@ -271,26 +271,26 @@ function publishedIOSSDKGroup(): NavigationGroup {
         '用公开 Objective-C API 配置身份、连接 Alice 与 Bob，并区分本地发送、确认和在线接收。',
         'Use the public Objective-C API to configure identity, connect Alice and Bob, and separate local send, acknowledgement, and online receipt.',
       ),
-      plannedPage(
+      publishedPage(
         'platform-capabilities',
         '平台专属能力',
         'Platform Capabilities',
-        'iOS 生命周期、后台运行、推送、离线恢复和其他平台能力仍待验证。',
-        'iOS lifecycle, background execution, push, offline recovery, and other platform capabilities remain to be verified.',
+        '区分 iOS 已校对的源码能力、应用生命周期责任、生产阻断项和仍需设备验证的范围。',
+        'Separates source-aligned iOS capabilities, application lifecycle ownership, production blockers, and device-unverified scope.',
       ),
-      plannedPage(
+      publishedPage(
         'api-reference',
         'API 参考',
         'API Reference',
-        'iOS SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
-        'The complete iOS SDK classes, methods, events, parameters, and errors remain planned.',
+        '按固定 1.1.1 公开头文件与源码查找管理器、Provider、委托、模型和状态。',
+        'Find managers, providers, delegates, models, and statuses in the pinned 1.1.1 public headers and source.',
       ),
-      plannedPage(
+      publishedPage(
         'upgrade',
         '升级指南',
         'Upgrade Guide',
-        'iOS SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
-        'Breaking changes, migration steps, and release history for the iOS SDK remain planned.',
+        '用精确 Pod、锁文件、调用点审计、设备场景和可回滚灰度升级到 1.1.1。',
+        'Upgrade to 1.1.1 with an exact Pod, lockfile, call-site review, device scenarios, and reversible rollout.',
       ),
     ],
   );
@@ -301,8 +301,8 @@ function publishedHarmonyOSSDKGroup(): NavigationGroup {
     'harmonyos',
     'HarmonyOS',
     'HarmonyOS',
-    '按 @wukong/wkim 1.1.7 的 OHPM HAR 与匹配源码完成精确安装、同步门禁和首条消息；平台能力、完整 API、升级和运行兼容性仍待验证。',
-    'Install, pass the synchronization gate, and exchange a first message against the @wukong/wkim 1.1.7 OHPM HAR and matching source; platform capabilities, full API, upgrades, and runtime compatibility remain unverified.',
+    '按 @wukong/wkim 1.1.7 的 OHPM HAR 与匹配源码完成安装、首条消息、能力核对、API 查找和升级规划；运行兼容性仍需独立验证。',
+    'Use the @wukong/wkim 1.1.7 OHPM HAR and matching source for installation, first-message flow, capability review, API lookup, and upgrade planning; runtime compatibility still requires independent evidence.',
     [
       publishedPage(
         'installation',
@@ -318,26 +318,26 @@ function publishedHarmonyOSSDKGroup(): NavigationGroup {
         '用真实 ArkTS API 完成会话同步门禁、Alice/Bob 文本入库、SENDACK、在线接收和 listener 清理。',
         'Use the real ArkTS API for conversation-sync gating, Alice/Bob text insertion, SENDACK, online receipt, and listener cleanup.',
       ),
-      plannedPage(
+      publishedPage(
         'platform-capabilities',
         '平台专属能力',
         'Platform Capabilities',
-        'HarmonyOS 生命周期、后台运行、推送、离线恢复和设备矩阵仍待验证。',
-        'HarmonyOS lifecycle, background execution, push, offline recovery, and device matrices remain to be verified.',
+        '区分 HarmonyOS 已校对的源码能力、Stage 生命周期责任、生产阻断项和仍需设备验证的范围。',
+        'Separates source-aligned HarmonyOS capabilities, Stage lifecycle ownership, production blockers, and device-unverified scope.',
       ),
-      plannedPage(
+      publishedPage(
         'api-reference',
         'API 参考',
         'API Reference',
-        'HarmonyOS SDK 的完整类、方法、事件、参数和错误定义仍在规划中。',
-        'The complete HarmonyOS SDK classes, methods, events, parameters, and errors remain planned.',
+        '按固定 1.1.7 HAR 与源码查找根导出、深路径类型、Provider、监听器和结果码。',
+        'Find root exports, deep-path types, providers, listeners, and result codes in the pinned 1.1.7 HAR and source.',
       ),
-      plannedPage(
+      publishedPage(
         'upgrade',
         '升级指南',
         'Upgrade Guide',
-        'HarmonyOS SDK 的破坏性变更、迁移步骤和发布记录仍在规划中。',
-        'Breaking changes, migration steps, and release history for the HarmonyOS SDK remain planned.',
+        '用精确 OHPM 版本、锁文件、深导入审计、设备场景和可回滚灰度升级到 1.1.7。',
+        'Upgrade to 1.1.7 with an exact OHPM version, lockfile, deep-import review, device scenarios, and reversible rollout.',
       ),
     ],
   );
@@ -407,8 +407,8 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
     'javascript',
     'JavaScript / Web',
     'JavaScript / Web',
-    '使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息、离线恢复、能力核对和验收报告；完整 API 与升级仍在规划中。',
-    'Complete browser installation, connection, two-way messaging, offline recovery, capability review, and acceptance reporting with the pinned SDK compatibility target; complete API and upgrade material remain planned.',
+    '使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息、离线恢复、能力核对、API 查找、升级和验收报告。',
+    'Complete browser installation, connection, two-way messaging, offline recovery, capability review, API lookup, upgrades, and acceptance reporting with the pinned SDK compatibility target.',
     [
       publishedPage(
         'installation',
@@ -431,14 +431,14 @@ function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
         '按真实 Chromium 场景区分场景覆盖能力、安全边界和未验证范围。',
         'Separates scenario-covered capabilities, security boundaries, and unverified scope through the real Chromium scenario.',
       ),
-      plannedPage(
+      publishedPage(
         'api-reference',
         'API 参考',
         'API Reference',
         'JavaScript / Web SDK 的类、方法、事件、参数和错误定义。',
         'Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.',
       ),
-      plannedPage(
+      publishedPage(
         'upgrade',
         '升级指南',
         'Upgrade Guide',
@@ -749,7 +749,7 @@ export const domains: DocumentationDomain[] = [
             '使用二进制、配置文件和 systemd 运行服务。',
             'Runs the server with a binary, configuration file, and systemd.',
           ),
-          plannedPage(
+          publishedPage(
             'kubernetes',
             'Kubernetes 部署（Beta）',
             'Kubernetes (Beta)',

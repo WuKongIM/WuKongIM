@@ -79,6 +79,11 @@ WKProto Payload encryption is not TLS. Production adoption still needs SDK fixes
 
 1. Use [Installation](/en/sdk/flutter/installation) to pin the package, archive hash, lockfile, and platform configuration.
 2. Use the [Quickstart](/en/sdk/flutter/quickstart) in two independent processes for an Alice/Bob online message.
-3. Continue with the [Common Guides](/en/sdk/common-guides) for identity, offline state, conversations, push, multi-device, and error recovery.
+3. Use [Platform Capabilities](/en/sdk/flutter/platform-capabilities) to separate source-aligned Dart behavior, host-platform ownership, and runtime-unverified scope.
+4. Use the [API Reference](/en/sdk/flutter/api-reference) to find `1.7.9` singleton APIs, providers, listeners, message models, and error states.
+5. Before changing the pin, follow the [Upgrade Guide](/en/sdk/flutter/upgrade) and retain pubspec, lockfile, per-platform scenario, and rollback evidence.
+6. Continue with the [Common Guides](/en/sdk/common-guides) for identity, offline state, conversations, push, multi-device, and error recovery.
+
+The capability, API, and upgrade material is published against the pinned `1.7.9` archive and matching source. These pages do not extend static analysis or the macOS Release build into an Android, iOS, or macOS runtime receipt.
 
 For a browser target, use the [JavaScript/Web SDK](/en/sdk/javascript). This Flutter package imports `dart:io` and depends on sqflite, so a successful Web compilation alone is not runtime support.

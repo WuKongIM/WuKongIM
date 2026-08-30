@@ -51,8 +51,12 @@ Phase 13 adds matching Chinese and English MDX for exactly these 13 routes:
 - `/api/dictionaries/message-flags`
 
 The SDK and dictionary indexes are updated to route readers into this material.
-Every non-JavaScript platform group, complete platform API references, platform
-capability guides, and upgrade guides remain planned.
+At the Phase 13 boundary, every non-JavaScript platform group, complete
+platform API reference, platform-capability guide, and upgrade guide remained
+planned. Phase 15 later published the source-aligned EasySDK path, and Phases
+19 through 24 published the maintained full-SDK platform groups and remaining
+reference chapters. Those later publication changes do not broaden Phase 13's
+JavaScript/Web executable-evidence boundary.
 
 ## SDK chooser publication boundary
 

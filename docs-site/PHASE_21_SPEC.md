@@ -18,6 +18,10 @@ Phase 21 publishes only:
 Flutter platform capabilities, a complete API reference, and an upgrade guide
 remain planned.
 
+This is the Phase 21 publication boundary. Phase 24 later publishes those
+three chapters from the same pinned archive and source while retaining the
+absence of Android, iOS, and macOS runtime receipts.
+
 ## Exact package and source snapshot
 
 The tutorial targets the pub.dev package `wukongimfluttersdk` `1.7.9`, published

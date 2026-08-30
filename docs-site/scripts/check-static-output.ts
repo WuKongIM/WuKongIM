@@ -182,8 +182,12 @@ export async function checkStaticOutput() {
       if (!normalizedHome.includes(`${counts.published} ${publishedLabel}`)) {
         throw new Error(`${locale} home is missing the ${domain.key} published count`);
       }
-      if (!normalizedHome.includes(`${counts.planned} ${plannedLabel}`)) {
+      const plannedCount = `${counts.planned} ${plannedLabel}`;
+      if (counts.planned > 0 && !normalizedHome.includes(plannedCount)) {
         throw new Error(`${locale} home is missing the ${domain.key} planned count`);
+      }
+      if (counts.planned === 0 && normalizedHome.includes(plannedCount)) {
+        throw new Error(`${locale} home exposes a zero ${domain.key} planned count`);
       }
     }
 

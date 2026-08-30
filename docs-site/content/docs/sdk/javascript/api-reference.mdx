@@ -1,0 +1,225 @@
+---
+title: JavaScript API Reference
+description: 按固定 1.3.5 快照查找配置、连接、消息、频道、会话、事件与数据源 API。
+---
+
+本页对应 `wukongimjssdk@1.3.5`，源码固定在提交 [`3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/tree/3c507ea3ebc08eae9d74fc1f76b150c380752008)。签名以该 npm 包中的 `lib/*.d.ts` 为准；旧站示例只用于理解主题，不能覆盖这里的版本边界。
+
+`lib/*.d.ts` 用于审计已发布声明，不是深层导入许可。该 package 的 export map 只公开 `.` 与 `./package.json`；应用代码应始终从 `wukongimjssdk` 根入口导入，不能依赖 `wukongimjssdk/lib/*` 路径。
+
+<Callout type="warn" title="导出不等于已经验证">
+  当前可执行场景只覆盖固定 Chromium 中的单聊连接、双向持久文本、SENDACK、断线与恢复。下列 API 是精确的导出面，不代表每个 API 都有兼容性 receipt。场景状态见[平台专属能力](/zh/sdk/javascript/platform-capabilities)。
+</Callout>
+
+## 入口与单例生命周期
+
+```ts
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  ConnectStatus,
+  Message,
+  MessageText,
+  ReasonCode,
+  SendackPacket,
+  SendOptions,
+} from 'wukongimjssdk';
+
+const sdk = WKSDK.shared();
+```
+
+`WKSDK.shared()` 返回进程或页面上下文中的同一个实例。它聚合以下管理器：
+
+| 属性 | 责任 |
+| --- | --- |
+| `config` | 身份、地址、协议和业务数据源 |
+| `connectManager` | 连接、重连、心跳和连接状态 |
+| `chatManager` | 消息发送、接收、SENDACK 与同步入口 |
+| `channelManager` | 频道信息、成员缓存和订阅 |
+| `conversationManager` | 最近会话、未读数和会话事件 |
+| `eventManager` | `WKEvent` 监听 |
+| `messageContentManager` | 正文 factory 注册、fallback factory 与正文实例化 |
+| `taskManager` | `MessageTask` 上传任务、进度和任务监听 |
+| `receiptManager` | 已读消息批量与 flush 完成监听 |
+| `reminderManager` | 提醒同步、完成和会话投影 |
+| `securityManager` | WKProto 兼容加解密辅助；不是端到端安全产品 API |
+
+根 `WKSDK` 还直接公开这些便利方法：
+
+| 方法 | 作用 |
+| --- | --- |
+| `register` / `registerFactor` / `getMessageContent` | 转发到 `messageContentManager`；注册精确正文或 fallback factory，并按 `contentType` 创建正文 |
+| `isSystemMessage(contentType)` | 按固定源码的系统正文类型集合判断；不是服务端授权或可信度判断 |
+| `connect()` / `disconnect()` | 转发到连接 manager |
+| `onSubscribe(channel, listener, ...options)` / `onUnsubscribe(channel, listener?)` | 转发频道订阅协议 |
+| `newMessageText` / `newChannel` / `newMessage` / `newChannelInfo` | 构造内置文本、频道、消息和频道资料模型 |
+| `newMediaMessageContent` / `newMessageContent` | 构造基础媒体/正文模型；仍需具体 schema、上传和注册流程 |
+
+不要在同一个页面上下文里用该单例同时承载多个登录身份。切换 UID 前应停止业务流量、断开、移除监听器、清理应用状态，再重新配置；若需要并行隔离身份，请使用独立 iframe、Worker 或页面上下文并自行验证运行时边界。
+
+## `WKConfig`
+
+| 字段 | `1.3.5` 含义 |
+| --- | --- |
+| `uid?: string`、`token?: string` | CONNECT 身份。Token 必须由受信后端发放，不能写死进浏览器包。 |
+| `addr: string` | 直接连接的 `ws://` 或 `wss://` 地址。生产浏览器应使用可信 TLS 入口。 |
+| `provider: Provider` | 路由、消息同步、频道、会话和媒体等业务数据源。 |
+| `deviceFlag: number` | 默认 `1`（Web）；设备值需与产品的多设备策略一致。 |
+| `protoVersion: number` | 默认 `5`。不要为了绕过兼容问题随意改小。 |
+| `heartbeatInterval: number` | 默认 `60000` 毫秒。修改后要验证代理空闲超时、后台节流和重连。 |
+| `sendFrequency: number`、`sendCountOfEach: number` | 默认每 `100` 毫秒批量发送最多 `5` 条。改变会影响延迟和突发负载。 |
+| `clientMsgDeviceId: number` | 参与生成客户端消息号，默认 `0`；多设备策略应明确分配。 |
+| `platform?: any` | 源码中的非浏览器适配入口；当前文档没有给它兼容性证明。 |
+
+浏览器快速接入通常直接设置 `addr`。若地址必须动态发现，可配置回调式数据源：
+
+```ts
+sdk.config.provider.connectAddrCallback = (done) => {
+  void trustedBff.resolveWebSocket().then(({ url }) => done(url));
+};
+```
+
+该字段接收一个“调用 `done(addr)`”的函数，不是返回 `Promise<string>` 的函数。应用必须为路由请求设置超时和错误状态。
+
+## `Provider` 数据源
+
+只有用到对应能力时才实现回调，但被管理器调用时缺失的必要回调会报错或导致数据不可用。
+
+| 回调 | 签名摘要 | 数据所有者 |
+| --- | --- | --- |
+| `connectAddrCallback` | `(done) => void` | 受信后端返回可达 Gateway 地址 |
+| `syncMessagesCallback` | `(channel, options) => Promise<Message[]>` | 业务后端的离线/历史消息适配 |
+| `channelInfoCallback` | `(channel) => Promise<ChannelInfo>` | 业务频道资料 |
+| `syncSubscribersCallback` | `(channel, version) => Promise<Subscriber[]>` | 频道成员增量或快照 |
+| `syncConversationsCallback` | `(filter?) => Promise<Conversation[]>` | 最近会话 |
+| `syncConversationExtrasCallback` | `(version) => Promise<ConversationExtra[] \| undefined>` | 会话扩展状态 |
+| `syncMessageExtraCallback` | `(channel, version, limit) => Promise<MessageExtra[]>` | 已读、撤回和编辑等消息扩展 |
+| `messageUploadTaskCallback` | `(message) => MessageTask` | 媒体上传实现 |
+| `syncRemindersCallback`、`reminderDoneCallback` | 提醒同步与完成 | 业务提醒服务 |
+| `messageReadedCallback` | `(channel, messages) => Promise<void>` | 已读上报 |
+
+SDK 不替你完成 Product HTTP 鉴权、分页正确性、访问控制或数据去重。可以从[快速接入](/zh/sdk/javascript/quickstart)里的 BFF 适配器开始，但生产服务必须重新实现并验收这些合同。
+
+## 连接管理
+
+```ts
+const onStatus = (status: ConnectStatus, reasonCode?: number) => {
+  if (status === ConnectStatus.Connected) {
+    // 连接已确认；此时再开放发送 UI
+  }
+};
+
+sdk.connectManager.addConnectStatusListener(onStatus);
+sdk.connect();
+
+// 页面销毁时
+sdk.connectManager.removeConnectStatusListener(onStatus);
+sdk.disconnect();
+```
+
+`ConnectStatus` 的精确成员是 `Disconnect`、`Connected`、`Connecting`、`ConnectFail` 和 `ConnectKick`。还可用：
+
+| 方法 | 用途 |
+| --- | --- |
+| `connected(): boolean` | 读取当前是否为 `Connected` |
+| `addConnectDelayListener` / `removeConnectDelayListener` | 监听心跳测得的延迟 |
+| `connectWithAddr(addr)` | 使用显式地址连接；通常让 `connect()` 按配置选择地址 |
+| `disconnect()` | 关闭连接并停止自动重连 |
+
+每次 `add*Listener` 都要保存同一个函数引用，并在组件或会话销毁时调用匹配的 `remove*Listener`。只重新渲染 UI 而不清理会造成重复回调。
+
+## 消息发送、接收与同步
+
+```ts
+const channel = new Channel('bob', ChannelTypePerson);
+const localMessage: Promise<Message> = sdk.chatManager.send(
+  new MessageText('hello'),
+  channel,
+);
+
+const options = new SendOptions();
+options.noPersist = false;
+options.reddot = true;
+await sdk.chatManager.sendWithOptions(new MessageText('hello'), channel, options);
+```
+
+`send(...)` 和 `sendWithOptions(...)` 返回 `Promise<Message>`，但解析只表示本地消息已创建并进入发送流程，不能替代服务端 SENDACK。发送结果必须单独监听：
+
+```ts
+const onMessage = (message: Message) => {
+  // 同一监听器也会观察本地刚创建的消息；按 fromUID/clientMsgNo 去重或分类。
+};
+const onAck = (ack: SendackPacket) => {
+  if (ack.reasonCode === ReasonCode.success) {
+    // 服务端接受了这次发送。
+  }
+};
+
+sdk.chatManager.addMessageListener(onMessage);
+sdk.chatManager.addMessageStatusListener(onAck);
+
+sdk.chatManager.removeMessageListener(onMessage);
+sdk.chatManager.removeMessageStatusListener(onAck);
+```
+
+其他消息入口：
+
+| 方法 | 说明 |
+| --- | --- |
+| `addCMDListener` / `removeCMDListener` | 监听内容类型为 CMD 的消息 |
+| `syncMessages(channel, SyncOptions)` | 调用 `provider.syncMessagesCallback` 拉取消息 |
+| `syncMessageExtras(channel, version)` | 调用消息扩展数据源，SDK 内部批量上限为 `100` |
+| `register(contentType, factory)` | 注册自定义 `MessageContent` 解码器 |
+
+`SyncOptions` 包含 `startMessageSeq`、`endMessageSeq`、`limit` 和 `pullMode`；`PullMode.Down` 为 `0`，`PullMode.Up` 为 `1`。分页、边界是否包含以及最大 `limit` 必须由你的 BFF 合同明确，不能只看类型名推断。
+
+## 频道、会话与事件
+
+| 管理器 | 常用方法 |
+| --- | --- |
+| `channelManager` | `fetchChannelInfo`、`getChannelInfo`、`getSubscribes`、`onSubscribe`、`onUnsubscribe`、频道/成员监听器 |
+| `conversationManager` | `sync`、`syncExtra`、`findConversation`、`createEmptyConversation`、`removeConversation`、`getAllUnreadCount`、会话监听器 |
+| `eventManager` | `addEventListener`、`removeEventListener`；事件对象为 `WKEvent`，数据字段为 `dataJson` |
+
+频道常量为 `ChannelTypePerson = 1`、`ChannelTypeGroup = 2`、`ChannelTypeData = 7`。订阅 URL 和参数属于单独的订阅协议；没有对应场景前，不要把它当成普通群成员监听的替代品。
+
+内置内容包括 `MessageText`、`MessageImage`、`MessageStream`、`MessageSignalContent`、`CMDContent`、`SystemContent` 和 `UnknownContent`。自定义内容至少要固定唯一 `contentType`，实现 `encodeJSON` / `decodeJSON`，并在接收前注册：
+
+```ts
+sdk.register(9001, () => new OrderMessageContent());
+```
+
+## 正文、任务、回执、提醒与安全 manager
+
+这些属性可以经 `WKSDK.shared()` 访问，但“公开”不等于每个方法都适合作为产品级抽象：
+
+| Manager | `1.3.5` 公开方法面 | 关键边界 |
+| --- | --- | --- |
+| `messageContentManager` | `register(contentType, factory)`、`registerFactor(factory)`、`getMessageContent(contentType)`；根对象另提供同名 `register` / `registerFactor` / `getMessageContent` 包装 | factory 在解码前安装；fallback factor 的顺序和未知正文策略由应用负责 |
+| `taskManager` | `addTask(task)`、`removeTask(id)`、`addListener(listener)`、`removeListener(listener)` | `addTask` 会立即 `start()`；移除会 `cancel()`；清理时必须传相同函数对象 |
+| `receiptManager` | `addReceiptMessages(channel, messages)`、`addListener(listener)`、`removeListener(listener)` | 依赖 `messageReadedCallback`；只有 provider 完成后才通知 listener，不能把排队当成已读上报成功 |
+| `reminderManager` | `sync()`、`done(ids)`、`updateConversations(channels)`、`getWaitDoneReminders(channel)`、`getRemindersWithIDs(ids)`、`maxReminderVersion()` | `syncRemindersCallback` / `reminderDoneCallback` 缺失时只记录并返回；应用通常不需要直接调用会话投影 helper |
+| `securityManager` | `signalEncrypt`、`encryption`、`decryption`、`encryption2`、`stringToUint`、`uintToString`，以及可变 `aesKey` / `aesIV`、`registrationID` / `deviceID` | 这些是协议兼容辅助，不提供服务端认证、密钥生命周期或端到端安全证明 |
+
+`TaskStatus` 的公开成员是 `wait`、`success`、`processing`、`fail`、`suspend`、`cancel`。`Task` / `BaseTask` 公开 `start`、`suspend`、`resume`、`cancel`、`update`、`progress` 和成对的 `addListener` / `removeListener`；`MessageTask.id` 使用消息 `clientMsgNo`。
+
+`BaseTask` 中 `start` / `suspend` / `resume` / `cancel` 默认都是空实现，`progress()` 固定返回 `0`；真正的上传任务必须在子类中实现这些行为。名字同样不能代替源码检查：`getWaitDoneReminders(channel)` 在 `1.3.5` 只按频道筛选，没有检查 `done` 字段，业务若只需要未完成提醒必须自行过滤并建立测试。
+
+`TaskManager.notifyListeners` 与 `ReceiptManager.notifyListeners` 同样出现在公开声明里，但它们是 SDK 内部事件分发入口；`ReminderManager.updateConversations` 是同步提醒后的会话投影 helper。把这些名称纳入升级审计，不要由业务代码主动伪造 task、回执成功或会话刷新。
+
+精确 `1.3.5` 的 `securityManager.signalEncrypt(recipientID, contentData)` **原样返回输入字节**；注释中的 Signal session 实现未启用。不要把调用它写成 Signal 加密已生效，也不要把 AES-CBC Payload 兼容加密写成认证 TLS 或端到端加密。
+
+`registrationID` 与 `deviceID` 虽出现在公开声明中，注释掉的 Signal 初始化/session 代码不会建立对应密钥生命周期；不要把给这两个字段赋值当作 Signal 会话已经建立。
+
+根单例没有公开的 `reset` 或 `destroy`，`receiptManager` 的 flush timer 也没有公开 stop API。页面 teardown 只能成对移除可移除 listener、取消应用拥有的 task 并 `disconnect()`；这不证明 manager 缓存、timer、密钥或所有共享状态已经清空。需要强账户隔离时使用独立页面/Worker 上下文并重新验收。
+
+可在固定源码中逐项复核 [`task.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/task.ts)、[`receipt_manager.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/receipt_manager.ts)、[`reminder_manager.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/reminder_manager.ts)和 [`security.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/security.ts)。
+
+## 结果码与安全边界
+
+- `ReasonCode.success` 的值为 `1`；不要按 HTTP 的 `200` 判断 SDK 回执。
+- `ConnectFail`、`ConnectKick` 和 SENDACK `reasonCode` 是不同阶段的结果，UI 与重试策略应分开。
+- `1.3.5` 源码包含未受 `config.debug` 保护的 `console.log`，其中包括解密后的接收包和重试发送包。仓库 golden sample 的生产构建会移除 `console`，你自己的构建也必须验证日志产物，不要仅设置 `debug = false`。
+- `config.platform` 及 uni-app/小程序分支不在当前浏览器 receipt 中；采用前要对连接、二进制帧、关闭、重连和后台生命周期建立独立场景。
+
+完整声明可核对固定提交中的 [`src/index.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/index.ts)、[`src/provider.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/provider.ts) 与 [`src/model.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/model.ts)。准备变更版本时继续阅读[升级指南](/zh/sdk/javascript/upgrade)。

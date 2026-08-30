@@ -9,13 +9,15 @@ description: 部署、配置、运维和理解 WuKongIM 集群。
   每个部署都是集群。只有一个节点的部署称为单节点集群，不存在绕过集群行为的独立模式。
 </Callout>
 
-部署、配置、日常运维和服务端架构路径已经发布；其余标记为“规划中”的服务端页面仍不会进入搜索、Sitemap 和 LLM 索引。
+部署（包括 Kubernetes Beta）、配置、日常运维（包括升级与迁移）和服务端架构路径均已发布。页面发布不替代目标环境的部署、故障恢复或升级运行证据。
 
 ## 文档分区
 
 <Cards>
   <Card title="部署" description="选择 Docker 或 Linux，规划多节点集群并执行生产检查。" href="/zh/server/deployment" />
+  <Card title="Kubernetes 部署（Beta）" description="规划持久化、服务发现、资源与 Beta 发布边界。" href="/zh/server/deployment/kubernetes" />
   <Card title="配置" description="理解 TOML、环境变量和各领域配置。" href="/zh/server/configuration" />
   <Card title="运维" description="监控、扩缩容、备份、升级和排障。" href="/zh/server/operations" />
+  <Card title="升级与迁移" description="按明确的版本兼容性选择滚动升级、维护窗口或独立迁移。" href="/zh/server/operations/upgrade-and-migration" />
   <Card title="架构" description="理解 Controller、Slot、Channel 和 Transport。" href="/zh/server/architecture" />
 </Cards>

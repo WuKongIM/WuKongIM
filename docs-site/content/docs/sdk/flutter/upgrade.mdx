@@ -1,0 +1,167 @@
+---
+title: Flutter 升级指南
+description: 从固定的 1.7.7 源码基线，用精确 pubspec、锁文件、调用点审计、数据库快照和逐平台 receipt 升级到 wukongimfluttersdk 1.7.9。
+---
+
+本指南把目标固定为 `wukongimfluttersdk 1.7.9`、archive SHA-256 `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` 和匹配源码 revision [`de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/de1024276523119e38305c49a3a873caae4d5c59)。仓库没有 `1.7.9` tag；包归档、应用 lockfile 和 revision 必须分别记录。
+
+<Callout type="warn" title="把每次 package 变化当成迁移">
+  固定 archive 通过本站 macOS Release build，不是 Android、iOS、macOS 运行 receipt。升级可能同时改变数据库查询、migration、Provider、监听器、连接和依赖解析；不要只改版本号后直接发布。
+</Callout>
+
+## 1. 冻结升级前基线
+
+在独立分支记录工具链和已解析依赖：
+
+```bash
+flutter --version
+dart --version
+flutter pub deps --style=compact
+git status --short
+```
+
+保存当前 `pubspec.yaml`、`pubspec.lock`、Release 产物摘要、每个目标平台的签名配置，以及至少一份真实 Alice/Bob 场景。基线要分别记录连接、同步完成、本地插入、SENDACK、在线接收、离线恢复和断线重连；“应用能启动”不是消息兼容证据。
+
+搜索全部调用点和 package 子路径：
+
+```bash
+rg -n "wukongimfluttersdk|WKIM\.shared|Options|sendMessage|sendWithOption|addOn|remove|clientMsgNO|clientSeq" lib test integration_test
+```
+
+按项目实际目录调整命令。特别标记：
+
+- `lib/main.dart` 不是 SDK barrel，所有 `package:wukongimfluttersdk/...` 子路径都可能是升级编译点；
+- 无 remove API 的 provider/插入回调由谁拥有；
+- listener key 是否稳定且成对移除；
+- 是否依赖可变 `WKMsg` / `WKUIConversationMsg` 的惰性字段；
+- 是否把 `sendMessage` 或本地 Future 返回误判为 SENDACK。
+
+## 2. 精确安装并锁定归档
+
+在应用 `pubspec.yaml` 中写精确版本：
+
+```yaml
+dependencies:
+  wukongimfluttersdk: 1.7.9
+```
+
+不要写 `^1.7.9`、`any`、Git `master` 或仓库旧 `v1.0.0` tag。重新解析并提交 lockfile：
+
+```bash
+flutter pub get
+git diff -- pubspec.yaml pubspec.lock
+flutter pub get --enforce-lockfile
+```
+
+确认 `pubspec.lock` 中 hosted content hash 是：
+
+```text
+b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a
+```
+
+CI 必须运行 `flutter pub get --enforce-lockfile`。直接依赖带有多个 caret 约束；只有提交应用的完整 lockfile，才能固定 `sqflite`、`shared_preferences`、`connectivity_plus`、`dio`、加密和其他传递包的真实组合。
+
+## 3. 审计精确的 `1.7.7 → 1.7.9` 源码区间
+
+本次迁移的起点固定为 `1.7.7` 源码 revision [`d99990f41ecb31166af82b9d20c121f33ff8385d`](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/d99990f41ecb31166af82b9d20c121f33ff8385d)，终点是上文的 `1.7.9` 匹配 revision。不要用分支头或只比较版本字符串；以 [`d99990f...de102427` 的精确 diff](https://github.com/WuKongIM/WuKongIMFlutterSDK/compare/d99990f41ecb31166af82b9d20c121f33ff8385d...de1024276523119e38305c49a3a873caae4d5c59) 为迁移边界。
+
+固定 [`CHANGELOG.md`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/CHANGELOG.md) 记录 `1.7.8` 新增频道最大 reaction sequence 查询，`1.7.9` 补全 `queryAll` 会话结果中的最后消息、消息扩展和发送者资料。精确源码 diff 还证明：
+
+- `WKMsg` 新增异步 `getFromAsync()` 和 `getMemberOfFromAsync()`，分别按需读取发送者频道与群成员；
+- reaction 列表写入改为 `await ReactionDB.shared.insertOrUpdateReactionList(...)`，随后才查询并刷新消息；
+- `WKMessageManager` 新增 `getMaxReactionSeqWithChannel(...)`；
+- `queryAll` 会批量读取 `clientMsgNO`、message extra 和发送者频道，再填入 `WKUIConversationMsg`。
+
+因此从 `1.7.7` 升级至少要回归：
+
+- 会话列表首次加载与大量会话的延迟、内存和 SQL 参数分批；
+- 最后一条消息缺失、已删除或未知正文时的 UI；
+- 编辑、撤回、置顶等 message extra 是否与最后消息匹配；
+- 单聊/群聊发送者资料、`getFromAsync()` / `getMemberOfFromAsync()` 的缓存命中、缺失、失败和头像刷新；
+- reaction 写入完成后再刷新消息的顺序、最大 sequence、重复同步和同用户唯一性；
+- 数据变化后 `getAll()` / 底层 `queryAll` 的刷新时序。
+
+如果起始版本更旧，还要按真实起点逐段审计，而不是把下表当成完整兼容保证：
+
+| Changelog 里程碑 | 迁移检查 |
+| --- | --- |
+| `1.4.7–1.5.0` | 协议、消息扩展置顶、过期消息、新发送 API 与 `noPersist`；重新核对 server revision 和 SENDACK |
+| `1.5.1` | CONNACK 增加 node ID；状态 listener 不得假设旧参数形态 |
+| `1.5.5–1.5.6` | 频道同步回调、重连与重发优化；重跑断网、重复和代际隔离 |
+| `1.5.8–1.6.4` | 总未读、关注频道与头像变化；重新核对 UI 缓存和 listener 清理 |
+| `1.7.3–1.7.6` | JSON 扩展持久化、reaction、批量 extra 和本地扩展 bug 修复；必须用真实数据库副本回归 |
+| `1.7.7 → 1.7.9` | 异步发送者/成员读取、等待 reaction 入库、最大 reaction seq，以及 `queryAll` 填充最后消息、extra 和发送者；核对顺序、失败、性能与展示 |
+
+Changelog 是上游意图，不是你的迁移测试。起始版本不在表中时，从实际 lockfile/archive 与目标 revision 做完整源码和 API diff。
+
+## 4. 把数据库 migration 当作不可逆边界
+
+`WKDBHelper` 为每个 UID 打开 `wk_<uid>.db`，再根据 `SharedPreferences` 中的 `wk_max_sql_version_<uid>` 顺序执行 archive 内 SQL。固定 archive 没有反向 migration，也没有旧版本读取新 schema 的**降级契约**。
+
+更具体地说，固定 [`assets/202604271625.sql`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/assets/202604271625.sql) 会删除 `message_reaction` 的全部行，再重建包含 message、UID、channel 的唯一索引。任何会跨过这条 migration 的升级都要把 reaction 重同步视为产品动作，不能假定本地 reaction 保留。
+
+升级前：
+
+1. 对每个测试 UID 保存脱敏的数据库与关联 `SharedPreferences` 快照；
+2. 在副本上运行目标 SDK，检查消息、会话、未读、频道、成员、提醒、reaction 和搜索；
+3. 验证 migration 失败、应用被杀和磁盘不足；当前 helper 没有公开事务化降级方案；
+4. 回滚演练恢复**升级前数据库快照**或使用隔离的新安装，不让旧 SDK 盲目打开已迁移数据。
+
+## 5. 重新编译与测试真实调用面
+
+先跑静态与项目测试：
+
+```bash
+flutter pub get --enforce-lockfile
+flutter analyze
+flutter test
+flutter build macos --release
+```
+
+`flutter build macos --release` 只是本站已执行 tuple 的等价入口；你的项目仍要在实际 Android/iOS/macOS 工具链分别 build、签名、安装和运行。固定 package 自身仍有 93 项 analyze warning/info，且自己的 `wksdk_test.dart` 有 `RangeError`，所以不能把“依赖解析成功”写成测试全绿。
+
+至少新增或更新这些合同测试：
+
+- 每个 package 子路径 import 可编译；
+- `WKIM.shared.setup` 只运行一次，device flag 正确；
+- provider 成功、失败、超时和陈旧完成均有确定终态；
+- keyed listener 使用同 key 移除，单槽位 provider 不被页面覆盖；
+- `await sendWithOption` 后仍等待同一 `clientMsgNO` / `clientSeq` 的终止 ACK；
+- 自定义正文、未知正文、媒体上传、message extra 与 reaction 往返；
+- `getAll()` 大会话集的完整性和性能。
+
+## 6. 重新验收生命周期与安全
+
+- 接受序列为 `fail(null) → connecting → success → syncMsg → syncCompleted`，没有额外的最终 `success`；
+- timeout、非空 CONNACK 失败、kick、`noNetwork`、二次 `connecting`、provider 失败和 SENDACK 超时都终止本轮；
+- Alice 本地插入、终止 SENDACK 与 Bob 在线接收分开记录；
+- 原始 `Socket.connect`、明文 sqflite/SharedPreferences、Payload 日志、不可取消重连与 `_sendingMsgMap` 残留仍是生产阻断项；
+- 成功、失败、超时与 UID 切换后都执行进程重启，直到 SDK 提供并验证安全的同进程重置合同。
+
+Android、iOS、macOS 的权限、后台、通知、存储、签名和设备行为要各自产生 receipt。Windows、Linux 和 Web 不在当前 package/证据范围。
+
+## 7. 灰度与回滚
+
+把版本、archive SHA、`pubspec.lock` digest、Flutter/Dart/native 工具链、设备/系统、服务端 revision 与 Alice/Bob 结果绑定成一个发布单元。灰度前必须在发布记录中填写基线、**量化观察阈值**、观察窗口和 owner；留空就不允许开始 cohort：
+
+| 信号 | 必填阈值与停止条件 |
+| --- | --- |
+| 连接接受率、同步耗时、终止 SENDACK 成功率/延迟 | 写入旧版本基线、允许的最大回退/增长和最小样本；任一越界立即停止扩量 |
+| 重复、丢失、顺序与 reaction/extra 错配 | 任何已确认的持久消息丢失、重复投递或错误关联都停止 rollout 并保留证据 |
+| `queryAll` 完整性与延迟 | 写入大会话集的最小完整率和最大 p95/p99；last message、extra 或 sender 缺失/错配即停止 |
+| migration、数据库与回滚 | 任一不可打开/损坏数据库、migration 失败或无法恢复升级前快照立即停止 |
+| crash/ANR 与日志 | 写入允许的 crash/ANR 增量；任何 token、明文 Payload 或密钥泄漏立即停止 |
+
+阈值来自应用自己的旧版本基线和风险预算，本文不提供通用数值。先在内部或小 cohort 灰度，观察窗口结束且所有阈值内才扩大范围；停止后冻结 cohort、保留数据库/日志/版本证据并执行预演过的恢复流程。
+
+回滚同时恢复 `pubspec.yaml`、`pubspec.lock` 和升级前数据库/Preferences 快照，再运行旧基线场景。若没有验证旧 SDK 能读取新状态，就没有原地回滚依据。
+
+## 完成清单
+
+- `wukongimfluttersdk: 1.7.9`、archive SHA 和 revision 均已记录；
+- `pubspec.lock` 已提交，CI 的 `--enforce-lockfile` 通过；
+- 深路径 import、Provider、listener、发送、异步发送者/成员、reaction 和会话 `queryAll` 调用点已审计；
+- 数据库快照、reaction migration、每个平台 Release 和 Alice/Bob 结果可复现；
+- 量化观察阈值、窗口、owner 与停止条件已填写且演练；
+- 回滚恢复整个依赖与本地状态，而不是只改 package 版本；
+- 页面发布、源码对齐和 macOS build 没有被写成运行 receipt 或生产许可。

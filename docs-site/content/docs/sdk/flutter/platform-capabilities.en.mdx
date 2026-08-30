@@ -1,0 +1,89 @@
+---
+title: Flutter Platform Capabilities
+description: Review target platforms, messaging, providers, storage, and production boundaries against the pinned wukongimfluttersdk 1.7.9 archive and source.
+---
+
+This page answers what the pinned `wukongimfluttersdk 1.7.9` archive contains. It does not turn source presence into device or production compatibility. Facts are fixed to pub.dev archive SHA-256 `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` and matching source revision [`de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/de1024276523119e38305c49a3a873caae4d5c59).
+
+<Callout type="warn" title="A capability inventory is not a runtime receipt">
+  This site analyzed and built the documentation wrapper only with Flutter `3.41.4`, Dart `3.11.1`, and macOS `15.1` arm64. It has no Android or iOS build and no Android, iOS, or macOS Alice/Bob runtime receipt. Source capability, a macOS Release build, and production readiness are three different conclusions.
+</Callout>
+
+## Pinned evidence
+
+| Component | Pinned value |
+| --- | --- |
+| Package | `wukongimfluttersdk 1.7.9` |
+| pub.dev archive | `wukongimfluttersdk-1.7.9.tar.gz` |
+| Archive SHA-256 | `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` |
+| Matching source | `de1024276523119e38305c49a3a873caae4d5c59`; the repository has no `1.7.9` tag |
+| Package constraint | Dart `>=2.17.0 <4.0.0`; no Flutter minimum is declared |
+| Site evidence | Wrapper analyze and macOS Release build; no device runtime receipt |
+
+The legacy site contributes learning order and topic prompts only. Version, method, platform, and limit claims come from the pinned archive's [`lib/wkim.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/wkim.dart), managers, and package metadata.
+
+## Platform matrix
+
+| Target | What the pinned source/package proves | Still missing |
+| --- | --- | --- |
+| Android | pub.dev advertises Android; the device category is `0=APP` | No site Android toolchain build, emulator/device, background, or push receipt |
+| iOS | pub.dev advertises iOS; the device category is `0=APP` | No completed signed iOS Release/device build, APNs, background, or device receipt |
+| macOS | pub.dev advertises macOS; the documentation wrapper completed a Release build with `2=PC` | No macOS runtime message loop, sandbox, signing, notarization, or production receipt |
+| Windows / Linux | `2=PC` is a protocol device category, and the repository example contains desktop shells | Current package metadata and the site receipt **do not support or verify Windows or Linux**; a directory name is not compatibility evidence |
+| Web | Source imports `dart:io` directly and uses `sqflite` | This package **does not support Web**; browser applications should use the JavaScript/Web SDK |
+
+## Capability matrix
+
+| Topic | `1.7.9` source surface | Application responsibility |
+| --- | --- | --- |
+| Setup | `WKIM.shared.setup(Options)`; process singleton and UID-scoped database | Obtain UID/Token from a trusted backend; keep one identity per process |
+| Route and connection | `Options.addr` / `Options.getAddr`, `WKConnectionManager.connect()`, and `disconnect(bool isLogout)` | DNS/IPv4 `host:port`, bounded timeout, generation fencing, and terminal policy |
+| Channels | `WKChannelType.personal`, `WKChannelType.group`, plus customer-service, community, and topic constants | Authorization and real server/cross-client acceptance for every adopted type |
+| Text and cards | `WKTextContent` and `WKCardContent` | Cross-platform content schema, unknown-content fallback, and rendering policy |
+| Media | `WKImageContent`, `WKVoiceContent`, and `WKVideoContent` | Wire `addOnUploadAttachmentListener`; verify permissions, compression, recovery, and large files |
+| Custom content | Extend `WKMessageContent` and call `registerMsgContent` | Reserve a unique content type and implement the same encode/decode contract everywhere |
+| Send | `sendWithOption`, `WKSendOptions`, local insert, and SENDACK refresh | Separate local persistence, terminal SENDACK, and Bob's online receive |
+| Message queries | Lookup by `clientMsgNO`, channel history sync, global/channel search, extras, and reactions | Providers, pagination, deduplication, timeouts, and offline recovery receipt |
+| Conversations | `WKConversationManager`, unread state, red dots, and conversation provider | Supply real conversations, recent messages, and versions; empty data is for brand-new test accounts only |
+| Channels and members | `WKChannelManager` and `WKChannelMemberManager` local cache, search, and events | Business channel/member providers and pagination/capacity design for 100,000-member groups |
+| Reminders and CMD | `WKReminderManager` and `WKCMDManager` | Service data, authorization, idempotency, and product semantics |
+| Local state | `sqflite` message/conversation/channel data and `SharedPreferences` device/migration state | Encryption, backup, erasure, account switching, and schema migration policy |
+
+## Messaging and result boundary
+
+`WKIM.setup` registers text, card, image, voice, and video content. `WKSendOptions` contains `MessageHeader`, `Setting`, `expire`, and `topicID`; the header exposes `redDot`, `noPersist`, and `syncOnce`. Source fields do not prove target-server or cross-client interoperability.
+
+A send has at least three evidence layers:
+
+1. `addOnMsgInsertedListener` means a persistent message received a positive `clientSeq`;
+2. only `WKSendMsgResult.sendSuccess` in `addOnRefreshMsgListener` is terminal success;
+3. Bob's `addOnNewMsgListener` proves receipt on the current online connection.
+
+The `sendMessage(...)` wrapper does not await its internal `sendWithOption(...)`. Code that needs a bounded result should call and `await sendWithOption(...)` directly, then continue waiting for SENDACK. A local Future return is not server acceptance.
+
+## Provider and listener ownership
+
+- Keyed connection, message, conversation, channel, member, reminder, and CMD listeners must retain their key and remove with the **same key**.
+- `addOnSyncConversationListener`, `addOnSyncChannelMsgListener`, `addOnGetChannelListener`, `addOnUploadAttachmentListener`, and `addOnMsgInsertedListener` are application-level single slot callbacks or have no remove API; pages must not overwrite them independently.
+- Install providers once in an application dispatcher, bound completion with a timeout, and fence it to the active activation.
+- `connect()` first calls `disconnect(false)`, so the first sequence includes synthetic `fail(null)`. Enable send only at `syncCompleted` after the application provider completes.
+
+## Platform and production blockers
+
+- [`WKConnectionManager`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/connect_manager.dart) uses raw `Socket.connect` without authenticated TLS. WKProto Payload encryption does not replace TLS.
+- `Options.debug` defaults to `true`, and receive logs may include decrypted Payload. Set it to `false` and inspect system, crash, and remote logging paths.
+- The `sqflite` database declares no encryption. `SharedPreferences` holds the UID-scoped device identifier and migration version.
+- Route parsing uses `addr.split(":")`; supply one DNS/IPv4 `host:port`, not a URI or IPv6 literal.
+- Disconnect/logout does not clear `_sendingMsgMap`, and connection failure schedules delayed reconnect without a public cancellation handle. Timeout, kick, a second `connecting`, uncertain send, and identity change therefore require a **process restart**.
+- The package's own analyze reports 93 warning/info findings, and `test/wksdk_test.dart` reaches a `RangeError` in packet cut/decode. Do not claim its complete test suite passes.
+
+## Minimum adoption acceptance
+
+- Pin `1.7.9`, the archive SHA, matching revision, and `pubspec.lock`.
+- Run analyze, Release build, signing/installation, and a real-device message loop separately on every target.
+- Exercise authentication failure, kick, network loss, reconnect, provider rejection, and listener cleanup.
+- Record Alice local insertion, terminal SENDACK, Bob online receipt, and real history/offline synchronization separately.
+- Validate media, notifications, background behavior, storage encryption, migration, logging, and account switching per platform.
+- Fix raw TCP, plaintext state, logging, reconnect cancellation, and `_sendingMsgMap`, or record reviewed risk acceptance.
+
+Use the [Flutter API Reference](/en/sdk/flutter/api-reference) for exact calls, then follow the [Upgrade Guide](/en/sdk/flutter/upgrade) before replacing an existing version.

@@ -80,3 +80,6 @@ search, sitemap, LLM outputs, and per-page Markdown.
   reviewed documentation.
 - Symptom-led incident diagnosis and tool-specific troubleshooting procedures;
   Troubleshooting remains a planned route.
+
+This is the Phase 6 boundary. Phase 7 later publishes the bilingual
+Troubleshooting route; the historical exclusion above is not current status.

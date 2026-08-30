@@ -28,9 +28,9 @@ WuKongIM nodes
 | Container platform | Build a Docker image from the current source | These docs promise no official registry or tag |
 | Linux host | Build the binary and supervise it with systemd | The operator owns the service unit |
 | Highly available production | Multi-node cluster across failure domains | Requires external TLS, load balancing, monitoring, backups, and drills |
-| Kubernetes | Not published yet | The Beta page remains planned |
+| Kubernetes | StatefulSet reference architecture | Beta; the platform team owns final manifests and production evidence |
 
-Start with [Choose a Deployment](/en/server/deployment/choosing). After selecting the environment, continue to [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux).
+Start with [Choose a Deployment](/en/server/deployment/choosing). After selecting the environment, continue to [Docker](/en/server/deployment/docker), [Linux](/en/server/deployment/linux), or [Kubernetes (Beta)](/en/server/deployment/kubernetes).
 
 ## Contract shared by every deployment
 
@@ -53,6 +53,6 @@ A successful `/healthz` only proves that the HTTP process responds. `/readyz` re
 
 ## What this phase does not do
 
-These pages document the current source deployment contract and reference steps. They do not perform DNS, certificate, cloud-resource, secret-distribution, firewall, or production-cutover changes, and they do not present the development Compose stack, reference systemd unit, or planned Kubernetes page as an official production solution.
+These pages document the current source deployment contract and reference steps. They do not perform DNS, certificate, cloud-resource, secret-distribution, firewall, or production-cutover changes, and they do not present the development Compose stack, reference systemd unit, or Kubernetes Beta fragments as an official production solution.
 
 Before deployment, work through the [Production Checklist](/en/server/deployment/production-checklist).

@@ -49,6 +49,8 @@ describe('documentation site experience', () => {
       const counts = getDomainPublicationCounts('en', domain);
       expect(counts.published + counts.planned).toBe(counts.total);
       expect(counts.total).toBeGreaterThan(0);
+      expect(counts.planned).toBe(0);
+      expect(counts.published).toBe(counts.total);
     }
   });
 
@@ -64,13 +66,18 @@ describe('documentation site experience', () => {
     for (const domain of ['guide', 'server', 'sdk', 'api'] as const) {
       const counts = getDomainPublicationCounts('en', domain);
       expect(html).toContain(`${counts.published} published`);
-      expect(html).toContain(`${counts.planned} planned`);
+      expect(html).not.toContain(`${counts.planned} planned`);
     }
+    expect(html).not.toContain('unfinished pages remain clearly marked');
   });
 
-  test('skips planned routes in previous and next page navigation', () => {
+  test('includes the published Kubernetes route in previous and next page navigation', () => {
     expect(getPublishedFooterItems('en', 'server', '/en/server/deployment/linux')).toEqual({
       previous: expect.objectContaining({ url: '/en/server/deployment/docker' }),
+      next: expect.objectContaining({ url: '/en/server/deployment/kubernetes' }),
+    });
+    expect(getPublishedFooterItems('en', 'server', '/en/server/deployment/kubernetes')).toEqual({
+      previous: expect.objectContaining({ url: '/en/server/deployment/linux' }),
       next: expect.objectContaining({ url: '/en/server/deployment/multi-node' }),
     });
   });

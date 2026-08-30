@@ -33,39 +33,322 @@ describe('full Android SDK tutorial contract', () => {
     expect(specification).toContain('remain planned');
   });
 
-  test('publishes only the bilingual Android overview, installation, and quickstart', async () => {
+  test('publishes the complete bilingual Android tutorial set', async () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+    const slugs = [
+      '',
+      'installation',
+      'quickstart',
+      'platform-capabilities',
+      'api-reference',
+      'upgrade',
+    ];
 
-    expect(getNavigationEntry('en', 'sdk', ['android'])?.status).toBe('published');
-    expect(getNavigationEntry('en', 'sdk', ['android', 'installation'])?.status).toBe(
-      'published',
-    );
-    expect(getNavigationEntry('en', 'sdk', ['android', 'quickstart'])?.status).toBe(
-      'published',
-    );
+    for (const slug of slugs) {
+      const tail = slug === '' ? ['android'] : ['android', slug];
+      expect(getNavigationEntry('en', 'sdk', tail)?.status).toBe('published');
+    }
     expect(published).toEqual(
       expect.arrayContaining([
         '/en/sdk/android',
         '/en/sdk/android/installation',
         '/en/sdk/android/quickstart',
+        '/en/sdk/android/platform-capabilities',
+        '/en/sdk/android/api-reference',
+        '/en/sdk/android/upgrade',
       ]),
     );
 
-    for (const slug of ['platform-capabilities', 'api-reference', 'upgrade']) {
-      expect(getNavigationEntry('en', 'sdk', ['android', slug])?.status).toBe('planned');
-      expect(published).not.toContain(`/en/sdk/android/${slug}`);
+    for (const slug of slugs) {
+      const stem = slug === '' ? 'index' : slug;
+      for (const suffix of ['.mdx', '.en.mdx']) {
+        expect(
+          await Bun.file(new URL(`android/${stem}${suffix}`, docsRoot)).exists(),
+        ).toBe(true);
+      }
+    }
+  });
+
+  test('documents Android capabilities without turning source support into runtime proof', async () => {
+    const pages = await Promise.all([
+      sdkDoc('android/platform-capabilities.mdx'),
+      sdkDoc('android/platform-capabilities.en.mdx'),
+    ]);
+
+    for (const page of pages) {
+      expect(page).toContain(snapshot.repository);
+      expect(page).toContain(snapshot.revision);
+      expect(page).toContain(snapshot.coordinate);
+      expect(page).toContain('minSdk = 21');
+      expect(page).toContain('compileSdk = 34');
+      expect(page).toContain('targetSdk = 34');
+      expect(page).toContain('JavaVersion.VERSION_17');
+      expect(page).toContain('WKTextContent');
+      expect(page).toContain('WKImageContent');
+      expect(page).toContain('WKVoiceContent');
+      expect(page).toContain('WKVideoContent');
+      expect(page).toContain('registerContentMsg');
+      expect(page).toContain('WKChannelType.PERSONAL');
+      expect(page).toContain('WKChannelType.GROUP');
+      expect(page).toContain('addOnSyncConversationListener');
+      expect(page).toContain('addOnUploadAttachListener');
+      expect(page).toContain('NonBlockingConnection');
+      expect(page).toContain('SharedPreferences');
+      expect(page).toContain('SQLCipher');
+      expect(page).toContain('0=APP');
+      expect(page).toContain('https://docs.githubim.com/zh/sdk/wukongim/android/intro');
+      expect(page).toContain(`blob/${snapshot.revision}`);
+      expect(page).not.toMatch(/push (?:is|has been) verified|推送已验证/iu);
     }
 
-    for (const fileName of [
-      'android/index.mdx',
-      'android/index.en.mdx',
-      'android/installation.mdx',
-      'android/installation.en.mdx',
-      'android/quickstart.mdx',
-      'android/quickstart.en.mdx',
-    ]) {
-      expect(await Bun.file(new URL(fileName, docsRoot)).exists()).toBe(true);
+    expect(pages[0]).toContain('旧站只用于学习顺序和主题覆盖');
+    expect(pages[0]).toContain('不是本站 Android 运行验证');
+    expect(pages[1]).toContain('legacy site is used only for learning order and topic coverage');
+    expect(pages[1]).toContain('not Android runtime verification');
+  });
+
+  test('maps the Android public manager, message, event, lifecycle, and error surface', async () => {
+    const pages = await Promise.all([
+      sdkDoc('android/api-reference.mdx'),
+      sdkDoc('android/api-reference.en.mdx'),
+    ]);
+    const requiredAPI = [
+      'WKIM.getInstance()',
+      'getConnectionManager()',
+      'getMsgManager()',
+      'getConversationManager()',
+      'getChannelManager()',
+      'getChannelMembersManager()',
+      'getReminderManager()',
+      'getCMDManager()',
+      'getRobotManager()',
+      'setDebug(boolean)',
+      'setWriteLog(boolean)',
+      'setFileCacheDir(String)',
+      'setDeviceId(String)',
+      'init(Context, String, String)',
+      'addOnGetIpAndPortListener',
+      'addOnConnectionStatusListener',
+      'removeOnConnectionStatusListener',
+      'connection()',
+      'disconnect(boolean)',
+      'WKConnectStatus',
+      'WKConnectReason',
+      'WKMsg',
+      'WKMessageContent',
+      'WKTextContent',
+      'WKSendOptions',
+      'sendMessage(WKMsg)',
+      'send(WKMessageContent, WKChannel)',
+      'sendWithOptions',
+      'addOnSendMsgCallback',
+      'removeSendMsgCallBack',
+      'addOnSendMsgAckListener',
+      'removeSendMsgAckListener',
+      'addOnNewMsgListener',
+      'removeNewMsgListener',
+      'clientMsgNO',
+      'clientSeq',
+      'messageID',
+      'messageSeq',
+      'WKSendMsgResult.send_success',
+      'WKSendMsgResult.send_fail',
+      'WKSendMsgResult.no_relation',
+      'WKSendMsgResult.black_list',
+      'WKSendMsgResult.not_on_white_list',
+    ];
+    const managerSources = [
+      'manager/MsgManager.java',
+      'manager/ChannelManager.java',
+      'manager/ChannelMembersManager.java',
+      'manager/ConversationManager.java',
+      'manager/ReminderManager.java',
+      'manager/CMDManager.java',
+      'manager/RobotManager.java',
+    ];
+    const managerSurface = [
+      // Message registration, local data, providers, observers, and send lifecycle.
+      'getMsgContentModel',
+      'getOrSyncHistoryMessages',
+      'getWithMessageID',
+      'getWithClientMsgNO',
+      'searchMsgWithChannelAndContentTypes',
+      'clearWithChannel',
+      'addOnSyncOfflineMsgListener',
+      'addOnSyncChannelMsgListener',
+      'addOnUploadAttachListener',
+      'addMessageStoreBeforeIntercept',
+      'addOnDeleteMsgListener',
+      'removeDeleteMsgListener',
+      'addOnClearMsgListener',
+      'removeClearMsg',
+      'createClientMsgNO',
+      // Channel cache, provider, mutation, search, and observer lifecycle.
+      'getChannel(String, byte)',
+      'getChannel(String, byte, IChannelInfoListener)',
+      'fetchChannelInfo',
+      'addOnGetChannelInfoListener',
+      'saveOrUpdateChannel',
+      'saveOrUpdateChannels',
+      'search(String)',
+      'addOnRefreshChannelAvatar',
+      'addOnRefreshChannelInfo',
+      'removeRefreshChannelInfo',
+      'clearARMCache',
+      // Channel-member local data, providers, and keyed observers.
+      'getMaxVersion(String, byte)',
+      'getRobotMembers',
+      'getWithRole',
+      'save(WKChannelMember)',
+      'save(List<WKChannelMember>)',
+      'getWithPageOrSearch',
+      'addOnGetChannelMembersListener',
+      'addOnGetChannelMemberListener',
+      'getMember(String, byte, String)',
+      'getMembers',
+      'getDeletedMembers',
+      'getMemberCount',
+      'addOnRefreshChannelMemberInfo',
+      'removeRefreshChannelMemberInfo',
+      'addOnAddChannelMemberListener',
+      'removeAddChannelMemberListener',
+      'addOnRemoveChannelMemberListener',
+      'removeRemoveChannelMemberListener',
+      'addOnSyncChannelMembers',
+      'getMaxVersionMember',
+      // Conversation query/mutation, sync provider, and observers.
+      'getAll(IAllConversations)',
+      'getWithChannel',
+      'deleteWitchChannel',
+      'updateRedDot',
+      'getMsgExtraWithChannel',
+      'updateMsgExtra',
+      'getUIConversationMsg',
+      'getMsgExtraMaxVersion',
+      'saveSyncMsgExtras',
+      'addOnRefreshMsgListListener',
+      'removeOnRefreshMsgListListener',
+      'addOnRefreshMsgListener',
+      'removeOnRefreshMsgListener',
+      'addOnDeleteMsgListener',
+      'removeOnDeleteMsgListener',
+      'addOnSyncConversationListener',
+      // Reminder cache/persistence and event lifecycle.
+      'getReminder(String, byte, int)',
+      'getReminders',
+      'getRemindersWithType',
+      'saveOrUpdateReminders',
+      'getMaxVersion()',
+      'clearAllCache',
+      'addOnNewReminderListener',
+      'removeNewReminderListener',
+      'ReminderManager.done()',
+      // CMD parsing/listeners/key storage and robot local surfaces.
+      'handleCMD(JSONObject)',
+      'handleCMD(String, String, String)',
+      'addCmdListener',
+      'removeCmdListener',
+      'setRSAPublicKey',
+      'getRSAPublicKey',
+      'getWithRobotID',
+      'getWithUsername',
+      'getWithRobotIds',
+      'getRobotMenus(String)',
+      'getRobotMenus(List<String>)',
+      'saveOrUpdateRobots',
+      'saveOrUpdateRobotMenus',
+      'addOnRefreshRobotMenu',
+      'removeRefreshRobotMenu',
+    ];
+
+    for (const page of pages) {
+      for (const api of requiredAPI) expect(page).toContain(api);
+      for (const source of managerSources) expect(page).toContain(source);
+      for (const api of managerSurface) expect(page).toContain(api);
+      expect(page).toContain(snapshot.revision);
+      expect(page).toContain(`blob/${snapshot.revision}`);
+      expect(page).toContain('Product HTTP');
+      expect(page).toContain('NonBlockingConnection');
+      expect(page).toContain('WKReceivedMsg.toString()');
+      expect(page).toContain('compatibility.json');
+      expect(page).toContain('single-provider slot');
+      expect(page).toContain('no public remove method');
+      expect(page).toContain('same key');
+      expect(page).toContain('process/account lifetime');
+      expect(page).toContain('returns null');
+      expect(page).toContain('returns false');
+      expect(page).toContain('no-op');
+      expect(page).toContain('does not enforce CMD signature verification');
+      expect(page).not.toContain('WKConnectStatus.failed');
+      expect(page).not.toContain('removeOnSendMsgCallback');
     }
+
+    expect(pages[0]).toContain('源码可见不等于运行已证明');
+    expect(pages[0]).toContain('空列表不能区分“没有会话”和数据库读取失败');
+    expect(pages[1]).toContain('source-visible is not runtime-proven');
+    expect(pages[1]).toContain(
+      'an empty list cannot distinguish “no conversations” from a database read failure',
+    );
+  });
+
+  test('defines an evidence-backed Android upgrade and rollback boundary', async () => {
+    const pages = await Promise.all([
+      sdkDoc('android/upgrade.mdx'),
+      sdkDoc('android/upgrade.en.mdx'),
+    ]);
+
+    for (const page of pages) {
+      expect(page).toContain(snapshot.coordinate);
+      expect(page).toContain(snapshot.revision);
+      expect(page).toContain(snapshot.aarSha256);
+      expect(page).toContain('V1.5.0');
+      expect(page).toContain('1.0.7');
+      expect(page).not.toContain('Podfile.lock');
+      expect(page).toContain('gradle.lockfile');
+      expect(page).toContain('verification-metadata.xml');
+      expect(page).toContain('WKDBUpgrade');
+      expect(page).toContain('sendMessage(WKMsg)');
+      expect(page).toContain('removeSendMsgCallBack');
+      expect(page).toContain('consumer-rules.pro');
+      expect(page).toContain('compatibility.json');
+      expect(page).toContain('https://github.com/WuKongIM/WuKongIMAndroidSDK/tags');
+      expect(page).toContain(
+        'https://github.com/WuKongIM/WuKongIMAndroidSDK/compare/1.5.4...1.5.5',
+      );
+      expect(page).toContain('65493fa7368636784981ff6b0ce8886769537d85');
+      expect(page).toContain(`blob/${snapshot.revision}`);
+      expect(page).toContain('WKIMApplication.java');
+      expect(page).toContain('Build.VERSION_CODES.O');
+      expect(page).toContain('Build.VERSION_CODES.O_MR1');
+      expect(page).toContain('getActiveNetworkInfo()');
+      expect(page).toContain('NetworkInfo.isConnected()');
+      expect(page).toContain('NetworkCapabilities.NET_CAPABILITY_INTERNET');
+      expect(page).toContain('no public Java signature changes');
+      expect(page).toContain('Android 8.0');
+      expect(page).toContain('Android 8.1');
+      expect(page).toContain('VPN');
+      expect(page).not.toMatch(/1\.5\.5 (?:fixes|adds|修复|新增)/u);
+      expect(page).not.toMatch(
+        /(?:all|every) VPN.*(?:verified|certified)|所有 VPN.*(?:已验证|认证)/iu,
+      );
+    }
+
+    expect(pages[0]).toContain('没有发布说明就不推断变更');
+    expect(pages[0]).toContain('没有公开的降级契约');
+    expect(pages[0]).toContain('不是本站 Android 运行验证');
+    expect(pages[0]).toContain('非 VPN');
+    expect(pages[0]).toContain('网络切换');
+    expect(pages[0]).toContain('重连');
+    expect(pages[0]).toContain('消息验收');
+    expect(pages[0]).toContain('源码 diff 事实，不是运行认证');
+    expect(pages[1]).toContain('do not infer changes without release notes');
+    expect(pages[1]).toContain('no public downgrade contract');
+    expect(pages[1]).toContain('not Android runtime verification');
+    expect(pages[1]).toContain('non-VPN');
+    expect(pages[1]).toContain('network switch');
+    expect(pages[1]).toContain('reconnect');
+    expect(pages[1]).toContain('message acceptance');
+    expect(pages[1]).toContain('source-diff fact, not runtime certification');
   });
 
   test('installs and audits the exact JitPack artifact without copying legacy dependencies', async () => {

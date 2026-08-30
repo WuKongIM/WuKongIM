@@ -40,8 +40,8 @@ conversations, offline recovery, push, multi-device state, and bounded
 reconnect handling, plus source-checked Channel Type, Device Flag / Level, and
 Message Flag dictionaries. Repository availability, tutorial publication, and
 executable verification stay distinct. JavaScript/Web remains the only
-executable client compatibility target, so planned SDK platforms do not become
-support claims.
+executable client compatibility target, so publishing other SDK platform
+chapters does not turn them into support claims.
 Phase 14 publishes an integrator acceptance loop: an evidence-backed
 JavaScript/Web capability matrix, a bilingual production gate guide, and a
 one-command local compatibility smoke report. The report is bounded and
@@ -62,9 +62,10 @@ frozen; Phase 16 only corrects their shared restore-maintenance response Schema
 to the current runtime body.
 Phase 17 publishes a third bounded OpenAPI contract for ordinary persistent
 `POST /message/send`, plus concise client-protocol pages for the authenticated
-connection lifecycle and the complete Frame Type catalog. Byte-level framing,
-JSON-RPC, and encryption details remain planned until their separate contracts
-are reconciled and security-reviewed.
+connection lifecycle and the complete Frame Type catalog. At the end of Phase
+17, byte-level framing, JSON-RPC, and encryption details were deferred pending
+separate contract reconciliation and security review; Phase 18 below publishes
+those references.
 Phase 18 publishes the complete current API and protocol reference: all 41
 Product HTTP registrations, separate Operations HTTP and outbound Webhook
 OpenAPI 3.1 contracts, exact WKProto wire and compatibility-encryption pages,
@@ -72,6 +73,14 @@ an explicitly unsupported experimental JSON-RPC Schema, and exhaustive private
 Manager, transport, MCP, plugin, worker, and agent interface inventories. The
 older OpenAPI files remain narrow adoption profiles and keep their original
 verification boundaries.
+Phases 19 through 22 publish pinned, source/artifact-aligned first-message paths
+for iOS `1.1.1`, Android `1.5.5`, Flutter `1.7.9`, and HarmonyOS `1.1.7` without
+claiming site device receipts. Phase 23 retires the deprecated UniApp package
+and gives existing projects a bounded migration to `wukongimjssdk@1.3.5`.
+Phase 24 completes the maintained backlog: Kubernetes Beta plus platform
+capability, API-reference, and upgrade chapters for the pinned SDKs. All
+maintained routes are now published, while runtime and production evidence
+remain explicitly narrower than documentation coverage.
 
 ## Develop
 
@@ -111,8 +120,9 @@ bun run verify
 
 The verification suite checks the navigation contract, redirect seed, generated
 menu plan, lint and TypeScript, static export, language-isolated search indexes,
-the inclusion of every published route, and the exclusion of planned routes
-from sitemap and LLM outputs. Phase 12 also checks the golden sample build,
+the inclusion of every published route, the exclusion of any future planned
+routes from sitemap and LLM outputs, and the reverse invariant that no existing
+MDX page is hidden behind planned or unknown navigation. Phase 12 also checks the golden sample build,
 shared compatibility and slice-level OpenAPI facts, Reason Code alignment, and
 unique executable source anchors plus MDX publication checkpoints. Phase 13
 also checks every common-guide publication boundary and compares protocol
@@ -135,6 +145,10 @@ Phase 18 also checks the exact 41-operation Product surface, Operations,
 Debug/Bench, Manager, node transport, MCP/agent/plugin inventories, WKProto
 layout, WebSocket carrier, JSON-RPC bridge, encryption, Webhook delivery, and
 all downloadable specifications against current source.
+Phases 19 through 23 add the pinned iOS, Android, Flutter, HarmonyOS, and UniApp
+migration contracts. Phase 24 adds exact platform reference/upgrade boundaries,
+the Kubernetes stateful-deployment contract, zero-planned-route enforcement,
+and bilingual published-route/MDX parity.
 
 ## Golden-path attestation
 
@@ -225,3 +239,7 @@ attestation.
 published client-protocol baseline.
 `PHASE_18_SPEC.md` defines the complete source-aligned API and protocol surface,
 publication classes, machine-readable artifacts, and drift checks.
+`PHASE_19_SPEC.md` through `PHASE_22_SPEC.md` define the pinned iOS, Android,
+Flutter, and HarmonyOS tutorial baselines. `PHASE_23_SPEC.md` defines UniApp
+retirement and JSSDK migration. `PHASE_24_SPEC.md` defines completion of the
+Kubernetes and SDK platform-capability, API-reference, and upgrade backlog.

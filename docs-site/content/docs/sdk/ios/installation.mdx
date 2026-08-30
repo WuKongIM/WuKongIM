@@ -16,9 +16,9 @@ description: 通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物�
 | CocoaPods 页面 | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) |
 | 源码仓库 | [`WuKongIM/WuKongIMiOSSDK`](https://github.com/WuKongIM/WuKongIMiOSSDK)，tag `1.1.1`，revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
 | 分发仓库 | [`WuKongIM/WuKongIMiOSSDK-Framework`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework)，tag `1.1.1`，revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
-| Pod 部署目标 | iOS `11.0` |
+| Podspec 部署声明 | [源码 podspec](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK.podspec)为 iOS `11.0`；[framework podspec](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/blob/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/WuKongIMSDK.podspec)同时写 iOS `13.0` deployment target 与 iOS `11.0` platform |
 
-源码仓库 tag 内的 podspec 仍写着 `1.1.0`，所以本教程不把它当作 `1.1.1` 的分发事实源。CocoaPods trunk 和 framework 仓库共同指向实际可安装产物；教程用源码仓库审计实现，用分发仓库核对用户最终导入的公开头文件。
+源码仓库 tag 内的 podspec 仍写着 `1.1.0`，所以本教程不把它当作 `1.1.1` 的分发事实源。CocoaPods trunk 和 framework 仓库共同指向实际可安装产物；教程用源码仓库审计实现，用分发仓库核对用户最终导入的公开头文件。两份 podspec 对部署下限存在 iOS `11.0` / iOS `13.0` 冲突，因此不能据此拍板最低支持版本。
 
 还有两处内嵌版本没有随发布更新：源码中的 `WKSDK.sdkVersion` 返回 `1.0.0`，framework 的 `CFBundleShortVersionString` 也是 `1.0.0`。它们不能证明当前安装的是 `1.1.1`。在上游修复运行时版本报告前，以 `Podfile.lock`、源码 tag/revision 和 framework tag/revision 共同记录产物来源。
 
@@ -26,7 +26,7 @@ description: 通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物�
 
 - 一个已有的 Xcode iOS 应用工程；
 - 本机已安装与团队锁定版本一致的 CocoaPods；
-- 应用的 Deployment Target 不低于 iOS `11.0`；
+- 已记录应用自己的 Deployment Target，并准备在实际 Xcode、模拟器和设备组合上验证 podspec 冲突；
 - 能从受信业务后端取得开发环境的 UID、Token、Gateway host 与 port，但现在不要把它们写进源码。
 
 记录 Xcode、CocoaPods、macOS、目标设备或模拟器版本。它们不属于本站现有 receipt，后续验收需要把实际 tuple 一起保存。
@@ -36,8 +36,6 @@ description: 通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物�
 在应用工程旁的 `Podfile` 中使用精确版本，不要使用 `latest`、`~>` 或默认分支：
 
 ```ruby
-platform :ios, '11.0'
-
 target 'YourApp' do
   use_frameworks!
   pod 'WuKongIMSDK', '1.1.1'
@@ -52,7 +50,7 @@ grep -A 2 'WuKongIMSDK' Podfile.lock
 open YourApp.xcworkspace
 ```
 
-后续必须打开生成的 `.xcworkspace`，而不是原来的 `.xcodeproj`。提交 `Podfile` 与 `Podfile.lock`，让本地和 CI 使用同一个精确依赖图。
+保留并评审应用已有的 `platform :ios, '…'`，不要从本文复制一个“最低版本”。安装后检查 CocoaPods 解析结果和 build settings：源码 podspec 声明 iOS `11.0`，framework podspec 同时声明 iOS `13.0` deployment target 与 iOS `11.0` platform。后续必须打开生成的 `.xcworkspace`，而不是原来的 `.xcodeproj`。提交 `Podfile` 与 `Podfile.lock`，让本地和 CI 使用同一个精确依赖图。
 
 ## 2. 核对导入与链接
 
@@ -105,6 +103,7 @@ EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64
 ## 预期结果
 
 - `Podfile.lock` 精确记录 `WuKongIMSDK (1.1.1)`；
+- 团队已记录 iOS `11.0` / iOS `13.0` podspec 冲突，并验证自己的 Deployment Target；
 - 应用通过 `.xcworkspace` 构建并能导入 `<WuKongIMSDK/WuKongIMSDK.h>`；
 - 团队知道 Apple Silicon Simulator 的 `arm64` slice 不在当前 framework 中；
 - 项目没有虚构的 `Package.swift` 依赖、浮动 SDK 版本或客户端管理凭据；
@@ -114,6 +113,7 @@ EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64
 ## 失败诊断
 
 - **解析到的版本不是 `1.1.1`**：检查 workspace 上层 Podfile、旧 `Podfile.lock` 和内部 spec 源，不要改用浮动范围。
+- **CocoaPods 报 Deployment Target 不兼容**：核对两份固定 podspec 的 iOS `11.0` / iOS `13.0` 冲突；调整前先确认产品最低系统要求，并在目标 Xcode、模拟器和设备上验证。
 - **打开 `.xcodeproj` 后找不到模块**：关闭它并打开 CocoaPods 生成的 `.xcworkspace`。
 - **Apple Silicon Simulator 链接失败**：核对目标架构；当前产物没有模拟器 `arm64` slice。
 - **Swift 代码找不到类型**：检查 bridging header 和 module import；不要改写不存在的 Swift API。

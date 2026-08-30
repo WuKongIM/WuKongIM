@@ -53,6 +53,10 @@ published subset. All other SDK platforms, common SDK guides, complete SDK API
 reference, upgrade guides, Product HTTP domains, Operations HTTP, Webhooks,
 client-protocol details, and specification-download pages remain planned.
 
+This is the Phase 12 boundary, not the current publication status. Phase 24
+later publishes the JavaScript API reference and upgrade guide without
+expanding the Phase 12 Chromium receipt.
+
 Every published Phase 12 page follows a common executable-contract structure:
 
 - goal and completion signal;

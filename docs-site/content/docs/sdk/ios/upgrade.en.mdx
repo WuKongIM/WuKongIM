@@ -1,0 +1,137 @@
+---
+title: iOS Upgrade Guide
+description: Upgrade to the pinned iOS SDK 1.1.1 with reproducible pod, public-API, database, architecture, security, and rollback evidence.
+---
+
+This page explains how to migrate an existing application to the pinned `WuKongIMSDK` `1.1.1` snapshot. It does not turn tag names or legacy snippets into an unsupported changelog. Upgrade conclusions must come from dependencies, public-header diffs, builds, database copies, and runtime scenarios.
+
+<Callout type="warn" title="Evidence state">
+  Source, framework public headers, and CocoaPods metadata were reviewed, but this is **not runtime verification**. This site did not run your Xcode build, device loop, database migration, or rollback drill. iOS is also absent from the JavaScript/Web `compatibility.json` receipt.
+</Callout>
+
+## Target snapshot
+
+| Component | Pinned value |
+| --- | --- |
+| Pod | `pod 'WuKongIMSDK', '1.1.1'` |
+| Source | tag `1.1.1`, revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
+| Framework | tag `1.1.1`, revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
+| Deployment Target declarations | The [source podspec](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK.podspec) says iOS `11.0`; the [framework podspec](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/blob/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/WuKongIMSDK.podspec) says deployment target iOS `13.0` while also declaring platform iOS `11.0` |
+| Binary slices | Device `arm64`, simulator `x86_64` |
+
+Attest the version with `Podfile.lock`, source tag/revision, and framework tag/revision. The source tag's podspec still says `1.1.0`; `WKSDK.sdkVersion` and framework `CFBundleShortVersionString` both say `1.0.0`. These stale fields do not attest the installed package. The two podspecs conflict on their minimum-version declarations, so this guide cannot select a minimum supported version from them.
+
+## What version history can prove
+
+The official [tag list](https://github.com/WuKongIM/WuKongIMiOSSDK/tags) exposes at least `v1.0.1`, `1.0.9`, `1.1.0`, and `1.1.1` source snapshots. A tag resolves to a revision, but the `1.1.1` root has no complete per-version changelog suitable for claims here.
+
+Therefore:
+
+1. **do not infer changes without release notes**; do not write that “`1.1.1` fixes/adds” a capability.
+2. Compare the application's actually locked version to target public headers, then verify through builds, data, and messaging scenarios.
+3. The [legacy iOS integration guide](https://docs.githubim.com/zh/sdk/wukongim/ios/integration) contributes learning order only, not pinned API authority. Do not copy a floating pod, default branch, `setup()`, `connectAddr`, or Swift Package Manager example into `1.1.1`.
+
+### Exact boundary: `1.1.0 → 1.1.1`
+
+The pinned [exact comparison](https://github.com/WuKongIM/WuKongIMiOSSDK/compare/1.1.0...1.1.1) binds `1.1.0` revision `bb22a7659a7e5734d6dde5746aad71f85fb8ea59` to target revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`. The public headers are unchanged, so this version boundary requires no Objective-C selector migration. It does change filtering in `WKChatManager.filterNoCMDAndNoStreamMessages`: `1.1.0` retained only messages matching `message.isDeleted == 0 && message.contentType != WK_CMD`, while `1.1.1` no longer excludes `isDeleted != 0`. Only `handleMessages` consumes this filter result, passes it to `callRecvMessagesDelegate`, and ultimately dispatches it through `onRecvMessages:left:`. The pinned diff therefore proves that deleted non-CMD packets may now reach the receive delegate.
+
+That is a source-diff fact, not an inference from a tag or missing release notes. Migration acceptance must check deleted-message visibility through the **receive delegate** and record whether the product layer must continue hiding those messages. History queries, sync-provider result paths, and conversation-list code are absent from this diff. If the product propagates receive events into those surfaces, include them as **additional exploratory coverage**, but do not claim that the source delta directly changed them. The framework's public headers are unchanged while its binary differs, so compilation alone is insufficient regression evidence.
+
+## 1. Freeze the pre-upgrade baseline
+
+Before editing `Podfile`, retain:
+
+- Current `Podfile` / `Podfile.lock`, spec-repository source, and checksums.
+- Xcode, CocoaPods, macOS, Deployment Target, Swift/Objective-C, and device/simulator architecture.
+- Framework static/dynamic mode, embed mode, bridging header, and build settings.
+- A redacted copy of the current UID database, schema migration version, and file-protection policy.
+- Registered connection/chat/channel/conversation/media providers and delegates.
+- Alice/Bob connection, message update, online receipt, offline sync, logout, and failure-path results.
+
+Never place token, message Payload, or Product HTTP management credentials in upgrade records.
+
+## 2. Update CocoaPods exactly
+
+```ruby
+target 'YourApp' do
+  use_frameworks!
+  pod 'WuKongIMSDK', '1.1.1'
+end
+```
+
+Inspect the result:
+
+```bash
+pod install --repo-update
+grep -A 2 'WuKongIMSDK' Podfile.lock
+open YourApp.xcworkspace
+```
+
+Keep and review the application's own `platform :ios, '…'`; do not copy a claimed minimum version from this guide. After `pod install`, inspect resolution and build settings because the source podspec's iOS `11.0` conflicts with the framework podspec's iOS `13.0` deployment target / iOS `11.0` platform. Commit `Podfile` and `Podfile.lock`, then verify the actual Xcode, simulator, and device tuple. Do not replace the lock with `~>`, a default branch, or `WKSDK.sdkVersion`. Neither exact source nor framework tag contains `Package.swift`, so this upgrade must not silently switch to Swift Package Manager.
+
+## 3. Correct public API migration
+
+Compile the caller against pinned [`WKSDK.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKSDK.h), [`WKConnectionManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConnectionManager.h), and [`WKChatManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChatManager.h):
+
+| Old/risky shape | `1.1.1` target |
+| --- | --- |
+| `WKSDK.shared.setup()` | Absent; build `WKOptions` / `WKConnectInfo` and assign `[WKSDK shared].options` |
+| `connectAddr` / `apiURL` / `uploadURL` | Absent from target headers; use `host` / `port`, keep product APIs on the trusted backend |
+| Treat `connect` as success | Observe `onConnectStatus:reasonCode:` and accept `WKConnected` + `WK_REASON_SUCCESS` |
+| Send text to a scalar channel ID | Build `WKTextContent`, `WKChannel`, then call `sendMessage:channel:` |
+| Inspect only the immediate return | It is local/pending; observe `onMessageUpdate:left:` / `onSendack:left:` for terminal state |
+| Forget delegate cleanup | Call `removeDelegate:` on connection/chat managers during teardown |
+
+A Swift application calls the Objective-C public API through a bridging header. Do not preserve a nonexistent documentation wrapper unless it is your own tested compatibility layer.
+
+## 4. Handle architecture and distribution changes
+
+`1.1.1` distributes a classic framework with device `arm64`, simulator `x86_64`, and simulator `arm64` excluded by the podspec. Upgrade acceptance includes:
+
+- The team's actual device or generic iOS Device build.
+- An explicitly verified `x86_64`/Rosetta tuple if simulator use remains necessary.
+- Archive, link, embed/sign, and launch.
+- Objective-C module import and Swift bridging header.
+
+Removing `EXCLUDED_ARCHS` does not create a missing slice. Only a newly released and verified XCFramework can change this evidence.
+
+## 5. Treat database migration as a one-way boundary until proven otherwise
+
+Pinned source contains [`WKDBMigrationManager`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/db/WKDBMigrationManager.h). It discovers and applies ordered SQL migrations, records applied versions, and rolls back the current transaction on failure.
+
+The snapshot publishes no reverse migrations and **no public downgrade contract** stating that an older SDK can read the upgraded schema. The target parameter on `migrateDatabaseToVersion:` limits new migrations; it does not undo already applied migrations.
+
+Before rollout:
+
+1. Run the new SDK against a redacted UID-database copy.
+2. Verify messages, conversations, channels, unread state, search, and media references.
+3. Preserve a pre-upgrade snapshot; drill rollback with that snapshot or an isolated fresh install.
+4. Do not let an older framework open the upgraded database in place without evidence.
+
+This does not claim rollback is impossible; it refuses to promise safe downgrade without proof.
+
+## 6. Re-run lifecycle and security acceptance
+
+- Connection has an independent 15-second acceptance timeout; authentication failure, kick, network loss, and stale attempt callbacks terminate/fence the session.
+- Alice local pending, terminal message update/ACK, and Bob online receipt are recorded separately.
+- Real offline/channel/conversation providers have timeout, exactly-once completion, and idempotent ACK.
+- Teardown removes delegates and calls `disconnect:YES`; deliberate account logout calls `logout`.
+- After `isDebug = NO`, inspect system/crash/remote logging and reject RECV Payload exposure.
+- Raw `GCDAsyncSocket` TCP without authenticated TLS, the UID SQLCipher key, and credential lifecycle remain production blockers.
+- Accept media permission, upload/download, APNs, and background behavior on real devices.
+
+## 7. Rollout and rollback decision
+
+Start with a controlled cohort and observe accepted connection rate, message failure reasons, duplicate/loss signals, database migration failures, crashes, and logging exposure. Expand only after build/device/runtime evidence passes.
+
+Before rollback, answer whether the old build is recoverable, server protocol remains compatible, the old framework can encounter the new schema, unresolved sends exist, and account data has switched. If any answer is unknown, do not perform an in-place downgrade; use the pre-upgrade database snapshot or a verified isolated recovery flow.
+
+## Completion checklist
+
+- `Podfile.lock` pins `1.1.1`, and both revisions are recorded.
+- The iOS `11.0` / iOS `13.0` podspec conflict is recorded and the application's own Deployment Target is checked on its target Xcode, simulator, and device tuple.
+- Deleted-message visibility is regressed through the `onRecvMessages:left:` receive delegate for `1.1.0 → 1.1.1`; history, sync results, and the conversation list receive only product-path-specific additional exploratory coverage.
+- The application uses only target Objective-C selectors, without invented/floating legacy APIs.
+- Actual Xcode/device, archive, copied-database, Alice/Bob, and failure paths have reproducible evidence.
+- Architecture, TCP/TLS, Payload logging, UID key, provider, and rollback risks remain visible.
+- Source/header alignment or page publication is not described as an iOS `compatibility.json` receipt.

@@ -1,0 +1,89 @@
+---
+title: Flutter 平台专属能力
+description: 基于 wukongimfluttersdk 1.7.9 固定归档与源码，核对目标平台、消息能力、数据源、存储和生产边界。
+---
+
+本页回答“`wukongimfluttersdk 1.7.9` 的固定归档中有什么”，不把源码存在写成设备或生产兼容性结论。事实固定到 pub.dev 归档 SHA-256 `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` 与匹配源码 revision [`de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/de1024276523119e38305c49a3a873caae4d5c59)。
+
+<Callout type="warn" title="能力清单不是运行 receipt">
+  本站只用 Flutter `3.41.4`、Dart `3.11.1` 在 macOS `15.1` arm64 分析并构建过文档 wrapper。没有 Android/iOS build，也没有 Android、iOS 或 macOS 的 Alice/Bob 运行 receipt。源码能力、macOS Release build 和生产可用性是三个不同结论。
+</Callout>
+
+## 固定证据
+
+| 组成 | 固定值 |
+| --- | --- |
+| package | `wukongimfluttersdk 1.7.9` |
+| pub.dev archive | `wukongimfluttersdk-1.7.9.tar.gz` |
+| archive SHA-256 | `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` |
+| 匹配源码 | `de1024276523119e38305c49a3a873caae4d5c59`；仓库没有 `1.7.9` tag |
+| package 约束 | Dart `>=2.17.0 <4.0.0`；没有声明 Flutter 最低版本 |
+| 本站证据 | wrapper 通过 analyze 与 macOS Release build；没有设备运行 receipt |
+
+旧站只用于学习顺序和主题提示。版本、方法、平台与限制以固定归档中的 [`lib/wkim.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/wkim.dart)、各 manager 与 package 元数据为准。
+
+## 平台矩阵
+
+| 目标 | 固定源码/包能证明什么 | 仍缺什么 |
+| --- | --- | --- |
+| Android | pub.dev 声明 Android；设备类型使用 `0=APP` | 本站没有 Android SDK 工具链 build、模拟器/真机或后台/推送 receipt |
+| iOS | pub.dev 声明 iOS；设备类型使用 `0=APP` | 本站没有完成签名后的 iOS Release/device build，也没有 APNs、后台或设备 receipt |
+| macOS | pub.dev 声明 macOS；文档 wrapper 用 `2=PC` 完成 Release build | 没有 macOS 运行消息环、沙盒、签名、公证或生产 receipt |
+| Windows / Linux | `2=PC` 是协议设备类别，仓库 example 目录也含桌面壳 | 当前 package 元数据与本站 receipt **未支持或验证 Windows 与 Linux**；不能从目录名推导兼容性 |
+| Web | 源码直接导入 `dart:io` 并使用 `sqflite` | 此 package **不支持 Web**；浏览器应使用 JavaScript/Web SDK |
+
+## 能力矩阵
+
+| 主题 | `1.7.9` 源码公开面 | 应用必须补齐 |
+| --- | --- | --- |
+| 初始化 | `WKIM.shared.setup(Options)`；进程单例及 UID 作用域数据库 | 受信后端签发 UID/Token；一次进程只承载一个身份 |
+| 路由与连接 | `Options.addr` / `Options.getAddr`、`WKConnectionManager.connect()`、`disconnect(bool isLogout)` | DNS/IPv4 `host:port`、有界超时、代际隔离和终止策略 |
+| 频道 | `WKChannelType.personal`、`WKChannelType.group`，源码还声明客服、社区和话题常量 | 授权模型，以及每种频道类型的服务端与跨端验收 |
+| 文本与名片 | `WKTextContent`、`WKCardContent` | 跨平台正文 schema、未知正文降级和显示策略 |
+| 媒体 | `WKImageContent`、`WKVoiceContent`、`WKVideoContent` | `addOnUploadAttachmentListener` 对接上传、权限、压缩、失败恢复和大文件策略 |
+| 自定义正文 | 继承 `WKMessageContent` 并调用 `registerMsgContent` | 固定唯一 content type，在所有客户端实现同一 encode/decode 合同 |
+| 发送 | `sendWithOption`、`WKSendOptions`、本地插入与 SENDACK 刷新 | 分离本地入库、终止 SENDACK 与 Bob 在线接收 |
+| 消息查询 | 按 `clientMsgNO` 查询、频道历史同步、全文/频道搜索、消息扩展与 reaction | 业务数据源、分页、去重、超时和离线恢复 receipt |
+| 最近会话 | `WKConversationManager`、总未读、红点、会话同步 provider | 提供真实会话/最近消息/版本映射；空结果只适合全新测试账号 |
+| 频道与成员 | `WKChannelManager`、`WKChannelMemberManager` 的本地缓存、搜索与事件 | 业务侧频道资料/成员同步，以及 100,000 成员群的分页和容量设计 |
+| 提醒与 CMD | `WKReminderManager`、`WKCMDManager` | 服务端数据源、权限、幂等与产品语义 |
+| 本地状态 | `sqflite` 消息/会话/频道数据和 `SharedPreferences` 设备/迁移状态 | 加密、备份、清理、换号和 schema 迁移策略 |
+
+## 消息能力与结果边界
+
+`WKIM.setup` 会注册文本、名片、图片、语音和视频正文。`WKSendOptions` 包含 `MessageHeader`、`Setting`、`expire` 与 `topicID`；header 暴露 `redDot`、`noPersist` 和 `syncOnce`。字段存在不等于目标服务端或其他客户端已完成互操作验证。
+
+发送至少有三层证据：
+
+1. `addOnMsgInsertedListener` 表示持久消息已取得正数 `clientSeq`；
+2. `addOnRefreshMsgListener` 中只有 `WKSendMsgResult.sendSuccess` 是终止成功；
+3. Bob 的 `addOnNewMsgListener` 是当前在线连接收到消息的证据。
+
+`sendMessage(...)` wrapper 没有等待内部 `sendWithOption(...)`。需要有界发送结果的代码应直接 `await sendWithOption(...)`，并继续等待 SENDACK；本地 Future 返回不能代替服务端接受。
+
+## Provider 与 listener 所有权
+
+- 连接、消息、会话、频道、成员、提醒和 CMD 的 keyed listener 都必须保存 key，并用**相同 key**移除；
+- `addOnSyncConversationListener`、`addOnSyncChannelMsgListener`、`addOnGetChannelListener`、`addOnUploadAttachmentListener` 与 `addOnMsgInsertedListener` 是应用级单槽位或无 remove API 的回调，页面不得各自覆盖；
+- provider 应由应用级 dispatcher 安装一次，设置超时，并把完成结果绑定到当前 activation；
+- `connect()` 会先执行 `disconnect(false)`，因此首次序列包含合成的 `fail(null)`；只有应用 provider 完成后的 `syncCompleted` 才开放发送。
+
+## 平台与生产阻断项
+
+- [`WKConnectionManager`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/connect_manager.dart) 使用原始 `Socket.connect`，没有认证 TLS；WKProto Payload 加密不能替代 TLS。
+- `Options.debug` 默认 `true`，接收日志可能包含解密后的 Payload；生产应设为 `false`，同时检查系统、崩溃与远程日志链。
+- `sqflite` 数据库未声明加密；`SharedPreferences` 保存 UID 作用域设备 ID 与 migration version。
+- 地址按 `addr.split(":")` 解析，只能使用一个 DNS/IPv4 `host:port`，不是 URI 或 IPv6 literal。
+- 断开/登出不会清空 `_sendingMsgMap`；连接失败还会安排没有公开取消句柄的延迟重连。超时、kick、二次 `connecting`、不确定发送与换号都应要求**进程重启**。
+- package 自身 analyze 有 93 项 warning/info，`test/wksdk_test.dart` 还会在 packet cut/decode 路径触发 `RangeError`；不能宣称完整测试已通过。
+
+## 采用前最小验收
+
+- 固定 `1.7.9`、archive SHA、匹配 revision 与 `pubspec.lock`；
+- 在每个目标平台分别运行 analyze、Release build、签名/安装和真实设备消息环；
+- 验证认证失败、踢下线、断网、重连、同步 provider 失败和 listener 清理；
+- 分别记录 Alice 本地入库、终止 SENDACK、Bob 在线接收、历史/离线同步；
+- 对媒体、通知、后台、存储加密、迁移、日志和账号切换做平台专项验收；
+- 关闭原始 TCP、明文状态、日志、重连取消与 `_sendingMsgMap` 阻断，或记录经评审的风险接受。
+
+继续用 [Flutter API 参考](/zh/sdk/flutter/api-reference)查找精确调用面；替换既有版本前阅读[升级指南](/zh/sdk/flutter/upgrade)。

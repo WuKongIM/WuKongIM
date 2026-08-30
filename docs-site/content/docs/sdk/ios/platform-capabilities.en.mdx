@@ -1,0 +1,86 @@
+---
+title: iOS Platform Capabilities
+description: Review iOS baselines, messaging capabilities, providers, and production boundaries against the pinned WuKongIMSDK 1.1.1 source and distributed framework.
+---
+
+This page separates “present in public headers” from “verified on an Xcode/device tuple.” Every statement is pinned to CocoaPods `WuKongIMSDK` `1.1.1`, source revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`, and framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`.
+
+<Callout type="warn" title="Evidence state">
+  This matrix comes from tagged source, distributed public headers, and pod metadata; it is **not runtime verification**. This site has no Xcode build, simulator/device Alice/Bob loop, and no iOS entry in the JavaScript/Web `compatibility.json` receipt.
+</Callout>
+
+## Reference boundary
+
+The legacy site is used only for learning order and topic coverage; it is not version, API, or compatibility authority.
+
+- The [legacy iOS SDK introduction](https://docs.githubim.com/zh/sdk/wukongim/ios/intro) is used only for learning order and topic coverage: entry point, connection, chat, channels, conversations, and media.
+- Methods and properties come from pinned [`WKSDK.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKSDK.h) and the framework's public headers.
+- Legacy references to `setup()`, `connectAddr`, a floating pod, Swift Package Manager, or unverified capabilities do not apply to this `1.1.1` snapshot.
+
+| Component | Pinned value |
+| --- | --- |
+| CocoaPods | `pod 'WuKongIMSDK', '1.1.1'` |
+| Source | [`WuKongIM/WuKongIMiOSSDK`](https://github.com/WuKongIM/WuKongIMiOSSDK), tag `1.1.1`, revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae` |
+| Distributed framework | [`WuKongIM/WuKongIMiOSSDK-Framework`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework), tag `1.1.1`, revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c` |
+| Podspec declarations | The [source podspec](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK.podspec) says both `platform = iOS 11.0` and `deployment_target = iOS 11.0`; the [distributed-framework podspec](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/blob/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/WuKongIMSDK.podspec) says `platform = iOS 11.0` and `deployment_target = iOS 13.0` |
+| Binary slices | Device `arm64`, simulator `x86_64`; no simulator `arm64` |
+
+The two podspecs have a conflicting minimum-version declaration, so this documentation **must not select a minimum supported iOS version**. Neither exact tag contains `Package.swift`, so this snapshot does not establish Swift Package Manager support. Validate the resolved Pod, Deployment Target, Xcode, simulator, and device tuple in your application; iOS `11.0` and iOS `13.0` are conflicting artifact declarations, not runtime-compatibility promises from this site.
+
+## Capability matrix
+
+| Area | Public `1.1.1` surface | What the integrator must supply |
+| --- | --- | --- |
+| Entry and identity | `[WKSDK shared]`, `WKOptions`, `WKConnectInfo` | A trusted product backend issues UID/token/host/port; the client never receives Product HTTP management credentials |
+| Connection | `WKConnectionManager`, `connect`, `disconnect:`, `logout`, delegates | Application timeout, failure/kick handling, and stale-attempt fencing |
+| Channels | `WKChannel personWithChannelID:`, `groupWithChannelID:`, `WK_PERSON` / `WK_GROUP` | Server channels, subscriptions, authorization, and large-group policy |
+| Text | `WKTextContent` | Message update and Bob online-receipt acceptance |
+| Media content | `WKImageContent`, `WKVoiceContent`, `WKMultiMediaMessageContent` | `uploadTaskProvider`, permissions, file service, progress, and recovery |
+| Custom content | Extend `WKMessageContent`, implement JSON codec, call `registerMessageContent:` | Stable cross-platform `contentType` and version policy |
+| Send | `sendMessage:channel:`, topic/setting overloads, `resendMessage:` | Separate local pending, ACK/update, and peer receipt; correlate with `clientMsgNo` |
+| Online events | `WKChatManagerDelegate`: `onRecvMessages:left:`, `onMessageUpdate:left:`, `onSendack:left:` | Delegate lifetime, main-thread policy, and application-owned snapshots |
+| Offline/channel history | `offlineMessagePull` / `offlineMessageAck`, `syncChannelMessageProvider` | Trusted product APIs, paging, idempotent ACK, timeout, and real offline recovery |
+| Conversations | `WKConversationManager` and sync provider/ack | Server conversation source, unread/version semantics, capacity acceptance |
+| Channel data | `WKChannelManager` and `channelInfoUpdate` | Product channel API, authorization, cache invalidation |
+| Local data | FMDB + SQLCipher, UID-scoped database, message/conversation/channel managers | UID is not a secret key; review iOS file protection, key management, backup, account switch, erasure |
+| Receipt/reaction/reminder | `WKReceiptManager`, `WKReactionManager`, `WKPinnedMessageManager`, `WKReminderManager` | Matching providers, server contracts, and product/UI acceptance |
+| CMD/robot/flame | `WKCMDManager`, `WKRobotManager`, `WKFlameManager` | Authorization, signature, product rules, cross-client consistency |
+
+Verify the exported surface in [`WuKongIMSDKHeader.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WuKongIMSDKHeader.h), [`WKChatManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChatManager.h), and [`WKConnectionManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConnectionManager.h).
+
+## Messages and custom content
+
+`WKMessageContent` exposes `encodeWithJSON`, `decodeWithJSON:`, `contentType`, `searchableWord`, and `conversationDigest`. A custom type must use the same stable number on every platform and be registered before connection/decoding through `registerMessageContent:` or `registerMessageContent:contentType:`.
+
+Built-in source types include `WKTextContent`, `WKImageContent`, `WKVoiceContent`, `WKMultiMediaMessageContent`, and system/CMD/unknown types. A class does not prove image selection, recording, video encoding, or the upload service. Media delegates product behavior through `WKMediaManager.uploadTaskProvider` / `downloadTaskProvider`.
+
+Sending has distinct evidence layers:
+
+1. The `WKMessage` returned immediately by `sendMessage:channel:` is local/pending.
+2. `onMessageUpdate:left:` / `onSendack:left:` report local state and acknowledgement.
+3. Bob's `onRecvMessages:left:` proves online receipt.
+
+Before server acknowledgement, `messageId` and `messageSeq` are not pending correlation keys. Use `clientMsgNo` and retain `clientSeq`.
+
+## Platform and security boundaries
+
+- Exact `1.1.1` opens raw TCP through `GCDAsyncSocket`, with no public TLS option or `startTLS`; compatibility Payload encryption does not authenticate the server.
+- The classic framework has only a simulator `x86_64` slice. Apple Silicon native simulator `arm64`, XCFramework, and every current Xcode tuple are not proven here.
+- Source/public headers do not provide an end-to-end receipt for APNs registration, device-token upload, background wake, and notification presentation. Push has not been verified.
+- `WKOptions.isDebug` defaults enabled. Disabling it does not remove an unconditional receive-path RECV packet log whose description can include decoded Payload.
+- SQLCipher receives UID directly as its key. UID is a scope identifier, not an independently managed secret.
+- Add camera, microphone, photo, and notification permissions only for enabled features and accept them independently on real devices.
+
+## Minimum production acceptance
+
+- Pin `pod 'WuKongIMSDK', '1.1.1'` in `Podfile.lock` and record both revisions.
+- Compile Objective-C/bridging-header calls with the actual Xcode/macOS/device tuple.
+- Exercise timeout, authentication failure, kick, network loss, reconnect, and delegate cleanup.
+- Prove Alice pending, terminal update/ACK, Bob online receipt, and real offline/conversation providers.
+- Verify media, permissions, APNs, background behavior, file upload, and cache cleanup.
+- Close or isolate TCP/TLS, RECV Payload logging, and UID database-key risks.
+- Produce an iOS-specific build/device/runtime receipt; do not reuse `compatibility.json`.
+
+## Next step
+
+Use the [iOS API Reference](/en/sdk/ios/api-reference) for exact selectors, delegates, and statuses. For an existing application, continue with the [Upgrade Guide](/en/sdk/ios/upgrade).

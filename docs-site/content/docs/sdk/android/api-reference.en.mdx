@@ -1,0 +1,252 @@
+---
+title: Android API Reference
+description: A source-locked quick reference for WuKongIMAndroidSDK 1.5.5 entry points, managers, connection events, messaging, models, statuses, and providers.
+---
+
+This reference is pinned to `WuKongIMAndroidSDK` tag `1.5.5`, revision `662a559a50d181540a0448454beb57e939b0c50e`. It covers application-facing entry points and core managers; it does not promote every database helper in source to a stable product contract.
+
+<Callout type="warn" title="Usage boundary">
+  This is source/API alignment, not Android runtime verification or a production-security endorsement. An exposed method does not prove your Gateway, provider, device, or Release tuple. `compatibility.json` still covers only the JavaScript/Web golden path.
+</Callout>
+
+The [legacy Android SDK introduction](https://docs.githubim.com/zh/sdk/wukongim/android/intro) is used only for learning order and manager-topic coverage. Names, parameters, and status values below come from the pinned source.
+
+## Authoritative source entry points
+
+| Scope | Pinned source |
+| --- | --- |
+| Entry and configuration | [`WKIM.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/WKIM.java) |
+| Connection lifecycle | [`ConnectionManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ConnectionManager.java) |
+| Messaging, listeners, and send | [`MsgManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/MsgManager.java) |
+| Channels and channel members | [`ChannelManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelManager.java), [`ChannelMembersManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelMembersManager.java) |
+| Recent conversations | [`ConversationManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ConversationManager.java) |
+| Reminders | [`ReminderManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ReminderManager.java) |
+| CMD | [`CMDManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/CMDManager.java) |
+| Robots | [`RobotManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/RobotManager.java) |
+| Message models | [`WKMsg.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/entity/WKMsg.java) and [`WKMessageContent.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/msgmodel/WKMessageContent.java) |
+| Status constants | [`WKConnectStatus.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/message/type/WKConnectStatus.java), [`WKSendMsgResult.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/message/type/WKSendMsgResult.java) |
+
+The artifact remains `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5`. Do not use the stale `V1.5.0` from `WKIM.getVersion()` to attest the installed package.
+
+## `WKIM` entry and configuration
+
+Obtain the singleton through `WKIM.getInstance()`.
+
+| API | Purpose | Boundary |
+| --- | --- | --- |
+| `init(Context, String, String)` | Initialize managers, crypto state, and the UID database with application context, UID, and token | Pass `context.getApplicationContext()`; initialization switches UID-scoped state |
+| `setDebug(boolean)` | Control debug logging | Set `false` for production; this is not a universal no-log switch |
+| `setWriteLog(boolean)` | Control SDK file logging | Keep `false` for production |
+| `setFileCacheDir(String)` | Override file-cache location | Set before initialization/media work and validate permission/cleanup policy |
+| `setDeviceId(String)` / `getDeviceID()` | Supply the device fragment used in `clientMsgNO` | It is not the server device type or a security identity |
+| `getVersion()` | Return embedded `V1.5.0` | Stale for `1.5.5`; treat it as an observability gap |
+
+Managers exposed by `WKIM.getInstance()`:
+
+| Getter | Type | Primary responsibility |
+| --- | --- | --- |
+| `getConnectionManager()` | `ConnectionManager` | Route, connect, disconnect, logout, status events |
+| `getMsgManager()` | `MsgManager` | Content registration, message query/sync/send, events |
+| `getConversationManager()` | `ConversationManager` | Recent conversations, unread state, local updates, sync provider |
+| `getChannelManager()` | `ChannelManager` | Channel cache, query, refresh, change events |
+| `getChannelMembersManager()` | `ChannelMembersManager` | Member query, paging, sync, change events |
+| `getReminderManager()` | `ReminderManager` | Conversation reminders, persistence, events |
+| `getCMDManager()` | `CMDManager` | CMD parsing/listeners and RSA public-key configuration |
+| `getRobotManager()` | `RobotManager` | Robot/menu query, persistence, change events |
+
+These managers expose many local query/update methods. Server facts still need product providers. An SDK manager is not a Product HTTP client, and the Android application must never contain Product HTTP management credentials.
+
+## Connection lifecycle
+
+### Route, connect, and cleanup
+
+| API | Contract |
+| --- | --- |
+| `addOnGetIpAndPortListener(IGetIpAndPort)` | Register the single host/port provider; every invocation must complete |
+| `addOnConnectionStatusListener(String, IConnectionStatus)` | Register a listener under a stable key |
+| `removeOnConnectionStatusListener(String)` | Remove the same key |
+| `connection()` | Start/resume connection; returns `void`, not connection success |
+| `disconnect(false)` | Stop current connection/reconnect while retaining identity |
+| `disconnect(true)` | Logout, clear token/caches, and asynchronously close the UID database; unsafe as an account-switch boundary with unresolved sends |
+
+The public signature is `disconnect(boolean)`; the table expands its `false` and `true` semantics.
+
+Pair every registration with removal. Exact source has no public connection generation or provider cancellation handle. After timeout, kick, `fail`, `noNetwork`, a second `connecting`, or an uncertain send, fence all old callbacks and require a process restart instead of reusing the old generation.
+
+### `WKConnectStatus` and `WKConnectReason`
+
+| Status | Value | Meaning |
+| --- | ---: | --- |
+| `WKConnectStatus.fail` | `0` | Connection/authentication failure; inspect callback reason |
+| `WKConnectStatus.success` | `1` | State-machine success; in READ mode the first success can precede synchronization |
+| `WKConnectStatus.kicked` | `2` | Kicked |
+| `WKConnectStatus.syncMsg` | `3` | Synchronizing; do not send |
+| `WKConnectStatus.connecting` | `4` | Connecting |
+| `WKConnectStatus.noNetwork` | `5` | No network |
+| `WKConnectStatus.syncCompleted` | `6` | Sync completed; wait for the accepted final success |
+
+`WKConnectReason` defines `ReasonAuthFail`, `ReasonConnectKick`, `NoNetwork`, `Connecting`, `SyncMsg`, and `ConnectSuccess`. `WKConnectStatus` has no member named `failed`.
+
+## Content, channels, and message model
+
+### Content
+
+- `WKMessageContent` is the base type. It exposes `type`, `content`, `mentionInfo`, `reply`, and `entities`, plus `encodeMsg()`, `decodeMsg()`, `getSearchableWord()`, and `getDisplayContent()`.
+- Create text with `new WKTextContent(text)`.
+- Built-in media types include `WKImageContent`, `WKVoiceContent`, and `WKVideoContent`.
+- Register custom types through `registerContentMsg(Class<? extends WKMessageContent>)`; the class needs a no-argument constructor and a cross-platform-unique content type.
+- `WKChannel` combines `channelID` and `channelType`; common values are `WKChannelType.PERSONAL` and `WKChannelType.GROUP`.
+
+### `WKMsg`
+
+`WKMsg` combines local and server state in one mutable object:
+
+| Field | Meaning |
+| --- | --- |
+| `clientMsgNO` | SDK-created client message number and pending correlation key |
+| `clientSeq` | Local database sequence; require a positive value after insertion |
+| `messageID` | Server-global ID; can be empty/unassigned before SENDACK |
+| `messageSeq` | Server channel sequence; can be `0` before SENDACK |
+| `channelID` / `channelType` | Target channel |
+| `baseContentMsgModel` | Decoded `WKMessageContent` |
+| `status` | `WKSendMsgResult` status |
+| `header` / `setting` / `remoteExtra` | Message controls and extensions |
+
+Do not pass the mutable `WKMsg` directly across threads or sessions. Copy an application-owned immutable snapshot and check the current attempt fence before delivery.
+
+## Send API and events
+
+| API | Status |
+| --- | --- |
+| `sendMessage(WKMsg)` | Non-deprecated low-level send with a caller-built `WKMsg` |
+| `send(WKMessageContent, WKChannel)` | Normal content-send entry point |
+| `sendWithOptions(WKMessageContent, WKChannel, WKSendOptions)` | Supports expire, topic, flame, robot, header, and other options |
+| `sendMessage(WKMessageContent, String, byte)` | `@Deprecated`; do not use the scalar-channel overload in new code |
+| `sendMessage(WKMessageContent, WKMsgSetting, String, byte)` | `@Deprecated` |
+
+`WKSendOptions` exposes `expire`, `topicID`, `flame`, `flameSecond`, `robotID`, `setting`, and `header`.
+
+| Registration | Callback semantics | Removal |
+| --- | --- | --- |
+| `addOnSendMsgCallback(key, listener)` | `onInsertMsg(WKMsg)`; can occur inline before `sendMessage` returns | `removeSendMsgCallBack(key)` |
+| `addOnSendMsgAckListener(key, listener)` | `msgACK(WKMsg)` with terminal status | `removeSendMsgAckListener(key)` |
+| `addOnNewMsgListener(key, listener)` | `newMsg(List<WKMsg>)` for online messages | `removeNewMsgListener(key)` |
+| `addOnRefreshMsgListener(key, listener)` | Message status/content refresh | `removeRefreshMsgListener(key)` |
+
+The actual remover spelling is `removeSendMsgCallBack`; registration and removal names are asymmetric.
+
+## SENDACK status and errors
+
+`WKSendMsgResult` covers local pending and server results:
+
+| Constant | Value | Handling |
+| --- | ---: | --- |
+| `WKSendMsgResult.send_loading` | `0` | Pending/sending, not success |
+| `WKSendMsgResult.send_success` | `1` | Terminal success |
+| `WKSendMsgResult.send_fail` | `2` | Terminal failure |
+| `WKSendMsgResult.no_relation` | `3` | Not a friend/member |
+| `WKSendMsgResult.black_list` | `4` | Blacklist rejection |
+| `WKSendMsgResult.not_on_white_list` | `13` | Whitelist rejection |
+
+Use an independent timeout per send and route every terminal ACK except `send_success` to rejection handling. Preserve `clientMsgNO`, status, and current attempt in application errors; never log token or Payload.
+
+## `MsgManager`: message surface
+
+Beyond the send methods above, pinned [`MsgManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/MsgManager.java) exposes these integration surfaces:
+
+| Category | Methods | Boundary |
+| --- | --- | --- |
+| Content/identifier | `registerContentMsg`, `getMsgContentModel`, `createClientMsgNO` | A custom content class needs a no-argument constructor; a client number is not a server message ID |
+| History/query | `getOrSyncHistoryMessages`, `getWithMessageID`, `getWithClientMsgNO`, `searchMsgWithChannelAndContentTypes` | History reads local data and asks the registered provider to fill gaps; its callbacks are `onSyncing()` / `onResult(...)` |
+| Local cleanup | `clearWithChannel`, `clearWithChannelAndFromUID`, `deleteWithClientMsgNos` | These mutate the local database; they are not server recall/delete authorization |
+| single-provider slot | `addOnSyncOfflineMsgListener`, `addOnSyncChannelMsgListener`, `addOnUploadAttachListener`, `addMessageStoreBeforeIntercept`, `addOnUploadMsgExtraListener` | A later registration replaces the prior one; there is no uniform cancellation/generation argument |
+| keyed listener | `addOnDeleteMsgListener` / `removeDeleteMsgListener`, `addOnClearMsgListener` / `removeClearMsg` | The insert, SENDACK, new-message, and refresh listeners above follow the same pattern; remove with the same key |
+
+The background exception path in `getOrSyncHistoryMessages` logs but has no dedicated error callback. Put a timeout around the call; a callback that never completes is not an empty history result. Product providers must also own authentication, paging, retry, and idempotency.
+
+## `ChannelManager`: channel data
+
+Pinned [`ChannelManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelManager.java) exposes:
+
+| Category | Methods | Boundary |
+| --- | --- | --- |
+| Local read | `getChannel(String, byte)`, `search(String)`, `getChannels`, `getWithStatus` | Read memory/local database first; a local miss does not prove remote absence |
+| Remote data | `getChannel(String, byte, IChannelInfoListener)`, `fetchChannelInfo`, `addOnGetChannelInfoListener` | A provider may return an immediate channel and complete the callback later; the overload `returns null` when the provider is missing or arguments are invalid |
+| Save/update | `saveOrUpdateChannel`, `saveOrUpdateChannels`, `updateMute`, `updateTop`, `updateRemark`, `updateFollow` | Update memory and local database, not Product HTTP |
+| Lifecycle | `addOnRefreshChannelAvatar`, `addOnRefreshChannelInfo` / `removeRefreshChannelInfo`, `clearARMCache` | Channel refresh is a keyed listener; avatar refresh is a non-removable single callback |
+
+`addOnGetChannelInfoListener` and `addOnRefreshChannelAvatar` are a single-provider slot / single-listener slot, with no public remove method in pinned source. Install them at process/account lifetime through a coordinator; do not capture a short-lived Activity.
+
+## `ChannelMembersManager`: channel members
+
+Pinned [`ChannelMembersManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ChannelMembersManager.java) exposes:
+
+| Category | Methods | Boundary |
+| --- | --- | --- |
+| Read/version | `getMaxVersion(String, byte)`, `getRobotMembers`, `getWithRole`, `getMember(String, byte, String)`, `getMembers`, `getDeletedMembers`, `getMemberCount` | `getMaxVersionMember` is `@Deprecated`; new code uses the numeric version |
+| Save/update | `save(WKChannelMember)`, `save(List<WKChannelMember>)`, `delete`, `updateRemarkName`, `updateMemberName`, `updateMemberStatus` | Batch `save` runs on a background thread; a boolean update that `returns false` reports only local-database failure |
+| Paging/data provider | `addOnGetChannelMembersListener` + `getWithPageOrSearch`; `addOnGetChannelMemberListener` + `getMember(String, byte, String, IChannelMemberInfoListener)` | Paging emits local `isRemote=false` first; a remote result occurs only when `groupType == 1` and a provider exists |
+| Sync trigger | `addOnSyncChannelMembers` | CMD and related paths invoke `setOnSyncChannelMembers` to ask the product layer to synchronize; there is no result callback/remover |
+| keyed listener | `addOnRefreshChannelMemberInfo` / `removeRefreshChannelMemberInfo`, `addOnAddChannelMemberListener` / `removeAddChannelMemberListener`, `addOnRemoveChannelMemberListener` / `removeRemoveChannelMemberListener` | Remove with the same key; an event describes manager-local change, not successful server authorization |
+
+All three provider registrations are a single-provider slot with no public remove method. The callback overload of `getMember(...)` `returns null` when its provider is absent. Model “provider missing,” “local miss,” “remote absence,” and timeout as distinct application errors.
+
+## `ConversationManager`: recent conversations
+
+Pinned [`ConversationManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ConversationManager.java) exposes:
+
+| Category | Methods | Boundary |
+| --- | --- | --- |
+| Read | `getAll()`, `getAll(IAllConversations)`, `getWithChannel`, `getUIConversationMsg`, `getMsgExtraWithChannel`, `getMsgExtraMaxVersion` | The synchronous overload reads directly; the callback overload reads on a background thread |
+| Local update | `deleteWitchChannel`, `updateRedDot`, `updateMsgExtra`, `saveSyncMsgExtras` | `deleteWitchChannel` is the actual pinned spelling; do not rewrite it as a nonexistent public `deleteWithChannel` API |
+| keyed listener | `addOnRefreshMsgListListener` / `removeOnRefreshMsgListListener`, `addOnRefreshMsgListener` / `removeOnRefreshMsgListener`, `addOnDeleteMsgListener` / `removeOnDeleteMsgListener` | Remove with the same key; callbacks dispatch on the main thread |
+| Sync provider | `addOnSyncConversationListener` | A single-provider slot; `setSyncConversationListener` invokes it, persists the result, and refreshes conversations |
+
+`getAll(IAllConversations)` catches a database exception and also delivers an empty list, so **an empty list cannot distinguish “no conversations” from a database read failure**. A synchronization persistence exception may only be logged without completing the outer callback. Retain an application timeout, generation fence, and separate error observability.
+
+## `ReminderManager`: reminders
+
+Pinned [`ReminderManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/ReminderManager.java) exposes `getReminder(String, byte, int)`, `getReminders`, `getRemindersWithType`, `saveOrUpdateReminders`, `getMaxVersion()`, `clearAllCache`, and the keyed listener `addOnNewReminderListener` / `removeNewReminderListener`.
+
+`saveOrUpdateReminders` updates cache by `reminderID`; `done == 1` removes an item from cache before persistence. In pinned `1.5.5`, the body of `ReminderManager.done()` is empty: it is a **no-op**. Do not use it to acknowledge a reminder, commit server state, or await completion.
+
+## `CMDManager`: CMD
+
+Pinned [`CMDManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/CMDManager.java) exposes `handleCMD(JSONObject)`, `handleCMD(JSONObject, String, byte)`, `handleCMD(String, String, String)`, the keyed listener `addCmdListener` / `removeCmdListener`, and `setRSAPublicKey` / `getRSAPublicKey`.
+
+In pinned source, the signature assembly and RSA check are commented out; `setRSAPublicKey` only stores the key and **does not enforce CMD signature verification**. `handleCMD` still performs built-in channel/conversation/message updates and dispatches `WKCMD`, so public-key configuration is neither CMD authenticity nor authorization evidence. JSON assembly failure is logged and returns without a structured error.
+
+## `RobotManager`: robots and menus
+
+Pinned [`RobotManager.java`](https://github.com/WuKongIM/WuKongIMAndroidSDK/blob/662a559a50d181540a0448454beb57e939b0c50e/wkim/src/main/java/com/xinbida/wukongim/manager/RobotManager.java) exposes `getWithRobotID`, `getWithUsername`, `getWithRobotIds`, `getRobotMenus(String)`, `getRobotMenus(List<String>)`, `saveOrUpdateRobots`, `saveOrUpdateRobotMenus`, and the keyed listener `addOnRefreshRobotMenu` / `removeRefreshRobotMenu`.
+
+These methods query/persist local robot data only; the manager has no remote robot provider. Fetch data through an authorized product endpoint and pass it to the save methods. A menu refresh event after local persistence does not prove a remote write or cross-client consistency.
+
+## Provider and synchronization APIs
+
+- `ConversationManager.addOnSyncConversationListener(ISyncConversationChat)` supplies recent-conversation synchronization and returns `WKSyncChat`.
+- `MsgManager.addOnSyncChannelMsgListener` / `getOrSyncHistoryMessages` support demand-driven channel history.
+- `MsgManager.addOnUploadAttachListener` delegates media upload to the product layer.
+- `ChannelManager.addOnGetChannelInfoListener` and `ChannelMembersManager.addOnSyncChannelMembers` require product data providers.
+
+Complete each provider once, bound it with a timeout, and reject stale results with an application activation epoch. The public APIs have no uniform cancellation handle; never let a provider from a torn-down session complete a new one.
+
+### Provider, listener, and error lifecycle
+
+- Every manager is a process singleton. A `single-provider slot` (message synchronization/upload, channel/member data, conversation synchronization) is overwritten by a later registration, and most providers have no public remove method. Install it at **process/account lifetime**, not an Activity/Fragment lifetime.
+- Remove every `keyed listener` through its exact remover with the **same key**. On logout, terminal state, or attempt teardown, remove listeners before releasing application snapshots; there is no uniform `removeAll`.
+- Some reads `returns null` on a miss or missing provider, some local updates `returns false` on database failure, and asynchronous failures may only be logged. There is no uniform `Result`, exception, or error callback; the application owns timeout, cancellation, error classification, and observability for each remote operation.
+- `WKIM.init` throws `NullPointerException` for an empty context, UID, or token. Validate inputs before entering the SDK and never copy the token into error logs.
+- **source-visible is not runtime-proven**. This inventory records the Java public surface and branches at revision `662a559...`; it does not prove providers, database paths, main-thread callbacks, or a device message loop at runtime.
+
+## Security and evidence boundary
+
+- xSocket `NonBlockingConnection` establishes raw TCP without authenticated TLS.
+- UID/token live in ordinary `SharedPreferences`; SQLCipher uses UID as its key.
+- The debug decode path can log `WKReceivedMsg.toString()` containing plaintext Payload.
+- `disconnect(true)` does not clear internal `sendingMsgHashMap`, so unresolved sends block safe same-process account switching.
+- `compatibility.json` contains no Android build, device, message-loop, or runtime receipt for these APIs.
+
+## Next step
+
+For a first integration, complete the [Quickstart](/en/sdk/android/quickstart). Before replacing an existing dependency, record the old package, database, and rollback boundary with the [Upgrade Guide](/en/sdk/android/upgrade).

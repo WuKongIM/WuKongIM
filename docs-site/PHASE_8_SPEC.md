@@ -80,6 +80,10 @@ search, sitemap, LLM outputs, and per-page Markdown.
   both locales at desktop and mobile widths, including console output and
   horizontal overflow.
 
+This is the Phase 8 boundary. Later phases publish the maintained Kubernetes,
+SDK, API, tutorial, and remaining guide routes; Phase 24 leaves no maintained
+navigation entry planned.
+
 ## Excluded
 
 - Runtime refactors, new architecture, configuration changes, or operational

@@ -20,6 +20,8 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
   <Card title="接入 HarmonyOS 第一条消息" description="固定 OHPM 1.1.7，按真实 ArkTS API 完成同步门禁、SENDACK 与在线接收。" href="/zh/sdk/harmonyos" />
   <Card title="迁移 UniApp 项目" description="移除已弃用的独立包，锁定 JSSDK 1.3.5，并分别验收 App、H5 与小程序。" href="/zh/sdk/uniapp" />
   <Card title="跑通 Web 第一条消息" description="安装固定版本，连接 Alice 与 Bob，验证在线消息和离线恢复。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="查阅 Web API" description="按固定 1.3.5 快照查找公开类、配置、事件、消息模型和错误边界。" href="/zh/sdk/javascript/api-reference" />
+  <Card title="规划 Web SDK 升级" description="核对版本边界、迁移步骤、验收矩阵与可回滚发布。" href="/zh/sdk/javascript/upgrade" />
   <Card title="设计完整客户端" description="按身份、连接、消息、会话、推送、多设备和异常逐项实现。" href="/zh/sdk/common-guides" />
   <Card title="确认版本证据" description="核对服务端、SDK、Node.js 和 Chromium 是否属于同一兼容快照。" href="/zh/sdk/compatibility" />
 </Cards>
@@ -42,14 +44,13 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 | --- | --- | --- |
 | [选择 SDK](/zh/sdk/choose-sdk)与官方源码目录 | 已发布 | 还在比较平台或 SDK 系列的开发者 |
 | [WuKongEasySDK iOS、Android、Flutter、Web](/zh/sdk/easy) | 源码校对教程已发布；当前 Gateway 不支持 JSON-RPC CONNECT，且没有运行 receipt | 需要评估固定 SDK 源码、API 与采用阻断项的开发者 |
-| [WuKongIMSDK Android](/zh/sdk/android) `1.5.5` | 入口、安装与快速接入已发布；源码与 JitPack AAR 已校对，没有本站 Android 运行 receipt | 需要在自己的 AGP、设备和服务端 tuple 上保存验收证据的 Android 团队 |
-| [WuKongIMSDK iOS](/zh/sdk/ios) `1.1.1` | 入口、安装与快速接入已发布；源码与公开头文件已校对，没有本站运行 receipt | 需要在自己的 Xcode 与设备上保留验收证据的原生 iOS 团队 |
-| [WuKongIMSDK Flutter](/zh/sdk/flutter) `1.7.9` | 入口、安装与快速接入已发布；pub.dev 归档与匹配源码已校对，消费端 analyze/macOS Release build 通过，没有本站运行 receipt | 需要在自己的 Flutter/Dart、目标设备和服务端 tuple 上保存验收证据的跨端团队 |
-| [WuKongIMSDK HarmonyOS](/zh/sdk/harmonyos) `1.1.7` | 入口、安装与快速接入已发布；OHPM HAR 与匹配源码已校对，没有本站安装、编译或设备运行 receipt | 需要在自己的 DevEco、HarmonyOS 设备和服务端 tuple 上保存验收证据的 HarmonyOS NEXT 团队 |
-| [JavaScript / Web](/zh/sdk/javascript) | 已发布且有场景覆盖的可执行样例 | 想用浏览器完成首个客户端闭环的开发者 |
+| [WuKongIMSDK Android](/zh/sdk/android) `1.5.5` | 安装、快速接入、[平台能力](/zh/sdk/android/platform-capabilities)、[API Reference](/zh/sdk/android/api-reference)与[升级指南](/zh/sdk/android/upgrade)均已发布；源码与 JitPack AAR 已校对，没有本站 Android 运行 receipt | 需要在自己的 AGP、设备和服务端 tuple 上保存验收证据的 Android 团队 |
+| [WuKongIMSDK iOS](/zh/sdk/ios) `1.1.1` | 安装、快速接入、[平台能力](/zh/sdk/ios/platform-capabilities)、[API Reference](/zh/sdk/ios/api-reference)与[升级指南](/zh/sdk/ios/upgrade)均已发布；源码与公开头文件已校对，没有本站运行 receipt | 需要在自己的 Xcode 与设备上保留验收证据的原生 iOS 团队 |
+| [WuKongIMSDK Flutter](/zh/sdk/flutter) `1.7.9` | 安装、快速接入、[平台能力](/zh/sdk/flutter/platform-capabilities)、[API Reference](/zh/sdk/flutter/api-reference)与[升级指南](/zh/sdk/flutter/upgrade)均已发布；pub.dev 归档与匹配源码已校对，消费端 analyze/macOS Release build 通过，没有本站运行 receipt | 需要在自己的 Flutter/Dart、目标设备和服务端 tuple 上保存验收证据的跨端团队 |
+| [WuKongIMSDK HarmonyOS](/zh/sdk/harmonyos) `1.1.7` | 安装、快速接入、[平台能力](/zh/sdk/harmonyos/platform-capabilities)、[API Reference](/zh/sdk/harmonyos/api-reference)与[升级指南](/zh/sdk/harmonyos/upgrade)均已发布；OHPM HAR 与匹配源码已校对，没有本站安装、编译或设备运行 receipt | 需要在自己的 DevEco、HarmonyOS 设备和服务端 tuple 上保存验收证据的 HarmonyOS NEXT 团队 |
+| [JavaScript / Web](/zh/sdk/javascript) | 具有场景覆盖的可执行样例已发布；[API Reference](/zh/sdk/javascript/api-reference)与[升级指南](/zh/sdk/javascript/upgrade)也已发布 | 想用浏览器完成首个客户端闭环并查找固定快照 API 或规划升级的开发者 |
 | [公共指南](/zh/sdk/common-guides) | 已发布，平台无关 | 正在设计生产客户端生命周期的团队 |
 | [WuKongIMSDK UniApp 迁移](/zh/sdk/uniapp) | 旧仓库与 `wukongimuniappsdk` 已弃用；迁移目标固定为 `wukongimjssdk@1.3.5` | 需要移除旧包，并为 App、H5 与小程序分别保存验收证据的现有项目 |
-| 完整 JavaScript API Reference 与升级指南 | 规划中 | 先使用当前教程覆盖的 API 与固定兼容快照 |
 
 <Callout type="warn" title="不要混淆三种状态">
   “有官方源码”表示可以评估仓库；“有本站教程”表示内容已公开；“已验证”表示某个精确版本组合通过了可执行场景。当前本站的可执行客户端证据只覆盖 `wukongimjssdk@1.3.5` 的 JavaScript/Web 路径。

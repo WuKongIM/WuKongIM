@@ -26,11 +26,11 @@ Inspect the README, APIs, examples, and changelog for the exact tag of each cand
 
 | Application platform | Official source to evaluate | Tutorial status on this site |
 | --- | --- | --- |
-| Browser / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK), [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) | The [JavaScript/Web tutorial](/en/sdk/javascript) has an executable snapshot. The [EasySDK Web tutorial](/en/sdk/easy/javascript/getting-started) is source-aligned and published, but JSON-RPC CONNECT is unsupported and no runtime receipt exists |
-| iOS / Apple platforms | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK), [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | The full SDK [overview, installation, and quickstart](/en/sdk/ios) are published against `1.1.1` source and distributed headers. The [EasySDK iOS tutorial](/en/sdk/easy/ios/getting-started) is also source-aligned and published, but JSON-RPC CONNECT is unsupported; neither has a site iOS runtime receipt |
-| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK), [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | The full SDK [overview, installation, and quickstart](/en/sdk/android) are published against `1.5.5` source and JitPack AAR. The [EasySDK Android tutorial](/en/sdk/easy/android/getting-started) is also source-aligned and published, but JSON-RPC CONNECT is unsupported; neither has a site Android runtime receipt |
-| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK), [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | The full-SDK [overview, installation, and quickstart](/en/sdk/flutter) are published against the pub.dev `1.7.9` archive and matching source. The [EasySDK Flutter tutorial](/en/sdk/easy/flutter/getting-started) is also source-aligned and published, but JSON-RPC CONNECT is unsupported; neither has a site Flutter runtime receipt |
-| HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) | The full-SDK [overview, installation, and quickstart](/en/sdk/harmonyos) are published against the OHPM `@wukong/wkim 1.1.7` HAR and matching source, without a site install, compile, or device runtime receipt |
+| Browser / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK), [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) | The [JavaScript/Web tutorial](/en/sdk/javascript) has an executable snapshot; its [API Reference](/en/sdk/javascript/api-reference) and [Upgrade Guide](/en/sdk/javascript/upgrade) are published as well. The [EasySDK Web tutorial](/en/sdk/easy/javascript/getting-started) is source-aligned and published, but JSON-RPC CONNECT is unsupported and no runtime receipt exists |
+| iOS / Apple platforms | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK), [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | The full-SDK [entry](/en/sdk/ios), installation, quickstart, [Platform Capabilities](/en/sdk/ios/platform-capabilities), [API Reference](/en/sdk/ios/api-reference), and [Upgrade Guide](/en/sdk/ios/upgrade) are published against `1.1.1` source and distributed headers. The [EasySDK iOS tutorial](/en/sdk/easy/ios/getting-started) is also source-aligned and published, but JSON-RPC CONNECT is unsupported; neither has a site iOS runtime receipt |
+| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK), [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | The full-SDK [entry](/en/sdk/android), installation, quickstart, [Platform Capabilities](/en/sdk/android/platform-capabilities), [API Reference](/en/sdk/android/api-reference), and [Upgrade Guide](/en/sdk/android/upgrade) are published against `1.5.5` source and JitPack AAR. The [EasySDK Android tutorial](/en/sdk/easy/android/getting-started) is also source-aligned and published, but JSON-RPC CONNECT is unsupported; neither has a site Android runtime receipt |
+| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK), [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | The full-SDK [entry](/en/sdk/flutter), installation, quickstart, [Platform Capabilities](/en/sdk/flutter/platform-capabilities), [API Reference](/en/sdk/flutter/api-reference), and [Upgrade Guide](/en/sdk/flutter/upgrade) are published against the pub.dev `1.7.9` archive and matching source. The [EasySDK Flutter tutorial](/en/sdk/easy/flutter/getting-started) is also source-aligned and published, but JSON-RPC CONNECT is unsupported; neither has a site Flutter runtime receipt |
+| HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) | The full-SDK [entry](/en/sdk/harmonyos), installation, quickstart, [Platform Capabilities](/en/sdk/harmonyos/platform-capabilities), [API Reference](/en/sdk/harmonyos/api-reference), and [Upgrade Guide](/en/sdk/harmonyos/upgrade) are published against the OHPM `@wukong/wkim 1.1.7` HAR and matching source, without a site install, compile, or device runtime receipt |
 | Mini programs, UniApp, Node.js, or another runtime | Check the README, examples, and release notes for the exact version of both JavaScript candidates; [WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK) is deprecated and points to JSSDK | Existing UniApp projects should use the [retirement and migration guide](/en/sdk/uniapp) to pin `wukongimjssdk@1.3.5`; no matching runtime receipt exists here, so do not infer support from browser notes |
 
 ## Official source directory
@@ -79,36 +79,42 @@ If a candidate repository cannot answer one of these questions, build a small pr
 
 1. Run the locked TypeScript sample in [Installation](/en/sdk/javascript/installation).
 2. Use the [Quickstart](/en/sdk/javascript/quickstart) to connect Alice and Bob and prove online messaging plus offline recovery.
-3. Use the [Common Guides](/en/sdk/common-guides) to design identity, connection, conversations, push, and multi-device behavior.
-4. Close release gates with [Platform Capabilities](/en/sdk/javascript/platform-capabilities) and [Integration Acceptance](/en/guide/integration/acceptance).
+3. Use the [API Reference](/en/sdk/javascript/api-reference) to check the pinned `1.3.5` classes, configuration, events, messages, and errors.
+4. Before changing the pin, use the [Upgrade Guide](/en/sdk/javascript/upgrade) to record migration boundaries, the test matrix, and rollback point.
+5. Use the [Common Guides](/en/sdk/common-guides) to design identity, connection, conversations, push, and multi-device behavior.
+6. Close release gates with [Platform Capabilities](/en/sdk/javascript/platform-capabilities) and [Integration Acceptance](/en/guide/integration/acceptance).
 
 ### iOS
 
 1. Use [iOS Installation](/en/sdk/ios/installation) to pin CocoaPods `1.1.1` and review deployment-target and simulator-architecture limits.
 2. Use the [iOS Quickstart](/en/sdk/ios/quickstart) in two independent processes to prove Alice/Bob connection, send acknowledgement, and online receipt.
-3. Retain runtime evidence for your Xcode, device, and server revision instead of treating source/header alignment as this site's receipt.
-4. Before release, close raw-TCP, TLS, RECV Payload logging, and production-authentication blockers, then separately verify offline, conversations, push, and background behavior.
+3. Use [Platform Capabilities](/en/sdk/ios/platform-capabilities) to divide SDK and application ownership, check call sites against the [API Reference](/en/sdk/ios/api-reference), and follow the [Upgrade Guide](/en/sdk/ios/upgrade) before changing versions.
+4. Retain runtime evidence for your Xcode, device, and server revision instead of treating this source/header material as the site's receipt.
+5. Before release, close raw-TCP, TLS, RECV Payload logging, and production-authentication blockers, then separately verify offline, conversations, push, and background behavior.
 
 ### Android
 
 1. Use [Android Installation](/en/sdk/android/installation) to pin JitPack `1.5.5`, revision `662a559a50d181540a0448454beb57e939b0c50e`, and the AAR checksum.
 2. Use the [Android Quickstart](/en/sdk/android/quickstart) in two independent processes to prove the conversation-sync gate, local insert, SENDACK, and online receipt.
-3. Retain a runtime receipt for your own AGP, JDK, device, system, and server revision instead of treating source/AAR alignment as Android execution evidence.
-4. Before release, close raw-TCP/TLS, SharedPreferences-token, UID-SQLCipher-key, and Payload-logging blockers, then verify offline, push, background, and multi-device behavior separately.
+3. Use [Platform Capabilities](/en/sdk/android/platform-capabilities) to divide SDK and application ownership, check call sites against the [API Reference](/en/sdk/android/api-reference), and follow the [Upgrade Guide](/en/sdk/android/upgrade) before changing versions.
+4. Retain a runtime receipt for your own AGP, JDK, device, system, and server revision instead of treating this source/AAR material as Android execution evidence.
+5. Before release, close raw-TCP/TLS, SharedPreferences-token, UID-SQLCipher-key, and Payload-logging blockers, then verify offline, push, background, and multi-device behavior separately.
 
 ### Flutter
 
 1. Use [Flutter Installation](/en/sdk/flutter/installation) to pin pub.dev `wukongimfluttersdk 1.7.9`, the archive hash, and the application `pubspec.lock`.
 2. Use the [Flutter Quickstart](/en/sdk/flutter/quickstart) in two independent processes to prove the conversation-sync gate, local insert, SENDACK, and online receipt.
-3. Retain a runtime receipt for your own Flutter, Dart, target toolchain, device, and server revision instead of treating static analysis/macOS build evidence as Android, iOS, or macOS execution proof.
-4. Before release, close raw-TCP/TLS, sqflite/SharedPreferences data protection, Payload logging, reconnect-generation, and account-queue isolation blockers, then verify offline, push, background, and multi-device behavior separately.
+3. Use [Platform Capabilities](/en/sdk/flutter/platform-capabilities) to divide Dart and host-platform ownership, check call sites against the [API Reference](/en/sdk/flutter/api-reference), and follow the [Upgrade Guide](/en/sdk/flutter/upgrade) before changing versions.
+4. Retain a runtime receipt for your own Flutter, Dart, target toolchain, device, and server revision instead of treating this source material or static analysis/macOS build evidence as Android, iOS, or macOS execution proof.
+5. Before release, close raw-TCP/TLS, sqflite/SharedPreferences data protection, Payload logging, reconnect-generation, and account-queue isolation blockers, then verify offline, push, background, and multi-device behavior separately.
 
 ### HarmonyOS
 
 1. Use [HarmonyOS Installation](/en/sdk/harmonyos/installation) to pin OHPM `@wukong/wkim 1.1.7`, the HAR hash, application `oh-package-lock.json5`, and API 20.
 2. Use the [HarmonyOS Quickstart](/en/sdk/harmonyos/quickstart) in two independent processes to prove the conversation-sync gate, local insert, SENDACK, and online receipt.
-3. Retain a runtime receipt for your own DevEco, HarmonyOS SDK, ohpm/hvigor, device, and server revision instead of treating HAR/source alignment as install, compile, or device execution proof.
-4. Before release, close raw-TCP/TLS, RelationalStore `encrypt: false`, Payload/`hilog.info` logging, database-error propagation, and `sendingMsgMap` account-isolation blockers, then verify offline, push, background, and multi-device behavior separately.
+3. Use [Platform Capabilities](/en/sdk/harmonyos/platform-capabilities) to divide ArkTS and application ownership, check root exports and deep imports against the [API Reference](/en/sdk/harmonyos/api-reference), and follow the [Upgrade Guide](/en/sdk/harmonyos/upgrade) before changing versions.
+4. Retain a runtime receipt for your own DevEco, HarmonyOS SDK, ohpm/hvigor, device, and server revision instead of treating this HAR/source material as install, compile, or device execution proof.
+5. Before release, close raw-TCP/TLS, RelationalStore `encrypt: false`, Payload/`hilog.info` logging, database-error propagation, and `sendingMsgMap` account-isolation blockers, then verify offline, push, background, and multi-device behavior separately.
 
 ### UniApp migration
 

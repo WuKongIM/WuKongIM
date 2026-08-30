@@ -20,6 +20,10 @@ HarmonyOS platform capabilities, a complete API reference, and an upgrade guide
 remain planned. The deprecated UniApp repository is handled separately and must
 not be represented as a working standalone SDK by this phase.
 
+This is the Phase 22 publication boundary. Phase 24 later publishes those
+three chapters from the same pinned HAR and source while retaining the absence
+of OHPM install, DevEco compile, HAP, emulator, and device receipts.
+
 ## Exact package and source snapshot
 
 The tutorial targets the OHPM package `@wukong/wkim` `1.1.7`, published on

@@ -26,6 +26,10 @@ the body content of the existing documentation.
 - A seed manifest records permanent legacy redirects for a later hosting
   adapter.
 
+This list records the Phase 1 skeleton boundary, not the current publication
+state. Successive phases filled the maintained routes; Phase 24 leaves the
+current navigation registry with no planned entry.
+
 ## Menu domains
 
 - Guides: product overview, quick start, core concepts, integration, tutorials.

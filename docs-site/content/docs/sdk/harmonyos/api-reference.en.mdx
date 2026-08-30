@@ -1,0 +1,211 @@
+---
+title: HarmonyOS API Reference
+description: Look up @wukong/wkim 1.1.7 root exports, deep-path types, configuration, providers, managers, listeners, models, and result codes.
+---
+
+This reference is pinned to OHPM `@wukong/wkim 1.1.7` and matching source revision [`0c41810a1e0a5fc2936929d63ca32a50ffb11bec`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/tree/0c41810a1e0a5fc2936929d63ca32a50ffb11bec). It covers the public ArkTS surface used by applications without promising every database/protocol helper as a stable API.
+
+<Callout type="warn" title="API alignment is not runtime verification">
+  Methods and fields come from the pinned HAR and matching source. This site did not install or compile it with DevEco and has no HAP, device, or Alice/Bob runtime verification. An exposed API does not prove your server, device, provider, or Release build passed acceptance.
+</Callout>
+
+## Root export and deep imports
+
+Root `index.ets` exports only `WKIM`:
+
+```typescript
+import { WKIM } from '@wukong/wkim'
+```
+
+Other quickstart types come from deep imports in the pinned HAR:
+
+```typescript
+import {
+  WKChannel,
+  WKChannelType,
+  WKConnectStatus,
+  WKMsg,
+  WKSendMsgResult,
+  WKSendOptions,
+  WKSyncConversation
+} from '@wukong/wkim/src/main/ets/entity/Bean'
+import { WKTextContent } from '@wukong/wkim/src/main/ets/model/WKTextContent'
+import { WKLogger } from '@wukong/wkim/src/main/ets/common/WKLogger'
+```
+
+Those are `1.1.7` artifact facts, not a stable root API. Unpack/compile and audit them during every version upgrade.
+
+| Scope | Pinned source |
+| --- | --- |
+| Unified entry | [`WKIM.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/WKIM.ets) |
+| Configuration / providers | [`WKConfig.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/entity/WKConfig.ets), [`WKProvider.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/entity/WKProvider.ets) |
+| Core models and constants | [`Bean.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/entity/Bean.ets) |
+| Connection | [`ConnectionManager.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ConnectionManager.ets) |
+| Messages | [`MessageManager.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/MessageManager.ets) |
+
+## `WKIM` and `WKConfig`
+
+`WKIM.shared` is the process singleton. Initialize with:
+
+```typescript
+await WKIM.shared.init(uid, token, address, applicationContext)
+```
+
+`WKIM.shared.init` stores configuration, opens `${uid}.db`, and calls `MessageDB.shared.updateSendingToFail()`. The helper swallows database errors, so a fulfilled Promise alone does not prove storage is usable.
+
+| `WKConfig` field | `1.1.7` meaning |
+| --- | --- |
+| `context?: Context` | Application Context; pass it explicitly rather than deprecated global `getContext()` fallback |
+| `uid?` / `token?` | CONNECT identity supplied by a trusted business backend |
+| `address?` | One DNS/IPv4 `host:port`, not a URI |
+| `deviceFlagApp` | Defaults to `0=APP`; HarmonyOS uses `0` |
+| `protoVersion` | Defaults to `4` |
+| `heartbeatInterval` | Defaults to `30_000` ms |
+| `requestIPTimeout` | Defaults to `10_000` ms |
+| `debug` | Defaults to `true`, but pinned source never reads it |
+| `protocol` | Defaults to `WKProtocol` |
+| `provider` | Process-level `WKProvider` data source collection |
+
+The singleton exposes these getters:
+
+| API | Returns |
+| --- | --- |
+| `channelManager()` | `ChannelManager` |
+| `channelMemberManager()` | `ChannelMemberManager` |
+| `messageManager()` | `MessageManager` |
+| `cmdManager()` | `CMDManager` |
+| `connectionManager()` | `ConnectionManager` |
+| `conversationManager()` | `ConversationManager` |
+| `reminderManager()` | `ReminderManager` |
+
+## `WKProvider`
+
+All providers are optional fields on `WKIM.shared.config.provider`. There is no common cancellation handle. Install them once, bound them with timeouts, and fence completion to the active one-shot activation.
+
+| Field | Exact signature summary | Data owner |
+| --- | --- | --- |
+| `connectAddrCallback` | `() => Promise<string>` | Trusted backend returns DNS/IPv4 `host:port` |
+| `channelInfoCallback` | `(channelId, channelType) => Promise<WKChannel \| undefined>` | Channel profile |
+| `channelMemberCallback` | `(channelId, channelType, maxVersion) => Promise<WKChannelMember[]>` | Member delta/snapshot |
+| `channelMemberWithPageCallback` | `(channel, SyncChannelMemberOptions) => Promise<WKChannelMember[]>` | Member search/page |
+| `syncConversationCallback` | `(lastMsgSeqs, msgCount, version) => Promise<WKSyncConversation>` | Conversations, recent messages, unread, and version |
+| `syncConversationExtraCallback` | `(version) => Promise<WKConversationExtra[]>` | Conversation extras |
+| `syncMessageCallback` | `(channel, SyncOptions) => Promise<WKSyncChannelMsg>` | Channel history/offline messages |
+| `syncReminderCallback` | `(version) => Promise<WKReminder[]>` | Reminder delta |
+| `uploadAttachmentCallback` | `(msg) => Promise<[boolean, WKMsg]>` | Media upload and URL writeback |
+| `uploadMessageExtraCallback` | `(extra) => void` | Message-extra upload |
+
+SDK managers are not Product HTTP clients. A trusted backend owns provider APIs, authentication, pagination, access control, and deduplication. The client must not hold administrative credentials.
+
+## `ConnectionManager`
+
+| API | Contract |
+| --- | --- |
+| `addConnectStatusListener(listener)` | Observe `(status, reasonCode?, ConnectionInfo?)` |
+| `removeConnectStatusListener(listener)` | Pass the **same function object** used for registration |
+| `connection()` | Start connection; returns `void`, not readiness |
+| `disConnection(isLogout: boolean)` | Close; logout clears identity and closes DB but is not a complete process reset |
+
+Accept `connecting → success → syncing → syncCompleted`. `success` is CONNACK only. Require application provider delivery before accepting matching `WKConnectStatus.syncCompleted`.
+
+| `WKConnectStatus` | Value | Meaning |
+| --- | ---: | --- |
+| `fail` | `0` | Failure |
+| `success` | `1` | CONNACK success |
+| `kicked` | `2` | Terminal kick |
+| `syncing` | `3` | Conversation synchronization |
+| `connecting` | `4` | Connecting |
+| `noNetwork` | `5` | Terminate the bounded attempt |
+| `syncCompleted` | `6` | Send gate only when the app provider also completed |
+
+## `MessageManager`
+
+### Query, content, and send
+
+| API | Purpose |
+| --- | --- |
+| `registerMsgContent(contentType, factory)` | Register custom content; only text and image are registered by default |
+| `getMessageModel(jsonStr)` | Decode by payload `type`, with unknown fallback |
+| `send(content, channel)` | Convenience default-options entry; returns `void` |
+| `sendWithOption(content, channel, options)` | Insert locally, optionally upload, and dispatch; returns `void` |
+| `getOrSyncHistoryMessages(channel, ChannelMsgOptions)` | Read locally and invoke history sync if needed |
+| `syncChannelMsgs(channel, startSeq, endSeq, limit, pullMode)` | Invoke `syncMessageCallback` and save results |
+| `getMaxOrderSeqWithChannel(...)` / `getMaxMessageSeqWithChannel(...)` / `getMinMessageSeqWithChannel(...)` | Read channel order/message-sequence bounds; the minimum query is new in `1.1.7` |
+| `getMaxExtraVersion(...)` / `getMaxReactionSeqWithChannel(...)` | Read message-extra and reaction delta bounds; the reaction query is new in `1.1.7` |
+| `getOrderSeq(messageSeq)` / `getMessageOrderSeq(messageSeq, channelId, channelType)` | Calculate generic/channel-aware order sequence; the latter is new in `1.1.7` |
+| `getWithClientMsgNo(clientMsgNo)` / `getMsgReactions(messageId)` | Read a local message by client number / reactions by server message ID |
+| `updateMsgStatus` / `updateContent` / `updateViewedAt` / `updateLocalExtra` / `updateEdit` | Update local send state, content, viewed time, local extra, and edited content |
+| `saveRemoteExtras(list)` / `saveReactions(list)` | Persist synchronized message extras / reactions |
+| `clearWithChannel(...)` / `deleteWithClientMsgNo(...)` | Clear local channel messages / one local message |
+
+`WKSendOptions` contains `setting`, `header`, `expire`, and `topicId`. `WKMsgHeader` contains `noPersist`, `redDot`, and `syncOnce`; `noPersist=true` has no durable-insert claim.
+
+### Providers and listeners
+
+| Registration | Callback meaning | Removal |
+| --- | --- | --- |
+| `addInsertedListener(callback)` | Local insertion; application **single slot**, later registration overwrites it | No remove API |
+| `addSendStatusListener(listener)` | `(clientMsgSeq, messageId, messageSeq, reasonCode)` SENDACK | `removeSendStatusListener`, same function object |
+| `addNewMsgListener(listener)` | Online message on this connection | `removeNewMsgListener` |
+| `addRefreshListener(listener)` | Message content/status refresh | `removeRefreshListener` |
+| `addRefreshExtraListener(listener)` | Message-extra refresh | `removeRefreshExtraListener` |
+| `addRefreshReactionListener(listener)` | Reaction refresh | `removeRefreshReactionListener` |
+| `addDeletedListener(listener)` | One message deleted | `removeDeletedListener` |
+| `addClearChannelMsgListener(listener)` | Channel messages cleared | `removeClearChannelMsgListener` |
+
+For durable content, `sendWithOption` inserts locally and invokes the inserted listener before dispatch. Only a positive `clientSeq` is durable insertion; use the same sequence in the send-status callback for the network result.
+
+| `WKSendMsgResult` | Value |
+| --- | ---: |
+| `loading` | `0` |
+| `success` | `1` |
+| `fail` | `2` |
+| `noRelation` | `3` |
+| `blackList` | `4` |
+| `notOnWhiteList` | `13` |
+
+Only `WKSendMsgResult.success` is terminal success. Bob's `addNewMsgListener` proves online receipt separately; it cannot replace Alice's SENDACK or vice versa.
+
+## Channel, member, conversation, reminder, and CMD managers
+
+This table groups reader-facing methods reachable from the pinned HAR through `WKIM` getters. The manager files remain deep-path artifact surface, not long-term stable package-root exports.
+
+| Manager | `1.1.7` method surface | Ownership focus |
+| --- | --- | --- |
+| [`ConversationManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ConversationManager.ets) | `clearAllRedDot`, `updateRedDot`, `clearAll`, `delete`, `sync`, `syncExtra`, `updateMsgExtra`, `all`, `getWithChannel`, `getMsgExtraWithChannel`; `addRefreshListener` / `removeRefreshListener`, `addRefreshExtrasListener` / `removeRefreshExtrasListener`, `addDeletedListener` / `removeDeletedListener` | `updateMsgExtra`, `getWithChannel`, and `getMsgExtraWithChannel` are new in `1.1.7`; remove every listener with the same function object; missing provider can still lead to `syncCompleted` |
+| [`ChannelManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ChannelManager.ets) | `getChannel`, `updateName`, `updateRemark`, `getWithFollowAndStatus`, `updateLocalExtra`, `updateAvatarCacheKey`, `fetchChannelInfo`, `addOrUpdate` / `addOrUpdates`, refresh/avatar add/remove listeners, `setAvatarUpdated` | `getWithFollowAndStatus` is new in `1.1.7`; providers and listeners are process-singleton state |
+| [`ChannelMemberManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ChannelMemberManager.ets) | `sync`, `getMember`, `getMembers`, `getWithPageOrSearch`, `delete`, `addOrUpdate` / `addOrUpdates`, refresh/new/deleted add/remove listeners | The product owns paging; pair every listener removal |
+| [`ReminderManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ReminderManager.ets) | `get`, `sync`, `getMaxVersion`, `save` | `addRefreshListener` / `removeRefreshListener` |
+| [`CMDManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/CMDManager.ets) | `handle`, `handleWithChannel` | `addCmdListener` / `removeCmdListener` |
+
+ArkTS methods not marked `private` are also callable in this pinned source, so a complete audit will encounter these implementation-orchestration entry points:
+
+| Manager | Source-public methods that applications should not call directly |
+| --- | --- |
+| `ConversationManager` | `setRefresh`, `setRefreshExtras`, `setDeleted` |
+| `MessageManager` | `setSendStatus`, `setRefreshReactions`, `setRefreshExtras`, `pushNewMsgs`, `generateClientMsgNo`, `parsingMsg`, `updateMsgSendStatus` |
+| `ConnectionManager` | `encodeVariableLength`, `sendPacket` |
+
+These methods connect the SDK's transport, persistence, synchronization, and event-dispatch paths. They are manager deep-path artifact facts, not stable package-root product contracts. Applications should use the `WKIM` connection entry, `MessageManager` send/query surface, and listeners rather than injecting acknowledgements, refreshes, or inbound messages.
+
+## Models and content
+
+- `WKChannel(channelId, channelType)`; common constants are `WKChannelType.personal = 1` and `group = 2`.
+- `WKMsg` combines `messageId` / `messageSeq`, `clientMsgNo` / `clientSeq`, channel, content, status, extras, and reactions.
+- `WKMessageContent` provides `encodeJson()`, `decodeJson()`, `displayText()`, and `searchableWord()`.
+- `MessageManager` registers `WKTextContent` and `WKImageContent` by default. `WKVoiceContent` and `WKVideoContent` exist in the HAR but require explicit registration and upload flow.
+- `WKSyncConversation` / `WKSyncConvMsg` carry conversation synchronization; `WKSyncChannelMsg` carries a channel page.
+- `SyncOptions` has start/end sequence, limit, and pull mode; `SyncChannelMemberOptions` has search, page, and limit.
+
+Models are mutable and coupled to the process singleton/local store. Copy application-owned immutable snapshots across UI lifecycles or asynchronous attempts and reject stale activations.
+
+## Security and evidence boundary
+
+- Raw `TCPSocket` has no authenticated TLS.
+- Direct `hilog.info` remains outside `WKLogger` and can expose channel/client identifiers and Payload.
+- `RelationalStore` uses `securityLevel: S1` and `encrypt: false`.
+- Database-open failure can be logged without propagation.
+- `sendingMsgMap`, providers, the inserted callback, and some listeners lack complete logout cleanup.
+- Timeout, failure, kick, uncertain SENDACK, or identity change requires a process restart.
+
+Complete the [Quickstart](/en/sdk/harmonyos/quickstart) first. Before replacing an installed HAR, follow the [Upgrade Guide](/en/sdk/harmonyos/upgrade) and preserve lockfile, deep-import, database, and device evidence.

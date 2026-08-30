@@ -37,8 +37,11 @@ Phase 15 publishes matching Chinese and English MDX for these routes:
 - `/sdk/easy/javascript/getting-started`
 
 The SDK landing page and chooser link these routes. The existing full
-WuKongIMJSSDK golden path remains separate. Full WuKongIMSDK tutorials for
-iOS, Android, Flutter, HarmonyOS, and other runtimes remain planned.
+WuKongIMJSSDK golden path remains separate. At the Phase 15 boundary, full
+WuKongIMSDK tutorials for iOS, Android, Flutter, HarmonyOS, and other runtimes
+remained planned. Phases 19 through 24 later published the maintained full-SDK
+platform paths and reference chapters without adding device/runtime receipts
+or widening the JavaScript/Web executable-compatibility claim.
 
 Phase 18 subsequently moved this group back to planned publication because the
 current Product Gateway does not support EasySDK JSON-RPC CONNECT as a client

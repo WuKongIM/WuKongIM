@@ -101,6 +101,11 @@ These routes remain planned:
 WKProto, TCP frames, and JSON-RPC must remain protocol-specific documentation;
 they must not be modeled as fake HTTP paths in an OpenAPI contract.
 
+This is the Phase 17 boundary. Phase 18 later publishes the byte-layout,
+encryption, explicitly unsupported experimental JSON-RPC Schema, and complete
+specification routes after their separate source contracts were reconciled;
+the deferred list above is not current publication status.
+
 ## Authoritative sources
 
 - Product HTTP route, DTO mapping, compatibility errors, and tests:
