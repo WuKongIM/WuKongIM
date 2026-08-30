@@ -1,9 +1,13 @@
 ---
 title: 5 分钟集成 iOS
-description: 锁定 WuKongEasySDK iOS v1.0.3，在 Swift 应用中完成连接、事件监听、单聊发送与资源清理。
+description: 对照 WuKongEasySDK iOS v1.0.3 固定源码学习 Swift 接入 API；当前 Product Gateway 不支持其 JSON-RPC CONNECT。
 ---
 
-本页把旧版“5 分钟集成”整理成一个可验收的 iOS 最小闭环：先由业务后端提供连接材料，再让 Alice 与 Bob 分别连接、互发一条消息，最后正确移除监听器。
+本页把旧版“5 分钟集成”整理成 iOS 源码 API 导读和修复后的验收骨架：业务后端提供连接材料，Alice 与 Bob 分别连接、互发一条消息，最后正确移除监听器。
+
+<Callout type="error" title="当前 Product Gateway 不支持这条连接路径">
+  当前 Product Gateway 不支持将此版本 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。因此本页是固定源码的 API 导读和修复后的验收骨架，不是当前可执行的快速接入。必须先修复 Gateway/SDK 运行路径并通过 Alice/Bob 端到端闭环，才能宣称运行成功。
+</Callout>
 
 “安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 iOS EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)。旧页只提供学习路径；下面的方法签名、版本与限制以固定的 `v1.0.3` 源码和分发产物为准。
 

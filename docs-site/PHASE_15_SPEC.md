@@ -4,13 +4,14 @@
 
 Publish a reader-first WuKongEasySDK path for iOS, Android, Flutter, and Web.
 The legacy tutorials supply the learning sequence, while current official tags,
-package registries, and public source define the API facts. The result helps an
-integrator reach an Alice/Bob messaging proof without presenting source review
-as runtime compatibility evidence.
+package registries, and public source define the API facts. The result gives an
+integrator a pinned-source API walkthrough and post-fix Alice/Bob acceptance plan
+without presenting the path as currently executable or source review as runtime
+compatibility evidence.
 
 The four platform labels retain the familiar five-minute tutorial shape. That
-label describes a short happy-path walkthrough, not an installation-time or
-production-readiness guarantee.
+label describes a short source-reading path, not an executable quickstart,
+installation-time promise, or production-readiness guarantee.
 
 ## Audience and completion outcome
 
@@ -18,11 +19,11 @@ The primary reader owns an existing application and trusted product backend.
 After this phase, that reader can:
 
 1. decide whether EasySDK's thin JSON-RPC model fits the application;
-2. install an exact released package for one of the four platforms;
-3. obtain UID, token, and WebSocket routing material from a trusted backend;
-4. initialize, register listeners, connect, send, receive, and clean up with
-   the public API of the pinned source snapshot;
-5. validate the integration with separate Alice and Bob identities; and
+2. identify the exact released package for one of the four platforms;
+3. model UID, token, and WebSocket routing material from a trusted backend;
+4. follow how the pinned public API initializes, registers listeners, connects,
+   sends, receives, and cleans up without claiming that it runs against current v3;
+5. prepare a post-fix validation with separate Alice and Bob identities; and
 6. identify platform-specific blockers that must be closed before adoption.
 
 ## Published routes
@@ -40,9 +41,12 @@ WuKongIMJSSDK golden path remains separate. Full WuKongIMSDK tutorials for
 iOS, Android, Flutter, HarmonyOS, and other runtimes remain planned.
 
 Phase 18 subsequently moved this group back to planned publication because the
-current Product Gateway does not implement the EasySDK JSON-RPC CONNECT path.
-The files remain maintained source-aligned tutorials, but they must stay out of
-public indexes until runtime support and executable acceptance exist.
+current Product Gateway does not support EasySDK JSON-RPC CONNECT as a client
+integration path. After the bilingual content and source calibration were
+completed, the five routes were republished as source-aligned tutorials. They
+enter public documentation indexes, but remain explicitly unverified and do
+not become an executable compatibility receipt; runtime support and acceptance
+are still required before adopting these SDK versions against current v3.
 
 ## Source snapshots
 
@@ -67,13 +71,14 @@ snapshots. They do not prove that each package has completed this repository's
 real server/browser acceptance scenario.
 
 Only the existing `wukongimjssdk@1.3.5` JavaScript/Web golden path may claim the
-site's executable compatibility evidence. EasySDK pages must link readers to
-their own Alice/Bob acceptance and must not alter `compatibility.json`, the
+site's executable compatibility evidence. EasySDK pages must frame Alice/Bob
+steps as post-fix acceptance and must not alter `compatibility.json`, the
 golden-path receipt schema, or Phase 14 capability statuses.
 
 ## Shared tutorial flow
 
-Each platform page must cover the same integration loop in native idiom:
+Each platform page must cover the same source walkthrough and post-fix
+integration loop in native idiom:
 
 1. prerequisites and exact installation;
 2. trusted-backend ownership of UID, token, and WebSocket URL;
@@ -84,6 +89,10 @@ Each platform page must cover the same integration loop in native idiom:
 7. listener removal, disconnect, and lifecycle cleanup;
 8. an Alice/Bob acceptance checklist; and
 9. platform-specific troubleshooting and adoption gates.
+
+This sequence is not currently executable against the Product Gateway. Every
+page must say that JSON-RPC CONNECT runtime support and the required SDK fixes
+come before the Alice/Bob checklist can be run.
 
 The client never invents its own production UID or token. Browser clients do
 not call Product HTTP management endpoints directly; a trusted backend or BFF
@@ -143,7 +152,7 @@ The fast gate must cover:
 - exact source tag, revision, and package pin per platform;
 - absence of floating install versions;
 - explicit source-aligned-versus-runtime-evidence language;
-- trusted-backend identity and Alice/Bob acceptance;
+- trusted-backend identity and a clearly post-fix Alice/Bob acceptance plan;
 - listener removal, disconnect, and lifecycle cleanup;
 - bounded connection waits with cleanup after timeout;
 - the aligned device values and remaining iOS/Android payload contracts,

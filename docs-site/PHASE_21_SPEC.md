@@ -166,5 +166,6 @@ parser hardening, and separate offline/push/background/device receipts.
 - Discovery and compatibility pages may call the Flutter path source/archive
   aligned and macOS-build checked, but must not call it Android/iOS/runtime or
   production verified.
-- EasySDK remains planned because Product Gateway JSON-RPC CONNECT is still
-  unsupported.
+- EasySDK was planned at this phase because Product Gateway JSON-RPC CONNECT
+  was unsupported. A later documentation-only change published the
+  source-aligned tutorials without claiming runtime compatibility.

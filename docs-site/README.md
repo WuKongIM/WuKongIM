@@ -50,9 +50,9 @@ identity, leaves the tested cluster source and production readiness
 `not_assessed`, and cannot replace the protected clean-HEAD publication
 receipt. Documentation quality passes only when the bilingual pages participate
 in the browser run. Phase 15 introduced bilingual, source-aligned EasySDK
-scaffolds for iOS, Android, Flutter, and Web. Phase 18 keeps those routes planned
-because the current Product Gateway rejects their JSON-RPC CONNECT path; source
-pins remain review material, not executable compatibility.
+tutorials for iOS, Android, Flutter, and Web. They are published as reviewable
+documentation, while the current Product Gateway still rejects their JSON-RPC
+CONNECT path; source pins remain review material, not executable compatibility.
 Phase 16 publishes a separate, non-exhaustive management OpenAPI contract:
 ten reviewed Channel mutations and six canonical Conversation operations. It records the missing
 built-in authentication boundary, exact compatibility error shapes, bounded
@@ -121,9 +121,10 @@ Phase 14 also checks capability-status drift, exact local-report shape,
 fail-closed write ordering, observed SDK identity, and the separation between
 the harness, tested cluster, documentation quality, compatibility smoke, and
 production readiness. Phase 15 also checks exact EasySDK package/source pins,
-source scaffolds, listener cleanup, and platform-specific adoption boundaries;
-navigation keeps them planned until JSON-RPC runtime verification exists. Relevant
-sample or runtime-contract changes select the real Chromium integration check.
+source tutorials, listener cleanup, and platform-specific adoption boundaries;
+navigation publishes the content while every page keeps JSON-RPC runtime support
+and executable verification explicitly unclaimed. Relevant sample or
+runtime-contract changes select the real Chromium integration check.
 Phase 16 also checks the exact management-operation whitelist, explicit route
 deferrals, bilingual operation-per-page generation grouped by tag, nested Conversation schemas, search
 and LLM output, and continued separation from the golden receipt.

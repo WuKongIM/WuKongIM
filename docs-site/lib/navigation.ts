@@ -362,41 +362,41 @@ function publishedUniAppMigrationGroup(): NavigationGroup {
   );
 }
 
-function plannedEasySDKGroup(): NavigationGroup {
-  return plannedGroup(
+function publishedEasySDKGroup(): NavigationGroup {
+  return publishedGroup(
     'easy',
     'WuKongEasySDK',
     'WuKongEasySDK',
-    '当前 Product Gateway 不支持 EasySDK 使用的 JSON-RPC CONNECT；修复并完成端到端验证后再发布。',
-    'The Product Gateway does not currently support EasySDK JSON-RPC CONNECT; publish only after a runtime fix and end-to-end verification.',
+    '源码校对的 iOS、Android、Flutter 与 Web 教程已发布；当前 Product Gateway 仍不支持这些版本的 JSON-RPC CONNECT，因此不构成运行兼容性凭据。',
+    'Source-aligned iOS, Android, Flutter, and Web tutorials are published; the current Product Gateway still does not support JSON-RPC CONNECT for these versions, so they are not runtime compatibility receipts.',
     [
-      plannedPage(
+      publishedPage(
         'ios/getting-started',
         '5 分钟集成 iOS',
         '5-minute iOS integration',
-        'JSON-RPC CONNECT 尚未受支持；保留 v1.0.3 源码评估，等待运行时验证。',
-        'JSON-RPC CONNECT is unsupported; retain the v1.0.3 source review until runtime verification exists.',
+        '已发布 v1.0.3 源码教程；JSON-RPC CONNECT 尚未受支持，也没有运行时验证。',
+        'Published as a v1.0.3 source-aligned tutorial; JSON-RPC CONNECT remains unsupported and runtime verification is absent.',
       ),
-      plannedPage(
+      publishedPage(
         'android/getting-started',
         '5 分钟集成 Android',
         '5-minute Android integration',
-        'JSON-RPC CONNECT 尚未受支持；保留 v1.0.3 源码评估，等待运行时验证。',
-        'JSON-RPC CONNECT is unsupported; retain the v1.0.3 source review until runtime verification exists.',
+        '已发布 v1.0.3 源码教程；JSON-RPC CONNECT 尚未受支持，也没有运行时验证。',
+        'Published as a v1.0.3 source-aligned tutorial; JSON-RPC CONNECT remains unsupported and runtime verification is absent.',
       ),
-      plannedPage(
+      publishedPage(
         'flutter/getting-started',
         '5 分钟集成 Flutter',
         '5-minute Flutter integration',
-        'JSON-RPC CONNECT 尚未受支持；保留 v1.0.4 源码评估，等待运行时验证。',
-        'JSON-RPC CONNECT is unsupported; retain the v1.0.4 source review until runtime verification exists.',
+        '已发布 v1.0.4 源码教程；JSON-RPC CONNECT 尚未受支持，也没有运行时验证。',
+        'Published as a v1.0.4 source-aligned tutorial; JSON-RPC CONNECT remains unsupported and runtime verification is absent.',
       ),
-      plannedPage(
+      publishedPage(
         'javascript/getting-started',
         '5 分钟集成 Web',
         '5-minute Web integration',
-        'JSON-RPC CONNECT 尚未受支持；保留 v2.0.2 源码评估，等待运行时验证。',
-        'JSON-RPC CONNECT is unsupported; retain the v2.0.2 source review until runtime verification exists.',
+        '已发布 v2.0.2 源码教程；JSON-RPC CONNECT 尚未受支持，也没有运行时验证。',
+        'Published as a v2.0.2 source-aligned tutorial; JSON-RPC CONNECT remains unsupported and runtime verification is absent.',
       ),
     ],
   );
@@ -989,7 +989,7 @@ export const domains: DocumentationDomain[] = [
       ),
     ],
     groups: [
-      plannedEasySDKGroup(),
+      publishedEasySDKGroup(),
       publishedGroup(
         'common-guides',
         '公共指南',

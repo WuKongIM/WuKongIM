@@ -28,8 +28,9 @@ The following iOS routes remain planned and excluded from indexed output:
 - `/sdk/ios/upgrade`
 
 Android, Flutter, UniApp, and HarmonyOS full-SDK tutorials remain planned in
-this phase. EasySDK remains planned because its JSON-RPC CONNECT path is still
-unsupported by the Product Gateway.
+this phase. EasySDK was also planned at this phase because its JSON-RPC CONNECT
+path was unsupported by the Product Gateway; a later documentation-only change
+published the source-aligned tutorials without claiming runtime compatibility.
 
 ## Exact source and artifact snapshot
 

@@ -80,7 +80,9 @@ describe('EasySDK tutorial content contract', () => {
       expect(specification).toContain(platform.tag);
       expect(specification).toContain(platform.revision);
     }
-    expect(specification).toContain('Phase 18 subsequently moved this group back to planned');
+    expect(specification).toContain('republished as source-aligned tutorials');
+    expect(specification).toContain('post-fix Alice/Bob acceptance plan');
+    expect(specification).toContain('not currently executable');
   });
 
   test('retains a bilingual source scaffold with exact platform snapshots', async () => {
@@ -106,6 +108,10 @@ describe('EasySDK tutorial content contract', () => {
     expect(en).toContain('Source alignment is not runtime verification');
     expect(zh).toContain('“5 分钟”描述的是阅读路径');
     expect(en).toContain('“5 minutes” describes the shape of the path');
+    expect(zh).toContain('Gateway/SDK 修复后再用 Alice 和 Bob 验收');
+    expect(en).toContain('After the Gateway/SDK path is fixed, accept with Alice and Bob');
+    expect(zh).not.toContain('选择上方平台完成第一条消息');
+    expect(en).not.toContain('Choose a platform above and send the first message');
   });
 
   test('links the exact legacy learning paths while keeping current source authoritative', async () => {
@@ -135,7 +141,7 @@ describe('EasySDK tutorial content contract', () => {
     }
   });
 
-  test('keeps published SDK selectors honest about the unsupported JSON-RPC path', async () => {
+  test('publishes tutorial discovery while keeping the unsupported JSON-RPC path explicit', async () => {
     const pages = await Promise.all([
       doc('sdk/index.mdx'),
       doc('sdk/index.en.mdx'),
@@ -147,8 +153,8 @@ describe('EasySDK tutorial content contract', () => {
     for (const page of pages) {
       expect(page).toContain('JSON-RPC CONNECT');
     }
-    expect(pages[0]).toContain('教程维持规划状态');
-    expect(pages[1]).toContain('tutorials remain planned');
+    expect(pages[0]).toContain('教程已发布');
+    expect(pages[1]).toContain('tutorials are published');
   });
 
   test('keeps every platform tutorial pinned, lifecycle-safe, and explicit about evidence', async () => {
@@ -182,6 +188,20 @@ describe('EasySDK tutorial content contract', () => {
       expect(zh).toMatch(/Bob/u);
       expect(en).toMatch(/Alice/u);
       expect(en).toMatch(/Bob/u);
+    }
+  });
+
+  test('warns direct readers that current Product Gateway cannot run EasySDK CONNECT', async () => {
+    for (const platform of platforms) {
+      const [zh, en] = await Promise.all([
+        content(`${platform.path}.mdx`),
+        content(`${platform.path}.en.mdx`),
+      ]);
+
+      expect(zh).toContain('JSON-RPC CONNECT');
+      expect(zh).toContain('当前 Product Gateway 不支持');
+      expect(en).toContain('JSON-RPC CONNECT');
+      expect(en).toContain('The current Product Gateway does not support');
     }
   });
 

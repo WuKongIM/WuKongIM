@@ -1,9 +1,13 @@
 ---
 title: 5 分钟集成 Android
-description: 锁定 WuKongEasySDK Android v1.0.3，在 Kotlin 应用中完成安装、连接、事件监听、单聊发送与资源清理。
+description: 对照 WuKongEasySDK Android v1.0.3 固定源码学习 Kotlin 接入 API；当前 Product Gateway 不支持其 JSON-RPC CONNECT。
 ---
 
-本页沿用旧版教程的“安装 → 初始化 → 监听 → 连接 → 发送”顺序，同时补上精确版本、Activity 生命周期、双端验收与当前 v3 协议边界。
+本页沿用旧版教程的“安装 → 初始化 → 监听 → 连接 → 发送”顺序，将其整理成 Android 源码 API 导读和修复后的验收骨架，并补上精确版本、Activity 生命周期与当前 v3 协议边界。
+
+<Callout type="error" title="当前 Product Gateway 不支持这条连接路径">
+  当前 Product Gateway 不支持将此版本 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。因此本页是固定源码的 API 导读和修复后的验收骨架，不是当前可执行的快速接入。必须先修复 Gateway/SDK 运行路径并通过 Alice/Bob 端到端闭环，才能宣称运行成功。
+</Callout>
 
 这一学习顺序参考[旧版 Android EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)。旧页只提供阅读路径；下面的包坐标、方法签名、版本与限制以固定的 `v1.0.3` 源码和 Maven Central 产物为准。
 

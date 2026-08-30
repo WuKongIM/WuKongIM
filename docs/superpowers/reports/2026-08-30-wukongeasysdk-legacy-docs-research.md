@@ -215,7 +215,7 @@ Source: [旧站 Web 页](https://docs.githubim.com/zh/sdk/easy/javascript/gettin
 - [Flutter CONNECT 参数](https://github.com/WuKongIM/WuKongEasySDK-Flutter/blob/6179251b49414401fe0eac4bfa3fec3f9b13a9fc/lib/src/core/wukong_config.dart#L47-L56)；
 - [Web CONNECT 参数](https://github.com/WuKongIM/WuKongEasySDK-JS/blob/c59c80551944c9e5d9b4a902ebd2629d3defb2e6/src/index.ts#L979-L988)。
 
-因此，“codec 能解码 CONNECT”不等于“这四个 SDK tag 能连接默认产品 Gateway”。在 SDK 完成客户端密钥协商、并对精确服务端组合做完 Alice/Bob 端到端验收前，EasySDK 页应维持“源码对齐/规划中”而不是可执行快速接入。
+因此，“codec 能解码 CONNECT”不等于“这四个 SDK tag 能连接默认产品 Gateway”。EasySDK 页面可以作为“源码对齐、已发布”的教程供读者查阅，但在 SDK 完成客户端密钥协商、并对精确服务端组合做完 Alice/Bob 端到端验收前，必须明确标记为不可执行的当前接入路径，不能形成兼容性凭据。
 
 ### SEND / RECV 和字段形态
 

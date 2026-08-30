@@ -310,7 +310,7 @@ describe('documentation navigation contract', () => {
     expect(uniapp?.description.en).toContain('deprecated');
   });
 
-  test('keeps EasySDK planned while Product JSON-RPC CONNECT is unsupported', () => {
+  test('publishes source-aligned EasySDK tutorials without claiming runtime support', () => {
     const sdk = domains.find((domain) => domain.key === 'sdk');
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
@@ -321,12 +321,12 @@ describe('documentation navigation contract', () => {
       ['javascript/getting-started', 'v2.0.2'],
     ]);
 
-    expect(easy?.status).toBe('planned');
+    expect(easy?.status).toBe('published');
     expect(easy?.children.map((page) => [page.slug, page.status])).toEqual([
-      ['ios/getting-started', 'planned'],
-      ['android/getting-started', 'planned'],
-      ['flutter/getting-started', 'planned'],
-      ['javascript/getting-started', 'planned'],
+      ['ios/getting-started', 'published'],
+      ['android/getting-started', 'published'],
+      ['flutter/getting-started', 'published'],
+      ['javascript/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
       const snapshot = snapshots.get(page.slug);
@@ -341,7 +341,7 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy/flutter/getting-started',
       '/en/sdk/easy/javascript/getting-started',
     ]) {
-      expect(published).not.toContain(url);
+      expect(published).toContain(url);
     }
     expect(getNavigationEntry('en', 'sdk', ['easy', 'ios', 'getting-started'])?.slugs).toEqual([
       'easy',
@@ -494,6 +494,11 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk`,
         `/${locale}/sdk/choose-sdk`,
         `/${locale}/sdk/compatibility`,
+        `/${locale}/sdk/easy`,
+        `/${locale}/sdk/easy/ios/getting-started`,
+        `/${locale}/sdk/easy/android/getting-started`,
+        `/${locale}/sdk/easy/flutter/getting-started`,
+        `/${locale}/sdk/easy/javascript/getting-started`,
         `/${locale}/sdk/common-guides`,
         `/${locale}/sdk/common-guides/identity-and-token`,
         `/${locale}/sdk/common-guides/initialization-and-connection`,
@@ -672,6 +677,16 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/integration/acceptance.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/choose-sdk.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/choose-sdk.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/ios/getting-started.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/ios/getting-started.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/android/getting-started.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/android/getting-started.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/flutter/getting-started.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/flutter/getting-started.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/javascript/getting-started.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/javascript/getting-started.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);

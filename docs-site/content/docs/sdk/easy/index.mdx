@@ -1,16 +1,16 @@
 ---
 title: WuKongEasySDK
-description: 用更小的客户端 API 在 iOS、Android、Flutter 和 Web 上完成连接、消息收发与生命周期清理。
+description: 阅读 iOS、Android、Flutter 和 Web 的固定 EasySDK 源码 API 与修复后验收流程；当前 Product Gateway 不支持 JSON-RPC CONNECT。
 ---
 
-WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业务状态的应用。它通过 WebSocket JSON-RPC 连接 WuKongIM Gateway，把第一次接入收敛为四件事：取得连接材料、初始化 SDK、监听事件、发送一条消息。
+WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业务状态的应用。本组教程按固定源码说明它如何通过 WebSocket JSON-RPC 建模连接、事件与发送；这些 API 形态不表示当前 Product Gateway 已能运行这条路径。
 
 <Callout type="warn" title="源码校对不等于本站运行验证">
   本组教程按四个官方仓库的精确发布 tag 与源码 revision 校对，并与当前服务端 JSON-RPC 结构核对；本站没有为这些 EasySDK 版本签发可执行兼容性凭据。当前唯一具有本站完整客户端场景证据的仍是[版本与兼容性](/zh/sdk/compatibility)中记录的 WuKongIMJSSDK Web 黄金路径。
 </Callout>
 
 <Callout type="error" title="当前 v3 还不能直接运行这条路径">
-  Product Gateway 当前不支持将 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径，因此这组教程继续保持“规划中”，不进入搜索、Sitemap 或兼容性凭据。下文是对固定源码的接入说明，不是当前服务端的可用性承诺。
+  Product Gateway 当前不支持将 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。这组源码校对教程现已发布并进入搜索与 Sitemap，但“文档已发布”不等于“SDK 可连接当前服务端”，也不构成兼容性凭据。下文是对固定源码的接入说明，不是当前服务端的可用性承诺。
 </Callout>
 
 “5 分钟”描述的是阅读路径：安装、初始化、监听、连接和发送。它不是完成时间承诺，也不包含业务账号、授权、群成员、离线同步、推送、容量与上线验收。
@@ -34,7 +34,7 @@ WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业
 | 发送结果与实时消息接收 | 离线消息同步、会话与未读、推送和多设备策略 |
 | 有界自动重连能力 | TLS/WSS、限流、容量、监控、升级与回滚证据 |
 
-EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服务端对本次发送给出了结果；它不等于对方已经在线收到、已经展示或已经处理。继续阅读[消息收发](/zh/sdk/common-guides/messaging)，把发送确认、实时接收和业务完成分开建模。
+EasySDK 不是聊天 UI，也不是完整产品后端。在 Gateway/SDK 路径修复并通过端到端验证后，`send` 返回表示服务端对本次发送给出了结果；它仍不等于对方已经在线收到、已经展示或已经处理。继续阅读[消息收发](/zh/sdk/common-guides/messaging)，把发送确认、实时接收和业务完成分开建模。
 
 ## 同一流程，不同的生命周期归属
 
@@ -60,9 +60,9 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 | [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) |
 | [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) |
 
-教程故意锁定这些版本，不使用版本范围或 `latest`。准备升级时，先在独立分支重复 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
+教程故意锁定这些版本，不使用版本范围或 `latest`。Gateway/SDK 运行路径修复后，先在独立分支完成 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
 
-## 开始前准备连接材料
+## 为修复后的验收准备连接材料
 
 客户端不应该自己授予身份。用户先登录你的产品，受信业务后端再返回本次连接所需的最小材料：
 
@@ -89,9 +89,9 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
   当前四个平台的固定源码都存在可能泄露 Token 或 Payload 的日志路径：Android `v1.0.3` 的部分解析错误日志不受 `debugLogging` 控制，iOS `v1.0.3` 的 JSON 日志配置开关没有真正拦截输出，Flutter `v1.0.4` 与 Web `v2.0.2` 会记录完整请求或响应。各平台教程列出了具体边界。完成修复、构建产物复核与脱敏测试前，不得通过生产门禁。
 </Callout>
 
-## 用 Alice 和 Bob 验收
+## Gateway/SDK 修复后再用 Alice 和 Bob 验收
 
-每个平台都采用同一个最小闭环：
+只有在 Gateway/SDK 运行路径完成修复后，才执行下面的最小闭环：
 
 1. 为 Alice 和 Bob 分别取得 UID、短期 Token 与 WebSocket 地址；
 2. 建立两个独立 SDK 实例或两个独立应用进程；
@@ -101,8 +101,8 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 6. 反向由 Bob 向 Alice 发送，再验证一次；
 7. 页面、Activity、Widget 或应用退出时移除监听器并断开连接。
 
-这个闭环只证明当前环境的连接和在线消息。离线恢复、会话、推送、多设备、重连边界和生产安全仍要单独验收。
+完成运行修复后，这个闭环也只证明被测环境的连接和在线消息。离线恢复、会话、推送、多设备、重连边界和生产安全仍要单独验收。
 
 ## 下一步
 
-选择上方平台完成第一条消息，然后继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)和[上线验收](/zh/guide/integration/acceptance)。如果需要本地消息库、会话、未读和更完整的平台 API，请回到[选择 SDK](/zh/sdk/choose-sdk)评估 WuKongIMSDK 系列。
+选择上方平台阅读固定源码 API、生命周期和采用阻断项。完成 Gateway/SDK 运行修复后，再按平台页执行 Alice/Bob 验收，并继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)和[上线验收](/zh/guide/integration/acceptance)。如果需要本地消息库、会话、未读和更完整的平台 API，请回到[选择 SDK](/zh/sdk/choose-sdk)评估 WuKongIMSDK 系列。

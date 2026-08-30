@@ -1,9 +1,13 @@
 ---
 title: 5-minute Flutter integration
-description: Pin WuKongEasySDK Flutter v1.0.4 and complete initialization, connection, messaging, and State lifecycle cleanup.
+description: Walk through the pinned WuKongEasySDK Flutter v1.0.4 Dart APIs; the current Product Gateway does not support its JSON-RPC CONNECT path.
 ---
 
-This page joins the minimal Flutter EasySDK flow inside one `StatefulWidget`: obtain connection material from the product backend, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
+This page joins the Flutter EasySDK source APIs and post-fix acceptance scaffold inside one `StatefulWidget`: obtain connection material, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
+
+<Callout type="error" title="The current Product Gateway does not support this connection path">
+  The current Product Gateway does not support this EasySDK version's JSON-RPC CONNECT as a client integration path. This page is a pinned-source API walkthrough and a post-fix acceptance scaffold, not a currently executable quickstart. Do not claim a successful run until the Gateway/SDK path is fixed and the Alice/Bob loop passes end to end.
+</Callout>
 
 The install → initialize → listen → connect → send reading order follows the [legacy Flutter EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started). The old page is not API evidence; the pinned `v1.0.4` source and distribution govern the method names, version, and lifecycle boundaries below.
 

@@ -1,9 +1,13 @@
 ---
 title: 5 分钟集成 Web
-description: 锁定 easyjssdk v2.0.2，在浏览器应用中通过业务 BFF 完成连接、事件监听、消息发送与页面清理。
+description: 对照 easyjssdk v2.0.2 固定源码学习浏览器接入 API；当前 Product Gateway 不支持其 JSON-RPC CONNECT。
 ---
 
-本页只覆盖浏览器接入。浏览器先向你的业务 BFF 请求当前用户的连接材料，再使用 EasyJSSDK 建立 WebSocket JSON-RPC 连接；它从不直接持有 Product HTTP 管理凭据。
+本页只覆盖浏览器源码 API 和修复后的验收骨架。浏览器先向业务 BFF 请求当前用户的连接材料，再由 EasyJSSDK 尝试建立 WebSocket JSON-RPC 连接；它从不直接持有 Product HTTP 管理凭据。
+
+<Callout type="error" title="当前 Product Gateway 不支持这条连接路径">
+  当前 Product Gateway 不支持将此版本 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。因此本页是固定源码的 API 导读和修复后的验收骨架，不是当前可执行的快速接入。必须先修复 Gateway/SDK 运行路径并通过 Alice/Bob 端到端闭环，才能宣称运行成功。
+</Callout>
 
 “安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 Web EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started)。旧页不作为 API 证据；下面的方法名、参数与生命周期边界以固定的 `v2.0.2` 源码和 npm 产物为准。
 

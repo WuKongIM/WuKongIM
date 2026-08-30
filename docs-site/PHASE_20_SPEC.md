@@ -29,8 +29,9 @@ The following routes remain planned and excluded from indexed output:
 - `/sdk/android/upgrade`
 
 Flutter, UniApp, and HarmonyOS full-SDK tutorials remain planned in this phase.
-EasySDK remains planned while its JSON-RPC CONNECT path is unsupported by the
-Product Gateway.
+EasySDK was also planned at this phase while its JSON-RPC CONNECT path was
+unsupported by the Product Gateway; a later documentation-only change
+published the source-aligned tutorials without claiming runtime compatibility.
 
 ## Exact source and artifact snapshot
 

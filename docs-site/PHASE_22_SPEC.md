@@ -194,7 +194,8 @@ need separate receipts.
 - Discovery and compatibility pages may call the HarmonyOS path
   source/artifact aligned, but must not call it installed, compiled, device
   tested, runtime verified, or production ready.
-- EasySDK remains planned because Product Gateway JSON-RPC CONNECT is still
-  unsupported.
+- EasySDK was planned at this phase because Product Gateway JSON-RPC CONNECT
+  was unsupported. A later documentation-only change published the
+  source-aligned tutorials without claiming runtime compatibility.
 - Do not imply a standalone UniApp SDK remains supported; its official
   repository says it is deprecated and directs users to the JavaScript SDK.

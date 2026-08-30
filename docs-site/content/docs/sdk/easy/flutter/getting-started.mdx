@@ -1,9 +1,13 @@
 ---
 title: 5 分钟集成 Flutter
-description: 锁定 WuKongEasySDK Flutter v1.0.4，在 Flutter 应用中完成初始化、连接、消息收发与 State 生命周期清理。
+description: 对照 WuKongEasySDK Flutter v1.0.4 固定源码学习 Dart 接入 API；当前 Product Gateway 不支持其 JSON-RPC CONNECT。
 ---
 
-本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的最小流程：从业务后端取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
+本页用一个 `StatefulWidget` 串起 Flutter EasySDK 的源码 API 和修复后验收骨架：取得连接材料、初始化单例、保存事件回调引用、连接、发送，再在 `dispose` 中清理。
+
+<Callout type="error" title="当前 Product Gateway 不支持这条连接路径">
+  当前 Product Gateway 不支持将此版本 EasySDK 的 JSON-RPC CONNECT 用作客户端接入路径。因此本页是固定源码的 API 导读和修复后的验收骨架，不是当前可执行的快速接入。必须先修复 Gateway/SDK 运行路径并通过 Alice/Bob 端到端闭环，才能宣称运行成功。
+</Callout>
 
 “安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 Flutter EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started)。旧页不作为 API 证据；下面的方法名、版本与生命周期边界以固定的 `v1.0.4` 源码和分发产物为准。
 

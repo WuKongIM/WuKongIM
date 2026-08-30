@@ -1,9 +1,13 @@
 ---
 title: 5-minute iOS integration
-description: Pin WuKongEasySDK iOS v1.0.3 and complete connection, event handling, person-Channel send, and cleanup in a Swift application.
+description: Walk through the pinned WuKongEasySDK iOS v1.0.3 Swift APIs; the current Product Gateway does not support its JSON-RPC CONNECT path.
 ---
 
-This page turns the legacy “5-minute integration” into an acceptance-friendly iOS loop. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
+This page turns the legacy “5-minute integration” into an iOS source-API walkthrough and a post-fix acceptance scaffold. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
+
+<Callout type="error" title="The current Product Gateway does not support this connection path">
+  The current Product Gateway does not support this EasySDK version's JSON-RPC CONNECT as a client integration path. This page is a pinned-source API walkthrough and a post-fix acceptance scaffold, not a currently executable quickstart. Do not claim a successful run until the Gateway/SDK path is fixed and the Alice/Bob loop passes end to end.
+</Callout>
 
 The install → initialize → listen → connect → send reading order follows the [legacy iOS EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started). The old page supplies only the learning path; the pinned `v1.0.3` source and distribution govern the method signatures, version, and limits below.
 
