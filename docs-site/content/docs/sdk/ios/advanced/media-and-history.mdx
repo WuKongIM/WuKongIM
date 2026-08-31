@@ -1,0 +1,79 @@
+---
+title: iOS 媒体与历史消息
+description: 接入媒体上传、下载，并在本地数据不足时从业务服务端补齐消息。
+---
+
+图片消息包含本地文件和可跨设备访问的远端地址。SDK 管理消息状态和任务调度，你的应用负责真正的对象存储上传、下载和鉴权。
+
+## 发送图片
+
+先创建图片正文，再像文本一样发送：
+
+```objc
+WKImageContent *content = [WKImageContent initWithImage:image];
+WKChannel *channel = [WKChannel groupWithChannelID:@"team-1"];
+WKMessage *message = [[WKSDK shared].chatManager sendMessage:content
+                                                     channel:channel];
+```
+
+在发送图片前配置上传任务工厂：
+
+```objc
+[WKSDK shared].mediaManager.uploadTaskProvider = ^id<WKTaskProto>(WKMessage *message) {
+    return [[AppMediaUploadTask alloc] initWithMessage:message
+                                              storage:objectStorage];
+};
+```
+
+`AppMediaUploadTask` 是应用实现的任务，不是 SDK 类型。它需要遵守 `WKTaskProto`，把文件上传到你的存储服务，更新媒体正文中的远端地址，并向 SDK 报告成功或失败。上传凭证应短期有效，并限制文件路径、大小和类型。
+
+## 下载媒体
+
+同样提供下载任务，然后让管理器执行：
+
+```objc
+[WKSDK shared].mediaManager.downloadTaskProvider = ^id<WKTaskProto>(WKMessage *message) {
+    return [[AppMediaDownloadTask alloc] initWithMessage:message
+                                                storage:objectStorage];
+};
+
+[[WKSDK shared].mediaManager download:message
+                             callback:^(WKMediaDownloadState state,
+                                        CGFloat progress,
+                                        NSError *error) {
+    [self updateDownloadProgress:progress state:state];
+}];
+```
+
+缓存文件前校验大小和类型；退出账号时按产品策略清理私有媒体缓存。
+
+## 补齐远端历史消息
+
+`pullLastMessages:` 会先读本地库。当本地范围不足时，可通过 `syncChannelMessageProvider` 接入你的历史消息 API：
+
+```objc
+[WKSDK shared].chatManager.syncChannelMessageProvider = ^(
+    WKChannel *channel,
+    uint32_t startMessageSeq,
+    uint32_t endMessageSeq,
+    NSInteger limit,
+    WKPullMode pullMode,
+    WKSyncChannelMessageCallback callback
+) {
+    [historyAPI fetchChannel:channel
+                       start:startMessageSeq
+                         end:endMessageSeq
+                       limit:limit
+                        mode:pullMode
+                  completion:callback];
+};
+```
+
+业务 API 需要返回 `WKSyncChannelMessageModel`。始终调用 `callback`；失败时传入错误，让调用方结束加载状态并允许重试。
+
+## 常见问题
+
+- 图片一直是上传中：确认任务最终报告成功或失败，并且上传后写回远端地址。
+- 其他设备看不到图片：不要把沙盒本地路径当成远端 URL。
+- 历史列表重复：以频道和 `messageSeq` 去重，不要只按数组位置合并。
+- 翻页结束不了：服务端必须正确表达没有更多数据，Provider 也必须结束回调。

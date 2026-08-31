@@ -1,342 +1,124 @@
 ---
-title: iOS 快速接入
-description: 用 WuKongIMSDK 1.1.1 的 Objective-C 公开 API 完成身份配置、连接、发送确认、在线接收和清理。
+title: iOS 快速开始
+description: 安装 WuKongIMSDK 1.1.1，连接用户并完成第一条在线文本消息。
 ---
 
-本页把 `WuKongIMSDK` `1.1.1` 的公开头文件映射成一个最小在线消息闭环。Alice 和 Bob 必须运行在两个独立应用进程、设备或模拟器中，因为 `WKSDK.shared` 是进程内单例；不要在同一进程中来回覆盖两个用户。
-
-<Callout type="warn" title="这不是兼容性证明">
-  代码已按精确源码和分发头文件校对，但**不是本站运行验证**。你仍要在自己的 Xcode、设备、服务端 revision 上保留构建与消息闭环证据。`1.1.1` 的无 TLS 原始 TCP、RECV Payload 日志和本地数据保护还是**生产阻断项**。
-</Callout>
-
-## 目标与完成标准
-
-完成后，你应能分别证明：
-
-1. Alice 与 Bob 各自从连接 delegate 得到 `WKConnected` 和 `WK_REASON_SUCCESS`；
-2. Alice 发送后先得到一个本地待发送 `WKMessage`，随后从消息更新 delegate 得到服务端发送结果；
-3. Bob 从 RECV delegate 收到同一条在线文本消息；
-4. 页面或 owning object 销毁时移除 delegate 并强制断开；账号退出时单独调用 `logout`。
-
-发送方法的同步返回、本地状态更新、服务端确认和 Bob 在线接收是不同事件，不能合成一个模糊的“发送成功”。
+这一页只做一件事：让两个在线的 iOS 客户端互相发送一条文本消息。完成后，再按需要学习会话、频道资料和离线同步。
 
 ## 前置条件
 
-- 已按[安装与配置](/zh/sdk/ios/installation)精确安装 `WuKongIMSDK` `1.1.1`；
-- 一个可访问的 WuKongIM 单节点集群，并记录其精确源码 revision；
-- 两个由受信业务后端认证的开发账号 Alice 与 Bob；
-- 后端分别返回 `uid`、短期 `token`、Gateway `host` 和 `port`；
-- 团队已阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)和[消息收发](/zh/sdk/common-guides/messaging)。
+- 业务服务端已经为 `alice` 和 `bob` 返回各自的 `uid`、`token`、`host`、`port`；
+- 两个独立的 App 进程或设备。`WKSDK` 是单例，不能在同一进程同时登录两个用户；
+- Objective-C 工程已经可以正常使用 CocoaPods。
 
-客户端不能直接调用 Product HTTP 创建用户或 Token，也不能持有管理凭据。默认 v3 Beta 的 Token 校验边界仍需按服务端部署单独关闭，取得一个字符串不自动构成生产鉴权。
+## 1. 安装
 
-## 1. 定义受信后端返回的最小材料
+在 `Podfile` 中固定版本：
 
-应用先完成自己的登录，再通过认证 API 取得类似下面的响应：
-
-```json
-{
-  "uid": "alice",
-  "token": "short-lived-secret",
-  "host": "im-gateway.internal.example",
-  "port": 5100
-}
+```ruby
+pod 'WuKongIMSDK', '1.1.1'
 ```
 
-后端必须校验当前产品用户能否使用这个 UID，并负责 Token 的创建、过期、轮换和撤销。客户端只消费连接材料；不要把真实 Token、完整消息 Payload 或高基数 UID 写入应用日志。
+然后执行：
 
-把已验证的响应解析为应用自己的值对象。下面的 `WKIMBootstrap` 代表这个值对象，不代表 SDK 新增了同名类型：
-
-```objc
-@interface WKIMBootstrap : NSObject
-@property (nonatomic, copy) NSString *uid;
-@property (nonatomic, copy) NSString *token;
-@property (nonatomic, copy) NSString *host;
-@property (nonatomic, assign) uint16_t port;
-@end
+```bash
+pod install
 ```
 
-解析时拒绝空 UID、空 Token、带 URL scheme 的 host、`0` 端口和超出 `uint16_t` 的数值。配置请求还应有自己的网络超时与取消策略。
+以后从生成的 `.xcworkspace` 打开工程。
 
-## 2. 配置 SDK、注册 delegate，再连接
+## 2. 配置并连接
 
-下面的 owning object 只保留连接和聊天两个公开 delegate。代码先配置 `WKOptions` 与 `WKConnectInfo`，再把 delegate 加入 manager，最后才调用 `connect`：
+创建一个对象统一持有连接和消息监听器：
 
 ```objc
 #import <WuKongIMSDK/WuKongIMSDK.h>
 
-@interface WKIMClient : NSObject <WKConnectionManagerDelegate, WKChatManagerDelegate>
-@property (nonatomic, assign) NSUInteger connectionAttempt;
-@property (nonatomic, assign) BOOL connectionAccepted;
-@property (nonatomic, strong) NSTimer *connectionTimeoutTimer;
-@property (nonatomic, copy) NSString *pendingClientMsgNo;
-- (void)stop;
-- (void)logout;
+@interface IMClient : NSObject <WKConnectionManagerDelegate, WKChatManagerDelegate>
+- (void)startWithUID:(NSString *)uid
+               token:(NSString *)token
+                host:(NSString *)host
+                port:(uint16_t)port;
+- (void)sendText:(NSString *)text toUID:(NSString *)uid;
 @end
 
-@implementation WKIMClient
+@implementation IMClient
 
-- (void)startWithBootstrap:(WKIMBootstrap *)bootstrap {
-    if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [self startWithBootstrap:bootstrap];
-        });
-        return;
-    }
-
-    NSParameterAssert(bootstrap.uid.length > 0);
-    NSParameterAssert(bootstrap.token.length > 0);
-    NSParameterAssert(bootstrap.host.length > 0);
-    NSParameterAssert(bootstrap.port > 0);
-
-    WKOptions *options = [[WKOptions alloc] init];
-    options.host = bootstrap.host;
-    options.port = bootstrap.port;
+- (void)startWithUID:(NSString *)uid
+               token:(NSString *)token
+                host:(NSString *)host
+                port:(uint16_t)port {
+    WKOptions *options = [WKOptions new];
+    options.host = host;
+    options.port = port;
     options.isDebug = NO;
-    options.connectInfo = [WKConnectInfo initWithUID:bootstrap.uid
-                                               token:bootstrap.token
+    options.connectInfo = [WKConnectInfo initWithUID:uid
+                                               token:token
                                                 name:@""
                                               avatar:@""];
-    WKSDK.shared.options = options;
+    [WKSDK shared].options = options;
 
-    [WKSDK.shared.connectionManager removeDelegate:self];
-    [WKSDK.shared.chatManager removeDelegate:self];
-    [WKSDK.shared.connectionManager addDelegate:self];
-    [WKSDK.shared.chatManager addDelegate:self];
-
-    [self.connectionTimeoutTimer invalidate];
-    self.connectionAccepted = NO;
-    NSUInteger attempt = ++self.connectionAttempt;
-
-    __weak typeof(self) weakSelf = self;
-    self.connectionTimeoutTimer = [NSTimer scheduledTimerWithTimeInterval:15.0
-                                                                  repeats:NO
-                                                                    block:^(NSTimer *timer) {
-        __strong typeof(weakSelf) self = weakSelf;
-        if (self == nil || self.connectionTimeoutTimer != timer) {
-            return;
-        }
-        self.connectionTimeoutTimer = nil;
-        if (attempt != self.connectionAttempt || self.connectionAccepted) {
-            return;
-        }
-        [WKSDK.shared.connectionManager disconnect:YES];
-        // 将“15 秒内未接受连接”交给 UI/重试策略，不记录 Token。
-    }];
-
-    [WKSDK.shared.connectionManager connect];
+    [[WKSDK shared].connectionManager addDelegate:self];
+    [[WKSDK shared].chatManager addDelegate:self];
+    [[WKSDK shared].connectionManager connect];
 }
-```
 
-`connect` 返回 `void`，表示“已发起”，不是“已连接”。示例把公开入口同步串行到主队列，因此 `NSTimer` 一定注册到活跃的主 RunLoop；精确源码的连接和消息 delegate 也会派发到主队列。15.0 秒是本教程的应用级接受上限，不是 SDK 内部网络超时；只有当前 attempt 尚未被服务端接受时才强制断开。成功回调会立即取消 timer，因此连接后来断开不会被旧 timer 误判为“连接超时”。生产应用应按前后台状态、网络变化、认证错误和退避策略决定是否重新连接。
-
-## 3. 处理连接结果
-
-实现公开的连接 delegate：
-
-```objc
 - (void)onConnectStatus:(WKConnectStatus)status reasonCode:(WKReason)reasonCode {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self onConnectStatus:status reasonCode:reasonCode];
-        });
-        return;
-    }
-
-    if (status == WKConnected && reasonCode == WK_REASON_SUCCESS) {
-        self.connectionAccepted = YES;
-        [self.connectionTimeoutTimer invalidate];
-        self.connectionTimeoutTimer = nil;
-        // 连接已被服务端接受；此时再开放发送 UI。
-        return;
-    }
-
-    if (status == WKDisconnected) {
-        // 根据 reasonCode、网络与应用生命周期显示可恢复或终止状态。
+    if (status == WKConnected) {
+        NSLog(@"WuKongIM connected");
+    } else if (status == WKDisconnected) {
+        NSLog(@"WuKongIM disconnected, reason: %ld", (long)reasonCode);
     }
 }
 ```
 
-不要只判断 TCP socket 已建立。应用可发送的门应由连接协议结果控制；认证失败、被踢和网络断开也不能都显示为同一种错误。
+`connect` 只是发起连接。只有收到 `WKConnected` 后，连接才可以用于发送消息。
 
-## 4. Alice 发送第一条个人文本消息
+## 3. 发送文本消息
 
-Bob 已连接后，让 Alice 调用：
+Alice 连接成功后，向 Bob 的 UID 发送消息：
 
 ```objc
-- (WKMessage *)sendText:(NSString *)text toUID:(NSString *)uid {
-    if (![NSThread isMainThread]) {
-        __block WKMessage *result = nil;
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            result = [self sendText:text toUID:uid];
-        });
-        return result;
-    }
-
-    NSParameterAssert(text.length > 0);
-    NSParameterAssert(uid.length > 0);
-
+- (void)sendText:(NSString *)text toUID:(NSString *)uid {
     WKTextContent *content = [[WKTextContent alloc] initWithContent:text];
     WKChannel *channel = [WKChannel personWithChannelID:uid];
-    WKMessage *message = [WKSDK.shared.chatManager sendMessage:content channel:channel];
-    NSAssert(message.clientMsgNo.length > 0, @"SDK must assign clientMsgNo");
-    self.pendingClientMsgNo = message.clientMsgNo;
-    return message;
+    [[WKSDK shared].chatManager sendMessage:content channel:channel];
 }
 ```
 
-调用 `sendText:@"hello from alice" toUID:@"bob"`。同步返回的对象代表本地创建并进入发送流程的消息，通常仍是本地待发送/pending 状态。示例保存 SDK 已生成的 `clientMsgNo`，用它把后续更新关联到这次发送；待发送阶段的 `messageId`、`messageSeq` 通常尚未由服务端分配，不能拿来做关联键。不要在这一行显示“服务器已成功接收”。
+调用：
 
-## 5. 分别处理发送状态与在线接收
+```objc
+[client sendText:@"你好，Bob" toUID:@"bob"];
+```
 
-Alice 使用消息更新回调观察发送状态；Bob 使用接收回调观察在线投递：
+## 4. 接收结果
+
+同一个监听器分别处理本端消息状态和对方发来的消息：
 
 ```objc
 - (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self onMessageUpdate:message left:left];
-        });
-        return;
-    }
-
-    if (![message.clientMsgNo isEqualToString:self.pendingClientMsgNo]) {
-        return; // 不是当前验收消息；生产应用应使用 clientMsgNo -> UI item 映射。
-    }
-
     if (message.status == WK_MESSAGE_SUCCESS) {
-        self.pendingClientMsgNo = nil;
-        // Alice：服务端已确认这条 clientMsgNo；此时可保存 messageId/messageSeq。
+        NSLog(@"message sent: %@", message.clientMsgNo);
     } else if (message.status == WK_MESSAGE_FAIL) {
-        self.pendingClientMsgNo = nil;
-        // Alice：按 message.reasonCode 展示可重试或终止状态。
+        NSLog(@"message failed: %@", message.clientMsgNo);
     }
 }
 
 - (void)onRecvMessages:(WKMessage *)message left:(NSInteger)left {
-    // Bob：这是在线收到的 WKMessage；按 message identity 去重后更新 UI。
-    // 不要把 message.content 或原始 Payload 写入日志。
-}
-```
-
-公开头文件还提供带 `total:` 的 `onMessageUpdate:left:total:` 以及较低层的 `onSendack:left:`。最短教程只选 `onMessageUpdate:left:` 维护最终本地消息状态，避免同时监听多条确认路径后重复更新 UI。这里的单个 `pendingClientMsgNo` 只适合一条消息的验收；真实产品必须维护以 `clientMsgNo` 为键的有界待发送集合，并按线程模型串行化访问。
-
-## 6. 清理页面与账号生命周期
-
-owning object 销毁、切换到不再需要 IM 的上下文，或测试结束时，移除 delegate 并强制断开：
-
-```objc
-- (void)stop {
-    if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [self stop];
-        });
-        return;
+    if ([message.content isKindOfClass:[WKTextContent class]]) {
+        WKTextContent *text = (WKTextContent *)message.content;
+        NSLog(@"%@ says: %@", message.fromUid, text.content);
     }
-
-    ++self.connectionAttempt;
-    self.connectionAccepted = NO;
-    [self.connectionTimeoutTimer invalidate];
-    self.connectionTimeoutTimer = nil;
-    self.pendingClientMsgNo = nil;
-    [WKSDK.shared.connectionManager removeDelegate:self];
-    [WKSDK.shared.chatManager removeDelegate:self];
-    [WKSDK.shared.connectionManager disconnect:YES];
 }
-
-- (void)logout {
-    if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [self logout];
-        });
-        return;
-    }
-
-    ++self.connectionAttempt;
-    self.connectionAccepted = NO;
-    [self.connectionTimeoutTimer invalidate];
-    self.connectionTimeoutTimer = nil;
-    self.pendingClientMsgNo = nil;
-    [WKSDK.shared.connectionManager removeDelegate:self];
-    [WKSDK.shared.chatManager removeDelegate:self];
-    [WKSDK.shared.connectionManager logout];
-}
-
-@end
 ```
 
-不要临时创建 `WKIMClient` 后丢弃引用。SDK manager 不会替业务层拥有这个对象；应让账号会话或应用协调器强持有它，并把清理接到明确的生命周期入口：
+## 预期结果
 
-```objc
-@interface WKIMSessionOwner : NSObject
-@property (nonatomic, strong) WKIMClient *client;
-@end
+1. Alice 和 Bob 都收到 `WKConnected`；
+2. Alice 的 `onMessageUpdate` 收到 `WK_MESSAGE_SUCCESS`；
+3. Bob 的 `onRecvMessages` 打印“你好，Bob”。
 
-@implementation WKIMSessionOwner
+如果连接失败，先检查 `host` 不能带 `http://` 或 `https://`，并确认 `port` 是客户端长连接端口。若发送没有结果，确认接收方确实在线、UID 正确，而且发送发生在 `WKConnected` 之后。
 
-- (void)startWithBootstrap:(WKIMBootstrap *)bootstrap {
-    [self.client stop];
-    self.client = [[WKIMClient alloc] init];
-    [self.client startWithBootstrap:bootstrap];
-}
-
-- (void)endSession {
-    [self.client stop];
-    self.client = nil;
-}
-
-- (void)signOut {
-    [self.client logout];
-    self.client = nil;
-}
-
-- (void)dealloc {
-    [_client stop];
-}
-
-@end
-```
-
-应用应从实际的账号会话结束、scene teardown 或测试 teardown 调用 `endSession`；账号退出调用 `signOut`。`dealloc` 只是兜底，不能替代显式生命周期。
-
-`disconnect:YES` 停止当前连接与自动重连，但保留连接身份；`logout` 还会清除 `connectInfo`。SDK 会按 UID 切换本地 SQLCipher 数据库，`logout` 并不自动等于删除历史数据。源码直接把 UID 用作数据库 key；UID 不是机密密钥，产品需要单独定义受审密钥管理、iOS 文件保护、换号、退出登录、设备转让和数据擦除策略。
-
-## 7. 运行 Alice/Bob 验收
-
-在两个独立应用进程中执行：
-
-1. Alice、Bob 分别从受信业务后端获取自己的 bootstrap；
-2. 两边调用 `startWithBootstrap:`，都在 15 秒内观察到 `WKConnected`；
-3. Alice 向 Bob 发送 `hello from alice`，记录本地 `clientMsgNo`，但不记录正文；
-4. Alice 的 `onMessageUpdate:left:` 对**同一个 `clientMsgNo`**变为 `WK_MESSAGE_SUCCESS`；
-5. Bob 的 `onRecvMessages:left:` 收到来源为 Alice、频道为双方个人频道的消息；
-6. Bob 回复 Alice，重复相同的确认与在线接收检查；
-7. 两边调用 `stop`，确认没有重复 delegate 回调或无界重连。
-
-保存服务端 revision、SDK `1.1.1`、源码 revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`、framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`、Xcode、设备/系统、时间与脱敏结果。那是你的运行证据，不会自动写入本站 JavaScript/Web receipt。
-
-## 当前未覆盖：离线与会话恢复
-
-`1.1.1` 暴露离线消息、频道同步、会话同步等 provider 接口，但这些接口要求业务后端实现对应拉取与确认语义。若未配置 provider，能进入 `WKConnected` 不表示离线消息或会话已经恢复。本页只验证在线闭环；不要把 Alice/Bob 在线结果外推为离线、推送、后台或多设备支持。
-
-继续用[离线消息与推送](/zh/sdk/common-guides/offline-and-push)、[会话与未读数](/zh/sdk/common-guides/conversations-and-unread)和[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)设计需求，并为该版本建立独立场景证据。
-
-## 生产阻断项
-
-- **传输**：精确源码通过 `GCDAsyncSocket` 打开未使用传输层 TLS 的原始 **TCP**，没有公开 TLS 或 `startTLS`；WKProto Payload 加密不能验证服务端身份或替代认证 TLS，生产必须使用受控私网入口或受审传输升级。
-- **日志**：虽然示例设置 `options.isDebug = NO`，接收路径仍会无条件记录解码包，RECV 描述可能包含明文消息 **Payload**。必须先修复/脱敏，再检查 Release 产物和完整日志采集链路。
-- **本地数据**：SQLCipher key 直接来自 UID，不是独立的机密密钥；必须评审密钥管理、系统文件保护、备份和擦除策略。
-- **身份**：客户端拿到 Token 不等于服务端已经执行生产级校验；登录、授权、轮换、撤销与 Gateway 验证必须单独验收。
-- **兼容性**：源码/头文件对齐不是 Xcode、设备、系统与服务端 tuple 的运行 receipt。
-
-## 常见故障
-
-- **15 秒后仍未连接**：检查受信后端响应、host/port 可达性、Gateway 日志和 `reasonCode`，不要无限重试。
-- **Alice 返回了 WKMessage 但状态不成功**：同步返回只是本地消息；等待 `onMessageUpdate:left:` 并查看脱敏后的状态与原因码。
-- **Alice 成功、Bob 没收到**：分别检查 Alice 的确认与 Bob 的在线 RECV；不要用发送方结果推断接收方。
-- **回调重复**：确认同一个 owning object 没有重复 `addDelegate:self`，销毁时执行 `removeDelegate:self`。
-- **换号后数据混淆**：确认先停止旧连接、调用 `logout`，并按产品策略处理 UID 隔离数据库。
-
-## 下一步
-
-在线闭环通过后，把证据归档到[上线验收](/zh/guide/integration/acceptance)，再逐项实现公共指南中的离线、会话、推送、多设备与错误恢复。随后用[平台专属能力](/zh/sdk/ios/platform-capabilities)确认 iOS 责任与未验证范围，按 [API Reference](/zh/sdk/ios/api-reference)核对 `1.1.1` 调用点，并在改版本前执行[升级指南](/zh/sdk/ios/upgrade)。这三页按源码和公开头文件发布，不增加本站 Xcode、模拟器或真机运行 receipt。
+下一步阅读[连接管理](/zh/sdk/ios/connection)和[消息管理](/zh/sdk/ios/messages)。

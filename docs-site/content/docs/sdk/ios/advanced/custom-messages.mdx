@@ -1,0 +1,81 @@
+---
+title: iOS 自定义消息
+description: 定义、注册并发送业务自己的消息正文。
+---
+
+文本和图片之外的内容，例如订单卡片或位置分享，可以实现为 `WKMessageContent` 子类。所有客户端必须为同一种正文使用相同的类型编号和 JSON 字段。
+
+## 1. 定义正文
+
+下面用订单卡片演示。`10001` 只是示例；请在团队内建立类型编号表，避免与其他消息重复。
+
+```objc
+@interface OrderMessageContent : WKMessageContent
+@property (nonatomic, copy) NSString *orderID;
+@property (nonatomic, copy) NSString *title;
+@end
+
+@implementation OrderMessageContent
+
++ (NSNumber *)contentType {
+    return @(10001);
+}
+
+- (NSDictionary *)encodeWithJSON {
+    return @{
+        @"order_id": self.orderID ?: @"",
+        @"title": self.title ?: @""
+    };
+}
+
+- (void)decodeWithJSON:(NSDictionary *)json {
+    self.orderID = [json[@"order_id"] isKindOfClass:[NSString class]]
+        ? json[@"order_id"] : @"";
+    self.title = [json[@"title"] isKindOfClass:[NSString class]]
+        ? json[@"title"] : @"";
+}
+
+- (NSString *)conversationDigest {
+    return [NSString stringWithFormat:@"[订单] %@", self.title];
+}
+
+- (NSString *)searchableWord {
+    return self.title;
+}
+
+@end
+```
+
+解码来自网络的数据时要检查类型和缺失字段，不能假设每个客户端都已经升级到同一版本。
+
+## 2. 在读取消息前注册
+
+```objc
+[[WKSDK shared] registerMessageContent:[OrderMessageContent class]];
+```
+
+在 App 启动并配置 SDK 时注册一次，且要早于连接和读取本地消息。未注册的正文无法还原成你的业务类型。
+
+## 3. 发送和展示
+
+```objc
+OrderMessageContent *content = [OrderMessageContent new];
+content.orderID = @"order-2026-001";
+content.title = @"咖啡豆";
+
+WKChannel *channel = [WKChannel personWithChannelID:@"bob"];
+[[WKSDK shared].chatManager sendMessage:content channel:channel];
+```
+
+接收时按类型渲染；未知类型要显示通用占位，而不是崩溃：
+
+```objc
+if ([message.content isKindOfClass:[OrderMessageContent class]]) {
+    OrderMessageContent *order = (OrderMessageContent *)message.content;
+    [self showOrderWithID:order.orderID title:order.title];
+} else {
+    [self showUnsupportedMessage];
+}
+```
+
+修改字段时保持向后兼容：新增字段给默认值，不复用已有字段表达新的含义，也不要更改已经发布的类型编号。

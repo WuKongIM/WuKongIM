@@ -1,0 +1,89 @@
+---
+title: Flutter custom messages
+description: Define an application message payload, assign its type, and register it before reading messages.
+---
+
+When built-in payloads such as text and image cannot represent an order card or another application object, extend `WKMessageContent`.
+
+## 1. Choose a content type
+
+Assign an integer to each application payload. Every client and your server must use the same value. Do not use the SDK-reserved range `1` through `99`.
+
+```dart
+const orderMessageType = 10001;
+```
+
+## 2. Define the payload
+
+```dart
+class OrderMessageContent extends WKMessageContent {
+  String orderID;
+  String title;
+
+  OrderMessageContent({this.orderID = '', this.title = ''}) {
+    contentType = orderMessageType;
+  }
+
+  @override
+  Map<String, dynamic> encodeJson() => {
+        'order_id': orderID,
+        'title': title,
+      };
+
+  @override
+  WKMessageContent decodeJson(Map<String, dynamic> json) {
+    orderID = readString(json, 'order_id');
+    title = readString(json, 'title');
+    return this;
+  }
+
+  @override
+  String displayText() => '[Order] $title';
+
+  @override
+  String searchableWord() => title;
+}
+```
+
+- `encodeJson` creates the data sent to the server.
+- `decodeJson` restores an object from received JSON.
+- `displayText` supplies the conversation preview.
+- `searchableWord` supplies locally searchable text.
+
+## 3. Register before reading messages
+
+Register once after `setup`, before connecting or reading the local database:
+
+```dart
+await WKIM.shared.setup(options);
+
+WKIM.shared.messageManager.registerMsgContent(
+  orderMessageType,
+  (data) => OrderMessageContent().decodeJson(
+    Map<String, dynamic>.from(data),
+  ),
+);
+```
+
+Without this registration, the SDK cannot restore the payload as `OrderMessageContent`. Keep registrations in one application startup service instead of repeating them in chat screens.
+
+## 4. Send and render it
+
+```dart
+await WKIM.shared.messageManager.sendWithOption(
+  OrderMessageContent(orderID: 'A-1001', title: 'Awaiting payment'),
+  WKChannel('bob', WKChannelType.personal),
+  WKSendOptions(),
+);
+```
+
+Render the received payload by its Dart type:
+
+```dart
+final content = message.messageContent;
+if (content is OrderMessageContent) {
+  showOrderCard(content.orderID, content.title);
+}
+```
+
+Keep future schema changes backward compatible: older clients should ignore new fields, and newer clients should provide defaults for missing fields.

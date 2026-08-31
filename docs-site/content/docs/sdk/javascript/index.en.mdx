@@ -1,83 +1,36 @@
 ---
 title: JavaScript / Web
-description: Start from installation and use a pinned JavaScript SDK to complete browser connection, messaging, reconnect, and offline recovery.
+description: Use TypeScript to connect wukongimjssdk and manage WebSocket, messages, conversations, and channel profiles.
 ---
 
-This tutorial is for developers integrating WuKongIM into a browser application for the first time. It uses framework-independent TypeScript, a loopback-only BFF, and separate Alice/Bob sessions to show the complete client lifecycle without requiring React or Vue.
+`wukongimjssdk` is the full WuKongIM JavaScript SDK. It manages WebSocket, message delivery, an in-memory conversation list, and channel profiles for browsers, H5, and separately verified JavaScript runtimes.
 
-<Callout type="warn" title="Understand the current scope first">
-  The tutorial pins `wukongimjssdk@1.3.5` and the Chromium target from the compatibility snapshot. It can prove installation, connection, two-way persistent messaging, reconnect, and offline recovery in this sample. It does not automatically attest another browser, JavaScript SDK, runtime, or platform version.
+These guides target `wukongimjssdk 1.3.5` and use TypeScript throughout.
+
+## Before you start
+
+Prepare:
+
+- a WuKongIM WebSocket endpoint reachable from the target runtime;
+- two test users, such as `alice` and `bob`;
+- a `uid`, `token`, and `ws://` or `wss://` endpoint returned by your application server;
+- a frontend project using npm, pnpm, or Yarn.
+
+<Callout type="info" title="The browser must not hold an admin secret">
+  The browser should receive only the current user's short-lived token and endpoint from your application server. Keep user creation, token issuance, and access control on the server.
 </Callout>
 
-## Who this is for
-
-- You are building a browser chat, support, collaboration, or realtime-notification interface.
-- You can provide UID, token, and connection material from a trusted backend.
-- You want to prove an observable message loop before integrating a framework and application state.
-
-If you have not decided between EasySDK and WuKongIMSDK, start with [Choose an SDK](/en/sdk/choose-sdk). This tutorial uses WuKongIMJSSDK; do not copy its method names to another SDK.
-
-## What you will build
-
-```text
-Alice browser ─┐                         ┌─ Gateway WebSocket
-               ├─ localhost BFF ────────┤
-Bob browser ───┘   identity, route, sync  └─ WuKongIM single-node cluster
-```
-
-- The browser SDK manages connection, send, receive, and reconnect state.
-- The BFF represents a trusted product backend, calls Product HTTP, and binds only to loopback.
-- The WuKongIM cluster owns persistent-message order, commit, routing, and online delivery.
-
-The browser never receives Product HTTP management capability. In a real product, replace the sample BFF with your backend login, authorization, and token lifecycle.
-
-## Recommended learning order
+## Recommended order
 
 <Cards>
-  <Card title="1. Installation" description="Run the locked sample first, then add the exact version to an existing application." href="/en/sdk/javascript/installation" />
-  <Card title="2. Quickstart" description="Connect Alice and Bob and map listeners, send, acknowledgement, disconnect, and recovery to SDK calls." href="/en/sdk/javascript/quickstart" />
-  <Card title="3. API Reference" description="Find configuration, managers, Provider contracts, models, and listeners in the pinned 1.3.5 snapshot." href="/en/sdk/javascript/api-reference" />
-  <Card title="4. Platform Capabilities" description="Review scenario-covered behavior and what still requires your own proof." href="/en/sdk/javascript/platform-capabilities" />
-  <Card title="5. Upgrade Guide" description="Audit protocol and event API changes, then upgrade with real scenarios and rollback." href="/en/sdk/javascript/upgrade" />
-  <Card title="6. Common Guides" description="Continue with identity, conversations, push, multi-device, and failure policy." href="/en/sdk/common-guides" />
-  <Card title="7. Integration Acceptance" description="Generate a compatibility smoke and close production security and operations gates separately." href="/en/guide/integration/acceptance" />
-  <Card title="Version Snapshot" description="Check the exact SDK, server, Node.js, and browser combination." href="/en/sdk/compatibility" />
+  <Card title="Quickstart" description="Install the SDK, connect a user, and send the first online text message." href="/en/sdk/javascript/quickstart" />
+  <Card title="Connection" description="Handle endpoints, states, automatic reconnection, and page cleanup." href="/en/sdk/javascript/connection" />
+  <Card title="Messages" description="Send, receive, synchronize, and correlate message states." href="/en/sdk/javascript/messages" />
+  <Card title="Conversations" description="Maintain the in-memory chat list and unread counts." href="/en/sdk/javascript/conversations" />
+  <Card title="Channels" description="Load user, group, and subscriber profiles." href="/en/sdk/javascript/channels" />
+  <Card title="Advanced" description="Add custom content, offline recovery, and UniApp migration." href="/en/sdk/javascript/advanced" />
 </Cards>
 
-## Prepare for the first run
+The repository contains a runnable two-session example at `docs-site/examples/javascript-web-quickstart`. Read these guides to learn the API first; run the example when you are ready to connect a real service.
 
-- A WuKongIM single-node cluster that passes `/readyz`.
-- Node.js `>=20.11` and npm.
-- Free ports `5001`, `5200`, and the loopback port used by the sample.
-- The current repository source, including `docs-site/examples/javascript-web-quickstart`.
-
-## How the first message travels
-
-| Stage | What you do | What you should observe |
-| --- | --- | --- |
-| Install | Install the pinned SDK from the lockfile | Tests, TypeScript, and build checks pass |
-| Identity | Alice and Bob each request a development identity from the BFF | The browser receives UID, temporary token, and WebSocket address |
-| Connect | The SDK registers listeners and connects | Both sides independently become `connected` |
-| Send | Alice sends Bob a persistent text message | Alice gets SENDACK; Bob gets a `realtime` event |
-| Disconnect | Bob disconnects and Alice sends again | Alice still gets SENDACK; Bob gets no realtime event |
-| Recover | Bob reconnects and synchronizes | Bob observes one `recovered` result |
-
-SENDACK, online receipt, and offline recovery are separate outcomes. The tutorial makes each observable instead of reducing them to one ambiguous “send succeeded” state.
-
-## Completion check
-
-- You can explain why token and connection address come from a backend instead of browser constants.
-- You can locate connection-status, message, and send-acknowledgement listeners in code.
-- You can distinguish persistent commit, online delivery, and synchronized recovery.
-- You know which production gates remain after the sample passes.
-
-## Common failures
-
-- **Installation fails:** return to the lockfile and Node.js version; do not bypass them with `latest`.
-- **Identity creation fails:** check cluster `/readyz`, BFF output, and the Product HTTP address.
-- **Connection remains pending:** inspect the `/route` result and Gateway WebSocket port.
-- **The peer receives nothing:** check SENDACK, online events, and offline sync separately.
-
-## Next step
-
-Begin with [Installation](/en/sdk/javascript/installation). After the sample builds, use the [Quickstart](/en/sdk/javascript/quickstart) to send the first real message.
+Read [Core Concepts](/en/sdk/wukongim/concepts) first if “channel” or “conversation” is unfamiliar. Open the [API Reference](/en/sdk/javascript/api-reference) when you only need a method name.

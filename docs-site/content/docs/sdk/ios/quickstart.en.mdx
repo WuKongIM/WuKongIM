@@ -1,342 +1,124 @@
 ---
 title: iOS Quickstart
-description: Use the WuKongIMSDK 1.1.1 Objective-C public API for identity, connection, send acknowledgement, online receipt, and cleanup.
+description: Install WuKongIMSDK 1.1.1, connect a user, and exchange the first online text message.
 ---
 
-This page maps the `WuKongIMSDK` `1.1.1` public headers into a minimal online-message loop. Alice and Bob must run in separate application processes, devices, or simulators because `WKSDK.shared` is a process singleton. Do not switch two users back and forth in one process.
-
-<Callout type="warn" title="This is not a compatibility attestation">
-  The code is aligned with the exact source and distributed headers, but it is **not runtime verification**. Retain build and message-loop evidence for your own Xcode, device, and server revision. Raw TCP without TLS, RECV Payload logging, and local-data protection in `1.1.1` remain **production blocker** items.
-</Callout>
-
-## Goal and completion criteria
-
-At the end, independently prove that:
-
-1. Alice and Bob each receive `WKConnected` plus `WK_REASON_SUCCESS` from the connection delegate.
-2. Alice first receives a local pending `WKMessage`, then a server send result through the message-update delegate.
-3. Bob receives the same online text through the RECV delegate.
-4. The page or owning object removes delegates and force-disconnects on teardown; deliberate account logout calls `logout` separately.
-
-The synchronous send return, local state transition, server acknowledgement, and Bob's online receipt are different events. Do not collapse them into an ambiguous “send succeeded” result.
+This page has one goal: exchange a text message between two online iOS clients. Add conversations, channel profiles, and offline synchronization after this works.
 
 ## Prerequisites
 
-- Complete [Installation](/en/sdk/ios/installation) with exactly `WuKongIMSDK` `1.1.1`.
-- A reachable WuKongIM single-node cluster whose exact source revision is recorded.
-- Alice and Bob development accounts authenticated by a trusted product backend.
-- Separate backend responses containing `uid`, short-lived `token`, Gateway `host`, and `port`.
-- Read [Identity & Token](/en/sdk/common-guides/identity-and-token) and [Messaging](/en/sdk/common-guides/messaging).
+- Your application server returns a `uid`, `token`, `host`, and `port` for both `alice` and `bob`.
+- You have two separate app processes or devices. `WKSDK` is a singleton and cannot represent two signed-in users in one process.
+- CocoaPods works in your Objective-C project.
 
-The client must not create users or tokens through Product HTTP or hold management credentials. The default v3 Beta token-validation boundary must still be closed for the server deployment; obtaining a token string is not production authentication by itself.
+## 1. Install
 
-## 1. Define the minimal trusted-backend response
+Pin the version in your `Podfile`:
 
-The application completes product login first, then requests an authenticated response like:
-
-```json
-{
-  "uid": "alice",
-  "token": "short-lived-secret",
-  "host": "im-gateway.internal.example",
-  "port": 5100
-}
+```ruby
+pod 'WuKongIMSDK', '1.1.1'
 ```
 
-The backend verifies that the current product user may act as the UID and owns token creation, expiry, rotation, and revocation. The client consumes connection material only. Never log the real token, full message Payload, or a high-cardinality UID.
+Then run:
 
-Parse the validated response into an application value object. `WKIMBootstrap` below represents that application type; it is not a new SDK type:
-
-```objc
-@interface WKIMBootstrap : NSObject
-@property (nonatomic, copy) NSString *uid;
-@property (nonatomic, copy) NSString *token;
-@property (nonatomic, copy) NSString *host;
-@property (nonatomic, assign) uint16_t port;
-@end
+```bash
+pod install
 ```
 
-Reject an empty UID, empty token, host containing a URL scheme, zero port, or a value outside `uint16_t`. Give the bootstrap request its own timeout and cancellation policy.
+Open the generated `.xcworkspace` from now on.
 
-## 2. Configure the SDK, register delegates, then connect
+## 2. Configure and connect
 
-This owning object retains only the public connection and chat delegates. It configures `WKOptions` and `WKConnectInfo`, adds delegates to both managers, and calls `connect` last:
+Create one object that owns the connection and message delegates:
 
 ```objc
 #import <WuKongIMSDK/WuKongIMSDK.h>
 
-@interface WKIMClient : NSObject <WKConnectionManagerDelegate, WKChatManagerDelegate>
-@property (nonatomic, assign) NSUInteger connectionAttempt;
-@property (nonatomic, assign) BOOL connectionAccepted;
-@property (nonatomic, strong) NSTimer *connectionTimeoutTimer;
-@property (nonatomic, copy) NSString *pendingClientMsgNo;
-- (void)stop;
-- (void)logout;
+@interface IMClient : NSObject <WKConnectionManagerDelegate, WKChatManagerDelegate>
+- (void)startWithUID:(NSString *)uid
+               token:(NSString *)token
+                host:(NSString *)host
+                port:(uint16_t)port;
+- (void)sendText:(NSString *)text toUID:(NSString *)uid;
 @end
 
-@implementation WKIMClient
+@implementation IMClient
 
-- (void)startWithBootstrap:(WKIMBootstrap *)bootstrap {
-    if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [self startWithBootstrap:bootstrap];
-        });
-        return;
-    }
-
-    NSParameterAssert(bootstrap.uid.length > 0);
-    NSParameterAssert(bootstrap.token.length > 0);
-    NSParameterAssert(bootstrap.host.length > 0);
-    NSParameterAssert(bootstrap.port > 0);
-
-    WKOptions *options = [[WKOptions alloc] init];
-    options.host = bootstrap.host;
-    options.port = bootstrap.port;
+- (void)startWithUID:(NSString *)uid
+               token:(NSString *)token
+                host:(NSString *)host
+                port:(uint16_t)port {
+    WKOptions *options = [WKOptions new];
+    options.host = host;
+    options.port = port;
     options.isDebug = NO;
-    options.connectInfo = [WKConnectInfo initWithUID:bootstrap.uid
-                                               token:bootstrap.token
+    options.connectInfo = [WKConnectInfo initWithUID:uid
+                                               token:token
                                                 name:@""
                                               avatar:@""];
-    WKSDK.shared.options = options;
+    [WKSDK shared].options = options;
 
-    [WKSDK.shared.connectionManager removeDelegate:self];
-    [WKSDK.shared.chatManager removeDelegate:self];
-    [WKSDK.shared.connectionManager addDelegate:self];
-    [WKSDK.shared.chatManager addDelegate:self];
-
-    [self.connectionTimeoutTimer invalidate];
-    self.connectionAccepted = NO;
-    NSUInteger attempt = ++self.connectionAttempt;
-
-    __weak typeof(self) weakSelf = self;
-    self.connectionTimeoutTimer = [NSTimer scheduledTimerWithTimeInterval:15.0
-                                                                  repeats:NO
-                                                                    block:^(NSTimer *timer) {
-        __strong typeof(weakSelf) self = weakSelf;
-        if (self == nil || self.connectionTimeoutTimer != timer) {
-            return;
-        }
-        self.connectionTimeoutTimer = nil;
-        if (attempt != self.connectionAttempt || self.connectionAccepted) {
-            return;
-        }
-        [WKSDK.shared.connectionManager disconnect:YES];
-        // Report a bounded acceptance timeout without logging the token.
-    }];
-
-    [WKSDK.shared.connectionManager connect];
+    [[WKSDK shared].connectionManager addDelegate:self];
+    [[WKSDK shared].chatManager addDelegate:self];
+    [[WKSDK shared].connectionManager connect];
 }
-```
 
-`connect` returns `void`: it means “started,” not “connected.” The example synchronously serializes its public entry points onto the main queue, so `NSTimer` is always registered on the active main RunLoop; the exact source also dispatches connection and message delegates to the main queue. The 15.0-second limit is this tutorial's application acceptance bound, not an SDK network timeout. It force-disconnects only if the current attempt has not been accepted. The success callback immediately cancels the timer, so a later disconnect cannot be mislabeled by an old timer as a connection timeout. A production application should combine app foreground/background state, network changes, authentication failures, and bounded backoff before reconnecting.
-
-## 3. Handle the connection result
-
-Implement the public connection delegate:
-
-```objc
 - (void)onConnectStatus:(WKConnectStatus)status reasonCode:(WKReason)reasonCode {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self onConnectStatus:status reasonCode:reasonCode];
-        });
-        return;
-    }
-
-    if (status == WKConnected && reasonCode == WK_REASON_SUCCESS) {
-        self.connectionAccepted = YES;
-        [self.connectionTimeoutTimer invalidate];
-        self.connectionTimeoutTimer = nil;
-        // The server accepted the connection; enable the send UI now.
-        return;
-    }
-
-    if (status == WKDisconnected) {
-        // Use reasonCode, network, and app lifecycle to choose recoverable or terminal UI.
+    if (status == WKConnected) {
+        NSLog(@"WuKongIM connected");
+    } else if (status == WKDisconnected) {
+        NSLog(@"WuKongIM disconnected, reason: %ld", (long)reasonCode);
     }
 }
 ```
 
-Do not gate the send UI only on a connected TCP socket. Use the protocol result, and do not flatten authentication failure, kick, and network disconnect into one error.
+`connect` only starts the attempt. The client is ready to send after the delegate reports `WKConnected`.
 
-## 4. Alice sends the first person text
+## 3. Send a text message
 
-After Bob is connected, run this on Alice:
+After Alice connects, send to Bob's UID:
 
 ```objc
-- (WKMessage *)sendText:(NSString *)text toUID:(NSString *)uid {
-    if (![NSThread isMainThread]) {
-        __block WKMessage *result = nil;
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            result = [self sendText:text toUID:uid];
-        });
-        return result;
-    }
-
-    NSParameterAssert(text.length > 0);
-    NSParameterAssert(uid.length > 0);
-
+- (void)sendText:(NSString *)text toUID:(NSString *)uid {
     WKTextContent *content = [[WKTextContent alloc] initWithContent:text];
     WKChannel *channel = [WKChannel personWithChannelID:uid];
-    WKMessage *message = [WKSDK.shared.chatManager sendMessage:content channel:channel];
-    NSAssert(message.clientMsgNo.length > 0, @"SDK must assign clientMsgNo");
-    self.pendingClientMsgNo = message.clientMsgNo;
-    return message;
+    [[WKSDK shared].chatManager sendMessage:content channel:channel];
 }
 ```
 
-Call `sendText:@"hello from alice" toUID:@"bob"`. The synchronous object is a locally created message entering the send path and is normally still local/pending. The example retains the SDK-assigned `clientMsgNo` to correlate later updates with this send. Pending `messageId` and `messageSeq` values are normally not server-assigned yet and must not be used as correlation keys. Do not show “server accepted” on this line.
+Call it with:
 
-## 5. Handle send state and online receipt separately
+```objc
+[client sendText:@"Hello, Bob" toUID:@"bob"];
+```
 
-Alice observes send state through message update; Bob observes online delivery through receive:
+## 4. Observe the result
+
+Use the same delegate for local send-state changes and incoming messages:
 
 ```objc
 - (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self onMessageUpdate:message left:left];
-        });
-        return;
-    }
-
-    if (![message.clientMsgNo isEqualToString:self.pendingClientMsgNo]) {
-        return; // Not this acceptance message; production maps clientMsgNo to a UI item.
-    }
-
     if (message.status == WK_MESSAGE_SUCCESS) {
-        self.pendingClientMsgNo = nil;
-        // Alice: the server acknowledged this clientMsgNo; messageId/messageSeq now apply.
+        NSLog(@"message sent: %@", message.clientMsgNo);
     } else if (message.status == WK_MESSAGE_FAIL) {
-        self.pendingClientMsgNo = nil;
-        // Alice: use message.reasonCode for retryable or terminal UI.
+        NSLog(@"message failed: %@", message.clientMsgNo);
     }
 }
 
 - (void)onRecvMessages:(WKMessage *)message left:(NSInteger)left {
-    // Bob: this is the online WKMessage; deduplicate by message identity before UI update.
-    // Do not write message.content or raw Payload to logs.
-}
-```
-
-The public header also offers `onMessageUpdate:left:total:` and lower-level `onSendack:left:`. The minimal path uses only `onMessageUpdate:left:` for final local-message state so the application does not update the same acknowledgement through multiple callbacks. The single `pendingClientMsgNo` is suitable only for one-message acceptance; a real product needs a bounded in-flight collection keyed by `clientMsgNo`, accessed serially under its threading model.
-
-## 6. Clean up page and account lifecycle
-
-When the owning object is destroyed, IM is no longer needed in the context, or the test ends, remove delegates and force-disconnect:
-
-```objc
-- (void)stop {
-    if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [self stop];
-        });
-        return;
+    if ([message.content isKindOfClass:[WKTextContent class]]) {
+        WKTextContent *text = (WKTextContent *)message.content;
+        NSLog(@"%@ says: %@", message.fromUid, text.content);
     }
-
-    ++self.connectionAttempt;
-    self.connectionAccepted = NO;
-    [self.connectionTimeoutTimer invalidate];
-    self.connectionTimeoutTimer = nil;
-    self.pendingClientMsgNo = nil;
-    [WKSDK.shared.connectionManager removeDelegate:self];
-    [WKSDK.shared.chatManager removeDelegate:self];
-    [WKSDK.shared.connectionManager disconnect:YES];
 }
-
-- (void)logout {
-    if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [self logout];
-        });
-        return;
-    }
-
-    ++self.connectionAttempt;
-    self.connectionAccepted = NO;
-    [self.connectionTimeoutTimer invalidate];
-    self.connectionTimeoutTimer = nil;
-    self.pendingClientMsgNo = nil;
-    [WKSDK.shared.connectionManager removeDelegate:self];
-    [WKSDK.shared.chatManager removeDelegate:self];
-    [WKSDK.shared.connectionManager logout];
-}
-
-@end
 ```
 
-Do not create a temporary `WKIMClient` and discard its reference. SDK managers do not own this application object. Give it a strong account-session or application-coordinator owner, then wire cleanup to explicit lifecycle entry points:
+## Expected result
 
-```objc
-@interface WKIMSessionOwner : NSObject
-@property (nonatomic, strong) WKIMClient *client;
-@end
+1. Alice and Bob both report `WKConnected`.
+2. Alice receives `WK_MESSAGE_SUCCESS` in `onMessageUpdate`.
+3. Bob prints “Hello, Bob” from `onRecvMessages`.
 
-@implementation WKIMSessionOwner
+If connection fails, make sure `host` has no `http://` or `https://` prefix and `port` is the client persistent-connection port. If sending produces no result, verify that Bob is online, the UID is correct, and sending happens after `WKConnected`.
 
-- (void)startWithBootstrap:(WKIMBootstrap *)bootstrap {
-    [self.client stop];
-    self.client = [[WKIMClient alloc] init];
-    [self.client startWithBootstrap:bootstrap];
-}
-
-- (void)endSession {
-    [self.client stop];
-    self.client = nil;
-}
-
-- (void)signOut {
-    [self.client logout];
-    self.client = nil;
-}
-
-- (void)dealloc {
-    [_client stop];
-}
-
-@end
-```
-
-Call `endSession` from the real account-session end, scene teardown, or test teardown; use `signOut` for account logout. `dealloc` is only a backstop, not a replacement for explicit lifecycle wiring.
-
-`disconnect:YES` stops the connection and automatic reconnect while retaining identity. `logout` also clears `connectInfo`. The SDK switches its local SQLCipher database by UID; `logout` does not automatically delete historical data. Source also uses the UID directly as the database key. A UID is not a secret key, so define reviewed key management, iOS file protection, account-switch, sign-out, device-transfer, and erasure policies in the product.
-
-## 7. Run Alice/Bob acceptance
-
-Use two independent application processes:
-
-1. Alice and Bob each obtain a bootstrap from the trusted product backend.
-2. Both call `startWithBootstrap:` and observe `WKConnected` within 15 seconds.
-3. Alice sends `hello from alice` to Bob and records only a local `clientMsgNo`, not content.
-4. Alice's `onMessageUpdate:left:` reaches `WK_MESSAGE_SUCCESS` for the **same `clientMsgNo`**.
-5. Bob's `onRecvMessages:left:` receives a message from Alice in their person channel.
-6. Bob replies to Alice and repeats the acknowledgement and online-receipt checks.
-7. Both call `stop` and show no duplicate delegate callbacks or unbounded reconnect.
-
-Retain the server revision, SDK `1.1.1`, source revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`, framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`, Xcode, device/system tuple, time, and redacted result. That is your runtime evidence; it is not added automatically to this site's JavaScript/Web receipt.
-
-## Not covered yet: offline and conversation recovery
-
-`1.1.1` exposes offline-message, channel-sync, and conversation-sync providers, but a product backend must implement their pull and acknowledgement semantics. Reaching `WKConnected` without those providers does not mean offline messages or conversations have recovered. This quickstart proves only the online loop; do not project it onto offline, push, background, or multi-device support.
-
-Use [Offline Messages & Push](/en/sdk/common-guides/offline-and-push), [Conversations & Unread Counts](/en/sdk/common-guides/conversations-and-unread), and [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors) to design requirements, then retain separate scenario evidence for the exact version.
-
-## Production blockers
-
-- **Transport:** exact source opens raw **TCP** without transport TLS through `GCDAsyncSocket` and exposes no TLS or `startTLS`. WKProto Payload encryption neither authenticates the server nor replaces authenticated TLS. Production needs controlled/private ingress or a reviewed transport upgrade.
-- **Logging:** despite `options.isDebug = NO`, the receive path still unconditionally logs a decoded packet, and a RECV description can contain plaintext message **Payload**. Patch/redact it, then inspect the Release artifact and complete log pipeline.
-- **Local data:** the SQLCipher key comes directly from the UID and is not an independent secret. Review key management, platform file protection, backup, and erasure policy.
-- **Identity:** receiving a token does not prove server-side production validation. Independently accept login, authorization, rotation, revocation, and Gateway verification.
-- **Compatibility:** source/header alignment is not a runtime receipt for the Xcode, device, system, and server tuple.
-
-## Troubleshooting
-
-- **Still not connected after 15 seconds:** inspect the trusted-backend response, host/port reachability, Gateway logs, and `reasonCode`; do not retry without a bound.
-- **Alice has a WKMessage but it never succeeds:** the synchronous return is local; await `onMessageUpdate:left:` and inspect redacted status/reason code.
-- **Alice succeeds but Bob sees nothing:** inspect Alice's acknowledgement and Bob's online RECV separately; sender state cannot prove receiver state.
-- **Callbacks repeat:** ensure the owning object does not add itself twice and calls `removeDelegate:self` on teardown.
-- **State crosses an account switch:** stop the old connection, call `logout`, and apply the product's policy to the UID-isolated database.
-
-## Next step
-
-After the online loop passes, archive its evidence through [Integration Acceptance](/en/guide/integration/acceptance), then implement offline, conversation, push, multi-device, and recovery requirements from the Common Guides. Continue with [Platform Capabilities](/en/sdk/ios/platform-capabilities) for iOS ownership and unverified scope, check `1.1.1` call sites against the [API Reference](/en/sdk/ios/api-reference), and follow the [Upgrade Guide](/en/sdk/ios/upgrade) before changing versions. These pages are source/header-aligned publications, not an added site Xcode, simulator, or device runtime receipt.
+Continue with [Connection](/en/sdk/ios/connection) and [Messages](/en/sdk/ios/messages).

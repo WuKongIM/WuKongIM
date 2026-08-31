@@ -1,0 +1,65 @@
+---
+title: iOS Conversations
+description: Read the chat list, observe changes, and maintain unread counts.
+---
+
+A `WKConversation` is one row in the chat list. It contains the destination channel, last message, last-message time, and unread count.
+
+## Read the chat list
+
+```objc
+NSArray<WKConversation *> *items =
+    [[WKSDK shared].conversationManager getConversationList];
+
+for (WKConversation *item in items) {
+    NSLog(@"channel=%@ unread=%ld",
+          item.channel.channelId,
+          (long)item.unreadCount);
+}
+```
+
+Use `lastMessage` for the preview and `lastMsgTimestamp` for ordering or display. `channelInfo` can be unavailable until its profile loads; see [Channels](/en/sdk/ios/channels) for names and avatars.
+
+## Observe list changes
+
+```objc
+[[WKSDK shared].conversationManager addDelegate:self];
+
+- (void)onConversationUpdate:(NSArray<WKConversation *> *)conversations {
+    // The array contains changed items; merge them by channel.
+    [self mergeConversations:conversations];
+}
+
+- (void)onConversationUnreadCountUpdate:(WKChannel *)channel
+                             unreadCount:(NSInteger)unreadCount {
+    [self updateBadgeForChannel:channel count:unreadCount];
+}
+```
+
+For a small list, re-reading `getConversationList` after each change is also reasonable and simpler.
+
+## Clear and total unread counts
+
+After the user opens a chat and sees its messages, clear the local unread count:
+
+```objc
+WKChannel *channel = [WKChannel personWithChannelID:@"bob"];
+[[WKSDK shared].conversationManager clearConversationUnreadCount:channel];
+
+NSInteger total =
+    [[WKSDK shared].conversationManager getAllConversationUnreadCount];
+```
+
+Deleting a conversation row does not delete every local message for that channel:
+
+```objc
+[[WKSDK shared].conversationManager deleteConversation:channel];
+```
+
+## Connect server-side conversation sync
+
+To restore recent conversations across devices, connect your application API through `setSyncConversationProviderAndAck:ack:`. The provider receives a version and each channel's last message sequence, then returns a `WKSyncConversationWrapModel`. The ack submits the processed version to your server.
+
+Keep UI work out of the provider; it is a data synchronization boundary. The conversation delegate reports changes after synchronization.
+
+Call `removeDelegate:` when the owner leaves the screen to prevent duplicate updates.

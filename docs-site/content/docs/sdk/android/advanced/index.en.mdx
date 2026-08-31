@@ -1,0 +1,19 @@
+---
+title: Android Advanced
+description: Add custom content, media upload, and remote history after basic messaging works.
+---
+
+Complete the [Quickstart](/en/sdk/android/quickstart), then add only the advanced capabilities your product needs. Unused providers do not need configuration.
+
+<Cards>
+  <Card title="Custom Messages" description="Define product content, assign a type number, and register it after initialization." href="/en/sdk/android/advanced/custom-messages" />
+  <Card title="Media & History" description="Connect attachment upload and remote history filling." href="/en/sdk/android/advanced/media-and-history" />
+</Cards>
+
+## Before production
+
+- `1.5.5` uses raw TCP by default, with no authenticated TLS switch in the public API. Use a controlled network entry or a transport design your security team has approved.
+- Keep `setDebug(false)` and confirm Release logs do not expose tokens or message bodies.
+- The token is stored in ordinary app preferences, and the local database does not replace system credential protection. Use an Android Keystore-backed design for sensitive credentials, with explicit backup and sign-out cleanup rules.
+- The app owns shrinking rules. Test connection, messages, and custom content in an R8-enabled Release build.
+- Test poor networks, background recovery, expired tokens, kicks, offline messages, account switching, and rollback on real devices.

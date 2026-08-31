@@ -1,0 +1,78 @@
+---
+title: JavaScript / Web 消息管理
+description: 发送、接收和同步消息，并区分本地消息、服务器结果与在线投递。
+---
+
+消息由正文 `MessageContent` 和目标 `Channel` 组成。`ChatManager` 负责发送、在线接收和调用远端同步 Provider。
+
+## 发送单聊或群聊消息
+
+```typescript
+const direct = await sdk.chatManager.send(
+  new MessageText('你好'),
+  new Channel('bob', ChannelTypePerson),
+)
+
+const group = await sdk.chatManager.send(
+  new MessageText('大家好'),
+  new Channel('team-1', ChannelTypeGroup),
+)
+```
+
+返回值是本地 `Message`，初始状态是 `MessageStatus.Wait`。用 `clientSeq` 或 `clientMsgNo` 关联后续服务器结果。
+
+## 监听消息与发送结果
+
+```typescript
+const onMessage = (message: Message) => {
+  if (message.send) {
+    addOutgoingMessage(message)
+  } else {
+    addIncomingMessage(message)
+  }
+}
+
+const onStatus = (ack: SendackPacket) => {
+  updateSendState(ack.clientSeq, ack.reasonCode, ack.messageSeq)
+}
+
+sdk.chatManager.addMessageListener(onMessage)
+sdk.chatManager.addMessageStatusListener(onStatus)
+```
+
+发送方法会立即触发消息监听器，所以不要把每个 `onMessage` 都当成对端新消息。`reasonCode === 1` 表示服务器接受发送；对方是否在线收到仍由对方的消息监听器确认。
+
+## 同步历史消息
+
+JavaScript SDK 不自带持久化消息数据库。离线恢复和翻页数据由你的业务 API 提供：
+
+```typescript
+sdk.config.provider.syncMessagesCallback = async (channel, options) => {
+  const rows = await messageApi.sync({
+    channelID: channel.channelID,
+    channelType: channel.channelType,
+    startMessageSeq: options.startMessageSeq,
+    endMessageSeq: options.endMessageSeq,
+    limit: options.limit,
+    pullMode: options.pullMode,
+  })
+  return rows.map(toSDKMessage)
+}
+```
+
+调用同步：
+
+```typescript
+const options = new SyncOptions()
+options.limit = 30
+options.pullMode = PullMode.Down
+
+const messages = await sdk.chatManager.syncMessages(
+  new Channel('bob', ChannelTypePerson),
+  options,
+)
+```
+
+`toSDKMessage` 是应用自己的映射函数，必须填好 `messageID`、`messageSeq`、`clientMsgNo`、`fromUID`、`channel`、`timestamp` 和正确解码的 `content`。
+
+页面销毁时用原函数引用调用 `removeMessageListener` 与 `removeMessageStatusListener`。

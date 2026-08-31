@@ -1,0 +1,82 @@
+---
+title: Flutter Connection
+description: Initialize identity and endpoint, understand conversation-sync states, and disconnect or log out correctly.
+---
+
+`WKConnectionManager` owns the Flutter connection. First call `WKIM.shared.setup` to open the current user's local database, then supply a gateway endpoint and connect.
+
+## Fixed and dynamic endpoints
+
+Fixed `host:port`:
+
+```dart
+final options = Options.newDefault(uid, token, addr: 'im.example.com:5100')
+  ..debug = false
+  ..deviceFlag = 0;
+await WKIM.shared.setup(options);
+```
+
+Resolve an endpoint before each connection:
+
+```dart
+final options = Options.newDefault(uid, token)
+  ..debug = false
+  ..getAddr = (complete) async {
+    final route = await gatewayApi.getAddress();
+    complete('${route.host}:${route.port}');
+  };
+await WKIM.shared.setup(options);
+```
+
+`getAddr` must eventually invoke `complete`. The current parser splits on a colon, so pass a plain DNS/IPv4 `host:port` with no scheme.
+
+## Understand the state sequence
+
+```dart
+im.connectionManager.addOnConnectionStatus(
+  'app-connection',
+  (status, reasonCode, info) {
+    if (status == WKConnectStatus.connecting) {
+      showConnecting();
+    } else if (status == WKConnectStatus.success) {
+      showRestoringConversations();
+    } else if (status == WKConnectStatus.syncMsg) {
+      showRestoringConversations();
+    } else if (status == WKConnectStatus.syncCompleted) {
+      enableSending();
+    } else if (status == WKConnectStatus.kicked) {
+      requireLoginAgain();
+    } else if (status == WKConnectStatus.noNetwork) {
+      showOffline();
+    } else if (status == WKConnectStatus.fail && reasonCode != null) {
+      showConnectionError(reasonCode);
+    }
+  },
+);
+```
+
+`connect()` first calls `disconnect(false)`, so it can emit a `fail` with no `reasonCode` during local cleanup. That is not a server rejection. A normal sequence is `connecting → success → syncMsg → syncCompleted`.
+
+The conversation provider must complete its callback or state remains at `syncMsg`. A real app returns a complete `WKSyncConversation` from its application server.
+
+## Disconnect and log out
+
+```dart
+// Stop connecting while retaining current-user configuration.
+im.connectionManager.disconnect(false);
+
+// Sign out: clear UID/token, fail pending sends, and close the local database.
+im.connectionManager.disconnect(true);
+```
+
+Remove the state observer with:
+
+```dart
+im.connectionManager.removeOnConnectionStatus('app-connection');
+```
+
+## Common problems
+
+- Stuck at `syncMsg`: the conversation provider did not call its completion function.
+- Address range error: the address is not a simple `host:port`.
+- Duplicate page callbacks: one feature registered under multiple keys or did not remove its key during teardown.

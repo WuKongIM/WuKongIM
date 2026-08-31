@@ -1,5 +1,3 @@
-import { JAVASCRIPT_WEB_QUICKSTART_TARGET } from '../examples/javascript-web-quickstart/src/acceptance/target';
-
 export const goldenPathHTTPPaths = [
   'POST /user/token',
   'GET /route',
@@ -9,8 +7,11 @@ export const goldenPathHTTPPaths = [
 export const GOLDEN_PATH_VERIFICATION_RECEIPT_SCHEMA =
   'wukongim.docs.golden-path-verification/v1' as const;
 
-const goldenPathScenario = JAVASCRIPT_WEB_QUICKSTART_TARGET.scenario;
-const sdkIdentity = JAVASCRIPT_WEB_QUICKSTART_TARGET.sdk;
+const goldenPathScenario = 'javascript-web-quickstart/alice-bob-reconnect-sync/v1';
+const sdkIdentity = {
+  package: 'wukongimjssdk',
+  version: '1.3.5',
+} as const;
 const runtimeIdentity = {
   node: '22.12.0',
   package_manager: 'npm',
@@ -690,22 +691,11 @@ export function renderDeveloperContractSupplement(
 ): string {
   const route = slugs.join('/');
   const sections: string[] = [];
-  if (
-    route === 'sdk/compatibility' ||
-    route === 'api/compatibility' ||
-    route === 'sdk/javascript/quickstart'
-  ) {
+  if (route === 'api/compatibility') {
     sections.push(renderCompatibilityMarkdown(locale));
   }
-  if (
-    route === 'api/conventions' ||
-    route === 'api/product-http' ||
-    route === 'sdk/javascript/quickstart'
-  ) {
+  if (route === 'api/conventions' || route === 'api/product-http') {
     sections.push(renderGoldenPathContractMarkdown(locale));
-  }
-  if (route === 'sdk/javascript/platform-capabilities') {
-    sections.push(renderJavaScriptCapabilityMarkdown(locale));
   }
   if (route === 'api/dictionaries/reason-codes') {
     sections.push(renderReasonCodeMarkdown(locale));

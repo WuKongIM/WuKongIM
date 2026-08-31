@@ -35,7 +35,7 @@ description: 对照 WuKongEasySDK Android v1.0.3 固定源码学习 Kotlin 接�
 - 一个 `/readyz` 正常且 Android 设备可访问 WebSocket Gateway 的 WuKongIM 单节点集群或多节点集群；
 - 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
 
-先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。示例变量来自业务后端，不应把真实 Token 写进 APK、源码、Logcat 或崩溃报告。
+先阅读[身份与 Token](/zh/guide/integration/authentication)。示例变量来自业务后端，不应把真实 Token 写进 APK、源码、Logcat 或崩溃报告。
 
 ## 步骤 1：安装精确版本
 
@@ -262,4 +262,4 @@ fun sendText(targetUid: String, text: String) {
 
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，再阅读[消息收发](/zh/sdk/common-guides/messaging)、[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)和[上线验收](/zh/guide/integration/acceptance)。
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，再阅读[消息收发](/zh/guide/integration/messaging)、[重连与异常处理](/zh/guide/integration/acceptance)和[上线验收](/zh/guide/integration/acceptance)。

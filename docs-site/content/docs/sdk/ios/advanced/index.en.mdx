@@ -1,0 +1,18 @@
+---
+title: iOS Advanced
+description: Add custom content, media files, and remote history after basic messaging works.
+---
+
+Complete the [Quickstart](/en/sdk/ios/quickstart), then add only the advanced capabilities your product needs. Unused providers do not need configuration.
+
+<Cards>
+  <Card title="Custom Messages" description="Define product content, assign a type number, and register it at startup." href="/en/sdk/ios/advanced/custom-messages" />
+  <Card title="Media & History" description="Connect file upload, download, and remote history filling." href="/en/sdk/ios/advanced/media-and-history" />
+</Cards>
+
+## Before production
+
+- The default connection in `1.1.1` is raw TCP, with no authenticated TLS switch in the public configuration. Use a controlled network entry or move to a transport design your security team has approved.
+- Set `options.isDebug = NO` and confirm Release logs do not expose tokens or message bodies.
+- The local message database is separated by UID, but a UID is not an encryption key. Design iOS file protection, backups, and sign-out cleanup together.
+- Test poor networks, background recovery, expired tokens, kicks, offline messages, and rollback on real devices.

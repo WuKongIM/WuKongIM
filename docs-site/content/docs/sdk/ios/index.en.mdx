@@ -1,86 +1,34 @@
 ---
 title: iOS
-description: Use the WuKongIMSDK 1.1.1 public headers to install with CocoaPods, connect, and exchange a first online text message.
+description: Use Objective-C to connect WuKongIMSDK and manage connections, messages, conversations, and channel profiles.
 ---
 
-This tutorial is for developers integrating the full WuKongIMSDK into a native iOS application for the first time. It uses the Objective-C public API from `WuKongIMSDK` `1.1.1` to explain the shortest lifecycle: a product backend prepares identity, the client configures the SDK, waits for connection state, then observes send state and online receipt separately.
+`WuKongIMSDK` is the full WuKongIM SDK for iOS. It manages the persistent connection, message delivery, local message database, conversation list, and channel profiles. Use it when your app owns the chat UI.
 
-<Callout type="warn" title="Understand the evidence boundary first">
-  The tutorial is aligned with the `1.1.1` source, CocoaPods metadata, and distributed framework public headers, but this is **not runtime verification**. This site carries no Xcode build, simulator/device message loop, or compatibility receipt for this version. Raw TCP without TLS, logging, and local-data protection findings below are current **production blocker** items.
+These guides target `WuKongIMSDK 1.1.1` and use Objective-C throughout.
+
+## Before you start
+
+Prepare:
+
+- a reachable WuKongIM service;
+- two test users, such as `alice` and `bob`;
+- a `uid`, `token`, connection `host`, and `port` returned by your application server;
+- an iOS project that uses CocoaPods.
+
+<Callout type="info" title="Where does the token come from?">
+  Your application server should create the token and return it to an authenticated user. Never put a WuKongIM admin secret in the app or let the app call an admin API to create tokens.
 </Callout>
 
-## Who this is for
-
-- You need the SDK to own connection, messaging, local database, conversation, and other client state rather than calling a stateless endpoint only.
-- Your trusted product backend can return UID, token, Gateway host, and port after product login.
-- You want to prove an Alice/Bob online-text loop before separately validating offline sync, push, background behavior, and production security.
-
-If you are still comparing EasySDK and the full SDK, start with [Choose an SDK](/en/sdk/choose-sdk). This tutorial uses `WuKongIMiOSSDK`; do not copy EasySDK or legacy-document method names into it.
-
-## Exact version snapshot
-
-| Component | Pinned value | Evidence purpose |
-| --- | --- | --- |
-| CocoaPods | [`WuKongIMSDK` `1.1.1`](https://cocoapods.org/pods/WuKongIMSDK) | Installable distribution entry |
-| SDK source | [`WuKongIMiOSSDK` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/1.1.1) | Public API and implementation review |
-| Binary artifact | [`WuKongIMiOSSDK-Framework` tag `1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/tree/1.1.1) | CocoaPods public headers and framework |
-| Podspec deployment declarations | iOS `11.0` / iOS `13.0` conflict | Source and framework podspecs disagree; they do not establish one minimum supported version |
-
-The tutorial-facing public headers match between the source and framework tags. That supports “the shown methods exist,” but it does not prove a target environment builds or runs. The source podspec says iOS `11.0`, while the framework podspec says deployment target iOS `13.0` and platform iOS `11.0`; integrators must resolve and validate this podspec conflict with their own Deployment Target, Xcode, simulator, and device tuple.
-
-## What you will build
-
-```text
-Alice iOS ─┐                           ┌─ Gateway TCP
-           ├─ trusted backend identity ┤
-Bob iOS ───┘   uid/token/host/port      └─ WuKongIM single-node cluster
-```
-
-- The product backend owns product login, authorization, UID, token, routing, expiry, and revocation.
-- The iOS SDK owns connection state, send queues, online receipt, and a UID-isolated local database.
-- The WuKongIM cluster owns channel logs, persistent commit, routing, and online delivery.
-
-The client receives only minimal connection material and never Product HTTP management credentials.
-
-## Recommended learning order
+## Recommended order
 
 <Cards>
-  <Card title="1. Installation" description="Install the exact CocoaPods artifact and review the iOS target, simulator architecture, and distribution provenance." href="/en/sdk/ios/installation" />
-  <Card title="2. Quickstart" description="Map identity, connection, send, acknowledgement, receipt, and cleanup to the public Objective-C API." href="/en/sdk/ios/quickstart" />
-  <Card title="3. Platform Capabilities" description="Separate source-aligned behavior, iOS application ownership, production blockers, and device-unverified scope." href="/en/sdk/ios/platform-capabilities" />
-  <Card title="4. API Reference" description="Find managers, providers, delegates, models, and statuses in the pinned 1.1.1 public headers." href="/en/sdk/ios/api-reference" />
-  <Card title="5. Upgrade Guide" description="Plan version changes with an exact Pod, lockfile, call-site review, device scenarios, and reversible rollout." href="/en/sdk/ios/upgrade" />
-  <Card title="6. Identity & Token" description="Keep UID, token, rotation, and revocation behind a trusted product backend." href="/en/sdk/common-guides/identity-and-token" />
-  <Card title="7. Messaging" description="Separate local pending state, server acknowledgement, online receipt, and product processing." href="/en/sdk/common-guides/messaging" />
-  <Card title="8. Integration Acceptance" description="Add failure-path, compatibility, security, capacity, upgrade, and rollback evidence." href="/en/guide/integration/acceptance" />
+  <Card title="Quickstart" description="Install the SDK, connect a user, and send the first online text message." href="/en/sdk/ios/quickstart" />
+  <Card title="Connection" description="Understand connection states, dynamic endpoints, disconnect, and logout." href="/en/sdk/ios/connection" />
+  <Card title="Messages" description="Send, receive, retry, and read local messages." href="/en/sdk/ios/messages" />
+  <Card title="Conversations" description="Build the chat list and maintain unread counts." href="/en/sdk/ios/conversations" />
+  <Card title="Channels" description="Load names, avatars, and members for direct or group chats." href="/en/sdk/ios/channels" />
+  <Card title="Advanced" description="Add custom content, media upload, and remote history." href="/en/sdk/ios/advanced" />
 </Cards>
 
-## Minimal loop and excluded scope
-
-| Stage | This tutorial shows | This tutorial does not prove |
-| --- | --- | --- |
-| Install | `pod 'WuKongIMSDK', '1.1.1'` and public-header provenance | Compatibility with every Xcode, simulator, or device |
-| Connect | Call `connect`, await the connection delegate, and enforce a 15-second acceptance timeout | Calling `connect` means the connection succeeded |
-| Send | Create `WKTextContent` and a person channel, then obtain a local `WKMessage` | The returned object has a server acknowledgement |
-| Ack and receive | Handle message-update and RECV callbacks separately | Peer product processing or offline recovery completed |
-| Cleanup | Remove delegates and force disconnect; call `logout` for account logout | Automatic compliance with the product's data-deletion policy |
-
-## Blockers to close before production
-
-Exact `1.1.1` source opens a raw **TCP** connection without transport TLS through `GCDAsyncSocket`. It exposes no TLS option or `startTLS` path. WKProto compatibility Payload encryption neither authenticates the server nor replaces authenticated TLS. Production requires controlled/private ingress or a reviewed SDK or transport upgrade with authenticated TLS.
-
-`WKOptions.isDebug` defaults to enabled, and the tutorial explicitly disables `isDebug`. That is still insufficient: the `1.1.1` receive path unconditionally logs the decoded packet, and a RECV description can contain plaintext message **Payload**. This remains a production blocker until an upstream or reviewed patch redacts it and the Release artifact plus log-collection chain are verified.
-
-The local message database uses SQLCipher, but source supplies the UID directly as its database key. A UID scopes the database file; it is not a secret key or standalone at-rest confidentiality. Production still needs reviewed key management, iOS file protection, backup, account-switch, and erasure policy.
-
-## Completion check
-
-- You can identify the exact CocoaPods version and both reviewed revisions.
-- You can explain the iOS `11.0` / iOS `13.0` podspec conflict and validate the application's own Deployment Target on its target environment.
-- You know connection success comes from a delegate rather than the `connect` return value.
-- You can distinguish a local pending message, send acknowledgement, and Bob's online receipt.
-- You do not present source review as a compatibility receipt or ignore TCP/TLS and Payload logging risk.
-
-## Next step
-
-Begin with [Installation](/en/sdk/ios/installation). After checking the dependency and build environment, use the [Quickstart](/en/sdk/ios/quickstart) to implement the Alice/Bob online-message loop, then continue through [Platform Capabilities](/en/sdk/ios/platform-capabilities), the [API Reference](/en/sdk/ios/api-reference), and the [Upgrade Guide](/en/sdk/ios/upgrade). These new pages are source/header-aligned publications, not an added site Xcode, simulator, or device runtime receipt.
+Read [Core Concepts](/en/sdk/wukongim/concepts) first if “channel” or “conversation” is unfamiliar. Open the [API Reference](/en/sdk/ios/api-reference) when you only need a method name.

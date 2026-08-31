@@ -1,194 +1,143 @@
 ---
-title: Flutter 快速接入
-description: 用 wukongimfluttersdk 1.7.9 的真实 Dart API 完成同步门禁、文本发送、SENDACK 与在线接收。
+title: Flutter 快速开始
+description: 安装 wukongimfluttersdk 1.7.9，连接用户并完成第一条在线文本消息。
 ---
 
-本页用 `wukongimfluttersdk 1.7.9` 完成一个有边界的在线消息闭环：Alice 与 Bob 分别连接，Alice 发送一条个人文本消息，应用区分本地入库、服务端 SENDACK 和 Bob 在线接收。两端必须运行在两个独立进程、模拟器或设备中，因为 `WKIM.shared` 及其 manager 都是进程单例。
-
-<Callout type="warn" title="这是验收骨架，不是生产封装">
-  本站只对精确 package 的公开 API 做过静态分析和 macOS Release 构建，没有 Android、iOS、macOS Alice/Bob 运行 receipt。`Socket.connect` 仍是原始 TCP，无认证 TLS；普通 sqflite、SharedPreferences、明文 Payload 日志、退出后残留的 `_sendingMsgMap` 与不可取消重连都属于生产阻断项。示例在终止路径要求进程重启，不能把一次在线通过解释为生产可用。
-</Callout>
-
-## 目标与完成标准
-
-一次成功验收必须同时证明：
-
-1. Alice 和 Bob 都观察到 `fail(null) → connecting → success → syncMsg → syncCompleted`；
-2. `syncCompleted` 必须对应当前 `connectionEpoch` 已交付的会话同步结果，之后才开放发送；
-3. Alice 调用发送后，应用先记录持久化本地插入，再记录终态 SENDACK；
-4. 两个发送事件的 `clientMsgNO` 和 `clientSeq` 相同，且终态为 `WKSendMsgResult.sendSuccess`；
-5. Bob 从在线新消息 listener 收到相同文本；
-6. 每个阶段都有 15 秒超时，结束时移除所有带 key 的 listener。
-
-第一次 `success` 只表示 CONNACK 成功。Flutter SDK 随后进入 `syncMsg`，在 `syncCompleted` 后不会再发第二个 `success`。没有安装会话同步 provider 时，连接会停在 `syncMsg`。
+这一页只做一件事：让两个在线 Flutter 客户端互相发送一条文本消息。
 
 ## 前置条件
 
-- 已按[安装与配置](/zh/sdk/flutter/installation)固定 package、归档哈希和 `pubspec.lock`；
-- 一个可访问的 WuKongIM 单节点集群，并记录精确服务端 revision；
-- 由受信业务后端认证的 Alice、Bob 两个开发账号；
-- 后端分别返回 `uid`、短期 `token` 与 DNS/IPv4 `host:port`；
-- 对已有数据的账号，后端已实现完整最近会话与消息同步映射。
+- 业务服务端已为 `alice` 和 `bob` 返回各自的 `uid`、`token` 和 `host:port`；
+- 两个独立的 App 进程或设备。`WKIM.shared` 是进程单例；
+- Flutter 工程已能在目标设备运行。
 
-客户端不能持有 Product HTTP 管理凭据，也不能自行签发 Token。不要把 Token、完整 Payload 或高基数 UID 写入业务日志。
+## 1. 安装
 
-## 1. 下载经过编译校对的封装
+在 `pubspec.yaml` 中固定版本：
 
-[下载完整 `wk_acceptance.dart`](/examples/flutter/wk_acceptance.dart)，放到应用的 `lib/` 目录。文件 SHA-256 为：
-
-```text
-b0a0b4aef4ddf2d77b9f928931ea6b60ab5cf0d53dd82d4b1abbec1c79a920e6
+```yaml
+dependencies:
+  wukongimfluttersdk: 1.7.9
 ```
 
-该文件直接使用 `1.7.9` 的公开 API：
+然后执行：
 
-| 责任 | 精确 SDK API |
-| --- | --- |
-| 初始化 | `await WKIM.shared.setup(Options.newDefault(...))`，设置 `debug = false`，并从 bootstrap 传入目标平台的 `deviceFlag` |
-| 会话同步 | `addOnSyncConversationListener` 返回 `WKSyncConversation` |
-| 状态门禁 | `addOnConnectionStatus` 与 `WKConnectStatus.connecting`、`success`、`syncMsg`、`syncCompleted`、`kicked`、`noNetwork` |
-| 文本发送 | `await sendWithOption(WKTextContent(...), WKChannel(..., WKChannelType.personal), ...)` |
-| 本地插入 | 无 key 的 `addOnMsgInsertedListener` |
-| SENDACK | 带 key 的 `addOnRefreshMsgListener` |
-| 在线接收 | 带 key 的 `addOnNewMsgListener` |
-| 清理 | `removeOnConnectionStatus`、`removeOnRefreshMsgListener`、`removeNewMsgListener` |
+```bash
+flutter pub get
+```
 
-SDK 自带的 `sendMessage(...)` **不等待**内部异步 `sendWithOption(...)`，所以验收封装直接 `await sendWithOption(...)`。这只能确认调用链和本地插入已完成；网络结果仍必须等刷新 listener 的终态。
-
-## 2. 在应用启动时安装单例 provider
-
-Flutter binding 必须先初始化。会话同步与本地插入回调没有 key，也没有公开 remove API，因此应用级 `WKProviders` 只能安装一次：
+## 2. 初始化
 
 ```dart
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+import 'package:flutter/widgets.dart';
+import 'package:wukongimfluttersdk/common/options.dart';
+import 'package:wukongimfluttersdk/entity/channel.dart';
+import 'package:wukongimfluttersdk/entity/conversation.dart';
+import 'package:wukongimfluttersdk/entity/msg.dart';
+import 'package:wukongimfluttersdk/model/wk_text_content.dart';
+import 'package:wukongimfluttersdk/type/const.dart';
+import 'package:wukongimfluttersdk/wkim.dart';
 
-  final providers = WKProviders(productionConversationSource);
-  providers.install();
+WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(MyApp(providers: providers));
+final im = WKIM.shared;
+final options = Options.newDefault(
+  bootstrap.uid,
+  bootstrap.token,
+  addr: bootstrap.address, // 例如 im.example.com:5100
+)
+  ..debug = false
+  ..deviceFlag = 0;
+
+final initialized = await im.setup(options);
+if (!initialized) {
+  throw StateError('WuKongIM local database initialization failed');
 }
 ```
 
-`productionConversationSource` 接收 SDK 的 `lastMsgSeqs`、`msgCount`、`version`，调用受信业务后端，并把完整响应映射成 `WKSyncConversation`。回调必须覆盖历史会话、最近消息、版本及产品需要的同步数据；网络失败不能伪装为空成功。
+地址不能带 `tcp://`、`http://` 或 `https://`。
 
-下载示例提供了 `WKProviders.freshAccountsOnly()`，它只返回空的 `WKSyncConversation`：
+## 3. 提供会话同步并监听状态
 
-```dart
-final providers = WKProviders(WKProviders.freshAccountsOnly());
-providers.install();
-```
-
-这个 shortcut **仅限全新测试账号**做在线 Alice/Bob 闭环。已有消息、离线数据或生产账号使用它会丢失同步语义。
-
-## 3. 从业务后端取得连接材料
-
-后端响应可以映射为应用自己的 `WKBootstrap`：
+连接成功后 SDK 会先同步最近会话。即使只测试全新账号，也要结束这个同步步骤：
 
 ```dart
-final alice = WKBootstrap(
-  uid: bootstrap.uid,
-  token: bootstrap.shortLivedToken,
-  address: '${bootstrap.gatewayHost}:${bootstrap.gatewayPort}',
-  deviceFlag: 0, // Android/iOS；macOS 桌面端使用 2。
+im.conversationManager.addOnSyncConversationListener(
+  (lastMsgSeqs, msgCount, version, complete) async {
+    // 正式应用应在这里调用业务服务端并返回完整 WKSyncConversation。
+    final empty = WKSyncConversation()
+      ..uid = bootstrap.uid
+      ..conversations = [];
+    complete(empty);
+  },
+);
+
+const listenerKey = 'chat-home';
+im.connectionManager.addOnConnectionStatus(
+  listenerKey,
+  (status, reasonCode, info) {
+    if (status == WKConnectStatus.syncCompleted) {
+      print('WuKongIM ready');
+    } else if (status == WKConnectStatus.fail && reasonCode != null) {
+      print('connect failed: $reasonCode');
+    } else if (status == WKConnectStatus.kicked) {
+      print('this account was signed in elsewhere');
+    }
+  },
 );
 ```
 
-`address` 必须是一个 DNS/IPv4 `host:port`，不能带 `tcp://`、`https://`，也不能传 IPv6 literal。封装内部精确执行：
+`WKConnectStatus.success` 表示连接协议成功，随后还会出现 `syncMsg` 和 `syncCompleted`。最简单的发送门槛是等待 `syncCompleted`。
+
+## 4. 监听消息并连接
 
 ```dart
-final options = Options.newDefault(next.uid, next.token, addr: next.address)
-  ..debug = false
-  ..deviceFlag = next.deviceFlag;
+im.messageManager.addOnNewMsgListener(listenerKey, (messages) {
+  for (final message in messages) {
+    final content = message.messageContent;
+    if (content is WKTextContent) {
+      print('${message.fromUID}: ${content.content}');
+    }
+  }
+});
 
-final initialized = await WKIM.shared.setup(options);
+im.messageManager.addOnRefreshMsgListener(listenerKey, (message) {
+  if (message.status == WKSendMsgResult.sendSuccess) {
+    print('message sent: ${message.clientMsgNO}');
+  } else if (message.status == WKSendMsgResult.sendFail) {
+    print('message failed: ${message.clientMsgNO}');
+  }
+});
+
+im.connectionManager.connect();
 ```
 
-当前设备字典是 `0=APP`、`1=WEB`、`2=PC`。Android/iOS 原生应用传 `0`，macOS 传 `2`。单独实现并完成兼容验收的 Windows/Linux 移植在协议上也应选 `2`，但本包快照与本站 receipt 不声明这两个平台可用。这个 SDK 使用 `dart:io` 与 `sqflite`，浏览器目标不应传 `1`，而应改用 Web/JSSDK。下载封装在 Release 构建也会拒绝 `1` 或未知值，不能依赖 Dart `assert` 做校验。
+## 5. 发送文本
 
-## 4. 创建观察者并启动一端
-
-为 UI、测试日志或状态容器实现 `WKSessionObserver`。关键回调含义是：
-
-| 回调 | 业务含义 |
-| --- | --- |
-| `onConnectionState` | 原始 SDK 状态；`fail(null)` 是 `connect()` 前置清理，不是服务端拒绝 |
-| `onReady` | 当前连接代次已完成 provider 交付和 `syncCompleted`，可以开始本验收发送 |
-| `onLocalInsert` | 消息已写入 UID 对应的本地 sqflite；记录 `clientMsgNO` / `clientSeq` |
-| `onSendSucceeded` | 同一消息收到成功 SENDACK |
-| `onSendRejected` | 收到非成功终态；不能显示为“已发送” |
-| `onNewMessages` | 当前在线连接收到消息；不是离线恢复或推送证明 |
-| `onTimeout` / `onTerminalError` | 本轮终止，清理后必须重启进程再试 |
-
-然后创建一次性 session：
+收到 `syncCompleted` 后，让 Alice 向 Bob 发送：
 
 ```dart
-final session = WKSession(
-  providers,
-  observer,
-  acceptanceTimeout: const Duration(seconds: 15),
-  sendTimeout: const Duration(seconds: 15),
-);
-
-await session.start(alice);
-```
-
-`start` 会等待 `WKIM.shared.setup`，先注册带 key 的 listener，再调用 `connect()`。封装只接受一个 `connecting` 代次：SDK 的延迟重连没有公开取消句柄或 generation，第二个 `connecting` 会进入终止路径并调用 `requireProcessRestart()`。
-
-## 5. 运行 Alice/Bob 闭环
-
-在两个独立进程中执行以下顺序：
-
-1. 先启动 Bob，等 `onReady()`；
-2. 再启动 Alice，等 `onReady()`；
-3. Alice 发送：
-
-```dart
-final inserted = await aliceSession.sendText(
-  'hello from Alice',
-  'bob',
+await im.messageManager.sendWithOption(
+  WKTextContent('你好，Bob'),
+  WKChannel('bob', WKChannelType.personal),
+  WKSendOptions(),
 );
 ```
 
-4. Alice 的 `onLocalInsert` 先保存 `inserted.clientMsgNO` 和 `inserted.clientSeq`；
-5. Alice 的 `onSendSucceeded` 必须带相同的两个关联值；若进入 `onSendRejected` 或 15 秒超时，本轮失败；
-6. Bob 的 `onNewMessages` 必须出现来自 Alice、频道类型为个人、内容相同的消息。
+使用 `sendWithOption` 并等待它完成，可以确保本地保存步骤完成；服务器结果仍来自消息刷新监听器。
 
-封装一次只允许一条在途消息，并会暂存“早于本地插入报告到达”的终态刷新，避免 UI 颠倒入库与 SENDACK。不要用 Bob 在线收到消息代替 Alice 的成功 SENDACK，也不要用 Alice 的 SENDACK 代替 Bob 的接收证明。
+## 预期结果
 
-## 6. 清理与重试
+1. Alice 和 Bob 都到达 `syncCompleted`；
+2. Alice 的消息状态变成 `sendSuccess`；
+3. Bob 的新消息监听器打印“你好，Bob”。
 
-只有收到终态 SENDACK 后才能调用：
+页面结束时清理：
 
 ```dart
-session.close();
+im.connectionManager.removeOnConnectionStatus(listenerKey);
+im.messageManager.removeNewMsgListener(listenerKey);
+im.messageManager.removeOnRefreshMsgListener(listenerKey);
 ```
 
-`close()` 使用创建时相同的 key 调用 `removeOnConnectionStatus`、`removeOnRefreshMsgListener`、`removeNewMsgListener`，然后执行 `disconnect(true)`。由于 `disconnect(true)` 不清空 SDK 内部 `_sendingMsgMap`，而已排队的自动重连也无法取消，封装把关闭、超时、踢出、断网、同步失败和发送失败都标记为**进程重启**后才能再次连接。同一进程也禁止切换 UID。
-
-## 7. 保存运行证据
-
-一次可评审的运行 receipt 至少包含：
-
-```text
-wukongimfluttersdk version + archive SHA + pubspec.lock digest
-Flutter + Dart + Android/iOS/macOS toolchain
-Release/Debug mode + device/OS
-server revision
-Alice/Bob redacted status timestamps
-local insert and SENDACK clientMsgNO/clientSeq
-Bob online receive result
-```
-
-本站尚未取得这组证据。用户侧“已验证”可以作为提交 receipt 的前提，但不能替代精确 tuple 与脱敏结果。
-
-## 生产前仍需解决
-
-- `Socket.connect` 使用原始 TCP，WKProto 加密不能替代认证 TLS；
-- 普通 sqflite 与 SharedPreferences 没有 SDK 层静态加密；
-- `Options.debug` 默认开启，解码日志可包含明文 Payload；
-- `_sendingMsgMap`、重连 Future 与无 remove 的 provider 缺少安全代次/账号隔离；
-- package 自身 parser 测试仍有 `RangeError`；
-- 离线同步、推送、后台恢复、多设备和高负载都需要独立验收。
-
-因此，本页提供的是让你在自己的环境证明精确 `1.7.9` 在线 API 闭环的有界路径；它本身不是运行证明或生产发布许可。
+下一步阅读[连接管理](/zh/sdk/flutter/connection)和[消息管理](/zh/sdk/flutter/messages)。

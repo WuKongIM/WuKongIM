@@ -1,0 +1,74 @@
+---
+title: Android 媒体与历史消息
+description: 接入附件上传，并在本地数据不足时从业务服务端补齐消息。
+---
+
+媒体消息需要先把本地文件上传成其他设备可访问的远端地址。SDK 管理消息状态，你的应用负责真正的对象存储上传和鉴权。
+
+## 发送图片
+
+```java
+WKImageContent image = new WKImageContent(localPath);
+image.width = width;
+image.height = height;
+
+WKChannel channel = new WKChannel("team-1", WKChannelType.GROUP);
+WKIM.getInstance().getMsgManager().send(image, channel);
+```
+
+发送媒体前配置附件上传：
+
+```java
+msgManager.addOnUploadAttachListener((message, result) -> {
+    if (!(message.baseContentMsgModel instanceof WKImageContent)) {
+        result.onUploadResult(false, message.baseContentMsgModel);
+        return;
+    }
+
+    WKImageContent content =
+        (WKImageContent) message.baseContentMsgModel;
+    objectStorage.upload(content.localPath, (url, error) -> {
+        if (error == null) {
+            content.url = url;
+            result.onUploadResult(true, content);
+        } else {
+            result.onUploadResult(false, content);
+        }
+    });
+});
+```
+
+上传凭证应短期有效，并限制路径、大小和文件类型。不要把 `localPath` 当成接收方可以访问的 URL。
+
+## 接入远端历史消息
+
+`getOrSyncHistoryMessages` 会先读本地库。当本地范围不足时，它调用频道消息同步监听器：
+
+```java
+msgManager.addOnSyncChannelMsgListener((
+    channelID,
+    channelType,
+    startMessageSeq,
+    endMessageSeq,
+    limit,
+    pullMode,
+    callback
+) -> historyApi.fetch(
+    channelID,
+    channelType,
+    startMessageSeq,
+    endMessageSeq,
+    limit,
+    pullMode,
+    callback::onBack
+));
+```
+
+业务接口需要把响应转换为 `WKSyncChannelMsg`，其中 `messages` 是 `WKSyncRecent` 列表。无数据时也要回调一个空结果，不能让页面一直加载。
+
+## 常见问题
+
+- 图片一直显示发送中：确认上传逻辑最终调用 `onUploadResult`，成功时还要写入 `content.url`。
+- 其他设备看不到图片：确认 URL 可在接收方鉴权后下载，而不是发送方沙盒路径。
+- 历史消息重复：按频道和 `messageSeq` 合并，不要按数组位置合并。
+- 历史加载不结束：给业务请求设置超时，并保证成功、空结果、错误三个分支都结束页面状态。

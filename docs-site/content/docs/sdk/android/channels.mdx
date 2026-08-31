@@ -1,0 +1,65 @@
+---
+title: Android 频道管理
+description: 为单聊和群聊加载名称、头像、设置与群成员。
+---
+
+频道 `WKChannel` 表示“消息要发给谁”。单聊频道 ID 是对方 UID，群聊频道 ID 是你的业务群 ID。
+
+## 创建和读取频道
+
+```java
+WKChannel person = new WKChannel("bob", WKChannelType.PERSONAL);
+WKChannel group = new WKChannel("team-1", WKChannelType.GROUP);
+
+WKChannel cached = WKIM.getInstance()
+    .getChannelManager()
+    .getChannel("bob", WKChannelType.PERSONAL);
+```
+
+本地没有资料时，`getChannel` 返回 `null`。用 `channelID + channelType` 作为完整身份，不要只按 ID 缓存。
+
+## 接入用户和群资料 API
+
+```java
+ChannelManager manager = WKIM.getInstance().getChannelManager();
+
+manager.addOnGetChannelInfoListener((channelID, channelType, callback) -> {
+    profileApi.fetch(channelID, channelType, channel -> {
+        callback.onResult(channel);
+    });
+    return null;
+});
+
+manager.fetchChannelInfo("bob", WKChannelType.PERSONAL);
+```
+
+Provider 可以立即返回已有的 `WKChannel`，也可以像上面一样返回 `null`，稍后通过 callback 交付网络结果。返回对象中的 `channelID`、`channelType` 和 `version` 必须正确。
+
+## 监听资料变化
+
+```java
+manager.addOnRefreshChannelInfo("chat-header", (channel, isEnd) -> {
+    titleView.setText(
+        TextUtils.isEmpty(channel.channelRemark)
+            ? channel.channelName
+            : channel.channelRemark
+    );
+    loadAvatar(channel.avatar);
+});
+```
+
+离开页面时：
+
+```java
+manager.removeRefreshChannelInfo("chat-header");
+```
+
+## 群成员
+
+群成员由 `ChannelMembersManager` 管理。应用通过 `addOnSyncChannelMembers` 接入自己的成员分页接口，再从本地管理器读取成员。大群必须分页，不要一次加载全部成员。
+
+## 常见问题
+
+- 只显示频道 ID：配置 `addOnGetChannelInfoListener` 后调用 `fetchChannelInfo`。
+- 头像和名称不刷新：确认 Provider 交付了完整 `WKChannel`，并且页面监听 key 没有冲突。
+- 单聊和群资料串了：缓存键必须同时包含 `channelID` 和 `channelType`。

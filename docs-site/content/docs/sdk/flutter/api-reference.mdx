@@ -1,168 +1,81 @@
 ---
 title: Flutter API 参考
-description: wukongimfluttersdk 1.7.9 的单例、配置、manager、Provider、listener、模型与结果码速查。
+description: 按管理器快速查找 wukongimfluttersdk 常用入口、监听器、模型和状态。
 ---
 
-本参考固定到 `wukongimfluttersdk 1.7.9` 和源码 revision [`de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/de1024276523119e38305c49a3a873caae4d5c59)。它枚举 manager 的公开 Dart 符号，并区分推荐的应用接入面与没有下划线、但实际服务于 SDK 内部流程的实现入口；“源码可见”不等于“长期稳定”。
+本页是常用入口速查。完整用法和调用顺序请回到对应任务页面。SDK 单例是 `WKIM.shared`。
 
-<Callout type="warn" title="API 对齐不是运行验证">
-  这里的方法名来自固定 pub.dev archive 与匹配源码，不是本站 Android、iOS 或 macOS 运行验证，也不是生产安全背书。调用存在不代表你的服务端、数据源、设备和 Release 已通过验收。
-</Callout>
+## 初始化
 
-## 导入边界与权威源码
-
-这个 package 没有提供一个聚合所有 SDK 类型的稳定 barrel；`lib/main.dart` 还是 Flutter 模板应用。精确示例因此从 package 子路径导入：
-
-```dart
-import 'package:wukongimfluttersdk/common/options.dart';
-import 'package:wukongimfluttersdk/entity/channel.dart';
-import 'package:wukongimfluttersdk/entity/conversation.dart';
-import 'package:wukongimfluttersdk/entity/msg.dart';
-import 'package:wukongimfluttersdk/manager/connect_manager.dart';
-import 'package:wukongimfluttersdk/model/wk_text_content.dart';
-import 'package:wukongimfluttersdk/type/const.dart';
-import 'package:wukongimfluttersdk/wkim.dart';
-```
-
-这些路径存在于 `1.7.9` archive，但未来版本可能移动。升级时必须重新编译所有深路径 import。
-
-| 范围 | 固定源码 |
+| API | 用途 |
 | --- | --- |
-| 统一入口 | [`lib/wkim.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/wkim.dart) |
-| 配置 | [`lib/common/options.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/common/options.dart) |
-| 连接 | [`lib/manager/connect_manager.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/connect_manager.dart) |
-| 消息 | [`lib/manager/message_manager.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/message_manager.dart) |
-| 会话 | [`lib/manager/conversation_manager.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/manager/conversation_manager.dart) |
-| 模型与常量 | [`lib/entity/msg.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/entity/msg.dart)、[`lib/type/const.dart`](https://github.com/WuKongIM/WuKongIMFlutterSDK/blob/de1024276523119e38305c49a3a873caae4d5c59/lib/type/const.dart) |
-
-## `WKIM` 与 `Options`
-
-`WKIM.shared` 是进程单例。`setup(Options opts)` 保存配置、注册内置正文，并在 app mode 打开 UID 数据库。数据库打开成功后，它会发起一次 `updateSendingMsgFail()`，但两层调用都没有等待底层 sqflite update；这是 **best-effort、未等待**的状态修正，`setup` 返回成功不证明旧 sending 行已经落盘为失败。
-
-```dart
-final options = Options.newDefault(uid, token, addr: hostPort)
-  ..debug = false
-  ..deviceFlag = 0;
-
-final opened = await WKIM.shared.setup(options);
-```
-
-| `Options` 字段 | `1.7.9` 语义 |
-| --- | --- |
-| `uid` / `token` | CONNECT 身份；必须由受信业务后端发放 |
-| `addr` | 一个 DNS/IPv4 `host:port`；不是 URI |
-| `getAddr` | 回调式动态路由：接收 `complete(addr)`；必须由应用设置超时 |
-| `protoVersion` | 默认 `0x04`；不要在无跨端证据时覆盖 |
-| `deviceFlag` | Android/iOS 使用 `0=APP`；已校对的 macOS wrapper 使用 `2=PC` |
-| `debug` | 默认 `true`；生产设为 `false`，但仍需审计最终日志 |
-| `proto` | 可替换协议对象；一般保留默认 `Proto()` |
-
-`setup` 返回数据库打开结果；成功不等于连接、同步或运行兼容。`WKIM.shared` 公开 `runMode`、`options`、`deviceFlagApp`，以及 `connectionManager`、`messageManager`、`conversationManager`、`channelManager`、`channelMemberManager`、`reminderManager` 和 `cmdManager`。`isApp()` 读取运行模式；`setDeviceFlag(...)` 已 deprecated，改用 `Options.deviceFlag`。
+| `setup(Options)` | 配置当前用户并打开该 UID 的本地数据库 |
+| `Options.newDefault(uid, token, {addr})` | 创建默认配置 |
+| `Options.getAddr` | 动态提供长连接地址 |
+| `connectionManager` | 连接与状态 |
+| `messageManager` | 消息收发与查询 |
+| `conversationManager` | 会话列表与未读数 |
+| `channelManager` | 用户和群资料 |
 
 ## `WKConnectionManager`
 
-| API | 契约 |
+| API | 用途 |
 | --- | --- |
-| `addOnConnectionStatus(String key, callback)` | 以稳定 key 监听 `(status, reasonCode, ConnectionInfo?)` |
-| `removeOnConnectionStatus(String key)` | 用**相同 key**移除 |
-| `connect()` | 先 `disconnect(false)`，再取路由并连接；不返回 ready Future |
-| `disconnect(bool isLogout)` | `false` 保留身份；`true` 清 UID/Token，发起未等待的 best-effort sending→failed 更新后立即请求关闭数据库；不能据此证明更新已落盘 |
-| `sendMessage(WKMsg)` | manager 内部低层发送入口；应用通常使用 `WKMessageManager.sendWithOption` |
+| `connect()` | 发起连接 |
+| `disconnect(false)` | 断开但保留当前账号 |
+| `disconnect(true)` | 退出账号 |
+| `addOnConnectionStatus(key, listener)` | 监听连接状态 |
+| `removeOnConnectionStatus(key)` | 移除状态监听 |
 
-`setConnectionStatus(...)` 和 `testCutData(...)` 也因 Dart 命名而公开，但分别是 SDK 状态推进和拆包测试入口；应用不得用它们伪造连接状态或生产流量。`_WKSocket` 以 `_` 开头，属于 library-private，不是公开合同。
-
-首次连接可观察到 `fail(null) → connecting → success → syncMsg → syncCompleted`。`success` 是 CONNACK 成功，应用完成会话 provider 且收到 `WKConnectStatus.syncCompleted` 后才能发送。
-
-| `WKConnectStatus` | 值 | 处理 |
-| --- | ---: | --- |
-| `fail` | `0` | 失败；首次 `connect()` 之前还会有合成的 null reason |
-| `success` | `1` | CONNACK 成功，不是最终 ready |
-| `kicked` | `2` | 终止并要求进程重启 |
-| `syncMsg` | `3` | 同步中 |
-| `connecting` | `4` | 新连接尝试 |
-| `noNetwork` | `5` | 无网络；终止当前有界尝试 |
-| `syncCompleted` | `6` | provider 交付后允许发送的门禁 |
+状态：`fail`、`success`、`kicked`、`syncMsg`、`connecting`、`noNetwork`、`syncCompleted`。
 
 ## `WKMessageManager`
 
-### 正文与发送
-
-| API | 作用 |
+| API | 用途 |
 | --- | --- |
-| `registerMsgContent(type, factory)` | 注册自定义正文解码器 |
-| `getMessageModel(type, json)` | 解码正文；未知类型回退 `WKUnknownContent` |
-| `sendMessage(content, channel)` | 便利 wrapper；源码没有等待内部 `sendWithOption` |
-| `sendWithOption(content, channel, options)` | 持久化、可选媒体上传并提交发送；调用方应直接 `await` |
-| `getOrSyncHistoryMessages(...)` | 本地查询并按需触发频道历史 provider |
-| `search(...)` / `searchWithChannel(...)` | 本地全文或频道搜索 |
-| `searchMsgWithChannelAndContentTypes(...)` | 按频道、游标、上限和正文类型查询 |
-| `getWithClientMsgNo(...)` | 按客户端编号查询 |
-| `getMessageOrderSeq(...)` / `getOrNearbyMsgSeq(...)` / `getMaxMessageSeq(...)` | 在 message sequence 与本地 order sequence 之间定位 |
-| `updateViewedAt(...)` | 更新本地已查看时间 |
-| `getMaxExtraVersionWithChannel(...)` / `getMaxReactionSeqWithChannel(...)` | 读取消息扩展/reaction 增量游标 |
-| `updateContent(...)` / `updateLocalExtraWithClientMsgNo(...)` / `updateMsgEdit(...)` | 更新本地正文、local extra 或待上传编辑 extra |
-| `clearWithChannel(...)` / `deleteWithClientMsgNo(...)` | 本地清空频道或删除一条消息 |
-| `sendMessageWithSetting(...)` / `sendMessageWithSettingAndHeader(...)` | deprecated；迁移到 `sendWithOption(...)` |
+| `sendWithOption(content, channel, options)` | 发送并等待本地处理完成 |
+| `sendMessage(content, channel)` | 使用默认选项发送 |
+| `addOnMsgInsertedListener` | 监听本地消息插入；单一全局回调 |
+| `addOnRefreshMsgListener(key, listener)` | 监听消息对象和发送状态变化 |
+| `addOnNewMsgListener(key, listener)` | 监听收到的新消息 |
+| `getOrSyncHistoryMessages` | 读取本地并按需请求远端历史 |
+| `addOnSyncChannelMsgListener` | 接入远端历史 API |
+| `addOnUploadAttachmentListener` | 接入媒体上传 |
+| `registerMsgContent` | 注册自定义正文 |
 
-`WKSendOptions` 包含 `header`、`setting`、`expire` 与 `topicID`。`MessageHeader` 的 `noPersist=true` 会跳过本地入库；这时不能声称有持久化 `clientSeq`。媒体正文需先安装 `addOnUploadAttachmentListener`。
+使用同一个 key 调用 `removeOnRefreshMsgListener` 和 `removeNewMsgListener` 移除页面监听。
 
-### Provider 与事件
+## `WKConversationManager`
 
-| 注册 API | 所有权/移除 |
+| API | 用途 |
 | --- | --- |
-| `addOnMsgInsertedListener(callback)` | 应用级**单槽位**，无 remove API；后注册会覆盖 |
-| `addOnUploadAttachmentListener(callback)` | 应用级单槽位，业务层上传媒体 |
-| `addOnSyncChannelMsgListener(callback)` | 应用级单槽位，业务层同步频道消息 |
-| `addOnUploadMsgExtra(callback)` | 应用级单槽位，上传消息扩展 |
-| `addOnNewMsgListener(key, callback)` | keyed；`removeNewMsgListener(key)` |
-| `addOnRefreshMsgListener(key, callback)` | keyed；`removeOnRefreshMsgListener(key)` |
-| `addOnDeleteMsgListener(key, callback)` | keyed；`removeDeleteMsgListener(key)` |
-| `addOnClearChannelMsgListener(key, callback)` | keyed；`removeClearChannelMsgListener(key)` |
+| `getAll()` | 读取全部本地会话 |
+| `getAllUnreadCount()` | 读取总未读数 |
+| `getWithChannel(channelID, channelType)` | 读取一个频道的会话 |
+| `updateRedDot(channelID, channelType, count)` | 更新未读数 |
+| `deleteMsg(channelID, channelType)` | 删除会话列表项 |
+| `addOnRefreshMsgListListener(key, listener)` | 监听会话批量变化 |
+| `addOnSyncConversationListener` | 接入多设备会话同步 API |
 
-发送关联使用 `clientMsgNO` 与正数 `clientSeq`。本地插入不是服务端结果；终止刷新只有 `WKSendMsgResult.sendSuccess` 是成功。
+## `WKChannelManager`
 
-固定源码还公开了一组实现流程方法：`parsingMsg`、`saveMsg`、`generateClientMsgNo`、`saveRemoteExtraMsg`、`setSyncChannelMsgListener`、`wkSyncExtraMsg2WKMsgExtra`、`saveMessageReactions`、`getMsgReactionsAndRefreshMsg`、`pushNewMsg`、`setRefreshMsg`、`setOnMsgInserted`、`updateSendResult`、`updateMsgStatusFail` 和 `updateSendingMsgFail`。它们由收包、同步、数据库或 SENDACK 流程驱动，名称没有 `_` 只代表 Dart 可访问；业务层应包裹稳定用例入口，不要直接推进 SDK 内部状态。
+| API | 用途 |
+| --- | --- |
+| `getChannel(channelID, channelType)` | 读取本地频道资料 |
+| `fetchChannelInfo(channelID, channelType)` | 请求刷新资料 |
+| `addOnGetChannelListener` | 接入用户和群资料 API |
+| `addOrUpdateChannel` | 保存资料到本地 |
+| `addOnRefreshListener(key, listener)` | 监听资料变化 |
 
-| `WKSendMsgResult` | 值 |
-| --- | ---: |
-| `sendLoading` | `0` |
-| `sendSuccess` | `1` |
-| `sendFail` | `2` |
-| `noRelation` | `3` |
-| `blackList` | `4` |
-| `notOnWhiteList` | `13` |
+## 常用模型
 
-## 会话、频道、成员、提醒与 CMD 的公开面
+| 类型 | 说明 |
+| --- | --- |
+| `WKChannel` | `channelID` 和 `channelType` 共同确定聊天目标 |
+| `WKMsg` | 消息身份、正文、序号和发送状态 |
+| `WKMessageContent` | 消息正文基类 |
+| `WKTextContent` / `WKImageContent` | 内置文本和图片正文 |
+| `WKUIConversationMsg` | 会话列表项和未读数 |
+| `WKSyncConversation` / `WKSyncChannelMsg` | 业务 API 返回给 SDK 的同步结果 |
 
-下表列出固定 manager 源码的公开方法组；`set...` 通知/同步入口是 SDK 内部会调用的 public 实现面，应用通常只注册对应 listener/provider。
-
-| Manager | 公开 API | 数据源/清理重点 |
-| --- | --- | --- |
-| `WKConversationManager` | `getAll`、`getWithChannel`、`saveWithLiMMsg`、`deleteMsg`、`clearAll`、`getAllUnreadCount`、`getExtraMaxVersion`、`updateRedDot`、`clearAllRedDot`、`addOnSyncConversationListener`、`setSyncConversation`、`addOnRefreshMsgListListener` / `removeOnRefreshMsgListListener`、`addOnClearAllRedDotListener` / `removeClearAllRedDotListener`、`addOnDeleteMsgListener` / `removeDeleteMsgListener`、deprecated `addOnRefreshMsgListener` / `removeOnRefreshMsg`、`setRefreshUIMsgs` | sync provider 无 key、单槽位；所有 keyed listener 用相同 key 移除；`saveWithLiMMsg`、`setSyncConversation` 和 `setRefreshUIMsgs` 主要由 SDK 流程调用 |
-| `WKChannelManager` | `fetchChannelInfo`、`getChannel`、`getWithFollowAndStatus`、`search`、`searchWithChannelTypeAndFollow`、`addOrUpdateChannel`、`addOrUpdateChannels`、`updateAvatarCacheKey`、`addOnGetChannelListener`、`addOnRefreshListener` / `removeOnRefreshListener`、`addOnRefreshAvatarListener` / `removeOnRefreshAvatarListener` | channel provider 无 remove API；刷新与头像 listener keyed |
-| `WKChannelMemberManager` | `getMaxVersion`、`getMembers`、`getMember`、`saveOrUpdateList`、`addOnRefreshMemberListener` / `removeRefreshMemberListener`、`addOnDeleteMemberListener` / `removeDeleteMemberListener`、`addOnNewMemberListener` / `removeNewMemberListener` | archive 没有业务分页 provider；大群分页/同步由业务层在交付 `saveOrUpdateList` 前设计 |
-| `WKReminderManager` | `getWithChannel`、`getWithChannelAndType`、`getMaxVersion`、`saveOrUpdateReminders`、`setNewReminder`、`addOnNewReminderListener` / `removeOnNewReminderListener` | `setNewReminder` 是内部通知入口；listener keyed |
-| `WKCMDManager` | `handleCMD`、`addOnCmdListener` / `removeCmdListener` | `handleCMD` 由内部正文解析调用；listener keyed |
-
-`addOnSyncConversationListener` 的回调参数是 `lastMsgSeqs`、`msgCount`、`version` 和 `back(WKSyncConversation)`。生产 provider 必须完整映射最近会话、消息、未读和版本，并且只完成一次；网络失败不能伪装为空成功。
-
-## 核心模型
-
-- `WKChannel(channelID, channelType)`；常用 `WKChannelType.personal = 1`、`WKChannelType.group = 2`；
-- `WKMsg` 同时含 `messageID` / `messageSeq`、`clientMsgNO` / `clientSeq`、频道、正文、状态、扩展与 reaction；`getFrom()` / `getMemberOfFrom()` 只读当前缓存，`1.7.9` 的 `getFromAsync()` / `getMemberOfFromAsync()` 会按需查询 manager；
-- `WKMessageContent` 提供 `encodeJson()`、`decodeJson()`、`displayText()` 和 `searchableWord()`；
-- 内置 `WKTextContent`、`WKCardContent`、`WKImageContent`、`WKVoiceContent`、`WKVideoContent`；
-- `WKSyncConversation` / `WKSyncConvMsg` 表达会话同步结果；`WKSyncChannelMsg` 表达一页频道消息。
-
-这些对象可变且与单例数据库关联。跨 isolate、异步 attempt 或 UI 层时，复制应用自己的不可变快照，并检查当前 activation。
-
-## 安全与生命周期底线
-
-- 原始 `Socket.connect` 无认证 TLS；
-- `sqflite` 数据与 `SharedPreferences` 状态没有独立加密证明；
-- debug 日志可能包含解密 Payload；
-- `_sendingMsgMap` 与延迟重连没有安全的同进程重置边界；
-- provider 单槽位和 keyed listener 必须由应用级 owner 管理；
-- 超时、kick、断网、同步失败、不确定发送或 UID 切换后要求进程重启。
-
-首次接入先完成[快速接入](/zh/sdk/flutter/quickstart)。替换已有 package 前按[升级指南](/zh/sdk/flutter/upgrade)保存 lockfile、数据库和回滚证据。
+常用频道类型：`WKChannelType.personal`、`WKChannelType.group`。发送状态：`WKSendMsgResult.sendLoading`、`sendSuccess`、`sendFail`。

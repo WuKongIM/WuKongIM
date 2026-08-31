@@ -1,211 +1,104 @@
 ---
 title: HarmonyOS API 参考
-description: "@wukong/wkim 1.1.7 的根导出、深路径类型、配置、Provider、manager、listener、模型与结果码速查。"
+description: 按管理器快速查找 @wukong/wkim 常用入口、Provider、监听器、模型和状态。
 ---
 
-本参考固定到 OHPM `@wukong/wkim 1.1.7` 与匹配源码 revision [`0c41810a1e0a5fc2936929d63ca32a50ffb11bec`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/tree/0c41810a1e0a5fc2936929d63ca32a50ffb11bec)。它整理应用接入所需的公开 ArkTS 面，不把所有数据库/协议辅助方法承诺为稳定 API。
+本页是常用入口速查。完整用法和调用顺序请回到对应任务页面。SDK 单例是 `WKIM.shared`。
 
-<Callout type="warn" title="API 对齐不是运行验证">
-  方法和字段来自固定 HAR 与匹配源码。本站没有用 DevEco 安装或编译它，也没有 HAP、设备或 Alice/Bob 运行验证；公开 API 存在不等于你的服务端、设备、数据源或 Release 已通过验收。
-</Callout>
+## 导入与初始化
 
-## 根导出与 deep import
-
-根 `index.ets` 只导出 `WKIM`：
+包根只导出 `WKIM`：
 
 ```typescript
 import { WKIM } from '@wukong/wkim'
 ```
 
-快速接入需要的其他类型来自固定 HAR 的 deep import：
+模型和常量从 `@wukong/wkim/src/main/ets/entity/Bean` 导入，正文从 `@wukong/wkim/src/main/ets/model/...` 导入。
 
-```typescript
-import {
-  WKChannel,
-  WKChannelType,
-  WKConnectStatus,
-  WKMsg,
-  WKSendMsgResult,
-  WKSendOptions,
-  WKSyncConversation
-} from '@wukong/wkim/src/main/ets/entity/Bean'
-import { WKTextContent } from '@wukong/wkim/src/main/ets/model/WKTextContent'
-import { WKLogger } from '@wukong/wkim/src/main/ets/common/WKLogger'
-```
-
-这些路径是 `1.1.7` artifact 事实，不是稳定 root API。任何版本升级都必须重新解包/编译并审计它们。
-
-| 范围 | 固定源码 |
+| API | 用途 |
 | --- | --- |
-| 统一入口 | [`WKIM.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/WKIM.ets) |
-| 配置 / Provider | [`WKConfig.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/entity/WKConfig.ets)、[`WKProvider.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/entity/WKProvider.ets) |
-| 核心模型与常量 | [`Bean.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/entity/Bean.ets) |
-| 连接 | [`ConnectionManager.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ConnectionManager.ets) |
-| 消息 | [`MessageManager.ets`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/MessageManager.ets) |
+| `init(uid, token, address?, context?)` | 配置用户并打开该 UID 的本地数据库 |
+| `config.provider` | 应用提供的地址、同步、资料和上传接口 |
+| `connectionManager()` | 连接与状态 |
+| `messageManager()` | 消息收发与查询 |
+| `conversationManager()` | 会话列表与未读数 |
+| `channelManager()` | 用户和群资料 |
+| `channelMemberManager()` | 群成员资料 |
 
-## `WKIM` 与 `WKConfig`
+## 常用 Provider
 
-`WKIM.shared` 是进程单例。初始化签名是：
-
-```typescript
-await WKIM.shared.init(uid, token, address, applicationContext)
-```
-
-`WKIM.shared.init` 写入配置、打开 `${uid}.db` 并调用 `MessageDB.shared.updateSendingToFail()`。数据库错误会被 helper 吞掉，所以 Promise fulfilled 不能单独证明存储可用。
-
-| `WKConfig` 字段 | `1.1.7` 语义 |
+| 字段 | 用途 |
 | --- | --- |
-| `context?: Context` | 应用 Context；显式传入，避免 deprecated `getContext()` fallback |
-| `uid?` / `token?` | 由受信业务后端提供的 CONNECT 身份 |
-| `address?` | 一个 DNS/IPv4 `host:port`，不是 URI |
-| `deviceFlagApp` | 默认 `0=APP`；HarmonyOS 使用 `0` |
-| `protoVersion` | 默认 `4` |
-| `heartbeatInterval` | 默认 `30_000` ms |
-| `requestIPTimeout` | 默认 `10_000` ms |
-| `debug` | 默认 `true`，但固定源码没有读取该字段 |
-| `protocol` | 默认 `WKProtocol` |
-| `provider` | 进程级 `WKProvider` 数据源集合 |
+| `connectAddrCallback` | 动态返回 `host:port` |
+| `syncConversationCallback` | 同步会话、最近消息和未读数 |
+| `syncMessageCallback` | 同步一个频道的历史消息 |
+| `channelInfoCallback` | 获取用户或群资料 |
+| `channelMemberCallback` | 增量同步群成员 |
+| `channelMemberWithPageCallback` | 分页或搜索群成员 |
+| `uploadAttachmentCallback` | 上传媒体并回填 URL |
 
-单例暴露这些 getter：
-
-| API | 返回 |
-| --- | --- |
-| `channelManager()` | `ChannelManager` |
-| `channelMemberManager()` | `ChannelMemberManager` |
-| `messageManager()` | `MessageManager` |
-| `cmdManager()` | `CMDManager` |
-| `connectionManager()` | `ConnectionManager` |
-| `conversationManager()` | `ConversationManager` |
-| `reminderManager()` | `ReminderManager` |
-
-## `WKProvider`
-
-所有 provider 都是 `WKIM.shared.config.provider` 上的可选字段。它们没有统一取消句柄；应用应安装一次、设置超时，并把完成绑定到当前 one-shot activation。
-
-| 字段 | 精确签名摘要 | 数据责任 |
-| --- | --- | --- |
-| `connectAddrCallback` | `() => Promise<string>` | 受信后端返回 DNS/IPv4 `host:port` |
-| `channelInfoCallback` | `(channelId, channelType) => Promise<WKChannel \| undefined>` | 频道资料 |
-| `channelMemberCallback` | `(channelId, channelType, maxVersion) => Promise<WKChannelMember[]>` | 成员增量/快照 |
-| `channelMemberWithPageCallback` | `(channel, SyncChannelMemberOptions) => Promise<WKChannelMember[]>` | 搜索/分页成员 |
-| `syncConversationCallback` | `(lastMsgSeqs, msgCount, version) => Promise<WKSyncConversation>` | 最近会话、最近消息、未读与版本 |
-| `syncConversationExtraCallback` | `(version) => Promise<WKConversationExtra[]>` | 会话扩展 |
-| `syncMessageCallback` | `(channel, SyncOptions) => Promise<WKSyncChannelMsg>` | 频道历史/离线消息 |
-| `syncReminderCallback` | `(version) => Promise<WKReminder[]>` | 提醒增量 |
-| `uploadAttachmentCallback` | `(msg) => Promise<[boolean, WKMsg]>` | 媒体上传并回填 URL |
-| `uploadMessageExtraCallback` | `(extra) => void` | 上传消息扩展 |
-
-SDK manager 不是 Product HTTP 客户端。Provider 所需业务 API、鉴权、分页、访问控制与去重由受信后端拥有，客户端不能持有管理凭据。
+Provider 是进程全局字段，再次赋值会覆盖旧实现。
 
 ## `ConnectionManager`
 
-| API | 契约 |
+| API | 用途 |
 | --- | --- |
-| `addConnectStatusListener(listener)` | 监听 `(status, reasonCode?, ConnectionInfo?)` |
-| `removeConnectStatusListener(listener)` | 必须传注册时的**相同函数对象** |
-| `connection()` | 发起连接；返回 `void`，不能当作 ready |
-| `disConnection(isLogout: boolean)` | 关闭；logout 会清身份并关闭 DB，但不是完整进程重置 |
+| `connection()` | 发起连接 |
+| `disConnection(false)` | 断开但保留当前账号 |
+| `disConnection(true)` | 退出账号并关闭本地数据库 |
+| `addConnectStatusListener(listener)` | 监听连接状态 |
+| `removeConnectStatusListener(listener)` | 用同一函数对象移除监听 |
 
-接受顺序为 `connecting → success → syncing → syncCompleted`。`success` 只是 CONNACK；同时观察应用 provider 交付后才接受 `WKConnectStatus.syncCompleted`。
-
-| `WKConnectStatus` | 值 | 含义 |
-| --- | ---: | --- |
-| `fail` | `0` | 失败 |
-| `success` | `1` | CONNACK 成功 |
-| `kicked` | `2` | 被踢，终止本轮 |
-| `syncing` | `3` | 会话同步中 |
-| `connecting` | `4` | 连接中 |
-| `noNetwork` | `5` | 无网络，终止有界尝试 |
-| `syncCompleted` | `6` | 应用 provider 同时完成时才是发送门禁 |
+状态：`fail`、`success`、`kicked`、`syncing`、`connecting`、`noNetwork`、`syncCompleted`。
 
 ## `MessageManager`
 
-### 查询、正文与发送
-
-| API | 作用 |
+| API | 用途 |
 | --- | --- |
-| `registerMsgContent(contentType, factory)` | 注册自定义正文；默认只注册文本和图片 |
-| `getMessageModel(jsonStr)` | 按 payload `type` 解码；未知类型使用 fallback |
-| `send(content, channel)` | 默认 options 的便利入口；返回 `void` |
-| `sendWithOption(content, channel, options)` | 本地入库、可选上传并发包；返回 `void` |
-| `getOrSyncHistoryMessages(channel, ChannelMsgOptions)` | 本地查询并按需触发历史同步 |
-| `syncChannelMsgs(channel, startSeq, endSeq, limit, pullMode)` | 调用 `syncMessageCallback` 并保存结果 |
-| `getMaxOrderSeqWithChannel(...)` / `getMaxMessageSeqWithChannel(...)` / `getMinMessageSeqWithChannel(...)` | 查询频道排序与消息序号边界；min 查询是 `1.1.7` 新增 |
-| `getMaxExtraVersion(...)` / `getMaxReactionSeqWithChannel(...)` | 查询 message-extra 与 reaction 增量边界；reaction 查询是 `1.1.7` 新增 |
-| `getOrderSeq(messageSeq)` / `getMessageOrderSeq(messageSeq, channelId, channelType)` | 计算普通/带频道上下文的排序序号；后者是 `1.1.7` 新增 |
-| `getWithClientMsgNo(clientMsgNo)` / `getMsgReactions(messageId)` | 本地按客户端编号查询消息 / 按服务端 ID 查询 reaction |
-| `updateMsgStatus` / `updateContent` / `updateViewedAt` / `updateLocalExtra` / `updateEdit` | 更新本地发送状态、正文、已查看时间、本地 extra 与编辑内容 |
-| `saveRemoteExtras(list)` / `saveReactions(list)` | 保存同步得到的 message extra / reaction |
-| `clearWithChannel(...)` / `deleteWithClientMsgNo(...)` | 清理本地频道消息/单条消息 |
+| `send(content, channel)` | 使用默认选项发送 |
+| `sendWithOption(content, channel, options)` | 使用自定义选项发送 |
+| `addInsertedListener` | 监听本地插入；单一全局回调 |
+| `addSendStatusListener` | 监听服务端发送结果 |
+| `addNewMsgListener` | 监听新消息 |
+| `addRefreshListener` | 监听消息对象变化 |
+| `getOrSyncHistoryMessages` | 读取本地并按需同步历史 |
+| `registerMsgContent` | 注册自定义正文 |
 
-`WKSendOptions` 包含 `setting`、`header`、`expire` 和 `topicId`。`WKMsgHeader` 包含 `noPersist`、`redDot` 与 `syncOnce`。`noPersist=true` 没有持久插入证据。
+发送状态：`WKSendMsgResult.loading`、`success`、`fail`，以及关系限制 `noRelation`、`blackList`、`notOnWhiteList`。
 
-### Provider 与 listener
+## `ConversationManager`
 
-| 注册 | 回调语义 | 移除 |
-| --- | --- | --- |
-| `addInsertedListener(callback)` | 本地插入；应用级**单槽位**，后注册覆盖 | 无 remove API |
-| `addSendStatusListener(listener)` | `(clientMsgSeq, messageId, messageSeq, reasonCode)` SENDACK | `removeSendStatusListener`，相同函数对象 |
-| `addNewMsgListener(listener)` | 当前连接在线消息 | `removeNewMsgListener` |
-| `addRefreshListener(listener)` | 消息内容/状态刷新 | `removeRefreshListener` |
-| `addRefreshExtraListener(listener)` | message extra 刷新 | `removeRefreshExtraListener` |
-| `addRefreshReactionListener(listener)` | reaction 刷新 | `removeRefreshReactionListener` |
-| `addDeletedListener(listener)` | 一条消息删除 | `removeDeletedListener` |
-| `addClearChannelMsgListener(listener)` | 频道消息清空 | `removeClearChannelMsgListener` |
-
-`sendWithOption` 对持久正文先写本地库并触发 inserted listener，再发协议包。只有正数 `clientSeq` 表示本地持久化；网络结果看同一序号的 send-status 回调。
-
-| `WKSendMsgResult` | 值 |
-| --- | ---: |
-| `loading` | `0` |
-| `success` | `1` |
-| `fail` | `2` |
-| `noRelation` | `3` |
-| `blackList` | `4` |
-| `notOnWhiteList` | `13` |
-
-只有 `WKSendMsgResult.success` 是终止成功。Bob 的 `addNewMsgListener` 另证在线接收，不能与 Alice SENDACK 相互替代。
-
-## 频道、成员、会话、提醒与 CMD manager
-
-下表按固定 HAR 中可从 `WKIM` getter 取得的 reader-facing 方法分组。manager 文件本身仍是 deep path 制品面，不是 package root 的长期稳定导出。
-
-| Manager | `1.1.7` 方法面 | 所有权重点 |
-| --- | --- | --- |
-| [`ConversationManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ConversationManager.ets) | `clearAllRedDot`、`updateRedDot`、`clearAll`、`delete`、`sync`、`syncExtra`、`updateMsgExtra`、`all`、`getWithChannel`、`getMsgExtraWithChannel`；`addRefreshListener` / `removeRefreshListener`、`addRefreshExtrasListener` / `removeRefreshExtrasListener`、`addDeletedListener` / `removeDeletedListener` | `updateMsgExtra`、`getWithChannel`、`getMsgExtraWithChannel` 是 `1.1.7` 新增；所有 listener 用相同函数对象移除；缺 provider 时仍可能 `syncCompleted` |
-| [`ChannelManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ChannelManager.ets) | `getChannel`、`updateName`、`updateRemark`、`getWithFollowAndStatus`、`updateLocalExtra`、`updateAvatarCacheKey`、`fetchChannelInfo`、`addOrUpdate` / `addOrUpdates`、refresh/avatar add/remove listener、`setAvatarUpdated` | `getWithFollowAndStatus` 是 `1.1.7` 新增；provider 与 listener 属于进程单例 |
-| [`ChannelMemberManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ChannelMemberManager.ets) | `sync`、`getMember`、`getMembers`、`getWithPageOrSearch`、`delete`、`addOrUpdate` / `addOrUpdates`、refresh/new/deleted add/remove listener | 分页 provider 由业务层实现；监听器成对移除 |
-| [`ReminderManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/ReminderManager.ets) | `get`、`sync`、`getMaxVersion`、`save` | `addRefreshListener` / `removeRefreshListener` |
-| [`CMDManager`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/blob/0c41810a1e0a5fc2936929d63ca32a50ffb11bec/wkim/src/main/ets/manager/CMDManager.ets) | `handle`、`handleWithChannel` | `addCmdListener` / `removeCmdListener` |
-
-ArkTS 中未标成 `private` 的方法在这份固定源码里也可调用，因此完整审计还会看到这些实现编排入口：
-
-| Manager | 源码公开但不推荐由应用调用的方法 |
+| API | 用途 |
 | --- | --- |
-| `ConversationManager` | `setRefresh`、`setRefreshExtras`、`setDeleted` |
-| `MessageManager` | `setSendStatus`、`setRefreshReactions`、`setRefreshExtras`、`pushNewMsgs`、`generateClientMsgNo`、`parsingMsg`、`updateMsgSendStatus` |
-| `ConnectionManager` | `encodeVariableLength`、`sendPacket` |
+| `all()` | 读取全部本地会话 |
+| `getWithChannel` | 读取一个频道的会话 |
+| `updateRedDot` | 更新未读数 |
+| `clearAllRedDot` | 清除全部未读数 |
+| `delete` | 删除本地会话列表项 |
+| `addRefreshListener` | 监听会话变化 |
+| `addDeletedListener` | 监听会话删除 |
 
-这些方法由 SDK 的连接、持久化、同步和事件分发路径互相调用；它们属于 manager deep path 的 artifact 事实，不是稳定 package-root 产品合同。应用应通过 `WKIM` 的连接入口、`MessageManager` 发送/查询入口和 listener 观察结果，不要主动伪造 ACK、刷新或入站消息。
+## 频道与成员 Manager
 
-## 模型与正文
+| API | 用途 |
+| --- | --- |
+| `channelManager().getChannel` | 读取本地频道资料 |
+| `channelManager().fetchChannelInfo` | 请求刷新频道资料 |
+| `channelManager().addRefreshListener` | 监听资料变化 |
+| `channelMemberManager().sync` | 增量同步成员 |
+| `channelMemberManager().getMember` | 读取一个成员 |
+| `channelMemberManager().getWithPageOrSearch` | 分页或搜索成员 |
 
-- `WKChannel(channelId, channelType)`；常用 `WKChannelType.personal = 1`、`group = 2`；
-- `WKMsg` 含 `messageId` / `messageSeq`、`clientMsgNo` / `clientSeq`、频道、正文、状态、extra 与 reaction；
-- `WKMessageContent` 提供 `encodeJson()`、`decodeJson()`、`displayText()`、`searchableWord()`；
-- `MessageManager` 默认注册 `WKTextContent` 与 `WKImageContent`；`WKVoiceContent`、`WKVideoContent` 存在于 HAR，但需要显式注册和上传流程；
-- `WKSyncConversation` / `WKSyncConvMsg` 表达会话同步；`WKSyncChannelMsg` 表达频道消息页；
-- `SyncOptions` 包含 start/end sequence、limit 与 pull mode；`SyncChannelMemberOptions` 包含 search、page、limit。
+## 常用模型
 
-模型是可变对象，并与进程单例/本地库关联。跨 UI 生命周期或异步 attempt 时复制应用自有不可变快照，并拒绝陈旧 activation。
+| 类型 | 说明 |
+| --- | --- |
+| `WKChannel` | `channelId` 和 `channelType` 共同确定聊天目标 |
+| `WKMsg` | 消息身份、正文、序号和发送状态 |
+| `WKMessageContent` | 消息正文基类 |
+| `WKTextContent` / `WKImageContent` | 内置文本和图片正文 |
+| `WKConversation` | 会话列表项和未读数 |
+| `WKSyncConversation` / `WKSyncChannelMsg` | 业务 API 返回给 SDK 的同步结果 |
+| `WKSendOptions` / `ChannelMsgOptions` / `SyncOptions` | 发送、读取历史和远端同步选项 |
 
-## 安全与证据边界
-
-- `TCPSocket` 原始 TCP 无认证 TLS；
-- `WKLogger` 之外还有直接 `hilog.info`，可能暴露 channel/client 标识和 Payload；
-- `RelationalStore` 使用 `securityLevel: S1`、`encrypt: false`；
-- 数据库打开失败可能只记日志；
-- `sendingMsgMap`、Provider、inserted callback 和部分 listener 在 logout 后没有完整清理；
-- 超时、失败、kick、不确定 SENDACK 或换号都要求进程重启。
-
-首次接入先完成[快速接入](/zh/sdk/harmonyos/quickstart)。替换已有 HAR 前按[升级指南](/zh/sdk/harmonyos/upgrade)保存 lockfile、深路径、数据库和设备证据。
+常用频道类型：`WKChannelType.personal`、`WKChannelType.group`。

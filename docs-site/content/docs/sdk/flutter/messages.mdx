@@ -1,0 +1,74 @@
+---
+title: Flutter 消息管理
+description: 发送、接收、重试和查询本地消息，并理解发送状态。
+---
+
+消息由正文 `WKMessageContent` 和目标 `WKChannel` 组成。`WKMessageManager` 负责本地保存、发送、接收和查询。
+
+## 发送单聊或群聊消息
+
+```dart
+await im.messageManager.sendWithOption(
+  WKTextContent('你好'),
+  WKChannel('bob', WKChannelType.personal),
+  WKSendOptions(),
+);
+
+await im.messageManager.sendWithOption(
+  WKTextContent('大家好'),
+  WKChannel('team-1', WKChannelType.group),
+  WKSendOptions(),
+);
+```
+
+推荐直接等待 `sendWithOption`。当前 `sendMessage` 虽然声明为 async，但不会等待内部发送流程。
+
+## 监听本地插入、发送状态和新消息
+
+```dart
+// 单一全局回调，没有 key 和移除方法；通过应用级 dispatcher 安装一次。
+im.messageManager.addOnMsgInsertedListener((message) {
+  addPendingMessage(message.clientMsgNO, message);
+});
+
+im.messageManager.addOnRefreshMsgListener('chat', (message) {
+  updateSendState(message.clientMsgNO, message.status);
+});
+
+im.messageManager.addOnNewMsgListener('chat', (messages) {
+  appendIncomingMessages(messages);
+});
+```
+
+发送状态：
+
+| 状态 | 含义 | UI 建议 |
+| --- | --- | --- |
+| `WKSendMsgResult.sendLoading` | 已保存，正在发送 | 显示发送中 |
+| `WKSendMsgResult.sendSuccess` | 服务器已接受消息 | 显示已发送 |
+| `WKSendMsgResult.sendFail` | 本次发送失败 | 显示重试按钮 |
+| `noRelation` / `blackList` / `notOnWhiteList` | 业务关系不允许发送 | 展示清晰原因 |
+
+已有失败消息可以再次交给连接管理器发送，但产品代码应先确认它仍属于当前账号和频道。
+
+## 读取消息
+
+首次打开聊天页时：
+
+```dart
+im.messageManager.getOrSyncHistoryMessages(
+  'bob',
+  WKChannelType.personal,
+  0,
+  false,
+  0, // 向更早的消息读取
+  30,
+  0,
+  (messages) => showMessages(messages),
+  () => showSyncing(),
+);
+```
+
+本地数据不足时会调用远端历史 Provider，接入方式见[媒体与历史消息](/zh/sdk/flutter/advanced/media-and-history)。
+
+页面销毁时调用 `removeOnRefreshMsgListener('chat')` 和 `removeNewMsgListener('chat')`。

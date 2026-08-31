@@ -7,94 +7,73 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3 under
-`/zh` and `/en`. It owns navigation, MDX, search/SEO, machine-readable output,
-SDK guidance, compatibility artifacts, the JavaScript Web laboratory, complete
-Product HTTP and separate Operations/Webhook contracts, WKProto, encryption,
-experimental JSON-RPC, and private-interface inventories. It documents runtime
-contracts but does not define them; the Web report proves only its bounded smoke.
+`docs-site` is the standalone Fumadocs application for public WuKongIM v3
+documentation under `/zh` and `/en`. It owns navigation, MDX, search and SEO,
+machine-readable output, SDK guidance, API and protocol references, and the
+runnable JavaScript/Web SDK example. It documents runtime contracts but does
+not define them.
 
 ## Boundaries
 
-- Repository `docs/` and the legacy v2 site are separate sources; older wiki
-  material is not authoritative unless recalibrated against promoted code.
-- Guide Core Concepts is the reader-first application vocabulary for Message,
-  Channel, User, Device, and Conversation. Cluster, node, Slot, replica, and
-  leadership mechanics belong in Server Architecture rather than that path.
-- `lib/navigation.ts` is the shared bilingual publication registry. Phase specs
-  own detailed content plans and claims.
-- Static export produces artifacts only; deployment, DNS, redirects, and
+- Repository `docs/` is the engineering knowledge base. Legacy documentation
+  is useful for topic discovery only; current code and released SDKs decide API
+  facts.
+- `lib/navigation.ts` is the shared bilingual publication registry.
+- `SDK_DOCUMENTATION_SPEC.md` owns the maintained WuKongIMSDK versions,
+  learning order, and reader contract. WuKongEasySDK remains a separate path.
+- Static export produces artifacts only. Deployment, DNS, redirects, and
   production cutover are external operations.
 
-## Main Flows
+## Main flows
 
 1. Navigation metadata generates locale-equal menus, tabs, static parameters,
    publication planning, and machine-readable inclusion.
 2. Published bilingual MDX feeds pages, search, sitemap, LLM output, and
-   per-page Markdown; planned and unknown content fail closed.
-3. `scripts/generate-openapi.ts` turns the complete 41-operation Product HTTP
-   OpenAPI 3.1 contract into 94 tracked operation/tag pages. Operations pages
-   and Webhook payloads use separate OpenAPI 3.1 contracts through the same
-   Fumadocs loader; Webhooks use the top-level `webhooks` object.
-4. Source-locked registries compare Product HTTP, Operations, internal HTTP,
-   node transport, MCP, agent CLI, plugin RPC, WKProto, JSON-RPC, and Webhooks
-   with current Go authorities.
-5. SDK pages distinguish released distribution snapshots, merged-but-unreleased
-   source remediation, publication, and executable verification; the Web lab
-   uses isolated SDK clients for bounded single-node cluster/Chromium evidence.
+   per-page Markdown. Planned and unknown content fail closed.
+3. The full SDK path starts at `/sdk`, explains shared concepts once, then uses
+   the same task sequence for Android, iOS, JavaScript/Web, Flutter, and
+   HarmonyOS: quickstart, connection, messages, conversations, channels,
+   supported advanced topics, and API lookup. One shared upgrade page replaces
+   per-platform upgrade pages.
+4. Removed SDK pages exist only as redirects. UniApp migration lives under the
+   JavaScript advanced section; there is no standalone UniApp documentation
+   group.
+5. `scripts/generate-openapi.ts` generates the complete Product HTTP reference.
+   Operations HTTP and outbound Webhooks use separate OpenAPI contracts.
+   WKProto, JSON-RPC, and private interfaces remain protocol documentation.
 6. Static export writes `out/`; publication, canonical, link, structure, and
-   machine-artifact checks run before any external hosting step.
+   machine-artifact checks run before external hosting.
 
-## Invariants and Failure Semantics
+## Invariants and failure semantics
 
-- Chinese and English share the same menu structure; a route is published only
-  when both locale variants are ready.
-- Planned routes remain visible but are `noindex` and excluded from search,
-  sitemap, and machine-readable content. Unknown content fails closed.
-- Product facts must preserve cluster-only/256-hash-slot semantics, authority
-  versus observation, durable commit versus side effects, and current security
-  boundaries.
-- SDK method and compatibility claims require exact versions. Main-only fixes
-  retain their merge revision and unreleased status instead of being projected
-  onto a published package. A trusted BFF supplies Web connection material;
-  untrusted clients never call Product HTTP management operations.
-- Operational guidance uses `/readyz`, preserves Manager safety gates, and
-  labels unimplemented or unverified behavior explicitly.
-- Configuration reference covers each public field once and distinguishes
-  examples from runtime defaults.
-- The complete Product HTTP contract must match all 41 current route
-  registrations. Weak validation, unbounded responses, legacy aliases, and
-  compatibility-only behavior remain visible in operation descriptions rather
-  than being normalized away. `security: []` records missing built-in
-  authentication; it never grants anonymous public access.
-- The three-operation golden path, 16-operation management contract, and
-  one-operation message-send contract remain downloadable narrow profiles.
-  They do not constrain the complete reference or expand verification evidence.
-- Fumadocs OpenAPI applies to real Product and Operations HTTP paths and to
-  outbound callbacks through OpenAPI's `webhooks` object. WKProto, JSON-RPC,
-  MCP, plugin RPC, and node transport MUST NOT become fake HTTP paths.
-- WKProto wire layout and compatibility encryption are published as protocol
-  contracts. JSON-RPC remains a bounded client surface: Product Gateway
-  supports the pinned EasySDK CONNECT, ping, online SEND/SENDACK,
-  RECV/RECVACK, and reconnect path, while batch RPC, subscriptions, offline
-  sync, push, and production token verification remain outside that receipt.
-- Webhook delivery is unsigned, bounded, in-memory, HTTP-200-only, and has no
-  crash replay. Manager with `auth_on=false` exposes most ordinary mutations;
-  only explicitly gated backup, restore, and MCP administration fail closed.
-- The static API reference keeps its playground disabled. Generated request
-  examples come only from reviewed `x-codeSamples` that state the trusted
-  backend boundary.
-- Golden-path verification defaults false and attests only the complete source,
-  lockfile, SDK, runtime, browser, and fixed three-operation tuple. The redacted
-  local report is not a publication receipt or production-readiness claim.
+- Chinese and English share one menu structure. A route is published only when
+  both locale variants are ready.
+- Product facts preserve cluster-only and 256-hash-slot semantics, durable
+  commit versus downstream effects, and current security boundaries.
+- Full SDK examples pin exact released versions and use Objective-C, Java,
+  TypeScript, Dart, and ArkTS respectively. They explain Channel, Provider,
+  local insertion, and the server send result before relying on those terms.
+- A trusted application backend supplies identity, tokens, routing, history,
+  channel metadata, and media URLs as needed. Untrusted clients never call
+  Product HTTP management operations directly.
+- The JavaScript example is a runnable development aid with unit and build
+  checks. It is not a production backend or a substitute for testing on the
+  application's actual browsers, devices, networks, and release configuration.
+- The complete Product HTTP contract must match current route registrations.
+  Missing authentication, weak validation, legacy behavior, and unbounded
+  responses stay explicit rather than being normalized away.
+- The static API reference keeps its playground disabled. Generated examples
+  come only from reviewed samples that state the trusted-backend boundary.
 
-## Read First
+## Read first
 
+- [SDK documentation specification](SDK_DOCUMENTATION_SPEC.md)
 - [Navigation registry](lib/navigation.ts)
-- [Phase 18 complete API and protocol specification](PHASE_18_SPEC.md)
+- [Phase 18 API and protocol specification](PHASE_18_SPEC.md)
 - [Developer contract source](lib/developer-contracts.ts)
 - [OpenAPI page generator](scripts/generate-openapi.ts)
 
-## Update Triggers
+## Update triggers
 
-Update this file when publication ownership, locale parity, generated outputs, authoritative sources, or the hosting boundary changes.
+Update this file when publication ownership, SDK learning order, locale parity,
+generated outputs, authoritative sources, or the hosting boundary changes.

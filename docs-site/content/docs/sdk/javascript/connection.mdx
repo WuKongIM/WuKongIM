@@ -1,0 +1,80 @@
+---
+title: JavaScript / Web 连接管理
+description: 配置身份与 WebSocket 地址，监听状态，并处理重连和页面清理。
+---
+
+`ConnectManager` 管理 WebSocket、心跳和自动重连。应用负责提供当前用户的 UID、Token 和连接地址。
+
+## 配置固定地址
+
+```typescript
+const sdk = WKSDK.shared()
+sdk.config.uid = bootstrap.uid
+sdk.config.token = bootstrap.token
+sdk.config.addr = bootstrap.websocketUrl
+sdk.config.deviceFlag = 1
+```
+
+地址必须是完整的 `ws://` 或 `wss://` URL。浏览器 HTTPS 页面通常只能连接 `wss://`。
+
+## 动态获取地址
+
+需要每次连接前查询路由时：
+
+```typescript
+sdk.config.provider.connectAddrCallback = (complete) => {
+  void gatewayApi.getAddress().then(({ websocketUrl }) => {
+    complete(websocketUrl)
+  })
+}
+```
+
+Provider 使用 callback，不返回 Promise 给 SDK。业务请求失败时要在应用层显示错误和安排退避重试；不要把 Token 写入 URL 或日志。
+
+## 监听连接状态
+
+```typescript
+const onStatus = (
+  status: ConnectStatus,
+  reasonCode?: number,
+  info?: ConnectionInfo,
+) => {
+  switch (status) {
+    case ConnectStatus.Connecting:
+      showConnecting()
+      break
+    case ConnectStatus.Connected:
+      enableSending(info?.nodeId)
+      break
+    case ConnectStatus.Disconnect:
+      showOffline()
+      break
+    case ConnectStatus.ConnectFail:
+      showConnectionError(reasonCode)
+      break
+    case ConnectStatus.ConnectKick:
+      requireLoginAgain(reasonCode)
+      break
+  }
+}
+
+sdk.connectManager.addConnectStatusListener(onStatus)
+sdk.connect()
+```
+
+网络异常时 SDK 会尝试重连；被服务端拒绝或踢下线时不会继续无限重连。
+
+## 页面与账号生命周期
+
+```typescript
+sdk.connectManager.removeConnectStatusListener(onStatus)
+sdk.disconnect()
+```
+
+`disconnect()` 会停止自动重连。重新连接前替换 `uid`、`token` 和地址。由于 SDK 是全局单例，账号切换最稳妥的方式是先移除所有旧监听器并断开，再初始化新会话；不要让两个账号共享同一个页面上下文。
+
+## 常见问题
+
+- 浏览器报 Mixed Content：HTTPS 页面必须使用 `wss://`。
+- 状态回调重复：框架组件重复挂载了监听器，卸载时没有用同一个函数引用移除。
+- 本地能连、线上不能连：检查反向代理是否转发 WebSocket Upgrade、证书链和 CSP `connect-src`。

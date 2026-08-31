@@ -6,7 +6,6 @@ import {
   getAllNavigationEntries,
   getIndexedNavigationEntries,
   getNavigationEntry,
-  isNavigationGroup,
   isPublishedContentPath,
   locales,
   parseLocale,
@@ -49,11 +48,7 @@ describe('documentation navigation contract', () => {
       'tools',
       'architecture',
     ]);
-    expect(byKey.sdk.groups.map((group) => group.slug)).toEqual([
-      'wukongim',
-      'easy',
-      'common-guides',
-    ]);
+    expect(byKey.sdk.groups.map((group) => group.slug)).toEqual(['wukongim', 'easy']);
     expect(byKey.api.groups.map((group) => group.slug)).toEqual([
       'product-http',
       'operations-http',
@@ -62,7 +57,7 @@ describe('documentation navigation contract', () => {
       'dictionaries',
       'specifications',
     ]);
-    expect(byKey.sdk.pages.map((page) => page.slug)).toEqual(['choose-sdk', 'compatibility']);
+    expect(byKey.sdk.pages.map((page) => page.slug)).toEqual([]);
     expect(byKey.api.pages.map((page) => page.slug)).toEqual([
       'conventions',
       'authentication',
@@ -131,13 +126,16 @@ describe('documentation navigation contract', () => {
     ]);
   });
 
-  test('keeps the Phase 12 JavaScript golden path published as a narrow profile', () => {
+  test('publishes the JavaScript SDK tasks and API references', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
-    const phase12Routes = [
-      '/en/sdk/compatibility',
+    const routes = [
       '/en/sdk/javascript',
-      '/en/sdk/javascript/installation',
       '/en/sdk/javascript/quickstart',
+      '/en/sdk/javascript/connection',
+      '/en/sdk/javascript/messages',
+      '/en/sdk/javascript/conversations',
+      '/en/sdk/javascript/channels',
+      '/en/sdk/javascript/advanced',
       '/en/api/conventions',
       '/en/api/authentication',
       '/en/api/compatibility',
@@ -150,7 +148,7 @@ describe('documentation navigation contract', () => {
       '/en/api/dictionaries/reason-codes',
     ];
 
-    expect(published).toEqual(expect.arrayContaining(phase12Routes));
+    expect(published).toEqual(expect.arrayContaining(routes));
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'api-reference'])?.status).toBe(
       'published',
     );
@@ -159,156 +157,68 @@ describe('documentation navigation contract', () => {
     );
   });
 
-  test('keeps the Phase 13 integrator foundations without claiming unrelated platform support', () => {
+  test('publishes shared full-SDK concepts and protocol dictionaries', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
-    const phase13Routes = [
-      '/en/sdk/choose-sdk',
-      '/en/sdk/common-guides',
-      '/en/sdk/common-guides/identity-and-token',
-      '/en/sdk/common-guides/initialization-and-connection',
-      '/en/sdk/common-guides/messaging',
-      '/en/sdk/common-guides/custom-messages',
-      '/en/sdk/common-guides/conversations-and-unread',
-      '/en/sdk/common-guides/offline-and-push',
-      '/en/sdk/common-guides/multi-device',
-      '/en/sdk/common-guides/reconnect-and-errors',
+    const routes = [
+      '/en/sdk/wukongim',
+      '/en/sdk/wukongim/concepts',
+      '/en/sdk/wukongim/upgrade',
       '/en/api/dictionaries/channel-types',
       '/en/api/dictionaries/device-flags',
       '/en/api/dictionaries/message-flags',
     ];
 
-    expect(published).toEqual(expect.arrayContaining(phase13Routes));
-    expect(getNavigationEntry('en', 'sdk', ['choose-sdk'])?.status).toBe('published');
+    expect(published).toEqual(expect.arrayContaining(routes));
     expect(getNavigationEntry('en', 'sdk', ['javascript'])?.status).toBe('published');
   });
 
-  test('publishes the Phase 14 acceptance loop and later JavaScript reference chapters without broadening runtime support', () => {
+  test('publishes the release checklist and JavaScript advanced guidance', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
 
     expect(published).toEqual(
       expect.arrayContaining([
         '/en/guide/integration/acceptance',
-        '/en/sdk/javascript/platform-capabilities',
+        '/en/sdk/javascript/advanced',
       ]),
     );
     expect(
-      getNavigationEntry('en', 'sdk', ['javascript', 'platform-capabilities'])?.status,
+      getNavigationEntry('en', 'sdk', ['javascript', 'advanced'])?.status,
     ).toBe('published');
     expect(getNavigationEntry('en', 'sdk', ['javascript', 'api-reference'])?.status).toBe(
       'published',
     );
-    expect(getNavigationEntry('en', 'sdk', ['javascript', 'upgrade'])?.status).toBe(
-      'published',
-    );
+    expect(getNavigationEntry('en', 'sdk', ['wukongim', 'upgrade'])?.status).toBe('published');
   });
 
-  test('retains the Phase 19 iOS baseline and publishes later source-aligned chapters', () => {
-    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
+  test('publishes one task-oriented structure for every full SDK platform', () => {
+    const platforms = ['android', 'ios', 'javascript', 'flutter', 'harmonyos'];
+    const coreTasks = [
+      'quickstart',
+      'connection',
+      'messages',
+      'conversations',
+      'channels',
+      'advanced',
+      'api-reference',
+    ];
 
-    expect(published).toEqual(
-      expect.arrayContaining([
-        '/en/sdk/ios',
-        '/en/sdk/ios/installation',
-        '/en/sdk/ios/quickstart',
-      ]),
-    );
+    for (const platform of platforms) {
+      expect(getNavigationEntry('en', 'sdk', [platform])?.status).toBe('published');
+      for (const task of coreTasks) {
+        expect(getNavigationEntry('en', 'sdk', [platform, task])?.status).toBe(
+          'published',
+        );
+      }
+    }
+
+    expect(getNavigationEntry('en', 'sdk', ['uniapp'])).toBeUndefined();
     expect(
-      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
-        slug,
-        getNavigationEntry('en', 'sdk', ['ios', slug])?.status,
-      ]),
-    ).toEqual([
-      ['platform-capabilities', 'published'],
-      ['api-reference', 'published'],
-      ['upgrade', 'published'],
-    ]);
-  });
-
-  test('retains the Phase 20 Android baseline and publishes later source-aligned chapters', () => {
-    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
-
-    expect(published).toEqual(
-      expect.arrayContaining([
-        '/en/sdk/android',
-        '/en/sdk/android/installation',
-        '/en/sdk/android/quickstart',
-      ]),
-    );
-    expect(
-      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
-        slug,
-        getNavigationEntry('en', 'sdk', ['android', slug])?.status,
-      ]),
-    ).toEqual([
-      ['platform-capabilities', 'published'],
-      ['api-reference', 'published'],
-      ['upgrade', 'published'],
-    ]);
-  });
-
-  test('retains the Phase 21 Flutter baseline and publishes later source-aligned chapters', () => {
-    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
-
-    expect(published).toEqual(
-      expect.arrayContaining([
-        '/en/sdk/flutter',
-        '/en/sdk/flutter/installation',
-        '/en/sdk/flutter/quickstart',
-      ]),
-    );
-    expect(
-      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
-        slug,
-        getNavigationEntry('en', 'sdk', ['flutter', slug])?.status,
-      ]),
-    ).toEqual([
-      ['platform-capabilities', 'published'],
-      ['api-reference', 'published'],
-      ['upgrade', 'published'],
-    ]);
-  });
-
-  test('retains the Phase 22 HarmonyOS baseline and publishes later source-aligned chapters', () => {
-    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
-
-    expect(published).toEqual(
-      expect.arrayContaining([
-        '/en/sdk/harmonyos',
-        '/en/sdk/harmonyos/installation',
-        '/en/sdk/harmonyos/quickstart',
-      ]),
-    );
-    expect(
-      ['platform-capabilities', 'api-reference', 'upgrade'].map((slug) => [
-        slug,
-        getNavigationEntry('en', 'sdk', ['harmonyos', slug])?.status,
-      ]),
-    ).toEqual([
-      ['platform-capabilities', 'published'],
-      ['api-reference', 'published'],
-      ['upgrade', 'published'],
-    ]);
-  });
-
-  test('publishes the Phase 23 UniApp retirement path without reviving the old SDK', () => {
-    const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
-    const sdk = domains.find((domain) => domain.key === 'sdk');
-    const wukongim = sdk?.groups.find((group) => group.slug === 'wukongim');
-    const uniapp = wukongim?.children
-      .filter(isNavigationGroup)
-      .find((group) => group.slug === 'uniapp');
-
-    expect(published).toEqual(
-      expect.arrayContaining([
-        '/en/sdk/uniapp',
-        '/en/sdk/uniapp/migrate-to-jssdk',
-      ]),
-    );
-    expect(uniapp?.status).toBe('published');
-    expect(uniapp?.children.map((page) => [page.slug, page.status])).toEqual([
-      ['migrate-to-jssdk', 'published'],
-    ]);
-    expect(uniapp?.description.en).toContain('deprecated');
+      getNavigationEntry('en', 'sdk', [
+        'javascript',
+        'advanced',
+        'offline-and-uniapp',
+      ])?.status,
+    ).toBe('published');
   });
 
   test('publishes source-aligned EasySDK tutorials with a bounded server wire receipt', () => {
@@ -384,12 +294,13 @@ describe('documentation navigation contract', () => {
     expect(
       wukongim?.children.map((group) => [group.slug, group.status]),
     ).toEqual([
+      ['wukongim/concepts', 'published'],
       ['android', 'published'],
       ['ios', 'published'],
       ['javascript', 'published'],
       ['flutter', 'published'],
-      ['uniapp', 'published'],
       ['harmonyos', 'published'],
+      ['wukongim/upgrade', 'published'],
     ]);
     expect(
       getNavigationEntry('en', 'sdk', ['ios', 'quickstart'])
@@ -417,12 +328,13 @@ describe('documentation navigation contract', () => {
             : undefined,
       ),
     ).toEqual([
+      '/zh/sdk/wukongim/concepts',
       '/zh/sdk/android',
       '/zh/sdk/ios',
       '/zh/sdk/javascript',
       '/zh/sdk/flutter',
-      '/zh/sdk/uniapp',
       '/zh/sdk/harmonyos',
+      '/zh/sdk/wukongim/upgrade',
     ]);
   });
 
@@ -565,55 +477,64 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/architecture/message-flow`,
         `/${locale}/server/architecture/user-routing`,
         `/${locale}/sdk`,
-        `/${locale}/sdk/choose-sdk`,
-        `/${locale}/sdk/compatibility`,
         `/${locale}/sdk/wukongim`,
+        `/${locale}/sdk/wukongim/concepts`,
         `/${locale}/sdk/android`,
-        `/${locale}/sdk/android/installation`,
         `/${locale}/sdk/android/quickstart`,
-        `/${locale}/sdk/android/platform-capabilities`,
+        `/${locale}/sdk/android/connection`,
+        `/${locale}/sdk/android/messages`,
+        `/${locale}/sdk/android/conversations`,
+        `/${locale}/sdk/android/channels`,
+        `/${locale}/sdk/android/advanced`,
+        `/${locale}/sdk/android/advanced/custom-messages`,
+        `/${locale}/sdk/android/advanced/media-and-history`,
         `/${locale}/sdk/android/api-reference`,
-        `/${locale}/sdk/android/upgrade`,
         `/${locale}/sdk/ios`,
-        `/${locale}/sdk/ios/installation`,
         `/${locale}/sdk/ios/quickstart`,
-        `/${locale}/sdk/ios/platform-capabilities`,
+        `/${locale}/sdk/ios/connection`,
+        `/${locale}/sdk/ios/messages`,
+        `/${locale}/sdk/ios/conversations`,
+        `/${locale}/sdk/ios/channels`,
+        `/${locale}/sdk/ios/advanced`,
+        `/${locale}/sdk/ios/advanced/custom-messages`,
+        `/${locale}/sdk/ios/advanced/media-and-history`,
         `/${locale}/sdk/ios/api-reference`,
-        `/${locale}/sdk/ios/upgrade`,
         `/${locale}/sdk/javascript`,
-        `/${locale}/sdk/javascript/installation`,
         `/${locale}/sdk/javascript/quickstart`,
-        `/${locale}/sdk/javascript/platform-capabilities`,
+        `/${locale}/sdk/javascript/connection`,
+        `/${locale}/sdk/javascript/messages`,
+        `/${locale}/sdk/javascript/conversations`,
+        `/${locale}/sdk/javascript/channels`,
+        `/${locale}/sdk/javascript/advanced`,
+        `/${locale}/sdk/javascript/advanced/custom-messages`,
+        `/${locale}/sdk/javascript/advanced/offline-and-uniapp`,
         `/${locale}/sdk/javascript/api-reference`,
-        `/${locale}/sdk/javascript/upgrade`,
         `/${locale}/sdk/flutter`,
-        `/${locale}/sdk/flutter/installation`,
         `/${locale}/sdk/flutter/quickstart`,
-        `/${locale}/sdk/flutter/platform-capabilities`,
+        `/${locale}/sdk/flutter/connection`,
+        `/${locale}/sdk/flutter/messages`,
+        `/${locale}/sdk/flutter/conversations`,
+        `/${locale}/sdk/flutter/channels`,
+        `/${locale}/sdk/flutter/advanced`,
+        `/${locale}/sdk/flutter/advanced/custom-messages`,
+        `/${locale}/sdk/flutter/advanced/media-and-history`,
         `/${locale}/sdk/flutter/api-reference`,
-        `/${locale}/sdk/flutter/upgrade`,
-        `/${locale}/sdk/uniapp`,
-        `/${locale}/sdk/uniapp/migrate-to-jssdk`,
         `/${locale}/sdk/harmonyos`,
-        `/${locale}/sdk/harmonyos/installation`,
         `/${locale}/sdk/harmonyos/quickstart`,
-        `/${locale}/sdk/harmonyos/platform-capabilities`,
+        `/${locale}/sdk/harmonyos/connection`,
+        `/${locale}/sdk/harmonyos/messages`,
+        `/${locale}/sdk/harmonyos/conversations`,
+        `/${locale}/sdk/harmonyos/channels`,
+        `/${locale}/sdk/harmonyos/advanced`,
+        `/${locale}/sdk/harmonyos/advanced/custom-messages`,
+        `/${locale}/sdk/harmonyos/advanced/media-and-history`,
         `/${locale}/sdk/harmonyos/api-reference`,
-        `/${locale}/sdk/harmonyos/upgrade`,
+        `/${locale}/sdk/wukongim/upgrade`,
         `/${locale}/sdk/easy`,
         `/${locale}/sdk/easy/ios/getting-started`,
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/flutter/getting-started`,
         `/${locale}/sdk/easy/javascript/getting-started`,
-        `/${locale}/sdk/common-guides`,
-        `/${locale}/sdk/common-guides/identity-and-token`,
-        `/${locale}/sdk/common-guides/initialization-and-connection`,
-        `/${locale}/sdk/common-guides/messaging`,
-        `/${locale}/sdk/common-guides/custom-messages`,
-        `/${locale}/sdk/common-guides/conversations-and-unread`,
-        `/${locale}/sdk/common-guides/offline-and-push`,
-        `/${locale}/sdk/common-guides/multi-device`,
-        `/${locale}/sdk/common-guides/reconnect-and-errors`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,
@@ -667,32 +588,16 @@ describe('documentation navigation contract', () => {
     }
   });
 
-  test('pins every Phase 24 upgrade guide to an exact source interval', async () => {
+  test('keeps the Phase 24 specification focused on Kubernetes deployment', async () => {
     const specification = await Bun.file(
       new URL('../PHASE_24_SPEC.md', import.meta.url),
     ).text();
 
-    for (const row of [
-      '| Android | [`1.5.4 → 1.5.5`](https://github.com/WuKongIM/WuKongIMAndroidSDK/compare/1.5.4...1.5.5) | Android 8/8.1 VPN capability failure gains the `NetworkInfo` fallback; public Java signatures do not change |',
-      '| iOS | [`1.1.0 → 1.1.1`](https://github.com/WuKongIM/WuKongIMiOSSDK/compare/1.1.0...1.1.1) | `filterNoCMDAndNoStreamMessages` stops filtering `isDeleted != 0`; public headers do not change |',
-      '| Flutter | [`d99990f41ecb31166af82b9d20c121f33ff8385d → de1024276523119e38305c49a3a873caae4d5c59`](https://github.com/WuKongIM/WuKongIMFlutterSDK/compare/d99990f41ecb31166af82b9d20c121f33ff8385d...de1024276523119e38305c49a3a873caae4d5c59) | async sender/member lookup, awaited reaction persistence, maximum reaction sequence, and populated conversation results |',
-      '| HarmonyOS | [`a79df83f2794c581096850f0f77d34b95566a9ae → 0c41810a1e0a5fc2936929d63ca32a50ffb11bec`](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/compare/a79df83f2794c581096850f0f77d34b95566a9ae...0c41810a1e0a5fc2936929d63ca32a50ffb11bec) | new channel/message/conversation queries, connection-generation changes, failed-sending initialization, and extra/reaction persistence |',
-      '| JavaScript direct | [`533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c → 3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/compare/533a60cdd1b9229fc4a87d7d22b5b860eb4aa43c...3c507ea3ebc08eae9d74fc1f76b150c380752008) | `WKEvent.dataText → dataJson` with JSON parsing |',
-      '| JavaScript wide | [`3747f4477829cf87d9003725038506aa5591b1ab → 3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/compare/3747f4477829cf87d9003725038506aa5591b1ab...3c507ea3ebc08eae9d74fc1f76b150c380752008) | protocol-version, stream-removal, event-manager, and build-version changes in addition to the direct delta |',
-    ]) {
-      expect(specification).toContain(row);
-    }
-
-    expect(specification).toContain(
-      'JitPack `com.github.WuKongIM:WuKongIMAndroidSDK:1.5.5`',
-    );
-    expect(specification).toContain(
-      'framework podspec conflicts between iOS platform `11.0` and deployment target `13.0`',
-    );
-    expect(specification).toContain(
-      'generated compatibility state remains `verified: false` / `verification.status: missing`',
-    );
-    expect(specification).not.toContain('The existing receipt');
+    expect(specification).toContain('Kubernetes deployment reference');
+    expect(specification).toContain('StatefulSet');
+    expect(specification).toContain('hash_slot_count = 256');
+    expect(specification).toContain('SDK_DOCUMENTATION_SPEC.md');
+    expect(specification).not.toContain('SDK platform-capability');
   });
 
   test('backs every published route with matching Chinese and English MDX', async () => {
@@ -793,22 +698,6 @@ describe('documentation navigation contract', () => {
       [
         'PHASE_17_SPEC.md',
         /These routes remain planned:[\s\S]{0,1500}This is the Phase 17 boundary\. Phase 18 later publishes[\s\S]{0,200}not current publication status/,
-      ],
-      [
-        'PHASE_19_SPEC.md',
-        /The following iOS routes remain planned and excluded from indexed output:[\s\S]{0,800}This is the Phase 19 publication boundary\. Phase 24 later publishes/,
-      ],
-      [
-        'PHASE_20_SPEC.md',
-        /The following routes remain planned and excluded from indexed output:[\s\S]{0,800}This is the Phase 20 publication boundary\. Phase 24 later publishes/,
-      ],
-      [
-        'PHASE_21_SPEC.md',
-        /Flutter platform capabilities, a complete API reference, and an upgrade guide\s+remain planned\.[\s\S]{0,100}This is the Phase 21 publication boundary\. Phase 24 later publishes/,
-      ],
-      [
-        'PHASE_22_SPEC.md',
-        /HarmonyOS platform capabilities, a complete API reference, and an upgrade guide\s+remain planned\.[\s\S]{0,200}This is the Phase 22 publication boundary\. Phase 24 later publishes/,
       ],
     ]);
 
@@ -935,8 +824,8 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/acceptance.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/acceptance.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('sdk/choose-sdk.mdx')).toBe(true);
-    expect(isPublishedContentPath('sdk/choose-sdk.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/choose-sdk.mdx')).toBe(false);
+    expect(isPublishedContentPath('sdk/choose-sdk.en.mdx')).toBe(false);
     expect(isPublishedContentPath('sdk/easy/index.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/ios/getting-started.mdx')).toBe(true);
@@ -949,14 +838,15 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('sdk/easy/javascript/getting-started.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/wukongim/index.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/wukongim/index.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('sdk/javascript/platform-capabilities.mdx')).toBe(true);
-    expect(isPublishedContentPath('sdk/javascript/platform-capabilities.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/wukongim/concepts.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/wukongim/upgrade.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/javascript/advanced/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/javascript/advanced/index.en.mdx')).toBe(true);
     for (const platform of ['android', 'ios', 'flutter', 'harmonyos', 'javascript']) {
-      for (const chapter of ['platform-capabilities', 'api-reference', 'upgrade']) {
-        if (platform === 'javascript' && chapter === 'platform-capabilities') continue;
-        expect(isPublishedContentPath(`sdk/${platform}/${chapter}.mdx`)).toBe(true);
-        expect(isPublishedContentPath(`sdk/${platform}/${chapter}.en.mdx`)).toBe(true);
-      }
+      expect(isPublishedContentPath(`sdk/${platform}/api-reference.mdx`)).toBe(true);
+      expect(isPublishedContentPath(`sdk/${platform}/api-reference.en.mdx`)).toBe(true);
+      expect(isPublishedContentPath(`sdk/${platform}/platform-capabilities.mdx`)).toBe(false);
+      expect(isPublishedContentPath(`sdk/${platform}/upgrade.mdx`)).toBe(false);
     }
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);

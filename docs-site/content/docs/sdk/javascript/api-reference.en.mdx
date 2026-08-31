@@ -1,225 +1,81 @@
 ---
-title: JavaScript API Reference
-description: Find configuration, connection, messaging, channel, conversation, event, and provider APIs for the pinned 1.3.5 snapshot.
+title: JavaScript / Web API Reference
+description: Find common wukongimjssdk configuration, listeners, providers, and models by manager.
 ---
 
-This page targets `wukongimjssdk@1.3.5`, pinned to source commit [`3c507ea3ebc08eae9d74fc1f76b150c380752008`](https://github.com/WuKongIM/WuKongIMJSSDK/tree/3c507ea3ebc08eae9d74fc1f76b150c380752008). Signatures come from `lib/*.d.ts` in that npm artifact. The legacy site helps identify topics but does not override this version boundary.
+This is a lookup page for common entry points, not a replacement for the task guides. The root singleton is `WKSDK.shared()`.
 
-Those `lib/*.d.ts` files are declaration evidence, not permission to deep-import them. The package export map exposes only `.` and `./package.json`; application code must import from the `wukongimjssdk` root and must not depend on `wukongimjssdk/lib/*` paths.
+## `WKSDK` and configuration
 
-<Callout type="warn" title="An export is not verification">
-  The executable scenario currently covers person-channel connection, bidirectional persistent text, SENDACK, disconnect, and recovery in pinned Chromium. The APIs below are the exact exported surface, not compatibility receipts for every API. See [Platform Capabilities](/en/sdk/javascript/platform-capabilities) for scenario status.
-</Callout>
-
-## Entry point and singleton lifecycle
-
-```ts
-import WKSDK, {
-  Channel,
-  ChannelTypePerson,
-  ConnectStatus,
-  Message,
-  MessageText,
-  ReasonCode,
-  SendackPacket,
-  SendOptions,
-} from 'wukongimjssdk';
-
-const sdk = WKSDK.shared();
-```
-
-`WKSDK.shared()` returns one instance per process or page context. It aggregates:
-
-| Property | Responsibility |
+| API | Purpose |
 | --- | --- |
-| `config` | Identity, address, protocol, and application providers |
-| `connectManager` | Connection, reconnect, heartbeat, and status |
-| `chatManager` | Send, receive, SENDACK, and message-sync entry points |
-| `channelManager` | Channel information, subscriber cache, and subscriptions |
-| `conversationManager` | Recent conversations, unread count, and conversation events |
-| `eventManager` | `WKEvent` listeners |
-| `messageContentManager` | Content-factory registration, fallback factories, and content construction |
-| `taskManager` | `MessageTask` upload tasks, progress, and task listeners |
-| `receiptManager` | Read-message batching and flush-completion listeners |
-| `reminderManager` | Reminder sync, completion, and conversation projection |
-| `securityManager` | WKProto compatibility crypto helpers, not a product end-to-end security API |
+| `WKSDK.shared()` | SDK singleton for the current page context |
+| `config.uid` / `config.token` | Current user identity |
+| `config.addr` | WebSocket endpoint |
+| `config.deviceFlag` | `0` App, `1` Web, `2` PC |
+| `config.provider` | Application data sources |
+| `connect()` / `disconnect()` | Connect and stop connecting |
+| `register(type, factory)` | Register custom message content |
+| `newChannel` / `newMessageText` | Convenience model constructors |
 
-The root `WKSDK` also exposes these convenience methods directly:
+## `ConnectManager`
 
-| Method | Purpose |
+| API | Purpose |
 | --- | --- |
-| `register` / `registerFactor` / `getMessageContent` | Forward to `messageContentManager` to register an exact/fallback factory and construct content by `contentType` |
-| `isSystemMessage(contentType)` | Test membership in the pinned source's system-content set; not a server authorization or trust decision |
-| `connect()` / `disconnect()` | Forward to the connection manager |
-| `onSubscribe(channel, listener, ...options)` / `onUnsubscribe(channel, listener?)` | Forward the channel-subscription protocol |
-| `newMessageText` / `newChannel` / `newMessage` / `newChannelInfo` | Construct built-in text, channel, message, and channel-info models |
-| `newMediaMessageContent` / `newMessageContent` | Construct base media/content models; a concrete schema, upload, and registration flow is still required |
+| `addConnectStatusListener` | Observe connection state |
+| `removeConnectStatusListener` | Remove a state observer |
+| `addConnectDelayListener` | Observe heartbeat delay |
+| `removeConnectDelayListener` | Remove a delay observer |
+| `status` | Current `ConnectStatus` |
 
-Do not use this singleton for multiple signed-in identities in the same page context. Before changing UID, stop application traffic, disconnect, remove listeners, clear application state, and configure again. Use isolated iframes, Workers, or page contexts for parallel identities and verify those runtime boundaries yourself.
+States: `Disconnect`, `Connected`, `Connecting`, `ConnectFail`, and `ConnectKick`.
 
-## `WKConfig`
+## `ChatManager`
 
-| Field | Meaning in `1.3.5` |
+| API | Purpose |
 | --- | --- |
-| `uid?: string`, `token?: string` | CONNECT identity. A trusted backend must issue the token; never bake it into a browser bundle. |
-| `addr: string` | Direct `ws://` or `wss://` address. Production browsers should use a trusted TLS endpoint. |
-| `provider: Provider` | Application routing, message sync, channel, conversation, and media providers. |
-| `deviceFlag: number` | Defaults to `1` (Web); align it with the product's multi-device policy. |
-| `protoVersion: number` | Defaults to `5`. Do not lower it merely to bypass compatibility failures. |
-| `heartbeatInterval: number` | Defaults to `60000` ms. Re-test proxy idle timeouts, background throttling, and reconnect after changing it. |
-| `sendFrequency: number`, `sendCountOfEach: number` | By default, send at most `5` queued messages every `100` ms. Changes affect latency and burst load. |
-| `clientMsgDeviceId: number` | Participates in client message-number generation; defaults to `0`. Define a multi-device allocation policy. |
-| `platform?: any` | A non-browser adapter hook in source; this documentation has no compatibility evidence for it. |
+| `send(content, channel, setting?)` | Send and return a local `Message` |
+| `sendWithOptions(content, channel, options)` | Send with advanced options |
+| `addMessageListener` / `removeMessageListener` | Observe all incoming and outgoing messages |
+| `addMessageStatusListener` / `removeMessageStatusListener` | Observe server send results |
+| `syncMessages(channel, options)` | Synchronize through the provider |
+| `syncMessageExtras` | Synchronize message extra data |
 
-The browser quickstart normally sets `addr` directly. For dynamic discovery, configure the callback-style provider:
+## `ConversationManager`
 
-```ts
-sdk.config.provider.connectAddrCallback = (done) => {
-  void trustedBff.resolveWebSocket().then(({ url }) => done(url));
-};
-```
-
-This field receives a function that calls `done(addr)`; it is not a function returning `Promise<string>`. Add application-level timeout and error states around route discovery.
-
-## `Provider` data sources
-
-Implement a callback only when its feature is used, but a manager can throw or lack data if a required callback is absent when invoked.
-
-| Callback | Signature summary | Data owner |
-| --- | --- | --- |
-| `connectAddrCallback` | `(done) => void` | Trusted backend returns a reachable Gateway address |
-| `syncMessagesCallback` | `(channel, options) => Promise<Message[]>` | Application adapter for offline/history messages |
-| `channelInfoCallback` | `(channel) => Promise<ChannelInfo>` | Application channel profile |
-| `syncSubscribersCallback` | `(channel, version) => Promise<Subscriber[]>` | Subscriber delta or snapshot |
-| `syncConversationsCallback` | `(filter?) => Promise<Conversation[]>` | Recent conversations |
-| `syncConversationExtrasCallback` | `(version) => Promise<ConversationExtra[] \| undefined>` | Conversation extension state |
-| `syncMessageExtraCallback` | `(channel, version, limit) => Promise<MessageExtra[]>` | Read, revoke, and edit extensions |
-| `messageUploadTaskCallback` | `(message) => MessageTask` | Media upload implementation |
-| `syncRemindersCallback`, `reminderDoneCallback` | Reminder sync and completion | Application reminder service |
-| `messageReadedCallback` | `(channel, messages) => Promise<void>` | Read reporting |
-
-The SDK does not supply Product HTTP authorization, correct pagination, access control, or data deduplication. The BFF adapter in [Quickstart](/en/sdk/javascript/quickstart) is a starting point; production services must reimplement and verify those contracts.
-
-## Connection management
-
-```ts
-const onStatus = (status: ConnectStatus, reasonCode?: number) => {
-  if (status === ConnectStatus.Connected) {
-    // The connection is acknowledged; sending UI may now be enabled.
-  }
-};
-
-sdk.connectManager.addConnectStatusListener(onStatus);
-sdk.connect();
-
-// During page teardown
-sdk.connectManager.removeConnectStatusListener(onStatus);
-sdk.disconnect();
-```
-
-The exact `ConnectStatus` members are `Disconnect`, `Connected`, `Connecting`, `ConnectFail`, and `ConnectKick`. Other useful methods are:
-
-| Method | Purpose |
+| API | Purpose |
 | --- | --- |
-| `connected(): boolean` | Read whether the current state is `Connected` |
-| `addConnectDelayListener` / `removeConnectDelayListener` | Observe heartbeat-derived latency |
-| `connectWithAddr(addr)` | Connect with an explicit address; normally let `connect()` select from configuration |
-| `disconnect()` | Close the connection and stop automatic reconnect |
+| `sync(filter?)` | Synchronize conversations from the application provider |
+| `conversations` | Current in-memory conversation list |
+| `findConversation(channel)` | Find one conversation |
+| `createEmptyConversation(channel)` | Create an empty conversation |
+| `removeConversation(channel)` | Remove an in-memory row |
+| `getAllUnreadCount()` | Total all unread counts |
+| `addConversationListener` / `removeConversationListener` | Observe list changes |
 
-For every `add*Listener`, keep the same function reference and call its matching `remove*Listener` during component or session teardown. UI rerenders without cleanup create duplicate callbacks.
+## `ChannelManager`
 
-## Send, receive, and sync
-
-```ts
-const channel = new Channel('bob', ChannelTypePerson);
-const localMessage: Promise<Message> = sdk.chatManager.send(
-  new MessageText('hello'),
-  channel,
-);
-
-const options = new SendOptions();
-options.noPersist = false;
-options.reddot = true;
-await sdk.chatManager.sendWithOptions(new MessageText('hello'), channel, options);
-```
-
-`send(...)` and `sendWithOptions(...)` return `Promise<Message>`, but resolution only means a local message was created and entered the send flow. It does not replace a server SENDACK. Observe the send result separately:
-
-```ts
-const onMessage = (message: Message) => {
-  // This listener also observes a newly-created local message; classify or dedupe by fromUID/clientMsgNo.
-};
-const onAck = (ack: SendackPacket) => {
-  if (ack.reasonCode === ReasonCode.success) {
-    // The server accepted this send.
-  }
-};
-
-sdk.chatManager.addMessageListener(onMessage);
-sdk.chatManager.addMessageStatusListener(onAck);
-
-sdk.chatManager.removeMessageListener(onMessage);
-sdk.chatManager.removeMessageStatusListener(onAck);
-```
-
-Other messaging entry points:
-
-| Method | Notes |
+| API | Purpose |
 | --- | --- |
-| `addCMDListener` / `removeCMDListener` | Observe messages whose content type is CMD |
-| `syncMessages(channel, SyncOptions)` | Calls `provider.syncMessagesCallback` |
-| `syncMessageExtras(channel, version)` | Calls the message-extra provider with an SDK-internal batch limit of `100` |
-| `register(contentType, factory)` | Register a custom `MessageContent` decoder |
+| `fetchChannelInfo(channel)` | Fetch a profile through the provider |
+| `getChannelInfo(channel)` | Read a cached profile |
+| `addListener` / `removeListener` | Observe profile changes |
+| `syncSubscribes(channel)` | Synchronize group subscribers |
+| `getSubscribes(channel)` | Read cached subscribers |
 
-`SyncOptions` contains `startMessageSeq`, `endMessageSeq`, `limit`, and `pullMode`; `PullMode.Down` is `0` and `PullMode.Up` is `1`. Your BFF contract must define inclusivity, pagination, and maximum `limit`; names alone are not enough.
+## Common providers
 
-## Channels, conversations, and events
-
-| Manager | Common methods |
+| Configuration | Result |
 | --- | --- |
-| `channelManager` | `fetchChannelInfo`, `getChannelInfo`, `getSubscribes`, `onSubscribe`, `onUnsubscribe`, and channel/subscriber listeners |
-| `conversationManager` | `sync`, `syncExtra`, `findConversation`, `createEmptyConversation`, `removeConversation`, `getAllUnreadCount`, and conversation listeners |
-| `eventManager` | `addEventListener`, `removeEventListener`; the event object is `WKEvent` and its decoded field is `dataJson` |
+| `connectAddrCallback` | Supplies a WebSocket endpoint through a callback |
+| `channelInfoCallback` | `Promise<ChannelInfo>` |
+| `syncSubscribersCallback` | `Promise<Subscriber[]>` |
+| `syncConversationsCallback` | `Promise<Conversation[]>` |
+| `syncMessagesCallback` | `Promise<Message[]>` |
+| `messageUploadTaskCallback` | `MessageTask` |
 
-Channel constants are `ChannelTypePerson = 1`, `ChannelTypeGroup = 2`, and `ChannelTypeData = 7`. Subscription URLs and parameters form a separate subscription protocol; do not treat them as a normal group-subscriber listener without a matching scenario.
+## Common models
 
-Built-in content includes `MessageText`, `MessageImage`, `MessageStream`, `MessageSignalContent`, `CMDContent`, `SystemContent`, and `UnknownContent`. A custom type needs a unique `contentType`, `encodeJSON` / `decodeJSON`, and registration before receive:
+`Channel`, `ChannelInfo`, `Subscriber`, `Message`, `MessageContent`, `MessageText`, `MessageImage`, `Conversation`, `SyncOptions`, and `SendOptions`.
 
-```ts
-sdk.register(9001, () => new OrderMessageContent());
-```
-
-## Content, task, receipt, reminder, and security managers
-
-These properties are reachable through `WKSDK.shared()`, but public visibility does not make every method a product-level abstraction:
-
-| Manager | Public `1.3.5` method surface | Important boundary |
-| --- | --- | --- |
-| `messageContentManager` | `register(contentType, factory)`, `registerFactor(factory)`, `getMessageContent(contentType)`; the root object exposes matching `register` / `registerFactor` / `getMessageContent` wrappers | Install factories before decode; the application owns fallback ordering and unknown-content policy |
-| `taskManager` | `addTask(task)`, `removeTask(id)`, `addListener(listener)`, `removeListener(listener)` | `addTask` immediately calls `start()`; removal calls `cancel()`; cleanup requires the same listener object |
-| `receiptManager` | `addReceiptMessages(channel, messages)`, `addListener(listener)`, `removeListener(listener)` | Requires `messageReadedCallback`; listeners run only after provider completion, so queueing is not read-report success |
-| `reminderManager` | `sync()`, `done(ids)`, `updateConversations(channels)`, `getWaitDoneReminders(channel)`, `getRemindersWithIDs(ids)`, `maxReminderVersion()` | Missing `syncRemindersCallback` / `reminderDoneCallback` only logs and returns; applications normally need not call the conversation-projection helper directly |
-| `securityManager` | `signalEncrypt`, `encryption`, `decryption`, `encryption2`, `stringToUint`, `uintToString`, plus mutable `aesKey` / `aesIV` and `registrationID` / `deviceID` | These are protocol-compatibility helpers, without server authentication, key lifecycle, or end-to-end security proof |
-
-Public `TaskStatus` members are `wait`, `success`, `processing`, `fail`, `suspend`, and `cancel`. `Task` / `BaseTask` expose `start`, `suspend`, `resume`, `cancel`, `update`, `progress`, and paired `addListener` / `removeListener`; `MessageTask.id` uses the message `clientMsgNo`.
-
-`BaseTask` implements `start`, `suspend`, `resume`, and `cancel` as no-ops and always returns `0` from `progress()`; a real upload task must implement that behavior in a subclass. Names do not replace source review either: in `1.3.5`, `getWaitDoneReminders(channel)` filters only by channel and does not inspect `done`, so applications needing only unfinished reminders must filter and test that policy themselves.
-
-`TaskManager.notifyListeners` and `ReceiptManager.notifyListeners` also appear in public declarations, but they are SDK event-dispatch entry points; `ReminderManager.updateConversations` is the conversation-projection helper used after reminder synchronization. Include these names in upgrade audits, but do not make application code inject task, successful-receipt, or conversation-refresh events.
-
-In exact `1.3.5`, `securityManager.signalEncrypt(recipientID, contentData)` **returns the input bytes unchanged**; the commented Signal-session implementation is inactive. Do not describe this call as active Signal encryption, and do not describe AES-CBC Payload compatibility encryption as authenticated TLS or end-to-end encryption.
-
-Although `registrationID` and `deviceID` appear in public declarations, the commented Signal initialization/session code does not establish a key lifecycle for them. Assigning these fields is not proof that a Signal session exists.
-
-The root singleton has no public `reset` or `destroy`, and `receiptManager` exposes no stop API for its flush timer. Page teardown can pair removable listeners, cancel application-owned tasks, and call `disconnect()`; that does not prove manager caches, timers, keys, or all shared state were erased. Use an isolated page/Worker context for strong account isolation and validate it separately.
-
-Verify each group in pinned [`task.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/task.ts), [`receipt_manager.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/receipt_manager.ts), [`reminder_manager.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/reminder_manager.ts), and [`security.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/security.ts).
-
-## Result codes and security boundaries
-
-- `ReasonCode.success` equals `1`; never compare SDK acknowledgements with HTTP `200`.
-- `ConnectFail`, `ConnectKick`, and SENDACK `reasonCode` belong to different lifecycle stages. Keep UI and retry policy separate.
-- The `1.3.5` source contains `console.log` calls not guarded by `config.debug`, including a decrypted receive packet and a retried send packet. The repository golden sample strips `console` in its production build; verify your own output instead of relying on `debug = false`.
-- `config.platform` and the uni-app/mini-program branches are outside the current browser receipt. Build separate connection, binary-frame, close, reconnect, and background-lifecycle scenarios before adoption.
-
-For the complete declarations, inspect [`src/index.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/index.ts), [`src/provider.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/provider.ts), and [`src/model.ts`](https://github.com/WuKongIM/WuKongIMJSSDK/blob/3c507ea3ebc08eae9d74fc1f76b150c380752008/src/model.ts) at the pinned commit. Continue to [Upgrade Guide](/en/sdk/javascript/upgrade) before changing versions.
+Common channel types: `ChannelTypePerson` and `ChannelTypeGroup`. Local message states: `MessageStatus.Wait`, `MessageStatus.Normal`, and `MessageStatus.Fail`.

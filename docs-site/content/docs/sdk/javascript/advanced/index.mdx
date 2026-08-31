@@ -1,0 +1,18 @@
+---
+title: JavaScript / Web 高级功能
+description: 在基础收发完成后接入自定义正文、离线恢复，并迁移旧 UniApp SDK。
+---
+
+先完成[快速开始](/zh/sdk/javascript/quickstart)，再按产品需要选择高级能力。
+
+<Cards>
+  <Card title="自定义消息" description="定义业务正文、分配类型编号，并在连接前注册。" href="/zh/sdk/javascript/advanced/custom-messages" />
+  <Card title="离线恢复与 UniApp 迁移" description="接入消息同步，并从已停止维护的 UniApp SDK 迁移。" href="/zh/sdk/javascript/advanced/offline-and-uniapp" />
+</Cards>
+
+## 上线前注意
+
+- 生产网页使用 `wss://`，验证证书、反向代理 WebSocket Upgrade 和 CSP。
+- `1.3.5` 的部分控制台输出不受 `config.debug` 控制，可能包含解码后的消息数据。发布前应采用经过评审的删除或脱敏方案，并检查最终 bundle。
+- Token 只放内存或受控会话存储，避免 URL、分析事件、错误上报和浏览器日志。
+- 覆盖断网重连、标签页休眠、Token 失效、被踢、离线去重、账号切换和版本回滚。

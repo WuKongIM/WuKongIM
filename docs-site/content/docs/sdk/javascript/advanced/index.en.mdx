@@ -1,0 +1,18 @@
+---
+title: JavaScript / Web Advanced
+description: Add custom content and offline recovery, and migrate from the old UniApp SDK after basic messaging works.
+---
+
+Complete the [Quickstart](/en/sdk/javascript/quickstart), then add only the advanced capabilities your product needs.
+
+<Cards>
+  <Card title="Custom Messages" description="Define product content, assign a type number, and register it before connecting." href="/en/sdk/javascript/advanced/custom-messages" />
+  <Card title="Offline Recovery & UniApp Migration" description="Connect message synchronization and move away from the unmaintained UniApp SDK." href="/en/sdk/javascript/advanced/offline-and-uniapp" />
+</Cards>
+
+## Before production
+
+- Use `wss://` and verify certificates, reverse-proxy WebSocket Upgrade, and CSP.
+- Some console output in `1.3.5` is not controlled by `config.debug` and can contain decoded message data. Apply an approved removal or redaction approach and inspect the final bundle.
+- Keep tokens in memory or controlled session storage; exclude them from URLs, analytics, error reporting, and browser logs.
+- Test network loss, sleeping tabs, expired tokens, kicks, offline deduplication, account switching, and rollback.

@@ -8,23 +8,6 @@ import {
   renderProtocolDictionaryMarkdown,
 } from './developer-contracts';
 
-const contentRoot = new URL('../content/docs/', import.meta.url);
-const commonGuideSlugs = [
-  'index',
-  'identity-and-token',
-  'initialization-and-connection',
-  'messaging',
-  'custom-messages',
-  'conversations-and-unread',
-  'offline-and-push',
-  'multi-device',
-  'reconnect-and-errors',
-] as const;
-
-async function content(path: string) {
-  return Bun.file(new URL(path, contentRoot)).text();
-}
-
 function parseGoIotaBlock(source: string, memberName: string) {
   const block = [...source.matchAll(/const\s*\(\s*([\s\S]*?)\n\)/gu)]
     .map(([, body]) => body)
@@ -59,21 +42,7 @@ function parseGoIotaBlock(source: string, memberName: string) {
   return values;
 }
 
-describe('Phase 13 integrator contracts', () => {
-  test('publishes independently written bilingual common-guide pages with one shared boundary', async () => {
-    for (const slug of commonGuideSlugs) {
-      const stem = `sdk/common-guides/${slug}`;
-      const [zh, en] = await Promise.all([content(`${stem}.mdx`), content(`${stem}.en.mdx`)]);
-
-      expect(zh).toContain('跨 SDK 行为指南');
-      expect(en).toContain('cross-SDK behavior guide');
-      expect(zh).toContain('/zh/sdk/compatibility');
-      expect(en).toContain('/en/sdk/compatibility');
-      expect(zh).toMatch(/默认[\s\S]*(?:已存 Token|stored-token)[\s\S]*(?:CONNECT 校验|verifier)/u);
-      expect(en).toMatch(/default[\s\S]*stored-token[\s\S]*(?:CONNECT verification|verifier)/u);
-      expect(zh).not.toBe(en);
-    }
-  });
+describe('shared protocol dictionary contracts', () => {
 
   test('keeps exact Channel Type values aligned with the Go wire authority', async () => {
     expect(channelTypes.map(({ name, value }) => ({ name, value }))).toEqual([

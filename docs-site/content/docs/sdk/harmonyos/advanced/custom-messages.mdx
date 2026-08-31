@@ -1,0 +1,97 @@
+---
+title: HarmonyOS 自定义消息
+description: 定义业务消息正文、分配类型编号，并在读取消息前完成注册。
+---
+
+文本、图片等内置正文不能表达订单卡片、位置共享等业务数据时，可以继承 `WKMessageContent` 定义自己的正文。
+
+## 1. 约定消息类型
+
+客户端和服务端为每种业务正文使用同一个整数编号。不要占用 SDK 内置的 `1`～`99`。
+
+```typescript
+const ORDER_MESSAGE_TYPE: number = 10001
+```
+
+## 2. 定义正文
+
+```typescript
+import { CommonUtil } from '@wukong/wkim/src/main/ets/common/CommonUtil'
+import { WKMessageContent } from '@wukong/wkim/src/main/ets/model/WKMessageContent'
+
+export class OrderMessageContent extends WKMessageContent {
+  orderId: string = ''
+  title: string = ''
+
+  constructor(orderId: string = '', title: string = '') {
+    super()
+    this.orderId = orderId
+    this.title = title
+    this.contentType = ORDER_MESSAGE_TYPE
+  }
+
+  encodeJson(): Record<string, Object> {
+    return {
+      'order_id': this.orderId,
+      'title': this.title
+    }
+  }
+
+  decodeJson(jsonStr: string): WKMessageContent {
+    const json = CommonUtil.jsonToRecord(jsonStr)
+    if (json !== undefined) {
+      this.orderId = CommonUtil.readString(json, 'order_id') ?? ''
+      this.title = CommonUtil.readString(json, 'title') ?? ''
+    }
+    return this
+  }
+
+  displayText(): string {
+    return `[订单] ${this.title}`
+  }
+
+  searchableWord(): string {
+    return this.title
+  }
+}
+```
+
+- `encodeJson` 决定发送到服务端的数据；
+- `decodeJson` 把收到的 JSON 字符串还原为对象；
+- `displayText` 用于会话预览；
+- `searchableWord` 用于本地搜索。
+
+## 3. 注册后再读取消息
+
+在 `init` 完成后、连接和读取本地消息前注册一次：
+
+```typescript
+WKIM.shared.messageManager().registerMsgContent(
+  ORDER_MESSAGE_TYPE,
+  (jsonStr: string): WKMessageContent => {
+    return new OrderMessageContent().decodeJson(jsonStr)
+  }
+)
+```
+
+如果没有注册，SDK 会把正文当成未知类型。把所有注册集中在应用启动服务中，不要在聊天页面里重复执行。
+
+## 4. 发送和接收
+
+```typescript
+WKIM.shared.messageManager().send(
+  new OrderMessageContent('A-1001', '待支付'),
+  new WKChannel('bob', WKChannelType.personal)
+)
+```
+
+接收时按 ArkTS 类型渲染：
+
+```typescript
+const content = message.messageContent
+if (content instanceof OrderMessageContent) {
+  showOrderCard(content.orderId, content.title)
+}
+```
+
+新增字段时保持向后兼容：旧客户端应能忽略新字段，新客户端也应为缺失字段提供默认值。

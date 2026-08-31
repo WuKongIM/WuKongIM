@@ -1,131 +1,60 @@
 ---
-title: 上线验收
-description: 用可执行兼容性证据和独立生产门禁判断 WuKongIM 集成是否可以发布。
+title: 上线检查
+description: 在发布前检查身份、连接、消息、离线恢复、安全、容量和回滚。
 ---
 
-上线验收不是“页面能聊天”或“Socket 已连接”。集成者需要先证明固定客户端场景可重复运行，再为身份、网络、授权、Webhook、容量、运维和回滚分别提供部署证据。
+“能连上并发出一条消息”只说明基础路径可用。正式发布前，还要用你的真实客户端、服务端配置和业务接口覆盖失败场景。
 
-<Callout type="error" title="兼容性通过不等于生产就绪">
-  当前默认 v3 Beta 组合没有启用已存 Token 的 Gateway verifier，Product HTTP 也没有通用业务鉴权中间件。JavaScript 验收命令会把 `production_readiness.result` 固定为 `not_assessed`；它不会把开发 CONNECT 成功包装成生产身份保证。
-</Callout>
+## 先固定本次发布内容
 
-## 两层验收模型
+记录并评审：
 
-| 层次 | 谁执行 | 能证明什么 | 不能证明什么 |
-| --- | --- | --- | --- |
-| 兼容性 Smoke | 固定 JavaScript 样例与真实 Chromium | 当前验收工具 revision、锁文件、实际安装 SDK 和浏览器能针对配置的集群端点完成既定消息闭环 | 被测集群源码身份、生产鉴权、TLS、容量、Webhook 可靠性或业务权限 |
-| 生产门禁 | 产品、平台、安全和运维负责人 | 当前部署的身份、网络、策略、容量与恢复设计满足发布要求 | 不能反向改变 SDK 兼容性事实 |
+- 客户端 SDK 精确版本和锁文件；
+- WuKongIM 服务端版本与配置；
+- 客户端系统、设备和网络范围；
+- 业务登录、Token、频道资料、会话、历史和媒体接口版本；
+- 数据库或协议变化以及对应回滚方式。
 
-任一层失败都应停止发布。不能用手工勾选生产清单掩盖可执行场景失败，也不能用一份通过的 Smoke 报告跳过生产安全评审。
+依赖、配置和锁文件应作为一个变更单元发布和回滚。
 
-## 运行兼容性 Smoke
+## 最小消息闭环
 
-先确认集群 `/readyz` 成功、Product HTTP 只从本机受信 Node.js 进程可达，并按[安装与配置](/zh/sdk/javascript/installation)完成锁文件安装。然后在样例目录运行：
+使用两个真实测试账号 Alice 和 Bob，在两个独立客户端中完成：
 
-```bash
-cd docs-site/examples/javascript-web-quickstart
-WK_DOCS_QUICKSTART_E2E_PRODUCT_HTTP_URL=http://127.0.0.1:5001 \
-WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
-npm run verify:acceptance
-```
+1. 两端登录并连接到可发送状态；
+2. Alice 向 Bob 发送文本，Alice 显示服务端已接受；
+3. Bob 在线收到且只显示一次；
+4. Bob 断网，Alice 再发送一条消息；
+5. Bob 恢复网络后补齐离线消息，顺序和未读数正确；
+6. 双方退出并重新登录，本地数据没有串号。
 
-该命令会自行启动样例 BFF；如果手工 Quickstart 仍占用同一 UI 端口，先停止它或选择另一个未占用的 loopback 端口。默认命令只检查样例页面。若要把双语文档页面纳入同一 Chromium 运行，先启动 `docs-site/out` 的 loopback 静态服务，再额外设置 `WK_DOCS_SITE_E2E_URL`；否则报告中的文档质量保持 `not_assessed`。
+发送端的服务端结果、接收端在线收到和离线同步是三个不同事件，测试时分别检查。
 
-命令会依次执行快速测试与 TypeScript 构建、真实 Chromium E2E，最后才写入：
+## 发布检查表
 
-```text
-test-results/integration-acceptance.json
-```
+| 主题 | 至少验证 |
+| --- | --- |
+| 身份 | 无效、过期、撤销和其他 UID 的 Token 都被拒绝；客户端不持有 Product HTTP 管理凭据 |
+| 连接 | 弱网、切网、前后台、服务端重启、被踢和 Token 失效都有明确 UI 状态 |
+| 消息 | 发送中、成功、失败、重试、重复、乱序和超时不会造成错误业务状态 |
+| 会话 | 最近消息、未读数、删除和多设备变化能够收敛 |
+| 媒体 | 上传失败、取消、超时、URL 权限和本地文件清理符合产品要求 |
+| 本地数据 | 账号隔离、备份、加密、退出清理和升级迁移符合安全要求 |
+| 网络安全 | 客户端入口使用受控 TLS/WSS；Product HTTP、Manager 和诊断接口不暴露到公网 |
+| 容量 | 按目标在线数、消息速率和群规模压测，并为队列、重试和降级设置上限 |
+| 可观测性 | 能通过指标和脱敏日志定位连接、发送、投递、同步和存储问题 |
+| 回滚 | 在预发布环境演练客户端与服务端回滚，确认旧版本仍能读取现有数据 |
 
-开始运行时会删除旧报告；任一阶段失败都不会保留旧的“通过”证据。配置的 HTTP、WebSocket 地址不会写入报告。
+## Go / No-Go
 
-## 自动证据覆盖范围
+以下任一情况都应停止发布：
 
-当前固定场景证明：
+- 身份校验或网络边界没有完成；
+- 关键失败场景不能稳定复现和恢复；
+- 日志会输出 Token 或完整消息正文；
+- 容量测试没有达到目标，或没有明确的限流和降级策略；
+- 数据变化不可回滚，且没有经过评审的前滚修复方案。
 
-1. loopback BFF 完成路由发现，两个使用本次运行独立开发 UID 的隔离 Chromium Session 收到成功 CONNACK；
-2. 单聊双方各发送一条持久消息；
-3. SENDACK 与对端 `realtime` 接收分别被观察；
-4. Bob 离线期间 Alice 的消息仍能提交，但 Bob 没有实时事件；
-5. Bob 重连后通过有界 person-message sync 恢复该消息；服务端在首条持久普通个人消息 append 前接纳投影任务，但 UID 目录成员关系异步物化，因此样例仅对精确成员关系未就绪错误做最多 20 次、间隔 250ms 的等待；
-6. 已实时观察的消息不会被同步重复标记，离线消息只恢复一次；
-7. 样例页面通过当前可访问性基线；只有设置 `WK_DOCS_SITE_E2E_URL` 时，双语文档页面也进入独立的文档质量检查。
+全部检查通过后，先小流量发布，观察连接成功率、发送失败率、消息延迟、同步错误、队列水位和存储错误，再逐步扩大范围。
 
-完整能力边界见 [JavaScript / Web 平台专属能力](/zh/sdk/javascript/platform-capabilities)。可访问性结果是样例与文档质量证据，不代表 SDK 支持某种辅助技术或达到完整合规认证。
-
-## 读取报告
-
-报告使用 `wukongim.docs.integration-acceptance/v1`，核心结构如下：
-
-```json
-{
-  "schema": "wukongim.docs.integration-acceptance/v1",
-  "harness_source": { "revision": "<full-git-revision>", "clean": true },
-  "target": {
-    "cluster": { "source_identity": "not_assessed" }
-  },
-  "compatibility_smoke": {
-    "result": "passed",
-    "checks": [{ "id": "route-connect", "result": "passed" }]
-  },
-  "documentation_quality": {
-    "result": "not_assessed",
-    "checks": [
-      { "id": "bilingual-documentation-accessibility", "result": "not_assessed" }
-    ]
-  },
-  "production_readiness": {
-    "result": "not_assessed",
-    "gates": [
-      { "id": "gateway-stored-token-verification", "result": "not_assessed" }
-    ]
-  },
-  "publication_attestation": "not_issued"
-}
-```
-
-- `harness_source.clean=false` 表示验收工具对应的工作树还有变更，评审者应先固定 revision 后重跑；它不是被测集群的源码身份。
-- `target` 绑定样例锁文件、场景、实际安装并核对过的 SDK、Node.js、Playwright 和实际 Chromium 身份。
-- `target.cluster.source_identity=not_assessed` 表示任意 Product HTTP 地址没有提供可验证的服务端构建身份；不能把 `harness_source.revision` 当成集群 revision。
-- `documentation_quality.result=passed` 只在设置 `WK_DOCS_SITE_E2E_URL`、双语路由真实进入本次 E2E 时出现，否则为 `not_assessed`。
-- `publication_attestation=not_issued` 表示这不是文档发布 receipt；只有受保护的 clean-HEAD `docs-integration` 门禁能签发既有黄金路径验证 receipt。
-- 报告不包含 Token、UID、消息正文、端点、DOM、截图、trace、video 或服务端响应。
-
-## 生产门禁与所需证据
-
-| 门禁 | 最小证据 | 默认 v3 Beta 现状 |
-| --- | --- | --- |
-| 账号与 UID 权威 | 业务登录、UID 唯一来源、停用与审计测试 | 由业务系统实现 |
-| Gateway Token 校验 | 无效、过期、撤销、跨设备 Token 的端到端拒绝测试 | **默认未接入，阻塞生产发布** |
-| TLS 与入口 | 证书、WSS、反向代理升级、空闲超时和受控入口测试 | 由部署方实现 |
-| Product HTTP 保护 | 私网或鉴权代理、最小权限、限流与审计 | 默认无通用业务鉴权 |
-| 业务授权与内容策略 | 成员、黑白名单、禁言、内容治理及拒绝用例 | 由业务系统驱动 |
-| 容量与背压 | 目标规模压测、队列水位、重试上限、限流和降级标准 | Smoke 不覆盖 |
-| Webhook 可靠性 | 受信网络、先持久化再 200、幂等、重试耗尽和对账 | 当前发送器不附加签名 Header |
-| 运维与回滚 | 指标告警、事故诊断、备份恢复演练、变更审计、版本固定、灰度、回滚条件和回滚演练 | 需独立运行证据 |
-
-所有部署都是集群；单节点集群也不能绕过 Controller、Slot 或 Channel authority。容量验收按业务目标设计，并保持默认 256 个物理 Hash Slot 的语义。
-
-## 发布判定
-
-- **No-Go：** Smoke 失败、报告缺失或来源不可复现。
-- **No-Go：** stored-token verifier 未接入，或任何生产门禁没有负责人和证据。
-- **Go 候选：** 精确版本的 Smoke 通过，所有生产门禁都有新鲜证据、回滚条件和责任人。
-
-最终 Go/No-Go 属于你的发布流程；本页定义证据边界，不替代安全审批、容量评审或事故责任。
-
-## 失败诊断
-
-- **`sample-check` 失败：** 先修复依赖、单元测试或 TypeScript，不要连接集群规避本地错误。
-- **`real-e2e` 失败：** 按 route、CONNACK、SENDACK、realtime、sync 阶段定位，保留 Reason Code 和版本快照。
-- **sync 返回 membership required：** 服务端已在首条持久普通个人消息 append 前接纳源 Slot 负责的投影任务，但双方 UID 目录成员关系异步物化。样例只在该精确未就绪响应上做有界等待；持续失败说明目录投影没有在窗口内收敛，不能改成无限重试。
-- **没有报告：** 这是预期的 fail-closed 行为；命令只在所有步骤通过后写文件。
-- **报告为 dirty harness source：** 提交或还原明确范围内的变更，再从精确 revision 重跑；仍需从部署清单或独立证明取得集群源码身份。
-
-## 安全处理
-
-报告可以进入评审系统，但仍按内部工程证据管理。失败截图只有在页面先完成脱敏并通过检查后才允许生成；不要开启 Playwright 自动 trace、video、console 或网络抓取，也不要把生产 Token 放入样例环境。
-
-## 下一步
-
-先核对[认证与安全](/zh/api/authentication)和[Webhook](/zh/guide/integration/webhooks)，再结合[生产部署检查](/zh/server/deployment/production-checklist)、[健康与监控](/zh/server/operations/health-and-monitoring)及[升级与迁移](/zh/server/operations/upgrade-and-migration)组装发布证据包。
+继续阅读[认证与安全](/zh/api/authentication)、[生产部署检查](/zh/server/deployment/production-checklist)、[健康与监控](/zh/server/operations/health-and-monitoring)和[升级与迁移](/zh/server/operations/upgrade-and-migration)。

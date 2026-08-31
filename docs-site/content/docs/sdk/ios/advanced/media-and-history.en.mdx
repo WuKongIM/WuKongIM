@@ -1,0 +1,79 @@
+---
+title: iOS Media & History
+description: Connect media upload and download, then fill messages from your application server when local data is incomplete.
+---
+
+An image message combines a local file with a remote location available to other devices. The SDK owns message states and task scheduling; your app performs object-storage upload, download, and authorization.
+
+## Send an image
+
+Create image content and send it like text:
+
+```objc
+WKImageContent *content = [WKImageContent initWithImage:image];
+WKChannel *channel = [WKChannel groupWithChannelID:@"team-1"];
+WKMessage *message = [[WKSDK shared].chatManager sendMessage:content
+                                                     channel:channel];
+```
+
+Configure an upload-task factory before sending images:
+
+```objc
+[WKSDK shared].mediaManager.uploadTaskProvider = ^id<WKTaskProto>(WKMessage *message) {
+    return [[AppMediaUploadTask alloc] initWithMessage:message
+                                              storage:objectStorage];
+};
+```
+
+`AppMediaUploadTask` is an application type, not an SDK type. It implements `WKTaskProto`, uploads the file to your storage service, writes the remote location into the media content, and reports success or failure. Upload credentials should be short lived and limited by path, size, and file type.
+
+## Download media
+
+Provide a download task, then ask the manager to run it:
+
+```objc
+[WKSDK shared].mediaManager.downloadTaskProvider = ^id<WKTaskProto>(WKMessage *message) {
+    return [[AppMediaDownloadTask alloc] initWithMessage:message
+                                                storage:objectStorage];
+};
+
+[[WKSDK shared].mediaManager download:message
+                             callback:^(WKMediaDownloadState state,
+                                        CGFloat progress,
+                                        NSError *error) {
+    [self updateDownloadProgress:progress state:state];
+}];
+```
+
+Validate size and type before caching files, and remove private media according to your sign-out policy.
+
+## Fill remote message history
+
+`pullLastMessages:` reads the local database first. Connect `syncChannelMessageProvider` to your history API when the requested local range is incomplete:
+
+```objc
+[WKSDK shared].chatManager.syncChannelMessageProvider = ^(
+    WKChannel *channel,
+    uint32_t startMessageSeq,
+    uint32_t endMessageSeq,
+    NSInteger limit,
+    WKPullMode pullMode,
+    WKSyncChannelMessageCallback callback
+) {
+    [historyAPI fetchChannel:channel
+                       start:startMessageSeq
+                         end:endMessageSeq
+                       limit:limit
+                        mode:pullMode
+                  completion:callback];
+};
+```
+
+The application API returns a `WKSyncChannelMessageModel`. Always invoke `callback`; on failure, pass an error so the caller can stop loading and offer retry.
+
+## Common problems
+
+- Image remains uploading: ensure the task eventually reports success or failure and writes the remote location after upload.
+- Other devices cannot display the image: never use a sandbox-local path as a remote URL.
+- Duplicate history: merge by channel and `messageSeq`, not array position.
+- Pagination never finishes: the server must express the end of data and the provider must complete its callback.

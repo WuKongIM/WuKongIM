@@ -1,0 +1,64 @@
+---
+title: JavaScript / Web Channels
+description: Load names, avatars, settings, and subscriber profiles for direct and group chats.
+---
+
+A `Channel` answers “who should receive this message?” A direct channel ID is the other user's UID; a group channel ID is your product's group ID. `ChannelInfo` stores the title and avatar needed by the UI.
+
+## Create channels
+
+```typescript
+const person = new Channel('bob', ChannelTypePerson)
+const group = new Channel('team-1', ChannelTypeGroup)
+```
+
+`channelID + channelType` is the complete identity. `channel.getChannelKey()` is useful as a frontend cache key.
+
+## Connect your user and group profile API
+
+```typescript
+sdk.config.provider.channelInfoCallback = async (channel) => {
+  const profile = await profileApi.get(
+    channel.channelID,
+    channel.channelType,
+  )
+
+  const info = new ChannelInfo()
+  info.channel = channel
+  info.title = profile.displayName
+  info.logo = profile.avatarUrl
+  info.mute = profile.mute
+  info.top = profile.top
+  info.orgData = profile
+  return info
+}
+```
+
+Request and read the profile:
+
+```typescript
+await sdk.channelManager.fetchChannelInfo(person)
+const info = sdk.channelManager.getChannelInfo(person)
+```
+
+## Observe profile changes
+
+```typescript
+const onChannelInfo = (info: ChannelInfo) => {
+  updateChatHeader(info.title, info.logo)
+}
+
+sdk.channelManager.addListener(onChannelInfo)
+```
+
+Call `removeListener(onChannelInfo)` when the page is destroyed.
+
+## Group subscribers
+
+For a group member or subscriber list, implement `syncSubscribersCallback(channel, version)` and call `channelManager.syncSubscribes(channel)`. The provider returns `Subscriber[]`; each item needs a UID, channel, version, and deletion state. Large groups require pagination or incremental sync rather than loading every member into browser memory.
+
+## Common problems
+
+- Empty title: configure `channelInfoCallback` before calling `fetchChannelInfo`.
+- Direct and group profiles get mixed: every cache key must include the channel type.
+- Provider errors leave no feedback: catch the Promise around `fetchChannelInfo` in the UI and offer retry.

@@ -1,17 +1,39 @@
 ---
 title: WuKongIMSDK
-description: Find installation, quickstart, platform capability, API reference, and upgrade guides for the full WuKongIMSDK family by platform.
+description: Choose a client platform and integrate the full WuKongIMSDK through a clear task-based path.
 ---
 
-WuKongIMSDK is the full client SDK family with local messages, conversations, unread state, and offline recovery. APIs, dependencies, and runtime boundaries differ by platform, so start with the target platform and do not copy method names or compatibility conclusions across SDKs.
+WuKongIMSDK is the full client SDK family. It manages more than a network connection: it also maintains the local messages, chats, unread counts, and data needed for offline recovery.
+
+## Where it fits
+
+<iframe
+  title="Where WuKongIMSDK fits"
+  src="/diagrams/wukongimsdk.en.html"
+  loading="lazy"
+  style={{ width: '100%', height: '640px', border: 0, borderRadius: '12px' }}
+/>
+
+You will usually work with four kinds of entry point:
+
+- **Connection manager:** connect, reconnect, disconnect, and connection state;
+- **Message manager:** send, receive, query, and update messages;
+- **Conversation manager:** the chat list, latest messages, and unread counts;
+- **Channel manager:** names, avatars, and membership data for direct or group chats.
 
 ## Choose a platform
 
-- [Android](/en/sdk/android): `WuKongIMAndroidSDK` `1.5.5`; source and JitPack AAR are aligned, with no site Android runtime receipt
-- [iOS](/en/sdk/ios): `WuKongIMSDK` `1.1.1`; source and public headers are aligned, with no site iOS runtime receipt
-- [JavaScript / Web](/en/sdk/javascript): `wukongimjssdk` `1.3.5`; includes a pinned Chromium scenario receipt
-- [Flutter](/en/sdk/flutter): `wukongimfluttersdk` `1.7.9`; no site Flutter runtime receipt
-- [HarmonyOS](/en/sdk/harmonyos): `@wukong/wkim` `1.1.7`; no site HarmonyOS runtime receipt
-- [UniApp migration](/en/sdk/uniapp): the old SDK is deprecated, so only the JSSDK migration guide remains
+<Cards>
+  <Card title="Android" description="WuKongIMAndroidSDK 1.5.5 · Java" href="/en/sdk/android" />
+  <Card title="iOS" description="WuKongIMSDK 1.1.1 · Objective-C" href="/en/sdk/ios" />
+  <Card title="JavaScript / Web" description="wukongimjssdk 1.3.5 · TypeScript" href="/en/sdk/javascript" />
+  <Card title="Flutter" description="wukongimfluttersdk 1.7.9 · Dart" href="/en/sdk/flutter" />
+  <Card title="HarmonyOS" description="@wukong/wkim 1.1.7 · ArkTS" href="/en/sdk/harmonyos" />
+</Cards>
 
-If you are still comparing the full and lightweight SDK families, start with [Choose an SDK](/en/sdk/choose-sdk). See the [Common Guides](/en/sdk/common-guides) for cross-platform identity, messaging, conversation, and reconnect semantics.
+## Recommended order
+
+1. Read [Core Concepts](/en/sdk/wukongim/concepts) to understand UIDs, tokens, Channels, Conversations, and providers.
+2. Open the platform quickstart and complete installation, connection, and the first online text message.
+3. Continue with connection, messages, conversations, channels, and advanced features as needed.
+4. Use the platform API reference to look up methods, and read [Upgrade SDKs](/en/sdk/wukongim/upgrade) before changing a dependency version.

@@ -1,0 +1,63 @@
+---
+title: Flutter Channels
+description: Load names, avatars, settings, and members for direct and group chats.
+---
+
+A `WKChannel` answers “who should receive this message?” A direct channel ID is the other user's UID; a group channel ID is your product's group ID.
+
+## Create and read channels
+
+```dart
+final person = WKChannel('bob', WKChannelType.personal);
+final group = WKChannel('team-1', WKChannelType.group);
+
+final cached = await im.channelManager.getChannel(
+  person.channelID,
+  person.channelType,
+);
+```
+
+The result is `null` when there is no local profile. Cache identity must include both `channelID` and `channelType`.
+
+## Connect your user and group profile API
+
+```dart
+im.channelManager.addOnGetChannelListener(
+  (channelID, channelType, complete) async {
+    final profile = await profileApi.get(channelID, channelType);
+    final channel = WKChannel(channelID, channelType)
+      ..channelName = profile.name
+      ..channelRemark = profile.remark
+      ..avatar = profile.avatar
+      ..version = profile.version;
+    complete(channel);
+  },
+);
+
+im.channelManager.fetchChannelInfo('bob', WKChannelType.personal);
+```
+
+The provider must return the complete channel identity. It is one global slot and should be installed once at application scope.
+
+## Observe changes
+
+```dart
+im.channelManager.addOnRefreshListener('chat-header', (channel) {
+  final title = channel.channelRemark.isNotEmpty
+      ? channel.channelRemark
+      : channel.channelName;
+  updateHeader(title, channel.avatar);
+});
+```
+
+Call `removeOnRefreshListener('chat-header')` when leaving the screen.
+
+## Group members
+
+`channelMemberManager` provides `getMembers`, `getMember`, and `saveOrUpdateList`. Fetch paginated members from your application server, write them through the manager, and update UI through keyed listeners. Large groups require pagination; never load every member at once.
+
+## Common problems
+
+- Conversation has only an ID: configure the profile provider, then call `fetchChannelInfo`.
+- Name does not refresh: ensure the provider invokes `complete` and page listener keys do not collide.
+- Direct and group profiles get mixed: every cache key must include channel type.

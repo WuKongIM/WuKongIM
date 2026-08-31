@@ -1,0 +1,89 @@
+---
+title: HarmonyOS 会话管理
+description: 同步并读取聊天列表，监听变化，处理未读数和删除。
+---
+
+会话是聊天列表中的一项：它保存目标频道、最后一条消息、时间和未读数。会话不是连接，也不是消息正文。
+
+## 先接入会话同步
+
+连接成功后 SDK 会调用 `syncConversationCallback`，把其他设备和离线期间的会话补到本地：
+
+```typescript
+WKIM.shared.config.provider.syncConversationCallback = async (
+  lastMsgSeqs: string,
+  msgCount: number,
+  version: number
+): Promise<WKSyncConversation> => {
+  const response = await conversationApi.sync({
+    lastMsgSeqs,
+    msgCount,
+    version
+  })
+  return toWKSyncConversation(response)
+}
+```
+
+返回对象需要包含当前 UID、会话数组，以及每项的频道、最后消息序号、最后客户端编号、未读数、时间、版本和最近消息。不要给已有数据的账号返回空数组。
+
+## 读取和监听聊天列表
+
+```typescript
+const manager = WKIM.shared.conversationManager()
+const initial = manager.all() ?? []
+renderConversations(initial)
+
+const refreshListener = (changed: WKConversation[]) => {
+  mergeConversations(changed)
+}
+
+const deletedListener = (channelId: string, channelType: number) => {
+  removeConversation(channelId, channelType)
+}
+
+manager.addRefreshListener(refreshListener)
+manager.addDeletedListener(deletedListener)
+```
+
+`addRefreshListener` 返回变化项，不保证每次都是完整列表。用 `channelId + channelType` 合并到现有列表，再按 `lastMsgTimestamp` 排序。
+
+读取单项：
+
+```typescript
+const conversation = manager.getWithChannel(
+  'team-1',
+  WKChannelType.group
+)
+```
+
+## 未读数
+
+打开聊天页后清零该会话：
+
+```typescript
+manager.updateRedDot('team-1', WKChannelType.group, 0)
+```
+
+计算总未读：
+
+```typescript
+const totalUnread = (manager.all() ?? [])
+  .reduce((total, item) => total + item.unreadCount, 0)
+```
+
+`clearAllRedDot()` 会清零所有会话的未读数。
+
+## 删除会话项
+
+```typescript
+manager.delete('team-1', WKChannelType.group)
+```
+
+这会从本地聊天列表隐藏该会话，不等于删除服务端消息。若产品要求跨设备删除，需要先调用业务 API，再更新本地状态。
+
+页面销毁时移除监听：
+
+```typescript
+manager.removeRefreshListener(refreshListener)
+manager.removeDeletedListener(deletedListener)
+```

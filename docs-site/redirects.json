@@ -1,87 +1,98 @@
 {
   "version": 1,
   "status": 308,
-  "scope": "phase-one-seed",
+  "scope": "public-route-migrations",
   "mappings": [
-    {
-      "source": "/zh/getting-started/learning/system-integration",
-      "destination": "/zh/guide/integration/architecture"
-    },
-    {
-      "source": "/en/getting-started/learning/system-integration",
-      "destination": "/en/guide/integration/architecture"
-    },
-    {
-      "source": "/zh/installation/docker/single-node",
-      "destination": "/zh/server/deployment/docker"
-    },
-    {
-      "source": "/en/installation/docker/single-node",
-      "destination": "/en/server/deployment/docker"
-    },
-    {
-      "source": "/zh/installation/linux/single-node",
-      "destination": "/zh/server/deployment/linux"
-    },
-    {
-      "source": "/en/installation/linux/single-node",
-      "destination": "/en/server/deployment/linux"
-    },
-    {
-      "source": "/zh/sdk/overview",
-      "destination": "/zh/sdk/choose-sdk"
-    },
-    {
-      "source": "/en/sdk/overview",
-      "destination": "/en/sdk/choose-sdk"
-    },
-    {
-      "source": "/zh/sdk/easy/overview",
-      "destination": "/zh/sdk/easy"
-    },
-    {
-      "source": "/en/sdk/easy/overview",
-      "destination": "/en/sdk/easy"
-    },
-    {
-      "source": "/zh/sdk/source-code",
-      "destination": "/zh/sdk/choose-sdk"
-    },
-    {
-      "source": "/en/sdk/source-code",
-      "destination": "/en/sdk/choose-sdk"
-    },
-    {
-      "source": "/zh/sdk/wukongim/android/intro",
-      "destination": "/zh/sdk/android"
-    },
-    {
-      "source": "/en/sdk/wukongim/android/intro",
-      "destination": "/en/sdk/android"
-    },
-    {
-      "source": "/zh/api/introduction",
-      "destination": "/zh/api/conventions"
-    },
-    {
-      "source": "/en/api/introduction",
-      "destination": "/en/api/conventions"
-    },
-    {
-      "source": "/zh/guide/core-concepts/cluster-and-nodes",
-      "destination": "/zh/server/architecture"
-    },
-    {
-      "source": "/en/guide/core-concepts/cluster-and-nodes",
-      "destination": "/en/server/architecture"
-    },
-    {
-      "source": "/zh/guide/core-concepts/users-and-devices",
-      "destination": "/zh/guide/core-concepts/users"
-    },
-    {
-      "source": "/en/guide/core-concepts/users-and-devices",
-      "destination": "/en/guide/core-concepts/users"
-    }
+    { "source": "/zh/getting-started/learning/system-integration", "destination": "/zh/guide/integration/architecture" },
+    { "source": "/en/getting-started/learning/system-integration", "destination": "/en/guide/integration/architecture" },
+    { "source": "/zh/installation/docker/single-node", "destination": "/zh/server/deployment/docker" },
+    { "source": "/en/installation/docker/single-node", "destination": "/en/server/deployment/docker" },
+    { "source": "/zh/installation/linux/single-node", "destination": "/zh/server/deployment/linux" },
+    { "source": "/en/installation/linux/single-node", "destination": "/en/server/deployment/linux" },
+    { "source": "/zh/api/introduction", "destination": "/zh/api/conventions" },
+    { "source": "/en/api/introduction", "destination": "/en/api/conventions" },
+    { "source": "/zh/guide/core-concepts/cluster-and-nodes", "destination": "/zh/server/architecture" },
+    { "source": "/en/guide/core-concepts/cluster-and-nodes", "destination": "/en/server/architecture" },
+    { "source": "/zh/guide/core-concepts/users-and-devices", "destination": "/zh/guide/core-concepts/users" },
+    { "source": "/en/guide/core-concepts/users-and-devices", "destination": "/en/guide/core-concepts/users" },
+
+    { "source": "/zh/sdk/overview", "destination": "/zh/sdk" },
+    { "source": "/en/sdk/overview", "destination": "/en/sdk" },
+    { "source": "/zh/sdk/source-code", "destination": "/zh/sdk" },
+    { "source": "/en/sdk/source-code", "destination": "/en/sdk" },
+    { "source": "/zh/sdk/choose-sdk", "destination": "/zh/sdk" },
+    { "source": "/en/sdk/choose-sdk", "destination": "/en/sdk" },
+    { "source": "/zh/sdk/compatibility", "destination": "/zh/api/compatibility" },
+    { "source": "/en/sdk/compatibility", "destination": "/en/api/compatibility" },
+    { "source": "/zh/sdk/easy/overview", "destination": "/zh/sdk/easy" },
+    { "source": "/en/sdk/easy/overview", "destination": "/en/sdk/easy" },
+
+    { "source": "/zh/sdk/common-guides", "destination": "/zh/sdk/wukongim/concepts" },
+    { "source": "/en/sdk/common-guides", "destination": "/en/sdk/wukongim/concepts" },
+    { "source": "/zh/sdk/common-guides/identity-and-token", "destination": "/zh/guide/integration/authentication" },
+    { "source": "/en/sdk/common-guides/identity-and-token", "destination": "/en/guide/integration/authentication" },
+    { "source": "/zh/sdk/common-guides/initialization-and-connection", "destination": "/zh/guide/integration/architecture" },
+    { "source": "/en/sdk/common-guides/initialization-and-connection", "destination": "/en/guide/integration/architecture" },
+    { "source": "/zh/sdk/common-guides/messaging", "destination": "/zh/guide/integration/messaging" },
+    { "source": "/en/sdk/common-guides/messaging", "destination": "/en/guide/integration/messaging" },
+    { "source": "/zh/sdk/common-guides/custom-messages", "destination": "/zh/sdk/wukongim/concepts" },
+    { "source": "/en/sdk/common-guides/custom-messages", "destination": "/en/sdk/wukongim/concepts" },
+    { "source": "/zh/sdk/common-guides/conversations-and-unread", "destination": "/zh/guide/core-concepts/conversations" },
+    { "source": "/en/sdk/common-guides/conversations-and-unread", "destination": "/en/guide/core-concepts/conversations" },
+    { "source": "/zh/sdk/common-guides/offline-and-push", "destination": "/zh/guide/tutorials/push" },
+    { "source": "/en/sdk/common-guides/offline-and-push", "destination": "/en/guide/tutorials/push" },
+    { "source": "/zh/sdk/common-guides/multi-device", "destination": "/zh/guide/core-concepts/devices" },
+    { "source": "/en/sdk/common-guides/multi-device", "destination": "/en/guide/core-concepts/devices" },
+    { "source": "/zh/sdk/common-guides/reconnect-and-errors", "destination": "/zh/guide/integration" },
+    { "source": "/en/sdk/common-guides/reconnect-and-errors", "destination": "/en/guide/integration" },
+
+    { "source": "/zh/sdk/uniapp", "destination": "/zh/sdk/javascript/advanced/offline-and-uniapp" },
+    { "source": "/en/sdk/uniapp", "destination": "/en/sdk/javascript/advanced/offline-and-uniapp" },
+    { "source": "/zh/sdk/uniapp/migrate-to-jssdk", "destination": "/zh/sdk/javascript/advanced/offline-and-uniapp" },
+    { "source": "/en/sdk/uniapp/migrate-to-jssdk", "destination": "/en/sdk/javascript/advanced/offline-and-uniapp" },
+
+    { "source": "/zh/sdk/android/installation", "destination": "/zh/sdk/android/quickstart" },
+    { "source": "/en/sdk/android/installation", "destination": "/en/sdk/android/quickstart" },
+    { "source": "/zh/sdk/android/platform-capabilities", "destination": "/zh/sdk/android/advanced" },
+    { "source": "/en/sdk/android/platform-capabilities", "destination": "/en/sdk/android/advanced" },
+    { "source": "/zh/sdk/android/upgrade", "destination": "/zh/sdk/wukongim/upgrade" },
+    { "source": "/en/sdk/android/upgrade", "destination": "/en/sdk/wukongim/upgrade" },
+    { "source": "/zh/sdk/ios/installation", "destination": "/zh/sdk/ios/quickstart" },
+    { "source": "/en/sdk/ios/installation", "destination": "/en/sdk/ios/quickstart" },
+    { "source": "/zh/sdk/ios/platform-capabilities", "destination": "/zh/sdk/ios/advanced" },
+    { "source": "/en/sdk/ios/platform-capabilities", "destination": "/en/sdk/ios/advanced" },
+    { "source": "/zh/sdk/ios/upgrade", "destination": "/zh/sdk/wukongim/upgrade" },
+    { "source": "/en/sdk/ios/upgrade", "destination": "/en/sdk/wukongim/upgrade" },
+    { "source": "/zh/sdk/javascript/installation", "destination": "/zh/sdk/javascript/quickstart" },
+    { "source": "/en/sdk/javascript/installation", "destination": "/en/sdk/javascript/quickstart" },
+    { "source": "/zh/sdk/javascript/platform-capabilities", "destination": "/zh/sdk/javascript/advanced" },
+    { "source": "/en/sdk/javascript/platform-capabilities", "destination": "/en/sdk/javascript/advanced" },
+    { "source": "/zh/sdk/javascript/upgrade", "destination": "/zh/sdk/wukongim/upgrade" },
+    { "source": "/en/sdk/javascript/upgrade", "destination": "/en/sdk/wukongim/upgrade" },
+    { "source": "/zh/sdk/flutter/installation", "destination": "/zh/sdk/flutter/quickstart" },
+    { "source": "/en/sdk/flutter/installation", "destination": "/en/sdk/flutter/quickstart" },
+    { "source": "/zh/sdk/flutter/platform-capabilities", "destination": "/zh/sdk/flutter/advanced" },
+    { "source": "/en/sdk/flutter/platform-capabilities", "destination": "/en/sdk/flutter/advanced" },
+    { "source": "/zh/sdk/flutter/upgrade", "destination": "/zh/sdk/wukongim/upgrade" },
+    { "source": "/en/sdk/flutter/upgrade", "destination": "/en/sdk/wukongim/upgrade" },
+    { "source": "/zh/sdk/harmonyos/installation", "destination": "/zh/sdk/harmonyos/quickstart" },
+    { "source": "/en/sdk/harmonyos/installation", "destination": "/en/sdk/harmonyos/quickstart" },
+    { "source": "/zh/sdk/harmonyos/platform-capabilities", "destination": "/zh/sdk/harmonyos/advanced" },
+    { "source": "/en/sdk/harmonyos/platform-capabilities", "destination": "/en/sdk/harmonyos/advanced" },
+    { "source": "/zh/sdk/harmonyos/upgrade", "destination": "/zh/sdk/wukongim/upgrade" },
+    { "source": "/en/sdk/harmonyos/upgrade", "destination": "/en/sdk/wukongim/upgrade" },
+
+    { "source": "/zh/sdk/wukongim/android", "destination": "/zh/sdk/android" },
+    { "source": "/en/sdk/wukongim/android", "destination": "/en/sdk/android" },
+    { "source": "/zh/sdk/wukongim/android/intro", "destination": "/zh/sdk/android" },
+    { "source": "/en/sdk/wukongim/android/intro", "destination": "/en/sdk/android" },
+    { "source": "/zh/sdk/wukongim/ios", "destination": "/zh/sdk/ios" },
+    { "source": "/en/sdk/wukongim/ios", "destination": "/en/sdk/ios" },
+    { "source": "/zh/sdk/wukongim/javascript", "destination": "/zh/sdk/javascript" },
+    { "source": "/en/sdk/wukongim/javascript", "destination": "/en/sdk/javascript" },
+    { "source": "/zh/sdk/wukongim/flutter", "destination": "/zh/sdk/flutter" },
+    { "source": "/en/sdk/wukongim/flutter", "destination": "/en/sdk/flutter" },
+    { "source": "/zh/sdk/wukongim/harmonyos", "destination": "/zh/sdk/harmonyos" },
+    { "source": "/en/sdk/wukongim/harmonyos", "destination": "/en/sdk/harmonyos" }
   ]
 }

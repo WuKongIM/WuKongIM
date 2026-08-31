@@ -1,0 +1,20 @@
+---
+title: HarmonyOS 高级功能
+description: 在基础收发完成后接入自定义正文、媒体上传和远端历史消息。
+---
+
+先完成[快速开始](/zh/sdk/harmonyos/quickstart)，再按产品需要选择高级能力。没有使用的 Provider 不需要配置。
+
+<Cards>
+  <Card title="自定义消息" description="定义业务正文、分配类型编号，并在连接前注册。" href="/zh/sdk/harmonyos/advanced/custom-messages" />
+  <Card title="媒体与历史消息" description="接入附件上传和远端历史消息补齐。" href="/zh/sdk/harmonyos/advanced/media-and-history" />
+</Cards>
+
+## 上线前注意
+
+- 当前长连接使用原始 TCP，公开配置没有认证 TLS 开关。请使用受控网络入口，或采用经过安全评审的传输方案。
+- `WKConfig.debug` 不能关闭当前 SDK 日志。检查 Release 日志，避免输出 Token、消息正文和用户标识。
+- 本地 `RelationalStore` 没有启用 SDK 层静态加密。结合平台文件保护、备份策略和退出账号清理保护敏感数据。
+- `WKIM.shared`、Manager 和 Provider 都是进程全局状态。集中在一个应用级服务中安装，不要由页面相互覆盖。
+- 当前版本没有统一重置所有 Provider 和回调。切换 UID 前调用 `disConnection(true)` 并验证状态隔离；无法确认时，重启进程后再初始化新账号。
+- 在真机覆盖弱网、前后台恢复、Token 失效、被踢、离线消息、账号切换和版本回滚。

@@ -1,0 +1,76 @@
+---
+title: JavaScript / Web 自定义消息
+description: 定义、注册并发送业务自己的消息正文。
+---
+
+文本和图片之外的内容，例如订单卡片或位置分享，可以继承 `MessageContent`。所有客户端必须为同一种正文使用相同的类型编号和 JSON 字段。
+
+## 1. 定义正文
+
+`10001` 只是示例；请在团队内建立类型编号表，避免与其他消息重复。
+
+```typescript
+class OrderMessageContent extends MessageContent {
+  orderID = ''
+  title = ''
+
+  constructor(orderID = '', title = '') {
+    super()
+    this.orderID = orderID
+    this.title = title
+  }
+
+  get contentType(): number {
+    return 10001
+  }
+
+  get conversationDigest(): string {
+    return `[订单] ${this.title}`
+  }
+
+  encodeJSON() {
+    return {
+      order_id: this.orderID,
+      title: this.title,
+    }
+  }
+
+  decodeJSON(value: Record<string, unknown>) {
+    this.orderID = typeof value.order_id === 'string' ? value.order_id : ''
+    this.title = typeof value.title === 'string' ? value.title : ''
+  }
+}
+```
+
+解码时检查类型和缺失字段，因为不同用户可能运行不同应用版本。
+
+## 2. 在连接前注册
+
+```typescript
+const ORDER_CONTENT_TYPE = 10001
+
+sdk.register(ORDER_CONTENT_TYPE, () => new OrderMessageContent())
+```
+
+每个页面上下文注册一次。未注册的正文会被解码成未知类型。
+
+## 3. 发送和展示
+
+```typescript
+await sdk.chatManager.send(
+  new OrderMessageContent('order-2026-001', '咖啡豆'),
+  new Channel('bob', ChannelTypePerson),
+)
+```
+
+接收时判断实际类型：
+
+```typescript
+if (message.content instanceof OrderMessageContent) {
+  showOrder(message.content.orderID, message.content.title)
+} else {
+  showUnsupportedMessage()
+}
+```
+
+新增字段时给默认值，不复用旧字段表达新含义，也不要修改已经发布的类型编号。跨 iOS、Android、Flutter 或 HarmonyOS 时，字段名和编号必须完全一致。

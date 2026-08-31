@@ -39,7 +39,7 @@ Prepare the following:
 - A same-origin product BFF, or one with a deliberately configured cross-origin policy.
 - A BFF that validates the product session and returns `uid`, a short-lived `token`, and `websocketUrl` for the current user.
 
-Read [Identity & Token](/en/sdk/common-guides/identity-and-token) first. Production pages and WebSockets use HTTPS/WSS, and tokens never belong in URLs, Local Storage, logs, or analytics events.
+Read [Identity & Token](/en/guide/integration/authentication) first. Production pages and WebSockets use HTTPS/WSS, and tokens never belong in URLs, Local Storage, logs, or analytics events.
 
 ## Step 1: install an exact version
 
@@ -202,8 +202,8 @@ This loop does not cover offline synchronization. When Bob is offline, the appli
 - **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
 - **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
 - **The console contains a token or payload:** this is a known npm `2.0.2` issue. [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) is merged but not released. Wait for the next official release, or build a tarball from the merge commit above and verify redaction before production.
-- **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and inspect the current receipt under [Versions & Compatibility](/en/sdk/compatibility). Do not mix method names between the two SDKs.
+- **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and inspect the current receipt under [Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
 
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/sdk/common-guides/messaging), [Offline Messages & Push](/en/sdk/common-guides/offline-and-push), and [Integration Acceptance](/en/guide/integration/acceptance).
+Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Offline Messages & Push](/en/guide/tutorials/push), and [Integration Acceptance](/en/guide/integration/acceptance).

@@ -1,0 +1,82 @@
+---
+title: Flutter 连接管理
+description: 初始化身份和地址，理解会话同步状态，并正确处理断开与退出。
+---
+
+Flutter SDK 的连接由 `WKConnectionManager` 管理。应用先用 `WKIM.shared.setup` 打开当前用户的本地库，再提供网关地址并连接。
+
+## 固定地址与动态地址
+
+固定 `host:port`：
+
+```dart
+final options = Options.newDefault(uid, token, addr: 'im.example.com:5100')
+  ..debug = false
+  ..deviceFlag = 0;
+await WKIM.shared.setup(options);
+```
+
+每次连接前动态获取地址：
+
+```dart
+final options = Options.newDefault(uid, token)
+  ..debug = false
+  ..getAddr = (complete) async {
+    final route = await gatewayApi.getAddress();
+    complete('${route.host}:${route.port}');
+  };
+await WKIM.shared.setup(options);
+```
+
+`getAddr` 必须最终调用 `complete`。当前地址解析按冒号分割，因此传普通 DNS/IPv4 `host:port`，不要带 scheme。
+
+## 理解连接状态顺序
+
+```dart
+im.connectionManager.addOnConnectionStatus(
+  'app-connection',
+  (status, reasonCode, info) {
+    if (status == WKConnectStatus.connecting) {
+      showConnecting();
+    } else if (status == WKConnectStatus.success) {
+      showRestoringConversations();
+    } else if (status == WKConnectStatus.syncMsg) {
+      showRestoringConversations();
+    } else if (status == WKConnectStatus.syncCompleted) {
+      enableSending();
+    } else if (status == WKConnectStatus.kicked) {
+      requireLoginAgain();
+    } else if (status == WKConnectStatus.noNetwork) {
+      showOffline();
+    } else if (status == WKConnectStatus.fail && reasonCode != null) {
+      showConnectionError(reasonCode);
+    }
+  },
+);
+```
+
+`connect()` 内部先调用 `disconnect(false)`，因此开始时可能收到一个没有 `reasonCode` 的 `fail`。它是本地清理状态，不是服务端拒绝。正常连接随后是 `connecting → success → syncMsg → syncCompleted`。
+
+会话 Provider 必须结束回调，否则状态会停在 `syncMsg`。正式应用应从业务服务端返回完整的 `WKSyncConversation`。
+
+## 断开与退出
+
+```dart
+// 停止连接，保留当前用户配置
+im.connectionManager.disconnect(false);
+
+// 用户退出：清空 UID/Token，标记发送中消息失败并关闭本地库
+im.connectionManager.disconnect(true);
+```
+
+移除状态监听器：
+
+```dart
+im.connectionManager.removeOnConnectionStatus('app-connection');
+```
+
+## 常见问题
+
+- 停在 `syncMsg`：会话同步 Provider 没有调用完成函数。
+- 地址越界异常：地址不是简单的 `host:port`。
+- 页面回调多次：同一功能用了多个 key 注册，或销毁时没有移除。

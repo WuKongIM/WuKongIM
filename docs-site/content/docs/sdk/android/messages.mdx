@@ -1,0 +1,90 @@
+---
+title: Android 消息管理
+description: 发送、接收、重发和查询消息，并理解本地插入与服务器结果。
+---
+
+消息由正文 `WKMessageContent` 和目标 `WKChannel` 组成。`MsgManager` 负责本地保存、发送、接收和查询。
+
+## 发送单聊或群聊消息
+
+```java
+WKTextContent text = new WKTextContent("你好");
+
+WKChannel person = new WKChannel("bob", WKChannelType.PERSONAL);
+WKIM.getInstance().getMsgManager().send(text, person);
+
+WKChannel group = new WKChannel("team-1", WKChannelType.GROUP);
+WKIM.getInstance().getMsgManager().send(text, group);
+```
+
+`send` 没有返回值。需要立即拿到本地 `WKMsg` 时，监听本地插入：
+
+```java
+msgManager.addOnSendMsgCallback("chat", message -> {
+    addPendingMessage(message.clientMsgNO, message);
+});
+```
+
+## 分别监听新消息和发送结果
+
+```java
+msgManager.addOnNewMsgListener("chat", messages -> {
+    for (WKMsg message : messages) {
+        appendIncomingMessage(message);
+    }
+});
+
+msgManager.addOnSendMsgAckListener("chat", message -> {
+    updateSendState(message.clientMsgNO, message.status);
+});
+```
+
+常用发送状态：
+
+| 状态 | 含义 | UI 建议 |
+| --- | --- | --- |
+| `WKSendMsgResult.send_loading` | 已创建，正在发送 | 显示发送中 |
+| `WKSendMsgResult.send_success` | 服务器已接受消息 | 显示已发送 |
+| `WKSendMsgResult.send_fail` | 本次发送失败 | 显示重试按钮 |
+| `no_relation` / `black_list` / `not_on_white_list` | 业务关系不允许发送 | 展示可理解的原因 |
+
+重发一个已有消息：
+
+```java
+msgManager.sendMessage(failedMessage);
+```
+
+## 读取本地或远端历史消息
+
+首次打开聊天页时：
+
+```java
+msgManager.getOrSyncHistoryMessages(
+    "bob",
+    WKChannelType.PERSONAL,
+    0,
+    false,
+    0,      // 0：向更早的消息读取
+    30,
+    0,
+    new IGetOrSyncHistoryMsgBack() {
+        @Override public void onSyncing() {
+            showLoading();
+        }
+
+        @Override public void onResult(List<WKMsg> messages) {
+            showMessages(messages);
+        }
+    }
+);
+```
+
+如果本地数据不够，这个方法会调用你配置的频道消息同步接口；接入方式见[媒体与历史消息](/zh/sdk/android/advanced/media-and-history)。
+
+页面销毁时移除全部使用过的 key：
+
+```java
+msgManager.removeSendMsgCallBack("chat");
+msgManager.removeNewMsgListener("chat");
+msgManager.removeSendMsgAckListener("chat");
+```

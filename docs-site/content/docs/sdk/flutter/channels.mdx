@@ -1,0 +1,63 @@
+---
+title: Flutter 频道管理
+description: 为单聊和群聊加载名称、头像、设置与群成员。
+---
+
+频道 `WKChannel` 表示“消息要发给谁”。单聊频道 ID 是对方 UID，群聊频道 ID 是你的业务群 ID。
+
+## 创建和读取频道
+
+```dart
+final person = WKChannel('bob', WKChannelType.personal);
+final group = WKChannel('team-1', WKChannelType.group);
+
+final cached = await im.channelManager.getChannel(
+  person.channelID,
+  person.channelType,
+);
+```
+
+本地没有资料时返回 `null`。缓存身份必须同时包含 `channelID` 和 `channelType`。
+
+## 接入用户和群资料 API
+
+```dart
+im.channelManager.addOnGetChannelListener(
+  (channelID, channelType, complete) async {
+    final profile = await profileApi.get(channelID, channelType);
+    final channel = WKChannel(channelID, channelType)
+      ..channelName = profile.name
+      ..channelRemark = profile.remark
+      ..avatar = profile.avatar
+      ..version = profile.version;
+    complete(channel);
+  },
+);
+
+im.channelManager.fetchChannelInfo('bob', WKChannelType.personal);
+```
+
+Provider 必须回传完整的频道身份。它是单一全局槽位，应在应用层安装一次。
+
+## 监听变化
+
+```dart
+im.channelManager.addOnRefreshListener('chat-header', (channel) {
+  final title = channel.channelRemark.isNotEmpty
+      ? channel.channelRemark
+      : channel.channelName;
+  updateHeader(title, channel.avatar);
+});
+```
+
+离开页面时调用 `removeOnRefreshListener('chat-header')`。
+
+## 群成员
+
+`channelMemberManager` 提供 `getMembers`、`getMember` 和 `saveOrUpdateList`。应用从业务服务端分页取得成员后写入管理器，再通过 keyed listener 更新 UI。大群必须分页，不要一次加载全部成员。
+
+## 常见问题
+
+- 会话只有 ID：配置资料 Provider 后调用 `fetchChannelInfo`。
+- 名称不刷新：确认 Provider 调用了 `complete`，且页面监听 key 没有冲突。
+- 单聊与群资料串了：任何缓存键都必须包含频道类型。

@@ -1,0 +1,82 @@
+---
+title: Flutter 媒体与历史消息
+description: 接入媒体上传，并在本地消息不足时从业务服务补齐历史消息。
+---
+
+WuKongIMSDK 负责媒体消息的状态和传输流程，但不会替你的应用选择对象存储或历史消息 HTTP API。这两项能力都通过应用级 Provider 接入。
+
+## 媒体上传
+
+先在应用启动时安装一次上传 Provider：
+
+```dart
+WKIM.shared.messageManager.addOnUploadAttachmentListener(
+  (message, complete) async {
+    final content = message.messageContent;
+    if (content is! WKMediaMessageContent) {
+      complete(false, message);
+      return;
+    }
+
+    try {
+      content.url = await mediaUploader.upload(content.localPath);
+      complete(true, message);
+    } catch (_) {
+      complete(false, message);
+    }
+  },
+);
+```
+
+然后用本地文件创建并发送图片正文：
+
+```dart
+final image = WKImageContent(1080, 1920)
+  ..localPath = '/path/to/photo.jpg';
+
+await WKIM.shared.messageManager.sendWithOption(
+  image,
+  WKChannel('team-1', WKChannelType.group),
+  WKSendOptions(),
+);
+```
+
+上传成功前必须把可下载地址写入 `content.url`，再调用 `complete(true, message)`。失败时调用 `complete(false, message)`，让消息进入失败状态并由 UI 提供重试入口。
+
+## 远端历史消息
+
+聊天页调用 `getOrSyncHistoryMessages` 时，如果本地数据库没有足够数据，SDK 会调用历史 Provider：
+
+```dart
+WKIM.shared.messageManager.addOnSyncChannelMsgListener(
+  (
+    channelID,
+    channelType,
+    startMessageSeq,
+    endMessageSeq,
+    limit,
+    pullMode,
+    complete,
+  ) async {
+    try {
+      final response = await messageApi.loadHistory(
+        channelID: channelID,
+        channelType: channelType,
+        startMessageSeq: startMessageSeq,
+        endMessageSeq: endMessageSeq,
+        limit: limit,
+        pullMode: pullMode,
+      );
+      complete(toWKSyncChannelMsg(response));
+    } catch (_) {
+      complete(null);
+    }
+  },
+);
+```
+
+`toWKSyncChannelMsg` 需要把业务 API 返回值转换为 `WKSyncChannelMsg`，包括 `startMessageSeq`、`endMessageSeq`、`more` 和 `messages`。每条消息转换为 `WKSyncMsg` 时，保留服务端消息 ID、序号、发送者、频道、时间和 payload。
+
+<Callout type="warn" title="Provider 是全局槽位">
+  再次调用会覆盖上一次设置。请在应用级 IM 服务中集中安装，并保证每条代码路径都会调用 `complete`。
+</Callout>

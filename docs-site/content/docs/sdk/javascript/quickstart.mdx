@@ -1,187 +1,115 @@
 ---
-title: JavaScript / Web 快速接入
-description: 通过 localhost BFF 完成连接、双向持久消息、断开、重连和离线同步。
+title: JavaScript / Web 快速开始
+description: 安装 wukongimjssdk 1.3.5，连接用户并完成第一条在线文本消息。
 ---
 
-这是当前站点唯一可从头运行的客户端黄金路径。它使用真实 WuKongIM 单节点集群、真实 `wukongimjssdk@1.3.5` 和两个隔离的 Chromium 会话。
-
-## 目标与完成标准
-
-你将创建 Alice 与 Bob 开发身份，完成双向在线消息，再让 Bob 断开并恢复一条离线消息。完成标志是事件日志能够分别证明：
-
-1. 发送方收到持久消息的 SENDACK；
-2. 在线接收方收到实时投递；
-3. 断线消息在重连后由同步路径恢复。
-
-## 兼容目标
-
-先核对[兼容性快照](/zh/sdk/compatibility)。本页固定 SDK `1.3.5`，CI 证据使用 Node.js `22.12.0` 和 Chromium `151.0.7922.34`（revision `1234`）；样例最低允许 Node.js `20.11`，但其他运行组合不属于该验证证明。
+这一页只做一件事：让两个在线浏览器会话互相发送一条文本消息。
 
 ## 前置条件
 
-- 已按[启动单节点集群](/zh/guide/quick-start/single-node-cluster)运行服务；
-- `curl --fail http://127.0.0.1:5001/readyz` 成功；
-- 已完成[样例安装与检查](/zh/sdk/javascript/installation)；
-- 端口 `5001`、`5200` 和样例启动输出列出的 loopback 端口可用。
+- 业务服务端已为 `alice` 和 `bob` 返回各自的 `uid`、`token` 和 WebSocket 地址；
+- 两个独立标签页、iframe 或浏览器上下文。`WKSDK.shared()` 是单例，同一个页面上下文不要同时登录两个用户；
+- 前端构建工具支持 npm 包和 TypeScript。
 
-## 1. 启动黄金样例
-
-在仓库根目录打开第二个终端：
+## 1. 安装
 
 ```bash
-cd docs-site/examples/javascript-web-quickstart
-npm run dev
+npm install --save-exact wukongimjssdk@1.3.5
 ```
 
-这个命令同时启动静态 Web 页面和 localhost BFF。以终端打印的地址为准；默认开发入口为 `http://127.0.0.1:5173`。
+使用 pnpm 或 Yarn 时也固定精确版本，并只保留项目原有的一种锁文件。
 
-{/* PHASE12:GOLDEN_SAMPLE_START_SNIPPET */}
+## 2. 配置身份和地址
 
-## 2. 创建两个开发身份
-
-1. 打开样例页面；它已经把 Alice 与 Bob 放在两个隔离的 iframe browsing context 中，以适配 SDK 单例约束。
-2. 在 Alice 面板点击 **Connect**，等待状态变为 `connected`，并记录 UI 显示的节点 ID。
-3. 在 Bob 面板重复连接操作。每次连接都会通过 BFF 创建对应的临时开发身份。
-
-浏览器请求的是样例 BFF。BFF 在服务端生成临时开发 Token，调用 `/user/token` 保存元数据，再调用 `/route` 取得 WebSocket 地址；浏览器从不直接调用这两个 Product HTTP 接口。
-
-## 3. 验证双向在线消息
-
-1. Alice 向 Bob 发送 `hello from alice`。
-2. 在 Alice 日志确认出现成功 SENDACK，在 Bob 日志确认来源为 `realtime`。
-3. Bob 向 Alice 回复 `hello from bob`。
-4. 再次确认发送确认和实时接收是两个独立事件。
-
-发送使用持久消息。SENDACK 成功表示 Channel 权威已经作出持久提交成功决定；它不表示 Bob 的每个 Session 都已收到，也不表示任何业务动作已经完成。
-
-## 4. 验证断线与离线恢复
-
-1. 在 Bob 面板点击 **Disconnect**，确认 Bob 状态不再是 `connected`。
-2. Alice 向 Bob 发送 `while bob was offline`。
-3. 确认 Alice 仍收到成功 SENDACK，同时 Bob 没有实时接收事件。
-4. 在 Bob 面板点击 **Reconnect + sync**。
-5. 确认 Bob 的事件类型为 `synced`、事件文本包含 `recovered`，且没有把这条恢复结果标记成 `realtime`。
-
-BFF 使用 `/channel/messagesync` 读取已提交日志；个人频道查询以 Bob 为 `login_uid`、Alice 为对端 `channel_id`、`channel_type=1`。服务端会在首条持久普通个人消息的 append 提交前，持久接纳一个由源 Slot 负责的目录投影任务；双方 UID 的频道目录成员关系随后异步物化，因此可能稍晚于 SENDACK。样例只对精确的“成员关系尚未就绪”响应做最多 20 次、间隔 250ms 的有界等待，其他 HTTP 400 立即失败。客户端还必须允许在线投递和同步结果重复，并按消息身份与 Channel sequence 合并。
-
-{/* PHASE12:GOLDEN_SAMPLE_RECOVERY_SNIPPET */}
-
-## 5. 看懂背后的 SDK 代码
-
-页面按钮只是为了让结果可观察。真实应用中的顺序是：先注册监听，再写入后端返回的身份与地址，然后连接、发送，最后在页面销毁或退出登录时移除监听。
-
-```ts
+```typescript
 import WKSDK, {
   Channel,
   ChannelTypePerson,
   ConnectStatus,
   MessageText,
-  type ConnectStatusListener,
-  type MessageListener,
-  type MessageStatusListener,
-} from 'wukongimjssdk';
+} from 'wukongimjssdk'
 
-const sdk = WKSDK.shared();
+const sdk = WKSDK.shared()
+sdk.config.uid = bootstrap.uid
+sdk.config.token = bootstrap.token
+sdk.config.addr = bootstrap.websocketUrl
+sdk.config.deviceFlag = 1 // Web
+sdk.config.debug = false
+```
 
-const onConnectStatus: ConnectStatusListener = (status, reasonCode) => {
+`bootstrap` 是业务服务端返回的对象，不是 SDK 类型。生产站点优先使用经过正确证书配置的 `wss://` 地址。
+
+## 3. 先注册监听器
+
+```typescript
+const onConnect = (status: ConnectStatus, reasonCode?: number) => {
   if (status === ConnectStatus.Connected) {
-    setConnectionState('connected');
+    console.log('WuKongIM connected')
   } else if (status === ConnectStatus.ConnectFail) {
-    handleConnectFailure(reasonCode);
+    console.error('connect failed', reasonCode)
+  } else if (status === ConnectStatus.ConnectKick) {
+    console.error('this account was signed in elsewhere', reasonCode)
   }
-};
-const onMessage: MessageListener = (message) => {
-  handleIncomingMessage(message);
-};
-const onMessageStatus: MessageStatusListener = (ack) => {
-  recordSendAcknowledgement(ack.reasonCode, ack.messageSeq);
-};
+}
 
-sdk.connectManager.addConnectStatusListener(onConnectStatus);
-sdk.chatManager.addMessageListener(onMessage);
-sdk.chatManager.addMessageStatusListener(onMessageStatus);
+const onMessage = (message: any) => {
+  if (message.send) return // 本端发送时也会产生消息事件
+  if (message.content instanceof MessageText) {
+    console.log(`${message.fromUID}: ${message.content.text}`)
+  }
+}
+
+const onMessageStatus = (ack: any) => {
+  if (ack.reasonCode === 1) {
+    console.log('message sent', ack.clientSeq, ack.messageSeq)
+  } else {
+    console.error('message failed', ack.clientSeq, ack.reasonCode)
+  }
+}
+
+sdk.connectManager.addConnectStatusListener(onConnect)
+sdk.chatManager.addMessageListener(onMessage)
+sdk.chatManager.addMessageStatusListener(onMessageStatus)
 ```
 
-这里的 `setConnectionState`、`handleConnectFailure`、`handleIncomingMessage` 和 `recordSendAcknowledgement` 代表你的应用处理函数。日志和指标不要记录 Token、完整消息正文或高基数身份字段。
+保留函数引用，页面销毁时需要用同一个引用移除监听器。
 
-`identity` 必须由受信业务后端返回，不能把真实 Token 写进前端源码：
+## 4. 连接并发送
 
-```ts
-const config = sdk.config;
-config.uid = identity.uid;
-config.token = identity.token;
-config.addr = identity.websocketUrl;
-sdk.config = config;
-sdk.connect();
+```typescript
+sdk.connect()
 ```
 
-连接状态变为 `Connected` 后，向个人 Channel 发送文本消息：
+收到 `ConnectStatus.Connected` 后，让 Alice 向 Bob 发送：
 
-```ts
-await sdk.chatManager.send(
-  new MessageText('hello from alice'),
+```typescript
+const message = await sdk.chatManager.send(
+  new MessageText('你好，Bob'),
   new Channel('bob', ChannelTypePerson),
-);
+)
+
+console.log('local message', message.clientMsgNo)
 ```
 
-页面卸载或用户退出时，使用同一个函数引用移除监听并断开：
-
-```ts
-sdk.connectManager.removeConnectStatusListener(onConnectStatus);
-sdk.chatManager.removeMessageListener(onMessage);
-sdk.chatManager.removeMessageStatusListener(onMessageStatus);
-sdk.disconnect();
-```
-
-上面的骨架刻意省略了离线同步适配。完整样例还把个人频道同步回调接到 BFF，并对重复的实时与同步结果去重；请直接查看可执行的 [`sdk-runtime.ts`](https://github.com/WuKongIM/WuKongIM/blob/main/docs-site/examples/javascript-web-quickstart/src/client/sdk-runtime.ts)，不要让浏览器为补齐同步而直连 Product HTTP。
+返回的 Promise 给出本地消息。服务器结果来自 `onMessageStatus`，Bob 的在线消息来自 `onMessage`，这是两个不同事件。
 
 ## 预期结果
 
-| 观察 | 能证明什么 | 不能证明什么 |
-| --- | --- | --- |
-| `connected` | 一个 SDK Session 已完成当前连接 | 业务身份已被生产级鉴权 |
-| SENDACK 成功 | 持久消息达到 Channel commit 边界 | 接收端在线收到或已读 |
-| `realtime` 接收 | 一个在线 Session 收到投递 | 离线恢复已经完成 |
-| `synced` / `recovered` 恢复 | 已提交消息能从日志恢复 | 它最初曾实时送达 |
+1. Alice 和 Bob 都收到 `ConnectStatus.Connected`；
+2. Alice 收到 `reasonCode === 1` 的发送状态；
+3. Bob 打印“你好，Bob”。
 
-## 失败诊断
+## 完整可运行示例
 
-### 身份创建返回错误
+仓库中的 [JavaScript / Web quickstart](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/javascript-web-quickstart) 提供双用户页面、受信本地 BFF、断线重连和离线消息恢复。进入目录执行 `npm ci && npm run dev` 即可启动。
 
-检查集群 `/readyz`、BFF 终端和 `http://127.0.0.1:5001`。不要把 Product HTTP 地址改成公网环境来绕过本机问题。
+清理页面：
 
-### 一直停留在 connecting
-
-查看 BFF 返回的 WebSocket 地址，确认 `5200` 可访问。`/route` 是地址发现，不是业务授权证明。
-
-### SENDACK 失败
-
-记录 Reason Code 并查阅[Reason Code](/zh/api/dictionaries/reason-codes)。只有成功值才表示本次持久发送完成；对拒绝类结果不要盲目重试。
-
-### Bob 重连后没有消息
-
-确认离线消息曾收到成功 SENDACK，再按共享合同核对 BFF 同步请求中的当前 UID、对端 UID、方向、游标和 HTTP 状态。样例不会把 Token、UID 或消息正文写入普通日志；在线投递缺失与同步缺失需要分别诊断。
-
-## 6. 生成验收报告
-
-手工理解事件边界后，可以让相同场景生成有界、脱敏的机器报告：
-
-```bash
-WK_DOCS_QUICKSTART_E2E_PRODUCT_HTTP_URL=http://127.0.0.1:5001 \
-WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
-npm run verify:acceptance
+```typescript
+sdk.connectManager.removeConnectStatusListener(onConnect)
+sdk.chatManager.removeMessageListener(onMessage)
+sdk.chatManager.removeMessageStatusListener(onMessageStatus)
+sdk.disconnect()
 ```
 
-命令会自行启动 BFF；先停止占用同一 UI 端口的手工 `npm run dev`。报告位于 `test-results/integration-acceptance.json`。命令开始前删除旧报告，并且只在快速检查与真实 E2E 都成功后写入新报告。它证明兼容性 Smoke，但把生产就绪保持为 `not_assessed`；具体判定见[上线验收](/zh/guide/integration/acceptance)。
-
-## 安全、清理与责任边界
-
-<Callout type="error" title="仅限本地开发">
-  默认 v3 Beta Gateway 不会自动校验 `/user/token` 保存的 Token。样例 BFF 无账号系统、无授权、无持久 Token 生命周期，只能绑定 loopback。浏览器不得直接访问 Product HTTP。
-</Callout>
-
-按 `Ctrl+C` 停止样例。按服务端终端的 `Ctrl+C` 停止节点；本地消息数据仍保留在示例数据目录，除非你显式清理该目录。
-
-## 下一步
-
-核对[平台专属能力](/zh/sdk/javascript/platform-capabilities)并完成[上线验收](/zh/guide/integration/acceptance)。生产接入仍必须自行实现账号、授权、Token 验证、TLS、限流、审计、容量与故障恢复。
+如果连接失败，检查地址是否为 WebSocket 地址而不是 HTTP API 地址，并检查页面的 CSP、反向代理和证书。下一步阅读[连接管理](/zh/sdk/javascript/connection)和[消息管理](/zh/sdk/javascript/messages)。

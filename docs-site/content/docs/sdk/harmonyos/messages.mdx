@@ -1,0 +1,102 @@
+---
+title: HarmonyOS 消息管理
+description: 发送、接收和读取消息，并正确显示本地插入与服务端发送结果。
+---
+
+一条消息由正文 `WKMessageContent` 和目标 `WKChannel` 组成。`MessageManager` 负责本地保存、发送、接收和历史查询。
+
+## 发送单聊或群聊文本
+
+```typescript
+const manager = WKIM.shared.messageManager()
+
+manager.send(
+  new WKTextContent('你好'),
+  new WKChannel('bob', WKChannelType.personal)
+)
+
+manager.send(
+  new WKTextContent('大家好'),
+  new WKChannel('team-1', WKChannelType.group)
+)
+```
+
+需要过期时间等选项时使用 `sendWithOption`：
+
+```typescript
+const options = new WKSendOptions()
+options.expire = 300
+
+manager.sendWithOption(
+  new WKTextContent('这条消息 5 分钟后过期'),
+  new WKChannel('bob', WKChannelType.personal),
+  options
+)
+```
+
+两个发送方法都返回 `void`，不能用 `await` 判断发送成功。
+
+## 区分三个事件
+
+```typescript
+// 单一全局槽位，没有移除方法；在应用级服务中安装一次。
+manager.addInsertedListener((message: WKMsg) => {
+  addPendingMessage(message.clientSeq, message)
+})
+
+const sendStatusListener = (
+  clientSeq: number,
+  messageId: string,
+  messageSeq: number,
+  reasonCode: number
+) => {
+  if (reasonCode === WKSendMsgResult.success) {
+    markSent(clientSeq, messageId, messageSeq)
+  } else {
+    markFailed(clientSeq, reasonCode)
+  }
+}
+
+const newMessagesListener = (messages: WKMsg[]) => {
+  appendIncoming(messages)
+}
+
+manager.addSendStatusListener(sendStatusListener)
+manager.addNewMsgListener(newMessagesListener)
+```
+
+| 事件 | 含义 |
+| --- | --- |
+| `addInsertedListener` | 消息已进入本地数据库，可以先显示在聊天页 |
+| `addSendStatusListener` | 服务端返回了本次发送结果 |
+| `addNewMsgListener` | 当前客户端收到了新消息 |
+
+`WKSendMsgResult.loading` 表示发送中，`success` 表示服务端已接受，`fail` 表示失败。`noRelation`、`blackList` 和 `notOnWhiteList` 是业务关系限制，应向用户显示清晰原因。
+
+服务端接受不等于对方已经阅读。已读状态需要另外接入你的产品逻辑。
+
+## 读取本地和远端历史
+
+```typescript
+const channel = new WKChannel('bob', WKChannelType.personal)
+const options = new ChannelMsgOptions(
+  () => showHistoryLoading(),
+  (messages: WKMsg[]) => showMessages(messages)
+)
+options.limit = 30
+options.pullMode = 0
+options.oldestOrderSeq = 0
+
+manager.getOrSyncHistoryMessages(channel, options)
+```
+
+SDK 会先查本地数据库；本地数据不足时调用 `syncMessageCallback`。Provider 的接入见[媒体与历史消息](/zh/sdk/harmonyos/advanced/media-and-history)。
+
+## 移除监听
+
+```typescript
+manager.removeSendStatusListener(sendStatusListener)
+manager.removeNewMsgListener(newMessagesListener)
+```
+
+移除时必须传入注册时的同一函数对象。`addInsertedListener` 没有对应移除方法，而且后一次注册会覆盖前一次，所以不要在页面中注册它。

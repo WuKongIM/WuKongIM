@@ -1,0 +1,65 @@
+---
+title: Android Channels
+description: Load names, avatars, settings, and members for direct and group chats.
+---
+
+A `WKChannel` answers “who should receive this message?” A direct channel ID is the other user's UID; a group channel ID is your product's group ID.
+
+## Create and read channels
+
+```java
+WKChannel person = new WKChannel("bob", WKChannelType.PERSONAL);
+WKChannel group = new WKChannel("team-1", WKChannelType.GROUP);
+
+WKChannel cached = WKIM.getInstance()
+    .getChannelManager()
+    .getChannel("bob", WKChannelType.PERSONAL);
+```
+
+`getChannel` returns `null` when there is no local profile. Use `channelID + channelType` as the complete identity; never cache by ID alone.
+
+## Connect your user and group profile API
+
+```java
+ChannelManager manager = WKIM.getInstance().getChannelManager();
+
+manager.addOnGetChannelInfoListener((channelID, channelType, callback) -> {
+    profileApi.fetch(channelID, channelType, channel -> {
+        callback.onResult(channel);
+    });
+    return null;
+});
+
+manager.fetchChannelInfo("bob", WKChannelType.PERSONAL);
+```
+
+The provider can immediately return a cached `WKChannel`, or return `null` and deliver an asynchronous network result through the callback. The result must contain the correct `channelID`, `channelType`, and `version`.
+
+## Observe profile changes
+
+```java
+manager.addOnRefreshChannelInfo("chat-header", (channel, isEnd) -> {
+    titleView.setText(
+        TextUtils.isEmpty(channel.channelRemark)
+            ? channel.channelName
+            : channel.channelRemark
+    );
+    loadAvatar(channel.avatar);
+});
+```
+
+When leaving the screen:
+
+```java
+manager.removeRefreshChannelInfo("chat-header");
+```
+
+## Group members
+
+`ChannelMembersManager` manages group members. Connect your paginated member API through `addOnSyncChannelMembers`, then read members from the local manager. Large groups must be paginated; never load every member into the UI at once.
+
+## Common problems
+
+- Only channel IDs appear: configure `addOnGetChannelInfoListener`, then call `fetchChannelInfo`.
+- Name and avatar do not refresh: ensure the provider delivers a complete `WKChannel` and listener keys do not collide.
+- Direct and group profiles get mixed: every cache key must include both `channelID` and `channelType`.

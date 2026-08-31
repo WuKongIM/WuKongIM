@@ -5,7 +5,7 @@ describe('legacy redirect seed', () => {
   test('uses permanent, unique, locale-preserving mappings', () => {
     expect(manifest.version).toBe(1);
     expect(manifest.status).toBe(308);
-    expect(manifest.scope).toBe('phase-one-seed');
+    expect(manifest.scope).toBe('public-route-migrations');
 
     const sources = manifest.mappings.map((mapping) => mapping.source);
     expect(new Set(sources).size).toBe(sources.length);
@@ -41,17 +41,46 @@ describe('legacy redirect seed', () => {
     );
   });
 
-  test('routes legacy SDK overview and source discovery into the published chooser', () => {
+  test('routes legacy SDK overview and source discovery into the current SDK entry', () => {
     expect(manifest.mappings).toEqual(
       expect.arrayContaining(
         ['zh', 'en'].flatMap((locale) =>
           ['/sdk/overview', '/sdk/source-code'].map((source) => ({
             source: `/${locale}${source}`,
-            destination: `/${locale}/sdk/choose-sdk`,
+            destination: `/${locale}/sdk`,
           })),
         ),
       ),
     );
+  });
+
+  test('routes superseded SDK pages without retaining duplicate content', () => {
+    for (const locale of ['zh', 'en']) {
+      expect(manifest.mappings).toEqual(
+        expect.arrayContaining([
+          {
+            source: `/${locale}/sdk/choose-sdk`,
+            destination: `/${locale}/sdk`,
+          },
+          {
+            source: `/${locale}/sdk/ios/installation`,
+            destination: `/${locale}/sdk/ios/quickstart`,
+          },
+          {
+            source: `/${locale}/sdk/android/platform-capabilities`,
+            destination: `/${locale}/sdk/android/advanced`,
+          },
+          {
+            source: `/${locale}/sdk/flutter/upgrade`,
+            destination: `/${locale}/sdk/wukongim/upgrade`,
+          },
+          {
+            source: `/${locale}/sdk/uniapp`,
+            destination: `/${locale}/sdk/javascript/advanced/offline-and-uniapp`,
+          },
+        ]),
+      );
+    }
   });
 
   test('routes the legacy EasySDK overview to its published counterpart', () => {

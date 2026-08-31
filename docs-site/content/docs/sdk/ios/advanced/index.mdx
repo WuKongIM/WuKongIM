@@ -1,0 +1,18 @@
+---
+title: iOS 高级功能
+description: 在基础收发完成后接入自定义正文、媒体文件和远端历史消息。
+---
+
+先完成[快速开始](/zh/sdk/ios/quickstart)，再按产品需要选择高级能力。没有用到的 Provider 不需要配置。
+
+<Cards>
+  <Card title="自定义消息" description="定义业务正文，分配类型编号，并在启动时注册。" href="/zh/sdk/ios/advanced/custom-messages" />
+  <Card title="媒体与历史消息" description="接入文件上传、下载和远端历史消息补齐。" href="/zh/sdk/ios/advanced/media-and-history" />
+</Cards>
+
+## 上线前注意
+
+- `1.1.1` 的默认连接是原始 TCP，公开配置中没有认证 TLS 开关。请在受控网络入口使用，或升级到经过你们安全评审的传输方案。
+- 设置 `options.isDebug = NO`，并检查 Release 日志不会输出 Token 或消息正文。
+- 本地消息库按 UID 隔离，但 UID 不是加密密钥。结合 iOS 文件保护、备份策略和退出账号后的数据清理一起设计。
+- 在真机上覆盖弱网、后台恢复、Token 失效、被踢、离线消息和版本回滚。

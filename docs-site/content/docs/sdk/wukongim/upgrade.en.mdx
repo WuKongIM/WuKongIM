@@ -1,0 +1,47 @@
+---
+title: Upgrade SDKs
+description: Safely upgrade any WuKongIMSDK platform with one concise workflow.
+---
+
+Do not publish after changing only a version number. The SDK also owns a local database, listeners, and connection state, so those behaviors must be checked together.
+
+## 1. Record the current version
+
+Keep the current dependency version and lockfile, then list every connection, message, conversation, Channel, provider, and custom-content API used by the app.
+
+## 2. Read the release notes
+
+Check the target SDK repository's releases, changelog, and migration notes. Look specifically for:
+
+- changed methods or parameters;
+- local database migrations;
+- message encoding changes;
+- new minimum OS or build-tool requirements.
+
+## 3. Upgrade only the SDK dependency
+
+Change the SDK version and refresh the lockfile without upgrading many unrelated dependencies at the same time. This keeps failures easier to diagnose.
+
+## 4. Re-run the core flow
+
+At minimum, verify that:
+
+1. a signed-in user can connect;
+2. Alice can send text to Bob;
+3. the send state changes from sending to success;
+4. Bob receives the message;
+5. the client recovers after losing the network;
+6. history, conversations, and unread counts remain correct;
+7. custom content still encodes and decodes.
+
+## 5. Check local data
+
+Test with an existing account and realistic data, not only a clean install. If the SDK changes its database schema, confirm that old data opens and decide how failures will be handled.
+
+## 6. Roll out gradually
+
+Release to a small group first. Watch connection failures, rejected messages, crashes, and local database errors. If you stop the rollout, restore the dependency version and lockfile together.
+
+<Callout type="warn" title="A binary rollback may not roll back the database">
+  If the new SDK already changed local data, the old SDK may no longer open it. Verify the real data upgrade and rollback path before release.
+</Callout>

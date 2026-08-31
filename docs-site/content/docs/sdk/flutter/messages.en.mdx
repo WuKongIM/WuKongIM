@@ -1,0 +1,75 @@
+---
+title: Flutter Messages
+description: Send, receive, retry, and query local messages while understanding send states.
+---
+
+A message combines `WKMessageContent` with a destination `WKChannel`. `WKMessageManager` handles local storage, sending, receiving, and queries.
+
+## Send to a direct or group chat
+
+```dart
+await im.messageManager.sendWithOption(
+  WKTextContent('Hello'),
+  WKChannel('bob', WKChannelType.personal),
+  WKSendOptions(),
+);
+
+await im.messageManager.sendWithOption(
+  WKTextContent('Hello everyone'),
+  WKChannel('team-1', WKChannelType.group),
+  WKSendOptions(),
+);
+```
+
+Prefer awaiting `sendWithOption` directly. Although `sendMessage` is declared async in this version, it does not await its internal send flow.
+
+## Observe local insertion, send state, and new messages
+
+```dart
+// This is one global callback with no key or removal API. Install it once
+// through an application-scoped dispatcher.
+im.messageManager.addOnMsgInsertedListener((message) {
+  addPendingMessage(message.clientMsgNO, message);
+});
+
+im.messageManager.addOnRefreshMsgListener('chat', (message) {
+  updateSendState(message.clientMsgNO, message.status);
+});
+
+im.messageManager.addOnNewMsgListener('chat', (messages) {
+  appendIncomingMessages(messages);
+});
+```
+
+Send states:
+
+| State | Meaning | Suggested UI |
+| --- | --- | --- |
+| `WKSendMsgResult.sendLoading` | Stored locally and sending | Sending |
+| `WKSendMsgResult.sendSuccess` | Accepted by the server | Sent |
+| `WKSendMsgResult.sendFail` | This send attempt failed | Retry action |
+| `noRelation` / `blackList` / `notOnWhiteList` | Product relationship rejects sending | Explain the reason |
+
+An existing failed message can be sent through the connection manager again, but product code should first confirm that it still belongs to the current account and channel.
+
+## Read messages
+
+When opening a chat for the first time:
+
+```dart
+im.messageManager.getOrSyncHistoryMessages(
+  'bob',
+  WKChannelType.personal,
+  0,
+  false,
+  0, // Read toward older messages.
+  30,
+  0,
+  (messages) => showMessages(messages),
+  () => showSyncing(),
+);
+```
+
+When local data is incomplete, the SDK calls your remote-history provider. See [Media & History](/en/sdk/flutter/advanced/media-and-history).
+
+On page teardown, call `removeOnRefreshMsgListener('chat')` and `removeNewMsgListener('chat')`.

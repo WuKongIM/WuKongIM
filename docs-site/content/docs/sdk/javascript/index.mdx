@@ -1,83 +1,36 @@
 ---
 title: JavaScript / Web
-description: 用固定版本的 JavaScript SDK，从安装开始完成浏览器连接、消息收发、重连和离线恢复。
+description: 用 TypeScript 接入 wukongimjssdk，管理 WebSocket、消息、会话和频道资料。
 ---
 
-这套教程面向第一次把 WuKongIM 接入浏览器应用的开发者。它不依赖 React 或 Vue，而是用框架无关的 TypeScript、一个仅限本机的 BFF，以及 Alice/Bob 两个会话展示完整的客户端生命周期。
+`wukongimjssdk` 是悟空 IM 的完整 JavaScript SDK。它管理 WebSocket、消息收发、内存中的会话列表和频道资料，适合浏览器、H5 以及经过单独适配验证的 JavaScript 运行时。
 
-<Callout type="warn" title="先明确当前覆盖范围">
-  教程固定使用 `wukongimjssdk@1.3.5` 和兼容快照中的 Chromium。它能证明这套样例里的安装、连接、双向持久消息、重连与离线恢复；不能自动证明其他浏览器、JavaScript SDK、运行时或平台版本兼容。
+本文档对应 `wukongimjssdk 1.3.5`，示例统一使用 TypeScript。
+
+## 开始前
+
+你需要准备：
+
+- 一个可从目标运行时访问的 WuKongIM WebSocket 地址；
+- 两个测试用户，例如 `alice` 和 `bob`；
+- 由业务服务端返回的 `uid`、`token` 和 `ws://` 或 `wss://` 地址；
+- 一个使用 npm、pnpm 或 Yarn 的前端项目。
+
+<Callout type="info" title="浏览器不能持有管理密钥">
+  浏览器只应从你的业务服务端获取当前用户的短期 Token 和连接地址。创建用户、签发 Token 与访问控制都留在服务端。
 </Callout>
 
-## 适合谁
-
-- 你正在开发浏览器端聊天、客服、协作或实时通知界面；
-- 你可以在受信后端中准备 UID、Token 和连接地址；
-- 你希望先跑通一个可观察的消息闭环，再接入自己的框架和状态管理。
-
-如果你还没决定使用 EasySDK 还是 WuKongIMSDK，先看[选择 SDK](/zh/sdk/choose-sdk)。本教程使用 WuKongIMJSSDK，不应把其中的方法名复制到其他 SDK。
-
-## 你将搭建什么
-
-```text
-Alice 浏览器 ─┐                         ┌─ Gateway WebSocket
-              ├─ localhost BFF ────────┤
-Bob 浏览器 ───┘   身份、路由、离线同步    └─ WuKongIM 单节点集群
-```
-
-- 浏览器中的 SDK 管理连接、发送、接收和重连状态；
-- BFF 代表受信业务后端调用 Product HTTP，并且只绑定 loopback；
-- WuKongIM 集群负责持久消息的顺序、提交、路由和在线投递。
-
-浏览器不会获得 Product HTTP 管理能力。迁移到真实产品时，你的业务后端要替换样例 BFF，接入自己的登录、授权和 Token 生命周期。
-
-## 推荐学习顺序
+## 推荐阅读顺序
 
 <Cards>
-  <Card title="1. 安装与配置" description="先运行固定依赖的样例，再把精确版本加入现有项目。" href="/zh/sdk/javascript/installation" />
-  <Card title="2. 快速接入" description="连接 Alice 与 Bob，观察监听、发送、确认、断线与恢复对应的 SDK 调用。" href="/zh/sdk/javascript/quickstart" />
-  <Card title="3. API Reference" description="按固定 1.3.5 快照查找配置、管理器、Provider、模型与监听器。" href="/zh/sdk/javascript/api-reference" />
-  <Card title="4. 平台能力" description="确认场景覆盖了什么，哪些能力还需要你自己验证。" href="/zh/sdk/javascript/platform-capabilities" />
-  <Card title="5. 升级指南" description="审计协议与事件 API 变化，用真实场景和回滚计划升级。" href="/zh/sdk/javascript/upgrade" />
-  <Card title="6. 公共指南" description="继续设计身份、会话、推送、多设备和异常策略。" href="/zh/sdk/common-guides" />
-  <Card title="7. 上线验收" description="生成兼容性 Smoke，并单独关闭生产安全与运维门禁。" href="/zh/guide/integration/acceptance" />
-  <Card title="版本快照" description="核对 SDK、服务端、Node.js 和浏览器的精确组合。" href="/zh/sdk/compatibility" />
+  <Card title="快速开始" description="安装 SDK，连接用户并发送第一条在线文本消息。" href="/zh/sdk/javascript/quickstart" />
+  <Card title="连接管理" description="处理地址、连接状态、自动重连和页面清理。" href="/zh/sdk/javascript/connection" />
+  <Card title="消息管理" description="发送、接收、同步和关联消息状态。" href="/zh/sdk/javascript/messages" />
+  <Card title="会话管理" description="维护内存聊天列表与未读数。" href="/zh/sdk/javascript/conversations" />
+  <Card title="频道管理" description="加载用户、群和订阅者资料。" href="/zh/sdk/javascript/channels" />
+  <Card title="高级功能" description="接入自定义消息、离线恢复与 UniApp 迁移。" href="/zh/sdk/javascript/advanced" />
 </Cards>
 
-## 第一次运行前准备
+仓库中的 `docs-site/examples/javascript-web-quickstart` 是可运行的双会话示例。先想理解 API 时直接读本页路径；需要联调真实服务时再运行示例。
 
-- 一个已经通过 `/readyz` 的 WuKongIM 单节点集群；
-- Node.js `>=20.11` 与 npm；
-- 端口 `5001`、`5200` 和样例使用的 loopback 端口可用；
-- 当前仓库源码，用于运行 `docs-site/examples/javascript-web-quickstart`。
-
-## 第一条消息会经过什么
-
-| 阶段 | 你做什么 | 你应该看到什么 |
-| --- | --- | --- |
-| 安装 | 使用 lockfile 安装固定 SDK | 测试、TypeScript 与构建检查通过 |
-| 身份 | Alice 与 Bob 分别向 BFF 请求开发身份 | 浏览器得到 UID、临时 Token 和 WebSocket 地址 |
-| 连接 | SDK 注册监听并发起连接 | 两边状态分别变为 `connected` |
-| 发送 | Alice 给 Bob 发送持久文本消息 | Alice 收到 SENDACK，Bob 收到 `realtime` 事件 |
-| 断线 | Bob 断开，Alice 再发送 | Alice 仍收到 SENDACK，Bob 没有实时事件 |
-| 恢复 | Bob 重连并同步 | Bob 看到一次 `recovered` 结果 |
-
-SENDACK、在线接收和离线恢复是三个独立结果。教程会让你分别观察它们，而不是只显示一个模糊的“发送成功”。
-
-## 完成标志
-
-- 你能解释 Token 和连接地址为什么来自后端，而不是写死在浏览器；
-- 你能在代码中找到连接状态、消息和发送确认的监听器；
-- 你能区分持久提交、在线投递和同步恢复；
-- 你知道样例通过后还需要哪些生产门禁。
-
-## 常见故障
-
-- **安装阶段失败**：回到 lockfile 和 Node.js 版本，不要改用 `latest` 绕过。
-- **身份创建失败**：确认集群 `/readyz`、BFF 输出和 Product HTTP 地址。
-- **一直连接中**：检查 `/route` 返回地址和 Gateway WebSocket 端口。
-- **对方没收到**：分别检查 SENDACK、在线事件和离线同步，不要把三条路径混在一起。
-
-## 下一步
-
-从[安装与配置](/zh/sdk/javascript/installation)开始。完成样例构建后，再按[快速接入](/zh/sdk/javascript/quickstart)发送第一条真实消息。
+不熟悉“频道”“会话”这些词时，先读[核心概念](/zh/sdk/wukongim/concepts)。只想查方法名时，打开 [API 参考](/zh/sdk/javascript/api-reference)。
