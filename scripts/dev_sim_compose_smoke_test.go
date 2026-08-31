@@ -56,3 +56,36 @@ func TestDockerComposeDevSimDefaultsTargetHighTraffic(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerComposeObservabilityUsesWritableNamedVolumes(t *testing.T) {
+	compose := readFile(t, filepath.Join(repoRoot(t), "docker-compose.yml"))
+
+	for _, want := range []string{
+		"prometheus-data:/prometheus",
+		"grafana-data:/var/lib/grafana",
+		"prometheus-data:",
+		"grafana-data:",
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("docker-compose.yml missing writable observability volume contract %q", want)
+		}
+	}
+	if strings.Contains(compose, "./docker/dev-observability/") {
+		t.Fatal("fresh checkouts must not bind absent observability data directories created as root")
+	}
+}
+
+func TestDockerfileAllowsReviewedBuildMirrors(t *testing.T) {
+	dockerfile := readFile(t, filepath.Join(repoRoot(t), "Dockerfile"))
+
+	for _, want := range []string{
+		"ARG GO_IMAGE=golang:1.25.0",
+		"ARG RUNTIME_IMAGE=alpine:3.19",
+		"ARG GOPROXY=https://goproxy.cn,direct",
+		"ENV GOPROXY=${GOPROXY}",
+	} {
+		if !strings.Contains(dockerfile, want) {
+			t.Fatalf("Dockerfile missing injectable build dependency %q", want)
+		}
+	}
+}

@@ -1,9 +1,12 @@
 ARG GO_IMAGE=golang:1.25.0
 ARG RUNTIME_IMAGE=alpine:3.19
+ARG GOPROXY=https://goproxy.cn,direct
 
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
 WORKDIR /src
 
 COPY go.mod go.sum ./

@@ -141,7 +141,7 @@ services:
       - --web.enable-lifecycle
     volumes:
       - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./docker/dev-observability/prometheus:/prometheus
+      - prometheus-data:/prometheus
     ports:
       - "9091:9090"
 
@@ -157,6 +157,10 @@ services:
     volumes:
       - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./docker/observability/grafana/dashboards:/etc/grafana/dashboards:ro
-      - ./docker/dev-observability/grafana:/var/lib/grafana
+      - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"
+
+volumes:
+  prometheus-data:
+  grafana-data:
