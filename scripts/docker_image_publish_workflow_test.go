@@ -72,6 +72,9 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"actions/attest-build-provenance@",
 		"canonical GHCR tag is absent",
 		"$CANONICAL_IMAGE@$CANONICAL_DIGEST",
+		`inspect_ref "$ref" mirror.json mirror.err || status=$?`,
+		`case "$status" in`,
+		"inspect_with_retry",
 		".manifest.digest == $digest",
 		`["amd64", "arm64"]`,
 		"$major.$minor",
@@ -89,6 +92,7 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"release:",
 		"cancel-in-progress: true",
 		"push-to-registry: true",
+		"install: true",
 	} {
 		require.NotContains(t, text, forbidden)
 	}

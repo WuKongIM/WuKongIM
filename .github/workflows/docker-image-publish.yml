@@ -187,7 +187,6 @@ jobs:
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           version: v0.36.1
-          install: true
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -379,19 +378,25 @@ jobs:
 
           for image in "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
             ref="$image:$IMAGE_VERSION"
-            if inspect_ref "$ref" mirror.json mirror.err; then
-              existing_digest="$(jq -er '.manifest.digest' mirror.json)"
-              test "$existing_digest" = "$CANONICAL_DIGEST" || {
-                echo "$ref is immutable and already points to $existing_digest" >&2
-                exit 1
-              }
-              continue
-            fi
-            status=$?
-            ((status == 1)) || exit "$status"
-            docker buildx imagetools create --progress plain \
-              --tag "$ref" \
-              "$CANONICAL_IMAGE@$CANONICAL_DIGEST"
+            status=0
+            inspect_ref "$ref" mirror.json mirror.err || status=$?
+            case "$status" in
+              0)
+                existing_digest="$(jq -er '.manifest.digest' mirror.json)"
+                test "$existing_digest" = "$CANONICAL_DIGEST" || {
+                  echo "$ref is immutable and already points to $existing_digest" >&2
+                  exit 1
+                }
+                ;;
+              1)
+                docker buildx imagetools create --progress plain \
+                  --tag "$ref" \
+                  "$CANONICAL_IMAGE@$CANONICAL_DIGEST"
+                ;;
+              *)
+                exit "$status"
+                ;;
+            esac
           done
 
       - name: Verify exact digest and platform manifests
@@ -401,9 +406,22 @@ jobs:
           CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
         run: |
           set -euo pipefail
+          inspect_with_retry() {
+            local ref="$1" output="$2" attempt
+            for attempt in 1 2 3 4 5; do
+              if docker buildx imagetools inspect "$ref" --format '{{json .}}' >"$output"; then
+                return 0
+              fi
+              if ((attempt < 5)); then
+                sleep "$((attempt * 2))"
+              fi
+            done
+            return 1
+          }
+
           for image in "$CANONICAL_IMAGE" "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
             ref="$image:$IMAGE_VERSION"
-            docker buildx imagetools inspect "$ref" --format '{{json .}}' >manifest.json
+            inspect_with_retry "$ref" manifest.json
             jq -e --arg digest "$CANONICAL_DIGEST" '
               .manifest.digest == $digest and
               ([
