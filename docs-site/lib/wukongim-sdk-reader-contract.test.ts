@@ -133,6 +133,20 @@ describe('reader-first WuKongIMSDK documentation', () => {
     }
   });
 
+  test('keeps the first-message examples aligned with platform readiness and syntax', async () => {
+    for (const suffix of ['', '.en']) {
+      for (const route of ['quickstart', 'connection']) {
+        const android = await page(`android/${route}${suffix}.mdx`);
+        expect(android).toContain('status == WKConnectStatus.success && syncInProgress');
+        expect(android).toContain('WKConnectStatus.syncMsg');
+        expect(android).toContain('WKConnectStatus.syncCompleted');
+      }
+
+      const ios = await page(`ios/quickstart${suffix}.mdx`);
+      expect(ios.match(/^@end$/gmu)).toHaveLength(2);
+    }
+  });
+
   test('keeps internal audit vocabulary out of the public full-SDK path', async () => {
     const banned = [
       /\breceipt\b/iu,

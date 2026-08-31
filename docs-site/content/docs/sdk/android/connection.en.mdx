@@ -41,20 +41,27 @@ Do not add a URL scheme to the host. End your own loading state and retry with b
 
 ```java
 String key = "app-connection";
+private boolean syncInProgress = false;
+
 im.getConnectionManager().addOnConnectionStatusListener(key, (status, reason) -> {
     if (status == WKConnectStatus.connecting) {
         showConnecting();
     } else if (status == WKConnectStatus.syncMsg) {
+        syncInProgress = true;
         showRestoringMessages();
     } else if (status == WKConnectStatus.syncCompleted) {
         showRestoreCompleted();
-    } else if (status == WKConnectStatus.success) {
+    } else if (status == WKConnectStatus.success && syncInProgress) {
+        syncInProgress = false;
         enableSending();
     } else if (status == WKConnectStatus.kicked) {
+        syncInProgress = false;
         requireLoginAgain(reason);
     } else if (status == WKConnectStatus.noNetwork) {
+        syncInProgress = false;
         showOffline();
     } else if (status == WKConnectStatus.fail) {
+        syncInProgress = false;
         showConnectionError(reason);
     }
 });
@@ -62,7 +69,9 @@ im.getConnectionManager().addOnConnectionStatusListener(key, (status, reason) ->
 im.getConnectionManager().connection();
 ```
 
-Listeners run on the main thread. Recovery can report several synchronization states; do not present every transition as an error.
+Listeners run on the main thread. Version `1.5.5` reports an initial `success`
+before `syncMsg`; that first event is not send-ready. Enable sending only on the
+later `success` after synchronization completes.
 
 ## Disconnect and log out
 

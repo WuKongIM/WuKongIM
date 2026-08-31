@@ -202,8 +202,8 @@ This loop does not cover offline synchronization. When Bob is offline, the appli
 - **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
 - **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
 - **The console contains a token or payload:** this is a known npm `2.0.2` issue. [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) is merged but not released. Wait for the next official release, or build a tarball from the merge commit above and verify redaction before production.
-- **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and inspect the current receipt under [Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
+- **You need a runnable full-SDK Web example:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript) and its repository example, then check the current package and runtime matrix under [Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
 
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Offline Messages & Push](/en/guide/tutorials/push), and [Integration Acceptance](/en/guide/integration/acceptance).
+Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Offline Messages & Push](/en/guide/tutorials/push), and the [Release Checks](/en/guide/integration/acceptance).

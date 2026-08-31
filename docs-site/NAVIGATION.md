@@ -32,7 +32,7 @@ Route: `/{lang}/guide`
   - **消息收发 / Messaging** `/{lang}/guide/integration/messaging` — 串联连接、发送、接收、确认、重连和离线补偿。 / Connects sending, receiving, acknowledgements, reconnects, and offline recovery.
   - **Webhook / Webhooks** `/{lang}/guide/integration/webhooks` — 介绍事件回调、签名、重试、幂等和失败处理。 / Introduces event callbacks, signatures, retries, idempotency, and failure handling.
   - **插件扩展 / Plugin Extensions** `/{lang}/guide/integration/plugins` — 说明插件的适用问题、生命周期和安全边界。 / Explains suitable plugin use cases, lifecycle, and security boundaries.
-  - **上线验收 / Integration Acceptance** `/{lang}/guide/integration/acceptance` — 把可执行兼容性证据与生产身份、网络、回调、容量和回滚门禁分开。 / Separates executable compatibility evidence from production identity, network, callback, capacity, and rollback gates.
+  - **上线检查 / Release Checks** `/{lang}/guide/integration/acceptance` — 发布前检查身份、连接、消息、离线恢复、安全、容量和回滚。 / Checks identity, connection, messaging, offline recovery, security, capacity, and rollback before release.
 - **场景教程 / Tutorials** `/{lang}/guide/tutorials` — 提供面向典型业务场景的端到端方案。 / Provides end-to-end solutions for representative product scenarios.
   - **单聊 / Direct Chat** `/{lang}/guide/tutorials/direct-chat` — 实现用户、单聊频道、消息、未读数和多设备同步。 / Implements users, direct channels, messages, unread counts, and multi-device sync.
   - **群聊与超大群 / Groups & Large Groups** `/{lang}/guide/tutorials/large-groups` — 实现群成员维护和群消息，并说明十万级成员约束。 / Implements group membership and messaging with constraints for 100,000-member groups.

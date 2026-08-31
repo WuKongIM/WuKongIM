@@ -1,6 +1,73 @@
 import { describe, expect, test } from 'bun:test';
 import manifest from '../redirects.json';
 
+const legacyFullSDKRoutes = {
+  ios: {
+    '': '',
+    intro: '',
+    integration: 'quickstart',
+    connection: 'connection',
+    chat: 'messages',
+    channel: 'channels',
+    conversation: 'conversations',
+    media: 'advanced/media-and-history',
+    advanced: 'advanced',
+  },
+  android: {
+    '': '',
+    intro: '',
+    integration: 'quickstart',
+    base: 'connection',
+    message: 'messages',
+    channel: 'channels',
+    'channel-member': 'channels',
+    conversation: 'conversations',
+    cmd: 'advanced',
+    datasource: 'advanced/media-and-history',
+    reminder: 'conversations',
+    advance: 'advanced',
+  },
+  flutter: {
+    '': '',
+    intro: '',
+    integration: 'quickstart',
+    base: 'connection',
+    message: 'messages',
+    channel: 'channels',
+    channel_member: 'channels',
+    conversation: 'conversations',
+    cmd: 'advanced',
+    datasource: 'advanced/media-and-history',
+    reminder: 'conversations',
+    advance: 'advanced',
+  },
+  harmonyos: {
+    '': '',
+    intro: '',
+    integration: 'quickstart',
+    base: 'connection',
+    message: 'messages',
+    channel: 'channels',
+    channel_member: 'channels',
+    conversation: 'conversations',
+    cmd: 'advanced',
+    datasource: 'advanced/media-and-history',
+    reminder: 'conversations',
+    advance: 'advanced',
+  },
+  javascript: {
+    '': '',
+    intro: '',
+    integration: 'quickstart',
+    base: 'connection',
+    chat: 'messages',
+    channel: 'channels',
+    conversation: 'conversations',
+    datasource: 'advanced/offline-and-uniapp',
+    advance: 'advanced',
+  },
+} as const;
+
 describe('legacy redirect seed', () => {
   test('uses permanent, unique, locale-preserving mappings', () => {
     expect(manifest.version).toBe(1);
@@ -81,6 +148,30 @@ describe('legacy redirect seed', () => {
         ]),
       );
     }
+  });
+
+  test('preserves every deep link from the former full-SDK documentation', () => {
+    const expected = ['zh', 'en'].flatMap((locale) =>
+      Object.entries(legacyFullSDKRoutes).flatMap(([platform, pages]) =>
+        Object.entries(pages).map(([sourcePage, destinationPage]) => ({
+          source: `/${locale}/sdk/wukongim/${platform}${sourcePage ? `/${sourcePage}` : ''}`,
+          destination: `/${locale}/sdk/${platform}${destinationPage ? `/${destinationPage}` : ''}`,
+        })),
+      ),
+    );
+
+    expected.push(
+      ...['zh', 'en'].flatMap((locale) =>
+        ['uniapp', 'miniprogram'].flatMap((platform) =>
+          ['', '/intro'].map((suffix) => ({
+            source: `/${locale}/sdk/wukongim/${platform}${suffix}`,
+            destination: `/${locale}/sdk/javascript/advanced/offline-and-uniapp`,
+          })),
+        ),
+      ),
+    );
+
+    expect(manifest.mappings).toEqual(expect.arrayContaining(expected));
   });
 
   test('routes the legacy EasySDK overview to its published counterpart', () => {

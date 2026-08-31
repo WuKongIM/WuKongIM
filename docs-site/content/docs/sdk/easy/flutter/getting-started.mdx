@@ -253,7 +253,7 @@ Future<void> sendText(String targetUid, String text) async {
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放；
 7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.4` 仍不包含已合并的日志修复，必须等待新版或基于上述精确 commit 自行构建后再验收。
 
-该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/guide/integration/messaging)和[重连与异常处理](/zh/guide/integration/acceptance)补齐。
+该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)补齐。
 
 ## 常见问题
 
@@ -267,4 +267,4 @@ Future<void> sendText(String targetUid, String text) async {
 
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[会话与未读数](/zh/guide/core-concepts/conversations)和[上线验收](/zh/guide/integration/acceptance)。
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[会话与未读数](/zh/guide/core-concepts/conversations)和[上线检查](/zh/guide/integration/acceptance)。

@@ -53,7 +53,7 @@ Device Level 用于描述同一 UID、同一设备类别下的连接冲突策略
 5. 用户退出或移除设备时，业务系统撤销凭据、关闭连接并清理推送绑定。
 
 <Callout type="warn" title="多端策略由受信后端控制">
-  客户端不能自行选择更高的 Device Level。当前 v3 Beta 的默认 Gateway 也不会自动把已保存的 Token 与 Device Level 变成完整校验链路；生产接入请按[多设备同步](/zh/guide/core-concepts/devices)完成并验证策略。
+  客户端不能自行选择更高的 Device Level。当前 v3 Beta 的默认 Gateway 也不会自动把已保存的 Token 与 Device Level 变成完整校验链路；请把这项策略纳入[上线检查](/zh/guide/integration/acceptance)。
 </Callout>
 
-继续阅读[会话](/zh/guide/core-concepts/conversations)和[多设备同步](/zh/guide/core-concepts/devices)。
+继续阅读[会话](/zh/guide/core-concepts/conversations)和[认证与安全](/zh/guide/integration/authentication)。

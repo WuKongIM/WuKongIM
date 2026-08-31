@@ -212,7 +212,7 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
 7. Inspect the Release artifact and device logs to prove tokens, payloads, and complete JSON-RPC data are not recorded. `v1.0.3` still excludes the merged logging fix, so accept only a later release or a self-built artifact pinned to the exact commit above.
 
-The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/guide/integration/acceptance).
+The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Include network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
@@ -227,4 +227,4 @@ The current server covers SEND and RECV payloads with this pinned wire profile. 
 
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Custom Messages](/en/sdk/wukongim/concepts), and [Integration Acceptance](/en/guide/integration/acceptance).
+Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Custom Messages](/en/sdk/wukongim/concepts), and the [Release Checks](/en/guide/integration/acceptance).

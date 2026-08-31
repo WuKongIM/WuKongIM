@@ -41,20 +41,27 @@ im.getConnectionManager().addOnGetIpAndPortListener(callback ->
 
 ```java
 String key = "app-connection";
+private boolean syncInProgress = false;
+
 im.getConnectionManager().addOnConnectionStatusListener(key, (status, reason) -> {
     if (status == WKConnectStatus.connecting) {
         showConnecting();
     } else if (status == WKConnectStatus.syncMsg) {
+        syncInProgress = true;
         showRestoringMessages();
     } else if (status == WKConnectStatus.syncCompleted) {
         showRestoreCompleted();
-    } else if (status == WKConnectStatus.success) {
+    } else if (status == WKConnectStatus.success && syncInProgress) {
+        syncInProgress = false;
         enableSending();
     } else if (status == WKConnectStatus.kicked) {
+        syncInProgress = false;
         requireLoginAgain(reason);
     } else if (status == WKConnectStatus.noNetwork) {
+        syncInProgress = false;
         showOffline();
     } else if (status == WKConnectStatus.fail) {
+        syncInProgress = false;
         showConnectionError(reason);
     }
 });
@@ -62,7 +69,7 @@ im.getConnectionManager().addOnConnectionStatusListener(key, (status, reason) ->
 im.getConnectionManager().connection();
 ```
 
-监听器回调在主线程。连接恢复过程中可能依次出现同步相关状态，UI 不要把每一次变化都弹成错误。
+监听器回调在主线程。`1.5.5` 会在 `syncMsg` 前先报告一次 `success`，此时还不能发送；只有同步结束后的第二次 `success` 才能打开输入和发送。
 
 ## 断开与退出
 

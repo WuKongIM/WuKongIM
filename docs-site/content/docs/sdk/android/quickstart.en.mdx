@@ -47,13 +47,25 @@ If an API assigns the gateway, request it asynchronously inside this listener an
 
 ```java
 private static final String LISTENER_KEY = "chat-home";
+private boolean syncInProgress = false;
 
 im.getConnectionManager().addOnConnectionStatusListener(
     LISTENER_KEY,
     (status, reason) -> {
-        if (status == WKConnectStatus.success) {
+        if (status == WKConnectStatus.syncMsg) {
+            syncInProgress = true;
+            Log.d("WKIM", "restoring messages");
+        } else if (status == WKConnectStatus.syncCompleted) {
+            Log.d("WKIM", "message restore complete");
+        } else if (status == WKConnectStatus.success && syncInProgress) {
+            syncInProgress = false;
             Log.d("WKIM", "connected");
+        } else if (status == WKConnectStatus.kicked ||
+                   status == WKConnectStatus.noNetwork) {
+            syncInProgress = false;
+            Log.e("WKIM", "connection interrupted: " + reason);
         } else if (status == WKConnectStatus.fail) {
+            syncInProgress = false;
             Log.e("WKIM", "connect failed: " + reason);
         }
     }
@@ -85,7 +97,9 @@ Give every observer a stable, unique key and remove it with the same key when it
 im.getConnectionManager().connection();
 ```
 
-After `WKConnectStatus.success`, send from Alice to Bob:
+Version `1.5.5` reports `success` once before synchronization starts and again
+after synchronization finishes. Send only after the `success` that follows
+`syncMsg` and `syncCompleted`:
 
 ```java
 WKTextContent content = new WKTextContent("Hello, Bob");
@@ -95,7 +109,7 @@ im.getMsgManager().send(content, channel);
 
 ## Expected result
 
-1. Alice and Bob both report a successful connection.
+1. Alice and Bob both report the final successful connection after synchronization.
 2. Alice's send-state observer receives `send_success`.
 3. Bob's new-message observer prints “Hello, Bob”.
 

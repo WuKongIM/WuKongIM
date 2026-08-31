@@ -50,7 +50,7 @@ not define them.
   both locale variants are ready.
 - Product facts preserve cluster-only and 256-hash-slot semantics, durable
   commit versus downstream effects, and current security boundaries.
-- Full SDK examples pin exact released versions and use Objective-C, Java,
+- Full SDK examples pin exact released versions and use Java, Objective-C,
   TypeScript, Dart, and ArkTS respectively. They explain Channel, Provider,
   local insertion, and the server send result before relying on those terms.
 - A trusted application backend supplies identity, tokens, routing, history,

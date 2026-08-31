@@ -47,13 +47,25 @@ im.getConnectionManager().addOnGetIpAndPortListener(callback ->
 
 ```java
 private static final String LISTENER_KEY = "chat-home";
+private boolean syncInProgress = false;
 
 im.getConnectionManager().addOnConnectionStatusListener(
     LISTENER_KEY,
     (status, reason) -> {
-        if (status == WKConnectStatus.success) {
+        if (status == WKConnectStatus.syncMsg) {
+            syncInProgress = true;
+            Log.d("WKIM", "restoring messages");
+        } else if (status == WKConnectStatus.syncCompleted) {
+            Log.d("WKIM", "message restore complete");
+        } else if (status == WKConnectStatus.success && syncInProgress) {
+            syncInProgress = false;
             Log.d("WKIM", "connected");
+        } else if (status == WKConnectStatus.kicked ||
+                   status == WKConnectStatus.noNetwork) {
+            syncInProgress = false;
+            Log.e("WKIM", "connection interrupted: " + reason);
         } else if (status == WKConnectStatus.fail) {
+            syncInProgress = false;
             Log.e("WKIM", "connect failed: " + reason);
         }
     }
@@ -85,7 +97,8 @@ im.getMsgManager().addOnSendMsgAckListener(LISTENER_KEY, message -> {
 im.getConnectionManager().connection();
 ```
 
-收到 `WKConnectStatus.success` 后，让 Alice 向 Bob 发送：
+`1.5.5` 会在开始同步前和同步结束后各报告一次 `success`。必须等待
+`syncMsg`、`syncCompleted` 之后的第二次 `success`，再让 Alice 向 Bob 发送：
 
 ```java
 WKTextContent content = new WKTextContent("你好，Bob");
@@ -95,7 +108,7 @@ im.getMsgManager().send(content, channel);
 
 ## 预期结果
 
-1. Alice 和 Bob 都收到连接成功状态；
+1. Alice 和 Bob 都在同步结束后收到最终连接成功状态；
 2. Alice 的发送状态监听器收到 `send_success`；
 3. Bob 的新消息监听器打印“你好，Bob”。
 

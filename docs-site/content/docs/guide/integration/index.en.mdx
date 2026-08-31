@@ -17,10 +17,10 @@ WuKongIM owns real-time connections, channel messaging, persistence, cluster rou
   <Card title="Messaging" description="Understand client and server send paths, acknowledgements, and recovery boundaries." href="/en/guide/integration/messaging" />
   <Card title="Webhooks" description="Consume message and presence events securely and idempotently." href="/en/guide/integration/webhooks" />
   <Card title="Plugin Extensions" description="Evaluate node-local hooks, lifecycle, UID bindings, and safety boundaries." href="/en/guide/integration/plugins" />
-  <Card title="Integration Acceptance" description="Separate compatibility smoke from production identity, network, capacity, and rollback gates." href="/en/guide/integration/acceptance" />
+  <Card title="Release Checks" description="Check identity, connection, messaging, recovery, security, capacity, and rollback before release." href="/en/guide/integration/acceptance" />
 </Cards>
 
-For client implementation, use [SDK Common Guides](/en/sdk/wukongim/concepts) to turn these boundaries into identity, connection, messaging, conversation, offline, and multi-device state machines. They define cross-SDK behavior without inventing platform methods.
+Before choosing platform APIs, learn the shared vocabulary in [WuKongIMSDK Core Concepts](/en/sdk/wukongim/concepts). Then choose your platform under [WuKongIMSDK](/en/sdk/wukongim) and follow its task sequence.
 
 ## Minimum product loop
 
@@ -44,4 +44,4 @@ For client implementation, use [SDK Common Guides](/en/sdk/wukongim/concepts) to
 
 Begin with stable server boundaries and webhooks. Introduce [Plugin Extensions](/en/guide/integration/plugins) only when a synchronous or post-commit hook genuinely needs to run near a node.
 
-After implementation, follow [Integration Acceptance](/en/guide/integration/acceptance) to produce reproducible compatibility evidence and separately close every production gate the laboratory cannot prove.
+After implementation, use the [Release Checks](/en/guide/integration/acceptance) with your real clients, server configuration, networks, and rollback plan.
