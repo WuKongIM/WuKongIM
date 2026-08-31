@@ -43,7 +43,7 @@ Prepare the following:
 - A WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is reachable from the target device.
 - A product backend that returns `uid`, a short-lived `token`, and `websocketUrl` separately for Alice and Bob.
 
-Read [Identity & Token](/en/sdk/common-guides/identity-and-token) first. If the application builds for mobile, desktop, and Web, accept each target independently; evidence from one target does not prove all targets.
+Read [Identity & Token](/en/guide/integration/authentication) first. If the application builds for mobile, desktop, and Web, accept each target independently; evidence from one target does not prove all targets.
 
 ## Step 1: install an exact version
 
@@ -256,7 +256,7 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
 7. Inspect system logs and collectors on every target using the `v1.1.0` Release artifact. The default configuration should produce no SDK diagnostics; when logging is explicitly enabled under control, only low-sensitivity operational metadata may appear, never tokens, payloads, complete JSON-RPC data, or sensitive public-model strings.
 
-This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/sdk/common-guides/messaging) and [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
+This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
@@ -270,4 +270,4 @@ This loop does not prove application-background recovery, offline message synchr
 
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/sdk/common-guides/messaging), [Conversations & Unread](/en/sdk/common-guides/conversations-and-unread), and [Integration Acceptance](/en/guide/integration/acceptance).
+Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Conversations & Unread](/en/guide/core-concepts/conversations), and the [Release Checks](/en/guide/integration/acceptance).

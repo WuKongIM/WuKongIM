@@ -1,0 +1,65 @@
+---
+title: Android Conversations
+description: Read the chat list, observe changes, and manage unread counts for each chat.
+---
+
+`WKUIConversationMsg` is one row in the chat list. It contains a channel, last message, time, and unread count.
+
+## Read the chat list asynchronously
+
+```java
+WKIM.getInstance().getConversationManager().getAll(conversations -> {
+    adapter.submitList(conversations);
+});
+```
+
+`getWkMsg()` returns the last message, `getWkChannel()` returns the local channel profile, and `lastMsgTimestamp` plus `unreadCount` can drive the list directly.
+
+## Observe changes
+
+```java
+ConversationManager manager = WKIM.getInstance().getConversationManager();
+
+manager.addOnRefreshMsgListListener("conversation-list", changedItems -> {
+    mergeByChannel(changedItems);
+});
+
+manager.addOnDeleteMsgListener("conversation-list", (channelID, channelType) -> {
+    removeRow(channelID, channelType);
+});
+```
+
+The change callback can update only affected channels. For simpler code, asynchronously read `getAll` again after each callback.
+
+## Unread counts and deletion
+
+After the user opens a chat and sees its messages, set that channel's unread count to zero:
+
+```java
+manager.updateRedDot("bob", WKChannelType.PERSONAL, 0);
+```
+
+Delete one conversation row with:
+
+```java
+manager.deleteWitchChannel("bob", WKChannelType.PERSONAL);
+```
+
+The method is named `deleteWitchChannel` in this version. It removes the conversation row; it does not mean every local message for that channel is cleared.
+
+## Multi-device conversation sync
+
+```java
+manager.addOnSyncConversationListener((lastMsgSeqs, msgCount, version, callback) -> {
+    conversationApi.sync(lastMsgSeqs, msgCount, version, callback::onBack);
+});
+```
+
+The application API returns `WKSyncChat`, and the SDK notifies the conversation list after storing it. Keep Activity and Fragment work out of this provider.
+
+Remove list and deletion observers when the screen is destroyed:
+
+```java
+manager.removeOnRefreshMsgListListener("conversation-list");
+manager.removeOnDeleteMsgListener("conversation-list");
+```

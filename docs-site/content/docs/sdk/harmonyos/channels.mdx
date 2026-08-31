@@ -1,0 +1,87 @@
+---
+title: HarmonyOS 频道与资料
+description: 理解频道标识，并接入用户、群组和群成员资料。
+---
+
+频道表示“消息要发给谁”。`channelId` 和 `channelType` 必须一起使用：个人频道的 ID 通常是对方 UID，群频道的 ID 是群 ID。
+
+```typescript
+const personal = new WKChannel('bob', WKChannelType.personal)
+const group = new WKChannel('team-1', WKChannelType.group)
+```
+
+创建 `WKChannel` 不会创建用户或群组，也不会绕过服务端权限。
+
+## 提供用户和群资料
+
+在应用初始化时安装资料 Provider：
+
+```typescript
+WKIM.shared.config.provider.channelInfoCallback = async (
+  channelId: string,
+  channelType: number
+): Promise<WKChannel | undefined> => {
+  const profile = await channelApi.get(channelId, channelType)
+  if (profile === undefined) return undefined
+
+  const channel = new WKChannel(channelId, channelType)
+  channel.channelName = profile.name
+  channel.channelRemark = profile.remark ?? ''
+  channel.avatar = profile.avatar ?? ''
+  return channel
+}
+```
+
+需要资料时先读取本地缓存，不存在或需要刷新时再发起请求：
+
+```typescript
+const manager = WKIM.shared.channelManager()
+const local = manager.getChannel('team-1', WKChannelType.group)
+
+if (local === undefined) {
+  manager.fetchChannelInfo('team-1', WKChannelType.group)
+}
+```
+
+监听刷新：
+
+```typescript
+const refreshListener = (channel: WKChannel) => {
+  updateTitleAndAvatar(channel)
+}
+
+manager.addRefreshListener(refreshListener)
+// 页面销毁时
+manager.removeRefreshListener(refreshListener)
+```
+
+## 群成员
+
+成员资料由 `channelMemberManager()` 管理。增量同步 Provider 接收当前最大版本：
+
+```typescript
+WKIM.shared.config.provider.channelMemberCallback = async (
+  channelId: string,
+  channelType: number,
+  maxVersion: number
+): Promise<WKChannelMember[]> => {
+  return memberApi.sync(channelId, channelType, maxVersion)
+}
+
+WKIM.shared.channelMemberManager().sync(
+  'team-1',
+  WKChannelType.group
+)
+```
+
+读取成员：
+
+```typescript
+const member = WKIM.shared.channelMemberManager().getMember(
+  'team-1',
+  WKChannelType.group,
+  'alice'
+)
+```
+
+大群不要一次返回全部成员。使用 `channelMemberWithPageCallback` 和 `getWithPageOrSearch` 做服务端分页或搜索，并限制单页数量。

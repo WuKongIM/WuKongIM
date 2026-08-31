@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Where WuKongIMSDK fits",
+    "subtitle": "Your backend owns identity and product data; the SDK owns client message state",
+    "output": "wukongimsdk.en.html",
+    "viewBox": [920, 640]
+  },
+  "components": [
+    { "id": "app", "type": "frontend", "label": "Your App", "sublabel": "UI and product logic", "pos": [60, 270], "size": [140, 70] },
+    { "id": "backend", "type": "backend", "label": "Product Backend", "sublabel": "UID · token · product data", "pos": [60, 90], "size": [170, 70] },
+    { "id": "sdk", "type": "backend", "label": "WuKongIMSDK", "sublabel": "connection · messages · chats", "pos": [340, 270], "size": [190, 70], "tag": "client state" },
+    { "id": "storage", "type": "database", "label": "Local Data", "sublabel": "messages · chats · unread", "pos": [365, 440], "size": [140, 66] },
+    { "id": "cluster", "type": "cloud", "label": "WuKongIM Cluster", "sublabel": "persist · route · deliver", "pos": [680, 270], "size": [170, 70] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Client", "wraps": ["app", "sdk", "storage"] }
+  ],
+  "connections": [
+    { "from": "app", "to": "sdk", "label": "calls", "variant": "emphasis" },
+    { "from": "sdk", "to": "cluster", "label": "connect + message", "variant": "emphasis" },
+    { "from": "backend", "to": "app", "label": "sign-in result", "variant": "security", "fromSide": "bottom", "toSide": "top" },
+    { "from": "backend", "to": "sdk", "label": "profiles + sync data", "variant": "dashed", "fromSide": "right", "toSide": "top", "route": "orthogonal-h", "labelDy": -12 },
+    { "from": "sdk", "to": "storage", "label": "stores", "fromSide": "bottom", "toSide": "top", "labelAt": [435, 354] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Your app owns", "items": ["Sign-in UI, contacts, membership, and product permissions", "Applying SDK callbacks to the product UI"] },
+    { "dot": "emerald", "title": "The SDK owns", "items": ["Connections, message state, local chats, and unread counts", "Provider callbacks that request product data"] },
+    { "dot": "amber", "title": "The cluster owns", "items": ["Message persistence, Channel routing, and online delivery", "Full cluster semantics even with one node"] }
+  ]
+}

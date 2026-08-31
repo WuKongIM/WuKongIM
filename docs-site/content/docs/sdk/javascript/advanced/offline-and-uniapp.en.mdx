@@ -1,0 +1,74 @@
+---
+title: JavaScript Offline Recovery & UniApp Migration
+description: Connect offline message synchronization and migrate from unmaintained wukongimuniappsdk to wukongimjssdk.
+---
+
+The JavaScript SDK has no built-in persistent message database. Your application server supplies data after page reload, during disconnected periods, and for history pagination.
+
+## Offline recovery
+
+First implement the message synchronization provider:
+
+```typescript
+sdk.config.provider.syncMessagesCallback = async (channel, options) => {
+  const rows = await messageApi.sync({
+    channelID: channel.channelID,
+    channelType: channel.channelType,
+    startMessageSeq: options.startMessageSeq,
+    endMessageSeq: options.endMessageSeq,
+    limit: Math.min(options.limit, 100),
+    pullMode: options.pullMode,
+  })
+  return rows.map(toSDKMessage)
+}
+```
+
+After reconnecting, continue from the last saved message sequence and deduplicate by `messageID` or by `messageSeq` within the channel:
+
+```typescript
+const options = new SyncOptions()
+options.startMessageSeq = lastMessageSeq
+options.limit = 50
+options.pullMode = PullMode.Up
+
+const recovered = await sdk.chatManager.syncMessages(channel, options)
+mergeMessages(recovered)
+```
+
+Keep the cursor when synchronization fails and allow retry. Do not advance it before messages are processed successfully.
+
+## Migrate from the old UniApp SDK
+
+The official `wukongimuniappsdk` is no longer maintained. Do not add it to new projects. Migrate existing projects in this order:
+
+```bash
+npm uninstall wukongimuniappsdk
+npm install --save-exact wukongimjssdk@1.3.5
+```
+
+Import from the package root, never from `wukongimjssdk/lib/*`:
+
+```typescript
+import WKSDK, {
+  Channel,
+  ConnectStatus,
+  MessageText,
+} from 'wukongimjssdk'
+```
+
+Then migrate each integration point:
+
+1. Set `uid`, `token`, WebSocket endpoint, and device type.
+2. Reconnect message, conversation, and channel providers.
+3. Register custom content before connecting.
+4. Use `addConnectStatusListener`, `addMessageListener`, and `addMessageStatusListener`.
+5. Send through `chatManager.send(...)`.
+6. Remove the same function references when components unmount.
+
+### UniApp runtime notes
+
+Version `1.3.5` automatically selects global `uni.connectSocket`, `wx.connectSocket`, or native `WebSocket`. Do not force the choice through `config.platform`; in the current implementation that value does not initialize the socket factory, which can mix one creation path with another event API.
+
+Set device type by target: a native app container is usually `0`, H5/Web is `1`, and desktop is `2`. Choose a mini-program type from your product protocol rather than assuming based only on JavaScript.
+
+App, H5, and every mini-program are different runtimes. Test WSS allowlists, certificates, foreground/background behavior, network switching, live messages, recovery, and deduplication separately. Success in one target does not establish success in another.

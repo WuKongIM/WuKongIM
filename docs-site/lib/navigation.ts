@@ -157,211 +157,234 @@ function publishedGroup(
   );
 }
 
-function publishedAndroidSDKGroup(): NavigationGroup {
+interface FullSDKAdvancedPage {
+  slug: string;
+  label: LocalizedText;
+  description: LocalizedText;
+}
+
+interface FullSDKPlatform {
+  slug: 'android' | 'ios' | 'javascript' | 'flutter' | 'harmonyos';
+  label: string;
+  packageName: string;
+  version: string;
+  language: string;
+  advanced: FullSDKAdvancedPage[];
+}
+
+function advancedPage(
+  slug: string,
+  zhLabel: string,
+  enLabel: string,
+  zhDescription: string,
+  enDescription: string,
+): FullSDKAdvancedPage {
+  return {
+    slug,
+    label: text(zhLabel, enLabel),
+    description: text(zhDescription, enDescription),
+  };
+}
+
+function publishedFullSDKPlatformGroup(platform: FullSDKPlatform): NavigationGroup {
+  const identity = `${platform.packageName} ${platform.version}`;
   return publishedGroup(
-    'android',
-    'Android',
-    'Android',
-    '按 WuKongIMAndroidSDK 1.5.5 的源码与 JitPack AAR 完成安装、首条消息、能力核对、API 查找和升级规划；可执行兼容性仍需独立验证。',
-    'Use the WuKongIMAndroidSDK 1.5.5 source and JitPack AAR for installation, first-message flow, capability review, API lookup, and upgrade planning; executable compatibility still requires independent evidence.',
+    platform.slug,
+    platform.label,
+    platform.label,
+    `从快速开始到常用管理器，使用 ${identity} 完成清晰、可查找的 ${platform.label} 接入。`,
+    `Integrate ${identity} on ${platform.label} through a clear quickstart and task-based manager guides.`,
     [
       publishedPage(
-        'installation',
-        '安装与配置',
-        'Installation',
-        '通过 JitPack 精确安装 WuKongIMAndroidSDK 1.5.5，并核对 AAR、构建、R8 和安全边界。',
-        'Install WuKongIMAndroidSDK 1.5.5 exactly through JitPack and review AAR, build, R8, and security boundaries.',
-      ),
-      publishedPage(
         'quickstart',
-        '快速接入',
+        '快速开始',
         'Quickstart',
-        '用公开 Java API 完成会话同步门禁、Alice/Bob 文本发送、SENDACK、在线接收和 listener 清理。',
-        'Use the public Java API for conversation-sync gating, Alice/Bob text send, SENDACK, online receipt, and listener cleanup.',
+        `安装 ${identity}，连接一个用户，并用 ${platform.language} 完成第一条在线文本消息。`,
+        `Install ${identity}, connect one user, and exchange the first online text message in ${platform.language}.`,
       ),
       publishedPage(
-        'platform-capabilities',
-        '平台专属能力',
-        'Platform Capabilities',
-        '区分 Android 已校对的源码能力、平台集成责任、生产阻断项和仍需运行验证的范围。',
-        'Separates source-aligned Android capabilities, platform integration ownership, production blockers, and runtime-unverified scope.',
+        'connection',
+        '连接管理',
+        'Connection',
+        '配置 UID、Token 与连接地址，监听连接状态，并正确处理断开和退出。',
+        'Configure the UID, token, and endpoint; observe connection state; and disconnect or log out correctly.',
+      ),
+      publishedPage(
+        'messages',
+        '消息管理',
+        'Messages',
+        '发送、接收和查询消息，并理解发送中、发送成功与发送失败。',
+        'Send, receive, and query messages while understanding sending, success, and failure states.',
+      ),
+      publishedPage(
+        'conversations',
+        '会话管理',
+        'Conversations',
+        '读取聊天列表、监听会话变化，并管理未读数。',
+        'Read the chat list, observe conversation changes, and manage unread counts.',
+      ),
+      publishedPage(
+        'channels',
+        '频道管理',
+        'Channels',
+        '获取单聊或群聊资料，监听资料变化，并连接业务数据源。',
+        'Load direct or group chat profiles, observe changes, and connect product data providers.',
+      ),
+      publishedGroup(
+        'advanced',
+        '高级功能',
+        'Advanced',
+        '按当前平台确实提供的 API 学习自定义消息、媒体和离线能力。',
+        'Use only the custom-content, media, and offline APIs actually provided by this platform.',
+        platform.advanced.map((item) =>
+          publishedPage(
+            item.slug,
+            item.label.zh,
+            item.label.en,
+            item.description.zh,
+            item.description.en,
+          ),
+        ),
       ),
       publishedPage(
         'api-reference',
         'API 参考',
         'API Reference',
-        '按固定 1.5.5 AAR 与源码查找管理器、Provider、监听器、模型和结果码。',
-        'Find managers, providers, listeners, models, and result codes in the pinned 1.5.5 AAR and source.',
-      ),
-      publishedPage(
-        'upgrade',
-        '升级指南',
-        'Upgrade Guide',
-        '用精确坐标、依赖校验、调用点审计、设备场景和可回滚灰度升级到 1.5.5。',
-        'Upgrade to 1.5.5 with exact coordinates, dependency verification, call-site review, device scenarios, and reversible rollout.',
+        '按管理器查找常用入口、监听器、Provider、模型和状态。',
+        'Find common manager entry points, listeners, providers, models, and states.',
       ),
     ],
   );
 }
 
-function publishedFlutterSDKGroup(): NavigationGroup {
-  return publishedGroup(
-    'flutter',
-    'Flutter',
-    'Flutter',
-    '按 wukongimfluttersdk 1.7.9 的 pub.dev 归档与匹配源码完成安装、首条消息、能力核对、API 查找和升级规划；运行兼容性仍需独立验证。',
-    'Use the wukongimfluttersdk 1.7.9 pub.dev archive and matching source for installation, first-message flow, capability review, API lookup, and upgrade planning; runtime compatibility still requires independent evidence.',
-    [
-      publishedPage(
-        'installation',
-        '安装与配置',
-        'Installation',
-        '精确安装 wukongimfluttersdk 1.7.9，锁定归档哈希、传递依赖、Flutter/Dart 构建和平台边界。',
-        'Install wukongimfluttersdk 1.7.9 exactly and lock its archive hash, transitive dependencies, Flutter/Dart build, and platform boundaries.',
+function publishedAndroidSDKGroup(): NavigationGroup {
+  return publishedFullSDKPlatformGroup({
+    slug: 'android',
+    label: 'Android',
+    packageName: 'WuKongIMAndroidSDK',
+    version: '1.5.5',
+    language: 'Java',
+    advanced: [
+      advancedPage(
+        'custom-messages',
+        '自定义消息',
+        'Custom Messages',
+        '定义、注册并发送自己的业务消息类型。',
+        'Define, register, and send product-specific message content.',
       ),
-      publishedPage(
-        'quickstart',
-        '快速接入',
-        'Quickstart',
-        '用公开 Dart API 完成会话同步门禁、Alice/Bob 文本发送、本地入库、SENDACK 刷新、在线接收和清理。',
-        'Use the public Dart API for conversation-sync gating, Alice/Bob text send, local insert, SENDACK refresh, online receipt, and cleanup.',
-      ),
-      publishedPage(
-        'platform-capabilities',
-        '平台专属能力',
-        'Platform Capabilities',
-        '区分 Flutter 已校对的源码能力、目标平台责任、生产阻断项和仍需运行验证的矩阵。',
-        'Separates source-aligned Flutter capabilities, target-platform ownership, production blockers, and runtime-unverified matrices.',
-      ),
-      publishedPage(
-        'api-reference',
-        'API 参考',
-        'API Reference',
-        '按固定 1.7.9 归档与源码查找单例、Provider、监听器、模型和结果码。',
-        'Find singleton APIs, providers, listeners, models, and result codes in the pinned 1.7.9 archive and source.',
-      ),
-      publishedPage(
-        'upgrade',
-        '升级指南',
-        'Upgrade Guide',
-        '用精确 pubspec、锁文件、调用点审计、逐平台场景和可回滚灰度升级到 1.7.9。',
-        'Upgrade to 1.7.9 with an exact pubspec, lockfile, call-site review, per-platform scenarios, and reversible rollout.',
+      advancedPage(
+        'media-and-history',
+        '媒体与历史消息',
+        'Media & History',
+        '接入媒体上传，并在本地消息不足时补齐历史消息。',
+        'Connect media upload and fill message history when local data is incomplete.',
       ),
     ],
-  );
+  });
 }
 
 function publishedIOSSDKGroup(): NavigationGroup {
-  return publishedGroup(
-    'ios',
-    'iOS',
-    'iOS',
-    '按 WuKongIMSDK 1.1.1 的源码与分发头文件完成安装、首条消息、能力核对、API 查找和升级规划；可执行兼容性仍需独立验证。',
-    'Use the WuKongIMSDK 1.1.1 source and distributed headers for installation, first-message flow, capability review, API lookup, and upgrade planning; executable compatibility still requires independent evidence.',
-    [
-      publishedPage(
-        'installation',
-        '安装与配置',
-        'Installation',
-        '通过 CocoaPods 精确安装 WuKongIMSDK 1.1.1，并核对产物、构建和安全边界。',
-        'Install WuKongIMSDK 1.1.1 exactly through CocoaPods and review artifact, build, and security boundaries.',
+  return publishedFullSDKPlatformGroup({
+    slug: 'ios',
+    label: 'iOS',
+    packageName: 'WuKongIMSDK',
+    version: '1.1.1',
+    language: 'Objective-C',
+    advanced: [
+      advancedPage(
+        'custom-messages',
+        '自定义消息',
+        'Custom Messages',
+        '继承消息正文、注册类型并发送自己的业务消息。',
+        'Subclass message content, register its type, and send product-specific messages.',
       ),
-      publishedPage(
-        'quickstart',
-        '快速接入',
-        'Quickstart',
-        '用公开 Objective-C API 配置身份、连接 Alice 与 Bob，并区分本地发送、确认和在线接收。',
-        'Use the public Objective-C API to configure identity, connect Alice and Bob, and separate local send, acknowledgement, and online receipt.',
-      ),
-      publishedPage(
-        'platform-capabilities',
-        '平台专属能力',
-        'Platform Capabilities',
-        '区分 iOS 已校对的源码能力、应用生命周期责任、生产阻断项和仍需设备验证的范围。',
-        'Separates source-aligned iOS capabilities, application lifecycle ownership, production blockers, and device-unverified scope.',
-      ),
-      publishedPage(
-        'api-reference',
-        'API 参考',
-        'API Reference',
-        '按固定 1.1.1 公开头文件与源码查找管理器、Provider、委托、模型和状态。',
-        'Find managers, providers, delegates, models, and statuses in the pinned 1.1.1 public headers and source.',
-      ),
-      publishedPage(
-        'upgrade',
-        '升级指南',
-        'Upgrade Guide',
-        '用精确 Pod、锁文件、调用点审计、设备场景和可回滚灰度升级到 1.1.1。',
-        'Upgrade to 1.1.1 with an exact Pod, lockfile, call-site review, device scenarios, and reversible rollout.',
+      advancedPage(
+        'media-and-history',
+        '媒体与历史消息',
+        'Media & History',
+        '接入图片和语音上传，并在本地消息不足时同步历史消息。',
+        'Connect image and voice upload and synchronize history when local messages are incomplete.',
       ),
     ],
-  );
+  });
+}
+
+function publishedJavaScriptSDKGroup(): NavigationGroup {
+  return publishedFullSDKPlatformGroup({
+    slug: 'javascript',
+    label: 'JavaScript / Web',
+    packageName: 'wukongimjssdk',
+    version: '1.3.5',
+    language: 'TypeScript',
+    advanced: [
+      advancedPage(
+        'custom-messages',
+        '自定义消息',
+        'Custom Messages',
+        '定义、注册并发送浏览器业务需要的消息正文。',
+        'Define, register, and send message content required by the browser product.',
+      ),
+      advancedPage(
+        'offline-and-uniapp',
+        '离线恢复与 UniApp 迁移',
+        'Offline Recovery & UniApp Migration',
+        '接入离线消息同步，并把旧 UniApp SDK 迁移到 JavaScript SDK。',
+        'Connect offline synchronization and migrate the retired UniApp SDK to the JavaScript SDK.',
+      ),
+    ],
+  });
+}
+
+function publishedFlutterSDKGroup(): NavigationGroup {
+  return publishedFullSDKPlatformGroup({
+    slug: 'flutter',
+    label: 'Flutter',
+    packageName: 'wukongimfluttersdk',
+    version: '1.7.9',
+    language: 'Dart',
+    advanced: [
+      advancedPage(
+        'custom-messages',
+        '自定义消息',
+        'Custom Messages',
+        '定义、注册并发送 Flutter 业务消息类型。',
+        'Define, register, and send product-specific Flutter message content.',
+      ),
+      advancedPage(
+        'media-and-history',
+        '媒体与历史消息',
+        'Media & History',
+        '接入媒体上传，并在本地消息不足时补齐历史消息。',
+        'Connect media upload and fill message history when local data is incomplete.',
+      ),
+    ],
+  });
 }
 
 function publishedHarmonyOSSDKGroup(): NavigationGroup {
-  return publishedGroup(
-    'harmonyos',
-    'HarmonyOS',
-    'HarmonyOS',
-    '按 @wukong/wkim 1.1.7 的 OHPM HAR 与匹配源码完成安装、首条消息、能力核对、API 查找和升级规划；运行兼容性仍需独立验证。',
-    'Use the @wukong/wkim 1.1.7 OHPM HAR and matching source for installation, first-message flow, capability review, API lookup, and upgrade planning; runtime compatibility still requires independent evidence.',
-    [
-      publishedPage(
-        'installation',
-        '安装与配置',
-        'Installation',
-        '精确安装 @wukong/wkim 1.1.7，并核对 HAR、锁文件、API 20、权限、深路径导入和安全边界。',
-        'Install @wukong/wkim 1.1.7 exactly and review its HAR, lockfile, API 20, permissions, deep imports, and security boundaries.',
+  return publishedFullSDKPlatformGroup({
+    slug: 'harmonyos',
+    label: 'HarmonyOS',
+    packageName: '@wukong/wkim',
+    version: '1.1.7',
+    language: 'ArkTS',
+    advanced: [
+      advancedPage(
+        'custom-messages',
+        '自定义消息',
+        'Custom Messages',
+        '定义、注册并发送 HarmonyOS 业务消息类型。',
+        'Define, register, and send product-specific HarmonyOS message content.',
       ),
-      publishedPage(
-        'quickstart',
-        '快速接入',
-        'Quickstart',
-        '用真实 ArkTS API 完成会话同步门禁、Alice/Bob 文本入库、SENDACK、在线接收和 listener 清理。',
-        'Use the real ArkTS API for conversation-sync gating, Alice/Bob text insertion, SENDACK, online receipt, and listener cleanup.',
-      ),
-      publishedPage(
-        'platform-capabilities',
-        '平台专属能力',
-        'Platform Capabilities',
-        '区分 HarmonyOS 已校对的源码能力、Stage 生命周期责任、生产阻断项和仍需设备验证的范围。',
-        'Separates source-aligned HarmonyOS capabilities, Stage lifecycle ownership, production blockers, and device-unverified scope.',
-      ),
-      publishedPage(
-        'api-reference',
-        'API 参考',
-        'API Reference',
-        '按固定 1.1.7 HAR 与源码查找根导出、深路径类型、Provider、监听器和结果码。',
-        'Find root exports, deep-path types, providers, listeners, and result codes in the pinned 1.1.7 HAR and source.',
-      ),
-      publishedPage(
-        'upgrade',
-        '升级指南',
-        'Upgrade Guide',
-        '用精确 OHPM 版本、锁文件、深导入审计、设备场景和可回滚灰度升级到 1.1.7。',
-        'Upgrade to 1.1.7 with an exact OHPM version, lockfile, deep-import review, device scenarios, and reversible rollout.',
+      advancedPage(
+        'media-and-history',
+        '媒体与历史消息',
+        'Media & History',
+        '接入图片或语音消息，并在本地数据不足时补齐历史消息。',
+        'Connect image or voice messages and fill history when local data is incomplete.',
       ),
     ],
-  );
-}
-
-function publishedUniAppMigrationGroup(): NavigationGroup {
-  return publishedGroup(
-    'uniapp',
-    'UniApp 迁移',
-    'UniApp Migration',
-    '官方 WuKongIMUniappSDK 已弃用；停止采用旧包，并按目标运行时独立评估迁移到 wukongimjssdk 1.3.5。',
-    'The official WuKongIMUniappSDK is deprecated; stop adopting the old package and evaluate migration to wukongimjssdk 1.3.5 separately for each target runtime.',
-    [
-      publishedPage(
-        'migrate-to-jssdk',
-        '迁移到 JSSDK',
-        'Migrate to JSSDK',
-        '移除旧包、固定 JSSDK 1.3.5，并验证 UniApp adapter、Device Flag、WSS、消息闭环和目标平台证据。',
-        'Remove the old package, pin JSSDK 1.3.5, and validate the UniApp adapter, Device Flag, WSS, message loop, and target-specific evidence.',
-      ),
-    ],
-  );
+  });
 }
 
 function publishedEasySDKGroup(): NavigationGroup {
@@ -410,66 +433,32 @@ function publishedWuKongIMSDKGroup(): NavigationGroup {
       'wukongim',
       'WuKongIMSDK',
       'WuKongIMSDK',
-      '按客户端平台查找完整版 WuKongIMSDK 的安装、接入、平台能力、API 与升级文档；UniApp 仅保留弃用迁移指南。',
-      'Find installation, integration, platform capability, API, and upgrade guides for the full WuKongIMSDK family by client platform; UniApp retains only its retirement and migration guide.',
+      '完整版客户端 SDK：管理连接、消息、本地会话、未读数与离线数据。',
+      'Full client SDKs that manage connections, messages, local conversations, unread counts, and offline data.',
       [
+        publishedPage(
+          'wukongim/concepts',
+          '核心概念',
+          'Core Concepts',
+          '用简单语言理解 UID、Token、频道、消息状态、会话和 Provider。',
+          'Understand UIDs, tokens, Channels, message states, Conversations, and providers in plain language.',
+        ),
         publishedAndroidSDKGroup(),
         publishedIOSSDKGroup(),
-        publishedJavaScriptGoldenPathGroup(),
+        publishedJavaScriptSDKGroup(),
         publishedFlutterSDKGroup(),
-        publishedUniAppMigrationGroup(),
         publishedHarmonyOSSDKGroup(),
+        publishedPage(
+          'wukongim/upgrade',
+          '升级 SDK',
+          'Upgrade SDKs',
+          '用一套简洁流程升级依赖、检查数据兼容并准备回滚。',
+          'Upgrade dependencies, check data compatibility, and prepare rollback with one concise workflow.',
+        ),
       ],
     ),
     childrenAtDomainRoot: true,
   };
-}
-
-function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
-  return publishedGroup(
-    'javascript',
-    'JavaScript / Web',
-    'JavaScript / Web',
-    '使用固定的 SDK 兼容目标完成浏览器安装、连接、双向消息、离线恢复、能力核对、API 查找、升级和验收报告。',
-    'Complete browser installation, connection, two-way messaging, offline recovery, capability review, API lookup, upgrades, and acceptance reporting with the pinned SDK compatibility target.',
-    [
-      publishedPage(
-        'installation',
-        '安装与配置',
-        'Installation',
-        '安装精确版本的 JavaScript SDK，并配置框架无关的 TypeScript 黄金样例。',
-        'Install the exact JavaScript SDK version and configure the framework-neutral TypeScript golden sample.',
-      ),
-      publishedPage(
-        'quickstart',
-        '快速接入',
-        'Quickstart',
-        '通过 localhost BFF 完成连接、双向消息、断开、重连和离线同步。',
-        'Use the localhost BFF to connect, exchange messages, disconnect, reconnect, and recover offline messages.',
-      ),
-      publishedPage(
-        'platform-capabilities',
-        '平台专属能力',
-        'Platform Capabilities',
-        '按真实 Chromium 场景区分场景覆盖能力、安全边界和未验证范围。',
-        'Separates scenario-covered capabilities, security boundaries, and unverified scope through the real Chromium scenario.',
-      ),
-      publishedPage(
-        'api-reference',
-        'API 参考',
-        'API Reference',
-        'JavaScript / Web SDK 的类、方法、事件、参数和错误定义。',
-        'Classes, methods, events, parameters, and errors for the JavaScript / Web SDK.',
-      ),
-      publishedPage(
-        'upgrade',
-        '升级指南',
-        'Upgrade Guide',
-        'JavaScript / Web SDK 的破坏性变更、迁移步骤和发布记录。',
-        'Breaking changes, migration steps, and release history for the JavaScript / Web SDK.',
-      ),
-    ],
-  );
 }
 
 function publishedProductHTTPGroup(): NavigationGroup {
@@ -688,10 +677,10 @@ export const domains: DocumentationDomain[] = [
           ),
           publishedPage(
             'acceptance',
-            '上线验收',
-            'Integration Acceptance',
-            '把可执行兼容性证据与生产身份、网络、回调、容量和回滚门禁分开。',
-            'Separates executable compatibility evidence from production identity, network, callback, capacity, and rollback gates.',
+            '上线检查',
+            'Release Checks',
+            '发布前检查身份、连接、消息、离线恢复、安全、容量和回滚。',
+            'Checks identity, connection, messaging, offline recovery, security, capacity, and rollback before release.',
           ),
         ],
       ),
@@ -995,91 +984,8 @@ export const domains: DocumentationDomain[] = [
       'Integrate WuKongIM across client platforms.',
     ),
     status: 'published',
-    pages: [
-      publishedPage(
-        'choose-sdk',
-        '选择 SDK',
-        'Choose an SDK',
-        '按应用平台、能力需求和验证状态选择客户端 SDK，并找到官方源码。',
-        'Choose a client SDK by platform, capability needs, and verification status, then find official source.',
-      ),
-      publishedPage(
-        'compatibility',
-        '版本与兼容性',
-        'Versions & Compatibility',
-        '记录 v3 Beta 黄金路径的服务端 revision、SDK、Node、浏览器兼容目标与 receipt 状态。',
-        'Records the server revision, SDK, Node, and browser compatibility target plus receipt status for the v3 Beta golden path.',
-      ),
-    ],
-    groups: [
-      publishedWuKongIMSDKGroup(),
-      publishedEasySDKGroup(),
-      publishedGroup(
-        'common-guides',
-        '公共指南',
-        'Common Guides',
-        '以服务端可证明语义说明跨 SDK 接入行为，不替代平台 API 文档。',
-        'Explains cross-SDK integration behavior through server-proven semantics without replacing platform API docs.',
-        [
-          publishedPage(
-            'identity-and-token',
-            '身份与 Token',
-            'Identity & Token',
-            '设计 UID、设备、Token 获取、轮换和失效边界。',
-            'Designs UID, device, token acquisition, rotation, and invalidation boundaries.',
-          ),
-          publishedPage(
-            'initialization-and-connection',
-            '初始化与连接',
-            'Initialization & Connection',
-            '组织 SDK 实例、路由、连接状态、恢复门和退出生命周期。',
-            'Organizes SDK instances, routing, connection states, recovery gates, and logout lifecycle.',
-          ),
-          publishedPage(
-            'messaging',
-            '消息收发',
-            'Messaging',
-            '解释发送、接收、确认、幂等、消息状态与瞬时分支。',
-            'Explains send, receive, acknowledgements, idempotency, message state, and transient branches.',
-          ),
-          publishedPage(
-            'custom-messages',
-            '自定义消息',
-            'Custom Messages',
-            '设计应用 Payload 的版本、编码、兼容、降级和安全边界。',
-            'Designs application payload versioning, encoding, compatibility, fallback, and security boundaries.',
-          ),
-          publishedPage(
-            'conversations-and-unread',
-            '会话与未读数',
-            'Conversations & Unread Counts',
-            '区分会话投影、最近消息、Badge floor、已读状态和拉取游标。',
-            'Separates conversation projections, latest messages, badge floors, read state, and pull cursors.',
-          ),
-          publishedPage(
-            'offline-and-push',
-            '离线消息与推送',
-            'Offline Messages & Push',
-            '区分持久消息恢复、离线候选 Webhook 和厂商通知。',
-            'Separates durable message recovery, offline-candidate webhooks, and provider notifications.',
-          ),
-          publishedPage(
-            'multi-device',
-            '多设备同步',
-            'Multi-device Sync',
-            '说明设备类别、冲突等级、多端连接、共享投影和产品设备状态。',
-            'Explains device categories, conflict levels, concurrent sessions, shared projections, and product device state.',
-          ),
-          publishedPage(
-            'reconnect-and-errors',
-            '重连与异常处理',
-            'Reconnect & Errors',
-            '按网络、路由、连接、发送和同步阶段处理重连与错误。',
-            'Handles reconnects and errors across network, route, connection, send, and synchronization phases.',
-          ),
-        ],
-      ),
-    ],
+    pages: [],
+    groups: [publishedWuKongIMSDKGroup(), publishedEasySDKGroup()],
   },
   {
     key: 'api',

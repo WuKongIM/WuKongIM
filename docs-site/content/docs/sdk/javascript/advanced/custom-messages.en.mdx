@@ -1,0 +1,76 @@
+---
+title: JavaScript / Web Custom Messages
+description: Define, register, and send product-specific message content.
+---
+
+Content beyond text and images, such as an order card or shared location, can extend `MessageContent`. Every client must use the same type number and JSON fields for the same content.
+
+## 1. Define the content
+
+`10001` is only an example; maintain a shared registry of type numbers so product messages do not collide.
+
+```typescript
+class OrderMessageContent extends MessageContent {
+  orderID = ''
+  title = ''
+
+  constructor(orderID = '', title = '') {
+    super()
+    this.orderID = orderID
+    this.title = title
+  }
+
+  get contentType(): number {
+    return 10001
+  }
+
+  get conversationDigest(): string {
+    return `[Order] ${this.title}`
+  }
+
+  encodeJSON() {
+    return {
+      order_id: this.orderID,
+      title: this.title,
+    }
+  }
+
+  decodeJSON(value: Record<string, unknown>) {
+    this.orderID = typeof value.order_id === 'string' ? value.order_id : ''
+    this.title = typeof value.title === 'string' ? value.title : ''
+  }
+}
+```
+
+Validate types and missing fields while decoding because users can run different application versions.
+
+## 2. Register before connecting
+
+```typescript
+const ORDER_CONTENT_TYPE = 10001
+
+sdk.register(ORDER_CONTENT_TYPE, () => new OrderMessageContent())
+```
+
+Register once in each page context. Unregistered content is decoded as an unknown type.
+
+## 3. Send and render
+
+```typescript
+await sdk.chatManager.send(
+  new OrderMessageContent('order-2026-001', 'Coffee beans'),
+  new Channel('bob', ChannelTypePerson),
+)
+```
+
+Inspect the runtime type when receiving:
+
+```typescript
+if (message.content instanceof OrderMessageContent) {
+  showOrder(message.content.orderID, message.content.title)
+} else {
+  showUnsupportedMessage()
+}
+```
+
+Give new fields defaults, do not reuse old fields for new meanings, and never change a published type number. Field names and numbers must match exactly across iOS, Android, Flutter, and HarmonyOS.

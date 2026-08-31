@@ -600,9 +600,9 @@ export async function checkStaticOutput() {
     );
     for (const fact of [
       'wukongimjssdk@1.3.5',
-      'POST /user/token',
-      'GET /route',
-      'POST /channel/messagesync',
+      'ConnectStatus.Connected',
+      'sdk.chatManager.send',
+      'wss://',
     ]) {
       if (!quickstartMarkdown.includes(fact)) {
         throw new Error(`${locale} quickstart Markdown is missing shared fact: ${fact}`);
@@ -725,33 +725,26 @@ export async function checkStaticOutput() {
       }
     }
 
-    const capabilityMarkdown = await text(
-      `llms.mdx/${locale}/sdk/javascript/platform-capabilities/content.md`,
+    const migrationMarkdown = await text(
+      `llms.mdx/${locale}/sdk/javascript/advanced/offline-and-uniapp/content.md`,
     );
-    const capabilityFacts = [
-      '`route-connect`',
-      locale === 'zh' ? '场景覆盖' : 'Scenario-covered',
-      '`production-connection-authentication`',
-      locale === 'zh' ? '边界' : 'Boundary',
-      '`transient-and-background-behavior`',
-      locale === 'zh' ? '未验证' : 'Unverified',
-    ];
-    for (const fact of capabilityFacts) {
-      if (!capabilityMarkdown.includes(fact)) {
-        throw new Error(`${locale} capability Markdown is missing shared fact: ${fact}`);
+    for (const fact of [
+      'syncMessagesCallback',
+      'wukongimuniappsdk',
+      'wukongimjssdk@1.3.5',
+      'config.platform',
+    ]) {
+      if (!migrationMarkdown.includes(fact)) {
+        throw new Error(`${locale} JavaScript migration Markdown is missing fact: ${fact}`);
       }
     }
 
     const acceptanceMarkdown = await text(
       `llms.mdx/${locale}/guide/integration/acceptance/content.md`,
     );
-    for (const fact of [
-      'wukongim.docs.integration-acceptance/v1',
-      'not_assessed',
-      'publication_attestation',
-    ]) {
+    for (const fact of ['Alice', 'Product HTTP', 'TLS/WSS']) {
       if (!acceptanceMarkdown.includes(fact)) {
-        throw new Error(`${locale} acceptance Markdown is missing boundary: ${fact}`);
+        throw new Error(`${locale} release-check Markdown is missing fact: ${fact}`);
       }
     }
   }
@@ -938,9 +931,9 @@ export async function checkStaticOutput() {
 
   const criticalPages = locales.flatMap((locale) => [
     { path: `${locale}/index.html`, locale },
-    { path: `${locale}/sdk/common-guides/index.html`, locale },
+    { path: `${locale}/sdk/wukongim/concepts/index.html`, locale },
     { path: `${locale}/sdk/javascript/quickstart/index.html`, locale },
-    { path: `${locale}/sdk/javascript/platform-capabilities/index.html`, locale },
+    { path: `${locale}/sdk/javascript/advanced/offline-and-uniapp/index.html`, locale },
     { path: `${locale}/guide/integration/acceptance/index.html`, locale },
     { path: `${locale}/api/dictionaries/message-flags/index.html`, locale },
     { path: `${locale}/api/product-http/users/index.html`, locale },

@@ -117,8 +117,8 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).toContain(platform.release);
         expect(page).toContain(platform.distribution);
       }
-      expect(page).toContain(`/${locale}/sdk/common-guides/identity-and-token`);
-      expect(page).toContain(`/${locale}/sdk/common-guides/messaging`);
+      expect(page).toContain(`/${locale}/guide/integration/authentication`);
+      expect(page).toContain(`/${locale}/guide/integration/messaging`);
       expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/u);
     }
 
@@ -160,33 +160,25 @@ describe('EasySDK tutorial content contract', () => {
   });
 
   test('publishes tutorial discovery with the supported pinned EasySDK path explicit', async () => {
-    const pages = await Promise.all([
+    const [sdkZh, sdkEn, easyZh, easyEn] = await Promise.all([
       doc('sdk/index.mdx'),
       doc('sdk/index.en.mdx'),
-      doc('sdk/choose-sdk.mdx'),
-      doc('sdk/choose-sdk.en.mdx'),
-      doc('sdk/compatibility.mdx'),
-      doc('sdk/compatibility.en.mdx'),
+      content('index.mdx'),
+      content('index.en.mdx'),
     ]);
-    for (const page of pages) {
+    for (const page of [easyZh, easyEn]) {
       expect(page).toContain('JSON-RPC CONNECT');
     }
-    expect(pages[0]).toContain('教程已发布');
-    expect(pages[1]).toContain('official WuKongEasySDK releases');
-    expect(pages[0]).toContain('服务端线协议');
-    expect(pages[1]).toContain('server-side wire');
+    expect(sdkZh).toContain('/zh/sdk/easy');
+    expect(sdkEn).toContain('/en/sdk/easy');
+    expect(sdkZh).toContain('/zh/sdk/wukongim');
+    expect(sdkEn).toContain('/en/sdk/wukongim');
   });
 
   test('separates four-profile fixtures from the iOS/Android real-process E2E', async () => {
     const pages = await Promise.all([
       content('index.mdx'),
       content('index.en.mdx'),
-      doc('sdk/index.mdx'),
-      doc('sdk/index.en.mdx'),
-      doc('sdk/choose-sdk.mdx'),
-      doc('sdk/choose-sdk.en.mdx'),
-      doc('sdk/compatibility.mdx'),
-      doc('sdk/compatibility.en.mdx'),
       doc('api/client-protocols/json-rpc.mdx'),
       doc('api/client-protocols/json-rpc.en.mdx'),
     ]);
@@ -218,8 +210,8 @@ describe('EasySDK tutorial content contract', () => {
         for (const api of platform.api) expect(page).toContain(api);
         for (const boundary of platform.bounded) expect(page).toContain(boundary);
         for (const cleanup of platform.cleanup) expect(page).toContain(cleanup);
-        expect(page).toContain(`/${locale}/sdk/common-guides/identity-and-token`);
-        expect(page).toContain(`/${locale}/sdk/common-guides/messaging`);
+        expect(page).toContain(`/${locale}/guide/integration/authentication`);
+        expect(page).toContain(`/${locale}/guide/integration/messaging`);
         expect(page).toContain(`/${locale}/sdk/easy`);
         expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/u);
       }

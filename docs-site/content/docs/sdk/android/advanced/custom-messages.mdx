@@ -1,0 +1,89 @@
+---
+title: Android 自定义消息
+description: 定义、注册并发送业务自己的消息正文。
+---
+
+文本和图片之外的内容，例如订单卡片或位置分享，可以实现为 `WKMessageContent` 子类。所有客户端必须为同一种正文使用相同的类型编号和 JSON 字段。
+
+## 1. 定义正文
+
+`10001` 只是示例；请在团队内建立类型编号表，避免与其他消息重复。
+
+```java
+public final class OrderMessageContent extends WKMessageContent {
+    public String orderID = "";
+    public String title = "";
+
+    // SDK 通过无参构造创建解码对象，这个构造函数不能删除。
+    public OrderMessageContent() {
+        type = 10001;
+    }
+
+    public OrderMessageContent(String orderID, String title) {
+        this();
+        this.orderID = orderID;
+        this.title = title;
+    }
+
+    @Override
+    public JSONObject encodeMsg() {
+        JSONObject json = new JSONObject();
+        try {
+            json.put("order_id", orderID);
+            json.put("title", title);
+        } catch (JSONException ignored) {
+        }
+        return json;
+    }
+
+    @Override
+    public WKMessageContent decodeMsg(JSONObject json) {
+        orderID = json.optString("order_id", "");
+        title = json.optString("title", "");
+        return this;
+    }
+
+    @Override public String getDisplayContent() {
+        return "[订单] " + title;
+    }
+
+    @Override public String getSearchableWord() {
+        return title;
+    }
+}
+```
+
+如果自定义正文会通过 Android `Parcel` 在组件间传递，还要像 SDK 内置正文一样实现子类自己的 parcel 构造、`writeToParcel` 和 `CREATOR`。
+
+## 2. 初始化后注册
+
+```java
+WKIM.getInstance().init(applicationContext, uid, token);
+WKIM.getInstance().getMsgManager()
+    .registerContentMsg(OrderMessageContent.class);
+```
+
+在连接和读取消息前注册。类必须有公开无参构造，否则 SDK 无法解码。
+
+## 3. 发送和展示
+
+```java
+OrderMessageContent content =
+    new OrderMessageContent("order-2026-001", "咖啡豆");
+WKChannel channel = new WKChannel("bob", WKChannelType.PERSONAL);
+WKIM.getInstance().getMsgManager().send(content, channel);
+```
+
+接收时判断实际类型，未知正文显示通用占位：
+
+```java
+if (message.baseContentMsgModel instanceof OrderMessageContent) {
+    OrderMessageContent order =
+        (OrderMessageContent) message.baseContentMsgModel;
+    showOrder(order.orderID, order.title);
+} else {
+    showUnsupportedMessage();
+}
+```
+
+新增字段时给默认值，不复用旧字段表达新含义，也不要修改已经发布的类型编号。

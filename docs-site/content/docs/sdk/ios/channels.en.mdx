@@ -1,0 +1,72 @@
+---
+title: iOS Channels
+description: Load names, avatars, settings, and members for direct and group chats.
+---
+
+A `WKChannel` answers “who should receive this message?” A direct channel ID is the other user's UID; a group channel ID is your product's group ID. `WKChannelInfo` stores display data such as name, avatar, and settings.
+
+## Create channels
+
+```objc
+WKChannel *person = [WKChannel personWithChannelID:@"bob"];
+WKChannel *group = [WKChannel groupWithChannelID:@"team-1"];
+```
+
+The same `channelId` under different `channelType` values is not the same chat. Use the complete `WKChannel` identity in caches and lists.
+
+## Read local data and refresh when needed
+
+```objc
+WKChannelInfo *cached =
+    [[WKSDK shared].channelManager getChannelInfo:person];
+
+[[WKSDK shared].channelManager fetchChannelInfo:person
+                                      completion:^(WKChannelInfo *info) {
+    self.titleLabel.text = info.displayName;
+}];
+```
+
+`getChannelInfo:` only reads local data and can return `nil`. `fetchChannelInfo:completion:` requests a profile through the data source supplied by your app.
+
+## Connect your user and group profile API
+
+```objc
+[WKSDK shared].channelInfoUpdate = ^WKTaskOperator *(WKChannel *channel,
+                                                     WKChannelInfoCallback callback) {
+    return [profileAPI fetchChannel:channel completion:^(WKChannelInfo *info,
+                                                         NSError *error) {
+        if (info != nil) {
+            [[WKSDK shared].channelManager addOrUpdateChannelInfo:info];
+        }
+        callback(error, NO);
+    }];
+};
+```
+
+Choose the user or group endpoint from `channel.channelType`, and always invoke `callback`. The returned task supports cancellation; return `nil` if your network layer has no cancellable task.
+
+## Observe profile changes
+
+```objc
+[[WKSDK shared].channelManager addDelegate:self];
+
+- (void)channelInfoUpdate:(WKChannelInfo *)channelInfo
+           oldChannelInfo:(WKChannelInfo *)oldChannelInfo {
+    [self updateTitle:channelInfo.displayName avatar:channelInfo.logo];
+}
+```
+
+Group members come from the same manager:
+
+```objc
+NSArray<WKChannelMember *> *members =
+    [[WKSDK shared].channelManager getMembersWithChannel:group limit:50];
+```
+
+The SDK manages local member data only. Your app fetches, paginates, and updates members from its server, then stores them through `addOrUpdateMembers:`.
+
+## Common problems
+
+- Conversation has only an ID: configure `channelInfoUpdate`, then call `fetchChannelInfo:`.
+- Avatar never changes: ensure the new `WKChannelInfo.version` is newer, or deliberately use `addOrUpdateChannelInfo:` without version comparison.
+- Large group screen stalls: paginate members instead of loading the full group into the UI.

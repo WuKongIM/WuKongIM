@@ -1,0 +1,98 @@
+---
+title: Android Connection
+description: Initialize identity, supply a gateway endpoint, observe states, and disconnect or log out correctly.
+---
+
+`ConnectionManager` owns the connection, heartbeat, and reconnection. Your app initializes the current user and returns a usable gateway endpoint when the SDK asks for one.
+
+## Initialize the current user
+
+```java
+WKIM im = WKIM.getInstance();
+im.setDebug(false);
+im.init(applicationContext, uid, token);
+```
+
+`init` opens the local database for this UID. Pass an Application Context and call it only after application login. When switching accounts, log out the old account before initializing the new UID.
+
+## Supply a gateway endpoint
+
+Fixed endpoint:
+
+```java
+im.getConnectionManager().addOnGetIpAndPortListener(callback ->
+    callback.onGetSocketIpAndPort("im.example.com", 5100)
+);
+```
+
+Dynamic routing:
+
+```java
+im.getConnectionManager().addOnGetIpAndPortListener(callback ->
+    gatewayApi.fetch(uid, token, (host, port) ->
+        callback.onGetSocketIpAndPort(host, port)
+    )
+);
+```
+
+Do not add a URL scheme to the host. End your own loading state and retry with backoff when the application API fails; never block the main thread while waiting.
+
+## Observe the full state sequence
+
+```java
+String key = "app-connection";
+private boolean syncInProgress = false;
+
+im.getConnectionManager().addOnConnectionStatusListener(key, (status, reason) -> {
+    if (status == WKConnectStatus.connecting) {
+        showConnecting();
+    } else if (status == WKConnectStatus.syncMsg) {
+        syncInProgress = true;
+        showRestoringMessages();
+    } else if (status == WKConnectStatus.syncCompleted) {
+        showRestoreCompleted();
+    } else if (status == WKConnectStatus.success && syncInProgress) {
+        syncInProgress = false;
+        enableSending();
+    } else if (status == WKConnectStatus.kicked) {
+        syncInProgress = false;
+        requireLoginAgain(reason);
+    } else if (status == WKConnectStatus.noNetwork) {
+        syncInProgress = false;
+        showOffline();
+    } else if (status == WKConnectStatus.fail) {
+        syncInProgress = false;
+        showConnectionError(reason);
+    }
+});
+
+im.getConnectionManager().connection();
+```
+
+Listeners run on the main thread. Version `1.5.5` reports an initial `success`
+before `syncMsg`; that first event is not send-ready. Enable sending only on the
+later `success` after synchronization completes.
+
+## Disconnect and log out
+
+```java
+// Pause the connection while retaining current-account identity.
+im.getConnectionManager().disconnect(false);
+
+// Sign out: stop connecting, clear the token, and close the current database.
+im.getConnectionManager().disconnect(true);
+```
+
+`disconnect(true)` finishes some cleanup asynchronously. Before quickly initializing another account, let sends for the old account reach a final state.
+
+Remove the observer with:
+
+```java
+im.getConnectionManager().removeOnConnectionStatusListener(key);
+```
+
+## Common problems
+
+- No state callbacks: register the endpoint listener and call `connection()` after `init`.
+- Repeated failures: verify the client persistent-connection port, not the HTTP API port.
+- Duplicate callbacks: check whether the same screen registered under multiple keys.

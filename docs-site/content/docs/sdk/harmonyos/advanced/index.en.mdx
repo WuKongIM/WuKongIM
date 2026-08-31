@@ -1,0 +1,20 @@
+---
+title: HarmonyOS advanced features
+description: Add custom payloads, media upload, and remote history after basic messaging works.
+---
+
+Complete the [Quickstart](/en/sdk/harmonyos/quickstart), then add only the advanced capabilities your product needs. Unused providers do not need configuration.
+
+<Cards>
+  <Card title="Custom messages" description="Define an application payload, assign its type, and register it before connecting." href="/en/sdk/harmonyos/advanced/custom-messages" />
+  <Card title="Media and history" description="Connect attachment upload and remote message history." href="/en/sdk/harmonyos/advanced/media-and-history" />
+</Cards>
+
+## Before production
+
+- The persistent connection currently uses raw TCP and exposes no authenticated TLS switch. Use a controlled network entry or a transport design that has passed your security review.
+- `WKConfig.debug` does not disable the current SDK logs. Inspect release logs and prevent tokens, message payloads, and user identifiers from being emitted.
+- The local `RelationalStore` does not enable SDK-level at-rest encryption. Protect sensitive data with platform storage controls, backup policy, and logout cleanup.
+- `WKIM.shared`, its managers, and providers are process-global state. Install them in one application service instead of letting screens replace one another's configuration.
+- There is no single reset API for every provider and callback. Call `disConnection(true)` before changing UID and verify isolation; restart the process before initializing another account when isolation is uncertain.
+- Test weak networks, foreground/background recovery, token expiry, kick-out, offline messages, account switching, and rollback on real devices.

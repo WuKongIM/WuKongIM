@@ -1,0 +1,96 @@
+---
+title: Android 连接管理
+description: 初始化身份、提供网关地址、监听状态，并正确处理断开和退出。
+---
+
+`ConnectionManager` 管理连接、心跳和重连。应用负责初始化当前用户，并在 SDK 请求时返回可用的网关地址。
+
+## 初始化当前用户
+
+```java
+WKIM im = WKIM.getInstance();
+im.setDebug(false);
+im.init(applicationContext, uid, token);
+```
+
+`init` 会打开这个 UID 对应的本地数据库，因此要传 Application Context，并且只在业务登录完成后调用。切换账号时先退出旧账号，再初始化新 UID。
+
+## 提供网关地址
+
+固定地址：
+
+```java
+im.getConnectionManager().addOnGetIpAndPortListener(callback ->
+    callback.onGetSocketIpAndPort("im.example.com", 5100)
+);
+```
+
+动态路由：
+
+```java
+im.getConnectionManager().addOnGetIpAndPortListener(callback ->
+    gatewayApi.fetch(uid, token, (host, port) ->
+        callback.onGetSocketIpAndPort(host, port)
+    )
+);
+```
+
+不要给 host 添加 URL scheme。业务接口失败时应结束自己的加载状态并按退避策略重试，不能在主线程阻塞等待。
+
+## 监听完整状态
+
+```java
+String key = "app-connection";
+private boolean syncInProgress = false;
+
+im.getConnectionManager().addOnConnectionStatusListener(key, (status, reason) -> {
+    if (status == WKConnectStatus.connecting) {
+        showConnecting();
+    } else if (status == WKConnectStatus.syncMsg) {
+        syncInProgress = true;
+        showRestoringMessages();
+    } else if (status == WKConnectStatus.syncCompleted) {
+        showRestoreCompleted();
+    } else if (status == WKConnectStatus.success && syncInProgress) {
+        syncInProgress = false;
+        enableSending();
+    } else if (status == WKConnectStatus.kicked) {
+        syncInProgress = false;
+        requireLoginAgain(reason);
+    } else if (status == WKConnectStatus.noNetwork) {
+        syncInProgress = false;
+        showOffline();
+    } else if (status == WKConnectStatus.fail) {
+        syncInProgress = false;
+        showConnectionError(reason);
+    }
+});
+
+im.getConnectionManager().connection();
+```
+
+监听器回调在主线程。`1.5.5` 会在 `syncMsg` 前先报告一次 `success`，此时还不能发送；只有同步结束后的第二次 `success` 才能打开输入和发送。
+
+## 断开与退出
+
+```java
+// 暂停连接，保留当前账号身份
+im.getConnectionManager().disconnect(false);
+
+// 用户退出账号：停止连接、清除 Token，并关闭当前数据库
+im.getConnectionManager().disconnect(true);
+```
+
+`disconnect(true)` 是异步收尾。快速切换账号时，应等旧账号的发送操作进入最终状态，再初始化新账号。
+
+移除监听器：
+
+```java
+im.getConnectionManager().removeOnConnectionStatusListener(key);
+```
+
+## 常见问题
+
+- 没有任何状态：确认已注册地址监听器，并在 `init` 之后调用 `connection()`。
+- 一直连接失败：检查客户端长连接端口，而不是 HTTP API 端口。
+- 同一状态回调多次：检查是否使用多个 key 重复注册了相同页面。

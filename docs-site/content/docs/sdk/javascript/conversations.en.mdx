@@ -1,0 +1,67 @@
+---
+title: JavaScript / Web Conversations
+description: Synchronize and maintain the in-memory chat list, last messages, and unread counts.
+---
+
+A `Conversation` is one row in the chat list. The JavaScript SDK keeps this list in memory; your application server restores it after a page reload.
+
+## Connect conversation synchronization
+
+```typescript
+sdk.config.provider.syncConversationsCallback = async (filter) => {
+  const rows = await conversationApi.list(filter)
+  return rows.map(toSDKConversation)
+}
+
+const conversations = await sdk.conversationManager.sync()
+renderConversationList(conversations)
+```
+
+Each mapped `Conversation` needs at least `channel`, `unread`, `timestamp`, and an optional `lastMessage`.
+
+## Observe list changes
+
+```typescript
+const onConversation = (
+  conversation: Conversation,
+  action: ConversationAction,
+) => {
+  updateConversationRow(conversation, action)
+}
+
+sdk.conversationManager.addConversationListener(onConversation)
+```
+
+Live incoming and outgoing messages automatically add or update conversations. `ConversationAction` contains `add`, `update`, and `remove`.
+
+## Open a chat and handle unread count
+
+```typescript
+const channel = new Channel('bob', ChannelTypePerson)
+const conversation = sdk.conversationManager.findConversation(channel)
+
+if (conversation) {
+  sdk.conversationManager.openConversation = conversation
+  conversation.unread = 0
+  sdk.conversationManager.notifyConversationListeners(
+    conversation,
+    ConversationAction.update,
+  )
+}
+```
+
+Once `openConversation` is set, new live messages in that channel do not increment the in-memory unread count. Set it to `undefined` when leaving. If unread counts must match across devices, also update your application API and restore the server value through conversation sync.
+
+Total unread count:
+
+```typescript
+const total = sdk.conversationManager.getAllUnreadCount()
+```
+
+Removing a row only changes the current in-memory list:
+
+```typescript
+sdk.conversationManager.removeConversation(channel)
+```
+
+Call `removeConversationListener(onConversation)` when the page is destroyed.

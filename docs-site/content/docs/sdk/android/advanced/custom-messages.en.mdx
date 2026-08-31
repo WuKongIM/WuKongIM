@@ -1,0 +1,89 @@
+---
+title: Android Custom Messages
+description: Define, register, and send product-specific message content.
+---
+
+Content beyond text and images, such as an order card or shared location, can be a `WKMessageContent` subclass. Every client must use the same type number and JSON fields for the same content.
+
+## 1. Define the content
+
+`10001` is only an example; maintain a shared registry of type numbers so product messages do not collide.
+
+```java
+public final class OrderMessageContent extends WKMessageContent {
+    public String orderID = "";
+    public String title = "";
+
+    // The SDK decodes through this no-argument constructor. Do not remove it.
+    public OrderMessageContent() {
+        type = 10001;
+    }
+
+    public OrderMessageContent(String orderID, String title) {
+        this();
+        this.orderID = orderID;
+        this.title = title;
+    }
+
+    @Override
+    public JSONObject encodeMsg() {
+        JSONObject json = new JSONObject();
+        try {
+            json.put("order_id", orderID);
+            json.put("title", title);
+        } catch (JSONException ignored) {
+        }
+        return json;
+    }
+
+    @Override
+    public WKMessageContent decodeMsg(JSONObject json) {
+        orderID = json.optString("order_id", "");
+        title = json.optString("title", "");
+        return this;
+    }
+
+    @Override public String getDisplayContent() {
+        return "[Order] " + title;
+    }
+
+    @Override public String getSearchableWord() {
+        return title;
+    }
+}
+```
+
+If this content crosses Android component boundaries through `Parcel`, also implement the subclass parcel constructor, `writeToParcel`, and `CREATOR`, following the built-in SDK content types.
+
+## 2. Register after initialization
+
+```java
+WKIM.getInstance().init(applicationContext, uid, token);
+WKIM.getInstance().getMsgManager()
+    .registerContentMsg(OrderMessageContent.class);
+```
+
+Register before connecting or reading messages. The class must have a public no-argument constructor so the SDK can decode it.
+
+## 3. Send and render
+
+```java
+OrderMessageContent content =
+    new OrderMessageContent("order-2026-001", "Coffee beans");
+WKChannel channel = new WKChannel("bob", WKChannelType.PERSONAL);
+WKIM.getInstance().getMsgManager().send(content, channel);
+```
+
+Inspect the runtime type when receiving, and show a generic placeholder for unknown content:
+
+```java
+if (message.baseContentMsgModel instanceof OrderMessageContent) {
+    OrderMessageContent order =
+        (OrderMessageContent) message.baseContentMsgModel;
+    showOrder(order.orderID, order.title);
+} else {
+    showUnsupportedMessage();
+}
+```
+
+Give new fields defaults, do not reuse old fields for new meanings, and never change a published type number.

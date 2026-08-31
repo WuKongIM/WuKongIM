@@ -1,0 +1,97 @@
+---
+title: HarmonyOS custom messages
+description: Define an application message payload, assign its type, and register it before reading messages.
+---
+
+When built-in payloads such as text and image cannot represent an order card or another application object, extend `WKMessageContent`.
+
+## 1. Choose a content type
+
+Every client and your server must use the same integer for an application payload. Do not use the SDK-reserved range `1` through `99`.
+
+```typescript
+const ORDER_MESSAGE_TYPE: number = 10001
+```
+
+## 2. Define the payload
+
+```typescript
+import { CommonUtil } from '@wukong/wkim/src/main/ets/common/CommonUtil'
+import { WKMessageContent } from '@wukong/wkim/src/main/ets/model/WKMessageContent'
+
+export class OrderMessageContent extends WKMessageContent {
+  orderId: string = ''
+  title: string = ''
+
+  constructor(orderId: string = '', title: string = '') {
+    super()
+    this.orderId = orderId
+    this.title = title
+    this.contentType = ORDER_MESSAGE_TYPE
+  }
+
+  encodeJson(): Record<string, Object> {
+    return {
+      'order_id': this.orderId,
+      'title': this.title
+    }
+  }
+
+  decodeJson(jsonStr: string): WKMessageContent {
+    const json = CommonUtil.jsonToRecord(jsonStr)
+    if (json !== undefined) {
+      this.orderId = CommonUtil.readString(json, 'order_id') ?? ''
+      this.title = CommonUtil.readString(json, 'title') ?? ''
+    }
+    return this
+  }
+
+  displayText(): string {
+    return `[Order] ${this.title}`
+  }
+
+  searchableWord(): string {
+    return this.title
+  }
+}
+```
+
+- `encodeJson` creates the data sent to the server.
+- `decodeJson` restores an object from the received JSON string.
+- `displayText` supplies the conversation preview.
+- `searchableWord` supplies locally searchable text.
+
+## 3. Register before reading messages
+
+Register once after `init`, before connecting or reading the local database:
+
+```typescript
+WKIM.shared.messageManager().registerMsgContent(
+  ORDER_MESSAGE_TYPE,
+  (jsonStr: string): WKMessageContent => {
+    return new OrderMessageContent().decodeJson(jsonStr)
+  }
+)
+```
+
+Without registration, the SDK treats this as an unknown payload. Keep all registrations in one application startup service rather than repeating them in chat screens.
+
+## 4. Send and render it
+
+```typescript
+WKIM.shared.messageManager().send(
+  new OrderMessageContent('A-1001', 'Awaiting payment'),
+  new WKChannel('bob', WKChannelType.personal)
+)
+```
+
+Render the received payload by its ArkTS type:
+
+```typescript
+const content = message.messageContent
+if (content instanceof OrderMessageContent) {
+  showOrderCard(content.orderId, content.title)
+}
+```
+
+Keep future schema changes backward compatible: older clients should ignore new fields, and newer clients should provide defaults for missing fields.

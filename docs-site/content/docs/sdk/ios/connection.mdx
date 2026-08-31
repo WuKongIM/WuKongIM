@@ -1,0 +1,99 @@
+---
+title: iOS 连接管理
+description: 配置用户身份和连接地址，监听状态，并正确处理断开与退出。
+---
+
+连接由 `WKConnectionManager` 管理。你的代码负责提供用户身份和服务器地址，SDK 负责建立连接、心跳和自动重连。
+
+## 配置身份与固定地址
+
+```objc
+WKOptions *options = [WKOptions new];
+options.host = @"im.example.com";
+options.port = 5100;
+options.connectInfo = [WKConnectInfo initWithUID:@"alice"
+                                           token:token
+                                            name:@""
+                                          avatar:@""];
+[WKSDK shared].options = options;
+```
+
+每次连接前都可以通过 `connectInfoCallback` 返回最新 Token：
+
+```objc
+[WKSDK shared].options.connectInfoCallback = ^WKConnectInfo *{
+    return [WKConnectInfo initWithUID:currentUID
+                                token:currentToken
+                                 name:@""
+                               avatar:@""];
+};
+```
+
+不要在日志中打印 Token。
+
+## 使用动态连接地址
+
+如果业务服务端会为用户分配网关，用 `getConnectAddr` 返回 `host:port`：
+
+```objc
+[WKSDK shared].connectionManager.getConnectAddr = ^(void (^complete)(NSString *addr)) {
+    [gatewayAPI fetchAddress:^(NSString *host, uint16_t port) {
+        complete([NSString stringWithFormat:@"%@:%hu", host, port]);
+    }];
+};
+```
+
+回调必须最终执行，否则本次连接会一直等待地址。
+
+## 监听状态后再开放发送
+
+```objc
+[[WKSDK shared].connectionManager addDelegate:self];
+[[WKSDK shared].connectionManager connect];
+
+- (void)onConnectStatus:(WKConnectStatus)status reasonCode:(WKReason)reasonCode {
+    switch (status) {
+        case WKConnecting:
+            self.sendButton.enabled = NO;
+            break;
+        case WKConnected:
+            self.sendButton.enabled = YES;
+            break;
+        case WKDisconnected:
+            self.sendButton.enabled = NO;
+            break;
+        default:
+            break;
+    }
+}
+
+- (void)onKick:(uint8_t)reasonCode reason:(NSString *)reason {
+    // 清理登录态，并提示用户该账号已在其他位置登录。
+}
+```
+
+`WKPullingOffline` 表示连接已经建立，SDK 正在补离线消息。通常等到 `WKConnected` 再让用户发送最容易理解。
+
+## 断开还是退出
+
+```objc
+// 页面暂时不再使用 IM，且不希望自动重连
+[[WKSDK shared].connectionManager disconnect:YES];
+
+// 用户退出账号：断开连接并清除 SDK 登录信息
+[[WKSDK shared].connectionManager logout];
+```
+
+销毁持有监听器的对象前移除它：
+
+```objc
+[[WKSDK shared].connectionManager removeDelegate:self];
+```
+
+## 常见问题
+
+- 一直停在连接中：确认地址回调执行、端口可达，且 Token 属于当前 UID。
+- 断开后自动连接：`disconnect:NO` 允许重连；需要停止重连时传 `YES`。
+- 切换账号后读到旧数据：退出账号时使用 `logout`，并在新账号连接前替换 `WKOptions`。
+
+接下来可阅读[消息管理](/zh/sdk/ios/messages)。

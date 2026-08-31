@@ -1,0 +1,74 @@
+---
+title: JavaScript 离线恢复与 UniApp 迁移
+description: 接入离线消息同步，并从已停止维护的 wukongimuniappsdk 迁移到 wukongimjssdk。
+---
+
+JavaScript SDK 不自带持久化消息数据库。页面重载、断线期间的消息和历史翻页，都需要你的业务服务端返回数据。
+
+## 离线恢复
+
+先实现消息同步 Provider：
+
+```typescript
+sdk.config.provider.syncMessagesCallback = async (channel, options) => {
+  const rows = await messageApi.sync({
+    channelID: channel.channelID,
+    channelType: channel.channelType,
+    startMessageSeq: options.startMessageSeq,
+    endMessageSeq: options.endMessageSeq,
+    limit: Math.min(options.limit, 100),
+    pullMode: options.pullMode,
+  })
+  return rows.map(toSDKMessage)
+}
+```
+
+重连成功后，从上次保存的消息序号继续同步，并按 `messageID` 或频道内 `messageSeq` 去重：
+
+```typescript
+const options = new SyncOptions()
+options.startMessageSeq = lastMessageSeq
+options.limit = 50
+options.pullMode = PullMode.Up
+
+const recovered = await sdk.chatManager.syncMessages(channel, options)
+mergeMessages(recovered)
+```
+
+同步失败要保留游标并允许重试，不能先推进游标再丢弃未处理消息。
+
+## 从旧 UniApp SDK 迁移
+
+官方 `wukongimuniappsdk` 已停止维护。新项目不要安装它；现有项目按下面顺序迁移：
+
+```bash
+npm uninstall wukongimuniappsdk
+npm install --save-exact wukongimjssdk@1.3.5
+```
+
+统一从包根导入，不使用 `wukongimjssdk/lib/*`：
+
+```typescript
+import WKSDK, {
+  Channel,
+  ConnectStatus,
+  MessageText,
+} from 'wukongimjssdk'
+```
+
+然后逐项迁移：
+
+1. 设置 `uid`、`token`、WebSocket 地址和设备类型；
+2. 重新配置消息、会话和频道 Provider；
+3. 在连接前注册自定义正文；
+4. 改用 `addConnectStatusListener`、`addMessageListener` 和 `addMessageStatusListener`；
+5. 改用 `chatManager.send(...)`；
+6. 组件卸载时移除相同函数引用。
+
+### UniApp 运行时注意
+
+`1.3.5` 会按全局对象自动选择 `uni.connectSocket`、`wx.connectSocket` 或原生 `WebSocket`。不要手动设置 `config.platform` 来强制选择；当前实现中该值不会同步初始化 socket 工厂，可能造成创建方式和事件 API 不一致。
+
+按目标设置设备类型：原生 App 容器通常是 `0`，H5/Web 是 `1`，桌面端是 `2`。小程序类型应由你的产品协议决定，不要仅凭“它使用 JavaScript”猜测。
+
+App、H5 和每一种小程序都是不同运行时。分别验证 WSS 域名白名单、证书、前后台、网络切换、在线消息、断线恢复和去重；一个目标通过不代表其他目标也通过。

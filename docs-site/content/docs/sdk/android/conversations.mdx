@@ -1,0 +1,65 @@
+---
+title: Android 会话管理
+description: 读取聊天列表、监听变化，并管理每个聊天的未读数。
+---
+
+`WKUIConversationMsg` 是聊天列表中的一项，包含频道、最后一条消息、时间和未读数。
+
+## 异步读取聊天列表
+
+```java
+WKIM.getInstance().getConversationManager().getAll(conversations -> {
+    adapter.submitList(conversations);
+});
+```
+
+`getWkMsg()` 返回最后一条消息，`getWkChannel()` 返回本地频道资料，`lastMsgTimestamp` 和 `unreadCount` 可直接用于列表。
+
+## 监听变化
+
+```java
+ConversationManager manager = WKIM.getInstance().getConversationManager();
+
+manager.addOnRefreshMsgListListener("conversation-list", changedItems -> {
+    mergeByChannel(changedItems);
+});
+
+manager.addOnDeleteMsgListener("conversation-list", (channelID, channelType) -> {
+    removeRow(channelID, channelType);
+});
+```
+
+变化回调只需更新受影响的频道。如果你更看重简单，可以在回调后重新异步读取 `getAll`。
+
+## 未读数与删除
+
+用户打开聊天并确认看到消息后，把该频道未读数设为零：
+
+```java
+manager.updateRedDot("bob", WKChannelType.PERSONAL, 0);
+```
+
+删除一个会话列表项：
+
+```java
+manager.deleteWitchChannel("bob", WKChannelType.PERSONAL);
+```
+
+这个方法名在当前版本中就是 `deleteWitchChannel`。它删除会话项，不等同于清空该频道的全部消息。
+
+## 多设备会话同步
+
+```java
+manager.addOnSyncConversationListener((lastMsgSeqs, msgCount, version, callback) -> {
+    conversationApi.sync(lastMsgSeqs, msgCount, version, callback::onBack);
+});
+```
+
+业务接口返回 `WKSyncChat`，SDK 保存结果后会通知会话列表。Provider 只做数据转换，不直接操作 Activity 或 Fragment。
+
+页面销毁时移除列表和删除监听器：
+
+```java
+manager.removeOnRefreshMsgListListener("conversation-list");
+manager.removeOnDeleteMsgListener("conversation-list");
+```

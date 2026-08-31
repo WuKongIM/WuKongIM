@@ -1,0 +1,75 @@
+---
+title: HarmonyOS media and history
+description: Connect media upload and fetch remote history when the local message database is not enough.
+---
+
+The SDK manages media-message state and transport, but your application still chooses its object storage and history HTTP API. Both integrations use `WKIM.shared.config.provider`.
+
+## Upload media
+
+Install one upload provider during application startup:
+
+```typescript
+WKIM.shared.config.provider.uploadAttachmentCallback = async (
+  message: WKMsg
+): Promise<[boolean, WKMsg]> => {
+  const content = message.messageContent
+  if (!(content instanceof WKImageContent)) {
+    return [false, message]
+  }
+
+  try {
+    content.url = await mediaUploader.upload(content.localPath)
+    message.messageContent = content
+    return [true, message]
+  } catch (_) {
+    return [false, message]
+  }
+}
+```
+
+Create an image payload from a local file:
+
+```typescript
+const image = new WKImageContent('/data/storage/el2/base/files/photo.jpg')
+image.width = 1080
+image.height = 1920
+
+WKIM.shared.messageManager().send(
+  image,
+  new WKChannel('team-1', WKChannelType.group)
+)
+```
+
+Set the downloadable address on `content.url` before returning success. Returning `[false, message]` puts the message into a failed state so the UI can offer retry.
+
+The SDK already registers image payloads. Voice and video models require `registerMsgContent` first, followed by type-specific handling in the same upload provider.
+
+## Fetch remote history
+
+Set the history provider and convert your application API response to `WKSyncChannelMsg`:
+
+```typescript
+WKIM.shared.config.provider.syncMessageCallback = async (
+  channel: WKChannel,
+  options: SyncOptions
+): Promise<WKSyncChannelMsg> => {
+  const response = await messageApi.sync({
+    channelId: channel.channelId,
+    channelType: channel.channelType,
+    startMessageSeq: options.startMessageSeq,
+    endMessageSeq: options.endMessageSeq,
+    limit: options.limit,
+    pullMode: options.pullMode
+  })
+  return toWKSyncChannelMsg(response)
+}
+```
+
+The converted result contains `startMessageSeq`, `endMessageSeq`, `more`, and `msgs`. Each `WKMsg` should preserve the server message ID, sequence, sender, channel, time, and payload JSON.
+
+The chat screen continues to call `getOrSyncHistoryMessages`. The SDK reads local data first, calls this provider when needed, and then stores the returned messages locally.
+
+<Callout type="warn" title="Providers are process-global configuration">
+  Assigning the field again replaces its previous implementation. Set providers in one application-level IM service, and make sure each Promise settles on both success and failure.
+</Callout>

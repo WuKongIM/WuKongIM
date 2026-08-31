@@ -1,0 +1,19 @@
+---
+title: Flutter Advanced
+description: Add custom content, media upload, and remote history after basic messaging works.
+---
+
+Complete the [Quickstart](/en/sdk/flutter/quickstart), then add only the advanced capabilities your product needs. Unused providers do not need configuration.
+
+<Cards>
+  <Card title="Custom Messages" description="Define product content, assign a type number, and register it after setup." href="/en/sdk/flutter/advanced/custom-messages" />
+  <Card title="Media & History" description="Connect attachment upload and remote history filling." href="/en/sdk/flutter/advanced/media-and-history" />
+</Cards>
+
+## Before production
+
+- `1.7.9` uses raw TCP, with no authenticated TLS switch in the public API. Use a controlled network entry or a transport design your security team has approved.
+- `Options.debug` defaults to `true`. Set it to `false` and confirm Release logs do not expose tokens or message bodies.
+- Local sqflite data has no SDK-level at-rest encryption. Combine platform file protection, backup rules, and sign-out cleanup for sensitive data.
+- Several providers are one global slot. Install them through an application-scoped service so pages cannot replace each other.
+- Test poor networks, foreground/background recovery, expired tokens, kicks, offline messages, account switching, and rollback on real devices.

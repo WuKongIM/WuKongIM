@@ -1,0 +1,67 @@
+---
+title: JavaScript / Web 会话管理
+description: 同步并维护内存中的聊天列表、最后消息和未读数。
+---
+
+会话 `Conversation` 是聊天列表中的一项。JavaScript SDK 的会话列表保存在内存中；刷新页面后的恢复数据来自你的业务服务端。
+
+## 接入会话同步
+
+```typescript
+sdk.config.provider.syncConversationsCallback = async (filter) => {
+  const rows = await conversationApi.list(filter)
+  return rows.map(toSDKConversation)
+}
+
+const conversations = await sdk.conversationManager.sync()
+renderConversationList(conversations)
+```
+
+应用映射出的每个 `Conversation` 至少需要 `channel`、`unread`、`timestamp` 和可选的 `lastMessage`。
+
+## 监听列表变化
+
+```typescript
+const onConversation = (
+  conversation: Conversation,
+  action: ConversationAction,
+) => {
+  updateConversationRow(conversation, action)
+}
+
+sdk.conversationManager.addConversationListener(onConversation)
+```
+
+在线收发消息时，管理器会自动新增或更新会话。`ConversationAction` 有 `add`、`update`、`remove`。
+
+## 打开聊天并处理未读数
+
+```typescript
+const channel = new Channel('bob', ChannelTypePerson)
+const conversation = sdk.conversationManager.findConversation(channel)
+
+if (conversation) {
+  sdk.conversationManager.openConversation = conversation
+  conversation.unread = 0
+  sdk.conversationManager.notifyConversationListeners(
+    conversation,
+    ConversationAction.update,
+  )
+}
+```
+
+设置 `openConversation` 后，这个频道的新在线消息不会继续增加内存未读数。离开聊天时设为 `undefined`。如果未读数需要多设备一致，还要调用你的业务 API，并通过会话同步恢复服务端值。
+
+总未读数：
+
+```typescript
+const total = sdk.conversationManager.getAllUnreadCount()
+```
+
+移除列表项只影响当前内存列表：
+
+```typescript
+sdk.conversationManager.removeConversation(channel)
+```
+
+页面销毁时调用 `removeConversationListener(onConversation)`。

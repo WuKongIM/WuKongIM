@@ -1,0 +1,77 @@
+---
+title: iOS 消息管理
+description: 发送、接收、重发和读取本地消息，并理解消息状态。
+---
+
+消息由正文 `WKMessageContent` 和目标 `WKChannel` 组成。`WKChatManager` 负责发送、接收、本地保存和查询。
+
+## 发送单聊或群聊消息
+
+```objc
+WKTextContent *content = [[WKTextContent alloc] initWithContent:@"你好"];
+
+WKChannel *person = [WKChannel personWithChannelID:@"bob"];
+WKMessage *directMessage = [[WKSDK shared].chatManager sendMessage:content
+                                                           channel:person];
+
+WKChannel *group = [WKChannel groupWithChannelID:@"team-1"];
+WKMessage *groupMessage = [[WKSDK shared].chatManager sendMessage:content
+                                                          channel:group];
+```
+
+返回的 `WKMessage` 是本地消息，不代表服务器已经处理完成。用 `clientMsgNo` 将它和后续状态更新关联起来。
+
+## 监听接收与发送状态
+
+```objc
+[[WKSDK shared].chatManager addDelegate:self];
+
+- (void)onRecvMessages:(WKMessage *)message left:(NSInteger)left {
+    // 新消息可能是文本、图片或自定义正文，先判断 message.content 的类型。
+    [self appendMessage:message];
+}
+
+- (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left {
+    [self updateMessage:message.clientMsgNo status:message.status];
+}
+```
+
+常用状态：
+
+| 状态 | 含义 | UI 建议 |
+| --- | --- | --- |
+| `WK_MESSAGE_WAITSEND` | 已保存，等待发送 | 显示发送中 |
+| `WK_MESSAGE_UPLOADING` | 正在上传媒体 | 显示进度 |
+| `WK_MESSAGE_SUCCESS` | 服务器已接受消息 | 显示已发送 |
+| `WK_MESSAGE_FAIL` | 本次发送失败 | 显示重试按钮 |
+
+重发失败消息：
+
+```objc
+[[WKSDK shared].chatManager resendMessage:failedMessage];
+```
+
+## 读取某个聊天的消息
+
+首次打开聊天页时，读取最近 30 条：
+
+```objc
+WKChannel *channel = [WKChannel personWithChannelID:@"bob"];
+[[WKSDK shared].chatManager pullLastMessages:channel
+                                       limit:30
+                                    complete:^(NSArray<WKMessage *> *messages, NSError *error) {
+    if (error == nil) {
+        [self showMessages:messages];
+    }
+}];
+```
+
+继续向更早的消息翻页时，使用 `pullDown:startOrderSeq:limit:complete:`；向更新的方向读取时使用 `pullUp:startOrderSeq:limit:complete:`。
+
+## 清理监听器
+
+```objc
+[[WKSDK shared].chatManager removeDelegate:self];
+```
+
+不要在多个页面重复添加同一个监听器而不移除，否则一条消息可能触发多次 UI 更新。离线或远端历史消息的接入见[媒体与历史消息](/zh/sdk/ios/advanced/media-and-history)。

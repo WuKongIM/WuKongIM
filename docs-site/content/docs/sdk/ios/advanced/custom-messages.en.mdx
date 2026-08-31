@@ -1,0 +1,81 @@
+---
+title: iOS Custom Messages
+description: Define, register, and send product-specific message content.
+---
+
+Content beyond text and images, such as an order card or shared location, can be a `WKMessageContent` subclass. Every client must use the same type number and JSON fields for the same content.
+
+## 1. Define the content
+
+This example uses an order card. `10001` is only an example; maintain a shared registry of type numbers so product messages do not collide.
+
+```objc
+@interface OrderMessageContent : WKMessageContent
+@property (nonatomic, copy) NSString *orderID;
+@property (nonatomic, copy) NSString *title;
+@end
+
+@implementation OrderMessageContent
+
++ (NSNumber *)contentType {
+    return @(10001);
+}
+
+- (NSDictionary *)encodeWithJSON {
+    return @{
+        @"order_id": self.orderID ?: @"",
+        @"title": self.title ?: @""
+    };
+}
+
+- (void)decodeWithJSON:(NSDictionary *)json {
+    self.orderID = [json[@"order_id"] isKindOfClass:[NSString class]]
+        ? json[@"order_id"] : @"";
+    self.title = [json[@"title"] isKindOfClass:[NSString class]]
+        ? json[@"title"] : @"";
+}
+
+- (NSString *)conversationDigest {
+    return [NSString stringWithFormat:@"[Order] %@", self.title];
+}
+
+- (NSString *)searchableWord {
+    return self.title;
+}
+
+@end
+```
+
+Validate types and missing fields while decoding network data. Clients may not all run the same application version.
+
+## 2. Register before reading messages
+
+```objc
+[[WKSDK shared] registerMessageContent:[OrderMessageContent class]];
+```
+
+Register once while configuring the SDK at app startup, before connecting or reading local messages. Unregistered content cannot be restored as your product type.
+
+## 3. Send and render
+
+```objc
+OrderMessageContent *content = [OrderMessageContent new];
+content.orderID = @"order-2026-001";
+content.title = @"Coffee beans";
+
+WKChannel *channel = [WKChannel personWithChannelID:@"bob"];
+[[WKSDK shared].chatManager sendMessage:content channel:channel];
+```
+
+Render known types and show a safe placeholder for unknown content:
+
+```objc
+if ([message.content isKindOfClass:[OrderMessageContent class]]) {
+    OrderMessageContent *order = (OrderMessageContent *)message.content;
+    [self showOrderWithID:order.orderID title:order.title];
+} else {
+    [self showUnsupportedMessage];
+}
+```
+
+Keep schema changes backward compatible: give new fields defaults, do not reuse an old field for a new meaning, and never change a published type number.

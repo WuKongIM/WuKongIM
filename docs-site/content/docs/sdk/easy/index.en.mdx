@@ -34,7 +34,7 @@ WuKongEasySDK is for applications that need realtime communication while keeping
 | Send results and realtime receive | Offline sync, conversations, unread counts, push, and multi-device policy |
 | Bounded automatic reconnect behavior | TLS/WSS, rate limits, capacity, observability, upgrade, and rollback evidence |
 
-EasySDK is neither a chat UI nor a complete product backend. A successful `send` result means the server returned a result for that send. It still does not prove that the peer received, displayed, or processed the message. Continue with [Messaging](/en/sdk/common-guides/messaging) and model send acknowledgement, realtime receipt, and product completion separately.
+EasySDK is neither a chat UI nor a complete product backend. A successful `send` result means the server returned a result for that send. It still does not prove that the peer received, displayed, or processed the message. Continue with [Messaging](/en/guide/integration/messaging) and model send acknowledgement, realtime receipt, and product completion separately.
 
 ## One flow, different lifecycle owners
 
@@ -92,7 +92,7 @@ A client must not grant its own identity. The user first signs in to your produc
 - `websocketUrl` comes from deployment configuration or from a safe backend selection after calling `/route`.
 - Production uses `wss://`, and its reverse proxy supports WebSocket Upgrade correctly.
 
-Complete [Identity & Token](/en/sdk/common-guides/identity-and-token) first. In the default v3 Beta composition, storing data through `/user/token` does not automatically provide production-grade CONNECT validation. A deployment must wire a trusted verifier and prove rejection of invalid, expired, and revoked tokens.
+Complete [Identity & Token](/en/guide/integration/authentication) first. In the default v3 Beta composition, storing data through `/user/token` does not automatically provide production-grade CONNECT validation. A deployment must wire a trusted verifier and prove rejection of invalid, expired, and revoked tokens.
 
 <Callout type="info" title="Device categories are aligned; application code should still use enums">
   All four pinned versions use the same wire values as the [Device Flag dictionary](/en/api/dictionaries/device-flags): APP `0`, WEB `1`, and PC `2`. Mobile clients use `.app` / `APP`, while the browser defaults to WEB; do not copy integers into product code. The server normalizes each JSON-RPC field and payload shape at the protocol boundary; applications must still apply the lifecycle and logging safeguards in each platform tutorial.
@@ -114,4 +114,4 @@ This loop proves only connection and online messaging in the tested environment.
 
 ## Next
 
-Choose a platform above and send the first message, run that page's Alice/Bob acceptance, and continue with [Messaging](/en/sdk/common-guides/messaging), [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors), and [Integration Acceptance](/en/guide/integration/acceptance). If you need a local message store, conversations, unread counts, and a broader platform API, return to [Choose an SDK](/en/sdk/choose-sdk) and evaluate the WuKongIMSDK family.
+Choose a platform above and send the first message, run that page's Alice/Bob checks, and continue with [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance). If you need a local message store, conversations, unread counts, and a broader platform API, return to [Choose an SDK](/en/sdk) and evaluate the WuKongIMSDK family.

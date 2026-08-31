@@ -1,89 +1,34 @@
 ---
-title: Flutter SDK
-description: 从 wukongimfluttersdk 1.7.9 的精确 pub.dev 归档与匹配源码开始，理解接入路径、状态门禁和生产边界。
+title: Flutter
+description: 用 Dart 接入 wukongimfluttersdk，管理连接、消息、会话和频道资料。
 ---
 
-`wukongimfluttersdk` 是带本地消息、会话、频道和提醒数据的完整 Flutter SDK。它通过进程单例 `WKIM.shared` 暴露各个 manager，应用提供身份、TCP 路由和同步数据源，SDK 负责协议连接、本地 sqflite 数据与事件分发。
+`wukongimfluttersdk` 是悟空 IM 的完整 Flutter SDK。它负责长连接、消息收发、sqflite 本地数据、会话列表和频道资料，适合需要自行构建聊天界面的 Flutter 应用。
 
-<Callout type="warn" title="本页不是设备运行证明">
-  本教程固定 `1.7.9`，校对了 pub.dev 归档、匹配源码和公开 Dart API；临时消费端还通过 Flutter `3.41.4` / Dart `3.11.1` 的静态分析与 macOS Release 构建。但本站没有完成 Android、iOS 或 macOS 的 Alice/Bob 运行闭环，因此没有 Flutter 运行 receipt。用户侧“已验证”只有在提交并评审精确工具链、设备、服务端和脱敏结果后，才能形成单独 receipt。
+本文档对应 `wukongimfluttersdk 1.7.9`，示例统一使用 Dart。该包依赖 `dart:io` 和 sqflite，不适用于 Flutter Web。
+
+## 开始前
+
+你需要准备：
+
+- 一个可访问的 WuKongIM 服务；
+- 两个测试用户，例如 `alice` 和 `bob`；
+- 由业务服务端返回的 `uid`、`token` 和 `host:port`；
+- 一个已完成 Android 或 iOS 原生配置的 Flutter 工程。
+
+<Callout type="info" title="Token 从哪里来？">
+  Token 应由你的业务服务端生成并返回给已登录用户。不要在 App 中保存悟空 IM 的管理密钥，也不要让 App 调用管理接口创建 Token。
 </Callout>
 
-## 它在应用里负责什么
+## 推荐阅读顺序
 
-| 模块 | 应用看到的职责 | 应用仍要提供 |
-| --- | --- | --- |
-| `connectionManager` | 建连、心跳、状态和协议包 | 受信身份、DNS/IPv4 `host:port`、失败策略 |
-| `messageManager` | 本地入库、文本/媒体发送、SENDACK 刷新、新消息 | 附件上传、UI、业务结果和幂等 |
-| `conversationManager` | 最近会话、未读和同步入口 | 受信后端的完整 `WKSyncConversation` 映射 |
-| `channelManager` / `channelMemberManager` | 频道与成员缓存 | 用户、群组和成员资料源 |
-| `cmdManager` / `reminderManager` | 命令与提醒数据 | 产品命令处理和远端同步接口 |
+<Cards>
+  <Card title="快速开始" description="安装 SDK，连接用户并发送第一条在线文本消息。" href="/zh/sdk/flutter/quickstart" />
+  <Card title="连接管理" description="理解初始化、同步状态、断开和退出。" href="/zh/sdk/flutter/connection" />
+  <Card title="消息管理" description="发送、接收、查询和更新消息状态。" href="/zh/sdk/flutter/messages" />
+  <Card title="会话管理" description="展示聊天列表并维护未读数。" href="/zh/sdk/flutter/conversations" />
+  <Card title="频道管理" description="加载用户、群和群成员资料。" href="/zh/sdk/flutter/channels" />
+  <Card title="高级功能" description="接入自定义消息、媒体上传和历史消息。" href="/zh/sdk/flutter/advanced" />
+</Cards>
 
-第一条消息只需要连接、会话同步和消息 manager。离线历史、频道资料、媒体、推送、多设备和后台行为不属于快速接入的证明范围。
-
-## 精确快照
-
-| 项目 | 本教程固定值 |
-| --- | --- |
-| pub.dev package | `wukongimfluttersdk 1.7.9` |
-| 归档 SHA-256 | `b6191a86cd1e4caacaa4652e95709310eb1493f159fee65e1dd53c2a3ff9e80a` |
-| 匹配源码 revision | `de1024276523119e38305c49a3a873caae4d5c59` |
-| Dart 声明范围 | `>=2.17.0 <4.0.0` |
-| 本站消费端检查 | Flutter `3.41.4`、Dart `3.11.1`、macOS `15.1` arm64；analyze 与 macOS Release build 通过 |
-
-仓库没有 `1.7.9` tag，pub.dev uploader 也不是 verified publisher。源码 revision 用来复核实现，应用真正消费的身份则由 `pubspec.lock` 中的版本和内容哈希决定。
-
-## 第一次连接的真实门禁
-
-先 `await WKIM.shared.setup(...)`，再注册 listener 并调用 `connect()`。`connect()` 内部会先执行一次 `disconnect(false)`，所以初次连接会看到：
-
-```text
-fail(null) → connecting → success → syncMsg → syncCompleted
-```
-
-- `fail(null)` 是这版实现主动产生的预清理状态，不是 CONNACK 拒绝；
-- `success` 只表示 CONNACK 成功，随后才开始最近会话同步；
-- `syncMsg` 期间不要开放发送；
-- provider 返回并触发 `syncCompleted` 后，快速接入才进入 ready；
-- Flutter 版在 `syncCompleted` 后**没有第二个 `success`**。
-
-没有安装 `addOnSyncConversationListener` 时会停在 `syncMsg`。真实账号必须从受信后端映射会话、最近消息、命令和版本；空 `WKSyncConversation` 只允许全新测试账号做在线闭环。
-
-## 发送结果不是一个事件
-
-`1.7.9` 的 `sendMessage(...)` 没有等待内部异步 `sendWithOption(...)`。教程直接调用并 `await sendWithOption(...)`，然后分别观察：
-
-1. `addOnMsgInsertedListener`：持久消息已写入本地，获得 `clientMsgNO` / `clientSeq`；
-2. `addOnRefreshMsgListener`：同一消息被 SENDACK 更新；只有 `WKSendMsgResult.sendSuccess` 是成功；
-3. `addOnNewMsgListener`：Bob 在线收到消息，不代表离线恢复或推送成功。
-
-入库与同步 provider 都是无 key 的单例回调且没有 remove API，必须由应用级 dispatcher 安装一次；连接、刷新和新消息 listener 有 key，结束时要用同一个 key 移除。
-
-## 当前证据与已知债务
-
-包自身在当前工具链下有 93 条 analyze warning/info；`flutter test` 的 `cust data` 用例还会在协议切包/解码路径的 `ReadData.readString` 抛出 `RangeError`。这不阻止本站对公开 API 做编译校对，却阻止把它描述成完整测试通过。
-
-源代码还存在这些上线边界：
-
-- `Socket.connect` 使用原始 **TCP**，没有 `SecureSocket` 或认证 TLS；
-- `Options.debug` 默认是 `true`，解密后会记录包含明文 **Payload** 的 `RecvPacket.toString()`；
-- 消息、会话等写入按 UID 命名的普通 **sqflite** 数据库，没有 SDK 层静态加密；
-- **SharedPreferences** 保存 UID 关联的设备 ID 和数据库迁移版本；
-- `disconnect(true)` 不清空内存 `_sendingMsgMap`，未终止发送可能跨退出继续存活；
-- `ConnectPacket.toString()` 包含 UID 和 Token，业务日志不能输出它；
-- 自动重连 Future 没有公开取消句柄或连接代次，安全失败后需要**进程重启**。
-
-WKProto Payload 加密不能替代 TLS。生产采用还需要 SDK 侧关闭传输、日志、本地存储、解析器、重连代次和账号队列隔离问题，并分别验证离线、推送、后台与多设备。
-
-## 从哪里开始
-
-1. 在[安装与配置](/zh/sdk/flutter/installation)固定 package、归档哈希、lockfile 与平台配置；
-2. 在[快速接入](/zh/sdk/flutter/quickstart)用两个独立进程跑 Alice/Bob 在线消息；
-3. 用[平台专属能力](/zh/sdk/flutter/platform-capabilities)区分已按源码校对的 Dart 能力、宿主平台责任和仍需运行验证的范围；
-4. 按 [API Reference](/zh/sdk/flutter/api-reference)查找 `1.7.9` 的单例、Provider、listener、消息模型与错误状态；
-5. 改变固定版本前执行[升级指南](/zh/sdk/flutter/upgrade)，保留 pubspec、锁文件、逐平台场景和回滚证据；
-6. 再按[公共指南](/zh/sdk/common-guides)补身份、离线、会话、推送、多设备和异常恢复。
-
-平台能力、API 与升级资料已经按固定 `1.7.9` 归档和匹配源码发布；这些页面不会把静态分析或 macOS Release build 扩展成 Android、iOS 或 macOS 运行 receipt。
-
-如果目标是浏览器，请使用 [JavaScript/Web SDK](/zh/sdk/javascript)；当前 Flutter 包导入 `dart:io` 并依赖 sqflite，不能从一次 Web 编译推断可运行支持。
+不熟悉“频道”“会话”这些词时，先读[核心概念](/zh/sdk/wukongim/concepts)。只想查方法名时，打开 [API 参考](/zh/sdk/flutter/api-reference)。

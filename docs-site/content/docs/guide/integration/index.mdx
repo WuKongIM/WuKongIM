@@ -17,10 +17,10 @@ WuKongIM 负责实时连接、频道消息、持久化、集群路由和在线�
   <Card title="消息收发" description="理解客户端和服务端消息路径、确认与恢复边界。" href="/zh/guide/integration/messaging" />
   <Card title="Webhook" description="安全、幂等地消费消息和在线状态事件。" href="/zh/guide/integration/webhooks" />
   <Card title="插件扩展" description="评估节点内 Hook、生命周期、UID 绑定与安全边界。" href="/zh/guide/integration/plugins" />
-  <Card title="上线验收" description="分开执行兼容性 Smoke 与生产身份、网络、容量和回滚门禁。" href="/zh/guide/integration/acceptance" />
+  <Card title="上线检查" description="发布前检查身份、连接、消息、恢复、安全、容量和回滚。" href="/zh/guide/integration/acceptance" />
 </Cards>
 
-客户端落地时，继续使用 [SDK 公共指南](/zh/sdk/common-guides)把上述责任边界转换为身份、连接、消息、会话、离线与多设备状态机；它只定义跨 SDK 行为，不虚构平台方法。
+选择平台 API 前，先通过 [WuKongIMSDK 核心概念](/zh/sdk/wukongim/concepts)理解共同词汇，再进入 [WuKongIMSDK](/zh/sdk/wukongim) 选择平台并按任务顺序接入。
 
 ## 最小业务闭环
 
@@ -44,4 +44,4 @@ WuKongIM 负责实时连接、频道消息、持久化、集群路由和在线�
 
 优先用稳定的服务端接口与 Webhook 建立边界清晰的集成；只有确实需要节点附近的同步或提交后 Hook 时，再引入[插件扩展](/zh/guide/integration/plugins)。
 
-实现完成后，按[上线验收](/zh/guide/integration/acceptance)生成可复现的兼容性报告，并为默认样例无法证明的生产门禁逐项补齐证据。
+实现完成后，用真实客户端、服务端配置、网络环境和回滚方案执行[上线检查](/zh/guide/integration/acceptance)。

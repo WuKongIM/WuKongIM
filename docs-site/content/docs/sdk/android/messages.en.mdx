@@ -1,0 +1,90 @@
+---
+title: Android Messages
+description: Send, receive, retry, and query messages while separating local insertion from the server result.
+---
+
+A message combines `WKMessageContent` with a destination `WKChannel`. `MsgManager` handles local storage, sending, receiving, and queries.
+
+## Send to a direct or group chat
+
+```java
+WKTextContent text = new WKTextContent("Hello");
+
+WKChannel person = new WKChannel("bob", WKChannelType.PERSONAL);
+WKIM.getInstance().getMsgManager().send(text, person);
+
+WKChannel group = new WKChannel("team-1", WKChannelType.GROUP);
+WKIM.getInstance().getMsgManager().send(text, group);
+```
+
+`send` has no return value. Observe local insertion when you need the `WKMsg` immediately:
+
+```java
+msgManager.addOnSendMsgCallback("chat", message -> {
+    addPendingMessage(message.clientMsgNO, message);
+});
+```
+
+## Observe incoming messages and send results separately
+
+```java
+msgManager.addOnNewMsgListener("chat", messages -> {
+    for (WKMsg message : messages) {
+        appendIncomingMessage(message);
+    }
+});
+
+msgManager.addOnSendMsgAckListener("chat", message -> {
+    updateSendState(message.clientMsgNO, message.status);
+});
+```
+
+Common send states:
+
+| State | Meaning | Suggested UI |
+| --- | --- | --- |
+| `WKSendMsgResult.send_loading` | Created and sending | Sending |
+| `WKSendMsgResult.send_success` | Accepted by the server | Sent |
+| `WKSendMsgResult.send_fail` | This send attempt failed | Retry action |
+| `no_relation` / `black_list` / `not_on_white_list` | Product relationship rejects sending | Explain the reason |
+
+Retry an existing message with:
+
+```java
+msgManager.sendMessage(failedMessage);
+```
+
+## Read local or remote history
+
+When opening a chat for the first time:
+
+```java
+msgManager.getOrSyncHistoryMessages(
+    "bob",
+    WKChannelType.PERSONAL,
+    0,
+    false,
+    0,      // 0 reads toward older messages
+    30,
+    0,
+    new IGetOrSyncHistoryMsgBack() {
+        @Override public void onSyncing() {
+            showLoading();
+        }
+
+        @Override public void onResult(List<WKMsg> messages) {
+            showMessages(messages);
+        }
+    }
+);
+```
+
+When local data is incomplete, this method invokes the channel-history source you configured. See [Media & History](/en/sdk/android/advanced/media-and-history).
+
+Remove every key used by the screen:
+
+```java
+msgManager.removeSendMsgCallBack("chat");
+msgManager.removeNewMsgListener("chat");
+msgManager.removeSendMsgAckListener("chat");
+```

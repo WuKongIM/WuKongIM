@@ -1,0 +1,83 @@
+---
+title: HarmonyOS connection
+description: Initialize identity and routing, understand the ready state, and disconnect or log out correctly.
+---
+
+The HarmonyOS SDK manages its persistent connection through `WKIM.shared.connectionManager()`. Initialization configures identity and the local database; `connection()` starts the network connection.
+
+## Fixed address
+
+When login returns the gateway directly, pass it to `init`:
+
+```typescript
+await WKIM.shared.init(
+  bootstrap.uid,
+  bootstrap.token,
+  `${bootstrap.host}:${bootstrap.port}`,
+  appContext
+)
+```
+
+Address parsing splits on a colon. Supply a plain DNS or IPv4 `host:port`, not a URI or IPv6 literal.
+
+## Dynamic address
+
+To route before each connection, omit `address` and set the provider instead:
+
+```typescript
+await WKIM.shared.init(uid, token, undefined, appContext)
+
+WKIM.shared.config.provider.connectAddrCallback = async (): Promise<string> => {
+  const route = await gatewayApi.getRoute()
+  return `${route.host}:${route.port}`
+}
+```
+
+Throw when routing fails so the SDK enters `fail`; do not return an empty string.
+
+## Connection states
+
+```typescript
+const connectionListener = (status: number, reasonCode?: number) => {
+  if (status === WKConnectStatus.connecting) {
+    showConnecting()
+  } else if (status === WKConnectStatus.success) {
+    showRestoringConversations()
+  } else if (status === WKConnectStatus.syncing) {
+    showRestoringConversations()
+  } else if (status === WKConnectStatus.syncCompleted) {
+    enableChat()
+  } else if (status === WKConnectStatus.noNetwork) {
+    showOffline()
+  } else if (status === WKConnectStatus.kicked) {
+    requireLoginAgain()
+  } else if (status === WKConnectStatus.fail) {
+    showConnectionError(reasonCode)
+  }
+}
+
+WKIM.shared.connectionManager().addConnectStatusListener(connectionListener)
+WKIM.shared.connectionManager().connection()
+```
+
+The normal order is `connecting → success → syncing → syncCompleted`. `success` means the connection and identity check succeeded. `syncCompleted` means the recent-conversation step has finished.
+
+Always set `syncConversationCallback` before connecting. Without it, the state may still reach `syncCompleted`, but offline conversation data will not be restored.
+
+## Disconnect and log out
+
+```typescript
+// Disconnect temporarily while retaining identity and the local database
+WKIM.shared.connectionManager().disConnection(false)
+
+// Log out, clear identity, and close the local database
+WKIM.shared.connectionManager().disConnection(true)
+```
+
+Pass the same function when removing a listener:
+
+```typescript
+WKIM.shared.connectionManager().removeConnectStatusListener(connectionListener)
+```
+
+`WKIM.shared` and its managers are process singletons. Keep initialization, providers, and global listeners in one application-level IM service; screens should subscribe to that service.

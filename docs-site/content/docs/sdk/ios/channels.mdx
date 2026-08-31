@@ -1,0 +1,72 @@
+---
+title: iOS 频道管理
+description: 为单聊和群聊加载名称、头像、设置与成员资料。
+---
+
+频道 `WKChannel` 表示“消息要发给谁”。单聊频道的 ID 是对方 UID，群聊频道的 ID 是你的业务群 ID。`WKChannelInfo` 则保存名称、头像和设置等展示资料。
+
+## 创建频道
+
+```objc
+WKChannel *person = [WKChannel personWithChannelID:@"bob"];
+WKChannel *group = [WKChannel groupWithChannelID:@"team-1"];
+```
+
+同一个 `channelId` 在不同 `channelType` 下不是同一个聊天，因此缓存和列表都要使用完整的 `WKChannel` 作为身份。
+
+## 读取本地资料并按需刷新
+
+```objc
+WKChannelInfo *cached =
+    [[WKSDK shared].channelManager getChannelInfo:person];
+
+[[WKSDK shared].channelManager fetchChannelInfo:person
+                                      completion:^(WKChannelInfo *info) {
+    self.titleLabel.text = info.displayName;
+}];
+```
+
+`getChannelInfo:` 只读本地数据，可能返回 `nil`。`fetchChannelInfo:completion:` 会触发资料获取；真正的数据来源由应用提供。
+
+## 接入你的用户和群资料 API
+
+```objc
+[WKSDK shared].channelInfoUpdate = ^WKTaskOperator *(WKChannel *channel,
+                                                     WKChannelInfoCallback callback) {
+    return [profileAPI fetchChannel:channel completion:^(WKChannelInfo *info,
+                                                         NSError *error) {
+        if (info != nil) {
+            [[WKSDK shared].channelManager addOrUpdateChannelInfo:info];
+        }
+        callback(error, NO);
+    }];
+};
+```
+
+Provider 应根据 `channel.channelType` 区分用户接口和群接口，并且无论成功或失败都调用 `callback`。它返回的任务对象用于取消；你的网络层若不支持取消，可以返回 `nil`。
+
+## 监听资料变化
+
+```objc
+[[WKSDK shared].channelManager addDelegate:self];
+
+- (void)channelInfoUpdate:(WKChannelInfo *)channelInfo
+           oldChannelInfo:(WKChannelInfo *)oldChannelInfo {
+    [self updateTitle:channelInfo.displayName avatar:channelInfo.logo];
+}
+```
+
+群成员来自同一个管理器：
+
+```objc
+NSArray<WKChannelMember *> *members =
+    [[WKSDK shared].channelManager getMembersWithChannel:group limit:50];
+```
+
+SDK 只管理本地成员数据；成员列表如何从业务服务端获取、分页和更新，需要你的应用实现并通过 `addOrUpdateMembers:` 写入。
+
+## 常见问题
+
+- 会话只有 ID，没有名称：为 `channelInfoUpdate` 配置数据源，然后调用 `fetchChannelInfo:`。
+- 头像一直不更新：确认新 `WKChannelInfo.version` 大于本地版本，或明确使用不比较版本的 `addOrUpdateChannelInfo:`。
+- 大群页面卡顿：成员要分页加载，不要一次把全部成员读取到 UI。

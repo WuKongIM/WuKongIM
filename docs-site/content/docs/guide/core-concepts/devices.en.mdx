@@ -53,7 +53,7 @@ When one device clears unread state, another device may observe the new value du
 5. On logout or device removal, the product revokes credentials, closes connections, and removes push bindings.
 
 <Callout type="warn" title="A trusted backend controls multi-device policy">
-  A client cannot promote its own Device Level. The current v3 Beta default Gateway also does not automatically turn stored token and Device Level metadata into a complete verification chain. Implement and test the policy through [Multi-device Sync](/en/sdk/common-guides/multi-device).
+  A client cannot promote its own Device Level. The current v3 Beta default Gateway also does not automatically turn stored token and Device Level metadata into a complete verification chain. Include this policy in your [release checks](/en/guide/integration/acceptance).
 </Callout>
 
-Continue with [Conversation](/en/guide/core-concepts/conversations) and [Multi-device Sync](/en/sdk/common-guides/multi-device).
+Continue with [Conversation](/en/guide/core-concepts/conversations) and [Authentication & Security](/en/guide/integration/authentication).

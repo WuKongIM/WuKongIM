@@ -1,0 +1,87 @@
+---
+title: HarmonyOS channels and metadata
+description: Understand channel identity and connect user, group, and group-member metadata.
+---
+
+A channel answers “who should receive this message?” Always use `channelId` together with `channelType`. A personal channel ID is normally the other user's UID; a group channel ID is the group ID.
+
+```typescript
+const personal = new WKChannel('bob', WKChannelType.personal)
+const group = new WKChannel('team-1', WKChannelType.group)
+```
+
+Constructing `WKChannel` does not create a user or group, and it does not bypass server authorization.
+
+## Supply user and group metadata
+
+Install the metadata provider during application initialization:
+
+```typescript
+WKIM.shared.config.provider.channelInfoCallback = async (
+  channelId: string,
+  channelType: number
+): Promise<WKChannel | undefined> => {
+  const profile = await channelApi.get(channelId, channelType)
+  if (profile === undefined) return undefined
+
+  const channel = new WKChannel(channelId, channelType)
+  channel.channelName = profile.name
+  channel.channelRemark = profile.remark ?? ''
+  channel.avatar = profile.avatar ?? ''
+  return channel
+}
+```
+
+Read the local cache first, then request metadata when it is absent or stale:
+
+```typescript
+const manager = WKIM.shared.channelManager()
+const local = manager.getChannel('team-1', WKChannelType.group)
+
+if (local === undefined) {
+  manager.fetchChannelInfo('team-1', WKChannelType.group)
+}
+```
+
+Observe refreshes:
+
+```typescript
+const refreshListener = (channel: WKChannel) => {
+  updateTitleAndAvatar(channel)
+}
+
+manager.addRefreshListener(refreshListener)
+// When the screen is disposed
+manager.removeRefreshListener(refreshListener)
+```
+
+## Group members
+
+`channelMemberManager()` owns member metadata. Its incremental provider receives the current maximum version:
+
+```typescript
+WKIM.shared.config.provider.channelMemberCallback = async (
+  channelId: string,
+  channelType: number,
+  maxVersion: number
+): Promise<WKChannelMember[]> => {
+  return memberApi.sync(channelId, channelType, maxVersion)
+}
+
+WKIM.shared.channelMemberManager().sync(
+  'team-1',
+  WKChannelType.group
+)
+```
+
+Read one member:
+
+```typescript
+const member = WKIM.shared.channelMemberManager().getMember(
+  'team-1',
+  WKChannelType.group,
+  'alice'
+)
+```
+
+Do not return every member of a large group in one response. Use `channelMemberWithPageCallback` with `getWithPageOrSearch` for server-side pagination or search, and keep page sizes bounded.

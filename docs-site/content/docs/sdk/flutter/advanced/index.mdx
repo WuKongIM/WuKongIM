@@ -1,0 +1,19 @@
+---
+title: Flutter 高级功能
+description: 在基础收发完成后接入自定义正文、媒体上传和远端历史消息。
+---
+
+先完成[快速开始](/zh/sdk/flutter/quickstart)，再按产品需要选择高级能力。没有用到的 Provider 不需要配置。
+
+<Cards>
+  <Card title="自定义消息" description="定义业务正文、分配类型编号，并在 setup 后注册。" href="/zh/sdk/flutter/advanced/custom-messages" />
+  <Card title="媒体与历史消息" description="接入附件上传和远端历史消息补齐。" href="/zh/sdk/flutter/advanced/media-and-history" />
+</Cards>
+
+## 上线前注意
+
+- `1.7.9` 使用原始 TCP，公开 API 没有认证 TLS 开关。请使用受控网络入口，或采用经过安全评审的传输方案。
+- `Options.debug` 默认是 `true`。显式设为 `false`，并检查 Release 日志不会输出 Token 或消息正文。
+- 本地 sqflite 数据没有 SDK 层静态加密。结合平台文件保护、备份和退出账号清理设计敏感数据保护。
+- Provider 中有单一全局槽位。集中在应用级服务中安装，避免页面之间互相覆盖。
+- 在真机覆盖弱网、前后台恢复、Token 失效、被踢、离线消息、账号切换和版本回滚。

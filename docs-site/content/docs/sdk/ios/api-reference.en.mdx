@@ -1,249 +1,84 @@
 ---
 title: iOS API Reference
-description: A source-locked quick reference for WuKongIMSDK 1.1.1 WKSDK entry points, options, managers, delegates, message models, send statuses, and providers.
+description: Find common WuKongIMSDK entry points, callbacks, models, and states by manager.
 ---
 
-This reference is pinned to iOS SDK tag `1.1.1`, source revision `89bf9a1b95ce374caabdd8031d69cc8844d825ae`, and framework revision `0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c`. Examples use Objective-C selectors exported by the distributed public headers; they do not invent a Swift wrapper.
+This is a lookup page for common entry points, not a replacement for the task guides. Access every manager from `[WKSDK shared]`.
 
-<Callout type="warn" title="Usage boundary">
-  This is source/public-header alignment, **not runtime verification** or a production-security endorsement. `compatibility.json` still covers only JavaScript/Web; it proves no Xcode build, device message loop, or iOS API below.
-</Callout>
+## SDK and configuration
 
-The [legacy iOS SDK introduction](https://docs.githubim.com/zh/sdk/wukongim/ios/intro) is used only for learning order and manager-topic coverage. Names, parameters, delegates, and enums below come from pinned source.
-
-## Authoritative public headers
-
-| Scope | Pinned source |
+| API | Purpose |
 | --- | --- |
-| Singleton and managers | [`WKSDK.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKSDK.h) |
-| Options and connection identity | [`WKOptions.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKOptions.h), [`WKConnectInfo.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/model/WKConnectInfo.h) |
-| Connection lifecycle | [`WKConnectionManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConnectionManager.h) |
-| Messages and events | [`WKChatManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChatManager.h) |
-| Models and statuses | [`WKMessage.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/model/WKMessage.h), [`WKConst.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/WKConst.h) |
+| `[WKSDK shared]` | SDK singleton |
+| `options` | Endpoint, identity, debug, and synchronization settings |
+| `registerMessageContent:` | Register custom message content |
+| `sdkVersion` | Version running in the app |
 
-The distributed framework's [`Headers` directory](https://github.com/WuKongIM/WuKongIMiOSSDK-Framework/tree/0cbfb99f18010fe76b7e13ed31b5d1ad4664b10c/ios/WuKongIMSDK.framework/Headers) is the artifact surface consumers see, but its umbrella exposes application APIs alongside implementation headers. This reference separates them by intended stability:
+## `WKConnectionManager`
 
-| Tier | Scope | Usage rule |
-| --- | --- | --- |
-| Recommended **app-facing** | `WKSDK.h`, options, managers, models, message content, protocols, providers/delegates | Start application calls here while continuing to pin the Pod, revisions, and public selectors |
-| **public-but-not-recommended** | `WKDB.h`, `WKFMDatabaseQueue.h`, `WKMessageQueueManager.h`, `WKChatManagerInner.h`, `WKConversationManagerInner.h`, request queues, caches, and crypto/util headers | The umbrella makes them visible, but they are database, queue, or implementation helpers; do not treat direct imports as a stable cross-version contract |
-| Excluded | Framework `PrivateHeaders` | `PrivateHeaders` are excluded from the public reference; linkability does not establish a support promise |
-
-Public visibility is not a recommendation. If an existing application imports a public-but-not-recommended header directly, inventory every call as implementation coupling before an upgrade. This page does not invent a compatibility wrapper for those classes.
-
-Install through `pod 'WuKongIMSDK', '1.1.1'` and attest with `Podfile.lock`. The stale `1.0.0` returned by `WKSDK.sdkVersion` does not attest the package version.
-
-## `[WKSDK shared]` and `WKOptions`
-
-`[WKSDK shared]` is the single entry point. Before connecting, build `WKOptions`, attach `WKConnectInfo` and route data, then assign `WKSDK.shared.options`.
-
-### Core options
-
-| Property/API | Meaning | Boundary |
-| --- | --- | --- |
-| `host` / `port` | Gateway TCP address | Must come from a trusted product backend/routing policy |
-| `connectInfo` | Current `WKConnectInfo` | Contains `uid`, `token`, `name`, and `avatar` |
-| `connectInfoCallback` | Supplies identity at connect time | Return current minimum connection identity on every call |
-| `hasLogin` | Tests whether login material exists | Does not mean the connection succeeded |
-| `isDebug` | Debug logging flag | Set `NO` for production; does not disable every RECV log |
-| `heartbeatInterval` | Heartbeat seconds | Re-accept networking and power behavior after changes |
-| `dbDir` / `dbPrefix` | Database directory/prefix | Affects UID data isolation and migration |
-| `messageFileRootDir` | Message-file root | Pair with file protection, backup, and erasure policy |
-| `messageRetryInterval` / `messageRetryCount` | Send retry configuration | Does not replace an application terminal timeout |
-| `offlineMessageLimit` | Offline pull batch size | Requires a provider and capacity acceptance |
-| `syncChannelMessageLimit` | Channel sync batch size | Still capacity-test 100,000-member group scenarios |
-| `receiptFlushInterval` | Read-receipt flush interval | Must align with the server provider |
-| `protoVersion` / `proto` | Protocol selection | Default is `WK_PROTO_WK`; do not guess values |
-
-Other public options include `imageMaxBytes`, extension/reminder retry settings, `traceDBLog`, expiry checks, and send batching. Header presence is not proof that arbitrary values are safe.
-
-## Manager directory
-
-| `[WKSDK shared]` property | Type | Primary responsibility |
-| --- | --- | --- |
-| `connectionManager` | `WKConnectionManager` | Connect, disconnect, logout, status, kick |
-| `chatManager` | `WKChatManager` | Send, receive, query, sync, message events |
-| `channelManager` | `WKChannelManager` | Channel/member cache and provider |
-| `conversationManager` | `WKConversationManager` | Recent conversations, unread state, sync/provider |
-| `mediaManager` | `WKMediaManager` | Upload, download, audio playback, cache |
-| `receiptManager` | `WKReceiptManager` | Read-receipt queue/provider |
-| `reactionManager` | `WKReactionManager` | Message reactions and provider sync |
-| `robotManager` | `WKRobotManager` | Robot data synchronization |
-| `pinnedMessageManager` | `WKPinnedMessageManager` | Local pinned-message state/events |
-| `reminderManager` | `WKReminderManager` | Reminder sync, done, delegates |
-| `cmdManager` | `WKCMDManager` | CMD events and public key |
-| `flameManager` | `WKFlameManager` | Local burn-after-reading processing |
-
-SDK managers are not Product HTTP management clients. Product providers supply channel, conversation, upload, and other server facts; the iOS client must never contain Product HTTP management credentials.
-
-### Channel and member surface
-
-`WKChannelManager` owns both channel information and local member data. These selectors come from pinned [`WKChannelManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKChannelManager.h):
-
-| Selector | Purpose and boundary |
+| API | Purpose |
 | --- | --- |
-| `fetchChannelInfo:completion:` / `fetchChannelInfo:` | Fetch through the application's configured provider; a task or asynchronous notification is not a direct Product HTTP call |
-| `getChannelInfo:` / `getChannelInfoOfUser:` | Read current local channel information |
-| `addOrUpdateChannelInfo:` / `addOrUpdateChannelInfos:` / `deleteChannelInfo:` | Maintain local information and cache; these do not mutate a server channel |
-| `getMembersWithChannel:` / `getMembersWithChannel:limit:` | Read local members; `limit` alone is not a complete pagination contract for a 100,000-member group |
-| `getMember:uid:` / `getMemberCount:` / `isManager:memberUID:` | Query a local member, count, or role snapshot |
-| `addOrUpdateMembers:` / `deleteMembers:` | Update or clear local member data; server authorization and synchronization remain provider-owned |
-| `addDelegate:` / `removeDelegate:` | Observe channel-information changes; pass the same delegate instance during teardown |
+| `connect` | Start a connection attempt |
+| `disconnect:` | Disconnect; pass `YES` to stop automatic reconnection |
+| `logout` | Sign out and clear login information |
+| `addDelegate:` / `removeDelegate:` | Manage connection observers |
+| `getConnectAddr` | Supply a dynamic `host:port` |
+| `connectStatus` | Current `WKConnectStatus` |
 
-### Conversation surface
+Callbacks: `onConnectStatus:reasonCode:` and `onKick:reason:`.
 
-Pinned [`WKConversationManager.h`](https://github.com/WuKongIM/WuKongIMiOSSDK/blob/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager/WKConversationManager.h) exposes:
+## `WKChatManager`
 
-| Selector | Purpose and boundary |
+| API | Purpose |
 | --- | --- |
-| `getConversationList` / `getConversation:` / `getConversations:` | Read local recent conversations; a return does not prove server synchronization completed |
-| `addConversation:` / `deleteConversation:` / `recoveryConversation:` | Add, delete, or recover local conversation state |
-| `clearConversationUnreadCount:` / `setConversationUnreadCount:unread:` | Change local unread state; product read reporting is a separate server contract |
-| `getAllConversationUnreadCount` | Aggregate the local conversation unread snapshot |
-| `updateOrAddExtra:` / `syncExtra` | Persist or trigger conversation-extra synchronization |
-| `setSyncConversationProviderAndAck:ack:` | Inject synchronization and ACK; providers need timeout, single-completion, and idempotency semantics |
-| `addDelegate:` / `removeDelegate:` | Observe updates, unread, and deletion with the same delegate instance for cleanup |
+| `sendMessage:channel:` | Send and store a message |
+| `resendMessage:` | Retry a failed message |
+| `pullLastMessages:limit:complete:` | Read the latest messages |
+| `pullDown:startOrderSeq:limit:complete:` | Read older messages |
+| `pullUp:startOrderSeq:limit:complete:` | Read newer messages |
+| `clearMessages:` | Clear local messages in one channel |
+| `syncChannelMessageProvider` | Connect remote channel history |
 
-### Media, receipt, reaction, reminder, and extension managers
+Callbacks: `onRecvMessages:left:` and `onMessageUpdate:left:`.
 
-| Manager | Public selectors | Boundary |
-| --- | --- | --- |
-| `WKMediaManager` | `upload:`, `download:`, `download:callback:`, `playAudio:playerDidFinish:progress:`, `cleanMessageCache` | Upload/download work comes from `uploadTaskProvider` / `downloadTaskProvider`; permissions and file service belong to the product |
-| `WKReceiptManager` | `addReceiptMessages:messages:` | Adds to a local receipt queue; the receipt provider determines server submission |
-| `WKReactionManager` | `addOrCancelReaction:messageID:complete:`, `sync:`, delegate add/remove | Handle completion `NSError` separately from synchronization delegates |
-| `WKPinnedMessageManager` | `getPinnedMessagesByChannel:`, `getMaxVersion:`, `addOrUpdatePinnedMessages:`, deletion, and delegates | Operates on a local pinned snapshot; remote facts come from product synchronization |
-| `WKReminderManager` | `sync`, `done:`, `addDelegate:` / `removeDelegate:` | Sync/done depend on reminder providers; a local change is not remote success |
-| `WKCMDManager` | `pullCMDMessages`, `addDelegate:` / `removeDelegate:` | CMD delivery arrives through `cmdManager:onCMD:` and still requires application authorization and idempotency |
-| `WKRobotManager` | `sync:complete:`, `syncWithUsernames:complete:`, `getRobotWithUsername:` | Robot data comes from its provider; route block errors into the failure path |
-| `WKFlameManager` | `didViewed:`, `getMessagesOfNeedFlame` | Exposes local flame-message handling, not proof of cross-client deletion |
+## `WKConversationManager`
 
-Verify these selectors in the pinned [`manager` header directory](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/89bf9a1b95ce374caabdd8031d69cc8844d825ae/WuKongIMSDK/Classes/manager). A public selector proves only the source/artifact surface; it does not widen this site's runtime receipt.
-
-## Connection lifecycle and errors
-
-| API | Contract |
+| API | Purpose |
 | --- | --- |
-| `addDelegate:` | Register a `WKConnectionManagerDelegate` |
-| `removeDelegate:` | Remove the same instance during teardown |
-| `connect` | Start connection; returns `void`, not success |
-| `disconnect:` | With `force=YES`, stop automatic reconnect; retain login identity |
-| `logout` | Force disconnect and clear login information |
-| `wakeup:complete:` | Attempt wakeup and report `NSError` |
+| `getConversationList` | Read recent conversations |
+| `getConversation:` | Read the conversation for one channel |
+| `clearConversationUnreadCount:` | Clear unread count |
+| `getAllConversationUnreadCount` | Total all unread counts |
+| `deleteConversation:` | Delete a conversation row |
+| `setSyncConversationProviderAndAck:ack:` | Connect multi-device conversation sync |
 
-### `WKConnectStatus`
+Callbacks: `onConversationUpdate:` and `onConversationUnreadCountUpdate:unreadCount:`.
 
-| Constant | Meaning |
+## `WKChannelManager`
+
+| API | Purpose |
 | --- | --- |
-| `WKNoConnect` | Not connected |
-| `WKConnecting` | Connecting |
-| `WKPullingOffline` | Pulling offline data |
-| `WKConnected` | Connected |
-| `WKDisconnected` | Disconnected |
+| `getChannelInfo:` | Read a local channel profile |
+| `fetchChannelInfo:completion:` | Request a profile refresh |
+| `addOrUpdateChannelInfo:` | Store a channel profile |
+| `getMembersWithChannel:limit:` | Read local group members |
+| `addOrUpdateMembers:` | Store group members |
+| `updateChannelSetting:setting:` | Change mute, pin, and related settings |
 
-`WKConnectionManagerDelegate` exposes:
+Callback: `channelInfoUpdate:oldChannelInfo:`. The remote profile entry point is `[WKSDK shared].channelInfoUpdate`.
 
-The public selector names are `onConnectStatus:reasonCode:` and `onKick:reason:`.
+## Common models and states
 
-```objc
-- (void)onConnectStatus:(WKConnectStatus)status reasonCode:(WKReason)reasonCode;
-- (void)onKick:(uint8_t)reasonCode reason:(NSString *)reason;
-```
-
-Public `WKReason` values include `WK_REASON_SUCCESS`, `WK_REASON_AUTHFAIL`, `WK_REASON_IN_BLACKLIST`, `WK_REASON_KICK`, and `WK_REASON_NOT_IN_WHITELIST`. Do not treat the `connect` call as success. Accept only `status == WKConnected && reasonCode == WK_REASON_SUCCESS`.
-
-## Channels, content, and `WKMessage`
-
-### Channels and content
-
-- `WKChannel` combines `channelId` and `channelType`; common constructors are `personWithChannelID:` and `groupWithChannelID:`.
-- A custom `WKMessageContent` implements `encodeWithJSON`, `decodeWithJSON:`, `contentType`, `searchableWord`, and `conversationDigest`.
-- Text uses `WKTextContent` with `initWithContent:`.
-- Register custom content through `[WKSDK.shared registerMessageContent:YourClass]` or `registerMessageContent:contentType:`.
-
-### Core `WKMessage` fields
-
-| Field | Meaning |
+| Type | Meaning |
 | --- | --- |
-| `clientMsgNo` | Client-unique number and pending correlation key |
-| `clientSeq` | Local sequence |
-| `messageId` | Server message ID; not a correlation key before acknowledgement |
-| `messageSeq` | Server channel sequence; can be `0` before acknowledgement |
-| `channel` / `fromUid` | Target channel and sender |
-| `contentType` / `content` | Content type and `WKMessageContent` |
-| `status` / `reasonCode` | `WKMessageStatus` and `WKReason` |
-| `header` / `setting` / `remoteExtra` | Control flags, settings, remote extension |
+| `WKConnectInfo` | UID, token, name, and avatar |
+| `WKChannel` | `channelId` plus `channelType` |
+| `WKMessage` | Identity, sender, content, sequence, and state |
+| `WKMessageContent` | Base class for message content |
+| `WKConversation` | Chat-list row and unread count |
+| `WKChannelInfo` | Name, avatar, and channel settings |
+| `WKChannelMember` | Group member profile |
 
-`WKMessage` is mutable. Copy an application-owned snapshot before crossing a queue or teardown boundary, then reject stale delegate delivery with the session attempt.
+Connection states: `WKNoConnect`, `WKConnecting`, `WKPullingOffline`, `WKConnected`, and `WKDisconnected`.
 
-## Send, acknowledgement, and message events
-
-| API | Semantics |
-| --- | --- |
-| `sendMessage:channel:` | Send and persist; immediately returns a local/pending `WKMessage` |
-| `sendMessage:channel:topic:` | Add a topic |
-| `sendMessage:channel:setting:` | Add `WKSetting` |
-| `sendMessage:` | Send a caller-created `WKMessage`; header documents this overload as send-only/no-save |
-| `sendMessage:addRetryQueue:` | Explicitly choose the failure retry queue |
-| `resendMessage:` | Resend an existing message |
-| `saveMessage:channel:` | Save locally only; not server-send evidence |
-
-Queries and local mutations are also part of the public `WKChatManager` surface:
-
-| Selector | Semantics |
-| --- | --- |
-| `pullLastMessages:limit:complete:` | Pull the channel's last page through local data and the synchronization provider |
-| `pullDown:startOrderSeq:limit:complete:` / `pullUp:startOrderSeq:limit:complete:` | Page downward or upward by order sequence |
-| `pullAround:orderSeq:limit:complete:` | Read messages around one order sequence |
-| `pullMessages:startOrderSeq:endOrderSeq:limit:pullMode:complete:` | General paging with explicit boundaries and direction |
-| `editMessage:newContent:` / `revokeMessage:` | Trigger edit or revoke providers; a return/local change is not proof of remote success |
-| `deleteMessage:` / `clearMessages:` / `clearAllMessages` | Clear local messages; do not describe this as deletion of server history |
-| `syncMessageExtra:complete:` | Synchronize message extras; handle both completion errors and delegate updates |
-
-Core `WKChatManagerDelegate` events:
-
-The public selector names are `onRecvMessages:left:`, `onMessageUpdate:left:`, and `onSendack:left:`.
-
-```objc
-- (void)onRecvMessages:(WKMessage *)message left:(NSInteger)left;
-- (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left;
-- (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left total:(NSInteger)total;
-- (void)onSendack:(WKSendackPacket *)sendackPacket left:(NSInteger)left;
-```
-
-`left == 0` only ends the current callback batch; it does not prove product processing or offline recovery. Prefer `clientMsgNo` for send correlation.
-
-### `WKMessageStatus`
-
-| Constant | Meaning |
-| --- | --- |
-| `WK_MESSAGE_WAITSEND` | Waiting to send |
-| `WK_MESSAGE_SUCCESS` | Send success |
-| `WK_MESSAGE_ONLYSAVE` | Local save only |
-| `WK_MESSAGE_UPLOADING` | Attachment uploading |
-| `WK_MESSAGE_FAIL` | Send failure; inspect `reasonCode` |
-
-Connection, send, and provider APIs report errors through `WKReason`, `NSError`, or an `error` block parameter. Preserve stage, `clientMsgNo`, reason domain/code, and current attempt in application errors, but never log token or Payload.
-
-## Providers and extension surface
-
-- `[WKSDK shared] setOfflineMessageProvider:offlineMessagesAck:` supplies offline batches and ACK; complete once.
-- `WKChatManager.syncChannelMessageProvider` synchronizes by channel/start/end/limit/pull mode.
-- `syncMessageExtraProvider`, `updateMessageExtraProvider`, and `messageEditProvider` delegate extensions/editing to product APIs.
-- `WKConversationManager.setSyncConversationProviderAndAck:ack:` supplies recent conversations and ACK.
-- `WKSDK.channelInfoUpdate` supplies channel data.
-- `WKMediaManager.uploadTaskProvider` / `downloadTaskProvider` supply media file tasks.
-- Receipt, reaction, robot, and reminder managers expose matching providers.
-
-Every provider needs a timeout, exactly-once completion, idempotency, and a session fence. Header presence does not prove your backend implements the server contract.
-
-## Security and evidence boundary
-
-- `GCDAsyncSocket` uses raw TCP without authenticated TLS.
-- `isDebug = NO` does not remove an unconditional RECV log whose description can include Payload.
-- SQLCipher uses UID as its key, not independent at-rest key management.
-- The classic framework has only simulator `x86_64`.
-- `compatibility.json` has no iOS build, device, message-loop, or API receipt.
-
-## Next step
-
-For a first integration, start with the [Quickstart](/en/sdk/ios/quickstart). Before replacing an existing pod, freeze the old package, database, and rollback evidence with the [Upgrade Guide](/en/sdk/ios/upgrade).
+Message states: `WK_MESSAGE_WAITSEND`, `WK_MESSAGE_UPLOADING`, `WK_MESSAGE_SUCCESS`, and `WK_MESSAGE_FAIL`.

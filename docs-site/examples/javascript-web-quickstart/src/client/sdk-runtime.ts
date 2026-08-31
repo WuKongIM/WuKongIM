@@ -110,7 +110,6 @@ export class WukongIMRuntime implements ChatRuntime {
     this.#uid = identity.uid;
     this.#manualDisconnect = false;
 
-    // docs:start sdk-configure-and-connect
     const config = this.#sdk.config;
     config.uid = identity.uid;
     config.token = identity.token;
@@ -131,7 +130,6 @@ export class WukongIMRuntime implements ChatRuntime {
       return messages.map((message) => syncedMessageToSdk(message, channel));
     };
     this.#sdk.config = config;
-    // docs:end sdk-configure-and-connect
 
     const result = new Promise<{ nodeId?: number }>((resolve, reject) => {
       this.#pendingConnection = {
@@ -157,17 +155,14 @@ export class WukongIMRuntime implements ChatRuntime {
   }
 
   async sendText(peerUid: string, text: string): Promise<{ clientSeq: number }> {
-    // docs:start sdk-send-text
     const message = await this.#sdk.chatManager.send(
       new MessageText(text),
       new Channel(peerUid, ChannelTypePerson),
     );
-    // docs:end sdk-send-text
     return { clientSeq: message.clientSeq };
   }
 
   async syncMessages(peerUid: string): Promise<RuntimeMessage[]> {
-    // docs:start sdk-reconnect-sync
     const options = new SyncOptions();
     options.startMessageSeq = 0;
     options.endMessageSeq = 0;
@@ -177,7 +172,6 @@ export class WukongIMRuntime implements ChatRuntime {
       new Channel(peerUid, ChannelTypePerson),
       options,
     );
-    // docs:end sdk-reconnect-sync
     return messages.map(runtimeMessageFromSdk);
   }
 

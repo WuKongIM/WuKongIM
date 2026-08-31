@@ -1,0 +1,99 @@
+---
+title: iOS Connection
+description: Configure identity and endpoints, observe connection state, and disconnect or log out correctly.
+---
+
+`WKConnectionManager` owns the connection. Your app provides user identity and an endpoint; the SDK handles the socket, heartbeat, and automatic reconnection.
+
+## Configure identity and a fixed endpoint
+
+```objc
+WKOptions *options = [WKOptions new];
+options.host = @"im.example.com";
+options.port = 5100;
+options.connectInfo = [WKConnectInfo initWithUID:@"alice"
+                                           token:token
+                                            name:@""
+                                          avatar:@""];
+[WKSDK shared].options = options;
+```
+
+Use `connectInfoCallback` to supply the latest token before each connection:
+
+```objc
+[WKSDK shared].options.connectInfoCallback = ^WKConnectInfo *{
+    return [WKConnectInfo initWithUID:currentUID
+                                token:currentToken
+                                 name:@""
+                               avatar:@""];
+};
+```
+
+Never print the token in logs.
+
+## Use a dynamic endpoint
+
+If your application server assigns a gateway, return `host:port` from `getConnectAddr`:
+
+```objc
+[WKSDK shared].connectionManager.getConnectAddr = ^(void (^complete)(NSString *addr)) {
+    [gatewayAPI fetchAddress:^(NSString *host, uint16_t port) {
+        complete([NSString stringWithFormat:@"%@:%hu", host, port]);
+    }];
+};
+```
+
+Always invoke `complete`; otherwise that connection attempt keeps waiting for an address.
+
+## Wait for the state callback before sending
+
+```objc
+[[WKSDK shared].connectionManager addDelegate:self];
+[[WKSDK shared].connectionManager connect];
+
+- (void)onConnectStatus:(WKConnectStatus)status reasonCode:(WKReason)reasonCode {
+    switch (status) {
+        case WKConnecting:
+            self.sendButton.enabled = NO;
+            break;
+        case WKConnected:
+            self.sendButton.enabled = YES;
+            break;
+        case WKDisconnected:
+            self.sendButton.enabled = NO;
+            break;
+        default:
+            break;
+    }
+}
+
+- (void)onKick:(uint8_t)reasonCode reason:(NSString *)reason {
+    // Clear the app session and explain that the account signed in elsewhere.
+}
+```
+
+`WKPullingOffline` means the connection is established while the SDK restores offline messages. Waiting for `WKConnected` before enabling send is the simplest UI rule.
+
+## Disconnect or log out
+
+```objc
+// Stop IM use here and disable automatic reconnection.
+[[WKSDK shared].connectionManager disconnect:YES];
+
+// Sign out: disconnect and clear the SDK login information.
+[[WKSDK shared].connectionManager logout];
+```
+
+Remove the delegate before its owner is destroyed:
+
+```objc
+[[WKSDK shared].connectionManager removeDelegate:self];
+```
+
+## Common problems
+
+- Stuck while connecting: verify that the address callback completes, the port is reachable, and the token belongs to this UID.
+- Reconnects after disconnect: `disconnect:NO` permits reconnection; pass `YES` to stop it.
+- Old data after switching accounts: use `logout`, then replace `WKOptions` before connecting the new account.
+
+Continue with [Messages](/en/sdk/ios/messages).

@@ -1,0 +1,102 @@
+---
+title: HarmonyOS messages
+description: Send, receive, and read messages while displaying local insertion and server send results correctly.
+---
+
+A message combines a `WKMessageContent` payload with a destination `WKChannel`. `MessageManager` owns local persistence, sending, receiving, and history queries.
+
+## Send personal or group text
+
+```typescript
+const manager = WKIM.shared.messageManager()
+
+manager.send(
+  new WKTextContent('Hello'),
+  new WKChannel('bob', WKChannelType.personal)
+)
+
+manager.send(
+  new WKTextContent('Hello, everyone'),
+  new WKChannel('team-1', WKChannelType.group)
+)
+```
+
+Use `sendWithOption` for settings such as expiration:
+
+```typescript
+const options = new WKSendOptions()
+options.expire = 300
+
+manager.sendWithOption(
+  new WKTextContent('This message expires in five minutes'),
+  new WKChannel('bob', WKChannelType.personal),
+  options
+)
+```
+
+Both send methods return `void`; awaiting them cannot determine success.
+
+## Distinguish three events
+
+```typescript
+// One global slot with no removal method. Install it once in an application service.
+manager.addInsertedListener((message: WKMsg) => {
+  addPendingMessage(message.clientSeq, message)
+})
+
+const sendStatusListener = (
+  clientSeq: number,
+  messageId: string,
+  messageSeq: number,
+  reasonCode: number
+) => {
+  if (reasonCode === WKSendMsgResult.success) {
+    markSent(clientSeq, messageId, messageSeq)
+  } else {
+    markFailed(clientSeq, reasonCode)
+  }
+}
+
+const newMessagesListener = (messages: WKMsg[]) => {
+  appendIncoming(messages)
+}
+
+manager.addSendStatusListener(sendStatusListener)
+manager.addNewMsgListener(newMessagesListener)
+```
+
+| Event | Meaning |
+| --- | --- |
+| `addInsertedListener` | The message entered the local database and can appear in the chat UI |
+| `addSendStatusListener` | The server returned a result for this send |
+| `addNewMsgListener` | This client received new messages |
+
+`WKSendMsgResult.loading` means sending, `success` means the server accepted the message, and `fail` means failure. `noRelation`, `blackList`, and `notOnWhiteList` are relationship restrictions that should produce clear user-facing errors.
+
+Server acceptance does not mean the recipient read the message. Read state requires a separate product integration.
+
+## Read local and remote history
+
+```typescript
+const channel = new WKChannel('bob', WKChannelType.personal)
+const options = new ChannelMsgOptions(
+  () => showHistoryLoading(),
+  (messages: WKMsg[]) => showMessages(messages)
+)
+options.limit = 30
+options.pullMode = 0
+options.oldestOrderSeq = 0
+
+manager.getOrSyncHistoryMessages(channel, options)
+```
+
+The SDK checks the local database first and calls `syncMessageCallback` when local data is insufficient. See [Media and history](/en/sdk/harmonyos/advanced/media-and-history) for provider setup.
+
+## Remove listeners
+
+```typescript
+manager.removeSendStatusListener(sendStatusListener)
+manager.removeNewMsgListener(newMessagesListener)
+```
+
+Removal requires the same function object used during registration. `addInsertedListener` has no removal method, and a later registration replaces the previous one, so do not register it from individual screens.

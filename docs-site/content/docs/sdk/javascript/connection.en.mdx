@@ -1,0 +1,80 @@
+---
+title: JavaScript / Web Connection
+description: Configure identity and a WebSocket endpoint, observe states, and handle reconnection and page cleanup.
+---
+
+`ConnectManager` owns WebSocket, heartbeat, and automatic reconnection. Your app provides the current user's UID, token, and endpoint.
+
+## Configure a fixed endpoint
+
+```typescript
+const sdk = WKSDK.shared()
+sdk.config.uid = bootstrap.uid
+sdk.config.token = bootstrap.token
+sdk.config.addr = bootstrap.websocketUrl
+sdk.config.deviceFlag = 1
+```
+
+The endpoint must be a complete `ws://` or `wss://` URL. An HTTPS page normally must connect over `wss://`.
+
+## Resolve an endpoint dynamically
+
+To query routing before each connection:
+
+```typescript
+sdk.config.provider.connectAddrCallback = (complete) => {
+  void gatewayApi.getAddress().then(({ websocketUrl }) => {
+    complete(websocketUrl)
+  })
+}
+```
+
+This provider uses a callback; it does not return a Promise to the SDK. Show application errors and schedule backoff when the request fails. Never place the token in the URL or logs.
+
+## Observe connection state
+
+```typescript
+const onStatus = (
+  status: ConnectStatus,
+  reasonCode?: number,
+  info?: ConnectionInfo,
+) => {
+  switch (status) {
+    case ConnectStatus.Connecting:
+      showConnecting()
+      break
+    case ConnectStatus.Connected:
+      enableSending(info?.nodeId)
+      break
+    case ConnectStatus.Disconnect:
+      showOffline()
+      break
+    case ConnectStatus.ConnectFail:
+      showConnectionError(reasonCode)
+      break
+    case ConnectStatus.ConnectKick:
+      requireLoginAgain(reasonCode)
+      break
+  }
+}
+
+sdk.connectManager.addConnectStatusListener(onStatus)
+sdk.connect()
+```
+
+The SDK reconnects after network failures. It does not retry forever after server rejection or a kick.
+
+## Page and account lifecycle
+
+```typescript
+sdk.connectManager.removeConnectStatusListener(onStatus)
+sdk.disconnect()
+```
+
+`disconnect()` stops automatic reconnection. Replace `uid`, `token`, and endpoint before reconnecting. Because the SDK is a global singleton, remove all old listeners and disconnect before initializing another account; do not share one page context between two accounts.
+
+## Common problems
+
+- Browser reports Mixed Content: an HTTPS page must use `wss://`.
+- Duplicate state callbacks: a framework component mounted the listener repeatedly and did not remove the same function reference.
+- Works locally but not in production: verify WebSocket Upgrade forwarding, the certificate chain, and CSP `connect-src`.

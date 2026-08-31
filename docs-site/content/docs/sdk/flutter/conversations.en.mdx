@@ -1,0 +1,65 @@
+---
+title: Flutter Conversations
+description: Read the chat list, observe changes, and manage unread counts for each chat.
+---
+
+`WKUIConversationMsg` is one row in the chat list. It contains a channel, last message, time, and unread count, stored in the current UID's sqflite database.
+
+## Read the list
+
+```dart
+final conversations = await im.conversationManager.getAll();
+setState(() => items = conversations);
+```
+
+Read the last message with `await item.getWkMsg()` and its channel profile with `await item.getWkChannel()`.
+
+## Observe changes
+
+```dart
+im.conversationManager.addOnRefreshMsgListListener(
+  'conversation-list',
+  (changedItems) => mergeByChannel(changedItems),
+);
+
+im.conversationManager.addOnDeleteMsgListener(
+  'conversation-list',
+  (channelID, channelType) => removeRow(channelID, channelType),
+);
+```
+
+For a small list, re-reading `getAll()` after each change is also reasonable and simpler.
+
+## Unread counts and deletion
+
+```dart
+await im.conversationManager.updateRedDot(
+  'bob',
+  WKChannelType.personal,
+  0,
+);
+
+final total = await im.conversationManager.getAllUnreadCount();
+await im.conversationManager.deleteMsg('bob', WKChannelType.personal);
+```
+
+Deleting a conversation row does not clear every message in that channel.
+
+## Connect server synchronization
+
+```dart
+im.conversationManager.addOnSyncConversationListener(
+  (lastMsgSeqs, msgCount, version, complete) async {
+    final result = await conversationApi.sync(
+      lastMsgSeqs: lastMsgSeqs,
+      msgCount: msgCount,
+      version: version,
+    );
+    complete(toWKSyncConversation(result));
+  },
+);
+```
+
+This provider is one global slot with no page-scoped removal method, so install it once through an application service. Finish your request for success, empty data, and failure; otherwise connection stays at `syncMsg`.
+
+Remove keyed listeners when the page is destroyed.

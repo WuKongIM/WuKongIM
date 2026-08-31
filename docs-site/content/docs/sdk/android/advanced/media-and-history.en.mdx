@@ -1,0 +1,74 @@
+---
+title: Android Media & History
+description: Connect attachment upload and fill messages from your application server when local data is incomplete.
+---
+
+A media message must upload its local file to a remote location available to other devices. The SDK owns message state; your app performs object-storage upload and authorization.
+
+## Send an image
+
+```java
+WKImageContent image = new WKImageContent(localPath);
+image.width = width;
+image.height = height;
+
+WKChannel channel = new WKChannel("team-1", WKChannelType.GROUP);
+WKIM.getInstance().getMsgManager().send(image, channel);
+```
+
+Configure attachment upload before sending media:
+
+```java
+msgManager.addOnUploadAttachListener((message, result) -> {
+    if (!(message.baseContentMsgModel instanceof WKImageContent)) {
+        result.onUploadResult(false, message.baseContentMsgModel);
+        return;
+    }
+
+    WKImageContent content =
+        (WKImageContent) message.baseContentMsgModel;
+    objectStorage.upload(content.localPath, (url, error) -> {
+        if (error == null) {
+            content.url = url;
+            result.onUploadResult(true, content);
+        } else {
+            result.onUploadResult(false, content);
+        }
+    });
+});
+```
+
+Upload credentials should be short lived and limited by path, size, and file type. Never treat `localPath` as a URL the receiving device can access.
+
+## Connect remote history
+
+`getOrSyncHistoryMessages` reads the local database first. It invokes the channel synchronization listener when the local range is incomplete:
+
+```java
+msgManager.addOnSyncChannelMsgListener((
+    channelID,
+    channelType,
+    startMessageSeq,
+    endMessageSeq,
+    limit,
+    pullMode,
+    callback
+) -> historyApi.fetch(
+    channelID,
+    channelType,
+    startMessageSeq,
+    endMessageSeq,
+    limit,
+    pullMode,
+    callback::onBack
+));
+```
+
+The application API converts its response to `WKSyncChannelMsg`, with a `WKSyncRecent` list in `messages`. Complete with an empty result when there is no data; never leave the screen waiting forever.
+
+## Common problems
+
+- Image remains sending: ensure upload always calls `onUploadResult` and writes `content.url` on success.
+- Other devices cannot display the image: make sure the receiver can authorize and download the URL; it cannot use the sender's sandbox path.
+- Duplicate history: merge by channel and `messageSeq`, not array position.
+- History never finishes: time out the application request and end UI loading on success, empty data, and failure.

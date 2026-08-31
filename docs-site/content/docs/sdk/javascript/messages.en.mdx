@@ -1,0 +1,78 @@
+---
+title: JavaScript / Web Messages
+description: Send, receive, and synchronize messages while separating local messages, server results, and live delivery.
+---
+
+A message combines `MessageContent` with a destination `Channel`. `ChatManager` handles sending, live delivery, and calls to the remote synchronization provider.
+
+## Send to a direct or group chat
+
+```typescript
+const direct = await sdk.chatManager.send(
+  new MessageText('Hello'),
+  new Channel('bob', ChannelTypePerson),
+)
+
+const group = await sdk.chatManager.send(
+  new MessageText('Hello everyone'),
+  new Channel('team-1', ChannelTypeGroup),
+)
+```
+
+The result is a local `Message` with initial state `MessageStatus.Wait`. Use `clientSeq` or `clientMsgNo` to correlate the later server result.
+
+## Observe messages and send results
+
+```typescript
+const onMessage = (message: Message) => {
+  if (message.send) {
+    addOutgoingMessage(message)
+  } else {
+    addIncomingMessage(message)
+  }
+}
+
+const onStatus = (ack: SendackPacket) => {
+  updateSendState(ack.clientSeq, ack.reasonCode, ack.messageSeq)
+}
+
+sdk.chatManager.addMessageListener(onMessage)
+sdk.chatManager.addMessageStatusListener(onStatus)
+```
+
+Sending immediately invokes the message listener, so not every `onMessage` is a new peer message. `reasonCode === 1` means the server accepted the send; the peer's listener separately confirms live delivery.
+
+## Synchronize message history
+
+The JavaScript SDK has no built-in persistent message database. Your application API supplies offline recovery and pagination:
+
+```typescript
+sdk.config.provider.syncMessagesCallback = async (channel, options) => {
+  const rows = await messageApi.sync({
+    channelID: channel.channelID,
+    channelType: channel.channelType,
+    startMessageSeq: options.startMessageSeq,
+    endMessageSeq: options.endMessageSeq,
+    limit: options.limit,
+    pullMode: options.pullMode,
+  })
+  return rows.map(toSDKMessage)
+}
+```
+
+Request synchronization with:
+
+```typescript
+const options = new SyncOptions()
+options.limit = 30
+options.pullMode = PullMode.Down
+
+const messages = await sdk.chatManager.syncMessages(
+  new Channel('bob', ChannelTypePerson),
+  options,
+)
+```
+
+`toSDKMessage` is your mapping function. It must populate `messageID`, `messageSeq`, `clientMsgNo`, `fromUID`, `channel`, `timestamp`, and correctly decoded `content`.
+
+On page teardown, call `removeMessageListener` and `removeMessageStatusListener` with the original function references.

@@ -1,0 +1,89 @@
+---
+title: HarmonyOS conversations
+description: Synchronize and read the chat list, observe changes, and manage unread counts and deletion.
+---
+
+A conversation is one item in the chat list. It keeps the destination channel, last message, time, and unread count. It is neither a connection nor a message payload.
+
+## Connect conversation sync first
+
+After connecting, the SDK invokes `syncConversationCallback` to restore conversations changed on other devices or while this client was offline:
+
+```typescript
+WKIM.shared.config.provider.syncConversationCallback = async (
+  lastMsgSeqs: string,
+  msgCount: number,
+  version: number
+): Promise<WKSyncConversation> => {
+  const response = await conversationApi.sync({
+    lastMsgSeqs,
+    msgCount,
+    version
+  })
+  return toWKSyncConversation(response)
+}
+```
+
+The result should contain the current UID and conversations with channel identity, last message sequence, last client number, unread count, timestamp, version, and recent messages. Do not return an empty array for an account that already has data.
+
+## Read and observe the chat list
+
+```typescript
+const manager = WKIM.shared.conversationManager()
+const initial = manager.all() ?? []
+renderConversations(initial)
+
+const refreshListener = (changed: WKConversation[]) => {
+  mergeConversations(changed)
+}
+
+const deletedListener = (channelId: string, channelType: number) => {
+  removeConversation(channelId, channelType)
+}
+
+manager.addRefreshListener(refreshListener)
+manager.addDeletedListener(deletedListener)
+```
+
+`addRefreshListener` delivers changed items, not necessarily the complete list. Merge by `channelId + channelType`, then sort by `lastMsgTimestamp`.
+
+Read one conversation:
+
+```typescript
+const conversation = manager.getWithChannel(
+  'team-1',
+  WKChannelType.group
+)
+```
+
+## Unread counts
+
+Clear one conversation when its chat screen opens:
+
+```typescript
+manager.updateRedDot('team-1', WKChannelType.group, 0)
+```
+
+Calculate the total:
+
+```typescript
+const totalUnread = (manager.all() ?? [])
+  .reduce((total, item) => total + item.unreadCount, 0)
+```
+
+`clearAllRedDot()` clears unread counts for every conversation.
+
+## Delete a conversation item
+
+```typescript
+manager.delete('team-1', WKChannelType.group)
+```
+
+This hides the item from the local chat list; it does not delete server messages. If your product supports cross-device deletion, call the application API first and then update local state.
+
+Remove listeners when the screen is disposed:
+
+```typescript
+manager.removeRefreshListener(refreshListener)
+manager.removeDeletedListener(deletedListener)
+```

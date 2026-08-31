@@ -1,0 +1,82 @@
+---
+title: Flutter media and history
+description: Connect media uploads and fetch remote history when the local message database is not enough.
+---
+
+WuKongIMSDK manages media-message state and transport, but your application still chooses its object storage and history HTTP API. Both integrations use application-level providers.
+
+## Upload media
+
+Install one upload provider during application startup:
+
+```dart
+WKIM.shared.messageManager.addOnUploadAttachmentListener(
+  (message, complete) async {
+    final content = message.messageContent;
+    if (content is! WKMediaMessageContent) {
+      complete(false, message);
+      return;
+    }
+
+    try {
+      content.url = await mediaUploader.upload(content.localPath);
+      complete(true, message);
+    } catch (_) {
+      complete(false, message);
+    }
+  },
+);
+```
+
+Create and send an image payload from a local file:
+
+```dart
+final image = WKImageContent(1080, 1920)
+  ..localPath = '/path/to/photo.jpg';
+
+await WKIM.shared.messageManager.sendWithOption(
+  image,
+  WKChannel('team-1', WKChannelType.group),
+  WKSendOptions(),
+);
+```
+
+On success, set the downloadable address on `content.url` before calling `complete(true, message)`. On failure, call `complete(false, message)` so the UI can show a failed state and a retry action.
+
+## Fetch remote history
+
+When `getOrSyncHistoryMessages` cannot satisfy a request from the local database, the SDK invokes the history provider:
+
+```dart
+WKIM.shared.messageManager.addOnSyncChannelMsgListener(
+  (
+    channelID,
+    channelType,
+    startMessageSeq,
+    endMessageSeq,
+    limit,
+    pullMode,
+    complete,
+  ) async {
+    try {
+      final response = await messageApi.loadHistory(
+        channelID: channelID,
+        channelType: channelType,
+        startMessageSeq: startMessageSeq,
+        endMessageSeq: endMessageSeq,
+        limit: limit,
+        pullMode: pullMode,
+      );
+      complete(toWKSyncChannelMsg(response));
+    } catch (_) {
+      complete(null);
+    }
+  },
+);
+```
+
+`toWKSyncChannelMsg` converts your API response into `WKSyncChannelMsg`, including `startMessageSeq`, `endMessageSeq`, `more`, and `messages`. Each `WKSyncMsg` should preserve the server message ID, sequence, sender, channel, time, and payload.
+
+<Callout type="warn" title="Providers occupy global slots">
+  Calling either setter again replaces the previous provider. Install them in one application-level IM service, and make sure every path invokes `complete`.
+</Callout>

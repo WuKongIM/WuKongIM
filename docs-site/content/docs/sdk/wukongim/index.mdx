@@ -1,17 +1,39 @@
 ---
 title: WuKongIMSDK
-description: 按平台查找完整版 WuKongIMSDK 的安装、快速接入、平台能力、API 参考与升级指南。
+description: 选择客户端平台，并按清晰的任务顺序接入完整版 WuKongIMSDK。
 ---
 
-WuKongIMSDK 是带本地消息、会话、未读状态与离线恢复能力的完整客户端 SDK 系列。各平台的 API、依赖和运行边界不同，请从目标平台进入教程，不要跨平台复制方法名或兼容性结论。
+WuKongIMSDK 是完整版客户端 SDK。它不只负责网络连接，还会在客户端维护消息、会话、未读数和离线恢复所需的本地数据。
+
+## 它在应用中的位置
+
+<iframe
+  title="WuKongIMSDK 在应用中的位置"
+  src="/diagrams/wukongimsdk.zh.html"
+  loading="lazy"
+  style={{ width: '100%', height: '640px', border: 0, borderRadius: '12px' }}
+/>
+
+你通常会使用四类入口：
+
+- **连接管理器**：连接、重连、断开和连接状态；
+- **消息管理器**：发送、接收、查询和更新消息；
+- **会话管理器**：聊天列表、最近消息和未读数；
+- **频道管理器**：单聊或群聊的名称、头像和成员资料。
 
 ## 选择平台
 
-- [Android](/zh/sdk/android)：`WuKongIMAndroidSDK` `1.5.5`；源码与 JitPack AAR 已校对，没有本站 Android 运行 receipt
-- [iOS](/zh/sdk/ios)：`WuKongIMSDK` `1.1.1`；源码与公开头文件已校对，没有本站 iOS 运行 receipt
-- [JavaScript / Web](/zh/sdk/javascript)：`wukongimjssdk` `1.3.5`；具有固定 Chromium 场景 receipt
-- [Flutter](/zh/sdk/flutter)：`wukongimfluttersdk` `1.7.9`；没有本站 Flutter 运行 receipt
-- [HarmonyOS](/zh/sdk/harmonyos)：`@wukong/wkim` `1.1.7`；没有本站 HarmonyOS 运行 receipt
-- [UniApp 迁移](/zh/sdk/uniapp)：旧 SDK 已弃用，仅保留迁移到 JSSDK 的指南
+<Cards>
+  <Card title="Android" description="WuKongIMAndroidSDK 1.5.5 · Java" href="/zh/sdk/android" />
+  <Card title="iOS" description="WuKongIMSDK 1.1.1 · Objective-C" href="/zh/sdk/ios" />
+  <Card title="JavaScript / Web" description="wukongimjssdk 1.3.5 · TypeScript" href="/zh/sdk/javascript" />
+  <Card title="Flutter" description="wukongimfluttersdk 1.7.9 · Dart" href="/zh/sdk/flutter" />
+  <Card title="HarmonyOS" description="@wukong/wkim 1.1.7 · ArkTS" href="/zh/sdk/harmonyos" />
+</Cards>
 
-如果还在比较完整 SDK 与轻量 SDK，请先阅读[选择 SDK](/zh/sdk/choose-sdk)。跨平台的身份、消息、会话与重连语义见[公共指南](/zh/sdk/common-guides)。
+## 推荐阅读顺序
+
+1. 先读[核心概念](/zh/sdk/wukongim/concepts)，花几分钟理解 UID、Token、频道、会话和 Provider。
+2. 进入目标平台的“快速开始”，完成安装、连接和第一条在线文本消息。
+3. 再按需要阅读连接、消息、会话、频道和高级功能。
+4. 查方法名时使用平台的 API 参考；修改依赖版本前阅读[升级 SDK](/zh/sdk/wukongim/upgrade)。

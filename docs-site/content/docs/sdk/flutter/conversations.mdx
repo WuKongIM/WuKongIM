@@ -1,0 +1,65 @@
+---
+title: Flutter 会话管理
+description: 读取聊天列表、监听变化，并管理每个聊天的未读数。
+---
+
+`WKUIConversationMsg` 是聊天列表中的一项，包含频道、最后一条消息、时间和未读数。数据保存在当前 UID 的 sqflite 数据库中。
+
+## 读取列表
+
+```dart
+final conversations = await im.conversationManager.getAll();
+setState(() => items = conversations);
+```
+
+最后消息通过 `await item.getWkMsg()` 读取，频道资料通过 `await item.getWkChannel()` 读取。
+
+## 监听变化
+
+```dart
+im.conversationManager.addOnRefreshMsgListListener(
+  'conversation-list',
+  (changedItems) => mergeByChannel(changedItems),
+);
+
+im.conversationManager.addOnDeleteMsgListener(
+  'conversation-list',
+  (channelID, channelType) => removeRow(channelID, channelType),
+);
+```
+
+如果列表不大，也可以在变化后重新调用 `getAll()`，逻辑更简单。
+
+## 未读数和删除
+
+```dart
+await im.conversationManager.updateRedDot(
+  'bob',
+  WKChannelType.personal,
+  0,
+);
+
+final total = await im.conversationManager.getAllUnreadCount();
+await im.conversationManager.deleteMsg('bob', WKChannelType.personal);
+```
+
+删除会话列表项不等同于清空该频道的全部消息。
+
+## 接入服务端同步
+
+```dart
+im.conversationManager.addOnSyncConversationListener(
+  (lastMsgSeqs, msgCount, version, complete) async {
+    final result = await conversationApi.sync(
+      lastMsgSeqs: lastMsgSeqs,
+      msgCount: msgCount,
+      version: version,
+    );
+    complete(toWKSyncConversation(result));
+  },
+);
+```
+
+这个 Provider 是单一全局槽位，没有按页面移除的方法，应通过应用级服务安装一次。所有成功、空数据和错误分支都要结束自己的请求；否则连接会停在 `syncMsg`。
+
+页面销毁时移除 keyed listener。

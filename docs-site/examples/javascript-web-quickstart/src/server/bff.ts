@@ -125,7 +125,6 @@ export function createBffHandler(options: BffHandlerOptions): BffHandler {
       request.method === "POST" &&
       url.pathname === "/api/development/identity"
     ) {
-      // docs:start bff-provision-identity
       const body = (await request.json()) as { uid?: unknown };
       const uid = typeof body.uid === "string" ? body.uid.trim() : "";
       if (!isValidUid(uid)) {
@@ -146,11 +145,9 @@ export function createBffHandler(options: BffHandlerOptions): BffHandler {
       const websocketUrl = browserWebSocketURL(route);
 
       return jsonResponse(200, { uid, token, websocketUrl });
-      // docs:end bff-provision-identity
     }
 
     if (request.method === "POST" && url.pathname === "/api/messages/sync") {
-      // docs:start bff-sync-messages
       const body = (await request.json()) as {
         uid?: unknown;
         peerUid?: unknown;
@@ -178,7 +175,6 @@ export function createBffHandler(options: BffHandlerOptions): BffHandler {
         pullMode: body.pullMode,
       });
       return jsonResponse(200, { messages });
-      // docs:end bff-sync-messages
     }
 
     return jsonResponse(404, { error: "not found" });

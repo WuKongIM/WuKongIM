@@ -1,0 +1,83 @@
+---
+title: HarmonyOS 连接管理
+description: 初始化身份和地址，理解同步完成状态，并正确处理断开和退出。
+---
+
+HarmonyOS SDK 通过 `WKIM.shared.connectionManager()` 管理长连接。初始化只配置身份和本地数据库；调用 `connection()` 才会真正连接。
+
+## 固定地址
+
+登录接口直接返回网关地址时，把它传给 `init`：
+
+```typescript
+await WKIM.shared.init(
+  bootstrap.uid,
+  bootstrap.token,
+  `${bootstrap.host}:${bootstrap.port}`,
+  appContext
+)
+```
+
+地址解析使用冒号分割，请传普通 DNS 或 IPv4 `host:port`，不要传 URI 或 IPv6 literal。
+
+## 动态获取地址
+
+需要在每次连接前路由时，不传 `address`，改为设置 Provider：
+
+```typescript
+await WKIM.shared.init(uid, token, undefined, appContext)
+
+WKIM.shared.config.provider.connectAddrCallback = async (): Promise<string> => {
+  const route = await gatewayApi.getRoute()
+  return `${route.host}:${route.port}`
+}
+```
+
+获取失败时抛出错误，SDK 会进入 `fail`，不要返回空字符串。
+
+## 连接状态
+
+```typescript
+const connectionListener = (status: number, reasonCode?: number) => {
+  if (status === WKConnectStatus.connecting) {
+    showConnecting()
+  } else if (status === WKConnectStatus.success) {
+    showRestoringConversations()
+  } else if (status === WKConnectStatus.syncing) {
+    showRestoringConversations()
+  } else if (status === WKConnectStatus.syncCompleted) {
+    enableChat()
+  } else if (status === WKConnectStatus.noNetwork) {
+    showOffline()
+  } else if (status === WKConnectStatus.kicked) {
+    requireLoginAgain()
+  } else if (status === WKConnectStatus.fail) {
+    showConnectionError(reasonCode)
+  }
+}
+
+WKIM.shared.connectionManager().addConnectStatusListener(connectionListener)
+WKIM.shared.connectionManager().connection()
+```
+
+正常顺序是 `connecting → success → syncing → syncCompleted`。`success` 只表示连接和身份校验通过；`syncCompleted` 才表示最近会话同步步骤已经结束。
+
+务必在连接前设置 `syncConversationCallback`。否则状态虽然仍可能到达 `syncCompleted`，但离线会话数据不会被补齐。
+
+## 断开和退出
+
+```typescript
+// 暂时断开，保留当前身份和本地数据库
+WKIM.shared.connectionManager().disConnection(false)
+
+// 用户退出，清空身份并关闭本地数据库
+WKIM.shared.connectionManager().disConnection(true)
+```
+
+移除监听时传入注册时的同一函数：
+
+```typescript
+WKIM.shared.connectionManager().removeConnectStatusListener(connectionListener)
+```
+
+`WKIM.shared` 和 Manager 都是进程单例。把初始化、Provider 和全局监听集中在一个应用级 IM 服务中，页面只订阅该服务暴露的状态。

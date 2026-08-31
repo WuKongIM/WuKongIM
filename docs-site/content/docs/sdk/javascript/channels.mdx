@@ -1,0 +1,64 @@
+---
+title: JavaScript / Web 频道管理
+description: 为单聊和群聊加载名称、头像、设置与订阅者资料。
+---
+
+频道 `Channel` 表示“消息要发给谁”。单聊频道 ID 是对方 UID，群聊频道 ID 是你的业务群 ID。`ChannelInfo` 保存 UI 需要的标题和头像。
+
+## 创建频道
+
+```typescript
+const person = new Channel('bob', ChannelTypePerson)
+const group = new Channel('team-1', ChannelTypeGroup)
+```
+
+`channelID + channelType` 才是完整身份。`channel.getChannelKey()` 可用于前端缓存键。
+
+## 接入用户和群资料 API
+
+```typescript
+sdk.config.provider.channelInfoCallback = async (channel) => {
+  const profile = await profileApi.get(
+    channel.channelID,
+    channel.channelType,
+  )
+
+  const info = new ChannelInfo()
+  info.channel = channel
+  info.title = profile.displayName
+  info.logo = profile.avatarUrl
+  info.mute = profile.mute
+  info.top = profile.top
+  info.orgData = profile
+  return info
+}
+```
+
+请求并读取：
+
+```typescript
+await sdk.channelManager.fetchChannelInfo(person)
+const info = sdk.channelManager.getChannelInfo(person)
+```
+
+## 监听资料变化
+
+```typescript
+const onChannelInfo = (info: ChannelInfo) => {
+  updateChatHeader(info.title, info.logo)
+}
+
+sdk.channelManager.addListener(onChannelInfo)
+```
+
+页面销毁时调用 `removeListener(onChannelInfo)`。
+
+## 群订阅者
+
+如果需要群成员或订阅者列表，实现 `syncSubscribersCallback(channel, version)` 并调用 `channelManager.syncSubscribes(channel)`。Provider 返回 `Subscriber[]`，每个元素要包含 UID、频道、版本和删除状态。大群必须分页或增量同步，不能把所有成员一次放进浏览器内存。
+
+## 常见问题
+
+- 标题为空：先配置 `channelInfoCallback`，再调用 `fetchChannelInfo`。
+- 单聊和群资料串了：缓存键必须包含频道类型。
+- Provider 错误导致页面无反馈：在调用 `fetchChannelInfo` 的 UI 层捕获 Promise 错误并提供重试。

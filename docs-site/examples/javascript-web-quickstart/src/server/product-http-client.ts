@@ -81,7 +81,6 @@ export class ProductHttpClient {
   }
 
   async updateToken(input: DevelopmentTokenInput): Promise<void> {
-    // docs:start product-http-token
     const response = await this.#fetch(`${this.#baseUrl}/user/token`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -92,7 +91,6 @@ export class ProductHttpClient {
         device_level: input.deviceLevel,
       }),
     });
-    // docs:end product-http-token
 
     if (!response.ok) {
       throw new Error(`POST /user/token failed with HTTP ${response.status}`);
@@ -100,9 +98,7 @@ export class ProductHttpClient {
   }
 
   async discoverRoute(): Promise<RouteAddresses> {
-    // docs:start product-http-route
     const response = await this.#fetch(`${this.#baseUrl}/route`);
-    // docs:end product-http-route
     if (!response.ok) {
       throw new Error(`GET /route failed with HTTP ${response.status}`);
     }
@@ -126,7 +122,6 @@ export class ProductHttpClient {
       attempt <= this.#personDirectoryRetry.maxAttempts;
       attempt += 1
     ) {
-      // docs:start product-http-message-sync
       const response = await this.#fetch(
         `${this.#baseUrl}/channel/messagesync`,
         {
@@ -143,7 +138,6 @@ export class ProductHttpClient {
           }),
         },
       );
-      // docs:end product-http-message-sync
       if (!response.ok) {
         const productMessage = await productErrorMessage(response);
         const projectionPending =

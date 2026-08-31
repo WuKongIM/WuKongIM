@@ -43,9 +43,7 @@ export class BrowserBffClient implements QuickstartBff {
   }
 
   async provisionIdentity(uid: string): Promise<DevelopmentIdentity> {
-    // docs:start browser-provision-identity
     const response = await this.#post("/api/development/identity", { uid });
-    // docs:end browser-provision-identity
     const value = response as Partial<DevelopmentIdentity>;
     if (
       typeof value.uid !== "string" ||
@@ -64,9 +62,7 @@ export class BrowserBffClient implements QuickstartBff {
   async syncPersonMessages(
     input: BrowserMessageSyncInput,
   ): Promise<BrowserSyncedMessage[]> {
-    // docs:start browser-sync-messages
     const response = await this.#post("/api/messages/sync", input);
-    // docs:end browser-sync-messages
     const value = response as { messages?: unknown };
     if (!Array.isArray(value.messages)) {
       throw new Error("BFF returned an invalid message page");

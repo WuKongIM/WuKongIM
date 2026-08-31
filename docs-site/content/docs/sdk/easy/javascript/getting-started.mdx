@@ -39,7 +39,7 @@ description: 对照 easyjssdk v2.0.3 固定源码学习浏览器接入 API；当
 - 一个同源或正确配置跨域策略的业务 BFF；
 - BFF 能在验证产品 Session 后返回当前用户的 `uid`、短期 `token` 与 `websocketUrl`。
 
-先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。生产页面与 WebSocket 使用 HTTPS/WSS，Token 不写入 URL、Local Storage、日志或分析事件。
+先阅读[身份与 Token](/zh/guide/integration/authentication)。生产页面与 WebSocket 使用 HTTPS/WSS，Token 不写入 URL、Local Storage、日志或分析事件。
 
 ## 步骤 1：安装精确版本
 
@@ -204,8 +204,8 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 - **连接前就被拒绝**：检查 BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade 和 Gateway 可达性。
 - **刷新后重复收消息**：不要在每次组件渲染时调用 `on`；保留回调并在卸载时 `off`/`destroy`。
 - **Console 仍出现 Token 或 Payload**：先用锁文件与浏览器 bundle 确认实际打入 `easyjssdk@2.0.3`，再检查应用事件回调、错误处理和采集器是否记录了完整对象。SDK 诊断默认关闭，显式开启时也只应输出脱敏运行元数据；用 npm 正式产物复现并保留低敏证据后再提交问题。
-- **需要可执行 Web 场景入口**：使用本站具备受保护验证流程的 [WuKongIMJSSDK Web 教程](/zh/sdk/javascript)，并在[版本与兼容性](/zh/sdk/compatibility)查看当前 receipt 状态；不要把两套 SDK 的方法名混用。
+- **需要可执行 Web 场景入口**：使用本站具备受保护验证流程的 [WuKongIMJSSDK Web 教程](/zh/sdk/javascript)，并在 [API 版本与兼容性](/zh/api/compatibility)查看当前构建与运行时边界；不要把两套 SDK 的方法名混用。
 
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[离线消息与推送](/zh/sdk/common-guides/offline-and-push)和[上线验收](/zh/guide/integration/acceptance)。
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[离线消息与推送](/zh/guide/tutorials/push)和[上线检查](/zh/guide/integration/acceptance)。

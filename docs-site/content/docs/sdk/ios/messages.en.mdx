@@ -1,0 +1,77 @@
+---
+title: iOS Messages
+description: Send, receive, retry, and read local messages while understanding message states.
+---
+
+A message combines `WKMessageContent` with a destination `WKChannel`. `WKChatManager` handles sending, receiving, local storage, and queries.
+
+## Send to a direct or group chat
+
+```objc
+WKTextContent *content = [[WKTextContent alloc] initWithContent:@"Hello"];
+
+WKChannel *person = [WKChannel personWithChannelID:@"bob"];
+WKMessage *directMessage = [[WKSDK shared].chatManager sendMessage:content
+                                                           channel:person];
+
+WKChannel *group = [WKChannel groupWithChannelID:@"team-1"];
+WKMessage *groupMessage = [[WKSDK shared].chatManager sendMessage:content
+                                                          channel:group];
+```
+
+The returned `WKMessage` is a local message; it does not mean the server has finished processing it. Use `clientMsgNo` to match it with later state changes.
+
+## Observe incoming messages and send states
+
+```objc
+[[WKSDK shared].chatManager addDelegate:self];
+
+- (void)onRecvMessages:(WKMessage *)message left:(NSInteger)left {
+    // Inspect message.content before rendering text, media, or custom content.
+    [self appendMessage:message];
+}
+
+- (void)onMessageUpdate:(WKMessage *)message left:(NSInteger)left {
+    [self updateMessage:message.clientMsgNo status:message.status];
+}
+```
+
+Common states:
+
+| State | Meaning | Suggested UI |
+| --- | --- | --- |
+| `WK_MESSAGE_WAITSEND` | Stored locally and waiting to send | Sending |
+| `WK_MESSAGE_UPLOADING` | Uploading media | Show progress |
+| `WK_MESSAGE_SUCCESS` | Accepted by the server | Sent |
+| `WK_MESSAGE_FAIL` | This send attempt failed | Retry action |
+
+Retry a failed message with:
+
+```objc
+[[WKSDK shared].chatManager resendMessage:failedMessage];
+```
+
+## Read messages for one chat
+
+Load the latest 30 messages when opening a chat:
+
+```objc
+WKChannel *channel = [WKChannel personWithChannelID:@"bob"];
+[[WKSDK shared].chatManager pullLastMessages:channel
+                                       limit:30
+                                    complete:^(NSArray<WKMessage *> *messages, NSError *error) {
+    if (error == nil) {
+        [self showMessages:messages];
+    }
+}];
+```
+
+Use `pullDown:startOrderSeq:limit:complete:` for older pages and `pullUp:startOrderSeq:limit:complete:` toward newer messages.
+
+## Remove the delegate
+
+```objc
+[[WKSDK shared].chatManager removeDelegate:self];
+```
+
+Do not repeatedly add the same delegate from multiple screens without removing it, or one message can produce duplicate UI updates. See [Media & History](/en/sdk/ios/advanced/media-and-history) for remote history and media tasks.

@@ -12,7 +12,7 @@ This page turns the legacy “5-minute integration” into an iOS source-API wal
 The install → initialize → listen → connect → send reading order follows the [legacy iOS EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started). The old page supplies only the learning path; the pinned `v1.1.0` source and distribution govern the method signatures, version, and limits below.
 
 <Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.1.0` source and release revision [`683c1519bfa19fd91a15ae092733e1efb1e75d5d`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/683c1519bfa19fd91a15ae092733e1efb1e75d5d); verify the published package on [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) and the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0). This is a source-level tutorial, not runtime verification, and it does not expand the executable client scope under [Versions & Compatibility](/en/sdk/compatibility).
+  The example is aligned with the official [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.1.0` source and release revision [`683c1519bfa19fd91a15ae092733e1efb1e75d5d`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/683c1519bfa19fd91a15ae092733e1efb1e75d5d); verify the published package on [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) and the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0). This is a source-level tutorial, not runtime verification, and it does not expand the site's executable client scope.
 </Callout>
 
 <Callout type="info" title="v1.1.0 includes default-silent, redacted diagnostics">
@@ -39,7 +39,7 @@ Prepare the following:
 - Run a WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is reachable from the device.
 - Have the product backend return `uid`, a short-lived `token`, and `websocketUrl` separately for Alice and Bob.
 
-Read [Identity & Token](/en/sdk/common-guides/identity-and-token) first. Never embed a fixed token in the app, source repository, logs, or screenshots.
+Read [Identity & Token](/en/guide/integration/authentication) first. Never embed a fixed token in the app, source repository, logs, or screenshots.
 
 ## Step 1: install an exact version
 
@@ -212,7 +212,7 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
 7. Inspect the `v1.1.0` Release artifact and device logs: prove that the SDK emits nothing while diagnostics are disabled, and that temporarily enabled diagnostics still omit tokens, payloads, and complete JSON-RPC data. Use only non-production canaries for this check.
 
-The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Design network recovery, offline synchronization, and the UI-ready state separately with [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
+The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Include network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
@@ -227,4 +227,4 @@ The current server covers SEND and RECV payloads with this pinned wire profile. 
 
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/sdk/common-guides/messaging), [Custom Messages](/en/sdk/common-guides/custom-messages), and [Integration Acceptance](/en/guide/integration/acceptance).
+Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Custom Messages](/en/sdk/wukongim/concepts), and the [Release Checks](/en/guide/integration/acceptance).

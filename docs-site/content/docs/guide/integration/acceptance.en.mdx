@@ -1,131 +1,60 @@
 ---
-title: Integration Acceptance
-description: Decide whether a WuKongIM integration can ship by separating executable compatibility evidence from production gates.
+title: Release checks
+description: Check identity, connection, messaging, offline recovery, security, capacity, and rollback before release.
 ---
 
-A page that can chat and a socket that can connect are not release decisions. First reproduce the pinned client scenario. Then collect deployment-specific evidence for identity, network controls, authorization, webhooks, capacity, operations, and rollback.
+Connecting and sending one message proves only the basic path. Before production, exercise failure cases with your real clients, server configuration, and application APIs.
 
-<Callout type="error" title="A passing compatibility smoke is not production readiness">
-  The default v3 Beta composition does not enable a stored-token Gateway verifier, and Product HTTP has no general product-authentication middleware. The JavaScript acceptance command fixes `production_readiness.result` at `not_assessed`; it never turns a development CONNECT into a production identity guarantee.
-</Callout>
+## Freeze the release inputs
 
-## Two evidence layers
+Record and review:
 
-| Layer | Owner | What it proves | What it cannot prove |
-| --- | --- | --- | --- |
-| Compatibility smoke | Pinned JavaScript sample and real Chromium | The acceptance-harness revision, lockfile, observed installed SDK, and browser complete the defined loop against the configured cluster endpoint | Tested-cluster source identity, production authentication, TLS, capacity, webhook reliability, or product policy |
-| Production gates | Product, platform, security, and operations owners | This deployment's identity, network, policy, capacity, and recovery design are releasable | It cannot rewrite SDK compatibility evidence |
+- exact client SDK versions and lockfiles;
+- the WuKongIM server version and configuration;
+- supported client systems, devices, and networks;
+- versions of login, token, channel metadata, conversation, history, and media APIs;
+- database or protocol changes and their rollback path.
 
-Either layer can stop a release. A manual production checklist cannot excuse a broken executable scenario, and a green smoke report cannot waive production security review.
+Release and roll back dependencies, configuration, and lockfiles as one change unit.
 
-## Run the compatibility smoke
+## Minimum messaging loop
 
-Confirm that cluster `/readyz` succeeds, Product HTTP is reachable only from the trusted local Node.js process, and the locked installation in [Installation](/en/sdk/javascript/installation) is complete. Then run from the sample directory:
+Use two real test accounts, Alice and Bob, in independent clients:
 
-```bash
-cd docs-site/examples/javascript-web-quickstart
-WK_DOCS_QUICKSTART_E2E_PRODUCT_HTTP_URL=http://127.0.0.1:5001 \
-WK_DOCS_QUICKSTART_E2E_UI_URL=http://127.0.0.1:5173 \
-npm run verify:acceptance
-```
+1. Log in and reach the send-ready state on both clients.
+2. Alice sends text to Bob and shows that the server accepted it.
+3. Bob receives the online message exactly once.
+4. Bob loses network access and Alice sends another message.
+5. Bob reconnects, restores the missed message, and shows correct order and unread state.
+6. Both users log out and back in without local data crossing accounts.
 
-The command starts its own sample BFF. Stop a manually running Quickstart on the same UI port first, or choose another unused loopback port. By default it checks only the laboratory pages. To include bilingual documentation routes in the same Chromium run, first serve `docs-site/out` on loopback and also set `WK_DOCS_SITE_E2E_URL`; otherwise documentation quality remains `not_assessed`.
+The sender's server result, the recipient's live message, and offline synchronization are three separate events. Check each one independently.
 
-The command runs fast tests and the typechecked build, executes the complete real Chromium E2E, and only then writes:
+## Release checklist
 
-```text
-test-results/integration-acceptance.json
-```
+| Area | Verify at minimum |
+| --- | --- |
+| Identity | Invalid, expired, revoked, and wrong-UID tokens are rejected; clients hold no Product HTTP administrative credentials |
+| Connection | Weak networks, network changes, foreground/background, server restart, kick-out, and token expiry produce clear UI state |
+| Messages | Sending, success, failure, retry, duplicates, ordering, and timeout cannot create incorrect product state |
+| Conversations | Last message, unread count, deletion, and multi-device changes converge |
+| Media | Upload failure, cancellation, timeout, URL authorization, and local-file cleanup meet product requirements |
+| Local data | Account isolation, backup, encryption, logout cleanup, and upgrade migration meet security requirements |
+| Network security | Client entry uses controlled TLS/WSS; Product HTTP, Manager, and diagnostics are not publicly exposed |
+| Capacity | Load tests cover target online users, message rate, and group size with bounded queues, retries, and degradation |
+| Observability | Metrics and redacted logs can locate connection, send, delivery, sync, and storage failures |
+| Rollback | Client and server rollback is rehearsed in staging, and older versions can still read existing data |
 
-It removes a stale report before starting. A failed step leaves no previous passing report behind, and configured HTTP or WebSocket endpoints are never recorded.
+## Go / No-Go
 
-## Automated evidence scope
+Stop the release when any of these is true:
 
-The pinned scenario proves that:
+- identity verification or network boundaries are incomplete;
+- a critical failure case cannot be reproduced and recovered reliably;
+- logs expose tokens or complete message payloads;
+- capacity misses the target or has no explicit rate-limit and degradation policy;
+- a data change cannot roll back and has no reviewed forward-repair plan.
 
-1. the loopback BFF discovers a route and two isolated Chromium Sessions, using development UIDs unique to this run, receive successful CONNACKs;
-2. both peers send persistent person messages;
-3. SENDACK and peer `realtime` receipt are observed separately;
-4. Alice can commit while Bob is offline and Bob records no realtime event;
-5. Bob reconnects and recovers through bounded person-message synchronization; before the first persistent ordinary person-message append, the server admits the projection task, but UID-directory memberships materialize asynchronously, so the sample waits at 250ms intervals, at most 20 times, only for the exact membership-not-ready response;
-6. realtime observations are not relabeled by synchronization and the offline message is recovered once; and
-7. the laboratory pages pass the current accessibility baseline; bilingual documentation routes join the separate documentation-quality check only when `WK_DOCS_SITE_E2E_URL` is set.
+After all checks pass, begin with a small rollout. Observe connection success, send failures, message latency, sync errors, queue levels, and storage errors before expanding traffic.
 
-See [JavaScript / Web Platform Capabilities](/en/sdk/javascript/platform-capabilities) for the complete boundary. Accessibility is laboratory and documentation quality evidence; it is not a claim about SDK assistive-technology support or full conformance.
-
-## Read the report
-
-The report uses `wukongim.docs.integration-acceptance/v1` and has this core shape:
-
-```json
-{
-  "schema": "wukongim.docs.integration-acceptance/v1",
-  "harness_source": { "revision": "<full-git-revision>", "clean": true },
-  "target": {
-    "cluster": { "source_identity": "not_assessed" }
-  },
-  "compatibility_smoke": {
-    "result": "passed",
-    "checks": [{ "id": "route-connect", "result": "passed" }]
-  },
-  "documentation_quality": {
-    "result": "not_assessed",
-    "checks": [
-      { "id": "bilingual-documentation-accessibility", "result": "not_assessed" }
-    ]
-  },
-  "production_readiness": {
-    "result": "not_assessed",
-    "gates": [
-      { "id": "gateway-stored-token-verification", "result": "not_assessed" }
-    ]
-  },
-  "publication_attestation": "not_issued"
-}
-```
-
-- `harness_source.clean=false` means the acceptance harness worktree is dirty; pin a revision and rerun. It is not the tested cluster's source identity.
-- `target` binds the sample lockfile, scenario, observed-and-validated installed SDK, Node.js, Playwright, and actual Chromium identity.
-- `target.cluster.source_identity=not_assessed` means an arbitrary Product HTTP target supplied no verifiable server-build identity; never substitute `harness_source.revision` for the cluster revision.
-- `documentation_quality.result=passed` appears only when `WK_DOCS_SITE_E2E_URL` is set and the bilingual routes actually join this E2E; otherwise it is `not_assessed`.
-- `publication_attestation=not_issued` means this is not the documentation publication receipt. Only the protected clean-HEAD `docs-integration` gate can issue the existing golden-path verification receipt.
-- The report contains no token, UID, message body, endpoint, DOM, screenshot, trace, video, or server response.
-
-## Production gates and evidence
-
-| Gate | Minimum evidence | Default v3 Beta state |
-| --- | --- | --- |
-| Account and UID authority | Product login, one UID authority, disablement, and audit tests | Product-owned |
-| Gateway token verification | End-to-end rejection of invalid, expired, revoked, and cross-device tokens | **Not wired by default; blocks production** |
-| TLS and ingress | Certificate, WSS, proxy upgrade, idle-timeout, and controlled-ingress tests | Deployment-owned |
-| Product HTTP protection | Private network or authenticated proxy, least privilege, rate limits, and audit | No general product authentication by default |
-| Authorization and content policy | Membership, allow/deny, mute, moderation, and rejection cases | Product-driven |
-| Capacity and backpressure | Target-scale load, queue thresholds, retry bounds, limits, and degradation criteria | Not covered by smoke |
-| Webhook reliability | Trusted network, persist-before-200, idempotency, exhausted-retry handling, and reconciliation | Current sender adds no signature header |
-| Operations and rollback | Metrics, alerts, incident diagnostics, backup/restore rehearsal, change audit, version pinning, canary, rollback criteria, and rollback rehearsal | Requires separate run evidence |
-
-Every deployment is a cluster. A single-node cluster still follows Controller, Slot, and Channel authority. Capacity evidence must match the product workload and retain the default 256 physical Hash Slot semantics.
-
-## Release decision
-
-- **No-Go:** smoke failed, report is missing, or source cannot be reproduced.
-- **No-Go:** the stored-token verifier is absent, or any production gate lacks an owner and evidence.
-- **Go candidate:** the exact-version smoke passed and every production gate has fresh evidence, rollback criteria, and an accountable owner.
-
-Your release process owns the final Go/No-Go. This page defines evidence boundaries; it does not replace security approval, capacity review, or incident accountability.
-
-## Troubleshooting
-
-- **`sample-check` fails:** repair dependencies, unit tests, or TypeScript before involving a cluster.
-- **`real-e2e` fails:** classify the failure by route, CONNACK, SENDACK, realtime, or sync stage and retain Reason Code plus version identity.
-- **Sync returns membership required:** the server admitted the source-owned projection task before the first persistent ordinary person-message append, but both UID-directory memberships materialize asynchronously. The sample retries only that exact not-ready response within a fixed window; continued failure means projection did not converge and must not be hidden by an unbounded retry.
-- **No report exists:** this is expected fail-closed behavior; the command writes only after all steps pass.
-- **The report says dirty harness source:** commit or deliberately remove scoped changes, then rerun from an exact revision; obtain cluster source identity from deployment inventory or separate attestation.
-
-## Evidence safety
-
-The report can enter an internal review system, but it remains engineering evidence. A failure screenshot is allowed only after the page is redacted and checked. Do not enable automatic Playwright traces, videos, console capture, or network recording, and never place production tokens in the sample environment.
-
-## Next step
-
-Review [Authentication & Security](/en/api/authentication) and [Webhooks](/en/guide/integration/webhooks), then assemble the release packet with the [Production Checklist](/en/server/deployment/production-checklist), [Health & Monitoring](/en/server/operations/health-and-monitoring), and [Upgrade & Migration](/en/server/operations/upgrade-and-migration) guides.
+Continue with [Authentication & Security](/en/api/authentication), the [Production Checklist](/en/server/deployment/production-checklist), [Health & Monitoring](/en/server/operations/health-and-monitoring), and [Upgrade & Migration](/en/server/operations/upgrade-and-migration).

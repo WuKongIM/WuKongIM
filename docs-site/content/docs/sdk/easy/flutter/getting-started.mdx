@@ -43,7 +43,7 @@ description: 对照 WuKongEasySDK Flutter v1.1.0 固定源码学习 Dart 接入 
 - 一个 `/readyz` 正常、目标设备可访问 WebSocket Gateway 的 WuKongIM 单节点集群或多节点集群；
 - 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
 
-先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。如果应用同时构建移动端、桌面端和 Web，请把每个目标分别验收，不能用一个平台的结果推断全部平台。
+先阅读[身份与 Token](/zh/guide/integration/authentication)。如果应用同时构建移动端、桌面端和 Web，请把每个目标分别验收，不能用一个平台的结果推断全部平台。
 
 ## 步骤 1：安装精确版本
 
@@ -256,7 +256,7 @@ Future<void> sendText(String targetUid, String text) async {
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放；
 7. 使用 `v1.1.0` 的 Release 产物检查每个目标平台的系统日志与采集服务：默认配置不应出现 SDK 诊断；受控地显式开启后，也只能出现低敏运行元数据，不能出现 Token、Payload、完整 JSON-RPC 数据或公开模型的敏感字符串。
 
-该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/sdk/common-guides/messaging)和[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)补齐。
+该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)补齐。
 
 ## 常见问题
 
@@ -270,4 +270,4 @@ Future<void> sendText(String targetUid, String text) async {
 
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[会话与未读数](/zh/sdk/common-guides/conversations-and-unread)和[上线验收](/zh/guide/integration/acceptance)。
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[会话与未读数](/zh/guide/core-concepts/conversations)和[上线检查](/zh/guide/integration/acceptance)。

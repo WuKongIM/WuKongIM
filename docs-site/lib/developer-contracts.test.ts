@@ -318,8 +318,12 @@ const (
       'javascript',
       'quickstart',
     ]);
-    expect(quickstart).toContain('wukongimjssdk@1.3.5');
-    expect(quickstart).toContain('POST /channel/messagesync');
+    expect(quickstart).toBe('');
+    const compatibility = renderDeveloperContractSupplement('en', [
+      'api',
+      'compatibility',
+    ]);
+    expect(compatibility).toContain('wukongimjssdk@1.3.5');
     expect(renderDeveloperContractSupplement('en', ['guide', 'index'])).toBe('');
   });
 

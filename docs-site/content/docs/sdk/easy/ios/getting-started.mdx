@@ -12,7 +12,7 @@ description: 对照 WuKongEasySDK iOS v1.1.0 固定源码学习 Swift 接入 API
 “安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 iOS EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)。旧页只提供学习路径；下面的方法签名、版本与限制以固定的 `v1.1.0` 源码和分发产物为准。
 
 <Callout type="warn" title="证据边界">
-  示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.1.0`、源码与发布 revision [`683c1519bfa19fd91a15ae092733e1efb1e75d5d`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/683c1519bfa19fd91a15ae092733e1efb1e75d5d) 校对，发布包可在 [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) 与 [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) 核对。这是源码级教程，不是本站运行验证，也不扩大[版本与兼容性](/zh/sdk/compatibility)中的可执行客户端范围。
+  示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.1.0`、源码与发布 revision [`683c1519bfa19fd91a15ae092733e1efb1e75d5d`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/683c1519bfa19fd91a15ae092733e1efb1e75d5d) 校对，发布包可在 [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) 与 [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) 核对。这是源码级教程，不是本站运行验证，也不扩大本站的可执行客户端范围。
 </Callout>
 
 <Callout type="info" title="v1.1.0 已包含默认静默与脱敏">
@@ -39,7 +39,7 @@ description: 对照 WuKongEasySDK iOS v1.1.0 固定源码学习 Swift 接入 API
 - 一个 `/readyz` 正常、WebSocket Gateway 可从设备访问的 WuKongIM 单节点集群或多节点集群；
 - 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
 
-先阅读[身份与 Token](/zh/sdk/common-guides/identity-and-token)。不要把固定 Token 写进 App、源码仓库、日志或截图。
+先阅读[身份与 Token](/zh/guide/integration/authentication)。不要把固定 Token 写进 App、源码仓库、日志或截图。
 
 ## 步骤 1：安装精确版本
 
@@ -212,7 +212,7 @@ print("SEND completed: seq=\(result.messageSeq)")
 6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接；
 7. 检查 `v1.1.0` Release 构建与设备日志，证明诊断关闭时没有 SDK 输出，临时开启诊断时 Token、Payload 和完整 JSON-RPC 数据也不会被记录；只使用非生产 canary 完成这项检查。
 
-当前服务端已用该固定 wire profile 覆盖 SEND 与 RECV Payload。你仍需保留服务端 revision、iOS tag、设备和网络环境的实际结果；这一步只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要按[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)另行设计。
+当前服务端已用该固定 wire profile 覆盖 SEND 与 RECV Payload。你仍需保留服务端 revision、iOS tag、设备和网络环境的实际结果；这一步只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要纳入[上线检查](/zh/guide/integration/acceptance)。
 
 ## 常见问题
 
@@ -227,4 +227,4 @@ print("SEND completed: seq=\(result.messageSeq)")
 
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[自定义消息](/zh/sdk/common-guides/custom-messages)与[上线验收](/zh/guide/integration/acceptance)。
+回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[自定义消息](/zh/sdk/wukongim/concepts)与[上线检查](/zh/guide/integration/acceptance)。

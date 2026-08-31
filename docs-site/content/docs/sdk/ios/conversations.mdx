@@ -1,0 +1,65 @@
+---
+title: iOS 会话管理
+description: 读取聊天列表、监听会话变化，并维护未读数。
+---
+
+会话 `WKConversation` 就是聊天列表中的一项。它包含目标频道、最后一条消息、最后消息时间和未读数。
+
+## 读取聊天列表
+
+```objc
+NSArray<WKConversation *> *items =
+    [[WKSDK shared].conversationManager getConversationList];
+
+for (WKConversation *item in items) {
+    NSLog(@"channel=%@ unread=%ld",
+          item.channel.channelId,
+          (long)item.unreadCount);
+}
+```
+
+`lastMessage` 可用于生成预览，`lastMsgTimestamp` 用于排序或显示时间。`channelInfo` 可能还没加载，名称和头像的补齐方式见[频道管理](/zh/sdk/ios/channels)。
+
+## 监听列表变化
+
+```objc
+[[WKSDK shared].conversationManager addDelegate:self];
+
+- (void)onConversationUpdate:(NSArray<WKConversation *> *)conversations {
+    // conversations 只包含本次变化项，可按 channel 更新现有列表。
+    [self mergeConversations:conversations];
+}
+
+- (void)onConversationUnreadCountUpdate:(WKChannel *)channel
+                             unreadCount:(NSInteger)unreadCount {
+    [self updateBadgeForChannel:channel count:unreadCount];
+}
+```
+
+如果列表较小，收到变化后重新调用 `getConversationList` 也可以，逻辑更简单。
+
+## 清除和统计未读数
+
+用户进入一个聊天并确认已看到消息后，清除该聊天的本地未读数：
+
+```objc
+WKChannel *channel = [WKChannel personWithChannelID:@"bob"];
+[[WKSDK shared].conversationManager clearConversationUnreadCount:channel];
+
+NSInteger total =
+    [[WKSDK shared].conversationManager getAllConversationUnreadCount];
+```
+
+删除聊天列表项不会删除该频道的全部本地消息：
+
+```objc
+[[WKSDK shared].conversationManager deleteConversation:channel];
+```
+
+## 接入服务端会话同步
+
+多设备之间需要恢复最近会话时，使用 `setSyncConversationProviderAndAck:ack:` 接入你的业务 API。Provider 根据 SDK 给出的版本和各频道最后消息序号返回 `WKSyncConversationWrapModel`；ack 在 SDK 成功处理后把版本提交给服务端。
+
+不要在 Provider 中直接修改 UI，它是数据同步边界。完成同步后，列表变化会通过会话监听器交给界面。
+
+离开页面时调用 `removeDelegate:`，避免重复更新。

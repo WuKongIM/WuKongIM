@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "WuKongIMSDK 在应用中的位置",
+    "subtitle": "业务后端提供身份与资料，SDK 负责客户端消息状态",
+    "output": "wukongimsdk.zh.html",
+    "viewBox": [920, 640]
+  },
+  "components": [
+    { "id": "app", "type": "frontend", "label": "你的 App", "sublabel": "界面与业务逻辑", "pos": [60, 270], "size": [140, 70] },
+    { "id": "backend", "type": "backend", "label": "业务后端", "sublabel": "UID · Token · 业务资料", "pos": [60, 90], "size": [170, 70] },
+    { "id": "sdk", "type": "backend", "label": "WuKongIMSDK", "sublabel": "连接 · 消息 · 会话 · 频道", "pos": [340, 270], "size": [190, 70], "tag": "客户端状态中心" },
+    { "id": "storage", "type": "database", "label": "本地数据", "sublabel": "消息 · 会话 · 未读数", "pos": [365, 440], "size": [140, 66] },
+    { "id": "cluster", "type": "cloud", "label": "WuKongIM 集群", "sublabel": "持久化 · 路由 · 在线投递", "pos": [680, 270], "size": [170, 70] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "客户端", "wraps": ["app", "sdk", "storage"] }
+  ],
+  "connections": [
+    { "from": "app", "to": "sdk", "label": "调用 API", "variant": "emphasis" },
+    { "from": "sdk", "to": "cluster", "label": "连接与消息", "variant": "emphasis" },
+    { "from": "backend", "to": "app", "label": "登录结果", "variant": "security", "fromSide": "bottom", "toSide": "top" },
+    { "from": "backend", "to": "sdk", "label": "资料与同步数据", "variant": "dashed", "fromSide": "right", "toSide": "top", "route": "orthogonal-h", "labelDy": -12 },
+    { "from": "sdk", "to": "storage", "label": "保存", "fromSide": "bottom", "toSide": "top", "labelAt": [435, 354] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "App 负责", "items": ["登录界面、联系人、群成员与业务权限", "把 SDK 回调更新到产品界面"] },
+    { "dot": "emerald", "title": "SDK 负责", "items": ["连接、消息状态、本地会话与未读数", "通过 Provider 向业务后端补充资料"] },
+    { "dot": "amber", "title": "集群负责", "items": ["消息持久化、频道路由与在线投递", "单节点部署也保持完整集群语义"] }
+  ]
+}

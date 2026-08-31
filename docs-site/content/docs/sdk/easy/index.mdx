@@ -34,7 +34,7 @@ WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业
 | 发送结果与实时消息接收 | 离线消息同步、会话与未读、推送和多设备策略 |
 | 有界自动重连能力 | TLS/WSS、限流、容量、监控、升级与回滚证据 |
 
-EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服务端对本次发送给出了结果；它仍不等于对方已经在线收到、已经展示或已经处理。继续阅读[消息收发](/zh/sdk/common-guides/messaging)，把发送确认、实时接收和业务完成分开建模。
+EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服务端对本次发送给出了结果；它仍不等于对方已经在线收到、已经展示或已经处理。继续阅读[消息收发](/zh/guide/integration/messaging)，把发送确认、实时接收和业务完成分开建模。
 
 ## 同一流程，不同的生命周期归属
 
@@ -92,7 +92,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 - `websocketUrl` 来自部署配置或后端调用 `/route` 后的安全选择；
 - 生产环境使用 `wss://`，并让反向代理正确支持 WebSocket Upgrade。
 
-先完成[身份与 Token](/zh/sdk/common-guides/identity-and-token)。当前默认 v3 Beta 组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器并证明无效、过期和撤销 Token 会被拒绝。
+先完成[身份与 Token](/zh/guide/integration/authentication)。当前默认 v3 Beta 组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器并证明无效、过期和撤销 Token 会被拒绝。
 
 <Callout type="info" title="设备类型已经统一，业务代码仍应使用枚举">
   这四个固定版本都采用 [设备字典](/zh/api/dictionaries/device-flags)中的同一组线路值：APP `0`、WEB `1`、PC `2`。移动端使用 `.app` / `APP`，浏览器默认使用 WEB；不要在业务代码中复制整数。服务端会在 JSON-RPC 边界归一化各端字段和 Payload 形态，应用仍应保留平台页列出的生命周期与日志防护。
@@ -114,4 +114,4 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 
 ## 下一步
 
-选择上方平台完成第一条消息，按平台页执行 Alice/Bob 验收，并继续阅读[消息收发](/zh/sdk/common-guides/messaging)、[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)和[上线验收](/zh/guide/integration/acceptance)。如果需要本地消息库、会话、未读和更完整的平台 API，请回到[选择 SDK](/zh/sdk/choose-sdk)评估 WuKongIMSDK 系列。
+选择上方平台完成第一条消息，按平台页执行 Alice/Bob 检查，并继续阅读[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)。如果需要本地消息库、会话、未读和更完整的平台 API，请回到[选择 SDK](/zh/sdk)评估 WuKongIMSDK 系列。
