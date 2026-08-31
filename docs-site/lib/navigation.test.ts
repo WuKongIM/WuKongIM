@@ -6,6 +6,7 @@ import {
   getAllNavigationEntries,
   getIndexedNavigationEntries,
   getNavigationEntry,
+  isNavigationGroup,
   isPublishedContentPath,
   locales,
   parseLocale,
@@ -49,14 +50,9 @@ describe('documentation navigation contract', () => {
       'architecture',
     ]);
     expect(byKey.sdk.groups.map((group) => group.slug)).toEqual([
+      'wukongim',
       'easy',
       'common-guides',
-      'android',
-      'ios',
-      'javascript',
-      'flutter',
-      'uniapp',
-      'harmonyos',
     ]);
     expect(byKey.api.groups.map((group) => group.slug)).toEqual([
       'product-http',
@@ -297,7 +293,10 @@ describe('documentation navigation contract', () => {
   test('publishes the Phase 23 UniApp retirement path without reviving the old SDK', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const sdk = domains.find((domain) => domain.key === 'sdk');
-    const uniapp = sdk?.groups.find((group) => group.slug === 'uniapp');
+    const wukongim = sdk?.groups.find((group) => group.slug === 'wukongim');
+    const uniapp = wukongim?.children
+      .filter(isNavigationGroup)
+      .find((group) => group.slug === 'uniapp');
 
     expect(published).toEqual(
       expect.arrayContaining([
@@ -374,6 +373,57 @@ describe('documentation navigation contract', () => {
       expect(page.type).toBe('page');
       if (page.type === 'page') expect(isValidElement(page.name)).toBe(false);
     }
+  });
+
+  test('groups the full SDK platform guides under WuKongIMSDK', () => {
+    const sdk = domains.find((domain) => domain.key === 'sdk');
+    const wukongim = sdk?.groups.find((group) => group.slug === 'wukongim');
+
+    expect(wukongim?.status).toBe('published');
+    expect(wukongim?.childrenAtDomainRoot).toBe(true);
+    expect(
+      wukongim?.children.map((group) => [group.slug, group.status]),
+    ).toEqual([
+      ['android', 'published'],
+      ['ios', 'published'],
+      ['javascript', 'published'],
+      ['flutter', 'published'],
+      ['uniapp', 'published'],
+      ['harmonyos', 'published'],
+    ]);
+    expect(
+      getNavigationEntry('en', 'sdk', ['ios', 'quickstart'])
+        ?.status,
+    ).toBe('published');
+    expect(
+      getNavigationEntry('en', 'sdk', ['wukongim', 'ios', 'quickstart']),
+    ).toBeUndefined();
+
+    const tree = buildPageTree('zh', 'sdk');
+    const folder = tree.children.find(
+      (node) =>
+        node.type === 'folder' && node.index?.url === '/zh/sdk/wukongim',
+    );
+
+    expect(folder?.type).toBe('folder');
+    if (folder?.type !== 'folder') return;
+    expect(folder.name).toBe('WuKongIMSDK');
+    expect(
+      folder.children.map((node) =>
+        node.type === 'folder'
+          ? node.index?.url
+          : node.type === 'page'
+            ? node.url
+            : undefined,
+      ),
+    ).toEqual([
+      '/zh/sdk/android',
+      '/zh/sdk/ios',
+      '/zh/sdk/javascript',
+      '/zh/sdk/flutter',
+      '/zh/sdk/uniapp',
+      '/zh/sdk/harmonyos',
+    ]);
   });
 
   test('keeps the Phase 16 trusted Product HTTP management pages published', () => {
@@ -517,20 +567,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk`,
         `/${locale}/sdk/choose-sdk`,
         `/${locale}/sdk/compatibility`,
-        `/${locale}/sdk/easy`,
-        `/${locale}/sdk/easy/ios/getting-started`,
-        `/${locale}/sdk/easy/android/getting-started`,
-        `/${locale}/sdk/easy/flutter/getting-started`,
-        `/${locale}/sdk/easy/javascript/getting-started`,
-        `/${locale}/sdk/common-guides`,
-        `/${locale}/sdk/common-guides/identity-and-token`,
-        `/${locale}/sdk/common-guides/initialization-and-connection`,
-        `/${locale}/sdk/common-guides/messaging`,
-        `/${locale}/sdk/common-guides/custom-messages`,
-        `/${locale}/sdk/common-guides/conversations-and-unread`,
-        `/${locale}/sdk/common-guides/offline-and-push`,
-        `/${locale}/sdk/common-guides/multi-device`,
-        `/${locale}/sdk/common-guides/reconnect-and-errors`,
+        `/${locale}/sdk/wukongim`,
         `/${locale}/sdk/android`,
         `/${locale}/sdk/android/installation`,
         `/${locale}/sdk/android/quickstart`,
@@ -563,6 +600,20 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/harmonyos/platform-capabilities`,
         `/${locale}/sdk/harmonyos/api-reference`,
         `/${locale}/sdk/harmonyos/upgrade`,
+        `/${locale}/sdk/easy`,
+        `/${locale}/sdk/easy/ios/getting-started`,
+        `/${locale}/sdk/easy/android/getting-started`,
+        `/${locale}/sdk/easy/flutter/getting-started`,
+        `/${locale}/sdk/easy/javascript/getting-started`,
+        `/${locale}/sdk/common-guides`,
+        `/${locale}/sdk/common-guides/identity-and-token`,
+        `/${locale}/sdk/common-guides/initialization-and-connection`,
+        `/${locale}/sdk/common-guides/messaging`,
+        `/${locale}/sdk/common-guides/custom-messages`,
+        `/${locale}/sdk/common-guides/conversations-and-unread`,
+        `/${locale}/sdk/common-guides/offline-and-push`,
+        `/${locale}/sdk/common-guides/multi-device`,
+        `/${locale}/sdk/common-guides/reconnect-and-errors`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,
@@ -896,6 +947,8 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('sdk/easy/flutter/getting-started.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/javascript/getting-started.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/javascript/getting-started.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/wukongim/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/wukongim/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/javascript/platform-capabilities.en.mdx')).toBe(true);
     for (const platform of ['android', 'ios', 'flutter', 'harmonyos', 'javascript']) {

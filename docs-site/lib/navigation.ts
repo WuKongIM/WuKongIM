@@ -26,6 +26,8 @@ export interface NavigationPage {
 
 export interface NavigationGroup extends NavigationPage {
   children: NavigationNode[];
+  /** Keeps direct child routes at the domain root while grouping them in the sidebar. */
+  childrenAtDomainRoot?: boolean;
 }
 
 export type NavigationNode = NavigationPage | NavigationGroup;
@@ -400,6 +402,27 @@ function publishedEasySDKGroup(): NavigationGroup {
       ),
     ],
   );
+}
+
+function publishedWuKongIMSDKGroup(): NavigationGroup {
+  return {
+    ...publishedGroup(
+      'wukongim',
+      'WuKongIMSDK',
+      'WuKongIMSDK',
+      '按客户端平台查找完整版 WuKongIMSDK 的安装、接入、平台能力、API 与升级文档；UniApp 仅保留弃用迁移指南。',
+      'Find installation, integration, platform capability, API, and upgrade guides for the full WuKongIMSDK family by client platform; UniApp retains only its retirement and migration guide.',
+      [
+        publishedAndroidSDKGroup(),
+        publishedIOSSDKGroup(),
+        publishedJavaScriptGoldenPathGroup(),
+        publishedFlutterSDKGroup(),
+        publishedUniAppMigrationGroup(),
+        publishedHarmonyOSSDKGroup(),
+      ],
+    ),
+    childrenAtDomainRoot: true,
+  };
 }
 
 function publishedJavaScriptGoldenPathGroup(): NavigationGroup {
@@ -989,6 +1012,7 @@ export const domains: DocumentationDomain[] = [
       ),
     ],
     groups: [
+      publishedWuKongIMSDKGroup(),
       publishedEasySDKGroup(),
       publishedGroup(
         'common-guides',
@@ -1055,12 +1079,6 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      publishedAndroidSDKGroup(),
-      publishedIOSSDKGroup(),
-      publishedJavaScriptGoldenPathGroup(),
-      publishedFlutterSDKGroup(),
-      publishedUniAppMigrationGroup(),
-      publishedHarmonyOSSDKGroup(),
     ],
   },
   {
@@ -1318,6 +1336,14 @@ export function navigationPathSegments(slug: string): string[] {
   return segments;
 }
 
+/** Resolves the route base for a group's children independently from sidebar nesting. */
+export function navigationChildParentSlugs(
+  group: NavigationGroup,
+  groupSlugs: string[],
+): string[] {
+  return group.childrenAtDomainRoot ? [] : groupSlugs;
+}
+
 /** Returns every domain, folder index, and leaf page in display order. */
 export function getAllNavigationEntries(locale: Locale): NavigationEntry[] {
   return domains.flatMap((domain) => {
@@ -1335,7 +1361,9 @@ export function getAllNavigationEntries(locale: Locale): NavigationEntry[] {
             isNavigationGroup(node) ? 'group' : 'page',
           ),
         );
-        if (isNavigationGroup(node)) appendNodes(node.children, slugs);
+        if (isNavigationGroup(node)) {
+          appendNodes(node.children, navigationChildParentSlugs(node, slugs));
+        }
       }
     }
 

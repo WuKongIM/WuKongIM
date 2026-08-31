@@ -1,6 +1,7 @@
 import {
   domains,
   isNavigationGroup,
+  navigationChildParentSlugs,
   navigationPathSegments,
   type DocumentationDomain,
   type NavigationNode,
@@ -34,7 +35,13 @@ function appendNodes(
     const slugs = [...parentSlugs, ...navigationPathSegments(node.slug)];
     lines.push(item(domain, node, slugs, '  '.repeat(depth)));
     if (isNavigationGroup(node)) {
-      appendNodes(lines, domain, node.children, slugs, depth + 1);
+      appendNodes(
+        lines,
+        domain,
+        node.children,
+        navigationChildParentSlugs(node, slugs),
+        depth + 1,
+      );
     }
   }
 }

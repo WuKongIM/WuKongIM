@@ -5,6 +5,7 @@ import {
   getAllNavigationEntries,
   getIndexedNavigationEntries,
   isNavigationGroup,
+  navigationChildParentSlugs,
   navigationPathSegments,
   type DocumentationDomain,
   type Locale,
@@ -111,7 +112,7 @@ function navigationNode(
       node.status === 'planned',
     ),
     children: node.children.map((child) =>
-      navigationNode(locale, domain, child, slugs),
+      navigationNode(locale, domain, child, navigationChildParentSlugs(node, slugs)),
     ),
   };
 }
