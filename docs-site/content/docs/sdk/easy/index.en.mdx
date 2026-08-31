@@ -1,83 +1,35 @@
 ---
 title: WuKongEasySDK
-description: Read the pinned EasySDK APIs for iOS, Android, Flutter, and Web, then use the current Product Gateway for JSON-RPC CONNECT and online bidirectional messaging.
+description: Choose an iOS, Android, Flutter, or Web quickstart and use a pinned release to complete an online Alice/Bob messaging loop.
 ---
 
-WuKongEasySDK is for applications that need realtime communication while keeping their own UI and product state. These tutorials use pinned source to explain how it models connection, events, and sending over WebSocket JSON-RPC; the current Product Gateway supports the core online path for these four pinned versions.
+WuKongEasySDK provides a lightweight WebSocket JSON-RPC connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
 
-<Callout type="warn" title="A server-side wire receipt is not platform runtime verification">
-  These tutorials were checked against exact release tags and source revisions in the four official repositories. Server fixtures cover all four wire profiles; the real `cmd/wukongim` 256-slot single-node cluster E2E uses the iOS and Android profiles for its Alice/Bob bidirectional loop. It does not compile or execute the published iOS, Android, Flutter, or Web artifacts, so platform builds, device runs, and proxy configuration remain deployment-owned evidence.
-</Callout>
-
-<Callout type="info" title="The current Product Gateway supports the EasySDK core path">
-  The current server supports JSON-RPC CONNECT, request correlation, ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for these four pinned versions. It accepts camelCase, Android snake_case, JSON text-string payloads, JSON object payloads, Base64 payloads, and JS requests without `jsonrpc`; iOS `v1.1.0` sends a camelCase RECVACK containing both `messageId` and `messageSeq`. This receipt excludes offline sync, push, subscription RPC, batch RPC, and production-grade token verification in the default composition.
-</Callout>
-
-“5 minutes” describes the shape of the path: install, initialize, listen, connect, and send. It is not a completion-time promise and does not include product accounts, authorization, group membership, offline synchronization, push, capacity, or release acceptance.
-
-## Choose your platform
+## Choose a platform and send the first message
 
 <Cards>
-  <Card title="iOS" description="Install v1.1.0 with Swift Package Manager or CocoaPods." href="/en/sdk/easy/ios/getting-started" />
-  <Card title="Android" description="Install v1.0.4 from Maven Central and clean up listeners with the Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
-  <Card title="Flutter" description="Install v1.1.0 from pub.dev and release resources from State.dispose." href="/en/sdk/easy/flutter/getting-started" />
-  <Card title="Web" description="Pin easyjssdk v2.0.3 and obtain browser connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="iOS quickstart" description="Install exactly 1.1.0 and use one application-owned client for connect, messaging, and cleanup." href="/en/sdk/easy/ios/getting-started" />
+  <Card title="Android quickstart" description="Install exactly 1.0.4 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
+  <Card title="Flutter quickstart" description="Install exactly 1.1.0, retain listener references, and release them from dispose." href="/en/sdk/easy/flutter/getting-started" />
+  <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.3 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
 </Cards>
 
-## What EasySDK owns
+After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
 
-| Current EasySDK source provides | Your application still owns |
+## Check whether it fits
+
+| Choose EasySDK when you only need | Choose the full WuKongIMSDK when you also need |
 | --- | --- |
-| WebSocket setup and JSON-RPC CONNECT | Product login, UID allocation, token issuance, and revocation |
-| Sends to person or group Channels | Contacts, membership, permissions, content policy, and product receipts |
-| Connect, disconnect, message, error, and related events | View state, rendering, persistence, and unknown-payload fallback |
-| Send results and realtime receive | Offline sync, conversations, unread counts, push, and multi-device policy |
-| Bounded automatic reconnect behavior | TLS/WSS, rate limits, capacity, observability, upgrade, and rollback evidence |
+| WebSocket connection and automatic reconnect | A local message database and offline recovery |
+| Online messages in person or group Channels | Conversations, unread counts, and message synchronization |
+| Send results and realtime message events | Push, multi-device behavior, and the broader platform API |
+| Product-owned UI, persistence, and receipts | More client message state owned by the SDK |
 
-EasySDK is neither a chat UI nor a complete product backend. A successful `send` result means the server returned a result for that send. It still does not prove that the peer received, displayed, or processed the message. Continue with [Messaging](/en/guide/integration/messaging) and model send acknowledgement, realtime receipt, and product completion separately.
+EasySDK is neither a chat UI nor a complete product backend. A successful `send` means the server returned a send result; it does not mean the peer received, displayed, or processed the message. If you need the broader feature set, return to [SDK selection](/en/sdk).
 
-## One flow, different lifecycle owners
+## Before you begin: get connection material from your backend
 
-| Task | iOS | Android | Flutter | Web |
-| --- | --- | --- | --- | --- |
-| Create and initialize | Application-owned `WuKongEasySDK` instance | Process singleton via `getInstance()` + `init` | Application-owned singleton + `init` | One `WKIM` instance per identity/browser context |
-| Listener ownership | Retain each `EventListener` token | Retain the same listener object | Retain the same callback reference | Pass the same function reference to `on` and `off` |
-| Connection readiness | Enable send only after `onConnect` | Enable send only after `CONNECT` | Enable send only after the `connect` event | Enable send only after the `Connect` event |
-| Account exit | Remove tokens and `disconnect` | Process/account owner removes listeners and disconnects | Remove listeners, `disconnect`, then `dispose` | `off`, then `destroy` |
-
-A view can subscribe to state, but a view rebuild must not create a second connection. Each platform page identifies who creates and who cleans up the client without prescribing an application UI architecture.
-
-## Tutorial basis and calibration rules
-
-This group preserves the learning sequence from the [legacy WuKongEasySDK overview](https://wukong.mintlify.app/en/sdk/easy/overview) and checks the corresponding legacy [iOS](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started), [Android](https://wukong.mintlify.app/en/sdk/easy/android/getting-started), [Flutter](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started), and [Web](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started) pages. The legacy site determines only the install → initialize → listen → connect → send learning sequence. Method signatures, versions, platform floors, protocol shapes, and security boundaries come from the pinned release source below. Floating versions, “zero configuration,” and unproven compatibility claims from the old pages are not copied forward.
-
-## Source snapshots used by the four tutorials
-
-| Platform | Release tag | Source revision | Distribution |
-| --- | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` | `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` | `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
-| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
-
-The tutorials deliberately pin these versions instead of using ranges or `latest`. The server-side wire receipt covers only the versions in this table. Re-run the Alice/Bob loop before updating the application lockfile and your compatibility record for an SDK upgrade.
-
-## Logging security
-
-| Platform | Fix source | Released version |
-| --- | --- | --- |
-| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) |
-| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | [`v1.0.4`](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) |
-| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) |
-| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | [`v2.0.3`](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) |
-
-<Callout type="info" title="The official releases include the logging-security fixes">
-  All four official versions above keep diagnostics off by default, emit only redacted low-sensitivity metadata when explicitly enabled, and redact public model string representations. Keep production diagnostics disabled, avoid separately writing tokens, payloads, or complete protocol objects to product logs, and independently inspect Release builds plus target-device or browser logs during acceptance.
-</Callout>
-
-## Prepare connection material
-
-A client must not grant its own identity. The user first signs in to your product. A trusted product backend then returns only the material needed for this connection:
+The client must not create its own identity or call Product HTTP management routes. After product login, the trusted backend returns the minimum connection material over HTTPS:
 
 ```json
 {
@@ -87,31 +39,72 @@ A client must not grant its own identity. The user first signs in to your produc
 }
 ```
 
-- `uid` is the stable user identity in your product.
-- `token` is short-lived and revocable and grants no Product HTTP management authority.
-- `websocketUrl` comes from deployment configuration or from a safe backend selection after calling `/route`.
-- Production uses `wss://`, and its reverse proxy supports WebSocket Upgrade correctly.
+| Field | Owner and constraint |
+| --- | --- |
+| `uid` | Stable user identity confirmed by the product backend; Alice and Bob use different values |
+| `token` | Short-lived and revocable, scoped to this identity's connection, with no Product HTTP management authority |
+| `websocketUrl` | Selected by the backend from deployment configuration or a trusted routing result; production uses `wss://` |
 
-Complete [Identity & Token](/en/guide/integration/authentication) first. In the default v3 Beta composition, storing data through `/user/token` does not automatically provide production-grade CONNECT validation. A deployment must wire a trusted verifier and prove rejection of invalid, expired, and revoked tokens.
+Complete [Authentication & Tokens](/en/guide/integration/authentication) first. Saving `/user/token` does not automatically add production-grade CONNECT validation to the default composition. Your deployment needs a trusted validator and evidence that invalid, expired, and revoked tokens are rejected.
 
-<Callout type="info" title="Device categories are aligned; application code should still use enums">
-  All four pinned versions use the same wire values as the [Device Flag dictionary](/en/api/dictionaries/device-flags): APP `0`, WEB `1`, and PC `2`. Mobile clients use `.app` / `APP`, while the browser defaults to WEB; do not copy integers into product code. The server normalizes each JSON-RPC field and payload shape at the protocol boundary; applications must still apply the lifecycle and logging safeguards in each platform tutorial.
+## Alice/Bob acceptance loop
+
+All four platforms follow the same minimal path:
+
+1. Obtain separate `uid`, short-lived `token`, and `websocketUrl` values for Alice and Bob.
+2. Create the clients in two independent devices, processes, or browser contexts by following the platform quickstart.
+3. After both sides report a successful connection, have Alice send a text JSON payload to the person Channel `bob`.
+4. Retain Alice's send result; on Bob, verify `fromUid`, the Channel, and the payload in the realtime message event.
+5. Send from Bob to Alice and prove the reverse direction.
+6. Leave the page or sign out, remove listeners, and disconnect; confirm there is no duplicate event or background connection.
+
+This loop verifies online messaging only. Send acknowledgement, realtime receipt, and product completion are three different states; model them with [Messaging](/en/guide/integration/messaging).
+
+## Lifecycle differences across platforms
+
+| Task | iOS | Android | Flutter | Web |
+| --- | --- | --- | --- | --- |
+| Create and initialize | Application-owned `WuKongEasySDK` instance | Process singleton via `getInstance()` + `init` | Application-owned singleton + `init` | One `WKIM` instance per identity or browser context |
+| Listener ownership | Retain each `EventListener` token | Retain the same listener object | Retain the same callback reference | Pass the same function reference to `on` and `off` |
+| Allow send | After `onConnect` | After `CONNECT` | After the `connect` event | After the `Connect` event |
+| Account exit | Remove tokens and `disconnect` | Remove listeners and disconnect; account switching must handle the singleton limit | Remove listeners, `disconnect`, then `dispose` | `off`, then `destroy` |
+
+A view may subscribe to connection state, but rebuilding the view must not create a second connection. Each platform's complete minimal example shows the correct owner and cleanup point.
+
+## Complete before production
+
+- Use WSS and verify certificates, reverse-proxy WebSocket Upgrade, and device-side reachability.
+- Prove that expired, revoked, wrong-identity, and replayed tokens are rejected.
+- Keep SDK diagnostics disabled in Release builds, then use non-production canaries to inspect device logs, the browser Console, crash reports, and collectors.
+- Accept reconnect, offline recovery, deduplication, push, multi-device behavior, capacity, observability, upgrades, and rollback separately.
+- Record the server revision, SDK version, platform, device, and network instead of treating one development loop as a production receipt.
+
+Use [Release Checks](/en/guide/integration/acceptance) to close these gates.
+
+## Versions and evidence
+
+<Callout type="warn" title="A server-side wire receipt is not platform runtime verification">
+  The current Product Gateway supports JSON-RPC CONNECT, ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for the four pinned versions. Server fixtures cover all four wire profiles; the real `cmd/wukongim` 256-slot single-node cluster E2E uses the iOS and Android profiles for its Alice/Bob bidirectional loop. This site does not compile or execute the platform artifacts. Device execution, WSS, offline behavior, and production token verification remain deployment-owned evidence.
 </Callout>
 
-## Accept online bidirectional messaging with Alice and Bob
+| Platform | Pinned release and source revision | Official distribution |
+| --- | --- | --- |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` · `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) · [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` · `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) · [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` · `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) · [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` · `d29038e52aab5bce09f643fbe4daf11547379131` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
 
-Run the following minimal loop in your deployment:
+The tutorials use only these exact versions—never `latest` or a broad version range. All four official releases include logging-security changes that leave diagnostics off by default and sanitize enabled output:
 
-1. Obtain a UID, short-lived token, and WebSocket address separately for Alice and Bob.
-2. Create two independent SDK instances or run two independent application processes.
-3. After both clients observe a successful connection, have Alice send a text payload to Bob's person Channel.
-4. On Alice, record the returned message ID, sequence, and Reason Code when exposed by that SDK.
-5. On Bob, independently observe the realtime message event and deduplicate by `messageId`.
-6. Send once from Bob to Alice and verify the reverse direction.
-7. Remove listeners and disconnect when the page, Activity, Widget, or application exits.
+| Platform | Fix provenance |
+| --- | --- |
+| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) · `b7ec4440b940539bee213f95a3be74948f4b9fb8` |
+| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) · `e984c7374a0e11f5d109ad3dbfdea599907735ff` |
+| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) · `d7758c301e5289ddfa09cd09b6976c2479584b1c` |
+| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) · `3ebf505734c5b6764b30eac011f0b7a5024c89e8` |
 
-This loop proves only connection and online messaging in the tested environment. Offline recovery, conversations, push, multi-device behavior, reconnect boundaries, and production security require separate evidence.
+The task sequence was calibrated from the legacy [EasySDK overview](https://wukong.mintlify.app/en/sdk/easy/overview), [iOS](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started), [Android](https://wukong.mintlify.app/en/sdk/easy/android/getting-started), [Flutter](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started), and [Web](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started) pages. The released source and distributions above remain authoritative for APIs, versions, and security boundaries.
 
 ## Next
 
-Choose a platform above and send the first message, run that page's Alice/Bob checks, and continue with [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance). If you need a local message store, conversations, unread counts, and a broader platform API, return to [Choose an SDK](/en/sdk) and evaluate the WuKongIMSDK family.
+Choose a platform above and complete online bidirectional messaging. If you need offline messages, conversations, unread state, or broader platform APIs, switch to the [full SDK](/en/sdk/wukongim).

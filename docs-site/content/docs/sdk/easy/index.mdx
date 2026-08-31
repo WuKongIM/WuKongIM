@@ -1,83 +1,35 @@
 ---
 title: WuKongEasySDK
-description: 阅读 iOS、Android、Flutter 和 Web 的固定 EasySDK API，并使用当前 Product Gateway 完成 JSON-RPC CONNECT 与在线双向收发。
+description: 选择 iOS、Android、Flutter 或 Web 快速接入，使用固定版本完成 Alice 与 Bob 的在线双向消息闭环。
 ---
 
-WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业务状态的应用。本组教程按固定源码说明它如何通过 WebSocket JSON-RPC 建模连接、事件与发送；当前 Product Gateway 已支持这四个固定版本的核心在线路径。
+WuKongEasySDK 提供轻量的 WebSocket JSON-RPC 连接与在线消息 API。它适合已经拥有业务后端、希望自己维护界面和产品状态的应用。
 
-<Callout type="warn" title="服务端线协议凭据不等于平台运行验证">
-  本组教程按四个官方仓库的精确发布 tag 与源码 revision 校对。服务端 fixture 覆盖四端真实 wire profile；真实 `cmd/wukongim` 256 Slot 单节点集群 E2E 使用 iOS 与 Android profile 完成 Alice/Bob 双向闭环。它没有编译或运行 iOS、Android、Flutter 与 Web 的发布产物，因此平台构建、设备运行和代理配置仍由接入方验收。
-</Callout>
-
-<Callout type="info" title="当前 Product Gateway 支持 EasySDK 核心路径">
-  当前服务端支持这四个固定版本的 JSON-RPC CONNECT、请求关联、Ping、在线 SEND/SENDACK、RECV/RECVACK 与重连，并兼容 camelCase、Android snake_case、JSON 文本字符串 Payload、JSON 对象 Payload、Base64 Payload，以及 JS 省略 `jsonrpc`；iOS `v1.1.0` 的 camelCase RECVACK 同时包含 `messageId` 与 `messageSeq`。该凭据不包含离线同步、推送、订阅 RPC、batch RPC 或默认部署中的生产级 Token 校验。
-</Callout>
-
-“5 分钟”描述的是阅读路径：安装、初始化、监听、连接和发送。它不是完成时间承诺，也不包含业务账号、授权、群成员、离线同步、推送、容量与上线验收。
-
-## 选择你的平台
+## 选择平台，发送第一条消息
 
 <Cards>
-  <Card title="iOS" description="使用 Swift Package Manager 或 CocoaPods 安装 v1.1.0。" href="/zh/sdk/easy/ios/getting-started" />
-  <Card title="Android" description="从 Maven Central 安装 v1.0.4，并按 Activity 生命周期清理监听器。" href="/zh/sdk/easy/android/getting-started" />
-  <Card title="Flutter" description="从 pub.dev 安装 v1.1.0，并在 State.dispose 中释放资源。" href="/zh/sdk/easy/flutter/getting-started" />
-  <Card title="Web" description="锁定 easyjssdk v2.0.3，通过业务 BFF 取得浏览器连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
+  <Card title="iOS 快速接入" description="精确安装 1.1.0，用一个应用级客户端完成连接、收发与清理。" href="/zh/sdk/easy/ios/getting-started" />
+  <Card title="Android 快速接入" description="精确安装 1.0.4，按进程单例与 Activity 生命周期完成闭环。" href="/zh/sdk/easy/android/getting-started" />
+  <Card title="Flutter 快速接入" description="精确安装 1.1.0，保存监听器引用并在 dispose 中释放。" href="/zh/sdk/easy/flutter/getting-started" />
+  <Card title="Web 快速接入" description="精确安装 easyjssdk 2.0.3，通过业务 BFF 获取连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
 </Cards>
 
-## EasySDK 负责什么
+完成对应教程后，你会让 Alice 与 Bob 分别连接，在个人 Channel 中双向发送一个文本 JSON Payload，并在退出时正确移除监听器和连接。
 
-| EasySDK 当前源码提供 | 仍由你的应用负责 |
+## 先判断是否适合
+
+| 选择 EasySDK，如果你只需要 | 选择完整版 WuKongIMSDK，如果你还需要 |
 | --- | --- |
-| WebSocket 建连与 JSON-RPC CONNECT | 产品登录、UID 分配、Token 签发和撤销 |
-| 单聊或群聊 Channel 的消息发送 | 好友、群成员、权限、内容安全和业务回执 |
-| 连接、断开、消息、错误等事件 | 页面状态、消息展示、持久化和未知消息降级 |
-| 发送结果与实时消息接收 | 离线消息同步、会话与未读、推送和多设备策略 |
-| 有界自动重连能力 | TLS/WSS、限流、容量、监控、升级与回滚证据 |
+| WebSocket 连接与自动重连 | 本地消息数据库与离线恢复 |
+| 单聊或群聊 Channel 的在线消息 | 会话列表、未读数与消息同步 |
+| 发送结果和实时消息事件 | 推送、多设备与完整平台能力 |
+| 自己维护 UI、持久化和业务回执 | SDK 承担更多客户端消息状态 |
 
-EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服务端对本次发送给出了结果；它仍不等于对方已经在线收到、已经展示或已经处理。继续阅读[消息收发](/zh/guide/integration/messaging)，把发送确认、实时接收和业务完成分开建模。
+EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服务端返回了发送结果，不表示对方已经收到、展示或处理消息。需要完整能力时，回到 [SDK 选择](/zh/sdk)。
 
-## 同一流程，不同的生命周期归属
+## 开始前：由业务后端提供连接材料
 
-| 任务 | iOS | Android | Flutter | Web |
-| --- | --- | --- | --- | --- |
-| 创建与初始化 | 应用级 `WuKongEasySDK` 实例 | 进程单例 `getInstance()` + `init` | 应用级单例 + `init` | 每个身份/浏览器上下文一个 `WKIM` 实例 |
-| 监听器归属 | 保存 `EventListener` token | 保存同一个 listener 对象 | 保存同一个回调引用 | `on` / `off` 使用同一个函数引用 |
-| 连接就绪 | `onConnect` 后才启用发送 | `CONNECT` 后才启用发送 | `connect` 事件后才启用发送 | `Connect` 事件后才启用发送 |
-| 退出账号 | 移除 token 并 `disconnect` | 由进程/账号 owner 移除监听并断开 | 移除监听、`disconnect` 并 `dispose` | `off` 后 `destroy` |
-
-页面可以订阅状态，但不应因为页面重建而创建第二个连接。各平台页面分别说明“谁创建、谁清理”，但不规定应用的 UI 架构。
-
-## 教程依据与校准规则
-
-本组保留[旧版 WuKongEasySDK 概览](https://wukong.mintlify.app/zh/sdk/easy/overview)的学习顺序，并分别对照旧版 [iOS](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)、[Android](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)、[Flutter](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started) 和 [Web](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started) 页面。旧站只决定“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序；方法签名、版本、平台下限、协议形态和安全边界都以下面的固定发布源码为准。旧页中的浮动版本、“零配置”和未经证明的兼容结论不会被原样迁移。
-
-## 四个平台采用的源码快照
-
-| 平台 | 发布 tag | 源码 revision | 分发入口 |
-| --- | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` | `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` | `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
-| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
-
-教程故意锁定这些版本，不使用版本范围或 `latest`。服务端线协议凭据只覆盖此表中的版本；升级 SDK 后应重新完成 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
-
-## 日志安全状态
-
-| 平台 | 修复来源 | 已发布版本 |
-| --- | --- | --- |
-| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) |
-| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | [`v1.0.4`](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) |
-| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) |
-| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | [`v2.0.3`](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) |
-
-<Callout type="info" title="正式版本已包含日志安全修复">
-  上表四个正式版本都把诊断日志设为默认关闭，并在显式开启时只输出脱敏后的低敏元数据；公开模型的字符串表示也已脱敏。接入方仍应保持生产诊断关闭，避免在业务日志中另行打印 Token、Payload 或完整协议对象，并通过 Release 构建和目标设备/浏览器日志完成独立验收。
-</Callout>
-
-## 准备连接材料
-
-客户端不应该自己授予身份。用户先登录你的产品，受信业务后端再返回本次连接所需的最小材料：
+客户端不应该创建自己的身份或调用 Product HTTP 管理接口。用户登录产品后，受信业务后端通过 HTTPS 返回最小连接材料：
 
 ```json
 {
@@ -87,31 +39,72 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 }
 ```
 
-- `uid` 是产品中的稳定用户标识；
-- `token` 应短期、可撤销，且不能授予 Product HTTP 管理权限；
-- `websocketUrl` 来自部署配置或后端调用 `/route` 后的安全选择；
-- 生产环境使用 `wss://`，并让反向代理正确支持 WebSocket Upgrade。
+| 字段 | 所有者与约束 |
+| --- | --- |
+| `uid` | 业务后端确认的稳定用户标识；Alice 与 Bob 必须不同 |
+| `token` | 短期、可撤销，只用于当前身份连接；不能授予 Product HTTP 管理权限 |
+| `websocketUrl` | 后端从部署配置或安全路由结果中选择；生产环境使用 `wss://` |
 
-先完成[身份与 Token](/zh/guide/integration/authentication)。当前默认 v3 Beta 组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器并证明无效、过期和撤销 Token 会被拒绝。
+先完成[认证与 Token](/zh/guide/integration/authentication)。当前默认组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器，并证明无效、过期和撤销 Token 会被拒绝。
 
-<Callout type="info" title="设备类型已经统一，业务代码仍应使用枚举">
-  这四个固定版本都采用 [设备字典](/zh/api/dictionaries/device-flags)中的同一组线路值：APP `0`、WEB `1`、PC `2`。移动端使用 `.app` / `APP`，浏览器默认使用 WEB；不要在业务代码中复制整数。服务端会在 JSON-RPC 边界归一化各端字段和 Payload 形态，应用仍应保留平台页列出的生命周期与日志防护。
+## Alice 与 Bob 验收闭环
+
+四个平台遵循同一条最小路径：
+
+1. 为 Alice 和 Bob 分别取得自己的 `uid`、短期 `token` 与 `websocketUrl`；
+2. 在两个独立设备、进程或浏览器上下文中按平台教程创建客户端；
+3. 两端都观察到连接成功后，Alice 向个人 Channel `bob` 发送文本 JSON Payload；
+4. Alice 保存发送结果，Bob 在实时消息事件中核对 `fromUid`、Channel 与 Payload；
+5. Bob 向 Alice 回发，验证反向链路；
+6. 退出页面或账号，移除监听器并断开连接，确认没有重复事件或后台连接。
+
+这个闭环只验证在线消息。发送确认、实时接收与业务完成是三个不同状态，具体建模见[消息收发](/zh/guide/integration/messaging)。
+
+## 四端生命周期差异
+
+| 任务 | iOS | Android | Flutter | Web |
+| --- | --- | --- | --- | --- |
+| 创建与初始化 | 应用级 `WuKongEasySDK` 实例 | 进程单例 `getInstance()` + `init` | 应用级单例 + `init` | 每个身份或浏览器上下文一个 `WKIM` 实例 |
+| 监听器归属 | 保存 `EventListener` token | 保存同一个 listener 对象 | 保存同一个回调引用 | `on` / `off` 使用同一个函数引用 |
+| 允许发送 | `onConnect` 后 | `CONNECT` 后 | `connect` 事件后 | `Connect` 事件后 |
+| 退出账号 | 移除 token 并 `disconnect` | 移除监听并断开；账号切换需处理单例限制 | 移除监听、`disconnect`、`dispose` | `off` 后 `destroy` |
+
+页面可以订阅连接状态，但不应因为页面重建而创建第二条连接。平台教程中的完整最小代码分别展示了正确的 owner 和清理位置。
+
+## 上线前还要完成
+
+- 使用 WSS，并验证证书、反向代理 WebSocket Upgrade 与设备侧可达性；
+- 验证 Token 过期、撤销、错误身份和重放都会被拒绝；
+- 在 Release 构建中保持 SDK 诊断关闭，并用非生产 canary 检查设备日志、Console、崩溃报告和采集器；
+- 分别验收断网重连、离线恢复、去重、推送、多设备、容量、监控、升级与回滚；
+- 记录服务端 revision、SDK 版本、平台、设备和网络环境，不把一次开发闭环当作生产 receipt。
+
+继续使用[上线检查](/zh/guide/integration/acceptance)关闭这些门禁。
+
+## 版本与证据
+
+<Callout type="warn" title="服务端线协议凭据不等于平台运行验证">
+  当前 Product Gateway 支持四个固定版本的 JSON-RPC CONNECT、Ping、在线 SEND/SENDACK、RECV/RECVACK 与重连。服务端 fixture 覆盖四端 wire profile，真实 `cmd/wukongim` 256 Slot 单节点集群 E2E 使用 iOS 与 Android profile 完成 Alice/Bob 双向闭环。本站没有编译或运行这些平台发布产物；设备运行、WSS、离线能力和生产 Token 校验仍由接入方验收。
 </Callout>
 
-## 用 Alice 和 Bob 验收在线双向收发
+| 平台 | 固定版本与源码 revision | 正式分发 |
+| --- | --- | --- |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` · `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) · [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` · `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) · [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` · `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) · [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` · `d29038e52aab5bce09f643fbe4daf11547379131` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
 
-在自己的部署中执行下面的最小闭环：
+教程只使用这些精确版本，不使用 `latest` 或宽松版本范围。四个正式版本都已包含默认关闭、输出脱敏的日志安全修复：
 
-1. 为 Alice 和 Bob 分别取得 UID、短期 Token 与 WebSocket 地址；
-2. 建立两个独立 SDK 实例或两个独立应用进程；
-3. 两端都观察到连接成功后，Alice 向 Bob 的个人 Channel 发送文本 Payload；
-4. Alice 记录发送结果中的消息 ID、序号和 Reason Code（若该 SDK 暴露）；
-5. Bob 独立观察实时消息事件，并按 `messageId` 去重；
-6. 反向由 Bob 向 Alice 发送，再验证一次；
-7. 页面、Activity、Widget 或应用退出时移除监听器并断开连接。
+| 平台 | 修复来源 |
+| --- | --- |
+| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) · `b7ec4440b940539bee213f95a3be74948f4b9fb8` |
+| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) · `e984c7374a0e11f5d109ad3dbfdea599907735ff` |
+| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) · `d7758c301e5289ddfa09cd09b6976c2479584b1c` |
+| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) · `3ebf505734c5b6764b30eac011f0b7a5024c89e8` |
 
-这个闭环只证明被测环境的连接和在线消息。离线恢复、会话、推送、多设备、重连边界和生产安全仍要单独验收。
+当前教程的任务顺序校准自旧版 [EasySDK 概览](https://wukong.mintlify.app/zh/sdk/easy/overview)、[iOS](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)、[Android](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)、[Flutter](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started)和 [Web](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started) 页面；API、版本与安全边界以上表的正式源码和分发产物为准。
 
 ## 下一步
 
-选择上方平台完成第一条消息，按平台页执行 Alice/Bob 检查，并继续阅读[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)。如果需要本地消息库、会话、未读和更完整的平台 API，请回到[选择 SDK](/zh/sdk)评估 WuKongIMSDK 系列。
+选择上方平台完成在线双向消息。需要离线消息、会话、未读和更完整的平台 API 时，改用[完整版 SDK](/zh/sdk/wukongim)。

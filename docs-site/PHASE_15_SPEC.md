@@ -9,9 +9,9 @@ integrator a pinned-source API walkthrough and a then-post-fix Alice/Bob
 acceptance plan without presenting the path as executable at the Phase 15
 revision or treating source review as runtime compatibility evidence.
 
-The four platform labels retain the familiar five-minute tutorial shape. That
-label describes a short source-reading path, not an executable quickstart,
-installation-time promise, or production-readiness guarantee.
+The maintained platform labels now use “Quickstart” instead of the earlier
+five-minute wording. They promise a task-oriented path, not an installation-time
+guarantee, a platform-execution receipt, or production readiness.
 
 ## Superseding current state
 
@@ -74,8 +74,10 @@ evidence.
 
 ## Source snapshots
 
-Every platform tutorial identifies one exact released tag, source revision,
-and package version:
+The overview records one exact released tag, source revision, and package
+version for every platform. Each platform quickstart keeps the exact install
+pin, official distribution, and matching release visible without repeating the
+full provenance before the task:
 
 | Platform | Repository tag | Source revision | Package |
 | --- | --- | --- | --- |
@@ -96,11 +98,11 @@ version ranges, a default branch, or a legacy package version as evidence.
 | Flutter | `WuKongEasySDK-Flutter#3` / `d7758c301e5289ddfa09cd09b6976c2479584b1c` | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` |
 | Web | `WuKongEasySDK-JS#6` / `3ebf505734c5b6764b30eac011f0b7a5024c89e8` | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` |
 
-The maintained tutorials pin those fixed releases and their exact release
-revisions as distribution evidence. The earlier fix revisions remain recorded
-as source-security provenance. Package and source tests verify inclusion of the
-default-off and redaction controls; platform/log acceptance remains a separate
-consumer responsibility.
+The maintained tutorials pin those fixed releases. Exact release revisions,
+legacy calibration links, and earlier fix revisions are centralized in the
+overview's evidence section instead of repeated before every quickstart.
+Package and source tests verify inclusion of the default-off and redaction
+controls; platform/log acceptance remains a separate consumer responsibility.
 
 ## Evidence boundary
 
@@ -118,8 +120,9 @@ statuses.
 
 ## Shared tutorial flow
 
-Each platform page covers the same source walkthrough and the Phase 15
-post-fix integration loop in native idiom:
+The overview first lets the reader choose a platform, decide whether EasySDK
+fits, and understand the shared trusted-backend response. Each platform page
+then covers the same post-fix integration loop in native idiom:
 
 1. prerequisites and exact installation;
 2. trusted-backend ownership of UID, token, and WebSocket URL;
@@ -128,14 +131,15 @@ post-fix integration loop in native idiom:
 5. bounded connection handling;
 6. persistent person-Channel sending;
 7. listener removal, disconnect, and lifecycle cleanup;
-8. an Alice/Bob acceptance checklist; and
-9. platform-specific troubleshooting and adoption gates.
+8. an Alice/Bob acceptance checklist;
+9. symptom-oriented troubleshooting; and
+10. a separate before-production checklist.
 
 This sequence was not executable against the Product Gateway at Phase 15. The
 maintained pages now point to the implemented JSON-RPC CONNECT core path and
 clearly separate server wire/E2E evidence from platform execution and remaining
-release-specific SDK adoption blockers. They also retain the fix provenance and
-identify the exact official distributions that now contain it.
+release-specific SDK adoption blockers. Full fix provenance remains in the
+overview while each quickstart identifies its exact official distribution.
 
 The client never invents its own production UID or token. Browser clients do
 not call Product HTTP management endpoints directly; a trusted backend or BFF
@@ -199,7 +203,11 @@ browser BFF boundaries.
 The fast gate must cover:
 
 - exact bilingual publication and navigation order for all five routes;
+- task-first platform discovery and Quickstart labels without an unverified
+  completion-time claim;
 - exact source tag, revision, and package pin per platform;
+- centralized source/fix provenance in the overview rather than repeated
+  legacy history at the start of every platform page;
 - absence of floating install versions;
 - explicit source-aligned-versus-runtime-evidence language;
 - trusted-backend identity and the Phase 15 post-fix Alice/Bob acceptance plan;

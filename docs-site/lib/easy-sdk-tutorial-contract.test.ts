@@ -124,21 +124,23 @@ describe('EasySDK tutorial content contract', () => {
 
     expect(zh).toContain('服务端线协议凭据不等于平台运行验证');
     expect(en).toContain('A server-side wire receipt is not platform runtime verification');
-    expect(zh).toContain('“5 分钟”描述的是阅读路径');
-    expect(en).toContain('“5 minutes” describes the shape of the path');
-    expect(zh).toContain('用 Alice 和 Bob 验收在线双向收发');
-    expect(en).toContain('Accept online bidirectional messaging with Alice and Bob');
-    expect(zh).toContain('选择上方平台完成第一条消息');
-    expect(en).toContain('Choose a platform above and send the first message');
+    expect(zh).toContain('## 选择平台，发送第一条消息');
+    expect(en).toContain('## Choose a platform and send the first message');
+    expect(zh).toContain('## Alice 与 Bob 验收闭环');
+    expect(en).toContain('## Alice/Bob acceptance loop');
+    expect(zh).toContain('## 版本与证据');
+    expect(en).toContain('## Versions and evidence');
+    expect(zh).not.toContain('5 分钟');
+    expect(en).not.toContain('5-minute');
   });
 
-  test('links the exact legacy learning paths while keeping current source authoritative', async () => {
+  test('centralizes legacy calibration and source provenance below the task-first overview', async () => {
     const [zh, en] = await Promise.all([content('index.mdx'), content('index.en.mdx')]);
 
     expect(zh).toContain('https://wukong.mintlify.app/zh/sdk/easy/overview');
     expect(en).toContain('https://wukong.mintlify.app/en/sdk/easy/overview');
-    expect(zh).toContain('学习顺序');
-    expect(en).toContain('learning sequence');
+    expect(zh).toContain('任务顺序校准');
+    expect(en).toContain('task sequence was calibrated');
 
     for (const platform of platforms) {
       const [platformZh, platformEn] = await Promise.all([
@@ -146,16 +148,14 @@ describe('EasySDK tutorial content contract', () => {
         content(`${platform.path}.en.mdx`),
       ]);
 
-      expect(platformZh).toContain(
-        `https://wukong.mintlify.app/zh/sdk/easy/${platform.path}`,
-      );
-      expect(platformEn).toContain(
-        `https://wukong.mintlify.app/en/sdk/easy/${platform.path}`,
-      );
-      expect(platformZh).toContain('旧页');
-      expect(platformEn).toContain('old page');
-      expect(platformZh).toContain(`固定的 \`${platform.tag}\` 源码`);
-      expect(platformEn).toContain(`pinned \`${platform.tag}\` source`);
+      expect(zh).toContain(`https://wukong.mintlify.app/zh/sdk/easy/${platform.path}`);
+      expect(en).toContain(`https://wukong.mintlify.app/en/sdk/easy/${platform.path}`);
+      expect(platformZh).not.toContain('wukong.mintlify.app');
+      expect(platformEn).not.toContain('wukong.mintlify.app');
+      expect(platformZh).not.toContain(platform.revision);
+      expect(platformEn).not.toContain(platform.revision);
+      expect(platformZh).not.toContain(platform.fixPullRequest);
+      expect(platformEn).not.toContain(platform.fixPullRequest);
     }
   });
 
@@ -202,8 +202,6 @@ describe('EasySDK tutorial content contract', () => {
       ] as const) {
         expect(page).toContain(`https://github.com/WuKongIM/${platform.repository}`);
         expect(page).toContain(platform.tag);
-        expect(page).toContain(platform.revision);
-        expect(page).toContain(platform.fixPullRequest);
         expect(page).toContain(platform.release);
         expect(page).toContain(platform.distribution);
         for (const command of platform.install) expect(page).toContain(command);
@@ -213,6 +211,7 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).toContain(`/${locale}/guide/integration/authentication`);
         expect(page).toContain(`/${locale}/guide/integration/messaging`);
         expect(page).toContain(`/${locale}/sdk/easy`);
+        expect(page).toMatch(/上线前检查|Before production/u);
         expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/u);
       }
 
@@ -263,7 +262,7 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).not.toMatch(/\.app(?:\.rawValue)?\s*(?:==|is|为)\s*`?1`?/u);
     }
     for (const page of [androidZh, androidEn]) {
-      expect(page).toMatch(/下划线字段|snake_case fields?|underscore fields?/u);
+      expect(page).toMatch(/下划线字段|snake_case(?: fields?)?|underscore fields?/u);
       expect(page).toMatch(/驼峰字段|camel-case fields?/u);
       expect(page).toMatch(/Base64/u);
       expect(page).toMatch(/APP[^\n.]*`0`|`0`[^\n.]*APP/u);
@@ -288,6 +287,11 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).toMatch(/APP[^\n.]*`0`[^\n.]*WEB[^\n.]*`1`[^\n.]*PC[^\n.]*`2`/u);
     }
 
+    const [overviewZh, overviewEn] = await Promise.all([
+      content('index.mdx'),
+      content('index.en.mdx'),
+    ]);
+
     for (const [index, [zh, en]] of [
       [iosZh, iosEn],
       [androidZh, androidEn],
@@ -296,13 +300,17 @@ describe('EasySDK tutorial content contract', () => {
     ].entries()) {
       const platform = platforms[index];
       for (const page of [zh, en]) {
-        expect(page).toContain(platform.fixPullRequest);
         expect(page).toContain(platform.release);
+      }
+      for (const overview of [overviewZh, overviewEn]) {
+        expect(overview).toContain(platform.fixPullRequest);
+        expect(overview).toContain(platform.fixRevision);
+        expect(overview).toContain(platform.release);
       }
       expect(zh).toMatch(/默认关闭|默认静默/u);
       expect(zh).not.toContain('尚未发布');
       expect(zh).not.toContain('等待下一官方版本');
-      expect(en).toMatch(/defaults? to `?false`?|default-off|disabled by default|default-silent/iu);
+      expect(en).toMatch(/defaults? to `?false`?|default-off|disabled by default|off by default|default-silent/iu);
       expect(en).not.toMatch(/not (?:yet )?released|wait for the next official release|does not include (?:it|that fix)/iu);
     }
 
@@ -310,8 +318,12 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).not.toContain('print("Disconnected: \\(info.code) \\(info.reason)")');
       expect(page).not.toContain('error.localizedDescription');
       expect(page).not.toContain('result.messageId), seq=');
-      expect(page).toContain('WuKongEasySDK failed: code=');
-      expect(page).toContain('SEND completed: seq=');
+      expect(page).not.toContain('code=\\(info.code)');
+      expect(page).not.toContain('code=\\(sdkError.code)');
+      expect(page).not.toContain('seq=\\(result.messageSeq)');
+      expect(page).toMatch(/RECVACK[^\n]*`messageId`[^\n]*`messageSeq`/u);
+      expect(page).toContain('print("WuKongEasySDK operation failed")');
+      expect(page).toContain('print("SEND completed")');
     }
     for (const page of [androidZh, androidEn]) {
       expect(page).not.toContain('message.messageId} from ${message.fromUid}');
@@ -320,24 +332,35 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).not.toContain('"connect failed", it');
       expect(page).not.toContain('${result.messageId}');
       expect(page).not.toContain('"send failed", error');
-      expect(page).toContain('message received: seq=');
-      expect(page).toContain('SDK operation failed: code=');
+      expect(page).not.toContain('connected: reason=');
+      expect(page).not.toContain('message received: seq=');
+      expect(page).not.toContain('disconnected: code=');
+      expect(page).not.toContain('SDK operation failed: code=');
+      expect(page).not.toContain('SEND completed: seq=');
+      expect(page).toContain('Log.i("EasySDK", "message received")');
+      expect(page).toContain('Log.e("EasySDK", "SDK operation failed")');
     }
     for (const page of [flutterZh, flutterEn]) {
       expect(page).not.toContain('${info.code} ${info.reason}');
       expect(page).not.toContain('${error.code} ${error.message}');
       expect(page).not.toContain('connect failed: $error');
       expect(page).not.toContain('${result.messageId}');
-      expect(page).toContain('EasySDK operation failed: code=');
-      expect(page).toContain('SEND completed: seq=');
+      expect(page).not.toContain('connected: reason=');
+      expect(page).not.toContain('disconnected: code=');
+      expect(page).not.toContain('EasySDK operation failed: code=');
+      expect(page).not.toContain('SEND completed: seq=');
+      expect(page).toContain("debugPrint('EasySDK operation failed')");
+      expect(page).toContain("debugPrint('SEND completed')");
     }
     for (const page of [webZh, webEn]) {
       expect(page).not.toContain("console.info('EasySDK connected', result)");
       expect(page).not.toContain("console.info('EasySDK disconnected', info)");
       expect(page).not.toContain("console.error('EasySDK error', error)");
       expect(page).not.toContain('result.messageId');
+      expect(page).not.toContain("console.info('SEND completed',");
       expect(page).toContain("console.info('EasySDK connected')");
       expect(page).toContain("console.error('EasySDK operation failed')");
+      expect(page).toContain("console.info('SEND completed')");
     }
   });
 });

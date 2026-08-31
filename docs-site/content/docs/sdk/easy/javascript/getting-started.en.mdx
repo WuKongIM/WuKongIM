@@ -1,26 +1,12 @@
 ---
-title: 5-minute Web integration
-description: Walk through the pinned easyjssdk v2.0.3 browser APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
+title: Web quickstart
+description: Install exactly easyjssdk 2.0.3 and use a product BFF plus contiguous TypeScript code for an online browser messaging loop.
 ---
 
-This page covers the browser source APIs and online acceptance path. The browser asks your product BFF for the current user's connection material, then EasyJSSDK establishes a WebSocket JSON-RPC connection. It never holds a Product HTTP management credential directly.
+The browser asks the product BFF for the current user's connection material, then EasyJSSDK establishes a WebSocket JSON-RPC connection. The client holds no Product HTTP management credential, and Alice and Bob accept the path in two isolated browser contexts.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover JS requests without `jsonrpc`, Base64 SEND, object RECV, correlated CONNECT/SEND/PING responses, and RECVACK. The browser artifact, WSS, BFF, and production token verification still require evidence from your environment.
-</Callout>
-
-The install → initialize → listen → connect → send reading order follows the [legacy Web EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started). The old page is not API evidence; the pinned `v2.0.3` source and npm artifact govern the method names, parameters, and lifecycle boundaries below.
-
-<Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.3` source at revision `d29038e52aab5bce09f643fbe4daf11547379131`; the published package is available on [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3), with changes recorded in the [v2.0.3 release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3). This is a source-level tutorial, not runtime verification, and it is not a compatibility receipt for the existing `wukongimjssdk@1.3.5` Web golden path.
-</Callout>
-
-<Callout type="info" title="Browser connections default to the WEB device category">
-  The wire values in `v2.0.3` are APP `0`, WEB `1`, and PC `2`; a browser connection with no explicit value defaults to `WKIMDeviceFlag.Web`. Product code should use the exported enum instead of copying an integer.
-</Callout>
-
-<Callout type="info" title="v2.0.3 keeps diagnostics off and limited to sanitized metadata">
-  The published `v2.0.3` release includes the logging-security fix from [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6), adds default-off `debugLogging` to initialization options, and applies one logging boundary across browser, Node.js, WeChat, Alipay, and UniApp adapters. Even when explicitly enabled, the SDK emits only fixed, low-sensitivity operational metadata. It does not log tokens, payloads, raw WebSocket frames, server response bodies, platform error objects, or stringify complete public event and result models into the console. Public event objects still contain business data, so application code must not log complete objects directly.
+  The current Product Gateway supports pinned `v2.0.3` JSON-RPC CONNECT and online bidirectional messaging, including requests without `jsonrpc`, Base64 SEND, and object RECV. Browsers default to WEB `1`; the full wire set is APP `0`, WEB `1`, and PC `2`. The tutorial uses [npm 2.0.3](https://www.npmjs.com/package/easyjssdk/v/2.0.3) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3). This source-aligned tutorial is not runtime verification. Your environment still owns the browser artifact, WSS, BFF, and production token evidence.
 </Callout>
 
 ## What you will have
@@ -177,8 +163,8 @@ const chat = new EasyChatClient();
 const alice = await fetchIMBootstrap();
 
 await chat.start(alice);
-const result = await chat.sendText('bob', 'Hello from Web EasySDK');
-console.info('SEND completed', result.messageSeq, result.reasonCode);
+await chat.sendText('bob', 'Hello from Web EasySDK');
+console.info('SEND completed');
 
 window.addEventListener('pagehide', () => chat.stop(), { once: true });
 ```
@@ -194,7 +180,6 @@ Alice's resolved Promise means the send request received a server result. Bob mu
 5. Have Bob send back to Alice and prove the reverse direction.
 6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
 7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
-8. Use the actual npm `2.0.3` browser artifact to inspect production console output and log collection. The default configuration should emit no SDK diagnostics; when logging is explicitly enabled under control, only low-sensitivity operational metadata may appear, never tokens, payloads, raw frames, or complete event models.
 
 This loop does not cover offline synchronization. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
 
@@ -205,6 +190,14 @@ This loop does not cover offline synchronization. When Bob is offline, the appli
 - **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
 - **The console still contains a token or payload:** first use the lockfile and browser bundle to confirm that `easyjssdk@2.0.3` is actually shipped, then inspect application event callbacks, error handling, and collectors for complete-object logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the npm artifact and retain only low-sensitivity evidence before filing an issue.
 - **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and review the current build and runtime boundaries under [API Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
+
+## Before production
+
+- Serve both the page and WebSocket over HTTPS/WSS, then verify certificates, proxy Upgrade, the BFF origin policy, and Gateway reachability.
+- Return only the current session's connection material from the BFF; tokens never belong in URLs, Local Storage, logs, or analytics events.
+- `debugLogging` is off by default. Keep it `false` in production and inspect the actual npm `2.0.3` bundle, Console, error reporting, and collectors with non-production canaries for tokens, payloads, raw frames, or complete event objects.
+- Retain the lockfile, browser and build versions, network, and server revision; separately verify refresh, logout, reconnect, and durable recovery while Bob is offline.
+- Continue with [Integration Acceptance](/en/guide/integration/acceptance) for capacity, observability, upgrades, and rollback.
 
 ## Next
 

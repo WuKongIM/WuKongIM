@@ -1,26 +1,12 @@
 ---
-title: 5-minute iOS integration
-description: Walk through the pinned WuKongEasySDK iOS v1.1.0 Swift APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
+title: iOS quickstart
+description: Install exactly WuKongEasySDK iOS 1.1.0 and use contiguous Swift code for connection, online messaging, and lifecycle cleanup.
 ---
 
-This page turns the legacy “5-minute integration” into an iOS source-API walkthrough and online acceptance path. A product backend supplies connection material first; Alice and Bob then connect separately, exchange one message, and remove their listeners correctly.
+Use one application-owned client to install, connect, listen, send a person message, and clean up. The product backend supplies connection material first; Alice and Bob then prove online messaging in two independent app processes.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover binary WebSocket JSON from iOS, object payloads, correlated CONNECT/SEND responses, and the camelCase RECVACK carrying both `messageId` and `messageSeq`. Platform builds, physical-device runs, WSS, and production token verification still require evidence from your environment.
-</Callout>
-
-The install → initialize → listen → connect → send reading order follows the [legacy iOS EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started). The old page supplies only the learning path; the pinned `v1.1.0` source and distribution govern the method signatures, version, and limits below.
-
-<Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.1.0` source and release revision [`683c1519bfa19fd91a15ae092733e1efb1e75d5d`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/683c1519bfa19fd91a15ae092733e1efb1e75d5d); verify the published package on [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) and the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0). This is a source-level tutorial, not runtime verification, and it does not expand the site's executable client scope.
-</Callout>
-
-<Callout type="info" title="v1.1.0 includes default-silent, redacted diagnostics">
-  The official `v1.1.0` release includes the logging-security changes from [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3): `enableDebugLogging` defaults to `false` and is the master gate for every diagnostic, while JSON summaries additionally require `.debug` and `enableJsonLogging`. Diagnostics and public model strings do not echo tokens, payloads, results, or error details. Default silence and source redaction do not replace artifact acceptance; keep diagnostics disabled in production and inspect device logs plus crash reports with non-production canaries.
-</Callout>
-
-<Callout type="info" title="The server boundary supports the v1.1.0 object payload">
-  `v1.1.0` uses APP `0`, sends a JSON object directly, and decodes the RECV payload as a dictionary. The current JSON-RPC boundary normalizes object and Base64 input to internal bytes and emits an object for RECV, so this pinned client needs no online-message payload fork. Logging configuration, platform execution, and the Release artifact remain separate production gates.
+  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging, including object and Base64 payloads; camelCase RECVACK carries both `messageId` and `messageSeq`, and device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial uses [CocoaPods 1.1.0](https://cocoapods.org/pods/WuKongEasySDK) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0). This source-aligned tutorial is not runtime verification. Your environment still owns the iOS build, physical-device run, WSS, and production token evidence.
 </Callout>
 
 ## What you will have
@@ -122,10 +108,10 @@ final class EasyChatClient: ObservableObject {
         listeners.append(sdk.onConnect { [weak self] _ in
             Task { @MainActor in self?.isConnected = true }
         })
-        listeners.append(sdk.onDisconnect { [weak self] info in
+        listeners.append(sdk.onDisconnect { [weak self] _ in
             Task { @MainActor in
                 self?.isConnected = false
-                print("WuKongEasySDK disconnected: code=\(info.code)")
+                print("WuKongEasySDK disconnected")
             }
         })
         listeners.append(sdk.onMessage { [weak self] message in
@@ -135,12 +121,8 @@ final class EasyChatClient: ObservableObject {
                 self?.messages.append(message)
             }
         })
-        listeners.append(sdk.onError { error in
-            if let sdkError = error as? WuKongError {
-                print("WuKongEasySDK failed: code=\(sdkError.code)")
-            } else {
-                print("WuKongEasySDK failed")
-            }
+        listeners.append(sdk.onError { _ in
+            print("WuKongEasySDK operation failed")
         })
 
         self.sdk = sdk
@@ -193,11 +175,11 @@ The device flag and payload shape are compatible with the current server. After 
 let aliceBootstrap = try await productAPI.fetchIMBootstrap()
 try await chatClient.start(with: aliceBootstrap)
 
-let result = try await chatClient.sendText(
+_ = try await chatClient.sendText(
     to: "bob",
     text: "Hello from iOS EasySDK"
 )
-print("SEND completed: seq=\(result.messageSeq)")
+print("SEND completed")
 ```
 
 The returned `SendResult` means Alice received a server result for the send. Bob must independently observe the same product payload through `onMessage`; a local list insertion is not proof of peer receipt.
@@ -210,20 +192,24 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 4. On Bob, verify `fromUid == "alice"`, the Channel, and the payload in `onMessage`.
 5. Send from Bob to Alice and prove the reverse direction.
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
-7. Inspect the `v1.1.0` Release artifact and device logs: prove that the SDK emits nothing while diagnostics are disabled, and that temporarily enabled diagnostics still omit tokens, payloads, and complete JSON-RPC data. Use only non-production canaries for this check.
 
 The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Include network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
 - **The compiler says the API requires iOS 15:** raise the deployment target to iOS 15; do not rely only on the lower platform declaration in `Package.swift`.
-- **Connection never succeeds:** reach the returned WebSocket address from the device network and inspect proxy Upgrade, certificates, and `wss://`. Never return a container-only address to the phone.
-- **Authentication fails:** refresh the short-lived token issued by the product backend. A successful `/user/token` call does not prove that the default deployment validates CONNECT tokens.
-- **JSON still appears after diagnostics are disabled:** first confirm dependency resolution selected `1.1.0` and set both `enableDebugLogging` and `enableJsonLogging` to `false`. Clean the old build, then use a non-production canary to distinguish SDK output from application or third-party network logs. Stop the rollout and file a minimal reproduction if the Release artifact still exposes that canary.
-- **SEND reports payload decoding failure, or RECV cannot build `Message`:** confirm the server includes the EasySDK JSON-RPC compatibility implementation and that the reverse proxy does not rewrite WebSocket messages. The current server accepts object SEND and emits object RECV.
-- **The device category is unexpected:** ensure product code has not overridden `.app`, then compare the wire values as APP `0`, WEB `1`, and PC `2`. `v1.1.0` uses this enum; do not carry forward an older literal.
+- **Connection or authentication fails:** reach the returned address from the device network, inspect WSS, certificates, and proxy Upgrade, then refresh the short-lived token. Never return a container-only address to the phone.
+- **SEND or RECV cannot decode the payload:** confirm the server includes the EasySDK JSON-RPC compatibility implementation and the proxy does not rewrite messages. The pinned release sends objects; the server accepts object and Base64 input and emits object RECV.
+- **The device category is unexpected:** ensure product code has not overridden `.app`, then compare APP `0`, WEB `1`, and PC `2`; do not carry forward an older literal.
 - **Messages appear more than once:** register listeners only once and merge realtime and later synchronized results by `messageId`.
 - **Alice gets a send result but Bob sees nothing:** inspect Alice's send result, Bob's realtime connection, and the product's later offline-sync path separately. Do not automatically resend a message that may already be committed.
+
+## Before production
+
+- Use `wss://` and verify certificates, proxy Upgrade, timeouts, and network recovery from a physical device.
+- Prove that invalid, expired, and revoked tokens are rejected; a successful `/user/token` call is not a CONNECT-validation receipt.
+- Diagnostics are disabled by default in `v1.1.0`. Keep both `enableDebugLogging` and `enableJsonLogging` set to `false` in production, then use non-production canaries to confirm that device logs and crash reports omit tokens, payloads, and complete JSON-RPC data.
+- Retain the Release build, iOS version, device, network, and server revision from the run, then use [Integration Acceptance](/en/guide/integration/acceptance) for offline behavior, push, capacity, and rollback.
 
 ## Next
 

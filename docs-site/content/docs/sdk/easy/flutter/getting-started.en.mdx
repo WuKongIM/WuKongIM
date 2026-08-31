@@ -1,30 +1,12 @@
 ---
-title: 5-minute Flutter integration
-description: Walk through the pinned WuKongEasySDK Flutter v1.1.0 Dart APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
+title: Flutter quickstart
+description: Install exactly WuKongEasySDK Flutter 1.1.0 and use contiguous Dart code for connection, online messaging, and Widget cleanup.
 ---
 
-This page joins the Flutter EasySDK source APIs and online acceptance path inside one `StatefulWidget`: obtain connection material, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
+Use one `StatefulWidget` to install, initialize, listen, send a person message, and clean up in `dispose`. Alice and Bob run in two independent devices, simulators, or browser contexts.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover Flutter text WebSocket messages, camelCase, Base64 SEND, object RECV, correlated CONNECT/SEND responses, and RECVACK. Platform builds, device runs, WSS, and production token verification still require evidence from your environment.
-</Callout>
-
-The install → initialize → listen → connect → send reading order follows the [legacy Flutter EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started). The old page is not API evidence; the pinned `v1.1.0` source and distribution govern the method names, version, and lifecycle boundaries below.
-
-<Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.1.0` source at revision `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`; the published package is available on [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0), with changes recorded in the [v1.1.0 release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0). This is a source-level tutorial, not runtime verification, and it does not mean every Flutter target passed against the same server combination.
-</Callout>
-
-<Callout type="info" title="Device-category wire values">
-  `WuKongDeviceFlag` in `v1.1.0` matches the server: APP `0`, WEB `1`, and PC `2`; the default is `WuKongDeviceFlag.app`. Product code should pass the enum instead of copying an integer.
-</Callout>
-
-<Callout type="info" title="v1.1.0 keeps diagnostics off and redacted by default">
-  The published `v1.1.0` release includes the logging-security fix from [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3), and `debugLogging` defaults to `false`. When explicitly enabled, it emits only low-sensitivity operational metadata such as protocol stages and whether a request ID is present. Tokens, authentication parameters, payloads, raw WebSocket frames, and parser input do not enter diagnostics; public model string representations also hide credentials, payloads, identifiers, disconnect reasons, and error text. Connect the optional `logHandler` to application logging only during a controlled diagnostic window, and never use it to append complete models or business data.
-</Callout>
-
-<Callout type="info" title="The current server returns payloads as objects">
-  `v1.1.0` Base64-encodes SEND payloads. The current server decodes them to internal bytes and emits a JSON object in RECV, so `Message.payload` can be handled as a Map. The sample still accepts a Base64 string for older servers or non-object custom payloads; preserve unknown formats for fallback UI.
+  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging: the client sends Base64, while the server emits object RECV for valid JSON. Device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial uses [pub.dev 1.1.0](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0). This source-aligned tutorial is not runtime verification. Each Flutter target, WSS, and production token validation still requires independent evidence.
 </Callout>
 
 ## What you will have
@@ -125,19 +107,19 @@ class _ChatPageState extends State<ChatPage> {
     connectListener = (result) {
       if (!mounted) return;
       setState(() => connected = true);
-      debugPrint('connected: reason=${result.reasonCode}');
+      debugPrint('connected');
     };
     disconnectListener = (info) {
       if (!mounted) return;
       setState(() => connected = false);
-      debugPrint('disconnected: code=${info.code}');
+      debugPrint('disconnected');
     };
     messageListener = (message) {
       if (!mounted) return;
       setState(() => messagesById[message.messageId] = message);
     };
     errorListener = (error) {
-      debugPrint('EasySDK operation failed: code=${error.code}');
+      debugPrint('EasySDK operation failed');
     };
   }
 
@@ -228,7 +210,7 @@ Add this method to `_ChatPageState`:
 Future<void> sendText(String targetUid, String text) async {
   if (!connected) throw StateError('EasySDK is not connected');
 
-  final result = await easySDK.send(
+  await easySDK.send(
     channelId: targetUid,
     channelType: WuKongChannelType.person,
     payload: {
@@ -238,9 +220,7 @@ Future<void> sendText(String targetUid, String text) async {
     },
   );
 
-  debugPrint(
-    'SEND completed: seq=${result.messageSeq}, reason=${result.reasonCode.value}',
-  );
+  debugPrint('SEND completed');
 }
 ```
 
@@ -254,19 +234,25 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 4. On Bob, verify `fromUid` and `channelId`, inspect `type` and `content` in the object payload, and deduplicate by `messageId`.
 5. Have Bob send to Alice and prove the reverse direction.
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
-7. Inspect system logs and collectors on every target using the `v1.1.0` Release artifact. The default configuration should produce no SDK diagnostics; when logging is explicitly enabled under control, only low-sensitivity operational metadata may appear, never tokens, payloads, complete JSON-RPC data, or sensitive public-model strings.
 
 This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
-- **`SDK not initialized`:** wait for `easySDK.init(config)` before connecting or sending.
+- **Initialization or a UID switch leaves stale state:** wait for `easySDK.init(config)` before connecting. Before switching accounts, remove listeners, disconnect, and `dispose`, then clear product-local state.
 - **Messages duplicate after Widget rebuild:** never register listeners from `build`; retain callbacks and remove them from `dispose`.
-- **A new UID still sees old state:** remove listeners, disconnect, and `dispose` before initializing the new configuration, and clear product-local state too.
 - **System logs still contain a token or payload:** first confirm the lockfile actually resolves `wukong_easy_sdk 1.1.0`, then inspect application callbacks, `debugPrint`, a custom `logHandler`, and collectors for complete event or model logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the Release artifact and retain only low-sensitivity evidence before filing an issue.
 - **`message.payload` is a string:** the current server emits valid JSON objects as objects. If a string remains, confirm the server revision, then try Base64 → UTF-8 JSON and preserve unknown formats for fallback UI.
 - **A physical device cannot reach the local address:** `localhost` means the device itself; have the product backend return a device-reachable WSS ingress.
 - **Send succeeds but the peer message is absent from the UI:** inspect send result, realtime receipt, and offline recovery separately.
+
+## Before production
+
+- Retain separate build and runtime evidence for every actual Android, iOS, Web, or desktop target; do not infer one platform from another.
+- Use `wss://` and verify certificates, proxy Upgrade, connection timeout, foreground/background transitions, and network recovery.
+- `debugLogging` is off by default. Keep it `false` in production. If you supply `logHandler`, accept only the SDK's sanitized metadata and never append tokens, payloads, or complete models.
+- Check device wire values as APP `0`, WEB `1`, and PC `2`, and retain `pubspec.lock`, the Release artifact, device, network, and server revision.
+- Continue with [Integration Acceptance](/en/guide/integration/acceptance) for offline behavior, push, multi-device, capacity, upgrades, and rollback.
 
 ## Next
 
