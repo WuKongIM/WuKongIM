@@ -6,7 +6,7 @@ description: 选择客户端 SDK，跑通第一条消息，再逐步补齐身份
 WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议状态。你不需要先掌握底层协议；从自己的平台和目标开始，先跑通最小闭环，再补生产能力。
 
 <Callout type="info" title="第一次接入从这里开始">
-  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)。Android `1.5.5`、iOS `1.1.1`、Flutter `1.7.9` 与 HarmonyOS `1.1.7` 都已有源码/分发产物对齐的完整 SDK 教程，但没有本站对应平台运行 receipt。需要本站可执行场景证据的浏览器路径，请进入 [WuKongIMJSSDK 安装与配置](/zh/sdk/javascript/installation)。旧 UniApp SDK 已弃用，现有项目应按 [UniApp 迁移指南](/zh/sdk/uniapp)评估迁移到 `wukongimjssdk@1.3.5`。WuKongEasySDK 的四个固定版本已有 JSON-RPC CONNECT 与在线双向收发的服务端线协议凭据，但平台构建、设备运行和生产 Token 校验仍需自验。
+  还没决定仓库时先看[选择 SDK](/zh/sdk/choose-sdk)。Android `1.5.5`、iOS `1.1.1`、Flutter `1.7.9` 与 HarmonyOS `1.1.7` 都已有源码/分发产物对齐的完整 SDK 教程，但没有本站对应平台运行 receipt。需要本站可执行场景证据的浏览器路径，请进入 [WuKongIMJSSDK 安装与配置](/zh/sdk/javascript/installation)。旧 UniApp SDK 已弃用，现有项目应按 [UniApp 迁移指南](/zh/sdk/uniapp)评估迁移到 `wukongimjssdk@1.3.5`。WuKongEasySDK 的四个固定版本已有 JSON-RPC CONNECT 与在线双向收发的服务端线协议凭据；四端日志安全修复已合并到各仓库 `main`，但当前分发版本尚未包含，平台构建、设备运行和生产 Token 校验也仍需自验。
 </Callout>
 
 ## 你现在想完成什么
@@ -43,7 +43,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 | 内容 | 当前状态 | 适合谁 |
 | --- | --- | --- |
 | [选择 SDK](/zh/sdk/choose-sdk)与官方源码目录 | 已发布 | 还在比较平台或 SDK 系列的开发者 |
-| [WuKongEasySDK iOS、Android、Flutter、Web](/zh/sdk/easy) | 固定源码教程已发布；JSON-RPC CONNECT 与在线双向消息具有服务端线协议 receipt，平台运行和生产安全尚需自验 | 只需要轻量连接与在线消息，并能自行维护 UI、离线同步和产品状态的开发者 |
+| [WuKongEasySDK iOS、Android、Flutter、Web](/zh/sdk/easy) | 固定发布版教程已发布；JSON-RPC CONNECT 与在线双向消息具有服务端线协议 receipt；日志修复已合并源码但尚未进入当前分发版本，平台运行和生产安全仍需自验 | 只需要轻量连接与在线消息，并能自行维护 UI、离线同步和产品状态的开发者 |
 | [WuKongIMSDK Android](/zh/sdk/android) `1.5.5` | 安装、快速接入、[平台能力](/zh/sdk/android/platform-capabilities)、[API Reference](/zh/sdk/android/api-reference)与[升级指南](/zh/sdk/android/upgrade)均已发布；源码与 JitPack AAR 已校对，没有本站 Android 运行 receipt | 需要在自己的 AGP、设备和服务端 tuple 上保存验收证据的 Android 团队 |
 | [WuKongIMSDK iOS](/zh/sdk/ios) `1.1.1` | 安装、快速接入、[平台能力](/zh/sdk/ios/platform-capabilities)、[API Reference](/zh/sdk/ios/api-reference)与[升级指南](/zh/sdk/ios/upgrade)均已发布；源码与公开头文件已校对，没有本站运行 receipt | 需要在自己的 Xcode 与设备上保留验收证据的原生 iOS 团队 |
 | [WuKongIMSDK Flutter](/zh/sdk/flutter) `1.7.9` | 安装、快速接入、[平台能力](/zh/sdk/flutter/platform-capabilities)、[API Reference](/zh/sdk/flutter/api-reference)与[升级指南](/zh/sdk/flutter/upgrade)均已发布；pub.dev 归档与匹配源码已校对，消费端 analyze/macOS Release build 通过，没有本站运行 receipt | 需要在自己的 Flutter/Dart、目标设备和服务端 tuple 上保存验收证据的跨端团队 |
@@ -53,7 +53,7 @@ WuKongIM SDK 负责客户端与 Gateway 之间的连接、消息收发和协议�
 | [WuKongIMSDK UniApp 迁移](/zh/sdk/uniapp) | 旧仓库与 `wukongimuniappsdk` 已弃用；迁移目标固定为 `wukongimjssdk@1.3.5` | 需要移除旧包，并为 App、H5 与小程序分别保存验收证据的现有项目 |
 
 <Callout type="warn" title="不要混淆三种状态">
-  “有官方源码”表示可以评估仓库；“有本站教程”表示内容已公开；“已验证”必须说明证据层级。`wukongimjssdk@1.3.5` 有浏览器场景 receipt；四个固定 EasySDK 都有服务端 wire fixture，真实进程 E2E 使用 iOS 与 Android profile；没有任何 EasySDK 平台构建或设备运行 receipt。
+  “有官方源码”表示可以评估仓库；“有本站教程”表示内容已公开；“已验证”必须说明证据层级。`wukongimjssdk@1.3.5` 有浏览器场景 receipt；四个固定 EasySDK 都有服务端 wire fixture，真实进程 E2E 使用 iOS 与 Android profile；四个日志修复 merge commit 只有源码测试凭据，尚不是发布包或设备运行 receipt。
 </Callout>
 
 ## Web 教程会带你完成什么

@@ -54,7 +54,11 @@ tutorials for iOS, Android, Flutter, and Web. They are published as reviewable
 documentation. A later server change added JSON-RPC CONNECT and online
 bidirectional-message fixtures for all four wire profiles plus a real-process
 iOS/Android-profile E2E; platform builds and device runs remain separate
-evidence.
+evidence. Later security fixes merged to the four official EasySDK `main`
+branches make diagnostics default-off and redact emitted metadata and public
+model strings. Those merge commits have source-test evidence only: the current
+iOS/Android `1.0.3`, Flutter `1.0.4`, and Web `2.0.2` distributions remain
+pre-fix snapshots until new official releases are published.
 Phase 16 publishes a separate, non-exhaustive management OpenAPI contract:
 ten reviewed Channel mutations and six canonical Conversation operations. It records the missing
 built-in authentication boundary, exact compatibility error shapes, bounded
@@ -134,9 +138,11 @@ Phase 14 also checks capability-status drift, exact local-report shape,
 fail-closed write ordering, observed SDK identity, and the separation between
 the harness, tested cluster, documentation quality, compatibility smoke, and
 production readiness. Phase 15 also checks exact EasySDK package/source pins,
-source tutorials, listener cleanup, and platform-specific adoption boundaries;
-navigation publishes the content while every page distinguishes server wire
-verification from platform runtime and production-readiness evidence. Relevant sample or
+source tutorials, listener cleanup, platform-specific adoption boundaries,
+exact logging-fix merge commits, distribution-versus-source status, and
+non-sensitive application logging examples; navigation publishes the content
+while every page distinguishes server wire and security-source verification
+from package, platform-runtime, and production-readiness evidence. Relevant sample or
 runtime-contract changes select the real Chromium integration check.
 Phase 16 also checks the exact management-operation whitelist, explicit route
 deferrals, bilingual operation-per-page generation grouped by tag, nested Conversation schemas, search

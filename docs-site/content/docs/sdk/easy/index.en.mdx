@@ -62,6 +62,19 @@ This group preserves the learning sequence from the [legacy WuKongEasySDK overvi
 
 The tutorials deliberately pin these versions instead of using ranges or `latest`. The server-side wire receipt covers only the versions in this table. Re-run the Alice/Bob loop before updating the application lockfile and your compatibility record for an SDK upgrade.
 
+## Logging-security fix status
+
+| Platform | Merged fix | Current distribution status |
+| --- | --- | --- |
+| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | Not included in `v1.0.3` |
+| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | Not included in `v1.0.3` |
+| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | Not included in `v1.0.4` |
+| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | Not included in `v2.0.2` |
+
+<Callout type="warn" title="Security fixes are merged but not yet released">
+  The official `main` branch in all four repositories now keeps diagnostics off by default, emits only redacted low-sensitivity metadata when explicitly enabled, and redacts public model string representations. The currently distributed CocoaPods, Maven, pub.dev, and npm releases in the table above are still pre-fix snapshots, so the release-specific logging risks in each platform tutorial still apply. Production users should wait for the next official release and upgrade. Early evaluation must pin the exact commit shown above, build it independently, and repeat Release-log and platform acceptance. Do not use a floating `main` reference or present a main-only option as released API.
+</Callout>
+
 ## Prepare connection material
 
 A client must not grant its own identity. The user first signs in to your product. A trusted product backend then returns only the material needed for this connection:
@@ -83,10 +96,6 @@ Complete [Identity & Token](/en/sdk/common-guides/identity-and-token) first. In 
 
 <Callout type="info" title="Device categories are aligned; application code should still use enums">
   All four pinned versions use the same wire values as the [Device Flag dictionary](/en/api/dictionaries/device-flags): APP `0`, WEB `1`, and PC `2`. Mobile clients use `.app` / `APP`, while the browser defaults to WEB; do not copy integers into product code. The server normalizes each JSON-RPC field and payload shape at the protocol boundary; applications must still apply the lifecycle and logging safeguards in each platform tutorial.
-</Callout>
-
-<Callout type="error" title="Close sensitive SDK logging before production">
-  The pinned source on all four platforms has logging paths that can expose tokens or payloads: some Android `v1.0.3` parse-error logs ignore `debugLogging`, the iOS `v1.0.3` JSON-logging setting does not actually gate output, and Flutter `v1.0.4` plus Web `v2.0.2` log complete requests or responses. Each platform tutorial records its exact boundary. Production remains blocked until the SDK is fixed, the built artifact is inspected, and redaction tests pass.
 </Callout>
 
 ## Accept online bidirectional messaging with Alice and Bob

@@ -62,6 +62,19 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 
 教程故意锁定这些版本，不使用版本范围或 `latest`。服务端线协议凭据只覆盖此表中的版本；升级 SDK 后应重新完成 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
 
+## 日志安全修复状态
+
+| 平台 | 已合并的修复 | 当前分发状态 |
+| --- | --- | --- |
+| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | `v1.0.3` 尚未包含 |
+| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | `v1.0.3` 尚未包含 |
+| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | `v1.0.4` 尚未包含 |
+| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | `v2.0.2` 尚未包含 |
+
+<Callout type="warn" title="安全修复已合并，尚未发布">
+  四个官方仓库的 `main` 已把诊断日志改为默认关闭，并在显式开启时只输出脱敏后的低敏元数据；公开模型的字符串表示也已脱敏。上表中的 CocoaPods、Maven、pub.dev 与 npm 当前发布版仍是修复前快照，因此使用这些版本时，各平台页记录的日志风险仍然成立。生产环境应等待下一官方版本并升级；若必须提前验证，只能固定到表中的精确 commit、自行构建并重新完成 Release 日志与平台验收。不要依赖浮动 `main`，也不要把仅存在于 `main` 的配置项写成已发布版本能力。
+</Callout>
+
 ## 准备连接材料
 
 客户端不应该自己授予身份。用户先登录你的产品，受信业务后端再返回本次连接所需的最小材料：
@@ -83,10 +96,6 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 
 <Callout type="info" title="设备类型已经统一，业务代码仍应使用枚举">
   这四个固定版本都采用 [设备字典](/zh/api/dictionaries/device-flags)中的同一组线路值：APP `0`、WEB `1`、PC `2`。移动端使用 `.app` / `APP`，浏览器默认使用 WEB；不要在业务代码中复制整数。服务端会在 JSON-RPC 边界归一化各端字段和 Payload 形态，应用仍应保留平台页列出的生命周期与日志防护。
-</Callout>
-
-<Callout type="error" title="先关闭 SDK 敏感日志再进入生产">
-  当前四个平台的固定源码都存在可能泄露 Token 或 Payload 的日志路径：Android `v1.0.3` 的部分解析错误日志不受 `debugLogging` 控制，iOS `v1.0.3` 的 JSON 日志配置开关没有真正拦截输出，Flutter `v1.0.4` 与 Web `v2.0.2` 会记录完整请求或响应。各平台教程列出了具体边界。完成修复、构建产物复核与脱敏测试前，不得通过生产门禁。
 </Callout>
 
 ## 用 Alice 和 Bob 验收在线双向收发

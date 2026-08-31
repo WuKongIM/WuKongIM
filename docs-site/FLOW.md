@@ -7,14 +7,12 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3
-documentation under `/zh` and `/en`. It owns navigation, MDX publication,
-search, sitemap/SEO, LLM/Markdown output, SDK guidance, compatibility artifacts,
-and the JavaScript Web golden-path laboratory. It also owns the complete
-source-calibrated Product HTTP reference; separate Operations and Webhook
-contracts; WKProto, encryption, and experimental JSON-RPC references; and the
-private-interface inventory. It documents runtime contracts but does not define
-them; the Web laboratory's bounded report proves only its compatibility smoke.
+`docs-site` is the standalone Fumadocs application for public WuKongIM v3 under
+`/zh` and `/en`. It owns navigation, MDX, search/SEO, machine-readable output,
+SDK guidance, compatibility artifacts, the JavaScript Web laboratory, complete
+Product HTTP and separate Operations/Webhook contracts, WKProto, encryption,
+experimental JSON-RPC, and private-interface inventories. It documents runtime
+contracts but does not define them; the Web report proves only its bounded smoke.
 
 ## Boundaries
 
@@ -41,9 +39,9 @@ them; the Web laboratory's bounded report proves only its compatibility smoke.
 4. Source-locked registries compare Product HTTP, Operations, internal HTTP,
    node transport, MCP, agent CLI, plugin RPC, WKProto, JSON-RPC, and Webhooks
    with current Go authorities.
-5. SDK pages distinguish source availability, tutorial publication, and exact
-   executable verification. The Web laboratory uses a loopback BFF and isolated
-   SDK clients to produce bounded single-node cluster and Chromium evidence.
+5. SDK pages distinguish released distribution snapshots, merged-but-unreleased
+   source remediation, publication, and executable verification; the Web lab
+   uses isolated SDK clients for bounded single-node cluster/Chromium evidence.
 6. Static export writes `out/`; publication, canonical, link, structure, and
    machine-artifact checks run before any external hosting step.
 
@@ -56,9 +54,10 @@ them; the Web laboratory's bounded report proves only its compatibility smoke.
 - Product facts must preserve cluster-only/256-hash-slot semantics, authority
   versus observation, durable commit versus side effects, and current security
   boundaries.
-- SDK method and compatibility claims require exact-version evidence. The Web
-  client gets connection material from a trusted BFF; untrusted clients never
-  call Product HTTP management operations.
+- SDK method and compatibility claims require exact versions. Main-only fixes
+  retain their merge revision and unreleased status instead of being projected
+  onto a published package. A trusted BFF supplies Web connection material;
+  untrusted clients never call Product HTTP management operations.
 - Operational guidance uses `/readyz`, preserves Manager safety gates, and
   labels unimplemented or unverified behavior explicitly.
 - Configuration reference covers each public field once and distinguishes

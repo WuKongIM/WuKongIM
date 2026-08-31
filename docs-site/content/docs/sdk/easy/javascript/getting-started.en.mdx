@@ -19,8 +19,8 @@ The install → initialize → listen → connect → send reading order follows
   The wire values in `v2.0.2` are APP `0`, WEB `1`, and PC `2`; a browser connection with no explicit value defaults to `WKIMDeviceFlag.Web`. Product code should use the exported enum instead of copying an integer.
 </Callout>
 
-<Callout type="error" title="v2.0.2 logging blocks production adoption">
-  The current source writes JSON-RPC requests, responses, and connection details through `console.debug` / `console.log`. A connection request can contain the token, and a send request can contain payload data. Before production, upgrade or fix the SDK so this output is disabled by default and sensitive fields are redacted, then verify the browser artifact. A user keeping DevTools closed is not a credential boundary.
+<Callout type="warn" title="Logging fix merged; v2.0.2 does not include it">
+  The current `v2.0.2` release writes JSON-RPC requests, responses, and connection details through `console.debug` / `console.log`. Official [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) merged at [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8), adding default-off `debugLogging` to initialization options and a shared sanitized logger for browser, Node.js, WeChat, Alipay, and UniApp adapters. npm `2.0.2` does not include that fix. Production users should wait for the next official release. Early evaluation must check out this exact commit, run `npm ci && npm run build && npm pack`, and install the resulting tarball rather than a floating branch.
 </Callout>
 
 ## What you will have
@@ -86,12 +86,12 @@ export class EasyChatClient {
   private im?: WKIM;
   private readonly messages = new Map<string, unknown>();
 
-  private readonly onConnect = (result: unknown) => {
-    console.info('EasySDK connected', result);
+  private readonly onConnect = (_result: unknown) => {
+    console.info('EasySDK connected');
   };
 
-  private readonly onDisconnect = (info: unknown) => {
-    console.info('EasySDK disconnected', info);
+  private readonly onDisconnect = (_info: unknown) => {
+    console.info('EasySDK disconnected');
   };
 
   private readonly onMessage = (message: any) => {
@@ -100,8 +100,8 @@ export class EasyChatClient {
     // Pass the deduplicated message to application state.
   };
 
-  private readonly onError = (error: unknown) => {
-    console.error('EasySDK error', error);
+  private readonly onError = (_error: unknown) => {
+    console.error('EasySDK operation failed');
   };
 
   async start(bootstrap: IMBootstrap): Promise<void> {
@@ -176,12 +176,7 @@ const alice = await fetchIMBootstrap();
 
 await chat.start(alice);
 const result = await chat.sendText('bob', 'Hello from Web EasySDK');
-console.info(
-  'SEND result',
-  result.messageId,
-  result.messageSeq,
-  result.reasonCode,
-);
+console.info('SEND completed', result.messageSeq, result.reasonCode);
 
 window.addEventListener('pagehide', () => chat.stop(), { once: true });
 ```
@@ -197,7 +192,7 @@ Alice's resolved Promise means the send request received a server result. Bob mu
 5. Have Bob send back to Alice and prove the reverse direction.
 6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
 7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
-8. Inspect production console output and log collection to prove tokens and payloads cannot leak. `v2.0.2` must not pass a production gate before this is fixed.
+8. Inspect production console output and log collection to prove tokens and payloads cannot leak. `v2.0.2` still excludes the merged logging fix, so accept only a later release or a tarball built from the exact commit above.
 
 This loop does not cover offline synchronization. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
 
@@ -206,7 +201,7 @@ This loop does not cover offline synchronization. When Bob is offline, the appli
 - **The page says WebSocket or encoding APIs are missing:** confirm the browser and build environment provide WebSocket, `TextEncoder`, and `TextDecoder`; do not infer Mini Program support from the browser path.
 - **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
 - **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
-- **The console contains a token or payload:** this is a known adoption blocker in the current tag. Upgrade or fix and verify redaction before production.
+- **The console contains a token or payload:** this is a known npm `2.0.2` issue. [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) is merged but not released. Wait for the next official release, or build a tarball from the merge commit above and verify redaction before production.
 - **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and inspect the current receipt under [Versions & Compatibility](/en/sdk/compatibility). Do not mix method names between the two SDKs.
 
 ## Next

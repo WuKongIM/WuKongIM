@@ -19,8 +19,8 @@ The install → initialize → listen → connect → send reading order follows
   `WuKongDeviceFlag` in `v1.0.4` matches the server: APP `0`, WEB `1`, and PC `2`; the default is `WuKongDeviceFlag.app`. Product code should pass the enum instead of copying an integer.
 </Callout>
 
-<Callout type="error" title="v1.0.4 request logging blocks production adoption">
-  This tag unconditionally records complete JSON-RPC requests and responses through `developer.log`. CONNECT includes the token, SEND includes the encoded payload, and there is no public logging-off setting. Before production, upgrade or fix the SDK and verify redaction in every target's Release artifact and log-collection path.
+<Callout type="warn" title="Logging fix merged; v1.0.4 does not include it">
+  The current `v1.0.4` release unconditionally records complete JSON-RPC requests and responses through `developer.log` and has no public logging-off setting. Official [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) merged at [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c), adding default-off `debugLogging`, an optional `logHandler`, and redaction for diagnostics plus public model strings. pub.dev `1.0.4` does not include that fix. Production users should wait for the next official release. Early evaluation must pin a git dependency to this exact commit, build it independently, and repeat acceptance on every target platform.
 </Callout>
 
 <Callout type="info" title="The current server returns payloads as objects">
@@ -130,14 +130,14 @@ class _ChatPageState extends State<ChatPage> {
     disconnectListener = (info) {
       if (!mounted) return;
       setState(() => connected = false);
-      debugPrint('disconnected: ${info.code} ${info.reason}');
+      debugPrint('disconnected: code=${info.code}');
     };
     messageListener = (message) {
       if (!mounted) return;
       setState(() => messagesById[message.messageId] = message);
     };
     errorListener = (error) {
-      debugPrint('EasySDK error: ${error.code} ${error.message}');
+      debugPrint('EasySDK operation failed: code=${error.code}');
     };
   }
 
@@ -162,9 +162,9 @@ class _ChatPageState extends State<ChatPage> {
           throw TimeoutException('EasySDK connect exceeded 20 seconds');
         },
       );
-    } catch (error) {
+    } catch (_) {
       easySDK.disconnect();
-      debugPrint('connect failed: $error');
+      debugPrint('EasySDK connect failed');
     }
   }
 
@@ -236,8 +236,7 @@ Future<void> sendText(String targetUid, String text) async {
   );
 
   debugPrint(
-    'SEND result: ${result.messageId}, '
-    'seq=${result.messageSeq}, reason=${result.reasonCode.value}',
+    'SEND completed: seq=${result.messageSeq}, reason=${result.reasonCode.value}',
   );
 }
 ```
@@ -252,7 +251,7 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 4. On Bob, verify `fromUid` and `channelId`, inspect `type` and `content` in the object payload, and deduplicate by `messageId`.
 5. Have Bob send to Alice and prove the reverse direction.
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
-7. Inspect system logs and collectors for every Release target to prove that tokens, payloads, and complete JSON-RPC data cannot leak. Unmodified `v1.0.4` must not pass the production gate.
+7. Inspect system logs and collectors for every Release target to prove that tokens, payloads, and complete JSON-RPC data cannot leak. `v1.0.4` still excludes the merged logging fix, so accept only a later release or a self-built artifact pinned to the exact commit above.
 
 This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/sdk/common-guides/messaging) and [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
 
@@ -261,7 +260,7 @@ This loop does not prove application-background recovery, offline message synchr
 - **`SDK not initialized`:** wait for `easySDK.init(config)` before connecting or sending.
 - **Messages duplicate after Widget rebuild:** never register listeners from `build`; retain callbacks and remove them from `dispose`.
 - **A new UID still sees old state:** remove listeners, disconnect, and `dispose` before initializing the new configuration, and clear product-local state too.
-- **System logs contain a token or payload:** this is a known `v1.0.4` adoption blocker. Upgrade or patch the logging path and verify the Release artifact before production.
+- **System logs contain a token or payload:** this is a known pub.dev `1.0.4` issue. [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) is merged but not released. Wait for the next official release, or pin the merge commit above, build it yourself, and verify the Release artifact before production.
 - **`message.payload` is a string:** the current server emits valid JSON objects as objects. If a string remains, confirm the server revision, then try Base64 → UTF-8 JSON and preserve unknown formats for fallback UI.
 - **A physical device cannot reach the local address:** `localhost` means the device itself; have the product backend return a device-reachable WSS ingress.
 - **Send succeeds but the peer message is absent from the UI:** inspect send result, realtime receipt, and offline recovery separately.

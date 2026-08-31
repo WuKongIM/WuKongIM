@@ -15,8 +15,8 @@ description: 对照 WuKongEasySDK Android v1.0.3 固定源码学习 Kotlin 接�
   示例按官方 [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3`、源码 revision `62084632cd8d1f26c751b053b0fb82d6aaa63892` 校对，发布包可在 [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) 核对。这是源码级教程，不是本站运行验证，也不代表该版本已经通过当前 WuKongIM v3 的完整兼容性场景。
 </Callout>
 
-<Callout type="error" title="采用前必须关闭协议与日志阻断项">
-  Android `v1.0.3` 的 CONNECT、SEND、RECVACK 与结果模型使用下划线字段。其 README 先把消息编码成 JSON 文本，再将该 `String` 传给 SEND，并非直接传 JSON 对象。当前服务端会在 JSON-RPC 边界同时兼容下划线字段与驼峰字段、JSON 文本字符串、JSON 对象与 Base64 Payload，并按 Android 结果模型返回 snake_case，因此字段与 Payload 不再阻断在线消息。该 tag 的未知消息、解析失败和 RECV 解析异常路径仍会绕过 `debugLogging`，把完整消息或 `Params` 写入 Logcat，其中可能含 Token 或 Payload。协议路径可验收，但原始 tag 不能通过生产日志门禁；上线前仍需升级或修复日志脱敏并检查 Release 产物。
+<Callout type="warn" title="日志修复已合并，v1.0.3 尚未包含">
+  Android `v1.0.3` 的下划线字段与 README 中 JSON 文本字符串 SEND Payload 已由当前服务端兼容；边界同时接受驼峰字段、JSON 对象和 Base64，因此协议不再阻断在线消息。但这个发布版的未知消息、解析失败和 RECV 异常路径仍会绕过 `debugLogging`，把完整消息或 `Params` 写入 Logcat。官方 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) 已在 [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) 将所有诊断收口到默认静默的 logger，并脱敏日志与公开模型字符串，但 Maven `1.0.3` 尚未包含该修复。生产环境应等待下一官方版本；提前验证只能固定此 commit 后自行构建 AAR 或 module，并重新检查 Release 产物。
 </Callout>
 
 ## 完成后你会得到什么
@@ -119,7 +119,10 @@ class ChatActivity : AppCompatActivity() {
 
     private val messageListener = object : WuKongEventListener<Message> {
         override fun onEvent(message: Message) = runOnUiThread {
-            Log.i("EasySDK", "recv ${message.messageId} from ${message.fromUid}")
+            Log.i(
+                "EasySDK",
+                "message received: seq=${message.messageSeq}, type=${message.channelType}",
+            )
             // 以 messageId 去重后再更新 UI。
         }
     }
@@ -127,13 +130,13 @@ class ChatActivity : AppCompatActivity() {
     private val disconnectListener = object : WuKongEventListener<DisconnectInfo> {
         override fun onEvent(info: DisconnectInfo) = runOnUiThread {
             connected = false
-            Log.i("EasySDK", "disconnected: ${info.code} ${info.reason}")
+            Log.i("EasySDK", "disconnected: code=${info.code}")
         }
     }
 
     private val errorListener = object : WuKongEventListener<WuKongError> {
         override fun onEvent(error: WuKongError) = runOnUiThread {
-            Log.e("EasySDK", "${error.code}: ${error.message}")
+            Log.e("EasySDK", "SDK operation failed: code=${error.code}")
         }
     }
 
@@ -175,7 +178,7 @@ class ChatActivity : AppCompatActivity() {
                 .onFailure {
                     connected = false
                     easySDK.disconnect()
-                    Log.e("EasySDK", "connect failed", it)
+                    Log.e("EasySDK", "connect failed")
                 }
         }
     }
@@ -203,7 +206,7 @@ class ChatActivity : AppCompatActivity() {
 }
 ```
 
-监听器必须在 `init` 之后注册，并保留同一个对象引用供 `removeEventListener` 使用。外层 `withTimeout` 把完整连接等待限制为 20 秒，失败后断开；SDK 内部连接与请求上限为 15 秒，自动重连最多 5 次。Activity 重建时先读取 `isConnected()`，不会等待一个不会重放的 `CONNECT` 事件。身份、Token、URL 或连接配置变化会显式停止，而不是静默沿用旧值。示例显式设置 `debugLogging(false)`，但这不能拦截该 tag 的无条件错误日志，因此不能替代 SDK 修复。生产应用通常由 Application 级连接管理器持有 SDK，Activity 或 Fragment 只订阅 UI 所需事件；上面的页面级写法用于看清最小生命周期。
+监听器必须在 `init` 之后注册，并保留同一个对象引用供 `removeEventListener` 使用。外层 `withTimeout` 把完整连接等待限制为 20 秒，失败后断开；SDK 内部连接与请求上限为 15 秒，自动重连最多 5 次。Activity 重建时先读取 `isConnected()`，不会等待一个不会重放的 `CONNECT` 事件。身份、Token、URL 或连接配置变化会显式停止，而不是静默沿用旧值。示例显式设置 `debugLogging(false)`；Maven `1.0.3` 的无条件错误日志仍不受它控制，而合并后的 main 已统一执行这个总开关。生产应用通常由 Application 级连接管理器持有 SDK，Activity 或 Fragment 只订阅 UI 所需事件；上面的页面级写法用于看清最小生命周期。
 
 ## 步骤 5：发送第一条消息
 
@@ -224,9 +227,9 @@ fun sendText(targetUid: String, text: String) {
                 payload = payload,
             )
         }.onSuccess { result ->
-            Log.i("EasySDK", "SEND result: ${result.messageId}, seq=${result.messageSeq}")
-        }.onFailure { error ->
-            Log.e("EasySDK", "send failed", error)
+            Log.i("EasySDK", "SEND completed: seq=${result.messageSeq}")
+        }.onFailure {
+            Log.e("EasySDK", "send failed")
         }
     }
 }
@@ -239,7 +242,7 @@ fun sendText(targetUid: String, text: String) {
 由于 SDK 是进程内单例，请使用两台设备、两个模拟器或两个独立应用进程：
 
 1. Alice 与 Bob 分别从业务后端取得自己的连接材料；
-2. 两端都观察 `CONNECT`，并记录失败时的原始错误；
+2. 两端都观察 `CONNECT`，失败时只记录稳定错误码与阶段，不记录原始错误文本；
 3. Alice 调用 `sendText("bob", ...)`，记录发送结果；
 4. Bob 核对 `fromUid`、`channelId`、`messageId` 和 Payload；
 5. Bob 向 Alice 回发，验证反向链路；
@@ -254,7 +257,7 @@ fun sendText(targetUid: String, text: String) {
 - **同一 UID 刷新 Token 或路由后提示配置变化**：`v1.0.3` 没有公开重置配置 API；显式停止流程并重启进程，或升级 SDK，不能继续使用旧 Token 或旧地址。
 - **连接地址在模拟器可用、真机不可用**：检查地址是否只在宿主机或容器内部可达；让业务后端返回设备可达的 WSS 入口。
 - **CONNECT、SEND 或 RECVACK 解析失败**：确认服务端包含 EasySDK JSON-RPC 兼容实现；当前服务端接受 snake_case 字段与 Android README 对齐的 JSON 文本字符串 Payload，也兼容 JSON 对象和 Base64 Payload，并为 Android 返回 snake_case 结果。设备值使用 APP `0`、WEB `1`、PC `2`，不要沿用旧整数。
-- **关闭 `debugLogging` 后仍在 Logcat 看到原始 JSON 或 `Params`**：这是该 tag 的无条件日志路径；不要用生产 Token 或消息继续测试，改用已删除或脱敏这些输出的评审构建。
+- **关闭 `debugLogging` 后仍在 Logcat 看到原始 JSON 或 `Params`**：这是 Maven `1.0.3` 的无条件日志路径；[PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) 已合并但尚未发布。不要用生产 Token 或消息继续测试；等待下一官方版本，或基于上述精确 commit 自行构建并验证。
 - **消息重复**：避免重复注册监听器，并按 `messageId` 去重。
 
 ## 下一步

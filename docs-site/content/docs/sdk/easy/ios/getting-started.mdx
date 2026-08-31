@@ -15,8 +15,8 @@ description: 对照 WuKongEasySDK iOS v1.0.3 固定源码学习 Swift 接入 API
   示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.3`、源码 revision `643848f85be70e3e3f2be22fceb86ae428b6cc38` 校对，发布包可在 [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) 核对。这是源码级教程，不是本站运行验证，也不扩大[版本与兼容性](/zh/sdk/compatibility)中的可执行客户端范围。
 </Callout>
 
-<Callout type="error" title="v1.0.3 JSON 日志是生产阻断项">
-  该 tag 的 `LogManager.logJsonData` 没有实际执行 `enableJsonLogging` 与日志级别判断，会输出 JSON-RPC 请求和响应。Token 字段会尝试掩码，但消息 Payload 仍可能进入设备日志。即使配置 `enableJsonLogging: false` 也不能把它当成已关闭；用于生产前必须升级或修复 SDK，并在 Release 构建与日志采集链路中验证无敏感数据。
+<Callout type="warn" title="日志修复已合并，v1.0.3 尚未包含">
+  当前发布的 `v1.0.3` 中，`LogManager.logJsonData` 没有实际执行 `enableJsonLogging` 与日志级别判断，消息 Payload 仍可能进入设备日志。官方 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) 已在 [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) 将 `enableDebugLogging` 设为诊断总开关、补齐 Builder 的 `enableJsonLogging(_:)`，并对日志和公开模型字符串脱敏，但该修复尚未发布。生产环境应等待下一官方版本并重新验收；提前验证只能固定此精确 commit 后自行构建，不能使用浮动 `main`。
 </Callout>
 
 <Callout type="info" title="v1.0.3 的对象 Payload 已在服务端边界兼容">
@@ -115,7 +115,7 @@ final class EasyChatClient: ObservableObject {
             maxReconnectAttempts: 5,
             enableDebugLogging: false,
             logLevel: .error,
-            enableJsonLogging: false // v1.0.3 仍需修复源码中的日志守卫。
+            enableJsonLogging: false // v1.0.3 尚未包含 main 的日志修复。
         )
         let sdk = WuKongEasySDK(config: config)
 
@@ -125,7 +125,7 @@ final class EasyChatClient: ObservableObject {
         listeners.append(sdk.onDisconnect { [weak self] info in
             Task { @MainActor in
                 self?.isConnected = false
-                print("Disconnected: \(info.code) \(info.reason)")
+                print("WuKongEasySDK disconnected: code=\(info.code)")
             }
         })
         listeners.append(sdk.onMessage { [weak self] message in
@@ -136,7 +136,11 @@ final class EasyChatClient: ObservableObject {
             }
         })
         listeners.append(sdk.onError { error in
-            print("WuKongEasySDK error: \(error.localizedDescription)")
+            if let sdkError = error as? WuKongError {
+                print("WuKongEasySDK failed: code=\(sdkError.code)")
+            } else {
+                print("WuKongEasySDK failed")
+            }
         })
 
         self.sdk = sdk
@@ -193,7 +197,7 @@ let result = try await chatClient.sendText(
     to: "bob",
     text: "Hello from iOS EasySDK"
 )
-print("SEND result: \(result.messageId), seq=\(result.messageSeq)")
+print("SEND completed: seq=\(result.messageSeq)")
 ```
 
 返回 `SendResult` 说明 Alice 获得了服务端发送结果。Bob 还必须在自己的 `onMessage` 回调中独立看到相同业务 Payload；不要仅凭本地列表插入判断对方已收到。
@@ -206,7 +210,7 @@ print("SEND result: \(result.messageId), seq=\(result.messageSeq)")
 4. Bob 在 `onMessage` 中核对 `fromUid == "alice"`、Channel 和 Payload；
 5. Bob 向 Alice 回发，再验证反向链路；
 6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接；
-7. 检查 Release 构建与设备日志，证明 Token、Payload 和完整 JSON-RPC 数据不会被记录；`v1.0.3` 原始源码未修复前不得通过生产门禁。
+7. 检查 Release 构建与设备日志，证明 Token、Payload 和完整 JSON-RPC 数据不会被记录；`v1.0.3` 仍不包含已合并的日志修复，必须等待新版或基于上述精确 commit 自行构建后再验收。
 
 当前服务端已用该固定 wire profile 覆盖 SEND 与 RECV Payload。你仍需保留服务端 revision、iOS tag、设备和网络环境的实际结果；这一步只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要按[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)另行设计。
 
@@ -215,7 +219,7 @@ print("SEND result: \(result.messageId), seq=\(result.messageSeq)")
 - **编译提示 API 仅 iOS 15 可用**：把部署目标提高到 iOS 15，不能只看 `Package.swift` 中较低的平台声明。
 - **连接一直失败**：从设备网络访问业务后端返回的 WebSocket 地址，检查反向代理 Upgrade、证书和 `wss://`；不要把容器内地址返回给手机。
 - **认证失败**：刷新业务后端签发的短期 Token。`/user/token` 成功不代表默认部署已启用 CONNECT Token 校验。
-- **关闭 `enableJsonLogging` 后仍出现 JSON**：这是 `v1.0.3` 源码中的已知日志守卫问题；升级或修复并验证 Release 产物，不能只改配置。
+- **关闭 `enableJsonLogging` 后仍出现 JSON**：这是 `v1.0.3` 的已知问题；修复已由 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) 合并但尚未发布。等待下一官方版本，或固定到上述 merge commit 自行构建并验证 Release 产物；不能只改配置。
 - **SEND 报 Payload 解码失败，或 RECV 无法构造 `Message`**：确认服务端包含 EasySDK JSON-RPC 兼容实现，并检查反向代理没有改写 WebSocket 消息；当前服务端会接受对象 SEND 并输出对象 RECV。
 - **设备类型不符合预期**：确认业务代码没有覆盖默认 `.app`，并按 APP `0`、WEB `1`、PC `2` 核对线路值；`v1.0.3` 已修正枚举，不要再沿用旧整数。
 - **消息重复出现**：确认监听器只注册一次，并按 `messageId` 合并实时和后续同步结果。

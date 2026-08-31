@@ -19,8 +19,8 @@ description: 对照 easyjssdk v2.0.2 固定源码学习浏览器接入 API；当
   `v2.0.2` 的线路值是 APP `0`、WEB `1`、PC `2`，浏览器连接未显式传值时默认使用 `WKIMDeviceFlag.Web`。业务代码应使用导出的枚举，不要复制整数。
 </Callout>
 
-<Callout type="error" title="v2.0.2 日志是生产阻断项">
-  当前源码会通过 `console.debug` / `console.log` 输出 JSON-RPC 请求、响应和连接细节，其中连接请求可能包含 Token，发送请求可能包含 Payload。用于生产前必须先升级或修复为默认关闭且敏感字段脱敏，并在浏览器构建产物中验证；不要依赖用户“不开 DevTools”保护凭据。
+<Callout type="warn" title="日志修复已合并，v2.0.2 尚未包含">
+  当前发布的 `v2.0.2` 会通过 `console.debug` / `console.log` 输出 JSON-RPC 请求、响应和连接细节。官方 [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) 已在 [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) 为初始化选项新增默认关闭的 `debugLogging`，并让浏览器、Node.js、微信、支付宝和 UniApp adapter 共用脱敏 logger，但 npm `2.0.2` 尚未包含该修复。生产环境应等待下一官方版本；提前验证须精确检出该 commit，执行 `npm ci && npm run build && npm pack`，再安装生成的 tarball，不能直接安装浮动分支。
 </Callout>
 
 ## 完成后你会得到什么
@@ -86,12 +86,12 @@ export class EasyChatClient {
   private im?: WKIM;
   private readonly messages = new Map<string, unknown>();
 
-  private readonly onConnect = (result: unknown) => {
-    console.info('EasySDK connected', result);
+  private readonly onConnect = (_result: unknown) => {
+    console.info('EasySDK connected');
   };
 
-  private readonly onDisconnect = (info: unknown) => {
-    console.info('EasySDK disconnected', info);
+  private readonly onDisconnect = (_info: unknown) => {
+    console.info('EasySDK disconnected');
   };
 
   private readonly onMessage = (message: any) => {
@@ -100,8 +100,8 @@ export class EasyChatClient {
     // 把去重后的消息交给应用状态层。
   };
 
-  private readonly onError = (error: unknown) => {
-    console.error('EasySDK error', error);
+  private readonly onError = (_error: unknown) => {
+    console.error('EasySDK operation failed');
   };
 
   async start(bootstrap: IMBootstrap): Promise<void> {
@@ -176,12 +176,7 @@ const alice = await fetchIMBootstrap();
 
 await chat.start(alice);
 const result = await chat.sendText('bob', 'Hello from Web EasySDK');
-console.info(
-  'SEND result',
-  result.messageId,
-  result.messageSeq,
-  result.reasonCode,
-);
+console.info('SEND completed', result.messageSeq, result.reasonCode);
 
 window.addEventListener('pagehide', () => chat.stop(), { once: true });
 ```
@@ -197,7 +192,7 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 5. Bob 向 Alice 回发，验证反向链路；
 6. 模拟不可达地址，确认 10 秒内失败并 `destroy`，页面不会永久停在 Connecting；
 7. 刷新、关闭或退出账号，确认旧实例已 `off` 并 `destroy`，没有重复连接；
-8. 检查生产构建的 Console 与日志采集，确认 Token 和 Payload 不会泄露。`v2.0.2` 未完成这项前不得通过生产门禁。
+8. 检查生产构建的 Console 与日志采集，确认 Token 和 Payload 不会泄露。`v2.0.2` 仍不包含已合并的日志修复，必须等待新版或安装基于上述精确 commit 自行构建的 tarball 后再验收。
 
 这个闭环没有覆盖离线同步。如果 Bob 离线，应用不能仅等待 EasySDK 的实时事件；必须用产品设计的持久同步路径恢复消息。
 
@@ -206,7 +201,7 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 - **页面提示 WebSocket 或编码 API 不存在**：确认目标浏览器与构建环境提供 WebSocket、`TextEncoder`、`TextDecoder`；不要从浏览器路径推断小程序支持。
 - **连接前就被拒绝**：检查 BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade 和 Gateway 可达性。
 - **刷新后重复收消息**：不要在每次组件渲染时调用 `on`；保留回调并在卸载时 `off`/`destroy`。
-- **Console 出现 Token 或 Payload**：这是当前 tag 的已知采用阻断项，升级或修复并验证脱敏后再上线。
+- **Console 出现 Token 或 Payload**：这是 npm `2.0.2` 的已知问题；[PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) 已合并但尚未发布。等待下一官方版本，或按上文固定 merge commit 自行构建 tarball 并验证脱敏后再上线。
 - **需要可执行 Web 场景入口**：使用本站具备受保护验证流程的 [WuKongIMJSSDK Web 教程](/zh/sdk/javascript)，并在[版本与兼容性](/zh/sdk/compatibility)查看当前 receipt 状态；不要把两套 SDK 的方法名混用。
 
 ## 下一步

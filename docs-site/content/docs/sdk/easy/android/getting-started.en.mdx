@@ -15,8 +15,8 @@ That learning sequence follows the [legacy Android EasySDK tutorial](https://wuk
   The example is aligned with the official [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3` source at revision `62084632cd8d1f26c751b053b0fb82d6aaa63892`; the published artifact is available on [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3). This is a source-level tutorial, not runtime verification, and it does not mean this version has passed a complete compatibility scenario against current WuKongIM v3.
 </Callout>
 
-<Callout type="error" title="Close protocol and logging blockers before adoption">
-  Android `v1.0.3` uses underscore fields in CONNECT, SEND, RECVACK, and result models. Its README builds the message as JSON text and passes that `String` to SEND rather than passing a JSON object directly. The current server accepts both underscore and camel-case fields plus JSON text strings, JSON objects, and Base64 payloads at the JSON-RPC boundary, then returns snake_case results for Android, so fields and payload no longer block online messaging. Unknown-message, JSON-RPC parse-error, and RECV parse-error paths in this tag still write the complete message or `Params` to Logcat without honoring `debugLogging`; those values can contain a token or payload. The protocol path is testable, but the original tag cannot satisfy a production logging gate. Upgrade or patch log redaction and inspect the Release artifact before production.
+<Callout type="warn" title="Logging fix merged; v1.0.3 does not include it">
+  The current server supports Android `v1.0.3` underscore fields and its README's JSON text-string SEND payload; the boundary also accepts camel-case fields, JSON objects, and Base64, so those protocol shapes no longer block online messaging. However, unknown-message, parse-failure, and RECV-error paths in this release still bypass `debugLogging` and can write complete messages or `Params` to Logcat. Official [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) merged at [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff), routing diagnostics through a default-silent logger and redacting logs plus public model strings. Maven `1.0.3` does not include that fix. Production users should wait for the next official release. Early evaluation must pin this commit, build the AAR or module independently, and inspect the Release artifact again.
 </Callout>
 
 ## What you will have
@@ -119,7 +119,10 @@ class ChatActivity : AppCompatActivity() {
 
     private val messageListener = object : WuKongEventListener<Message> {
         override fun onEvent(message: Message) = runOnUiThread {
-            Log.i("EasySDK", "recv ${message.messageId} from ${message.fromUid}")
+            Log.i(
+                "EasySDK",
+                "message received: seq=${message.messageSeq}, type=${message.channelType}",
+            )
             // Deduplicate by messageId before updating the UI.
         }
     }
@@ -127,13 +130,13 @@ class ChatActivity : AppCompatActivity() {
     private val disconnectListener = object : WuKongEventListener<DisconnectInfo> {
         override fun onEvent(info: DisconnectInfo) = runOnUiThread {
             connected = false
-            Log.i("EasySDK", "disconnected: ${info.code} ${info.reason}")
+            Log.i("EasySDK", "disconnected: code=${info.code}")
         }
     }
 
     private val errorListener = object : WuKongEventListener<WuKongError> {
         override fun onEvent(error: WuKongError) = runOnUiThread {
-            Log.e("EasySDK", "${error.code}: ${error.message}")
+            Log.e("EasySDK", "SDK operation failed: code=${error.code}")
         }
     }
 
@@ -175,7 +178,7 @@ class ChatActivity : AppCompatActivity() {
                 .onFailure {
                     connected = false
                     easySDK.disconnect()
-                    Log.e("EasySDK", "connect failed", it)
+                    Log.e("EasySDK", "connect failed")
                 }
         }
     }
@@ -203,7 +206,7 @@ class ChatActivity : AppCompatActivity() {
 }
 ```
 
-Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly, but that cannot intercept the tag's unconditional error logs and is not a substitute for fixing the SDK. A production application normally lets an Application-scoped connection manager own the SDK while Activities or Fragments subscribe only to UI events. The screen-level owner above makes the minimal lifecycle visible.
+Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly. Maven `1.0.3` still has unconditional error paths outside that gate, while merged main consistently applies it as the master switch. A production application normally lets an Application-scoped connection manager own the SDK while Activities or Fragments subscribe only to UI events. The screen-level owner above makes the minimal lifecycle visible.
 
 ## Step 5: send the first message
 
@@ -224,9 +227,9 @@ fun sendText(targetUid: String, text: String) {
                 payload = payload,
             )
         }.onSuccess { result ->
-            Log.i("EasySDK", "SEND result: ${result.messageId}, seq=${result.messageSeq}")
-        }.onFailure { error ->
-            Log.e("EasySDK", "send failed", error)
+            Log.i("EasySDK", "SEND completed: seq=${result.messageSeq}")
+        }.onFailure {
+            Log.e("EasySDK", "send failed")
         }
     }
 }
@@ -239,7 +242,7 @@ A returned `send` result means Alice obtained a result for the request. Bob must
 Because the SDK is a process singleton, use two devices, two emulators, or two independent application processes:
 
 1. Alice and Bob each obtain their own connection material from the product backend.
-2. Both sides observe `CONNECT`, retaining the original error when it fails.
+2. Both sides observe `CONNECT`; on failure, record only a stable error code and stage, never the original error text.
 3. Alice calls `sendText("bob", ...)` and records the send result.
 4. Bob checks `fromUid`, `channelId`, `messageId`, and the payload.
 5. Bob sends back to Alice and proves the reverse direction.
@@ -254,7 +257,7 @@ The current server covers this loop with the Android `v1.0.3` snake_case field p
 - **The same UID gets a refreshed token or route and configuration changes:** `v1.0.3` has no public reset API. Stop explicitly and restart the process or upgrade the SDK; do not continue with a stale token or URL.
 - **The emulator connects but a physical device does not:** confirm that the address is reachable outside the host or container and have the product backend return the device-reachable WSS ingress.
 - **CONNECT, SEND, or RECVACK parsing fails:** confirm the server includes the EasySDK JSON-RPC compatibility implementation. The current server accepts snake_case fields and the README-aligned Android JSON text-string payload, as well as JSON objects and Base64 payloads, and returns snake_case results for Android. Use APP `0`, WEB `1`, and PC `2`; do not carry forward older literals.
-- **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** this tag contains unconditional log paths. Stop testing with production tokens or messages and use a reviewed build that removes or redacts those outputs.
+- **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** Maven `1.0.3` contains unconditional log paths. [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) is merged but not released. Stop testing with production tokens or messages; wait for the next official release, or build and verify the exact commit above.
 - **Messages are duplicated:** prevent repeated listener registration and deduplicate by `messageId`.
 
 ## Next

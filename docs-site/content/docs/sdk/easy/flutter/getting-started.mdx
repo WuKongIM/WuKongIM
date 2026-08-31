@@ -19,8 +19,8 @@ description: 对照 WuKongEasySDK Flutter v1.0.4 固定源码学习 Dart 接入 
   `v1.0.4` 的 `WuKongDeviceFlag` 与服务端一致：APP `0`、WEB `1`、PC `2`；默认值是 `WuKongDeviceFlag.app`。业务代码应传枚举，不要复制整数。
 </Callout>
 
-<Callout type="error" title="v1.0.4 请求日志是生产阻断项">
-  该 tag 会通过 `developer.log` 无条件记录完整 JSON-RPC 请求与响应；CONNECT 请求包含 Token，SEND 请求包含编码后的 Payload，而且没有公开的日志关闭配置。用于生产前必须升级或修复 SDK，并在各目标平台的 Release 构建和日志采集链路中验证脱敏。
+<Callout type="warn" title="日志修复已合并，v1.0.4 尚未包含">
+  当前发布的 `v1.0.4` 会通过 `developer.log` 无条件记录完整 JSON-RPC 请求与响应，而且没有公开的日志关闭配置。官方 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) 已在 [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) 新增默认关闭的 `debugLogging`、可选 `logHandler`，并对诊断与公开模型字符串脱敏，但 pub.dev `1.0.4` 尚未包含该修复。生产环境应等待下一官方版本；提前验证只能将 git dependency 的 `ref` 固定为此精确 commit，自行构建并重新验收每个目标平台。
 </Callout>
 
 <Callout type="info" title="当前服务端以对象形式返回 Payload">
@@ -130,14 +130,14 @@ class _ChatPageState extends State<ChatPage> {
     disconnectListener = (info) {
       if (!mounted) return;
       setState(() => connected = false);
-      debugPrint('disconnected: ${info.code} ${info.reason}');
+      debugPrint('disconnected: code=${info.code}');
     };
     messageListener = (message) {
       if (!mounted) return;
       setState(() => messagesById[message.messageId] = message);
     };
     errorListener = (error) {
-      debugPrint('EasySDK error: ${error.code} ${error.message}');
+      debugPrint('EasySDK operation failed: code=${error.code}');
     };
   }
 
@@ -162,9 +162,9 @@ class _ChatPageState extends State<ChatPage> {
           throw TimeoutException('EasySDK connect exceeded 20 seconds');
         },
       );
-    } catch (error) {
+    } catch (_) {
       easySDK.disconnect();
-      debugPrint('connect failed: $error');
+      debugPrint('EasySDK connect failed');
     }
   }
 
@@ -236,8 +236,7 @@ Future<void> sendText(String targetUid, String text) async {
   );
 
   debugPrint(
-    'SEND result: ${result.messageId}, '
-    'seq=${result.messageSeq}, reason=${result.reasonCode.value}',
+    'SEND completed: seq=${result.messageSeq}, reason=${result.reasonCode.value}',
   );
 }
 ```
@@ -252,7 +251,7 @@ Future<void> sendText(String targetUid, String text) async {
 4. Bob 核对 `fromUid`、`channelId`，检查对象 Payload 的 `type` 与 `content`，并按 `messageId` 去重；
 5. Bob 向 Alice 回发，验证反向链路；
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放；
-7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.4` 原始源码未修复前不得通过生产门禁。
+7. 检查每个 Release 目标的系统日志与采集服务，证明 Token、Payload 和完整 JSON-RPC 数据不会泄露；`v1.0.4` 仍不包含已合并的日志修复，必须等待新版或基于上述精确 commit 自行构建后再验收。
 
 该闭环没有证明应用从后台恢复、离线消息同步或多端会话一致性。继续按[消息收发](/zh/sdk/common-guides/messaging)和[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)补齐。
 
@@ -261,7 +260,7 @@ Future<void> sendText(String targetUid, String text) async {
 - **`SDK not initialized`**：等待 `easySDK.init(config)` 完成后再连接或发送。
 - **Widget 重建后重复收消息**：不要在 `build` 中注册监听器；保存回调引用并在 `dispose` 移除。
 - **切到新 UID 后仍看到旧状态**：先移除监听、断开并 `dispose`，再用新配置初始化；同时清空产品本地状态。
-- **系统日志出现 Token 或 Payload**：这是 `v1.0.4` 的已知采用阻断项；升级或修复日志路径并验证 Release 产物后再上线。
+- **系统日志出现 Token 或 Payload**：这是 pub.dev `1.0.4` 的已知问题；[PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) 已合并但尚未发布。等待下一官方版本，或固定到上述 merge commit 自行构建并验证 Release 产物后再上线。
 - **`message.payload` 是一段字符串**：当前服务端对有效 JSON 对象输出对象；若仍收到字符串，先确认服务端 revision，再尝试按 Base64 → UTF-8 JSON 解码，未知格式保留原值并降级展示。
 - **真机连不上本地地址**：`localhost` 指向真机自身，让业务后端返回设备可达的 WSS 地址。
 - **发送成功但 UI 没有对方消息**：把发送结果、实时接收和离线恢复分开检查。

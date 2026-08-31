@@ -17,6 +17,8 @@ const platforms = [
     repository: 'WuKongEasySDK-iOS',
     tag: 'v1.0.3',
     revision: '643848f85be70e3e3f2be22fceb86ae428b6cc38',
+    fixRevision: 'b7ec4440b940539bee213f95a3be74948f4b9fb8',
+    fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3',
     distribution: 'https://cocoapods.org/pods/WuKongEasySDK',
     install: ["pod 'WuKongEasySDK', '1.0.3'", 'exact: "1.0.3"'],
     api: ['WuKongConfig', 'onConnect', 'onMessage', 'removeListener', 'sdk.connect()', 'sdk.send('],
@@ -28,6 +30,8 @@ const platforms = [
     repository: 'WuKongEasySDK-Android',
     tag: 'v1.0.3',
     revision: '62084632cd8d1f26c751b053b0fb82d6aaa63892',
+    fixRevision: 'e984c7374a0e11f5d109ad3dbfdea599907735ff',
+    fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3',
     distribution: 'https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3',
     install: ['implementation("com.githubim:easysdk-android:1.0.3")'],
     api: [
@@ -45,6 +49,8 @@ const platforms = [
     repository: 'WuKongEasySDK-Flutter',
     tag: 'v1.0.4',
     revision: '6179251b49414401fe0eac4bfa3fec3f9b13a9fc',
+    fixRevision: 'd7758c301e5289ddfa09cd09b6976c2479584b1c',
+    fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3',
     distribution: 'https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4',
     install: ['wukong_easy_sdk: 1.0.4'],
     api: [
@@ -62,6 +68,8 @@ const platforms = [
     repository: 'WuKongEasySDK-JS',
     tag: 'v2.0.2',
     revision: 'c59c80551944c9e5d9b4a902ebd2629d3defb2e6',
+    fixRevision: '3ebf505734c5b6764b30eac011f0b7a5024c89e8',
+    fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6',
     distribution: 'https://www.npmjs.com/package/easyjssdk/v/2.0.2',
     install: ['npm install --save-exact easyjssdk@2.0.2'],
     api: ['WKIM.init', 'im.on', 'im.off', 'im.connect()', 'im.send('],
@@ -79,6 +87,7 @@ describe('EasySDK tutorial content contract', () => {
     for (const platform of platforms) {
       expect(specification).toContain(platform.tag);
       expect(specification).toContain(platform.revision);
+      expect(specification).toContain(platform.fixRevision);
     }
     expect(specification).toContain('republished as source-aligned tutorials');
     expect(specification).toContain('Superseding current state');
@@ -97,9 +106,11 @@ describe('EasySDK tutorial content contract', () => {
       for (const platform of platforms) {
         expect(page).toContain(`/${locale}/sdk/easy/${platform.path}`);
         expect(page).toContain(`https://github.com/WuKongIM/${platform.repository}`);
-        expect(page).toContain(platform.tag);
-        expect(page).toContain(platform.revision);
-        expect(page).toContain(platform.distribution);
+      expect(page).toContain(platform.tag);
+      expect(page).toContain(platform.revision);
+      expect(page).toContain(platform.fixRevision);
+      expect(page).toContain(platform.fixPullRequest);
+      expect(page).toContain(platform.distribution);
       }
       expect(page).toContain(`/${locale}/sdk/common-guides/identity-and-token`);
       expect(page).toContain(`/${locale}/sdk/common-guides/messaging`);
@@ -156,7 +167,7 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).toContain('JSON-RPC CONNECT');
     }
     expect(pages[0]).toContain('教程已发布');
-    expect(pages[1]).toContain('Pinned tutorials published');
+    expect(pages[1]).toContain('Pinned-release tutorials published');
     expect(pages[0]).toContain('服务端线协议');
     expect(pages[1]).toContain('server-side wire');
   });
@@ -195,6 +206,8 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).toContain(`https://github.com/WuKongIM/${platform.repository}`);
         expect(page).toContain(platform.tag);
         expect(page).toContain(platform.revision);
+        expect(page).toContain(platform.fixRevision);
+        expect(page).toContain(platform.fixPullRequest);
         expect(page).toContain(platform.distribution);
         for (const command of platform.install) expect(page).toContain(command);
         for (const api of platform.api) expect(page).toContain(api);
@@ -231,7 +244,7 @@ describe('EasySDK tutorial content contract', () => {
     }
   });
 
-  test('publishes current platform adoption blockers instead of implying production readiness', async () => {
+  test('publishes the released protocol boundaries and merged-but-unreleased logging fixes', async () => {
     const [iosZh, iosEn, androidZh, androidEn, flutterZh, flutterEn, webZh, webEn] =
       await Promise.all([
         content('ios/getting-started.mdx'),
@@ -246,8 +259,8 @@ describe('EasySDK tutorial content contract', () => {
 
     for (const page of [iosZh, iosEn]) {
       expect(page).toContain('@available(iOS 15.0');
+      expect(page).toContain('enableDebugLogging');
       expect(page).toContain('enableJsonLogging');
-      expect(page).toContain('LogManager.logJsonData');
       expect(page).toMatch(/Base64/u);
       expect(page).toMatch(/APP[^\n.]*`0`|`0`[^\n.]*APP/u);
       expect(page).not.toMatch(/\.app(?:\.rawValue)?\s*(?:==|is|为)\s*`?1`?/u);
@@ -259,24 +272,72 @@ describe('EasySDK tutorial content contract', () => {
       expect(page).toMatch(/APP[^\n.]*`0`|`0`[^\n.]*APP/u);
       expect(page).not.toMatch(/APP (?:device )?value `?1`?|APP 设备值 `?1`?/u);
       expect(page).toContain('debugLogging(false)');
-      expect(page).toContain('Params');
-      expect(page).toMatch(/Logcat/u);
+      expect(page).toMatch(/默认静默|default-silent/u);
     }
     for (const page of [flutterZh, flutterEn]) {
-      expect(page).toContain('developer.log');
+      expect(page).toContain('debugLogging');
+      expect(page).toContain('logHandler');
       expect(page).toContain('base64Decode');
       expect(page).toMatch(/Token|token/u);
       expect(page).toMatch(/Payload|payload/u);
     }
     for (const page of [webZh, webEn]) {
-      expect(page).toContain('console.debug');
-      expect(page).toContain('console.log');
+      expect(page).toContain('debugLogging');
       expect(page).toMatch(/Token|token/u);
       expect(page).toMatch(/Payload|payload/u);
     }
 
     for (const page of [iosZh, iosEn, androidZh, androidEn, flutterZh, flutterEn, webZh, webEn]) {
       expect(page).toMatch(/APP[^\n.]*`0`[^\n.]*WEB[^\n.]*`1`[^\n.]*PC[^\n.]*`2`/u);
+    }
+
+    for (const [index, [zh, en]] of [
+      [iosZh, iosEn],
+      [androidZh, androidEn],
+      [flutterZh, flutterEn],
+      [webZh, webEn],
+    ].entries()) {
+      const platform = platforms[index];
+      for (const page of [zh, en]) {
+        expect(page).toContain(platform.fixRevision);
+        expect(page).toContain(platform.fixPullRequest);
+      }
+      expect(zh).toContain('尚未发布');
+      expect(en).toMatch(/not (?:yet )?released|does not include (?:it|that fix)/u);
+    }
+
+    for (const page of [iosZh, iosEn]) {
+      expect(page).not.toContain('print("Disconnected: \\(info.code) \\(info.reason)")');
+      expect(page).not.toContain('error.localizedDescription');
+      expect(page).not.toContain('result.messageId), seq=');
+      expect(page).toContain('WuKongEasySDK failed: code=');
+      expect(page).toContain('SEND completed: seq=');
+    }
+    for (const page of [androidZh, androidEn]) {
+      expect(page).not.toContain('message.messageId} from ${message.fromUid}');
+      expect(page).not.toContain('${info.code} ${info.reason}');
+      expect(page).not.toContain('${error.code}: ${error.message}');
+      expect(page).not.toContain('"connect failed", it');
+      expect(page).not.toContain('${result.messageId}');
+      expect(page).not.toContain('"send failed", error');
+      expect(page).toContain('message received: seq=');
+      expect(page).toContain('SDK operation failed: code=');
+    }
+    for (const page of [flutterZh, flutterEn]) {
+      expect(page).not.toContain('${info.code} ${info.reason}');
+      expect(page).not.toContain('${error.code} ${error.message}');
+      expect(page).not.toContain('connect failed: $error');
+      expect(page).not.toContain('${result.messageId}');
+      expect(page).toContain('EasySDK operation failed: code=');
+      expect(page).toContain('SEND completed: seq=');
+    }
+    for (const page of [webZh, webEn]) {
+      expect(page).not.toContain("console.info('EasySDK connected', result)");
+      expect(page).not.toContain("console.info('EasySDK disconnected', info)");
+      expect(page).not.toContain("console.error('EasySDK error', error)");
+      expect(page).not.toContain('result.messageId');
+      expect(page).toContain("console.info('EasySDK connected')");
+      expect(page).toContain("console.error('EasySDK operation failed')");
     }
   });
 });
