@@ -444,11 +444,11 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/tutorials/ai-and-iot`,
         `/${locale}/server`,
         `/${locale}/server/deployment`,
-        `/${locale}/server/deployment/choosing`,
         `/${locale}/server/deployment/docker`,
         `/${locale}/server/deployment/linux`,
-        `/${locale}/server/deployment/kubernetes`,
         `/${locale}/server/deployment/multi-node`,
+        `/${locale}/server/deployment/kubernetes`,
+        `/${locale}/server/deployment/kubernetes-resources`,
         `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
         `/${locale}/server/configuration/cluster`,
@@ -852,6 +852,8 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/deployment/kubernetes-resources.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/deployment/kubernetes-resources.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/cluster.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/cluster.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/reference.mdx')).toBe(true);

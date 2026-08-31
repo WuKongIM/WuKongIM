@@ -1,58 +1,62 @@
 ---
 title: Deployment
-description: Choose, build, and verify a WuKongIM cluster deployment for the current environment.
+description: Choose the cluster objective and runtime medium, then verify every WuKongIM deployment against the same gates.
 ---
 
-Deployment is not merely starting a process. It establishes a reproducible, persistent, observable cluster unit that can accept traffic safely.
-
-```text
-Clients / product services
-  -> TLS, access control, and load balancing
-  -> WuKongIM API / Gateway
-
-WuKongIM nodes
-  <-> node transport
-  -> independent persistent storage per node
-  -> metrics, logs, and alerting
-```
+Start with two questions: **Do you accept a single point of failure? Who operates the nodes?** The first decides topology; the second decides Docker, Linux, or Kubernetes. A runtime medium does not create high availability by itself.
 
 <Callout type="warn" title="Every deployment is a cluster">
-  A one-node deployment is a single-node cluster. It still uses the Controller, Slot, Channel, routing, and storage paths. Do not create a one-node runtime that bypasses cluster semantics.
+  A one-node deployment is a single-node cluster. It still uses the Controller, Slot, Channel, routing, and storage paths. There is no standalone mode that bypasses cluster semantics.
 </Callout>
 
-## Choose a path
+Only evaluating WuKongIM? Use the [Quickstart](/en/guide/quick-start). This section is for environments that need persistence, observability, and repeatable releases.
 
-| Goal | Recommended entry | Primary boundary |
+## 1. Choose the topology
+
+| Objective | Topology | Next step |
 | --- | --- | --- |
-| Local development and functional checks | Repository three-node Docker Compose | Exposes development credentials and benchmark/debug capabilities |
-| Container platform | Build a Docker image from the current source | These docs promise no official registry or tag |
-| Linux host | Build the binary and supervise it with systemd | The operator owns the service unit |
-| Highly available production | Multi-node cluster across failure domains | Requires external TLS, load balancing, monitoring, backups, and drills |
-| Kubernetes | StatefulSet reference architecture | Beta; the platform team owns final manifests and production evidence |
+| Development, validation, or explicit acceptance of one failure point | Single-node cluster | Choose Docker or Linux |
+| Cross-node replication and failure handling | Multi-node cluster | Complete the [multi-node design](/en/server/deployment/multi-node) first |
 
-Start with [Choose a Deployment](/en/server/deployment/choosing). After selecting the environment, continue to [Docker](/en/server/deployment/docker), [Linux](/en/server/deployment/linux), or [Kubernetes (Beta)](/en/server/deployment/kubernetes).
+A single-node cluster has one Slot/Channel replica, so a node or disk failure interrupts service. Multiple nodes create useful failure domains only when disks, power, or availability zones are independent; three containers on one disk are not three independent replicas.
 
-## Contract shared by every deployment
+Three nodes with three replicas have no node headroom. After any node is lost, the others may retain a Raft majority but return `503` from `/readyz` because replica candidates are insufficient. To retain three eligible replica candidates after one node loss, provide at least four qualified data nodes.
 
-- Build every node from the same reviewed commit and record the commit SHA, Go toolchain, and artifact digest.
-- Use an explicit `-config /path/to/wukongim.toml`; do not depend on a service manager working directory.
-- Give every node a unique node ID, data directory, and reachable transport address.
-- Keep the physical hash-slot count at `256`; replica counts must fit the available nodes and independent failure domains.
+## 2. Choose the runtime medium
+
+| Medium | Fit | Operator ownership |
+| --- | --- | --- |
+| [Docker](/en/server/deployment/docker) | Existing container build and runtime capability | Images, volumes, network, secrets, and container lifecycle |
+| [Linux](/en/server/deployment/linux) | Direct host and systemd management | Binary, directory permissions, firewall, and service unit |
+| [Kubernetes (Beta)](/en/server/deployment/kubernetes) | Mature stateful-workload platform | Final manifests, PVCs, secrets, NetworkPolicy, and release evidence |
+
+The repository-root three-node Compose stack is for development validation only. Official versioned container images are documented on the [Docker page](/en/server/deployment/docker); these docs still promise no official installation package, Helm chart, or production Kubernetes manifest.
+
+## 3. Follow one implementation sequence
+
+1. **Freeze the artifact:** build every node from the same reviewed commit and record the toolchain and digest.
+2. **Complete configuration:** use [Configuration](/en/server/configuration) to confirm TOML, `WK_*` overrides, node identities, and client advertisements.
+3. **Prepare state:** give every node an independent data directory or disk, with capacity bounds for logs, plugin state, and metrics.
+4. **Start nodes:** pass `-config /path/to/wukongim.toml` explicitly; never depend on the working directory.
+5. **Verify the platform:** check persistent mounts, external addresses, `/healthz`, and `/readyz`.
+6. **Verify the cluster:** for multiple nodes, also verify membership, routing, end-to-end messaging, reconnect sync, and failure recovery.
+7. **Cut over production:** complete the [Production Checklist](/en/server/deployment/production-checklist).
+
+## Shared runtime contract
+
+- Every node has a unique node ID, data directory, and reachable transport address.
+- Keep the physical hash-slot count at `256`; replica counts must fit node availability and failure objectives.
 - Use `0.0.0.0` only for listening, never as a node or client advertisement.
-- Plan persistence and capacity limits for data, logs, plugin state, and Prometheus data.
-- Place Manager, metrics, debug, benchmark, diagnostics, and node transport in separate controlled network boundaries.
+- Keep Manager, metrics, debug, benchmark, diagnostics, and transport in controlled network boundaries.
+- The deployment platform owns DNS, certificates, external Product HTTP authentication, cloud resources, secret distribution, and production cutover.
 
-## Readiness is not liveness
+## Admit traffic with `/readyz`
 
 ```bash
 curl --fail http://127.0.0.1:5001/healthz
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-A successful `/healthz` only proves that the HTTP process responds. `/readyz` returns `503` while cluster write routing is unavailable or restore maintenance is active. Load balancers, rollout gates, and traffic switches must use `/readyz`.
+`/healthz` only proves that the process responds. `/readyz` returns `503` while cluster write routing is unavailable or restore maintenance is active; load balancers, rollout gates, and traffic switches must use `/readyz`.
 
-## What this phase does not do
-
-These pages document the current source deployment contract and reference steps. They do not perform DNS, certificate, cloud-resource, secret-distribution, firewall, or production-cutover changes, and they do not present the development Compose stack, reference systemd unit, or Kubernetes Beta fragments as an official production solution.
-
-Before deployment, work through the [Production Checklist](/en/server/deployment/production-checklist).
+Passing a platform page does not make a deployment production-ready. Admit production traffic only after multi-node verification and the production checklist also have owners, evidence, and a rollback path.

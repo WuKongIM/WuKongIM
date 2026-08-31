@@ -37,6 +37,7 @@ sudo install -o root -g wukongim -m 0640 \
 
 - `node.data_dir = "/var/lib/wukongim"`；
 - `log.dir = "/var/log/wukongim"`；
+- `plugin.dir = "/var/lib/wukongim/plugins"`、`plugin.sandbox_dir = "/var/lib/wukongim/plugin-sandbox"`、`plugin.state_dir = "/var/lib/wukongim/plugin-state"`；
 - `plugin.socket_path = "/run/wukongim/plugin.sock"`；
 - 为该节点设置唯一 `node.id` 和可达的集群地址；
 - 替换 Join Token、Manager JWT Secret、账号和其他示例凭据；
@@ -44,6 +45,7 @@ sudo install -o root -g wukongim -m 0640 \
 - 生产默认关闭 Benchmark 和 Debug API。
 
 配置加载器会拒绝未知 TOML 键和未知 `WK_*` 环境变量。显式 `-config` 可以避免 systemd 工作目录改变查找结果。
+参考单元没有设置 `WorkingDirectory`，因此所有可写路径都必须是上面的绝对路径；不要把示例中的 `./data/...` 留给 systemd 服务解析。
 
 ## 3. 创建 systemd 单元
 
@@ -92,6 +94,8 @@ curl --fail http://127.0.0.1:5001/readyz
 ```
 
 进程收到 `SIGTERM` 后会按配置的集群停止预算执行优雅停止；参考单元给出 30 秒的外部上限。若 `/healthz` 成功而 `/readyz` 返回 `503`，不要把节点加入负载均衡，先检查返回的 `reason` 和服务日志。
+
+同时确认 `/var/lib/wukongim`、日志和插件状态目录由 `wukongim` 用户持有，从目标客户端网络验证 `api.external_*`，并在服务重启后再次检查持久化挂载与 `/readyz`。
 
 ## 网络与权限
 

@@ -109,6 +109,17 @@ describe('legacy redirect seed', () => {
     );
   });
 
+  test('routes the merged deployment chooser into the deployment entry', () => {
+    expect(manifest.mappings).toEqual(
+      expect.arrayContaining(
+        ['zh', 'en'].map((locale) => ({
+          source: `/${locale}/server/deployment/choosing`,
+          destination: `/${locale}/server/deployment`,
+        })),
+      ),
+    );
+  });
+
   test('routes legacy SDK overview and source discovery into the current SDK entry', () => {
     expect(manifest.mappings).toEqual(
       expect.arrayContaining(

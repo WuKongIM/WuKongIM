@@ -46,11 +46,11 @@ Route: `/{lang}/server`
 部署、配置、运维和理解 WuKongIM 集群。 / Deploy, configure, operate, and understand a WuKongIM cluster.
 
 - **部署 / Deployment** `/{lang}/server/deployment` — 选择并实施适合环境的服务端部署方式。 / Choose and implement the server deployment method appropriate for the environment.
-  - **部署方式选择 / Choose a Deployment** `/{lang}/server/deployment/choosing` — 比较 Docker、Linux 二进制和 Kubernetes 的适用边界。 / Compares the suitability of Docker, Linux binaries, and Kubernetes.
-  - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 使用镜像部署单节点集群或多节点集群。 / Deploys single-node clusters or multi-node clusters from container images.
+  - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 构建固定镜像，并用显式配置和持久卷运行节点。 / Builds an immutable image and runs a node with explicit configuration and persistent storage.
   - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 使用二进制、配置文件和 systemd 运行服务。 / Runs the server with a binary, configuration file, and systemd.
-  - **Kubernetes 部署（Beta） / Kubernetes (Beta)** `/{lang}/server/deployment/kubernetes` — 说明持久化、服务发现、资源规划和 Beta 边界。 / Covers persistence, discovery, resource planning, and Beta limitations.
-  - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划并引导多节点集群完成启动和就绪检查。 / Plans and bootstraps a multi-node cluster through readiness verification.
+  - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划成员、副本、故障域并验证集群就绪。 / Plans membership, replicas, failure domains, and cluster readiness.
+  - **Kubernetes 部署（Beta） / Kubernetes (Beta)** `/{lang}/server/deployment/kubernetes` — 按最短路径适配并验证有状态集群部署。 / Adapts and verifies a stateful cluster deployment through the shortest path.
+  - **Kubernetes 资源参考（Beta） / Kubernetes Resource Reference (Beta)** `/{lang}/server/deployment/kubernetes-resources` — 提供 StatefulSet、Service、PVC、探针和 PDB 参考片段。 / Provides StatefulSet, Service, PVC, probe, and PDB reference fragments.
   - **生产检查清单 / Production Checklist** `/{lang}/server/deployment/production-checklist` — 汇总资源、磁盘、安全、监控、备份和容量检查。 / Checks resources, disks, security, monitoring, backups, and capacity.
 - **配置 / Configuration** `/{lang}/server/configuration` — 解释配置来源、覆盖规则和各领域配置。 / Explains configuration sources, override rules, and domain settings.
   - **节点与集群 / Nodes & Cluster** `/{lang}/server/configuration/cluster` — 节点身份、集群地址、Slot、副本和节点发现配置。 / Node identity, cluster addresses, slots, replicas, and discovery settings.

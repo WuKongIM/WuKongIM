@@ -5,6 +5,8 @@ description: Check artifacts, topology, storage, security, observability, recove
 
 This checklist is a production admission gate, not a collection of suggestions. Pause traffic cutover whenever a critical item has no owner, evidence, or rollback path.
 
+This page is for the **first launch of a new environment**. For a version upgrade, first determine whether old and new versions may run together, then use [Upgrade & Migration](/en/server/operations/upgrade-and-migration) to choose a rolling update, maintenance window, or separate migration.
+
 ## Artifact and configuration
 
 - [ ] Every node is pinned to the same commit SHA and artifact digest.
@@ -60,11 +62,11 @@ Use [Backup & Restore](/en/server/operations/backup-and-restore) to verify the c
 - [ ] Pre-production exercises node exit, restart, disk pressure, and downstream webhook failure.
 - [ ] A single peak-QPS result is not treated as sustainable production capacity.
 
-## Rollout and rollback
+## First rollout and rollback
 
 1. Freeze the artifact, configuration, and change window.
 2. Complete readiness, end-to-end messaging, and failure checks in pre-production.
-3. Deploy one node at a time; wait for `/readyz` before proceeding.
+3. Start nodes according to the approved first-launch plan; wait for `/readyz` before proceeding.
 4. Send a small traffic percentage and observe errors, latency, queues, and storage.
 5. Before expanding traffic, verify product sends, client send/receive, reconnect sync, and webhook boundaries.
 6. On anomalies, stop progression, remove new nodes from traffic, and execute the rehearsed rollback.

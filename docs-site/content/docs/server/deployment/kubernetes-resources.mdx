@@ -1,0 +1,334 @@
+---
+title: Kubernetes 资源参考（Beta）
+description: 审阅 WuKongIM StatefulSet、Service、PVC、探针、PDB 与生命周期参考片段。
+---
+
+本页保存与当前源码配置合同一致的完整 Kubernetes 参考片段。请先阅读 [Kubernetes 部署](/zh/server/deployment/kubernetes)，再由平台团队把这里的 ConfigMap、Service、StatefulSet、PVC、探针和 PDB 适配到自己的发布仓库。
+
+<Callout type="warn" title="Beta 的含义">
+  当前仓库没有可声明为官方生产方案的 Helm Chart 或 Kubernetes 清单。下面的资源是需要平台团队审阅、参数化和验证的参考片段。不要沿用旧文档中的 Chart 仓库、浮动镜像或只修改 `replicaCount` 的扩缩容方式。
+</Callout>
+
+## 为什么使用 StatefulSet
+
+WuKongIM 的每个部署都是集群；一个 Pod 也是单节点集群。节点需要稳定且唯一的 ID、可互相访问的 Transport 地址和独立持久状态，因此参考拓扑使用 [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)：
+
+```text
+客户端 / 业务服务
+        |
+TLS / 受控入口
+        |
+wukongim-client Service
+   /       |       \
+Pod-0    Pod-1    Pod-2        固定镜像摘要
+PVC-0    PVC-1    PVC-2        独立持久卷
+   \       |       /
+ wukongim-peer Headless Service :7000
+```
+
+StatefulSet 提供稳定 Pod 序号、DNS 和每 Pod PVC，但不会自动建立 WuKongIM 成员关系、选择副本数、备份数据或保证滚动升级安全。这些仍由配置和发布流程负责。
+
+## 上线前提
+
+- 已从审阅过的服务端提交构建镜像，并记录不可变 digest；
+- 至少三个符合容量要求的工作节点或故障域，用于三节点、三副本参考拓扑；
+- 支持 `ReadWriteOnce` 或更严格单节点挂载语义的 StorageClass，并完成快照/恢复演练；
+- 受信的 Secret 管理能力，用于 Join Token、Manager JWT 和账号；
+- API、TCP、WebSocket/WSS、Manager、指标和节点 Transport 的独立网络策略；
+- 可从客户端网络访问的 `api.external_*` 地址和 TLS 终止方案。
+
+先阅读[多节点集群](/zh/server/deployment/multi-node)和[生产检查清单](/zh/server/deployment/production-checklist)。如果无法为每个节点提供独立磁盘和故障域，Kubernetes 不会凭空提供高可用。
+
+## 1. 构建并固定镜像
+
+```bash
+git rev-parse HEAD
+docker build --pull -t registry.example.com/wukongim:${GIT_COMMIT} .
+docker push registry.example.com/wukongim:${GIT_COMMIT}
+docker inspect --format='{{index .RepoDigests 0}}' \
+  registry.example.com/wukongim:${GIT_COMMIT}
+```
+
+把最终值写成 `registry.example.com/wukongim@sha256:REPLACE_WITH_REVIEWED_DIGEST`，所有 Pod 使用同一摘要。`${GIT_COMMIT}` 需要由发布流水线显式设置；不要在人工 shell 中依赖未解析变量。
+
+当前 `Dockerfile` 没有声明非 root `USER`。生产平台若要求 `runAsNonRoot`，应先构建并测试符合该策略的派生镜像与数据卷权限，而不是在 PodSpec 中盲设 UID。
+
+## 2. 准备共享配置与固定成员表
+
+以下三节点配置把 StatefulSet 序号 `0..2` 映射为 WuKongIM 节点 ID `1..3`。三个节点共享相同成员表、集群 ID、`hash_slot_count = 256`、`slot_replica_n = 3` 和 `channel_replica_n = 3`；只有 `WK_NODE_ID`、Pod/PVC 和运行时身份不同。
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wukongim-config
+  namespace: wukongim
+data:
+  wukongim.toml: |
+    [node]
+    # Placeholder required by the file contract; the Pod command overrides it.
+    id = 1
+    data_dir = "/var/lib/wukongim"
+
+    [cluster]
+    id = "prod-im-a"
+    listen_addr = "0.0.0.0:7000"
+    initial_slot_count = 10
+    hash_slot_count = 256
+    slot_replica_n = 3
+    channel_replica_n = 3
+
+    [api]
+    listen_addr = "0.0.0.0:5001"
+    external_tcp_addr = "im.example.com:5100"
+    external_wss_addr = "wss://im.example.com/ws"
+
+    [manager]
+    listen_addr = "0.0.0.0:5301"
+    auth_on = true
+
+    [bench]
+    api_enable = false
+
+    [observability]
+    metrics_enable = true
+    debug_api_enable = false
+
+    [plugin]
+    socket_path = "/run/wukongim/plugin.sock"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wukongim-cluster-env
+  namespace: wukongim
+data:
+  WK_CLUSTER_NODES: >-
+    [{"id":1,"addr":"wukongim-0.wukongim-peer.wukongim.svc.cluster.local:7000"},{"id":2,"addr":"wukongim-1.wukongim-peer.wukongim.svc.cluster.local:7000"},{"id":3,"addr":"wukongim-2.wukongim-peer.wukongim.svc.cluster.local:7000"}]
+```
+
+`WK_CLUSTER_NODES` 是 JSON **整表替换**，不是追加。若命名空间、StatefulSet 或 Headless Service 改名，三个地址必须一起更新。`0.0.0.0` 只能用于监听，不能写进成员表。
+
+另建 Secret，至少提供 `WK_CLUSTER_JOIN_TOKEN`、`WK_MANAGER_JWT_SECRET` 和 JSON 格式的 `WK_MANAGER_USERS`。Kubernetes Secret 的 base64 不是加密；使用平台的加密、外部 Secret 控制器和最小 RBAC。不要把真实值提交到仓库或命令历史。
+
+## 3. 创建服务
+
+Headless Service 负责 Pod 稳定 DNS；`publishNotReadyAddresses: true` 允许节点在进入流量就绪前发现彼此。客户端 Service 只承载需要的入口，Manager 和 Transport 不应暴露给公网。
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: wukongim-peer
+  namespace: wukongim
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: wukongim
+  ports:
+    - name: transport
+      port: 7000
+      targetPort: transport
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wukongim-client
+  namespace: wukongim
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: wukongim
+  ports:
+    - name: api
+      port: 5001
+      targetPort: api
+    - name: tcp
+      port: 5100
+      targetPort: tcp
+    - name: websocket
+      port: 5200
+      targetPort: websocket
+```
+
+由 LoadBalancer、Ingress/Gateway API 或服务网格暴露哪些端口取决于平台。普通 HTTP Ingress 不能自动代理原生 TCP `5100`。无论采用哪种入口，`external_tcp_addr` / `external_wss_addr` 都必须是客户端真实可达的地址。
+
+## 4. 创建 StatefulSet
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wukongim
+  namespace: wukongim
+spec:
+  serviceName: wukongim-peer
+  replicas: 3
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wukongim
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wukongim
+    spec:
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: wukongim
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: wukongim
+      containers:
+        - name: wukongim
+          image: registry.example.com/wukongim@sha256:REPLACE_WITH_REVIEWED_DIGEST
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              ordinal="${POD_NAME##*-}"
+              case "${ordinal}" in ''|*[!0-9]*) exit 64 ;; esac
+              export WK_NODE_ID="$((ordinal + 1))"
+              exec /usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          envFrom:
+            - configMapRef:
+                name: wukongim-cluster-env
+            - secretRef:
+                name: wukongim-secrets
+          ports:
+            - { name: api, containerPort: 5001 }
+            - { name: tcp, containerPort: 5100 }
+            - { name: websocket, containerPort: 5200 }
+            - { name: manager, containerPort: 5301 }
+            - { name: transport, containerPort: 7000 }
+          startupProbe:
+            httpGet: { path: /healthz, port: api }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: api }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: api }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/wukongim
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/wukongim
+            - name: runtime
+              mountPath: /run/wukongim
+      volumes:
+        - name: config
+          configMap:
+            name: wukongim-config
+        - name: runtime
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: REPLACE_WITH_REVIEWED_STORAGE_CLASS
+        resources:
+          requests:
+            storage: 100Gi
+```
+
+关键选择：
+
+- `podManagementPolicy: Parallel` 避免首个 Pod 因等待集群写就绪而阻塞其他成员创建；
+- `updateStrategy: OnDelete` 把升级留给显式的逐节点流程，不让模板变化自动替换全部 Pod；
+- `enableServiceLinks: false` 避免 Kubernetes 注入意外的 `WK_*` Service 环境变量。当前配置加载器会拒绝未知 `WK_*` 键；
+- startup/liveness 使用 `/healthz` 判断进程，readiness 使用 `/readyz` 控制 Service Endpoint。Kubernetes 对这些探针的行为见[官方探针文档](https://kubernetes.io/docs/concepts/workloads/pods/probes/)；
+- `volumeClaimTemplates` 给每个节点独立 PVC。删除 StatefulSet 不等于删除或备份 PVC；先定义回收策略与恢复流程；
+- CPU、内存、磁盘只是语法完整的起点，必须用目标在线用户、消息率、频道数和大群场景重新定容。
+
+## 5. 故障域和主动中断
+
+参考 PDB：
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wukongim
+  namespace: wukongim
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wukongim
+```
+
+`PodDisruptionBudget` 只约束使用 Eviction API 的部分主动中断；直接删除 Pod、删除 StatefulSet、节点故障和 StatefulSet 自身更新不都受它保护。官方[中断说明](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/)也明确区分主动与非主动中断。
+
+示例中的 required Pod anti-affinity 要求三个 Pod 位于不同 Kubernetes 节点；如果没有三个符合条件的节点，剩余 Pod 会保持 Pending。`topologySpreadConstraints` 另外限制合格节点之间的分布偏斜。生产可同时按 `topology.kubernetes.io/zone` 规划，但必须先确认节点标签和存储拓扑；调度分散不等于数据副本健康。参见 [Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)。
+
+## 6. 验证部署
+
+```bash
+kubectl -n wukongim get pods -o wide
+kubectl -n wukongim get pvc
+kubectl -n wukongim get endpointslice -l kubernetes.io/service-name=wukongim-peer
+kubectl -n wukongim logs wukongim-0 --tail=200
+
+kubectl -n wukongim port-forward pod/wukongim-0 15001:5001
+curl --fail http://127.0.0.1:15001/healthz
+curl --fail http://127.0.0.1:15001/readyz
+```
+
+然后逐节点检查 `/readyz`，确认 Manager/指标中的节点 ID 为 `1,2,3` 且没有重复，验证 Transport DNS 双向可达，并执行一条端到端持久消息：路由、CONNECT、SENDACK、实时接收、断线、重连同步都要独立观察。
+
+`/healthz` 返回成功不能让 Pod 进入业务 Service；只有 `/readyz` 的 `200` 与 `{"ready":true}` 才能作为流量门槛。
+
+## 7. 扩容不是修改 replicas
+
+上面的成员表固定为三个节点。直接执行 `kubectl scale` 会产生没有合法 WuKongIM 节点 ID/成员地址的新 Pod，或在缩容时丢失承载状态。扩容必须作为集群成员变更处理：
+
+1. 冻结制品、完整成员表和新节点 ID；
+2. 为新节点准备独立 PVC、DNS、容量和故障域；
+3. 按当前服务端的加入/迁移合同更新配置并观察 Controller 任务；
+4. 等待路由、副本和迁移稳定，再扩大客户端流量；
+5. 保留停止条件和已演练的回退路径。
+
+当前文档不宣称热缩容安全。不要删除带状态 Pod/PVC 来“缩容”。
+
+## 8. 逐节点升级与回滚
+
+1. 在隔离环境验证目标镜像、配置解析、数据兼容和端到端消息；
+2. 备份并按[备份与恢复](/zh/server/operations/backup-and-restore)完成恢复演练；
+3. 更新 StatefulSet 镜像摘要；`OnDelete` 不会自动替换现有 Pod；
+4. 一次只摘流、终止并重建一个节点，等待该节点 `/readyz`、副本和路由稳定后再继续；
+5. 每步观察错误率、延迟、Controller 任务、磁盘和队列；任何门禁失败立即停止。
+
+回滚只有在旧二进制能读取升级后数据和协议时才安全。镜像摘要回退、配置回退和 PVC/集群状态恢复必须作为一个演练过的计划；不要依赖 PDB 阻止错误的 StatefulSet 更新。
+
+完成平台适配后，把最终清单、Secret 引用、镜像摘要、StorageClass、NetworkPolicy、容量报告和恢复 receipt 纳入你自己的发布仓库。本页保持 Beta，因为这些平台特定证据不能由通用文档代替。

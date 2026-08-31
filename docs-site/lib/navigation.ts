@@ -741,18 +741,11 @@ export const domains: DocumentationDomain[] = [
         'Choose and implement the server deployment method appropriate for the environment.',
         [
           publishedPage(
-            'choosing',
-            '部署方式选择',
-            'Choose a Deployment',
-            '比较 Docker、Linux 二进制和 Kubernetes 的适用边界。',
-            'Compares the suitability of Docker, Linux binaries, and Kubernetes.',
-          ),
-          publishedPage(
             'docker',
             'Docker 部署',
             'Docker',
-            '使用镜像部署单节点集群或多节点集群。',
-            'Deploys single-node clusters or multi-node clusters from container images.',
+            '构建固定镜像，并用显式配置和持久卷运行节点。',
+            'Builds an immutable image and runs a node with explicit configuration and persistent storage.',
           ),
           publishedPage(
             'linux',
@@ -762,18 +755,25 @@ export const domains: DocumentationDomain[] = [
             'Runs the server with a binary, configuration file, and systemd.',
           ),
           publishedPage(
-            'kubernetes',
-            'Kubernetes 部署（Beta）',
-            'Kubernetes (Beta)',
-            '说明持久化、服务发现、资源规划和 Beta 边界。',
-            'Covers persistence, discovery, resource planning, and Beta limitations.',
-          ),
-          publishedPage(
             'multi-node',
             '多节点集群',
             'Multi-node Cluster',
-            '规划并引导多节点集群完成启动和就绪检查。',
-            'Plans and bootstraps a multi-node cluster through readiness verification.',
+            '规划成员、副本、故障域并验证集群就绪。',
+            'Plans membership, replicas, failure domains, and cluster readiness.',
+          ),
+          publishedPage(
+            'kubernetes',
+            'Kubernetes 部署（Beta）',
+            'Kubernetes (Beta)',
+            '按最短路径适配并验证有状态集群部署。',
+            'Adapts and verifies a stateful cluster deployment through the shortest path.',
+          ),
+          publishedPage(
+            'kubernetes-resources',
+            'Kubernetes 资源参考（Beta）',
+            'Kubernetes Resource Reference (Beta)',
+            '提供 StatefulSet、Service、PVC、探针和 PDB 参考片段。',
+            'Provides StatefulSet, Service, PVC, probe, and PDB reference fragments.',
           ),
           publishedPage(
             'production-checklist',

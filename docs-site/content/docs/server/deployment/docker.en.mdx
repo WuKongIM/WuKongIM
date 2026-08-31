@@ -1,60 +1,59 @@
 ---
 title: Docker
-description: Build a WuKongIM image from the current source, verify development Compose, and establish the container runtime contract.
+description: Build an immutable image from current source and run a WuKongIM node with explicit configuration and persistent storage.
 ---
 
-The repository `Dockerfile` builds `wukongim`, `wkbench`, `wkanalysis`, and `wkcloudsim` from the current source. The runtime image defaults to:
+The Docker path fits teams that already own images, networks, secrets, volumes, and container lifecycle. The repository `Dockerfile` defaults to:
 
 ```text
 /usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
 ```
 
-<Callout type="warn" title="No implied official image">
-  This page uses a local image built from reviewed source. Do not treat the example `wukongim:local` tag as an official registry, version, or supply-chain guarantee.
+<Callout type="info" title="Official versioned images">
+  Releases publish the same immutable `linux/amd64` and `linux/arm64` digest as `ghcr.io/wukongim/wukongim`, `wukongim/wukongim` on Docker Hub, and `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`. A Git tag such as `v3.1.2` produces exact image tag `3.1.2`; pre-releases receive only their exact tag. The `wukongim:local` example below remains a source-built local image rather than an official version.
 </Callout>
 
-## Verify the repository three-node environment
+## 1. Build an immutable image
 
-```bash
-docker compose up -d --build
-docker compose ps
-
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:15001/readyz
-curl --fail http://127.0.0.1:15002/readyz
-curl --fail http://127.0.0.1:15003/readyz
-```
-
-The environment includes three nodes, Prometheus, and Grafana. Node data defaults to `docker/dev-cluster/node*`; `WK_NODE1_DATA_MOUNT`, `WK_NODE2_DATA_MOUNT`, and `WK_NODE3_DATA_MOUNT` can point at independent devices.
-
-It also includes fixed Manager/Grafana credentials, enabled benchmark, debug, and diagnostic capabilities, and host port mappings. It is only a development validation environment.
-
-## Build a pinned artifact
+<Callout type="info" title="Verify the build network first">
+  Run `docker buildx version`, then confirm that Docker and BuildKit can reach the image registries selected by `GO_IMAGE` and `RUNTIME_IMAGE` plus the Go module sources selected by `GOPROXY`. Restricted networks need team-reviewed registries and a complete module proxy.
+</Callout>
 
 ```bash
 git rev-parse HEAD
-docker build --pull -t wukongim:local .
+docker buildx build --load --pull -t wukongim:local .
 docker image inspect wukongim:local --format '{{.Id}}'
 ```
 
-A production pipeline should record the commit SHA, builder version, and image digest in its release manifest and run every node from the same digest. The deployment platform owns private-registry publication, signing, scanning, and retention.
+When the default dependency endpoints are unreachable, pass reviewed internal endpoints explicitly:
 
-## Run a single-node cluster container
+```bash
+docker buildx build --load --pull \
+  --build-arg GO_IMAGE=registry.example.com/library/golang:1.25.0 \
+  --build-arg RUNTIME_IMAGE=registry.example.com/library/alpine:3.19 \
+  --build-arg GOPROXY=https://go-proxy.example.com \
+  -t wukongim:local .
+```
+
+Replace the example domains and continue recording the commit SHA, builder version, and image digest. Mirrors do not replace provenance review, signing, or scanning.
+
+## 2. Prepare the single-node cluster configuration
 
 Create `deploy/node1.toml` from `wukongim.toml.example` and adjust at least:
 
-| Setting | Container value or requirement |
+| Setting | Container requirement |
 | --- | --- |
 | `node.data_dir` | `/var/lib/wukongim` |
 | `cluster.listen_addr` | `0.0.0.0:7000` |
-| `cluster.nodes` | Use resolvable container names or private addresses, never `0.0.0.0` |
-| `api.listen_addr`, `manager.listen_addr` | Use `0.0.0.0` when the service must listen inside the container |
-| `api.external_*` | Set the TCP, WS, or WSS addresses clients can actually reach |
+| `cluster.nodes` | Resolvable container names or private addresses, never `0.0.0.0` |
+| `api.listen_addr`, `manager.listen_addr` | Use `0.0.0.0` when listening inside the container |
+| `api.external_*` | TCP, WS, or WSS addresses that clients can actually reach |
 | Manager/join credentials | Replace every example value |
-| `bench.api_enable`, `observability.debug_api_enable` | Disable by default in production |
-| `plugin.socket_path` | `/run/wukongim/plugin.sock` |
+| Benchmark and debug | Disabled by default in production |
+| `plugin.dir`, `plugin.sandbox_dir`, `plugin.state_dir` | Use `/var/lib/wukongim/plugins`, `/var/lib/wukongim/plugin-sandbox`, and `/var/lib/wukongim/plugin-state` |
+| `plugin.socket_path` | `/run/wukongim/plugin.sock`; keep only the ephemeral Unix socket here |
 
-Then run:
+## 3. Run the container
 
 ```bash
 docker network create wukongim
@@ -72,19 +71,46 @@ docker run -d \
   -p 5200:5200 \
   -p 127.0.0.1:5301:5301 \
   wukongim:local
+```
 
+Manager binds only to host loopback. Node transport `7000` remains inside the container network; for cross-host deployment, use a protected, mutually reachable private network.
+
+## 4. Verify the deployment
+
+```bash
+docker ps --filter name=wukongim-node1
+docker inspect wukongim-node1 --format '{{json .Mounts}}'
+curl --fail http://127.0.0.1:5001/healthz
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-The example binds Manager only to the host loopback address. Node transport port `7000` remains inside the container network. For nodes on different hosts, use a protected, mutually reachable private network instead.
+Also test `api.external_*` from the target client network and confirm that a recreated container reattaches the same data volume. Never admit the node to a load balancer before `/readyz` passes.
+
+## Optional: verify the repository three-node environment
+
+```bash
+docker compose version
+docker compose up -d --build
+docker compose ps
+
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:15001/readyz
+curl --fail http://127.0.0.1:15002/readyz
+curl --fail http://127.0.0.1:15003/readyz
+curl --fail http://127.0.0.1:9091/-/ready
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+This environment includes three nodes, Prometheus, and Grafana. Node data defaults to `docker/dev-cluster/node*`; `WK_NODE1_DATA_MOUNT`, `WK_NODE2_DATA_MOUNT`, and `WK_NODE3_DATA_MOUNT` can select independent devices. Prometheus and Grafana use Compose named volumes to avoid fresh-checkout root-owned bind-mount permission failures.
+
+Compose also exposes fixed Manager/Grafana credentials, benchmark, debug, diagnostics, and host ports. It is **development validation only**. `docker compose down` preserves named volumes; never use `docker compose down -v` for data that must survive.
 
 ## Container boundaries
 
-- Mount configuration read-only. Inject sensitive values through the deployment platform's secret capability and verify complete `WK_*` replacement semantics.
-- Give every node an independent volume or disk. Recreating a container must not delete node data.
-- `/run/wukongim` is ephemeral runtime state for Unix sockets and must not be persisted.
-- Expose only API/Gateway to required networks; keep Manager, metrics, and transport private.
-- Gate traffic on `/readyz`, send `SIGTERM`, and provide enough time for graceful shutdown.
-- Do not use `docker compose down -v` for data that must survive.
+- Mount configuration read-only and inject sensitive values through the platform secret capability.
+- Give every node an independent volume or disk; container recreation must not remove data.
+- `/run/wukongim` is ephemeral runtime state and must not persist.
+- Expose API/Gateway only to required networks; keep Manager, metrics, and transport private.
+- Gate traffic on `/readyz`, then use `SIGTERM` with enough time for graceful shutdown.
 
 For production multi-node planning, continue to [Multi-node Cluster](/en/server/deployment/multi-node).

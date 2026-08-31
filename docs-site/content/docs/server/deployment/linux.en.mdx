@@ -37,6 +37,7 @@ Edit `/etc/wukongim/wukongim.toml`:
 
 - set `node.data_dir = "/var/lib/wukongim"`;
 - set `log.dir = "/var/log/wukongim"`;
+- set `plugin.dir = "/var/lib/wukongim/plugins"`, `plugin.sandbox_dir = "/var/lib/wukongim/plugin-sandbox"`, and `plugin.state_dir = "/var/lib/wukongim/plugin-state"`;
 - set `plugin.socket_path = "/run/wukongim/plugin.sock"`;
 - give the node a unique `node.id` and reachable cluster address;
 - replace the join token, Manager JWT secret, users, and every example credential;
@@ -44,6 +45,7 @@ Edit `/etc/wukongim/wukongim.toml`:
 - disable benchmark and debug APIs by default in production.
 
 The loader rejects unknown TOML keys and unknown `WK_*` environment variables. An explicit `-config` avoids lookup changes caused by the systemd working directory.
+The reference unit does not set `WorkingDirectory`, so every writable path must be absolute as shown above. Do not leave the example `./data/...` paths for systemd to resolve.
 
 ## 3. Create the systemd unit
 
@@ -92,6 +94,8 @@ curl --fail http://127.0.0.1:5001/readyz
 ```
 
 On `SIGTERM`, the process performs a graceful shutdown using the configured cluster stop budget; the reference unit provides a 30-second external ceiling. If `/healthz` succeeds while `/readyz` returns `503`, do not add the node to the load balancer. Inspect the response `reason` and service logs first.
+
+Also confirm that `/var/lib/wukongim`, logs, and plugin-state directories belong to the `wukongim` user, test `api.external_*` from the target client network, and recheck persistent mounts and `/readyz` after a service restart.
 
 ## Network and permissions
 

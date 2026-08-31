@@ -1,60 +1,59 @@
 ---
 title: Docker 部署
-description: 从当前源码构建 WuKongIM 镜像，验证开发 Compose，并建立容器运行合同。
+description: 从当前源码构建固定镜像，并用显式配置和持久卷运行 WuKongIM 节点。
 ---
 
-仓库 `Dockerfile` 会从当前源码构建 `wukongim`、`wkbench`、`wkanalysis` 和 `wkcloudsim`，运行镜像默认执行：
+Docker 路径适合已经能管理镜像、网络、Secret、Volume 和容器生命周期的团队。仓库 `Dockerfile` 默认运行：
 
 ```text
 /usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
 ```
 
-<Callout type="warn" title="没有隐含的官方镜像">
-  本页使用从已审阅源码构建的本地镜像。不要把示例标签 `wukongim:local` 当成官方仓库、版本或供应链保证。
+<Callout type="info" title="官方版本镜像">
+  正式发布会把同一份 `linux/amd64`、`linux/arm64` 固定摘要发布到 `ghcr.io/wukongim/wukongim`、Docker Hub 的 `wukongim/wukongim` 和 `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`。例如 Git 标签 `v3.1.2` 对应精确镜像标签 `3.1.2`；预发布版本只获得精确标签。下文的 `wukongim:local` 仍是从源码构建的本地镜像，不是官方版本。
 </Callout>
 
-## 验证仓库三节点环境
+## 1. 构建固定镜像
 
-```bash
-docker compose up -d --build
-docker compose ps
-
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:15001/readyz
-curl --fail http://127.0.0.1:15002/readyz
-curl --fail http://127.0.0.1:15003/readyz
-```
-
-该环境包含三个节点、Prometheus 和 Grafana。节点数据默认写入 `docker/dev-cluster/node*`，也可以通过 `WK_NODE1_DATA_MOUNT`、`WK_NODE2_DATA_MOUNT` 和 `WK_NODE3_DATA_MOUNT` 指向独立设备。
-
-它同时包含固定 Manager/Grafana 凭据、启用的 Benchmark、Debug 和诊断能力以及主机端口映射，只能作为开发验证环境。
-
-## 构建固定制品
+<Callout type="info" title="先验证构建网络">
+  先运行 `docker buildx version`，并确认 Docker 与 BuildKit 能访问 `GO_IMAGE`、`RUNTIME_IMAGE` 对应的镜像仓库以及 `GOPROXY` 选择的 Go 模块源。受限网络应使用团队审核的镜像仓库与完整模块代理。
+</Callout>
 
 ```bash
 git rev-parse HEAD
-docker build --pull -t wukongim:local .
+docker buildx build --load --pull -t wukongim:local .
 docker image inspect wukongim:local --format '{{.Id}}'
 ```
 
-生产流水线应把提交 SHA、构建器版本和镜像摘要记录到发布清单，并让所有节点使用同一摘要。是否推送到私有仓库以及如何签名、扫描和保留镜像由部署平台负责。
+默认依赖地址不可达时，显式传入已审核的内部地址：
 
-## 运行单节点集群容器
+```bash
+docker buildx build --load --pull \
+  --build-arg GO_IMAGE=registry.example.com/library/golang:1.25.0 \
+  --build-arg RUNTIME_IMAGE=registry.example.com/library/alpine:3.19 \
+  --build-arg GOPROXY=https://go-proxy.example.com \
+  -t wukongim:local .
+```
 
-先从 `wukongim.toml.example` 创建 `deploy/node1.toml`，至少调整：
+替换示例域名，并继续记录提交 SHA、构建器版本和镜像摘要。镜像代理不能替代来源审查、签名或扫描。
 
-| 配置 | 容器值或要求 |
+## 2. 准备单节点集群配置
+
+从 `wukongim.toml.example` 创建 `deploy/node1.toml`，至少调整：
+
+| 配置 | 容器要求 |
 | --- | --- |
 | `node.data_dir` | `/var/lib/wukongim` |
 | `cluster.listen_addr` | `0.0.0.0:7000` |
 | `cluster.nodes` | 使用可解析容器名或内网地址，不能写 `0.0.0.0` |
 | `api.listen_addr`、`manager.listen_addr` | 容器内需要监听时使用 `0.0.0.0` |
-| `api.external_*` | 写客户端实际可达的 TCP、WS 或 WSS 地址 |
+| `api.external_*` | 客户端实际可达的 TCP、WS 或 WSS 地址 |
 | Manager/Join 凭据 | 替换全部示例值 |
-| `bench.api_enable`、`observability.debug_api_enable` | 生产默认关闭 |
-| `plugin.socket_path` | `/run/wukongim/plugin.sock` |
+| Benchmark、Debug | 生产默认关闭 |
+| `plugin.dir`、`plugin.sandbox_dir`、`plugin.state_dir` | 分别使用 `/var/lib/wukongim/plugins`、`/var/lib/wukongim/plugin-sandbox`、`/var/lib/wukongim/plugin-state` |
+| `plugin.socket_path` | `/run/wukongim/plugin.sock`，只保存临时 Unix Socket |
 
-然后运行：
+## 3. 运行容器
 
 ```bash
 docker network create wukongim
@@ -72,19 +71,46 @@ docker run -d \
   -p 5200:5200 \
   -p 127.0.0.1:5301:5301 \
   wukongim:local
+```
 
+Manager 只绑定宿主机回环地址。节点 Transport `7000` 留在容器网络；跨主机部署时，改用受保护且互相可达的内网。
+
+## 4. 验证部署
+
+```bash
+docker ps --filter name=wukongim-node1
+docker inspect wukongim-node1 --format '{{json .Mounts}}'
+curl --fail http://127.0.0.1:5001/healthz
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-Manager 在示例中只绑定到宿主机回环地址。节点 Transport `7000` 留在容器网络内；若节点跨主机部署，应改用受保护且互相可达的内网。
+同时从目标客户端网络验证 `api.external_*`，并确认重建容器时挂回同一数据 Volume。`/readyz` 未通过时不要接入负载均衡。
+
+## 可选：验证仓库三节点环境
+
+```bash
+docker compose version
+docker compose up -d --build
+docker compose ps
+
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:15001/readyz
+curl --fail http://127.0.0.1:15002/readyz
+curl --fail http://127.0.0.1:15003/readyz
+curl --fail http://127.0.0.1:9091/-/ready
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+该环境包含三节点、Prometheus 和 Grafana。节点数据默认位于 `docker/dev-cluster/node*`，也可通过 `WK_NODE1_DATA_MOUNT`、`WK_NODE2_DATA_MOUNT` 和 `WK_NODE3_DATA_MOUNT` 指向独立设备。Prometheus 和 Grafana 使用 Compose named volumes，避免全新检出时的 root-owned bind mount 权限问题。
+
+Compose 同时暴露固定 Manager/Grafana 凭据、Benchmark、Debug、诊断能力和主机端口，**只能用于开发验证**。`docker compose down` 会保留 named volumes；不要对需要保留的数据使用 `docker compose down -v`。
 
 ## 容器边界
 
-- 配置只读挂载；敏感值通过部署平台的秘密能力注入，并验证 `WK_*` 完整覆盖规则。
-- 每个节点使用独立 Volume 或独立磁盘。容器重建不能删除节点数据。
-- `/run/wukongim` 是临时运行目录，用于 Unix Socket，不应持久化。
-- 只把 API/Gateway 暴露给需要的网络；Manager、指标和 Transport 保持内网。
-- 使用 `/readyz` 控制流量，使用 `SIGTERM` 并给应用足够的优雅停止时间。
-- 不要用 `docker compose down -v` 处理需要保留的数据。
+- 配置只读挂载；敏感值通过部署平台的 Secret 能力注入。
+- 每个节点使用独立 Volume 或磁盘；容器重建不能删除数据。
+- `/run/wukongim` 是临时运行目录，不应持久化。
+- 只向必要网络暴露 API/Gateway；Manager、指标和 Transport 保持内网。
+- 使用 `/readyz` 控制流量，以 `SIGTERM` 和足够超时完成优雅停止。
 
 多节点生产规划继续阅读[多节点集群](/zh/server/deployment/multi-node)。

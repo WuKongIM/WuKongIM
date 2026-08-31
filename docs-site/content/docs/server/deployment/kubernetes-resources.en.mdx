@@ -1,0 +1,334 @@
+---
+title: Kubernetes Resource Reference (Beta)
+description: Review WuKongIM StatefulSet, Service, PVC, probe, PDB, and lifecycle reference fragments.
+---
+
+This page preserves the complete Kubernetes reference fragments aligned with the current source configuration contract. Read [Kubernetes Deployment](/en/server/deployment/kubernetes) first, then have the platform team adapt these ConfigMap, Service, StatefulSet, PVC, probe, and PDB fragments in its own release repository.
+
+<Callout type="warn" title="What Beta means">
+  The current repository has no Helm chart or Kubernetes manifest that can be claimed as an official production solution. The resources below are reference fragments for platform review, parameterization, and verification. Do not reuse the legacy chart repository, floating images, or a scale procedure that changes only `replicaCount`.
+</Callout>
+
+## Why StatefulSet
+
+Every WuKongIM deployment is a cluster; one Pod is still a single-node cluster. Each node needs a stable unique ID, a mutually reachable transport address, and independent persistent state, so the reference topology uses a [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/):
+
+```text
+Clients / application services
+            |
+   TLS / controlled edge
+            |
+  wukongim-client Service
+      /       |       \
+   Pod-0    Pod-1    Pod-2       pinned image digest
+   PVC-0    PVC-1    PVC-2       independent volumes
+      \       |       /
+   wukongim-peer Headless Service :7000
+```
+
+StatefulSet supplies stable Pod ordinals, DNS, and per-Pod PVCs. It does not establish WuKongIM membership, choose replication, back up data, or make rolling updates safe. Configuration and release operations still own those responsibilities.
+
+## Prerequisites
+
+- An image built from a reviewed server commit with an immutable digest recorded;
+- at least three capacity-qualified worker nodes or failure domains for this three-node, three-replica reference;
+- a StorageClass with `ReadWriteOnce` or stricter single-node attachment semantics and a rehearsed snapshot/restore path;
+- trusted Secret management for the join token, Manager JWT, and accounts;
+- separate network policy for API, TCP, WebSocket/WSS, Manager, metrics, and node transport;
+- client-reachable `api.external_*` addresses and a TLS termination design.
+
+Read [Multi-node Cluster](/en/server/deployment/multi-node) and the [Production Checklist](/en/server/deployment/production-checklist) first. Kubernetes cannot manufacture high availability when nodes share a disk or failure domain.
+
+## 1. Build and pin the image
+
+```bash
+git rev-parse HEAD
+docker build --pull -t registry.example.com/wukongim:${GIT_COMMIT} .
+docker push registry.example.com/wukongim:${GIT_COMMIT}
+docker inspect --format='{{index .RepoDigests 0}}' \
+  registry.example.com/wukongim:${GIT_COMMIT}
+```
+
+Put the final value in the form `registry.example.com/wukongim@sha256:REPLACE_WITH_REVIEWED_DIGEST` and run every Pod from the same digest. The release pipeline must set `${GIT_COMMIT}` explicitly; do not rely on an unresolved variable in an operator shell.
+
+The current `Dockerfile` does not declare a non-root `USER`. If production policy requires `runAsNonRoot`, first build and test a derivative image and matching data-volume ownership. Blindly setting a UID in PodSpec is not sufficient.
+
+## 2. Prepare shared configuration and the fixed member list
+
+This three-node example maps StatefulSet ordinals `0..2` to WuKongIM node IDs `1..3`. All three nodes share the member list, cluster ID, `hash_slot_count = 256`, `slot_replica_n = 3`, and `channel_replica_n = 3`; only `WK_NODE_ID`, Pod/PVC, and runtime identity differ.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wukongim-config
+  namespace: wukongim
+data:
+  wukongim.toml: |
+    [node]
+    # Placeholder required by the file contract; the Pod command overrides it.
+    id = 1
+    data_dir = "/var/lib/wukongim"
+
+    [cluster]
+    id = "prod-im-a"
+    listen_addr = "0.0.0.0:7000"
+    initial_slot_count = 10
+    hash_slot_count = 256
+    slot_replica_n = 3
+    channel_replica_n = 3
+
+    [api]
+    listen_addr = "0.0.0.0:5001"
+    external_tcp_addr = "im.example.com:5100"
+    external_wss_addr = "wss://im.example.com/ws"
+
+    [manager]
+    listen_addr = "0.0.0.0:5301"
+    auth_on = true
+
+    [bench]
+    api_enable = false
+
+    [observability]
+    metrics_enable = true
+    debug_api_enable = false
+
+    [plugin]
+    socket_path = "/run/wukongim/plugin.sock"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wukongim-cluster-env
+  namespace: wukongim
+data:
+  WK_CLUSTER_NODES: >-
+    [{"id":1,"addr":"wukongim-0.wukongim-peer.wukongim.svc.cluster.local:7000"},{"id":2,"addr":"wukongim-1.wukongim-peer.wukongim.svc.cluster.local:7000"},{"id":3,"addr":"wukongim-2.wukongim-peer.wukongim.svc.cluster.local:7000"}]
+```
+
+`WK_CLUSTER_NODES` is a JSON **whole-list replacement**, not an append operation. If the namespace, StatefulSet, or Headless Service name changes, update all three addresses together. `0.0.0.0` is listen-only and must never appear in the member list.
+
+Create a separate Secret with at least `WK_CLUSTER_JOIN_TOKEN`, `WK_MANAGER_JWT_SECRET`, and JSON-formatted `WK_MANAGER_USERS`. Kubernetes Secret base64 is not encryption. Use platform encryption, an external Secret controller, and least-privilege RBAC. Never commit real values or place them in shell history.
+
+## 3. Create Services
+
+The Headless Service supplies stable Pod DNS. `publishNotReadyAddresses: true` lets members discover one another before becoming traffic-ready. The client Service exposes only required entry points; Manager and transport must not be public.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: wukongim-peer
+  namespace: wukongim
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: wukongim
+  ports:
+    - name: transport
+      port: 7000
+      targetPort: transport
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wukongim-client
+  namespace: wukongim
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: wukongim
+  ports:
+    - name: api
+      port: 5001
+      targetPort: api
+    - name: tcp
+      port: 5100
+      targetPort: tcp
+    - name: websocket
+      port: 5200
+      targetPort: websocket
+```
+
+Whether LoadBalancer, Ingress/Gateway API, or a service mesh exposes each port is platform-specific. A normal HTTP Ingress does not automatically proxy native TCP `5100`. In every design, `external_tcp_addr` / `external_wss_addr` must be reachable from the actual client network.
+
+## 4. Create the StatefulSet
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wukongim
+  namespace: wukongim
+spec:
+  serviceName: wukongim-peer
+  replicas: 3
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wukongim
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wukongim
+    spec:
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: wukongim
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: wukongim
+      containers:
+        - name: wukongim
+          image: registry.example.com/wukongim@sha256:REPLACE_WITH_REVIEWED_DIGEST
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              ordinal="${POD_NAME##*-}"
+              case "${ordinal}" in ''|*[!0-9]*) exit 64 ;; esac
+              export WK_NODE_ID="$((ordinal + 1))"
+              exec /usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          envFrom:
+            - configMapRef:
+                name: wukongim-cluster-env
+            - secretRef:
+                name: wukongim-secrets
+          ports:
+            - { name: api, containerPort: 5001 }
+            - { name: tcp, containerPort: 5100 }
+            - { name: websocket, containerPort: 5200 }
+            - { name: manager, containerPort: 5301 }
+            - { name: transport, containerPort: 7000 }
+          startupProbe:
+            httpGet: { path: /healthz, port: api }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: api }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: api }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/wukongim
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/wukongim
+            - name: runtime
+              mountPath: /run/wukongim
+      volumes:
+        - name: config
+          configMap:
+            name: wukongim-config
+        - name: runtime
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: REPLACE_WITH_REVIEWED_STORAGE_CLASS
+        resources:
+          requests:
+            storage: 100Gi
+```
+
+Important choices:
+
+- `podManagementPolicy: Parallel` prevents the first Pod from blocking later members when write readiness depends on the cluster;
+- `updateStrategy: OnDelete` leaves replacement to an explicit node-by-node procedure instead of automatically replacing every Pod after a template change;
+- `enableServiceLinks: false` prevents unexpected Kubernetes Service variables with a `WK_*` prefix. The current configuration loader rejects unknown `WK_*` keys;
+- startup/liveness use `/healthz` for process state, while readiness uses `/readyz` for Service endpoints. See the official [probe documentation](https://kubernetes.io/docs/concepts/workloads/pods/probes/);
+- `volumeClaimTemplates` gives each node a separate PVC. Deleting a StatefulSet neither backs up nor necessarily deletes its PVCs; define retention and recovery first;
+- CPU, memory, and disk are syntax-complete starting points only. Re-size with target online users, message rate, channel count, and large-group scenarios.
+
+## 5. Failure domains and voluntary disruption
+
+Reference PDB:
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wukongim
+  namespace: wukongim
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wukongim
+```
+
+A `PodDisruptionBudget` constrains only some voluntary disruptions that use the Eviction API. Direct Pod deletion, StatefulSet deletion, node failure, and StatefulSet-driven updates are not all protected by it. The official [disruption documentation](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/) distinguishes voluntary and involuntary cases.
+
+The example's required Pod anti-affinity places the three Pods on distinct Kubernetes nodes; with fewer than three eligible nodes, remaining Pods stay Pending. `topologySpreadConstraints` additionally bounds skew across eligible nodes. Production may also spread across `topology.kubernetes.io/zone`, but first verify labels and storage topology. Scheduler spread is not proof of healthy data replication. See [Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/).
+
+## 6. Verify deployment
+
+```bash
+kubectl -n wukongim get pods -o wide
+kubectl -n wukongim get pvc
+kubectl -n wukongim get endpointslice -l kubernetes.io/service-name=wukongim-peer
+kubectl -n wukongim logs wukongim-0 --tail=200
+
+kubectl -n wukongim port-forward pod/wukongim-0 15001:5001
+curl --fail http://127.0.0.1:15001/healthz
+curl --fail http://127.0.0.1:15001/readyz
+```
+
+Check `/readyz` on every node, confirm Manager/metrics show unique node IDs `1,2,3`, verify bidirectional transport DNS, and run one end-to-end persistent message. Observe route, CONNECT, SENDACK, realtime receive, disconnect, and reconnect sync separately.
+
+A successful `/healthz` must not put a Pod into the application Service. Only `/readyz` returning `200` with `{"ready":true}` is a traffic gate.
+
+## 7. Scaling is not changing replicas
+
+The example member list is fixed to three nodes. A direct `kubectl scale` creates a Pod without a valid WuKongIM node ID/member address, or removes stateful ownership during scale-down. Treat scale-out as a cluster membership change:
+
+1. freeze the artifact, complete member list, and new node IDs;
+2. prepare an independent PVC, DNS, capacity, and failure domain for each node;
+3. update configuration under the current server join/migration contract and observe Controller tasks;
+4. wait for routing, replication, and migration stability before adding client traffic;
+5. preserve stop conditions and a rehearsed fallback path.
+
+This page does not claim hot scale-down safety. Never delete a stateful Pod/PVC as a “scale-down” operation.
+
+## 8. Node-by-node upgrade and rollback
+
+1. Validate the target image, configuration parsing, data compatibility, and end-to-end messaging in isolation;
+2. back up and rehearse restore using [Backup and Restore](/en/server/operations/backup-and-restore);
+3. update the StatefulSet image digest; `OnDelete` leaves existing Pods untouched;
+4. drain application traffic and replace one node at a time, waiting for `/readyz`, replication, and routing stability before continuing;
+5. watch error rate, latency, Controller tasks, disk, and queues after every step; stop on any failed gate.
+
+Rollback is safe only if the old binary can read post-upgrade data and protocol state. Treat image-digest rollback, configuration rollback, and PVC/cluster-state recovery as one rehearsed plan. Do not rely on a PDB to stop a bad StatefulSet update.
+
+After platform adaptation, keep the final manifests, Secret references, image digest, StorageClass, NetworkPolicy, capacity report, and recovery receipt in your deployment repository. This page remains Beta because generic documentation cannot supply those platform-specific proofs.

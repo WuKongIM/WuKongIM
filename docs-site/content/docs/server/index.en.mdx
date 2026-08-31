@@ -9,15 +9,13 @@ Server documentation is for deployers, operators, and engineers who need to unde
   Every deployment is a cluster. A deployment with one node is a single-node cluster; there is no standalone path that bypasses cluster behavior.
 </Callout>
 
-Deployment (including Kubernetes Beta), configuration, routine operations (including upgrades and migrations), and server architecture are published. Publication does not replace deployment, recovery, or upgrade execution evidence for the target environment.
+Start a new environment from Deployment; use Configuration, Operations, and Architecture as server references when needed. Publication does not replace deployment, recovery, or upgrade execution evidence for the target environment.
 
 ## Documentation areas
 
 <Cards>
-  <Card title="Deployment" description="Choose Docker or Linux, plan a multi-node cluster, and run production checks." href="/en/server/deployment" />
-  <Card title="Kubernetes (Beta)" description="Plan persistence, service discovery, resources, and Beta release boundaries." href="/en/server/deployment/kubernetes" />
+  <Card title="Deployment" description="Choose topology and runtime medium, then complete configuration, verification, and production gates." href="/en/server/deployment" />
   <Card title="Configuration" description="Understand TOML, environment overrides, and domain settings." href="/en/server/configuration" />
   <Card title="Operations" description="Monitor, scale, back up, upgrade, and troubleshoot clusters." href="/en/server/operations" />
-  <Card title="Upgrade & Migration" description="Choose a rolling upgrade, maintenance window, or separate migration from explicit version-compatibility evidence." href="/en/server/operations/upgrade-and-migration" />
   <Card title="Architecture" description="Understand Controller, Slot, Channel, and Transport." href="/en/server/architecture" />
 </Cards>

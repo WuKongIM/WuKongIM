@@ -71,14 +71,14 @@ describe('documentation site experience', () => {
     expect(html).not.toContain('unfinished pages remain clearly marked');
   });
 
-  test('includes the published Kubernetes route in previous and next page navigation', () => {
+  test('orders topology before Kubernetes deployment and its resource reference', () => {
     expect(getPublishedFooterItems('en', 'server', '/en/server/deployment/linux')).toEqual({
       previous: expect.objectContaining({ url: '/en/server/deployment/docker' }),
-      next: expect.objectContaining({ url: '/en/server/deployment/kubernetes' }),
+      next: expect.objectContaining({ url: '/en/server/deployment/multi-node' }),
     });
     expect(getPublishedFooterItems('en', 'server', '/en/server/deployment/kubernetes')).toEqual({
-      previous: expect.objectContaining({ url: '/en/server/deployment/linux' }),
-      next: expect.objectContaining({ url: '/en/server/deployment/multi-node' }),
+      previous: expect.objectContaining({ url: '/en/server/deployment/multi-node' }),
+      next: expect.objectContaining({ url: '/en/server/deployment/kubernetes-resources' }),
     });
   });
 
