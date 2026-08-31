@@ -3,11 +3,12 @@ title: WuKongEasySDK
 description: Choose an iOS, Android, Flutter, or Web quickstart and use a pinned release to complete an online Alice/Bob messaging loop.
 ---
 
-WuKongEasySDK provides a lightweight WebSocket JSON-RPC connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
+WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
 
 ## Choose a platform and send the first message
 
 <Cards>
+  <Card title="Run the official examples" description="Reproduce builds, bidirectional messaging, and cleanup at verified revisions." href="/en/sdk/easy/examples" />
   <Card title="iOS quickstart" description="Install exactly 1.1.0 and use one application-owned client for connect, messaging, and cleanup." href="/en/sdk/easy/ios/getting-started" />
   <Card title="Android quickstart" description="Install exactly 1.0.4 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
   <Card title="Flutter quickstart" description="Install exactly 1.1.0, retain listener references, and release them from dispose." href="/en/sdk/easy/flutter/getting-started" />
@@ -60,6 +61,8 @@ All four platforms follow the same minimal path:
 
 This loop verifies online messaging only. Send acknowledgement, realtime receipt, and product completion are three different states; model them with [Messaging](/en/guide/integration/messaging).
 
+To validate the environment first, follow [Run the Official Examples](/en/sdk/easy/examples) with the verified server and client revisions before moving tutorial code into your application.
+
 ## Lifecycle differences across platforms
 
 | Task | iOS | Android | Flutter | Web |
@@ -83,9 +86,22 @@ Use [Release Checks](/en/guide/integration/acceptance) to close these gates.
 
 ## Versions and evidence
 
-<Callout type="warn" title="A server-side wire receipt is not platform runtime verification">
-  The current Product Gateway supports JSON-RPC CONNECT, ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for the four pinned versions. Server fixtures cover all four wire profiles; the real `cmd/wukongim` 256-slot single-node cluster E2E uses the iOS and Android profiles for its Alice/Bob bidirectional loop. This site does not compile or execute the platform artifacts. Device execution, WSS, offline behavior, and production token verification remain deployment-owned evidence.
+<Callout type="info" title="All four official examples have run successfully">
+  On August 31, 2026, the Web, Android, iOS, and Flutter official examples connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` and completed Alice/Bob online bidirectional messaging. The builds, tests, emulators, and browser are recorded in the [reproducible runbook](/en/sdk/easy/examples). This is still not physical-device, WSS, offline, or production-token evidence.
 </Callout>
+
+| Platform | Verified example revision | Relationship to the release |
+| --- | --- | --- |
+| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/a055b3667247333b6b3183249f5d5929673dfd53) | Ahead of npm `2.0.3`; not yet published as a new version |
+| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/7134bbd0263fd01d9e7f71b7bd05b226f75b2292) | Ahead of Maven `1.0.4`; not yet published as a new version |
+| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/40014c16c0becd390c105098d359048901f4d87c) | Ahead of iOS `1.1.0`; not yet published as a new version |
+| Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | The same source as released `v1.1.0` |
+
+<Callout type="warn" title="Do not attribute a main-source run to an older package">
+  The installation sections remain pinned to current releases; reproducing the example results requires the revisions above. The newer Web, Android, and iOS commits contain example and connection-lifecycle fixes. Keep the two evidence classes separate until those commits ship in new releases.
+</Callout>
+
+### Current released versions
 
 | Platform | Pinned release and source revision | Official distribution |
 | --- | --- | --- |
@@ -94,7 +110,7 @@ Use [Release Checks](/en/guide/integration/acceptance) to close these gates.
 | [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` · `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) · [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
 | [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` · `d29038e52aab5bce09f643fbe4daf11547379131` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
 
-The tutorials use only these exact versions—never `latest` or a broad version range. All four official releases include logging-security changes that leave diagnostics off by default and sanitize enabled output:
+Application dependencies use only these exact versions—never `latest` or a broad version range. All four official releases include logging-security changes that leave diagnostics off by default and sanitize enabled output:
 
 | Platform | Fix provenance |
 | --- | --- |
@@ -107,4 +123,4 @@ The task sequence was calibrated from the legacy [EasySDK overview](https://wuko
 
 ## Next
 
-Choose a platform above and complete online bidirectional messaging. If you need offline messages, conversations, unread state, or broader platform APIs, switch to the [full SDK](/en/sdk/wukongim).
+First [run the official examples](/en/sdk/easy/examples), then choose a platform for application integration. If you need offline messages, conversations, unread state, or broader platform APIs, switch to the [full SDK](/en/sdk/wukongim).

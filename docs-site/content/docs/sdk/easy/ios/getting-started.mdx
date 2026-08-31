@@ -6,7 +6,7 @@ description: 精确安装 WuKongEasySDK iOS 1.1.0，用可连续复制的 Swift 
 使用一个应用级客户端依次完成安装、连接、监听、单聊发送和清理。业务后端先提供连接材料，Alice 与 Bob 再用两个独立 App 进程验证双向在线消息。
 
 <Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v1.1.0` 的 JSON-RPC CONNECT 与在线双向收发，并兼容对象和 Base64 Payload；camelCase RECVACK 同时携带 `messageId` 与 `messageSeq`，设备线路值为 APP `0`、WEB `1`、PC `2`。教程使用 [CocoaPods 1.1.0](https://cocoapods.org/pods/WuKongEasySDK) 与对应 [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0)。这是源码对齐教程，不是本站运行验证；iOS 构建、真机、WSS 与生产 Token 校验仍须在你的环境验收。
+  当前 Product Gateway 支持固定 `v1.1.0` 的 JSON-RPC CONNECT 与在线双向收发，并兼容对象和 Base64 Payload；camelCase RECVACK 同时携带 `messageId` 与 `messageSeq`，设备线路值为 APP `0`、WEB `1`、PC `2`。教程安装 [CocoaPods 1.1.0](https://cocoapods.org/pods/WuKongEasySDK)；统一 iOS/macOS example 已在源码 `40014c16c0becd390c105098d359048901f4d87c` 上实测通过。该 revision 比 [v1.1.0 Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) 更新，尚未形成新正式版本。
 </Callout>
 
 ## 完成后你会得到什么
@@ -15,6 +15,21 @@ description: 精确安装 WuKongEasySDK iOS 1.1.0，用可连续复制的 Swift 
 - 一个应用级客户端对象，负责初始化、监听、连接和退出；
 - 一套 Alice 发送结果与 Bob 实时接收事件的双端验收骨架；
 - 明确的 Token、WSS、离线恢复和生产验收待办。
+
+## 先运行官方 example（推荐）
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
+cd WuKongEasySDK-iOS
+git checkout 40014c16c0becd390c105098d359048901f4d87c
+swift test
+swift build -c release
+cd Examples/WuKongIMExample-Unified
+./build.sh macos
+./build.sh ios
+```
+
+启动 iOS Simulator 后执行 `./build.sh ios --run`，或用 `./build.sh macos --run` 启动 macOS 版。完整的服务端准备与 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。这份源码运行凭据不等于 iOS `1.1.0` 发布包凭据。
 
 ## 开始前
 
@@ -193,7 +208,7 @@ print("SEND completed")
 5. Bob 向 Alice 回发，再验证反向链路；
 6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接。
 
-当前服务端已用该固定 wire profile 覆盖 SEND 与 RECV Payload。你仍需保留服务端 revision、iOS tag、设备和网络环境的实际结果；这一步只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要纳入[上线检查](/zh/guide/integration/acceptance)。
+上述精确源码已在 iPhone 16 / iOS 18.3 Simulator 连接同一版 WuKongIM，完成双向消息，并确认正文与时间显示正确。你仍需保留服务端与 SDK revision、设备和网络环境，不能把结果归给旧 iOS `1.1.0` 产物；物理真机、断网恢复、离线同步和 UI Ready 状态要纳入[上线检查](/zh/guide/integration/acceptance)。
 
 ## 常见问题
 

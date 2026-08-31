@@ -6,7 +6,7 @@ description: Install exactly WuKongEasySDK Android 1.0.4 and use contiguous Kotl
 Use one process singleton to install, initialize, listen, send a person message, and clean up with the Activity lifecycle. Alice and Bob run in two independent devices, emulators, or application processes.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v1.0.4` JSON-RPC CONNECT and online bidirectional messaging, including Android snake_case, camel-case fields, JSON text strings, JSON objects, and Base64 payloads. The tutorial uses [Maven Central 1.0.4](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4). This source-aligned tutorial is not runtime verification. Your environment still owns the Android build, physical-device run, WSS, and production token evidence.
+  The current Product Gateway supports pinned `v1.0.4` JSON-RPC CONNECT and online bidirectional messaging, including Android snake_case, camel-case fields, JSON text strings, JSON objects, and Base64 payloads. The tutorial installs [Maven Central 1.0.4](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4); the official Android example passed at source revision `7134bbd0263fd01d9e7f71b7bd05b226f75b2292`. That revision is ahead of the [v1.0.4 Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) and has not shipped as a new Maven version.
 </Callout>
 
 ## What you will have
@@ -15,6 +15,18 @@ Use one process singleton to install, initialize, listen, send a person message,
 - A Kotlin screen that initializes and registers listeners in the required order.
 - A two-client acceptance scaffold for Alice's send result and Bob's realtime receive.
 - Explicit blockers for singleton identity switching, field compatibility, tokens, and production security.
+
+## Run the official example first (recommended)
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
+cd WuKongEasySDK-Android
+git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
+./gradlew test :example:assembleDebug
+./gradlew :example:installDebug
+```
+
+Use `ws://10.0.2.2:5200` from an Android Emulator, not `localhost`. [Run the Official Examples](/en/sdk/easy/examples) covers server preparation and Alice/Bob acceptance. This source-run receipt is not a Maven `1.0.4` package receipt.
 
 ## Before you begin
 
@@ -235,7 +247,7 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 5. Bob sends back to Alice and proves the reverse direction.
 6. Recreate the Activity and confirm listeners are not duplicated; exit the application and confirm the connection closes.
 
-The current server covers this loop with the Android `v1.0.4` snake_case field profile and the README-aligned JSON text-string SEND payload. Retain the server revision, Android tag, device, and network environment instead of hiding failures with blind retries. Log redaction, offline recovery, and production security require separate acceptance.
+That exact source ran against the same WuKongIM revision on an Android 14 / API 34 emulator and completed bidirectional messaging, manual disconnect, and heartbeat-timeout verification. Retain the server revision, SDK revision, device, and network environment. Do not attribute the result to the older Maven `1.0.4` artifact or hide failures with blind retries. Physical-device execution, log redaction, offline recovery, and production security require separate acceptance.
 
 ## Troubleshooting
 

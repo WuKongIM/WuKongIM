@@ -3,11 +3,12 @@ title: WuKongEasySDK
 description: 选择 iOS、Android、Flutter 或 Web 快速接入，使用固定版本完成 Alice 与 Bob 的在线双向消息闭环。
 ---
 
-WuKongEasySDK 提供轻量的 WebSocket JSON-RPC 连接与在线消息 API。它适合已经拥有业务后端、希望自己维护界面和产品状态的应用。
+WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消息 API。它适合已经拥有业务后端、希望自己维护界面和产品状态的应用。
 
 ## 选择平台，发送第一条消息
 
 <Cards>
+  <Card title="运行官方示例" description="按已验证 revision 启动四端 example，复现构建、双向消息与清理。" href="/zh/sdk/easy/examples" />
   <Card title="iOS 快速接入" description="精确安装 1.1.0，用一个应用级客户端完成连接、收发与清理。" href="/zh/sdk/easy/ios/getting-started" />
   <Card title="Android 快速接入" description="精确安装 1.0.4，按进程单例与 Activity 生命周期完成闭环。" href="/zh/sdk/easy/android/getting-started" />
   <Card title="Flutter 快速接入" description="精确安装 1.1.0，保存监听器引用并在 dispose 中释放。" href="/zh/sdk/easy/flutter/getting-started" />
@@ -60,6 +61,8 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 这个闭环只验证在线消息。发送确认、实时接收与业务完成是三个不同状态，具体建模见[消息收发](/zh/guide/integration/messaging)。
 
+希望先验证环境时，直接按[运行官方示例](/zh/sdk/easy/examples)使用已通过的服务端和客户端 revision，不必先把教学代码移入自己的应用。
+
 ## 四端生命周期差异
 
 | 任务 | iOS | Android | Flutter | Web |
@@ -83,9 +86,22 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 ## 版本与证据
 
-<Callout type="warn" title="服务端线协议凭据不等于平台运行验证">
-  当前 Product Gateway 支持四个固定版本的 JSON-RPC CONNECT、Ping、在线 SEND/SENDACK、RECV/RECVACK 与重连。服务端 fixture 覆盖四端 wire profile，真实 `cmd/wukongim` 256 Slot 单节点集群 E2E 使用 iOS 与 Android profile 完成 Alice/Bob 双向闭环。本站没有编译或运行这些平台发布产物；设备运行、WSS、离线能力和生产 Token 校验仍由接入方验收。
+<Callout type="info" title="四端官方 example 已跑通">
+  2026 年 8 月 31 日，Web、Android、iOS 与 Flutter 官方 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`，完成 Alice/Bob 在线双向消息；对应构建、测试、模拟器或浏览器环境见[可复现运行记录](/zh/sdk/easy/examples)。这仍不是物理真机、WSS、离线能力或生产 Token 校验凭据。
 </Callout>
+
+| 平台 | 已验证 example revision | 与正式版本的关系 |
+| --- | --- | --- |
+| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/a055b3667247333b6b3183249f5d5929673dfd53) | 比 npm `2.0.3` 更新，尚未作为新版本发布 |
+| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/7134bbd0263fd01d9e7f71b7bd05b226f75b2292) | 比 Maven `1.0.4` 更新，尚未作为新版本发布 |
+| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/40014c16c0becd390c105098d359048901f4d87c) | 比 iOS `1.1.0` 更新，尚未作为新版本发布 |
+| Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | 与正式 `v1.1.0` 相同 |
+
+<Callout type="warn" title="不要把 main 的运行结果归给旧发布包">
+  教程安装段继续固定当前正式版本；复现 example 结果则必须检出上表 revision。Web、Android 与 iOS 的新提交包含 example 和连接生命周期修复，在它们进入下一正式版本前，两类证据必须分开记录。
+</Callout>
+
+### 当前正式发布版本
 
 | 平台 | 固定版本与源码 revision | 正式分发 |
 | --- | --- | --- |
@@ -94,7 +110,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 | [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` · `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) · [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
 | [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` · `d29038e52aab5bce09f643fbe4daf11547379131` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
 
-教程只使用这些精确版本，不使用 `latest` 或宽松版本范围。四个正式版本都已包含默认关闭、输出脱敏的日志安全修复：
+应用依赖只使用这些精确版本，不使用 `latest` 或宽松版本范围。四个正式版本都已包含默认关闭、输出脱敏的日志安全修复：
 
 | 平台 | 修复来源 |
 | --- | --- |
@@ -107,4 +123,4 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 ## 下一步
 
-选择上方平台完成在线双向消息。需要离线消息、会话、未读和更完整的平台 API 时，改用[完整版 SDK](/zh/sdk/wukongim)。
+先[运行官方示例](/zh/sdk/easy/examples)，再选择目标平台完成应用接入。需要离线消息、会话、未读和更完整的平台 API 时，改用[完整版 SDK](/zh/sdk/wukongim)。
