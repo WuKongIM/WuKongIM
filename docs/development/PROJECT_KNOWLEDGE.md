@@ -465,10 +465,15 @@
   online-only. Group telemetry requires an existing Channel and sender
   membership; neither protocol ACKs nor sync cursors prove that a device
   executed the business operation.
-- Public deployment guidance treats the root Compose stack as development-only
-  and builds artifacts from reviewed source without promising an official image
-  registry or tag. Traffic admission uses `/readyz`, not process-level
-  `/healthz`. The published Kubernetes Beta page is a reference architecture,
+- Public deployment guidance treats the root Compose stack as development-only.
+  The sole official container publisher builds one `linux/amd64` and
+  `linux/arm64` GHCR image from a strict SemVer tag reachable from `main`, then
+  mirrors the immutable digest to Docker Hub and Alibaba Cloud. Exact tags omit
+  the Git `v` prefix and never move; only the highest stable SemVer in a minor,
+  major, or global range may advance that range's floating alias. Pre-release
+  tags, including date suffixes, receive only an exact tag. Traffic admission
+  uses `/readyz`, not process-level `/healthz`. The published Kubernetes Beta
+  page is a reference architecture,
   not an official chart or manifest: it uses an immutable image digest,
   StatefulSet ordinals mapped to stable unique WuKongIM node IDs, one shared
   full member list, a Headless Service, independent PVCs, 256 physical hash

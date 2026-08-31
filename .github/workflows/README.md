@@ -38,6 +38,48 @@ authorization and the applicable budget.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
+| `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
+
+## Docker image publishing
+
+`docker-image-publish.yml` is the sole official container-image publisher. A
+new `v*` tag starts an automatic release, while `workflow_dispatch` accepts one
+existing tag for a first publication or incomplete-release recovery. The tag
+must be strict SemVer without `+build` metadata, resolve to a commit reachable
+from `origin/main`, and remain the immutable source identity.
+
+GHCR is the canonical build target. The Workflow builds
+`linux/amd64,linux/arm64` once with BuildKit provenance and an SBOM, creates a
+GitHub build attestation, and copies that exact manifest digest to all three
+public repositories:
+
+- `ghcr.io/wukongim/wukongim`;
+- `docker.io/wukongim/wukongim`;
+- `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`.
+
+The exact Docker tag removes the Git `v` prefix. A stable `v3.1.2` may advance
+`3.1`, `3`, and `latest` only when it is the highest stable repository SemVer
+in each corresponding range. Pre-release tags, including date suffixes such as
+`v3.1.2-20260831`, publish only their exact tag. Exact tags are never
+overwritten. A manual recovery reuses an existing canonical GHCR digest, fills
+only absent exact mirrors, verifies identical digests and the two required
+platforms, and advances aliases only after that verification. Every successful
+run uploads a 90-day JSON release receipt and writes the same source, builder,
+digest, platform, and image facts to the Job Summary.
+
+Repository administrators must pre-create all three repositories with public
+pull visibility and configure a `docker-publish` Environment. Limit that
+Environment to protected `main` for manual recovery and trusted version tags
+for automatic publication, do not require a reviewer, and configure:
+
+- Variable `DOCKERHUB_USERNAME`;
+- Secret `DOCKERHUB_TOKEN`;
+- Variable `ALIYUNHUB_USERNAME`;
+- Secret `ALIYUNHUB_TOKEN`.
+
+GHCR uses the job-scoped `GITHUB_TOKEN`; no standing GHCR credential is
+required. Missing credentials, a conflicting exact tag, a registry copy
+failure, a digest mismatch, or a missing platform fails the complete release.
 
 ## Direct local chat-lifecycle repair
 

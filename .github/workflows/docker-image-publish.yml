@@ -1,0 +1,529 @@
+name: Safety Automation - Publish Docker Images
+run-name: >-
+  Docker image ${{ inputs.version || github.ref_name }}
+  attempt ${{ github.run_attempt }}
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing SemVer tag to publish or recover, for example v3.1.0 or v3.2.0-rc.1
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: docker-image-publish-${{ github.repository }}-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish immutable multi-platform image
+    if: github.repository == 'WuKongIM/WuKongIM'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: docker-publish
+    env:
+      REQUESTED_VERSION: ${{ inputs.version || github.ref_name }}
+      CANONICAL_IMAGE: ghcr.io/wukongim/wukongim
+      DOCKERHUB_IMAGE: docker.io/wukongim/wukongim
+      ALIYUN_IMAGE: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.REQUESTED_VERSION }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Validate release identity and tag policy
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          version="$REQUESTED_VERSION"
+          [[ "$version" == v* ]] || {
+            echo "release tag must start with v" >&2
+            exit 1
+          }
+          image_version="${version#v}"
+          [[ "$image_version" != *+* ]] || {
+            echo "SemVer build metadata is not representable as an OCI tag" >&2
+            exit 1
+          }
+          ((${#image_version} <= 128)) || {
+            echo "release tag exceeds the OCI tag length limit" >&2
+            exit 1
+          }
+
+          core="$image_version"
+          prerelease=""
+          if [[ "$image_version" == *-* ]]; then
+            core="${image_version%%-*}"
+            prerelease="${image_version#*-}"
+            [[ -n "$prerelease" ]] || {
+              echo "pre-release suffix must not be empty" >&2
+              exit 1
+            }
+          fi
+
+          IFS=. read -r major minor patch extra <<<"$core"
+          [[ -n "$major" && -n "$minor" && -n "$patch" && -z "${extra:-}" ]] || {
+            echo "release tag must contain major.minor.patch" >&2
+            exit 1
+          }
+          for number in "$major" "$minor" "$patch"; do
+            [[ "$number" =~ ^(0|[1-9][0-9]*)$ ]] || {
+              echo "SemVer core identifiers must be decimal without leading zeroes" >&2
+              exit 1
+            }
+          done
+
+          stable=true
+          if [[ -n "$prerelease" ]]; then
+            stable=false
+            IFS=. read -r -a identifiers <<<"$prerelease"
+            for identifier in "${identifiers[@]}"; do
+              [[ -n "$identifier" && "$identifier" =~ ^[0-9A-Za-z-]+$ ]] || {
+                echo "invalid SemVer pre-release identifier: $identifier" >&2
+                exit 1
+              }
+              if [[ "$identifier" =~ ^[0-9]+$ && ${#identifier} -gt 1 && "$identifier" == 0* ]]; then
+                echo "numeric SemVer pre-release identifiers must not have leading zeroes" >&2
+                exit 1
+              fi
+            done
+          fi
+
+          git show-ref --verify --quiet "refs/tags/$version" || {
+            echo "release tag does not exist: $version" >&2
+            exit 1
+          }
+          source_sha="$(git rev-parse HEAD)"
+          test "$(git rev-parse "refs/tags/$version^{commit}")" = "$source_sha"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test "$GITHUB_REF" = "refs/tags/$version"
+            test "$(git rev-parse "$GITHUB_SHA^{commit}")" = "$source_sha"
+          fi
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$source_sha" origin/main || {
+            echo "release source must be reachable from origin/main" >&2
+            exit 1
+          }
+
+          aliases=()
+          if [[ "$stable" == true ]]; then
+            stable_tags=()
+            while IFS= read -r candidate; do
+              if [[ "$candidate" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+                stable_tags+=("$candidate")
+              fi
+            done < <(git tag --list 'v*')
+
+            major_tags=()
+            minor_tags=()
+            for candidate in "${stable_tags[@]}"; do
+              [[ "$candidate" =~ ^v${major}\. ]] && major_tags+=("$candidate")
+              [[ "$candidate" =~ ^v${major}\.${minor}\. ]] && minor_tags+=("$candidate")
+            done
+
+            if ((${#minor_tags[@]} > 0)) &&
+              [[ "$(printf '%s\n' "${minor_tags[@]}" | sort -V | tail -n 1)" == "$version" ]]; then
+              aliases+=("$major.$minor")
+            fi
+            if ((${#major_tags[@]} > 0)) &&
+              [[ "$(printf '%s\n' "${major_tags[@]}" | sort -V | tail -n 1)" == "$version" ]]; then
+              aliases+=("$major")
+            fi
+            if ((${#stable_tags[@]} > 0)) &&
+              [[ "$(printf '%s\n' "${stable_tags[@]}" | sort -V | tail -n 1)" == "$version" ]]; then
+              aliases+=(latest)
+            fi
+          fi
+
+          aliases_csv=""
+          if ((${#aliases[@]} > 0)); then
+            aliases_csv="$(IFS=,; echo "${aliases[*]}")"
+          fi
+          {
+            echo "version=$version"
+            echo "image_version=$image_version"
+            echo "source_sha=$source_sha"
+            echo "stable=$stable"
+            echo "aliases=$aliases_csv"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Validate registry credentials
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          ALIYUNHUB_USERNAME: ${{ vars.ALIYUNHUB_USERNAME }}
+          ALIYUNHUB_TOKEN: ${{ secrets.ALIYUNHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$DOCKERHUB_USERNAME" || { echo "missing vars.DOCKERHUB_USERNAME" >&2; exit 1; }
+          test -n "$DOCKERHUB_TOKEN" || { echo "missing secrets.DOCKERHUB_TOKEN" >&2; exit 1; }
+          test -n "$ALIYUNHUB_USERNAME" || { echo "missing vars.ALIYUNHUB_USERNAME" >&2; exit 1; }
+          test -n "$ALIYUNHUB_TOKEN" || { echo "missing secrets.ALIYUNHUB_TOKEN" >&2; exit 1; }
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          version: v0.36.1
+          install: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to Alibaba Cloud Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: registry.cn-shanghai.aliyuncs.com
+          username: ${{ vars.ALIYUNHUB_USERNAME }}
+          password: ${{ secrets.ALIYUNHUB_TOKEN }}
+
+      - name: Classify immutable publication state
+        id: publication
+        shell: bash
+        env:
+          IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
+          ALIASES: ${{ steps.identity.outputs.aliases }}
+        run: |
+          set -euo pipefail
+          inspect_ref() {
+            local ref="$1" output="$2" errors="$3"
+            if docker buildx imagetools inspect "$ref" --format '{{json .}}' >"$output" 2>"$errors"; then
+              return 0
+            fi
+            if grep -Eiq 'manifest unknown|name unknown|not found|does not exist' "$errors"; then
+              return 1
+            fi
+            cat "$errors" >&2
+            return 2
+          }
+
+          canonical_ref="$CANONICAL_IMAGE:$IMAGE_VERSION"
+          if inspect_ref "$canonical_ref" canonical.json canonical.err; then
+            canonical_digest="$(jq -er '.manifest.digest' canonical.json)"
+            [[ "$canonical_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
+              echo "$canonical_ref already exists; use the manual recovery entrypoint" >&2
+              exit 1
+            fi
+
+            complete=true
+            for image in "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
+              ref="$image:$IMAGE_VERSION"
+              if inspect_ref "$ref" mirror.json mirror.err; then
+                mirror_digest="$(jq -er '.manifest.digest' mirror.json)"
+                test "$mirror_digest" = "$canonical_digest" || {
+                  echo "$ref points to $mirror_digest instead of immutable $canonical_digest" >&2
+                  exit 1
+                }
+              else
+                status=$?
+                ((status == 1)) || exit "$status"
+                complete=false
+              fi
+            done
+
+            if [[ -n "$ALIASES" && "$complete" == true ]]; then
+              IFS=, read -r -a aliases <<<"$ALIASES"
+              for image in "$CANONICAL_IMAGE" "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
+                for alias in "${aliases[@]}"; do
+                  ref="$image:$alias"
+                  if inspect_ref "$ref" alias.json alias.err; then
+                    alias_digest="$(jq -er '.manifest.digest' alias.json)"
+                    [[ "$alias_digest" == "$canonical_digest" ]] || complete=false
+                  else
+                    status=$?
+                    ((status == 1)) || exit "$status"
+                    complete=false
+                  fi
+                done
+              done
+            fi
+            if [[ "$complete" == true ]]; then
+              echo "$IMAGE_VERSION is already complete in every registry" >&2
+              exit 1
+            fi
+            echo "recovery=true" >>"$GITHUB_OUTPUT"
+            echo "digest=$canonical_digest" >>"$GITHUB_OUTPUT"
+          else
+            status=$?
+            ((status == 1)) || exit "$status"
+            for image in "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
+              ref="$image:$IMAGE_VERSION"
+              if inspect_ref "$ref" orphan.json orphan.err; then
+                orphan_digest="$(jq -er '.manifest.digest' orphan.json)"
+                echo "$ref already exists as $orphan_digest while the canonical GHCR tag is absent" >&2
+                exit 1
+              fi
+              status=$?
+              ((status == 1)) || exit "$status"
+            done
+            echo "recovery=false" >>"$GITHUB_OUTPUT"
+            echo "digest=" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push canonical image
+        id: build
+        if: steps.publication.outputs.recovery != 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          pull: true
+          tags: ${{ env.CANONICAL_IMAGE }}:${{ steps.identity.outputs.image_version }}
+          labels: |
+            org.opencontainers.image.title=WuKongIM
+            org.opencontainers.image.description=High-performance general-purpose messaging system
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.identity.outputs.source_sha }}
+            org.opencontainers.image.version=${{ steps.identity.outputs.image_version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=docker-release
+          cache-to: type=gha,mode=max,scope=docker-release
+
+      - name: Select canonical digest
+        id: artifact
+        shell: bash
+        env:
+          RECOVERY_DIGEST: ${{ steps.publication.outputs.digest }}
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.publication.outputs.recovery }}" == true ]]; then
+            digest="$RECOVERY_DIGEST"
+          else
+            digest="$BUILT_DIGEST"
+          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+
+      - name: Verify canonical digest and platform manifests
+        shell: bash
+        env:
+          IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect \
+            "$CANONICAL_IMAGE:$IMAGE_VERSION" \
+            --format '{{json .}}' >canonical-manifest.json
+          jq -e --arg digest "$CANONICAL_DIGEST" '
+            .manifest.digest == $digest and
+            ([
+              .manifest.manifests[]
+              | select(.platform.os == "linux" and .platform.architecture != "unknown")
+              | .platform.architecture
+            ] | sort | unique) == ["amd64", "arm64"]
+          ' canonical-manifest.json >/dev/null
+
+      - name: Create GitHub build attestation
+        id: attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.CANONICAL_IMAGE }}
+          subject-digest: ${{ steps.artifact.outputs.digest }}
+
+      - name: Mirror immutable exact tag
+        shell: bash
+        env:
+          IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+        run: |
+          set -euo pipefail
+          inspect_ref() {
+            local ref="$1" output="$2" errors="$3"
+            if docker buildx imagetools inspect "$ref" --format '{{json .}}' >"$output" 2>"$errors"; then
+              return 0
+            fi
+            if grep -Eiq 'manifest unknown|name unknown|not found|does not exist' "$errors"; then
+              return 1
+            fi
+            cat "$errors" >&2
+            return 2
+          }
+
+          for image in "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
+            ref="$image:$IMAGE_VERSION"
+            if inspect_ref "$ref" mirror.json mirror.err; then
+              existing_digest="$(jq -er '.manifest.digest' mirror.json)"
+              test "$existing_digest" = "$CANONICAL_DIGEST" || {
+                echo "$ref is immutable and already points to $existing_digest" >&2
+                exit 1
+              }
+              continue
+            fi
+            status=$?
+            ((status == 1)) || exit "$status"
+            docker buildx imagetools create --progress plain \
+              --tag "$ref" \
+              "$CANONICAL_IMAGE@$CANONICAL_DIGEST"
+          done
+
+      - name: Verify exact digest and platform manifests
+        shell: bash
+        env:
+          IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+        run: |
+          set -euo pipefail
+          for image in "$CANONICAL_IMAGE" "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
+            ref="$image:$IMAGE_VERSION"
+            docker buildx imagetools inspect "$ref" --format '{{json .}}' >manifest.json
+            jq -e --arg digest "$CANONICAL_DIGEST" '
+              .manifest.digest == $digest and
+              ([
+                .manifest.manifests[]
+                | select(.platform.os == "linux" and .platform.architecture != "unknown")
+                | .platform.architecture
+              ] | sort | unique) == ["amd64", "arm64"]
+            ' manifest.json >/dev/null
+          done
+
+      - name: Update eligible floating tags
+        if: steps.identity.outputs.aliases != ''
+        shell: bash
+        env:
+          ALIASES: ${{ steps.identity.outputs.aliases }}
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IFS=, read -r -a aliases <<<"$ALIASES"
+          for image in "$CANONICAL_IMAGE" "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE"; do
+            for alias in "${aliases[@]}"; do
+              ref="$image:$alias"
+              docker buildx imagetools create --progress plain \
+                --tag "$ref" \
+                "$image@$CANONICAL_DIGEST"
+              alias_digest="$(docker buildx imagetools inspect "$ref" --format '{{json .}}' | jq -er '.manifest.digest')"
+              test "$alias_digest" = "$CANONICAL_DIGEST"
+            done
+          done
+
+      - name: Write release receipt and summary
+        shell: bash
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+          IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          ALIASES: ${{ steps.identity.outputs.aliases }}
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+          RECOVERY: ${{ steps.publication.outputs.recovery }}
+          ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+        run: |
+          set -euo pipefail
+          tags=("$IMAGE_VERSION")
+          if [[ -n "$ALIASES" ]]; then
+            IFS=, read -r -a aliases <<<"$ALIASES"
+            tags+=("${aliases[@]}")
+          fi
+          tags_json="$(printf '%s\n' "${tags[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')"
+          images_json="$(jq -n \
+            --arg canonical "$CANONICAL_IMAGE" \
+            --arg dockerhub "$DOCKERHUB_IMAGE" \
+            --arg aliyun "$ALIYUN_IMAGE" \
+            --arg digest "$CANONICAL_DIGEST" \
+            --argjson tags "$tags_json" \
+            '[
+              {name: $canonical, digest: $digest, tags: $tags},
+              {name: $dockerhub, digest: $digest, tags: $tags},
+              {name: $aliyun, digest: $digest, tags: $tags}
+            ]')"
+          buildx_version="$(docker buildx version | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+          buildkit_info="$(docker buildx inspect --bootstrap)"
+          jq -n \
+            --arg schema "wukongim/docker-release-receipt/v1" \
+            --arg version "$VERSION" \
+            --arg image_version "$IMAGE_VERSION" \
+            --arg source_sha "$SOURCE_SHA" \
+            --arg digest "$CANONICAL_DIGEST" \
+            --arg stable "$STABLE" \
+            --arg recovery "$RECOVERY" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg workflow_ref "$GITHUB_WORKFLOW_REF" \
+            --arg buildx_version "$buildx_version" \
+            --arg buildkit_info "$buildkit_info" \
+            --arg attestation_url "$ATTESTATION_URL" \
+            --argjson images "$images_json" \
+            '{
+              schema: $schema,
+              version: $version,
+              image_version: $image_version,
+              source_sha: $source_sha,
+              digest: $digest,
+              stable: ($stable == "true"),
+              recovery: ($recovery == "true"),
+              trigger: $event,
+              run_url: $run_url,
+              workflow_ref: $workflow_ref,
+              buildx_version: $buildx_version,
+              buildkit_info: $buildkit_info,
+              attestation_url: (if $attestation_url == "" then null else $attestation_url end),
+              platforms: ["linux/amd64", "linux/arm64"],
+              images: $images
+            }' >docker-release-receipt.json
+
+          tag_display="$IMAGE_VERSION"
+          [[ -z "$ALIASES" ]] || tag_display="$tag_display, $ALIASES"
+          {
+            echo "## Docker image release"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Version | \`$VERSION\` |"
+            echo "| Source | \`$SOURCE_SHA\` |"
+            echo "| Digest | \`$CANONICAL_DIGEST\` |"
+            echo "| Platforms | \`linux/amd64\`, \`linux/arm64\` |"
+            echo "| Tags | \`$tag_display\` |"
+            echo "| Recovery | \`$RECOVERY\` |"
+            [[ -z "$ATTESTATION_URL" ]] || echo "| Attestation | $ATTESTATION_URL |"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docker-release-${{ steps.identity.outputs.image_version }}
+          path: docker-release-receipt.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
