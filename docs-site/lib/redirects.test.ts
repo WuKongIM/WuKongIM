@@ -11,6 +11,7 @@ const legacyFullSDKRoutes = {
     channel: 'channels',
     conversation: 'conversations',
     media: 'advanced/media-and-history',
+    advance: 'advanced',
     advanced: 'advanced',
   },
   android: {
