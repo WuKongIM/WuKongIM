@@ -17,9 +17,16 @@ iOS, Android, Flutter, and Web; a real `cmd/wukongim` 256-slot single-node
 cluster E2E runs the iOS and Android profiles. Batches, subscriptions, offline
 sync, push, general-purpose RPC, platform artifact execution, and production
 token verification remain outside that support boundary. In the pinned wire
-facts, iOS `v1.0.3` RECVACK contains both `messageId` and `messageSeq`, while the
-Android `v1.0.3` README sends already-encoded JSON text as a string; the current
-boundary accepts that JSON text form as well as direct JSON objects and Base64.
+facts, iOS `v1.1.0` RECVACK contains both `messageId` and `messageSeq`, while the
+Android `v1.0.4` README retains the `v1.0.3` wire shape and sends already-encoded
+JSON text as a string; the current boundary accepts that JSON text form as well
+as direct JSON objects and Base64. The maintained tutorials pin iOS `v1.1.0` at
+`683c1519bfa19fd91a15ae092733e1efb1e75d5d`, Android `v1.0.4` at
+`2ab2199a3eb91e6966c6a5d9b6098563e58e3203`, Flutter `v1.1.0` at
+`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`, and Web `v2.0.3` at
+`d29038e52aab5bce09f643fbe4daf11547379131`. Those official packages include
+the default-off diagnostic controls and public-model/log-metadata redaction;
+publication does not add a platform-runtime or production-readiness receipt.
 
 ## Surface classification
 

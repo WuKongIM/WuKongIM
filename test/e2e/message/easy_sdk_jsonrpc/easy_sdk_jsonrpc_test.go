@@ -40,12 +40,12 @@ type easySDKProfile struct {
 
 var (
 	iosProfile = easySDKProfile{
-		name:                "EasySDK iOS v1.0.3",
+		name:                "EasySDK iOS v1.1.0",
 		dialect:             camelCase,
 		outboundMessageType: websocket.BinaryMessage,
 	}
 	androidProfile = easySDKProfile{
-		name:                "EasySDK Android v1.0.3",
+		name:                "EasySDK Android v1.0.4",
 		dialect:             snakeCase,
 		outboundMessageType: websocket.TextMessage,
 		requireInboundText:  true,

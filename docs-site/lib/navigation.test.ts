@@ -316,10 +316,10 @@ describe('documentation navigation contract', () => {
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const snapshots = new Map([
-      ['ios/getting-started', 'v1.0.3'],
-      ['android/getting-started', 'v1.0.3'],
-      ['flutter/getting-started', 'v1.0.4'],
-      ['javascript/getting-started', 'v2.0.2'],
+      ['ios/getting-started', 'v1.1.0'],
+      ['android/getting-started', 'v1.0.4'],
+      ['flutter/getting-started', 'v1.1.0'],
+      ['javascript/getting-started', 'v2.0.3'],
     ]);
 
     expect(easy?.status).toBe('published');

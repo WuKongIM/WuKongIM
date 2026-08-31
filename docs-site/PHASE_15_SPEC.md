@@ -24,11 +24,12 @@ profiles through an Alice/Bob bidirectional loop. This remains server-side wire
 evidence: no EasySDK platform artifact is compiled or executed, and offline
 sync, push, subscriptions, batches, WSS/proxy deployment, sensitive logging,
 platform lifecycle, and production token verification stay outside the receipt.
-Logging-security fixes were later merged to the four official SDK `main`
-branches. They make diagnostics default-off, restrict enabled output to
-sanitized operational metadata, and redact public model string output. These
-are source-level fixes, not releases: the current iOS/Android `1.0.3`, Flutter
-`1.0.4`, and Web `2.0.2` distributions remain the pre-fix snapshots below.
+Logging-security fixes were later merged and released in the four official SDK
+distributions: iOS `1.1.0`, Android `1.0.4`, Flutter `1.1.0`, and Web `2.0.3`.
+They make diagnostics default-off, restrict enabled output to sanitized
+operational metadata, and redact public model string output. This is now
+released-package evidence, but it still does not prove platform execution or
+production readiness.
 
 ## Audience and completion outcome
 
@@ -41,9 +42,10 @@ After this phase, that reader can:
 4. follow how the pinned public API initializes, registers listeners, connects,
    sends, receives, and cleans up without claiming that it ran against the
    Phase 15 server revision;
-5. prepare the then-post-fix validation with separate Alice and Bob identities; and
-6. identify platform-specific blockers in the published release and distinguish
-   them from a merged-but-unreleased source fix.
+5. prepare the maintained acceptance flow with separate Alice and Bob
+   identities; and
+6. identify platform-specific blockers that remain after the logging fix
+   release without treating package inclusion as a platform-runtime receipt.
 
 ## Published routes
 
@@ -77,29 +79,28 @@ and package version:
 
 | Platform | Repository tag | Source revision | Package |
 | --- | --- | --- | --- |
-| iOS | `v1.0.3` | `643848f85be70e3e3f2be22fceb86ae428b6cc38` | CocoaPods `WuKongEasySDK` `1.0.3` |
-| Android | `v1.0.3` | `62084632cd8d1f26c751b053b0fb82d6aaa63892` | Maven `com.githubim:easysdk-android:1.0.3` |
-| Flutter | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | pub.dev `wukong_easy_sdk` `1.0.4` |
-| Web | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | npm `easyjssdk` `2.0.2` |
+| iOS | `v1.1.0` | `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | CocoaPods `WuKongEasySDK` `1.1.0` |
+| Android | `v1.0.4` | `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | Maven `com.githubim:easysdk-android:1.0.4` |
+| Flutter | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | pub.dev `wukong_easy_sdk` `1.1.0` |
+| Web | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` | npm `easyjssdk` `2.0.3` |
 
 Install snippets pin these exact versions. They must not use `latest`, broad
 version ranges, a default branch, or a legacy package version as evidence.
 
-## Post-snapshot logging fixes
+## Released logging fixes
 
-| Platform | Merged pull request | Main merge revision | Distribution status |
+| Platform | Fix pull request and merge revision | Fixed release | Release revision |
 | --- | --- | --- | --- |
-| iOS | `WuKongEasySDK-iOS#3` | `b7ec4440b940539bee213f95a3be74948f4b9fb8` | Not in `v1.0.3` |
-| Android | `WuKongEasySDK-Android#3` | `e984c7374a0e11f5d109ad3dbfdea599907735ff` | Not in `v1.0.3` |
-| Flutter | `WuKongEasySDK-Flutter#3` | `d7758c301e5289ddfa09cd09b6976c2479584b1c` | Not in `v1.0.4` |
-| Web | `WuKongEasySDK-JS#6` | `3ebf505734c5b6764b30eac011f0b7a5024c89e8` | Not in `v2.0.2` |
+| iOS | `WuKongEasySDK-iOS#3` / `b7ec4440b940539bee213f95a3be74948f4b9fb8` | `v1.1.0` | `683c1519bfa19fd91a15ae092733e1efb1e75d5d` |
+| Android | `WuKongEasySDK-Android#3` / `e984c7374a0e11f5d109ad3dbfdea599907735ff` | `v1.0.4` | `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` |
+| Flutter | `WuKongEasySDK-Flutter#3` / `d7758c301e5289ddfa09cd09b6976c2479584b1c` | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` |
+| Web | `WuKongEasySDK-JS#6` / `3ebf505734c5b6764b30eac011f0b7a5024c89e8` | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` |
 
-The maintained tutorials keep the released package pins and their original
-source revisions as distribution evidence. They record the merge revisions
-separately as a source-security receipt and must not expose main-only logging
-options as released APIs. Production users wait for an official release and
-repeat platform/log acceptance. Any early evaluation pins one exact merge
-revision, builds its own artifact, and never uses a floating `main` ref.
+The maintained tutorials pin those fixed releases and their exact release
+revisions as distribution evidence. The earlier fix revisions remain recorded
+as source-security provenance. Package and source tests verify inclusion of the
+default-off and redaction controls; platform/log acceptance remains a separate
+consumer responsibility.
 
 ## Evidence boundary
 
@@ -133,8 +134,8 @@ post-fix integration loop in native idiom:
 This sequence was not executable against the Product Gateway at Phase 15. The
 maintained pages now point to the implemented JSON-RPC CONNECT core path and
 clearly separate server wire/E2E evidence from platform execution and remaining
-release-specific SDK adoption blockers. They also distinguish merged source
-remediation from distributed packages that do not contain it yet.
+release-specific SDK adoption blockers. They also retain the fix provenance and
+identify the exact official distributions that now contain it.
 
 The client never invents its own production UID or token. Browser clients do
 not call Product HTTP management endpoints directly; a trusted backend or BFF
@@ -147,60 +148,51 @@ returns only the connection material the client needs.
 The source package declares iOS 13 in `Package.swift`, while the public SDK
 class is annotated for iOS 15. The tutorial therefore uses iOS 15 as the
 conservative application deployment target until upstream reconciles the two.
-It records the listener tokens and removes them during teardown. The tag's JSON
-logger does not enforce its configuration guard and can expose payloads, so an
-official release containing `b7ec4440b940539bee213f95a3be74948f4b9fb8`, or an
-exact-revision self-build plus Release-log verification, is required before
-production. That merge makes `enableDebugLogging` the master gate, adds Builder
-support for `enableJsonLogging(_:)`, and redacts diagnostics and public model
-strings; current `v1.0.3` does not include it. `v1.0.3` aligns device values as APP `0`, WEB `1`, and PC
-`2`. At Phase 15 its object-shaped SEND/dictionary RECV payloads did not match
+It records the listener tokens and removes them during teardown. Release
+`v1.1.0` makes `enableDebugLogging` the master gate, adds Builder support for
+`enableJsonLogging(_:)`, and redacts diagnostics and public model strings;
+diagnostics remain disabled unless the application opts in. It aligns device
+values as APP `0`, WEB `1`, and PC `2`. At Phase 15 its object-shaped
+SEND/dictionary RECV payloads did not match
 the server's Base64-byte contract. The current protocol boundary accepts object
 SEND payloads and emits object RECV payloads for normal JSON messages; the
-unmodified tag still requires iOS build/device, WSS, lifecycle, and logging
+unmodified release still requires iOS build/device, WSS, lifecycle, and logging
 acceptance before production use. Its camelCase RECVACK includes both
 `messageId` and `messageSeq`.
 
 ### Android
 
-The `v1.0.3` client contains underscore request/response names, and its README
-passes already-encoded JSON text as a `String` SEND payload rather than a JSON
-object. Those shapes did not match the Phase 15 camelCase and Base64-byte
+The `v1.0.4` client retains underscore request/response names and the same wire
+shape as `v1.0.3`: its README passes already-encoded JSON text as a `String`
+SEND payload rather than a JSON object. Those shapes did not match the Phase 15
+camelCase and Base64-byte
 Gateway JSON-RPC contracts. The current protocol boundary accepts JSON text
 strings, direct JSON objects, and Base64 payloads, and returns Android
 snake_case aliases. Its device values are aligned as APP `0`, WEB `1`, and PC
-`2`. Unknown-message and parse-error
-paths still log
-complete JSON-RPC messages or parameters without honoring `debugLogging`;
-the centralized default-silent logger and model redaction merged at
-`e984c7374a0e11f5d109ad3dbfdea599907735ff`, but current Maven `1.0.3` does not
-contain it. An official release containing that revision, or an exact-revision
-self-build plus Release-log verification, is required before production. The process-wide singleton cannot be silently
-reinitialized for another UID or configuration.
+`2`. Maven `1.0.4` includes the centralized default-silent logger and model
+redaction from `e984c7374a0e11f5d109ad3dbfdea599907735ff`; enabled diagnostics
+emit only sanitized operational metadata. The process-wide singleton still
+cannot be silently reinitialized for another UID or configuration.
 
 ### Flutter
 
-The `v1.0.4` tutorial preserves the package's Dart 3 / Flutter 3 floor, listener-key
-ownership, and widget lifecycle cleanup. Application code must not leave
-connection or message callbacks attached after disposal. The tag logs complete
-requests and responses without a public disable switch, so an upstream upgrade
-or reviewed patch plus per-target Release-log verification is a production
-blocker. Revision `d7758c301e5289ddfa09cd09b6976c2479584b1c` adds default-off
-`debugLogging`, an optional `logHandler`, and redacted diagnostics/model strings,
-but pub.dev `1.0.4` does not include it. The current server emits normal JSON message payloads as objects and
-falls back to Base64 for non-object bytes; application parsing must handle the
-pinned SDK's corresponding receive shape.
+The `v1.1.0` tutorial preserves the package's Dart 3 / Flutter 3 floor,
+listener-key ownership, and widget lifecycle cleanup. Application code must not
+leave connection or message callbacks attached after disposal. This release
+includes default-off `debugLogging`, an optional `logHandler`, and redacted
+diagnostics/model strings from
+`d7758c301e5289ddfa09cd09b6976c2479584b1c`. The current server emits normal
+JSON message payloads as objects and falls back to Base64 for non-object bytes;
+application parsing must handle the pinned SDK's corresponding receive shape.
 
 ### Web
 
-The `v2.0.2` source logs JSON-RPC request and response details. Because those
-details can include tokens or message payloads, production adoption is blocked
-until the integrator suppresses or sanitizes that logging in a reviewed build.
-Revision `3ebf505734c5b6764b30eac011f0b7a5024c89e8` adds default-off
-`debugLogging` to initialization options and routes all supported adapters
-through a sanitized logger, but npm `2.0.2` does not include it.
-The page also preserves one SDK instance per identity/context and browser BFF
-boundaries.
+The `v2.0.3` release includes default-off `debugLogging` from
+`3ebf505734c5b6764b30eac011f0b7a5024c89e8` and routes all supported adapters
+through a sanitized logger. Applications should leave diagnostics disabled in
+production unless their own log review permits the sanitized operational
+metadata. The page also preserves one SDK instance per identity/context and
+browser BFF boundaries.
 
 ## Validation
 
@@ -216,9 +208,9 @@ The fast gate must cover:
 - the aligned device values, the iOS two-field RECVACK, the Android README's
   JSON text-string SEND example, the current JSON text/object/Base64 compatibility
   mapping, iOS availability, Flutter receive
-  decoding/lifecycle, all four platforms' sensitive-logging boundaries, exact
-  post-snapshot logging-fix merge revisions, unreleased distribution status,
-  and application examples that never log raw models, payloads, credentials,
+  decoding/lifecycle, all four platforms' sensitive-logging controls, exact
+  logging-fix provenance, fixed release revisions and package inclusion, and
+  application examples that never log raw models, payloads, credentials,
   identifiers, reasons, or error details;
 - continued separation from the full JavaScript golden path and planned
   WuKongIMSDK platform groups; and
@@ -228,8 +220,9 @@ The fast gate must cover:
 ## Phase 15 exclusions
 
 - Changing any SDK or server implementation during Phase 15; later work added
-  the bounded server implementation and separate logging-security fixes without
-  modifying the pinned SDK releases.
+  the bounded server implementation and released the logging-security fixes.
+  The maintained pins record that superseding state without rewriting the
+  original Phase 15 runtime-evidence boundary.
 - Claiming a production-ready or universally compatible server/SDK tuple.
 - Issuing a client-artifact/platform receipt for EasySDK.
 - Publishing a complete API reference, migration guide, push guide, or

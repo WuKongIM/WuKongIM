@@ -1,6 +1,6 @@
 ---
 title: 5 分钟集成 Web
-description: 对照 easyjssdk v2.0.2 固定源码学习浏览器接入 API；当前 Product Gateway 支持其 JSON-RPC CONNECT 与在线双向收发。
+description: 对照 easyjssdk v2.0.3 固定源码学习浏览器接入 API；当前 Product Gateway 支持其 JSON-RPC CONNECT 与在线双向收发。
 ---
 
 本页只覆盖浏览器源码 API 和在线验收路径。浏览器先向业务 BFF 请求当前用户的连接材料，再由 EasyJSSDK 建立 WebSocket JSON-RPC 连接；它从不直接持有 Product HTTP 管理凭据。
@@ -9,23 +9,23 @@ description: 对照 easyjssdk v2.0.2 固定源码学习浏览器接入 API；当
   当前 Product Gateway 支持此固定版本的 JSON-RPC CONNECT 和在线双向收发。服务端测试覆盖 JS 省略 `jsonrpc`、Base64 SEND、对象 RECV、关联 CONNECT/SEND/PING 响应与 RECVACK；浏览器产物、WSS、BFF 与生产 Token 校验仍须在你的环境验收。
 </Callout>
 
-“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 Web EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started)。旧页不作为 API 证据；下面的方法名、参数与生命周期边界以固定的 `v2.0.2` 源码和 npm 产物为准。
+“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 Web EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started)。旧页不作为 API 证据；下面的方法名、参数与生命周期边界以固定的 `v2.0.3` 源码和 npm 产物为准。
 
 <Callout type="warn" title="证据边界">
-  示例按官方 [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.2`、源码 revision `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` 校对，发布包可在 [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) 核对。这是源码级教程，不是本站运行验证，也不是现有 `wukongimjssdk@1.3.5` Web 黄金路径的兼容性凭据。
+  示例按官方 [WuKongEasySDK-JS](https://github.com/WuKongIM/WuKongEasySDK-JS) `v2.0.3`、源码 revision `d29038e52aab5bce09f643fbe4daf11547379131` 校对，发布包可在 [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) 核对，变更记录见 [v2.0.3 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3)。这是源码级教程，不是本站运行验证，也不是现有 `wukongimjssdk@1.3.5` Web 黄金路径的兼容性凭据。
 </Callout>
 
 <Callout type="info" title="浏览器默认使用 WEB 设备类型">
-  `v2.0.2` 的线路值是 APP `0`、WEB `1`、PC `2`，浏览器连接未显式传值时默认使用 `WKIMDeviceFlag.Web`。业务代码应使用导出的枚举，不要复制整数。
+  `v2.0.3` 的线路值是 APP `0`、WEB `1`、PC `2`，浏览器连接未显式传值时默认使用 `WKIMDeviceFlag.Web`。业务代码应使用导出的枚举，不要复制整数。
 </Callout>
 
-<Callout type="warn" title="日志修复已合并，v2.0.2 尚未包含">
-  当前发布的 `v2.0.2` 会通过 `console.debug` / `console.log` 输出 JSON-RPC 请求、响应和连接细节。官方 [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) 已在 [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) 为初始化选项新增默认关闭的 `debugLogging`，并让浏览器、Node.js、微信、支付宝和 UniApp adapter 共用脱敏 logger，但 npm `2.0.2` 尚未包含该修复。生产环境应等待下一官方版本；提前验证须精确检出该 commit，执行 `npm ci && npm run build && npm pack`，再安装生成的 tarball，不能直接安装浮动分支。
+<Callout type="info" title="v2.0.3 默认关闭诊断并只输出脱敏元数据">
+  正式发布的 `v2.0.3` 已包含 [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) 的日志安全修复，为初始化选项提供默认关闭的 `debugLogging`，并让浏览器、Node.js、微信、支付宝和 UniApp adapter 共用同一日志边界。即使显式开启，SDK 也只输出固定的低敏运行元数据，不会输出 Token、Payload、原始 WebSocket 帧、服务端响应体、平台错误对象，或把公开事件与结果模型完整字符串化到 Console。公开事件对象本身仍含业务数据，应用代码不能直接记录完整对象。
 </Callout>
 
 ## 完成后你会得到什么
 
-- 锁定为 `easyjssdk@2.0.2` 的 npm 依赖；
+- 锁定为 `easyjssdk@2.0.3` 的 npm 依赖；
 - 一个只消费业务 BFF 最小响应的浏览器客户端；
 - 可精确 `off` 的事件回调和页面退出清理；
 - Alice 发送结果与 Bob 实时接收两份独立观察。
@@ -46,7 +46,7 @@ description: 对照 easyjssdk v2.0.2 固定源码学习浏览器接入 API；当
 在现有 Vite、Next.js 或其他打包工程中执行：
 
 ```bash
-npm install --save-exact easyjssdk@2.0.2
+npm install --save-exact easyjssdk@2.0.3
 ```
 
 提交 `package-lock.json`。本教程不使用 CDN 的浮动版本，避免页面刷新后静默更换 SDK。
@@ -110,7 +110,7 @@ export class EasyChatClient {
     const im = WKIM.init(
       bootstrap.websocketUrl,
       { uid: bootstrap.uid, token: bootstrap.token },
-      { singleton: false },
+      { singleton: false, debugLogging: false },
     );
     im.on(WKIMEvent.Connect, this.onConnect);
     im.on(WKIMEvent.Disconnect, this.onDisconnect);
@@ -166,6 +166,8 @@ export class EasyChatClient {
 }
 ```
 
+`debugLogging: false` 与 SDK 默认值相同，这里显式写出以便审查生产配置。只有在受控诊断窗口中才设置为 `true`；SDK 仍只会输出脱敏的运行元数据，应用自己的回调与采集器也不能记录完整事件、结果或 Payload。
+
 应用通常只创建一个 `EasyChatClient`。SDK 的 CONNECT JSON-RPC 请求有内部超时，但 WebSocket 打开阶段仍可能悬挂；`connectWithin` 因此把完整等待限制为 10 秒，并在失败后 `destroy`。React 中可以在根级 Provider 持有它，并在 Effect 清理函数中调用 `stop()`；Vue/Svelte 同样在组件或应用卸载钩子里释放。
 
 ## 步骤 4：发送第一条消息
@@ -192,7 +194,7 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 5. Bob 向 Alice 回发，验证反向链路；
 6. 模拟不可达地址，确认 10 秒内失败并 `destroy`，页面不会永久停在 Connecting；
 7. 刷新、关闭或退出账号，确认旧实例已 `off` 并 `destroy`，没有重复连接；
-8. 检查生产构建的 Console 与日志采集，确认 Token 和 Payload 不会泄露。`v2.0.2` 仍不包含已合并的日志修复，必须等待新版或安装基于上述精确 commit 自行构建的 tarball 后再验收。
+8. 使用 npm `2.0.3` 的实际浏览器产物检查生产构建的 Console 与日志采集：默认配置不应出现 SDK 诊断；受控地显式开启后也只能出现低敏运行元数据，不能出现 Token、Payload、原始帧或完整事件模型。
 
 这个闭环没有覆盖离线同步。如果 Bob 离线，应用不能仅等待 EasySDK 的实时事件；必须用产品设计的持久同步路径恢复消息。
 
@@ -201,7 +203,7 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 - **页面提示 WebSocket 或编码 API 不存在**：确认目标浏览器与构建环境提供 WebSocket、`TextEncoder`、`TextDecoder`；不要从浏览器路径推断小程序支持。
 - **连接前就被拒绝**：检查 BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade 和 Gateway 可达性。
 - **刷新后重复收消息**：不要在每次组件渲染时调用 `on`；保留回调并在卸载时 `off`/`destroy`。
-- **Console 出现 Token 或 Payload**：这是 npm `2.0.2` 的已知问题；[PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) 已合并但尚未发布。等待下一官方版本，或按上文固定 merge commit 自行构建 tarball 并验证脱敏后再上线。
+- **Console 仍出现 Token 或 Payload**：先用锁文件与浏览器 bundle 确认实际打入 `easyjssdk@2.0.3`，再检查应用事件回调、错误处理和采集器是否记录了完整对象。SDK 诊断默认关闭，显式开启时也只应输出脱敏运行元数据；用 npm 正式产物复现并保留低敏证据后再提交问题。
 - **需要可执行 Web 场景入口**：使用本站具备受保护验证流程的 [WuKongIMJSSDK Web 教程](/zh/sdk/javascript)，并在[版本与兼容性](/zh/sdk/compatibility)查看当前 receipt 状态；不要把两套 SDK 的方法名混用。
 
 ## 下一步

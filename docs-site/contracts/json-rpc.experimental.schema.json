@@ -136,7 +136,7 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "A JSON-text string as emitted by EasySDK Android v1.0.3, or Base64 as emitted by the pinned Flutter and JavaScript clients. Valid JSON text takes precedence when decoding."
+              "description": "A JSON-text string as emitted by EasySDK Android v1.0.4, which retains the same wire shape as v1.0.3, or Base64 as emitted by the pinned Flutter and JavaScript clients. Valid JSON text takes precedence when decoding."
             },
             { "type": "object" },
             { "type": "null" }

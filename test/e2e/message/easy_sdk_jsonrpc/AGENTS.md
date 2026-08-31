@@ -9,10 +9,14 @@ iOS or Android SDK binary ran on a device.
 
 The wire shapes are pinned to:
 
-- EasySDK iOS v1.0.3 at commit
-  `643848f85be70e3e3f2be22fceb86ae428b6cc38`.
-- EasySDK Android v1.0.3 at commit
-  `62084632cd8d1f26c751b053b0fb82d6aaa63892`.
+- EasySDK iOS v1.1.0 at commit
+  `683c1519bfa19fd91a15ae092733e1efb1e75d5d`.
+- EasySDK Android v1.0.4 at commit
+  `2ab2199a3eb91e6966c6a5d9b6098563e58e3203`.
+
+These releases retain the tested wire shapes while adding logging-security
+behavior. The harness still synthesizes frames and does not execute an SDK
+release artifact.
 
 ## Required Closure
 

@@ -1,6 +1,6 @@
 ---
 title: 5 分钟集成 iOS
-description: 对照 WuKongEasySDK iOS v1.0.3 固定源码学习 Swift 接入 API；当前 Product Gateway 支持其 JSON-RPC CONNECT 与在线双向收发。
+description: 对照 WuKongEasySDK iOS v1.1.0 固定源码学习 Swift 接入 API；当前 Product Gateway 支持其 JSON-RPC CONNECT 与在线双向收发。
 ---
 
 本页把旧版“5 分钟集成”整理成 iOS 源码 API 导读和在线验收路径：业务后端提供连接材料，Alice 与 Bob 分别连接、互发一条消息，最后正确移除监听器。
@@ -9,23 +9,23 @@ description: 对照 WuKongEasySDK iOS v1.0.3 固定源码学习 Swift 接入 API
   当前 Product Gateway 支持此固定版本的 JSON-RPC CONNECT 和在线双向收发。服务端测试覆盖 iOS 二进制 WebSocket JSON、对象 Payload、关联 CONNECT/SEND 响应，以及同时携带 `messageId` 与 `messageSeq` 的 camelCase RECVACK；平台构建、真机运行、WSS 与生产 Token 校验仍须在你的环境验收。
 </Callout>
 
-“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 iOS EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)。旧页只提供学习路径；下面的方法签名、版本与限制以固定的 `v1.0.3` 源码和分发产物为准。
+“安装 → 初始化 → 监听 → 连接 → 发送”的阅读顺序参考[旧版 iOS EasySDK 教程](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)。旧页只提供学习路径；下面的方法签名、版本与限制以固定的 `v1.1.0` 源码和分发产物为准。
 
 <Callout type="warn" title="证据边界">
-  示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.0.3`、源码 revision `643848f85be70e3e3f2be22fceb86ae428b6cc38` 校对，发布包可在 [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) 核对。这是源码级教程，不是本站运行验证，也不扩大[版本与兼容性](/zh/sdk/compatibility)中的可执行客户端范围。
+  示例按官方 [WuKongEasySDK-iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) `v1.1.0`、源码与发布 revision [`683c1519bfa19fd91a15ae092733e1efb1e75d5d`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/683c1519bfa19fd91a15ae092733e1efb1e75d5d) 校对，发布包可在 [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) 与 [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) 核对。这是源码级教程，不是本站运行验证，也不扩大[版本与兼容性](/zh/sdk/compatibility)中的可执行客户端范围。
 </Callout>
 
-<Callout type="warn" title="日志修复已合并，v1.0.3 尚未包含">
-  当前发布的 `v1.0.3` 中，`LogManager.logJsonData` 没有实际执行 `enableJsonLogging` 与日志级别判断，消息 Payload 仍可能进入设备日志。官方 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) 已在 [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) 将 `enableDebugLogging` 设为诊断总开关、补齐 Builder 的 `enableJsonLogging(_:)`，并对日志和公开模型字符串脱敏，但该修复尚未发布。生产环境应等待下一官方版本并重新验收；提前验证只能固定此精确 commit 后自行构建，不能使用浮动 `main`。
+<Callout type="info" title="v1.1.0 已包含默认静默与脱敏">
+  正式发布的 `v1.1.0` 已包含 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) 的日志安全修复：默认关闭的 `enableDebugLogging` 是全部诊断输出的总开关，JSON 摘要还要求 `.debug` 级别与 `enableJsonLogging` 同时开启；诊断日志和公开模型字符串不会原样输出 Token、Payload、结果或错误详情。默认静默和源码脱敏不能替代产物验收；生产构建仍应保持诊断关闭，并用非生产 canary 检查设备日志与崩溃报告。
 </Callout>
 
-<Callout type="info" title="v1.0.3 的对象 Payload 已在服务端边界兼容">
-  `v1.0.3` 使用 APP `0`，直接发送 JSON 对象并把 RECV Payload 解码为字典。当前 JSON-RPC 边界会把对象与 Base64 输入统一为内部字节，并对 RECV 输出 JSON 对象，因此无需为在线消息修改此固定客户端。Payload 日志泄露和平台运行仍是独立的生产门禁。
+<Callout type="info" title="v1.1.0 的对象 Payload 已在服务端边界兼容">
+  `v1.1.0` 使用 APP `0`，直接发送 JSON 对象并把 RECV Payload 解码为字典。当前 JSON-RPC 边界会把对象与 Base64 输入统一为内部字节，并对 RECV 输出 JSON 对象，因此无需为在线消息修改此固定客户端。日志配置、平台运行与 Release 产物仍是独立的生产门禁。
 </Callout>
 
 ## 完成后你会得到什么
 
-- 一个锁定到 `1.0.3` 的 iOS 依赖；
+- 一个锁定到 `1.1.0` 的 iOS 依赖；
 - 一个应用级客户端对象，负责初始化、监听、连接和退出；
 - 一套 Alice 发送结果与 Bob 实时接收事件的双端验收骨架；
 - 明确的 Token、WSS、离线恢复和生产验收待办。
@@ -34,7 +34,7 @@ description: 对照 WuKongEasySDK iOS v1.0.3 固定源码学习 Swift 接入 API
 
 准备以下条件：
 
-- iOS 部署目标使用 **iOS 15 或更高版本**。包清单声明 iOS 13，但 `v1.0.3` 的公开 `WuKongEasySDK` 类标记为 `@available(iOS 15.0, ...)`，因此本教程采用更保守的真实 API 下限；
+- iOS 部署目标使用 **iOS 15 或更高版本**。包清单声明 iOS 13，但 `v1.1.0` 的公开 `WuKongEasySDK` 类标记为 `@available(iOS 15.0, ...)`，因此本教程采用更保守的真实 API 下限；
 - 使用支持 Swift 5.7 Package 的 Xcode 工具链；
 - 一个 `/readyz` 正常、WebSocket Gateway 可从设备访问的 WuKongIM 单节点集群或多节点集群；
 - 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
@@ -51,13 +51,13 @@ description: 对照 WuKongEasySDK iOS v1.0.3 固定源码学习 Swift 接入 API
 https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 ```
 
-Dependency Rule 选择 **Exact Version**，填写 `1.0.3`。如果项目维护 `Package.swift`，使用精确规则：
+Dependency Rule 选择 **Exact Version**，填写 `1.1.0`。如果项目维护 `Package.swift`，使用精确规则：
 
 ```swift
 dependencies: [
     .package(
         url: "https://github.com/WuKongIM/WuKongEasySDK-iOS.git",
-        exact: "1.0.3"
+        exact: "1.1.0"
     )
 ]
 ```
@@ -66,7 +66,7 @@ dependencies: [
 
 ```ruby
 target 'YourApp' do
-  pod 'WuKongEasySDK', '1.0.3'
+  pod 'WuKongEasySDK', '1.1.0'
 end
 ```
 
@@ -115,7 +115,7 @@ final class EasyChatClient: ObservableObject {
             maxReconnectAttempts: 5,
             enableDebugLogging: false,
             logLevel: .error,
-            enableJsonLogging: false // v1.0.3 尚未包含 main 的日志修复。
+            enableJsonLogging: false // 生产配置同时关闭 JSON 摘要。
         )
         let sdk = WuKongEasySDK(config: config)
 
@@ -210,7 +210,7 @@ print("SEND completed: seq=\(result.messageSeq)")
 4. Bob 在 `onMessage` 中核对 `fromUid == "alice"`、Channel 和 Payload；
 5. Bob 向 Alice 回发，再验证反向链路；
 6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接；
-7. 检查 Release 构建与设备日志，证明 Token、Payload 和完整 JSON-RPC 数据不会被记录；`v1.0.3` 仍不包含已合并的日志修复，必须等待新版或基于上述精确 commit 自行构建后再验收。
+7. 检查 `v1.1.0` Release 构建与设备日志，证明诊断关闭时没有 SDK 输出，临时开启诊断时 Token、Payload 和完整 JSON-RPC 数据也不会被记录；只使用非生产 canary 完成这项检查。
 
 当前服务端已用该固定 wire profile 覆盖 SEND 与 RECV Payload。你仍需保留服务端 revision、iOS tag、设备和网络环境的实际结果；这一步只覆盖在线闭环。断网恢复、离线同步和 UI Ready 状态要按[重连与异常处理](/zh/sdk/common-guides/reconnect-and-errors)另行设计。
 
@@ -219,9 +219,9 @@ print("SEND completed: seq=\(result.messageSeq)")
 - **编译提示 API 仅 iOS 15 可用**：把部署目标提高到 iOS 15，不能只看 `Package.swift` 中较低的平台声明。
 - **连接一直失败**：从设备网络访问业务后端返回的 WebSocket 地址，检查反向代理 Upgrade、证书和 `wss://`；不要把容器内地址返回给手机。
 - **认证失败**：刷新业务后端签发的短期 Token。`/user/token` 成功不代表默认部署已启用 CONNECT Token 校验。
-- **关闭 `enableJsonLogging` 后仍出现 JSON**：这是 `v1.0.3` 的已知问题；修复已由 [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) 合并但尚未发布。等待下一官方版本，或固定到上述 merge commit 自行构建并验证 Release 产物；不能只改配置。
+- **关闭诊断后仍出现 JSON**：先确认依赖解析到 `1.1.0`，并同时将 `enableDebugLogging` 与 `enableJsonLogging` 设为 `false`；清理旧构建后再用非生产 canary 区分 SDK 输出、应用自身日志和第三方网络日志。若 Release 产物仍泄露 canary，应停止上线并提交最小复现。
 - **SEND 报 Payload 解码失败，或 RECV 无法构造 `Message`**：确认服务端包含 EasySDK JSON-RPC 兼容实现，并检查反向代理没有改写 WebSocket 消息；当前服务端会接受对象 SEND 并输出对象 RECV。
-- **设备类型不符合预期**：确认业务代码没有覆盖默认 `.app`，并按 APP `0`、WEB `1`、PC `2` 核对线路值；`v1.0.3` 已修正枚举，不要再沿用旧整数。
+- **设备类型不符合预期**：确认业务代码没有覆盖默认 `.app`，并按 APP `0`、WEB `1`、PC `2` 核对线路值；`v1.1.0` 使用该枚举，不要再沿用旧整数。
 - **消息重复出现**：确认监听器只注册一次，并按 `messageId` 合并实时和后续同步结果。
 - **发送成功但 Bob 没收到**：分别检查 Alice 的发送结果、Bob 的实时连接以及产品后续的离线同步，不要自动重发一个已经提交的消息。
 

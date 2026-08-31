@@ -10,7 +10,7 @@ WuKongEasySDK is for applications that need realtime communication while keeping
 </Callout>
 
 <Callout type="info" title="The current Product Gateway supports the EasySDK core path">
-  The current server supports JSON-RPC CONNECT, request correlation, ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for these four pinned versions. It accepts camelCase, Android snake_case, JSON text-string payloads, JSON object payloads, Base64 payloads, and JS requests without `jsonrpc`; iOS `v1.0.3` sends a camelCase RECVACK containing both `messageId` and `messageSeq`. This receipt excludes offline sync, push, subscription RPC, batch RPC, and production-grade token verification in the default composition.
+  The current server supports JSON-RPC CONNECT, request correlation, ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for these four pinned versions. It accepts camelCase, Android snake_case, JSON text-string payloads, JSON object payloads, Base64 payloads, and JS requests without `jsonrpc`; iOS `v1.1.0` sends a camelCase RECVACK containing both `messageId` and `messageSeq`. This receipt excludes offline sync, push, subscription RPC, batch RPC, and production-grade token verification in the default composition.
 </Callout>
 
 “5 minutes” describes the shape of the path: install, initialize, listen, connect, and send. It is not a completion-time promise and does not include product accounts, authorization, group membership, offline synchronization, push, capacity, or release acceptance.
@@ -18,10 +18,10 @@ WuKongEasySDK is for applications that need realtime communication while keeping
 ## Choose your platform
 
 <Cards>
-  <Card title="iOS" description="Install v1.0.3 with Swift Package Manager or CocoaPods." href="/en/sdk/easy/ios/getting-started" />
-  <Card title="Android" description="Install v1.0.3 from Maven Central and clean up listeners with the Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
-  <Card title="Flutter" description="Install v1.0.4 from pub.dev and release resources from State.dispose." href="/en/sdk/easy/flutter/getting-started" />
-  <Card title="Web" description="Pin easyjssdk v2.0.2 and obtain browser connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="iOS" description="Install v1.1.0 with Swift Package Manager or CocoaPods." href="/en/sdk/easy/ios/getting-started" />
+  <Card title="Android" description="Install v1.0.4 from Maven Central and clean up listeners with the Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
+  <Card title="Flutter" description="Install v1.1.0 from pub.dev and release resources from State.dispose." href="/en/sdk/easy/flutter/getting-started" />
+  <Card title="Web" description="Pin easyjssdk v2.0.3 and obtain browser connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
 </Cards>
 
 ## What EasySDK owns
@@ -55,24 +55,24 @@ This group preserves the learning sequence from the [legacy WuKongEasySDK overvi
 
 | Platform | Release tag | Source revision | Distribution |
 | --- | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.3` | `643848f85be70e3e3f2be22fceb86ae428b6cc38` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.3` | `62084632cd8d1f26c751b053b0fb82d6aaa63892` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) |
-| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` | `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` | `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
 
 The tutorials deliberately pin these versions instead of using ranges or `latest`. The server-side wire receipt covers only the versions in this table. Re-run the Alice/Bob loop before updating the application lockfile and your compatibility record for an SDK upgrade.
 
-## Logging-security fix status
+## Logging security
 
-| Platform | Merged fix | Current distribution status |
+| Platform | Fix source | Released version |
 | --- | --- | --- |
-| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | Not included in `v1.0.3` |
-| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | Not included in `v1.0.3` |
-| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | Not included in `v1.0.4` |
-| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | Not included in `v2.0.2` |
+| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) |
+| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | [`v1.0.4`](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) |
+| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) |
+| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | [`v2.0.3`](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) |
 
-<Callout type="warn" title="Security fixes are merged but not yet released">
-  The official `main` branch in all four repositories now keeps diagnostics off by default, emits only redacted low-sensitivity metadata when explicitly enabled, and redacts public model string representations. The currently distributed CocoaPods, Maven, pub.dev, and npm releases in the table above are still pre-fix snapshots, so the release-specific logging risks in each platform tutorial still apply. Production users should wait for the next official release and upgrade. Early evaluation must pin the exact commit shown above, build it independently, and repeat Release-log and platform acceptance. Do not use a floating `main` reference or present a main-only option as released API.
+<Callout type="info" title="The official releases include the logging-security fixes">
+  All four official versions above keep diagnostics off by default, emit only redacted low-sensitivity metadata when explicitly enabled, and redact public model string representations. Keep production diagnostics disabled, avoid separately writing tokens, payloads, or complete protocol objects to product logs, and independently inspect Release builds plus target-device or browser logs during acceptance.
 </Callout>
 
 ## Prepare connection material

@@ -39,9 +39,9 @@ contracts but does not define them; the Web report proves only its bounded smoke
 4. Source-locked registries compare Product HTTP, Operations, internal HTTP,
    node transport, MCP, agent CLI, plugin RPC, WKProto, JSON-RPC, and Webhooks
    with current Go authorities.
-5. SDK pages distinguish released distribution snapshots, merged-but-unreleased
-   source remediation, publication, and executable verification; the Web lab
-   uses isolated SDK clients for bounded single-node cluster/Chromium evidence.
+5. SDK pages distinguish released snapshots, release provenance, any future
+   merged-but-unreleased remediation, publication, and executable verification;
+   the Web lab uses isolated clients for bounded single-node cluster/Chromium evidence.
 6. Static export writes `out/`; publication, canonical, link, structure, and
    machine-artifact checks run before any external hosting step.
 

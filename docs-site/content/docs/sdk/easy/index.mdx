@@ -10,7 +10,7 @@ WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业
 </Callout>
 
 <Callout type="info" title="当前 Product Gateway 支持 EasySDK 核心路径">
-  当前服务端支持这四个固定版本的 JSON-RPC CONNECT、请求关联、Ping、在线 SEND/SENDACK、RECV/RECVACK 与重连，并兼容 camelCase、Android snake_case、JSON 文本字符串 Payload、JSON 对象 Payload、Base64 Payload，以及 JS 省略 `jsonrpc`；iOS `v1.0.3` 的 camelCase RECVACK 同时包含 `messageId` 与 `messageSeq`。该凭据不包含离线同步、推送、订阅 RPC、batch RPC 或默认部署中的生产级 Token 校验。
+  当前服务端支持这四个固定版本的 JSON-RPC CONNECT、请求关联、Ping、在线 SEND/SENDACK、RECV/RECVACK 与重连，并兼容 camelCase、Android snake_case、JSON 文本字符串 Payload、JSON 对象 Payload、Base64 Payload，以及 JS 省略 `jsonrpc`；iOS `v1.1.0` 的 camelCase RECVACK 同时包含 `messageId` 与 `messageSeq`。该凭据不包含离线同步、推送、订阅 RPC、batch RPC 或默认部署中的生产级 Token 校验。
 </Callout>
 
 “5 分钟”描述的是阅读路径：安装、初始化、监听、连接和发送。它不是完成时间承诺，也不包含业务账号、授权、群成员、离线同步、推送、容量与上线验收。
@@ -18,10 +18,10 @@ WuKongEasySDK 面向只需要实时通信能力、希望自己维护界面和业
 ## 选择你的平台
 
 <Cards>
-  <Card title="iOS" description="使用 Swift Package Manager 或 CocoaPods 安装 v1.0.3。" href="/zh/sdk/easy/ios/getting-started" />
-  <Card title="Android" description="从 Maven Central 安装 v1.0.3，并按 Activity 生命周期清理监听器。" href="/zh/sdk/easy/android/getting-started" />
-  <Card title="Flutter" description="从 pub.dev 安装 v1.0.4，并在 State.dispose 中释放资源。" href="/zh/sdk/easy/flutter/getting-started" />
-  <Card title="Web" description="锁定 easyjssdk v2.0.2，通过业务 BFF 取得浏览器连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
+  <Card title="iOS" description="使用 Swift Package Manager 或 CocoaPods 安装 v1.1.0。" href="/zh/sdk/easy/ios/getting-started" />
+  <Card title="Android" description="从 Maven Central 安装 v1.0.4，并按 Activity 生命周期清理监听器。" href="/zh/sdk/easy/android/getting-started" />
+  <Card title="Flutter" description="从 pub.dev 安装 v1.1.0，并在 State.dispose 中释放资源。" href="/zh/sdk/easy/flutter/getting-started" />
+  <Card title="Web" description="锁定 easyjssdk v2.0.3，通过业务 BFF 取得浏览器连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
 </Cards>
 
 ## EasySDK 负责什么
@@ -55,24 +55,24 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 返回表示服�
 
 | 平台 | 发布 tag | 源码 revision | 分发入口 |
 | --- | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.0.3` | `643848f85be70e3e3f2be22fceb86ae428b6cc38` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.3` | `62084632cd8d1f26c751b053b0fb82d6aaa63892` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3) |
-| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.0.4` | `6179251b49414401fe0eac4bfa3fec3f9b13a9fc` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4) |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.2` | `c59c80551944c9e5d9b4a902ebd2629d3defb2e6` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.2) |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` | `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Swift Package Manager / CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` | `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
+| [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` | `d29038e52aab5bce09f643fbe4daf11547379131` | [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
 
 教程故意锁定这些版本，不使用版本范围或 `latest`。服务端线协议凭据只覆盖此表中的版本；升级 SDK 后应重新完成 Alice/Bob 验收，再更新应用锁文件和你的兼容记录。
 
-## 日志安全修复状态
+## 日志安全状态
 
-| 平台 | 已合并的修复 | 当前分发状态 |
+| 平台 | 修复来源 | 已发布版本 |
 | --- | --- | --- |
-| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | `v1.0.3` 尚未包含 |
-| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | `v1.0.3` 尚未包含 |
-| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | `v1.0.4` 尚未包含 |
-| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | `v2.0.2` 尚未包含 |
+| iOS | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3) / [`b7ec4440b940539bee213f95a3be74948f4b9fb8`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/b7ec4440b940539bee213f95a3be74948f4b9fb8) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) |
+| Android | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) / [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff) | [`v1.0.4`](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) |
+| Flutter | [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) / [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c) | [`v1.1.0`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) |
+| Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) / [`3ebf505734c5b6764b30eac011f0b7a5024c89e8`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/3ebf505734c5b6764b30eac011f0b7a5024c89e8) | [`v2.0.3`](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) |
 
-<Callout type="warn" title="安全修复已合并，尚未发布">
-  四个官方仓库的 `main` 已把诊断日志改为默认关闭，并在显式开启时只输出脱敏后的低敏元数据；公开模型的字符串表示也已脱敏。上表中的 CocoaPods、Maven、pub.dev 与 npm 当前发布版仍是修复前快照，因此使用这些版本时，各平台页记录的日志风险仍然成立。生产环境应等待下一官方版本并升级；若必须提前验证，只能固定到表中的精确 commit、自行构建并重新完成 Release 日志与平台验收。不要依赖浮动 `main`，也不要把仅存在于 `main` 的配置项写成已发布版本能力。
+<Callout type="info" title="正式版本已包含日志安全修复">
+  上表四个正式版本都把诊断日志设为默认关闭，并在显式开启时只输出脱敏后的低敏元数据；公开模型的字符串表示也已脱敏。接入方仍应保持生产诊断关闭，避免在业务日志中另行打印 Token、Payload 或完整协议对象，并通过 Release 构建和目标设备/浏览器日志完成独立验收。
 </Callout>
 
 ## 准备连接材料

@@ -1,6 +1,6 @@
 ---
 title: 5-minute Android integration
-description: Walk through the pinned WuKongEasySDK Android v1.0.3 Kotlin APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
+description: Walk through the pinned WuKongEasySDK Android v1.0.4 Kotlin APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
 This page keeps the legacy install → initialize → listen → connect → send sequence as an Android source-API walkthrough and online acceptance path, while adding an exact version, Activity lifecycle, and the current v3 protocol boundary.
@@ -9,19 +9,19 @@ This page keeps the legacy install → initialize → listen → connect → sen
   The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover Android text WebSocket messages, snake_case fields, JSON text-string payloads, correlated CONNECT/SEND responses, and RECVACK. Platform builds, physical-device runs, WSS, and production token verification still require evidence from your environment.
 </Callout>
 
-That learning sequence follows the [legacy Android EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/android/getting-started). The old page supplies only the reading path; the pinned `v1.0.3` source and Maven Central artifact govern the package coordinate, method signatures, version, and limits below.
+That learning sequence follows the [legacy Android EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/android/getting-started). The old page supplies only the reading path; the pinned `v1.0.4` source and Maven Central artifact govern the package coordinate, method signatures, version, and limits below.
 
 <Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.3` source at revision `62084632cd8d1f26c751b053b0fb82d6aaa63892`; the published artifact is available on [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3). This is a source-level tutorial, not runtime verification, and it does not mean this version has passed a complete compatibility scenario against current WuKongIM v3.
+  The example is aligned with the official [WuKongEasySDK-Android](https://github.com/WuKongIM/WuKongEasySDK-Android) `v1.0.4` source and release revision [`2ab2199a3eb91e6966c6a5d9b6098563e58e3203`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/2ab2199a3eb91e6966c6a5d9b6098563e58e3203); verify the published artifact on [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) and the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4). This is a source-level tutorial, not runtime verification, and it does not mean this version has passed a complete compatibility scenario against current WuKongIM v3.
 </Callout>
 
-<Callout type="warn" title="Logging fix merged; v1.0.3 does not include it">
-  The current server supports Android `v1.0.3` underscore fields and its README's JSON text-string SEND payload; the boundary also accepts camel-case fields, JSON objects, and Base64, so those protocol shapes no longer block online messaging. However, unknown-message, parse-failure, and RECV-error paths in this release still bypass `debugLogging` and can write complete messages or `Params` to Logcat. Official [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) merged at [`e984c7374a0e11f5d109ad3dbfdea599907735ff`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/e984c7374a0e11f5d109ad3dbfdea599907735ff), routing diagnostics through a default-silent logger and redacting logs plus public model strings. Maven `1.0.3` does not include that fix. Production users should wait for the next official release. Early evaluation must pin this commit, build the AAR or module independently, and inspect the Release artifact again.
+<Callout type="info" title="v1.0.4 includes default-silent, redacted diagnostics">
+  The current server supports Android `v1.0.4` snake_case fields and its README's JSON text-string SEND payload; the boundary also accepts camel-case fields, JSON objects, and Base64. The official release also contains the logging-security changes from [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3): `debugLogging` defaults to `false`, and unknown-message, parse-failure, RECV-error, and other diagnostics consistently pass through that master gate. Diagnostics and public model strings do not echo tokens, payloads, or error details. Keep diagnostics disabled in production and inspect Logcat, crash reports, and the final Release artifact with non-production canaries.
 </Callout>
 
 ## What you will have
 
-- An Android dependency pinned to Maven Central version `1.0.3`.
+- An Android dependency pinned to Maven Central version `1.0.4`.
 - A Kotlin screen that initializes and registers listeners in the required order.
 - A two-client acceptance scaffold for Alice's send result and Bob's realtime receive.
 - Explicit blockers for singleton identity switching, field compatibility, tokens, and production security.
@@ -43,7 +43,7 @@ Add this to the application module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.githubim:easysdk-android:1.0.3")
+    implementation("com.githubim:easysdk-android:1.0.4")
 }
 ```
 
@@ -51,7 +51,7 @@ The equivalent Groovy DSL is:
 
 ```groovy
 dependencies {
-    implementation 'com.githubim:easysdk-android:1.0.3'
+    implementation 'com.githubim:easysdk-android:1.0.4'
 }
 ```
 
@@ -86,7 +86,7 @@ The product backend authenticates the current product user and selects a WebSock
 
 ## Step 4: initialize, listen, and connect
 
-Android EasySDK is a process singleton, and `v1.0.3` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
+Android EasySDK is a process singleton, and `v1.0.4` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
 
 ```kotlin
 import android.os.Bundle
@@ -165,7 +165,7 @@ class ChatActivity : AppCompatActivity() {
                     current.deviceFlag == config.deviceFlag &&
                     current.debugLogging == config.debugLogging
             ) {
-                "WuKongEasySDK v1.0.3 cannot apply changed identity or configuration; " +
+                "WuKongEasySDK v1.0.4 cannot apply changed identity or configuration; " +
                     "stop and restart the process or upgrade the SDK"
             }
         }
@@ -206,7 +206,7 @@ class ChatActivity : AppCompatActivity() {
 }
 ```
 
-Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly. Maven `1.0.3` still has unconditional error paths outside that gate, while merged main consistently applies it as the master switch. A production application normally lets an Application-scoped connection manager own the SDK while Activities or Fragments subscribe only to UI events. The screen-level owner above makes the minimal lifecycle visible.
+Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly. Maven `1.0.4` applies that master gate to protocol-parsing and event-dispatch diagnostics and redacts public model strings. A production application normally lets an Application-scoped connection manager own the SDK while Activities or Fragments subscribe only to UI events. The screen-level owner above makes the minimal lifecycle visible.
 
 ## Step 5: send the first message
 
@@ -249,15 +249,15 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 6. In the reviewed build, exercise success and parse-failure paths with unique fake token and message canaries; confirm neither value appears in Logcat or crash reports.
 7. Recreate the Activity and confirm listeners are not duplicated; exit the application and confirm the connection closes.
 
-The current server covers this loop with the Android `v1.0.3` snake_case field profile and the README-aligned JSON text-string SEND payload. Retain the server revision, Android tag, device, and network environment instead of hiding failures with blind retries. Log redaction, offline recovery, and production security require separate acceptance.
+The current server covers this loop with the Android `v1.0.4` snake_case field profile and the README-aligned JSON text-string SEND payload. Retain the server revision, Android tag, device, and network environment instead of hiding failures with blind retries. Log redaction, offline recovery, and production security require separate acceptance.
 
 ## Troubleshooting
 
 - **`SDK is not initialized`:** preserve the `init → addEventListener → connect` order.
-- **The same UID gets a refreshed token or route and configuration changes:** `v1.0.3` has no public reset API. Stop explicitly and restart the process or upgrade the SDK; do not continue with a stale token or URL.
+- **The same UID gets a refreshed token or route and configuration changes:** `v1.0.4` has no public reset API. Stop explicitly and restart the process; do not continue with a stale token or URL.
 - **The emulator connects but a physical device does not:** confirm that the address is reachable outside the host or container and have the product backend return the device-reachable WSS ingress.
 - **CONNECT, SEND, or RECVACK parsing fails:** confirm the server includes the EasySDK JSON-RPC compatibility implementation. The current server accepts snake_case fields and the README-aligned Android JSON text-string payload, as well as JSON objects and Base64 payloads, and returns snake_case results for Android. Use APP `0`, WEB `1`, and PC `2`; do not carry forward older literals.
-- **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** Maven `1.0.3` contains unconditional log paths. [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3) is merged but not released. Stop testing with production tokens or messages; wait for the next official release, or build and verify the exact commit above.
+- **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** first confirm Gradle resolved `1.0.4`, clean the old build, then use a non-production canary to distinguish SDK output from application or third-party network logs. Stop the rollout and file a minimal reproduction if the Release artifact still exposes that canary.
 - **Messages are duplicated:** prevent repeated listener registration and deduplicate by `messageId`.
 
 ## Next

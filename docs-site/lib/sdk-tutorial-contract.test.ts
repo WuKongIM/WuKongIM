@@ -33,24 +33,24 @@ describe('SDK tutorial content contract', () => {
     const easySnapshots = [
       {
         repository: 'WuKongEasySDK-JS',
-        tag: 'v2.0.2',
-        distribution: 'https://www.npmjs.com/package/easyjssdk/v/2.0.2',
+        tag: 'v2.0.3',
+        distribution: 'https://www.npmjs.com/package/easyjssdk/v/2.0.3',
       },
       {
         repository: 'WuKongEasySDK-iOS',
-        tag: 'v1.0.3',
+        tag: 'v1.1.0',
         distribution: 'https://cocoapods.org/pods/WuKongEasySDK',
       },
       {
         repository: 'WuKongEasySDK-Android',
-        tag: 'v1.0.3',
+        tag: 'v1.0.4',
         distribution:
-          'https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.3',
+          'https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4',
       },
       {
         repository: 'WuKongEasySDK-Flutter',
-        tag: 'v1.0.4',
-        distribution: 'https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4',
+        tag: 'v1.1.0',
+        distribution: 'https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0',
       },
     ] as const;
     const repositories = [

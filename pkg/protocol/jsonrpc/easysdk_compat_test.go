@@ -9,10 +9,10 @@ import (
 )
 
 // These fixtures preserve the wire shapes from exact released revisions:
-// iOS v1.0.3 643848f85be70e3e3f2be22fceb86ae428b6cc38,
-// Android v1.0.3 62084632cd8d1f26c751b053b0fb82d6aaa63892,
-// Flutter v1.0.4 5b199f92972065549ed3bb0a3296e89b79246061, and
-// JavaScript v2.0.2 55da36d4992d8272cfc56486a98b33895df98be6.
+// iOS v1.1.0 683c1519bfa19fd91a15ae092733e1efb1e75d5d,
+// Android v1.0.4 2ab2199a3eb91e6966c6a5d9b6098563e58e3203,
+// Flutter v1.1.0 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6, and
+// JavaScript v2.0.3 d29038e52aab5bce09f643fbe4daf11547379131.
 // IDs and message content are synthetic; field and payload shapes are source-aligned.
 
 func TestDecodeEasySDKConnectRequests(t *testing.T) {
@@ -25,7 +25,7 @@ func TestDecodeEasySDKConnectRequests(t *testing.T) {
 		timestamp int64
 	}{
 		{
-			name:      "iOS v1.0.3",
+			name:      "iOS v1.1.0",
 			wire:      `{"jsonrpc":"2.0","method":"connect","params":{"uid":"alice","token":"token","deviceId":"ios-device","deviceFlag":0,"clientTimestamp":1725000000001},"id":"ios-connect"}`,
 			id:        "ios-connect",
 			deviceID:  "ios-device",
@@ -33,15 +33,15 @@ func TestDecodeEasySDKConnectRequests(t *testing.T) {
 			timestamp: 1725000000001,
 		},
 		{
-			name:      "Android v1.0.3",
-			wire:      `{"jsonrpc":"2.0","method":"connect","params":{"uid":"alice","token":"token","device_id":"android-device","device_flag":1,"client_timestamp":1725000000002},"id":"android-connect"}`,
+			name:      "Android v1.0.4",
+			wire:      `{"jsonrpc":"2.0","method":"connect","params":{"uid":"alice","token":"token","device_id":"android-device","device_flag":0,"client_timestamp":1725000000002},"id":"android-connect"}`,
 			id:        "android-connect",
 			deviceID:  "android-device",
-			device:    DeviceWeb,
+			device:    DeviceApp,
 			timestamp: 1725000000002,
 		},
 		{
-			name:      "Flutter v1.0.4",
+			name:      "Flutter v1.1.0",
 			wire:      `{"jsonrpc":"2.0","method":"connect","params":{"uid":"alice","token":"token","deviceId":"flutter-device","deviceFlag":0,"clientTimestamp":1725000000003},"id":"flutter-connect"}`,
 			id:        "flutter-connect",
 			deviceID:  "flutter-device",
@@ -49,7 +49,7 @@ func TestDecodeEasySDKConnectRequests(t *testing.T) {
 			timestamp: 1725000000003,
 		},
 		{
-			name:      "JavaScript v2.0.2 omits jsonrpc",
+			name:      "JavaScript v2.0.3 omits jsonrpc",
 			wire:      `{"method":"connect","params":{"uid":"alice","token":"token","deviceId":"js-device","deviceFlag":1,"clientTimestamp":1725000000004},"id":"js-connect"}`,
 			id:        "js-connect",
 			deviceID:  "js-device",
@@ -89,7 +89,7 @@ func TestDecodeEasySDKSendRequests(t *testing.T) {
 		redDot      bool
 	}{
 		{
-			name:        "iOS v1.0.3 object payload",
+			name:        "iOS v1.1.0 object payload",
 			wire:        `{"jsonrpc":"2.0","method":"send","params":{"clientMsgNo":"ios-1","channelId":"bob","channelType":1,"payload":{"content":"hello","type":1},"header":{"redDot":true}},"id":"ios-send"}`,
 			clientMsgNo: "ios-1",
 			channelID:   "bob",
@@ -97,7 +97,7 @@ func TestDecodeEasySDKSendRequests(t *testing.T) {
 			redDot:      true,
 		},
 		{
-			name:        "Android v1.0.3 snake case JSON text payload",
+			name:        "Android v1.0.4 snake case JSON text payload",
 			wire:        `{"jsonrpc":"2.0","method":"send","params":{"client_msg_no":"android-1","channel_id":"bob","channel_type":1,"payload":"{\"content\":\"hello\",\"type\":1}","header":{"no_persist":false,"red_dot":true,"sync_once":false,"dup":false}},"id":"android-send"}`,
 			clientMsgNo: "android-1",
 			channelID:   "bob",
@@ -105,7 +105,7 @@ func TestDecodeEasySDKSendRequests(t *testing.T) {
 			redDot:      true,
 		},
 		{
-			name:        "Flutter v1.0.4 base64 payload",
+			name:        "Flutter v1.1.0 base64 payload",
 			wire:        `{"jsonrpc":"2.0","method":"send","params":{"clientMsgNo":"flutter-1","channelId":"bob","channelType":1,"payload":"eyJjb250ZW50IjoiaGVsbG8iLCJ0eXBlIjoxfQ==","header":{"redDot":true}},"id":"flutter-send"}`,
 			clientMsgNo: "flutter-1",
 			channelID:   "bob",
@@ -113,7 +113,7 @@ func TestDecodeEasySDKSendRequests(t *testing.T) {
 			redDot:      true,
 		},
 		{
-			name:        "JavaScript v2.0.2 omits jsonrpc and uses base64",
+			name:        "JavaScript v2.0.3 omits jsonrpc and uses base64",
 			wire:        `{"method":"send","params":{"clientMsgNo":"js-1","channelId":"bob","channelType":1,"payload":"eyJjb250ZW50IjoiaGVsbG8iLCJ0eXBlIjoxfQ==","header":{"redDot":true}},"id":"js-send"}`,
 			clientMsgNo: "js-1",
 			channelID:   "bob",
@@ -154,25 +154,25 @@ func TestDecodeEasySDKRecvAckNotifications(t *testing.T) {
 		messageSeq uint64
 	}{
 		{
-			name:       "Android v1.0.3 snake case",
+			name:       "Android v1.0.4 snake case",
 			wire:       `{"jsonrpc":"2.0","method":"recvack","params":{"message_id":"101","message_seq":22}}`,
 			messageID:  "101",
 			messageSeq: 22,
 		},
 		{
-			name:       "iOS v1.0.3 camel case",
+			name:       "iOS v1.1.0 camel case",
 			wire:       `{"jsonrpc":"2.0","method":"recvack","params":{"messageId":"102","messageSeq":23}}`,
 			messageID:  "102",
 			messageSeq: 23,
 		},
 		{
-			name:       "Flutter v1.0.4 camel case",
+			name:       "Flutter v1.1.0 camel case",
 			wire:       `{"jsonrpc":"2.0","method":"recvack","params":{"messageId":"103","messageSeq":24}}`,
 			messageID:  "103",
 			messageSeq: 24,
 		},
 		{
-			name:       "JavaScript v2.0.2 omits jsonrpc",
+			name:       "JavaScript v2.0.3 omits jsonrpc",
 			wire:       `{"method":"recvack","params":{"messageId":"104","messageSeq":25}}`,
 			messageID:  "104",
 			messageSeq: 25,

@@ -1,6 +1,6 @@
 ---
 title: 5-minute Flutter integration
-description: Walk through the pinned WuKongEasySDK Flutter v1.0.4 Dart APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
+description: Walk through the pinned WuKongEasySDK Flutter v1.1.0 Dart APIs; the current Product Gateway supports JSON-RPC CONNECT and online bidirectional messaging.
 ---
 
 This page joins the Flutter EasySDK source APIs and online acceptance path inside one `StatefulWidget`: obtain connection material, initialize the singleton, retain event callback references, connect, send, and clean up in `dispose`.
@@ -9,27 +9,27 @@ This page joins the Flutter EasySDK source APIs and online acceptance path insid
   The current Product Gateway supports this pinned version's JSON-RPC CONNECT and online bidirectional messaging. Server tests cover Flutter text WebSocket messages, camelCase, Base64 SEND, object RECV, correlated CONNECT/SEND responses, and RECVACK. Platform builds, device runs, WSS, and production token verification still require evidence from your environment.
 </Callout>
 
-The install → initialize → listen → connect → send reading order follows the [legacy Flutter EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started). The old page is not API evidence; the pinned `v1.0.4` source and distribution govern the method names, version, and lifecycle boundaries below.
+The install → initialize → listen → connect → send reading order follows the [legacy Flutter EasySDK tutorial](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started). The old page is not API evidence; the pinned `v1.1.0` source and distribution govern the method names, version, and lifecycle boundaries below.
 
 <Callout type="warn" title="Evidence boundary">
-  The example is aligned with the official [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.0.4` source at revision `6179251b49414401fe0eac4bfa3fec3f9b13a9fc`; the published package is available on [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.0.4). This is a source-level tutorial, not runtime verification, and it does not mean every Flutter target passed against the same server combination.
+  The example is aligned with the official [WuKongEasySDK-Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) `v1.1.0` source at revision `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`; the published package is available on [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0), with changes recorded in the [v1.1.0 release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0). This is a source-level tutorial, not runtime verification, and it does not mean every Flutter target passed against the same server combination.
 </Callout>
 
 <Callout type="info" title="Device-category wire values">
-  `WuKongDeviceFlag` in `v1.0.4` matches the server: APP `0`, WEB `1`, and PC `2`; the default is `WuKongDeviceFlag.app`. Product code should pass the enum instead of copying an integer.
+  `WuKongDeviceFlag` in `v1.1.0` matches the server: APP `0`, WEB `1`, and PC `2`; the default is `WuKongDeviceFlag.app`. Product code should pass the enum instead of copying an integer.
 </Callout>
 
-<Callout type="warn" title="Logging fix merged; v1.0.4 does not include it">
-  The current `v1.0.4` release unconditionally records complete JSON-RPC requests and responses through `developer.log` and has no public logging-off setting. Official [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) merged at [`d7758c301e5289ddfa09cd09b6976c2479584b1c`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/d7758c301e5289ddfa09cd09b6976c2479584b1c), adding default-off `debugLogging`, an optional `logHandler`, and redaction for diagnostics plus public model strings. pub.dev `1.0.4` does not include that fix. Production users should wait for the next official release. Early evaluation must pin a git dependency to this exact commit, build it independently, and repeat acceptance on every target platform.
+<Callout type="info" title="v1.1.0 keeps diagnostics off and redacted by default">
+  The published `v1.1.0` release includes the logging-security fix from [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3), and `debugLogging` defaults to `false`. When explicitly enabled, it emits only low-sensitivity operational metadata such as protocol stages and whether a request ID is present. Tokens, authentication parameters, payloads, raw WebSocket frames, and parser input do not enter diagnostics; public model string representations also hide credentials, payloads, identifiers, disconnect reasons, and error text. Connect the optional `logHandler` to application logging only during a controlled diagnostic window, and never use it to append complete models or business data.
 </Callout>
 
 <Callout type="info" title="The current server returns payloads as objects">
-  `v1.0.4` Base64-encodes SEND payloads. The current server decodes them to internal bytes and emits a JSON object in RECV, so `Message.payload` can be handled as a Map. The sample still accepts a Base64 string for older servers or non-object custom payloads; preserve unknown formats for fallback UI.
+  `v1.1.0` Base64-encodes SEND payloads. The current server decodes them to internal bytes and emits a JSON object in RECV, so `Message.payload` can be handled as a Map. The sample still accepts a Base64 string for older servers or non-object custom payloads; preserve unknown formats for fallback UI.
 </Callout>
 
 ## What you will have
 
-- A dependency pinned to `1.0.4` in `pubspec.yaml`.
+- A dependency pinned to `1.1.0` in `pubspec.yaml`.
 - A screen that does not register duplicate listeners during Widget rebuilds.
 - Alice's send result and Bob's independent realtime message event.
 - Clear boundaries for logout, deduplication, tokens, WSS, and later offline behavior.
@@ -53,7 +53,7 @@ Add the exact version to `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  wukong_easy_sdk: 1.0.4
+  wukong_easy_sdk: 1.1.0
 ```
 
 Then run:
@@ -146,6 +146,7 @@ class _ChatPageState extends State<ChatPage> {
       serverUrl: widget.bootstrap.websocketUrl,
       uid: widget.bootstrap.uid,
       token: widget.bootstrap.token,
+      debugLogging: false,
     );
 
     try {
@@ -215,6 +216,8 @@ class _ChatPageState extends State<ChatPage> {
 }
 ```
 
+`debugLogging: false` matches the SDK default and is written explicitly here so production configuration can be reviewed. Set it to `true` only during a controlled diagnostic window. When a `logHandler` is also supplied, it receives only SDK-sanitized operational metadata; application code must still avoid appending complete events, models, or payloads.
+
 Page-level `dispose()` is appropriate for the minimal example. `Future.timeout` bounds the complete connection wait at 20 seconds and disconnects after timeout or another failure; the page must not remain in Connecting forever. If a real application keeps the connection while navigating, let Provider, Riverpod, Bloc, or another application-level state owner hold the SDK. A page adds and removes only its own listeners; final logout performs `disconnect` and `dispose`.
 
 ## Step 4: send the first message
@@ -251,7 +254,7 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 4. On Bob, verify `fromUid` and `channelId`, inspect `type` and `content` in the object payload, and deduplicate by `messageId`.
 5. Have Bob send to Alice and prove the reverse direction.
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
-7. Inspect system logs and collectors for every Release target to prove that tokens, payloads, and complete JSON-RPC data cannot leak. `v1.0.4` still excludes the merged logging fix, so accept only a later release or a self-built artifact pinned to the exact commit above.
+7. Inspect system logs and collectors on every target using the `v1.1.0` Release artifact. The default configuration should produce no SDK diagnostics; when logging is explicitly enabled under control, only low-sensitivity operational metadata may appear, never tokens, payloads, complete JSON-RPC data, or sensitive public-model strings.
 
 This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/sdk/common-guides/messaging) and [Reconnect & Errors](/en/sdk/common-guides/reconnect-and-errors).
 
@@ -260,7 +263,7 @@ This loop does not prove application-background recovery, offline message synchr
 - **`SDK not initialized`:** wait for `easySDK.init(config)` before connecting or sending.
 - **Messages duplicate after Widget rebuild:** never register listeners from `build`; retain callbacks and remove them from `dispose`.
 - **A new UID still sees old state:** remove listeners, disconnect, and `dispose` before initializing the new configuration, and clear product-local state too.
-- **System logs contain a token or payload:** this is a known pub.dev `1.0.4` issue. [PR #3](https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3) is merged but not released. Wait for the next official release, or pin the merge commit above, build it yourself, and verify the Release artifact before production.
+- **System logs still contain a token or payload:** first confirm the lockfile actually resolves `wukong_easy_sdk 1.1.0`, then inspect application callbacks, `debugPrint`, a custom `logHandler`, and collectors for complete event or model logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the Release artifact and retain only low-sensitivity evidence before filing an issue.
 - **`message.payload` is a string:** the current server emits valid JSON objects as objects. If a string remains, confirm the server revision, then try Base64 → UTF-8 JSON and preserve unknown formats for fallback UI.
 - **A physical device cannot reach the local address:** `localhost` means the device itself; have the product backend return a device-reachable WSS ingress.
 - **Send succeeds but the peer message is absent from the UI:** inspect send result, realtime receipt, and offline recovery separately.
