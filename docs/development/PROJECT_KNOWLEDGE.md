@@ -471,7 +471,12 @@
   mirrors the immutable digest to Docker Hub and Alibaba Cloud. Exact tags omit
   the Git `v` prefix and never move; only the highest stable SemVer in a minor,
   major, or global range may advance that range's floating alias. Pre-release
-  tags, including date suffixes, receive only an exact tag. Traffic admission
+  tags, including date suffixes, receive only an exact tag. The portable runtime
+  manifest excludes BuildKit inline attestation manifests because Alibaba Cloud
+  Registry rejects their OCI empty-config media type; signed GitHub build
+  provenance and per-platform CycloneDX SBOM attestations retain the evidence
+  outside the registry manifest, and successful runs retain the SBOM files with
+  the release receipt for 90 days. Traffic admission
   uses `/readyz`, not process-level `/healthz`. The published Kubernetes Beta
   page is a reference architecture,
   not an official chart or manifest: it uses an immutable image digest,

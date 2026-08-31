@@ -49,9 +49,9 @@ must be strict SemVer without `+build` metadata, resolve to a commit reachable
 from `origin/main`, and remain the immutable source identity.
 
 GHCR is the canonical build target. The Workflow builds
-`linux/amd64,linux/arm64` once with BuildKit provenance and an SBOM, creates a
-GitHub build attestation, and copies that exact manifest digest to all three
-public repositories:
+`linux/amd64,linux/arm64` once, creates signed GitHub build provenance plus a
+CycloneDX SBOM attestation for each platform, and copies the exact runtime
+manifest digest to all three public repositories:
 
 - `ghcr.io/wukongim/wukongim`;
 - `docker.io/wukongim/wukongim`;
@@ -63,9 +63,13 @@ in each corresponding range. Pre-release tags, including date suffixes such as
 `v3.1.2-20260831`, publish only their exact tag. Exact tags are never
 overwritten. A manual recovery reuses an existing canonical GHCR digest, fills
 only absent exact mirrors, verifies identical digests and the two required
-platforms, and advances aliases only after that verification. Every successful
-run uploads a 90-day JSON release receipt and writes the same source, builder,
-digest, platform, and image facts to the Job Summary.
+platforms, and advances aliases only after that verification. BuildKit's inline
+provenance and SBOM manifests stay disabled because Alibaba Cloud Registry
+rejects their OCI empty-config media type; the detached signed GitHub
+attestations preserve this evidence without changing the portable runtime
+digest. Every successful run uploads a 90-day JSON release receipt and both
+per-platform SBOMs, and writes the same source, builder, digest, platform, and
+image facts to the Job Summary.
 
 Repository administrators must pre-create all three repositories with public
 pull visibility and configure a `docker-publish` Environment. Limit that

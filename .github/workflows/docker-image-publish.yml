@@ -310,8 +310,11 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.identity.outputs.source_sha }}
             org.opencontainers.image.version=${{ steps.identity.outputs.image_version }}
-          provenance: mode=max
-          sbom: true
+          # Keep the runtime manifest portable to registries that reject
+          # BuildKit's OCI attestation manifests. Signed provenance and SBOM
+          # attestations are stored in GitHub after the image is pushed.
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=docker-release
           cache-to: type=gha,mode=max,scope=docker-release
 
@@ -350,12 +353,52 @@ jobs:
             ] | sort | unique) == ["amd64", "arm64"]
           ' canonical-manifest.json >/dev/null
 
+      - name: Set up Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          syft-version: v1.51.1
+
+      - name: Generate per-platform SBOMs
+        shell: bash
+        env:
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+          SYFT_CHECK_FOR_APP_UPDATE: "false"
+        run: |
+          set -euo pipefail
+          syft_cmd="${{ steps.syft.outputs.cmd }}"
+          for arch in amd64 arm64; do
+            output="sbom-linux-$arch.cdx.json"
+            "$syft_cmd" scan "registry:$CANONICAL_IMAGE@$CANONICAL_DIGEST" \
+              --platform "linux/$arch" \
+              --output "cyclonedx-json=$output"
+            jq -e '.bomFormat == "CycloneDX" and (.components | type == "array")' "$output" >/dev/null
+          done
+
       - name: Create GitHub build attestation
         id: attestation
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.CANONICAL_IMAGE }}
           subject-digest: ${{ steps.artifact.outputs.digest }}
+
+      - name: Create GitHub amd64 SBOM attestation
+        id: sbom_attestation_amd64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.CANONICAL_IMAGE }}
+          subject-digest: ${{ steps.artifact.outputs.digest }}
+          sbom-path: sbom-linux-amd64.cdx.json
+          push-to-registry: false
+
+      - name: Create GitHub arm64 SBOM attestation
+        id: sbom_attestation_arm64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.CANONICAL_IMAGE }}
+          subject-digest: ${{ steps.artifact.outputs.digest }}
+          sbom-path: sbom-linux-arm64.cdx.json
+          push-to-registry: false
 
       - name: Mirror immutable exact tag
         shell: bash
@@ -463,6 +506,8 @@ jobs:
           CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
           RECOVERY: ${{ steps.publication.outputs.recovery }}
           ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+          SBOM_AMD64_ATTESTATION_URL: ${{ steps.sbom_attestation_amd64.outputs.attestation-url }}
+          SBOM_ARM64_ATTESTATION_URL: ${{ steps.sbom_attestation_arm64.outputs.attestation-url }}
         run: |
           set -euo pipefail
           tags=("$IMAGE_VERSION")
@@ -498,6 +543,8 @@ jobs:
             --arg buildx_version "$buildx_version" \
             --arg buildkit_info "$buildkit_info" \
             --arg attestation_url "$ATTESTATION_URL" \
+            --arg sbom_amd64_attestation_url "$SBOM_AMD64_ATTESTATION_URL" \
+            --arg sbom_arm64_attestation_url "$SBOM_ARM64_ATTESTATION_URL" \
             --argjson images "$images_json" \
             '{
               schema: $schema,
@@ -513,6 +560,20 @@ jobs:
               buildx_version: $buildx_version,
               buildkit_info: $buildkit_info,
               attestation_url: (if $attestation_url == "" then null else $attestation_url end),
+              sboms: [
+                {
+                  platform: "linux/amd64",
+                  format: "cyclonedx-json",
+                  file: "sbom-linux-amd64.cdx.json",
+                  attestation_url: (if $sbom_amd64_attestation_url == "" then null else $sbom_amd64_attestation_url end)
+                },
+                {
+                  platform: "linux/arm64",
+                  format: "cyclonedx-json",
+                  file: "sbom-linux-arm64.cdx.json",
+                  attestation_url: (if $sbom_arm64_attestation_url == "" then null else $sbom_arm64_attestation_url end)
+                }
+              ],
               platforms: ["linux/amd64", "linux/arm64"],
               images: $images
             }' >docker-release-receipt.json
@@ -531,13 +592,18 @@ jobs:
             echo "| Tags | \`$tag_display\` |"
             echo "| Recovery | \`$RECOVERY\` |"
             [[ -z "$ATTESTATION_URL" ]] || echo "| Attestation | $ATTESTATION_URL |"
+            [[ -z "$SBOM_AMD64_ATTESTATION_URL" ]] || echo "| amd64 SBOM | $SBOM_AMD64_ATTESTATION_URL |"
+            [[ -z "$SBOM_ARM64_ATTESTATION_URL" ]] || echo "| arm64 SBOM | $SBOM_ARM64_ATTESTATION_URL |"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Upload release receipt
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: docker-release-${{ steps.identity.outputs.image_version }}
-          path: docker-release-receipt.json
+          path: |
+            docker-release-receipt.json
+            sbom-linux-amd64.cdx.json
+            sbom-linux-arm64.cdx.json
           if-no-files-found: error
           retention-days: 90
 
