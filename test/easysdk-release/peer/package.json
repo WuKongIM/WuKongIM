@@ -1,0 +1,8 @@
+{
+  "name": "wukong-easysdk-release-peer",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "easyjssdk": "2.0.4"
+  }
+}

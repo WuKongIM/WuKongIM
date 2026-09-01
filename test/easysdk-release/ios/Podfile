@@ -1,0 +1,9 @@
+platform :ios, '15.0'
+
+use_frameworks!
+
+project 'ReleaseSmoke.xcodeproj'
+
+target 'ReleaseSmoke' do
+  pod 'WuKongEasySDK', '1.1.1'
+end

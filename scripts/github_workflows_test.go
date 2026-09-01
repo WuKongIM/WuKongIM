@@ -31,6 +31,7 @@ var workflowCatalog = map[string]string{
 	"cloud-sim-oidc-subject.yml":               "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":                  "Agent Tool - Provision Cloud Simulation",
 	"docker-image-publish.yml":                 "Safety Automation - Publish Docker Images",
+	"easysdk-release-acceptance.yml":           "Safety Automation - EasySDK Released Package Acceptance",
 	"issue-agent-engineer.yml":                 "Agent Tool - Issue Engineer",
 	"issue-agent-pr-signal.yml":                "Safety Automation - Issue Agent PR Signal",
 	"issue-agent.yml":                          "Safety Automation - GitHub Issue Agent",
