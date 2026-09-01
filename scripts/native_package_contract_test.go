@@ -42,6 +42,10 @@ func TestNativePackageConfigurationIsPreviewOnly(t *testing.T) {
 	} {
 		require.NotContains(t, raw, forbidden)
 	}
+	artifactValidation := readNativePackageFile(t, root, "scripts/validate-native-package.sh")
+	require.Contains(t, artifactValidation, `if [[ "${WK_NATIVE_PACKAGE_SKIP_BUILD:-0}" != "1" ]]; then
+  if ! command -v goreleaser`)
+	require.Contains(t, artifactValidation, "goreleaser check --config .goreleaser.packages.yaml")
 	containerValidation := readNativePackageFile(t, root, "scripts/validate-native-package-container.sh")
 	for _, required := range []string{
 		"--platform linux/amd64",

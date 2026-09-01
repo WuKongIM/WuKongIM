@@ -4,13 +4,12 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repository_root"
 
-if ! command -v goreleaser >/dev/null 2>&1; then
-  echo "goreleaser is required (validated with v2.18.0)" >&2
-  exit 1
-fi
-
-goreleaser check --config .goreleaser.packages.yaml
 if [[ "${WK_NATIVE_PACKAGE_SKIP_BUILD:-0}" != "1" ]]; then
+  if ! command -v goreleaser >/dev/null 2>&1; then
+    echo "goreleaser is required (validated with v2.18.0)" >&2
+    exit 1
+  fi
+  goreleaser check --config .goreleaser.packages.yaml
   goreleaser release --snapshot --clean --config .goreleaser.packages.yaml
 fi
 
