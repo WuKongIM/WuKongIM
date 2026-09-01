@@ -88,6 +88,20 @@
   cluster runtime, the multi-reactor channel runtime, and the new business
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
   and `internal`; the former v1 server runtime tree has been removed.
+- Native Linux packages are an unsigned amd64 preview. CI builds temporary
+  signed APT/RPM repositories with one-run, one-day `TEST ONLY` keys outside
+  the repository and verifies their signatures plus the exact APT and RPM
+  metadata-to-package closures in containers; neither those keys nor the
+  signed repositories are published. The separate public `WuKongIM/packages`
+  repository owns a fail-closed GitHub Pages bootstrap at the verified HTTPS
+  endpoint `packages.githubim.com`; both repositories enforce immutable
+  Releases. It publishes no APT/YUM indexes until reviewed public fingerprints,
+  signing custody, exact tagged source package assets, and the production
+  publisher are ready. The package installs the
+  binary, hardened systemd unit, service identity, and persistent directories,
+  but never creates an active configuration or starts/restarts the node.
+  Operators initialize atomically with `wukongim config init`, validate with
+  `wukongim config validate`, and own enablement plus upgrade restart timing.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.toml`; `.toml.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - Default Slot Raft timing is a 50-millisecond tick, two-tick heartbeat, and 40-tick election floor: heartbeats run every 100 milliseconds and elections start after at least two seconds. Chat-lifecycle cloud templates pin the same values. This keeps sub-second storage or transport tails from creating avoidable terms while proposal replication remains event-driven; override all three values together when a deployment proves a different failure-detection budget.
@@ -486,6 +500,16 @@
   startup/liveness, `/readyz` for traffic, topology spread, a bounded PDB, and
   an operator-controlled `OnDelete` node-by-node upgrade. Changing StatefulSet
   replicas alone is not a WuKongIM membership or scale-in procedure.
+- The official binary publisher builds deterministic archives from the same
+  strict SemVer tag and `main` ancestry used by container releases. Its
+  supported matrix is Linux and macOS on amd64/arm64; Windows remains excluded
+  while Unix-only runtime paths prevent a clean cross-build. New GitHub
+  Releases receive every asset while still draft and become immutable only as
+  a complete set. Recovery compares existing bytes, fills missing assets only
+  while the Release remains mutable, and fails closed for an incomplete
+  immutable Release. SHA-256 checksums, GitHub build provenance, embedded build
+  identity when the tagged source supports it, and a 90-day receipt bind every
+  release to its full source commit.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
@@ -629,6 +653,6 @@
 - Full-SDK examples use Java, Objective-C, TypeScript, Dart, and ArkTS. Reader pages explain Channel, Provider, local insertion, and server send results; application backends own identity, routing, channel metadata, history, conversations, and media URLs. Production integrations must validate TLS/WSS, payload logging, local-data protection, account isolation, listener cleanup, reconnect behavior, and the actual device/runtime matrix.
 - Deprecated standalone SDK chooser, compatibility, common-guide, installation, platform-capability, per-platform upgrade, and UniApp MDX pages are redirect-only. UniApp migration belongs under JavaScript advanced topics and targets `wukongimjssdk@1.3.5`; old content must not be reintroduced as duplicate public pages.
 - WuKongEasySDK remains a separate documentation and JSON-RPC integration path; full-SDK pages must not mix EasySDK types or methods.
-- WuKongEasySDK tutorials pin exact official releases and source revisions: iOS 1.1.0 at `683c1519bfa19fd91a15ae092733e1efb1e75d5d`, Android 1.0.4 at `2ab2199a3eb91e6966c6a5d9b6098563e58e3203`, Flutter 1.1.0 at `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`, and Web 2.0.3 at `d29038e52aab5bce09f643fbe4daf11547379131`. Their logging-security fixes are included in those releases, while server wire fixtures and the iOS/Android-profile E2E remain protocol evidence rather than SDK-artifact, device, browser, or production-readiness receipts.
+- WuKongEasySDK tutorials pin exact official releases and source revisions: iOS 1.1.0 at `683c1519bfa19fd91a15ae092733e1efb1e75d5d`, Android 1.0.4 at `2ab2199a3eb91e6966c6a5d9b6098563e58e3203`, Flutter 1.1.0 at `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`, and Web 2.0.3 at `d29038e52aab5bce09f643fbe4daf11547379131`. Their logging-security fixes are included in those releases. A 2026-08-31 cross-repository run against WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` separately verified the official Web example at `a055b3667247333b6b3183249f5d5929673dfd53` in Chrome, Android at `7134bbd0263fd01d9e7f71b7bd05b226f75b2292` on an API 34 emulator, iOS at `40014c16c0becd390c105098d359048901f4d87c` on iPhone 16 / iOS 18.3 Simulator, and Flutter `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` on iOS Simulator through Alice/Bob online bidirectional messaging. Web, Android, and iOS example revisions are ahead of their listed releases, so only Flutter's run is also a released-package-revision receipt; none of these runs proves physical devices, WSS, offline behavior, capacity, or production token validation.
 - Shell scripts that must stop and wait for a background sampler must start it in the owning shell; command substitution creates a subshell-owned child that the parent cannot reliably wait or clean up.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.

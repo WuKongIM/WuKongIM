@@ -24,7 +24,7 @@ not define them.
 - Static export produces artifacts only. Deployment, DNS, redirects, and
   production cutover are external operations.
 
-## Main flows
+## Main Flows
 
 1. Navigation metadata generates locale-equal menus, tabs, static parameters,
    publication planning, and machine-readable inclusion.
@@ -35,16 +35,20 @@ not define them.
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. Removed SDK pages exist only as redirects. UniApp migration lives under the
+4. The separate EasySDK path keeps released package pins distinct from exact
+   repository-example receipts. Its shared runbook starts one server revision,
+   maps host addresses for browser, emulators, and devices, and reproduces the
+   four maintained examples before platform-specific integration.
+5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.
-5. `scripts/generate-openapi.ts` generates the complete Product HTTP reference.
+6. `scripts/generate-openapi.ts` generates the complete Product HTTP reference.
    Operations HTTP and outbound Webhooks use separate OpenAPI contracts.
    WKProto, JSON-RPC, and private interfaces remain protocol documentation.
-6. Static export writes `out/`; publication, canonical, link, structure, and
+7. Static export writes `out/`; publication, canonical, link, structure, and
    machine-artifact checks run before external hosting.
 
-## Invariants and failure semantics
+## Invariants and Failure Semantics
 
 - Chinese and English share one menu structure. A route is published only when
   both locale variants are ready.
@@ -59,13 +63,17 @@ not define them.
 - The JavaScript example is a runnable development aid with unit and build
   checks. It is not a production backend or a substitute for testing on the
   application's actual browsers, devices, networks, and release configuration.
+- EasySDK example evidence names the exact client and server revisions. When a
+  verified repository revision is ahead of its package release, pages must not
+  attribute that source run to the older npm, Maven, CocoaPods, or Release
+  artifact.
 - The complete Product HTTP contract must match current route registrations.
   Missing authentication, weak validation, legacy behavior, and unbounded
   responses stay explicit rather than being normalized away.
 - The static API reference keeps its playground disabled. Generated examples
   come only from reviewed samples that state the trusted-backend boundary.
 
-## Read first
+## Read First
 
 - [SDK documentation specification](SDK_DOCUMENTATION_SPEC.md)
 - [Navigation registry](lib/navigation.ts)
@@ -73,7 +81,7 @@ not define them.
 - [Developer contract source](lib/developer-contracts.ts)
 - [OpenAPI page generator](scripts/generate-openapi.ts)
 
-## Update triggers
+## Update Triggers
 
 Update this file when publication ownership, SDK learning order, locale parity,
 generated outputs, authoritative sources, or the hosting boundary changes.

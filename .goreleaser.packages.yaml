@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/goreleaser/goreleaser/v2.18.0/www/docs/static/schema.json
+version: 2
+
+project_name: wukongim
+
+builds:
+  - id: wukongim-linux-amd64
+    main: ./cmd/wukongim
+    binary: wukongim
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - >-
+        -s -w -buildid=
+        -X main.buildVersion={{ .Version }}
+        -X main.buildCommit={{ .Commit }}
+        -X main.buildSource=release
+    goos:
+      - linux
+    goarch:
+      - amd64
+    goamd64:
+      - v1
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: wukongim-raw-binary
+    ids:
+      - wukongim-linux-amd64
+    formats:
+      - binary
+
+nfpms:
+  - id: wukongim-linux-packages
+    ids:
+      - wukongim-linux-amd64
+    package_name: wukongim
+    formats:
+      - deb
+      - rpm
+    vendor: WuKongIM
+    homepage: https://github.com/WuKongIM/WuKongIM
+    maintainer: WuKongIM Maintainers <support@githubim.com>
+    license: Apache-2.0
+    description: High-performance general-purpose distributed messaging cluster.
+    section: net
+    priority: optional
+    bindir: /usr/bin
+    dependencies:
+      - systemd
+    mtime: "{{ .CommitDate }}"
+    contents:
+      - src: packaging/systemd/wukongim.service
+        dst: /usr/lib/systemd/system/wukongim.service
+        file_info:
+          owner: root
+          group: root
+          mode: 0644
+      - src: packaging/systemd/wukongim.sysusers
+        dst: /usr/lib/sysusers.d/wukongim.conf
+        file_info:
+          owner: root
+          group: root
+          mode: 0644
+      - src: packaging/systemd/wukongim.tmpfiles
+        dst: /usr/lib/tmpfiles.d/wukongim.conf
+        file_info:
+          owner: root
+          group: root
+          mode: 0644
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+      preremove: packaging/scripts/preremove.sh
+      postremove: packaging/scripts/postremove.sh
+    rpm:
+      group: System Environment/Daemons
+      summary: High-performance distributed messaging cluster
+
+checksum:
+  name_template: checksums.txt
+  ids:
+    - wukongim-linux-packages
+
+changelog:
+  disable: true
+
+release:
+  disable: true

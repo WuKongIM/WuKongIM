@@ -12,6 +12,7 @@ import (
 )
 
 var workflowCatalog = map[string]string{
+	"binary-release-publish.yml":               "Safety Automation - Publish WuKongIM Binaries",
 	"chat-lifecycle-rehearsal.yml":             "Agent Tool - Start Chat Lifecycle Rehearsal",
 	"chat-lifecycle-rehearsal-finalize.yml":    "Safety Automation - Finalize Chat Lifecycle Rehearsals",
 	"chat-lifecycle-formal.yml":                "Safety Automation - Start Fresh Formal Chat Lifecycle",
@@ -35,6 +36,7 @@ var workflowCatalog = map[string]string{
 	"issue-agent-pr-signal.yml":                "Safety Automation - Issue Agent PR Signal",
 	"issue-agent.yml":                          "Safety Automation - GitHub Issue Agent",
 	"manager-browser-smoke.yml":                "Safety Automation - Manager Browser Smoke",
+	"native-package-preview.yml":               "Safety Automation - Validate Native Package Preview",
 	"review-agent-pr-signal.yml":               "Safety Automation - Review Agent PR Signal",
 	"review-agent-run.yml":                     "Agent Tool - Review Pull Request",
 	"review-agent.yml":                         "Safety Automation - Review Agent Controller",

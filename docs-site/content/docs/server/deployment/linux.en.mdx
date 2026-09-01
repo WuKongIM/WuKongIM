@@ -1,91 +1,76 @@
 ---
 title: Linux
-description: Build the WuKongIM binary and supervise a node with explicit configuration, persistent directories, and systemd.
+description: Install WuKongIM from deb/rpm previews or source, initialize it safely, and supervise a cluster node with systemd.
 ---
 
-The Linux path fits teams that want direct control over hosts, filesystems, networking, and service lifecycle. The systemd unit below is an operator-owned reference template, not a repository release package.
+The Linux path fits teams that want direct control over hosts, filesystems, networking, and service lifecycle. The repository can now build deb/rpm preview packages, and the separate `WuKongIM/packages` repository has a fail-closed bootstrap at the verified HTTPS endpoint `packages.githubim.com`. Signing keys and APT/YUM indexes are not enabled yet, however, so that endpoint cannot be used for installation. Do not treat these local previews as a signed production distribution channel.
 
-## 1. Build and record the artifact
+The first preview targets Linux amd64 and runs installation contract checks on Ubuntu 24.04, Debian 12, Rocky Linux 9, and AlmaLinux 9.
 
-The repository currently requires Go `1.25.11`:
+## 1. Build and install a local preview package
+
+The repository requires Go `1.25.11`; the package configuration is validated with GoReleaser `v2.18.0`:
 
 ```bash
 git rev-parse HEAD
 go version
-GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
-sha256sum ./bin/wukongim
+goreleaser release --snapshot --clean \
+  --config .goreleaser.packages.yaml
+(cd dist && sha256sum --check checksums.txt)
 ```
 
-Build in an isolated environment and record the commit SHA, Go version, and SHA-256 in the release record. Do not build independently from a moving branch on every production node.
-
-## 2. Install the account, binary, and configuration
+Install the generated `.deb` on Debian or Ubuntu:
 
 ```bash
-sudo useradd --system \
-  --home-dir /var/lib/wukongim \
-  --shell /usr/sbin/nologin \
-  wukongim
-
-sudo install -m 0755 ./bin/wukongim /usr/local/bin/wukongim
-sudo install -d -o root -g wukongim -m 0750 /etc/wukongim
-sudo install -o root -g wukongim -m 0640 \
-  ./wukongim.toml.example \
-  /etc/wukongim/wukongim.toml
+sudo apt install ./dist/wukongim_*_linux_amd64.deb
 ```
 
-Edit `/etc/wukongim/wukongim.toml`:
-
-- set `node.data_dir = "/var/lib/wukongim"`;
-- set `log.dir = "/var/log/wukongim"`;
-- set `plugin.dir = "/var/lib/wukongim/plugins"`, `plugin.sandbox_dir = "/var/lib/wukongim/plugin-sandbox"`, and `plugin.state_dir = "/var/lib/wukongim/plugin-state"`;
-- set `plugin.socket_path = "/run/wukongim/plugin.sock"`;
-- give the node a unique `node.id` and reachable cluster address;
-- replace the join token, Manager JWT secret, users, and every example credential;
-- set `api.external_tcp_addr`, `external_ws_addr`, or `external_wss_addr` to client-reachable addresses;
-- disable benchmark and debug APIs by default in production.
-
-The loader rejects unknown TOML keys and unknown `WK_*` environment variables. An explicit `-config` avoids lookup changes caused by the systemd working directory.
-The reference unit does not set `WorkingDirectory`, so every writable path must be absolute as shown above. Do not leave the example `./data/...` paths for systemd to resolve.
-
-## 3. Create the systemd unit
-
-Write `/etc/systemd/system/wukongim.service`:
-
-```ini
-[Unit]
-Description=WuKongIM cluster node
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=simple
-User=wukongim
-Group=wukongim
-ExecStart=/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
-Restart=on-failure
-RestartSec=5s
-TimeoutStopSec=30s
-KillSignal=SIGTERM
-LimitNOFILE=1048576
-StateDirectory=wukongim
-LogsDirectory=wukongim
-RuntimeDirectory=wukongim
-StateDirectoryMode=0750
-LogsDirectoryMode=0750
-RuntimeDirectoryMode=0750
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-`StateDirectory`, `LogsDirectory`, and `RuntimeDirectory` create `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. If data lives on a separate mounted disk, complete the mount and permissions before starting the service.
-
-## 4. Start and verify
+Install the generated `.rpm` on Rocky or AlmaLinux:
 
 ```bash
-sudo systemctl daemon-reload
+sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
+```
+
+The package installs `/usr/bin/wukongim` and a hardened `wukongim.service`, then creates the `wukongim` system account and `/etc/wukongim`, `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. It does not create an active configuration, enable or start the service, or restart it.
+
+Confirm the binary identity:
+
+```bash
+wukongim version
+wukongim version --output json
+```
+
+## 2. Initialize a secure configuration
+
+Interactive initialization creates a single-node cluster configuration with a random Cluster ID, join token, Manager JWT secret, and administrator password. The generated administrator password is shown only once:
+
+```bash
+sudo wukongim config init \
+  --config /etc/wukongim/wukongim.toml
+```
+
+Automation must supply an administrator password of at least 12 characters through standard input; the command does not echo it:
+
+```bash
+sudo wukongim config init \
+  --config /etc/wukongim/wukongim.toml \
+  --admin-password-stdin < /secure/path/manager-password
+```
+
+Initialization binds TCP, WebSocket, API, Manager, and node transport to loopback by default. Add `--gateway-public` during first initialization only after the host firewall, TLS termination, and ingress policy are ready. That option exposes only the client TCP/WebSocket Gateway on all interfaces; it does not expose Manager or node transport.
+
+The generator refuses to overwrite an existing file and applies the same configuration validation as service startup before atomically publishing it. When run as root with the `wukongim` group present, it writes `root:wukongim 0640`; otherwise it uses `0600`. Review advertised addresses, node identity, mounts, and network policy, then validate explicitly:
+
+```bash
+sudo wukongim config validate \
+  --config /etc/wukongim/wukongim.toml
+```
+
+Configuration errors return exit code `78`. The systemd unit includes that code in `RestartPreventExitStatus` so invalid configuration cannot create a restart storm. The loader also rejects unknown TOML keys and unknown `WK_*` environment variables.
+
+## 3. Start and verify
+
+```bash
 sudo systemctl enable --now wukongim
 sudo systemctl status wukongim
 sudo journalctl -u wukongim -n 100 --no-pager
@@ -93,24 +78,28 @@ sudo journalctl -u wukongim -n 100 --no-pager
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-On `SIGTERM`, the process performs a graceful shutdown using the configured cluster stop budget; the reference unit provides a 30-second external ceiling. If `/healthz` succeeds while `/readyz` returns `503`, do not add the node to the load balancer. Inspect the response `reason` and service logs first.
+On `SIGTERM`, the process performs a graceful shutdown using the configured cluster stop budget; the unit provides a 30-second external ceiling. If `/healthz` succeeds while `/readyz` returns `503`, do not add the node to the load balancer. Inspect the response `reason` and service logs first.
 
-Also confirm that `/var/lib/wukongim`, logs, and plugin-state directories belong to the `wukongim` user, test `api.external_*` from the target client network, and recheck persistent mounts and `/readyz` after a service restart.
+Also verify persistent mounts, directory ownership, and advertised addresses from the target client network, then recheck `/readyz` after a service restart.
 
-## Network and permissions
+## Package lifecycle
 
-| Surface | Default policy |
-| --- | --- |
-| API / Gateway | Expose only to product services, client ingress, or controlled load balancers |
-| Manager | Management network with strong authentication; never direct public exposure |
-| `/metrics` | Monitoring collection network only |
-| Debug / benchmark / diagnostics | Disabled in production or limited to a temporary diagnostic window |
-| Node transport | Cluster nodes only |
+- Installation creates no active configuration and does not enable or start the service.
+- Upgrade replaces package files but does not automatically restart a running node. Validate compatibility and configuration, then restart explicitly during a planned window.
+- Removal stops and disables the service but preserves configuration, data, logs, and the service account.
+- The service process applies the same configuration validation before constructing runtimes. Configuration errors exit with `78` and are not restarted. The unit permits writes only to package-managed state, log, and runtime directories.
 
-WuKongIM does not replace production TLS termination or the external authentication boundary for product HTTP APIs. Use a reverse proxy, load balancer, or service mesh for certificates and access policy.
+Before an upgrade, validate the target commit, artifact, configuration, backup, and recovery path outside production. Roll one node at a time only when the target release explicitly supports mixed operation with the current version; otherwise use a full maintenance window. See [Upgrade & Migration](/en/server/operations/upgrade-and-migration) for the complete boundary.
 
-## Upgrade boundary
+## Install from source
 
-Do not overwrite a running binary. Validate the target commit, artifact, configuration, backup, and recovery path outside production. Roll one node at a time only when the target release explicitly supports mixed operation with the current version; otherwise use a full maintenance window. See [Upgrade & Migration](/en/server/operations/upgrade-and-migration) for compatibility decisions, rolling steps, irreversible boundaries, rollback, and v2-to-v3 limits.
+Until the public repository is enabled, you can also build the binary directly:
+
+```bash
+GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
+sha256sum ./bin/wukongim
+```
+
+A source deployment should still reuse `packaging/systemd/wukongim.service`, the repository sysusers/tmpfiles definitions, and the secure initialization command. Do not build separately from a moving branch on every production node, and do not copy the root development example directly into an active production configuration.
 
 For multi-node configuration, continue to [Multi-node Cluster](/en/server/deployment/multi-node).

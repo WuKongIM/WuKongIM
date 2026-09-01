@@ -28,19 +28,25 @@ describe('native deployment publication contract', () => {
     }
   });
 
-  test('keeps every systemd writable path absolute', async () => {
+  test('documents the secure native package and systemd lifecycle', async () => {
     const pages = await Promise.all([page('linux.mdx'), page('linux.en.mdx')]);
 
     for (const content of pages) {
       for (const contract of [
-        '/var/lib/wukongim/plugins',
-        '/var/lib/wukongim/plugin-sandbox',
-        '/var/lib/wukongim/plugin-state',
-        '/run/wukongim/plugin.sock',
-        'WorkingDirectory',
+        '.goreleaser.packages.yaml',
+        'wukongim config init',
+        '--admin-password-stdin',
+        'wukongim config validate',
+        'RestartPreventExitStatus',
+        '/var/lib/wukongim',
+        '/var/log/wukongim',
+        '/run/wukongim',
+        'packages.githubim.com',
       ]) {
         expect(content).toContain(contract);
       }
+      expect(content).not.toContain('deb [signed-by=');
+      expect(content).not.toContain('baseurl=https://packages.githubim.com');
     }
   });
 

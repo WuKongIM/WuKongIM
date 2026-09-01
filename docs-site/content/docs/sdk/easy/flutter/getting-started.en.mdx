@@ -6,7 +6,7 @@ description: Install exactly WuKongEasySDK Flutter 1.1.0 and use contiguous Dart
 Use one `StatefulWidget` to install, initialize, listen, send a person message, and clean up in `dispose`. Alice and Bob run in two independent devices, simulators, or browser contexts.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging: the client sends Base64, while the server emits object RECV for valid JSON. Device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial uses [pub.dev 1.1.0](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0). This source-aligned tutorial is not runtime verification. Each Flutter target, WSS, and production token validation still requires independent evidence.
+  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging: the client sends Base64, while the server emits object RECV for valid JSON. Device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial uses [pub.dev 1.1.0](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0); the official example at the same revision, `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`, passed on an iOS Simulator. Every other Flutter target, WSS, and production-token path still needs independent evidence.
 </Callout>
 
 ## What you will have
@@ -15,6 +15,22 @@ Use one `StatefulWidget` to install, initialize, listen, send a person message, 
 - A screen that does not register duplicate listeners during Widget rebuilds.
 - Alice's send result and Bob's independent realtime message event.
 - Clear boundaries for logout, deduplication, tokens, WSS, and later offline behavior.
+
+## Run the official example first (recommended)
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Flutter.git
+cd WuKongEasySDK-Flutter
+git checkout 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6
+flutter pub get
+flutter analyze
+flutter test
+cd example
+flutter pub get
+flutter run -d <device-id>
+```
+
+This revision is the released `v1.1.0`. [Run the Official Examples](/en/sdk/easy/examples) covers server preparation, device addressing, and Alice/Bob acceptance.
 
 ## Before you begin
 
@@ -235,7 +251,7 @@ After `sendText('bob', 'Hello from Flutter EasySDK')`, Alice records `SendResult
 5. Have Bob send to Alice and prove the reverse direction.
 6. Destroy and reopen the page, confirm no duplicate listener remains, then verify final resource release on logout.
 
-This loop does not prove application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance).
+The released `v1.1.0` example ran against the same WuKongIM revision on an iOS Simulator and completed bidirectional messaging; all 25 tests and static analysis also passed. This does not prove Android, Web, desktop, application-background recovery, offline message synchronization, or multi-device conversation consistency. Continue with [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 

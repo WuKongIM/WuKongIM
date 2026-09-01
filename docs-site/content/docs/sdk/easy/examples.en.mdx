@@ -1,0 +1,162 @@
+---
+title: Run the Official Examples
+description: Start WuKongIM at the verified revision and run the Web, Android, iOS, and Flutter official examples through online bidirectional messaging.
+---
+
+This page is a reproducible development acceptance path. On August 31, 2026, the examples in all four official repositories connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` and completed both Alice → Bob and Bob → Alice online messaging. The server process-level JSON-RPC E2E also passed at that revision.
+
+<Callout type="warn" title="Verified source and released packages are different evidence">
+  The Web, Android, and iOS example fixes are on each repository's current `main`, ahead of the npm `2.0.3`, Maven `1.0.4`, and iOS `1.1.0` release revisions. Check out the exact source below to reproduce these results; do not attribute the source run to an older package. The verified Flutter source is the released `v1.1.0`. Production dependencies still need your reviewed, signed, and published artifact flow.
+</Callout>
+
+## Verified results
+
+| Platform | Official example source | Build and runtime | Observed result |
+| --- | --- | --- | --- |
+| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/a055b3667247333b6b3183249f5d5929673dfd53/example) | Node.js 22.12, Chrome 151, macOS | 61 tests passed, ESM/CJS builds passed, browser bidirectional messaging plus disconnect/reconnect passed |
+| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/tree/7134bbd0263fd01d9e7f71b7bd05b226f75b2292/example) | JDK 17, Gradle 8.4, Android 14 / API 34 emulator | Gradle tests and Debug build passed; bidirectional messaging, manual disconnect, and heartbeat-timeout semantics passed |
+| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/tree/40014c16c0becd390c105098d359048901f4d87c/Examples/WuKongIMExample-Unified) | Xcode 16.2, iPhone 16 / iOS 18.3 Simulator | 30 tests and Release build passed; macOS/iOS scripts passed; bidirectional message content and timestamps rendered correctly |
+| Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/tree/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6/example) (`v1.1.0`) | Flutter 3.41.4, Dart 3.11.1, iOS Simulator | 25 tests and static analysis passed; official-example bidirectional messaging passed |
+
+The server also passed its fixed process-level regression:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/message/easy_sdk_jsonrpc \
+  -count=1 -timeout 2m -p=1 -v
+```
+
+This result covers a single-node cluster, the default 256 hash slots, JSON-RPC CONNECT, Ping, SEND/SENDACK, RECV/RECVACK, online bidirectional messaging, and client cleanup. It does not cover physical devices, WSS proxies, production-token rejection, offline synchronization, push, multi-device behavior, capacity, or long-duration stability.
+
+## 1. Start the same WuKongIM revision
+
+Start a development single-node cluster in one terminal:
+
+```bash
+git clone https://github.com/WuKongIM/WuKongIM.git
+cd WuKongIM
+git checkout 5676700d2dc966fa6fc9b2f0620a6ae429adad5a
+cp wukongim.toml.example wukongim.toml
+go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+Check readiness from another terminal:
+
+```bash
+curl -fsS http://127.0.0.1:5001/readyz
+```
+
+The default development endpoints are Product HTTP at `http://127.0.0.1:5001` and the EasySDK WebSocket at `ws://127.0.0.1:5200`. Production must use protected HTTPS/WSS endpoints.
+
+## 2. Prepare Alice and Bob
+
+A trusted product backend should prepare each user's `uid`, `token`, and WebSocket URL. Only for a loopback development environment, a trusted terminal can call [`POST /user/token`](/en/api/product-http/users/setQuickstartUserToken) to create test identities. The commands below assume two native clients; change a user's `device_flag` to `1` when that user signs in through the Web example:
+
+```bash
+curl -fsS -X POST http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"alice","token":"alice-token","device_flag":0,"device_level":1}'
+
+curl -fsS -X POST http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","token":"bob-token","device_flag":0,"device_level":1}'
+```
+
+Native mobile clients use APP `0`, Web uses WEB `1`, and desktop uses PC `2`. A successful response from this endpoint does not give the default product composition production-grade CONNECT token validation. After installing a trusted validator, separately prove rejection of invalid, expired, and revoked tokens.
+
+Choose the WebSocket URL from where the client runs:
+
+| Client | Local development URL |
+| --- | --- |
+| Browser, Node.js, macOS app, iOS Simulator | `ws://127.0.0.1:5200` |
+| Android Emulator | `ws://10.0.2.2:5200` |
+| Physical phone | `ws://<development-host LAN IP>:5200`, with firewall and routing verified |
+
+## 3. Run a platform example
+
+### Web
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
+cd WuKongEasySDK-JS
+git checkout a055b3667247333b6b3183249f5d5929673dfd53
+npm ci
+npm test
+npm run build
+python3 -m http.server 8080
+```
+
+Open `http://127.0.0.1:8080/example/`. Use two isolated browser contexts for Alice and Bob. Do not print tokens or complete payloads to the Console.
+
+### Android
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
+cd WuKongEasySDK-Android
+git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
+./gradlew test :example:assembleDebug
+./gradlew :example:installDebug
+```
+
+Launch the `example` on an API 21+ device or emulator. An Android Emulator reaches the host at `ws://10.0.2.2:5200`, not `localhost`. Use two devices or emulators for two native identities, or use the browser example as the peer.
+
+### iOS and macOS
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
+cd WuKongEasySDK-iOS
+git checkout 40014c16c0becd390c105098d359048901f4d87c
+swift test
+swift build -c release
+cd Examples/WuKongIMExample-Unified
+./build.sh macos
+./build.sh ios
+```
+
+Boot an iOS Simulator, then run:
+
+```bash
+./build.sh ios --run
+```
+
+You can instead start the macOS variant with `./build.sh macos --run`. The iOS ATS cleartext exception in the example exists only for local `ws://` development; do not copy it into a production app.
+
+### Flutter
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Flutter.git
+cd WuKongEasySDK-Flutter
+git checkout 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6
+flutter pub get
+flutter analyze
+flutter test
+cd example
+flutter pub get
+flutter devices
+flutter run -d <device-id>
+```
+
+Run every target you intend to ship. An iOS Simulator result cannot stand in for Android, Web, or desktop acceptance.
+
+## 4. Complete bidirectional acceptance
+
+1. Wait for both clients to report connected before enabling send.
+2. Alice sends `{"type":1,"content":"hello bob"}` to person Channel `bob`.
+3. Alice observes SEND completion; Bob checks `fromUid`, `channelId`, `messageId`, content, and timestamp.
+4. Bob replies to person Channel `alice` to prove the reverse path.
+5. Disconnect and reconnect, checking that each transition emits once and listeners do not duplicate messages.
+6. Stop the server or cut the network. The client should enter a bounded failure or reconnect state instead of hanging in Connecting.
+7. On page or account exit, remove listeners and call the platform's `disconnect`, `dispose`, or `destroy` operation.
+
+Send success, peer realtime receipt, peer display, and product handling are four different states. Design recovery and deduplication separately with [Messaging](/en/guide/integration/messaging).
+
+## Troubleshooting
+
+- **The Android emulator cannot connect:** replace `localhost` with `10.0.2.2`; use the development host's LAN address on a physical phone.
+- **A checked-out tag behaves differently from the table:** the verified Web, Android, and iOS fixes are not in the older releases shown above. Check `git rev-parse HEAD` first.
+- **SEND succeeds but the peer sees nothing:** verify that the target Channel ID equals the peer UID, both clients are online, and the receiver did not drop RECV through duplicate listeners or incorrect deduplication.
+- **An iOS or Android build asks for a License:** accept the applicable Xcode or Android SDK Manager license and download the target runtime, then rerun the same command.
+- **A local token connects:** that is not production authentication evidence. Continue until invalid, expired, revoked, and replayed tokens are rejected by a trusted validator.
+
+## Next step
+
+Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/easy/android/getting-started), [Flutter](/en/sdk/easy/flutter/getting-started), or [Web](/en/sdk/easy/javascript/getting-started) quickstart, then use the [Release Checks](/en/guide/integration/acceptance) to close WSS, physical-device, offline, capacity, and rollback evidence.

@@ -20,10 +20,14 @@ Product Gateway now supports CONNECT-first authentication, request correlation,
 Ping, online SEND/SENDACK, RECV/RECVACK, and reconnect for the four pinned
 EasySDK wire profiles. Codec fixtures cover iOS, Android, Flutter, and Web; a
 real `cmd/wukongim` 256-slot single-node cluster E2E runs the iOS and Android
-profiles through an Alice/Bob bidirectional loop. This remains server-side wire
-evidence: no EasySDK platform artifact is compiled or executed, and offline
-sync, push, subscriptions, batches, WSS/proxy deployment, sensitive logging,
-platform lifecycle, and production token verification stay outside the receipt.
+profiles through an Alice/Bob bidirectional loop. A later cross-repository run
+then compiled, tested, and executed the official Web, Android, iOS, and Flutter
+examples against WuKongIM
+`5676700d2dc966fa6fc9b2f0620a6ae429adad5a`. Web ran in Chrome, Android on an
+API 34 emulator, and iOS plus Flutter on iOS Simulator. The exact example
+revisions are recorded below. Physical devices, WSS/proxy deployment, offline
+sync, push, subscriptions, batches, capacity, and production token validation
+remain outside that receipt.
 Logging-security fixes were later merged and released in the four official SDK
 distributions: iOS `1.1.0`, Android `1.0.4`, Flutter `1.1.0`, and Web `2.0.3`.
 They make diagnostics default-off, restrict enabled output to sanitized
@@ -40,8 +44,8 @@ After this phase, that reader can:
 2. identify the exact released package for one of the four platforms;
 3. model UID, token, and WebSocket routing material from a trusted backend;
 4. follow how the pinned public API initializes, registers listeners, connects,
-   sends, receives, and cleans up without claiming that it ran against the
-   Phase 15 server revision;
+   sends, receives, and cleans up while distinguishing the verified repository
+   example from the older released package where they differ;
 5. prepare the maintained acceptance flow with separate Alice and Bob
    identities; and
 6. identify platform-specific blockers that remain after the logging fix
@@ -52,6 +56,7 @@ After this phase, that reader can:
 Phase 15 publishes matching Chinese and English MDX for these routes:
 
 - `/sdk/easy`
+- `/sdk/easy/examples`
 - `/sdk/easy/ios/getting-started`
 - `/sdk/easy/android/getting-started`
 - `/sdk/easy/flutter/getting-started`
@@ -67,10 +72,11 @@ or widening the JavaScript/Web executable-compatibility claim.
 Phase 18 subsequently moved this group back to planned publication because the
 Product Gateway at that revision did not support EasySDK JSON-RPC CONNECT as a
 client integration path. After the bilingual content and source calibration
-were completed, the five routes were republished as source-aligned tutorials.
-The later implementation summarized above added the bounded server wire and
-real-process receipt; it did not add platform-artifact or production-readiness
-evidence.
+were completed, the five tutorial routes were republished as source-aligned
+tutorials. The later implementation added the bounded server wire and
+real-process receipt; the cross-repository run then added a sixth example
+runbook and exact repository-source execution evidence without widening it to
+older release packages, physical devices, or production readiness.
 
 ## Source snapshots
 
@@ -88,6 +94,23 @@ full provenance before the task:
 
 Install snippets pin these exact versions. They must not use `latest`, broad
 version ranges, a default branch, or a legacy package version as evidence.
+
+## Verified repository examples
+
+| Platform | Example revision | Relationship to the package snapshot |
+| --- | --- | --- |
+| iOS | `40014c16c0becd390c105098d359048901f4d87c` | Ahead of released `v1.1.0` |
+| Android | `7134bbd0263fd01d9e7f71b7bd05b226f75b2292` | Ahead of released `v1.0.4` |
+| Flutter | `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | Exactly released `v1.1.0` |
+| Web | `a055b3667247333b6b3183249f5d5929673dfd53` | Ahead of released `v2.0.3` |
+
+On 2026-08-31 these exact sources passed their maintained unit/build gates and
+completed online bidirectional messaging against the same current WuKongIM
+revision. The Web run also covered manual disconnect and reconnect, Android
+covered manual disconnect and heartbeat timeout, and the unified iOS example
+rendered message content and timestamps. The runbook must preserve the source
+versus package distinction: only Flutter's source receipt also applies to the
+listed release revision.
 
 ## Released logging fixes
 
@@ -107,16 +130,13 @@ controls; platform/log acceptance remains a separate consumer responsibility.
 ## Evidence boundary
 
 At Phase 15 the tutorials were source-aligned publication, not executable
-compatibility receipts. They proved that named APIs and examples existed in the
-recorded source snapshots. The maintained pages now add the bounded server-side
-receipt described above, but still do not prove execution of any released SDK
-package on its platform.
-
-Only the existing `wukongimjssdk@1.3.5` JavaScript/Web golden path may claim a
-client-artifact/browser execution receipt. EasySDK pages may claim four wire
-fixtures plus the iOS/Android-profile real-process E2E, but must not alter
-`compatibility.json`, the golden-path receipt schema, or Phase 14 capability
-statuses.
+compatibility receipts. The maintained pages now add both the bounded
+server-side receipt and the exact repository-example runs described above.
+They may claim only those source revisions and environments. Web, Android, and
+iOS are ahead of the package snapshots, so their receipts must not be assigned
+to npm `2.0.3`, Maven `1.0.4`, or iOS `1.1.0`; Flutter's source and release are
+the same revision. None of the runs alters `compatibility.json`, the full-SDK
+golden-path receipt schema, or Phase 14 capability statuses.
 
 ## Shared tutorial flow
 
@@ -137,9 +157,10 @@ then covers the same post-fix integration loop in native idiom:
 
 This sequence was not executable against the Product Gateway at Phase 15. The
 maintained pages now point to the implemented JSON-RPC CONNECT core path and
-clearly separate server wire/E2E evidence from platform execution and remaining
-release-specific SDK adoption blockers. Full fix provenance remains in the
-overview while each quickstart identifies its exact official distribution.
+clearly separate server wire/E2E evidence, exact repository-example execution,
+released packages, and remaining production blockers. Full fix provenance
+remains in the overview while each quickstart identifies its exact official
+distribution and verified example revision.
 
 The client never invents its own production UID or token. Browser clients do
 not call Product HTTP management endpoints directly; a trusted backend or BFF
@@ -202,14 +223,15 @@ browser BFF boundaries.
 
 The fast gate must cover:
 
-- exact bilingual publication and navigation order for all five routes;
+- exact bilingual publication and navigation order for all six routes;
 - task-first platform discovery and Quickstart labels without an unverified
   completion-time claim;
 - exact source tag, revision, and package pin per platform;
 - centralized source/fix provenance in the overview rather than repeated
   legacy history at the start of every platform page;
 - absence of floating install versions;
-- explicit source-aligned-versus-runtime-evidence language;
+- exact verified example revisions, runnable commands, and explicit
+  source-versus-release evidence boundaries;
 - trusted-backend identity and the Phase 15 post-fix Alice/Bob acceptance plan;
 - listener removal, disconnect, and lifecycle cleanup;
 - bounded connection waits with cleanup after timeout;
@@ -232,7 +254,8 @@ The fast gate must cover:
   The maintained pins record that superseding state without rewriting the
   original Phase 15 runtime-evidence boundary.
 - Claiming a production-ready or universally compatible server/SDK tuple.
-- Issuing a client-artifact/platform receipt for EasySDK.
+- Issuing a released-package, physical-device, or production receipt from the
+  narrower repository-example runs.
 - Publishing a complete API reference, migration guide, push guide, or
   platform UI architecture.
 - Moving Product HTTP management calls into an untrusted client.

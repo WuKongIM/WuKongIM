@@ -16,7 +16,15 @@ RECV/RECVACK, and reconnect for four pinned wire profiles. Codec fixtures cover
 iOS, Android, Flutter, and Web; a real `cmd/wukongim` 256-slot single-node
 cluster E2E runs the iOS and Android profiles. Batches, subscriptions, offline
 sync, push, general-purpose RPC, platform artifact execution, and production
-token verification remain outside that support boundary. In the pinned wire
+token verification remained outside that server-only support boundary. A
+later cross-repository run executed the official Web, Android, iOS, and Flutter
+examples against WuKongIM
+`5676700d2dc966fa6fc9b2f0620a6ae429adad5a`; the maintained EasySDK runbook
+records the exact client revisions and environments. Web, Android, and iOS
+source revisions are newer than their listed released packages, so only the
+Flutter `v1.1.0` run also applies to the corresponding package revision.
+Physical devices, WSS, offline behavior, capacity, and production token
+verification remain outside that newer receipt. In the pinned wire
 facts, iOS `v1.1.0` RECVACK contains both `messageId` and `messageSeq`, while the
 Android `v1.0.4` README retains the `v1.0.3` wire shape and sends already-encoded
 JSON text as a string; the current boundary accepts that JSON text form as well
@@ -26,7 +34,8 @@ as direct JSON objects and Base64. The maintained tutorials pin iOS `v1.1.0` at
 `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`, and Web `v2.0.3` at
 `d29038e52aab5bce09f643fbe4daf11547379131`. Those official packages include
 the default-off diagnostic controls and public-model/log-metadata redaction;
-publication does not add a platform-runtime or production-readiness receipt.
+publication plus the later source-example run does not add a general
+released-package or production-readiness receipt.
 
 ## Surface classification
 

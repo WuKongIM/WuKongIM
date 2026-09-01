@@ -6,7 +6,7 @@ description: 精确安装 WuKongEasySDK Android 1.0.4，用可连续复制的 Ko
 使用一个进程内单例依次完成安装、初始化、监听、单聊发送和 Activity 清理。Alice 与 Bob 需要运行在两个独立设备、模拟器或应用进程中。
 
 <Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v1.0.4` 的 JSON-RPC CONNECT 与在线双向收发，兼容 Android snake_case、驼峰字段、JSON 文本字符串、JSON 对象和 Base64 Payload。教程使用 [Maven Central 1.0.4](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) 与对应 [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4)。这是源码对齐教程，不是本站运行验证；Android 构建、真机、WSS 与生产 Token 校验仍须在你的环境验收。
+  当前 Product Gateway 支持固定 `v1.0.4` 的 JSON-RPC CONNECT 与在线双向收发，兼容 Android snake_case、驼峰字段、JSON 文本字符串、JSON 对象和 Base64 Payload。教程安装 [Maven Central 1.0.4](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4)；官方 Android example 已在源码 `7134bbd0263fd01d9e7f71b7bd05b226f75b2292` 上实测通过。该 revision 比 [v1.0.4 Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) 更新，尚未形成新 Maven 版本。
 </Callout>
 
 ## 完成后你会得到什么
@@ -15,6 +15,18 @@ description: 精确安装 WuKongEasySDK Android 1.0.4，用可连续复制的 Ko
 - 一个按正确顺序初始化和注册监听器的 Kotlin 页面；
 - 一套 Alice 发送结果与 Bob 实时接收的双端验收骨架；
 - 对单例身份切换、字段兼容、Token 与生产安全的明确阻断项。
+
+## 先运行官方 example（推荐）
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
+cd WuKongEasySDK-Android
+git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
+./gradlew test :example:assembleDebug
+./gradlew :example:installDebug
+```
+
+Android Emulator 填写 `ws://10.0.2.2:5200`，不能填写 `localhost`。完整的服务端准备与 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。这份源码运行凭据不等于 Maven `1.0.4` 发布包凭据。
 
 ## 开始前
 
@@ -235,7 +247,7 @@ fun sendText(targetUid: String, text: String) {
 5. Bob 向 Alice 回发，验证反向链路；
 6. 重建 Activity，确认监听器没有重复；退出应用时确认连接已关闭。
 
-当前服务端已用 Android `v1.0.4` 的 snake_case 字段与 README 对齐的 JSON 文本字符串 SEND Payload 覆盖该闭环。仍应保留服务端 revision、Android tag、设备与网络环境，不要用盲目重试掩盖失败；日志脱敏、离线恢复与生产安全需要另外验收。
+上述精确源码已在 Android 14 / API 34 模拟器连接同一版 WuKongIM，完成双向消息、手动断开和心跳超时验证。仍应保留服务端 revision、SDK revision、设备与网络环境，不要把结果归给旧 Maven `1.0.4` 产物，也不要用盲目重试掩盖失败；物理真机、日志脱敏、离线恢复与生产安全需要另外验收。
 
 ## 常见问题
 

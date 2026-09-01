@@ -6,7 +6,7 @@ description: Install exactly easyjssdk 2.0.3 and use a product BFF plus contiguo
 The browser asks the product BFF for the current user's connection material, then EasyJSSDK establishes a WebSocket JSON-RPC connection. The client holds no Product HTTP management credential, and Alice and Bob accept the path in two isolated browser contexts.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v2.0.3` JSON-RPC CONNECT and online bidirectional messaging, including requests without `jsonrpc`, Base64 SEND, and object RECV. Browsers default to WEB `1`; the full wire set is APP `0`, WEB `1`, and PC `2`. The tutorial uses [npm 2.0.3](https://www.npmjs.com/package/easyjssdk/v/2.0.3) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3). This source-aligned tutorial is not runtime verification. Your environment still owns the browser artifact, WSS, BFF, and production token evidence.
+  The current Product Gateway supports pinned `v2.0.3` JSON-RPC CONNECT and online bidirectional messaging, including requests without `jsonrpc`, Base64 SEND, and object RECV. Browsers default to WEB `1`; the full wire set is APP `0`, WEB `1`, and PC `2`. The tutorial installs [npm 2.0.3](https://www.npmjs.com/package/easyjssdk/v/2.0.3); the official browser example passed at source revision `a055b3667247333b6b3183249f5d5929673dfd53`. That revision is ahead of the [v2.0.3 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) and has not shipped as a new npm version, so the two evidence classes must not be combined.
 </Callout>
 
 ## What you will have
@@ -15,6 +15,22 @@ The browser asks the product BFF for the current user's connection material, the
 - A browser client that consumes only a minimal product-BFF response.
 - Event callbacks that can be removed precisely with `off`, plus page-exit cleanup.
 - Two independent observations: Alice's send result and Bob's realtime receive.
+
+## Run the official example first (recommended)
+
+Check out the exact source to reproduce the verified path:
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
+cd WuKongEasySDK-JS
+git checkout a055b3667247333b6b3183249f5d5929673dfd53
+npm ci
+npm test
+npm run build
+python3 -m http.server 8080
+```
+
+Open `http://127.0.0.1:8080/example/`. [Run the Official Examples](/en/sdk/easy/examples) covers WuKongIM startup, Alice/Bob preparation, and endpoint mapping. A source-run receipt is not an npm `2.0.3` package receipt.
 
 ## Before you begin
 
@@ -181,7 +197,7 @@ Alice's resolved Promise means the send request received a server result. Bob mu
 6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
 7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
 
-This loop does not cover offline synchronization. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
+That exact source ran against the same WuKongIM revision in Chrome 151 and completed bidirectional messaging, manual disconnect, and reconnect. The loop does not cover the npm `2.0.3` artifact, offline synchronization, or production WSS. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
 
 ## Troubleshooting
 

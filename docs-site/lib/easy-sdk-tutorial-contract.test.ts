@@ -17,6 +17,7 @@ const platforms = [
     repository: 'WuKongEasySDK-iOS',
     tag: 'v1.1.0',
     revision: '683c1519bfa19fd91a15ae092733e1efb1e75d5d',
+    exampleRevision: '40014c16c0becd390c105098d359048901f4d87c',
     fixRevision: 'b7ec4440b940539bee213f95a3be74948f4b9fb8',
     fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-iOS/pull/3',
     release: 'https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0',
@@ -31,6 +32,7 @@ const platforms = [
     repository: 'WuKongEasySDK-Android',
     tag: 'v1.0.4',
     revision: '2ab2199a3eb91e6966c6a5d9b6098563e58e3203',
+    exampleRevision: '7134bbd0263fd01d9e7f71b7bd05b226f75b2292',
     fixRevision: 'e984c7374a0e11f5d109ad3dbfdea599907735ff',
     fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-Android/pull/3',
     release: 'https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4',
@@ -51,6 +53,7 @@ const platforms = [
     repository: 'WuKongEasySDK-Flutter',
     tag: 'v1.1.0',
     revision: '98ab8f3d9a1ad53f40c32caef0979845a37ae9a6',
+    exampleRevision: '98ab8f3d9a1ad53f40c32caef0979845a37ae9a6',
     fixRevision: 'd7758c301e5289ddfa09cd09b6976c2479584b1c',
     fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-Flutter/pull/3',
     release: 'https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0',
@@ -71,6 +74,7 @@ const platforms = [
     repository: 'WuKongEasySDK-JS',
     tag: 'v2.0.3',
     revision: 'd29038e52aab5bce09f643fbe4daf11547379131',
+    exampleRevision: 'a055b3667247333b6b3183249f5d5929673dfd53',
     fixRevision: '3ebf505734c5b6764b30eac011f0b7a5024c89e8',
     fixPullRequest: 'https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6',
     release: 'https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3',
@@ -93,10 +97,14 @@ describe('EasySDK tutorial content contract', () => {
       expect(specification).toContain(platform.revision);
       expect(specification).toContain(platform.fixRevision);
     }
-    expect(specification).toContain('republished as source-aligned tutorials');
+    expect(specification).toMatch(/republished as source-aligned\s+tutorials/u);
     expect(specification).toContain('Superseding current state');
     expect(specification).toContain('Codec fixtures cover iOS, Android, Flutter, and Web');
     expect(specification).toContain('E2E runs the iOS and Android');
+    expect(specification).toContain('cross-repository run');
+    for (const platform of platforms) {
+      expect(specification).toContain(platform.exampleRevision);
+    }
     expect(specification).not.toContain('not currently executable');
   });
 
@@ -116,14 +124,16 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).toContain(platform.fixPullRequest);
         expect(page).toContain(platform.release);
         expect(page).toContain(platform.distribution);
+        expect(page).toContain(platform.exampleRevision);
       }
+      expect(page).toContain(`/${locale}/sdk/easy/examples`);
       expect(page).toContain(`/${locale}/guide/integration/authentication`);
       expect(page).toContain(`/${locale}/guide/integration/messaging`);
       expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/u);
     }
 
-    expect(zh).toContain('服务端线协议凭据不等于平台运行验证');
-    expect(en).toContain('A server-side wire receipt is not platform runtime verification');
+    expect(zh).toContain('四端官方 example 已跑通');
+    expect(en).toContain('All four official examples have run successfully');
     expect(zh).toContain('## 选择平台，发送第一条消息');
     expect(en).toContain('## Choose a platform and send the first message');
     expect(zh).toContain('## Alice 与 Bob 验收闭环');
@@ -152,8 +162,10 @@ describe('EasySDK tutorial content contract', () => {
       expect(en).toContain(`https://wukong.mintlify.app/en/sdk/easy/${platform.path}`);
       expect(platformZh).not.toContain('wukong.mintlify.app');
       expect(platformEn).not.toContain('wukong.mintlify.app');
-      expect(platformZh).not.toContain(platform.revision);
-      expect(platformEn).not.toContain(platform.revision);
+      if (platform.exampleRevision !== platform.revision) {
+        expect(platformZh).not.toContain(platform.revision);
+        expect(platformEn).not.toContain(platform.revision);
+      }
       expect(platformZh).not.toContain(platform.fixPullRequest);
       expect(platformEn).not.toContain(platform.fixPullRequest);
     }
@@ -175,17 +187,27 @@ describe('EasySDK tutorial content contract', () => {
     expect(sdkEn).toContain('/en/sdk/wukongim');
   });
 
-  test('separates four-profile fixtures from the iOS/Android real-process E2E', async () => {
-    const pages = await Promise.all([
-      content('index.mdx'),
-      content('index.en.mdx'),
+  test('separates server profile E2E, source example runs, and released packages', async () => {
+    const protocolPages = await Promise.all([
       doc('api/client-protocols/json-rpc.mdx'),
       doc('api/client-protocols/json-rpc.en.mdx'),
     ]);
 
-    for (const page of pages) {
+    for (const page of protocolPages) {
       expect(page).toMatch(/四端|四个固定|all four|four pinned|iOS `v1\.1\.0`/u);
       expect(page).toMatch(/iOS 与 Android profile|iOS and Android profiles/u);
+    }
+
+    const [examplesZh, examplesEn] = await Promise.all([
+      content('examples.mdx'),
+      content('examples.en.mdx'),
+    ]);
+    for (const page of [examplesZh, examplesEn]) {
+      expect(page).toContain('5676700d2dc966fa6fc9b2f0620a6ae429adad5a');
+      for (const platform of platforms) expect(page).toContain(platform.exampleRevision);
+      expect(page).toMatch(/发布包|released packages/u);
+      expect(page).toMatch(/物理真机|physical devices/u);
+      expect(page).toMatch(/生产 Token|production-token|production token/u);
     }
   });
 
@@ -215,13 +237,36 @@ describe('EasySDK tutorial content contract', () => {
         expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/u);
       }
 
-      expect(zh).toContain('不是本站运行验证');
-      expect(en).toContain('not runtime verification');
+      expect(zh).toContain(platform.exampleRevision);
+      expect(en).toContain(platform.exampleRevision);
+      expect(zh).toContain('/zh/sdk/easy/examples');
+      expect(en).toContain('/en/sdk/easy/examples');
       expect(zh).toMatch(/Alice/u);
       expect(zh).toMatch(/Bob/u);
       expect(en).toMatch(/Alice/u);
       expect(en).toMatch(/Bob/u);
     }
+  });
+
+  test('publishes a bilingual runnable example runbook', async () => {
+    const [zh, en] = await Promise.all([content('examples.mdx'), content('examples.en.mdx')]);
+
+    for (const page of [zh, en]) {
+      expect(page).toContain('go run ./cmd/wukongim -config ./wukongim.toml');
+      expect(page).toContain('GOWORK=off go test -tags=e2e');
+      expect(page).toContain('ws://127.0.0.1:5200');
+      expect(page).toContain('ws://10.0.2.2:5200');
+      expect(page).toContain('npm test');
+      expect(page).toContain('./gradlew test :example:assembleDebug');
+      expect(page).toContain('swift test');
+      expect(page).toContain('flutter test');
+      for (const platform of platforms) expect(page).toContain(platform.exampleRevision);
+    }
+
+    expect(zh).toContain('/zh/guide/integration/messaging');
+    expect(en).toContain('/en/guide/integration/messaging');
+    expect(zh).toContain('已验证源码与正式发布包不是同一件事');
+    expect(en).toContain('Verified source and released packages are different evidence');
   });
 
   test('tells direct readers that current Product Gateway supports the pinned EasySDK core path', async () => {

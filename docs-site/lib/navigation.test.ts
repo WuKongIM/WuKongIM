@@ -221,7 +221,7 @@ describe('documentation navigation contract', () => {
     ).toBe('published');
   });
 
-  test('publishes source-aligned EasySDK tutorials with a bounded server wire receipt', () => {
+  test('publishes EasySDK tutorials and the verified source-example runbook', () => {
     const sdk = domains.find((domain) => domain.key === 'sdk');
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
@@ -234,23 +234,28 @@ describe('documentation navigation contract', () => {
 
     expect(easy?.status).toBe('published');
     expect(easy?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['examples', 'published'],
       ['ios/getting-started', 'published'],
       ['android/getting-started', 'published'],
       ['flutter/getting-started', 'published'],
       ['javascript/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
+      if (page.slug === 'examples') {
+        expect(page.description.zh).toContain('已验证 revision');
+        expect(page.description.en).toContain('same WuKongIM revision');
+        continue;
+      }
       const snapshot = snapshots.get(page.slug);
       expect(snapshot).toBeDefined();
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
-      expect(page.description.zh).toContain('JSON-RPC CONNECT');
-      expect(page.description.en).toContain('JSON-RPC CONNECT');
     }
-    expect(easy?.description.zh).toContain('服务端线协议');
-    expect(easy?.description.en).toContain('server-side wire');
+    expect(easy?.description.zh).toContain('正式发布包与源码运行凭据保持分离');
+    expect(easy?.description.en).toContain('package and source-run evidence separate');
     for (const url of [
       '/en/sdk/easy',
+      '/en/sdk/easy/examples',
       '/en/sdk/easy/ios/getting-started',
       '/en/sdk/easy/android/getting-started',
       '/en/sdk/easy/flutter/getting-started',
@@ -531,6 +536,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/harmonyos/api-reference`,
         `/${locale}/sdk/wukongim/upgrade`,
         `/${locale}/sdk/easy`,
+        `/${locale}/sdk/easy/examples`,
         `/${locale}/sdk/easy/ios/getting-started`,
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/flutter/getting-started`,
@@ -828,6 +834,8 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('sdk/choose-sdk.en.mdx')).toBe(false);
     expect(isPublishedContentPath('sdk/easy/index.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/examples.mdx')).toBe(true);
+    expect(isPublishedContentPath('sdk/easy/examples.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/ios/getting-started.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/ios/getting-started.en.mdx')).toBe(true);
     expect(isPublishedContentPath('sdk/easy/android/getting-started.mdx')).toBe(true);

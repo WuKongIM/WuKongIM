@@ -6,7 +6,7 @@ description: Install exactly WuKongEasySDK iOS 1.1.0 and use contiguous Swift co
 Use one application-owned client to install, connect, listen, send a person message, and clean up. The product backend supplies connection material first; Alice and Bob then prove online messaging in two independent app processes.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging, including object and Base64 payloads; camelCase RECVACK carries both `messageId` and `messageSeq`, and device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial uses [CocoaPods 1.1.0](https://cocoapods.org/pods/WuKongEasySDK) and its matching [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0). This source-aligned tutorial is not runtime verification. Your environment still owns the iOS build, physical-device run, WSS, and production token evidence.
+  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging, including object and Base64 payloads; camelCase RECVACK carries both `messageId` and `messageSeq`, and device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial installs [CocoaPods 1.1.0](https://cocoapods.org/pods/WuKongEasySDK); the unified iOS/macOS example passed at source revision `40014c16c0becd390c105098d359048901f4d87c`. That revision is ahead of the [v1.1.0 Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) and has not shipped as a new release.
 </Callout>
 
 ## What you will have
@@ -15,6 +15,21 @@ Use one application-owned client to install, connect, listen, send a person mess
 - One application-level client object that owns initialization, listeners, connection, and logout.
 - A two-client acceptance scaffold for Alice's send result and Bob's realtime message event.
 - Explicit follow-up work for tokens, WSS, offline recovery, and production acceptance.
+
+## Run the official example first (recommended)
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
+cd WuKongEasySDK-iOS
+git checkout 40014c16c0becd390c105098d359048901f4d87c
+swift test
+swift build -c release
+cd Examples/WuKongIMExample-Unified
+./build.sh macos
+./build.sh ios
+```
+
+After booting an iOS Simulator, run `./build.sh ios --run`; use `./build.sh macos --run` for macOS. [Run the Official Examples](/en/sdk/easy/examples) covers server preparation and Alice/Bob acceptance. This source-run receipt is not an iOS `1.1.0` package receipt.
 
 ## Before you begin
 
@@ -193,7 +208,7 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 5. Send from Bob to Alice and prove the reverse direction.
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
 
-The current server covers SEND and RECV payloads with this pinned wire profile. Retain the server revision, iOS tag, device, and network evidence from your own run; this still covers only the online loop. Include network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
+That exact source ran against the same WuKongIM revision on an iPhone 16 / iOS 18.3 Simulator, completed bidirectional messaging, and rendered content and timestamps correctly. Retain the server and SDK revisions, device, and network evidence; do not attribute the result to the older iOS `1.1.0` artifact. Include physical-device execution, network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
