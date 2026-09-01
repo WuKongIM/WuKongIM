@@ -31,6 +31,7 @@ var workflowCatalog = map[string]string{
 	"cloud-sim-oidc-subject.yml":               "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":                  "Agent Tool - Provision Cloud Simulation",
 	"docker-image-publish.yml":                 "Safety Automation - Publish Docker Images",
+	"docs-pages.yml":                           "Safety Automation - Publish Documentation to GitHub Pages",
 	"easysdk-release-acceptance.yml":           "Safety Automation - EasySDK Released Package Acceptance",
 	"issue-agent-engineer.yml":                 "Agent Tool - Issue Engineer",
 	"issue-agent-pr-signal.yml":                "Safety Automation - Issue Agent PR Signal",
@@ -108,6 +109,30 @@ func TestGitHubWorkflowExternalActionsUseFullCommitPins(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestDocsPagesWorkflowPublishesOnlyVerifiedStaticExport(t *testing.T) {
+	raw := readFile(
+		t,
+		filepath.Join(repoRoot(t), ".github", "workflows", "docs-pages.yml"),
+	)
+	for _, want := range []string{
+		"bun install --frozen-lockfile",
+		"bun run verify",
+		"DOCS_SITE_URL: https://docs.githubim.com",
+		"test \"$(cat docs-site/out/CNAME)\" = \"docs.githubim.com\"",
+		"test -f docs-site/out/.nojekyll",
+		"path: docs-site/out",
+		"include-hidden-files: true",
+		"name: github-pages",
+		"pages: write",
+		"id-token: write",
+	} {
+		require.Contains(t, raw, want)
+	}
+	require.NotContains(t, raw, "pull_request_target:")
+	require.NotContains(t, raw, "secrets.")
+	require.NotContains(t, raw, "enablement:")
 }
 
 func TestEasySDKAndroidEmulatorScriptHasIndependentCommands(t *testing.T) {

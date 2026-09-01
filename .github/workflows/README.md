@@ -41,7 +41,23 @@ authorization and the applicable budget.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
+| `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies the bilingual static documentation export and deploys that exact artifact to GitHub Pages |
 | `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS archives plus unsigned Linux amd64 DEB/RPM assets and publishes the exact set to the tag's GitHub Release |
+
+## Documentation Pages
+
+`docs-pages.yml` is the sole documentation publisher. A merge to `main` that
+changes `docs-site/**` starts it automatically; `workflow_dispatch` is reserved
+for first publication and recovery. The build job has read-only repository
+access, installs the locked Bun dependencies, runs `bun run verify`, and uploads
+only the resulting `docs-site/out` directory. The deploy job receives only the
+Pages and OIDC permissions required by GitHub's deployment API.
+
+The repository Pages source must remain `workflow`, and the `github-pages`
+Environment is the production boundary. The artifact carries `CNAME` for
+`docs.githubim.com` and `.nojekyll`; Alibaba Cloud DNS must point the `docs`
+subdomain directly to `wukongim.github.io`. DNS changes and organization-level
+domain verification remain administrator operations outside the Workflow.
 
 ## Native package preview
 
