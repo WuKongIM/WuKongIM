@@ -3,8 +3,12 @@
 package scripts_test
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,6 +82,7 @@ func TestDockerImageRuntimeContract(t *testing.T) {
 		"--mount", "type=bind,src="+configPath+",dst=/etc/wukongim/wukongim.toml,readonly",
 		"--mount", "type=volume,src="+volume+",dst=/var/lib/wukongim",
 		"--tmpfs", "/run/wukongim:rw,noexec,nosuid,uid=10001,gid=10001,mode=0750,size=16m",
+		"--publish", "127.0.0.1::5301",
 		image,
 	)
 	t.Cleanup(func() {
@@ -105,6 +110,7 @@ func TestDockerImageRuntimeContract(t *testing.T) {
 		`test -S /run/wukongim/plugin.sock`,
 		`wget -q --spider -T 5 http://127.0.0.1:5001/readyz`,
 	}, " && "))
+	requireDockerBackupPlanTimeZone(t, root, container)
 
 	runDockerContract(t, root, "stop", "--time", "30", container)
 	exitCode := strings.TrimSpace(runDockerContract(t, root, "inspect", container, "--format", "{{.State.ExitCode}}"))
@@ -112,6 +118,82 @@ func TestDockerImageRuntimeContract(t *testing.T) {
 		logs := runDockerContract(t, root, "logs", "--tail", "100", container)
 		t.Fatalf("container exit code = %s, want 0\n%s", exitCode, logs)
 	}
+}
+
+func requireDockerBackupPlanTimeZone(t *testing.T, root, container string) {
+	t.Helper()
+	managerAddr := strings.TrimSpace(runDockerContract(
+		t, root, "port", container, "5301/tcp",
+	))
+	if managerAddr == "" {
+		t.Fatal("Docker Manager port mapping is empty")
+	}
+	baseURL := "http://" + managerAddr
+
+	loginBody := dockerContractJSONRequest(t, http.MethodPost,
+		baseURL+"/manager/login", "", map[string]any{
+			"username": "admin", "password": "docker-image-contract-password",
+		})
+	var login struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginBody, &login); err != nil {
+		t.Fatalf("decode Docker Manager login response: %v", err)
+	}
+	if strings.TrimSpace(login.AccessToken) == "" {
+		t.Fatal("Docker Manager login returned an empty access token")
+	}
+
+	dockerContractJSONRequest(t, http.MethodPut,
+		baseURL+"/manager/backups/plan", login.AccessToken, map[string]any{
+			"expected_revision":   0,
+			"enabled":             false,
+			"store":               map[string]any{"kind": "file"},
+			"cron":                "0 1 * * *",
+			"time_zone":           "Asia/Shanghai",
+			"retention_count":     7,
+			"rate_mib_per_second": 64,
+			"workers_per_node":    4,
+			"max_duration_hours":  12,
+		})
+}
+
+func dockerContractJSONRequest(
+	t *testing.T,
+	method, url, token string,
+	body any,
+) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("encode Docker contract request: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatalf("create Docker contract request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Docker contract request %s %s: %v", method, url, err)
+	}
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		t.Fatalf("read Docker contract response %s %s: %v", method, url, err)
+	}
+	if resp.StatusCode/100 != 2 {
+		t.Fatalf(
+			"Docker contract request %s %s returned %d: %s",
+			method, url, resp.StatusCode, strings.TrimSpace(string(responseBody)),
+		)
+	}
+	return responseBody
 }
 
 func runDockerContract(t *testing.T, dir string, args ...string) string {

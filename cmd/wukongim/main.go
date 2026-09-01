@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // Keep configured IANA time zones available in minimal runtime images.
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
 )
