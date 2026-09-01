@@ -1,37 +1,47 @@
 ---
 title: Product Overview
-description: Understand WuKongIM's position, responsibility boundaries, and deployment model.
+description: Quickly decide what WuKongIM is, which products it fits, and what your application still owns.
 ---
 
-WuKongIM is distributed communication infrastructure for instant messaging and real-time interaction. Applications publish messages to personal, group, or custom channels; WuKongIM handles client access, per-channel ordering, persistence, replication, synchronization, presence, and online delivery.
+WuKongIM is open-source, self-hosted real-time messaging infrastructure. It lets applications provide chat, notifications, and multi-device message synchronization on their own infrastructure, and is designed for large-scale connection and messaging workloads.
 
 <Callout type="warn" title="v3 Beta">
-  WuKongIM v3 is still in beta. APIs, configuration, and durable formats may change before the stable release. Validate it with your real workload before production use.
+  WuKongIM v3 is still in beta. APIs, configuration, and storage formats may change before the stable release. Before production use, review [Upgrade & Migration](/en/server/operations/upgrade-and-migration) and the [Production Checklist](/en/server/deployment/production-checklist).
 </Callout>
 
-## What it provides
+## The problem it solves
 
-| Area | WuKongIM capability |
+A real-time messaging product needs more than a way to send data. It must manage many long-lived connections, per-channel message order, persistence, reconnect recovery, and multi-device state. WuKongIM provides these capabilities in one self-hosted cluster so that application teams can focus on their product and business rules.
+
+An application or business service sends messages to a channel. A channel can represent a person, group, or product-specific topic. WuKongIM stores and synchronizes the messages, delivers them to online devices, and lets offline or reconnecting devices catch up later.
+
+## Responsibility boundaries
+
+| Participant | Primary responsibility |
 | --- | --- |
-| Client access | TCP WKProto, WebSocket multiplexing, connection authentication, and bounded asynchronous dispatch |
-| Messaging | Ordered append, persistence, and synchronization for personal, group, and custom channels |
-| State | Multi-device sessions, presence, recent conversations, read cursors, and unread state |
-| Clustering | Controller, Slot, Channel, replication, failover, and unified routing |
-| Operations | Readiness, Prometheus metrics, diagnostics, Manager, and command-line tools |
+| WuKongIM | Client connections, per-channel message order, persistence and replication, online delivery, offline recovery, and multi-device synchronization |
+| Application backend | Accounts, credentials, friend or group relationships, product authorization, content governance, mobile push, and business data |
+| Client SDK | Connection lifecycle, local message state, presentation, and user interaction |
 
-## What it does not replace
+## What it is not
 
-WuKongIM does not replace your account system, product authorization rules, content moderation, business database, or analytics platform. A production integration normally uses a business service to issue user credentials, maintain business relationships, and coordinate with WuKongIM through server APIs, webhooks, or SDKs.
+- It is not a chat application with a user interface and complete product workflows.
+- It does not replace the application backend or decide who may send which messages.
+- It is not a general queue for offline jobs, global transactions, or long-term analytics.
+
+## Is it a fit?
+
+WuKongIM is worth evaluating when a product needs many online users or devices, per-channel ordering, reconnect recovery, durable history, or multi-device synchronization. Chat, notifications, and customer service are the most direct fits; live interaction, IoT, and AI messaging workflows can use the same foundation.
+
+If the requirement is only low-frequency background work, offline batch processing, or analytical queries, a task queue, stream processor, or analytical database is usually a better fit.
 
 ## One deployment model
 
-Every deployment is a cluster. With one node, it is a **single-node cluster** that still follows the complete Controller, Slot, Channel, routing, and storage paths. There is no standalone mode that bypasses cluster semantics.
+Every WuKongIM deployment is a cluster. With one node, it is a **single-node cluster** that follows the same cluster paths as a multi-node deployment; there is no standalone mode that bypasses cluster semantics. Effective capacity depends on hardware, storage, replicas, channel distribution, and workload, so validate it with a representative scenario.
 
 <Cards>
-  <Card title="What is WuKongIM?" description="Explore the channel model, responsibility boundaries, and use cases." href="/en/guide/product-overview/what-is-wukongim" />
-  <Card title="Core Capabilities" description="Review current access, messaging, cluster, state, extension, and operations capabilities." href="/en/guide/product-overview/capabilities" />
-  <Card title="Use Cases" description="Choose an integration shape for chat, notifications, support, live interaction, IoT, and AI." href="/en/guide/product-overview/use-cases" />
-  <Card title="Quick Start" description="Start a single-node cluster and send the first message." href="/en/guide/quick-start" />
-  <Card title="Core Concepts" description="Learn clusters, channels, messages, users, devices, and conversations." href="/en/guide/core-concepts" />
-  <Card title="Server" description="Open deployment, configuration, operations, and architecture documentation." href="/en/server" />
+  <Card title="Try it" description="Start a single-node cluster and send the first message." href="/en/guide/quick-start" />
+  <Card title="Core Capabilities" description="Review real-time access, reliable messaging, multi-device synchronization, clustering, and operations." href="/en/guide/product-overview/capabilities" />
+  <Card title="Use Cases" description="Map chat, notifications, customer service, and extended scenarios to clear responsibility boundaries." href="/en/guide/product-overview/use-cases" />
+  <Card title="Integration" description="Connect WuKongIM to an existing application system." href="/en/guide/integration" />
 </Cards>

@@ -1,37 +1,47 @@
 ---
 title: 产品概览
-description: 建立 WuKongIM 的定位、职责边界和部署模型。
+description: 快速判断 WuKongIM 是什么、适合哪些产品，以及业务系统仍需负责什么。
 ---
 
-WuKongIM 是面向即时通讯与实时交互场景的分布式通信基础设施。应用把消息发送到个人、群组或自定义频道；WuKongIM 负责连接接入、频道内顺序、持久化、复制、同步、在线状态和在线投递。
+WuKongIM 是开源、自托管的实时消息基础设施，让应用能够在自己的基础设施上提供聊天、通知和多设备消息同步，并面向大规模连接与消息负载设计。
 
 <Callout type="warn" title="v3 Beta">
-  WuKongIM v3 仍处于 Beta 阶段。API、配置和持久化格式在稳定版之前仍可能调整，生产使用前必须结合真实负载完成验证。
+  WuKongIM v3 仍处于 Beta 阶段，API、配置和持久化格式在稳定版前可能变化。生产使用前请阅读[升级与迁移](/zh/server/operations/upgrade-and-migration)和[生产检查清单](/zh/server/deployment/production-checklist)。
 </Callout>
 
 ## 它解决什么问题
 
-| 领域 | WuKongIM 提供的能力 |
+实时消息产品不只需要“把数据发出去”，还要管理大量长连接、频道内消息顺序、持久化、断线补偿和多设备状态。WuKongIM 把这些能力放进一个可自托管的集群，让应用团队专注于自己的产品和业务规则。
+
+应用或业务服务把消息发到一个频道。这个频道可以代表个人、群组或业务自定义主题；WuKongIM 负责保存并同步消息，在线设备实时接收，离线或重连设备随后补齐。
+
+## 职责边界
+
+| 参与方 | 主要负责 |
 | --- | --- |
-| 客户端接入 | TCP WKProto、WebSocket 多路复用、连接鉴权和有界异步分发 |
-| 消息 | 个人、群组和自定义频道内的有序追加、持久化与同步 |
-| 状态 | 多设备会话、在线状态、最近会话、已读游标和未读状态 |
-| 集群 | Controller、Slot、Channel、复制、故障转移和统一路由 |
-| 运维 | 就绪检查、Prometheus 指标、诊断、Manager 和命令行工具 |
+| WuKongIM | 客户端连接、频道内消息顺序、持久化与复制、在线投递、离线与多设备同步 |
+| 业务系统 | 账号、身份凭据、好友或群关系、产品权限、内容治理、移动推送和业务数据 |
+| 客户端 SDK | 连接生命周期、本地消息状态、界面展示和用户交互 |
 
-## 它不替代什么
+## 它不是什么
 
-WuKongIM 不替代你的业务账号系统、产品权限模型、内容审核、业务数据库或数据分析平台。生产集成通常由业务服务签发用户凭据、维护业务关系，并通过服务端 API、Webhook 或 SDK 与 WuKongIM 协作。
+- 它不是带界面和完整业务流程的聊天应用。
+- 它不替代业务后端，也不决定谁可以发送什么消息。
+- 它不是为离线任务、全局事务队列或长期分析设计的通用消息队列。
+
+## 是否适合你的产品
+
+如果产品需要大量在线用户或设备、频道内有序消息、断线恢复、持久记录或多设备同步，WuKongIM 值得评估。聊天、通知和客服是最直接的场景；直播互动、IoT 和 AI 消息工作流也可以建立在同一套消息能力上。
+
+如果需求只是低频后台任务、离线批处理或分析查询，任务队列、流处理或分析数据库通常更合适。
 
 ## 统一部署模型
 
-每个部署都是集群。只有一个节点时，它是**单节点集群**，仍然经过 Controller、Slot、Channel、路由和存储等完整集群路径；不存在绕过集群语义的独立模式。
+每个 WuKongIM 部署都是集群。只有一个节点时，它是**单节点集群**，仍使用与多节点相同的集群路径；不存在绕过集群语义的独立模式。实际容量取决于硬件、存储、副本、频道分布和业务负载，必须使用真实场景验证。
 
 <Cards>
-  <Card title="WuKongIM 是什么" description="进一步了解频道模型、职责边界和适用场景。" href="/zh/guide/product-overview/what-is-wukongim" />
-  <Card title="核心能力" description="查看当前接入、消息、集群、状态、扩展和运维能力。" href="/zh/guide/product-overview/capabilities" />
-  <Card title="适用场景" description="为聊天、通知、客服、直播、IoT 和 AI 选择集成模式。" href="/zh/guide/product-overview/use-cases" />
-  <Card title="快速开始" description="启动单节点集群并发送第一条消息。" href="/zh/guide/quick-start" />
-  <Card title="核心概念" description="理解集群、频道、消息、用户、设备和会话。" href="/zh/guide/core-concepts" />
-  <Card title="服务端" description="进入部署、配置、运维和架构文档。" href="/zh/server" />
+  <Card title="快速验证" description="启动单节点集群并发送第一条消息。" href="/zh/guide/quick-start" />
+  <Card title="核心能力" description="了解实时接入、可靠消息、多设备同步、集群和运维能力。" href="/zh/guide/product-overview/capabilities" />
+  <Card title="适用场景" description="把聊天、通知、客服及扩展场景映射到正确的职责边界。" href="/zh/guide/product-overview/use-cases" />
+  <Card title="集成指南" description="把 WuKongIM 接入现有业务系统。" href="/zh/guide/integration" />
 </Cards>

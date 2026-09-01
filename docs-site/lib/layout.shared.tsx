@@ -81,18 +81,13 @@ export function baseOptions(locale: Locale): BaseLayoutProps {
             external: true,
           },
           {
-            text: locale === 'zh' ? '官网' : 'Website',
-            url: 'https://githubim.com',
-            external: true,
-          },
-          {
             text: locale === 'zh' ? '聊天演示' : 'Chat Demo',
-            url: 'https://imdemo.githubim.com',
+            url: 'http://imdemo.githubim.com',
             external: true,
           },
           {
             text: locale === 'zh' ? 'Manager 演示' : 'Manager Demo',
-            url: 'https://monitor.githubim.com/web/',
+            url: 'http://monitor.githubim.com/web/',
             external: true,
           },
           {

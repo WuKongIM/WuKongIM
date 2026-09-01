@@ -1,62 +1,36 @@
 ---
 title: 部署
-description: 先确定集群目标和运行介质，再按统一门槛验证 WuKongIM 部署。
+description: 选择最短的 WuKongIM 部署路径，并在上线前完成必要验证。
 ---
 
-从两个问题开始：**是否接受单点故障？谁负责运行节点？** 前者决定拓扑，后者决定 Docker、Linux 或 Kubernetes。运行介质不会自动带来高可用。
+部署只需要先做一个决定：**是否接受单点故障？** 如果不确定运行介质，从 Docker 开始。
 
 <Callout type="warn" title="每个部署都是集群">
-  单节点部署是单节点集群，仍然经过 Controller、Slot、Channel、路由和存储路径。不存在绕过集群语义的独立模式。
+  单节点部署是单节点集群，仍然经过 Controller、Slot、Channel、路由和存储路径，不存在绕过集群语义的独立模式。
 </Callout>
 
-只想先体验 WuKongIM？使用[快速开始](/zh/guide/quick-start)。部署章节面向需要持久化、可观测、可重复发布的环境。
+## 选择路径
 
-## 1. 选择拓扑
+| 你的目标 | 从这里开始 |
+| --- | --- |
+| 先在本机运行并验证消息链路 | [快速开始](/zh/guide/quick-start) |
+| 使用最短的可重复部署路径 | [Docker 部署](/zh/server/deployment/docker)（推荐） |
+| 直接管理主机、文件和 systemd | [Linux 部署](/zh/server/deployment/linux) |
+| 跨节点复制并规划故障恢复 | 先阅读[多节点集群](/zh/server/deployment/multi-node)，再选择 Docker 或 Linux |
+| 准备接入生产流量 | 完成[生产检查清单](/zh/server/deployment/production-checklist) |
 
-| 目标 | 拓扑 | 下一步 |
-| --- | --- | --- |
-| 开发、验证或明确接受单点故障 | 单节点集群 | 选择 Docker 或 Linux |
-| 跨节点复制和故障处理 | 多节点集群 | 先完成[多节点设计](/zh/server/deployment/multi-node) |
+单节点集群适合开发、验证，以及明确接受节点或磁盘故障会中断服务的小规模生产。需要节点故障后继续服务时，必须使用分布在独立故障域的多节点集群。
 
-单节点集群只有一个 Slot/Channel 副本，节点或磁盘故障会中断服务。多节点只有分布在独立磁盘、电源或可用区时才形成有效故障域；三个容器共享一块磁盘不等于三个独立副本。
+## 所有部署都要满足
 
-三节点、三副本没有节点余量。失去任一节点后，剩余节点可能仍有 Raft 多数，但 `/readyz` 会因副本候选不足返回 `503`。需要失去一台后仍保留三个副本候选时，至少准备四个合格数据节点。
-
-## 2. 选择运行介质
-
-| 介质 | 适合 | 由谁负责 |
-| --- | --- | --- |
-| [Docker](/zh/server/deployment/docker) | 已有容器构建和运行能力 | 镜像、Volume、网络、Secret 与容器生命周期 |
-| [Linux](/zh/server/deployment/linux) | 直接管理主机和 systemd | 二进制、目录权限、防火墙与服务单元 |
-| [Kubernetes（Beta）](/zh/server/deployment/kubernetes) | 已有成熟有状态工作负载平台 | 最终清单、PVC、Secret、NetworkPolicy 与发布证据 |
-
-仓库根目录的三节点 Compose 只用于开发验证。官方版本容器镜像记录在 [Docker 页面](/zh/server/deployment/docker)；当前文档仍不承诺官方安装包、Helm Chart 或生产 Kubernetes 清单。
-
-## 3. 按同一顺序实施
-
-1. **冻结制品**：所有节点来自同一已审阅提交，记录工具链和摘要。
-2. **完成配置**：从[配置](/zh/server/configuration)入口确认 TOML、`WK_*` 覆盖、节点身份和客户端广告地址。
-3. **准备状态**：每个节点使用独立数据目录或磁盘，并为日志、插件状态和指标设置容量边界。
-4. **启动节点**：显式传入 `-config /path/to/wukongim.toml`，不要依赖工作目录。
-5. **验证平台**：确认持久化挂载、外部地址、`/healthz` 和 `/readyz`。
-6. **验证集群**：多节点继续验证成员身份、路由、端到端消息、重连同步和故障恢复。
-7. **生产切流**：完成[生产检查清单](/zh/server/deployment/production-checklist)。
-
-## 共享运行合同
-
-- 每个节点使用唯一的节点 ID、数据目录和可达 Transport 地址。
-- 物理 Hash Slot 数保持 `256`；副本数必须匹配可用节点和故障目标。
-- `0.0.0.0` 只能用于监听，不能作为节点或客户端广告地址。
-- Manager、指标、Debug、Benchmark、诊断和 Transport 使用受控网络边界。
-- DNS、证书、产品 HTTP 外部鉴权、云资源、密钥分发和生产切流由部署平台负责。
-
-## 用 `/readyz` 接收流量
+- 固定制品版本或摘要，不使用浮动标签。
+- 为每个节点准备唯一 ID、独立持久化目录和可达的 Transport 地址。
+- 替换示例凭据，并限制 Manager、指标、Debug、Benchmark、诊断和 Transport 的网络访问。
+- 设置客户端真正可达的 TCP、WS 或 WSS 外部地址；`0.0.0.0` 只能用于监听。
+- 启动后验证持久化挂载、端到端消息和 `/readyz`，再接入流量。
 
 ```bash
-curl --fail http://127.0.0.1:5001/healthz
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-`/healthz` 只说明进程能响应。集群写路由未就绪或处于恢复维护时，`/readyz` 会返回 `503`；负载均衡、发布门禁和切流判断必须使用 `/readyz`。
-
-平台页面通过不等于生产可上线。只有多节点验证和生产清单也具备负责人、证据和回退方式时，才进入生产流量。
+`/healthz` 只说明进程能够响应；负载均衡、发布门禁和切流必须以 `/readyz` 为准。

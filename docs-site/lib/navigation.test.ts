@@ -420,7 +420,6 @@ describe('documentation navigation contract', () => {
       expect(indexed.map((entry) => entry.url)).toEqual([
         `/${locale}/guide`,
         `/${locale}/guide/product-overview`,
-        `/${locale}/guide/product-overview/what-is-wukongim`,
         `/${locale}/guide/product-overview/capabilities`,
         `/${locale}/guide/product-overview/use-cases`,
         `/${locale}/guide/quick-start`,
@@ -452,8 +451,6 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/deployment/docker`,
         `/${locale}/server/deployment/linux`,
         `/${locale}/server/deployment/multi-node`,
-        `/${locale}/server/deployment/kubernetes`,
-        `/${locale}/server/deployment/kubernetes-resources`,
         `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
         `/${locale}/server/configuration/common-configurations`,
@@ -750,13 +747,6 @@ describe('documentation navigation contract', () => {
     const deployment = serverTree.children.find(
       (node) => node.type === 'folder' && node.index?.url === '/zh/server/deployment',
     );
-    const kubernetes =
-      deployment?.type === 'folder'
-        ? deployment.children.find(
-            (node) =>
-              node.type === 'page' && node.url === '/zh/server/deployment/kubernetes',
-          )
-        : undefined;
 
     expect(overview.type).toBe('page');
     if (overview.type === 'page') expect(overview.url).toBe('/zh/guide');
@@ -773,10 +763,18 @@ describe('documentation navigation contract', () => {
       '/en/sdk',
       '/en/api',
     ]);
-    expect(kubernetes?.type).toBe('page');
-    if (kubernetes?.type === 'page') {
-      expect(isValidElement(kubernetes.name)).toBe(false);
-      expect(kubernetes.name).toBe('Kubernetes 部署（Beta）');
+    expect(deployment?.type).toBe('folder');
+    if (deployment?.type === 'folder') {
+      expect(
+        deployment.children
+          .filter((node) => node.type === 'page')
+          .map((node) => node.url),
+      ).toEqual([
+        '/zh/server/deployment/docker',
+        '/zh/server/deployment/linux',
+        '/zh/server/deployment/multi-node',
+        '/zh/server/deployment/production-checklist',
+      ]);
     }
   });
 
@@ -859,10 +857,10 @@ describe('documentation navigation contract', () => {
     }
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/deployment/kubernetes-resources.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/deployment/kubernetes-resources.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/deployment/kubernetes-resources.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/deployment/kubernetes-resources.en.mdx')).toBe(false);
     expect(isPublishedContentPath('server/configuration/cluster.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/cluster.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/reference.mdx')).toBe(true);

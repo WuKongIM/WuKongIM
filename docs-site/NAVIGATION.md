@@ -10,10 +10,9 @@ Route: `/{lang}/guide`
 
 从认识 WuKongIM 到完成第一个业务集成。 / Learn WuKongIM and complete your first product integration.
 
-- **产品概览 / Product Overview** `/{lang}/guide/product-overview` — 建立产品定位、能力边界和适用场景的整体认识。 / Understand the product position, capability boundaries, and use cases.
-  - **WuKongIM 是什么 / What is WuKongIM?** `/{lang}/guide/product-overview/what-is-wukongim` — 介绍频道式消息模型、集群语义，以及它与网关和消息队列的区别。 / Introduces the channel model, cluster semantics, and how WuKongIM differs from gateways and queues.
-  - **核心能力 / Core Capabilities** `/{lang}/guide/product-overview/capabilities` — 概览高并发消息、超大群、持久化、多设备、故障转移和扩容能力。 / Surveys high-throughput messaging, large groups, persistence, multi-device, failover, and scaling.
-  - **适用场景 / Use Cases** `/{lang}/guide/product-overview/use-cases` — 说明聊天、推送、客服、直播、IoT、信令和 AI 通信等用途。 / Explains chat, push, support, live interaction, IoT, signaling, and AI communication use cases.
+- **产品概览 / Product Overview** `/{lang}/guide/product-overview` — 判断 WuKongIM 是什么、是否适合你的产品，以及下一步如何验证。 / Decide what WuKongIM is, whether it fits your product, and how to validate it.
+  - **核心能力 / Core Capabilities** `/{lang}/guide/product-overview/capabilities` — 从产品结果理解实时接入、可靠消息、多设备、集群和运维能力。 / Explains real-time access, reliable messaging, multi-device, cluster, and operations outcomes.
+  - **适用场景 / Use Cases** `/{lang}/guide/product-overview/use-cases` — 判断聊天、通知、客服及扩展场景如何使用 WuKongIM。 / Maps chat, notifications, customer service, and extended scenarios to WuKongIM.
 - **快速开始 / Quick Start** `/{lang}/guide/quick-start` — 沿最短路径启动集群、发送消息并验证结果。 / Follow the shortest path to start a cluster, send a message, and verify the result.
   - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 列出 Git、Go、端口、本地目录和测试工具要求。 / Lists Git, Go, ports, local directories, and test tool requirements.
   - **启动单节点集群 / Start a Single-node Cluster** `/{lang}/guide/quick-start/single-node-cluster` — 启动单节点集群并验证就绪状态与 Manager。 / Starts a single-node cluster and verifies readiness and Manager access.
@@ -45,12 +44,16 @@ Route: `/{lang}/server`
 
 部署、配置、运维和理解 WuKongIM 集群。 / Deploy, configure, operate, and understand a WuKongIM cluster.
 
+<<<<<<< HEAD
 - **部署 / Deployment** `/{lang}/server/deployment` — 选择并实施适合环境的服务端部署方式。 / Choose and implement the server deployment method appropriate for the environment.
   - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 构建固定镜像，并用显式配置和持久卷运行节点。 / Builds an immutable image and runs a node with explicit configuration and persistent storage.
   - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。 / Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.
+=======
+- **部署 / Deployment** `/{lang}/server/deployment` — 从 Docker、Linux 或多节点路径完成服务端部署。 / Deploy the server through the Docker, Linux, or multi-node path.
+  - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 使用固定的官方镜像、显式配置和持久卷运行节点。 / Runs a node with a pinned official image, explicit configuration, and persistent storage.
+  - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 安装经过校验的 Release 二进制，并用 systemd 运行节点。 / Installs a verified release binary and runs the node with systemd.
+>>>>>>> a5e302b5f (docs: streamline guides and deployment paths)
   - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划成员、副本、故障域并验证集群就绪。 / Plans membership, replicas, failure domains, and cluster readiness.
-  - **Kubernetes 部署（Beta） / Kubernetes (Beta)** `/{lang}/server/deployment/kubernetes` — 按最短路径适配并验证有状态集群部署。 / Adapts and verifies a stateful cluster deployment through the shortest path.
-  - **Kubernetes 资源参考（Beta） / Kubernetes Resource Reference (Beta)** `/{lang}/server/deployment/kubernetes-resources` — 提供 StatefulSet、Service、PVC、探针和 PDB 参考片段。 / Provides StatefulSet, Service, PVC, probe, and PDB reference fragments.
   - **生产检查清单 / Production Checklist** `/{lang}/server/deployment/production-checklist` — 汇总资源、磁盘、安全、监控、备份和容量检查。 / Checks resources, disks, security, monitoring, backups, and capacity.
 - **配置 / Configuration** `/{lang}/server/configuration` — 解释配置来源、覆盖规则和各领域配置。 / Explains configuration sources, override rules, and domain settings.
   - **常用配置 / Common Configurations** `/{lang}/server/configuration/common-configurations` — 以表格解释最常用的 10 个配置项及其关键边界。 / Explains the 10 most-used settings and their key boundaries in a table.

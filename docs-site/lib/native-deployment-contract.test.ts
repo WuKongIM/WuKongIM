@@ -7,6 +7,25 @@ async function page(path: string) {
 }
 
 describe('native deployment publication contract', () => {
+  test('keeps the deployment entry focused on the supported decision path', async () => {
+    const pages = await Promise.all([page('index.mdx'), page('index.en.mdx')]);
+
+    for (const content of pages) {
+      for (const contract of [
+        '/guide/quick-start',
+        '/server/deployment/docker',
+        '/server/deployment/linux',
+        '/server/deployment/multi-node',
+        '/server/deployment/production-checklist',
+        '/readyz',
+      ]) {
+        expect(content).toContain(contract);
+      }
+      expect(content).not.toContain('Kubernetes');
+      expect(content).not.toContain('Helm');
+    }
+  });
+
   test('keeps the Docker deployment path to two steps with one-command install', async () => {
     const pages = await Promise.all([page('docker.mdx'), page('docker.en.mdx')]);
 
@@ -71,7 +90,7 @@ describe('native deployment publication contract', () => {
     expect(installer).not.toContain('wukongim:latest');
   });
 
-  test('documents the secure native package and systemd lifecycle', async () => {
+  test('documents the verified release binary and systemd lifecycle', async () => {
     const pages = await Promise.all([page('linux.mdx'), page('linux.en.mdx')]);
 
     for (const content of pages) {

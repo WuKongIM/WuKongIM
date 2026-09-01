@@ -120,6 +120,32 @@ describe('legacy redirect seed', () => {
     );
   });
 
+  test('routes withdrawn Kubernetes deployment pages into the deployment entry', () => {
+    expect(manifest.mappings).toEqual(
+      expect.arrayContaining(
+        ['zh', 'en'].flatMap((locale) =>
+          ['/server/deployment/kubernetes', '/server/deployment/kubernetes-resources'].map(
+            (source) => ({
+              source: `/${locale}${source}`,
+              destination: `/${locale}/server/deployment`,
+            }),
+          ),
+        ),
+      ),
+    );
+  });
+
+  test('routes the merged product definition into the product overview', () => {
+    expect(manifest.mappings).toEqual(
+      expect.arrayContaining(
+        ['zh', 'en'].map((locale) => ({
+          source: `/${locale}/guide/product-overview/what-is-wukongim`,
+          destination: `/${locale}/guide/product-overview`,
+        })),
+      ),
+    );
+  });
+
   test('routes legacy SDK overview and source discovery into the current SDK entry', () => {
     expect(manifest.mappings).toEqual(
       expect.arrayContaining(
