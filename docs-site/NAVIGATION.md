@@ -53,12 +53,13 @@ Route: `/{lang}/server`
   - **Kubernetes 资源参考（Beta） / Kubernetes Resource Reference (Beta)** `/{lang}/server/deployment/kubernetes-resources` — 提供 StatefulSet、Service、PVC、探针和 PDB 参考片段。 / Provides StatefulSet, Service, PVC, probe, and PDB reference fragments.
   - **生产检查清单 / Production Checklist** `/{lang}/server/deployment/production-checklist` — 汇总资源、磁盘、安全、监控、备份和容量检查。 / Checks resources, disks, security, monitoring, backups, and capacity.
 - **配置 / Configuration** `/{lang}/server/configuration` — 解释配置来源、覆盖规则和各领域配置。 / Explains configuration sources, override rules, and domain settings.
+  - **常用配置 / Common Configurations** `/{lang}/server/configuration/common-configurations` — 以表格解释最常用的 10 个配置项及其关键边界。 / Explains the 10 most-used settings and their key boundaries in a table.
   - **节点与集群 / Nodes & Cluster** `/{lang}/server/configuration/cluster` — 节点身份、集群地址、Slot、副本和节点发现配置。 / Node identity, cluster addresses, slots, replicas, and discovery settings.
   - **网络与客户端接入 / Networking & Client Access** `/{lang}/server/configuration/networking` — TCP、WebSocket、HTTP、Manager 和节点通信监听配置。 / Listener settings for TCP, WebSocket, HTTP, Manager, and inter-node traffic.
   - **消息与存储 / Messages & Storage** `/{lang}/server/configuration/storage` — 消息保留、存储路径、队列、批处理和性能配置。 / Message retention, storage paths, queues, batching, and performance settings.
   - **安全与权限 / Security & Access** `/{lang}/server/configuration/security` — 认证、接口访问、Token、TLS 和敏感配置建议。 / Authentication, API access, tokens, TLS, and sensitive-setting guidance.
   - **日志与可观测性 / Logs & Observability** `/{lang}/server/configuration/observability` — 日志、指标、Prometheus、Top 和诊断接口配置。 / Logging, metrics, Prometheus, Top, and diagnostic endpoint settings.
-  - **配置参考 / Configuration Reference** `/{lang}/server/configuration/reference` — 列出 TOML 键、类型、环境变量、脱敏边界和约束。 / Lists TOML keys, types, environment variables, redaction boundaries, and constraints.
+  - **配置参考 / Configuration Reference** `/{lang}/server/configuration/reference` — 逐项说明全部公开 TOML、环境变量、关键默认值、约束和迁移方式。 / Explains every public TOML field, environment override, key default, constraint, and migration.
 - **运维 / Operations** `/{lang}/server/operations` — 管理、观察和安全变更生产集群。 / Manage, observe, and safely change production clusters.
   - **Manager 管理后台 / Manager** `/{lang}/server/operations/manager` — 介绍后台权限、集群状态、业务查询和运维操作。 / Introduces permissions, cluster state, business queries, and operations.
   - **健康检查与监控 / Health & Monitoring** `/{lang}/server/operations/health-and-monitoring` — 解释就绪状态、核心指标、Prometheus、Grafana 和告警。 / Explains readiness, key metrics, Prometheus, Grafana, and alerts.

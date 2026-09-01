@@ -1,257 +1,291 @@
 ---
 title: 配置参考
-description: 完整列出公开 TOML 字段、WK_* 环境变量、值类型和脱敏边界。
+description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 字段、环境变量、关键默认值与约束。
 ---
 
-本页由公开启动配置 Schema 校验，列出 WuKongIM 接受的全部 TOML 路径及其唯一环境变量映射。环境变量覆盖 TOML；未知 TOML 路径和未知 `WK_*` 变量会导致启动失败。
+本页是 WuKongIM 公开启动配置的速查手册，并由启动配置 Schema 校验。每一行都说明字段用途、唯一环境变量映射，以及需要注意的默认、`0` 值、互斥、兼容或安全边界。
 
-<Callout type="info" title="值与默认值">
-  `wukongim.toml.example` 是可加载的开发基线，不是所有字段的运行时默认值清单。部分省略或为零的值会根据硬件、拓扑或内部默认推导。Manager 启动配置快照只解析一组关键字段；其余字段应通过对应子系统的运行状态、指标与预生产压测确认。
+## 查阅方法
+
+- 使用右侧目录按领域浏览，或用浏览器查找直接搜索 TOML 键、`WK_*` 环境变量或关键词。
+- 日常配置优先写入 TOML；环境变量覆盖 TOML。未知 TOML 路径和未知 `WK_*` 变量会导致启动失败。
+- `duration` 使用 Go 时长格式，如 `500ms`、`5s`、`24h`。`string_list` 和 `object_list` 的环境变量值必须是 JSON，并会替换完整列表。
+- 配置在节点启动时加载；除非对应子系统明确说明，否则修改后需要重启节点。
+
+<Callout type="info" title="默认值与配置基线">
+  `wukongim config init` 生成面向安装场景的安全基线，并显式关闭 Diagnostics 和 Plugin；`wukongim.toml.example` 是可加载的开发与调优基线。两者都不是完整的运行时默认值清单。下表中的“省略”指没有提供 TOML 和环境变量；它与显式的 `0`、空字符串或 `false` 可能具有不同含义。
 </Callout>
 
-`node.id`、`node.data_dir` 和 `cluster.listen_addr` 始终必填。种子加入还要求 `cluster.advertise_addr` 与非空的 `cluster.join_token`。列表类型的环境变量使用 JSON，并替换完整列表。
+`node.id`、`node.data_dir` 和 `cluster.listen_addr` 始终必填。种子加入还要求 `cluster.id`、非空的 `cluster.seeds`、可被其他节点访问的 `cluster.advertise_addr`，以及非空的 `cluster.join_token`。
 
-类型含义：`string` 为字符串，`bool` 为布尔值，`int`/`uint*` 为整数，`float` 为浮点数，`duration` 使用 Go 时长格式，`string_list`/`object_list` 分别为字符串和对象列表。
+如果要按部署任务定位字段，请先看[常用配置](/zh/server/configuration/common-configurations)；本页只负责逐字段查阅。
 
 ## 节点
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `node.id` | `WK_NODE_ID` | `uint64` | 启动必填 |
-| `node.data_dir` | `WK_NODE_DATA_DIR` | `string` | 启动必填 |
+| `node.id` | `WK_NODE_ID` | `uint64` | 节点在集群中的稳定、非零唯一 ID；创建数据后不要更改。启动必填。 |
+| `node.data_dir` | `WK_NODE_DATA_DIR` | `string` | 本节点持久化数据的根目录；应放在可写且受备份保护的磁盘上。启动必填。 |
 
 ## 集群
 
-| TOML | Environment | Kind | Constraint |
+### 身份与发现
+
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `cluster.listen_addr` | `WK_CLUSTER_LISTEN_ADDR` | `string` | 启动必填 |
-| `cluster.id` | `WK_CLUSTER_ID` | `string` | — |
-| `cluster.seeds` | `WK_CLUSTER_SEEDS` | `string_list` | — |
-| `cluster.advertise_addr` | `WK_CLUSTER_ADVERTISE_ADDR` | `string` | — |
-| `cluster.join_token` | `WK_CLUSTER_JOIN_TOKEN` | `string` | 启动快照与诊断均脱敏 |
-| `cluster.nodes` | `WK_CLUSTER_NODES` | `object_list` | — |
-| `cluster.initial_slot_count` | `WK_CLUSTER_INITIAL_SLOT_COUNT` | `uint32` | — |
-| `cluster.hash_slot_count` | `WK_CLUSTER_HASH_SLOT_COUNT` | `uint16` | — |
-| `cluster.slot_replica_n` | `WK_CLUSTER_SLOT_REPLICA_N` | `uint16` | — |
-| `cluster.channel_replica_n` | `WK_CLUSTER_CHANNEL_REPLICA_N` | `uint16` | — |
-| `cluster.slot_tick_interval` | `WK_CLUSTER_SLOT_TICK_INTERVAL` | `duration` | — |
-| `cluster.slot_election_tick` | `WK_CLUSTER_SLOT_ELECTION_TICK` | `int` | — |
-| `cluster.slot_heartbeat_tick` | `WK_CLUSTER_SLOT_HEARTBEAT_TICK` | `int` | — |
-| `cluster.slot_log_compaction_enabled` | `WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED` | `bool` | — |
-| `cluster.slot_log_compaction_trigger_entries` | `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES` | `uint64` | — |
-| `cluster.slot_log_compaction_check_interval` | `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL` | `duration` | — |
-| `cluster.channel_reactor_count` | `WK_CLUSTER_CHANNEL_REACTOR_COUNT` | `int` | — |
-| `cluster.channel_store_append_workers` | `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` | `int` | — |
-| `cluster.channel_store_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT` | `duration` | — |
-| `cluster.channel_store_apply_workers` | `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` | `int` | — |
-| `cluster.channel_rpc_workers` | `WK_CLUSTER_CHANNEL_RPC_WORKERS` | `int` | — |
-| `cluster.channel_rpc_batch_max_items` | `WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS` | `int` | — |
-| `cluster.max_channels` | `WK_CLUSTER_MAX_CHANNELS` | `int` | — |
-| `cluster.channel_append_batch_max_records` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS` | `int` | — |
-| `cluster.channel_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT` | `duration` | — |
-| `cluster.channel_append_batch_adaptive_flush` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH` | `bool` | — |
-| `cluster.channel_append_batch_cold_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT` | `duration` | — |
-| `cluster.channel_follower_recovery_probe_interval` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL` | `duration` | — |
-| `cluster.channel_follower_recovery_probe_jitter` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER` | `duration` | — |
-| `cluster.node_health_report_interval` | `WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL` | `duration` | — |
-| `cluster.node_health_report_ttl` | `WK_CLUSTER_NODE_HEALTH_REPORT_TTL` | `duration` | — |
-| `cluster.commit_coordinator_sync` | `WK_CLUSTER_COMMIT_COORDINATOR_SYNC` | `bool` | — |
-| `cluster.commit_coordinator_flush_window` | `WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW` | `duration` | — |
-| `cluster.commit_coordinator_max_requests` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS` | `int` | — |
-| `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | — |
-| `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | — |
-| `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | — |
+| `cluster.listen_addr` | `WK_CLUSTER_LISTEN_ADDR` | `string` | 节点间 Cluster RPC 的监听地址；可绑定 `0.0.0.0`，但不能把通配地址提供给远端节点连接。启动必填。 |
+| `cluster.id` | `WK_CLUSTER_ID` | `string` | Controller 使用的稳定集群标识；种子加入时必填。静态清单或隐式单节点集群省略时会按节点 ID 派生。 |
+| `cluster.seeds` | `WK_CLUSTER_SEEDS` | `string_list` | 动态加入时用于发现集群的现有节点地址列表；不能为空，且不能与 `cluster.nodes` 同时使用。 |
+| `cluster.advertise_addr` | `WK_CLUSTER_ADVERTISE_ADDR` | `string` | 动态加入时写入集群成员信息、供其他节点回连的稳定地址；使用 `cluster.seeds` 时必填。 |
+| `cluster.join_token` | `WK_CLUSTER_JOIN_TOKEN` | `string` | 动态加入集群的共享认证令牌；字段一旦出现就不能为空，使用 `cluster.seeds` 时必填。启动快照与诊断均脱敏。 |
+| `cluster.nodes` | `WK_CLUSTER_NODES` | `object_list` | 静态 Controller 投票节点列表，元素为 `{id, addr}`；非空列表必须包含当前 `node.id`，`id` 非零且唯一，`addr` 非空。不能与 `cluster.seeds` 同时使用；显式空列表（环境变量 JSON `null` 同样）当前会回退为隐式单节点集群，不能用来禁用集群。 |
+
+### Slot Raft
+
+| TOML | 环境变量 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `cluster.initial_slot_count` | `WK_CLUSTER_INITIAL_SLOT_COUNT` | `uint32` | 首次初始化时写入 Controller 持久状态的独立 Slot Raft Group 数，不得大于 `cluster.hash_slot_count`；省略或为 `0` 时使用 `1`。已有集群以持久值为准，修改不会调整 Slot 数，调大还可能阻塞节点就绪；初始化后不要更改。 |
+| `cluster.hash_slot_count` | `WK_CLUSTER_HASH_SLOT_COUNT` | `uint16` | 把路由键分配到 Slot Raft Group 的稳定 Hash Slot 分区数；省略或为 `0` 时使用 `256`，集群初始化后不要更改。 |
+| `cluster.slot_replica_n` | `WK_CLUSTER_SLOT_REPLICA_N` | `uint16` | 初始化 Controller 状态时每个 Slot Raft Group 的投票副本数；已有集群以 Controller 持久状态为准。`0` 在静态拓扑按投票节点数推导，种子加入时回退为 `1`；静态显式值不得超过投票节点数。 |
+| `cluster.channel_replica_n` | `WK_CLUSTER_CHANNEL_REPLICA_N` | `uint16` | 新建频道的期望数据副本数；`0` 跟随本地有效的 `cluster.slot_replica_n`，种子加入时也会成为 `1`，不会读取已有 Controller 的持久副本数。多副本集群应在所有节点显式配置一致值，并与可用节点和故障域匹配。 |
+| `cluster.slot_tick_interval` | `WK_CLUSTER_SLOT_TICK_INTERVAL` | `duration` | Slot Raft 本地 Tick 的时间间隔；默认 `50ms`，必须大于 `0`。 |
+| `cluster.slot_election_tick` | `WK_CLUSTER_SLOT_ELECTION_TICK` | `int` | 触发 Slot Raft 选举前等待的 Tick 数；默认 `40`，必须大于心跳 Tick。 |
+| `cluster.slot_heartbeat_tick` | `WK_CLUSTER_SLOT_HEARTBEAT_TICK` | `int` | Slot Raft 发送心跳的 Tick 间隔；默认 `2`，必须大于 `0`。 |
+| `cluster.slot_log_compaction_enabled` | `WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED` | `bool` | 是否启用本地 Slot Raft 快照与日志压缩；省略时启用。 |
+| `cluster.slot_log_compaction_trigger_entries` | `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES` | `uint64` | 相对上次快照新增多少条已应用日志后允许再次压缩；默认 `10000`，必须大于 `0`。 |
+| `cluster.slot_log_compaction_check_interval` | `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL` | `duration` | 检查 Slot Raft 日志是否需要压缩的最小间隔；默认 `30s`，必须大于 `0`。 |
+
+### Channel Runtime
+
+| TOML | 环境变量 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `cluster.channel_reactor_count` | `WK_CLUSTER_CHANNEL_REACTOR_COUNT` | `int` | 本节点的 Channel Reactor 分区数；`0` 使用 CPU 感知的运行时默认值。 |
+| `cluster.channel_store_append_workers` | `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` | `int` | 阻塞式 Leader 存储追加的最大 Worker 数；`0` 使用 Channel 运行时默认值。 |
+| `cluster.channel_store_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT` | `duration` | 跨频道合并 Leader 存储追加任务的最长等待时间；`0` 使用 Channel Worker 默认值。 |
+| `cluster.channel_store_apply_workers` | `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` | `int` | 阻塞式 Follower 存储应用的最大 Worker 数；`0` 使用 Channel 运行时默认值。 |
+| `cluster.channel_rpc_workers` | `WK_CLUSTER_CHANNEL_RPC_WORKERS` | `int` | 阻塞式 Channel 复制 RPC 的最大 Worker 数；`0` 使用默认值 `96`。 |
+| `cluster.channel_rpc_batch_max_items` | `WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS` | `int` | 一次发往同一目标的 Pull 或 PullHint RPC 最多合并项数；`0` 使用默认值 `8`。 |
+| `cluster.max_channels` | `WK_CLUSTER_MAX_CHANNELS` | `int` | 本节点可同时加载的 Channel Runtime 上限；`0` 表示不设置上限。 |
+| `cluster.channel_append_batch_max_records` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS` | `int` | 排队记录数达到该值时触发 Channel 存储追加；`0` 使用运行时默认值。 |
+| `cluster.channel_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT` | `duration` | 最早一条排队 Channel 追加在刷盘前可等待的最长时间；`0` 使用运行时默认值。 |
+| `cluster.channel_append_batch_adaptive_flush` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH` | `bool` | 是否让低流量频道使用更短的自适应刷盘等待；省略时关闭。 |
+| `cluster.channel_append_batch_cold_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT` | `duration` | 启用自适应刷盘后，低流量频道的最长等待时间；`0` 沿用普通批处理窗口。 |
+| `cluster.channel_follower_recovery_probe_interval` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL` | `duration` | 暂停的 Follower 恢复探测基础间隔；`0` 使用 Channel 运行时默认值。 |
+| `cluster.channel_follower_recovery_probe_jitter` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER` | `duration` | Follower 恢复探测的随机抖动窗口，用于分散集中探测；`0` 使用运行时默认值。 |
+
+### 健康与持久提交
+
+| TOML | 环境变量 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `cluster.node_health_report_interval` | `WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL` | `duration` | 本节点向 Controller 上报精简健康信息的间隔；默认 `5s`，必须大于 `0`。 |
+| `cluster.node_health_report_ttl` | `WK_CLUSTER_NODE_HEALTH_REPORT_TTL` | `duration` | Controller 信任最近一次节点健康报告的时长；默认 `30s`，不得小于上报间隔。 |
+| `cluster.commit_coordinator_sync` | `WK_CLUSTER_COMMIT_COORDINATOR_SYNC` | `bool` | 持久提交同步兼容开关；省略等效于 `true`，显式值也只能为 `true`，WuKongIM 不允许关闭持久同步。 |
+| `cluster.commit_coordinator_flush_window` | `WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW` | `duration` | 合并相邻 Channel 持久提交请求的最长等待时间；默认 `500us`，显式值必须大于 `0`。 |
+| `cluster.commit_coordinator_max_requests` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS` | `int` | 一次物理提交可合并的逻辑请求上限；`0` 表示不按请求数限制。 |
+| `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | 一次物理提交可合并的消息记录上限；`0` 表示不按记录数限制。 |
+| `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | 一次物理提交可合并的近似负载字节上限；`0` 表示不按字节数限制。 |
+| `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | 消息数据库独立提交协调器数量；`0` 使用 `1`，增加前应针对存储进行压测。 |
 
 ## 频道迁移
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `channel_migration.enable` | `WK_CHANNEL_MIGRATION_ENABLE` | `bool` | — |
-| `channel_migration.scan_interval` | `WK_CHANNEL_MIGRATION_SCAN_INTERVAL` | `duration` | — |
-| `channel_migration.scan_limit` | `WK_CHANNEL_MIGRATION_SCAN_LIMIT` | `int` | — |
-| `channel_migration.max_pages_per_tick` | `WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK` | `int` | — |
-| `channel_migration.max_tasks_per_tick` | `WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK` | `int` | — |
-| `channel_migration.task_limit` | `WK_CHANNEL_MIGRATION_TASK_LIMIT` | `int` | — |
+| `channel_migration.enable` | `WK_CHANNEL_MIGRATION_ENABLE` | `bool` | 是否启动推进 Channel 迁移和创建修复任务的后台 Worker；省略时启用。 |
+| `channel_migration.scan_interval` | `WK_CHANNEL_MIGRATION_SCAN_INTERVAL` | `duration` | 扫描并推进 Channel 迁移工作的时间间隔；省略时使用 `1s`，显式值必须大于 `0`。 |
+| `channel_migration.scan_limit` | `WK_CHANNEL_MIGRATION_SCAN_LIMIT` | `int` | 每次扫描一个 Slot 页面时读取的 Channel Runtime 元数据上限；省略时使用 `64`，显式值必须大于 `0`。 |
+| `channel_migration.max_pages_per_tick` | `WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK` | `int` | 每个 Worker Tick 最多扫描的物理 Slot 页数；省略时使用 `1`，显式值必须大于 `0`。 |
+| `channel_migration.max_tasks_per_tick` | `WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK` | `int` | 每次扫描最多创建的修复任务数；省略时使用 `1`，显式值必须大于 `0`。 |
+| `channel_migration.task_limit` | `WK_CHANNEL_MIGRATION_TASK_LIMIT` | `int` | 执行器每个 Tick 最多检查的活跃迁移任务数；省略时使用 `1`，显式值必须大于 `0`。 |
 
 ## 频道与保留
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `channel.message_retention_physical_gc_enable` | `WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE` | `bool` | — |
-| `channel.message_retention_scan_interval` | `WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL` | `duration` | — |
-| `channel.message_retention_channel_batch_size` | `WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE` | `int` | — |
-| `channel.message_retention_max_trim_messages` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES` | `int` | — |
-| `channel.message_retention_max_trim_bytes` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES` | `int` | — |
-| `channel.large_group_subscriber_threshold` | `WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD` | `int` | — |
+| `channel.message_retention_physical_gc_enable` | `WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE` | `bool` | 是否启用后台物理删除已超过频道保留边界的本地消息；省略时关闭。 |
+| `channel.message_retention_scan_interval` | `WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL` | `duration` | 后台保留清理扫描一个频道目录页的间隔；`0` 使用默认值 `1m`。 |
+| `channel.message_retention_channel_batch_size` | `WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE` | `int` | 每次保留清理最多处理的本地频道目录条目数；`0` 使用默认值 `128`。 |
+| `channel.message_retention_max_trim_messages` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES` | `int` | 单个频道每次清理最多删除的消息行数；`0` 使用默认值 `1000`。 |
+| `channel.message_retention_max_trim_bytes` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES` | `int` | 单个频道每次清理最多删除的负载字节数；`0` 表示不按字节数限制。 |
+| `channel.large_group_subscriber_threshold` | `WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD` | `int` | 普通订阅者数量超过该值时按大群组处理；默认 `500`，必须大于 `0`。 |
 
 ## API 与客户端地址
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | — |
-| `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | — |
-| `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | 诊断制品脱敏 |
-| `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | 诊断制品脱敏 |
+| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | 产品 HTTP API 的监听地址；留空则不启动该 HTTP 服务。 |
+| `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | 向容量发现等调用方公布的 WKProto TCP 地址覆盖项，格式为 `host:port`；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器。 |
+| `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | 向容量发现等调用方公布的 WebSocket URL 覆盖项；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器，诊断制品会脱敏。 |
+| `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | 向容量发现等调用方公布的安全 WebSocket URL 覆盖项；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器，诊断制品会脱敏。 |
 
 ## Manager
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `manager.listen_addr` | `WK_MANAGER_LISTEN_ADDR` | `string` | — |
-| `manager.auth_on` | `WK_MANAGER_AUTH_ON` | `bool` | — |
-| `manager.jwt_secret` | `WK_MANAGER_JWT_SECRET` | `string` | 启动快照与诊断均脱敏 |
-| `manager.jwt_issuer` | `WK_MANAGER_JWT_ISSUER` | `string` | — |
-| `manager.jwt_expire` | `WK_MANAGER_JWT_EXPIRE` | `duration` | — |
-| `manager.users` | `WK_MANAGER_USERS` | `object_list` | 启动快照与诊断均脱敏 |
+| `manager.listen_addr` | `WK_MANAGER_LISTEN_ADDR` | `string` | Manager 管理服务的监听地址；留空则不启动 Manager。 |
+| `manager.auth_on` | `WK_MANAGER_AUTH_ON` | `bool` | 是否要求 Manager 路由使用 JWT 登录认证；省略时关闭。`false` 时 Manager 路由不要求 JWT，请勿将未认证服务暴露到不可信网络。 |
+| `manager.jwt_secret` | `WK_MANAGER_JWT_SECRET` | `string` | 签发和验证 Manager JWT 的密钥；Manager 正在监听且启用认证时必填。启动快照与诊断均脱敏。 |
+| `manager.jwt_issuer` | `WK_MANAGER_JWT_ISSUER` | `string` | 写入 Manager JWT `iss` 声明的签发者。 |
+| `manager.jwt_expire` | `WK_MANAGER_JWT_EXPIRE` | `duration` | Manager JWT 的有效期；Manager 正在监听且启用认证时，省略或显式 `0` 使用 `24h`，负值会导致启动失败。 |
+| `manager.users` | `WK_MANAGER_USERS` | `object_list` | 可登录 Manager 的静态用户列表，元素含 `username`、`password` 和 `permissions[{resource, actions}]`；`actions` 只允许 `r`、`w`、`*`。Manager 正在监听且启用认证时不能为空，且整项脱敏。 |
 
 ## Benchmark
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `bench.api_enable` | `WK_BENCH_API_ENABLE` | `bool` | — |
-| `bench.api_token` | `WK_BENCH_API_TOKEN` | `string` | 启动快照与诊断均脱敏 |
-| `bench.api_max_batch_size` | `WK_BENCH_API_MAX_BATCH_SIZE` | `int` | — |
-| `bench.api_max_payload_bytes` | `WK_BENCH_API_MAX_PAYLOAD_BYTES` | `int` | — |
+| `bench.api_enable` | `WK_BENCH_API_ENABLE` | `bool` | 是否在 API 监听器上开放仅用于受控压测环境的 `/bench/v1/*` 接口；省略时关闭，生效还要求 `api.listen_addr` 非空。 |
+| `bench.api_token` | `WK_BENCH_API_TOKEN` | `string` | Bench API 的 Bearer Token；留空时不校验 Token，接口可被远程访问时必须设置。启动快照与诊断均脱敏。 |
+| `bench.api_max_batch_size` | `WK_BENCH_API_MAX_BATCH_SIZE` | `int` | 单次 Bench API 变更请求允许的顶层记录数上限；省略时使用 `10000`，显式小于等于 `0` 会取消该限制，不建议用于可远程访问的环境。 |
+| `bench.api_max_payload_bytes` | `WK_BENCH_API_MAX_PAYLOAD_BYTES` | `int` | 单次 Bench API 变更请求允许的 JSON 请求体字节上限；省略时使用 `10485760`（10 MiB），显式小于等于 `0` 会取消该限制，不建议用于可远程访问的环境。 |
 
 ## 观察开关
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `observability.metrics_enable` | `WK_METRICS_ENABLE` | `bool` | — |
-| `observability.debug_api_enable` | `WK_DEBUG_API_ENABLE` | `bool` | — |
+| `observability.metrics_enable` | `WK_METRICS_ENABLE` | `bool` | 是否启用运行时指标观察器，并在 API 监听器存在时暴露 `/metrics`；省略时关闭。HTTP 指标端点要求 `api.listen_addr` 非空。 |
+| `observability.debug_api_enable` | `WK_DEBUG_API_ENABLE` | `bool` | 是否在 API 监听器上开放 `/debug` 诊断接口；省略时关闭，生效还要求 `api.listen_addr` 非空。不要直接暴露到公网。 |
 
 ## Prometheus
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `prometheus.enable` | `WK_PROMETHEUS_ENABLE` | `bool` | — |
-| `prometheus.query_base_url` | `WK_PROMETHEUS_QUERY_BASE_URL` | `string` | 诊断制品脱敏 |
-| `prometheus.binary_path` | `WK_PROMETHEUS_BINARY_PATH` | `string` | — |
-| `prometheus.listen_addr` | `WK_PROMETHEUS_LISTEN_ADDR` | `string` | — |
-| `prometheus.data_dir` | `WK_PROMETHEUS_DATA_DIR` | `string` | — |
-| `prometheus.retention_time` | `WK_PROMETHEUS_RETENTION_TIME` | `duration` | — |
-| `prometheus.retention_size` | `WK_PROMETHEUS_RETENTION_SIZE` | `string` | — |
-| `prometheus.scrape_interval` | `WK_PROMETHEUS_SCRAPE_INTERVAL` | `duration` | — |
-| `prometheus.scrape_targets` | `WK_PROMETHEUS_SCRAPE_TARGETS` | `string_list` | — |
+| `prometheus.enable` | `WK_PROMETHEUS_ENABLE` | `bool` | 是否由 WuKongIM 启动并管理 Prometheus 子进程；省略时关闭。启用时还需开放 API 监听器、指标并提供有效抓取目标；使用外部 Prometheus 时保持关闭。 |
+| `prometheus.query_base_url` | `WK_PROMETHEUS_QUERY_BASE_URL` | `string` | Manager 查询外部 Prometheus HTTP API 的基地址；必须是含主机且不含查询或片段的 HTTP(S) URL。留空时可回退到托管实例。诊断制品脱敏。 |
+| `prometheus.binary_path` | `WK_PROMETHEUS_BINARY_PATH` | `string` | 托管 Prometheus 使用的外部可执行文件路径；留空使用内嵌二进制。 |
+| `prometheus.listen_addr` | `WK_PROMETHEUS_LISTEN_ADDR` | `string` | 托管 Prometheus 的 Web 监听地址，格式为 `host:port`；默认 `127.0.0.1:9099`。 |
+| `prometheus.data_dir` | `WK_PROMETHEUS_DATA_DIR` | `string` | 托管 Prometheus 生成配置和保存 TSDB 数据的目录；留空时从 `node.data_dir` 推导。 |
+| `prometheus.retention_time` | `WK_PROMETHEUS_RETENTION_TIME` | `duration` | 托管 Prometheus TSDB 的按时间保留窗口；省略或为 `0` 时使用 `360h`。 |
+| `prometheus.retention_size` | `WK_PROMETHEUS_RETENTION_SIZE` | `string` | 托管 Prometheus TSDB 的可选按容量保留上限；留空表示不设置容量上限。 |
+| `prometheus.scrape_interval` | `WK_PROMETHEUS_SCRAPE_INTERVAL` | `duration` | 托管 Prometheus 抓取 WuKongIM 指标的间隔；省略或为 `0` 时使用 `15s`。 |
+| `prometheus.scrape_targets` | `WK_PROMETHEUS_SCRAPE_TARGETS` | `string_list` | 托管 Prometheus 的指标目标列表，格式为不含 URL Scheme 的 `host:port`，端口为 `1` 到 `65535`；空列表可从 API 监听地址推导。 |
 
 ## Top
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `top.api_enable` | `WK_TOP_API_ENABLE` | `bool` | — |
-| `top.collect_interval` | `WK_TOP_COLLECT_INTERVAL` | `duration` | — |
-| `top.history_window` | `WK_TOP_HISTORY_WINDOW` | `duration` | — |
+| `top.api_enable` | `WK_TOP_API_ENABLE` | `bool` | 是否在 API 监听器上开放供 `wkcli top` 使用的只读 `/top/v1/snapshot` 接口；省略时关闭，生效还要求 `api.listen_addr` 非空。 |
+| `top.collect_interval` | `WK_TOP_COLLECT_INTERVAL` | `duration` | Top 收集器采样本节点运行状态的间隔；省略或为 `0` 时使用 `1s`。 |
+| `top.history_window` | `WK_TOP_HISTORY_WINDOW` | `duration` | Top 查询在内存中保留的历史采样窗口；省略或为 `0` 时使用 `5m`，且至少为采样间隔的两倍。 |
 
 ## 诊断
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | — |
-| `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | — |
-| `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | — |
-| `diagnostics.slow_threshold_ms` | `WK_DIAGNOSTICS_SLOW_THRESHOLD_MS` | `int` | — |
-| `diagnostics.error_sample_rate` | `WK_DIAGNOSTICS_ERROR_SAMPLE_RATE` | `float` | — |
-| `diagnostics.deep_sample_rate` | `WK_DIAGNOSTICS_DEEP_SAMPLE_RATE` | `float` | — |
-| `diagnostics.deep_slow_threshold_ms` | `WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS` | `int` | — |
-| `diagnostics.deep_max_items_per_batch` | `WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH` | `int` | — |
-| `diagnostics.debug_matches` | `WK_DIAGNOSTICS_DEBUG_MATCHES` | `object_list` | — |
+| `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | 是否采集本节点的有界诊断事件；省略时启用。 |
+| `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | 内存中最多保留的诊断事件数；`0` 使用默认值 `50000`。 |
+| `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | 成功诊断事件的基础保留概率，范围为 `0` 到 `1`；省略时使用 `0.01`。 |
+| `diagnostics.slow_threshold_ms` | `WK_DIAGNOSTICS_SLOW_THRESHOLD_MS` | `int` | 无错误事件被视为慢事件并保留的耗时阈值，单位毫秒；省略或为 `0` 时使用 `500`。 |
+| `diagnostics.error_sample_rate` | `WK_DIAGNOSTICS_ERROR_SAMPLE_RATE` | `float` | 非成功诊断事件的保留概率，范围为 `0` 到 `1`；省略时使用 `1`。 |
+| `diagnostics.deep_sample_rate` | `WK_DIAGNOSTICS_DEEP_SAMPLE_RATE` | `float` | 生成高成本 Reactor 或存储细节的采样概率，范围为 `0` 到 `1`；默认 `0`。 |
+| `diagnostics.deep_slow_threshold_ms` | `WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS` | `int` | 为慢 Reactor 或存储阶段启用深度追踪的阈值，单位毫秒；省略或为 `0` 时跟随普通慢阈值。 |
+| `diagnostics.deep_max_items_per_batch` | `WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH` | `int` | 一个深度追踪批次最多展开的消息数；`0` 使用默认值 `16`。 |
+| `diagnostics.debug_matches` | `WK_DIAGNOSTICS_DEBUG_MATCHES` | `object_list` | 临时高优先级采样规则列表；空列表表示无规则。每项至少提供 `uid`、`channel_key`、`client_msg_no`、`trace_id` 之一；`ttl_seconds` 必须为正才生效，零值会被静默忽略；`sample_rate` 范围为 `0` 到 `1`，`0` 不保留事件。 |
 
 ## Gateway
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | — |
-| `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | — |
-| `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | — |
-| `gateway.runtime_async_send_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY` | `int` | — |
-| `gateway.runtime_async_auth_workers` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS` | `int` | — |
-| `gateway.runtime_async_auth_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY` | `int` | — |
-| `gateway.runtime_async_pool_release_timeout` | `WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT` | `duration` | — |
-| `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | — |
-| `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | — |
-| `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | — |
-| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | — |
-| `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | — |
+| `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | 是否启用 gnet 按 CPU 扩展的多 Event Loop 模式；省略时启用。 |
+| `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | gnet Event Loop 数；`0` 保留 WuKongIM 基线值 `4`。 |
+| `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | 异步分发 SEND 帧的最大 Worker 数；非正数使用默认值 `1000`。 |
+| `gateway.runtime_async_send_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY` | `int` | 异步 SEND 队列最多容纳的帧数；非正数使用 `131072`，队列满时拒绝新的 SEND 帧。 |
+| `gateway.runtime_async_auth_workers` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS` | `int` | 异步处理 CONNECT 认证的最大 Worker 数；非正数使用默认值 `16`。 |
+| `gateway.runtime_async_auth_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY` | `int` | 异步 CONNECT 认证队列的最大容量；非正数使用 `8192`，队列满时拒绝新的 CONNECT 认证请求。 |
+| `gateway.runtime_async_pool_release_timeout` | `WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT` | `duration` | Gateway 停止时异步 Worker Pool 等待优雅释放的最长时间；非正数使用 `100ms`。 |
+| `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | 一个 SEND 分片为合并相邻帧最多等待的时间；`0` 使用默认值 `1ms`，负值会归一化为 `0` 并取消等待。 |
+| `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | 一个 Gateway SEND 微批次最多包含的帧数；`0` 使用默认值 `128`。 |
+| `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | 一个 Gateway SEND 微批次允许的最大负载字节数；`0` 使用默认值 `524288`。 |
+| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | 客户端监听器列表；`name`、`network`、`address`、`transport`、`protocol` 必填，`path` 可选，名称与地址必须各自唯一。省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表（环境变量 JSON `null` 同样）不启动 Gateway。 |
+| `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | 一次由 Gateway 发起的消息发送允许占用的最长时间；非正数使用默认值 `5s`。 |
 
 ## 消息
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | — |
-| `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | — |
-| `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | — |
+| `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | 是否对个人消息执行接收方白名单检查；默认关闭以保持兼容行为。 |
+| `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | 受信任系统会话使用的设备 ID；省略或留空使用 `____device`，不能通过空值禁用。此类会话通过发送禁用检查后可绕过特定频道类型的发送权限。 |
+| `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | 权限、成员关系和频道缺失读取的缓存时长；`0` 表示不缓存。 |
 
 ## 在线状态
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `presence.activation_timeout` | `WK_PRESENCE_ACTIVATION_TIMEOUT` | `duration` | — |
-| `presence.touch_flush_interval` | `WK_PRESENCE_TOUCH_FLUSH_INTERVAL` | `duration` | — |
-| `presence.touch_batch_size` | `WK_PRESENCE_TOUCH_BATCH_SIZE` | `int` | — |
-| `presence.touch_max_routes_per_flush` | `WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH` | `int` | — |
-| `presence.route_ttl` | `WK_PRESENCE_ROUTE_TTL` | `duration` | — |
+| `presence.activation_timeout` | `WK_PRESENCE_ACTIVATION_TIMEOUT` | `duration` | Gateway 会话向 UID 权威节点激活在线路由的超时时间；`0` 使用默认值 `3s`。 |
+| `presence.touch_flush_interval` | `WK_PRESENCE_TOUCH_FLUSH_INTERVAL` | `duration` | 本节点把连接活动批量刷新到 UID 权威节点的间隔；`0` 使用默认值 `1s`。 |
+| `presence.touch_batch_size` | `WK_PRESENCE_TOUCH_BATCH_SIZE` | `int` | 每个刷新分块最多处理的本地活动路由数；`0` 使用默认值 `512`。 |
+| `presence.touch_max_routes_per_flush` | `WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH` | `int` | 一次刷新跨所有分块最多处理的脏路由数；省略时使用 `65536`，显式值必须大于 `0` 且不小于 `presence.touch_batch_size`。 |
+| `presence.route_ttl` | `WK_PRESENCE_ROUTE_TTL` | `duration` | UID 权威节点自最近活动后保留在线路由的时长；`0` 使用默认值 `90s`。 |
 
 ## 频道追加
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `channel_append.shard_count` | `WK_CHANNEL_APPEND_SHARD_COUNT` | `int` | — |
-| `channel_append.advance_pool_size` | `WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE` | `int` | — |
-| `channel_append.effect_pool_size` | `WK_CHANNEL_APPEND_EFFECT_POOL_SIZE` | `int` | — |
-| `channel_append.recipient_authority_dispatch_concurrency` | `WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY` | `int` | — |
+| `channel_append.shard_count` | `WK_CHANNEL_APPEND_SHARD_COUNT` | `int` | 频道追加权威状态查找的分片数；`0` 使用 CPU 感知的默认值。 |
+| `channel_append.advance_pool_size` | `WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE` | `int` | 推进 Channel Append Writer 状态机的 Worker Pool 大小；`0` 使用运行时默认值 `500`。 |
+| `channel_append.effect_pool_size` | `WK_CHANNEL_APPEND_EFFECT_POOL_SIZE` | `int` | 阻塞追加调用与追加后收件人处理使用的 Worker Pool 大小；`0` 使用运行时默认值 `2000`。 |
+| `channel_append.recipient_authority_dispatch_concurrency` | `WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY` | `int` | 已弃用的兼容输入；当前在线投递流程会忽略此值。 |
 
 ## 投递
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `delivery.enable` | `WK_DELIVERY_ENABLE` | `bool` | — |
-| `delivery.fanout_page_size` | `WK_DELIVERY_FANOUT_PAGE_SIZE` | `int` | — |
-| `delivery.push_batch_size` | `WK_DELIVERY_PUSH_BATCH_SIZE` | `int` | — |
-| `delivery.pending_ack_ttl` | `WK_DELIVERY_PENDING_ACK_TTL` | `duration` | — |
-| `delivery.pending_ack_max_per_session` | `WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION` | `int` | — |
-| `delivery.event_queue_size` | `WK_DELIVERY_EVENT_QUEUE_SIZE` | `int` | — |
-| `delivery.recipient_worker_concurrency` | `WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY` | `int` | — |
+| `delivery.enable` | `WK_DELIVERY_ENABLE` | `bool` | 是否把已提交消息接入在线投递运行时；省略时启用。 |
+| `delivery.fanout_page_size` | `WK_DELIVERY_FANOUT_PAGE_SIZE` | `int` | 一次扇出分页最多读取的订阅者 UID 数；`0` 使用默认值 `512`。 |
+| `delivery.push_batch_size` | `WK_DELIVERY_PUSH_BATCH_SIZE` | `int` | 一次精确目标查询、投递计划或 Owner 节点推送分块最多包含的收件人数；`0` 使用默认值 `512`。 |
+| `delivery.pending_ack_ttl` | `WK_DELIVERY_PENDING_ACK_TTL` | `duration` | 投递活动期间清理过期待确认记录所使用的存活时间；`0` 使用默认值 `30s`。 |
+| `delivery.pending_ack_max_per_session` | `WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION` | `int` | 一个 UID 会话可保留的本地待确认记录上限；`0` 使用默认值 `1024`。 |
+| `delivery.event_queue_size` | `WK_DELIVERY_EVENT_QUEUE_SIZE` | `int` | 等待异步处理的收件人投递计划队列上限；`0` 使用默认值 `1024`。 |
+| `delivery.recipient_worker_concurrency` | `WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY` | `int` | 并行处理收件人投递计划的 Worker 上限；`0` 使用默认值 `320`。 |
 
 ## Webhook
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `webhook.http_addr` | `WK_WEBHOOK_HTTP_ADDR` | `string` | 诊断制品脱敏 |
-| `webhook.focus_events` | `WK_WEBHOOK_FOCUS_EVENTS` | `string_list` | — |
-| `webhook.queue_size` | `WK_WEBHOOK_QUEUE_SIZE` | `int` | — |
-| `webhook.workers` | `WK_WEBHOOK_WORKERS` | `int` | — |
-| `webhook.msg_notify_batch_max_items` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS` | `int` | — |
-| `webhook.msg_notify_batch_max_wait` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT` | `duration` | — |
-| `webhook.online_status_batch_max_items` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS` | `int` | — |
-| `webhook.online_status_batch_max_wait` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT` | `duration` | — |
-| `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | — |
-| `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | — |
-| `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | — |
+| `webhook.http_addr` | `WK_WEBHOOK_HTTP_ADDR` | `string` | 接收 JSON Webhook POST 的目标地址；留空则不启动 Webhook Runtime。诊断制品脱敏。 |
+| `webhook.focus_events` | `WK_WEBHOOK_FOCUS_EVENTS` | `string_list` | 只投递这些事件名；支持 `msg.notify`、`msg.offline`、`user.onlinestatus`，空列表表示全部。 |
+| `webhook.queue_size` | `WK_WEBHOOK_QUEUE_SIZE` | `int` | Worker 执行前可在内存中排队的 Webhook 事件上限；`0` 使用默认值 `1024`。 |
+| `webhook.workers` | `WK_WEBHOOK_WORKERS` | `int` | 并发发送 Webhook 请求的 Worker 上限；`0` 使用默认值 `16`。 |
+| `webhook.msg_notify_batch_max_items` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS` | `int` | 单个 `msg.notify` Webhook 请求最多携带的消息数；`0` 使用默认值 `100`。 |
+| `webhook.msg_notify_batch_max_wait` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT` | `duration` | `msg.notify` 为合并相邻消息最多等待的时间；`0` 使用默认值 `500ms`。 |
+| `webhook.online_status_batch_max_items` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS` | `int` | 单个 `user.onlinestatus` 请求最多携带的状态记录数；`0` 使用默认值 `512`。 |
+| `webhook.online_status_batch_max_wait` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT` | `duration` | `user.onlinestatus` 为合并相邻记录最多等待的时间；`0` 使用默认值 `2s`。 |
+| `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | 单个 `msg.offline` 请求最多携带的离线 UID 数；`0` 使用默认值 `512`。 |
+| `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | 单次出站 Webhook 请求尝试的超时时间；`0` 使用默认值 `5s`。 |
+| `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | 一个已接纳 Webhook 批次在丢弃前的最多尝试次数；`0` 使用默认值 `3`。 |
 
 ## 插件
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `plugin.enable` | `WK_PLUGIN_ENABLE` | `bool` | — |
-| `plugin.dir` | `WK_PLUGIN_DIR` | `string` | — |
-| `plugin.socket_path` | `WK_PLUGIN_SOCKET_PATH` | `string` | — |
-| `plugin.sandbox_dir` | `WK_PLUGIN_SANDBOX_DIR` | `string` | — |
-| `plugin.state_dir` | `WK_PLUGIN_STATE_DIR` | `string` | — |
-| `plugin.timeout` | `WK_PLUGIN_TIMEOUT` | `duration` | — |
-| `plugin.hot_reload` | `WK_PLUGIN_HOT_RELOAD` | `bool` | — |
-| `plugin.fail_open` | `WK_PLUGIN_FAIL_OPEN` | `bool` | — |
-| `plugin.persist_after_queue_size` | `WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE` | `int` | — |
-| `plugin.persist_after_workers` | `WK_PLUGIN_PERSIST_AFTER_WORKERS` | `int` | — |
+| `plugin.enable` | `WK_PLUGIN_ENABLE` | `bool` | 是否启用本节点的 `.wkp` 插件进程和 `PersistAfter` Hook；省略时启用。 |
+| `plugin.dir` | `WK_PLUGIN_DIR` | `string` | 本节点存放可执行 `.wkp` 插件文件的目录；启用 Plugin 且留空时从 `node.data_dir` 推导。 |
+| `plugin.socket_path` | `WK_PLUGIN_SOCKET_PATH` | `string` | 插件 Host RPC 使用的 Unix Socket 路径；启用 Plugin 且留空时从 `node.data_dir` 推导。 |
+| `plugin.sandbox_dir` | `WK_PLUGIN_SANDBOX_DIR` | `string` | 每个插件可写沙箱数据的根目录；启用 Plugin 且留空时从 `node.data_dir` 推导。 |
+| `plugin.state_dir` | `WK_PLUGIN_STATE_DIR` | `string` | 保存本节点插件期望状态文件的目录；启用 Plugin 且留空时从 `node.data_dir` 推导。 |
+| `plugin.timeout` | `WK_PLUGIN_TIMEOUT` | `duration` | 插件 Host RPC 与进程优雅停止的超时时间；`0` 使用默认值 `5s`。 |
+| `plugin.hot_reload` | `WK_PLUGIN_HOT_RELOAD` | `bool` | 是否监视插件目录中的二进制变更并热重载；省略时启用。 |
+| `plugin.fail_open` | `WK_PLUGIN_FAIL_OPEN` | `bool` | 为未来发送 Hook 保留的失败开放开关；省略时为 `false`，但当前值不影响行为，`PersistAfter` 始终失败开放。 |
+| `plugin.persist_after_queue_size` | `WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE` | `int` | 内存中最多排队的 `PersistAfter` 事件数；`0` 使用默认值 `1024`。 |
+| `plugin.persist_after_workers` | `WK_PLUGIN_PERSIST_AFTER_WORKERS` | `int` | 并发调用 `PersistAfter` Hook 的 Worker 上限；`0` 使用默认值 `16`。 |
 
 ## 日志
 
-| TOML | Environment | Kind | Constraint |
+| TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `log.level` | `WK_LOG_LEVEL` | `string` | — |
-| `log.dir` | `WK_LOG_DIR` | `string` | — |
-| `log.max_size` | `WK_LOG_MAX_SIZE` | `int` | — |
-| `log.max_age` | `WK_LOG_MAX_AGE` | `int` | — |
-| `log.max_backups` | `WK_LOG_MAX_BACKUPS` | `int` | — |
-| `log.compress` | `WK_LOG_COMPRESS` | `bool` | — |
-| `log.console` | `WK_LOG_CONSOLE` | `bool` | — |
-| `log.format` | `WK_LOG_FORMAT` | `string` | — |
+| `log.level` | `WK_LOG_LEVEL` | `string` | 记录的最低日志级别，可选 `debug`、`info`、`warn`、`error`；省略时使用 `info`。 |
+| `log.dir` | `WK_LOG_DIR` | `string` | 滚动日志文件的保存目录；留空时使用 `./logs`。 |
+| `log.max_size` | `WK_LOG_MAX_SIZE` | `int` | 单个日志文件触发轮转前的最大大小，单位 MB；小于等于 `0` 时使用 `100`。 |
+| `log.max_age` | `WK_LOG_MAX_AGE` | `int` | 轮转日志文件的最长保留天数；小于等于 `0` 时使用 `30`。 |
+| `log.max_backups` | `WK_LOG_MAX_BACKUPS` | `int` | 每类日志最多保留的轮转文件数；小于等于 `0` 时使用 `10`。 |
+| `log.compress` | `WK_LOG_COMPRESS` | `bool` | 是否使用 gzip 压缩轮转后的日志文件；省略时启用。 |
+| `log.console` | `WK_LOG_CONSOLE` | `bool` | 是否额外把日志输出到标准输出；省略时启用。 |
+| `log.format` | `WK_LOG_FORMAT` | `string` | 日志文件编码格式；`json` 输出结构化 JSON，其他值使用 Console 编码，省略时为 `console`。 |
+
+## 旧环境变量迁移
+
+以下旧变量不再接受；请在升级配置时改用当前字段：
+
+| 已移除 | 替代项 |
+| --- | --- |
+| `WK_CLUSTER_GROUP_COUNT` | `WK_CLUSTER_INITIAL_SLOT_COUNT` |
+| `WK_CLUSTER_GROUP_REPLICA_N` | `WK_CLUSTER_SLOT_REPLICA_N` |
+| `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED` | 按用途改用 `WK_CHANNEL_MIGRATION_*` |

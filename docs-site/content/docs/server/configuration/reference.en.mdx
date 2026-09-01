@@ -1,257 +1,291 @@
 ---
 title: Configuration Reference
-description: Complete public TOML fields, WK_* environment mappings, value kinds, and redaction boundaries.
+description: Searchable WuKongIM configuration handbook explaining every public TOML field, environment override, key default, and constraint.
 ---
 
-This page is checked against the public startup configuration schema. It lists every accepted TOML path and its one canonical environment mapping. Environment values override TOML; unknown TOML paths and unknown `WK_*` variables fail startup.
+This is the quick-reference handbook for WuKongIM's public startup configuration, checked against the startup schema. Every row explains what the field controls, its one environment mapping, and any important default, zero-value, mutual-exclusion, compatibility, or security boundary.
 
-<Callout type="info" title="Values and defaults">
-  `wukongim.toml.example` is a loadable development baseline, not a runtime-default catalog for every field. Some omitted or zero values are derived from hardware, topology, or internal defaults. The Manager startup snapshot resolves a bounded set of critical fields; confirm others through subsystem runtime state, metrics, and pre-production load tests.
+## How to use this reference
+
+- Browse by domain with the page outline, or use browser Find to search for a TOML key, `WK_*` environment variable, or keyword.
+- Prefer TOML for normal configuration; environment variables override TOML. Unknown TOML paths and unknown `WK_*` variables fail startup.
+- `duration` uses Go syntax such as `500ms`, `5s`, or `24h`. Environment values for `string_list` and `object_list` must be JSON and replace the complete list.
+- Configuration is loaded at node startup. Restart the node after a change unless the subsystem explicitly documents otherwise.
+
+<Callout type="info" title="Defaults and configuration baselines">
+  `wukongim config init` creates a security-oriented installation baseline and explicitly disables Diagnostics and Plugin. `wukongim.toml.example` is a loadable development and tuning baseline. Neither is a complete catalog of runtime defaults. In the table, “omitted” means neither TOML nor an environment value was supplied; it may differ from an explicit `0`, empty string, or `false`.
 </Callout>
 
-`node.id`, `node.data_dir`, and `cluster.listen_addr` are always required. Seed joining additionally requires `cluster.advertise_addr` and a non-empty `cluster.join_token`. List environment values are JSON and replace the complete list.
+`node.id`, `node.data_dir`, and `cluster.listen_addr` are always required. Seed joining additionally requires `cluster.id`, non-empty `cluster.seeds`, a peer-reachable `cluster.advertise_addr`, and a non-empty `cluster.join_token`.
 
-Kinds: `string`, `bool`, integer `int`/`uint*`, `float`, Go-format `duration`, and `string_list`/`object_list` for lists of strings or objects.
+For task-oriented field discovery, start with [Common Configurations](/en/server/configuration/common-configurations); this page is the field-by-field reference.
 
 ## Node
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `node.id` | `WK_NODE_ID` | `uint64` | Required at startup |
-| `node.data_dir` | `WK_NODE_DATA_DIR` | `string` | Required at startup |
+| `node.id` | `WK_NODE_ID` | `uint64` | Stable, non-zero node ID unique within the cluster; do not change it after data exists. Required at startup. |
+| `node.data_dir` | `WK_NODE_DATA_DIR` | `string` | Root directory for this node's durable data; place it on writable, backed-up storage. Required at startup. |
 
 ## Cluster
 
-| TOML | Environment | Kind | Constraint |
+### Identity and discovery
+
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `cluster.listen_addr` | `WK_CLUSTER_LISTEN_ADDR` | `string` | Required at startup |
-| `cluster.id` | `WK_CLUSTER_ID` | `string` | — |
-| `cluster.seeds` | `WK_CLUSTER_SEEDS` | `string_list` | — |
-| `cluster.advertise_addr` | `WK_CLUSTER_ADVERTISE_ADDR` | `string` | — |
-| `cluster.join_token` | `WK_CLUSTER_JOIN_TOKEN` | `string` | Redacted in startup snapshots and diagnostics |
-| `cluster.nodes` | `WK_CLUSTER_NODES` | `object_list` | — |
-| `cluster.initial_slot_count` | `WK_CLUSTER_INITIAL_SLOT_COUNT` | `uint32` | — |
-| `cluster.hash_slot_count` | `WK_CLUSTER_HASH_SLOT_COUNT` | `uint16` | — |
-| `cluster.slot_replica_n` | `WK_CLUSTER_SLOT_REPLICA_N` | `uint16` | — |
-| `cluster.channel_replica_n` | `WK_CLUSTER_CHANNEL_REPLICA_N` | `uint16` | — |
-| `cluster.slot_tick_interval` | `WK_CLUSTER_SLOT_TICK_INTERVAL` | `duration` | — |
-| `cluster.slot_election_tick` | `WK_CLUSTER_SLOT_ELECTION_TICK` | `int` | — |
-| `cluster.slot_heartbeat_tick` | `WK_CLUSTER_SLOT_HEARTBEAT_TICK` | `int` | — |
-| `cluster.slot_log_compaction_enabled` | `WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED` | `bool` | — |
-| `cluster.slot_log_compaction_trigger_entries` | `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES` | `uint64` | — |
-| `cluster.slot_log_compaction_check_interval` | `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL` | `duration` | — |
-| `cluster.channel_reactor_count` | `WK_CLUSTER_CHANNEL_REACTOR_COUNT` | `int` | — |
-| `cluster.channel_store_append_workers` | `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` | `int` | — |
-| `cluster.channel_store_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT` | `duration` | — |
-| `cluster.channel_store_apply_workers` | `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` | `int` | — |
-| `cluster.channel_rpc_workers` | `WK_CLUSTER_CHANNEL_RPC_WORKERS` | `int` | — |
-| `cluster.channel_rpc_batch_max_items` | `WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS` | `int` | — |
-| `cluster.max_channels` | `WK_CLUSTER_MAX_CHANNELS` | `int` | — |
-| `cluster.channel_append_batch_max_records` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS` | `int` | — |
-| `cluster.channel_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT` | `duration` | — |
-| `cluster.channel_append_batch_adaptive_flush` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH` | `bool` | — |
-| `cluster.channel_append_batch_cold_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT` | `duration` | — |
-| `cluster.channel_follower_recovery_probe_interval` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL` | `duration` | — |
-| `cluster.channel_follower_recovery_probe_jitter` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER` | `duration` | — |
-| `cluster.node_health_report_interval` | `WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL` | `duration` | — |
-| `cluster.node_health_report_ttl` | `WK_CLUSTER_NODE_HEALTH_REPORT_TTL` | `duration` | — |
-| `cluster.commit_coordinator_sync` | `WK_CLUSTER_COMMIT_COORDINATOR_SYNC` | `bool` | — |
-| `cluster.commit_coordinator_flush_window` | `WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW` | `duration` | — |
-| `cluster.commit_coordinator_max_requests` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS` | `int` | — |
-| `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | — |
-| `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | — |
-| `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | — |
+| `cluster.listen_addr` | `WK_CLUSTER_LISTEN_ADDR` | `string` | Listener for inter-node Cluster RPC; it may bind `0.0.0.0`, but a wildcard must not be advertised to peers. Required at startup. |
+| `cluster.id` | `WK_CLUSTER_ID` | `string` | Stable Controller cluster identity; required for seed joining. Static inventories and implicit single-node clusters derive it from node IDs when omitted. |
+| `cluster.seeds` | `WK_CLUSTER_SEEDS` | `string_list` | Existing node addresses used to discover the cluster during dynamic joining; must be non-empty and cannot be combined with `cluster.nodes`. |
+| `cluster.advertise_addr` | `WK_CLUSTER_ADVERTISE_ADDR` | `string` | Stable address stored in membership for peers to call this node; required with `cluster.seeds` and must be reachable by peers. |
+| `cluster.join_token` | `WK_CLUSTER_JOIN_TOKEN` | `string` | Shared credential that authenticates dynamic cluster joining; it must be non-empty whenever present and is required with `cluster.seeds`. Redacted in startup snapshots and diagnostics. |
+| `cluster.nodes` | `WK_CLUSTER_NODES` | `object_list` | Static Controller voters with `{id, addr}` elements; a non-empty list must contain the current `node.id`, with non-zero unique IDs and non-empty addresses. It cannot be combined with `cluster.seeds`; an explicit empty list (including environment JSON `null`) currently falls back to an implicit single-node cluster and cannot disable clustering. |
+
+### Slot Raft
+
+| TOML | Environment | Type | Description |
+| --- | --- | --- | --- |
+| `cluster.initial_slot_count` | `WK_CLUSTER_INITIAL_SLOT_COUNT` | `uint32` | Independent Slot Raft Groups written to persisted Controller state at first initialization; it cannot exceed `cluster.hash_slot_count`, and omitted or `0` uses `1`. Existing clusters follow the persisted value: changing this setting does not resize Slots, and increasing it may block readiness. Do not change it after initialization. |
+| `cluster.hash_slot_count` | `WK_CLUSTER_HASH_SLOT_COUNT` | `uint16` | Stable hash-slot partitions that route keys across Slot Raft Groups; omitted or `0` uses `256`. Do not change it after cluster initialization. |
+| `cluster.slot_replica_n` | `WK_CLUSTER_SLOT_REPLICA_N` | `uint16` | Voter replicas per Slot Raft Group when initializing Controller state; existing clusters follow persisted Controller state. `0` derives the static voter count but falls back to `1` during seed joining; an explicit static value cannot exceed the voter count. |
+| `cluster.channel_replica_n` | `WK_CLUSTER_CHANNEL_REPLICA_N` | `uint16` | Desired data replicas for newly created channels; `0` follows the local effective `cluster.slot_replica_n`, becoming `1` during seed joining rather than reading the persisted Controller replica count. Multi-replica clusters should set the same explicit value on every node and fit available nodes and failure domains. |
+| `cluster.slot_tick_interval` | `WK_CLUSTER_SLOT_TICK_INTERVAL` | `duration` | Local Slot Raft tick interval; defaults to `50ms` and must be greater than `0`. |
+| `cluster.slot_election_tick` | `WK_CLUSTER_SLOT_ELECTION_TICK` | `int` | Ticks waited before a Slot Raft election can start; defaults to `40` and must exceed the heartbeat tick. |
+| `cluster.slot_heartbeat_tick` | `WK_CLUSTER_SLOT_HEARTBEAT_TICK` | `int` | Slot Raft heartbeat interval in ticks; defaults to `2` and must be greater than `0`. |
+| `cluster.slot_log_compaction_enabled` | `WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED` | `bool` | Enables local Slot Raft snapshots and log compaction; enabled when omitted. |
+| `cluster.slot_log_compaction_trigger_entries` | `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES` | `uint64` | Applied entries since the last snapshot required before another compaction; defaults to `10000` and must be positive. |
+| `cluster.slot_log_compaction_check_interval` | `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL` | `duration` | Minimum interval between Slot Raft log-compaction checks; defaults to `30s` and must be positive. |
+
+### Channel Runtime
+
+| TOML | Environment | Type | Description |
+| --- | --- | --- | --- |
+| `cluster.channel_reactor_count` | `WK_CLUSTER_CHANNEL_REACTOR_COUNT` | `int` | Channel Reactor partitions on this node; `0` derives a CPU-aware runtime value. |
+| `cluster.channel_store_append_workers` | `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` | `int` | Maximum blocking Leader store-append workers; `0` keeps the Channel runtime default. |
+| `cluster.channel_store_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT` | `duration` | Maximum wait for coalescing Leader store-appends across channels; `0` keeps the Channel worker default. |
+| `cluster.channel_store_apply_workers` | `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` | `int` | Maximum blocking Follower store-apply workers; `0` keeps the Channel runtime default. |
+| `cluster.channel_rpc_workers` | `WK_CLUSTER_CHANNEL_RPC_WORKERS` | `int` | Maximum blocking Channel replication RPC workers; `0` uses `96`. |
+| `cluster.channel_rpc_batch_max_items` | `WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS` | `int` | Maximum same-target Pull or PullHint items coalesced into one RPC; `0` uses `8`. |
+| `cluster.max_channels` | `WK_CLUSTER_MAX_CHANNELS` | `int` | Maximum loaded Channel Runtimes on this node; `0` leaves the count unlimited. |
+| `cluster.channel_append_batch_max_records` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS` | `int` | Queued record count that triggers a Channel store-append flush; `0` keeps the runtime default. |
+| `cluster.channel_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT` | `duration` | Maximum age of the oldest queued Channel append before flushing; `0` keeps the runtime default. |
+| `cluster.channel_append_batch_adaptive_flush` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH` | `bool` | Enables a shorter adaptive flush delay for low-traffic channels; disabled when omitted. |
+| `cluster.channel_append_batch_cold_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT` | `duration` | Low-traffic channel delay used by adaptive flushing; `0` uses the normal batching window. |
+| `cluster.channel_follower_recovery_probe_interval` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL` | `duration` | Base interval for probing parked Followers for recovery; `0` keeps the Channel runtime default. |
+| `cluster.channel_follower_recovery_probe_jitter` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER` | `duration` | Random jitter window that spreads parked-Follower recovery probes; `0` keeps the runtime default. |
+
+### Health and durable commits
+
+| TOML | Environment | Type | Description |
+| --- | --- | --- | --- |
+| `cluster.node_health_report_interval` | `WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL` | `duration` | Interval for reporting compact node health to Controller; defaults to `5s` and must be positive. |
+| `cluster.node_health_report_ttl` | `WK_CLUSTER_NODE_HEALTH_REPORT_TTL` | `duration` | How long Controller trusts the latest node-health report; defaults to `30s` and cannot be shorter than the report interval. |
+| `cluster.commit_coordinator_sync` | `WK_CLUSTER_COMMIT_COORDINATOR_SYNC` | `bool` | Durable-commit compatibility switch; omitted is equivalent to `true`, and an explicit value must also be `true` because WuKongIM does not allow durable sync to be disabled. |
+| `cluster.commit_coordinator_flush_window` | `WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW` | `duration` | Maximum delay for grouping adjacent Channel durable commits; defaults to `500us`, and an explicit value must be positive. |
+| `cluster.commit_coordinator_max_requests` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS` | `int` | Maximum logical requests grouped into one physical commit; `0` applies no request-count limit. |
+| `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | Maximum message records grouped into one physical commit; `0` applies no record-count limit. |
+| `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | Maximum approximate payload bytes grouped into one physical commit; `0` applies no byte limit. |
+| `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | Independent commit coordinators for the message database; `0` uses `1`. Increase only after storage-specific load tests. |
 
 ## Channel Migration
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `channel_migration.enable` | `WK_CHANNEL_MIGRATION_ENABLE` | `bool` | — |
-| `channel_migration.scan_interval` | `WK_CHANNEL_MIGRATION_SCAN_INTERVAL` | `duration` | — |
-| `channel_migration.scan_limit` | `WK_CHANNEL_MIGRATION_SCAN_LIMIT` | `int` | — |
-| `channel_migration.max_pages_per_tick` | `WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK` | `int` | — |
-| `channel_migration.max_tasks_per_tick` | `WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK` | `int` | — |
-| `channel_migration.task_limit` | `WK_CHANNEL_MIGRATION_TASK_LIMIT` | `int` | — |
+| `channel_migration.enable` | `WK_CHANNEL_MIGRATION_ENABLE` | `bool` | Starts the background worker that advances Channel migrations and creates repair tasks; enabled when omitted. |
+| `channel_migration.scan_interval` | `WK_CHANNEL_MIGRATION_SCAN_INTERVAL` | `duration` | Interval for scanning and advancing Channel migration work; omitted uses `1s`, and an explicit value must be positive. |
+| `channel_migration.scan_limit` | `WK_CHANNEL_MIGRATION_SCAN_LIMIT` | `int` | Channel Runtime metadata rows read from one Slot page per scan; omitted uses `64`, and an explicit value must be positive. |
+| `channel_migration.max_pages_per_tick` | `WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK` | `int` | Maximum physical Slot pages scanned per worker tick; omitted uses `1`, and an explicit value must be positive. |
+| `channel_migration.max_tasks_per_tick` | `WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK` | `int` | Maximum repair tasks created per scan; omitted uses `1`, and an explicit value must be positive. |
+| `channel_migration.task_limit` | `WK_CHANNEL_MIGRATION_TASK_LIMIT` | `int` | Maximum active migration tasks inspected by the executor per tick; omitted uses `1`, and an explicit value must be positive. |
 
 ## Channel & Retention
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `channel.message_retention_physical_gc_enable` | `WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE` | `bool` | — |
-| `channel.message_retention_scan_interval` | `WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL` | `duration` | — |
-| `channel.message_retention_channel_batch_size` | `WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE` | `int` | — |
-| `channel.message_retention_max_trim_messages` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES` | `int` | — |
-| `channel.message_retention_max_trim_bytes` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES` | `int` | — |
-| `channel.large_group_subscriber_threshold` | `WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD` | `int` | — |
+| `channel.message_retention_physical_gc_enable` | `WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE` | `bool` | Enables background physical deletion of local messages beyond each channel's retention boundary; disabled when omitted. |
+| `channel.message_retention_scan_interval` | `WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL` | `duration` | Interval for scanning one channel-catalog page for retention cleanup; `0` uses `1m`. |
+| `channel.message_retention_channel_batch_size` | `WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE` | `int` | Maximum local channel-catalog entries processed per cleanup pass; `0` uses `128`. |
+| `channel.message_retention_max_trim_messages` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES` | `int` | Maximum message rows deleted for one channel per cleanup attempt; `0` uses `1000`. |
+| `channel.message_retention_max_trim_bytes` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES` | `int` | Maximum payload bytes deleted for one channel per cleanup attempt; `0` applies no byte limit. |
+| `channel.large_group_subscriber_threshold` | `WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD` | `int` | Treats a channel as a large group when ordinary subscribers exceed this count; defaults to `500` and must be positive. |
 
 ## API & Client Addresses
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | — |
-| `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | — |
-| `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | Redacted in diagnostic artifacts |
-| `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | Redacted in diagnostic artifacts |
+| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | Listener for the product HTTP API; an empty value disables this HTTP service. |
+| `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | WKProto TCP address override published to capacity discovery and similar callers, in `host:port` form; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener. |
+| `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
+| `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | Secure WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
 
 ## Manager
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `manager.listen_addr` | `WK_MANAGER_LISTEN_ADDR` | `string` | — |
-| `manager.auth_on` | `WK_MANAGER_AUTH_ON` | `bool` | — |
-| `manager.jwt_secret` | `WK_MANAGER_JWT_SECRET` | `string` | Redacted in startup snapshots and diagnostics |
-| `manager.jwt_issuer` | `WK_MANAGER_JWT_ISSUER` | `string` | — |
-| `manager.jwt_expire` | `WK_MANAGER_JWT_EXPIRE` | `duration` | — |
-| `manager.users` | `WK_MANAGER_USERS` | `object_list` | Redacted in startup snapshots and diagnostics |
+| `manager.listen_addr` | `WK_MANAGER_LISTEN_ADDR` | `string` | Listener for the Manager administration service; an empty value disables Manager. |
+| `manager.auth_on` | `WK_MANAGER_AUTH_ON` | `bool` | Requires JWT login authentication for Manager routes; disabled when omitted. With `false`, Manager routes require no JWT, so do not expose an unauthenticated service to untrusted networks. |
+| `manager.jwt_secret` | `WK_MANAGER_JWT_SECRET` | `string` | Secret used to sign and verify Manager JWTs; required when Manager is listening with authentication enabled. Redacted in startup snapshots and diagnostics. |
+| `manager.jwt_issuer` | `WK_MANAGER_JWT_ISSUER` | `string` | Issuer written to the Manager JWT `iss` claim. |
+| `manager.jwt_expire` | `WK_MANAGER_JWT_EXPIRE` | `duration` | Manager JWT lifetime; when Manager is listening with authentication enabled, omitted or explicit `0` uses `24h`, while a negative value fails startup. |
+| `manager.users` | `WK_MANAGER_USERS` | `object_list` | Static Manager users with `username`, `password`, and `permissions[{resource, actions}]`; actions are `r`, `w`, or `*`. Required when Manager is listening with authentication enabled and fully redacted. |
 
 ## Benchmark
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `bench.api_enable` | `WK_BENCH_API_ENABLE` | `bool` | — |
-| `bench.api_token` | `WK_BENCH_API_TOKEN` | `string` | Redacted in startup snapshots and diagnostics |
-| `bench.api_max_batch_size` | `WK_BENCH_API_MAX_BATCH_SIZE` | `int` | — |
-| `bench.api_max_payload_bytes` | `WK_BENCH_API_MAX_PAYLOAD_BYTES` | `int` | — |
+| `bench.api_enable` | `WK_BENCH_API_ENABLE` | `bool` | Exposes `/bench/v1/*` routes on the API listener for controlled benchmark environments; disabled when omitted and requires non-empty `api.listen_addr`. |
+| `bench.api_token` | `WK_BENCH_API_TOKEN` | `string` | Bench API bearer token; an empty value skips token validation, so set it whenever the API is remotely reachable. Redacted in snapshots and diagnostics. |
+| `bench.api_max_batch_size` | `WK_BENCH_API_MAX_BATCH_SIZE` | `int` | Maximum top-level records accepted by one Bench API mutation request; omitted uses `10000`, while an explicit value at or below `0` removes this limit and is not recommended for remotely reachable environments. |
+| `bench.api_max_payload_bytes` | `WK_BENCH_API_MAX_PAYLOAD_BYTES` | `int` | Maximum JSON body bytes accepted by one Bench API mutation request; omitted uses `10485760` (10 MiB), while an explicit value at or below `0` removes this limit and is not recommended for remotely reachable environments. |
 
 ## Observability Switches
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `observability.metrics_enable` | `WK_METRICS_ENABLE` | `bool` | — |
-| `observability.debug_api_enable` | `WK_DEBUG_API_ENABLE` | `bool` | — |
+| `observability.metrics_enable` | `WK_METRICS_ENABLE` | `bool` | Enables runtime metric observers and exposes `/metrics` when an API listener exists; disabled when omitted. The HTTP metrics endpoint requires non-empty `api.listen_addr`. |
+| `observability.debug_api_enable` | `WK_DEBUG_API_ENABLE` | `bool` | Exposes `/debug` diagnostics on the API listener; disabled when omitted and requires non-empty `api.listen_addr`. Never publish it directly to the internet. |
 
 ## Prometheus
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `prometheus.enable` | `WK_PROMETHEUS_ENABLE` | `bool` | — |
-| `prometheus.query_base_url` | `WK_PROMETHEUS_QUERY_BASE_URL` | `string` | Redacted in diagnostic artifacts |
-| `prometheus.binary_path` | `WK_PROMETHEUS_BINARY_PATH` | `string` | — |
-| `prometheus.listen_addr` | `WK_PROMETHEUS_LISTEN_ADDR` | `string` | — |
-| `prometheus.data_dir` | `WK_PROMETHEUS_DATA_DIR` | `string` | — |
-| `prometheus.retention_time` | `WK_PROMETHEUS_RETENTION_TIME` | `duration` | — |
-| `prometheus.retention_size` | `WK_PROMETHEUS_RETENTION_SIZE` | `string` | — |
-| `prometheus.scrape_interval` | `WK_PROMETHEUS_SCRAPE_INTERVAL` | `duration` | — |
-| `prometheus.scrape_targets` | `WK_PROMETHEUS_SCRAPE_TARGETS` | `string_list` | — |
+| `prometheus.enable` | `WK_PROMETHEUS_ENABLE` | `bool` | Starts a Prometheus child process managed by WuKongIM; disabled when omitted. Enabling also requires an API listener, metrics, and valid scrape targets; keep it disabled with external Prometheus. |
+| `prometheus.query_base_url` | `WK_PROMETHEUS_QUERY_BASE_URL` | `string` | Base URL used by Manager to query an external Prometheus HTTP API; it must be an HTTP(S) URL with a host and no query or fragment. Empty may fall back to managed Prometheus. Redacted from diagnostics. |
+| `prometheus.binary_path` | `WK_PROMETHEUS_BINARY_PATH` | `string` | External Prometheus executable used by the managed process; empty uses the embedded binary. |
+| `prometheus.listen_addr` | `WK_PROMETHEUS_LISTEN_ADDR` | `string` | Web listener for the managed Prometheus process, in `host:port` form; defaults to `127.0.0.1:9099`. |
+| `prometheus.data_dir` | `WK_PROMETHEUS_DATA_DIR` | `string` | Directory for generated Prometheus configuration and TSDB data; empty derives it from `node.data_dir`. |
+| `prometheus.retention_time` | `WK_PROMETHEUS_RETENTION_TIME` | `duration` | Time-based retention window for the managed Prometheus TSDB; omitted or `0` uses `360h`. |
+| `prometheus.retention_size` | `WK_PROMETHEUS_RETENTION_SIZE` | `string` | Optional size-based retention limit for the managed Prometheus TSDB; empty applies no size limit. |
+| `prometheus.scrape_interval` | `WK_PROMETHEUS_SCRAPE_INTERVAL` | `duration` | Interval for managed Prometheus to scrape WuKongIM metrics; omitted or `0` uses `15s`. |
+| `prometheus.scrape_targets` | `WK_PROMETHEUS_SCRAPE_TARGETS` | `string_list` | Metrics targets for managed Prometheus as `host:port` values without a URL scheme and with ports from `1` to `65535`; an empty list may be derived from the API listener. |
 
 ## Top
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `top.api_enable` | `WK_TOP_API_ENABLE` | `bool` | — |
-| `top.collect_interval` | `WK_TOP_COLLECT_INTERVAL` | `duration` | — |
-| `top.history_window` | `WK_TOP_HISTORY_WINDOW` | `duration` | — |
+| `top.api_enable` | `WK_TOP_API_ENABLE` | `bool` | Exposes the read-only `/top/v1/snapshot` endpoint on the API listener for `wkcli top`; disabled when omitted and requires non-empty `api.listen_addr`. |
+| `top.collect_interval` | `WK_TOP_COLLECT_INTERVAL` | `duration` | Interval at which Top samples local runtime state; omitted or `0` uses `1s`. |
+| `top.history_window` | `WK_TOP_HISTORY_WINDOW` | `duration` | In-memory sample window retained for Top queries; omitted or `0` uses `5m` and must be at least twice the collection interval. |
 
 ## Diagnostics
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | — |
-| `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | — |
-| `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | — |
-| `diagnostics.slow_threshold_ms` | `WK_DIAGNOSTICS_SLOW_THRESHOLD_MS` | `int` | — |
-| `diagnostics.error_sample_rate` | `WK_DIAGNOSTICS_ERROR_SAMPLE_RATE` | `float` | — |
-| `diagnostics.deep_sample_rate` | `WK_DIAGNOSTICS_DEEP_SAMPLE_RATE` | `float` | — |
-| `diagnostics.deep_slow_threshold_ms` | `WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS` | `int` | — |
-| `diagnostics.deep_max_items_per_batch` | `WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH` | `int` | — |
-| `diagnostics.debug_matches` | `WK_DIAGNOSTICS_DEBUG_MATCHES` | `object_list` | — |
+| `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | Captures bounded node-local diagnostic events; enabled when omitted. |
+| `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | Maximum diagnostic events retained in memory; `0` uses `50000`. |
+| `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | Baseline keep probability for successful diagnostic events, from `0` to `1`; omitted uses `0.01`. |
+| `diagnostics.slow_threshold_ms` | `WK_DIAGNOSTICS_SLOW_THRESHOLD_MS` | `int` | Duration threshold for keeping successful slow events, in milliseconds; omitted or `0` uses `500`. |
+| `diagnostics.error_sample_rate` | `WK_DIAGNOSTICS_ERROR_SAMPLE_RATE` | `float` | Keep probability for non-success diagnostic events, from `0` to `1`; omitted uses `1`. |
+| `diagnostics.deep_sample_rate` | `WK_DIAGNOSTICS_DEEP_SAMPLE_RATE` | `float` | Sampling probability for expensive Reactor or store detail, from `0` to `1`; defaults to `0`. |
+| `diagnostics.deep_slow_threshold_ms` | `WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS` | `int` | Threshold for deep tracing slow Reactor or store stages, in milliseconds; omitted or `0` follows the normal slow threshold. |
+| `diagnostics.deep_max_items_per_batch` | `WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH` | `int` | Maximum messages expanded into events by one deep-trace batch; `0` uses `16`. |
+| `diagnostics.debug_matches` | `WK_DIAGNOSTICS_DEBUG_MATCHES` | `object_list` | Temporary high-priority sampling rules; an empty list means none. Each item needs at least one of `uid`, `channel_key`, `client_msg_no`, or `trace_id`; positive `ttl_seconds` is required to take effect and zero is silently ignored. `sample_rate` ranges from `0` to `1`, where `0` retains nothing. |
 
 ## Gateway
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | — |
-| `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | — |
-| `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | — |
-| `gateway.runtime_async_send_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY` | `int` | — |
-| `gateway.runtime_async_auth_workers` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS` | `int` | — |
-| `gateway.runtime_async_auth_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY` | `int` | — |
-| `gateway.runtime_async_pool_release_timeout` | `WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT` | `duration` | — |
-| `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | — |
-| `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | — |
-| `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | — |
-| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | — |
-| `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | — |
+| `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | Enables gnet's CPU-scaled multi-event-loop mode; enabled when omitted. |
+| `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | gnet event-loop count; `0` retains the WuKongIM baseline of `4`. |
+| `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | Maximum workers dispatching SEND frames asynchronously; a non-positive value uses `1000`. |
+| `gateway.runtime_async_send_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY` | `int` | Maximum queued asynchronous SEND frames; a non-positive value uses `131072`, and a full queue rejects new SEND frames. |
+| `gateway.runtime_async_auth_workers` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS` | `int` | Maximum workers processing CONNECT authentication asynchronously; a non-positive value uses `16`. |
+| `gateway.runtime_async_auth_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY` | `int` | Maximum queued CONNECT authentications; a non-positive value uses `8192`, and a full queue rejects new CONNECT authentication requests. |
+| `gateway.runtime_async_pool_release_timeout` | `WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT` | `duration` | Maximum graceful-release wait for asynchronous worker pools during shutdown; a non-positive value uses `100ms`. |
+| `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | Maximum wait for a SEND shard to collect adjacent frames; `0` uses `1ms`, while a negative value normalizes to `0` and disables waiting. |
+| `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | Maximum frames in one Gateway SEND micro-batch; `0` uses `128`. |
+| `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | Maximum payload bytes in one Gateway SEND micro-batch; `0` uses `524288`. |
+| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | Client listener list: `name`, `network`, `address`, `transport`, and `protocol` are required; `path` is optional; names and addresses must each be unique. Omitted opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list (including JSON `null` in the environment) disables Gateway. |
+| `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | Maximum duration allowed for one message send initiated by Gateway; a non-positive value uses `5s`. |
 
 ## Message
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | — |
-| `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | — |
-| `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | — |
+| `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | Enforces receiver-side allowlist checks for person messages; disabled by default for compatibility. |
+| `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | Device ID for trusted system sessions; omitted or empty uses `____device`, so an empty value cannot disable recognition. Such sessions may bypass channel-type send permissions after the send-ban check. |
+| `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | Cache lifetime for permission, membership, and missing-channel reads; `0` disables caching. |
 
 ## Presence
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `presence.activation_timeout` | `WK_PRESENCE_ACTIVATION_TIMEOUT` | `duration` | — |
-| `presence.touch_flush_interval` | `WK_PRESENCE_TOUCH_FLUSH_INTERVAL` | `duration` | — |
-| `presence.touch_batch_size` | `WK_PRESENCE_TOUCH_BATCH_SIZE` | `int` | — |
-| `presence.touch_max_routes_per_flush` | `WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH` | `int` | — |
-| `presence.route_ttl` | `WK_PRESENCE_ROUTE_TTL` | `duration` | — |
+| `presence.activation_timeout` | `WK_PRESENCE_ACTIVATION_TIMEOUT` | `duration` | Timeout for Gateway session route activation against the UID authority; `0` uses `3s`. |
+| `presence.touch_flush_interval` | `WK_PRESENCE_TOUCH_FLUSH_INTERVAL` | `duration` | Interval for flushing local connection activity to UID authorities; `0` uses `1s`. |
+| `presence.touch_batch_size` | `WK_PRESENCE_TOUCH_BATCH_SIZE` | `int` | Maximum local touched routes processed per flush chunk; `0` uses `512`. |
+| `presence.touch_max_routes_per_flush` | `WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH` | `int` | Maximum dirty routes processed across all chunks in one flush; omitted uses `65536`, while an explicit value must be positive and at least `presence.touch_batch_size`. |
+| `presence.route_ttl` | `WK_PRESENCE_ROUTE_TTL` | `duration` | How long a UID authority keeps a route alive after its latest activity; `0` uses `90s`. |
 
 ## Channel Append
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `channel_append.shard_count` | `WK_CHANNEL_APPEND_SHARD_COUNT` | `int` | — |
-| `channel_append.advance_pool_size` | `WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE` | `int` | — |
-| `channel_append.effect_pool_size` | `WK_CHANNEL_APPEND_EFFECT_POOL_SIZE` | `int` | — |
-| `channel_append.recipient_authority_dispatch_concurrency` | `WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY` | `int` | — |
+| `channel_append.shard_count` | `WK_CHANNEL_APPEND_SHARD_COUNT` | `int` | Shards used to look up Channel append authority state; `0` derives a CPU-aware default. |
+| `channel_append.advance_pool_size` | `WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE` | `int` | Worker pool that advances Channel Append Writer state machines; `0` uses the runtime default `500`. |
+| `channel_append.effect_pool_size` | `WK_CHANNEL_APPEND_EFFECT_POOL_SIZE` | `int` | Worker pool used by blocking appends and post-append recipient processing; `0` uses the runtime default `2000`. |
+| `channel_append.recipient_authority_dispatch_concurrency` | `WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY` | `int` | Deprecated compatibility input; canonical Online Delivery plans ignore this value. |
 
 ## Delivery
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `delivery.enable` | `WK_DELIVERY_ENABLE` | `bool` | — |
-| `delivery.fanout_page_size` | `WK_DELIVERY_FANOUT_PAGE_SIZE` | `int` | — |
-| `delivery.push_batch_size` | `WK_DELIVERY_PUSH_BATCH_SIZE` | `int` | — |
-| `delivery.pending_ack_ttl` | `WK_DELIVERY_PENDING_ACK_TTL` | `duration` | — |
-| `delivery.pending_ack_max_per_session` | `WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION` | `int` | — |
-| `delivery.event_queue_size` | `WK_DELIVERY_EVENT_QUEUE_SIZE` | `int` | — |
-| `delivery.recipient_worker_concurrency` | `WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY` | `int` | — |
+| `delivery.enable` | `WK_DELIVERY_ENABLE` | `bool` | Connects committed messages to the online-delivery runtime; enabled when omitted. |
+| `delivery.fanout_page_size` | `WK_DELIVERY_FANOUT_PAGE_SIZE` | `int` | Maximum subscriber UIDs read in one fanout page; `0` uses `512`. |
+| `delivery.push_batch_size` | `WK_DELIVERY_PUSH_BATCH_SIZE` | `int` | Maximum recipients in one exact-target lookup, delivery plan, or owner-node push chunk; `0` uses `512`. |
+| `delivery.pending_ack_ttl` | `WK_DELIVERY_PENDING_ACK_TTL` | `duration` | Lifetime used to remove stale pending acknowledgements during delivery activity; `0` uses `30s`. |
+| `delivery.pending_ack_max_per_session` | `WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION` | `int` | Maximum owner-local pending acknowledgements retained for one UID session; `0` uses `1024`. |
+| `delivery.event_queue_size` | `WK_DELIVERY_EVENT_QUEUE_SIZE` | `int` | Maximum recipient delivery plans waiting for asynchronous processing; `0` uses `1024`. |
+| `delivery.recipient_worker_concurrency` | `WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY` | `int` | Maximum workers processing recipient delivery plans; `0` uses `320`. |
 
 ## Webhook
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `webhook.http_addr` | `WK_WEBHOOK_HTTP_ADDR` | `string` | Redacted in diagnostic artifacts |
-| `webhook.focus_events` | `WK_WEBHOOK_FOCUS_EVENTS` | `string_list` | — |
-| `webhook.queue_size` | `WK_WEBHOOK_QUEUE_SIZE` | `int` | — |
-| `webhook.workers` | `WK_WEBHOOK_WORKERS` | `int` | — |
-| `webhook.msg_notify_batch_max_items` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS` | `int` | — |
-| `webhook.msg_notify_batch_max_wait` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT` | `duration` | — |
-| `webhook.online_status_batch_max_items` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS` | `int` | — |
-| `webhook.online_status_batch_max_wait` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT` | `duration` | — |
-| `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | — |
-| `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | — |
-| `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | — |
+| `webhook.http_addr` | `WK_WEBHOOK_HTTP_ADDR` | `string` | Target receiving JSON webhook POST requests; empty disables the webhook runtime. Redacted from diagnostic artifacts. |
+| `webhook.focus_events` | `WK_WEBHOOK_FOCUS_EVENTS` | `string_list` | Limits delivery to these names: `msg.notify`, `msg.offline`, or `user.onlinestatus`; an empty list selects all supported events. |
+| `webhook.queue_size` | `WK_WEBHOOK_QUEUE_SIZE` | `int` | Maximum webhook events queued in memory before worker execution; `0` uses `1024`. |
+| `webhook.workers` | `WK_WEBHOOK_WORKERS` | `int` | Maximum concurrent webhook sender workers; `0` uses `16`. |
+| `webhook.msg_notify_batch_max_items` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS` | `int` | Maximum messages in one `msg.notify` webhook request; `0` uses `100`. |
+| `webhook.msg_notify_batch_max_wait` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT` | `duration` | Maximum wait to collect adjacent `msg.notify` messages; `0` uses `500ms`. |
+| `webhook.online_status_batch_max_items` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS` | `int` | Maximum records in one `user.onlinestatus` request; `0` uses `512`. |
+| `webhook.online_status_batch_max_wait` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT` | `duration` | Maximum wait to collect adjacent `user.onlinestatus` records; `0` uses `2s`. |
+| `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | Maximum offline UIDs in one `msg.offline` request; `0` uses `512`. |
+| `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | Timeout for one outbound webhook request attempt; `0` uses `5s`. |
+| `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | Maximum attempts for an admitted webhook batch before it is dropped; `0` uses `3`. |
 
 ## Plugin
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `plugin.enable` | `WK_PLUGIN_ENABLE` | `bool` | — |
-| `plugin.dir` | `WK_PLUGIN_DIR` | `string` | — |
-| `plugin.socket_path` | `WK_PLUGIN_SOCKET_PATH` | `string` | — |
-| `plugin.sandbox_dir` | `WK_PLUGIN_SANDBOX_DIR` | `string` | — |
-| `plugin.state_dir` | `WK_PLUGIN_STATE_DIR` | `string` | — |
-| `plugin.timeout` | `WK_PLUGIN_TIMEOUT` | `duration` | — |
-| `plugin.hot_reload` | `WK_PLUGIN_HOT_RELOAD` | `bool` | — |
-| `plugin.fail_open` | `WK_PLUGIN_FAIL_OPEN` | `bool` | — |
-| `plugin.persist_after_queue_size` | `WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE` | `int` | — |
-| `plugin.persist_after_workers` | `WK_PLUGIN_PERSIST_AFTER_WORKERS` | `int` | — |
+| `plugin.enable` | `WK_PLUGIN_ENABLE` | `bool` | Enables node-local `.wkp` plugin processes and `PersistAfter` hooks; enabled when omitted. |
+| `plugin.dir` | `WK_PLUGIN_DIR` | `string` | Directory containing executable `.wkp` plugin files; when Plugin is enabled, empty derives it from `node.data_dir`. |
+| `plugin.socket_path` | `WK_PLUGIN_SOCKET_PATH` | `string` | Unix socket used for plugin host RPC; when Plugin is enabled, empty derives it from `node.data_dir`. |
+| `plugin.sandbox_dir` | `WK_PLUGIN_SANDBOX_DIR` | `string` | Root directory for each plugin's writable sandbox data; when Plugin is enabled, empty derives it from `node.data_dir`. |
+| `plugin.state_dir` | `WK_PLUGIN_STATE_DIR` | `string` | Directory containing node-local desired plugin state; when Plugin is enabled, empty derives it from `node.data_dir`. |
+| `plugin.timeout` | `WK_PLUGIN_TIMEOUT` | `duration` | Timeout for plugin host RPC and graceful process shutdown; `0` uses `5s`. |
+| `plugin.hot_reload` | `WK_PLUGIN_HOT_RELOAD` | `bool` | Watches the plugin directory and reloads changed binaries; enabled when omitted. |
+| `plugin.fail_open` | `WK_PLUGIN_FAIL_OPEN` | `bool` | Reserved for future Send hooks; omitted is `false`, but the current value has no effect and `PersistAfter` is always fail-open. |
+| `plugin.persist_after_queue_size` | `WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE` | `int` | Maximum `PersistAfter` events queued in memory; `0` uses `1024`. |
+| `plugin.persist_after_workers` | `WK_PLUGIN_PERSIST_AFTER_WORKERS` | `int` | Maximum concurrent `PersistAfter` hook workers; `0` uses `16`. |
 
 ## Log
 
-| TOML | Environment | Kind | Constraint |
+| TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `log.level` | `WK_LOG_LEVEL` | `string` | — |
-| `log.dir` | `WK_LOG_DIR` | `string` | — |
-| `log.max_size` | `WK_LOG_MAX_SIZE` | `int` | — |
-| `log.max_age` | `WK_LOG_MAX_AGE` | `int` | — |
-| `log.max_backups` | `WK_LOG_MAX_BACKUPS` | `int` | — |
-| `log.compress` | `WK_LOG_COMPRESS` | `bool` | — |
-| `log.console` | `WK_LOG_CONSOLE` | `bool` | — |
-| `log.format` | `WK_LOG_FORMAT` | `string` | — |
+| `log.level` | `WK_LOG_LEVEL` | `string` | Minimum recorded level: `debug`, `info`, `warn`, or `error`; omitted uses `info`. |
+| `log.dir` | `WK_LOG_DIR` | `string` | Directory for rolling log files; empty uses `./logs`. |
+| `log.max_size` | `WK_LOG_MAX_SIZE` | `int` | Maximum log-file size before rotation, in MB; values at or below `0` use `100`. |
+| `log.max_age` | `WK_LOG_MAX_AGE` | `int` | Maximum days to retain rotated logs; values at or below `0` use `30`. |
+| `log.max_backups` | `WK_LOG_MAX_BACKUPS` | `int` | Maximum rotated files retained per log; values at or below `0` use `10`. |
+| `log.compress` | `WK_LOG_COMPRESS` | `bool` | Compresses rotated log files with gzip; enabled when omitted. |
+| `log.console` | `WK_LOG_CONSOLE` | `bool` | Adds a standard-output log sink; enabled when omitted. |
+| `log.format` | `WK_LOG_FORMAT` | `string` | File encoder format; `json` emits structured JSON, while other values use console encoding. Omitted uses `console`. |
+
+## Migrating removed environment variables
+
+These legacy variables are no longer accepted. Replace them when upgrading configuration:
+
+| Removed | Replacement |
+| --- | --- |
+| `WK_CLUSTER_GROUP_COUNT` | `WK_CLUSTER_INITIAL_SLOT_COUNT` |
+| `WK_CLUSTER_GROUP_REPLICA_N` | `WK_CLUSTER_SLOT_REPLICA_N` |
+| `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED` | Use the applicable `WK_CHANNEL_MIGRATION_*` settings |

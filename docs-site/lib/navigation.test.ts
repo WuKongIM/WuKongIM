@@ -456,6 +456,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/deployment/kubernetes-resources`,
         `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
+        `/${locale}/server/configuration/common-configurations`,
         `/${locale}/server/configuration/cluster`,
         `/${locale}/server/configuration/networking`,
         `/${locale}/server/configuration/storage`,

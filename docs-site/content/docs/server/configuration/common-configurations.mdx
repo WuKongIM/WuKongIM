@@ -1,0 +1,31 @@
+---
+title: 常用配置
+description: WuKongIM 最常用的 10 个配置项及其作用、默认行为和关键限制。
+---
+
+本页只保留启动、客户端接入和日常运维中最常查阅的 10 个配置项。每项均可通过 TOML 或环境变量设置；同时提供时，环境变量会覆盖配置文件。全部字段及精确语义见[配置参考](/zh/server/configuration/reference)。
+
+<Callout type="info" title="所有部署都是集群">
+  单节点部署也是单节点集群。所有场景都必须设置 `node.id`、`node.data_dir` 和 `cluster.listen_addr`；修改配置后通常需要重启节点。
+</Callout>
+
+## 最常用的 10 项
+
+| 配置（TOML / 环境变量） | 作用 | 默认与注意事项 |
+| --- | --- | --- |
+| [`node.id`](/zh/server/configuration/cluster)<br />`WK_NODE_ID` | 标识当前节点，是消息与集群状态使用的稳定节点身份。 | 启动必填，必须非零且在集群内唯一；产生数据后不要修改。 |
+| [`node.data_dir`](/zh/server/configuration/storage)<br />`WK_NODE_DATA_DIR` | 保存当前节点的 Controller、Slot、Channel 等持久化数据。 | 启动必填；目录必须可写，并应使用持久化、受备份保护的磁盘。 |
+| [`cluster.listen_addr`](/zh/server/configuration/cluster)<br />`WK_CLUSTER_LISTEN_ADDR` | 监听节点之间的 Cluster RPC。 | 启动必填；可绑定 `0.0.0.0`，但提供给其他节点连接的地址必须可达且不能是通配地址。 |
+| [`cluster.nodes`](/zh/server/configuration/cluster)<br />`WK_CLUSTER_NODES` | 定义静态 Controller 投票节点列表，元素包含节点 `id` 和集群地址 `addr`。 | 同时未配置 `cluster.seeds` 时，省略或使用空列表会回退为隐式单节点集群；不能与非空 `cluster.seeds` 同时使用。环境变量必须使用 JSON，并替换整张列表。 |
+| [`cluster.slot_replica_n`](/zh/server/configuration/cluster)<br />`WK_CLUSTER_SLOT_REPLICA_N` | 设置集群首次初始化时每个 Slot Raft Group 的投票副本数。 | `0` 在静态拓扑按投票节点数推导，种子加入时使用 `1`；已有集群以 Controller 持久状态为准。 |
+| [`gateway.listeners`](/zh/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | 定义客户端使用的 TCP 或 WebSocket 监听器。 | 省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表会关闭 Gateway。环境变量必须使用 JSON。 |
+| [`api.listen_addr`](/zh/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | 监听 Product HTTP API，并承载健康检查及按开关启用的指标、调试等 HTTP 路由。 | 省略或留空时不启动该 HTTP 服务；它不会创建客户端 Gateway 或 Manager 监听器。 |
+| [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；对外开放时应同时启用认证并限制网络访问。 |
+| [`manager.auth_on`](/zh/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | 要求 Manager 路由使用 JWT 登录认证。 | 省略时为 `false`；设为 `true` 时必须同时提供 `manager.jwt_secret` 和 `manager.users`。 |
+| [`log.level`](/zh/server/configuration/observability)<br />`WK_LOG_LEVEL` | 设置应用记录的最低日志级别。 | 默认 `info`；可选 `debug`、`info`、`warn`、`error`。生产排障结束后应避免长期使用 `debug`。 |
+
+## 继续查阅
+
+- 配置文件查找顺序、环境变量覆盖和列表替换规则见[配置概览](/zh/server/configuration)。
+- 多节点种子加入、频道副本、指标、Webhook 等配置见[配置参考](/zh/server/configuration/reference)。
+- 生产环境还应完成[生产检查清单](/zh/server/deployment/production-checklist)。

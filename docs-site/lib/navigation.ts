@@ -799,6 +799,13 @@ export const domains: DocumentationDomain[] = [
         'Explains configuration sources, override rules, and domain settings.',
         [
           publishedPage(
+            'common-configurations',
+            '常用配置',
+            'Common Configurations',
+            '以表格解释最常用的 10 个配置项及其关键边界。',
+            'Explains the 10 most-used settings and their key boundaries in a table.',
+          ),
+          publishedPage(
             'cluster',
             '节点与集群',
             'Nodes & Cluster',
@@ -837,8 +844,8 @@ export const domains: DocumentationDomain[] = [
             'reference',
             '配置参考',
             'Configuration Reference',
-            '列出 TOML 键、类型、环境变量、脱敏边界和约束。',
-            'Lists TOML keys, types, environment variables, redaction boundaries, and constraints.',
+            '逐项说明全部公开 TOML、环境变量、关键默认值、约束和迁移方式。',
+            'Explains every public TOML field, environment override, key default, constraint, and migration.',
           ),
         ],
       ),

@@ -28,7 +28,15 @@ func TestBilingualConfigurationReferenceCoversPublicSchema(t *testing.T) {
 			rowCount := 0
 			for _, line := range strings.Split(text, "\n") {
 				if strings.HasPrefix(line, "| `") && strings.Contains(line, " | `WK_") {
+					cells := strings.Split(line, "|")
+					if len(cells) != 6 {
+						continue
+					}
 					rowCount++
+					description := strings.TrimSpace(cells[4])
+					if description == "" || description == "—" {
+						t.Errorf("%s schema row %q has no description", name, strings.TrimSpace(cells[1]))
+					}
 				}
 			}
 			if rowCount != len(fields) {
