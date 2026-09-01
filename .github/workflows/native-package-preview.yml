@@ -1,0 +1,101 @@
+name: Safety Automation - Validate Native Package Preview
+
+on:
+  pull_request:
+    paths:
+      - ".goreleaser.packages.yaml"
+      - "cmd/wukongim/**"
+      - "internal/app/**"
+      - "internal/config/**"
+      - "packaging/**"
+      - "scripts/native_package_contract_test.go"
+      - "scripts/native_package_repository_integration_test.go"
+      - "scripts/build-native-package-repositories.sh"
+      - "scripts/generate-native-package-test-keyring.sh"
+      - "scripts/sign-native-package-repositories.sh"
+      - "scripts/validate-native-package.sh"
+      - "scripts/validate-native-package-container.sh"
+      - "scripts/validate-native-package-repositories-container.sh"
+      - "scripts/verify-native-package-metadata.py"
+      - "scripts/verify-native-package-repositories.sh"
+      - ".github/workflows/native-package-preview.yml"
+      - ".github/workflows/README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-package-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Build and install deb/rpm preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up repository Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run package and CLI contracts
+        run: |
+          go test ./cmd/wukongim ./internal/config ./internal/app -count=1
+          go test ./scripts -run 'TestNativePackage' -count=1
+
+      - name: Build deb and rpm preview
+        uses: goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1 # v7.2.0
+        with:
+          distribution: goreleaser
+          version: v2.18.0
+          args: release --snapshot --clean --config .goreleaser.packages.yaml
+
+      - name: Validate signed repository metadata closure
+        env:
+          WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION: "1"
+        run: >-
+          go test -tags=integration ./scripts
+          -run '^TestNativePackageSignedRepository$'
+          -count=1 -timeout=30m
+
+      - name: Inspect package metadata
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes rpm
+          WK_NATIVE_PACKAGE_SKIP_BUILD=1 \
+          WK_NATIVE_PACKAGE_REQUIRE_INSPECTORS=1 \
+            ./scripts/validate-native-package.sh
+
+      - name: Install on Ubuntu 24.04
+        run: ./scripts/validate-native-package-container.sh ubuntu:24.04 deb
+
+      - name: Install on Debian 12
+        run: ./scripts/validate-native-package-container.sh debian:12 deb
+
+      - name: Install on Rocky Linux 9
+        run: ./scripts/validate-native-package-container.sh rockylinux:9 rpm
+
+      - name: Install on AlmaLinux 9
+        run: ./scripts/validate-native-package-container.sh almalinux:9 rpm
+
+      - name: Upload preview packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wukongim-native-package-preview-${{ github.run_id }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 14

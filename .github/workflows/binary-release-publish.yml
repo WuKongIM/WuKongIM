@@ -266,7 +266,7 @@ jobs:
             echo "Legacy tag has no version command; provenance remains bound by tag, checksum, and attestation."
           fi
 
-      - name: Classify immutable GitHub Release assets
+      - name: Classify draft GitHub Release assets
         id: publication
         shell: bash
         env:
@@ -287,19 +287,38 @@ jobs:
             "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
             "$CHECKSUM_NAME"
           )
+          gh api "repos/$GITHUB_REPOSITORY/immutable-releases" \
+            | jq -e '.enabled == true' >/dev/null || {
+              echo "repository immutable Releases must remain enabled before publication" >&2
+              exit 1
+            }
           existing_dir="$RUNNER_TEMP/existing-binary-release"
           mkdir -p "$existing_dir"
           missing_file="$RUNNER_TEMP/missing-binary-release-assets.txt"
+          release_pages="$RUNNER_TEMP/existing-binary-release-pages.json"
+          matching_releases="$RUNNER_TEMP/existing-binary-release-matches.json"
           release_json="$RUNNER_TEMP/existing-binary-release.json"
-          release_error="$RUNNER_TEMP/existing-binary-release.err"
           : >"$missing_file"
 
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/releases?per_page=100" >"$release_pages"
+          jq --arg version "$VERSION" \
+            '[.[][] | select(.tag_name == $version)]' \
+            "$release_pages" >"$matching_releases"
+          match_count="$(jq 'length' "$matching_releases")"
+          [[ "$match_count" == 0 || "$match_count" == 1 ]] || {
+            echo "$VERSION resolves to multiple GitHub Releases" >&2
+            exit 1
+          }
+
           release_exists=false
-          release_immutable=false
-          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" >"$release_json" 2>"$release_error"; then
+          release_id=""
+          if [[ "$match_count" == 1 ]]; then
             release_exists=true
-            jq -e '.draft == false' "$release_json" >/dev/null || {
-              echo "$VERSION already has a draft Release; refusing to publish into it" >&2
+            jq '.[0]' "$matching_releases" >"$release_json"
+            release_id="$(jq -r '.id' "$release_json")"
+            [[ "$release_id" =~ ^[1-9][0-9]*$ ]] || {
+              echo "$VERSION Release has an invalid numeric id" >&2
               exit 1
             }
             existing_prerelease="$(jq -r '.prerelease' "$release_json")"
@@ -309,24 +328,44 @@ jobs:
               echo "$VERSION Release prerelease classification conflicts with SemVer" >&2
               exit 1
             }
-            release_immutable="$(jq -r '.immutable // false' "$release_json")"
-          elif grep -Fq 'HTTP 404' "$release_error"; then
-            jq -n '{assets: []}' >"$release_json"
           else
-            cat "$release_error" >&2
-            exit 1
+            jq -n '{assets: []}' >"$release_json"
           fi
+
+          jq -e '[.assets[].name] | length == (unique | length)' "$release_json" >/dev/null || {
+            echo "$VERSION Release contains duplicate asset names" >&2
+            exit 1
+          }
+          while IFS= read -r existing_asset; do
+            expected=false
+            for asset in "${expected_assets[@]}"; do
+              if [[ "$existing_asset" == "$asset" ]]; then
+                expected=true
+                break
+              fi
+            done
+            [[ "$expected" == true ]] || {
+              echo "$VERSION Release contains unexpected asset: $existing_asset" >&2
+              exit 1
+            }
+          done < <(jq -r '.assets[].name' "$release_json")
 
           existing_count=0
           for asset in "${expected_assets[@]}"; do
-            if jq -e --arg name "$asset" '.assets[] | select(.name == $name)' "$release_json" >/dev/null; then
+            asset_id="$(jq -r --arg name "$asset" \
+              '.assets[] | select(.name == $name) | .id' "$release_json")"
+            if [[ -n "$asset_id" ]]; then
+              [[ "$asset_id" =~ ^[1-9][0-9]*$ ]] || {
+                echo "$asset has an invalid numeric asset id" >&2
+                exit 1
+              }
               existing_count=$((existing_count + 1))
-              gh release download "$VERSION" \
-                --repo "$GITHUB_REPOSITORY" \
-                --pattern "$asset" \
-                --dir "$existing_dir"
+              gh api \
+                -H 'Accept: application/octet-stream' \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+                >"$existing_dir/$asset"
               cmp "$RELEASE_DIR/$asset" "$existing_dir/$asset" || {
-                echo "$asset is immutable and its published content conflicts with this source" >&2
+                echo "$asset already exists and its content conflicts with this source" >&2
                 exit 1
               }
             else
@@ -334,16 +373,17 @@ jobs:
             fi
           done
 
-          if [[ "$release_exists" == true && "$existing_count" -eq "${#expected_assets[@]}" ]]; then
-            echo "$VERSION already has the complete immutable binary release" >&2
-            exit 1
-          fi
-          if [[ "$release_exists" == true && "$release_immutable" == true ]]; then
-            echo "$VERSION is already immutable and incomplete; delete and recreate the exact Release explicitly" >&2
+          if [[ "$release_exists" == true ]] && ! jq -e '.draft == true' "$release_json" >/dev/null; then
+            if [[ "$existing_count" -eq "${#expected_assets[@]}" ]]; then
+              echo "$VERSION already has the complete published binary release" >&2
+            else
+              echo "$VERSION is already published but incomplete; refusing to reuse its tag; publish a new SemVer tag" >&2
+            fi
             exit 1
           fi
           {
             echo "release_exists=$release_exists"
+            echo "release_id=$release_id"
             echo "missing_file=$missing_file"
           } >>"$GITHUB_OUTPUT"
 
@@ -355,67 +395,311 @@ jobs:
             ${{ runner.temp }}/wukongim-binary-release/*.tar.gz
             ${{ runner.temp }}/wukongim-binary-release/*_checksums.txt
 
-      - name: Publish absent immutable GitHub Release assets
+      - name: Create or recover draft GitHub Release
+        id: draft
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.identity.outputs.version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
           STABLE: ${{ steps.identity.outputs.stable }}
           RELEASE_EXISTS: ${{ steps.publication.outputs.release_exists }}
+          CLASSIFIED_RELEASE_ID: ${{ steps.publication.outputs.release_id }}
           MISSING_FILE: ${{ steps.publication.outputs.missing_file }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
           set -euo pipefail
+
+          remote_refs="$(git ls-remote origin \
+            "refs/tags/$VERSION" "refs/tags/$VERSION^{}")"
+          raw_tag_sha="$(awk -v ref="refs/tags/$VERSION" '$2 == ref {print $1}' <<<"$remote_refs")"
+          peeled_tag_sha="$(awk -v ref="refs/tags/$VERSION^{}" '$2 == ref {print $1}' <<<"$remote_refs")"
+          [[ "$raw_tag_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "remote release tag is missing or ambiguous: $VERSION" >&2
+            exit 1
+          }
+          remote_source_sha="${peeled_tag_sha:-$raw_tag_sha}"
+          [[ "$remote_source_sha" =~ ^[0-9a-f]{40}$ && "$remote_source_sha" == "$SOURCE_SHA" ]] || {
+            echo "remote release tag no longer peels to the validated source: $VERSION" >&2
+            exit 1
+          }
 
           upload_paths=()
           while IFS= read -r asset; do
             [[ -n "$asset" ]] || continue
             upload_paths+=("$RELEASE_DIR/$asset")
           done <"$MISSING_FILE"
-          ((${#upload_paths[@]} > 0))
-
+          release_id="$CLASSIFIED_RELEASE_ID"
           if [[ "$RELEASE_EXISTS" != true ]]; then
-            create_args=(
-              gh release create "$VERSION"
-              "${upload_paths[@]}"
-              --repo "$GITHUB_REPOSITORY"
-              --verify-tag
-              --title "WuKongIM $VERSION"
-              --generate-notes
-            )
-            [[ "$STABLE" == true ]] || create_args+=(--prerelease)
-            "${create_args[@]}"
-          else
-            gh release upload "$VERSION" \
-              --repo "$GITHUB_REPOSITORY" \
-              "${upload_paths[@]}"
+            expected_prerelease=true
+            [[ "$STABLE" != true ]] || expected_prerelease=false
+            created_release="$RUNNER_TEMP/created-binary-release.json"
+            gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$VERSION" \
+              -f name="WuKongIM $VERSION" \
+              -F draft=true \
+              -F prerelease="$expected_prerelease" \
+              -F generate_release_notes=true \
+              >"$created_release"
+            release_id="$(jq -r '.id' "$created_release")"
           fi
+          [[ "$release_id" =~ ^[1-9][0-9]*$ ]] || {
+            echo "$VERSION draft has an invalid numeric release id" >&2
+            exit 1
+          }
+          draft_identity="$RUNNER_TEMP/binary-release-draft-identity.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" >"$draft_identity"
+          upload_url="$(jq -r '.upload_url' "$draft_identity")"
+          expected_upload_url="https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets{?name,label}"
+          [[ "$upload_url" == "$expected_upload_url" ]] || {
+            echo "$VERSION draft returned an unexpected asset upload URL" >&2
+            exit 1
+          }
+          upload_endpoint="${upload_url%%\{*}"
 
-      - name: Verify published Release assets
+          for upload_path in "${upload_paths[@]}"; do
+            asset="$(basename "$upload_path")"
+            [[ "$asset" =~ ^wukongim_[0-9A-Za-z._-]+$ ]] || {
+              echo "refusing unsafe release asset name: $asset" >&2
+              exit 1
+            }
+            upload_response="$RUNNER_TEMP/uploaded-$asset.json"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              -H 'Content-Type: application/octet-stream' \
+              --data-binary "@$upload_path" \
+              "$upload_endpoint?name=$asset" \
+              >"$upload_response"
+            local_size="$(stat -c '%s' "$upload_path")"
+            local_sha256="$(sha256sum "$upload_path" | awk '{print $1}')"
+            jq -e \
+              --arg name "$asset" \
+              --arg digest "sha256:$local_sha256" \
+              --argjson size "$local_size" \
+              '.id > 0 and .name == $name and .state == "uploaded" and
+               .size == $size and .digest == $digest' \
+              "$upload_response" >/dev/null || {
+                echo "$asset upload response does not match the local asset" >&2
+                exit 1
+              }
+          done
+          echo "release_id=$release_id" >>"$GITHUB_OUTPUT"
+
+      - name: Verify complete draft Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.identity.outputs.version }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
           BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          STABLE: ${{ steps.identity.outputs.stable }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
           set -euo pipefail
-          published_dir="$RUNNER_TEMP/published-binary-release"
-          mkdir -p "$published_dir"
-          gh release download "$VERSION" \
-            --repo "$GITHUB_REPOSITORY" \
-            --pattern "wukongim_${BINARY_VERSION}_*.tar.gz" \
-            --pattern "$CHECKSUM_NAME" \
-            --dir "$published_dir"
+          draft_json="$RUNNER_TEMP/draft-binary-release.json"
+          draft_dir="$RUNNER_TEMP/draft-binary-release"
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$draft_json"
+          jq -e --arg version "$VERSION" \
+            '.tag_name == $version and .draft == true and (.immutable // false) == false' \
+            "$draft_json" >/dev/null || {
+            echo "$VERSION must remain mutable and draft until all assets are verified" >&2
+            exit 1
+          }
+          expected_prerelease=true
+          [[ "$STABLE" != true ]] || expected_prerelease=false
+          test "$(jq -r '.prerelease' "$draft_json")" = "$expected_prerelease" || {
+            echo "$VERSION draft prerelease classification conflicts with SemVer" >&2
+            exit 1
+          }
+          mapfile -t actual_assets < <(jq -r '.assets[].name' "$draft_json" | sort)
+          expected_assets=(
+            "wukongim_${BINARY_VERSION}_linux_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_linux_arm64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
+            "$CHECKSUM_NAME"
+          )
+          mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+          test "${actual_assets[*]}" = "${expected_assets[*]}" || {
+            echo "$VERSION draft does not contain the exact expected asset set" >&2
+            exit 1
+          }
+
+          mkdir -p "$draft_dir"
           for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
             asset="$(basename "$local_asset")"
-            cmp "$local_asset" "$published_dir/$asset"
+            asset_id="$(jq -r --arg name "$asset" \
+              '.assets[] | select(.name == $name) | .id' "$draft_json")"
+            [[ "$asset_id" =~ ^[1-9][0-9]*$ ]]
+            gh api \
+              -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+              >"$draft_dir/$asset"
+            cmp "$local_asset" "$draft_dir/$asset"
           done
           (
-            cd "$published_dir"
+            cd "$draft_dir"
             sha256sum --check "$CHECKSUM_NAME"
           )
+
+      - name: Publish verified draft Release once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+
+          remote_refs="$(git ls-remote origin \
+            "refs/tags/$VERSION" "refs/tags/$VERSION^{}")"
+          raw_tag_sha="$(awk -v ref="refs/tags/$VERSION" '$2 == ref {print $1}' <<<"$remote_refs")"
+          peeled_tag_sha="$(awk -v ref="refs/tags/$VERSION^{}" '$2 == ref {print $1}' <<<"$remote_refs")"
+          [[ "$raw_tag_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "remote release tag is missing or ambiguous immediately before publication: $VERSION" >&2
+            exit 1
+          }
+          remote_source_sha="${peeled_tag_sha:-$raw_tag_sha}"
+          [[ "$remote_source_sha" =~ ^[0-9a-f]{40}$ && "$remote_source_sha" == "$SOURCE_SHA" ]] || {
+            echo "remote release tag changed after source validation: $VERSION" >&2
+            exit 1
+          }
+          gh api "repos/$GITHUB_REPOSITORY/immutable-releases" \
+            | jq -e '.enabled == true' >/dev/null || {
+              echo "repository immutable Releases were disabled before publication" >&2
+              exit 1
+            }
+          prepublish_json="$RUNNER_TEMP/prepublish-binary-release.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$prepublish_json"
+          jq -e --arg version "$VERSION" \
+            '.tag_name == $version and .draft == true and (.immutable // false) == false' \
+            "$prepublish_json" >/dev/null || {
+            echo "$VERSION is no longer the verified draft Release" >&2
+            exit 1
+          }
+          expected_prerelease=true
+          [[ "$STABLE" != true ]] || expected_prerelease=false
+          test "$(jq -r '.prerelease' "$prepublish_json")" = "$expected_prerelease" || {
+            echo "$VERSION draft prerelease classification changed before publication" >&2
+            exit 1
+          }
+          mapfile -t actual_assets < <(jq -r '.assets[].name' "$prepublish_json" | sort)
+          expected_assets=(
+            "wukongim_${BINARY_VERSION}_linux_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_linux_arm64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
+            "$CHECKSUM_NAME"
+          )
+          mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+          test "${actual_assets[*]}" = "${expected_assets[*]}" || {
+            echo "$VERSION draft asset set changed immediately before publication" >&2
+            exit 1
+          }
+          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
+            asset="$(basename "$local_asset")"
+            asset_json="$(jq -c --arg name "$asset" \
+              '.assets[] | select(.name == $name)' "$prepublish_json")"
+            api_size="$(jq -r '.size' <<<"$asset_json")"
+            api_digest="$(jq -r '.digest // empty' <<<"$asset_json")"
+            local_size="$(stat -c '%s' "$local_asset")"
+            local_sha256="$(sha256sum "$local_asset" | awk '{print $1}')"
+            [[ "$api_size" =~ ^[0-9]+$ && "$api_size" == "$local_size" ]] || {
+              echo "$asset draft size changed immediately before publication" >&2
+              exit 1
+            }
+            [[ "$api_digest" == "sha256:$local_sha256" ]] || {
+              echo "$asset draft digest changed immediately before publication" >&2
+              exit 1
+            }
+          done
+
+          gh api --method PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false \
+            >"$RUNNER_TEMP/publish-binary-release.json"
+
+      - name: Verify published immutable Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          published_json="$RUNNER_TEMP/published-binary-release.json"
+          published_dir="$RUNNER_TEMP/published-binary-release"
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$published_json"
+          jq -e --arg version "$VERSION" \
+            '.tag_name == $version and .draft == false and .immutable == true' \
+            "$published_json" >/dev/null || {
+            echo "$VERSION was not sealed as an immutable published Release" >&2
+            exit 1
+          }
+          expected_prerelease=true
+          [[ "$STABLE" != true ]] || expected_prerelease=false
+          test "$(jq -r '.prerelease' "$published_json")" = "$expected_prerelease" || {
+            echo "$VERSION published prerelease classification conflicts with SemVer" >&2
+            exit 1
+          }
+          mapfile -t actual_assets < <(jq -r '.assets[].name' "$published_json" | sort)
+          expected_assets=(
+            "wukongim_${BINARY_VERSION}_linux_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_linux_arm64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
+            "$CHECKSUM_NAME"
+          )
+          mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+          test "${actual_assets[*]}" = "${expected_assets[*]}" || {
+            echo "$VERSION published Release does not contain the exact expected asset set" >&2
+            exit 1
+          }
+
+          mkdir -p "$published_dir"
+          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
+            asset="$(basename "$local_asset")"
+            asset_json="$(jq -c --arg name "$asset" \
+              '.assets[] | select(.name == $name)' "$published_json")"
+            asset_id="$(jq -r '.id' <<<"$asset_json")"
+            api_size="$(jq -r '.size' <<<"$asset_json")"
+            api_digest="$(jq -r '.digest // empty' <<<"$asset_json")"
+            local_size="$(stat -c '%s' "$local_asset")"
+            local_sha256="$(sha256sum "$local_asset" | awk '{print $1}')"
+            [[ "$asset_id" =~ ^[1-9][0-9]*$ ]]
+            [[ "$api_size" =~ ^[0-9]+$ && "$api_size" == "$local_size" ]] || {
+              echo "$asset published size conflicts with the verified local asset" >&2
+              exit 1
+            }
+            if [[ -n "$api_digest" ]]; then
+              [[ "$api_digest" == "sha256:$local_sha256" ]] || {
+                echo "$asset published digest conflicts with the verified local asset" >&2
+                exit 1
+              }
+            else
+              gh api \
+                -H 'Accept: application/octet-stream' \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+                >"$published_dir/$asset"
+              cmp "$local_asset" "$published_dir/$asset"
+            fi
+          done
 
       - name: Write release receipt and summary
         shell: bash

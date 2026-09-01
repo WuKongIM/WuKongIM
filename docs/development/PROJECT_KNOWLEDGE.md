@@ -88,6 +88,20 @@
   cluster runtime, the multi-reactor channel runtime, and the new business
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
   and `internal`; the former v1 server runtime tree has been removed.
+- Native Linux packages are an unsigned amd64 preview. CI builds temporary
+  signed APT/RPM repositories with one-run, one-day `TEST ONLY` keys outside
+  the repository and verifies their signatures plus the exact APT and RPM
+  metadata-to-package closures in containers; neither those keys nor the
+  signed repositories are published. The separate public `WuKongIM/packages`
+  repository owns a fail-closed GitHub Pages bootstrap at the verified HTTPS
+  endpoint `packages.githubim.com`; both repositories enforce immutable
+  Releases. It publishes no APT/YUM indexes until reviewed public fingerprints,
+  signing custody, exact tagged source package assets, and the production
+  publisher are ready. The package installs the
+  binary, hardened systemd unit, service identity, and persistent directories,
+  but never creates an active configuration or starts/restarts the node.
+  Operators initialize atomically with `wukongim config init`, validate with
+  `wukongim config validate`, and own enablement plus upgrade restart timing.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.toml`; `.toml.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - Default Slot Raft timing is a 50-millisecond tick, two-tick heartbeat, and 40-tick election floor: heartbeats run every 100 milliseconds and elections start after at least two seconds. Chat-lifecycle cloud templates pin the same values. This keeps sub-second storage or transport tails from creating avoidable terms while proposal replication remains event-driven; override all three values together when a deployment proves a different failure-detection budget.

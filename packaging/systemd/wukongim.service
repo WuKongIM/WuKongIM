@@ -1,0 +1,42 @@
+[Unit]
+Description=WuKongIM cluster node
+Documentation=https://github.com/WuKongIM/WuKongIM
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/wukongim/wukongim.toml
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+WorkingDirectory=/var/lib/wukongim
+ExecStart=/usr/bin/wukongim -config /etc/wukongim/wukongim.toml
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+LimitNOFILE=1048576
+UMask=0027
+StateDirectory=wukongim
+LogsDirectory=wukongim
+RuntimeDirectory=wukongim
+StateDirectoryMode=0750
+LogsDirectoryMode=0750
+RuntimeDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/wukongim /var/log/wukongim /run/wukongim
+
+[Install]
+WantedBy=multi-user.target

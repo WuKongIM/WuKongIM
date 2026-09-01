@@ -26,6 +26,7 @@ authorization and the applicable budget.
 | `issue-agent.yml` | `Safety Automation - GitHub Issue Agent` | Reconciles Issue work and Review Agent repair requests |
 | `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, and clean Verifier chain |
 | `manager-browser-smoke.yml` | `Safety Automation - Manager Browser Smoke` | Builds the production Manager bundle and runs the desktop/mobile Chromium matrix against a real three-node cluster |
+| `native-package-preview.yml` | `Safety Automation - Validate Native Package Preview` | Builds unsigned amd64 deb/rpm previews and checks non-activating installs on the four supported Linux distributions |
 | `cloud-lease-oidc-setup.yml` | `Agent Tool - Configure Cloud Lease OIDC Roles` | Reconciles and live-verifies the three workflow-conditioned Cloud Lease roles |
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
@@ -40,6 +41,37 @@ authorization and the applicable budget.
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
 | `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS release archives for four architectures and publishes them to the exact tag's GitHub Release |
+
+## Native package preview
+
+`native-package-preview.yml` is a credential-free validation workflow, not a
+publisher. It builds unsigned Linux amd64 `.deb` and `.rpm` files from
+`.goreleaser.packages.yaml`. After the build, an integration test creates
+one-run, one-day `TEST ONLY` APT and RPM signing keys outside the repository,
+signs temporary repositories, and verifies both signatures and the exact APT
+`Release -> Packages -> .deb` and RPM `repomd.xml -> primary metadata -> .rpm`
+closures in clean containers. The temporary keys and signed repositories are
+never uploaded or published.
+
+The workflow also inspects package payloads and installs, reinstalls through
+the package-manager upgrade path, and removes them inside Ubuntu 24.04, Debian
+12, Rocky Linux 9, and AlmaLinux 9 containers. The package creates the
+`wukongim` service account and persistent directories but does not create
+`/etc/wukongim/wukongim.toml`, enable the unit, start it, or restart it during
+upgrade. The upgrade check records every `systemctl` request and verifies that
+the operator-owned configuration and data remain byte-identical. Only the
+unsigned preview packages and checksums are retained as Actions artifacts for
+14 days; this workflow still publishes no APT/YUM repository.
+
+The separate public `WuKongIM/packages` repository owns the fail-closed GitHub
+Pages bootstrap at the verified HTTPS endpoint `packages.githubim.com`; it
+currently publishes only a `signing_not_provisioned` status and no package
+indexes. Both repositories enforce immutable Releases, and the custom-domain
+DNS and certificate are provisioned. Reviewed public fingerprints, signing
+custody, exact tagged source package assets, cross-repository dispatch, and the
+production publisher remain intentionally outside this credential-free
+workflow. They must be provisioned and reviewed before package indexes are
+enabled.
 
 ## Docker image publishing
 
@@ -91,7 +123,7 @@ failure, a digest mismatch, or a missing platform fails the complete release.
 `binary-release-publish.yml` publishes downloadable WuKongIM executables from
 the same strict SemVer `v*` source identity used by the container publisher. A
 new tag starts the workflow automatically; the manual `version` input accepts
-one existing tag for first publication or incomplete-release recovery. The tag
+one existing tag for first publication or incomplete-draft recovery. The tag
 must resolve to a commit reachable from `origin/main` and may not contain
 SemVer build metadata.
 
@@ -106,21 +138,33 @@ Actions evidence for 90 days. Tags containing the version command also prove
 the embedded version, full source commit, and `release` build source; older
 tags remain bound by the immutable tag, checksums, and attestation.
 
-The workflow gives every new asset to `gh release create`, so GitHub uploads
-them while the Release is still a draft and publishes the complete set once.
-Recovery downloads and compares every existing expected asset and refuses any
-content conflict. It may fill missing files only while the target Release is
-still mutable; an incomplete immutable Release fails closed and requires an
-explicit operator delete-and-recreate decision. A pre-release SemVer tag must
-correspond to a GitHub pre-release; stable tags must correspond to a normal
-Release. A fully published version fails closed instead of creating duplicate
-evidence.
+The workflow creates a draft Release without publishing it, uploads every
+expected asset, downloads and byte-compares the complete exact asset set, and
+only then publishes the verified draft once. Recovery may compare existing
+assets and fill missing files only in that same draft. Draft discovery scans
+all Releases for one exact tag match, then binds creation, upload, verification,
+and publication to the resulting numeric Release ID; it never relies on the
+published-by-tag endpoint to find a draft. Asset upload accepts only the exact
+numeric-ID `uploads.github.com` URL returned by GitHub and checks each upload
+response against the local size and SHA-256. Immediately before publication it
+rechecks that the remote tag still peels to the validated source commit, that
+repository-level immutable Releases remain enabled, and that the draft still
+has the exact asset names, sizes, and digests verified earlier. Any existing
+published Release fails closed: a complete one is already final, while an
+incomplete one must never be reused and requires a new SemVer tag. A
+pre-release SemVer tag must correspond to a GitHub pre-release; stable tags
+must correspond to a normal Release. After publication, the workflow verifies
+that GitHub sealed the same numeric Release ID as immutable, checks every
+asset's API size and SHA-256 digest against the local file, and falls back to
+an ID-bound download and byte comparison when the API omits a digest.
 
 Repository administrators must configure a `binary-publish` Environment,
 allow protected `main` for manual recovery and trusted version tags for
 automatic publication, and avoid a reviewer gate for tag-triggered runs. The
 workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
-release credential.
+release credential. Until those Environment deployment restrictions have been
+configured and verified remotely, administrators must not push a release tag
+or manually dispatch this workflow.
 
 ## Direct local chat-lifecycle repair
 
