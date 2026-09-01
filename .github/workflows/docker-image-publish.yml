@@ -164,6 +164,33 @@ jobs:
             echo "aliases=$aliases_csv"
           } >>"$GITHUB_OUTPUT"
 
+      - name: Validate changelog release notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -euo pipefail
+          parser_path="scripts/extract-release-notes.awk"
+          if [[ ! -f "$parser_path" ]]; then
+            [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]] || {
+              echo "tagged source is missing $parser_path" >&2
+              exit 1
+            }
+            [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git fetch --no-tags origin "$WORKFLOW_SHA"
+            parser_path="$RUNNER_TEMP/extract-release-notes.awk"
+            git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk" >"$parser_path"
+            test -s "$parser_path"
+          fi
+          notes_path="$RUNNER_TEMP/changelog-release-notes.md"
+          awk -v version="$VERSION" \
+            -f "$parser_path" CHANGELOG.md >"$notes_path"
+          test -s "$notes_path" || {
+            echo "$VERSION has no non-empty CHANGELOG.md release body" >&2
+            exit 1
+          }
+
       - name: Validate registry credentials
         shell: bash
         env:
