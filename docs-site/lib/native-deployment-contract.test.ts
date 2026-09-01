@@ -12,10 +12,10 @@ describe('native deployment publication contract', () => {
 
     for (const content of pages) {
       for (const contract of [
-        'ghcr.io/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516',
+        'ghcr.io/wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786',
         'docker compose config --quiet',
         'docker compose pull',
-        'v3.0.0-beta.5/wukongim.toml.example',
+        'v3.0.0-beta.6/wukongim.toml.example',
         'WK_MANAGER_USERS=',
         'wukongim-node1-data',
         './node1.toml:/etc/wukongim/wukongim.toml:ro',

@@ -5,7 +5,7 @@ description: Run a verifiable WuKongIM single-node cluster with a pinned image, 
 
 This path is for teams that want to deploy an official image quickly while keeping the network, data, and container lifecycle boundaries explicit. At the end, you will have a single-node cluster that you can inspect in Manager and use for an end-to-end message check.
 
-The example pins pre-release `3.0.0-beta.5` for `linux/amd64` and `linux/arm64`. The image reference includes both the readable version tag and its immutable digest.
+The example pins pre-release `3.0.0-beta.6` for `linux/amd64` and `linux/arm64`. The image reference includes both the readable version tag and its immutable digest.
 
 <Callout type="warn" title="Validate this pre-release before production">
   The pinned image runs as UID/GID `10001:10001`, includes an image-level `HEALTHCHECK`, uses Alpine 3.24.1, and passed the release Critical/High vulnerability gate for both architectures. It is still a beta release and a scan is only point-in-time evidence. Validate configuration, storage permissions, network controls, backup, and rollback against the [Production Checklist](/en/server/deployment/production-checklist) before carrying production traffic.
@@ -29,7 +29,7 @@ mkdir -p wukongim-docker
 cd wukongim-docker
 
 curl --fail --location \
-  https://raw.githubusercontent.com/WuKongIM/WuKongIM/v3.0.0-beta.5/wukongim.toml.example \
+  https://raw.githubusercontent.com/WuKongIM/WuKongIM/v3.0.0-beta.6/wukongim.toml.example \
   --output node1.toml
 chmod 644 node1.toml
 ```
@@ -90,7 +90,7 @@ name: wukongim
 
 services:
   node1:
-    image: ghcr.io/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786
     container_name: wukongim-node1
     restart: unless-stopped
     stop_grace_period: 30s
@@ -127,8 +127,8 @@ These network boundaries are intentional:
 If GHCR is unavailable, replace `image` with either verified copy of the same digest:
 
 ```text
-wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516
-registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516
+wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786
+registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786
 ```
 
 When upgrading, change and re-verify the tag, digest, and configuration-template version together.
@@ -212,7 +212,7 @@ Never run `docker compose down -v` against data that must survive. Before replac
 This command reuses the same `.env`, configuration, and data boundaries:
 
 ```bash
-export WK_IMAGE='ghcr.io/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516'
+export WK_IMAGE='ghcr.io/wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786'
 
 docker network inspect wukongim >/dev/null 2>&1 || docker network create wukongim
 docker volume inspect wukongim-node1-data >/dev/null 2>&1 || docker volume create wukongim-node1-data
