@@ -17,6 +17,8 @@ max_run_id() {
     --limit 50 --json databaseId --jq 'map(.databaseId) | max // 0'
 }
 
+scripts/chat-lifecycle/cloud-lease-release-state.sh enable
+
 for attempt in 1; do
   before="$(max_run_id)"
   gh workflow run cloud-lease-release.yml --repo "$GITHUB_REPOSITORY" --ref main \

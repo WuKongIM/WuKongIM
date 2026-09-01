@@ -361,6 +361,10 @@ jobs:
             echo 'Rehearsal Release emitted neither zero proof nor cleanup continuation.' >&2
             exit 1
           fi
+      - name: Enable formal continuation before transition publication
+        if: steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
+        shell: bash
+        run: scripts/chat-lifecycle/formal-workflows-state.sh enable-starter
       - name: Seal fresh-formal transition after rehearsal evidence and zero inventory
         id: transition
         if: steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')

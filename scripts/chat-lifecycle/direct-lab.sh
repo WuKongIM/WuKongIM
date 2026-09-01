@@ -330,6 +330,17 @@ ensure_control_tools() {
   fi
 }
 
+cloud_release_state_tool() {
+  printf '%s\n' "${WK_CHAT_LAB_CLOUD_RELEASE_STATE:-$(repository_root)/scripts/chat-lifecycle/cloud-lease-release-state.sh}"
+}
+
+set_cloud_release_backstop_state() {
+  local operation="$1" tool
+  tool="$(cloud_release_state_tool)"
+  require_executable "$tool"
+  GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-WuKongIM/WuKongIM}" "$tool" "$operation"
+}
+
 initialize_request_state() {
   local request_id="$1" directory source_sha root
   validate_request_id "$request_id"
@@ -462,6 +473,10 @@ start_request() {
   chmod 0600 "$temporary"
   mv -f -- "$temporary" "$directory/release-selector.json"
 
+  set_cloud_release_backstop_state enable || {
+    finalize_not_acquired "$directory" release_backstop_enable_failed_before_acquire
+    die 'generic Cloud Lease release backstop could not be enabled before paid Acquire'
+  }
   if ! "$cloud" acquire --plan "$directory/lease-plan.json" --quote "$directory/quote.json" \
     --bootstrap-access "$directory/bootstrap-access.json" >"$directory/receipt.json"; then
     jq '.state="cleanup_required" | .failure="acquire_failed"' "$directory/state.json" >"$directory/.state.next.$$"
@@ -473,6 +488,13 @@ start_request() {
     .schema == "wukongim.cloud_lease.receipt/v1" and .receipt.request_id == $request and
     .receipt.state == "active"
   ' "$directory/receipt.json" >/dev/null || die 'Acquire returned no active typed Receipt'
+  if ! set_cloud_release_backstop_state enable-after-provision; then
+    jq '.state="cleanup_required" | .failure="release_backstop_rearm_failed_after_acquire"' \
+      "$directory/state.json" >"$directory/.state.next.$$"
+    chmod 0600 "$directory/.state.next.$$"
+    mv -f -- "$directory/.state.next.$$" "$directory/state.json"
+    die 'generic Cloud Lease release backstop could not be sealed active after paid Acquire'
+  fi
   "$chat" selector --receipt "$directory/receipt.json" >"$directory/receipt-selector.json"
   cmp -s <(jq -S -c .selector "$directory/release-selector.json") \
     <(jq -S -c .selector "$directory/receipt-selector.json") || die 'Receipt selector differs from the pre-Acquire release selector'

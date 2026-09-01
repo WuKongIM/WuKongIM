@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment: cloud-lease-release
+    outputs:
+      global_idle: ${{ steps.release_result.outputs.global_idle }}
     env:
       GOWORK: "off"
       REQUEST_ID: ${{ github.event_name == 'schedule' && format('scheduled-sweep-{0}', github.run_id) || inputs.request_id }}
@@ -92,6 +94,7 @@ jobs:
           audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
           role-session-name: wukongim-cloud-lease-release-${{ github.run_id }}
       - name: Release and retain residual evidence
+        id: release_result
         shell: bash
         env:
           WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION: create-and-delete-paid-cloud-lease
@@ -103,6 +106,18 @@ jobs:
             "$RUNNER_TEMP/wkcloudlease" sweep --provider alibaba --region cn-hangzhou --repository "$GITHUB_REPOSITORY" >"$RUNNER_TEMP/release.json"
           fi
           chmod 0600 "$RUNNER_TEMP/release.json"
+          global_idle=false
+          if [[ "$OPERATION" == sweep ]] && jq -e '
+            .schema == "wukongim.cloud_lease.sweep/v1" and
+            .result.examined == 0 and
+            (.result.revoked_access | type == "array" and length == 0) and
+            (.result.released | type == "array" and length == 0) and
+            (.result.pending | type == "array" and length == 0) and
+            (.result.failed | type == "array" and length == 0)
+          ' "$RUNNER_TEMP/release.json" >/dev/null; then
+            global_idle=true
+          fi
+          echo "global_idle=$global_idle" >>"$GITHUB_OUTPUT"
       - name: Upload release or residual proof
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -111,3 +126,22 @@ jobs:
           path: ${{ runner.temp }}/release.json
           if-no-files-found: warn
           retention-days: 7
+
+  disarm:
+    name: Disable idle generic Cloud Lease sweep
+    needs: release
+    if: always() && needs.release.outputs.global_idle == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Prove every protected producer is idle before disabling future sweeps
+        shell: bash
+        run: scripts/chat-lifecycle/cloud-lease-release-state.sh disable-if-idle

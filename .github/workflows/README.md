@@ -15,8 +15,8 @@ authorization and the applicable budget.
 | --- | --- | --- |
 | `chat-lifecycle-rehearsal.yml` | `Agent Tool - Start Chat Lifecycle Rehearsal` | Builds, quotes, acquires, deploys, and hands a full-scale two-hour rehearsal to remote systemd |
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | While armed, uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
-| `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
-| `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
+| `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | While armed, consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
+| `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | While armed, collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
 | `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
@@ -32,7 +32,7 @@ authorization and the applicable budget.
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
 | `cloud-lease-analyze.yml` | `Agent Tool - Analyze Chat Lifecycle Cloud Lease` | Authenticates one retained chat-lifecycle handoff, proves live Lease inventory, and brokers one bounded Analysis MCP session |
-| `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | Releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
+| `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | While armed, releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
 | `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
 | `cloud-deployment-activate.yml` | `Agent Tool - Activate Cloud Deployment` | Installs and gates one exact offline bundle on an active four-host Lease |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
@@ -485,6 +485,18 @@ short-lived role. Deployment uses `cloud-deployment`, receives no `id-token`
 permission, and has no Alibaba credential. See
 [`docs/superpowers/runbooks/cloud-lease-identity.md`](../../docs/superpowers/runbooks/cloud-lease-identity.md).
 
+Every paid GitHub Acquire enables the generic Release schedule in a separate
+credential-free job before the Provisioner Environment can run. The direct
+local repair laboratory enables the same backstop before Acquire, then waits
+for any older Release pass to become terminal and seals it enabled again after
+the active Receipt exists. A scheduled provider sweep may disable itself only
+when its typed result proves zero examined, released, pending, and failed
+repository inventory and a separate no-provider-credential job proves every
+protected GitHub Lease producer is terminal. Exact cleanup helpers always
+re-enable the Workflow before dispatch. Consequently an idle repository has no
+15-minute Cloud Lease run, while a new paid Lease cannot depend on a disabled
+cleanup backstop.
+
 ## Cloud Deployment offline bundle
 
 `cloud-deployment-bundle.yml` runs before any Cloud Lease Quote or Acquire and
@@ -637,6 +649,17 @@ it does not commit the whole 12-hour rehearsal Quote.
 second public operator surface. It consumes at most one unspent transition,
 refuses procurement if either stage still has active inventory, reuses the
 exact original bundle, and acquires a completely fresh 96-hour formal Lease.
+The rehearsal finalizer enables this continuation before it can publish a
+formal transition. An always-running disarm job disables future continuation
+triggers only after the complete bounded Artifact inventory contains no
+authenticated unconsumed transition and no protected rehearsal finalizer can
+still publish one. Formal transition discovery shares the 20,000-Artifact
+bound used by handoff discovery. Before formal orchestration can Acquire, the
+continuation enables the formal finalizer; that finalizer disables itself only
+after no authenticated formal handoff lacks zero-inventory proof and no
+protected formal producer remains active. Operator stop re-enables the exact
+formal finalizer before dispatch. These state transitions remove idle formal
+schedules without weakening transition or cleanup recovery.
 Remote `wkbench-formal.service` owns the uninterrupted 72-hour Soak, hour-24
 qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
 2,000-SEND/s recovery in one `wkbench formal-chain` process with the same

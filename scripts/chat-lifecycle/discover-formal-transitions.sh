@@ -14,7 +14,7 @@ fi
 temporary="$(mktemp -d)"
 trap 'rm -r "$temporary"' EXIT
 : >"$temporary/pages.json"
-max_pages=50
+max_pages=200
 inventory_complete=false
 for ((page = 1; page <= max_pages; page++)); do
   page_file="$temporary/page-${page}.json"
