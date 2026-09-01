@@ -64,3 +64,16 @@ npm run build
 ```
 
 See `FLOW.md` for repository navigation and ownership boundaries.
+
+## Publish
+
+Merges to `main` that change `docs-site/**` automatically run
+`Safety Automation - Publish Documentation to GitHub Pages`. The Workflow pins
+Bun `1.3.11`, runs the complete `bun run verify` gate, uploads only `out/`, and
+deploys that verified artifact to the `github-pages` Environment. It can also
+be started manually after an interrupted publication.
+
+The production origin is `https://docs.githubim.com`. The static export carries
+`public/CNAME` and `public/.nojekyll`; the DNS record for the `docs` subdomain
+must be a direct CNAME to `wukongim.github.io` before GitHub can finish domain
+and HTTPS validation.
