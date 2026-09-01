@@ -42,9 +42,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  arm_release:
+    name: Arm generic cleanup before paid Acquire
+    if: github.ref == 'refs/heads/main' && inputs.quote_only == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Enable the independent generic release backstop
+        shell: bash
+        run: scripts/chat-lifecycle/cloud-lease-release-state.sh enable
+
   provision:
     name: Quote and optionally acquire one exact Lease
-    if: github.ref == 'refs/heads/main'
+    needs: arm_release
+    if: always() && github.ref == 'refs/heads/main' && (inputs.quote_only == true || needs.arm_release.result == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: cloud-lease-provision

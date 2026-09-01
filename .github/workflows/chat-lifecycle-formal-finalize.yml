@@ -496,3 +496,19 @@ jobs:
         if: always()
         shell: bash
         run: rm -f "$RUNNER_TEMP/deployment-key" "$RUNNER_TEMP/wrapping-key"
+
+  disarm:
+    name: Disable idle formal finalizer schedule
+    needs: [discover, finalize]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Prove no formal handoff or producer before disabling future schedules
+        shell: bash
+        run: scripts/chat-lifecycle/formal-workflows-state.sh disable-finalizer-if-idle

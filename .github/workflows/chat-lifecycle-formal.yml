@@ -165,6 +165,9 @@ jobs:
               exit 1
             }
           done
+      - name: Enable formal finalizer safety schedule before paid orchestration
+        shell: bash
+        run: scripts/chat-lifecycle/formal-workflows-state.sh enable-finalizer
       - name: Materialize, quote, acquire, deploy, and hand off remote formal ownership
         shell: bash
         env:
@@ -274,3 +277,19 @@ jobs:
         if: always()
         shell: bash
         run: rm -f "$RUNNER_TEMP/wrapping.pub" "$RUNNER_TEMP/codex-diagnostic.pub"
+
+  disarm:
+    name: Disable idle formal continuation schedule
+    needs: [discover, orchestrate]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Prove no transition or transition producer before disabling future schedules
+        shell: bash
+        run: scripts/chat-lifecycle/formal-workflows-state.sh disable-starter-if-idle

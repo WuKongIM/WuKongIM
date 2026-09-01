@@ -67,6 +67,8 @@ jobs:
           set -euo pipefail
           scripts/chat-lifecycle/rehearsal-finalizer-state.sh enable || \
             echo 'Rehearsal finalizer enable failed; the exact dispatch below remains the authoritative availability check.' >&2
+          scripts/chat-lifecycle/formal-workflows-state.sh enable-finalizer || \
+            echo 'Formal finalizer enable failed; the exact dispatch below remains the authoritative availability check.' >&2
           dispatch_failed=false
           for workflow in chat-lifecycle-rehearsal-finalize.yml chat-lifecycle-formal-finalize.yml; do
             gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref main \
