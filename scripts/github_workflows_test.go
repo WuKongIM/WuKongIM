@@ -108,6 +108,40 @@ func TestGitHubWorkflowExternalActionsUseFullCommitPins(t *testing.T) {
 	}
 }
 
+func TestEasySDKAndroidEmulatorScriptHasIndependentCommands(t *testing.T) {
+	var workflow struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Uses string `yaml:"uses"`
+				With struct {
+					Script string `yaml:"script"`
+				} `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	require.NoError(
+		t,
+		yaml.Unmarshal(readWorkflow(t, "easysdk-release-acceptance.yml"), &workflow),
+	)
+
+	found := false
+	for _, step := range workflow.Jobs["android-release"].Steps {
+		if !strings.HasPrefix(step.Uses, "reactivecircus/android-emulator-runner@") {
+			continue
+		}
+		found = true
+		for lineNumber, line := range strings.Split(step.With.Script, "\n") {
+			require.Falsef(
+				t,
+				strings.HasSuffix(strings.TrimSpace(line), `\`),
+				"android-emulator-runner executes script line %d independently; move multiline commands into a helper script",
+				lineNumber+1,
+			)
+		}
+	}
+	require.True(t, found, "EasySDK Android emulator step not found")
+}
+
 func TestLegacyAutomaticTestWorkflowsAreAbsent(t *testing.T) {
 	root := repoRoot(t)
 	for _, name := range []string{"ci.yml", "nightly.yml"} {
