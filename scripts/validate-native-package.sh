@@ -24,16 +24,18 @@ if command -v sha256sum >/dev/null 2>&1; then
 fi
 
 if command -v dpkg-deb >/dev/null 2>&1; then
-  dpkg-deb --contents "${deb_packages[0]}" | grep -Fq './usr/bin/wukongim'
-  dpkg-deb --contents "${deb_packages[0]}" | grep -Fq './usr/lib/systemd/system/wukongim.service'
+  deb_contents="$(dpkg-deb --contents "${deb_packages[0]}")"
+  grep -Fq './usr/bin/wukongim' <<<"$deb_contents"
+  grep -Fq './usr/lib/systemd/system/wukongim.service' <<<"$deb_contents"
 elif [[ "${WK_NATIVE_PACKAGE_REQUIRE_INSPECTORS:-0}" == "1" ]]; then
   echo "dpkg-deb is required" >&2
   exit 1
 fi
 
 if command -v rpm >/dev/null 2>&1; then
-  rpm -qpl "${rpm_packages[0]}" | grep -Fq '/usr/bin/wukongim'
-  rpm -qpl "${rpm_packages[0]}" | grep -Fq '/usr/lib/systemd/system/wukongim.service'
+  rpm_contents="$(rpm -qpl "${rpm_packages[0]}")"
+  grep -Fxq '/usr/bin/wukongim' <<<"$rpm_contents"
+  grep -Fxq '/usr/lib/systemd/system/wukongim.service' <<<"$rpm_contents"
 elif [[ "${WK_NATIVE_PACKAGE_REQUIRE_INSPECTORS:-0}" == "1" ]]; then
   echo "rpm is required" >&2
   exit 1
