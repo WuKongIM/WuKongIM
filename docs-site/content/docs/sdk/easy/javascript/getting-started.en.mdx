@@ -1,17 +1,17 @@
 ---
 title: Web quickstart
-description: Install exactly easyjssdk 2.0.3 and use a product BFF plus contiguous TypeScript code for an online browser messaging loop.
+description: Install exactly easyjssdk 2.0.4 and use a product BFF plus contiguous TypeScript code for an online browser messaging loop.
 ---
 
 The browser asks the product BFF for the current user's connection material, then EasyJSSDK establishes a WebSocket JSON-RPC connection. The client holds no Product HTTP management credential, and Alice and Bob accept the path in two isolated browser contexts.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v2.0.3` JSON-RPC CONNECT and online bidirectional messaging, including requests without `jsonrpc`, Base64 SEND, and object RECV. Browsers default to WEB `1`; the full wire set is APP `0`, WEB `1`, and PC `2`. The tutorial installs [npm 2.0.3](https://www.npmjs.com/package/easyjssdk/v/2.0.3); the official browser example passed at source revision `a055b3667247333b6b3183249f5d5929673dfd53`. That revision is ahead of the [v2.0.3 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) and has not shipped as a new npm version, so the two evidence classes must not be combined.
+  The current Product Gateway supports pinned `v2.0.4` JSON-RPC CONNECT and online bidirectional messaging, including requests without `jsonrpc`, Base64 SEND, and object RECV. Browsers default to WEB `1`; the full wire set is APP `0`, WEB `1`, and PC `2`. The tutorial installs [npm 2.0.4](https://www.npmjs.com/package/easyjssdk/v/2.0.4). The official browser example passed at source revision `a055b3667247333b6b3183249f5d5929673dfd53`, which is now included in the [v2.0.4 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.4). The npm artifact then completed bidirectional messaging and disconnect in Chrome 151 and hosted released-package peer runs.
 </Callout>
 
 ## What you will have
 
-- An npm dependency pinned to `easyjssdk@2.0.3`.
+- An npm dependency pinned to `easyjssdk@2.0.4`.
 - A browser client that consumes only a minimal product-BFF response.
 - Event callbacks that can be removed precisely with `off`, plus page-exit cleanup.
 - Two independent observations: Alice's send result and Bob's realtime receive.
@@ -30,7 +30,7 @@ npm run build
 python3 -m http.server 8080
 ```
 
-Open `http://127.0.0.1:8080/example/`. [Run the Official Examples](/en/sdk/easy/examples) covers WuKongIM startup, Alice/Bob preparation, and endpoint mapping. A source-run receipt is not an npm `2.0.3` package receipt.
+Open `http://127.0.0.1:8080/example/`. [Run the Official Examples](/en/sdk/easy/examples) covers WuKongIM startup, Alice/Bob preparation, and endpoint mapping. The source example and npm `2.0.4` artifact now have separate runtime receipts; keep those evidence classes distinct.
 
 ## Before you begin
 
@@ -48,7 +48,7 @@ Read [Identity & Token](/en/guide/integration/authentication) first. Production 
 Run this in an existing Vite, Next.js, or other bundled application:
 
 ```bash
-npm install --save-exact easyjssdk@2.0.3
+npm install --save-exact easyjssdk@2.0.4
 ```
 
 Commit `package-lock.json`. This tutorial does not use a floating CDN version that could silently replace the SDK after a page refresh.
@@ -197,21 +197,21 @@ Alice's resolved Promise means the send request received a server result. Bob mu
 6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
 7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
 
-That exact source ran against the same WuKongIM revision in Chrome 151 and completed bidirectional messaging, manual disconnect, and reconnect. The loop does not cover the npm `2.0.3` artifact, offline synchronization, or production WSS. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
+That exact source ran against the same WuKongIM revision in Chrome 151 and completed bidirectional messaging, manual disconnect, and reconnect. The npm `2.0.4` artifact also completed bidirectional messaging, SENDACK, and disconnect in real Chrome and hosted released-package peer runs. The loop still does not cover offline synchronization or production WSS. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
 
 ## Troubleshooting
 
 - **The page says WebSocket or encoding APIs are missing:** confirm the browser and build environment provide WebSocket, `TextEncoder`, and `TextDecoder`; do not infer Mini Program support from the browser path.
 - **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
 - **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
-- **The console still contains a token or payload:** first use the lockfile and browser bundle to confirm that `easyjssdk@2.0.3` is actually shipped, then inspect application event callbacks, error handling, and collectors for complete-object logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the npm artifact and retain only low-sensitivity evidence before filing an issue.
+- **The console still contains a token or payload:** first use the lockfile and browser bundle to confirm that `easyjssdk@2.0.4` is actually shipped, then inspect application event callbacks, error handling, and collectors for complete-object logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the npm artifact and retain only low-sensitivity evidence before filing an issue.
 - **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and review the current build and runtime boundaries under [API Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
 
 ## Before production
 
 - Serve both the page and WebSocket over HTTPS/WSS, then verify certificates, proxy Upgrade, the BFF origin policy, and Gateway reachability.
 - Return only the current session's connection material from the BFF; tokens never belong in URLs, Local Storage, logs, or analytics events.
-- `debugLogging` is off by default. Keep it `false` in production and inspect the actual npm `2.0.3` bundle, Console, error reporting, and collectors with non-production canaries for tokens, payloads, raw frames, or complete event objects.
+- `debugLogging` is off by default. Keep it `false` in production and inspect the actual npm `2.0.4` bundle, Console, error reporting, and collectors with non-production canaries for tokens, payloads, raw frames, or complete event objects.
 - Retain the lockfile, browser and build versions, network, and server revision; separately verify refresh, logout, reconnect, and durable recovery while Bob is offline.
 - Continue with [Integration Acceptance](/en/guide/integration/acceptance) for capacity, observability, upgrades, and rollback.
 
