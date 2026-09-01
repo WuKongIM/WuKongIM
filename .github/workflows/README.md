@@ -654,7 +654,8 @@ formal transition. An always-running disarm job disables future continuation
 triggers only after the complete bounded Artifact inventory contains no
 authenticated unconsumed transition and no protected rehearsal finalizer can
 still publish one. Formal transition discovery shares the 20,000-Artifact
-bound used by handoff discovery. Before formal orchestration can Acquire, the
+bound and four-attempt per-page retry used by handoff discovery. Before formal
+orchestration can Acquire, the
 continuation enables the formal finalizer; that finalizer disables itself only
 after no authenticated formal handoff lacks zero-inventory proof and no
 protected formal producer remains active. Operator stop re-enables the exact

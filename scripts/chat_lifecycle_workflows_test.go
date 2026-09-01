@@ -1954,12 +1954,66 @@ func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-formal-transitions.sh"))
 	authenticator := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "authenticate-operator-stop-producer.sh"))
-	if !strings.Contains(discovery, "max_pages=200") || !strings.Contains(discovery, "inventory_complete=false") ||
+	if !strings.Contains(discovery, "max_pages=200") || !strings.Contains(discovery, "artifact_api_attempts=4") ||
+		!strings.Contains(discovery, "fetch_artifact_page") || !strings.Contains(discovery, "inventory_complete=false") ||
 		!strings.Contains(discovery, "formal transition discovery exceeded") || strings.Contains(discovery, "--paginate") ||
 		!strings.Contains(discovery, "authenticate-operator-stop-producer.sh") ||
 		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") ||
 		!strings.Contains(authenticator, "chat-lifecycle-stop.yml") {
 		t.Fatal("formal transition discovery is not bounded and producer-authenticated")
+	}
+}
+
+func TestFormalTransitionDiscoveryRetriesTransientArtifactInventoryFailure(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	attemptsPath := filepath.Join(directory, "attempts")
+	if err := os.WriteFile(attemptsPath, []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := `#!/bin/sh
+attempts="$(cat "$FAKE_ATTEMPTS")"
+attempts=$((attempts + 1))
+printf '%s\n' "$attempts" >"$FAKE_ATTEMPTS"
+if [ "$attempts" -lt 3 ]; then
+  printf '%s\n' 'unexpected EOF' >&2
+  exit 1
+fi
+printf '%s\n' '{"artifacts":[]}'
+`
+	for name, content := range map[string]string{
+		"gh":    gh,
+		"sleep": "#!/bin/sh\nexit 0\n",
+	} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(content), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-formal-transitions.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ATTEMPTS="+attemptsPath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM")
+	combined, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("transient formal Artifact inventory failure was not retried: %v\n%s", err, combined)
+	}
+	if attempts := strings.TrimSpace(readFile(t, attemptsPath)); attempts != "3" {
+		t.Fatalf("formal Artifact inventory attempts = %s, want 3", attempts)
+	}
+	var matrix struct {
+		Include []json.RawMessage `json:"include"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, output)), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 0 {
+		t.Fatalf("formal transition matrix = %#v, want empty", matrix.Include)
 	}
 }
 
