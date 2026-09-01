@@ -144,6 +144,46 @@ func TestEasySDKAndroidEmulatorScriptHasIndependentCommands(t *testing.T) {
 	require.True(t, found, "EasySDK Android emulator step not found")
 }
 
+func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
+	root := repoRoot(t)
+	workflow := string(readWorkflow(t, "easysdk-release-acceptance.yml"))
+	helperPath := filepath.Join(
+		root,
+		"test",
+		"easysdk-release",
+		"flutter",
+		"run-release-smoke.sh",
+	)
+
+	require.Contains(
+		t,
+		workflow,
+		`"${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"`,
+		"the Flutter release smoke must use its bounded runner",
+	)
+	require.NotContains(
+		t,
+		workflow,
+		"flutter test integration_test/release_smoke_test.dart",
+		"the workflow must not bypass the bounded Flutter runner",
+	)
+
+	helper := readFile(t, helperPath)
+	require.Contains(t, helper, "FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS")
+	require.Contains(t, helper, "FLUTTER_RELEASE_SMOKE_TIMEOUT")
+
+	testBody := readFile(
+		t,
+		filepath.Join(filepath.Dir(helperPath), "release_smoke_test.dart"),
+	)
+	require.Contains(
+		t,
+		testBody,
+		"await sdk.connect().timeout(",
+		"the SDK connection must have its own Dart-level deadline",
+	)
+}
+
 func TestLegacyAutomaticTestWorkflowsAreAbsent(t *testing.T) {
 	root := repoRoot(t)
 	for _, name := range []string{"ci.yml", "nightly.yml"} {

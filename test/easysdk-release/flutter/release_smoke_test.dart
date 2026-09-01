@@ -43,7 +43,7 @@ void main() {
           deviceFlag: WuKongDeviceFlag.app,
         ),
       );
-      await sdk.connect();
+      await sdk.connect().timeout(const Duration(seconds: 30));
       expect(sdk.isConnected, isTrue);
 
       final acknowledgment = await sdk.send(

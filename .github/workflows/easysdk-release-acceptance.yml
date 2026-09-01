@@ -235,15 +235,7 @@ jobs:
 
       - name: Run released Flutter package on iOS
         working-directory: release-sdk/example
-        run: |
-          flutter test integration_test/release_smoke_test.dart \
-            -d "${SIMULATOR_ID}" \
-            --dart-define="ALICE_UID=${ALICE_UID}" \
-            --dart-define="ALICE_TOKEN=${ALICE_TOKEN}" \
-            --dart-define="BOB_UID=${BOB_UID}" \
-            --dart-define="ALICE_TO_BOB_TEXT=${ALICE_TO_BOB_TEXT}" \
-            --dart-define="BOB_TO_ALICE_TEXT=${BOB_TO_ALICE_TEXT}"
-          "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+        run: '"${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"'
 
       - name: Clean up runtime
         if: always()
