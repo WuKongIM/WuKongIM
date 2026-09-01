@@ -92,7 +92,7 @@ failure, a digest mismatch, or a missing platform fails the complete release.
 `binary-release-publish.yml` publishes downloadable WuKongIM executables from
 the same strict SemVer `v*` source identity used by the container publisher. A
 new tag starts the workflow automatically; the manual `version` input accepts
-one existing tag for first publication or incomplete-release recovery. The tag
+one existing tag for first publication or incomplete-draft recovery. The tag
 must resolve to a commit reachable from `origin/main` and may not contain
 SemVer build metadata.
 
@@ -107,21 +107,33 @@ Actions evidence for 90 days. Tags containing the version command also prove
 the embedded version, full source commit, and `release` build source; older
 tags remain bound by the immutable tag, checksums, and attestation.
 
-The workflow gives every new asset to `gh release create`, so GitHub uploads
-them while the Release is still a draft and publishes the complete set once.
-Recovery downloads and compares every existing expected asset and refuses any
-content conflict. It may fill missing files only while the target Release is
-still mutable; an incomplete immutable Release fails closed and requires an
-explicit operator delete-and-recreate decision. A pre-release SemVer tag must
-correspond to a GitHub pre-release; stable tags must correspond to a normal
-Release. A fully published version fails closed instead of creating duplicate
-evidence.
+The workflow creates a draft Release without publishing it, uploads every
+expected asset, downloads and byte-compares the complete exact asset set, and
+only then publishes the verified draft once. Recovery may compare existing
+assets and fill missing files only in that same draft. Draft discovery scans
+all Releases for one exact tag match, then binds creation, upload, verification,
+and publication to the resulting numeric Release ID; it never relies on the
+published-by-tag endpoint to find a draft. Asset upload accepts only the exact
+numeric-ID `uploads.github.com` URL returned by GitHub and checks each upload
+response against the local size and SHA-256. Immediately before publication it
+rechecks that the remote tag still peels to the validated source commit, that
+repository-level immutable Releases remain enabled, and that the draft still
+has the exact asset names, sizes, and digests verified earlier. Any existing
+published Release fails closed: a complete one is already final, while an
+incomplete one must never be reused and requires a new SemVer tag. A
+pre-release SemVer tag must correspond to a GitHub pre-release; stable tags
+must correspond to a normal Release. After publication, the workflow verifies
+that GitHub sealed the same numeric Release ID as immutable, checks every
+asset's API size and SHA-256 digest against the local file, and falls back to
+an ID-bound download and byte comparison when the API omits a digest.
 
 Repository administrators must configure a `binary-publish` Environment,
 allow protected `main` for manual recovery and trusted version tags for
 automatic publication, and avoid a reviewer gate for tag-triggered runs. The
 workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
-release credential.
+release credential. Until those Environment deployment restrictions have been
+configured and verified remotely, administrators must not push a release tag
+or manually dispatch this workflow.
 
 ## Direct local chat-lifecycle repair
 
