@@ -165,17 +165,35 @@ func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
 		t,
 		workflow,
 		"flutter test integration_test/release_smoke_test.dart",
-		"the workflow must not bypass the bounded Flutter runner",
+		"the workflow must not use the flaky iOS integration-test launcher",
+	)
+	require.Contains(
+		t,
+		workflow,
+		"test/easysdk-release/flutter/release_smoke_app.dart",
+		"the released example must build the receipt-writing smoke app",
 	)
 
 	helper := readFile(t, helperPath)
 	require.Contains(
 		t,
 		helper,
-		`FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS:-480`,
-		"the timeout must cover observed healthy macOS runner variance",
+		`FLUTTER_RELEASE_SMOKE_BUILD_TIMEOUT_SECONDS:-480`,
+		"the Flutter example build must have an independent deadline",
 	)
 	require.Contains(t, helper, "FLUTTER_RELEASE_SMOKE_TIMEOUT")
+	require.Contains(t, helper, "flutter build ios --simulator")
+	require.Contains(t, helper, "xcrun simctl install")
+	require.Contains(t, helper, "xcrun simctl launch")
+	require.Contains(t, helper, "release-smoke-config.json")
+	require.Contains(t, helper, "release-smoke.json")
+	require.NotContains(
+		t,
+		helper,
+		"SIMCTL_CHILD_",
+		"Flutter does not reliably expose simctl child variables through Platform.environment",
+	)
+	require.NotContains(t, helper, "flutter test")
 	require.NotContains(
 		t,
 		helper,
@@ -183,15 +201,30 @@ func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
 		"a retry must use a fresh runner instead of reusing degraded runtime state",
 	)
 
-	testBody := readFile(
+	appBody := readFile(
 		t,
-		filepath.Join(filepath.Dir(helperPath), "release_smoke_test.dart"),
+		filepath.Join(filepath.Dir(helperPath), "release_smoke_app.dart"),
 	)
 	require.Contains(
 		t,
-		testBody,
+		appBody,
 		"await sdk.connect().timeout(",
 		"the SDK connection must have its own Dart-level deadline",
+	)
+	require.Contains(t, appBody, "Directory.systemTemp")
+	require.Contains(t, appBody, "release-smoke-config.json")
+	require.Contains(t, appBody, "await configFile.delete()")
+	require.NotContains(t, appBody, "Platform.environment")
+	require.Contains(t, appBody, "FLUTTER_RELEASE_SMOKE_PASS")
+	preparer := readFile(
+		t,
+		filepath.Join(filepath.Dir(helperPath), "prepare-release-example.mjs"),
+	)
+	require.NotContains(
+		t,
+		preparer,
+		"integration_test",
+		"the receipt app must not retain the flaky integration-test dependency",
 	)
 }
 

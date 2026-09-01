@@ -20,9 +20,5 @@ replaceExactly(
   '  wukong_easy_sdk:\n    path: ../',
   '  wukong_easy_sdk: 1.1.0',
 );
-replaceExactly(
-  '  flutter_test:\n    sdk: flutter\n',
-  '  flutter_test:\n    sdk: flutter\n  integration_test:\n    sdk: flutter\n',
-);
 
 fs.writeFileSync(pubspec, source);

@@ -216,9 +216,8 @@ jobs:
       - name: Point the official example at pub.dev
         run: |
           test/easysdk-release/flutter/prepare-release-example.sh release-sdk
-          mkdir -p release-sdk/example/integration_test
-          cp test/easysdk-release/flutter/release_smoke_test.dart \
-            release-sdk/example/integration_test/release_smoke_test.dart
+          cp test/easysdk-release/flutter/release_smoke_app.dart \
+            release-sdk/example/lib/release_smoke_app.dart
           cd release-sdk/example
           flutter pub get
           flutter pub deps --json >"${RUNNER_TEMP}/flutter-dependencies.json"

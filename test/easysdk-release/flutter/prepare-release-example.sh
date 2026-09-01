@@ -19,6 +19,5 @@ node "${SCRIPT_DIR}/prepare-release-example.mjs" "${SDK_ROOT}"
 /usr/libexec/PlistBuddy -c 'Add :NSLocalNetworkUsageDescription string Connect to the local WuKongIM release acceptance server.' "${INFO_PLIST}"
 
 grep -Fq '  wukong_easy_sdk: 1.1.0' "${PUBSPEC}"
-grep -Fq '  integration_test:' "${PUBSPEC}"
 /usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLoads' "${INFO_PLIST}" \
   | grep -Fxq true
