@@ -28,6 +28,8 @@ move those entries into a version section named for that exact tag.
 - WuKongEasySDK 中英文文档现固定 Web `2.0.4`、Android `1.0.5`、iOS `1.1.1` 与 Flutter `1.1.0` 正式包，并补充四端 example 与正式包的独立验收回执及可复现流程。
 - Docker 服务端部署现在提供一键安装脚本，只需一条命令即可生成随机凭据、创建持久卷、启动固定摘要镜像并等待单节点集群就绪；未指定版本时自动选择最新 GitHub tag，也可通过 `WK_VERSION` 指定版本，中英文主流程均保持两步。
 - 服务端配置文档新增独立的中英文常用配置页，以表格解释最常用的 10 个配置项；配置参考改写为可搜索的逐字段手册，为全部公开 TOML 与 `WK_*` 配置补充用途，并标明关键默认值、`0` 值、互斥、敏感和迁移说明。
+- 文档站资源菜单移除官网链接，并使用聊天演示与 Manager 演示当前可用的 HTTP 地址。
+- 中英文公共文档新增可访问的 Mermaid 架构与流程图，精简产品、指南和部署导航，并将已撤下的 Kubernetes 页面重定向到受支持的部署入口。
 
 <!--
 Use only the non-empty categories that apply: `⚠️ Breaking Changes /
