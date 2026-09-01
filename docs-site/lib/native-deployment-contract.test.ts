@@ -12,10 +12,10 @@ describe('native deployment publication contract', () => {
 
     for (const content of pages) {
       for (const contract of [
-        'ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760',
+        'ghcr.io/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516',
         'docker compose config --quiet',
         'docker compose pull',
-        'v3.0.0-beta.4/wukongim.toml.example',
+        'v3.0.0-beta.5/wukongim.toml.example',
         'WK_MANAGER_USERS=',
         'wukongim-node1-data',
         './node1.toml:/etc/wukongim/wukongim.toml:ro',
@@ -30,7 +30,7 @@ describe('native deployment publication contract', () => {
         '/run/wukongim/plugin.sock',
         '/guide/quick-start',
         'docker compose down -v',
-        'Alpine 3.19',
+        'Alpine 3.24.1',
       ]) {
         expect(content).toContain(contract);
       }

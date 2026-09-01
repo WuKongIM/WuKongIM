@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 - GitHub Release 正文现由人工维护的 Changelog 生成，并在二进制文件与三个 Docker 镜像仓库的版本身份、摘要和平台验证完成后再公开发布。
 
+### 📚 Documentation / 文档
+
+- Docker 服务端部署文档已切换到三仓库同摘要的 `v3.0.0-beta.5` 非 root 镜像，并同步更新预发布风险说明。
+
 <!--
 Use only the non-empty categories that apply: `⚠️ Breaking Changes /
 破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
