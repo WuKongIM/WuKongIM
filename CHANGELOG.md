@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 📚 Documentation / 文档
+
+- WuKongEasySDK 中英文文档现固定 Web `2.0.4`、Android `1.0.5`、iOS `1.1.1` 与 Flutter `1.1.0` 正式包，并补充四端 example 与正式包的独立验收回执及可复现流程。
+
 <!--
 Use only the non-empty categories that apply: `⚠️ Breaking Changes /
 破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,

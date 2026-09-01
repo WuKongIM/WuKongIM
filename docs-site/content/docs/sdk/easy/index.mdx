@@ -9,10 +9,10 @@ WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消�
 
 <Cards>
   <Card title="运行官方示例" description="按已验证 revision 启动四端 example，复现构建、双向消息与清理。" href="/zh/sdk/easy/examples" />
-  <Card title="iOS 快速接入" description="精确安装 1.1.0，用一个应用级客户端完成连接、收发与清理。" href="/zh/sdk/easy/ios/getting-started" />
-  <Card title="Android 快速接入" description="精确安装 1.0.4，按进程单例与 Activity 生命周期完成闭环。" href="/zh/sdk/easy/android/getting-started" />
+  <Card title="iOS 快速接入" description="精确安装 1.1.1，用一个应用级客户端完成连接、收发与清理。" href="/zh/sdk/easy/ios/getting-started" />
+  <Card title="Android 快速接入" description="精确安装 1.0.5，按进程单例与 Activity 生命周期完成闭环。" href="/zh/sdk/easy/android/getting-started" />
   <Card title="Flutter 快速接入" description="精确安装 1.1.0，保存监听器引用并在 dispose 中释放。" href="/zh/sdk/easy/flutter/getting-started" />
-  <Card title="Web 快速接入" description="精确安装 easyjssdk 2.0.3，通过业务 BFF 获取连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
+  <Card title="Web 快速接入" description="精确安装 easyjssdk 2.0.4，通过业务 BFF 获取连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
 </Cards>
 
 完成对应教程后，你会让 Alice 与 Bob 分别连接，在个人 Channel 中双向发送一个文本 JSON Payload，并在退出时正确移除监听器和连接。
@@ -86,29 +86,38 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 ## 版本与证据
 
-<Callout type="info" title="四端官方 example 已跑通">
-  2026 年 8 月 31 日，Web、Android、iOS 与 Flutter 官方 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`，完成 Alice/Bob 在线双向消息；对应构建、测试、模拟器或浏览器环境见[可复现运行记录](/zh/sdk/easy/examples)。这仍不是物理真机、WSS、离线能力或生产 Token 校验凭据。
+<Callout type="info" title="四端源码 example 与正式发布包均已跑通">
+  2026 年 8 月 31 日，四个官方 example 连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` 完成源码运行；9 月 1 日，npm `2.0.4`、Maven Central `1.0.5`、CocoaPods `1.1.1` 与 pub.dev `1.1.0` 又连接 PR 最终 HEAD `1c9430f15fc8844e7025df07d54ab6e80e026414` 的测试合并服务端 `35f314cc2512f3f0f5d55d9677e817cb64129985`，完成 Alice/Bob 在线双向消息和断开清理。托管任务见[正式包验收运行](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015)，浏览器包另在 Chrome 151 通过。这仍不是物理真机、WSS、离线能力或生产 Token 校验凭据。
 </Callout>
 
 | 平台 | 已验证 example revision | 与正式版本的关系 |
 | --- | --- | --- |
-| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/a055b3667247333b6b3183249f5d5929673dfd53) | 比 npm `2.0.3` 更新，尚未作为新版本发布 |
-| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/7134bbd0263fd01d9e7f71b7bd05b226f75b2292) | 比 Maven `1.0.4` 更新，尚未作为新版本发布 |
-| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/40014c16c0becd390c105098d359048901f4d87c) | 比 iOS `1.1.0` 更新，尚未作为新版本发布 |
+| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/a055b3667247333b6b3183249f5d5929673dfd53) | 已包含在正式 `v2.0.4` |
+| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/7134bbd0263fd01d9e7f71b7bd05b226f75b2292) | 已包含在正式 `v1.0.5` |
+| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/40014c16c0becd390c105098d359048901f4d87c) | 已包含在正式 `v1.1.1` |
 | Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | 与正式 `v1.1.0` 相同 |
 
-<Callout type="warn" title="不要把 main 的运行结果归给旧发布包">
-  教程安装段继续固定当前正式版本；复现 example 结果则必须检出上表 revision。Web、Android 与 iOS 的新提交包含 example 和连接生命周期修复，在它们进入下一正式版本前，两类证据必须分开记录。
+<Callout type="warn" title="源码和正式包仍是两类证据">
+  上表证明精确源码 example；正式包运行证明 Registry 实际解析到的归档。新补丁版本已经包含这些源码修复并通过正式包验收，但记录结果时仍要同时保留源码 revision、包版本、服务端 revision 与运行环境。
 </Callout>
 
 ### 当前正式发布版本
 
 | 平台 | 固定版本与源码 revision | 正式分发 |
 | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` · `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) · [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` · `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) · [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.1` · `ca688fcac2c4cd8d6f8e8163faf165376b520ba9` | [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.1) · [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.5` · `61ae6dc6d0077b15e47cda1fd530296b97a06a7a` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.5) · [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5) |
 | [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` · `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) · [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` · `d29038e52aab5bce09f643fbe4daf11547379131` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.4` · `9c03c98c725982fac224cd1d3b52456eae983975` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.4) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.4) |
+
+### 正式包运行凭据
+
+| 平台 | 精确 Registry 产物 | 运行环境 | 结果 |
+| --- | --- | --- | --- |
+| Web | `easyjssdk@2.0.4` | Chrome 151；托管 Node.js 对端 | 双向消息、SENDACK 与断开通过 |
+| Android | `com.githubim:easysdk-android:1.0.5` | Android 14 / API 34 Emulator | Maven 解析、instrumentation 双向消息与断开通过 |
+| iOS | `WuKongEasySDK 1.1.1` | iOS Simulator | CocoaPods 解析、双向消息与断开通过 |
+| Flutter | `wukong_easy_sdk 1.1.0` | iOS Simulator | pub.dev hosted 解析、双向消息与断开通过 |
 
 应用依赖只使用这些精确版本，不使用 `latest` 或宽松版本范围。四个正式版本都已包含默认关闭、输出脱敏的日志安全修复：
 

@@ -1,17 +1,17 @@
 ---
 title: Web 快速接入
-description: 精确安装 easyjssdk 2.0.3，通过业务 BFF 和可连续复制的 TypeScript 代码完成浏览器在线消息闭环。
+description: 精确安装 easyjssdk 2.0.4，通过业务 BFF 和可连续复制的 TypeScript 代码完成浏览器在线消息闭环。
 ---
 
 浏览器先向业务 BFF 请求当前用户的连接材料，再由 EasyJSSDK 建立 WebSocket JSON-RPC 连接。客户端不持有 Product HTTP 管理凭据，Alice 与 Bob 使用两个隔离的浏览器上下文验收。
 
 <Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v2.0.3` 的 JSON-RPC CONNECT 与在线双向收发，包括省略 `jsonrpc`、Base64 SEND 与对象 RECV。浏览器默认使用 WEB `1`，完整线路值为 APP `0`、WEB `1`、PC `2`。教程安装 [npm 2.0.3](https://www.npmjs.com/package/easyjssdk/v/2.0.3)；官方浏览器 example 已在源码 `a055b3667247333b6b3183249f5d5929673dfd53` 上实测通过。该 revision 比 [v2.0.3 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) 更新，尚未形成新 npm 版本，因此两份证据不能混用。
+  当前 Product Gateway 支持固定 `v2.0.4` 的 JSON-RPC CONNECT 与在线双向收发，包括省略 `jsonrpc`、Base64 SEND 与对象 RECV。浏览器默认使用 WEB `1`，完整线路值为 APP `0`、WEB `1`、PC `2`。教程安装 [npm 2.0.4](https://www.npmjs.com/package/easyjssdk/v/2.0.4)；官方浏览器 example 已在源码 `a055b3667247333b6b3183249f5d5929673dfd53` 上实测通过，该源码已进入 [v2.0.4 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.4)。npm 正式包随后在 Chrome 151 与托管正式包对端中完成双向消息和断开。
 </Callout>
 
 ## 完成后你会得到什么
 
-- 锁定为 `easyjssdk@2.0.3` 的 npm 依赖；
+- 锁定为 `easyjssdk@2.0.4` 的 npm 依赖；
 - 一个只消费业务 BFF 最小响应的浏览器客户端；
 - 可精确 `off` 的事件回调和页面退出清理；
 - Alice 发送结果与 Bob 实时接收两份独立观察。
@@ -30,7 +30,7 @@ npm run build
 python3 -m http.server 8080
 ```
 
-打开 `http://127.0.0.1:8080/example/`。完整的 WuKongIM 启动、Alice/Bob 准备和地址映射见[运行官方示例](/zh/sdk/easy/examples)。源码运行凭据不等于 npm `2.0.3` 发布包凭据。
+打开 `http://127.0.0.1:8080/example/`。完整的 WuKongIM 启动、Alice/Bob 准备和地址映射见[运行官方示例](/zh/sdk/easy/examples)。源码 example 与 npm `2.0.4` 正式包已经分别留下运行凭据，记录时仍要区分两者。
 
 ## 开始前
 
@@ -48,7 +48,7 @@ python3 -m http.server 8080
 在现有 Vite、Next.js 或其他打包工程中执行：
 
 ```bash
-npm install --save-exact easyjssdk@2.0.3
+npm install --save-exact easyjssdk@2.0.4
 ```
 
 提交 `package-lock.json`。本教程不使用 CDN 的浮动版本，避免页面刷新后静默更换 SDK。
@@ -197,21 +197,21 @@ Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍�
 6. 模拟不可达地址，确认 10 秒内失败并 `destroy`，页面不会永久停在 Connecting；
 7. 刷新、关闭或退出账号，确认旧实例已 `off` 并 `destroy`，没有重复连接。
 
-上述精确源码已在 Chrome 151 中连接同一版 WuKongIM，完成双向消息、主动断开和重连。这个闭环没有覆盖 npm `2.0.3` 产物、离线同步或生产 WSS；如果 Bob 离线，应用不能仅等待 EasySDK 的实时事件，必须用产品设计的持久同步路径恢复消息。
+上述精确源码已在 Chrome 151 中连接同一版 WuKongIM，完成双向消息、主动断开和重连；npm `2.0.4` 正式包也在真实 Chrome 与托管正式包对端中完成双向消息、SENDACK 和断开。该闭环仍没有覆盖离线同步或生产 WSS；如果 Bob 离线，应用不能仅等待 EasySDK 的实时事件，必须用产品设计的持久同步路径恢复消息。
 
 ## 常见问题
 
 - **页面提示 WebSocket 或编码 API 不存在**：确认目标浏览器与构建环境提供 WebSocket、`TextEncoder`、`TextDecoder`；不要从浏览器路径推断小程序支持。
 - **连接前就被拒绝**：检查 BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade 和 Gateway 可达性。
 - **刷新后重复收消息**：不要在每次组件渲染时调用 `on`；保留回调并在卸载时 `off`/`destroy`。
-- **Console 仍出现 Token 或 Payload**：先用锁文件与浏览器 bundle 确认实际打入 `easyjssdk@2.0.3`，再检查应用事件回调、错误处理和采集器是否记录了完整对象。SDK 诊断默认关闭，显式开启时也只应输出脱敏运行元数据；用 npm 正式产物复现并保留低敏证据后再提交问题。
+- **Console 仍出现 Token 或 Payload**：先用锁文件与浏览器 bundle 确认实际打入 `easyjssdk@2.0.4`，再检查应用事件回调、错误处理和采集器是否记录了完整对象。SDK 诊断默认关闭，显式开启时也只应输出脱敏运行元数据；用 npm 正式产物复现并保留低敏证据后再提交问题。
 - **需要可执行 Web 场景入口**：使用本站具备受保护验证流程的 [WuKongIMJSSDK Web 教程](/zh/sdk/javascript)，并在 [API 版本与兼容性](/zh/api/compatibility)查看当前构建与运行时边界；不要把两套 SDK 的方法名混用。
 
 ## 上线前检查
 
 - 页面和 WebSocket 都使用 HTTPS/WSS，验证证书、代理 Upgrade、BFF 同源或跨域策略以及 Gateway 可达性；
 - BFF 只返回当前 Session 的连接材料，Token 不进入 URL、Local Storage、日志或分析事件；
-- `debugLogging` 默认关闭；生产保持 `false`，用 npm `2.0.3` 实际 bundle 和非生产 canary 检查 Console、错误上报与采集器不含 Token、Payload、原始帧或完整事件对象；
+- `debugLogging` 默认关闭；生产保持 `false`，用 npm `2.0.4` 实际 bundle 和非生产 canary 检查 Console、错误上报与采集器不含 Token、Payload、原始帧或完整事件对象；
 - 保存 lockfile、浏览器与构建版本、网络和服务端 revision，并分别验证刷新、退出、重连和 Bob 离线后的持久恢复；
 - 使用[上线验收](/zh/guide/integration/acceptance)继续验证容量、监控、升级与回滚。
 

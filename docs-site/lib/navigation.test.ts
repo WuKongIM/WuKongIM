@@ -221,15 +221,15 @@ describe('documentation navigation contract', () => {
     ).toBe('published');
   });
 
-  test('publishes EasySDK tutorials and the verified source-example runbook', () => {
+  test('publishes EasySDK tutorials and the released-package runbook', () => {
     const sdk = domains.find((domain) => domain.key === 'sdk');
     const easy = sdk?.groups.find((group) => group.slug === 'easy');
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const snapshots = new Map([
-      ['ios/getting-started', 'v1.1.0'],
-      ['android/getting-started', 'v1.0.4'],
+      ['ios/getting-started', 'v1.1.1'],
+      ['android/getting-started', 'v1.0.5'],
       ['flutter/getting-started', 'v1.1.0'],
-      ['javascript/getting-started', 'v2.0.3'],
+      ['javascript/getting-started', 'v2.0.4'],
     ]);
 
     expect(easy?.status).toBe('published');
@@ -242,8 +242,8 @@ describe('documentation navigation contract', () => {
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
-        expect(page.description.zh).toContain('已验证 revision');
-        expect(page.description.en).toContain('same WuKongIM revision');
+        expect(page.description.zh).toContain('四端正式包');
+        expect(page.description.en).toContain('four released packages');
         continue;
       }
       const snapshot = snapshots.get(page.slug);
@@ -251,8 +251,8 @@ describe('documentation navigation contract', () => {
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
     }
-    expect(easy?.description.zh).toContain('正式发布包与源码运行凭据保持分离');
-    expect(easy?.description.en).toContain('package and source-run evidence separate');
+    expect(easy?.description.zh).toContain('已验证的正式发布包');
+    expect(easy?.description.en).toContain('verified released packages');
     for (const url of [
       '/en/sdk/easy',
       '/en/sdk/easy/examples',

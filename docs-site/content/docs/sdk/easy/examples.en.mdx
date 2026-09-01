@@ -1,15 +1,28 @@
 ---
 title: Run the Official Examples
-description: Start WuKongIM at the verified revision and run the Web, Android, iOS, and Flutter official examples through online bidirectional messaging.
+description: Use one pinned WuKongIM revision to run the Web, Android, iOS, and Flutter source examples and released packages.
 ---
 
-This page is a reproducible development acceptance path. On August 31, 2026, the examples in all four official repositories connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` and completed both Alice → Bob and Bob → Alice online messaging. The server process-level JSON-RPC E2E also passed at that revision.
+This page records two reproducible evidence classes. On August 31, 2026, the source examples in all four official repositories connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`; the server process-level JSON-RPC E2E also passed at that revision. On September 1, the packages resolved from npm, Maven Central, CocoaPods, and pub.dev connected to test-merge server `35f314cc2512f3f0f5d55d9677e817cb64129985` for final PR head `1c9430f15fc8844e7025df07d54ab6e80e026414` and completed Alice → Bob, Bob → Alice, and disconnect cleanup.
 
-<Callout type="warn" title="Verified source and released packages are different evidence">
-  The Web, Android, and iOS example fixes are on each repository's current `main`, ahead of the npm `2.0.3`, Maven `1.0.4`, and iOS `1.1.0` release revisions. Check out the exact source below to reproduce these results; do not attribute the source run to an older package. The verified Flutter source is the released `v1.1.0`. Production dependencies still need your reviewed, signed, and published artifact flow.
+<Callout type="warn" title="Source examples and released packages are separate evidence">
+  A source run proves one repository revision; a released-package run proves the archive actually served by a registry. Web `v2.0.4`, Android `v1.0.5`, and iOS `v1.1.1` now include the previously verified example and connection-lifecycle fixes, while Flutter remains on `v1.1.0`. Keep both evidence classes in every result.
 </Callout>
 
 ## Verified results
+
+### Released packages (September 1, 2026)
+
+| Platform | Released package and release source | Build and runtime | Observed result |
+| --- | --- | --- | --- |
+| Web | [`easyjssdk@2.0.4`](https://www.npmjs.com/package/easyjssdk/v/2.0.4) · [`9c03c98c725982fac224cd1d3b52456eae983975`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/9c03c98c725982fac224cd1d3b52456eae983975) | Chrome 151; hosted Node.js peer | Browser and released-package-peer bidirectional messaging, SENDACK, and disconnect passed |
+| Android | [`com.githubim:easysdk-android:1.0.5`](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5) · [`61ae6dc6d0077b15e47cda1fd530296b97a06a7a`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/61ae6dc6d0077b15e47cda1fd530296b97a06a7a) | JDK 17, Android 14 / API 34 hosted emulator | Maven resolution, instrumentation bidirectional messaging, and disconnect passed |
+| iOS | [`WuKongEasySDK 1.1.1`](https://cocoapods.org/pods/WuKongEasySDK) · [`ca688fcac2c4cd8d6f8e8163faf165376b520ba9`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/ca688fcac2c4cd8d6f8e8163faf165376b520ba9) | CocoaPods 1.16.2, iOS Simulator | Pod resolution, bidirectional messaging, and disconnect passed |
+| Flutter | [`wukong_easy_sdk 1.1.0`](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) · [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | Flutter 3.41.4, iOS Simulator | Hosted dependency resolution, bidirectional messaging, and disconnect passed |
+
+The Android, iOS, and Flutter hosted jobs—and the released npm `2.0.4` peer shared by each—are recorded in the [final-head released-package acceptance run](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015).
+
+### Official source examples (August 31, 2026)
 
 | Platform | Official example source | Build and runtime | Observed result |
 | --- | --- | --- | --- |
@@ -78,7 +91,7 @@ Choose the WebSocket URL from where the client runs:
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
 cd WuKongEasySDK-JS
-git checkout a055b3667247333b6b3183249f5d5929673dfd53
+git checkout 9c03c98c725982fac224cd1d3b52456eae983975
 npm ci
 npm test
 npm run build
@@ -92,7 +105,7 @@ Open `http://127.0.0.1:8080/example/`. Use two isolated browser contexts for Ali
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
 cd WuKongEasySDK-Android
-git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
+git checkout 61ae6dc6d0077b15e47cda1fd530296b97a06a7a
 ./gradlew test :example:assembleDebug
 ./gradlew :example:installDebug
 ```
@@ -104,7 +117,7 @@ Launch the `example` on an API 21+ device or emulator. An Android Emulator reach
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 cd WuKongEasySDK-iOS
-git checkout 40014c16c0becd390c105098d359048901f4d87c
+git checkout ca688fcac2c4cd8d6f8e8163faf165376b520ba9
 swift test
 swift build -c release
 cd Examples/WuKongIMExample-Unified
@@ -137,7 +150,19 @@ flutter run -d <device-id>
 
 Run every target you intend to ship. An iOS Simulator result cannot stand in for Android, Web, or desktop acceptance.
 
-## 4. Complete bidirectional acceptance
+The current Web, Android, and iOS release commits change only version, changelog, or release-documentation metadata above the verified sources; their example behavior source is unchanged. Flutter's release source is the previously verified revision. Use the “Official source examples” table above when reproducing the exact August 31 source receipts.
+
+## 4. Rerun released-package automation
+
+`Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. Trigger a rerun with:
+
+```bash
+gh workflow run easysdk-release-acceptance.yml --ref main
+```
+
+The workflow checks the actual Gradle, Podfile.lock, and Dart package-config sources so a local source dependency cannot masquerade as a release. Keep real-browser acceptance as a separate Web check.
+
+## 5. Complete bidirectional acceptance
 
 1. Wait for both clients to report connected before enabling send.
 2. Alice sends `{"type":1,"content":"hello bob"}` to person Channel `bob`.
@@ -152,7 +177,7 @@ Send success, peer realtime receipt, peer display, and product handling are four
 ## Troubleshooting
 
 - **The Android emulator cannot connect:** replace `localhost` with `10.0.2.2`; use the development host's LAN address on a physical phone.
-- **A checked-out tag behaves differently from the table:** the verified Web, Android, and iOS fixes are not in the older releases shown above. Check `git rev-parse HEAD` first.
+- **A checked-out tag behaves differently from the table:** verify that `git rev-parse HEAD` and each package-manager lockfile match the current pins. Do not let a local `path`, `project(':')`, or cached dependency stand in for the registry artifact.
 - **SEND succeeds but the peer sees nothing:** verify that the target Channel ID equals the peer UID, both clients are online, and the receiver did not drop RECV through duplicate listeners or incorrect deduplication.
 - **An iOS or Android build asks for a License:** accept the applicable Xcode or Android SDK Manager license and download the target runtime, then rerun the same command.
 - **A local token connects:** that is not production authentication evidence. Continue until invalid, expired, revoked, and replayed tokens are rejected by a trusted validator.
