@@ -567,6 +567,100 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 	}
 }
 
+func TestChatLifecycleWorkflowArmsAndDisarmsTheRehearsalFinalizerOnlyAtSafeLifecycleEdges(t *testing.T) {
+	root := repoRoot(t)
+	start := string(readWorkflow(t, "chat-lifecycle-rehearsal.yml"))
+	arm := strings.Index(start, "Enable rehearsal finalizer safety schedule before paid orchestration")
+	orchestrate := strings.Index(start, "Orchestrate until remote systemd owns the measured run")
+	if arm < 0 || orchestrate <= arm ||
+		!strings.Contains(start[arm:orchestrate], "scripts/chat-lifecycle/rehearsal-finalizer-state.sh enable") {
+		t.Fatal("rehearsal workflow does not fail closed while arming the finalizer before paid orchestration")
+	}
+
+	finalizer := string(readWorkflow(t, "chat-lifecycle-rehearsal-finalize.yml"))
+	for _, required := range []string{
+		"name: Disable idle rehearsal finalizer schedule",
+		"needs: [discover, finalize]",
+		"if: always()",
+		"scripts/chat-lifecycle/rehearsal-finalizer-state.sh disable-if-idle",
+	} {
+		if !strings.Contains(finalizer, required) {
+			t.Fatalf("rehearsal finalizer idle disarm contract is missing %q", required)
+		}
+	}
+	stop := string(readWorkflow(t, "chat-lifecycle-stop.yml"))
+	stopArm := strings.Index(stop, "scripts/chat-lifecycle/rehearsal-finalizer-state.sh enable")
+	stopDispatch := strings.Index(stop, `gh workflow run "$workflow"`)
+	if stopArm < 0 || stopDispatch <= stopArm {
+		t.Fatal("operator stop does not arm the rehearsal finalizer before exact dispatch")
+	}
+
+	directory := t.TempDir()
+	calls := filepath.Join(directory, "calls")
+	fakeGH := filepath.Join(directory, "gh")
+	fake := `#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  *'/actions/artifacts?'*) printf '%s\n' '{"artifacts":[]}' ;;
+  *'chat-lifecycle-rehearsal.yml/runs?'*)
+    if [[ "${FAKE_ACTIVE_PRODUCER:-false}" == true && "$*" == *'status=in_progress'* ]]; then
+      printf '%s\n' '{"total_count":1,"workflow_runs":[{"repository":{"full_name":"WuKongIM/WuKongIM"},"head_repository":{"full_name":"WuKongIM/WuKongIM"},"event":"workflow_dispatch","head_branch":"main","status":"in_progress"}]}'
+    else
+      printf '%s\n' '{"total_count":0,"workflow_runs":[]}'
+    fi
+    ;;
+  *'chat-lifecycle-rehearsal-finalize.yml/enable'*) printf '%s\n' enable >>"$FAKE_CALLS" ;;
+  *'chat-lifecycle-rehearsal-finalize.yml/disable'*) printf '%s\n' disable >>"$FAKE_CALLS" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 2 ;;
+esac
+`
+	if err := os.WriteFile(fakeGH, []byte(fake), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(root, "scripts", "chat-lifecycle", "rehearsal-finalizer-state.sh")
+	run := func(operation string, active bool) string {
+		t.Helper()
+		if err := os.WriteFile(calls, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		command := exec.Command("bash", script, operation)
+		command.Dir = root
+		command.Env = append(os.Environ(),
+			"PATH="+directory+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM",
+			"FAKE_CALLS="+calls, "FAKE_ACTIVE_PRODUCER="+strconv.FormatBool(active))
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s finalizer state: %v\n%s", operation, err, output)
+		}
+		return string(output)
+	}
+
+	run("enable", false)
+	if got := strings.TrimSpace(readFile(t, calls)); got != "enable" {
+		t.Fatalf("enable calls = %q", got)
+	}
+	activeOutput := run("disable-if-idle", true)
+	if got := strings.TrimSpace(readFile(t, calls)); got != "" ||
+		!strings.Contains(activeOutput, "producer may still publish a handoff") {
+		t.Fatalf("active producer disarm calls = %q, output = %q", got, activeOutput)
+	}
+	run("disable-if-idle", false)
+	if got := strings.TrimSpace(readFile(t, calls)); got != "disable" {
+		t.Fatalf("idle disarm calls = %q", got)
+	}
+
+	state := readFile(t, script)
+	for _, required := range []string{
+		"discover-active-handoffs.sh", "queued in_progress waiting requested pending",
+		"head_repository.full_name == $repository", ".total_count <= 100", "api_attempts=4",
+	} {
+		if !strings.Contains(state, required) {
+			t.Fatalf("rehearsal finalizer state gate is missing %q", required)
+		}
+	}
+}
+
 func TestOperatorStopDiscoveryAuthenticatesProducerAndFailsClosedAtInventoryBound(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
