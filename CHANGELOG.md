@@ -6,6 +6,19 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+<!--
+Use only the non-empty categories that apply: `⚠️ Breaking Changes /
+破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
+`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
+`🔒 Security / 安全`, `📚 Documentation / 文档`, and
+`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
+
+Every category must contain at least one "- " list entry. Release headings use
+the exact form: ## [v3.0.0-beta.5] - 2026-09-01
+-->
+
+## [v3.0.0-beta.6] - 2026-09-01
+
 ### 🐛 Bug Fixes / 问题修复
 
 - 服务端二进制现在内置 IANA 时区数据库，官方最小 Docker 运行时可在 Manager 中保存 `Asia/Shanghai` 等非 UTC 备份计划，不再因运行镜像缺少 `zoneinfo` 返回无效请求。
@@ -18,17 +31,6 @@ move those entries into a version section named for that exact tag.
 ### 📚 Documentation / 文档
 
 - Docker 服务端部署文档已切换到三仓库同摘要的 `v3.0.0-beta.5` 非 root 镜像，并同步更新预发布风险说明。
-
-<!--
-Use only the non-empty categories that apply: `⚠️ Breaking Changes /
-破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
-`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
-`🔒 Security / 安全`, `📚 Documentation / 文档`, and
-`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
-
-Every category must contain at least one "- " list entry. Release headings use
-the exact form: ## [v3.0.0-beta.5] - 2026-09-01
--->
 
 ## [v3.0.0-beta.5] - 2026-09-01
 
