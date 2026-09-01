@@ -6,7 +6,7 @@ description: 一条命令启动带随机凭据和持久存储的 WuKongIM 单节
 只需要 Docker 和 `curl`。下面的安装器会生成随机凭据、创建持久卷、启动固定版本镜像，并等待节点就绪。
 
 <Callout type="warn" title="默认用于本机快速体验">
-  安装器固定使用预发布版本 `3.0.0-beta.6`。它不会自动配置域名、TLS、备份或多节点复制；承载生产流量前请完成[生产检查清单](/zh/server/deployment/production-checklist)。
+  安装器默认固定使用预发布版本 `3.0.0-beta.6`。指定旧版本时，其运行身份、基础镜像和健康检查能力以该版本为准。安装器不会自动配置域名、TLS、备份或多节点复制；承载生产流量前请完成[生产检查清单](/zh/server/deployment/production-checklist)。
 </Callout>
 
 ## 1. 一键启动
@@ -17,11 +17,21 @@ curl -fsSL https://docs.githubim.com/install/docker.sh | sh
 
 安装完成后，终端会显示 Manager 地址、用户名和随机密码。部署文件保存在当前目录的 `wukongim-docker/`，消息数据保存在 Docker Volume `wukongim-data`。
 
+通过 `WK_VERSION` 安装指定版本；当前支持 `3.0.0-beta.4`、`3.0.0-beta.5` 和 `3.0.0-beta.6`：
+
+```bash
+curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_VERSION=3.0.0-beta.5 sh
+```
+
+每个支持版本都固定到已验证的不可变镜像摘要。已有容器使用其他版本时，安装器会拒绝自动覆盖并保留数据卷；请先按照[升级与迁移](/zh/server/operations/upgrade-and-migration)确认兼容性，再删除旧容器并重新执行安装命令。
+
 如果客户端从其他机器连接，在同一条命令中指定可访问的域名或 IP：
 
 ```bash
 curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_PUBLIC_HOST=im.example.com sh
 ```
+
+两个选项可以同时使用：`env WK_VERSION=3.0.0-beta.5 WK_PUBLIC_HOST=im.example.com sh`。
 
 ## 2. 登录并验证
 
