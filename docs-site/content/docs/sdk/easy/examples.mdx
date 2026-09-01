@@ -1,15 +1,28 @@
 ---
 title: 运行官方示例
-description: 用已验证的源码 revision 启动 WuKongIM，并跑通 Web、Android、iOS 与 Flutter 官方 example 的在线双向消息。
+description: 用固定 WuKongIM revision 跑通 Web、Android、iOS 与 Flutter 的源码 example 和正式发布包。
 ---
 
-本页是可复现的开发验收路径。2026 年 8 月 31 日，四个官方仓库的 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`，完成 Alice → Bob 与 Bob → Alice 在线消息闭环；服务端进程级 JSON-RPC E2E 也在同一 revision 通过。
+本页记录两类可复现凭据。2026 年 8 月 31 日，四个官方仓库的源码 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`；9 月 1 日，从 npm、Maven Central、CocoaPods 与 pub.dev 解析的四个正式包又连接同一服务端源码，完成 Alice → Bob、Bob → Alice 与断开清理。服务端进程级 JSON-RPC E2E 也在同一 revision 通过。
 
-<Callout type="warn" title="已验证源码与正式发布包不是同一件事">
-  Web、Android 和 iOS 的 example 修复位于各自仓库当前 `main`，比 npm `2.0.3`、Maven `1.0.4` 和 iOS `1.1.0` 发布 revision 更新。要复现下表结果，请检出表中的精确源码；不要把源码运行结果写成旧发布包的兼容性凭据。Flutter 的已验证源码就是正式 `v1.1.0`。生产依赖仍应使用经过你方评审、签名和发布流程的产物。
+<Callout type="warn" title="源码 example 与正式发布包是两类证据">
+  源码运行证明精确仓库 revision，正式包运行证明 Registry 实际提供的归档。Web `v2.0.4`、Android `v1.0.5` 与 iOS `v1.1.1` 已包含先前验证的 example 和连接生命周期修复，Flutter 继续使用 `v1.1.0`；记录结果时仍要同时保留两类凭据。
 </Callout>
 
 ## 已验证结果
+
+### 正式发布包（2026-09-01）
+
+| 平台 | 正式包与发布源码 | 构建与运行环境 | 实际结果 |
+| --- | --- | --- | --- |
+| Web | [`easyjssdk@2.0.4`](https://www.npmjs.com/package/easyjssdk/v/2.0.4) · [`9c03c98c725982fac224cd1d3b52456eae983975`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/9c03c98c725982fac224cd1d3b52456eae983975) | Chrome 151；托管 Node.js 对端 | 浏览器与正式包对端的双向消息、SENDACK 和断开通过 |
+| Android | [`com.githubim:easysdk-android:1.0.5`](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5) · [`61ae6dc6d0077b15e47cda1fd530296b97a06a7a`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/61ae6dc6d0077b15e47cda1fd530296b97a06a7a) | JDK 17、Android 14 / API 34 托管模拟器 | Maven 解析、instrumentation 双向消息和断开通过 |
+| iOS | [`WuKongEasySDK 1.1.1`](https://cocoapods.org/pods/WuKongEasySDK) · [`ca688fcac2c4cd8d6f8e8163faf165376b520ba9`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/ca688fcac2c4cd8d6f8e8163faf165376b520ba9) | CocoaPods 1.16.2、iOS Simulator | Pod 解析、双向消息和断开通过 |
+| Flutter | [`wukong_easy_sdk 1.1.0`](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) · [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | Flutter 3.41.4、iOS Simulator | hosted 依赖解析、双向消息和断开通过 |
+
+Android、iOS 与 Flutter 的托管任务以及每项共用的 npm `2.0.4` 对端见[正式包验收运行](https://github.com/WuKongIM/WuKongIM/actions/runs/33466063708)。
+
+### 官方源码 example（2026-08-31）
 
 | 平台 | 官方 example 源码 | 构建与运行环境 | 实际结果 |
 | --- | --- | --- | --- |
@@ -78,7 +91,7 @@ curl -fsS -X POST http://127.0.0.1:5001/user/token \
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
 cd WuKongEasySDK-JS
-git checkout a055b3667247333b6b3183249f5d5929673dfd53
+git checkout 9c03c98c725982fac224cd1d3b52456eae983975
 npm ci
 npm test
 npm run build
@@ -92,7 +105,7 @@ python3 -m http.server 8080
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
 cd WuKongEasySDK-Android
-git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
+git checkout 61ae6dc6d0077b15e47cda1fd530296b97a06a7a
 ./gradlew test :example:assembleDebug
 ./gradlew :example:installDebug
 ```
@@ -104,7 +117,7 @@ git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 cd WuKongEasySDK-iOS
-git checkout 40014c16c0becd390c105098d359048901f4d87c
+git checkout ca688fcac2c4cd8d6f8e8163faf165376b520ba9
 swift test
 swift build -c release
 cd Examples/WuKongIMExample-Unified
@@ -137,7 +150,19 @@ flutter run -d <device-id>
 
 为每个实际发布目标分别运行，不要用 iOS Simulator 结果替代 Android、Web 或桌面端验收。
 
-## 4. 完成双向验收
+当前 Web、Android 与 iOS 发布提交只在已验证源码之上修改版本、变更日志或发布说明，example 行为源码保持不变；Flutter 发布源码与先前验证 revision 相同。若要核对 8 月 31 日的精确源码凭据，使用上方“官方源码 example”表中的 revision。
+
+## 4. 重跑正式包自动验收
+
+仓库中的 `Safety Automation - EasySDK Released Package Acceptance` 会从四个 Registry 解析精确版本，构建当前 WuKongIM，再用正式 npm 包作为 Bob，分别在 Android API 34 与两个 iOS Simulator 任务中完成双向消息。合入工作流后可手动触发：
+
+```bash
+gh workflow run easysdk-release-acceptance.yml --ref main
+```
+
+工作流会检查 Gradle、Podfile.lock 与 Dart package config 的实际来源，避免本地源码依赖冒充正式包。真实浏览器仍应按 Web 教程单独验收。
+
+## 5. 完成双向验收
 
 1. 两端都观察到连接成功，再启用发送按钮；
 2. Alice 向个人 Channel `bob` 发送 `{"type":1,"content":"hello bob"}`；
@@ -152,7 +177,7 @@ flutter run -d <device-id>
 ## 常见问题
 
 - **Android 模拟器连接失败**：把 `localhost` 改为 `10.0.2.2`；真机改用开发机局域网地址。
-- **检出 tag 后现象与上表不同**：Web、Android、iOS 的已验证修复尚未进入表中的旧正式版本；先确认当前 `git rev-parse HEAD`。
+- **检出 tag 后现象与上表不同**：先确认 `git rev-parse HEAD` 与包管理器锁文件都对应当前固定版本；不要让本地 `path`、`project(':')` 或缓存依赖替代 Registry 产物。
 - **SEND 成功但另一端没有消息**：确认目标 Channel ID 就是对方 UID、两端都在线，且接收端没有因重复 listener 或错误去重丢弃 RECV。
 - **iOS 或 Android 构建要求接受 License**：先按本机 Xcode、Android SDK Manager 的提示接受对应 License 并下载目标 runtime，再重跑原命令。
 - **本地 Token 能连接**：这不是生产鉴权凭据。继续验证错误、过期、撤销和重放 Token 都被可信验证器拒绝。

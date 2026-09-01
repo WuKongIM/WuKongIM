@@ -138,12 +138,12 @@ Route: `/{lang}/sdk`
       - **媒体与历史消息 / Media & History** `/{lang}/sdk/harmonyos/advanced/media-and-history` — 接入图片或语音消息，并在本地数据不足时补齐历史消息。 / Connect image or voice messages and fill history when local data is incomplete.
     - **API 参考 / API Reference** `/{lang}/sdk/harmonyos/api-reference` — 按管理器查找常用入口、监听器、Provider、模型和状态。 / Find common manager entry points, listeners, providers, models, and states.
   - **升级 SDK / Upgrade SDKs** `/{lang}/sdk/wukongim/upgrade` — 用一套简洁流程升级依赖、检查数据兼容并准备回滚。 / Upgrade dependencies, check data compatibility, and prepare rollback with one concise workflow.
-- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 选择 iOS、Android、Flutter 或 Web 快速接入，并用已验证源码运行官方 example；正式发布包与源码运行凭据保持分离。 / Choose an iOS, Android, Flutter, or Web quickstart and run the official examples at verified source revisions while keeping package and source-run evidence separate.
-  - **运行官方示例 / Run Official Examples** `/{lang}/sdk/easy/examples` — 启动同一版 WuKongIM，按已验证 revision 跑通四端构建、在线双向消息、断开和清理。 / Start the same WuKongIM revision and reproduce four-platform builds, online bidirectional messaging, disconnect, and cleanup.
-  - **iOS 快速接入 / iOS quickstart** `/{lang}/sdk/easy/ios/getting-started` — 精确安装 v1.1.0，或检出已验证 example revision，完成单聊收发、监听清理和 Alice/Bob 验收。 / Install exactly v1.1.0 or check out the verified example revision for person messaging, listener cleanup, and Alice/Bob acceptance.
-  - **Android 快速接入 / Android quickstart** `/{lang}/sdk/easy/android/getting-started` — 精确安装 v1.0.4，或检出已验证 example revision，处理单例、单聊收发、清理和 Alice/Bob 验收。 / Install exactly v1.0.4 or check out the verified example revision for singleton ownership, person messaging, cleanup, and Alice/Bob acceptance.
+- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 选择 iOS、Android、Flutter 或 Web 快速接入，并用已验证的正式发布包与源码 example 完成在线双向消息。 / Choose an iOS, Android, Flutter, or Web quickstart and use verified released packages and source examples for online bidirectional messaging.
+  - **运行官方示例 / Run Official Examples** `/{lang}/sdk/easy/examples` — 启动同一版 WuKongIM，复现四端正式包与源码 example 的在线双向消息、断开和清理。 / Start the same WuKongIM revision and reproduce online bidirectional messaging, disconnect, and cleanup with four released packages and source examples.
+  - **iOS 快速接入 / iOS quickstart** `/{lang}/sdk/easy/ios/getting-started` — 精确安装 v1.1.1，完成单聊收发、监听清理和已验证的 Alice/Bob 正式包验收。 / Install exactly v1.1.1 for person messaging, listener cleanup, and verified released-package Alice/Bob acceptance.
+  - **Android 快速接入 / Android quickstart** `/{lang}/sdk/easy/android/getting-started` — 精确安装 v1.0.5，处理单例、单聊收发、清理和已验证的 Alice/Bob 正式包验收。 / Install exactly v1.0.5 for singleton ownership, person messaging, cleanup, and verified released-package Alice/Bob acceptance.
   - **Flutter 快速接入 / Flutter quickstart** `/{lang}/sdk/easy/flutter/getting-started` — 精确安装并运行已验证的 v1.1.0 example，完成单聊收发、dispose 清理和 Alice/Bob 验收。 / Install and run the verified v1.1.0 example for person messaging, dispose cleanup, and Alice/Bob acceptance.
-  - **Web 快速接入 / Web quickstart** `/{lang}/sdk/easy/javascript/getting-started` — 精确安装 easyjssdk v2.0.3，或检出已验证浏览器 example revision，完成 Alice/Bob 在线消息。 / Install exactly easyjssdk v2.0.3 or check out the verified browser-example revision for Alice/Bob online messaging.
+  - **Web 快速接入 / Web quickstart** `/{lang}/sdk/easy/javascript/getting-started` — 精确安装 easyjssdk v2.0.4，在真实浏览器与正式包对端中完成 Alice/Bob 在线消息。 / Install exactly easyjssdk v2.0.4 for Alice/Bob online messaging in a real browser and released-package peer runs.
 
 ## API 与协议 / API & Protocols
 
