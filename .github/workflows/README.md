@@ -106,11 +106,15 @@ Actions evidence for 90 days. Tags containing the version command also prove
 the embedded version, full source commit, and `release` build source; older
 tags remain bound by the immutable tag, checksums, and attestation.
 
-The exact GitHub Release assets are immutable. Recovery downloads and compares
-every existing expected asset, refuses any content conflict, and uploads only
-missing files without `--clobber`. A pre-release SemVer tag must correspond to
-a GitHub pre-release; stable tags must correspond to a normal Release. A fully
-published version fails closed instead of creating duplicate evidence.
+The workflow gives every new asset to `gh release create`, so GitHub uploads
+them while the Release is still a draft and publishes the complete set once.
+Recovery downloads and compares every existing expected asset and refuses any
+content conflict. It may fill missing files only while the target Release is
+still mutable; an incomplete immutable Release fails closed and requires an
+explicit operator delete-and-recreate decision. A pre-release SemVer tag must
+correspond to a GitHub pre-release; stable tags must correspond to a normal
+Release. A fully published version fails closed instead of creating duplicate
+evidence.
 
 Repository administrators must configure a `binary-publish` Environment,
 allow protected `main` for manual recovery and trusted version tags for

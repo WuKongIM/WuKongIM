@@ -295,6 +295,7 @@ jobs:
           : >"$missing_file"
 
           release_exists=false
+          release_immutable=false
           if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" >"$release_json" 2>"$release_error"; then
             release_exists=true
             jq -e '.draft == false' "$release_json" >/dev/null || {
@@ -308,6 +309,7 @@ jobs:
               echo "$VERSION Release prerelease classification conflicts with SemVer" >&2
               exit 1
             }
+            release_immutable="$(jq -r '.immutable // false' "$release_json")"
           elif grep -Fq 'HTTP 404' "$release_error"; then
             jq -n '{assets: []}' >"$release_json"
           else
@@ -336,6 +338,10 @@ jobs:
             echo "$VERSION already has the complete immutable binary release" >&2
             exit 1
           fi
+          if [[ "$release_exists" == true && "$release_immutable" == true ]]; then
+            echo "$VERSION is already immutable and incomplete; delete and recreate the exact Release explicitly" >&2
+            exit 1
+          fi
           {
             echo "release_exists=$release_exists"
             echo "missing_file=$missing_file"
@@ -361,9 +367,17 @@ jobs:
         run: |
           set -euo pipefail
 
+          upload_paths=()
+          while IFS= read -r asset; do
+            [[ -n "$asset" ]] || continue
+            upload_paths+=("$RELEASE_DIR/$asset")
+          done <"$MISSING_FILE"
+          ((${#upload_paths[@]} > 0))
+
           if [[ "$RELEASE_EXISTS" != true ]]; then
             create_args=(
               gh release create "$VERSION"
+              "${upload_paths[@]}"
               --repo "$GITHUB_REPOSITORY"
               --verify-tag
               --title "WuKongIM $VERSION"
@@ -371,17 +385,11 @@ jobs:
             )
             [[ "$STABLE" == true ]] || create_args+=(--prerelease)
             "${create_args[@]}"
+          else
+            gh release upload "$VERSION" \
+              --repo "$GITHUB_REPOSITORY" \
+              "${upload_paths[@]}"
           fi
-
-          upload_paths=()
-          while IFS= read -r asset; do
-            [[ -n "$asset" ]] || continue
-            upload_paths+=("$RELEASE_DIR/$asset")
-          done <"$MISSING_FILE"
-          ((${#upload_paths[@]} > 0))
-          gh release upload "$VERSION" \
-            --repo "$GITHUB_REPOSITORY" \
-            "${upload_paths[@]}"
 
       - name: Verify published Release assets
         shell: bash

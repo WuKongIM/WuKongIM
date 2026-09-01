@@ -489,9 +489,11 @@
 - The official binary publisher builds deterministic archives from the same
   strict SemVer tag and `main` ancestry used by container releases. Its
   supported matrix is Linux and macOS on amd64/arm64; Windows remains excluded
-  while Unix-only runtime paths prevent a clean cross-build. Exact GitHub
-  Release assets never move: recovery compares existing bytes and fills only
-  absent archives. SHA-256 checksums, GitHub build provenance, embedded build
+  while Unix-only runtime paths prevent a clean cross-build. New GitHub
+  Releases receive every asset while still draft and become immutable only as
+  a complete set. Recovery compares existing bytes, fills missing assets only
+  while the Release remains mutable, and fails closed for an incomplete
+  immutable Release. SHA-256 checksums, GitHub build provenance, embedded build
   identity when the tagged source supports it, and a 90-day receipt bind every
   release to its full source commit.
 
