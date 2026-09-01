@@ -46,6 +46,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.True(t, versionInput.Required)
 	require.Equal(t, "string", versionInput.Type)
 	require.Equal(t, map[string]string{
+		"actions":      "read",
 		"attestations": "write",
 		"contents":     "write",
 		"id-token":     "write",
@@ -54,13 +55,15 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "github.repository == 'WuKongIM/WuKongIM'", publish.If)
 	require.Equal(t, "ubuntu-24.04", publish.RunsOn)
-	require.Equal(t, 60, publish.TimeoutMinutes)
+	require.Equal(t, 120, publish.TimeoutMinutes)
 	require.Equal(t, "binary-publish", publish.Environment)
 
 	for _, want := range []string{
 		"persist-credentials: false",
 		"git show-ref --verify --quiet \"refs/tags/$version\"",
 		"git merge-base --is-ancestor \"$source_sha\" origin/main",
+		"scripts/extract-release-notes.awk",
+		"CHANGELOG.md",
 		"release policy does not allow SemVer build metadata",
 		"CGO_ENABLED=0 GOOS=\"$goos\" GOARCH=\"$goarch\"",
 		"go build -trimpath -buildvcs=false",
@@ -82,6 +85,14 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"sha256sum \"${release_assets[@]}\"",
 		"sha256sum --check",
 		"docker/setup-qemu-action@",
+		"docker/setup-buildx-action@",
+		"actions/workflows/docker-image-publish.yml/runs?per_page=100",
+		"No successful Docker publication workflow for $VERSION completed within 40 minutes",
+		"Docker images for $VERSION were not complete in all registries within 5 minutes after the successful workflow",
+		"org.opencontainers.image.revision",
+		"org.opencontainers.image.version",
+		"Release artifacts / 发布产物",
+		"Full Changelog",
 		"actions/attest@",
 		"gh api \"repos/$GITHUB_REPOSITORY/immutable-releases\"",
 		"repository immutable Releases must remain enabled before publication",
@@ -98,17 +109,19 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"git ls-remote origin",
 		"remote_source_sha=\"${peeled_tag_sha:-$raw_tag_sha}\"",
 		"gh api --method POST \"repos/$GITHUB_REPOSITORY/releases\"",
-		"-F draft=true",
+		"--rawfile body \"$EXPECTED_BODY\"",
+		"--input \"$create_request\"",
 		"https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets{?name,label}",
 		"curl --fail-with-body --silent --show-error",
 		"$upload_endpoint?name=$asset",
 		"upload response does not match the local asset",
-		"must remain mutable and draft until all assets are verified",
+		"must retain the exact generated body and remain mutable and draft until all assets are verified",
 		"draft does not contain the exact expected asset set",
 		"repository immutable Releases were disabled before publication",
 		"gh api --method PATCH",
 		"-F draft=false",
-		".tag_name == $version and .draft == false and .immutable == true",
+		".tag_name == $version and .draft == false",
+		".immutable == true and .body == $expected",
 		"published Release does not contain the exact expected asset set",
 		"api_digest=\"$(jq -r '.digest // empty'",
 		"local_size=\"$(stat -c '%s'",
@@ -123,12 +136,14 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 
 	for _, forbidden := range []string{
 		"pull_request:",
-		"release:",
+		"\n  release:",
 		"cancel-in-progress: true",
 		"--clobber",
 		"delete and recreate the exact Release",
 		"releases/tags/",
 		"windows/",
+		"generate_release_notes",
+		"--generate-notes",
 	} {
 		require.NotContains(t, text, forbidden)
 	}
@@ -137,11 +152,13 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 
 	orderedSteps := []string{
 		"- name: Validate release identity and tag policy",
+		"- name: Validate and extract changelog release notes",
 		"- name: Build deterministic release archives",
 		"- name: Build unsigned amd64 native packages",
 		"- name: Normalize unsigned native package assets",
 		"- name: Finalize exact release asset set and checksums",
 		"- name: Validate binary identities and archive contents",
+		"- name: Verify published Docker images and render Release body",
 		"- name: Classify draft GitHub Release assets",
 		"- name: Create GitHub build provenance",
 		"- name: Create or recover draft GitHub Release",
@@ -219,10 +236,23 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.Contains(t, stepWith["Upload binary release evidence"]["path"], "/*.deb")
 	require.Contains(t, stepWith["Upload binary release evidence"]["path"], "/*.rpm")
 	require.Empty(t, stepIfs["Finalize exact release asset set and checksums"])
+
+	releaseBodyRun := stepRuns["Verify published Docker images and render Release body"]
+	require.Contains(t, releaseBodyRun, "actions/workflows/docker-image-publish.yml/runs?per_page=100")
+	require.Contains(t, releaseBodyRun, `.event == "push" and .head_branch == $version and .head_sha == $source`)
+	require.Contains(t, releaseBodyRun, `.status == "completed" and .conclusion == "success"`)
+	require.Contains(t, releaseBodyRun, `org.opencontainers.image.revision`)
+	require.Contains(t, releaseBodyRun, `org.opencontainers.image.version`)
+	require.Contains(t, releaseBodyRun, `== ["amd64", "arm64"]`)
+	require.Contains(t, releaseBodyRun, `cat "$CHANGELOG_NOTES"`)
+	require.Contains(t, releaseBodyRun, `echo "body_path=$release_body"`)
+
 	classifyRun := stepRuns["Classify draft GitHub Release assets"]
 	require.Contains(t, classifyRun, "gh api --paginate --slurp")
 	require.Contains(t, classifyRun, "[.[][] | select(.tag_name == $version)]")
 	require.Contains(t, classifyRun, "release_id=\"$(jq -r '.id'")
+	require.Contains(t, classifyRun, "--rawfile expected \"$EXPECTED_BODY\"")
+	require.Contains(t, classifyRun, ".body == $expected")
 	require.NotContains(t, classifyRun, "releases/tags/")
 
 	createRun := stepRuns["Create or recover draft GitHub Release"]
@@ -232,12 +262,16 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.Contains(t, createRun, "upload_endpoint=\"${upload_url%%\\{*}\"")
 	require.Contains(t, createRun, "\"$upload_endpoint?name=$asset\"")
 	require.Contains(t, createRun, ".size == $size and .digest == $digest")
+	require.Contains(t, createRun, "--rawfile body \"$EXPECTED_BODY\"")
+	require.Contains(t, createRun, "--input \"$create_request\"")
+	require.Contains(t, createRun, ".body == $expected")
 	require.NotContains(t, createRun, "gh release")
 	require.NotContains(t, createRun, "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$asset")
 
 	verifyDraftRun := stepRuns["Verify complete draft Release"]
 	require.Contains(t, verifyDraftRun, "releases/$RELEASE_ID")
 	require.Contains(t, verifyDraftRun, "releases/assets/$asset_id")
+	require.Contains(t, verifyDraftRun, ".body == $expected")
 	require.NotContains(t, verifyDraftRun, "releases/tags/")
 	require.NotContains(t, verifyDraftRun, "--method PATCH")
 
@@ -259,6 +293,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.Contains(t, publishRun, "sha256:$local_sha256")
 	require.Contains(t, publishRun, ">\"$prepublish_dir/$asset\"")
 	require.Contains(t, publishRun, "cmp \"$local_asset\" \"$prepublish_dir/$asset\"")
+	require.Contains(t, publishRun, ".body == $expected")
 
 	verifyPublishedRun := stepRuns["Verify published immutable Release"]
 	require.Contains(t, verifyPublishedRun, "releases/$RELEASE_ID")
@@ -268,5 +303,6 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.Contains(t, verifyPublishedRun, "releases/assets/$asset_id")
 	require.Contains(t, verifyPublishedRun, ">\"$published_dir/$asset\"")
 	require.Contains(t, verifyPublishedRun, "cmp \"$local_asset\" \"$published_dir/$asset\"")
+	require.Contains(t, verifyPublishedRun, ".body == $expected")
 	require.NotContains(t, verifyPublishedRun, "releases/tags/")
 }

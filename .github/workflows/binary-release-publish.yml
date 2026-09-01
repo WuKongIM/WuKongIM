@@ -15,6 +15,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: write
   id-token: write
   attestations: write
@@ -28,7 +29,7 @@ jobs:
     name: Publish immutable release archives
     if: github.repository == 'WuKongIM/WuKongIM'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     environment: binary-publish
     env:
       GOWORK: "off"
@@ -125,6 +126,22 @@ jobs:
             echo "stable=$stable"
           } >>"$GITHUB_OUTPUT"
 
+      - name: Validate and extract changelog release notes
+        id: changelog
+        shell: bash
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: |
+          set -euo pipefail
+          notes_path="$RUNNER_TEMP/changelog-release-notes.md"
+          awk -v version="$VERSION" \
+            -f scripts/extract-release-notes.awk CHANGELOG.md >"$notes_path"
+          test -s "$notes_path" || {
+            echo "$VERSION has no non-empty CHANGELOG.md release body" >&2
+            exit 1
+          }
+          echo "notes_path=$notes_path" >>"$GITHUB_OUTPUT"
+
       - name: Set up repository Go toolchain
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -134,7 +151,7 @@ jobs:
       - name: Run binary release contracts
         run: |
           go test ./cmd/wukongim -count=1
-          go test ./scripts -run 'Test(BinaryRelease|GitHubWorkflow)' -count=1
+          go test ./scripts -run 'Test(BinaryRelease|GitHubWorkflow|ReleaseNotesWorkflow)' -count=1
 
       - name: Build deterministic release archives
         id: build
@@ -346,6 +363,197 @@ jobs:
             echo "Legacy tag has no version command; provenance remains bound by tag, checksum, and attestation."
           fi
 
+      - name: Set up Buildx for published image verification
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          version: v0.36.1
+
+      - name: Verify published Docker images and render Release body
+        id: release_body
+        timeout-minutes: 50
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          IMAGE_VERSION: ${{ steps.identity.outputs.binary_version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          CHANGELOG_NOTES: ${{ steps.changelog.outputs.notes_path }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          CANONICAL_IMAGE: ghcr.io/wukongim/wukongim
+          DOCKERHUB_IMAGE: docker.io/wukongim/wukongim
+          ALIYUN_IMAGE: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          docker_run_pages="$RUNNER_TEMP/docker-release-workflow-runs.json"
+          docker_run_id=""
+          for attempt in {1..80}; do
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/docker-image-publish.yml/runs?per_page=100" \
+              >"$docker_run_pages"
+            docker_run_id="$(jq -r \
+              --arg version "$VERSION" \
+              --arg source "$SOURCE_SHA" '
+                [
+                  .[] | .workflow_runs[]
+                  | select(.status == "completed" and .conclusion == "success")
+                  | select(
+                      (.event == "push" and .head_branch == $version and .head_sha == $source) or
+                      (.event == "workflow_dispatch" and
+                       (.display_title | startswith("Docker image " + $version + " attempt ")))
+                    )
+                ]
+                | sort_by(.id)
+                | last
+                | .id // empty
+              ' "$docker_run_pages")"
+            if [[ "$docker_run_id" =~ ^[1-9][0-9]*$ ]]; then
+              break
+            fi
+            if ((attempt < 80)); then
+              sleep 30
+            fi
+          done
+          [[ "$docker_run_id" =~ ^[1-9][0-9]*$ ]] || {
+            echo "No successful Docker publication workflow for $VERSION completed within 40 minutes" >&2
+            exit 1
+          }
+
+          manifest_dir="$RUNNER_TEMP/published-docker-manifests"
+          mkdir -p "$manifest_dir"
+          images=("$CANONICAL_IMAGE" "$DOCKERHUB_IMAGE" "$ALIYUN_IMAGE")
+          docker_digest=""
+          ready=false
+          for attempt in {1..10}; do
+            ready=true
+            candidate_digest=""
+            for index in "${!images[@]}"; do
+              ref="${images[$index]}:$IMAGE_VERSION"
+              manifest="$manifest_dir/$index.json"
+              errors="$manifest_dir/$index.err"
+              if ! docker buildx imagetools inspect "$ref" \
+                --format '{{json .}}' >"$manifest" 2>"$errors"; then
+                ready=false
+                break
+              fi
+              digest="$(jq -er '.manifest.digest' "$manifest")"
+              [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+              jq -e \
+                --arg digest "$digest" \
+                --arg source "$SOURCE_SHA" \
+                --arg image_version "$IMAGE_VERSION" '
+                  .manifest.digest == $digest and
+                  ([
+                    .manifest.manifests[]
+                    | select(.platform.os == "linux" and .platform.architecture != "unknown")
+                    | .platform.architecture
+                  ] | sort | unique) == ["amd64", "arm64"] and
+                  ([.image[] | .config.Labels["org.opencontainers.image.revision"]] | unique) == [$source] and
+                  ([.image[] | .config.Labels["org.opencontainers.image.version"]] | unique) == [$image_version]
+                ' "$manifest" >/dev/null || {
+                  echo "$ref exists but does not match the required source, version, or platforms" >&2
+                  exit 1
+                }
+              if [[ -z "$candidate_digest" ]]; then
+                candidate_digest="$digest"
+              elif [[ "$candidate_digest" != "$digest" ]]; then
+                echo "$ref has digest $digest instead of $candidate_digest" >&2
+                exit 1
+              fi
+            done
+            if [[ "$ready" == true ]]; then
+              docker_digest="$candidate_digest"
+              break
+            fi
+            if ((attempt < 10)); then
+              sleep 30
+            fi
+          done
+          [[ "$ready" == true && "$docker_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "Docker images for $VERSION were not complete in all registries within 5 minutes after the successful workflow" >&2
+            for errors in "$manifest_dir"/*.err; do
+              [[ -s "$errors" ]] && cat "$errors" >&2 || true
+            done
+            exit 1
+          }
+
+          select_previous_tag() {
+            local mode="$1" candidate candidate_sha item previous=""
+            local candidates=("$VERSION") sorted=()
+            while IFS= read -r candidate; do
+              [[ "$candidate" != "$VERSION" ]] || continue
+              case "$mode" in
+                stable)
+                  [[ "$candidate" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || continue
+                  ;;
+                prerelease)
+                  [[ "$candidate" == "v${IMAGE_VERSION%%-*}-"* ]] || continue
+                  ;;
+                *)
+                  return 2
+                  ;;
+              esac
+              candidate_sha="$(git rev-parse "refs/tags/$candidate^{commit}")"
+              git merge-base --is-ancestor "$candidate_sha" "$SOURCE_SHA" || continue
+              candidates+=("$candidate")
+            done < <(git tag --list 'v*')
+            mapfile -t sorted < <(printf '%s\n' "${candidates[@]}" | sort -V -u)
+            for item in "${sorted[@]}"; do
+              [[ "$item" != "$VERSION" ]] || break
+              previous="$item"
+            done
+            printf '%s' "$previous"
+          }
+
+          if [[ "$STABLE" == true ]]; then
+            previous_tag="$(select_previous_tag stable)"
+          else
+            previous_tag="$(select_previous_tag prerelease)"
+            [[ -n "$previous_tag" ]] || previous_tag="$(select_previous_tag stable)"
+          fi
+
+          release_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION"
+          release_body="$RUNNER_TEMP/wukongim-release-body.md"
+          {
+            cat "$CHANGELOG_NOTES"
+            echo
+            echo "---"
+            echo
+            echo "## Release artifacts / 发布产物"
+            echo
+            echo "- Source commit / 源码提交: [$SOURCE_SHA]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$SOURCE_SHA)"
+            echo "- Docker workflow: [run $docker_run_id]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$docker_run_id)"
+            echo "- Docker digest: \`$docker_digest\`"
+            echo "- Docker platforms / 镜像平台: \`linux/amd64\`, \`linux/arm64\`"
+            echo
+            echo "### Docker images / Docker 镜像"
+            echo
+            for image in "${images[@]}"; do
+              echo "- \`$image:$IMAGE_VERSION\`"
+            done
+            echo
+            echo "### Binaries / 二进制文件"
+            echo
+            for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+              asset="wukongim_${IMAGE_VERSION}_${platform}.tar.gz"
+              echo "- [$asset]($release_url/$asset)"
+            done
+            echo "- [$CHECKSUM_NAME]($release_url/$CHECKSUM_NAME)"
+            if [[ -n "$previous_tag" ]]; then
+              echo
+              echo "**Full Changelog**: [$previous_tag...$VERSION]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$previous_tag...$VERSION)"
+            fi
+          } >"$release_body"
+          test -s "$release_body"
+          {
+            echo "body_path=$release_body"
+            echo "docker_digest=$docker_digest"
+            echo "docker_run_id=$docker_run_id"
+            echo "previous_tag=$previous_tag"
+          } >>"$GITHUB_OUTPUT"
+
       - name: Classify draft GitHub Release assets
         id: publication
         shell: bash
@@ -357,6 +565,7 @@ jobs:
           NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+          EXPECTED_BODY: ${{ steps.release_body.outputs.body_path }}
         run: |
           set -euo pipefail
           export LC_ALL=C
@@ -413,6 +622,11 @@ jobs:
             [[ "$STABLE" != true ]] || expected_prerelease=false
             test "$existing_prerelease" = "$expected_prerelease" || {
               echo "$VERSION Release prerelease classification conflicts with SemVer" >&2
+              exit 1
+            }
+            jq -e --rawfile expected "$EXPECTED_BODY" \
+              '.body == $expected' "$release_json" >/dev/null || {
+              echo "$VERSION draft body conflicts with the generated Release body" >&2
               exit 1
             }
           else
@@ -496,6 +710,7 @@ jobs:
           CLASSIFIED_RELEASE_ID: ${{ steps.publication.outputs.release_id }}
           MISSING_FILE: ${{ steps.publication.outputs.missing_file }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+          EXPECTED_BODY: ${{ steps.release_body.outputs.body_path }}
         run: |
           set -euo pipefail
 
@@ -523,12 +738,21 @@ jobs:
             expected_prerelease=true
             [[ "$STABLE" != true ]] || expected_prerelease=false
             created_release="$RUNNER_TEMP/created-binary-release.json"
+            create_request="$RUNNER_TEMP/create-binary-release-request.json"
+            jq -n \
+              --arg tag_name "$VERSION" \
+              --arg name "WuKongIM $VERSION" \
+              --argjson prerelease "$expected_prerelease" \
+              --rawfile body "$EXPECTED_BODY" \
+              '{
+                tag_name: $tag_name,
+                name: $name,
+                body: $body,
+                draft: true,
+                prerelease: $prerelease
+              }' >"$create_request"
             gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
-              -f tag_name="$VERSION" \
-              -f name="WuKongIM $VERSION" \
-              -F draft=true \
-              -F prerelease="$expected_prerelease" \
-              -F generate_release_notes=true \
+              --input "$create_request" \
               >"$created_release"
             release_id="$(jq -r '.id' "$created_release")"
           fi
@@ -538,6 +762,11 @@ jobs:
           }
           draft_identity="$RUNNER_TEMP/binary-release-draft-identity.json"
           gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" >"$draft_identity"
+          jq -e --rawfile expected "$EXPECTED_BODY" \
+            '.body == $expected' "$draft_identity" >/dev/null || {
+            echo "$VERSION draft body does not match the generated Release body" >&2
+            exit 1
+          }
           upload_url="$(jq -r '.upload_url' "$draft_identity")"
           expected_upload_url="https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets{?name,label}"
           [[ "$upload_url" == "$expected_upload_url" ]] || {
@@ -588,16 +817,18 @@ jobs:
           NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+          EXPECTED_BODY: ${{ steps.release_body.outputs.body_path }}
         run: |
           set -euo pipefail
           draft_json="$RUNNER_TEMP/draft-binary-release.json"
           draft_dir="$RUNNER_TEMP/draft-binary-release"
           [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$draft_json"
-          jq -e --arg version "$VERSION" \
-            '.tag_name == $version and .draft == true and (.immutable // false) == false' \
+          jq -e --arg version "$VERSION" --rawfile expected "$EXPECTED_BODY" \
+            '.tag_name == $version and .draft == true and
+             (.immutable // false) == false and .body == $expected' \
             "$draft_json" >/dev/null || {
-            echo "$VERSION must remain mutable and draft until all assets are verified" >&2
+            echo "$VERSION must retain the exact generated body and remain mutable and draft until all assets are verified" >&2
             exit 1
           }
           expected_prerelease=true
@@ -656,6 +887,7 @@ jobs:
           NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+          EXPECTED_BODY: ${{ steps.release_body.outputs.body_path }}
         run: |
           set -euo pipefail
           [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
@@ -681,10 +913,11 @@ jobs:
           prepublish_json="$RUNNER_TEMP/prepublish-binary-release.json"
           prepublish_dir="$RUNNER_TEMP/prepublish-binary-release"
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$prepublish_json"
-          jq -e --arg version "$VERSION" \
-            '.tag_name == $version and .draft == true and (.immutable // false) == false' \
+          jq -e --arg version "$VERSION" --rawfile expected "$EXPECTED_BODY" \
+            '.tag_name == $version and .draft == true and
+             (.immutable // false) == false and .body == $expected' \
             "$prepublish_json" >/dev/null || {
-            echo "$VERSION is no longer the verified draft Release" >&2
+            echo "$VERSION is no longer the verified draft Release with the exact generated body" >&2
             exit 1
           }
           expected_prerelease=true
@@ -755,16 +988,18 @@ jobs:
           NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+          EXPECTED_BODY: ${{ steps.release_body.outputs.body_path }}
         run: |
           set -euo pipefail
           published_json="$RUNNER_TEMP/published-binary-release.json"
           published_dir="$RUNNER_TEMP/published-binary-release"
           [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$published_json"
-          jq -e --arg version "$VERSION" \
-            '.tag_name == $version and .draft == false and .immutable == true' \
+          jq -e --arg version "$VERSION" --rawfile expected "$EXPECTED_BODY" \
+            '.tag_name == $version and .draft == false and
+             .immutable == true and .body == $expected' \
             "$published_json" >/dev/null || {
-            echo "$VERSION was not sealed as an immutable published Release" >&2
+            echo "$VERSION was not sealed with the exact generated body as an immutable published Release" >&2
             exit 1
           }
           expected_prerelease=true
@@ -833,6 +1068,9 @@ jobs:
           NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RECOVERY: ${{ steps.publication.outputs.release_exists }}
+          DOCKER_DIGEST: ${{ steps.release_body.outputs.docker_digest }}
+          DOCKER_RUN_ID: ${{ steps.release_body.outputs.docker_run_id }}
+          PREVIOUS_TAG: ${{ steps.release_body.outputs.previous_tag }}
           ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
@@ -854,6 +1092,9 @@ jobs:
             --arg embedded_version "$EMBEDDED_VERSION" \
             --arg native_packages "$NATIVE_PACKAGES" \
             --arg recovery "$RECOVERY" \
+            --arg docker_digest "$DOCKER_DIGEST" \
+            --arg docker_run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$DOCKER_RUN_ID" \
+            --arg previous_tag "$PREVIOUS_TAG" \
             --arg event "$GITHUB_EVENT_NAME" \
             --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --arg release_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION" \
@@ -871,6 +1112,9 @@ jobs:
               embedded_version: ($embedded_version == "true"),
               unsigned_native_packages: ($native_packages == "true"),
               recovery: ($recovery == "true"),
+              docker_digest: $docker_digest,
+              docker_run_url: $docker_run_url,
+              previous_tag: (if $previous_tag == "" then null else $previous_tag end),
               trigger: $event,
               run_url: $run_url,
               release_url: $release_url,
@@ -893,6 +1137,8 @@ jobs:
             echo "| Embedded version command | \`$EMBEDDED_VERSION\` |"
             echo "| Unsigned amd64 DEB/RPM | \`$NATIVE_PACKAGES\` |"
             echo "| Recovery | \`$RECOVERY\` |"
+            echo "| Docker digest | \`$DOCKER_DIGEST\` |"
+            echo "| Docker workflow | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$DOCKER_RUN_ID |"
             echo "| Release | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION |"
             [[ -z "$ATTESTATION_URL" ]] || echo "| Attestation | $ATTESTATION_URL |"
           } >>"$GITHUB_STEP_SUMMARY"

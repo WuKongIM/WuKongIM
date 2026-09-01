@@ -510,6 +510,18 @@
   immutable Release. SHA-256 checksums, GitHub build provenance, embedded build
   identity when the tagged source supports it, and a 90-day receipt bind every
   release to its full source commit.
+- Starting with the first release after `v3.0.0-beta.4`, the root
+  `CHANGELOG.md` is the sole human-authored Release-notes source. A release
+  maintainer moves reviewed `Unreleased` entries into an exact
+  `## [vMAJOR.MINOR.PATCH[-PRERELEASE]] - YYYY-MM-DD` section before tagging.
+  Both tag publishers validate that section before publishing any artifact;
+  the binary publisher preserves it verbatim, appends verified source,
+  binary, checksum, Docker digest/platform/registry, and comparison facts,
+  then publishes its immutable Release only after the matching Docker
+  Workflow succeeds and all three registries expose the same source-bound
+  amd64/arm64 digest. Missing or conflicting notes fail closed without a
+  generated-notes, commit-log, or empty-body fallback. Failed publication
+  keeps an exact matching draft for idempotent manual recovery.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
