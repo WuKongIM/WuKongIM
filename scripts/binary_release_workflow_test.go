@@ -98,7 +98,8 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"git ls-remote origin",
 		"remote_source_sha=\"${peeled_tag_sha:-$raw_tag_sha}\"",
 		"gh api --method POST \"repos/$GITHUB_REPOSITORY/releases\"",
-		"-F draft=true",
+		"generate_release_notes: true",
+		"--input \"$create_request\"",
 		"https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets{?name,label}",
 		"curl --fail-with-body --silent --show-error",
 		"$upload_endpoint?name=$asset",
@@ -108,7 +109,8 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"repository immutable Releases were disabled before publication",
 		"gh api --method PATCH",
 		"-F draft=false",
-		".tag_name == $version and .draft == false and .immutable == true",
+		".tag_name == $version and .draft == false",
+		".immutable == true",
 		"published Release does not contain the exact expected asset set",
 		"api_digest=\"$(jq -r '.digest // empty'",
 		"local_size=\"$(stat -c '%s'",
@@ -123,12 +125,13 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 
 	for _, forbidden := range []string{
 		"pull_request:",
-		"release:",
+		"\n  release:",
 		"cancel-in-progress: true",
 		"--clobber",
 		"delete and recreate the exact Release",
 		"releases/tags/",
 		"windows/",
+		"--generate-notes",
 	} {
 		require.NotContains(t, text, forbidden)
 	}
@@ -232,6 +235,8 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.Contains(t, createRun, "upload_endpoint=\"${upload_url%%\\{*}\"")
 	require.Contains(t, createRun, "\"$upload_endpoint?name=$asset\"")
 	require.Contains(t, createRun, ".size == $size and .digest == $digest")
+	require.Contains(t, createRun, "generate_release_notes: true")
+	require.Contains(t, createRun, "--input \"$create_request\"")
 	require.NotContains(t, createRun, "gh release")
 	require.NotContains(t, createRun, "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$asset")
 
