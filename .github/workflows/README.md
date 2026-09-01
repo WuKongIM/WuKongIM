@@ -87,9 +87,13 @@ exact tag. It never derives release notes from commits or GitHub-generated
 notes.
 
 GHCR is the canonical build target. The Workflow builds
-`linux/amd64,linux/arm64` once, creates signed GitHub build provenance plus a
-CycloneDX SBOM attestation for each platform, and copies the exact runtime
-manifest digest to all three public repositories:
+`linux/amd64,linux/arm64` security candidates and blocks publication when
+Trivy reports any Critical or High vulnerability. A recovery run applies the
+same per-platform scan to the existing canonical digest before it can fill a
+missing mirror. After the scan passes, the Workflow builds the canonical
+multi-platform image, creates signed GitHub build provenance plus a CycloneDX
+SBOM attestation for each platform, and copies the exact runtime manifest
+digest to all three public repositories:
 
 - `ghcr.io/wukongim/wukongim`;
 - `docker.io/wukongim/wukongim`;

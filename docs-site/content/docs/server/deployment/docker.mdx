@@ -1,116 +1,243 @@
 ---
 title: Docker 部署
-description: 从当前源码构建固定镜像，并用显式配置和持久卷运行 WuKongIM 节点。
+description: 使用固定版本镜像、Docker Compose 和持久卷运行可验证的 WuKongIM 单节点集群。
 ---
 
-Docker 路径适合已经能管理镜像、网络、Secret、Volume 和容器生命周期的团队。仓库 `Dockerfile` 默认运行：
+这条路径适合希望用官方镜像快速部署，同时明确管理网络、数据和容器生命周期边界的团队。完成后，你会得到一个可登录 Manager、可继续验证消息收发的单节点集群。
+
+示例固定到预发布版本 `3.0.0-beta.4`，支持 `linux/amd64` 和 `linux/arm64`。镜像使用“版本标签 + 摘要”，不会因为标签移动而改变内容。
+
+<Callout type="warn" title="这不是当前版本的生产安全基线">
+  固定镜像以 root 运行，镜像本身没有 `HEALTHCHECK`，运行时基础层 Alpine 3.19 已在 2025-11-01 结束常规支持。下文的 Compose 会增加就绪检查，但不会修复镜像身份或基础层问题。生产使用前应重新发布基于受支持基础层的非 root 镜像，完成扫描，并通过[生产检查清单](/zh/server/deployment/production-checklist)。基础层日期见 [Alpine 发布分支](https://alpinelinux.org/releases/)。
+</Callout>
+
+## 1. 准备主机和配置
+
+主机需要 Docker Engine、Docker Compose v2、`curl` 和 `openssl`：
+
+```bash
+docker version
+docker compose version
+curl --version
+openssl version
+```
+
+创建独立部署目录，并下载与镜像版本一致的配置模板：
+
+```bash
+mkdir -p wukongim-docker
+cd wukongim-docker
+
+curl --fail --location \
+  https://raw.githubusercontent.com/WuKongIM/WuKongIM/v3.0.0-beta.4/wukongim.toml.example \
+  --output node1.toml
+chmod 644 node1.toml
+```
+
+配置文件保持只读挂载。容器所需的路径、监听地址和示例凭据通过 `WK_*` 环境变量覆盖，不必手工复制一份 Docker 专用 TOML。
+
+## 2. 生成部署环境文件
+
+先把 `WK_PUBLIC_HOST` 改成客户端能访问的主机名或 IP。首次本机验证可使用 `127.0.0.1`；远程客户端不能使用回环地址。
+
+```bash
+export WK_PUBLIC_HOST='im.example.com'
+
+cluster_token=$(openssl rand -hex 32)
+manager_secret=$(openssl rand -hex 32)
+manager_password=$(openssl rand -hex 16)
+
+(
+  umask 077
+  {
+    printf '# Manager username: admin\n'
+    printf '# Manager password: %s\n' "$manager_password"
+    printf 'WK_NODE_DATA_DIR=/var/lib/wukongim\n'
+    printf 'WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7000\n'
+    printf 'WK_CLUSTER_NODES=[{"id":1,"addr":"wukongim-node1:7000"}]\n'
+    printf 'WK_CLUSTER_JOIN_TOKEN=%s\n' "$cluster_token"
+    printf 'WK_API_LISTEN_ADDR=0.0.0.0:5001\n'
+    printf 'WK_EXTERNAL_TCPADDR=%s:5100\n' "$WK_PUBLIC_HOST"
+    printf 'WK_EXTERNAL_WSADDR=ws://%s:5200\n' "$WK_PUBLIC_HOST"
+    printf 'WK_MANAGER_LISTEN_ADDR=0.0.0.0:5301\n'
+    printf 'WK_MANAGER_AUTH_ON=true\n'
+    printf 'WK_MANAGER_JWT_SECRET=%s\n' "$manager_secret"
+    printf 'WK_MANAGER_USERS=[{"username":"admin","password":"%s","permissions":[{"resource":"*","actions":["*"]}]}]\n' "$manager_password"
+    printf 'WK_BENCH_API_ENABLE=false\n'
+    printf 'WK_DEBUG_API_ENABLE=false\n'
+    printf 'WK_LOG_DIR=/var/lib/wukongim/logs\n'
+    printf 'WK_PROMETHEUS_DATA_DIR=/var/lib/wukongim/prometheus\n'
+    printf 'WK_PLUGIN_DIR=/var/lib/wukongim/plugins\n'
+    printf 'WK_PLUGIN_SOCKET_PATH=/run/wukongim/plugin.sock\n'
+    printf 'WK_PLUGIN_SANDBOX_DIR=/var/lib/wukongim/plugin-sandbox\n'
+    printf 'WK_PLUGIN_STATE_DIR=/var/lib/wukongim/plugin-state\n'
+  } > .env
+)
+
+unset cluster_token manager_secret manager_password WK_PUBLIC_HOST
+```
+
+`.env` 包含明文凭据，不能提交到版本库。这个文件让首次部署可复现，但环境变量仍可能出现在容器检查和平台控制面；生产环境应改用部署平台的 Secret 能力，并收紧 Manager 权限。
+
+`WK_EXTERNAL_TCPADDR` 和 `WK_EXTERNAL_WSADDR` 是客户端广告地址，不是监听地址。生产 TLS 通常在受控代理或负载均衡器终止，此时应改为真实的 TCP/TLS 与 WSS 入口；不要把 `0.0.0.0` 写进广告地址。
+
+## 3. 创建 Compose 文件
+
+将下面内容保存为 `compose.yaml`：
+
+```yaml
+name: wukongim
+
+services:
+  node1:
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
+    container_name: wukongim-node1
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file:
+      - ./.env
+    volumes:
+      - ./node1.toml:/etc/wukongim/wukongim.toml:ro
+      - wukongim-node1-data:/var/lib/wukongim
+    tmpfs:
+      - /run/wukongim:rw,noexec,nosuid,uid=10001,gid=10001,mode=0750,size=16m
+    ports:
+      - "127.0.0.1:5001:5001"
+      - "0.0.0.0:5100:5100"
+      - "0.0.0.0:5200:5200"
+      - "127.0.0.1:5301:5301"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "-T", "5", "http://127.0.0.1:5001/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  wukongim-node1-data:
+```
+
+这里的网络边界是有意设置的：
+
+- `5100`（TCP）和 `5200`（WebSocket）是客户端 Gateway，发布到宿主机；防火墙仍应只允许预期流量。
+- `5001` 同时承载 Product HTTP API、就绪、Metrics 和 Top，默认只绑定宿主机回环。远程可信后端需要访问时，应改绑受保护的内网地址或放在外部鉴权代理之后。
+- Manager `5301` 默认只绑定回环；节点 Transport `7000` 不发布到宿主机。
+- 配置只读，数据、日志和 Plugin 持久状态进入 named volume；Unix Socket 留在临时的 `/run/wukongim`。
+
+GHCR 不可用时，可以把 `image` 替换为以下任一已验证的同摘要镜像：
 
 ```text
-/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
+registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
 ```
 
-<Callout type="info" title="官方版本镜像">
-  正式发布会把同一份 `linux/amd64`、`linux/arm64` 固定摘要发布到 `ghcr.io/wukongim/wukongim`、Docker Hub 的 `wukongim/wukongim` 和 `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`。例如 Git 标签 `v3.1.2` 对应精确镜像标签 `3.1.2`；预发布版本只获得精确标签。下文的 `wukongim:local` 仍是从源码构建的本地镜像，不是官方版本。
-</Callout>
+升级版本时，标签、摘要和配置模板版本必须成对更新并重新验证。
 
-## 1. 构建固定镜像
+## 4. 启动并验证
 
-<Callout type="info" title="先验证构建网络">
-  先运行 `docker buildx version`，并确认 Docker 与 BuildKit 能访问 `GO_IMAGE`、`RUNTIME_IMAGE` 对应的镜像仓库以及 `GOPROXY` 选择的 Go 模块源。受限网络应使用团队审核的镜像仓库与完整模块代理。
-</Callout>
+先检查 Compose 语法和必需文件，再拉取并启动：
 
 ```bash
-git rev-parse HEAD
-docker buildx build --load --pull -t wukongim:local .
-docker image inspect wukongim:local --format '{{.Id}}'
+docker compose config --quiet
+docker compose pull
+docker compose up -d
+docker compose ps
 ```
 
-默认依赖地址不可达时，显式传入已审核的内部地址：
+等待 `/readyz` 成功，并检查最近日志与实际挂载：
 
 ```bash
-docker buildx build --load --pull \
-  --build-arg GO_IMAGE=registry.example.com/library/golang:1.25.0 \
-  --build-arg RUNTIME_IMAGE=registry.example.com/library/alpine:3.19 \
-  --build-arg GOPROXY=https://go-proxy.example.com \
-  -t wukongim:local .
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:5001/readyz
+
+docker compose logs --tail 100 node1
+docker inspect wukongim-node1 \
+  --format '{{range .Mounts}}{{println .Destination .Type .RW}}{{end}}'
 ```
 
-替换示例域名，并继续记录提交 SHA、构建器版本和镜像摘要。镜像代理不能替代来源审查、签名或扫描。
+检查结果应满足：
 
-## 2. 准备单节点集群配置
+- `docker compose ps` 显示容器为 `healthy`；
+- `/etc/wukongim/wukongim.toml` 是只读 bind mount；
+- `/var/lib/wukongim` 是可写 volume；
+- `/readyz` 返回成功后才接入业务流量。
 
-从 `wukongim.toml.example` 创建 `deploy/node1.toml`，至少调整：
+在部署主机浏览器打开 `http://127.0.0.1:5301`。远程部署时，从本地为 Product API 和 Manager 建立 SSH 隧道，再打开相同地址：
 
-| 配置 | 容器要求 |
+```bash
+ssh -N \
+  -L 5001:127.0.0.1:5001 \
+  -L 5301:127.0.0.1:5301 \
+  user@server
+```
+
+用户名为 `admin`，密码可以在部署主机查看：
+
+```bash
+sed -n 's/^# Manager password: //p' .env
+```
+
+Manager 登录和 `/readyz` 只证明管理面与节点已启动。继续按照[快速开始](/zh/guide/quick-start)连接两个测试用户，完成一次发送与接收，才算验证真实消息链路。
+
+## 5. 日常操作与数据边界
+
+```bash
+# 跟踪日志
+docker compose logs --follow --tail 100 node1
+
+# 优雅重启；Compose 最多等待 stop_grace_period
+docker compose restart node1
+
+# 停止或重新启动同一容器
+docker compose stop node1
+docker compose start node1
+
+# 删除容器和默认网络，但保留 named volume
+docker compose down
+```
+
+不要对需要保留的数据运行 `docker compose down -v`。更换或重建容器前，应确认仍使用同一 `wukongim-node1-data` volume。升级和回滚按[升级与迁移](/zh/server/operations/upgrade-and-migration)执行，不要只移动镜像标签。
+
+| 现象 | 优先检查 |
 | --- | --- |
-| `node.data_dir` | `/var/lib/wukongim` |
-| `cluster.listen_addr` | `0.0.0.0:7000` |
-| `cluster.nodes` | 使用可解析容器名或内网地址，不能写 `0.0.0.0` |
-| `api.listen_addr`、`manager.listen_addr` | 容器内需要监听时使用 `0.0.0.0` |
-| `api.external_*` | 客户端实际可达的 TCP、WS 或 WSS 地址 |
-| Manager/Join 凭据 | 替换全部示例值 |
-| Benchmark、Debug | 生产默认关闭 |
-| `plugin.dir`、`plugin.sandbox_dir`、`plugin.state_dir` | 分别使用 `/var/lib/wukongim/plugins`、`/var/lib/wukongim/plugin-sandbox`、`/var/lib/wukongim/plugin-state` |
-| `plugin.socket_path` | `/run/wukongim/plugin.sock`，只保存临时 Unix Socket |
+| 容器反复重启或保持 `unhealthy` | `docker compose logs --tail 200 node1`；确认 `.env` JSON、配置文件和 volume 可用 |
+| `/readyz` 返回 `503` | 节点尚未满足流量门槛；检查日志中的 Controller、Slot、存储与配置错误，不要改用 `/healthz` 接流量 |
+| 客户端无法连接 | 检查 `WK_EXTERNAL_*`、防火墙、代理和目标网络；广告地址不能是 `0.0.0.0` 或远程客户端的 `127.0.0.1` |
+| 远程无法打开 Manager 或 Product API | 默认回环绑定是预期行为；使用 SSH 隧道，或只绑定到受保护内网并增加访问控制 |
+| 重建后数据为空 | 立即停止写入，检查实际挂载；不要创建新 volume，也不要运行 `down -v` |
 
-## 3. 运行容器
+<details>
+<summary>没有 Compose 时使用 docker run</summary>
+
+下面的命令复用同一 `.env`、配置和数据边界：
 
 ```bash
-docker network create wukongim
-docker volume create wukongim-node1-data
+export WK_IMAGE='ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760'
+
+docker network inspect wukongim >/dev/null 2>&1 || docker network create wukongim
+docker volume inspect wukongim-node1-data >/dev/null 2>&1 || docker volume create wukongim-node1-data
 
 docker run -d \
   --name wukongim-node1 \
   --network wukongim \
   --restart unless-stopped \
-  --mount type=bind,src="$PWD/deploy/node1.toml",dst=/etc/wukongim/wukongim.toml,readonly \
+  --stop-timeout 30 \
+  --env-file .env \
+  --mount type=bind,src="$PWD/node1.toml",dst=/etc/wukongim/wukongim.toml,readonly \
   --mount type=volume,src=wukongim-node1-data,dst=/var/lib/wukongim \
-  --tmpfs /run/wukongim:rw,noexec,nosuid,size=16m \
-  -p 5001:5001 \
-  -p 5100:5100 \
-  -p 5200:5200 \
+  --tmpfs /run/wukongim:rw,noexec,nosuid,uid=10001,gid=10001,mode=0750,size=16m \
+  --health-cmd='wget -q --spider -T 5 http://127.0.0.1:5001/readyz' \
+  --health-interval=10s \
+  --health-timeout=5s \
+  --health-retries=12 \
+  --health-start-period=20s \
+  -p 127.0.0.1:5001:5001 \
+  -p 0.0.0.0:5100:5100 \
+  -p 0.0.0.0:5200:5200 \
   -p 127.0.0.1:5301:5301 \
-  wukongim:local
+  "$WK_IMAGE"
 ```
 
-Manager 只绑定宿主机回环地址。节点 Transport `7000` 留在容器网络；跨主机部署时，改用受保护且互相可达的内网。
+</details>
 
-## 4. 验证部署
-
-```bash
-docker ps --filter name=wukongim-node1
-docker inspect wukongim-node1 --format '{{json .Mounts}}'
-curl --fail http://127.0.0.1:5001/healthz
-curl --fail http://127.0.0.1:5001/readyz
-```
-
-同时从目标客户端网络验证 `api.external_*`，并确认重建容器时挂回同一数据 Volume。`/readyz` 未通过时不要接入负载均衡。
-
-## 可选：验证仓库三节点环境
-
-```bash
-docker compose version
-docker compose up -d --build
-docker compose ps
-
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:15001/readyz
-curl --fail http://127.0.0.1:15002/readyz
-curl --fail http://127.0.0.1:15003/readyz
-curl --fail http://127.0.0.1:9091/-/ready
-curl --fail http://127.0.0.1:3000/api/health
-```
-
-该环境包含三节点、Prometheus 和 Grafana。节点数据默认位于 `docker/dev-cluster/node*`，也可通过 `WK_NODE1_DATA_MOUNT`、`WK_NODE2_DATA_MOUNT` 和 `WK_NODE3_DATA_MOUNT` 指向独立设备。Prometheus 和 Grafana 使用 Compose named volumes，避免全新检出时的 root-owned bind mount 权限问题。
-
-Compose 同时暴露固定 Manager/Grafana 凭据、Benchmark、Debug、诊断能力和主机端口，**只能用于开发验证**。`docker compose down` 会保留 named volumes；不要对需要保留的数据使用 `docker compose down -v`。
-
-## 容器边界
-
-- 配置只读挂载；敏感值通过部署平台的 Secret 能力注入。
-- 每个节点使用独立 Volume 或磁盘；容器重建不能删除数据。
-- `/run/wukongim` 是临时运行目录，不应持久化。
-- 只向必要网络暴露 API/Gateway；Manager、指标和 Transport 保持内网。
-- 使用 `/readyz` 控制流量，以 `SIGTERM` 和足够超时完成优雅停止。
-
-多节点生产规划继续阅读[多节点集群](/zh/server/deployment/multi-node)。
+需要复制和故障恢复时，继续阅读[多节点集群](/zh/server/deployment/multi-node)。上线前还必须完成[网络配置](/zh/server/configuration/networking)、[安全与权限](/zh/server/configuration/security)和[生产检查清单](/zh/server/deployment/production-checklist)。

@@ -75,17 +75,46 @@ func TestDockerComposeObservabilityUsesWritableNamedVolumes(t *testing.T) {
 	}
 }
 
-func TestDockerfileAllowsReviewedBuildMirrors(t *testing.T) {
+func TestDockerfilePinsSupportedBuildInputsAndAllowsReviewedMirrors(t *testing.T) {
 	dockerfile := readFile(t, filepath.Join(repoRoot(t), "Dockerfile"))
 
 	for _, want := range []string{
-		"ARG GO_IMAGE=golang:1.25.0",
-		"ARG RUNTIME_IMAGE=alpine:3.19",
+		"ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514",
+		"ARG RUNTIME_IMAGE=alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b",
 		"ARG GOPROXY=https://goproxy.cn,direct",
 		"ENV GOPROXY=${GOPROXY}",
 	} {
 		if !strings.Contains(dockerfile, want) {
 			t.Fatalf("Dockerfile missing injectable build dependency %q", want)
+		}
+	}
+}
+
+func TestDockerfileRunsAsNonRootWithLifecycleContracts(t *testing.T) {
+	dockerfile := readFile(t, filepath.Join(repoRoot(t), "Dockerfile"))
+
+	for _, want := range []string{
+		"apk upgrade --no-cache",
+		"addgroup -S -g 10001 wukongim",
+		"adduser -S -D -H -u 10001 -G wukongim",
+		"install -d -o wukongim -g wukongim -m 0750 /var/lib/wukongim /var/lib/wkbench /run/wukongim",
+		"USER 10001:10001",
+		"STOPSIGNAL SIGTERM",
+		"HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=12",
+		"CMD wget -q --spider -T 5 http://127.0.0.1:5001/readyz || exit 1",
+	} {
+		if !strings.Contains(dockerfile, want) {
+			t.Fatalf("Dockerfile missing non-root runtime contract %q", want)
+		}
+	}
+}
+
+func TestDockerBuildContextExcludesNonRuntimeTrees(t *testing.T) {
+	dockerignore := readFile(t, filepath.Join(repoRoot(t), ".dockerignore"))
+
+	for _, want := range []string{"docs", "docs-site", "demo", "web/node_modules"} {
+		if !strings.Contains(dockerignore, "\n"+want+"\n") {
+			t.Fatalf(".dockerignore missing non-runtime tree %q", want)
 		}
 	}
 }

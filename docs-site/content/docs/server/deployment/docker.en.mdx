@@ -1,116 +1,243 @@
 ---
 title: Docker
-description: Build an immutable image from current source and run a WuKongIM node with explicit configuration and persistent storage.
+description: Run a verifiable WuKongIM single-node cluster with a pinned image, Docker Compose, and persistent storage.
 ---
 
-The Docker path fits teams that already own images, networks, secrets, volumes, and container lifecycle. The repository `Dockerfile` defaults to:
+This path is for teams that want to deploy an official image quickly while keeping the network, data, and container lifecycle boundaries explicit. At the end, you will have a single-node cluster that you can inspect in Manager and use for an end-to-end message check.
+
+The example pins pre-release `3.0.0-beta.4` for `linux/amd64` and `linux/arm64`. The image reference includes both the readable version tag and its immutable digest.
+
+<Callout type="warn" title="This release is not a production security baseline">
+  The pinned image runs as root, has no image-level `HEALTHCHECK`, and uses an Alpine 3.19 runtime base whose regular support ended on 2025-11-01. Compose adds a readiness check below, but it cannot correct the image identity or runtime base. Before production use, publish and scan a non-root image on a supported base and complete the [Production Checklist](/en/server/deployment/production-checklist). See [Alpine release branches](https://alpinelinux.org/releases/) for the base-image date.
+</Callout>
+
+## 1. Prepare the host and configuration
+
+The host needs Docker Engine, Docker Compose v2, `curl`, and `openssl`:
+
+```bash
+docker version
+docker compose version
+curl --version
+openssl version
+```
+
+Create a dedicated deployment directory and download the configuration template that matches the image version:
+
+```bash
+mkdir -p wukongim-docker
+cd wukongim-docker
+
+curl --fail --location \
+  https://raw.githubusercontent.com/WuKongIM/WuKongIM/v3.0.0-beta.4/wukongim.toml.example \
+  --output node1.toml
+chmod 644 node1.toml
+```
+
+The configuration stays mounted read-only. `WK_*` environment variables override the container paths, listeners, and example credentials, so you do not need to maintain a separate Docker-specific TOML file.
+
+## 2. Generate the deployment environment file
+
+Change `WK_PUBLIC_HOST` to a hostname or IP that clients can reach. Use `127.0.0.1` only for an initial same-host check; a remote client cannot use the server's loopback address.
+
+```bash
+export WK_PUBLIC_HOST='im.example.com'
+
+cluster_token=$(openssl rand -hex 32)
+manager_secret=$(openssl rand -hex 32)
+manager_password=$(openssl rand -hex 16)
+
+(
+  umask 077
+  {
+    printf '# Manager username: admin\n'
+    printf '# Manager password: %s\n' "$manager_password"
+    printf 'WK_NODE_DATA_DIR=/var/lib/wukongim\n'
+    printf 'WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7000\n'
+    printf 'WK_CLUSTER_NODES=[{"id":1,"addr":"wukongim-node1:7000"}]\n'
+    printf 'WK_CLUSTER_JOIN_TOKEN=%s\n' "$cluster_token"
+    printf 'WK_API_LISTEN_ADDR=0.0.0.0:5001\n'
+    printf 'WK_EXTERNAL_TCPADDR=%s:5100\n' "$WK_PUBLIC_HOST"
+    printf 'WK_EXTERNAL_WSADDR=ws://%s:5200\n' "$WK_PUBLIC_HOST"
+    printf 'WK_MANAGER_LISTEN_ADDR=0.0.0.0:5301\n'
+    printf 'WK_MANAGER_AUTH_ON=true\n'
+    printf 'WK_MANAGER_JWT_SECRET=%s\n' "$manager_secret"
+    printf 'WK_MANAGER_USERS=[{"username":"admin","password":"%s","permissions":[{"resource":"*","actions":["*"]}]}]\n' "$manager_password"
+    printf 'WK_BENCH_API_ENABLE=false\n'
+    printf 'WK_DEBUG_API_ENABLE=false\n'
+    printf 'WK_LOG_DIR=/var/lib/wukongim/logs\n'
+    printf 'WK_PROMETHEUS_DATA_DIR=/var/lib/wukongim/prometheus\n'
+    printf 'WK_PLUGIN_DIR=/var/lib/wukongim/plugins\n'
+    printf 'WK_PLUGIN_SOCKET_PATH=/run/wukongim/plugin.sock\n'
+    printf 'WK_PLUGIN_SANDBOX_DIR=/var/lib/wukongim/plugin-sandbox\n'
+    printf 'WK_PLUGIN_STATE_DIR=/var/lib/wukongim/plugin-state\n'
+  } > .env
+)
+
+unset cluster_token manager_secret manager_password WK_PUBLIC_HOST
+```
+
+`.env` contains plaintext credentials and must not be committed. It makes the first deployment reproducible, but environment variables can still appear in container inspection and the platform control plane. Use the deployment platform's secret capability and tighten Manager permissions in production.
+
+`WK_EXTERNAL_TCPADDR` and `WK_EXTERNAL_WSADDR` are client-advertised endpoints, not listeners. Production TLS normally terminates at a controlled proxy or load balancer; use the real TCP/TLS and WSS endpoints in that case. Never advertise `0.0.0.0`.
+
+## 3. Create the Compose file
+
+Save the following as `compose.yaml`:
+
+```yaml
+name: wukongim
+
+services:
+  node1:
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
+    container_name: wukongim-node1
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file:
+      - ./.env
+    volumes:
+      - ./node1.toml:/etc/wukongim/wukongim.toml:ro
+      - wukongim-node1-data:/var/lib/wukongim
+    tmpfs:
+      - /run/wukongim:rw,noexec,nosuid,uid=10001,gid=10001,mode=0750,size=16m
+    ports:
+      - "127.0.0.1:5001:5001"
+      - "0.0.0.0:5100:5100"
+      - "0.0.0.0:5200:5200"
+      - "127.0.0.1:5301:5301"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "-T", "5", "http://127.0.0.1:5001/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  wukongim-node1-data:
+```
+
+These network boundaries are intentional:
+
+- `5100` (TCP) and `5200` (WebSocket) are client Gateway ports published on the host. The firewall must still allow only expected traffic.
+- `5001` serves Product HTTP APIs, readiness, Metrics, and Top, so it binds only to host loopback by default. A remote trusted backend should bind it to a protected private address or place it behind an authenticating proxy.
+- Manager `5301` binds only to loopback by default. Node transport `7000` is not published on the host.
+- Configuration is read-only. Data, logs, and persistent plugin state use a named volume, while the Unix socket stays under ephemeral `/run/wukongim`.
+
+If GHCR is unavailable, replace `image` with either verified copy of the same digest:
 
 ```text
-/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
+registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
 ```
 
-<Callout type="info" title="Official versioned images">
-  Releases publish the same immutable `linux/amd64` and `linux/arm64` digest as `ghcr.io/wukongim/wukongim`, `wukongim/wukongim` on Docker Hub, and `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`. A Git tag such as `v3.1.2` produces exact image tag `3.1.2`; pre-releases receive only their exact tag. The `wukongim:local` example below remains a source-built local image rather than an official version.
-</Callout>
+When upgrading, change and re-verify the tag, digest, and configuration-template version together.
 
-## 1. Build an immutable image
+## 4. Start and verify
 
-<Callout type="info" title="Verify the build network first">
-  Run `docker buildx version`, then confirm that Docker and BuildKit can reach the image registries selected by `GO_IMAGE` and `RUNTIME_IMAGE` plus the Go module sources selected by `GOPROXY`. Restricted networks need team-reviewed registries and a complete module proxy.
-</Callout>
+Check the Compose syntax and required files before pulling and starting the container:
 
 ```bash
-git rev-parse HEAD
-docker buildx build --load --pull -t wukongim:local .
-docker image inspect wukongim:local --format '{{.Id}}'
+docker compose config --quiet
+docker compose pull
+docker compose up -d
+docker compose ps
 ```
 
-When the default dependency endpoints are unreachable, pass reviewed internal endpoints explicitly:
+Wait for `/readyz`, then inspect the latest logs and actual mounts:
 
 ```bash
-docker buildx build --load --pull \
-  --build-arg GO_IMAGE=registry.example.com/library/golang:1.25.0 \
-  --build-arg RUNTIME_IMAGE=registry.example.com/library/alpine:3.19 \
-  --build-arg GOPROXY=https://go-proxy.example.com \
-  -t wukongim:local .
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:5001/readyz
+
+docker compose logs --tail 100 node1
+docker inspect wukongim-node1 \
+  --format '{{range .Mounts}}{{println .Destination .Type .RW}}{{end}}'
 ```
 
-Replace the example domains and continue recording the commit SHA, builder version, and image digest. Mirrors do not replace provenance review, signing, or scanning.
+The result should show:
 
-## 2. Prepare the single-node cluster configuration
+- `docker compose ps` reports the container as `healthy`;
+- `/etc/wukongim/wukongim.toml` is a read-only bind mount;
+- `/var/lib/wukongim` is a writable volume;
+- business traffic is admitted only after `/readyz` succeeds.
 
-Create `deploy/node1.toml` from `wukongim.toml.example` and adjust at least:
+Open `http://127.0.0.1:5301` in a browser on the deployment host. For a remote host, tunnel Product API and Manager locally, then open the same URL:
 
-| Setting | Container requirement |
+```bash
+ssh -N \
+  -L 5001:127.0.0.1:5001 \
+  -L 5301:127.0.0.1:5301 \
+  user@server
+```
+
+The username is `admin`. Read the generated password on the deployment host:
+
+```bash
+sed -n 's/^# Manager password: //p' .env
+```
+
+A Manager login and `/readyz` prove only that the management plane and node started. Follow [Quick Start](/en/guide/quick-start) with two test users and complete one send-and-receive cycle to verify the actual message path.
+
+## 5. Routine operations and data boundaries
+
+```bash
+# Follow logs
+docker compose logs --follow --tail 100 node1
+
+# Graceful restart; Compose waits up to stop_grace_period
+docker compose restart node1
+
+# Stop or start the same container
+docker compose stop node1
+docker compose start node1
+
+# Remove the container and default network, preserving the named volume
+docker compose down
+```
+
+Never run `docker compose down -v` against data that must survive. Before replacing or recreating a container, confirm that it still uses the same `wukongim-node1-data` volume. Follow [Upgrades and Migration](/en/server/operations/upgrade-and-migration) for upgrades and rollback; do not move only the image tag.
+
+| Symptom | Check first |
 | --- | --- |
-| `node.data_dir` | `/var/lib/wukongim` |
-| `cluster.listen_addr` | `0.0.0.0:7000` |
-| `cluster.nodes` | Resolvable container names or private addresses, never `0.0.0.0` |
-| `api.listen_addr`, `manager.listen_addr` | Use `0.0.0.0` when listening inside the container |
-| `api.external_*` | TCP, WS, or WSS addresses that clients can actually reach |
-| Manager/join credentials | Replace every example value |
-| Benchmark and debug | Disabled by default in production |
-| `plugin.dir`, `plugin.sandbox_dir`, `plugin.state_dir` | Use `/var/lib/wukongim/plugins`, `/var/lib/wukongim/plugin-sandbox`, and `/var/lib/wukongim/plugin-state` |
-| `plugin.socket_path` | `/run/wukongim/plugin.sock`; keep only the ephemeral Unix socket here |
+| Container restarts or remains `unhealthy` | Run `docker compose logs --tail 200 node1`; verify the `.env` JSON, configuration file, and volume |
+| `/readyz` returns `503` | The node has not met the traffic gate; inspect Controller, Slot, storage, and configuration errors instead of routing traffic with `/healthz` |
+| Clients cannot connect | Check `WK_EXTERNAL_*`, the firewall, proxies, and the target network; never advertise `0.0.0.0` or the remote client's `127.0.0.1` |
+| Manager or Product API is unreachable remotely | Loopback binding is intentional; use an SSH tunnel, or bind only to a protected private address with access control |
+| Data is empty after recreation | Stop writes immediately and inspect the actual mount; do not create a new volume or run `down -v` |
 
-## 3. Run the container
+<details>
+<summary>Use docker run when Compose is unavailable</summary>
+
+This command reuses the same `.env`, configuration, and data boundaries:
 
 ```bash
-docker network create wukongim
-docker volume create wukongim-node1-data
+export WK_IMAGE='ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760'
+
+docker network inspect wukongim >/dev/null 2>&1 || docker network create wukongim
+docker volume inspect wukongim-node1-data >/dev/null 2>&1 || docker volume create wukongim-node1-data
 
 docker run -d \
   --name wukongim-node1 \
   --network wukongim \
   --restart unless-stopped \
-  --mount type=bind,src="$PWD/deploy/node1.toml",dst=/etc/wukongim/wukongim.toml,readonly \
+  --stop-timeout 30 \
+  --env-file .env \
+  --mount type=bind,src="$PWD/node1.toml",dst=/etc/wukongim/wukongim.toml,readonly \
   --mount type=volume,src=wukongim-node1-data,dst=/var/lib/wukongim \
-  --tmpfs /run/wukongim:rw,noexec,nosuid,size=16m \
-  -p 5001:5001 \
-  -p 5100:5100 \
-  -p 5200:5200 \
+  --tmpfs /run/wukongim:rw,noexec,nosuid,uid=10001,gid=10001,mode=0750,size=16m \
+  --health-cmd='wget -q --spider -T 5 http://127.0.0.1:5001/readyz' \
+  --health-interval=10s \
+  --health-timeout=5s \
+  --health-retries=12 \
+  --health-start-period=20s \
+  -p 127.0.0.1:5001:5001 \
+  -p 0.0.0.0:5100:5100 \
+  -p 0.0.0.0:5200:5200 \
   -p 127.0.0.1:5301:5301 \
-  wukongim:local
+  "$WK_IMAGE"
 ```
 
-Manager binds only to host loopback. Node transport `7000` remains inside the container network; for cross-host deployment, use a protected, mutually reachable private network.
+</details>
 
-## 4. Verify the deployment
-
-```bash
-docker ps --filter name=wukongim-node1
-docker inspect wukongim-node1 --format '{{json .Mounts}}'
-curl --fail http://127.0.0.1:5001/healthz
-curl --fail http://127.0.0.1:5001/readyz
-```
-
-Also test `api.external_*` from the target client network and confirm that a recreated container reattaches the same data volume. Never admit the node to a load balancer before `/readyz` passes.
-
-## Optional: verify the repository three-node environment
-
-```bash
-docker compose version
-docker compose up -d --build
-docker compose ps
-
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:15001/readyz
-curl --fail http://127.0.0.1:15002/readyz
-curl --fail http://127.0.0.1:15003/readyz
-curl --fail http://127.0.0.1:9091/-/ready
-curl --fail http://127.0.0.1:3000/api/health
-```
-
-This environment includes three nodes, Prometheus, and Grafana. Node data defaults to `docker/dev-cluster/node*`; `WK_NODE1_DATA_MOUNT`, `WK_NODE2_DATA_MOUNT`, and `WK_NODE3_DATA_MOUNT` can select independent devices. Prometheus and Grafana use Compose named volumes to avoid fresh-checkout root-owned bind-mount permission failures.
-
-Compose also exposes fixed Manager/Grafana credentials, benchmark, debug, diagnostics, and host ports. It is **development validation only**. `docker compose down` preserves named volumes; never use `docker compose down -v` for data that must survive.
-
-## Container boundaries
-
-- Mount configuration read-only and inject sensitive values through the platform secret capability.
-- Give every node an independent volume or disk; container recreation must not remove data.
-- `/run/wukongim` is ephemeral runtime state and must not persist.
-- Expose API/Gateway only to required networks; keep Manager, metrics, and transport private.
-- Gate traffic on `/readyz`, then use `SIGTERM` with enough time for graceful shutdown.
-
-For production multi-node planning, continue to [Multi-node Cluster](/en/server/deployment/multi-node).
+For replication and failure recovery, continue to [Multi-node Cluster](/en/server/deployment/multi-node). Before going live, also complete [Networking](/en/server/configuration/networking), [Security and Permissions](/en/server/configuration/security), and the [Production Checklist](/en/server/deployment/production-checklist).
