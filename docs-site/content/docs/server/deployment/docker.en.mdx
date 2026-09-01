@@ -3,10 +3,10 @@ title: Docker
 description: Start a WuKongIM single-node cluster with random credentials and persistent storage in one command.
 ---
 
-You only need Docker and `curl`. The installer generates random credentials, creates persistent storage, starts a pinned image, and waits for the node to become ready.
+You only need Docker and `curl`. The installer generates random credentials, creates persistent storage, starts the image for the latest GitHub tag, and waits for the node to become ready.
 
 <Callout type="warn" title="The default is for a quick local evaluation">
-  The installer pins pre-release `3.0.0-beta.6` by default. When you select an older release, its runtime identity, base image, and health-check capabilities follow that release. The installer does not configure a domain, TLS, backups, or multi-node replication. Complete the [Production Checklist](/en/server/deployment/production-checklist) before serving production traffic.
+  With no version specified, the installer queries the latest GitHub tag in the WuKongIM repository on every run. When you select an older release, its runtime identity, base image, and health-check capabilities follow that release. The installer does not configure a domain, TLS, backups, or multi-node replication. Complete the [Production Checklist](/en/server/deployment/production-checklist) before serving production traffic.
 </Callout>
 
 ## 1. Start with one command
@@ -17,13 +17,13 @@ curl -fsSL https://docs.githubim.com/install/docker.sh | sh
 
 When installation finishes, the terminal prints the Manager URL, username, and random password. Deployment files are stored in `wukongim-docker/` under the current directory, while message data is stored in the `wukongim-data` Docker volume.
 
-Use `WK_VERSION` to select a release. The supported versions are currently `3.0.0-beta.4`, `3.0.0-beta.5`, and `3.0.0-beta.6`:
+Use `WK_VERSION` to select a release, for example:
 
 ```bash
 curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_VERSION=3.0.0-beta.5 sh
 ```
 
-Every supported version is pinned to a verified immutable image digest. If the existing container uses another version, the installer refuses to overwrite it and preserves the data volume. Check [Upgrades and Migration](/en/server/operations/upgrade-and-migration) for compatibility before removing the old container and running the installer again.
+The version must have a corresponding GHCR image. The installer resolves the selected image to an immutable digest before starting it. It fails instead of falling back to an older version when GitHub cannot be queried, the tag is invalid, or the image does not exist. If the existing container uses another version, the installer refuses to overwrite it and preserves the data volume. Check [Upgrades and Migration](/en/server/operations/upgrade-and-migration) for compatibility before removing the old container and running the installer again.
 
 If clients connect from another machine, provide a reachable hostname or IP in the same command:
 

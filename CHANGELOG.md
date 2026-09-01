@@ -14,7 +14,7 @@ move those entries into a version section named for that exact tag.
 
 - 中英文 v3 文档站现由仓库内 GitHub Pages 工作流执行完整静态验收后发布到 `docs.githubim.com`，发布产物与通过验收的 `docs-site/out` 保持一致。
 - WuKongEasySDK 中英文文档现固定 Web `2.0.4`、Android `1.0.5`、iOS `1.1.1` 与 Flutter `1.1.0` 正式包，并补充四端 example 与正式包的独立验收回执及可复现流程。
-- Docker 服务端部署现在提供一键安装脚本，只需一条命令即可生成随机凭据、创建持久卷、启动固定摘要镜像并等待单节点集群就绪；可通过 `WK_VERSION` 选择受支持的固定摘要版本，中英文主流程均保持两步。
+- Docker 服务端部署现在提供一键安装脚本，只需一条命令即可生成随机凭据、创建持久卷、启动固定摘要镜像并等待单节点集群就绪；未指定版本时自动选择最新 GitHub tag，也可通过 `WK_VERSION` 指定版本，中英文主流程均保持两步。
 
 <!--
 Use only the non-empty categories that apply: `⚠️ Breaking Changes /

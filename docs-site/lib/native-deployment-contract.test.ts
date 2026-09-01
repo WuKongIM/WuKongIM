@@ -14,8 +14,7 @@ describe('native deployment publication contract', () => {
       for (const contract of [
         'curl -fsSL https://docs.githubim.com/install/docker.sh | sh',
         'WK_VERSION=3.0.0-beta.5',
-        '3.0.0-beta.4',
-        '3.0.0-beta.6',
+        'GitHub tag',
         'WK_PUBLIC_HOST=im.example.com',
         'wukongim-docker/',
         'wukongim-data',
@@ -39,11 +38,16 @@ describe('native deployment publication contract', () => {
 
     for (const contract of [
       "repository='ghcr.io/wukongim/wukongim'",
-      'version=${WK_VERSION:-3.0.0-beta.6}',
+      'requested_version=${WK_VERSION:-}',
+      "tags_feed='https://github.com/WuKongIM/WuKongIM/tags.atom'",
+      'tag:github.com,2008:Repository',
+      'cannot resolve the latest GitHub tag',
+      'GitHub returned no tags',
       "image_digest='98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760'",
       "image_digest='7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516'",
       "image_digest='d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786'",
-      'unsupported WK_VERSION',
+      'docker pull "$tagged_image"',
+      'cannot resolve an immutable image digest',
       'random_hex 32',
       'umask 077',
       'set -C',

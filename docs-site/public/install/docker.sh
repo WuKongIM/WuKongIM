@@ -3,7 +3,8 @@
 set -eu
 
 repository='ghcr.io/wukongim/wukongim'
-version=${WK_VERSION:-3.0.0-beta.6}
+requested_version=${WK_VERSION:-}
+tags_feed='https://github.com/WuKongIM/WuKongIM/tags.atom'
 container='wukongim'
 volume='wukongim-data'
 install_dir=${WK_DOCKER_INSTALL_DIR:-"$PWD/wukongim-docker"}
@@ -47,10 +48,32 @@ need docker
 need od
 need tr
 need curl
+need awk
 docker info >/dev/null 2>&1 || fail 'the Docker daemon is not available'
+
+if [ -n "$requested_version" ]; then
+  version=$requested_version
+else
+  tags_xml=$(curl --fail --silent --show-error --location --max-time 15 "$tags_feed") ||
+    fail 'cannot resolve the latest GitHub tag; set WK_VERSION to install an explicit version'
+  version=$(printf '%s\n' "$tags_xml" | awk -F '[<>]' '
+    /<id>tag:github.com,2008:Repository\/[0-9]+\// {
+      sub(/^tag:github.com,2008:Repository\/[0-9]+\//, "", $3)
+      print $3
+      exit
+    }
+  ')
+  [ -n "$version" ] || fail 'GitHub returned no tags; set WK_VERSION to install an explicit version'
+fi
 
 case "$version" in
   v*) version=${version#v} ;;
+esac
+
+case "$version" in
+  ''|.*|-*|*[!A-Za-z0-9_.-]*)
+    fail "version $version cannot be used as a container image tag"
+    ;;
 esac
 
 case "$version" in
@@ -64,7 +87,13 @@ case "$version" in
     image_digest='d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786'
     ;;
   *)
-    fail "unsupported WK_VERSION $version; supported versions: 3.0.0-beta.4, 3.0.0-beta.5, 3.0.0-beta.6"
+    tagged_image="$repository:$version"
+    docker pull "$tagged_image" >/dev/null || fail "no installable image was found for version $version"
+    repo_digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$tagged_image" 2>/dev/null || true)
+    case "$repo_digest" in
+      "$repository@sha256:"*) image_digest=${repo_digest#*@sha256:} ;;
+      *) fail "cannot resolve an immutable image digest for version $version" ;;
+    esac
     ;;
 esac
 image="$repository:$version@sha256:$image_digest"
