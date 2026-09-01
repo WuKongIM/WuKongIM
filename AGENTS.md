@@ -86,6 +86,18 @@ app -> access/usecase/runtime/infra/pkg
 - Performance-sensitive designs MUST consider CPU, memory, allocations,
   contention, queue bounds, backpressure, and fanout at the expected scale.
 
+### Release Notes
+
+- User-visible changes MUST add a concise user/operator-facing entry to the
+  root `CHANGELOG.md` under `Unreleased`.
+- A pull request MAY omit a Changelog entry only when its description explains
+  why no user-visible behavior changes and a maintainer applies the
+  `skip-changelog` label.
+- Before creating a release tag, maintainers MUST move the applicable entries
+  into the exact version heading required by `CHANGELOG.md`. Release Workflows
+  MUST fail before publishing any artifact when that version section is
+  missing, duplicated, empty, or malformed.
+
 ### Configuration
 
 - The primary configuration file is `wukongim.toml` in TOML format.
