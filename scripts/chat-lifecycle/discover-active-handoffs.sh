@@ -17,7 +17,7 @@ fi
 temporary="$(mktemp -d)"
 trap 'rm -r "$temporary"' EXIT
 : >"$temporary/artifacts-pages.json"
-max_pages=50
+max_pages=200
 artifact_api_attempts=4
 inventory_complete=false
 
