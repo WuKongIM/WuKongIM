@@ -523,12 +523,20 @@ jobs:
             expected_prerelease=true
             [[ "$STABLE" != true ]] || expected_prerelease=false
             created_release="$RUNNER_TEMP/created-binary-release.json"
+            create_request="$RUNNER_TEMP/create-binary-release-request.json"
+            jq -n \
+              --arg tag_name "$VERSION" \
+              --arg name "WuKongIM $VERSION" \
+              --argjson prerelease "$expected_prerelease" \
+              '{
+                tag_name: $tag_name,
+                name: $name,
+                generate_release_notes: true,
+                draft: true,
+                prerelease: $prerelease
+              }' >"$create_request"
             gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
-              -f tag_name="$VERSION" \
-              -f name="WuKongIM $VERSION" \
-              -F draft=true \
-              -F prerelease="$expected_prerelease" \
-              -F generate_release_notes=true \
+              --input "$create_request" \
               >"$created_release"
             release_id="$(jq -r '.id' "$created_release")"
           fi
@@ -595,7 +603,8 @@ jobs:
           [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$draft_json"
           jq -e --arg version "$VERSION" \
-            '.tag_name == $version and .draft == true and (.immutable // false) == false' \
+            '.tag_name == $version and .draft == true and
+             (.immutable // false) == false' \
             "$draft_json" >/dev/null || {
             echo "$VERSION must remain mutable and draft until all assets are verified" >&2
             exit 1
@@ -762,7 +771,8 @@ jobs:
           [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$published_json"
           jq -e --arg version "$VERSION" \
-            '.tag_name == $version and .draft == false and .immutable == true' \
+            '.tag_name == $version and .draft == false and
+             .immutable == true' \
             "$published_json" >/dev/null || {
             echo "$VERSION was not sealed as an immutable published Release" >&2
             exit 1
