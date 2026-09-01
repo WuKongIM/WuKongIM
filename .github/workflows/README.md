@@ -192,6 +192,12 @@ facts. It never falls back to GitHub-generated notes, a commit log, or an empty
 body. Every discovered, created, pre-publication, and published numeric Release
 ID must carry the exact rendered body.
 
+For manual recovery of a tag created before the release-note extractor was
+added, the Workflow fetches that extractor from the exact
+`github.workflow_sha` commit while continuing to read `CHANGELOG.md` and every
+release artifact from the immutable tag. Automatic tag publication fails if
+the tagged source itself omits the extractor.
+
 The binary publisher waits for a successful Docker publisher run for the same
 tag, then verifies that GHCR, Docker Hub, and Alibaba Cloud expose one identical
 `linux/amd64,linux/arm64` digest whose per-platform labels match the exact tag
@@ -208,6 +214,14 @@ workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
 release credential. Until those Environment deployment restrictions have been
 configured and verified remotely, administrators must not push a release tag
 or manually dispatch this workflow.
+
+Immediately before pushing a release tag or starting manual recovery, an
+administrator must also verify that repository-level immutable Releases remain
+enabled in repository settings or through the administrator-only
+`GET /repos/{owner}/{repo}/immutable-releases` endpoint. The Actions
+`GITHUB_TOKEN` cannot read that administration endpoint, so the Workflow does
+not request or store an administrator token. It instead verifies after
+publication that GitHub sealed the exact numeric Release as immutable.
 
 For a user-visible pull request, add the release note under `Unreleased` when
 the change is made. A PR with no user-visible behavior must explain the reason

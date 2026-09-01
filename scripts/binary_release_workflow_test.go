@@ -63,6 +63,9 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"git show-ref --verify --quiet \"refs/tags/$version\"",
 		"git merge-base --is-ancestor \"$source_sha\" origin/main",
 		"scripts/extract-release-notes.awk",
+		"github.workflow_sha",
+		`git fetch --no-tags origin "$WORKFLOW_SHA"`,
+		`git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk"`,
 		"CHANGELOG.md",
 		"release policy does not allow SemVer build metadata",
 		"CGO_ENABLED=0 GOOS=\"$goos\" GOARCH=\"$goarch\"",
@@ -94,8 +97,6 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"Release artifacts / 发布产物",
 		"Full Changelog",
 		"actions/attest@",
-		"gh api \"repos/$GITHUB_REPOSITORY/immutable-releases\"",
-		"repository immutable Releases must remain enabled before publication",
 		"gh api --paginate --slurp",
 		"repos/$GITHUB_REPOSITORY/releases?per_page=100",
 		"select(.tag_name == $version)",
@@ -117,7 +118,6 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"upload response does not match the local asset",
 		"must retain the exact generated body and remain mutable and draft until all assets are verified",
 		"draft does not contain the exact expected asset set",
-		"repository immutable Releases were disabled before publication",
 		"gh api --method PATCH",
 		"-F draft=false",
 		".tag_name == $version and .draft == false",
@@ -141,6 +141,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"--clobber",
 		"delete and recreate the exact Release",
 		"releases/tags/",
+		"repos/$GITHUB_REPOSITORY/immutable-releases",
 		"windows/",
 		"generate_release_notes",
 		"--generate-notes",
@@ -148,7 +149,6 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		require.NotContains(t, text, forbidden)
 	}
 	require.Equal(t, 2, strings.Count(text, "git ls-remote origin"))
-	require.Equal(t, 2, strings.Count(text, "repos/$GITHUB_REPOSITORY/immutable-releases"))
 
 	orderedSteps := []string{
 		"- name: Validate release identity and tag policy",
@@ -277,14 +277,12 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 
 	publishRun := stepRuns["Publish verified draft Release once"]
 	tagCheck := strings.Index(publishRun, "git ls-remote origin")
-	immutableCheck := strings.Index(publishRun, "immutable-releases")
 	assetSetCheck := strings.Index(publishRun, "draft asset set changed immediately before publication")
 	digestCheck := strings.Index(publishRun, "draft digest changed immediately before publication")
 	prereleaseCheck := strings.Index(publishRun, "draft prerelease classification changed before publication")
 	publishCall := strings.Index(publishRun, "gh api --method PATCH")
 	require.GreaterOrEqual(t, tagCheck, 0)
-	require.Greater(t, immutableCheck, tagCheck)
-	require.Greater(t, prereleaseCheck, immutableCheck)
+	require.Greater(t, prereleaseCheck, tagCheck)
 	require.Greater(t, assetSetCheck, prereleaseCheck)
 	require.Greater(t, digestCheck, assetSetCheck)
 	require.Greater(t, publishCall, digestCheck)

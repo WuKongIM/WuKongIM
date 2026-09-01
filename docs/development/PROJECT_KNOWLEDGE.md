@@ -485,7 +485,10 @@
   mirrors the immutable digest to Docker Hub and Alibaba Cloud. Exact tags omit
   the Git `v` prefix and never move; only the highest stable SemVer in a minor,
   major, or global range may advance that range's floating alias. Pre-release
-  tags, including date suffixes, receive only an exact tag. The portable runtime
+  tags, including date suffixes, receive only an exact tag. Both platform
+  candidates must pass the Critical/High Trivy gate before first publication;
+  recovery scans both platforms from the existing canonical digest. The
+  portable runtime
   manifest excludes BuildKit inline attestation manifests because Alibaba Cloud
   Registry rejects their OCI empty-config media type; signed GitHub build
   provenance and per-platform CycloneDX SBOM attestations retain the evidence
@@ -521,7 +524,14 @@
   Workflow succeeds and all three registries expose the same source-bound
   amd64/arm64 digest. Missing or conflicting notes fail closed without a
   generated-notes, commit-log, or empty-body fallback. Failed publication
-  keeps an exact matching draft for idempotent manual recovery.
+  keeps an exact matching draft for idempotent manual recovery. Manual recovery
+  of a tag that predates the extractor obtains it from the exact Workflow
+  commit while preserving the tag as the only Changelog and artifact source.
+  Because the job-scoped `GITHUB_TOKEN` cannot read the administrator-only
+  immutable-Releases setting, an administrator verifies that setting outside
+  Actions immediately before tagging or recovery; the Workflow never stores an
+  administrator token and still requires the published numeric Release to be
+  sealed immutable.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.

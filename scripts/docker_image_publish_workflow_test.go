@@ -67,6 +67,9 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"git show-ref --verify --quiet \"refs/tags/$version\"",
 		"git merge-base --is-ancestor \"$source_sha\" origin/main",
 		"scripts/extract-release-notes.awk",
+		"github.workflow_sha",
+		`git fetch --no-tags origin "$WORKFLOW_SHA"`,
+		`git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk"`,
 		"CHANGELOG.md",
 		"SemVer build metadata is not representable as an OCI tag",
 		"version: v0.36.1",
@@ -155,6 +158,7 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		}
 	}
 	require.Contains(t, changelogRun, `awk -v version="$VERSION"`)
-	require.Contains(t, changelogRun, `scripts/extract-release-notes.awk CHANGELOG.md`)
+	require.Contains(t, changelogRun, `-f "$parser_path" CHANGELOG.md`)
+	require.Contains(t, changelogRun, `[[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]`)
 	require.Contains(t, changelogRun, `test -s "$notes_path"`)
 }

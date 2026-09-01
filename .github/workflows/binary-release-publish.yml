@@ -131,11 +131,24 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.identity.outputs.version }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
           set -euo pipefail
+          parser_path="scripts/extract-release-notes.awk"
+          if [[ ! -f "$parser_path" ]]; then
+            [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]] || {
+              echo "tagged source is missing $parser_path" >&2
+              exit 1
+            }
+            [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git fetch --no-tags origin "$WORKFLOW_SHA"
+            parser_path="$RUNNER_TEMP/extract-release-notes.awk"
+            git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk" >"$parser_path"
+            test -s "$parser_path"
+          fi
           notes_path="$RUNNER_TEMP/changelog-release-notes.md"
           awk -v version="$VERSION" \
-            -f scripts/extract-release-notes.awk CHANGELOG.md >"$notes_path"
+            -f "$parser_path" CHANGELOG.md >"$notes_path"
           test -s "$notes_path" || {
             echo "$VERSION has no non-empty CHANGELOG.md release body" >&2
             exit 1
@@ -583,11 +596,6 @@ jobs:
               "wukongim_${BINARY_VERSION}_linux_amd64.rpm"
             )
           fi
-          gh api "repos/$GITHUB_REPOSITORY/immutable-releases" \
-            | jq -e '.enabled == true' >/dev/null || {
-              echo "repository immutable Releases must remain enabled before publication" >&2
-              exit 1
-            }
           existing_dir="$RUNNER_TEMP/existing-binary-release"
           mkdir -p "$existing_dir"
           missing_file="$RUNNER_TEMP/missing-binary-release-assets.txt"
@@ -904,11 +912,6 @@ jobs:
           [[ "$remote_source_sha" =~ ^[0-9a-f]{40}$ && "$remote_source_sha" == "$SOURCE_SHA" ]] || {
             echo "remote release tag changed after source validation: $VERSION" >&2
             exit 1
-          }
-          gh api "repos/$GITHUB_REPOSITORY/immutable-releases" \
-            | jq -e '.enabled == true' >/dev/null || {
-              echo "repository immutable Releases were disabled before publication" >&2
-              exit 1
           }
           prepublish_json="$RUNNER_TEMP/prepublish-binary-release.json"
           prepublish_dir="$RUNNER_TEMP/prepublish-binary-release"
