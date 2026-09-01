@@ -156,6 +156,7 @@ jobs:
           tar --version | grep -F 'GNU tar' >/dev/null
 
           embedded_version=false
+          native_packages=false
           ldflags='-s -w -buildid='
           if [[ -f cmd/wukongim/version.go ]]; then
             embedded_version=true
@@ -207,15 +208,94 @@ jobs:
           done
 
           checksum_name="wukongim_${BINARY_VERSION}_checksums.txt"
-          (
-            cd "$RELEASE_DIR"
-            sha256sum wukongim_*.tar.gz | sort -k2 >"$checksum_name"
-            sha256sum --check "$checksum_name"
-          )
+          [[ ! -f .goreleaser.packages.yaml ]] || native_packages=true
           {
             echo "embedded_version=$embedded_version"
+            echo "native_packages=$native_packages"
             echo "checksum_name=$checksum_name"
           } >>"$GITHUB_OUTPUT"
+
+      - name: Build unsigned amd64 native packages
+        if: steps.build.outputs.native_packages == 'true'
+        uses: goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1 # v7.2.0
+        with:
+          distribution: goreleaser
+          version: v2.18.0
+          args: release --clean --config .goreleaser.packages.yaml
+
+      - name: Normalize unsigned native package assets
+        if: steps.build.outputs.native_packages == 'true'
+        shell: bash
+        env:
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          shopt -s nullglob
+
+          deb_packages=(dist/*.deb)
+          rpm_packages=(dist/*.rpm)
+          ((${#deb_packages[@]} == 1)) || {
+            echo "GoReleaser must produce exactly one unsigned deb asset" >&2
+            exit 1
+          }
+          ((${#rpm_packages[@]} == 1)) || {
+            echo "GoReleaser must produce exactly one unsigned rpm asset" >&2
+            exit 1
+          }
+          [[ -f "${deb_packages[0]}" && ! -L "${deb_packages[0]}" ]]
+          [[ -f "${rpm_packages[0]}" && ! -L "${rpm_packages[0]}" ]]
+
+          deb_name="wukongim_${BINARY_VERSION}_linux_amd64.deb"
+          rpm_name="wukongim_${BINARY_VERSION}_linux_amd64.rpm"
+          install -m 0644 "${deb_packages[0]}" "$RELEASE_DIR/$deb_name"
+          install -m 0644 "${rpm_packages[0]}" "$RELEASE_DIR/$rpm_name"
+          test "$(dpkg-deb --field "$RELEASE_DIR/$deb_name" Package)" = wukongim
+          test "$(dpkg-deb --field "$RELEASE_DIR/$deb_name" Architecture)" = amd64
+
+      - name: Finalize exact release asset set and checksums
+        shell: bash
+        env:
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          release_assets=(
+            "wukongim_${BINARY_VERSION}_linux_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_linux_arm64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
+          )
+          if [[ "$NATIVE_PACKAGES" == true ]]; then
+            release_assets+=(
+              "wukongim_${BINARY_VERSION}_linux_amd64.deb"
+              "wukongim_${BINARY_VERSION}_linux_amd64.rpm"
+            )
+          fi
+          for asset in "${release_assets[@]}"; do
+            [[ -f "$RELEASE_DIR/$asset" && ! -L "$RELEASE_DIR/$asset" ]] || {
+              echo "missing or unsafe release asset: $asset" >&2
+              exit 1
+            }
+          done
+          mapfile -t actual_assets < <(
+            find "$RELEASE_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
+          )
+          mapfile -t expected_assets < <(printf '%s\n' "${release_assets[@]}" | sort)
+          test "${actual_assets[*]}" = "${expected_assets[*]}" || {
+            echo "local release directory does not contain the exact pre-checksum asset set" >&2
+            exit 1
+          }
+          (
+            cd "$RELEASE_DIR"
+            sha256sum "${release_assets[@]}" | sort -k2 >"$CHECKSUM_NAME"
+            sha256sum --check "$CHECKSUM_NAME"
+          )
 
       - name: Set up QEMU for arm64 validation
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
@@ -274,6 +354,7 @@ jobs:
           VERSION: ${{ steps.identity.outputs.version }}
           BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
           STABLE: ${{ steps.identity.outputs.stable }}
+          NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
@@ -287,6 +368,12 @@ jobs:
             "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
             "$CHECKSUM_NAME"
           )
+          if [[ "$NATIVE_PACKAGES" == true ]]; then
+            expected_assets+=(
+              "wukongim_${BINARY_VERSION}_linux_amd64.deb"
+              "wukongim_${BINARY_VERSION}_linux_amd64.rpm"
+            )
+          fi
           gh api "repos/$GITHUB_REPOSITORY/immutable-releases" \
             | jq -e '.enabled == true' >/dev/null || {
               echo "repository immutable Releases must remain enabled before publication" >&2
@@ -393,6 +480,8 @@ jobs:
         with:
           subject-path: |
             ${{ runner.temp }}/wukongim-binary-release/*.tar.gz
+            ${{ runner.temp }}/wukongim-binary-release/*.deb
+            ${{ runner.temp }}/wukongim-binary-release/*.rpm
             ${{ runner.temp }}/wukongim-binary-release/*_checksums.txt
 
       - name: Create or recover draft GitHub Release
@@ -496,6 +585,7 @@ jobs:
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
           BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
           STABLE: ${{ steps.identity.outputs.stable }}
+          NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
@@ -524,6 +614,12 @@ jobs:
             "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
             "$CHECKSUM_NAME"
           )
+          if [[ "$NATIVE_PACKAGES" == true ]]; then
+            expected_assets+=(
+              "wukongim_${BINARY_VERSION}_linux_amd64.deb"
+              "wukongim_${BINARY_VERSION}_linux_amd64.rpm"
+            )
+          fi
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           test "${actual_assets[*]}" = "${expected_assets[*]}" || {
             echo "$VERSION draft does not contain the exact expected asset set" >&2
@@ -531,7 +627,8 @@ jobs:
           }
 
           mkdir -p "$draft_dir"
-          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
+          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR"/*.deb "$RELEASE_DIR"/*.rpm "$RELEASE_DIR/$CHECKSUM_NAME"; do
+            [[ -e "$local_asset" ]] || continue
             asset="$(basename "$local_asset")"
             asset_id="$(jq -r --arg name "$asset" \
               '.assets[] | select(.name == $name) | .id' "$draft_json")"
@@ -556,6 +653,7 @@ jobs:
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
           BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
           STABLE: ${{ steps.identity.outputs.stable }}
+          NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
@@ -579,8 +677,9 @@ jobs:
             | jq -e '.enabled == true' >/dev/null || {
               echo "repository immutable Releases were disabled before publication" >&2
               exit 1
-            }
+          }
           prepublish_json="$RUNNER_TEMP/prepublish-binary-release.json"
+          prepublish_dir="$RUNNER_TEMP/prepublish-binary-release"
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$prepublish_json"
           jq -e --arg version "$VERSION" \
             '.tag_name == $version and .draft == true and (.immutable // false) == false' \
@@ -602,19 +701,29 @@ jobs:
             "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
             "$CHECKSUM_NAME"
           )
+          if [[ "$NATIVE_PACKAGES" == true ]]; then
+            expected_assets+=(
+              "wukongim_${BINARY_VERSION}_linux_amd64.deb"
+              "wukongim_${BINARY_VERSION}_linux_amd64.rpm"
+            )
+          fi
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           test "${actual_assets[*]}" = "${expected_assets[*]}" || {
             echo "$VERSION draft asset set changed immediately before publication" >&2
             exit 1
           }
-          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
+          mkdir -p "$prepublish_dir"
+          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR"/*.deb "$RELEASE_DIR"/*.rpm "$RELEASE_DIR/$CHECKSUM_NAME"; do
+            [[ -e "$local_asset" ]] || continue
             asset="$(basename "$local_asset")"
             asset_json="$(jq -c --arg name "$asset" \
               '.assets[] | select(.name == $name)' "$prepublish_json")"
+            asset_id="$(jq -r '.id' <<<"$asset_json")"
             api_size="$(jq -r '.size' <<<"$asset_json")"
             api_digest="$(jq -r '.digest // empty' <<<"$asset_json")"
             local_size="$(stat -c '%s' "$local_asset")"
             local_sha256="$(sha256sum "$local_asset" | awk '{print $1}')"
+            [[ "$asset_id" =~ ^[1-9][0-9]*$ ]]
             [[ "$api_size" =~ ^[0-9]+$ && "$api_size" == "$local_size" ]] || {
               echo "$asset draft size changed immediately before publication" >&2
               exit 1
@@ -623,6 +732,11 @@ jobs:
               echo "$asset draft digest changed immediately before publication" >&2
               exit 1
             }
+            gh api \
+              -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+              >"$prepublish_dir/$asset"
+            cmp "$local_asset" "$prepublish_dir/$asset"
           done
 
           gh api --method PATCH \
@@ -638,6 +752,7 @@ jobs:
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
           BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
           STABLE: ${{ steps.identity.outputs.stable }}
+          NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
         run: |
@@ -666,6 +781,12 @@ jobs:
             "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
             "$CHECKSUM_NAME"
           )
+          if [[ "$NATIVE_PACKAGES" == true ]]; then
+            expected_assets+=(
+              "wukongim_${BINARY_VERSION}_linux_amd64.deb"
+              "wukongim_${BINARY_VERSION}_linux_amd64.rpm"
+            )
+          fi
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           test "${actual_assets[*]}" = "${expected_assets[*]}" || {
             echo "$VERSION published Release does not contain the exact expected asset set" >&2
@@ -673,7 +794,8 @@ jobs:
           }
 
           mkdir -p "$published_dir"
-          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
+          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR"/*.deb "$RELEASE_DIR"/*.rpm "$RELEASE_DIR/$CHECKSUM_NAME"; do
+            [[ -e "$local_asset" ]] || continue
             asset="$(basename "$local_asset")"
             asset_json="$(jq -c --arg name "$asset" \
               '.assets[] | select(.name == $name)' "$published_json")"
@@ -692,13 +814,12 @@ jobs:
                 echo "$asset published digest conflicts with the verified local asset" >&2
                 exit 1
               }
-            else
-              gh api \
-                -H 'Accept: application/octet-stream' \
-                "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
-                >"$published_dir/$asset"
-              cmp "$local_asset" "$published_dir/$asset"
             fi
+            gh api \
+              -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+              >"$published_dir/$asset"
+            cmp "$local_asset" "$published_dir/$asset"
           done
 
       - name: Write release receipt and summary
@@ -709,6 +830,7 @@ jobs:
           SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
           STABLE: ${{ steps.identity.outputs.stable }}
           EMBEDDED_VERSION: ${{ steps.build.outputs.embedded_version }}
+          NATIVE_PACKAGES: ${{ steps.build.outputs.native_packages }}
           CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
           RECOVERY: ${{ steps.publication.outputs.release_exists }}
           ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
@@ -730,6 +852,7 @@ jobs:
             --arg source_sha "$SOURCE_SHA" \
             --arg stable "$STABLE" \
             --arg embedded_version "$EMBEDDED_VERSION" \
+            --arg native_packages "$NATIVE_PACKAGES" \
             --arg recovery "$RECOVERY" \
             --arg event "$GITHUB_EVENT_NAME" \
             --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
@@ -746,6 +869,7 @@ jobs:
               source_sha: $source_sha,
               stable: ($stable == "true"),
               embedded_version: ($embedded_version == "true"),
+              unsigned_native_packages: ($native_packages == "true"),
               recovery: ($recovery == "true"),
               trigger: $event,
               run_url: $run_url,
@@ -767,6 +891,7 @@ jobs:
             echo "| Source | \`$SOURCE_SHA\` |"
             echo "| Platforms | \`linux/amd64\`, \`linux/arm64\`, \`darwin/amd64\`, \`darwin/arm64\` |"
             echo "| Embedded version command | \`$EMBEDDED_VERSION\` |"
+            echo "| Unsigned amd64 DEB/RPM | \`$NATIVE_PACKAGES\` |"
             echo "| Recovery | \`$RECOVERY\` |"
             echo "| Release | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION |"
             [[ -z "$ATTESTATION_URL" ]] || echo "| Attestation | $ATTESTATION_URL |"
@@ -778,6 +903,8 @@ jobs:
           name: wukongim-binary-release-${{ steps.identity.outputs.binary_version }}
           path: |
             ${{ runner.temp }}/wukongim-binary-release/*.tar.gz
+            ${{ runner.temp }}/wukongim-binary-release/*.deb
+            ${{ runner.temp }}/wukongim-binary-release/*.rpm
             ${{ runner.temp }}/wukongim-binary-release/*_checksums.txt
             ${{ runner.temp }}/wukongim-binary-release/*_release.json
           if-no-files-found: error

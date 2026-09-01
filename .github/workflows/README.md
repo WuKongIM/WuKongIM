@@ -41,7 +41,7 @@ authorization and the applicable budget.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
-| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS release archives for four architectures and publishes them to the exact tag's GitHub Release |
+| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS archives plus unsigned Linux amd64 DEB/RPM assets and publishes the exact set to the tag's GitHub Release |
 
 ## Native package preview
 
@@ -69,10 +69,11 @@ Pages bootstrap at the verified HTTPS endpoint `packages.githubim.com`; it
 currently publishes only a `signing_not_provisioned` status and no package
 indexes. Both repositories enforce immutable Releases, and the custom-domain
 DNS and certificate are provisioned. Reviewed public fingerprints, signing
-custody, exact tagged source package assets, cross-repository dispatch, and the
-production publisher remain intentionally outside this credential-free
-workflow. They must be provisioned and reviewed before package indexes are
-enabled.
+custody, cross-repository dispatch, and the production publisher remain
+intentionally outside this credential-free workflow. Exact unsigned source
+package assets are supplied by the tag-bound binary Release described below,
+but they must not enter package indexes until the remaining production controls
+are provisioned and reviewed.
 
 ## Docker image publishing
 
@@ -132,16 +133,29 @@ Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
 `linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
 because the server currently contains Unix-only runtime and filesystem paths.
 Every archive includes the executable, English and Chinese readmes, and
-`wukongim.toml.example`. The workflow publishes a shared SHA-256
-checksum file, creates signed GitHub build provenance, verifies the Linux
-binaries under amd64 and arm64, and retains all archives plus a JSON receipt as
-Actions evidence for 90 days. Tags containing the version command also prove
-the embedded version, full source commit, and `release` build source; older
-tags remain bound by the immutable tag, checksums, and attestation.
+`wukongim.toml.example`. When the tagged source contains
+`.goreleaser.packages.yaml`, the same run also uses the commit-pinned
+GoReleaser action with GoReleaser `v2.18.0` to build unsigned Linux amd64
+packages, normalized to exactly:
+
+- `wukongim_<version>_linux_amd64.deb`;
+- `wukongim_<version>_linux_amd64.rpm`.
+
+All archives and native packages share one SHA-256 checksum file and one signed
+GitHub build-provenance statement. The workflow verifies Linux binaries under
+amd64 and arm64 and retains the complete asset set plus a JSON receipt as
+Actions evidence for 90 days. Native packages remain unsigned source assets;
+the separate package repository must apply and verify its production package
+and repository signatures before publication. Tags containing the version
+command also prove the embedded version, full source commit, and `release`
+build source. Older tags that predate `.goreleaser.packages.yaml` retain their
+original five-asset recovery contract and remain bound by the immutable tag,
+checksums, and attestation.
 
 The workflow creates a draft Release without publishing it, uploads every
-expected asset, downloads and byte-compares the complete exact asset set, and
-only then publishes the verified draft once. Recovery may compare existing
+expected archive, native package, and checksum, downloads and byte-compares the
+complete exact asset set, and only then publishes the verified draft once.
+Recovery may compare existing
 assets and fill missing files only in that same draft. Draft discovery scans
 all Releases for one exact tag match, then binds creation, upload, verification,
 and publication to the resulting numeric Release ID; it never relies on the
@@ -156,8 +170,9 @@ incomplete one must never be reused and requires a new SemVer tag. A
 pre-release SemVer tag must correspond to a GitHub pre-release; stable tags
 must correspond to a normal Release. After publication, the workflow verifies
 that GitHub sealed the same numeric Release ID as immutable, checks every
-asset's API size and SHA-256 digest against the local file, and falls back to
-an ID-bound download and byte comparison when the API omits a digest.
+asset's API size and any available SHA-256 digest against the local file, and
+always performs an ID-bound download and byte comparison. The same ID-bound
+byte comparison is repeated immediately before publication.
 
 Repository administrators must configure a `binary-publish` Environment,
 allow protected `main` for manual recovery and trusted version tags for
