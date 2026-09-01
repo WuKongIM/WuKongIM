@@ -87,6 +87,9 @@ jobs:
               exit 1
             }
           done
+      - name: Enable rehearsal finalizer safety schedule before paid orchestration
+        shell: bash
+        run: scripts/chat-lifecycle/rehearsal-finalizer-state.sh enable
       - name: Orchestrate until remote systemd owns the measured run
         shell: bash
         env:
