@@ -7,35 +7,53 @@ async function page(path: string) {
 }
 
 describe('native deployment publication contract', () => {
-  test('documents a pinned Compose deployment with protected runtime boundaries', async () => {
+  test('keeps the Docker deployment path to two steps with one-command install', async () => {
     const pages = await Promise.all([page('docker.mdx'), page('docker.en.mdx')]);
 
     for (const content of pages) {
       for (const contract of [
-        'ghcr.io/wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786',
-        'docker compose config --quiet',
-        'docker compose pull',
-        'v3.0.0-beta.6/wukongim.toml.example',
-        'WK_MANAGER_USERS=',
-        'wukongim-node1-data',
-        './node1.toml:/etc/wukongim/wukongim.toml:ro',
-        '/etc/wukongim/wukongim.toml,readonly',
-        '127.0.0.1:5001:5001',
-        '0.0.0.0:5100:5100',
-        '127.0.0.1:5301:5301',
-        'healthcheck:',
-        'wget',
-        'uid=10001,gid=10001,mode=0750',
+        'curl -fsSL https://docs.githubim.com/install/docker.sh | sh',
+        'WK_PUBLIC_HOST=im.example.com',
+        'wukongim-docker/',
+        'wukongim-data',
+        'http://127.0.0.1:5301',
         'http://127.0.0.1:5001/readyz',
-        '/run/wukongim/plugin.sock',
         '/guide/quick-start',
-        'docker compose down -v',
-        'Alpine 3.24.1',
+        'docker volume rm wukongim-data',
       ]) {
         expect(content).toContain(contract);
       }
-      expect(content).not.toContain('wukongim:latest');
+      expect(content.match(/^## \d+\./gm)).toHaveLength(2);
+      expect(content).not.toContain('docker compose');
+      expect(content).not.toContain('node1.toml');
     }
+  });
+
+  test('publishes a pinned idempotent installer with generated credentials', async () => {
+    const installer = await Bun.file(
+      new URL('../public/install/docker.sh', import.meta.url),
+    ).text();
+
+    for (const contract of [
+      'ghcr.io/wukongim/wukongim:3.0.0-beta.6@sha256:d00b93c2d2e77bae83597eaea12191a1be88cfd458de5351e00c31ed49672786',
+      'random_hex 32',
+      'umask 077',
+      'set -C',
+      'WK_CLUSTER_NODES=',
+      'WK_MANAGER_USERS=',
+      'WK_PLUGIN_SOCKET_PATH=/run/wukongim/plugin.sock',
+      '--env-file "$env_file"',
+      '--mount "type=volume,src=$volume,dst=/var/lib/wukongim"',
+      '--publish 127.0.0.1:5001:5001',
+      '--publish 0.0.0.0:5100:5100',
+      '--publish 127.0.0.1:5301:5301',
+      '--entrypoint /usr/local/bin/wukongim',
+      "installer_label='docs-one-click-v1'",
+      'the container did not become healthy',
+    ]) {
+      expect(installer).toContain(contract);
+    }
+    expect(installer).not.toContain('wukongim:latest');
   });
 
   test('documents the secure native package and systemd lifecycle', async () => {
