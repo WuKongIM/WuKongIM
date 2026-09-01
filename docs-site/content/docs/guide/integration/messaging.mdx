@@ -7,15 +7,15 @@ description: 串联连接、发送、接收、确认、重连和离线恢复。
 
 ## 客户端消息路径
 
-```text
-SDK SEND
-  -> Gateway
-  -> 消息权限检查
-  -> 解析频道写入权威节点
-  -> Channel 持久化
-  -> SENDACK
-  -> 提交后在线投递
-  -> 接收端 RECV + RECVACK
+```mermaid
+flowchart LR
+  SDK["SDK SEND"] --> Gateway
+  Gateway --> Permission["消息权限检查"]
+  Permission --> Authority["解析频道写入权威节点"]
+  Authority --> Commit["Channel 持久化提交"]
+  Commit --> Ack["SENDACK"]
+  Commit -.->|提交后| Delivery["在线投递"]
+  Delivery --> Receive["接收端 RECV / RECVACK"]
 ```
 
 关键语义：
@@ -91,10 +91,15 @@ WuKongIM 传递字节 Payload，不替你的产品定义业务结构。建议使
 
 客户端 SDK 应负责连接状态机、退避重连和消息同步：
 
-1. 保存最后确认或展示的频道序号。
-2. 断线后重新发现路由，避免长期缓存失效节点。
-3. 重新 CONNECT 成功后执行 SDK 支持的消息同步。
-4. 按消息标识和频道序号合并结果，允许重复到达。
-5. 处理完成接收消息后发送 RECVACK。
+```mermaid
+flowchart TD
+  Save["保存最后确认或展示的频道序号"] --> Disconnect["连接断开"]
+  Disconnect --> Route["重新发现 Gateway 路由"]
+  Route --> Connect["重新 CONNECT"]
+  Connect --> Sync["同步缺失的持久消息"]
+  Sync --> Merge["按消息标识和频道序号合并、去重"]
+  Merge --> Ack["处理完成后发送 RECVACK"]
+  Ack --> Save
+```
 
 下一步配置[Webhook](/zh/guide/integration/webhooks)，把异步业务事件送入可靠的业务处理链路。

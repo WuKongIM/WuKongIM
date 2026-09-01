@@ -45,11 +45,21 @@ Your business and clients agree on the meaning of `type` and the remaining field
 
 ## The life of an ordinary persistent message
 
-1. The client creates a stable `client_msg_no` and selects a Channel and Payload.
-2. WuKongIM checks identity, Channel state, and send policy.
-3. The message is appended in order and reaches the Channel's commit boundary.
-4. The sender receives a send acknowledgement and online recipients receive realtime delivery.
-5. Devices that missed realtime delivery synchronize the missing messages after reconnecting.
+```mermaid
+flowchart TD
+  Create["Client creates a stable client_msg_no and selects a Channel and Payload"]
+  Check["Check identity, Channel state, and send policy"]
+  Commit["Append in Channel order and reach the commit boundary"]
+  Ack["Sender receives a send acknowledgement"]
+  Online{"Is the receiving device online?"}
+  Realtime["Deliver in realtime"]
+  Recover["Synchronize missing messages after reconnect"]
+  Create --> Check --> Commit
+  Commit --> Ack
+  Commit -.-> Online
+  Online -->|yes| Realtime
+  Online -->|no| Recover
+```
 
 <Callout type="warn" title="Sent does not mean read">
   A send acknowledgement says that the send reached its defined server boundary. It does not prove that every device received the message, and it does not prove that a person read it. Model delivery receipts, read receipts, and business execution results separately.

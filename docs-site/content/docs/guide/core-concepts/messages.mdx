@@ -45,11 +45,21 @@ description: 理解消息是什么、如何找到接收范围，以及发送成�
 
 ## 一条持久消息经历什么
 
-1. 客户端生成稳定的 `client_msg_no`，并指定频道与 Payload。
-2. WuKongIM 检查身份、频道状态和发送权限。
-3. 消息按顺序写入该频道并达到提交边界。
-4. 发送方收到发送确认，在线接收者获得实时投递。
-5. 未实时收到的设备在重连后按频道进度同步缺失消息。
+```mermaid
+flowchart TD
+  Create["客户端生成稳定 client_msg_no，并指定频道与 Payload"]
+  Check["检查身份、频道状态和发送权限"]
+  Commit["按频道顺序写入并达到提交边界"]
+  Ack["发送方收到发送确认"]
+  Online{"接收设备在线吗？"}
+  Realtime["实时投递"]
+  Recover["重连后按频道进度同步缺失消息"]
+  Create --> Check --> Commit
+  Commit --> Ack
+  Commit -.-> Online
+  Online -->|是| Realtime
+  Online -->|否| Recover
+```
 
 <Callout type="warn" title="发送成功不等于对方已读">
   发送确认表示这次发送已经达到对应的服务端处理边界。它不表示每台设备都已收到，更不表示最终用户已经阅读。送达回执、已读回执和业务执行结果应分别设计。

@@ -83,12 +83,14 @@ Decide which historical sequence a former member may view, whether local records
 
 Do not place 100,000 UIDs into one `/channel` or `subscriber_add` JSON request. Use a product-owned coordinator:
 
-```text
-business membership snapshot/version
-  -> read next bounded UID batch
-  -> POST subscriber_add or subscriber_remove
-  -> persist checkpoint and result
-  -> retry/reconcile until desired == observed
+```mermaid
+flowchart TD
+  Snapshot["Product membership snapshot / version"] --> Batch["Read the next bounded UID batch"]
+  Batch --> Update["POST subscriber_add or subscriber_remove"]
+  Update --> Checkpoint["Persist checkpoint and result"]
+  Checkpoint --> Reconcile{"Desired state equals observed state?"}
+  Reconcile -->|no| Batch
+  Reconcile -->|yes| Done["Synchronization complete"]
 ```
 
 - Use bounded application batches of hundreds to roughly one thousand UIDs, then tune from request bytes, latency, and error rate. Do not treat an internal chunk default as a permanent public API maximum.

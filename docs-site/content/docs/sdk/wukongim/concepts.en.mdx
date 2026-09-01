@@ -40,8 +40,19 @@ A `Conversation` is **one item in the chat list**. It usually contains a Channel
 
 A `Provider` is a callback supplied by your application. When the SDK needs a Channel profile, message history, or conversation data, it invokes the provider. Your app requests that data from the product backend and returns the result to the SDK.
 
-```text
-SDK calls provider → app requests backend → app returns data → SDK updates local state and listeners
+```mermaid
+sequenceDiagram
+  participant SDK
+  participant Provider
+  participant App
+  participant Backend as Product backend
+  SDK->>Provider: request data
+  Provider->>App: call the app implementation
+  App->>Backend: request authoritative product data
+  Backend-->>App: return result
+  App-->>Provider: complete callback
+  Provider-->>SDK: deliver result
+  SDK->>SDK: update local state and notify listeners
 ```
 
 Always complete a provider callback, even when the result is empty or the request failed. Otherwise the SDK may wait indefinitely.

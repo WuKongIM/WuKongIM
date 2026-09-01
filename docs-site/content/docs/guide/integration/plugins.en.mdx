@@ -21,12 +21,14 @@ WuKongIM v3 Beta can extend message paths and host RPC through local `.wkp` proc
 
 ## Lifecycle
 
-```text
-local plugin directory
-  -> plugin process starts and calls /plugin/start
-  -> server validates observed manifest
-  -> merge node-local desired enable/config state
-  -> running + enabled + advertised method = hook candidate
+```mermaid
+flowchart TD
+  Directory["Local plugin directory"] --> Start["Plugin process starts and calls /plugin/start"]
+  Start --> Validate["Server validates the observed manifest"]
+  Validate --> Merge["Merge node-local desired enable and config state"]
+  Merge --> Candidate{"Running, enabled, and advertises the method?"}
+  Candidate -->|yes| Hook["Hook candidate"]
+  Candidate -->|no| Inactive["Excluded from Hook calls"]
 ```
 
 When Manager updates configuration, an existing secret represented by `SecretHidden` is preserved, and returned details redact secrets. A running plugin that advertises `ConfigUpdate` receives a synchronous configuration update call. Uninstall first writes disabled desired state, then stops and removes the local process.

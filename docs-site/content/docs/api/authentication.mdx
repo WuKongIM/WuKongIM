@@ -7,9 +7,11 @@ Product HTTP 面向受信后端；浏览器通过 SDK 连接 Gateway，或通过
 
 ## 信任边界
 
-```text
-浏览器 -> 同源 BFF -> Product HTTP
-浏览器 + SDK -> Gateway
+```mermaid
+flowchart LR
+  Browser["浏览器"] -->|同源请求| BFF["同源 BFF"]
+  BFF -->|受信服务请求| ProductHTTP["Product HTTP"]
+  Browser -->|SDK 长连接| Gateway["Gateway"]
 ```
 
 浏览器只应获得当前连接所需的 UID、临时 Token 和 WebSocket 地址，不应获得 Product HTTP 地址或服务端凭据。

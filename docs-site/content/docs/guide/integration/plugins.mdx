@@ -21,12 +21,14 @@ WuKongIM v3 Beta 支持以本地 `.wkp` 进程扩展消息路径和 Host RPC。�
 
 ## 生命周期
 
-```text
-local plugin directory
-  -> plugin process starts and calls /plugin/start
-  -> server validates observed manifest
-  -> merge node-local desired enable/config state
-  -> running + enabled + advertised method = hook candidate
+```mermaid
+flowchart TD
+  Directory["本地插件目录"] --> Start["插件进程启动并调用 /plugin/start"]
+  Start --> Validate["服务端校验观测到的 manifest"]
+  Validate --> Merge["合并节点本地启用与配置期望状态"]
+  Merge --> Candidate{"进程运行、已启用且声明该方法？"}
+  Candidate -->|是| Hook["成为 Hook 候选"]
+  Candidate -->|否| Inactive["不参与 Hook 调用"]
 ```
 
 Manager 更新配置时会保留被 `SecretHidden` 占位的已有 secret，返回详情时对 secret 脱敏。运行中且声明 `ConfigUpdate` 的插件会收到同步配置更新调用。Uninstall 先写 disabled desired state，再停止并移除本地进程。

@@ -16,28 +16,18 @@ Presence Authority 不保存真实 TCP Session，也不把在线路由写入 Slo
 
 ## 连接激活
 
-```text
-client CONNECT on node B
-       │
-       ▼
-Gateway creates SessionHandle
-       │
-       ▼
-online.RegisterPending(LocalSession)
-       │
-       ▼
-UID ──hash──► physical hash slot ──► current Slot Leader
-       │
-       ▼
-Presence Authority.RegisterRoute(exact target)
-       │
-       ├─ conflict ──► owner action (kick / close) ──► CommitRoute
-       │
-       ▼
-online.MarkActive(session)
-       │
-       ▼
-CONNACK / session available for delivery
+```mermaid
+flowchart TD
+  Connect["client CONNECT on node B"] --> Handle["Gateway 创建 SessionHandle"]
+  Handle --> Pending["online.RegisterPending(LocalSession)"]
+  Pending --> UID["UID"]
+  UID -->|hash| Hash["physical hash slot"] --> Leader["current Slot Leader"]
+  Leader --> Register["Presence Authority.RegisterRoute(exact target)"]
+  Register --> Conflict{"存在设备冲突？"}
+  Conflict -->|是| Action["owner action: kick / close"] --> Route["CommitRoute"]
+  Conflict -->|否| Active
+  Route --> Active["online.MarkActive(session)"]
+  Active --> Ready["CONNACK / Session 可用于投递"]
 ```
 
 激活先注册本地 pending Session，再向当前 UID authority 注册 route。注册失败会回滚本地状态；有设备冲突时，旧 owner action 必须被确认，pending route 才能 commit。最后 `MarkActive` 再检查 Session 仍存在，避免 authority 已注册但本地连接已关闭的竞态。

@@ -16,20 +16,12 @@ Scaling normally moves replicas or Leaders of logical Slot Groups without changi
 
 ## From a key to the authoritative Leader
 
-```text
-key (UID / Channel ID / metadata key)
-  │
-  ├─ CRC32(key) % 256
-  ▼
-physical hash slot
-  │
-  ├─ versioned HashToSlot table
-  ▼
-logical Slot Raft Group
-  │
-  ├─ observed Raft status
-  ▼
-LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision
+```mermaid
+flowchart TD
+  Key["key (UID / Channel ID / metadata key)"]
+  Key -->|CRC32(key) % 256| Hash["physical hash slot"]
+  Hash -->|versioned HashToSlot table| Group["logical Slot Raft Group"]
+  Group -->|observed Raft status| Target["LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision"]
 ```
 
 The route table is an immutable snapshot replaced atomically, so hot paths can resolve many keys under one version. Missing routes, mappings, or observed Leaders return not-ready or unknown instead of falling back to an arbitrary node.

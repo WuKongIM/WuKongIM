@@ -5,12 +5,12 @@ description: Handle CONNECT, CONNACK, heartbeat, close, and recovery against the
 
 ## Establish a connection
 
-```text
-Transport open
-  -> CONNECT (sole first packet)
-  -> authentication and Session activation
-  -> CONNACK
-  -> active
+```mermaid
+stateDiagram-v2
+  [*] --> Authenticating: open Transport and send CONNECT (sole first packet)
+  Authenticating --> Active: authenticate, activate Session, CONNACK succeeds
+  Authenticating --> Closed: CONNACK fails or cannot be written
+  Active --> Closed: disconnect or close
 ```
 
 - `CONNECT` must be the sole first packet. A batch tail or another packet while authentication is pending closes the connection.

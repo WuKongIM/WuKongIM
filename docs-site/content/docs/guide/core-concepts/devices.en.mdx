@@ -46,11 +46,16 @@ When one device clears unread state, another device may observe the new value du
 
 ## A typical device lifecycle
 
-1. The product backend selects the UID, Device Flag, Device ID, and connection policy for this user and installation.
-2. The client connects, and the server associates that Session with the user and device.
-3. While online, the Session exchanges messages in realtime; it expires after disconnection.
-4. Reconnect creates a new Session and recovers missing content from persistent message progress.
-5. On logout or device removal, the product revokes credentials, closes connections, and removes push bindings.
+```mermaid
+stateDiagram-v2
+  [*] --> Provisioned: backend assigns UID, device identity, and connection policy
+  Provisioned --> Online: connect and associate the Session
+  Online --> Disconnected: network loss or connection close
+  Disconnected --> Online: create a new Session and recover missing messages
+  Online --> Removed: logout or device removal
+  Disconnected --> Removed: logout or device removal
+  Removed --> [*]: revoke credentials, close connections, remove push bindings
+```
 
 <Callout type="warn" title="A trusted backend controls multi-device policy">
   A client cannot promote its own Device Level. The current v3 Beta default Gateway also does not automatically turn stored token and Device Level metadata into a complete verification chain. Include this policy in your [release checks](/en/guide/integration/acceptance).

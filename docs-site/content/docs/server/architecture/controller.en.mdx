@@ -16,24 +16,15 @@ Only nodes explicitly promoted to Controller voter participate in this Raft Grou
 
 ## Commit and materialization order
 
-```text
-Controller command
-      │
-      ▼
-Controller Raft proposal
-      │
-      ▼
-persist WAL ──► send Raft messages ──► committed entries
-                                            │
-                                            ▼
-                                    FIFO apply scheduler
-                                            │
-                              semantic batch + one atomic save
-                                            │
-                         cluster-state.json + memory snapshot
-                                            │
-                                            ▼
-                                  persist AppliedRaftIndex
+```mermaid
+flowchart TD
+  Command["Controller command"] --> Proposal["Controller Raft proposal"]
+  Proposal --> WAL["Persist WAL"]
+  WAL --> Messages["Send Raft messages"] --> Commit["Committed entries"]
+  Commit --> Apply["FIFO apply scheduler"]
+  Apply --> Batch["Semantic batch + one atomic save"]
+  Batch --> State["cluster-state.json + memory snapshot"]
+  State --> Index["Persist AppliedRaftIndex"]
 ```
 
 The Controller Raft WAL is authoritative for committed commands and applied-boundary metadata. `cluster-state.json` is the materialized view of current business state. Startup loads that view, or restores it from a Raft snapshot, and then replays the committed WAL suffix after the materialized applied index.

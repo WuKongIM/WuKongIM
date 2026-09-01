@@ -75,11 +75,19 @@ JSON 中的 `payload` 是 Base64。`msg.offline` 在 UID 数量较小时使用 `
 
 推荐的接收端流程：
 
-1. 验证网络来源和入口身份。
-2. 限制请求体大小并解析 `event` 白名单。
-3. 把原始事件与幂等键写入自己的持久化队列。
-4. 持久化成功后尽快返回 HTTP 200。
-5. 在后台执行业务逻辑，并用可重试状态机记录结果。
+```mermaid
+flowchart TD
+  Receive["接收 Webhook"] --> Verify{"网络来源与入口身份有效？"}
+  Verify -->|否| Reject["拒绝请求"]
+  Verify -->|是| Validate{"请求体大小与 event 白名单有效？"}
+  Validate -->|否| Reject
+  Validate -->|是| Persist["在一个事务中持久化原始事件、幂等键与队列项"]
+  Persist --> Response["尽快返回 HTTP 200"]
+  Persist --> Worker["后台 Worker 执行业务逻辑"]
+  Worker --> Result{"处理成功？"}
+  Result -->|否，预算内| Worker
+  Result -->|是| Done["记录终态"]
+```
 
 建议幂等键：
 

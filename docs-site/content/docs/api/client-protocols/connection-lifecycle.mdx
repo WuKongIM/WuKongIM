@@ -5,12 +5,12 @@ description: 按当前 Gateway 实现处理 CONNECT、CONNACK、心跳、关闭�
 
 ## 建立连接
 
-```text
-Transport open
-  -> CONNECT（唯一首包）
-  -> 鉴权与 Session activation
-  -> CONNACK
-  -> active
+```mermaid
+stateDiagram-v2
+  [*] --> Authenticating: 打开 Transport 并发送 CONNECT（唯一首包）
+  Authenticating --> Active: 鉴权、激活 Session、CONNACK 成功
+  Authenticating --> Closed: CONNACK 失败或写入失败
+  Active --> Closed: 断开或关闭
 ```
 
 - `CONNECT` 必须是唯一首包；同批携带其他包或鉴权等待期间再发包都会关闭连接。

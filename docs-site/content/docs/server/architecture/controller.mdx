@@ -16,24 +16,15 @@ Controller 是低频集群意图的权威：节点成员关系、逻辑 Slot Gro
 
 ## 提交与物化顺序
 
-```text
-Controller 命令
-      │
-      ▼
-Controller Raft proposal
-      │
-      ▼
-WAL 持久化 ──► Raft 消息发送 ──► committed entries
-                                      │
-                                      ▼
-                              FIFO apply scheduler
-                                      │
-                          批量语义应用 + 一次原子保存
-                                      │
-                     cluster-state.json + 内存快照
-                                      │
-                                      ▼
-                            持久化 AppliedRaftIndex
+```mermaid
+flowchart TD
+  Command["Controller 命令"] --> Proposal["Controller Raft proposal"]
+  Proposal --> WAL["WAL 持久化"]
+  WAL --> Messages["Raft 消息发送"] --> Commit["committed entries"]
+  Commit --> Apply["FIFO apply scheduler"]
+  Apply --> Batch["批量语义应用 + 一次原子保存"]
+  Batch --> State["cluster-state.json + 内存快照"]
+  State --> Index["持久化 AppliedRaftIndex"]
 ```
 
 Controller Raft WAL 是已提交命令和应用边界的权威来源；`cluster-state.json` 是当前业务状态的物化快照。启动时先加载或从 Raft snapshot 恢复物化状态，再重放物化应用索引之后的已提交 WAL 后缀。

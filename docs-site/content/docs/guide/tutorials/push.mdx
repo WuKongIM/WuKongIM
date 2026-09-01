@@ -9,14 +9,14 @@ description: 用离线 Webhook、业务 Outbox 和推送厂商完成可恢复的
   `msg.offline` 是离线候选信号，不是 APNs、FCM 或厂商送达回执。不要把 SENDACK、Webhook HTTP 200 或厂商受理当成用户已经看到通知。
 </Callout>
 
-```text
-durable message -> Channel quorum commit -> SENDACK
-                           |
-                           +-> online Session delivery
-                           |
-                           +-> no UID route -> msg.offline Webhook
-                                                -> product outbox
-                                                -> APNs / FCM / vendor
+```mermaid
+flowchart LR
+  Message["持久消息"] --> Commit["Channel quorum commit"] --> SENDACK
+  Commit -.-> Online["在线 Session 投递"]
+  Commit -.-> Route{"存在 UID 在线路由？"}
+  Route -->|否| Webhook["msg.offline Webhook"]
+  Webhook --> Outbox["业务 Outbox"] --> Push["APNs / FCM / 厂商通道"]
+  Route -->|是| Online
 ```
 
 ## 1. 准备业务侧设备数据

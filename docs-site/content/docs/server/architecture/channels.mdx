@@ -24,27 +24,17 @@ Slot Leader 与 Channel Leader 可以位于不同节点。前者提交频道元�
 
 ## 频道写入与复制
 
-```text
-AppendBatch (同一个 Channel，保持请求顺序)
-       │
-       ▼
-解析并应用最新 ChannelRuntimeMeta
-       │
-       ├─ 本节点不是 Channel Leader ──► 转发到 Leader
-       │
-       ▼
-Leader reactor admission + epoch/write-fence 检查
-       │
-       ▼
-本地 durable append ──► followers Pull / Apply / ACK
-       │                          │
-       └──────────── ISR progress ┘
-                        │
-                        ▼
-                 HW 达到追加序号
-                        │
-                        ▼
-                Append Future 成功
+```mermaid
+flowchart TD
+  Batch["AppendBatch（同一 Channel，保持请求顺序）"] --> Meta["解析并应用最新 ChannelRuntimeMeta"]
+  Meta --> Leader{"本节点是 Channel Leader？"}
+  Leader -->|否| Forward["转发到 Leader"] --> Admission
+  Leader -->|是| Admission["Leader reactor admission + epoch / write-fence 检查"]
+  Admission --> Append["本地 durable append"]
+  Append --> Replicate["followers Pull / Apply / ACK"]
+  Append --> Progress["本地进度"]
+  Replicate --> Progress["ISR progress"]
+  Progress --> HW["HW 达到追加序号"] --> Future["Append Future 成功"]
 ```
 
 公开的持久化发送路径使用 quorum commit：只有 Channel Leader 的提交高水位（HW）覆盖本次记录，追加才成功。单节点集群的 `MinISR=1` 仍走同一状态机和 durable append。

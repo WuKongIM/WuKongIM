@@ -9,14 +9,14 @@ This tutorial turns a committed message into a mobile notification. WuKongIM ide
   `msg.offline` is an offline-candidate signal, not an APNs, FCM, or provider delivery receipt. A SENDACK, webhook HTTP 200, or provider acceptance does not prove that the user saw a notification.
 </Callout>
 
-```text
-durable message -> Channel quorum commit -> SENDACK
-                           |
-                           +-> online Session delivery
-                           |
-                           +-> no UID route -> msg.offline webhook
-                                                -> product outbox
-                                                -> APNs / FCM / vendor
+```mermaid
+flowchart LR
+  Message["Durable message"] --> Commit["Channel quorum commit"] --> SENDACK
+  Commit -.-> Online["Online Session delivery"]
+  Commit -.-> Route{"UID online route exists?"}
+  Route -->|no| Webhook["msg.offline webhook"]
+  Webhook --> Outbox["Product outbox"] --> Push["APNs / FCM / vendor"]
+  Route -->|yes| Online
 ```
 
 ## 1. Prepare product-owned device data

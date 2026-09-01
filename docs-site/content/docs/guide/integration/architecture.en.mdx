@@ -5,18 +5,17 @@ description: Divide responsibilities and data flow across the product service, W
 
 A reliable integration separates the product control plane from the messaging data plane. The product service decides who may do what; the WuKongIM cluster moves and stores messages in real time and in channel order.
 
-```text
-End-user app + client SDK
-  -> Product service: sign in; obtain UID, device, and session settings
-  -> WuKongIM HTTP API: GET /route (address discovery only)
-  -> WuKongIM Gateway: CONNECT / SEND / RECVACK
-
-Product service
-  -> WuKongIM HTTP API: trusted server-side sends and mutations
-
-WuKongIM Gateway <-> WuKongIM cluster
-  -> Product webhook endpoint: async, bounded, best effort
-  -> Durable product queue and handlers: after receiver persistence
+```mermaid
+flowchart LR
+  Client["End-user app + client SDK"] -->|sign in| Product["Product service"]
+  Product -->|UID, device, and session settings| Client
+  Product -->|GET /route, trusted sends and mutations| HTTP["WuKongIM HTTP API"]
+  HTTP -->|ingress addresses| Client
+  Client -->|CONNECT / SEND / RECVACK| Gateway["WuKongIM Gateway"]
+  HTTP --> Cluster["WuKongIM cluster"]
+  Gateway <--> Cluster
+  Cluster -.->|async, bounded, best effort| Webhook["Product webhook endpoint"]
+  Webhook -->|after persistence| Queue["Durable product queue and handlers"]
 ```
 
 ## Responsibility split
@@ -32,11 +31,22 @@ Every deployment is a cluster. A one-node deployment is a single-node cluster; i
 
 ## Session bootstrap
 
-1. The app authenticates with the product service through your login mechanism.
-2. The product service returns a stable UID, device identity, and connection settings allowed for that environment.
-3. The trusted backend calls `GET /route` and receives `tcp_addr`, `ws_addr`, and `wss_addr`.
-4. The SDK selects an available ingress and sends CONNECT to negotiate protocol version and encryption material.
-5. Only after connection success does it send product messages. Connection state is not product authorization state.
+```mermaid
+sequenceDiagram
+  participant App as End-user app
+  participant Product as Product service
+  participant HTTP as WuKongIM HTTP API
+  participant Gateway as Gateway
+  App->>Product: authenticate with the product login
+  Product->>HTTP: GET /route
+  HTTP-->>Product: tcp_addr / ws_addr / wss_addr
+  Product-->>App: UID, device, token, and connection settings
+  App->>Gateway: CONNECT (protocol and encryption material)
+  Gateway-->>App: successful CONNACK
+  App->>Gateway: send product messages
+```
+
+Connection state is not product authorization state.
 
 <Callout type="info" title="Route discovery is not authentication">
   The current `/route` endpoint returns configured ingress addresses and does not validate the UID's product permissions. The ability to discover a route is not proof of authorization.

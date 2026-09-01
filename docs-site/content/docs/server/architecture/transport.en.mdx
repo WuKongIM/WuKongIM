@@ -16,23 +16,17 @@ HTTP API and Manager are separate service entries again. Do not treat client tok
 
 ## Node transport structure
 
-```text
-caller
-  │
-  ├─ Call(node, service, payload) ──► RPC request / response
-  ├─ Send(node, service, payload) ──► one-way notification
-  └─ Raft / replication adapter ────► ordered service lane
-                 │
-                 ▼
-        peer discovery + connection pool
-                 │
-        bounded per-connection scheduler
-                 │
-                 ▼
-           framed TCP connection
-                 │
-                 ▼
-      remote service queue + bounded executor
+```mermaid
+flowchart TD
+  Caller["Caller"] -->|Call(node, service, payload)| RPC["RPC request / response"]
+  Caller -->|Send(node, service, payload)| Notify["One-way notification"]
+  Caller -->|Raft / replication adapter| Lane["Ordered service lane"]
+  RPC --> Pool["Peer discovery + connection pool"]
+  Notify --> Pool
+  Lane --> Pool
+  Pool --> Scheduler["Bounded per-connection scheduler"]
+  Scheduler --> TCP["Framed TCP connection"]
+  TCP --> Executor["Remote service queue + bounded executor"]
 ```
 
 Each frame carries kind, priority, service ID, request ID, and body length. Cluster adapters assign fixed service IDs to Controller Raft, Slot Raft, state sync, Channel replication, foreground append, online owner push, and other bounded capabilities. Generic Transport does not interpret business payloads.

@@ -16,28 +16,18 @@ Presence Authority does not hold concrete TCP Sessions or write online routes in
 
 ## Connection activation
 
-```text
-client CONNECT on node B
-       │
-       ▼
-Gateway creates SessionHandle
-       │
-       ▼
-online.RegisterPending(LocalSession)
-       │
-       ▼
-UID ──hash──► physical hash slot ──► current Slot Leader
-       │
-       ▼
-Presence Authority.RegisterRoute(exact target)
-       │
-       ├─ conflict ──► owner action (kick / close) ──► CommitRoute
-       │
-       ▼
-online.MarkActive(session)
-       │
-       ▼
-CONNACK / session available for delivery
+```mermaid
+flowchart TD
+  Connect["Client CONNECT on node B"] --> Handle["Gateway creates SessionHandle"]
+  Handle --> Pending["online.RegisterPending(LocalSession)"]
+  Pending --> UID["UID"]
+  UID -->|hash| Hash["Physical hash slot"] --> Leader["Current Slot Leader"]
+  Leader --> Register["Presence Authority.RegisterRoute(exact target)"]
+  Register --> Conflict{"Device conflict?"}
+  Conflict -->|yes| Action["Owner action: kick / close"] --> Route["CommitRoute"]
+  Conflict -->|no| Active
+  Route --> Active["online.MarkActive(session)"]
+  Active --> Ready["CONNACK / Session available for delivery"]
 ```
 
 Activation registers a local pending Session before registering its route with the current UID authority. Registration failure rolls back local state. Device conflicts require acknowledged old-owner actions before the pending route can commit. The final `MarkActive` rechecks that the Session still exists, closing the race where authority accepted a route after the local connection disappeared.

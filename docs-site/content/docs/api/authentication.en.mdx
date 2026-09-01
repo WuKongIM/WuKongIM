@@ -7,9 +7,11 @@ Product HTTP is for trusted backends. Browsers connect to Gateway through the SD
 
 ## Trust boundaries
 
-```text
-browser -> same-origin BFF -> Product HTTP
-browser + SDK -> Gateway
+```mermaid
+flowchart LR
+  Browser["Browser"] -->|same-origin request| BFF["Same-origin BFF"]
+  BFF -->|trusted service request| ProductHTTP["Product HTTP"]
+  Browser -->|SDK long-lived connection| Gateway["Gateway"]
 ```
 
 The browser should receive only the UID, temporary token, and WebSocket address needed for its current connection. It must not receive the Product HTTP address or a server credential.

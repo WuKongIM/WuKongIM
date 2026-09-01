@@ -7,34 +7,21 @@ description: 跟踪持久化消息从 Gateway 进入、权限检查、权威追�
 
 ## 完整链路
 
-```text
-1. client SEND
-      │
-      ▼
-2. Gateway frame adapter
-      │  normalize + map protocol DTO
-      ▼
-3. message use case
-      │  permission / system UID / plugin BeforeSend
-      ▼
-4. channelappend Router
-      │  resolve exact Channel authority
-      ├──────── non-authority node ─────► Channel Append RPC
-      ▼                                      │
-5. authority-local single writer ◄───────────┘
-      │  validate, idempotency, message ID, bounded admission
-      ▼
-6. pkg/cluster Channel service
-      │  apply current meta / forward to Channel Leader
-      ▼
-7. Channel Leader durable append + ISR replication + HW commit
-      │
-      ├────────► 8. SENDACK success
-      │
-      └────────► 9. post-commit effects
-                    subscriber paging + presence lookup
-                    owner-node online delivery
-                    PersistAfter plugin / webhook
+```mermaid
+flowchart TD
+  Send["1. client SEND"] --> Adapter["2. Gateway frame adapter"]
+  Adapter -->|normalize + map protocol DTO| Usecase["3. message use case"]
+  Usecase -->|权限 / system UID / plugin BeforeSend| Router["4. channelappend Router"]
+  Router -->|解析精确 Channel authority| Local{"当前节点是 authority？"}
+  Local -->|否| RPC["Channel Append RPC"] --> Writer
+  Local -->|是| Writer["5. authority-local single writer"]
+  Writer -->|校验、幂等、message ID、有界准入| Cluster["6. pkg/cluster Channel service"]
+  Cluster -->|应用最新元数据 / 转发到 Channel Leader| Commit["7. Leader durable append + ISR replication + HW commit"]
+  Commit --> Ack["8. SENDACK success"]
+  Commit -.-> Effects["9. 提交后副作用"]
+  Effects --> Subscribers["订阅者分页 + presence 查询"]
+  Effects --> Delivery["owner-node 在线投递"]
+  Effects --> Hooks["PersistAfter plugin / Webhook"]
 ```
 
 ## 1. Gateway 入口

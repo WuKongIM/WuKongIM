@@ -1,52 +1,59 @@
 ---
 title: Use Cases
-description: Decide how chat, notifications, customer service, live interaction, IoT, and AI communication fit WuKongIM.
+description: Decide whether WuKongIM fits chat, notifications, customer service, and extended messaging scenarios.
 ---
 
-WuKongIM fits products that need many long-lived connections, per-Channel ordering, durable messages, offline synchronization, or multi-device state. It provides the communication foundation; the application still owns identity, relationships, and business workflows.
+WuKongIM is best suited to products that need real-time connections, per-channel message order, durable history, reconnect recovery, or multi-device synchronization. It provides messaging infrastructure while the application retains identity, relationships, permissions, and complete business workflows.
 
-## Scenarios and responsibilities
+## Core scenarios
 
-| Scenario | Recommended WuKongIM capabilities | The application still owns |
-| --- | --- | --- |
-| Direct and group chat | Person/group Channels, durable messages, multi-device Sessions, conversations, and offline sync | Friendship/group relationships, content moderation, accounts, and product authorization |
-| Large groups and communities | Large-group markers, paged membership, bounded fanout, and hot-Channel observation | Membership lifecycle, tiered push policy, capacity tests, and hotspot management |
-| Notifications and system messages | System UIDs, durable Channel messages, online delivery, and offline recovery | Preferences, templates, rate limits, and mobile push such as APNs or FCM |
-| Customer service | Agent/visitor relationships, Channel messaging, webhooks, or plugins | Queues, assignment, tickets, quality controls, and sensitive-data governance |
-| Live interaction | Custom Channels, high connection density, and workload-tested online fanout | Room lifecycle, gifts/abuse policy, degradation, and hotspot partitioning |
-| IoT and signaling | Stable UID/device identity, bidirectional Channels, and command-style realtime messages | Device registry, command authorization, state shadow, timeout, and compensation |
-| AI communication | Durable base messages, message-event projections, and plugin- or service-generated replies | Model calls, flow control, safety, cost, and durable final-result storage |
+| Scenario | Capability and responsibility boundary |
+| --- | --- |
+| Direct chat, group chat, and communities | WuKongIM: Personal and group channels, durable messages, online delivery, offline recovery, and multi-device synchronization.<br />Application: Accounts, friend or group relationships, membership lifecycle, content governance, and mobile push. |
+| Notifications and system messages | WuKongIM: System identities, durable messages, online delivery, and offline recovery.<br />Application: Preferences, templates, rate limits, business receipts, and mobile push such as APNs or FCM. |
+| Customer service | WuKongIM: Messages between visitors and agents, plus webhook or plugin extension points.<br />Application: Waiting queues, assignment, tickets, quality controls, and sensitive-data governance. |
+
+## Extended scenarios
+
+| Scenario | Capability and responsibility boundary |
+| --- | --- |
+| Live interaction | WuKongIM: Custom channels, real-time messages, and workload-validated online delivery.<br />Application: Room lifecycle, gifts and abuse controls, degradation policy, and hotspot management. |
+| IoT and signaling | WuKongIM: Stable user or device identities, bidirectional messaging, and reconnect recovery.<br />Application: Device registry, command authorization, state shadow, timeout, and compensation. |
+| AI messaging workflows | WuKongIM: Durable base messages, message events, and server-side extension points.<br />Application: Model calls, flow control, content safety, cost, and durable final results. |
 
 ## Two common integration shapes
 
 ### Client messaging product
 
-```text
-client SDK <-> WuKongIM Gateway
-     |               |
-     +-> business API+-> Channel commit / sync / delivery
-             |
-             +-> accounts, relationships, policy, mobile push
+```mermaid
+flowchart TD
+  SDK["Client SDK"] <--> WK["WuKongIM"]
+  SDK <--> API["Application API"]
+  API <--> WK
+  API --> Product["Business data and rules"]
 ```
 
-The SDK keeps the connection and restores offline messages. The business API manages accounts, relationships, and policy. Product HTTP APIs should not be exposed directly to untrusted clients.
+The client SDK connects to WuKongIM, receives real-time messages, and restores offline messages. The application API manages accounts, relationships, permissions, and mobile push. Protected server APIs should not be exposed directly to untrusted clients.
 
 ### Server events and device communication
 
-A trusted service or plugin sends an event to a Channel, and clients or devices consume the committed message. Business actions need their own idempotency key, timeout, authorization, and result state; SENDACK does not mean the business action completed.
+A trusted service sends an event to a channel, and clients or devices consume it through long-lived connections and synchronization. Command authorization, timeouts, business results, and compensation remain application concerns; a successful message write does not mean that the business action completed.
 
-## Prefer durable messages by default
+## When to choose another system
 
-Use durable messages when reconnect recovery, audit, or reliable replay matters. Plain non-command `NoPersist` only returns compatibility success and does not dispatch realtime delivery. Command-style `NoPersist` can enter realtime delivery, but still has no sequence or offline recovery. Neither branch is appropriate for business events that must arrive reliably.
+| Requirement | Usually a better fit |
+| --- | --- |
+| Low-frequency background work or scheduled jobs | Task queue |
+| General cross-domain event streams and offline processing | Message queue or stream-processing platform |
+| Long-term aggregation, search, and analytics | Analytical database or data platform |
 
-## Validate before launch
+These systems can complement WuKongIM. The distinction is that WuKongIM centers on users, devices, and channels that stay connected and exchange real-time messages.
 
-1. Build a workload model from real Channel counts, online users, payload sizes, replica counts, and group sizes.
-2. Test ordinary Channels, hot Channels, large-group fanout, reconnect sync, and mobile-network disruption separately.
-3. Verify rejection and degradation behavior for Gateway, Channel, delivery, webhook, and plugin queues.
-4. Record P99, error rate, backlog, CPU, memory, disk, and network rather than only average QPS.
-5. State which outcomes SENDACK guarantees and which still require a business acknowledgement or compensation.
+## How to validate
 
-If a product only needs low-frequency background jobs, a global transactional queue, or offline batch processing—and not connections, Channel ordering, or synchronization—a dedicated task queue or database may be a better fit.
+Start with the [Quick Start](/en/guide/quick-start) to run a single-node cluster and send the first message. During integration, read [Messaging Integration](/en/guide/integration/messaging). Before launch, complete [Integration Acceptance](/en/guide/integration/acceptance) and the [Production Checklist](/en/server/deployment/production-checklist), then use [`wkbench`](/en/server/tools/wkbench) to validate capacity with a representative workload.
 
-Continue with [Core Capabilities](/en/guide/product-overview/capabilities) or [Integration Architecture](/en/guide/integration/architecture).
+<Cards>
+  <Card title="Try it" description="Start a single-node cluster and send the first message." href="/en/guide/quick-start" />
+  <Card title="Integration Architecture" description="Design the boundaries between clients, the application backend, and WuKongIM." href="/en/guide/integration/architecture" />
+</Cards>

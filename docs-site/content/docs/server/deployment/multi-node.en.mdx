@@ -1,32 +1,29 @@
 ---
 title: Multi-node Cluster
-description: Plan identities, addresses, replicas, storage, startup, and readiness for a static multi-node cluster.
+description: Plan membership, replicas, failure domains, and acceptance for a WuKongIM multi-node cluster.
 ---
 
-The value of a multi-node deployment comes from replicas across failure domains, not process count. Nodes share one artifact and cluster inventory while keeping unique identities, independent state, and reachable transport addresses.
+The value of multiple nodes comes from **replicas across failure domains**, not process count. Every node uses the same artifact and member inventory, while keeping a unique identity, independent storage, and a reachable transport address.
 
-```text
-                 Clients / product services
-                           |
-               TLS and controlled load balancing
-                    /      |      \
-                Node 1   Node 2   Node 3
-                    \      |      /
-                  private node transport
-
-          Disk/failure domain 1, 2, and 3 (independent)
+```mermaid
+flowchart TD
+  Client["Clients / product services"] --> Edge["TLS and controlled load balancing"]
+  Edge --> Node1["Node 1<br/>independent disk / failure domain 1"]
+  Edge --> Node2["Node 2<br/>independent disk / failure domain 2"]
+  Edge --> Node3["Node 3<br/>independent disk / failure domain 3"]
+  Node1 <--> Transport["Private node transport"]
+  Node2 <--> Transport
+  Node3 <--> Transport
 ```
 
-## Static cluster inventory
+## 1. Prepare one shared member inventory
 
-All three node configurations must contain the same ordered node inventory:
+Every node uses the same cluster ID, hash-slot count, replica counts, and ordered member inventory:
 
 ```toml
 [cluster]
 id = "prod-im-a"
 listen_addr = "0.0.0.0:7000"
-join_token = "inject from a secret system"
-initial_slot_count = 10
 hash_slot_count = 256
 slot_replica_n = 3
 channel_replica_n = 3
@@ -37,50 +34,33 @@ nodes = [
 ]
 ```
 
-`listen_addr` is the local bind address; `nodes[].addr` is what peers actually dial. Do not put `0.0.0.0`, loopback, short-lived Pod IPs, or names resolvable only on one host into a production inventory.
+`listen_addr` is the local bind address; `nodes[].addr` is what peers actually dial. Never put `0.0.0.0`, loopback, or a name resolvable on only one host in the member inventory. The effective join token must also match on every node.
 
-<Callout type="warn" title="Three nodes and three replicas have no node headroom">
-  With `slot_replica_n = 3`, `channel_replica_n = 3`, and only three eligible data nodes, losing any node makes the write readiness probe fail because placement candidates fall below the replica count. The other nodes return `503` from `/readyz`. A remaining Raft majority is not the same as being ready for the full new-write workload. If the failure objective requires three-replica placement after one node is lost, provide at least four eligible data nodes and still validate routing, capacity, and recovery behavior.
-</Callout>
-
-Set per node:
-
-```toml
-[node]
-id = 1 # nodes 2 and 3 use 2 and 3
-data_dir = "/var/lib/wukongim"
-
-[api]
-listen_addr = "0.0.0.0:5001"
-external_tcp_addr = "im.example.com:5100"
-external_wss_addr = "wss://im.example.com/ws"
-```
-
-A shared load-balancer address can appear in every node's `external_*` fields. If addresses are node-specific, every value must be reachable from the intended client network.
-
-## Shared and unique values
+Set node ID, data directory, and advertised addresses separately on each node. See [Nodes & Cluster configuration](/en/server/configuration/cluster) for the complete field reference.
 
 | Must match | Must be unique |
 | --- | --- |
-| Cluster ID, node inventory, hash-slot count | Node ID |
-| Replica policy, protocol, and artifact version | Data directory and persistent volume |
-| Effective join token | Transport listener instance and advertised address |
-| Production security and observability policy | Node-level logs, metric identity, and failure domain |
+| Cluster ID, member inventory, hash-slot count | Node ID |
+| Replica policy and artifact version | Data directory, persistent volume, and failure domain |
+| Effective join token | Transport instance and node-level observability identity |
 
-After data exists, do not casually change cluster ID, node IDs, hash-slot count, or replica settings. Joining, migration, scale-out, and scale-in are controlled operations, not a TOML edit followed by restarting every node.
+<Callout type="warn" title="Three nodes and three replicas have no node headroom">
+  With three nodes, `slot_replica_n = 3`, and `channel_replica_n = 3`, losing any node leaves too few candidates for new writes and the other nodes return `503` from `/readyz`. Provide at least four eligible data nodes if one node may be lost while retaining three replica candidates.
+</Callout>
 
-## Before startup
+## 2. Check before startup
 
-1. Confirm that every node uses the same artifact digest and configuration version.
-2. Verify bidirectional connectivity to every peer's transport port `7000`.
-3. Verify that API, Gateway, and Manager listeners do not conflict and that external addresses are reachable from consumer networks.
-4. Mount and inspect each node's independent persistent disk, including capacity, permissions, and alerts.
-5. Replace fixed credentials, disable benchmark/debug, and restrict Manager, metrics, and diagnostics networks.
-6. Start services after every node is prepared; the three-node, three-replica example on this page needs all three nodes available to pass the full write-readiness probe.
+1. Every node uses the same artifact digest and configuration version.
+2. Nodes have bidirectional access to transport port `7000` over a protected private network.
+3. Each node has an independent persistent disk with capacity, permissions, and alerts configured.
+4. Advertised addresses are reachable from client networks; Manager, metrics, and diagnostics remain on controlled networks.
+5. Fixed credentials are replaced, and benchmark and debug are disabled in production.
 
-## Readiness and traffic
+After data exists, do not casually change cluster ID, node IDs, hash-slot count, or replica settings. Joining, migration, and scale-in are controlled operations.
 
-Check every node independently:
+## 3. Verify and admit traffic
+
+Check every node:
 
 ```bash
 curl --fail http://10.0.0.11:5001/readyz
@@ -88,16 +68,24 @@ curl --fail http://10.0.0.12:5001/readyz
 curl --fail http://10.0.0.13:5001/readyz
 ```
 
-Only nodes returning `200` with `{"ready":true}` belong in API/Gateway backend pools. `/healthz` is not a substitute. After rollout, also verify:
+Only nodes returning `200` with `{"ready":true}` belong in backend pools. Then complete three acceptance checks:
 
 - `/route` returns addresses that clients can actually reach;
-- all three nodes appear in Manager/metrics with no duplicate identities;
 - one end-to-end message completes send, persistence, receive, and reconnect sync;
-- stopping one node in pre-production produces a recorded `/readyz` status and `reason` that match the capacity and failure objectives;
-- routing and replica state return to expectations after the node recovers.
+- stopping one node in pre-production produces a recorded `/readyz` status and `reason`, and routing and replicas return to expectations after recovery.
 
-## Compose proves configuration, not production
+## Advanced: repository three-node environment
 
-The repository `docker-compose.yml` and `docker/conf/node*.toml` are executable three-node development references for inventory, ports, readiness, and observability. Their fixed credentials, benchmark/debug capabilities, same-host containers, and local directories do not prove independent failure domains, production security, or capacity.
+`docker-compose.yml` and `docker/conf/node*.toml` can verify the member inventory, ports, readiness, and observability surface:
 
-Before traffic cutover, finish the [Production Checklist](/en/server/deployment/production-checklist).
+```bash
+docker compose up -d --build
+docker compose ps
+curl --fail http://127.0.0.1:15001/readyz
+curl --fail http://127.0.0.1:15002/readyz
+curl --fail http://127.0.0.1:15003/readyz
+```
+
+It uses same-host containers, local directories, fixed credentials, and development capabilities. It proves that the configuration runs, not independent failure domains, production security, or capacity.
+
+Finish the [Production Checklist](/en/server/deployment/production-checklist) before traffic cutover.

@@ -7,15 +7,15 @@ Most product systems use both a long-lived client connection and a trusted serve
 
 ## Client message path
 
-```text
-SDK SEND
-  -> Gateway
-  -> message permission checks
-  -> resolve channel append authority
-  -> durable Channel append
-  -> SENDACK
-  -> post-commit online delivery
-  -> receiver RECV + RECVACK
+```mermaid
+flowchart LR
+  SDK["SDK SEND"] --> Gateway
+  Gateway --> Permission["Message permission checks"]
+  Permission --> Authority["Resolve Channel append authority"]
+  Authority --> Commit["Durable Channel commit"]
+  Commit --> Ack["SENDACK"]
+  Commit -.->|post-commit| Delivery["Online delivery"]
+  Delivery --> Receive["Receiver RECV / RECVACK"]
 ```
 
 Important semantics:
@@ -91,10 +91,15 @@ A failure in these effects does not undo the durable message. Business actions t
 
 The client SDK should own connection state, backoff, and message synchronization:
 
-1. Retain the last acknowledged or displayed channel sequence.
-2. Rediscover a route after disconnect instead of caching a failed node indefinitely.
-3. Run the SDK-supported message synchronization after CONNECT succeeds again.
-4. Merge results by message identity and channel sequence while tolerating duplicate delivery.
-5. Send RECVACK after processing received messages.
+```mermaid
+flowchart TD
+  Save["Retain the last acknowledged or displayed Channel sequence"] --> Disconnect["Connection closes"]
+  Disconnect --> Route["Rediscover the Gateway route"]
+  Route --> Connect["CONNECT again"]
+  Connect --> Sync["Synchronize missing durable messages"]
+  Sync --> Merge["Merge and deduplicate by identity and Channel sequence"]
+  Merge --> Ack["Send RECVACK after processing"]
+  Ack --> Save
+```
 
 Next, configure [Webhooks](/en/guide/integration/webhooks) to move asynchronous product events into a durable business-processing path.

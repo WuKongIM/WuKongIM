@@ -25,11 +25,20 @@ Retries run immediately inside the admitted job, with **no backoff or delay**. A
 
 ## Receiver contract
 
-1. Allowlist the three event names and bound body size and rate.
-2. Persist the raw event, idempotency key, and durable queue entry in your own transaction.
-3. Return `200` promptly after persistence; run business work asynchronously.
-4. Deduplicate `msg.notify` with `event + message_idstr`; add UID for `msg.offline` recipient work.
-5. Reconcile presence by product policy and tolerate missing, duplicate, and out-of-order transitions.
+```mermaid
+flowchart TD
+  Request["Webhook request"] --> Guard{"Valid event, body size, and rate?"}
+  Guard -->|no| Reject["Reject"]
+  Guard -->|yes| Persist["Persist raw event, idempotency key, and durable queue in one transaction"]
+  Persist --> Response["Return HTTP 200 promptly"]
+  Persist --> Type{"Event type"}
+  Type -->|msg.notify| Message["Deduplicate by event + message_idstr"]
+  Type -->|msg.offline| Offline["Also deduplicate recipient work by UID"]
+  Type -->|user.onlinestatus| Presence["Tolerate missing, duplicate, and out-of-order transitions"]
+  Message --> Async["Asynchronous product work"]
+  Offline --> Async
+  Presence --> Async
+```
 
 Critical product state must remain reconstructable from the product database or message history.
 

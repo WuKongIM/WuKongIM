@@ -16,20 +16,12 @@ Slot 层是分布式元数据存储。用户、频道定义、订阅关系、UID
 
 ## 从键到权威 Leader
 
-```text
-key（UID / Channel ID / 业务元数据键）
-  │
-  ├─ CRC32(key) % 256
-  ▼
-physical hash slot
-  │
-  ├─ versioned HashToSlot table
-  ▼
-logical Slot Raft Group
-  │
-  ├─ observed Raft status
-  ▼
-LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision
+```mermaid
+flowchart TD
+  Key["key（UID / Channel ID / 业务元数据键）"]
+  Key -->|CRC32(key) % 256| Hash["physical hash slot"]
+  Hash -->|versioned HashToSlot table| Group["logical Slot Raft Group"]
+  Group -->|observed Raft status| Target["LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision"]
 ```
 
 路由表是不可变快照并原子替换，热路径可以在同一个版本下批量解析多个键。路由失败、映射缺失或没有实际 Leader 时返回 not-ready/unknown，而不是回退到任意节点。

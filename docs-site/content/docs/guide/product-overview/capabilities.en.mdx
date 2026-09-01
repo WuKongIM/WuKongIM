@@ -1,49 +1,52 @@
 ---
 title: Core Capabilities
-description: Understand the access, messaging, cluster, state, and operations capabilities currently provided by WuKongIM v3.
+description: Understand WuKongIM's real-time access, reliable messaging, multi-device synchronization, clustering, and operations.
 ---
 
-WuKongIM is Channel-oriented realtime communication infrastructure. It combines client access, per-Channel ordered messaging, distributed metadata, online routing, and operations under one cluster model.
+WuKongIM combines real-time connections, message persistence, offline recovery, and multi-device synchronization in one cluster. Applications organize messages for people, groups, or product-specific topics through channels, while the application backend retains control of identity, relationships, and product rules.
 
-<Callout type="warn" title="Capabilities are not capacity promises">
-  v3 is still Beta. Hardware, storage, replica count, Channel distribution, online fanout, and latency objectives all change effective capacity. This page documents semantics rather than a context-free maximum QPS.
+<Callout type="info" title="Capacity must be validated">
+  WuKongIM is designed for large-scale connection and messaging workloads, but there is no useful capacity number without hardware, storage, replica, and workload assumptions. Validate throughput, latency, and resource headroom with representative traffic.
 </Callout>
 
 ## Capability map
 
-| Area | Current capability | Important boundary |
-| --- | --- | --- |
-| Client access | TCP WKProto, WKProto/JSON-RPC over WebSocket, connection lifecycle, and bounded async dispatch | Gateway owns protocol and Session mechanics, not business permission or Channel authority |
-| Messaging | Person, group, and custom Channels; ordered append, durable replication, idempotency, offline sync, and message-event projections | Ordering is per Channel; commit and online delivery are separate |
-| Channel policy | Subscribers, denylist, allowlist, ban, disband, stranger policy, and system users | The business service still owns product relationships and content governance |
-| User state | UID, device metadata, multi-device Sessions, distributed presence, and online routing | Concrete Sessions exist only on the connection-owner node |
-| Conversations | Membership-backed recent views, badge floor, and delete visibility | A conversation is built at sync time, not persisted as a row |
-| Cluster | Controller, 256 physical hash slots, logical Slot Raft Groups, Channel replicas, and failover | Every deployment is a cluster; a single-node cluster uses the same paths |
-| Extensions | HTTP webhooks, node-local `.wkp` plugins, Send/Receive/PersistAfter hooks, and host RPC | Webhooks and post-commit hooks are not durable message queues |
-| Operations | Manager, readiness, Prometheus, diagnostics, `wkcli`, `wkdb`, and `wkbench` | Mutations must respect authoritative state and safety fences |
+| Capability | Outcome and boundary |
+| --- | --- |
+| Real-time access | Supports TCP WKProto, WebSocket, connection lifecycle, and bounded asynchronous processing. Boundary: A trusted application backend still establishes production identity, tokens, and product permissions. |
+| Reliable messaging | Provides ordered messages for personal, group, and custom channels, with durable replication, retry deduplication, and offline synchronization. Boundary: Ordering is per channel; a successful write does not prove receipt, read, or business completion. |
+| Multi-device state | Provides device sessions, presence, recent conversations, read positions, and unread state. Boundary: Application accounts and relationship data remain authoritative in the application backend. |
+| Clustering and scale | Uses the same model for single-node and multi-node clusters, with 256 physical hash slots for routing, replicas, and failover. Boundary: Scale depends on channel distribution, hotspots, storage, and representative workload. |
+| Extensions and operations | Provides webhooks, plugins, readiness, Prometheus, diagnostics, Manager, and command-line tools. Boundary: Webhooks and post-commit extensions are not durable queues; operational changes must respect safety boundaries. |
 
-## Messaging semantics
+## Understanding message outcomes
 
-A durable SEND appends at the Channel authority and waits for quorum durable commit before acknowledgement. Online delivery, webhooks, and post-commit plugins run later; their failure cannot roll back an already committed Channel log. Conversation views are constructed later from membership and Channel state.
+A default durable message is acknowledged after it reaches the corresponding durable commit boundary. Online delivery, offline synchronization, business processing, and read state happen later; none of those later outcomes can be inferred from "send succeeded" alone.
 
-```text
-client -> Gateway -> message usecase -> Channel authority
-                                      -> durable commit -> SENDACK
-                                                        -> post-commit effects
+```mermaid
+flowchart TD
+  Sender["Client or business service"] --> Commit["Per-channel persistence"]
+  Commit --> Online["Online delivery"]
+  Commit --> Sync["Offline and multi-device sync"]
+  Online --> Product["Business handling and read state"]
+  Sync --> Product
 ```
 
-Applications should retain a stable `client_msg_no` and make retry decisions from the returned outcome. Server message ID, per-Channel `message_seq`, and client message number are different concepts.
+An integration should define separate tests for sent, delivered, read, and business-complete outcomes. See [Messaging Integration](/en/guide/integration/messaging) and [Message Flags](/en/api/dictionaries/message-flags) for precise acknowledgement, retry, and non-persistent behavior.
 
-## Designed for scale
+## Principles for scale
 
-- Ordering is per Channel, not global across all Channels.
-- A 100,000-member group pages members and creates bounded delivery plans instead of loading the complete membership into one hot-path request.
-- Gateway, Channel, delivery, and plugin work use bounded queues and backpressure. A larger queue increases worst-case wait; it does not replace capacity planning.
-- High Channel cardinality is controlled through on-demand activation and idle eviction; durable messages do not depend on a runtime staying loaded.
-- Performance conclusions should record throughput, P99, errors, queues, CPU, memory, disk, and network together.
+- Ordering is scoped to a channel, so unrelated channels do not share one global ordering bottleneck.
+- Connections, message processing, and delivery use bounded queues and backpressure. Overload becomes visible as backlog or rejection instead of unbounded memory growth.
+- Large groups, hot channels, and reconnect spikes need separate workload models; average QPS does not describe worst-case latency or recovery.
+- Capacity results should record throughput, P99, error rate, queues, CPU, memory, disk, and network together. See [`wkbench`](/en/server/tools/wkbench) for the measurement workflow.
 
 ## What the application must provide
 
-WuKongIM does not replace account login, product authorization, friendship or group business rules, content moderation, mobile platform push, the business database, or analytics. A typical business service issues identity credentials, maintains product relationships, calls protected server APIs, and consumes asynchronous events idempotently.
+WuKongIM does not replace account login, friendship or group rules, product authorization, content moderation, mobile push, the business database, or analytics. A trusted application backend issues credentials, maintains product relationships, calls protected server APIs, and interprets asynchronous events according to its own business outcomes.
 
-Continue with [Use Cases](/en/guide/product-overview/use-cases) to choose an architecture pattern, or enter [Core Concepts](/en/guide/core-concepts) for the shared vocabulary.
+<Cards>
+  <Card title="Try it" description="Start a single-node cluster and send the first message." href="/en/guide/quick-start" />
+  <Card title="Use Cases" description="See how these capabilities fit chat, notifications, customer service, and extended scenarios." href="/en/guide/product-overview/use-cases" />
+  <Card title="System Architecture" description="Explore cluster authority, routing, and the internal message path." href="/en/server/architecture" />
+</Cards>

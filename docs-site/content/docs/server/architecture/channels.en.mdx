@@ -24,27 +24,17 @@ The Slot Leader and Channel Leader can be different nodes. The former commits ch
 
 ## Channel write and replication
 
-```text
-AppendBatch (one Channel, request order preserved)
-       │
-       ▼
-resolve and apply current ChannelRuntimeMeta
-       │
-       ├─ local node is not Channel Leader ──► forward to Leader
-       │
-       ▼
-Leader reactor admission + epoch/write-fence checks
-       │
-       ▼
-local durable append ──► followers Pull / Apply / ACK
-       │                          │
-       └──────────── ISR progress ┘
-                        │
-                        ▼
-                 HW covers append
-                        │
-                        ▼
-                Append Future succeeds
+```mermaid
+flowchart TD
+  Batch["AppendBatch (one Channel, request order preserved)"] --> Meta["Resolve and apply current ChannelRuntimeMeta"]
+  Meta --> Leader{"Is the local node Channel Leader?"}
+  Leader -->|no| Forward["Forward to Leader"] --> Admission
+  Leader -->|yes| Admission["Leader reactor admission + epoch / write-fence checks"]
+  Admission --> Append["Local durable append"]
+  Append --> Replicate["Followers Pull / Apply / ACK"]
+  Append --> Progress["Local progress"]
+  Replicate --> Progress["ISR progress"]
+  Progress --> HW["HW covers append"] --> Future["Append Future succeeds"]
 ```
 
 The public durable send path uses quorum commit: append succeeds only when the Channel Leader's high watermark covers the records. A single-node cluster with `MinISR=1` still uses the same state machine and durable append.

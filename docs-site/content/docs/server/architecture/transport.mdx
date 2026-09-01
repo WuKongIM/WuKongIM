@@ -16,23 +16,17 @@ HTTP API 与 Manager 又是独立的服务入口。不要把客户端 Token、Ma
 
 ## 节点间传输结构
 
-```text
-调用方
-  │
-  ├─ Call(node, service, payload) ──► RPC request / response
-  ├─ Send(node, service, payload) ──► one-way notification
-  └─ Raft / replication adapter ────► ordered service lane
-                 │
-                 ▼
-        peer discovery + connection pool
-                 │
-        bounded per-connection scheduler
-                 │
-                 ▼
-           framed TCP connection
-                 │
-                 ▼
-      remote service queue + bounded executor
+```mermaid
+flowchart TD
+  Caller["调用方"] -->|Call(node, service, payload)| RPC["RPC request / response"]
+  Caller -->|Send(node, service, payload)| Notify["one-way notification"]
+  Caller -->|Raft / replication adapter| Lane["ordered service lane"]
+  RPC --> Pool["peer discovery + connection pool"]
+  Notify --> Pool
+  Lane --> Pool
+  Pool --> Scheduler["bounded per-connection scheduler"]
+  Scheduler --> TCP["framed TCP connection"]
+  TCP --> Executor["remote service queue + bounded executor"]
 ```
 
 每个 frame 带有 kind、priority、service ID、request ID 和 body length。Cluster adapter 把 Controller Raft、Slot Raft、状态同步、Channel 复制、前台 append、在线 owner push 等能力分配到固定 service ID；通用 Transport 不解释业务 payload。

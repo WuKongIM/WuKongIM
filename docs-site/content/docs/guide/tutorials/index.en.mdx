@@ -29,14 +29,12 @@ Scenario tutorials begin with a product outcome and connect the product service,
 
 ## Shared success model
 
-```text
-product authorization / membership state
-        |
-        v
-SDK SEND or trusted HTTP send
-        -> Channel quorum commit -> SENDACK / reason=1
-        -> online delivery / webhook / plugin
-        -> reconnect sync from the durable log
+```mermaid
+flowchart TD
+  Policy["Product authorization / membership state"] --> Send["SDK SEND or trusted HTTP send"]
+  Send --> Commit["Channel quorum commit"] --> Ack["SENDACK / reason=1"]
+  Commit -.-> Effects["Online delivery / webhook / plugin"]
+  Commit -.-> Recovery["Reconnect sync from the durable log"]
 ```
 
 Treat “message committed,” “one Session received online delivery,” “the user's unread projection changed,” and “the business action completed” as four different outcomes. Strong business consistency belongs in the product service with its database, idempotency keys, and compensation workflow.

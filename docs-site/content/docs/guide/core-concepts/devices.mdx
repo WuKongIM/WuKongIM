@@ -46,11 +46,16 @@ Device Level 用于描述同一 UID、同一设备类别下的连接冲突策略
 
 ## 设备的一次典型使用过程
 
-1. 业务后端为当前用户和安装确定 UID、Device Flag、Device ID 与连接策略。
-2. 客户端建立连接，服务端把这次 Session 关联到对应用户和设备。
-3. 在线期间，该 Session 实时收发消息；断网后连接失效。
-4. 客户端重连时创建新 Session，并从持久消息进度恢复缺失内容。
-5. 用户退出或移除设备时，业务系统撤销凭据、关闭连接并清理推送绑定。
+```mermaid
+stateDiagram-v2
+  [*] --> Provisioned: 后端分配 UID、设备身份与连接策略
+  Provisioned --> Online: 建立连接并关联 Session
+  Online --> Disconnected: 断网或连接关闭
+  Disconnected --> Online: 创建新 Session 并恢复缺失消息
+  Online --> Removed: 退出或移除设备
+  Disconnected --> Removed: 退出或移除设备
+  Removed --> [*]: 撤销凭据、关闭连接、清理推送绑定
+```
 
 <Callout type="warn" title="多端策略由受信后端控制">
   客户端不能自行选择更高的 Device Level。当前 v3 Beta 的默认 Gateway 也不会自动把已保存的 Token 与 Device Level 变成完整校验链路；请把这项策略纳入[上线检查](/zh/guide/integration/acceptance)。

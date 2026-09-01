@@ -25,11 +25,20 @@ description: 投递成功、有限重试、丢失与重复边界以及生产网�
 
 ## 接收端合同
 
-1. 只允许三个已知 `event` 值，并限制请求体大小与速率。
-2. 在自己的事务中写入原始事件、幂等键和持久队列。
-3. 持久化成功后尽快返回 `200`，业务逻辑异步执行。
-4. `msg.notify` 可用 `event + message_idstr` 去重；`msg.offline` 还要按 UID 去重。
-5. Presence 应按业务规则收敛，并允许缺失、重复和乱序，而不是依赖完整过渡序列。
+```mermaid
+flowchart TD
+  Request["Webhook 请求"] --> Guard{"event、请求体大小与速率有效？"}
+  Guard -->|否| Reject["拒绝"]
+  Guard -->|是| Persist["事务写入原始事件、幂等键和持久队列"]
+  Persist --> Response["尽快返回 HTTP 200"]
+  Persist --> Type{"事件类型"}
+  Type -->|msg.notify| Message["按 event + message_idstr 去重"]
+  Type -->|msg.offline| Offline["再按 UID 去重接收者工作"]
+  Type -->|user.onlinestatus| Presence["允许缺失、重复、乱序并按业务规则收敛"]
+  Message --> Async["异步业务处理"]
+  Offline --> Async
+  Presence --> Async
+```
 
 关键业务状态必须能从业务数据库或消息历史重建。
 

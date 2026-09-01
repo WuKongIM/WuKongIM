@@ -49,12 +49,23 @@ Gateway 当前仍会：
 
 ## 推荐的生产流程
 
-1. 用户使用密码、OAuth、企业 SSO 或其他机制登录业务服务。
-2. 业务服务验证账号状态、租户、设备和风险策略。
-3. 业务服务生成短生命周期、高熵、可撤销的会话 Token。
-4. 只有受信业务服务可以访问用户 Token 管理接口。
-5. 在发布生产版本前，把 Gateway Token 校验接入同一可信存储或身份服务，并添加端到端拒绝测试。
-6. 客户端只接收自己的 UID、设备参数、路由和 Token，不获得服务端管理凭据。
+```mermaid
+sequenceDiagram
+  participant Client as 客户端
+  participant Product as 业务服务
+  participant Identity as 可信身份存储
+  participant Gateway as Gateway
+  Client->>Product: 密码 / OAuth / 企业 SSO 登录
+  Product->>Product: 校验账号、租户、设备与风险策略
+  Product->>Identity: 保存短生命周期、可撤销的高熵 Token
+  Product-->>Client: 仅返回 UID、设备参数、路由与 Token
+  Client->>Gateway: CONNECT + Token
+  Gateway->>Identity: 验证 Token 与撤销状态
+  Identity-->>Gateway: 允许或拒绝
+  Gateway-->>Client: CONNACK
+```
+
+只有受信业务服务可以访问用户 Token 管理接口；发布生产版本前还必须添加端到端拒绝测试。
 
 ## 撤销与退出
 

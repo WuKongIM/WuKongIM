@@ -29,14 +29,12 @@ description: 把身份、Channel、消息、会话与规模约束组合成可落
 
 ## 所有教程共用的成功模型
 
-```text
-业务授权 / 成员状态
-        |
-        v
-SDK SEND 或受信 HTTP send
-        -> Channel quorum commit -> SENDACK / reason=1
-        -> 在线投递 / Webhook / 插件
-        -> 重连后按持久日志同步
+```mermaid
+flowchart TD
+  Policy["业务授权 / 成员状态"] --> Send["SDK SEND 或受信 HTTP send"]
+  Send --> Commit["Channel quorum commit"] --> Ack["SENDACK / reason=1"]
+  Commit -.-> Effects["在线投递 / Webhook / 插件"]
+  Commit -.-> Recovery["重连后按持久日志同步"]
 ```
 
 把“消息已提交”“某个 Session 已在线收到”“用户会话未读已更新”和“业务动作已完成”作为四种不同结果。需要强一致业务结果时，由业务服务使用自己的数据库、幂等键和补偿流程完成。

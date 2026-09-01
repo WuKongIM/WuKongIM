@@ -49,12 +49,23 @@ Session encryption protects protocol payloads, but it does not replace product a
 
 ## Recommended production flow
 
-1. The user signs in to the product service with a password, OAuth, enterprise SSO, or another product mechanism.
-2. The product service validates account state, tenant, device, and risk policy.
-3. The product service creates a high-entropy, short-lived, revocable session token.
-4. Only trusted product services may access user-token management routes.
-5. Before release, wire Gateway token verification to the same trusted store or identity service and add end-to-end rejection tests.
-6. The client receives only its own UID, device parameters, route, and token—not server management credentials.
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Product as Product service
+  participant Identity as Trusted identity store
+  participant Gateway
+  Client->>Product: sign in with password / OAuth / enterprise SSO
+  Product->>Product: validate account, tenant, device, and risk policy
+  Product->>Identity: store a short-lived, revocable, high-entropy token
+  Product-->>Client: return only UID, device parameters, route, and token
+  Client->>Gateway: CONNECT + token
+  Gateway->>Identity: verify token and revocation state
+  Identity-->>Gateway: allow or reject
+  Gateway-->>Client: CONNACK
+```
+
+Only trusted product services may access user-token management routes. Add end-to-end rejection tests before production release.
 
 ## Revocation and logout
 

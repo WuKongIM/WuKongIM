@@ -75,11 +75,19 @@ The counts cover active sessions on the UID owner's current node only. They are 
 
 Recommended receiver flow:
 
-1. Verify network origin and ingress identity.
-2. Limit body size and allowlist the `event` value.
-3. Persist the raw event and an idempotency key to your own durable queue.
-4. Return HTTP 200 promptly after persistence.
-5. Run business logic asynchronously with a retryable state machine.
+```mermaid
+flowchart TD
+  Receive["Receive webhook"] --> Verify{"Valid network origin and ingress identity?"}
+  Verify -->|no| Reject["Reject request"]
+  Verify -->|yes| Validate{"Body size and event allowlist valid?"}
+  Validate -->|no| Reject
+  Validate -->|yes| Persist["Persist raw event, idempotency key, and queue item in one transaction"]
+  Persist --> Response["Return HTTP 200 promptly"]
+  Persist --> Worker["Background worker runs product logic"]
+  Worker --> Result{"Succeeded?"}
+  Result -->|no, within budget| Worker
+  Result -->|yes| Done["Record terminal state"]
+```
 
 Suggested idempotency keys:
 

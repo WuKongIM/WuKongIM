@@ -11,27 +11,20 @@ WuKongIM 把低频集群意图、分片元数据、有序消息日志和高频�
 
 ## 架构地图
 
-```text
-客户端 TCP / WebSocket
-        │
-        ▼
-Gateway ──► 消息用例 ──► Channel Append Authority
-                              │
-                              ▼
-                    Channel Leader + ISR
-                              │
-                  quorum durable commit
-                              │
-                  SENDACK ─────┴─────► 提交后副作用
-                                       │
-                         在线投递 / Webhook / 插件
-
-Controller Raft ──► cluster-state.json ──► 路由快照
-                                               │
-键 ──CRC32──► 256 个物理哈希槽 ──► 逻辑 Slot Raft Group
-                                               │
-                                               ▼
-                                      分布式元数据与权威路由
+```mermaid
+flowchart TB
+  subgraph MessagePlane["消息数据面"]
+    Client["客户端 TCP / WebSocket"] --> Gateway --> Usecase["消息用例"]
+    Usecase --> Authority["Channel Append Authority"] --> Channel["Channel Leader + ISR"]
+    Channel --> Commit["quorum durable commit"] --> SENDACK
+    Commit -.-> Effects["在线投递 / Webhook / 插件"]
+  end
+  subgraph ControlPlane["控制与元数据面"]
+    Controller["Controller Raft"] --> State["cluster-state.json"] --> Routes["路由快照"]
+    Key["键"] -->|CRC32| Hash["256 个物理哈希槽"] --> Slot["逻辑 Slot Raft Group"]
+    Routes --> Slot --> Metadata["分布式元数据与权威路由"]
+  end
+  Metadata -.->|约束写入权威| Authority
 ```
 
 这张图包含两条不同的链路：Controller 与 Slot 提供控制和元数据权威，Channel 提供消息日志权威。在线投递发生在消息提交之后，不属于 Channel 的 quorum commit。

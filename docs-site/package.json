@@ -23,6 +23,7 @@
     "@fumadocs/language": "0.2.4",
     "@orama/orama": "^3.1.18",
     "@orama/tokenizers": "^3.1.18",
+    "beautiful-mermaid": "1.1.3",
     "cnfast": "^0.0.8",
     "fumadocs-core": "16.13.0",
     "fumadocs-mdx": "15.2.0",

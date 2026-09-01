@@ -11,27 +11,20 @@ WuKongIM places low-frequency cluster intent, sharded metadata, ordered message 
 
 ## Architecture map
 
-```text
-Client TCP / WebSocket
-        │
-        ▼
-Gateway ──► message use case ──► Channel Append Authority
-                                  │
-                                  ▼
-                        Channel Leader + ISR
-                                  │
-                      quorum durable commit
-                                  │
-                      SENDACK ─────┴─────► post-commit effects
-                                           │
-                         online delivery / webhook / plugin
-
-Controller Raft ──► cluster-state.json ──► routing snapshot
-                                               │
-key ──CRC32──► 256 physical hash slots ──► logical Slot Raft Group
-                                               │
-                                               ▼
-                                 distributed metadata and authority routing
+```mermaid
+flowchart TB
+  subgraph MessagePlane["Message data plane"]
+    Client["Client TCP / WebSocket"] --> Gateway --> Usecase["Message use case"]
+    Usecase --> Authority["Channel Append Authority"] --> Channel["Channel Leader + ISR"]
+    Channel --> Commit["Quorum durable commit"] --> SENDACK
+    Commit -.-> Effects["Online delivery / webhook / plugin"]
+  end
+  subgraph ControlPlane["Control and metadata plane"]
+    Controller["Controller Raft"] --> State["cluster-state.json"] --> Routes["Routing snapshot"]
+    Key["Key"] -->|CRC32| Hash["256 physical hash slots"] --> Slot["Logical Slot Raft Group"]
+    Routes --> Slot --> Metadata["Distributed metadata and authority routing"]
+  end
+  Metadata -.->|constrains write authority| Authority
 ```
 
 The diagram contains two distinct paths: Controller and Slot provide control and metadata authority, while Channel provides message-log authority. Online delivery runs after commit and is not part of Channel quorum commit.

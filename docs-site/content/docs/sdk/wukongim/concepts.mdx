@@ -40,8 +40,19 @@ SDK 用“频道”统一表示单聊、群聊和其他消息目标。
 
 数据提供器（`Provider`）是 SDK 留给应用的回调。当 SDK 缺少频道资料、历史消息或会话数据时，会调用 Provider；你的 App 再向业务后端请求数据，并把结果交还给 SDK。
 
-```text
-SDK 调用 Provider → App 请求业务后端 → App 把结果交给 SDK → SDK 更新本地数据和监听器
+```mermaid
+sequenceDiagram
+  participant SDK
+  participant Provider
+  participant App
+  participant Backend as 业务后端
+  SDK->>Provider: 请求数据
+  Provider->>App: 调用应用实现
+  App->>Backend: 请求权威业务数据
+  Backend-->>App: 返回结果
+  App-->>Provider: 完成回调
+  Provider-->>SDK: 交付结果
+  SDK->>SDK: 更新本地数据并通知监听器
 ```
 
 Provider 必须在回调完成后返回结果，即使结果为空或请求失败，也不要让 SDK 一直等待。

@@ -83,12 +83,14 @@ curl -sS http://127.0.0.1:5001/channel/messagesync \
 
 不要把十万 UID 放入一次 `/channel` 或 `subscriber_add` JSON 请求。推荐使用业务侧协调器：
 
-```text
-business membership snapshot/version
-  -> read next bounded UID batch
-  -> POST subscriber_add or subscriber_remove
-  -> persist checkpoint and result
-  -> retry/reconcile until desired == observed
+```mermaid
+flowchart TD
+  Snapshot["业务成员快照 / 版本"] --> Batch["读取下一批有界 UID"]
+  Batch --> Update["POST subscriber_add 或 subscriber_remove"]
+  Update --> Checkpoint["持久化检查点与结果"]
+  Checkpoint --> Reconcile{"期望状态等于观测状态？"}
+  Reconcile -->|否| Batch
+  Reconcile -->|是| Done["同步完成"]
 ```
 
 - 使用几百到约一千 UID 的有界应用批次，并按实际请求大小、延迟和错误率调节；不要把内部 chunk 默认值当作永久 API 上限。

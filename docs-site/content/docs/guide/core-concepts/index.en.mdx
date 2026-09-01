@@ -17,14 +17,17 @@ You do not need to understand nodes, Raft, or data sharding before integrating W
 
 Consider Alice sending a message to Bob:
 
-```text
-Alice (user) sends a message from her phone (device)
-                         ↓
-            The message enters a direct channel
-                         ↓
-  Bob's online devices receive it; offline devices sync later
-                         ↓
-      Alice and Bob each see the chat in their conversation list
+```mermaid
+flowchart TD
+  Send["Alice (user) sends from her phone (device)"]
+  Channel["The message enters a direct Channel"]
+  Delivery{"Is Bob's device online?"}
+  Online["Online devices receive it in realtime"]
+  Offline["Offline devices synchronize it later"]
+  Conversations["Alice and Bob see the updated conversation"]
+  Send --> Channel --> Delivery
+  Delivery -->|yes| Online --> Conversations
+  Delivery -->|no| Offline --> Conversations
 ```
 
 For a group chat, the channel changes from a direct target to a group ID and its members. The basic relationship among users, devices, messages, and conversations stays the same.

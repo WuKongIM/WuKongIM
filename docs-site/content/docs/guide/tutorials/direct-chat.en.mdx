@@ -11,15 +11,23 @@ This tutorial uses `alice` and `bob`. The target outcome is that both endpoints 
 - Understand the current Beta limits in [Authentication](/en/guide/integration/authentication).
 - Run HTTP examples only locally or inside a protected product-service network.
 
-```text
-Alice product session                         Bob product session
-        |                                             |
-        +-> SDK CONNECT -> Gateway       Gateway <- CONNECT <-+
-        |                                             |
-        +-> SEND peer=bob, type=1                    |
-                    -> canonical person Channel      |
-                    -> quorum commit -> SENDACK       |
-                    -> Bob RECV / offline sync -------+
+```mermaid
+sequenceDiagram
+  participant Alice as Alice product Session
+  participant Gateway
+  participant Channel as Canonical direct Channel
+  participant Bob as Bob product Session
+  Alice->>Gateway: SDK CONNECT
+  Bob->>Gateway: SDK CONNECT
+  Alice->>Gateway: SEND peer=bob, type=1
+  Gateway->>Channel: canonicalize and append
+  Channel-->>Alice: SENDACK after quorum commit
+  alt Bob is online
+    Channel-->>Bob: RECV
+  else Bob is offline
+    Bob->>Channel: synchronize after reconnect
+    Channel-->>Bob: missing messages
+  end
 ```
 
 ## 1. Establish product identities

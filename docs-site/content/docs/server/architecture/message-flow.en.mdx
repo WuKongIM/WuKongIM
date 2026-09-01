@@ -7,34 +7,21 @@ A durable SEND crosses entry adaptation, business permissions, Channel authority
 
 ## Complete flow
 
-```text
-1. client SEND
-      │
-      ▼
-2. Gateway frame adapter
-      │  normalize + map protocol DTO
-      ▼
-3. message use case
-      │  permission / system UID / plugin BeforeSend
-      ▼
-4. channelappend Router
-      │  resolve exact Channel authority
-      ├──────── non-authority node ─────► Channel Append RPC
-      ▼                                      │
-5. authority-local single writer ◄───────────┘
-      │  validate, idempotency, message ID, bounded admission
-      ▼
-6. pkg/cluster Channel service
-      │  apply current meta / forward to Channel Leader
-      ▼
-7. Channel Leader durable append + ISR replication + HW commit
-      │
-      ├────────► 8. SENDACK success
-      │
-      └────────► 9. post-commit effects
-                    subscriber paging + presence lookup
-                    owner-node online delivery
-                    PersistAfter plugin / webhook
+```mermaid
+flowchart TD
+  Send["1. Client SEND"] --> Adapter["2. Gateway frame adapter"]
+  Adapter -->|normalize + map protocol DTO| Usecase["3. Message use case"]
+  Usecase -->|permission / system UID / plugin BeforeSend| Router["4. channelappend Router"]
+  Router -->|resolve exact Channel authority| Local{"Is this node the authority?"}
+  Local -->|no| RPC["Channel Append RPC"] --> Writer
+  Local -->|yes| Writer["5. Authority-local single writer"]
+  Writer -->|validate, idempotency, message ID, bounded admission| Cluster["6. pkg/cluster Channel service"]
+  Cluster -->|apply current metadata / forward to Channel Leader| Commit["7. Leader durable append + ISR replication + HW commit"]
+  Commit --> Ack["8. SENDACK success"]
+  Commit -.-> Effects["9. Post-commit effects"]
+  Effects --> Subscribers["Subscriber paging + presence lookup"]
+  Effects --> Delivery["Owner-node online delivery"]
+  Effects --> Hooks["PersistAfter plugin / webhook"]
 ```
 
 ## 1. Gateway ingress

@@ -17,14 +17,17 @@ description: 用消息、频道、用户、设备和会话五个概念，理解 
 
 以 Alice 给 Bob 发消息为例：
 
-```text
-Alice（用户）在手机（设备）上发送一条消息
-                     ↓
-              消息进入单聊频道
-                     ↓
-      Bob 的在线设备实时接收，离线设备稍后同步
-                     ↓
-       Alice 和 Bob 各自在会话列表中看到这次聊天
+```mermaid
+flowchart TD
+  Send["Alice（用户）从手机（设备）发送消息"]
+  Channel["消息进入单聊频道"]
+  Delivery{"Bob 的设备在线吗？"}
+  Online["在线设备实时接收"]
+  Offline["离线设备稍后同步"]
+  Conversations["Alice 和 Bob 的会话列表更新"]
+  Send --> Channel --> Delivery
+  Delivery -->|是| Online --> Conversations
+  Delivery -->|否| Offline --> Conversations
 ```
 
 如果换成群聊，变化的主要是频道：频道 ID 变成群 ID，接收范围变成群成员。用户、设备、消息和会话的基本关系不变。

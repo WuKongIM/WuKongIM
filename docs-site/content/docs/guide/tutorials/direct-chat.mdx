@@ -11,15 +11,23 @@ description: 实现两个用户之间的持久消息、在线投递、离线同�
 - 理解[身份认证](/zh/guide/integration/authentication)的当前 Beta 限制。
 - HTTP 示例只能在本地或受保护的业务服务网络中执行。
 
-```text
-Alice product session                         Bob product session
-        |                                             |
-        +-> SDK CONNECT -> Gateway       Gateway <- CONNECT <-+
-        |                                             |
-        +-> SEND peer=bob, type=1                    |
-                    -> canonical person Channel      |
-                    -> quorum commit -> SENDACK       |
-                    -> Bob RECV / offline sync -------+
+```mermaid
+sequenceDiagram
+  participant Alice as Alice 业务 Session
+  participant Gateway
+  participant Channel as 规范化单聊 Channel
+  participant Bob as Bob 业务 Session
+  Alice->>Gateway: SDK CONNECT
+  Bob->>Gateway: SDK CONNECT
+  Alice->>Gateway: SEND peer=bob, type=1
+  Gateway->>Channel: 规范化并提交
+  Channel-->>Alice: quorum commit 后 SENDACK
+  alt Bob 在线
+    Channel-->>Bob: RECV
+  else Bob 离线
+    Bob->>Channel: 重连后同步
+    Channel-->>Bob: 缺失消息
+  end
 ```
 
 ## 1. 建立业务身份
