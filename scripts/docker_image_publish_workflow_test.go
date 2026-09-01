@@ -30,6 +30,10 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 			RunsOn         string `yaml:"runs-on"`
 			TimeoutMinutes int    `yaml:"timeout-minutes"`
 			Environment    string `yaml:"environment"`
+			Steps          []struct {
+				Name string `yaml:"name"`
+				Run  string `yaml:"run"`
+			} `yaml:"steps"`
 		} `yaml:"jobs"`
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &workflow))
@@ -62,6 +66,8 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"persist-credentials: false",
 		"git show-ref --verify --quiet \"refs/tags/$version\"",
 		"git merge-base --is-ancestor \"$source_sha\" origin/main",
+		"scripts/extract-release-notes.awk",
+		"CHANGELOG.md",
 		"SemVer build metadata is not representable as an OCI tag",
 		"version: v0.36.1",
 		"platforms: linux/amd64,linux/arm64",
@@ -107,6 +113,9 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 	}
 
 	orderedSteps := []string{
+		"- name: Validate release identity and tag policy",
+		"- name: Validate changelog release notes",
+		"- name: Validate registry credentials",
 		"- name: Classify immutable publication state",
 		"- name: Build and push canonical image",
 		"- name: Verify canonical digest and platform manifests",
@@ -125,4 +134,15 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		require.Greater(t, position, previous, step)
 		previous = position
 	}
+
+	changelogRun := ""
+	for _, step := range publish.Steps {
+		if step.Name == "Validate changelog release notes" {
+			changelogRun = step.Run
+			break
+		}
+	}
+	require.Contains(t, changelogRun, `awk -v version="$VERSION"`)
+	require.Contains(t, changelogRun, `scripts/extract-release-notes.awk CHANGELOG.md`)
+	require.Contains(t, changelogRun, `test -s "$notes_path"`)
 }
