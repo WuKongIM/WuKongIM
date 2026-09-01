@@ -23,4 +23,5 @@ resources
 logs
 tmp
 docs
+docs-site
 wukongim.conf
