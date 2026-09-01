@@ -14,7 +14,7 @@ authorization and the applicable budget.
 | File | Display name | Purpose |
 | --- | --- | --- |
 | `chat-lifecycle-rehearsal.yml` | `Agent Tool - Start Chat Lifecycle Rehearsal` | Builds, quotes, acquires, deploys, and hands a full-scale two-hour rehearsal to remote systemd |
-| `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | Uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
+| `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | While armed, uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
 | `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
@@ -499,6 +499,17 @@ Runtime or correctness failure is never retried. `chat-lifecycle-rehearsal-final
 uploads a terminal report or bounded failure diagnostics, and only then invokes
 Release until `zero_inventory == true`; a cleanup Artifact is the terminal
 proof. The two-hour result can be `rehearsal_pass`, never formal `pass`.
+The paid rehearsal Workflow enables this finalizer schedule before orchestration
+can Acquire a Lease. After every pass, a separate always-running disarm job
+repeats authenticated handoff discovery and checks all non-terminal protected
+rehearsal producer runs. It disables future finalizer triggers only when no
+producer can still publish a handoff and every published handoff has exact
+zero-inventory proof. Any incomplete inventory, producer, or Workflow-state
+observation fails closed by leaving the schedule enabled. The Stop Action also
+enables the finalizer before its exact request-scoped dispatch. Consequently an
+idle repository has no recurring rehearsal-finalizer runs, while paid
+orchestration, cleanup continuation, and report rescue retain the ten-minute
+safety retry.
 An inspectable non-success first stops worker traffic and publishes an
 authenticated `diagnosis_window/v1` marker. Scheduled finalization preserves
 the first stable failure time for at most two hours so the run-scoped Codex
