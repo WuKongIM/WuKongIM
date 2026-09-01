@@ -128,6 +128,9 @@ func TestNativePackageRepositorySigningFailsClosed(t *testing.T) {
 		"--network none",
 		"--read-only",
 		"find /work -xdev -mindepth 1 -depth -delete",
+		"trap - EXIT HUP INT TERM",
+		"if ((status != 0)); then",
+		"exit \"$cleanup_status\"",
 	} {
 		require.Contains(t, containerVerifier, required)
 	}
