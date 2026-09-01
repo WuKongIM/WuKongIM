@@ -38,60 +38,71 @@ import (
 )
 
 func (a *App) applyConfigDefaults() error {
-	var err error
-	a.cfg.Manager = defaultManagerConfig(a.cfg.Manager)
-	if err := validateManagerConfig(a.cfg.Manager); err != nil {
-		return err
-	}
-	a.cfg.Message = defaultMessageConfig(a.cfg.Message)
-	if err := validateMessageConfig(a.cfg.Message); err != nil {
-		return err
-	}
-	a.cfg.ChannelMessageRetention = defaultChannelMessageRetentionConfig(a.cfg.ChannelMessageRetention)
-	if err := validateChannelMessageRetentionConfig(a.cfg.ChannelMessageRetention); err != nil {
-		return err
-	}
-	a.cfg.Presence = defaultPresenceConfig(a.cfg.Presence)
-	if err := validatePresenceConfig(a.cfg.Presence); err != nil {
-		return err
-	}
-	a.cfg.Channel = defaultChannelConfig(a.cfg.Channel)
-	if err := validateChannelConfig(a.cfg.Channel); err != nil {
-		return err
-	}
-	a.cfg.ChannelAppend = defaultChannelAppendConfig(a.cfg.ChannelAppend)
-	if err := validateChannelAppendConfig(a.cfg.ChannelAppend); err != nil {
-		return err
-	}
-	a.cfg.Delivery = defaultDeliveryConfig(a.cfg.Delivery)
-	if err := validateDeliveryConfig(a.cfg.Delivery); err != nil {
-		return err
-	}
-	{
-		webhook, err := NormalizeWebhookConfig(a.cfg.Webhook)
-		if err != nil {
-			return err
-		}
-		a.cfg.Webhook = webhook
-	}
-	a.cfg.Plugin = defaultPluginConfig(a.cfg.DataDir, a.cfg.Plugin)
-	if err := validatePluginConfig(a.cfg.Plugin); err != nil {
-		return err
-	}
-	a.cfg.Observability = defaultObservabilityConfig(a.cfg.Observability)
-	a.cfg.Observability.Prometheus = defaultPrometheusConfigForApp(a.cfg)
-	if err := validateObservabilityConfig(a.cfg.Observability); err != nil {
-		return err
-	}
-	if err := validatePrometheusConfig(a.cfg); err != nil {
-		return err
-	}
-	a.cfg.Top, err = NormalizeTopConfig(a.cfg.Top)
+	normalized, err := NormalizeConfig(a.cfg)
 	if err != nil {
 		return err
 	}
-	a.cfg.Log = defaultLogConfig(a.cfg.Log)
+	a.cfg = normalized
 	return nil
+}
+
+// NormalizeConfig applies product defaults and validates the configuration
+// without constructing runtimes or touching the filesystem.
+func NormalizeConfig(cfg Config) (Config, error) {
+	var err error
+	cfg.Manager = defaultManagerConfig(cfg.Manager)
+	if err := validateManagerConfig(cfg.Manager); err != nil {
+		return Config{}, err
+	}
+	cfg.Message = defaultMessageConfig(cfg.Message)
+	if err := validateMessageConfig(cfg.Message); err != nil {
+		return Config{}, err
+	}
+	cfg.ChannelMessageRetention = defaultChannelMessageRetentionConfig(cfg.ChannelMessageRetention)
+	if err := validateChannelMessageRetentionConfig(cfg.ChannelMessageRetention); err != nil {
+		return Config{}, err
+	}
+	cfg.Presence = defaultPresenceConfig(cfg.Presence)
+	if err := validatePresenceConfig(cfg.Presence); err != nil {
+		return Config{}, err
+	}
+	cfg.Channel = defaultChannelConfig(cfg.Channel)
+	if err := validateChannelConfig(cfg.Channel); err != nil {
+		return Config{}, err
+	}
+	cfg.ChannelAppend = defaultChannelAppendConfig(cfg.ChannelAppend)
+	if err := validateChannelAppendConfig(cfg.ChannelAppend); err != nil {
+		return Config{}, err
+	}
+	cfg.Delivery = defaultDeliveryConfig(cfg.Delivery)
+	if err := validateDeliveryConfig(cfg.Delivery); err != nil {
+		return Config{}, err
+	}
+	{
+		webhook, err := NormalizeWebhookConfig(cfg.Webhook)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.Webhook = webhook
+	}
+	cfg.Plugin = defaultPluginConfig(cfg.DataDir, cfg.Plugin)
+	if err := validatePluginConfig(cfg.Plugin); err != nil {
+		return Config{}, err
+	}
+	cfg.Observability = defaultObservabilityConfig(cfg.Observability)
+	cfg.Observability.Prometheus = defaultPrometheusConfigForApp(cfg)
+	if err := validateObservabilityConfig(cfg.Observability); err != nil {
+		return Config{}, err
+	}
+	if err := validatePrometheusConfig(cfg); err != nil {
+		return Config{}, err
+	}
+	cfg.Top, err = NormalizeTopConfig(cfg.Top)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Log = defaultLogConfig(cfg.Log)
+	return cfg, nil
 }
 
 func (a *App) applyOptions(opts []Option) {
