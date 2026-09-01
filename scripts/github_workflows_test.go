@@ -12,6 +12,7 @@ import (
 )
 
 var workflowCatalog = map[string]string{
+	"binary-release-publish.yml":               "Safety Automation - Publish WuKongIM Binaries",
 	"chat-lifecycle-rehearsal.yml":             "Agent Tool - Start Chat Lifecycle Rehearsal",
 	"chat-lifecycle-rehearsal-finalize.yml":    "Safety Automation - Finalize Chat Lifecycle Rehearsals",
 	"chat-lifecycle-formal.yml":                "Safety Automation - Start Fresh Formal Chat Lifecycle",

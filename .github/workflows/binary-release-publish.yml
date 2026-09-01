@@ -1,0 +1,497 @@
+name: Safety Automation - Publish WuKongIM Binaries
+run-name: >-
+  WuKongIM binaries ${{ inputs.version || github.ref_name }}
+  attempt ${{ github.run_attempt }}
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing SemVer tag to publish or recover, for example v3.1.0 or v3.2.0-rc.1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: binary-release-publish-${{ github.repository }}-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish immutable release archives
+    if: github.repository == 'WuKongIM/WuKongIM'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: binary-publish
+    env:
+      GOWORK: "off"
+      REQUESTED_VERSION: ${{ inputs.version || github.ref_name }}
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.REQUESTED_VERSION }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Validate release identity and tag policy
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          version="$REQUESTED_VERSION"
+          [[ "$version" == v* ]] || {
+            echo "release tag must start with v" >&2
+            exit 1
+          }
+          binary_version="${version#v}"
+          [[ "$binary_version" != *+* ]] || {
+            echo "release policy does not allow SemVer build metadata" >&2
+            exit 1
+          }
+
+          core="$binary_version"
+          prerelease=""
+          if [[ "$binary_version" == *-* ]]; then
+            core="${binary_version%%-*}"
+            prerelease="${binary_version#*-}"
+            [[ -n "$prerelease" ]] || {
+              echo "pre-release suffix must not be empty" >&2
+              exit 1
+            }
+          fi
+
+          IFS=. read -r major minor patch extra <<<"$core"
+          [[ -n "$major" && -n "$minor" && -n "$patch" && -z "${extra:-}" ]] || {
+            echo "release tag must contain major.minor.patch" >&2
+            exit 1
+          }
+          for number in "$major" "$minor" "$patch"; do
+            [[ "$number" =~ ^(0|[1-9][0-9]*)$ ]] || {
+              echo "SemVer core identifiers must be decimal without leading zeroes" >&2
+              exit 1
+            }
+          done
+
+          stable=true
+          if [[ -n "$prerelease" ]]; then
+            stable=false
+            IFS=. read -r -a identifiers <<<"$prerelease"
+            for identifier in "${identifiers[@]}"; do
+              [[ -n "$identifier" && "$identifier" =~ ^[0-9A-Za-z-]+$ ]] || {
+                echo "invalid SemVer pre-release identifier: $identifier" >&2
+                exit 1
+              }
+              if [[ "$identifier" =~ ^[0-9]+$ && ${#identifier} -gt 1 && "$identifier" == 0* ]]; then
+                echo "numeric SemVer pre-release identifiers must not have leading zeroes" >&2
+                exit 1
+              fi
+            done
+          fi
+
+          git show-ref --verify --quiet "refs/tags/$version" || {
+            echo "release tag does not exist: $version" >&2
+            exit 1
+          }
+          source_sha="$(git rev-parse HEAD)"
+          test "$(git rev-parse "refs/tags/$version^{commit}")" = "$source_sha"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test "$GITHUB_REF" = "refs/tags/$version"
+            test "$(git rev-parse "$GITHUB_SHA^{commit}")" = "$source_sha"
+          fi
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$source_sha" origin/main || {
+            echo "release source must be reachable from origin/main" >&2
+            exit 1
+          }
+
+          source_epoch="$(git show -s --format=%ct "$source_sha")"
+          [[ "$source_epoch" =~ ^[0-9]+$ ]]
+          {
+            echo "version=$version"
+            echo "binary_version=$binary_version"
+            echo "source_sha=$source_sha"
+            echo "source_epoch=$source_epoch"
+            echo "stable=$stable"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Set up repository Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run binary release contracts
+        run: |
+          go test ./cmd/wukongim -count=1
+          go test ./scripts -run 'Test(BinaryRelease|GitHubWorkflow)' -count=1
+
+      - name: Build deterministic release archives
+        id: build
+        shell: bash
+        env:
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          SOURCE_EPOCH: ${{ steps.identity.outputs.source_epoch }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          test ! -e "$RELEASE_DIR" || {
+            echo "release output already exists: $RELEASE_DIR" >&2
+            exit 1
+          }
+          mkdir -p "$RELEASE_DIR/.build" "$RELEASE_DIR/.stage"
+          tar --version | grep -F 'GNU tar' >/dev/null
+
+          embedded_version=false
+          ldflags='-s -w -buildid='
+          if [[ -f cmd/wukongim/version.go ]]; then
+            embedded_version=true
+            ldflags="$ldflags -X main.buildVersion=$BINARY_VERSION"
+            ldflags="$ldflags -X main.buildCommit=$SOURCE_SHA"
+            ldflags="$ldflags -X main.buildSource=release"
+          fi
+
+          targets=(
+            linux/amd64
+            linux/arm64
+            darwin/amd64
+            darwin/arm64
+          )
+          for target in "${targets[@]}"; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            platform="${goos}_${goarch}"
+            binary_dir="$RELEASE_DIR/.build/$platform"
+            archive_root="wukongim_${BINARY_VERSION}_${platform}"
+            stage_dir="$RELEASE_DIR/.stage/$archive_root"
+            archive="$RELEASE_DIR/$archive_root.tar.gz"
+            mkdir -p "$binary_dir" "$stage_dir"
+
+            goamd64=""
+            [[ "$goarch" != amd64 ]] || goamd64="v1"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOAMD64="$goamd64" \
+            go build -trimpath -buildvcs=false -ldflags "$ldflags" \
+              -o "$binary_dir/wukongim" ./cmd/wukongim
+
+            install -m 0755 "$binary_dir/wukongim" "$stage_dir/wukongim"
+            install -m 0644 README.md "$stage_dir/README.md"
+            install -m 0644 README_CN.md "$stage_dir/README_CN.md"
+            install -m 0644 wukongim.toml.example "$stage_dir/wukongim.toml.example"
+
+            go version -m "$binary_dir/wukongim" >"$binary_dir/go-version.txt"
+            grep -F $'\tpath\tgithub.com/WuKongIM/WuKongIM/cmd/wukongim' "$binary_dir/go-version.txt"
+            grep -F $'\tbuild\tGOOS='"$goos" "$binary_dir/go-version.txt"
+            grep -F $'\tbuild\tGOARCH='"$goarch" "$binary_dir/go-version.txt"
+
+            (
+              cd "$RELEASE_DIR/.stage"
+              tar --sort=name \
+                --mtime="@$SOURCE_EPOCH" \
+                --owner=0 --group=0 --numeric-owner \
+                --format=ustar \
+                -cf - "$archive_root" | gzip -n -9 >"$archive"
+            )
+          done
+
+          checksum_name="wukongim_${BINARY_VERSION}_checksums.txt"
+          (
+            cd "$RELEASE_DIR"
+            sha256sum wukongim_*.tar.gz | sort -k2 >"$checksum_name"
+            sha256sum --check "$checksum_name"
+          )
+          {
+            echo "embedded_version=$embedded_version"
+            echo "checksum_name=$checksum_name"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Set up QEMU for arm64 validation
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
+
+      - name: Validate binary identities and archive contents
+        shell: bash
+        env:
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          EMBEDDED_VERSION: ${{ steps.build.outputs.embedded_version }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+            archive_root="wukongim_${BINARY_VERSION}_${platform}"
+            archive="$RELEASE_DIR/$archive_root.tar.gz"
+            mapfile -t entries < <(tar -tzf "$archive")
+            expected=(
+              "$archive_root/"
+              "$archive_root/README.md"
+              "$archive_root/README_CN.md"
+              "$archive_root/wukongim"
+              "$archive_root/wukongim.toml.example"
+            )
+            test "${entries[*]}" = "${expected[*]}"
+          done
+
+          file "$RELEASE_DIR/.build/linux_amd64/wukongim" | grep -F 'x86-64'
+          file "$RELEASE_DIR/.build/linux_arm64/wukongim" | grep -F 'ARM aarch64'
+          file "$RELEASE_DIR/.build/darwin_amd64/wukongim" | grep -F 'x86_64'
+          file "$RELEASE_DIR/.build/darwin_arm64/wukongim" | grep -F 'arm64'
+
+          if [[ "$EMBEDDED_VERSION" == true ]]; then
+            for platform in linux_amd64 linux_arm64; do
+              "$RELEASE_DIR/.build/$platform/wukongim" version --output json \
+                >"$RELEASE_DIR/.build/$platform/version.json"
+              jq -e \
+                --arg version "$BINARY_VERSION" \
+                --arg commit "$SOURCE_SHA" \
+                '.version == $version and .commit == $commit and .build_source == "release"' \
+                "$RELEASE_DIR/.build/$platform/version.json" >/dev/null
+            done
+          else
+            echo "Legacy tag has no version command; provenance remains bound by tag, checksum, and attestation."
+          fi
+
+      - name: Classify immutable GitHub Release assets
+        id: publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          expected_assets=(
+            "wukongim_${BINARY_VERSION}_linux_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_linux_arm64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_amd64.tar.gz"
+            "wukongim_${BINARY_VERSION}_darwin_arm64.tar.gz"
+            "$CHECKSUM_NAME"
+          )
+          existing_dir="$RUNNER_TEMP/existing-binary-release"
+          mkdir -p "$existing_dir"
+          missing_file="$RUNNER_TEMP/missing-binary-release-assets.txt"
+          release_json="$RUNNER_TEMP/existing-binary-release.json"
+          release_error="$RUNNER_TEMP/existing-binary-release.err"
+          : >"$missing_file"
+
+          release_exists=false
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" >"$release_json" 2>"$release_error"; then
+            release_exists=true
+            jq -e '.draft == false' "$release_json" >/dev/null || {
+              echo "$VERSION already has a draft Release; refusing to publish into it" >&2
+              exit 1
+            }
+            existing_prerelease="$(jq -r '.prerelease' "$release_json")"
+            expected_prerelease=true
+            [[ "$STABLE" != true ]] || expected_prerelease=false
+            test "$existing_prerelease" = "$expected_prerelease" || {
+              echo "$VERSION Release prerelease classification conflicts with SemVer" >&2
+              exit 1
+            }
+          elif grep -Fq 'HTTP 404' "$release_error"; then
+            jq -n '{assets: []}' >"$release_json"
+          else
+            cat "$release_error" >&2
+            exit 1
+          fi
+
+          existing_count=0
+          for asset in "${expected_assets[@]}"; do
+            if jq -e --arg name "$asset" '.assets[] | select(.name == $name)' "$release_json" >/dev/null; then
+              existing_count=$((existing_count + 1))
+              gh release download "$VERSION" \
+                --repo "$GITHUB_REPOSITORY" \
+                --pattern "$asset" \
+                --dir "$existing_dir"
+              cmp "$RELEASE_DIR/$asset" "$existing_dir/$asset" || {
+                echo "$asset is immutable and its published content conflicts with this source" >&2
+                exit 1
+              }
+            else
+              printf '%s\n' "$asset" >>"$missing_file"
+            fi
+          done
+
+          if [[ "$release_exists" == true && "$existing_count" -eq "${#expected_assets[@]}" ]]; then
+            echo "$VERSION already has the complete immutable binary release" >&2
+            exit 1
+          fi
+          {
+            echo "release_exists=$release_exists"
+            echo "missing_file=$missing_file"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Create GitHub build provenance
+        id: attestation
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/wukongim-binary-release/*.tar.gz
+            ${{ runner.temp }}/wukongim-binary-release/*_checksums.txt
+
+      - name: Publish absent immutable GitHub Release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          RELEASE_EXISTS: ${{ steps.publication.outputs.release_exists }}
+          MISSING_FILE: ${{ steps.publication.outputs.missing_file }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+
+          if [[ "$RELEASE_EXISTS" != true ]]; then
+            create_args=(
+              gh release create "$VERSION"
+              --repo "$GITHUB_REPOSITORY"
+              --verify-tag
+              --title "WuKongIM $VERSION"
+              --generate-notes
+            )
+            [[ "$STABLE" == true ]] || create_args+=(--prerelease)
+            "${create_args[@]}"
+          fi
+
+          upload_paths=()
+          while IFS= read -r asset; do
+            [[ -n "$asset" ]] || continue
+            upload_paths+=("$RELEASE_DIR/$asset")
+          done <"$MISSING_FILE"
+          ((${#upload_paths[@]} > 0))
+          gh release upload "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            "${upload_paths[@]}"
+
+      - name: Verify published Release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          published_dir="$RUNNER_TEMP/published-binary-release"
+          mkdir -p "$published_dir"
+          gh release download "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "wukongim_${BINARY_VERSION}_*.tar.gz" \
+            --pattern "$CHECKSUM_NAME" \
+            --dir "$published_dir"
+          for local_asset in "$RELEASE_DIR"/*.tar.gz "$RELEASE_DIR/$CHECKSUM_NAME"; do
+            asset="$(basename "$local_asset")"
+            cmp "$local_asset" "$published_dir/$asset"
+          done
+          (
+            cd "$published_dir"
+            sha256sum --check "$CHECKSUM_NAME"
+          )
+
+      - name: Write release receipt and summary
+        shell: bash
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+          BINARY_VERSION: ${{ steps.identity.outputs.binary_version }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          STABLE: ${{ steps.identity.outputs.stable }}
+          EMBEDDED_VERSION: ${{ steps.build.outputs.embedded_version }}
+          CHECKSUM_NAME: ${{ steps.build.outputs.checksum_name }}
+          RECOVERY: ${{ steps.publication.outputs.release_exists }}
+          ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+          RELEASE_DIR: ${{ runner.temp }}/wukongim-binary-release
+        run: |
+          set -euo pipefail
+          checksum_path="$RELEASE_DIR/$CHECKSUM_NAME"
+          assets_json="$(jq -Rn '
+            [inputs
+              | capture("^(?<sha256>[0-9a-f]{64})  (?<name>.+)$")
+              | {name: .name, sha256: .sha256}]
+          ' <"$checksum_path")"
+          go_version="$(go version)"
+          receipt="$RELEASE_DIR/wukongim_${BINARY_VERSION}_release.json"
+          jq -n \
+            --arg schema "wukongim/binary-release-receipt/v1" \
+            --arg version "$VERSION" \
+            --arg binary_version "$BINARY_VERSION" \
+            --arg source_sha "$SOURCE_SHA" \
+            --arg stable "$STABLE" \
+            --arg embedded_version "$EMBEDDED_VERSION" \
+            --arg recovery "$RECOVERY" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg release_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION" \
+            --arg workflow_ref "$GITHUB_WORKFLOW_REF" \
+            --arg go_version "$go_version" \
+            --arg checksum_file "$CHECKSUM_NAME" \
+            --arg attestation_url "$ATTESTATION_URL" \
+            --argjson assets "$assets_json" \
+            '{
+              schema: $schema,
+              version: $version,
+              binary_version: $binary_version,
+              source_sha: $source_sha,
+              stable: ($stable == "true"),
+              embedded_version: ($embedded_version == "true"),
+              recovery: ($recovery == "true"),
+              trigger: $event,
+              run_url: $run_url,
+              release_url: $release_url,
+              workflow_ref: $workflow_ref,
+              go_version: $go_version,
+              checksum_file: $checksum_file,
+              attestation_url: (if $attestation_url == "" then null else $attestation_url end),
+              platforms: ["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64"],
+              assets: $assets
+            }' >"$receipt"
+
+          {
+            echo "## WuKongIM binary release"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Version | \`$VERSION\` |"
+            echo "| Source | \`$SOURCE_SHA\` |"
+            echo "| Platforms | \`linux/amd64\`, \`linux/arm64\`, \`darwin/amd64\`, \`darwin/arm64\` |"
+            echo "| Embedded version command | \`$EMBEDDED_VERSION\` |"
+            echo "| Recovery | \`$RECOVERY\` |"
+            echo "| Release | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION |"
+            [[ -z "$ATTESTATION_URL" ]] || echo "| Attestation | $ATTESTATION_URL |"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload binary release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wukongim-binary-release-${{ steps.identity.outputs.binary_version }}
+          path: |
+            ${{ runner.temp }}/wukongim-binary-release/*.tar.gz
+            ${{ runner.temp }}/wukongim-binary-release/*_checksums.txt
+            ${{ runner.temp }}/wukongim-binary-release/*_release.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --

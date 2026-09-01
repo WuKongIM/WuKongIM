@@ -486,6 +486,14 @@
   startup/liveness, `/readyz` for traffic, topology spread, a bounded PDB, and
   an operator-controlled `OnDelete` node-by-node upgrade. Changing StatefulSet
   replicas alone is not a WuKongIM membership or scale-in procedure.
+- The official binary publisher builds deterministic archives from the same
+  strict SemVer tag and `main` ancestry used by container releases. Its
+  supported matrix is Linux and macOS on amd64/arm64; Windows remains excluded
+  while Unix-only runtime paths prevent a clean cross-build. Exact GitHub
+  Release assets never move: recovery compares existing bytes and fills only
+  absent archives. SHA-256 checksums, GitHub build provenance, embedded build
+  identity when the tagged source supports it, and a 90-day receipt bind every
+  release to its full source commit.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.

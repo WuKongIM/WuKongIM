@@ -39,6 +39,7 @@ authorization and the applicable budget.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
+| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS release archives for four architectures and publishes them to the exact tag's GitHub Release |
 
 ## Docker image publishing
 
@@ -84,6 +85,38 @@ for automatic publication, do not require a reviewer, and configure:
 GHCR uses the job-scoped `GITHUB_TOKEN`; no standing GHCR credential is
 required. Missing credentials, a conflicting exact tag, a registry copy
 failure, a digest mismatch, or a missing platform fails the complete release.
+
+## Binary release publishing
+
+`binary-release-publish.yml` publishes downloadable WuKongIM executables from
+the same strict SemVer `v*` source identity used by the container publisher. A
+new tag starts the workflow automatically; the manual `version` input accepts
+one existing tag for first publication or incomplete-release recovery. The tag
+must resolve to a commit reachable from `origin/main` and may not contain
+SemVer build metadata.
+
+Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
+`linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
+because the server currently contains Unix-only runtime and filesystem paths.
+Every archive includes the executable, English and Chinese readmes, and
+`wukongim.toml.example`. The workflow publishes a shared SHA-256
+checksum file, creates signed GitHub build provenance, verifies the Linux
+binaries under amd64 and arm64, and retains all archives plus a JSON receipt as
+Actions evidence for 90 days. Tags containing the version command also prove
+the embedded version, full source commit, and `release` build source; older
+tags remain bound by the immutable tag, checksums, and attestation.
+
+The exact GitHub Release assets are immutable. Recovery downloads and compares
+every existing expected asset, refuses any content conflict, and uploads only
+missing files without `--clobber`. A pre-release SemVer tag must correspond to
+a GitHub pre-release; stable tags must correspond to a normal Release. A fully
+published version fails closed instead of creating duplicate evidence.
+
+Repository administrators must configure a `binary-publish` Environment,
+allow protected `main` for manual recovery and trusted version tags for
+automatic publication, and avoid a reviewer gate for tag-triggered runs. The
+workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
+release credential.
 
 ## Direct local chat-lifecycle repair
 
