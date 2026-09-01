@@ -1,0 +1,75 @@
+name: Safety Automation - Publish Documentation to GitHub Pages
+run-name: >-
+  Documentation Pages ${{ github.event_name }} ${{ github.ref_name }} attempt ${{ github.run_attempt }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs-pages.yml"
+      - "docs-site/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and package the static documentation site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.11"
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Install, verify, and export the site
+        working-directory: docs-site
+        env:
+          DOCS_SITE_URL: https://docs.githubim.com
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(bun --version)" = "1.3.11"
+          bun install --frozen-lockfile
+          bun run verify
+      - name: Verify the GitHub Pages domain markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat docs-site/out/CNAME)" = "docs.githubim.com"
+          test -f docs-site/out/.nojekyll
+      - name: Upload the exact static export
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs-site/out
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy:
+    name: Deploy the verified artifact
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

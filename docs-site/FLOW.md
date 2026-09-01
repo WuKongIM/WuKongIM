@@ -21,8 +21,9 @@ not define them.
 - `lib/navigation.ts` is the shared bilingual publication registry.
 - `SDK_DOCUMENTATION_SPEC.md` owns the maintained WuKongIMSDK versions,
   learning order, and reader contract. WuKongEasySDK remains a separate path.
-- Static export produces artifacts only. Deployment, DNS, redirects, and
-  production cutover are external operations.
+- `.github/workflows/docs-pages.yml` verifies and deploys the exact static
+  export to GitHub Pages. Alibaba Cloud DNS ownership and record changes remain
+  external operations; the production origin is `https://docs.githubim.com`.
 
 ## Main Flows
 
@@ -46,7 +47,9 @@ not define them.
    Operations HTTP and outbound Webhooks use separate OpenAPI contracts.
    WKProto, JSON-RPC, and private interfaces remain protocol documentation.
 7. Static export writes `out/`; publication, canonical, link, structure, and
-   machine-artifact checks run before external hosting.
+   machine-artifact checks run before the Workflow uploads that exact directory
+   as the GitHub Pages artifact. Hidden files are retained so `.nojekyll` and
+   future machine-readable well-known endpoints cannot be dropped silently.
 
 ## Invariants and Failure Semantics
 
@@ -72,6 +75,9 @@ not define them.
   responses stay explicit rather than being normalized away.
 - The static API reference keeps its playground disabled. Generated examples
   come only from reviewed samples that state the trusted-backend boundary.
+- Production publication uses one non-canceling `github-pages` concurrency
+  group. The deploy job receives only `pages: write` and `id-token: write`; the
+  build job remains read-only.
 
 ## Read First
 

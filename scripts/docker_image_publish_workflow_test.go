@@ -67,6 +67,9 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"git show-ref --verify --quiet \"refs/tags/$version\"",
 		"git merge-base --is-ancestor \"$source_sha\" origin/main",
 		"scripts/extract-release-notes.awk",
+		"github.workflow_sha",
+		`git fetch --no-tags origin "$WORKFLOW_SHA"`,
+		`git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk"`,
 		"CHANGELOG.md",
 		"SemVer build metadata is not representable as an OCI tag",
 		"version: v0.36.1",
@@ -75,6 +78,13 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"sbom: false",
 		"cache-from: type=gha,scope=docker-release",
 		"cache-to: type=gha,mode=max,scope=docker-release",
+		"aquasecurity/setup-trivy@",
+		"version: v0.74.0",
+		"wukongim-release-scan:amd64",
+		"wukongim-release-scan:arm64",
+		"--severity CRITICAL,HIGH",
+		"--exit-code 1",
+		`--platform "linux/$arch"`,
 		"anchore/sbom-action/download-syft@",
 		"syft-version: v1.51.1",
 		`--platform "linux/$arch"`,
@@ -117,6 +127,11 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"- name: Validate changelog release notes",
 		"- name: Validate registry credentials",
 		"- name: Classify immutable publication state",
+		"- name: Build amd64 security scan candidate",
+		"- name: Build arm64 security scan candidate",
+		"- name: Set up Trivy",
+		"- name: Scan local release candidates",
+		"- name: Scan recovered canonical image",
 		"- name: Build and push canonical image",
 		"- name: Verify canonical digest and platform manifests",
 		"- name: Generate per-platform SBOMs",
@@ -143,6 +158,7 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		}
 	}
 	require.Contains(t, changelogRun, `awk -v version="$VERSION"`)
-	require.Contains(t, changelogRun, `scripts/extract-release-notes.awk CHANGELOG.md`)
+	require.Contains(t, changelogRun, `-f "$parser_path" CHANGELOG.md`)
+	require.Contains(t, changelogRun, `[[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]`)
 	require.Contains(t, changelogRun, `test -s "$notes_path"`)
 }

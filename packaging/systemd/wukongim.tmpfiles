@@ -1,0 +1,4 @@
+d /etc/wukongim 0750 root wukongim -
+d /var/lib/wukongim 0750 wukongim wukongim -
+d /var/log/wukongim 0750 wukongim wukongim -
+d /run/wukongim 0750 wukongim wukongim -

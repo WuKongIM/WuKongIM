@@ -25,7 +25,6 @@ set -euo pipefail
 : >"$WK_TEST_PROVIDER_MARKER"
 exit 99
 `)
-
 	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "preflight")
 	command.Dir = root
 	command.Env = append(os.Environ(),
@@ -338,12 +337,18 @@ case "$1" in
   *) exit 97 ;;
 esac
 `)
+	releaseState := filepath.Join(directory, "cloud-lease-release-state")
+	writeDirectLabExecutable(t, releaseState, `#!/usr/bin/env bash
+set -euo pipefail
+printf 'release-%s\n' "$1" >>"$WK_TEST_CALL_LOG"
+`)
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "direct-lab.sh"), "start", requestID)
 	command.Dir = root
 	command.Env = append(os.Environ(),
 		"WK_CHAT_LAB_STATE_ROOT="+directory,
 		"WK_CHAT_LAB_CLOUD_TOOL="+cloudTool,
+		"WK_CHAT_LAB_CLOUD_RELEASE_STATE="+releaseState,
 		"WK_CHAT_LAB_CHAT_TOOL="+chatTool,
 		"WK_CHAT_LAB_BUNDLE_BUILDER="+bundleBuilder,
 		"WK_CHAT_LAB_PAID_AUTHORIZATION=create-paid-cloud-lease",
@@ -362,7 +367,7 @@ esac
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(calls), "build\nmaterialize\nquote\nselector-from-plan\nacquire\nselector\n"; got != want {
+	if got, want := string(calls), "build\nmaterialize\nquote\nselector-from-plan\nrelease-enable\nacquire\nrelease-enable-after-provision\nselector\n"; got != want {
 		t.Fatalf("operation order = %q, want %q", got, want)
 	}
 	requestDirectory := filepath.Join(directory, requestID)

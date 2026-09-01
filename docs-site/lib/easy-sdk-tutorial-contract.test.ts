@@ -87,8 +87,10 @@ const platforms = [
 ] as const;
 
 const releasedPackageAcceptance = {
-  serverRevision: '5676700d2dc966fa6fc9b2f0620a6ae429adad5a',
-  workflowRun: 'https://github.com/WuKongIM/WuKongIM/actions/runs/33466063708',
+  sourceServerRevision: '5676700d2dc966fa6fc9b2f0620a6ae429adad5a',
+  releasedServerRevision: '35f314cc2512f3f0f5d55d9677e817cb64129985',
+  candidateHead: '1c9430f15fc8844e7025df07d54ab6e80e026414',
+  workflowRun: 'https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015',
 } as const;
 
 describe('EasySDK tutorial content contract', () => {
@@ -208,7 +210,9 @@ describe('EasySDK tutorial content contract', () => {
       content('examples.en.mdx'),
     ]);
     for (const page of [examplesZh, examplesEn]) {
-      expect(page).toContain(releasedPackageAcceptance.serverRevision);
+      expect(page).toContain(releasedPackageAcceptance.sourceServerRevision);
+      expect(page).toContain(releasedPackageAcceptance.releasedServerRevision);
+      expect(page).toContain(releasedPackageAcceptance.candidateHead);
       expect(page).toContain(releasedPackageAcceptance.workflowRun);
       for (const platform of platforms) {
         expect(page).toContain(platform.revision);

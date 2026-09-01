@@ -3,7 +3,7 @@ title: 运行官方示例
 description: 用固定 WuKongIM revision 跑通 Web、Android、iOS 与 Flutter 的源码 example 和正式发布包。
 ---
 
-本页记录两类可复现凭据。2026 年 8 月 31 日，四个官方仓库的源码 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`；9 月 1 日，从 npm、Maven Central、CocoaPods 与 pub.dev 解析的四个正式包又连接同一服务端源码，完成 Alice → Bob、Bob → Alice 与断开清理。服务端进程级 JSON-RPC E2E 也在同一 revision 通过。
+本页记录两类可复现凭据。2026 年 8 月 31 日，四个官方仓库的源码 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`，服务端进程级 JSON-RPC E2E 也在该 revision 通过。9 月 1 日，从 npm、Maven Central、CocoaPods 与 pub.dev 解析的四个正式包连接 PR 最终 HEAD `1c9430f15fc8844e7025df07d54ab6e80e026414` 的测试合并服务端 `35f314cc2512f3f0f5d55d9677e817cb64129985`，完成 Alice → Bob、Bob → Alice 与断开清理。
 
 <Callout type="warn" title="源码 example 与正式发布包是两类证据">
   源码运行证明精确仓库 revision，正式包运行证明 Registry 实际提供的归档。Web `v2.0.4`、Android `v1.0.5` 与 iOS `v1.1.1` 已包含先前验证的 example 和连接生命周期修复，Flutter 继续使用 `v1.1.0`；记录结果时仍要同时保留两类凭据。
@@ -20,7 +20,7 @@ description: 用固定 WuKongIM revision 跑通 Web、Android、iOS 与 Flutter 
 | iOS | [`WuKongEasySDK 1.1.1`](https://cocoapods.org/pods/WuKongEasySDK) · [`ca688fcac2c4cd8d6f8e8163faf165376b520ba9`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/ca688fcac2c4cd8d6f8e8163faf165376b520ba9) | CocoaPods 1.16.2、iOS Simulator | Pod 解析、双向消息和断开通过 |
 | Flutter | [`wukong_easy_sdk 1.1.0`](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) · [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | Flutter 3.41.4、iOS Simulator | hosted 依赖解析、双向消息和断开通过 |
 
-Android、iOS 与 Flutter 的托管任务以及每项共用的 npm `2.0.4` 对端见[正式包验收运行](https://github.com/WuKongIM/WuKongIM/actions/runs/33466063708)。
+Android、iOS 与 Flutter 的托管任务以及每项共用的 npm `2.0.4` 对端见[最终 HEAD 正式包验收运行](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015)。
 
 ### 官方源码 example（2026-08-31）
 
@@ -154,7 +154,7 @@ flutter run -d <device-id>
 
 ## 4. 重跑正式包自动验收
 
-仓库中的 `Safety Automation - EasySDK Released Package Acceptance` 会从四个 Registry 解析精确版本，构建当前 WuKongIM，再用正式 npm 包作为 Bob，分别在 Android API 34 与两个 iOS Simulator 任务中完成双向消息。合入工作流后可手动触发：
+仓库中的 `Safety Automation - EasySDK Released Package Acceptance` 会从四个 Registry 解析精确版本，构建当前 WuKongIM，再用正式 npm 包作为 Bob，分别在 Android API 34 与两个 iOS Simulator 任务中完成双向消息。需要重跑时可手动触发：
 
 ```bash
 gh workflow run easysdk-release-acceptance.yml --ref main

@@ -31,8 +31,11 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 			TimeoutMinutes int    `yaml:"timeout-minutes"`
 			Environment    string `yaml:"environment"`
 			Steps          []struct {
-				Name string `yaml:"name"`
-				Run  string `yaml:"run"`
+				Name string            `yaml:"name"`
+				If   string            `yaml:"if"`
+				Uses string            `yaml:"uses"`
+				Run  string            `yaml:"run"`
+				With map[string]string `yaml:"with"`
 			} `yaml:"steps"`
 		} `yaml:"jobs"`
 	}
@@ -60,6 +63,9 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"git show-ref --verify --quiet \"refs/tags/$version\"",
 		"git merge-base --is-ancestor \"$source_sha\" origin/main",
 		"scripts/extract-release-notes.awk",
+		"github.workflow_sha",
+		`git fetch --no-tags origin "$WORKFLOW_SHA"`,
+		`git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk"`,
 		"CHANGELOG.md",
 		"release policy does not allow SemVer build metadata",
 		"CGO_ENABLED=0 GOOS=\"$goos\" GOARCH=\"$goarch\"",
@@ -73,6 +79,13 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"darwin/arm64",
 		"tar --sort=name",
 		"gzip -n -9",
+		"goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1",
+		"version: v2.18.0",
+		"args: release --clean --config .goreleaser.packages.yaml",
+		"wukongim_${BINARY_VERSION}_linux_amd64.deb",
+		"wukongim_${BINARY_VERSION}_linux_amd64.rpm",
+		"dpkg-deb --field",
+		"sha256sum \"${release_assets[@]}\"",
 		"sha256sum --check",
 		"docker/setup-qemu-action@",
 		"docker/setup-buildx-action@",
@@ -84,8 +97,6 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"Release artifacts / 发布产物",
 		"Full Changelog",
 		"actions/attest@",
-		"gh api \"repos/$GITHUB_REPOSITORY/immutable-releases\"",
-		"repository immutable Releases must remain enabled before publication",
 		"gh api --paginate --slurp",
 		"repos/$GITHUB_REPOSITORY/releases?per_page=100",
 		"select(.tag_name == $version)",
@@ -107,7 +118,6 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"upload response does not match the local asset",
 		"must retain the exact generated body and remain mutable and draft until all assets are verified",
 		"draft does not contain the exact expected asset set",
-		"repository immutable Releases were disabled before publication",
 		"gh api --method PATCH",
 		"-F draft=false",
 		".tag_name == $version and .draft == false",
@@ -117,6 +127,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"local_size=\"$(stat -c '%s'",
 		"$api_digest\" == \"sha256:$local_sha256",
 		"wukongim/binary-release-receipt/v1",
+		"unsigned_native_packages: ($native_packages == \"true\")",
 		"retention-days: 90",
 		"git diff --exit-code HEAD --",
 	} {
@@ -130,6 +141,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"--clobber",
 		"delete and recreate the exact Release",
 		"releases/tags/",
+		"repos/$GITHUB_REPOSITORY/immutable-releases",
 		"windows/",
 		"generate_release_notes",
 		"--generate-notes",
@@ -137,12 +149,14 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		require.NotContains(t, text, forbidden)
 	}
 	require.Equal(t, 2, strings.Count(text, "git ls-remote origin"))
-	require.Equal(t, 2, strings.Count(text, "repos/$GITHUB_REPOSITORY/immutable-releases"))
 
 	orderedSteps := []string{
 		"- name: Validate release identity and tag policy",
 		"- name: Validate and extract changelog release notes",
 		"- name: Build deterministic release archives",
+		"- name: Build unsigned amd64 native packages",
+		"- name: Normalize unsigned native package assets",
+		"- name: Finalize exact release asset set and checksums",
 		"- name: Validate binary identities and archive contents",
 		"- name: Verify published Docker images and render Release body",
 		"- name: Classify draft GitHub Release assets",
@@ -161,9 +175,68 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	}
 
 	stepRuns := make(map[string]string, len(publish.Steps))
+	stepUses := make(map[string]string, len(publish.Steps))
+	stepIfs := make(map[string]string, len(publish.Steps))
+	stepWith := make(map[string]map[string]string, len(publish.Steps))
+	var packageBuildStep struct {
+		If   string
+		Uses string
+		With map[string]string
+	}
 	for _, step := range publish.Steps {
 		stepRuns[step.Name] = step.Run
+		stepUses[step.Name] = step.Uses
+		stepIfs[step.Name] = step.If
+		stepWith[step.Name] = step.With
+		if step.Name == "Build unsigned amd64 native packages" {
+			packageBuildStep.If = step.If
+			packageBuildStep.Uses = step.Uses
+			packageBuildStep.With = step.With
+		}
 	}
+	require.Equal(t, "steps.build.outputs.native_packages == 'true'", packageBuildStep.If)
+	require.Equal(t, "goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1", packageBuildStep.Uses)
+	require.Equal(t, map[string]string{
+		"distribution": "goreleaser",
+		"version":      "v2.18.0",
+		"args":         "release --clean --config .goreleaser.packages.yaml",
+	}, packageBuildStep.With)
+
+	finalizeRun := stepRuns["Finalize exact release asset set and checksums"]
+	require.Contains(t, finalizeRun, "find \"$RELEASE_DIR\" -maxdepth 1 -type f")
+	require.Contains(t, finalizeRun, "sha256sum \"${release_assets[@]}\" | sort -k2")
+	require.Contains(t, finalizeRun, "sha256sum --check \"$CHECKSUM_NAME\"")
+	require.GreaterOrEqual(t, strings.Count(text, "\"wukongim_${BINARY_VERSION}_linux_amd64.deb\""), 5)
+	require.GreaterOrEqual(t, strings.Count(text, "\"wukongim_${BINARY_VERSION}_linux_amd64.rpm\""), 5)
+	require.Equal(t, 3, strings.Count(text, "\"$RELEASE_DIR\"/*.deb"))
+	require.Equal(t, 3, strings.Count(text, "\"$RELEASE_DIR\"/*.rpm"))
+	for _, stepName := range []string{
+		"Classify draft GitHub Release assets",
+		"Verify complete draft Release",
+		"Publish verified draft Release once",
+		"Verify published immutable Release",
+	} {
+		run := stepRuns[stepName]
+		require.Contains(t, run, "wukongim_${BINARY_VERSION}_linux_amd64.deb", stepName)
+		require.Contains(t, run, "wukongim_${BINARY_VERSION}_linux_amd64.rpm", stepName)
+		require.Contains(t, run, "if [[ \"$NATIVE_PACKAGES\" == true ]]", stepName)
+	}
+	for _, stepName := range []string{
+		"Verify complete draft Release",
+		"Publish verified draft Release once",
+		"Verify published immutable Release",
+	} {
+		run := stepRuns[stepName]
+		require.Contains(t, run, "\"$RELEASE_DIR\"/*.deb", stepName)
+		require.Contains(t, run, "\"$RELEASE_DIR\"/*.rpm", stepName)
+	}
+	require.Equal(t, "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6", stepUses["Create GitHub build provenance"])
+	require.Contains(t, stepWith["Create GitHub build provenance"]["subject-path"], "/*.deb")
+	require.Contains(t, stepWith["Create GitHub build provenance"]["subject-path"], "/*.rpm")
+	require.Contains(t, stepWith["Upload binary release evidence"]["path"], "/*.deb")
+	require.Contains(t, stepWith["Upload binary release evidence"]["path"], "/*.rpm")
+	require.Empty(t, stepIfs["Finalize exact release asset set and checksums"])
+
 	releaseBodyRun := stepRuns["Verify published Docker images and render Release body"]
 	require.Contains(t, releaseBodyRun, "actions/workflows/docker-image-publish.yml/runs?per_page=100")
 	require.Contains(t, releaseBodyRun, `.event == "push" and .head_branch == $version and .head_sha == $source`)
@@ -204,20 +277,20 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 
 	publishRun := stepRuns["Publish verified draft Release once"]
 	tagCheck := strings.Index(publishRun, "git ls-remote origin")
-	immutableCheck := strings.Index(publishRun, "immutable-releases")
 	assetSetCheck := strings.Index(publishRun, "draft asset set changed immediately before publication")
 	digestCheck := strings.Index(publishRun, "draft digest changed immediately before publication")
 	prereleaseCheck := strings.Index(publishRun, "draft prerelease classification changed before publication")
 	publishCall := strings.Index(publishRun, "gh api --method PATCH")
 	require.GreaterOrEqual(t, tagCheck, 0)
-	require.Greater(t, immutableCheck, tagCheck)
-	require.Greater(t, prereleaseCheck, immutableCheck)
+	require.Greater(t, prereleaseCheck, tagCheck)
 	require.Greater(t, assetSetCheck, prereleaseCheck)
 	require.Greater(t, digestCheck, assetSetCheck)
 	require.Greater(t, publishCall, digestCheck)
 	require.Contains(t, publishRun, "releases/$RELEASE_ID")
 	require.Contains(t, publishRun, "stat -c '%s'")
 	require.Contains(t, publishRun, "sha256:$local_sha256")
+	require.Contains(t, publishRun, ">\"$prepublish_dir/$asset\"")
+	require.Contains(t, publishRun, "cmp \"$local_asset\" \"$prepublish_dir/$asset\"")
 	require.Contains(t, publishRun, ".body == $expected")
 
 	verifyPublishedRun := stepRuns["Verify published immutable Release"]
@@ -226,6 +299,8 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	require.Contains(t, verifyPublishedRun, "stat -c '%s'")
 	require.Contains(t, verifyPublishedRun, "sha256:$local_sha256")
 	require.Contains(t, verifyPublishedRun, "releases/assets/$asset_id")
+	require.Contains(t, verifyPublishedRun, ">\"$published_dir/$asset\"")
+	require.Contains(t, verifyPublishedRun, "cmp \"$local_asset\" \"$published_dir/$asset\"")
 	require.Contains(t, verifyPublishedRun, ".body == $expected")
 	require.NotContains(t, verifyPublishedRun, "releases/tags/")
 }

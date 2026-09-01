@@ -1,12 +1,27 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestNormalizeConfigIsPure(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "not-created")
+	normalized, err := NormalizeConfig(Config{DataDir: dataDir})
+	if err != nil {
+		t.Fatalf("NormalizeConfig() error = %v", err)
+	}
+	if normalized.Plugin.Dir != filepath.Join(dataDir, "plugins") {
+		t.Fatalf("Plugin.Dir = %q", normalized.Plugin.Dir)
+	}
+	if _, err := os.Stat(dataDir); !os.IsNotExist(err) {
+		t.Fatalf("NormalizeConfig() created data directory: %v", err)
+	}
+}
 
 func TestWebhookConfigDefaultsWhenEndpointConfigured(t *testing.T) {
 	cfg, err := NormalizeWebhookConfig(WebhookConfig{

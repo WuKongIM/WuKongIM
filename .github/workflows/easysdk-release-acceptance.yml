@@ -216,9 +216,8 @@ jobs:
       - name: Point the official example at pub.dev
         run: |
           test/easysdk-release/flutter/prepare-release-example.sh release-sdk
-          mkdir -p release-sdk/example/integration_test
-          cp test/easysdk-release/flutter/release_smoke_test.dart \
-            release-sdk/example/integration_test/release_smoke_test.dart
+          cp test/easysdk-release/flutter/release_smoke_app.dart \
+            release-sdk/example/lib/release_smoke_app.dart
           cd release-sdk/example
           flutter pub get
           flutter pub deps --json >"${RUNNER_TEMP}/flutter-dependencies.json"
@@ -235,15 +234,7 @@ jobs:
 
       - name: Run released Flutter package on iOS
         working-directory: release-sdk/example
-        run: |
-          flutter test integration_test/release_smoke_test.dart \
-            -d "${SIMULATOR_ID}" \
-            --dart-define="ALICE_UID=${ALICE_UID}" \
-            --dart-define="ALICE_TOKEN=${ALICE_TOKEN}" \
-            --dart-define="BOB_UID=${BOB_UID}" \
-            --dart-define="ALICE_TO_BOB_TEXT=${ALICE_TO_BOB_TEXT}" \
-            --dart-define="BOB_TO_ALICE_TEXT=${BOB_TO_ALICE_TEXT}"
-          "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+        run: '"${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"'
 
       - name: Clean up runtime
         if: always()

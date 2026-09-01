@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // Keep configured IANA time zones available in minimal runtime images.
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
 )
@@ -23,19 +24,33 @@ type runtimeApp interface {
 type appFactory func(app.Config) (runtimeApp, error)
 
 func main() {
+	if code := runMain(); code != 0 {
+		os.Exit(code)
+	}
+}
+
+func runMain() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, os.Args[1:], newInternalApp); err != nil {
-		log.Fatal(err)
+	err := execute(ctx, os.Args[1:], commandIO{
+		stdin:          os.Stdin,
+		stdout:         os.Stdout,
+		stderr:         os.Stderr,
+		stdoutTerminal: isTerminal(os.Stdout),
+	}, newInternalApp)
+	if err == nil {
+		return 0
 	}
+	fmt.Fprintf(os.Stderr, "wukongim: %v\n", err)
+	return commandExitCode(err)
 }
 
 // run loads config, starts the app, waits for cancellation, and stops it.
 func run(ctx context.Context, args []string, newApp appFactory) error {
 	cfg, err := loadConfig(args)
 	if err != nil {
-		return err
+		return newCommandError(exitConfig, err)
 	}
 	application, err := newApp(cfg)
 	if err != nil {

@@ -168,11 +168,24 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.identity.outputs.version }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
           set -euo pipefail
+          parser_path="scripts/extract-release-notes.awk"
+          if [[ ! -f "$parser_path" ]]; then
+            [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]] || {
+              echo "tagged source is missing $parser_path" >&2
+              exit 1
+            }
+            [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git fetch --no-tags origin "$WORKFLOW_SHA"
+            parser_path="$RUNNER_TEMP/extract-release-notes.awk"
+            git show "$WORKFLOW_SHA:scripts/extract-release-notes.awk" >"$parser_path"
+            test -s "$parser_path"
+          fi
           notes_path="$RUNNER_TEMP/changelog-release-notes.md"
           awk -v version="$VERSION" \
-            -f scripts/extract-release-notes.awk CHANGELOG.md >"$notes_path"
+            -f "$parser_path" CHANGELOG.md >"$notes_path"
           test -s "$notes_path" || {
             echo "$VERSION has no non-empty CHANGELOG.md release body" >&2
             exit 1
@@ -306,6 +319,76 @@ jobs:
             echo "recovery=false" >>"$GITHUB_OUTPUT"
             echo "digest=" >>"$GITHUB_OUTPUT"
           fi
+
+      - name: Build amd64 security scan candidate
+        if: steps.publication.outputs.recovery != 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          pull: true
+          tags: wukongim-release-scan:amd64
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=docker-release
+
+      - name: Build arm64 security scan candidate
+        if: steps.publication.outputs.recovery != 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          load: true
+          pull: true
+          tags: wukongim-release-scan:arm64
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=docker-release
+
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.74.0
+          cache: true
+
+      - name: Scan local release candidates
+        if: steps.publication.outputs.recovery != 'true'
+        shell: bash
+        env:
+          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            trivy image \
+              --scanners vuln \
+              --severity CRITICAL,HIGH \
+              --exit-code 1 \
+              --no-progress \
+              "wukongim-release-scan:$arch"
+          done
+
+      - name: Scan recovered canonical image
+        if: steps.publication.outputs.recovery == 'true'
+        shell: bash
+        env:
+          RECOVERY_DIGEST: ${{ steps.publication.outputs.digest }}
+          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          [[ "$RECOVERY_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          for arch in amd64 arm64; do
+            trivy image \
+              --image-src remote \
+              --platform "linux/$arch" \
+              --scanners vuln \
+              --severity CRITICAL,HIGH \
+              --exit-code 1 \
+              --no-progress \
+              "$CANONICAL_IMAGE@$RECOVERY_DIGEST"
+          done
 
       - name: Build and push canonical image
         id: build

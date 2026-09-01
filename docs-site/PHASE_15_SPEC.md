@@ -34,8 +34,10 @@ Flutter `1.1.0`, and Web `2.0.4`. They make diagnostics default-off, restrict
 enabled output to sanitized operational metadata, and redact public model
 string output. On 2026-09-01, a separate acceptance resolved these exact
 registry artifacts and completed online bidirectional messaging plus disconnect
-against the same WuKongIM source. That proves bounded platform execution of the
-released packages, but not production readiness.
+against WuKongIM PR test merge
+`35f314cc2512f3f0f5d55d9677e817cb64129985`, whose candidate head was
+`1c9430f15fc8844e7025df07d54ab6e80e026414`. That proves bounded platform
+execution of the released packages, but not production readiness.
 
 ## Audience and completion outcome
 
@@ -117,12 +119,13 @@ source revision.
 On 2026-09-01, npm `easyjssdk@2.0.4`, Maven
 `com.githubim:easysdk-android:1.0.5`, CocoaPods `WuKongEasySDK 1.1.1`, and
 pub.dev `wukong_easy_sdk 1.1.0` were resolved from their registries and run
-against WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`. Android used an
-API 34 hosted emulator; iOS and Flutter used hosted iOS Simulators; the npm
-package served as the peer in every hosted job and also passed separately in
-Chrome 151. All four completed Alice/Bob online bidirectional messaging and
-disconnect cleanup. GitHub Actions run `33466063708` is the retained hosted
-receipt.
+against WuKongIM PR test merge
+`35f314cc2512f3f0f5d55d9677e817cb64129985` for candidate head
+`1c9430f15fc8844e7025df07d54ab6e80e026414`. Android used an API 34 hosted
+emulator; iOS and Flutter used hosted iOS Simulators; the npm package served as
+the peer in every hosted job and also passed separately in Chrome 151. All four
+completed Alice/Bob online bidirectional messaging and disconnect cleanup.
+GitHub Actions run `33484491015` is the retained final-head hosted receipt.
 
 ## Released logging fixes
 

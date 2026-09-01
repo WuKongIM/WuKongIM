@@ -661,6 +661,231 @@ esac
 	}
 }
 
+func TestChatLifecycleFormalAndCloudSafetySchedulesArmAndDisarmAtSafeLifecycleEdges(t *testing.T) {
+	rehearsalFinalizer := string(readWorkflow(t, "chat-lifecycle-rehearsal-finalize.yml"))
+	formalArm := strings.Index(rehearsalFinalizer, "scripts/chat-lifecycle/formal-workflows-state.sh enable-starter")
+	transitionProducer := strings.Index(rehearsalFinalizer, "Seal fresh-formal transition after rehearsal evidence and zero inventory")
+	if formalArm < 0 || transitionProducer <= formalArm {
+		t.Fatal("rehearsal finalizer does not arm formal continuation before it can publish a transition")
+	}
+
+	formalStart := string(readWorkflow(t, "chat-lifecycle-formal.yml"))
+	finalizerArm := strings.Index(formalStart, "scripts/chat-lifecycle/formal-workflows-state.sh enable-finalizer")
+	formalAcquire := strings.Index(formalStart, "scripts/chat-lifecycle/stage-orchestrate.sh")
+	if finalizerArm < 0 || formalAcquire <= finalizerArm {
+		t.Fatal("formal continuation does not arm its finalizer before paid orchestration")
+	}
+	for _, required := range []string{
+		"name: Disable idle formal continuation schedule",
+		"needs: [discover, orchestrate]",
+		"scripts/chat-lifecycle/formal-workflows-state.sh disable-starter-if-idle",
+	} {
+		if !strings.Contains(formalStart, required) {
+			t.Fatalf("formal continuation idle disarm contract is missing %q", required)
+		}
+	}
+
+	formalFinalizer := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
+	for _, required := range []string{
+		"name: Disable idle formal finalizer schedule",
+		"needs: [discover, finalize]",
+		"scripts/chat-lifecycle/formal-workflows-state.sh disable-finalizer-if-idle",
+	} {
+		if !strings.Contains(formalFinalizer, required) {
+			t.Fatalf("formal finalizer idle disarm contract is missing %q", required)
+		}
+	}
+
+	stop := string(readWorkflow(t, "chat-lifecycle-stop.yml"))
+	stopArm := strings.Index(stop, "scripts/chat-lifecycle/formal-workflows-state.sh enable-finalizer")
+	stopDispatch := strings.Index(stop, `gh workflow run "$workflow"`)
+	if stopArm < 0 || stopDispatch <= stopArm {
+		t.Fatal("operator stop does not arm the formal finalizer before exact dispatch")
+	}
+
+	provision := string(readWorkflow(t, "cloud-lease-provision.yml"))
+	for _, required := range []string{
+		"name: Arm generic cleanup before paid Acquire",
+		"permissions:\n      contents: read\n      actions: write",
+		"scripts/chat-lifecycle/cloud-lease-release-state.sh enable",
+		"needs: arm_release",
+	} {
+		if !strings.Contains(provision, required) {
+			t.Fatalf("Cloud Lease provision safety arming is missing %q", required)
+		}
+	}
+
+	release := string(readWorkflow(t, "cloud-lease-release.yml"))
+	for _, required := range []string{
+		"global_idle: ${{ steps.release_result.outputs.global_idle }}",
+		`.schema == "wukongim.cloud_lease.sweep/v1"`,
+		"name: Disable idle generic Cloud Lease sweep",
+		"needs.release.outputs.global_idle == 'true'",
+		"scripts/chat-lifecycle/cloud-lease-release-state.sh disable-if-idle",
+	} {
+		if !strings.Contains(release, required) {
+			t.Fatalf("Cloud Lease idle disarm contract is missing %q", required)
+		}
+	}
+
+	releaseUntilZero := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "release-until-zero.sh"))
+	arm := strings.Index(releaseUntilZero, "cloud-lease-release-state.sh enable")
+	dispatch := strings.Index(releaseUntilZero, "gh workflow run cloud-lease-release.yml")
+	if arm < 0 || dispatch <= arm {
+		t.Fatal("exact cleanup does not re-enable the generic release workflow before dispatch")
+	}
+
+	formalState := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "formal-workflows-state.sh"))
+	for _, required := range []string{
+		"discover-formal-transitions.sh", "discover-active-handoffs.sh",
+		"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal.yml",
+		"queued in_progress waiting requested pending", "api_attempts=4",
+	} {
+		if !strings.Contains(formalState, required) {
+			t.Fatalf("formal workflow state gate is missing %q", required)
+		}
+	}
+
+	cloudState := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "cloud-lease-release-state.sh"))
+	for _, required := range []string{
+		"cloud-lease-provision.yml", "chat-lifecycle-rehearsal.yml", "chat-lifecycle-formal.yml",
+		"queued in_progress waiting requested pending", "api_attempts=4",
+	} {
+		if !strings.Contains(cloudState, required) {
+			t.Fatalf("Cloud Lease release state gate is missing %q", required)
+		}
+	}
+}
+
+func TestFormalWorkflowStateLeavesSchedulesArmedWhileAProducerIsActive(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	calls := filepath.Join(directory, "calls")
+	fakeGH := filepath.Join(directory, "gh")
+	fake := `#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  *'/actions/artifacts?'*) printf '%s\n' '{"artifacts":[]}' ;;
+  *'/actions/workflows/'*'/runs?'*)
+    if [[ -n "${FAKE_ACTIVE_WORKFLOW:-}" && "$*" == *"/${FAKE_ACTIVE_WORKFLOW}/runs?"* && "$*" == *'status=in_progress'* ]]; then
+      printf '%s\n' '{"total_count":1,"workflow_runs":[{"repository":{"full_name":"WuKongIM/WuKongIM"},"head_repository":{"full_name":"WuKongIM/WuKongIM"},"event":"schedule","head_branch":"main","status":"in_progress"}]}'
+    else
+      printf '%s\n' '{"total_count":0,"workflow_runs":[]}'
+    fi
+    ;;
+  *'chat-lifecycle-formal.yml/enable'*) printf '%s\n' enable-starter >>"$FAKE_CALLS" ;;
+  *'chat-lifecycle-formal-finalize.yml/enable'*) printf '%s\n' enable-finalizer >>"$FAKE_CALLS" ;;
+  *'chat-lifecycle-formal.yml/disable'*) printf '%s\n' disable-starter >>"$FAKE_CALLS" ;;
+  *'chat-lifecycle-formal-finalize.yml/disable'*) printf '%s\n' disable-finalizer >>"$FAKE_CALLS" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 2 ;;
+esac
+`
+	if err := os.WriteFile(fakeGH, []byte(fake), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	run := func(operation, activeWorkflow string) string {
+		t.Helper()
+		if err := os.WriteFile(calls, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "formal-workflows-state.sh"), operation)
+		command.Dir = root
+		command.Env = append(os.Environ(),
+			"PATH="+directory+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM",
+			"FAKE_CALLS="+calls, "FAKE_ACTIVE_WORKFLOW="+activeWorkflow)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s formal workflow state: %v\n%s", operation, err, output)
+		}
+		return string(output)
+	}
+
+	run("enable-starter", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "enable-starter" {
+		t.Fatalf("starter enable calls = %q", got)
+	}
+	run("enable-finalizer", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "enable-finalizer" {
+		t.Fatalf("finalizer enable calls = %q", got)
+	}
+	activeStarter := run("disable-starter-if-idle", "chat-lifecycle-rehearsal-finalize.yml")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "" || !strings.Contains(activeStarter, "may still publish a transition") {
+		t.Fatalf("active transition producer calls = %q, output = %q", got, activeStarter)
+	}
+	run("disable-starter-if-idle", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "disable-starter" {
+		t.Fatalf("starter idle calls = %q", got)
+	}
+	activeFinalizer := run("disable-finalizer-if-idle", "chat-lifecycle-formal.yml")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "" || !strings.Contains(activeFinalizer, "may still publish a handoff") {
+		t.Fatalf("active formal producer calls = %q, output = %q", got, activeFinalizer)
+	}
+	run("disable-finalizer-if-idle", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "disable-finalizer" {
+		t.Fatalf("finalizer idle calls = %q", got)
+	}
+}
+
+func TestCloudLeaseReleaseStateLeavesScheduleArmedWhileAProducerIsActive(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	calls := filepath.Join(directory, "calls")
+	fakeGH := filepath.Join(directory, "gh")
+	fake := `#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  *'/actions/workflows/'*'/runs?'*)
+    if [[ -n "${FAKE_ACTIVE_WORKFLOW:-}" && "$*" == *"/${FAKE_ACTIVE_WORKFLOW}/runs?"* && "$*" == *'status=in_progress'* ]]; then
+      printf '%s\n' '{"total_count":1,"workflow_runs":[{"repository":{"full_name":"WuKongIM/WuKongIM"},"head_repository":{"full_name":"WuKongIM/WuKongIM"},"event":"workflow_dispatch","head_branch":"main","status":"in_progress"}]}'
+    else
+      printf '%s\n' '{"total_count":0,"workflow_runs":[]}'
+    fi
+    ;;
+  *'cloud-lease-release.yml/enable'*) printf '%s\n' enable >>"$FAKE_CALLS" ;;
+  *'cloud-lease-release.yml/disable'*) printf '%s\n' disable >>"$FAKE_CALLS" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 2 ;;
+esac
+`
+	if err := os.WriteFile(fakeGH, []byte(fake), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	run := func(operation, activeWorkflow string) string {
+		t.Helper()
+		if err := os.WriteFile(calls, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "cloud-lease-release-state.sh"), operation)
+		command.Dir = root
+		command.Env = append(os.Environ(),
+			"PATH="+directory+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM",
+			"FAKE_CALLS="+calls, "FAKE_ACTIVE_WORKFLOW="+activeWorkflow)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s Cloud Lease release state: %v\n%s", operation, err, output)
+		}
+		return string(output)
+	}
+
+	run("enable", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "enable" {
+		t.Fatalf("enable calls = %q", got)
+	}
+	run("enable-after-provision", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "enable\nenable" {
+		t.Fatalf("post-provision enable calls = %q", got)
+	}
+	active := run("disable-if-idle", "chat-lifecycle-formal.yml")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "" || !strings.Contains(active, "protected producer chat-lifecycle-formal.yml is active") {
+		t.Fatalf("active producer calls = %q, output = %q", got, active)
+	}
+	run("disable-if-idle", "")
+	if got := strings.TrimSpace(readFile(t, calls)); got != "disable" {
+		t.Fatalf("idle disarm calls = %q", got)
+	}
+}
+
 func TestOperatorStopDiscoveryAuthenticatesProducerAndFailsClosedAtInventoryBound(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
@@ -1198,7 +1423,7 @@ func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t 
 		t.Fatal("formal finalizer cannot recover already-zero pre-handoff cleanup evidence")
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-active-handoffs.sh"))
-	for _, required := range []string{"max_pages=50", "artifact_api_attempts=4", "fetch_artifact_page", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
+	for _, required := range []string{"max_pages=200", "artifact_api_attempts=4", "fetch_artifact_page", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
 		if !strings.Contains(discovery, required) {
 			t.Fatalf("bounded discovery is missing %q", required)
 		}
@@ -1411,6 +1636,57 @@ esac
 	}
 	if invalidManifest.Complete || invalidManifest.CaptureFailures != 2 {
 		t.Fatalf("malformed Prometheus manifest = %#v", invalidManifest)
+	}
+}
+
+func TestChatLifecycleActiveHandoffDiscoveryIgnoresUnrelatedRepositoryArtifactVolume(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := make([]map[string]any, 100)
+	for index := range artifacts {
+		artifacts[index] = map[string]any{"id": index + 1, "name": "unrelated", "expired": false}
+	}
+	page, err := json.Marshal(map[string]any{"artifacts": artifacts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pagePath := filepath.Join(directory, "page.json")
+	if err := os.WriteFile(pagePath, page, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := `#!/bin/sh
+case "$*" in
+	*"/actions/artifacts?"*"page=51"*) printf '%s\n' '{"artifacts":[]}' ;;
+	*"/actions/artifacts?"*) cat "$FAKE_ARTIFACT_PAGE" ;;
+	*"/actions/workflows/"*"/runs?"*) printf '%s\n' '{"workflow_runs":[]}' ;;
+	*) printf '%s\n' '{"artifacts":[]}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-active-handoffs.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ARTIFACT_PAGE="+pagePath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "WK_CHAT_STAGE=rehearsal")
+	combined, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("unrelated repository Artifact volume blocked discovery: %v\n%s", err, combined)
+	}
+	var matrix struct {
+		Include []json.RawMessage `json:"include"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, output)), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 0 {
+		t.Fatalf("active handoff matrix = %#v, want empty", matrix.Include)
 	}
 }
 
@@ -1678,12 +1954,66 @@ func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-formal-transitions.sh"))
 	authenticator := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "authenticate-operator-stop-producer.sh"))
-	if !strings.Contains(discovery, "max_pages=50") || !strings.Contains(discovery, "inventory_complete=false") ||
+	if !strings.Contains(discovery, "max_pages=200") || !strings.Contains(discovery, "artifact_api_attempts=4") ||
+		!strings.Contains(discovery, "fetch_artifact_page") || !strings.Contains(discovery, "inventory_complete=false") ||
 		!strings.Contains(discovery, "formal transition discovery exceeded") || strings.Contains(discovery, "--paginate") ||
 		!strings.Contains(discovery, "authenticate-operator-stop-producer.sh") ||
 		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") ||
 		!strings.Contains(authenticator, "chat-lifecycle-stop.yml") {
 		t.Fatal("formal transition discovery is not bounded and producer-authenticated")
+	}
+}
+
+func TestFormalTransitionDiscoveryRetriesTransientArtifactInventoryFailure(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	attemptsPath := filepath.Join(directory, "attempts")
+	if err := os.WriteFile(attemptsPath, []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := `#!/bin/sh
+attempts="$(cat "$FAKE_ATTEMPTS")"
+attempts=$((attempts + 1))
+printf '%s\n' "$attempts" >"$FAKE_ATTEMPTS"
+if [ "$attempts" -lt 3 ]; then
+  printf '%s\n' 'unexpected EOF' >&2
+  exit 1
+fi
+printf '%s\n' '{"artifacts":[]}'
+`
+	for name, content := range map[string]string{
+		"gh":    gh,
+		"sleep": "#!/bin/sh\nexit 0\n",
+	} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(content), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-formal-transitions.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ATTEMPTS="+attemptsPath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM")
+	combined, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("transient formal Artifact inventory failure was not retried: %v\n%s", err, combined)
+	}
+	if attempts := strings.TrimSpace(readFile(t, attemptsPath)); attempts != "3" {
+		t.Fatalf("formal Artifact inventory attempts = %s, want 3", attempts)
+	}
+	var matrix struct {
+		Include []json.RawMessage `json:"include"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, output)), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 0 {
+		t.Fatalf("formal transition matrix = %#v, want empty", matrix.Include)
 	}
 }
 

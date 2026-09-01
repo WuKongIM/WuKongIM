@@ -3,7 +3,7 @@ title: Run the Official Examples
 description: Use one pinned WuKongIM revision to run the Web, Android, iOS, and Flutter source examples and released packages.
 ---
 
-This page records two reproducible evidence classes. On August 31, 2026, the source examples in all four official repositories connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`. On September 1, the packages resolved from npm, Maven Central, CocoaPods, and pub.dev connected to the same server source and completed Alice → Bob, Bob → Alice, and disconnect cleanup. The server process-level JSON-RPC E2E also passed at that revision.
+This page records two reproducible evidence classes. On August 31, 2026, the source examples in all four official repositories connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`; the server process-level JSON-RPC E2E also passed at that revision. On September 1, the packages resolved from npm, Maven Central, CocoaPods, and pub.dev connected to test-merge server `35f314cc2512f3f0f5d55d9677e817cb64129985` for final PR head `1c9430f15fc8844e7025df07d54ab6e80e026414` and completed Alice → Bob, Bob → Alice, and disconnect cleanup.
 
 <Callout type="warn" title="Source examples and released packages are separate evidence">
   A source run proves one repository revision; a released-package run proves the archive actually served by a registry. Web `v2.0.4`, Android `v1.0.5`, and iOS `v1.1.1` now include the previously verified example and connection-lifecycle fixes, while Flutter remains on `v1.1.0`. Keep both evidence classes in every result.
@@ -20,7 +20,7 @@ This page records two reproducible evidence classes. On August 31, 2026, the sou
 | iOS | [`WuKongEasySDK 1.1.1`](https://cocoapods.org/pods/WuKongEasySDK) · [`ca688fcac2c4cd8d6f8e8163faf165376b520ba9`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/ca688fcac2c4cd8d6f8e8163faf165376b520ba9) | CocoaPods 1.16.2, iOS Simulator | Pod resolution, bidirectional messaging, and disconnect passed |
 | Flutter | [`wukong_easy_sdk 1.1.0`](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) · [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | Flutter 3.41.4, iOS Simulator | Hosted dependency resolution, bidirectional messaging, and disconnect passed |
 
-The Android, iOS, and Flutter hosted jobs—and the released npm `2.0.4` peer shared by each—are recorded in the [released-package acceptance run](https://github.com/WuKongIM/WuKongIM/actions/runs/33466063708).
+The Android, iOS, and Flutter hosted jobs—and the released npm `2.0.4` peer shared by each—are recorded in the [final-head released-package acceptance run](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015).
 
 ### Official source examples (August 31, 2026)
 
@@ -154,7 +154,7 @@ The current Web, Android, and iOS release commits change only version, changelog
 
 ## 4. Rerun released-package automation
 
-`Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. After the workflow lands, trigger it with:
+`Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. Trigger a rerun with:
 
 ```bash
 gh workflow run easysdk-release-acceptance.yml --ref main

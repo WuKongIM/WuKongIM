@@ -15,8 +15,8 @@ authorization and the applicable budget.
 | --- | --- | --- |
 | `chat-lifecycle-rehearsal.yml` | `Agent Tool - Start Chat Lifecycle Rehearsal` | Builds, quotes, acquires, deploys, and hands a full-scale two-hour rehearsal to remote systemd |
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | While armed, uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
-| `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
-| `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
+| `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | While armed, consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
+| `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | While armed, collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
 | `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
@@ -27,11 +27,12 @@ authorization and the applicable budget.
 | `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, and clean Verifier chain |
 | `manager-browser-smoke.yml` | `Safety Automation - Manager Browser Smoke` | Builds the production Manager bundle and runs the desktop/mobile Chromium matrix against a real three-node cluster |
 | `easysdk-release-acceptance.yml` | `Safety Automation - EasySDK Released Package Acceptance` | Resolves the pinned Android, iOS, and Flutter registry releases and proves bidirectional messaging against the current Product Gateway on hosted simulators/emulators |
+| `native-package-preview.yml` | `Safety Automation - Validate Native Package Preview` | Builds unsigned amd64 deb/rpm previews and checks non-activating installs on the four supported Linux distributions |
 | `cloud-lease-oidc-setup.yml` | `Agent Tool - Configure Cloud Lease OIDC Roles` | Reconciles and live-verifies the three workflow-conditioned Cloud Lease roles |
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
 | `cloud-lease-analyze.yml` | `Agent Tool - Analyze Chat Lifecycle Cloud Lease` | Authenticates one retained chat-lifecycle handoff, proves live Lease inventory, and brokers one bounded Analysis MCP session |
-| `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | Releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
+| `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | While armed, releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
 | `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
 | `cloud-deployment-activate.yml` | `Agent Tool - Activate Cloud Deployment` | Installs and gates one exact offline bundle on an active four-host Lease |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
@@ -40,7 +41,55 @@ authorization and the applicable budget.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
-| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS release archives for four architectures and publishes them to the exact tag's GitHub Release |
+| `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies the bilingual static documentation export and deploys that exact artifact to GitHub Pages |
+| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS archives plus unsigned Linux amd64 DEB/RPM assets and publishes the exact set to the tag's GitHub Release |
+
+## Documentation Pages
+
+`docs-pages.yml` is the sole documentation publisher. A merge to `main` that
+changes `docs-site/**` starts it automatically; `workflow_dispatch` is reserved
+for first publication and recovery. The build job has read-only repository
+access, installs the locked Bun dependencies, runs `bun run verify`, and uploads
+only the resulting `docs-site/out` directory. The deploy job receives only the
+Pages and OIDC permissions required by GitHub's deployment API.
+
+The repository Pages source must remain `workflow`, and the `github-pages`
+Environment is the production boundary. The artifact carries `CNAME` for
+`docs.githubim.com` and `.nojekyll`; Alibaba Cloud DNS must point the `docs`
+subdomain directly to `wukongim.github.io`. DNS changes and organization-level
+domain verification remain administrator operations outside the Workflow.
+
+## Native package preview
+
+`native-package-preview.yml` is a credential-free validation workflow, not a
+publisher. It builds unsigned Linux amd64 `.deb` and `.rpm` files from
+`.goreleaser.packages.yaml`. After the build, an integration test creates
+one-run, one-day `TEST ONLY` APT and RPM signing keys outside the repository,
+signs temporary repositories, and verifies both signatures and the exact APT
+`Release -> Packages -> .deb` and RPM `repomd.xml -> primary metadata -> .rpm`
+closures in clean containers. The temporary keys and signed repositories are
+never uploaded or published.
+
+The workflow also inspects package payloads and installs, reinstalls through
+the package-manager upgrade path, and removes them inside Ubuntu 24.04, Debian
+12, Rocky Linux 9, and AlmaLinux 9 containers. The package creates the
+`wukongim` service account and persistent directories but does not create
+`/etc/wukongim/wukongim.toml`, enable the unit, start it, or restart it during
+upgrade. The upgrade check records every `systemctl` request and verifies that
+the operator-owned configuration and data remain byte-identical. Only the
+unsigned preview packages and checksums are retained as Actions artifacts for
+14 days; this workflow still publishes no APT/YUM repository.
+
+The separate public `WuKongIM/packages` repository owns the fail-closed GitHub
+Pages bootstrap at the verified HTTPS endpoint `packages.githubim.com`; it
+currently publishes only a `signing_not_provisioned` status and no package
+indexes. Both repositories enforce immutable Releases, and the custom-domain
+DNS and certificate are provisioned. Reviewed public fingerprints, signing
+custody, cross-repository dispatch, and the production publisher remain
+intentionally outside this credential-free workflow. Exact unsigned source
+package assets are supplied by the tag-bound binary Release described below,
+but they must not enter package indexes until the remaining production controls
+are provisioned and reviewed.
 
 ## Docker image publishing
 
@@ -55,9 +104,13 @@ exact tag. It never derives release notes from commits or GitHub-generated
 notes.
 
 GHCR is the canonical build target. The Workflow builds
-`linux/amd64,linux/arm64` once, creates signed GitHub build provenance plus a
-CycloneDX SBOM attestation for each platform, and copies the exact runtime
-manifest digest to all three public repositories:
+`linux/amd64,linux/arm64` security candidates and blocks publication when
+Trivy reports any Critical or High vulnerability. A recovery run applies the
+same per-platform scan to the existing canonical digest before it can fill a
+missing mirror. After the scan passes, the Workflow builds the canonical
+multi-platform image, creates signed GitHub build provenance plus a CycloneDX
+SBOM attestation for each platform, and copies the exact runtime manifest
+digest to all three public repositories:
 
 - `ghcr.io/wukongim/wukongim`;
 - `docker.io/wukongim/wukongim`;
@@ -104,16 +157,29 @@ Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
 `linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
 because the server currently contains Unix-only runtime and filesystem paths.
 Every archive includes the executable, English and Chinese readmes, and
-`wukongim.toml.example`. The workflow publishes a shared SHA-256
-checksum file, creates signed GitHub build provenance, verifies the Linux
-binaries under amd64 and arm64, and retains all archives plus a JSON receipt as
-Actions evidence for 90 days. Tags containing the version command also prove
-the embedded version, full source commit, and `release` build source; older
-tags remain bound by the immutable tag, checksums, and attestation.
+`wukongim.toml.example`. When the tagged source contains
+`.goreleaser.packages.yaml`, the same run also uses the commit-pinned
+GoReleaser action with GoReleaser `v2.18.0` to build unsigned Linux amd64
+packages, normalized to exactly:
+
+- `wukongim_<version>_linux_amd64.deb`;
+- `wukongim_<version>_linux_amd64.rpm`.
+
+All archives and native packages share one SHA-256 checksum file and one signed
+GitHub build-provenance statement. The workflow verifies Linux binaries under
+amd64 and arm64 and retains the complete asset set plus a JSON receipt as
+Actions evidence for 90 days. Native packages remain unsigned source assets;
+the separate package repository must apply and verify its production package
+and repository signatures before publication. Tags containing the version
+command also prove the embedded version, full source commit, and `release`
+build source. Older tags that predate `.goreleaser.packages.yaml` retain their
+original five-asset recovery contract and remain bound by the immutable tag,
+checksums, and attestation.
 
 The workflow creates a draft Release without publishing it, uploads every
-expected asset, downloads and byte-compares the complete exact asset set, and
-only then publishes the verified draft once. Recovery may compare existing
+expected archive, native package, and checksum, downloads and byte-compares the
+complete exact asset set, and only then publishes the verified draft once.
+Recovery may compare existing
 assets and fill missing files only in that same draft. Draft discovery scans
 all Releases for one exact tag match, then binds creation, upload, verification,
 and publication to the resulting numeric Release ID; it never relies on the
@@ -128,8 +194,9 @@ incomplete one must never be reused and requires a new SemVer tag. A
 pre-release SemVer tag must correspond to a GitHub pre-release; stable tags
 must correspond to a normal Release. After publication, the workflow verifies
 that GitHub sealed the same numeric Release ID as immutable, checks every
-asset's API size and SHA-256 digest against the local file, and falls back to
-an ID-bound download and byte comparison when the API omits a digest.
+asset's API size and any available SHA-256 digest against the local file, and
+always performs an ID-bound download and byte comparison. The same ID-bound
+byte comparison is repeated immediately before publication.
 
 The human-authored part of every new Release comes only from the exact tagged
 section in the root `CHANGELOG.md`. The file keeps `Unreleased` first and uses
@@ -141,6 +208,12 @@ source, binary, checksum, image, digest, platform, Docker Workflow, and compare
 facts. It never falls back to GitHub-generated notes, a commit log, or an empty
 body. Every discovered, created, pre-publication, and published numeric Release
 ID must carry the exact rendered body.
+
+For manual recovery of a tag created before the release-note extractor was
+added, the Workflow fetches that extractor from the exact
+`github.workflow_sha` commit while continuing to read `CHANGELOG.md` and every
+release artifact from the immutable tag. Automatic tag publication fails if
+the tagged source itself omits the extractor.
 
 The binary publisher waits for a successful Docker publisher run for the same
 tag, then verifies that GHCR, Docker Hub, and Alibaba Cloud expose one identical
@@ -158,6 +231,14 @@ workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
 release credential. Until those Environment deployment restrictions have been
 configured and verified remotely, administrators must not push a release tag
 or manually dispatch this workflow.
+
+Immediately before pushing a release tag or starting manual recovery, an
+administrator must also verify that repository-level immutable Releases remain
+enabled in repository settings or through the administrator-only
+`GET /repos/{owner}/{repo}/immutable-releases` endpoint. The Actions
+`GITHUB_TOKEN` cannot read that administration endpoint, so the Workflow does
+not request or store an administrator token. It instead verifies after
+publication that GitHub sealed the exact numeric Release as immutable.
 
 For a user-visible pull request, add the release note under `Unreleased` when
 the change is made. A PR with no user-visible behavior must explain the reason
@@ -404,6 +485,18 @@ short-lived role. Deployment uses `cloud-deployment`, receives no `id-token`
 permission, and has no Alibaba credential. See
 [`docs/superpowers/runbooks/cloud-lease-identity.md`](../../docs/superpowers/runbooks/cloud-lease-identity.md).
 
+Every paid GitHub Acquire enables the generic Release schedule in a separate
+credential-free job before the Provisioner Environment can run. The direct
+local repair laboratory enables the same backstop before Acquire, then waits
+for any older Release pass to become terminal and seals it enabled again after
+the active Receipt exists. A scheduled provider sweep may disable itself only
+when its typed result proves zero examined, released, pending, and failed
+repository inventory and a separate no-provider-credential job proves every
+protected GitHub Lease producer is terminal. Exact cleanup helpers always
+re-enable the Workflow before dispatch. Consequently an idle repository has no
+15-minute Cloud Lease run, while a new paid Lease cannot depend on a disabled
+cleanup backstop.
+
 ## Cloud Deployment offline bundle
 
 `cloud-deployment-bundle.yml` runs before any Cloud Lease Quote or Acquire and
@@ -495,7 +588,10 @@ repeats authenticated handoff discovery and checks all non-terminal protected
 rehearsal producer runs. It disables future finalizer triggers only when no
 producer can still publish a handoff and every published handoff has exact
 zero-inventory proof. Any incomplete inventory, producer, or Workflow-state
-observation fails closed by leaving the schedule enabled. The Stop Action also
+observation fails closed by leaving the schedule enabled. Global handoff
+discovery exhausts at most 20,000 retained repository Artifacts, so unrelated
+Artifact volume above the former 5,000-item bound cannot strand the schedule
+while the inventory remains explicitly bounded. The Stop Action also
 enables the finalizer before its exact request-scoped dispatch. Consequently an
 idle repository has no recurring rehearsal-finalizer runs, while paid
 orchestration, cleanup continuation, and report rescue retain the ten-minute
@@ -553,6 +649,18 @@ it does not commit the whole 12-hour rehearsal Quote.
 second public operator surface. It consumes at most one unspent transition,
 refuses procurement if either stage still has active inventory, reuses the
 exact original bundle, and acquires a completely fresh 96-hour formal Lease.
+The rehearsal finalizer enables this continuation before it can publish a
+formal transition. An always-running disarm job disables future continuation
+triggers only after the complete bounded Artifact inventory contains no
+authenticated unconsumed transition and no protected rehearsal finalizer can
+still publish one. Formal transition discovery shares the 20,000-Artifact
+bound and four-attempt per-page retry used by handoff discovery. Before formal
+orchestration can Acquire, the
+continuation enables the formal finalizer; that finalizer disables itself only
+after no authenticated formal handoff lacks zero-inventory proof and no
+protected formal producer remains active. Operator stop re-enables the exact
+formal finalizer before dispatch. These state transitions remove idle formal
+schedules without weakening transition or cleanup recovery.
 Remote `wkbench-formal.service` owns the uninterrupted 72-hour Soak, hour-24
 qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
 2,000-SEND/s recovery in one `wkbench formal-chain` process with the same
