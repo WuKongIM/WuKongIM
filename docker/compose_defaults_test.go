@@ -112,6 +112,27 @@ func TestComposeNodeDataMountsCanTargetIndependentBackingStores(t *testing.T) {
 	}
 }
 
+func TestComposeDevelopmentBindMountsExplicitlyOverridePublishedImageUser(t *testing.T) {
+	composePath := filepath.Join(dockerRepoRoot(t), "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", composePath, err)
+	}
+	var compose struct {
+		Services map[string]struct {
+			User string `yaml:"user"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		t.Fatalf("decode %s: %v", composePath, err)
+	}
+	for _, service := range []string{"wk-node1", "wk-node2", "wk-node3", "wk-sim"} {
+		if got := compose.Services[service].User; got != "0:0" {
+			t.Fatalf("%s user = %q, want explicit development-only root override", service, got)
+		}
+	}
+}
+
 func TestComposeServesEmbeddedManagerWebWithoutStandaloneContainer(t *testing.T) {
 	composePath := filepath.Join(dockerRepoRoot(t), "docker-compose.yml")
 	data, err := os.ReadFile(composePath)

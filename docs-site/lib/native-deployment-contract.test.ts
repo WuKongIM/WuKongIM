@@ -7,24 +7,34 @@ async function page(path: string) {
 }
 
 describe('native deployment publication contract', () => {
-  test('documents executable Docker build, health, and persistence boundaries', async () => {
+  test('documents a pinned Compose deployment with protected runtime boundaries', async () => {
     const pages = await Promise.all([page('docker.mdx'), page('docker.en.mdx')]);
 
     for (const content of pages) {
       for (const contract of [
-        'GO_IMAGE',
-        'RUNTIME_IMAGE',
-        'GOPROXY',
-        'docker buildx version',
-        'http://127.0.0.1:15001/readyz',
-        'http://127.0.0.1:9091/-/ready',
-        'http://127.0.0.1:3000/api/health',
-        '/var/lib/wukongim/plugin-state',
+        'ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760',
+        'docker compose config --quiet',
+        'docker compose pull',
+        'v3.0.0-beta.4/wukongim.toml.example',
+        'WK_MANAGER_USERS=',
+        'wukongim-node1-data',
+        './node1.toml:/etc/wukongim/wukongim.toml:ro',
+        '/etc/wukongim/wukongim.toml,readonly',
+        '127.0.0.1:5001:5001',
+        '0.0.0.0:5100:5100',
+        '127.0.0.1:5301:5301',
+        'healthcheck:',
+        'wget',
+        'uid=10001,gid=10001,mode=0750',
+        'http://127.0.0.1:5001/readyz',
         '/run/wukongim/plugin.sock',
+        '/guide/quick-start',
         'docker compose down -v',
+        'Alpine 3.19',
       ]) {
         expect(content).toContain(contract);
       }
+      expect(content).not.toContain('wukongim:latest');
     }
   });
 
