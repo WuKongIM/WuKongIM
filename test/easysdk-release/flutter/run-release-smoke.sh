@@ -2,8 +2,7 @@
 
 set -euo pipefail
 
-readonly FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS="${FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS:-300}"
-readonly FLUTTER_RELEASE_SMOKE_MAX_ATTEMPTS=2
+readonly FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS="${FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS:-480}"
 
 run_bounded_flutter_test() {
   python3 - "${FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS}" \
@@ -57,32 +56,17 @@ print_timeout_diagnostics() {
     || true
 }
 
-reset_simulator() {
-  xcrun simctl shutdown "${SIMULATOR_ID}" 2>/dev/null || true
-  xcrun simctl boot "${SIMULATOR_ID}"
-  xcrun simctl bootstatus "${SIMULATOR_ID}" -b
-}
+echo "FLUTTER_RELEASE_SMOKE_ATTEMPT attempt=1"
+set +e
+run_bounded_flutter_test
+status=$?
+set -e
 
-for attempt in $(seq 1 "${FLUTTER_RELEASE_SMOKE_MAX_ATTEMPTS}"); do
-  echo "FLUTTER_RELEASE_SMOKE_ATTEMPT attempt=${attempt}"
-  set +e
-  run_bounded_flutter_test
-  status=$?
-  set -e
-
-  if [[ ${status} -eq 0 ]]; then
-    "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
-    exit 0
-  fi
-  if [[ ${status} -ne 124 ]]; then
-    exit "${status}"
-  fi
-
+if [[ ${status} -eq 124 ]]; then
   print_timeout_diagnostics
-  if [[ ${attempt} -eq ${FLUTTER_RELEASE_SMOKE_MAX_ATTEMPTS} ]]; then
-    exit "${status}"
-  fi
+fi
+if [[ ${status} -ne 0 ]]; then
+  exit "${status}"
+fi
 
-  echo "FLUTTER_RELEASE_SMOKE_RETRY reason=timeout"
-  reset_simulator
-done
+"${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"

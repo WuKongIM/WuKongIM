@@ -169,8 +169,19 @@ func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
 	)
 
 	helper := readFile(t, helperPath)
-	require.Contains(t, helper, "FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS")
+	require.Contains(
+		t,
+		helper,
+		`FLUTTER_RELEASE_SMOKE_TIMEOUT_SECONDS:-480`,
+		"the timeout must cover observed healthy macOS runner variance",
+	)
 	require.Contains(t, helper, "FLUTTER_RELEASE_SMOKE_TIMEOUT")
+	require.NotContains(
+		t,
+		helper,
+		"FLUTTER_RELEASE_SMOKE_RETRY",
+		"a retry must use a fresh runner instead of reusing degraded runtime state",
+	)
 
 	testBody := readFile(
 		t,
