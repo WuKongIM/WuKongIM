@@ -5,10 +5,10 @@ description: 使用固定版本镜像、Docker Compose 和持久卷运行可验�
 
 这条路径适合希望用官方镜像快速部署，同时明确管理网络、数据和容器生命周期边界的团队。完成后，你会得到一个可登录 Manager、可继续验证消息收发的单节点集群。
 
-示例固定到预发布版本 `3.0.0-beta.4`，支持 `linux/amd64` 和 `linux/arm64`。镜像使用“版本标签 + 摘要”，不会因为标签移动而改变内容。
+示例固定到预发布版本 `3.0.0-beta.5`，支持 `linux/amd64` 和 `linux/arm64`。镜像使用“版本标签 + 摘要”，不会因为标签移动而改变内容。
 
-<Callout type="warn" title="这不是当前版本的生产安全基线">
-  固定镜像以 root 运行，镜像本身没有 `HEALTHCHECK`，运行时基础层 Alpine 3.19 已在 2025-11-01 结束常规支持。下文的 Compose 会增加就绪检查，但不会修复镜像身份或基础层问题。生产使用前应重新发布基于受支持基础层的非 root 镜像，完成扫描，并通过[生产检查清单](/zh/server/deployment/production-checklist)。基础层日期见 [Alpine 发布分支](https://alpinelinux.org/releases/)。
+<Callout type="warn" title="生产使用前验证该预发布版本">
+  固定镜像以 UID/GID `10001:10001` 运行，内置镜像级 `HEALTHCHECK`，使用 Alpine 3.24.1，并已通过 amd64 和 arm64 的发布时 Critical/High 漏洞门禁。但它仍是 beta 版本，扫描也只是特定时间点的证据。承载生产流量前，请结合[生产检查清单](/zh/server/deployment/production-checklist)验证配置、存储权限、网络控制、备份和回滚。
 </Callout>
 
 ## 1. 准备主机和配置
@@ -29,7 +29,7 @@ mkdir -p wukongim-docker
 cd wukongim-docker
 
 curl --fail --location \
-  https://raw.githubusercontent.com/WuKongIM/WuKongIM/v3.0.0-beta.4/wukongim.toml.example \
+  https://raw.githubusercontent.com/WuKongIM/WuKongIM/v3.0.0-beta.5/wukongim.toml.example \
   --output node1.toml
 chmod 644 node1.toml
 ```
@@ -90,7 +90,7 @@ name: wukongim
 
 services:
   node1:
-    image: ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516
     container_name: wukongim-node1
     restart: unless-stopped
     stop_grace_period: 30s
@@ -127,8 +127,8 @@ volumes:
 GHCR 不可用时，可以把 `image` 替换为以下任一已验证的同摘要镜像：
 
 ```text
-wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
-registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760
+wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516
+registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516
 ```
 
 升级版本时，标签、摘要和配置模板版本必须成对更新并重新验证。
@@ -212,7 +212,7 @@ docker compose down
 下面的命令复用同一 `.env`、配置和数据边界：
 
 ```bash
-export WK_IMAGE='ghcr.io/wukongim/wukongim:3.0.0-beta.4@sha256:98a4859e057746d2f3071810ad6eebcb073e3d5fb1ccbd6a97a51ce634ed0760'
+export WK_IMAGE='ghcr.io/wukongim/wukongim:3.0.0-beta.5@sha256:7112c059dc5517ee6370b340b4a3180c10244553e8e946f44640014c67890516'
 
 docker network inspect wukongim >/dev/null 2>&1 || docker network create wukongim
 docker volume inspect wukongim-node1-data >/dev/null 2>&1 || docker volume create wukongim-node1-data
