@@ -124,6 +124,13 @@ func TestNativePackageRepositorySigningFailsClosed(t *testing.T) {
 	verifier := readNativePackageFile(t, root, "scripts/verify-native-package-repositories.sh")
 	metadataVerifier := readNativePackageFile(t, root, "scripts/verify-native-package-metadata.py")
 	containerVerifier := readNativePackageFile(t, root, "scripts/validate-native-package-repositories-container.sh")
+	for _, required := range []string{
+		"--network none",
+		"--read-only",
+		"find /work -xdev -mindepth 1 -depth -delete",
+	} {
+		require.Contains(t, containerVerifier, required)
+	}
 
 	for _, required := range []string{
 		"TEST ONLY",

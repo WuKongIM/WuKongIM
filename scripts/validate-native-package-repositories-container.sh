@@ -18,7 +18,20 @@ rpm_packages=("$package_dir"/wukongim*.rpm)
 
 work_dir="$(mktemp -d)"
 cleanup() {
-  find "$work_dir" -depth -delete
+  local status=$?
+  if [[ -d "$work_dir" ]]; then
+    # Containers run as root and leave root-owned repository metadata behind on
+    # Linux runners. Delete only this dedicated mount from an isolated
+    # container, then let the invoking user remove the empty directory.
+    docker run --rm \
+      --network none \
+      --read-only \
+      --volume "$work_dir:/work" \
+      ubuntu:24.04 \
+      find /work -xdev -mindepth 1 -depth -delete >/dev/null 2>&1 || true
+    rmdir "$work_dir" 2>/dev/null || true
+  fi
+  return "$status"
 }
 trap cleanup EXIT HUP INT TERM
 chmod 0755 "$work_dir"
