@@ -498,9 +498,10 @@
   provenance and per-platform CycloneDX SBOM attestations retain the evidence
   outside the registry manifest, and successful runs retain the SBOM files with
   the release receipt for 90 days. Traffic admission
-  uses `/readyz`, not process-level `/healthz`. The published Kubernetes Beta
-  page is a reference architecture,
-  not an official chart or manifest: it uses an immutable image digest,
+  uses `/readyz`, not process-level `/healthz`. The former Kubernetes Beta
+  pages were reference architecture rather than an official chart or manifest;
+  their legacy URLs now redirect to the supported deployment entry. Any future
+  Kubernetes guidance must still use an immutable image digest,
   StatefulSet ordinals mapped to stable unique WuKongIM node IDs, one shared
   full member list, a Headless Service, independent PVCs, 256 physical hash
   slots, explicit replica policy, `enableServiceLinks: false`, `/healthz` for
