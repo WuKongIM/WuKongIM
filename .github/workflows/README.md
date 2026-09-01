@@ -80,7 +80,11 @@ are provisioned and reviewed.
 new `v*` tag starts an automatic release, while `workflow_dispatch` accepts one
 existing tag for a first publication or incomplete-release recovery. The tag
 must be strict SemVer without `+build` metadata, resolve to a commit reachable
-from `origin/main`, and remain the immutable source identity.
+from `origin/main`, and remain the immutable source identity. Before checking
+credentials or publishing an image, the Workflow validates that the tagged
+`CHANGELOG.md` contains one non-empty, correctly formatted section for the
+exact tag. It never derives release notes from commits or GitHub-generated
+notes.
 
 GHCR is the canonical build target. The Workflow builds
 `linux/amd64,linux/arm64` once, creates signed GitHub build provenance plus a
@@ -173,6 +177,26 @@ asset's API size and any available SHA-256 digest against the local file, and
 always performs an ID-bound download and byte comparison. The same ID-bound
 byte comparison is repeated immediately before publication.
 
+The human-authored part of every new Release comes only from the exact tagged
+section in the root `CHANGELOG.md`. The file keeps `Unreleased` first and uses
+`## [vMAJOR.MINOR.PATCH[-PRERELEASE]] - YYYY-MM-DD` version boundaries with the
+fixed bilingual categories documented in that file. The Workflow rejects a
+missing, duplicate, empty, or malformed target section before building. It
+preserves the extracted Markdown verbatim and appends only machine-derived
+source, binary, checksum, image, digest, platform, Docker Workflow, and compare
+facts. It never falls back to GitHub-generated notes, a commit log, or an empty
+body. Every discovered, created, pre-publication, and published numeric Release
+ID must carry the exact rendered body.
+
+The binary publisher waits for a successful Docker publisher run for the same
+tag, then verifies that GHCR, Docker Hub, and Alibaba Cloud expose one identical
+`linux/amd64,linux/arm64` digest whose per-platform labels match the exact tag
+source. A Docker failure or bounded wait timeout leaves any matching draft
+unpublished. After repair, manual dispatch resumes only when the draft body and
+assets still exactly match the tagged source. Pre-release Changelog entries are
+incremental from the previous pre-release in the same version line; stable
+entries summarize user-visible changes since the previous stable release.
+
 Repository administrators must configure a `binary-publish` Environment,
 allow protected `main` for manual recovery and trusted version tags for
 automatic publication, and avoid a reviewer gate for tag-triggered runs. The
@@ -180,6 +204,18 @@ workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
 release credential. Until those Environment deployment restrictions have been
 configured and verified remotely, administrators must not push a release tag
 or manually dispatch this workflow.
+
+For a user-visible pull request, add the release note under `Unreleased` when
+the change is made. A PR with no user-visible behavior must explain the reason
+in the repository PR template and receive the maintainer-applied
+`skip-changelog` label. The existing Review Agent checks the repository rule;
+the tag Workflows remain the final fail-closed publication gate. Before tagging,
+run:
+
+```bash
+awk -v version=v3.0.0-beta.5 \
+  -f scripts/extract-release-notes.awk CHANGELOG.md >/dev/null
+```
 
 ## Direct local chat-lifecycle repair
 
