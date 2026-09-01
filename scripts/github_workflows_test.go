@@ -31,6 +31,7 @@ var workflowCatalog = map[string]string{
 	"cloud-sim-oidc-subject.yml":               "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":                  "Agent Tool - Provision Cloud Simulation",
 	"docker-image-publish.yml":                 "Safety Automation - Publish Docker Images",
+	"easysdk-release-acceptance.yml":           "Safety Automation - EasySDK Released Package Acceptance",
 	"issue-agent-engineer.yml":                 "Agent Tool - Issue Engineer",
 	"issue-agent-pr-signal.yml":                "Safety Automation - Issue Agent PR Signal",
 	"issue-agent.yml":                          "Safety Automation - GitHub Issue Agent",
@@ -107,6 +108,124 @@ func TestGitHubWorkflowExternalActionsUseFullCommitPins(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestEasySDKAndroidEmulatorScriptHasIndependentCommands(t *testing.T) {
+	var workflow struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Uses string `yaml:"uses"`
+				With struct {
+					Script string `yaml:"script"`
+				} `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	require.NoError(
+		t,
+		yaml.Unmarshal(readWorkflow(t, "easysdk-release-acceptance.yml"), &workflow),
+	)
+
+	found := false
+	for _, step := range workflow.Jobs["android-release"].Steps {
+		if !strings.HasPrefix(step.Uses, "reactivecircus/android-emulator-runner@") {
+			continue
+		}
+		found = true
+		for lineNumber, line := range strings.Split(step.With.Script, "\n") {
+			require.Falsef(
+				t,
+				strings.HasSuffix(strings.TrimSpace(line), `\`),
+				"android-emulator-runner executes script line %d independently; move multiline commands into a helper script",
+				lineNumber+1,
+			)
+		}
+	}
+	require.True(t, found, "EasySDK Android emulator step not found")
+}
+
+func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
+	root := repoRoot(t)
+	workflow := string(readWorkflow(t, "easysdk-release-acceptance.yml"))
+	helperPath := filepath.Join(
+		root,
+		"test",
+		"easysdk-release",
+		"flutter",
+		"run-release-smoke.sh",
+	)
+
+	require.Contains(
+		t,
+		workflow,
+		`"${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"`,
+		"the Flutter release smoke must use its bounded runner",
+	)
+	require.NotContains(
+		t,
+		workflow,
+		"flutter test integration_test/release_smoke_test.dart",
+		"the workflow must not use the flaky iOS integration-test launcher",
+	)
+	require.Contains(
+		t,
+		workflow,
+		"test/easysdk-release/flutter/release_smoke_app.dart",
+		"the released example must build the receipt-writing smoke app",
+	)
+
+	helper := readFile(t, helperPath)
+	require.Contains(
+		t,
+		helper,
+		`FLUTTER_RELEASE_SMOKE_BUILD_TIMEOUT_SECONDS:-480`,
+		"the Flutter example build must have an independent deadline",
+	)
+	require.Contains(t, helper, "FLUTTER_RELEASE_SMOKE_TIMEOUT")
+	require.Contains(t, helper, "flutter build ios --simulator")
+	require.Contains(t, helper, "xcrun simctl install")
+	require.Contains(t, helper, "xcrun simctl launch")
+	require.Contains(t, helper, "release-smoke-config.json")
+	require.Contains(t, helper, "release-smoke.json")
+	require.NotContains(
+		t,
+		helper,
+		"SIMCTL_CHILD_",
+		"Flutter does not reliably expose simctl child variables through Platform.environment",
+	)
+	require.NotContains(t, helper, "flutter test")
+	require.NotContains(
+		t,
+		helper,
+		"FLUTTER_RELEASE_SMOKE_RETRY",
+		"a retry must use a fresh runner instead of reusing degraded runtime state",
+	)
+
+	appBody := readFile(
+		t,
+		filepath.Join(filepath.Dir(helperPath), "release_smoke_app.dart"),
+	)
+	require.Contains(
+		t,
+		appBody,
+		"await sdk.connect().timeout(",
+		"the SDK connection must have its own Dart-level deadline",
+	)
+	require.Contains(t, appBody, "Directory.systemTemp")
+	require.Contains(t, appBody, "release-smoke-config.json")
+	require.Contains(t, appBody, "await configFile.delete()")
+	require.NotContains(t, appBody, "Platform.environment")
+	require.Contains(t, appBody, "FLUTTER_RELEASE_SMOKE_PASS")
+	preparer := readFile(
+		t,
+		filepath.Join(filepath.Dir(helperPath), "prepare-release-example.mjs"),
+	)
+	require.NotContains(
+		t,
+		preparer,
+		"integration_test",
+		"the receipt app must not retain the flaky integration-test dependency",
+	)
 }
 
 func TestLegacyAutomaticTestWorkflowsAreAbsent(t *testing.T) {

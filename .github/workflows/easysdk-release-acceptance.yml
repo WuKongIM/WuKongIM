@@ -1,0 +1,243 @@
+name: Safety Automation - EasySDK Released Package Acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/easysdk-release-acceptance.yml
+      - .github/workflows/README.md
+      - test/easysdk-release/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: easysdk-release-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-release:
+    name: Android Maven Central 1.0.5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out WuKongIM
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: test/easysdk-release/peer/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Check out Android release source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: WuKongIM/WuKongEasySDK-Android
+          ref: v1.0.5
+          path: release-sdk
+
+      - name: Point the official example at Maven Central
+        run: |
+          test/easysdk-release/android/prepare-release-example.sh release-sdk
+          install -D \
+            test/easysdk-release/android/ReleaseSmokeTest.kt \
+            release-sdk/example/src/androidTest/java/com/githubim/easysdk/example/ReleaseSmokeTest.kt
+          release-sdk/gradlew -p release-sdk :example:dependencies \
+            --configuration debugRuntimeClasspath >"${RUNNER_TEMP}/android-dependencies.txt"
+          grep -F 'com.githubim:easysdk-android:1.0.5' \
+            "${RUNNER_TEMP}/android-dependencies.txt"
+
+      - name: Start WuKongIM and released Web peer
+        run: test/easysdk-release/start-runtime.sh android
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run released Android package on API 34
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          working-directory: release-sdk
+          script: |
+            "${GITHUB_WORKSPACE}/test/easysdk-release/android/run-release-smoke.sh"
+            "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+
+      - name: Clean up runtime
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: test/easysdk-release/cleanup-runtime.sh
+
+  ios-release:
+    name: iOS CocoaPods 1.1.1
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+    steps:
+      - name: Check out WuKongIM
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: test/easysdk-release/peer/package-lock.json
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: '3.3'
+
+      - name: Install CocoaPods
+        run: gem install cocoapods -v 1.16.2 --no-document
+
+      - name: Resolve the exact CocoaPods package
+        working-directory: test/easysdk-release/ios
+        run: |
+          ruby generate_project.rb
+          pod install --repo-update
+          grep -F -- '- WuKongEasySDK (1.1.1)' Podfile.lock
+
+      - name: Start WuKongIM and released Web peer
+        run: test/easysdk-release/start-runtime.sh ios
+
+      - name: Boot iOS Simulator
+        run: test/easysdk-release/boot-ios-simulator.sh
+
+      - name: Build and run the CocoaPods app
+        working-directory: test/easysdk-release/ios
+        run: |
+          xcodebuild \
+            -quiet \
+            -workspace ReleaseSmoke.xcworkspace \
+            -scheme ReleaseSmoke \
+            -destination "platform=iOS Simulator,id=${SIMULATOR_ID}" \
+            -derivedDataPath "${RUNNER_TEMP}/ios-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+          app_path="${RUNNER_TEMP}/ios-derived/Build/Products/Debug-iphonesimulator/ReleaseSmoke.app"
+          xcrun simctl install "${SIMULATOR_ID}" "${app_path}"
+          SIMCTL_CHILD_ALICE_UID="${ALICE_UID}" \
+          SIMCTL_CHILD_ALICE_TOKEN="${ALICE_TOKEN}" \
+          SIMCTL_CHILD_BOB_UID="${BOB_UID}" \
+          SIMCTL_CHILD_ALICE_TO_BOB_TEXT="${ALICE_TO_BOB_TEXT}" \
+          SIMCTL_CHILD_BOB_TO_ALICE_TEXT="${BOB_TO_ALICE_TEXT}" \
+            xcrun simctl launch "${SIMULATOR_ID}" com.wukongim.easysdk.release-smoke
+
+          container="$(xcrun simctl get_app_container \
+            "${SIMULATOR_ID}" com.wukongim.easysdk.release-smoke data)"
+          receipt="${container}/Documents/release-smoke.json"
+          for _ in $(seq 1 60); do
+            if [[ -f "${receipt}" ]]; then
+              break
+            fi
+            sleep 1
+          done
+          test -f "${receipt}"
+          cat "${receipt}"
+          python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["status"] == "PASS"' \
+            "${receipt}"
+          "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+
+      - name: Clean up runtime
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: test/easysdk-release/cleanup-runtime.sh
+
+  flutter-release:
+    name: Flutter pub.dev 1.1.0 on iOS
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+    steps:
+      - name: Check out WuKongIM
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: test/easysdk-release/peer/package-lock.json
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          channel: stable
+          flutter-version: '3.41.4'
+          cache: true
+
+      - name: Check out Flutter release source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: WuKongIM/WuKongEasySDK-Flutter
+          ref: v1.1.0
+          path: release-sdk
+
+      - name: Point the official example at pub.dev
+        run: |
+          test/easysdk-release/flutter/prepare-release-example.sh release-sdk
+          cp test/easysdk-release/flutter/release_smoke_app.dart \
+            release-sdk/example/lib/release_smoke_app.dart
+          cd release-sdk/example
+          flutter pub get
+          flutter pub deps --json >"${RUNNER_TEMP}/flutter-dependencies.json"
+          jq -e '.packages[] | select(.name == "wukong_easy_sdk" and .version == "1.1.0" and .source == "hosted")' \
+            "${RUNNER_TEMP}/flutter-dependencies.json"
+          jq -e '.packages[] | select(.name == "wukong_easy_sdk") | .rootUri | contains(".pub-cache")' \
+            .dart_tool/package_config.json
+
+      - name: Start WuKongIM and released Web peer
+        run: test/easysdk-release/start-runtime.sh flutter
+
+      - name: Boot iOS Simulator
+        run: test/easysdk-release/boot-ios-simulator.sh
+
+      - name: Run released Flutter package on iOS
+        working-directory: release-sdk/example
+        run: '"${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"'
+
+      - name: Clean up runtime
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: test/easysdk-release/cleanup-runtime.sh
