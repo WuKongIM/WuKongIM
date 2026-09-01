@@ -6,7 +6,7 @@ description: 精确安装 WuKongEasySDK Flutter 1.1.0，用可连续复制的 Da
 使用一个 `StatefulWidget` 依次完成安装、初始化、监听、单聊发送和 `dispose` 清理。Alice 与 Bob 运行在两个独立设备、模拟器或浏览器上下文中。
 
 <Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v1.1.0` 的 JSON-RPC CONNECT 与在线双向收发：客户端以 Base64 发送，服务端对有效 JSON 输出对象 RECV。设备线路值为 APP `0`、WEB `1`、PC `2`。教程使用 [pub.dev 1.1.0](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) 与对应 [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0)；同一 revision `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` 的官方 example 已在 iOS Simulator 实测通过。其他 Flutter 目标、WSS 与生产 Token 校验仍须独立验收。
+  当前 Product Gateway 支持固定 `v1.1.0` 的 JSON-RPC CONNECT 与在线双向收发：客户端以 Base64 发送，服务端对有效 JSON 输出对象 RECV。设备线路值为 APP `0`、WEB `1`、PC `2`。教程使用 [pub.dev 1.1.0](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) 与对应 [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0)；同一 revision `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` 的官方 example 与从 pub.dev 解析的正式包均已在 iOS Simulator 完成双向消息和断开。其他 Flutter 目标、WSS 与生产 Token 校验仍须独立验收。
 </Callout>
 
 ## 完成后你会得到什么
@@ -30,7 +30,7 @@ flutter pub get
 flutter run -d <device-id>
 ```
 
-这个 revision 就是正式 `v1.1.0`；完整的服务端准备、设备地址和 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。
+这个 revision 就是正式 `v1.1.0`；源码 example 和 hosted 正式包的完整服务端准备、设备地址及 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。
 
 ## 开始前
 
@@ -251,7 +251,7 @@ Future<void> sendText(String targetUid, String text) async {
 5. Bob 向 Alice 回发，验证反向链路；
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放。
 
-上述正式 `v1.1.0` example 已在 iOS Simulator 连接同一版 WuKongIM，完成双向消息；25 个测试和静态分析也通过。该闭环没有证明 Android、Web、桌面目标、应用后台恢复、离线消息同步或多端会话一致性，继续按[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)补齐。
+上述正式 `v1.1.0` example 已在 iOS Simulator 连接同一版 WuKongIM，完成双向消息；25 个测试和静态分析也通过。从 pub.dev 解析且 package config 标记为 `hosted` 的同版本产物随后在托管 iOS Simulator 再次完成双向消息和断开。该闭环没有证明 Android、Web、桌面目标、应用后台恢复、离线消息同步或多端会话一致性，继续按[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)补齐。
 
 ## 常见问题
 

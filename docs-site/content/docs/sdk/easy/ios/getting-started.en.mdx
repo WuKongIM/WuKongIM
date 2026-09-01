@@ -1,17 +1,17 @@
 ---
 title: iOS quickstart
-description: Install exactly WuKongEasySDK iOS 1.1.0 and use contiguous Swift code for connection, online messaging, and lifecycle cleanup.
+description: Install exactly WuKongEasySDK iOS 1.1.1 and use contiguous Swift code for connection, online messaging, and lifecycle cleanup.
 ---
 
 Use one application-owned client to install, connect, listen, send a person message, and clean up. The product backend supplies connection material first; Alice and Bob then prove online messaging in two independent app processes.
 
 <Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v1.1.0` JSON-RPC CONNECT and online bidirectional messaging, including object and Base64 payloads; camelCase RECVACK carries both `messageId` and `messageSeq`, and device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial installs [CocoaPods 1.1.0](https://cocoapods.org/pods/WuKongEasySDK); the unified iOS/macOS example passed at source revision `40014c16c0becd390c105098d359048901f4d87c`. That revision is ahead of the [v1.1.0 Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) and has not shipped as a new release.
+  The current Product Gateway supports pinned `v1.1.1` JSON-RPC CONNECT and online bidirectional messaging, including object and Base64 payloads; camelCase RECVACK carries both `messageId` and `messageSeq`, and device wire values are APP `0`, WEB `1`, and PC `2`. The tutorial installs [CocoaPods 1.1.1](https://cocoapods.org/pods/WuKongEasySDK). The unified iOS/macOS example passed at source revision `40014c16c0becd390c105098d359048901f4d87c`, which is now included in the [v1.1.1 Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.1). The CocoaPods artifact then completed bidirectional messaging and disconnect on iOS Simulator.
 </Callout>
 
 ## What you will have
 
-- An iOS dependency pinned to `1.1.0`.
+- An iOS dependency pinned to `1.1.1`.
 - One application-level client object that owns initialization, listeners, connection, and logout.
 - A two-client acceptance scaffold for Alice's send result and Bob's realtime message event.
 - Explicit follow-up work for tokens, WSS, offline recovery, and production acceptance.
@@ -29,13 +29,13 @@ cd Examples/WuKongIMExample-Unified
 ./build.sh ios
 ```
 
-After booting an iOS Simulator, run `./build.sh ios --run`; use `./build.sh macos --run` for macOS. [Run the Official Examples](/en/sdk/easy/examples) covers server preparation and Alice/Bob acceptance. This source-run receipt is not an iOS `1.1.0` package receipt.
+After booting an iOS Simulator, run `./build.sh ios --run`; use `./build.sh macos --run` for macOS. [Run the Official Examples](/en/sdk/easy/examples) covers server preparation and Alice/Bob acceptance. The source example and iOS `1.1.1` artifact now have separate runtime receipts; keep those evidence classes distinct.
 
 ## Before you begin
 
 Prepare the following:
 
-- Set the iOS deployment target to **iOS 15 or later**. The package manifest declares iOS 13, but the public `WuKongEasySDK` class in `v1.1.0` is marked `@available(iOS 15.0, ...)`, so this tutorial uses the more conservative API limit.
+- Set the iOS deployment target to **iOS 15 or later**. The package manifest declares iOS 13, but the public `WuKongEasySDK` class in `v1.1.1` is marked `@available(iOS 15.0, ...)`, so this tutorial uses the more conservative API limit.
 - Use an Xcode toolchain that supports Swift 5.7 packages.
 - Run a WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is reachable from the device.
 - Have the product backend return `uid`, a short-lived `token`, and `websocketUrl` separately for Alice and Bob.
@@ -52,13 +52,13 @@ In Xcode, choose **File → Add Package Dependencies** and enter:
 https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 ```
 
-Choose **Exact Version** and enter `1.1.0`. If the project owns a `Package.swift`, use an exact rule:
+Choose **Exact Version** and enter `1.1.1`. If the project owns a `Package.swift`, use an exact rule:
 
 ```swift
 dependencies: [
     .package(
         url: "https://github.com/WuKongIM/WuKongEasySDK-iOS.git",
-        exact: "1.1.0"
+        exact: "1.1.1"
     )
 ]
 ```
@@ -67,7 +67,7 @@ dependencies: [
 
 ```ruby
 target 'YourApp' do
-  pod 'WuKongEasySDK', '1.1.0'
+  pod 'WuKongEasySDK', '1.1.1'
 end
 ```
 
@@ -208,7 +208,7 @@ The returned `SendResult` means Alice received a server result for the send. Bob
 5. Send from Bob to Alice and prove the reverse direction.
 6. Leave the view or sign out, call `stop()`, and confirm that no duplicate listener or background connection remains.
 
-That exact source ran against the same WuKongIM revision on an iPhone 16 / iOS 18.3 Simulator, completed bidirectional messaging, and rendered content and timestamps correctly. Retain the server and SDK revisions, device, and network evidence; do not attribute the result to the older iOS `1.1.0` artifact. Include physical-device execution, network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
+That exact source ran against the same WuKongIM revision on an iPhone 16 / iOS 18.3 Simulator, completed bidirectional messaging, and rendered content and timestamps correctly. The CocoaPods `1.1.1` artifact then completed bidirectional messaging and disconnect on both local and hosted iOS Simulators. Retain the server and SDK revisions, Podfile.lock, device, and network evidence. Include physical-device execution, network recovery, offline synchronization, and the UI-ready state in your [Release Checks](/en/guide/integration/acceptance).
 
 ## Troubleshooting
 
@@ -223,7 +223,7 @@ That exact source ran against the same WuKongIM revision on an iPhone 16 / iOS 1
 
 - Use `wss://` and verify certificates, proxy Upgrade, timeouts, and network recovery from a physical device.
 - Prove that invalid, expired, and revoked tokens are rejected; a successful `/user/token` call is not a CONNECT-validation receipt.
-- Diagnostics are disabled by default in `v1.1.0`. Keep both `enableDebugLogging` and `enableJsonLogging` set to `false` in production, then use non-production canaries to confirm that device logs and crash reports omit tokens, payloads, and complete JSON-RPC data.
+- Diagnostics are disabled by default in `v1.1.1`. Keep both `enableDebugLogging` and `enableJsonLogging` set to `false` in production, then use non-production canaries to confirm that device logs and crash reports omit tokens, payloads, and complete JSON-RPC data.
 - Retain the Release build, iOS version, device, network, and server revision from the run, then use [Integration Acceptance](/en/guide/integration/acceptance) for offline behavior, push, capacity, and rollback.
 
 ## Next

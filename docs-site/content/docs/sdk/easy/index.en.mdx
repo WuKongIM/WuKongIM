@@ -9,10 +9,10 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
 
 <Cards>
   <Card title="Run the official examples" description="Reproduce builds, bidirectional messaging, and cleanup at verified revisions." href="/en/sdk/easy/examples" />
-  <Card title="iOS quickstart" description="Install exactly 1.1.0 and use one application-owned client for connect, messaging, and cleanup." href="/en/sdk/easy/ios/getting-started" />
-  <Card title="Android quickstart" description="Install exactly 1.0.4 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
+  <Card title="iOS quickstart" description="Install exactly 1.1.1 and use one application-owned client for connect, messaging, and cleanup." href="/en/sdk/easy/ios/getting-started" />
+  <Card title="Android quickstart" description="Install exactly 1.0.5 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
   <Card title="Flutter quickstart" description="Install exactly 1.1.0, retain listener references, and release them from dispose." href="/en/sdk/easy/flutter/getting-started" />
-  <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.3 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.4 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
 </Cards>
 
 After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
@@ -86,29 +86,38 @@ Use [Release Checks](/en/guide/integration/acceptance) to close these gates.
 
 ## Versions and evidence
 
-<Callout type="info" title="All four official examples have run successfully">
-  On August 31, 2026, the Web, Android, iOS, and Flutter official examples connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` and completed Alice/Bob online bidirectional messaging. The builds, tests, emulators, and browser are recorded in the [reproducible runbook](/en/sdk/easy/examples). This is still not physical-device, WSS, offline, or production-token evidence.
+<Callout type="info" title="All four source examples and released packages have run successfully">
+  On August 31, 2026, all four official examples completed source runs against WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`. On September 1, npm `2.0.4`, Maven Central `1.0.5`, CocoaPods `1.1.1`, and pub.dev `1.1.0` then connected to test-merge server `35f314cc2512f3f0f5d55d9677e817cb64129985` for final PR head `1c9430f15fc8844e7025df07d54ab6e80e026414` and completed Alice/Bob online bidirectional messaging plus disconnect cleanup. See the [hosted released-package run](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015); the browser package also passed separately in Chrome 151. This is still not physical-device, WSS, offline, or production-token evidence.
 </Callout>
 
 | Platform | Verified example revision | Relationship to the release |
 | --- | --- | --- |
-| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/a055b3667247333b6b3183249f5d5929673dfd53) | Ahead of npm `2.0.3`; not yet published as a new version |
-| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/7134bbd0263fd01d9e7f71b7bd05b226f75b2292) | Ahead of Maven `1.0.4`; not yet published as a new version |
-| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/40014c16c0becd390c105098d359048901f4d87c) | Ahead of iOS `1.1.0`; not yet published as a new version |
+| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/a055b3667247333b6b3183249f5d5929673dfd53) | Included in released `v2.0.4` |
+| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/7134bbd0263fd01d9e7f71b7bd05b226f75b2292) | Included in released `v1.0.5` |
+| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/40014c16c0becd390c105098d359048901f4d87c) | Included in released `v1.1.1` |
 | Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | The same source as released `v1.1.0` |
 
-<Callout type="warn" title="Do not attribute a main-source run to an older package">
-  The installation sections remain pinned to current releases; reproducing the example results requires the revisions above. The newer Web, Android, and iOS commits contain example and connection-lifecycle fixes. Keep the two evidence classes separate until those commits ship in new releases.
+<Callout type="warn" title="Source and package runs remain separate evidence">
+  The table above proves exact source examples; the released-package run proves the archives actually resolved from each registry. The patch releases now include those source fixes and pass package acceptance, but retain the source revision, package version, server revision, and runtime whenever recording a result.
 </Callout>
 
 ### Current released versions
 
 | Platform | Pinned release and source revision | Official distribution |
 | --- | --- | --- |
-| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.0` · `683c1519bfa19fd91a15ae092733e1efb1e75d5d` | [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.0) · [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
-| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.4` · `2ab2199a3eb91e6966c6a5d9b6098563e58e3203` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.4) · [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.4) |
+| [iOS](https://github.com/WuKongIM/WuKongEasySDK-iOS) | `v1.1.1` · `ca688fcac2c4cd8d6f8e8163faf165376b520ba9` | [Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.1) · [CocoaPods](https://cocoapods.org/pods/WuKongEasySDK) |
+| [Android](https://github.com/WuKongIM/WuKongEasySDK-Android) | `v1.0.5` · `61ae6dc6d0077b15e47cda1fd530296b97a06a7a` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.5) · [Maven Central](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5) |
 | [Flutter](https://github.com/WuKongIM/WuKongEasySDK-Flutter) | `v1.1.0` · `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` | [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0) · [pub.dev](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) |
-| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.3` · `d29038e52aab5bce09f643fbe4daf11547379131` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.3) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.3) |
+| [Web](https://github.com/WuKongIM/WuKongEasySDK-JS) | `v2.0.4` · `9c03c98c725982fac224cd1d3b52456eae983975` | [Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.4) · [npm](https://www.npmjs.com/package/easyjssdk/v/2.0.4) |
+
+### Released-package runtime evidence
+
+| Platform | Exact registry artifact | Runtime | Result |
+| --- | --- | --- | --- |
+| Web | `easyjssdk@2.0.4` | Chrome 151; hosted Node.js peer | Bidirectional messaging, SENDACK, and disconnect passed |
+| Android | `com.githubim:easysdk-android:1.0.5` | Android 14 / API 34 Emulator | Maven resolution, instrumentation bidirectional messaging, and disconnect passed |
+| iOS | `WuKongEasySDK 1.1.1` | iOS Simulator | CocoaPods resolution, bidirectional messaging, and disconnect passed |
+| Flutter | `wukong_easy_sdk 1.1.0` | iOS Simulator | pub.dev hosted resolution, bidirectional messaging, and disconnect passed |
 
 Application dependencies use only these exact versions—never `latest` or a broad version range. All four official releases include logging-security changes that leave diagnostics off by default and sanitize enabled output:
 
