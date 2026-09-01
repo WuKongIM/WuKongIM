@@ -1198,7 +1198,7 @@ func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t 
 		t.Fatal("formal finalizer cannot recover already-zero pre-handoff cleanup evidence")
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-active-handoffs.sh"))
-	for _, required := range []string{"max_pages=50", "artifact_api_attempts=4", "fetch_artifact_page", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
+	for _, required := range []string{"max_pages=200", "artifact_api_attempts=4", "fetch_artifact_page", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
 		if !strings.Contains(discovery, required) {
 			t.Fatalf("bounded discovery is missing %q", required)
 		}
@@ -1411,6 +1411,57 @@ esac
 	}
 	if invalidManifest.Complete || invalidManifest.CaptureFailures != 2 {
 		t.Fatalf("malformed Prometheus manifest = %#v", invalidManifest)
+	}
+}
+
+func TestChatLifecycleActiveHandoffDiscoveryIgnoresUnrelatedRepositoryArtifactVolume(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := make([]map[string]any, 100)
+	for index := range artifacts {
+		artifacts[index] = map[string]any{"id": index + 1, "name": "unrelated", "expired": false}
+	}
+	page, err := json.Marshal(map[string]any{"artifacts": artifacts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pagePath := filepath.Join(directory, "page.json")
+	if err := os.WriteFile(pagePath, page, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := `#!/bin/sh
+case "$*" in
+	*"/actions/artifacts?"*"page=51"*) printf '%s\n' '{"artifacts":[]}' ;;
+	*"/actions/artifacts?"*) cat "$FAKE_ARTIFACT_PAGE" ;;
+	*"/actions/workflows/"*"/runs?"*) printf '%s\n' '{"workflow_runs":[]}' ;;
+	*) printf '%s\n' '{"artifacts":[]}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-active-handoffs.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ARTIFACT_PAGE="+pagePath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "WK_CHAT_STAGE=rehearsal")
+	combined, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("unrelated repository Artifact volume blocked discovery: %v\n%s", err, combined)
+	}
+	var matrix struct {
+		Include []json.RawMessage `json:"include"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, output)), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 0 {
+		t.Fatalf("active handoff matrix = %#v, want empty", matrix.Include)
 	}
 }
 

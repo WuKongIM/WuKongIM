@@ -506,7 +506,10 @@ repeats authenticated handoff discovery and checks all non-terminal protected
 rehearsal producer runs. It disables future finalizer triggers only when no
 producer can still publish a handoff and every published handoff has exact
 zero-inventory proof. Any incomplete inventory, producer, or Workflow-state
-observation fails closed by leaving the schedule enabled. The Stop Action also
+observation fails closed by leaving the schedule enabled. Global handoff
+discovery exhausts at most 20,000 retained repository Artifacts, so unrelated
+Artifact volume above the former 5,000-item bound cannot strand the schedule
+while the inventory remains explicitly bounded. The Stop Action also
 enables the finalizer before its exact request-scoped dispatch. Consequently an
 idle repository has no recurring rehearsal-finalizer runs, while paid
 orchestration, cleanup continuation, and report rescue retain the ten-minute
