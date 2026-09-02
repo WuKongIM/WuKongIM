@@ -105,6 +105,17 @@
   starts/restarts the node.
   Operators initialize atomically with `wukongim config init`, validate with
   `wukongim config validate`, and own enablement plus upgrade restart timing.
+  Source CI also boots the exact checksum-bound candidate Artifact under a real
+  systemd PID 1 on Ubuntu 24.04, Debian 12, Rocky Linux 9, and AlmaLinux 9. It
+  proves the explicit initialize/start/health/restart/stop/remove/reinstall
+  lifecycle, preservation of operator-owned configuration/data/log state, and
+  the absence of implicit activation after reinstall. Those credential-free
+  containers mount only the one candidate package read-only and publish no
+  package repository. Minimal base-image bootstrap installs the candidate before
+  execing systemd; the live reinstall, active removal, later reinstall, and all
+  operator-owned service actions run against PID 1. Debian 12 is the existing
+  source-preview compatibility target and is independent of the public
+  publisher's clean-client support matrix.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.toml`; `.toml.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - Default Slot Raft timing is a 50-millisecond tick, two-tick heartbeat, and 40-tick election floor: heartbeats run every 100 milliseconds and elections start after at least two seconds. Chat-lifecycle cloud templates pin the same values. This keeps sub-second storage or transport tails from creating avoidable terms while proposal replication remains event-driven; override all three values together when a deployment proves a different failure-detection budget.
