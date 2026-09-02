@@ -142,14 +142,15 @@ write_public_edge_summary() {
 write_inspection_outputs() {
   local summary="$1"
   local certificate_present days_remaining domain_cname_status fingerprint not_after renewal_required seconds_remaining
-  certificate_present="$(jq -er '.certificate_present | booleans' <<<"$summary")" || \
+  certificate_present="$(jq -er '.certificate_present | booleans | tostring' <<<"$summary")" || \
     fail "invalid certificate presence"
   fingerprint="$(jq -er '.fingerprint | strings' <<<"$summary")" || fail "invalid inspection fingerprint"
   domain_cname_status="$(jq -er '.domain_cname_status | strings' <<<"$summary")" || \
     fail "invalid inspection CNAME status"
   days_remaining="$(jq -er '.days_remaining | numbers' <<<"$summary")" || fail "invalid inspection days"
   not_after="$(jq -er '.not_after | strings' <<<"$summary")" || fail "invalid inspection expiry"
-  renewal_required="$(jq -er '.renewal_required | booleans' <<<"$summary")" || fail "invalid renewal decision"
+  renewal_required="$(jq -er '.renewal_required | booleans | tostring' <<<"$summary")" || \
+    fail "invalid renewal decision"
   seconds_remaining="$(jq -er '.seconds_remaining | numbers' <<<"$summary")" || fail "invalid inspection seconds"
   if [[ "$certificate_present" == true ]]; then
     [[ "$not_after" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] || fail "invalid inspection expiry"
@@ -190,7 +191,8 @@ write_inspection_outputs() {
 if [[ "$operation" == inspect ]]; then
   inspection_summary="$(inspect_current_certificate "$force_renew")" || fail "could not validate the active CDN certificate"
   write_inspection_outputs "$inspection_summary"
-  inspection_certificate_present="$(jq -er '.certificate_present | booleans' <<<"$inspection_summary")" || \
+  inspection_certificate_present="$(jq -er '.certificate_present | booleans | tostring' \
+    <<<"$inspection_summary")" || \
     fail "invalid certificate presence"
   edge_verification="skipped-no-certificate-installed"
   if [[ "$inspection_certificate_present" == true ]]; then
@@ -211,9 +213,10 @@ fi
 command -v lego >/dev/null 2>&1 || fail "the pinned lego executable is required"
 
 inspection_summary="$(inspect_current_certificate "$force_renew")" || fail "could not validate the active CDN certificate"
-certificate_present="$(jq -er '.certificate_present | booleans' <<<"$inspection_summary")" || \
+certificate_present="$(jq -er '.certificate_present | booleans | tostring' \
+  <<<"$inspection_summary")" || \
   fail "invalid certificate presence"
-renewal_required="$(jq -er '.renewal_required | booleans' <<<"$inspection_summary")" || \
+renewal_required="$(jq -er '.renewal_required | booleans | tostring' <<<"$inspection_summary")" || \
   fail "invalid renewal decision"
 seconds_remaining="$(jq -er '.seconds_remaining | numbers' <<<"$inspection_summary")" || \
   fail "invalid remaining validity"

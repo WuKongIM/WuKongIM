@@ -179,6 +179,8 @@ func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *te
 		require.Contains(t, rotation, want)
 	}
 	require.Equal(t, 1, strings.Count(rotation, "openssl s_client"), "inspect and rotation must share one edge verifier")
+	require.Equal(t, 5, strings.Count(rotation, "| booleans | tostring"), "every required boolean must accept false without weakening type checks")
+	require.NotContains(t, rotation, "| booleans'", "raw boolean outputs make jq -e reject false")
 	inspectStart := strings.Index(rotation, `if [[ "$operation" == inspect ]]`)
 	rotateStart := strings.Index(rotation, "command -v lego")
 	require.NotEqual(t, -1, inspectStart)
