@@ -76,20 +76,48 @@ describe('native deployment publication contract', () => {
 
     for (const content of pages) {
       for (const contract of [
+        '3.0.0-beta.6',
+        'https://packages.githubim.com/keys/apt-preview.asc',
+        'https://packages.githubim.com/keys/rpm-preview.asc',
+        'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1',
+        'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459',
+        'deb [arch=amd64 signed-by=/etc/apt/keyrings/wukongim-preview.asc] https://packages.githubim.com/apt preview main',
+        'sudo apt-get install -y wukongim=3.0.0~beta.6',
+        'baseurl=https://packages.githubim.com/rpm/preview/el/9/x86_64',
+        "sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh",
+        'sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64',
+        'gpgcheck=1',
+        'repo_gpgcheck=1',
+        'sslverify=1',
+        'skip_if_unavailable=0',
+        'set -euo pipefail',
+        'primary && $1 == "fpr"',
+        'sudo dnf install -y curl-minimal',
+        'RHEL',
+        'build_source',
         '.goreleaser.packages.yaml',
         'wukongim config init',
         '--admin-password-stdin',
         'wukongim config validate',
+        'systemctl enable --now wukongim',
         'RestartPreventExitStatus',
         '/var/lib/wukongim',
         '/var/log/wukongim',
         '/run/wukongim',
-        'packages.githubim.com',
       ]) {
         expect(content).toContain(contract);
       }
-      expect(content).not.toContain('deb [signed-by=');
-      expect(content).not.toContain('baseurl=https://packages.githubim.com');
+      for (const unsafe of [
+        'apt-key',
+        'trusted=yes',
+        'gpgcheck=0',
+        'repo_gpgcheck=0',
+        'curl | sudo',
+        'sudo apt-get install -y wukongim\n',
+        'sudo dnf install -y wukongim\n',
+      ]) {
+        expect(content).not.toContain(unsafe);
+      }
     }
   });
 

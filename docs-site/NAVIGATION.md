@@ -47,7 +47,7 @@ Route: `/{lang}/server`
 
 - **部署 / Deployment** `/{lang}/server/deployment` — 选择并实施适合环境的服务端部署方式。 / Choose and implement the server deployment method appropriate for the environment.
   - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 构建固定镜像，并用显式配置和持久卷运行节点。 / Builds an immutable image and runs a node with explicit configuration and persistent storage.
-  - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 使用二进制、配置文件和 systemd 运行服务。 / Runs the server with a binary, configuration file, and systemd.
+  - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。 / Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.
   - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划成员、副本、故障域并验证集群就绪。 / Plans membership, replicas, failure domains, and cluster readiness.
   - **Kubernetes 部署（Beta） / Kubernetes (Beta)** `/{lang}/server/deployment/kubernetes` — 按最短路径适配并验证有状态集群部署。 / Adapts and verifies a stateful cluster deployment through the shortest path.
   - **Kubernetes 资源参考（Beta） / Kubernetes Resource Reference (Beta)** `/{lang}/server/deployment/kubernetes-resources` — 提供 StatefulSet、Service、PVC、探针和 PDB 参考片段。 / Provides StatefulSet, Service, PVC, probe, and PDB reference fragments.

@@ -110,16 +110,17 @@ the operator-owned configuration and data remain byte-identical. Only the
 unsigned preview packages and checksums are retained as Actions artifacts for
 14 days; this workflow still publishes no APT/YUM repository.
 
-The separate public `WuKongIM/packages` repository owns the fail-closed GitHub
-Pages bootstrap at the verified HTTPS endpoint `packages.githubim.com`; it
-currently publishes only a `signing_not_provisioned` status and no package
-indexes. Both repositories enforce immutable Releases, and the custom-domain
-DNS and certificate are provisioned. Reviewed public fingerprints, signing
-custody, cross-repository dispatch, and the production publisher remain
-intentionally outside this credential-free workflow. Exact unsigned source
-package assets are supplied by the tag-bound binary Release described below,
-but they must not enter package indexes until the remaining production controls
-are provisioned and reviewed.
+The separate public `WuKongIM/packages` repository owns the signed Preview
+channel at the verified HTTPS endpoint `packages.githubim.com`. Its production
+publisher independently verifies one immutable tag-bound source Release,
+applies separate protected APT and RPM signatures, seals the complete snapshot
+and receipt in an immutable audit Release, and only then deploys the `preview`
+APT suite and EL9 RPM repository to GitHub Pages. Every deployed snapshot is
+download-validated on clean Ubuntu, Debian, Rocky Linux, and AlmaLinux clients.
+Both repositories enforce immutable Releases, and the custom-domain DNS and
+certificate are provisioned. Exact unsigned source package assets still come
+only from the tag-bound binary Release described below; this credential-free
+source workflow never receives production signing or package-publisher access.
 
 ## Docker image publishing
 

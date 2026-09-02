@@ -88,18 +88,21 @@
   cluster runtime, the multi-reactor channel runtime, and the new business
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
   and `internal`; the former v1 server runtime tree has been removed.
-- Native Linux packages are an unsigned amd64 preview. CI builds temporary
-  signed APT/RPM repositories with one-run, one-day `TEST ONLY` keys outside
-  the repository and verifies their signatures plus the exact APT and RPM
-  metadata-to-package closures in containers; neither those keys nor the
-  signed repositories are published. The separate public `WuKongIM/packages`
-  repository owns a fail-closed GitHub Pages bootstrap at the verified HTTPS
-  endpoint `packages.githubim.com`; both repositories enforce immutable
-  Releases. It publishes no APT/YUM indexes until reviewed public fingerprints,
-  signing custody, exact tagged source package assets, and the production
-  publisher are ready. The package installs the
-  binary, hardened systemd unit, service identity, and persistent directories,
-  but never creates an active configuration or starts/restarts the node.
+- Native Linux package source assets are unsigned amd64 artifacts of an exact
+  immutable tagged binary Release. Source CI also builds temporary signed
+  APT/RPM repositories with one-run, one-day `TEST ONLY` keys outside the
+  repository and verifies their signatures plus the exact metadata-to-package
+  closures; neither those keys nor temporary repositories are published. The
+  separate public `WuKongIM/packages` repository independently verifies the
+  immutable source Release, applies separate production APT and RPM signatures,
+  seals each complete snapshot and receipt in an immutable audit Release, and
+  publishes the signed `preview` APT suite and EL9 RPM repository at
+  `packages.githubim.com`. Every public snapshot is download-validated on clean
+  Ubuntu, Debian, Rocky Linux, and AlmaLinux clients. Stable publication remains
+  disabled until it moves from GitHub Pages to object storage and a CDN. The
+  package installs the binary, hardened systemd unit, service identity, and
+  persistent directories, but never creates an active configuration or
+  starts/restarts the node.
   Operators initialize atomically with `wukongim config init`, validate with
   `wukongim config validate`, and own enablement plus upgrade restart timing.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.toml`; `.toml.example` files are samples only and should not be script defaults.
