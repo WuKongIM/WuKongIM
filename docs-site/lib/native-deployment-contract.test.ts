@@ -48,6 +48,7 @@ describe('native deployment publication contract', () => {
         'http://127.0.0.1:5301',
         'http://127.0.0.1:5001/readyz',
         '/guide/quick-start',
+        '/server/configuration/reference',
         'docker volume rm wukongim-data',
       ]) {
         expect(content).toContain(contract);

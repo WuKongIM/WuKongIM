@@ -39,7 +39,7 @@ users = [{ username = "admin", password = "replace-with-a-strong-password", perm
 dir = "/var/lib/wukongim/logs"
 ```
 
-This file keeps only the fields needed for the container, API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` gateways, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses.
+This file keeps only the fields needed for the container, API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` gateways, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
 
 ## 2. Start and verify
 
