@@ -678,7 +678,10 @@ func inspectCDNCertificate(response cdnResponse, now time.Time, allowMissing boo
 		}, nil
 	}
 	if info.DomainName != expectedDomain || info.ServerCertificateStatus != "on" || !validCDNState(info) {
-		return certificateSummary{}, errors.New("Alibaba CDN certificate is not active on the exact documentation domain")
+		return certificateSummary{}, fmt.Errorf(
+			"Alibaba CDN certificate is not active on the exact documentation domain (%s)",
+			cdnStateDiagnostic(info),
+		)
 	}
 	leaf, _, err := parseCertificateChain([]byte(info.ServerCertificate))
 	if err != nil {
@@ -748,7 +751,10 @@ func verifyCDNDeployment(response cdnResponse, expectedPEM []byte, expectedName 
 	}
 	info := response.CertInfos.CertInfo[0]
 	if info.DomainName != expectedDomain || info.CertDomainName != expectedDomain || info.CertName != expectedName || info.CertType != "upload" || info.ServerCertificateStatus != "on" || !validCDNState(info) {
-		return errors.New("Alibaba CDN has not activated the exact uploaded documentation certificate")
+		return fmt.Errorf(
+			"Alibaba CDN has not activated the exact uploaded documentation certificate (%s)",
+			cdnStateDiagnostic(info),
+		)
 	}
 	actualLeaf, _, err := parseCertificateChain([]byte(info.ServerCertificate))
 	if err != nil {
@@ -766,7 +772,23 @@ func verifyCDNDeployment(response cdnResponse, expectedPEM []byte, expectedName 
 func validCDNState(info cdnCertificateInfo) bool {
 	validCNAMEState := info.DomainCnameStatus == "ok" || info.DomainCnameStatus == "cname_error" || info.DomainCnameStatus == "top_domain_cname_error"
 	validCertificateState := info.Status == "success" || info.Status == "cname_error" || info.Status == "top_domain_cname_error"
+	if info.Status == "" {
+		// DescribeDomainCertificateInfo omits Status for an activated uploaded
+		// certificate. Other certificate types still require an explicit state.
+		validCertificateState = info.CertType == "upload"
+	}
 	return validCNAMEState && validCertificateState
+}
+
+func cdnStateDiagnostic(info cdnCertificateInfo) string {
+	return fmt.Sprintf(
+		"domain=%q https=%q cert_type=%q status=%q cname_status=%q",
+		info.DomainName,
+		info.ServerCertificateStatus,
+		info.CertType,
+		info.Status,
+		info.DomainCnameStatus,
+	)
 }
 
 func verifyReportedExpiry(value string, expected time.Time) error {

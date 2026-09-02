@@ -423,6 +423,105 @@ func TestInspectCDNCertificateAllowsPreCutoverState(t *testing.T) {
 	}
 }
 
+func TestValidCDNStateMatrix(t *testing.T) {
+	tests := []struct {
+		name              string
+		certificateType   string
+		certificateStatus string
+		cnameStatus       string
+		want              bool
+	}{
+		{name: "uploaded certificate omits status", certificateType: "upload", certificateStatus: "", cnameStatus: "ok", want: true},
+		{name: "uploaded certificate is successful", certificateType: "upload", certificateStatus: "success", cnameStatus: "ok", want: true},
+		{name: "free certificate is successful", certificateType: "free", certificateStatus: "success", cnameStatus: "ok", want: true},
+		{name: "pre-cutover CNAME error", certificateType: "upload", certificateStatus: "cname_error", cnameStatus: "cname_error", want: true},
+		{name: "pre-cutover top-domain CNAME error", certificateType: "upload", certificateStatus: "top_domain_cname_error", cnameStatus: "top_domain_cname_error", want: true},
+		{name: "free certificate omits status", certificateType: "free", certificateStatus: "", cnameStatus: "ok", want: false},
+		{name: "unknown certificate omits status", certificateType: "unknown", certificateStatus: "", cnameStatus: "ok", want: false},
+		{name: "certificate type omitted with status", certificateType: "", certificateStatus: "", cnameStatus: "ok", want: false},
+		{name: "certificate checking", certificateType: "upload", certificateStatus: "checking", cnameStatus: "ok", want: false},
+		{name: "certificate applying", certificateType: "upload", certificateStatus: "applying", cnameStatus: "ok", want: false},
+		{name: "certificate failed", certificateType: "upload", certificateStatus: "failed", cnameStatus: "ok", want: false},
+		{name: "certificate does not support wildcard", certificateType: "upload", certificateStatus: "unsupport_wildcard", cnameStatus: "ok", want: false},
+		{name: "CNAME status omitted", certificateType: "upload", certificateStatus: "", cnameStatus: "", want: false},
+		{name: "CNAME checking", certificateType: "upload", certificateStatus: "success", cnameStatus: "checking", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			info := cdnCertificateInfo{
+				CertType:          test.certificateType,
+				Status:            test.certificateStatus,
+				DomainCnameStatus: test.cnameStatus,
+			}
+			if got := validCDNState(info); got != test.want {
+				t.Fatalf("validCDNState(%+v) = %t, want %t", info, got, test.want)
+			}
+		})
+	}
+}
+
+func TestInspectCDNCertificateStatusMatrix(t *testing.T) {
+	now := time.Date(2026, time.September, 2, 12, 0, 0, 0, time.UTC)
+	certificatePEM, _ := issueTestCertificate(t, now, []string{expectedDomain}, 31*24*time.Hour)
+	tests := []struct {
+		name              string
+		certificateType   string
+		certificateStatus string
+		cnameStatus       string
+		wantOK            bool
+	}{
+		{name: "uploaded certificate omits status", certificateType: "upload", certificateStatus: "", cnameStatus: "ok", wantOK: true},
+		{name: "free certificate is successful", certificateType: "free", certificateStatus: "success", cnameStatus: "ok", wantOK: true},
+		{name: "free certificate omits status", certificateType: "free", certificateStatus: "", cnameStatus: "ok"},
+		{name: "unknown certificate omits status", certificateType: "unknown", certificateStatus: "", cnameStatus: "ok"},
+		{name: "uploaded certificate is checking", certificateType: "upload", certificateStatus: "checking", cnameStatus: "ok"},
+		{name: "uploaded certificate is applying", certificateType: "upload", certificateStatus: "applying", cnameStatus: "ok"},
+		{name: "uploaded certificate has failed", certificateType: "upload", certificateStatus: "failed", cnameStatus: "ok"},
+		{name: "uploaded certificate does not support wildcard", certificateType: "upload", certificateStatus: "unsupport_wildcard", cnameStatus: "ok"},
+		{name: "uploaded certificate has unknown CNAME state", certificateType: "upload", certificateStatus: "", cnameStatus: "checking"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := responseForCertificate(t, certificatePEM, "existing", test.certificateType)
+			info := &response.CertInfos.CertInfo[0]
+			info.Status = test.certificateStatus
+			info.DomainCnameStatus = test.cnameStatus
+			summary, err := inspectCDNCertificate(response, now, false)
+			if test.wantOK {
+				if err != nil {
+					t.Fatalf("inspectCDNCertificate() error = %v", err)
+				}
+				if !summary.CertificatePresent || summary.DomainCNAMEStatus != test.cnameStatus {
+					t.Fatalf("inspectCDNCertificate() summary = %+v", summary)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("inspectCDNCertificate accepted an invalid Alibaba CDN state")
+			}
+			assertSanitizedCDNStateError(t, err, *info)
+		})
+	}
+}
+
+func TestCDNStateDiagnosticIncludesOnlyApprovedFields(t *testing.T) {
+	info := cdnCertificateInfo{
+		CertDomainName:          "secret-cert-domain",
+		CertExpireTime:          "secret-expiry",
+		CertName:                "secret-name",
+		CertType:                "upload",
+		DomainCnameStatus:       "ok",
+		DomainName:              expectedDomain,
+		ServerCertificate:       "secret-certificate-pem",
+		ServerCertificateStatus: "on",
+		Status:                  "checking",
+	}
+	want := `domain="docs.githubim.com" https="on" cert_type="upload" status="checking" cname_status="ok"`
+	if got := cdnStateDiagnostic(info); got != want {
+		t.Fatalf("cdnStateDiagnostic() = %q, want %q", got, want)
+	}
+}
+
 func TestValidateIssuedCertificateRequiresExactSANAndMatchingKey(t *testing.T) {
 	now := time.Date(2026, time.September, 2, 12, 0, 0, 0, time.UTC)
 	certificatePEM, keyPEM := issueTestCertificate(t, now, []string{expectedDomain}, 89*24*time.Hour)
@@ -472,6 +571,64 @@ func TestVerifyCDNDeploymentRequiresExactUploadedCertificate(t *testing.T) {
 	response.CertInfos.CertInfo[0].CertType = "cas"
 	if err := verifyCDNDeployment(response, certificatePEM, summary.CertificateName); err == nil {
 		t.Fatal("verifyCDNDeployment accepted the wrong certificate type")
+	}
+}
+
+func TestVerifyCDNDeploymentStatusMatrix(t *testing.T) {
+	now := time.Date(2026, time.September, 2, 12, 0, 0, 0, time.UTC)
+	certificatePEM, keyPEM := issueTestCertificate(t, now, []string{expectedDomain}, 89*24*time.Hour)
+	summary, err := validateIssuedCertificate(certificatePEM, keyPEM, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name              string
+		certificateType   string
+		certificateStatus string
+		cnameStatus       string
+		wantOK            bool
+	}{
+		{name: "uploaded certificate omits status", certificateType: "upload", certificateStatus: "", cnameStatus: "ok", wantOK: true},
+		{name: "uploaded certificate is successful", certificateType: "upload", certificateStatus: "success", cnameStatus: "ok", wantOK: true},
+		{name: "pre-cutover CNAME error", certificateType: "upload", certificateStatus: "cname_error", cnameStatus: "cname_error", wantOK: true},
+		{name: "pre-cutover top-domain CNAME error", certificateType: "upload", certificateStatus: "top_domain_cname_error", cnameStatus: "top_domain_cname_error", wantOK: true},
+		{name: "free certificate omits status", certificateType: "free", certificateStatus: "", cnameStatus: "ok"},
+		{name: "unknown certificate omits status", certificateType: "unknown", certificateStatus: "", cnameStatus: "ok"},
+		{name: "uploaded certificate is checking", certificateType: "upload", certificateStatus: "checking", cnameStatus: "ok"},
+		{name: "uploaded certificate is applying", certificateType: "upload", certificateStatus: "applying", cnameStatus: "ok"},
+		{name: "uploaded certificate has failed", certificateType: "upload", certificateStatus: "failed", cnameStatus: "ok"},
+		{name: "uploaded certificate does not support wildcard", certificateType: "upload", certificateStatus: "unsupport_wildcard", cnameStatus: "ok"},
+		{name: "uploaded certificate has unknown CNAME state", certificateType: "upload", certificateStatus: "", cnameStatus: "checking"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := responseForCertificate(t, certificatePEM, summary.CertificateName, test.certificateType)
+			info := &response.CertInfos.CertInfo[0]
+			info.Status = test.certificateStatus
+			info.DomainCnameStatus = test.cnameStatus
+			err := verifyCDNDeployment(response, certificatePEM, summary.CertificateName)
+			if test.wantOK {
+				if err != nil {
+					t.Fatalf("verifyCDNDeployment() error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("verifyCDNDeployment accepted an invalid Alibaba CDN state")
+			}
+			assertSanitizedCDNStateError(t, err, *info)
+		})
+	}
+}
+
+func assertSanitizedCDNStateError(t *testing.T, err error, info cdnCertificateInfo) {
+	t.Helper()
+	if !strings.Contains(err.Error(), cdnStateDiagnostic(info)) {
+		t.Fatalf("error %q does not contain sanitized CDN state %q", err, cdnStateDiagnostic(info))
+	}
+	leakedCertificateName := info.CertName != "" && strings.Contains(err.Error(), info.CertName)
+	if strings.Contains(err.Error(), "BEGIN CERTIFICATE") || leakedCertificateName {
+		t.Fatalf("error leaked certificate material or certificate name: %q", err)
 	}
 }
 
