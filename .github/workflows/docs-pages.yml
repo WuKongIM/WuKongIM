@@ -9,6 +9,8 @@ on:
     paths:
       - ".github/workflows/docs-pages.yml"
       - "docs-site/**"
+      - "scripts/docs-cdn/install-aliyun-cli.sh"
+      - "scripts/docs-cdn/refresh.sh"
   workflow_dispatch:
 
 permissions:
@@ -45,11 +47,11 @@ jobs:
           test "$(bun --version)" = "1.3.11"
           bun install --frozen-lockfile
           bun run verify
-      - name: Verify the GitHub Pages domain markers
+      - name: Verify the GitHub Pages static markers
         shell: bash
         run: |
           set -euo pipefail
-          test "$(cat docs-site/out/CNAME)" = "docs.githubim.com"
+          test ! -e docs-site/out/CNAME
           test -f docs-site/out/.nojekyll
       - name: Upload the exact static export
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
@@ -73,3 +75,61 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+  refresh_cdn:
+    name: Refresh bounded Alibaba CDN URLs
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: docs-cdn
+    steps:
+      - name: Checkout the exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate the exact CDN refresh binding without credentials
+        shell: bash
+        env:
+          DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_CDN_REFRESH_ROLE_ARN: ${{ vars.DOCS_CDN_REFRESH_ROLE_ARN }}
+          DOCS_CDN_CERTIFICATE_ROLE_ARN: ${{ vars.DOCS_CDN_CERTIFICATE_ROLE_ARN }}
+          DOCS_CDN_OIDC_PROVIDER_ARN: ${{ vars.DOCS_CDN_OIDC_PROVIDER_ARN }}
+          DOCS_CDN_OIDC_AUDIENCE: ${{ vars.DOCS_CDN_OIDC_AUDIENCE }}
+        run: |
+          set -euo pipefail
+          [[ "$DOCS_CDN_DOMAIN" == docs.githubim.com ]]
+          [[ "$DOCS_CDN_REFRESH_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]
+          readonly role_account="${BASH_REMATCH[1]}"
+          [[ "$DOCS_CDN_CERTIFICATE_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]
+          readonly certificate_role_account="${BASH_REMATCH[1]}"
+          [[ "$DOCS_CDN_OIDC_PROVIDER_ARN" =~ ^acs:ram::([0-9]+):oidc-provider/[A-Za-z0-9._-]+$ ]]
+          readonly provider_account="${BASH_REMATCH[1]}"
+          [[ "$role_account" == "$certificate_role_account" && "$role_account" == "$provider_account" ]]
+          [[ "$DOCS_CDN_REFRESH_ROLE_ARN" != "$DOCS_CDN_CERTIFICATE_ROLE_ARN" ]]
+          [[ "$DOCS_CDN_OIDC_AUDIENCE" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]
+      - name: Install the pinned Alibaba Cloud CLI
+        shell: bash
+        run: ./scripts/docs-cdn/install-aliyun-cli.sh "$RUNNER_TEMP/docs-cdn-cli"
+      - name: Exchange the exact CDN refresh OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.DOCS_CDN_REFRESH_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.DOCS_CDN_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.DOCS_CDN_OIDC_AUDIENCE }}
+          role-session-name: wukongim-docs-cdn-refresh-${{ github.run_id }}
+          role-session-expiration: 900
+      - name: Refresh only the bounded stable public URLs
+        shell: bash
+        env:
+          DOCS_CDN_ENABLED: ${{ vars.DOCS_CDN_ENABLED }}
+          DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/docs-cdn-cli:$PATH"
+          ./scripts/docs-cdn/refresh.sh

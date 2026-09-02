@@ -1,0 +1,259 @@
+name: Safety Automation - Renew Documentation CDN Certificate
+run-name: >-
+  Documentation CDN certificate ${{ github.event_name }} ${{ github.ref_name }} attempt ${{ github.run_attempt }}
+
+on:
+  schedule:
+    - cron: "17 0,12 * * *"
+  workflow_dispatch:
+    inputs:
+      force_renew:
+        description: Issue and deploy a new certificate even when more than 30 days remain
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-cdn-certificate-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  certificate:
+    name: Check and rotate the exact documentation certificate
+    if: github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    environment:
+      name: docs-cdn-certificate
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      certificate_present: ${{ steps.current.outputs.certificate_present }}
+      fingerprint: ${{ steps.current.outputs.fingerprint }}
+      domain_cname_status: ${{ steps.current.outputs.domain_cname_status }}
+      days_remaining: ${{ steps.current.outputs.days_remaining }}
+      not_after: ${{ steps.current.outputs.not_after }}
+      renewal_required: ${{ steps.current.outputs.renewal_required }}
+    steps:
+      - name: Checkout the exact trusted source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate the exact certificate binding without credentials
+        shell: bash
+        env:
+          DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_CDN_CERTIFICATE_ROLE_ARN: ${{ vars.DOCS_CDN_CERTIFICATE_ROLE_ARN }}
+          DOCS_CDN_REFRESH_ROLE_ARN: ${{ vars.DOCS_CDN_REFRESH_ROLE_ARN }}
+          DOCS_CDN_OIDC_PROVIDER_ARN: ${{ vars.DOCS_CDN_OIDC_PROVIDER_ARN }}
+          DOCS_CDN_OIDC_AUDIENCE: ${{ vars.DOCS_CDN_OIDC_AUDIENCE }}
+          DOCS_ACME_EMAIL: ${{ vars.DOCS_ACME_EMAIL }}
+        run: |
+          set -euo pipefail
+          [[ "$DOCS_CDN_DOMAIN" == docs.githubim.com ]]
+          [[ "$DOCS_CDN_CERTIFICATE_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]
+          readonly role_account="${BASH_REMATCH[1]}"
+          [[ "$DOCS_CDN_REFRESH_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]
+          readonly refresh_role_account="${BASH_REMATCH[1]}"
+          [[ "$DOCS_CDN_OIDC_PROVIDER_ARN" =~ ^acs:ram::([0-9]+):oidc-provider/[A-Za-z0-9._-]+$ ]]
+          readonly provider_account="${BASH_REMATCH[1]}"
+          [[ "$role_account" == "$refresh_role_account" && "$role_account" == "$provider_account" ]]
+          [[ "$DOCS_CDN_CERTIFICATE_ROLE_ARN" != "$DOCS_CDN_REFRESH_ROLE_ARN" ]]
+          [[ "$DOCS_CDN_OIDC_AUDIENCE" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]
+          [[ "$DOCS_ACME_EMAIL" =~ ^[^[:space:]/]+@[^[:space:]/]+$ ]]
+      - name: Set up the pinned Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Build the local certificate contract helper
+        shell: bash
+        env:
+          GOWORK: "off"
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/docs-cdn-tools" "$RUNNER_TEMP/docs-cert-helper-cache" \
+            "$RUNNER_TEMP/docs-cert-helper-modcache" "$RUNNER_TEMP/docs-cert-helper-tmp"
+          GOCACHE="$RUNNER_TEMP/docs-cert-helper-cache" \
+            GOMODCACHE="$RUNNER_TEMP/docs-cert-helper-modcache" \
+            GOTMPDIR="$RUNNER_TEMP/docs-cert-helper-tmp" \
+            GOENV=off GOTELEMETRY=off go build -trimpath \
+            -o "$RUNNER_TEMP/docs-cdn-tools/docs-cdn-certificate-helper" \
+            ./scripts/docs-cdn/certificate-helper
+      - name: Install the checksum-verified Alibaba client
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/docs-cdn/install-aliyun-cli.sh "$RUNNER_TEMP/docs-cdn-cli"
+      - name: Exchange the exact certificate-rotation OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.DOCS_CDN_CERTIFICATE_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.DOCS_CDN_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.DOCS_CDN_OIDC_AUDIENCE }}
+          role-session-name: wukongim-docs-certificate-${{ github.run_id }}
+          role-session-expiration: 3600
+      - name: Inspect the active CDN certificate
+        id: current
+        continue-on-error: true
+        shell: bash
+        env:
+          DOCS_CDN_ENABLED: ${{ vars.DOCS_CDN_ENABLED }}
+          DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_CERT_FORCE_RENEW: ${{ github.event_name == 'workflow_dispatch' && inputs.force_renew && 'true' || 'false' }}
+          DOCS_CERTIFICATE_HELPER: ${{ runner.temp }}/docs-cdn-tools/docs-cdn-certificate-helper
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/docs-cdn-cli:$PATH"
+          ./scripts/docs-cdn/certificate.sh inspect
+      - name: Install the pinned integrity-checked ACME client
+        id: lego
+        if: >-
+          !cancelled() && steps.current.outputs.certificate_present != '' &&
+          (steps.current.outputs.renewal_required == 'true' ||
+          (github.event_name == 'workflow_dispatch' && inputs.force_renew))
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset \
+            ALIBABA_CLOUD_ACCESS_KEY_ID ALIBABA_CLOUD_ACCESS_KEY_SECRET ALIBABA_CLOUD_SECURITY_TOKEN \
+            ALICLOUD_ACCESS_KEY ALICLOUD_SECRET_KEY ALICLOUD_SECURITY_TOKEN \
+            ALIBABACLOUD_ACCESS_KEY_ID ALIBABACLOUD_ACCESS_KEY_SECRET ALIBABACLOUD_SECURITY_TOKEN
+          ./scripts/docs-cdn/install-lego.sh "$RUNNER_TEMP/docs-cdn-lego"
+      - name: Issue with Let's Encrypt DNS-01 and deploy the exact certificate
+        id: rotation
+        if: >-
+          !cancelled() && steps.lego.outcome == 'success' &&
+          (steps.current.outputs.renewal_required == 'true' ||
+          (github.event_name == 'workflow_dispatch' && inputs.force_renew))
+        shell: bash
+        env:
+          DOCS_CDN_ENABLED: ${{ vars.DOCS_CDN_ENABLED }}
+          DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_ACME_EMAIL: ${{ vars.DOCS_ACME_EMAIL }}
+          DOCS_ACME_ACCOUNT_BUNDLE_B64: ${{ secrets.DOCS_ACME_ACCOUNT_BUNDLE_B64 }}
+          DOCS_CERT_FORCE_RENEW: ${{ github.event_name == 'workflow_dispatch' && inputs.force_renew && 'true' || 'false' }}
+          DOCS_CERTIFICATE_HELPER: ${{ runner.temp }}/docs-cdn-tools/docs-cdn-certificate-helper
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/docs-cdn-cli:$RUNNER_TEMP/docs-cdn-lego/bin:$PATH"
+          ./scripts/docs-cdn/certificate.sh rotate
+      - name: Require a healthy inspection or successful repair
+        if: always()
+        shell: bash
+        env:
+          INSPECTION_OUTCOME: ${{ steps.current.outcome }}
+          ROTATION_OUTCOME: ${{ steps.rotation.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$INSPECTION_OUTCOME" == success ]]; then
+            exit 0
+          fi
+          if [[ "$INSPECTION_OUTCOME" == failure && "$ROTATION_OUTCOME" == success ]]; then
+            printf 'The failed certificate inspection was repaired by a successful rotation.\n'
+            exit 0
+          fi
+          printf 'Certificate health was not established: inspection=%s rotation=%s\n' \
+            "${INSPECTION_OUTCOME:-missing}" "${ROTATION_OUTCOME:-missing}" >&2
+          exit 1
+
+  report_failure:
+    name: Deduplicate certificate failure alert
+    needs: certificate
+    if: >-
+      always() && needs.certificate.result == 'failure' &&
+      github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CERTIFICATE_PRESENT: ${{ needs.certificate.outputs.certificate_present }}
+      DAYS_REMAINING: ${{ needs.certificate.outputs.days_remaining }}
+      NOT_AFTER: ${{ needs.certificate.outputs.not_after }}
+    steps:
+      - name: Create or update the one open certificate alert
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly title="[docs-cdn] certificate rotation failed"
+          readonly run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          severity="renewal-failure"
+          if [[ "$CERTIFICATE_PRESENT" == false ]]; then
+            severity="no-current-certificate"
+          elif [[ "$DAYS_REMAINING" =~ ^-?[0-9]+$ ]]; then
+            if (( DAYS_REMAINING <= 0 )); then
+              severity="expired"
+            elif (( DAYS_REMAINING <= 3 )); then
+              severity="expiry-3d"
+            elif (( DAYS_REMAINING <= 7 )); then
+              severity="expiry-7d"
+            elif (( DAYS_REMAINING <= 14 )); then
+              severity="expiry-14d"
+            fi
+          fi
+          readonly marker="<!-- docs-cdn-certificate-severity:${severity} -->"
+          readonly body_file="$RUNNER_TEMP/docs-cdn-certificate-issue.md"
+          {
+            printf '%s\n\n' "$marker"
+            printf 'The default-branch documentation CDN certificate check or rotation failed.\n\n'
+            printf -- '- Domain: `docs.githubim.com`\n'
+            printf -- '- Last known whole days remaining: `%s`\n' "${DAYS_REMAINING:-unknown}"
+            printf -- '- Last known expiry: `%s`\n' "${NOT_AFTER:-unknown}"
+            printf -- '- Severity: `%s`\n' "$severity"
+            printf -- '- Failed run: %s\n\n' "$run_url"
+            printf 'The next scheduled run will retry. Use the manual force input only after checking the fixed DNS and OIDC boundaries.\n'
+          } >"$body_file"
+          issues="$(gh api -X GET search/issues \
+            -f q="repo:${GITHUB_REPOSITORY} is:issue is:open in:title ${title}" \
+            -f per_page=100)"
+          issue_number="$(jq -r --arg title "$title" \
+            '[.items[] | select(.title == $title)][0].number // empty' <<<"$issues")"
+          if [[ -z "$issue_number" ]]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$body_file" >/dev/null
+            exit 0
+          fi
+          [[ "$issue_number" =~ ^[0-9]+$ ]]
+          old_body="$(jq -r --arg title "$title" \
+            '[.items[] | select(.title == $title)][0].body // ""' <<<"$issues")"
+          gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --body-file "$body_file" >/dev/null
+          if [[ "$old_body" != *"$marker"* ]]; then
+            gh issue comment "$issue_number" --repo "$GITHUB_REPOSITORY" \
+              --body "Certificate alert escalated to \`${severity}\`: ${run_url}" >/dev/null
+          fi
+
+  resolve_failure:
+    name: Close a recovered certificate alert
+    needs: certificate
+    if: >-
+      always() && needs.certificate.result == 'success' &&
+      github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Close any exact open certificate alert
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly title="[docs-cdn] certificate rotation failed"
+          readonly run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          issues="$(gh api -X GET search/issues \
+            -f q="repo:${GITHUB_REPOSITORY} is:issue is:open in:title ${title}" \
+            -f per_page=100)"
+          mapfile -t issue_numbers < <(jq -r --arg title "$title" \
+            '.items[] | select(.title == $title) | .number' <<<"$issues")
+          for issue_number in "${issue_numbers[@]}"; do
+            [[ "$issue_number" =~ ^[0-9]+$ ]]
+            gh issue close "$issue_number" --repo "$GITHUB_REPOSITORY" \
+              --comment "Certificate automation recovered: ${run_url}" >/dev/null
+          done
