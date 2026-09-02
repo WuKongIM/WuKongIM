@@ -105,6 +105,58 @@ func TestInspectChannelsCursorAndLimit(t *testing.T) {
 	}
 }
 
+// TestInspectChannelsMixedLengthKeysDoesNotDropChannels reproduces a real v3
+// defect: encodeCatalogKey length-prefixes channel_key (2-byte big-endian
+// length, then raw bytes), so the engine's true row order groups channel_key
+// by length first, then content — e.g. the 1-byte key "9" sorts before every
+// 2-byte key regardless of content. inspectChannelCatalogPage's resume
+// filter used to compare decoded channel_key strings with plain Go "<=",
+// which is a different, incompatible order: the 2-byte key "00" is
+// lexicographically less than "9" ('0' < '9'), so once the cursor passed
+// "9" that filter wrongly treated "00" (and "01") as already returned,
+// silently dropping them from every later page.
+func TestInspectChannelsMixedLengthKeysDoesNotDropChannels(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	for i, key := range []ChannelKey{"9", "00", "01"} {
+		log := mustAcquireChannel(t, store.db, key, ChannelID{ID: string(key), Type: 1})
+		if _, err := log.Append(ctx, testRecords(uint64(600+i), string(key)), AppendOptions{}); err != nil {
+			t.Fatalf("Append(%s): %v", key, err)
+		}
+	}
+
+	first, err := InspectChannels(ctx, store.db, InspectMessageRequest{Limit: 1})
+	if err != nil {
+		t.Fatalf("InspectChannels(first): %v", err)
+	}
+	if len(first.Rows) != 1 || first.Rows[0]["channel_key"] != "9" {
+		t.Fatalf("first rows = %+v, want [9]", first.Rows)
+	}
+	if first.Done || first.Next == nil || first.Next.AfterChannelKey != "9" {
+		t.Fatalf("first result = %+v, want bounded page with next after 9", first)
+	}
+
+	second, err := InspectChannels(ctx, store.db, InspectMessageRequest{
+		AfterChannelKey: first.Next.AfterChannelKey,
+		Limit:           10,
+	})
+	if err != nil {
+		t.Fatalf("InspectChannels(second): %v", err)
+	}
+	gotKeys := make([]any, 0, len(second.Rows))
+	for _, row := range second.Rows {
+		gotKeys = append(gotKeys, row["channel_key"])
+	}
+	if len(second.Rows) != 2 || gotKeys[0] != "00" || gotKeys[1] != "01" {
+		t.Fatalf("second rows = %+v, want [00 01]", second.Rows)
+	}
+	if !second.Done {
+		t.Fatalf("second Done = false, want true")
+	}
+}
+
 func TestInspectChannelsLimitDoesNotDecodeBeyondLookahead(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)

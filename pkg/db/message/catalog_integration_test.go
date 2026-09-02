@@ -170,6 +170,46 @@ func TestMessageDBListChannelsPage(t *testing.T) {
 	}
 }
 
+// TestMessageDBListChannelsPageMixedLengthKeysDoesNotDropChannels reproduces
+// a real defect: encodeCatalogKey length-prefixes channel_key (2-byte
+// big-endian length, then raw bytes), so the engine's true row order groups
+// channel_key by length first, then content — e.g. the 1-byte key "9" sorts
+// before every 2-byte key regardless of content. A resume filter that
+// instead compares decoded channel_key strings with plain Go "<=" uses a
+// different, incompatible order: the 2-byte key "00" is lexicographically
+// less than "9" ('0' < '9'), so a naive "key <= after" filter wrongly
+// treated "00" (and "01") as already returned once the cursor passed "9",
+// silently dropping them from every later page.
+func TestMessageDBListChannelsPageMixedLengthKeysDoesNotDropChannels(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	for i, key := range []ChannelKey{"9", "00", "01"} {
+		log := mustAcquireChannel(t, store.db, key, ChannelID{ID: string(key), Type: 1})
+		if _, err := log.Append(context.Background(), testRecords(800+uint64(i), string(key)), AppendOptions{}); err != nil {
+			t.Fatalf("%s Append(): %v", key, err)
+		}
+	}
+
+	page, last, more, err := store.db.ListChannelsPage(context.Background(), "", 1)
+	if err != nil {
+		t.Fatalf("ListChannelsPage first: %v", err)
+	}
+	assertCatalogKeys(t, page, "9")
+	if last != "9" || !more {
+		t.Fatalf("first cursor = (%q, %v), want 9 true", last, more)
+	}
+
+	page, last, more, err = store.db.ListChannelsPage(context.Background(), last, 10)
+	if err != nil {
+		t.Fatalf("ListChannelsPage second: %v", err)
+	}
+	assertCatalogKeys(t, page, "00", "01")
+	if last != "01" || more {
+		t.Fatalf("second cursor = (%q, %v), want 01 false", last, more)
+	}
+}
+
 func assertCatalogKeys(t *testing.T, entries []ChannelCatalogEntry, keys ...ChannelKey) {
 	t.Helper()
 	if len(entries) != len(keys) {
