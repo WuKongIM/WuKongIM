@@ -12,13 +12,21 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"io"
 	"math/big"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
 
 func TestVerifyDelegationRequiresExactValidationTarget(t *testing.T) {
 	lookup := func(_ context.Context, name string) (string, error) {
@@ -37,6 +45,107 @@ func TestVerifyDelegationRequiresExactValidationTarget(t *testing.T) {
 	failed := func(context.Context, string) (string, error) { return "", errors.New("dns unavailable") }
 	if err := verifyDelegation(t.Context(), failed); err == nil {
 		t.Fatal("verifyDelegation accepted a DNS lookup failure")
+	}
+}
+
+func TestValidateEmailAllowsOrdinaryAddressesContainingRNT(t *testing.T) {
+	for _, email := range []string{
+		"tangtaoit@githubim.com",
+		"reader@example.com",
+		"notice@example.com",
+		"team@example.com",
+	} {
+		t.Run(email, func(t *testing.T) {
+			if err := validateEmail(email); err != nil {
+				t.Fatalf("validateEmail(%q) error = %v", email, err)
+			}
+		})
+	}
+}
+
+func TestValidateEmailRejectsUnsafeStorageValues(t *testing.T) {
+	for _, email := range []string{
+		"bad/name@example.com",
+		"bad\\name@example.com",
+		"bad\rname@example.com",
+		"bad\nname@example.com",
+		"bad\tname@example.com",
+		"bad..name@example.com",
+		"bad name@example.com",
+		"<bad@example.com>",
+	} {
+		t.Run(strings.ReplaceAll(email, "\n", "newline"), func(t *testing.T) {
+			if err := validateEmail(email); err == nil {
+				t.Fatalf("validateEmail(%q) accepted an unsafe value", email)
+			}
+		})
+	}
+}
+
+func TestRegisterAccountRequiresReviewedTermsBeforeNetworkOrMutation(t *testing.T) {
+	stateDir := filepath.Join(t.TempDir(), "state")
+	requests := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests++
+		return nil, errors.New("unexpected network request")
+	})}
+	err := registerAccount(t.Context(), "docs-ops@example.com", stateDir,
+		"https://letsencrypt.org/documents/unreviewed.pdf", httpClient)
+	if err == nil || !strings.Contains(err.Error(), "reviewed URL") {
+		t.Fatalf("registerAccount() error = %v", err)
+	}
+	if requests != 0 {
+		t.Fatalf("unreviewed terms caused %d network requests", requests)
+	}
+	if _, statErr := os.Stat(stateDir); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("rejected registration mutated state: %v", statErr)
+	}
+}
+
+func TestRegisterAccountRejectsNonEmptyStateBeforeNetwork(t *testing.T) {
+	stateDir := t.TempDir()
+	if err := os.Chmod(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "existing"), []byte("do not overwrite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	requests := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests++
+		return nil, errors.New("unexpected network request")
+	})}
+	err := registerAccount(t.Context(), "docs-ops@example.com", stateDir, expectedACMETerms, httpClient)
+	if err == nil || !strings.Contains(err.Error(), "must be empty") {
+		t.Fatalf("registerAccount() error = %v", err)
+	}
+	if requests != 0 {
+		t.Fatalf("non-empty state caused %d network requests", requests)
+	}
+}
+
+func TestRegisterAccountDoesNotFollowDirectoryRedirects(t *testing.T) {
+	stateDir := filepath.Join(t.TempDir(), "state")
+	requests := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Status:     "302 Found",
+			Header:     http.Header{"Location": []string{"https://attacker.example/directory"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+			Request:    request,
+		}, nil
+	})}
+	err := registerAccount(t.Context(), "docs-ops@example.com", stateDir, expectedACMETerms, httpClient)
+	if err == nil {
+		t.Fatal("registerAccount followed or accepted a directory redirect")
+	}
+	if requests != 1 {
+		t.Fatalf("directory redirect caused %d requests, want 1", requests)
+	}
+	if _, statErr := os.Stat(stateDir); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("directory redirect mutated state: %v", statErr)
 	}
 }
 
@@ -123,6 +232,98 @@ func TestReadBundleRejectsWrongServerContactAndWeakKey(t *testing.T) {
 				t.Fatal("readBundle accepted an invalid identity")
 			}
 		})
+	}
+}
+
+func TestValidateLegoAccountAllowsMissingContactOnly(t *testing.T) {
+	email := "docs-ops@example.com"
+	missingContact := map[string]any{
+		"email": email,
+		"registration": map[string]any{
+			"body": map[string]any{"status": "valid"},
+			"uri":  "https://" + expectedACMEHost + "/acme/acct/123456",
+		},
+	}
+	data, err := json.Marshal(missingContact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateLegoAccount(data, email); err != nil {
+		t.Fatalf("validateLegoAccount() missing contact error = %v", err)
+	}
+
+	registration := missingContact["registration"].(map[string]any)
+	body := registration["body"].(map[string]any)
+	for _, contacts := range [][]string{
+		{"mailto:other@example.com"},
+		{"mailto:" + email, "mailto:other@example.com"},
+	} {
+		body["contact"] = contacts
+		data, err = json.Marshal(missingContact)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := validateLegoAccount(data, email); err == nil {
+			t.Fatalf("validateLegoAccount accepted contacts %v", contacts)
+		}
+	}
+}
+
+func TestValidateLegoAccountRequiresStrictValidAccountURI(t *testing.T) {
+	email := "docs-ops@example.com"
+	for _, test := range []struct {
+		name   string
+		status string
+		uri    string
+	}{
+		{name: "pending status", status: "pending", uri: "https://" + expectedACMEHost + "/acme/acct/123456"},
+		{name: "HTTP", status: "valid", uri: "http://" + expectedACMEHost + "/acme/acct/123456"},
+		{name: "userinfo", status: "valid", uri: "https://operator@" + expectedACMEHost + "/acme/acct/123456"},
+		{name: "wrong host", status: "valid", uri: "https://acme-staging-v02.api.letsencrypt.org/acme/acct/123456"},
+		{name: "explicit port", status: "valid", uri: "https://" + expectedACMEHost + ":443/acme/acct/123456"},
+		{name: "non-numeric ID", status: "valid", uri: "https://" + expectedACMEHost + "/acme/acct/account"},
+		{name: "encoded ID", status: "valid", uri: "https://" + expectedACMEHost + "/acme/acct/%31%32%33%34%35%36"},
+		{name: "query", status: "valid", uri: "https://" + expectedACMEHost + "/acme/acct/123456?source=test"},
+		{name: "empty query", status: "valid", uri: "https://" + expectedACMEHost + "/acme/acct/123456?"},
+		{name: "fragment", status: "valid", uri: "https://" + expectedACMEHost + "/acme/acct/123456#fragment"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			value := map[string]any{
+				"email": email,
+				"registration": map[string]any{
+					"body": map[string]any{"status": test.status},
+					"uri":  test.uri,
+				},
+			}
+			data, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := validateLegoAccount(data, email); err == nil {
+				t.Fatalf("validateLegoAccount accepted status=%q URI=%q", test.status, test.uri)
+			}
+		})
+	}
+}
+
+func TestValidateLegoAccountRequiresOrdersURIForSameAccount(t *testing.T) {
+	email := "docs-ops@example.com"
+	value := map[string]any{
+		"email": email,
+		"registration": map[string]any{
+			"body": map[string]any{
+				"status": "valid",
+				"orders": "https://" + expectedACMEHost + "/acme/acct/654321/orders",
+			},
+			"uri": "https://" + expectedACMEHost + "/acme/acct/123456",
+		},
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateLegoAccount(data, email); err == nil {
+		t.Fatal("validateLegoAccount accepted orders URI for another account")
 	}
 }
 

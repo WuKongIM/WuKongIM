@@ -169,12 +169,15 @@ Do not grant `cdn:AddCdnDomain`, `cdn:ModifyCdnDomain`,
 
 Run this once from a trusted Linux or macOS workstation after reviewing the
 checked-out scripts. `gh` must be authenticated as a repository administrator,
-`jq` must be installed, Go must be able to install toolchain `1.25.11`, and
+Go must be able to use toolchain `1.25.11`, and
 `DOCS_ACME_EMAIL` must equal the repository Variable that the Workflow will
 use. The command creates a Let's Encrypt account but requests no certificate
 and touches no Alibaba Cloud resource. It sends the bundle directly to the
 Environment Secret without printing its private key and deletes the temporary
-state on exit.
+state on exit. The helper fixes the production ACME directory and an EC P-256
+account key, and accepts only the exact reviewed terms-of-service URL shown
+below. It only creates or looks up the account and never sends an ACME
+`newOrder` request.
 
 ```bash
 set -euo pipefail
@@ -188,13 +191,6 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$bootstrap_dir/helper-cache" "$bootstrap_dir/helper-tmp"
-"$repo_root/scripts/docs-cdn/install-lego.sh" "$bootstrap_dir/lego"
-"$bootstrap_dir/lego/bin/lego" \
-  --server https://acme-v02.api.letsencrypt.org/directory \
-  --email "$DOCS_ACME_EMAIL" \
-  --path "$bootstrap_dir/state" \
-  --key-type ec256 \
-  --accept-tos register
 (
   cd "$repo_root"
   GOTOOLCHAIN=go1.25.11 GOWORK=off \
@@ -202,6 +198,11 @@ mkdir -p "$bootstrap_dir/helper-cache" "$bootstrap_dir/helper-tmp"
     GOENV=off GOTELEMETRY=off go build -trimpath \
     -o "$bootstrap_dir/certificate-helper" ./scripts/docs-cdn/certificate-helper
 )
+"$bootstrap_dir/certificate-helper" register-account \
+  --email "$DOCS_ACME_EMAIL" \
+  --state "$bootstrap_dir/state" \
+  --accept-terms-of-service \
+  "https://letsencrypt.org/documents/LE-SA-v1.8-July-06-2026.pdf"
 "$bootstrap_dir/certificate-helper" pack-account \
   --email "$DOCS_ACME_EMAIL" \
   --state "$bootstrap_dir/state" \
@@ -214,10 +215,14 @@ gh secret set DOCS_ACME_ACCOUNT_BUNDLE_B64 \
 
 The decoded bundle schema is fixed to
 `wukongim/docs-acme-account-bundle/v1` and contains the production Let's
-Encrypt server, exact contact email, validated lego account JSON, and the ACME
-account key. It never contains a CDN certificate or TLS private key. Base64 is
-only transport encoding, so the bundle must exist only in the encrypted
-Environment Secret and the protected temporary directory above.
+Encrypt server, exact operator email, validated lego-compatible account JSON,
+and the ACME account key. It never contains a CDN certificate or TLS private
+key. Base64 is only transport encoding, so the bundle must exist only in the
+encrypted Environment Secret and the protected temporary directory above.
+The top-level bundle email and the local lego-compatible account email are
+both fixed to `DOCS_ACME_EMAIL`. The ACME server may omit
+`registration.body.contact`; when it returns that field, it must exactly match
+the single `mailto:<DOCS_ACME_EMAIL>` contact.
 
 ## External target configuration
 
