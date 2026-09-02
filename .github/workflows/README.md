@@ -41,7 +41,8 @@ authorization and the applicable budget.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
-| `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies the bilingual static documentation export and deploys that exact artifact to GitHub Pages |
+| `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies and deploys the exact documentation artifact, then optionally refreshes the pre-provisioned Alibaba Cloud CDN |
+| `docs-cdn-certificate.yml` | `Safety Automation - Renew Documentation CDN Certificate` | While explicitly enabled, renews and deploys the public CDN certificate through ACME DNS-01 and Alibaba Cloud OIDC |
 | `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS archives plus unsigned Linux amd64 DEB/RPM assets and publishes the exact set to the tag's GitHub Release |
 
 ## Documentation Pages
@@ -53,11 +54,40 @@ access, installs the locked Bun dependencies, runs `bun run verify`, and uploads
 only the resulting `docs-site/out` directory. The deploy job receives only the
 Pages and OIDC permissions required by GitHub's deployment API.
 
-The repository Pages source must remain `workflow`, and the `github-pages`
-Environment is the production boundary. The artifact carries `CNAME` for
-`docs.githubim.com` and `.nojekyll`; Alibaba Cloud DNS must point the `docs`
-subdomain directly to `wukongim.github.io`. DNS changes and organization-level
-domain verification remain administrator operations outside the Workflow.
+The repository Pages source must remain `workflow`, and the unchanged
+`github-pages` Environment is the content-publication boundary. In the planned
+CDN topology, GitHub Pages owns `origin-docs.githubim.com` and remains the sole
+content origin. Alibaba Cloud CDN serves the canonical public
+`docs.githubim.com` domain and sends HTTPS origin requests with
+`origin-docs.githubim.com` as the address, Host, and SNI. GitHub's repository
+Pages Settings/API is the sole custom-domain authority. The export retains
+`.nojekyll` but deliberately contains no `CNAME`.
+
+After a successful Pages deployment, an isolated refresh job may assume the
+refresh-only Alibaba Cloud role from the `docs-cdn` Environment. The job is
+skipped unless repository Variable `DOCS_CDN_ENABLED` is exactly `true`. Once
+enabled, a missing or invalid binding fails before OIDC exchange. It refreshes
+a bounded set of stable public URLs; it does not create provider resources,
+change DNS, replace CDN settings, or broadly purge content-addressed assets.
+
+`docs-cdn-certificate.yml` is a separate certificate safety automation. Its
+scheduled and manual paths are also inert while `DOCS_CDN_ENABLED` is disabled.
+When enabled, it uses the `docs-cdn-certificate` Environment, a distinct
+certificate-rotation OIDC role, and the Environment Secret
+`DOCS_ACME_ACCOUNT_BUNDLE_B64` to renew the Let's Encrypt edge certificate for
+`docs.githubim.com`. GitHub Pages independently owns and renews the origin
+certificate for `origin-docs.githubim.com`; neither private key crosses that
+boundary.
+
+These workflows consume repository Variables `DOCS_CDN_DOMAIN`,
+`DOCS_CDN_OIDC_PROVIDER_ARN`, `DOCS_CDN_OIDC_AUDIENCE`,
+`DOCS_CDN_REFRESH_ROLE_ARN`, `DOCS_CDN_CERTIFICATE_ROLE_ARN`, and
+`DOCS_ACME_EMAIL`. Their presence is not evidence that DNS, CDN, RAM, delegated
+ACME validation, or GitHub Pages custom-domain setup is complete. Those are
+administrator-owned external operations and must remain disabled until the
+cutover prerequisites and rollback snapshot in the
+[documentation CDN runbook](../../docs/superpowers/runbooks/docs-alibaba-cdn.md)
+have been verified.
 
 ## Native package preview
 

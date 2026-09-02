@@ -73,7 +73,28 @@ Bun `1.3.11`, runs the complete `bun run verify` gate, uploads only `out/`, and
 deploys that verified artifact to the `github-pages` Environment. It can also
 be started manually after an interrupted publication.
 
-The production origin is `https://docs.githubim.com`. The static export carries
-`public/CNAME` and `public/.nojekyll`; the DNS record for the `docs` subdomain
-must be a direct CNAME to `wukongim.github.io` before GitHub can finish domain
-and HTTPS validation.
+The production public URL is `https://docs.githubim.com`. The static export
+carries `public/.nojekyll` but deliberately carries no `CNAME`. With the
+Actions Pages source, repository Pages Settings/API is the sole authority for
+the custom domain.
+
+The planned production hosting path is:
+
+```text
+https://docs.githubim.com
+  -> Alibaba Cloud CDN
+  -> https://origin-docs.githubim.com
+  -> GitHub Pages
+```
+
+`docs.githubim.com` remains the public URL used by canonical metadata, the
+sitemap, and reader-facing links. GitHub Pages remains the only content origin
+and owns the TLS certificate for `origin-docs.githubim.com`; Alibaba Cloud CDN
+uses a separately renewed Let's Encrypt certificate for the public domain.
+
+The CDN refresh and certificate Workflows are disabled by default through
+`DOCS_CDN_ENABLED`. Publishing to GitHub Pages continues normally until an
+administrator provisions the external DNS, CDN, RAM/OIDC, and ACME resources,
+tests the origin, and explicitly enables the integration. See the
+[Alibaba Cloud CDN runbook](../docs/superpowers/runbooks/docs-alibaba-cdn.md)
+for configuration, cutover, validation, and rollback.

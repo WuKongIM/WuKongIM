@@ -21,9 +21,13 @@ not define them.
 - `lib/navigation.ts` is the shared bilingual publication registry.
 - `SDK_DOCUMENTATION_SPEC.md` owns the maintained WuKongIMSDK versions,
   learning order, and reader contract. WuKongEasySDK remains a separate path.
-- `.github/workflows/docs-pages.yml` verifies and deploys the exact static
-  export to GitHub Pages. Alibaba Cloud DNS ownership and record changes remain
-  external operations; the production origin is `https://docs.githubim.com`.
+- `.github/workflows/docs-pages.yml` deploys the exact export to GitHub Pages
+  and may refresh a pre-provisioned CDN only when `DOCS_CDN_ENABLED=true`. It
+  never provisions or reconfigures DNS, CDN topology, RAM, or certificates;
+  its only Alibaba mutation is the four bounded cache invalidations.
+- The canonical URL remains `https://docs.githubim.com`. After CDN cutover,
+  GitHub Pages serves `https://origin-docs.githubim.com` as the only origin.
+  Pages Settings/API is the sole domain authority; the export carries no CNAME.
 
 ## Main Flows
 
@@ -50,6 +54,9 @@ not define them.
    machine-artifact checks run before the Workflow uploads that exact directory
    as the GitHub Pages artifact. Hidden files are retained so `.nojekyll` and
    future machine-readable well-known endpoints cannot be dropped silently.
+8. After external CDN setup and enablement, the deploy Workflow refreshes only
+   bounded stable URLs. It never broadly purges content-addressed assets, and
+   refresh failure does not undo a successful Pages deployment.
 
 ## Invariants and Failure Semantics
 
@@ -77,7 +84,8 @@ not define them.
   come only from reviewed samples that state the trusted-backend boundary.
 - Production publication uses one non-canceling `github-pages` concurrency
   group. The deploy job receives only `pages: write` and `id-token: write`; the
-  build job remains read-only.
+  build job remains read-only. CDN refresh and certificate rotation use the
+  separate `docs-cdn` and `docs-cdn-certificate` Environments and OIDC roles.
 
 ## Read First
 
@@ -89,5 +97,4 @@ not define them.
 
 ## Update Triggers
 
-Update this file when publication ownership, SDK learning order, locale parity,
-generated outputs, authoritative sources, or the hosting boundary changes.
+Update this file when publication ownership, SDK learning order, locale parity, generated outputs, authoritative sources, or the hosting boundary changes.
