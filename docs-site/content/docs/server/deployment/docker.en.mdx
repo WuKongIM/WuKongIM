@@ -1,9 +1,9 @@
 ---
 title: Docker
-description: Start a WuKongIM single-node cluster with docker run, a configuration file, and persistent storage.
+description: Start a WuKongIM single-node cluster with docker run or Docker Compose, a configuration file, and persistent storage.
 ---
 
-You only need Docker. This path mounts `wukongim.toml` and a Docker volume directly, with no installer or Compose layer.
+You only need Docker. This path mounts `wukongim.toml` and a Docker volume directly, with no installer.
 
 <Callout type="warn" title="The default is for a quick local evaluation">
   The example pins image `3.0.0-beta.6`. To use another release, replace the image tag directly and read that release's upgrade notes first. Before serving production traffic, replace the example credentials and complete the [Production Checklist](/en/server/deployment/production-checklist).
@@ -43,6 +43,10 @@ This file keeps only the fields needed for the container, API, Manager authentic
 
 ## 2. Start and verify
 
+Choose either startup method.
+
+### Use `docker run`
+
 ```bash
 docker run -d --name wukongim --restart unless-stopped \
   -p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301 \
@@ -51,7 +55,29 @@ docker run -d --name wukongim --restart unless-stopped \
   ghcr.io/wukongim/wukongim:3.0.0-beta.6
 ```
 
-Docker creates `wukongim-data` automatically on the first run, so no separate volume command is needed.
+### Use Docker Compose
+
+Create `compose.yaml`:
+
+```yaml
+services:
+  wukongim:
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.6
+    container_name: wukongim
+    restart: unless-stopped
+    ports: ["127.0.0.1:5001:5001", "5100:5100", "5200:5200", "127.0.0.1:5301:5301"]
+    volumes: ["./wukongim.toml:/etc/wukongim/wukongim.toml:ro", "wukongim-data:/var/lib/wukongim"]
+
+volumes:
+  wukongim-data:
+    name: wukongim-data
+```
+
+```bash
+docker compose up -d
+```
+
+Both methods create `wukongim-data` automatically on the first run, so no separate volume command is needed.
 
 Wait for the container to become healthy, then verify the node:
 
@@ -93,7 +119,14 @@ Removing the container does not remove `wukongim-data`. Before upgrading, read [
 <details>
 <summary>Remove the evaluation deployment completely</summary>
 
-After confirming that the data is no longer needed, run:
+For a Docker Compose deployment, after confirming that the data is no longer needed, run:
+
+```bash
+docker compose down --volumes
+rm -f wukongim.toml compose.yaml
+```
+
+For a `docker run` deployment, run:
 
 ```bash
 docker rm --force wukongim
@@ -101,7 +134,7 @@ docker volume rm wukongim-data
 rm wukongim.toml
 ```
 
-The last two commands permanently remove message data and deployment credentials.
+These commands permanently remove message data and deployment credentials.
 
 </details>
 

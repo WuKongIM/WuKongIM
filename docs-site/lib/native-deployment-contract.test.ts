@@ -26,7 +26,7 @@ describe('native deployment publication contract', () => {
     }
   });
 
-  test('keeps the Docker deployment path to two direct docker run steps', async () => {
+  test('keeps the Docker deployment path to two direct steps with run or Compose', async () => {
     const pages = await Promise.all([page('docker.mdx'), page('docker.en.mdx')]);
 
     for (const content of pages) {
@@ -43,6 +43,10 @@ describe('native deployment publication contract', () => {
         '-p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301',
         '-v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro"',
         '-v wukongim-data:/var/lib/wukongim',
+        'compose.yaml',
+        'docker compose up -d',
+        'name: wukongim-data',
+        'docker compose down --volumes',
         'ghcr.io/wukongim/wukongim:3.0.0-beta.6',
         'wukongim-data',
         'http://127.0.0.1:5301',
@@ -58,7 +62,6 @@ describe('native deployment publication contract', () => {
       expect(content).not.toContain('WK_VERSION');
       expect(content).not.toContain('一键');
       expect(content).not.toContain('one command');
-      expect(content).not.toContain('docker compose');
       expect(content).not.toContain('docker volume create');
       expect(content).not.toContain('--mount');
       expect(content).not.toContain('node1.toml');

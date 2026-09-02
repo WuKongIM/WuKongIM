@@ -1,9 +1,9 @@
 ---
 title: Docker 部署
-description: 使用配置文件和数据卷，通过 docker run 启动 WuKongIM 单节点集群。
+description: 使用配置文件和数据卷，通过 docker run 或 Docker Compose 启动 WuKongIM 单节点集群。
 ---
 
-只需要 Docker。下面的流程直接挂载 `wukongim.toml` 和 Docker Volume，不依赖安装脚本或 Compose。
+只需要 Docker。下面的流程直接挂载 `wukongim.toml` 和 Docker Volume，不依赖安装脚本。
 
 <Callout type="warn" title="默认用于本机快速体验">
   示例固定使用 `3.0.0-beta.6` 镜像。使用其他版本时直接替换镜像 tag，并先阅读对应版本的升级说明。承载生产流量前，请更换示例凭据并完成[生产检查清单](/zh/server/deployment/production-checklist)。
@@ -43,6 +43,10 @@ dir = "/var/lib/wukongim/logs"
 
 ## 2. 启动并验证
 
+任选一种方式启动。
+
+### 使用 `docker run`
+
 ```bash
 docker run -d --name wukongim --restart unless-stopped \
   -p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301 \
@@ -51,7 +55,29 @@ docker run -d --name wukongim --restart unless-stopped \
   ghcr.io/wukongim/wukongim:3.0.0-beta.6
 ```
 
-首次启动时 Docker 会自动创建 `wukongim-data`，无需提前创建 Volume。
+### 使用 Docker Compose
+
+创建 `compose.yaml`：
+
+```yaml
+services:
+  wukongim:
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.6
+    container_name: wukongim
+    restart: unless-stopped
+    ports: ["127.0.0.1:5001:5001", "5100:5100", "5200:5200", "127.0.0.1:5301:5301"]
+    volumes: ["./wukongim.toml:/etc/wukongim/wukongim.toml:ro", "wukongim-data:/var/lib/wukongim"]
+
+volumes:
+  wukongim-data:
+    name: wukongim-data
+```
+
+```bash
+docker compose up -d
+```
+
+两种方式都会在首次启动时自动创建 `wukongim-data`，无需提前创建 Volume。
 
 等待容器健康后验证节点：
 
@@ -93,7 +119,14 @@ docker start wukongim
 <details>
 <summary>彻底删除测试部署</summary>
 
-确认数据不再需要后执行：
+使用 Docker Compose 部署时，确认数据不再需要后执行：
+
+```bash
+docker compose down --volumes
+rm -f wukongim.toml compose.yaml
+```
+
+使用 `docker run` 部署时执行：
 
 ```bash
 docker rm --force wukongim
@@ -101,7 +134,7 @@ docker volume rm wukongim-data
 rm wukongim.toml
 ```
 
-后两条命令会永久删除消息数据和部署凭据。
+这些命令会永久删除消息数据和部署凭据。
 
 </details>
 
