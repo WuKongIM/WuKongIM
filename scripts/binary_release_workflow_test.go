@@ -35,6 +35,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 				If   string            `yaml:"if"`
 				Uses string            `yaml:"uses"`
 				Run  string            `yaml:"run"`
+				Env  map[string]string `yaml:"env"`
 				With map[string]string `yaml:"with"`
 			} `yaml:"steps"`
 		} `yaml:"jobs"`
@@ -177,6 +178,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 	stepRuns := make(map[string]string, len(publish.Steps))
 	stepUses := make(map[string]string, len(publish.Steps))
 	stepIfs := make(map[string]string, len(publish.Steps))
+	stepEnvs := make(map[string]map[string]string, len(publish.Steps))
 	stepWith := make(map[string]map[string]string, len(publish.Steps))
 	var packageBuildStep struct {
 		If   string
@@ -187,6 +189,7 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		stepRuns[step.Name] = step.Run
 		stepUses[step.Name] = step.Uses
 		stepIfs[step.Name] = step.If
+		stepEnvs[step.Name] = step.Env
 		stepWith[step.Name] = step.With
 		if step.Name == "Build unsigned amd64 native packages" {
 			packageBuildStep.If = step.If
@@ -201,6 +204,25 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 		"version":      "v2.18.0",
 		"args":         "release --clean --config .goreleaser.packages.yaml",
 	}, packageBuildStep.With)
+
+	identityRun := stepRuns["Validate release identity and tag policy"]
+	require.Equal(t, "${{ github.workflow_sha }}", stepEnvs["Validate release identity and tag policy"]["WORKFLOW_SHA"])
+	require.Contains(t, identityRun, `expected_ref="refs/tags/$version"`)
+	require.Contains(t, identityRun, `test "$GITHUB_REF" = "$expected_ref"`)
+	require.Contains(t, identityRun, `git rev-parse "$GITHUB_SHA^{commit}"`)
+	require.Contains(t, identityRun, `git rev-parse "$WORKFLOW_SHA^{commit}"`)
+	require.Contains(t, identityRun, "gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref $version -f version=$version")
+	require.NotContains(t, identityRun, "GITHUB_EVENT_NAME")
+	tagPeel := strings.Index(identityRun, `refs/tags/$version^{commit}`)
+	runRefFence := strings.Index(identityRun, `test "$GITHUB_REF" = "$expected_ref"`)
+	runSHAFence := strings.Index(identityRun, `git rev-parse "$GITHUB_SHA^{commit}"`)
+	workflowSHAFence := strings.Index(identityRun, `git rev-parse "$WORKFLOW_SHA^{commit}"`)
+	mainFetch := strings.Index(identityRun, "git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'")
+	require.GreaterOrEqual(t, tagPeel, 0)
+	require.Greater(t, runRefFence, tagPeel)
+	require.Greater(t, runSHAFence, runRefFence)
+	require.Greater(t, workflowSHAFence, runSHAFence)
+	require.Greater(t, mainFetch, workflowSHAFence)
 
 	finalizeRun := stepRuns["Finalize exact release asset set and checksums"]
 	require.Contains(t, finalizeRun, "find \"$RELEASE_DIR\" -maxdepth 1 -type f")
