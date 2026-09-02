@@ -47,7 +47,9 @@ jobs:
       - name: Validate the exact certificate binding without credentials
         shell: bash
         env:
+          DOCS_CDN_CNAME: ${{ vars.DOCS_CDN_CNAME }}
           DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_CDN_PUBLIC_ROUTE_MODE: ${{ vars.DOCS_CDN_PUBLIC_ROUTE_MODE }}
           DOCS_CDN_CERTIFICATE_ROLE_ARN: ${{ vars.DOCS_CDN_CERTIFICATE_ROLE_ARN }}
           DOCS_CDN_REFRESH_ROLE_ARN: ${{ vars.DOCS_CDN_REFRESH_ROLE_ARN }}
           DOCS_CDN_OIDC_PROVIDER_ARN: ${{ vars.DOCS_CDN_OIDC_PROVIDER_ARN }}
@@ -55,7 +57,10 @@ jobs:
           DOCS_ACME_EMAIL: ${{ vars.DOCS_ACME_EMAIL }}
         run: |
           set -euo pipefail
+          [[ "$DOCS_CDN_CNAME" == docs.githubim.com.w.kunlunaq.com ]]
           [[ "$DOCS_CDN_DOMAIN" == docs.githubim.com ]]
+          [[ "$DOCS_CDN_PUBLIC_ROUTE_MODE" == github-pages-precutover || \
+            "$DOCS_CDN_PUBLIC_ROUTE_MODE" == alibaba-cdn ]]
           [[ "$DOCS_CDN_CERTIFICATE_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]
           readonly role_account="${BASH_REMATCH[1]}"
           [[ "$DOCS_CDN_REFRESH_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]
@@ -103,8 +108,10 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
+          DOCS_CDN_CNAME: ${{ vars.DOCS_CDN_CNAME }}
           DOCS_CDN_ENABLED: ${{ vars.DOCS_CDN_ENABLED }}
           DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_CDN_PUBLIC_ROUTE_MODE: ${{ vars.DOCS_CDN_PUBLIC_ROUTE_MODE }}
           DOCS_CERT_FORCE_RENEW: ${{ github.event_name == 'workflow_dispatch' && inputs.force_renew && 'true' || 'false' }}
           DOCS_CERTIFICATE_HELPER: ${{ runner.temp }}/docs-cdn-tools/docs-cdn-certificate-helper
         run: |
@@ -133,8 +140,10 @@ jobs:
           (github.event_name == 'workflow_dispatch' && inputs.force_renew))
         shell: bash
         env:
+          DOCS_CDN_CNAME: ${{ vars.DOCS_CDN_CNAME }}
           DOCS_CDN_ENABLED: ${{ vars.DOCS_CDN_ENABLED }}
           DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}
+          DOCS_CDN_PUBLIC_ROUTE_MODE: ${{ vars.DOCS_CDN_PUBLIC_ROUTE_MODE }}
           DOCS_ACME_EMAIL: ${{ vars.DOCS_ACME_EMAIL }}
           DOCS_ACME_ACCOUNT_BUNDLE_B64: ${{ secrets.DOCS_ACME_ACCOUNT_BUNDLE_B64 }}
           DOCS_CERT_FORCE_RENEW: ${{ github.event_name == 'workflow_dispatch' && inputs.force_renew && 'true' || 'false' }}

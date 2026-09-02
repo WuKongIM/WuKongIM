@@ -81,6 +81,8 @@ not provider state supplied by this repository.
 | --- | --- |
 | `DOCS_CDN_ENABLED` | Exact `true` only after preflight; absent or any other value keeps Alibaba jobs inert |
 | `DOCS_CDN_DOMAIN` | Exact `docs.githubim.com` |
+| `DOCS_CDN_CNAME` | Exact `docs.githubim.com.w.kunlunaq.com`, the Alibaba-assigned CDN CNAME without a trailing dot |
+| `DOCS_CDN_PUBLIC_ROUTE_MODE` | Strict enum: `github-pages-precutover` while public DNS points directly to GitHub Pages; `alibaba-cdn` only after the CDN CNAME has propagated |
 | `DOCS_CDN_OIDC_PROVIDER_ARN` | `<ALIBABA_GITHUB_OIDC_PROVIDER_ARN>` |
 | `DOCS_CDN_OIDC_AUDIENCE` | `<AUDIENCE_ALLOWED_BY_THE_OIDC_PROVIDER>` |
 | `DOCS_CDN_REFRESH_ROLE_ARN` | `<REFRESH_ONLY_RAM_ROLE_ARN>` |
@@ -95,6 +97,9 @@ Configure exactly one Environment Secret in `docs-cdn-certificate`:
 
 Treat missing, partial, placeholder, or mismatched settings as not configured.
 Do not set `DOCS_CDN_ENABLED=true` to discover what is missing in production.
+The route mode is an operator assertion that the Workflow verifies against
+direct public CNAME answers; it is not an instruction for the Workflow to
+change DNS.
 
 ### Fixed OIDC and RAM boundary
 
@@ -250,10 +255,12 @@ mainland acceleration.
    fixes the requested domain so lego creates and removes only the resulting
    `_acme-challenge` TXT record. The role has no authority over records in the
    parent `githubim.com` zone.
-4. Obtain the Alibaba-assigned CNAME for the configured CDN domain and record
-   it as `<ALIBABA_CDN_CNAME>`. Do not point public DNS to it yet.
+4. Confirm the Alibaba-assigned CNAME for the configured CDN domain is
+   `docs.githubim.com.w.kunlunaq.com`, and configure that exact hostname without
+   a trailing dot as `DOCS_CDN_CNAME`. Do not point public DNS to it yet.
 5. Keep the public record on its current GitHub Pages target until the cutover
-   phase explicitly changes it.
+   phase explicitly changes it, and set `DOCS_CDN_PUBLIC_ROUTE_MODE` to
+   `github-pages-precutover`.
 
 Do not create a wildcard record for either the origin or ACME validation.
 
@@ -325,14 +332,21 @@ health gate remains red. The certificate job itself does not receive
 `issues: write`, and the notifier receives no Alibaba Cloud or ACME credential.
 
 Each check first records the exact Alibaba certificate fingerprint, expiry,
-and CNAME status. When Alibaba reports `DomainCnameStatus=ok`, the check also
-requires the public endpoint to complete a trusted TLS handshake for
-`docs.githubim.com` and serve that exact leaf fingerprint. A hostname, chain,
-or fingerprint mismatch fails the Workflow even when renewal is not yet due.
-Before cutover, `cname_error` and `top_domain_cname_error` deliberately skip
-the public-edge comparison and record
-`skipped-public-dns-not-on-alibaba-cdn`; API certificate and expiry checks still
-remain mandatory.
+and provider `DomainCnameStatus`. That provider field is validated and retained
+for API diagnostics only; it is not proof of the public DNS route and may be
+`ok` before public DNS points to Alibaba Cloud CDN.
+
+The public route is instead selected by `DOCS_CDN_PUBLIC_ROUTE_MODE` and
+verified through direct CNAME queries to `223.5.5.5`, `1.1.1.1`, and `8.8.8.8`.
+In `github-pages-precutover` mode, all three answers must be
+`wukongim.github.io`; the check records
+`skipped-public-dns-not-on-alibaba-cdn` and leaves the Alibaba certificate and
+expiry checks mandatory. In `alibaba-cdn` mode, all three answers must match
+`DOCS_CDN_CNAME`; the public endpoint must then complete a trusted TLS
+handshake for `docs.githubim.com` and serve the exact Alibaba API leaf
+fingerprint. An empty, split, or unexpected direct CNAME answer, or a hostname,
+chain, or fingerprint mismatch, fails the Workflow even when renewal is not
+yet due.
 
 The Workflow updates only the CDN edge certificate. It cannot repair the
 GitHub Pages origin certificate, DNS, CDN origin configuration, RAM policy, or
@@ -351,16 +365,19 @@ failure rather than repeatedly forcing ACME issuance.
 4. Verify the ACME challenge CNAME and delegated target publicly from more than
    one resolver.
 5. Configure the CDN origin and cache policy without changing public DNS.
-6. Set every Variable and the ACME Environment Secret, then set
+6. Set every Variable and the ACME Environment Secret. Set
+   `DOCS_CDN_PUBLIC_ROUTE_MODE=github-pages-precutover`, confirm each fixed
+   public resolver directly answers `wukongim.github.io`, then set
    `DOCS_CDN_ENABLED=true`.
 7. Manually run `docs-cdn-certificate.yml` with forced renewal. Before public
-   DNS points to Alibaba Cloud, the Workflow must report exact API readback and
+   DNS points to Alibaba Cloud, the Workflow must report exact API readback,
+   three GitHub Pages direct CNAME answers, and
    `Public edge verification: skipped-public-dns-not-on-alibaba-cdn`; this is
-   expected, not complete edge acceptance. Verify the installed certificate's
-   SAN, issuer, validity window, and trusted chain through the assigned CDN
-   CNAME or an operator-local host override. After public cutover, every
-   scheduled inspection and rotation must report
-   `Public edge verification: passed`.
+   expected, not complete edge acceptance, regardless of the provider's
+   `DomainCnameStatus`. Verify the installed certificate's SAN, issuer,
+   validity window, and trusted chain through the assigned CDN CNAME or an
+   operator-local host override. After public cutover, every scheduled
+   inspection and rotation must report `Public edge verification: passed`.
 8. Manually run `docs-pages.yml`. GitHub Pages deployment must succeed, and the
    post-deploy refresh must submit exactly these four file URLs in one bounded
    request:
@@ -401,14 +418,20 @@ window.
 3. Change the public record from its GitHub Pages target to:
 
    ```text
-   docs.githubim.com CNAME <ALIBABA_CDN_CNAME>
+   docs.githubim.com CNAME docs.githubim.com.w.kunlunaq.com
    ```
 
 4. Wait at least twice the previously observed DNS TTL. Validate both the old
-   and new resolution paths during propagation.
-5. In repository Settings, change the GitHub Pages custom domain to
+   and new resolution paths during propagation. Do not change the route mode
+   while any required resolver still returns the old target.
+5. After `223.5.5.5`, `1.1.1.1`, and `8.8.8.8` all return
+   `DOCS_CDN_CNAME` as the direct CNAME answer, set
+   `DOCS_CDN_PUBLIC_ROUTE_MODE=alibaba-cdn` and manually run
+   `docs-cdn-certificate.yml` without forced renewal. Require
+   `Public edge verification: passed` before continuing.
+6. In repository Settings, change the GitHub Pages custom domain to
    `origin-docs.githubim.com`. Keep the Pages source as GitHub Actions.
-6. While GitHub issues the origin certificate, use only this bounded temporary
+7. While GitHub issues the origin certificate, use only this bounded temporary
    bridge if required:
 
    ```text
@@ -416,10 +439,10 @@ window.
    origin Host:                   origin-docs.githubim.com
    ```
 
-7. After `https://origin-docs.githubim.com` presents a valid GitHub certificate
+8. After `https://origin-docs.githubim.com` presents a valid GitHub certificate
    and serves the exact site, switch CDN address, Host, and SNI together to
    `origin-docs.githubim.com`. Remove all temporary bridge settings.
-8. Observe for at least 60 minutes before resuming documentation publication.
+9. Observe for at least 60 minutes before resuming documentation publication.
 
 Never leave a split Host/SNI bridge as permanent configuration.
 
@@ -436,6 +459,8 @@ Chengdu, and at least one overseas location.
   succeeds.
 - Canonical metadata, sitemap URLs, and redirects stay on
   `https://docs.githubim.com`; no response redirects readers to the origin.
+- `DOCS_CDN_PUBLIC_ROUTE_MODE` is `alibaba-cdn`, and all three fixed public
+  resolvers return `DOCS_CDN_CNAME` as the direct CNAME answer.
 - There is no redirect loop, TLS error, unexpected 404, or mixed content.
 - Mainland warm-cache p95 TTFB is at most 500 ms.
 - Overseas latency does not show a sustained regression greater than 20%
@@ -451,7 +476,7 @@ Stop changing other controls as soon as a rollback condition is met.
 | Cutover point | Recovery action |
 | --- | --- |
 | Before public DNS changes | Disable `DOCS_CDN_ENABLED`; remove or disable only the unadvertised CDN configuration |
-| Public DNS points to CDN, Pages still owns `docs.githubim.com` | Restore the captured public DNS record to `wukongim.github.io` and wait for propagation |
+| Public DNS points to CDN, Pages still owns `docs.githubim.com` | Set `DOCS_CDN_PUBLIC_ROUTE_MODE=github-pages-precutover`, restore the captured public DNS record to `wukongim.github.io`, and wait for all three direct CNAME answers to converge |
 | Pages custom domain is migrating | Restore the captured Pages custom domain and the matching temporary origin settings as one tested phase |
 | Final topology, CDN configuration fault | Restore the exported CDN configuration snapshot; leave DNS stable |
 | Alibaba Cloud CDN provider-wide failure | Publish `https://origin-docs.githubim.com` as the direct emergency URL and recover the public domain deliberately; no minute-scale RTO is promised |

@@ -80,12 +80,27 @@ certificate for `origin-docs.githubim.com`; neither private key crosses that
 boundary.
 
 These workflows consume repository Variables `DOCS_CDN_DOMAIN`,
+`DOCS_CDN_CNAME`, `DOCS_CDN_PUBLIC_ROUTE_MODE`,
 `DOCS_CDN_OIDC_PROVIDER_ARN`, `DOCS_CDN_OIDC_AUDIENCE`,
 `DOCS_CDN_REFRESH_ROLE_ARN`, `DOCS_CDN_CERTIFICATE_ROLE_ARN`, and
-`DOCS_ACME_EMAIL`. Their presence is not evidence that DNS, CDN, RAM, delegated
-ACME validation, or GitHub Pages custom-domain setup is complete. Those are
-administrator-owned external operations and must remain disabled until the
-cutover prerequisites and rollback snapshot in the
+`DOCS_ACME_EMAIL`. `DOCS_CDN_CNAME` is the exact Alibaba-assigned CDN CNAME
+`docs.githubim.com.w.kunlunaq.com`, without a trailing dot.
+`DOCS_CDN_PUBLIC_ROUTE_MODE` is a strict enum:
+
+- `github-pages-precutover` requires every fixed public resolver's direct
+  CNAME answer for `docs.githubim.com` to be `wukongim.github.io` and skips the
+  Alibaba edge-certificate comparison;
+- `alibaba-cdn` requires every direct answer to equal `DOCS_CDN_CNAME`, then
+  requires the public endpoint to serve the exact certificate read back from
+  the Alibaba API with a trusted chain.
+
+Alibaba's `DomainCnameStatus` is validated and recorded only as provider API
+diagnostics. It does not establish the public route; that decision uses the
+explicit mode and direct public CNAME answers. The Variables' presence is not
+evidence that DNS, CDN, RAM, delegated ACME validation, or GitHub Pages
+custom-domain setup is complete. Those are administrator-owned external
+operations and must remain disabled until the cutover prerequisites and
+rollback snapshot in the
 [documentation CDN runbook](../../docs/superpowers/runbooks/docs-alibaba-cdn.md)
 have been verified.
 

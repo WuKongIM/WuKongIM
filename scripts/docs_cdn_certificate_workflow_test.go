@@ -21,12 +21,17 @@ func TestDocsCDNCertificateWorkflowIsDefaultDisabledAndNarrowlyAuthorized(t *tes
 		"force_renew:",
 		"if: github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'",
 		"name: docs-cdn-certificate",
+		"DOCS_CDN_CNAME: ${{ vars.DOCS_CDN_CNAME }}",
 		"DOCS_CDN_DOMAIN: ${{ vars.DOCS_CDN_DOMAIN }}",
+		"DOCS_CDN_PUBLIC_ROUTE_MODE: ${{ vars.DOCS_CDN_PUBLIC_ROUTE_MODE }}",
 		"DOCS_CDN_CERTIFICATE_ROLE_ARN: ${{ vars.DOCS_CDN_CERTIFICATE_ROLE_ARN }}",
 		"DOCS_CDN_REFRESH_ROLE_ARN: ${{ vars.DOCS_CDN_REFRESH_ROLE_ARN }}",
 		"DOCS_CDN_OIDC_PROVIDER_ARN: ${{ vars.DOCS_CDN_OIDC_PROVIDER_ARN }}",
 		"DOCS_CDN_OIDC_AUDIENCE: ${{ vars.DOCS_CDN_OIDC_AUDIENCE }}",
 		"DOCS_ACME_EMAIL: ${{ vars.DOCS_ACME_EMAIL }}",
+		`[[ "$DOCS_CDN_CNAME" == docs.githubim.com.w.kunlunaq.com ]]`,
+		`[[ "$DOCS_CDN_PUBLIC_ROUTE_MODE" == github-pages-precutover || \`,
+		`"$DOCS_CDN_PUBLIC_ROUTE_MODE" == alibaba-cdn ]]`,
 		`[[ "$DOCS_CDN_CERTIFICATE_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]`,
 		`[[ "$DOCS_CDN_REFRESH_ROLE_ARN" =~ ^acs:ram::([0-9]+):role/[A-Za-z0-9_-]+$ ]]`,
 		`[[ "$DOCS_CDN_OIDC_PROVIDER_ARN" =~ ^acs:ram::([0-9]+):oidc-provider/[A-Za-z0-9._-]+$ ]]`,
@@ -47,6 +52,12 @@ func TestDocsCDNCertificateWorkflowIsDefaultDisabledAndNarrowlyAuthorized(t *tes
 	require.Equal(t, 1, strings.Count(workflow, "id-token: write"))
 	require.Equal(t, 2, strings.Count(workflow, "issues: write"))
 	require.Equal(t, 1, strings.Count(workflow, "secrets.DOCS_ACME_ACCOUNT_BUNDLE_B64"))
+	require.Equal(t, 3, strings.Count(workflow, "DOCS_CDN_CNAME: ${{ vars.DOCS_CDN_CNAME }}"))
+	require.Equal(t, 3, strings.Count(workflow, "DOCS_CDN_PUBLIC_ROUTE_MODE: ${{ vars.DOCS_CDN_PUBLIC_ROUTE_MODE }}"))
+	validateBinding := strings.Index(workflow, "- name: Validate the exact certificate binding without credentials")
+	exchangeOIDC := strings.Index(workflow, "- name: Exchange the exact certificate-rotation OIDC identity")
+	require.NotEqual(t, -1, validateBinding)
+	require.Greater(t, exchangeOIDC, validateBinding, "public route bindings must be validated before OIDC")
 	for _, forbidden := range []string{
 		"secrets.ALIBABA",
 		"DOCS_CDN_ACCESS_KEY",
@@ -153,6 +164,8 @@ func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *te
 
 	for _, want := range []string{
 		`readonly expected_domain="docs.githubim.com"`,
+		`readonly expected_cdn_cname="docs.githubim.com.w.kunlunaq.com"`,
+		`readonly expected_pages_cname="wukongim.github.io"`,
 		`readonly expected_acme_server="https://acme-v02.api.letsencrypt.org/directory"`,
 		`readonly renewal_window_seconds="$((30 * 24 * 60 * 60))"`,
 		`helper_arguments+=(--allow-missing)`,
@@ -168,9 +181,13 @@ func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *te
 		`verify-cdn`,
 		`DomainCnameStatus`,
 		`verify_public_edge()`,
+		`query_public_cname()`,
+		`observe_public_cname()`,
 		`assess_public_edge()`,
-		`assess_public_edge "$inspection_fingerprint" "$inspection_cname_status" 3 10`,
-		`assess_public_edge "$expected_fingerprint" "$cdn_cname_status" 40 15`,
+		`local -a resolvers=(223.5.5.5 1.1.1.1 8.8.8.8)`,
+		`dig "@${resolver}" "$expected_domain" CNAME +short +time=3 +tries=1`,
+		`assess_public_edge "$inspection_fingerprint" 3 10`,
+		`assess_public_edge "$expected_fingerprint" 40 15`,
 		`-verify_hostname "$expected_domain"`,
 		`-verify_return_error`,
 		`-CApath /etc/ssl/certs`,
@@ -178,6 +195,8 @@ func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *te
 	} {
 		require.Contains(t, rotation, want)
 	}
+	require.NotContains(t, rotation, `assess_public_edge "$inspection_fingerprint" "$inspection_cname_status"`)
+	require.NotContains(t, rotation, `assess_public_edge "$expected_fingerprint" "$cdn_cname_status"`)
 	require.Equal(t, 1, strings.Count(rotation, "openssl s_client"), "inspect and rotation must share one edge verifier")
 	require.Equal(t, 5, strings.Count(rotation, "| booleans | tostring"), "every required boolean must accept false without weakening type checks")
 	require.NotContains(t, rotation, "| booleans'", "raw boolean outputs make jq -e reject false")
