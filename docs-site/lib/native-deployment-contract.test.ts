@@ -33,9 +33,12 @@ describe('native deployment publication contract', () => {
       for (const contract of [
         'wukongim.toml',
         'data_dir = "/var/lib/wukongim"',
-        'hash_slot_count = 256',
-        'slot_replica_n = 1',
-        'channel_replica_n = 1',
+        'listen_addr = "127.0.0.1:7001"',
+        'listen_addr = "0.0.0.0:5001"',
+        'listen_addr = "0.0.0.0:5301"',
+        'auth_on = true',
+        'jwt_secret = "replace-with-a-random-64-character-secret"',
+        'dir = "/var/lib/wukongim/logs"',
         'docker run -d --name wukongim --restart unless-stopped',
         '-p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301',
         '-v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro"',
@@ -58,6 +61,26 @@ describe('native deployment publication contract', () => {
       expect(content).not.toContain('docker volume create');
       expect(content).not.toContain('--mount');
       expect(content).not.toContain('node1.toml');
+      for (const optional of [
+        'cluster.id',
+        'nodes =',
+        'join_token =',
+        'initial_slot_count =',
+        'hash_slot_count =',
+        'slot_replica_n =',
+        'channel_replica_n =',
+        'jwt_issuer =',
+        'jwt_expire =',
+        'external_tcp_addr =',
+        'external_ws_addr =',
+        'level =',
+        'console =',
+        '[diagnostics]',
+        '[gateway]',
+        '[plugin]',
+      ]) {
+        expect(content).not.toContain(optional);
+      }
     }
   });
 

@@ -25,43 +25,21 @@ data_dir = "/var/lib/wukongim"
 
 [cluster]
 listen_addr = "127.0.0.1:7001"
-id = "wukongim-docker"
-nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
-join_token = "replace-with-a-random-64-character-token"
-initial_slot_count = 10
-hash_slot_count = 256
-slot_replica_n = 1
-channel_replica_n = 1
 
 [api]
 listen_addr = "0.0.0.0:5001"
-external_tcp_addr = "127.0.0.1:5100"
-external_ws_addr = "ws://127.0.0.1:5200"
 
 [manager]
 listen_addr = "0.0.0.0:5301"
 auth_on = true
 jwt_secret = "replace-with-a-random-64-character-secret"
-jwt_issuer = "wukongim-manager"
-jwt_expire = "24h"
 users = [{ username = "admin", password = "replace-with-a-strong-password", permissions = [{ resource = "*", actions = ["*"] }] }]
 
-[diagnostics]
-enable = false
-
 [log]
-level = "info"
 dir = "/var/lib/wukongim/logs"
-console = true
-
-[gateway]
-listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
-
-[plugin]
-enable = false
 ```
 
-Replace at least `join_token`, `jwt_secret`, and the administrator password. If clients are not on this host, also replace `127.0.0.1` in both `external_*_addr` values with a reachable hostname or IP address.
+This file keeps only the fields needed for the container, API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` gateways, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses.
 
 ## 2. Start and verify
 

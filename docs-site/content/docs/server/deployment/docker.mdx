@@ -25,43 +25,21 @@ data_dir = "/var/lib/wukongim"
 
 [cluster]
 listen_addr = "127.0.0.1:7001"
-id = "wukongim-docker"
-nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
-join_token = "replace-with-a-random-64-character-token"
-initial_slot_count = 10
-hash_slot_count = 256
-slot_replica_n = 1
-channel_replica_n = 1
 
 [api]
 listen_addr = "0.0.0.0:5001"
-external_tcp_addr = "127.0.0.1:5100"
-external_ws_addr = "ws://127.0.0.1:5200"
 
 [manager]
 listen_addr = "0.0.0.0:5301"
 auth_on = true
 jwt_secret = "replace-with-a-random-64-character-secret"
-jwt_issuer = "wukongim-manager"
-jwt_expire = "24h"
 users = [{ username = "admin", password = "replace-with-a-strong-password", permissions = [{ resource = "*", actions = ["*"] }] }]
 
-[diagnostics]
-enable = false
-
 [log]
-level = "info"
 dir = "/var/lib/wukongim/logs"
-console = true
-
-[gateway]
-listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
-
-[plugin]
-enable = false
 ```
 
-至少替换 `join_token`、`jwt_secret` 和管理员密码。客户端不在本机时，还要把两个 `external_*_addr` 中的 `127.0.0.1` 改成客户端可访问的域名或 IP。
+这份配置只保留容器启动、API、Manager 认证和可写日志目录所需字段；单节点拓扑、256 Hash Slots、`5100/5200` 网关和其他参数使用运行时默认值。至少替换 `jwt_secret` 和管理员密码。客户端不在本机时，再按实际地址补充 `api.external_tcp_addr` 和 `api.external_ws_addr`。
 
 ## 2. 启动并验证
 
