@@ -27,7 +27,7 @@ authorization and the applicable budget.
 | `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, and clean Verifier chain |
 | `manager-browser-smoke.yml` | `Safety Automation - Manager Browser Smoke` | Builds the production Manager bundle and runs the desktop/mobile Chromium matrix against a real three-node cluster |
 | `easysdk-release-acceptance.yml` | `Safety Automation - EasySDK Released Package Acceptance` | Resolves the pinned Android, iOS, and Flutter registry releases and proves bidirectional messaging against the current Product Gateway on hosted simulators/emulators |
-| `native-package-preview.yml` | `Safety Automation - Validate Native Package Preview` | Builds unsigned amd64 deb/rpm previews and checks non-activating installs on the four supported Linux distributions |
+| `native-package-preview.yml` | `Safety Automation - Validate Native Package Preview` | Builds unsigned amd64 deb/rpm previews and checks non-activating transactions plus the explicit systemd lifecycle on four Linux distributions |
 | `cloud-lease-oidc-setup.yml` | `Agent Tool - Configure Cloud Lease OIDC Roles` | Reconciles and live-verifies the three workflow-conditioned Cloud Lease roles |
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
@@ -124,6 +124,28 @@ upgrade. The upgrade check records every `systemctl` request and verifies that
 the operator-owned configuration and data remain byte-identical. Only the
 unsigned preview packages and checksums are retained as Actions artifacts for
 14 days; this workflow still publishes no APT/YUM repository.
+
+A separate checksum-bound matrix downloads that exact run Artifact and boots
+each distribution with a real systemd PID 1. The container mounts only its one
+candidate package read-only; it receives no credential, Docker socket, or
+writable repository checkout. Bootstrap installs the candidate package before
+executing systemd because the minimal base images do not contain PID 1; every
+live service action, package-manager reinstall, active removal, and subsequent
+install then runs against that real systemd instance. The test follows the
+operator-owned boundary:
+initialize and validate configuration, explicitly enable and start the unit,
+require `/healthz` and `/readyz`, prove a package-manager reinstall does not
+replace the live process, explicitly restart and stop it, remove the active
+package while retaining configuration/data/log state, reinstall without
+implicit activation, and explicitly start it again. Every bootstrap,
+readiness, and cleanup wait is bounded. Failure cleanup emits bounded available
+Docker logs and, when the live container exposes systemctl, attempts bounded
+unit status and journal evidence.
+
+Debian 12 is deliberately retained as the source-preview compatibility target
+already used by this workflow. The public repository publisher owns its
+separate clean-client publication matrix, so this source gate does not redefine
+that downstream support policy.
 
 The separate public `WuKongIM/packages` repository owns the signed Preview
 channel at the verified HTTPS endpoint `packages.githubim.com`. Its production

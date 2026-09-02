@@ -102,6 +102,58 @@ func TestNativePackageDoesNotActivateAnUnconfiguredService(t *testing.T) {
 	}
 }
 
+func TestNativePackageLifecycleUsesRealSystemd(t *testing.T) {
+	root := repoRoot(t)
+	validator := readNativePackageFile(t, root, "scripts/validate-native-package-lifecycle-container.sh")
+	for _, required := range []string{
+		"--privileged",
+		"--cgroupns private",
+		"native package lifecycle validation exceeded its 900-second total deadline",
+		`run_bounded 300 docker pull --platform linux/amd64 "$image"`,
+		"run_bounded 30 docker rm --force --volumes",
+		"package bootstrap and systemd did not reach running or degraded state within 300 seconds",
+		"IFS= read -r -t 2 status",
+		"probe_http /healthz",
+		"probe_http /readyz",
+		"systemctl enable --now wukongim.service",
+		`run_shell_bounded 300 "$reinstall_command"`,
+		"InvocationID",
+		"require_service_identity",
+		"systemctl restart wukongim.service",
+		"ActiveState=$active_state SubState=$sub_state Result=$result MainPID=$main_pid",
+		"readyz remained reachable after explicit stop",
+		"sha256sum --check /tmp/wukongim-lifecycle-state.sha256",
+		"wukongim-lifecycle-state.manifest",
+		"getent passwd wukongim",
+		"require_unit_removed \"$removed_pid\"",
+		"test ! -e /usr/bin/wukongim",
+		"test ! -e /usr/lib/systemd/system/wukongim.service",
+		"journalctl --no-pager -u wukongim.service -n 300",
+		"native package lifecycle validation passed",
+	} {
+		require.Contains(t, validator, required)
+	}
+	for _, forbidden := range []string{
+		"/workspace",
+		"docker.sock",
+		"/sys/fs/cgroup",
+		"--volume $repository_root",
+	} {
+		require.NotContains(t, validator, forbidden)
+	}
+	require.NotContains(t, validator, `run_shell "$reinstall_command"`)
+	require.NotContains(t, validator, `run_shell "$remove_command"`)
+	require.NotContains(t, validator, `run_shell "$install_command"`)
+
+	info, err := os.Stat(filepath.Join(root, "scripts", "validate-native-package-lifecycle-container.sh"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+
+	wrapper := readNativePackageFile(t, root, "scripts/native_package_lifecycle_integration_test.go")
+	require.Contains(t, wrapper, "command.Process.Signal(syscall.SIGTERM)")
+	require.Contains(t, wrapper, "command.WaitDelay = 3 * time.Minute")
+}
+
 func TestNativePackageFilesUseExpectedModes(t *testing.T) {
 	root := repoRoot(t)
 	for _, path := range []string{
@@ -261,7 +313,40 @@ func TestNativePackageRepositorySigningFailsClosed(t *testing.T) {
 func TestNativePackageWorkflowIsCredentialFreeAndBounded(t *testing.T) {
 	root := repoRoot(t)
 	raw := readNativePackageFile(t, root, ".github/workflows/native-package-preview.yml")
-	var document any
+	type matrixEntry struct {
+		Label  string `yaml:"label"`
+		Image  string `yaml:"image"`
+		Format string `yaml:"format"`
+	}
+	type workflowStep struct {
+		Name string            `yaml:"name"`
+		Uses string            `yaml:"uses"`
+		If   string            `yaml:"if"`
+		Run  string            `yaml:"run"`
+		Env  map[string]string `yaml:"env"`
+		With map[string]any    `yaml:"with"`
+	}
+	type workflowJob struct {
+		Needs       string            `yaml:"needs"`
+		Permissions map[string]string `yaml:"permissions"`
+		Strategy    struct {
+			FailFast *bool `yaml:"fail-fast"`
+			Matrix   struct {
+				Include []matrixEntry `yaml:"include"`
+			} `yaml:"matrix"`
+		} `yaml:"strategy"`
+		Env   map[string]string `yaml:"env"`
+		Steps []workflowStep    `yaml:"steps"`
+	}
+	var document struct {
+		On struct {
+			PullRequest struct {
+				Paths []string `yaml:"paths"`
+			} `yaml:"pull_request"`
+		} `yaml:"on"`
+		Permissions map[string]string      `yaml:"permissions"`
+		Jobs        map[string]workflowJob `yaml:"jobs"`
+	}
 	require.NoError(t, yaml.Unmarshal([]byte(raw), &document))
 
 	for _, required := range []string{
@@ -270,15 +355,17 @@ func TestNativePackageWorkflowIsCredentialFreeAndBounded(t *testing.T) {
 		"goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1",
 		"version: v2.18.0",
 		"scripts/native_package_repository_integration_test.go",
+		"scripts/native_package_lifecycle_integration_test.go",
+		"scripts/validate-native-package-lifecycle-container.sh",
 		"scripts/validate-native-package-repositories-container.sh",
 		"scripts/verify-native-package-metadata.py",
 		"WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION: \"1\"",
 		"go test -tags=integration ./scripts",
 		"-run '^TestNativePackageSignedRepository$'",
-		"ubuntu:24.04 deb",
-		"debian:12 deb",
-		"rockylinux:9 rpm",
-		"almalinux:9 rpm",
+		"WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION: \"1\"",
+		"WK_NATIVE_PACKAGE_LIFECYCLE_IMAGE: ${{ matrix.image }}",
+		"WK_NATIVE_PACKAGE_LIFECYCLE_FORMAT: ${{ matrix.format }}",
+		"-run '^TestNativePackageLifecycle$'",
 		"retention-days: 14",
 	} {
 		require.Contains(t, raw, required)
@@ -290,8 +377,79 @@ func TestNativePackageWorkflowIsCredentialFreeAndBounded(t *testing.T) {
 		"secrets.",
 		"packages.githubim.com",
 		"release --clean",
+		"pull_request_target:",
 	} {
 		require.NotContains(t, raw, forbidden)
+	}
+
+	validate, ok := document.Jobs["validate"]
+	require.True(t, ok)
+	lifecycle, ok := document.Jobs["lifecycle"]
+	require.True(t, ok)
+	require.Equal(t, "validate", lifecycle.Needs)
+	require.NotNil(t, lifecycle.Strategy.FailFast)
+	require.False(t, *lifecycle.Strategy.FailFast)
+	require.Equal(t, map[string]string{"contents": "read"}, document.Permissions)
+	for name, job := range document.Jobs {
+		require.Empty(t, job.Permissions, name)
+	}
+	for _, path := range []string{
+		"go.mod",
+		"go.sum",
+		"internal/**",
+		"pkg/**",
+		"scripts/native_package_lifecycle_integration_test.go",
+		"scripts/script_test_helpers_test.go",
+		"scripts/script_test_helpers_integration_test.go",
+		"scripts/validate-native-package-lifecycle-container.sh",
+	} {
+		require.Contains(t, document.On.PullRequest.Paths, path)
+	}
+	require.Equal(t, []matrixEntry{
+		{Label: "Ubuntu 24.04", Image: "ubuntu:24.04", Format: "deb"},
+		{Label: "Debian 12", Image: "debian:12", Format: "deb"},
+		{Label: "Rocky Linux 9", Image: "rockylinux:9", Format: "rpm"},
+		{Label: "AlmaLinux 9", Image: "almalinux:9", Format: "rpm"},
+	}, lifecycle.Strategy.Matrix.Include)
+	require.Equal(t, "1", lifecycle.Env["WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION"])
+	require.Equal(t, "${{ matrix.image }}", lifecycle.Env["WK_NATIVE_PACKAGE_LIFECYCLE_IMAGE"])
+	require.Equal(t, "${{ matrix.format }}", lifecycle.Env["WK_NATIVE_PACKAGE_LIFECYCLE_FORMAT"])
+	require.Equal(t, "${{ github.workspace }}/dist", lifecycle.Env["WK_NATIVE_PACKAGE_DIST_DIR"])
+
+	findStep := func(steps []workflowStep, name string) workflowStep {
+		t.Helper()
+		for _, step := range steps {
+			if step.Name == name {
+				return step
+			}
+		}
+		t.Fatalf("workflow step %q is missing", name)
+		return workflowStep{}
+	}
+	for _, job := range []workflowJob{validate, lifecycle} {
+		checkout := findStep(job.Steps, "Check out exact source")
+		require.Equal(t, "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0", checkout.Uses)
+		require.Equal(t, false, checkout.With["persist-credentials"])
+	}
+	const artifactName = "wukongim-native-package-preview-${{ github.run_id }}"
+	upload := findStep(validate.Steps, "Upload preview packages")
+	require.Equal(t, "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", upload.Uses)
+	require.Equal(t, artifactName, upload.With["name"])
+	uploadPath, ok := upload.With["path"].(string)
+	require.True(t, ok)
+	require.ElementsMatch(t, []string{"dist/*.deb", "dist/*.rpm", "dist/checksums.txt"}, strings.Fields(uploadPath))
+	download := findStep(lifecycle.Steps, "Download the exact preview packages")
+	require.Equal(t, "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", download.Uses)
+	require.Equal(t, artifactName, download.With["name"])
+	require.Equal(t, "dist", download.With["path"])
+	checksum := findStep(lifecycle.Steps, "Verify the downloaded package set")
+	require.Equal(t, "${{ matrix.format }}", checksum.Env["FORMAT"])
+	require.Contains(t, checksum.Run, `packages=(dist/wukongim*."$FORMAT")`)
+	require.Contains(t, checksum.Run, `(cd dist && sha256sum --check checksums.txt)`)
+	for _, job := range []workflowJob{validate, lifecycle} {
+		mutation := findStep(job.Steps, "Reject tracked-tree mutation")
+		require.Equal(t, "always()", mutation.If)
+		require.Equal(t, []string{"git", "diff", "--exit-code", "git", "diff", "--cached", "--exit-code"}, strings.Fields(mutation.Run))
 	}
 }
 
