@@ -66,20 +66,14 @@ Replace at least `join_token`, `jwt_secret`, and the administrator password. If 
 ## 2. Start and verify
 
 ```bash
-docker volume create wukongim-data
-
-docker run -d \
-  --name wukongim \
-  --restart unless-stopped \
-  --stop-timeout 30 \
-  --publish 127.0.0.1:5001:5001 \
-  --publish 0.0.0.0:5100:5100 \
-  --publish 0.0.0.0:5200:5200 \
-  --publish 127.0.0.1:5301:5301 \
-  --mount type=bind,src="$PWD/wukongim.toml",dst=/etc/wukongim/wukongim.toml,readonly \
-  --mount type=volume,src=wukongim-data,dst=/var/lib/wukongim \
+docker run -d --name wukongim --restart unless-stopped \
+  -p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301 \
+  -v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro" \
+  -v wukongim-data:/var/lib/wukongim \
   ghcr.io/wukongim/wukongim:3.0.0-beta.6
 ```
+
+Docker creates `wukongim-data` automatically on the first run, so no separate volume command is needed.
 
 Wait for the container to become healthy, then verify the node:
 

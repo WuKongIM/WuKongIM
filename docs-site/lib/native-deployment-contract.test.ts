@@ -36,10 +36,10 @@ describe('native deployment publication contract', () => {
         'hash_slot_count = 256',
         'slot_replica_n = 1',
         'channel_replica_n = 1',
-        'docker volume create wukongim-data',
-        'docker run -d',
-        '--mount type=bind,src="$PWD/wukongim.toml",dst=/etc/wukongim/wukongim.toml,readonly',
-        '--mount type=volume,src=wukongim-data,dst=/var/lib/wukongim',
+        'docker run -d --name wukongim --restart unless-stopped',
+        '-p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301',
+        '-v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro"',
+        '-v wukongim-data:/var/lib/wukongim',
         'ghcr.io/wukongim/wukongim:3.0.0-beta.6',
         'wukongim-data',
         'http://127.0.0.1:5301',
@@ -55,6 +55,8 @@ describe('native deployment publication contract', () => {
       expect(content).not.toContain('一键');
       expect(content).not.toContain('one command');
       expect(content).not.toContain('docker compose');
+      expect(content).not.toContain('docker volume create');
+      expect(content).not.toContain('--mount');
       expect(content).not.toContain('node1.toml');
     }
   });
