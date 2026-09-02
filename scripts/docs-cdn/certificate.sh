@@ -4,6 +4,8 @@ set -euo pipefail
 umask 077
 
 readonly expected_domain="docs.githubim.com"
+readonly expected_cdn_cname="docs.githubim.com.w.kunlunaq.com"
+readonly expected_pages_cname="wukongim.github.io"
 readonly expected_acme_server="https://acme-v02.api.letsencrypt.org/directory"
 readonly renewal_window_seconds="$((30 * 24 * 60 * 60))"
 readonly certificate_helper="${DOCS_CERTIFICATE_HELPER:-docs-cdn-certificate-helper}"
@@ -36,13 +38,20 @@ unset DOCS_ACME_ACCOUNT_BUNDLE_B64
 [[ "${DOCS_CDN_ENABLED:-}" == true ]] || fail "DOCS_CDN_ENABLED must be exactly true"
 [[ "${DOCS_CDN_DOMAIN:-}" == "$expected_domain" ]] || \
   fail "DOCS_CDN_DOMAIN must be exactly ${expected_domain}"
+[[ "${DOCS_CDN_CNAME:-}" == "$expected_cdn_cname" ]] || \
+  fail "DOCS_CDN_CNAME must be exactly ${expected_cdn_cname}"
+case "${DOCS_CDN_PUBLIC_ROUTE_MODE:-}" in
+  github-pages-precutover | alibaba-cdn) ;;
+  *) fail "DOCS_CDN_PUBLIC_ROUTE_MODE must be github-pages-precutover or alibaba-cdn" ;;
+esac
+readonly public_route_mode="$DOCS_CDN_PUBLIC_ROUTE_MODE"
 [[ -n "${ALIBABA_CLOUD_ACCESS_KEY_ID:-}" ]] || fail "temporary Alibaba access key ID is required"
 [[ -n "${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}" ]] || fail "temporary Alibaba access key secret is required"
 [[ -n "${ALIBABA_CLOUD_SECURITY_TOKEN:-}" ]] || fail "temporary Alibaba security token is required"
 [[ "${RUNNER_TEMP:-}" == /* && "${RUNNER_TEMP}" != / ]] || \
   fail "RUNNER_TEMP must be an absolute non-root directory"
 
-for command in aliyun awk grep jq mktemp openssl rm sed sha256sum sleep timeout tr "$certificate_helper"; do
+for command in aliyun awk dig grep jq mktemp openssl rm sed sha256sum sleep timeout tr "$certificate_helper"; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required"
 done
 
@@ -113,21 +122,82 @@ verify_public_edge() {
   return 1
 }
 
+query_public_cname() {
+  local resolver="$1"
+  local raw_answer normalized_answer
+  raw_answer="$(timeout 10 dig "@${resolver}" "$expected_domain" CNAME +short +time=3 +tries=1)" || return 1
+  normalized_answer="$(LC_ALL=C awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      if (line ~ /^[[:space:]]*$/) {
+        next
+      }
+      if (split(line, fields, /[[:space:]]+/) != 1) {
+        invalid = 1
+        next
+      }
+      answer = tolower(fields[1])
+      sub(/\.$/, "", answer)
+      count++
+    }
+    END {
+      if (invalid || count != 1) {
+        exit 1
+      }
+      print answer
+    }
+  ' <<<"$raw_answer")" || return 1
+  [[ -n "$normalized_answer" && ${#normalized_answer} -le 253 ]] || return 1
+  printf '%s\n' "$normalized_answer"
+}
+
+observe_public_cname() {
+  local resolver answer observed_answer=""
+  local -a resolvers=(223.5.5.5 1.1.1.1 8.8.8.8)
+  for resolver in "${resolvers[@]}"; do
+    answer="$(query_public_cname "$resolver")" || return 1
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+      printf -- '- Public CNAME via `%s`: `%s`\n' "$resolver" "$answer" >>"$GITHUB_STEP_SUMMARY"
+    fi
+    if [[ -z "$observed_answer" ]]; then
+      observed_answer="$answer"
+    elif [[ "$answer" != "$observed_answer" ]]; then
+      return 1
+    fi
+  done
+  printf '%s\n' "$observed_answer"
+}
+
 assess_public_edge() {
   local expected_fingerprint="$1"
-  local cdn_cname_status="$2"
-  local attempt_count="$3"
-  local delay_seconds="$4"
-  case "$cdn_cname_status" in
-    ok)
-      verify_public_edge "$expected_fingerprint" "$attempt_count" "$delay_seconds" || return
-      printf 'passed\n'
+  local attempt_count="$2"
+  local delay_seconds="$3"
+  local observed_cname expected_public_cname
+
+  # Alibaba's DomainCnameStatus is provider diagnostics, not public DNS truth.
+  # Require one direct, matching CNAME answer from every fixed public resolver.
+  observed_cname="$(observe_public_cname)" || return 2
+  case "$public_route_mode" in
+    github-pages-precutover)
+      expected_public_cname="$expected_pages_cname"
       ;;
-    cname_error | top_domain_cname_error)
-      printf 'skipped-public-dns-not-on-alibaba-cdn\n'
+    alibaba-cdn)
+      expected_public_cname="$DOCS_CDN_CNAME"
       ;;
     *)
       return 2
+      ;;
+  esac
+  [[ "$observed_cname" == "$expected_public_cname" ]] || return 2
+
+  case "$public_route_mode" in
+    alibaba-cdn)
+      verify_public_edge "$expected_fingerprint" "$attempt_count" "$delay_seconds" || return
+      printf 'passed\n'
+      ;;
+    github-pages-precutover)
+      printf 'skipped-public-dns-not-on-alibaba-cdn\n'
       ;;
   esac
 }
@@ -198,11 +268,9 @@ if [[ "$operation" == inspect ]]; then
   if [[ "$inspection_certificate_present" == true ]]; then
     inspection_fingerprint="$(jq -er '.fingerprint | strings | select(test("^[0-9a-f]{64}$"))' \
       <<<"$inspection_summary")" || fail "invalid inspection fingerprint"
-    inspection_cname_status="$(jq -er '.domain_cname_status | strings' <<<"$inspection_summary")" || \
-      fail "invalid inspection CNAME status"
-    if ! edge_verification="$(assess_public_edge "$inspection_fingerprint" "$inspection_cname_status" 3 10)"; then
+    if ! edge_verification="$(assess_public_edge "$inspection_fingerprint" 3 10)"; then
       write_public_edge_summary "failed"
-      fail "the observed CDN edge does not serve the Alibaba API certificate with a trusted chain"
+      fail "the public CNAME route or trusted edge certificate does not match the declared route mode"
     fi
   fi
   write_public_edge_summary "$edge_verification"
@@ -343,13 +411,15 @@ for attempt in {1..20}; do
 done
 [[ "$cdn_verified" == true ]] || fail "Alibaba CDN did not activate the exact uploaded certificate within five minutes"
 
+# Keep the provider-reported status as validated diagnostics only. Public route
+# authority comes from the fixed direct CNAME observations in assess_public_edge.
 cdn_cname_status="$(jq -er \
   '.CertInfos.CertInfo | arrays | select(length == 1) | .[0].DomainCnameStatus |
    strings | select(. == "ok" or . == "cname_error" or . == "top_domain_cname_error")' \
   "$verification_response_path")" || fail "Alibaba CDN returned an invalid CNAME status"
 
-if ! edge_verification="$(assess_public_edge "$expected_fingerprint" "$cdn_cname_status" 40 15)"; then
-  fail "the observed CDN edge did not serve the uploaded certificate with a trusted chain within ten minutes"
+if ! edge_verification="$(assess_public_edge "$expected_fingerprint" 40 15)"; then
+  fail "the public CNAME route or trusted edge certificate did not match the declared route mode within ten minutes"
 fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
