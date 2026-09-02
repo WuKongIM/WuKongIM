@@ -75,7 +75,7 @@ func Encode(msg interface{}) ([]byte, error) {
 }
 
 func EncodeErrorResponse(id string, err error) []byte {
-	data, err := Encode(GenericResponse{
+	data, _ := Encode(GenericResponse{
 		BaseResponse: BaseResponse{
 			Jsonrpc: jsonRPCVersion,
 			ID:      id,
@@ -84,9 +84,7 @@ func EncodeErrorResponse(id string, err error) []byte {
 			},
 		},
 	})
-	if err != nil {
-		return nil
-	}
+	// GenericResponse only contains JSON-native values, so encoding cannot fail.
 	return data
 }
 
@@ -131,12 +129,6 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 
 	// Validate field combinations
 	switch {
-	case prelimIsRequest && prelimIsResponse:
-		err = ErrInvalidStructure // Use predefined error
-		return
-	case prelimIsResponse && !resultIsPresent && !errorIsPresent:
-		err = ErrResponseFormat // Use predefined error
-		return
 	case prelimIsResponse && resultIsPresent && errorIsPresent:
 		err = ErrResponseFormat // Use predefined error
 		return
@@ -159,32 +151,14 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 		case MethodRecv, MethodDisconnect, MethodRecvAck, MethodEvent:
 			msgType = msgTypeNotification
 		default:
-			// If method is present but ID is missing/null, AND method is not known,
-			// treat as invalid/unknown type according to stricter interpretation.
-			// This will lead to the 'unable to determine' error below.
-			msgType = msgTypeUnknown
-			err = decodingError("unknown notification method '%s'", probe.Method)
-			// We set the type to Unknown here, the caller might still get the specific error.
-			// Let's refine: if we identify it as a notification structure but unknown method,
-			// should we error here or let the main Decode switch handle it?
-			// Let main switch handle unknown method for cleaner separation.
-			msgType = msgTypeNotification // Still structurally a notification
-
+			// Preserve the structural classification here. Decode owns method
+			// dispatch and returns the stable ErrUnknownMethod sentinel.
+			msgType = msgTypeNotification
 		}
-	} else if methodIsPresent && (!idIsPresent || idIsNull) {
-		// This covers the case where prelimIsNotification was false (e.g. unknown method) but structure fits notification
-		// Re-evaluate based on stricter need? No, the logic above handles known notifications.
-		// If it's not Request/Response/Known Notification, it's unknown.
-		msgType = msgTypeUnknown
-
 	} else {
 		// Catch-all for other invalid combinations (e.g., only id, only result)
 		msgType = msgTypeUnknown
 		err = decodingError("unable to determine message type (invalid field combination) method: %s, id: %s, result: %s, error: %s", probe.Method, string(probe.ID), string(probe.Result), string(probe.Error))
-	}
-
-	if msgType == msgTypeUnknown && err == nil { // Assign error if type is unknown and no specific validation failed
-		err = ErrInvalidStructure // Assign general structure error if type unknown
 	}
 
 	return
@@ -215,9 +189,6 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 	// 3. Construct and Populate the Specific Type based on msgType
 	switch msgType {
 	case msgTypeRequest:
-		if probe.Method == "" { // Should be caught by determineMessageType
-			return nil, probe, ErrRequestFormat
-		}
 		baseReq := BaseRequest{Jsonrpc: version, Method: probe.Method}
 		if probe.ID == nil || string(probe.ID) == "null" { // ID is mandatory and non-null for requests
 			return nil, probe, ErrRequestFormat
@@ -302,13 +273,6 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 		if err := json.Unmarshal(probe.ID, &baseResp.ID); err != nil {
 			return nil, probe, fmt.Errorf("%w: response ID: %w", ErrUnmarshalFieldFailed, err)
 		}
-		if probe.Result == nil && probe.Error == nil {
-			return nil, probe, ErrResponseFormat // Must have result or error
-		}
-		if probe.Result != nil && probe.Error != nil {
-			return nil, probe, ErrResponseFormat // Cannot have both
-		}
-
 		resp := GenericResponse{
 			BaseResponse: baseResp,
 			Result:       probe.Result,
@@ -322,10 +286,7 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 		}
 		return resp, probe, nil
 
-	case msgTypeNotification:
-		if probe.Method == "" { // Should be caught by determineMessageType
-			return nil, probe, ErrNotificationFormat
-		}
+	default: // determineMessageType returns notification for the only remaining valid shape.
 		baseNotif := BaseNotification{Jsonrpc: version, Method: probe.Method}
 
 		switch probe.Method {
@@ -372,14 +333,6 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 		default:
 			return nil, probe, fmt.Errorf("%w: %s", ErrUnknownMethod, probe.Method)
 		}
-
-	default: // msgTypeUnknown or other unexpected case
-		// If determineMessageType returned an error, it's already specific.
-		// Otherwise, return the general invalid structure error.
-		if err == nil {
-			err = ErrInvalidStructure
-		}
-		return nil, probe, err
 	}
 }
 
@@ -389,17 +342,18 @@ func ToFrame(packet interface{}) (frame.Frame, string, error) {
 	case ConnectRequest:
 		return p.Params.ToProto(), p.ID, nil
 	case SendRequest:
-		frame, err := p.ToProto()
-		if err != nil {
-			return nil, "", err
-		}
-		return frame, p.ID, nil
+		protocolFrame, err := p.ToProto()
+		return protocolFrame, p.ID, err
 	case PingRequest:
 		return &frame.PingPacket{}, p.ID, nil
 	case DisconnectRequest:
 		return p.Params.ToProto(), p.ID, nil
 	case RecvAckNotification:
 		return p.Params.ToProto(), "", nil
+	case SubscribeRequest:
+		return p.Params.ToProto(), p.ID, nil
+	case UnsubscribeRequest:
+		return p.Params.ToProto(), p.ID, nil
 	}
 	return nil, "", fmt.Errorf("unknown packet type: %T", packet)
 }
@@ -443,6 +397,28 @@ func FromFrame(reqId string, f frame.Frame) (interface{}, error) {
 				ID:      reqId,
 			},
 			Result: result,
+		}, nil
+	case frame.SUBACK:
+		suback := f.(*frame.SubackPacket)
+		if suback.ReasonCode != frame.ReasonSuccess {
+			return SubscriptionResponse{
+				BaseResponse: BaseResponse{Jsonrpc: jsonRPCVersion, ID: reqId},
+				Error: &ErrorObject{
+					Code:    int(suback.ReasonCode),
+					Message: suback.ReasonCode.String(),
+				},
+			}, nil
+		}
+		return SubscriptionResponse{
+			BaseResponse: BaseResponse{Jsonrpc: jsonRPCVersion, ID: reqId},
+			Result: &SubscriptionResult{
+				Header:      fromProtoHeader(suback.Framer),
+				SubNo:       suback.SubNo,
+				ChannelID:   suback.ChannelID,
+				ChannelType: int(suback.ChannelType),
+				Action:      ActionEnum(suback.Action),
+				ReasonCode:  ReasonCodeEnum(suback.ReasonCode),
+			},
 		}, nil
 	case frame.RECV:
 		recv := f.(*frame.RecvPacket)

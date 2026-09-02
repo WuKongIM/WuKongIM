@@ -2,13 +2,33 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+func TestMessageMembershipStorePreservesExactPullAuthorizationIdentity(t *testing.T) {
+	t.Parallel()
+
+	node := &recordingMembershipNode{membership: metadb.UserChannelMembership{
+		UID: "u1", ChannelID: "g1", ChannelType: 2,
+	}, found: true}
+	store := NewMessageMembershipStore(node)
+	membership, found, err := store.GetUserChannelMembership(context.Background(), "u1", "g1", 2)
+	if err != nil || !found || membership.UID != "u1" || node.uid != "u1" || node.channelID != "g1" || node.channelType != 2 {
+		t.Fatalf("GetUserChannelMembership() = %#v found=%v args=%q/%q/%d err=%v", membership, found, node.uid, node.channelID, node.channelType, err)
+	}
+
+	var nilStore *MessageMembershipStore
+	if _, _, err := nilStore.GetUserChannelMembership(context.Background(), "u1", "g1", 2); !errors.Is(err, message.ErrSyncMembershipRequired) {
+		t.Fatalf("nil store error = %v, want %v", err, message.ErrSyncMembershipRequired)
+	}
+}
 
 func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
 	node := &recordingReadNode{
@@ -184,6 +204,20 @@ type recordingReadNode struct {
 	batchCalls   int
 	batchReads   []clusterchannels.CommittedRead
 	batchResults []clusterchannels.CommittedReadResult
+}
+
+type recordingMembershipNode struct {
+	membership  metadb.UserChannelMembership
+	found       bool
+	err         error
+	uid         string
+	channelID   string
+	channelType int64
+}
+
+func (n *recordingMembershipNode) GetUserChannelMembership(_ context.Context, uid, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error) {
+	n.uid, n.channelID, n.channelType = uid, channelID, channelType
+	return n.membership, n.found, n.err
 }
 
 func (n *recordingReadNode) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {

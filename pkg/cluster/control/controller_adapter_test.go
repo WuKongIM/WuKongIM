@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -204,6 +205,99 @@ func TestControllerAdapterPublishesAfterRefresh(t *testing.T) {
 		}
 	default:
 		t.Fatal("missing refresh event")
+	}
+}
+
+func TestControllerAdapterLifecycleRejectsMissingSourceAndPreservesStartedStateOnCanceledStop(t *testing.T) {
+	missing := NewControllerAdapter(ControllerConfig{})
+	if err := missing.Start(context.Background()); err == nil {
+		t.Fatal("Start() error = nil, want missing source rejection")
+	}
+
+	adapter := NewControllerAdapter(ControllerConfig{Source: &fakeStateSource{state: controllerState()}})
+	if err := adapter.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if got := adapter.LeaderID(); got != 1 {
+		t.Fatalf("LeaderID() = %d, want 1", got)
+	}
+	snapshot, err := adapter.LocalSnapshot(context.Background())
+	if err != nil || snapshot.Revision != 7 {
+		t.Fatalf("LocalSnapshot() = revision %d, error %v; want revision 7", snapshot.Revision, err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := adapter.Stop(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Stop(canceled) error = %v, want context canceled", err)
+	}
+	if !adapter.started {
+		t.Fatal("canceled Stop changed adapter lifecycle state")
+	}
+	if err := adapter.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if adapter.started {
+		t.Fatal("Stop() left adapter started")
+	}
+}
+
+func TestControllerAdapterInvalidRefreshPreservesLastGoodSnapshot(t *testing.T) {
+	source := &fakeStateSource{state: controllerState()}
+	adapter := NewControllerAdapter(ControllerConfig{Source: source})
+	if err := adapter.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	invalid := controllerState()
+	invalid.Revision = 8
+	invalid.HashSlots.Ranges = nil
+	source.state = invalid
+	if err := adapter.Refresh(context.Background()); err == nil {
+		t.Fatal("Refresh() error = nil, want invalid snapshot rejection")
+	}
+	got, err := adapter.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot() error = %v", err)
+	}
+	if got.Revision != 7 {
+		t.Fatalf("revision after failed refresh = %d, want last good revision 7", got.Revision)
+	}
+	select {
+	case event := <-adapter.Watch():
+		t.Fatalf("failed refresh published event revision %d", event.Snapshot.Revision)
+	default:
+	}
+}
+
+func TestControllerAdapterReadOnlyWritesFailExplicitly(t *testing.T) {
+	adapter := NewControllerAdapter(ControllerConfig{Source: &fakeStateSource{state: controllerState()}})
+	if err := adapter.CompleteTask(context.Background(), TaskResult{TaskID: "task-1"}); err == nil {
+		t.Fatal("CompleteTask() error = nil, want read-only rejection")
+	}
+	if err := adapter.FailTask(context.Background(), TaskResult{TaskID: "task-1"}); err == nil {
+		t.Fatal("FailTask() error = nil, want read-only rejection")
+	}
+	if err := adapter.ReportTaskProgress(context.Background(), TaskProgress{TaskID: "task-1"}); err == nil {
+		t.Fatal("ReportTaskProgress() error = nil, want read-only rejection")
+	}
+	if err := adapter.AdvanceSlotReplicaMovePhase(context.Background(), SlotReplicaMovePhaseAdvance{TaskID: "task-1"}); err == nil {
+		t.Fatal("AdvanceSlotReplicaMovePhase() error = nil, want read-only rejection")
+	}
+	if err := adapter.CommitSlotReplicaMove(context.Background(), SlotReplicaMoveCommit{TaskID: "task-1"}); err == nil {
+		t.Fatal("CommitSlotReplicaMove() error = nil, want read-only rejection")
+	}
+	if _, err := adapter.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1}); err == nil {
+		t.Fatal("RequestSlotLeaderTransfer() error = nil, want read-only rejection")
+	}
+	if _, err := adapter.RequestSlotReplicaMove(context.Background(), SlotReplicaMoveRequest{SlotID: 1}); err == nil {
+		t.Fatal("RequestSlotReplicaMove() error = nil, want read-only rejection")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := adapter.CompleteTask(ctx, TaskResult{TaskID: "task-1"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("CompleteTask(canceled) error = %v, want context canceled", err)
 	}
 }
 

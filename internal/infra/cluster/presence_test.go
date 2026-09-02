@@ -381,6 +381,50 @@ func TestPresenceAuthorityClientTouchRoutesToLocal(t *testing.T) {
 	require.Equal(t, routes, local.touchCalls[0].routes)
 }
 
+func TestPresenceAuthorityClientPreservesExactUnregisterAndLegacyEndpointIdentity(t *testing.T) {
+	t.Parallel()
+
+	node := &fakePresenceCluster{
+		nodeID: 1,
+		route: cluster.Route{
+			HashSlot: 7, SlotID: 11, Leader: 1, LeaderTerm: 23,
+			ConfigEpoch: 29, Revision: 17, AuthorityEpoch: 19,
+		},
+	}
+	local := &fakePresenceAuthority{}
+	client := NewPresenceAuthorityClient(node, local)
+	identity := presence.RouteIdentity{UID: "u1", OwnerNodeID: 1, OwnerBootID: 23, SessionID: 101}
+
+	if err := client.UnregisterRoute(context.Background(), identity, 1101); err != nil {
+		t.Fatalf("UnregisterRoute() error = %v", err)
+	}
+	client.EnqueueUnregister(context.Background(), identity, 1102)
+	if len(local.unregCalls) != 2 {
+		t.Fatalf("unregister calls = %d, want direct and queued calls", len(local.unregCalls))
+	}
+	wantTarget := routeTargetFromClusterRoute(node.route)
+	for index, call := range local.unregCalls {
+		if call.target != wantTarget || call.identity != identity || call.ownerSeq != uint64(1101+index) {
+			t.Fatalf("unregister[%d] = %#v", index, call)
+		}
+	}
+
+	routes, err := client.EndpointsByUID(context.Background(), "u1")
+	if err != nil || len(routes) != 1 || routes[0].UID != "u1" {
+		t.Fatalf("EndpointsByUID() = %#v err=%v", routes, err)
+	}
+	byUID, err := client.EndpointsByUIDs(context.Background(), []string{"u1", "", "u2", "u1"})
+	if err != nil {
+		t.Fatalf("EndpointsByUIDs() error = %v", err)
+	}
+	if len(byUID) != 2 || len(byUID["u1"]) != 2 || len(byUID["u2"]) != 1 {
+		t.Fatalf("EndpointsByUIDs() = %#v", byUID)
+	}
+	if len(local.endpointCalls) != 4 {
+		t.Fatalf("endpoint calls = %#v, want one direct plus three non-empty legacy lookups", local.endpointCalls)
+	}
+}
+
 func TestPresenceAuthorityClientTouchRoutesToRemote(t *testing.T) {
 	remoteAuthority := &fakePresenceAuthority{}
 	node := &fakePresenceCluster{

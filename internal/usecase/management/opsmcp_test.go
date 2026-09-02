@@ -14,9 +14,17 @@ import (
 
 type opsMCPAuditStub struct {
 	entries []opscontract.AuditEntry
+	err     error
+	limit   *int
 }
 
-func (s opsMCPAuditStub) RecentAudits(context.Context, int) ([]opscontract.AuditEntry, error) {
+func (s opsMCPAuditStub) RecentAudits(_ context.Context, limit int) ([]opscontract.AuditEntry, error) {
+	if s.limit != nil {
+		*s.limit = limit
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
 	return append([]opscontract.AuditEntry(nil), s.entries...), nil
 }
 
@@ -134,6 +142,34 @@ func TestOpsMCPAuditsProjectsBoundedRuntimeEntries(t *testing.T) {
 	}
 }
 
+func TestOpsMCPAuditsRejectsUnboundedReadsAndPreservesUnavailableState(t *testing.T) {
+	for _, limit := range []int{0, 201} {
+		if _, err := (&App{}).OpsMCPAudits(context.Background(), limit); !errors.Is(err, ErrOpsMCPInvalidRequest) {
+			t.Fatalf("limit %d error = %v", limit, err)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := (&App{}).OpsMCPAudits(ctx, 1); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled audit error = %v", err)
+	}
+
+	entries, err := (&App{}).OpsMCPAudits(context.Background(), 1)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("unwired audits = %#v, %v", entries, err)
+	}
+
+	seenLimit := 0
+	app := New(Options{OpsMCPAudit: opsMCPAuditStub{err: errors.New("audit store unavailable"), limit: &seenLimit}})
+	if _, err := app.OpsMCPAudits(context.Background(), 200); !errors.Is(err, ErrOpsMCPUnavailable) {
+		t.Fatalf("audit provider error = %v", err)
+	}
+	if seenLimit != 200 {
+		t.Fatalf("provider limit = %d, want 200", seenLimit)
+	}
+}
+
 func TestOpsMCPStopPersistsProfileFenceAndDownOwnerIsUnavailable(t *testing.T) {
 	now := time.Date(2026, 7, 24, 5, 0, 0, 0, time.UTC)
 	store := newFakeOpsMCPStore()
@@ -166,6 +202,43 @@ func TestOpsMCPStopPersistsProfileFenceAndDownOwnerIsUnavailable(t *testing.T) {
 		if candidate.NodeID == 1 {
 			t.Fatalf("down owner appeared in candidates: %#v", status.OwnerCandidates)
 		}
+	}
+}
+
+func TestOpsMCPStartRequiresActiveOwnerAndCredentialAndIsIdempotent(t *testing.T) {
+	store := newFakeOpsMCPStore()
+	store.snapshot.OpsMCP = &control.OpsMCPState{
+		OwnerNodeID: 2,
+		Credentials: []control.OpsMCPCredential{{
+			ID: "token-a", DigestSHA256: strings.Repeat("a", 64), CreatedAtUnixMillis: 1710000001000,
+		}},
+	}
+	app := New(Options{Cluster: store, OpsMCP: store})
+	req := OpsMCPStateMutationRequest{ExpectedRevision: 7, IdempotencyKey: "start-1"}
+
+	if err := app.StartOpsMCP(context.Background(), req); err != nil {
+		t.Fatalf("StartOpsMCP() error = %v", err)
+	}
+	if store.snapshot.OpsMCP == nil || !store.snapshot.OpsMCP.Enabled || store.snapshot.OpsMCP.OwnerNodeID != 2 || store.writes != 1 {
+		t.Fatalf("started state = %#v writes=%d", store.snapshot.OpsMCP, store.writes)
+	}
+	if err := app.StartOpsMCP(context.Background(), req); err != nil {
+		t.Fatalf("StartOpsMCP(retry) error = %v", err)
+	}
+	if store.writes != 1 {
+		t.Fatalf("idempotent retry writes = %d, want 1", store.writes)
+	}
+
+	missingPrerequisite := newFakeOpsMCPStore()
+	missingPrerequisite.snapshot.OpsMCP = &control.OpsMCPState{}
+	unsafeApp := New(Options{Cluster: missingPrerequisite, OpsMCP: missingPrerequisite})
+	if err := unsafeApp.StartOpsMCP(context.Background(), OpsMCPStateMutationRequest{
+		ExpectedRevision: 7, IdempotencyKey: "start-without-owner",
+	}); !errors.Is(err, ErrOpsMCPConflict) {
+		t.Fatalf("start without owner/token error = %v", err)
+	}
+	if missingPrerequisite.writes != 0 {
+		t.Fatalf("unsafe start writes = %d", missingPrerequisite.writes)
 	}
 }
 

@@ -33,3 +33,18 @@ func TestServerRoutes(t *testing.T) {
 	require.Equal(t, 17, snapshot.ActiveUsers)
 	require.Equal(t, uint64(4), snapshot.ReconnectedUsers)
 }
+
+func TestServerRoutesRejectMutationMethods(t *testing.T) {
+	server := NewStatusServer("127.0.0.1:0", NewStatus("dev-sim-run"))
+	for _, path := range []string{"/healthz", "/status"} {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		resp := httptest.NewRecorder()
+		server.Handler().ServeHTTP(resp, req)
+		if resp.Code != http.StatusMethodNotAllowed || resp.Header().Get("Allow") != http.MethodGet {
+			t.Fatalf("POST %s = %d Allow=%q", path, resp.Code, resp.Header().Get("Allow"))
+		}
+	}
+	if err := server.Close(t.Context()); err != nil {
+		t.Fatalf("Close(unstarted) error = %v", err)
+	}
+}

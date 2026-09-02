@@ -31,7 +31,7 @@ func ReplayBackupHashSlotSnapshot(
 		return nil, BackupSnapshotStats{}, err
 	}
 	slots, count, err := visitSlotSnapshotStream(
-		ctx, reader, size,
+		ctx, reader, size, portableSnapshotBackupEntries,
 		func(key, value []byte) error {
 			return visit(BackupSnapshotEntry{Key: key, Value: value})
 		},

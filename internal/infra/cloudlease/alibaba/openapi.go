@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	ram "github.com/alibabacloud-go/ram-20150501/v2/client"
 	sts "github.com/alibabacloud-go/sts-20150401/v2/client"
 	"github.com/alibabacloud-go/tea/dara"
+	"github.com/alibabacloud-go/tea/tea"
 	vpc "github.com/alibabacloud-go/vpc-20160428/v6/client"
 )
 
@@ -1049,11 +1051,21 @@ func (a *OpenAPI) AssertMutationDenied(ctx context.Context) error {
 }
 
 func ramPermissionDenied(err error) bool {
-	var sdkErr *dara.SDKError
-	if !errors.As(err, &sdkErr) || int32(dara.IntValue(sdkErr.StatusCode)) != 403 {
+	statusCode := 0
+	var teaErr *tea.SDKError
+	if errors.As(err, &teaErr) {
+		statusCode = tea.IntValue(teaErr.StatusCode)
+	} else {
+		var daraErr *dara.SDKError
+		if !errors.As(err, &daraErr) {
+			return false
+		}
+		statusCode = dara.IntValue(daraErr.StatusCode)
+	}
+	if statusCode != http.StatusForbidden {
 		return false
 	}
-	code := strings.TrimSpace(dara.StringValue(sdkErr.Code))
+	code := strings.TrimSpace(lifecycleSDKErrorCode(err))
 	return code == "Forbidden.RAM" || code == "Forbbiden.SubUser"
 }
 

@@ -170,6 +170,9 @@ type fakeManagerConnectionService struct {
 
 func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
 	f.listReq = req
+	if f.err != nil {
+		return managementusecase.ListConnectionsResponse{}, f.err
+	}
 	resp := f.page
 	resp.Items = append([]managementusecase.Connection(nil), f.page.Items...)
 	return resp, nil
@@ -177,11 +180,17 @@ func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req ma
 
 func (f *fakeManagerConnectionService) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
 	f.detailReq = req
+	if f.err != nil {
+		return managementusecase.ConnectionDetail{}, f.err
+	}
 	return f.detail, nil
 }
 
 func (f *fakeManagerConnectionService) NodeRuntimeSummary(_ context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
 	f.runtimeNodeID = nodeID
+	if f.err != nil {
+		return managementusecase.NodeRuntimeSummary{}, f.err
+	}
 	return f.runtime, nil
 }
 

@@ -610,12 +610,15 @@ func lifecycleRelationshipsExact(assets []LifecycleAsset) bool {
 				return false
 			}
 		case ResourceKindDisk, ResourceKindENI:
-			if !has(ResourceKindInstance, asset.ParentID) {
+			instance, exists := byKind[ResourceKindInstance][asset.ParentID]
+			if !exists || asset.Role != instance.Role {
 				return false
 			}
 		case ResourceKindDiskAttachment:
 			disk, exists := byKind[ResourceKindDisk][asset.Attributes["disk_id"]]
-			if !exists || !has(ResourceKindInstance, asset.ParentID) || disk.ParentID != asset.ParentID || disk.Attributes["disk_type"] != "data" {
+			instance, instanceExists := byKind[ResourceKindInstance][asset.ParentID]
+			if !exists || !instanceExists || disk.ParentID != asset.ParentID || disk.Attributes["disk_type"] != "data" ||
+				asset.Role != disk.Role || disk.Role != instance.Role {
 				return false
 			}
 		case ResourceKindEIP:

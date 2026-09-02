@@ -781,9 +781,20 @@ func (p SubscribeParams) ToProto() *frame.SubPacket {
 		SubNo:       p.SubNo,
 		ChannelID:   p.ChannelID,
 		ChannelType: uint8(p.ChannelType),
+		Action:      frame.Subscribe,
 		Param:       p.Param,
 	}
 	return req
+}
+
+// ToProto converts JSON-RPC UnsubscribeParams to an unsubscribe frame.
+func (p UnsubscribeParams) ToProto() *frame.SubPacket {
+	return &frame.SubPacket{
+		SubNo:       p.SubNo,
+		ChannelID:   p.ChannelID,
+		ChannelType: uint8(p.ChannelType),
+		Action:      frame.UnSubscribe,
+	}
 }
 
 // ToProto converts JSON-RPC DisconnectParams to frame.DisconnectPacket.

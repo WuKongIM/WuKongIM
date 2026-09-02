@@ -106,6 +106,30 @@ func TestInstallSimulatorEnablesCloudViewOnlyWhenRequested(t *testing.T) {
 	}
 }
 
+func TestInstallBundleRejectsPrefixedSystemdBeforeWriting(t *testing.T) {
+	bundle := buildTestBundle(t)
+	envDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(envDir, "node.env"), []byte("WK_MANAGER_JWT_SECRET=test\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+
+	_, err := installBundle(installOptions{
+		bundleRoot: bundle, role: "node-1", rootPrefix: root, envDir: envDir,
+		noSystemd: false,
+	})
+	if err == nil {
+		t.Fatal("installBundle() succeeded with a prefixed root and systemd activation")
+	}
+	entries, readErr := os.ReadDir(root)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("installBundle() wrote %d root entries before rejecting invalid options", len(entries))
+	}
+}
+
 func buildTestBundle(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

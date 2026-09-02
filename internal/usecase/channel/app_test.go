@@ -507,6 +507,12 @@ type recordingStore struct {
 	countedAddResult    metadb.SubscriberMutationResult
 	countedRemoveResult metadb.SubscriberMutationResult
 	strictChannelLookup bool
+	containsResult      bool
+	containsErr         error
+	hasResult           bool
+	hasErr              error
+	containsCalls       []subscriberLookupCall
+	hasCalls            []subscriberLookupCall
 }
 
 type channelKeyCall struct {
@@ -532,6 +538,12 @@ type listPage struct {
 	uids   []string
 	cursor string
 	done   bool
+}
+
+type subscriberLookupCall struct {
+	channelID   string
+	channelType int64
+	uid         string
 }
 
 type recordingMembershipIndex struct {
@@ -680,12 +692,14 @@ func (r *recordingStore) ListChannelSubscribers(_ context.Context, channelID str
 	return append([]string(nil), page.uids...), page.cursor, page.done, nil
 }
 
-func (r *recordingStore) ContainsChannelSubscriber(context.Context, string, int64, string) (bool, error) {
-	return false, nil
+func (r *recordingStore) ContainsChannelSubscriber(_ context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	r.containsCalls = append(r.containsCalls, subscriberLookupCall{channelID: channelID, channelType: channelType, uid: uid})
+	return r.containsResult, r.containsErr
 }
 
-func (r *recordingStore) HasChannelSubscribers(context.Context, string, int64) (bool, error) {
-	return false, nil
+func (r *recordingStore) HasChannelSubscribers(_ context.Context, channelID string, channelType int64) (bool, error) {
+	r.hasCalls = append(r.hasCalls, subscriberLookupCall{channelID: channelID, channelType: channelType})
+	return r.hasResult, r.hasErr
 }
 
 func (r *recordingStore) GetChannel(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {

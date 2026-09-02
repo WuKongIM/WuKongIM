@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -176,8 +177,13 @@ func parseByteSize(value string) (int, error) {
 	if err != nil || n <= 0 {
 		return 0, fmt.Errorf("invalid --size %q", value)
 	}
-	size := int64(n * float64(multiplier))
-	if size <= 0 || size > int64(^uint(0)>>1) {
+	sizeValue := n * float64(multiplier)
+	maxInt := int64(^uint(0) >> 1)
+	if math.IsInf(sizeValue, 0) || math.IsNaN(sizeValue) || sizeValue <= 0 || sizeValue >= float64(maxInt) {
+		return 0, fmt.Errorf("invalid --size %q", value)
+	}
+	size := int64(sizeValue)
+	if size <= 0 {
 		return 0, fmt.Errorf("invalid --size %q", value)
 	}
 	return int(size), nil

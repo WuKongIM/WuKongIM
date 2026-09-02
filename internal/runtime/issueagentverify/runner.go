@@ -138,12 +138,16 @@ func (runner *ProcessRunner) workingDirectory(relative string) (string, error) {
 	if relative == "." {
 		return runner.root, nil
 	}
+	resolvedRoot, err := filepath.EvalSymlinks(runner.root)
+	if err != nil {
+		return "", errors.New("resolve Verifier checkout root")
+	}
 	target := filepath.Join(runner.root, filepath.FromSlash(relative))
 	resolved, err := filepath.EvalSymlinks(target)
 	if err != nil {
 		return "", errors.New("resolve Verifier working directory")
 	}
-	within, err := filepath.Rel(runner.root, resolved)
+	within, err := filepath.Rel(resolvedRoot, resolved)
 	if err != nil || within == ".." ||
 		strings.HasPrefix(within, ".."+string(filepath.Separator)) {
 		return "", errors.New("Verifier working directory escapes checkout")

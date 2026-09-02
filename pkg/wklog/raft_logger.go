@@ -109,7 +109,7 @@ func renderRaftArgs(v ...interface{}) string {
 func classifyRaftLog(msg string, level raftLogLevel) (string, raftLogLevel) {
 	lower := strings.ToLower(strings.TrimSpace(msg))
 	switch {
-	case containsAny(lower, "became leader", "leader changed", "lost leader"):
+	case containsAny(lower, "became leader", "leader changed", "lost leader", "leader lost"):
 		return "leader_change", level
 	case containsAny(lower, "starting a new election", "became candidate", "campaign"):
 		return "campaign", demoteRaftInfo(level)

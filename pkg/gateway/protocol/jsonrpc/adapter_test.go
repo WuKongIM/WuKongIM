@@ -1,6 +1,7 @@
 package jsonrpc_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -85,5 +86,50 @@ func TestAdapterEncodeUsesReplyTokenAsResponseID(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `"id":"req-1"`) {
 		t.Fatalf("expected response id in payload: %s", body)
+	}
+}
+
+func TestAdapterBridgesSubscriptionRequestAndCorrelatedAcknowledgement(t *testing.T) {
+	adapter := adapterpkg.New()
+	sess := testkit.NewProtocolSession()
+
+	request := []byte(`{"jsonrpc":"2.0","id":"sub-1","method":"subscribe","params":{"subNo":"presence","channelId":"room-1","channelType":2,"param":"online"}}`)
+	frames, consumed, err := adapter.Decode(sess, request)
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if consumed != len(request) || len(frames) != 1 {
+		t.Fatalf("Decode() consumed %d and returned %d frames", consumed, len(frames))
+	}
+	subscription, ok := frames[0].(*frame.SubPacket)
+	if !ok || subscription.Action != frame.Subscribe || subscription.SubNo != "presence" || subscription.ChannelID != "room-1" || subscription.ChannelType != 2 {
+		t.Fatalf("subscription frame = %#v", frames[0])
+	}
+
+	tokens := adapter.TakeReplyTokens(sess, 1)
+	if len(tokens) != 1 || tokens[0] != "sub-1" {
+		t.Fatalf("reply tokens = %#v", tokens)
+	}
+	body, err := adapter.Encode(sess, &frame.SubackPacket{
+		SubNo: "presence", ChannelID: "room-1", ChannelType: 2,
+		Action: frame.Subscribe, ReasonCode: frame.ReasonSuccess,
+	}, session.OutboundMeta{ReplyToken: tokens[0]})
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	var response struct {
+		ID     string `json:"id"`
+		Result struct {
+			SubNo       string `json:"subNo"`
+			ChannelID   string `json:"channelId"`
+			ChannelType int    `json:"channelType"`
+			Action      int    `json:"action"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		t.Fatalf("subscription response JSON = %q: %v", body, err)
+	}
+	if response.ID != "sub-1" || response.Result.SubNo != "presence" || response.Result.ChannelID != "room-1" || response.Result.ChannelType != 2 || response.Result.Action != int(pkgjsonrpc.ActionSubscribe) {
+		t.Fatalf("subscription response = %#v", response)
 	}
 }

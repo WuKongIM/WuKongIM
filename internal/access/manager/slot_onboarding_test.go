@@ -9,6 +9,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestManagerNodeOnboardingPlanReturnsPreview(t *testing.T) {
@@ -262,5 +263,63 @@ func TestManagerNodeOnboardingStartRequiresWritePermission(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+}
+
+func TestManagerNodeOnboardingAdvancePreservesBoundAndAcceptedSemantics(t *testing.T) {
+	var seen managementusecase.NodeOnboardingAdvanceRequest
+	srv := New(Options{Management: managerNodesStub{
+		nodeOnboardingAdvanceReqSink: &seen,
+		nodeOnboardingAdvance: managementusecase.NodeOnboardingStartResponse{
+			StateRevision: 18, TargetNodeID: 4, MaxSlotMoves: 3, Created: 1,
+			Results: []managementusecase.NodeOnboardingTaskResult{{SlotID: 7, Created: true}},
+			Skipped: []managementusecase.NodeOnboardingSkip{{SlotID: 8, Reason: "already_balanced", Message: "target already hosts replica"}},
+		},
+	}})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/manager/nodes/4/onboarding/advance", strings.NewReader(`{"max_slot_moves":3}`))
+	request.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if seen.TargetNodeID != 4 || seen.MaxSlotMoves != 3 || !strings.Contains(recorder.Body.String(), `"state_revision":18`) ||
+		!strings.Contains(recorder.Body.String(), `"already_balanced"`) {
+		t.Fatalf("request=%#v body=%s", seen, recorder.Body.String())
+	}
+
+	noop := New(Options{Management: managerNodesStub{nodeOnboardingAdvance: managementusecase.NodeOnboardingStartResponse{TargetNodeID: 4}}})
+	recorder = httptest.NewRecorder()
+	noop.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/manager/nodes/4/onboarding/advance", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("noop status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestManagerNodeOnboardingAdvanceMapsStableAdmissionFailures(t *testing.T) {
+	tests := []struct {
+		err  error
+		want int
+	}{
+		{err: metadb.ErrInvalidArgument, want: http.StatusBadRequest},
+		{err: managementusecase.ErrNodeOnboardingTargetNotActive, want: http.StatusConflict},
+		{err: managementusecase.ErrNodeOnboardingUnavailable, want: http.StatusServiceUnavailable},
+	}
+	for _, test := range tests {
+		srv := New(Options{Management: managerNodesStub{nodeOnboardingAdvanceErr: test.err}})
+		recorder := httptest.NewRecorder()
+		srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/manager/nodes/4/onboarding/advance", nil))
+		if recorder.Code != test.want {
+			t.Fatalf("error=%v status=%d body=%s", test.err, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	for _, path := range []string{"/manager/nodes/0/onboarding/advance", "/manager/nodes/bad/onboarding/advance"} {
+		srv := New(Options{Management: managerNodesStub{}})
+		recorder := httptest.NewRecorder()
+		srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, nil))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("path=%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
 	}
 }

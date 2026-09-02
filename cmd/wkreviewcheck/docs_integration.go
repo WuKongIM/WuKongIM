@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -89,6 +89,8 @@ func newDocumentationIntegrationReceiptOutput(root string) (string, string, erro
 }
 
 func readAndValidateGoldenPathAttestation(
+	ctx context.Context,
+	commands reviewCommandExecutor,
 	root string,
 	receiptPath string,
 ) (goldenPathAttestationSummary, error) {
@@ -96,7 +98,9 @@ func readAndValidateGoldenPathAttestation(
 	if err != nil {
 		return goldenPathAttestationSummary{}, err
 	}
-	revision, err := reviewGitOutput(root, "rev-parse", "--verify", "HEAD")
+	revision, err := reviewGitOutput(
+		ctx, commands, root, "rev-parse", "--verify", "HEAD",
+	)
 	if err != nil || !isLowerHexDigest(revision, 40, 64) {
 		return goldenPathAttestationSummary{}, errors.New("inspect documentation integration source revision")
 	}
@@ -294,16 +298,22 @@ func requireJSONEnd(decoder *json.Decoder) error {
 	return nil
 }
 
-func reviewGitOutput(root string, arguments ...string) (string, error) {
+func reviewGitOutput(
+	ctx context.Context,
+	commands reviewCommandExecutor,
+	root string,
+	arguments ...string,
+) (string, error) {
 	commandArguments := append([]string{
 		"-c", "core.hooksPath=/dev/null",
 		"-c", "core.fsmonitor=false",
 		"-c", "diff.external=",
 	}, arguments...)
-	command := exec.Command("git", commandArguments...)
-	command.Dir = root
-	command.Stdin = nil
-	output, err := command.Output()
+	output, err := commands.Output(ctx, checkStep{
+		directory: root,
+		name:      "git",
+		arguments: commandArguments,
+	})
 	if err != nil {
 		return "", errors.New("inspect documentation integration source identity")
 	}

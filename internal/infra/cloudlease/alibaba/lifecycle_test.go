@@ -207,6 +207,22 @@ func TestLifecycleInspectClassifiesWrongRelationshipForCleanup(t *testing.T) {
 	}
 }
 
+func TestLifecycleInspectClassifiesChildRoleConflictForCleanup(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	controller, lifecycleAPI, plan, quote := acquiredLifecycleLease(t, now, Options{Now: func() time.Time { return now }})
+	for index := range lifecycleAPI.assets {
+		if lifecycleAPI.assets[index].Kind == ResourceKindDisk {
+			lifecycleAPI.assets[index].Role = "foreign-role"
+			lifecycleAPI.assets[index].Tags[cloudlease.TagResourceRole] = "foreign-role"
+			break
+		}
+	}
+	receipt, err := controller.Inspect(context.Background(), lifecycleSelector(plan, quote))
+	if err != nil || receipt.State != cloudlease.StateReleasePending {
+		t.Fatalf("Inspect(child role conflict) = %#v, %v, want release_pending", receipt, err)
+	}
+}
+
 func TestLifecycleReleaseReturnsResidualThenContinuesToZero(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
 	options := Options{

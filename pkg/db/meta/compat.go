@@ -1953,6 +1953,9 @@ func (s *ShardStore) PlanTerminalChannelMigrationTaskGC(ctx context.Context, bef
 }
 
 func (s *ShardStore) DeleteTerminalChannelMigrationTasksBefore(ctx context.Context, beforeMS int64, limit int) (int, error) {
+	if err := s.validate(); err != nil {
+		return 0, err
+	}
 	wb := s.db.NewWriteBatch()
 	defer wb.Close()
 	deleted, err := wb.DeleteTerminalChannelMigrationTasksBefore(uint16(s.hashSlot), ChannelMigrationTaskGCRequest{BeforeMS: beforeMS, Limit: limit})

@@ -169,6 +169,35 @@ func TestNormalizeRuntimeOptionsUsesDefaultsForInvalidValues(t *testing.T) {
 	}
 }
 
+func TestNormalizeSessionOptionsPreservesLimitsAndDisablesBatchWait(t *testing.T) {
+	closeOnHandlerError := false
+	opts := gateway.NormalizeSessionOptions(gateway.SessionOptions{
+		MaxInboundBytes:          8 * 1024,
+		MaxOutboundBytes:         16 * 1024,
+		IdleTimeout:              30 * time.Second,
+		AsyncSendBatchMaxWait:    -1,
+		AsyncSendBatchMaxRecords: 32,
+		AsyncSendBatchMaxBytes:   64 * 1024,
+		CloseOnHandlerError:      &closeOnHandlerError,
+	})
+
+	if opts.MaxInboundBytes != 8*1024 || opts.MaxOutboundBytes != 16*1024 {
+		t.Fatalf("normalized byte limits = %d/%d", opts.MaxInboundBytes, opts.MaxOutboundBytes)
+	}
+	if opts.IdleTimeout != 30*time.Second {
+		t.Fatalf("IdleTimeout = %s, want 30s", opts.IdleTimeout)
+	}
+	if opts.AsyncSendBatchMaxWait != 0 {
+		t.Fatalf("AsyncSendBatchMaxWait = %s, want disabled", opts.AsyncSendBatchMaxWait)
+	}
+	if opts.AsyncSendBatchMaxRecords != 32 || opts.AsyncSendBatchMaxBytes != 64*1024 {
+		t.Fatalf("normalized batch bounds = %d records/%d bytes", opts.AsyncSendBatchMaxRecords, opts.AsyncSendBatchMaxBytes)
+	}
+	if opts.CloseOnHandlerError == nil || *opts.CloseOnHandlerError {
+		t.Fatal("explicit CloseOnHandlerError=false was not preserved")
+	}
+}
+
 func TestOptionsValidateNormalizesPartialSessionOverrides(t *testing.T) {
 	opts := gateway.Options{
 		Handler: noopHandler{},

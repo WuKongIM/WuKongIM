@@ -100,7 +100,10 @@ func analysisHealthPayload(cfg serveConfig) map[string]any {
 }
 
 func selfCheck(ctx context.Context, cfg serveConfig) []string {
-	client := &http.Client{Timeout: 5 * time.Second}
+	return selfCheckWithClient(ctx, cfg, &http.Client{Timeout: 5 * time.Second})
+}
+
+func selfCheckWithClient(ctx context.Context, cfg serveConfig, client *http.Client) []string {
 	checks := []struct {
 		name   string
 		method string

@@ -137,7 +137,7 @@ func (c *garbageCollectMigrationTasksCmd) applyResult() []byte {
 
 // IsChannelMigrationCommand reports whether data is a channel runtime migration FSM command.
 func IsChannelMigrationCommand(data []byte) bool {
-	if len(data) < headerSize {
+	if len(data) < headerSize || data[0] != commandVersion {
 		return false
 	}
 	switch data[1] {

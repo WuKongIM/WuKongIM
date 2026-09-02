@@ -94,20 +94,47 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 	}
 }
 
+func TestInstallOfflineHostRejectsPrefixedSystemdBeforeWriting(t *testing.T) {
+	now := time.Now().UTC()
+	bundle, manifest := buildOfflineTestBundle(t)
+	plan, err := clouddeploy.BuildPlan(offlineLease(now, manifest), manifest, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(t.TempDir(), "plan.json")
+	writeOfflineJSON(t, planPath, plan)
+	runtimeDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(runtimeDir, "node.env"), []byte("WK_MANAGER_JWT_SECRET=test\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+
+	_, err = installOfflineHost(offlineInstallOptions{
+		bundleRoot: bundle, planPath: planPath, role: "service-1", rootPrefix: root,
+		runtimeDir: runtimeDir, noSystemd: false,
+	})
+	if err == nil {
+		t.Fatal("installOfflineHost() succeeded with a prefixed root and systemd activation")
+	}
+	entries, readErr := os.ReadDir(root)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("installOfflineHost() wrote %d root entries before rejecting invalid options", len(entries))
+	}
+}
+
 func TestActivateOfflineLoadKeepsCoordinatorDormant(t *testing.T) {
-	fakeBin := t.TempDir()
-	logPath := filepath.Join(t.TempDir(), "systemctl.log")
-	systemctl := filepath.Join(fakeBin, "systemctl")
-	content := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >>\"$WK_TEST_SYSTEMCTL_LOG\"\n"
-	if err := os.WriteFile(systemctl, []byte(content), 0o755); err != nil {
+	var calls []string
+	run := func(name string, args ...string) error {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		return nil
+	}
+	if err := activateOfflineUnitsWithRunner("load", run); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("WK_TEST_SYSTEMCTL_LOG", logPath)
-	if err := activateOfflineUnits("load"); err != nil {
-		t.Fatal(err)
-	}
-	log := readOfflineTestFile(t, logPath)
+	log := strings.Join(calls, "\n")
 	for _, unit := range []string{"wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "prometheus.service"} {
 		if !strings.Contains(log, unit) {
 			t.Fatalf("systemctl log omits %s: %s", unit, log)

@@ -166,6 +166,9 @@ func newCreateCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if locatorPath != "" && workflowRunID <= 0 {
+				return errors.New("--workflow-run-id is required with --locator")
+			}
 			control, err := factory()
 			if err != nil {
 				return err
@@ -175,9 +178,6 @@ func newCreateCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
 				return err
 			}
 			if locatorPath != "" {
-				if workflowRunID <= 0 {
-					return errors.New("--workflow-run-id is required with --locator")
-				}
 				locator := cloudsim.RunLocator{
 					Schema: cloudsim.RunLocatorSchemaV1, RunID: run.ID, Provider: run.Provider, Region: run.Region,
 					AccountIDHash: run.AccountIDHash, Repository: run.Repository, SourceSHA: request.SourceSHA,
@@ -421,7 +421,14 @@ func readCreateRequest(path string) (cloudsim.CreateRequest, error) {
 		return cloudsim.CreateRequest{}, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(io.LimitReader(file, maxCreateRequestBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, maxCreateRequestBytes+1))
+	if err != nil {
+		return cloudsim.CreateRequest{}, fmt.Errorf("read create request: %w", err)
+	}
+	if len(data) > maxCreateRequestBytes {
+		return cloudsim.CreateRequest{}, errors.New("create request must be at most 64 KiB")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var request cloudsim.CreateRequest
 	if err := decoder.Decode(&request); err != nil {
@@ -443,7 +450,14 @@ func readAlibabaConfig(path string) (cloudsimalibaba.Config, error) {
 		return cloudsimalibaba.Config{}, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(io.LimitReader(file, maxProviderConfigBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, maxProviderConfigBytes+1))
+	if err != nil {
+		return cloudsimalibaba.Config{}, fmt.Errorf("read Alibaba provider config: %w", err)
+	}
+	if len(data) > maxProviderConfigBytes {
+		return cloudsimalibaba.Config{}, errors.New("Alibaba provider config must be at most 128 KiB")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var config cloudsimalibaba.Config
 	if err := decoder.Decode(&config); err != nil {

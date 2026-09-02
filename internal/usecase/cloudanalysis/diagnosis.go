@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -299,7 +300,8 @@ func (d DiagnosisResult) Validate() error {
 		return invalid("analyzed window")
 	}
 	if !oneOf(string(d.Verdict), string(VerdictHealthy), string(VerdictProductDefect), string(VerdictInfrastructureInterrupted), string(VerdictScenarioInvalid), string(VerdictInsufficientEvidence)) ||
-		!oneOf(string(d.Severity), string(SeverityNone), string(SeverityLow), string(SeverityMedium), string(SeverityHigh), string(SeverityCritical)) || d.Confidence < 0 || d.Confidence > 1 ||
+		!oneOf(string(d.Severity), string(SeverityNone), string(SeverityLow), string(SeverityMedium), string(SeverityHigh), string(SeverityCritical)) ||
+		math.IsNaN(d.Confidence) || math.IsInf(d.Confidence, 0) || d.Confidence < 0 || d.Confidence > 1 ||
 		!oneOf(string(d.RootCauseScope), string(RootCauseNone), string(RootCauseProduct), string(RootCauseInfrastructure), string(RootCauseScenario), string(RootCauseUnknown)) || !boundedText(d.Summary, 1, 2000) {
 		return invalid("classification")
 	}

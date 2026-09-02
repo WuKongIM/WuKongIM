@@ -73,18 +73,19 @@ type fakeManagerSlotRaftService struct {
 	slotID uint32
 	status managementusecase.SlotNodeLogStatus
 	result managementusecase.SlotRaftCompactionResult
+	err    error
 }
 
 func (f *fakeManagerSlotRaftService) SlotRaftStatus(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotNodeLogStatus, error) {
 	f.nodeID = nodeID
 	f.slotID = slotID
-	return f.status, nil
+	return f.status, f.err
 }
 
 func (f *fakeManagerSlotRaftService) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionResult, error) {
 	f.nodeID = nodeID
 	f.slotID = slotID
-	return f.result, nil
+	return f.result, f.err
 }
 
 func sameNodeRPCUint64s(a, b []uint64) bool {

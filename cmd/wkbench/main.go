@@ -328,6 +328,20 @@ type messageEventRunner interface {
 	Run(context.Context) (messageevent.Result, error)
 }
 
+type capacityRunner interface {
+	Run(context.Context) (capacity.Result, error)
+}
+
+var discoverCapacityTarget = capacity.DiscoverTarget
+
+var newCapacityRunner = func(cfg capacity.Config, discovered capacity.DiscoveredTarget) capacityRunner {
+	return capacity.NewRunner(cfg, discovered)
+}
+
+var newHotChannelRunner = func(cfg capacity.HotChannelConfig, discovered capacity.DiscoveredTarget) capacityRunner {
+	return capacity.NewHotChannelRunner(cfg, discovered)
+}
+
 var discoverActivateChannelsTarget = func(ctx context.Context, cfg capacity.ActivateChannelsConfig) (capacity.DiscoveredTarget, error) {
 	return capacity.DiscoverTarget(ctx, activateChannelsDiscoveryConfig(cfg))
 }
@@ -341,12 +355,12 @@ var newMessageEventRunner = func(cfg messageevent.Config) messageEventRunner {
 }
 
 func runCapacitySendConfig(cfg capacity.Config, stderr io.Writer) int {
-	discovered, err := capacity.DiscoverTarget(context.Background(), cfg)
+	discovered, err := discoverCapacityTarget(context.Background(), cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "capacity preflight failed: %v\n", err)
 		return exitPreflight
 	}
-	result, err := capacity.NewRunner(cfg, discovered).Run(context.Background())
+	result, err := newCapacityRunner(cfg, discovered).Run(context.Background())
 	if writeErr := capacity.WriteResult(result.ReportDir, result); writeErr != nil {
 		fmt.Fprintf(stderr, "capacity report write failed: %v\n", writeErr)
 		return exitInternal
@@ -360,12 +374,12 @@ func runCapacitySendConfig(cfg capacity.Config, stderr io.Writer) int {
 }
 
 func runCapacityHotChannelConfig(cfg capacity.HotChannelConfig, stderr io.Writer) int {
-	discovered, err := capacity.DiscoverTarget(context.Background(), cfg.Config)
+	discovered, err := discoverCapacityTarget(context.Background(), cfg.Config)
 	if err != nil {
 		fmt.Fprintf(stderr, "capacity preflight failed: %v\n", err)
 		return exitPreflight
 	}
-	result, err := capacity.NewHotChannelRunner(cfg, discovered).Run(context.Background())
+	result, err := newHotChannelRunner(cfg, discovered).Run(context.Background())
 	if writeErr := capacity.WriteResult(result.ReportDir, result); writeErr != nil {
 		fmt.Fprintf(stderr, "capacity report write failed: %v\n", writeErr)
 		return exitInternal

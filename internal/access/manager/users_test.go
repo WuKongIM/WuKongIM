@@ -3,6 +3,7 @@ package manager
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -209,6 +210,51 @@ func TestManagerSystemUsersRoutes(t *testing.T) {
 	srv.Engine().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !sameStrings(removeReq.UIDs, []string{"sys-a"}) || !jsonEqual(rec.Body.String(), `{"uids":["sys-a"],"changed":true}`) {
 		t.Fatalf("remove status/body/request = %d %s %#v, want mutation", rec.Code, rec.Body.String(), removeReq)
+	}
+}
+
+func TestManagerSystemUsersFailClosedOnInvalidInputAndStorageErrors(t *testing.T) {
+	invalid := New(Options{Management: managerNodesStub{}})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/manager/system-users/add", bytes.NewBufferString(`{"uids":`))
+	request.Header.Set("Content-Type", "application/json")
+	invalid.Engine().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid body status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	for _, test := range []struct {
+		name   string
+		err    error
+		method string
+		path   string
+		body   string
+		want   int
+	}{
+		{name: "list invalid", err: metadb.ErrInvalidArgument, method: http.MethodGet, path: "/manager/system-users", want: http.StatusBadRequest},
+		{name: "list failure", err: errors.New("storage failed"), method: http.MethodGet, path: "/manager/system-users", want: http.StatusInternalServerError},
+		{name: "mutation invalid", err: metadb.ErrInvalidArgument, method: http.MethodPost, path: "/manager/system-users/remove", body: `{"uids":["sys-a"]}`, want: http.StatusBadRequest},
+		{name: "mutation failure", err: errors.New("storage failed"), method: http.MethodPost, path: "/manager/system-users/add", body: `{"uids":["sys-a"]}`, want: http.StatusInternalServerError},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			srv := New(Options{Management: managerNodesStub{systemUsersErr: test.err, systemUsersMutationErr: test.err}})
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(test.method, test.path, bytes.NewBufferString(test.body))
+			if test.body != "" {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			srv.Engine().ServeHTTP(recorder, request)
+			if recorder.Code != test.want {
+				t.Fatalf("status=%d want=%d body=%s", recorder.Code, test.want, recorder.Body.String())
+			}
+		})
+	}
+
+	unwired := New(Options{})
+	recorder = httptest.NewRecorder()
+	unwired.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manager/system-users", nil))
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unwired status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

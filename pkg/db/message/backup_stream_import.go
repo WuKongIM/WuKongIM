@@ -128,6 +128,9 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
+		if err := validateCheckpoint(checkpoint); err != nil {
+			return BackupSnapshotStats{}, err
+		}
 		systemCount, err := binary.ReadUvarint(reader)
 		if err != nil || systemCount > maxMessageBackupSystemEntries {
 			return BackupSnapshotStats{}, dberrors.ErrCorruptValue

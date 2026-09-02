@@ -26,6 +26,18 @@ func TestMessageCatalogKeyUsesGlobalPartition(t *testing.T) {
 	}
 }
 
+func TestLatestIndexStateAndProgressUseDistinctGlobalSystemKeys(t *testing.T) {
+	state := encodeGlobalLatestIndexStateKey()
+	progress := encodeGlobalLatestIndexProgressKey()
+	wantPrefix := []byte{byte(keycodec.DomainMessage), byte(keycodec.PartitionGlobal)}
+	if !bytes.HasPrefix(state, wantPrefix) || !bytes.HasPrefix(progress, wantPrefix) {
+		t.Fatalf("latest keys are not global message keys: state=%x progress=%x", state, progress)
+	}
+	if bytes.Equal(state, progress) {
+		t.Fatalf("latest state and migration progress keys collide: %x", state)
+	}
+}
+
 func TestMessageIndexPrefixIncludesIndexID(t *testing.T) {
 	prefix := encodeMessageIndexPrefix(ChannelKey("ch-1"), messageIndexIDFromUIDClientMsgNo)
 	wantPrefix := []byte{byte(keycodec.DomainMessage), byte(keycodec.PartitionChannel)}

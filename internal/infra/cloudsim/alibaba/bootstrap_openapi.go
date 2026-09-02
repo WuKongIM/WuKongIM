@@ -13,6 +13,7 @@ import (
 	ims "github.com/alibabacloud-go/ims-20190815/v4/client"
 	ram "github.com/alibabacloud-go/ram-20150501/v2/client"
 	"github.com/alibabacloud-go/tea/dara"
+	tea "github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/credentials-go/credentials"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
@@ -56,7 +57,7 @@ func (a *CloudShellBootstrapAPI) ReadBootstrapState(ctx context.Context, config 
 	}
 	var state BootstrapState
 	response, err := a.ims.GetOIDCProviderWithContext(ctx,
-		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(config.OIDCProviderName), nil)
+		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(config.OIDCProviderName), &dara.RuntimeOptions{})
 	if err == nil && response.Body != nil && response.Body.OIDCProvider != nil {
 		provider := response.Body.OIDCProvider
 		state.OIDCProvider = OIDCProviderSpec{
@@ -108,24 +109,24 @@ func (a *CloudShellBootstrapAPI) RemoveBootstrapState(ctx context.Context, desir
 	var errs []error
 	for _, policy := range []PolicySpec{desired.ProvisionerPolicy, desired.AnalyzerPolicy} {
 		_, detachErr := a.ram.DetachPolicyFromRoleWithContext(ctx, (&ram.DetachPolicyFromRoleRequest{}).
-			SetPolicyName(policy.Name).SetPolicyType("Custom").SetRoleName(policy.AttachedRole), nil)
+			SetPolicyName(policy.Name).SetPolicyType("Custom").SetRoleName(policy.AttachedRole), &dara.RuntimeOptions{})
 		if detachErr != nil && !bootstrapNotFound(detachErr) {
 			errs = append(errs, fmt.Errorf("detach policy %s: %w", policy.Name, detachErr))
 		}
 		_, deleteErr := a.ram.DeletePolicyWithContext(ctx,
-			(&ram.DeletePolicyRequest{}).SetPolicyName(policy.Name).SetCascadingDelete(true), nil)
+			(&ram.DeletePolicyRequest{}).SetPolicyName(policy.Name).SetCascadingDelete(true), &dara.RuntimeOptions{})
 		if deleteErr != nil && !bootstrapNotFound(deleteErr) {
 			errs = append(errs, fmt.Errorf("delete policy %s: %w", policy.Name, deleteErr))
 		}
 	}
 	for _, role := range []RoleSpec{desired.ProvisionerRole, desired.AnalyzerRole} {
-		_, deleteErr := a.ram.DeleteRoleWithContext(ctx, (&ram.DeleteRoleRequest{}).SetRoleName(role.Name), nil)
+		_, deleteErr := a.ram.DeleteRoleWithContext(ctx, (&ram.DeleteRoleRequest{}).SetRoleName(role.Name), &dara.RuntimeOptions{})
 		if deleteErr != nil && !bootstrapNotFound(deleteErr) {
 			errs = append(errs, fmt.Errorf("delete role %s: %w", role.Name, deleteErr))
 		}
 	}
 	_, providerErr := a.ims.DeleteOIDCProviderWithContext(ctx,
-		(&ims.DeleteOIDCProviderRequest{}).SetOIDCProviderName(desired.OIDCProvider.Name), nil)
+		(&ims.DeleteOIDCProviderRequest{}).SetOIDCProviderName(desired.OIDCProvider.Name), &dara.RuntimeOptions{})
 	if providerErr != nil && !bootstrapNotFound(providerErr) {
 		errs = append(errs, fmt.Errorf("delete OIDC provider: %w", providerErr))
 	}
@@ -138,7 +139,7 @@ func (a *CloudShellBootstrapAPI) ActiveRuns(ctx context.Context) ([]cloudsim.Run
 }
 
 func (a *CloudShellBootstrapAPI) readRole(ctx context.Context, desired RoleSpec) (RoleSpec, error) {
-	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(desired.Name), nil)
+	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(desired.Name), &dara.RuntimeOptions{})
 	if err != nil {
 		if bootstrapNotFound(err) {
 			return RoleSpec{}, nil
@@ -154,7 +155,7 @@ func (a *CloudShellBootstrapAPI) readRole(ctx context.Context, desired RoleSpec)
 
 func (a *CloudShellBootstrapAPI) readPolicy(ctx context.Context, desired PolicySpec) (PolicySpec, error) {
 	response, err := a.ram.GetPolicyWithContext(ctx,
-		(&ram.GetPolicyRequest{}).SetPolicyName(desired.Name).SetPolicyType("Custom"), nil)
+		(&ram.GetPolicyRequest{}).SetPolicyName(desired.Name).SetPolicyType("Custom"), &dara.RuntimeOptions{})
 	if err != nil {
 		if bootstrapNotFound(err) {
 			return PolicySpec{}, nil
@@ -166,7 +167,7 @@ func (a *CloudShellBootstrapAPI) readPolicy(ctx context.Context, desired PolicyS
 	}
 	attached := false
 	list, listErr := a.ram.ListPoliciesForRoleWithContext(ctx,
-		(&ram.ListPoliciesForRoleRequest{}).SetRoleName(desired.AttachedRole), nil)
+		(&ram.ListPoliciesForRoleRequest{}).SetRoleName(desired.AttachedRole), &dara.RuntimeOptions{})
 	if listErr != nil && !bootstrapNotFound(listErr) {
 		return PolicySpec{}, fmt.Errorf("list role policies %s: %w", desired.AttachedRole, listErr)
 	}
@@ -188,7 +189,7 @@ func (a *CloudShellBootstrapAPI) readPolicy(ctx context.Context, desired PolicyS
 
 func (a *CloudShellBootstrapAPI) upsertOIDCProvider(ctx context.Context, desired OIDCProviderSpec) error {
 	response, err := a.ims.GetOIDCProviderWithContext(ctx,
-		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(desired.Name), nil)
+		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(desired.Name), &dara.RuntimeOptions{})
 	if err == nil && response.Body != nil && response.Body.OIDCProvider != nil {
 		current := response.Body.OIDCProvider
 		if deref(current.IssuerUrl) != desired.IssuerURL {
@@ -196,7 +197,7 @@ func (a *CloudShellBootstrapAPI) upsertOIDCProvider(ctx context.Context, desired
 		}
 		if !slicesEqual(splitCSV(deref(current.ClientIds)), desired.Audiences) {
 			if _, updateErr := a.ims.UpdateOIDCProviderWithContext(ctx, (&ims.UpdateOIDCProviderRequest{}).
-				SetOIDCProviderName(desired.Name).SetClientIds(strings.Join(desired.Audiences, ",")), nil); updateErr != nil {
+				SetOIDCProviderName(desired.Name).SetClientIds(strings.Join(desired.Audiences, ",")), &dara.RuntimeOptions{}); updateErr != nil {
 				return fmt.Errorf("update OIDC audiences: %w", updateErr)
 			}
 		}
@@ -206,7 +207,7 @@ func (a *CloudShellBootstrapAPI) upsertOIDCProvider(ctx context.Context, desired
 				continue
 			}
 			if _, addErr := a.ims.AddFingerprintToOIDCProviderWithContext(ctx, (&ims.AddFingerprintToOIDCProviderRequest{}).
-				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), nil); addErr != nil {
+				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), &dara.RuntimeOptions{}); addErr != nil {
 				return fmt.Errorf("add OIDC fingerprint: %w", addErr)
 			}
 		}
@@ -215,7 +216,7 @@ func (a *CloudShellBootstrapAPI) upsertOIDCProvider(ctx context.Context, desired
 				continue
 			}
 			if _, removeErr := a.ims.RemoveFingerprintFromOIDCProviderWithContext(ctx, (&ims.RemoveFingerprintFromOIDCProviderRequest{}).
-				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), nil); removeErr != nil {
+				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), &dara.RuntimeOptions{}); removeErr != nil {
 				return fmt.Errorf("remove OIDC fingerprint: %w", removeErr)
 			}
 		}
@@ -226,7 +227,7 @@ func (a *CloudShellBootstrapAPI) upsertOIDCProvider(ctx context.Context, desired
 	_, err = a.ims.CreateOIDCProviderWithContext(ctx, (&ims.CreateOIDCProviderRequest{}).
 		SetOIDCProviderName(desired.Name).SetIssuerUrl(desired.IssuerURL).
 		SetClientIds(strings.Join(desired.Audiences, ",")).SetFingerprints(strings.Join(desired.Fingerprints, ",")).
-		SetDescription("WuKongIM cloud simulation GitHub OIDC"), nil)
+		SetDescription("WuKongIM cloud simulation GitHub OIDC"), &dara.RuntimeOptions{})
 	if err != nil {
 		return fmt.Errorf("create OIDC provider: %w", err)
 	}
@@ -241,10 +242,10 @@ func (a *CloudShellBootstrapAPI) upsertRole(ctx context.Context, desired RoleSpe
 	if current.Name == "" {
 		_, err = a.ram.CreateRoleWithContext(ctx, (&ram.CreateRoleRequest{}).
 			SetRoleName(desired.Name).SetAssumeRolePolicyDocument(desired.TrustPolicy).
-			SetMaxSessionDuration(3600).SetDescription("WuKongIM cloud simulation workflow role"), nil)
+			SetMaxSessionDuration(3600).SetDescription("WuKongIM cloud simulation workflow role"), &dara.RuntimeOptions{})
 	} else if normalizePolicyDocument(current.TrustPolicy) != normalizePolicyDocument(desired.TrustPolicy) {
 		_, err = a.ram.UpdateRoleWithContext(ctx, (&ram.UpdateRoleRequest{}).
-			SetRoleName(desired.Name).SetNewAssumeRolePolicyDocument(desired.TrustPolicy).SetNewMaxSessionDuration(3600), nil)
+			SetRoleName(desired.Name).SetNewAssumeRolePolicyDocument(desired.TrustPolicy).SetNewMaxSessionDuration(3600), &dara.RuntimeOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("upsert role %s: %w", desired.Name, err)
@@ -260,18 +261,18 @@ func (a *CloudShellBootstrapAPI) upsertPolicy(ctx context.Context, desired Polic
 	if current.Name == "" {
 		_, err = a.ram.CreatePolicyWithContext(ctx, (&ram.CreatePolicyRequest{}).
 			SetPolicyName(desired.Name).SetPolicyDocument(desired.Document).
-			SetDescription("WuKongIM cloud simulation least-privilege policy"), nil)
+			SetDescription("WuKongIM cloud simulation least-privilege policy"), &dara.RuntimeOptions{})
 	} else if normalizePolicyDocument(current.Document) != normalizePolicyDocument(desired.Document) {
 		_, err = a.ram.CreatePolicyVersionWithContext(ctx, (&ram.CreatePolicyVersionRequest{}).
 			SetPolicyName(desired.Name).SetPolicyDocument(desired.Document).
-			SetSetAsDefault(true).SetRotateStrategy("DeleteOldestNonDefaultVersionWhenLimitExceeded"), nil)
+			SetSetAsDefault(true).SetRotateStrategy("DeleteOldestNonDefaultVersionWhenLimitExceeded"), &dara.RuntimeOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("upsert policy %s: %w", desired.Name, err)
 	}
 	if current.AttachedRole != desired.AttachedRole {
 		_, err = a.ram.AttachPolicyToRoleWithContext(ctx, (&ram.AttachPolicyToRoleRequest{}).
-			SetPolicyName(desired.Name).SetPolicyType("Custom").SetRoleName(desired.AttachedRole), nil)
+			SetPolicyName(desired.Name).SetPolicyType("Custom").SetRoleName(desired.AttachedRole), &dara.RuntimeOptions{})
 		if err != nil {
 			return fmt.Errorf("attach policy %s: %w", desired.Name, err)
 		}
@@ -325,10 +326,19 @@ func normalizePolicyDocument(document string) string {
 }
 
 func bootstrapNotFound(err error) bool {
-	if err == nil {
-		return false
+	code := strings.ToLower(strings.TrimSpace(bootstrapSDKErrorCode(err)))
+	return strings.Contains(code, "entitynotexist") || strings.Contains(code, "nosuchentity") ||
+		strings.Contains(code, "notfound")
+}
+
+func bootstrapSDKErrorCode(err error) string {
+	var teaErr *tea.SDKError
+	if errors.As(err, &teaErr) {
+		return deref(teaErr.Code)
 	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "entitynotexist") || strings.Contains(message, "nosuchentity") ||
-		strings.Contains(message, "not found") || strings.Contains(message, "notfound")
+	var daraErr *dara.SDKError
+	if errors.As(err, &daraErr) {
+		return deref(daraErr.Code)
+	}
+	return ""
 }

@@ -597,14 +597,6 @@ func (a *App) syncLogger() error {
 
 func (a *App) rollbackStarted(ctx context.Context) error {
 	var err error
-	if a.backupRuntimeStarted && a.backupRuntime != nil {
-		if stopErr := a.backupRuntime.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("backup_runtime", "rollback_stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.backupRuntimeStarted = false
-		}
-	}
 	if a.prometheusStarted && a.prometheus != nil {
 		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("prometheus", "rollback_stop", stopErr)
@@ -635,6 +627,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.topStarted = false
+		}
+	}
+	if a.backupRuntimeStarted && a.backupRuntime != nil {
+		if stopErr := a.backupRuntime.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("backup_runtime", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.backupRuntimeStarted = false
 		}
 	}
 	if a.messageChannelStore != nil {

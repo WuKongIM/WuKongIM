@@ -296,6 +296,9 @@ commandLoop:
 	if err != nil {
 		if isStaleMetaCommitError(err) {
 			if len(cmds) == 1 {
+				if err := m.commitStaleAppliedIndex(ctx, cmds[0]); err != nil {
+					return nil, err
+				}
 				return [][]byte{[]byte(ApplyResultStaleMeta)}, nil
 			}
 			return m.applyCommandsIndividuallyAfterStaleCommit(ctx, cmds)
@@ -311,6 +314,23 @@ commandLoop:
 		}
 	}
 	return results, nil
+}
+
+// commitStaleAppliedIndex durably records a commit-time conditional no-op so
+// recovery does not replay an already-resolved Raft entry.
+func (m *stateMachine) commitStaleAppliedIndex(ctx context.Context, cmd multiraft.Command) error {
+	if cmd.Index == 0 {
+		return nil
+	}
+	wb := m.db.NewWriteBatch()
+	defer wb.Close()
+	if err := wb.SetSlotAppliedIndex(m.slot, cmd.Index); err != nil {
+		return err
+	}
+	started := time.Now()
+	err := wb.Commit()
+	multiraft.ObserveProposalStage(ctx, "meta_create_slot_fsm_stale_watermark_commit", err, time.Since(started))
+	return err
 }
 
 // DurableAppliedIndex returns the last command index committed atomically with

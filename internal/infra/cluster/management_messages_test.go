@@ -9,6 +9,7 @@ import (
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestManagementMessageReaderReadsCommittedMessagesDescending(t *testing.T) {
@@ -39,6 +40,71 @@ func TestManagementMessageReaderReadsCommittedMessagesDescending(t *testing.T) {
 	want := []managementusecase.Message{{MessageID: 101, MessageSeq: 10, ClientMsgNo: "c-101", ChannelID: "room-1", ChannelType: 2, FromUID: "u1", Timestamp: 1713859200, Payload: []byte("hello")}}
 	if !sameManagementMessages(got.Items, want) {
 		t.Fatalf("items = %#v, want %#v", got.Items, want)
+	}
+}
+
+func TestManagementMessageReaderFiltersExactMessageIdentityAndReadsRuntimeTail(t *testing.T) {
+	t.Parallel()
+
+	node := &recordingManagementMessageNode{result: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
+		{MessageID: 103, MessageSeq: 8, ClientMsgNo: "wanted", ChannelID: "room-1", ChannelType: 2},
+		{MessageID: 103, MessageSeq: 7, ClientMsgNo: "other-client", ChannelID: "room-1", ChannelType: 2},
+		{MessageID: 102, MessageSeq: 6, ClientMsgNo: "wanted", ChannelID: "room-1", ChannelType: 2},
+	}}}
+	reader := NewManagementMessageReader(node)
+	page, err := reader.QueryMessages(context.Background(), managementusecase.MessageQueryRequest{
+		ChannelID: "room-1", ChannelType: 2, MessageID: 103, ClientMsgNo: "wanted", Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("QueryMessages() error = %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].MessageID != 103 || page.Items[0].ClientMsgNo != "wanted" || page.HasMore {
+		t.Fatalf("exact filtered page = %#v", page)
+	}
+
+	node.result = channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 88}}}
+	tail, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: "room-1", ChannelType: 2})
+	if err != nil || tail != 88 {
+		t.Fatalf("MaxMessageSeqForMeta() = %d err=%v", tail, err)
+	}
+	if node.channelID != (channelruntime.ChannelID{ID: "room-1", Type: 2}) || node.req.FromSeq != maxUint64() || node.req.MaxSeq != maxUint64() || node.req.Limit != 1 || !node.req.Reverse {
+		t.Fatalf("tail read id/request = %#v / %#v", node.channelID, node.req)
+	}
+}
+
+func TestManagementMessageReaderQueriesOnlyEligibleDataNodesAndBoundsLocalMerge(t *testing.T) {
+	t.Parallel()
+
+	node := &localLatestManagementMessageNode{
+		snapshot: control.Snapshot{Nodes: []control.Node{
+			{NodeID: 1, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+			{NodeID: 2, Roles: []control.Role{control.RoleController}, JoinState: control.NodeJoinStateActive},
+			{NodeID: 3, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateJoining},
+			{NodeID: 4, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateRemoved},
+			{NodeID: 5, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive, Status: control.NodeDown},
+		}},
+		latest: []channelruntime.Message{
+			{MessageID: 105, MessageSeq: 5, ChannelID: "g1", ChannelType: 2, Payload: []byte("newest")},
+			{MessageID: 104, MessageSeq: 4, ChannelID: "g2", ChannelType: 2},
+			{MessageID: 103, MessageSeq: 3, ChannelID: "g3", ChannelType: 2},
+		},
+	}
+	reader := NewManagementMessageReader(node)
+	page, err := reader.QueryLatestMessages(context.Background(), managementusecase.LatestMessageQueryRequest{
+		BeforeMessageID: 106, Limit: 2,
+	})
+	if err != nil {
+		t.Fatalf("QueryLatestMessages() error = %v", err)
+	}
+	if node.beforeMessageID != 106 || node.latestLimit != 3 || node.rpcCalls != 0 {
+		t.Fatalf("local latest args before=%d limit=%d remote calls=%d", node.beforeMessageID, node.latestLimit, node.rpcCalls)
+	}
+	if len(page.Items) != 2 || page.Items[0].MessageID != 105 || page.Items[1].MessageID != 104 || !page.HasMore || page.NextBeforeMessageID != 104 {
+		t.Fatalf("latest page = %#v", page)
+	}
+	page.Items[0].Payload[0] = 'X'
+	if string(node.latest[0].Payload) != "newest" {
+		t.Fatalf("manager result payload aliases local index storage: %q", node.latest[0].Payload)
 	}
 }
 
@@ -96,6 +162,32 @@ type recordingManagementMessageNode struct {
 	req       channelstore.ReadCommittedRequest
 	result    channelstore.ReadCommittedResult
 	err       error
+}
+
+type localLatestManagementMessageNode struct {
+	recordingManagementMessageNode
+	snapshot        control.Snapshot
+	latest          []channelruntime.Message
+	beforeMessageID uint64
+	latestLimit     int
+	rpcCalls        int
+}
+
+func (*localLatestManagementMessageNode) NodeID() uint64 { return 1 }
+
+func (n *localLatestManagementMessageNode) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return n.snapshot, nil
+}
+
+func (n *localLatestManagementMessageNode) ReadLocalLatestMessages(_ context.Context, beforeMessageID uint64, limit int) ([]channelruntime.Message, bool, uint64, error) {
+	n.beforeMessageID, n.latestLimit = beforeMessageID, limit
+	items := append([]channelruntime.Message(nil), n.latest...)
+	return items, len(items) > 2, 103, nil
+}
+
+func (n *localLatestManagementMessageNode) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	n.rpcCalls++
+	return nil, errors.New("unexpected RPC call")
 }
 
 type backpressuredLatestMessageNode struct {

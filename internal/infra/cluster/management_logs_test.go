@@ -97,6 +97,35 @@ func TestManagementLogReaderRoutesRemoteSlotLogs(t *testing.T) {
 	}
 }
 
+func TestManagementLogReaderMapsDetachedLocalSlotLogPage(t *testing.T) {
+	t.Parallel()
+
+	node := &fakeManagementLogNode{
+		nodeID: 1,
+		slot: cluster.SlotLogEntries{
+			NodeID: 1, SlotID: 9, FirstIndex: 2, LastIndex: 5, CommitIndex: 5, AppliedIndex: 4, NextCursor: 3,
+			Items: []cluster.LogEntry{{Index: 5, Term: 2, Type: "normal", DecodedType: "slot_command", Decoded: map[string]any{"kind": "upsert"}}},
+		},
+	}
+	reader := NewManagementLogReader(node)
+	page, err := reader.SlotLogEntries(context.Background(), managementusecase.ListSlotLogEntriesRequest{
+		NodeID: 1, SlotID: 9, Limit: 2, Cursor: 6,
+	})
+	if err != nil {
+		t.Fatalf("SlotLogEntries() error = %v", err)
+	}
+	if node.localSlotID != 9 || node.localSlotOpts != (cluster.LogEntriesOptions{Limit: 2, Cursor: 6}) {
+		t.Fatalf("local slot args = %d/%#v", node.localSlotID, node.localSlotOpts)
+	}
+	if page.NodeID != 1 || page.SlotID != 9 || page.NextCursor != 3 || len(page.Items) != 1 || page.Items[0].DecodedType != "slot_command" {
+		t.Fatalf("slot page = %#v", page)
+	}
+	page.Items[0].Decoded["kind"] = "mutated"
+	if node.slot.Items[0].Decoded["kind"] != "upsert" {
+		t.Fatalf("manager log result aliases cluster decoded map: %#v", node.slot.Items[0].Decoded)
+	}
+}
+
 type fakeManagementLogNode struct {
 	nodeID              uint64
 	calledNodeID        uint64

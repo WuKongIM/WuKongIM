@@ -1,6 +1,9 @@
 package proxy
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 var (
 	// ErrNoLeader indicates that no Slot leader is currently available.
@@ -78,7 +81,7 @@ func routeErrorMatches(err error, sentinel *routeError) bool {
 	if err == nil || sentinel == nil {
 		return false
 	}
-	if err == sentinel || sentinel.Is(err) {
+	if errors.Is(err, sentinel) || sentinel.Is(err) {
 		return true
 	}
 	msg := err.Error()

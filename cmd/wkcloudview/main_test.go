@@ -1,10 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,47 +56,68 @@ func TestValidateAcceptsStrictCloudViewConfig(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRejectsOversizedWhitespace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cloudview.json")
+	body := append([]byte(`{"listen_addr":"127.0.0.1:19443","run_id":"run-1"}`), bytes.Repeat([]byte{' '}, maxConfigBytes)...)
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := loadConfig(path, func(string) string { return "" }); err == nil {
+		t.Fatal("loadConfig() accepted a config larger than maxConfigBytes")
+	}
+}
+
 func TestDoctorProvesCompletePublicObservationSurface(t *testing.T) {
-	upgrader := websocket.Upgrader{}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Header.Get(cloudview.GateProbeHeader) != "gate-secret" {
-			http.Error(w, "missing gate token", http.StatusUnauthorized)
-			return
+			t.Fatalf("gate token = %q", r.Header.Get(cloudview.GateProbeHeader))
 		}
 		switch r.URL.Path {
 		case "/", "/demo/":
-			w.WriteHeader(http.StatusOK)
+			return response(http.StatusOK, ""), nil
 		case "/manager/login":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token": "token", "permissions": []map[string]any{{"resource": "*", "actions": []string{"*"}}},
-			})
+			return response(http.StatusOK, `{"access_token":"token","permissions":[{"resource":"*","actions":["*"]}]}`), nil
 		case "/manager/nodes":
 			if r.Header.Get("Authorization") != "Bearer token" {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
+				t.Fatalf("Authorization = %q", r.Header.Get("Authorization"))
 			}
-			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": 1}, {"id": 2}, {"id": 3}})
+			return response(http.StatusOK, `[{"id":1},{"id":2},{"id":3}]`), nil
 		case "/route":
-			_ = json.NewEncoder(w).Encode(map[string]string{"ws_addr": "ws" + strings.TrimPrefix(serverURL(r), "http")})
+			return response(http.StatusOK, `{"ws_addr":"ws://cloudview.test"}`), nil
 		case "/prometheus/api/v1/targets":
-			targets := make([]map[string]string, 7)
-			for i := range targets {
-				targets[i] = map[string]string{"health": "up"}
-			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"activeTargets": targets}})
-		case "/ws":
-			connection, err := upgrader.Upgrade(w, r, nil)
-			if err == nil {
-				_ = connection.Close()
-			}
+			return response(http.StatusOK, `{"status":"success","data":{"activeTargets":[{"health":"up"},{"health":"up"},{"health":"up"},{"health":"up"},{"health":"up"},{"health":"up"},{"health":"up"}]}}`), nil
 		default:
-			http.NotFound(w, r)
+			t.Fatalf("unexpected doctor request %s %s", r.Method, r.URL.String())
+			return response(http.StatusNotFound, ""), nil
 		}
-	}))
-	defer server.Close()
+	})
+	originalTransport := http.DefaultTransport
+	http.DefaultTransport = transport
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
+	originalNetDial := websocket.DefaultDialer.NetDialContext
+	originalProxy := websocket.DefaultDialer.Proxy
+	handshakeDone := make(chan error, 1)
+	websocket.DefaultDialer.Proxy = nil
+	websocket.DefaultDialer.NetDialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+		clientConnection, serverConnection := net.Pipe()
+		if err := serverConnection.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			_ = clientConnection.Close()
+			_ = serverConnection.Close()
+			return nil, err
+		}
+		go func() { handshakeDone <- serveDoctorWebSocketHandshake(serverConnection) }()
+		return clientConnection, nil
+	}
+	t.Cleanup(func() {
+		websocket.DefaultDialer.NetDialContext = originalNetDial
+		websocket.DefaultDialer.Proxy = originalProxy
+	})
 
-	result, err := runDoctor(t.Context(), doctorOptions{
-		BaseURL: server.URL, Username: "admin", Password: "a1234567", ExpectedTargets: 7,
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	result, err := runDoctor(ctx, doctorOptions{
+		BaseURL: "http://cloudview.test", Username: "admin", Password: "a1234567", ExpectedTargets: 7,
 		WebSocketPath: "/ws", GateToken: "gate-secret",
 	})
 	if err != nil {
@@ -99,31 +126,60 @@ func TestDoctorProvesCompletePublicObservationSurface(t *testing.T) {
 	if !result.Manager || !result.Demo || !result.RouteRewrite || !result.WebSocket || result.PrometheusTargetsUp != 7 {
 		t.Fatalf("doctor result = %#v", result)
 	}
+	select {
+	case err := <-handshakeDone:
+		if err != nil {
+			t.Fatalf("in-memory WebSocket handshake: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("in-memory WebSocket handshake did not finish: %v", ctx.Err())
+	}
 }
 
-func serverURL(request *http.Request) string {
-	return "http://" + request.Host
+func serveDoctorWebSocketHandshake(connection net.Conn) error {
+	defer connection.Close()
+	request, err := http.ReadRequest(bufio.NewReader(connection))
+	if err != nil {
+		return err
+	}
+	if request.URL.Path != "/ws" || request.Header.Get(cloudview.GateProbeHeader) != "gate-secret" {
+		return fmt.Errorf("unexpected WebSocket request path=%q headers=%v", request.URL.Path, request.Header)
+	}
+	digest := sha1.Sum([]byte(request.Header.Get("Sec-WebSocket-Key") + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	if _, err := fmt.Fprintf(connection, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", base64.StdEncoding.EncodeToString(digest[:])); err != nil {
+		return err
+	}
+	buffer := make([]byte, 1)
+	_, err = connection.Read(buffer)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	return nil
 }
 
 func TestAnnotateReportPersistsBenchmarkPurity(t *testing.T) {
 	directory := t.TempDir()
 	reportPath := filepath.Join(directory, "report.json")
-	statusServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	originalTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/cloud-view/status" {
-			http.NotFound(w, r)
-			return
+			return response(http.StatusNotFound, ""), nil
 		}
-		_ = json.NewEncoder(w).Encode(cloudViewStatus{
+		body, err := json.Marshal(cloudViewStatus{
 			State:              cloudviewstate.State{RunID: "run-1", OperatorModified: true, UpdatedAt: time.Now().UTC()},
 			PersistenceHealthy: true,
 		})
-	}))
-	t.Cleanup(statusServer.Close)
+		if err != nil {
+			return nil, err
+		}
+		return response(http.StatusOK, string(body)), nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
 	if err := os.WriteFile(reportPath, []byte(`{"run_id":"run-1","status":"pass","counter":18446744073709551615}`), 0o640); err != nil {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	if code := execute([]string{"annotate-report", "--status-url", statusServer.URL + "/cloud-view/status", "--report", reportPath}, &stdout, &stderr); code != 0 {
+	if code := execute([]string{"annotate-report", "--status-url", "http://127.0.0.1/cloud-view/status", "--report", reportPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("annotate-report code=%d stderr=%q", code, stderr.String())
 	}
 	var report struct {
@@ -155,7 +211,7 @@ func TestAnnotateReportWritesFailClosedPurityWhenStatusUnavailable(t *testing.T)
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	code := execute([]string{"annotate-report", "--status-url", "http://127.0.0.1:1/cloud-view/status", "--report", reportPath}, &stdout, &stderr)
+	code := execute([]string{"annotate-report", "--status-url", "https://127.0.0.1/cloud-view/status", "--report", reportPath}, &stdout, &stderr)
 	if code == 0 {
 		t.Fatal("annotate-report succeeded without live Cloud View status")
 	}

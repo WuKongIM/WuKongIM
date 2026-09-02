@@ -462,21 +462,29 @@ func validCreateRequest(now time.Time, maxCost int64) CreateRequest {
 }
 
 type providerStub struct {
-	authority             ProviderAuthority
-	authorityErr          error
-	quote                 Quote
-	inventory             []Run
-	status                Run
-	statusErr             error
-	created               CreateRequest
-	quoteCalls            int
-	createCalls           int
-	openCalls             int
-	closeDeploymentCalls  []string
-	closeAnalysisCalls    []string
-	closeObservationCalls []string
-	destroyed             []string
-	discoveryCalls        []string
+	authority              ProviderAuthority
+	authorityErr           error
+	quote                  Quote
+	quoteErr               error
+	inventory              []Run
+	inventoryErr           error
+	status                 Run
+	statusErr              error
+	createErr              error
+	created                CreateRequest
+	quoteCalls             int
+	createCalls            int
+	openCalls              int
+	statusCalls            []string
+	closeDeploymentCalls   []string
+	closeAnalysisCalls     []string
+	closeObservationCalls  []string
+	closeDeploymentErrors  map[string]error
+	closeAnalysisErrors    map[string]error
+	closeObservationErrors map[string]error
+	destroyErrors          map[string]error
+	destroyed              []string
+	discoveryCalls         []string
 }
 
 func (p *providerStub) Name() string { return "fake" }
@@ -491,16 +499,19 @@ func (p *providerStub) Authority(context.Context) (ProviderAuthority, error) {
 
 func (p *providerStub) Inventory(context.Context) ([]Run, error) {
 	p.discoveryCalls = append(p.discoveryCalls, "inventory")
-	return append([]Run(nil), p.inventory...), nil
+	return append([]Run(nil), p.inventory...), p.inventoryErr
 }
 
 func (p *providerStub) Quote(context.Context, CreateRequest) (Quote, error) {
 	p.quoteCalls++
-	return p.quote, nil
+	return p.quote, p.quoteErr
 }
 
 func (p *providerStub) Create(_ context.Context, req CreateRequest, quote Quote) (Run, error) {
 	p.createCalls++
+	if p.createErr != nil {
+		return Run{}, p.createErr
+	}
 	p.created = req
 	p.status = Run{
 		ID: req.RunID, Provider: req.Provider, Region: req.Region, AccountIDHash: req.AccountIDHash,
@@ -509,7 +520,10 @@ func (p *providerStub) Create(_ context.Context, req CreateRequest, quote Quote)
 	return p.status, nil
 }
 
-func (p *providerStub) Status(context.Context, string) (Run, error) { return p.status, p.statusErr }
+func (p *providerStub) Status(_ context.Context, runID string) (Run, error) {
+	p.statusCalls = append(p.statusCalls, runID)
+	return p.status, p.statusErr
+}
 
 func (p *providerStub) Transition(_ context.Context, req TransitionRequest) (Run, error) {
 	p.status.State = req.Next
@@ -524,6 +538,9 @@ func (p *providerStub) OpenDeployment(_ context.Context, req OpenDeploymentReque
 
 func (p *providerStub) CloseDeployment(_ context.Context, runID string) (Run, error) {
 	p.closeDeploymentCalls = append(p.closeDeploymentCalls, runID)
+	if err := p.closeDeploymentErrors[runID]; err != nil {
+		return Run{}, err
+	}
 	p.status.DeploymentWindow = nil
 	return p.status, nil
 }
@@ -536,6 +553,9 @@ func (p *providerStub) OpenAnalysis(_ context.Context, req OpenAnalysisRequest) 
 
 func (p *providerStub) CloseAnalysis(_ context.Context, runID string) (Run, error) {
 	p.closeAnalysisCalls = append(p.closeAnalysisCalls, runID)
+	if err := p.closeAnalysisErrors[runID]; err != nil {
+		return Run{}, err
+	}
 	p.status.AnalysisWindow = nil
 	return p.status, nil
 }
@@ -547,11 +567,17 @@ func (p *providerStub) OpenPublicView(_ context.Context, req OpenPublicViewReque
 
 func (p *providerStub) ClosePublicView(_ context.Context, runID string) (Run, error) {
 	p.closeObservationCalls = append(p.closeObservationCalls, runID)
+	if err := p.closeObservationErrors[runID]; err != nil {
+		return Run{}, err
+	}
 	p.status.PublicViewWindow = nil
 	return p.status, nil
 }
 
 func (p *providerStub) Destroy(_ context.Context, runID string) (Run, error) {
 	p.destroyed = append(p.destroyed, runID)
+	if err := p.destroyErrors[runID]; err != nil {
+		return Run{}, err
+	}
 	return Run{ID: runID, State: StateReleased}, nil
 }

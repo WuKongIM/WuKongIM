@@ -183,6 +183,32 @@ func TestChannelAppendClientForwardsRemoteResultsWithoutInterpretation(t *testin
 	}
 }
 
+func TestChannelAppendClientFailsWholeRemoteBatchBeforeTransport(t *testing.T) {
+	t.Parallel()
+
+	items := []channelappend.SendBatchItem{{}, {}}
+	var client *ChannelAppendClient
+	results := client.ForwardSendBatch(context.Background(), channelappend.AuthorityTarget{}, items)
+	if len(results) != len(items) {
+		t.Fatalf("unwired result count = %d, want %d", len(results), len(items))
+	}
+	for index, result := range results {
+		if !errors.Is(result.Err, channelappend.ErrRouteNotReady) {
+			t.Fatalf("unwired result[%d] error = %v, want %v", index, result.Err, channelappend.ErrRouteNotReady)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client = NewChannelAppendClient(nil, &channelAppendRemoteForTest{}, nil)
+	results = client.ForwardSendBatch(ctx, channelappend.AuthorityTarget{}, items)
+	for index, result := range results {
+		if !errors.Is(result.Err, context.Canceled) {
+			t.Fatalf("canceled result[%d] error = %v, want %v", index, result.Err, context.Canceled)
+		}
+	}
+}
+
 func TestChannelAppendClientInvalidatesExactFailedAuthority(t *testing.T) {
 	id := channelappend.ChannelID{ID: "stale", Type: 2}
 	node := &channelAppendNodeForTest{}

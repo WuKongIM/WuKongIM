@@ -62,3 +62,80 @@ func TestPresenceDirectoryAuthorityFailsClosedWithoutDirectory(t *testing.T) {
 		t.Fatalf("canceled result = %#v, want context canceled", results)
 	}
 }
+
+func TestPresenceDirectoryAuthorityPreservesPendingCommitAbortAndOwnerFenceLifecycle(t *testing.T) {
+	t.Parallel()
+
+	directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: 1, ShardCount: 4})
+	target := presenceusecase.RouteTarget{
+		HashSlot: 7, SlotID: 3, LeaderNodeID: 1, LeaderTerm: 9,
+		ConfigEpoch: 4, RouteRevision: 12, AuthorityEpoch: 2,
+	}
+	directory.BecomeAuthority(target)
+	authority := NewPresenceDirectoryAuthority(directory)
+	first := presenceusecase.Route{
+		UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10,
+		DeviceID: "old", DeviceFlag: 1, DeviceLevel: 1, LastSeenUnix: 100,
+	}
+	if result, err := authority.RegisterRoute(context.Background(), target, first); err != nil || result.PendingToken != "" {
+		t.Fatalf("RegisterRoute(first) = %#v err=%v", result, err)
+	}
+
+	routes, err := authority.EndpointsByUID(context.Background(), target, "u1")
+	if err != nil || len(routes) != 1 || routes[0].SessionID != 10 {
+		t.Fatalf("EndpointsByUID(first) = %#v err=%v", routes, err)
+	}
+	routes, err = authority.EndpointsByUIDs(context.Background(), target, []string{"u1", "missing"})
+	if err != nil || len(routes) != 1 || routes[0].SessionID != 10 {
+		t.Fatalf("EndpointsByUIDs() = %#v err=%v", routes, err)
+	}
+
+	touched := first
+	touched.LastSeenUnix = 200
+	if err := authority.TouchRoutes(context.Background(), target, []presenceusecase.Route{touched}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+	routes, err = authority.EndpointsByUID(context.Background(), target, "u1")
+	if err != nil || len(routes) != 1 || routes[0].LastSeenUnix != 200 {
+		t.Fatalf("EndpointsByUID(touched) = %#v err=%v", routes, err)
+	}
+
+	incoming := presenceusecase.Route{
+		UID: "u1", OwnerNodeID: 3, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20,
+		DeviceID: "new", DeviceFlag: 1, DeviceLevel: 1, LastSeenUnix: 300,
+	}
+	pending, err := authority.RegisterRoute(context.Background(), target, incoming)
+	if err != nil || pending.PendingToken == "" || len(pending.Actions) != 1 {
+		t.Fatalf("RegisterRoute(conflict) = %#v err=%v", pending, err)
+	}
+	if err := authority.AbortRoute(context.Background(), target, string(pending.PendingToken)); err != nil {
+		t.Fatalf("AbortRoute() error = %v", err)
+	}
+	routes, err = authority.EndpointsByUID(context.Background(), target, "u1")
+	if err != nil || len(routes) != 1 || routes[0].SessionID != 10 {
+		t.Fatalf("EndpointsByUID(after abort) = %#v err=%v", routes, err)
+	}
+
+	pending, err = authority.RegisterRoute(context.Background(), target, incoming)
+	if err != nil || pending.PendingToken == "" {
+		t.Fatalf("RegisterRoute(second conflict) = %#v err=%v", pending, err)
+	}
+	if err := authority.CommitRoute(context.Background(), target, string(pending.PendingToken)); err != nil {
+		t.Fatalf("CommitRoute() error = %v", err)
+	}
+	routes, err = authority.EndpointsByUID(context.Background(), target, "u1")
+	if err != nil || len(routes) != 1 || routes[0].SessionID != 20 {
+		t.Fatalf("EndpointsByUID(after commit) = %#v err=%v", routes, err)
+	}
+
+	identity := presenceusecase.RouteIdentity{
+		UID: incoming.UID, OwnerNodeID: incoming.OwnerNodeID, OwnerBootID: incoming.OwnerBootID, SessionID: incoming.SessionID,
+	}
+	if err := authority.UnregisterRoute(context.Background(), target, identity, incoming.OwnerSeq); err != nil {
+		t.Fatalf("UnregisterRoute() error = %v", err)
+	}
+	routes, err = authority.EndpointsByUID(context.Background(), target, "u1")
+	if err != nil || len(routes) != 0 {
+		t.Fatalf("EndpointsByUID(after unregister) = %#v err=%v", routes, err)
+	}
+}

@@ -301,23 +301,48 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 	if !ok {
 		return permissionBatchErrorResults(results, clusterpkg.ErrRouteNotReady)
 	}
-	proxyReads := make([]slotproxy.PermissionMetadataRead, len(reads))
+	proxyReads := make([]slotproxy.PermissionMetadataRead, 0, len(reads))
+	var resultIndexes []int
 	for i, read := range reads {
 		kind, ok := permissionReadKindToProxy(read.Kind)
 		if !ok {
 			results[i].Err = metadb.ErrInvalidArgument
+			if resultIndexes == nil {
+				resultIndexes = make([]int, len(proxyReads), len(reads)-1)
+				for proxyIndex := range resultIndexes {
+					resultIndexes[proxyIndex] = proxyIndex
+				}
+			}
 			continue
 		}
-		proxyReads[i] = slotproxy.PermissionMetadataRead{
+		proxyReads = append(proxyReads, slotproxy.PermissionMetadataRead{
 			Kind: kind, ChannelID: read.ChannelID, ChannelType: read.ChannelType, UID: read.UID,
+		})
+		if resultIndexes != nil {
+			resultIndexes = append(resultIndexes, i)
 		}
 	}
-	proxyResults := node.ReadPermissionMetadataBatchAuthoritative(ctx, proxyReads)
-	if len(proxyResults) != len(results) {
-		return permissionBatchErrorResults(results, fmt.Errorf("permission metadata batch returned %d results for %d reads", len(proxyResults), len(results)))
+	if len(proxyReads) == 0 {
+		return results
 	}
-	for i, result := range proxyResults {
-		results[i] = messageusecase.PermissionReadResult{
+	proxyResults := node.ReadPermissionMetadataBatchAuthoritative(ctx, proxyReads)
+	if len(proxyResults) != len(proxyReads) {
+		err := mapChannelPermissionReadError(fmt.Errorf("permission metadata batch returned %d results for %d reads", len(proxyResults), len(proxyReads)))
+		for proxyIndex := range proxyReads {
+			resultIndex := proxyIndex
+			if resultIndexes != nil {
+				resultIndex = resultIndexes[proxyIndex]
+			}
+			results[resultIndex].Err = err
+		}
+		return results
+	}
+	for proxyIndex, result := range proxyResults {
+		resultIndex := proxyIndex
+		if resultIndexes != nil {
+			resultIndex = resultIndexes[proxyIndex]
+		}
+		results[resultIndex] = messageusecase.PermissionReadResult{
 			Channel: result.Channel,
 			Found:   result.Found,
 			Value:   result.Value,

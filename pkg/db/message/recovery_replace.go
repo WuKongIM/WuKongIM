@@ -204,6 +204,7 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 	if present && req.KeepThrough < retention.LocalRetentionThroughSeq {
 		return recoveryReplaceError(channel.ErrCorruptState), channel.ErrCorruptState
 	}
+	var retainedProposal durableProposalRecord
 	if req.KeepThrough > 0 {
 		proposal, present, loadErr := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, req.KeepThrough)
 		if loadErr != nil || !present || proposal.manifest.LastOffset != req.KeepThrough {
@@ -213,9 +214,10 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 			err = toChannelError(loadErr)
 			return recoveryReplaceError(err), err
 		}
+		retainedProposal = proposal
 	}
 
-	prepared, finalOffset, err := s.prepareRecoveryReplacementLocked(ctx, req)
+	prepared, finalOffset, err := s.prepareRecoveryReplacementLocked(ctx, req, retainedProposal)
 	if err != nil {
 		err = toChannelError(err)
 		return recoveryReplaceError(err), err
@@ -330,42 +332,77 @@ func (s *ChannelStore) loadDurableFrontierLocked(ctx context.Context) (DurableFr
 	return frontier, checkpoint, nil
 }
 
-func (s *ChannelStore) prepareRecoveryReplacementLocked(ctx context.Context, req ReplaceRecoverySuffixRequest) (preparedCommitRows, uint64, error) {
+// recoverySuffixChain owns the retained-boundary proof and the topology of one
+// replacement suffix. It admits each proposal once, in order, so recovery
+// cannot skip an offset, forge a predecessor, or reuse a proposal identity.
+type recoverySuffixChain struct {
+	lastOffset     uint64
+	previousTerm   uint64
+	previousDigest quorumlog.EntryDigest
+	seenCommands   map[quorumlog.CommandID]struct{}
+}
+
+func newRecoverySuffixChain(keepThrough uint64, retainedProposal durableProposalRecord, retainedTail quorumlog.EntryIdentity, proposalCount int) (recoverySuffixChain, error) {
+	chain := recoverySuffixChain{
+		lastOffset:   keepThrough,
+		seenCommands: make(map[quorumlog.CommandID]struct{}, proposalCount),
+	}
+	if keepThrough == 0 {
+		return chain, nil
+	}
+	if retainedProposal.manifest.LastOffset != keepThrough || !durableProposalTailConsistent(retainedProposal, retainedTail) {
+		return recoverySuffixChain{}, dberrors.ErrCorruptState
+	}
+	chain.previousTerm = retainedTail.LeaderTerm
+	chain.previousDigest = retainedTail.Digest
+	return chain, nil
+}
+
+func (c *recoverySuffixChain) admit(manifest DurableProposalManifest, recordCount int) error {
+	if err := validateDurableProposalManifest(manifest, c.lastOffset, recordCount); err != nil {
+		return err
+	}
+	if manifest.PreviousIndex != c.lastOffset || manifest.PreviousTerm != c.previousTerm ||
+		manifest.PreviousDigest != c.previousDigest {
+		return dberrors.ErrConflict
+	}
+	if _, duplicate := c.seenCommands[manifest.CommandID]; duplicate {
+		return dberrors.ErrConflict
+	}
+	c.seenCommands[manifest.CommandID] = struct{}{}
+	c.lastOffset = manifest.LastOffset
+	c.previousTerm = manifest.LeaderTerm
+	c.previousDigest = manifest.Digest
+	return nil
+}
+
+func (s *ChannelStore) prepareRecoveryReplacementLocked(ctx context.Context, req ReplaceRecoverySuffixRequest, retainedProposal durableProposalRecord) (preparedCommitRows, uint64, error) {
 	prepared := preparedCommitRows{store: s, baseOffset: req.KeepThrough, nextLEO: req.KeepThrough}
-	base := req.KeepThrough
-	var previous quorumlog.EntryIdentity
-	if base > 0 {
-		identity, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, base)
+	var retainedTail quorumlog.EntryIdentity
+	if req.KeepThrough > 0 {
+		identity, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, req.KeepThrough)
 		if err != nil || !present {
 			if err == nil {
 				err = dberrors.ErrCorruptState
 			}
 			return preparedCommitRows{}, 0, err
 		}
-		previous = identity
+		retainedTail = identity
+	}
+	chain, err := newRecoverySuffixChain(req.KeepThrough, retainedProposal, retainedTail, len(req.Proposals))
+	if err != nil {
+		return preparedCommitRows{}, 0, err
 	}
 	seen := newAppendValidationSeen(recoveryRecordCount(req.Proposals))
-	seenCommands := make(map[quorumlog.CommandID]struct{}, len(req.Proposals))
-	seenLast := make(map[uint64]struct{}, len(req.Proposals))
 	for _, proposal := range req.Proposals {
 		manifest := proposal.Manifest
-		if err := validateDurableProposalManifest(manifest, base, len(proposal.Records)); err != nil {
+		if err := chain.admit(manifest, len(proposal.Records)); err != nil {
 			return preparedCommitRows{}, 0, err
-		}
-		if manifest.PreviousIndex != previous.Index || manifest.PreviousTerm != previous.LeaderTerm ||
-			manifest.PreviousDigest != previous.Digest {
-			return preparedCommitRows{}, 0, dberrors.ErrConflict
-		}
-		if _, duplicate := seenCommands[manifest.CommandID]; duplicate {
-			return preparedCommitRows{}, 0, dberrors.ErrConflict
-		}
-		if _, duplicate := seenLast[manifest.LastOffset]; duplicate {
-			return preparedCommitRows{}, 0, dberrors.ErrConflict
 		}
 		if err := s.validateRecoveryProposalKeyReuse(manifest, req.KeepThrough); err != nil {
 			return preparedCommitRows{}, 0, err
 		}
-		rows, err := compatibilityRowsFromRecords(base+1, proposal.Records)
+		rows, err := compatibilityRowsFromRecords(manifest.BaseOffset+1, proposal.Records)
 		if err != nil {
 			return preparedCommitRows{}, 0, err
 		}
@@ -379,13 +416,9 @@ func (s *ChannelStore) prepareRecoveryReplacementLocked(ctx context.Context, req
 		prepared.rows = append(prepared.rows, rows...)
 		prepared.proposals = append(prepared.proposals, durableProposalRecord{manifest: manifest})
 		prepared.entries = append(prepared.entries, entries...)
-		seenCommands[manifest.CommandID] = struct{}{}
-		seenLast[manifest.LastOffset] = struct{}{}
-		previous = entries[len(entries)-1]
-		base = manifest.LastOffset
 	}
-	prepared.nextLEO = base
-	return prepared, base, nil
+	prepared.nextLEO = chain.lastOffset
+	return prepared, chain.lastOffset, nil
 }
 
 func (s *ChannelStore) validateRecoveryProposalKeyReuse(manifest DurableProposalManifest, keepThrough uint64) error {

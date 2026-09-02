@@ -132,6 +132,13 @@ func loadConfig(path string, getenv func(string) string) (fileConfig, error) {
 		return fileConfig{}, err
 	}
 	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return fileConfig{}, err
+	}
+	if info.Size() > maxConfigBytes {
+		return fileConfig{}, errors.New("cloud view config exceeds size limit")
+	}
 	decoder := json.NewDecoder(io.LimitReader(file, maxConfigBytes+1))
 	decoder.DisallowUnknownFields()
 	var configured fileConfig

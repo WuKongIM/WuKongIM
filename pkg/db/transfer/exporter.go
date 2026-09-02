@@ -526,8 +526,11 @@ func exportChannelRecord(slot uint16, row metadb.InspectRow) (any, error) {
 		return nil, err
 	}
 	directoryProjectionState, err := rowUint64(row, "directory_projection_state")
-	if err != nil || directoryProjectionState > uint64(metadb.DirectoryProjectionReady) {
-		return nil, fmt.Errorf("invalid directory_projection_state %d", directoryProjectionState)
+	if err != nil {
+		return nil, err
+	}
+	if directoryProjectionState > uint64(metadb.DirectoryProjectionReady) {
+		return nil, fmt.Errorf("%w: invalid directory_projection_state %d", ErrValidation, directoryProjectionState)
 	}
 	directoryProjectionGeneration, err := rowUint64(row, "directory_projection_generation")
 	if err != nil {
@@ -841,6 +844,9 @@ func rowInt64(row map[string]any, name string) (int64, error) {
 	case int64:
 		return v, nil
 	case uint:
+		if uint64(v) > uint64(^uint64(0)>>1) {
+			return 0, fmt.Errorf("%w: field %q overflows int64", ErrValidation, name)
+		}
 		return int64(v), nil
 	case uint8:
 		return int64(v), nil
@@ -849,6 +855,9 @@ func rowInt64(row map[string]any, name string) (int64, error) {
 	case uint32:
 		return int64(v), nil
 	case uint64:
+		if v > uint64(^uint64(0)>>1) {
+			return 0, fmt.Errorf("%w: field %q overflows int64", ErrValidation, name)
+		}
 		return int64(v), nil
 	default:
 		return 0, fmt.Errorf("%w: field %q is %T, want int64", ErrValidation, name, value)

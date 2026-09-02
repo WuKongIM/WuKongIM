@@ -31,6 +31,8 @@ func TestConversationStoreListsMembershipDirectoryAndHydratesOneAlignedBatch(t *
 		},
 	}
 	store := NewConversationStore(node)
+	require.True(t, store.SupportsMembershipDirectory())
+	require.False(t, (*ConversationStore)(nil).SupportsMembershipDirectory())
 
 	rows, cursor, done, err := store.ListUserChannelMembershipPage(context.Background(), "u1", metadb.UserChannelMembershipCursor{}, 2)
 	require.NoError(t, err)

@@ -171,11 +171,12 @@ func (w *Watcher) Start(ctx context.Context) error {
 	})
 	w.watcher = watcher
 	w.cancel = cancel
-	w.done = make(chan struct{})
+	done := make(chan struct{})
+	w.done = done
 	w.debouncer = debouncer
 	w.started = true
 	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginWatcher, func() {
-		w.run(watchCtx, watcher, debouncer, w.done)
+		w.run(watchCtx, watcher, debouncer, done)
 	})
 	return nil
 }

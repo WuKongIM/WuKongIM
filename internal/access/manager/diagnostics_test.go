@@ -247,3 +247,50 @@ func TestManagerDiagnosticsTrackingRoutesRequireWritePermission(t *testing.T) {
 		t.Fatalf("tracking create request = %#v, want node 2 sender u1 ttl 60 sample 1", received)
 	}
 }
+
+func TestManagerDiagnosticsMessageSupportsExactlyOneStableSelector(t *testing.T) {
+	var received managementusecase.DiagnosticsQueryRequest
+	srv := New(Options{Management: managerNodesStub{diagnosticsReqSink: &received}})
+
+	client := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(client, httptest.NewRequest(http.MethodGet, "/manager/diagnostics/message?client_msg_no=client-a&node_id=2&limit=40", nil))
+	if client.Code != http.StatusOK {
+		t.Fatalf("client selector status=%d body=%s", client.Code, client.Body.String())
+	}
+	if received.NodeID != 2 || received.Query.ClientMsgNo != "client-a" || received.Query.Limit != 40 || received.Query.ChannelKey != "" {
+		t.Fatalf("client selector request = %#v", received)
+	}
+
+	received = managementusecase.DiagnosticsQueryRequest{}
+	channel := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(channel, httptest.NewRequest(http.MethodGet, "/manager/diagnostics/message?channel_key=room-a%3A2&message_seq=18446744073709551615", nil))
+	if channel.Code != http.StatusOK {
+		t.Fatalf("channel selector status=%d body=%s", channel.Code, channel.Body.String())
+	}
+	if received.Query.ChannelKey != "room-a:2" || received.Query.MessageSeq != ^uint64(0) || received.Query.ClientMsgNo != "" {
+		t.Fatalf("channel selector request = %#v", received)
+	}
+}
+
+func TestManagerDiagnosticsMessageRejectsAmbiguousOrIncompleteSelector(t *testing.T) {
+	var received managementusecase.DiagnosticsQueryRequest
+	srv := New(Options{Management: managerNodesStub{diagnosticsReqSink: &received}})
+	paths := []string{
+		"/manager/diagnostics/message",
+		"/manager/diagnostics/message?channel_key=room-a%3A2",
+		"/manager/diagnostics/message?message_seq=1",
+		"/manager/diagnostics/message?channel_key=room-a%3A2&message_seq=0",
+		"/manager/diagnostics/message?channel_key=room-a%3A2&message_seq=bad",
+		"/manager/diagnostics/message?client_msg_no=client-a&channel_key=room-a%3A2&message_seq=1",
+	}
+	for _, path := range paths {
+		recorder := httptest.NewRecorder()
+		srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("path=%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+	if received.Query.ClientMsgNo != "" || received.Query.ChannelKey != "" {
+		t.Fatalf("management called for rejected selector: %#v", received)
+	}
+}

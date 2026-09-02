@@ -209,6 +209,8 @@ func (l *WKProto) encodeFrameWithWriter(w Writer, f frame.Frame, version uint8) 
 		packet := f.(*frame.EventPacket)
 		l.encodeFrame(packet, enc, uint32(encodeEventSize(packet, version)))
 		err = encodeEvent(packet, enc, version)
+	default:
+		return fmt.Errorf("不支持对[%s]包的编码！", frameType)
 	}
 	if err != nil {
 		return err
@@ -297,6 +299,9 @@ func (l *WKProto) encodeFrame(f frame.Frame, enc *Encoder, remainingLength uint3
 //		return append(header, varHeader...), nil
 //	}
 func (l *WKProto) decodeFramer(data []byte) (frame.Framer, int, error) {
+	if len(data) == 0 {
+		return frame.Framer{}, 0, errDecodeLength
+	}
 	typeAndFlags := data[0]
 	p := FramerFromUint8(typeAndFlags)
 	var remainingLengthLength uint32 = 0 // 剩余长度的长度

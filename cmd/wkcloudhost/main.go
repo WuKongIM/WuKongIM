@@ -29,6 +29,19 @@ type installOptions struct {
 	noSystemd         bool
 }
 
+type commandRunner func(string, ...string) error
+type commandOutput func(string, ...string) ([]byte, error)
+
+// dataDiskOps isolates the host operating-system boundary used while preparing one run disk.
+type dataDiskOps struct {
+	stat        func(string) (fs.FileInfo, error)
+	output      commandOutput
+	run         commandRunner
+	mkdirAll    func(string, fs.FileMode) error
+	readDir     func(string) ([]fs.DirEntry, error)
+	appendFstab func(string, string) error
+}
+
 func main() { os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr)) }
 
 func execute(args []string, stdout, stderr io.Writer) int {
@@ -73,6 +86,9 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 func installBundle(options installOptions) (deploy.Manifest, error) {
 	if !validRole(options.role) || strings.TrimSpace(options.envDir) == "" || strings.TrimSpace(options.rootPrefix) == "" {
 		return deploy.Manifest{}, deploy.ErrInvalidBundle
+	}
+	if !options.noSystemd && options.rootPrefix != "/" {
+		return deploy.Manifest{}, errors.New("--no-systemd is required with --root-prefix")
 	}
 	manifest, err := deploy.Verify(options.bundleRoot)
 	if err != nil {
@@ -159,9 +175,6 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 		}
 	}
 	if !options.noSystemd {
-		if options.rootPrefix != "/" {
-			return deploy.Manifest{}, errors.New("--no-systemd is required with --root-prefix")
-		}
 		if err := startRoleServices(options.role, options.publicObservation); err != nil {
 			return deploy.Manifest{}, err
 		}
@@ -192,7 +205,11 @@ func selectedUnits(bundleRoot, role string, publicObservation bool) map[string]s
 }
 
 func startRoleServices(role string, publicObservation bool) error {
-	if err := runCommand("systemctl", "daemon-reload"); err != nil {
+	return startRoleServicesWithRunner(role, publicObservation, runCommand)
+}
+
+func startRoleServicesWithRunner(role string, publicObservation bool, run commandRunner) error {
+	if err := run("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
 	names := []string{"node-exporter.service"}
@@ -205,42 +222,61 @@ func startRoleServices(role string, publicObservation bool) error {
 		}
 	}
 	args := append([]string{"enable", "--now"}, names...)
-	return runCommand("systemctl", args...)
+	return run("systemctl", args...)
 }
 
 func ensureServiceUser() error {
-	if err := exec.Command("id", "-u", "wukongim").Run(); err == nil {
+	probe := func(name string, args ...string) error { return exec.Command(name, args...).Run() }
+	return ensureServiceUserWithRunner(probe, runCommand)
+}
+
+func ensureServiceUserWithRunner(probe, run commandRunner) error {
+	if err := probe("id", "-u", "wukongim"); err == nil {
 		return nil
 	}
-	return runCommand("useradd", "--system", "--home", "/var/lib/wukongim-cloud", "--shell", "/usr/sbin/nologin", "wukongim")
+	return run("useradd", "--system", "--home", "/var/lib/wukongim-cloud", "--shell", "/usr/sbin/nologin", "wukongim")
 }
 
 func prepareDataDisk(device string) error {
+	ops := dataDiskOps{
+		stat: os.Stat,
+		output: func(name string, args ...string) ([]byte, error) {
+			return exec.Command(name, args...).Output()
+		},
+		run:         runCommand,
+		mkdirAll:    os.MkdirAll,
+		readDir:     os.ReadDir,
+		appendFstab: appendFstabOnce,
+	}
+	return prepareDataDiskWithOps(device, ops)
+}
+
+func prepareDataDiskWithOps(device string, ops dataDiskOps) error {
 	if !strings.HasPrefix(device, "/dev/") {
 		return errors.New("data device must be under /dev")
 	}
-	info, err := os.Stat(device)
+	info, err := ops.stat(device)
 	if err != nil || info.Mode()&os.ModeDevice == 0 {
 		return errors.New("data device must be an existing block device")
 	}
-	if mount, mounted, err := mountedAt(device); err != nil {
+	if mount, mounted, err := mountedAt(device, ops.output); err != nil {
 		return err
 	} else if mounted {
 		if mount != "/var/lib/wukongim-cloud" {
 			return fmt.Errorf("data device is already mounted at %s", mount)
 		}
-		return ensureDataDiskFstab(device)
+		return ensureDataDiskFstab(device, ops.output, ops.appendFstab)
 	}
-	filesystem, err := exec.Command("blkid", "-s", "TYPE", "-o", "value", device).Output()
+	filesystem, err := ops.output("blkid", "-s", "TYPE", "-o", "value", device)
 	if err != nil {
-		var exitErr *exec.ExitError
+		var exitErr interface{ ExitCode() int }
 		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
 			return fmt.Errorf("inspect data device filesystem: %w", err)
 		}
-		if err := runCommand("mkfs.ext4", "-F", device); err != nil {
+		if err := ops.run("mkfs.ext4", "-F", device); err != nil {
 			return err
 		}
-		filesystem, err = exec.Command("blkid", "-s", "TYPE", "-o", "value", device).Output()
+		filesystem, err = ops.output("blkid", "-s", "TYPE", "-o", "value", device)
 		if err != nil {
 			return fmt.Errorf("verify data device filesystem: %w", err)
 		}
@@ -248,21 +284,21 @@ func prepareDataDisk(device string) error {
 	if strings.TrimSpace(string(filesystem)) != "ext4" {
 		return errors.New("data disk contains an unexpected filesystem")
 	}
-	if err := os.MkdirAll("/var/lib/wukongim-cloud", 0o755); err != nil {
+	if err := ops.mkdirAll("/var/lib/wukongim-cloud", 0o755); err != nil {
 		return err
 	}
-	entries, err := os.ReadDir("/var/lib/wukongim-cloud")
+	entries, err := ops.readDir("/var/lib/wukongim-cloud")
 	if err != nil || len(entries) != 0 {
 		return errors.New("data disk mount point must be empty")
 	}
-	if err := runCommand("mount", "-o", "nodev,nosuid,noatime", device, "/var/lib/wukongim-cloud"); err != nil {
+	if err := ops.run("mount", "-o", "nodev,nosuid,noatime", device, "/var/lib/wukongim-cloud"); err != nil {
 		return err
 	}
-	return ensureDataDiskFstab(device)
+	return ensureDataDiskFstab(device, ops.output, ops.appendFstab)
 }
 
-func mountedAt(device string) (string, bool, error) {
-	output, err := exec.Command("findmnt", "-rn", "-S", device, "-o", "TARGET").Output()
+func mountedAt(device string, command commandOutput) (string, bool, error) {
+	output, err := command("findmnt", "-rn", "-S", device, "-o", "TARGET")
 	if err == nil {
 		mount := strings.TrimSpace(string(output))
 		if mount == "" {
@@ -270,20 +306,20 @@ func mountedAt(device string) (string, bool, error) {
 		}
 		return mount, true, nil
 	}
-	var exitErr *exec.ExitError
+	var exitErr interface{ ExitCode() int }
 	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 		return "", false, nil
 	}
 	return "", false, fmt.Errorf("inspect data device mount: %w", err)
 }
 
-func ensureDataDiskFstab(device string) error {
-	uuidBytes, err := exec.Command("blkid", "-s", "UUID", "-o", "value", device).Output()
+func ensureDataDiskFstab(device string, command commandOutput, appendOnce func(string, string) error) error {
+	uuidBytes, err := command("blkid", "-s", "UUID", "-o", "value", device)
 	if err != nil || strings.TrimSpace(string(uuidBytes)) == "" {
 		return errors.New("data disk UUID is unavailable")
 	}
 	entry := fmt.Sprintf("UUID=%s /var/lib/wukongim-cloud ext4 defaults,nofail,nodev,nosuid,noatime 0 2", strings.TrimSpace(string(uuidBytes)))
-	return appendFstabOnce("/etc/fstab", entry)
+	return appendOnce("/etc/fstab", entry)
 }
 
 func appendFstabOnce(path, entry string) error {

@@ -35,12 +35,42 @@ func TestUserMetadataStoreAdaptsNodeFacade(t *testing.T) {
 	}
 }
 
+func TestUserMetadataStorePreservesPhysicalSlotPageCursor(t *testing.T) {
+	t.Parallel()
+
+	node := &recordingUserMetadataNode{
+		scanUsers: []metadb.User{{UID: "u2"}},
+		scanNext:  metadb.UserCursor{UID: "u2"},
+		scanDone:  false,
+	}
+	store := NewUserMetadataStore(node)
+	after := metadb.UserCursor{UID: "u1"}
+	users, next, done, err := store.ScanUsersSlotPage(context.Background(), 9, after, 50)
+	if err != nil || done || len(users) != 1 || users[0].UID != "u2" || next != node.scanNext {
+		t.Fatalf("ScanUsersSlotPage() = %#v next=%#v done=%v err=%v", users, next, done, err)
+	}
+	if node.scanSlot != 9 || node.scanAfter != after || node.scanLimit != 50 {
+		t.Fatalf("scan args = slot:%d after:%#v limit:%d", node.scanSlot, node.scanAfter, node.scanLimit)
+	}
+}
+
 type recordingUserMetadataNode struct {
 	createdUsers    []metadb.User
 	upsertedDevices []metadb.Device
 	getUserUID      string
 	getDeviceUID    string
 	getDeviceFlag   int64
+	scanUsers       []metadb.User
+	scanNext        metadb.UserCursor
+	scanDone        bool
+	scanSlot        uint32
+	scanAfter       metadb.UserCursor
+	scanLimit       int
+}
+
+func (n *recordingUserMetadataNode) ScanUsersSlotPage(_ context.Context, slotID uint32, after metadb.UserCursor, limit int) ([]metadb.User, metadb.UserCursor, bool, error) {
+	n.scanSlot, n.scanAfter, n.scanLimit = slotID, after, limit
+	return append([]metadb.User(nil), n.scanUsers...), n.scanNext, n.scanDone, nil
 }
 
 func (n *recordingUserMetadataNode) CreateUserMetadata(_ context.Context, user metadb.User) error {

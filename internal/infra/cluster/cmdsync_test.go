@@ -52,6 +52,44 @@ func TestCMDSyncStoreAdvancesCMDMembershipAcks(t *testing.T) {
 	}
 }
 
+func TestCMDSyncStoreClonesDirectoryMutationsAndPreservesTailIdentity(t *testing.T) {
+	t.Parallel()
+
+	node := &cmdSyncNodeFake{mutateMembershipInputs: true, committedTail: 81}
+	store := NewCMDSyncStore(node)
+	upserts := []metadb.UserCMDChannelMembership{{UID: "u1", CommandChannelID: "g1____cmd", ChannelType: 2, StartSeq: 7}}
+	tombstones := []metadb.UserCMDChannelMembership{{UID: "u1", CommandChannelID: "g2____cmd", ChannelType: 3, StartSeq: 9}}
+
+	if err := store.UpsertUserCMDChannelMemberships(context.Background(), upserts); err != nil {
+		t.Fatalf("UpsertUserCMDChannelMemberships() error = %v", err)
+	}
+	if err := store.TombstoneUserCMDChannelMemberships(context.Background(), tombstones); err != nil {
+		t.Fatalf("TombstoneUserCMDChannelMemberships() error = %v", err)
+	}
+	if upserts[0].UID != "u1" || tombstones[0].UID != "u1" {
+		t.Fatalf("caller-owned membership slices mutated: upserts=%#v tombstones=%#v", upserts, tombstones)
+	}
+	if len(node.upserts) != 1 || node.upserts[0].CommandChannelID != "g1____cmd" || len(node.tombstones) != 1 || node.tombstones[0].CommandChannelID != "g2____cmd" {
+		t.Fatalf("forwarded mutations upserts=%#v tombstones=%#v", node.upserts, node.tombstones)
+	}
+
+	tail, err := store.CommandChannelTail(context.Background(), cmdsync.CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2})
+	if err != nil || tail != 81 || node.tailChannelID != "g1____cmd" || node.tailChannelType != 2 {
+		t.Fatalf("CommandChannelTail() = %d args=%q/%d err=%v", tail, node.tailChannelID, node.tailChannelType, err)
+	}
+
+	upsertCalls, tombstoneCalls := node.upsertCalls, node.tombstoneCalls
+	if err := store.UpsertUserCMDChannelMemberships(context.Background(), nil); err != nil {
+		t.Fatalf("UpsertUserCMDChannelMemberships(empty) error = %v", err)
+	}
+	if err := store.TombstoneUserCMDChannelMemberships(context.Background(), nil); err != nil {
+		t.Fatalf("TombstoneUserCMDChannelMemberships(empty) error = %v", err)
+	}
+	if node.upsertCalls != upsertCalls || node.tombstoneCalls != tombstoneCalls {
+		t.Fatalf("empty mutations reached node: upsert=%d tombstone=%d", node.upsertCalls, node.tombstoneCalls)
+	}
+}
+
 func TestCMDMessageReaderReadsCommittedCommandMessages(t *testing.T) {
 	node := &cmdSyncNodeFake{
 		readResult: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
@@ -118,24 +156,34 @@ func TestCMDMessageReaderRejectsDisbandedSourceChannel(t *testing.T) {
 }
 
 type cmdSyncNodeFake struct {
-	rows           []metadb.UserCMDChannelMembership
-	listUID        string
-	listLimit      int
-	acks           []metadb.UserCMDChannelMembership
-	upserts        []metadb.UserCMDChannelMembership
-	tombstones     []metadb.UserCMDChannelMembership
-	lastReadID     channelruntime.ChannelID
-	lastReadReq    channelstore.ReadCommittedRequest
-	readResult     channelstore.ReadCommittedResult
-	readPages      map[uint64]channelstore.ReadCommittedResult
-	readFromSeqs   []uint64
-	batchReadCalls int
-	channel        metadb.Channel
-	channelErr     error
+	rows                   []metadb.UserCMDChannelMembership
+	listUID                string
+	listLimit              int
+	acks                   []metadb.UserCMDChannelMembership
+	upserts                []metadb.UserCMDChannelMembership
+	tombstones             []metadb.UserCMDChannelMembership
+	lastReadID             channelruntime.ChannelID
+	lastReadReq            channelstore.ReadCommittedRequest
+	readResult             channelstore.ReadCommittedResult
+	readPages              map[uint64]channelstore.ReadCommittedResult
+	readFromSeqs           []uint64
+	batchReadCalls         int
+	channel                metadb.Channel
+	channelErr             error
+	mutateMembershipInputs bool
+	upsertCalls            int
+	tombstoneCalls         int
+	committedTail          uint64
+	tailChannelID          string
+	tailChannelType        int64
 }
 
 func (n *cmdSyncNodeFake) UpsertUserCMDChannelMemberships(_ context.Context, memberships []metadb.UserCMDChannelMembership) error {
+	n.upsertCalls++
 	n.upserts = append(n.upserts, memberships...)
+	if n.mutateMembershipInputs && len(memberships) > 0 {
+		memberships[0].UID = "node-mutated"
+	}
 	return nil
 }
 
@@ -159,12 +207,17 @@ func (n *cmdSyncNodeFake) AdvanceUserCMDChannelMembershipAcks(_ context.Context,
 }
 
 func (n *cmdSyncNodeFake) TombstoneUserCMDChannelMemberships(_ context.Context, memberships []metadb.UserCMDChannelMembership) error {
+	n.tombstoneCalls++
 	n.tombstones = append(n.tombstones, memberships...)
+	if n.mutateMembershipInputs && len(memberships) > 0 {
+		memberships[0].UID = "node-mutated"
+	}
 	return nil
 }
 
-func (n *cmdSyncNodeFake) CommittedChannelTail(context.Context, string, int64) (uint64, error) {
-	return 0, nil
+func (n *cmdSyncNodeFake) CommittedChannelTail(_ context.Context, channelID string, channelType int64) (uint64, error) {
+	n.tailChannelID, n.tailChannelType = channelID, channelType
+	return n.committedTail, nil
 }
 
 func (n *cmdSyncNodeFake) GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error) {

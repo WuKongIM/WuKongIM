@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -36,6 +37,17 @@ func main() {
 }
 
 func run(ctx context.Context, stdout, stderr io.Writer, args []string) error {
+	return runWithListener(ctx, stdout, stderr, args, net.Listen)
+}
+
+// runWithListener owns the complete bridge lifecycle while keeping loopback listener creation substitutable in tests.
+func runWithListener(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	args []string,
+	listen func(network, address string) (net.Listener, error),
+) error {
 	flags := flag.NewFlagSet("wkcloudanalysisbridge", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	upstreamValue := flags.String("upstream", "", "exact HTTPS Analysis origin")
@@ -55,7 +67,7 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string) error {
 		return err
 	}
 	handler := newPinnedReverseProxy(upstream, pinned, stderr)
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	listener, err := listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("listen on loopback: %w", err)
 	}
@@ -113,8 +125,12 @@ func readPinnedCertificate(path string) (*x509.Certificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read certificate: %w", err)
 	}
+	contents = bytes.TrimSpace(contents)
+	if !bytes.HasPrefix(contents, []byte("-----BEGIN CERTIFICATE-----")) {
+		return nil, errors.New("certificate file must contain exactly one PEM certificate")
+	}
 	block, rest := pem.Decode(contents)
-	if block == nil || block.Type != "CERTIFICATE" || len(strings.TrimSpace(string(rest))) != 0 {
+	if block == nil || block.Type != "CERTIFICATE" || len(bytes.TrimSpace(rest)) != 0 {
 		return nil, errors.New("certificate file must contain exactly one PEM certificate")
 	}
 	certificate, err := x509.ParseCertificate(block.Bytes)
@@ -125,7 +141,6 @@ func readPinnedCertificate(path string) (*x509.Certificate, error) {
 }
 
 func newPinnedReverseProxy(upstream *url.URL, pinned *x509.Certificate, stderr io.Writer) http.Handler {
-	wantFingerprint := sha256.Sum256(pinned.Raw)
 	hostname := upstream.Hostname()
 	transport := &http.Transport{
 		Proxy:             nil,
@@ -134,19 +149,14 @@ func newPinnedReverseProxy(upstream *url.URL, pinned *x509.Certificate, stderr i
 			MinVersion:         tls.VersionTLS12,
 			ServerName:         hostname,
 			InsecureSkipVerify: true, // Verification below uses the exact authenticated session certificate.
-			VerifyConnection: func(state tls.ConnectionState) error {
-				if len(state.PeerCertificates) == 0 || sha256.Sum256(state.PeerCertificates[0].Raw) != wantFingerprint {
-					return errors.New("upstream certificate fingerprint mismatch")
-				}
-				leaf := state.PeerCertificates[0]
-				now := time.Now().UTC()
-				if now.Before(leaf.NotBefore) || now.After(leaf.NotAfter) {
-					return errors.New("upstream certificate is outside its validity window")
-				}
-				return leaf.VerifyHostname(hostname)
-			},
+			VerifyConnection:   newPinnedCertificateVerifier(hostname, pinned),
 		},
 	}
+	return newReverseProxy(upstream, transport, stderr)
+}
+
+// newReverseProxy applies the bridge's fixed request and error policy over one upstream transport.
+func newReverseProxy(upstream *url.URL, transport http.RoundTripper, stderr io.Writer) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(request *httputil.ProxyRequest) {
 			request.SetURL(upstream)
@@ -164,4 +174,20 @@ func newPinnedReverseProxy(upstream *url.URL, pinned *x509.Certificate, stderr i
 		},
 	}
 	return proxy
+}
+
+// newPinnedCertificateVerifier enforces the exact certificate, validity window, and IP SAN for one Analysis origin.
+func newPinnedCertificateVerifier(hostname string, pinned *x509.Certificate) func(tls.ConnectionState) error {
+	wantFingerprint := sha256.Sum256(pinned.Raw)
+	return func(state tls.ConnectionState) error {
+		if len(state.PeerCertificates) == 0 || sha256.Sum256(state.PeerCertificates[0].Raw) != wantFingerprint {
+			return errors.New("upstream certificate fingerprint mismatch")
+		}
+		leaf := state.PeerCertificates[0]
+		now := time.Now().UTC()
+		if now.Before(leaf.NotBefore) || now.After(leaf.NotAfter) {
+			return errors.New("upstream certificate is outside its validity window")
+		}
+		return leaf.VerifyHostname(hostname)
+	}
 }

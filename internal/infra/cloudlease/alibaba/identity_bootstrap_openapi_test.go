@@ -6,15 +6,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 
 	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
 	ims "github.com/alibabacloud-go/ims-20190815/v4/client"
+	"github.com/alibabacloud-go/tea/dara"
 )
 
 func TestCloudLeaseOIDCFingerprintsIncludePresentedCAChain(t *testing.T) {
@@ -47,18 +47,18 @@ func certificateSHA1Fingerprint(certificate *x509.Certificate) string {
 }
 
 func TestIdentityBootstrapOIDCReadDoesNotPanicInsideAlibabaSDK(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusInternalServerError)
 		_, _ = writer.Write([]byte(`{"Code":"InternalError","Message":"test failure","RequestId":"test-request"}`))
-	}))
-	defer server.Close()
+	})
 
 	config := (&openapiutil.Config{}).
 		SetAccessKeyId("test-access-key").
 		SetAccessKeySecret("test-access-secret").
 		SetProtocol("http").
-		SetEndpoint(strings.TrimPrefix(server.URL, "http://"))
+		SetEndpoint("openapi.test").
+		SetHttpClient(openAPITestHTTPClient{handler: handler})
 	client, err := ims.NewClient(config)
 	if err != nil {
 		t.Fatal(err)
@@ -74,5 +74,22 @@ func TestIdentityBootstrapOIDCReadDoesNotPanicInsideAlibabaSDK(t *testing.T) {
 		Name: "wukongim-cloud-lease-github",
 	}); err == nil {
 		t.Fatal("upsertIdentityOIDCProvider accepted the provider failure")
+	}
+}
+
+func TestIdentityBootstrapNotFoundRequiresProviderErrorCode(t *testing.T) {
+	if identityBootstrapNotFound(errors.New("bootstrap endpoint not found")) {
+		t.Fatal("ordinary transport error was treated as proof that identity was deleted")
+	}
+	if !identityBootstrapNotFound(&dara.SDKError{Code: dara.String("EntityNotExist.Role")}) {
+		t.Fatal("Alibaba EntityNotExist code was not recognized as an absent identity")
+	}
+}
+
+func TestIdentitySplitCSVCanonicalizesProviderSets(t *testing.T) {
+	got := identitySplitCSV(" fingerprint-b, fingerprint-a, ,fingerprint-c ")
+	want := []string{"fingerprint-a", "fingerprint-b", "fingerprint-c"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("identitySplitCSV() = %#v, want trimmed provider set %#v", got, want)
 	}
 }

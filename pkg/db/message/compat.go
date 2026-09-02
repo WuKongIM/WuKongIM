@@ -2161,7 +2161,7 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	if err := s.validateDurableProposalPredecessor(manifest, sequencedFresh); err != nil {
 		return preparedCommitRows{}, toChannelError(err)
 	}
-	commandPresent := false
+	proposalDisposition := durableProposalFresh
 	if sequencedFresh {
 		// A current-frontier extension cannot have a durable last-offset or
 		// entry identity above LEO. Allocator-issued globally unique message IDs
@@ -2170,21 +2170,8 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 		// complete paired-index validation below.
 		s.log.db.sequencedExactFreshAppends.Add(1)
 	} else {
-		byCommand, present, err := s.loadDurableProposal(encodeProposalByCommandKey(s.log.key, manifest.CommandID))
+		proposalDisposition, err = inspectDurableProposal(s.log.db.engine, s.log.key, proposal, entries)
 		if err != nil {
-			return preparedCommitRows{}, toChannelError(err)
-		}
-		commandPresent = present
-		byLast, lastPresent, err := s.loadDurableProposal(encodeProposalByLastKey(s.log.key, manifest.LastOffset))
-		if err != nil {
-			return preparedCommitRows{}, toChannelError(err)
-		}
-		if commandPresent || lastPresent {
-			if !commandPresent || !lastPresent || !sameDurableProposal(byCommand, proposal) || !sameDurableProposal(byLast, proposal) {
-				return preparedCommitRows{}, channel.ErrCorruptState
-			}
-		}
-		if err := s.validateDurableEntrySet(entries, commandPresent); err != nil {
 			return preparedCommitRows{}, toChannelError(err)
 		}
 	}
@@ -2199,7 +2186,7 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	if err := s.prepareExactCheckpointLocked(ctx, committed, nextLEO, max(base, nextLEO), &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
-	if commandPresent {
+	if proposalDisposition == durableProposalAlreadyPresent {
 		if base < nextLEO {
 			return preparedCommitRows{}, channel.ErrCorruptState
 		}

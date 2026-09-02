@@ -87,6 +87,61 @@ func TestOpsMCPRPCRejectsProfileWhenCallerIsNotConfiguredOwner(t *testing.T) {
 	}
 }
 
+func TestOpsMCPAuditRPCFailsClosedOnIdentityAndPageBounds(t *testing.T) {
+	t.Run("invalid client limits never reach reader", func(t *testing.T) {
+		reader := &nodeRPCAuditReader{}
+		client := NewClient(&opsMCPRPCNodeStub{
+			handler: NewOpsMCPRPCAdapter(nil, nil, reader),
+			nodeID:  1,
+		})
+
+		for _, limit := range []int{0, opscontract.MaxAuditEntries + 1} {
+			entries, err := client.ReadOpsMCPAudits(context.Background(), 2, limit)
+			if err == nil {
+				t.Fatalf("ReadOpsMCPAudits(limit=%d) error = nil", limit)
+			}
+			if entries != nil {
+				t.Fatalf("ReadOpsMCPAudits(limit=%d) entries = %#v, want nil", limit, entries)
+			}
+		}
+		if reader.limit != 0 {
+			t.Fatalf("audit reader limit = %d, want no calls", reader.limit)
+		}
+	})
+
+	t.Run("missing caller identity never reaches transport", func(t *testing.T) {
+		node := &opsMCPNoIdentityNode{}
+		entries, err := NewClient(node).ReadOpsMCPAudits(context.Background(), 2, 10)
+		if err == nil {
+			t.Fatal("ReadOpsMCPAudits() error = nil, want caller identity failure")
+		}
+		if entries != nil {
+			t.Fatalf("ReadOpsMCPAudits() entries = %#v, want nil", entries)
+		}
+		if node.calls != 0 {
+			t.Fatalf("transport calls = %d, want none without caller identity", node.calls)
+		}
+	})
+
+	t.Run("oversized server page is rejected", func(t *testing.T) {
+		reader := &nodeRPCAuditReader{
+			entries: make([]opscontract.AuditEntry, opscontract.MaxAuditEntries+1),
+		}
+		client := NewClient(&opsMCPRPCNodeStub{
+			handler: NewOpsMCPRPCAdapter(nil, nil, reader),
+			nodeID:  1,
+		})
+
+		entries, err := client.ReadOpsMCPAudits(context.Background(), 2, opscontract.MaxAuditEntries)
+		if err == nil {
+			t.Fatal("ReadOpsMCPAudits() error = nil, want oversized response failure")
+		}
+		if entries != nil {
+			t.Fatalf("ReadOpsMCPAudits() entries = %d, want nil", len(entries))
+		}
+	})
+}
+
 type opsMCPForwardExecutorStub struct {
 	request opscontract.ForwardRequest
 }
@@ -121,6 +176,20 @@ type opsMCPRPCNodeStub struct {
 	handler *OpsMCPRPCAdapter
 	payload []byte
 	nodeID  uint64
+}
+
+type opsMCPNoIdentityNode struct {
+	calls int
+}
+
+func (n *opsMCPNoIdentityNode) CallRPC(
+	context.Context,
+	uint64,
+	uint8,
+	[]byte,
+) ([]byte, error) {
+	n.calls++
+	return nil, errors.New("unexpected RPC call")
 }
 
 func (n *opsMCPRPCNodeStub) NodeID() uint64 { return n.nodeID }

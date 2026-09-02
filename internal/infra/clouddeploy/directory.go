@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -83,12 +84,19 @@ func (d *Directory) WriteFile(relative string, data []byte, mode uint32) error {
 
 // ReadFile reads one regular file and rejects content over maxBytes.
 func (d *Directory) ReadFile(relative string, maxBytes int64) ([]byte, error) {
+	if maxBytes < 0 {
+		return nil, invalid("negative read bound for %s", relative)
+	}
 	file, err := d.openRegular(relative)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, maxBytes+1))
+	readLimit := maxBytes
+	if readLimit < math.MaxInt64 {
+		readLimit++
+	}
+	data, err := io.ReadAll(io.LimitReader(file, readLimit))
 	if err != nil || int64(len(data)) > maxBytes {
 		return nil, invalid("file %s exceeds bounded read", relative)
 	}
@@ -97,6 +105,9 @@ func (d *Directory) ReadFile(relative string, maxBytes int64) ([]byte, error) {
 
 // ReadPrefix reads exactly bytes from the beginning of one regular file.
 func (d *Directory) ReadPrefix(relative string, bytes int) ([]byte, error) {
+	if bytes < 0 {
+		return nil, invalid("negative prefix length for %s", relative)
+	}
 	file, err := d.openRegular(relative)
 	if err != nil {
 		return nil, err
@@ -111,6 +122,9 @@ func (d *Directory) ReadPrefix(relative string, bytes int) ([]byte, error) {
 
 // Files inventories every regular file and hashes its content in path order.
 func (d *Directory) Files(maxFiles int) ([]clouddeployusecase.FileRecord, error) {
+	if maxFiles < 0 {
+		return nil, invalid("negative file limit")
+	}
 	if err := d.validateRoot(); err != nil {
 		return nil, err
 	}

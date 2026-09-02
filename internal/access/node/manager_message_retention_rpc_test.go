@@ -2,9 +2,12 @@ package node
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestManagerMessageRetentionRPCAdvancesBoundary(t *testing.T) {
@@ -66,6 +69,53 @@ func TestManagerMessageRetentionRPCClientAdvancesBoundary(t *testing.T) {
 	}
 	if node.nodeID != 3 || node.serviceID != ManagerMessageRetentionRPCServiceID {
 		t.Fatalf("rpc target = node:%d service:%d, want node 3 service %d", node.nodeID, node.serviceID, ManagerMessageRetentionRPCServiceID)
+	}
+}
+
+func TestManagerMessageRetentionRPCPreservesStableLeaderAndAvailabilityErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		providerErr error
+		wantErr     error
+	}{
+		{name: "caller canceled", providerErr: context.Canceled, wantErr: context.Canceled},
+		{name: "caller deadline", providerErr: context.DeadlineExceeded, wantErr: context.DeadlineExceeded},
+		{name: "not leader", providerErr: channelappend.ErrNotLeader, wantErr: channelappend.ErrNotLeader},
+		{name: "stale route", providerErr: channelappend.ErrStaleRoute, wantErr: channelappend.ErrStaleRoute},
+		{name: "route not ready", providerErr: channelappend.ErrRouteNotReady, wantErr: channelappend.ErrRouteNotReady},
+		{name: "channel missing", providerErr: channelappend.ErrChannelNotFound, wantErr: metadb.ErrNotFound},
+		{name: "invalid request", providerErr: metadb.ErrInvalidArgument, wantErr: managementusecase.ErrMessageRetentionUnavailable},
+		{name: "operator unavailable", providerErr: managementusecase.ErrMessageRetentionUnavailable, wantErr: managementusecase.ErrMessageRetentionUnavailable},
+	}
+
+	request := managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID: "room-fenced", ChannelType: 2, ThroughSeq: 91, DryRun: true,
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &fakeManagerMessageRetentionService{
+				result: managementusecase.AdvanceMessageRetentionResponse{
+					ChannelID: "must-not-be-accepted", AdvancedThroughSeq: 90,
+				},
+				err: tt.providerErr,
+			}
+			adapter := New(Options{ManagerMessageRetention: service})
+			node := &fakeManagerMessageRetentionRPCNode{handler: adapter.HandleManagerMessageRetentionRPC}
+
+			got, err := NewClient(node).AdvanceManagerMessageRetention(context.Background(), 3, request)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("AdvanceManagerMessageRetention() error = %v, want %v", err, tt.wantErr)
+			}
+			if got != (managementusecase.AdvanceMessageRetentionResponse{}) {
+				t.Fatalf("failed retention result = %#v, want zero response", got)
+			}
+			if service.req != request {
+				t.Fatalf("provider request = %#v, want exact fenced request %#v", service.req, request)
+			}
+			if node.nodeID != 3 || node.serviceID != ManagerMessageRetentionRPCServiceID {
+				t.Fatalf("RPC target = node:%d service:%d", node.nodeID, node.serviceID)
+			}
+		})
 	}
 }
 

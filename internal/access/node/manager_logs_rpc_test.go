@@ -94,16 +94,17 @@ type fakeManagerLogService struct {
 	slotReq       managementusecase.ListSlotLogEntriesRequest
 	controller    managementusecase.ControllerLogEntriesResponse
 	slot          managementusecase.SlotLogEntriesResponse
+	err           error
 }
 
 func (f *fakeManagerLogService) ControllerLogEntries(_ context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error) {
 	f.controllerReq = req
-	return f.controller, nil
+	return f.controller, f.err
 }
 
 func (f *fakeManagerLogService) SlotLogEntries(_ context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error) {
 	f.slotReq = req
-	return f.slot, nil
+	return f.slot, f.err
 }
 
 type fakeManagerLogRPCNode struct {

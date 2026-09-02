@@ -360,6 +360,10 @@ func samePermissions(left, right map[string]string) bool {
 	return true
 }
 
-func redactHTTPError(error) error {
+func redactHTTPError(err error) error {
+	if errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
 	return errors.New("GitHub API request failed")
 }

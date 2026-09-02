@@ -2087,18 +2087,27 @@ func (s managerNodesStub) ListBusinessChannels(_ context.Context, req management
 }
 
 func (s managerNodesStub) GetBusinessChannel(_ context.Context, channelID string, channelType int64) (managementusecase.BusinessChannelDetail, error) {
+	if s.businessChannelsErr != nil {
+		return managementusecase.BusinessChannelDetail{}, s.businessChannelsErr
+	}
 	return managementusecase.BusinessChannelDetail{
 		BusinessChannelListItem: managementusecase.BusinessChannelListItem{ChannelID: channelID, ChannelType: channelType},
 	}, nil
 }
 
 func (s managerNodesStub) CreateBusinessChannel(_ context.Context, req managementusecase.CreateBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error) {
+	if s.businessChannelsErr != nil {
+		return managementusecase.BusinessChannelDetail{}, s.businessChannelsErr
+	}
 	return managementusecase.BusinessChannelDetail{
 		BusinessChannelListItem: managementusecase.BusinessChannelListItem{ChannelID: req.ChannelID, ChannelType: req.ChannelType, Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan},
 	}, nil
 }
 
 func (s managerNodesStub) UpdateBusinessChannel(_ context.Context, req managementusecase.UpdateBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error) {
+	if s.businessChannelsErr != nil {
+		return managementusecase.BusinessChannelDetail{}, s.businessChannelsErr
+	}
 	return managementusecase.BusinessChannelDetail{
 		BusinessChannelListItem: managementusecase.BusinessChannelListItem{ChannelID: req.ChannelID, ChannelType: req.ChannelType, Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan},
 	}, nil
@@ -2108,7 +2117,7 @@ func (s managerNodesStub) ListBusinessChannelMembers(_ context.Context, req mana
 	if s.lastBusinessChannelMembersRequest != nil {
 		*s.lastBusinessChannelMembersRequest = req
 	}
-	return s.businessChannelMembers, nil
+	return s.businessChannelMembers, s.businessChannelsErr
 }
 
 func (s managerNodesStub) MutateBusinessChannelMembers(_ context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error) {
@@ -2116,7 +2125,10 @@ func (s managerNodesStub) MutateBusinessChannelMembers(_ context.Context, req ma
 		*s.lastBusinessChannelMutationRequest = req
 	}
 	if s.businessChannelMutation.ChannelID != "" {
-		return s.businessChannelMutation, nil
+		return s.businessChannelMutation, s.businessChannelsErr
+	}
+	if s.businessChannelsErr != nil {
+		return managementusecase.MutateBusinessChannelMembersResponse{}, s.businessChannelsErr
 	}
 	return managementusecase.MutateBusinessChannelMembersResponse{
 		ChannelID: req.ChannelID, ChannelType: req.ChannelType, ListKind: req.ListKind,

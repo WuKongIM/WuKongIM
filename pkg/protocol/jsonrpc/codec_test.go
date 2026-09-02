@@ -261,8 +261,7 @@ func TestDecode_EdgeCases(t *testing.T) { // Renamed for clarity
 		data := []byte(`{"jsonrpc": "2.0", "method": "get_data", "params": {}}`)
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		_, _, err := Decode(decoder) // Ignore msg and probe
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "jsonrpc decode: unknown notification method") // Updated assertion based on actual behavior
+		assert.ErrorIs(t, err, ErrUnknownMethod)
 	})
 
 	t.Run("RequestNullId", func(t *testing.T) {

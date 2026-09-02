@@ -2,6 +2,7 @@ package meta
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -19,30 +20,48 @@ const (
 	slotSnapshotImportBatchBytes    = 16 << 20
 )
 
+type portableSnapshotEntryScope uint8
+
+const (
+	portableSnapshotAllEntries portableSnapshotEntryScope = iota
+	portableSnapshotBackupEntries
+)
+
+// portableSnapshotEntryOrder validates the registry-defined traversal emitted
+// by snapshot export while materializing spans for only one Hash Slot at a time.
+type portableSnapshotEntryOrder struct {
+	hashSlots   []HashSlot
+	scope       portableSnapshotEntryScope
+	hashSlotIdx int
+	spans       []Span
+	spanIndex   int
+	previousKey []byte
+}
+
 // ImportHashSlotSnapshotReader validates then installs a seekable portable
 // snapshot without retaining the complete hash-slot payload in memory.
 func (db *MetaDB) ImportHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, false, false, nil)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotAllEntries, false, false, nil)
 }
 
 // ImportHashSlotSnapshotReaderPreservingMigrationMeta installs semantic data
 // while retaining target-local migration workflow rows.
 func (db *MetaDB) ImportHashSlotSnapshotReaderPreservingMigrationMeta(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, false, nil)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, false, nil)
 }
 
 // ImportHashSlotSnapshotReaderForRestore installs semantic data while
 // retaining target-local migration rows and optionally clearing every restored
 // user and device token as the rows enter the target database.
 func (db *MetaDB) ImportHashSlotSnapshotReaderForRestore(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, invalidateTokens, nil)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, invalidateTokens, nil)
 }
 
 // ImportHashSlotSnapshotReaderForRestoreWithStats installs semantic data and
 // returns the exact record count authenticated by the portable stream.
 func (db *MetaDB) ImportHashSlotSnapshotReaderForRestoreWithStats(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) (BackupSnapshotStats, error) {
 	var stats BackupSnapshotStats
-	err := db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, invalidateTokens, &stats)
+	err := db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, invalidateTokens, &stats)
 	return stats, err
 }
 
@@ -62,16 +81,8 @@ func VerifyBackupHashSlotSnapshotReader(
 		return BackupSnapshotStats{}, err
 	}
 	streamSlots, entryCount, err := visitSlotSnapshotStream(
-		ctx, reader, size,
-		func(key, _ []byte) error {
-			if !snapshotEntryInHashSlots(key, normalized) {
-				return fmt.Errorf(
-					"%w: snapshot key %x is outside selected hash slots %v",
-					dberrors.ErrInvalidArgument, key, normalized,
-				)
-			}
-			return nil
-		},
+		ctx, reader, size, portableSnapshotBackupEntries,
+		func(_, _ []byte) error { return nil },
 	)
 	if err != nil {
 		return BackupSnapshotStats{}, err
@@ -83,7 +94,7 @@ func VerifyBackupHashSlotSnapshotReader(
 	return BackupSnapshotStats{EntryCount: entryCount}, nil
 }
 
-func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, preserveMigrationMeta, invalidateTokens bool, stats *BackupSnapshotStats) error {
+func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, scope portableSnapshotEntryScope, preserveMigrationMeta, invalidateTokens bool, stats *BackupSnapshotStats) error {
 	if err := checkSnapshotDB(ctx, db); err != nil {
 		return err
 	}
@@ -94,13 +105,10 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 	if err := verifySeekableSnapshotChecksum(reader, size); err != nil {
 		return err
 	}
-	validate := func(key, value []byte) error {
-		if !snapshotEntryInHashSlots(key, normalized) {
-			return fmt.Errorf("%w: snapshot key %x is outside selected hash slots %v", dberrors.ErrInvalidArgument, key, normalized)
-		}
-		return nil
-	}
-	streamSlots, entryCount, err := visitSlotSnapshotStream(ctx, reader, size, validate)
+	streamSlots, entryCount, err := visitSlotSnapshotStream(
+		ctx, reader, size, scope,
+		func(_, _ []byte) error { return nil },
+	)
 	if err != nil {
 		return err
 	}
@@ -148,7 +156,7 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		batchBytes = 0
 		return nil
 	}
-	_, _, err = visitSlotSnapshotStream(ctx, reader, size, func(key, value []byte) error {
+	_, _, err = visitSlotSnapshotStream(ctx, reader, size, scope, func(key, value []byte) error {
 		entry := snapshotEntry{Key: key, Value: value}
 		if invalidateTokens {
 			entry.Value, err = invalidateSnapshotAuthenticationToken(entry.Key, entry.Value, normalized)
@@ -221,7 +229,7 @@ func verifySeekableSnapshotChecksum(reader io.ReadSeeker, size int64) error {
 	return nil
 }
 
-func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int64, visit func(key, value []byte) error) ([]uint16, uint64, error) {
+func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int64, scope portableSnapshotEntryScope, visit func(key, value []byte) error) ([]uint16, uint64, error) {
 	if _, err := source.Seek(0, io.SeekStart); err != nil {
 		return nil, 0, err
 	}
@@ -245,6 +253,11 @@ func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int
 			return nil, 0, dberrors.ErrCorruptValue
 		}
 	}
+	normalized, err := normalizeSnapshotHashSlots(hashSlots)
+	if err != nil || !equalUint16HashSlots(hashSlots, uint16HashSlots(normalized)) {
+		return nil, 0, dberrors.ErrCorruptValue
+	}
+	entryOrder := newPortableSnapshotEntryOrder(normalized, scope)
 	entryCount, err := readSlotStreamUint64(reader)
 	if err != nil || entryCount > math.MaxInt {
 		return nil, 0, dberrors.ErrCorruptValue
@@ -269,6 +282,9 @@ func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int
 		if err != nil {
 			return nil, 0, err
 		}
+		if err := entryOrder.accept(key); err != nil {
+			return nil, 0, err
+		}
 		if err := visit(key, value); err != nil {
 			return nil, 0, err
 		}
@@ -277,6 +293,51 @@ func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int
 		return nil, 0, dberrors.ErrCorruptValue
 	}
 	return hashSlots, entryCount, nil
+}
+
+func newPortableSnapshotEntryOrder(hashSlots []HashSlot, scope portableSnapshotEntryScope) *portableSnapshotEntryOrder {
+	order := &portableSnapshotEntryOrder{hashSlots: hashSlots, scope: scope}
+	if len(hashSlots) > 0 {
+		order.spans = portableSnapshotSpans(hashSlots[0], scope)
+	}
+	return order
+}
+
+func (o *portableSnapshotEntryOrder) accept(key []byte) error {
+	for o.hashSlotIdx < len(o.hashSlots) {
+		for o.spanIndex < len(o.spans) {
+			if bytesInSpan(key, o.spans[o.spanIndex]) {
+				if len(o.previousKey) > 0 && bytes.Compare(key, o.previousKey) <= 0 {
+					return fmt.Errorf("%w: snapshot keys are not strictly ordered within a registered span", dberrors.ErrCorruptValue)
+				}
+				o.previousKey = append(o.previousKey[:0], key...)
+				return nil
+			}
+			o.spanIndex++
+			o.previousKey = o.previousKey[:0]
+		}
+		o.hashSlotIdx++
+		o.spanIndex = 0
+		if o.hashSlotIdx < len(o.hashSlots) {
+			o.spans = portableSnapshotSpans(o.hashSlots[o.hashSlotIdx], o.scope)
+		}
+	}
+
+	for _, hashSlot := range o.hashSlots {
+		for _, span := range portableSnapshotSpans(hashSlot, o.scope) {
+			if bytesInSpan(key, span) {
+				return fmt.Errorf("%w: snapshot registered spans are not in canonical order", dberrors.ErrCorruptValue)
+			}
+		}
+	}
+	return fmt.Errorf("%w: snapshot key %x is outside registered snapshot spans", dberrors.ErrInvalidArgument, key)
+}
+
+func portableSnapshotSpans(hashSlot HashSlot, scope portableSnapshotEntryScope) []Span {
+	if scope == portableSnapshotBackupEntries {
+		return hashSlotBackupDataSpans(hashSlot)
+	}
+	return hashSlotAllDataSpans(hashSlot)
 }
 
 func readSlotStreamSize(reader *bufio.Reader) (uint64, error) {

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -26,21 +27,35 @@ func run(args []string) error {
 	if err != nil {
 		return errors.New("resolve Review check workspace")
 	}
-	switch args[0] {
+	return runReviewCheck(
+		context.Background(), root, args[0], execReviewCommandExecutor{},
+	)
+}
+
+func runReviewCheck(
+	ctx context.Context,
+	root string,
+	selector string,
+	commands reviewCommandExecutor,
+) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("Review check canceled: %w", err)
+	}
+	switch selector {
 	case "go-format":
-		return checkGoFormat(root)
+		return checkGoFormat(ctx, root, commands)
 	case "go-mod-tidy":
-		return runCommand(root, "go", "mod", "tidy", "-diff")
+		return runCommand(ctx, commands, root, "go", "mod", "tidy", "-diff")
 	case "web":
-		return checkWeb(root)
+		return checkWeb(ctx, root, commands)
 	case "demo":
-		return checkDemo(root)
+		return checkDemo(ctx, root, commands)
 	case "docs":
-		return checkDocumentation(root)
+		return checkDocumentation(ctx, root, commands)
 	case "docs-integration":
-		return checkDocumentationIntegration(root)
+		return checkDocumentationIntegration(ctx, root, commands)
 	case "three-node":
-		return checkThreeNode(root)
+		return checkThreeNode(ctx, root, commands)
 	default:
 		return errors.New("unknown Review check selector")
 	}
@@ -51,6 +66,42 @@ type checkStep struct {
 	name        string
 	arguments   []string
 	environment []string
+}
+
+type reviewCommandExecutor interface {
+	Output(context.Context, checkStep) ([]byte, error)
+	Run(context.Context, checkStep) error
+}
+
+type execReviewCommandExecutor struct{}
+
+func (execReviewCommandExecutor) Output(
+	ctx context.Context,
+	step checkStep,
+) ([]byte, error) {
+	command := reviewExecCommand(ctx, step)
+	command.Stderr = os.Stderr
+	return command.Output()
+}
+
+func (execReviewCommandExecutor) Run(
+	ctx context.Context,
+	step checkStep,
+) error {
+	command := reviewExecCommand(ctx, step)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
+}
+
+func reviewExecCommand(ctx context.Context, step checkStep) *exec.Cmd {
+	command := exec.CommandContext(ctx, step.name, step.arguments...)
+	command.Dir = step.directory
+	command.Stdin = nil
+	if len(step.environment) > 0 {
+		command.Env = mergeEnvironment(os.Environ(), step.environment)
+	}
+	return command
 }
 
 type documentationIntegrationPlan struct {
@@ -163,21 +214,35 @@ func documentationIntegrationCheckPlan(root, receiptPath string) documentationIn
 	}
 }
 
-func checkDocumentation(root string) error {
+func checkDocumentation(
+	ctx context.Context,
+	root string,
+	commands reviewCommandExecutor,
+) error {
 	docsRoot := filepath.Join(root, "docs-site")
-	if err := requireVersion(docsRoot, "bun", "1.3.11", "--version"); err != nil {
+	if err := requireVersion(
+		ctx, commands, docsRoot, "bun", "1.3.11", "--version",
+	); err != nil {
 		return err
 	}
-	return runCheckSteps(documentationCheckSteps(root))
+	return runCheckSteps(ctx, commands, documentationCheckSteps(root))
 }
 
-func checkDocumentationIntegration(root string) (resultErr error) {
+func checkDocumentationIntegration(
+	ctx context.Context,
+	root string,
+	commands reviewCommandExecutor,
+) (resultErr error) {
 	docsRoot := filepath.Join(root, "docs-site")
 	sampleRoot := filepath.Join(root, "docs-site", "examples", "javascript-web-quickstart")
-	if err := requireVersion(docsRoot, "bun", "1.3.11", "--version"); err != nil {
+	if err := requireVersion(
+		ctx, commands, docsRoot, "bun", "1.3.11", "--version",
+	); err != nil {
 		return err
 	}
-	if err := requireVersion(sampleRoot, "node", "v22.12.0", "--version"); err != nil {
+	if err := requireVersion(
+		ctx, commands, sampleRoot, "node", "v22.12.0", "--version",
+	); err != nil {
 		return err
 	}
 	receiptDirectory, receiptPath, err := newDocumentationIntegrationReceiptOutput(root)
@@ -194,10 +259,12 @@ func checkDocumentationIntegration(root string) (resultErr error) {
 	}()
 
 	plan := documentationIntegrationCheckPlan(root, receiptPath)
-	if err := runCheckSteps(plan.beforeReceipt); err != nil {
+	if err := runCheckSteps(ctx, commands, plan.beforeReceipt); err != nil {
 		return err
 	}
-	summary, err := readAndValidateGoldenPathAttestation(root, receiptPath)
+	summary, err := readAndValidateGoldenPathAttestation(
+		ctx, commands, root, receiptPath,
+	)
 	if err != nil {
 		return err
 	}
@@ -209,12 +276,18 @@ func checkDocumentationIntegration(root string) (resultErr error) {
 		goldenPathRequiredNodeVersion,
 		goldenPathRequiredBrowserVersion,
 	)
-	return runCheckSteps(plan.afterReceipt)
+	return runCheckSteps(ctx, commands, plan.afterReceipt)
 }
 
-func runCheckSteps(steps []checkStep) error {
+func runCheckSteps(
+	ctx context.Context,
+	commands reviewCommandExecutor,
+	steps []checkStep,
+) error {
 	for _, step := range steps {
 		if err := runCommandWithEnvironment(
+			ctx,
+			commands,
 			step.directory,
 			step.environment,
 			step.name,
@@ -226,10 +299,16 @@ func runCheckSteps(steps []checkStep) error {
 	return nil
 }
 
-func checkGoFormat(root string) error {
-	command := exec.Command("git", "ls-files", "-z", "--", "*.go")
-	command.Dir = root
-	output, err := command.Output()
+func checkGoFormat(
+	ctx context.Context,
+	root string,
+	commands reviewCommandExecutor,
+) error {
+	output, err := commands.Output(ctx, checkStep{
+		directory: root,
+		name:      "git",
+		arguments: []string{"ls-files", "-z", "--", "*.go"},
+	})
 	if err != nil {
 		return errors.New("list tracked Go files")
 	}
@@ -244,10 +323,11 @@ func checkGoFormat(root string) error {
 		return errors.New("tracked Go file inventory is empty")
 	}
 	arguments := append([]string{"-l"}, files...)
-	command = exec.Command("gofmt", arguments...)
-	command.Dir = root
-	command.Stderr = os.Stderr
-	unformatted, err := command.Output()
+	unformatted, err := commands.Output(ctx, checkStep{
+		directory: root,
+		name:      "gofmt",
+		arguments: arguments,
+	})
 	if err != nil {
 		return errors.New("run gofmt inventory")
 	}
@@ -258,9 +338,15 @@ func checkGoFormat(root string) error {
 	return nil
 }
 
-func checkWeb(root string) error {
+func checkWeb(
+	ctx context.Context,
+	root string,
+	commands reviewCommandExecutor,
+) error {
 	webRoot := filepath.Join(root, "web")
-	if err := requireVersion(webRoot, "bun", "1.3.11", "--version"); err != nil {
+	if err := requireVersion(
+		ctx, commands, webRoot, "bun", "1.3.11", "--version",
+	); err != nil {
 		return err
 	}
 	steps := [][]string{
@@ -271,22 +357,34 @@ func checkWeb(root string) error {
 		{"bun", "run", "build"},
 	}
 	for _, step := range steps {
-		if err := runCommand(webRoot, step[0], step[1:]...); err != nil {
+		if err := runCommand(
+			ctx, commands, webRoot, step[0], step[1:]...,
+		); err != nil {
 			return err
 		}
 	}
 	return requireCleanBundle(
+		ctx,
+		commands,
 		root,
 		"internal/access/manager/webui/dist",
 	)
 }
 
-func checkDemo(root string) error {
+func checkDemo(
+	ctx context.Context,
+	root string,
+	commands reviewCommandExecutor,
+) error {
 	demoRoot := filepath.Join(root, "demo", "chatdemo")
-	if err := requireVersion(demoRoot, "node", "v22.12.0", "--version"); err != nil {
+	if err := requireVersion(
+		ctx, commands, demoRoot, "node", "v22.12.0", "--version",
+	); err != nil {
 		return err
 	}
-	if err := requireVersion(demoRoot, "yarn", "1.22.22", "--version"); err != nil {
+	if err := requireVersion(
+		ctx, commands, demoRoot, "yarn", "1.22.22", "--version",
+	); err != nil {
 		return err
 	}
 	steps := [][]string{
@@ -295,51 +393,58 @@ func checkDemo(root string) error {
 		{"yarn", "build"},
 	}
 	for _, step := range steps {
-		if err := runCommand(demoRoot, step[0], step[1:]...); err != nil {
+		if err := runCommand(
+			ctx, commands, demoRoot, step[0], step[1:]...,
+		); err != nil {
 			return err
 		}
 	}
 	return requireCleanBundle(
+		ctx,
+		commands,
 		root,
 		"internal/access/api/demoui/dist",
 	)
 }
 
-func checkThreeNode(root string) error {
-	command := exec.Command(
-		"bash",
-		"scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
-		"--out-dir", ".review-agent-output/three-node-smoke",
-		"--ready-timeout", "180",
-	)
-	command.Dir = root
-	command.Stdin = nil
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	command.Env = append(
-		os.Environ(),
-		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE=false",
-		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=false",
-		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER=false",
-		"WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE=false",
-	)
-	if err := command.Run(); err != nil {
+func checkThreeNode(
+	ctx context.Context,
+	root string,
+	commands reviewCommandExecutor,
+) error {
+	if err := commands.Run(ctx, checkStep{
+		directory: root,
+		name:      "bash",
+		arguments: []string{
+			"scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
+			"--out-dir", ".review-agent-output/three-node-smoke",
+			"--ready-timeout", "180",
+		},
+		environment: []string{
+			"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE=false",
+			"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=false",
+			"WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER=false",
+			"WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE=false",
+		},
+	}); err != nil {
 		return errors.New("three-node cluster smoke failed")
 	}
 	return nil
 }
 
 func requireVersion(
+	ctx context.Context,
+	commands reviewCommandExecutor,
 	directory string,
 	name string,
 	expected string,
 	arguments ...string,
 ) error {
-	command := exec.Command(name, arguments...)
-	command.Dir = directory
-	command.Stdin = nil
-	command.Stderr = os.Stderr
-	output, err := command.Output()
+	output, err := commands.Output(ctx, checkStep{
+		directory: directory,
+		name:      name,
+		arguments: arguments,
+	})
 	if err != nil {
 		return fmt.Errorf("run Review check tool %s version: %w", name, err)
 	}
@@ -349,17 +454,22 @@ func requireVersion(
 	return nil
 }
 
-func requireCleanBundle(root string, bundlePath string) error {
-	command := exec.Command(
-		"git",
-		"-c", "core.hooksPath=/dev/null",
-		"-c", "core.fsmonitor=false",
-		"-c", "diff.external=",
-		"status", "--porcelain", "--", bundlePath,
-	)
-	command.Dir = root
-	command.Stderr = os.Stderr
-	output, err := command.Output()
+func requireCleanBundle(
+	ctx context.Context,
+	commands reviewCommandExecutor,
+	root string,
+	bundlePath string,
+) error {
+	output, err := commands.Output(ctx, checkStep{
+		directory: root,
+		name:      "git",
+		arguments: []string{
+			"-c", "core.hooksPath=/dev/null",
+			"-c", "core.fsmonitor=false",
+			"-c", "diff.external=",
+			"status", "--porcelain", "--", bundlePath,
+		},
+	})
 	if err != nil {
 		return errors.New("inspect generated bundle")
 	}
@@ -370,25 +480,40 @@ func requireCleanBundle(root string, bundlePath string) error {
 	return nil
 }
 
-func runCommand(directory string, name string, arguments ...string) error {
-	return runCommandWithEnvironment(directory, nil, name, arguments...)
+func runCommand(
+	ctx context.Context,
+	commands reviewCommandExecutor,
+	directory string,
+	name string,
+	arguments ...string,
+) error {
+	return runCommandWithEnvironment(
+		ctx, commands, directory, nil, name, arguments...,
+	)
 }
 
 func runCommandWithEnvironment(
+	ctx context.Context,
+	commands reviewCommandExecutor,
 	directory string,
 	environment []string,
 	name string,
 	arguments ...string,
 ) error {
-	command := exec.Command(name, arguments...)
-	command.Dir = directory
-	command.Stdin = nil
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	if len(environment) > 0 {
-		command.Env = mergeEnvironment(os.Environ(), environment)
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("Review check command %s canceled: %w", name, err)
 	}
-	if err := command.Run(); err != nil {
+	if err := commands.Run(ctx, checkStep{
+		directory:   directory,
+		name:        name,
+		arguments:   arguments,
+		environment: environment,
+	}); err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return fmt.Errorf(
+				"Review check command %s canceled: %w", name, contextErr,
+			)
+		}
 		return fmt.Errorf("Review check command %s failed", name)
 	}
 	return nil

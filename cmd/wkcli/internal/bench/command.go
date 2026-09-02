@@ -25,6 +25,8 @@ func NewCommand(deps command.Deps) *cobra.Command {
 			return command.Exit{Code: command.ExitConfig}
 		},
 	}
+	cmd.SetOut(deps.Stdout)
+	cmd.SetErr(deps.Stderr)
 	cmd.AddCommand(newSendCommand(deps))
 	return cmd
 }

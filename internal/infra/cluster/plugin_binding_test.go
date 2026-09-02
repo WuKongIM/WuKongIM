@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -41,17 +42,74 @@ func TestManagementPluginBindingStoreScansByPluginNo(t *testing.T) {
 	}
 }
 
-type fakeManagementPluginBindingNode struct {
-	byPlugin     []metadb.PluginUserBinding
-	cursor       string
-	hasMore      bool
-	lastPluginNo string
-	lastCursor   string
-	lastLimit    int
+func TestPluginBindingAdaptersPreserveReceiveProjectionAndManagementTimestamps(t *testing.T) {
+	t.Parallel()
+
+	node := &fakeManagementPluginBindingNode{byUID: []metadb.PluginUserBinding{{
+		UID: "u1", PluginNo: "wk.receive", CreatedAtMS: 1_000, UpdatedAtMS: 2_000,
+	}}}
+	receiveReader := NewPluginBindingReader(node)
+	receiveBindings, err := receiveReader.ListPluginBindingsByUID(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("receive ListPluginBindingsByUID() error = %v", err)
+	}
+	if node.lastUID != "u1" || len(receiveBindings) != 1 || receiveBindings[0].UID != "u1" || receiveBindings[0].PluginNo != "wk.receive" {
+		t.Fatalf("receive bindings = %#v uid=%q", receiveBindings, node.lastUID)
+	}
+
+	store := NewManagementPluginBindingStore(node)
+	managementBindings, err := store.ListPluginBindingsByUID(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("management ListPluginBindingsByUID() error = %v", err)
+	}
+	if len(managementBindings) != 1 || !managementBindings[0].CreatedAt.Equal(unixMilliUTC(1_000)) || !managementBindings[0].UpdatedAt.Equal(unixMilliUTC(2_000)) {
+		t.Fatalf("management bindings = %#v", managementBindings)
+	}
+
+	updatedAt := time.UnixMilli(3_000).In(time.FixedZone("test", 8*60*60))
+	if err := store.BindPluginUser(context.Background(), managementusecase.PluginBinding{
+		UID: "u2", PluginNo: "wk.audit", UpdatedAt: updatedAt,
+	}); err != nil {
+		t.Fatalf("BindPluginUser() error = %v", err)
+	}
+	if node.bound.UID != "u2" || node.bound.PluginNo != "wk.audit" || node.bound.CreatedAtMS != 0 || node.bound.UpdatedAtMS != 3_000 {
+		t.Fatalf("bound metadata = %#v", node.bound)
+	}
+	if err := store.UnbindPluginUser(context.Background(), "u2", "wk.audit"); err != nil {
+		t.Fatalf("UnbindPluginUser() error = %v", err)
+	}
+	if node.unboundUID != "u2" || node.unboundPluginNo != "wk.audit" {
+		t.Fatalf("unbind args = %q/%q", node.unboundUID, node.unboundPluginNo)
+	}
 }
 
-func (f *fakeManagementPluginBindingNode) ListPluginBindingsByUID(context.Context, string) ([]metadb.PluginUserBinding, error) {
-	return nil, nil
+func TestManagementPluginBindingStoreFailsClosedWithoutPluginScanner(t *testing.T) {
+	t.Parallel()
+
+	store := NewManagementPluginBindingStore(&contractPluginBindingNode{})
+	_, _, _, err := store.ListPluginBindingsByPluginNo(context.Background(), "wk.receive", "", 10)
+	if !errors.Is(err, managementusecase.ErrPluginBindingsUnavailable) {
+		t.Fatalf("ListPluginBindingsByPluginNo() error = %v, want %v", err, managementusecase.ErrPluginBindingsUnavailable)
+	}
+}
+
+type fakeManagementPluginBindingNode struct {
+	byUID           []metadb.PluginUserBinding
+	byPlugin        []metadb.PluginUserBinding
+	cursor          string
+	hasMore         bool
+	lastUID         string
+	lastPluginNo    string
+	lastCursor      string
+	lastLimit       int
+	bound           metadb.PluginUserBinding
+	unboundUID      string
+	unboundPluginNo string
+}
+
+func (f *fakeManagementPluginBindingNode) ListPluginBindingsByUID(_ context.Context, uid string) ([]metadb.PluginUserBinding, error) {
+	f.lastUID = uid
+	return append([]metadb.PluginUserBinding(nil), f.byUID...), nil
 }
 
 func (f *fakeManagementPluginBindingNode) ListPluginBindingsByPluginNo(_ context.Context, pluginNo, cursor string, limit int) ([]metadb.PluginUserBinding, string, bool, error) {
@@ -61,11 +119,27 @@ func (f *fakeManagementPluginBindingNode) ListPluginBindingsByPluginNo(_ context
 	return append([]metadb.PluginUserBinding(nil), f.byPlugin...), f.cursor, f.hasMore, nil
 }
 
-func (f *fakeManagementPluginBindingNode) BindPluginUser(context.Context, metadb.PluginUserBinding) error {
+func (f *fakeManagementPluginBindingNode) BindPluginUser(_ context.Context, binding metadb.PluginUserBinding) error {
+	f.bound = binding
 	return nil
 }
 
-func (f *fakeManagementPluginBindingNode) UnbindPluginUser(context.Context, string, string) error {
+func (f *fakeManagementPluginBindingNode) UnbindPluginUser(_ context.Context, uid, pluginNo string) error {
+	f.unboundUID, f.unboundPluginNo = uid, pluginNo
+	return nil
+}
+
+type contractPluginBindingNode struct{}
+
+func (*contractPluginBindingNode) ListPluginBindingsByUID(context.Context, string) ([]metadb.PluginUserBinding, error) {
+	return nil, nil
+}
+
+func (*contractPluginBindingNode) BindPluginUser(context.Context, metadb.PluginUserBinding) error {
+	return nil
+}
+
+func (*contractPluginBindingNode) UnbindPluginUser(context.Context, string, string) error {
 	return nil
 }
 

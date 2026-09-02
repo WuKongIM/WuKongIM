@@ -77,11 +77,7 @@ func ExampleEventNotificationMinimal() {
 	event := NewEventNotification("event_001", "minimal", 1640995200000000000, "minimal event", nil)
 
 	// Encode to JSON
-	jsonData, err := Encode(event)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
+	jsonData, _ := Encode(event) // EventNotification only contains JSON-native fields.
 
 	fmt.Printf("Minimal ChunkNotification:\n%s\n", string(jsonData))
 

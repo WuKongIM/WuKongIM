@@ -3,12 +3,14 @@ package management
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 func TestQueryDiagnosticsAggregatesControlSnapshotNodes(t *testing.T) {
@@ -189,6 +191,125 @@ func TestCreateDiagnosticsTrackingRuleTargetsOneRequestedNode(t *testing.T) {
 	}
 	if _, ok := tracker.added[1]; ok {
 		t.Fatalf("unexpected rule on node 1: %#v", tracker.added)
+	}
+}
+
+func TestCreateDiagnosticsChannelTrackingRuleUsesCanonicalChannelIdentity(t *testing.T) {
+	tracker := newDiagnosticsTrackingStub()
+	app := New(Options{DiagnosticsTracking: tracker})
+
+	resp, err := app.CreateDiagnosticsTrackingRule(context.Background(), DiagnosticsTrackingCreateRequest{
+		NodeID: 7, Target: " channel ", ChannelID: " group/alpha ", ChannelType: 2,
+		TTLSeconds: 90, SampleRate: 0.25,
+	})
+	if err != nil {
+		t.Fatalf("CreateDiagnosticsTrackingRule() error = %v", err)
+	}
+	input := tracker.addedRule(t, 7)
+	wantKey := sendtrace.ChannelKeyFromID("group/alpha", 2)
+	if input.Target != diagnostics.TrackingTargetChannel || input.ChannelKey != wantKey || input.TTL != 90*time.Second || input.SampleRate != 0.25 {
+		t.Fatalf("installed channel rule = %#v", input)
+	}
+	if resp.Status != DiagnosticsTrackingStatusOK || resp.Rule.ChannelKey != wantKey || resp.Rule.ChannelID != "group/alpha" || resp.Rule.ChannelType != 2 {
+		t.Fatalf("manager channel rule = %#v", resp)
+	}
+}
+
+func TestDiagnosticsTrackingListMergesReplicasAndPreservesPartialEvidence(t *testing.T) {
+	tracker := newDiagnosticsTrackingStub()
+	createdEarly := time.Date(2026, 6, 19, 9, 0, 0, 0, time.UTC)
+	createdLate := createdEarly.Add(time.Minute)
+	expiresEarly := createdEarly.Add(30 * time.Minute)
+	expiresLate := createdEarly.Add(time.Hour)
+	channelKey := sendtrace.ChannelKeyFromID("group/alpha", 2)
+	tracker.rules[1] = []diagnostics.TrackingRule{
+		{ID: "rule-b", Target: diagnostics.TrackingTargetChannel, ChannelKey: channelKey, SampleRate: 0.5, CreatedAt: createdLate, ExpiresAt: expiresEarly},
+		{ID: "rule-a", Target: diagnostics.TrackingTargetSenderUID, UID: "u1", SampleRate: 1, CreatedAt: createdLate, ExpiresAt: expiresEarly},
+	}
+	tracker.rules[2] = []diagnostics.TrackingRule{
+		{ID: "rule-b", Target: diagnostics.TrackingTargetChannel, ChannelKey: channelKey, SampleRate: 0.5, CreatedAt: createdEarly, ExpiresAt: expiresLate},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: control.Snapshot{Nodes: []control.Node{
+			{NodeID: 3, Status: control.NodeDown},
+			{NodeID: 2, Status: control.NodeSuspect},
+			{NodeID: 1, Status: control.NodeAlive},
+		}}},
+		DiagnosticsTracking: tracker,
+	})
+
+	resp, err := app.ListDiagnosticsTrackingRules(context.Background())
+	if err != nil {
+		t.Fatalf("ListDiagnosticsTrackingRules() error = %v", err)
+	}
+	if resp.Status != DiagnosticsTrackingStatusPartial {
+		t.Fatalf("status = %s, want partial", resp.Status)
+	}
+	if len(resp.Rules) != 2 || resp.Rules[0].ID != "rule-a" || resp.Rules[1].ID != "rule-b" {
+		t.Fatalf("sorted rules = %#v", resp.Rules)
+	}
+	merged := resp.Rules[1]
+	if !merged.CreatedAt.Equal(createdEarly) || !merged.ExpiresAt.Equal(expiresLate) || merged.ChannelID != "group/alpha" || merged.ChannelType != 2 {
+		t.Fatalf("merged replicated rule = %#v", merged)
+	}
+	if len(resp.Nodes) != 3 || resp.Nodes[0].NodeID != 1 || resp.Nodes[1].NodeID != 2 || resp.Nodes[2].NodeID != 3 || resp.Nodes[2].Status != "skipped" {
+		t.Fatalf("node evidence = %#v", resp.Nodes)
+	}
+}
+
+func TestDiagnosticsTrackingDeleteReportsPerNodeFailureAndExactRuleIdentity(t *testing.T) {
+	tracker := newDiagnosticsTrackingStub()
+	tracker.failNodes[2] = errors.New("node 2 diagnostics unavailable")
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: control.Snapshot{Nodes: []control.Node{
+			{NodeID: 2, Status: control.NodeAlive},
+			{NodeID: 1, Status: control.NodeAlive},
+			{NodeID: 3, Status: control.NodeDown},
+		}}},
+		DiagnosticsTracking: tracker,
+	})
+
+	resp, err := app.DeleteDiagnosticsTrackingRule(context.Background(), " rule-7 ")
+	if err != nil {
+		t.Fatalf("DeleteDiagnosticsTrackingRule() error = %v", err)
+	}
+	if resp.Status != DiagnosticsTrackingStatusPartial || resp.RuleID != "rule-7" {
+		t.Fatalf("delete response = %#v", resp)
+	}
+	if tracker.deleted[1] != "rule-7" {
+		t.Fatalf("node 1 deleted rule = %q", tracker.deleted[1])
+	}
+	if _, ok := tracker.deleted[2]; ok {
+		t.Fatalf("failed node recorded deletion: %#v", tracker.deleted)
+	}
+	if len(resp.Nodes) != 3 || resp.Nodes[0].Status != "ok" || resp.Nodes[1].Status != "unavailable" || resp.Nodes[2].Status != "skipped" {
+		t.Fatalf("delete node evidence = %#v", resp.Nodes)
+	}
+	if len(resp.Nodes[1].Notes) != 1 || !strings.Contains(resp.Nodes[1].Notes[0], "node 2 diagnostics unavailable") {
+		t.Fatalf("node failure notes = %#v", resp.Nodes[1].Notes)
+	}
+}
+
+func TestDiagnosticsTrackingRejectsInvalidRulesBeforeFanout(t *testing.T) {
+	tracker := newDiagnosticsTrackingStub()
+	app := New(Options{DiagnosticsTracking: tracker})
+	tests := []DiagnosticsTrackingCreateRequest{
+		{NodeID: 1, Target: "sender_uid", UID: "", TTLSeconds: 60, SampleRate: 1},
+		{NodeID: 1, Target: "channel", ChannelID: "g1", ChannelType: 0, TTLSeconds: 60, SampleRate: 1},
+		{NodeID: 1, Target: "sender_uid", UID: "u1", TTLSeconds: 0, SampleRate: 1},
+		{NodeID: 1, Target: "sender_uid", UID: "u1", TTLSeconds: 60, SampleRate: 1.01},
+		{NodeID: 1, Target: "unknown", UID: "u1", TTLSeconds: 60, SampleRate: 1},
+	}
+	for _, req := range tests {
+		if _, err := app.CreateDiagnosticsTrackingRule(context.Background(), req); !errors.Is(err, diagnostics.ErrInvalidTrackingRule) {
+			t.Fatalf("request %#v error = %v", req, err)
+		}
+	}
+	if len(tracker.added) != 0 {
+		t.Fatalf("invalid rules reached nodes: %#v", tracker.added)
+	}
+	if _, err := app.DeleteDiagnosticsTrackingRule(context.Background(), "  "); !errors.Is(err, diagnostics.ErrInvalidTrackingRule) {
+		t.Fatalf("empty delete error = %v", err)
 	}
 }
 

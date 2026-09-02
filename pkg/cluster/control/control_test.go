@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -116,14 +117,21 @@ func TestStaticControllerRecordsReports(t *testing.T) {
 	if err := c.ReportNode(context.Background(), NodeReport{NodeID: 2, Addr: "127.0.0.1:1002"}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
-	if err := c.ReportSlots(context.Background(), SlotRuntimeReport{NodeID: 2, Slots: []SlotRuntimeView{{SlotID: 1, Leader: 2}}}); err != nil {
+	report := SlotRuntimeReport{NodeID: 2, Slots: []SlotRuntimeView{{SlotID: 1, Leader: 2, Peers: []uint64{1, 2, 3}}}}
+	if err := c.ReportSlots(context.Background(), report); err != nil {
 		t.Fatalf("ReportSlots() error = %v", err)
 	}
+	report.Slots[0].Peers[0] = 99
 	if got := c.LastNodeReport(); got.NodeID != 2 {
 		t.Fatalf("LastNodeReport().NodeID = %d, want 2", got.NodeID)
 	}
-	if got := c.LastSlotReport(); got.NodeID != 2 || len(got.Slots) != 1 {
+	got := c.LastSlotReport()
+	if got.NodeID != 2 || len(got.Slots) != 1 || got.Slots[0].Peers[0] != 1 {
 		t.Fatalf("LastSlotReport() = %#v, want node 2 with one slot", got)
+	}
+	got.Slots[0].Peers[0] = 88
+	if stored := c.LastSlotReport(); stored.Slots[0].Peers[0] != 1 {
+		t.Fatalf("LastSlotReport() returned aliased peers: %#v", stored.Slots[0].Peers)
 	}
 }
 
@@ -169,6 +177,71 @@ func TestStaticControllerRecordsTaskWrites(t *testing.T) {
 	}
 	if !transferResult.Created || transferResult.Task == nil || transferResult.Task.TaskID != "slot-1-leader-transfer-7-r9" {
 		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want deterministic task", transferResult)
+	}
+	move := SlotReplicaMoveRequest{SlotID: 1, SourceNode: 3, TargetNode: 4, TargetPeers: []uint64{1, 2, 4}, ConfigEpoch: 8, StateRevision: 10}
+	moveResult, err := c.RequestSlotReplicaMove(context.Background(), move)
+	if err != nil {
+		t.Fatalf("RequestSlotReplicaMove() error = %v", err)
+	}
+	phase := SlotReplicaMovePhaseAdvance{TaskID: "slot-1-replica-move-3-to-4-r10", SlotID: 1, ConfigEpoch: 8}
+	if err := c.AdvanceSlotReplicaMovePhase(context.Background(), phase); err != nil {
+		t.Fatalf("AdvanceSlotReplicaMovePhase() error = %v", err)
+	}
+	commit := SlotReplicaMoveCommit{TaskID: phase.TaskID, SlotID: 1, ConfigEpoch: 8}
+	if err := c.CommitSlotReplicaMove(context.Background(), commit); err != nil {
+		t.Fatalf("CommitSlotReplicaMove() error = %v", err)
+	}
+	if len(c.SlotReplicaMoves) != 1 || c.SlotReplicaMoves[0].TargetNode != 4 {
+		t.Fatalf("SlotReplicaMoves = %#v, want target node 4", c.SlotReplicaMoves)
+	}
+	if !moveResult.Created || moveResult.Task == nil || moveResult.Task.TaskID != phase.TaskID || moveResult.Task.Step != TaskStepOpenLearner {
+		t.Fatalf("RequestSlotReplicaMove() = %#v, want deterministic open-learner task", moveResult)
+	}
+	if len(c.SlotReplicaMovePhases) != 1 || c.SlotReplicaMovePhases[0].TaskID != phase.TaskID {
+		t.Fatalf("SlotReplicaMovePhases = %#v, want recorded phase", c.SlotReplicaMovePhases)
+	}
+	if len(c.SlotReplicaMoveCommits) != 1 || c.SlotReplicaMoveCommits[0].TaskID != phase.TaskID {
+		t.Fatalf("SlotReplicaMoveCommits = %#v, want recorded commit", c.SlotReplicaMoveCommits)
+	}
+}
+
+func TestStaticControllerLifecycleHonorsCancellationAndValidation(t *testing.T) {
+	invalid := validSnapshot()
+	invalid.HashSlots.Ranges = nil
+	controller := NewStaticController(invalid)
+	if err := controller.Start(context.Background()); err == nil {
+		t.Fatal("Start() error = nil, want invalid snapshot rejection")
+	}
+	if controller.started {
+		t.Fatal("failed Start() marked controller started")
+	}
+
+	controller = NewStaticController(validSnapshot())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := controller.Start(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Start(canceled) error = %v, want context canceled", err)
+	}
+	if controller.started {
+		t.Fatal("canceled Start() marked controller started")
+	}
+	if err := controller.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if got := controller.LeaderID(); got != 1 {
+		t.Fatalf("LeaderID() = %d, want 1", got)
+	}
+	if err := controller.Stop(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Stop(canceled) error = %v, want context canceled", err)
+	}
+	if !controller.started {
+		t.Fatal("canceled Stop() changed controller lifecycle state")
+	}
+	if err := controller.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if controller.started {
+		t.Fatal("Stop() left controller started")
 	}
 }
 

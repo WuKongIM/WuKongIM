@@ -75,14 +75,15 @@ type fakeManagerControllerRaftService struct {
 	compactNodeID uint64
 	status        managementusecase.ControllerRaftStatus
 	compact       managementusecase.ControllerRaftCompactionResult
+	err           error
 }
 
 func (f *fakeManagerControllerRaftService) ControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error) {
 	f.statusNodeID = nodeID
-	return f.status, nil
+	return f.status, f.err
 }
 
 func (f *fakeManagerControllerRaftService) CompactControllerRaftLog(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftCompactionResult, error) {
 	f.compactNodeID = nodeID
-	return f.compact, nil
+	return f.compact, f.err
 }

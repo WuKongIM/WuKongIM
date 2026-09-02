@@ -13,6 +13,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 func BenchmarkChannelLogAppend(b *testing.B) {
@@ -379,6 +380,80 @@ func BenchmarkExactAppendWarmWorkingSet(b *testing.B) {
 	b.ReportMetric(float64(validations)/float64(max(1, b.N)), "predecessor-validations/op")
 }
 
+// BenchmarkExactProposalReplay measures immutable retries through StoreAppendBatch.
+// A genesis proposal isolates the two proposal-index reads plus one identity read per entry.
+func BenchmarkExactProposalReplay(b *testing.B) {
+	for _, recordsPerProposal := range []int{1, 32, 256} {
+		recordsPerProposal := recordsPerProposal
+		b.Run(fmt.Sprintf("records=%d", recordsPerProposal), func(b *testing.B) {
+			eng, err := Open(b.TempDir())
+			if err != nil {
+				b.Fatalf("Open(): %v", err)
+			}
+			defer func() {
+				if err := eng.Close(); err != nil {
+					b.Fatalf("Close(): %v", err)
+				}
+			}()
+			observer := &exactReplayCommitObserver{}
+			eng.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
+			channelID := "exact-replay-" + strconv.Itoa(recordsPerProposal)
+			store := mustForChannel(b, eng, channel.ChannelKey(channelID+":1"), channel.ChannelID{ID: channelID, Type: 1})
+			defer func() {
+				if err := store.Close(); err != nil {
+					b.Fatalf("ChannelStore.Close(): %v", err)
+				}
+			}()
+
+			item := makeBenchmarkExactReplayItem(b, store, channelID, recordsPerProposal)
+			items := []AppendBatchItem{item}
+			seed := StoreAppendBatch(context.Background(), items)
+			if len(seed) != 1 || seed[0].Err != nil || seed[0].Outcome != quorumlog.AppendOutcomeDurable {
+				b.Fatalf("seed StoreAppendBatch() = %+v, want durable", seed)
+			}
+			requestsBefore := observer.requests.Load()
+			batchesBefore := observer.batches.Load()
+			metricsBefore := eng.MetricsSnapshot()
+			if requestsBefore != 1 || batchesBefore != 1 {
+				b.Fatalf("seed commits: requests=%d batches=%d, want one each", requestsBefore, batchesBefore)
+			}
+			if metricsBefore.SequencedExactFreshAppends != 1 {
+				b.Fatalf("seed sequenced fresh appends = %d, want 1", metricsBefore.SequencedExactFreshAppends)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				results := StoreAppendBatch(context.Background(), items)
+				if len(results) != 1 || results[0].Err != nil || results[0].Outcome != quorumlog.AppendOutcomeAlreadyDurable {
+					b.Fatalf("replay StoreAppendBatch() = %+v, want already durable", results)
+				}
+			}
+			b.StopTimer()
+
+			requests := observer.requests.Load() - requestsBefore
+			batches := observer.batches.Load() - batchesBefore
+			if requests != 0 || batches != 0 {
+				b.Fatalf("replay submitted commits: requests=%d batches=%d, want zero", requests, batches)
+			}
+			metricsAfter := eng.MetricsSnapshot()
+			if metricsAfter.SequencedExactFreshAppends != metricsBefore.SequencedExactFreshAppends {
+				b.Fatalf("sequenced fresh appends changed from %d to %d during replay", metricsBefore.SequencedExactFreshAppends, metricsAfter.SequencedExactFreshAppends)
+			}
+			if metricsAfter.DurablePredecessorValidations != metricsBefore.DurablePredecessorValidations {
+				b.Fatalf("predecessor validations changed from %d to %d during genesis replay", metricsBefore.DurablePredecessorValidations, metricsAfter.DurablePredecessorValidations)
+			}
+			if leo, err := store.LEOWithError(); err != nil || leo != uint64(recordsPerProposal) {
+				b.Fatalf("LEOWithError() = (%d, %v), want (%d, nil)", leo, err, recordsPerProposal)
+			}
+			b.ReportMetric(float64(recordsPerProposal), "entries/op")
+			b.ReportMetric(float64(recordsPerProposal+2), "contract-point-reads/op")
+			b.ReportMetric(float64(requests)/float64(b.N), "commit-requests/op")
+			b.ReportMetric(float64(batches)/float64(b.N), "physical-commits/op")
+		})
+	}
+}
+
 func BenchmarkChannelLogRead(b *testing.B) {
 	log, closeFn := openBenchmarkLog(b, "bench-read")
 	defer closeFn()
@@ -635,6 +710,61 @@ func reportAppendMetrics(b *testing.B, recordsPerAppend int, payloadBytesPerAppe
 
 func benchmarkCompatPayloadBytes(records int) int {
 	return records * len(benchmarkCompatRecord(1, "compat-size", "c-1").Payload)
+}
+
+func makeBenchmarkExactReplayItem(b *testing.B, store *ChannelStore, channelID string, recordCount int) AppendBatchItem {
+	b.Helper()
+	if recordCount <= 0 {
+		b.Fatal("recordCount must be positive")
+	}
+	records := make([]channel.Record, recordCount)
+	for index := range records {
+		messageID := uint64(index + 1)
+		record, err := compatibilityRecordFromRow(messageRow{
+			MessageID: messageID, ClientMsgNo: benchmarkClientMsgNo(messageID), ChannelID: channelID,
+			ChannelType: 1, FromUID: "bench-u1", ServerTimestampMS: 1_700_000_000_000 + int64(messageID),
+			Payload: []byte("payload"),
+		})
+		if err != nil {
+			b.Fatalf("compatibilityRecordFromRow(): %v", err)
+		}
+		record.Epoch = 5
+		records[index] = record
+	}
+	commandID := quorumlog.CommandID{}
+	binary.BigEndian.PutUint64(commandID[len(commandID)-8:], uint64(recordCount))
+	manifest := DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: commandID, LastOffset: uint64(recordCount),
+	}
+	rows, err := compatibilityRowsFromRecords(1, records)
+	if err != nil {
+		b.Fatalf("compatibilityRowsFromRecords(): %v", err)
+	}
+	entries, ok := deriveDurableProposalEntries(manifest, records, rows)
+	if !ok || len(entries) != recordCount {
+		b.Fatal("deriveDurableProposalEntries() failed")
+	}
+	manifest.Digest = entries[len(entries)-1].Digest
+	return AppendBatchItem{
+		Store: store, Records: records, ExactBaseOffset: true, Proposal: manifest,
+		ServerAllocatedMessageIDs: true,
+	}
+}
+
+type exactReplayCommitObserver struct {
+	requests atomic.Uint64
+	batches  atomic.Uint64
+}
+
+func (*exactReplayCommitObserver) SetCommitCoordinatorQueueDepth(int) {}
+
+func (o *exactReplayCommitObserver) ObserveCommitCoordinatorBatch(CommitCoordinatorBatchEvent) {
+	o.batches.Add(1)
+}
+
+func (o *exactReplayCommitObserver) ObserveCommitCoordinatorRequest(CommitCoordinatorRequestEvent) {
+	o.requests.Add(1)
 }
 
 func minInt(a, b int) int {

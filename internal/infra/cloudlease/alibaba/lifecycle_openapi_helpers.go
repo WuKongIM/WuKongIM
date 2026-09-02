@@ -149,7 +149,8 @@ func (a *OpenAPI) waitCreatedHostAssets(ctx context.Context, request HostCreateR
 					dataDisk = disk
 				}
 			}
-			if validCreatedDisk(systemDisk, request.SystemDiskGiB) && validCreatedDisk(dataDisk, request.DataDiskGiB) {
+			if validCreatedDisk(systemDisk, instanceID, request.SystemDiskGiB) &&
+				validCreatedDisk(dataDisk, instanceID, request.DataDiskGiB) {
 				if tagErr := a.tagECSResourceIDs(request.Region, "disk", []string{systemDisk.DiskID, dataDisk.DiskID}, tags); tagErr != nil {
 					return nil, tagErr
 				}
@@ -182,8 +183,8 @@ func (a *OpenAPI) waitCreatedHostAssets(ctx context.Context, request HostCreateR
 	}
 }
 
-func validCreatedDisk(disk createdDiskJSON, sizeGiB int) bool {
-	return disk.DiskID != "" && disk.InstanceID != "" && disk.Category == providerDiskESSD &&
+func validCreatedDisk(disk createdDiskJSON, instanceID string, sizeGiB int) bool {
+	return disk.DiskID != "" && disk.InstanceID == instanceID && instanceID != "" && disk.Category == providerDiskESSD &&
 		disk.PerformanceLevel == providerDiskLevelPL0 && disk.Size == int32(sizeGiB)
 }
 

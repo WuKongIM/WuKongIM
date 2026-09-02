@@ -71,6 +71,36 @@ func TestManagerRestoreRequiresExplicitGrantReauthenticationAndConfirmation(
 	}
 }
 
+func TestManagerRestoreCancelUsesExactJobAndFailsClosedWhenUnwired(t *testing.T) {
+	restore := &fakeRestoreManagement{}
+	server := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "restore-admin", Password: "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.restore", Actions: []string{"w"}}},
+		}}),
+		Restore: restore,
+	})
+	token := mustIssueTestToken(t, server, "restore-admin")
+	recorder := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/restores/restore-a/cancel", nil, token,
+	)
+	if recorder.Code != http.StatusNoContent || restore.canceled != "restore-a" {
+		t.Fatalf("status=%d canceled=%q body=%s", recorder.Code, restore.canceled, recorder.Body)
+	}
+
+	unwired := New(Options{Auth: testAuthConfig([]UserConfig{{
+		Username: "restore-admin", Password: "secret",
+		Permissions: []PermissionConfig{{Resource: "cluster.restore", Actions: []string{"w"}}},
+	}})})
+	recorder = performBackupRequest(
+		unwired, http.MethodPost, "/manager/backups/restores/restore-a/cancel", nil,
+		mustIssueTestToken(t, unwired, "restore-admin"),
+	)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unwired status=%d body=%s", recorder.Code, recorder.Body)
+	}
+}
+
 type fakeRestoreManagement struct {
 	archiveID string
 	initiator string

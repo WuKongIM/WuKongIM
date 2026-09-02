@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,7 +104,14 @@ func readBundleSpec(path string) (deploy.BundleSpec, error) {
 		return deploy.BundleSpec{}, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(io.LimitReader(file, maxBundleSpecBytes+1))
+	body, err := io.ReadAll(io.LimitReader(file, maxBundleSpecBytes+1))
+	if err != nil {
+		return deploy.BundleSpec{}, err
+	}
+	if len(body) > maxBundleSpecBytes {
+		return deploy.BundleSpec{}, errors.New("bundle spec exceeds 128 KiB")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	var raw bundleSpecFile
 	if err := decoder.Decode(&raw); err != nil {

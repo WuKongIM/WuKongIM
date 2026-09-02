@@ -35,6 +35,12 @@ type SlotLeaderTransferResult struct {
 
 // RequestSlotLeaderTransfer proposes a Controller task for a Slot Raft leader transfer.
 func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	if r == nil || r.raft == nil {
+		return SlotLeaderTransferResult{}, ErrNotStarted
+	}
 	expectedRevision := req.StateRevision
 	taskID := fmt.Sprintf("slot-%d-leader-transfer-%d-r%d", req.SlotID, req.ConfigEpoch, req.StateRevision)
 	assignment := state.SlotAssignment{

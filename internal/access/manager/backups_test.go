@@ -114,6 +114,44 @@ func TestManagerBackupWritesRequireAuthenticationAndPermission(t *testing.T) {
 	}
 }
 
+func TestManagerBackupVerifyAndHoldPreserveExactArchiveIntent(t *testing.T) {
+	provider := &fakeBackupManagement{archive: backupusecase.ArchiveDetail{
+		Archive: backupusecase.ArchiveSummary{ID: "archive-a", Health: backupusecase.ArchiveHealthHealthy},
+	}}
+	server := New(Options{
+		Backup: provider,
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "backup-admin", Password: "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"w"}}},
+		}}),
+	})
+	token := mustIssueTestToken(t, server, "backup-admin")
+
+	verified := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/archives/archive-a/verify", nil, token,
+	)
+	if verified.Code != http.StatusOK || provider.verifiedArchive != "archive-a" ||
+		!bytes.Contains(verified.Body.Bytes(), []byte(`"id":"archive-a"`)) {
+		t.Fatalf("verify status=%d archive=%q body=%s", verified.Code, provider.verifiedArchive, verified.Body)
+	}
+
+	held := performBackupRequest(
+		server, http.MethodPut, "/manager/backups/archives/archive-a/hold",
+		[]byte(`{"held":true,"note":" legal retention "}`), token,
+	)
+	if held.Code != http.StatusOK || provider.heldArchive != "archive-a" || !provider.held || provider.holdNote != "legal retention" {
+		t.Fatalf("hold status=%d archive=%q held=%v note=%q body=%s", held.Code, provider.heldArchive, provider.held, provider.holdNote, held.Body)
+	}
+
+	invalid := performBackupRequest(
+		server, http.MethodPut, "/manager/backups/archives/archive-a/hold",
+		[]byte(`{"held":`), token,
+	)
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("invalid hold status=%d body=%s", invalid.Code, invalid.Body)
+	}
+}
+
 func TestManagerBackupRejectsInvalidCloudRepositoryShape(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -688,6 +726,10 @@ type fakeBackupManagement struct {
 	testRepositoryRequest backupusecase.TestRepositoryRequest
 	testRepositoryCalls   int
 	testRepositoryErr     error
+	verifiedArchive       string
+	heldArchive           string
+	held                  bool
+	holdNote              string
 }
 
 func (f *fakeBackupManagement) Dashboard(
@@ -741,18 +783,22 @@ func (f *fakeBackupManagement) Archive(
 }
 
 func (f *fakeBackupManagement) VerifyArchive(
-	context.Context,
-	string,
+	_ context.Context,
+	archiveID string,
 ) (backupusecase.ArchiveDetail, error) {
+	f.verifiedArchive = archiveID
 	return f.archive, nil
 }
 
 func (f *fakeBackupManagement) HoldArchive(
-	context.Context,
-	string,
-	bool,
-	string,
+	_ context.Context,
+	archiveID string,
+	held bool,
+	note string,
 ) (backupusecase.ArchiveSummary, error) {
+	f.heldArchive = archiveID
+	f.held = held
+	f.holdNote = note
 	return f.archive.Archive, nil
 }
 

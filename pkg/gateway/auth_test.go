@@ -1,6 +1,7 @@
 package gateway_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -211,6 +212,102 @@ func TestAuthenticatorSkipsEncryptionMaterialWhenDisabled(t *testing.T) {
 	}
 	if got := result.SessionValues[gateway.SessionValueEncryptionEnabled]; got != nil {
 		t.Fatalf("encryption enabled = %#v, want nil", got)
+	}
+}
+
+func TestAuthenticatorRejectsMalformedOrUnverifiableCredentials(t *testing.T) {
+	verifyErr := errors.New("token store unavailable")
+	tests := []struct {
+		name    string
+		connect *frame.ConnectPacket
+		verify  func(string, frame.DeviceFlag, string) (frame.DeviceLevel, error)
+	}{
+		{
+			name: "missing connect packet",
+		},
+		{
+			name:    "missing required token",
+			connect: &frame.ConnectPacket{UID: "alice"},
+			verify: func(string, frame.DeviceFlag, string) (frame.DeviceLevel, error) {
+				t.Fatal("VerifyToken called without a token")
+				return 0, nil
+			},
+		},
+		{
+			name:    "token verifier unavailable",
+			connect: &frame.ConnectPacket{UID: "alice", Token: "token"},
+		},
+		{
+			name:    "token verifier rejects credentials",
+			connect: &frame.ConnectPacket{UID: "alice", Token: "token"},
+			verify: func(string, frame.DeviceFlag, string) (frame.DeviceLevel, error) {
+				return 0, verifyErr
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{
+				TokenAuthOn:       true,
+				DisableEncryption: true,
+				VerifyToken:       tt.verify,
+			})
+			result, err := auth.Authenticate(nil, tt.connect)
+			if err != nil {
+				t.Fatalf("Authenticate() error = %v", err)
+			}
+			if got := result.Connack.ReasonCode; got != frame.ReasonAuthFail {
+				t.Fatalf("ReasonCode = %v, want %v", got, frame.ReasonAuthFail)
+			}
+			if len(result.SessionValues) != 0 {
+				t.Fatalf("rejected credentials produced session values: %#v", result.SessionValues)
+			}
+		})
+	}
+}
+
+func TestAuthenticatorVisitorBypassesTokenButNotBanPolicy(t *testing.T) {
+	var verified bool
+	auth := gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{
+		TokenAuthOn:       true,
+		DisableEncryption: true,
+		IsVisitor:         func(uid string) bool { return uid == "visitor" },
+		VerifyToken: func(string, frame.DeviceFlag, string) (frame.DeviceLevel, error) {
+			verified = true
+			return frame.DeviceLevelMaster, nil
+		},
+		IsBanned: func(uid string) (bool, error) {
+			return uid == "visitor", nil
+		},
+	})
+
+	result, err := auth.Authenticate(nil, &frame.ConnectPacket{UID: "visitor"})
+	if err != nil {
+		t.Fatalf("Authenticate() error = %v", err)
+	}
+	if verified {
+		t.Fatal("visitor unexpectedly entered token verification")
+	}
+	if got := result.Connack.ReasonCode; got != frame.ReasonBan {
+		t.Fatalf("ReasonCode = %v, want %v", got, frame.ReasonBan)
+	}
+}
+
+func TestAuthenticatorFailsClosedWhenBanLookupFails(t *testing.T) {
+	auth := gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{
+		DisableEncryption: true,
+		IsBanned: func(string) (bool, error) {
+			return false, errors.New("ban store unavailable")
+		},
+	})
+
+	result, err := auth.Authenticate(nil, &frame.ConnectPacket{UID: "alice"})
+	if err != nil {
+		t.Fatalf("Authenticate() error = %v", err)
+	}
+	if got := result.Connack.ReasonCode; got != frame.ReasonAuthFail {
+		t.Fatalf("ReasonCode = %v, want %v", got, frame.ReasonAuthFail)
 	}
 }
 

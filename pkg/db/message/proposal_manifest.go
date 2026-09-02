@@ -169,6 +169,57 @@ type proposalReadView interface {
 	Get(key []byte) ([]byte, bool, error)
 }
 
+type durableProposalDisposition uint8
+
+const (
+	durableProposalFresh durableProposalDisposition = iota + 1
+	durableProposalAlreadyPresent
+)
+
+// inspectDurableProposal distinguishes a fresh exact proposal from an exact
+// retry while rejecting incomplete paired indexes and orphaned entry
+// identities. The caller must hold appendMu and must already have validated
+// the log frontier, durable predecessor, manifest, and derived entry chain;
+// this function classifies only the proposal and entry-identity rows. It
+// performs the same bounded point reads for production and in-memory contract
+// adapters.
+func inspectDurableProposal(view proposalReadView, channelKey ChannelKey, proposal durableProposalRecord, entries []quorumlog.EntryIdentity) (durableProposalDisposition, error) {
+	manifest := proposal.manifest
+	if !manifest.StructurallyValid() || uint64(len(entries)) != manifest.LastOffset-manifest.BaseOffset {
+		return 0, dberrors.ErrCorruptState
+	}
+	byCommand, commandPresent, err := loadDurableProposalFrom(view, encodeProposalByCommandKey(channelKey, proposal.manifest.CommandID))
+	if err != nil {
+		return 0, err
+	}
+	byLast, lastPresent, err := loadDurableProposalFrom(view, encodeProposalByLastKey(channelKey, proposal.manifest.LastOffset))
+	if err != nil {
+		return 0, err
+	}
+	if commandPresent || lastPresent {
+		if !commandPresent || !lastPresent || byCommand != proposal || byLast != proposal {
+			return 0, dberrors.ErrCorruptState
+		}
+	}
+	for _, expected := range entries {
+		persisted, present, err := loadDurableEntryIdentityFrom(view, channelKey, expected.Index)
+		if err != nil {
+			return 0, err
+		}
+		if commandPresent {
+			if !present || persisted != expected {
+				return 0, dberrors.ErrCorruptState
+			}
+		} else if present {
+			return 0, dberrors.ErrCorruptState
+		}
+	}
+	if commandPresent {
+		return durableProposalAlreadyPresent, nil
+	}
+	return durableProposalFresh, nil
+}
+
 func loadDurableProposalFrom(view proposalReadView, key []byte) (durableProposalRecord, bool, error) {
 	value, ok, err := view.Get(key)
 	if err != nil || !ok {
@@ -204,25 +255,6 @@ func loadDurableEntryIdentityFrom(view proposalReadView, channelKey ChannelKey, 
 	}
 	entry, err := decodeDurableEntryIdentity(value)
 	return entry, err == nil, err
-}
-
-// validateDurableEntrySet distinguishes an exact replay from a new range and
-// rejects missing, changed, or orphaned per-entry identities.
-func (s *ChannelStore) validateDurableEntrySet(entries []quorumlog.EntryIdentity, mustExist bool) error {
-	for _, expected := range entries {
-		persisted, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, expected.Index)
-		if err != nil {
-			return err
-		}
-		if mustExist {
-			if !present || persisted != expected {
-				return dberrors.ErrCorruptState
-			}
-		} else if present {
-			return dberrors.ErrCorruptState
-		}
-	}
-	return nil
 }
 
 // validateDurableProposalPredecessor proves that the exact previous range and

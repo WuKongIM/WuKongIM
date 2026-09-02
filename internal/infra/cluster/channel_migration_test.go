@@ -43,6 +43,29 @@ func TestNewChannelMigrationStoreReadsNodeStoreLazily(t *testing.T) {
 	}
 }
 
+func TestLazyChannelMigrationStoreFailsEveryManagerMutationClosedUntilWired(t *testing.T) {
+	t.Parallel()
+
+	store := NewChannelMigrationStore(&fakeChannelMigrationStoreNode{})
+	ctx := context.Background()
+	id := channelruntime.ChannelID{ID: "g1", Type: 2}
+	if _, err := store.CreateLeaderTransfer(ctx, channels.CreateLeaderTransferRequest{ChannelID: id, DesiredLeader: 2}); !errors.Is(err, managementusecase.ErrChannelMigrationUnavailable) {
+		t.Fatalf("CreateLeaderTransfer() error = %v", err)
+	}
+	if _, err := store.CreateReplicaReplace(ctx, channels.CreateReplicaReplaceRequest{ChannelID: id, SourceNode: 2, TargetNode: 3}); !errors.Is(err, managementusecase.ErrChannelMigrationUnavailable) {
+		t.Fatalf("CreateReplicaReplace() error = %v", err)
+	}
+	if _, _, err := store.Get(ctx, id, "task-1"); !errors.Is(err, managementusecase.ErrChannelMigrationUnavailable) {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if _, err := store.ListActive(ctx, id, 10); !errors.Is(err, managementusecase.ErrChannelMigrationUnavailable) {
+		t.Fatalf("ListActive() error = %v", err)
+	}
+	if err := store.Abort(ctx, metadb.ChannelMigrationTask{TaskID: "task-1", ChannelID: id.ID, ChannelType: int64(id.Type)}, "operator abort"); !errors.Is(err, managementusecase.ErrChannelMigrationUnavailable) {
+		t.Fatalf("Abort() error = %v", err)
+	}
+}
+
 type fakeChannelMigrationStoreNode struct {
 	store *channels.MigrationStore
 }

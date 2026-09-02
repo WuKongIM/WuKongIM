@@ -7,6 +7,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestNodeLifecycleRPCJoinForwardsTokenAndClusterID(t *testing.T) {
@@ -255,24 +256,194 @@ func TestNodeLifecycleRPCPrepareControllerVoterConflictMapsToPromotionBlocked(t 
 	}
 }
 
+func TestNodeLifecycleRPCRejectsInvalidClusterAndTokenBeforeDelegating(t *testing.T) {
+	t.Run("join token", func(t *testing.T) {
+		service := &fakeNodeLifecycleService{}
+		client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+			NodeLifecycle:          service,
+			NodeLifecycleClusterID: "cluster-a",
+			NodeLifecycleJoinToken: "expected-token",
+		}).HandleNodeLifecycleRPC})
+
+		_, err := client.JoinNode(context.Background(), 1, NodeJoinRequest{
+			NodeID:        4,
+			AdvertiseAddr: "10.0.0.4:11110",
+			ClusterID:     "cluster-a",
+			JoinToken:     "wrong-token",
+		})
+		if !errors.Is(err, metadb.ErrInvalidArgument) {
+			t.Fatalf("JoinNode() error = %v, want ErrInvalidArgument", err)
+		}
+		if service.joinRequest.NodeID != 0 {
+			t.Fatalf("join service received invalid credentials: %#v", service.joinRequest)
+		}
+	})
+
+	t.Run("readiness cluster", func(t *testing.T) {
+		provider := &fakeNodeReadinessProvider{}
+		client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+			NodeReadiness:          provider,
+			NodeLifecycleClusterID: "cluster-a",
+		}).HandleNodeLifecycleRPC})
+
+		_, err := client.NodeReadiness(context.Background(), 4, NodeReadinessRequest{
+			NodeID: 4, ClusterID: "cluster-b",
+		})
+		if !errors.Is(err, metadb.ErrInvalidArgument) {
+			t.Fatalf("NodeReadiness() error = %v, want ErrInvalidArgument", err)
+		}
+		if provider.request.NodeID != 0 {
+			t.Fatalf("readiness provider received cross-cluster request: %#v", provider.request)
+		}
+	})
+
+	t.Run("controller voter cluster", func(t *testing.T) {
+		provider := &fakeControllerVoterReadinessProvider{}
+		client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+			ControllerVoterReadiness: provider,
+			NodeLifecycleClusterID:   "cluster-a",
+		}).HandleNodeLifecycleRPC})
+
+		_, err := client.ControllerVoterReadiness(context.Background(), 4, ControllerVoterReadinessRequest{
+			NodeID: 4, ClusterID: "cluster-b",
+		})
+		if !errors.Is(err, metadb.ErrInvalidArgument) {
+			t.Fatalf("ControllerVoterReadiness() error = %v, want ErrInvalidArgument", err)
+		}
+		if provider.request.NodeID != 0 {
+			t.Fatalf("controller readiness provider received cross-cluster request: %#v", provider.request)
+		}
+	})
+
+	t.Run("controller preparation cluster", func(t *testing.T) {
+		provider := &fakeControllerVoterPreparer{}
+		client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+			ControllerVoterPreparer: provider,
+			NodeLifecycleClusterID:  "cluster-a",
+		}).HandleNodeLifecycleRPC})
+
+		_, err := client.PrepareControllerVoter(context.Background(), 4, PrepareControllerVoterRequest{
+			NodeID: 4, ClusterID: "cluster-b", ExpectedRevision: 22,
+			NextVoters: []ControllerVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		})
+		if !errors.Is(err, metadb.ErrInvalidArgument) {
+			t.Fatalf("PrepareControllerVoter() error = %v, want ErrInvalidArgument", err)
+		}
+		if provider.request.NodeID != 0 {
+			t.Fatalf("controller preparer received cross-cluster request: %#v", provider.request)
+		}
+	})
+}
+
+func TestNodeLifecycleRPCPreservesStableLifecycleFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func() error
+		want error
+	}{
+		{
+			name: "join conflict",
+			run: func() error {
+				service := &fakeNodeLifecycleService{err: managementusecase.ErrNodeLifecycleConflict}
+				client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+					NodeLifecycle: service, NodeLifecycleClusterID: "cluster-a", NodeLifecycleJoinToken: "token-a",
+				}).HandleNodeLifecycleRPC})
+				_, err := client.JoinNode(context.Background(), 1, NodeJoinRequest{NodeID: 4, ClusterID: "cluster-a", JoinToken: "token-a"})
+				return err
+			},
+			want: managementusecase.ErrNodeLifecycleConflict,
+		},
+		{
+			name: "join not found",
+			run: func() error {
+				service := &fakeNodeLifecycleService{err: managementusecase.ErrNodeLifecycleNotFound}
+				client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+					NodeLifecycle: service, NodeLifecycleClusterID: "cluster-a", NodeLifecycleJoinToken: "token-a",
+				}).HandleNodeLifecycleRPC})
+				_, err := client.JoinNode(context.Background(), 1, NodeJoinRequest{NodeID: 4, ClusterID: "cluster-a", JoinToken: "token-a"})
+				return err
+			},
+			want: managementusecase.ErrNodeLifecycleNotFound,
+		},
+		{
+			name: "join canceled",
+			run: func() error {
+				service := &fakeNodeLifecycleService{err: context.Canceled}
+				client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+					NodeLifecycle: service, NodeLifecycleClusterID: "cluster-a", NodeLifecycleJoinToken: "token-a",
+				}).HandleNodeLifecycleRPC})
+				_, err := client.JoinNode(context.Background(), 1, NodeJoinRequest{NodeID: 4, ClusterID: "cluster-a", JoinToken: "token-a"})
+				return err
+			},
+			want: context.Canceled,
+		},
+		{
+			name: "readiness deadline",
+			run: func() error {
+				provider := &fakeNodeReadinessProvider{err: context.DeadlineExceeded}
+				client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+					NodeReadiness: provider, NodeLifecycleClusterID: "cluster-a",
+				}).HandleNodeLifecycleRPC})
+				_, err := client.NodeReadiness(context.Background(), 4, NodeReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+				return err
+			},
+			want: context.DeadlineExceeded,
+		},
+		{
+			name: "controller voter invalid",
+			run: func() error {
+				provider := &fakeControllerVoterReadinessProvider{err: metadb.ErrInvalidArgument}
+				client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+					ControllerVoterReadiness: provider, NodeLifecycleClusterID: "cluster-a",
+				}).HandleNodeLifecycleRPC})
+				_, err := client.ControllerVoterReadiness(context.Background(), 4, ControllerVoterReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+				return err
+			},
+			want: metadb.ErrInvalidArgument,
+		},
+		{
+			name: "controller voter unavailable",
+			run: func() error {
+				provider := &fakeControllerVoterReadinessProvider{err: managementusecase.ErrControllerVoterPromotionUnavailable}
+				client := NewClient(&fakeNodeLifecycleRPCNode{handler: New(Options{
+					ControllerVoterReadiness: provider, NodeLifecycleClusterID: "cluster-a",
+				}).HandleNodeLifecycleRPC})
+				_, err := client.ControllerVoterReadiness(context.Background(), 4, ControllerVoterReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+				return err
+			},
+			want: managementusecase.ErrControllerVoterPromotionUnavailable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.want) {
+				t.Fatalf("lifecycle error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
 type fakeNodeLifecycleService struct {
 	joinRequest  managementusecase.JoinNodeRequest
 	joinResponse managementusecase.JoinNodeResponse
+	err          error
 }
 
 func (f *fakeNodeLifecycleService) JoinNode(_ context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error) {
 	f.joinRequest = req
-	return f.joinResponse, nil
+	return f.joinResponse, f.err
 }
 
 type fakeNodeReadinessProvider struct {
 	request  NodeReadinessRequest
 	response NodeReadinessResponse
+	err      error
 }
 
 func (f *fakeNodeReadinessProvider) NodeReadiness(_ context.Context, req NodeReadinessRequest) (NodeReadinessResponse, error) {
 	f.request = req
-	return f.response, nil
+	return f.response, f.err
 }
 
 type fakeControllerVoterReadinessProvider struct {

@@ -295,10 +295,17 @@ func (client *Client) requestJSONAt(
 	if err != nil || mediaType != "application/json" {
 		return errors.New("GitHub API returned unexpected content type")
 	}
-	decoder := json.NewDecoder(io.LimitReader(
+	body, err := io.ReadAll(io.LimitReader(
 		response.Body,
 		client.maxBodyBytes+1,
 	))
+	if err != nil {
+		return errors.New("read GitHub API write response")
+	}
+	if int64(len(body)) > client.maxBodyBytes {
+		return errors.New("GitHub API write response exceeds byte limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	if err := decoder.Decode(output); err != nil {
 		return errors.New("decode GitHub API write response")
 	}

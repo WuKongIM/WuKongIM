@@ -76,6 +76,9 @@ func installOfflineHost(options offlineInstallOptions) (clouddeploy.Manifest, er
 	if strings.TrimSpace(options.rootPrefix) == "" || strings.TrimSpace(options.runtimeDir) == "" {
 		return clouddeploy.Manifest{}, clouddeploy.ErrInvalidDeployment
 	}
+	if !options.noSystemd && options.rootPrefix != "/" {
+		return clouddeploy.Manifest{}, errors.New("--no-systemd is required with --root-prefix")
+	}
 	directory, err := clouddeployinfra.Open(options.bundleRoot)
 	if err != nil {
 		return clouddeploy.Manifest{}, err
@@ -178,9 +181,6 @@ func installOfflineHost(options offlineInstallOptions) (clouddeploy.Manifest, er
 		}
 	}
 	if !options.noSystemd {
-		if options.rootPrefix != "/" {
-			return clouddeploy.Manifest{}, errors.New("--no-systemd is required with --root-prefix")
-		}
 		if err := activateOfflineUnits(options.role); err != nil {
 			return clouddeploy.Manifest{}, err
 		}
@@ -306,7 +306,11 @@ func copyOfflineTree(source, destination string) error {
 }
 
 func activateOfflineUnits(role string) error {
-	if err := runCommand("systemctl", "daemon-reload"); err != nil {
+	return activateOfflineUnitsWithRunner(role, runCommand)
+}
+
+func activateOfflineUnitsWithRunner(role string, run commandRunner) error {
+	if err := run("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
 	units := offlineUnits(role)
@@ -320,5 +324,5 @@ func activateOfflineUnits(role string) error {
 		units = append(units, "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service")
 	}
 	args := append([]string{"enable", "--now"}, units...)
-	return runCommand("systemctl", args...)
+	return run("systemctl", args...)
 }

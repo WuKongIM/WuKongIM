@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const maxStateBytes = 64 << 10
+
 // State records whether a Simulation Run can still be treated as a pure
 // benchmark and whether an operator changed run state through Manager.
 type State struct {
@@ -74,7 +76,14 @@ func read(path, expectedRunID string) (State, bool, error) {
 		return State{}, false, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(io.LimitReader(file, 64<<10))
+	body, err := io.ReadAll(io.LimitReader(file, maxStateBytes+1))
+	if err != nil {
+		return State{}, false, err
+	}
+	if len(body) > maxStateBytes {
+		return State{}, false, errors.New("cloud view run state exceeds 64 KiB")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	var state State
 	if err := decoder.Decode(&state); err != nil {

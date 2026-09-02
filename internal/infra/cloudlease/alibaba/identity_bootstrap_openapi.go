@@ -436,7 +436,7 @@ func identityBootstrapNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "entitynotexist") || strings.Contains(message, "nosuchentity") ||
-		strings.Contains(message, "not found") || strings.Contains(message, "notfound")
+	code := strings.ToLower(strings.TrimSpace(lifecycleSDKErrorCode(err)))
+	return strings.Contains(code, "entitynotexist") || strings.Contains(code, "nosuchentity") ||
+		strings.Contains(code, "notfound")
 }

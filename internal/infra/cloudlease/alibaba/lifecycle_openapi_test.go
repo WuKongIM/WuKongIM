@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
+	"github.com/alibabacloud-go/tea/dara"
 )
 
 func TestReadOnlyOpenAPICannotReachLifecycleMethods(t *testing.T) {
@@ -252,5 +253,43 @@ func TestLifecycleCloudInitCreatesOnlyKeyBasedDeploymentUser(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(document), "\n    password:") || strings.Contains(strings.ToLower(document), "\n    passwd:") {
 		t.Fatalf("cloud-init contains password material:\n%s", document)
+	}
+}
+
+func TestCreatedDiskMustBelongToTheNewInstance(t *testing.T) {
+	disk := createdDiskJSON{
+		DiskID: "d-system", InstanceID: "i-foreign", Type: "system",
+		Category: providerDiskESSD, PerformanceLevel: providerDiskLevelPL0, Size: 40,
+	}
+	if validCreatedDisk(disk, "i-created", 40) {
+		t.Fatal("created disk from a different instance was accepted")
+	}
+	disk.InstanceID = "i-created"
+	if !validCreatedDisk(disk, "i-created", 40) {
+		t.Fatal("exact created-instance disk was rejected")
+	}
+}
+
+func TestLifecycleResourceIdentityHelpersStayCanonicalAndFailClosed(t *testing.T) {
+	base := map[string]string{"z-key": "last", "a-key": "first"}
+	tags, err := openAPIResourceTags(base, "load")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, mutated := base[cloudlease.TagResourceRole]; mutated || tags[cloudlease.TagResourceRole] != "load" {
+		t.Fatalf("openAPIResourceTags() mutated caller or omitted role: base=%#v tags=%#v", base, tags)
+	}
+	wantPairs := [][2]string{{"a-key", "first"}, {cloudlease.TagResourceRole, "load"}, {"z-key", "last"}}
+	if got := sortedLifecycleTagPairs(tags); !reflect.DeepEqual(got, wantPairs) {
+		t.Fatalf("sortedLifecycleTagPairs() = %#v, want %#v", got, wantPairs)
+	}
+	if got := openAPIResourceName("lease_one/two:three", "vpc"); got != "wklease-lease-one-two-three-vpc" {
+		t.Fatalf("openAPIResourceName() = %q", got)
+	}
+	if alreadyAbsentError(errors.New("provider endpoint not found")) {
+		t.Fatal("ordinary transport error was treated as proof that a cloud asset is absent")
+	}
+	if !alreadyAbsentError(&dara.SDKError{Code: dara.String("InvalidInstanceId.NotFound")}) {
+		t.Fatal("Alibaba NotFound resource code was not recognized as idempotent deletion")
 	}
 }

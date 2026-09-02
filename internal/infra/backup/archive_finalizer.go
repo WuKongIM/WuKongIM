@@ -59,6 +59,9 @@ func (f *ArchiveFinalizer) Publish(
 	default:
 		return fmt.Errorf("backup archive finalizer: invalid trigger")
 	}
+	if len(job.Slots) != backupartifact.DefaultHashSlotCount {
+		return fmt.Errorf("backup archive finalizer: incomplete Slot progress")
+	}
 	slots := make(
 		[]backupartifact.SlotReference,
 		backupartifact.DefaultHashSlotCount,

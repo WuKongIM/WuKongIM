@@ -266,7 +266,7 @@
 
 *(注：`recvack` 通常没有特定的响应体，如果需要响应，服务器可能会返回一个空的成功 `result` 或错误)*
 
-### 5. 订阅频道 (Subscribe)(暂不支持)
+### 5. 订阅频道 (Subscribe)
 
 #### Subscribe Request (`subscribe`)
 
@@ -297,7 +297,7 @@
 }
 ```
 
-### 6. 取消订阅频道 (Unsubscribe)（暂不支持）
+### 6. 取消订阅频道 (Unsubscribe)
 
 #### Unsubscribe Request (`unsubscribe`)
 
@@ -326,6 +326,10 @@
   "id": "req-unsub-1"
 }
 ```
+
+#### 协议帧桥接
+
+`subscribe` 和 `unsubscribe` 请求都会转换为 WKProto `SUB` 帧，`action` 分别为 `0` (Subscribe) 和 `1` (Unsubscribe)。服务器收到 `SUBACK` 后，使用原请求的 `id` 返回下述 Subscription Response：成功原因码写入 `result`，非成功原因码写入 `error`。
 
 #### Subscription Response
 

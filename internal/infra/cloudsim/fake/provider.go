@@ -129,7 +129,9 @@ func newProvider(opts Options) *Provider {
 			QuotaAvailable:         true,
 		}
 	}
-	return &Provider{now: now, quote: quote, failures: opts.Failures, runs: make(map[string]cloudsim.Run), statePath: opts.StatePath}
+	failures := opts.Failures
+	failures.DestroyRunIDs = maps.Clone(opts.Failures.DestroyRunIDs)
+	return &Provider{now: now, quote: quote, failures: failures, runs: make(map[string]cloudsim.Run), statePath: opts.StatePath}
 }
 
 // Name returns the stable fake provider identifier.
@@ -137,7 +139,10 @@ func (*Provider) Name() string { return ProviderName }
 
 // Authority derives the exact fake inventory binding and fails closed when the
 // persistent store is empty or spans more than one account or region.
-func (p *Provider) Authority(context.Context) (cloudsim.ProviderAuthority, error) {
+func (p *Provider) Authority(ctx context.Context) (cloudsim.ProviderAuthority, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.ProviderAuthority{}, err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	var authority cloudsim.ProviderAuthority
@@ -161,7 +166,10 @@ func (p *Provider) Authority(context.Context) (cloudsim.ProviderAuthority, error
 }
 
 // Inventory returns deterministic deep copies of all known run records.
-func (p *Provider) Inventory(context.Context) ([]cloudsim.Run, error) {
+func (p *Provider) Inventory(ctx context.Context) ([]cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.failures.Inventory {
@@ -180,7 +188,10 @@ func (p *Provider) Inventory(context.Context) ([]cloudsim.Run, error) {
 }
 
 // Quote returns a bounded deterministic fake price and capacity decision.
-func (p *Provider) Quote(context.Context, cloudsim.CreateRequest) (cloudsim.Quote, error) {
+func (p *Provider) Quote(ctx context.Context, _ cloudsim.CreateRequest) (cloudsim.Quote, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Quote{}, err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.failures.Quote {
@@ -190,7 +201,10 @@ func (p *Provider) Quote(context.Context, cloudsim.CreateRequest) (cloudsim.Quot
 }
 
 // Create builds one isolated run network, four compute hosts, four independent disks, and simulator ingress resources.
-func (p *Provider) Create(_ context.Context, req cloudsim.CreateRequest, quote cloudsim.Quote) (cloudsim.Run, error) {
+func (p *Provider) Create(ctx context.Context, req cloudsim.CreateRequest, quote cloudsim.Quote) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if err := validateMandatoryTags(req); err != nil {
@@ -224,7 +238,10 @@ func (p *Provider) Create(_ context.Context, req cloudsim.CreateRequest, quote c
 }
 
 // Status returns one exact run record or ErrRunNotFound.
-func (p *Provider) Status(_ context.Context, runID string) (cloudsim.Run, error) {
+func (p *Provider) Status(ctx context.Context, runID string) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	run, ok := p.runs[runID]
@@ -238,7 +255,10 @@ func (p *Provider) Status(_ context.Context, runID string) (cloudsim.Run, error)
 }
 
 // Transition persists one control-plane-validated lifecycle step.
-func (p *Provider) Transition(_ context.Context, req cloudsim.TransitionRequest) (cloudsim.Run, error) {
+func (p *Provider) Transition(ctx context.Context, req cloudsim.TransitionRequest) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[req.RunID]
@@ -257,7 +277,10 @@ func (p *Provider) Transition(_ context.Context, req cloudsim.TransitionRequest)
 }
 
 // OpenDeployment records one simulator-only temporary SSH ingress window.
-func (p *Provider) OpenDeployment(_ context.Context, req cloudsim.OpenDeploymentRequest) (cloudsim.Run, error) {
+func (p *Provider) OpenDeployment(ctx context.Context, req cloudsim.OpenDeploymentRequest) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[req.RunID]
@@ -276,7 +299,10 @@ func (p *Provider) OpenDeployment(_ context.Context, req cloudsim.OpenDeployment
 }
 
 // CloseDeployment clears temporary simulator SSH ingress for one exact run.
-func (p *Provider) CloseDeployment(_ context.Context, runID string) (cloudsim.Run, error) {
+func (p *Provider) CloseDeployment(ctx context.Context, runID string) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[runID]
@@ -292,7 +318,10 @@ func (p *Provider) CloseDeployment(_ context.Context, runID string) (cloudsim.Ru
 }
 
 // OpenAnalysis records one run-scoped temporary ingress window.
-func (p *Provider) OpenAnalysis(_ context.Context, req cloudsim.OpenAnalysisRequest) (cloudsim.Run, error) {
+func (p *Provider) OpenAnalysis(ctx context.Context, req cloudsim.OpenAnalysisRequest) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[req.RunID]
@@ -311,7 +340,10 @@ func (p *Provider) OpenAnalysis(_ context.Context, req cloudsim.OpenAnalysisRequ
 }
 
 // CloseAnalysis clears temporary ingress for one exact run.
-func (p *Provider) CloseAnalysis(_ context.Context, runID string) (cloudsim.Run, error) {
+func (p *Provider) CloseAnalysis(ctx context.Context, runID string) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[runID]
@@ -327,7 +359,10 @@ func (p *Provider) CloseAnalysis(_ context.Context, runID string) (cloudsim.Run,
 }
 
 // OpenPublicView records one public Cloud View ingress window.
-func (p *Provider) OpenPublicView(_ context.Context, req cloudsim.OpenPublicViewRequest) (cloudsim.Run, error) {
+func (p *Provider) OpenPublicView(ctx context.Context, req cloudsim.OpenPublicViewRequest) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[req.RunID]
@@ -346,7 +381,10 @@ func (p *Provider) OpenPublicView(_ context.Context, req cloudsim.OpenPublicView
 }
 
 // ClosePublicView clears public Cloud View ingress for one exact run.
-func (p *Provider) ClosePublicView(_ context.Context, runID string) (cloudsim.Run, error) {
+func (p *Provider) ClosePublicView(ctx context.Context, runID string) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	run, ok := p.runs[runID]
@@ -362,7 +400,10 @@ func (p *Provider) ClosePublicView(_ context.Context, runID string) (cloudsim.Ru
 }
 
 // Destroy clears all run resources and records provider-proven release.
-func (p *Provider) Destroy(_ context.Context, runID string) (cloudsim.Run, error) {
+func (p *Provider) Destroy(ctx context.Context, runID string) (cloudsim.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.failures.DestroyRunIDs[runID] {

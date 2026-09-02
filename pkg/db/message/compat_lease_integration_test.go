@@ -1222,29 +1222,6 @@ func TestEngineMetricsSnapshotConcurrentClose(t *testing.T) {
 	wg.Wait()
 }
 
-func openCompatEngine(t *testing.T) *Engine {
-	t.Helper()
-	eng, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatalf("Open(): %v", err)
-	}
-	t.Cleanup(func() {
-		if err := eng.Close(); err != nil {
-			t.Fatalf("Engine.Close(): %v", err)
-		}
-	})
-	return eng
-}
-
-func mustForChannel(t testing.TB, eng *Engine, key channel.ChannelKey, id channel.ChannelID) *ChannelStore {
-	t.Helper()
-	store, err := eng.ForChannel(key, id)
-	if err != nil {
-		t.Fatalf("ForChannel(%q): %v", key, err)
-	}
-	return store
-}
-
 func waitSignal(t *testing.T, ch <-chan struct{}, name string) {
 	t.Helper()
 	select {

@@ -259,6 +259,52 @@ func TestProviderOpensOnlyTheRequestedIngressSurface(t *testing.T) {
 	}
 }
 
+func TestProviderClosesEachIngressSurfaceWithoutAffectingTheOthers(t *testing.T) {
+	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
+	api := newCreatingAPIStub()
+	provider, err := New(testConfig(), api, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	req := testCreateRequest(now)
+	quote, err := provider.Quote(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Quote() error = %v", err)
+	}
+	req.Tags = mandatoryTestTags(req)
+	if _, err := provider.Create(context.Background(), req, quote); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := provider.OpenDeployment(context.Background(), cloudsim.OpenDeploymentRequest{
+		RunID: req.RunID, SourcePrefix: netip.MustParsePrefix("203.0.113.10/32"), Until: now.Add(15 * time.Minute),
+	}); err != nil {
+		t.Fatalf("OpenDeployment() error = %v", err)
+	}
+	if _, err := provider.OpenAnalysis(context.Background(), cloudsim.OpenAnalysisRequest{
+		RunID: req.RunID, SourcePrefix: netip.MustParsePrefix("198.51.100.8/32"), Until: now.Add(40 * time.Minute),
+	}); err != nil {
+		t.Fatalf("OpenAnalysis() error = %v", err)
+	}
+	if _, err := provider.OpenPublicView(context.Background(), cloudsim.OpenPublicViewRequest{
+		RunID: req.RunID, SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: now.Add(2 * time.Hour),
+	}); err != nil {
+		t.Fatalf("OpenPublicView() error = %v", err)
+	}
+
+	run, err := provider.CloseAnalysis(context.Background(), req.RunID)
+	if err != nil || run.AnalysisWindow != nil || run.DeploymentWindow == nil || run.PublicViewWindow == nil {
+		t.Fatalf("CloseAnalysis() = %#v, %v", run, err)
+	}
+	run, err = provider.CloseDeployment(context.Background(), req.RunID)
+	if err != nil || run.DeploymentWindow != nil || run.PublicViewWindow == nil {
+		t.Fatalf("CloseDeployment() = %#v, %v", run, err)
+	}
+	run, err = provider.ClosePublicView(context.Background(), req.RunID)
+	if err != nil || run.PublicViewWindow != nil || len(api.ingress) != 0 {
+		t.Fatalf("ClosePublicView() = %#v, %v; ingress = %#v", run, err, api.ingress)
+	}
+}
+
 func TestProviderReconcilesMissingSpotHostAsInfrastructureInterruption(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	api := newCreatingAPIStub()
