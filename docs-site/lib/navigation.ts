@@ -758,8 +758,8 @@ export const domains: DocumentationDomain[] = [
             'linux',
             'Linux 部署',
             'Linux',
-            '使用二进制、配置文件和 systemd 运行服务。',
-            'Runs the server with a binary, configuration file, and systemd.',
+            '从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。',
+            'Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.',
           ),
           publishedPage(
             'multi-node',

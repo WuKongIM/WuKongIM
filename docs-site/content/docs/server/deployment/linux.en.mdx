@@ -1,44 +1,111 @@
 ---
 title: Linux
-description: Install WuKongIM from deb/rpm previews or source, initialize it safely, and supervise a cluster node with systemd.
+description: Install WuKongIM from the signed APT/DNF preview repository or local deb/rpm packages, initialize it safely, and supervise a cluster node with systemd.
 ---
 
-The Linux path fits teams that want direct control over hosts, filesystems, networking, and service lifecycle. The repository can now build deb/rpm preview packages, and the separate `WuKongIM/packages` repository has a fail-closed bootstrap at the verified HTTPS endpoint `packages.githubim.com`. Signing keys and APT/YUM indexes are not enabled yet, however, so that endpoint cannot be used for installation. Do not treat these local previews as a signed production distribution channel.
+The signed WuKongIM Linux preview repository is now available. It currently publishes `v3.0.0-beta.6` for amd64/x86_64 only. The publication pipeline has verified repository metadata, signatures, and exact-version downloads in fresh Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9 containers. RHEL 9 is a compatible target for the same EL9 repository, but is not part of this automated clean-client matrix.
 
-The first preview targets Linux amd64 and runs installation contract checks on Ubuntu 24.04, Debian 12, Rocky Linux 9, and AlmaLinux 9.
+Preview is a prerelease channel, not the stable channel. Validate configuration, backup, recovery, and upgrade compatibility outside production first.
 
-## 1. Build and install a local preview package
+## 1. Install from the signed preview repository
 
-The repository requires Go `1.25.11`; the package configuration is validated with GoReleaser `v2.18.0`:
+### Debian / Ubuntu (APT)
 
-```bash
-git rev-parse HEAD
-go version
-goreleaser release --snapshot --clean \
-  --config .goreleaser.packages.yaml
-(cd dist && sha256sum --check checksums.txt)
-```
-
-Install the generated `.deb` on Debian or Ubuntu:
+These commands keep the repository certificate in a dedicated keyring and verify its primary fingerprint before installing it. They do not add global trust or bypass signature checks:
 
 ```bash
-sudo apt install ./dist/wukongim_*_linux_amd64.deb
+set -euo pipefail
+
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gpg
+
+apt_key="$(mktemp)"
+trap 'rm -f "$apt_key"' EXIT
+curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
+  --output "$apt_key" \
+  https://packages.githubim.com/keys/apt-preview.asc
+
+apt_fingerprints="$(
+  gpg --batch --show-keys --with-colons "$apt_key" |
+    awk -F: '
+      $1 == "pub" { primary = 1; next }
+      primary && $1 == "fpr" { print $10; primary = 0 }
+    '
+)"
+test "$apt_fingerprints" = 'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1'
+
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo install -o root -g root -m 0644 "$apt_key" /etc/apt/keyrings/wukongim-preview.asc
+rm -f "$apt_key"
+trap - EXIT
+
+printf '%s\n' \
+  'deb [arch=amd64 signed-by=/etc/apt/keyrings/wukongim-preview.asc] https://packages.githubim.com/apt preview main' |
+  sudo tee /etc/apt/sources.list.d/wukongim-preview.list >/dev/null
+
+sudo apt-get update
+sudo apt-get install -y wukongim=3.0.0~beta.6
 ```
 
-Install the generated `.rpm` on Rocky or AlmaLinux:
+### RHEL / Rocky / AlmaLinux 9 (DNF/YUM)
+
+Use this dedicated repository configuration on EL9 to verify both package signatures and repository metadata signatures. On a compatible system that still uses the `yum` command name, replace `dnf` with `yum` in every command:
 
 ```bash
-sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
+set -euo pipefail
+
+sudo dnf install -y ca-certificates gnupg2
+if ! command -v curl >/dev/null; then
+  sudo dnf install -y curl-minimal
+fi
+
+rpm_key="$(mktemp)"
+trap 'rm -f "$rpm_key"' EXIT
+curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
+  --output "$rpm_key" \
+  https://packages.githubim.com/keys/rpm-preview.asc
+
+rpm_fingerprints="$(
+  gpg --batch --show-keys --with-colons "$rpm_key" |
+    awk -F: '
+      $1 == "pub" { primary = 1; next }
+      primary && $1 == "fpr" { print $10; primary = 0 }
+    '
+)"
+test "$rpm_fingerprints" = 'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459'
+
+sudo install -d -m 0755 /etc/pki/rpm-gpg
+sudo install -o root -g root -m 0644 "$rpm_key" /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
+rm -f "$rpm_key"
+trap - EXIT
+
+sudo tee /etc/yum.repos.d/wukongim-preview.repo >/dev/null <<'EOF'
+[wukongim-preview]
+name=WuKongIM preview
+baseurl=https://packages.githubim.com/rpm/preview/el/9/x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
+sslverify=1
+metadata_expire=300
+skip_if_unavailable=0
+EOF
+
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64
 ```
 
-The package installs `/usr/bin/wukongim` and a hardened `wukongim.service`, then creates the `wukongim` system account and `/etc/wukongim`, `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. It does not create an active configuration, enable or start the service, or restart it.
-
-Confirm the binary identity:
+Confirm the binary identity after installation. The version should be `3.0.0-beta.6`; `source` in the text output and `build_source` in JSON should be `release`:
 
 ```bash
 wukongim version
 wukongim version --output json
 ```
+
+The package installs `/usr/bin/wukongim` and a hardened `wukongim.service`, then creates the `wukongim` system account and `/etc/wukongim`, `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. It does not create an active configuration, enable or start the service, or restart it.
+
+The repository does not yet ship a separate keyring package, so repository certificates are not refreshed automatically. Before an announced signing-subkey promotion, download the applicable certificate again and recheck the primary fingerprint above. Never disable package or repository-metadata signature verification.
 
 ## 2. Initialize a secure configuration
 
@@ -91,9 +158,35 @@ Also verify persistent mounts, directory ownership, and advertised addresses fro
 
 Before an upgrade, validate the target commit, artifact, configuration, backup, and recovery path outside production. Roll one node at a time only when the target release explicitly supports mixed operation with the current version; otherwise use a full maintenance window. See [Upgrade & Migration](/en/server/operations/upgrade-and-migration) for the complete boundary.
 
+## Build a local preview package
+
+To audit package contents or test unpublished code, build a local package from a fixed commit. The repository requires Go `1.25.11`; the package configuration is validated with GoReleaser `v2.18.0`:
+
+```bash
+git rev-parse HEAD
+go version
+goreleaser release --snapshot --clean \
+  --config .goreleaser.packages.yaml
+(cd dist && sha256sum --check checksums.txt)
+```
+
+Install the generated `.deb` on Debian or Ubuntu:
+
+```bash
+sudo apt install ./dist/wukongim_*_linux_amd64.deb
+```
+
+Install the generated `.rpm` on Rocky or AlmaLinux:
+
+```bash
+sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
+```
+
+A local snapshot does not carry the public preview repository's signatures or immutable publication audit and must not be presented as a public-channel artifact.
+
 ## Install from source
 
-Until the public repository is enabled, you can also build the binary directly:
+If a source deployment is genuinely required, build the binary from a fixed commit:
 
 ```bash
 GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim

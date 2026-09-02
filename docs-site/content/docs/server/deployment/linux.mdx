@@ -1,44 +1,111 @@
 ---
 title: Linux 部署
-description: 用 deb/rpm 预览包或源码安装 WuKongIM，并通过安全初始化和 systemd 托管集群节点。
+description: 从签名 APT/DNF Preview 软件源或本地 deb/rpm 安装 WuKongIM，并通过安全初始化和 systemd 托管集群节点。
 ---
 
-Linux 路径适合希望直接控制主机、文件系统、网络和服务生命周期的团队。仓库现在能够构建 deb/rpm 预览包，独立的 `WuKongIM/packages` 仓库也已在完成验证的 HTTPS 地址 `packages.githubim.com` 建立 fail-closed bootstrap；但签名密钥和 APT/YUM 索引尚未启用，因此该地址还不能用于安装。不要把下面的本地预览包当作已签名的正式发布渠道。
+WuKongIM 的签名 Linux Preview 软件源已经启用，当前发布 `v3.0.0-beta.6`，仅支持 amd64/x86_64。发布流程已在 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9 的全新容器中验证软件源元数据、签名和精确版本下载；RHEL 9 是同一 EL9 软件源的兼容目标，但不在本次自动化清洁客户端矩阵中。
 
-首批预览支持 Linux amd64，并在 Ubuntu 24.04、Debian 12、Rocky Linux 9 和 AlmaLinux 9 上执行安装契约检查。
+Preview 是预发布通道，不等同于稳定通道。请先在非生产环境验证配置、备份、恢复和升级兼容性。
 
-## 1. 构建并安装本地预览包
+## 1. 从签名 Preview 软件源安装
 
-仓库要求 Go `1.25.11`，打包配置固定按 GoReleaser `v2.18.0` 校验：
+### Debian / Ubuntu（APT）
 
-```bash
-git rev-parse HEAD
-go version
-goreleaser release --snapshot --clean \
-  --config .goreleaser.packages.yaml
-(cd dist && sha256sum --check checksums.txt)
-```
-
-Debian/Ubuntu 安装生成的 `.deb`：
+下面的命令单独保存仓库证书，核对主密钥指纹后才写入系统 keyring；不会使用全局信任或绕过签名检查：
 
 ```bash
-sudo apt install ./dist/wukongim_*_linux_amd64.deb
+set -euo pipefail
+
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gpg
+
+apt_key="$(mktemp)"
+trap 'rm -f "$apt_key"' EXIT
+curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
+  --output "$apt_key" \
+  https://packages.githubim.com/keys/apt-preview.asc
+
+apt_fingerprints="$(
+  gpg --batch --show-keys --with-colons "$apt_key" |
+    awk -F: '
+      $1 == "pub" { primary = 1; next }
+      primary && $1 == "fpr" { print $10; primary = 0 }
+    '
+)"
+test "$apt_fingerprints" = 'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1'
+
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo install -o root -g root -m 0644 "$apt_key" /etc/apt/keyrings/wukongim-preview.asc
+rm -f "$apt_key"
+trap - EXIT
+
+printf '%s\n' \
+  'deb [arch=amd64 signed-by=/etc/apt/keyrings/wukongim-preview.asc] https://packages.githubim.com/apt preview main' |
+  sudo tee /etc/apt/sources.list.d/wukongim-preview.list >/dev/null
+
+sudo apt-get update
+sudo apt-get install -y wukongim=3.0.0~beta.6
 ```
 
-Rocky/AlmaLinux 安装生成的 `.rpm`：
+### RHEL / Rocky / AlmaLinux 9（DNF/YUM）
+
+EL9 使用下面的独立 repo 配置，同时验证软件包签名与仓库元数据签名。仍使用 `yum` 命令名的兼容系统可以把每一条 `dnf` 命令替换为 `yum`：
 
 ```bash
-sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
+set -euo pipefail
+
+sudo dnf install -y ca-certificates gnupg2
+if ! command -v curl >/dev/null; then
+  sudo dnf install -y curl-minimal
+fi
+
+rpm_key="$(mktemp)"
+trap 'rm -f "$rpm_key"' EXIT
+curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
+  --output "$rpm_key" \
+  https://packages.githubim.com/keys/rpm-preview.asc
+
+rpm_fingerprints="$(
+  gpg --batch --show-keys --with-colons "$rpm_key" |
+    awk -F: '
+      $1 == "pub" { primary = 1; next }
+      primary && $1 == "fpr" { print $10; primary = 0 }
+    '
+)"
+test "$rpm_fingerprints" = 'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459'
+
+sudo install -d -m 0755 /etc/pki/rpm-gpg
+sudo install -o root -g root -m 0644 "$rpm_key" /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
+rm -f "$rpm_key"
+trap - EXIT
+
+sudo tee /etc/yum.repos.d/wukongim-preview.repo >/dev/null <<'EOF'
+[wukongim-preview]
+name=WuKongIM preview
+baseurl=https://packages.githubim.com/rpm/preview/el/9/x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
+sslverify=1
+metadata_expire=300
+skip_if_unavailable=0
+EOF
+
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64
 ```
 
-安装包会安装 `/usr/bin/wukongim` 和加固的 `wukongim.service`，创建 `wukongim` 系统账号以及 `/etc/wukongim`、`/var/lib/wukongim`、`/var/log/wukongim`、`/run/wukongim`。它不会生成活动配置，也不会启用、启动或重启服务。
-
-用下面的命令确认二进制身份：
+安装后确认二进制身份；版本应为 `3.0.0-beta.6`，文本输出的 `source` 和 JSON 输出的 `build_source` 应为 `release`：
 
 ```bash
 wukongim version
 wukongim version --output json
 ```
+
+安装包会安装 `/usr/bin/wukongim` 和加固的 `wukongim.service`，创建 `wukongim` 系统账号以及 `/etc/wukongim`、`/var/lib/wukongim`、`/var/log/wukongim`、`/run/wukongim`。它不会生成活动配置，也不会启用、启动或重启服务。
+
+当前软件源还没有单独的 keyring 软件包，因此仓库证书不会随包自动刷新。在官方宣布切换签名子密钥前，重新下载对应证书并再次核对上面的主密钥指纹；不要关闭软件包或仓库元数据签名检查。
 
 ## 2. 安全初始化配置
 
@@ -91,9 +158,35 @@ curl --fail http://127.0.0.1:5001/readyz
 
 升级前先在非生产环境验证目标提交、制品、配置、备份和恢复路径。只有目标版本明确声明支持与当前版本混跑时，才能逐节点滚动升级；否则使用全体维护窗口。完整边界见[升级与迁移](/zh/server/operations/upgrade-and-migration)。
 
+## 本地构建预览包
+
+需要审计打包内容或测试未发布代码时，可以在固定提交上构建本地包。仓库要求 Go `1.25.11`，打包配置固定按 GoReleaser `v2.18.0` 校验：
+
+```bash
+git rev-parse HEAD
+go version
+goreleaser release --snapshot --clean \
+  --config .goreleaser.packages.yaml
+(cd dist && sha256sum --check checksums.txt)
+```
+
+Debian/Ubuntu 安装生成的 `.deb`：
+
+```bash
+sudo apt install ./dist/wukongim_*_linux_amd64.deb
+```
+
+Rocky/AlmaLinux 安装生成的 `.rpm`：
+
+```bash
+sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
+```
+
+本地 snapshot 包没有公共 Preview 软件源的签名与不可变发布审计，不应冒充公开渠道制品。
+
 ## 从源码安装
 
-公共软件源启用前，也可以直接构建二进制：
+如果确实需要源码部署，可直接构建固定提交的二进制：
 
 ```bash
 GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
