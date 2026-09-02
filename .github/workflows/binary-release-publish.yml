@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Existing SemVer tag to publish or recover, for example v3.1.0 or v3.2.0-rc.1
+        description: Existing SemVer tag; dispatch with --ref set to this same tag
         required: true
         type: string
 
@@ -46,6 +46,8 @@ jobs:
       - name: Validate release identity and tag policy
         id: identity
         shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
           set -euo pipefail
           export LC_ALL=C
@@ -106,10 +108,21 @@ jobs:
           }
           source_sha="$(git rev-parse HEAD)"
           test "$(git rev-parse "refs/tags/$version^{commit}")" = "$source_sha"
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            test "$GITHUB_REF" = "refs/tags/$version"
-            test "$(git rev-parse "$GITHUB_SHA^{commit}")" = "$source_sha"
-          fi
+          expected_ref="refs/tags/$version"
+          test "$GITHUB_REF" = "$expected_ref" || {
+            echo "release workflow must run from exact tag ref $expected_ref" >&2
+            echo "manual recovery: gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref $version -f version=$version" >&2
+            exit 1
+          }
+          test "$(git rev-parse "$GITHUB_SHA^{commit}")" = "$source_sha" || {
+            echo "workflow event SHA does not resolve to release source" >&2
+            exit 1
+          }
+          [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse "$WORKFLOW_SHA^{commit}")" = "$source_sha" || {
+            echo "workflow definition SHA does not resolve to release source" >&2
+            exit 1
+          }
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           git merge-base --is-ancestor "$source_sha" origin/main || {
             echo "release source must be reachable from origin/main" >&2

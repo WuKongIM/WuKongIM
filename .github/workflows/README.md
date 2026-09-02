@@ -149,9 +149,14 @@ failure, a digest mismatch, or a missing platform fails the complete release.
 `binary-release-publish.yml` publishes downloadable WuKongIM executables from
 the same strict SemVer `v*` source identity used by the container publisher. A
 new tag starts the workflow automatically; the manual `version` input accepts
-one existing tag for first publication or incomplete-draft recovery. The tag
-must resolve to a commit reachable from `origin/main` and may not contain
-SemVer build metadata.
+one existing tag for first publication or incomplete-draft recovery. A manual
+run must itself be dispatched from that exact tag, for example
+`gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref "$tag" -f version="$tag"`;
+a run dispatched from `main` fails before building because GitHub provenance
+inherits the run ref and Workflow commit. The tag must contain this Workflow,
+resolve to a commit reachable from `origin/main`, and may not contain SemVer
+build metadata. A historical tag without the Workflow needs a new SemVer tag
+rather than provenance synthesized from current `main`.
 
 Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
 `linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
@@ -209,11 +214,12 @@ facts. It never falls back to GitHub-generated notes, a commit log, or an empty
 body. Every discovered, created, pre-publication, and published numeric Release
 ID must carry the exact rendered body.
 
-For manual recovery of a tag created before the release-note extractor was
-added, the Workflow fetches that extractor from the exact
-`github.workflow_sha` commit while continuing to read `CHANGELOG.md` and every
-release artifact from the immutable tag. Automatic tag publication fails if
-the tagged source itself omits the extractor.
+For manual recovery, the release-note extractor may come only from the exact
+`github.workflow_sha` commit, which the identity gate requires to resolve to
+the tagged source. It can never be borrowed from current `main`. A historical
+tag missing either this Workflow or the extractor needs a new SemVer tag;
+automatic tag publication likewise fails when the tagged source omits the
+extractor.
 
 The binary publisher waits for a successful Docker publisher run for the same
 tag, then verifies that GHCR, Docker Hub, and Alibaba Cloud expose one identical
@@ -225,12 +231,12 @@ incremental from the previous pre-release in the same version line; stable
 entries summarize user-visible changes since the previous stable release.
 
 Repository administrators must configure a `binary-publish` Environment,
-allow protected `main` for manual recovery and trusted version tags for
-automatic publication, and avoid a reviewer gate for tag-triggered runs. The
-workflow uses only its job-scoped `GITHUB_TOKEN`; it requires no standing
-release credential. Until those Environment deployment restrictions have been
-configured and verified remotely, administrators must not push a release tag
-or manually dispatch this workflow.
+allow only trusted version tags for both automatic publication and manual
+recovery, and avoid a reviewer gate for tag-triggered runs. The workflow uses
+only its job-scoped `GITHUB_TOKEN`; it requires no standing release credential.
+Until those Environment deployment restrictions have been configured and
+verified remotely, administrators must not push a release tag or manually
+dispatch this workflow.
 
 Immediately before pushing a release tag or starting manual recovery, an
 administrator must also verify that repository-level immutable Releases remain
