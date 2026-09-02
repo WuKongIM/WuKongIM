@@ -1,52 +1,99 @@
 ---
 title: Docker
-description: Start a WuKongIM single-node cluster with random credentials and persistent storage in one command.
+description: Start a WuKongIM single-node cluster with docker run, a configuration file, and persistent storage.
 ---
 
-You only need Docker and `curl`. The installer generates random credentials, creates persistent storage, starts the image for the latest GitHub tag, and waits for the node to become ready.
+You only need Docker. This path mounts `wukongim.toml` and a Docker volume directly, with no installer or Compose layer.
 
 <Callout type="warn" title="The default is for a quick local evaluation">
-  With no version specified, the installer queries the latest GitHub tag in the WuKongIM repository on every run. When you select an older release, its runtime identity, base image, and health-check capabilities follow that release. The installer does not configure a domain, TLS, backups, or multi-node replication. Complete the [Production Checklist](/en/server/deployment/production-checklist) before serving production traffic.
+  The example pins image `3.0.0-beta.6`. To use another release, replace the image tag directly and read that release's upgrade notes first. Before serving production traffic, replace the example credentials and complete the [Production Checklist](/en/server/deployment/production-checklist).
 </Callout>
 
-## 1. Start with one command
+## 1. Create the configuration file
 
 ```bash
-curl -fsSL https://docs.githubim.com/install/docker.sh | sh
+mkdir -p wukongim-docker
+cd wukongim-docker
 ```
 
-When installation finishes, the terminal prints the Manager URL, username, and random password. Deployment files are stored in `wukongim-docker/` under the current directory, while message data is stored in the `wukongim-data` Docker volume.
+Create `wukongim.toml`:
 
-Use `WK_VERSION` to select a release, for example:
+```toml
+[node]
+id = 1
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+id = "wukongim-docker"
+nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
+join_token = "replace-with-a-random-64-character-token"
+initial_slot_count = 10
+hash_slot_count = 256
+slot_replica_n = 1
+channel_replica_n = 1
+
+[api]
+listen_addr = "0.0.0.0:5001"
+external_tcp_addr = "127.0.0.1:5100"
+external_ws_addr = "ws://127.0.0.1:5200"
+
+[manager]
+listen_addr = "0.0.0.0:5301"
+auth_on = true
+jwt_secret = "replace-with-a-random-64-character-secret"
+jwt_issuer = "wukongim-manager"
+jwt_expire = "24h"
+users = [{ username = "admin", password = "replace-with-a-strong-password", permissions = [{ resource = "*", actions = ["*"] }] }]
+
+[diagnostics]
+enable = false
+
+[log]
+level = "info"
+dir = "/var/lib/wukongim/logs"
+console = true
+
+[gateway]
+listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
+
+[plugin]
+enable = false
+```
+
+Replace at least `join_token`, `jwt_secret`, and the administrator password. If clients are not on this host, also replace `127.0.0.1` in both `external_*_addr` values with a reachable hostname or IP address.
+
+## 2. Start and verify
 
 ```bash
-curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_VERSION=3.0.0-beta.5 sh
+docker volume create wukongim-data
+
+docker run -d \
+  --name wukongim \
+  --restart unless-stopped \
+  --stop-timeout 30 \
+  --publish 127.0.0.1:5001:5001 \
+  --publish 0.0.0.0:5100:5100 \
+  --publish 0.0.0.0:5200:5200 \
+  --publish 127.0.0.1:5301:5301 \
+  --mount type=bind,src="$PWD/wukongim.toml",dst=/etc/wukongim/wukongim.toml,readonly \
+  --mount type=volume,src=wukongim-data,dst=/var/lib/wukongim \
+  ghcr.io/wukongim/wukongim:3.0.0-beta.6
 ```
 
-The version must have a corresponding GHCR image. The installer resolves the selected image to an immutable digest before starting it. It fails instead of falling back to an older version when GitHub cannot be queried, the tag is invalid, or the image does not exist. If the existing container uses another version, the installer refuses to overwrite it and preserves the data volume. Check [Upgrades and Migration](/en/server/operations/upgrade-and-migration) for compatibility before removing the old container and running the installer again.
-
-If clients connect from another machine, provide a reachable hostname or IP in the same command:
+Wait for the container to become healthy, then verify the node:
 
 ```bash
-curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_PUBLIC_HOST=im.example.com sh
+docker ps --filter name=wukongim
+docker exec wukongim wget -q --spider -T 5 http://127.0.0.1:5001/readyz
 ```
 
-You can combine both options: `env WK_VERSION=3.0.0-beta.5 WK_PUBLIC_HOST=im.example.com sh`.
-
-## 2. Sign in and verify
-
-Open [http://127.0.0.1:5301](http://127.0.0.1:5301) and sign in with `admin` and the random password printed by the installer. Confirm that the node is ready:
-
-```bash
-curl --fail http://127.0.0.1:5001/readyz
-```
-
-Then follow [Quick Start](/en/guide/quick-start) with two test users and complete one send-and-receive cycle.
+Open [http://127.0.0.1:5301](http://127.0.0.1:5301), sign in as `admin` with the password from the configuration file, and follow [Quick Start](/en/guide/quick-start) to complete one send-and-receive cycle.
 
 <details>
 <summary>How do I open Manager from my computer after deploying on a server?</summary>
 
-Manager and the Product API bind only to server loopback by default. Create an SSH tunnel, then open the same Manager URL on your computer:
+Manager and the Product API are mapped only to the server loopback address. Create an SSH tunnel, then open the same Manager URL on your computer:
 
 ```bash
 ssh -N \
@@ -61,48 +108,29 @@ ssh -N \
 <summary>Common operations</summary>
 
 ```bash
-# Inspect status and logs
-docker ps --filter name=wukongim
 docker logs --follow --tail 100 wukongim
-
-# Restart or stop
 docker restart wukongim
 docker stop wukongim
-
-# Start again
 docker start wukongim
 ```
 
-Credentials are stored in `wukongim-docker/.env` with mode `0600`. Removing the container does not remove `wukongim-data`; do not delete that volume unless its data is no longer needed.
-
-</details>
-
-<details>
-<summary>Review the installer before running it</summary>
-
-```bash
-curl -fsSLO https://docs.githubim.com/install/docker.sh
-less docker.sh
-sh docker.sh
-```
-
-The installer pins an image digest, never uses `latest`, and does not overwrite an existing deployment environment file.
+Removing the container does not remove `wukongim-data`. Before upgrading, read [Upgrades and Migration](/en/server/operations/upgrade-and-migration), confirm compatibility, and then recreate the container with the new image.
 
 </details>
 
 <details>
 <summary>Remove the evaluation deployment completely</summary>
 
-Confirm that the data is no longer needed, then run:
+After confirming that the data is no longer needed, run:
 
 ```bash
 docker rm --force wukongim
 docker volume rm wukongim-data
-rm -r wukongim-docker
+rm wukongim.toml
 ```
 
-The last two commands permanently remove message data and installation credentials.
+The last two commands permanently remove message data and deployment credentials.
 
 </details>
 
-A production deployment also needs real TCP/TLS and WSS endpoints, restricted access to ports `5001` and `5301`, plus backup and rollback procedures. Continue to [Multi-node Cluster](/en/server/deployment/multi-node) when you need replication and failure recovery.
+A production deployment also needs TCP/TLS and WSS endpoints, restricted access to ports `5001` and `5301`, plus backup and rollback procedures. Continue to [Multi-node Cluster](/en/server/deployment/multi-node) when you need replication and failure recovery.

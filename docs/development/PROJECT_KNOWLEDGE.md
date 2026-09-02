@@ -484,6 +484,9 @@
   membership; neither protocol ACKs nor sync cursors prove that a device
   executed the business operation.
 - Public deployment guidance treats the root Compose stack as development-only.
+  The public Docker quick path uses a direct `docker run` command with a
+  read-only `wukongim.toml` bind mount and a named data volume; it does not
+  publish a remote installer or resolve GitHub tags on the operator's behalf.
   The sole official container publisher builds one `linux/amd64` and
   `linux/arm64` GHCR image from a strict SemVer tag reachable from `main`, then
   mirrors the immutable digest to Docker Hub and Alibaba Cloud. Exact tags omit

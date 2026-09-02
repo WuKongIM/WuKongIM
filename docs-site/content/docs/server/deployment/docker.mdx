@@ -1,52 +1,99 @@
 ---
 title: Docker 部署
-description: 一条命令启动带随机凭据和持久存储的 WuKongIM 单节点集群。
+description: 使用配置文件和数据卷，通过 docker run 启动 WuKongIM 单节点集群。
 ---
 
-只需要 Docker 和 `curl`。下面的安装器会生成随机凭据、创建持久卷、启动最新 GitHub tag 对应的镜像，并等待节点就绪。
+只需要 Docker。下面的流程直接挂载 `wukongim.toml` 和 Docker Volume，不依赖安装脚本或 Compose。
 
 <Callout type="warn" title="默认用于本机快速体验">
-  未指定版本时，安装器会在每次执行时查询 WuKongIM 仓库的最新 GitHub tag；指定旧版本时，其运行身份、基础镜像和健康检查能力以该版本为准。安装器不会自动配置域名、TLS、备份或多节点复制；承载生产流量前请完成[生产检查清单](/zh/server/deployment/production-checklist)。
+  示例固定使用 `3.0.0-beta.6` 镜像。使用其他版本时直接替换镜像 tag，并先阅读对应版本的升级说明。承载生产流量前，请更换示例凭据并完成[生产检查清单](/zh/server/deployment/production-checklist)。
 </Callout>
 
-## 1. 一键启动
+## 1. 创建配置文件
 
 ```bash
-curl -fsSL https://docs.githubim.com/install/docker.sh | sh
+mkdir -p wukongim-docker
+cd wukongim-docker
 ```
 
-安装完成后，终端会显示 Manager 地址、用户名和随机密码。部署文件保存在当前目录的 `wukongim-docker/`，消息数据保存在 Docker Volume `wukongim-data`。
+创建 `wukongim.toml`：
 
-通过 `WK_VERSION` 安装指定版本，例如：
+```toml
+[node]
+id = 1
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+id = "wukongim-docker"
+nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
+join_token = "replace-with-a-random-64-character-token"
+initial_slot_count = 10
+hash_slot_count = 256
+slot_replica_n = 1
+channel_replica_n = 1
+
+[api]
+listen_addr = "0.0.0.0:5001"
+external_tcp_addr = "127.0.0.1:5100"
+external_ws_addr = "ws://127.0.0.1:5200"
+
+[manager]
+listen_addr = "0.0.0.0:5301"
+auth_on = true
+jwt_secret = "replace-with-a-random-64-character-secret"
+jwt_issuer = "wukongim-manager"
+jwt_expire = "24h"
+users = [{ username = "admin", password = "replace-with-a-strong-password", permissions = [{ resource = "*", actions = ["*"] }] }]
+
+[diagnostics]
+enable = false
+
+[log]
+level = "info"
+dir = "/var/lib/wukongim/logs"
+console = true
+
+[gateway]
+listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
+
+[plugin]
+enable = false
+```
+
+至少替换 `join_token`、`jwt_secret` 和管理员密码。客户端不在本机时，还要把两个 `external_*_addr` 中的 `127.0.0.1` 改成客户端可访问的域名或 IP。
+
+## 2. 启动并验证
 
 ```bash
-curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_VERSION=3.0.0-beta.5 sh
+docker volume create wukongim-data
+
+docker run -d \
+  --name wukongim \
+  --restart unless-stopped \
+  --stop-timeout 30 \
+  --publish 127.0.0.1:5001:5001 \
+  --publish 0.0.0.0:5100:5100 \
+  --publish 0.0.0.0:5200:5200 \
+  --publish 127.0.0.1:5301:5301 \
+  --mount type=bind,src="$PWD/wukongim.toml",dst=/etc/wukongim/wukongim.toml,readonly \
+  --mount type=volume,src=wukongim-data,dst=/var/lib/wukongim \
+  ghcr.io/wukongim/wukongim:3.0.0-beta.6
 ```
 
-版本必须存在对应的 GHCR 镜像。安装器会把所选镜像解析为不可变摘要后再启动；GitHub 查询失败、tag 无效或镜像不存在时会直接报错，不会退回旧版本。已有容器使用其他版本时，安装器会拒绝自动覆盖并保留数据卷；请先按照[升级与迁移](/zh/server/operations/upgrade-and-migration)确认兼容性，再删除旧容器并重新执行安装命令。
-
-如果客户端从其他机器连接，在同一条命令中指定可访问的域名或 IP：
+等待容器健康后验证节点：
 
 ```bash
-curl -fsSL https://docs.githubim.com/install/docker.sh | env WK_PUBLIC_HOST=im.example.com sh
+docker ps --filter name=wukongim
+docker exec wukongim wget -q --spider -T 5 http://127.0.0.1:5001/readyz
 ```
 
-两个选项可以同时使用：`env WK_VERSION=3.0.0-beta.5 WK_PUBLIC_HOST=im.example.com sh`。
-
-## 2. 登录并验证
-
-打开 [http://127.0.0.1:5301](http://127.0.0.1:5301)，使用安装器输出的 `admin` 和随机密码登录。确认节点状态：
-
-```bash
-curl --fail http://127.0.0.1:5001/readyz
-```
-
-然后按照[快速开始](/zh/guide/quick-start)连接两个测试用户，完成一次发送与接收。
+打开 [http://127.0.0.1:5301](http://127.0.0.1:5301)，使用 `admin` 和配置文件中的密码登录，然后按照[快速开始](/zh/guide/quick-start)完成一次发送与接收。
 
 <details>
 <summary>服务器部署后，如何从自己电脑打开 Manager？</summary>
 
-Manager 和 Product API 默认只监听服务器回环地址。建立 SSH 隧道后，在自己电脑打开相同的 Manager 地址：
+Manager 和 Product API 仅映射到服务器回环地址。建立 SSH 隧道后，在自己电脑打开相同的 Manager 地址：
 
 ```bash
 ssh -N \
@@ -61,48 +108,29 @@ ssh -N \
 <summary>常用运维命令</summary>
 
 ```bash
-# 查看状态与日志
-docker ps --filter name=wukongim
 docker logs --follow --tail 100 wukongim
-
-# 重启或停止
 docker restart wukongim
 docker stop wukongim
-
-# 再次启动
 docker start wukongim
 ```
 
-凭据保存在 `wukongim-docker/.env`，权限为 `0600`。删除容器不会删除 `wukongim-data`；不要删除这个 Volume，除非确定不再需要其中的数据。
-
-</details>
-
-<details>
-<summary>审查脚本后再执行</summary>
-
-```bash
-curl -fsSLO https://docs.githubim.com/install/docker.sh
-less docker.sh
-sh docker.sh
-```
-
-脚本固定镜像摘要，不使用 `latest`，也不会覆盖已有的部署环境文件。
+删除容器不会删除 `wukongim-data`。升级前先阅读[升级与迁移](/zh/server/operations/upgrade-and-migration)，确认兼容性后再用新镜像重新创建容器。
 
 </details>
 
 <details>
 <summary>彻底删除测试部署</summary>
 
-先确认数据不再需要，再依次执行：
+确认数据不再需要后执行：
 
 ```bash
 docker rm --force wukongim
 docker volume rm wukongim-data
-rm -r wukongim-docker
+rm wukongim.toml
 ```
 
-最后两条命令会永久删除消息数据和安装凭据。
+后两条命令会永久删除消息数据和部署凭据。
 
 </details>
 
-生产部署还需要配置真实的 TCP/TLS 与 WSS 入口、限制 `5001` 和 `5301` 的访问、建立备份与回滚方案。需要复制和故障恢复时，继续阅读[多节点集群](/zh/server/deployment/multi-node)。
+生产部署还需要配置 TCP/TLS 与 WSS 入口、限制 `5001` 和 `5301` 的访问，并建立备份和回滚方案。需要复制和故障恢复时，继续阅读[多节点集群](/zh/server/deployment/multi-node)。
