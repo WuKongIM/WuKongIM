@@ -150,7 +150,6 @@ func TestDocsCDNCertificateWorkflowDeduplicatesAndResolvesExpiryAlerts(t *testin
 
 func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *testing.T) {
 	rotation := readFile(t, filepath.Join(repoRoot(t), "scripts", "docs-cdn", "certificate.sh"))
-	installer := readFile(t, filepath.Join(repoRoot(t), "scripts", "docs-cdn", "install-lego.sh"))
 
 	for _, want := range []string{
 		`readonly expected_domain="docs.githubim.com"`,
@@ -190,6 +189,10 @@ func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *te
 	require.NotEqual(t, -1, writeOutputs)
 	require.NotEqual(t, -1, assessEdge)
 	require.Less(t, writeOutputs, assessEdge, "expiry outputs must survive a later public edge failure")
+}
+
+func TestDocsCDNLegoInstallerPinsSourceAndRequiresExactVersionOutput(t *testing.T) {
+	installer := readFile(t, filepath.Join(repoRoot(t), "scripts", "docs-cdn", "install-lego.sh"))
 
 	for _, want := range []string{
 		`readonly lego_version="v4.35.2"`,
@@ -198,10 +201,48 @@ func TestDocsCDNCertificateHelperUsesPinnedUpstreamACMEAndExactCDNMutation(t *te
 		`readonly lego_go_mod_sum="h1:pX2jN5n8OphMGY1IaMjYm5DAEzguBaKRt8AvJAgJXpc="`,
 		`go mod download -json "${lego_module}@${lego_version}"`,
 		`go install "${lego_module}/cmd/lego@${lego_version}"`,
+		`readonly target_goos="$(go env GOOS)"`,
+		`readonly target_goarch="$(go env GOARCH)"`,
+		`readonly expected_version_output="lego version ${lego_version}+dev-release ${target_goos}/${target_goarch}"`,
+		`[[ "$version_output" == "$expected_version_output" ]]`,
 		`export GOWORK="off"`,
 	} {
 		require.Contains(t, installer, want)
 	}
+	require.NotContains(t, installer, `== *"lego version`)
 	require.NotContains(t, installer, "latest")
 	require.NotContains(t, installer, "sudo")
+}
+
+func TestDocsCDNAcmeAccountBootstrapUsesCertificateHelper(t *testing.T) {
+	runbook := readFile(
+		t,
+		filepath.Join(repoRoot(t), "docs", "superpowers", "runbooks", "docs-alibaba-cdn.md"),
+	)
+	bootstrapStart := strings.Index(runbook, "### Initialize the encrypted ACME account identity")
+	bootstrapEnd := strings.Index(runbook, "## External target configuration")
+	require.NotEqual(t, -1, bootstrapStart)
+	require.Greater(t, bootstrapEnd, bootstrapStart)
+	bootstrap := runbook[bootstrapStart:bootstrapEnd]
+
+	for _, want := range []string{
+		`"$bootstrap_dir/certificate-helper" register-account \`,
+		`--email "$DOCS_ACME_EMAIL" \`,
+		`--state "$bootstrap_dir/state" \`,
+		`--accept-terms-of-service \`,
+		`"https://letsencrypt.org/documents/LE-SA-v1.8-July-06-2026.pdf"`,
+		`"$bootstrap_dir/certificate-helper" pack-account \`,
+	} {
+		require.Contains(t, bootstrap, want)
+	}
+
+	build := strings.Index(bootstrap, `go build -trimpath`)
+	register := strings.Index(bootstrap, `"$bootstrap_dir/certificate-helper" register-account`)
+	pack := strings.Index(bootstrap, `"$bootstrap_dir/certificate-helper" pack-account`)
+	require.NotEqual(t, -1, build)
+	require.NotEqual(t, -1, register)
+	require.Greater(t, register, build, "the helper must be built before account registration")
+	require.Greater(t, pack, register, "the validated registered account must be packed only after registration")
+	require.NotRegexp(t, `(?m)^[ \t]*("[^"\n]*/lego"|[^ \t\n]*/lego|lego)([ \t]|$)`, bootstrap)
+	require.NotContains(t, bootstrap, `--accept-tos register`)
 }

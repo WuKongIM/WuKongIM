@@ -55,8 +55,11 @@ jq -e \
   <<<"$module_metadata" >/dev/null || fail "pinned lego module integrity check failed"
 
 go install "${lego_module}/cmd/lego@${lego_version}"
+readonly target_goos="$(go env GOOS)"
+readonly target_goarch="$(go env GOARCH)"
+readonly expected_version_output="lego version ${lego_version}+dev-release ${target_goos}/${target_goarch}"
 readonly version_output="$("${bin_directory}/lego" --version 2>&1)"
-[[ "$version_output" == *"lego version ${lego_version#v} "* ]] || \
+[[ "$version_output" == "$expected_version_output" ]] || \
   fail "installed lego executable reported an unexpected version"
 
 printf '%s\n' "${bin_directory}/lego"

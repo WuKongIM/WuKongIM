@@ -1,11 +1,13 @@
 // Command certificate-helper enforces the fixed documentation certificate
-// boundary around the upstream lego client and Alibaba CDN API responses.
+// boundary around ACME account state, the lego client, and Alibaba CDN responses.
 package main
 
 import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
@@ -20,6 +22,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/http"
 	"net/mail"
 	"net/url"
 	"os"
@@ -27,6 +30,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/acme"
 )
 
 const (
@@ -35,6 +40,10 @@ const (
 	expectedChallengeTarget = "_acme-challenge.acme.docs.githubim.com."
 	expectedACMEServer      = "https://acme-v02.api.letsencrypt.org/directory"
 	expectedACMEHost        = "acme-v02.api.letsencrypt.org"
+	expectedACMENewAccount  = "https://acme-v02.api.letsencrypt.org/acme/new-acct"
+	expectedACMENewNonce    = "https://acme-v02.api.letsencrypt.org/acme/new-nonce"
+	expectedACMENewOrder    = "https://acme-v02.api.letsencrypt.org/acme/new-order"
+	expectedACMETerms       = "https://letsencrypt.org/documents/LE-SA-v1.8-July-06-2026.pdf"
 	accountBundleSchema     = "wukongim/docs-acme-account-bundle/v1"
 	maxBundleEncodedBytes   = 256 << 10
 	maxBundleDecodedBytes   = 128 << 10
@@ -54,14 +63,19 @@ type accountBundle struct {
 }
 
 type legoAccount struct {
-	Email        string `json:"email"`
-	Registration *struct {
-		Body struct {
-			Status  string   `json:"status"`
-			Contact []string `json:"contact"`
-		} `json:"body"`
-		URI string `json:"uri"`
-	} `json:"registration"`
+	Email        string            `json:"email"`
+	Registration *legoRegistration `json:"registration"`
+}
+
+type legoRegistration struct {
+	Body legoAccountBody `json:"body"`
+	URI  string          `json:"uri"`
+}
+
+type legoAccountBody struct {
+	Status  string   `json:"status,omitempty"`
+	Contact []string `json:"contact,omitempty"`
+	Orders  string   `json:"orders,omitempty"`
 }
 
 type cdnResponse struct {
@@ -109,6 +123,8 @@ func run(args []string, stdout io.Writer) error {
 	switch args[0] {
 	case "verify-delegation":
 		return runVerifyDelegation(args[1:], stdout)
+	case "register-account":
+		return runRegisterAccount(args[1:], stdout)
 	case "restore-account":
 		return runRestoreAccount(args[1:])
 	case "pack-account":
@@ -122,6 +138,24 @@ func run(args []string, stdout io.Writer) error {
 	default:
 		return fmt.Errorf("unsupported command %q", args[0])
 	}
+}
+
+func runRegisterAccount(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("register-account", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	email := flags.String("email", "", "ACME account email")
+	stateDir := flags.String("state", "", "new lego state directory")
+	acceptedTerms := flags.String("accept-terms-of-service", "", "reviewed Let's Encrypt terms URL")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *email == "" || *stateDir == "" || *acceptedTerms == "" {
+		return errors.New("usage: register-account --email EMAIL --state ABSOLUTE_DIRECTORY --accept-terms-of-service EXACT_URL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	if err := registerAccount(ctx, *email, *stateDir, *acceptedTerms, nil); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(stdout, "account_registered")
+	return err
 }
 
 func runVerifyDelegation(args []string, stdout io.Writer) error {
@@ -229,6 +263,136 @@ func runVerifyCDN(args []string) error {
 	return verifyCDNDeployment(response, certificatePEM, *certificateName)
 }
 
+func registerAccount(ctx context.Context, email, stateDir, acceptedTerms string, httpClient *http.Client) error {
+	if acceptedTerms != expectedACMETerms {
+		return fmt.Errorf("accepted ACME terms must exactly match the reviewed URL %q", expectedACMETerms)
+	}
+	if err := validateEmail(email); err != nil {
+		return err
+	}
+	if err := validateEmptyStateDirectory(stateDir); err != nil {
+		return err
+	}
+
+	accountKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("generate ACME account key: %w", err)
+	}
+	client := &acme.Client{
+		Key:          accountKey,
+		HTTPClient:   noRedirectHTTPClient(httpClient),
+		DirectoryURL: expectedACMEServer,
+		UserAgent:    "wukongim-docs-certificate-helper",
+	}
+	directory, err := client.Discover(ctx)
+	if err != nil {
+		return fmt.Errorf("discover fixed Let's Encrypt directory: %w", err)
+	}
+	if err := validateACMEDirectory(directory); err != nil {
+		return err
+	}
+
+	registered, err := client.Register(ctx, &acme.Account{
+		Contact: []string{"mailto:" + email},
+	}, func(terms string) bool {
+		return terms == expectedACMETerms
+	})
+	if err != nil {
+		return fmt.Errorf("register Let's Encrypt account: %w", err)
+	}
+	if _, err := marshalLegoAccount(email, registered); err != nil {
+		return fmt.Errorf("validate registered Let's Encrypt account: %w", err)
+	}
+
+	queried, err := client.GetReg(ctx, registered.URI)
+	if err != nil {
+		return fmt.Errorf("query registered Let's Encrypt account: %w", err)
+	}
+	if queried.URI != registered.URI {
+		return errors.New("queried Let's Encrypt account URI does not match the registered identity")
+	}
+	accountJSON, err := marshalLegoAccount(email, queried)
+	if err != nil {
+		return fmt.Errorf("validate queried Let's Encrypt account: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(accountKey)
+	if err != nil {
+		return fmt.Errorf("encode ACME account key: %w", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	if err := writeLegoAccountState(stateDir, email, accountJSON, keyPEM); err != nil {
+		return err
+	}
+	return nil
+}
+
+func noRedirectHTTPClient(base *http.Client) *http.Client {
+	if base == nil {
+		base = http.DefaultClient
+	}
+	client := *base
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return errors.New("ACME HTTP redirects are not allowed")
+	}
+	return &client
+}
+
+func validateACMEDirectory(directory acme.Directory) error {
+	if directory.Terms != expectedACMETerms {
+		return fmt.Errorf("Let's Encrypt directory terms are %q, want reviewed URL %q", directory.Terms, expectedACMETerms)
+	}
+	if directory.RegURL != expectedACMENewAccount || directory.NonceURL != expectedACMENewNonce || directory.OrderURL != expectedACMENewOrder {
+		return errors.New("Let's Encrypt directory endpoints do not match the fixed production boundary")
+	}
+	if directory.ExternalAccountRequired {
+		return errors.New("Let's Encrypt directory unexpectedly requires external account binding")
+	}
+	return nil
+}
+
+func marshalLegoAccount(email string, account *acme.Account) ([]byte, error) {
+	if account == nil {
+		return nil, errors.New("ACME account response is missing")
+	}
+	value := legoAccount{
+		Email: email,
+		Registration: &legoRegistration{
+			Body: legoAccountBody{
+				Status:  account.Status,
+				Contact: append([]string(nil), account.Contact...),
+				Orders:  account.OrdersURL,
+			},
+			URI: account.URI,
+		},
+	}
+	data, err := json.MarshalIndent(value, "", "\t")
+	if err != nil {
+		return nil, fmt.Errorf("encode lego account JSON: %w", err)
+	}
+	if err := validateLegoAccount(data, email); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func writeLegoAccountState(stateDir, email string, accountJSON, keyPEM []byte) error {
+	if err := validateEmptyStateDirectory(stateDir); err != nil {
+		return err
+	}
+	accountDir := filepath.Join(stateDir, "accounts", expectedACMEHost, email)
+	keysDir := filepath.Join(accountDir, "keys")
+	if err := os.MkdirAll(keysDir, 0o700); err != nil {
+		return fmt.Errorf("create lego account directory: %w", err)
+	}
+	if err := writeExclusive(filepath.Join(keysDir, email+".key"), keyPEM); err != nil {
+		return fmt.Errorf("write lego account key: %w", err)
+	}
+	if err := writeExclusive(filepath.Join(accountDir, "account.json"), append(bytes.TrimSpace(accountJSON), '\n')); err != nil {
+		return fmt.Errorf("write lego account JSON: %w", err)
+	}
+	return nil
+}
+
 func verifyDelegation(ctx context.Context, lookup func(context.Context, string) (string, error)) error {
 	canonical, err := lookup(ctx, expectedChallengeCNAME)
 	if err != nil {
@@ -292,7 +456,7 @@ func readBundle(path, expectedEmail string) (accountBundle, error) {
 }
 
 func validateEmail(value string) error {
-	if len(value) == 0 || len(value) > 254 || strings.ContainsAny(value, `/\\\r\n\t`) || strings.Contains(value, "..") {
+	if len(value) == 0 || len(value) > 254 || strings.ContainsAny(value, "/\\\r\n\t") || strings.Contains(value, "..") {
 		return errors.New("ACME email is invalid for fixed lego storage")
 	}
 	address, err := mail.ParseAddress(value)
@@ -314,11 +478,17 @@ func validateLegoAccount(raw json.RawMessage, expectedEmail string) error {
 		return errors.New("lego account is not the expected valid identity")
 	}
 	registrationURL, err := url.Parse(account.Registration.URI)
-	if err != nil || registrationURL.Scheme != "https" || registrationURL.Host != expectedACMEHost || !accountURIPathPattern.MatchString(registrationURL.EscapedPath()) || registrationURL.RawQuery != "" || registrationURL.Fragment != "" {
+	if err != nil || registrationURL.Scheme != "https" || registrationURL.Host != expectedACMEHost || registrationURL.User != nil || registrationURL.Opaque != "" || registrationURL.ForceQuery || !accountURIPathPattern.MatchString(registrationURL.EscapedPath()) || registrationURL.RawQuery != "" || registrationURL.Fragment != "" {
 		return errors.New("lego account registration URI is outside the fixed Let's Encrypt account boundary")
 	}
+	if orders := account.Registration.Body.Orders; orders != "" {
+		accountID := strings.TrimPrefix(registrationURL.Path, "/acme/acct/")
+		if orders != "https://"+expectedACMEHost+"/acme/acct/"+accountID+"/orders" {
+			return errors.New("lego account orders URI does not match the fixed account identity")
+		}
+	}
 	wantContact := "mailto:" + expectedEmail
-	if len(account.Registration.Body.Contact) != 1 || account.Registration.Body.Contact[0] != wantContact {
+	if len(account.Registration.Body.Contact) > 0 && (len(account.Registration.Body.Contact) != 1 || account.Registration.Body.Contact[0] != wantContact) {
 		return errors.New("lego account contact does not exactly match DOCS_ACME_EMAIL")
 	}
 	return nil
@@ -361,13 +531,16 @@ func parsePrivateKey(block *pem.Block) (any, error) {
 	}
 }
 
-func restoreAccount(bundle accountBundle, stateDir string) error {
+func validateEmptyStateDirectory(stateDir string) error {
 	if !filepath.IsAbs(stateDir) || filepath.Clean(stateDir) == string(filepath.Separator) {
 		return errors.New("lego state directory must be absolute and non-root")
 	}
 	if info, err := os.Lstat(stateDir); err == nil {
 		if !info.IsDir() {
 			return errors.New("lego state path already exists and is not a directory")
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			return errors.New("lego state directory must not grant group or other permissions")
 		}
 		entries, readErr := os.ReadDir(stateDir)
 		if readErr != nil {
@@ -378,6 +551,13 @@ func restoreAccount(bundle accountBundle, stateDir string) error {
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect lego state directory: %w", err)
+	}
+	return nil
+}
+
+func restoreAccount(bundle accountBundle, stateDir string) error {
+	if err := validateEmptyStateDirectory(stateDir); err != nil {
+		return err
 	}
 
 	accountDir := filepath.Join(stateDir, "accounts", expectedACMEHost, bundle.Email)
