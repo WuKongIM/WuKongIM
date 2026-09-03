@@ -11,23 +11,15 @@ Preview is a prerelease channel, not the stable channel. Validate configuration,
 
 ### Debian / Ubuntu (APT)
 
-The installation flow has three fixed steps: add the repository, refresh the package index, and install the package. Run the first step only once. APT handles subsequent WuKongIM installs and upgrades without manually downloading a WuKongIM deb file.
+The installation flow has three fixed steps: add the repository, refresh the package index, and install the package. Run the first step only once. APT handles subsequent WuKongIM installs and upgrades without manually downloading a WuKongIM deb file. These commands require `curl` to be installed.
 
-On a minimal system without `curl`, install the HTTPS download prerequisite first:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-```
-
-Step 1: install the repository bootstrap package to add the WuKongIM preview repository:
+Step 1: run the cross-distribution bootstrap script to add the WuKongIM preview repository:
 
 ```bash
-curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-  --location --output /tmp/wukongim-archive-keyring_1.0.0_all.deb \
-  https://packages.githubim.com/bootstrap/wukongim-archive-keyring_1.0.0_all.deb && \
-  sudo apt install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb
+curl -fsSL https://packages.githubim.com/repo | sudo sh
 ```
+
+The script only adds the repository. It does not refresh the package index, install WuKongIM, create an active configuration, or start the service. On an APT system, it installs `wukongim-archive-keyring` over HTTPS. That bootstrap package has no maintainer scripts and writes only the dedicated binary keyring and Deb822 source file; it does not use global `apt-key` trust or disable signature checks. To audit it before execution, open the same URL in a browser and review the script body.
 
 Step 2: refresh the package index:
 
@@ -41,29 +33,19 @@ Step 3: install WuKongIM by package name:
 sudo apt install -y wukongim
 ```
 
-`wukongim-archive-keyring` installs only a dedicated binary keyring and Deb822 source file. It does not use global `apt-key` trust, disable signature checks, access the network, or run maintainer scripts. The first download relies on the HTTPS identity of `packages.githubim.com`. After installation, APT authenticates the repository with WuKongIM primary key `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1`, and upgrades the keyring through that same signed repository.
+The initial bootstrap relies on the HTTPS identity of `packages.githubim.com`. After the repository is added, APT authenticates it with WuKongIM primary key `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1`, and upgrades the keyring through that same signed repository.
 
 ### RHEL / Rocky / AlmaLinux 9 (DNF/YUM)
 
-EL9 uses the same three steps: add the repository, refresh the package index, and install the package. The bootstrap package installs a dedicated repo definition with package signatures, repository-metadata signatures, and TLS verification enabled. On a compatible system that still uses the `yum` command name, replace `dnf` with `yum`.
+EL9 uses the same three steps: add the repository, refresh the package index, and install the package. The bootstrap package installs a dedicated repo definition with package signatures, repository-metadata signatures, and TLS verification enabled. These commands require `curl` to be installed. On a compatible system that still uses the `yum` command name, replace `dnf` with `yum` in steps two and three.
 
-On a minimal system without `curl`, install the HTTPS download prerequisite first:
-
-```bash
-sudo dnf install -y ca-certificates gnupg2
-if ! command -v curl >/dev/null; then
-  sudo dnf install -y curl-minimal
-fi
-```
-
-Step 1: install the repository bootstrap package to add the WuKongIM preview repository:
+Step 1: run the same cross-distribution bootstrap script to add the WuKongIM preview repository:
 
 ```bash
-curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-  --location --output /tmp/wukongim-release-1.0.0-1.noarch.rpm \
-  https://packages.githubim.com/bootstrap/wukongim-release-1.0.0-1.noarch.rpm && \
-  sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm
+curl -fsSL https://packages.githubim.com/repo | sudo sh
 ```
+
+The script only adds the repository. It does not refresh the package index or install WuKongIM. On an EL9 system, it installs `wukongim-release` over HTTPS; that scriptlet-free bootstrap package contains only the dedicated RPM public key and `%config(noreplace)` repo file.
 
 Step 2: refresh the package index:
 
@@ -77,7 +59,7 @@ Step 3: install WuKongIM by package name:
 sudo dnf install -y wukongim
 ```
 
-`wukongim-release` installs only a dedicated RPM public key and a `%config(noreplace)` repo file; it contains no scriptlets. Its fixed primary-key fingerprint is `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`. The initial bootstrap still relies on HTTPS. DNF/YUM then verifies and upgrades the public-key package through the signed repository.
+The fixed RPM primary-key fingerprint is `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`. The initial bootstrap still relies on HTTPS. DNF/YUM then verifies and upgrades the public-key package through the signed repository.
 
 Confirm the binary identity after installation. The version should be `3.0.0-beta.6`; `source` in the text output and `build_source` in JSON should be `release`:
 
