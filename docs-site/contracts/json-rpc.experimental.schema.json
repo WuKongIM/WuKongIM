@@ -17,6 +17,7 @@
     { "$ref": "#/$defs/DisconnectNotification" },
     { "$ref": "#/$defs/ConnectResponse" },
     { "$ref": "#/$defs/SendResponse" },
+    { "$ref": "#/$defs/SubscriptionResponse" },
     { "$ref": "#/$defs/PongResponse" },
     { "$ref": "#/$defs/ErrorResponse" },
     { "$ref": "#/$defs/GenericResponse" }
@@ -213,7 +214,7 @@
           }
         }
       ],
-      "x-wukongim-product-status": "decoder-only-bridge-missing"
+      "x-wukongim-product-status": "decoded-to-sub-frame-but-product-handler-rejects"
     },
     "UnsubscribeParams": {
       "type": "object",
@@ -235,7 +236,7 @@
           }
         }
       ],
-      "x-wukongim-product-status": "decoder-only-bridge-missing"
+      "x-wukongim-product-status": "decoded-to-sub-frame-but-product-handler-rejects"
     },
     "RecvAckParams": {
       "type": "object",
@@ -311,6 +312,30 @@
           "not": { "required": ["error"] }
         }
       ]
+    },
+    "SubscriptionResult": {
+      "type": "object",
+      "required": ["subNo", "channelId", "channelType", "action", "reasonCode"],
+      "properties": {
+        "header": { "$ref": "#/$defs/Header" },
+        "subNo": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelType": { "type": "integer" },
+        "action": { "type": "integer", "enum": [0, 1] },
+        "reasonCode": { "type": "integer" }
+      }
+    },
+    "SubscriptionResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/ResponseBase" },
+        {
+          "type": "object",
+          "required": ["result"],
+          "properties": { "result": { "$ref": "#/$defs/SubscriptionResult" } },
+          "not": { "required": ["error"] }
+        }
+      ],
+      "x-wukongim-product-status": "codec-mapping-only-product-handler-rejects-sub"
     },
     "PongResponse": {
       "allOf": [

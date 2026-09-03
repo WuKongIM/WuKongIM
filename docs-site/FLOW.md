@@ -7,11 +7,10 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3
-documentation under `/zh` and `/en`. It owns navigation, MDX, search and SEO,
-machine-readable output, SDK guidance, API and protocol references, and the
-runnable JavaScript/Web SDK example. It documents runtime contracts but does
-not define them.
+`docs-site` is the standalone Fumadocs application for public WuKongIM v3 docs
+under `/zh` and `/en`. It owns navigation, MDX, search, SEO, machine-readable
+output, SDK and API references, and the runnable JavaScript/Web example. It
+documents runtime contracts but does not define them.
 
 ## Boundaries
 
@@ -21,10 +20,11 @@ not define them.
 - `lib/navigation.ts` is the shared bilingual publication registry.
 - `SDK_DOCUMENTATION_SPEC.md` owns the maintained WuKongIMSDK versions,
   learning order, and reader contract. WuKongEasySDK remains a separate path.
-- `.github/workflows/docs-pages.yml` deploys the exact export to GitHub Pages
-  and may refresh a pre-provisioned CDN only when `DOCS_CDN_ENABLED=true`. It
-  never provisions or reconfigures DNS, CDN topology, RAM, or certificates;
-  its only Alibaba mutation is the four bounded cache invalidations.
+- `.github/workflows/docs-pages.yml` deploys the export, verifies the direct
+  Pages data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. Its
+  migration input stages the export before one exact external domain change.
+  It never reconfigures DNS, CDN topology, RAM, or certificates; its only
+  Alibaba mutation is four bounded cache invalidations.
 - The canonical URL remains `https://docs.githubim.com`. After CDN cutover,
   GitHub Pages serves `https://origin-docs.githubim.com` as the only origin.
   Pages Settings/API is the sole domain authority; the export carries no CNAME.
@@ -54,9 +54,10 @@ not define them.
    machine-artifact checks run before the Workflow uploads that exact directory
    as the GitHub Pages artifact. Hidden files are retained so `.nojekyll` and
    future machine-readable well-known endpoints cannot be dropped silently.
-8. After external CDN setup and enablement, the deploy Workflow refreshes only
-   bounded stable URLs. It never broadly purges content-addressed assets, and
-   refresh failure does not undo a successful Pages deployment.
+8. After deployment, Pages API state and direct root, locale, deep-page, and
+   search GETs gate bounded CDN refreshes. Migration runs skip refresh; a normal
+   follow-up refreshes after the gate. It never broadly purges content-addressed
+   assets, and refresh failure does not undo a successful Pages deployment.
 
 ## Invariants and Failure Semantics
 
@@ -70,22 +71,21 @@ not define them.
 - A trusted application backend supplies identity, tokens, routing, history,
   channel metadata, and media URLs as needed. Untrusted clients never call
   Product HTTP management operations directly.
-- The JavaScript example is a runnable development aid with unit and build
-  checks. It is not a production backend or a substitute for testing on the
-  application's actual browsers, devices, networks, and release configuration.
-- EasySDK example evidence names the exact client and server revisions. When a
-  verified repository revision is ahead of its package release, pages must not
-  attribute that source run to the older npm, Maven, CocoaPods, or Release
-  artifact.
+- The JavaScript example is a tested development aid, not a production backend
+  or a substitute for testing on actual devices, networks, and releases.
+- EasySDK evidence names exact client and server revisions. When verified source
+  is ahead of a package release, pages must not attribute that run to the older
+  npm, Maven, CocoaPods, or Release artifact.
 - The complete Product HTTP contract must match current route registrations.
   Missing authentication, weak validation, legacy behavior, and unbounded
   responses stay explicit rather than being normalized away.
 - The static API reference keeps its playground disabled. Generated examples
   come only from reviewed samples that state the trusted-backend boundary.
-- Production publication uses one non-canceling `github-pages` concurrency
-  group. The deploy job receives only `pages: write` and `id-token: write`; the
-  build job remains read-only. CDN refresh and certificate rotation use the
-  separate `docs-cdn` and `docs-cdn-certificate` Environments and OIDC roles.
+- Publication uses one non-canceling `github-pages` group. Deploy receives only
+  `pages: write` and `id-token: write`; build and origin verification stay
+  read-only. CDN refresh and certificate rotation use separate Environments and
+  OIDC roles. Domain, build, or certificate state never replaces a fresh
+  deployment and the direct content gate.
 
 ## Read First
 

@@ -186,8 +186,8 @@ export const jsonRPCInboundSurface: readonly JSONRPCInboundSurface[] = [
   { kind: 'request', method: 'send', decoded: true, bridgedFrame: 'SEND', productStatus: 'works' },
   { kind: 'request', method: 'ping', decoded: true, bridgedFrame: 'PING', productStatus: 'works' },
   { kind: 'request', method: 'disconnect', decoded: true, bridgedFrame: 'DISCONNECT', productStatus: 'rejected' },
-  { kind: 'request', method: 'subscribe', decoded: true, productStatus: 'bridge-missing' },
-  { kind: 'request', method: 'unsubscribe', decoded: true, productStatus: 'bridge-missing' },
+  { kind: 'request', method: 'subscribe', decoded: true, bridgedFrame: 'SUB', productStatus: 'rejected' },
+  { kind: 'request', method: 'unsubscribe', decoded: true, bridgedFrame: 'SUB', productStatus: 'rejected' },
   { kind: 'notification', method: 'recvack', decoded: true, bridgedFrame: 'RECVACK', productStatus: 'works' },
   { kind: 'notification', method: 'recv', decoded: true, productStatus: 'bridge-missing' },
   { kind: 'notification', method: 'disconnect', decoded: true, productStatus: 'bridge-missing' },
@@ -204,6 +204,7 @@ export interface JSONRPCOutboundSurface {
 export const jsonRPCOutboundSurface: readonly JSONRPCOutboundSurface[] = [
   { frame: 'CONNACK', shape: 'correlated connect result or error', productBoundary: 'reachable after JSON-RPC CONNECT authentication and activation' },
   { frame: 'SENDACK', shape: 'correlated send result or error', productBoundary: 'reachable on an authenticated JSON-RPC session' },
+  { frame: 'SUBACK', shape: 'correlated subscription result or error', productBoundary: 'codec mapping only; the product Gateway rejects inbound SUB frames' },
   { frame: 'RECV', shape: 'recv notification with header object and object payload', productBoundary: 'online delivery only; offline sync is outside EasySDK' },
   { frame: 'EVENT', shape: 'event notification', productBoundary: 'tooling-only EVENT scope' },
   { frame: 'DISCONNECT', shape: 'disconnect notification', productBoundary: 'no published product emission contract' },

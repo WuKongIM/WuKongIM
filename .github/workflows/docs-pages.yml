@@ -11,7 +11,14 @@ on:
       - "docs-site/**"
       - "scripts/docs-cdn/install-aliyun-cli.sh"
       - "scripts/docs-cdn/refresh.sh"
+      - "scripts/docs-cdn/verify-pages-origin.sh"
   workflow_dispatch:
+    inputs:
+      expected_pages_domain:
+        description: "Optional exact Pages domain; build first, then wait for this domain before deploying"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -72,14 +79,66 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Wait for the expected GitHub Pages custom domain
+        if: github.event_name == 'workflow_dispatch' && inputs.expected_pages_domain != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_PAGES_DOMAIN: ${{ inputs.expected_pages_domain }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$EXPECTED_PAGES_DOMAIN" == docs.githubim.com || "$EXPECTED_PAGES_DOMAIN" == origin-docs.githubim.com ]]
+          readonly pages_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/pages"
+          domain_ready=false
+          for attempt in $(seq 1 120); do
+            current_domain="$(gh api \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "$pages_api" --jq '.cname // ""' 2>/dev/null || true)"
+            if [[ "$current_domain" == "$EXPECTED_PAGES_DOMAIN" ]]; then
+              domain_ready=true
+              break
+            fi
+            printf 'Waiting for Pages domain %s (current: %s, attempt: %s/120)\n' \
+              "$EXPECTED_PAGES_DOMAIN" "${current_domain:-missing}" "$attempt"
+            sleep 5
+          done
+          [[ "$domain_ready" == true ]]
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
+  verify_pages_origin:
+    name: Verify the direct GitHub Pages origin
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Checkout the exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Require the Pages API and direct origin data plane to agree
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCS_PAGES_REPOSITORY: ${{ github.repository }}
+          DOCS_PAGES_DOMAIN: ${{ inputs.expected_pages_domain }}
+          DOCS_PAGES_CACHE_BUST: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: ./scripts/docs-cdn/verify-pages-origin.sh
+
   refresh_cdn:
     name: Refresh bounded Alibaba CDN URLs
-    needs: deploy
-    if: github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'
+    needs: verify_pages_origin
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      vars.DOCS_CDN_ENABLED == 'true' &&
+      (github.event_name != 'workflow_dispatch' || inputs.expected_pages_domain == '')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

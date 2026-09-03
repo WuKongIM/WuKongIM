@@ -266,7 +266,7 @@
 
 *(注：`recvack` 通常没有特定的响应体，如果需要响应，服务器可能会返回一个空的成功 `result` 或错误)*
 
-### 5. 订阅频道 (Subscribe)
+### 5. 订阅频道 (Subscribe)（Product Gateway 暂不支持）
 
 #### Subscribe Request (`subscribe`)
 
@@ -297,7 +297,7 @@
 }
 ```
 
-### 6. 取消订阅频道 (Unsubscribe)
+### 6. 取消订阅频道 (Unsubscribe)（Product Gateway 暂不支持）
 
 #### Unsubscribe Request (`unsubscribe`)
 
@@ -327,9 +327,11 @@
 }
 ```
 
-#### 协议帧桥接
+#### 协议帧桥接与产品边界
 
-`subscribe` 和 `unsubscribe` 请求都会转换为 WKProto `SUB` 帧，`action` 分别为 `0` (Subscribe) 和 `1` (Unsubscribe)。服务器收到 `SUBACK` 后，使用原请求的 `id` 返回下述 Subscription Response：成功原因码写入 `result`，非成功原因码写入 `error`。
+JSON-RPC codec 会把 `subscribe` 和 `unsubscribe` 请求转换为 WKProto `SUB` 帧，`action` 分别为 `0` (Subscribe) 和 `1` (Unsubscribe)。如果上层提供 `SUBACK`，codec 会使用原请求的 `id` 返回下述 Subscription Response：成功原因码写入 `result`，非成功原因码写入 `error`。
+
+当前 Product Gateway handler 尚未处理 `SUB`，默认会以 handler error 关闭连接。因此上述映射只是 codec 合同，不表示产品入口已经支持订阅，也不会在当前产品路径产生 `SUBACK`。
 
 #### Subscription Response
 

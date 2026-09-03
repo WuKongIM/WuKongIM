@@ -19,8 +19,14 @@ describe('experimental JSON-RPC schema', () => {
     expect(schema.$defs.ConnectRequest['x-wukongim-product-status']).toContain('supported');
     expect(schema.$defs.SendRequest['x-wukongim-product-status']).toContain('supported');
     expect(schema.$defs.RecvAckNotification['x-wukongim-product-status']).toContain('supported');
-    expect(schema.$defs.SubscribeRequest['x-wukongim-product-status']).toContain(
-      'bridge-missing',
+    expect(schema.$defs.SubscribeRequest['x-wukongim-product-status']).toBe(
+      'decoded-to-sub-frame-but-product-handler-rejects',
+    );
+    expect(schema.$defs.UnsubscribeRequest['x-wukongim-product-status']).toBe(
+      'decoded-to-sub-frame-but-product-handler-rejects',
+    );
+    expect(schema.$defs.SubscriptionResponse['x-wukongim-product-status']).toContain(
+      'product-handler-rejects-sub',
     );
   });
 
@@ -45,6 +51,7 @@ describe('experimental JSON-RPC schema', () => {
     const outboundDefinitionByFrame = {
       CONNACK: 'ConnectResponse',
       SENDACK: 'SendResponse',
+      SUBACK: 'SubscriptionResponse',
       RECV: 'RecvNotification',
       EVENT: 'EventNotification',
       DISCONNECT: 'DisconnectNotification',

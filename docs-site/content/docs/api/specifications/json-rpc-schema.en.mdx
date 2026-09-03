@@ -14,7 +14,7 @@ The schema's `x-wukongim-stability` is `experimental-easysdk-core-supported`. Cu
 - `connect` is the first request and returns a correlated result/error after authentication and activation;
 - `send` and `ping` correlate SENDACK/PONG through the request ID;
 - `recv` notifications and `recvack` complete online-delivery acknowledgement;
-- `subscribe`, `unsubscribe`, and several notifications are codec-only or lack a frame bridge;
+- `subscribe` and `unsubscribe` map to `SUB` at the codec boundary, and `SUBACK` has a response mapping; the Product Gateway handler still rejects `SUB`, so the current product path cannot use them;
 - `[` selects JSON mode, but batch arrays are unimplemented; request IDs must be strings, and SEND payload may be an object, Base64, or `null`.
 
 Schema entries outside the EasySDK core path remain non-promises. See [WebSocket JSON-RPC](/en/api/client-protocols/json-rpc) for the full matrix, pinned versions, and evidence boundary.

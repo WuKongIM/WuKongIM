@@ -44,15 +44,9 @@ Route: `/{lang}/server`
 
 部署、配置、运维和理解 WuKongIM 集群。 / Deploy, configure, operate, and understand a WuKongIM cluster.
 
-<<<<<<< HEAD
-- **部署 / Deployment** `/{lang}/server/deployment` — 选择并实施适合环境的服务端部署方式。 / Choose and implement the server deployment method appropriate for the environment.
-  - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 构建固定镜像，并用显式配置和持久卷运行节点。 / Builds an immutable image and runs a node with explicit configuration and persistent storage.
-  - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。 / Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.
-=======
 - **部署 / Deployment** `/{lang}/server/deployment` — 从 Docker、Linux 或多节点路径完成服务端部署。 / Deploy the server through the Docker, Linux, or multi-node path.
   - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 使用固定的官方镜像、显式配置和持久卷运行节点。 / Runs a node with a pinned official image, explicit configuration, and persistent storage.
-  - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 安装经过校验的 Release 二进制，并用 systemd 运行节点。 / Installs a verified release binary and runs the node with systemd.
->>>>>>> a5e302b5f (docs: streamline guides and deployment paths)
+  - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。 / Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.
   - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划成员、副本、故障域并验证集群就绪。 / Plans membership, replicas, failure domains, and cluster readiness.
   - **生产检查清单 / Production Checklist** `/{lang}/server/deployment/production-checklist` — 汇总资源、磁盘、安全、监控、备份和容量检查。 / Checks resources, disks, security, monitoring, backups, and capacity.
 - **配置 / Configuration** `/{lang}/server/configuration` — 解释配置来源、覆盖规则和各领域配置。 / Explains configuration sources, override rules, and domain settings.
