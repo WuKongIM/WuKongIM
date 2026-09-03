@@ -12,6 +12,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -234,13 +235,33 @@ func (r *ManagementMessageReader) MaxMessageSeqForMeta(ctx context.Context, meta
 	if r == nil || r.node == nil {
 		return 0, nil
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}, channelstore.ReadCommittedRequest{
+	request := channelstore.ReadCommittedRequest{
 		FromSeq:  maxUint64(),
 		MaxSeq:   maxUint64(),
 		Limit:    1,
 		MaxBytes: maxInt(),
 		Reverse:  true,
-	})
+	}
+	id := channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
+	var read channelstore.ReadCommittedResult
+	var err error
+	// Manager may run on a node outside both the Slot and Channel replica sets,
+	// so prefer the Channel-Leader-routed read surface when the Node exposes it.
+	if batchNode, ok := r.node.(channelMessageBatchReadNode); ok {
+		results, batchErr := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
+			ChannelID: id,
+			Request:   request,
+		}})
+		if batchErr != nil {
+			err = batchErr
+		} else if len(results) != 1 {
+			err = fmt.Errorf("management: routed tail result count %d, want 1", len(results))
+		} else {
+			read, err = results[0].Read, results[0].Err
+		}
+	} else {
+		read, err = r.node.ReadChannelCommitted(ctx, id, request)
+	}
 	if err != nil {
 		return 0, mapAppendError(err)
 	}

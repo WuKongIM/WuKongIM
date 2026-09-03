@@ -8,6 +8,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -69,6 +70,32 @@ func TestManagementMessageReaderFiltersExactMessageIdentityAndReadsRuntimeTail(t
 	}
 	if node.channelID != (channelruntime.ChannelID{ID: "room-1", Type: 2}) || node.req.FromSeq != maxUint64() || node.req.MaxSeq != maxUint64() || node.req.Limit != 1 || !node.req.Reverse {
 		t.Fatalf("tail read id/request = %#v / %#v", node.channelID, node.req)
+	}
+}
+
+func TestManagementMessageReaderRoutesRuntimeTailThroughChannelLeader(t *testing.T) {
+	t.Parallel()
+
+	node := &routedManagementMessageNode{
+		batchResults: []clusterchannels.CommittedReadResult{{
+			Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 88}}},
+		}},
+	}
+	reader := NewManagementMessageReader(node)
+
+	tail, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: "remote-room", ChannelType: 2})
+	if err != nil || tail != 88 {
+		t.Fatalf("MaxMessageSeqForMeta() = %d err=%v, want routed tail 88", tail, err)
+	}
+	if node.localReads != 0 {
+		t.Fatalf("local committed reads = %d, want none", node.localReads)
+	}
+	if len(node.batchReads) != 1 || node.batchReads[0].ChannelID != (channelruntime.ChannelID{ID: "remote-room", Type: 2}) {
+		t.Fatalf("batch reads = %#v, want remote-room:2", node.batchReads)
+	}
+	req := node.batchReads[0].Request
+	if req.FromSeq != maxUint64() || req.MaxSeq != maxUint64() || req.Limit != 1 || !req.Reverse {
+		t.Fatalf("batch tail request = %#v", req)
 	}
 }
 
@@ -164,6 +191,13 @@ type recordingManagementMessageNode struct {
 	err       error
 }
 
+type routedManagementMessageNode struct {
+	batchReads   []clusterchannels.CommittedRead
+	batchResults []clusterchannels.CommittedReadResult
+	batchErr     error
+	localReads   int
+}
+
 type localLatestManagementMessageNode struct {
 	recordingManagementMessageNode
 	snapshot        control.Snapshot
@@ -213,6 +247,16 @@ func (n *recordingManagementMessageNode) ReadChannelCommitted(_ context.Context,
 	n.channelID = id
 	n.req = req
 	return n.result, n.err
+}
+
+func (n *routedManagementMessageNode) ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	n.localReads++
+	return channelstore.ReadCommittedResult{}, metadb.ErrNotFound
+}
+
+func (n *routedManagementMessageNode) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	n.batchReads = append([]clusterchannels.CommittedRead(nil), reads...)
+	return append([]clusterchannels.CommittedReadResult(nil), n.batchResults...), n.batchErr
 }
 
 func sameManagementMessages(left, right []managementusecase.Message) bool {
