@@ -43,9 +43,9 @@ It does not own Manager or product business policy.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded.
-4. Conversation hydration batch-reads business lifecycle and runtime route
-   metadata by physical Slot, preserves input alignment and item errors, then
-   groups committed-head reads by exact Channel Leader.
+4. Conversation hydration batch-reads lifecycle and runtime routes by physical
+   Slot, preserves alignment and item errors, and groups heads by exact Leader;
+   a cold quorum Leader with durable HW below LEO recovers before read retry.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for synchronous runtime task

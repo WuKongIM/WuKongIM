@@ -2979,6 +2979,81 @@ func TestServiceReadConversationHeadsUsesOneLiveRuntimeProbeBeforeLeaderCheckpoi
 	}
 }
 
+func TestServiceReadConversationHeadsActivatesColdQuorumLeaderBeforeUsingLaggingCheckpoint(t *testing.T) {
+	id := ch.ChannelID{ID: "conversation-head-cold-quorum", Type: 2}
+	factory := channelstore.NewMemoryFactory()
+	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{{
+		ID: 1, FromUID: "u2", Payload: []byte("committed-before-restart"),
+	}}})
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+	meta := ch.Meta{
+		ID: id, Epoch: 3, LeaderEpoch: 5, RouteGeneration: 7, Leader: 1,
+		Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive,
+	}
+	source := NewStaticMetaSource([]ch.Meta{meta})
+	runtime := &runtimeHWProbeRuntime{
+		fakeRuntime: &fakeRuntime{},
+		probe:       ch.RuntimeProbeResult{Checked: 1, Missing: []ch.ChannelID{id}},
+		probeAfterApply: &ch.RuntimeProbeResult{Checked: 1, LoadedLeader: 1, Channels: []ch.RuntimeProbeChannel{{
+			ChannelID: id, ChannelEpoch: 3, LeaderEpoch: 5,
+			Role: ch.RoleLeader, Status: ch.StatusActive, LEO: 1, HW: 1,
+		}}},
+	}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Store: factory})
+	require.NoError(t, err)
+
+	heads, err := svc.ReadConversationHeads(context.Background(), []ch.ChannelID{id}, "u1")
+	require.NoError(t, err)
+	require.Len(t, heads, 1)
+	require.NoError(t, heads[0].Err)
+	require.Equal(t, 1, runtime.applyCalls)
+	require.Equal(t, 2, runtime.probeCalls)
+	require.Equal(t, meta.ID, runtime.lastApplied.ID)
+	require.Equal(t, meta.Epoch, runtime.lastApplied.Epoch)
+	require.Equal(t, meta.LeaderEpoch, runtime.lastApplied.LeaderEpoch)
+	require.Equal(t, meta.RouteGeneration, runtime.lastApplied.RouteGeneration)
+	require.Equal(t, uint64(1), heads[0].Head.LastCommittedSeq)
+	require.True(t, heads[0].Head.Found)
+	require.Equal(t, []byte("committed-before-restart"), heads[0].Head.Message.Payload)
+}
+
+func TestServiceReadConversationHeadsKeepsColdQuorumLeaderUnloadedWhenCheckpointIsCurrent(t *testing.T) {
+	id := ch.ChannelID{ID: "conversation-head-cold-checkpoint-current", Type: 2}
+	factory := channelstore.NewMemoryFactory()
+	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{{
+		ID: 1, FromUID: "u2", Payload: []byte("checkpointed"),
+	}}})
+	require.NoError(t, err)
+	require.NoError(t, store.StoreCheckpoint(context.Background(), ch.Checkpoint{HW: 1}))
+	require.NoError(t, store.Close())
+	meta := ch.Meta{
+		ID: id, Epoch: 3, LeaderEpoch: 5, RouteGeneration: 7, Leader: 1,
+		Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive,
+	}
+	source := NewStaticMetaSource([]ch.Meta{meta})
+	runtime := &runtimeHWProbeRuntime{
+		fakeRuntime: &fakeRuntime{},
+		probe:       ch.RuntimeProbeResult{Checked: 1, Missing: []ch.ChannelID{id}},
+	}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Store: factory})
+	require.NoError(t, err)
+
+	heads, err := svc.ReadConversationHeads(context.Background(), []ch.ChannelID{id}, "u1")
+	require.NoError(t, err)
+	require.Len(t, heads, 1)
+	require.NoError(t, heads[0].Err)
+	require.Zero(t, runtime.applyCalls)
+	require.Equal(t, 1, runtime.probeCalls)
+	require.Equal(t, uint64(1), heads[0].Head.LastCommittedSeq)
+	require.True(t, heads[0].Head.Found)
+	require.Equal(t, []byte("checkpointed"), heads[0].Head.Message.Payload)
+}
+
 func TestServiceReadConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
 	first := ch.ChannelID{ID: "conversation-batch-meta-first", Type: 2}
 	missing := ch.ChannelID{ID: "conversation-batch-meta-missing", Type: 2}
@@ -3520,9 +3595,18 @@ type fakeRuntime struct {
 
 type runtimeHWProbeRuntime struct {
 	*fakeRuntime
-	probe      ch.RuntimeProbeResult
-	probeErr   error
-	probeCalls int
+	probe           ch.RuntimeProbeResult
+	probeAfterApply *ch.RuntimeProbeResult
+	probeErr        error
+	probeCalls      int
+}
+
+func (r *runtimeHWProbeRuntime) ApplyMeta(meta ch.Meta) error {
+	err := r.fakeRuntime.ApplyMeta(meta)
+	if err == nil && r.probeAfterApply != nil {
+		r.probe = *r.probeAfterApply
+	}
+	return err
 }
 
 func (r *runtimeHWProbeRuntime) RuntimeProbe(_ context.Context, _ ch.RuntimeSelector) (ch.RuntimeProbeResult, error) {

@@ -11,6 +11,12 @@ func (c *cluster) ApplyMeta(meta ch.Meta) error {
 	return c.applyMeta(context.Background(), meta)
 }
 
+// ApplyMetaContext applies authoritative metadata while letting request-owned
+// cold reads bound quorum recovery and store activation.
+func (c *cluster) ApplyMetaContext(ctx context.Context, meta ch.Meta) error {
+	return c.applyMeta(ctx, meta)
+}
+
 func (c *cluster) applyMeta(ctx context.Context, meta ch.Meta) error {
 	if ctx == nil {
 		ctx = context.Background()
