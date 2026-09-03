@@ -12,6 +12,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -23,6 +24,8 @@ type ManagementMessageReader struct {
 	latest ManagementLatestMessageNode
 	remote *accessnode.Client
 }
+
+var errManagementRoutedMessageReaderRequired = errors.New("management: routed committed message reader required")
 
 // ManagementLatestMessageNode exposes local storage, membership, and node RPC for global latest reads.
 type ManagementLatestMessageNode interface {
@@ -232,15 +235,31 @@ func (r *ManagementMessageReader) QueryMessages(ctx context.Context, req managem
 // MaxMessageSeqForMeta returns the highest committed message sequence for one runtime metadata row.
 func (r *ManagementMessageReader) MaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error) {
 	if r == nil || r.node == nil {
-		return 0, nil
+		return 0, errManagementRoutedMessageReaderRequired
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}, channelstore.ReadCommittedRequest{
+	batchNode, ok := r.node.(channelMessageBatchReadNode)
+	if !ok {
+		return 0, errManagementRoutedMessageReaderRequired
+	}
+	request := channelstore.ReadCommittedRequest{
 		FromSeq:  maxUint64(),
 		MaxSeq:   maxUint64(),
 		Limit:    1,
 		MaxBytes: maxInt(),
 		Reverse:  true,
-	})
+	}
+	id := channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
+	results, err := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
+		ChannelID: id,
+		Request:   request,
+	}})
+	if err == nil && len(results) != 1 {
+		err = fmt.Errorf("management: routed tail result count %d, want 1", len(results))
+	}
+	var read channelstore.ReadCommittedResult
+	if err == nil {
+		read, err = results[0].Read, results[0].Err
+	}
 	if err != nil {
 		return 0, mapAppendError(err)
 	}

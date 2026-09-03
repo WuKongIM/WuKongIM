@@ -5,7 +5,6 @@ package cross_node_delivery
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -463,18 +462,7 @@ func replicaOverrides(replicaCount int) map[string]string {
 	return overrides
 }
 
-type channelRuntimeMetaPage struct {
-	Items []channelRuntimeMetaItem `json:"items"`
-}
-
-type channelRuntimeMetaItem struct {
-	ChannelID   string   `json:"channel_id"`
-	ChannelType int64    `json:"channel_type"`
-	Leader      uint64   `json:"leader"`
-	Replicas    []uint64 `json:"replicas"`
-	ISR         []uint64 `json:"isr"`
-	Status      string   `json:"status"`
-}
+type channelRuntimeMetaItem = suite.ChannelRuntimeMeta
 
 func requireChannelReplicaCountEventually(t *testing.T, cluster *suite.StartedCluster, channelID string, channelType uint8, replicaCount int) {
 	t.Helper()
@@ -509,23 +497,7 @@ func requireChannelReplicaCountEventually(t *testing.T, cluster *suite.StartedCl
 }
 
 func channelRuntimeMeta(ctx context.Context, node *suite.StartedNode, channelID string, channelType uint8) (channelRuntimeMetaItem, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	var page channelRuntimeMetaPage
-	query := url.Values{}
-	query.Set("channel_id", channelID)
-	query.Set("limit", "10")
-	_, err := suite.GetJSON(reqCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
-	if err != nil {
-		return channelRuntimeMetaItem{}, err
-	}
-	for _, item := range page.Items {
-		if item.ChannelID == channelID && item.ChannelType == int64(channelType) {
-			return item, nil
-		}
-	}
-	return channelRuntimeMetaItem{}, fmt.Errorf("runtime meta not found")
+	return suite.GetChannelRuntimeMeta(ctx, node, channelID, channelType)
 }
 
 func deliveryTopOverrides() map[string]string {

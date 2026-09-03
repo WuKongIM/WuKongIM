@@ -42,7 +42,7 @@ func TestThreeNodeManagerRetentionForwardsAndSurvivesLeaderRestart(t *testing.T)
 		requireManagerMessageSeqsEventually(t, cluster, node, channelID, channelType, []uint64{seqs[2], seqs[1], seqs[0]})
 	}
 
-	meta := requireRuntimeMetaEventually(t, cluster.MustNode(1), channelID, channelType)
+	meta := suite.RequireChannelRuntimeMetaEventually(t, cluster, cluster.MustNode(1), channelID, channelType, 10*time.Second)
 	require.NotZero(t, meta.Leader, cluster.DumpDiagnostics())
 	origin := firstNonLeaderNode(t, cluster, meta.Leader)
 
@@ -193,38 +193,10 @@ func equalSeqs(a, b []uint64) bool {
 	return true
 }
 
-type channelRuntimeMetaPage struct {
-	Items []channelRuntimeMetaItem `json:"items"`
-}
-
-type channelRuntimeMetaItem struct {
-	ChannelID       string `json:"channel_id"`
-	ChannelType     int64  `json:"channel_type"`
-	Leader          uint64 `json:"leader"`
-	LeaderEpoch     uint64 `json:"leader_epoch"`
-	Status          string `json:"status"`
-	WriteFenceToken string `json:"write_fence_token"`
-	ActiveTaskID    string `json:"active_task_id"`
-}
+type channelRuntimeMetaItem = suite.ChannelRuntimeMeta
 
 func runtimeMeta(ctx context.Context, node *suite.StartedNode, channelID string, channelType uint8) (channelRuntimeMetaItem, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	var page channelRuntimeMetaPage
-	query := url.Values{}
-	query.Set("channel_id", channelID)
-	query.Set("limit", "10")
-	_, err := suite.GetJSON(reqCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
-	if err != nil {
-		return channelRuntimeMetaItem{}, err
-	}
-	for _, item := range page.Items {
-		if item.ChannelID == channelID && item.ChannelType == int64(channelType) {
-			return item, nil
-		}
-	}
-	return channelRuntimeMetaItem{}, fmt.Errorf("runtime meta for %s/%d not found in %+v", channelID, channelType, page.Items)
+	return suite.GetChannelRuntimeMeta(ctx, node, channelID, channelType)
 }
 
 func requireChannelWritableEventually(t *testing.T, cluster *suite.StartedCluster, managerNode *suite.StartedNode, channelID string, channelType uint8, minLeaderEpoch uint64, timeout time.Duration) channelRuntimeMetaItem {
@@ -292,35 +264,6 @@ func channelWritableEvidence(meta channelRuntimeMetaItem, nodes suite.NodeListDT
 		return nil
 	}
 	return fmt.Errorf("channel leader %d missing from manager node inventory: %+v", meta.Leader, nodes.Items)
-}
-
-func requireRuntimeMetaEventually(t *testing.T, node *suite.StartedNode, channelID string, channelType uint8) channelRuntimeMetaItem {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	var last channelRuntimeMetaItem
-	var lastErr error
-	for {
-		meta, err := runtimeMeta(ctx, node, channelID, channelType)
-		if err == nil {
-			last = meta
-			if meta.Leader != 0 && meta.Status == "active" {
-				return meta
-			}
-			lastErr = fmt.Errorf("runtime meta = %+v, want active leader", meta)
-		} else {
-			lastErr = err
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("runtime meta timed out: last=%+v lastErr=%v\n%s", last, lastErr, node.DumpDiagnostics())
-		case <-ticker.C:
-		}
-	}
 }
 
 type retentionResponse struct {

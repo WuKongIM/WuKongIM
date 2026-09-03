@@ -586,21 +586,7 @@ func findExpectedReplicaRepair(items []channelMigrationItem, candidate followerR
 	return channelMigrationItem{}, false
 }
 
-type channelRuntimeMetaPage struct {
-	Items []channelRuntimeMetaItem `json:"items"`
-}
-
-type channelRuntimeMetaItem struct {
-	ChannelID   string   `json:"channel_id"`
-	ChannelType int64    `json:"channel_type"`
-	SlotID      uint32   `json:"slot_id"`
-	Leader      uint64   `json:"leader"`
-	SlotLeader  uint64   `json:"slot_leader"`
-	Replicas    []uint64 `json:"replicas"`
-	ISR         []uint64 `json:"isr"`
-	MinISR      int64    `json:"min_isr"`
-	Status      string   `json:"status"`
-}
+type channelRuntimeMetaItem = suite.ChannelRuntimeMeta
 
 func requireReplicaRepairTopologyEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, candidate followerRepairCandidate, timeout time.Duration) channelRuntimeMetaItem {
 	t.Helper()
@@ -654,23 +640,7 @@ func replicaRepairTopologyPrecondition(meta channelRuntimeMetaItem, candidate fo
 }
 
 func channelRuntimeMeta(ctx context.Context, node *suite.StartedNode, channelID string, channelType uint8) (channelRuntimeMetaItem, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	var page channelRuntimeMetaPage
-	query := url.Values{}
-	query.Set("channel_id", channelID)
-	query.Set("limit", "10")
-	_, err := suite.GetJSON(reqCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
-	if err != nil {
-		return channelRuntimeMetaItem{}, err
-	}
-	for _, item := range page.Items {
-		if item.ChannelID == channelID && item.ChannelType == int64(channelType) {
-			return item, nil
-		}
-	}
-	return channelRuntimeMetaItem{}, fmt.Errorf("runtime meta for %s/%d not found in %+v", channelID, channelType, page.Items)
+	return suite.GetChannelRuntimeMeta(ctx, node, channelID, channelType)
 }
 
 type managerSlotsPage struct {
