@@ -19,7 +19,7 @@ description: 保护集群加入、Manager、产品 API、Benchmark、诊断和�
 
 ## 管理面与产品 API
 
-生产环境启用 `manager.auth_on`，替换示例 JWT Secret 和账号，并把 Manager 只开放给管理员网络或身份代理。权限条目应只授予所需资源和动作，不使用示例中的全局通配权限作为生产基线。
+生产环境启用 `manager.auth_on`，替换示例 JWT Secret 和账号。Manager 可以通过公网 `5301` 直接访问，但必须使用强密码；需要保护登录传输时应配置 HTTPS 反向代理，也可通过防火墙限制来源地址。权限条目应只授予所需资源和动作，不使用示例中的全局通配权限作为生产基线。
 
 WuKongIM 的产品 HTTP 路由不提供通用业务 Token 校验。不要因为 Manager 已启用认证就认为产品 API 同样受保护；业务 API 应位于受信任网络，或置于 API Gateway、反向代理和业务身份校验之后。
 

@@ -43,4 +43,4 @@ description: 规划节点数据目录、消息保留、队列、批处理、并�
 
 任何字段变更都应逐节点滚动，在恢复流量前等待 `/readyz`，并比较变更前后的延迟、队列、资源和错误。保留回滚配置，但不要把二进制降级等同于数据格式可安全回滚。
 
-生产上线前回到[生产检查清单](/zh/server/deployment/production-checklist)，补齐磁盘、容量、备份和恢复证据。
+生产上线前，按[备份与恢复](/zh/server/operations/backup-and-restore)验证归档，并使用 [`wkbench`](/zh/server/tools/wkbench)按真实负载验证容量。

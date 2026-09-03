@@ -17,7 +17,6 @@ Deployment starts with one decision: **can you accept a single point of failure?
 | Use the shortest repeatable deployment path | [Docker](/en/server/deployment/docker) (recommended) |
 | Manage hosts, files, and systemd directly | [Linux](/en/server/deployment/linux) |
 | Replicate across nodes and plan failure recovery | Read [Multi-node Cluster](/en/server/deployment/multi-node), then choose Docker or Linux |
-| Prepare for production traffic | Complete the [Production Checklist](/en/server/deployment/production-checklist) |
 
 A single-node cluster fits development, validation, and small production workloads that explicitly accept interruption after a node or disk failure. Use a multi-node cluster across independent failure domains when service must continue after a node failure.
 

@@ -13,7 +13,7 @@ description: 区分节点 Transport、HTTP、Gateway、Manager 和对客户端�
 | 产品 HTTP API | `api.listen_addr` | 业务后端、健康检查、观察采集 | 放在受信任网络或外部鉴权代理后 |
 | 客户端 Gateway | `gateway.listeners` | TCP、WebSocket 客户端 | 通过受控入口暴露并实施连接容量限制 |
 | 客户端发现地址 | `api.external_tcp_addr`、`external_ws_addr`、`external_wss_addr` | `/route` 的调用者 | 必须能从目标客户端网络访问 |
-| Manager | `manager.listen_addr` | 管理员和自动化 | 独立受限网络，启用认证 |
+| Manager | `manager.listen_addr` | 管理员和自动化 | 可开放公网 `5301`，必须启用认证和强密码 |
 | Prometheus | `prometheus.listen_addr` 或外部服务 | Manager、采集系统 | 不直接暴露到互联网 |
 
 ## 监听不等于广告

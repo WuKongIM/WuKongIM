@@ -451,7 +451,6 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/deployment/docker`,
         `/${locale}/server/deployment/linux`,
         `/${locale}/server/deployment/multi-node`,
-        `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
         `/${locale}/server/configuration/common-configurations`,
         `/${locale}/server/configuration/cluster`,
@@ -773,7 +772,6 @@ describe('documentation navigation contract', () => {
         '/zh/server/deployment/docker',
         '/zh/server/deployment/linux',
         '/zh/server/deployment/multi-node',
-        '/zh/server/deployment/production-checklist',
       ]);
     }
   });

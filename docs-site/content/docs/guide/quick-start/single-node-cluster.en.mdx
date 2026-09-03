@@ -1,54 +1,72 @@
 ---
 title: Start a Single-node Cluster
-description: Run the complete cluster path from source and check readiness and local entry points.
+description: Install WuKongIM on Linux and start a single-node cluster with systemd.
 ---
 
-## 1. Fetch the source
+Run all commands below on the Linux server.
+
+## 1. Install WuKongIM
+
+On Ubuntu or Debian:
 
 ```bash
-git clone https://github.com/WuKongIM/WuKongIM.git
-cd WuKongIM
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo apt update
+sudo apt install -y wukongim
 ```
 
-Skip this step if you are already at the repository root.
-
-## 2. Create a local configuration
+On Rocky, AlmaLinux, or RHEL 9:
 
 ```bash
-cp wukongim.toml.example wukongim.toml
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf install -y wukongim
 ```
 
-`wukongim.toml` is the local runtime configuration. Do not carry its development credentials into production. The example uses node ID `1`, one replica, and 256 hash slots while still running full cluster semantics.
-
-## 3. Start the server
+## 2. Initialize configuration
 
 ```bash
-GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+sudo wukongim config init --config /etc/wukongim/wukongim.toml
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
 ```
 
-Leave this terminal running. In another terminal, check readiness:
+Save the Manager administrator password printed by the first command. It is shown only once.
+
+## 3. Start and check the cluster
 
 ```bash
+sudo systemctl enable --now wukongim
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-A successful exit means the node finished startup and can accept traffic. If the process is still running but readiness fails, inspect the startup terminal for configuration, port, or storage errors.
+A successful `/readyz` means that the single-node cluster can accept traffic. If it fails, inspect the logs:
 
-## 4. Open the local entry points
+```bash
+sudo journalctl -u wukongim -n 100 --no-pager
+```
 
-| Purpose | Address |
+## 4. Open the pages from your computer
+
+For a remote Linux server, keep this SSH forwarding command running on your computer:
+
+```bash
+ssh -L 5001:127.0.0.1:5001 -L 5200:127.0.0.1:5200 -L 5301:127.0.0.1:5301 <user>@<server-ip>
+```
+
+Then open these addresses in your computer's browser:
+
+| Page | Address |
 | --- | --- |
 | Chat Demo | `http://127.0.0.1:5001/demo/` |
 | Manager | `http://127.0.0.1:5301` |
-| HTTP API, readiness, and metrics | `http://127.0.0.1:5001` |
-| WKProto TCP | `127.0.0.1:5100` |
-| WebSocket | `ws://127.0.0.1:5200` |
-| Node transport | `127.0.0.1:7001` |
 
-The Manager development account is `admin` with password `a1234567`. These fixed credentials are only for local verification.
+The Manager username is `admin`; use the password saved during initialization.
 
-## Stop and restart
+To stop or start the service again:
 
-Press `Ctrl+C` in the server terminal to stop the node. Data is stored in `./data/wukongim-single-node-data` by default and is reused when the same configuration starts again.
+```bash
+sudo systemctl stop wukongim
+sudo systemctl start wukongim
+```
 
-Next: [send the first message](/en/guide/quick-start/first-message).
+Data is stored in `/var/lib/wukongim`. Next: [send the first message](/en/guide/quick-start/first-message).

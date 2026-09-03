@@ -20,7 +20,7 @@ description: WuKongIM 最常用的 10 个配置项及其作用、默认行为和
 | [`cluster.slot_replica_n`](/zh/server/configuration/cluster)<br />`WK_CLUSTER_SLOT_REPLICA_N` | 设置集群首次初始化时每个 Slot Raft Group 的投票副本数。 | `0` 在静态拓扑按投票节点数推导，种子加入时使用 `1`；已有集群以 Controller 持久状态为准。 |
 | [`gateway.listeners`](/zh/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | 定义客户端使用的 TCP 或 WebSocket 监听器。 | 省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表会关闭 Gateway。环境变量必须使用 JSON。 |
 | [`api.listen_addr`](/zh/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | 监听 Product HTTP API，并承载健康检查及按开关启用的指标、调试等 HTTP 路由。 | 省略或留空时不启动该 HTTP 服务；它不会创建客户端 Gateway 或 Manager 监听器。 |
-| [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；对外开放时应同时启用认证并限制网络访问。 |
+| [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；可监听公网 `5301`，但必须同时启用认证并使用强密码。 |
 | [`manager.auth_on`](/zh/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | 要求 Manager 路由使用 JWT 登录认证。 | 省略时为 `false`；设为 `true` 时必须同时提供 `manager.jwt_secret` 和 `manager.users`。 |
 | [`log.level`](/zh/server/configuration/observability)<br />`WK_LOG_LEVEL` | 设置应用记录的最低日志级别。 | 默认 `info`；可选 `debug`、`info`、`warn`、`error`。生产排障结束后应避免长期使用 `debug`。 |
 
@@ -28,4 +28,3 @@ description: WuKongIM 最常用的 10 个配置项及其作用、默认行为和
 
 - 配置文件查找顺序、环境变量覆盖和列表替换规则见[配置概览](/zh/server/configuration)。
 - 多节点种子加入、频道副本、指标、Webhook 等配置见[配置参考](/zh/server/configuration/reference)。
-- 生产环境还应完成[生产检查清单](/zh/server/deployment/production-checklist)。

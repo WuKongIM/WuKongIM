@@ -1,29 +1,61 @@
 ---
 title: Multi-node Cluster
-description: Plan membership, replicas, failure domains, and acceptance for a WuKongIM multi-node cluster.
+description: Set up a WuKongIM multi-node cluster in three steps and check that every node is ready.
 ---
 
-The value of multiple nodes comes from **replicas across failure domains**, not process count. Every node uses the same artifact and member inventory, while keeping a unique identity, independent storage, and a reachable transport address.
+A multi-node cluster simply means **running the same WuKongIM service on several servers and keeping copies of data between them.** This example uses three servers.
 
 ```mermaid
-flowchart TD
-  Client["Clients / product services"] --> Edge["TLS and controlled load balancing"]
-  Edge --> Node1["Node 1<br/>independent disk / failure domain 1"]
-  Edge --> Node2["Node 2<br/>independent disk / failure domain 2"]
-  Edge --> Node3["Node 3<br/>independent disk / failure domain 3"]
-  Node1 <--> Transport["Private node transport"]
-  Node2 <--> Transport
-  Node3 <--> Transport
+flowchart TB
+  Client["Clients"]
+  Admin["Administrators"]
+  Nginx["One Nginx entry<br/>TCP 5100 / WSS 443<br/>Manager 5301"]
+
+  subgraph Cluster["WuKongIM cluster (3 independent servers)"]
+    Node1["Node 1<br/>10.0.0.11<br/>Independent disk"]
+    Node2["Node 2<br/>10.0.0.12<br/>Independent disk"]
+    Node3["Node 3<br/>10.0.0.13<br/>Independent disk"]
+    Network(["Private node network<br/>Port 7000, nodes only"])
+
+    Node1 -.- Network
+    Node2 -.- Network
+    Node3 -.- Network
+  end
+
+  Client --> Nginx
+  Admin -->|Account and password| Nginx
+  Nginx --> Node1
+  Nginx --> Node2
+  Nginx --> Node3
 ```
 
-## 1. Prepare one shared member inventory
+## 1. Prepare three servers
 
-Every node uses the same cluster ID, hash-slot count, replica counts, and ordered member inventory:
+| Server | Node ID | Address between nodes |
+| --- | --- | --- |
+| Server 1 | `1` | `10.0.0.11:7000` |
+| Server 2 | `2` | `10.0.0.12:7000` |
+| Server 3 | `3` | `10.0.0.13:7000` |
+
+Before you start, check three things:
+
+- all three servers run the same WuKongIM version;
+- each server has its own persistent disk and does not share its data directory;
+- the servers can reach each other on port `7000` over the private network.
+
+## 2. Copy one cluster configuration
+
+Put these sections in `wukongim.toml` on every server. This is the configuration for server 1:
 
 ```toml
+[node]
+id = 1
+data_dir = "/var/lib/wukongim"
+
 [cluster]
 id = "prod-im-a"
 listen_addr = "0.0.0.0:7000"
+join_token = "replace-with-one-random-secret"
 hash_slot_count = 256
 slot_replica_n = 3
 channel_replica_n = 3
@@ -34,33 +66,17 @@ nodes = [
 ]
 ```
 
-`listen_addr` is the local bind address; `nodes[].addr` is what peers actually dial. Never put `0.0.0.0`, loopback, or a name resolvable on only one host in the member inventory. The effective join token must also match on every node.
+Copy the file to servers 2 and 3, changing only `node.id` to `2` and `3`. The `[cluster]` section must be identical on every server. Replace `join_token` with the same random secret on all three.
 
-Set node ID, data directory, and advertised addresses separately on each node. See [Nodes & Cluster configuration](/en/server/configuration/cluster) for the complete field reference.
+`listen_addr` tells the current server where to listen, so `0.0.0.0` is valid there. The addresses in `nodes` tell the other servers how to connect, so they must be real private IP addresses—not `0.0.0.0` or `127.0.0.1`. See [Nodes & Cluster](/en/server/configuration/cluster) for other settings.
 
-| Must match | Must be unique |
-| --- | --- |
-| Cluster ID, member inventory, hash-slot count | Node ID |
-| Replica policy and artifact version | Data directory, persistent volume, and failure domain |
-| Effective join token | Transport instance and node-level observability identity |
-
-<Callout type="warn" title="Three nodes and three replicas have no node headroom">
-  With three nodes, `slot_replica_n = 3`, and `channel_replica_n = 3`, losing any node leaves too few candidates for new writes and the other nodes return `503` from `/readyz`. Provide at least four eligible data nodes if one node may be lost while retaining three replica candidates.
+<Callout type="warn" title="Three servers leave no spare node">
+  Three replicas mean that every piece of data needs all three servers. If one server stops, the other nodes may return `503` from `/readyz`. Use at least four servers if writes must continue while one server is offline.
 </Callout>
 
-## 2. Check before startup
+## 3. Start and check the servers
 
-1. Every node uses the same artifact digest and configuration version.
-2. Nodes have bidirectional access to transport port `7000` over a protected private network.
-3. Each node has an independent persistent disk with capacity, permissions, and alerts configured.
-4. Advertised addresses are reachable from client networks; Manager, metrics, and diagnostics remain on controlled networks.
-5. Fixed credentials are replaced, and benchmark and debug are disabled in production.
-
-After data exists, do not casually change cluster ID, node IDs, hash-slot count, or replica settings. Joining, migration, and scale-in are controlled operations.
-
-## 3. Verify and admit traffic
-
-Check every node:
+Start WuKongIM on all three servers using the [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux) deployment, then check each one:
 
 ```bash
 curl --fail http://10.0.0.11:5001/readyz
@@ -68,24 +84,82 @@ curl --fail http://10.0.0.12:5001/readyz
 curl --fail http://10.0.0.13:5001/readyz
 ```
 
-Only nodes returning `200` with `{"ready":true}` belong in backend pools. Then complete three acceptance checks:
+After all three return `200` with `{"ready":true}`, send one test message. Confirm that another client receives it and can sync it after reconnecting. Finally, configure the load balancer to send traffic only to nodes whose `/readyz` check succeeds.
 
-- `/route` returns addresses that clients can actually reach;
-- one end-to-end message completes send, persistence, receive, and reconnect sync;
-- stopping one node in pre-production produces a recorded `/readyz` status and `reason`, and routing and replicas return to expectations after recovery.
+### Open Manager
 
-## Advanced: repository three-node environment
+All three nodes must use the same Manager authentication configuration. Otherwise, login fails when Nginx sends a request to another node:
 
-`docker-compose.yml` and `docker/conf/node*.toml` can verify the member inventory, ports, readiness, and observability surface:
-
-```bash
-docker compose up -d --build
-docker compose ps
-curl --fail http://127.0.0.1:15001/readyz
-curl --fail http://127.0.0.1:15002/readyz
-curl --fail http://127.0.0.1:15003/readyz
+```toml
+[manager]
+listen_addr = "0.0.0.0:5301"
+auth_on = true
+jwt_secret = "replace-with-the-same-random-64-character-secret"
+users = [{ username = "admin", password = "replace-with-the-same-strong-password", permissions = [{ resource = "*", actions = ["*"] }] }]
 ```
 
-It uses same-host containers, local directories, fixed credentials, and development capabilities. It proves that the configuration runs, not independent failure domains, production security, or capacity.
+Replace `jwt_secret` and the password with strong random values, then keep them identical on all three nodes. After the Nginx configuration below is active, open `http://manager.example.com:5301` and sign in as `admin` with the configured password. See [Manager](/en/server/operations/manager) for details.
 
-Finish the [Production Checklist](/en/server/deployment/production-checklist) before traffic cutover.
+### Add Nginx
+
+This Nginx configuration distributes client TCP, WSS, and Manager connections. It requires the Nginx Stream and Stream SSL modules. Put `stream` at the top level of `nginx.conf`, not inside `http`:
+
+```nginx
+stream {
+  upstream wukongim_tcp {
+    least_conn;
+    server 10.0.0.11:5100 max_fails=2 fail_timeout=10s;
+    server 10.0.0.12:5100 max_fails=2 fail_timeout=10s;
+    server 10.0.0.13:5100 max_fails=2 fail_timeout=10s;
+  }
+
+  upstream wukongim_ws {
+    least_conn;
+    server 10.0.0.11:5200 max_fails=2 fail_timeout=10s;
+    server 10.0.0.12:5200 max_fails=2 fail_timeout=10s;
+    server 10.0.0.13:5200 max_fails=2 fail_timeout=10s;
+  }
+
+  upstream wukongim_manager {
+    least_conn;
+    server 10.0.0.11:5301 max_fails=2 fail_timeout=10s;
+    server 10.0.0.12:5301 max_fails=2 fail_timeout=10s;
+    server 10.0.0.13:5301 max_fails=2 fail_timeout=10s;
+  }
+
+  server {
+    listen 5100;
+    proxy_pass wukongim_tcp;
+    proxy_connect_timeout 5s;
+    proxy_timeout 1h;
+  }
+
+  server {
+    listen 443 ssl;
+    ssl_certificate /etc/nginx/certs/im.example.com.crt;
+    ssl_certificate_key /etc/nginx/certs/im.example.com.key;
+    proxy_pass wukongim_ws;
+    proxy_connect_timeout 5s;
+    proxy_timeout 1h;
+  }
+
+  server {
+    listen 5301;
+    proxy_pass wukongim_manager;
+    proxy_connect_timeout 5s;
+    proxy_timeout 1h;
+  }
+}
+```
+
+Replace the domain and certificate paths, then publish the same Nginx address from every WuKongIM node:
+
+```toml
+[api]
+external_tcp_addr = "im.example.com:5100"
+external_wss_addr = "wss://im.example.com"
+```
+
+Point both `im.example.com` and `manager.example.com` to Nginx, then run `sudo nginx -t && sudo systemctl reload nginx`. Open-source Nginx only skips a node temporarily after connection failures; it does not actively check `/readyz`. Production automation must remove a node from `upstream` while that node is not ready. The example reserves port `443` for WuKongIM. One Nginx server is also a single point of failure, so use two Nginx servers behind one entry address or use a managed load balancer in production.
+
+After the cluster contains data, do not directly change the cluster ID, node IDs, `hash_slot_count`, or replica counts. Read [Scaling](/en/server/operations/scaling) before adding or removing nodes.

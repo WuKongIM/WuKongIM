@@ -1,59 +1,53 @@
 ---
 title: Backup & Restore
-description: Save and verify cluster backups in Manager, then restore with maintenance fencing and rollback protection.
+description: Follow one example to back up and restore data in Manager.
 ---
 
-Backup and restore are managed entirely under Manager's Cluster → Backups area. There is no backup section in `wukongim.toml` and there are no `WK_BACKUP_*` environment variables. The cluster has one Controller-owned plan, one active task, and bounded history.
+Open **Manager → Cluster → Backups**. No `wukongim.toml` change is needed.
 
-<Callout type="warn" title="Saved does not mean recoverable">
-  Saving settings only persists the plan; it does not test the repository. Test the exact saved plan revision and retain a complete, verified archive plus restore-drill evidence.
-</Callout>
+## Backup exercise
 
-## Permissions and repositories
+Leave **Enable automatic backup** off and enter these example values:
 
-| Action | Permission |
+| Setting | Example value |
 | --- | --- |
-| Read plans, tasks, and archives | `cluster.backup:r` |
-| Edit plans, test, run, verify, and manage retention | `cluster.backup:w` |
-| Start or advance restore | Explicit `cluster.restore:w`, password reauthentication, and confirmation phrase |
+| Backup frequency | Every day at 01:00 |
+| Time zone | `Asia/Shanghai` |
+| Storage | Shared file storage |
+| Archives to keep | `7` |
+| Workers per node | `1` |
+| Timeout | `12` hours |
 
-Supported repositories are file storage, Alibaba Cloud OSS, Tencent Cloud COS, and S3-compatible object storage. Credentials are encrypted in Controller state and never returned through the API, but WuKongIM does not encrypt archive contents. Use storage-side encryption and access auditing when confidentiality is required.
-
-The file repository defaults to `backup-repository` under each node's `data_dir`. In a multi-node cluster, every active data node must reach the same shared storage. Independent local directories on each node do not form a cluster backup repository.
-
-## Establishing a plan
-
-1. Select the repository and configure retention, schedule, concurrency, and deadline.
-2. Save settings and record the returned plan revision.
-3. Test **that revision**. The coordinator writes a one-time marker. Every active data node uses an independently opened repository client to read and verify that marker, then writes its own receipt. The coordinator rereads every receipt, lists the expected object set, and cleans up the bounded probe objects, proving cross-node visibility.
-4. Enable the plan only after the repository test succeeds. Initial enablement starts a full backup.
-5. Inspect next schedule time, active task, and history. Missed schedules are not replayed; overlaps are recorded as skipped.
-
-Changing the repository marks the plan unverified again; schedule-only changes preserve repository verification. Minimum schedule interval is 12 hours, worker count is 1–4, and task deadline is 1–48 hours. Do not select maximum concurrency in production before validating IO, network, and product latency.
-
-## Archive completion
-
-A full backup covers all 256 physical hash slots with 64 MiB chunks, Zstd compression, and SHA-256 checksums. An archive becomes complete only after every chunk is written and checked and the `COMPLETE` marker is published.
-
-Archive verification rereads and checks every chunk. Retention keeps the newest seven archives by default plus archives on hold. Deletion requires `DELETE <archive-id>` and must not remove an archive required by an active restore or retention policy.
-
-## Restore preflight
-
-- The archive belongs to the current cluster identity and is complete and fully verified.
-- Controller state and all 256 Slots are available, with no conflicting control tasks.
-- Free space covers current product data, twice the archive logical size, plus 1 GiB.
-- Clients, webhooks, plugins, delivery, and operators are prepared for maintenance.
-- All Controller voters will not be terminated together; the operator has explicit restore permission and reauthenticates.
-- Current artifacts, configuration, node inventory, and abort/escalation conditions are recorded.
-
-## Restore procedure
-
-1. Select the archive in Manager and run full preflight and verification.
-2. Enter `RESTORE <archive-id>`. The cluster enters maintenance: clients disconnect, writes and projections drain, delivery/webhooks/plugins pause, and new writes are fenced.
-3. The system retains rollback images, stages all 256 Slots, and verifies again.
-4. Switch only after all nodes and Slots verify. On failure, restore the previous state from rollback images.
-5. Successful restore invalidates Manager sessions. Log in again, wait for `/readyz`, and verify historical messages, client tokens, new writes, send/receive, reconnect, and downstream integrations before gradually restoring traffic.
-
-<Callout type="warn" title="Not a cross-cluster migration tool">
-  The current restore format accepts only the same cluster identity. It cannot attach a repository to a separately initialized cluster and does not replace a v2-to-v3 migration plan.
+<Callout type="warn" title="Every node must share the backup directory">
+  `data_dir/backup-repository` on every node must point to the same shared storage. Without shared storage, select OSS, COS, or S3.
 </Callout>
+
+1. Select **Save settings** and wait for **Backup settings saved**.
+2. Select **Test storage** and wait for **Storage verification: Verified**.
+3. Select **Back up now** and wait for `256/256 Hash Slots` under **Current task**.
+4. Confirm **Succeeded** under **Recent tasks**.
+5. Select **Verify** next to the archive, then select **Hold** after verification succeeds.
+
+**Done when:** the archive is `healthy` and the page says **Archive verification succeeded**. Enable and save **Automatic backup** when you want scheduled runs.
+
+## Restore exercise
+
+<Callout type="warn" title="Restore replaces current data">
+  Messages and changes after the archive's completion time will be lost, and clients will disconnect. Use a maintenance window.
+</Callout>
+
+Before starting, confirm that every `/readyz` returns 200, no other administrative task is running, the archive has just passed verification, and each node has free space for current data + twice the archive's logical size + 1 GiB.
+
+1. Select **Restore** next to the target archive.
+2. Check the cluster, archive time, and size shown on the page.
+3. Enter the current administrator password.
+4. Enter `RESTORE <archive ID>` as shown, then select **Start restore**.
+5. Wait for the task to finish. Do not stop nodes or perform another change.
+6. Sign in to Manager again, confirm **Recent tasks: Succeeded**, and check that every `/readyz` returns 200.
+7. Check history, then test sign-in, message send and receive, reconnect, webhooks, and plugins. Restore traffic only after every check passes.
+
+<Callout type="warn" title="You cannot restore into another cluster">
+  An archive restores only to the same cluster that created it. It is not a new-cluster import or v2-to-v3 migration tool.
+</Callout>
+
+On failure, preserve the task and error details instead of repeatedly starting restore. Backup requires `cluster.backup:w`; restore requires explicit `cluster.restore:w`. WuKongIM does not encrypt archive contents, so enable storage-side encryption.

@@ -1,54 +1,72 @@
 ---
 title: 启动单节点集群
-description: 从源码启动完整集群路径，并检查就绪状态和本地入口。
+description: 在 Linux 上安装 WuKongIM，并通过 systemd 启动单节点集群。
 ---
 
-## 1. 获取源码
+下面的命令都在 Linux 服务器执行。
+
+## 1. 安装 WuKongIM
+
+Ubuntu 或 Debian：
 
 ```bash
-git clone https://github.com/WuKongIM/WuKongIM.git
-cd WuKongIM
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo apt update
+sudo apt install -y wukongim
 ```
 
-如果你已经位于仓库根目录，可以跳过这一步。
-
-## 2. 创建本地配置
+Rocky、AlmaLinux 或 RHEL 9：
 
 ```bash
-cp wukongim.toml.example wukongim.toml
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf install -y wukongim
 ```
 
-`wukongim.toml` 是本机运行配置，不应把开发凭据直接用于生产环境。示例配置使用节点 ID `1`、一个副本和 256 个 Hash Slot，仍然运行完整集群语义。
-
-## 3. 启动服务
+## 2. 初始化配置
 
 ```bash
-GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+sudo wukongim config init --config /etc/wukongim/wukongim.toml
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
 ```
 
-保持当前终端运行。在另一个终端执行就绪检查：
+保存第一条命令显示的 Manager 管理员密码，它只显示一次。
+
+## 3. 启动并检查
 
 ```bash
+sudo systemctl enable --now wukongim
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-命令成功退出表示节点已完成启动并能够接收流量。进程仍在运行但就绪检查失败时，先查看启动终端中的配置、端口或存储错误。
+`/readyz` 成功表示单节点集群已经可以接收流量。失败时查看日志：
 
-## 4. 打开本地入口
+```bash
+sudo journalctl -u wukongim -n 100 --no-pager
+```
 
-| 用途 | 地址 |
+## 4. 从电脑打开页面
+
+如果 Linux 是远程服务器，在电脑终端建立 SSH 转发并保持终端运行：
+
+```bash
+ssh -L 5001:127.0.0.1:5001 -L 5200:127.0.0.1:5200 -L 5301:127.0.0.1:5301 <用户名>@<服务器IP>
+```
+
+然后在电脑浏览器打开：
+
+| 页面 | 地址 |
 | --- | --- |
 | Chat Demo | `http://127.0.0.1:5001/demo/` |
 | Manager | `http://127.0.0.1:5301` |
-| HTTP API、就绪检查与指标 | `http://127.0.0.1:5001` |
-| WKProto TCP | `127.0.0.1:5100` |
-| WebSocket | `ws://127.0.0.1:5200` |
-| 节点间 Transport | `127.0.0.1:7001` |
 
-Manager 的开发账号是 `admin`，密码是 `a1234567`。这些固定凭据只适用于本地验证。
+Manager 用户名是 `admin`，密码是初始化时保存的密码。
 
-## 停止与再次启动
+停止或再次启动服务：
 
-在服务终端按 `Ctrl+C` 停止节点。默认数据保存在 `./data/wukongim-single-node-data`；再次使用同一配置启动时会复用该目录。
+```bash
+sudo systemctl stop wukongim
+sudo systemctl start wukongim
+```
 
-下一步：[发送第一条消息](/zh/guide/quick-start/first-message)。
+数据保存在 `/var/lib/wukongim`。下一步：[发送第一条消息](/zh/guide/quick-start/first-message)。

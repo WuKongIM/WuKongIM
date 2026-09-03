@@ -1,47 +1,34 @@
 ---
 title: Prerequisites
-description: Prepare the tools, ports, and local directory required to run WuKongIM from source.
+description: Prepare the Linux server, tools, and ports required by WuKongIM.
 ---
 
-The quick start runs from source because that path only needs Git and Go and directly uses the repository's tested single-node cluster example configuration.
+## Linux server
 
-## Required tools
+- CPU architecture: `amd64` / `x86_64`.
+- OS: Ubuntu 24.04, Debian 13, Rocky Linux 9, AlmaLinux 9, or RHEL 9.
+- The server can use `sudo` and reach `packages.githubim.com`.
+- Your computer can sign in to the server over SSH.
 
-| Tool | Requirement | Purpose |
-| --- | --- | --- |
-| Git | Able to reach GitHub | Fetch the source |
-| Go | `1.25.11` | Build and run WuKongIM |
-| curl | Supports `--fail` | Verify readiness |
-| Browser | Supports modern WebSocket | Use Manager and the Chat Demo |
-
-Check the local environment:
+Check the server:
 
 ```bash
-git --version
-go version
+uname -m
+. /etc/os-release && echo "$PRETTY_NAME"
 curl --version
+sudo -v
 ```
 
-`go version` should report `go1.25.11`. Other versions may build, but they are outside the verified toolchain for this quick start.
-
-## Local ports
-
-The default example requires these ports to be free:
+## Required ports
 
 | Port | Purpose |
 | --- | --- |
-| `5001` | HTTP API, readiness, metrics, and embedded Chat Demo |
-| `5100` | WKProto TCP |
-| `5200` | WebSocket multiplexer |
+| `5001` | HTTP API, readiness, and Chat Demo |
+| `5100` | Client TCP |
+| `5200` | Client WebSocket |
 | `5301` | Manager |
 | `7001` | Node transport |
 
-If a port conflicts, stop the conflicting program or change the corresponding listener in your copied `wukongim.toml`. Do not edit `wukongim.toml.example` directly.
+The quick start accesses these ports only through the server itself, so you do not need to expose them to the internet. A remote browser uses SSH forwarding; only SSH must be reachable.
 
-## Disk and network
-
-- The current directory must allow creation of `./data/wukongim-single-node-data`.
-- The first run needs network access to download Go modules.
-- Test users only need local browser access; no public domain is required.
-
-When ready, [start the single-node cluster](/en/guide/quick-start/single-node-cluster).
+The package creates `/etc/wukongim`, `/var/lib/wukongim`, and `/var/log/wukongim`. When ready, [start the single-node cluster](/en/guide/quick-start/single-node-cluster).

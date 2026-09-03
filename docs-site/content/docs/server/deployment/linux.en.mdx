@@ -1,163 +1,68 @@
 ---
 title: Linux
-description: Install WuKongIM from the signed APT/DNF preview repository or local deb/rpm packages, initialize it safely, and supervise a cluster node with systemd.
+description: Install WuKongIM with APT or DNF and start it with systemd.
 ---
 
-The signed WuKongIM Linux preview repository is now available. It currently publishes `v3.0.0-beta.7` for amd64/x86_64 only. The publication pipeline has verified repository metadata, signatures, and exact-version downloads in fresh Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9 containers. RHEL 9 is a compatible target for the same EL9 repository, but is not part of this automated clean-client matrix.
+The preview repository currently publishes `v3.0.0-beta.6` for amd64/x86_64. It is verified on Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9; RHEL 9 can use the same EL9 repository.
 
-Preview is a prerelease channel, not the stable channel. Validate configuration, backup, recovery, and upgrade compatibility outside production first.
+<Callout type="warn" title="Preview is a prerelease channel">
+  Validate it outside production before serving production traffic.
+</Callout>
 
-## 1. Install from the signed preview repository
+## 1. Install
 
-### Debian / Ubuntu (APT)
-
-The installation flow has three fixed steps: add the repository, refresh the package index, and install the package. Run the first step only once. APT handles subsequent WuKongIM installs and upgrades without manually downloading a WuKongIM deb file. These commands require `curl` to be installed.
-
-Step 1: run the cross-distribution bootstrap script to add the WuKongIM preview repository:
+### Debian / Ubuntu
 
 ```bash
 curl -fsSL https://packages.githubim.com/repo | sudo sh
-```
-
-The script only adds the repository. It does not refresh the package index, install WuKongIM, create an active configuration, or start the service. On an APT system, it installs `wukongim-archive-keyring` over HTTPS. That bootstrap package has no maintainer scripts and writes only the dedicated binary keyring and Deb822 source file; it does not use global `apt-key` trust or disable signature checks. To audit it before execution, open the same URL in a browser and review the script body.
-
-Step 2: refresh the package index:
-
-```bash
 sudo apt update
-```
-
-Step 3: install WuKongIM by package name:
-
-```bash
 sudo apt install -y wukongim
 ```
 
-The initial bootstrap relies on the HTTPS identity of `packages.githubim.com`. After the repository is added, APT authenticates it with WuKongIM primary key `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1`, and upgrades the keyring through that same signed repository.
-
-### RHEL / Rocky / AlmaLinux 9 (DNF/YUM)
-
-EL9 uses the same three steps: add the repository, refresh the package index, and install the package. The bootstrap package installs a dedicated repo definition with package signatures, repository-metadata signatures, and TLS verification enabled. These commands require `curl` to be installed. On a compatible system that still uses the `yum` command name, replace `dnf` with `yum` in steps two and three.
-
-Step 1: run the same cross-distribution bootstrap script to add the WuKongIM preview repository:
+### RHEL / Rocky / AlmaLinux 9
 
 ```bash
 curl -fsSL https://packages.githubim.com/repo | sudo sh
-```
-
-The script only adds the repository. It does not refresh the package index or install WuKongIM. On an EL9 system, it installs `wukongim-release` over HTTPS; that scriptlet-free bootstrap package contains only the dedicated RPM public key and `%config(noreplace)` repo file.
-
-Step 2: refresh the package index:
-
-```bash
 sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
-```
-
-Step 3: install WuKongIM by package name:
-
-```bash
 sudo dnf install -y wukongim
 ```
 
-The fixed RPM primary-key fingerprint is `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`. The initial bootstrap still relies on HTTPS. DNF/YUM then verifies and upgrades the public-key package through the signed repository.
-
-Confirm the binary identity after installation. The version should be `3.0.0-beta.7`; `source` in the text output and `build_source` in JSON should be `release`:
+Check the installed version:
 
 ```bash
 wukongim version
-wukongim version --output json
 ```
 
-The package installs `/usr/bin/wukongim` and a hardened `wukongim.service`, then creates the `wukongim` system account and `/etc/wukongim`, `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. It does not create an active configuration, enable or start the service, or restart it.
+The package creates the service account, systemd service, `/etc/wukongim`, `/var/lib/wukongim`, and `/var/log/wukongim`. It does not create a configuration or start the service.
 
-Do not delete the keyring, public key, or repository files owned by the bootstrap packages, and never disable package or repository-metadata signature verification. Before a signing-subkey promotion, the project will first distribute the updated public certificate as a bootstrap-package upgrade.
-
-## 2. Initialize a secure configuration
-
-Interactive initialization creates a single-node cluster configuration with a random Cluster ID, join token, Manager JWT secret, and administrator password. The generated administrator password is shown only once:
+## 2. Initialize the configuration
 
 ```bash
 sudo wukongim init
 ```
 
-`sudo wukongim init` writes `/etc/wukongim/wukongim.toml` by default. Pass `--config PATH` to choose another location explicitly. The original `sudo wukongim config init --config PATH` entry point remains available for existing automation.
-
-Automation must supply an administrator password of at least 12 characters through standard input; the command does not echo it:
-
-```bash
-sudo wukongim init \
-  --admin-password-stdin < /secure/path/manager-password
-```
-
-Initialization binds TCP, WebSocket, API, Manager, and node transport to loopback by default. Add `--gateway-public` during first initialization only after the host firewall, TLS termination, and ingress policy are ready. That option exposes only the client TCP/WebSocket Gateway on all interfaces; it does not expose Manager or node transport.
-
-The generator refuses to overwrite an existing file and applies the same configuration validation as service startup before atomically publishing it. When run as root with the `wukongim` group present, it writes `root:wukongim 0640`; otherwise it uses `0600`. Review advertised addresses, node identity, mounts, and network policy, then validate explicitly:
+Save the administrator password, which is shown only once. Review the node ID, persistent directory, and advertised addresses, then validate the configuration:
 
 ```bash
 sudo wukongim config validate \
   --config /etc/wukongim/wukongim.toml
 ```
 
-Configuration errors return exit code `78`. The systemd unit includes that code in `RestartPreventExitStatus` so invalid configuration cannot create a restart storm. The loader also rejects unknown TOML keys and unknown `WK_*` environment variables.
+Services bind to loopback by default. Configure the firewall, TLS, and ingress policy before exposing them.
 
 ## 3. Start and verify
 
 ```bash
 sudo systemctl enable --now wukongim
-sudo systemctl status wukongim
-sudo journalctl -u wukongim -n 100 --no-pager
-
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-On `SIGTERM`, the process performs a graceful shutdown using the configured cluster stop budget; the unit provides a 30-second external ceiling. If `/healthz` succeeds while `/readyz` returns `503`, do not add the node to the load balancer. Inspect the response `reason` and service logs first.
+Add the node to traffic only after `/readyz` succeeds. If startup fails, inspect the logs:
 
-Also verify persistent mounts, directory ownership, and advertised addresses from the target client network, then recheck `/readyz` after a service restart.
-
-## Package lifecycle
-
-- Installation creates no active configuration and does not enable or start the service.
-- Upgrade replaces package files but does not automatically restart a running node. Validate compatibility and configuration, then restart explicitly during a planned window.
-- Removal stops and disables the service but preserves configuration, data, logs, and the service account.
-- The service process applies the same configuration validation before constructing runtimes. Configuration errors exit with `78` and are not restarted. The unit permits writes only to package-managed state, log, and runtime directories.
-
-Before an upgrade, validate the target commit, artifact, configuration, backup, and recovery path outside production. Roll one node at a time only when the target release explicitly supports mixed operation with the current version; otherwise use a full maintenance window. See [Upgrade & Migration](/en/server/operations/upgrade-and-migration) for the complete boundary.
-
-## Build a local preview package
-
-To audit package contents or test unpublished code, build a local package from a fixed commit. The repository requires Go `1.25.11`; the package configuration is validated with GoReleaser `v2.18.0`:
+The default Manager address is [http://127.0.0.1:5301](http://127.0.0.1:5301). Sign in as `admin` with the password saved during initialization. For public access, set `listen_addr = "0.0.0.0:5301"` under `[manager]`, confirm `auth_on = true`, restart the service, allow TCP port `5301` through the firewall, and open `http://<server-public-ip>:5301`. See [Manager](/en/server/operations/manager) for details.
 
 ```bash
-git rev-parse HEAD
-go version
-goreleaser release --snapshot --clean \
-  --config .goreleaser.packages.yaml
-(cd dist && sha256sum --check checksums.txt)
+sudo journalctl -u wukongim -n 100 --no-pager
 ```
 
-Install the generated `.deb` on Debian or Ubuntu:
-
-```bash
-sudo apt install ./dist/wukongim_*_linux_amd64.deb
-```
-
-Install the generated `.rpm` on Rocky or AlmaLinux:
-
-```bash
-sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
-```
-
-A local snapshot does not carry the public preview repository's signatures or immutable publication audit and must not be presented as a public-channel artifact.
-
-## Install from source
-
-If a source deployment is genuinely required, build the binary from a fixed commit:
-
-```bash
-GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
-sha256sum ./bin/wukongim
-```
-
-A source deployment should still reuse `packaging/systemd/wukongim.service`, the repository sysusers/tmpfiles definitions, and the secure initialization command. Do not build separately from a moving branch on every production node, and do not copy the root development example directly into an active production configuration.
-
-For multi-node configuration, continue to [Multi-node Cluster](/en/server/deployment/multi-node).
+For multiple nodes, continue to [Multi-node Cluster](/en/server/deployment/multi-node). Before upgrading, read [Upgrade & Migration](/en/server/operations/upgrade-and-migration).

@@ -1,48 +1,80 @@
 ---
 title: 扩容与缩容
-description: 显式加入和分配数据节点，并在完整安全证据下排空和移除节点。
+description: 跟着示例在 Manager 中增加或移除一个节点。
 ---
 
-扩缩容由“节点生命周期”和“资源迁移”两个独立过程组成。加入节点不会自动承载 Slot；把节点标记为离开也不会自动关闭已有连接或删除基础设施。
+下面用一个例子直接操作：现有节点为 `1～3`，新增节点 `4`，IP 是 `10.0.0.14`。入口：**Manager → 集群 → 节点**。
 
-<Callout type="warn" title="固定的物理哈希槽">
-  集群始终使用 256 个物理哈希槽。扩容是把现有 Slot 的副本或 Leader 分配到新节点，不是增加物理哈希槽；缩容也不删除物理哈希槽。
+## 扩容：新增节点 4
+
+### 1. 配置并启动新节点
+
+复制现有节点的配置，保留其他配置不变。修改 `[node]`，并将 `[cluster]` 中的 `nodes` 删除后改为：
+
+```toml
+[node]
+id = 4
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+id = "prod-im-a"
+listen_addr = "0.0.0.0:7000"
+advertise_addr = "10.0.0.14:7000"
+seeds = ["10.0.0.11:7000"]
+join_token = "与现有节点相同的密钥"
+hash_slot_count = 256
+slot_replica_n = 3
+channel_replica_n = 3
+```
+
+`cluster.id`、副本数和 `join_token` 必须与现有集群一致。启动并检查进程：
+
+```bash
+sudo systemctl enable --now wukongim
+curl --fail http://10.0.0.14:5001/healthz
+```
+
+### 2. 在 Manager 激活节点
+
+1. 等节点 4 的状态显示为 `joining`。
+2. 打开节点 4，点击“激活节点”。
+3. 等状态变成 `active`。
+
+### 3. 迁入数据
+
+1. 将“迁移数量”填为 `1`。
+2. 点击“规划槽位扩容”，确认目标是节点 4。
+3. 点击“启动扩容”。活动任务变成 0 后，点击“推进扩容”。
+4. 重复上一步，直到不再创建新任务。
+
+### 4. 验收
+
+```bash
+curl --fail http://10.0.0.11:5001/readyz
+curl --fail http://10.0.0.12:5001/readyz
+curl --fail http://10.0.0.13:5001/readyz
+curl --fail http://10.0.0.14:5001/readyz
+```
+
+四个请求都成功且消息能正常收发后，再把 `10.0.0.14:5100` 和 `10.0.0.14:5200` 加入负载均衡。
+
+## 缩容：移除节点 4
+
+<Callout type="warn" title="不要先关闭节点 4">
+  必须等 Manager 显示“可安全移除：是”后，才能移除和关闭服务器。
 </Callout>
 
-## 扩容前检查
+1. 先从负载均衡删除节点 4，确认其他节点能承接流量。
+2. 打开节点 4，点击“标记离开”，等状态变成 `leaving`。
+3. 点击“启用 Drain”，等在线、关闭中和待激活连接数全部变成 0。
+4. 将“缩容迁移数量”填为 `1`，点击“规划缩容” → “推进缩容”。活动任务变成 0 后继续推进。
+5. 点击“刷新缩容状态”。看到 Slot、Channel 和活动任务均为 0，且“可安全移除：是”后，点击“移除节点”。
+6. 最后在节点 4 执行：
 
-- 新节点使用唯一、正整数 `node.id` 和独立持久化 `node.data_dir`；
-- Transport 地址可被所有集群节点双向访问，目标集群 ID 和配置世代一致；
-- 新旧节点运行兼容制品，副本数、故障域和磁盘/网络余量满足目标；
-- Manager 可以观察新节点健康、运行时和控制状态；
-- 同一批次没有冲突的 Slot 迁移、缩容或 Controller 任务。
+```bash
+sudo systemctl disable --now wukongim
+```
 
-## 扩容流程
+再次检查其余节点的 `/readyz` 和消息收发。先保留节点 4 的数据目录，确认业务稳定后再按自己的数据保留流程处理。
 
-1. 按[多节点集群](/zh/server/deployment/multi-node)准备节点，并通过种子节点与 Join Token 启动加入流程。
-2. 在 Manager 确认节点处于 `joining`，且 Transport、控制镜像、运行时、集群 ID 和控制版本全部满足就绪门槛。
-3. 激活节点。激活只改变节点生命周期，不会自动重平衡 Slot。
-4. 为已激活的数据节点生成 onboarding 计划；一次只选择 `1..5` 个 Slot 迁移。
-5. 启动或推进任务，等待 Controller 任务、Slot Raft 学习者/成员变更和最终分配提交完成。
-6. 每批后检查 `/readyz`、副本/ISR、Leader、任务、队列、延迟和业务消息，再继续下一批。
-
-动态加入只添加普通数据节点。Controller voter 提升是需要 `cluster.controller:w` 的独立高风险操作，不是扩容的默认步骤，也不会自动发生。
-
-## 缩容流程
-
-scale-in 状态与诊断读取需要 `cluster.node:r`，计划、启动、排空、推进和移除需要 `cluster.node:w`。独立查看 Slot 清单/日志或执行 Leader 迁移等 Slot 操作时，才另外需要 `cluster.slot:r` / `cluster.slot:w`。目标必须是非 Controller 的数据节点。
-
-1. **计划**：读取 diagnostics 与 scale-in status，确认替代节点健康、可调度且有容量。
-2. **标记离开**：启动 scale-in，把目标持久化为 `leaving`，阻止规划器分配新工作。
-3. **排空新连接**：开启 Gateway drain。它只拒绝新会话，不会关闭已有会话；等待在线、关闭中和待激活计数归零。
-4. **迁移 Slot**：预览并按稳定 Slot 顺序推进有界 `slot_replica_move` 任务。每批完成后重新规划。
-5. **清理 Channel 阻塞**：确认目标不再是 Channel Leader、配置副本或 ISR 成员，且没有引用目标的活动迁移任务。
-6. **等待安全门槛**：只有健康、运行时版本、Controller、Slot、Channel 清单和任务证据都新鲜且一致时，状态才会给出 `safe_to_remove=true`。动态节点诊断随后会把 `recommended_next_action` 显示为 `ready_to_remove`；它是从该布尔门槛派生的操作提示，不是第二个生命周期状态。
-7. **移除成员**：使用状态中的控制版本作为 fence 提交 remove；冲突时重新读取，不绕过检查。
-8. **最后缩减基础设施**：Manager 到此只写入 removed tombstone。之后才由独立的基础设施流程停止进程或缩减实例。
-
-## 失败关闭
-
-缺失或过期的健康、运行时、控制版本、Slot 状态、任务或 Channel 清单都会保持不安全。缩容逻辑不会猜测未知数据，也不会关闭已有连接、迁移 Channel 元数据、取消任务或调用 Kubernetes 缩容。
-
-如果任务失败或长时间无进展，停止 advance，保留节点运行，检查任务审计、Slot 实时状态和阻塞原因。不要直接停止进程或删除数据目录。
+如果按钮不可用或页面显示阻塞原因，停止操作并保持节点运行，转到[故障排查](/zh/server/operations/troubleshooting)。执行本页操作需要 `cluster.node:w`。

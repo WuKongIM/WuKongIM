@@ -4,8 +4,8 @@
 
 Publish the first complete bilingual onboarding journey without broad legacy
 content migration. A new reader must be able to understand the product boundary,
-run a source-based single-node cluster, verify two-way messaging, and choose the
-next documentation path.
+run a Linux-package single-node cluster, verify two-way messaging, and choose
+the next documentation path.
 
 ## Published routes
 
@@ -24,12 +24,16 @@ search, sitemap, LLM outputs, and per-page Markdown.
 
 ## Source-of-truth boundaries
 
-- Startup commands and local ports follow the repository root READMEs.
-- Configuration lookup and override behavior follows `AGENTS.md`,
-  `wukongim.toml.example`, and the configuration runtime contract.
+- Linux support, installation commands, and local ports follow the signed
+  Preview package path published by the Linux deployment guide.
+- Configuration initialization, validation, service lifecycle, and data paths
+  follow the package runtime contract under `/etc/wukongim`,
+  `/var/lib/wukongim`, and systemd.
 - Chat Demo steps follow the embedded Demo implementation.
 - Every deployment is described as a cluster; a one-node deployment is a
   single-node cluster.
+- Remote browser access uses SSH port forwarding so the quick start does not
+  require exposing Manager or the Demo ports to the Internet.
 - Example credentials and `/user/token` are explicitly development-only.
 
 ## Validation
@@ -48,5 +52,5 @@ search, sitemap, LLM outputs, and per-page Markdown.
 - Production deployment, DNS, hosting, or cutover.
 - Full SDK, HTTP API, protocol, operations, or architecture content.
 - Complete legacy content migration and redirect audit.
-- Treating the source quick start or repository Compose stack as a production
-  deployment template.
+- Treating the Linux Preview quick start or repository Compose stack as a
+  production deployment template.

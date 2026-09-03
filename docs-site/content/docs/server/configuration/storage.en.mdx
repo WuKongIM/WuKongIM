@@ -43,4 +43,4 @@ At minimum, monitor disk space and inodes, IOPS and latency, write and sync late
 
 Roll every setting change one node at a time, wait for `/readyz` before restoring traffic, and compare latency, queues, resources, and errors before and after. Retain rollback configuration, but do not assume a binary downgrade proves data-format rollback is safe.
 
-Before production, return to the [Production Checklist](/en/server/deployment/production-checklist) for disk, capacity, backup, and recovery evidence.
+Before production, validate an archive with [Backup & Restore](/en/server/operations/backup-and-restore) and use [`wkbench`](/en/server/tools/wkbench) to test capacity with a representative workload.

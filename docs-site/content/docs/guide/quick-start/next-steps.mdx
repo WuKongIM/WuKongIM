@@ -3,7 +3,7 @@ title: 下一步
 description: 根据接入、配置、部署和运维目标选择后续阅读路径。
 ---
 
-如果就绪检查成功、两个测试 UID 都已连接，并且能够双向收发消息，你已经完成本地开发闭环。
+如果就绪检查成功、两个测试 UID 都已连接，并且能够双向收发消息，你已经完成快速验证。
 
 ## 选择阅读路径
 
@@ -29,11 +29,11 @@ description: 根据接入、配置、部署和运维目标选择后续阅读路�
 
 ### 为什么重启后还能看到数据？
 
-示例配置把节点数据保存在 `./data/wukongim-single-node-data`。停止进程不会删除这个目录。
+Linux 软件包把节点数据保存在 `/var/lib/wukongim`。停止 systemd 服务不会删除这个目录。
 
 ### 如何修改端口？
 
-复制 `wukongim.toml.example` 后，修改本地 `wukongim.toml` 中的 API、Manager、Gateway 和集群监听地址，再重启节点。不要改动示例模板来保存本机差异。
+修改 `/etc/wukongim/wukongim.toml`，执行 `sudo wukongim config validate --config /etc/wukongim/wukongim.toml`，再运行 `sudo systemctl restart wukongim`。
 
 ### 为什么生产客户端不能调用 `/user/token`？
 

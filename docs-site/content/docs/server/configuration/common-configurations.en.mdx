@@ -20,7 +20,7 @@ This page keeps only the 10 settings most often consulted for startup, client ac
 | [`cluster.slot_replica_n`](/en/server/configuration/cluster)<br />`WK_CLUSTER_SLOT_REPLICA_N` | Sets the voter replicas for each Slot Raft Group when the cluster is first initialized. | `0` derives the static voter count, or uses `1` during seed joining; existing clusters follow persisted Controller state. |
 | [`gateway.listeners`](/en/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | Defines the TCP or WebSocket listeners used by clients. | Omission opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list disables Gateway. The environment value must be JSON. |
 | [`api.listen_addr`](/en/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | Listens for the Product HTTP API, including health and switch-controlled metrics, debug, and related HTTP routes. | Omission or an empty value disables this HTTP service; it does not create client Gateway or Manager listeners. |
-| [`manager.listen_addr`](/en/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | Listens for the separate Manager administration service. | Omission or an empty value disables Manager; enable authentication and restrict network access before exposing it. |
+| [`manager.listen_addr`](/en/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | Listens for the separate Manager administration service. | Omission or an empty value disables Manager; it may listen on public port `5301`, but authentication and a strong password are required. |
 | [`manager.auth_on`](/en/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | Requires JWT login authentication for Manager routes. | Omission is `false`; when `true`, both `manager.jwt_secret` and `manager.users` are required. |
 | [`log.level`](/en/server/configuration/observability)<br />`WK_LOG_LEVEL` | Sets the minimum application log level that is recorded. | Defaults to `info`; allowed values are `debug`, `info`, `warn`, and `error`. Avoid leaving `debug` enabled after production troubleshooting. |
 
@@ -28,4 +28,3 @@ This page keeps only the 10 settings most often consulted for startup, client ac
 
 - See the [Configuration overview](/en/server/configuration) for file lookup, environment overrides, and list replacement.
 - See the [Configuration Reference](/en/server/configuration/reference) for seed joining, channel replicas, metrics, webhooks, and every other setting.
-- Complete the [Production Checklist](/en/server/deployment/production-checklist) before production use.

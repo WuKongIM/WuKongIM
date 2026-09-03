@@ -1,51 +1,60 @@
 ---
 title: Health & Monitoring
-description: Separate process liveness, cluster readiness, metrics, Top, realtime views, and temporary diagnostics.
+description: Use three endpoints to tell whether the process is alive, the node can accept traffic, and where a problem may be.
 ---
 
-Health checks drive automated admission, monitoring explains trends, and diagnostics answer one bounded question. They are not interchangeable.
+When checking WuKongIM, start with `/readyz` and then inspect monitoring. Do not only check whether the process is running.
 
-## Endpoints and purpose
-
-| Signal | Meaning | Automation use |
-| --- | --- | --- |
-| `GET /healthz` | The HTTP process is alive; success returns `200 {"status":"ok"}` | Process restart probe, never product admission |
-| `GET /readyz` | The node currently meets its product-traffic gate; failure returns 503 with a reason | Load balancing and traffic admission |
-| `GET /metrics` | Prometheus metrics when metrics are enabled | Trends, alerts, and capacity baselines |
-| `GET /top/v1/snapshot` | Node-local resources and bounded-history snapshot, independent of Prometheus | Fast inspection and short-term correlation |
-| Manager realtime | Aggregated nodes, resources, queues, and cluster projections | Operations overview, not a standalone safety gate |
-| Debug/pprof | Expensive diagnostics when Debug API is enabled | Authorized, time-bounded investigation |
-
-During restore maintenance, health, readiness, metrics, Debug, and Top remain observable while product, route, and Benchmark requests are rejected by the maintenance gate. A 200 from `/healthz` is never a reason to restore product traffic.
-
-## Probe examples
+## Run these three commands first
 
 ```bash
-curl --fail http://127.0.0.1:5001/healthz
-curl --fail http://127.0.0.1:5001/readyz
-curl --fail http://127.0.0.1:5001/metrics
+curl -sS -i http://127.0.0.1:5001/healthz
+curl -sS -i http://127.0.0.1:5001/readyz
+curl -sS http://127.0.0.1:5001/metrics
 ```
 
-Use the configured API listener address. `curl --fail` treats `/readyz` 503 as failure; retain the response `reason` for alert context and investigation.
+Replace `127.0.0.1:5001` with the node's real API address. The third endpoint may be unavailable when Prometheus metrics are disabled.
 
-## Minimum monitoring surface
+| Endpoint | Question it answers | Correct use |
+| --- | --- | --- |
+| `/healthz` | Is the WuKongIM process alive? | Process liveness checks and automatic restart |
+| `/readyz` | Can this node accept product traffic now? | Load balancing, rollout gates, and restoring traffic |
+| `/metrics` | How are errors, latency, queues, and resources changing? | Prometheus collection, dashboards, and alerts |
 
-- **Requests and connections**: connections, send errors, request rate, latency, reconnects, and routing failures.
-- **Cluster control plane**: Controller availability, Slot leaders/replicas/ISR, control tasks, and stale state.
-- **Message runtime**: Channel activity, delivery/push backlogs, and webhook or plugin failures.
-- **Resources**: CPU, memory, goroutines, FDs, disk capacity/IO, network, and log growth.
-- **Backpressure**: bounded queue depth, rejection, drop, retry, and processing duration.
+Remember one rule: **a successful `/healthz` only means that the process is alive; only a successful `/readyz` means that the node can receive product traffic.** A failed `/readyz` returns HTTP 503 and a reason. Save the complete response.
 
-Derive alert thresholds from the current version, hardware, and representative load. With 100,000-member groups, high message rates, and many online connections, averages hide hot spots. Observe latency percentiles, maximum queues, and per-node skew.
+<Callout type="warn" title="The process can be alive while the product is unavailable">
+  During restore or other maintenance, `/healthz`, monitoring, and diagnostics may still work while `/readyz` remains failed. Do not restore product traffic just because the process is alive.
+</Callout>
 
-## Conditions that require alerts
+## The minimum monitoring set
 
-- Sustained `/readyz` 503 or readiness flapping.
-- Missing or stale Controller/Slot state, unstable leaders, or abnormal replica/ISR state.
-- Sustained queue backlog, rejection, drops, delivery failure, or rising error rate.
-- Low disk headroom, worsening IO latency, or unbounded memory/FD/goroutine growth.
-- Monitoring collection failure that makes state unknown.
+Start with these four groups. You do not need a complicated dashboard on day one.
 
-Each alert needs an owner, impact, dashboard, first read-only check, and escalation condition. Keep unknown state fail-closed; do not trigger topology mutations automatically.
+| Group | Watch | Typical problem |
+| --- | --- | --- |
+| Traffic and connections | Connections, send errors, request rate, latency, reconnects | Users cannot connect or messages become slow |
+| Queues and delivery | Queue depth, rejection, drops, retries, webhook/plugin failures | Messages back up or downstream delivery fails |
+| Cluster state | Controller, Slot leaders, replicas, ISR, and tasks | The process is running but cluster state is unhealthy |
+| Machine resources | CPU, memory, goroutines, file descriptors, disk, and network | Resource exhaustion makes the service unstable |
 
-See [Logs & Observability](/en/server/configuration/observability) for configuration and cost controls. After an alert, follow [Troubleshooting](/en/server/operations/troubleshooting) to collect evidence; never let an alert trigger topology mutations directly.
+Manager Realtime and Top are useful for a quick view of one node. Prometheus shows trends over time. They complement one another, but neither replaces `/readyz`.
+
+## Create these alerts first
+
+- `/readyz` keeps returning 503 or repeatedly changes state.
+- Send errors or latency keep rising.
+- A queue keeps growing, or rejection, drops, or delivery failures appear.
+- Disk space is low, or memory, file descriptors, or goroutines keep growing.
+- Controller, Slot leader, replica, or ISR state is unhealthy.
+- Monitoring collection stops, so cluster state becomes unknown.
+
+Do not copy alert numbers from another environment. Observe the normal range for this version under a real product peak, then set thresholds. Large groups, high message rates, and many connections can create one-node or one-channel hot spots, so inspect maximums and high-percentile latency as well as averages.
+
+## What to do after an alert
+
+1. Record the start time, impact, and complete `/readyz` response.
+2. Align metrics, Manager state, and error logs from the same time range.
+3. If they do not explain the problem, follow [Troubleshooting](/en/server/operations/troubleshooting) and add Top, diagnostics, or pprof one step at a time.
+
+See [Logs & Observability](/en/server/configuration/observability) for monitoring and logging settings. Never let an alert automatically move leaders, delete nodes, or perform another topology change.

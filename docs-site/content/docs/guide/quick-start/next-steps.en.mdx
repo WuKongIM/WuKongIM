@@ -3,7 +3,7 @@ title: Next Steps
 description: Choose the next reading path for integration, configuration, deployment, or operations.
 ---
 
-If readiness succeeds, both test UIDs connect, and messages flow in both directions, you have completed the local development loop.
+If readiness succeeds, both test UIDs connect, and messages flow in both directions, you have completed the quick verification.
 
 ## Choose a path
 
@@ -29,11 +29,11 @@ No. At minimum, replace fixed credentials, plan TLS and access control, place da
 
 ### Why does data remain after a restart?
 
-The example stores node data in `./data/wukongim-single-node-data`. Stopping the process does not delete that directory.
+The Linux package stores node data in `/var/lib/wukongim`. Stopping the systemd service does not delete that directory.
 
 ### How do I change ports?
 
-After copying `wukongim.toml.example`, edit the API, Manager, Gateway, and cluster listeners in the local `wukongim.toml`, then restart the node. Do not store machine-specific changes in the example template.
+Edit `/etc/wukongim/wukongim.toml`, run `sudo wukongim config validate --config /etc/wukongim/wukongim.toml`, then run `sudo systemctl restart wukongim`.
 
 ### Why must production clients not call `/user/token`?
 

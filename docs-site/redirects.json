@@ -11,6 +11,8 @@
     { "source": "/en/installation/linux/single-node", "destination": "/en/server/deployment/linux" },
     { "source": "/zh/server/deployment/choosing", "destination": "/zh/server/deployment" },
     { "source": "/en/server/deployment/choosing", "destination": "/en/server/deployment" },
+    { "source": "/zh/server/deployment/production-checklist", "destination": "/zh/server/deployment" },
+    { "source": "/en/server/deployment/production-checklist", "destination": "/en/server/deployment" },
     { "source": "/zh/server/deployment/kubernetes", "destination": "/zh/server/deployment" },
     { "source": "/en/server/deployment/kubernetes", "destination": "/en/server/deployment" },
     { "source": "/zh/server/deployment/kubernetes-resources", "destination": "/zh/server/deployment" },

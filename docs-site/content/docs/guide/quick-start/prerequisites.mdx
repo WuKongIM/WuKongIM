@@ -1,47 +1,34 @@
 ---
 title: 环境准备
-description: 准备从源码运行 WuKongIM 所需的工具、端口和本地目录。
+description: 准备运行 WuKongIM 所需的 Linux 服务器、工具和端口。
 ---
 
-快速开始使用源码启动方式，因为它只需要 Git 和 Go，并直接采用仓库中受测试的单节点集群示例配置。
+## Linux 服务器
 
-## 必需工具
+- CPU 架构：`amd64` / `x86_64`；
+- 系统：Ubuntu 24.04、Debian 13、Rocky Linux 9、AlmaLinux 9 或 RHEL 9；
+- 可以使用 `sudo`，并能访问 `packages.githubim.com`；
+- 本机可以通过 SSH 登录服务器。
 
-| 工具 | 要求 | 用途 |
-| --- | --- | --- |
-| Git | 可访问 GitHub | 获取源码 |
-| Go | `1.25.11` | 构建并运行 WuKongIM |
-| curl | 支持 `--fail` | 验证就绪状态 |
-| 浏览器 | 支持现代 WebSocket | 使用 Manager 和 Chat Demo |
-
-检查本机环境：
+在服务器检查环境：
 
 ```bash
-git --version
-go version
+uname -m
+. /etc/os-release && echo "$PRETTY_NAME"
 curl --version
+sudo -v
 ```
 
-`go version` 应报告 `go1.25.11`。其他版本可能能够构建，但不属于本快速开始的受验证工具链。
-
-## 本地端口
-
-默认示例需要以下端口未被占用：
+## 需要的端口
 
 | 端口 | 用途 |
 | --- | --- |
-| `5001` | HTTP API、就绪检查、指标和内嵌 Chat Demo |
-| `5100` | WKProto TCP |
-| `5200` | WebSocket 多路复用入口 |
+| `5001` | HTTP API、就绪检查和 Chat Demo |
+| `5100` | 客户端 TCP |
+| `5200` | 客户端 WebSocket |
 | `5301` | Manager |
-| `7001` | 节点间 Transport |
+| `7001` | 节点内部通信 |
 
-如果端口冲突，请先停止占用程序，或在复制出的 `wukongim.toml` 中修改对应监听地址。不要直接修改 `wukongim.toml.example`。
+快速开始默认只从服务器本机访问这些端口，不需要开放到公网。远程浏览器通过 SSH 转发访问；只需确保 SSH 端口可用。
 
-## 磁盘与网络
-
-- 当前目录必须允许创建 `./data/wukongim-single-node-data`。
-- 首次运行需要网络访问以下载 Go 模块。
-- 测试用户只需在本机浏览器访问，不需要公网域名。
-
-准备完成后，继续[启动单节点集群](/zh/guide/quick-start/single-node-cluster)。
+安装包会创建 `/etc/wukongim`、`/var/lib/wukongim` 和 `/var/log/wukongim`。准备完成后继续[启动单节点集群](/zh/guide/quick-start/single-node-cluster)。

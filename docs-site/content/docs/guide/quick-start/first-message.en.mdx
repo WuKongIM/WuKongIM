@@ -42,7 +42,7 @@ On Bob's page, open a direct chat with `quickstart-alice` and reply with `hello 
 
 ### The page stays disconnected
 
-Run `/readyz` again, confirm port `5200` is available, and inspect the server terminal for authentication or WebSocket errors.
+Run `/readyz` again, check port `5200` in the SSH forwarding command, then run `sudo journalctl -u wukongim -n 100 --no-pager` for errors.
 
 ### The recipient does not receive the message
 

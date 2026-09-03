@@ -1,163 +1,68 @@
 ---
 title: Linux 部署
-description: 从签名 APT/DNF Preview 软件源或本地 deb/rpm 安装 WuKongIM，并通过安全初始化和 systemd 托管集群节点。
+description: 使用 APT 或 DNF 安装 WuKongIM，并通过 systemd 启动。
 ---
 
-WuKongIM 的签名 Linux Preview 软件源已经启用，当前发布 `v3.0.0-beta.7`，仅支持 amd64/x86_64。发布流程已在 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9 的全新容器中验证软件源元数据、签名和精确版本下载；RHEL 9 是同一 EL9 软件源的兼容目标，但不在本次自动化清洁客户端矩阵中。
+当前 Preview 软件源发布 `v3.0.0-beta.6`，仅支持 amd64/x86_64。已验证 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9；RHEL 9 可使用同一 EL9 软件源。
 
-Preview 是预发布通道，不等同于稳定通道。请先在非生产环境验证配置、备份、恢复和升级兼容性。
+<Callout type="warn" title="Preview 是预发布通道">
+  请先在非生产环境验证，再承载生产流量。
+</Callout>
 
-## 1. 从签名 Preview 软件源安装
+## 1. 安装
 
-### Debian / Ubuntu（APT）
-
-安装流程固定为“添加软件源、更新索引、安装软件”三步。第一步只需执行一次；以后安装和升级 WuKongIM 都由 APT 完成，不再手工下载 WuKongIM 的 deb 包。以下命令要求系统已经安装 `curl`。
-
-第一步，运行跨发行版引导脚本以添加 WuKongIM Preview 软件源：
+### Debian / Ubuntu
 
 ```bash
 curl -fsSL https://packages.githubim.com/repo | sudo sh
-```
-
-该脚本只添加软件源，不会更新软件包索引、安装 WuKongIM、创建活动配置或启动服务。在 APT 系统上，它通过 HTTPS 安装 `wukongim-archive-keyring`，由这个无维护脚本的引导包写入专用二进制 keyring 和 Deb822 软件源文件；它不会使用全局 `apt-key` 信任或关闭签名检查。需要审计再执行时，可以先在浏览器中打开同一 URL 查看脚本正文。
-
-第二步，更新软件包索引：
-
-```bash
 sudo apt update
-```
-
-第三步，按包名安装 WuKongIM：
-
-```bash
 sudo apt install -y wukongim
 ```
 
-首次引导依赖 `packages.githubim.com` 的 HTTPS 身份；添加软件源后，APT 会用固定的 WuKongIM 主密钥 `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1` 验证软件源，keyring 后续也通过同一签名软件源升级。
-
-### RHEL / Rocky / AlmaLinux 9（DNF/YUM）
-
-EL9 同样使用“添加软件源、更新索引、安装软件”三步。软件源引导包会写入独立 repo 配置，同时启用软件包签名、仓库元数据签名和 TLS 验证。以下命令要求系统已经安装 `curl`；仍使用 `yum` 命令名的兼容系统可以把第二、三步中的 `dnf` 替换为 `yum`。
-
-第一步，运行同一个跨发行版引导脚本以添加 WuKongIM Preview 软件源：
+### RHEL / Rocky / AlmaLinux 9
 
 ```bash
 curl -fsSL https://packages.githubim.com/repo | sudo sh
-```
-
-该脚本只添加软件源，不会更新软件包索引或安装 WuKongIM。在 EL9 系统上，它通过 HTTPS 安装 `wukongim-release`；这个无脚本的引导包只提供专用 RPM 公钥和 `%config(noreplace)` repo 文件。
-
-第二步，更新软件包索引：
-
-```bash
 sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
-```
-
-第三步，按包名安装 WuKongIM：
-
-```bash
 sudo dnf install -y wukongim
 ```
 
-RPM 固定主密钥指纹为 `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`。首次引导仍依赖 HTTPS，之后 DNF/YUM 会从签名软件源验证并升级公钥包。
-
-安装后确认二进制身份；版本应为 `3.0.0-beta.7`，文本输出的 `source` 和 JSON 输出的 `build_source` 应为 `release`：
+安装后检查版本：
 
 ```bash
 wukongim version
-wukongim version --output json
 ```
 
-安装包会安装 `/usr/bin/wukongim` 和加固的 `wukongim.service`，创建 `wukongim` 系统账号以及 `/etc/wukongim`、`/var/lib/wukongim`、`/var/log/wukongim`、`/run/wukongim`。它不会生成活动配置，也不会启用、启动或重启服务。
+软件包会创建服务账号、systemd 服务以及 `/etc/wukongim`、`/var/lib/wukongim` 和 `/var/log/wukongim`，但不会生成配置或启动服务。
 
-不要删除引导包管理的 keyring、公钥或软件源文件，也不要关闭软件包或仓库元数据签名检查。官方在切换签名子密钥前会先通过引导包升级分发新的公开证书。
-
-## 2. 安全初始化配置
-
-交互式初始化会生成单节点集群配置、随机 Cluster ID、Join Token、Manager JWT Secret 和管理员密码；生成的管理员密码只显示一次：
+## 2. 初始化配置
 
 ```bash
 sudo wukongim init
 ```
 
-`sudo wukongim init` 默认写入 `/etc/wukongim/wukongim.toml`；如需显式选择其他位置，可传入 `--config PATH`。原有的 `sudo wukongim config init --config PATH` 入口继续保留，便于兼容既有自动化。
-
-自动化环境必须从标准输入提供至少 12 个字符的管理员密码，命令不会回显它：
-
-```bash
-sudo wukongim init \
-  --admin-password-stdin < /secure/path/manager-password
-```
-
-初始化默认只让 TCP、WebSocket、API、Manager 和节点 Transport 监听回环地址。只有确认主机防火墙、TLS 终止和入口策略后，才可在首次初始化时添加 `--gateway-public`；该选项只将客户端 TCP/WebSocket Gateway 改为监听所有接口，不会公开 Manager 或节点 Transport。
-
-生成器拒绝覆盖现有文件，并在原子发布前完成与服务启动相同的配置校验。以 root 运行且 `wukongim` 组存在时，文件权限为 `root:wukongim 0640`；其他情况使用 `0600`。随后检查外部地址、节点 ID、挂载和网络策略，再显式校验：
+保存只显示一次的管理员密码。根据实际环境检查节点 ID、持久化目录和外部地址，然后校验配置：
 
 ```bash
 sudo wukongim config validate \
   --config /etc/wukongim/wukongim.toml
 ```
 
-配置错误返回退出码 `78`。systemd 单元把这个退出码列入 `RestartPreventExitStatus`，避免错误配置形成重启风暴。配置加载器也会拒绝未知 TOML 键和未知 `WK_*` 环境变量。
+默认只监听回环地址。对外开放服务前，请先配置防火墙、TLS 和入口策略。
 
 ## 3. 启动并验证
 
 ```bash
 sudo systemctl enable --now wukongim
-sudo systemctl status wukongim
-sudo journalctl -u wukongim -n 100 --no-pager
-
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-进程收到 `SIGTERM` 后会按配置的集群停止预算执行优雅停止，服务单元给出 30 秒的外部上限。若 `/healthz` 成功而 `/readyz` 返回 `503`，不要把节点加入负载均衡；先检查返回的 `reason` 和服务日志。
+`/readyz` 成功后再接入流量。启动失败时查看日志：
 
-同时确认持久化挂载、目录所有者和从目标客户端网络可达的外部地址，并在服务重启后再次检查 `/readyz`。
-
-## 包生命周期
-
-- 安装不创建活动配置，也不启用或启动服务。
-- 升级替换包文件，但不自动重启正在运行的节点；先验证兼容性和配置，再在计划窗口中显式重启。
-- 卸载会停止并禁用服务，但保留配置、数据、日志和服务账号。
-- 服务进程在创建运行时前执行同一套配置校验；配置错误以 `78` 退出且不会自动重启。单元只允许写入包管理的状态、日志和运行时目录。
-
-升级前先在非生产环境验证目标提交、制品、配置、备份和恢复路径。只有目标版本明确声明支持与当前版本混跑时，才能逐节点滚动升级；否则使用全体维护窗口。完整边界见[升级与迁移](/zh/server/operations/upgrade-and-migration)。
-
-## 本地构建预览包
-
-需要审计打包内容或测试未发布代码时，可以在固定提交上构建本地包。仓库要求 Go `1.25.11`，打包配置固定按 GoReleaser `v2.18.0` 校验：
+后台管理默认地址是 [http://127.0.0.1:5301](http://127.0.0.1:5301)，使用 `admin` 和初始化时保存的密码登录。如需公网访问，把配置文件 `[manager]` 中的 `listen_addr` 改为 `"0.0.0.0:5301"`，确认 `auth_on = true`，重启服务并在防火墙放行 TCP `5301`，然后打开 `http://<服务器公网IP>:5301`。更多说明见 [Manager 管理后台](/zh/server/operations/manager)。
 
 ```bash
-git rev-parse HEAD
-go version
-goreleaser release --snapshot --clean \
-  --config .goreleaser.packages.yaml
-(cd dist && sha256sum --check checksums.txt)
+sudo journalctl -u wukongim -n 100 --no-pager
 ```
 
-Debian/Ubuntu 安装生成的 `.deb`：
-
-```bash
-sudo apt install ./dist/wukongim_*_linux_amd64.deb
-```
-
-Rocky/AlmaLinux 安装生成的 `.rpm`：
-
-```bash
-sudo dnf install ./dist/wukongim_*_linux_amd64.rpm
-```
-
-本地 snapshot 包没有公共 Preview 软件源的签名与不可变发布审计，不应冒充公开渠道制品。
-
-## 从源码安装
-
-如果确实需要源码部署，可直接构建固定提交的二进制：
-
-```bash
-GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
-sha256sum ./bin/wukongim
-```
-
-源码部署仍应复用仓库中的 `packaging/systemd/wukongim.service`、sysusers/tmpfiles 定义和安全初始化命令，不要从移动分支在每台生产节点上分别构建，也不要把根目录中的开发示例配置直接复制成活动生产配置。
-
-多节点配置继续阅读[多节点集群](/zh/server/deployment/multi-node)。
+多节点部署继续阅读[多节点集群](/zh/server/deployment/multi-node)，升级前阅读[升级与迁移](/zh/server/operations/upgrade-and-migration)。

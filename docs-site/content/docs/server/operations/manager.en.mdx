@@ -1,50 +1,55 @@
 ---
 title: Manager
-description: Access Manager safely and understand its permissions, state views, and high-risk operation boundaries.
+description: Sign in to Manager, understand its main pages, and perform administrative actions safely.
 ---
 
-Manager is a dedicated administrative listener with an embedded Web console. It aggregates cluster state and operational tasks, but it does not replace change approval, backup verification, or product acceptance.
+Manager is WuKongIM's administrative console. It shows node state, runs tasks, manages backups, and controls scaling. Treat it like a database administration console because it has powerful access.
 
-## Safe access
+## Check these items before opening Manager
 
-Enable `manager.auth_on` in production, replace fixed-user passwords and `manager.jwt_secret`, expose `manager.listen_addr` only to an administrative network, and terminate TLS at the external boundary. Do not share an unprotected entry point with product HTTP APIs, client traffic, or public metrics.
+- `manager.auth_on` is enabled in production.
+- The default account password and `manager.jwt_secret` have been replaced.
+- Direct public access to port `5301` uses account-and-password authentication with a strong password.
+- Use an HTTPS reverse proxy when login transport needs protection because WuKongIM does not terminate production TLS for you.
 
-With `manager.auth_on=false`, ordinary read and write groups install no permission middleware, so most administrative mutations can still reach their handlers. Only backup writes, restore, and MCP administration keep explicit fail-closed gates; `/mcp` uses a separate Bearer. Do not treat disabled authentication as read-only mode.
-
-## Main views
-
-| Area | Purpose | What it does not prove |
-| --- | --- | --- |
-| Nodes and realtime | Node health, readiness, roles, resources, and work queues | Sufficient capacity or safe removal |
-| Controller and tasks | Consensus state, control tasks, and advancement results | Every product Channel has migrated |
-| Slots | Replica, leader, ISR, and log state for all 256 physical hash slots | That the physical hash-slot count should change |
-| Channels and product queries | Channel, subscriber, user, device, and message projections | Permission to bypass product data boundaries |
-| Backups | Plan, repository verification, archives, and restore workflow | Recoverability immediately after saving settings |
-
-The node configuration view is a bounded, redacted snapshot of effective startup configuration. It never returns raw Manager credentials, join tokens, or complete sensitive environment values, and it does not imply hot reload.
-
-## Least privilege
-
-- Node and realtime reads generally require `cluster.node:r`; Slot reads require `cluster.slot:r`.
-- Node join, activation, onboarding, and scale-in reads and writes are guarded by
-  `cluster.node:r` and `cluster.node:w`, respectively. Separate Slot inventory,
-  log, leader-transfer, and compaction operations use `cluster.slot:r` and
-  `cluster.slot:w`; they are not additional gates on the scale-in routes.
-- Backup reads and mutations use `cluster.backup:r` and `cluster.backup:w`.
-- Restore requires the explicit `cluster.restore:w`; wildcard permission does not substitute for it.
-
-Product queries and mutations use their own fine-grained permissions. Avoid permanent broad access. Use separate roles for observation, scaling, backup, and restore.
-
-## Executing a mutation
-
-1. Record the operator, target node or task, current configuration/control revision, and expected result.
-2. Inspect `/readyz`, Manager state, active control tasks, and affected Slots or Channels.
-3. Use plan or preview first; confirm targets, blockers, and bounded batches.
-4. Execute one step, wait for terminal task state, then reread authoritative state.
-5. Advance only after product verification. Stop on conflicts, stale revisions, or unknown state.
-
-<Callout type="warn" title="A button is not safety evidence">
-  Manager actions and status hints are operating entry points, not approval conclusions. Scale-in must wait for authoritative `safe_to_remove=true` (after which diagnostics recommends `ready_to_remove`); restore must complete full verification and confirmation.
+<Callout type="warn" title="Do not disable authentication for convenience">
+  `manager.auth_on=false` is neither read-only mode nor a safe anonymous mode. Public access must enable authentication and use a strong password; the firewall can additionally restrict source addresses.
 </Callout>
 
-Next, establish a baseline in [Health & Monitoring](/en/server/operations/health-and-monitoring), or continue with [Scaling](/en/server/operations/scaling) and [Backup & Restore](/en/server/operations/backup-and-restore).
+## What the main pages mean
+
+| Page | Think of it as | What to check |
+| --- | --- | --- |
+| Nodes / Realtime | The state of each WuKongIM server | Readiness, CPU, memory, disk, connections, and queues |
+| Controller / Tasks | The cluster coordinator and its administrative jobs | Availability, task completion, and blocking reasons |
+| Slots | The 256 fixed data partitions | Leader, replica, and ISR health |
+| Channels | The runtime unit for a direct chat or group | Leader, membership, and unusual backlogs |
+| Backups | Backup plans, storage, archives, and restore | Storage test, archive completion, and verification |
+
+The `Leader` is the node currently responsible for the data. A `replica` is another copy, and the `ISR` is the set of replicas that are keeping up. New operators normally only need to confirm that these fields are healthy; do not adjust them manually.
+
+## Split account permissions
+
+| Work | Common permissions |
+| --- | --- |
+| View nodes and scaling state | `cluster.node:r` |
+| Join, activate, drain, or remove nodes | `cluster.node:w` |
+| View or operate Slots | `cluster.slot:r` / `cluster.slot:w` |
+| View or change backups | `cluster.backup:r` / `cluster.backup:w` |
+| Restore data | Explicit `cluster.restore:w` is required |
+
+Do not give every operator permanent full access. At minimum, separate read-only observation, node management, backup management, and restore roles.
+
+## Perform one action safely
+
+1. Record the operator, target, current state, and expected result.
+2. Confirm that `/readyz` passes and that no conflicting administrative task is still running.
+3. If the page offers **Plan** or **Preview**, run it first and read every blocking reason.
+4. Perform one step, wait for the task to finish, and refresh the authoritative state.
+5. Test message send, receive, and reconnect before continuing.
+
+<Callout type="warn" title="A clickable button is not approval">
+  Scale-in may remove a node only after authoritative state reports `safe_to_remove=true`. Restore requires full verification, password reauthentication, and a confirmation phrase. Stop when state is missing, stale, or conflicting.
+</Callout>
+
+Manager changes WuKongIM cluster state. It does not shut down cloud servers, reduce Kubernetes instances, or hot-reload startup configuration. Continue with [Health & Monitoring](/en/server/operations/health-and-monitoring).

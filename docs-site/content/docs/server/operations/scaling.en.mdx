@@ -1,48 +1,80 @@
 ---
 title: Scaling
-description: Join and allocate data nodes explicitly, then drain and remove nodes only with complete safety evidence.
+description: Follow one example to add or remove a node in Manager.
 ---
 
-Scaling combines two independent processes: node lifecycle and resource movement. Joining a node does not automatically place Slots on it. Marking a node as leaving does not close existing connections or delete infrastructure.
+This example starts with nodes `1–3`, adds node `4` at `10.0.0.14`, and then removes it. Open **Manager → Cluster → Nodes**.
 
-<Callout type="warn" title="Fixed physical hash slots">
-  The cluster always uses 256 physical hash slots. Scale-out assigns replicas or leaders for existing Slots to a new node; it does not add physical hash slots. Scale-in does not remove them.
+## Scale-out: add node 4
+
+### 1. Configure and start the new node
+
+Copy an existing node's configuration and keep unrelated settings unchanged. Update `[node]`, remove `nodes` from `[cluster]`, and use:
+
+```toml
+[node]
+id = 4
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+id = "prod-im-a"
+listen_addr = "0.0.0.0:7000"
+advertise_addr = "10.0.0.14:7000"
+seeds = ["10.0.0.11:7000"]
+join_token = "the-same-secret-as-existing-nodes"
+hash_slot_count = 256
+slot_replica_n = 3
+channel_replica_n = 3
+```
+
+Match the existing cluster's `cluster.id`, replica counts, and `join_token`. Start the process and check liveness:
+
+```bash
+sudo systemctl enable --now wukongim
+curl --fail http://10.0.0.14:5001/healthz
+```
+
+### 2. Activate it in Manager
+
+1. Wait for node 4 to show `joining`.
+2. Open node 4 and select **Activate node**.
+3. Wait for status `active`.
+
+### 3. Move data in
+
+1. Set **Max slot moves** to `1`.
+2. Select **Plan slot onboarding** and confirm that node 4 is the target.
+3. Select **Start onboarding**. When active tasks reach 0, select **Advance onboarding**.
+4. Repeat until no new task is created.
+
+### 4. Verify
+
+```bash
+curl --fail http://10.0.0.11:5001/readyz
+curl --fail http://10.0.0.12:5001/readyz
+curl --fail http://10.0.0.13:5001/readyz
+curl --fail http://10.0.0.14:5001/readyz
+```
+
+After all four requests pass and messages work, add `10.0.0.14:5100` and `10.0.0.14:5200` to the load balancer.
+
+## Scale-in: remove node 4
+
+<Callout type="warn" title="Do not stop node 4 first">
+  Remove and stop the server only after Manager shows **Safe to remove: Yes**.
 </Callout>
 
-## Scale-out preflight
+1. Remove node 4 from the load balancer and confirm that the other nodes can carry the traffic.
+2. Open node 4, select **Mark leaving**, and wait for status `leaving`.
+3. Select **Enable drain mode**. Wait for active, closing, and pending connection counts to reach 0.
+4. Set **Scale-in max slot moves** to `1`, then select **Plan scale-in** → **Advance scale-in**. Advance again after active tasks reach 0.
+5. Select **Refresh scale-in status**. When Slot, Channel, and active task counts are 0 and **Safe to remove: Yes** appears, select **Remove node**.
+6. Finally, run on node 4:
 
-- Give the new node a unique positive `node.id` and an independent persistent `node.data_dir`.
-- Make its Transport address mutually reachable by all nodes, with the expected cluster ID and configuration generation.
-- Run compatible artifacts and retain enough replica, failure-domain, disk, and network headroom.
-- Ensure Manager can observe the new node's health, runtime, and control state.
-- Confirm there is no conflicting Slot migration, scale-in, or Controller task in the same batch.
+```bash
+sudo systemctl disable --now wukongim
+```
 
-## Scale-out procedure
+Check `/readyz` on the remaining nodes and test messages again. Keep node 4's data directory until the product is stable, then handle it under your data-retention process.
 
-1. Prepare the node using [Multi-node Cluster](/en/server/deployment/multi-node), then start the join through a seed node and Join Token.
-2. In Manager, confirm `joining` state and the readiness gates for Transport, control mirror, runtime, cluster ID, and control revision.
-3. Activate the node. Activation changes lifecycle state; it does not rebalance Slots.
-4. Plan onboarding for the active data node, selecting only `1..5` Slot moves per batch.
-5. Start or advance work, then wait for Controller tasks, Slot Raft learner/membership changes, and final assignment commit.
-6. After each batch, check `/readyz`, replicas/ISR, leaders, tasks, queues, latency, and product messaging before continuing.
-
-Dynamic join adds an ordinary data node. Controller-voter promotion is a separate high-risk mutation requiring `cluster.controller:w`; it is not a default scaling step and never happens automatically.
-
-## Scale-in procedure
-
-Scale-in status and diagnostics reads require `cluster.node:r`; plan, start, drain, advance, and remove require `cluster.node:w`. `cluster.slot:r` and `cluster.slot:w` apply only when separately reading Slot inventory/logs or executing Slot operations such as leader transfer. The target must be a non-Controller data node.
-
-1. **Plan**: inspect diagnostics and scale-in status; confirm replacement nodes are healthy, schedulable, and have capacity.
-2. **Mark leaving**: start scale-in to persist the target as `leaving`, preventing new placement.
-3. **Drain new admission**: enable Gateway drain. It rejects new sessions but does not close existing ones. Wait for online, closing, and pending-activation counters to reach zero.
-4. **Move Slots**: preview and advance bounded `slot_replica_move` tasks in stable Slot order. Replan after every batch.
-5. **Clear Channel blockers**: verify the target is no longer a Channel leader, configured replica, or ISR member and no active migration task references it.
-6. **Wait for the safety gate**: status returns `safe_to_remove=true` only when health, runtime revision, Controller, Slot, Channel inventory, and task evidence are fresh and consistent. Dynamic-node diagnostics then reports `recommended_next_action=ready_to_remove`; this is an operator hint derived from that boolean gate, not a second lifecycle state.
-7. **Remove membership**: submit remove with the status control revision as its fence. On conflict, reread state; never bypass the gate.
-8. **Scale infrastructure last**: Manager only persists the removed tombstone. A separate infrastructure process may then stop the process or reduce instances.
-
-## Fail-closed behavior
-
-Missing or stale health, runtime, control revision, Slot state, tasks, or Channel inventory keeps removal unsafe. The scale-in flow does not guess unknown state, close existing sessions, migrate Channel metadata, cancel tasks, or call Kubernetes scale-down.
-
-If work fails or stops progressing, stop advancing, keep the node running, and inspect task audit, live Slot state, and blocker reasons. Do not stop the process or delete its data directory.
+If an action is disabled or Manager shows a blocking reason, stop and keep the node running, then follow [Troubleshooting](/en/server/operations/troubleshooting). This procedure requires `cluster.node:w`.

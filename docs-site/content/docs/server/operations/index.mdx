@@ -1,39 +1,49 @@
 ---
 title: 运维
-description: 用可验证、可停止、可回滚的流程管理 WuKongIM 集群。
+description: 从日常检查开始，安全地监控、备份、扩缩容和升级 WuKongIM。
 ---
 
-运维的目标不是“把操作执行完”，而是在每一步保留安全证据。先观察集群，冻结本次变更，执行一个有界步骤，再验证业务和集群状态；证据不完整时停止推进。
+如果你是第一次负责 WuKongIM，先不要急着研究所有指标和集群名词。日常运维最重要的是三件事：**确认服务能接收流量、确认异常有人知道、确认数据真的能恢复**。
 
-<Callout type="warn" title="每个部署都是集群">
-  单节点部署也是单节点集群。扩缩容、备份、恢复和升级都不能绕过 Controller、Slot 或 Channel 的集群语义；物理哈希槽数量始终为 256。
+<Callout type="warn" title="单节点也按集群管理">
+  即使只运行一个节点，它也是单节点集群。不要手工绕过 Manager、Controller 或 Slot 修改数据。WuKongIM 固定使用 256 个物理哈希槽，增减节点不会改变这个数量。
 </Callout>
 
-## 标准变更循环
+## 第一次运维先完成这三项
 
-1. **观察**：确认 `/readyz`、节点、Controller、Slot、Channel、队列、磁盘和业务错误基线。
-2. **计划**：记录制品、配置、目标、权限、停止条件、回滚方案和负责人。
-3. **变更**：一次只推进一个有界步骤，不并发执行相互影响的拓扑操作。
-4. **验证**：等待就绪并验证消息发送、接收、重连、积压和存储信号。
-5. **留证**：保存审计记录、任务结果、指标快照和变更后的节点清单。
+1. 请求每个节点的 `/readyz`。返回 HTTP 200 才表示该节点现在可以接收业务流量。
+2. 为就绪失败、错误增加、队列积压、磁盘不足设置监控和告警，并明确谁来处理。
+3. 在 Manager 创建备份计划，执行“测试存储”，再确认至少有一个完整且验证成功的备份。
 
-## 选择任务
+完成这三项后，再根据任务阅读下面的页面。
+
+## 你现在要做什么
 
 <Cards>
-  <Card title="Manager 管理后台" description="了解访问边界、权限、视图和高风险写操作。" href="/zh/server/operations/manager" />
-  <Card title="健康检查与监控" description="区分存活、就绪、指标、Top 和诊断信号。" href="/zh/server/operations/health-and-monitoring" />
-  <Card title="扩容与缩容" description="显式加入、分配资源并安全排空节点。" href="/zh/server/operations/scaling" />
-  <Card title="备份与恢复" description="保存、测试、验证备份，并在维护状态下恢复。" href="/zh/server/operations/backup-and-restore" />
-  <Card title="升级与迁移" description="先确认兼容性，再选择滚动或维护窗口。" href="/zh/server/operations/upgrade-and-migration" />
-  <Card title="故障排查" description="从现象开始，按成本逐步收集可信证据。" href="/zh/server/operations/troubleshooting" />
+  <Card title="使用 Manager" description="登录管理后台，查看节点和任务，安全执行管理操作。" href="/zh/server/operations/manager" />
+  <Card title="检查服务是否正常" description="看懂 /healthz、/readyz、指标和告警。" href="/zh/server/operations/health-and-monitoring" />
+  <Card title="增加或移除节点" description="让新节点接手数据，或安全排空旧节点。" href="/zh/server/operations/scaling" />
+  <Card title="备份与恢复数据" description="创建可验证的备份，并在维护窗口中恢复。" href="/zh/server/operations/backup-and-restore" />
+  <Card title="升级版本" description="先确认版本兼容，再选择滚动升级或停机升级。" href="/zh/server/operations/upgrade-and-migration" />
+  <Card title="排查故障" description="从现象开始，用最少的检查逐步定位问题。" href="/zh/server/operations/troubleshooting" />
 </Cards>
 
-## 开始前
+## 所有变更都按这五步做
 
-- 使用受控的 Manager 管理网络和最小权限账号；
-- 先完成[生产检查清单](/zh/server/deployment/production-checklist)；
-- 备份必须通过当前计划版本的存储测试，并至少有一个完整、已验证归档；
-- 为大群、高消息率、多频道和大量在线用户保留资源余量；
-- 任何未知、过期或互相矛盾的状态都视为停止条件，而不是继续操作的理由。
+| 步骤 | 要做什么 | 什么情况可以继续 |
+| --- | --- | --- |
+| 1. 记录现状 | 保存版本、配置、节点状态、`/readyz` 和关键指标 | 知道变更前是什么样 |
+| 2. 准备退路 | 准备回滚方法、负责人和停止条件 | 出错时知道由谁、怎么停 |
+| 3. 小步执行 | 一次只改一项；多节点时一次只推进一个节点或一小批任务 | 当前步骤已经结束 |
+| 4. 验证业务 | 测试登录或重连、消息发送、接收和历史消息 | 业务正常且节点重新就绪 |
+| 5. 保存结果 | 保存任务结果、错误、指标和最终节点清单 | 后续能查清做过什么 |
 
-需要选择命令行或诊断能力时，进入[工具](/zh/server/tools)；工具输出是证据，不会替代操作审批与安全门槛。
+## 出现这些情况就停手
+
+- `/readyz` 返回 503，或节点反复进入和退出就绪状态；
+- Manager 中的节点、Controller、Slot、Channel 或任务状态缺失、过期或互相矛盾；
+- 上一个扩缩容、恢复或升级任务还没有结束；
+- 生产变更没有回滚办法，或备份从未验证成功；
+- 发布说明没有明确回答当前版本能否与目标版本混合运行。
+
+停止后先保存现场，再按[故障排查](/zh/server/operations/troubleshooting)收集证据。命令行工具见[服务端工具](/zh/server/tools)。

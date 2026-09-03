@@ -3,13 +3,13 @@ title: Run the Chat Demo
 description: Understand the embedded Chat Demo entry points, behavior, and production safety boundary.
 ---
 
-The Chat Demo is a browser application embedded in the `wukongim` binary. After the source quick start launches the server, no separate frontend development process is required.
+The Chat Demo is a browser application included with the `wukongim` package. After the Linux service starts, no separate frontend process is required.
 
 ## Entry points
 
 | Environment | Chat Demo address | API base URL |
 | --- | --- | --- |
-| Source single-node cluster | `http://127.0.0.1:5001/demo/` | Same origin as the page |
+| Linux single-node cluster | `http://127.0.0.1:5001/demo/` | Same origin as the page |
 | Repository three-node Compose | `http://127.0.0.1:15001/demo/` | Same origin as the page |
 
 To connect to another API address, use:

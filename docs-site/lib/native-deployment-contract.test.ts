@@ -1,12 +1,51 @@
 import { describe, expect, test } from 'bun:test';
 
 const deploymentRoot = new URL('../content/docs/server/deployment/', import.meta.url);
+const quickStartRoot = new URL('../content/docs/guide/quick-start/', import.meta.url);
 
 async function page(path: string) {
   return Bun.file(new URL(path, deploymentRoot)).text();
 }
 
+async function quickStartPage(path: string) {
+  return Bun.file(new URL(path, quickStartRoot)).text();
+}
+
 describe('native deployment publication contract', () => {
+  test('keeps the single-node quick start on the Linux package and systemd path', async () => {
+    const pages = await Promise.all([
+      quickStartPage('single-node-cluster.mdx'),
+      quickStartPage('single-node-cluster.en.mdx'),
+    ]);
+
+    for (const content of pages) {
+      for (const contract of [
+        'curl -fsSL https://packages.githubim.com/repo | sudo sh',
+        'sudo apt install -y wukongim',
+        'sudo dnf install -y wukongim',
+        'wukongim config init',
+        'wukongim config validate',
+        'systemctl enable --now wukongim',
+        'http://127.0.0.1:5001/readyz',
+        'journalctl -u wukongim',
+        'ssh -L 5001:127.0.0.1:5001',
+        '/var/lib/wukongim',
+      ]) {
+        expect(content).toContain(contract);
+      }
+
+      for (const sourcePath of [
+        'git clone',
+        'go1.25.11',
+        'GOWORK=off go run',
+        'wukongim.toml.example',
+        './data/wukongim-single-node-data',
+      ]) {
+        expect(content).not.toContain(sourcePath);
+      }
+    }
+  });
+
   test('keeps the deployment entry focused on the supported decision path', async () => {
     const pages = await Promise.all([page('index.mdx'), page('index.en.mdx')]);
 
@@ -16,7 +55,6 @@ describe('native deployment publication contract', () => {
         '/server/deployment/docker',
         '/server/deployment/linux',
         '/server/deployment/multi-node',
-        '/server/deployment/production-checklist',
         '/readyz',
       ]) {
         expect(content).toContain(contract);
@@ -95,35 +133,29 @@ describe('native deployment publication contract', () => {
     ).toBe(false);
   });
 
-  test('documents the verified release binary and systemd lifecycle', async () => {
+  test('keeps Linux deployment to a concise package, configuration, and systemd path', async () => {
     const pages = await Promise.all([page('linux.mdx'), page('linux.en.mdx')]);
 
     for (const content of pages) {
       for (const contract of [
         '3.0.0-beta.7',
         'curl -fsSL https://packages.githubim.com/repo | sudo sh',
-        'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1',
-        'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459',
-        'wukongim-archive-keyring',
-        'wukongim-release',
-        'Deb822',
-        '%config(noreplace)',
         'sudo apt update',
         'sudo apt install -y wukongim\n',
         "sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh",
         'sudo dnf install -y wukongim\n',
         'RHEL',
-        'build_source',
-        '.goreleaser.packages.yaml',
-        '```bash\nsudo wukongim init\n```',
-        'wukongim config init --config PATH',
-        '--admin-password-stdin',
+        'wukongim config init',
         'wukongim config validate',
         'systemctl enable --now wukongim',
-        'RestartPreventExitStatus',
+        'http://127.0.0.1:5001/readyz',
+        'http://127.0.0.1:5301',
+        '0.0.0.0:5301',
+        'auth_on = true',
         '/var/lib/wukongim',
         '/var/log/wukongim',
-        '/run/wukongim',
+        '/server/deployment/multi-node',
+        '/server/operations/upgrade-and-migration',
       ]) {
         expect(content).toContain(contract);
       }
@@ -153,6 +185,10 @@ describe('native deployment publication contract', () => {
       expect(
         content.match(/^curl -fsSL https:\/\/packages\.githubim\.com\/repo \| sudo sh$/gm),
       ).toHaveLength(2);
+      expect(content.match(/^## \d+\./gm)).toHaveLength(3);
+      expect(content.trimEnd().split('\n').length).toBeLessThanOrEqual(70);
+      expect(content).not.toContain('<details>');
+      expect(content).not.toContain('.goreleaser.packages.yaml');
 
       const aptBootstrap = content.indexOf('curl -fsSL https://packages.githubim.com/repo | sudo sh');
       const aptUpdate = content.indexOf('sudo apt update', aptBootstrap);
@@ -175,38 +211,9 @@ describe('native deployment publication contract', () => {
       expect(dnfInstall).toBeGreaterThan(dnfUpdate);
     }
 
-    expect(pages[0]).toContain('该脚本只添加软件源，不会更新软件包索引、安装 WuKongIM');
-    expect(pages[0]).not.toContain('后续版本');
-    expect(pages[1]).toContain(
-      'The script only adds the repository. It does not refresh the package index, install WuKongIM',
-    );
-    expect(pages[1]).not.toContain('later release');
   });
 
-  test('keeps configuration references aligned with the released package initializer', async () => {
-    const pages = await Promise.all([
-      page('../configuration/reference.mdx'),
-      page('../configuration/reference.en.mdx'),
-    ]);
-
-    for (const content of pages) {
-      for (const contract of [
-        'v3.0.0-beta.7',
-        '`wukongim init`',
-        '/etc/wukongim/wukongim.toml',
-        'wukongim init --config PATH',
-        'wukongim config init --config PATH',
-      ]) {
-        expect(content).toContain(contract);
-      }
-      expect(content).not.toContain('v3.0.0-beta.6');
-    }
-
-    expect(pages[0]).not.toContain('后续版本');
-    expect(pages[1]).not.toContain('later release');
-  });
-
-  test('states the three-node three-replica readiness boundary', async () => {
+  test('states the three-node readiness and Manager boundaries', async () => {
     const pages = await Promise.all([page('multi-node.mdx'), page('multi-node.en.mdx')]);
 
     for (const content of pages) {
@@ -215,9 +222,16 @@ describe('native deployment publication contract', () => {
         'channel_replica_n = 3',
         '/readyz',
         '`503`',
+        'http://manager.example.com:5301',
+        'listen_addr = "0.0.0.0:5301"',
+        'auth_on = true',
+        'replace-with-the-same-random-64-character-secret',
+        'replace-with-the-same-strong-password',
+        'wukongim_manager',
       ]) {
         expect(content).toContain(contract);
       }
+      expect(content.match(/server 10\.0\.0\.(?:11|12|13):5301/g)).toHaveLength(3);
     }
   });
 });

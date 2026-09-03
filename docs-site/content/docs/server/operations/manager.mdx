@@ -1,50 +1,55 @@
 ---
 title: Manager 管理后台
-description: 安全访问 Manager，理解权限、状态视图和高风险操作边界。
+description: 登录 Manager、看懂主要页面，并安全执行管理操作。
 ---
 
-Manager 是独立的管理监听器和内嵌 Web 控制台。它聚合集群状态与运维任务，但不会替代变更审批、备份验证或业务验收。
+Manager 是 WuKongIM 的管理后台。你可以在这里查看节点状态、运行任务、管理备份和执行扩缩容。它拥有高权限，应当像数据库管理后台一样保护。
 
-## 安全访问
+## 打开 Manager 前先检查
 
-生产环境应开启 `manager.auth_on`，替换固定用户密码与 `manager.jwt_secret`，把 `manager.listen_addr` 只暴露给管理网络，并在外部入口终止 TLS。不要与产品 HTTP API、客户端流量或公开指标共用无保护入口。
+- 生产环境已开启 `manager.auth_on`；
+- 已修改默认账号密码和 `manager.jwt_secret`；
+- 直接通过公网 `5301` 访问时，已启用账号密码认证并使用强密码；
+- 需要保护登录传输时，通过反向代理配置 HTTPS，因为 WuKongIM 本身不负责生产 TLS 终止。
 
-`manager.auth_on=false` 会让普通读写分组不安装权限中间件，因此多数管理写入仍可到达 Handler。只有备份写入、恢复和 MCP 管理保留显式失败关闭；`/mcp` 另用独立 Bearer。不要把关闭认证当作只读模式。
-
-## 主要视图
-
-| 区域 | 用途 | 不能证明什么 |
-| --- | --- | --- |
-| 节点与实时监控 | 节点健康、就绪、角色、资源和工作队列 | 节点有足够容量或可以安全移除 |
-| Controller 与任务 | 共识状态、控制任务和推进结果 | 所有业务 Channel 都已迁移完成 |
-| Slot | 256 个物理哈希槽的副本、Leader、ISR 和日志 | 应改变物理哈希槽数量 |
-| Channel 与业务查询 | 频道、订阅、用户、设备和消息投影 | 可跳过产品侧权限或数据边界 |
-| 备份 | 计划、仓库验证、归档和恢复流程 | 保存设置后备份一定可恢复 |
-
-节点配置视图是启动时有效配置的受限、脱敏快照。它不会返回原始 Manager 凭据、Join Token 或完整敏感环境变量，也不表示配置可以热更新。
-
-## 最小权限
-
-- 查看节点与实时状态通常需要 `cluster.node:r`；查看 Slot 需要 `cluster.slot:r`。
-- 节点加入、激活、onboarding 与 scale-in 的读取/写入分别由
-  `cluster.node:r` / `cluster.node:w` 保护。独立的 Slot 清单、日志、Leader
-  迁移和压缩操作才使用 `cluster.slot:r` / `cluster.slot:w`；它们不是
-  scale-in 路由的附加权限门槛。
-- 备份读取和修改分别使用 `cluster.backup:r` 与 `cluster.backup:w`。
-- 恢复必须显式具备 `cluster.restore:w`；通配权限不能替代它。
-
-具体业务查询和写入使用各自的细粒度权限。不要为方便而长期授予全量权限；为只读观察、扩缩容、备份和恢复分别建立角色。
-
-## 执行写操作
-
-1. 记录操作者、目标节点或任务、当前配置/控制版本和预期结果。
-2. 检查 `/readyz`、Manager 状态、活动控制任务和受影响的 Slot/Channel。
-3. 先使用 plan/preview；确认目标、阻塞原因和有界批次。
-4. 执行一个步骤，等待任务终态，再重新读取权威状态。
-5. 业务验证通过后才执行下一步；冲突、过期版本或未知状态立即停止。
-
-<Callout type="warn" title="按钮不是安全证明">
-  Manager 的可用操作和状态提示是运维入口，不是替代审批的结论。缩容必须等到权威状态给出 `safe_to_remove=true`（诊断随后显示 `ready_to_remove` 建议）；恢复必须完成全量验证和确认流程。
+<Callout type="warn" title="不要通过关闭认证来省事">
+  `manager.auth_on=false` 不是只读模式，也不是安全的匿名模式。公网访问必须开启认证、使用强密码；还可以通过防火墙限制来源地址。
 </Callout>
 
-下一步可阅读[健康检查与监控](/zh/server/operations/health-and-monitoring)建立观察基线，或进入[扩容与缩容](/zh/server/operations/scaling)与[备份与恢复](/zh/server/operations/backup-and-restore)。
+## 页面上的名词是什么意思
+
+| 页面 | 可以把它理解为 | 主要看什么 |
+| --- | --- | --- |
+| 节点 / 实时监控 | 每台 WuKongIM 服务器的状态 | 是否就绪、CPU、内存、磁盘、连接和队列 |
+| Controller / 任务 | 集群的协调者和正在执行的管理任务 | 是否可用、任务是否完成、有没有阻塞原因 |
+| Slot | 数据被分成的 256 个固定分区 | Leader、副本和 ISR 是否正常 |
+| Channel | 单聊或群聊消息的运行单元 | Leader、成员和积压是否异常 |
+| 备份 | 备份计划、存储和恢复入口 | 存储是否测试、归档是否完整并验证成功 |
+
+`Leader` 是当前负责处理该数据的节点，`副本` 是数据副本，`ISR` 是当前跟得上进度的副本集合。刚开始运维时，不需要手工调整它们；先确认页面没有异常即可。
+
+## 账号权限怎么分
+
+| 工作 | 常用权限 |
+| --- | --- |
+| 查看节点和扩缩容状态 | `cluster.node:r` |
+| 加入、激活、排空或移除节点 | `cluster.node:w` |
+| 查看或操作 Slot | `cluster.slot:r` / `cluster.slot:w` |
+| 查看或修改备份 | `cluster.backup:r` / `cluster.backup:w` |
+| 执行恢复 | 必须单独授予 `cluster.restore:w` |
+
+不要给所有人长期使用全量权限。至少分开“只读查看”“节点管理”“备份管理”和“数据恢复”四类账号或角色。
+
+## 安全执行一次操作
+
+1. 记录操作者、目标、当前状态和预期结果。
+2. 确认 `/readyz` 正常，并检查有没有尚未结束的管理任务。
+3. 如果页面提供“计划”或“预览”，先运行它，阅读阻塞原因。
+4. 一次只执行一个步骤，等待任务结束后刷新页面。
+5. 测试消息发送、接收和重连。确认业务正常后再做下一步。
+
+<Callout type="warn" title="能点击不等于可以执行">
+  缩容只有在权威状态显示 `safe_to_remove=true` 后才能移除节点。恢复需要完整验证、密码重新认证和确认短语。任何状态缺失、过期或互相矛盾时都应停止。
+</Callout>
+
+Manager 只管理 WuKongIM 集群状态，不会替你关闭云主机、缩减 Kubernetes 实例，也不会让启动配置自动热更新。接下来可先阅读[健康检查与监控](/zh/server/operations/health-and-monitoring)。

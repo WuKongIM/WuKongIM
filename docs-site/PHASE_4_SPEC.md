@@ -15,7 +15,6 @@ work that remains before production.
 - Docker
 - Linux
 - Multi-node Cluster
-- Production Checklist
 
 Every route above has matching Chinese and English MDX and is included in
 search, sitemap, LLM outputs, and per-page Markdown. Kubernetes (Beta) remains
@@ -62,7 +61,7 @@ planned.
 
 ## Validation
 
-- The navigation test freezes the six newly published routes and requires
+- The navigation test freezes the five published routes and requires
   matching Chinese and English MDX.
 - Static-output validation confirms every published route appears in sitemap,
   search, LLM outputs, and per-page Markdown while Kubernetes stays excluded
@@ -82,6 +81,8 @@ planned.
   changes, or production cutover.
 - Full monitoring, backup/restore, scaling, upgrade, migration, or
   troubleshooting procedures.
+- A standalone production-checklist page. Its former bilingual routes redirect
+  to the deployment overview; each owning topic keeps its own production guidance.
 - Capacity numbers that are not backed by a workload-specific benchmark.
 - Raster deployment diagrams; topology and lifecycle visuals remain
   maintainable text.

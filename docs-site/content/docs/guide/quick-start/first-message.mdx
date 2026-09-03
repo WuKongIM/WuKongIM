@@ -42,7 +42,7 @@ description: 使用内嵌 Chat Demo 创建两个测试身份并验证双向消�
 
 ### 页面一直显示未连接
 
-重新检查 `/readyz`，确认 `5200` 端口可用，并查看服务终端是否记录连接鉴权或 WebSocket 错误。
+重新检查 `/readyz` 和 SSH 转发中的 `5200` 端口，再运行 `sudo journalctl -u wukongim -n 100 --no-pager` 查看错误。
 
 ### 发送后对方没有收到
 

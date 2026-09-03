@@ -1,56 +1,67 @@
 ---
 title: Upgrade & Migration
-description: Confirm exact-version compatibility before choosing a rolling upgrade, maintenance window, or separate migration project.
+description: Use release notes to choose a rolling or stopped upgrade and preserve a safe rollback point.
 ---
 
-The target release's compatibility evidence determines the upgrade method; cluster size does not. Current documentation makes no universal promise for mixed versions, downgrade, or in-place v2-to-v3 storage migration.
+Before upgrading, answer one question: **do the target release notes explicitly allow the target and current versions to run together?** Do not guess based on cluster size or past experience.
 
-<Callout type="warn" title="Mixed versions are denied by default">
-  Use a mixed-version rolling upgrade only when the target release notes explicitly declare compatibility with the current version. Without that declaration, use a full maintenance window and avoid running different versions together.
+## Choose the upgrade method
+
+| Situation | Method |
+| --- | --- |
+| The release notes explicitly allow these versions to mix and give an order and time limit | A rolling upgrade may update one node at a time |
+| The release notes are silent, unclear, or say they are incompatible | Use a stopped maintenance window and keep every node on the same version |
+| Moving from v2 to v3 | Treat it as a separate migration project; do not copy data directories or use the normal upgrade steps |
+
+<Callout type="warn" title="Do not mix versions by default">
+  Use a rolling upgrade only when the target release documentation explicitly confirms compatibility. Without that evidence, use a stopped upgrade or pause and ask the release owner.
 </Callout>
 
-## Freeze the upgrade contract
+## Before you start
 
-Record before starting:
+- Record the current and target versions and the digest of every package or image.
+- Read the target release's compatibility notes for protocols, storage, configuration, Controller, Slots, and Channels.
+- Write down the upgrade order, maximum mixed-version time, stop conditions, and owner.
+- Confirm whether downgrade is supported and after which step a direct binary rollback becomes unsafe.
+- Confirm that backup storage passed its test, one complete archive passed verification, and restore was rehearsed.
+- Save a pre-change baseline for `/readyz`, errors, latency, connections, queues, disk, and cluster state.
+- Test message send, receive, reconnect, history, and downstream integrations.
 
-- Current and target commit SHA, artifact digest, Go/build toolchain, and configuration version.
-- Target-release statements for protocol, Controller, Slot/Channel metadata, storage, and configuration compatibility.
-- Whether mixed versions are allowed, supported version span, order, and maximum mixed-version duration.
-- Irreversible persistence boundaries, downgrade support, and the last safe rollback point.
-- A repository test for the current plan revision, a complete verified archive, and restore-drill evidence.
-- Baselines for `/readyz`, errors, latency, connections, queues, Controller, Slots, Channels, disk, and product acceptance.
+Do not begin a rolling upgrade if any item is unknown.
 
-If any item is unknown, choose a maintenance window or pause until the release owner confirms it.
+## Rolling upgrade
 
-## Rolling upgrade when compatibility is explicit
+Use this only when the release notes explicitly allow mixed versions:
 
-1. Freeze topology, scaling, backup/restore, and unrelated configuration changes.
-2. Remove one non-critical node from traffic and wait for connections and work to drain safely.
-3. Restart it with the target artifact and validated configuration. Keep its node ID and data directory unchanged.
-4. Wait for `/readyz`; confirm control revision catch-up, stable Slot/Channel roles, and no new errors or backlogs.
-5. Send a small traffic share and verify send/receive, reconnect, history, and downstream integrations.
-6. Advance one node at a time, preserving release-specific Controller-voter order and mixed-version deadline.
-7. After completion, observe a full product peak and retain upgrade evidence.
+1. Pause scaling, backup/restore, and unrelated configuration changes.
+2. Remove one non-critical node from the load balancer and wait for connections and tasks to drain.
+3. Restart it with the target version and validated configuration. Keep its node ID and data directory unchanged.
+4. Wait for `/readyz` to return 200. Confirm that Controller, Slots, Channels, errors, and queues are healthy.
+5. Send a small amount of traffic to the node and test message send, receive, reconnect, history, and downstream integrations.
+6. Upgrade the next node only after this one is stable. Follow the release-specific node order and mixed-version deadline.
+7. After all nodes are upgraded, observe at least one complete product peak and save the results.
 
-Rolling does not mean risk-free. 100,000-member groups, high message rates, and many online users amplify reconnect, migration, and cache-warmup cost; retain capacity headroom.
+Large groups, high message rates, and many online users amplify reconnect and cache warm-up pressure. Keep capacity headroom during the upgrade.
 
-## Maintenance upgrade without compatibility
+## Stopped maintenance upgrade
+
+Use this when the release notes do not explicitly allow mixed versions:
 
 1. Complete backup verification, rollback rehearsal, and downtime communication.
-2. Stop traffic and confirm a controlled maintenance state with writes and downstream delivery drained.
-3. Stop nodes in the release-specific order. Do not terminate all Controller voters together while coordination is still required.
-4. Replace artifacts and configuration on every node, then start only after versions are consistent and according to the release instructions.
-5. Wait for every node, Controller, and all 256 Slots to stabilize and pass `/readyz`.
-6. Restore traffic gradually after product acceptance. Stop cutover on unknown state or errors.
+2. Stop product traffic and wait for writes and downstream delivery to drain.
+3. Stop nodes in the order required by the target release. Do not stop every Controller voter together while coordination is still needed.
+4. Replace the program and configuration on every node. Start them according to the release instructions only after versions are consistent.
+5. Wait for all nodes, Controller, and all 256 Slots to stabilize and for `/readyz` to return 200 on every node.
+6. Run product tests and then restore traffic gradually. Stop the cutover on unknown state or new errors.
 
-## Rollback boundary
+## When rollback is safe
 
-Binary rollback is safe only before the target has written persistent state that the old version cannot understand and when the release notes explicitly support downgrade. Configuration removal or rename, metadata encoding, storage format, and control state can all make a simple binary replacement unsafe.
+A direct binary rollback is safe only when the release notes explicitly support downgrade and the new version has not written data that the old version cannot understand. Configuration, metadata, and storage formats can all create an irreversible boundary.
 
-After an irreversible boundary, do not attempt a blind downgrade. Keep traffic closed, preserve logs and state, and follow a release-specific recovery procedure or the rehearsed backup restore.
+After that boundary, do not blindly install the old version. Keep traffic closed, preserve logs and data, and follow the release-specific recovery procedure or the rehearsed backup restore.
 
-## v2 to v3
+## Moving from v2 to v3
 
-There is currently no general in-place v2-to-v3 storage conversion contract or automated tool. Do not copy a v2 data directory into v3 nodes, and do not treat v3 backup restore as a new-cluster import API.
+There is currently no general in-place v2-to-v3 storage conversion tool. Do not copy a v2 data directory into v3, and do not use v3 backup restore as a new-cluster import API.
 
-Treat migration as a separate project: freeze product data semantics and acceptable downtime; inventory users, Channels, membership, messages, device tokens, and external integrations; define a verified export/transform/validation/cutover/rollback method; and rehearse it with representative data. Without a release-specific plan, keep the existing system running rather than attempting an experimental production conversion.
+Plan a separate export, transformation, validation, cutover, and rollback for users, Channels, membership, messages, device tokens, and external integrations. Rehearse it with representative data. Without a verified release-specific plan, keep the existing system running instead of experimenting in production.

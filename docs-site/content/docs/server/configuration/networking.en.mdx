@@ -13,7 +13,7 @@ A node serves several traffic planes. A listen address answers where this proces
 | Product HTTP API | `api.listen_addr` | Business backends, health checks, observability collectors | Place on a trusted network or behind external authentication |
 | Client Gateway | `gateway.listeners` | TCP and WebSocket clients | Expose through a controlled edge and enforce connection capacity |
 | Client discovery | `api.external_tcp_addr`, `external_ws_addr`, `external_wss_addr` | Callers of `/route` | Reachable from every target client network |
-| Manager | `manager.listen_addr` | Administrators and automation | A separate restricted network with authentication enabled |
+| Manager | `manager.listen_addr` | Administrators and automation | Public port `5301` is allowed; authentication and a strong password are required |
 | Prometheus | `prometheus.listen_addr` or an external service | Manager and collectors | Never expose directly to the Internet |
 
 ## Listen is not advertise

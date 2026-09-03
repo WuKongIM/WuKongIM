@@ -120,6 +120,17 @@ describe('legacy redirect seed', () => {
     );
   });
 
+  test('routes the removed production checklist into the deployment entry', () => {
+    expect(manifest.mappings).toEqual(
+      expect.arrayContaining(
+        ['zh', 'en'].map((locale) => ({
+          source: `/${locale}/server/deployment/production-checklist`,
+          destination: `/${locale}/server/deployment`,
+        })),
+      ),
+    );
+  });
+
   test('routes withdrawn Kubernetes deployment pages into the deployment entry', () => {
     expect(manifest.mappings).toEqual(
       expect.arrayContaining(

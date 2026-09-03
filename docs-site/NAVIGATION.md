@@ -13,9 +13,9 @@ Route: `/{lang}/guide`
 - **产品概览 / Product Overview** `/{lang}/guide/product-overview` — 判断 WuKongIM 是什么、是否适合你的产品，以及下一步如何验证。 / Decide what WuKongIM is, whether it fits your product, and how to validate it.
   - **核心能力 / Core Capabilities** `/{lang}/guide/product-overview/capabilities` — 从产品结果理解实时接入、可靠消息、多设备、集群和运维能力。 / Explains real-time access, reliable messaging, multi-device, cluster, and operations outcomes.
   - **适用场景 / Use Cases** `/{lang}/guide/product-overview/use-cases` — 判断聊天、通知、客服及扩展场景如何使用 WuKongIM。 / Maps chat, notifications, customer service, and extended scenarios to WuKongIM.
-- **快速开始 / Quick Start** `/{lang}/guide/quick-start` — 沿最短路径启动集群、发送消息并验证结果。 / Follow the shortest path to start a cluster, send a message, and verify the result.
-  - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 列出 Git、Go、端口、本地目录和测试工具要求。 / Lists Git, Go, ports, local directories, and test tool requirements.
-  - **启动单节点集群 / Start a Single-node Cluster** `/{lang}/guide/quick-start/single-node-cluster` — 启动单节点集群并验证就绪状态与 Manager。 / Starts a single-node cluster and verifies readiness and Manager access.
+- **快速开始 / Quick Start** `/{lang}/guide/quick-start` — 在 Linux 上启动集群、发送消息并验证结果。 / Start a Linux cluster, send a message, and verify the result.
+  - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 列出 Linux、sudo、SSH、端口和目录要求。 / Lists Linux, sudo, SSH, port, and directory requirements.
+  - **启动单节点集群 / Start a Single-node Cluster** `/{lang}/guide/quick-start/single-node-cluster` — 安装软件包并通过 systemd 启动单节点集群。 / Installs the package and starts a single-node cluster with systemd.
   - **发送第一条消息 / Send the First Message** `/{lang}/guide/quick-start/first-message` — 创建测试身份并完成一次最小消息收发。 / Creates test identities and completes a minimal message exchange.
   - **运行聊天演示 / Run the Chat Demo** `/{lang}/guide/quick-start/chat-demo` — 使用内置聊天演示验证两个测试用户之间的通信。 / Uses the embedded chat demo to verify communication between two test users.
   - **下一步 / Next Steps** `/{lang}/guide/quick-start/next-steps` — 按接入、部署、运维和参考需求引导后续阅读。 / Routes readers to integration, deployment, operations, and reference material.
@@ -48,7 +48,6 @@ Route: `/{lang}/server`
   - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 使用固定的官方镜像、显式配置和持久卷运行节点。 / Runs a node with a pinned official image, explicit configuration, and persistent storage.
   - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。 / Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.
   - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划成员、副本、故障域并验证集群就绪。 / Plans membership, replicas, failure domains, and cluster readiness.
-  - **生产检查清单 / Production Checklist** `/{lang}/server/deployment/production-checklist` — 汇总资源、磁盘、安全、监控、备份和容量检查。 / Checks resources, disks, security, monitoring, backups, and capacity.
 - **配置 / Configuration** `/{lang}/server/configuration` — 解释配置来源、覆盖规则和各领域配置。 / Explains configuration sources, override rules, and domain settings.
   - **常用配置 / Common Configurations** `/{lang}/server/configuration/common-configurations` — 以表格解释最常用的 10 个配置项及其关键边界。 / Explains the 10 most-used settings and their key boundaries in a table.
   - **节点与集群 / Nodes & Cluster** `/{lang}/server/configuration/cluster` — 节点身份、集群地址、Slot、副本和节点发现配置。 / Node identity, cluster addresses, slots, replicas, and discovery settings.
@@ -57,13 +56,13 @@ Route: `/{lang}/server`
   - **安全与权限 / Security & Access** `/{lang}/server/configuration/security` — 认证、接口访问、Token、TLS 和敏感配置建议。 / Authentication, API access, tokens, TLS, and sensitive-setting guidance.
   - **日志与可观测性 / Logs & Observability** `/{lang}/server/configuration/observability` — 日志、指标、Prometheus、Top 和诊断接口配置。 / Logging, metrics, Prometheus, Top, and diagnostic endpoint settings.
   - **配置参考 / Configuration Reference** `/{lang}/server/configuration/reference` — 逐项说明全部公开 TOML、环境变量、关键默认值、约束和迁移方式。 / Explains every public TOML field, environment override, key default, constraint, and migration.
-- **运维 / Operations** `/{lang}/server/operations` — 管理、观察和安全变更生产集群。 / Manage, observe, and safely change production clusters.
-  - **Manager 管理后台 / Manager** `/{lang}/server/operations/manager` — 介绍后台权限、集群状态、业务查询和运维操作。 / Introduces permissions, cluster state, business queries, and operations.
-  - **健康检查与监控 / Health & Monitoring** `/{lang}/server/operations/health-and-monitoring` — 解释就绪状态、核心指标、Prometheus、Grafana 和告警。 / Explains readiness, key metrics, Prometheus, Grafana, and alerts.
-  - **扩容与缩容 / Scaling** `/{lang}/server/operations/scaling` — 说明节点加入、平衡、安全缩容和 Leader 迁移。 / Covers node joins, balancing, safe scale-in, and leader transfer.
-  - **备份与恢复 / Backup & Restore** `/{lang}/server/operations/backup-and-restore` — 说明备份计划、验证、恢复和灾难演练。 / Covers backup schedules, verification, restoration, and recovery drills.
-  - **升级与迁移 / Upgrade & Migration** `/{lang}/server/operations/upgrade-and-migration` — 说明兼容性、滚动升级、回滚和 v2 到 v3 迁移。 / Covers compatibility, rolling upgrades, rollback, and v2-to-v3 migration.
-  - **故障排查 / Troubleshooting** `/{lang}/server/operations/troubleshooting` — 按现象、指标、日志和诊断工具定位问题。 / Diagnoses issues through symptoms, metrics, logs, and diagnostic tools.
+- **运维 / Operations** `/{lang}/server/operations` — 从日常检查开始，安全地监控、备份、扩缩容和升级集群。 / Start with daily checks, then monitor, back up, scale, and upgrade the cluster safely.
+  - **Manager 管理后台 / Manager** `/{lang}/server/operations/manager` — 登录管理后台，看懂主要页面并安全执行操作。 / Sign in, understand the main pages, and perform administrative actions safely.
+  - **健康检查与监控 / Health & Monitoring** `/{lang}/server/operations/health-and-monitoring` — 判断进程是否存活、节点能否接流量，以及何时需要告警。 / Tell whether the process is alive, the node can accept traffic, and an alert is needed.
+  - **扩容与缩容 / Scaling** `/{lang}/server/operations/scaling` — 逐步增加节点，或安全排空并移除节点。 / Add a node step by step, or safely drain and remove one.
+  - **备份与恢复 / Backup & Restore** `/{lang}/server/operations/backup-and-restore` — 创建、测试和验证备份，并在维护窗口中恢复。 / Create, test, and verify backups, then restore during maintenance.
+  - **升级与迁移 / Upgrade & Migration** `/{lang}/server/operations/upgrade-and-migration` — 根据发布说明选择滚动升级或停机升级。 / Use release notes to choose a rolling or stopped upgrade.
+  - **故障排查 / Troubleshooting** `/{lang}/server/operations/troubleshooting` — 从故障现象开始，用低风险检查逐步定位问题。 / Start from the symptom and narrow the problem with low-risk checks.
 - **工具 / Tools** `/{lang}/server/tools` — 使用官方工具观察、验证和评估集群。 / Use official tools to inspect, verify, and evaluate clusters.
   - **wkcli / wkcli** `/{lang}/server/tools/wkcli` — 查看集群状态并执行受控运维操作。 / Inspects cluster state and performs controlled operations.
   - **wkdb / wkdb** `/{lang}/server/tools/wkdb` — 执行本地只读存储诊断和离线导入导出。 / Performs node-local read-only storage diagnostics and offline import/export.

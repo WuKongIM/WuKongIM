@@ -1,29 +1,27 @@
 ---
 title: Quick Start
-description: Run a single-node cluster from source, check readiness, and verify the first two-way message.
+description: Start a single-node cluster on Linux and verify the first two-way message.
 ---
 
-This path is for developers using WuKongIM for the first time. When finished, you will have a local single-node cluster, working Manager and Chat Demo pages, and two test users that can exchange messages.
+This path is for first-time WuKongIM users. You will run a single-node cluster on one Linux server and use Manager and the Chat Demo to verify messaging.
 
-<Callout type="warn" title="Local verification only">
-  The example configuration contains fixed development credentials and binds several administrative and diagnostic surfaces locally. It is suitable for learning and functional verification, not as a production deployment template.
+<Callout type="warn" title="Use it for learning and testing first">
+  The current Linux repository is a Preview channel. This guide is for functional verification, not a complete production deployment.
 </Callout>
 
-## Shortest path
+## Steps
 
-1. [Check prerequisites](/en/guide/quick-start/prerequisites): prepare Git, Go 1.25.11, a terminal, and free ports.
-2. [Start a single-node cluster](/en/guide/quick-start/single-node-cluster): copy the example configuration and run the server.
+1. [Check prerequisites](/en/guide/quick-start/prerequisites): prepare a supported Linux server, sudo, curl, and SSH.
+2. [Start a single-node cluster](/en/guide/quick-start/single-node-cluster): install the package, initialize configuration, and start the systemd service.
 3. [Send the first message](/en/guide/quick-start/first-message): verify two-way messaging with two test UIDs.
 4. [Understand the Chat Demo](/en/guide/quick-start/chat-demo): learn where the demo ends and production integration begins.
 5. [Choose the next step](/en/guide/quick-start/next-steps): continue to configuration, SDK, API, or operations documentation.
 
 ## Completion criteria
 
-At the end of the quick start, verify that:
-
 - `http://127.0.0.1:5001/readyz` succeeds.
 - Manager opens at `http://127.0.0.1:5301`.
-- The Chat Demo at `http://127.0.0.1:5001/demo/` connects two unique UIDs.
-- A message sent by either test user reaches the other user.
+- The Chat Demo at `http://127.0.0.1:5001/demo/` connects two test users.
+- The two users can send messages to each other.
 
-The hands-on flow normally takes about 5–10 minutes, excluding the first Go dependency download.
+The flow normally takes 5–10 minutes, excluding server and system download time.

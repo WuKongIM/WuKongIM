@@ -72,14 +72,14 @@ describe('documentation site experience', () => {
     expect(html).not.toContain('unfinished pages remain clearly marked');
   });
 
-  test('orders runtime, topology, and production checks as one deployment path', () => {
+  test('orders runtime and topology as one deployment path', () => {
     expect(getPublishedFooterItems('en', 'server', '/en/server/deployment/linux')).toEqual({
       previous: expect.objectContaining({ url: '/en/server/deployment/docker' }),
       next: expect.objectContaining({ url: '/en/server/deployment/multi-node' }),
     });
     expect(getPublishedFooterItems('en', 'server', '/en/server/deployment/multi-node')).toEqual({
       previous: expect.objectContaining({ url: '/en/server/deployment/linux' }),
-      next: expect.objectContaining({ url: '/en/server/deployment/production-checklist' }),
+      next: expect.objectContaining({ url: '/en/server/configuration' }),
     });
   });
 
