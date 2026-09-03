@@ -3,7 +3,7 @@ title: Linux
 description: Install WuKongIM from the signed APT/DNF preview repository or local deb/rpm packages, initialize it safely, and supervise a cluster node with systemd.
 ---
 
-The signed WuKongIM Linux preview repository is now available. It currently publishes `v3.0.0-beta.6` for amd64/x86_64 only. The publication pipeline has verified repository metadata, signatures, and exact-version downloads in fresh Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9 containers. RHEL 9 is a compatible target for the same EL9 repository, but is not part of this automated clean-client matrix.
+The signed WuKongIM Linux preview repository is now available. It currently publishes `v3.0.0-beta.7` for amd64/x86_64 only. The publication pipeline has verified repository metadata, signatures, and exact-version downloads in fresh Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9 containers. RHEL 9 is a compatible target for the same EL9 repository, but is not part of this automated clean-client matrix.
 
 Preview is a prerelease channel, not the stable channel. Validate configuration, backup, recovery, and upgrade compatibility outside production first.
 
@@ -61,7 +61,7 @@ sudo dnf install -y wukongim
 
 The fixed RPM primary-key fingerprint is `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`. The initial bootstrap still relies on HTTPS. DNF/YUM then verifies and upgrades the public-key package through the signed repository.
 
-Confirm the binary identity after installation. The version should be `3.0.0-beta.6`; `source` in the text output and `build_source` in JSON should be `release`:
+Confirm the binary identity after installation. The version should be `3.0.0-beta.7`; `source` in the text output and `build_source` in JSON should be `release`:
 
 ```bash
 wukongim version
@@ -77,17 +77,15 @@ Do not delete the keyring, public key, or repository files owned by the bootstra
 Interactive initialization creates a single-node cluster configuration with a random Cluster ID, join token, Manager JWT secret, and administrator password. The generated administrator password is shown only once:
 
 ```bash
-sudo wukongim config init \
-  --config /etc/wukongim/wukongim.toml
+sudo wukongim init
 ```
 
-Once a later release includes this feature, the command above can be shortened to `sudo wukongim init`. It writes `/etc/wukongim/wukongim.toml` by default and also accepts `--config PATH`. The `v3.0.0-beta.6` package currently in the repository does not contain the short command, so this page keeps the compatible form as its copyable path.
+`sudo wukongim init` writes `/etc/wukongim/wukongim.toml` by default. Pass `--config PATH` to choose another location explicitly. The original `sudo wukongim config init --config PATH` entry point remains available for existing automation.
 
 Automation must supply an administrator password of at least 12 characters through standard input; the command does not echo it:
 
 ```bash
-sudo wukongim config init \
-  --config /etc/wukongim/wukongim.toml \
+sudo wukongim init \
   --admin-password-stdin < /secure/path/manager-password
 ```
 
