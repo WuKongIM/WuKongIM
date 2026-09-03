@@ -32,10 +32,19 @@ type channelRuntime interface {
 	channeltransport.Server
 }
 
-// conversationRuntimeProbe reads current Leader HW without forcing one
-// durable checkpoint write per quorum-committed append.
-type conversationRuntimeProbe interface {
+// runtimeHWProbe reads current Leader HW without forcing one durable
+// checkpoint write per quorum-committed append.
+type runtimeHWProbe interface {
 	RuntimeProbe(context.Context, ch.RuntimeSelector) (ch.RuntimeProbeResult, error)
+}
+
+// runtimeHWExpectation fences one local runtime HW observation to the
+// authoritative metadata used to route the read.
+type runtimeHWExpectation struct {
+	ChannelID            ch.ChannelID
+	ExpectedChannelEpoch uint64
+	ExpectedLeaderEpoch  uint64
+	ExpectedMinISR       int
 }
 
 // AppendStageObserver receives low-cardinality client append stage latencies.
@@ -662,6 +671,7 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 		index   int
 		request CommittedReadRequest
 	}
+	localItems := make([]remoteItem, 0, len(reads))
 	remoteByLeader := make(map[ch.NodeID][]remoteItem)
 	for index, read := range reads {
 		if err := ctx.Err(); err != nil {
@@ -680,18 +690,29 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 			results[index].Err = ch.ErrChannelNotFound
 			continue
 		}
-		if meta.Leader == s.localNode {
-			results[index].Read, results[index].Err = s.readLocalCommitted(ctx, read, meta.RetentionThroughSeq, meta.MinISR)
-			continue
-		}
-		remoteByLeader[meta.Leader] = append(remoteByLeader[meta.Leader], remoteItem{index: index, request: CommittedReadRequest{
+		item := remoteItem{index: index, request: CommittedReadRequest{
 			CommittedRead:        read,
 			RetentionThroughSeq:  meta.RetentionThroughSeq,
 			ExpectedLeader:       meta.Leader,
 			ExpectedChannelEpoch: meta.Epoch,
 			ExpectedLeaderEpoch:  meta.LeaderEpoch,
 			ExpectedMinISR:       meta.MinISR,
-		}})
+		}}
+		if meta.Leader == s.localNode {
+			localItems = append(localItems, item)
+			continue
+		}
+		remoteByLeader[meta.Leader] = append(remoteByLeader[meta.Leader], item)
+	}
+	if len(localItems) > 0 {
+		requests := make([]CommittedReadRequest, len(localItems))
+		for index, item := range localItems {
+			requests[index] = item.request
+		}
+		localResults := s.readLocalCommittedBatch(ctx, requests)
+		for index, item := range localItems {
+			results[item.index] = localResults[index]
+		}
 	}
 	for leader, items := range remoteByLeader {
 		if s.forward == nil {
@@ -728,6 +749,8 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 
 func (s *Service) handleForwardCommittedReads(ctx context.Context, req CommittedReadsRequest) (CommittedReadsResponse, error) {
 	response := CommittedReadsResponse{Items: make([]CommittedReadResult, len(req.Items))}
+	localItems := make([]CommittedReadRequest, 0, len(req.Items))
+	localIndexes := make([]int, 0, len(req.Items))
 	for index, item := range req.Items {
 		meta, ok, err := s.resolveReadMeta(ctx, item.ChannelID)
 		if err != nil && !canFallbackCommittedReadOnMissingMeta(s.localNode, item, err) {
@@ -735,7 +758,8 @@ func (s *Service) handleForwardCommittedReads(ctx context.Context, req Committed
 			continue
 		}
 		if err != nil {
-			response.Items[index].Read, response.Items[index].Err = s.readLocalCommitted(ctx, item.CommittedRead, item.RetentionThroughSeq, item.ExpectedMinISR)
+			localItems = append(localItems, item)
+			localIndexes = append(localIndexes, index)
 			continue
 		}
 		if !ok || meta.Leader == 0 {
@@ -756,12 +780,46 @@ func (s *Service) handleForwardCommittedReads(ctx context.Context, req Committed
 			continue
 		}
 		retentionThroughSeq := maxUint64Value(item.RetentionThroughSeq, meta.RetentionThroughSeq)
-		response.Items[index].Read, response.Items[index].Err = s.readLocalCommitted(ctx, item.CommittedRead, retentionThroughSeq, meta.MinISR)
+		item.RetentionThroughSeq = retentionThroughSeq
+		item.ExpectedChannelEpoch = meta.Epoch
+		item.ExpectedLeaderEpoch = meta.LeaderEpoch
+		item.ExpectedMinISR = meta.MinISR
+		localItems = append(localItems, item)
+		localIndexes = append(localIndexes, index)
+	}
+	localResults := s.readLocalCommittedBatch(ctx, localItems)
+	for index, result := range localResults {
+		response.Items[localIndexes[index]] = result
 	}
 	return response, nil
 }
 
-func (s *Service) readLocalCommitted(ctx context.Context, read CommittedRead, retentionThroughSeq uint64, minISR int) (channelstore.ReadCommittedResult, error) {
+func (s *Service) readLocalCommittedBatch(ctx context.Context, requests []CommittedReadRequest) []CommittedReadResult {
+	results := make([]CommittedReadResult, len(requests))
+	if len(requests) == 0 {
+		return results
+	}
+	liveHW, itemErrors, err := s.liveCommittedReadHW(ctx, requests)
+	if err != nil {
+		for index := range results {
+			results[index].Err = err
+		}
+		return results
+	}
+	for index, request := range requests {
+		if itemErr := itemErrors[request.ChannelID]; itemErr != nil {
+			results[index].Err = itemErr
+			continue
+		}
+		committed, hasLiveHW := liveHW[request.ChannelID]
+		results[index].Read, results[index].Err = s.readLocalCommitted(
+			ctx, request.CommittedRead, request.RetentionThroughSeq, request.ExpectedMinISR, committed, hasLiveHW,
+		)
+	}
+	return results
+}
+
+func (s *Service) readLocalCommitted(ctx context.Context, read CommittedRead, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted bool) (channelstore.ReadCommittedResult, error) {
 	if s == nil || s.store == nil {
 		return channelstore.ReadCommittedResult{}, ch.ErrNotReady
 	}
@@ -777,6 +835,8 @@ func (s *Service) readLocalCommitted(ctx context.Context, read CommittedRead, re
 	committed := state.HW
 	if minISR <= 1 {
 		committed = state.LEO
+	} else if hasLiveCommitted {
+		committed = maxUint64Value(committed, liveCommitted)
 	}
 	retention, err := store.LoadRetentionState(ctx)
 	if err != nil {
@@ -894,12 +954,38 @@ func (s *Service) readLocalConversationHeads(ctx context.Context, uid string, re
 }
 
 func (s *Service) liveConversationHW(ctx context.Context, requests []ConversationHeadRequest) (map[ch.ChannelID]uint64, map[ch.ChannelID]error, error) {
-	probeRuntime, ok := s.runtime.(conversationRuntimeProbe)
+	expected := make([]runtimeHWExpectation, 0, len(requests))
+	for _, request := range requests {
+		expected = append(expected, runtimeHWExpectation{
+			ChannelID:            request.ChannelID,
+			ExpectedChannelEpoch: request.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:  request.ExpectedLeaderEpoch,
+			ExpectedMinISR:       request.ExpectedMinISR,
+		})
+	}
+	return s.liveRuntimeHW(ctx, expected)
+}
+
+func (s *Service) liveCommittedReadHW(ctx context.Context, requests []CommittedReadRequest) (map[ch.ChannelID]uint64, map[ch.ChannelID]error, error) {
+	expected := make([]runtimeHWExpectation, 0, len(requests))
+	for _, request := range requests {
+		expected = append(expected, runtimeHWExpectation{
+			ChannelID:            request.ChannelID,
+			ExpectedChannelEpoch: request.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:  request.ExpectedLeaderEpoch,
+			ExpectedMinISR:       request.ExpectedMinISR,
+		})
+	}
+	return s.liveRuntimeHW(ctx, expected)
+}
+
+func (s *Service) liveRuntimeHW(ctx context.Context, requests []runtimeHWExpectation) (map[ch.ChannelID]uint64, map[ch.ChannelID]error, error) {
+	probeRuntime, ok := s.runtime.(runtimeHWProbe)
 	if !ok {
 		return nil, nil, nil
 	}
 	ids := make([]ch.ChannelID, 0, len(requests))
-	expected := make(map[ch.ChannelID]ConversationHeadRequest, len(requests))
+	expected := make(map[ch.ChannelID]runtimeHWExpectation, len(requests))
 	for _, request := range requests {
 		if request.ExpectedMinISR <= 1 {
 			continue
