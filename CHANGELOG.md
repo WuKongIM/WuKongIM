@@ -19,6 +19,7 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 
 ### 📚 Documentation / 文档
 
+- 服务端部署与运维文档改为面向初学者的精简实操指南，快速开始统一使用 Linux 软件包与 systemd，并修复已移除页面的链接。
 - 中英文 Linux 部署与配置参考现已将 `v3.0.0-beta.7` 作为签名 Preview 软件源版本，并以 `sudo wukongim init` 作为默认初始化入口，同时保留显式路径兼容命令；Docker 部署示例也同步固定到同一版本。
 
 ## [v3.0.0-beta.7] - 2026-09-03

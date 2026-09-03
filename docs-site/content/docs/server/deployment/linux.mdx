@@ -3,7 +3,7 @@ title: Linux 部署
 description: 使用 APT 或 DNF 安装 WuKongIM，并通过 systemd 启动。
 ---
 
-当前 Preview 软件源发布 `v3.0.0-beta.6`，仅支持 amd64/x86_64。已验证 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9；RHEL 9 可使用同一 EL9 软件源。
+当前 Preview 软件源发布 `v3.0.0-beta.7`，仅支持 amd64/x86_64。已验证 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9；RHEL 9 可使用同一 EL9 软件源。
 
 <Callout type="warn" title="Preview 是预发布通道">
   请先在非生产环境验证，再承载生产流量。
@@ -39,13 +39,15 @@ wukongim version
 
 ```bash
 sudo wukongim init
+# 自动化环境：
+sudo wukongim init \
+  --admin-password-stdin < /secure/path/manager-password
 ```
 
-保存只显示一次的管理员密码。根据实际环境检查节点 ID、持久化目录和外部地址，然后校验配置：
+保存只显示一次的管理员密码。旧自动化也可继续使用 `wukongim config init --config /etc/wukongim/wukongim.toml`。然后校验配置：
 
 ```bash
-sudo wukongim config validate \
-  --config /etc/wukongim/wukongim.toml
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
 ```
 
 默认只监听回环地址。对外开放服务前，请先配置防火墙、TLS 和入口策略。

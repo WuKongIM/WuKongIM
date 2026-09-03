@@ -3,7 +3,7 @@ title: Linux
 description: Install WuKongIM with APT or DNF and start it with systemd.
 ---
 
-The preview repository currently publishes `v3.0.0-beta.6` for amd64/x86_64. It is verified on Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9; RHEL 9 can use the same EL9 repository.
+The preview repository currently publishes `v3.0.0-beta.7` for amd64/x86_64. It is verified on Ubuntu 24.04, Debian 13, Rocky Linux 9, and AlmaLinux 9; RHEL 9 can use the same EL9 repository.
 
 <Callout type="warn" title="Preview is a prerelease channel">
   Validate it outside production before serving production traffic.
@@ -39,13 +39,15 @@ The package creates the service account, systemd service, `/etc/wukongim`, `/var
 
 ```bash
 sudo wukongim init
+# For automation:
+sudo wukongim init \
+  --admin-password-stdin < /secure/path/manager-password
 ```
 
-Save the administrator password, which is shown only once. Review the node ID, persistent directory, and advertised addresses, then validate the configuration:
+Save the administrator password, which is shown only once. Existing automation may keep using `wukongim config init --config /etc/wukongim/wukongim.toml`. Then validate the configuration:
 
 ```bash
-sudo wukongim config validate \
-  --config /etc/wukongim/wukongim.toml
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
 ```
 
 Services bind to loopback by default. Configure the firewall, TLS, and ingress policy before exposing them.
