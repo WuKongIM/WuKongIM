@@ -467,7 +467,7 @@ func TestExactGroupWindowSenderSelectionIsBoundedForHundredThousandMembers(t *te
 	require.Equal(t, "u-2800", selected)
 	require.Zero(t, allocations)
 	require.Equal(t, busyCount, credits.busyCount(), "the lease table must retain only active sender credits")
-	require.Len(t, credits.shards, assignmentSenderCreditShardCount)
+	require.Equal(t, assignmentSenderCreditShardCount, len(credits.shards))
 }
 
 func waitExactSender(t *testing.T, started <-chan string) string {
