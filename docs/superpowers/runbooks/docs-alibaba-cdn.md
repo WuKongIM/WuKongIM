@@ -331,13 +331,20 @@ normalizes HTML, images, extensionless routes, ordinary text files, or
 `__next.*.txt` segment payloads. Keep the route-TXT TTL at ten minutes during
 this change so cache-key normalization is the only experimental variable.
 
-The deployment Workflow intentionally refreshes only four stable public URLs,
-not every deep `/index.txt`. A documentation deployment can therefore leave a
-deep RSC object from the preceding build at an edge for at most one ten-minute
-route-TXT TTL. Keep old content-addressed chunks available at the CDN and do
-not lengthen this TTL until a separate design provides a bounded manifest of
-the final normalized Cache Keys. Never compensate with a full-site directory
-purge.
+The static export includes `cdn-rsc-refresh-urls.txt`, an inventory-only list
+with one absolute URL per eligible physical RSC object. The build derives it
+from actual `index.html` artifacts, requires every matching `index.txt`
+sibling, uses the fixed `https://docs.githubim.com` origin, sorts and de-duplicates
+the URLs, and permits at most 500 entries. The current deployment Workflow does not consume this inventory;
+neither does the refresh helper. They intentionally refresh only four stable
+public URLs, not every deep `/index.txt`.
+
+A documentation deployment can therefore leave a deep RSC object from the
+preceding build at an edge for at most one ten-minute route-TXT TTL. Keep old
+content-addressed chunks available at the CDN. Wiring the inventory into
+refresh or prefetch, granting `cdn:PushObjectCache`, or lengthening this TTL
+requires a separate design and authorization. Never compensate with a
+full-site directory purge.
 
 This is a deliberately narrow exception to the general Next.js requirement to
 vary RSC responses by `_rsc`: GitHub Pages serves one immutable file for each
