@@ -11,43 +11,70 @@ Preview 是预发布通道，不等同于稳定通道。请先在非生产环境
 
 ### Debian / Ubuntu（APT）
 
-先安装一次软件源引导包，之后即可像使用发行版软件源一样通过 APT 安装和升级 WuKongIM：
+安装流程固定为“添加软件源、更新索引、安装软件”三步。第一步只需执行一次；以后安装和升级 WuKongIM 都由 APT 完成，不再手工下载 WuKongIM 的 deb 包。
+
+极简系统如果还没有 `curl`，先安装 HTTPS 下载工具：
 
 ```bash
-set -euo pipefail
-
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
+```
+
+第一步，安装软件源引导包以添加 WuKongIM Preview 软件源：
+
+```bash
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
   --location --output /tmp/wukongim-archive-keyring_1.0.0_all.deb \
-  https://packages.githubim.com/bootstrap/wukongim-archive-keyring_1.0.0_all.deb
-sudo apt-get install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb
+  https://packages.githubim.com/bootstrap/wukongim-archive-keyring_1.0.0_all.deb && \
+  sudo apt install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb
+```
 
-sudo apt-get update
-sudo apt-get install -y wukongim=3.0.0~beta.6
+第二步，更新软件包索引：
+
+```bash
+sudo apt update
+```
+
+第三步，按包名安装 WuKongIM：
+
+```bash
+sudo apt install -y wukongim
 ```
 
 `wukongim-archive-keyring` 只安装专用二进制 keyring 和 Deb822 软件源文件；不会使用全局 `apt-key` 信任、关闭签名检查、访问网络或运行维护脚本。首次下载依赖 `packages.githubim.com` 的 HTTPS 身份；安装后，APT 会用固定的 WuKongIM 主密钥 `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1` 验证软件源，keyring 后续也通过同一签名软件源升级。
 
 ### RHEL / Rocky / AlmaLinux 9（DNF/YUM）
 
-EL9 同样只需安装一次软件源引导包。它会写入独立 repo 配置，同时启用软件包签名、仓库元数据签名和 TLS 验证。仍使用 `yum` 命令名的兼容系统可以把每一条 `dnf` 命令替换为 `yum`：
+EL9 同样使用“添加软件源、更新索引、安装软件”三步。软件源引导包会写入独立 repo 配置，同时启用软件包签名、仓库元数据签名和 TLS 验证。仍使用 `yum` 命令名的兼容系统可以把 `dnf` 替换为 `yum`。
+
+极简系统如果还没有 `curl`，先安装 HTTPS 下载工具：
 
 ```bash
-set -euo pipefail
-
 sudo dnf install -y ca-certificates gnupg2
 if ! command -v curl >/dev/null; then
   sudo dnf install -y curl-minimal
 fi
+```
 
+第一步，安装软件源引导包以添加 WuKongIM Preview 软件源：
+
+```bash
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
   --location --output /tmp/wukongim-release-1.0.0-1.noarch.rpm \
-  https://packages.githubim.com/bootstrap/wukongim-release-1.0.0-1.noarch.rpm
-sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm
+  https://packages.githubim.com/bootstrap/wukongim-release-1.0.0-1.noarch.rpm && \
+  sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm
+```
 
+第二步，更新软件包索引：
+
+```bash
 sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
-sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64
+```
+
+第三步，按包名安装 WuKongIM：
+
+```bash
+sudo dnf install -y wukongim
 ```
 
 `wukongim-release` 只安装专用 RPM 公钥和 `%config(noreplace)` repo 文件，不包含脚本；固定主密钥指纹为 `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`。首次引导仍依赖 HTTPS，之后 DNF/YUM 会从签名软件源验证并升级公钥包。

@@ -108,10 +108,10 @@ describe('native deployment publication contract', () => {
         'wukongim-release',
         'Deb822',
         '%config(noreplace)',
-        'sudo apt-get install -y wukongim=3.0.0~beta.6',
+        'sudo apt update',
+        'sudo apt install -y wukongim\n',
         "sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh",
-        'sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64',
-        'set -euo pipefail',
+        'sudo dnf install -y wukongim\n',
         'sudo dnf install -y curl-minimal',
         'RHEL',
         'build_source',
@@ -134,11 +134,30 @@ describe('native deployment publication contract', () => {
         'gpgcheck=0',
         'repo_gpgcheck=0',
         'curl | sudo',
-        'sudo apt-get install -y wukongim\n',
-        'sudo dnf install -y wukongim\n',
+        'sudo apt install -y wukongim=',
+        'sudo apt-get install -y wukongim=',
+        'sudo dnf install -y wukongim-',
+        'sudo dnf -y --enablerepo=wukongim-preview install wukongim-',
       ]) {
         expect(content).not.toContain(unsafe);
       }
+
+      const aptBootstrap = content.indexOf('sudo apt install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb');
+      const aptUpdate = content.indexOf('sudo apt update', aptBootstrap);
+      const aptInstall = content.indexOf('sudo apt install -y wukongim', aptUpdate);
+      expect(aptBootstrap).toBeGreaterThan(-1);
+      expect(aptUpdate).toBeGreaterThan(aptBootstrap);
+      expect(aptInstall).toBeGreaterThan(aptUpdate);
+
+      const rpmBootstrap = content.indexOf('sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm');
+      const dnfUpdate = content.indexOf(
+        "sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh",
+        rpmBootstrap,
+      );
+      const dnfInstall = content.indexOf('sudo dnf install -y wukongim', dnfUpdate);
+      expect(rpmBootstrap).toBeGreaterThan(-1);
+      expect(dnfUpdate).toBeGreaterThan(rpmBootstrap);
+      expect(dnfInstall).toBeGreaterThan(dnfUpdate);
     }
   });
 
