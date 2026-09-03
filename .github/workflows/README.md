@@ -49,10 +49,19 @@ authorization and the applicable budget.
 
 `docs-pages.yml` is the sole documentation publisher. A merge to `main` that
 changes `docs-site/**` starts it automatically; `workflow_dispatch` is reserved
-for first publication and recovery. The build job has read-only repository
-access, installs the locked Bun dependencies, runs `bun run verify`, and uploads
-only the resulting `docs-site/out` directory. The deploy job receives only the
-Pages and OIDC permissions required by GitHub's deployment API.
+for first publication, recovery, and the bounded custom-domain migration mode.
+The build job has read-only repository access, installs the locked Bun
+dependencies, runs `bun run verify`, and uploads only the resulting
+`docs-site/out` directory. The deploy job receives only the Pages and OIDC
+permissions required by GitHub's deployment API.
+
+A manual migration run may set `expected_pages_domain` to exactly
+`docs.githubim.com` or `origin-docs.githubim.com`. The Workflow finishes the
+build and upload before its deploy job waits for the Pages API to expose that
+exact domain. This lets an operator stage the verified artifact before the
+single external custom-domain mutation. A non-empty migration input suppresses
+CDN refresh for that run. Changing the Pages setting, receiving REST `204`, or
+seeing an approved certificate never counts as content readiness by itself.
 
 The repository Pages source must remain `workflow`, and the unchanged
 `github-pages` Environment is the content-publication boundary. In the planned
@@ -63,12 +72,18 @@ content origin. Alibaba Cloud CDN serves the canonical public
 Pages Settings/API is the sole custom-domain authority. The export retains
 `.nojekyll` but deliberately contains no `CNAME`.
 
-After a successful Pages deployment, an isolated refresh job may assume the
-refresh-only Alibaba Cloud role from the `docs-cdn` Environment. The job is
-skipped unless repository Variable `DOCS_CDN_ENABLED` is exactly `true`. Once
-enabled, a missing or invalid binding fails before OIDC exchange. It refreshes
-a bounded set of stable public URLs; it does not create provider resources,
-change DNS, replace CDN settings, or broadly purge content-addressed assets.
+After every successful Pages deployment, a read-only verification job requires
+the Pages API to report the exact current domain, workflow build, verified
+ownership, HTTPS enforcement, and approved origin certificate. It then bypasses
+public CDN DNS with `curl --connect-to` and performs complete GETs for the root,
+both locale roots, one deep page, and the search index. Only after that direct
+origin gate succeeds may an isolated refresh job assume the refresh-only
+Alibaba Cloud role from the `docs-cdn` Environment. The refresh job is skipped
+unless repository Variable `DOCS_CDN_ENABLED` is exactly `true`, and is also
+skipped for a migration-mode run. Once enabled, a missing or invalid binding
+fails before OIDC exchange. It refreshes a bounded set of stable public URLs;
+it does not create provider resources, change DNS, replace CDN settings, or
+broadly purge content-addressed assets.
 
 `docs-cdn-certificate.yml` is a separate certificate safety automation. Its
 scheduled and manual paths are also inert while `DOCS_CDN_ENABLED` is disabled.

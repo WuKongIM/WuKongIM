@@ -21,7 +21,7 @@ WebSocket `wsmux` selects JSON-RPC when the first non-whitespace byte is `{` or 
 | request | `send` | → `SEND` | handled only on an authenticated session; returns same-ID SENDACK result/error |
 | request | `ping` | → `PING` | returns the same ID with explicit `result: null` |
 | request | `disconnect` | → `DISCONNECT` | unsupported by the product handler; closes |
-| request | `subscribe` / `unsubscribe` | decoded only | frame bridge missing |
+| request | `subscribe` / `unsubscribe` | → `SUB` (`action` is `0` / `1`) | the Product Gateway handler does not support `SUB`; the default handler-error policy closes the session, so the current product path cannot emit `SUBACK` |
 | notification | `recvack` | → `RECVACK` | confirms online delivery on an authenticated session; iOS `v1.1.1` sends both camelCase `messageId` and `messageSeq` |
 | notification | `recv` / `disconnect` / `event` | decoded only | frame bridge missing |
 | response | any structurally valid response | decoded to a generic response | frame bridge missing |

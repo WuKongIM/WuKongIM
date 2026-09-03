@@ -424,7 +424,7 @@
 - The public WuKongIM v3 documentation application lives in `docs-site/`; the repository-level `docs/` tree remains the engineering knowledge base.
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs. Navigation tests also fail when an existing MDX file is planned or unknown, so disk content cannot silently remain hidden from public indexes.
-- `docs-site` is a Bun-managed Fumadocs/Next.js static export published by the repository's GitHub Pages Workflow. `https://docs.githubim.com` remains the canonical reader URL. The default-disabled Alibaba Cloud CDN integration can refresh only four bounded public URLs and rotate its Let's Encrypt edge certificate through separate OIDC roles; rotation is limited to temporary ACME TXT records in the delegated child zone and the exact CDN certificate, and no Workflow provisions or reconfigures the DNS/CDN topology. After an operator cutover, GitHub Pages remains the sole content origin at `origin-docs.githubim.com`, with Pages Settings/API—not an artifact `CNAME`—owning the origin-domain binding.
+- `docs-site` is a Bun-managed Fumadocs/Next.js static export published by the repository's GitHub Pages Workflow. `https://docs.githubim.com` remains the canonical reader URL. The default-disabled Alibaba Cloud CDN integration can refresh only four bounded public URLs and rotate its Let's Encrypt edge certificate through separate OIDC roles; rotation is limited to temporary ACME TXT records in the delegated child zone and the exact CDN certificate, and no Workflow provisions or reconfigures the DNS/CDN topology. After an operator cutover, GitHub Pages remains the sole content origin at `origin-docs.githubim.com`, with Pages Settings/API—not an artifact `CNAME`—owning the origin-domain binding. A Pages domain mutation does not deploy content: migration and rollback stage the verified artifact before the mutation, then require a fresh Pages deployment plus direct root, locale, deep-page, and search GETs before any CDN refresh or origin convergence.
 - Documentation ACME account bootstrap is account-only: it fixes the Let's Encrypt production directory and an explicitly reviewed terms URL, persists the service response without ordering a certificate, and treats the ACME account `contact` as optional while keeping the bundle email and account URI as strict local identity boundaries.
 - Published v3 Product HTTP reference pages are generated per operation and tag
   from three bounded OpenAPI contracts: the JavaScript/Web golden path,
@@ -436,8 +436,10 @@
   compatibility encryption. JSON-RPC is published as a bounded support matrix:
   Product Gateway supports CONNECT-first authentication, request correlation,
   Ping, and online SEND/SENDACK plus RECV/RECVACK for the four pinned EasySDK
-  wire profiles; batches, subscriptions, offline sync, push, and general-purpose
-  RPC remain experimental or unsupported.
+  wire profiles. Subscribe/unsubscribe and SUBACK have JSON-RPC codec mappings,
+  but the Product Gateway still rejects inbound SUB; batches, subscriptions,
+  offline sync, push, and general-purpose RPC remain experimental or
+  unsupported.
 - Phase 5 configuration reference pages are checked against every public field returned by `internal/config.SchemaFields()` in both locales. `wukongim.toml.example` is a loadable development baseline, not a promise that its explicit values are runtime defaults for omitted fields.
 - Phase 6 public operations guidance treats Manager as a privileged boundary,
   distinguishes `/healthz` liveness from `/readyz` admission, keeps dynamic

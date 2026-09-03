@@ -18,8 +18,10 @@ func TestDocsCDNRefreshRunsOnlyAfterSuccessfulPagesDeployment(t *testing.T) {
 
 	for _, want := range []string{
 		"refresh_cdn:",
-		"needs: deploy",
-		"if: github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'",
+		"needs: verify_pages_origin",
+		"github.ref == 'refs/heads/main' &&",
+		"vars.DOCS_CDN_ENABLED == 'true' &&",
+		"(github.event_name != 'workflow_dispatch' || inputs.expected_pages_domain == '')",
 		"name: docs-cdn",
 		"contents: read",
 		"id-token: write",
@@ -64,6 +66,77 @@ func TestDocsCDNRefreshRunsOnlyAfterSuccessfulPagesDeployment(t *testing.T) {
 	authStart := strings.Index(workflow, "- name: Exchange the exact CDN refresh OIDC identity")
 	require.NotEqual(t, -1, preflightStart)
 	require.Greater(t, authStart, preflightStart, "binding validation must happen before OIDC exchange")
+}
+
+func TestDocsPagesDomainMigrationDeploysOnlyAfterTheStagedDomainSwitch(t *testing.T) {
+	workflow := readFile(
+		t,
+		filepath.Join(repoRoot(t), ".github", "workflows", "docs-pages.yml"),
+	)
+
+	for _, want := range []string{
+		"expected_pages_domain:",
+		"Wait for the expected GitHub Pages custom domain",
+		"EXPECTED_PAGES_DOMAIN: ${{ inputs.expected_pages_domain }}",
+		`[[ "$EXPECTED_PAGES_DOMAIN" == docs.githubim.com || "$EXPECTED_PAGES_DOMAIN" == origin-docs.githubim.com ]]`,
+		`https://api.github.com/repos/${GITHUB_REPOSITORY}/pages`,
+		"verify_pages_origin:",
+		"needs: deploy",
+		"pages: read",
+		"scripts/docs-cdn/verify-pages-origin.sh",
+		"needs: verify_pages_origin",
+	} {
+		require.Contains(t, workflow, want)
+	}
+
+	waitStart := strings.Index(workflow, "- name: Wait for the expected GitHub Pages custom domain")
+	deployAction := strings.Index(workflow, "uses: actions/deploy-pages@")
+	verifyStart := strings.Index(workflow, "\n  verify_pages_origin:")
+	refreshStart := strings.Index(workflow, "\n  refresh_cdn:")
+	require.NotEqual(t, -1, waitStart)
+	require.Greater(t, deployAction, waitStart, "the artifact must already be built and wait for the domain switch before deployment")
+	require.Greater(t, verifyStart, deployAction, "origin verification must run after Pages deployment")
+	require.Greater(t, refreshStart, verifyStart, "CDN refresh must wait for direct Pages content readiness")
+
+	verifyJob := workflow[verifyStart:refreshStart]
+	require.NotContains(t, verifyJob, "id-token: write")
+	require.NotContains(t, verifyJob, "ALIBABA_CLOUD_")
+	require.NotContains(t, verifyJob, "configure-aliyun-credentials-action")
+}
+
+func TestDocsCDNRunbookRequiresRedeployForMigrationAndRollback(t *testing.T) {
+	runbook := readFile(
+		t,
+		filepath.Join(repoRoot(t), "docs", "superpowers", "runbooks", "docs-alibaba-cdn.md"),
+	)
+
+	stagedStart := strings.Index(runbook, "## Staged cutover")
+	acceptanceStart := strings.Index(runbook, "## Acceptance gate")
+	require.NotEqual(t, -1, stagedStart)
+	require.Greater(t, acceptanceStart, stagedStart)
+	staged := runbook[stagedStart:acceptanceStart]
+
+	stageWorkflow := strings.Index(staged, "expected_pages_domain=origin-docs.githubim.com")
+	domainSwitch := strings.Index(staged, `"cname":"origin-docs.githubim.com"`)
+	deployGate := strings.Index(staged, "direct origin GET gate")
+	cdnConvergence := strings.Index(staged, "switch CDN address, Host, and SNI together")
+	require.NotEqual(t, -1, stageWorkflow)
+	require.Greater(t, domainSwitch, stageWorkflow, "the verified artifact must be staged before changing the Pages domain")
+	require.Greater(t, deployGate, domainSwitch, "a fresh Pages deployment and direct GET gate must follow the domain switch")
+	require.Greater(t, cdnConvergence, deployGate, "CDN origin settings must remain unchanged until Pages content is ready")
+
+	rollbackStart := strings.Index(runbook, "## Rollback")
+	sevenDayStart := strings.Index(runbook, "## Seven-day review")
+	require.NotEqual(t, -1, rollbackStart)
+	require.Greater(t, sevenDayStart, rollbackStart)
+	rollback := runbook[rollbackStart:sevenDayStart]
+	for _, want := range []string{
+		"restore the captured Pages custom domain",
+		"redeploy the exact known-good Pages artifact",
+		"direct origin GET gate",
+	} {
+		require.Contains(t, rollback, want)
+	}
 }
 
 func TestDocsCDNRefreshHelperHasAnExactBoundedMutationSurface(t *testing.T) {

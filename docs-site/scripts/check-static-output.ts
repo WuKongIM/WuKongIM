@@ -434,7 +434,7 @@ export async function checkStaticOutput() {
   if (
     jsonRPCSchema.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
     jsonRPCSchema['x-wukongim-stability'] !== 'experimental-easysdk-core-supported' ||
-    jsonRPCSchema.anyOf?.length !== 15
+    jsonRPCSchema.anyOf?.length !== 16
   ) {
     throw new Error('JSON-RPC codec Schema lost its bounded EasySDK support boundary');
   }

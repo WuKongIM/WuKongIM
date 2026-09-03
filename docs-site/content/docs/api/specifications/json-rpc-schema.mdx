@@ -14,7 +14,7 @@ Schema 的 `x-wukongim-stability` 为 `experimental-easysdk-core-supported`。�
 - `connect` 是首个请求，并在鉴权、激活后返回关联 result/error；
 - `send`、`ping` 使用请求 ID 关联 SENDACK/PONG；
 - `recv` notification 与 `recvack` 完成在线投递确认；
-- `subscribe`、`unsubscribe` 及多种 notification 只有 codec 结构或缺少 frame bridge；
+- `subscribe`、`unsubscribe` 会在 codec 层转换为 `SUB`，`SUBACK` 也有对应 response 映射；Product Gateway handler 仍拒绝 `SUB`，因此当前产品路径不可用；
 - `[` 会选择 JSON 模式，但 batch 数组未实现；请求 ID 必须是字符串，SEND Payload 可为对象、Base64 或 `null`。
 
 Schema 中不属于 EasySDK 核心路径的结构仍不产生运行时承诺。完整矩阵、四端固定版本和证据边界见 [WebSocket JSON-RPC](/zh/api/client-protocols/json-rpc)。

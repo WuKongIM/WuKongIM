@@ -403,6 +403,13 @@ fix the external setup, and repeat preflight. Do not proceed partially.
 Pause documentation publication for the cutover and work during a low-traffic
 window.
 
+Changing the Pages custom domain is a control-plane update, not a content
+deployment. A successful REST `204`, `status: built`, or an approved TLS
+certificate does not prove that the new Host serves the site. GitHub documents
+that changing a routing path does not initiate a rebuild. Every forward or
+rollback custom-domain change must therefore be paired with a fresh deployment
+and a direct content GET gate.
+
 1. While GitHub Pages still owns `docs.githubim.com`, use this temporary CDN
    migration bridge:
 
@@ -429,9 +436,36 @@ window.
    `DOCS_CDN_PUBLIC_ROUTE_MODE=alibaba-cdn` and manually run
    `docs-cdn-certificate.yml` without forced renewal. Require
    `Public edge verification: passed` before continuing.
-6. In repository Settings, change the GitHub Pages custom domain to
-   `origin-docs.githubim.com`. Keep the Pages source as GitHub Actions.
-7. While GitHub issues the origin certificate, use only this bounded temporary
+6. Confirm there is no queued or running `docs-pages.yml` run, fetch protected
+   `main`, and record its exact SHA. Dispatch the migration mode before changing
+   the Pages domain:
+
+   ```bash
+   gh workflow run docs-pages.yml \
+     --repo WuKongIM/WuKongIM \
+     --ref main \
+     -f expected_pages_domain=origin-docs.githubim.com
+   ```
+
+   Record the resulting run ID and confirm its `headSha` equals the recorded
+   protected-`main` SHA. The Workflow verifies and uploads the artifact first;
+   its deploy job then waits for the exact requested Pages domain. A non-empty
+   `expected_pages_domain` also suppresses CDN refresh for this staging run.
+7. Wait until that run's build job is successful and the deploy job is visibly
+   in `Wait for the expected GitHub Pages custom domain`. Do not change the
+   custom domain before the artifact is staged. If the wait step times out,
+   leave the current domain unchanged and start a new staging run.
+8. Keep the Pages source as GitHub Actions, then make the single domain update.
+   The equivalent REST body is exact:
+
+   ```json
+   {"cname":"origin-docs.githubim.com"}
+   ```
+
+   A `204` confirms only that GitHub accepted the setting. The staged run must
+   observe this exact value and immediately deploy its already verified
+   artifact.
+9. While GitHub issues the origin certificate, use only this bounded temporary
    bridge if required:
 
    ```text
@@ -439,10 +473,22 @@ window.
    origin Host:                   origin-docs.githubim.com
    ```
 
-8. After `https://origin-docs.githubim.com` presents a valid GitHub certificate
-   and serves the exact site, switch CDN address, Host, and SNI together to
-   `origin-docs.githubim.com`. Remove all temporary bridge settings.
-9. Observe for at least 60 minutes before resuming documentation publication.
+10. When the Pages API reports an approved certificate containing
+    `origin-docs.githubim.com`, enable Pages HTTPS enforcement. Then wait for the
+    staging run with `gh run watch <run-id> --exit-status`. Its independent
+    `verify_pages_origin` job requires the API state and a **direct origin GET gate**
+    to agree: real GETs for `/`, `/zh/`, `/en/`, a deep page, and
+    `/api/search` must return complete expected content over trusted TLS while
+    `curl --connect-to` bypasses public CDN DNS. Certificate approval alone is
+    never content readiness.
+11. Only after that run is green, switch CDN address, Host, and SNI together to
+    `origin-docs.githubim.com`. Remove all temporary bridge settings. Validate
+    the same paths through both the direct origin and the assigned CDN CNAME.
+12. Dispatch `docs-pages.yml` normally with no `expected_pages_domain` input.
+    This second exact-`main` deployment repeats the direct origin GET gate and,
+    when `DOCS_CDN_ENABLED=true`, performs the bounded four-URL CDN refresh only
+    after that gate succeeds.
+13. Observe for at least 60 minutes before resuming documentation publication.
 
 Never leave a split Host/SNI bridge as permanent configuration.
 
@@ -477,7 +523,7 @@ Stop changing other controls as soon as a rollback condition is met.
 | --- | --- |
 | Before public DNS changes | Disable `DOCS_CDN_ENABLED`; remove or disable only the unadvertised CDN configuration |
 | Public DNS points to CDN, Pages still owns `docs.githubim.com` | Set `DOCS_CDN_PUBLIC_ROUTE_MODE=github-pages-precutover`, restore the captured public DNS record to `wukongim.github.io`, and wait for all three direct CNAME answers to converge |
-| Pages custom domain is migrating | Restore the captured Pages custom domain and the matching temporary origin settings as one tested phase |
+| Pages custom domain is migrating | Stage a migration-mode Workflow for the captured domain, restore the captured Pages custom domain, redeploy the exact known-good Pages artifact, pass the direct origin GET gate, then restore the matching temporary origin settings and perform only the bounded refresh |
 | Final topology, CDN configuration fault | Restore the exported CDN configuration snapshot; leave DNS stable |
 | Alibaba Cloud CDN provider-wide failure | Publish `https://origin-docs.githubim.com` as the direct emergency URL and recover the public domain deliberately; no minute-scale RTO is promised |
 
@@ -485,6 +531,14 @@ Do not attempt final-state rollback by making `docs.githubim.com` a CNAME to
 `origin-docs.githubim.com`. GitHub Pages routes by the HTTP Host, so that record
 alone does not restore the old custom-domain binding and may return a 404 or
 the wrong site.
+
+For a rollback after any Pages-domain mutation, first dispatch
+`docs-pages.yml` with `expected_pages_domain=docs.githubim.com` and wait for its
+build to finish. Restore the captured Pages custom domain only after that
+artifact is staged. The Workflow must then redeploy the exact known-good Pages
+artifact and pass its direct origin GET gate before an operator restores or
+refreshes the old CDN bridge. A REST `204`, `status: built`, certificate
+approval, or a cache refresh cannot replace this deployment-and-GET sequence.
 
 ## Seven-day review
 

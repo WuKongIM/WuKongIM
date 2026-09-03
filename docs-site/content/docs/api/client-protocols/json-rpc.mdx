@@ -21,7 +21,7 @@ WebSocket `wsmux` 在首个非空白字节为 `{` 或 `[` 时选择 JSON-RPC，�
 | request | `send` | → `SEND` | 仅在已认证会话处理；按请求 ID 返回 `SENDACK` result/error |
 | request | `ping` | → `PING` | 返回同 ID 且显式包含 `result: null` |
 | request | `disconnect` | → `DISCONNECT` | 产品处理器不支持并关闭 |
-| request | `subscribe` / `unsubscribe` | 仅解码 | 缺少 frame bridge |
+| request | `subscribe` / `unsubscribe` | → `SUB`（`action` 分别为 `0` / `1`） | Product Gateway handler 尚不支持 `SUB`；默认以 handler error 关闭连接，当前产品路径不会产生 `SUBACK` |
 | notification | `recvack` | → `RECVACK` | 已认证会话中确认在线投递；iOS `v1.1.1` 同时发送 camelCase `messageId` 与 `messageSeq` |
 | notification | `recv` / `disconnect` / `event` | 仅解码 | 缺少 frame bridge |
 | response | 任意合法 response | 仅解码为 generic response | 缺少 frame bridge |

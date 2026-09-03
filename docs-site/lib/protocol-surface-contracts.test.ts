@@ -325,8 +325,8 @@ describe('protocol surface contracts', () => {
       { kind: 'request', method: 'send', decoded: true, bridgedFrame: 'SEND', productStatus: 'works' },
       { kind: 'request', method: 'ping', decoded: true, bridgedFrame: 'PING', productStatus: 'works' },
       { kind: 'request', method: 'disconnect', decoded: true, bridgedFrame: 'DISCONNECT', productStatus: 'rejected' },
-      { kind: 'request', method: 'subscribe', decoded: true, productStatus: 'bridge-missing' },
-      { kind: 'request', method: 'unsubscribe', decoded: true, productStatus: 'bridge-missing' },
+      { kind: 'request', method: 'subscribe', decoded: true, bridgedFrame: 'SUB', productStatus: 'rejected' },
+      { kind: 'request', method: 'unsubscribe', decoded: true, bridgedFrame: 'SUB', productStatus: 'rejected' },
       { kind: 'notification', method: 'recvack', decoded: true, bridgedFrame: 'RECVACK', productStatus: 'works' },
       { kind: 'notification', method: 'recv', decoded: true, productStatus: 'bridge-missing' },
       { kind: 'notification', method: 'disconnect', decoded: true, productStatus: 'bridge-missing' },
@@ -335,6 +335,7 @@ describe('protocol surface contracts', () => {
     expect(jsonRPCOutboundSurface.map((item) => item.frame)).toEqual([
       'CONNACK',
       'SENDACK',
+      'SUBACK',
       'RECV',
       'EVENT',
       'DISCONNECT',
@@ -356,6 +357,8 @@ describe('protocol surface contracts', () => {
       'PingRequest',
       'DisconnectRequest',
       'RecvAckNotification',
+      'SubscribeRequest',
+      'UnsubscribeRequest',
     ]);
     expect([...fromFrame.matchAll(/case frame\.([A-Z]+):/gu)].map((match) => match[1])).toEqual(
       jsonRPCOutboundSurface.map((item) => item.frame),
@@ -369,7 +372,13 @@ describe('protocol surface contracts', () => {
     expect(server).toContain('state.listener.auth.ConnectAuthenticationRequired(state.session)');
     expect(server).toContain('state.setAuthRequired(false)');
     expect(server).toContain('state.setAuthenticated(true)');
-    expect(handler).toContain('return ErrUnsupportedFrame');
+    const onFrame = functionBody(
+      handler,
+      'func (h *Handler) OnFrame(',
+      'func (h *Handler) handleTerminalFence(',
+    );
+    expect(onFrame).not.toContain('case *frame.SubPacket:');
+    expect(onFrame).toContain('return ErrUnsupportedFrame');
   });
 
   test('keeps the compatibility encryption algorithm and runtime ordering source-aligned', async () => {
