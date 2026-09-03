@@ -6,6 +6,19 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+<!--
+Use only the non-empty categories that apply: `⚠️ Breaking Changes /
+破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
+`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
+`🔒 Security / 安全`, `📚 Documentation / 文档`, and
+`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
+
+Every category must contain at least one "- " list entry. Release headings use
+the exact form: ## [v3.0.0-beta.5] - 2026-09-01
+-->
+
+## [v3.0.0-beta.7] - 2026-09-03
+
 ### 🚀 New Features / 新功能
 
 - 原生 Linux 安装新增 `sudo wukongim init` 快捷入口，默认安全生成 `/etc/wukongim/wukongim.toml`，同时保留原有显式路径命令用于兼容和自定义位置。
@@ -77,17 +90,6 @@ move those entries into a version section named for that exact tag.
 - 服务端配置文档新增独立的中英文常用配置页，以表格解释最常用的 10 个配置项；配置参考改写为可搜索的逐字段手册，为全部公开 TOML 与 `WK_*` 配置补充用途，并标明关键默认值、`0` 值、互斥、敏感和迁移说明。
 - 文档站资源菜单移除官网链接，并使用聊天演示与 Manager 演示当前可用的 HTTP 地址。
 - 中英文公共文档新增可访问的 Mermaid 架构与流程图，精简产品、指南和部署导航，并将已撤下的 Kubernetes 页面重定向到受支持的部署入口。
-
-<!--
-Use only the non-empty categories that apply: `⚠️ Breaking Changes /
-破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
-`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
-`🔒 Security / 安全`, `📚 Documentation / 文档`, and
-`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
-
-Every category must contain at least one "- " list entry. Release headings use
-the exact form: ## [v3.0.0-beta.5] - 2026-09-01
--->
 
 ## [v3.0.0-beta.6] - 2026-09-01
 
