@@ -48,6 +48,8 @@ closure, dependency order, and restart policy.
   authority, and capability values remain ordinary data.
 - Permission and runtime-metadata batch fanout use distinct fixed Slot task
   identities and bounded worker cohorts.
+- Cold conversation reads activate runtime metadata through one bounded Cluster
+  burst identity instead of untracked request-scoped workers.
 - Manager Prometheus queries use one fixed burst identity for the bounded
   per-request fanout cohort.
 

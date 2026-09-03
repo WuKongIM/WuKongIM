@@ -25,8 +25,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    and start each product as an independently owned process group.
    `WithWebSocketGateway` adds a browser-addressable `/ws` wsmux listener and
    published route while retaining the default TCP WKProto listener.
-2. Wait for readiness or stable Slot authority through public evidence; restart
-   or reconfigure only after previous process-group cleanup completes.
+2. Wait for readiness, stable Slot authority, or active Channel runtime metadata
+   through public evidence; restart or reconfigure only after previous
+   process-group cleanup completes.
 3. Cleanup stops static nodes concurrently, joins repeated stops, escalates
    TERM to KILL for remaining descendants, and waits for complete group cleanup.
 
@@ -46,6 +47,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - `WaitClusterReady` proves availability only. `WaitSlotLeadersStable` proves
   closed cross-node inventories, voters, quorum, actual Raft leader agreement,
   and a stable fingerprint; PreferredLeader is not authority.
+- Channel runtime convergence uses the exact public Manager lookup and requires
+  both active status and an observed Channel Leader within a bounded deadline.
 
 ## Read First
 

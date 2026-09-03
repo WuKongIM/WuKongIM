@@ -44,7 +44,7 @@ func TestManagementMessageReaderReadsCommittedMessagesDescending(t *testing.T) {
 	}
 }
 
-func TestManagementMessageReaderFiltersExactMessageIdentityAndReadsRuntimeTail(t *testing.T) {
+func TestManagementMessageReaderFiltersExactMessageIdentity(t *testing.T) {
 	t.Parallel()
 
 	node := &recordingManagementMessageNode{result: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
@@ -62,14 +62,15 @@ func TestManagementMessageReaderFiltersExactMessageIdentityAndReadsRuntimeTail(t
 	if len(page.Items) != 1 || page.Items[0].MessageID != 103 || page.Items[0].ClientMsgNo != "wanted" || page.HasMore {
 		t.Fatalf("exact filtered page = %#v", page)
 	}
+}
 
-	node.result = channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 88}}}
-	tail, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: "room-1", ChannelType: 2})
-	if err != nil || tail != 88 {
-		t.Fatalf("MaxMessageSeqForMeta() = %d err=%v", tail, err)
-	}
-	if node.channelID != (channelruntime.ChannelID{ID: "room-1", Type: 2}) || node.req.FromSeq != maxUint64() || node.req.MaxSeq != maxUint64() || node.req.Limit != 1 || !node.req.Reverse {
-		t.Fatalf("tail read id/request = %#v / %#v", node.channelID, node.req)
+func TestManagementMessageReaderRequiresRoutedRuntimeTailReader(t *testing.T) {
+	t.Parallel()
+
+	reader := NewManagementMessageReader(&recordingManagementMessageNode{})
+	_, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: "room-1", ChannelType: 2})
+	if !errors.Is(err, errManagementRoutedMessageReaderRequired) {
+		t.Fatalf("MaxMessageSeqForMeta() error = %v, want routed reader required", err)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const forwardAppendRecoveryTimeout = 100 * time.Millisecond
@@ -253,6 +254,8 @@ type Config struct {
 	FollowerRecoveryProbeJitter time.Duration
 	// Observer receives lightweight Channel reactor and worker metrics.
 	Observer reactor.Observer
+	// Goroutines supervises bounded Channel service worker cohorts.
+	Goroutines *goruntimeregistry.Registry
 	// AppendAdmissionGuard can reject local leader appends before Channel reactor admission.
 	AppendAdmissionGuard ch.AppendAdmissionGuard
 	// Store opens Channel stores when constructing Runtime.
@@ -283,6 +286,7 @@ type Service struct {
 	metaApplyLocks [channelMetaApplyLockCount]sync.Mutex
 	observer       any
 	migration      *MigrationStore
+	goroutines     *goruntimeregistry.Registry
 }
 
 // NewService creates a Service from cfg.
@@ -327,7 +331,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("channels: runtime must implement channel.Cluster and channel/transport.Server")
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore}, nil
+	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
 }
 
 // Runtime returns the Channel public cluster surface.
@@ -1045,22 +1049,20 @@ func (s *Service) activateColdReadMetas(ctx context.Context, metasByID map[ch.Ch
 	workers := min(coldReadActivationWorkers, len(metas))
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for range workers {
-		go func() {
-			defer wg.Done()
-			for index := range jobs {
-				if err := ctx.Err(); err != nil {
-					activationErrors[index] = err
-					continue
-				}
-				if applier, ok := s.runtime.(runtimeMetaContextApplier); ok {
-					activationErrors[index] = applier.ApplyMetaContext(ctx, metas[index])
-				} else {
-					activationErrors[index] = s.runtime.ApplyMeta(metas[index])
-				}
+	goruntimeregistry.SafeGoN(s.goroutines, goruntimeregistry.TaskClusterColdReadActivation, workers, func(int) {
+		defer wg.Done()
+		for index := range jobs {
+			if err := ctx.Err(); err != nil {
+				activationErrors[index] = err
+				continue
 			}
-		}()
-	}
+			if applier, ok := s.runtime.(runtimeMetaContextApplier); ok {
+				activationErrors[index] = applier.ApplyMetaContext(ctx, metas[index])
+			} else {
+				activationErrors[index] = s.runtime.ApplyMeta(metas[index])
+			}
+		}
+	})
 	wg.Wait()
 	for index, id := range ids {
 		errorsByID[id] = activationErrors[index]

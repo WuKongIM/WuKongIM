@@ -5,7 +5,6 @@ package legacy_conversation_sync
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -66,17 +65,6 @@ type expectedLegacySync struct {
 	Message      committedMessage
 }
 
-type channelRuntimeMetaPage struct {
-	Items []channelRuntimeMetaItem `json:"items"`
-}
-
-type channelRuntimeMetaItem struct {
-	ChannelID   string `json:"channel_id"`
-	ChannelType int64  `json:"channel_type"`
-	Leader      uint64 `json:"leader"`
-	Status      string `json:"status"`
-}
-
 func TestLegacyConversationSyncSingleNodeCluster(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()
 
@@ -128,7 +116,7 @@ func runRemoteLegacyPersonSyncFlow(t *testing.T, cluster *suite.StartedCluster, 
 		diagnostics := cluster.DumpDiagnostics
 		client, first := prepareLegacyPersonFirstMessage(t, ingress, diagnostics, users)
 		canonicalChannelID := runtimechannelid.EncodePersonChannel(users.SenderUID, users.RecipientUID)
-		meta := requireChannelRuntimeMetaEventually(t, cluster, &ingress, canonicalChannelID, frame.ChannelTypePerson)
+		meta := suite.RequireChannelRuntimeMetaEventually(t, cluster, &ingress, canonicalChannelID, frame.ChannelTypePerson, 20*time.Second)
 		if meta.Leader == ingress.Spec.ID {
 			_ = client.Close()
 			continue
@@ -216,7 +204,7 @@ func runRemoteLegacyGroupSyncFlow(t *testing.T, cluster *suite.StartedCluster, i
 			},
 		}
 		members, client, first := prepareLegacyGroupFirstMessage(t, ingress, cluster.DumpDiagnostics, users)
-		meta := requireChannelRuntimeMetaEventually(t, cluster, &ingress, channelID, frame.ChannelTypeGroup)
+		meta := suite.RequireChannelRuntimeMetaEventually(t, cluster, &ingress, channelID, frame.ChannelTypeGroup, 20*time.Second)
 		if meta.Leader == ingress.Spec.ID {
 			_ = client.Close()
 			continue
@@ -260,47 +248,6 @@ func uidOwnedByRemoteSlotLeader(t *testing.T, cluster *suite.StartedCluster, ing
 	}
 	t.Fatalf("no UID Slot Leader differed from ingress node %d\n%s", ingressNodeID, cluster.DumpDiagnostics())
 	return ""
-}
-
-func requireChannelRuntimeMetaEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, channelID string, channelType uint8) channelRuntimeMetaItem {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(legacySyncPollInterval)
-	defer ticker.Stop()
-
-	var last channelRuntimeMetaItem
-	var lastErr error
-	for {
-		query := url.Values{
-			"exact":        []string{"1"},
-			"channel_id":   []string{channelID},
-			"channel_type": []string{strconv.FormatUint(uint64(channelType), 10)},
-		}
-		var page channelRuntimeMetaPage
-		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
-		_, err := suite.GetJSON(requestCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
-		requestCancel()
-		if err == nil {
-			for _, item := range page.Items {
-				if item.ChannelID == channelID && item.ChannelType == int64(channelType) {
-					last = item
-					if item.Leader != 0 && item.Status == "active" {
-						return item
-					}
-					lastErr = fmt.Errorf("runtime meta = %+v, want active Leader", item)
-				}
-			}
-		} else {
-			lastErr = err
-		}
-
-		select {
-		case <-ctx.Done():
-			t.Fatalf("channel runtime meta for %s/%d did not converge: last=%+v lastErr=%v\n%s", channelID, channelType, last, lastErr, cluster.DumpDiagnostics())
-		case <-ticker.C:
-		}
-	}
 }
 
 type legacyGroupUsers struct {

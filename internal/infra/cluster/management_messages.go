@@ -25,6 +25,8 @@ type ManagementMessageReader struct {
 	remote *accessnode.Client
 }
 
+var errManagementRoutedMessageReaderRequired = errors.New("management: routed committed message reader required")
+
 // ManagementLatestMessageNode exposes local storage, membership, and node RPC for global latest reads.
 type ManagementLatestMessageNode interface {
 	NodeID() uint64
@@ -233,7 +235,11 @@ func (r *ManagementMessageReader) QueryMessages(ctx context.Context, req managem
 // MaxMessageSeqForMeta returns the highest committed message sequence for one runtime metadata row.
 func (r *ManagementMessageReader) MaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error) {
 	if r == nil || r.node == nil {
-		return 0, nil
+		return 0, errManagementRoutedMessageReaderRequired
+	}
+	batchNode, ok := r.node.(channelMessageBatchReadNode)
+	if !ok {
+		return 0, errManagementRoutedMessageReaderRequired
 	}
 	request := channelstore.ReadCommittedRequest{
 		FromSeq:  maxUint64(),
@@ -243,24 +249,16 @@ func (r *ManagementMessageReader) MaxMessageSeqForMeta(ctx context.Context, meta
 		Reverse:  true,
 	}
 	id := channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
+	results, err := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
+		ChannelID: id,
+		Request:   request,
+	}})
+	if err == nil && len(results) != 1 {
+		err = fmt.Errorf("management: routed tail result count %d, want 1", len(results))
+	}
 	var read channelstore.ReadCommittedResult
-	var err error
-	// Manager may run on a node outside both the Slot and Channel replica sets,
-	// so prefer the Channel-Leader-routed read surface when the Node exposes it.
-	if batchNode, ok := r.node.(channelMessageBatchReadNode); ok {
-		results, batchErr := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
-			ChannelID: id,
-			Request:   request,
-		}})
-		if batchErr != nil {
-			err = batchErr
-		} else if len(results) != 1 {
-			err = fmt.Errorf("management: routed tail result count %d, want 1", len(results))
-		} else {
-			read, err = results[0].Read, results[0].Err
-		}
-	} else {
-		read, err = r.node.ReadChannelCommitted(ctx, id, request)
+	if err == nil {
+		read, err = results[0].Read, results[0].Err
 	}
 	if err != nil {
 		return 0, mapAppendError(err)

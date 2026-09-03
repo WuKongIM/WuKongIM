@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"sort"
 	"sync"
@@ -35,17 +34,6 @@ type directoryChannel struct {
 	Leader      uint64
 	ClientMsgNo string
 	MessageSeq  uint64
-}
-
-type channelRuntimeMetaPage struct {
-	Items []channelRuntimeMetaItem `json:"items"`
-}
-
-type channelRuntimeMetaItem struct {
-	ChannelID   string `json:"channel_id"`
-	ChannelType int64  `json:"channel_type"`
-	Leader      uint64 `json:"leader"`
-	Status      string `json:"status"`
 }
 
 type directorySyncedMessage struct {
@@ -710,7 +698,7 @@ func createDirectoryChannelLedOutsideNode(t *testing.T, cluster *suite.StartedCl
 		}
 		sendDirectoryMessage(t, ctx, cluster, *origin, senderUID, channelID, fmt.Sprintf("ordinary-route-probe-%02d", candidate))
 		cancel()
-		sourceMeta := requireChannelRuntimeMetaEventually(t, cluster, origin, channelID)
+		sourceMeta := suite.RequireChannelRuntimeMetaEventually(t, cluster, origin, channelID, frame.ChannelTypeGroup, 20*time.Second)
 		if sourceMeta.Leader == excludedNodeID {
 			continue
 		}
@@ -724,7 +712,7 @@ func createDirectoryChannelLedOutsideNode(t *testing.T, cluster *suite.StartedCl
 		cmdCancel()
 		require.NoError(t, err, cluster.DumpDiagnostics())
 		require.Equal(t, uint8(frame.ReasonSuccess), cmdResp.Reason, cluster.DumpDiagnostics())
-		commandMeta := requireChannelRuntimeMetaEventually(t, cluster, origin, commandChannelID)
+		commandMeta := suite.RequireChannelRuntimeMetaEventually(t, cluster, origin, commandChannelID, frame.ChannelTypeGroup, 20*time.Second)
 		if commandMeta.Leader == excludedNodeID {
 			continue
 		}
@@ -756,7 +744,7 @@ func createDirectoryChannelsByLeader(t *testing.T, cluster *suite.StartedCluster
 		probe := sendDirectoryMessage(t, ctx, cluster, *origin, senderUID, channelID, fmt.Sprintf("leader-probe-%02d", candidate))
 		cancel()
 
-		meta := requireChannelRuntimeMetaEventually(t, cluster, origin, channelID)
+		meta := suite.RequireChannelRuntimeMetaEventually(t, cluster, origin, channelID, frame.ChannelTypeGroup, 20*time.Second)
 		if meta.Leader == 0 || len(channels[meta.Leader]) >= perLeader {
 			continue
 		}
@@ -792,45 +780,6 @@ func sendDirectoryMessage(t *testing.T, ctx context.Context, cluster *suite.Star
 	require.Equal(t, uint8(frame.ReasonSuccess), resp.Reason, cluster.DumpDiagnostics())
 	require.NotZero(t, resp.MessageSeq)
 	return resp
-}
-
-func requireChannelRuntimeMetaEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, channelID string) channelRuntimeMetaItem {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	var last channelRuntimeMetaItem
-	var lastErr error
-	for {
-		query := url.Values{
-			"exact": []string{"1"}, "channel_id": []string{channelID},
-			"channel_type": []string{fmt.Sprint(frame.ChannelTypeGroup)},
-		}
-		var page channelRuntimeMetaPage
-		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
-		_, err := suite.GetJSON(requestCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
-		requestCancel()
-		if err == nil {
-			for _, item := range page.Items {
-				if item.ChannelID == channelID && item.ChannelType == int64(frame.ChannelTypeGroup) {
-					last = item
-					if item.Leader != 0 && item.Status == "active" {
-						return item
-					}
-					lastErr = fmt.Errorf("runtime meta = %+v, want active Leader", item)
-				}
-			}
-		} else {
-			lastErr = err
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("channel runtime meta for %s did not converge: last=%+v lastErr=%v\n%s", channelID, last, lastErr, cluster.DumpDiagnostics())
-		case <-ticker.C:
-		}
-	}
 }
 
 func fetchMetricSamples(t *testing.T, node suite.StartedNode) []suite.MetricSample {
