@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from '../app/[lang]/(home)/page';
 import {
   findBrokenInternalLinks,
+  findStaticRoutePayloadIssues,
   getBasicAccessibilityIssues,
   type StaticHtmlPage,
 } from '../scripts/check-static-output';
@@ -131,6 +132,63 @@ describe('documentation site experience', () => {
         from: 'en/index.html',
         href: '/en/missing',
         resolvedPath: '/en/missing',
+      },
+    ]);
+  });
+
+  test('requires every published client route to ship a distinct static RSC payload', () => {
+    const routes = ['/en/guide', '/zh/guide/integration'];
+
+    expect(
+      findStaticRoutePayloadIssues(
+        routes,
+        new Map([
+          ['en/guide/index.txt', '1:"$Sreact.fragment"\n2:I[123,[],"default"]\n'],
+        ]),
+      ),
+    ).toEqual([
+      {
+        route: '/zh/guide/integration',
+        outputPath: 'zh/guide/integration/index.txt',
+        reason: 'missing',
+      },
+    ]);
+
+    expect(
+      findStaticRoutePayloadIssues(
+        ['/en/guide', '/zh/guide/integration'],
+        new Map([
+          ['en/guide/index.txt', '<!doctype html><html><body>Guide</body></html>'],
+          ['zh/guide/integration/index.txt', 'plain text without a Flight record'],
+        ]),
+      ),
+    ).toEqual([
+      {
+        route: '/en/guide',
+        outputPath: 'en/guide/index.txt',
+        reason: 'html',
+      },
+      {
+        route: '/zh/guide/integration',
+        outputPath: 'zh/guide/integration/index.txt',
+        reason: 'not-rsc',
+      },
+    ]);
+
+    expect(
+      findStaticRoutePayloadIssues(
+        ['/', '//en/guide//', '/empty'],
+        new Map([
+          ['index.txt', '0:{"root":true}\n'],
+          ['en/guide/index.txt', 'a:I[123,[],"default"]\n'],
+          ['empty/index.txt', ''],
+        ]),
+      ),
+    ).toEqual([
+      {
+        route: '/empty',
+        outputPath: 'empty/index.txt',
+        reason: 'empty',
       },
     ]);
   });

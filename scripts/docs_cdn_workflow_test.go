@@ -139,6 +139,62 @@ func TestDocsCDNRunbookRequiresRedeployForMigrationAndRollback(t *testing.T) {
 	}
 }
 
+func TestDocsCDNRunbookRestrictsRSCKeyNormalization(t *testing.T) {
+	runbook := readFile(
+		t,
+		filepath.Join(repoRoot(t), "docs", "superpowers", "runbooks", "docs-alibaba-cdn.md"),
+	)
+
+	cdnStart := strings.Index(runbook, "### Alibaba Cloud CDN")
+	certificateStart := strings.Index(runbook, "### Edge certificate automation")
+	require.NotEqual(t, -1, cdnStart)
+	require.Greater(t, certificateStart, cdnStart)
+	cdn := runbook[cdnStart:certificateStart]
+	for _, want := range []string{
+		"Disable **Ignore Parameters**",
+		"with `AND` semantics",
+		"`/index.txt` and `/*/index.txt`",
+		"request parameter `_rsc` exists",
+		"Delete",
+		"only `_rsc`",
+		"Every other query parameter remains in the Cache Key",
+		"continue to reach the origin unchanged",
+		"unconditional custom Cache Key rule",
+		"`__next.*.txt` segment payloads",
+		"route-TXT TTL at ten minutes",
+		"at most one ten-minute",
+	} {
+		require.Contains(t, cdn, want)
+	}
+	require.Less(
+		t,
+		strings.Index(cdn, "rule condition named `docs-static-rsc-index`"),
+		strings.Index(cdn, "create one **Custom Cache Key** rule"),
+		"the bounded condition must exist before the Cache Key rule references it",
+	)
+
+	acceptanceStart := strings.Index(runbook, "## Acceptance gate")
+	rollbackStart := strings.Index(runbook, "## Rollback")
+	require.NotEqual(t, -1, acceptanceStart)
+	require.Greater(t, rollbackStart, acceptanceStart)
+	acceptance := runbook[acceptanceStart:rollbackStart]
+	for _, want := range []string{
+		"two fresh `_rsc` values",
+		"one non-`_rsc` query",
+		"an image path",
+		"byte-identical",
+		"`HIT`",
+	} {
+		require.Contains(t, acceptance, want)
+	}
+
+	sevenDayStart := strings.Index(runbook, "## Seven-day review")
+	require.Greater(t, sevenDayStart, rollbackStart)
+	rollback := runbook[rollbackStart:sevenDayStart]
+	require.Contains(t, rollback, "exported CDN configuration snapshot")
+	require.Contains(t, rollback, "Cache Key")
+}
+
 func TestDocsCDNRefreshHelperHasAnExactBoundedMutationSurface(t *testing.T) {
 	helper := readFile(
 		t,

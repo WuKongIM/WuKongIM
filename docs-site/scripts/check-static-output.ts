@@ -31,6 +31,12 @@ export interface BrokenInternalLink {
   resolvedPath: string;
 }
 
+export interface StaticRoutePayloadIssue {
+  route: string;
+  outputPath: string;
+  reason: 'missing' | 'empty' | 'html' | 'not-rsc';
+}
+
 function pageRoute(filePath: string): string {
   const normalized = filePath.replaceAll('\\', '/');
   if (normalized === 'index.html') return '/';
@@ -96,6 +102,43 @@ export function findBrokenInternalLinks(
   );
 }
 
+function staticRoutePayloadPath(route: string): string {
+  const relative = route.replace(/^\/+|\/+$/g, '');
+  return relative ? `${relative}/index.txt` : 'index.txt';
+}
+
+/** Finds client routes that cannot be served from a distinct static RSC object. */
+export function findStaticRoutePayloadIssues(
+  routes: readonly string[],
+  payloads: ReadonlyMap<string, string>,
+): StaticRoutePayloadIssue[] {
+  const issues: StaticRoutePayloadIssue[] = [];
+
+  for (const route of routes) {
+    const outputPath = staticRoutePayloadPath(route);
+    const payload = payloads.get(outputPath);
+    if (payload === undefined) {
+      issues.push({ route, outputPath, reason: 'missing' });
+      continue;
+    }
+    if (payload.length === 0) {
+      issues.push({ route, outputPath, reason: 'empty' });
+      continue;
+    }
+
+    const normalized = payload.trimStart();
+    if (/^(?:<!doctype\s+html|<html\b)/i.test(normalized)) {
+      issues.push({ route, outputPath, reason: 'html' });
+      continue;
+    }
+    if (!/(?:^|\n)[0-9a-f]+:/.test(payload)) {
+      issues.push({ route, outputPath, reason: 'not-rsc' });
+    }
+  }
+
+  return issues;
+}
+
 /** Performs a small structural accessibility check; it is not a WCAG certification. */
 export function getBasicAccessibilityIssues(html: string, locale: Locale): string[] {
   const issues: string[] = [];
@@ -138,6 +181,7 @@ function visibleHtml(html: string) {
 async function loadOutputInventory() {
   const outputPaths: string[] = [];
   const htmlPages: StaticHtmlPage[] = [];
+  const staticRoutePayloads = new Map<string, string>();
   const cwd = fileURLToPath(out);
 
   for await (const filePath of new Bun.Glob('**/*').scan({ cwd, onlyFiles: true })) {
@@ -146,11 +190,15 @@ async function loadOutputInventory() {
     if (normalized.endsWith('.html')) {
       htmlPages.push({ filePath: normalized, html: await text(normalized) });
     }
+    if (normalized === 'index.txt' || normalized.endsWith('/index.txt')) {
+      staticRoutePayloads.set(normalized, await text(normalized));
+    }
   }
 
   return {
     outputPaths: new Set(outputPaths),
     htmlPages,
+    staticRoutePayloads,
   };
 }
 
@@ -986,7 +1034,26 @@ export async function checkStaticOutput() {
     }
   }
 
-  const { htmlPages, outputPaths } = await loadOutputInventory();
+  const { htmlPages, outputPaths, staticRoutePayloads } = await loadOutputInventory();
+  const staticClientRoutes = htmlPages
+    .filter(
+      (page) =>
+        page.filePath !== '404/index.html' &&
+        (page.filePath === 'index.html' || page.filePath.endsWith('/index.html')),
+    )
+    .map((page) => pageRoute(page.filePath));
+  const staticRoutePayloadIssues = findStaticRoutePayloadIssues(
+    staticClientRoutes,
+    staticRoutePayloads,
+  );
+  if (staticRoutePayloadIssues.length > 0) {
+    const summary = staticRoutePayloadIssues
+      .slice(0, 20)
+      .map((issue) => `${issue.route}: ${issue.outputPath} (${issue.reason})`)
+      .join('\n');
+    throw new Error(`static client routes are missing distinct RSC payloads:\n${summary}`);
+  }
+
   const brokenLinks = findBrokenInternalLinks(htmlPages, outputPaths);
   if (brokenLinks.length > 0) {
     const summary = brokenLinks
