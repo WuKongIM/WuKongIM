@@ -6,7 +6,7 @@ description: 使用配置文件和数据卷，通过 docker run 或 Docker Compo
 只需要 Docker。下面的流程直接挂载 `wukongim.toml` 和 Docker Volume，不依赖安装脚本。
 
 <Callout type="warn" title="默认用于本机快速体验">
-  示例固定使用 `3.0.0-beta.6` 镜像。使用其他版本时直接替换镜像 tag，并先阅读对应版本的升级说明。承载生产流量前，请更换示例凭据并完成[生产检查清单](/zh/server/deployment/production-checklist)。
+  示例固定使用 `3.0.0-beta.7` 镜像。使用其他版本时直接替换镜像 tag，并先阅读对应版本的升级说明。承载生产流量前，请更换示例凭据并完成[生产检查清单](/zh/server/deployment/production-checklist)。
 </Callout>
 
 ## 1. 创建配置文件
@@ -52,7 +52,7 @@ docker run -d --name wukongim --restart unless-stopped \
   -p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301 \
   -v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro" \
   -v wukongim-data:/var/lib/wukongim \
-  ghcr.io/wukongim/wukongim:3.0.0-beta.6
+  ghcr.io/wukongim/wukongim:3.0.0-beta.7
 ```
 
 ### 使用 Docker Compose
@@ -62,7 +62,7 @@ docker run -d --name wukongim --restart unless-stopped \
 ```yaml
 services:
   wukongim:
-    image: ghcr.io/wukongim/wukongim:3.0.0-beta.6
+    image: ghcr.io/wukongim/wukongim:3.0.0-beta.7
     container_name: wukongim
     restart: unless-stopped
     ports: ["127.0.0.1:5001:5001", "5100:5100", "5200:5200", "127.0.0.1:5301:5301"]

@@ -13,7 +13,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 - 配置在节点启动时加载；除非对应子系统明确说明，否则修改后需要重启节点。
 
 <Callout type="info" title="默认值与配置基线">
-  从包含该功能的后续版本起，`wukongim init` 默认在 `/etc/wukongim/wukongim.toml` 生成面向安装场景的安全基线，并显式关闭 Diagnostics 和 Plugin；当前 `v3.0.0-beta.6` 请继续使用 `wukongim config init --config PATH`，该写法后续也会保留。`wukongim.toml.example` 是可加载的开发与调优基线。这两个基线都不是完整的运行时默认值清单。下表中的“省略”指没有提供 TOML 和环境变量；它与显式的 `0`、空字符串或 `false` 可能具有不同含义。
+  从 `v3.0.0-beta.7` 起，`wukongim init` 默认在 `/etc/wukongim/wukongim.toml` 生成面向安装场景的安全基线，并显式关闭 Diagnostics 和 Plugin。需要自定义位置时可使用 `wukongim init --config PATH`，原有的 `wukongim config init --config PATH` 兼容入口也继续保留。`wukongim.toml.example` 是可加载的开发与调优基线。这两个基线都不是完整的运行时默认值清单。下表中的“省略”指没有提供 TOML 和环境变量；它与显式的 `0`、空字符串或 `false` 可能具有不同含义。
 </Callout>
 
 `node.id`、`node.data_dir` 和 `cluster.listen_addr` 始终必填。种子加入还要求 `cluster.id`、非空的 `cluster.seeds`、可被其他节点访问的 `cluster.advertise_addr`，以及非空的 `cluster.join_token`。

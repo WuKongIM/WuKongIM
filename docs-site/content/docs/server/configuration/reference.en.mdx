@@ -13,7 +13,7 @@ This is the quick-reference handbook for WuKongIM's public startup configuration
 - Configuration is loaded at node startup. Restart the node after a change unless the subsystem explicitly documents otherwise.
 
 <Callout type="info" title="Defaults and configuration baselines">
-  Starting with a later release that includes this feature, `wukongim init` creates a security-oriented installation baseline at `/etc/wukongim/wukongim.toml` by default and explicitly disables Diagnostics and Plugin. Continue to use `wukongim config init --config PATH` with the current `v3.0.0-beta.6`; that form will remain supported. `wukongim.toml.example` is a loadable development and tuning baseline. Neither baseline is a complete catalog of runtime defaults. In the table, “omitted” means neither TOML nor an environment value was supplied; it may differ from an explicit `0`, empty string, or `false`.
+  Starting with `v3.0.0-beta.7`, `wukongim init` creates a security-oriented installation baseline at `/etc/wukongim/wukongim.toml` by default and explicitly disables Diagnostics and Plugin. Use `wukongim init --config PATH` to choose another location; the original `wukongim config init --config PATH` compatibility entry point also remains available. `wukongim.toml.example` is a loadable development and tuning baseline. Neither baseline is a complete catalog of runtime defaults. In the table, “omitted” means neither TOML nor an environment value was supplied; it may differ from an explicit `0`, empty string, or `false`.
 </Callout>
 
 `node.id`, `node.data_dir`, and `cluster.listen_addr` are always required. Seed joining additionally requires `cluster.id`, non-empty `cluster.seeds`, a peer-reachable `cluster.advertise_addr`, and a non-empty `cluster.join_token`.

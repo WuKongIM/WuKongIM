@@ -3,7 +3,7 @@ title: Linux 部署
 description: 从签名 APT/DNF Preview 软件源或本地 deb/rpm 安装 WuKongIM，并通过安全初始化和 systemd 托管集群节点。
 ---
 
-WuKongIM 的签名 Linux Preview 软件源已经启用，当前发布 `v3.0.0-beta.6`，仅支持 amd64/x86_64。发布流程已在 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9 的全新容器中验证软件源元数据、签名和精确版本下载；RHEL 9 是同一 EL9 软件源的兼容目标，但不在本次自动化清洁客户端矩阵中。
+WuKongIM 的签名 Linux Preview 软件源已经启用，当前发布 `v3.0.0-beta.7`，仅支持 amd64/x86_64。发布流程已在 Ubuntu 24.04、Debian 13、Rocky Linux 9 和 AlmaLinux 9 的全新容器中验证软件源元数据、签名和精确版本下载；RHEL 9 是同一 EL9 软件源的兼容目标，但不在本次自动化清洁客户端矩阵中。
 
 Preview 是预发布通道，不等同于稳定通道。请先在非生产环境验证配置、备份、恢复和升级兼容性。
 
@@ -61,7 +61,7 @@ sudo dnf install -y wukongim
 
 RPM 固定主密钥指纹为 `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`。首次引导仍依赖 HTTPS，之后 DNF/YUM 会从签名软件源验证并升级公钥包。
 
-安装后确认二进制身份；版本应为 `3.0.0-beta.6`，文本输出的 `source` 和 JSON 输出的 `build_source` 应为 `release`：
+安装后确认二进制身份；版本应为 `3.0.0-beta.7`，文本输出的 `source` 和 JSON 输出的 `build_source` 应为 `release`：
 
 ```bash
 wukongim version
@@ -77,17 +77,15 @@ wukongim version --output json
 交互式初始化会生成单节点集群配置、随机 Cluster ID、Join Token、Manager JWT Secret 和管理员密码；生成的管理员密码只显示一次：
 
 ```bash
-sudo wukongim config init \
-  --config /etc/wukongim/wukongim.toml
+sudo wukongim init
 ```
 
-在包含该功能的后续版本发布后，上述命令可以缩短为 `sudo wukongim init`；它默认写入 `/etc/wukongim/wukongim.toml`，也接受 `--config PATH`。当前软件源中的 `v3.0.0-beta.6` 尚不包含这个短命令，因此本页仍以兼容写法作为可复制的主路径。
+`sudo wukongim init` 默认写入 `/etc/wukongim/wukongim.toml`；如需显式选择其他位置，可传入 `--config PATH`。原有的 `sudo wukongim config init --config PATH` 入口继续保留，便于兼容既有自动化。
 
 自动化环境必须从标准输入提供至少 12 个字符的管理员密码，命令不会回显它：
 
 ```bash
-sudo wukongim config init \
-  --config /etc/wukongim/wukongim.toml \
+sudo wukongim init \
   --admin-password-stdin < /secure/path/manager-password
 ```
 

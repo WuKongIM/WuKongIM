@@ -47,7 +47,7 @@ describe('native deployment publication contract', () => {
         'docker compose up -d',
         'name: wukongim-data',
         'docker compose down --volumes',
-        'ghcr.io/wukongim/wukongim:3.0.0-beta.6',
+        'ghcr.io/wukongim/wukongim:3.0.0-beta.7',
         'wukongim-data',
         'http://127.0.0.1:5301',
         'http://127.0.0.1:5001/readyz',
@@ -65,6 +65,7 @@ describe('native deployment publication contract', () => {
       expect(content).not.toContain('docker volume create');
       expect(content).not.toContain('--mount');
       expect(content).not.toContain('node1.toml');
+      expect(content).not.toContain('3.0.0-beta.6');
       for (const optional of [
         'cluster.id',
         'nodes =',
@@ -99,7 +100,7 @@ describe('native deployment publication contract', () => {
 
     for (const content of pages) {
       for (const contract of [
-        '3.0.0-beta.6',
+        '3.0.0-beta.7',
         'curl -fsSL https://packages.githubim.com/repo | sudo sh',
         'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1',
         'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459',
@@ -114,8 +115,8 @@ describe('native deployment publication contract', () => {
         'RHEL',
         'build_source',
         '.goreleaser.packages.yaml',
-        'sudo wukongim init',
-        'wukongim config init',
+        '```bash\nsudo wukongim init\n```',
+        'wukongim config init --config PATH',
         '--admin-password-stdin',
         'wukongim config validate',
         'systemctl enable --now wukongim',
@@ -144,6 +145,10 @@ describe('native deployment publication contract', () => {
       ]) {
         expect(content).not.toContain(unsafe);
       }
+      expect(content).not.toContain('3.0.0-beta.6');
+      expect(content).toContain(
+        'sudo wukongim init \\\n  --admin-password-stdin < /secure/path/manager-password',
+      );
 
       expect(
         content.match(/^curl -fsSL https:\/\/packages\.githubim\.com\/repo \| sudo sh$/gm),
@@ -171,9 +176,34 @@ describe('native deployment publication contract', () => {
     }
 
     expect(pages[0]).toContain('该脚本只添加软件源，不会更新软件包索引、安装 WuKongIM');
+    expect(pages[0]).not.toContain('后续版本');
     expect(pages[1]).toContain(
       'The script only adds the repository. It does not refresh the package index, install WuKongIM',
     );
+    expect(pages[1]).not.toContain('later release');
+  });
+
+  test('keeps configuration references aligned with the released package initializer', async () => {
+    const pages = await Promise.all([
+      page('../configuration/reference.mdx'),
+      page('../configuration/reference.en.mdx'),
+    ]);
+
+    for (const content of pages) {
+      for (const contract of [
+        'v3.0.0-beta.7',
+        '`wukongim init`',
+        '/etc/wukongim/wukongim.toml',
+        'wukongim init --config PATH',
+        'wukongim config init --config PATH',
+      ]) {
+        expect(content).toContain(contract);
+      }
+      expect(content).not.toContain('v3.0.0-beta.6');
+    }
+
+    expect(pages[0]).not.toContain('后续版本');
+    expect(pages[1]).not.toContain('later release');
   });
 
   test('states the three-node three-replica readiness boundary', async () => {

@@ -17,6 +17,10 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+### 📚 Documentation / 文档
+
+- 中英文 Linux 部署与配置参考现已将 `v3.0.0-beta.7` 作为签名 Preview 软件源版本，并以 `sudo wukongim init` 作为默认初始化入口，同时保留显式路径兼容命令；Docker 部署示例也同步固定到同一版本。
+
 ## [v3.0.0-beta.7] - 2026-09-03
 
 ### 🚀 New Features / 新功能
