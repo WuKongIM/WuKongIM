@@ -100,9 +100,13 @@
   `packages.githubim.com`. Every public snapshot is download-validated on clean
   Ubuntu, Debian, Rocky Linux, and AlmaLinux clients. Stable publication remains
   disabled until it moves from GitHub Pages to object storage and a CDN. The
-  package installs the binary, hardened systemd unit, service identity, and
-  persistent directories, but never creates an active configuration or
-  starts/restarts the node.
+  public client flow installs a signed-repository bootstrap package once, then
+  uses the package manager's normal update and unversioned `wukongim` install;
+  the bootstrap package owns the dedicated trust root and repository definition
+  so later public-certificate updates arrive through that same signed channel.
+  The product package installs the binary, hardened systemd unit, service
+  identity, and persistent directories, but never creates an active
+  configuration or starts/restarts the node.
   Operators initialize atomically with `wukongim config init`, validate with
   `wukongim config validate`, and own enablement plus upgrade restart timing.
   Source CI also boots the exact checksum-bound candidate Artifact under a real
