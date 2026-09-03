@@ -11,45 +11,27 @@ Preview is a prerelease channel, not the stable channel. Validate configuration,
 
 ### Debian / Ubuntu (APT)
 
-These commands keep the repository certificate in a dedicated keyring and verify its primary fingerprint before installing it. They do not add global trust or bypass signature checks:
+Install the repository bootstrap package once. WuKongIM can then be installed and upgraded through APT like a package from a distribution repository:
 
 ```bash
 set -euo pipefail
 
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl gpg
-
-apt_key="$(mktemp)"
-trap 'rm -f "$apt_key"' EXIT
+sudo apt-get install -y ca-certificates curl
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-  --output "$apt_key" \
-  https://packages.githubim.com/keys/apt-preview.asc
-
-apt_fingerprints="$(
-  gpg --batch --show-keys --with-colons "$apt_key" |
-    awk -F: '
-      $1 == "pub" { primary = 1; next }
-      primary && $1 == "fpr" { print $10; primary = 0 }
-    '
-)"
-test "$apt_fingerprints" = 'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1'
-
-sudo install -d -m 0755 /etc/apt/keyrings
-sudo install -o root -g root -m 0644 "$apt_key" /etc/apt/keyrings/wukongim-preview.asc
-rm -f "$apt_key"
-trap - EXIT
-
-printf '%s\n' \
-  'deb [arch=amd64 signed-by=/etc/apt/keyrings/wukongim-preview.asc] https://packages.githubim.com/apt preview main' |
-  sudo tee /etc/apt/sources.list.d/wukongim-preview.list >/dev/null
+  --location --output /tmp/wukongim-archive-keyring_1.0.0_all.deb \
+  https://packages.githubim.com/bootstrap/wukongim-archive-keyring_1.0.0_all.deb
+sudo apt-get install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb
 
 sudo apt-get update
 sudo apt-get install -y wukongim=3.0.0~beta.6
 ```
 
+`wukongim-archive-keyring` installs only a dedicated binary keyring and Deb822 source file. It does not use global `apt-key` trust, disable signature checks, access the network, or run maintainer scripts. The first download relies on the HTTPS identity of `packages.githubim.com`. After installation, APT authenticates the repository with WuKongIM primary key `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1`, and upgrades the keyring through that same signed repository.
+
 ### RHEL / Rocky / AlmaLinux 9 (DNF/YUM)
 
-Use this dedicated repository configuration on EL9 to verify both package signatures and repository metadata signatures. On a compatible system that still uses the `yum` command name, replace `dnf` with `yum` in every command:
+EL9 likewise needs its repository bootstrap package only once. It installs a dedicated repo definition with package signatures, repository-metadata signatures, and TLS verification enabled. On a compatible system that still uses the `yum` command name, replace `dnf` with `yum` in every command:
 
 ```bash
 set -euo pipefail
@@ -59,42 +41,16 @@ if ! command -v curl >/dev/null; then
   sudo dnf install -y curl-minimal
 fi
 
-rpm_key="$(mktemp)"
-trap 'rm -f "$rpm_key"' EXIT
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-  --output "$rpm_key" \
-  https://packages.githubim.com/keys/rpm-preview.asc
-
-rpm_fingerprints="$(
-  gpg --batch --show-keys --with-colons "$rpm_key" |
-    awk -F: '
-      $1 == "pub" { primary = 1; next }
-      primary && $1 == "fpr" { print $10; primary = 0 }
-    '
-)"
-test "$rpm_fingerprints" = 'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459'
-
-sudo install -d -m 0755 /etc/pki/rpm-gpg
-sudo install -o root -g root -m 0644 "$rpm_key" /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
-rm -f "$rpm_key"
-trap - EXIT
-
-sudo tee /etc/yum.repos.d/wukongim-preview.repo >/dev/null <<'EOF'
-[wukongim-preview]
-name=WuKongIM preview
-baseurl=https://packages.githubim.com/rpm/preview/el/9/x86_64
-enabled=1
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
-sslverify=1
-metadata_expire=300
-skip_if_unavailable=0
-EOF
+  --location --output /tmp/wukongim-release-1.0.0-1.noarch.rpm \
+  https://packages.githubim.com/bootstrap/wukongim-release-1.0.0-1.noarch.rpm
+sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm
 
 sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
 sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64
 ```
+
+`wukongim-release` installs only a dedicated RPM public key and a `%config(noreplace)` repo file; it contains no scriptlets. Its fixed primary-key fingerprint is `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`. The initial bootstrap still relies on HTTPS. DNF/YUM then verifies and upgrades the public-key package through the signed repository.
 
 Confirm the binary identity after installation. The version should be `3.0.0-beta.6`; `source` in the text output and `build_source` in JSON should be `release`:
 
@@ -105,7 +61,7 @@ wukongim version --output json
 
 The package installs `/usr/bin/wukongim` and a hardened `wukongim.service`, then creates the `wukongim` system account and `/etc/wukongim`, `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. It does not create an active configuration, enable or start the service, or restart it.
 
-The repository does not yet ship a separate keyring package, so repository certificates are not refreshed automatically. Before an announced signing-subkey promotion, download the applicable certificate again and recheck the primary fingerprint above. Never disable package or repository-metadata signature verification.
+Do not delete the keyring, public key, or repository files owned by the bootstrap packages, and never disable package or repository-metadata signature verification. Before a signing-subkey promotion, the project will first distribute the updated public certificate as a bootstrap-package upgrade.
 
 ## 2. Initialize a secure configuration
 
