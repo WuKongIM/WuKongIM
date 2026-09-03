@@ -47,6 +47,45 @@ func TestVersionCommandRejectsUnknownOutput(t *testing.T) {
 	}
 }
 
+func TestExecuteInitAliasCreatesConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "wukongim.toml")
+	var stdout bytes.Buffer
+	createdApp := false
+	err := execute(context.Background(), []string{
+		"init",
+		"--config", path,
+		"--admin-password-stdin",
+	}, commandIO{
+		stdin:  strings.NewReader("operator-secret-password\n"),
+		stdout: &stdout,
+	}, func(app.Config) (runtimeApp, error) {
+		createdApp = true
+		return &fakeRuntimeApp{}, nil
+	})
+	if err != nil {
+		t.Fatalf("execute(init) error = %v", err)
+	}
+	if createdApp {
+		t.Fatal("execute(init) created the runtime app")
+	}
+	if !strings.Contains(stdout.String(), "configuration created: "+path) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(body), "operator-secret-password") {
+		t.Fatal("generated config does not contain supplied manager password")
+	}
+}
+
+func TestInitAliasDefaultsToPackageConfigPath(t *testing.T) {
+	if defaultPackageConfigPath != "/etc/wukongim/wukongim.toml" {
+		t.Fatalf("defaultPackageConfigPath = %q", defaultPackageConfigPath)
+	}
+}
+
 func TestConfigInitNonInteractiveRequiresPasswordStdin(t *testing.T) {
 	err := runConfigInitCommand([]string{"--config", filepath.Join(t.TempDir(), "wukongim.toml")}, commandIO{
 		stdin:  strings.NewReader(""),
@@ -183,5 +222,8 @@ func TestExecuteRejectsUnknownCommandWithUsageExit(t *testing.T) {
 	})
 	if commandExitCode(err) != exitUsage {
 		t.Fatalf("commandExitCode() = %d, want %d: %v", commandExitCode(err), exitUsage, err)
+	}
+	if !strings.Contains(err.Error(), "init") {
+		t.Fatalf("error = %q, want init in expected commands", err)
 	}
 }

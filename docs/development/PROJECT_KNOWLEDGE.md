@@ -110,8 +110,11 @@
   The product package installs the binary, hardened systemd unit, service
   identity, and persistent directories, but never creates an active
   configuration or starts/restarts the node.
-  Operators initialize atomically with `wukongim config init`, validate with
-  `wukongim config validate`, and own enablement plus upgrade restart timing.
+  Operators initialize atomically with `wukongim init`, which defaults to
+  `/etc/wukongim/wukongim.toml`; `wukongim config init --config PATH` remains
+  the compatible explicit-path entry. Operators validate with the existing
+  `wukongim config validate` command and own enablement plus upgrade restart
+  timing.
   Source CI also boots the exact checksum-bound candidate Artifact under a real
   systemd PID 1 on Ubuntu 24.04, Debian 12, Rocky Linux 9, and AlmaLinux 9. It
   proves the explicit initialize/start/health/restart/stop/remove/reinstall

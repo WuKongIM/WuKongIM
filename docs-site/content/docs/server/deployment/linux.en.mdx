@@ -81,6 +81,8 @@ sudo wukongim config init \
   --config /etc/wukongim/wukongim.toml
 ```
 
+Once a later release includes this feature, the command above can be shortened to `sudo wukongim init`. It writes `/etc/wukongim/wukongim.toml` by default and also accepts `--config PATH`. The `v3.0.0-beta.6` package currently in the repository does not contain the short command, so this page keeps the compatible form as its copyable path.
+
 Automation must supply an administrator password of at least 12 characters through standard input; the command does not echo it:
 
 ```bash

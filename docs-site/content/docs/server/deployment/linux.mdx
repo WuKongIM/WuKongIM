@@ -81,6 +81,8 @@ sudo wukongim config init \
   --config /etc/wukongim/wukongim.toml
 ```
 
+在包含该功能的后续版本发布后，上述命令可以缩短为 `sudo wukongim init`；它默认写入 `/etc/wukongim/wukongim.toml`，也接受 `--config PATH`。当前软件源中的 `v3.0.0-beta.6` 尚不包含这个短命令，因此本页仍以兼容写法作为可复制的主路径。
+
 自动化环境必须从标准输入提供至少 12 个字符的管理员密码，命令不会回显它：
 
 ```bash

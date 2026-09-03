@@ -76,9 +76,8 @@ docker run --rm \
     /usr/bin/wukongim version --output json | grep -F '\"build_source\":\"release\"'
     test ! -e /etc/wukongim/wukongim.toml
     test ! -e /etc/systemd/system/multi-user.target.wants/wukongim.service
-    printf '%s\n' 'native-package-container-test' | /usr/bin/wukongim config init \
-      --config /etc/wukongim/wukongim.toml \
-      --admin-password-stdin
+    printf '%s\n' 'native-package-container-test' | \
+      /usr/bin/wukongim init --admin-password-stdin
     /usr/bin/wukongim config validate --config /etc/wukongim/wukongim.toml
     test \"\$(stat -c '%a %U %G' /etc/wukongim/wukongim.toml)\" = '640 root wukongim'
     printf '%s\n' 'package-upgrade-state' >/var/lib/wukongim/package-upgrade-sentinel
