@@ -195,6 +195,56 @@ func TestDocsCDNRunbookRestrictsRSCKeyNormalization(t *testing.T) {
 	require.Contains(t, rollback, "Cache Key")
 }
 
+func TestDocsRSCRefreshURLInventoryCannotExpandCurrentCDNMutation(t *testing.T) {
+	root := repoRoot(t)
+	const inventory = "cdn-rsc-refresh-urls.txt"
+	packageJSON := readFile(t, filepath.Join(root, "docs-site", "package.json"))
+	generator := readFile(
+		t,
+		filepath.Join(root, "docs-site", "scripts", "generate-rsc-refresh-urls.ts"),
+	)
+	workflow := readFile(t, filepath.Join(root, ".github", "workflows", "docs-pages.yml"))
+	helper := readFile(t, filepath.Join(root, "scripts", "docs-cdn", "refresh.sh"))
+	runbook := readFile(
+		t,
+		filepath.Join(root, "docs", "superpowers", "runbooks", "docs-alibaba-cdn.md"),
+	)
+
+	for _, want := range []string{
+		`"build": "node scripts/build-site.mjs && bun run rsc-refresh-urls:write"`,
+		`"rsc-refresh-urls:write": "bun run scripts/generate-rsc-refresh-urls.ts"`,
+	} {
+		require.Contains(t, packageJSON, want)
+	}
+	for _, want := range []string{
+		`RSC_REFRESH_ORIGIN = 'https://docs.githubim.com'`,
+		`RSC_REFRESH_URLS_FILE = 'cdn-rsc-refresh-urls.txt'`,
+		`RSC_REFRESH_URL_LIMIT = 500`,
+	} {
+		require.Contains(t, generator, want)
+	}
+	for _, forbidden := range []string{
+		"RefreshObjectCaches",
+		"PushObjectCache",
+		"BatchSetCdnDomainConfig",
+	} {
+		require.NotContains(t, generator, forbidden)
+	}
+
+	require.NotContains(t, workflow, inventory)
+	require.NotContains(t, helper, inventory)
+	for _, want := range []string{
+		"inventory-only",
+		"fixed `https://docs.githubim.com` origin",
+		"at most 500",
+		"does not consume this inventory",
+		"four stable public URLs",
+		"route-TXT TTL at ten minutes",
+	} {
+		require.Contains(t, runbook, want)
+	}
+}
+
 func TestDocsCDNRefreshHelperHasAnExactBoundedMutationSurface(t *testing.T) {
 	helper := readFile(
 		t,

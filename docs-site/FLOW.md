@@ -20,11 +20,10 @@ documents runtime contracts but does not define them.
 - `lib/navigation.ts` is the shared bilingual publication registry.
 - `SDK_DOCUMENTATION_SPEC.md` owns the maintained WuKongIMSDK versions,
   learning order, and reader contract. WuKongEasySDK remains a separate path.
-- `.github/workflows/docs-pages.yml` deploys the export, verifies the direct
-  Pages data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. Its
-  migration input stages the export before one exact external domain change.
-  It never reconfigures DNS, CDN topology, RAM, or certificates; its only
-  Alibaba mutation is four bounded cache invalidations.
+- `.github/workflows/docs-pages.yml` deploys the export, verifies the direct Pages
+  data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. Its migration input stages the export before one exact external domain change; its only Alibaba mutation is four bounded cache invalidations.
+  The export also carries a fixed-origin, inventory-only list of static RSC refresh URLs;
+  the Workflow does not consume that list or reconfigure DNS, CDN topology, RAM, or certificates.
 - The canonical URL remains `https://docs.githubim.com`. After CDN cutover,
   GitHub Pages serves `https://origin-docs.githubim.com` as the only origin.
   Pages Settings/API is the sole domain authority; the export carries no CNAME.
@@ -50,10 +49,10 @@ documents runtime contracts but does not define them.
 6. `scripts/generate-openapi.ts` generates the complete Product HTTP reference.
    Operations HTTP and outbound Webhooks use separate OpenAPI contracts.
    WKProto, JSON-RPC, and private interfaces remain protocol documentation.
-7. Static export writes `out/`; publication, canonical, link, structure, and
-   machine-artifact checks run before the Workflow uploads that exact directory
-   as the GitHub Pages artifact. Hidden files are retained so `.nojekyll` and
-   future machine-readable well-known endpoints cannot be dropped silently.
+7. Static export writes `out/`; publication, canonical, link, structure, and machine-artifact checks run before the Workflow
+   uploads that exact directory as the GitHub Pages artifact. The build derives `cdn-rsc-refresh-urls.txt` from physical
+   `index.html`/`index.txt` pairs, fixes its origin, ordering, uniqueness, and size bound, and keeps it inert. Hidden files
+   are retained so `.nojekyll` and future machine-readable well-known endpoints cannot be dropped silently.
 8. After deployment, Pages API state and direct root, locale, deep-page, and
    search GETs gate bounded CDN refreshes. Migration runs skip refresh; a normal
    follow-up refreshes after the gate. It never broadly purges content-addressed
@@ -85,7 +84,7 @@ documents runtime contracts but does not define them.
   `pages: write` and `id-token: write`; build and origin verification stay
   read-only. CDN refresh and certificate rotation use separate Environments and
   OIDC roles. Domain, build, or certificate state never replaces a fresh
-  deployment and the direct content gate.
+  deployment and the direct content gate. The RSC inventory exactly matches eligible static routes, is capped at 500 fixed-origin URLs, and is not refresh or prefetch authority.
 
 ## Read First
 

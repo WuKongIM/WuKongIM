@@ -17,6 +17,11 @@ import {
   type ProductHTTPOpenAPIOperation,
 } from '../lib/product-http-openapi';
 import { canonicalUrl, isPreviewBuild, siteUrl } from '../lib/shared';
+import {
+  RSC_REFRESH_ORIGIN,
+  RSC_REFRESH_URLS_FILE,
+  findRSCRefreshURLInventoryIssues,
+} from './generate-rsc-refresh-urls';
 
 const out = new URL('../out/', import.meta.url);
 
@@ -1054,6 +1059,22 @@ export async function checkStaticOutput() {
     throw new Error(`static client routes are missing distinct RSC payloads:\n${summary}`);
   }
 
+  const expectedRSCRefreshURLs = staticClientRoutes
+    .map(
+      (route) =>
+        `${RSC_REFRESH_ORIGIN}/${staticRoutePayloadPath(route)}`,
+    )
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  const rscRefreshURLInventoryIssues = findRSCRefreshURLInventoryIssues(
+    await text(RSC_REFRESH_URLS_FILE),
+    expectedRSCRefreshURLs,
+  );
+  if (rscRefreshURLInventoryIssues.length > 0) {
+    throw new Error(
+      `static RSC refresh URL inventory is invalid:\n${rscRefreshURLInventoryIssues.join('\n')}`,
+    );
+  }
+
   const brokenLinks = findBrokenInternalLinks(htmlPages, outputPaths);
   if (brokenLinks.length > 0) {
     const summary = brokenLinks
@@ -1063,7 +1084,9 @@ export async function checkStaticOutput() {
     throw new Error(`broken internal routes found in static output:\n${summary}`);
   }
 
-  console.log('static output contract passed');
+  console.log(
+    `static output contract passed with ${expectedRSCRefreshURLs.length} bounded RSC refresh URLs`,
+  );
 }
 
 if (import.meta.main) await checkStaticOutput();
