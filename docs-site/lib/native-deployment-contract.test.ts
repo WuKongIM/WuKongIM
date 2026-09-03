@@ -114,6 +114,7 @@ describe('native deployment publication contract', () => {
         'RHEL',
         'build_source',
         '.goreleaser.packages.yaml',
+        'sudo wukongim init',
         'wukongim config init',
         '--admin-password-stdin',
         'wukongim config validate',

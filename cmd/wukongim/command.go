@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	exitUsage  = 64
-	exitConfig = 78
+	exitUsage                = 64
+	exitConfig               = 78
+	defaultPackageConfigPath = "/etc/wukongim/wukongim.toml"
 )
 
 type commandIO struct {
@@ -58,12 +59,15 @@ func execute(ctx context.Context, args []string, streams commandIO, newApp appFa
 		return run(ctx, args, newApp)
 	}
 	switch args[0] {
+	case "init":
+		initArgs := append([]string{"--config", defaultPackageConfigPath}, args[1:]...)
+		return runConfigInitCommand(initArgs, streams)
 	case "version":
 		return runVersionCommand(args[1:], streams.stdout)
 	case "config":
 		return runConfigCommand(args[1:], streams)
 	default:
-		return newCommandError(exitUsage, fmt.Errorf("unknown command %q; expected version, config, or -config", args[0]))
+		return newCommandError(exitUsage, fmt.Errorf("unknown command %q; expected init, version, config, or -config", args[0]))
 	}
 }
 

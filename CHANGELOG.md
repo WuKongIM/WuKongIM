@@ -8,6 +8,7 @@ move those entries into a version section named for that exact tag.
 
 ### 🚀 New Features / 新功能
 
+- 原生 Linux 安装新增 `sudo wukongim init` 快捷入口，默认安全生成 `/etc/wukongim/wukongim.toml`，同时保留原有显式路径命令用于兼容和自定义位置。
 - 签名 Linux Preview 软件源新增 `wukongim-archive-keyring` 与 `wukongim-release` 引导包，首次配置后可直接通过 APT 或 DNF/YUM 安装和升级 WuKongIM，并由包管理器自动接收后续公开签名证书更新。
 
 ### 🐛 Bug Fixes / 问题修复
