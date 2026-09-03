@@ -11,45 +11,27 @@ Preview 是预发布通道，不等同于稳定通道。请先在非生产环境
 
 ### Debian / Ubuntu（APT）
 
-下面的命令单独保存仓库证书，核对主密钥指纹后才写入系统 keyring；不会使用全局信任或绕过签名检查：
+先安装一次软件源引导包，之后即可像使用发行版软件源一样通过 APT 安装和升级 WuKongIM：
 
 ```bash
 set -euo pipefail
 
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl gpg
-
-apt_key="$(mktemp)"
-trap 'rm -f "$apt_key"' EXIT
+sudo apt-get install -y ca-certificates curl
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-  --output "$apt_key" \
-  https://packages.githubim.com/keys/apt-preview.asc
-
-apt_fingerprints="$(
-  gpg --batch --show-keys --with-colons "$apt_key" |
-    awk -F: '
-      $1 == "pub" { primary = 1; next }
-      primary && $1 == "fpr" { print $10; primary = 0 }
-    '
-)"
-test "$apt_fingerprints" = 'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1'
-
-sudo install -d -m 0755 /etc/apt/keyrings
-sudo install -o root -g root -m 0644 "$apt_key" /etc/apt/keyrings/wukongim-preview.asc
-rm -f "$apt_key"
-trap - EXIT
-
-printf '%s\n' \
-  'deb [arch=amd64 signed-by=/etc/apt/keyrings/wukongim-preview.asc] https://packages.githubim.com/apt preview main' |
-  sudo tee /etc/apt/sources.list.d/wukongim-preview.list >/dev/null
+  --location --output /tmp/wukongim-archive-keyring_1.0.0_all.deb \
+  https://packages.githubim.com/bootstrap/wukongim-archive-keyring_1.0.0_all.deb
+sudo apt-get install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb
 
 sudo apt-get update
 sudo apt-get install -y wukongim=3.0.0~beta.6
 ```
 
+`wukongim-archive-keyring` 只安装专用二进制 keyring 和 Deb822 软件源文件；不会使用全局 `apt-key` 信任、关闭签名检查、访问网络或运行维护脚本。首次下载依赖 `packages.githubim.com` 的 HTTPS 身份；安装后，APT 会用固定的 WuKongIM 主密钥 `D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1` 验证软件源，keyring 后续也通过同一签名软件源升级。
+
 ### RHEL / Rocky / AlmaLinux 9（DNF/YUM）
 
-EL9 使用下面的独立 repo 配置，同时验证软件包签名与仓库元数据签名。仍使用 `yum` 命令名的兼容系统可以把每一条 `dnf` 命令替换为 `yum`：
+EL9 同样只需安装一次软件源引导包。它会写入独立 repo 配置，同时启用软件包签名、仓库元数据签名和 TLS 验证。仍使用 `yum` 命令名的兼容系统可以把每一条 `dnf` 命令替换为 `yum`：
 
 ```bash
 set -euo pipefail
@@ -59,42 +41,16 @@ if ! command -v curl >/dev/null; then
   sudo dnf install -y curl-minimal
 fi
 
-rpm_key="$(mktemp)"
-trap 'rm -f "$rpm_key"' EXIT
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-  --output "$rpm_key" \
-  https://packages.githubim.com/keys/rpm-preview.asc
-
-rpm_fingerprints="$(
-  gpg --batch --show-keys --with-colons "$rpm_key" |
-    awk -F: '
-      $1 == "pub" { primary = 1; next }
-      primary && $1 == "fpr" { print $10; primary = 0 }
-    '
-)"
-test "$rpm_fingerprints" = 'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459'
-
-sudo install -d -m 0755 /etc/pki/rpm-gpg
-sudo install -o root -g root -m 0644 "$rpm_key" /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
-rm -f "$rpm_key"
-trap - EXIT
-
-sudo tee /etc/yum.repos.d/wukongim-preview.repo >/dev/null <<'EOF'
-[wukongim-preview]
-name=WuKongIM preview
-baseurl=https://packages.githubim.com/rpm/preview/el/9/x86_64
-enabled=1
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview
-sslverify=1
-metadata_expire=300
-skip_if_unavailable=0
-EOF
+  --location --output /tmp/wukongim-release-1.0.0-1.noarch.rpm \
+  https://packages.githubim.com/bootstrap/wukongim-release-1.0.0-1.noarch.rpm
+sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm
 
 sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
 sudo dnf -y --enablerepo=wukongim-preview install wukongim-3.0.0~beta.6-1.x86_64
 ```
+
+`wukongim-release` 只安装专用 RPM 公钥和 `%config(noreplace)` repo 文件，不包含脚本；固定主密钥指纹为 `A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459`。首次引导仍依赖 HTTPS，之后 DNF/YUM 会从签名软件源验证并升级公钥包。
 
 安装后确认二进制身份；版本应为 `3.0.0-beta.6`，文本输出的 `source` 和 JSON 输出的 `build_source` 应为 `release`：
 
@@ -105,7 +61,7 @@ wukongim version --output json
 
 安装包会安装 `/usr/bin/wukongim` 和加固的 `wukongim.service`，创建 `wukongim` 系统账号以及 `/etc/wukongim`、`/var/lib/wukongim`、`/var/log/wukongim`、`/run/wukongim`。它不会生成活动配置，也不会启用、启动或重启服务。
 
-当前软件源还没有单独的 keyring 软件包，因此仓库证书不会随包自动刷新。在官方宣布切换签名子密钥前，重新下载对应证书并再次核对上面的主密钥指纹；不要关闭软件包或仓库元数据签名检查。
+不要删除引导包管理的 keyring、公钥或软件源文件，也不要关闭软件包或仓库元数据签名检查。官方在切换签名子密钥前会先通过引导包升级分发新的公开证书。
 
 ## 2. 安全初始化配置
 
