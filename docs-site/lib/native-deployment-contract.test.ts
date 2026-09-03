@@ -100,8 +100,7 @@ describe('native deployment publication contract', () => {
     for (const content of pages) {
       for (const contract of [
         '3.0.0-beta.6',
-        'https://packages.githubim.com/bootstrap/wukongim-archive-keyring_1.0.0_all.deb',
-        'https://packages.githubim.com/bootstrap/wukongim-release-1.0.0-1.noarch.rpm',
+        'curl -fsSL https://packages.githubim.com/repo | sudo sh',
         'D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1',
         'A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459',
         'wukongim-archive-keyring',
@@ -112,7 +111,6 @@ describe('native deployment publication contract', () => {
         'sudo apt install -y wukongim\n',
         "sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh",
         'sudo dnf install -y wukongim\n',
-        'sudo dnf install -y curl-minimal',
         'RHEL',
         'build_source',
         '.goreleaser.packages.yaml',
@@ -138,18 +136,29 @@ describe('native deployment publication contract', () => {
         'sudo apt-get install -y wukongim=',
         'sudo dnf install -y wukongim-',
         'sudo dnf -y --enablerepo=wukongim-preview install wukongim-',
+        'packages.githubim.com/bootstrap/wukongim-archive-keyring_',
+        'packages.githubim.com/bootstrap/wukongim-release-',
+        '/tmp/wukongim-archive-keyring_',
+        '/tmp/wukongim-release-',
       ]) {
         expect(content).not.toContain(unsafe);
       }
 
-      const aptBootstrap = content.indexOf('sudo apt install -y /tmp/wukongim-archive-keyring_1.0.0_all.deb');
+      expect(
+        content.match(/^curl -fsSL https:\/\/packages\.githubim\.com\/repo \| sudo sh$/gm),
+      ).toHaveLength(2);
+
+      const aptBootstrap = content.indexOf('curl -fsSL https://packages.githubim.com/repo | sudo sh');
       const aptUpdate = content.indexOf('sudo apt update', aptBootstrap);
       const aptInstall = content.indexOf('sudo apt install -y wukongim', aptUpdate);
       expect(aptBootstrap).toBeGreaterThan(-1);
       expect(aptUpdate).toBeGreaterThan(aptBootstrap);
       expect(aptInstall).toBeGreaterThan(aptUpdate);
 
-      const rpmBootstrap = content.indexOf('sudo dnf install -y /tmp/wukongim-release-1.0.0-1.noarch.rpm');
+      const rpmBootstrap = content.indexOf(
+        'curl -fsSL https://packages.githubim.com/repo | sudo sh',
+        aptInstall,
+      );
       const dnfUpdate = content.indexOf(
         "sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh",
         rpmBootstrap,
@@ -159,6 +168,11 @@ describe('native deployment publication contract', () => {
       expect(dnfUpdate).toBeGreaterThan(rpmBootstrap);
       expect(dnfInstall).toBeGreaterThan(dnfUpdate);
     }
+
+    expect(pages[0]).toContain('该脚本只添加软件源，不会更新软件包索引、安装 WuKongIM');
+    expect(pages[1]).toContain(
+      'The script only adds the repository. It does not refresh the package index, install WuKongIM',
+    );
   });
 
   test('states the three-node three-replica readiness boundary', async () => {
