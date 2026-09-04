@@ -91,6 +91,7 @@ function diagnosticsResponse(overrides: Partial<ManagerDiagnosticsResponse> = {}
 }
 
 beforeEach(() => {
+  resetLocale()
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
   getDiagnosticsEventsMock.mockReset()
@@ -98,6 +99,49 @@ beforeEach(() => {
   createDiagnosticsTrackingRuleMock.mockReset()
   deleteDiagnosticsTrackingRuleMock.mockReset()
   listDiagnosticsTrackingRulesMock.mockResolvedValue({ status: "ok", rules: [], nodes: [], notes: [] })
+})
+
+test("explains how to enable diagnostics when tracking is not configured", async () => {
+  listDiagnosticsTrackingRulesMock.mockResolvedValue({
+    status: "error",
+    rules: [],
+    nodes: [
+      { node_id: 1, status: "unavailable", notes: ["diagnostics tracking list unavailable: internal/app: diagnostics tracking not configured"] },
+      { node_id: 2, status: "unavailable", notes: ["manager diagnostics status rejected: diagnostics tracking not configured"] },
+      { node_id: 3, status: "unavailable", notes: ["manager diagnostics status rejected: diagnostics tracking not configured"] },
+    ],
+    notes: [],
+  })
+
+  renderPage()
+
+  expect(await screen.findByText("Diagnostics is not enabled")).toBeInTheDocument()
+  expect(screen.getByText(/Enable diagnostics on every cluster node/)).toBeInTheDocument()
+  expect(screen.getByText("Nodes reporting diagnostics disabled: 1, 2, 3")).toBeInTheDocument()
+  expect(screen.getByText(/\[diagnostics\]\s+enable = true/)).toBeInTheDocument()
+  expect(screen.getByText("WK_DIAGNOSTICS_ENABLE=true")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Start tracking" })).toBeDisabled()
+  expect(screen.queryByText(/diagnostics tracking list unavailable/)).not.toBeInTheDocument()
+  expect(screen.queryByText("No active tracking rules.")).not.toBeInTheDocument()
+})
+
+test("renders diagnostics enablement guidance in Chinese", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  listDiagnosticsTrackingRulesMock.mockResolvedValue({
+    status: "error",
+    rules: [],
+    nodes: [
+      { node_id: 1, status: "unavailable", notes: ["diagnostics tracking not configured"] },
+    ],
+    notes: [],
+  })
+
+  renderPage()
+
+  expect(await screen.findByText("诊断功能未启用")).toBeInTheDocument()
+  expect(screen.getByText(/请在集群的每个节点启用诊断/)).toBeInTheDocument()
+  expect(screen.getByText("报告未启用诊断的节点：1")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "开始追踪" })).toBeDisabled()
 })
 
 test("creates a sender uid tracking rule", async () => {

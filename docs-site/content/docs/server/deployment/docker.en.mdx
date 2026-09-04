@@ -44,6 +44,17 @@ dir = "/var/lib/wukongim/logs"
 
 This file explicitly keeps the important `gateway.token_auth_on=true` setting: a client CONNECT token must exactly match the token stored through `/user/token` for the same UID and device category, or Gateway returns `ReasonAuthFail`. Do not disable it in production merely to simplify integration; see [Security & Access](/en/server/configuration/security) for the full boundary. The remaining fields cover only container startup, the API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` Gateway listeners, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
 
+### Set the configuration file permissions on Linux hosts
+
+The official image runs as the non-root user `10001:10001`. With a bind mount, that user must be able to read the host's `wukongim.toml`. Keep write access for the user who created the file and grant read-only access to the container's group:
+
+```bash
+sudo chown "$(id -u):10001" wukongim.toml
+chmod 0640 wukongim.toml
+```
+
+Do not leave the file as root-only `0600`; the container will repeatedly restart after failing to read its configuration with `permission denied`. The file contains the Manager password and JWT secret, so making it world-readable with `0644` is also discouraged. If you change the image user or use rootless Docker or user-namespace UID/GID mappings, grant read access according to the effective mapping instead.
+
 ## 2. Start and verify
 
 Choose either startup method.

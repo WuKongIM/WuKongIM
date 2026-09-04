@@ -44,6 +44,17 @@ dir = "/var/lib/wukongim/logs"
 
 这份配置显式保留重要的 `gateway.token_auth_on=true`：客户端 CONNECT Token 必须与 `/user/token` 按相同 UID、设备类别保存的 Token 精确匹配，否则返回 `ReasonAuthFail`。不要为了简化联调而在生产关闭它；完整边界见[安全配置](/zh/server/configuration/security)。其余只保留容器启动、API、Manager 认证和可写日志目录所需字段；单节点拓扑、256 Hash Slots、`5100/5200` Gateway Listener 和其他参数使用运行时默认值。至少替换 `jwt_secret` 和管理员密码。客户端不在本机时，再按实际地址补充 `api.external_tcp_addr` 和 `api.external_ws_addr`。全部字段及其默认值见[配置参考](/zh/server/configuration/reference)。
 
+### 设置 Linux 主机上的配置文件权限
+
+官方镜像以非 root 用户 `10001:10001` 运行。使用 bind mount 时，容器内的这个用户必须能读取宿主机上的 `wukongim.toml`。保留创建者的写权限，并将只读权限授予容器所属组：
+
+```bash
+sudo chown "$(id -u):10001" wukongim.toml
+chmod 0640 wukongim.toml
+```
+
+不要将配置文件保留为仅 root 可读的 `0600`，否则容器会因读取配置时出现 `permission denied` 而反复重启。配置文件包含 Manager 密码和 JWT 密钥，也不建议使用所有用户可读的 `0644`。如果镜像运行用户、rootless Docker 或 user namespace 的 UID/GID 映射有调整，请按实际映射授予只读权限。
+
 ## 2. 启动并验证
 
 任选一种方式启动。

@@ -77,6 +77,7 @@ const defaultForm: DiagnosticsQueryForm = {
 
 const resultOptions: DiagnosticsResultFilter[] = ["", "error", "timeout", "partial", "dropped", "canceled", "skipped"]
 const failureResults = new Set(["error", "timeout", "partial", "dropped", "canceled", "skipped"])
+const diagnosticsTrackingNotConfiguredMarker = "diagnostics tracking not configured"
 
 function positiveInteger(value: string) {
   if (!/^\d+$/.test(value.trim())) return null
@@ -223,6 +224,17 @@ function trackingResponseNotice(intl: IntlShape, status: string, notes: string[]
   return status === "partial" || status === "error" ? statusLabel : ""
 }
 
+function diagnosticsTrackingSetupNodes(notes: string[], nodes: { node_id: number; notes: string[] }[]) {
+  const isNotConfigured = (note: string) => note.toLowerCase().includes(diagnosticsTrackingNotConfiguredMarker)
+  const setupRequired = notes.some(isNotConfigured) || nodes.some((node) => node.notes.some(isNotConfigured))
+  if (!setupRequired) return null
+
+  return nodes
+    .filter((node) => node.notes.some(isNotConfigured))
+    .map((node) => node.node_id)
+    .sort((left, right) => left - right)
+}
+
 function HeaderBadge({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-background px-3 py-2">
@@ -328,6 +340,7 @@ export function DiagnosticsTracePanel() {
   const [trackingRules, setTrackingRules] = useState<ManagerDiagnosticsTrackingRule[]>([])
   const [trackingErrors, setTrackingErrors] = useState<string[]>([])
   const [trackingNotice, setTrackingNotice] = useState("")
+  const [trackingSetupNodeIds, setTrackingSetupNodeIds] = useState<number[] | null>(null)
   const [trackingLoading, setTrackingLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [exported, setExported] = useState(false)
@@ -345,11 +358,16 @@ export function DiagnosticsTracePanel() {
     setTrackingLoading(true)
     try {
       const response = await listDiagnosticsTrackingRules()
+      const setupNodeIds = diagnosticsTrackingSetupNodes(response.notes, response.nodes)
       setTrackingRules(response.rules)
-      setTrackingNotice(trackingResponseNotice(intl, response.status, response.notes, response.nodes))
+      setTrackingSetupNodeIds(setupNodeIds)
+      setTrackingNotice(setupNodeIds === null ? trackingResponseNotice(intl, response.status, response.notes, response.nodes) : "")
       setTrackingErrors([])
     } catch (error) {
-      setTrackingErrors([error instanceof Error ? error.message : intl.formatMessage({ id: "diagnostics.error.loadTracking" })])
+      const message = error instanceof Error ? error.message : intl.formatMessage({ id: "diagnostics.error.loadTracking" })
+      const setupRequired = message.toLowerCase().includes(diagnosticsTrackingNotConfiguredMarker)
+      setTrackingSetupNodeIds(setupRequired ? [] : null)
+      setTrackingErrors(setupRequired ? [] : [message])
     } finally {
       setTrackingLoading(false)
     }
@@ -470,6 +488,25 @@ export function DiagnosticsTracePanel() {
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800">
           {intl.formatMessage({ id: "diagnostics.tracking.warning" })}
         </div>
+        {trackingSetupNodeIds !== null ? (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900" role="status">
+            <div className="font-semibold">{intl.formatMessage({ id: "diagnostics.tracking.setupRequired.title" })}</div>
+            <p className="mt-1 leading-6">{intl.formatMessage({ id: "diagnostics.tracking.setupRequired.description" })}</p>
+            {trackingSetupNodeIds.length > 0 ? (
+              <p className="mt-1">{intl.formatMessage({ id: "diagnostics.tracking.setupRequired.nodes" }, { nodes: trackingSetupNodeIds.join(", ") })}</p>
+            ) : null}
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide">{intl.formatMessage({ id: "diagnostics.tracking.setupRequired.toml" })}</div>
+                <pre className="mt-1 overflow-x-auto rounded-md bg-background/80 p-3 font-mono text-xs text-foreground">{"[diagnostics]\nenable = true"}</pre>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide">{intl.formatMessage({ id: "diagnostics.tracking.setupRequired.environment" })}</div>
+                <pre className="mt-1 overflow-x-auto rounded-md bg-background/80 p-3 font-mono text-xs text-foreground">WK_DIAGNOSTICS_ENABLE=true</pre>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-3 md:grid-cols-5">
           <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
             {intl.formatMessage({ id: "diagnostics.tracking.target" })}
@@ -514,7 +551,7 @@ export function DiagnosticsTracePanel() {
           </div>
         ) : null}
         {trackingNotice ? <div className="mt-3 text-sm text-muted-foreground">{trackingNotice}</div> : null}
-        <Button className="mt-4" disabled={trackingLoading} onClick={() => void createTrackingRule()}>
+        <Button className="mt-4" disabled={trackingLoading || trackingSetupNodeIds !== null} onClick={() => void createTrackingRule()}>
           {trackingLoading ? intl.formatMessage({ id: "diagnostics.tracking.working" }) : intl.formatMessage({ id: "diagnostics.tracking.start" })}
         </Button>
         <div className="mt-4 grid gap-3">
@@ -543,7 +580,7 @@ export function DiagnosticsTracePanel() {
               </div>
             </div>
           ))}
-          {trackingRules.length === 0 ? <div className="text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.tracking.empty" })}</div> : null}
+          {trackingRules.length === 0 && trackingSetupNodeIds === null ? <div className="text-sm text-muted-foreground">{intl.formatMessage({ id: "diagnostics.tracking.empty" })}</div> : null}
         </div>
       </SectionCard>
 
