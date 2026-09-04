@@ -32,7 +32,9 @@ describe('Mermaid diagrams', () => {
 
     expect(packageJson.dependencies?.['beautiful-mermaid']).toBe('1.1.3');
     expect(config).toContain("from 'fumadocs-core/mdx-plugins'");
-    expect(config).toContain('remarkPlugins: [remarkMdxMermaid]');
+    expect(config).toContain(
+      'remarkPlugins: [[remarkReleaseVersion, releaseVersion], remarkMdxMermaid]',
+    );
     expect(mdx).toContain('Mermaid,');
     expect(component).toContain("from 'beautiful-mermaid'");
     expect(component).toContain("bg: 'var(--color-fd-background)'");

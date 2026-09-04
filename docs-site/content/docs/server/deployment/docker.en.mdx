@@ -6,7 +6,7 @@ description: Start a WuKongIM single-node cluster with docker run or Docker Comp
 You only need Docker. This path mounts `wukongim.toml` and a Docker volume directly, with no installer.
 
 <Callout type="warn" title="The default is for a quick local evaluation">
-  The example pins image `3.0.0-beta.7`. To use another release, replace the image tag directly and read that release's upgrade notes first. Before serving production traffic, replace the example credentials and complete [Security & Access](/en/server/configuration/security) and [Health & Monitoring](/en/server/operations/health-and-monitoring).
+  The example pins image `WK_CURRENT_IMAGE_TAG`. To use another release, replace the image tag directly and read that release's upgrade notes first. Before serving production traffic, replace the example credentials and complete [Security & Access](/en/server/configuration/security) and [Health & Monitoring](/en/server/operations/health-and-monitoring).
 </Callout>
 
 ## 1. Create the configuration file
@@ -55,7 +55,7 @@ docker run -d --name wukongim --restart unless-stopped \
   -p 127.0.0.1:5001:5001 -p 5100:5100 -p 5200:5200 -p 127.0.0.1:5301:5301 \
   -v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro" \
   -v wukongim-data:/var/lib/wukongim \
-  ghcr.io/wukongim/wukongim:3.0.0-beta.7
+  ghcr.io/wukongim/wukongim:WK_CURRENT_IMAGE_TAG
 ```
 
 ### Use Docker Compose
@@ -65,7 +65,7 @@ Create `compose.yaml`:
 ```yaml
 services:
   wukongim:
-    image: ghcr.io/wukongim/wukongim:3.0.0-beta.7
+    image: ghcr.io/wukongim/wukongim:WK_CURRENT_IMAGE_TAG
     container_name: wukongim
     restart: unless-stopped
     ports: ["127.0.0.1:5001:5001", "5100:5100", "5200:5200", "127.0.0.1:5301:5301"]

@@ -88,7 +88,7 @@ describe('native deployment publication contract', () => {
         'docker compose up -d',
         'name: wukongim-data',
         'docker compose down --volumes',
-        'ghcr.io/wukongim/wukongim:3.0.0-beta.7',
+        'ghcr.io/wukongim/wukongim:WK_CURRENT_IMAGE_TAG',
         'wukongim-data',
         'http://127.0.0.1:5301',
         'http://127.0.0.1:5001/readyz',
@@ -107,7 +107,8 @@ describe('native deployment publication contract', () => {
       expect(content).not.toContain('docker volume create');
       expect(content).not.toContain('--mount');
       expect(content).not.toContain('node1.toml');
-      expect(content).not.toContain('3.0.0-beta.6');
+      expect(content.match(/WK_CURRENT_IMAGE_TAG/g)).toHaveLength(3);
+      expect(content).not.toMatch(/\b\d+\.\d+\.\d+-(?:alpha|beta|rc)[0-9A-Za-z.-]*/);
       for (const optional of [
         'cluster.id',
         'nodes =',
@@ -141,7 +142,7 @@ describe('native deployment publication contract', () => {
 
     for (const content of pages) {
       for (const contract of [
-        '3.0.0-beta.7',
+        'WK_CURRENT_RELEASE_TAG',
         'curl -fsSL https://packages.githubim.com/repo | sudo sh',
         'sudo apt update',
         'sudo apt install -y wukongim\n',
@@ -180,7 +181,8 @@ describe('native deployment publication contract', () => {
       ]) {
         expect(content).not.toContain(unsafe);
       }
-      expect(content).not.toContain('3.0.0-beta.6');
+      expect(content.match(/WK_CURRENT_RELEASE_TAG/g)).toHaveLength(1);
+      expect(content).not.toMatch(/\bv\d+\.\d+\.\d+-(?:alpha|beta|rc)[0-9A-Za-z.-]*/);
       expect(content).toContain(
         'sudo wukongim init \\\n  --admin-password-stdin < /secure/path/manager-password',
       );

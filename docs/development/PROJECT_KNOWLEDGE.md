@@ -563,6 +563,16 @@
   Actions immediately before tagging or recovery; the Workflow never stores an
   administrator token and still requires the published numeric Release to be
   sealed immutable.
+- Public deployment documentation derives its current release tag and container
+  tag from the latest exact root Changelog version heading during the MDX build;
+  only historical introduction and migration references retain literal
+  versions. A successful tag-initiated binary publisher run triggers the Pages
+  Workflow on the protected default-branch context. Before building the tagged
+  source, the docs Workflow requires same-repository provenance, successful tag
+  push semantics, `main` ancestry, an exact tag-to-source match, a matching
+  immutable non-draft Release, and equality between the tag and latest
+  Changelog version. Thus a normal release no longer requires synchronized
+  edits to bilingual Linux and Docker examples or their contract tests.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.

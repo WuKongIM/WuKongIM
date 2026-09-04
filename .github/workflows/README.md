@@ -48,12 +48,27 @@ authorization and the applicable budget.
 ## Documentation Pages
 
 `docs-pages.yml` is the sole documentation publisher. A merge to `main` that
-changes `docs-site/**` starts it automatically; `workflow_dispatch` is reserved
-for first publication, recovery, and the bounded custom-domain migration mode.
-The build job has read-only repository access, installs the locked Bun
-dependencies, runs `bun run verify`, and uploads only the resulting
-`docs-site/out` directory. The deploy job receives only the Pages and OIDC
-permissions required by GitHub's deployment API.
+changes `CHANGELOG.md`, `docs-site/**`, or its bounded publication files starts
+it automatically. A successful tag-initiated
+`Safety Automation - Publish WuKongIM Binaries` run also starts it through
+`workflow_run`; `workflow_dispatch` is reserved for first publication,
+recovery, and the bounded custom-domain migration mode. The build job has
+read-only repository access, installs the locked Bun dependencies, runs
+`bun run verify`, and uploads only the resulting `docs-site/out` directory. The
+deploy job receives only the Pages and OIDC permissions required by GitHub's
+deployment API.
+
+For a release-triggered build, the Workflow checks out the upstream run's exact
+source SHA and fails unless the run came from this repository, completed a tag
+push successfully, names a strict release candidate, remains reachable from
+`main`, has a tag that peels to the same commit, and already owns a matching
+non-draft immutable GitHub Release. `DOCS_RELEASE_TAG` then requires the latest
+exact version heading in the tagged root `CHANGELOG.md` to equal that release.
+The MDX pipeline derives the container tag by removing the leading `v` and
+replaces the reviewed current-release placeholders at build time. Historical
+version references stay literal. The release source executes only in the
+read-only build job; the Pages deployment executes no checked-out source, and
+the CDN refresh retains the protected default-branch checkout.
 
 A manual migration run may set `expected_pages_domain` to exactly
 `docs.githubim.com` or `origin-docs.githubim.com`. The Workflow finishes the

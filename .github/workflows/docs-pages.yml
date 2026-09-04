@@ -1,6 +1,6 @@
 name: Safety Automation - Publish Documentation to GitHub Pages
 run-name: >-
-  Documentation Pages ${{ github.event_name }} ${{ github.ref_name }} attempt ${{ github.run_attempt }}
+  Documentation Pages ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }} attempt ${{ github.run_attempt }}
 
 on:
   push:
@@ -8,10 +8,16 @@ on:
       - main
     paths:
       - ".github/workflows/docs-pages.yml"
+      - "CHANGELOG.md"
       - "docs-site/**"
       - "scripts/docs-cdn/install-aliyun-cli.sh"
       - "scripts/docs-cdn/refresh.sh"
       - "scripts/docs-cdn/verify-pages-origin.sh"
+  workflow_run:
+    workflows:
+      - Safety Automation - Publish WuKongIM Binaries
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       expected_pages_domain:
@@ -30,14 +36,56 @@ concurrency:
 jobs:
   build:
     name: Verify and package the static documentation site
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        startsWith(github.event.workflow_run.head_branch, 'v') &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout the exact source revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
           persist-credentials: false
+      - name: Validate the immutable release documentation source
+        if: github.event_name == 'workflow_run'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RELEASE_EVENT: ${{ github.event.workflow_run.event }}
+          RELEASE_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          RELEASE_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_CONCLUSION" == success ]]
+          [[ "$RELEASE_EVENT" == push ]]
+          [[ "$RELEASE_REPOSITORY" == "$GITHUB_REPOSITORY" ]]
+          [[ "$RELEASE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9] ]]
+          [[ "$(git rev-parse HEAD)" == "$RELEASE_SOURCE_SHA" ]]
+
+          git fetch --no-tags origin \
+            "+refs/heads/main:refs/remotes/origin/main"
+          git merge-base --is-ancestor "$RELEASE_SOURCE_SHA" refs/remotes/origin/main
+
+          git fetch --no-tags origin \
+            "refs/tags/$RELEASE_TAG:refs/remotes/origin/release-docs-tag"
+          [[ "$(git rev-parse 'refs/remotes/origin/release-docs-tag^{commit}')" == "$RELEASE_SOURCE_SHA" ]]
+
+          readonly release_id="$(gh api \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" | \
+            jq -er 'select(.tag_name == env.RELEASE_TAG and .immutable == true and .draft == false) | .id')"
+          [[ "$release_id" =~ ^[0-9]+$ ]]
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -47,6 +95,7 @@ jobs:
       - name: Install, verify, and export the site
         working-directory: docs-site
         env:
+          DOCS_RELEASE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
           DOCS_SITE_URL: https://docs.githubim.com
         shell: bash
         run: |
@@ -129,7 +178,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DOCS_PAGES_REPOSITORY: ${{ github.repository }}
           DOCS_PAGES_DOMAIN: ${{ inputs.expected_pages_domain }}
-          DOCS_PAGES_CACHE_BUST: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          DOCS_PAGES_CACHE_BUST: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: ./scripts/docs-cdn/verify-pages-origin.sh
 
   refresh_cdn:

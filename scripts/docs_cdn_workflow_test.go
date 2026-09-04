@@ -10,6 +10,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDocsPagesPublishesAnAuthenticatedImmutableReleaseSource(t *testing.T) {
+	workflow := readFile(
+		t,
+		filepath.Join(repoRoot(t), ".github", "workflows", "docs-pages.yml"),
+	)
+
+	for _, want := range []string{
+		`- "CHANGELOG.md"`,
+		"workflow_run:",
+		"- Safety Automation - Publish WuKongIM Binaries",
+		"github.event.workflow_run.conclusion == 'success'",
+		"github.event.workflow_run.event == 'push'",
+		"github.event.workflow_run.head_repository.full_name == github.repository",
+		"ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}",
+		"Validate the immutable release documentation source",
+		`[[ "$RELEASE_REPOSITORY" == "$GITHUB_REPOSITORY" ]]`,
+		`[[ "$RELEASE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]`,
+		`[[ "$(git rev-parse HEAD)" == "$RELEASE_SOURCE_SHA" ]]`,
+		`git merge-base --is-ancestor "$RELEASE_SOURCE_SHA" refs/remotes/origin/main`,
+		`refs/tags/$RELEASE_TAG:refs/remotes/origin/release-docs-tag`,
+		`.immutable == true`,
+		`.draft == false`,
+		"DOCS_RELEASE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}",
+	} {
+		require.Contains(t, workflow, want)
+	}
+
+	buildStart := strings.Index(workflow, "\n  build:")
+	deployStart := strings.Index(workflow, "\n  deploy:")
+	require.NotEqual(t, -1, buildStart)
+	require.Greater(t, deployStart, buildStart)
+	buildJob := workflow[buildStart:deployStart]
+	require.NotContains(t, buildJob, "id-token: write")
+	require.NotContains(t, buildJob, "secrets.")
+}
+
 func TestDocsCDNRefreshRunsOnlyAfterSuccessfulPagesDeployment(t *testing.T) {
 	workflow := readFile(
 		t,

@@ -21,6 +21,10 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 
 - Manager 节点列表现在显示每个节点当前运行的 WuKongIM 程序版本，便于识别滚动升级期间的版本差异。
 
+### 📚 Documentation / 文档
+
+- 文档站的当前发布版本现在从根 Changelog 的最新版本标题构建期注入，并在不可变二进制发布成功后自动部署；后续发布无需再手工同步中英文 Linux、Docker 示例及其测试。
+
 ## [v3.0.0-beta.8] - 2026-09-04
 
 ### ⚠️ Breaking Changes / 破坏性变更

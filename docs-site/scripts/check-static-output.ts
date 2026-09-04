@@ -16,6 +16,11 @@ import {
   productHTTPOpenAPIReferenceOperations,
   type ProductHTTPOpenAPIOperation,
 } from '../lib/product-http-openapi';
+import {
+  currentImageTagToken,
+  currentReleaseTagToken,
+  resolveReleaseVersion,
+} from '../lib/release-version';
 import { canonicalUrl, isPreviewBuild, siteUrl } from '../lib/shared';
 import {
   RSC_REFRESH_ORIGIN,
@@ -214,6 +219,10 @@ function normalizedRoute(pathname: string) {
 
 export async function checkStaticOutput() {
   const preview = isPreviewBuild();
+  const releaseVersion = resolveReleaseVersion(
+    await Bun.file(new URL('../../CHANGELOG.md', import.meta.url)).text(),
+    process.env.DOCS_RELEASE_TAG,
+  );
 
   for (const locale of locales) {
     const home = await text(`${locale}/index.html`);
@@ -246,6 +255,31 @@ export async function checkStaticOutput() {
 
     for (const domain of domains) {
       await text(`${locale}/${domain.key}/index.html`);
+    }
+
+    for (const linuxOutput of [
+      await text(`${locale}/server/deployment/linux/index.html`),
+      await text(`llms.mdx/${locale}/server/deployment/linux/content.md`),
+    ]) {
+      if (
+        !linuxOutput.includes(releaseVersion.tag) ||
+        linuxOutput.includes(currentReleaseTagToken)
+      ) {
+        throw new Error(`${locale} Linux deployment did not resolve the current release tag`);
+      }
+    }
+    for (const dockerOutput of [
+      await text(`${locale}/server/deployment/docker/index.html`),
+      await text(`llms.mdx/${locale}/server/deployment/docker/content.md`),
+    ]) {
+      if (
+        !dockerOutput.includes(
+          `ghcr.io/wukongim/wukongim:${releaseVersion.imageTag}`,
+        ) ||
+        dockerOutput.includes(currentImageTagToken)
+      ) {
+        throw new Error(`${locale} Docker deployment did not resolve the current image tag`);
+      }
     }
   }
 

@@ -14,16 +14,17 @@ documents runtime contracts but does not define them.
 
 ## Boundaries
 
-- Repository `docs/` is the engineering knowledge base. Legacy documentation
-  is useful for topic discovery only; current code and released SDKs decide API
-  facts.
+- Repository `docs/` is the engineering knowledge base. Legacy docs aid topic
+  discovery only; current code and released SDKs decide API facts.
 - `lib/navigation.ts` is the shared bilingual publication registry.
-- `SDK_DOCUMENTATION_SPEC.md` owns the maintained WuKongIMSDK versions,
-  learning order, and reader contract. WuKongEasySDK remains a separate path.
+- `SDK_DOCUMENTATION_SPEC.md` owns maintained WuKongIMSDK versions, learning
+  order, and reader contract. WuKongEasySDK remains a separate path.
 - `.github/workflows/docs-pages.yml` deploys the export, verifies the direct Pages
-  data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. Its migration input stages the export before one exact external domain change; its only Alibaba mutation is four bounded cache invalidations.
-  The export also carries a fixed-origin, inventory-only list of static RSC refresh URLs;
-  the Workflow does not consume that list or reconfigure DNS, CDN topology, RAM, or certificates.
+  data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. It also accepts
+  a successful binary-release `workflow_run` after authenticating the immutable
+  tag and source. Its migration input stages the export before one domain change;
+  its only Alibaba mutation is four bounded cache invalidations. Its fixed-origin
+  RSC inventory is inert and cannot reconfigure DNS, CDN, RAM, or certificates.
 - The canonical URL remains `https://docs.githubim.com`. After CDN cutover,
   GitHub Pages serves `https://origin-docs.githubim.com` as the only origin.
   Pages Settings/API is the sole domain authority; the export carries no CNAME.
@@ -49,14 +50,14 @@ documents runtime contracts but does not define them.
 6. `scripts/generate-openapi.ts` generates the complete Product HTTP reference.
    Operations HTTP and outbound Webhooks use separate OpenAPI contracts.
    WKProto, JSON-RPC, and private interfaces remain protocol documentation.
-7. Static export writes `out/`; publication, canonical, link, structure, and machine-artifact checks run before the Workflow
-   uploads that exact directory as the GitHub Pages artifact. The build derives `cdn-rsc-refresh-urls.txt` from physical
-   `index.html`/`index.txt` pairs, fixes its origin, ordering, uniqueness, and size bound, and keeps it inert. Hidden files
-   are retained so `.nojekyll` and future machine-readable well-known endpoints cannot be dropped silently.
-8. After deployment, Pages API state and direct root, locale, deep-page, and
-   search GETs gate bounded CDN refreshes. Migration runs skip refresh; a normal
-   follow-up refreshes after the gate. It never broadly purges content-addressed
-   assets, and refresh failure does not undo a successful Pages deployment.
+7. `lib/release-version.ts` treats the latest exact root Changelog version
+   heading as the current public release, validates an expected release tag,
+   derives its container tag, and replaces only reviewed MDX placeholders.
+8. Static export writes `out/`; all checks run before that exact Pages artifact
+   uploads. The build derives an inert, fixed-origin, ordered, unique, bounded RSC
+   URL inventory from physical page pairs and retains hidden files such as `.nojekyll`.
+9. Direct Pages API and content GETs gate bounded CDN refreshes. Migration runs
+   skip refresh, and refresh failure does not undo a successful deployment.
 
 ## Invariants and Failure Semantics
 
@@ -64,12 +65,10 @@ documents runtime contracts but does not define them.
   both locale variants are ready.
 - Product facts preserve cluster-only and 256-hash-slot semantics, durable
   commit versus downstream effects, and current security boundaries.
-- Full SDK examples pin exact released versions and use Java, Objective-C,
-  TypeScript, Dart, and ArkTS respectively. They explain Channel, Provider,
-  local insertion, and the server send result before relying on those terms.
-- A trusted application backend supplies identity, tokens, routing, history,
-  channel metadata, and media URLs as needed. Untrusted clients never call
-  Product HTTP management operations directly.
+- Full SDK examples pin exact released versions in Java, Objective-C,
+  TypeScript, Dart, and ArkTS, explaining core terms before relying on them.
+- A trusted backend supplies identity, tokens, routing, history, Channel metadata,
+  and media URLs. Untrusted clients never call Product HTTP management directly.
 - The JavaScript example is a tested development aid, not a production backend
   or a substitute for testing on actual devices, networks, and releases.
 - EasySDK evidence names exact client and server revisions. When verified source
@@ -85,14 +84,16 @@ documents runtime contracts but does not define them.
   read-only. CDN refresh and certificate rotation use separate Environments and
   OIDC roles. Domain, build, or certificate state never replaces a fresh
   deployment and the direct content gate. The RSC inventory exactly matches eligible static routes, is capped at 500 fixed-origin URLs, and is not refresh or prefetch authority.
+- Current release examples use `WK_CURRENT_RELEASE_TAG` or
+  `WK_CURRENT_IMAGE_TAG`; they never repeat a manually maintained version.
+  Release-triggered builds require the Changelog version to equal the exact
+  immutable Release tag. Historical introduction and migration versions remain
+  literal evidence.
 
 ## Read First
 
-- [SDK documentation specification](SDK_DOCUMENTATION_SPEC.md)
-- [Navigation registry](lib/navigation.ts)
-- [Phase 18 API and protocol specification](PHASE_18_SPEC.md)
-- [Developer contract source](lib/developer-contracts.ts)
-- [OpenAPI page generator](scripts/generate-openapi.ts)
+- [SDK specification](SDK_DOCUMENTATION_SPEC.md), [navigation](lib/navigation.ts), and [developer contracts](lib/developer-contracts.ts)
+- [Phase 18 API specification](PHASE_18_SPEC.md) and [OpenAPI generator](scripts/generate-openapi.ts)
 
 ## Update Triggers
 
