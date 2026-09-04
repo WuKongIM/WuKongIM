@@ -335,9 +335,9 @@ The static export includes `cdn-rsc-refresh-urls.txt`, an inventory-only list
 with one absolute URL per eligible physical RSC object. The build derives it
 from actual `index.html` artifacts, requires every matching `index.txt`
 sibling, uses the fixed `https://docs.githubim.com` origin, sorts and de-duplicates
-the URLs, and permits at most 500 entries. The current deployment Workflow does not consume this inventory;
-neither does the refresh helper. They intentionally refresh only four stable
-public URLs, not every deep `/index.txt`.
+the URLs, and permits at most 500 entries. The current deployment Workflow
+does not consume this inventory; neither does the refresh helper. They
+intentionally refresh only four stable public URLs, not every deep `/index.txt`.
 
 A documentation deployment can therefore leave a deep RSC object from the
 preceding build at an edge for at most one ten-minute route-TXT TTL. Keep old
