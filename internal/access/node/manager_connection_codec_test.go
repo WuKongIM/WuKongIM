@@ -19,8 +19,8 @@ func TestManagerConnectionPageCodecCarriesCursorAndTotal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeManagerConnectionRequest() error = %v", err)
 	}
-	if gotRequest.Version != managerConnectionRPCVersion3 || gotRequest.Cursor != cursor {
-		t.Fatalf("request = %#v, want v3 cursor %#v", gotRequest, cursor)
+	if gotRequest.Version != managerConnectionRPCVersion4 || gotRequest.Cursor != cursor {
+		t.Fatalf("request = %#v, want v4 cursor %#v", gotRequest, cursor)
 	}
 
 	response, err := encodeManagerConnectionResponse(managerConnectionRPCResponse{
@@ -33,8 +33,8 @@ func TestManagerConnectionPageCodecCarriesCursorAndTotal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeManagerConnectionResponse() error = %v", err)
 	}
-	if gotResponse.Version != managerConnectionRPCVersion3 || gotResponse.Total != 250 || !gotResponse.HasMore || gotResponse.NextCursor != cursor {
-		t.Fatalf("response = %#v, want v3 total and cursor", gotResponse)
+	if gotResponse.Version != managerConnectionRPCVersion4 || gotResponse.Total != 250 || !gotResponse.HasMore || gotResponse.NextCursor != cursor {
+		t.Fatalf("response = %#v, want v4 total and cursor", gotResponse)
 	}
 }
 
@@ -66,6 +66,7 @@ func TestManagerConnectionCodecAcceptsVersion2Frames(t *testing.T) {
 func TestManagerConnectionRuntimeSummaryCodecCarriesControlRevision(t *testing.T) {
 	want := managementusecase.NodeRuntimeSummary{
 		NodeID:               2,
+		Version:              "v3.0.0-beta.7",
 		ActiveOnline:         7,
 		GatewaySessions:      9,
 		PendingActivations:   3,
@@ -87,14 +88,32 @@ func TestManagerConnectionRuntimeSummaryCodecCarriesControlRevision(t *testing.T
 	if err != nil {
 		t.Fatalf("decodeManagerConnectionResponse() error = %v", err)
 	}
-	if got.Summary.ControlRevision != 42 || got.Summary.NodeID != 2 {
-		t.Fatalf("summary = %#v, want control revision 42 for node 2", got.Summary)
+	if got.Summary.ControlRevision != 42 || got.Summary.NodeID != 2 || got.Summary.Version != "v3.0.0-beta.7" {
+		t.Fatalf("summary = %#v, want control revision 42 and version v3.0.0-beta.7 for node 2", got.Summary)
 	}
 	if got.Summary.PendingActivations != 3 {
 		t.Fatalf("summary = %#v, want pending activations 3", got.Summary)
 	}
 	if got.Summary.ChannelRuntime != want.ChannelRuntime {
 		t.Fatalf("channel runtime = %#v, want %#v", got.Summary.ChannelRuntime, want.ChannelRuntime)
+	}
+}
+
+func TestManagerConnectionVersion3RuntimeSummaryOmitsProgramVersion(t *testing.T) {
+	encoded, err := encodeManagerConnectionResponse(managerConnectionRPCResponse{
+		Version: managerConnectionRPCVersion3,
+		Status:  rpcStatusOK,
+		Summary: managementusecase.NodeRuntimeSummary{NodeID: 2, Version: "v3.0.0-beta.7"},
+	})
+	if err != nil {
+		t.Fatalf("encodeManagerConnectionResponse(v3) error = %v", err)
+	}
+	got, err := decodeManagerConnectionResponse(encoded)
+	if err != nil {
+		t.Fatalf("decodeManagerConnectionResponse(v3) error = %v", err)
+	}
+	if got.Version != managerConnectionRPCVersion3 || got.Summary.NodeID != 2 || got.Summary.Version != "" {
+		t.Fatalf("response = %#v, want v3 runtime summary without program version", got)
 	}
 }
 

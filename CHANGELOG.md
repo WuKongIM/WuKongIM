@@ -17,6 +17,10 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+### 🔧 Improvements / 改进
+
+- Manager 节点列表现在显示每个节点当前运行的 WuKongIM 程序版本，便于识别滚动升级期间的版本差异。
+
 ## [v3.0.0-beta.8] - 2026-09-04
 
 ### ⚠️ Breaking Changes / 破坏性变更

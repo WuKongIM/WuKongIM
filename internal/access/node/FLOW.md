@@ -47,9 +47,13 @@ scheduled backup or restore
   version; decoders accept only explicitly supported older versions and reject
   unknown operations, malformed lengths, oversized collections, truncation,
   and trailing bytes.
-- Manager connection RPC version 3 carries the true active total and the
-  freshness cursor for bounded remote-node pages; version 2 remains an
-  explicitly decoded compatibility layout without that pagination metadata.
+- Manager connection RPC version 4 carries the node program version; version 3
+  carries the true active total and freshness cursor for bounded remote-node
+  pages, and version 2 remains an explicitly decoded compatibility layout
+  without that pagination metadata. Connection list/detail reads and mutations
+  remain on version 3 for rolling-upgrade compatibility; a version-4
+  runtime-summary read from an older peer remains explicitly unavailable until
+  that peer is upgraded.
 - Channel append RPC never resolves routes, creates proxy Channel state,
   appends outside local authority, or runs post-commit effects elsewhere.
 - Transport cancellation and unavailable-target failures map to stable typed

@@ -812,6 +812,7 @@ export const zhCNMessages: AppMessages = {
   "nodes.channelRuntimeUnknown": "频道运行时未知",
   "nodes.slotLayerSummary": "副本 {replicas} / Leader {leaders} / Follower {followers}",
   "nodes.table.node": "节点",
+  "nodes.table.version": "版本",
   "nodes.table.address": "地址",
   "nodes.table.membership": "成员关系",
   "nodes.membershipRole.data": "数据节点",

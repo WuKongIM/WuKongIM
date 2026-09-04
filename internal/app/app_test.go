@@ -1385,7 +1385,7 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		Manager: ManagerConfig{ListenAddr: ":0"},
-	}, WithCluster(cluster), WithOnlineRegistry(onlineRegistry), WithGateway(gatewayRuntime))
+	}, WithCluster(cluster), WithOnlineRegistry(onlineRegistry), WithGateway(gatewayRuntime), WithBuildVersion("v3.0.0-beta.7"))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1406,6 +1406,7 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	var body struct {
 		Items []struct {
 			NodeID         uint64 `json:"node_id"`
+			Version        string `json:"version"`
 			ChannelRuntime struct {
 				ActiveTotal    int  `json:"active_total"`
 				ActiveLeader   int  `json:"active_leader"`
@@ -1433,7 +1434,7 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	}
 	runtime := body.Items[1].Runtime
 	channelSummary := body.Items[1].ChannelRuntime
-	if body.Items[1].NodeID != 2 || runtime.Unknown || runtime.ActiveOnline != 1 ||
+	if body.Items[1].NodeID != 2 || body.Items[1].Version != "v3.0.0-beta.7" || runtime.Unknown || runtime.ActiveOnline != 1 ||
 		runtime.ClosingOnline != 0 || runtime.TotalOnline != 2 || runtime.GatewaySessions != 3 ||
 		runtime.PendingActivations != 1 ||
 		runtime.SessionsByListener["tcp"] != 2 || runtime.SessionsByListener["ws"] != 1 ||
@@ -1447,6 +1448,7 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 
 func TestManagementRuntimeSummaryReportsLocalControlRevision(t *testing.T) {
 	app := &App{
+		buildVersion: "v3.0.0-beta.7",
 		cluster: &fakeManagerCluster{
 			nodeID:   2,
 			snapshot: control.Snapshot{Revision: 42},
@@ -1458,8 +1460,8 @@ func TestManagementRuntimeSummaryReportsLocalControlRevision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NodeRuntimeSummary() error = %v", err)
 	}
-	if got.ControlRevision != 42 {
-		t.Fatalf("runtime summary = %#v, want control revision 42", got)
+	if got.ControlRevision != 42 || got.Version != "v3.0.0-beta.7" {
+		t.Fatalf("runtime summary = %#v, want control revision 42 and program version v3.0.0-beta.7", got)
 	}
 }
 

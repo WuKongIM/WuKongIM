@@ -11,13 +11,16 @@ import (
 var (
 	managerConnectionRequestMagicV2  = [...]byte{'W', 'K', 'V', 'M', 2}
 	managerConnectionResponseMagicV2 = [...]byte{'W', 'K', 'V', 'm', 2}
-	managerConnectionRequestMagic    = [...]byte{'W', 'K', 'V', 'M', 3}
-	managerConnectionResponseMagic   = [...]byte{'W', 'K', 'V', 'm', 3}
+	managerConnectionRequestMagicV3  = [...]byte{'W', 'K', 'V', 'M', 3}
+	managerConnectionResponseMagicV3 = [...]byte{'W', 'K', 'V', 'm', 3}
+	managerConnectionRequestMagic    = [...]byte{'W', 'K', 'V', 'M', 4}
+	managerConnectionResponseMagic   = [...]byte{'W', 'K', 'V', 'm', 4}
 )
 
 const (
 	managerConnectionRPCVersion2 byte = 2
 	managerConnectionRPCVersion3 byte = 3
+	managerConnectionRPCVersion4 byte = 4
 
 	managerConnectionOpList           = "list_connections"
 	managerConnectionOpGet            = "get_connection"
@@ -60,7 +63,7 @@ func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, er
 	}
 	version := req.Version
 	if version == 0 {
-		version = managerConnectionRPCVersion3
+		version = managerConnectionRPCVersion4
 	}
 	dst := make([]byte, 0, 80)
 	switch version {
@@ -70,6 +73,8 @@ func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, er
 		}
 		dst = append(dst, managerConnectionRequestMagicV2[:]...)
 	case managerConnectionRPCVersion3:
+		dst = append(dst, managerConnectionRequestMagicV3[:]...)
+	case managerConnectionRPCVersion4:
 		dst = append(dst, managerConnectionRequestMagic[:]...)
 	default:
 		return nil, fmt.Errorf("internal/access/node: unsupported manager connection request version %d", version)
@@ -91,8 +96,11 @@ func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, e
 	magicLen := 0
 	switch {
 	case hasMagic(body, managerConnectionRequestMagic[:]):
-		version = 3
+		version = 4
 		magicLen = len(managerConnectionRequestMagic)
+	case hasMagic(body, managerConnectionRequestMagicV3[:]):
+		version = 3
+		magicLen = len(managerConnectionRequestMagicV3)
 	case hasMagic(body, managerConnectionRequestMagicV2[:]):
 		version = 2
 		magicLen = len(managerConnectionRequestMagicV2)
@@ -151,13 +159,15 @@ func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, e
 func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte, error) {
 	version := resp.Version
 	if version == 0 {
-		version = managerConnectionRPCVersion3
+		version = managerConnectionRPCVersion4
 	}
 	dst := make([]byte, 0, 128)
 	switch version {
 	case managerConnectionRPCVersion2:
 		dst = append(dst, managerConnectionResponseMagicV2[:]...)
 	case managerConnectionRPCVersion3:
+		dst = append(dst, managerConnectionResponseMagicV3[:]...)
+	case managerConnectionRPCVersion4:
 		dst = append(dst, managerConnectionResponseMagic[:]...)
 	default:
 		return nil, fmt.Errorf("internal/access/node: unsupported manager connection response version %d", version)
@@ -171,7 +181,7 @@ func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte,
 	}
 	dst = appendManagerConnections(dst, resp.Connections)
 	dst = appendManagerConnection(dst, resp.Connection)
-	dst = appendNodeRuntimeSummary(dst, resp.Summary)
+	dst = appendNodeRuntimeSummary(dst, resp.Summary, version)
 	return dst, nil
 }
 
@@ -180,8 +190,11 @@ func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse,
 	magicLen := 0
 	switch {
 	case hasMagic(body, managerConnectionResponseMagic[:]):
-		version = 3
+		version = 4
 		magicLen = len(managerConnectionResponseMagic)
+	case hasMagic(body, managerConnectionResponseMagicV3[:]):
+		version = 3
+		magicLen = len(managerConnectionResponseMagicV3)
 	case hasMagic(body, managerConnectionResponseMagicV2[:]):
 		version = 2
 		magicLen = len(managerConnectionResponseMagicV2)
@@ -218,7 +231,7 @@ func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse,
 	if resp.Connection, offset, err = readManagerConnection(body, offset); err != nil {
 		return managerConnectionRPCResponse{}, err
 	}
-	if resp.Summary, offset, err = readNodeRuntimeSummary(body, offset); err != nil {
+	if resp.Summary, offset, err = readNodeRuntimeSummary(body, offset, version); err != nil {
 		return managerConnectionRPCResponse{}, err
 	}
 	if offset != len(body) {
@@ -331,7 +344,7 @@ func readManagerConnection(body []byte, offset int) (managementusecase.Connectio
 	return item, offset, nil
 }
 
-func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeSummary) []byte {
+func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeSummary, version byte) []byte {
 	dst = appendUvarint(dst, summary.NodeID)
 	dst = appendUvarint(dst, summary.ControlRevision)
 	dst = appendManagerConnectionInt(dst, summary.ActiveOnline)
@@ -347,10 +360,13 @@ func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeS
 	dst = appendManagerConnectionInt(dst, summary.ChannelRuntime.ActiveLeader)
 	dst = appendManagerConnectionInt(dst, summary.ChannelRuntime.ActiveFollower)
 	dst = appendBoolByte(dst, summary.ChannelRuntime.Unknown)
+	if version >= managerConnectionRPCVersion4 {
+		dst = appendString(dst, summary.Version)
+	}
 	return dst
 }
 
-func readNodeRuntimeSummary(body []byte, offset int) (managementusecase.NodeRuntimeSummary, int, error) {
+func readNodeRuntimeSummary(body []byte, offset int, version byte) (managementusecase.NodeRuntimeSummary, int, error) {
 	var summary managementusecase.NodeRuntimeSummary
 	var value uint64
 	var err error
@@ -400,6 +416,11 @@ func readNodeRuntimeSummary(body []byte, offset int) (managementusecase.NodeRunt
 	}
 	if summary.ChannelRuntime.Unknown, offset, err = readBoolByte(body, offset, "channel runtime unknown"); err != nil {
 		return summary, offset, err
+	}
+	if version >= managerConnectionRPCVersion4 {
+		if summary.Version, offset, err = readString(body, offset); err != nil {
+			return summary, offset, err
+		}
 	}
 	return summary, offset, nil
 }

@@ -136,6 +136,7 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 				ControllerLeaderID: 1,
 				Items: []managementusecase.Node{{
 					NodeID:          1,
+					Version:         "v3.0.0-beta.7",
 					Name:            "node-1",
 					Addr:            "127.0.0.1:7011",
 					Status:          "alive",
@@ -204,6 +205,7 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 		"total": 1,
 		"items": [{
 			"node_id": 1,
+			"version": "v3.0.0-beta.7",
 			"name": "node-1",
 			"addr": "127.0.0.1:7011",
 			"status": "alive",
@@ -307,6 +309,7 @@ func TestManagerNodeReturnsExactInventoryItem(t *testing.T) {
 	}
 	if !jsonEqual(rec.Body.String(), `{
 		"node_id": 2,
+		"version": "",
 		"name": "node-2",
 		"addr": "",
 		"status": "",

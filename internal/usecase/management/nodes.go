@@ -406,6 +406,8 @@ type NodeList struct {
 type Node struct {
 	// NodeID is the node identifier.
 	NodeID uint64
+	// Version is the program version reported by the node runtime.
+	Version string
 	// Name is the operator-facing node name.
 	Name string
 	// Addr is the cluster listen address of the node.
@@ -520,6 +522,8 @@ type NodeChannelRuntimeSummary struct {
 type NodeRuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
 	NodeID uint64
+	// Version is the program version of the node process.
+	Version string
 	// ControlRevision is the local control snapshot revision observed by the node.
 	ControlRevision uint64
 	// ActiveOnline counts active authenticated online connections.
@@ -700,6 +704,7 @@ func buildNode(opts nodeBuildOptions) Node {
 	}
 	return Node{
 		NodeID:          opts.node.NodeID,
+		Version:         opts.runtime.Version,
 		Name:            fmt.Sprintf("node-%d", opts.node.NodeID),
 		Addr:            opts.node.Addr,
 		Status:          status,

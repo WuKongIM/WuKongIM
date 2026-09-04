@@ -84,6 +84,7 @@ func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
 	service := &fakeManagerConnectionService{
 		runtime: managementusecase.NodeRuntimeSummary{
 			NodeID:               2,
+			Version:              "v3.0.0-beta.7",
 			ActiveOnline:         3,
 			GatewaySessions:      4,
 			PendingActivations:   1,
@@ -106,7 +107,7 @@ func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
 		t.Fatalf("NodeRuntimeSummary() error = %v", err)
 	}
 
-	if got.NodeID != 2 || got.ActiveOnline != 3 || got.GatewaySessions != 4 ||
+	if got.NodeID != 2 || got.Version != "v3.0.0-beta.7" || got.ActiveOnline != 3 || got.GatewaySessions != 4 ||
 		got.PendingActivations != 1 || got.SessionsByListener["tcp"] != 4 || !got.AcceptingNewSessions || got.Unknown ||
 		got.ChannelRuntime != service.runtime.ChannelRuntime {
 		t.Fatalf("runtime summary = %#v, want concrete summary", got)

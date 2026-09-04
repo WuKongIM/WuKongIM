@@ -82,10 +82,12 @@ type Option func(*App)
 
 // App is the internal composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg     Config
-	cluster ClusterRuntime
-	api     APIRuntime
-	manager ManagerRuntime
+	cfg Config
+	// buildVersion is the release version reported by this process to cluster management views.
+	buildVersion string
+	cluster      ClusterRuntime
+	api          APIRuntime
+	manager      ManagerRuntime
 	// opsMCPEndpoint serves stateless MCP on every configured Manager listener.
 	opsMCPEndpoint *accessops.Endpoint
 	// opsMCPCalls owns node-local rate budgets and rotated audit output.
@@ -362,6 +364,11 @@ func WithDeliverySubscriberSource(source channelappend.SubscriberSource) Option 
 // WithLogger overrides the root logger used by the app.
 func WithLogger(logger wklog.Logger) Option {
 	return func(a *App) { a.logger = logger }
+}
+
+// WithBuildVersion sets the program version reported by this process.
+func WithBuildVersion(version string) Option {
+	return func(a *App) { a.buildVersion = strings.TrimSpace(version) }
 }
 
 // Handler returns the gateway access handler.

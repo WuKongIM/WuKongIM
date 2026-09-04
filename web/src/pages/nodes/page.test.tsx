@@ -55,6 +55,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
 
 const nodeRow = {
   node_id: 1,
+  version: "v3.0.0-beta.7",
   name: "node-1",
   addr: "127.0.0.1:7000",
   status: "alive",
@@ -240,6 +241,8 @@ test("renders node cluster tabs and defaults to list", async () => {
   expect(screen.getByRole("tab", { name: "Logs" })).toBeInTheDocument()
   expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument()
   expect(screen.queryByRole("tab", { name: "Unhealthy" })).not.toBeInTheDocument()
+  expect(await screen.findByRole("columnheader", { name: "Version" })).toBeInTheDocument()
+  expect(screen.getByText("v3.0.0-beta.7")).toBeInTheDocument()
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
   expect(screen.queryByText("Node Cluster Overview")).not.toBeInTheDocument()
 })
@@ -336,7 +339,7 @@ test("renders layered node inventory fields and slot move row actions", async ()
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
   expect(screen.getByTestId("nodes-summary-strip")).toHaveClass("grid-cols-2")
   const nodesTable = screen.getByRole("table", { name: /nodes/i })
-  expect(nodesTable).toHaveClass("w-full", "min-w-[88rem]")
+  expect(nodesTable).toHaveClass("w-full", "min-w-[94rem]")
   expect(screen.getByRole("columnheader", { name: "Node" })).toHaveClass("sticky", "left-0")
   expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveClass("sticky", "right-0")
   expect(screen.getByText("Data node")).toBeInTheDocument()

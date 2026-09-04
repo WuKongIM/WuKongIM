@@ -80,7 +80,7 @@ func managerConnectionDrainSummary(resp managementusecase.SetNodeDrainModeRespon
 // ListManagerConnections reads one owner-node connection inventory page.
 func (c *Client) ListManagerConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) (managementusecase.ListConnectionsResponse, error) {
 	resp, err := c.callManagerConnection(ctx, req.NodeID, managerConnectionRPCRequest{
-		Op: managerConnectionOpList, NodeID: req.NodeID, Limit: req.Limit, Cursor: req.Cursor,
+		Version: managerConnectionRPCVersion3, Op: managerConnectionOpList, NodeID: req.NodeID, Limit: req.Limit, Cursor: req.Cursor,
 	})
 	if err != nil {
 		return managementusecase.ListConnectionsResponse{}, err
@@ -96,7 +96,9 @@ func (c *Client) ListManagerConnections(ctx context.Context, req managementuseca
 
 // GetManagerConnection reads one owner-node connection detail from nodeID.
 func (c *Client) GetManagerConnection(ctx context.Context, nodeID, sessionID uint64) (managementusecase.ConnectionDetail, error) {
-	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpGet, NodeID: nodeID, SessionID: sessionID})
+	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{
+		Version: managerConnectionRPCVersion3, Op: managerConnectionOpGet, NodeID: nodeID, SessionID: sessionID,
+	})
 	if err != nil {
 		return managementusecase.ConnectionDetail{}, err
 	}
@@ -108,7 +110,9 @@ func (c *Client) GetManagerConnection(ctx context.Context, nodeID, sessionID uin
 
 // GetManagerRuntimeSummary reads one owner-node runtime summary from nodeID.
 func (c *Client) GetManagerRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
-	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpRuntimeSummary, NodeID: nodeID})
+	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{
+		Version: managerConnectionRPCVersion4, Op: managerConnectionOpRuntimeSummary, NodeID: nodeID,
+	})
 	if err != nil {
 		return managementusecase.NodeRuntimeSummary{}, err
 	}
@@ -120,7 +124,9 @@ func (c *Client) GetManagerRuntimeSummary(ctx context.Context, nodeID uint64) (m
 
 // SetManagerDrainMode toggles gateway drain mode on one owner node.
 func (c *Client) SetManagerDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
-	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpSetDrainMode, NodeID: nodeID, Draining: draining})
+	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{
+		Version: managerConnectionRPCVersion3, Op: managerConnectionOpSetDrainMode, NodeID: nodeID, Draining: draining,
+	})
 	if err != nil {
 		return managementusecase.NodeRuntimeSummary{}, err
 	}

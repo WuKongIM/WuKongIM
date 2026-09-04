@@ -73,6 +73,7 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 	service := &fakeManagerConnectionService{
 		runtime: managementusecase.NodeRuntimeSummary{
 			NodeID:               2,
+			Version:              "v3.0.0-beta.7",
 			ActiveOnline:         7,
 			ClosingOnline:        1,
 			TotalOnline:          8,
@@ -95,7 +96,7 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 		t.Fatalf("GetManagerRuntimeSummary() error = %v", err)
 	}
 
-	if got.NodeID != 2 || got.ActiveOnline != 7 || got.ClosingOnline != 1 || got.TotalOnline != 8 ||
+	if got.NodeID != 2 || got.Version != "v3.0.0-beta.7" || got.ActiveOnline != 7 || got.ClosingOnline != 1 || got.TotalOnline != 8 ||
 		got.GatewaySessions != 9 || got.PendingActivations != 3 || got.SessionsByListener["tcp"] != 9 ||
 		got.AcceptingNewSessions || !got.Draining || got.Unknown ||
 		got.ChannelRuntime != service.runtime.ChannelRuntime {

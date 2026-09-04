@@ -27,6 +27,8 @@ type NodesResponse struct {
 type NodeDTO struct {
 	// NodeID is the node identifier.
 	NodeID uint64 `json:"node_id"`
+	// Version is the program version reported by the node runtime.
+	Version string `json:"version"`
 	// Name is the operator-facing node name.
 	Name string `json:"name"`
 	// Addr is the cluster listen address of the node.
@@ -281,6 +283,7 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 	}
 	return NodeDTO{
 		NodeID:          item.NodeID,
+		Version:         item.Version,
 		Name:            item.Name,
 		Addr:            item.Addr,
 		Status:          item.Status,

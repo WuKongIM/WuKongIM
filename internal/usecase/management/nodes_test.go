@@ -309,6 +309,7 @@ func TestListNodesAttachesRuntimeSummary(t *testing.T) {
 			summaries: map[uint64]NodeRuntimeSummary{
 				1: {
 					NodeID:               1,
+					Version:              "v3.0.0-beta.7",
 					ActiveOnline:         4,
 					ClosingOnline:        1,
 					TotalOnline:          5,
@@ -333,13 +334,16 @@ func TestListNodesAttachesRuntimeSummary(t *testing.T) {
 		t.Fatalf("Items len = %d, want 2: %#v", len(got.Items), got.Items)
 	}
 	first := got.Items[0].Runtime
-	if first.Unknown || first.ActiveOnline != 4 || first.ClosingOnline != 1 || first.TotalOnline != 5 ||
+	if first.Unknown || first.Version != "v3.0.0-beta.7" || first.ActiveOnline != 4 || first.ClosingOnline != 1 || first.TotalOnline != 5 ||
 		first.GatewaySessions != 6 || first.SessionsByListener["tcp"] != 6 ||
 		first.AcceptingNewSessions || !first.Draining {
 		t.Fatalf("first runtime = %#v, want concrete runtime summary", first)
 	}
 	if got.Items[0].ChannelRuntime != (NodeChannelRuntimeSummary{ActiveTotal: 5, ActiveLeader: 2, ActiveFollower: 3}) {
 		t.Fatalf("first channel runtime = %#v, want known active counts", got.Items[0].ChannelRuntime)
+	}
+	if got.Items[0].Version != "v3.0.0-beta.7" {
+		t.Fatalf("first version = %q, want v3.0.0-beta.7", got.Items[0].Version)
 	}
 	second := got.Items[1].Runtime
 	if second.NodeID != 2 || !second.Unknown || len(second.SessionsByListener) != 0 {

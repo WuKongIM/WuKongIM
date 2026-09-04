@@ -875,10 +875,11 @@ export function NodeClusterListPanel() {
                   {intl.formatMessage({ id: "nodes.table.scrollHint" })}
                 </p>
                 <div className="relative overflow-x-auto">
-                <table aria-label={intl.formatMessage({ id: "nav.nodes.title" })} className="w-full min-w-[88rem] border-collapse">
+                <table aria-label={intl.formatMessage({ id: "nav.nodes.title" })} className="w-full min-w-[94rem] border-collapse">
                   <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="sticky left-0 z-20 border-r border-border bg-background px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.node" })}</th>
+                      <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.version" })}</th>
                       <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.address" })}</th>
                       <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
                       <th className="px-3 py-3 whitespace-nowrap">{intl.formatMessage({ id: "nodes.table.health" })}</th>
@@ -913,6 +914,9 @@ export function NodeClusterListPanel() {
                           {node.name ? (
                             <div className="mt-1 text-xs font-normal text-muted-foreground">{node.name}</div>
                           ) : null}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          {node.version || intl.formatMessage({ id: "status.unknown" })}
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">

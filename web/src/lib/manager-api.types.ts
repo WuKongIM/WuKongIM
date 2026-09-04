@@ -531,6 +531,7 @@ export type RealtimeMonitorResponse = {
 
 export type ManagerNode = {
   node_id: number
+  version?: string
   name?: string
   addr: string
   status: string

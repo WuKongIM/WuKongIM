@@ -68,7 +68,7 @@ func run(ctx context.Context, args []string, newApp appFactory) error {
 
 // newInternalApp builds the internal composition root.
 func newInternalApp(cfg app.Config) (runtimeApp, error) {
-	return app.New(cfg)
+	return app.New(cfg, app.WithBuildVersion(buildVersion))
 }
 
 // stopTimeout returns the configured stop budget or the entrypoint default.

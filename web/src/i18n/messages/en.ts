@@ -814,6 +814,7 @@ export const enMessages: AppMessages = {
   "nodes.channelRuntimeUnknown": "channel runtime unknown",
   "nodes.slotLayerSummary": "replicas {replicas} / leaders {leaders} / followers {followers}",
   "nodes.table.node": "Node",
+  "nodes.table.version": "Version",
   "nodes.table.address": "Address",
   "nodes.table.membership": "Membership",
   "nodes.membershipRole.data": "Data node",
