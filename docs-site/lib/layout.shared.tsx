@@ -82,12 +82,12 @@ export function baseOptions(locale: Locale): BaseLayoutProps {
           },
           {
             text: locale === 'zh' ? '聊天演示' : 'Chat Demo',
-            url: 'http://imdemo.githubim.com',
+            url: 'https://demo.githubim.com/',
             external: true,
           },
           {
             text: locale === 'zh' ? 'Manager 演示' : 'Manager Demo',
-            url: 'http://monitor.githubim.com/web/',
+            url: 'https://manager.githubim.com/',
             external: true,
           },
           {

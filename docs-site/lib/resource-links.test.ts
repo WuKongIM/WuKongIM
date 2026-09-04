@@ -20,8 +20,8 @@ describe('resource links', () => {
       expect(resourceMenu).toHaveProperty(
         'items',
         expect.arrayContaining([
-          expect.objectContaining({ url: 'http://imdemo.githubim.com' }),
-          expect.objectContaining({ url: 'http://monitor.githubim.com/web/' }),
+          expect.objectContaining({ url: 'https://demo.githubim.com/' }),
+          expect.objectContaining({ url: 'https://manager.githubim.com/' }),
         ]),
       );
     },
