@@ -15,26 +15,48 @@ _openapi:
     contents:
       - content: 设置持久化 disband 标志但不删除 Channel 身份；请求 Key 校验较弱。
         heading: 终态解散-channel
-      - content: |-
+      - content: >-
           POST /channel/delete
+
           disbandChannel
+
           终态解散 Channel
+
           设置持久化 disband 标志但不删除 Channel 身份；请求 Key 校验较弱。
+
           WeakChannelKeyRequest
+
+          兼容保留的弱校验 Channel Key。
+
           additionalProperties true
-          channel_id `string` default: `""`
-          channel_type `integer:uint8` 0–255; default: `0`
+
+          channel_id `string` default: `""` 要解散的 Channel ID；省略时为空字符串，入口不校验。
+
+          channel_type `integer:uint8` 0–255; default: `0` 要解散的 Channel 类型；1
+          会被拒绝，其他值（包括 0）继续交给用例。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

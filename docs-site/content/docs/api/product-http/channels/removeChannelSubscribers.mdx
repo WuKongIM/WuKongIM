@@ -26,23 +26,25 @@ _openapi:
 
           ChannelSubscriberRemoveRequest
 
+          普通订阅者移除参数。
+
           additionalProperties true
 
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+          channel_id `string` minLength: 1; pattern: `^[^#@]*\S[^#@]*$` 目标非空白
+          Channel ID；不得包含 # 或 @。
 
-          channel_type `integer:uint8` 0–255; default: `0` Type 1 is rejected;
-          type 0 is passed through.
+          channel_type `integer:uint8` 0–255; default: `0` 目标 Channel 类型；类型 1
+          会被拒绝，省略或为 0 时不会归一化而是原样传入。
 
-          reset `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          reset `CompatibilityFlag` default: `0` 兼容接收的整数标志；当前移除操作不会使用它。
 
-          temp_subscriber `integer` — Accepted and ignored.
+          temp_subscriber `integer` — 兼容接收但被忽略的旧临时订阅者标志。
 
-          subscribers array<`string`> minItems: 1
+          subscribers array<`string`> minItems: 1 一个或多个要移除的非空白订阅者 UID。
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          兼容接收的整数标志；当前移除操作不会使用它。
 
           200 Mutation accepted
 

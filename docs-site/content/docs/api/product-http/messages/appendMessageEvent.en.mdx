@@ -27,33 +27,46 @@ _openapi:
 
           AppendMessageEventRequest
 
+          Message-event projection parameters.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1
+          channel_id `string` minLength: 1; pattern: `\S` Target non-blank
+          Channel ID; person and Agent Channels are normalized by the use case.
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
-          from_uid `string` —
+          from_uid `string` — Event actor UID; person or unencoded Agent Channel
+          normalization may require it.
 
-          message_id `integer:int64` — Positive values are converted to uint64;
-          zero and negative values are omitted from the command.
+          message_id `integer:int64` — Optional server message ID; positive
+          values become uint64, while 0 or negative values are omitted from the
+          event command.
 
-          client_msg_no `string` minLength: 1
+          client_msg_no `string` minLength: 1; pattern: `\S` Non-blank client
+          message number of the message receiving the event.
 
-          event_id `string` minLength: 1
+          event_id `string` minLength: 1; pattern: `\S` Non-blank unique
+          identifier of this event.
 
-          event_type `string` minLength: 1
+          event_type `string` minLength: 1; pattern: `\S` Event type;
+          surrounding whitespace is removed and the value is lowercased.
 
-          event_key `string` — Empty selects the default lane; stream.finish
-          forces the finish lane.
+          event_key `string` — Event lane key; empty selects the default lane
+          and stream.finish forces the finish lane.
 
-          visibility `string` —
+          visibility `string` — Caller-supplied visibility marker; surrounding
+          whitespace is removed.
 
-          occurred_at `integer:int64` —
+          occurred_at `integer:int64` — Caller-supplied integer event time; the
+          entry does not interpret its unit.
 
-          payload `unknown` —
+          payload `unknown` — Arbitrary JSON event payload passed to event
+          storage as raw JSON bytes.
 
-          headers `null` — Only absent or null is accepted.
+          headers `null` — Reserved field; it must be omitted or null, and every
+          non-null JSON value is rejected.
 
           200 Applied event projection
 
@@ -80,6 +93,8 @@ _openapi:
           channel_id `string` —
 
           channel_type `integer:uint8` 0–255
+
+          from_uid `string` —
 
           400 Input, validation, dependency, or downstream error
 

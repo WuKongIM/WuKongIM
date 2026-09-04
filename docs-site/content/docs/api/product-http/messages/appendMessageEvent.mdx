@@ -25,33 +25,36 @@ _openapi:
 
           AppendMessageEventRequest
 
+          消息事件投影参数。
+
           additionalProperties true
 
-          channel_id `string` minLength: 1
+          channel_id `string` minLength: 1; pattern: `\S` 目标非空白 Channel ID；个人和
+          Agent Channel 会在用例层归一化。
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
 
-          from_uid `string` —
+          from_uid `string` — 事件发起者 UID；个人或未编码 Agent Channel 的归一化可能需要它。
 
-          message_id `integer:int64` — Positive values are converted to uint64;
-          zero and negative values are omitted from the command.
+          message_id `integer:int64` — 可选服务端消息 ID；正数转为 uint64，0 或负数不会传入事件命令。
 
-          client_msg_no `string` minLength: 1
+          client_msg_no `string` minLength: 1; pattern: `\S` 事件所对应消息的非空白客户端消息编号。
 
-          event_id `string` minLength: 1
+          event_id `string` minLength: 1; pattern: `\S` 该事件的非空白唯一标识。
 
-          event_type `string` minLength: 1
+          event_type `string` minLength: 1; pattern: `\S` 事件类型；会去除首尾空白并转为小写。
 
-          event_key `string` — Empty selects the default lane; stream.finish
-          forces the finish lane.
+          event_key `string` — 事件 lane Key；空值使用默认 lane，stream.finish 强制使用 finish
+          lane。
 
-          visibility `string` —
+          visibility `string` — 调用方提供的可见性标记；会去除首尾空白。
 
-          occurred_at `integer:int64` —
+          occurred_at `integer:int64` — 调用方提供的事件发生时间整数；入口不解释时间单位。
 
-          payload `unknown` —
+          payload `unknown` — 任意 JSON 事件 Payload；服务端按原始 JSON 字节传给事件存储。
 
-          headers `null` — Only absent or null is accepted.
+          headers `null` — 预留字段；只能省略或传 null，任何非 null JSON 值都会被拒绝。
 
           200 Applied event projection
 
@@ -78,6 +81,8 @@ _openapi:
           channel_id `string` —
 
           channel_type `integer:uint8` 0–255
+
+          from_uid `string` —
 
           400 Input, validation, dependency, or downstream error
 

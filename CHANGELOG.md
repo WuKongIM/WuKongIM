@@ -24,6 +24,7 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 ### 📚 Documentation / 文档
 
 - 项目根目录恢复 Apache License 2.0 正文，并将中英文 README 的许可证声明链接到仓库内文件。
+- Product HTTP API 文档现已逐一对齐 41 个运行时路由的请求 DTO 与校验语义，为所有查询和 JSON 请求参数补充中英文解释，并修正空白字符串与 `null` 的兼容约束。
 - 服务端部署与运维文档改为面向初学者的精简实操指南，快速开始统一使用 Linux 软件包与 systemd，并修复已移除页面的链接。
 - 中英文 Linux 部署与配置参考现已将 `v3.0.0-beta.7` 作为签名 Preview 软件源版本，并以 `sudo wukongim init` 作为默认初始化入口，同时保留显式路径兼容命令；Docker 部署示例也同步固定到同一版本。
 

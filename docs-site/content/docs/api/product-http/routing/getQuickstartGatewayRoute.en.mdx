@@ -25,17 +25,19 @@ _openapi:
           Returns the configured public or intranet addresses; node aliases are
           checked in node_id, nodeId, nodeID order.
 
-          node_id query optional `integer:uint64` 1–∞ Preferred node selector. A
-          specified value must be a configured positive uint64.
+          node_id query optional `integer:uint64` 1–∞ Preferred node selector;
+          when supplied it must identify a configured node with an ID greater
+          than 0.
 
-          nodeId query optional `integer:uint64` 1–∞ Legacy alias read only when
-          node_id is absent.
+          nodeId query optional `integer:uint64` 1–∞ Legacy nodeId alias, read
+          only when node_id is absent.
 
-          nodeID query optional `integer:uint64` 1–∞ Legacy alias read after
-          node_id and nodeId.
+          nodeID query optional `integer:uint64` 1–∞ Legacy nodeID alias, read
+          only when both node_id and nodeId are absent.
 
-          intranet query optional `integer` default: `0` Any parseable non-zero
-          integer selects intranet addresses; invalid text behaves as 0.
+          intranet query optional `integer` default: `0` Address-scope selector;
+          any parseable non-zero integer selects intranet addresses, while
+          invalid text behaves as 0 and selects public addresses.
 
           200 Selected Gateway addresses
 

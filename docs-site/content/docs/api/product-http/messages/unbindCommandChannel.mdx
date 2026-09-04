@@ -15,27 +15,51 @@ _openapi:
     contents:
       - content: 为持久发现写入 tombstone，但不删除命令消息。
         heading: 解绑命令-channel-发现
-      - content: |-
+      - content: >-
           POST /message/cmd/unbind
+
           unbindCommandChannel
+
           解绑命令 Channel 发现
+
           为持久发现写入 tombstone，但不删除命令消息。
+
           MessageCMDBindingRequest
+
+          命令 Channel 离线发现绑定参数。
+
           additionalProperties true
-          uid `string` minLength: 1; pattern: `\S`
-          channel_id `string` minLength: 1; pattern: `\S`
-          channel_type `integer:uint8` 1–255
+
+          uid `string` minLength: 1; pattern: `\S` 目标用户的唯一标识。
+
+          channel_id `string` minLength: 1; pattern: `\S` 目标 Channel 的逻辑标识；个人
+          Channel 场景通常填写对方 UID。
+
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

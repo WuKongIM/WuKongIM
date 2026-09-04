@@ -15,44 +15,26 @@ _openapi:
     contents:
       - content: 只修改当前进程缓存，不改变持久化系统身份。
         heading: 移除节点本地系统-uid-缓存
-      - content: >-
+      - content: |-
           POST /user/systemuids_remove_from_cache
-
           removeSystemUIDsFromLocalCache
-
           移除节点本地系统 UID 缓存
-
           只修改当前进程缓存，不改变持久化系统身份。
-
           SystemUIDsRequest
-
+          系统身份变更参数。
           additionalProperties true
-
-          uids array<`string`> — May be empty; no entry-level element
-          validation.
-
+          uids `array | null` — 要添加或移除的系统 UID；可省略、为空或为 null，入口不校验元素。
           200 Mutation accepted
-
           StatusEnvelope
-
           additionalProperties false
-
           status `integer` const: `200`
-
           400 Input, validation, dependency, or downstream error
-
           CompatibilityError
-
           msg `string` — Human-readable and not stable for machine matching.
-
           status `integer` const: `400`
-
           503 Controller restore maintenance is active
-
           MaintenanceError
-
           error `string` const: `"maintenance"`
-
           message `string` const: `"restore maintenance is active"`
 ---
 

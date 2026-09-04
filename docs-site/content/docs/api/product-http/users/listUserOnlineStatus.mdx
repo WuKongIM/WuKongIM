@@ -21,7 +21,7 @@ _openapi:
           查询用户在线路由
           每条活跃权威路由返回一行；空 UID 数组返回旧式 status 对象而不是数组。
           OnlineStatusRequest
-          Unbounded by the current Product HTTP entry.
+          UID 字符串数组；JSON null 或空数组返回旧式 status 对象，当前入口不限制数量。
           200 Active routes or the empty-request status object
           OnlineStatusResponse
           StatusEnvelope

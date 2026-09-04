@@ -27,17 +27,26 @@ _openapi:
 
           ConversationRetryRequest
 
+          Bounded retry parameters for unresolved Conversations.
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1 User ID that owns the memberships for these
+          Conversations.
 
-          channels array<`ConversationKey`> minItems: 1; maxItems: 200
+          channels array<`ConversationKey`> minItems: 1; maxItems: 200 Channel
+          keys from a previous unresolved result to retry; between 1 and 200 are
+          accepted and duplicates are merged.
 
           ConversationKey
 
-          channel_id `string` minLength: 1
+          Channel key for one Conversation.
 
-          channel_type `integer` 1–255
+          channel_id `string` minLength: 1 Logical identifier of the target
+          Channel; for a person Channel this is normally the other UID.
+
+          channel_type `integer` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
           200 Canonical Conversation page
 
@@ -64,6 +73,8 @@ _openapi:
           ConversationListItem
 
           channel_id `string` —
+
+          channel_type `integer` 1–255
 
           active_at `integer:int64` —
 

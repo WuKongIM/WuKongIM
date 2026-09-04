@@ -14,27 +14,52 @@ _openapi:
     contents:
       - content: Adds non-blank UIDs to the derived Channel allowlist.
         heading: add-channel-allowlist-members
-      - content: |-
+      - content: >-
           POST /channel/whitelist_add
+
           addChannelAllowlistMembers
+
           Add Channel allowlist members
+
           Adds non-blank UIDs to the derived Channel allowlist.
+
           ChannelAllowlistMutationRequest
+
+          Allowlist add or remove parameters.
+
           additionalProperties true
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
-          channel_type `integer:uint8` 1–255
-          uids array<`string`> minItems: 1
+
+          channel_id `string` minLength: 1; pattern: `^[^#@]+$` Target Channel
+          ID; it must not be empty or contain # or @.
+
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
+
+          uids array<`string`> minItems: 1 One or more non-blank UIDs to add or
+          remove.
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

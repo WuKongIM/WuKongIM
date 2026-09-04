@@ -26,21 +26,24 @@ _openapi:
           Echoes an unbounded UID array inside the selected address group;
           retained for compatibility.
 
-          node_id query optional `integer:uint64` 1–∞ Preferred node selector. A
-          specified value must be a configured positive uint64.
+          node_id query optional `integer:uint64` 1–∞ Preferred node selector;
+          when supplied it must identify a configured node with an ID greater
+          than 0.
 
-          nodeId query optional `integer:uint64` 1–∞ Legacy alias read only when
-          node_id is absent.
+          nodeId query optional `integer:uint64` 1–∞ Legacy nodeId alias, read
+          only when node_id is absent.
 
-          nodeID query optional `integer:uint64` 1–∞ Legacy alias read after
-          node_id and nodeId.
+          nodeID query optional `integer:uint64` 1–∞ Legacy nodeID alias, read
+          only when both node_id and nodeId are absent.
 
-          intranet query optional `integer` default: `0` Any parseable non-zero
-          integer selects intranet addresses; invalid text behaves as 0.
+          intranet query optional `integer` default: `0` Address-scope selector;
+          any parseable non-zero integer selects intranet addresses, while
+          invalid text behaves as 0 and selects public addresses.
 
           RouteBatchRequest
 
-          Unbounded by the current Product HTTP entry.
+          Array of UID strings; JSON null is also accepted as an empty array,
+          and the current entry does not bound its size.
 
           200 One selected address group
 

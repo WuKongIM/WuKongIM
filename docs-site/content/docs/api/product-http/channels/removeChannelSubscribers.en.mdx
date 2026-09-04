@@ -28,23 +28,30 @@ _openapi:
 
           ChannelSubscriberRemoveRequest
 
+          Ordinary-subscriber removal parameters.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+          channel_id `string` minLength: 1; pattern: `^[^#@]*\S[^#@]*$` Target
+          non-blank Channel ID; it must not contain # or @.
 
-          channel_type `integer:uint8` 0–255; default: `0` Type 1 is rejected;
-          type 0 is passed through.
+          channel_type `integer:uint8` 0–255; default: `0` Target Channel type;
+          type 1 is rejected, while omission or 0 is passed through without
+          normalization.
 
-          reset `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          reset `CompatibilityFlag` default: `0` Integer flag accepted for
+          compatibility but not used by the removal operation.
 
-          temp_subscriber `integer` — Accepted and ignored.
+          temp_subscriber `integer` — Legacy temporary-subscriber flag accepted
+          and ignored for compatibility.
 
-          subscribers array<`string`> minItems: 1
+          subscribers array<`string`> minItems: 1 One or more non-blank
+          subscriber UIDs to remove.
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          Integer flag accepted for compatibility but not used by the removal
+          operation.
 
           200 Mutation accepted
 

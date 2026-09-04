@@ -14,26 +14,49 @@ _openapi:
     contents:
       - content: 通过内部有界遍历清空派生允许列表。
         heading: 移除全部-channel-允许列表成员
-      - content: |-
+      - content: >-
           POST /channel/whitelist_remove_all
+
           removeAllChannelAllowlistMembers
+
           移除全部 Channel 允许列表成员
+
           通过内部有界遍历清空派生允许列表。
+
           ChannelKeyRequest
+
+          经基本校验的 Channel Key。
+
           additionalProperties true
-          channel_id `string` minLength: 1
-          channel_type `integer:uint8` 1–255
+
+          channel_id `string` minLength: 1 目标 Channel 的逻辑标识；个人 Channel 场景通常填写对方
+          UID。
+
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

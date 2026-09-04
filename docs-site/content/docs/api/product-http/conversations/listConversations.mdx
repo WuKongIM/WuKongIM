@@ -14,53 +14,109 @@ _openapi:
     contents:
       - content: 返回一页有界 membership；只有 done=true 才表示本轮完成。
         heading: 同步一页会话
-      - content: |-
+      - content: >-
           POST /conversation/list
+
           listConversations
+
           同步一页会话
+
           返回一页有界 membership；只有 done=true 才表示本轮完成。
+
           ConversationListRequest
+
+          会话目录分页参数。
+
           additionalProperties true
-          uid `string` minLength: 1
-          cursor `string` default: `""`
-          limit `integer` 0–200; default: `50`
-          completed_coverage `integer:int64` 0–∞; default: `0`
+
+          uid `string` minLength: 1 要读取会话目录的用户 ID。
+
+          cursor `string` default: `""` 上页返回的不透明 next_cursor；首轮请求省略或传空字符串。
+
+          limit `integer` 0–200; default: `50` 本页最多扫描的 membership 条目数；0 使用默认值
+          50，最大 200。
+
+          completed_coverage `integer:int64` 0–∞; default: `0` 客户端最近一次 done=true
+          完整轮次保存的 coverage；首次同步传 0。
+
           200 Canonical Conversation page
+
           ConversationListResponse
+
           additionalProperties false
+
           conversations array<`ConversationListItem`> —
+
           deletes array<`ConversationKey`> —
+
           unresolved array<`ConversationKey`> —
+
           next_cursor `string` —
+
           done `boolean` —
+
           coverage `integer:int64` 0–∞
+
           tombstones_retained_since `integer:int64` 0–∞
+
           reset_required `boolean` —
+
           ConversationListItem
+
           channel_id `string` —
+
           channel_type `integer` 1–255
+
           active_at `integer:int64` —
+
           read_seq `integer:uint64` 0–∞
+
           deleted_to_seq `integer:uint64` 0–∞
+
           unread `integer:uint64` 0–∞
+
           last_message `ConversationLastMessage` | `null` —
+
           ConversationLastMessage
+
           message_id `integer:uint64` 0–∞
+
           message_idstr `string` —
+
           message_seq `integer:uint64` 0–∞
+
           from_uid `string` —
+
           client_msg_no `string` —
+
           server_timestamp_ms `integer:int64` —
+
           payload `string | null` encoding: base64
+
           ConversationKey
-          channel_id `string` minLength: 1
+
+          一个会话的 Channel Key。
+
+          channel_id `string` minLength: 1 目标 Channel 的逻辑标识；个人 Channel 场景通常填写对方
+          UID。
+
+          channel_type `integer` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

@@ -27,34 +27,55 @@ _openapi:
 
           ChannelMessageSyncBatchRequest
 
+          Batch Channel committed-message synchronization parameters.
+
           additionalProperties true
 
-          login_uid `string` minLength: 1; pattern: `\S`
+          login_uid `string` minLength: 1; pattern: `\S` User identity
+          performing the read and required to own the corresponding Channel
+          membership.
 
           items array<`ChannelMessageSyncBatchItemRequest`> minItems: 1;
-          maxItems: 200
+          maxItems: 200 Channels to synchronize; between 1 and 200 items are
+          accepted and response order matches request order.
 
           ChannelMessageSyncBatchItemRequest
 
-          login_uid `string` — Accepted by JSON decoding but ignored; the
-          top-level login_uid is used.
+          Read criteria for one Channel inside a batch synchronization request.
 
-          channel_id `string` minLength: 1; pattern: `\S`
+          login_uid `string` — Accepted for compatibility but ignored; batch
+          requests always use the top-level login_uid.
 
-          channel_type `integer:uint8` 1–255
+          channel_id `string` minLength: 1; pattern: `\S` Logical identifier of
+          the target Channel; for a person Channel this is normally the other
+          UID.
 
-          start_message_seq `integer:uint64` 0–∞; default: `0`
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
-          end_message_seq `integer:uint64` 0–∞; default: `0`
+          start_message_seq `integer:uint64` 0–∞; default: `0` Channel message
+          sequence used as the read starting point; 0 means no explicit starting
+          point.
 
-          limit `integer` default: `100` Values <=0 select 100; values above
-          10000 are capped.
+          end_message_seq `integer:uint64` 0–∞; default: `0` Channel message
+          sequence used as the read ending point; 0 means no explicit ending
+          point.
 
-          pull_mode `integer:uint8` 0–255; default: `0`
+          limit `integer` default: `100` Maximum messages returned by this read;
+          values at or below 0 use 100 and values above 10000 are capped at
+          10000.
 
-          include_event_meta `integer` default: `0`
+          pull_mode `integer:uint8` 0–255; default: `0` Pull direction; 1 reads
+          toward newer messages and every other uint8 value uses the
+          compatibility branch for older messages.
 
-          event_summary_mode `string` default: `""`
+          include_event_meta `integer` default: `0` Message-event summary
+          switch; a non-zero value requests event metadata and defaults an empty
+          event_summary_mode to full.
+
+          event_summary_mode `string` default: `""` Event-summary mode; empty
+          disables enrichment, full includes snapshots, and any other non-empty
+          value returns the basic summary without snapshots.
 
           200 Aligned batch result
 

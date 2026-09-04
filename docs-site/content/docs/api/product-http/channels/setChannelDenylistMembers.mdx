@@ -15,27 +15,50 @@ _openapi:
     contents:
       - content: 先移除旧列表再添加给定值；入口只校验 channel_id。
         heading: 替换-channel-拒绝列表
-      - content: |-
+      - content: >-
           POST /channel/blacklist_set
+
           setChannelDenylistMembers
+
           替换 Channel 拒绝列表
+
           先移除旧列表再添加给定值；入口只校验 channel_id。
+
           ChannelMemberSetRequest
+
+          允许列表或拒绝列表的完整替换参数，保留旧式弱校验。
+
           additionalProperties true
-          channel_id `string` minLength: 1
-          channel_type `integer:uint8` 0–255; default: `0`
-          uids array<`string`> —
+
+          channel_id `string` minLength: 1; pattern: `\S` 目标非空白 Channel ID。
+
+          channel_type `integer:uint8` 0–255; default: `0` 目标 Channel 类型；可省略或为
+          0，入口不会拒绝。
+
+          uids `array | null` — 替换后的完整 UID 集合；可省略、为空或为 null，入口不校验元素。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

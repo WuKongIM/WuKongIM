@@ -24,11 +24,11 @@ _openapi:
 
           返回无界完整列表；channel_type 缺失或无效时会静默视为 0。
 
-          channel_id query optional `string` default: `""` Unvalidated Channel
-          ID used by the legacy full-list route.
+          channel_id query optional `string` default: `""` 要读取允许列表的 Channel
+          ID；此旧接口不会校验该查询参数。
 
-          channel_type query optional `integer` 0–255; default: `0` Parsed as
-          uint8; missing or invalid text is silently treated as 0.
+          channel_type query optional `integer` 0–255; default: `0` 要读取允许列表的
+          Channel 类型；按 uint8 解析，缺失、无效或越界文本会静默按 0 处理。
 
           200 Complete legacy allowlist member array
 

@@ -28,30 +28,38 @@ _openapi:
 
           ChannelInfoRequest
 
+          Legacy Channel metadata with no required fields and full zero-value
+          replacement semantics.
+
           additionalProperties true
 
-          channel_id `string` default: `""`
+          channel_id `string` default: `""` Channel ID to update; omission
+          produces an empty string and the entry does not validate it.
 
-          channel_type `integer:uint8` 0–255; default: `0`
+          channel_type `integer:uint8` 0–255; default: `0` Channel type to
+          update; omission produces 0 and the entry does not validate it.
 
-          large `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          large `CompatibilityFlag` default: `0` Large-group compatibility flag;
+          exactly 1 enables it and every other integer disables it.
 
-          ban `CompatibilityFlag` default: `0` Exactly 1 means true; every other
-          integer means false.
+          ban `CompatibilityFlag` default: `0` Channel-ban compatibility flag;
+          exactly 1 enables it and every other integer disables it.
 
-          disband `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          disband `CompatibilityFlag` default: `0` Terminal-disband
+          compatibility flag; exactly 1 enables it and every other integer
+          disables it.
 
-          send_ban `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          send_ban `CompatibilityFlag` default: `0` Send-ban compatibility flag;
+          exactly 1 enables it and every other integer disables it.
 
-          allow_stranger `CompatibilityFlag` default: `0` Exactly 1 means true;
-          every other integer means false.
+          allow_stranger `CompatibilityFlag` default: `0` Allow-stranger
+          compatibility flag; exactly 1 enables it and every other integer
+          disables it.
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          Large-group compatibility flag; exactly 1 enables it and every other
+          integer disables it.
 
           200 Mutation accepted
 

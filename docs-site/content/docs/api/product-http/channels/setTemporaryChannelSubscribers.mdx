@@ -14,26 +14,48 @@ _openapi:
     contents:
       - content: 替换派生 Type-8 临时订阅者列表；入口适配器不校验 UID 元素。
         heading: 替换临时-channel-订阅者
-      - content: |-
+      - content: >-
           POST /tmpchannel/subscriber_set
+
           setTemporaryChannelSubscribers
+
           替换临时 Channel 订阅者
+
           替换派生 Type-8 临时订阅者列表；入口适配器不校验 UID 元素。
+
           TemporarySubscriberSetRequest
+
+          临时订阅者完整快照。
+
           additionalProperties true
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
-          uids array<`string`> minItems: 1
+
+          channel_id `string` minLength: 1; pattern: `^[^#@]+$` 临时 Channel
+          ID；不得为空，也不得包含 # 或 @。
+
+          uids array<`string`> minItems: 1 替换后的临时订阅者 UID；至少一个，入口不校验元素内容。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

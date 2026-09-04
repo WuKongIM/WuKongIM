@@ -2,6 +2,7 @@ import goldenPathDocument from '../contracts/javascript-web-quickstart.openapi.j
 import managementDocument from '../contracts/product-http-management.openapi.json';
 import messagingDocument from '../contracts/product-http-messaging.openapi.json';
 import completeDocument from '../contracts/product-http.openapi.json';
+import { applyProductHTTPParameterExplanations } from './product-http-parameter-explanations';
 
 export type ProductHTTPOpenAPILocale = 'zh' | 'en';
 export const productHTTPOpenAPIContractNames = [
@@ -447,5 +448,6 @@ export function localizeOpenAPIDocument<T>(
   }
 
   visit(localized);
+  applyProductHTTPParameterExplanations(localized, locale);
   return localized;
 }

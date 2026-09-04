@@ -27,15 +27,20 @@ _openapi:
 
           UpdateTokenRequest
 
+          设备 Token 更新参数。
+
           additionalProperties true
 
-          uid `string` minLength: 1 Must not contain @, #, or &.
+          uid `string` minLength: 1 要创建或更新设备 Token 的用户 ID；不得包含 @、# 或 &。
 
-          token `string` minLength: 1
+          token `string` minLength: 1 与该用户和设备类别一起持久化的不透明 Token；默认 Gateway 要求后续
+          CONNECT 凭据与它完全匹配。
 
           device_flag `integer:uint8` 0–255; default: `0`
+          设备类别；0=APP、1=Web、2=PC、99=系统设备，省略时为 0。
 
           device_level `integer:uint8` 0–255; default: `0`
+          同类设备冲突级别；0=Slave、1=Master，省略时为 0。
 
           200 Mutation accepted
 

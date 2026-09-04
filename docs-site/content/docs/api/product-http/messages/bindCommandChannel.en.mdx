@@ -28,13 +28,19 @@ _openapi:
 
           MessageCMDBindingRequest
 
+          Command-Channel offline-discovery binding parameters.
+
           additionalProperties true
 
-          uid `string` minLength: 1; pattern: `\S`
+          uid `string` minLength: 1; pattern: `\S` Unique identifier of the
+          target user.
 
-          channel_id `string` minLength: 1; pattern: `\S`
+          channel_id `string` minLength: 1; pattern: `\S` Logical identifier of
+          the target Channel; for a person Channel this is normally the other
+          UID.
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
           200 Mutation accepted
 

@@ -25,24 +25,25 @@ _openapi:
 
           ChannelSubscriberAddRequest
 
+          普通订阅者添加或替换参数。
+
           additionalProperties true
 
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+          channel_id `string` minLength: 1; pattern: `^[^#@]*\S[^#@]*$` 目标非空白
+          Channel ID；不得包含 # 或 @。
 
-          channel_type `integer:uint8` 0–255; default: `2` 0 or omission becomes
-          group type 2; type 1 is rejected.
+          channel_type `integer:uint8` 0–255; default: `2` 目标 Channel 类型；省略或为 0
+          时转为群组类型 2，类型 1 会被拒绝。
 
-          reset `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          reset `CompatibilityFlag` default: `0` 订阅者快照替换兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
-          temp_subscriber `integer` — Exactly 1 is rejected; other values are
-          ignored.
+          temp_subscriber `integer` — 已废弃的临时订阅者标志；值 1 会被拒绝，其他值被忽略。
 
-          subscribers array<`string`> minItems: 1
+          subscribers array<`string`> minItems: 1 一个或多个要添加的非空白订阅者 UID。
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          订阅者快照替换兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
           200 Mutation accepted
 

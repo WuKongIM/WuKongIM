@@ -28,10 +28,12 @@ _openapi:
 
           SystemUIDsRequest
 
+          System-identity mutation parameters.
+
           additionalProperties true
 
-          uids array<`string`> — May be empty; no entry-level element
-          validation.
+          uids `array | null` — System UIDs to add or remove; the field may be
+          omitted, empty, or null, and elements are not validated at entry.
 
           200 Mutation accepted
 

@@ -25,28 +25,36 @@ _openapi:
 
           ChannelMessageSyncRequest
 
+          单 Channel 已提交消息同步参数。
+
           additionalProperties true
 
-          login_uid `string` minLength: 1; pattern: `\S`
+          login_uid `string` minLength: 1; pattern: `\S` 发起读取且必须拥有对应 Channel
+          成员关系的用户标识。
 
-          channel_id `string` minLength: 1; pattern: `\S`
+          channel_id `string` minLength: 1; pattern: `\S` 目标 Channel 的逻辑标识；个人
+          Channel 场景通常填写对方 UID。
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
 
-          start_message_seq `integer:uint64` 0–∞; default: `0`
+          start_message_seq `integer:uint64` 0–∞; default: `0` 读取起点的 Channel
+          消息序号；0 表示未指定显式起点。
 
-          end_message_seq `integer:uint64` 0–∞; default: `0`
+          end_message_seq `integer:uint64` 0–∞; default: `0` 读取终点的 Channel
+          消息序号；0 表示未指定显式终点。
 
-          limit `integer` default: `100` Values <=0 select 100; values above
-          10000 are capped.
+          limit `integer` default: `100` 本次最多返回的消息数；小于等于 0 时使用 100，大于 10000 时截断为
+          10000。
 
-          pull_mode `integer:uint8` 0–255; default: `0` 1 pulls newer messages;
-          every other uint8 value follows the older-message branch.
+          pull_mode `integer:uint8` 0–255; default: `0` 拉取方向；1 表示向更新消息拉取，其他
+          uint8 值走向更旧消息拉取的兼容分支。
 
-          include_event_meta `integer` default: `0` Any non-zero value requests
-          event metadata.
+          include_event_meta `integer` default: `0` 消息事件摘要开关；非 0 时请求事件元数据，且
+          event_summary_mode 为空时默认使用 full。
 
-          event_summary_mode `string` default: `""`
+          event_summary_mode `string` default: `""` 事件摘要模式；空字符串不补充摘要，full
+          包含完整快照，其他非空值返回不含快照的基础摘要。
 
           200 One committed-message page
 

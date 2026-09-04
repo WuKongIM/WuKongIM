@@ -26,30 +26,30 @@ _openapi:
 
           ChannelInfoRequest
 
+          无必填字段且采用全量零值覆盖语义的旧式 Channel 元数据。
+
           additionalProperties true
 
-          channel_id `string` default: `""`
+          channel_id `string` default: `""` 要更新的 Channel ID；省略时为空字符串，入口不校验。
 
-          channel_type `integer:uint8` 0–255; default: `0`
+          channel_type `integer:uint8` 0–255; default: `0` 要更新的 Channel 类型；省略时为
+          0，入口不校验。
 
-          large `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          large `CompatibilityFlag` default: `0` 大群组兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
-          ban `CompatibilityFlag` default: `0` Exactly 1 means true; every other
-          integer means false.
+          ban `CompatibilityFlag` default: `0` 全 Channel 禁用兼容标志；仅 1
+          表示启用，其他整数均表示关闭。
 
-          disband `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          disband `CompatibilityFlag` default: `0` 终态解散兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
-          send_ban `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          send_ban `CompatibilityFlag` default: `0` 禁止发送兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
-          allow_stranger `CompatibilityFlag` default: `0` Exactly 1 means true;
-          every other integer means false.
+          allow_stranger `CompatibilityFlag` default: `0` 允许陌生人发送兼容标志；仅 1
+          表示启用，其他整数均表示关闭。
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          大群组兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
           200 Mutation accepted
 

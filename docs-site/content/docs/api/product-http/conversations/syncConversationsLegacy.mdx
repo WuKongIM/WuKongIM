@@ -26,27 +26,30 @@ _openapi:
 
           ConversationSyncLegacyRequest
 
+          v2.2 兼容会话同步参数。
+
           additionalProperties true
 
-          uid `string` minLength: 1; pattern: `\S`
+          uid `string` minLength: 1; pattern: `\S` 要同步旧式会话的非空白用户 ID。
 
-          version `integer:int64` default: `0`
+          version `integer:int64` default: `0` 客户端已知的会话版本；0 表示不按版本过滤。
 
-          last_msg_seqs `string` default: `""` Legacy
-          channel_id:channel_type:message_seq entries separated by |; malformed
-          entries are skipped.
+          last_msg_seqs `string` default: `""` 以 | 分隔的
+          channel_id:channel_type:message_seq 游标；格式错误的条目会被跳过。
 
-          msg_count `integer` default: `0` Values <=0 return an empty array;
-          downstream sync caps positive values at 10000.
+          msg_count `integer` default: `0` 每个会话读取的最近消息数；小于等于 0 返回空数组，正数最大按 10000
+          处理。
 
-          only_unread `integer:uint8` 0–255; default: `0` Exactly 1 means true.
+          only_unread `integer:uint8` 0–255; default: `0` 未读过滤兼容标志；仅 1
+          表示只读取未读会话。
 
-          exclude_channel_types array<`integer:uint8`> —
+          exclude_channel_types `array | null` — 要排除的 Channel 类型数组；可省略、为空或为
+          null；显式 Channel 游标优先于该过滤。
 
-          page `integer` default: `0` Values <=0 disable legacy page slicing.
+          page `integer` default: `0` 旧式页码；小于等于 0 时禁用旧式分页切片。
 
-          page_size `integer` default: `100` When page>0, values <=0 become 100
-          and values above 500 are capped.
+          page_size `integer` default: `100` 旧式每页数量；page>0 时，小于等于 0 使用 100，大于
+          500 截断为 500。
 
           200 Bare legacy Conversation array
 

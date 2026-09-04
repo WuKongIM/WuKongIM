@@ -15,27 +15,53 @@ _openapi:
     contents:
       - content: Tombstones durable discovery without deleting command messages.
         heading: unbind-command-channel-discovery
-      - content: |-
+      - content: >-
           POST /message/cmd/unbind
+
           unbindCommandChannel
+
           Unbind command-channel discovery
+
           Tombstones durable discovery without deleting command messages.
+
           MessageCMDBindingRequest
+
+          Command-Channel offline-discovery binding parameters.
+
           additionalProperties true
-          uid `string` minLength: 1; pattern: `\S`
-          channel_id `string` minLength: 1; pattern: `\S`
-          channel_type `integer:uint8` 1–255
+
+          uid `string` minLength: 1; pattern: `\S` Unique identifier of the
+          target user.
+
+          channel_id `string` minLength: 1; pattern: `\S` Logical identifier of
+          the target Channel; for a person Channel this is normally the other
+          UID.
+
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

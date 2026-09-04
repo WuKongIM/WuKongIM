@@ -14,27 +14,51 @@ _openapi:
     contents:
       - content: 把 deleted_to_seq 推进到当前已提交 head，但不删除 Channel 成员关系。
         heading: 把会话隐藏到当前-head
-      - content: |-
+      - content: >-
           POST /conversations/delete
+
           hideConversation
+
           把会话隐藏到当前 head
+
           把 deleted_to_seq 推进到当前已提交 head，但不删除 Channel 成员关系。
+
           ConversationMutationRequest
+
+          会话清未读、隐藏或激活操作共用的 Key。
+
           additionalProperties true
-          uid `string` minLength: 1
-          channel_id `string` minLength: 1
-          channel_type `integer:uint8` 1–255
+
+          uid `string` minLength: 1 目标用户的唯一标识。
+
+          channel_id `string` minLength: 1 目标 Channel 的逻辑标识；个人 Channel 场景通常填写对方
+          UID。
+
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

@@ -28,14 +28,19 @@ _openapi:
 
           MessageSyncRequest
 
+          Legacy command-message synchronization parameters.
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1; pattern: `\S` Non-blank user ID whose
+          command messages are synchronized.
 
-          message_seq `integer:uint64` 0–∞ Accepted and ignored.
+          message_seq `integer:uint64` 0–∞ Deprecated compatibility input
+          accepted and ignored by the server.
 
-          limit `integer` 0–∞; default: `200` 0 selects 200; values above 10000
-          are capped.
+          limit `integer` 0–∞; default: `200` Maximum messages returned; 0 uses
+          200, negative values are rejected, and values above 10000 are capped
+          at 10000.
 
           200 Bare legacy message array
 

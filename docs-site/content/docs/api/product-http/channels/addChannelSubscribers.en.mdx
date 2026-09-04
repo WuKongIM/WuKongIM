@@ -27,24 +27,30 @@ _openapi:
 
           ChannelSubscriberAddRequest
 
+          Ordinary-subscriber add or replacement parameters.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+          channel_id `string` minLength: 1; pattern: `^[^#@]*\S[^#@]*$` Target
+          non-blank Channel ID; it must not contain # or @.
 
-          channel_type `integer:uint8` 0–255; default: `2` 0 or omission becomes
-          group type 2; type 1 is rejected.
+          channel_type `integer:uint8` 0–255; default: `2` Target Channel type;
+          omission or 0 becomes group type 2, while type 1 is rejected.
 
-          reset `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          reset `CompatibilityFlag` default: `0` Subscriber-snapshot replacement
+          compatibility flag; exactly 1 enables it and every other integer
+          disables it.
 
-          temp_subscriber `integer` — Exactly 1 is rejected; other values are
-          ignored.
+          temp_subscriber `integer` — Deprecated temporary-subscriber flag;
+          value 1 is rejected and every other value is ignored.
 
-          subscribers array<`string`> minItems: 1
+          subscribers array<`string`> minItems: 1 One or more non-blank
+          subscriber UIDs to add.
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          Subscriber-snapshot replacement compatibility flag; exactly 1 enables
+          it and every other integer disables it.
 
           200 Mutation accepted
 

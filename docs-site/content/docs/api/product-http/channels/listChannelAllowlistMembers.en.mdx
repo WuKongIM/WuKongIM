@@ -26,11 +26,13 @@ _openapi:
           Returns an unbounded full list; missing or invalid channel_type is
           silently treated as 0.
 
-          channel_id query optional `string` default: `""` Unvalidated Channel
-          ID used by the legacy full-list route.
+          channel_id query optional `string` default: `""` Channel ID whose
+          allowlist is read; this legacy endpoint does not validate the query
+          parameter.
 
-          channel_type query optional `integer` 0–255; default: `0` Parsed as
-          uint8; missing or invalid text is silently treated as 0.
+          channel_type query optional `integer` 0–255; default: `0` Channel type
+          whose allowlist is read; parsed as uint8, with missing, invalid, or
+          out-of-range text silently treated as 0.
 
           200 Complete legacy allowlist member array
 

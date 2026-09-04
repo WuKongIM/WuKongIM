@@ -922,7 +922,7 @@
         }
       },
       "RouteBatchRequest": {
-        "type": "array",
+        "type": ["array", "null"],
         "description": "Unbounded by the current Product HTTP entry.",
         "items": { "type": "string" }
       },
@@ -958,7 +958,7 @@
         }
       },
       "OnlineStatusRequest": {
-        "type": "array",
+        "type": ["array", "null"],
         "description": "Unbounded by the current Product HTTP entry.",
         "items": { "type": "string" }
       },
@@ -982,7 +982,7 @@
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "uids": { "type": "array", "description": "May be empty; no entry-level element validation.", "items": { "type": "string" } }
+          "uids": { "type": ["array", "null"], "description": "May be empty or null; no entry-level element validation.", "items": { "type": "string" } }
         }
       },
       "SystemUIDListResponse": { "type": ["array", "null"], "items": { "type": "string" } },
@@ -1009,7 +1009,7 @@
         "additionalProperties": true,
         "required": ["channel_id", "channel_type"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]*\\S[^#@]*$" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
           "large": { "$ref": "#/components/schemas/CompatibilityFlag" },
           "ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
@@ -1017,7 +1017,7 @@
           "send_ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
           "allow_stranger": { "$ref": "#/components/schemas/CompatibilityFlag" },
           "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "subscribers": { "type": "array", "description": "Elements are not validated at entry; a non-empty list is rejected for person Channels.", "items": { "type": "string" } }
+          "subscribers": { "type": ["array", "null"], "description": "May be null; elements are not validated at entry and a non-empty list is rejected for person Channels.", "items": { "type": "string" } }
         }
       },
       "WeakChannelKeyRequest": {
@@ -1033,7 +1033,7 @@
         "additionalProperties": true,
         "required": ["channel_id", "subscribers"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]*\\S[^#@]*$" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 2, "description": "0 or omission becomes group type 2; type 1 is rejected." },
           "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
           "temp_subscriber": { "type": "integer", "description": "Exactly 1 is rejected; other values are ignored." },
@@ -1045,7 +1045,7 @@
         "additionalProperties": true,
         "required": ["channel_id", "subscribers"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]+$" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]*\\S[^#@]*$" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "description": "Type 1 is rejected; type 0 is passed through." },
           "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
           "temp_subscriber": { "type": "integer", "description": "Accepted and ignored." },
@@ -1085,9 +1085,9 @@
         "additionalProperties": true,
         "required": ["channel_id"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 },
-          "uids": { "type": "array", "items": { "type": "string" } }
+          "uids": { "type": ["array", "null"], "items": { "type": "string" } }
         }
       },
       "ChannelAllowlistMutationRequest": {
@@ -1143,8 +1143,8 @@
           "topic": { "type": "string" },
           "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
           "payload": { "type": "string", "minLength": 1, "contentEncoding": "base64" },
-          "subscribers": { "type": "array", "description": "A non-empty array selects request-scoped delivery, requires an empty channel_id, and requires sync_once.", "items": { "type": "string" } },
-          "header": { "$ref": "#/components/schemas/SendMessageHeaderRequest" },
+          "subscribers": { "type": ["array", "null"], "description": "A non-empty array selects request-scoped delivery, requires an empty channel_id, and requires sync_once; null behaves as omission.", "items": { "type": "string" } },
+          "header": { "oneOf": [ { "$ref": "#/components/schemas/SendMessageHeaderRequest" }, { "type": "null" } ] },
           "no_persist": { "type": "integer", "default": 0, "description": "Any non-zero value means true." },
           "sync_once": { "type": "integer", "default": 0, "description": "Any non-zero value means true." }
         }
@@ -1176,13 +1176,13 @@
         "additionalProperties": true,
         "required": ["channel_id", "channel_type", "client_msg_no", "event_id", "event_type"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1 },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
           "from_uid": { "type": "string" },
           "message_id": { "type": "integer", "format": "int64", "description": "Positive values are converted to uint64; zero and negative values are omitted from the command." },
-          "client_msg_no": { "type": "string", "minLength": 1 },
-          "event_id": { "type": "string", "minLength": 1 },
-          "event_type": { "type": "string", "minLength": 1 },
+          "client_msg_no": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "event_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "event_type": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "event_key": { "type": "string", "description": "Empty selects the default lane; stream.finish forces the finish lane." },
           "visibility": { "type": "string" },
           "occurred_at": { "type": "integer", "format": "int64" },
@@ -1219,7 +1219,7 @@
         "additionalProperties": true,
         "required": ["uid"],
         "properties": {
-          "uid": { "type": "string", "minLength": 1 },
+          "uid": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "message_seq": { "type": "integer", "format": "uint64", "minimum": 0, "deprecated": true, "description": "Accepted and ignored." },
           "limit": { "type": "integer", "minimum": 0, "default": 200, "description": "0 selects 200; values above 10000 are capped." }
         }
@@ -1229,7 +1229,7 @@
         "additionalProperties": true,
         "required": ["uid", "last_message_seq"],
         "properties": {
-          "uid": { "type": "string", "minLength": 1 },
+          "uid": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "last_message_seq": { "type": "integer", "format": "uint64", "minimum": 1, "deprecated": true, "description": "Required by the entry but ignored by the use case." }
         }
       },
@@ -1490,7 +1490,7 @@
           "last_msg_seqs": { "type": "string", "default": "", "description": "Legacy channel_id:channel_type:message_seq entries separated by |; malformed entries are skipped." },
           "msg_count": { "type": "integer", "default": 0, "description": "Values <=0 return an empty array; downstream sync caps positive values at 10000." },
           "only_unread": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "description": "Exactly 1 means true." },
-          "exclude_channel_types": { "type": "array", "items": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 } },
+          "exclude_channel_types": { "type": ["array", "null"], "items": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 } },
           "page": { "type": "integer", "default": 0, "description": "Values <=0 disable legacy page slicing." },
           "page_size": { "type": "integer", "default": 100, "description": "When page>0, values <=0 become 100 and values above 500 are capped." }
         }

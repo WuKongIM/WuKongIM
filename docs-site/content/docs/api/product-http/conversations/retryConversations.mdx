@@ -14,51 +14,104 @@ _openapi:
     contents:
       - content: 重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。
         heading: 重试未解析会话
-      - content: |-
+      - content: >-
           POST /conversation/retry
+
           retryConversations
+
           重试未解析会话
+
           重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。
+
           ConversationRetryRequest
+
+          未解析会话的有界重试参数。
+
           additionalProperties true
-          uid `string` minLength: 1
-          channels array<`ConversationKey`> minItems: 1; maxItems: 200
+
+          uid `string` minLength: 1 拥有这些会话 membership 的用户 ID。
+
+          channels array<`ConversationKey`> minItems: 1; maxItems: 200 上一轮
+          unresolved 中要重试的 Channel Key；至少 1 个，最多 200 个，重复 Key 会合并。
+
           ConversationKey
-          channel_id `string` minLength: 1
-          channel_type `integer` 1–255
+
+          一个会话的 Channel Key。
+
+          channel_id `string` minLength: 1 目标 Channel 的逻辑标识；个人 Channel 场景通常填写对方
+          UID。
+
+          channel_type `integer` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
+
           200 Canonical Conversation page
+
           ConversationListResponse
+
           additionalProperties false
+
           conversations array<`ConversationListItem`> —
+
           deletes array<`ConversationKey`> —
+
           unresolved array<`ConversationKey`> —
+
           next_cursor `string` —
+
           done `boolean` —
+
           coverage `integer:int64` 0–∞
+
           tombstones_retained_since `integer:int64` 0–∞
+
           reset_required `boolean` —
+
           ConversationListItem
+
           channel_id `string` —
+
+          channel_type `integer` 1–255
+
           active_at `integer:int64` —
+
           read_seq `integer:uint64` 0–∞
+
           deleted_to_seq `integer:uint64` 0–∞
+
           unread `integer:uint64` 0–∞
+
           last_message `ConversationLastMessage` | `null` —
+
           ConversationLastMessage
+
           message_id `integer:uint64` 0–∞
+
           message_idstr `string` —
+
           message_seq `integer:uint64` 0–∞
+
           from_uid `string` —
+
           client_msg_no `string` —
+
           server_timestamp_ms `integer:int64` —
+
           payload `string | null` encoding: base64
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

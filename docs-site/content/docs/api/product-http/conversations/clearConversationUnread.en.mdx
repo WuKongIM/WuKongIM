@@ -27,13 +27,18 @@ _openapi:
 
           ConversationMutationRequest
 
+          Shared key for Conversation clear-unread, hide, or activate
+          operations.
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1 Unique identifier of the target user.
 
-          channel_id `string` minLength: 1
+          channel_id `string` minLength: 1 Logical identifier of the target
+          Channel; for a person Channel this is normally the other UID.
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
           200 Mutation accepted
 

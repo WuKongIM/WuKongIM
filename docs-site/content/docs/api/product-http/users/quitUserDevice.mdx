@@ -27,13 +27,14 @@ _openapi:
 
           DeviceQuitRequest
 
+          设备退出参数；入口保留旧式弱校验。
+
           additionalProperties true
 
-          uid `string` default: `""` The entry adapter does not validate this
-          field.
+          uid `string` default: `""` 要退出设备的用户 ID；入口本身不校验空值。
 
-          device_flag `integer` default: `0` -1 selects APP, Web, and PC; other
-          values are converted to uint8 by the use case.
+          device_flag `integer` default: `0` 要退出的设备类别；-1 同时选择 APP、Web 与
+          PC，其他整数在用例层转为 uint8。
 
           200 Mutation accepted
 

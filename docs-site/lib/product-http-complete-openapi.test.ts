@@ -4,20 +4,26 @@ import document from '../contracts/product-http.openapi.json';
 import goldenProfile from '../contracts/javascript-web-quickstart.openapi.json';
 import managementProfile from '../contracts/product-http-management.openapi.json';
 import messagingProfile from '../contracts/product-http-messaging.openapi.json';
+import { localizeOpenAPIDocument } from './product-http-openapi';
 
 const httpMethods = ['delete', 'get', 'patch', 'post', 'put'] as const;
 type HTTPMethod = (typeof httpMethods)[number];
 
 interface Schema {
+  $ref?: string;
   type?: string | string[];
+  description?: string;
   default?: unknown;
   minimum?: number;
   maximum?: number;
   enum?: unknown[];
+  pattern?: string;
   additionalProperties?: boolean;
   required?: string[];
   properties?: Record<string, Schema>;
+  items?: Schema;
   oneOf?: Schema[];
+  anyOf?: Schema[];
 }
 
 interface Operation {
@@ -26,6 +32,7 @@ interface Operation {
   security?: unknown[];
   responses?: Record<string, unknown>;
   parameters?: Parameter[];
+  requestBody?: { $ref?: string };
   deprecated?: boolean;
   'x-wukongim-trust'?: string;
 }
@@ -34,6 +41,7 @@ interface Parameter {
   name?: string;
   in?: string;
   $ref?: string;
+  description?: string;
 }
 
 interface ContractDocument {
@@ -111,6 +119,31 @@ function schema(name: string): Schema {
   return document.components.schemas[
     name as keyof typeof document.components.schemas
   ] as Schema;
+}
+
+function componentName(reference: string | undefined, component: string) {
+  const prefix = `#/components/${component}/`;
+  return reference?.startsWith(prefix) ? reference.slice(prefix.length) : undefined;
+}
+
+function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<string>()) {
+  if (seen.has(typeName)) return [];
+  seen.add(typeName);
+  const marker = `type ${typeName} struct {`;
+  const start = file.indexOf(marker);
+  if (start < 0) throw new Error(`missing Go request DTO: ${typeName}`);
+  const bodyStart = start + marker.length;
+  const bodyEnd = file.indexOf('\n}', bodyStart);
+  if (bodyEnd < 0) throw new Error(`unterminated Go request DTO: ${typeName}`);
+  const body = file.slice(bodyStart, bodyEnd);
+  const fields = [...body.matchAll(/`json:"([^",]+)(?:,[^"]*)?"`/g)].map(
+    (match) => match[1]!,
+  );
+  for (const line of body.split('\n')) {
+    const embedded = line.match(/^\s*([a-z][A-Za-z0-9_]*)\s*$/)?.[1];
+    if (embedded) fields.push(...jsonFieldsForStruct(file, embedded, seen));
+  }
+  return [...new Set(fields)].sort();
 }
 
 describe('complete Product HTTP OpenAPI contract', () => {
@@ -221,6 +254,125 @@ describe('complete Product HTTP OpenAPI contract', () => {
     expect(send.additionalProperties).toBe(true);
   });
 
+  test('matches every documented JSON request field to the runtime request DTO', async () => {
+    const dtoContracts = [
+      ['UpdateTokenRequest', 'user_token.go', 'updateTokenRequest'],
+      ['DeviceQuitRequest', 'user_legacy.go', 'deviceQuitRequest'],
+      ['SystemUIDsRequest', 'user_legacy.go', 'systemUIDsRequest'],
+      ['ChannelInfoRequest', 'channel_management.go', 'channelInfoRequest'],
+      ['ChannelUpsertRequest', 'channel_management.go', 'channelUpsertRequest'],
+      ['WeakChannelKeyRequest', 'channel_management.go', 'channelKeyRequest'],
+      ['ChannelSubscriberAddRequest', 'channel_management.go', 'channelSubscriberRequest'],
+      ['ChannelSubscriberRemoveRequest', 'channel_management.go', 'channelSubscriberRequest'],
+      ['NonPersonChannelKeyRequest', 'channel_management.go', 'channelKeyRequest'],
+      ['TemporarySubscriberSetRequest', 'channel_management.go', 'tmpChannelSubscriberRequest'],
+      ['ChannelMemberMutationRequest', 'channel_management.go', 'channelMemberRequest'],
+      ['ChannelMemberSetRequest', 'channel_management.go', 'channelMemberRequest'],
+      ['ChannelAllowlistMutationRequest', 'channel_management.go', 'channelMemberRequest'],
+      ['ChannelKeyRequest', 'channel_management.go', 'channelKeyRequest'],
+      ['SendMessageHeaderRequest', 'message_send.go', 'sendMessageHeaderRequest'],
+      ['SendMessageRequest', 'message_send.go', 'sendMessageRequest'],
+      ['AppendMessageEventRequest', 'message_event.go', 'appendMessageEventRequest'],
+      ['MessageSyncRequest', 'message_sync.go', 'messageSyncRequest'],
+      ['MessageSyncAckRequest', 'message_sync.go', 'messageSyncAckRequest'],
+      ['MessageCMDBindingRequest', 'message_sync.go', 'messageCMDBindingRequest'],
+      ['ChannelMessageSyncRequest', 'channel_messagesync.go', 'syncChannelMessagesRequest'],
+      ['ChannelMessageSyncBatchItemRequest', 'channel_messagesync.go', 'syncChannelMessagesRequest'],
+      ['ChannelMessageSyncBatchRequest', 'channel_messagesync.go', 'syncChannelMessagesBatchRequest'],
+      ['ConversationListRequest', 'conversation_list.go', 'conversationListRequest'],
+      ['ConversationKey', 'conversation_list.go', 'conversationListKey'],
+      ['ConversationRetryRequest', 'conversation_list.go', 'conversationRetryRequest'],
+      ['ConversationMutationRequest', 'conversation_mutation.go', 'clearConversationUnreadRequest'],
+      ['ConversationSetUnreadRequest', 'conversation_mutation.go', 'setConversationUnreadRequest'],
+      ['ConversationSyncLegacyRequest', 'conversation_sync_legacy.go', 'conversationSyncLegacyRequest'],
+    ] as const;
+    const files = new Map<string, string>();
+
+    for (const [schemaName, sourceFile, typeName] of dtoContracts) {
+      let file = files.get(sourceFile);
+      if (!file) {
+        file = await source(sourceFile);
+        files.set(sourceFile, file);
+      }
+      expect(Object.keys(schema(schemaName).properties ?? {}).sort()).toEqual(
+        jsonFieldsForStruct(file, typeName),
+      );
+    }
+  });
+
+  test('explains every query and JSON-body parameter in both published locales', () => {
+    for (const locale of ['zh', 'en'] as const) {
+      const localized = localizeOpenAPIDocument(document, locale) as typeof document;
+      const descriptions: string[] = [];
+      const visited = new Set<string>();
+
+      function visitInputSchema(candidate: Schema | undefined) {
+        if (!candidate) return;
+        const referencedName = componentName(candidate.$ref, 'schemas');
+        if (referencedName) {
+          if (visited.has(referencedName)) return;
+          visited.add(referencedName);
+        }
+        const resolved = referencedName
+          ? (localized.components.schemas as Record<string, Schema>)[referencedName]
+          : candidate;
+        expect(resolved, referencedName).toBeDefined();
+        if (!resolved) return;
+        const isNamedOrComposite = Boolean(
+          referencedName ||
+            resolved.properties ||
+            resolved.items ||
+            resolved.oneOf ||
+            resolved.anyOf,
+        );
+        if (isNamedOrComposite) {
+          expect(resolved.description, referencedName ?? 'inline input schema').not.toBe(
+            '',
+          );
+          if (resolved.description) descriptions.push(resolved.description);
+        }
+        for (const [fieldName, field] of Object.entries(resolved.properties ?? {})) {
+          expect(field.description, `${referencedName}.${fieldName}`).not.toBe('');
+          if (field.description) descriptions.push(field.description);
+          visitInputSchema(field);
+          visitInputSchema(field.items);
+          for (const alternative of [...(field.oneOf ?? []), ...(field.anyOf ?? [])]) {
+            visitInputSchema(alternative);
+          }
+        }
+        visitInputSchema(resolved.items);
+      }
+
+      for (const pathItem of Object.values(localized.paths)) {
+        for (const [method, candidate] of Object.entries(pathItem)) {
+          if (method !== 'get' && method !== 'post') continue;
+          const operation = candidate as Operation;
+          for (const rawParameter of operation.parameters ?? []) {
+            const name = componentName(rawParameter.$ref, 'parameters');
+            const parameter = name
+              ? (localized.components.parameters as Record<string, Parameter>)[name]
+              : rawParameter;
+            expect(parameter?.description, name ?? parameter?.name).not.toBe('');
+            if (parameter?.description) descriptions.push(parameter.description);
+          }
+          const bodyName = componentName(operation.requestBody?.$ref, 'requestBodies');
+          if (!bodyName) continue;
+          const body = localized.components.requestBodies[
+            bodyName as keyof typeof localized.components.requestBodies
+          ] as { description?: string; content?: { 'application/json'?: { schema?: Schema } } };
+          expect(body.description, bodyName).not.toBe('');
+          if (body.description) descriptions.push(body.description);
+          visitInputSchema(body.content?.['application/json']?.schema);
+        }
+      }
+
+      expect(descriptions.length).toBeGreaterThan(100);
+      for (const description of descriptions) {
+        expect(description).toMatch(locale === 'zh' ? /\p{Script=Han}/u : /[A-Za-z]/);
+      }
+    }
+  });
+
   test('keeps compatibility-only parser behavior visible instead of normalizing it away', () => {
     expect(schema('RouteBatchItem').required).not.toContain('uids');
     expect(schema('SystemUIDListResponse').type).toEqual(['array', 'null']);
@@ -232,6 +384,23 @@ describe('complete Product HTTP OpenAPI contract', () => {
     expect(schema('MessageSyncAckRequest').properties?.last_message_seq).toMatchObject({
       minimum: 1,
     });
+    expect(schema('RouteBatchRequest').type).toEqual(['array', 'null']);
+    expect(schema('OnlineStatusRequest').type).toEqual(['array', 'null']);
+    expect(schema('SystemUIDsRequest').properties?.uids?.type).toEqual([
+      'array',
+      'null',
+    ]);
+    expect(schema('SendMessageRequest').properties?.header?.oneOf).toEqual([
+      { $ref: '#/components/schemas/SendMessageHeaderRequest' },
+      { type: 'null' },
+    ]);
+    expect(schema('ChannelUpsertRequest').properties?.channel_id?.pattern).toContain(
+      '\\S',
+    );
+    expect(schema('AppendMessageEventRequest').properties?.event_id?.pattern).toBe(
+      '\\S',
+    );
+    expect(schema('MessageSyncRequest').properties?.uid?.pattern).toBe('\\S');
     expect(document.paths['/conversation/sync'].post.deprecated).toBe(true);
     expect(document.paths['/user/systemuids_add_to_cache'].post['x-wukongim-trust']).toBe(
       'node-local-operator-only',

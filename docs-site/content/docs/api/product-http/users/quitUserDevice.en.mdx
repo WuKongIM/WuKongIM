@@ -27,13 +27,16 @@ _openapi:
 
           DeviceQuitRequest
 
+          Device sign-out parameters with legacy weak validation.
+
           additionalProperties true
 
-          uid `string` default: `""` The entry adapter does not validate this
-          field.
+          uid `string` default: `""` User ID whose device is signed out; the
+          entry itself does not reject an empty value.
 
-          device_flag `integer` default: `0` -1 selects APP, Web, and PC; other
-          values are converted to uint8 by the use case.
+          device_flag `integer` default: `0` Device category to sign out; -1
+          selects APP, Web, and PC together, while other integers are converted
+          to uint8 by the use case.
 
           200 Mutation accepted
 

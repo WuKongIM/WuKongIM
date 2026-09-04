@@ -14,26 +14,48 @@ _openapi:
     contents:
       - content: 通过内部有界分页清空普通订阅者；个人 Channel 会被拒绝。
         heading: 移除全部持久订阅者
-      - content: |-
+      - content: >-
           POST /channel/subscriber_remove_all
+
           removeAllChannelSubscribers
+
           移除全部持久订阅者
+
           通过内部有界分页清空普通订阅者；个人 Channel 会被拒绝。
+
           NonPersonChannelKeyRequest
+
+          非个人 Channel Key。
+
           additionalProperties true
-          channel_id `string` minLength: 1
-          channel_type `integer:uint8` 2–255
+
+          channel_id `string` minLength: 1 目标 Channel 的逻辑标识；个人 Channel 场景通常填写对方
+          UID。
+
+          channel_type `integer:uint8` 2–255 非个人 Channel 类型，因此允许范围为 2–255。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

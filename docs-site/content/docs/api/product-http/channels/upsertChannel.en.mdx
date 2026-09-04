@@ -27,36 +27,46 @@ _openapi:
 
           ChannelUpsertRequest
 
+          Full Channel metadata update plus optional subscriber replacement
+          parameters.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+          channel_id `string` minLength: 1; pattern: `^[^#@]*\S[^#@]*$`
+          Non-blank Channel ID to create or update; it must not contain # or @.
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
-          large `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          large `CompatibilityFlag` default: `0` Large-group compatibility flag;
+          exactly 1 enables it and every other integer disables it.
 
-          ban `CompatibilityFlag` default: `0` Exactly 1 means true; every other
-          integer means false.
+          ban `CompatibilityFlag` default: `0` Channel-ban compatibility flag;
+          exactly 1 enables it and every other integer disables it.
 
-          disband `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          disband `CompatibilityFlag` default: `0` Terminal-disband
+          compatibility flag; exactly 1 enables it and every other integer
+          disables it.
 
-          send_ban `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          send_ban `CompatibilityFlag` default: `0` Send-ban compatibility flag;
+          exactly 1 enables it and every other integer disables it.
 
-          allow_stranger `CompatibilityFlag` default: `0` Exactly 1 means true;
-          every other integer means false.
+          allow_stranger `CompatibilityFlag` default: `0` Allow-stranger
+          compatibility flag; exactly 1 enables it and every other integer
+          disables it.
 
-          reset `CompatibilityFlag` default: `0` Exactly 1 means true; every
-          other integer means false.
+          reset `CompatibilityFlag` default: `0` Subscriber-snapshot replacement
+          compatibility flag; exactly 1 enables it and every other integer
+          disables it.
 
-          subscribers array<`string`> — Elements are not validated at entry; a
-          non-empty list is rejected for person Channels.
+          subscribers `array | null` — Ordinary subscriber UIDs to add; it may
+          be omitted, empty, or null, a person Channel rejects a non-empty list,
+          and elements are not validated at entry.
 
           CompatibilityFlag
 
-          Exactly 1 means true; every other integer means false.
+          Large-group compatibility flag; exactly 1 enables it and every other
+          integer disables it.
 
           200 Mutation accepted
 

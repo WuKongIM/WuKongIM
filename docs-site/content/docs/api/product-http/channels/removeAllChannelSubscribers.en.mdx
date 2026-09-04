@@ -27,11 +27,15 @@ _openapi:
 
           NonPersonChannelKeyRequest
 
+          Non-person Channel key.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1
+          channel_id `string` minLength: 1 Logical identifier of the target
+          Channel; for a person Channel this is normally the other UID.
 
-          channel_type `integer:uint8` 2–255
+          channel_type `integer:uint8` 2–255 Non-person Channel type, so the
+          accepted range is 2–255.
 
           200 Mutation accepted
 

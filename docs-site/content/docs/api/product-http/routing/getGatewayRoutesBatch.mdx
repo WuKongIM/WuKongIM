@@ -24,21 +24,21 @@ _openapi:
 
           在所选地址组中回显无上限 UID 数组；该接口仅为兼容保留。
 
-          node_id query optional `integer:uint64` 1–∞ Preferred node selector. A
-          specified value must be a configured positive uint64.
+          node_id query optional `integer:uint64` 1–∞ 首选节点选择参数；填写时必须是已配置且大于 0
+          的节点 ID。
 
-          nodeId query optional `integer:uint64` 1–∞ Legacy alias read only when
-          node_id is absent.
+          nodeId query optional `integer:uint64` 1–∞ 旧版 nodeId 别名；仅在未提供 node_id
+          时读取。
 
-          nodeID query optional `integer:uint64` 1–∞ Legacy alias read after
-          node_id and nodeId.
+          nodeID query optional `integer:uint64` 1–∞ 旧版 nodeID 别名；仅在 node_id 与
+          nodeId 都未提供时读取。
 
-          intranet query optional `integer` default: `0` Any parseable non-zero
-          integer selects intranet addresses; invalid text behaves as 0.
+          intranet query optional `integer` default: `0` 地址范围选择参数；任何可解析的非 0
+          整数选择内网地址，无效文本按 0 处理并选择公网地址。
 
           RouteBatchRequest
 
-          Unbounded by the current Product HTTP entry.
+          UID 字符串数组；JSON null 也会按空数组兼容接收，当前入口不限制数量。
 
           200 One selected address group
 

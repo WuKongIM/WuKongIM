@@ -25,39 +25,51 @@ _openapi:
 
           SendMessageRequest
 
+          完整的兼容消息发送参数。
+
           additionalProperties true
 
-          from_uid `string` minLength: 1
+          from_uid `string` minLength: 1 消息发送者 UID；为空时才回退读取 sender_uid。
 
-          sender_uid `string` minLength: 1 Used only when from_uid is empty.
+          sender_uid `string` minLength: 1 已废弃的发送者 UID 别名；仅在 from_uid 为空时使用。
 
-          device_id `string` —
+          device_id `string` — 调用方提供的发送设备标识；可为空。
 
-          channel_id `string` —
+          channel_id `string` — 目标 Channel ID；普通发送时必须非空，请求级 subscribers 发送时必须为空。
 
-          channel_type `integer:uint8` 0–255
+          channel_type `integer:uint8` 0–255 目标 Channel 类型；普通发送时必须大于 0，请求级
+          subscribers 发送时使用 0。
 
-          client_msg_no `string` — Optional; an empty value disables idempotency
-          lookup.
+          client_msg_no `string` — 可选的客户端幂等键；空字符串会关闭幂等查找。
 
-          setting `integer:uint8` 0–255
+          setting `integer:uint8` 0–255 WKProto Setting 位图；应使用 SDK 常量组合，不要手写未知位。
 
-          topic `string` —
+          topic `string` — 可选 Topic；只有相应 Setting 位和客户端能力匹配时才有协议含义。
 
-          expire `integer:uint32` 0–∞
+          expire `integer:uint32` 0–∞ 调用方提供的消息过期秒数；0 表示不设置过期。
 
-          payload `string` minLength: 1; encoding: base64
+          payload `string` minLength: 1; encoding: base64 Base64 编码后的消息
+          Payload；解码失败会返回 400。
 
-          subscribers array<`string`> — A non-empty array selects request-scoped
-          delivery, requires an empty channel_id, and requires sync_once.
+          subscribers `array | null` — 请求级投递 UID；非空时 channel_id 必须为空且 sync_once
+          必须启用，可省略、为空或为 null。
 
-          header `SendMessageHeaderRequest` —
+          header `SendMessageHeaderRequest` | `null` — 可选兼容 Header 标志；可为对象、null
+          或省略。
 
-          no_persist `integer` default: `0` Any non-zero value means true.
+          no_persist `integer` default: `0` 顶层兼容标志；非 0 表示不持久化，并与
+          header.no_persist 执行逻辑或。
 
-          sync_once `integer` default: `0` Any non-zero value means true.
+          sync_once `integer` default: `0` 顶层兼容标志；非 0 表示一次性命令消息，并与
+          header.sync_once 执行逻辑或。
 
           SendMessageHeaderRequest
+
+          消息固定 Header 的兼容标志；同名顶层字段会与这些值执行逻辑或。
+
+          no_persist `integer` default: `0` 非 0 表示不持久化该消息。
+
+          sync_once `integer` default: `0` 非 0 表示按一次性命令消息处理。
 
           200 Transport completed; inspect reason
 

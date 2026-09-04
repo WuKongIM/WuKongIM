@@ -26,15 +26,22 @@ _openapi:
 
           ConversationListRequest
 
+          Conversation-directory pagination parameters.
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1 User ID whose Conversation directory is
+          read.
 
-          cursor `string` default: `""`
+          cursor `string` default: `""` Opaque next_cursor from the previous
+          page; omit it or send an empty string for the first page.
 
-          limit `integer` 0–200; default: `50`
+          limit `integer` 0–200; default: `50` Maximum membership entries
+          scanned for this page; 0 uses the default 50 and the maximum is 200.
 
-          completed_coverage `integer:int64` 0–∞; default: `0`
+          completed_coverage `integer:int64` 0–∞; default: `0` Coverage saved
+          from the client's latest pass that ended with done=true; send 0 for
+          the first synchronization.
 
           200 Canonical Conversation page
 
@@ -92,7 +99,13 @@ _openapi:
 
           ConversationKey
 
-          channel_id `string` minLength: 1
+          Channel key for one Conversation.
+
+          channel_id `string` minLength: 1 Logical identifier of the target
+          Channel; for a person Channel this is normally the other UID.
+
+          channel_type `integer` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
           400 Input, validation, dependency, or downstream error
 

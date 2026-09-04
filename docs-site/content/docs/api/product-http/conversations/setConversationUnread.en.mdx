@@ -26,15 +26,20 @@ _openapi:
 
           ConversationSetUnreadRequest
 
+          Parameters for setting a Conversation maximum unread count.
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1 Unique identifier of the target user.
 
-          channel_id `string` minLength: 1
+          channel_id `string` minLength: 1 Logical identifier of the target
+          Channel; for a person Channel this is normally the other UID.
 
-          channel_type `integer:uint8` 1–255
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
+          Channel, 2 is a group Channel, and other values are extension types.
 
-          unread `integer` 0–∞
+          unread `integer` 0–∞ Maximum unread messages to retain; it must be at
+          least 0 and the server only advances read_seq monotonically.
 
           200 Mutation accepted
 

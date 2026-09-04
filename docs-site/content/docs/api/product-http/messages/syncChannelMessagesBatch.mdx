@@ -25,34 +25,45 @@ _openapi:
 
           ChannelMessageSyncBatchRequest
 
+          批量 Channel 已提交消息同步参数。
+
           additionalProperties true
 
-          login_uid `string` minLength: 1; pattern: `\S`
+          login_uid `string` minLength: 1; pattern: `\S` 发起读取且必须拥有对应 Channel
+          成员关系的用户标识。
 
           items array<`ChannelMessageSyncBatchItemRequest`> minItems: 1;
-          maxItems: 200
+          maxItems: 200 要同步的 Channel 条目；至少 1 个，最多 200 个，并保持请求顺序返回。
 
           ChannelMessageSyncBatchItemRequest
 
-          login_uid `string` — Accepted by JSON decoding but ignored; the
-          top-level login_uid is used.
+          批量同步中的单个 Channel 读取条件。
 
-          channel_id `string` minLength: 1; pattern: `\S`
+          login_uid `string` — 兼容接收但忽略；批量请求始终使用顶层 login_uid。
 
-          channel_type `integer:uint8` 1–255
+          channel_id `string` minLength: 1; pattern: `\S` 目标 Channel 的逻辑标识；个人
+          Channel 场景通常填写对方 UID。
 
-          start_message_seq `integer:uint64` 0–∞; default: `0`
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
 
-          end_message_seq `integer:uint64` 0–∞; default: `0`
+          start_message_seq `integer:uint64` 0–∞; default: `0` 读取起点的 Channel
+          消息序号；0 表示未指定显式起点。
 
-          limit `integer` default: `100` Values <=0 select 100; values above
-          10000 are capped.
+          end_message_seq `integer:uint64` 0–∞; default: `0` 读取终点的 Channel
+          消息序号；0 表示未指定显式终点。
 
-          pull_mode `integer:uint8` 0–255; default: `0`
+          limit `integer` default: `100` 本次最多返回的消息数；小于等于 0 时使用 100，大于 10000 时截断为
+          10000。
 
-          include_event_meta `integer` default: `0`
+          pull_mode `integer:uint8` 0–255; default: `0` 拉取方向；1 表示向更新消息拉取，其他
+          uint8 值走向更旧消息拉取的兼容分支。
 
-          event_summary_mode `string` default: `""`
+          include_event_meta `integer` default: `0` 消息事件摘要开关；非 0 时请求事件元数据，且
+          event_summary_mode 为空时默认使用 full。
+
+          event_summary_mode `string` default: `""` 事件摘要模式；空字符串不补充摘要，full
+          包含完整快照，其他非空值返回不含快照的基础摘要。
 
           200 Aligned batch result
 

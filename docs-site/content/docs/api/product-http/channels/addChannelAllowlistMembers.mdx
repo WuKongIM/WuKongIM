@@ -14,27 +14,51 @@ _openapi:
     contents:
       - content: 把非空白 UID 加入派生 Channel 允许列表。
         heading: 添加-channel-允许列表成员
-      - content: |-
+      - content: >-
           POST /channel/whitelist_add
+
           addChannelAllowlistMembers
+
           添加 Channel 允许列表成员
+
           把非空白 UID 加入派生 Channel 允许列表。
+
           ChannelAllowlistMutationRequest
+
+          允许列表增删参数。
+
           additionalProperties true
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
-          channel_type `integer:uint8` 1–255
-          uids array<`string`> minItems: 1
+
+          channel_id `string` minLength: 1; pattern: `^[^#@]+$` 目标 Channel
+          ID；不得为空，也不得包含 # 或 @。
+
+          channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
+          Channel，其他值属于扩展类型。
+
+          uids array<`string`> minItems: 1 一个或多个要添加或移除的非空白 UID。
+
           200 Mutation accepted
+
           StatusEnvelope
+
           additionalProperties false
+
           status `integer` const: `200`
+
           400 Input, validation, dependency, or downstream error
+
           CompatibilityError
+
           msg `string` — Human-readable and not stable for machine matching.
+
           status `integer` const: `400`
+
           503 Controller restore maintenance is active
+
           MaintenanceError
+
           error `string` const: `"maintenance"`
+
           message `string` const: `"restore maintenance is active"`
 ---
 

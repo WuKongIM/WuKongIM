@@ -28,12 +28,16 @@ _openapi:
 
           MessageSyncAckRequest
 
+          Legacy command-message synchronization acknowledgement parameters.
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1; pattern: `\S` Non-blank user ID
+          acknowledging command-message synchronization.
 
-          last_message_seq `integer:uint64` 1–∞ Required by the entry but
-          ignored by the use case.
+          last_message_seq `integer:uint64` 1–∞ Compatibility field that must be
+          positive; acknowledgement uses the latest server-recorded generation
+          rather than this supplied value.
 
           200 Mutation accepted
 

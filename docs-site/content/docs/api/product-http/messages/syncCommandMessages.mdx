@@ -26,14 +26,16 @@ _openapi:
 
           MessageSyncRequest
 
+          旧式命令消息同步参数。
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1; pattern: `\S` 要同步命令消息的非空白用户 ID。
 
-          message_seq `integer:uint64` 0–∞ Accepted and ignored.
+          message_seq `integer:uint64` 0–∞ 已废弃的兼容输入；服务端接收但忽略。
 
-          limit `integer` 0–∞; default: `200` 0 selects 200; values above 10000
-          are capped.
+          limit `integer` 0–∞; default: `200` 本次最多返回的消息数；0 使用 200，负数被拒绝，大于 10000
+          时截断为 10000。
 
           200 Bare legacy message array
 

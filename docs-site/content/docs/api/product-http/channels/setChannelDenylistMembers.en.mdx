@@ -28,13 +28,19 @@ _openapi:
 
           ChannelMemberSetRequest
 
+          Complete allowlist or denylist replacement parameters with legacy weak
+          validation.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1
+          channel_id `string` minLength: 1; pattern: `\S` Target non-blank
+          Channel ID.
 
-          channel_type `integer:uint8` 0–255; default: `0`
+          channel_type `integer:uint8` 0–255; default: `0` Target Channel type;
+          it may be omitted or 0 and is not rejected at entry.
 
-          uids array<`string`> —
+          uids `array | null` — Complete replacement UID set; it may be omitted,
+          empty, or null, and elements are not validated at entry.
 
           200 Mutation accepted
 

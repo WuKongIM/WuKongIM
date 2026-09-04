@@ -29,15 +29,22 @@ _openapi:
 
           UpdateTokenRequest
 
+          Device-token update parameters.
+
           additionalProperties true
 
-          uid `string` minLength: 1 Must not contain @, #, or &.
+          uid `string` minLength: 1 User ID whose device token is created or
+          updated; it must not contain @, #, or &.
 
-          token `string` minLength: 1
+          token `string` minLength: 1 Opaque token persisted for this user and
+          device category; the default Gateway requires later CONNECT
+          credentials to match it exactly.
 
-          device_flag `integer:uint8` 0–255; default: `0`
+          device_flag `integer:uint8` 0–255; default: `0` Device category;
+          0=APP, 1=Web, 2=PC, and 99=system, defaulting to 0 when omitted.
 
-          device_level `integer:uint8` 0–255; default: `0`
+          device_level `integer:uint8` 0–255; default: `0` Same-category device
+          conflict level; 0=Slave and 1=Master, defaulting to 0 when omitted.
 
           200 Mutation accepted
 

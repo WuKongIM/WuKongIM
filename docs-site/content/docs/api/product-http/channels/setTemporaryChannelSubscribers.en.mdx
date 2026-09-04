@@ -27,11 +27,16 @@ _openapi:
 
           TemporarySubscriberSetRequest
 
+          Complete temporary-subscriber snapshot.
+
           additionalProperties true
 
-          channel_id `string` minLength: 1; pattern: `^[^#@]+$`
+          channel_id `string` minLength: 1; pattern: `^[^#@]+$` Temporary
+          Channel ID; it must not be empty or contain # or @.
 
-          uids array<`string`> minItems: 1
+          uids array<`string`> minItems: 1 Replacement temporary-subscriber
+          UIDs; at least one is required and entry does not validate element
+          content.
 
           200 Mutation accepted
 

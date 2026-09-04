@@ -28,11 +28,16 @@ _openapi:
 
           WeakChannelKeyRequest
 
+          Compatibility Channel key with deliberately weak validation.
+
           additionalProperties true
 
-          channel_id `string` default: `""`
+          channel_id `string` default: `""` Channel ID to disband; omission
+          produces an empty string and the entry does not validate it.
 
-          channel_type `integer:uint8` 0–255; default: `0`
+          channel_type `integer:uint8` 0–255; default: `0` Channel type to
+          disband; 1 is rejected while every other value, including 0, is passed
+          to the use case.
 
           200 Mutation accepted
 

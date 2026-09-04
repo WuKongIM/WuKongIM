@@ -26,12 +26,14 @@ _openapi:
 
           MessageSyncAckRequest
 
+          旧式命令消息同步确认参数。
+
           additionalProperties true
 
-          uid `string` minLength: 1
+          uid `string` minLength: 1; pattern: `\S` 确认命令消息同步的非空白用户 ID。
 
-          last_message_seq `integer:uint64` 1–∞ Required by the entry but
-          ignored by the use case.
+          last_message_seq `integer:uint64` 1–∞ 必须为正数的兼容字段；确认逻辑实际使用服务端记录的最新
+          generation，而不使用该输入值。
 
           200 Mutation accepted
 

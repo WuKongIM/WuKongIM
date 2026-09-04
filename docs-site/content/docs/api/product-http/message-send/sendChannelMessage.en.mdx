@@ -29,39 +29,65 @@ _openapi:
 
           SendMessageRequest
 
+          Complete compatibility message-send parameters.
+
           additionalProperties true
 
-          from_uid `string` minLength: 1
+          from_uid `string` minLength: 1 Message sender UID; sender_uid is
+          consulted only when this value is empty.
 
-          sender_uid `string` minLength: 1 Used only when from_uid is empty.
+          sender_uid `string` minLength: 1 Deprecated sender-UID alias used only
+          when from_uid is empty.
 
-          device_id `string` —
+          device_id `string` — Caller-supplied sending-device identifier; it may
+          be empty.
 
-          channel_id `string` —
+          channel_id `string` — Target Channel ID; required for an ordinary send
+          and required to be empty for a request-scoped subscribers send.
 
-          channel_type `integer:uint8` 0–255
+          channel_type `integer:uint8` 0–255 Target Channel type; it must be
+          greater than 0 for an ordinary send and is 0 for a request-scoped
+          subscribers send.
 
-          client_msg_no `string` — Optional; an empty value disables idempotency
-          lookup.
+          client_msg_no `string` — Optional client idempotency key; an empty
+          string disables idempotency lookup.
 
-          setting `integer:uint8` 0–255
+          setting `integer:uint8` 0–255 WKProto Setting bitset; combine SDK
+          constants instead of writing unknown bits by hand.
 
-          topic `string` —
+          topic `string` — Optional Topic; it has protocol meaning only when the
+          matching Setting bit and client capability are present.
 
-          expire `integer:uint32` 0–∞
+          expire `integer:uint32` 0–∞ Caller-supplied message expiration in
+          seconds; 0 means no expiration is set.
 
-          payload `string` minLength: 1; encoding: base64
+          payload `string` minLength: 1; encoding: base64 Base64-encoded message
+          payload; decoding failure returns 400.
 
-          subscribers array<`string`> — A non-empty array selects request-scoped
-          delivery, requires an empty channel_id, and requires sync_once.
+          subscribers `array | null` — Request-scoped delivery UIDs; when
+          non-empty, channel_id must be empty and sync_once must be enabled; the
+          field may be omitted, empty, or null.
 
-          header `SendMessageHeaderRequest` —
+          header `SendMessageHeaderRequest` | `null` — Optional compatibility
+          header flags; it may be an object, null, or omitted.
 
-          no_persist `integer` default: `0` Any non-zero value means true.
+          no_persist `integer` default: `0` Top-level compatibility flag;
+          non-zero means non-durable and is ORed with header.no_persist.
 
-          sync_once `integer` default: `0` Any non-zero value means true.
+          sync_once `integer` default: `0` Top-level compatibility flag;
+          non-zero means a one-shot command message and is ORed with
+          header.sync_once.
 
           SendMessageHeaderRequest
+
+          Compatibility flags for the message fixed header; same-named top-level
+          fields are ORed with these values.
+
+          no_persist `integer` default: `0` A non-zero value makes the message
+          non-durable.
+
+          sync_once `integer` default: `0` A non-zero value treats the message
+          as a one-shot command message.
 
           200 Transport completed; inspect reason
 
