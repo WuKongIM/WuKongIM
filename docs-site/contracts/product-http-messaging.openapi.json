@@ -62,6 +62,9 @@
           }
         ],
         "security": [],
+        "parameters": [
+          { "$ref": "#/components/parameters/TraceID" }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -103,6 +106,20 @@
     }
   },
   "components": {
+    "parameters": {
+      "TraceID": {
+        "name": "X-WK-Trace-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional 32-character hexadecimal trace ID. Invalid values are ignored and replaced with a generated ID.",
+        "x-i18n": {
+          "zh": {
+            "description": "可选的 32 位十六进制追踪 ID；格式不符时服务端忽略该值并生成新 ID。"
+          }
+        },
+        "schema": { "type": "string", "pattern": "^[0-9a-fA-F]{32}$" }
+      }
+    },
     "schemas": {
       "SendChannelMessageRequest": {
         "type": "object",

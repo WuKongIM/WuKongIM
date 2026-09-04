@@ -19,6 +19,7 @@ interface SchemaObject {
   minimum?: number;
   maximum?: number;
   minLength?: number;
+  maxLength?: number;
   minItems?: number;
   maxItems?: number;
   pattern?: string;
@@ -29,6 +30,10 @@ interface SchemaObject {
   oneOf?: SchemaObject[];
   anyOf?: SchemaObject[];
   allOf?: SchemaObject[];
+  not?: SchemaObject;
+  if?: SchemaObject;
+  then?: SchemaObject;
+  else?: SchemaObject;
 }
 
 interface ExampleObject {
@@ -167,6 +172,7 @@ function schemaConstraints(schema: SchemaObject) {
     constraints.push(`${schema.minimum ?? '−∞'}–${schema.maximum ?? '∞'}`);
   }
   if (schema.minLength !== undefined) constraints.push(`minLength: ${schema.minLength}`);
+  if (schema.maxLength !== undefined) constraints.push(`maxLength: ${schema.maxLength}`);
   if (schema.minItems !== undefined) constraints.push(`minItems: ${schema.minItems}`);
   if (schema.maxItems !== undefined) constraints.push(`maxItems: ${schema.maxItems}`);
   if (schema.pattern !== undefined) constraints.push(`pattern: \`${schema.pattern}\``);
@@ -175,6 +181,9 @@ function schemaConstraints(schema: SchemaObject) {
   }
   if (schema.contentEncoding) constraints.push(`encoding: ${schema.contentEncoding}`);
   if (schema.additionalProperties === false) constraints.push('additionalProperties: `false`');
+  if (schema.not?.const !== undefined) {
+    constraints.push(`not: \`${jsonValue(schema.not.const)}\``);
+  }
   if (schema.example !== undefined) constraints.push(`example: \`${jsonValue(schema.example)}\``);
   if (schema.examples) {
     constraints.push(`examples: ${schema.examples.map((item) => `\`${jsonValue(item)}\``).join(', ')}`);

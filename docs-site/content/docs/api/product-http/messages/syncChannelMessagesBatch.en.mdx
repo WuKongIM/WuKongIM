@@ -6,7 +6,13 @@ _openapi:
     - wukongim-product-http-complete-beta-en
   method: POST
   webhook: false
-  toc: []
+  toc:
+    - depth: 2
+      title: Request Body
+      url: '#request-body'
+    - depth: 2
+      title: Response Body
+      url: '#response-body'
   structuredData:
     headings:
       - content: Synchronize up to 200 Channels
@@ -53,13 +59,12 @@ _openapi:
           channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
           Channel, 2 is a group Channel, and other values are extension types.
 
-          start_message_seq `integer:uint64` 0–∞; default: `0` Channel message
-          sequence used as the read starting point; 0 means no explicit starting
-          point.
+          start_message_seq `integer:uint64` 0–∞; default: `0` Inclusive Channel
+          message-sequence starting boundary; 0 selects the open end, and newer
+          reads also raise it to the membership visibility floor.
 
-          end_message_seq `integer:uint64` 0–∞; default: `0` Channel message
-          sequence used as the read ending point; 0 means no explicit ending
-          point.
+          end_message_seq `integer:uint64` 0–∞; default: `0` Exclusive Channel
+          message-sequence ending boundary; 0 selects the open end.
 
           limit `integer` default: `100` Maximum messages returned by this read;
           values at or below 0 use 100 and values above 10000 are capped at
@@ -81,115 +86,176 @@ _openapi:
 
           ChannelMessageSyncBatchResponse
 
+          Batch result aligned in order with request items.
+
           additionalProperties false
 
-          items array<`ChannelMessageSyncBatchItemResponse`> —
+          items array<`ChannelMessageSyncBatchItemResponse`> — Independent
+          per-Channel synchronization results.
 
           ChannelMessageSyncBatchItemResponse
 
-          channel_id `string` —
+          Independent result for one Channel in a batch sync.
 
-          channel_type `integer:uint8` 0–255
+          channel_id `string` — Channel ID from the corresponding request item.
 
-          start_message_seq `integer:uint64` 0–∞
+          channel_type `integer:uint8` 0–255 Channel type from the corresponding
+          request item.
 
-          end_message_seq `integer:uint64` 0–∞
+          start_message_seq `integer:uint64` 0–∞ Starting sequence of this item
+          effective range.
 
-          more `integer` enum: `0`, `1`
+          end_message_seq `integer:uint64` 0–∞ Ending sequence of this item
+          effective range.
 
-          messages array<`LegacyMessage`> —
+          more `integer` enum: `0`, `1` Whether another page may exist for this
+          item.
 
-          error `string` — Raw item-scoped error text; omitted on success.
+          messages array<`LegacyMessage`> — Messages returned when this item
+          succeeds.
+
+          error `string` — Per-item error text that must be checked even with
+          HTTP 200; empty means no item error.
 
           LegacyMessage
 
-          header `LegacyMessageHeader` additionalProperties: `false`
+          Legacy message projection used by Product HTTP synchronization.
 
-          setting `integer:uint8` 0–255
+          header `LegacyMessageHeader` additionalProperties: `false` Legacy
+          message header.
 
-          message_id `integer:int64` —
+          setting `integer:uint8` 0–255 WKProto Setting bitset.
 
-          message_idstr `string` —
+          message_id `integer:int64` — Server int64 message ID.
 
-          client_msg_no `string` —
+          message_idstr `string` — Decimal string mirror of message_id only; it
+          is not a replacement for message_seq.
 
-          end `integer:uint8` 0–255
+          client_msg_no `string` — Client message number.
 
-          end_reason `integer:uint8` 0–255
+          end `integer:uint8` 0–255 Stream-message terminal compatibility flag.
 
-          error `string` —
+          end_reason `integer:uint8` 0–255 Stream-message terminal Reason Code.
 
-          stream_data `string | null` encoding: base64
+          error `string` — Stream-message error description.
+
+          stream_data `string | null` encoding: base64 Base64-encoded stream
+          data; it may be null.
 
           event_meta `LegacyMessageEventMeta` additionalProperties: `false`
+          Optional message-event summary.
 
           event_sync_hint `LegacyMessageEventSyncHint` additionalProperties:
-          `false`
+          `false` Optional message-event continuation hint.
 
-          message_seq `integer:uint64` 0–∞
+          message_seq `integer:uint64` 0–∞ uint64 sequence of the message within
+          this Channel.
 
-          from_uid `string` —
+          from_uid `string` — Message sender UID.
 
-          topic `string` —
+          channel_id `string` — Channel ID containing the message.
 
-          expire `integer:uint32` 0–∞
+          channel_type `integer:uint8` 0–255 Channel type containing the
+          message.
 
-          timestamp `integer:int32` —
+          topic `string` — Optional message topic.
 
-          payload `string | null` encoding: base64
+          expire `integer:uint32` 0–∞ Message expiration in seconds; 0 means
+          unset.
+
+          timestamp `integer:int32` — Legacy server timestamp in seconds.
+
+          payload `string | null` encoding: base64 Base64-encoded message
+          payload; it may be null.
 
           LegacyMessageHeader
 
-          no_persist `integer` enum: `0`, `1`
+          Legacy message header.
 
-          red_dot `integer` enum: `0`, `1`
+          no_persist `integer` enum: `0`, `1` 1 means the message is
+          non-durable.
 
-          sync_once `integer` enum: `0`, `1`
+          red_dot `integer` enum: `0`, `1` 1 means the client should show a
+          red-dot indicator.
+
+          sync_once `integer` enum: `0`, `1` 1 means a one-shot command message.
 
           LegacyMessageEventMeta
 
-          has_events `boolean` —
+          Optional message-event summary.
 
-          completed `boolean` —
+          has_events `boolean` — Whether events exist.
 
-          event_version `integer:uint64` 0–∞
+          completed `boolean` — Whether all known event lanes have completed.
 
-          last_msg_event_seq `integer:uint64` 0–∞
+          event_version `integer:uint64` 0–∞ Event-summary version.
 
-          event_count `integer` 0–∞
+          last_msg_event_seq `integer:uint64` 0–∞ Latest event sequence across
+          all lanes.
 
-          open_event_count `integer` 0–∞
+          event_count `integer` 0–∞ Total event count.
 
-          events array<`LegacyMessageEventKeyMeta`> —
+          open_event_count `integer` 0–∞ Number of event lanes still open.
+
+          events array<`LegacyMessageEventKeyMeta`> — Per-lane event summaries.
 
           LegacyMessageEventKeyMeta
 
-          event_key `string` —
+          Summary of one event lane.
 
-          status `string` —
+          event_key `string` — Event lane key.
 
-          snapshot `unknown` —
+          status `string` — Current state of the lane.
+
+          last_msg_event_seq `integer:uint64` 0–∞ Latest known event sequence
+          for the lane.
+
+          snapshot `unknown` — Arbitrary JSON snapshot in full summary mode.
+
+          end_reason `integer:uint8` 0–255 Event-stream terminal Reason Code.
+
+          error `string` — Event-stream error description.
 
           LegacyMessageEventSyncHint
 
-          from_msg_event_seq `integer:uint64` 0–∞
+          Optional message-event continuation hint.
+
+          client_msg_no `string` — Client message number of the target message.
+
+          from_msg_event_seq `integer:uint64` 0–∞ Starting sequence for the next
+          event synchronization.
 
           400 Input, validation, dependency, or downstream error
 
           CompatibilityError
 
-          msg `string` — Human-readable and not stable for machine matching.
+          HTTP 400 error body shared by multiple legacy entries.
 
-          status `integer` const: `400`
+          msg `string` — Human-readable error text with no stability guarantee;
+          do not branch on it.
+
+          status `integer` const: `400` Application-level status fixed at 400.
 
           503 Controller restore maintenance is active
 
           MaintenanceError
 
-          error `string` const: `"maintenance"`
+          503 error body returned while cluster restore maintenance is active.
 
-          message `string` const: `"restore maintenance is active"`
+          error `string` const: `"maintenance"` Stable maintenance error
+          category.
+
+          message `string` const: `"restore maintenance is active"` Current
+          restore-maintenance message.
 ---
+
+<Callout type="warn" title="Operation boundary">
+
+- **Caller**: Trusted backend only
+- **Scope**: Each items entry runs independently; response order matches request order.
+- **Success**: Even with HTTP 200, inspect each item error; one failed item does not make the whole batch non-2xx.
+
+</Callout>
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
 

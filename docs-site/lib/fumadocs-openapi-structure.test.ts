@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { getNavigationEntry } from './navigation';
+import { productHTTPOpenAPIReferenceOperations } from './product-http-openapi';
 
 const operationPages = [
   ['users', 'setQuickstartUserToken', 'post', '/user/token'],
@@ -54,6 +55,22 @@ describe('Fumadocs OpenAPI reference structure', () => {
       expect(
         getNavigationEntry('en', 'api', ['product-http', tag, operationId])?.status,
       ).toBe('published');
+    }
+  });
+
+  test('exposes a useful table of contents and caller boundary on every operation page', async () => {
+    for (const operation of productHTTPOpenAPIReferenceOperations) {
+      for (const [suffix, title] of [
+        ['.mdx', '接口边界'],
+        ['.en.mdx', 'Operation boundary'],
+      ] as const) {
+        const page = await source(
+          `../content/docs/api/product-http/${operation.groupSlug}/${operation.slug}${suffix}`,
+        );
+        expect(page).not.toContain('toc: []');
+        expect(page).toContain(`title="${title}"`);
+        expect(page).toContain("url: '#response-body'");
+      }
     }
   });
 

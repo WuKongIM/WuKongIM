@@ -10,7 +10,7 @@ The following rules apply to the currently published Product HTTP operations.
 | Convention | Behavior |
 | --- | --- |
 | Base URL | Local example: `http://127.0.0.1:5001`; all paths start at `/` |
-| Request | POST uses UTF-8 JSON; `/route` uses GET query parameters |
+| Request | POST uses UTF-8 JSON; `/route`, `/channel/whitelist`, and `/user/systemuids` use GET query parameters |
 | Response | JSON; endpoints do not share a universal envelope |
 | UID / Channel ID | Strings owned by the product |
 | Channel | Identified by `channel_id` plus `channel_type` |
@@ -22,8 +22,21 @@ Check HTTP status first, then parse the endpoint-specific schema. Do not force r
 
 - `uid` is a product identity, not a nickname, connection ID, or device ID.
 - The client view of a person Channel uses the peer UID.
-- `message_seq` is a per-Channel cursor; JavaScript should preserve `message_idstr` to avoid large-integer precision loss.
+- `message_seq` is a per-Channel `uint64` cursor. JavaScript must preserve it with a lossless JSON parser, decimal string, or `BigInt`. `message_idstr` mirrors only `message_id`, cannot replace `message_seq`, and is absent from `/message/send` responses.
 - `next_cursor` is opaque. Echo it unchanged until `done=true`.
+
+For legacy-client compatibility, request objects ignore unknown JSON fields. Callers should still send only declared fields: a typo will not necessarily fail, and extra fields are not an extension mechanism.
+
+## State and execution scope
+
+| Scope | Meaning |
+| --- | --- |
+| Cluster-durable state | Other nodes can read it after success, while follow-up derived work may still be running |
+| Current-process cache | Affects only the process handling the request; do not assume it survives load-balancer node changes |
+| Owner-local action | The request node routes or delays a Session action; the HTTP response does not mean that action has finished |
+| Staged write | Removal, chunked insertion, and derived-flag refresh are not one transaction; verify desired state after failure |
+
+The “Operation boundary” callout on each generated operation page identifies the applicable scope and any success check beyond HTTP 200.
 
 ## Retries
 
@@ -32,7 +45,7 @@ Check HTTP status first, then parse the endpoint-specific schema. Do not force r
 | `/route` | Back off and retry network failures or temporary `5xx` |
 | `/user/token` | Retry the same identity intent; do not mint tokens in a loop |
 | `/channel/messagesync` | Retry with the same cursor and tolerate overlap with realtime delivery |
-| Channel mutation | Retry only while the product intent remains valid; treat `reset` and remove-all with care |
+| Channel mutation | Replay the desired state only while the product intent remains valid; `reset`, set, and remove-all may partially complete |
 | `/conversation/list` | Echo `next_cursor` unchanged and stop only at `done=true` |
 | `/conversation/retry` | Retry only the bounded unresolved keys returned by the API |
 

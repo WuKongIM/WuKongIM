@@ -48,6 +48,7 @@ interface TestedOperation {
   security?: unknown[];
   'x-i18n'?: { zh?: { summary?: string; description?: string } };
   'x-wukongim-trust'?: string;
+  parameters?: Array<{ $ref?: string }>;
   'x-codeSamples'?: Array<{
     lang?: string;
     label?: string;
@@ -74,6 +75,12 @@ interface MessagingDocument {
   }>;
   paths: Record<string, Partial<Record<'post', TestedOperation>>>;
   components?: {
+    parameters?: Record<string, {
+      name?: string;
+      in?: string;
+      description?: string;
+      schema?: TestedSchema;
+    }>;
     schemas?: Record<string, TestedSchema & {
       description?: string;
     }>;
@@ -127,6 +134,14 @@ describe('Product HTTP message-sending OpenAPI contract', () => {
     expect(sample).toContain('trusted backend');
     expect(sample).toContain('http://127.0.0.1:5001/message/send');
     expect(sample).not.toContain('\n+');
+    expect(operation?.parameters).toEqual([
+      { $ref: '#/components/parameters/TraceID' },
+    ]);
+    expect(document.components?.parameters?.TraceID).toMatchObject({
+      name: 'X-WK-Trace-ID',
+      in: 'header',
+      schema: { pattern: '^[0-9a-fA-F]{32}$' },
+    });
     for (const hidden of [
       'sender_uid',
       'device_id',
@@ -273,6 +288,7 @@ describe('Product HTTP message-sending OpenAPI contract', () => {
       expect(handler).toContain(field);
     }
     expect(handler).toContain('base64.StdEncoding.DecodeString(req.Payload)');
+    expect(handler).toContain('X-WK-Trace-ID');
     expect(handler).toContain('http.StatusInternalServerError');
     expect(handler).toContain('MessageID  int64');
     expect(handler).toContain('MessageSeq uint64');

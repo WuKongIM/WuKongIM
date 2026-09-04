@@ -38,6 +38,12 @@ curl -sS http://127.0.0.1:5001/channel/subscriber_add \
 
 移除成员使用 `/channel/subscriber_remove` 和相同请求结构。普通成员变更会去重、写入单调 mutation version，并更新 UID-owned membership projection。业务服务仍应保存自己的期望成员版本、操作审计和补偿任务。
 
+<Callout type="warn" title="单次请求也可能部分完成">
+  `/channel` 与带 `reset=1` 的 subscriber add 会依次执行元数据写入、清空旧成员、分批加入和 `large` 刷新；名单 set 也会先清空再添加。这些阶段不是事务。超时或错误后应以业务成员快照为期望状态重放，而不是假定本次请求完全没有生效。
+</Callout>
+
+Product HTTP 没有普通订阅者、拒绝列表和临时订阅者的对称读接口。需要严格核对时，使用已鉴权的 Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` 有界分页查询；允许列表虽可由 Product HTTP 读取，但旧接口会一次返回完整列表，不适合大群巡检。
+
 ## 3. 发送并验证群消息
 
 发送者必须满足当前群权限与成员策略。客户端 SDK 使用 `channel_id=team-42`、`channel_type=2`；受信服务端示例：
@@ -94,7 +100,7 @@ flowchart TD
 ```
 
 - 使用几百到约一千 UID 的有界应用批次，并按实际请求大小、延迟和错误率调节；不要把内部 chunk 默认值当作永久 API 上限。
-- 每个请求内部仍会分块和去重，但跨多个 HTTP 请求不是一个全局事务。失败时保留已成功进度，再通过期望/实际差异修复。
+- 每个请求内部仍会分块和去重，但请求内部各阶段以及跨多个 HTTP 请求都不是一个全局事务。失败时保留已成功进度，再通过期望/实际差异修复。
 - `channel.large_group_subscriber_threshold` 默认是 `500`；普通成员变更后，成员数**大于**阈值会刷新 large-group 标记。改变阈值后，要通过受控成员协调和验证确认现有 Channel 状态。
 - 大群提交后 Fan-out 分页读取成员、按 Presence Authority 分组并创建有界投递计划；它不会为十万成员写十万份 Channel 持久日志。
 - SENDACK 保证 Channel quorum commit，不等待完整 Fan-out。需要业务“全部处理”语义时，另建业务回执与聚合流程。

@@ -30,6 +30,12 @@ flowchart LR
 | Product HTTP 鉴权、授权、限流与审计 | API Gateway、服务网格或业务后端 |
 | TLS、密钥轮换与告警 | 生产平台 |
 
+<Callout type="error" title="开放 CORS 不是浏览器授权">
+  Product HTTP 为兼容性接受任意 Origin，但接口本身没有业务鉴权。不要把 CORS 响应头当成安全边界，也不要让浏览器直连这些路由。反向代理必须限制网络来源，并配置请求体大小、请求/响应超时、速率、并发和审计；尤其要约束无上限 UID 数组与 Payload。
+</Callout>
+
+系统 UID 的持久集合与实际权限缓存也不是同一观测：`systemuids_add/remove` 只同步更新请求处理进程的缓存，其他节点需分别刷新或滚动重启。`systemuids_add_to_cache/remove_from_cache` 更只影响当前进程，必须使用节点定向的受保护运维入口。
+
 协议加密不能替代 TLS、账号认证或 HTTP 服务鉴权。Token 不得出现在 URL、日志或截图中。
 
 <Callout type="warn" title="示例 BFF 仅用于本地开发">

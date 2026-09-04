@@ -10,7 +10,7 @@ description: Product HTTP 的地址、JSON、标识、游标和重试规则。
 | 约定 | 行为 |
 | --- | --- |
 | Base URL | 本地示例为 `http://127.0.0.1:5001`；所有路径从 `/` 开始 |
-| 请求 | POST 使用 UTF-8 JSON；`/route` 使用 GET 查询参数 |
+| 请求 | POST 使用 UTF-8 JSON；`/route`、`/channel/whitelist`、`/user/systemuids` 使用 GET 查询参数 |
 | 响应 | JSON；不同端点没有统一响应信封 |
 | UID / Channel ID | 由业务系统维护的字符串 |
 | Channel | 由 `channel_id` 与 `channel_type` 共同标识 |
@@ -22,8 +22,21 @@ description: Product HTTP 的地址、JSON、标识、游标和重试规则。
 
 - `uid` 是业务身份，不是昵称、连接 ID 或设备 ID。
 - 个人 Channel 的客户端视图使用对端 UID。
-- `message_seq` 是 Channel 内游标；JavaScript 应优先保留 `message_idstr`，避免大整数精度损失。
+- `message_seq` 是 Channel 内的 `uint64` 游标，JavaScript 必须用无损 JSON 解析、十进制字符串或 `BigInt` 保存。`message_idstr` 只镜像 `message_id`，不能替代 `message_seq`，且 `/message/send` 响应不返回它。
 - `next_cursor` 是不透明值，必须原样回传，直到 `done=true`。
+
+请求对象为兼容旧客户端会忽略未知 JSON 字段。调用方仍应只发送合同声明的字段；拼写错误不会自动失败，不能依赖“额外字段可用”作为扩展机制。
+
+## 状态与执行范围
+
+| 范围 | 含义 |
+| --- | --- |
+| 集群持久状态 | 响应成功后可由其他节点读取，但后续派生动作可能仍在进行 |
+| 当前进程缓存 | 只影响接收该请求的服务进程；负载均衡切换节点后不能假定仍生效 |
+| owner-local 动作 | 请求节点会路由或延迟执行 Session 动作；HTTP 返回不代表动作已结束 |
+| 分阶段写入 | 清空、分批写入和派生标志刷新不是一个事务，失败后必须核对期望状态 |
+
+每个生成接口页的“接口边界”会注明该操作属于哪一种范围，以及 HTTP 200 之外的成功判定。
 
 ## 重试
 
@@ -32,7 +45,7 @@ description: Product HTTP 的地址、JSON、标识、游标和重试规则。
 | `/route` | 网络失败或临时 `5xx` 可退避重试 |
 | `/user/token` | 只重试同一身份意图，不要循环生成新 Token |
 | `/channel/messagesync` | 使用同一游标重试，并容忍与实时投递重复 |
-| Channel 变更 | 仅在业务意图仍有效时重试；谨慎使用 `reset` 和 remove-all |
+| Channel 变更 | 仅在业务意图仍有效时按期望状态重放；`reset`、set 和 remove-all 可能部分完成 |
 | `/conversation/list` | 原样传递 `next_cursor`，只以 `done=true` 结束 |
 | `/conversation/retry` | 只重试返回的有界 unresolved 键 |
 

@@ -43,12 +43,12 @@ const compatibilityFlag = (nameZh: string, nameEn: string) =>
     `${nameEn} compatibility flag; exactly 1 enables it and every other integer disables it.`,
   );
 const startMessageSeq = explanation(
-  '读取起点的 Channel 消息序号；0 表示未指定显式起点。',
-  'Channel message sequence used as the read starting point; 0 means no explicit starting point.',
+  '读取起点的 Channel 消息序号，属于包含边界；0 表示使用开放端，向新读取时还会提升到成员最低可见序号。',
+  'Inclusive Channel message-sequence starting boundary; 0 selects the open end, and newer reads also raise it to the membership visibility floor.',
 );
 const endMessageSeq = explanation(
-  '读取终点的 Channel 消息序号；0 表示未指定显式终点。',
-  'Channel message sequence used as the read ending point; 0 means no explicit ending point.',
+  '读取终点的 Channel 消息序号，属于排除边界；0 表示使用开放端。',
+  'Exclusive Channel message-sequence ending boundary; 0 selects the open end.',
 );
 const syncLimit = explanation(
   '本次最多返回的消息数；小于等于 0 时使用 100，大于 10000 时截断为 10000。',
@@ -99,6 +99,10 @@ export const productHTTPParameterExplanations = {
     ChannelTypeQuery: explanation(
       '要读取允许列表的 Channel 类型；按 uint8 解析，缺失、无效或越界文本会静默按 0 处理。',
       'Channel type whose allowlist is read; parsed as uint8, with missing, invalid, or out-of-range text silently treated as 0.',
+    ),
+    TraceID: explanation(
+      '可选的 32 位十六进制追踪 ID；格式不符时服务端忽略该值并生成新 ID。',
+      'Optional 32-character hexadecimal trace ID; an invalid value is ignored and replaced with a generated ID.',
     ),
   },
   requestBodies: {
@@ -261,8 +265,8 @@ export const productHTTPParameterExplanations = {
     SendMessageRequest: {
       description: explanation('完整的兼容消息发送参数。', 'Complete compatibility message-send parameters.'),
       properties: {
-        from_uid: explanation('消息发送者 UID；为空时才回退读取 sender_uid。', 'Message sender UID; sender_uid is consulted only when this value is empty.'),
-        sender_uid: explanation('已废弃的发送者 UID 别名；仅在 from_uid 为空时使用。', 'Deprecated sender-UID alias used only when from_uid is empty.'),
+        from_uid: explanation('消息发送者 UID；为空时读取 sender_uid，两者都为空时使用 message.system_uid 配置的系统账号。', 'Message sender UID; when empty, sender_uid is consulted, and when both are empty the system account configured by message.system_uid is used.'),
+        sender_uid: explanation('已废弃的发送者 UID 别名；仅在 from_uid 为空时使用，两者都为空时使用配置的系统账号。', 'Deprecated sender-UID alias used only when from_uid is empty; when both are empty, the configured system account is used.'),
         device_id: explanation('调用方提供的发送设备标识；可为空。', 'Caller-supplied sending-device identifier; it may be empty.'),
         channel_id: explanation('目标 Channel ID；普通发送时必须非空，请求级 subscribers 发送时必须为空。', 'Target Channel ID; required for an ordinary send and required to be empty for a request-scoped subscribers send.'),
         channel_type: explanation('目标 Channel 类型；普通发送时必须大于 0，请求级 subscribers 发送时使用 0。', 'Target Channel type; it must be greater than 0 for an ordinary send and is 0 for a request-scoped subscribers send.'),
@@ -288,7 +292,7 @@ export const productHTTPParameterExplanations = {
         event_id: explanation('该事件的非空白唯一标识。', 'Non-blank unique identifier of this event.'),
         event_type: explanation('事件类型；会去除首尾空白并转为小写。', 'Event type; surrounding whitespace is removed and the value is lowercased.'),
         event_key: explanation('事件 lane Key；空值使用默认 lane，stream.finish 强制使用 finish lane。', 'Event lane key; empty selects the default lane and stream.finish forces the finish lane.'),
-        visibility: explanation('调用方提供的可见性标记；会去除首尾空白。', 'Caller-supplied visibility marker; surrounding whitespace is removed.'),
+        visibility: explanation('调用方提供并去除首尾空白后保存的事件元数据；当前 Product HTTP 消息同步不会用它做访问控制过滤。', 'Caller-supplied event metadata stored after trimming; current Product HTTP message synchronization does not use it as an access-control filter.'),
         occurred_at: explanation('调用方提供的事件发生时间整数；入口不解释时间单位。', 'Caller-supplied integer event time; the entry does not interpret its unit.'),
         payload: explanation('任意 JSON 事件 Payload；服务端按原始 JSON 字节传给事件存储。', 'Arbitrary JSON event payload passed to event storage as raw JSON bytes.'),
         headers: explanation('预留字段；只能省略或传 null，任何非 null JSON 值都会被拒绝。', 'Reserved field; it must be omitted or null, and every non-null JSON value is rejected.'),
@@ -299,7 +303,7 @@ export const productHTTPParameterExplanations = {
       properties: {
         uid: explanation('要同步命令消息的非空白用户 ID。', 'Non-blank user ID whose command messages are synchronized.'),
         message_seq: explanation('已废弃的兼容输入；服务端接收但忽略。', 'Deprecated compatibility input accepted and ignored by the server.'),
-        limit: explanation('本次最多返回的消息数；0 使用 200，负数被拒绝，大于 10000 时截断为 10000。', 'Maximum messages returned; 0 uses 200, negative values are rejected, and values above 10000 are capped at 10000.'),
+        limit: explanation('本次最多返回的消息数；0 使用 200，负数被拒绝，大于 10000 时截断为 10000；它不限制服务端枚举 Channel 和扫描消息的总成本。', 'Maximum messages returned; 0 uses 200, negative values are rejected, and values above 10000 are capped at 10000; it does not bound the total cost of enumerating Channels and scanning messages.'),
       },
     },
     MessageSyncAckRequest: {
@@ -379,6 +383,239 @@ export const productHTTPParameterExplanations = {
         channel_id: channelID,
         channel_type: channelType,
         unread: explanation('希望最多保留的未读消息数量；必须大于等于 0，服务端只会单调推进 read_seq。', 'Maximum unread messages to retain; it must be at least 0 and the server only advances read_seq monotonically.'),
+      },
+    },
+    StatusEnvelope: {
+      description: explanation('旧式变更成功响应。', 'Legacy mutation-success response.'),
+      properties: {
+        status: explanation('固定为 200 的应用层状态。', 'Application-level status fixed at 200.'),
+      },
+    },
+    CompatibilityError: {
+      description: explanation('多个旧式入口共用的 HTTP 400 错误体。', 'HTTP 400 error body shared by multiple legacy entries.'),
+      properties: {
+        msg: explanation('供人阅读且不保证稳定的错误文本；不要据此做机器分支。', 'Human-readable error text with no stability guarantee; do not branch on it.'),
+        status: explanation('固定为 400 的应用层状态。', 'Application-level status fixed at 400.'),
+      },
+    },
+    MaintenanceError: {
+      description: explanation('集群处于恢复维护期间的 503 错误体。', '503 error body returned while cluster restore maintenance is active.'),
+      properties: {
+        error: explanation('稳定的 maintenance 错误类别。', 'Stable maintenance error category.'),
+        message: explanation('当前恢复维护说明。', 'Current restore-maintenance message.'),
+      },
+    },
+    RouteResponse: {
+      description: explanation('选定 Gateway 的客户端接入地址。', 'Client ingress addresses for the selected Gateway.'),
+      properties: {
+        tcp_addr: explanation('WKProto TCP 接入地址。', 'WKProto TCP ingress address.'),
+        ws_addr: explanation('非 TLS WebSocket 接入地址。', 'Non-TLS WebSocket ingress address.'),
+        wss_addr: explanation('TLS WebSocket 接入地址。', 'TLS WebSocket ingress address.'),
+      },
+    },
+    RouteBatchItem: {
+      description: explanation('共享同一 Gateway 地址组的一批 UID。', 'A group of UIDs sharing one Gateway address set.'),
+      properties: {
+        tcp_addr: explanation('WKProto TCP 接入地址。', 'WKProto TCP ingress address.'),
+        ws_addr: explanation('非 TLS WebSocket 接入地址。', 'Non-TLS WebSocket ingress address.'),
+        wss_addr: explanation('TLS WebSocket 接入地址。', 'TLS WebSocket ingress address.'),
+        uids: explanation('分配到该地址组的 UID；兼容响应可能省略。', 'UIDs assigned to this address set; compatibility responses may omit it.'),
+      },
+    },
+    UserOnlineStatus: {
+      description: explanation('一个用户的活跃权威设备路由。', 'One active authoritative device route for a user.'),
+      properties: {
+        uid,
+        device_flag: explanation('在线设备类别。', 'Online device category.'),
+        online: explanation('固定为 1，表示该路由在线。', 'Fixed at 1 to indicate that this route is online.'),
+      },
+    },
+    ChannelMember: {
+      description: explanation('旧式允许列表中的成员。', 'Member in the legacy allowlist response.'),
+      properties: {
+        id: explanation('内部成员记录 ID；不要用作 UID。', 'Internal member-record ID; do not use it as the UID.'),
+        uid,
+      },
+    },
+    SendMessageResponse: {
+      description: explanation('消息发送传输完成响应；仍需检查 reason。', 'Completed message-send transport response; reason still requires inspection.'),
+      properties: {
+        message_id: explanation('服务端消息 ID；JavaScript 需使用不会损失 int64 精度的解析方式。', 'Server message ID; JavaScript must parse it without losing int64 precision.'),
+        message_seq: explanation('该消息在目标 Channel 内的序号；JavaScript 需使用不会损失 uint64 精度的解析方式。', 'Sequence of this message within the target Channel; JavaScript must parse it without losing uint64 precision.'),
+        reason: explanation('WKProto Reason Code；HTTP 200 不替代此成功判定。', 'WKProto Reason Code; HTTP 200 does not replace this success check.'),
+      },
+    },
+    SendError: {
+      description: explanation('消息发送的 HTTP 错误体。', 'HTTP error body for message sending.'),
+      properties: {
+        error: explanation('供人诊断的错误文本；不要按完整文本匹配。', 'Human-readable diagnostic text; do not match the full text.'),
+      },
+    },
+    RetryRequiredError: {
+      description: explanation('需要重新路由后重试的发送错误。', 'Send error requiring re-routing before retry.'),
+      properties: {
+        error: explanation('固定为 retry required。', 'Fixed at retry required.'),
+      },
+    },
+    AppendMessageEventData: {
+      description: explanation('已应用事件投影的规范化结果。', 'Normalized result of the applied event projection.'),
+      properties: {
+        client_msg_no: explanation('目标消息的客户端消息编号。', 'Client message number of the target message.'),
+        event_key: explanation('规范化后的事件 lane Key。', 'Normalized event lane key.'),
+        event_id: explanation('已接受的事件唯一标识。', 'Accepted unique event identifier.'),
+        msg_event_seq: explanation('该消息事件流内的递增序号。', 'Increasing sequence within this message event stream.'),
+        stream_status: explanation('投影后的流状态。', 'Stream status after projection.'),
+        channel_id: explanation('规范化后的 Channel ID。', 'Normalized Channel ID.'),
+        channel_type: explanation('规范化后的 Channel 类型。', 'Normalized Channel type.'),
+        from_uid: explanation('规范化后的事件发起者 UID。', 'Normalized event actor UID.'),
+      },
+    },
+    AppendMessageEventResponse: {
+      description: explanation('事件投影成功响应。', 'Successful event-projection response.'),
+      properties: {
+        status: explanation('固定为 200 的应用层状态。', 'Application-level status fixed at 200.'),
+        data: explanation('已应用事件的规范化数据。', 'Normalized data for the applied event.'),
+      },
+    },
+    LegacyMessageHeader: {
+      description: explanation('旧式消息 Header 投影。', 'Legacy message-header projection.'),
+      properties: {
+        no_persist: explanation('1 表示消息不持久化。', '1 means the message is non-durable.'),
+        red_dot: explanation('1 表示客户端应显示红点。', '1 means the client should show a red-dot indicator.'),
+        sync_once: explanation('1 表示一次性命令消息。', '1 means a one-shot command message.'),
+      },
+    },
+    LegacyMessageEventKeyMeta: {
+      description: explanation('一条事件 lane 的摘要。', 'Summary of one event lane.'),
+      properties: {
+        event_key: explanation('事件 lane Key。', 'Event lane key.'),
+        status: explanation('该 lane 的当前状态。', 'Current state of the lane.'),
+        last_msg_event_seq: explanation('该 lane 已知的最新事件序号。', 'Latest known event sequence for the lane.'),
+        snapshot: explanation('full 摘要模式下的任意 JSON 快照。', 'Arbitrary JSON snapshot in full summary mode.'),
+        end_reason: explanation('事件流结束 Reason Code。', 'Event-stream terminal Reason Code.'),
+        error: explanation('事件流错误说明。', 'Event-stream error description.'),
+      },
+    },
+    LegacyMessageEventMeta: {
+      description: explanation('一条消息的事件聚合摘要。', 'Aggregated event summary for one message.'),
+      properties: {
+        has_events: explanation('是否存在事件。', 'Whether events exist.'),
+        completed: explanation('所有已知事件 lane 是否已结束。', 'Whether all known event lanes have completed.'),
+        event_version: explanation('事件摘要版本。', 'Event-summary version.'),
+        last_msg_event_seq: explanation('所有 lane 中最新的事件序号。', 'Latest event sequence across all lanes.'),
+        event_count: explanation('事件总数。', 'Total event count.'),
+        open_event_count: explanation('仍未结束的事件 lane 数量。', 'Number of event lanes still open.'),
+        events: explanation('按事件 lane 返回的摘要。', 'Per-lane event summaries.'),
+      },
+    },
+    LegacyMessageEventSyncHint: {
+      description: explanation('继续同步消息事件的提示。', 'Hint for continuing message-event synchronization.'),
+      properties: {
+        client_msg_no: explanation('目标消息的客户端消息编号。', 'Client message number of the target message.'),
+        from_msg_event_seq: explanation('下一次事件同步的起始序号。', 'Starting sequence for the next event synchronization.'),
+      },
+    },
+    LegacyMessage: {
+      description: explanation('Product HTTP 同步接口使用的旧式消息投影。', 'Legacy message projection used by Product HTTP synchronization.'),
+      properties: {
+        header: explanation('旧式消息 Header。', 'Legacy message header.'),
+        setting: explanation('WKProto Setting 位图。', 'WKProto Setting bitset.'),
+        message_id: explanation('服务端 int64 消息 ID。', 'Server int64 message ID.'),
+        message_idstr: explanation('仅 message_id 的十进制字符串镜像；不是 message_seq 的替代字段。', 'Decimal string mirror of message_id only; it is not a replacement for message_seq.'),
+        client_msg_no: explanation('客户端消息编号。', 'Client message number.'),
+        end: explanation('流消息结束兼容标志。', 'Stream-message terminal compatibility flag.'),
+        end_reason: explanation('流消息结束 Reason Code。', 'Stream-message terminal Reason Code.'),
+        error: explanation('流消息错误说明。', 'Stream-message error description.'),
+        stream_data: explanation('Base64 编码的流数据；可能为 null。', 'Base64-encoded stream data; it may be null.'),
+        event_meta: explanation('可选消息事件摘要。', 'Optional message-event summary.'),
+        event_sync_hint: explanation('可选消息事件继续同步提示。', 'Optional message-event continuation hint.'),
+        message_seq: explanation('消息在该 Channel 内的 uint64 序号。', 'uint64 sequence of the message within this Channel.'),
+        from_uid: explanation('消息发送者 UID。', 'Message sender UID.'),
+        channel_id: explanation('消息所属 Channel ID。', 'Channel ID containing the message.'),
+        channel_type: explanation('消息所属 Channel 类型。', 'Channel type containing the message.'),
+        topic: explanation('可选消息 Topic。', 'Optional message topic.'),
+        expire: explanation('消息过期秒数；0 表示未设置。', 'Message expiration in seconds; 0 means unset.'),
+        timestamp: explanation('服务端旧式秒级时间戳。', 'Legacy server timestamp in seconds.'),
+        payload: explanation('Base64 编码消息 Payload；可能为 null。', 'Base64-encoded message payload; it may be null.'),
+      },
+    },
+    ChannelMessageSyncResponse: {
+      description: explanation('单个 Channel 的消息同步页。', 'Message synchronization page for one Channel.'),
+      properties: {
+        start_message_seq: explanation('本页实际读取范围的起始消息序号。', 'Starting message sequence of the effective range for this page.'),
+        end_message_seq: explanation('本页实际读取范围的结束消息序号。', 'Ending message sequence of the effective range for this page.'),
+        more: explanation('1 表示同方向仍可能有下一页，0 表示当前范围已取完。', '1 means another page may exist in the same direction; 0 means the current range is exhausted.'),
+        messages: explanation('无论拉取方向如何，消息都按 message_seq 升序返回。', 'Messages are returned in ascending message_seq order regardless of pull direction.'),
+      },
+    },
+    ChannelMessageSyncBatchItemResponse: {
+      description: explanation('批量同步中一个 Channel 的独立结果。', 'Independent result for one Channel in a batch sync.'),
+      properties: {
+        channel_id: explanation('对应请求条目的 Channel ID。', 'Channel ID from the corresponding request item.'),
+        channel_type: explanation('对应请求条目的 Channel 类型。', 'Channel type from the corresponding request item.'),
+        start_message_seq: explanation('该条目实际读取范围的起始序号。', 'Starting sequence of this item effective range.'),
+        end_message_seq: explanation('该条目实际读取范围的结束序号。', 'Ending sequence of this item effective range.'),
+        more: explanation('该条目是否仍可能有下一页。', 'Whether another page may exist for this item.'),
+        messages: explanation('该条目成功时返回的消息。', 'Messages returned when this item succeeds.'),
+        error: explanation('该条目的错误文本；HTTP 200 时也必须检查，空字符串表示没有条目错误。', 'Per-item error text that must be checked even with HTTP 200; empty means no item error.'),
+      },
+    },
+    ChannelMessageSyncBatchResponse: {
+      description: explanation('与请求 items 保持顺序对齐的批量结果。', 'Batch result aligned in order with request items.'),
+      properties: {
+        items: explanation('逐 Channel 的独立同步结果。', 'Independent per-Channel synchronization results.'),
+      },
+    },
+    ConversationListResponse: {
+      description: explanation('规范会话目录的一页及其同步控制状态。', 'One canonical Conversation-directory page and its synchronization control state.'),
+      properties: {
+        conversations: explanation('本页已解析的会话。', 'Resolved Conversations in this page.'),
+        unresolved: explanation('本页暂未解析的 Channel Key，可交给 /conversation/retry 有界重试。', 'Channel keys unresolved in this page, suitable for bounded retry through /conversation/retry.'),
+        deletes: explanation('客户端应删除的会话 Key。', 'Conversation keys the client should delete.'),
+        coverage: explanation('服务端为本轮同步观察到的覆盖版本。', 'Coverage version observed by the server for this synchronization pass.'),
+        next_cursor: explanation('下一页不透明游标；必须原样回传。', 'Opaque cursor for the next page; return it unchanged.'),
+        done: explanation('true 表示本轮完整扫描结束，此时才能保存 coverage。', 'true means the full pass is complete; only then may coverage be saved.'),
+        reset_required: explanation('true 表示客户端覆盖已落后于保留窗口，必须重建本地会话目录。', 'true means client coverage predates the retention window and the local Conversation directory must be rebuilt.'),
+        tombstones_retained_since: explanation('服务端仍保留删除墓碑的最早 coverage。', 'Earliest coverage for which deletion tombstones are still retained.'),
+      },
+    },
+    ConversationListItem: {
+      description: explanation('一个用户的规范会话状态。', 'Canonical Conversation state for one user.'),
+      properties: {
+        channel_id: explanation('会话 Channel ID。', 'Conversation Channel ID.'),
+        channel_type: explanation('会话 Channel 类型。', 'Conversation Channel type.'),
+        read_seq: explanation('用户已读到的最大消息序号。', 'Greatest message sequence read by the user.'),
+        deleted_to_seq: explanation('用户已删除到的最大消息序号。', 'Greatest message sequence deleted by the user.'),
+        unread: explanation('基于当前末条消息和 read_seq 计算的未读数。', 'Unread count derived from the current last message and read_seq.'),
+        active_at: explanation('会话最近激活时间。', 'Most recent Conversation activation time.'),
+        last_message: explanation('当前可见的末条消息；没有时为 null。', 'Current visible last message, or null when absent.'),
+      },
+    },
+    ConversationLastMessage: {
+      description: explanation('会话目录中的末条消息摘要。', 'Last-message summary in the Conversation directory.'),
+      properties: {
+        message_id: explanation('服务端 int64 消息 ID。', 'Server int64 message ID.'),
+        message_idstr: explanation('仅 message_id 的十进制字符串镜像。', 'Decimal string mirror of message_id only.'),
+        client_msg_no: explanation('客户端消息编号。', 'Client message number.'),
+        message_seq: explanation('该消息在 Channel 内的序号。', 'Sequence of this message within the Channel.'),
+        from_uid: explanation('消息发送者 UID。', 'Message sender UID.'),
+        server_timestamp_ms: explanation('服务端毫秒时间戳。', 'Server timestamp in milliseconds.'),
+        payload: explanation('Base64 编码消息 Payload；可能为 null。', 'Base64-encoded message payload; it may be null.'),
+      },
+    },
+    ConversationSyncLegacyItem: {
+      description: explanation('v2.2 兼容会话投影。', 'v2.2-compatible Conversation projection.'),
+      properties: {
+        channel_id: explanation('会话 Channel ID。', 'Conversation Channel ID.'),
+        channel_type: explanation('会话 Channel 类型。', 'Conversation Channel type.'),
+        unread: explanation('旧式未读数。', 'Legacy unread count.'),
+        timestamp: explanation('旧式会话时间戳。', 'Legacy Conversation timestamp.'),
+        last_msg_seq: explanation('当前末条消息序号。', 'Current last-message sequence.'),
+        last_client_msg_no: explanation('当前末条客户端消息编号。', 'Current last client-message number.'),
+        offset_msg_seq: explanation('本次 recent 消息窗口的偏移序号。', 'Offset sequence for this recent-message window.'),
+        readed_to_msg_seq: explanation('用户已读到的消息序号。', 'Message sequence read by the user.'),
+        version: explanation('旧式会话版本。', 'Legacy Conversation version.'),
+        recents: explanation('按 msg_count 返回的最近消息。', 'Recent messages returned according to msg_count.'),
       },
     },
     ConversationSyncLegacyRequest: {

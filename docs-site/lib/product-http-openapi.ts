@@ -3,6 +3,11 @@ import managementDocument from '../contracts/product-http-management.openapi.jso
 import messagingDocument from '../contracts/product-http-messaging.openapi.json';
 import completeDocument from '../contracts/product-http.openapi.json';
 import { applyProductHTTPParameterExplanations } from './product-http-parameter-explanations';
+import {
+  applyProductHTTPOperationSemantics,
+  getProductHTTPOperationSemantics,
+  type ProductHTTPOperationSemantics,
+} from './product-http-operation-semantics';
 
 export type ProductHTTPOpenAPILocale = 'zh' | 'en';
 export const productHTTPOpenAPIContractNames = [
@@ -28,6 +33,8 @@ interface OperationObject {
   summary?: string;
   description?: string;
   tags?: string[];
+  'x-codeSamples'?: unknown[];
+  'x-wukongim-trust'?: string;
   'x-i18n'?: {
     zh?: {
       summary?: string;
@@ -38,6 +45,7 @@ interface OperationObject {
 
 interface ContractDocument {
   paths: Record<string, Record<string, OperationObject>>;
+  'x-wukongim-scope'?: string;
 }
 
 export interface ProductHTTPOpenAPIContractDescriptor {
@@ -134,6 +142,10 @@ export interface ProductHTTPOpenAPIOperation {
   title: LocalizedText;
   /** Localized concise operation description. */
   description: LocalizedText;
+  /** Required caller boundary declared by the complete contract. */
+  trust: string;
+  /** Reviewed runtime behavior that JSON Schema cannot express. */
+  semantics?: ProductHTTPOperationSemantics;
 }
 
 export interface ProductHTTPOpenAPIDeferral {
@@ -375,6 +387,9 @@ function operationsFor(definition: GroupDefinition): ProductHTTPOpenAPIOperation
       if (!operation.operationId || !operation.summary || !operation.description) {
         throw new Error(`OpenAPI operation metadata is incomplete: ${method.toUpperCase()} ${path}`);
       }
+      if (!operation['x-wukongim-trust']) {
+        throw new Error(`OpenAPI operation trust is missing: ${method.toUpperCase()} ${path}`);
+      }
       operations.push({
         contract: definition.contract,
         groupSlug: definition.slug,
@@ -389,6 +404,8 @@ function operationsFor(definition: GroupDefinition): ProductHTTPOpenAPIOperation
           zh: operation['x-i18n']?.zh?.description ?? operation.description,
           en: operation.description,
         },
+        trust: operation['x-wukongim-trust'],
+        semantics: getProductHTTPOperationSemantics(method, path),
       });
     }
   }
@@ -448,6 +465,34 @@ export function localizeOpenAPIDocument<T>(
   }
 
   visit(localized);
+  if (
+    (document as ContractDocument)['x-wukongim-scope'] ===
+    'complete-source-aligned-product-http-runtime'
+  ) {
+    const profileOperations = new Map<string, OperationObject>();
+    for (const profile of [goldenPathDocument, managementDocument, messagingDocument]) {
+      for (const [path, pathItem] of Object.entries(
+        (profile as ContractDocument).paths,
+      )) {
+        for (const [method, operation] of Object.entries(pathItem)) {
+          profileOperations.set(`${method.toUpperCase()} ${path}`, operation);
+        }
+      }
+    }
+    for (const [path, pathItem] of Object.entries(
+      (localized as ContractDocument).paths,
+    )) {
+      for (const [method, operation] of Object.entries(pathItem)) {
+        if (operation['x-codeSamples']) continue;
+        const sampleSource = profileOperations.get(`${method.toUpperCase()} ${path}`);
+        if (sampleSource?.['x-codeSamples']) {
+          operation['x-codeSamples'] = structuredClone(sampleSource['x-codeSamples']);
+        }
+      }
+    }
+    visit(localized);
+  }
   applyProductHTTPParameterExplanations(localized, locale);
+  applyProductHTTPOperationSemantics(localized, locale);
   return localized;
 }

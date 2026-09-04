@@ -250,7 +250,7 @@
         "x-i18n": { "zh": { "summary": "创建或更新 Channel 元数据", "description": "全量更新元数据标志并可重置订阅者；disband 为终态。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelUpsert" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -303,7 +303,7 @@
         "x-i18n": { "zh": { "summary": "添加或替换持久订阅者", "description": "添加非空白订阅者；channel_type=0 转为群组类型 2，reset=1 替换快照。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelSubscriberAdd" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -338,7 +338,7 @@
         "x-i18n": { "zh": { "summary": "移除全部持久订阅者", "description": "通过内部有界分页清空普通订阅者；个人 Channel 会被拒绝。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/NonPersonChannelKey" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -355,7 +355,7 @@
         "x-i18n": { "zh": { "summary": "替换临时 Channel 订阅者", "description": "替换派生 Type-8 临时订阅者列表；入口适配器不校验 UID 元素。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/TemporarySubscribers" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -372,7 +372,7 @@
         "x-i18n": { "zh": { "summary": "添加 Channel 拒绝列表成员", "description": "把给定 UID 字符串加入派生 Channel 拒绝列表。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelMembers" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -407,7 +407,7 @@
         "x-i18n": { "zh": { "summary": "移除 Channel 拒绝列表成员", "description": "从派生 Channel 拒绝列表移除给定 UID 字符串。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelMembers" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -424,7 +424,7 @@
         "x-i18n": { "zh": { "summary": "移除全部 Channel 拒绝列表成员", "description": "通过内部有界遍历清空派生拒绝列表。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelKey" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -441,7 +441,7 @@
         "x-i18n": { "zh": { "summary": "添加 Channel 允许列表成员", "description": "把非空白 UID 加入派生 Channel 允许列表。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelAllowlistMembers" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -476,7 +476,7 @@
         "x-i18n": { "zh": { "summary": "移除 Channel 允许列表成员", "description": "从派生 Channel 允许列表移除非空白 UID。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelAllowlistMembers" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -493,7 +493,7 @@
         "x-i18n": { "zh": { "summary": "移除全部 Channel 允许列表成员", "description": "通过内部有界遍历清空派生允许列表。" } },
         "tags": ["Channels"],
         "security": [],
-        "x-wukongim-trust": "operator-only",
+        "x-wukongim-trust": "trusted-backend-only",
         "requestBody": { "$ref": "#/components/requestBodies/ChannelKey" },
         "responses": {
           "200": { "$ref": "#/components/responses/StatusOK" },
@@ -532,6 +532,9 @@
         "tags": ["Message Sending"],
         "security": [],
         "x-wukongim-trust": "trusted-backend-only",
+        "parameters": [
+          { "$ref": "#/components/parameters/TraceID" }
+        ],
         "requestBody": { "$ref": "#/components/requestBodies/SendMessage" },
         "responses": {
           "200": { "$ref": "#/components/responses/SendCompleted" },
@@ -832,6 +835,13 @@
         "required": false,
         "description": "Parsed as uint8; missing or invalid text is silently treated as 0.",
         "schema": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }
+      },
+      "TraceID": {
+        "name": "X-WK-Trace-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional 32-character hexadecimal trace ID. Invalid values are ignored and replaced with a generated ID.",
+        "schema": { "type": "string", "pattern": "^[0-9a-fA-F]{32}$" }
       }
     },
     "requestBodies": {
@@ -997,11 +1007,11 @@
         "properties": {
           "channel_id": { "type": "string", "default": "" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0 },
-          "large": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "disband": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "send_ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "allow_stranger": { "$ref": "#/components/schemas/CompatibilityFlag" }
+          "large": { "type": "integer", "default": 0 },
+          "ban": { "type": "integer", "default": 0 },
+          "disband": { "type": "integer", "default": 0 },
+          "send_ban": { "type": "integer", "default": 0 },
+          "allow_stranger": { "type": "integer", "default": 0 }
         }
       },
       "ChannelUpsertRequest": {
@@ -1009,16 +1019,22 @@
         "additionalProperties": true,
         "required": ["channel_id", "channel_type"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]*\\S[^#@]*$" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^(?!.*[#@])(?=.*\\S).+$" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 1, "maximum": 255 },
-          "large": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "disband": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "send_ban": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "allow_stranger": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "large": { "type": "integer", "default": 0 },
+          "ban": { "type": "integer", "default": 0 },
+          "disband": { "type": "integer", "default": 0 },
+          "send_ban": { "type": "integer", "default": 0 },
+          "allow_stranger": { "type": "integer", "default": 0 },
+          "reset": { "type": "integer", "default": 0 },
           "subscribers": { "type": ["array", "null"], "description": "May be null; elements are not validated at entry and a non-empty list is rejected for person Channels.", "items": { "type": "string" } }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "required": ["channel_type"], "properties": { "channel_type": { "const": 1 } } },
+            "then": { "properties": { "subscribers": { "not": { "type": "array", "minItems": 1 } } } }
+          }
+        ]
       },
       "WeakChannelKeyRequest": {
         "type": "object",
@@ -1033,10 +1049,10 @@
         "additionalProperties": true,
         "required": ["channel_id", "subscribers"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]*\\S[^#@]*$" },
-          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 2, "description": "0 or omission becomes group type 2; type 1 is rejected." },
-          "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
-          "temp_subscriber": { "type": "integer", "description": "Exactly 1 is rejected; other values are ignored." },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^(?!.*[#@])(?=.*\\S).+$" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 2, "not": { "const": 1 }, "description": "0 or omission becomes group type 2; type 1 is rejected." },
+          "reset": { "type": "integer", "default": 0 },
+          "temp_subscriber": { "type": "integer", "not": { "const": 1 }, "description": "Exactly 1 is rejected; other values are ignored." },
           "subscribers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
         }
       },
@@ -1045,9 +1061,9 @@
         "additionalProperties": true,
         "required": ["channel_id", "subscribers"],
         "properties": {
-          "channel_id": { "type": "string", "minLength": 1, "pattern": "^[^#@]*\\S[^#@]*$" },
-          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "description": "Type 1 is rejected; type 0 is passed through." },
-          "reset": { "$ref": "#/components/schemas/CompatibilityFlag" },
+          "channel_id": { "type": "string", "minLength": 1, "pattern": "^(?!.*[#@])(?=.*\\S).+$" },
+          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255, "default": 0, "not": { "const": 1 }, "description": "Type 1 is rejected; type 0 is passed through." },
+          "reset": { "type": "integer", "default": 0 },
           "temp_subscriber": { "type": "integer", "description": "Accepted and ignored." },
           "subscribers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
         }
@@ -1131,10 +1147,25 @@
         "type": "object",
         "additionalProperties": true,
         "required": ["payload"],
-        "anyOf": [ { "required": ["from_uid"] }, { "required": ["sender_uid"] } ],
+        "allOf": [
+          {
+            "if": { "required": ["subscribers"], "properties": { "subscribers": { "type": "array", "minItems": 1 } } },
+            "then": {
+              "properties": { "channel_id": { "maxLength": 0 } },
+              "anyOf": [
+                { "required": ["sync_once"], "properties": { "sync_once": { "not": { "const": 0 } } } },
+                { "required": ["header"], "properties": { "header": { "type": "object", "required": ["sync_once"], "properties": { "sync_once": { "not": { "const": 0 } } } } } }
+              ]
+            },
+            "else": {
+              "required": ["channel_id", "channel_type"],
+              "properties": { "channel_id": { "minLength": 1 }, "channel_type": { "minimum": 1 } }
+            }
+          }
+        ],
         "properties": {
-          "from_uid": { "type": "string", "minLength": 1 },
-          "sender_uid": { "type": "string", "minLength": 1, "deprecated": true, "description": "Used only when from_uid is empty." },
+          "from_uid": { "type": "string" },
+          "sender_uid": { "type": "string", "deprecated": true, "description": "Used only when from_uid is empty; when both are empty, the configured message.system_uid is used." },
           "device_id": { "type": "string" },
           "channel_id": { "type": "string" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
@@ -1182,7 +1213,7 @@
           "message_id": { "type": "integer", "format": "int64", "description": "Positive values are converted to uint64; zero and negative values are omitted from the command." },
           "client_msg_no": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "event_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
-          "event_type": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "event_type": { "type": "string", "minLength": 1, "pattern": "^\\s*[sS][tT][rR][eE][aA][mM]\\.(?:[oO][pP][eE][nN]|[dD][eE][lL][tT][aA]|[cC][lL][oO][sS][eE]|[eE][rR][rR][oO][rR]|[cC][aA][nN][cC][eE][lL]|[sS][nN][aA][pP][sS][hH][oO][tT]|[fF][iI][nN][iI][sS][hH])\\s*$", "examples": ["stream.open", "stream.delta", "stream.close", "stream.error", "stream.cancel", "stream.snapshot", "stream.finish"] },
           "event_key": { "type": "string", "description": "Empty selects the default lane; stream.finish forces the finish lane." },
           "visibility": { "type": "string" },
           "occurred_at": { "type": "integer", "format": "int64" },
@@ -1199,7 +1230,7 @@
           "event_key": { "type": "string" },
           "event_id": { "type": "string" },
           "msg_event_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
-          "stream_status": { "type": "string" },
+          "stream_status": { "type": "string", "enum": ["open", "closed", "error", "cancelled"] },
           "channel_id": { "type": "string" },
           "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
           "from_uid": { "type": "string" }

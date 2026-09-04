@@ -6,7 +6,13 @@ _openapi:
     - wukongim-product-http-complete-beta-zh
   method: POST
   webhook: false
-  toc: []
+  toc:
+    - depth: 2
+      title: 请求体
+      url: '#request-body'
+    - depth: 2
+      title: 响应体
+      url: '#response-body'
   structuredData:
     headings:
       - content: 同步一个 Channel 的已提交消息
@@ -39,10 +45,10 @@ _openapi:
           Channel，其他值属于扩展类型。
 
           start_message_seq `integer:uint64` 0–∞; default: `0` 读取起点的 Channel
-          消息序号；0 表示未指定显式起点。
+          消息序号，属于包含边界；0 表示使用开放端，向新读取时还会提升到成员最低可见序号。
 
           end_message_seq `integer:uint64` 0–∞; default: `0` 读取终点的 Channel
-          消息序号；0 表示未指定显式终点。
+          消息序号，属于排除边界；0 表示使用开放端。
 
           limit `integer` default: `100` 本次最多返回的消息数；小于等于 0 时使用 100，大于 10000 时截断为
           10000。
@@ -60,109 +66,143 @@ _openapi:
 
           ChannelMessageSyncResponse
 
+          单个 Channel 的消息同步页。
+
           additionalProperties false
 
-          start_message_seq `integer:uint64` 0–∞
+          start_message_seq `integer:uint64` 0–∞ 本页实际读取范围的起始消息序号。
 
-          end_message_seq `integer:uint64` 0–∞
+          end_message_seq `integer:uint64` 0–∞ 本页实际读取范围的结束消息序号。
 
-          more `integer` enum: `0`, `1`
+          more `integer` enum: `0`, `1` 1 表示同方向仍可能有下一页，0 表示当前范围已取完。
 
-          messages array<`LegacyMessage`> —
+          messages array<`LegacyMessage`> — 无论拉取方向如何，消息都按 message_seq 升序返回。
 
           LegacyMessage
 
-          header `LegacyMessageHeader` additionalProperties: `false`
+          Product HTTP 同步接口使用的旧式消息投影。
 
-          setting `integer:uint8` 0–255
+          header `LegacyMessageHeader` additionalProperties: `false` 旧式消息
+          Header。
 
-          message_id `integer:int64` —
+          setting `integer:uint8` 0–255 WKProto Setting 位图。
 
-          message_idstr `string` —
+          message_id `integer:int64` — 服务端 int64 消息 ID。
 
-          client_msg_no `string` —
+          message_idstr `string` — 仅 message_id 的十进制字符串镜像；不是 message_seq 的替代字段。
 
-          end `integer:uint8` 0–255
+          client_msg_no `string` — 客户端消息编号。
 
-          end_reason `integer:uint8` 0–255
+          end `integer:uint8` 0–255 流消息结束兼容标志。
 
-          error `string` —
+          end_reason `integer:uint8` 0–255 流消息结束 Reason Code。
 
-          stream_data `string | null` encoding: base64
+          error `string` — 流消息错误说明。
+
+          stream_data `string | null` encoding: base64 Base64 编码的流数据；可能为 null。
 
           event_meta `LegacyMessageEventMeta` additionalProperties: `false`
+          可选消息事件摘要。
 
           event_sync_hint `LegacyMessageEventSyncHint` additionalProperties:
-          `false`
+          `false` 可选消息事件继续同步提示。
 
-          message_seq `integer:uint64` 0–∞
+          message_seq `integer:uint64` 0–∞ 消息在该 Channel 内的 uint64 序号。
 
-          from_uid `string` —
+          from_uid `string` — 消息发送者 UID。
 
-          channel_id `string` —
+          channel_id `string` — 消息所属 Channel ID。
 
-          channel_type `integer:uint8` 0–255
+          channel_type `integer:uint8` 0–255 消息所属 Channel 类型。
 
-          topic `string` —
+          topic `string` — 可选消息 Topic。
 
-          expire `integer:uint32` 0–∞
+          expire `integer:uint32` 0–∞ 消息过期秒数；0 表示未设置。
 
-          timestamp `integer:int32` —
+          timestamp `integer:int32` — 服务端旧式秒级时间戳。
 
-          payload `string | null` encoding: base64
+          payload `string | null` encoding: base64 Base64 编码消息 Payload；可能为 null。
 
           LegacyMessageHeader
 
-          no_persist `integer` enum: `0`, `1`
+          旧式消息 Header。
 
-          red_dot `integer` enum: `0`, `1`
+          no_persist `integer` enum: `0`, `1` 1 表示消息不持久化。
 
-          sync_once `integer` enum: `0`, `1`
+          red_dot `integer` enum: `0`, `1` 1 表示客户端应显示红点。
+
+          sync_once `integer` enum: `0`, `1` 1 表示一次性命令消息。
 
           LegacyMessageEventMeta
 
-          has_events `boolean` —
+          可选消息事件摘要。
 
-          completed `boolean` —
+          has_events `boolean` — 是否存在事件。
 
-          event_version `integer:uint64` 0–∞
+          completed `boolean` — 所有已知事件 lane 是否已结束。
 
-          last_msg_event_seq `integer:uint64` 0–∞
+          event_version `integer:uint64` 0–∞ 事件摘要版本。
 
-          event_count `integer` 0–∞
+          last_msg_event_seq `integer:uint64` 0–∞ 所有 lane 中最新的事件序号。
 
-          open_event_count `integer` 0–∞
+          event_count `integer` 0–∞ 事件总数。
 
-          events array<`LegacyMessageEventKeyMeta`> —
+          open_event_count `integer` 0–∞ 仍未结束的事件 lane 数量。
+
+          events array<`LegacyMessageEventKeyMeta`> — 按事件 lane 返回的摘要。
 
           LegacyMessageEventKeyMeta
 
-          event_key `string` —
+          一条事件 lane 的摘要。
 
-          status `string` —
+          event_key `string` — 事件 lane Key。
 
-          snapshot `unknown` —
+          status `string` — 该 lane 的当前状态。
+
+          last_msg_event_seq `integer:uint64` 0–∞ 该 lane 已知的最新事件序号。
+
+          snapshot `unknown` — full 摘要模式下的任意 JSON 快照。
+
+          end_reason `integer:uint8` 0–255 事件流结束 Reason Code。
+
+          error `string` — 事件流错误说明。
 
           LegacyMessageEventSyncHint
 
-          from_msg_event_seq `integer:uint64` 0–∞
+          可选消息事件继续同步提示。
+
+          client_msg_no `string` — 目标消息的客户端消息编号。
+
+          from_msg_event_seq `integer:uint64` 0–∞ 下一次事件同步的起始序号。
 
           400 Input, validation, dependency, or downstream error
 
           CompatibilityError
 
-          msg `string` — Human-readable and not stable for machine matching.
+          多个旧式入口共用的 HTTP 400 错误体。
 
-          status `integer` const: `400`
+          msg `string` — 供人阅读且不保证稳定的错误文本；不要据此做机器分支。
+
+          status `integer` const: `400` 固定为 400 的应用层状态。
 
           503 Controller restore maintenance is active
 
           MaintenanceError
 
-          error `string` const: `"maintenance"`
+          集群处于恢复维护期间的 503 错误体。
 
-          message `string` const: `"restore maintenance is active"`
+          error `string` const: `"maintenance"` 稳定的 maintenance 错误类别。
+
+          message `string` const: `"restore maintenance is active"` 当前恢复维护说明。
 ---
+
+<Callout type="warn" title="接口边界">
+
+- **调用方**：仅限受信业务后端
+- **作用域**：读取前必须存在 login_uid 的普通成员关系；join_seq 与 deleted_to_seq 共同形成最低可见序号。返回消息始终按 message_seq 升序排列。
+- **成功判定**：pull_mode=1 读取 [start_message_seq, end_message_seq)；其他值向旧消息读取 (end_message_seq, start_message_seq]。边界为 0 时使用开放端。
+
+</Callout>
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
 

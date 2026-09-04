@@ -6,7 +6,13 @@ _openapi:
     - wukongim-product-http-complete-beta-en
   method: POST
   webhook: false
-  toc: []
+  toc:
+    - depth: 2
+      title: Request Body
+      url: '#request-body'
+    - depth: 2
+      title: Response Body
+      url: '#response-body'
   structuredData:
     headings:
       - content: Retry unresolved Conversations
@@ -52,72 +58,108 @@ _openapi:
 
           ConversationListResponse
 
+          One canonical Conversation-directory page and its synchronization
+          control state.
+
           additionalProperties false
 
-          conversations array<`ConversationListItem`> —
+          conversations array<`ConversationListItem`> — Resolved Conversations
+          in this page.
 
-          deletes array<`ConversationKey`> —
+          deletes array<`ConversationKey`> — Conversation keys the client should
+          delete.
 
-          unresolved array<`ConversationKey`> —
+          unresolved array<`ConversationKey`> — Channel keys unresolved in this
+          page, suitable for bounded retry through /conversation/retry.
 
-          next_cursor `string` —
+          next_cursor `string` — Opaque cursor for the next page; return it
+          unchanged.
 
-          done `boolean` —
+          done `boolean` — true means the full pass is complete; only then may
+          coverage be saved.
 
-          coverage `integer:int64` 0–∞
+          coverage `integer:int64` 0–∞ Coverage version observed by the server
+          for this synchronization pass.
 
-          tombstones_retained_since `integer:int64` 0–∞
+          tombstones_retained_since `integer:int64` 0–∞ Earliest coverage for
+          which deletion tombstones are still retained.
 
-          reset_required `boolean` —
+          reset_required `boolean` — true means client coverage predates the
+          retention window and the local Conversation directory must be rebuilt.
 
           ConversationListItem
 
-          channel_id `string` —
+          Canonical Conversation state for one user.
 
-          channel_type `integer` 1–255
+          channel_id `string` — Conversation Channel ID.
 
-          active_at `integer:int64` —
+          channel_type `integer` 1–255 Conversation Channel type.
 
-          read_seq `integer:uint64` 0–∞
+          active_at `integer:int64` — Most recent Conversation activation time.
 
-          deleted_to_seq `integer:uint64` 0–∞
+          read_seq `integer:uint64` 0–∞ Greatest message sequence read by the
+          user.
 
-          unread `integer:uint64` 0–∞
+          deleted_to_seq `integer:uint64` 0–∞ Greatest message sequence deleted
+          by the user.
 
-          last_message `ConversationLastMessage` | `null` —
+          unread `integer:uint64` 0–∞ Unread count derived from the current last
+          message and read_seq.
+
+          last_message `ConversationLastMessage` | `null` — Current visible last
+          message, or null when absent.
 
           ConversationLastMessage
 
-          message_id `integer:uint64` 0–∞
+          Last-message summary in the Conversation directory.
 
-          message_idstr `string` —
+          message_id `integer:uint64` 0–∞ Server int64 message ID.
 
-          message_seq `integer:uint64` 0–∞
+          message_idstr `string` — Decimal string mirror of message_id only.
 
-          from_uid `string` —
+          message_seq `integer:uint64` 0–∞ Sequence of this message within the
+          Channel.
 
-          client_msg_no `string` —
+          from_uid `string` — Message sender UID.
 
-          server_timestamp_ms `integer:int64` —
+          client_msg_no `string` — Client message number.
 
-          payload `string | null` encoding: base64
+          server_timestamp_ms `integer:int64` — Server timestamp in
+          milliseconds.
+
+          payload `string | null` encoding: base64 Base64-encoded message
+          payload; it may be null.
 
           400 Input, validation, dependency, or downstream error
 
           CompatibilityError
 
-          msg `string` — Human-readable and not stable for machine matching.
+          HTTP 400 error body shared by multiple legacy entries.
 
-          status `integer` const: `400`
+          msg `string` — Human-readable error text with no stability guarantee;
+          do not branch on it.
+
+          status `integer` const: `400` Application-level status fixed at 400.
 
           503 Controller restore maintenance is active
 
           MaintenanceError
 
-          error `string` const: `"maintenance"`
+          503 error body returned while cluster restore maintenance is active.
 
-          message `string` const: `"restore maintenance is active"`
+          error `string` const: `"maintenance"` Stable maintenance error
+          category.
+
+          message `string` const: `"restore maintenance is active"` Current
+          restore-maintenance message.
 ---
+
+<Callout type="warn" title="Operation boundary">
+
+- **Caller**: Trusted backend only
+- **Scope**: Re-resolves at most 200 Channel keys from a previous unresolved result; it does not replace the complete cursor scan performed by list.
+
+</Callout>
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
 

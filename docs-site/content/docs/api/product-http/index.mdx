@@ -12,6 +12,33 @@ OpenAPI：[完整合同](/contracts/product-http.openapi.json) · 窄 Profile：
   Product HTTP 没有通用业务鉴权。请限制网络可达性，并在 API Gateway、服务网格或业务后端完成认证、授权、限流和审计。
 </Callout>
 
+## 按任务选择接口
+
+| 任务 | 推荐入口 | 完成判定 |
+| --- | --- | --- |
+| 签发连接身份 | `/user/token` → `/route` → SDK CONNECT | Token 写入成功后，仍以 CONNACK 判断连接 |
+| 服务端发消息 | `/message/send` | HTTP 200 后继续检查 `reason` |
+| 断线恢复 | `/channel/messagesync` 或批量版本 | 按 `message_seq` 推进；批量逐项检查 `error` |
+| 协调群成员 | `/channel`、subscriber add/remove | 保存业务期望版本；失败后核对并重放期望状态 |
+| 同步会话目录 | `/conversation/list` → `/conversation/retry` | 原样回传游标，直到 `done=true` |
+
+完整合同是 41 个运行时入口的权威参考；三个窄 Profile 是经过审阅、带可运行示例的任务投影。生成页会合并这些示例，并在“接口边界”中明确调用方、节点作用域、非原子写入和 HTTP 200 后的业务判定。
+
+## Channel 可观测性边界
+
+| 状态 | Product HTTP 读回 |
+| --- | --- |
+| 允许列表 | `GET /channel/whitelist`，旧式无界完整列表 |
+| 普通订阅者 | 无 |
+| 拒绝列表 | 无 |
+| 临时订阅者 | 无 |
+
+Product HTTP 缺少对称读回时，不要把一次 200 当作协调证明。以业务数据库为期望状态源，需要严格核对时使用受保护的 Manager 有界查询。
+
+## Deprecated 的含义
+
+`deprecated` 表示兼容入口仍存在，但不应成为新集成的默认选择：`/channel/info` 改用 `/channel`；名单 set 改用 remove-all 加有界 add；`/conversation/sync` 改用 `/conversation/list` 与 `/conversation/retry`。路由批量、在线状态、Channel 解散/移除、允许列表完整读取以及命令消息 sync/bind 等兼容入口目前没有一一对应的新 Product HTTP 替代，应仅在明确理解其页面边界后使用。节点本地 system UID cache 接口只能用于定向运维，不能替代持久变更。
+
 ## 接口目录
 
 <Cards>

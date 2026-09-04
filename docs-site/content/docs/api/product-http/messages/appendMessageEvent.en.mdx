@@ -6,7 +6,13 @@ _openapi:
     - wukongim-product-http-complete-beta-en
   method: POST
   webhook: false
-  toc: []
+  toc:
+    - depth: 2
+      title: Request Body
+      url: '#request-body'
+    - depth: 2
+      title: Response Body
+      url: '#response-body'
   structuredData:
     headings:
       - content: Append a message event
@@ -15,103 +21,60 @@ _openapi:
       - content: Validates and applies one message-scoped event projection; non-null
           headers are unsupported.
         heading: append-a-message-event
-      - content: >-
+      - content: |-
           POST /message/event
-
           appendMessageEvent
-
           Append a message event
-
-          Validates and applies one message-scoped event projection; non-null
-          headers are unsupported.
-
+          Validates and applies one message-scoped event projection; non-null headers are unsupported.
           AppendMessageEventRequest
-
           Message-event projection parameters.
-
           additionalProperties true
-
-          channel_id `string` minLength: 1; pattern: `\S` Target non-blank
-          Channel ID; person and Agent Channels are normalized by the use case.
-
-          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
-          Channel, 2 is a group Channel, and other values are extension types.
-
-          from_uid `string` — Event actor UID; person or unencoded Agent Channel
-          normalization may require it.
-
-          message_id `integer:int64` — Optional server message ID; positive
-          values become uint64, while 0 or negative values are omitted from the
-          event command.
-
-          client_msg_no `string` minLength: 1; pattern: `\S` Non-blank client
-          message number of the message receiving the event.
-
-          event_id `string` minLength: 1; pattern: `\S` Non-blank unique
-          identifier of this event.
-
-          event_type `string` minLength: 1; pattern: `\S` Event type;
-          surrounding whitespace is removed and the value is lowercased.
-
-          event_key `string` — Event lane key; empty selects the default lane
-          and stream.finish forces the finish lane.
-
-          visibility `string` — Caller-supplied visibility marker; surrounding
-          whitespace is removed.
-
-          occurred_at `integer:int64` — Caller-supplied integer event time; the
-          entry does not interpret its unit.
-
-          payload `unknown` — Arbitrary JSON event payload passed to event
-          storage as raw JSON bytes.
-
-          headers `null` — Reserved field; it must be omitted or null, and every
-          non-null JSON value is rejected.
-
+          channel_id `string` minLength: 1; pattern: `\S` Target non-blank Channel ID; person and Agent Channels are normalized by the use case.
+          channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person Channel, 2 is a group Channel, and other values are extension types.
+          from_uid `string` — Event actor UID; person or unencoded Agent Channel normalization may require it.
+          message_id `integer:int64` — Optional server message ID; positive values become uint64, while 0 or negative values are omitted from the event command.
+          client_msg_no `string` minLength: 1; pattern: `\S` Non-blank client message number of the message receiving the event.
+          event_id `string` minLength: 1; pattern: `\S` Non-blank unique identifier of this event.
+          event_type `string` minLength: 1; pattern: `^\s*[sS][tT][rR][eE][aA][mM]\.(?:[oO][pP][eE][nN]|[dD][eE][lL][tT][aA]|[cC][lL][oO][sS][eE]|[eE][rR][rR][oO][rR]|[cC][aA][nN][cC][eE][lL]|[sS][nN][aA][pP][sS][hH][oO][tT]|[fF][iI][nN][iI][sS][hH])\s*$`; examples: `"stream.open"`, `"stream.delta"`, `"stream.close"`, `"stream.error"`, `"stream.cancel"`, `"stream.snapshot"`, `"stream.finish"` Event type; surrounding whitespace is removed and the value is lowercased.
+          event_key `string` — Event lane key; empty selects the default lane and stream.finish forces the finish lane.
+          visibility `string` — Caller-supplied event metadata stored after trimming; current Product HTTP message synchronization does not use it as an access-control filter.
+          occurred_at `integer:int64` — Caller-supplied integer event time; the entry does not interpret its unit.
+          payload `unknown` — Arbitrary JSON event payload passed to event storage as raw JSON bytes.
+          headers `null` — Reserved field; it must be omitted or null, and every non-null JSON value is rejected.
           200 Applied event projection
-
           AppendMessageEventResponse
-
+          Successful event-projection response.
           additionalProperties false
-
-          status `integer` const: `200`
-
-          data `AppendMessageEventData` additionalProperties: `false`
-
+          status `integer` const: `200` Application-level status fixed at 200.
+          data `AppendMessageEventData` additionalProperties: `false` Normalized data for the applied event.
           AppendMessageEventData
-
-          client_msg_no `string` —
-
-          event_key `string` —
-
-          event_id `string` —
-
-          msg_event_seq `integer:uint64` 0–∞
-
-          stream_status `string` —
-
-          channel_id `string` —
-
-          channel_type `integer:uint8` 0–255
-
-          from_uid `string` —
-
+          Normalized data for the applied event.
+          client_msg_no `string` — Client message number of the target message.
+          event_key `string` — Normalized event lane key.
+          event_id `string` — Accepted unique event identifier.
+          msg_event_seq `integer:uint64` 0–∞ Increasing sequence within this message event stream.
+          stream_status `string` enum: `"open"`, `"closed"`, `"error"`, `"cancelled"` Stream status after projection.
+          channel_id `string` — Normalized Channel ID.
+          channel_type `integer:uint8` 0–255 Normalized Channel type.
+          from_uid `string` — Normalized event actor UID.
           400 Input, validation, dependency, or downstream error
-
           CompatibilityError
-
-          msg `string` — Human-readable and not stable for machine matching.
-
-          status `integer` const: `400`
-
+          HTTP 400 error body shared by multiple legacy entries.
+          msg `string` — Human-readable error text with no stability guarantee; do not branch on it.
+          status `integer` const: `400` Application-level status fixed at 400.
           503 Controller restore maintenance is active
-
           MaintenanceError
-
-          error `string` const: `"maintenance"`
-
-          message `string` const: `"restore maintenance is active"`
+          503 error body returned while cluster restore maintenance is active.
+          error `string` const: `"maintenance"` Stable maintenance error category.
+          message `string` const: `"restore maintenance is active"` Current restore-maintenance message.
 ---
+
+<Callout type="warn" title="Operation boundary">
+
+- **Caller**: Trusted backend only
+- **Scope**: visibility is stored as event metadata; current Product HTTP message synchronization does not use it as an access-control filter.
+
+</Callout>
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
 

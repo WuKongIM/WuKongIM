@@ -12,6 +12,33 @@ OpenAPI: [complete contract](/contracts/product-http.openapi.json) · narrow pro
   Product HTTP has no general business authentication. Restrict network reachability and provide authentication, authorization, limits, and audit at an API Gateway, service mesh, or product backend.
 </Callout>
 
+## Choose by task
+
+| Task | Recommended entry | Completion check |
+| --- | --- | --- |
+| Issue a connection identity | `/user/token` → `/route` → SDK CONNECT | After the token write, CONNACK still decides connection success |
+| Send from a backend | `/message/send` | Inspect `reason` after HTTP 200 |
+| Recover after disconnect | `/channel/messagesync` or its batch form | Advance by `message_seq`; inspect each batch-item `error` |
+| Reconcile group membership | `/channel`, subscriber add/remove | Persist the product desired version; verify and replay desired state after failure |
+| Synchronize the Conversation directory | `/conversation/list` → `/conversation/retry` | Echo the cursor until `done=true` |
+
+The complete contract is authoritative for all 41 runtime entries. The three narrow profiles are reviewed task projections with runnable examples. Generated pages merge those examples and expose caller, node scope, non-atomic writes, and post-200 business checks in an “Operation boundary” callout.
+
+## Channel observability boundary
+
+| State | Product HTTP readback |
+| --- | --- |
+| Allowlist | `GET /channel/whitelist`, a legacy unbounded full list |
+| Ordinary subscribers | None |
+| Denylist | None |
+| Temporary subscribers | None |
+
+When Product HTTP has no symmetric readback, do not treat one 200 response as reconciliation proof. Keep the product database as the desired-state source and use the protected, bounded Manager query when strict verification is required.
+
+## What deprecated means
+
+`deprecated` marks a compatibility entry that still exists but should not be the default for a new integration: replace `/channel/info` with `/channel`, list set with remove-all plus bounded add, and `/conversation/sync` with `/conversation/list` plus `/conversation/retry`. Batch routing, online status, Channel disband/removal, full allowlist read, and command-message sync/bind compatibility entries currently have no one-to-one replacement in Product HTTP; use them only after reading their operation boundaries. Node-local system-UID cache routes are for directed operations and cannot replace durable mutations.
+
 ## API directory
 
 <Cards>

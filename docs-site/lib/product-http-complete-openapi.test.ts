@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { fileURLToPath } from 'node:url';
+import Ajv2020 from 'ajv/dist/2020';
 import document from '../contracts/product-http.openapi.json';
 import goldenProfile from '../contracts/javascript-web-quickstart.openapi.json';
 import managementProfile from '../contracts/product-http-management.openapi.json';
@@ -8,6 +9,11 @@ import { localizeOpenAPIDocument } from './product-http-openapi';
 
 const httpMethods = ['delete', 'get', 'patch', 'post', 'put'] as const;
 type HTTPMethod = (typeof httpMethods)[number];
+const schemaValidator = new Ajv2020({ strict: false, allErrors: true });
+for (const format of ['uint8', 'uint32', 'uint64', 'int32', 'int64']) {
+  schemaValidator.addFormat(format, true);
+}
+const compiledSchemas = new Map<string, ReturnType<typeof schemaValidator.compile>>();
 
 interface Schema {
   $ref?: string;
@@ -16,6 +22,10 @@ interface Schema {
   default?: unknown;
   minimum?: number;
   maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
   enum?: unknown[];
   pattern?: string;
   additionalProperties?: boolean;
@@ -24,6 +34,11 @@ interface Schema {
   items?: Schema;
   oneOf?: Schema[];
   anyOf?: Schema[];
+  allOf?: Schema[];
+  not?: Schema;
+  if?: Schema;
+  then?: Schema;
+  else?: Schema;
 }
 
 interface Operation {
@@ -35,6 +50,8 @@ interface Operation {
   requestBody?: { $ref?: string };
   deprecated?: boolean;
   'x-wukongim-trust'?: string;
+  'x-wukongim-semantics'?: Record<string, string>;
+  'x-codeSamples'?: unknown[];
 }
 
 interface Parameter {
@@ -121,6 +138,19 @@ function schema(name: string): Schema {
   ] as Schema;
 }
 
+function validateSchema(name: string, value: unknown) {
+  let validate = compiledSchemas.get(name);
+  if (!validate) {
+    validate = schemaValidator.compile({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $ref: `#/components/schemas/${name}`,
+      components: document.components,
+    });
+    compiledSchemas.set(name, validate);
+  }
+  return { valid: validate(value), errors: validate.errors };
+}
+
 function componentName(reference: string | undefined, component: string) {
   const prefix = `#/components/${component}/`;
   return reference?.startsWith(prefix) ? reference.slice(prefix.length) : undefined;
@@ -189,6 +219,7 @@ describe('complete Product HTTP OpenAPI contract', () => {
       expect(complete.get(key)).toMatchObject({
         operationId: expected.operationId,
         tags: expected.tags,
+        'x-wukongim-trust': expected['x-wukongim-trust'],
       });
     }
     expect(document.tags.map((tag) => tag.name)).toEqual([
@@ -199,6 +230,107 @@ describe('complete Product HTTP OpenAPI contract', () => {
       'Channels',
       'Conversations',
     ]);
+  });
+
+  test('adds reviewed examples and runtime semantics to the localized complete contract', () => {
+    const localized = localizeOpenAPIDocument(document, 'en') as typeof document;
+    const localizedOperations = operations(localized as ContractDocument);
+    expect(
+      [...localizedOperations.values()].filter((operation) => operation['x-codeSamples'])
+        .length,
+    ).toBe(20);
+    expect(localizedOperations.get('POST /message/send')?.['x-wukongim-semantics']).toMatchObject({
+      success: expect.stringContaining('reason'),
+    });
+    expect(localizedOperations.get('POST /message/syncack')?.['x-wukongim-semantics']).toMatchObject({
+      scope: expect.stringContaining('last_message_seq'),
+    });
+    expect(localizedOperations.get('POST /channel')?.['x-wukongim-semantics']).toMatchObject({
+      atomicity: expect.stringContaining('not one transaction'),
+    });
+  });
+
+  test('encodes runtime request branches as executable JSON Schema', () => {
+    expect(
+      validateSchema('SendMessageRequest', {
+        from_uid: '',
+        sender_uid: 'alice',
+        channel_id: 'team-42',
+        channel_type: 2,
+        payload: 'e30=',
+      }).valid,
+    ).toBe(true);
+    expect(
+      validateSchema('SendMessageRequest', {
+        from_uid: 'alice',
+        payload: 'e30=',
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateSchema('SendMessageRequest', {
+        from_uid: 'alice',
+        channel_id: '',
+        subscribers: ['bob'],
+        payload: 'e30=',
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateSchema('SendMessageRequest', {
+        from_uid: 'alice',
+        channel_id: '',
+        subscribers: ['bob'],
+        header: { sync_once: 1 },
+        payload: 'e30=',
+      }).valid,
+    ).toBe(true);
+
+    expect(
+      validateSchema('ChannelUpsertRequest', {
+        channel_id: 'a#b',
+        channel_type: 2,
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateSchema('ChannelUpsertRequest', {
+        channel_id: 'alice',
+        channel_type: 1,
+        subscribers: ['bob'],
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateSchema('ChannelSubscriberAddRequest', {
+        channel_id: 'team-42',
+        channel_type: 1,
+        subscribers: ['bob'],
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateSchema('ChannelSubscriberAddRequest', {
+        channel_id: 'team-42',
+        channel_type: 2,
+        temp_subscriber: 1,
+        subscribers: ['bob'],
+      }).valid,
+    ).toBe(false);
+
+    expect(
+      validateSchema('AppendMessageEventRequest', {
+        channel_id: 'team-42',
+        channel_type: 2,
+        client_msg_no: 'm-1',
+        event_id: 'e-1',
+        event_type: ' STREAM.FINISH ',
+      }).valid,
+    ).toBe(true);
+    expect(
+      validateSchema('AppendMessageEventRequest', {
+        channel_id: 'team-42',
+        channel_type: 2,
+        client_msg_no: 'm-1',
+        event_id: 'e-1',
+        event_type: 'custom.event',
+      }).valid,
+    ).toBe(false);
   });
 
   test('corrects the quickstart sync profile drift in the complete contract', async () => {
@@ -314,7 +446,7 @@ describe('complete Product HTTP OpenAPI contract', () => {
           visited.add(referencedName);
         }
         const resolved = referencedName
-          ? (localized.components.schemas as Record<string, Schema>)[referencedName]
+          ? (localized.components.schemas as unknown as Record<string, Schema>)[referencedName]
           : candidate;
         expect(resolved, referencedName).toBeDefined();
         if (!resolved) return;
@@ -369,6 +501,49 @@ describe('complete Product HTTP OpenAPI contract', () => {
       expect(descriptions.length).toBeGreaterThan(100);
       for (const description of descriptions) {
         expect(description).toMatch(locale === 'zh' ? /\p{Script=Han}/u : /[A-Za-z]/);
+      }
+    }
+  });
+
+  test('explains every structured response field in both published locales', () => {
+    const responseSchemas = [
+      'StatusEnvelope',
+      'CompatibilityError',
+      'MaintenanceError',
+      'RouteResponse',
+      'RouteBatchItem',
+      'UserOnlineStatus',
+      'ChannelMember',
+      'SendMessageResponse',
+      'SendError',
+      'RetryRequiredError',
+      'AppendMessageEventData',
+      'AppendMessageEventResponse',
+      'LegacyMessageHeader',
+      'LegacyMessageEventKeyMeta',
+      'LegacyMessageEventMeta',
+      'LegacyMessageEventSyncHint',
+      'LegacyMessage',
+      'ChannelMessageSyncResponse',
+      'ChannelMessageSyncBatchItemResponse',
+      'ChannelMessageSyncBatchResponse',
+      'ConversationListResponse',
+      'ConversationListItem',
+      'ConversationLastMessage',
+      'ConversationSyncLegacyItem',
+    ];
+
+    for (const locale of ['zh', 'en'] as const) {
+      const localized = localizeOpenAPIDocument(document, locale) as typeof document;
+      for (const name of responseSchemas) {
+        const candidate = (localized.components.schemas as unknown as Record<string, Schema>)[name]!;
+        expect(candidate.description, name).not.toBe('');
+        for (const [field, value] of Object.entries(candidate.properties ?? {})) {
+          expect(value.description, `${name}.${field}`).not.toBe('');
+          expect(value.description).toMatch(
+            locale === 'zh' ? /\p{Script=Han}/u : /[A-Za-z]/,
+          );
+        }
       }
     }
   });

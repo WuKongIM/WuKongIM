@@ -30,6 +30,12 @@ The browser should receive only the UID, temporary token, and WebSocket address 
 | Product HTTP authentication, authorization, limits, and audit | API Gateway, service mesh, or product backend |
 | TLS, key rotation, and alerts | Production platform |
 
+<Callout type="error" title="Open CORS is not browser authorization">
+  Product HTTP accepts any Origin for compatibility, but the routes have no business authentication. Do not treat CORS response headers as a security boundary or let browsers call these routes directly. The reverse proxy must restrict network sources and bound request-body size, request/response time, rate, concurrency, and audit volume—especially for unbounded UID arrays and payloads.
+</Callout>
+
+The durable system-UID set and effective permission caches are also different observations. `systemuids_add/remove` synchronously updates only the handling process cache; refresh other nodes individually or roll them. `systemuids_add_to_cache/remove_from_cache` affects only the current process and requires a node-directed, protected operator entry.
+
 Protocol encryption does not replace TLS, account authentication, or HTTP service authorization. Tokens must not appear in URLs, logs, or screenshots.
 
 <Callout type="warn" title="The sample BFF is for local development only">

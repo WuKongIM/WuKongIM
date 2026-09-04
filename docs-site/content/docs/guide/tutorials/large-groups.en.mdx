@@ -38,6 +38,12 @@ curl -sS http://127.0.0.1:5001/channel/subscriber_add \
 
 Use `/channel/subscriber_remove` with the same request shape to remove members. Ordinary membership mutations are de-duplicated, written under a monotonic mutation version, and projected into UID-owned membership metadata. The product service should still retain its desired membership version, audit log, and compensation jobs.
 
+<Callout type="warn" title="A single request can partially complete">
+  `/channel` and subscriber add with `reset=1` execute metadata write, old-member removal, chunked insertion, and `large` refresh in sequence; list set also removes before adding. These stages are not transactional. After a timeout or error, replay the product membership snapshot as desired state instead of assuming that none of the request took effect.
+</Callout>
+
+Product HTTP has no symmetric read route for ordinary subscribers, the denylist, or temporary subscribers. For strict verification, use the authenticated Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` bounded paging query. Product HTTP can read the allowlist, but that legacy route returns the whole list at once and is unsuitable for large-group inspection.
+
 ## 3. Send and verify a group message
 
 The sender must satisfy current group permission and membership policy. A client SDK uses `channel_id=team-42` and `channel_type=2`; a trusted server-side example is:
@@ -94,7 +100,7 @@ flowchart TD
 ```
 
 - Use bounded application batches of hundreds to roughly one thousand UIDs, then tune from request bytes, latency, and error rate. Do not treat an internal chunk default as a permanent public API maximum.
-- Each request is still chunked and de-duplicated internally, but multiple HTTP requests are not one global transaction. Preserve successful progress and repair the desired/observed difference after failure.
+- Each request is still chunked and de-duplicated internally, but neither the stages inside one request nor multiple HTTP requests form one global transaction. Preserve successful progress and repair the desired/observed difference after failure.
 - `channel.large_group_subscriber_threshold` defaults to `500`; after an ordinary membership mutation, a count **greater than** the threshold refreshes the large-group marker. After changing the threshold, use controlled membership reconciliation and verification for existing Channels.
 - Large-group post-commit fanout pages members, groups them by Presence Authority, and creates bounded delivery plans. It does not write 100,000 copies into 100,000 Channel logs.
 - SENDACK guarantees Channel quorum commit and does not wait for complete fanout. If the product needs “everyone processed it,” build a separate business acknowledgement and aggregation flow.
