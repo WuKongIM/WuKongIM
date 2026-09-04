@@ -17,9 +17,15 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+## [v3.0.0-beta.8] - 2026-09-04
+
 ### ⚠️ Breaking Changes / 破坏性变更
 
 - Gateway 现在默认启用 CONNECT Token 鉴权，并按 UID 与设备类别精确校验 `/user/token` 持久化的设备凭据；升级前必须先为客户端准备 Token，或仅在受控兼容迁移期间设置 `gateway.token_auth_on=false`。
+
+### 🐛 Bug Fixes / 问题修复
+
+- 频道消息同步现在会在应用成员可见性下限时保留“最新一页”的零边界语义，消息超过单页时不再误返回最早一页。
 
 ### 📚 Documentation / 文档
 

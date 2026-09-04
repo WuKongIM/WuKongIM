@@ -87,6 +87,25 @@ func TestSyncChannelMessagesRequiresLiveMembershipAndClampsVisibilityFloor(t *te
 	}
 }
 
+func TestSyncChannelMessagesLatestPullPreservesSentinelWithVisibilityFloor(t *testing.T) {
+	reader := &recordingChannelMessageReader{}
+	memberships := &recordingSyncMembershipStore{row: metadb.UserChannelMembership{
+		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 8, DeletedToSeq: 10,
+	}, ok: true}
+	app := New(Options{Reader: reader, Memberships: memberships})
+
+	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID: "u1", ChannelID: "g1", ChannelType: 2,
+		StartMessageSeq: 0, EndMessageSeq: 0, Limit: 30, PullMode: PullModeUp,
+	})
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if len(reader.queries) != 1 || reader.queries[0].StartSeq != 0 || reader.queries[0].MinSeq != 11 {
+		t.Fatalf("queries = %#v, want latest sentinel start 0 with visibility min seq 11", reader.queries)
+	}
+}
+
 func TestSyncChannelMessagesRequiresMembershipStore(t *testing.T) {
 	app := New(Options{Reader: &recordingChannelMessageReader{}})
 
