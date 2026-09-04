@@ -59,6 +59,40 @@ hash_slot_count = 256
 		t.Fatalf("omitted Channel workers = %d/%d/%d, want runtime-derived zero values",
 			cfg.Cluster.Channel.StoreAppendWorkers, cfg.Cluster.Channel.StoreApplyWorkers, cfg.Cluster.Channel.RPCWorkers)
 	}
+	if !cfg.Gateway.TokenAuthOn {
+		t.Fatal("Gateway.TokenAuthOn = false, want default true")
+	}
+}
+
+func TestLoadGatewayTokenAuthenticationFromTOMLAndEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+
+[gateway]
+token_auth_on = true
+`)
+
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_GATEWAY_TOKEN_AUTH_ON=false",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Gateway.TokenAuthOn {
+		t.Fatal("Gateway.TokenAuthOn = true, want environment override false")
+	}
+	item, ok := snapshotItem(cfg.StartupConfigSnapshot, "WK_GATEWAY_TOKEN_AUTH_ON")
+	if !ok || item.Value != "false" || item.Source != managementusecase.NodeConfigValueSourceEnvironment {
+		t.Fatalf("startup token auth snapshot = %#v, found=%t", item, ok)
+	}
 }
 
 func TestLoadRecordsMatchedDefaultConfigPath(t *testing.T) {
@@ -416,6 +450,7 @@ func TestLoadBuildsNormalizedEffectiveCriticalConfigSnapshot(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               {value: "96", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_GATEWAY_GNET_MULTICORE":                    {value: "true", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_GATEWAY_TOKEN_AUTH_ON":                     {value: "true", source: managementusecase.NodeConfigValueSourceDefault},
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               {value: "4", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        {value: "1000", source: managementusecase.NodeConfigValueSourceDefault},
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY": {value: "131072", source: managementusecase.NodeConfigValueSourceDefault},

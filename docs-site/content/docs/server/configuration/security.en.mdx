@@ -1,6 +1,6 @@
 ---
 title: Security & Access
-description: Protect cluster joining, Manager, product APIs, benchmark, diagnostics, and configuration secrets.
+description: Protect client CONNECT, cluster joining, Manager, product APIs, benchmark, diagnostics, and configuration secrets.
 ---
 
 Configuration security starts with who can reach each traffic plane, not merely with moving passwords into environment variables. Give clients, product APIs, node Transport, Manager, and observability separate trust boundaries.
@@ -9,6 +9,7 @@ Configuration security starts with who can reach each traffic plane, not merely 
 
 | Configuration | Risk | Production handling |
 | --- | --- | --- |
+| `gateway.token_auth_on` | Disabling it bypasses CONNECT device-token validation | Keep the default `true`; disable only for a time-bounded compatibility migration with rollback |
 | `cluster.join_token` | Grants seed-join capability | Inject from a secret system, restrict reads, and support rotation |
 | `manager.jwt_secret` | Signs Manager sessions | Use an independent high-entropy secret and audit rotation |
 | `manager.users` | Administrative accounts, passwords, and permissions | Remove example users and grant least privilege |
@@ -16,6 +17,21 @@ Configuration security starts with who can reach each traffic plane, not merely 
 | External URLs and match configuration | May reveal internal topology or diagnostic targets | Treat as sensitive in diagnostic artifacts and support bundles |
 
 The startup snapshot redacts fields declared sensitive, and diagnostic output also redacts diagnostic-sensitive fields. This does not replace log review, a secret store, or least-read permissions.
+
+## Client CONNECT token authentication
+
+<Callout type="warn" title="Enabled by default; keep it enabled for new deployments">
+  `gateway.token_auth_on` defaults to `true`. Gateway reads the device record persisted by `/user/token` for the same `UID + device_flag` and compares the token exactly. An empty token, missing or cleared record, or mismatch returns `ReasonAuthFail`; after a match, the Session adopts the stored Device Level.
+</Callout>
+
+Keep the secure default explicit in deployment configuration so upgrades and environment differences are unambiguous:
+
+```toml
+[gateway]
+token_auth_on = true
+```
+
+The equivalent environment variable is `WK_GATEWAY_TOKEN_AUTH_ON=true`, and it overrides TOML. Audit the effective value in the startup configuration snapshot. Setting it to `false` lets new CONNECT requests bypass this device-token check and is only for a time-bounded compatibility migration with a rollback plan; it does not add authentication to Product HTTP.
 
 ## Manager and product APIs
 

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -33,6 +34,35 @@ func TestUpdateTokenCreatesMissingUserAndUpsertsDevice(t *testing.T) {
 	wantDevice := metadb.Device{UID: "u1", DeviceFlag: int64(frame.APP), Token: "token-1", DeviceLevel: int64(frame.DeviceLevelSlave)}
 	if len(devices.upserted) != 1 || devices.upserted[0] != wantDevice {
 		t.Fatalf("upserted devices = %#v, want %#v", devices.upserted, []metadb.Device{wantDevice})
+	}
+}
+
+func TestVerifyTokenReadsStoredDeviceCredential(t *testing.T) {
+	devices := &fakeDeviceStore{
+		devices: map[deviceKey]metadb.Device{
+			{uid: "u1", flag: int64(frame.WEB)}: {
+				UID:         "u1",
+				DeviceFlag:  int64(frame.WEB),
+				Token:       "token-1",
+				DeviceLevel: int64(frame.DeviceLevelMaster),
+			},
+		},
+	}
+	app := New(Options{Devices: devices})
+
+	level, err := app.VerifyToken(context.Background(), "u1", protocolmeta.DeviceFlagWeb, "token-1")
+	if err != nil {
+		t.Fatalf("VerifyToken(valid) error = %v", err)
+	}
+	if level != protocolmeta.DeviceLevelMaster {
+		t.Fatalf("VerifyToken(valid) level = %v, want master", level)
+	}
+
+	if _, err := app.VerifyToken(context.Background(), "u1", protocolmeta.DeviceFlagWeb, "wrong-token"); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("VerifyToken(mismatch) error = %v, want %v", err, ErrInvalidToken)
+	}
+	if _, err := app.VerifyToken(context.Background(), "missing", protocolmeta.DeviceFlagWeb, "token-1"); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("VerifyToken(missing device) error = %v, want %v", err, ErrInvalidToken)
 	}
 }
 

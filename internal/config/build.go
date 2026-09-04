@@ -42,9 +42,10 @@ func missingRequiredConfigKeys(values map[string]string) []string {
 func buildConfig(values map[string]string) (app.Config, error) {
 	cfg := app.Config{
 		Gateway: app.GatewayConfig{
-			Listeners: defaultGatewayListeners(),
-			Session:   gateway.DefaultSessionOptions(),
-			Runtime:   gateway.DefaultRuntimeOptions(),
+			TokenAuthOn: true,
+			Listeners:   defaultGatewayListeners(),
+			Session:     gateway.DefaultSessionOptions(),
+			Runtime:     gateway.DefaultRuntimeOptions(),
 			Transport: gateway.TransportOptions{
 				Gnet: defaultGatewayGnetOptions(),
 			},
@@ -756,6 +757,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		cfg.Observability.Diagnostics.DebugMatches = debugMatches
 	}
 	cfg.Observability.SetDiagnosticsExplicitFlags(diagnosticsEnabledSet, diagnosticsSampleRateSet, diagnosticsErrorSampleRateSet)
+	if raw := configValue(values, "WK_GATEWAY_TOKEN_AUTH_ON"); raw != "" {
+		tokenAuthOn, err := parseBool("WK_GATEWAY_TOKEN_AUTH_ON", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.SetTokenAuthOn(tokenAuthOn)
+	}
 	if raw := configValue(values, "WK_GATEWAY_LISTENERS"); raw != "" {
 		listeners, err := parseListeners(raw)
 		if err != nil {

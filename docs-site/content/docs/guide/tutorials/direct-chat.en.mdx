@@ -42,8 +42,8 @@ curl -sS http://127.0.0.1:5001/user/token \
   -d '{"uid":"alice","token":"alice-local-only","device_flag":0,"device_level":1}'
 ```
 
-<Callout type="error" title="This does not prove production authentication">
-  The default v3 Beta Gateway does not automatically validate every CONNECT against stored tokens. Before production, install an explicit credential validator and prove that invalid, expired, and revoked tokens cannot connect.
+<Callout type="warn" title="The built-in check is not a complete production identity system">
+  The default v3 Beta Gateway requires the CONNECT token to exactly match the stored token for the same UID and device category. Before production, protect `/user/token`, implement expiry and rotation policy, and prove that invalid, revoked, and product-expired tokens cannot connect.
 </Callout>
 
 Store separate metadata for Bob, then connect both clients with their own UID, device identity, and token. If no SDK integration exists yet, use the [embedded Chat Demo](/en/guide/quick-start/first-message) to validate two browser sessions first.

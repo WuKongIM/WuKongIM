@@ -46,7 +46,7 @@ The client must not create its own identity or call Product HTTP management rout
 | `token` | Short-lived and revocable, scoped to this identity's connection, with no Product HTTP management authority |
 | `websocketUrl` | Selected by the backend from deployment configuration or a trusted routing result; production uses `wss://` |
 
-Complete [Authentication & Tokens](/en/guide/integration/authentication) first. Saving `/user/token` does not automatically add production-grade CONNECT validation to the default composition. Your deployment needs a trusted validator and evidence that invalid, expired, and revoked tokens are rejected.
+Complete [Authentication & Tokens](/en/guide/integration/authentication) first. The default composition exactly matches each CONNECT token against the `/user/token` record for the same UID and device category. Your deployment must still protect that route, implement expiry and rotation policy, and prove that invalid, revoked, and product-expired tokens are rejected.
 
 ## Alice/Bob acceptance loop
 

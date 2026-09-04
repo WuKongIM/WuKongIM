@@ -29,6 +29,9 @@ listen_addr = "127.0.0.1:7001"
 [api]
 listen_addr = "0.0.0.0:5001"
 
+[gateway]
+token_auth_on = true
+
 [manager]
 listen_addr = "0.0.0.0:5301"
 auth_on = true
@@ -39,7 +42,7 @@ users = [{ username = "admin", password = "replace-with-a-strong-password", perm
 dir = "/var/lib/wukongim/logs"
 ```
 
-这份配置只保留容器启动、API、Manager 认证和可写日志目录所需字段；单节点拓扑、256 Hash Slots、`5100/5200` 网关和其他参数使用运行时默认值。至少替换 `jwt_secret` 和管理员密码。客户端不在本机时，再按实际地址补充 `api.external_tcp_addr` 和 `api.external_ws_addr`。全部字段及其默认值见[配置参考](/zh/server/configuration/reference)。
+这份配置显式保留重要的 `gateway.token_auth_on=true`：客户端 CONNECT Token 必须与 `/user/token` 按相同 UID、设备类别保存的 Token 精确匹配，否则返回 `ReasonAuthFail`。不要为了简化联调而在生产关闭它；完整边界见[安全配置](/zh/server/configuration/security)。其余只保留容器启动、API、Manager 认证和可写日志目录所需字段；单节点拓扑、256 Hash Slots、`5100/5200` Gateway Listener 和其他参数使用运行时默认值。至少替换 `jwt_secret` 和管理员密码。客户端不在本机时，再按实际地址补充 `api.external_tcp_addr` 和 `api.external_ws_addr`。全部字段及其默认值见[配置参考](/zh/server/configuration/reference)。
 
 ## 2. 启动并验证
 

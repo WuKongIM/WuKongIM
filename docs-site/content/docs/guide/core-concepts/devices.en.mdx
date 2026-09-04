@@ -58,7 +58,7 @@ stateDiagram-v2
 ```
 
 <Callout type="warn" title="A trusted backend controls multi-device policy">
-  A client cannot promote its own Device Level. The current v3 Beta default Gateway also does not automatically turn stored token and Device Level metadata into a complete verification chain. Include this policy in your [release checks](/en/guide/integration/acceptance).
+  A client cannot promote its own Device Level. The default Gateway adopts the stored Device Level only after the CONNECT token matches that device record, so only a trusted backend may write token-management routes. Keep expiry, replay, and risk policy in the [release checks](/en/guide/integration/acceptance).
 </Callout>
 
 Continue with [Conversation](/en/guide/core-concepts/conversations) and [Authentication & Security](/en/guide/integration/authentication).

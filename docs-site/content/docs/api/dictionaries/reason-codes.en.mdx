@@ -39,7 +39,7 @@ The table is generated from the authoritative Go enum and shared metadata, and C
 
 For a persistent SEND, a successful SENDACK means the Channel authority made a successful durable-commit decision. It does not prove online receipt, RECVACK, webhook, plugin, offline synchronization, or product action.
 
-A successful CONNACK means only that the current Gateway connection stage completed. The default v3 Beta composition does not yet automatically validate CONNECT against stored tokens, so it is not proof of production product identity.
+A successful CONNACK means the current Gateway connection stage completed. With the default `gateway.token_auth_on=true`, it also means the CONNECT token matched the stored token for the same UID and device category. It does not prove account login, product authorization, credential expiry, or replay policy.
 
 ## Expected result
 

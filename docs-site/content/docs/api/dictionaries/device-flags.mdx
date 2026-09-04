@@ -25,11 +25,11 @@ Device Flag 表示客户端设备类别，Device Level 表示同一 UID、同一
 
 不要把手机品牌、浏览器 UA 或系统版本直接作为 `device_id`。生成稳定随机标识，并明确重装、清缓存、设备迁移和恢复备份时是否创建新 ID。
 
-## 当前鉴权限制
+## 当前鉴权行为
 
-Token 元数据可以保存 Device Level，用户用例也能在 Master 更新或设备退出后计划关闭匹配本地 Session。但默认 v3 Beta Gateway 没有注入 stored-token verifier，CONNECT 默认采用 Slave 级别。
+`gateway.token_auth_on` 默认为 `true`。Gateway 会按 UID 与 Device Flag 读取已存设备 Token；只有 CONNECT Token 精确匹配后，Session 才采用该设备记录中的 Device Level。Token 为空、设备记录不存在、已清空或不匹配都会返回 `ReasonAuthFail`。
 
-因此，配置 `device_level=1` 不自动证明后续连接会单活。上线前必须把 verifier 接入 Gateway，并验证新 Master 连接、旧 Session 关闭、跨节点冲突、撤销和重连拒绝。
+因此，受信后端写入 `device_level=1` 后，匹配 Token 的连接会采用 Master 策略；上线前仍需验证新 Master 连接、旧 Session 关闭、跨节点冲突、撤销和重连拒绝。不要在生产关闭 Token 鉴权来绕过这些检查。
 
 ## 集成建议
 

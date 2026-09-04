@@ -180,6 +180,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "diagnostics.deep_max_items_per_batch", EnvKey: "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH", Kind: kindInt, Group: "diagnostics", Label: "Diagnostics deep max items per batch"},
 	{TOMLPath: "diagnostics.debug_matches", EnvKey: "WK_DIAGNOSTICS_DEBUG_MATCHES", Kind: kindObjectList, Group: "diagnostics", Label: "Diagnostics debug matches"},
 
+	{TOMLPath: "gateway.token_auth_on", EnvKey: "WK_GATEWAY_TOKEN_AUTH_ON", Kind: kindBool, Group: "gateway", Label: "Gateway CONNECT token authentication", Description: "Require every non-visitor CONNECT token to match the durable device token stored for the same UID and device_flag. Defaults to true; disable only for a controlled compatibility migration."},
 	{TOMLPath: "gateway.gnet_multicore", EnvKey: "WK_GATEWAY_GNET_MULTICORE", Kind: kindBool, Group: "gateway", Label: "Gateway gnet multicore"},
 	{TOMLPath: "gateway.gnet_num_event_loop", EnvKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP", Kind: kindInt, Group: "gateway", Label: "Gateway gnet event loops"},
 	{TOMLPath: "gateway.runtime_async_send_workers", EnvKey: "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", Kind: kindInt, Group: "gateway", Label: "Gateway async send workers"},
@@ -354,6 +355,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_EXTERNAL_TCPADDR",
 		"WK_EXTERNAL_WSADDR",
 		"WK_EXTERNAL_WSSADDR",
+		"WK_GATEWAY_TOKEN_AUTH_ON",
 		"WK_GATEWAY_GNET_MULTICORE",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",

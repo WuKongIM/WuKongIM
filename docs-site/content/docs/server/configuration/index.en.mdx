@@ -49,9 +49,13 @@ GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
 | `[cluster]` | Cluster ID, node addresses, Slots, replication, and inter-node listener |
 | `[api]` | HTTP API and external TCP/WebSocket addresses |
 | `[manager]` | Manager listener, authentication, JWT, and administrative users |
-| `[gateway]` | TCP/WebSocket listeners and asynchronous queues |
+| `[gateway]` | TCP/WebSocket listeners, CONNECT token authentication, and asynchronous queues |
 | `[observability]`, `[log]` | Metrics switches and logs |
 | `[diagnostics]` | Diagnostic sampling, buffering, and slow-request thresholds |
+
+<Callout type="warn" title="CONNECT token authentication is enabled by default">
+  `gateway.token_auth_on` defaults to `true`. A trusted backend first stores the token for a UID and device category through `/user/token`; later CONNECT requests must carry the exact value. Do not disable it in production merely to simplify integration. See [Security & Access](/en/server/configuration/security) for the full boundary.
+</Callout>
 
 Restart the node after changing configuration. Node IDs and advertised addresses must be unique in a multi-node cluster. `0.0.0.0` is a listen address only and must not be advertised for other nodes to connect to.
 
@@ -60,6 +64,7 @@ Restart the node after changing configuration. Node IDs and advertised addresses
 The example configuration is for development only. Before production use, at minimum:
 
 - Replace Manager accounts, JWT secrets, cluster join tokens, and other fixed capability credentials.
+- Keep `gateway.token_auth_on=true`, and prove that wrong, missing, and revoked tokens cannot CONNECT.
 - Restrict Manager, metrics, debug, benchmark, and diagnostic surfaces to trusted networks.
 - Configure TLS and access policies for client and administrative traffic.
 - Put each node's data on independent, durable, monitored storage.

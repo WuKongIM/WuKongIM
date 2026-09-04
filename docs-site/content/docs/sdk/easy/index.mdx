@@ -46,7 +46,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 | `token` | 短期、可撤销，只用于当前身份连接；不能授予 Product HTTP 管理权限 |
 | `websocketUrl` | 后端从部署配置或安全路由结果中选择；生产环境使用 `wss://` |
 
-先完成[认证与 Token](/zh/guide/integration/authentication)。当前默认组合不会因为 `/user/token` 保存成功就自动获得生产级 CONNECT 校验；部署必须接入可信验证器，并证明无效、过期和撤销 Token 会被拒绝。
+先完成[认证与 Token](/zh/guide/integration/authentication)。当前默认组合会把 CONNECT Token 与 `/user/token` 保存的相同 UID、设备类别记录精确匹配；部署仍必须保护该接口、实现过期与轮换策略，并证明无效、撤销和按业务规则过期的 Token 会被拒绝。
 
 ## Alice 与 Bob 验收闭环
 

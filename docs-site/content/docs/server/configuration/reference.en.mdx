@@ -184,6 +184,7 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
+| `gateway.token_auth_on` | `WK_GATEWAY_TOKEN_AUTH_ON` | `bool` | Requires each CONNECT token to exactly match the stored device token for the same UID and `device_flag`; defaults to `true`. Disable only for a controlled compatibility migration. |
 | `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | Enables gnet's CPU-scaled multi-event-loop mode; enabled when omitted. |
 | `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | gnet event-loop count; `0` retains the WuKongIM baseline of `4`. |
 | `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | Maximum workers dispatching SEND frames asynchronously; a non-positive value uses `1000`. |

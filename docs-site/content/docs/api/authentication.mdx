@@ -16,8 +16,8 @@ flowchart LR
 
 浏览器只应获得当前连接所需的 UID、临时 Token 和 WebSocket 地址，不应获得 Product HTTP 地址或服务端凭据。
 
-<Callout type="error" title="保存 Token 不等于 CONNECT 鉴权">
-  `POST /user/token` 只保存设备 Token 元数据。默认 Gateway 不会自动用该记录校验后续 CONNECT；生产环境必须接入明确的 Token 校验与拒绝策略。
+<Callout type="warn" title="默认 Gateway 会精确匹配已存 Token">
+  `gateway.token_auth_on` 默认为 `true`。`POST /user/token` 保存设备 Token 后，相同 UID 与 `device_flag` 的后续 CONNECT 必须携带完全匹配的值。这个内置检查不提供过期时间或重放策略，生产环境仍必须保护 Token 管理接口并负责签发、轮换和撤销。
 </Callout>
 
 ## 生产要求

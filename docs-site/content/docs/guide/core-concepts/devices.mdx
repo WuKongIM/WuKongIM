@@ -58,7 +58,7 @@ stateDiagram-v2
 ```
 
 <Callout type="warn" title="多端策略由受信后端控制">
-  客户端不能自行选择更高的 Device Level。当前 v3 Beta 的默认 Gateway 也不会自动把已保存的 Token 与 Device Level 变成完整校验链路；请把这项策略纳入[上线检查](/zh/guide/integration/acceptance)。
+  客户端不能自行选择更高的 Device Level。默认 Gateway 只有在 CONNECT Token 与已存设备记录匹配后，才采用该记录的 Device Level；因此只有受信后端可以写 Token 管理接口。完整的过期、重放与风险策略仍应纳入[上线检查](/zh/guide/integration/acceptance)。
 </Callout>
 
 继续阅读[会话](/zh/guide/core-concepts/conversations)和[认证与安全](/zh/guide/integration/authentication)。

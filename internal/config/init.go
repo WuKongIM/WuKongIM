@@ -189,7 +189,8 @@ type initialLogConfig struct {
 }
 
 type initialGatewayConfig struct {
-	Listeners []initialGatewayListener `toml:"listeners"`
+	TokenAuthOn bool                     `toml:"token_auth_on"`
+	Listeners   []initialGatewayListener `toml:"listeners"`
 }
 
 type initialGatewayListener struct {
@@ -256,7 +257,7 @@ func renderInitialConfig(clusterID, joinToken, jwtSecret, adminPassword string, 
 			Console:    false,
 			Format:     "json",
 		},
-		Gateway: initialGatewayConfig{Listeners: []initialGatewayListener{
+		Gateway: initialGatewayConfig{TokenAuthOn: true, Listeners: []initialGatewayListener{
 			{Name: "tcp-wkproto", Network: "tcp", Address: gatewayHost + ":5100", Transport: "gnet", Protocol: "wkproto"},
 			{Name: "ws-gateway", Network: "websocket", Address: gatewayHost + ":5200", Transport: "gnet", Protocol: "wsmux"},
 		}},

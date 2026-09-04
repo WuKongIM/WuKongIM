@@ -32,6 +32,8 @@ var (
 	ErrUserStoreRequired = errors.New("internal/usecase/user: user store required")
 	// ErrDeviceStoreRequired reports that the device metadata store is missing.
 	ErrDeviceStoreRequired = errors.New("internal/usecase/user: device store required")
+	// ErrInvalidToken reports that CONNECT credentials do not match durable device metadata.
+	ErrInvalidToken = errors.New("internal/usecase/user: invalid token")
 )
 
 // UserStore persists UID metadata.
@@ -45,7 +47,7 @@ type DeviceStore interface {
 	UpsertDevice(ctx context.Context, device metadb.Device) error
 }
 
-// DeviceReader loads per-device token metadata.
+// DeviceReader loads per-device token metadata for CONNECT verification and device lifecycle operations.
 type DeviceReader interface {
 	GetDevice(ctx context.Context, uid string, deviceFlag int64) (metadb.Device, error)
 }
@@ -74,7 +76,7 @@ type Options struct {
 	Users UserStore
 	// Devices stores durable per-device token metadata.
 	Devices DeviceStore
-	// DeviceReader loads stored device metadata for device-quit requests.
+	// DeviceReader loads stored device metadata for CONNECT verification and device-quit requests.
 	DeviceReader DeviceReader
 	// Online indexes owner-local gateway sessions.
 	Online *online.Registry

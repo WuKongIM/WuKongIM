@@ -34,8 +34,8 @@ Successful response:
 {"status": 200}
 ```
 
-<Callout type="error" title="The default connection does not yet verify this token">
-  The current app composition creates the Gateway authenticator without enabling `TokenAuthOn` or injecting the stored-token verifier. A successful `/user/token` call therefore does not mean a later CONNECT validates that token. Do not treat the default v3 Beta build as a complete production identity boundary.
+<Callout type="warn" title="The default connection verifies this token">
+  `gateway.token_auth_on` defaults to `true`, and the current app composition injects the stored device-token verifier. A later CONNECT for the same UID and `device_flag` must carry the exact token; an empty token, missing device record, or mismatch returns `ReasonAuthFail`. Set it to `false` only for a controlled compatibility migration.
 </Callout>
 
 The Gateway still:
@@ -53,15 +53,17 @@ Session encryption protects protocol payloads, but it does not replace product a
 sequenceDiagram
   participant Client
   participant Product as Product service
-  participant Identity as Trusted identity store
+  participant API as WuKongIM Product HTTP
+  participant Metadata as Device-token metadata
   participant Gateway
   Client->>Product: sign in with password / OAuth / enterprise SSO
   Product->>Product: validate account, tenant, device, and risk policy
-  Product->>Identity: store a short-lived, revocable, high-entropy token
+  Product->>API: POST /user/token with a high-entropy token
+  API->>Metadata: persist by UID + device_flag
   Product-->>Client: return only UID, device parameters, route, and token
   Client->>Gateway: CONNECT + token
-  Gateway->>Identity: verify token and revocation state
-  Identity-->>Gateway: allow or reject
+  Gateway->>Metadata: read device token and Device Level
+  Metadata-->>Gateway: exact match or reject
   Gateway-->>Client: CONNACK
 ```
 
@@ -78,7 +80,7 @@ Only trusted product services may access user-token management routes. Add end-t
 }
 ```
 
-While default token verification remains disabled, this operation alone cannot guarantee that a client is unable to CONNECT again. Production revocation must invalidate the credential, close existing sessions, and prove that reconnect is rejected.
+With default token verification enabled, clearing the durable token makes a later CONNECT fail and also closes matching existing sessions. Production should still prove closure and reconnect rejection and synchronize revocation, rotation, and audit state with the product identity system.
 
 ## HTTP boundary
 

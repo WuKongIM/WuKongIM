@@ -39,7 +39,7 @@ description: 完整查阅当前 0–29 协议原因码的名称、阶段、重�
 
 对持久 SEND，成功 SENDACK 表示 Channel 权威已经作出持久提交成功决定。它不证明在线接收、RECVACK、Webhook、插件、离线同步或业务动作完成。
 
-CONNACK 成功只表示当前 Gateway 连接阶段完成。默认 v3 Beta 组合尚未自动使用已存 Token 做 CONNECT 校验，因此不能把成功 CONNACK 描述为生产业务身份已验证。
+CONNACK 成功表示当前 Gateway 连接阶段完成；当默认的 `gateway.token_auth_on=true` 时，还表示 CONNECT Token 与相同 UID、设备类别的已存 Token 匹配。它仍不证明账号登录、业务授权、凭据过期或重放策略已经完成。
 
 ## 预期结果
 

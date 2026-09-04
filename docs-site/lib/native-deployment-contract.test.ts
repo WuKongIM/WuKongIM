@@ -73,6 +73,9 @@ describe('native deployment publication contract', () => {
         'data_dir = "/var/lib/wukongim"',
         'listen_addr = "127.0.0.1:7001"',
         'listen_addr = "0.0.0.0:5001"',
+        '[gateway]',
+        'token_auth_on = true',
+        'ReasonAuthFail',
         'listen_addr = "0.0.0.0:5301"',
         'auth_on = true',
         'jwt_secret = "replace-with-a-random-64-character-secret"',
@@ -90,6 +93,7 @@ describe('native deployment publication contract', () => {
         'http://127.0.0.1:5301',
         'http://127.0.0.1:5001/readyz',
         '/guide/quick-start',
+        '/server/configuration/security',
         '/server/configuration/reference',
         'docker volume rm wukongim-data',
       ]) {
@@ -119,7 +123,6 @@ describe('native deployment publication contract', () => {
         'level =',
         'console =',
         '[diagnostics]',
-        '[gateway]',
         '[plugin]',
       ]) {
         expect(content).not.toContain(optional);

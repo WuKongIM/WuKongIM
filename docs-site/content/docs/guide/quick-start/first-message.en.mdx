@@ -35,7 +35,7 @@ Wait for the second page to report a successful connection. Separate browser ses
 On Bob's page, open a direct chat with `quickstart-alice` and reply with `hello from bob`. The first two-way message check is complete when Alice receives it.
 
 <Callout type="info" title="What this verifies">
-  This path covers demo token registration, route discovery, a WebSocket connection, channel message commit, and online delivery. It proves the local development path works, but it does not replace production authentication, TLS, capacity, recovery, or durability validation.
+  This path covers demo token registration, the default exact-match CONNECT token check, route discovery, a WebSocket connection, channel message commit, and online delivery. It proves the local development path works, but it does not replace production account authentication, token expiry and replay policy, TLS, capacity, recovery, or durability validation.
 </Callout>
 
 ## Troubleshooting

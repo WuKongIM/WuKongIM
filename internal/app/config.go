@@ -122,6 +122,9 @@ type ManagerPermissionConfig struct {
 
 // GatewayConfig contains client gateway settings.
 type GatewayConfig struct {
+	// TokenAuthOn requires CONNECT credentials to match durable UID/device token metadata.
+	// It defaults to true; call SetTokenAuthOn to preserve an explicit false value.
+	TokenAuthOn bool
 	// Listeners configures client-facing gateway listeners.
 	Listeners []gateway.ListenerOptions
 	// Session configures gateway session limits and batching.
@@ -132,6 +135,17 @@ type GatewayConfig struct {
 	Transport gateway.TransportOptions
 	// SendTimeout bounds each gateway-origin message send.
 	SendTimeout time.Duration
+
+	tokenAuthOnSet bool
+}
+
+// SetTokenAuthOn records an explicit CONNECT token-authentication setting.
+func (c *GatewayConfig) SetTokenAuthOn(enabled bool) {
+	if c == nil {
+		return
+	}
+	c.TokenAuthOn = enabled
+	c.tokenAuthOnSet = true
 }
 
 // BenchConfig contains benchmark-only API settings.

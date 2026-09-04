@@ -49,9 +49,13 @@ GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
 | `[cluster]` | 集群 ID、节点地址、Slot、复制和节点间监听 |
 | `[api]` | HTTP API 与对外 TCP/WebSocket 地址 |
 | `[manager]` | Manager 监听、认证、JWT 和管理用户 |
-| `[gateway]` | TCP/WebSocket Listener 与异步队列 |
+| `[gateway]` | TCP/WebSocket Listener、CONNECT Token 鉴权与异步队列 |
 | `[observability]`、`[log]` | 指标开关与日志 |
 | `[diagnostics]` | 诊断采样、缓冲和慢请求阈值 |
+
+<Callout type="warn" title="CONNECT Token 鉴权默认开启">
+  `gateway.token_auth_on` 默认为 `true`。受信后端应先通过 `/user/token` 保存 UID 与设备类别对应的 Token；后续 CONNECT 必须携带完全匹配的值。不要为方便联调而在生产关闭它，完整语义见[安全与权限](/zh/server/configuration/security)。
+</Callout>
 
 修改配置后需要重启节点。多节点集群中的节点 ID 和广告地址必须唯一；`0.0.0.0` 只能作为监听地址，不能作为其他节点连接的广告地址。
 
@@ -60,6 +64,7 @@ GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
 示例配置只用于开发。在生产使用前至少应：
 
 - 替换 Manager 账号、JWT Secret、集群 Join Token 和其他固定能力凭据。
+- 保持 `gateway.token_auth_on=true`，并验证错误、缺失、已撤销 Token 都不能 CONNECT。
 - 只向受信任网络开放 Manager、指标、Debug、Benchmark 和诊断接口。
 - 为客户端和管理流量配置 TLS 与访问策略。
 - 把每个节点的数据放在独立、持久且可监控的存储上。

@@ -21,7 +21,7 @@ flowchart LR
 
 ## 1. Prepare product-owned device data
 
-At minimum, the product service stores stable UID, device ID, platform, provider token, token version, authorization state, locale, quiet hours, and the latest invalidation reason. `/user/token` can maintain compatible device metadata, but there is no current public token-read API for a push worker, and the default Beta Gateway does not automatically validate CONNECT against this metadata.
+At minimum, the product service stores stable UID, device ID, platform, provider token, token version, authorization state, locale, quiet hours, and the latest invalidation reason. `/user/token` stores a CONNECT credential that the default Gateway validates by UID and device category; it is not a push-provider token, and there is no current public token-read API for a push worker.
 
 Production push therefore uses the product database as its source of truth and updates it during login, token refresh, logout, and provider invalidation callbacks. Never use a nickname or transient Session ID as the push identity.
 

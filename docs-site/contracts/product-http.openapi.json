@@ -107,8 +107,8 @@
       "post": {
         "operationId": "setQuickstartUserToken",
         "summary": "Create or update a device token",
-        "description": "Creates missing UID metadata and upserts one device token; the current product composition does not enable CONNECT token authentication.",
-        "x-i18n": { "zh": { "summary": "创建或更新设备 Token", "description": "创建缺失的 UID 元数据并更新一个设备 Token；当前产品装配未启用 CONNECT Token 鉴权。" } },
+        "description": "Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.",
+        "x-i18n": { "zh": { "summary": "创建或更新设备 Token", "description": "创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。" } },
         "tags": ["Users"],
         "security": [],
         "x-wukongim-trust": "trusted-backend-only",

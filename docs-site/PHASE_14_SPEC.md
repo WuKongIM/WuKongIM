@@ -103,9 +103,10 @@ integrator guide requires separate evidence for:
 - metrics, alerts, backup/restore, incident diagnostics, and audit; and
 - canary rollout, version pinning, rollback criteria, and rollback rehearsal.
 
-The current default v3 Beta composition fails the stored-token verification
-gate until the deployment wires a real verifier. Documentation must not turn a
-successful `/user/token`, CONNECT, or compatibility smoke into contrary proof.
+The current default composition passes the stored-token exact-match gate, but
+does not implement credential issuance, expiry, replay protection, or a full
+rotation lifecycle. Documentation must not turn a successful `/user/token`,
+CONNECT, or compatibility smoke into contrary proof.
 
 ## Acceptance report contract
 

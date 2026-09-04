@@ -23,7 +23,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
 | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
 | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 95 | ok |
+| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 96 | ok |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 100 | ok |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 100 | ok |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 53 | ok |
@@ -68,7 +68,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `package` | Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping. | 73 | ok |
 | [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 57 | ok |
 | [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `package` | Owns deterministic Review Agent commands, PR lifecycle reconciliation, scheduling, projection planning, and publication policy. | 53 | ok |
-| [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 51 | ok |
+| [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 55 | ok |
 | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |
 | [pkg/bench/model/FLOW.md](../../pkg/bench/model/FLOW.md) | `package` | Defines shared wkbench configuration, deterministic plans, reports, rates, scenario digests, and bench target API DTOs. | 66 | ok |
 | [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 91 | ok |

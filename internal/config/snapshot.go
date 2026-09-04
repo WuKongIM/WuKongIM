@@ -103,6 +103,7 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":       effectiveInteger(values, "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", applyWorkers, applyDerived),
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               effectiveInteger(values, "WK_CLUSTER_CHANNEL_RPC_WORKERS", rpcWorkers, rpcDerived),
 		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       effectiveInteger(values, "WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS", rpcBatchMaxItems, rpcBatchDerived),
+		"WK_GATEWAY_TOKEN_AUTH_ON":                     effectiveBoolean(values, "WK_GATEWAY_TOKEN_AUTH_ON", cfg.Gateway.TokenAuthOn, false),
 		"WK_GATEWAY_GNET_MULTICORE":                    effectiveBoolean(values, "WK_GATEWAY_GNET_MULTICORE", cfg.Gateway.Transport.Gnet.Multicore, multicoreDerived),
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               effectiveInteger(values, "WK_GATEWAY_GNET_NUM_EVENT_LOOP", cfg.Gateway.Transport.Gnet.NumEventLoop, eventLoopsDerived),
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        effectiveInteger(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", gatewayRuntime.AsyncSendWorkers, cfg.Gateway.Runtime.AsyncSendWorkers != gatewayRuntime.AsyncSendWorkers),

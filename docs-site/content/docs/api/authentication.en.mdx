@@ -16,8 +16,8 @@ flowchart LR
 
 The browser should receive only the UID, temporary token, and WebSocket address needed for its current connection. It must not receive the Product HTTP address or a server credential.
 
-<Callout type="error" title="Storing a token is not CONNECT authentication">
-  `POST /user/token` only stores device-token metadata. The default Gateway does not automatically validate a later CONNECT against that record; production must add explicit token validation and rejection policy.
+<Callout type="warn" title="The default Gateway exactly matches stored tokens">
+  `gateway.token_auth_on` defaults to `true`. After `POST /user/token` stores a device token, a later CONNECT for the same UID and `device_flag` must carry the exact value. This built-in check has no expiry timestamp or replay policy, so production must still protect token-management routes and own issuance, rotation, and revocation.
 </Callout>
 
 ## Production requirements

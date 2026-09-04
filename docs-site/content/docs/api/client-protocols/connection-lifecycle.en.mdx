@@ -40,6 +40,6 @@ The default read-idle timeout is three minutes. Only inbound activity refreshes 
 
 After close, stop new sends. Reuse a stable `client_msg_no` for the same product send and distinct `client_seq` values for concurrent wire attempts. Return to ready only after CONNACK succeeds and durable-message recovery completes.
 
-The current default composition enables Session payload encryption; CONNECT without `client_key` returns `ReasonClientKeyIsEmpty`. This encryption does not replace TLS, product identity and token verification, or Product HTTP protection. The default composition also does not automatically turn a stored token into a CONNECT verifier; production must wire explicit verification and revocation policy.
+The current default composition enables Session payload encryption and stored device-token validation. CONNECT without `client_key` returns `ReasonClientKeyIsEmpty`; an empty token, missing device record, or mismatch returns `ReasonAuthFail`. Exact token matching does not replace TLS, account login, credential-expiry or replay policy, or Product HTTP protection.
 
 Continue with [Packet Types](/en/api/client-protocols/packet-types) and [Reason Codes](/en/api/dictionaries/reason-codes).

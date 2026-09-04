@@ -271,8 +271,8 @@ export const javascriptWebCapabilities = [
     status: 'boundary',
     capability: { zh: '生产连接身份校验', en: 'Production connection authentication' },
     evidence: {
-      zh: '默认 v3 Beta 组合未启用已存 Token verifier；开发连接成功不是生产鉴权证据。',
-      en: 'The default v3 Beta composition has no stored-token verifier; a successful development connection is not production-authentication evidence.',
+      zh: '默认 Gateway 会精确匹配已存设备 Token；开发场景尚未证明过期、重放策略或 Product HTTP 身份边界。',
+      en: 'The default Gateway exactly matches stored device tokens; the development scenario does not prove expiry, replay policy, or the Product HTTP identity boundary.',
     },
   },
   {

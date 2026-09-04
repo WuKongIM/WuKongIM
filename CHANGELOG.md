@@ -17,6 +17,10 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+### ⚠️ Breaking Changes / 破坏性变更
+
+- Gateway 现在默认启用 CONNECT Token 鉴权，并按 UID 与设备类别精确校验 `/user/token` 持久化的设备凭据；升级前必须先为客户端准备 Token，或仅在受控兼容迁移期间设置 `gateway.token_auth_on=false`。
+
 ### 📚 Documentation / 文档
 
 - 项目根目录恢复 Apache License 2.0 正文，并将中英文 README 的许可证声明链接到仓库内文件。

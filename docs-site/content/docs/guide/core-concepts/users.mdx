@@ -50,7 +50,7 @@ UID 来自你的业务系统。WuKongIM 使用它进行连接、路由、设备�
 5. 连接成功后，客户端才能以该 UID 收发消息和同步会话。
 
 <Callout type="warn" title="生产鉴权边界">
-  当前 v3 Beta 默认组合不会仅凭已写入的 Token 元数据，就自动形成完整的 CONNECT 鉴权。客户端也不应直接访问 Product HTTP。生产环境必须让受信后端控制凭据，并按[身份与 Token](/zh/guide/integration/authentication)接入 Gateway 校验。
+  当前 v3 Beta 默认组合会把 CONNECT Token 与相同 UID、设备类别的已存 Token 精确匹配，但这不是完整的账号与权限系统。客户端不应直接访问 Product HTTP；生产环境必须让受信后端控制签发、过期、轮换和撤销，并保护 Token 管理接口。
 </Callout>
 
 继续阅读[设备](/zh/guide/core-concepts/devices)和[身份与 Token](/zh/guide/integration/authentication)。需要理解跨节点在线路由时查看[用户连接路由](/zh/server/architecture/user-routing)。

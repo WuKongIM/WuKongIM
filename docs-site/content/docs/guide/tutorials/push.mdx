@@ -21,7 +21,7 @@ flowchart LR
 
 ## 1. 准备业务侧设备数据
 
-业务服务至少保存：稳定 UID、设备 ID、平台、厂商 Token、Token 版本、授权状态、语言、静默时段和最近失效原因。`/user/token` 可以维护兼容设备元数据，但当前没有面向推送工作器的公开 Token 查询接口，默认 Beta Gateway 也不会自动使用这份元数据验证 CONNECT。
+业务服务至少保存：稳定 UID、设备 ID、平台、厂商 Token、Token 版本、授权状态、语言、静默时段和最近失效原因。`/user/token` 保存的是 CONNECT 凭据，默认 Gateway 会按 UID 与设备类别校验它；它不是厂商推送 Token，当前也没有面向推送工作器的公开 Token 查询接口。
 
 因此，生产推送应以业务数据库为准，并在登录、Token 刷新、退出和厂商失效回执时更新状态。不要把昵称或临时 Session ID 当作推送身份。
 

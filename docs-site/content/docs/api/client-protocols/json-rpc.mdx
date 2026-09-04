@@ -30,6 +30,6 @@ CONNACK 与 SENDACK 成功时同时输出 camelCase 与 Android snake_case 字�
 
 ## 已验证范围
 
-服务端 fixture 覆盖当前 iOS `v1.1.1`、Android `v1.0.5`、Flutter `v1.1.0` 与 Web `v2.0.4` 保留的固定 wire profile；这些补丁版本不改变被测 JSON-RPC 形态。真实 `cmd/wukongim` 256 Slot 单节点集群场景使用 iOS 与 Android profile，覆盖 Alice/Bob 双向 CONNECT → SEND → SENDACK → RECV → RECVACK → Ping、断连后的在线状态清理和重连。另一次正式包验收从四个 Registry 解析这些版本，并在 Android 与 iOS Simulator 上完成双向消息。两类凭据都不证明默认部署已启用生产 Token 校验。
+服务端 fixture 覆盖当前 iOS `v1.1.1`、Android `v1.0.5`、Flutter `v1.1.0` 与 Web `v2.0.4` 保留的固定 wire profile；这些补丁版本不改变被测 JSON-RPC 形态。真实 `cmd/wukongim` 256 Slot 单节点集群场景使用 iOS 与 Android profile，覆盖 Alice/Bob 双向 CONNECT → SEND → SENDACK → RECV → RECVACK → Ping、断连后的在线状态清理和重连。另一次正式包验收从四个 Registry 解析这些版本，并在 Android 与 iOS Simulator 上完成双向消息。默认 `gateway.token_auth_on=true` 会执行已存设备 Token 精确匹配；生产验收仍需单独证明错误、缺失、撤销和按业务规则过期的 Token 都会被拒绝。
 
 需要轻量在线消息时可使用 [WuKongEasySDK](/zh/sdk/easy)。需要本地消息库、会话、未读、离线恢复或更完整能力时，选择 WKProto 系列 SDK，并参考 [TCP 二进制协议](/zh/api/client-protocols/tcp-binary)。

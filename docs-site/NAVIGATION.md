@@ -49,7 +49,7 @@ Route: `/{lang}/server`
   - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 从签名 APT/DNF Preview 软件源安装，并用安全配置和 systemd 运行服务。 / Installs from the signed APT/DNF preview repository and runs the service with secure configuration and systemd.
   - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划成员、副本、故障域并验证集群就绪。 / Plans membership, replicas, failure domains, and cluster readiness.
 - **配置 / Configuration** `/{lang}/server/configuration` — 解释配置来源、覆盖规则和各领域配置。 / Explains configuration sources, override rules, and domain settings.
-  - **常用配置 / Common Configurations** `/{lang}/server/configuration/common-configurations` — 以表格解释最常用的 10 个配置项及其关键边界。 / Explains the 10 most-used settings and their key boundaries in a table.
+  - **常用配置 / Common Configurations** `/{lang}/server/configuration/common-configurations` — 以表格解释高频配置项及其关键边界。 / Explains frequently used settings and their key boundaries in a table.
   - **节点与集群 / Nodes & Cluster** `/{lang}/server/configuration/cluster` — 节点身份、集群地址、Slot、副本和节点发现配置。 / Node identity, cluster addresses, slots, replicas, and discovery settings.
   - **网络与客户端接入 / Networking & Client Access** `/{lang}/server/configuration/networking` — TCP、WebSocket、HTTP、Manager 和节点通信监听配置。 / Listener settings for TCP, WebSocket, HTTP, Manager, and inter-node traffic.
   - **消息与存储 / Messages & Storage** `/{lang}/server/configuration/storage` — 消息保留、存储路径、队列、批处理和性能配置。 / Message retention, storage paths, queues, batching, and performance settings.
@@ -158,7 +158,7 @@ Route: `/{lang}/api`
 
 - **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 41 条 Product HTTP 操作。 / Browse all 41 Product HTTP operations registered by the current source.
   - **用户 / Users** `/{lang}/api/product-http/users` — 设备 Token、在线状态与系统身份。 / Device tokens, presence, and system identities.
-    - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；当前产品装配未启用 CONNECT Token 鉴权。 / Creates missing UID metadata and upserts one device token; the current product composition does not enable CONNECT token authentication.
+    - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。 / Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.
     - **退出用户设备 / Clear a user device token** **POST** `/{lang}/api/product-http/users/quitUserDevice` — 清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。 / Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.
     - **查询用户在线路由 / List active user routes** **POST** `/{lang}/api/product-http/users/listUserOnlineStatus` — 每条活跃权威路由返回一行；空 UID 数组返回旧式 status 对象而不是数组。 / Returns one row per active authority route; an empty UID array returns the legacy status object instead of an array.
     - **添加系统 UID / Add system UIDs** **POST** `/{lang}/api/product-http/users/addSystemUIDs` — 持久化系统身份并加入当前进程缓存。 / Persists system identities and adds them to the current process cache.

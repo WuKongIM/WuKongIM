@@ -74,7 +74,7 @@ curl -fsS -X POST http://127.0.0.1:5001/user/token \
   -d '{"uid":"bob","token":"bob-token","device_flag":0,"device_level":1}'
 ```
 
-Native mobile clients use APP `0`, Web uses WEB `1`, and desktop uses PC `2`. A successful response from this endpoint does not give the default product composition production-grade CONNECT token validation. After installing a trusted validator, separately prove rejection of invalid, expired, and revoked tokens.
+Native mobile clients use APP `0`, Web uses WEB `1`, and desktop uses PC `2`. The default product composition exactly validates the stored token for the same UID and device category. A production deployment must still protect this route, implement expiry and rotation policy, and separately prove rejection of invalid, revoked, and product-expired tokens.
 
 Choose the WebSocket URL from where the client runs:
 
@@ -180,7 +180,7 @@ Send success, peer realtime receipt, peer display, and product handling are four
 - **A checked-out tag behaves differently from the table:** verify that `git rev-parse HEAD` and each package-manager lockfile match the current pins. Do not let a local `path`, `project(':')`, or cached dependency stand in for the registry artifact.
 - **SEND succeeds but the peer sees nothing:** verify that the target Channel ID equals the peer UID, both clients are online, and the receiver did not drop RECV through duplicate listeners or incorrect deduplication.
 - **An iOS or Android build asks for a License:** accept the applicable Xcode or Android SDK Manager license and download the target runtime, then rerun the same command.
-- **A local token connects:** that is not production authentication evidence. Continue until invalid, expired, revoked, and replayed tokens are rejected by a trusted validator.
+- **A local token connects:** that proves only the built-in exact match. Continue until invalid, revoked, and product-expired tokens are rejected, and define replay limits for still-valid credentials.
 
 ## Next step
 

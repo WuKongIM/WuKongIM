@@ -201,9 +201,10 @@ Important semantics are frozen as follows:
 
 - `POST /user/token` is a trusted metadata mutation. Success does not prove
   that a later CONNECT validated the token.
-- The default v3 Beta app composition does not enable stored-token validation
-  in the Gateway Authenticator. This gap must appear prominently in SDK, API,
-  and Quickstart pages.
+- The default app composition enables stored-token validation in the Gateway
+  Authenticator. A non-visitor CONNECT must exactly match the token stored for
+  the same UID and device category; this check is still not a complete
+  credential issuance, expiry, rotation, or replay-protection lifecycle.
 - `GET /route` currently returns configured ingress addresses. The sample does
   not put a UID in the query string; route success is neither business
   authorization nor proof of one Session's owner node.

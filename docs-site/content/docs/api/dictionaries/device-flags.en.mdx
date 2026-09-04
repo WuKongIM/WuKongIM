@@ -25,11 +25,11 @@ The tables align with `internal/contracts/protocolmeta/types.go` and `pkg/protoc
 
 Do not use a phone brand, browser user agent, or OS version directly as `device_id`. Generate a stable random identifier and define whether reinstall, cleared storage, device migration, or backup restore creates a new ID.
 
-## Current authentication limitation
+## Current authentication behavior
 
-Token metadata can store Device Level, and the user use case can schedule matching local Sessions to close after a Master update or device quit. However, the default v3 Beta Gateway has no injected stored-token verifier, so CONNECT uses Slave level by default.
+`gateway.token_auth_on` defaults to `true`. Gateway reads the stored device token by UID and Device Flag, and the Session adopts that record's Device Level only after the CONNECT token matches exactly. An empty token, missing or cleared device record, or mismatch returns `ReasonAuthFail`.
 
-Setting `device_level=1` therefore does not prove that a later connection becomes single-active. Before release, wire the verifier into Gateway and test new Master connection, old Session closure, cross-node conflict, revocation, and reconnect rejection.
+After a trusted backend writes `device_level=1`, a connection with the matching token therefore adopts Master policy. Before release, still test new Master connection, old Session closure, cross-node conflict, revocation, and reconnect rejection. Do not disable token authentication in production to bypass those checks.
 
 ## Integration guidance
 

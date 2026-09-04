@@ -13,6 +13,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	accessops "github.com/WuKongIM/WuKongIM/internal/access/opsmcp"
 	opscontract "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
@@ -34,6 +35,7 @@ import (
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -50,6 +52,7 @@ func (a *App) applyConfigDefaults() error {
 // without constructing runtimes or touching the filesystem.
 func NormalizeConfig(cfg Config) (Config, error) {
 	var err error
+	cfg.Gateway = defaultGatewayConfig(cfg.Gateway)
 	cfg.Manager = defaultManagerConfig(cfg.Manager)
 	if err := validateManagerConfig(cfg.Manager); err != nil {
 		return Config{}, err
@@ -103,6 +106,13 @@ func NormalizeConfig(cfg Config) (Config, error) {
 	}
 	cfg.Log = defaultLogConfig(cfg.Log)
 	return cfg, nil
+}
+
+func defaultGatewayConfig(cfg GatewayConfig) GatewayConfig {
+	if !cfg.tokenAuthOnSet {
+		cfg.TokenAuthOn = true
+	}
+	return cfg
 }
 
 func (a *App) applyOptions(opts []Option) {
@@ -1224,7 +1234,7 @@ func (a *App) wireGateway(nodeID uint64) error {
 	if a.gateway == nil && len(a.cfg.Gateway.Listeners) > 0 {
 		gw, err := gateway.New(gateway.Options{
 			Handler:        a.handler,
-			Authenticator:  gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: nodeID}),
+			Authenticator:  a.newGatewayAuthenticator(nodeID),
 			Listeners:      a.cfg.Gateway.Listeners,
 			DefaultSession: a.cfg.Gateway.Session,
 			Runtime: func() gateway.RuntimeOptions {
@@ -1242,4 +1252,18 @@ func (a *App) wireGateway(nodeID uint64) error {
 		a.gateway = gw
 	}
 	return nil
+}
+
+func (a *App) newGatewayAuthenticator(nodeID uint64) gateway.Authenticator {
+	opts := gateway.WKProtoAuthOptions{
+		TokenAuthOn: a.cfg.Gateway.TokenAuthOn,
+		NodeID:      nodeID,
+	}
+	if a.users != nil {
+		opts.VerifyToken = func(uid string, deviceFlag frame.DeviceFlag, token string) (frame.DeviceLevel, error) {
+			level, err := a.users.VerifyToken(context.Background(), uid, protocolmeta.DeviceFlag(deviceFlag), token)
+			return frame.DeviceLevel(level), err
+		}
+	}
+	return gateway.NewWKProtoAuthenticator(opts)
 }

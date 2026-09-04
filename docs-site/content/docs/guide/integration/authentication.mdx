@@ -34,8 +34,8 @@ WuKongIM 使用 UID 标识用户，使用 `device_flag` 区分平台类别，使
 {"status": 200}
 ```
 
-<Callout type="error" title="默认连接尚未校验这个 Token">
-  当前应用组合创建 Gateway Authenticator 时没有启用 `TokenAuthOn`，也没有注入存储 Token 校验器。因此 `/user/token` 成功不等于后续 CONNECT 已验证该 Token。不要把默认 v3 Beta 构建作为完整生产身份边界。
+<Callout type="warn" title="默认连接会校验这个 Token">
+  `gateway.token_auth_on` 默认为 `true`，当前应用组合会注入已存设备 Token 校验器。后续相同 UID 与 `device_flag` 的 CONNECT 必须携带完全匹配的 Token；空 Token、缺少设备记录或不匹配都会返回 `ReasonAuthFail`。设置为 `false` 只应用于受控兼容迁移。
 </Callout>
 
 Gateway 当前仍会：
@@ -53,15 +53,17 @@ Gateway 当前仍会：
 sequenceDiagram
   participant Client as 客户端
   participant Product as 业务服务
-  participant Identity as 可信身份存储
+  participant API as WuKongIM Product HTTP
+  participant Metadata as 设备 Token 元数据
   participant Gateway as Gateway
   Client->>Product: 密码 / OAuth / 企业 SSO 登录
   Product->>Product: 校验账号、租户、设备与风险策略
-  Product->>Identity: 保存短生命周期、可撤销的高熵 Token
+  Product->>API: POST /user/token 保存高熵 Token
+  API->>Metadata: 按 UID + device_flag 持久化
   Product-->>Client: 仅返回 UID、设备参数、路由与 Token
   Client->>Gateway: CONNECT + Token
-  Gateway->>Identity: 验证 Token 与撤销状态
-  Identity-->>Gateway: 允许或拒绝
+  Gateway->>Metadata: 读取设备 Token 与 Device Level
+  Metadata-->>Gateway: 精确匹配或拒绝
   Gateway-->>Client: CONNACK
 ```
 
@@ -78,7 +80,7 @@ sequenceDiagram
 }
 ```
 
-在默认 Token 校验尚未启用时，这个操作不能保证阻止客户端重新 CONNECT。生产撤销必须同时使凭据失效、关闭现有会话，并验证重连会被拒绝。
+默认 Token 校验开启时，清空持久化 Token 会使后续 CONNECT 失败，同时关闭现有匹配会话。生产环境仍应验证关闭与重连拒绝，并在业务身份系统中同步撤销、轮换和审计状态。
 
 ## HTTP 边界
 

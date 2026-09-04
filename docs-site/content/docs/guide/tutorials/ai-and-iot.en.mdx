@@ -6,7 +6,7 @@ description: Combine AI stream projections, device telemetry, durable command sy
 This tutorial covers two scenarios that share one messaging foundation but have different success criteria: AI answers need recoverable stream state, while IoT needs bounded telemetry and idempotent device commands. The product always owns model invocation, device credentials, business policy, and execution outcomes.
 
 <Callout type="warn" title="HTTP examples belong behind a trusted service boundary">
-  Current product HTTP routes have no general product authentication, and the default Beta Gateway does not automatically validate every CONNECT against stored `/user/token` metadata. Browsers, mobile clients, and device firmware must not hold these server capabilities directly.
+  The default Beta Gateway validates stored `/user/token` device credentials, but current Product HTTP routes have no general product authentication. Browsers, mobile clients, and device firmware must not hold these server capabilities directly; token writes and other HTTP mutations belong behind a trusted service boundary.
 </Callout>
 
 ## AI: create a durable stream anchor

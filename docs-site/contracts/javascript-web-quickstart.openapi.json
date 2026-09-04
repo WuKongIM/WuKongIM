@@ -31,11 +31,11 @@
       "post": {
         "operationId": "setQuickstartUserToken",
         "summary": "Register the quickstart user's development token",
-        "description": "Stores device-token metadata for a development identity. It does not enable production CONNECT authentication.",
+        "description": "Stores the device token required by the default Gateway's exact-match CONNECT check. It does not provide a complete production credential lifecycle.",
         "x-i18n": {
           "zh": {
             "summary": "登记快速开始用户的开发 Token",
-            "description": "保存开发身份的设备 Token 元数据；它不会启用生产 CONNECT 鉴权。"
+            "description": "保存默认 Gateway 对该开发身份执行 CONNECT 精确匹配所需的设备 Token；它不提供完整的生产凭据生命周期。"
           }
         },
         "tags": ["Users"],

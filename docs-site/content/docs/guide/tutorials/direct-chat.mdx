@@ -42,8 +42,8 @@ curl -sS http://127.0.0.1:5001/user/token \
   -d '{"uid":"alice","token":"alice-local-only","device_flag":0,"device_level":1}'
 ```
 
-<Callout type="error" title="这不是生产鉴权证明">
-  默认 v3 Beta Gateway 不会自动使用已存 Token 验证每个 CONNECT。生产发布前必须接入显式凭据校验，并证明错误、过期或撤销 Token 无法连接。
+<Callout type="warn" title="内置校验不是完整生产身份系统">
+  默认 v3 Beta Gateway 会要求 CONNECT Token 与相同 UID、设备类别的已存 Token 精确匹配。生产发布前仍需保护 `/user/token`、实现过期与轮换策略，并证明错误、撤销和按业务规则过期的 Token 无法连接。
 </Callout>
 
 为 Bob 保存独立凭据，然后让两个客户端分别使用自己的 UID、设备标识和 Token 建立连接。没有 SDK 集成时，可以先用[内嵌 Chat Demo](/zh/guide/quick-start/first-message)验证两个浏览器会话。

@@ -88,7 +88,8 @@ client API. Every common guide must:
 - distinguish current server semantics from application recommendations;
 - keep product accounts, authorization, device registration, push providers,
   business receipts, and local UI state application-owned;
-- preserve the default v3 Beta stored-token verification warning.
+- preserve the boundary between the default exact-match stored-token check and
+  a complete production credential lifecycle.
 
 The JavaScript/Web golden path remains the only executable client scenario and
 the only client target eligible for its existing verification receipt.
@@ -103,8 +104,9 @@ subset, or browser support.
   one concrete installation; Device Level is same-category conflict policy.
 - Credentials originate from a trusted backend, remain short-lived and
   revocable, and never grant Product HTTP management capability to a client.
-- `/user/token` persists device-token metadata, but the default app composition
-  still creates the Gateway Authenticator without stored-token verification.
+- `/user/token` persists device-token metadata, and the default app composition
+  requires a later non-visitor CONNECT to match the stored token for the same
+  UID and device category.
 - Revocation is complete only after durable invalidation, Session closure, and
   a proven reconnect rejection.
 

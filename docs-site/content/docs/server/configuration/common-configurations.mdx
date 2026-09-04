@@ -1,15 +1,15 @@
 ---
 title: 常用配置
-description: WuKongIM 最常用的 10 个配置项及其作用、默认行为和关键限制。
+description: WuKongIM 高频配置项及其作用、默认行为和关键限制。
 ---
 
-本页只保留启动、客户端接入和日常运维中最常查阅的 10 个配置项。每项均可通过 TOML 或环境变量设置；同时提供时，环境变量会覆盖配置文件。全部字段及精确语义见[配置参考](/zh/server/configuration/reference)。
+本页只保留启动、客户端接入和日常运维中最常查阅的配置项。每项均可通过 TOML 或环境变量设置；同时提供时，环境变量会覆盖配置文件。全部字段及精确语义见[配置参考](/zh/server/configuration/reference)。
 
 <Callout type="info" title="所有部署都是集群">
   单节点部署也是单节点集群。所有场景都必须设置 `node.id`、`node.data_dir` 和 `cluster.listen_addr`；修改配置后通常需要重启节点。
 </Callout>
 
-## 最常用的 10 项
+## 高频配置
 
 | 配置（TOML / 环境变量） | 作用 | 默认与注意事项 |
 | --- | --- | --- |
@@ -19,6 +19,7 @@ description: WuKongIM 最常用的 10 个配置项及其作用、默认行为和
 | [`cluster.nodes`](/zh/server/configuration/cluster)<br />`WK_CLUSTER_NODES` | 定义静态 Controller 投票节点列表，元素包含节点 `id` 和集群地址 `addr`。 | 同时未配置 `cluster.seeds` 时，省略或使用空列表会回退为隐式单节点集群；不能与非空 `cluster.seeds` 同时使用。环境变量必须使用 JSON，并替换整张列表。 |
 | [`cluster.slot_replica_n`](/zh/server/configuration/cluster)<br />`WK_CLUSTER_SLOT_REPLICA_N` | 设置集群首次初始化时每个 Slot Raft Group 的投票副本数。 | `0` 在静态拓扑按投票节点数推导，种子加入时使用 `1`；已有集群以 Controller 持久状态为准。 |
 | [`gateway.listeners`](/zh/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | 定义客户端使用的 TCP 或 WebSocket 监听器。 | 省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表会关闭 Gateway。环境变量必须使用 JSON。 |
+| [`gateway.token_auth_on`](/zh/server/configuration/security)<br />`WK_GATEWAY_TOKEN_AUTH_ON` | 要求 CONNECT Token 与相同 UID、`device_flag` 的已存设备 Token 完全匹配。 | 默认为 `true`；空 Token、缺少记录或不匹配会返回 `ReasonAuthFail`。仅在受控兼容迁移期间临时关闭。 |
 | [`api.listen_addr`](/zh/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | 监听 Product HTTP API，并承载健康检查及按开关启用的指标、调试等 HTTP 路由。 | 省略或留空时不启动该 HTTP 服务；它不会创建客户端 Gateway 或 Manager 监听器。 |
 | [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；可监听公网 `5301`，但必须同时启用认证并使用强密码。 |
 | [`manager.auth_on`](/zh/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | 要求 Manager 路由使用 JWT 登录认证。 | 省略时为 `false`；设为 `true` 时必须同时提供 `manager.jwt_secret` 和 `manager.users`。 |

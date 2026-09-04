@@ -774,8 +774,8 @@ export const domains: DocumentationDomain[] = [
             'common-configurations',
             '常用配置',
             'Common Configurations',
-            '以表格解释最常用的 10 个配置项及其关键边界。',
-            'Explains the 10 most-used settings and their key boundaries in a table.',
+            '以表格解释高频配置项及其关键边界。',
+            'Explains frequently used settings and their key boundaries in a table.',
           ),
           publishedPage(
             'cluster',

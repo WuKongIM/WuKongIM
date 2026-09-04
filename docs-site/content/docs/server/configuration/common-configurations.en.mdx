@@ -1,15 +1,15 @@
 ---
 title: Common Configurations
-description: The 10 most-used WuKongIM settings, with their purpose, default behavior, and key constraints.
+description: Frequently used WuKongIM settings, with their purpose, default behavior, and key constraints.
 ---
 
-This page keeps only the 10 settings most often consulted for startup, client access, and daily operations. Each setting can be provided through TOML or an environment variable; when both are present, the environment variable overrides the file value. See the [Configuration Reference](/en/server/configuration/reference) for every field and its exact semantics.
+This page keeps only the settings most often consulted for startup, client access, and daily operations. Each setting can be provided through TOML or an environment variable; when both are present, the environment variable overrides the file value. See the [Configuration Reference](/en/server/configuration/reference) for every field and its exact semantics.
 
 <Callout type="info" title="Every deployment is a cluster">
   A one-node deployment is a single-node cluster. Every scenario requires `node.id`, `node.data_dir`, and `cluster.listen_addr`; configuration changes usually require a node restart.
 </Callout>
 
-## 10 most-used settings
+## Frequently used settings
 
 | Setting (TOML / environment) | Purpose | Defaults and cautions |
 | --- | --- | --- |
@@ -19,6 +19,7 @@ This page keeps only the 10 settings most often consulted for startup, client ac
 | [`cluster.nodes`](/en/server/configuration/cluster)<br />`WK_CLUSTER_NODES` | Defines the static Controller voter list, with each entry containing a node `id` and cluster `addr`. | When `cluster.seeds` is also unset, omission or an empty list falls back to an implicit single-node cluster; it cannot be combined with non-empty `cluster.seeds`. The environment value must be JSON and replaces the whole list. |
 | [`cluster.slot_replica_n`](/en/server/configuration/cluster)<br />`WK_CLUSTER_SLOT_REPLICA_N` | Sets the voter replicas for each Slot Raft Group when the cluster is first initialized. | `0` derives the static voter count, or uses `1` during seed joining; existing clusters follow persisted Controller state. |
 | [`gateway.listeners`](/en/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | Defines the TCP or WebSocket listeners used by clients. | Omission opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list disables Gateway. The environment value must be JSON. |
+| [`gateway.token_auth_on`](/en/server/configuration/security)<br />`WK_GATEWAY_TOKEN_AUTH_ON` | Requires a CONNECT token to exactly match the stored device token for the same UID and `device_flag`. | Defaults to `true`; an empty token, missing record, or mismatch returns `ReasonAuthFail`. Disable only temporarily during a controlled compatibility migration. |
 | [`api.listen_addr`](/en/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | Listens for the Product HTTP API, including health and switch-controlled metrics, debug, and related HTTP routes. | Omission or an empty value disables this HTTP service; it does not create client Gateway or Manager listeners. |
 | [`manager.listen_addr`](/en/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | Listens for the separate Manager administration service. | Omission or an empty value disables Manager; it may listen on public port `5301`, but authentication and a strong password are required. |
 | [`manager.auth_on`](/en/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | Requires JWT login authentication for Manager routes. | Omission is `false`; when `true`, both `manager.jwt_secret` and `manager.users` are required. |

@@ -12,8 +12,9 @@ _openapi:
       - content: Create or update a device token
         id: create-or-update-a-device-token
     contents:
-      - content: Creates missing UID metadata and upserts one device token; the current
-          product composition does not enable CONNECT token authentication.
+      - content: Upserts one UID/device token; default Gateway authentication requires
+          later CONNECT credentials for the same UID and device category to
+          match it.
         heading: create-or-update-a-device-token
       - content: >-
           POST /user/token
@@ -22,8 +23,9 @@ _openapi:
 
           Create or update a device token
 
-          Creates missing UID metadata and upserts one device token; the current
-          product composition does not enable CONNECT token authentication.
+          Upserts one UID/device token; default Gateway authentication requires
+          later CONNECT credentials for the same UID and device category to
+          match it.
 
           UpdateTokenRequest
 

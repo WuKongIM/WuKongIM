@@ -50,6 +50,9 @@ func TestInitCreatesValidatedSingleNodeClusterConfig(t *testing.T) {
 	if len(cfg.Gateway.Listeners) != 2 || cfg.Gateway.Listeners[0].Address != "127.0.0.1:5100" || cfg.Gateway.Listeners[1].Address != "127.0.0.1:5200" {
 		t.Fatalf("gateway listeners = %#v", cfg.Gateway.Listeners)
 	}
+	if !cfg.Gateway.TokenAuthOn {
+		t.Fatal("generated Gateway.TokenAuthOn = false, want true")
+	}
 	if cfg.Bench.APIEnabled || cfg.Observability.DebugAPIEnabled || cfg.Observability.Prometheus.Enabled || cfg.Plugin.Enable {
 		t.Fatalf("unsafe optional services enabled: bench=%t debug=%t prometheus=%t plugin=%t",
 			cfg.Bench.APIEnabled, cfg.Observability.DebugAPIEnabled, cfg.Observability.Prometheus.Enabled, cfg.Plugin.Enable)

@@ -29,6 +29,9 @@ listen_addr = "127.0.0.1:7001"
 [api]
 listen_addr = "0.0.0.0:5001"
 
+[gateway]
+token_auth_on = true
+
 [manager]
 listen_addr = "0.0.0.0:5301"
 auth_on = true
@@ -39,7 +42,7 @@ users = [{ username = "admin", password = "replace-with-a-strong-password", perm
 dir = "/var/lib/wukongim/logs"
 ```
 
-This file keeps only the fields needed for the container, API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` gateways, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
+This file explicitly keeps the important `gateway.token_auth_on=true` setting: a client CONNECT token must exactly match the token stored through `/user/token` for the same UID and device category, or Gateway returns `ReasonAuthFail`. Do not disable it in production merely to simplify integration; see [Security & Access](/en/server/configuration/security) for the full boundary. The remaining fields cover only container startup, the API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` Gateway listeners, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
 
 ## 2. Start and verify
 

@@ -234,9 +234,9 @@ describe('client protocol contracts', () => {
     );
     expect(auth).toContain('connack.HasServerVersion = connect.Version > 3');
     expect(auth).toContain('if opts.TokenAuthOn && !isVisitor');
-    expect(wiring).toContain(
-      'gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: nodeID})',
-    );
+    expect(wiring).toContain('Authenticator:  a.newGatewayAuthenticator(nodeID)');
+    expect(wiring).toContain('TokenAuthOn: a.cfg.Gateway.TokenAuthOn');
+    expect(wiring).toContain('a.users.VerifyToken(');
     for (const lifecycle of [lifecycleZh, lifecycleEn]) {
       for (const reason of [
         'ReasonAuthFail',

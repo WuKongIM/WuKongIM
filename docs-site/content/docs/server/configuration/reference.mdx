@@ -184,6 +184,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 
 | TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
+| `gateway.token_auth_on` | `WK_GATEWAY_TOKEN_AUTH_ON` | `bool` | 是否要求 CONNECT Token 与相同 UID、`device_flag` 的已存设备 Token 完全匹配；省略时为 `true`。仅在受控兼容迁移期间关闭。 |
 | `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | 是否启用 gnet 按 CPU 扩展的多 Event Loop 模式；省略时启用。 |
 | `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | gnet Event Loop 数；`0` 保留 WuKongIM 基线值 `4`。 |
 | `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | 异步分发 SEND 帧的最大 Worker 数；非正数使用默认值 `1000`。 |

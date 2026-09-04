@@ -15,6 +15,26 @@ func minimalBuildValues() map[string]string {
 	}
 }
 
+func TestBuildConfigGatewayTokenAuthenticationDefaultsOnAndAllowsExplicitOff(t *testing.T) {
+	cfg, err := buildConfig(minimalBuildValues())
+	if err != nil {
+		t.Fatalf("buildConfig(default): %v", err)
+	}
+	if !cfg.Gateway.TokenAuthOn {
+		t.Fatal("Gateway.TokenAuthOn = false, want default true")
+	}
+
+	values := minimalBuildValues()
+	values["WK_GATEWAY_TOKEN_AUTH_ON"] = "false"
+	cfg, err = buildConfig(values)
+	if err != nil {
+		t.Fatalf("buildConfig(explicit false): %v", err)
+	}
+	if cfg.Gateway.TokenAuthOn {
+		t.Fatal("Gateway.TokenAuthOn = true, want explicit false")
+	}
+}
+
 func TestBuildConfigSeedJoinRequiresCompleteNonConflictingIdentity(t *testing.T) {
 	values := minimalBuildValues()
 	values["WK_CLUSTER_SEEDS"] = `[" node-2:7001 ","node-3:7001"]`

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"time"
 
@@ -42,6 +43,30 @@ func (a *App) UpdateToken(ctx context.Context, cmd UpdateTokenCommand) error {
 		a.kickLocalDevice(cmd.UID, cmd.DeviceFlag, updateTokenCloseDelay, updateTokenKickReason)
 	}
 	return nil
+}
+
+// VerifyToken validates one CONNECT credential against durable UID/device metadata.
+func (a *App) VerifyToken(ctx context.Context, uid string, deviceFlag protocolmeta.DeviceFlag, token string) (protocolmeta.DeviceLevel, error) {
+	if a == nil || a.deviceReader == nil {
+		return 0, ErrDeviceStoreRequired
+	}
+	if token == "" {
+		return 0, ErrInvalidToken
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	device, err := a.deviceReader.GetDevice(ctx, uid, int64(deviceFlag))
+	if errors.Is(err, metadb.ErrNotFound) {
+		return 0, ErrInvalidToken
+	}
+	if err != nil {
+		return 0, err
+	}
+	if device.Token == "" || subtle.ConstantTimeCompare([]byte(device.Token), []byte(token)) != 1 {
+		return 0, ErrInvalidToken
+	}
+	return protocolmeta.DeviceLevel(device.DeviceLevel), nil
 }
 
 // DeviceQuit clears stored device tokens and closes matching owner-local sessions.

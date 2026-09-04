@@ -223,6 +223,7 @@ func assertQualified2000QPSRuntimeProfile(t *testing.T, snapshot managementuseca
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               "96",
 		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       "8",
 		"WK_GATEWAY_GNET_MULTICORE":                    "true",
+		"WK_GATEWAY_TOKEN_AUTH_ON":                     "true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               "4",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        "1000",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY": "131072",

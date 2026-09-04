@@ -6,7 +6,7 @@ description: Integrate WuKongIM from the perspective of an existing product syst
 WuKongIM owns real-time connections, channel messaging, persistence, cluster routing, and online delivery. Your product service still owns accounts, authorization, business relationships, content policy, and final business actions.
 
 <Callout type="warn" title="Confirm the current security boundary first">
-  The current v3 Beta app performs CONNECT negotiation and session encryption, but its default composition does not yet validate connections against stored tokens. Product HTTP routes also have no business-authentication middleware. Put these routes behind a trusted network or authenticated reverse proxy and complete connection identity enforcement before production.
+  The current v3 Beta app performs CONNECT negotiation, Session encryption, and exact stored device-token validation by default. Product HTTP routes still have no product-authentication middleware, and the built-in token record has no expiry timestamp or replay policy. Put these routes behind a trusted network or authenticated reverse proxy, and let the product identity system own credential issuance, rotation, and revocation.
 </Callout>
 
 ## Recommended path

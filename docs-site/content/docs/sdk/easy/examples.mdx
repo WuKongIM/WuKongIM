@@ -74,7 +74,7 @@ curl -fsS -X POST http://127.0.0.1:5001/user/token \
   -d '{"uid":"bob","token":"bob-token","device_flag":0,"device_level":1}'
 ```
 
-原生移动端使用 APP `0`，Web 使用 WEB `1`，桌面端使用 PC `2`。当前默认产品装配不会因为这个接口返回成功就自动获得生产级 CONNECT Token 校验；无效、过期和撤销 Token 的拒绝必须由部署接入可信验证器后单独证明。
+原生移动端使用 APP `0`，Web 使用 WEB `1`，桌面端使用 PC `2`。默认产品装配会精确校验相同 UID 与设备类别的已存 Token；生产部署仍需保护该接口、实现过期与轮换策略，并单独证明无效、撤销和按业务规则过期的 Token 会被拒绝。
 
 根据客户端运行位置填写 WebSocket 地址：
 
@@ -180,7 +180,7 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 - **检出 tag 后现象与上表不同**：先确认 `git rev-parse HEAD` 与包管理器锁文件都对应当前固定版本；不要让本地 `path`、`project(':')` 或缓存依赖替代 Registry 产物。
 - **SEND 成功但另一端没有消息**：确认目标 Channel ID 就是对方 UID、两端都在线，且接收端没有因重复 listener 或错误去重丢弃 RECV。
 - **iOS 或 Android 构建要求接受 License**：先按本机 Xcode、Android SDK Manager 的提示接受对应 License 并下载目标 runtime，再重跑原命令。
-- **本地 Token 能连接**：这不是生产鉴权凭据。继续验证错误、过期、撤销和重放 Token 都被可信验证器拒绝。
+- **本地 Token 能连接**：这只证明内置精确匹配成功。继续验证错误、撤销、按业务规则过期的 Token 会被拒绝，并明确有效 Token 的重放限制。
 
 ## 下一步
 

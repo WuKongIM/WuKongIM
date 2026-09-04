@@ -1,6 +1,6 @@
 ---
 title: 安全与权限
-description: 保护集群加入、Manager、产品 API、Benchmark、诊断和配置秘密。
+description: 保护客户端 CONNECT、集群加入、Manager、产品 API、Benchmark、诊断和配置秘密。
 ---
 
 配置安全从“谁能连接哪一个流量面”开始，而不只是把密码放进环境变量。为客户端、产品 API、节点 Transport、Manager 和观察面分别建立信任边界。
@@ -9,6 +9,7 @@ description: 保护集群加入、Manager、产品 API、Benchmark、诊断和�
 
 | 配置 | 风险 | 生产处理 |
 | --- | --- | --- |
+| `gateway.token_auth_on` | 关闭后跳过 CONNECT 设备 Token 校验 | 保持默认 `true`；仅在有期限、有回滚的兼容迁移中临时关闭 |
 | `cluster.join_token` | 赋予种子加入能力 | 从秘密系统注入，限制读取并可轮换 |
 | `manager.jwt_secret` | 签发或伪造 Manager 会话 | 使用高熵独立秘密，审计轮换 |
 | `manager.users` | 管理账号、密码和权限 | 移除示例账号，按最小权限分配 |
@@ -16,6 +17,21 @@ description: 保护集群加入、Manager、产品 API、Benchmark、诊断和�
 | 外部 URL 与匹配配置 | 可能泄露内部拓扑或诊断目标 | 诊断制品和支持包中按敏感信息处理 |
 
 启动配置快照会对声明为敏感的字段进行脱敏，诊断输出还会脱敏诊断敏感字段，但这不能替代日志审查、秘密存储和最小读取权限。
+
+## 客户端 CONNECT Token 鉴权
+
+<Callout type="warn" title="默认开启，不要在新部署中关闭">
+  `gateway.token_auth_on` 默认为 `true`。Gateway 会按 `UID + device_flag` 读取 `/user/token` 持久化的设备记录并精确比较 Token；Token 为空、记录不存在、已被清空或不匹配时返回 `ReasonAuthFail`。匹配成功后，Session 使用该记录保存的 Device Level。
+</Callout>
+
+建议在配置中显式保留安全默认值，避免升级或环境差异造成误解：
+
+```toml
+[gateway]
+token_auth_on = true
+```
+
+等价环境变量为 `WK_GATEWAY_TOKEN_AUTH_ON=true`，并会覆盖 TOML。部署审计应检查启动配置快照中的最终值。设为 `false` 会让新 CONNECT 绕过这项设备 Token 校验，只应用于有明确截止时间和回滚方案的兼容迁移；它不会为 Product HTTP 增加鉴权。
 
 ## 管理面与产品 API
 

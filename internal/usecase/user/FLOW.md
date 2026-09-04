@@ -7,8 +7,8 @@ summary: Orchestrates legacy-compatible user tokens, device quit, online status,
 
 ## Responsibility
 
-This package owns entry-independent user token, device quit, online-status,
-system UID, and restore-time cache reload policy.
+This package owns entry-independent user token persistence and verification,
+device quit, online-status, system UID, and restore-time cache reload policy.
 It does not own HTTP, gateway frames, concrete storage, or cluster transport.
 
 ## Boundaries
@@ -23,7 +23,9 @@ It does not own HTTP, gateway frames, concrete storage, or cluster transport.
 
 1. Token update validates identity and device fields, creates missing UID
    metadata, upserts per-device token state, and schedules owner-local
-   same-device close for master-device replacement.
+   same-device close for master-device replacement. CONNECT verification reads
+   the same UID/device row, compares the opaque token, and returns its durable
+   device level only after a match.
 2. Device quit clears the selected stored token and schedules owner-local
    matching-device close; online status prefers authority routes when configured.
 3. System UID commands persist the reserved set and maintain the process-local
@@ -34,6 +36,8 @@ It does not own HTTP, gateway frames, concrete storage, or cluster transport.
 
 - Session close actions are owner-local effects triggered after the relevant
   durable token mutation.
+- Missing, cleared, or mismatched device tokens fail CONNECT verification
+  closed without exposing the stored credential.
 - Online results contain one legacy item per active authority route.
 - Cache reload replaces the complete set rather than incrementally merging
   restored and pre-restore state.

@@ -23,6 +23,18 @@ func TestNormalizeConfigIsPure(t *testing.T) {
 	}
 }
 
+func TestGatewayTokenAuthenticationDefaultsOnAndCanBeExplicitlyDisabled(t *testing.T) {
+	normalized, err := NormalizeConfig(Config{})
+	require.NoError(t, err)
+	require.True(t, normalized.Gateway.TokenAuthOn)
+
+	gatewayConfig := GatewayConfig{}
+	gatewayConfig.SetTokenAuthOn(false)
+	normalized, err = NormalizeConfig(Config{Gateway: gatewayConfig})
+	require.NoError(t, err)
+	require.False(t, normalized.Gateway.TokenAuthOn)
+}
+
 func TestWebhookConfigDefaultsWhenEndpointConfigured(t *testing.T) {
 	cfg, err := NormalizeWebhookConfig(WebhookConfig{
 		HTTPAddr: "http://127.0.0.1:18080/hook",
