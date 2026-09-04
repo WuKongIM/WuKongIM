@@ -195,6 +195,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "gateway.send_timeout", EnvKey: "WK_GATEWAY_SEND_TIMEOUT", Kind: kindDuration, Group: "gateway", Label: "Gateway send timeout"},
 
 	{TOMLPath: "message.person_whitelist_enabled", EnvKey: "WK_MESSAGE_PERSON_WHITELIST_ENABLED", Kind: kindBool, Group: "message", Label: "Person whitelist enabled"},
+	{TOMLPath: "message.system_uid", EnvKey: "WK_MESSAGE_SYSTEM_UID", Kind: kindString, Group: "message", Label: "System UID", Description: "Primary system account UID used when trusted message senders are omitted; defaults to ____system and must match on every cluster node."},
 	{TOMLPath: "message.system_device_id", EnvKey: "WK_MESSAGE_SYSTEM_DEVICE_ID", Kind: kindString, Group: "message", Label: "System device ID"},
 	{TOMLPath: "message.permission_cache_ttl", EnvKey: "WK_MESSAGE_PERMISSION_CACHE_TTL", Kind: kindDuration, Group: "message", Label: "Permission cache TTL"},
 
@@ -369,6 +370,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_GATEWAY_LISTENERS",
 		"WK_GATEWAY_SEND_TIMEOUT",
 		"WK_MESSAGE_PERSON_WHITELIST_ENABLED",
+		"WK_MESSAGE_SYSTEM_UID",
 		"WK_MESSAGE_SYSTEM_DEVICE_ID",
 		"WK_MESSAGE_PERMISSION_CACHE_TTL",
 		"WK_PRESENCE_ACTIVATION_TIMEOUT",

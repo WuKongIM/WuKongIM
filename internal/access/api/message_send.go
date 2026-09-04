@@ -63,8 +63,12 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 	if req.FromUID == "" {
 		req.FromUID = req.LegacyFromUID
 	}
+	if req.FromUID == "" {
+		// Preserve the legacy HTTP contract: an omitted sender is a system send.
+		req.FromUID = s.systemUID
+	}
 	requestScoped := len(req.Subscribers) > 0
-	if req.FromUID == "" || req.Payload == "" {
+	if req.Payload == "" {
 		writeSendJSONError(c, http.StatusBadRequest, "invalid request")
 		return
 	}

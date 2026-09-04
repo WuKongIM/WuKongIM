@@ -155,6 +155,41 @@ func TestConversationSyncLegacyPreservesOldSystemUIDProjection(t *testing.T) {
 	}
 }
 
+func TestConversationSyncLegacyUsesConfiguredSystemUIDProjection(t *testing.T) {
+	const systemUID = "custom-system"
+	conversations := &recordingLegacyConversationSync{result: conversationusecase.LegacySyncResult{
+		Items: []conversationusecase.LegacyConversation{
+			{
+				ChannelID:   runtimechannelid.EncodePersonChannel("u1", systemUID),
+				ChannelType: 1,
+			},
+			{
+				ChannelID: "g1", ChannelType: 2,
+				Recents: []conversationusecase.LegacyRecentMessage{{
+					MessageSeq: 2, ChannelID: "g1", ChannelType: 2, FromUID: systemUID,
+				}},
+			},
+		},
+	}}
+	srv := New(Options{Conversations: conversations, SystemUID: systemUID})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversation/sync", bytes.NewBufferString(`{"uid":"u1","msg_count":1}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	var rows []conversationSyncLegacyResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ChannelID != "g1" || len(rows[0].Recents) != 1 || rows[0].Recents[0].FromUID != "" {
+		t.Fatalf("rows = %#v, want configured system conversation omitted and sender blanked", rows)
+	}
+}
+
 type recordingLegacyConversationSync struct {
 	recordingConversationUsecase
 	requests []conversationusecase.LegacySyncRequest

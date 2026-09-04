@@ -7,7 +7,6 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
@@ -68,7 +67,7 @@ func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
 	resp := make([]conversationSyncLegacyResponse, 0, len(result.Items))
 	for _, item := range result.Items {
 		channelID := legacyMessageChannelID(req.UID, item.ChannelID, item.ChannelType)
-		if item.ChannelType == frame.ChannelTypePerson && channelID == userusecase.DefaultSystemUID {
+		if item.ChannelType == frame.ChannelTypePerson && channelID == s.systemUID {
 			continue
 		}
 		row := conversationSyncLegacyResponse{
@@ -85,7 +84,7 @@ func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
 		}
 		for _, msg := range item.Recents {
 			synced := legacyRecentMessageToSynced(msg)
-			if synced.FromUID == userusecase.DefaultSystemUID {
+			if synced.FromUID == s.systemUID {
 				synced.FromUID = ""
 			}
 			row.Recents = append(row.Recents, newLegacyMessageResp(req.UID, synced))

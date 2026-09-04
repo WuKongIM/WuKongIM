@@ -95,6 +95,37 @@ token_auth_on = true
 	}
 }
 
+func TestLoadMessageSystemUIDFromTOMLAndEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+
+[message]
+system_uid = "toml-system"
+`)
+
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_MESSAGE_SYSTEM_UID=env-system",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Message.SystemUID != "env-system" {
+		t.Fatalf("Message.SystemUID = %q, want environment override", cfg.Message.SystemUID)
+	}
+	item, ok := snapshotItem(cfg.StartupConfigSnapshot, "WK_MESSAGE_SYSTEM_UID")
+	if !ok || item.Value != "env-system" || item.Source != managementusecase.NodeConfigValueSourceEnvironment {
+		t.Fatalf("startup system UID snapshot = %#v, found=%t", item, ok)
+	}
+}
+
 func TestLoadRecordsMatchedDefaultConfigPath(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

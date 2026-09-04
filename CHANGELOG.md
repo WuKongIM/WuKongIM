@@ -17,6 +17,10 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+### 🐛 Bug Fixes / 问题修复
+
+- `/message/send` 现在会在 `from_uid` 与兼容别名 `sender_uid` 均为空时使用系统账号，并支持通过 `message.system_uid` / `WK_MESSAGE_SYSTEM_UID` 配置该账号（默认 `____system`），恢复 Demo 命令消息的旧版兼容行为。
+
 ### 🔧 Improvements / 改进
 
 - Manager 节点列表现在显示每个节点当前运行的 WuKongIM 程序版本，便于识别滚动升级期间的版本差异。

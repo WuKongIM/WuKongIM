@@ -203,6 +203,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 | TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | 是否对个人消息执行接收方白名单检查；默认关闭以保持兼容行为。 |
+| `message.system_uid` | `WK_MESSAGE_SYSTEM_UID` | `string` | 受信发送未提供发送者时使用的主系统账号 UID；省略或留空使用 `____system`。集群内所有节点必须配置为同一值。 |
 | `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | 受信任系统会话使用的设备 ID；省略或留空使用 `____device`，不能通过空值禁用。此类会话通过发送禁用检查后可绕过特定频道类型的发送权限。 |
 | `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | 权限、成员关系和频道缺失读取的缓存时长；`0` 表示不缓存。 |
 

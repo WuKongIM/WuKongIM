@@ -13,6 +13,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
@@ -294,6 +295,9 @@ type MessageConfig struct {
 	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
 	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
 	PersonWhitelistEnabled bool
+	// SystemUID identifies the primary system account used for trusted sends when
+	// callers omit a sender. It defaults to ____system and must be identical on every node.
+	SystemUID string
 	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
 	// send permissions after sender SendBan has passed.
 	SystemDeviceID string
@@ -523,6 +527,10 @@ func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
 }
 
 func defaultMessageConfig(cfg MessageConfig) MessageConfig {
+	cfg.SystemUID = strings.TrimSpace(cfg.SystemUID)
+	if cfg.SystemUID == "" {
+		cfg.SystemUID = userusecase.DefaultSystemUID
+	}
 	if cfg.SystemDeviceID == "" {
 		cfg.SystemDeviceID = "____device"
 	}
@@ -853,6 +861,9 @@ func validateChannelConfig(cfg ChannelConfig) error {
 }
 
 func validateMessageConfig(cfg MessageConfig) error {
+	if strings.ContainsAny(cfg.SystemUID, "@#&") {
+		return fmt.Errorf("%w: message system uid must not contain @, #, or &", ErrInvalidConfig)
+	}
 	if cfg.PermissionCacheTTL < 0 {
 		return fmt.Errorf("%w: message permission cache ttl must be non-negative", ErrInvalidConfig)
 	}

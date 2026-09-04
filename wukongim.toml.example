@@ -151,6 +151,9 @@ send_timeout = "5s"
 
 [message]
 person_whitelist_enabled = false
+# System account UID used when a trusted message sender is omitted.
+# Omitted or empty values use the built-in ____system account.
+system_uid = "____system"
 system_device_id = "____device"
 permission_cache_ttl = "0"
 

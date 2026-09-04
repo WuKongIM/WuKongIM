@@ -55,6 +55,9 @@ Stop or startup rollback
   must not introduce a local business bypass.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- The normalized message system UID is injected consistently into user
+  privilege checks, Product HTTP compatibility, legacy conversation projection,
+  and plugin-origin default sends.
 - The legacy conversation-sync adapter only translates sibling DTOs; directory
   scanning, filtering, unresolved handling, and message ordering stay in the
   conversation use case.

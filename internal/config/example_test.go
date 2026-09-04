@@ -168,6 +168,25 @@ func TestPresenceExamplesDocumentTouchMaxRoutesPerFlush(t *testing.T) {
 	}
 }
 
+func TestMessageExamplesDocumentSystemUID(t *testing.T) {
+	files := []string{
+		filepath.Join("..", "..", "wukongim.toml.example"),
+		filepath.Join("..", "..", "cmd", "wukongim", "wukongim.toml.example"),
+	}
+	want := "# System account UID used when a trusted message sender is omitted.\n" +
+		"# Omitted or empty values use the built-in ____system account.\n" +
+		"system_uid = \"____system\""
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", file, err)
+		}
+		if !strings.Contains(string(content), want) {
+			t.Errorf("%s must document message.system_uid with the required adjacent English comments", file)
+		}
+	}
+}
+
 func TestDeliveryExamplesDocumentRecipientWorkerConcurrency(t *testing.T) {
 	files := []string{filepath.Join("..", "..", "wukongim.toml.example")}
 	for _, pattern := range []string{

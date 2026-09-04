@@ -162,6 +162,25 @@ func TestNewWiresPluginUsecaseAsMessageSender(t *testing.T) {
 	require.NotErrorIs(t, err, pluginusecase.ErrMessageSenderRequired)
 }
 
+func TestNewWiresConfiguredSystemUIDIntoPluginMessageSender(t *testing.T) {
+	submitter := &recordingAppMessageSubmitter{result: message.SendResult{Reason: message.ReasonSuccess}}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterpkg.Config{NodeID: 1},
+		Message: MessageConfig{SystemUID: "custom-system"},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(&fakeCluster{}), WithGateway(nil), WithMessages(message.New(message.Options{Submitter: submitter})))
+	require.NoError(t, err)
+
+	_, err = app.plugins.SendMessage(context.Background(), &pluginproto.SendReq{
+		ChannelId: "g1", ChannelType: 2, Payload: []byte("hello"),
+	}, "wk.sender")
+
+	require.NoError(t, err)
+	require.Equal(t, 1, submitter.calls)
+	require.Equal(t, "custom-system", submitter.last.FromUID)
+}
+
 func TestNewWiresPluginUsecaseAsChannelMessageReader(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,

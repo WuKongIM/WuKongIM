@@ -675,6 +675,7 @@ func (a *App) wireUsers() {
 				Online:       a.online,
 				Presence:     a.presence,
 				SystemUIDs:   systemUIDs,
+				SystemUID:    a.cfg.Message.SystemUID,
 				Logger:       a.logger.Named("usecase.user"),
 			})
 		}
@@ -860,6 +861,7 @@ func (a *App) wireAPI() {
 			Channels:                 a.channels,
 			Users:                    a.users,
 			Messages:                 a.apiMessages,
+			SystemUID:                a.cfg.Message.SystemUID,
 			CMDSync:                  a.cmdSync,
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),

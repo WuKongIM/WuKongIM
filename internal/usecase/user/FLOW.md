@@ -41,6 +41,8 @@ It does not own HTTP, gateway frames, concrete storage, or cluster transport.
 - Online results contain one legacy item per active authority route.
 - Cache reload replaces the complete set rather than incrementally merging
   restored and pre-restore state.
+- The configured primary system UID is always recognized in addition to the
+  durable system-UID registry; every cluster node must use the same value.
 - Ordinary operations never bypass foreground storage fencing.
 
 ## Read First

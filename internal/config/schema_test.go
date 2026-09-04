@@ -55,3 +55,19 @@ func TestSchemaFieldsExposePresenceTouchMaxRoutesPerFlush(t *testing.T) {
 	}
 	t.Fatal("SchemaFields() missing presence.touch_max_routes_per_flush")
 }
+
+func TestSchemaFieldsExposeMessageSystemUID(t *testing.T) {
+	for _, field := range SchemaFields() {
+		if field.TOMLPath != "message.system_uid" {
+			continue
+		}
+		if field.EnvKey != "WK_MESSAGE_SYSTEM_UID" {
+			t.Fatalf("EnvKey = %q, want WK_MESSAGE_SYSTEM_UID", field.EnvKey)
+		}
+		if field.Kind != "string" {
+			t.Fatalf("Kind = %q, want string", field.Kind)
+		}
+		return
+	}
+	t.Fatal("SchemaFields() missing message.system_uid")
+}

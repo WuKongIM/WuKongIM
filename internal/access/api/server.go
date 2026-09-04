@@ -237,6 +237,9 @@ type Options struct {
 	Users UserUsecase
 	// Messages handles compatible message send and channel message sync routes.
 	Messages MessageUsecase
+	// SystemUID is the configured primary system account used when message senders
+	// are omitted and when legacy conversation responses hide system traffic.
+	SystemUID string
 	// CMDSync handles compatible durable command-message sync routes.
 	CMDSync CMDSyncUsecase
 	// Conversations handles compatible conversation list routes.
@@ -288,6 +291,7 @@ type Server struct {
 	channels             ChannelUsecase
 	users                UserUsecase
 	messages             MessageUsecase
+	systemUID            string
 	cmdSync              CMDSyncUsecase
 	conversations        ConversationUsecase
 	conversationObserver ConversationListObserver
@@ -313,6 +317,10 @@ func New(opts Options) *Server {
 	engine := gin.New()
 	engine.Use(openCORSMiddleware())
 	engine.HandleMethodNotAllowed = true
+	systemUID := strings.TrimSpace(opts.SystemUID)
+	if systemUID == "" {
+		systemUID = userusecase.DefaultSystemUID
+	}
 	s := &Server{
 		engine:               engine,
 		listenAddr:           strings.TrimSpace(opts.ListenAddr),
@@ -331,6 +339,7 @@ func New(opts Options) *Server {
 		channels:             opts.Channels,
 		users:                opts.Users,
 		messages:             opts.Messages,
+		systemUID:            systemUID,
 		cmdSync:              opts.CMDSync,
 		conversations:        opts.Conversations,
 		conversationObserver: opts.ConversationListObserver,

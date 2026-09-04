@@ -294,7 +294,9 @@ P0/P2 权限收敛后当前状态：
 - gateway 已把 session 中的 `DeviceID` / `DeviceFlag` 透传到 `message.SendCommand`。
 - 已新增 `SystemDeviceID` / `WK_MESSAGE_SYSTEM_DEVICE_ID`，默认 `____device`。
 - system device 绕过发生在发送者个人 `SendBan` 之后；也就是说 system device 不绕过发送者 `SendBan`，只绕过后续频道侧权限。
-- 当前 HTTP send 要求 `from_uid` 非空。
+- 当前 HTTP send 优先使用 `from_uid`，为空时读取兼容别名
+  `sender_uid`；两者都为空时使用 `message.system_uid` /
+  `WK_MESSAGE_SYSTEM_UID` 配置的系统 UID，默认值为 `____system`。
 
 关键代码：
 

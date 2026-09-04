@@ -84,7 +84,7 @@ type Options struct {
 	Presence PresenceDirectory
 	// SystemUIDs stores reserved system account UIDs.
 	SystemUIDs SystemUIDStore
-	// SystemUID overrides the built-in system account UID in tests.
+	// SystemUID identifies the configured primary system account; empty uses DefaultSystemUID.
 	SystemUID string
 	// AfterFunc schedules delayed local session closes.
 	AfterFunc func(time.Duration, func())

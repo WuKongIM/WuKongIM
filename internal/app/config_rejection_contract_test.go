@@ -48,6 +48,7 @@ func TestNormalizeConfigRejectsUnsafeRuntimeCompositionsBeforeWiring(t *testing.
 			cfg.Manager = validManager()
 			cfg.Manager.Users[0].Permissions[0].Actions = []string{"delete"}
 		}, want: "one of r, w or *"},
+		{name: "message system uid", mutate: func(cfg *Config) { cfg.Message.SystemUID = "bad@system" }, want: "message system uid"},
 		{name: "message cache ttl", mutate: func(cfg *Config) { cfg.Message.PermissionCacheTTL = -time.Second }, want: "message permission cache ttl"},
 		{name: "retention interval", mutate: func(cfg *Config) { cfg.ChannelMessageRetention.ScanInterval = -time.Second }, want: "retention scan interval"},
 		{name: "retention batch", mutate: func(cfg *Config) { cfg.ChannelMessageRetention.ChannelBatchSize = -1 }, want: "retention channel batch size"},

@@ -35,6 +35,16 @@ func TestGatewayTokenAuthenticationDefaultsOnAndCanBeExplicitlyDisabled(t *testi
 	require.False(t, normalized.Gateway.TokenAuthOn)
 }
 
+func TestMessageSystemUIDDefaultsAndAllowsOverride(t *testing.T) {
+	normalized, err := NormalizeConfig(Config{})
+	require.NoError(t, err)
+	require.Equal(t, "____system", normalized.Message.SystemUID)
+
+	normalized, err = NormalizeConfig(Config{Message: MessageConfig{SystemUID: "custom-system"}})
+	require.NoError(t, err)
+	require.Equal(t, "custom-system", normalized.Message.SystemUID)
+}
+
 func TestWebhookConfigDefaultsWhenEndpointConfigured(t *testing.T) {
 	cfg, err := NormalizeWebhookConfig(WebhookConfig{
 		HTTPAddr: "http://127.0.0.1:18080/hook",

@@ -56,6 +56,8 @@ bench or debug request
   a production authentication claim.
 - `/route`, legacy channel/user/message/CMD/conversation routes, and their
   response envelopes remain compatibility surfaces independent of bench mode.
+- `/message/send` resolves its sender as `from_uid`, then the legacy
+  `sender_uid` alias, then the configured system UID when both are empty.
 - Person-channel IDs are normalized only at the entry boundary; durable
   membership, opaque cursors, badge floors, and Channel reads stay below it.
 - Benchmark mutation routes write only through the supplied benchmark data

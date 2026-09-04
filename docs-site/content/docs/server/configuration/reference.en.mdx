@@ -203,6 +203,7 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
 | `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | Enforces receiver-side allowlist checks for person messages; disabled by default for compatibility. |
+| `message.system_uid` | `WK_MESSAGE_SYSTEM_UID` | `string` | Primary system account UID used when trusted sends omit a sender; omitted or empty uses `____system`. Every cluster node must use the same value. |
 | `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | Device ID for trusted system sessions; omitted or empty uses `____device`, so an empty value cannot disable recognition. Such sessions may bypass channel-type send permissions after the send-ban check. |
 | `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | Cache lifetime for permission, membership, and missing-channel reads; `0` disables caching. |
 

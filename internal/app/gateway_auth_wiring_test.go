@@ -60,6 +60,22 @@ func TestGatewayAuthenticatorUsesStoredDeviceTokenWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestWireUsersRecognizesConfiguredSystemUID(t *testing.T) {
+	app := &App{
+		cfg:     Config{Message: MessageConfig{SystemUID: "custom-system"}},
+		cluster: &fakeManagerCluster{nodeID: 1},
+		logger:  wklog.NewNop(),
+	}
+	app.wireUsers()
+
+	if app.users == nil || !app.users.IsSystemUID("custom-system") {
+		t.Fatal("configured system UID was not wired into the user usecase")
+	}
+	if app.users.IsSystemUID("____system") {
+		t.Fatal("built-in UID remained privileged after a custom system UID was configured")
+	}
+}
+
 func TestGatewayAuthenticatorAllowsMissingTokenWhenDisabled(t *testing.T) {
 	app := &App{cfg: Config{Gateway: GatewayConfig{TokenAuthOn: false}}}
 	authenticator := app.newGatewayAuthenticator(1)

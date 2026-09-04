@@ -49,6 +49,48 @@ func TestSendMessageMapsCompatibleRequestToMessageUsecase(t *testing.T) {
 	}
 }
 
+func TestSendMessageDefaultsMissingFromUIDToSystemUID(t *testing.T) {
+	messages := &recordingMessageUsecase{
+		sendResult: messageusecase.SendResult{MessageID: 99, MessageSeq: 7, Reason: messageusecase.ReasonSuccess},
+	}
+	srv := New(Options{Messages: messages})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"header":{"no_persist":1,"red_dot":1,"sync_once":1},"from_uid":"","channel_id":"u1","channel_type":1,"payload":"eyJ0eXBlIjo5OSwiY21kIjoiY2xlYXJVbnJlYWQiLCJwYXJhbSI6eyJjaGFubmVsSUQiOiJ1MiIsImNoYW5uZWxUeXBlIjoxfX0=","subscribers":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if len(messages.sendCalls) != 1 {
+		t.Fatalf("send calls = %#v, want one call", messages.sendCalls)
+	}
+	if got := messages.sendCalls[0].FromUID; got != "____system" {
+		t.Fatalf("FromUID = %q, want default system UID", got)
+	}
+}
+
+func TestSendMessageUsesConfiguredSystemUIDWhenFromUIDIsMissing(t *testing.T) {
+	messages := &recordingMessageUsecase{
+		sendResult: messageusecase.SendResult{Reason: messageusecase.ReasonSuccess},
+	}
+	srv := New(Options{Messages: messages, SystemUID: "custom-system"})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"channel_id":"u1","channel_type":1,"payload":"aGk="}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if len(messages.sendCalls) != 1 || messages.sendCalls[0].FromUID != "custom-system" {
+		t.Fatalf("send calls = %#v, want configured system sender", messages.sendCalls)
+	}
+}
+
 func TestSendMessageMapsSubscribersToRequestScopedCommand(t *testing.T) {
 	messages := &recordingMessageUsecase{
 		sendResult: messageusecase.SendResult{MessageID: 100, MessageSeq: 1, Reason: messageusecase.ReasonSuccess},

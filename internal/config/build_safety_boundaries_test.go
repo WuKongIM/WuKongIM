@@ -35,6 +35,26 @@ func TestBuildConfigGatewayTokenAuthenticationDefaultsOnAndAllowsExplicitOff(t *
 	}
 }
 
+func TestBuildConfigMessageSystemUIDDefaultsAndAllowsOverride(t *testing.T) {
+	cfg, err := buildConfig(minimalBuildValues())
+	if err != nil {
+		t.Fatalf("buildConfig(default): %v", err)
+	}
+	if cfg.Message.SystemUID != "____system" {
+		t.Fatalf("Message.SystemUID = %q, want default system UID", cfg.Message.SystemUID)
+	}
+
+	values := minimalBuildValues()
+	values["WK_MESSAGE_SYSTEM_UID"] = "custom-system"
+	cfg, err = buildConfig(values)
+	if err != nil {
+		t.Fatalf("buildConfig(override): %v", err)
+	}
+	if cfg.Message.SystemUID != "custom-system" {
+		t.Fatalf("Message.SystemUID = %q, want custom-system", cfg.Message.SystemUID)
+	}
+}
+
 func TestBuildConfigSeedJoinRequiresCompleteNonConflictingIdentity(t *testing.T) {
 	values := minimalBuildValues()
 	values["WK_CLUSTER_SEEDS"] = `[" node-2:7001 ","node-3:7001"]`
