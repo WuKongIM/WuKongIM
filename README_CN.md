@@ -252,4 +252,4 @@ GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...
 
 ## License
 
-WuKongIM 使用 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)。
+WuKongIM 使用 [Apache License 2.0](./LICENSE)。
