@@ -288,9 +288,11 @@ func (n *Node) ActiveChannelMigrationInHashSlot(ctx context.Context, hashSlot ui
 	return ok, err
 }
 
-// ControlSnapshot adapts LocalControlSnapshot to the repair scanner source contract.
+// ControlSnapshot reads current Controller health for repair planning. Node-applied
+// snapshots may retain fresh health after its TTL expires when no control event
+// arrives; repair decisions must evaluate freshness at the time of the scan.
 func (n *Node) ControlSnapshot(ctx context.Context) (control.Snapshot, error) {
-	return n.LocalControlSnapshot(ctx)
+	return n.LocalControllerSnapshot(ctx)
 }
 
 // ProbeChannel reads one local or remote Channel runtime proof.

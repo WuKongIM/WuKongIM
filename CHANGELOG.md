@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Channel repair scans evaluate current Controller health so expired node reports do not remain healthy in a cached node snapshot.
+
 ### 🔧 Improvements / 改进
 
 - Document independent Python EasySDK three-node WSS fault recovery and bounded stability acceptance. / 补充 Python EasySDK 三节点 WSS 故障恢复与限时稳定性验收说明。
