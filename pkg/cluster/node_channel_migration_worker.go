@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"slices"
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -288,11 +289,9 @@ func (n *Node) ActiveChannelMigrationInHashSlot(ctx context.Context, hashSlot ui
 	return ok, err
 }
 
-// ControlSnapshot reads current Controller health for repair planning. Node-applied
-// snapshots may retain fresh health after its TTL expires when no control event
-// arrives; repair decisions must evaluate freshness at the time of the scan.
+// ControlSnapshot reads the last node-applied control snapshot for migration planning.
 func (n *Node) ControlSnapshot(ctx context.Context) (control.Snapshot, error) {
-	return n.LocalControllerSnapshot(ctx)
+	return n.LocalControlSnapshot(ctx)
 }
 
 // ProbeChannel reads one local or remote Channel runtime proof.
@@ -362,15 +361,33 @@ func (n *Node) ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.
 	return err
 }
 
+// probeLocalChannelRuntime loads cold replicas through authoritative metadata before
+// collecting migration proof. Quorum replication can persist a follower without
+// loading its Reactor; an absent Reactor is not evidence of an absent replica.
 func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
 	id := ch.ChannelID{ID: channelID, Type: channelType}
-	result, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
-	if err != nil {
-		return ch.RuntimeProbeChannel{}, err
-	}
-	for _, probe := range result.Channels {
-		if probe.ChannelID == id {
-			return probe, nil
+	for attempt := 0; attempt < 2; attempt++ {
+		result, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
+		if err != nil {
+			return ch.RuntimeProbeChannel{}, err
+		}
+		for _, probe := range result.Channels {
+			if probe.ChannelID == id {
+				return probe, nil
+			}
+		}
+		if attempt == 1 {
+			break
+		}
+		meta, err := n.GetChannelRuntimeMeta(ctx, channelID, int64(channelType))
+		if err != nil {
+			return ch.RuntimeProbeChannel{}, err
+		}
+		if meta.Status != uint8(ch.StatusActive) || !slices.Contains(meta.Replicas, n.cfg.NodeID) {
+			return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
+		}
+		if err := n.applyChannelMigrationLocalRuntimeMeta(ctx, meta); err != nil {
+			return ch.RuntimeProbeChannel{}, err
 		}
 	}
 	return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
