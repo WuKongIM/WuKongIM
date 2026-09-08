@@ -43,6 +43,8 @@ It does not own Manager or product business policy.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded.
+   Internal migration probes load cold local replicas from Slot-authoritative
+   active metadata before reading fenced runtime proof; benchmark probes stay read-only.
 4. Conversation hydration batch-reads lifecycle and runtime routes by physical
    Slot, preserves alignment and item errors, and groups heads by exact Leader;
    a cold quorum Leader with durable HW below LEO recovers before read retry.
