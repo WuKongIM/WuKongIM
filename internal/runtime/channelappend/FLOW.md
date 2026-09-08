@@ -44,6 +44,8 @@ sends terminate successfully before routing.
 
 ## Invariants and Failure Semantics
 
+- Subscriber scans forward the authority target's membership version to invalidate stale remote-node snapshots.
+
 - One writer state machine advances a Channel key at a time; same-Channel
   durable ordering must hold even when configured append concurrency exceeds
   one.

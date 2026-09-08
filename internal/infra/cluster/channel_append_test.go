@@ -284,3 +284,12 @@ func (r *channelAppendRemoteForTest) ForwardSendBatch(_ context.Context, target 
 	r.items = append(r.items, items...)
 	return r.results
 }
+
+func TestChannelAppendMetadataCacheRejectsOlderMembershipRead(t *testing.T) {
+	cache := NewChannelAppendMetadataCache()
+	id := channelappend.ChannelID{ID: "group", Type: 2}
+	cache.Store(id, ChannelAppendMetadata{SubscriberMutationVersion: 2})
+	if cache.StoreIfGeneration(id, ChannelAppendMetadata{SubscriberMutationVersion: 1}, cache.Generation()) {
+		t.Fatal("older authoritative read replaced newer membership version")
+	}
+}

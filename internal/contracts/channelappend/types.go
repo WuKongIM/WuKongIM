@@ -374,6 +374,8 @@ type Recipient struct {
 
 // SubscriberPageRequest describes one channel subscriber page scan.
 type SubscriberPageRequest struct {
+	// SubscriberMutationVersion fences cached snapshots to the append target's observed membership version.
+	SubscriberMutationVersion uint64
 	// ChannelID identifies the channel whose subscribers should be scanned.
 	ChannelID ChannelID
 	// Cursor resumes after the previous page.

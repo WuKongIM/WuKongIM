@@ -49,6 +49,8 @@ and bounded operations observations.
 
 ## Invariants and Failure Semantics
 
+- Existing authoritative group permission reads refresh append recipient metadata without an extra per-message database read; late observations cannot replace newer membership versions.
+
 - Route, leader, term, epoch, revision, and lease fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail

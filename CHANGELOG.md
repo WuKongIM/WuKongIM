@@ -30,6 +30,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Refresh group delivery snapshots across nodes using the membership version already read during send authorization, preventing removed members from receiving subsequent group messages through stale caches. / 复用发送鉴权时已读取的成员版本刷新跨节点群投递快照，避免旧缓存继续向已移除成员投递后续群消息。
+
 - Bundle Prometheus binaries built from pinned source with dependency security fixes in Linux amd64/arm64 Docker images so enabling the managed Prometheus process starts successfully and persists metrics on the existing data volume. / Docker 镜像为 Linux amd64/arm64 内嵌从固定源码构建并修复依赖漏洞的 Prometheus 二进制，修复开启内置进程后启动失败、容器反复重启的问题，指标随现有数据卷持久化。
 
 - Preserve queued WebSocket payloads across subsequent reads, preventing corrupted JSON-RPC messages and unexpected client disconnections. / 修复 WebSocket 入队数据被后续读取覆盖导致的 JSON-RPC 消息损坏与客户端异常断开。

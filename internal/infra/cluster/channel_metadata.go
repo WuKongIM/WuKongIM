@@ -114,7 +114,12 @@ func (s *ChannelMetadataStore) GetChannel(ctx context.Context, channelID string,
 	if !ok {
 		return metadb.Channel{}, clusterpkg.ErrRouteNotReady
 	}
-	return node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
+	generation := s.appendMetadataCache.Generation()
+	channel, err := node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
+	if err == nil && channel.ChannelID == channelID && channel.ChannelType == channelType {
+		s.appendMetadataCache.observeRecipientMetadata(channel, generation)
+	}
+	return channel, err
 }
 
 // GetChannelForPermission reads channel metadata for send authorization.
@@ -325,6 +330,7 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 	if len(proxyReads) == 0 {
 		return results
 	}
+	cacheGeneration := s.appendMetadataCache.Generation()
 	proxyResults := node.ReadPermissionMetadataBatchAuthoritative(ctx, proxyReads)
 	if len(proxyResults) != len(proxyReads) {
 		err := mapChannelPermissionReadError(fmt.Errorf("permission metadata batch returned %d results for %d reads", len(proxyResults), len(proxyReads)))
@@ -338,6 +344,11 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 		return results
 	}
 	for proxyIndex, result := range proxyResults {
+		read := proxyReads[proxyIndex]
+		if read.Kind == slotproxy.PermissionMetadataReadChannel && result.Err == nil && result.Found &&
+			result.Channel.ChannelID == read.ChannelID && result.Channel.ChannelType == read.ChannelType {
+			s.appendMetadataCache.observeRecipientMetadata(result.Channel, cacheGeneration)
+		}
 		resultIndex := proxyIndex
 		if resultIndexes != nil {
 			resultIndex = resultIndexes[proxyIndex]

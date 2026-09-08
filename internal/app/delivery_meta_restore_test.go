@@ -8,9 +8,9 @@ func TestDeliveryMetaStoreRejectsLatePreRestoreSnapshot(t *testing.T) {
 	version := store.version.Load()
 
 	store.resetAfterRestore()
-	store.storeSubscriberSnapshot(key, version, []string{"stale-user"})
+	store.storeSubscriberSnapshot(key, version, 0, []string{"stale-user"})
 
-	if _, ok := store.cachedSubscribers(key, store.version.Load()); ok {
+	if _, ok := store.cachedSubscribers(key, store.version.Load(), 0); ok {
 		t.Fatal("late pre-restore subscriber snapshot repopulated the cache")
 	}
 }

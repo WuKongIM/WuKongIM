@@ -536,3 +536,28 @@ func equalStringSlices(a, b []string) bool {
 	}
 	return true
 }
+
+// Permission reads already observe the Slot leader. A different API node may
+// have changed subscribers since this ingress last resolved its append target.
+func TestPermissionFactsRefreshRemoteSubscriberVersion(t *testing.T) {
+	for _, batch := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch=%v", batch), func(t *testing.T) {
+			id := channelappend.ChannelID{ID: "group", Type: 2}
+			cache := NewChannelAppendMetadataCache()
+			cache.Store(id, ChannelAppendMetadata{SubscriberMutationVersion: 1})
+			channel := metadb.Channel{ChannelID: id.ID, ChannelType: 2, SubscriberMutationVersion: 2, Large: 1}
+			node := &recordingChannelMetadataNode{authoritativeChannel: channel,
+				permissionBatchResults: []slotproxy.PermissionMetadataReadResult{{Found: true, Channel: channel}}}
+			store := NewChannelMetadataStore(node, cache, nil)
+			if batch {
+				store.ReadPermissionsBatch(context.Background(), []messageusecase.PermissionRead{{Kind: messageusecase.PermissionReadChannel, ChannelID: id.ID, ChannelType: 2}})
+			} else if _, err := store.GetChannelForPermission(context.Background(), id.ID, 2); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := cache.Lookup(id)
+			if got.SubscriberMutationVersion != 2 || !got.Large {
+				t.Fatalf("recipient metadata = %+v, want authoritative version 2/large", got)
+			}
+		})
+	}
+}

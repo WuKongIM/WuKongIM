@@ -51,6 +51,8 @@ Stop or startup rollback
 
 ## Invariants and Failure Semantics
 
+- Delivery subscriber snapshots require both the observed membership version and the current restore/benchmark generation; remote mutations cannot reuse stale cached recipients.
+
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
 - Synchronous before-send Webhook admission is wired independently of asynchronous

@@ -30,6 +30,8 @@ It does not perform permission checks, durable append, routing, or delivery.
 
 ## Invariants and Failure Semantics
 
+- Subscriber page requests carry the append target's observed membership version for cache validation.
+
 - Hot-path payload and scoped-recipient slices may be borrowed only while every
   participant treats them as immutable; concrete durable/async owners copy.
 - Authority target carries complete route generation and observed write-fence

@@ -664,6 +664,7 @@ func (r *batchRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthor
 }
 
 type recordingSubscriberSourceForRecipientTest struct {
+	versions                []uint64
 	enqueuer                *recordingRecipientEnqueuerForRecipientTest
 	pages                   []SubscriberPage
 	calls                   int
@@ -673,6 +674,7 @@ type recordingSubscriberSourceForRecipientTest struct {
 }
 
 func (s *recordingSubscriberSourceForRecipientTest) NextSubscriberPage(_ context.Context, req SubscriberPageRequest) (SubscriberPage, error) {
+	s.versions = append(s.versions, req.SubscriberMutationVersion)
 	if s.failOnCall {
 		s.calls++
 		return SubscriberPage{}, nil
@@ -914,5 +916,18 @@ func recipientAuthorityTargetForTest(hashSlot uint16, leader uint64, epoch uint6
 		ConfigEpoch:    uint64(hashSlot) + 20000,
 		RouteRevision:  uint64(hashSlot + 1000),
 		AuthorityEpoch: epoch,
+	}
+}
+
+func TestSubscriberScansCarryAuthorityMembershipVersion(t *testing.T) {
+	for _, large := range []bool{false, true} {
+		source := &recordingSubscriberSourceForRecipientTest{pages: []SubscriberPage{{Done: true}}}
+		_, err := dispatchCommittedRecipientsForTarget(context.Background(), AuthorityTarget{Large: large, SubscriberMutationVersion: 7}, CommittedEnvelope{ChannelID: "group", ChannelType: 2}, subscriberCache{}, commitPorts{subscribers: source, deliveryEnqueuer: &recordingRecipientDeliveryEnqueuerForRecipientTest{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(source.versions, []uint64{7}) {
+			t.Fatalf("large=%v snapshot versions=%v, want [7]", large, source.versions)
+		}
 	}
 }

@@ -133,12 +133,12 @@ func dispatchRecipientsForTarget(ctx context.Context, mode onlinedelivery.Mode, 
 		return recipientDispatchResult{}, dispatchErr
 	}
 	if target.Large {
-		return dispatchSubscriberPages(ctx, mode, event, ports)
+		return dispatchSubscriberPages(ctx, mode, target, event, ports)
 	}
 	return dispatchSubscriberSnapshot(ctx, mode, target, event, cache, ports)
 }
 
-func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, event CommittedEnvelope, ports commitPorts) (recipientDispatchResult, error) {
+func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, target AuthorityTarget, event CommittedEnvelope, ports commitPorts) (recipientDispatchResult, error) {
 	if ports.subscribers == nil {
 		return recipientDispatchResult{}, nil
 	}
@@ -152,9 +152,10 @@ func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, even
 			return result, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 		}
 		page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
-			ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
-			Cursor:    cursor,
-			Limit:     pageSize,
+			SubscriberMutationVersion: target.SubscriberMutationVersion,
+			ChannelID:                 ChannelID{ID: event.ChannelID, Type: event.ChannelType},
+			Cursor:                    cursor,
+			Limit:                     pageSize,
 		})
 		if err != nil {
 			return result, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_page"})
@@ -188,8 +189,9 @@ func dispatchSubscriberSnapshot(ctx context.Context, mode onlinedelivery.Mode, t
 		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 	}
 	page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
-		ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
-		Limit:     subscriberSnapshotLoadLimit,
+		SubscriberMutationVersion: target.SubscriberMutationVersion,
+		ChannelID:                 ChannelID{ID: event.ChannelID, Type: event.ChannelType},
+		Limit:                     subscriberSnapshotLoadLimit,
 	})
 	if err != nil {
 		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_snapshot"})

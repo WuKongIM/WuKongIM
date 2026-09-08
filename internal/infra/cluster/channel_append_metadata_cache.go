@@ -64,7 +64,7 @@ func (c *ChannelAppendMetadataCache) Generation() uint64 {
 }
 
 // StoreIfGeneration records metadata only when no restore reset occurred
-// after the caller started its authoritative load.
+// after the caller started its authoritative load and no newer membership version is cached.
 func (c *ChannelAppendMetadataCache) StoreIfGeneration(id channelappend.ChannelID, metadata ChannelAppendMetadata, generation uint64) bool {
 	if c == nil {
 		return false
@@ -72,6 +72,9 @@ func (c *ChannelAppendMetadataCache) StoreIfGeneration(id channelappend.ChannelI
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.generation != generation {
+		return false
+	}
+	if current, ok := c.entries[id]; ok && current.SubscriberMutationVersion > metadata.SubscriberMutationVersion {
 		return false
 	}
 	c.entries[id] = metadata
@@ -109,4 +112,18 @@ func (c *ChannelAppendMetadataCache) storeChannel(channel metadb.Channel) {
 		SubscriberMutationVersion: channel.SubscriberMutationVersion,
 		DirectoryProjectionState:  channel.DirectoryProjectionState,
 	})
+}
+
+// observeRecipientMetadata reuses existing authoritative permission reads to
+// invalidate remote-node group fanout snapshots without another hot-path read.
+// Person recipients are derived from the canonical ID, not subscriber snapshots.
+func (c *ChannelAppendMetadataCache) observeRecipientMetadata(channel metadb.Channel, generation uint64) {
+	if channel.ChannelID == "" || channel.ChannelType == 1 {
+		return
+	}
+	c.StoreIfGeneration(channelappend.ChannelID{ID: channel.ChannelID, Type: uint8(channel.ChannelType)}, ChannelAppendMetadata{
+		Large:                     channel.Large != 0,
+		SubscriberMutationVersion: channel.SubscriberMutationVersion,
+		DirectoryProjectionState:  channel.DirectoryProjectionState,
+	}, generation)
 }
