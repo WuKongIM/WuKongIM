@@ -23,7 +23,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
 | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
 | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 102 | warning |
+| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 100 | ok |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 100 | ok |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 100 | ok |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 53 | ok |

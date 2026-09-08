@@ -8,10 +8,9 @@ summary: Composes product and Agent runtimes and owns their dependency-safe life
 ## Responsibility
 
 This package is the only composition root under `internal`. It converts
-validated configuration into product access adapters, use cases, node-local
-runtimes, infrastructure adapters, cluster/gateway services, observability,
-and lifecycle ownership. Issue Agent, Review Agent, Cloud Analysis, and Cloud
-View composition roots do not start the product cluster.
+validated configuration into product access adapters, use cases, node-local runtimes,
+infrastructure adapters, cluster/gateway services, observability,
+and lifecycle ownership. Agent/Cloud Analysis/Cloud View roots do not start the product cluster.
 
 ## Boundaries
 
@@ -52,7 +51,6 @@ Stop or startup rollback
 ## Invariants and Failure Semantics
 
 - Delivery subscriber snapshots require both the observed membership version and the current restore/benchmark generation; remote mutations cannot reuse stale cached recipients.
-
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
 - Synchronous before-send Webhook admission is wired independently of asynchronous
