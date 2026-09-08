@@ -255,7 +255,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 	certifiedCommitted := quorumFrontier(committed, request.Quorum)
 	quorumLEO := quorumFrontier(leos, request.Quorum)
 	if certifiedCommitted > quorumLEO {
-		return recoverySelection{}, ch.ErrLogConflict
+		return recoverySelection{}, fixtureConflict("recovery_owner.go:258")
 	}
 	if quorumLEO == 0 {
 		return recoverySelection{CertifiedCommitted: certifiedCommitted}, nil
@@ -341,7 +341,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		if pageStart == certifiedCommitted && certifiedCommitted > 0 {
 			identity, ok := quorumCommittedIdentityAt(stableReports, 0, certifiedCommitted, request.Quorum)
 			if !ok {
-				return recoverySelection{}, ch.ErrLogConflict
+				return recoverySelection{}, fixtureConflict("recovery_owner.go:344")
 			}
 			selected.Index = certifiedCommitted
 			selected.Identity = identity
@@ -358,11 +358,11 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 			}
 			if selected.Index == 0 {
 				if index != 1 || identity.PreviousIndex != 0 || identity.PreviousTerm != 0 || identity.PreviousDigest != (ch.EntryDigest{}) {
-					return recoverySelection{}, ch.ErrLogConflict
+					return recoverySelection{}, fixtureConflict("recovery_owner.go:361")
 				}
 			} else if identity.PreviousIndex != selected.Identity.Index || identity.PreviousTerm != selected.Identity.LeaderTerm ||
 				identity.PreviousDigest != selected.Identity.Digest {
-				return recoverySelection{}, ch.ErrLogConflict
+				return recoverySelection{}, fixtureConflict("recovery_owner.go:365")
 			}
 			selected.Index = index
 			selected.Identity = identity
@@ -525,7 +525,7 @@ func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest
 				continue
 			}
 			if !validRecoveryProbeResult(completion.result) || !sameRecoveryProbeIndexes(indexes, completion.result.Entries) {
-				return nil, ch.ErrLogConflict
+				return nil, fixtureConflict("recovery_owner.go:528")
 			}
 			reports = append(reports, recoveryProbeReport{Voter: completion.voter, Result: completion.result})
 		}

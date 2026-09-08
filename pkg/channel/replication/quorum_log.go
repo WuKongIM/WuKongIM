@@ -115,7 +115,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 			return Installed{}, ch.ErrStaleMeta
 		case 0:
 			if !sameAuthority(authority, state.authority) {
-				return Installed{}, ch.ErrLogConflict
+				return Installed{}, fixtureConflict("quorum_log.go:118")
 			}
 			if authority.WriteFence.Set() {
 				return Installed{}, ch.ErrWriteFenced
@@ -249,7 +249,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 
 	if retained, ok := state.retained[proposal.CommandID]; ok {
 		if !sameProposalContent(retained.proposal, proposal.Records) {
-			return Receipt{}, ch.ErrLogConflict
+			return Receipt{}, fixtureConflict("quorum_log.go:252")
 		}
 		if retained.durable {
 			return retained.receipt, nil
@@ -258,7 +258,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 	if state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
 		if !sameProposalContent(state.pending.proposal, proposal.Records) {
-			return Receipt{}, ch.ErrLogConflict
+			return Receipt{}, fixtureConflict("quorum_log.go:261")
 		}
 		return l.retryPending(ctx, state, *state.pending)
 	}
@@ -291,7 +291,7 @@ func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumC
 		return Receipt{}, err
 	}
 	if !found || !sameProposalContent(loaded.proposal, proposal.Records) {
-		return Receipt{}, ch.ErrLogConflict
+		return Receipt{}, fixtureConflict("quorum_log.go:294")
 	}
 	l.remember(state, loaded)
 	return loaded.receipt, nil
@@ -303,7 +303,7 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 		MaxRecords: l.cfg.MaxProposalRecords, MaxBytes: l.cfg.MaxProposalBytes,
 	}})
 	if len(results) != 1 {
-		return retainedProposal{}, false, ch.ErrLogConflict
+		return retainedProposal{}, false, fixtureConflict("quorum_log.go:306")
 	}
 	result := results[0]
 	if result.Err != nil {
@@ -316,11 +316,11 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 	if !manifest.StructurallyValid() || manifest.CommandID != command || manifest.LastOffset > state.hw ||
 		manifest.ChannelEpoch != state.authority.ID.ChannelEpoch || manifest.LeaderTerm != state.authority.ID.LeaderTerm ||
 		manifest.FenceVersion != state.authority.ID.FenceVersion {
-		return retainedProposal{}, false, ch.ErrLogConflict
+		return retainedProposal{}, false, fixtureConflict("quorum_log.go:319")
 	}
 	sealed, entries, ok := ch.SealProposalManifest(manifest, result.Records)
 	if !ok || sealed != manifest || len(entries) == 0 {
-		return retainedProposal{}, false, ch.ErrLogConflict
+		return retainedProposal{}, false, fixtureConflict("quorum_log.go:323")
 	}
 	receipt := Receipt{
 		Authority: state.authority.ID, CommandID: command,
@@ -348,7 +348,7 @@ func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal
 	proposal := retained.proposal
 	_, entries, ok := ch.SealProposalManifest(proposal.manifest, proposal.records)
 	if !ok || len(entries) == 0 {
-		return Receipt{}, ch.ErrLogConflict
+		return Receipt{}, fixtureConflict("quorum_log.go:351")
 	}
 	receipt := Receipt{
 		Authority: state.authority.ID, CommandID: proposal.manifest.CommandID,
@@ -389,7 +389,7 @@ func (l *quorumLog) channel(key ch.ChannelKey, id ch.ChannelID) (*quorumChannel,
 	defer l.mu.Unlock()
 	if state := l.channels[key]; state != nil {
 		if state.id != id {
-			return nil, ch.ErrLogConflict
+			return nil, fixtureConflict("quorum_log.go:392")
 		}
 		return state, nil
 	}

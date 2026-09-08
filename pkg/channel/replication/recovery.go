@@ -57,7 +57,7 @@ func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProb
 		}
 		seen[report.Voter] = struct{}{}
 		if !validRecoveryProbeResult(report.Result) {
-			return recoverySelection{}, ch.ErrLogConflict
+			return recoverySelection{}, fixtureConflict("recovery.go:60")
 		}
 		if reportIndex == 0 {
 			indexes = make([]uint64, len(report.Result.Entries))
@@ -85,7 +85,7 @@ func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProb
 		var ok bool
 		certifiedIdentity, ok = quorumCommittedIdentityAt(reports, position, certifiedCommitted, quorum)
 		if !ok {
-			return recoverySelection{}, ch.ErrLogConflict
+			return recoverySelection{}, fixtureConflict("recovery.go:88")
 		}
 	}
 	sortedIndexes := append([]uint64(nil), indexes...)
@@ -97,7 +97,7 @@ func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProb
 		}
 		if certifiedCommitted > 0 {
 			if index < certifiedCommitted {
-				return recoverySelection{}, ch.ErrLogConflict
+				return recoverySelection{}, fixtureConflict("recovery.go:100")
 			}
 			if err := validateQuorumChain(reports, byIndex, certifiedCommitted, certifiedIdentity, index, quorum); err != nil {
 				return recoverySelection{}, err
@@ -105,7 +105,7 @@ func selectRecoveryPrefix(voters []ch.NodeID, quorum int, reports []recoveryProb
 		}
 		if index != quorumLEO {
 			if index == ^uint64(0) {
-				return recoverySelection{}, ch.ErrLogConflict
+				return recoverySelection{}, fixtureConflict("recovery.go:108")
 			}
 			if _, provedNext := byIndex[index+1]; !provedNext {
 				return recoverySelection{}, errRecoveryProbeIncomplete
@@ -250,11 +250,11 @@ func validateQuorumChain(
 	quorum int,
 ) error {
 	if to < from || identity.Index != from {
-		return ch.ErrLogConflict
+		return fixtureConflict("recovery.go:253")
 	}
 	for index := from; index < to; {
 		if index == ^uint64(0) {
-			return ch.ErrLogConflict
+			return fixtureConflict("recovery.go:257")
 		}
 		index++
 		position, present := byIndex[index]
@@ -267,7 +267,7 @@ func validateQuorumChain(
 		}
 		if next.PreviousIndex != identity.Index || next.PreviousTerm != identity.LeaderTerm ||
 			next.PreviousDigest != identity.Digest {
-			return ch.ErrLogConflict
+			return fixtureConflict("recovery.go:270")
 		}
 		identity = next
 	}

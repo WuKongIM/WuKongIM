@@ -200,7 +200,7 @@ func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
 			recordCount := uint64(len(batch.records))
 			if receipt.Authority != batch.authority || receipt.CommandID != batch.commandID || receipt.First == 0 ||
 				recordCount == 0 || receipt.Last < receipt.First || receipt.Last-receipt.First+1 != recordCount || receipt.HW != receipt.Last {
-				commitErr = ch.ErrLogConflict
+				commitErr = fixtureConflict("append.go:203")
 			} else {
 				committed.First = receipt.First
 				committed.Last = receipt.Last

@@ -57,7 +57,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 	local := localResult.State
 	selection := request.Selection
 	if local.Committed > selection.Index {
-		return ReplicaState{}, ch.ErrLogConflict
+		return ReplicaState{}, fixtureConflict("recovery_repair.go:60")
 	}
 	keepThrough := local.Committed
 	previous := ch.EntryIdentity{}
@@ -71,10 +71,10 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 		}
 		previous = probed.Entries[0].Identity
 		if keepThrough == selection.CertifiedCommitted && previous != selection.CertifiedIdentity {
-			return ReplicaState{}, ch.ErrLogConflict
+			return ReplicaState{}, fixtureConflict("recovery_repair.go:74")
 		}
 		if keepThrough == selection.Index && previous != selection.Identity {
-			return ReplicaState{}, ch.ErrLogConflict
+			return ReplicaState{}, fixtureConflict("recovery_repair.go:77")
 		}
 	}
 	if local.LEO == selection.Index && local.TailIdentity == selection.Identity && local.Committed == selection.Index {
@@ -100,7 +100,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 		if previous.Index < selection.CertifiedCommitted && last >= selection.CertifiedCommitted {
 			certified, present := recoveryProposalIdentityAt(page.Proposals, selection.CertifiedCommitted)
 			if !present || certified != selection.CertifiedIdentity {
-				return ReplicaState{}, ch.ErrLogConflict
+				return ReplicaState{}, fixtureConflict("recovery_repair.go:103")
 			}
 		}
 		pageKeep := current.LEO
@@ -116,7 +116,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 			if len(replaced) == 1 && replaced[0].Err != nil {
 				return ReplicaState{}, replaced[0].Err
 			}
-			return ReplicaState{}, ch.ErrLogConflict
+			return ReplicaState{}, fixtureConflict("recovery_repair.go:119")
 		}
 		loaded, loadErr := loadRecoveryReplicaState(operationContext, store, request.ChannelKey, request.ChannelID, nil)
 		if loadErr != nil {
@@ -124,7 +124,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 		}
 		want := ReplicaState{LEO: last, Committed: committed, Manifest: page.Proposals[len(page.Proposals)-1].Manifest, TailIdentity: tail}
 		if loaded.State != want {
-			return ReplicaState{}, ch.ErrLogConflict
+			return ReplicaState{}, fixtureConflict("recovery_repair.go:127")
 		}
 		current = loaded.State
 		previous = tail
@@ -140,12 +140,12 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 			if len(replaced) == 1 && replaced[0].Err != nil {
 				return ReplicaState{}, replaced[0].Err
 			}
-			return ReplicaState{}, ch.ErrLogConflict
+			return ReplicaState{}, fixtureConflict("recovery_repair.go:143")
 		}
 		current = ReplicaState{}
 	}
 	if current.LEO != selection.Index || current.Committed != selection.Index || current.TailIdentity != selection.Identity {
-		return ReplicaState{}, ch.ErrLogConflict
+		return ReplicaState{}, fixtureConflict("recovery_repair.go:148")
 	}
 	return current, nil
 }
@@ -204,13 +204,13 @@ func loadRecoveryReplicaState(ctx context.Context, store ReplicaStore, key ch.Ch
 		return LoadResult{}, err
 	}
 	if len(loaded.Items) != 1 {
-		return LoadResult{}, ch.ErrLogConflict
+		return LoadResult{}, fixtureConflict("recovery_repair.go:207")
 	}
 	if loaded.Items[0].Err != nil {
 		return LoadResult{}, loaded.Items[0].Err
 	}
 	if !validReplicaState(loaded.Items[0].State) || !sameRecoveryProbeIndexes(indexes, loaded.Items[0].Entries) {
-		return LoadResult{}, ch.ErrLogConflict
+		return LoadResult{}, fixtureConflict("recovery_repair.go:213")
 	}
 	return loaded.Items[0], nil
 }
@@ -244,7 +244,7 @@ func fetchRecoveryPage(ctx context.Context, request recoveryRepairRequest, from,
 				From: query.From, Through: query.Through, Previous: query.Previous, MaxBytes: query.MaxBytes,
 			}
 			if !validPeerFetchResult(fetchRequest, completed.result) {
-				lastErr = ch.ErrLogConflict
+				lastErr = fixtureConflict("recovery_repair.go:247")
 				continue
 			}
 			return completed.result, nil
@@ -262,12 +262,12 @@ func fetchRecoveryPage(ctx context.Context, request recoveryRepairRequest, from,
 func recoveryPageTail(from, through uint64, previous ch.EntryIdentity, proposals []RecoveryProposal, maxBytes int) (uint64, ch.EntryIdentity, error) {
 	request := FetchRequest{From: from, Through: through, Previous: previous, MaxBytes: maxBytes}
 	if !validRecoveryProposals(request, proposals) {
-		return 0, ch.EntryIdentity{}, ch.ErrLogConflict
+		return 0, ch.EntryIdentity{}, fixtureConflict("recovery_repair.go:265")
 	}
 	lastProposal := proposals[len(proposals)-1]
 	_, entries, ok := ch.SealProposalManifest(lastProposal.Manifest, lastProposal.Records)
 	if !ok || len(entries) == 0 {
-		return 0, ch.EntryIdentity{}, ch.ErrLogConflict
+		return 0, ch.EntryIdentity{}, fixtureConflict("recovery_repair.go:270")
 	}
 	return lastProposal.Manifest.LastOffset, entries[len(entries)-1], nil
 }

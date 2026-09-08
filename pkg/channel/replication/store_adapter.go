@@ -155,7 +155,7 @@ func loadExactRecoveryState(ctx context.Context, store channelstore.ChannelStore
 		return channelstore.ExactState{}, nil, err
 	}
 	if len(recovery.Entries) != len(indexes) {
-		return channelstore.ExactState{}, nil, ch.ErrLogConflict
+		return channelstore.ExactState{}, nil, fixtureConflict("store_adapter.go:158")
 	}
 	entries := make([]EntryProbe, len(indexes))
 	for position, entry := range recovery.Entries {
@@ -163,12 +163,12 @@ func loadExactRecoveryState(ctx context.Context, store channelstore.ChannelStore
 			(entry.Present && entry.Identity.Index != entry.Index) ||
 			(entry.Present && !validEntryIdentity(entry.Identity)) ||
 			(entry.Index <= recovery.LEO && !entry.Present) || (entry.Index > recovery.LEO && entry.Present) {
-			return channelstore.ExactState{}, nil, ch.ErrLogConflict
+			return channelstore.ExactState{}, nil, fixtureConflict("store_adapter.go:166")
 		}
 		entries[position] = EntryProbe{Index: entry.Index, Present: entry.Present, Identity: entry.Identity}
 	}
 	if !validProbeEntryChain(entries) {
-		return channelstore.ExactState{}, nil, ch.ErrLogConflict
+		return channelstore.ExactState{}, nil, fixtureConflict("store_adapter.go:171")
 	}
 	return recovery.ExactState, entries, nil
 }
@@ -432,7 +432,7 @@ func (a *storeAdapter) Fetch(ctx context.Context, ranges []FetchRange) []FetchRa
 func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecoveryPage) ([]RecoveryProposal, error) {
 	count := len(page.Records)
 	if count == 0 || count > int(request.Through-request.From+1) || count > maxRecoveryProbeIndexes || len(page.Entries) != count {
-		return nil, ch.ErrLogConflict
+		return nil, fixtureConflict("store_adapter.go:435")
 	}
 	entries := make([]EntryProbe, count)
 	used := 0
@@ -441,7 +441,7 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 		entry := page.Entries[index]
 		if entry.Index != expectedIndex || !entry.Present || entry.Identity.Index != expectedIndex || !validEntryIdentity(entry.Identity) ||
 			page.Records[index].Index != expectedIndex {
-			return nil, ch.ErrLogConflict
+			return nil, fixtureConflict("store_adapter.go:444")
 		}
 		page.Records[index].Epoch = entry.Identity.ChannelEpoch
 		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload)
@@ -452,12 +452,12 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 		entries[index] = EntryProbe{Index: entry.Index, Present: true, Identity: entry.Identity}
 	}
 	if !validProbeEntryChain(entries) {
-		return nil, ch.ErrLogConflict
+		return nil, fixtureConflict("store_adapter.go:455")
 	}
 	first := entries[0].Identity
 	if first.PreviousIndex != request.Previous.Index || first.PreviousTerm != request.Previous.LeaderTerm ||
 		first.PreviousDigest != request.Previous.Digest {
-		return nil, ch.ErrLogConflict
+		return nil, fixtureConflict("store_adapter.go:460")
 	}
 	proposals := make([]RecoveryProposal, 0, count)
 	for first := 0; first < count; {
@@ -467,7 +467,7 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 			candidate := entries[last].Identity
 			if candidate.Version != identity.Version || candidate.ChannelEpoch != identity.ChannelEpoch ||
 				candidate.LeaderTerm != identity.LeaderTerm || candidate.FenceVersion != identity.FenceVersion {
-				return nil, ch.ErrLogConflict
+				return nil, fixtureConflict("store_adapter.go:470")
 			}
 			last++
 		}
@@ -482,14 +482,14 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 		records := append([]ch.Record(nil), page.Records[first:last]...)
 		sealed, derived, ok := ch.SealProposalManifest(manifest, records)
 		if !ok || sealed != manifest || len(derived) != len(records) || derived[len(derived)-1] != lastIdentity {
-			return nil, ch.ErrLogConflict
+			return nil, fixtureConflict("store_adapter.go:485")
 		}
 		proposals = append(proposals, RecoveryProposal{Manifest: manifest, Records: records})
 		first = last
 	}
 	if len(proposals) == 0 || proposals[0].Manifest.BaseOffset+1 != request.From ||
 		proposals[len(proposals)-1].Manifest.LastOffset > request.Through {
-		return nil, ch.ErrLogConflict
+		return nil, fixtureConflict("store_adapter.go:492")
 	}
 	return proposals, nil
 }
@@ -631,7 +631,7 @@ func validateExactState(state channelstore.ExactState) error {
 	if state.LEO == 0 {
 		if state.HW != 0 || state.CheckpointHW != 0 || state.Manifest != (ch.ProposalManifest{}) ||
 			state.TailIdentity != (ch.EntryIdentity{}) {
-			return ch.ErrLogConflict
+			return fixtureConflict("store_adapter.go:634")
 		}
 		return nil
 	}
@@ -641,7 +641,7 @@ func validateExactState(state channelstore.ExactState) error {
 		manifest.LastOffset != state.LEO || !validEntryIdentity(tail) || tail.Version != manifest.Version || tail.Index != state.LEO ||
 		tail.ChannelEpoch != manifest.ChannelEpoch || tail.LeaderTerm != manifest.LeaderTerm ||
 		tail.FenceVersion != manifest.FenceVersion || tail.CommandID != manifest.CommandID || tail.Digest != manifest.Digest {
-		return ch.ErrLogConflict
+		return fixtureConflict("store_adapter.go:644")
 	}
 	return nil
 }

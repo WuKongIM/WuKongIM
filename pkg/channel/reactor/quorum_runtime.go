@@ -131,7 +131,7 @@ func (r *Reactor) handleQuorumInstallResult(result worker.Result) {
 	if err == nil {
 		if result.QuorumInstall == nil || result.QuorumInstall.Installed.Authority != pending.authority.ID ||
 			result.QuorumInstall.Installed.HW > result.QuorumInstall.Installed.LEO {
-			err = ch.ErrLogConflict
+			err = fixtureConflict("quorum_runtime.go:134")
 		}
 	}
 	rc.quorumInstall = nil
