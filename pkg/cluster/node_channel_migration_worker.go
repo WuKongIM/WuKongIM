@@ -403,6 +403,11 @@ func (n *Node) applyChannelMigrationLocalRuntimeMeta(ctx context.Context, meta m
 	if n.channels == nil {
 		return ErrNotStarted
 	}
+	if service, ok := n.channels.(interface {
+		ApplyMetaContext(context.Context, ch.Meta) error
+	}); ok {
+		return service.ApplyMetaContext(ctx, channelwrapper.ProjectRuntimeMeta(meta))
+	}
 	service, ok := n.channels.(interface {
 		ApplyMeta(ch.Meta) error
 	})

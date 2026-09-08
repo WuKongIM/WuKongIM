@@ -352,6 +352,19 @@ func (s *Service) MigrationStore() *MigrationStore {
 // advances the append cache through the same per-channel ordering boundary.
 func (s *Service) ApplyMeta(meta ch.Meta) error { return s.applyRuntimeMeta(meta, true) }
 
+// ApplyMetaContext bounds a maintenance caller's metadata application wait. It
+// rejects contended metadata admission so repair workers can retry on a later
+// tick instead of waiting behind unrelated Channel work on a shared lock.
+func (s *Service) ApplyMetaContext(ctx context.Context, meta ch.Meta) error {
+	if ctx == nil {
+		return ch.ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.applyRuntimeMetaWithContext(ctx, meta, true)
+}
+
 // Append appends one message.
 func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
 	res, err, usedMeta, usedCache := s.appendOnce(ctx, req)
@@ -1474,6 +1487,21 @@ func recoveredAppendError(recovered bool, err error) error {
 }
 
 func (s *Service) applyRuntimeMeta(meta ch.Meta, authoritative bool) error {
+	return s.applyRuntimeMetaWithContext(nil, meta, authoritative)
+}
+
+func (s *Service) applyRuntimeMetaToHost(ctx context.Context, meta ch.Meta) error {
+	if ctx == nil {
+		return s.runtime.ApplyMeta(meta)
+	}
+	applier, ok := s.runtime.(runtimeMetaContextApplier)
+	if !ok {
+		return ch.ErrInvalidConfig
+	}
+	return applier.ApplyMetaContext(ctx, meta)
+}
+
+func (s *Service) applyRuntimeMetaWithContext(ctx context.Context, meta ch.Meta, authoritative bool) error {
 	if s == nil || s.runtime == nil {
 		return ch.ErrNotReady
 	}
@@ -1481,15 +1509,19 @@ func (s *Service) applyRuntimeMeta(meta ch.Meta, authoritative bool) error {
 		meta.Key = ch.ChannelKeyForID(meta.ID)
 	}
 	if !validAppendMetaIdentity(meta.ID, meta) {
-		return s.runtime.ApplyMeta(meta)
+		return s.applyRuntimeMetaToHost(ctx, meta)
 	}
 	lock := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
-	lock.Lock()
+	if ctx == nil {
+		lock.Lock()
+	} else if !lock.TryLock() {
+		return ch.ErrBackpressured
+	}
 	defer lock.Unlock()
 
 	candidate := cloneMeta(meta)
 	selected, _ := s.metaCache.preferCurrent(meta.ID, candidate)
-	if err := s.runtime.ApplyMeta(selected); err != nil {
+	if err := s.applyRuntimeMetaToHost(ctx, selected); err != nil {
 		return err
 	}
 	if authoritative {
