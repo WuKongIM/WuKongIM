@@ -72,7 +72,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |
 | [pkg/bench/model/FLOW.md](../../pkg/bench/model/FLOW.md) | `package` | Defines shared wkbench configuration, deterministic plans, reports, rates, scenario digests, and bench target API DTOs. | 66 | ok |
 | [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 91 | ok |
-| [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 80 | ok |
+| [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 82 | ok |
 | [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `package` | Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations. | 68 | ok |
 | [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 65 | ok |
 | [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 102 | warning |

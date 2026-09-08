@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"time"
 
@@ -117,6 +118,16 @@ func (r *Reactor) handleQuorumInstallResult(result worker.Result) {
 		return
 	}
 	err := result.Err
+	// Installing a migration fence invalidates the previous quorum authority but
+	// deliberately cannot open append admission. Metadata application still has
+	// to complete so migration can verify this fenced leader and clear the fence.
+	// The later unfenced authority must finish normal recovery and its barrier.
+	if errors.Is(err, ch.ErrWriteFenced) && pending.authority.WriteFence.Set() {
+		rc.quorumInstall = nil
+		rc.state.CommitReady = false
+		r.completeFutures(pending.futures, Result{})
+		return
+	}
 	if err == nil {
 		if result.QuorumInstall == nil || result.QuorumInstall.Installed.Authority != pending.authority.ID ||
 			result.QuorumInstall.Installed.HW > result.QuorumInstall.Installed.LEO {

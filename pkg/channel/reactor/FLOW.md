@@ -48,7 +48,9 @@ typed bounded workers and returns as `EventWorkerResult`.
   leader epoch, and operation ID. Stale results cannot advance or evict a newer
   incarnation.
 - Quorum install remains pending work and keeps append admission closed until
-  recovery plus the current-authority barrier succeeds. Each accepted append
+  recovery plus the current-authority barrier succeeds. Applying a migration
+  fence completes metadata loading with writes closed; clearing it installs
+  the new authority through normal recovery before append admission opens. Each accepted append
   completes directly from its exact quorum-commit receipt, without hot-path
   PullHint or AckOffset signals.
 - One loaded runtime has one lifecycle controller. Hot follower replication

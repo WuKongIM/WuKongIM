@@ -6,7 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Channel migration probes load cold local replicas from authoritative metadata before checking runtime proof, allowing quorum-replicated followers to participate in dead-leader recovery.
+- Channel migration probes load cold local replicas from authoritative metadata before checking runtime proof, allowing quorum-replicated followers to participate in dead-leader recovery. Fenced leader metadata can finish loading while writes remain closed; clearing the fence still requires quorum recovery before appends.
 
 ### 🔧 Improvements / 改进
 
