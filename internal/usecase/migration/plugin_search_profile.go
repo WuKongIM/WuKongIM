@@ -12,9 +12,9 @@ import (
 )
 
 // SearchPersistRouteProfile pins the original search executable from plugins
-// commit 10b1795449c4dc7da1e8871863f7458c1e94198e. Native acceptance covered
-// history rebuild, PersistAfter, cross-node usersearch, and two restarts.
-// Its private index must be rebuilt from retained target messages before cutover.
+// commit 10b1795449c4dc7da1e8871863f7458c1e94198e for offline mapping.
+// Archive-based restart acceptance exposed stale indexes after leader changes;
+// cutover additionally requires an upgraded plugin with query-time catch-up.
 const SearchPersistRouteProfile = "wk-search-persist-route-linux-amd64-v1"
 const searchProgramSHA256 = "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f"
 

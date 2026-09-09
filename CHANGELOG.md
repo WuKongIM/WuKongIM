@@ -6,7 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Support the exact audited original search-plugin migration profile, rebuilding history indexes from verified sequence-zero checkpoints on every target. / 支持已审计原搜索插件的精确迁移映射，为全部目标生成经过验证的序号零检查点以重建历史索引。
+- Support offline mapping of the exact original search plugin with verified history-rebuild seeds on every target; document the required runtime catch-up upgrade for leader changes. / 支持原搜索插件的精确离线映射，为全部目标生成经过验证的历史索引重建种子，并明确 Leader 变化所需的运行时增量补齐升级。
 
 - Restore the legacy `/plugins/:plugin_no/*path` Product HTTP route through the existing plugin usecase, with bounded bodies/timeouts and maintenance fencing, so business backends can call search plugins after upgrading. / 恢复经现有插件用例处理的 Product HTTP 插件路由，限制请求体与调用时长并保留维护屏障，使业务后端升级后仍可调用搜索插件。
 

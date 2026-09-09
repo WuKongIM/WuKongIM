@@ -123,6 +123,8 @@ Source directories, workspaces, the archive, and target directories must not con
 
 `wk-search-persist-route-linux-amd64-v1` is restricted to `wk.plugin.search` 0.0.1, priority 1, methods `PersistAfter` and `Route`, empty configuration, and exactly this one plugin on every source. The Linux/amd64 executable must be **63324496** bytes with SHA-256 **68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f** (plugin source commit `10b1795449c4dc7da1e8871863f7458c1e94198e`). This adapter follows beta.13 and is unavailable in that released tool.
 
+**Known runtime limitation:** the exact original search program passed new-message searches but returned an older index after a full restart selected a different leader in an archive-based three-node rehearsal. The messages remained in v3 history. This profile permits offline executable/settings mapping and initial index seeds; it is not production business acceptance. After offline `verify` and before business acceptance, install a validated search plugin with query-time incremental catch-up and record its version and SHA-256. Test a leader change after sending through only one node, plus full-cluster restart searches; rotating writes through every node is not a substitute.
+
 Preserve every original source executable. Add one `plugin_artifacts` entry per source and explicitly map node settings and the uniform empty configuration. For three nodes:
 
 ```json

@@ -3,7 +3,7 @@
   "info": {
     "title": "WuKongIM Product HTTP Runtime API",
     "version": "3.0.0-beta-snapshot",
-    "description": "Source-aligned contract for the 42 core Product HTTP JSON operations. The plugin-defined ANY route is listed in x-wukongim-extension-routes. These routes have no built-in authentication.",
+    "description": "The 42 core Product HTTP JSON operations, plus the plugin-defined ANY route in x-wukongim-extension-routes. Routes have no built-in authentication.",
     "x-i18n": {
       "zh": {
         "title": "WuKongIM Product HTTP 运行时 API",
