@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add read-only migration access for Pebble format 19 while preserving legacy source support, source locks, and business compatibility checks; document development-build and plugin checks before downtime. / 迁移读取器增加 Pebble 格式 19 只读支持，保留旧格式读取、源文件锁与业务兼容检查，并补充停机前的开发版本和插件核对说明。
+
 ## [v3.0.0-beta.13] - 2026-09-09
 
 ### 🔧 Improvements / 改进

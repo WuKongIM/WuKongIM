@@ -68,7 +68,7 @@ func readStoppedNode(ctx context.Context, opts NodeOptions, visit func(Row) erro
 		return snapshot, err
 	}
 	paths := append(append(append([]string{}, business...), slotPaths...), cfgPath)
-	locks := make([]*pebble.Lock, 0, len(paths))
+	locks := make([]*sourceLock, 0, len(paths))
 	defer func() {
 		for _, lock := range locks {
 			err = errors.Join(err, lock.Close())
@@ -88,7 +88,7 @@ func readStoppedNode(ctx context.Context, opts NodeOptions, visit func(Row) erro
 		if !info.Mode().IsRegular() || info.Size() != 0 {
 			return snapshot, fmt.Errorf("invalid v2 LOCK file: %s", p)
 		}
-		lock, err := pebble.LockDirectory(p, sourceFS{})
+		lock, err := lockSourceDirectory(p)
 		if err != nil {
 			return snapshot, fmt.Errorf("stop all source processes before reading %s: %w", p, err)
 		}
@@ -120,7 +120,7 @@ func readStoppedNode(ctx context.Context, opts NodeOptions, visit func(Row) erro
 	cache := pebble.NewCache(16 << 20)
 	defer cache.Unref()
 	for shard, p := range business {
-		db, err := pebble.Open(p, &pebble.Options{ReadOnly: true, ErrorIfNotExists: true, Lock: locks[shard], FS: sourceFS{}, Cache: cache, MaxOpenFiles: 128})
+		db, err := openSourceDatabase(p, locks[shard], cache)
 		if err != nil {
 			return snapshot, err
 		}

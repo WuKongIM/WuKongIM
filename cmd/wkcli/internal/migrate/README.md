@@ -3,6 +3,10 @@
 Offline migration from unmodified WuKongIM `v2.2.5-20260422`
 (`a888f89533d0e7d1b2030e06504ca97f1ad891d4`) into a fresh native v3 cluster.
 The source server does not need an upgrade. Linux and macOS source locking is supported.
+The reader also supports Pebble format 19 through an explicit read-only engine
+adapter; all original schema, index, authority, and plugin checks still apply.
+This does not certify arbitrary older or modified server builds. Released
+`v3.0.0-beta.13` binaries do not contain this adapter.
 
 See the [operator runbook](../../../../docs/superpowers/runbooks/v2-to-v3-migration.md)
 and [final acceptance report](../../../../docs/superpowers/reports/2026-09-08-v2-migration-final-acceptance.md)

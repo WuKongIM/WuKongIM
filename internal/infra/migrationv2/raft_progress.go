@@ -23,11 +23,11 @@ type logGroup struct {
 	shard    int
 }
 
-func readRaftProgress(ctx context.Context, paths []string, locks []*pebble.Lock, slots uint32, maxBytes int, cache *pebble.Cache) ([]LogProgress, error) {
+func readRaftProgress(ctx context.Context, paths []string, locks []*sourceLock, slots uint32, maxBytes int, cache *pebble.Cache) ([]LogProgress, error) {
 	return readRaftProgressVisit(ctx, paths, locks, slots, maxBytes, cache, nil)
 }
 
-func readRaftProgressVisit(ctx context.Context, paths []string, locks []*pebble.Lock, slots uint32, maxBytes int, cache *pebble.Cache, visit func(uint32, uint64, uint32, []byte) error) ([]LogProgress, error) {
+func readRaftProgressVisit(ctx context.Context, paths []string, locks []*sourceLock, slots uint32, maxBytes int, cache *pebble.Cache, visit func(uint32, uint64, uint32, []byte) error) ([]LogProgress, error) {
 	// A single configuration DB uses the empty key suffix. Slot DBs hash the
 	// decimal Slot ID using original FNV-1 32 (placement) and FNV-1a 64 (keys).
 	groups := map[uint64]*logGroup{}
@@ -61,7 +61,7 @@ func readRaftProgressVisit(ctx context.Context, paths []string, locks []*pebble.
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		db, err := pebble.Open(p, &pebble.Options{ReadOnly: true, ErrorIfNotExists: true, Lock: locks[shard], FS: sourceFS{}, Cache: cache, MaxOpenFiles: 128})
+		db, err := openSourceDatabase(p, locks[shard], cache)
 		if err != nil {
 			return nil, err
 		}
@@ -81,12 +81,15 @@ func readRaftProgressVisit(ctx context.Context, paths []string, locks []*pebble.
 	return result, nil
 }
 
-func scanRaftDB(ctx context.Context, db *pebble.DB, shard int, slotted bool, maxBytes int, groups map[uint64]*logGroup) (err error) {
+func scanRaftDB(ctx context.Context, db *sourceDatabase, shard int, slotted bool, maxBytes int, groups map[uint64]*logGroup) (err error) {
 	return scanRaftDBVisit(ctx, db, shard, slotted, maxBytes, groups, nil)
 }
 
-func scanRaftDBVisit(ctx context.Context, db *pebble.DB, shard int, slotted bool, maxBytes int, groups map[uint64]*logGroup, visit func(uint32, uint64, uint32, []byte) error) (err error) {
-	iter := db.NewIter(nil)
+func scanRaftDBVisit(ctx context.Context, db *sourceDatabase, shard int, slotted bool, maxBytes int, groups map[uint64]*logGroup, visit func(uint32, uint64, uint32, []byte) error) (err error) {
+	iter, err := db.NewIter()
+	if err != nil {
+		return err
+	}
 	defer func() { err = errors.Join(err, iter.Close()) }()
 	for ok := iter.First(); ok; ok = iter.Next() {
 		if err := ctx.Err(); err != nil {

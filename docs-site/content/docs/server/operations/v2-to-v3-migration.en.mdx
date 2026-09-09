@@ -27,6 +27,14 @@ The migration archive preserves original business records, but not every origina
 
 ## 1. Collect backups and install the tools
 
+**Check the actual binaries, storage format, and plugins before downtime.** A Docker image tag need not match its binary version: development images may contain another commit or uncommitted changes. `source_commit` selects the reader schema; omitting or changing it cannot make an unsupported database compatible.
+
+Inspect each node's `marker.format-version.*` files and the `format_major_version` value in `OPTIONS-*` without modifying them. The released `v3.0.0-beta.13` migration reader supports Pebble formats through 14 and cannot directly read format 19 used by some `pebble/v2` development builds. Format 19 requires matching tools and server with the corresponding read-only adapter, followed by rehearsal against a complete cold backup. Engine readability alone does not establish compatibility of older business fields, indexes, or plugins.
+
+Inventory every enabled plugin, executable digest, configuration, business methods such as `PersistAfter` and `Route`, and Webhook and data-source interfaces. The current migration plugin profile covers only the audited AI example executable; it cannot be applied to a search plugin. Verify the actual plugin first. Do not delete registrations, disable plugins, or supply another executable's profile to bypass checks.
+
+If v2 writes resume after a brief outage to take a rehearsal backup, that backup is for rehearsal only. Before the actual cutover, stop all write entrypoints again, take a new complete cold backup, and repeat migration and independent verification with fresh workspaces and target directories. Never route production traffic to a stale rehearsal generation.
+
 Stop all business write entrypoints, let log application, topology changes, and notification queues drain, then shut down every v2 node normally and disable automatic restarts. Preserve complete node data directories, original binaries, configuration, and environment variables. **An existing complete stopped backup can be used directly; do not restart v2.**
 
 Choose a migration machine with enough space. **Copy every v2 node's cold backup into a separate directory on that machine**, and compare file inventories and content checksums. Do not merge node directories. Run the migration commands once, on this machine only:
