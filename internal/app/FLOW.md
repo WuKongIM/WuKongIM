@@ -32,6 +32,7 @@ validated Config + build identity -> format guard and fresh-directory provenance
      conversation legacy-sync message port
   -> when bearer and all real drain ports exist, bind one terminal controller
      to both the already-created gateway handler and API prepare route
+  -> wire legacy product plugin HTTP routes into the same plugin usecase
   -> register node RPC and access adapters
   -> expose optional API, Manager, metrics, diagnostics, plugins, and gateway
 

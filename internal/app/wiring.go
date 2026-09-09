@@ -862,6 +862,10 @@ func (a *App) wireGatewayHandler(ownerNodeID uint64) {
 
 func (a *App) wireAPI() {
 	if a.api == nil && strings.TrimSpace(a.cfg.API.ListenAddr) != "" {
+		var pluginRouter accessapi.PluginHTTPRouter
+		if a.plugins != nil {
+			pluginRouter = a.plugins
+		}
 		legacyRouteExternal, legacyRouteIntranet := legacyRouteAddresses(a.cfg.API, a.cfg.Gateway.Listeners)
 		legacyRouteNodes := legacyRouteNodeAddresses(a.cfg.NodeID, a.cfg.Cluster.Control.Voters, legacyRouteExternal, legacyRouteIntranet)
 		a.api = accessapi.New(accessapi.Options{
@@ -880,6 +884,8 @@ func (a *App) wireAPI() {
 			Channels:                 a.channels,
 			Users:                    a.users,
 			Messages:                 a.apiMessages,
+			Plugins:                  pluginRouter,
+			PluginTimeout:            a.cfg.Plugin.Timeout,
 			SystemUID:                a.cfg.Message.SystemUID,
 			CMDSync:                  a.cmdSync,
 			Conversations:            a.conversations,

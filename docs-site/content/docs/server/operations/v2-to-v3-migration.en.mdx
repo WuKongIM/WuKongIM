@@ -33,6 +33,8 @@ Inspect each node's `marker.format-version.*` files and the `format_major_versio
 
 Inventory every enabled plugin, executable digest, configuration, business methods such as `PersistAfter` and `Route`, and Webhook and data-source interfaces. The current migration plugin profile covers only the audited AI example executable; it cannot be applied to a search plugin. Verify the actual plugin first. Do not delete registrations, disable plugins, or supply another executable's profile to bypass checks.
 
+If the business backend calls `/plugins/:plugin_no/*path`, verify the HTTP route as well: `v3.0.0-beta.13` can start plugins but returns 404 for the missing legacy entry. Use a server containing the route fix and test historical search, new-message indexing, cross-node search, and restarts. For an original gRPC Webhook, verify an equivalent HTTP endpoint and event handling in the business backend; do not copy the gRPC address into HTTP configuration.
+
 If v2 writes resume after a brief outage to take a rehearsal backup, that backup is for rehearsal only. Before the actual cutover, stop all write entrypoints again, take a new complete cold backup, and repeat migration and independent verification with fresh workspaces and target directories. Never route production traffic to a stale rehearsal generation.
 
 Stop all business write entrypoints, let log application, topology changes, and notification queues drain, then shut down every v2 node normally and disable automatic restarts. Preserve complete node data directories, original binaries, configuration, and environment variables. **An existing complete stopped backup can be used directly; do not restart v2.**

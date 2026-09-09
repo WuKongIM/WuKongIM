@@ -11,7 +11,7 @@ This package owns the product HTTP listener, route registration, request and
 response DTOs, CORS, entry validation, legacy-compatible envelopes, and the
 embedded chat Demo. It adapts HTTP requests to entry-independent use cases and
 runtime ports; it does not own message, membership, conversation, channel, or
-user business state.
+user business state. Legacy plugin HTTP routes invoke the existing plugin usecase.
 
 ## Boundaries
 
@@ -56,6 +56,9 @@ bench or debug request
   a production authentication claim.
 - `/message/eventsync` maps the original projected-event envelope to the narrow
   event-sync use case; sequence selection and visibility policy stay below HTTP.
+- `/plugins/:plugin_no/*path` preserves the business-backend plugin route with a
+  bounded body and timeout, safe response framing, and the same maintenance gate.
+  Plugin execution and eligibility remain below the HTTP adapter.
 - `/route`, legacy channel/user/message/CMD/conversation routes, and their
   response envelopes remain compatibility surfaces independent of bench mode.
 - Default external `/route` and `/route/batch` complete listener-derived wildcard

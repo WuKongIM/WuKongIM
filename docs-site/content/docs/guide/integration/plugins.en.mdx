@@ -61,6 +61,14 @@ Current compatibility capabilities include:
 
 Host RPC still enforces body, header, query, timeout, and target validation. `toNodeId=-1` fanout is explicitly deferred and does not perform a silent partial broadcast.
 
+## Business HTTP routes
+
+A business backend can call `ANY /plugins/:plugin_no/*path` on the Product HTTP listener, for example `POST /plugins/wk.plugin.search/search`. The server forwards the method, path, body, and first value of each header/query entry to the connected plugin's `Route` method on that node, then returns its status, body, and end-to-end headers. The plugin defines its payload schema; these extension routes are separate from the core Product HTTP JSON operation inventory.
+
+The entry inherits the Product HTTP network boundary and maintenance gate without adding authentication. Request and response bodies are limited to 10 MiB. Execution uses `plugin.timeout` (default 5 seconds). Oversized requests return 413, unavailable plugins or invalid responses return 502, and an unwired plugin runtime returns 503. Hop-by-hop response headers and plugin-supplied `Content-Length` are removed.
+
+This compatibility entry is a fix after `v3.0.0-beta.13`, which returns 404 for this path. Existing integrations require a server containing the fix and acceptance tests against their actual plugin.
+
 ## Safety and capacity checklist
 
 1. Install only reviewed plugin artifacts and pin version and digest.

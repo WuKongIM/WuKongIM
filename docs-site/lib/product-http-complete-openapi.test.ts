@@ -601,3 +601,18 @@ describe('complete Product HTTP OpenAPI contract', () => {
     );
   });
 });
+
+
+test('plugin-defined HTTP extension route is inventoried separately from core JSON operations', async () => {
+  const server = await source('server.go');
+  expect(server).toContain('s.engine.Any("/plugins/:plugin_no/*path", s.handlePluginRoute)');
+  expect(document['x-wukongim-extension-routes']).toEqual([
+    expect.objectContaining({ method: 'ANY', path: '/plugins/:plugin_no/*path', max_body_bytes: 10485760, timeout_config: 'plugin.timeout' }),
+  ]);
+  for (const suffix of ['', '.en']) {
+    const guide = await Bun.file(new URL(`../content/docs/guide/integration/plugins${suffix}.mdx`, import.meta.url)).text();
+    expect(guide).toContain('ANY /plugins/:plugin_no/*path');
+    expect(guide).toContain('10 MiB');
+    expect(guide).toContain('plugin.timeout');
+  }
+});

@@ -249,6 +249,10 @@ type Options struct {
 	Users UserUsecase
 	// Messages handles compatible message send and channel message sync routes.
 	Messages MessageUsecase
+	// Plugins handles the legacy business-backend /plugins/:plugin_no/*path route.
+	Plugins PluginHTTPRouter
+	// PluginTimeout bounds one route invocation; defaults to five seconds.
+	PluginTimeout time.Duration
 	// SystemUID is the configured primary system account used when message senders
 	// are omitted and when legacy conversation responses hide system traffic.
 	SystemUID string
@@ -306,6 +310,8 @@ type Server struct {
 	channels             ChannelUsecase
 	users                UserUsecase
 	messages             MessageUsecase
+	plugins              PluginHTTPRouter
+	pluginTimeout        time.Duration
 	systemUID            string
 	cmdSync              CMDSyncUsecase
 	conversations        ConversationUsecase
@@ -327,6 +333,9 @@ type Server struct {
 
 // New creates a minimal internal API server.
 func New(opts Options) *Server {
+	if opts.PluginTimeout <= 0 {
+		opts.PluginTimeout = 5 * time.Second
+	}
 	if gin.Mode() != gin.ReleaseMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -355,6 +364,8 @@ func New(opts Options) *Server {
 		channels:             opts.Channels,
 		users:                opts.Users,
 		messages:             opts.Messages,
+		plugins:              opts.Plugins,
+		pluginTimeout:        opts.PluginTimeout,
 		systemUID:            systemUID,
 		cmdSync:              opts.CMDSync,
 		conversations:        opts.Conversations,
@@ -545,6 +556,7 @@ func (s *Server) registerRoutes() {
 	s.registerUserRoutes()
 	s.registerMessageRoutes()
 	s.registerConversationRoutes()
+	s.engine.Any("/plugins/:plugin_no/*path", s.handlePluginRoute)
 	s.engine.GET("/top/v1/snapshot", s.handleTopSnapshot)
 	if !s.benchEnabled {
 		return
