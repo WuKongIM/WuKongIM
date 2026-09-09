@@ -162,6 +162,11 @@ func Install(ctx context.Context, plan migration.TargetPlan, report migration.Ta
 	}
 	for i, n := range plan.Nodes {
 		if ready[i] {
+			if hasSearchProfile(n, pluginArtifacts) {
+				if err := migration.VerifySearchCheckpoints(ctx, w, searchCheckpointReader{n}); err != nil {
+					return err
+				}
+			}
 			if err := checkPluginArtifacts(ctx, n, pluginArtifacts); err != nil {
 				return err
 			}
@@ -178,6 +183,11 @@ func Install(ctx context.Context, plan migration.TargetPlan, report migration.Ta
 		}
 		if err := installPluginArtifacts(ctx, n, w, pluginArtifacts); err != nil {
 			return fmt.Errorf("target node %d plugin executables: %w", n.NodeID, err)
+		}
+		if hasSearchProfile(n, pluginArtifacts) {
+			if err := installSearchCheckpoints(ctx, n, w); err != nil {
+				return fmt.Errorf("target node %d search rebuild: %w", n.NodeID, err)
+			}
 		}
 		digest, err := generationDigest(ctx, n.DataDir)
 		if err != nil {

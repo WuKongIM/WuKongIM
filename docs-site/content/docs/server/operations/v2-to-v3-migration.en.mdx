@@ -31,7 +31,7 @@ The migration archive preserves original business records, but not every origina
 
 Inspect each node's `marker.format-version.*` files and the `format_major_version` value in `OPTIONS-*` without modifying them. The released `v3.0.0-beta.13` migration reader supports Pebble formats through 14 and cannot directly read format 19 used by some `pebble/v2` development builds. Format 19 requires matching tools and server with the corresponding read-only adapter, followed by rehearsal against a complete cold backup. Engine readability alone does not establish compatibility of older business fields, indexes, or plugins.
 
-Inventory every enabled plugin, executable digest, configuration, business methods such as `PersistAfter` and `Route`, and Webhook and data-source interfaces. The current migration plugin profile covers only the audited AI example executable; it cannot be applied to a search plugin. Verify the actual plugin first. Do not delete registrations, disable plugins, or supply another executable's profile to bypass checks.
+Inventory every enabled plugin, executable digest, configuration, business methods such as `PersistAfter` and `Route`, and Webhook and data-source interfaces. Compatibility profiles bind exact audited executables. The AI example and search plugin use different profiles and are not interchangeable. Verify the actual plugin first. Do not delete registrations, disable plugins, or supply another executable's profile to bypass checks.
 
 If the business backend calls `/plugins/:plugin_no/*path`, verify the HTTP route as well: `v3.0.0-beta.13` can start plugins but returns 404 for the missing legacy entry. Use a server containing the route fix and test historical search, new-message indexing, cross-node search, and restarts. For an original gRPC Webhook, verify an equivalent HTTP endpoint and event handling in the business backend; do not copy the gRPC address into HTTP configuration.
 
@@ -115,6 +115,35 @@ Omitting `source_commit` requires a `wkcli` containing this change. Before relea
 Older tools, including v3.0.0-beta.12, still require `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"` at the plan top level. New tools continue to accept that plan with the same migration identity. Explicitly specifying a different revision is still rejected. Set `shard_count` to the actual original business DB shard count. Target node IDs are 1–1023; replica counts cannot exceed the target node count. `slot_count` sets target logical Slots. The example uses the v3 default of `12`, which must match `cluster.initial_slot_count` at startup. The migration plan still requires an explicit value; no default is filled in. `hash_slot_count` is the physical hash-slot count, fixed at `256`.
 
 Source directories, workspaces, the archive, and target directories must not contain one another. Target `data_dir` directories must not exist yet, and must later be deployed at the same absolute paths on their respective servers.
+
+</details>
+
+<details>
+<summary>Optional: preserve the original search plugin</summary>
+
+`wk-search-persist-route-linux-amd64-v1` is restricted to `wk.plugin.search` 0.0.1, priority 1, methods `PersistAfter` and `Route`, empty configuration, and exactly this one plugin on every source. The Linux/amd64 executable must be **63324496** bytes with SHA-256 **68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f** (plugin source commit `10b1795449c4dc7da1e8871863f7458c1e94198e`). This adapter follows beta.13 and is unavailable in that released tool.
+
+Preserve every original source executable. Add one `plugin_artifacts` entry per source and explicitly map node settings and the uniform empty configuration. For three nodes:
+
+```json
+{
+  "plugin_nodes": [
+    {"source_node": 1001, "target_node": 101},
+    {"source_node": 1002, "target_node": 102},
+    {"source_node": 1003, "target_node": 103}
+  ],
+  "plugin_configs": [{"plugin_no": "wk.plugin.search", "source_node": 1001}],
+  "plugin_artifacts": [
+    {"source_node": 1001, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1001/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
+    {"source_node": 1002, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1002/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
+    {"source_node": 1003, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1003/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"}
+  ]
+}
+```
+
+Paths must name verified stopped-backup executables. Import installs the original program, settings, and sequence-zero checkpoints for all retained message channels on every target. It does not copy the old Bleve index. On first startup, the original plugin rebuilds its index through v3 committed-history reads, accommodating node and sequence changes. Configure each node's plugin paths to its own `data_dir` subdirectories: `plugins`, `plugin-state`, and `plugin-sandbox`.
+
+Offline `verify` requires complete, unadvanced checkpoints: verify before starting any target. Full-history rebuilding creates an index on every target and needs additional disk, CPU, and acceptance time. Wait for completion and test historical keywords, new messages, `/usersearch` through every node, and restarts. Neither `readyz` nor a running plugin process certifies search acceptance.
 
 </details>
 

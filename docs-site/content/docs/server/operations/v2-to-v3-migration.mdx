@@ -31,7 +31,7 @@ description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划�
 
 可只读查看各节点数据目录中的 `marker.format-version.*` 文件和 `OPTIONS-*` 的 `format_major_version`，不要修改它们。已发布的 `v3.0.0-beta.13` 迁移器最高读取 Pebble 格式 14，不能直接读取 `pebble/v2` 开发版本使用的格式 19。格式 19 需要包含对应只读适配的配套工具与服务端，并先在完整冷备上演练；底层格式可读仍不代表旧版业务字段、索引和插件兼容。
 
-盘点全部启用插件、程序摘要、配置、`PersistAfter`／`Route` 等业务方法，以及 Webhook 和数据源接口。当前迁移插件兼容规则只覆盖已审计的 AI 示例程序，不能套用到搜索插件。先完成实际插件兼容验证；不要靠删注册、关闭插件或填入其他程序的 profile 绕过检查。
+盘点全部启用插件、程序摘要、配置、`PersistAfter`／`Route` 等业务方法，以及 Webhook 和数据源接口。插件兼容规则绑定已审计的精确程序；AI 示例和搜索插件使用不同 profile，不能互相套用。先完成实际插件兼容验证；不要靠删注册、关闭插件或填入其他程序的 profile 绕过检查。
 
 旧业务后端若调用 `/plugins/:plugin_no/*path`，还须验证 HTTP 路由：`v3.0.0-beta.13` 可启动插件但未注册旧业务入口，会返回 404。使用包含兼容入口修复的服务端，并测试历史搜索、新消息索引、跨节点搜索和重启。原配置若使用 gRPC Webhook，还需确认业务端提供对应 HTTP Webhook 接口并验证事件处理；不能直接把旧 gRPC 地址填入 HTTP 配置。
 
@@ -115,6 +115,35 @@ wukongim version --output json
 旧版工具（包括 v3.0.0-beta.12）仍要求在计划顶层填写 `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"`。新工具继续接受这份旧计划，并保持相同迁移身份；显式填写其他提交仍会被拒绝。`shard_count` 填原部署实际业务 DB 分片数；目标节点 ID 为 1–1023，副本数不能超过目标节点数。`slot_count` 是目标逻辑 Slot 数，示例采用 v3 默认的 `12`，须与启动配置 `cluster.initial_slot_count` 一致；迁移计划仍须显式填写，不会自动补默认值。`hash_slot_count` 是物理哈希槽数，固定为 `256`。
 
 源、工作空间、归档和各目标目录必须互不包含。目标 `data_dir` 必须尚不存在，稍后还要部署到对应服务器的相同绝对路径。
+
+</details>
+
+<details>
+<summary>可选：保留原搜索插件</summary>
+
+`wk-search-persist-route-linux-amd64-v1` 仅适用于原 `wk.plugin.search` 0.0.1、priority 1、方法 `PersistAfter` 和 `Route`、空配置，且每个来源只有此一个插件。程序必须为 Linux/amd64，大小 **63324496** 字节，SHA-256 **68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f**（插件源码提交 `10b1795449c4dc7da1e8871863f7458c1e94198e`）。这是 beta.13 之后的适配，不能使用 beta.13 的工具。
+
+保存各来源的原插件程序，给每个来源填写一条 `plugin_artifacts`，显式选择目标节点设置和统一空配置来源。例如三节点计划添加：
+
+```json
+{
+  "plugin_nodes": [
+    {"source_node": 1001, "target_node": 101},
+    {"source_node": 1002, "target_node": 102},
+    {"source_node": 1003, "target_node": 103}
+  ],
+  "plugin_configs": [{"plugin_no": "wk.plugin.search", "source_node": 1001}],
+  "plugin_artifacts": [
+    {"source_node": 1001, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1001/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
+    {"source_node": 1002, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1002/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
+    {"source_node": 1003, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1003/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"}
+  ]
+}
+```
+
+路径必须指向已核对的停机备份程序。导入为每个目标安装原程序、设置和全部保留消息频道的序号零检查点；原 Bleve 索引不直接复制。首次启动由原插件通过 v3 的已提交历史接口重新建立索引，适应节点和序号变化。配置必须分别指向该节点 `data_dir` 下的 `plugins`、`plugin-state`、`plugin-sandbox`。
+
+离线 `verify` 要求检查点完整且未被启动推进；因此必须先校验、后启动。启动后的全历史重建在每个目标产生索引，需要额外磁盘、CPU 和验收时间。等待重建完成，验证历史关键词、新消息、每个节点的 `/usersearch` 和重启；`readyz` 成功或插件进程存在都不能代替搜索验收。
 
 </details>
 
