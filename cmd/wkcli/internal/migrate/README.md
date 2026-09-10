@@ -453,3 +453,37 @@ Leader 必须完全没有消息及尾记录。工具重新核对完整捕获、�
 原会话 ID 或时间。该会话会新出现在聊天列表，全部保留历史仍可读取，初始未读
 为 0；下一条新消息按原生规则计算。独立校验从原始业务行重新推导预期值，检查
 所有目标副本的已读位置和可见边界，不依赖转换器生成的会话行。
+
+### Exact conversation replica decisions
+
+`metadata.conversation_replicas` requires the original `v2_active_slot` lookup
+policy and at most 1024 distinct logical groups. Each entry contains
+`logical_key`, `source_node_id`, `copies_sha256`, and optional `archive_only`.
+A retained group chooses one existing complete original record; an archive-only
+group requires `archive_only=true` and `source_node_id=0`. The operator must
+review the original states and whether restoring an isolated copy is appropriate.
+No implicit majority selection or single-copy union is performed.
+
+Build `copies_sha256` from the prepared metadata candidates after original
+lookup reduction. Visit every formal Slot replica in ascending node-ID order.
+For a present candidate, append `nodeID candidateSHA originalSHA\n`, with single
+spaces and a real newline. `candidateSHA` hashes the exact `MarshalState`
+bytes at `candidate/metadata/<20-digit-node>/Conversation/<logical_key>`;
+`originalSHA` hashes the exact captured original row referenced by `source_key`.
+For an absent candidate append `nodeID absent\n`. Hash the concatenated bytes.
+Changed candidate/row bytes, changed absence, an absent chosen source, an already
+agreeing group, or an unused decision fail. Original rows remain in the archive;
+import and verify independently reconstruct these decisions. An archive-only
+group with a pending recovery intent fails for a separate source decision.
+
+### Sealed preparation for export
+
+Successful preparation publishes `archive_seal` with version 1, a report SHA256,
+a length-framed digest of all `source/`, `catalog/`, `selected/`, and
+`plugin-artifacts/` rows, and their count. The source digest includes quarantined
+originals. Export rechecks the stopped source and plugin bytes, validates the
+report, and compares the exported rows against this seal before publishing
+`COMPLETE`. It does not repeat semantic preparation. This is an export integrity
+checkpoint, not independent target verification. Import and verify still rebuild
+all checks from original archive rows in separate workspaces. Old preparation
+workspaces without a seal require a fresh workspace with matching tools.

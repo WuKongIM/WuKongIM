@@ -262,8 +262,8 @@ func reduceConversationLookups(ctx context.Context, capture SourceCapture, w Wor
 	return report, nil
 }
 
-func keepsConversation(ctx context.Context, w Workspace, capture string, p *MetadataPolicy, node uint64, row Row, key string) (bool, error) {
-	data, found, err := w.Get(ctx, []byte(fmt.Sprintf("%schosen/%020d/%s", conversationLookupBase(capture, p), node, key)))
+func keepsConversation(ctx context.Context, w Workspace, base string, node uint64, row Row, key string) (bool, error) {
+	data, found, err := w.Get(ctx, []byte(fmt.Sprintf("%schosen/%020d/%s", base, node, key)))
 	if err != nil {
 		return false, err
 	}

@@ -197,7 +197,9 @@ wukongim version --output json
 
 旧列表状态与唯一索引指向的状态不一致时，默认仍停止。逐组确认采用原唯一索引记录后，使用 `metadata.conversation_recoveries` 绑定节点、逻辑身份和完整原行哈希，不能只填写“忽略冲突”。每项包含 `node_id`、`logical_key`（工具的 `IdentityKey(uid, channelID, channelType)`）、`indexed_sha256`（`json.Marshal(Row)` 的 SHA256）及 `rows_sha256`（按物理 ID 升序，逐个原行 SHA256 后加换行，再取 SHA256）。工具选择一条完整原记录，保留其未读、已读及删除状态，再按获准的消息序号映射转换。
 
-原行变化、决定不匹配或未被实际使用都会拒绝。所有正式副本的状态比对继续执行，归档保留每条原始记录；导入与独立验证会重新推导选择。先归档完整差异、确认业务规则，再生成这些绑定值。具体字段见[工程操作手册](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。
+副本缺失或状态不同也必须逐组裁决。`metadata.conversation_replicas` 的每项用 `logical_key`、`copies_sha256` 绑定全部正式副本的候选记录、完整原行和缺失状态；`source_node_id` 选择一条实际存在的完整原记录。仅归档时须明确设置 `archive_only: true`、`source_node_id: 0`，不会从孤立副本重新创建聊天列表项。不能把“保留更多有效会话”视为恢复任意单副本会话的授权。CMD 会话若也存在副本差异，可在已批准 CMD 仅归档的范围内绑定对应的逐组仅归档决定。
+
+原行变化、决定不匹配、指向已一致的组或未被实际使用都会拒绝。未获逐组决定的正式副本继续严格比较，归档保留每条原始记录；导入与独立验证会重新推导选择。仅归档组若另有待恢复意图也会停止，避免重新生成该会话。先归档完整差异、确认业务规则，再生成这些绑定值。具体字段见[工程操作手册](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。
 
 </details>
 
@@ -242,7 +244,7 @@ wukongim version --output json
 
 `prepare` 核对原始格式、索引和分片，结合持久化配置、Slot 日志与应用位置确定权威来源并比较正式副本；副本冲突时不会自行挑选最长 follower。它不修改 v2，也不创建目标集群。
 
-`export` 沿用成功准备的工作空间，重新确认来源未变，生成带清单、校验和及 `COMPLETE` 标记的原始归档。`import` 和 `verify` 各用独立工作空间，仅依赖计划和完整归档。
+`prepare` 成功时写入 `archive_seal`，绑定准备报告及待导出的完整源记录、目录、选择结果和插件程序。`export` 沿用该工作空间，重新确认来源和插件原文件未变，并在导出时核对全部记录摘要，不再重跑目录关联、副本选择和转换。只有摘要匹配才发布 `COMPLETE`；没有封印的旧工作空间需用配套新工具在全新目录重新准备。`import` 和 `verify` 各用独立工作空间，仅依赖计划和完整归档，仍分别重建完整校验，不能凭导出封印跳过独立验证。
 
 `verify` 从归档原记录重新推导预期值，逐字段比较全部目标副本的凭据、权限、会话、消息、原生索引、提交边界和启动产物，不只比较数量。确认 `selection_digest` 与准备结果一致、节点数符合计划，且 `verified_message_replicas` 等于保留业务消息数 × 消息副本数。保留所有报告、摘要、迁入／排除计数和启用转换时的 `sequence_mapping` 文件及校验和。
 

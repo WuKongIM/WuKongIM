@@ -111,6 +111,7 @@ type OriginalDecoder interface {
 // Preflight is evidence of source selection and conversion only. It must never
 // be presented as evidence that the target has passed independent verification.
 type Preflight struct {
+	ArchiveSeal     *PreparedArchiveSeal   `json:"archive_seal,omitempty"`
 	Status          string                 `json:"status"`
 	CutoverReady    bool                   `json:"cutover_ready"`
 	PlanDigest      string                 `json:"plan_digest"`
@@ -215,6 +216,9 @@ func Prepare(ctx context.Context, plan Plan, w Workspace, source Source, decoder
 	}
 	stage("prepare checkpoint")
 	result.Status = "prepared"
+	if err = sealPreparedArchive(ctx, w, &result); err != nil {
+		return result, err
+	}
 	data, err := json.Marshal(result)
 	if err != nil {
 		return result, err

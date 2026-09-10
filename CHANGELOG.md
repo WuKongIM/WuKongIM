@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Bind reviewed conversation replica choices and archive-only decisions to every original copy, including absence; preserve the full source archive. / 会话副本选择及仅归档决定绑定全部原副本和缺失状态，保留完整源归档。
+
+- Reuse sealed migration preparation during export while rechecking source freshness and all exported bytes; compute invariant lookup-policy digests once per selection. Independent import and verification still rebuild original records. / 导出复用带摘要的迁移准备结果，重新核对来源和全部导出字节；会话选择仅计算一次固定策略摘要。导入和独立验证继续从原记录重建。
+
 - Support explicitly approved preservation of conversations beyond the original v2 list cap and exact, hash-bound recovery of conflicting conversation states from their original unique indexes. / 支持明确批准后保留原 v2 列表上限之外的会话，并按原行哈希绑定的唯一索引记录恢复冲突会话状态。
 
 - Merge sorted source indexes during migration validation to avoid per-index point lookups, and report preparation stage durations without weakening missing, conflicting, or orphaned-index checks. / 迁移校验采用有序索引归并，减少逐条查询，并输出准备阶段耗时，保留缺失、错指与孤立索引检查。

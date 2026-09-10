@@ -36,6 +36,9 @@ type MetadataPolicy struct {
 	// ConversationRecoveries authorizes exact original indexed records for
 	// conflicting active-Leader list groups; it never synthesizes read state.
 	ConversationRecoveries []ConversationStateRecovery `json:"conversation_recoveries,omitempty"`
+	// ConversationReplicas binds exact replica disagreements to an operator's
+	// original-record choice or archive-only decision; it cannot synthesize state.
+	ConversationReplicas []ConversationReplicaRecovery `json:"conversation_replicas,omitempty"`
 }
 
 func validateMetadataPolicy(p *MetadataPolicy) error {
@@ -48,18 +51,22 @@ func validateMetadataPolicy(p *MetadataPolicy) error {
 	if err := validateConversationRecoveryPolicy(p); err != nil {
 		return err
 	}
+	if err := validateConversationReplicaPolicy(p); err != nil {
+		return err
+	}
 	return validateMissingConversations(p)
 }
 
 // MetadataSelection binds every original device candidate and chosen lookup.
 // Counts include physical source copies; all candidate rows remain archived.
 type MetadataSelection struct {
-	Policy          MetadataPolicy         `json:"policy"`
-	DeviceGroups    uint64                 `json:"device_groups"`
-	DuplicateGroups uint64                 `json:"duplicate_device_groups"`
-	ShadowedRows    uint64                 `json:"shadowed_device_rows"`
-	SHA256          string                 `json:"sha256"`
-	Conversations   *ConversationSelection `json:"conversations,omitempty"`
+	Policy          MetadataPolicy                `json:"policy"`
+	DeviceGroups    uint64                        `json:"device_groups"`
+	DuplicateGroups uint64                        `json:"duplicate_device_groups"`
+	ShadowedRows    uint64                        `json:"shadowed_device_rows"`
+	SHA256          string                        `json:"sha256"`
+	Conversations   *ConversationSelection        `json:"conversations,omitempty"`
+	ReplicaRecovery *ConversationReplicaSelection `json:"replica_recovery,omitempty"`
 }
 
 type deviceLookupRow struct {
@@ -212,8 +219,8 @@ func reduceDeviceLookups(ctx context.Context, capture SourceCapture, w Workspace
 	return report, nil
 }
 
-func keepsColdDevice(ctx context.Context, w Workspace, capture string, policy *MetadataPolicy, node uint64, row Row, logicalKey string) (bool, error) {
-	key := fmt.Sprintf("%schosen/%020d/%s", deviceLookupBase(capture, policy), node, logicalKey)
+func keepsColdDevice(ctx context.Context, w Workspace, base string, node uint64, row Row, logicalKey string) (bool, error) {
+	key := fmt.Sprintf("%schosen/%020d/%s", base, node, logicalKey)
 	data, found, err := w.Get(ctx, []byte(key))
 	if err != nil {
 		return false, err

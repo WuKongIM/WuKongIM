@@ -120,6 +120,13 @@ func RunWithBuild(ctx context.Context, args []string, stdout, stderr io.Writer, 
 				Nodes        int    `json:"nodes"`
 			}{"imported", false, plan.Digest(), len(plan.Target.Nodes)}, nil
 		}
+		if cmd.Verb == "export" {
+			archive, err := archivefs.NewFileArchiveStore(cmd.ArchivePath)
+			if err != nil {
+				return nil, err
+			}
+			return usecase.ExportPreparedArchive(ctx, plan, w, r, archive, func(node uint64, stage string) { fmt.Fprintf(stderr, "source node %d: %s\n", node, stage) })
+		}
 		prepared, err := usecase.Prepare(ctx, plan, w, r, r, func(node uint64, stage string) { fmt.Fprintf(stderr, "source node %d: %s\n", node, stage) })
 		if err != nil {
 			if cmd.Verb == "prepare" {
@@ -138,11 +145,7 @@ func RunWithBuild(ctx context.Context, args []string, stdout, stderr io.Writer, 
 				Mapping *sequenceMapFile `json:"sequence_mapping,omitempty"`
 			}{prepared, mapping}, nil
 		}
-		archive, err := archivefs.NewFileArchiveStore(cmd.ArchivePath)
-		if err != nil {
-			return nil, err
-		}
-		return usecase.ExportSourceArchive(ctx, usecase.SourceArchiveOptions{PlanDigest: plan.Digest(), SourceCommit: plan.SourceCommit}, prepared.Capture, prepared.Catalog, prepared.Selection, w, archive)
+		return nil, errors.New("unsupported migration command")
 	})
 }
 

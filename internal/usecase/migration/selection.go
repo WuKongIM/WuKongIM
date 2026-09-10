@@ -133,6 +133,11 @@ func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 		knownNodes[node.NodeID] = true
 	}
 	batch := &captureBatch{ctx: ctx, workspace: workspace}
+	conversationChoices := newConversationReplicaChoices(ctx, workspace, metadata)
+	// Policy digests are invariant during selection; hashing the complete
+	// evidence inventory once per physical conversation creates avoidable work.
+	deviceBase := deviceLookupBase(capture.Digest, metadata)
+	conversationBase := conversationLookupBase(capture.Digest, metadata)
 	for _, phase := range []string{"metadata", "messages"} {
 		for _, node := range capture.Nodes {
 			err := walkSourceRows(ctx, workspace, node.NodeID, func(row Row) error {
@@ -237,7 +242,7 @@ func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 					return nil
 				}
 				if row.Table == "Device" && selection.Metadata != nil {
-					keep, err := keepsColdDevice(ctx, workspace, capture.Digest, metadata, node.NodeID, row, description.Key)
+					keep, err := keepsColdDevice(ctx, workspace, deviceBase, node.NodeID, row, description.Key)
 					if err != nil {
 						return err
 					}
@@ -247,7 +252,7 @@ func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 					}
 				}
 				if row.Table == "Conversation" && selection.Metadata != nil && selection.Metadata.Conversations != nil {
-					keep, err := keepsConversation(ctx, workspace, capture.Digest, metadata, node.NodeID, row, description.Key)
+					keep, err := keepsConversation(ctx, workspace, conversationBase, node.NodeID, row, description.Key)
 					if err != nil {
 						return err
 					}
@@ -285,7 +290,15 @@ func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 		if phase == "messages" && prefixComparison != nil {
 			accept = prefixComparison.source
 		}
-		comparisonErr := compareCandidatesWithHistory(ctx, workspace, phase, batch, accept)
+		var choices *conversationReplicaChoices
+		if phase == "metadata" {
+			choices = conversationChoices
+		}
+		comparisonErr := compareCandidatesWithChoices(ctx, workspace, phase, batch, accept, choices)
+		if phase == "metadata" && selection.Metadata != nil {
+			selection.Metadata.ReplicaRecovery, err = conversationChoices.report()
+			comparisonErr = errors.Join(comparisonErr, err)
+		}
 		if phase == "messages" && prefixComparison != nil {
 			selection.HistoryPrefixes, err = prefixComparison.report()
 			comparisonErr = errors.Join(comparisonErr, err)
@@ -432,6 +445,10 @@ func compareCandidates(ctx context.Context, workspace Workspace, phase string, b
 }
 
 func compareCandidatesWithHistory(ctx context.Context, workspace Workspace, phase string, batch *captureBatch, accept func(sourceCandidate) (uint64, error)) error {
+	return compareCandidatesWithChoices(ctx, workspace, phase, batch, accept, nil)
+}
+
+func compareCandidatesWithChoices(ctx context.Context, workspace Workspace, phase string, batch *captureBatch, accept func(sourceCandidate) (uint64, error), choices *conversationReplicaChoices) error {
 	return workspace.Walk(ctx, []byte("candidate/"+phase+"/"), func(record transfer.SpoolRow) error {
 		var row sourceCandidate
 		if err := UnmarshalState(record.Value, &row); err != nil {
@@ -439,6 +456,14 @@ func compareCandidatesWithHistory(ctx context.Context, workspace Workspace, phas
 		}
 		if !bytes.Equal(record.Key, candidateKey(phase, row.NodeID, row.Table, row.LogicalKey)) {
 			return errors.New("source comparison key mismatch")
+		}
+		if selected, handled, err := choices.choose(row); err != nil {
+			return err
+		} else if handled {
+			if row.NodeID != selected {
+				return nil
+			}
+			return batch.add(transfer.SpoolRow{Key: selectedKey(row.Table, row.LogicalKey), Value: record.Value})
 		}
 		selectedNode := row.Group.Leader
 		ids := []uint64{row.Group.Leader}
