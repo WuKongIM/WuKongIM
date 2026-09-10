@@ -313,7 +313,8 @@ type RuntimeConfig struct {
 	HashSlotCount uint16
 	// ReplicaCount is the desired replica count for each physical Slot.
 	ReplicaCount uint16
-	// TickInterval controls Controller Raft ticking.
+	// TickInterval controls Controller Raft ticking; zero uses the canonical
+	// 100ms tick (1s election floor). Explicit values override that default.
 	TickInterval time.Duration
 	// RaftTransport sends Controller Raft messages.
 	RaftTransport Transport

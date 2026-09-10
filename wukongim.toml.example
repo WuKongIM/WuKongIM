@@ -3,6 +3,8 @@ id = 1
 data_dir = "./data/wukongim-single-node-data"
 
 [cluster]
+# Controller Raft uses 100ms heartbeats and a 1s minimum election timeout.
+# Its timing is independent of the configurable Slot Raft timing below.
 listen_addr = "127.0.0.1:7001"
 # Maximum wait for startup readiness, including committed Slot write probes.
 # Omitted or 0 uses 30s. Increase only after measuring cold recovery duration;

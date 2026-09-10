@@ -32,7 +32,7 @@ func (configTransportStub) Send([]raftpb.Message) {}
 func TestConfigNormalizationAppliesOperationalDefaultsAndOwnsPeerOrder(t *testing.T) {
 	peers := []Peer{{NodeID: 3, Addr: "n3"}, {NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}}
 	cfg := Config{Peers: peers}.normalized()
-	if cfg.TickInterval != defaultTickInterval || cfg.MaxApplyBatchEntries != defaultMaxApplyBatchEntries ||
+	if cfg.TickInterval != DefaultTickInterval || cfg.MaxApplyBatchEntries != defaultMaxApplyBatchEntries ||
 		cfg.MaxApplyBatchBytes != defaultMaxApplyBatchBytes || cfg.MaxApplyDelay != defaultMaxApplyDelay ||
 		cfg.WALSegmentSize != defaultWALSegmentSize || cfg.SnapshotCount != defaultSnapshotCount ||
 		cfg.SnapshotCatchUpEntries != defaultSnapshotCatchUp || cfg.SnapshotMinInterval != defaultSnapshotMinInterval {

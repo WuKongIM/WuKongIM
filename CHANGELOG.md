@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve the canonical Controller Raft 100ms tick through the runtime facade, avoiding an unintended 200ms election floor during cold recovery. / Controller 统一使用 100ms 默认 tick，避免上层覆盖后将选举等待下限缩短为 200ms，导致冷恢复期间频繁重新选举。
+
 - Refresh older loaded channel authority during committed history and conversation reads, then require fresh quorum recovery before serving messages. / 历史和会话读取遇到旧频道运行状态时重新加载当前权威信息，完成多数派恢复后再返回数据。
 
 - Preserve the failed channel migration task and phase in bounded worker diagnostics, including when a later tick deadline expires. / 频道迁移日志保留失败任务和阶段，避免后续超时覆盖原始错误。

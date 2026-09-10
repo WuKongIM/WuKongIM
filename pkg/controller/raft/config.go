@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	defaultTickInterval         = 100 * time.Millisecond
+	// DefaultTickInterval keeps the public runtime and Raft service on the same
+	// 100ms heartbeat cadence and one-second minimum election timeout.
+	DefaultTickInterval         = 100 * time.Millisecond
 	defaultMaxApplyBatchEntries = 128
 	defaultMaxApplyBatchBytes   = uint64(4 << 20)
 	defaultMaxApplyDelay        = 2 * time.Millisecond
@@ -119,7 +121,7 @@ type Config struct {
 
 func (c Config) normalized() Config {
 	if c.TickInterval == 0 {
-		c.TickInterval = defaultTickInterval
+		c.TickInterval = DefaultTickInterval
 	}
 	if c.MaxApplyBatchEntries == 0 {
 		c.MaxApplyBatchEntries = defaultMaxApplyBatchEntries
