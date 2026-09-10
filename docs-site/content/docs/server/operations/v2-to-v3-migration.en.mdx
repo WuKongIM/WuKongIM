@@ -298,6 +298,8 @@ Start all targets in isolation using the matching v3 server, without production 
 - First, last, and cross-page history matches payloads, IDs, sequences, ClientMsgNo, and RedDot. Permissions, conversation lists, and read state match the plan.
 - New message sequences strictly exceed the current channel tail, retrying the same idempotency key does not duplicate messages, and new unread counts are correct. For person sends, use the recipient UID, not the peer UID from history queried as the recipient.
 - History, new messages, and unread state survive full-cluster restarts. For multi-node clusters, test single-node failure recovery under the agreed plan.
+
+For three nodes with three replicas, distinguish existing channels from new channel placement. After stopping one node, existing channels may still commit through quorum while `/readyz` returns 503 because there are too few eligible nodes for new channel placement. Create a test channel while all nodes are ready, then stop each node in turn and verify that channel's history, new writes, and recovery. Preserve the readiness failure reason; passing existing-channel checks does not prove full readiness. Cut production traffic over only after all target nodes recover and pass readiness checks. See [Multi-node Deployment](/en/server/deployment/multi-node).
 - Retained event projections, plugins, Webhooks, push notifications, and actual business clients pass their own acceptance tests.
 
 Run write tests against isolated rehearsal copies. API checks do not replace SDK login, actual UI, and external integration acceptance. The [Chat Demo](/en/guide/quick-start/chat-demo) supports testing with existing tokens; do not create or overwrite original credentials.
