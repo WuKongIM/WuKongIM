@@ -14,7 +14,6 @@
 
 - Durable Channel replication excludes learners from quorum votes and recovery voting. Authority installation copies its quorum-proved committed frontier to non-ISR replicas through the fixed repair workers, one bounded page per turn; the repair ledger allows the configured voter count plus one replacement replica and fences cursors to exact work generations. Migration probes refresh loaded follower frontiers from consistent exact storage because quorum exchanges bypass follower reactor state. A replica-replacement target below `CutoverLEO` remains runnable; invalid runtime proofs still block promotion.
 
-- Business-database migration reference exports must set the MySQL client character set to `utf8mb4`. The full SQL backup can be correct while a separately exported identity becomes `?`; original-field SQL guards must reject that lossy projection. Archive complete rows and remove active references in one transaction, rehearse with rollback, and explicitly bind SQL to the v3 database copy. Keep the IM and business backups in the same stopped migration generation.
 
 - A migration spool path must be absent on first creation; an existing empty
   directory has no identity and is refused. Container rehearsal mounts the
@@ -1268,7 +1267,6 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 
 - The exact search plugin from `plugins@10b1795` owns a Pebble checkpoint DB and Bleve index in its sandbox. Migrated targets seed every retained message channel at zero and rebuild through Host RPC, rather than copying stale per-node indexes or old sequence cursors. Offline verification precedes any plugin start. A stronger archive-based rehearsal exposed stale original-plugin search results after leader replacement even though native history retained the new message; runtime acceptance therefore requires an upgraded plugin with query-time incremental catch-up, single-ingress writes followed by leader replacement, and full restarts.
 
-- Sequence-compacting IM migrations must account for business-database references outside `wkcli`. TangSengDaoDao persists channel/device offsets, conversation browse/scroll positions, and sequences in message extensions, pins, and reminders. Resolve channel identity, map surviving message references with `target_seq` and position boundaries with `boundary_seq`, and retain deletion visibility. Timestamp versions and message IDs are not sequence cursors. Freeze, back up, validate, and cut over the business DB and IM data as one generation; a client cache reset alone is insufficient.
 
 - Migration quarantine is a business interpretation view over the immutable raw capture, not a repaired source history. Exact node/shard/key/row-SHA approvals recognize only fixed-reader malformed-message, unresolved-allowlist, and inconsistent-CMD reasons. Dependent indexes are excluded only when their persisted pointers address an approved primary; duplicate winners retain their indexes. Quarantined positions in selected owners are reread from raw capture and included as omitted sequence boundaries during both conversion and verification. Unknown gaps, authority conflicts, and unrelated business compatibility failures remain blockers.
 
@@ -1302,5 +1300,3 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
   binaries; rollback requires the complete prior generation, not old writers
   over a marked database. Legacy unread pulls retain effective read boundaries;
   sequence minus unread count is invalid after an interior recovery barrier.
-
-- TangSengDaoDao migration must preserve Redis credentials, typed values, and absolute TTLs with the IM/SQL backup generation. Restore RDB before enabling AOF and verify restart. Archive/invalidate derived `messageExtraVersion:` cursors for extension resync; map robot message sequences without changing event IDs/scores/expiry. Drain `readedCount:` writes before capture.
