@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Clarify UTF-8 business-reference exports, guarded transaction rehearsals, full-row archival, and isolated database restoration during v2 migration. / 补充 v2 迁移的业务引用 UTF-8 导出、原值校验与事务演练、完整行归档及独立业务库恢复要求。
+
 - Exclude internal recovery and SyncOnce records from unread badges and set-unread boundaries; keep legacy unread-history pulls and deleted conversation visibility correct after failover. / 未读计数及设置未读边界排除内部恢复与 SyncOnce 记录，修复故障切换后旧客户端未读历史拉取和已删除会话的显示。
 
 - Keep imported hidden conversations absent during cluster recovery; only a newer business message or explicit activation reveals them. / 集群恢复时保持迁入的隐藏会话不可见，仅新业务消息或明确激活后显示。

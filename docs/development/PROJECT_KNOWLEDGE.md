@@ -14,6 +14,8 @@
 
 - Durable Channel replication excludes learners from quorum votes and recovery voting. Authority installation copies its quorum-proved committed frontier to non-ISR replicas through the fixed repair workers, one bounded page per turn; the repair ledger allows the configured voter count plus one replacement replica and fences cursors to exact work generations. Migration probes refresh loaded follower frontiers from consistent exact storage because quorum exchanges bypass follower reactor state. A replica-replacement target below `CutoverLEO` remains runnable; invalid runtime proofs still block promotion.
 
+- Business-database migration reference exports must set the MySQL client character set to `utf8mb4`. The full SQL backup can be correct while a separately exported identity becomes `?`; original-field SQL guards must reject that lossy projection. Archive complete rows and remove active references in one transaction, rehearse with rollback, and explicitly bind SQL to the v3 database copy. Keep the IM and business backups in the same stopped migration generation.
+
 - A migration spool path must be absent on first creation; an existing empty
   directory has no identity and is refused. Container rehearsal mounts the
   scratch parent and lets the tool create its child. Import/retry and independent
