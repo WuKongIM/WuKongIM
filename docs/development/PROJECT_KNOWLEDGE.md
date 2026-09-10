@@ -1326,3 +1326,5 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
   sequence minus unread count is invalid after an interior recovery barrier.
 
 - Public v2 migration documentation must describe reusable WuKongIM procedures with a supported reader baseline and explicit release capability requirements. Deployment-specific business applications, credentials, binary inventories, and per-record recovery decisions belong in private operator records; example plans must not depend on unpublished optional-field behavior.
+
+- Channel migration tick errors retain the exact failed task/channel and its fresh durable phase; a subsequent loop deadline or task-source failure must not discard that cause. Node logs still bound diagnostic size and frequency. Task phase alone is not evidence that the task was recently attempted; distinguish expired ownership and executor backlog during failover diagnosis.

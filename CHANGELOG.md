@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve the failed channel migration task and phase in bounded worker diagnostics, including when a later tick deadline expires. / 频道迁移日志保留失败任务和阶段，避免后续超时覆盖原始错误。
+
 - Expose `cluster.start_timeout` / `WK_CLUSTER_START_TIMEOUT` for measured cold-recovery readiness budgets, retaining the 30s default and all write, quorum, and placement checks. / 支持配置冷恢复的启动就绪等待期限，默认仍为 30 秒，保留写入、多数派和放置检查。
 
 - Avoid per-row key-range allocations during Slot snapshot restore while retaining the same ownership and namespace checks. / Slot 快照恢复时避免逐行重复分配键范围，保持所属 hash slot 和命名空间校验不变。
