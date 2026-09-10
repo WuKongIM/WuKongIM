@@ -46,6 +46,7 @@ type MessageTransformReport struct {
 	DuplicateDrops     uint64        `json:"duplicate_drops"`
 	CMDDrops           uint64        `json:"cmd_drops"`
 	StreamDrops        uint64        `json:"stream_drops"`
+	QuarantineDrops    uint64        `json:"quarantine_drops,omitempty"`
 	StreamEventStates  uint64        `json:"omitted_stream_event_states"`
 	StreamEventCursors uint64        `json:"omitted_stream_event_cursors"`
 	CMDConversations   uint64        `json:"omitted_cmd_conversations"`
@@ -195,6 +196,9 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 	if err := p.b.flush(); err != nil {
 		return nil, err
 	}
+	if err := addQuarantinePositions(ctx, selection, sourceWorkspace, w, decoder, p, report); err != nil {
+		return nil, err
+	}
 	if policy.KeepLatestDuplicates {
 		for _, kind := range []string{"id", "client"} {
 			if err := p.groups(1, kind, &DedupeNode{}); err != nil {
@@ -257,7 +261,14 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 		}
 		current.OriginalLast = m.Sequence
 		mapping := MessageSequenceMapping{SourceNodeID: current.SourceNodeID, Channel: current.Channel, OriginalSeq: m.Sequence, MessageID: m.ID, SourceSHA256: m.SHA256}
-		if policy.ExcludeCMD && m.CMD {
+		_, quarantined, err := w.Get(ctx, []byte(dedupeMessageKey("quarantine", m)))
+		if err != nil {
+			return err
+		}
+		if quarantined {
+			mapping.Omitted = "quarantined_invalid_message_channel"
+			report.QuarantineDrops++
+		} else if policy.ExcludeCMD && m.CMD {
 			mapping.Omitted = "cmd"
 			report.CMDDrops++
 		} else if policy.ExcludeStreams && m.Stream {

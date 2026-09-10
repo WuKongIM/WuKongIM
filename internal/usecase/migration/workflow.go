@@ -25,6 +25,9 @@ type Plan struct {
 	Exclusions *Exclusions `json:"exclusions,omitempty"`
 	// Messages opts into explicitly authorized omissions and sequence mapping.
 	Messages *MessagePolicy `json:"messages,omitempty"`
+	// Quarantine binds exact malformed primary rows to an operator decision.
+	// Original bytes and dependent indexes remain in the source archive.
+	Quarantine []QuarantineRow `json:"quarantine,omitempty"`
 	// Metadata binds explicitly chosen original metadata lookup semantics.
 	Metadata *MetadataPolicy `json:"metadata,omitempty"`
 	// History binds evidence-qualified replica lag and explicit recovery. Nil keeps
@@ -69,6 +72,9 @@ func ReadPlan(reader io.Reader, sourceCommit string) (plan Plan, err error) {
 		if source.NodeID == 0 || source.ShardCount < 1 || source.ShardCount > 1024 || !filepath.IsAbs(source.DataDir) {
 			return plan, errors.New("invalid source node identity, shard count or absolute data directory")
 		}
+	}
+	if err := validateQuarantinePolicy(plan); err != nil {
+		return plan, err
 	}
 	if err := validateMessagePolicy(plan.Messages); err != nil {
 		return plan, err
@@ -148,11 +154,18 @@ func Prepare(ctx context.Context, plan Plan, w Workspace, source Source, decoder
 	if result.PluginArtifacts, err = PreparePluginArtifacts(ctx, plan, result.Capture, w); err != nil {
 		return result, err
 	}
+	w, err = prepareQuarantine(ctx, plan, result.Capture, w, decoder)
+	if err != nil {
+		return result, err
+	}
 	decoder, err = certifyEmptyChannels(ctx, result.Capture, w, decoder, plan.Metadata)
 	if err != nil {
 		return result, err
 	}
 	if result.Catalog, err = BuildSourceCatalog(ctx, result.Capture, w, decoder); err != nil {
+		return result, err
+	}
+	if err = validateQuarantineCatalog(ctx, w); err != nil {
 		return result, err
 	}
 	if err = validateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder, plan.Metadata, plan.Messages); err != nil {

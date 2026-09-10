@@ -85,6 +85,7 @@ type SelectedRecord struct {
 }
 
 type SourceSelection struct {
+	Quarantine      *QuarantineReport       `json:"quarantine,omitempty"`
 	HistoryPrefixes *HistoryPrefixSelection `json:"history_prefixes,omitempty"`
 	PluginArtifacts *PluginArtifactsReport  `json:"plugin_artifacts,omitempty"`
 	UserTimestamps  *UserTimestampArchive   `json:"archived_user_timestamps,omitempty"`

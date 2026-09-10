@@ -56,6 +56,9 @@ func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 		}
 		prefixComparison = &historyPrefixComparison{ctx: ctx, capture: capture, w: workspace, decoder: historyDecoder, policy: *history}
 	}
+	if view, ok := workspace.(*quarantineWorkspace); ok {
+		selection.Quarantine = view.report
+	}
 	selection.PluginArtifacts = artifacts
 	if artifacts != nil {
 		if artifacts.Compatibility == nil {
@@ -308,6 +311,11 @@ func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 	}
 	h := sha256.New()
 	enc := json.NewEncoder(h)
+	if selection.Quarantine != nil {
+		if err := enc.Encode(selection.Quarantine); err != nil {
+			return selection, err
+		}
+	}
 	if selection.HistoryPrefixes != nil {
 		if err := enc.Encode(selection.HistoryPrefixes); err != nil {
 			return selection, err

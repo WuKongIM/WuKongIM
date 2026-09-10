@@ -182,7 +182,18 @@ If the business owner decides to omit CMD and entire stream messages, deduplicat
 
 “Latest” means the greatest **original MessageSeq within the same channel**. Keep the newer record for duplicate MessageIDs or the same channel with matching nonempty sender and nonempty ClientMsgNo. Empty senders or ClientMsgNo values skip ClientMsgNo deduplication; MessageID deduplication remains independent. Cross-channel MessageID conflicts and contradictory retention choices still block completion. Do not add physical replica counts across nodes to calculate business deletions.
 
-After renumbering, retained messages become `1…N` in their original order, and new messages continue at `N+1`. Read and deletion positions map to the number of retained messages at or before the old position. A channel with every message excluded has tail 0 and starts new messages at 1. The tool does not create placeholders or change v3 storage to fill gaps. Gaps already present in source history still block completion.
+After renumbering, retained messages become `1…N` in their original order. Read and deletion positions map to the number of retained messages at or before the old position; a channel with every message excluded has imported tail 0. Runtime recovery barriers also consume channel positions, so use the actual returned sequence and require new messages to be strictly beyond the current durable tail. Do not assume the first message after startup or restart is exactly `N+1`. Migration does not create placeholders or change v3 storage to fill gaps. Historical gaps without original-row evidence still block completion.
+
+</details>
+
+<details>
+<summary>Optional: quarantine individually confirmed malformed source rows</summary>
+
+Tools supporting this feature accept a top-level `quarantine` array. Each entry binds `node_id`, `shard`, the Base64-encoded original aggregated primary `key`, the complete original row JSON `sha256`, and the business-approved `reason`. Bind every physical replica separately. Missing rows, changed hashes, duplicate entries, or a mismatched reason stop migration; table filters and wildcards cannot bypass validation. Check the tool version first: older tools reject this field.
+
+Only three reasons are supported: invalid message channel identity (`invalid_message_channel`), an allowlist member whose channel cannot be resolved from the complete sources (`unresolved_allowlist_channel`), and a CMD-suffixed channel with an inconsistent conversation type (`inconsistent_cmd_conversation`). Message quarantine also requires the approved sequence transformation policy; CMD conversation quarantine additionally requires `exclude_cmd`. This does not authorize clearing other permissions, unread state, or expiration fields.
+
+The original primaries, indexes pointing directly to them, and tails with no surviving source messages remain in the archive. Quarantined positions inside valid channels still receive sequence mappings: `omitted` is `quarantined_invalid_message_channel`, `target_seq` is zero, and `boundary_seq` preserves the preceding surviving-message boundary. Historical gaps without corresponding original-row evidence still stop migration. Archive import revalidates reasons, original hashes, and index dependencies before independently rebuilding mappings.
 
 </details>
 

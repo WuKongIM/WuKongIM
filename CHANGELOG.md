@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add exact-row, operator-approved v2 quarantine with immutable original archives, dependent-index proofs, and independently rebuilt omitted-position mappings. / 增加按原记录精确授权的 v2 异常隔离，保留完整原始归档，验证关联索引并独立重建被排除位置的映射。
+
 - Document business-database sequence mapping during v2 migration, including deletion boundaries and message references that client cache resets cannot repair. / 补充 v2 迁移时业务数据库的序号映射要求，涵盖清理客户端缓存无法修复的删除边界与消息引用。
 
 - Support offline mapping of the exact original search plugin with verified history-rebuild seeds on every target; document the required runtime catch-up upgrade for leader changes. / 支持原搜索插件的精确离线映射，为全部目标生成经过验证的历史索引重建种子，并明确 Leader 变化所需的运行时增量补齐升级。

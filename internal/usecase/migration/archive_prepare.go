@@ -98,6 +98,10 @@ func PrepareArchive(ctx context.Context, plan Plan, w Workspace, decoder Origina
 	if result.PluginArtifacts, err = PreparePluginArtifacts(ctx, plan, result.Capture, w); err != nil {
 		return result, err
 	}
+	w, err = prepareQuarantine(ctx, plan, result.Capture, w, decoder)
+	if err != nil {
+		return result, err
+	}
 	decoder, err = certifyEmptyChannels(ctx, result.Capture, w, decoder, plan.Metadata)
 	if err != nil {
 		return result, err
@@ -108,6 +112,9 @@ func PrepareArchive(ctx context.Context, plan Plan, w Workspace, decoder Origina
 	}
 	if !reflect.DeepEqual(result.Catalog, manifest.Catalog) {
 		return result, errors.New("rebuilt source catalog differs from archive")
+	}
+	if err = validateQuarantineCatalog(ctx, w); err != nil {
+		return result, err
 	}
 	if err = validateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder, plan.Metadata, plan.Messages); err != nil {
 		return result, err
