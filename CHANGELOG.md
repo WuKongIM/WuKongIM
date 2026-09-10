@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Expose `cluster.start_timeout` / `WK_CLUSTER_START_TIMEOUT` for measured cold-recovery readiness budgets, retaining the 30s default and all write, quorum, and placement checks. / 支持配置冷恢复的启动就绪等待期限，默认仍为 30 秒，保留写入、多数派和放置检查。
+
 - Avoid per-row key-range allocations during Slot snapshot restore while retaining the same ownership and namespace checks. / Slot 快照恢复时避免逐行重复分配键范围，保持所属 hash slot 和命名空间校验不变。
 
 - Keep healthy Slot replay ranges batched when conditional metadata conflicts occur, preserving Raft order and durable stale-entry watermarks while reducing synchronous commits. / Slot 日志回放遇到条件冲突时继续批量提交无冲突区间，保留 Raft 顺序及过期操作的持久化进度，减少同步落盘次数。

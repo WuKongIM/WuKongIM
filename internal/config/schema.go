@@ -85,6 +85,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "node.data_dir", EnvKey: "WK_NODE_DATA_DIR", Kind: kindString, Group: "node", Label: "Data directory", Required: true},
 
 	{TOMLPath: "cluster.listen_addr", EnvKey: "WK_CLUSTER_LISTEN_ADDR", Kind: kindString, Group: "cluster", Label: "Cluster listen address", Required: true},
+	{TOMLPath: "cluster.start_timeout", EnvKey: "WK_CLUSTER_START_TIMEOUT", Kind: kindDuration, Group: "cluster", Label: "Cluster startup readiness timeout"},
 	{TOMLPath: "cluster.id", EnvKey: "WK_CLUSTER_ID", Kind: kindString, Group: "cluster", Label: "Cluster ID"},
 	{TOMLPath: "cluster.seeds", EnvKey: "WK_CLUSTER_SEEDS", Kind: kindStringList, Group: "cluster", Label: "Seed addresses"},
 	{TOMLPath: "cluster.advertise_addr", EnvKey: "WK_CLUSTER_ADVERTISE_ADDR", Kind: kindString, Group: "cluster", Label: "Cluster advertise address"},
@@ -280,6 +281,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_NODE_ID",
 		"WK_NODE_DATA_DIR",
 		"WK_CLUSTER_LISTEN_ADDR",
+		"WK_CLUSTER_START_TIMEOUT",
 		"WK_CLUSTER_ID",
 		"WK_CLUSTER_SEEDS",
 		"WK_CLUSTER_ADVERTISE_ADDR",

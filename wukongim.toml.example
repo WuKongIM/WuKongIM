@@ -4,6 +4,11 @@ data_dir = "./data/wukongim-single-node-data"
 
 [cluster]
 listen_addr = "127.0.0.1:7001"
+# Maximum wait for startup readiness, including committed Slot write probes.
+# Omitted or 0 uses 30s. Increase only after measuring cold recovery duration;
+# routing, quorum, and placement checks still have to pass before serving traffic.
+# This does not change request timeouts after startup.
+start_timeout = "30s"
 id = "wukongim-single"
 nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
 join_token = "change-me"

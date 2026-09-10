@@ -34,6 +34,7 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
 | `cluster.listen_addr` | `WK_CLUSTER_LISTEN_ADDR` | `string` | Listener for inter-node Cluster RPC; it may bind `0.0.0.0`, but a wildcard must not be advertised to peers. Required at startup. |
+| `cluster.start_timeout` | `WK_CLUSTER_START_TIMEOUT` | `duration` | Maximum wait for startup readiness gates, including committed Slot write probes; omitted or `0` uses `30s`. Must be non-negative. Size from measured cold recovery; quorum, routing, and placement checks and steady-state request timeouts remain unchanged. |
 | `cluster.id` | `WK_CLUSTER_ID` | `string` | Stable Controller cluster identity; required for seed joining. Static inventories and implicit single-node clusters derive it from node IDs when omitted. |
 | `cluster.seeds` | `WK_CLUSTER_SEEDS` | `string_list` | Existing node addresses used to discover the cluster during dynamic joining; must be non-empty and cannot be combined with `cluster.nodes`. |
 | `cluster.advertise_addr` | `WK_CLUSTER_ADVERTISE_ADDR` | `string` | Stable address stored in membership for peers to call this node; required with `cluster.seeds` and must be reachable by peers. |

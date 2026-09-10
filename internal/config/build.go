@@ -99,6 +99,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		return app.Config{}, err
 	}
 	cfg.Cluster.ListenAddr = listenAddr
+	if raw := configValue(values, "WK_CLUSTER_START_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CLUSTER_START_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_START_TIMEOUT: value must be >= 0")
+		}
+		cfg.Cluster.Timeouts.Start = timeout
+	}
 
 	cfg.Cluster.Control.ClusterID = configValue(values, "WK_CLUSTER_ID")
 	if configKeyPresent(values, "WK_CLUSTER_JOIN_TOKEN") {

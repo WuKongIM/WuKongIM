@@ -23,6 +23,8 @@ The migration machine needs space for full cold backups, workspaces, the archive
 
 Budget CPU and memory per host, including every colocated node, plugin subprocess, and other service. A rehearsal may share resources with a running v2 cluster, and the first search-index rebuild has different costs from steady operation. For Docker Compose, set per-service CPU, memory, and process limits from rehearsal measurements; observe peaks, OOM events, restarts, and API latency. Go's `GOMEMLIMIT` applies to each Go process and does not replace a container-wide memory limit. Do not copy another deployment's values. The complete functional and recovery acceptance checks must still pass under the selected limits.
 
+Cold startup also restores snapshots and replays committed cluster logs. If logs and diagnostics show recovery progressing when startup readiness times out, first check resources, disks, and node communication, then size the wait from measured recovery time. Versions supporting this option expose `cluster.start_timeout` (`WK_CLUSTER_START_TIMEOUT`, default `30s`); verify version support and validate the configuration first. This extends only the startup wait and never relaxes quorum, committed-write, or placement checks. It cannot make a persistently unavailable cluster ready.
+
 The migration archive preserves original business records, but not every original WAL byte. It cannot replace a full filesystem cold backup. Protect the credentials, messages, and plugin configuration it contains.
 
 </details>

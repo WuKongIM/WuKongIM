@@ -2,6 +2,12 @@
 
 ## Internal
 
+- Public `cluster.start_timeout` maps to the existing Cluster `Timeouts.Start`
+  readiness budget (30s default). Cold committed-log replay may outlast that
+  budget before traffic is admitted; increase it only from measured recovery
+  evidence. It does not relax quorum/placement checks, alter request deadlines,
+  or make a permanently unavailable cluster ready.
+
 - Snapshot row ownership checks decode the shared five-byte metadata key
   prefix once. Building three spans for each candidate hash slot per row
   amplifies allocations during multi-Slot startup and restore. The check still
