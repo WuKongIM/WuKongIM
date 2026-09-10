@@ -26,7 +26,11 @@ func TestImportedHiddenMembershipAppearsOnlyAfterNewMessage(t *testing.T) {
 	require.EqualValues(t, 1, hydrator.memberships[0].JoinSeq)
 	require.Zero(t, hydrator.memberships[0].DeletedToSeq, "list hiding must not hide history")
 	require.Zero(t, hydrator.memberships[0].ReadSeq, "absence must not invent a read position")
+	// A recovery barrier advances the committed log but carries no business message.
 	hydrator.results[0].LastCommittedSeq = 10
+	barrierOnly, err := app.List(context.Background(), ListRequest{UID: "u1", Limit: 10})
+	require.NoError(t, err)
+	require.Empty(t, barrierOnly.Items, "authority recovery must not reveal imported conversations")
 	hydrator.results[0].LastMessage.MessageSeq = 10
 	result, err = app.List(context.Background(), ListRequest{UID: "u1", Limit: 10})
 	require.NoError(t, err)

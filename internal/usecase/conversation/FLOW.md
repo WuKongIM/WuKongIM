@@ -62,7 +62,7 @@ It does not subscribe users, deliver messages, or implement storage and transpor
   may then be transferred through synchronous response adapters without another copy.
 
 - Imported list-only hidden memberships remain accessible to history reads.
-  They appear after the committed tail advances or explicit activation, without
+  They appear after a newer ordinary message or explicit activation, without
   modifying read/delete floors or native unread calculations.
 
 ## Read First

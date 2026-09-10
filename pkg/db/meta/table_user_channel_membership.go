@@ -38,7 +38,8 @@ type UserChannelMembership struct {
 	// DeletedToSeq hides ordinary messages through this sequence.
 	DeletedToSeq uint64
 	// ConversationHiddenThroughSeq suppresses only the conversation list until
-	// committed history advances past this imported tail. It never limits pulls
+	// a newer ordinary message exists. Internal recovery barriers do not reveal
+	// the list. This field never limits pulls
 	// or changes read/delete floors. Explicit activation may reveal the list.
 	ConversationHiddenThroughSeq uint64
 	// ActivatedAt prioritizes directory synchronization after explicit user activity.
