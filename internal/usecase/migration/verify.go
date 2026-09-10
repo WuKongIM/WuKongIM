@@ -304,7 +304,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 					if err != nil {
 						return err
 					}
-					return check("user_channel_membership", m.UID, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type}, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type, "join_seq": 1, "read_seq": readSeq, "deleted_to_seq": 0, "activated_at": 0, "tombstone": false, "tombstone_at": 0, "source_version": 1, "updated_at": 0})
+					return check("user_channel_membership", m.UID, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type}, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type, "join_seq": 1, "read_seq": readSeq, "deleted_to_seq": 0, "conversation_hidden_through_seq": decisions.hiddenThrough(*m), "activated_at": 0, "tombstone": false, "tombstone_at": 0, "source_version": 1, "updated_at": 0})
 				}
 			}
 			return nil
@@ -313,7 +313,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 			if c.Type == 1 {
 				return check("user_cmd_channel_membership", c.UID, map[string]any{"uid": c.UID, "command_channel_id": c.Channel.ID, "channel_type": c.Channel.Type}, map[string]any{"uid": c.UID, "command_channel_id": c.Channel.ID, "channel_type": c.Channel.Type, "start_seq": 1, "ack_seq": c.ReadSeq, "tombstone": false, "tombstone_at": 0, "updated_at": c.UpdatedAtNS})
 			}
-			return check("user_channel_membership", c.UID, map[string]any{"uid": c.UID, "channel_id": c.Channel.ID, "channel_type": c.Channel.Type}, map[string]any{"uid": c.UID, "channel_id": c.Channel.ID, "channel_type": c.Channel.Type, "join_seq": 1, "read_seq": c.ReadSeq, "deleted_to_seq": c.DeletedToSeq, "activated_at": 0, "tombstone": false, "tombstone_at": 0, "source_version": 1, "updated_at": c.UpdatedAtNS})
+			return check("user_channel_membership", c.UID, map[string]any{"uid": c.UID, "channel_id": c.Channel.ID, "channel_type": c.Channel.Type}, map[string]any{"uid": c.UID, "channel_id": c.Channel.ID, "channel_type": c.Channel.Type, "join_seq": 1, "read_seq": c.ReadSeq, "deleted_to_seq": c.DeletedToSeq, "conversation_hidden_through_seq": 0, "activated_at": 0, "tombstone": false, "tombstone_at": 0, "source_version": 1, "updated_at": c.UpdatedAtNS})
 		case facts.Message != nil:
 			sourceMaxMessageID = max(sourceMaxMessageID, facts.Message.MessageID)
 			owned, err := view.OwnsMessages(id.Channel)

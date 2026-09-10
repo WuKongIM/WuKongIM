@@ -23,6 +23,8 @@ const (
 var (
 	membershipRPCRequestMagic  = [...]byte{'W', 'K', 'M', 'Q', 1}
 	membershipRPCResponseMagic = [...]byte{'W', 'K', 'M', 'S', 1}
+	// V2 carries list-only import markers; old readers fail closed.
+	membershipRPCResponseVisibilityMagic = [...]byte{'W', 'K', 'M', 'S', 2}
 )
 
 const (
@@ -233,7 +235,15 @@ func encodeMembershipRPCResponse(resp membershipRPCResponse) ([]byte, error) {
 		return nil, fmt.Errorf("metastore: membership response exceeds %d rows", membershipRPCMaxRows)
 	}
 	dst := make([]byte, 0, len(membershipRPCResponseMagic)+128)
-	dst = append(dst, membershipRPCResponseMagic[:]...)
+	hasVisibility := resp.Membership != nil && resp.Membership.ConversationHiddenThroughSeq != 0
+	for _, row := range resp.Memberships {
+		hasVisibility = hasVisibility || row.ConversationHiddenThroughSeq != 0
+	}
+	if hasVisibility {
+		dst = append(dst, membershipRPCResponseVisibilityMagic[:]...)
+	} else {
+		dst = append(dst, membershipRPCResponseMagic[:]...)
+	}
 	dst = runtimeMetaAppendString(dst, resp.Status)
 	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
 	dst = appendOrdinaryMembershipPtr(dst, resp.Membership)
@@ -242,11 +252,20 @@ func encodeMembershipRPCResponse(resp membershipRPCResponse) ([]byte, error) {
 	dst = appendCMDMemberships(dst, resp.CMDMemberships)
 	dst = appendCMDMembershipCursor(dst, resp.CMDCursor)
 	dst = runtimeMetaAppendBool(dst, resp.Done)
+	if hasVisibility {
+		if resp.Membership != nil {
+			dst = runtimeMetaAppendUvarint(dst, resp.Membership.ConversationHiddenThroughSeq)
+		}
+		for _, row := range resp.Memberships {
+			dst = runtimeMetaAppendUvarint(dst, row.ConversationHiddenThroughSeq)
+		}
+	}
 	return dst, nil
 }
 
 func decodeMembershipRPCResponse(body []byte) (membershipRPCResponse, error) {
-	if !runtimeMetaHasMagic(body, membershipRPCResponseMagic[:]) {
+	hasVisibility := runtimeMetaHasMagic(body, membershipRPCResponseVisibilityMagic[:])
+	if !hasVisibility && !runtimeMetaHasMagic(body, membershipRPCResponseMagic[:]) {
 		return membershipRPCResponse{}, fmt.Errorf("metastore: invalid membership response codec")
 	}
 	offset := len(membershipRPCResponseMagic)
@@ -275,6 +294,18 @@ func decodeMembershipRPCResponse(body []byte) (membershipRPCResponse, error) {
 	}
 	if resp.Done, offset, err = runtimeMetaReadBool(body, offset); err != nil {
 		return membershipRPCResponse{}, err
+	}
+	if hasVisibility {
+		if resp.Membership != nil {
+			if resp.Membership.ConversationHiddenThroughSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+				return membershipRPCResponse{}, err
+			}
+		}
+		for i := range resp.Memberships {
+			if resp.Memberships[i].ConversationHiddenThroughSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+				return membershipRPCResponse{}, err
+			}
+		}
 	}
 	if offset != len(body) {
 		return membershipRPCResponse{}, fmt.Errorf("metastore: trailing membership response bytes")

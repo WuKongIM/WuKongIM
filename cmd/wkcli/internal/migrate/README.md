@@ -190,8 +190,9 @@ Target message data uses the existing v3 proposal version 1 and unmodified
 message keys, indexes and append validation. Original seconds map to
 ServerTimestampMS. RedDot is preserved in its existing stored bit; build the
 tool and all target nodes from the same version with the general RedDot fix
-(Channel RPC v8 / Exchange v4). Message fields those paths cannot retain
-(including nonzero sync_once/expire or a nonempty StreamNo/topic),
+(Channel RPC v9 / Exchange v5 for preserved Expire). Full uint32 Expire
+values remain unchanged through native storage and replication. Message fields those paths cannot retain
+(including nonzero sync_once or a nonempty StreamNo/topic),
 nonpositive timestamps, retained histories starting after sequence 1 and duplicate
 IDs block conversion. No fallback rewrites IDs, fills missing history or expands
 the authorized Stream/StreamMeta exclusion. An empty-ID source row also fails.
@@ -436,20 +437,23 @@ Leader 必须完全没有消息及尾记录。工具重新核对完整捕获、�
 ## 已批准的缺失会话
 
 订阅成员有保留历史但所有原副本都没有会话／待恢复意图时，默认阻断。
-业务方可以批准仅对已核验的用户和频道补齐一个已读会话。在现有 `metadata`
+业务方可以批准仅对已核验的用户和频道选择全部历史已读恢复，或保持列表隐藏。在现有 `metadata`
 配置内增加 `missing_conversations` 数组；每项包含：
 
 - `capture_digest`：完整源捕获的 SHA256。
 - `uid_sha256`：原 UID 字节的 SHA256。
 - `channel_sha256`：`migration.IdentityKey(channelID, uint8(channelType))` 的 SHA256。
 - `retained_tail`：排除和去重、压号后已核验的频道尾序号，必须大于 0。
+- `visibility`：省略为全部历史已读恢复；`hidden_until_new_message` 仅隐藏列表，
+  保留 `JoinSeq=1`、默认 `ReadSeq=0`、`DeletedToSeq=0`，不虚构原已读位置。
+  消息尾部推进或明确激活后显示，未读仍按 v3 规则计算。
 
 摘要必须为 64 位小写十六进制；最多 1024 项，同一用户／频道不能重复。
-工具重新检查所有原节点，任何原会话／待恢复意图、捕获变化、尾序号变化、未使用
+工具重新检查所有原节点，未批准原会话／待恢复意图、捕获变化、尾序号变化、未使用
 决定或其他未批准的缺失会话都阻断。该决定写入计划和选择摘要，并在归档重建时
 重新验证，不能套用到另一份源数据。
 
-目标使用原生 `JoinSeq=1`、`ReadSeq=retained_tail`、`DeletedToSeq=0`，不虚构
+省略 `visibility` 时，目标使用原生 `JoinSeq=1`、`ReadSeq=retained_tail`、`DeletedToSeq=0`，不虚构
 原会话 ID 或时间。该会话会新出现在聊天列表，全部保留历史仍可读取，初始未读
 为 0；下一条新消息按原生规则计算。独立校验从原始业务行重新推导预期值，检查
 所有目标副本的已读位置和可见边界，不依赖转换器生成的会话行。
@@ -487,3 +491,24 @@ report, and compares the exported rows against this seal before publishing
 checkpoint, not independent target verification. Import and verify still rebuild
 all checks from original archive rows in separate workspaces. Old preparation
 workspaces without a seal require a fresh workspace with matching tools.
+
+
+### Reviewed conversion policies
+
+- `messages.resolve_duplicate_chains: true` requires `keep_latest_duplicates` and
+  proves strictly increasing same-channel edges to a unique retained terminal.
+  Direct winners remain unchanged. `duplicate_chain_roots`, `duplicate_chain_terminals`
+  and `duplicate_chains_sha256` bind the proof; `sequence_mapping.duplicate_chain_proof`
+  references its JSONL sidecar. Full originals remain in the source archive.
+- `metadata.derive_unread_from_boundaries: true` archives independent ordinary
+  conversation counters, then uses native unread math without advancing read/delete
+  positions. `conversion.archived_unread` binds original rows and counts. CMD counters
+  do not gain a compatibility exception.
+- Hidden missing-conversation decisions additionally permit a physical conversation
+  only when its exact `conversation_replicas` decision is archive-only; pending
+  intents remain forbidden. `conversion.hidden_memberships` counts applied markers.
+  `conversation_hidden_through_seq` affects lists only, not history or badge floors.
+  Membership storage accepts legacy rows plus an optional uint64 tail; nonzero
+  markers use membership RPC response v2. Deploy all matching binaries together;
+  old programs must not reopen marked target rows. Rollback restores the prior
+  complete data generation and its binaries.

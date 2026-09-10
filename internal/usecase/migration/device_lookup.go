@@ -16,7 +16,11 @@ import (
 // MetadataPolicy is deliberately narrower than arbitrary duplicate removal.
 // Cold-start behavior cannot reconstruct a stopped process's former hot cache.
 type MetadataPolicy struct {
-	// MissingConversations explicitly creates only approved absent conversations as fully read.
+	// DeriveUnreadFromBoundaries archives the independent v2 unread scalar and
+	// uses native retained-message/read/delete badge math without changing floors.
+	DeriveUnreadFromBoundaries bool `json:"derive_unread_from_boundaries,omitempty"`
+	// MissingConversations binds explicit fully-read or list-hidden decisions
+	// for exact absent conversations.
 	MissingConversations []MissingConversationRecovery `json:"missing_conversations,omitempty"`
 	// ArchiveUserTimestamps retains original per-node User creation/update
 	// times in the archive only. Native v3 users have no equivalent fields.
@@ -90,12 +94,18 @@ func reduceDeviceLookups(ctx context.Context, capture SourceCapture, w Workspace
 	if policy == nil {
 		return nil, nil
 	}
-	pins := map[string]bool{}
+	pins := map[string]MissingConversationRecovery{}
+	archived := map[string]bool{}
+	for _, r := range policy.ConversationReplicas {
+		if r.ArchiveOnly {
+			archived[r.LogicalKey] = true
+		}
+	}
 	for _, r := range policy.MissingConversations {
 		if r.CaptureDigest != capture.Digest {
 			return nil, errors.New("missing conversation capture differs from approved decision")
 		}
-		pins[r.UIDSHA256+"/"+r.ChannelSHA256] = true
+		pins[r.UIDSHA256+"/"+r.ChannelSHA256] = r
 	}
 	report := &MetadataSelection{Policy: *policy}
 	base := deviceLookupBase(capture.Digest, policy)
@@ -108,8 +118,14 @@ func reduceDeviceLookups(ctx context.Context, capture SourceCapture, w Workspace
 				if err != nil {
 					return err
 				}
-				if pins[missingConversationKey(id.UID, id.Channel)] {
-					return errors.New("approved missing conversation exists in original rows or pending intents")
+				if pin, ok := pins[missingConversationKey(id.UID, id.Channel)]; ok {
+					d, err := decoder.Describe(row, id)
+					if err != nil {
+						return err
+					}
+					if row.Table == "PendingConversation" || pin.Visibility != "hidden_until_new_message" || !archived[d.Key] {
+						return errors.New("approved missing conversation exists in original rows or pending intents")
+					}
 				}
 			}
 			if row.Table != "Device" || row.Kind != Primary {

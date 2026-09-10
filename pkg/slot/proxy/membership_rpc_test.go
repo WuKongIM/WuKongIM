@@ -16,7 +16,7 @@ func TestStoreReadsUIDMembershipDirectoryFromAuthoritativeRemoteSlot(t *testing.
 	ordinary := metadb.UserChannelMembership{
 		UID: uid, ChannelID: "g1", ChannelType: 2,
 		JoinSeq: 4, ReadSeq: 5, DeletedToSeq: 6, ActivatedAt: 7,
-		SourceVersion: 8, UpdatedAt: 9,
+		SourceVersion: 8, UpdatedAt: 9, ConversationHiddenThroughSeq: 123,
 	}
 	command := metadb.UserCMDChannelMembership{
 		UID: uid, CommandChannelID: "g1@cmd", ChannelType: 2,

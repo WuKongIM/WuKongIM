@@ -204,6 +204,19 @@ Changed rows, mismatched evidence, and unused decisions fail. Formal replicas wi
 </details>
 
 <details>
+<summary>Optional: duplicate chains, independent unread counters, and absent conversations</summary>
+
+Cross-rule duplicate winners fail by default. After review, `messages.resolve_duplicate_chains: true` follows strictly increasing original sequences within one channel to a unique surviving terminal. It never resurrects older messages. Multiple terminals, changed identities, excluded terminals, and cross-channel MessageID conflicts still fail. The report binds chain-root and terminal counts and a digest; `sequence_mapping.duplicate_chain_proof` references a JSONL sidecar containing direct winners and terminal proofs. The source archive retains complete original messages.
+
+With explicit approval, `metadata.derive_unread_from_boundaries: true` archives independent v2 unread counters and uses native badge calculations over retained messages and mapped read/delete positions, join/retention floors, and the user's latest send. `archived_unread` binds original conversation rows, nonzero-counter counts, and their digest. Displayed counts may differ; this is an approved projection, not proof of counter equivalence. Original read/delete positions are neither cleared nor advanced.
+
+For a valid member with history but no authoritative conversation, bind `metadata.missing_conversations` to `capture_digest`, `uid_sha256`, `channel_sha256` (SHA256 of `IdentityKey(channelID, channelType)`), and the transformed `retained_tail`. Set `visibility: "hidden_until_new_message"` to preserve membership and history access while suppressing the conversation list entry until the committed tail advances; explicit activation also reveals it. This marker changes neither history access nor read/delete floors. An absent original read position is not invented; unread after a new message follows native rules. An archived replica conversation additionally requires its exact `conversation_replicas` decision. Pending intents, unapproved existing conversations, changed tails, or unused decisions fail. `hidden_memberships` reports the applied count.
+
+Omitting `visibility` retains the previous explicitly approved fully-read recovery behavior. These are different choices. Hidden membership rows and RPC responses use extended encodings: deploy matching server and CLI versions on every target node. Do not mix older binaries; rollback restores the complete pre-migration data generation and its binaries rather than opening new target directories with old programs.
+
+</details>
+
+<details>
 <summary>Optional: quarantine individually confirmed malformed source rows</summary>
 
 Tools supporting this feature accept a top-level `quarantine` array. Each entry binds `node_id`, `shard`, the Base64-encoded original aggregated primary `key`, the complete original row JSON `sha256`, and the business-approved `reason`. Bind every physical replica separately. Missing rows, changed hashes, duplicate entries, or a mismatched reason stop migration; table filters and wildcards cannot bypass validation. Check the tool version first: older tools reject this field.

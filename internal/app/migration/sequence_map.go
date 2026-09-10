@@ -17,17 +17,37 @@ import (
 // Its digest covers the exact JSONL bytes and its selection identifies the
 // generation; no client is assumed to have consumed or applied the mapping.
 type sequenceMapFile struct {
-	Path            string `json:"path"`
-	SHA256          string `json:"sha256"`
-	Rows            uint64 `json:"rows"`
-	SelectionDigest string `json:"selection_digest"`
+	ChainProof      *sequenceMapFile `json:"duplicate_chain_proof,omitempty"`
+	Path            string           `json:"path"`
+	SHA256          string           `json:"sha256"`
+	Rows            uint64           `json:"rows"`
+	SelectionDigest string           `json:"selection_digest"`
 }
 
 func writeSequenceMap(ctx context.Context, dir string, w usecase.Workspace, p usecase.Preflight) (out *sequenceMapFile, err error) {
 	if p.Conversion.Transformation == nil {
 		return nil, nil
 	}
-	f, err := os.CreateTemp(dir, ".sequence-map-incomplete-*.jsonl")
+	out, err = writeMappingSidecar(ctx, dir, w, p, "sequence-map", usecase.WalkMessageSequenceMappings)
+	if err != nil {
+		return nil, err
+	}
+	if p.Conversion.Transformation.ChainRoots > 0 {
+		out.ChainProof, err = writeMappingSidecar(ctx, dir, w, p, "duplicate-chains", func(ctx context.Context, w usecase.Workspace, visit func(usecase.MessageSequenceMapping) error) error {
+			return usecase.WalkDuplicateChainMappings(ctx, w, p.Conversion.Transformation, visit)
+		})
+		if err != nil {
+			return nil, err
+		}
+		if out.ChainProof.Rows != p.Conversion.Transformation.ChainRoots {
+			return nil, errors.New("duplicate chain sidecar count differs from preparation")
+		}
+	}
+	return out, nil
+}
+
+func writeMappingSidecar(ctx context.Context, dir string, w usecase.Workspace, p usecase.Preflight, name string, walk func(context.Context, usecase.Workspace, func(usecase.MessageSequenceMapping) error) error) (out *sequenceMapFile, err error) {
+	f, err := os.CreateTemp(dir, "."+name+"-incomplete-*.jsonl")
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +55,7 @@ func writeSequenceMap(ctx context.Context, dir string, w usecase.Workspace, p us
 	buffer := bufio.NewWriterSize(f, 64<<10)
 	h := sha256.New()
 	writer := io.MultiWriter(buffer, h)
-	runErr := usecase.WalkMessageSequenceMappings(ctx, w, func(row usecase.MessageSequenceMapping) error {
+	runErr := walk(ctx, w, func(row usecase.MessageSequenceMapping) error {
 		data, err := usecase.MarshalState(row)
 		if err != nil {
 			return err
@@ -50,7 +70,7 @@ func writeSequenceMap(ctx context.Context, dir string, w usecase.Workspace, p us
 		return nil, err
 	}
 	out.SHA256 = hex.EncodeToString(h.Sum(nil))
-	out.Path = filepath.Join(dir, "sequence-map-"+out.SHA256+".jsonl")
+	out.Path = filepath.Join(dir, name+"-"+out.SHA256+".jsonl")
 	if err := os.Rename(f.Name(), out.Path); err != nil {
 		return nil, err
 	}

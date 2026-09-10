@@ -184,7 +184,7 @@ wukongim version --output json
 
 `legacy_stream_storage` **仅排除旧 Stream／StreamMeta 两张表**；`exclude_streams` 才排除消息表中的流主消息及其明确关联的事件投影和游标。与保留消息共享事件身份时仍会阻断。`exclude_cmd` 同时省略旧 CMD 会话和同步位置。被排除的源行完整留在归档中。
 
-“最新”按**同一频道的原 MessageSeq** 判断：MessageID 重复，或频道相同且非空发送者与非空 ClientMsgNo 均相同，保留较新记录。发送者或 ClientMsgNo 为空时不参与 ClientMsgNo 去重；MessageID 去重独立执行。跨频道 MessageID 冲突或相互矛盾的保留选择仍会阻断。不能按节点数累加物理副本，得到业务删除数量。
+“最新”按**同一频道的原 MessageSeq** 判断：MessageID 重复，或频道相同且非空发送者与非空 ClientMsgNo 均相同，保留较新记录。发送者或 ClientMsgNo 为空时不参与 ClientMsgNo 去重；MessageID 去重独立执行。跨频道 MessageID 冲突仍会阻断。交叉去重中，某条保留项又被另一规则排除时默认停止；经业务方确认，可启用 `messages.resolve_duplicate_chains: true`，沿同一频道原序号严格递增的替代链，要求每条链最终唯一指向一条实际保留消息。不会回退恢复较旧消息；多终点、身份变化或终点被其他策略排除仍拒绝。报告给出链起点数、终点数及摘要，`sequence_mapping.duplicate_chain_proof` 指向包含直接替代项和最终保留项的 JSONL 旁文件。完整原消息留在源归档中。不能按节点数累加物理副本，得到业务删除数量。
 
 重新编号后，保留消息按原顺序成为 `1…N`。已读和删除位置映射为旧位置之前（含该位置）仍保留的消息数量，全排除频道的导入尾部为 0。运行时恢复屏障也会占用频道位置，因此新消息须以实际返回的序号为准，并严格大于当前持久化尾部，不能假定启动或重启后必为 `N+1`。迁移不会创建占位消息或更改 v3 存储格式来补空号。没有原记录证据的历史缺洞仍会阻断。
 
@@ -200,6 +200,18 @@ wukongim version --output json
 副本缺失或状态不同也必须逐组裁决。`metadata.conversation_replicas` 的每项用 `logical_key`、`copies_sha256` 绑定全部正式副本的候选记录、完整原行和缺失状态；`source_node_id` 选择一条实际存在的完整原记录。仅归档时须明确设置 `archive_only: true`、`source_node_id: 0`，不会从孤立副本重新创建聊天列表项。不能把“保留更多有效会话”视为恢复任意单副本会话的授权。CMD 会话若也存在副本差异，可在已批准 CMD 仅归档的范围内绑定对应的逐组仅归档决定。
 
 原行变化、决定不匹配、指向已一致的组或未被实际使用都会拒绝。未获逐组决定的正式副本继续严格比较，归档保留每条原始记录；导入与独立验证会重新推导选择。仅归档组若另有待恢复意图也会停止，避免重新生成该会话。先归档完整差异、确认业务规则，再生成这些绑定值。具体字段见[工程操作手册](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。
+
+</details>
+
+
+<details>
+<summary>可选：独立未读计数与缺失会话的列表显示</summary>
+
+v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能不同。经业务方确认，可启用 `metadata.derive_unread_from_boundaries: true`：完整原计数留在源归档，报告 `archived_unread` 绑定原会话行数、非零计数行数及摘要；v3 根据保留消息、映射后的已读／删除位置、加入位置、保留边界和用户最后发送位置计算未读。显示值可能变化，不能声称旧计数与新计数等价；不会清零或前移原已读／删除边界。
+
+成员仍有效、有保留历史却没有权威会话时，不能由成员关系推断它应该重新显示。`metadata.missing_conversations` 逐组绑定 `capture_digest`、`uid_sha256`、`channel_sha256`（`IdentityKey(channelID, channelType)` 的 SHA256）和转换后的 `retained_tail`。加入 `visibility: "hidden_until_new_message"` 可保留成员及历史访问权限，在频道消息尾部超过该值前不出现在会话列表；明确打开会话也可显示。此标记不改动历史读取权限、已读或删除位置。没有原已读记录时不虚构已读位置，新消息到来后的未读仍按 v3 规则计算。仅归档的孤立副本会话须同时有其精确 `conversation_replicas` 决定，待恢复意图、未批准原会话或已变化的尾部仍拒绝。报告 `hidden_memberships` 给出实际应用数量。
+
+省略 `visibility` 保留旧工具明确授权的“创建全部历史已读会话”行为，两种选择不同，不能混用。带隐藏标记的成员行及 RPC 使用扩展编码：目标全部节点和 `wkcli` 必须采用配套版本，不能混跑旧程序。回退使用完整的迁移前数据代和旧程序，不能让旧程序打开这些新目标目录。
 
 </details>
 

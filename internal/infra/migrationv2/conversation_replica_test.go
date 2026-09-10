@@ -20,6 +20,12 @@ import (
 )
 
 func TestOriginalConversationReplicaChoiceRebuildsAndVerifies(t *testing.T) {
+	for _, archiveOnly := range []bool{false, true} {
+		t.Run(fmt.Sprintf("archive_only_%t", archiveOnly), func(t *testing.T) { testOriginalConversationReplicaChoice(t, archiveOnly) })
+	}
+}
+
+func testOriginalConversationReplicaChoice(t *testing.T, archiveOnly bool) {
 	ctx := context.Background()
 	r := migrationv2.Reader{}
 	var sources []migration.NodeOptions
@@ -63,7 +69,7 @@ func TestOriginalConversationReplicaChoiceRebuildsAndVerifies(t *testing.T) {
 		return w
 	}
 	failed := open()
-	_, err = migration.Prepare(ctx, plan, failed, r, r, nil)
+	failedReport, err := migration.Prepare(ctx, plan, failed, r, r, nil)
 	require.ErrorContains(t, err, "source Conversation record conflicts")
 	type candidate struct {
 		SourceKey []byte `json:"source_key"`
@@ -96,10 +102,21 @@ func TestOriginalConversationReplicaChoiceRebuildsAndVerifies(t *testing.T) {
 	}
 	require.NotZero(t, chosen)
 	plan.Metadata.ConversationReplicas = []migration.ConversationReplicaRecovery{{LogicalKey: description.Key, SourceNodeID: chosen, CopiesSHA256: fmt.Sprintf("%x", hash.Sum(nil))}}
+	if archiveOnly {
+		plan.Metadata.ConversationReplicas[0].SourceNodeID = 0
+		plan.Metadata.ConversationReplicas[0].ArchiveOnly = true
+		hashText := func(s string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(s))) }
+		plan.Metadata.MissingConversations = []migration.MissingConversationRecovery{{CaptureDigest: failedReport.Capture.Digest, UIDSHA256: hashText(id.UID), ChannelSHA256: hashText(migration.IdentityKey(id.Channel.ID, id.Channel.Type)), RetainedTail: 3, Visibility: "hidden_until_new_message"}}
+	}
 	w := open()
 	prepared, err := migration.Prepare(ctx, plan, w, r, r, nil)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, prepared.Selection.Metadata.ReplicaRecovery.Retained)
+	if archiveOnly {
+		require.EqualValues(t, 1, prepared.Selection.Metadata.ReplicaRecovery.Archived)
+		require.EqualValues(t, 1, prepared.Conversion.HiddenMemberships)
+	} else {
+		require.EqualValues(t, 1, prepared.Selection.Metadata.ReplicaRecovery.Retained)
+	}
 	selected := 0
 	require.NoError(t, migration.WalkSelectedSources(ctx, w, func(rec migration.SelectedRecord) error {
 		if rec.Row.Table == "Conversation" && rec.LogicalKey == description.Key {
@@ -109,7 +126,11 @@ func TestOriginalConversationReplicaChoiceRebuildsAndVerifies(t *testing.T) {
 		}
 		return nil
 	}))
-	require.Equal(t, 1, selected)
+	if archiveOnly {
+		require.Zero(t, selected)
+	} else {
+		require.Equal(t, 1, selected)
+	}
 	archive, err := archivefs.NewFileArchiveStore(filepath.Join(t.TempDir(), "archive"))
 	require.NoError(t, err)
 	_, err = migration.ExportSourceArchive(ctx, migration.SourceArchiveOptions{PlanDigest: plan.Digest(), SourceCommit: plan.SourceCommit}, prepared.Capture, prepared.Catalog, prepared.Selection, w, archive)

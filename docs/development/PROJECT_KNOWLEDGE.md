@@ -1281,3 +1281,13 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 - Conversation migration keeps the real original userMaxCount in its plan. preserve_all_conversations explicitly preserves valid durable conversations beyond that response cap; it does not falsify source configuration. Conflicting Leader-list states require exact node/logical-key/indexed-row/group-row SHA approvals, choose one complete original indexed record, and still pass formal-replica state comparison. Changed or unused approvals fail; archive import independently rebuilds the choices and sequence mapping.
 - Exact conversation_replicas decisions can separately select an existing original copy or archive a divergent group. The digest binds all formal replicas' candidate bytes, original row bytes, and absence. Unused, changed, or agreeing groups fail; archive-only groups cannot silently reappear through pending recovery. No generic majority or single-copy union is enabled. Compute lookup namespace hashes once per selection, not once per physical row.
 - Migration export rechecks stopped source/plugin freshness and verifies a prepared report plus a length-framed digest of every exported workspace row before COMPLETE. Preparation seals include raw quarantined rows. Export avoids repeated semantic preparation; import and independent verify still rebuild all archive checks. Unsealed older workspaces require fresh preparation with matching tools.
+
+- V2 migration duplicate chains require explicit `resolve_duplicate_chains`; each
+  strictly increasing same-channel chain must have one surviving terminal. Keep
+  direct edges, terminal sidecar and all original messages; never remap read/delete
+  boundaries forward to a winner. Independent unread projection needs explicit
+  `derive_unread_from_boundaries` and preserves original counter evidence.
+- An imported absent conversation may use exact `missing_conversations` with
+  `visibility: hidden_until_new_message`. The native list-only marker must not
+  become a message visibility or read floor. All target runtimes must match;
+  rollback restores the previous complete generation, not old readers on new rows.

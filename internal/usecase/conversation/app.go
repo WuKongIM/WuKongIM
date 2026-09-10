@@ -244,6 +244,9 @@ func (a *App) Retry(ctx context.Context, req RetryRequest) (ListResult, error) {
 }
 
 func conversationFromMembership(row metadb.UserChannelMembership, head HydrationResult) (Conversation, bool) {
+	if row.ConversationHiddenThroughSeq > 0 && head.LastCommittedSeq <= row.ConversationHiddenThroughSeq && row.ActivatedAt <= 0 {
+		return Conversation{}, false
+	}
 	visibleMessage := head.LastCommittedSeq >= row.JoinSeq && head.LastCommittedSeq > row.DeletedToSeq
 	if !visibleMessage && row.ActivatedAt <= 0 {
 		return Conversation{}, false

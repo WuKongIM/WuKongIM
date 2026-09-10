@@ -507,17 +507,18 @@ func inspectSubscriberRow(subscriber Subscriber) InspectRow {
 
 func inspectUserChannelMembershipRow(membership UserChannelMembership) InspectRow {
 	return InspectRow{
-		"uid":            membership.UID,
-		"channel_id":     membership.ChannelID,
-		"channel_type":   membership.ChannelType,
-		"join_seq":       membership.JoinSeq,
-		"read_seq":       membership.ReadSeq,
-		"deleted_to_seq": membership.DeletedToSeq,
-		"activated_at":   membership.ActivatedAt,
-		"tombstone":      membership.Tombstone,
-		"tombstone_at":   membership.TombstoneAt,
-		"source_version": membership.SourceVersion,
-		"updated_at":     membership.UpdatedAt,
+		"uid":                             membership.UID,
+		"channel_id":                      membership.ChannelID,
+		"channel_type":                    membership.ChannelType,
+		"join_seq":                        membership.JoinSeq,
+		"read_seq":                        membership.ReadSeq,
+		"deleted_to_seq":                  membership.DeletedToSeq,
+		"conversation_hidden_through_seq": membership.ConversationHiddenThroughSeq,
+		"activated_at":                    membership.ActivatedAt,
+		"tombstone":                       membership.Tombstone,
+		"tombstone_at":                    membership.TombstoneAt,
+		"source_version":                  membership.SourceVersion,
+		"updated_at":                      membership.UpdatedAt,
 	}
 }
 

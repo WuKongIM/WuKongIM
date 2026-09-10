@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Support reviewed transitive duplicate resolution, archive independent v2 unread counters, and preserve absent conversation lists without deleting history; hidden memberships require matching cluster binaries. / 支持获准的去重替代链解析、原独立未读计数归档，以及保留历史访问权限的会话列表隐藏；隐藏成员状态要求集群使用配套程序。
+
 - Bind reviewed conversation replica choices and archive-only decisions to every original copy, including absence; preserve the full source archive. / 会话副本选择及仅归档决定绑定全部原副本和缺失状态，保留完整源归档。
 
 - Reuse sealed migration preparation during export while rechecking source freshness and all exported bytes; compute invariant lookup-policy digests once per selection. Independent import and verification still rebuild original records. / 导出复用带摘要的迁移准备结果，重新核对来源和全部导出字节；会话选择仅计算一次固定策略摘要。导入和独立验证继续从原记录重建。

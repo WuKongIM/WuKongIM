@@ -9,17 +9,18 @@ import (
 )
 
 const (
-	userChannelMembershipColumnUID         uint16 = 1
-	userChannelMembershipColumnChannelID   uint16 = 2
-	userChannelMembershipColumnChannelType uint16 = 3
-	userChannelMembershipColumnJoinSeq     uint16 = 4
-	userChannelMembershipColumnReadSeq     uint16 = 5
-	userChannelMembershipColumnDeletedSeq  uint16 = 6
-	userChannelMembershipColumnActivatedAt uint16 = 7
-	userChannelMembershipColumnTombstone   uint16 = 8
-	userChannelMembershipColumnTombstoneAt uint16 = 9
-	userChannelMembershipColumnSourceVer   uint16 = 10
-	userChannelMembershipColumnUpdatedAt   uint16 = 11
+	userChannelMembershipColumnUID                uint16 = 1
+	userChannelMembershipColumnChannelID          uint16 = 2
+	userChannelMembershipColumnChannelType        uint16 = 3
+	userChannelMembershipColumnJoinSeq            uint16 = 4
+	userChannelMembershipColumnReadSeq            uint16 = 5
+	userChannelMembershipColumnDeletedSeq         uint16 = 6
+	userChannelMembershipColumnActivatedAt        uint16 = 7
+	userChannelMembershipColumnTombstone          uint16 = 8
+	userChannelMembershipColumnTombstoneAt        uint16 = 9
+	userChannelMembershipColumnSourceVer          uint16 = 10
+	userChannelMembershipColumnUpdatedAt          uint16 = 11
+	userChannelMembershipColumnConversationHidden uint16 = 12
 )
 
 // UserChannelMembership stores one UID-owned channel membership row.
@@ -36,6 +37,10 @@ type UserChannelMembership struct {
 	ReadSeq uint64
 	// DeletedToSeq hides ordinary messages through this sequence.
 	DeletedToSeq uint64
+	// ConversationHiddenThroughSeq suppresses only the conversation list until
+	// committed history advances past this imported tail. It never limits pulls
+	// or changes read/delete floors. Explicit activation may reveal the list.
+	ConversationHiddenThroughSeq uint64
 	// ActivatedAt prioritizes directory synchronization after explicit user activity.
 	ActivatedAt int64
 	// Tombstone records that the user left or was removed from the channel.
@@ -73,6 +78,7 @@ var userChannelMembershipTable = registerMetaTable(TableSpec[UserChannelMembersh
 		{ID: userChannelMembershipColumnTombstoneAt, Name: "tombstone_at", Type: schema.TypeInt64},
 		{ID: userChannelMembershipColumnSourceVer, Name: "source_version", Type: schema.TypeUint64},
 		{ID: userChannelMembershipColumnUpdatedAt, Name: "updated_at", Type: schema.TypeInt64},
+		{ID: userChannelMembershipColumnConversationHidden, Name: "conversation_hidden_through_seq", Type: schema.TypeUint64},
 	},
 	Families: []schema.Family{{ID: userChannelMembershipPrimaryFamilyID, Name: "primary", Columns: []uint16{
 		userChannelMembershipColumnJoinSeq,
@@ -83,6 +89,7 @@ var userChannelMembershipTable = registerMetaTable(TableSpec[UserChannelMembersh
 		userChannelMembershipColumnTombstoneAt,
 		userChannelMembershipColumnSourceVer,
 		userChannelMembershipColumnUpdatedAt,
+		userChannelMembershipColumnConversationHidden,
 	}}},
 	Primary: PrimarySpec[UserChannelMembership]{
 		IndexID:  userChannelMembershipPrimaryIndexID,
@@ -399,6 +406,8 @@ func resolveEnsuredUserChannelMembership(existing UserChannelMembership, exists 
 		return existing
 	}
 	existing.JoinSeq = incoming.JoinSeq
+	// A new subscriber generation replaces an imported list-only marker.
+	existing.ConversationHiddenThroughSeq = incoming.ConversationHiddenThroughSeq
 	if existing.SourceVersion == 0 {
 		// An unfenced row may contain user-owned floors established before the
 		// first source projection; importing generation one must not regress it.
@@ -628,7 +637,12 @@ func encodeUserChannelMembershipValue(membership UserChannelMembership) []byte {
 	}
 	value = appendValueInt64(value, membership.TombstoneAt)
 	value = appendValueUint64(value, membership.SourceVersion)
-	return appendValueInt64(value, membership.UpdatedAt)
+	value = appendValueInt64(value, membership.UpdatedAt)
+	// Preserve legacy bytes when no imported visibility marker is present.
+	if membership.ConversationHiddenThroughSeq != 0 {
+		value = appendValueUint64(value, membership.ConversationHiddenThroughSeq)
+	}
+	return value
 }
 
 func decodeUserChannelMembershipValue(uid, channelID string, channelType int64, value []byte) (UserChannelMembership, error) {
@@ -662,20 +676,28 @@ func decodeUserChannelMembershipValue(uid, channelID string, channelType int64, 
 	if err != nil {
 		return UserChannelMembership{}, err
 	}
+	var conversationHiddenThroughSeq uint64
+	if len(rest) == 8 {
+		conversationHiddenThroughSeq, rest, err = readValueUint64(rest)
+		if err != nil {
+			return UserChannelMembership{}, err
+		}
+	}
 	if len(rest) != 0 {
 		return UserChannelMembership{}, dberrors.ErrCorruptValue
 	}
 	return UserChannelMembership{
-		UID:           uid,
-		ChannelID:     channelID,
-		ChannelType:   channelType,
-		JoinSeq:       joinSeq,
-		ReadSeq:       readSeq,
-		DeletedToSeq:  deletedToSeq,
-		ActivatedAt:   activatedAt,
-		Tombstone:     tombstone,
-		TombstoneAt:   tombstoneAt,
-		SourceVersion: sourceVersion,
-		UpdatedAt:     updatedAt,
+		UID:                          uid,
+		ChannelID:                    channelID,
+		ChannelType:                  channelType,
+		JoinSeq:                      joinSeq,
+		ReadSeq:                      readSeq,
+		DeletedToSeq:                 deletedToSeq,
+		ConversationHiddenThroughSeq: conversationHiddenThroughSeq,
+		ActivatedAt:                  activatedAt,
+		Tombstone:                    tombstone,
+		TombstoneAt:                  tombstoneAt,
+		SourceVersion:                sourceVersion,
+		UpdatedAt:                    updatedAt,
 	}, nil
 }

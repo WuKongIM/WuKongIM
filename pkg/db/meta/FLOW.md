@@ -59,6 +59,10 @@ It does not own product business policy or expose engine-specific APIs.
 - The Channel read cache is capacity-bounded, independently locked from shard
   lookup, and exposes current entries and capacity through `MetricsSnapshot`.
 
+- An imported `conversation_hidden_through_seq` is list-only state. Optional
+  fixed-value tails preserve old rows; marked rows require matching binaries.
+  Same-generation projections preserve it, while a new source generation replaces it.
+
 ## Read First
 
 - [Metadata database](db.go)
