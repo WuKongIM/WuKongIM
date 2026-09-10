@@ -226,38 +226,34 @@ func validateSourceIndexes(ctx context.Context, capture SourceCapture, sources [
 	if err := b.flush(); err != nil {
 		return err
 	}
-	expectedPrefix := []byte(base + "expected/")
-	if err := w.Walk(ctx, expectedPrefix, func(row transfer.SpoolRow) error {
-		key := append([]byte(base+"actual/"), row.Key[len(expectedPrefix):]...)
-		data, found, err := w.Get(ctx, key)
-		if err != nil {
-			return err
-		}
-		if !found {
-			return errors.New("source business index is missing")
-		}
+	return validateCapturedIndexJoin(ctx, w, base)
+}
+
+// validateCapturedIndexJoin compares both directions of the original index
+// contract. Native spools merge sorted prefixes; other workspaces retain the
+// point-lookup path. Unmatched rows still use the interpreted quarantine view.
+func validateCapturedIndexJoin(ctx context.Context, w Workspace, base string) error {
+	indexKey := func(phase string, node uint64, shard int, key []byte) []byte {
+		return []byte(fmt.Sprintf("%s%s/%020d/%04d/%x", base, phase, node, shard, key))
+	}
+	expectedPrefix, actualPrefix := []byte(base+"expected/"), []byte(base+"actual/")
+	checkExpected := func(expectedData, actualData []byte) error {
 		var actual sourceIndexRecord
-		if err := json.Unmarshal(data, &actual); err != nil {
+		if err := json.Unmarshal(actualData, &actual); err != nil {
 			return err
 		}
 		var expected SourceIndexEntry
-		if err := json.Unmarshal(row.Value, &expected); err != nil {
+		if err := json.Unmarshal(expectedData, &expected); err != nil {
 			return err
 		}
 		if !bytes.Equal(expected.Value, actual.Entry.Value) {
 			return fmt.Errorf("source %s index points to a different primary row", actual.Table)
 		}
 		return nil
-	}); err != nil {
-		return err
 	}
-	return w.Walk(ctx, []byte(base+"actual/"), func(row transfer.SpoolRow) error {
+	checkUnexpected := func(row transfer.SpoolRow) error {
 		var actual sourceIndexRecord
 		if err := json.Unmarshal(row.Value, &actual); err != nil {
-			return err
-		}
-		_, found, err := w.Get(ctx, indexKey("expected", actual.NodeID, actual.Shard, actual.Entry.Key))
-		if err != nil || found {
 			return err
 		}
 		if len(actual.Entry.SenderKey) > 0 {
@@ -285,6 +281,57 @@ func validateSourceIndexes(ctx context.Context, capture SourceCapture, sources [
 			}
 		}
 		return fmt.Errorf("source %s index is orphaned or disagrees with its primary fields", actual.Table)
+	}
+	// These two derived prefixes already incorporate quarantine exclusions.
+	// Only their ordered scan bypasses the wrapper; all business Get checks above
+	// keep using w so hidden primaries never reappear during orphan validation.
+	if merged, ok := quarantineRawWorkspace(w).(interface {
+		WalkMerge(context.Context, []byte, []byte, func(transfer.SpoolRow, transfer.SpoolRow) error) error
+	}); ok {
+		var unexpectedErr error
+		err := merged.WalkMerge(ctx, expectedPrefix, actualPrefix, func(expected, actual transfer.SpoolRow) error {
+			switch {
+			case len(expected.Key) == 0:
+				// Preserve the old expected-pass error precedence without retaining
+				// orphan rows or repeating point lookups for matched indexes.
+				if unexpectedErr == nil {
+					unexpectedErr = checkUnexpected(actual)
+				}
+				return nil
+			case len(actual.Key) == 0:
+				return errors.New("source business index is missing")
+			default:
+				return checkExpected(expected.Value, actual.Value)
+			}
+		})
+		if err != nil {
+			return err
+		}
+		return unexpectedErr
+	}
+	if err := w.Walk(ctx, expectedPrefix, func(row transfer.SpoolRow) error {
+		key := append([]byte(base+"actual/"), row.Key[len(expectedPrefix):]...)
+		data, found, err := w.Get(ctx, key)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("source business index is missing")
+		}
+		return checkExpected(row.Value, data)
+	}); err != nil {
+		return err
+	}
+	return w.Walk(ctx, actualPrefix, func(row transfer.SpoolRow) error {
+		var actual sourceIndexRecord
+		if err := json.Unmarshal(row.Value, &actual); err != nil {
+			return err
+		}
+		_, found, err := w.Get(ctx, indexKey("expected", actual.NodeID, actual.Shard, actual.Entry.Key))
+		if err != nil || found {
+			return err
+		}
+		return checkUnexpected(row)
 	})
 }
 

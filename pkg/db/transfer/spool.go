@@ -170,15 +170,7 @@ func (s *Spool) Walk(ctx context.Context, prefix []byte, visit func(SpoolRow) er
 	if s == nil || s.db == nil {
 		return errors.New("migration spool closed")
 	}
-	var end []byte
-	for i := len(prefix) - 1; i >= 0; i-- {
-		if prefix[i] != 255 {
-			end = bytes.Clone(prefix[:i+1])
-			end[i]++
-			break
-		}
-	}
-	iter, err := s.db.NewIter(engine.Span{Start: prefix, End: end}, engine.IterOptions{})
+	iter, err := s.db.NewIter(spoolPrefixSpan(prefix), engine.IterOptions{})
 	if err != nil {
 		return err
 	}

@@ -1246,6 +1246,8 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 
 ## Unified operator CLI
 
+- Migration source-index validation merges sorted expected/actual prefixes in native Spools with bounded iterator memory. Keep missing/value-conflict checks and the original unmatched sender/absent-primary rules; only derived-index scans may unwrap quarantine, while business point lookups must retain its hidden-primary view. Preparation reports bounded stage start/completion/failure timings, not message-level logs or a guessed percentage.
+
 - Pebble reserves active, iterator-pinned, and recycled memtable memory against its block-cache budget. Migration Spool must leave read-cache headroom while walking captured rows and writing join indexes: a 16 MiB cache with a 16 MiB memtable starves cached reads after growth. Its 128 MiB budget retains bounded headroom; regression coverage must use a writable grown workspace, because a read-only reopen hides these reservations.
 
 - `cmd/wkcli` is the only public operator utility entrypoint. `bench` combines lightweight `send` with distributed benchmark commands; `db` and `migrate` retain their original parsers, outputs and exit codes. `db` global flags precede its verb; import writes offline stores.
