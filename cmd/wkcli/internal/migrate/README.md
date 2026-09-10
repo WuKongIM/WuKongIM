@@ -325,10 +325,17 @@ DeviceLevel，不混合字段或接受多组 Token。选中记录仍须在所属
 ```
 
 `conversation_list_limit` 必须填写原部署的 `conversation.userMaxCount`，不能
-为通过预检而调大。工具跟随原唯一索引确定已读、删除及未读状态，要求所属 Slot
+为通过预检而调大。若业务方明确决定保留列表范围之外的有效持久化会话，可显式启用
+`metadata.preserve_all_conversations=true`；原上限保持不变，报告记录超限用户数与最大物理行数。
+工具跟随原唯一索引确定已读、删除及未读状态，要求所属 Slot
 的全部正式副本一致。当前 Slot Leader 的普通会话列表按 UpdatedAt 选择原记录，
 保留旧列表 version；若同时间的不同状态无法区分，或列表与唯一索引状态不同，
-则拒绝转换。CMD 类型遵循原按物理 ID 扫描覆盖的读取规则；批准排除 CMD 后不会
+默认拒绝转换。经业务方逐组确认后，可在 `metadata.conversation_recoveries`
+绑定 `node_id`、`logical_key`（`IdentityKey(uid, channelID, channelType)`）、
+`indexed_sha256`（唯一索引原主记录的 `json.Marshal(Row)` SHA256）与 `rows_sha256`
+（组内按物理 ID 升序，逐行原记录 SHA256 后加换行，再计算 SHA256），选择完整的原索引记录。
+原行变更、绑定不符或未实际使用的决定均会拒绝；所有正式副本仍须通过状态比对。
+CMD 类型遵循原按物理 ID 扫描覆盖的读取规则；批准排除 CMD 后不会
 写入目标 CMD 会话。检查列表上限时计算去重前物理行，以及原停机缓存中实际需要
 恢复的新普通会话。其余原行无损归档，不恢复为额外会话。消息去重、CMD 排除和
 序号压紧仍由 `messages` 独立控制；已读和删除位置使用同一获准映射独立校验。

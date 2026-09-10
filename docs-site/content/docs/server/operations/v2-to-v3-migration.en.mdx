@@ -191,6 +191,17 @@ After renumbering, retained messages become `1…N` in their original order. Rea
 </details>
 
 <details>
+<summary>Optional: preserve conversations beyond the old list cap and recover conflicting states</summary>
+
+The original `conversation.userMaxCount` caps the v2 list response; storage may contain more valid conversations. Keep the actual source value in `metadata.conversation_list_limit`. After an explicit business decision to preserve those durable conversations, enable `metadata.preserve_all_conversations: true` alongside `conversation_lookup: "v2_active_slot"`. The report records `users_over_original_limit` and `max_leader_chat_rows`. This does not authorize creating missing conversations or clearing unread state.
+
+Conflicting list and unique-index states still fail by default. A reviewed `metadata.conversation_recoveries` entry binds `node_id`, `logical_key` (`IdentityKey(uid, channelID, channelType)`), `indexed_sha256` (SHA256 of `json.Marshal(Row)`), and `rows_sha256` (SHA256 of each original row's SHA256 plus a newline, ordered by physical ID). It selects one complete original indexed record, preserves its unread/read/deletion state, and then applies the approved message sequence mapping.
+
+Changed rows, mismatched evidence, and unused decisions fail. Formal replicas must still agree, every original row remains archived, and import and independent verification rebuild the selection. Archive the complete differences and decide the business rule before generating bindings. See the [operator reference](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md) for fields.
+
+</details>
+
+<details>
 <summary>Optional: quarantine individually confirmed malformed source rows</summary>
 
 Tools supporting this feature accept a top-level `quarantine` array. Each entry binds `node_id`, `shard`, the Base64-encoded original aggregated primary `key`, the complete original row JSON `sha256`, and the business-approved `reason`. Bind every physical replica separately. Missing rows, changed hashes, duplicate entries, or a mismatched reason stop migration; table filters and wildcards cannot bypass validation. Check the tool version first: older tools reject this field.

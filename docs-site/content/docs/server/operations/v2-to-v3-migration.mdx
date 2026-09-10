@@ -191,6 +191,17 @@ wukongim version --output json
 </details>
 
 <details>
+<summary>可选：保留超出旧列表上限的会话、恢复冲突状态</summary>
+
+原 `conversation.userMaxCount` 限制的是旧会话列表返回范围；库内可能存在更多有效会话。`metadata.conversation_list_limit` 仍须填写原配置值，不能为通过检查而调大。业务方明确决定完整保留这些持久化会话后，可在 `metadata` 中启用 `preserve_all_conversations: true`，并保留 `conversation_lookup: "v2_active_slot"`。报告的 `users_over_original_limit` 与 `max_leader_chat_rows` 记录影响范围；这不授权创建缺失会话或清空未读。
+
+旧列表状态与唯一索引指向的状态不一致时，默认仍停止。逐组确认采用原唯一索引记录后，使用 `metadata.conversation_recoveries` 绑定节点、逻辑身份和完整原行哈希，不能只填写“忽略冲突”。每项包含 `node_id`、`logical_key`（工具的 `IdentityKey(uid, channelID, channelType)`）、`indexed_sha256`（`json.Marshal(Row)` 的 SHA256）及 `rows_sha256`（按物理 ID 升序，逐个原行 SHA256 后加换行，再取 SHA256）。工具选择一条完整原记录，保留其未读、已读及删除状态，再按获准的消息序号映射转换。
+
+原行变化、决定不匹配或未被实际使用都会拒绝。所有正式副本的状态比对继续执行，归档保留每条原始记录；导入与独立验证会重新推导选择。先归档完整差异、确认业务规则，再生成这些绑定值。具体字段见[工程操作手册](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。
+
+</details>
+
+<details>
 <summary>可选：逐条隔离已确认的异常原记录</summary>
 
 支持此功能的迁移工具可在计划顶层使用 `quarantine` 数组，逐条记录 `node_id`、`shard`、Base64 编码的原始聚合主键 `key`、完整原行 JSON 的 `sha256` 和业务方批准的 `reason`。每个物理副本都要独立绑定；原记录缺失、哈希变化、重复条目或不符合原因时会停止，不能填写表名或通配规则来跳过校验。使用前核对工具版本；旧版工具会拒绝此字段。

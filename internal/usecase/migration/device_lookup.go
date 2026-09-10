@@ -27,9 +27,15 @@ type MetadataPolicy struct {
 	// ConversationLookup retains the active Slot Leader's persisted list view
 	// only when exact lookup states agree across every formal Slot replica.
 	ConversationLookup string `json:"conversation_lookup,omitempty"`
-	// ConversationListLimit is the original deployment's userMaxCount. The
-	// first implementation refuses users whose physical chat rows exceed it.
+	// ConversationListLimit is the original deployment's userMaxCount, even
+	// when an explicit recovery preserves conversations outside that list.
 	ConversationListLimit uint64 `json:"conversation_list_limit,omitempty"`
+	// PreserveAllConversations preserves every valid persisted conversation
+	// instead of requiring it to fit the original limited list response.
+	PreserveAllConversations bool `json:"preserve_all_conversations,omitempty"`
+	// ConversationRecoveries authorizes exact original indexed records for
+	// conflicting active-Leader list groups; it never synthesizes read state.
+	ConversationRecoveries []ConversationStateRecovery `json:"conversation_recoveries,omitempty"`
 }
 
 func validateMetadataPolicy(p *MetadataPolicy) error {
@@ -38,6 +44,9 @@ func validateMetadataPolicy(p *MetadataPolicy) error {
 	}
 	if p != nil && ((p.ConversationLookup != "" && p.ConversationLookup != "v2_active_slot") || (p.ConversationLookup == "") != (p.ConversationListLimit == 0) || p.ConversationListLimit > 1000000) {
 		return errors.New("conversation metadata requires v2_active_slot and an original conversation_list_limit in 1..1000000")
+	}
+	if err := validateConversationRecoveryPolicy(p); err != nil {
+		return err
 	}
 	return validateMissingConversations(p)
 }

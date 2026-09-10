@@ -21,7 +21,11 @@ type ConversationSelection struct {
 	DuplicateGroups   uint64 `json:"duplicate_groups"`
 	ShadowedRows      uint64 `json:"shadowed_rows"`
 	MaxLeaderChatRows uint64 `json:"max_leader_chat_rows"`
-	SHA256            string `json:"sha256"`
+	// UsersOverOriginalLimit counts preserved lists exceeding the real v2 cap.
+	UsersOverOriginalLimit uint64 `json:"users_over_original_limit,omitempty"`
+	// RecoveredConflicts counts exact, evidence-bound indexed-state choices.
+	RecoveredConflicts uint64 `json:"recovered_conflicts,omitempty"`
+	SHA256             string `json:"sha256"`
 }
 
 type conversationLookupRow struct {
@@ -165,6 +169,7 @@ func reduceConversationLookups(ctx context.Context, capture SourceCapture, w Wor
 	var first, indexed, recent, highest conversationLookupRow
 	var groupCount uint64
 	var ambiguous bool
+	groupHash := sha256.New()
 	h := sha256.New()
 	enc := json.NewEncoder(h)
 	flush := func() error {
@@ -180,9 +185,17 @@ func reduceConversationLookups(ctx context.Context, capture SourceCapture, w Wor
 				recent, ambiguous = highest, false
 			} // original CMD sync uses GetConversationsByType
 			if ambiguous || recent.StateSHA != indexed.StateSHA {
-				return errors.New("active Leader conversation list and exact lookup disagree")
+				accepted, err := recoverIndexedConversation(p, group, indexed.SHA256, hex.EncodeToString(groupHash.Sum(nil)))
+				if err != nil {
+					return err
+				}
+				if !accepted {
+					return errors.New("active Leader conversation list and exact lookup disagree")
+				}
+				report.RecoveredConflicts++
+			} else {
+				chosen = recent
 			}
-			chosen = recent
 		}
 		report.Groups++
 		if groupCount > 1 {
@@ -214,6 +227,7 @@ func reduceConversationLookups(ctx context.Context, capture SourceCapture, w Wor
 				return err
 			}
 			group, first, recent, indexed, groupCount, ambiguous = next, ref, ref, conversationLookupRow{}, 0, false
+			groupHash.Reset()
 		}
 		if ref.Type != first.Type || ref.ActiveLeader != first.ActiveLeader || ref.IndexedStateSHA != first.IndexedStateSHA || !bytes.Equal(ref.IndexedKey, first.IndexedKey) {
 			return errors.New("conversation group has conflicting lookup evidence")
@@ -229,6 +243,7 @@ func reduceConversationLookups(ctx context.Context, capture SourceCapture, w Wor
 			ambiguous = true
 		}
 		groupCount++
+		fmt.Fprintln(groupHash, ref.SHA256)
 		return enc.Encode(row)
 	})
 	if err != nil {
@@ -236,6 +251,9 @@ func reduceConversationLookups(ctx context.Context, capture SourceCapture, w Wor
 	}
 	if err := flush(); err != nil {
 		return nil, err
+	}
+	if report.RecoveredConflicts != uint64(len(p.ConversationRecoveries)) {
+		return nil, errors.New("approved conversation recovery was not applied")
 	}
 	if err := b.flush(); err != nil {
 		return nil, err
@@ -274,6 +292,7 @@ func keepsConversation(ctx context.Context, w Workspace, capture string, p *Meta
 func checkConversationListLimit(ctx context.Context, w Workspace, base string, p *MetadataPolicy, report *ConversationSelection) error {
 	var user string
 	var count uint64
+	report.UsersOverOriginalLimit = 0
 	return w.Walk(ctx, []byte(base+"chat-list/"), func(row transfer.SpoolRow) error {
 		key := string(row.Key)
 		next := key[:strings.LastIndexByte(key, '/')]
@@ -281,8 +300,11 @@ func checkConversationListLimit(ctx context.Context, w Workspace, base string, p
 			user, count = next, 0
 		}
 		count++
-		if count > p.ConversationListLimit {
+		if count > p.ConversationListLimit && !p.PreserveAllConversations {
 			return errors.New("original conversation list exceeds its configured pre-deduplication limit")
+		}
+		if count == p.ConversationListLimit+1 {
+			report.UsersOverOriginalLimit++
 		}
 		if count > report.MaxLeaderChatRows {
 			report.MaxLeaderChatRows = count
