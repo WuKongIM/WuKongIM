@@ -148,6 +148,8 @@ If a search index can be fully rebuilt from IM messages, you may instead omit it
 
 If callers use `/plugins/:plugin_no/*path`, confirm that the selected target release exposes that HTTP route; `v3.0.0-beta.13` does not yet provide this compatibility entry. Starting a plugin alone is insufficient.
 
+For multi-node acceptance, stop each node in turn and call plugin APIs through every surviving node, then restore the node and verify a full cluster restart. After a channel Leader changes, verify that plugin requests reach its current owner. Success through one node does not prove that other nodes have stopped forwarding to the old Leader. This check also applies when historical search indexes are excluded from migration.
+
 </details>
 
 By default, business compatibility is checked strictly; **deduplication and CMD/stream omissions are not enabled automatically**. If needed, read the policy details below and update the plan before migration.
