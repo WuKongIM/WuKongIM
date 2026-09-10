@@ -469,7 +469,7 @@ func sealBusinessProposal(
 	}
 	frozen := immutableProposalRecords(records, payloadsImmutable)
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
-		Version:      ch.ProposalManifestVersion,
+		Version:      ch.ProposalVersionForRecords(frozen),
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
 		CommandID: command, BaseOffset: frontier.LEO, LastOffset: frontier.LEO + uint64(len(frozen)),
 		PreviousTerm: frontier.TailIdentity.LeaderTerm, PreviousIndex: frontier.LEO, PreviousDigest: frontier.TailIdentity.Digest,

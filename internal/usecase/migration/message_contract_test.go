@@ -23,10 +23,10 @@ func TestMigrationUsesExistingMessageProposalFormat(t *testing.T) {
 	_, entries, ok := quorumlog.SealProposalManifest(manifest, []quorumlog.Record{record})
 	require.True(t, ok)
 	require.Equal(t, uint16(1), entries[0].Version)
-	for _, version := range []uint16{2, 3} {
+	for _, version := range []uint16{0, 3} {
 		manifest.Version = version
 		_, _, ok = quorumlog.SealProposalManifest(manifest, []quorumlog.Record{record})
-		require.False(t, ok, "migration must not teach the native format new versions")
+		require.False(t, ok, "migration must reject unsupported native versions")
 	}
 }
 
@@ -36,7 +36,6 @@ func TestMigrationRejectsUnrepresentableMessageFieldsWithoutMutatingSource(t *te
 		change func(*channelcompat.Message)
 	}{
 		{"sync_once", func(m *channelcompat.Message) { m.Framer.SyncOnce = true }},
-		{"expire", func(m *channelcompat.Message) { m.Expire = 3600 }},
 		{"stream_no", func(m *channelcompat.Message) { m.StreamNo = "private-stream-identity" }},
 		{"topic", func(m *channelcompat.Message) { m.Topic = "private-topic" }},
 		{"timestamp", func(m *channelcompat.Message) { m.Timestamp = 0; m.ServerTimestampMS = 0 }},
@@ -67,5 +66,28 @@ func TestMigrationPreservesRedDotInExistingNativeFlag(t *testing.T) {
 		require.Equal(t, redDot, got.Framer.RedDot)
 		require.Equal(t, before, source)
 		require.NotContains(t, migration.UnsupportedMessageFields(source), "red_dot")
+	}
+}
+
+func TestMigrationPreservesOriginalExpireAndBindsNativeProposal(t *testing.T) {
+	for _, expire := range []uint32{0, 3600, ^uint32(0)} {
+		source := channelcompat.Message{MessageID: 91, MessageSeq: 1, ChannelID: "room", ChannelType: 2, Timestamp: 1700000000, ServerTimestampMS: 1700000000000, Expire: expire, Payload: []byte("body")}
+		before := source
+		native, record, err := migration.PrepareMessageRecord(source)
+		require.NoError(t, err)
+		got, err := message.DecodeMessageRecord(native)
+		require.NoError(t, err)
+		require.Equal(t, expire, got.Expire)
+		require.Equal(t, expire, record.Expire)
+		require.Equal(t, before, source)
+		manifest := quorumlog.ProposalManifest{Version: quorumlog.VersionForRecords([]quorumlog.Record{record}), ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: quorumlog.CommandID{1}, LastOffset: 1}
+		_, entries, ok := quorumlog.SealProposalManifest(manifest, []quorumlog.Record{record})
+		require.True(t, ok)
+		require.True(t, quorumlog.VerifyEntry(entries[0], record))
+		if expire != 0 {
+			require.Equal(t, quorumlog.ExpirationProposalManifestVersion, entries[0].Version)
+			record.Expire = 0
+			require.False(t, quorumlog.VerifyEntry(entries[0], record))
+		}
 	}
 }

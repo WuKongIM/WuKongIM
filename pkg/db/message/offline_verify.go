@@ -54,7 +54,7 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 		}
 		m := proposal.manifest
 		count := m.LastOffset - m.BaseOffset
-		if m.Version != quorumlog.ProposalManifestVersion || m.BaseOffset != previous.Index || m.PreviousIndex != previous.Index || m.PreviousTerm != previous.LeaderTerm || m.PreviousDigest != previous.Digest || count == 0 || count > 256 || m.LastOffset > frontier.LEO {
+		if !quorumlog.SupportedProposalVersion(m.Version) || m.BaseOffset != previous.Index || m.PreviousIndex != previous.Index || m.PreviousTerm != previous.LeaderTerm || m.PreviousDigest != previous.Digest || count == 0 || count > 256 || m.LastOffset > frontier.LEO {
 			return dberrors.ErrCorruptState
 		}
 		paired, found, err := loadDurableProposalPairByLast(l.db.engine, l.key, m.LastOffset)

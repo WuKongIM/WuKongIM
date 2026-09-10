@@ -34,7 +34,7 @@ func TestCommittedMessageReaderPreservesScanAndRecordOwnership(t *testing.T) {
 	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{{
 		Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
 			{MessageID: 15, MessageSeq: 5, ChannelID: "g1", ChannelType: 2, SyncOnce: true, ServerTimestampMS: 1700000000123, Payload: []byte("command")},
-			{MessageID: 14, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, Setting: 2, FromUID: "u1", ClientMsgNo: "client-4", RedDot: true, Payload: []byte("ordinary")},
+			{MessageID: 14, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, Setting: 2, FromUID: "u1", ClientMsgNo: "client-4", RedDot: true, Expire: 3600, Payload: []byte("ordinary")},
 		}},
 	}}}
 	reader := NewCommittedMessageReader(node)
@@ -52,7 +52,7 @@ func TestCommittedMessageReaderPreservesScanAndRecordOwnership(t *testing.T) {
 		t.Fatalf("read=%+v, want unchanged scan %+v", got, want)
 	}
 	messages := results[0].Messages
-	if len(messages) != 2 || messages[0].MessageSeq != 5 || !messages[0].Flags.SyncOnce || messages[0].Timestamp != 1700000000 || messages[1].MessageSeq != 4 || messages[1].ClientMsgNo != "client-4" || messages[1].Setting != 2 || !messages[1].Flags.RedDot || messages[0].Flags.RedDot {
+	if len(messages) != 2 || messages[0].MessageSeq != 5 || !messages[0].Flags.SyncOnce || messages[0].Timestamp != 1700000000 || messages[1].MessageSeq != 4 || messages[1].ClientMsgNo != "client-4" || messages[1].Setting != 2 || !messages[1].Flags.RedDot || messages[0].Flags.RedDot || messages[1].Expire != 3600 {
 		t.Fatalf("messages=%+v, want unchanged scan order, command flag and mapped fields", messages)
 	}
 	messages[1].Payload[0] = 'X'

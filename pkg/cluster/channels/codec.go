@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -16,8 +17,11 @@ const (
 	legacyCodecVersionV5 = uint8(5)
 	legacyCodecVersionV6 = uint8(6)
 	legacyCodecVersionV7 = uint8(7)
-	codecVersion         = uint8(8)
+	legacyCodecVersionV8 = uint8(8)
+	codecVersion         = uint8(9)
 )
+
+var errExpireCodecRequired = errors.New("channels: expire requires channel codec version 9")
 
 var errInvalidCodecFrame = errors.New("channels: invalid frame")
 
@@ -198,7 +202,7 @@ func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) {
 }
 func encodeAppendRequestVersion(req ch.AppendRequest, version uint8) ([]byte, error) {
 	if version < codecVersion {
-		if err := legacyMessageFlagError(req); err != nil {
+		if err := legacyMessageFlagError(req, version); err != nil {
 			return nil, err
 		}
 	}
@@ -230,7 +234,7 @@ func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
 }
 func encodeAppendBatchRequestVersion(req ch.AppendBatchRequest, version uint8) ([]byte, error) {
 	if version < codecVersion {
-		if err := legacyMessageFlagError(req); err != nil {
+		if err := legacyMessageFlagError(req, version); err != nil {
 			return nil, err
 		}
 	}
@@ -370,11 +374,11 @@ func encodeRPCResult(kind uint8, payload any, err error) ([]byte, error) {
 }
 
 func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != codecVersion {
 		return nil, errInvalidCodecFrame
 	}
 	if err == nil && version < codecVersion {
-		err = legacyMessageFlagError(payload)
+		err = legacyMessageFlagError(payload, version)
 	}
 	if err != nil {
 		dst := []byte{rpcResultErr}
@@ -442,7 +446,7 @@ func encodeFrameVersion(version uint8, kind uint8, payload []byte) []byte {
 }
 
 func encodeRequestFrame(version uint8, kind uint8, payload []byte) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != codecVersion {
 		return nil, errInvalidCodecFrame
 	}
 	return encodeFrameVersion(version, kind, payload), nil
@@ -458,7 +462,7 @@ func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) 
 		return 0, nil, errInvalidCodecFrame
 	}
 	version := data[0]
-	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
+	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != codecVersion {
 		return 0, nil, errInvalidCodecFrame
 	}
 	return version, data[2:], nil
@@ -473,6 +477,9 @@ func responseCodecVersion(request []byte) uint8 {
 	}
 	if len(request) > 0 && request[0] == legacyCodecVersionV7 {
 		return legacyCodecVersionV7
+	}
+	if len(request) > 0 && request[0] == legacyCodecVersionV8 {
+		return legacyCodecVersionV8
 	}
 	return codecVersion
 }
@@ -1350,9 +1357,12 @@ func appendMessage(dst []byte, msg ch.Message, version uint8) []byte {
 	dst = appendString(dst, msg.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
-	if version >= codecVersion {
+	if version >= legacyCodecVersionV8 {
 		dst = appendBool(dst, msg.RedDot)
 		dst = appendBool(dst, msg.SyncOnce)
+	}
+	if version >= codecVersion {
+		dst = appendUvarint(dst, uint64(msg.Expire))
 	}
 	return dst
 }
@@ -1385,13 +1395,16 @@ func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error
 		return readMessageV4Remainder(body, offset, msg)
 	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readMessageV5Remainder(body, offset, msg)
-	case codecVersion:
+	case legacyCodecVersionV8, codecVersion:
 		msg, offset, err = readMessageV5Remainder(body, offset, msg)
 		if err == nil {
 			msg.RedDot, offset, err = readBool(body, offset, "red dot")
 		}
 		if err == nil {
 			msg.SyncOnce, offset, err = readBool(body, offset, "sync once")
+		}
+		if err == nil && version >= codecVersion {
+			msg.Expire, offset, err = readExpiry(body, offset)
 		}
 		return msg, offset, err
 	default:
@@ -1646,9 +1659,12 @@ func appendRecord(dst []byte, record ch.Record, version uint8) []byte {
 	dst = append(dst, record.Setting)
 	dst = appendOptionalBytes(dst, record.Payload)
 	dst = appendVarint(dst, int64(record.SizeBytes))
-	if version >= codecVersion {
+	if version >= legacyCodecVersionV8 {
 		dst = appendBool(dst, record.RedDot)
 		dst = appendBool(dst, record.SyncOnce)
+	}
+	if version >= codecVersion {
+		dst = appendUvarint(dst, uint64(record.Expire))
 	}
 	return dst
 }
@@ -1672,13 +1688,16 @@ func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) 
 		return readRecordV4Remainder(body, offset, record)
 	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readRecordV5Remainder(body, offset, record)
-	case codecVersion:
+	case legacyCodecVersionV8, codecVersion:
 		record, offset, err = readRecordV5Remainder(body, offset, record)
 		if err == nil {
 			record.RedDot, offset, err = readBool(body, offset, "red dot")
 		}
 		if err == nil {
 			record.SyncOnce, offset, err = readBool(body, offset, "sync once")
+		}
+		if err == nil && version >= codecVersion {
+			record.Expire, offset, err = readExpiry(body, offset)
 		}
 		return record, offset, err
 	default:
@@ -2056,4 +2075,16 @@ func readCollectionLen(count uint64, remaining int, label string) (int, error) {
 		return 0, fmt.Errorf("channels: %s count exceeds remaining bytes", label)
 	}
 	return int(count), nil
+}
+
+// readExpiry preserves the uint32 protocol lifetime and rejects truncation or overflow.
+func readExpiry(body []byte, offset int) (uint32, int, error) {
+	value, next, err := readUvarint(body, offset)
+	if err != nil {
+		return 0, next, err
+	}
+	if value > math.MaxUint32 {
+		return 0, next, errInvalidCodecFrame
+	}
+	return uint32(value), next, nil
 }

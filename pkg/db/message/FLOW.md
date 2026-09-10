@@ -47,10 +47,11 @@ storage core without transferring shared-engine ownership.
 
 ## Invariants and Failure Semantics
 
-- Offline helpers encode/decode existing records and independently read
-  stored columns and verify version-1 proposal chains. They add no new durable
-  format, empty-key exception, uniqueness relaxation or recovery path. The
-  importer must reject source values the native runtime cannot represent.
+- Offline helpers independently read existing columns and verify native proposal
+  formats 1 and 2. Format 2 binds message Expire; old format-1 hashes remain
+  unchanged. Matched runtimes and full-generation rollback are required after
+  format-2 writes. Import adds no empty-key exception, uniqueness relaxation,
+  or recovery path and rejects values the native runtime cannot represent.
 
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and

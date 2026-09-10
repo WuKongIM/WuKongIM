@@ -382,7 +382,7 @@ func installMessages(ctx context.Context, db *message.Engine, channel migration.
 		}
 		first, last := records[0].Index, records[len(records)-1].Index
 		command := sha256.Sum256([]byte(fmt.Sprintf("wkmigrate/%s/%s/%d/%d", digest, key, first, last)))
-		proposal, _, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.ProposalManifestVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: command, BaseOffset: first - 1, LastOffset: last, PreviousIndex: previous.Index, PreviousTerm: previous.LeaderTerm, PreviousDigest: previous.Digest}, records)
+		proposal, _, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.VersionForRecords(records), ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: command, BaseOffset: first - 1, LastOffset: last, PreviousIndex: previous.Index, PreviousTerm: previous.LeaderTerm, PreviousDigest: previous.Digest}, records)
 		if !ok {
 			return errors.New("cannot seal imported native proposal")
 		}

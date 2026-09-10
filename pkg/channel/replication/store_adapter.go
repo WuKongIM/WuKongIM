@@ -188,7 +188,7 @@ func validProbeIndexes(indexes []uint64) bool {
 }
 
 func validEntryIdentity(identity ch.EntryIdentity) bool {
-	if identity.Version != ch.ProposalManifestVersion || identity.ChannelEpoch == 0 || identity.LeaderTerm == 0 ||
+	if !ch.SupportedProposalVersion(identity.Version) || identity.ChannelEpoch == 0 || identity.LeaderTerm == 0 ||
 		identity.FenceVersion == 0 || identity.Index == 0 || identity.PreviousIndex+1 != identity.Index ||
 		identity.CommandID == (ch.CommandID{}) || identity.Digest == (ch.EntryDigest{}) {
 		return false

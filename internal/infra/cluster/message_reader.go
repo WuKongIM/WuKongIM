@@ -96,7 +96,7 @@ func committedMessagesFromChannel(in []channelruntime.Message) []message.SyncedM
 			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce, RedDot: msg.RedDot},
 			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq,
 			ChannelID: msg.ChannelID, ChannelType: msg.ChannelType,
-			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo,
+			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Expire: msg.Expire,
 			Timestamp: int32(msg.ServerTimestampMS / 1000),
 			Payload:   append([]byte(nil), msg.Payload...),
 		}

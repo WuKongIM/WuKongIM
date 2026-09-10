@@ -82,3 +82,37 @@ func TestDeriveProposalEntriesRejectsAuthorityAndTimestampMismatch(t *testing.T)
 		}
 	}
 }
+
+func TestExpirationProposalBindsLifetimeWithoutReinterpretingLegacyDigests(t *testing.T) {
+	manifest := ProposalManifest{Version: ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7, CommandID: CommandID{1}, LastOffset: 1}
+	record := Record{ID: 11, Index: 1, Epoch: 3, FromUID: "sender", ClientMsgNo: "client", ServerTimestampMS: 1000, Payload: []byte("body")}
+	legacy, oldEntries, ok := SealProposalManifest(manifest, []Record{record})
+	if !ok {
+		t.Fatal("legacy seal failed")
+	}
+	record.Expire = 3600
+	// Original v1 did not bind lifetime, even when a compatibility writer stored
+	// a nonzero column. Preserve these existing entry identities on upgrade.
+	same, _, ok := SealProposalManifest(manifest, []Record{record})
+	if !ok || same != legacy || !VerifyEntry(oldEntries[0], record) {
+		t.Fatal("legacy digest changed")
+	}
+	manifest.Version = VersionForRecords([]Record{record})
+	if manifest.Version != ExpirationProposalManifestVersion {
+		t.Fatal("new expiring proposal did not select v2")
+	}
+	sealed, entries, ok := SealProposalManifest(manifest, []Record{record})
+	if !ok || sealed.Digest == legacy.Digest || !VerifyEntry(entries[0], record) {
+		t.Fatal("expiration seal failed")
+	}
+	for _, expire := range []uint32{0, 3599, 3601, ^uint32(0)} {
+		changed := record
+		changed.Expire = expire
+		if VerifyEntry(entries[0], changed) {
+			t.Fatalf("changed expiration %d verified", expire)
+		}
+	}
+	if VersionForRecords(nil) != ProposalManifestVersion || SupportedProposalVersion(0) || SupportedProposalVersion(3) {
+		t.Fatal("unsupported format accepted")
+	}
+}

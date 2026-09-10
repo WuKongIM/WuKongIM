@@ -311,6 +311,7 @@ func appendRecords(dst []byte, records []ch.Record) []byte {
 		dst = binary.AppendVarint(dst, record.ServerTimestampMS)
 		dst = appendCodecBool(dst, record.SyncOnce)
 		dst = appendCodecBool(dst, record.RedDot)
+		dst = appendCodecUvarint(dst, uint64(record.Expire))
 		dst = appendCodecBytes(dst, record.Payload)
 		dst = appendCodecUvarint(dst, uint64(record.SizeBytes))
 	}
@@ -639,6 +640,10 @@ func (c *exchangeCursor) records() ([]ch.Record, bool) {
 		timestamp, okTimestamp := c.varint()
 		syncOnce, okSync := c.boolean()
 		redDot, okRedDot := c.boolean()
+		expire, okExpire := c.uvarint()
+		if expire > math.MaxUint32 {
+			okExpire = false
+		}
 		payload, okPayload := c.bytes()
 		sizeBytes, okSize := c.uvarint()
 		if sizeBytes > math.MaxInt {
@@ -646,9 +651,9 @@ func (c *exchangeCursor) records() ([]ch.Record, bool) {
 		}
 		records[index] = ch.Record{
 			ID: id, Index: recordIndex, Epoch: epoch, Setting: setting, FromUID: fromUID, ClientMsgNo: clientMsgNo,
-			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Payload: payload, SizeBytes: int(sizeBytes),
+			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Expire: uint32(expire), Payload: payload, SizeBytes: int(sizeBytes),
 		}
-		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okPayload && okSize
+		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okExpire && okPayload && okSize
 	}
 	return records, okCount
 }

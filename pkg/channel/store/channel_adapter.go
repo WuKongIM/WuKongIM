@@ -269,6 +269,7 @@ func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessage
 			Payload:           cloneBytes(msg.Payload),
 			ServerTimestampMS: msg.ServerTimestampMS,
 			RedDot:            msg.RedDot,
+			Expire:            msg.Expire,
 		})
 	}
 	return out, page.HasMore, page.NextBeforeMessageID, nil
@@ -966,6 +967,7 @@ func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.R
 			MessageSeq:        record.Index,
 			Framer:            frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
 			Setting:           frame.Setting(record.Setting),
+			Expire:            record.Expire,
 			ChannelID:         id.ID,
 			ChannelType:       id.Type,
 			FromUID:           record.FromUID,
@@ -1009,13 +1011,14 @@ func fromDBRecord(record channel.Record) ch.Record {
 			ServerTimestampMS: msg.ServerTimestampMS,
 			SyncOnce:          msg.Framer.SyncOnce,
 			RedDot:            msg.Framer.RedDot,
+			Expire:            msg.Expire,
 		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
 func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
 }
 
 const durableMessageHeaderSize = 45
