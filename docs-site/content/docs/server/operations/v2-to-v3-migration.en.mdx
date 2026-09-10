@@ -144,6 +144,8 @@ These fields extend the base plan. See [Plugin migration configuration](https://
 
 Complete offline `verify` before plugins first start. Search plugins may rebuild indexes from migrated history, requiring additional disk, CPU, and time; do not blindly copy indexes bound to old nodes or sequences. Validate historical search, new-message indexing, cross-node queries after writing to just one node, Leader changes, and full restarts. Readiness and a running plugin process do not replace these checks.
 
+If a search index can be fully rebuilt from IM messages, you may instead omit its historical index and checkpoints, preserve the original backup, plugin program, and configuration, and use the plugin's supported empty-data-directory startup procedure. Record this choice and track historical search rebuilding separately from IM message migration acceptance. New-message indexing and plugin integration still require validation. Do not apply this option to irreplaceable plugin business data or remove plugin registrations or configuration stores to bypass checks.
+
 If callers use `/plugins/:plugin_no/*path`, confirm that the selected target release exposes that HTTP route; `v3.0.0-beta.13` does not yet provide this compatibility entry. Starting a plugin alone is insufficient.
 
 </details>
