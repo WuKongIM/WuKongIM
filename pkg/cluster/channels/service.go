@@ -1222,6 +1222,13 @@ func (s *Service) liveRuntimeHW(ctx context.Context, requests []runtimeHWExpecta
 			continue
 		}
 		switch {
+		case request.ExpectedChannelEpoch != 0 && channel.ChannelEpoch < request.ExpectedChannelEpoch,
+			channel.ChannelEpoch == request.ExpectedChannelEpoch && request.ExpectedLeaderEpoch != 0 && channel.LeaderEpoch < request.ExpectedLeaderEpoch:
+			// A replica can be activated while Slot startup is still replaying an
+			// older authority. Let the read's fresh authoritative metadata join
+			// the normal activation/recovery path, then require a new HW proof.
+			// Never replace a current or newer runtime authority on this path.
+			continue
 		case channel.Role != ch.RoleLeader:
 			itemErrors[channel.ChannelID] = ch.ErrNotLeader
 		case channel.Status != ch.StatusActive:
