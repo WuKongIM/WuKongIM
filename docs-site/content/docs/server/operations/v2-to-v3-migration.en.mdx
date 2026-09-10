@@ -21,6 +21,8 @@ The validated source baseline is original `v2.2.5-20260422`, supporting single-n
 
 The migration machine needs space for full cold backups, workspaces, the archive, every target replica, and snapshots taken before acceptance testing. Rehearse with representative data and record peak space and elapsed time. Use measurements from your own deployment to schedule the final outage, rather than another deployment’s backup size or timings.
 
+Budget CPU and memory per host, including every colocated node, plugin subprocess, and other service. A rehearsal may share resources with a running v2 cluster, and the first search-index rebuild has different costs from steady operation. For Docker Compose, set per-service CPU, memory, and process limits from rehearsal measurements; observe peaks, OOM events, restarts, and API latency. Go's `GOMEMLIMIT` applies to each Go process and does not replace a container-wide memory limit. Do not copy another deployment's values. The complete functional and recovery acceptance checks must still pass under the selected limits.
+
 The migration archive preserves original business records, but not every original WAL byte. It cannot replace a full filesystem cold backup. Protect the credentials, messages, and plugin configuration it contains.
 
 </details>
