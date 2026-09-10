@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Clarify three-node Compose migration addresses, independent bind mounts, Slot counts, and validation before container startup. / 明确三节点 Compose 迁移的容器通信地址、独立绑定目录、Slot 数量和启动前校验要求。
+
 - Document v2 migration configuration semantics for person whitelists, TCP PROXY protocol, and business data-source synchronization. / 补充 v2 迁移中单聊白名单、TCP PROXY 协议和业务数据源同步的配置差异。
 
 - Preserve original message Expire values through v2 migration, native appends, reads, restart, and replica recovery; bind lifetimes in versioned quorum proposals and reject lossy older RPC encodings. / v2 迁移及原生写入、读取、重启和副本恢复保留消息 Expire 原值，以版本化提案校验有效期，并拒绝会丢失该字段的旧 RPC 编码。

@@ -289,6 +289,8 @@ rsync -anc --numeric-ids --delete --itemize-changes /srv/wkmigrate/targets/node1
 
 准备各节点的 `wukongim.toml`，保持 `node.id`、`node.data_dir`、`cluster.id`、`cluster.nodes`、`cluster.initial_slot_count`、`cluster.hash_slot_count`、`cluster.slot_replica_n` 和 `cluster.channel_replica_n` 与计划一致。TLS、监听／公布地址、网关认证、Webhook 地址与网络保护、插件及业务后端配置须另行核对，数据库导入不会替你搬运或验证这些配置。原生 Webhook 不提供签名；若业务使用外部签名代理，单独迁移并验证代理配置。参考[集群配置](/zh/server/configuration/cluster)和[安全配置](/zh/server/configuration/security)。
 
+使用 Docker Compose 部署三节点集群时，每个服务绑定独立的目标目录，并使用配套 v3 镜像。桥接网络中，计划的 `target.nodes[].addr` 与配置的 `cluster.nodes` 应使用容器互通的服务名或网络别名（例如 `wk-node1:7000`），监听地址可用 `0.0.0.0:7000`；不要把宿主机的 `127.0.0.1` 或端口映射当作容器间 RPC 地址。容器内的 `node.data_dir` 应与已验证的计划路径一致，并确认运行用户可读写绑定目录。保留 12 个逻辑 Slot、256 个 hash slot 和三副本时，分别配置 `initial_slot_count=12`、`hash_slot_count=256`、`slot_replica_n=3`、`channel_replica_n=3`。应在 `prepare` 前确定这些地址；更改计划后使用新的工作空间和迁移产物，不能修改已生成库中的迁移身份来复用。先运行 `docker compose config --quiet` 与各节点的 `wukongim config validate`，完成离线校验后再启动容器。
+
 使用配套 v3 程序隔离启动全部目标节点，暂不接入生产流量。至少验证：
 
 - 每个节点 `/readyz` 就绪，Controller、各逻辑 Slot 和频道副本状态正常。
