@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"math"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,12 +46,10 @@ func TestPluginClusterReaderMapsControlSnapshot(t *testing.T) {
 	require.Equal(t, []uint64{1, 2}, got.Slots[0].Replicas)
 }
 
-func TestPluginChannelOwnerReaderUsesAppendAuthorityLeader(t *testing.T) {
+func TestPluginChannelOwnerReaderFollowsDurableLeaderAfterFailover(t *testing.T) {
 	node := &recordingPluginChannelOwnerNode{
-		meta: channelruntime.Meta{
-			ID:     channelruntime.ChannelID{ID: "g1", Type: 2},
-			Leader: 3,
-		},
+		meta:   metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, Leader: 3},
+		cached: channelruntime.Meta{Leader: 3},
 	}
 	reader := NewPluginChannelOwnerReader(node)
 
@@ -58,6 +58,31 @@ func TestPluginChannelOwnerReaderUsesAppendAuthorityLeader(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), owner)
 	require.Equal(t, channelruntime.ChannelID{ID: "g1", Type: 2}, node.last)
+	node.meta.Leader = 1
+	owner, err = reader.ChannelOwnerNode(context.Background(), message.ChannelID{ID: "g1", Type: 2})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), owner)
+	require.Zero(t, node.resolveCalls, "existing ownership must not reuse the stale append cache")
+}
+
+func TestPluginChannelOwnerReaderDoesNotHideAuthorityReadFailure(t *testing.T) {
+	node := &recordingPluginChannelOwnerNode{err: context.DeadlineExceeded, cached: channelruntime.Meta{Leader: 3}}
+	owner, err := NewPluginChannelOwnerReader(node).ChannelOwnerNode(context.Background(), message.ChannelID{ID: "g1", Type: 2})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Zero(t, owner)
+	require.Zero(t, node.resolveCalls)
+}
+
+func TestPluginChannelOwnerReaderInitializesOnlyMissingRuntimeMeta(t *testing.T) {
+	node := &recordingPluginChannelOwnerNode{err: metadb.ErrNotFound, cached: channelruntime.Meta{Leader: 3}}
+	reader := NewPluginChannelOwnerReader(node)
+	owner, err := reader.ChannelOwnerNode(context.Background(), message.ChannelID{ID: "g1", Type: 2})
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), owner)
+	require.Equal(t, 1, node.resolveCalls)
+	node.resolveErr = errors.New("placement unavailable")
+	_, err = reader.ChannelOwnerNode(context.Background(), message.ChannelID{ID: "g1", Type: 2})
+	require.ErrorIs(t, err, node.resolveErr)
 }
 
 type recordingPluginClusterNode struct {
@@ -75,15 +100,21 @@ func (n *recordingPluginClusterNode) LocalControlSnapshot(context.Context) (cont
 }
 
 type recordingPluginChannelOwnerNode struct {
-	last channelruntime.ChannelID
-	meta channelruntime.Meta
-	err  error
+	last         channelruntime.ChannelID
+	meta         metadb.ChannelRuntimeMeta
+	cached       channelruntime.Meta
+	err          error
+	resolveErr   error
+	resolveCalls int
+}
+
+func (n *recordingPluginChannelOwnerNode) GetChannelRuntimeMeta(_ context.Context, id string, typ int64) (metadb.ChannelRuntimeMeta, error) {
+	n.last = channelruntime.ChannelID{ID: id, Type: uint8(typ)}
+	return n.meta, n.err
 }
 
 func (n *recordingPluginChannelOwnerNode) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	n.last = id
-	if n.err != nil {
-		return channelruntime.Meta{}, n.err
-	}
-	return n.meta, nil
+	n.resolveCalls++
+	return n.cached, n.resolveErr
 }

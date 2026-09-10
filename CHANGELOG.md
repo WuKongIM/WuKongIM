@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Resolve plugin channel ownership from current Slot metadata after leader changes, preventing requests from repeatedly forwarding to a stopped node. / 频道 Leader 变化后，插件从当前 Slot 元数据解析所属节点，避免请求持续转发到已停止的节点。
+
 - Provide reusable v2 migration steps with an explicit reader baseline, release capability checks, generic plugin guidance and optional search-index rebuilding, host resource budgets, and separately captured stage logs. / v2 迁移教程提供通用步骤，明确来源读取基线与版本能力，补充通用插件指引、可选搜索索引重建和宿主机资源预算，并分别保存阶段日志。
 
 - Exclude internal recovery and SyncOnce records from unread badges and set-unread boundaries; keep legacy unread-history pulls and deleted conversation visibility correct after failover. / 未读计数及设置未读边界排除内部恢复与 SyncOnce 记录，修复故障切换后旧客户端未读历史拉取和已删除会话的显示。

@@ -2,12 +2,14 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // PluginClusterNode exposes cluster control state for plugin host RPCs.
@@ -18,7 +20,9 @@ type PluginClusterNode interface {
 
 // PluginChannelOwnerNode exposes channel authority resolution for plugin host RPCs.
 type PluginChannelOwnerNode interface {
-	// ResolveChannelAppendAuthority resolves the channel append authority.
+	// GetChannelRuntimeMeta reads current ownership through the Slot authority.
+	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
+	// ResolveChannelAppendAuthority initializes authority for a channel without runtime metadata.
 	ResolveChannelAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error)
 }
 
@@ -59,11 +63,18 @@ func (r *PluginChannelOwnerReader) ChannelOwnerNode(ctx context.Context, id mess
 	if r == nil || r.node == nil {
 		return 0, pluginusecase.ErrChannelOwnerReaderRequired
 	}
-	meta, err := r.node.ResolveChannelAppendAuthority(ctx, channelruntime.ChannelID{ID: id.ID, Type: id.Type})
+	// Plugin forwards address a node directly and cannot invalidate the append
+	// router on failure. Read current ownership so a cached pre-failover leader
+	// cannot keep receiving otherwise independent plugin requests indefinitely.
+	meta, err := r.node.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+	if errors.Is(err, metadb.ErrNotFound) {
+		created, createErr := r.node.ResolveChannelAppendAuthority(ctx, channelruntime.ChannelID{ID: id.ID, Type: id.Type})
+		return uint64(created.Leader), createErr
+	}
 	if err != nil {
 		return 0, err
 	}
-	return uint64(meta.Leader), nil
+	return meta.Leader, nil
 }
 
 func pluginClusterSnapshotFromControl(snapshot control.Snapshot) pluginusecase.ClusterSnapshot {

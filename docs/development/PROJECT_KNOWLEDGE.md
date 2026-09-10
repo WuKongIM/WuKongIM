@@ -2,6 +2,12 @@
 
 ## Internal
 
+- Plugin owner lookups reread authoritative Slot runtime metadata. Node-addressed
+  plugin HTTP forwarding does not enter append-route failure invalidation, so an
+  append authority cache can otherwise retain a stopped leader indefinitely.
+  Only missing runtime metadata falls back to normal authority initialization;
+  read failures must not fall back to cached ownership.
+
 - EasySDK current tutorial selections live only in `docs-site/lib/easy-sdk-releases.json`.
   The build resolves explicit MDX tokens for both languages, while navigation
   reads the manifest directly. SDK source, vcpkg registry and tool pins are
