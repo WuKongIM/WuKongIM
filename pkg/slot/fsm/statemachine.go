@@ -295,13 +295,16 @@ commandLoop:
 	multiraft.ObserveProposalStage(ctx, "meta_create_slot_fsm_commit", err, time.Since(started))
 	if err != nil {
 		if isStaleMetaCommitError(err) {
+			// Logical rejection occurs before physical commit. Release its staged
+			// operations before rebuilding smaller, ordered batches.
+			_ = wb.Close()
 			if len(cmds) == 1 {
 				if err := m.commitStaleAppliedIndex(ctx, cmds[0]); err != nil {
 					return nil, err
 				}
 				return [][]byte{[]byte(ApplyResultStaleMeta)}, nil
 			}
-			return m.applyCommandsIndividuallyAfterStaleCommit(ctx, cmds)
+			return m.applySplitBatchAfterStaleCommit(ctx, cmds)
 		}
 		return nil, err
 	}
@@ -373,20 +376,22 @@ func (m *stateMachine) validateCommandHashSlots(hashSlots []uint16) error {
 	return nil
 }
 
-func (m *stateMachine) applyCommandsIndividuallyAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
-	results := make([][]byte, len(cmds))
-	for i, cmd := range cmds {
-		result, err := m.ApplyBatch(ctx, []multiraft.Command{cmd})
-		if err != nil {
-			if isStaleMetaCommitError(err) {
-				results[i] = []byte(ApplyResultStaleMeta)
-				continue
-			}
-			return nil, err
-		}
-		results[i] = result[0]
+// applySplitBatchAfterStaleCommit isolates conditional conflicts while keeping
+// healthy replay ranges batched. The left half must finish durably before the
+// right half observes its state; never parallelize these Raft-ordered writes.
+// Only definitely rejected logical commits enter this path. Single-entry
+// conflicts retain their durable no-op watermark in ApplyBatch.
+func (m *stateMachine) applySplitBatchAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
+	middle := len(cmds) / 2
+	left, err := m.ApplyBatch(ctx, cmds[:middle])
+	if err != nil {
+		return nil, err
 	}
-	return results, nil
+	right, err := m.ApplyBatch(ctx, cmds[middle:])
+	if err != nil {
+		return nil, err
+	}
+	return append(left, right...), nil
 }
 
 func isStaleMetaResult(cmd command, err error) bool {

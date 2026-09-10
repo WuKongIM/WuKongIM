@@ -2,6 +2,12 @@
 
 ## Internal
 
+- Slot FSM commit-time logical conflicts reject the complete physical batch
+  before writing. Recovery subdivides that rejected range in Raft order, with
+  the left prefix durable before the right suffix executes. Healthy ranges
+  remain batched; single stale commands persist their no-op applied watermark.
+  Physical/ambiguous commit failures must never enter this retry path.
+
 - Plugin owner lookups reread authoritative Slot runtime metadata. Node-addressed
   plugin HTTP forwarding does not enter append-route failure invalidation, so an
   append authority cache can otherwise retain a stopped leader indefinitely.

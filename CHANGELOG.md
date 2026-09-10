@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Keep healthy Slot replay ranges batched when conditional metadata conflicts occur, preserving Raft order and durable stale-entry watermarks while reducing synchronous commits. / Slot 日志回放遇到条件冲突时继续批量提交无冲突区间，保留 Raft 顺序及过期操作的持久化进度，减少同步落盘次数。
+
 - Report bounded channel-repair progress, blocked examples, and worker errors instead of silently discarding failed background ticks. / 以限频日志报告频道修复进度、阻塞示例和后台任务错误，避免静默丢弃失败信息。
 
 - Resolve plugin channel ownership from current Slot metadata after leader changes, preventing requests from repeatedly forwarding to a stopped node. / 频道 Leader 变化后，插件从当前 Slot 元数据解析所属节点，避免请求持续转发到已停止的节点。
