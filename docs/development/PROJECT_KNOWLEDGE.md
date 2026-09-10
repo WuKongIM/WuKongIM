@@ -1246,6 +1246,8 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 
 ## Unified operator CLI
 
+- Pebble reserves active, iterator-pinned, and recycled memtable memory against its block-cache budget. Migration Spool must leave read-cache headroom while walking captured rows and writing join indexes: a 16 MiB cache with a 16 MiB memtable starves cached reads after growth. Its 128 MiB budget retains bounded headroom; regression coverage must use a writable grown workspace, because a read-only reopen hides these reservations.
+
 - `cmd/wkcli` is the only public operator utility entrypoint. `bench` combines lightweight `send` with distributed benchmark commands; `db` and `migrate` retain their original parsers, outputs and exit codes. `db` global flags precede its verb; import writes offline stores.
 - Official archives and the native `wukongim` package carry both `wukongim` and `wkcli` with matching version/commit identity. Repository executable overrides use `WK_CLI_BIN`; benchmark evidence schemas and systemd unit names keep existing identifiers. Cloud and Agent helpers stay independent.
 - CLI implementations remain under `cmd/wkcli/internal` to preserve existing command ownership during consolidation. Product-config redaction is registered separately from the black-box benchmark package so its dependency check excludes server internals.

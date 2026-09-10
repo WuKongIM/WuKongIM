@@ -86,7 +86,11 @@ func OpenSpool(path, identity string, maxBytes int) (*Spool, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	db, err := engine.Open(dbPath, engine.Options{CacheSize: 16 << 20, MemTableSize: 16 << 20})
+	// Pebble charges active, pinned and recycled memtables against its cache
+	// budget. One full 16 MiB memtable exhausted the old 16 MiB budget, making
+	// every index-join lookup reread its SST blocks. Keep bounded headroom for
+	// block reads while the migration walks source rows and writes indexes.
+	db, err := engine.Open(dbPath, engine.Options{CacheSize: 128 << 20, MemTableSize: 16 << 20})
 	if err != nil {
 		return nil, err
 	}

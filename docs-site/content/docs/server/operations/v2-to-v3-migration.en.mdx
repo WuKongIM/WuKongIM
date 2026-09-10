@@ -240,6 +240,8 @@ Each command must exit with code 0. The preparation report must say `prepared`, 
 <details>
 <summary>Failures and interruptions: diagnosis and retries</summary>
 
+Migration time also depends on index counts, validation lookups, and workspace reads and writes; backup size alone is insufficient to estimate it. If stage logs remain unchanged, first check that the original process is still running, then inspect CPU, logical reads, and physical disk reads. High CPU and repeated logical reads with little physical disk traffic can indicate workspace read-cache starvation. Confirm that the tool includes the migration cache fix; do not skip index or data validation. Validate performance repairs in an isolated rehearsal, and preserve the old attempt when changing tools as described below.
+
 A separate `diagnose` command is not required for the first migration. To inventory issues beforehand or investigate a blocker, use a separate diagnostic directory:
 
 ```sh

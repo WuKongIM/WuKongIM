@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Prevent offline migration index joins from exhausting their read cache when write memtables grow. / 修复离线迁移写入内存表增长后耗尽读缓存、导致索引校验反复读取数据块的问题。
+
 - Distinguish existing-channel quorum service from new-channel placement readiness during three-node migration fault tests. / 区分三节点迁移故障演练中的已有频道多数派服务与新频道放置就绪条件。
 
 - Clarify three-node Compose migration addresses, independent bind mounts, Slot counts, and validation before container startup. / 明确三节点 Compose 迁移的容器通信地址、独立绑定目录、Slot 数量和启动前校验要求。
