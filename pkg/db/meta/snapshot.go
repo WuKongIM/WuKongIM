@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
@@ -524,11 +525,22 @@ func (db *MetaDB) stageSlotSnapshotEntry(batch *engine.Batch, entry snapshotEntr
 }
 
 func snapshotEntryInHashSlots(key []byte, hashSlots []HashSlot) bool {
+	// Row, index, and system spans are exact five-byte prefixes: metadata
+	// domain, hash-slot partition, uint16 slot, and space. Decode that common
+	// prefix once instead of allocating all candidate spans for every row.
+	// This intentionally validates namespace ownership only, not row schemas.
+	if len(key) < 5 || key[0] != byte(keycodec.DomainMeta) || key[1] != byte(keycodec.PartitionHashSlot) {
+		return false
+	}
+	switch keycodec.Space(key[4]) {
+	case keycodec.SpaceRow, keycodec.SpaceIndex, keycodec.SpaceSystem:
+	default:
+		return false
+	}
+	owner := HashSlot(binary.BigEndian.Uint16(key[2:4]))
 	for _, hashSlot := range hashSlots {
-		for _, span := range hashSlotAllDataSpans(hashSlot) {
-			if bytesInSpan(key, span) {
-				return true
-			}
+		if owner == hashSlot {
+			return true
 		}
 	}
 	return false

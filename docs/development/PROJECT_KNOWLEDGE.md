@@ -2,6 +2,12 @@
 
 ## Internal
 
+- Snapshot row ownership checks decode the shared five-byte metadata key
+  prefix once. Building three spans for each candidate hash slot per row
+  amplifies allocations during multi-Slot startup and restore. The check still
+  accepts exactly the row/index/system namespace ranges, not global catalogs;
+  row-schema validation remains a separate contract.
+
 - Slot FSM commit-time logical conflicts reject the complete physical batch
   before writing. Recovery subdivides that rejected range in Raft order, with
   the left prefix durable before the right suffix executes. Healthy ranges
