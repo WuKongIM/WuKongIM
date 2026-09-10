@@ -3,9 +3,9 @@ title: v2 → v3 Offline Migration
 description: "Migrate from v2 to v3 in four steps: collect cold backups, fill in the plan, migrate and verify, then deploy and test."
 ---
 
-Run the migration on one machine: **collect cold backups → fill in the plan → migrate and verify → deploy, test, and cut over**. You do not need to modify or upgrade v2: `prepare` reads stopped backups directly.
+This guide covers the general offline migration of an existing WuKongIM v2 deployment. Run the migration on one machine: **collect cold backups → fill in the plan → migrate and verify → deploy, test, and cut over**. You do not need to modify or upgrade v2: `prepare` reads stopped backups directly.
 
-This guide supports original `v2.2.5-20260422`, single-node and multi-node clusters, and changes in node count. **All v2 nodes must be stopped, and v3 must be a new, empty cluster.** Never let v3 open a v2 data directory.
+The validated source baseline is original `v2.2.5-20260422`, supporting single-node and multi-node clusters and node-count changes. Other v2 versions and custom builds require a compatibility assessment and cold-backup rehearsal; a v2 version label alone does not establish support. **All v2 nodes must be stopped, and v3 must be a new, empty cluster.** Never let v3 open a v2 data directory.
 
 <details>
 <summary>Version, capacity, and backup requirements</summary>
@@ -19,7 +19,7 @@ This guide supports original `v2.2.5-20260422`, single-node and multi-node clust
 | Cluster layout | Exactly 256 physical hash slots; the target plan specifies logical Slot and replica counts |
 | Tool and target versions | Build the tool and server from the same fixed, validated v3 source commit, or use a matching delivery package with verified digests |
 
-The migration machine needs space for full cold backups, workspaces, the archive, every target replica, and snapshots taken before acceptance testing. Rehearse with representative data and record peak space and elapsed time. The 100 GiB / four-hour performance target has not been validated and is not a downtime guarantee.
+The migration machine needs space for full cold backups, workspaces, the archive, every target replica, and snapshots taken before acceptance testing. Rehearse with representative data and record peak space and elapsed time. Use measurements from your own deployment to schedule the final outage, rather than another deployment’s backup size or timings.
 
 The migration archive preserves original business records, but not every original WAL byte. It cannot replace a full filesystem cold backup. Protect the credentials, messages, and plugin configuration it contains.
 
@@ -29,15 +29,21 @@ The migration archive preserves original business records, but not every origina
 
 **Check the actual binaries, storage format, and plugins before downtime.** A Docker image tag need not match its binary version: development images may contain another commit or uncommitted changes. `source_commit` selects the reader schema; omitting or changing it cannot make an unsupported database compatible.
 
-Inspect each node's `marker.format-version.*` files and the `format_major_version` value in `OPTIONS-*` without modifying them. The released `v3.0.0-beta.13` migration reader supports Pebble formats through 14 and cannot directly read format 19 used by some `pebble/v2` development builds. Format 19 requires matching tools and server with the corresponding read-only adapter, followed by rehearsal against a complete cold backup. Engine readability alone does not establish compatibility of older business fields, indexes, or plugins.
+Record each source node’s actual binary version/commit, data directory, database shard count, node ID, storage format, plugins, and external interfaces. Image tags and defaults are clues; inspect the actual binary and mounted data. Read `marker.format-version.*` and `format_major_version` in `OPTIONS-*` without changing format markers.
 
-Preserve each source message’s `Expire` as its original lifetime in seconds. Do not clear it because the business currently ignores it, the message has expired, or an archive retains the original. Released `v3.0.0-beta.13` lacks complete native lifetime propagation; nonzero values require matching migration tools and servers containing the preservation fix. The fix binds nonzero lifetimes in proposal format 2 while leaving existing format-1 digests unchanged, and requires the matching Channel RPC 9 / quorum exchange 5. Deploy the same validated build on every target node; do not mix older runtimes. After format-2 writes, binary-only rollback is unsupported: restore the complete pre-cutover data generation and original binaries together. Verify original lifetimes in the archive, independent verification, restarts, cross-node history reads, and empty-replica recovery.
+Confirm each required capability against the selected tool’s release notes before running this guide. Basic migration, storage adapters, and optional transformations can be introduced in different versions; having `wkcli` installed does not imply support for every option.
 
-Inventory every enabled plugin, executable digest, configuration, business methods such as `PersistAfter` and `Route`, and Webhook and data-source interfaces. Compatibility profiles bind exact audited executables. The AI example and search plugin use different profiles and are not interchangeable. Verify the actual plugin first. Do not delete registrations, disable plugins, or supply another executable's profile to bypass checks.
+| Check | Action before migration |
+| --- | --- |
+| Source version and storage format | Released `v3.0.0-beta.13` reads Pebble formats up to 14; format 19 requires a tool that explicitly supports it. Readable storage must still pass field, index, and replica validation. |
+| Message expiration | Preserve the original `Expire`, including nonzero values. `v3.0.0-beta.13` lacks complete native expiration propagation; these records require matching tools and runtimes whose release notes explicitly support preservation. Do not zero the field. |
+| Plugins | Inventory each program’s version, size, digest, configuration, and methods. Use a supported compatibility profile and validate actual behavior; see “Plugin migration” below. |
+| Webhooks | Verify the target protocol, endpoint, and connectivity. Do not place a gRPC address into HTTP configuration; verify event handling at the receiver. |
+| Person whitelist | v2 `whitelistOffOfPerson=false` corresponds to v3 `message.person_whitelist_enabled=true`; do not blindly accept the v3 default. |
+| Gateway | Check TCP, WebSocket, and HTTP forwarding. The current v3 gateway does not accept the prefix sent by `proxy_protocol on`; remove that old setting and run `nginx -t` first. |
+| External data source | There is no direct equivalent of v2 `datasource.addr`. Validate imported membership/allowlists/denylists and subsequent changes through supported target APIs. |
 
-If the business backend calls `/plugins/:plugin_no/*path`, verify the HTTP route as well: `v3.0.0-beta.13` can start plugins but returns 404 for the missing legacy entry. Use a server containing the route fix and test historical search, new-message indexing, cross-node search, and restarts. For an original gRPC Webhook, verify an equivalent HTTP endpoint and event handling in the business backend; do not copy the gRPC address into HTTP configuration.
-
-Check configuration meaning, not just spelling. Original v2 `whitelistOffOfPerson=false` enables the person whitelist and corresponds to v3 `message.person_whitelist_enabled=true`; leaving the v3 default changes stranger-send permissions. If the original TCP gateway uses `proxy_protocol on`, remove it before switching to the current v3 gateway and validate a separate candidate configuration with `nginx -t`. There is no direct v3 configuration equivalent for the old `datasource.addr`: compare imported membership and allow/deny lists with the business database, and verify that the backend synchronizes subsequent changes through the corresponding APIs. Do not assume the old on-demand source lookup still exists.
+Use the same matching version on every target node. If published packages lack a required capability, complete adaptation and release-version validation before scheduling the final outage. Do not assume an unpublished fix is present in an installed package. Once a newer runtime writes target data, follow its data-format rollback constraints instead of merely swapping in an older binary.
 
 If v2 writes resume after a brief outage to take a rehearsal backup, that backup is for rehearsal only. Before the actual cutover, stop all write entrypoints again, take a new complete cold backup, and repeat migration and independent verification with fresh workspaces and target directories. Never route production traffic to a stale rehearsal generation.
 
@@ -83,7 +89,7 @@ Confirm that both binaries have the same version, commit, and build source. Crea
 
 Save the example below as `/srv/wkmigrate/plan.json`. Adjust source node IDs, shard counts, target nodes, addresses, and creation time. For a single-node cluster, keep one target node and set both `replicas` and `channel_replicas` to `1`; still include every source node.
 
-Omitting `source_commit` requires a `wkcli` containing this change. Before release, build the tool and target server from the same source commit containing it. For released tools, use the legacy-compatible field described below.
+The base example explicitly includes `source_commit`, including compatibility with tools that require it. This value selects supported reader rules; it cannot declare arbitrary old data compatible. Use the optional policies below only when the selected tool’s release notes explicitly support them, and omit options you do not need.
 
 **Every path in the plan is an absolute path on the migration machine.** `sources` points to collected backups; `target.nodes` points to directories that will be generated on that machine. `addr` is the final v3 cluster communication address. The tool does not access remote directories over SSH, and you must not run separate plans on individual source servers.
 
@@ -93,6 +99,7 @@ Omitting `source_commit` requires a `wkcli` containing this change. Before relea
 ```json
 {
   "version": 1,
+  "source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4",
   "sources": [
     {"node_id": 1001, "data_dir": "/srv/v2-snapshots/node1001/data", "shard_count": 8},
     {"node_id": 1002, "data_dir": "/srv/v2-snapshots/node1002/data", "shard_count": 8},
@@ -123,33 +130,19 @@ Source directories, workspaces, the archive, and target directories must not con
 </details>
 
 <details>
-<summary>Optional: preserve the original search plugin</summary>
+<summary>Optional: plugin migration</summary>
 
-`wk-search-persist-route-linux-amd64-v1` is restricted to `wk.plugin.search` 0.0.1, priority 1, methods `PersistAfter` and `Route`, empty configuration, and exactly this one plugin on every source. The Linux/amd64 executable must be **63324496** bytes with SHA-256 **68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f** (plugin source commit `10b1795449c4dc7da1e8871863f7458c1e94198e`). This adapter follows beta.13 and is unavailable in that released tool.
+Deployments without enabled plugins need no plugin fields. Otherwise, inventory each original program, configuration, method, and supported compatibility profile. A profile may bind an exact binary digest; do not copy another deployment’s digest/profile onto your program or remove registrations to bypass validation.
 
-**Known runtime limitation:** the exact original search program passed new-message searches but returned an older index after a full restart selected a different leader in an archive-based three-node rehearsal. The messages remained in v3 history. This profile permits offline executable/settings mapping and initial index seeds; it is not production business acceptance. After offline `verify` and before business acceptance, install a validated search plugin with query-time incremental catch-up and record its version and SHA-256. Test a leader change after sending through only one node, plus full-cluster restart searches; rotating writes through every node is not a substitute.
+- `plugin_nodes` assigns a source’s settings to every target, including expansion or contraction.
+- `plugin_configs` explicitly selects a shared configuration source for an individual plugin; other settings follow the node mapping.
+- `plugin_artifacts` records each source program’s actual path, size, SHA-256, and supported profile. Its platform and architecture must match the target.
 
-Preserve every original source executable. Add one `plugin_artifacts` entry per source and explicitly map node settings and the uniform empty configuration. For three nodes:
+These fields extend the base plan. See [Plugin migration configuration](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md) for their full structure and each profile’s scope. Adapt unsupported plugins before proceeding, and retain complete original files and settings.
 
-```json
-{
-  "plugin_nodes": [
-    {"source_node": 1001, "target_node": 101},
-    {"source_node": 1002, "target_node": 102},
-    {"source_node": 1003, "target_node": 103}
-  ],
-  "plugin_configs": [{"plugin_no": "wk.plugin.search", "source_node": 1001}],
-  "plugin_artifacts": [
-    {"source_node": 1001, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1001/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
-    {"source_node": 1002, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1002/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
-    {"source_node": 1003, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1003/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"}
-  ]
-}
-```
+Complete offline `verify` before plugins first start. Search plugins may rebuild indexes from migrated history, requiring additional disk, CPU, and time; do not blindly copy indexes bound to old nodes or sequences. Validate historical search, new-message indexing, cross-node queries after writing to just one node, Leader changes, and full restarts. Readiness and a running plugin process do not replace these checks.
 
-Paths must name verified stopped-backup executables. Import installs the original program, settings, and sequence-zero checkpoints for all retained message channels on every target. It does not copy the old Bleve index. On first startup, the original plugin rebuilds its index through v3 committed-history reads, accommodating node and sequence changes. Configure each node's plugin paths to its own `data_dir` subdirectories: `plugins`, `plugin-state`, and `plugin-sandbox`.
-
-Offline `verify` requires complete, unadvanced checkpoints: verify before starting any target. Full-history rebuilding creates an index on every target and needs additional disk, CPU, and acceptance time. Wait for completion and test historical keywords, new messages, `/usersearch` through every node, and restarts. Neither `readyz` nor a running plugin process certifies search acceptance.
+If callers use `/plugins/:plugin_no/*path`, confirm that the selected target release exposes that HTTP route; `v3.0.0-beta.13` does not yet provide this compatibility entry. Starting a plugin alone is insufficient.
 
 </details>
 
@@ -208,7 +201,7 @@ Changed rows, mismatched evidence, and unused decisions fail. Formal replicas wi
 
 Cross-rule duplicate winners fail by default. After review, `messages.resolve_duplicate_chains: true` follows strictly increasing original sequences within one channel to a unique surviving terminal. It never resurrects older messages. Multiple terminals, changed identities, excluded terminals, and cross-channel MessageID conflicts still fail. The report binds chain-root and terminal counts and a digest; `sequence_mapping.duplicate_chain_proof` references a JSONL sidecar containing direct winners and terminal proofs. The source archive retains complete original messages.
 
-With explicit approval, `metadata.derive_unread_from_boundaries: true` archives independent v2 unread counters and uses native badge calculations over retained messages and mapped read/delete positions, join/retention floors, and the user's latest send. `archived_unread` binds original conversation rows, nonzero-counter counts, and their digest. Displayed counts may differ; this is an approved projection, not proof of counter equivalence. Original read/delete positions are neither cleared nor advanced. Recovery barriers and other `SyncOnce` internal records consume sequences but do not count toward unread badges. A sequence difference is not a message count; set-unread and legacy unread pulls must retain actual ordinary-message boundaries. Include send/receive badge checks after failover. The badge repair uses Channel RPC codec 10 and a rebuildable internal-record index: all three nodes require matching binaries, and older writers must not write a database carrying the new index marker.
+With explicit approval, `metadata.derive_unread_from_boundaries: true` archives independent v2 unread counters and uses native badge calculations over retained messages and mapped read/delete positions, join/retention floors, and the user's latest send. `archived_unread` binds original conversation rows, nonzero-counter counts, and their digest. Displayed counts may differ; this is an approved projection, not proof of counter equivalence. Original read/delete positions are neither cleared nor advanced. Recovery barriers and other `SyncOnce` internal records consume sequences but do not count toward unread badges. A sequence difference is not a message count; set-unread and legacy unread pulls must retain actual ordinary-message boundaries. Include send/receive badge checks after failover. All target nodes must use matching versions and follow that version’s data-format rollback restrictions.
 
 For a valid member with history but no authoritative conversation, bind `metadata.missing_conversations` to `capture_digest`, `uid_sha256`, `channel_sha256` (SHA256 of `IdentityKey(channelID, channelType)`), and the transformed `retained_tail`. Set `visibility: "hidden_until_new_message"` to preserve membership and history access while suppressing the conversation list entry until a newer ordinary message exists; recovery barriers do not reveal it, while explicit activation does. This marker changes neither history access nor read/delete floors. An absent original read position is not invented; unread after a new message follows native rules. An archived replica conversation additionally requires its exact `conversation_replicas` decision. Pending intents, unapproved existing conversations, changed tails, or unused decisions fail. `hidden_memberships` reports the applied count.
 
@@ -236,16 +229,16 @@ Run this command block on the migration machine. The four stages check and prepa
   set -e
   umask 077
   wkcli migrate prepare --plan /srv/wkmigrate/plan.json \
-    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json
+    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json 2> /srv/wkmigrate/reports/prepare.stderr
   wkcli migrate export --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/prepare --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/export.json
+    > /srv/wkmigrate/reports/export.json 2> /srv/wkmigrate/reports/export.stderr
   wkcli migrate import --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/import --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/import.json
+    > /srv/wkmigrate/reports/import.json 2> /srv/wkmigrate/reports/import.stderr
   wkcli migrate verify --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/verify --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/verify.json
+    > /srv/wkmigrate/reports/verify.json 2> /srv/wkmigrate/reports/verify.stderr
   cat /srv/wkmigrate/reports/verify.json
 )
 ```
@@ -356,6 +349,6 @@ After all reports, runtime tests, and client acceptance pass, operators can swit
 | Before v3 accepts new production writes | Close new-cluster ingress, restore original v2 cold backups and routing using the rehearsed procedure, and restore the corresponding client migration generation |
 | After v3 accepts new production writes | Do not switch directly to old v2: new data would be lost. Preserve the new databases and use a validated v3 repair or backup recovery procedure |
 
-This version has no reverse incremental v3 → v2 migration. Rehearse rollback with backup copies without damaging original cold backups. See the [delivery package acceptance report](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-09-v2-migration-delivered-package-rehearsal.md) for a fixed-version migration and restart test. Its functional results do not certify your performance, plugins, or production cutover.
+This tool has no reverse incremental v3 → v2 migration. Before cutover, rehearse restoration of the original version, data, and routing using backup copies, and record the recovery duration. Never use the preserved original backup for write tests.
 
 </details>

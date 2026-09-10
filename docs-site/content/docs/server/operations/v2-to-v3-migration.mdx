@@ -3,9 +3,9 @@ title: v2 → v3 离线迁移
 description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划、迁移校验、部署验收。
 ---
 
-迁移只需在一台迁移机上完成：**汇总冷备 → 填计划 → 迁移并校验 → 部署验收后切换**。原 v2 不需要修改或升级，`prepare` 直接读取停机备份。
+本文介绍已有 WuKongIM v2 部署的通用离线迁移流程。迁移在一台迁移机上完成：**汇总冷备 → 填计划 → 迁移并校验 → 部署验收后切换**。原 v2 不需要修改或升级，`prepare` 直接读取停机备份。
 
-适用于原版 `v2.2.5-20260422`，支持单节点集群、多节点集群及节点数变化。**v2 必须全部停机，v3 必须是全新空集群**；v3 不能直接打开 v2 数据目录。
+已验证的来源基线为原版 `v2.2.5-20260422`，支持单节点集群、多节点集群及节点数变化。其他 v2 版本和自定义构建必须先核对读取兼容性并完成冷备演练；不能仅凭版本号含 `v2` 就认为兼容。**v2 必须全部停机，v3 必须是全新空集群**；v3 不能直接打开 v2 数据目录。
 
 <details>
 <summary>版本、容量与备份要求</summary>
@@ -19,7 +19,7 @@ description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划�
 | 集群布局 | 固定 256 个物理哈希槽，逻辑 Slot 数和副本数由目标计划指定 |
 | 工具与目标版本 | 固定经过验证的同一 v3 源码提交构建迁移工具和服务端，或使用配套且已核对摘要的交付包 |
 
-迁移机需要同时容纳完整冷备、工作空间、归档、全部目标副本和验收前快照。先用代表性数据演练并记录峰值空间与耗时；100 GiB／4 小时尚未完成性能验收，不能作为停机时长承诺。
+迁移机需要同时容纳完整冷备、工作空间、归档、全部目标副本和验收前快照。先用代表性数据演练并记录峰值空间与耗时，据此安排正式停机窗口；备份体积和其他部署的耗时不能代替本部署的演练结果。
 
 迁移归档保留原始业务记录，但不包含全部原始 WAL 文件字节，不能代替完整文件系统冷备。保管好其中的凭据、消息和插件配置。
 
@@ -29,15 +29,21 @@ description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划�
 
 **停机前先核对实际程序、存储格式和插件。** Docker 镜像标签不一定等于程序版本；例如开发镜像可能包含不同提交或未提交修改。`source_commit` 只选择迁移读取规则，省略或改填它不能让不支持的旧库变得兼容。
 
-可只读查看各节点数据目录中的 `marker.format-version.*` 文件和 `OPTIONS-*` 的 `format_major_version`，不要修改它们。已发布的 `v3.0.0-beta.13` 迁移器最高读取 Pebble 格式 14，不能直接读取 `pebble/v2` 开发版本使用的格式 19。格式 19 需要包含对应只读适配的配套工具与服务端，并先在完整冷备上演练；底层格式可读仍不代表旧版业务字段、索引和插件兼容。
+记录每个来源节点的实际程序版本／提交、数据目录、业务 DB 分片数、节点 ID、存储格式、插件及外部接口。镜像标签和默认配置只能作为线索；以正在运行的程序和实际挂载目录为准。只读查看 `marker.format-version.*`、`OPTIONS-*` 中的 `format_major_version`，不要修改存储格式标记。
 
-源消息的 `Expire` 必须按原始秒数保留，不能因为当前业务暂未使用、已过期或归档了原值就清零。已发布的 `v3.0.0-beta.13` 不具备完整的原生有效期传递能力；含非零值的迁移需要配套工具和服务端都包含有效期保留修复。该修复使用提案格式 2 将非零有效期纳入摘要，旧提案格式 1 的摘要保持不变；节点通信需要对应的 Channel RPC 9／quorum exchange 5。全部目标节点必须使用同一已验证构建，禁止混用旧运行时。写入格式 2 后不能只回退二进制，回退需恢复切换前同一代完整数据与原程序。归档、独立校验、重启、跨节点历史查询和空副本恢复都必须验证原值。
+按所选工具版本的发布说明逐项确认能力，再使用本文的命令。基础迁移、存储格式适配和可选数据转换可能在不同版本引入，安装了 `wkcli` 并不代表支持所有可选项。
 
-盘点全部启用插件、程序摘要、配置、`PersistAfter`／`Route` 等业务方法，以及 Webhook 和数据源接口。插件兼容规则绑定已审计的精确程序；AI 示例和搜索插件使用不同 profile，不能互相套用。先完成实际插件兼容验证；不要靠删注册、关闭插件或填入其他程序的 profile 绕过检查。
+| 检查项 | 迁移前的处理 |
+| --- | --- |
+| 来源版本与存储格式 | 发布的 `v3.0.0-beta.13` 迁移器最高读取 Pebble 格式 14；格式 19 需要明确支持该格式的工具。底层可读后仍须通过字段、索引和副本校验。 |
+| 消息有效期 | `Expire` 按原值保留，包括非零值。`v3.0.0-beta.13` 不具备完整的原生有效期传递能力；此类数据须使用发布说明明确支持有效期保留的配套工具和运行时，不能清零后迁移。 |
+| 插件 | 记录每个插件的版本、文件大小、摘要、配置和方法；按工具支持的兼容规则迁移，随后验证实际功能。详见下方“插件迁移”。 |
+| Webhook | 确认目标支持的协议、地址和网络可达性；原 gRPC 地址不能直接填入 HTTP 配置，接收端须通过对应事件验收。 |
+| 单聊白名单 | v2 `whitelistOffOfPerson=false` 对应 v3 `message.person_whitelist_enabled=true`；不可直接沿用 v3 默认值。 |
+| 网关 | 核对 TCP、WebSocket 和 HTTP 转发配置；旧 TCP 网关的 `proxy_protocol on` 须与目标支持情况匹配。当前 v3 不支持该前缀，应移除并先执行 `nginx -t`。 |
+| 外部数据源 | v3 没有旧 `datasource.addr` 的直接替代配置；迁入的成员、黑白名单及后续更新须通过目标支持的 API 验证。 |
 
-旧业务后端若调用 `/plugins/:plugin_no/*path`，还须验证 HTTP 路由：`v3.0.0-beta.13` 可启动插件但未注册旧业务入口，会返回 404。使用包含兼容入口修复的服务端，并测试历史搜索、新消息索引、跨节点搜索和重启。原配置若使用 gRPC Webhook，还需确认业务端提供对应 HTTP Webhook 接口并验证事件处理；不能直接把旧 gRPC 地址填入 HTTP 配置。
-
-核对配置语义，不能只替换字段拼写。原 v2 的 `whitelistOffOfPerson=false` 表示启用单聊白名单，对应 v3 的 `message.person_whitelist_enabled=true`；直接使用 v3 默认值会改变陌生人发送权限。原 TCP 网关若配置了 `proxy_protocol on`，切换到当前 v3 网关前须移除，并在独立配置上先执行 `nginx -t`。v3 没有可直接填入旧 `datasource.addr` 的配置项；应核对迁入的成员、黑白名单与业务库一致，并验证业务后端通过对应 API 同步后续变更，不能假定原按需回源行为仍存在。
+所有目标节点使用同一配套版本。若现有发布包缺少所需能力，先完成适配和发布版本验证，再安排正式停机；不能把未发布的修复假定为当前安装包已有功能。新版本写入目标数据后，回退须遵守该版本的数据格式约束，不能直接换回旧二进制。
 
 如果为演练短暂停机取冷备后恢复了 v2 写入，这份冷备只能用于演练。正式切换前必须再次停止全部写入口，重新取得最新完整冷备，从新的工作空间和目标目录重做迁移及独立校验；不能把旧演练产物直接接入生产。
 
@@ -83,7 +89,7 @@ wukongim version --output json
 
 将下方示例保存为 `/srv/wkmigrate/plan.json`，按实际部署修改来源节点 ID、分片数、目标节点、地址和创建时间。单节点集群只保留一个目标节点，并把 `replicas`、`channel_replicas` 都改为 `1`；来源仍须列全。
 
-省略 `source_commit` 需要包含此改动的 `wkcli`；发布前须从包含此改动的同一源码提交构建工具和目标服务端。使用已发布工具时，采用下方说明中的旧版兼容写法。
+基础示例显式填写 `source_commit`，兼容仍要求该字段的工具。此值表示受支持的来源读取规则，不是将任意旧库声明为兼容的开关。下方可选策略仅在所选工具的发布说明明确支持时使用；无相关需求时不要添加。
 
 **计划中的所有路径都是迁移机上的绝对路径**。`sources` 指向汇总后的冷备，`target.nodes` 指向将在迁移机生成的目标目录；`addr` 是最终 v3 集群通信地址。工具不会通过 SSH 自动读写远端目录，也不能在各来源服务器分别执行一份计划。
 
@@ -93,6 +99,7 @@ wukongim version --output json
 ```json
 {
   "version": 1,
+  "source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4",
   "sources": [
     {"node_id": 1001, "data_dir": "/srv/v2-snapshots/node1001/data", "shard_count": 8},
     {"node_id": 1002, "data_dir": "/srv/v2-snapshots/node1002/data", "shard_count": 8},
@@ -123,33 +130,19 @@ wukongim version --output json
 </details>
 
 <details>
-<summary>可选：保留原搜索插件</summary>
+<summary>可选：插件迁移</summary>
 
-`wk-search-persist-route-linux-amd64-v1` 仅适用于原 `wk.plugin.search` 0.0.1、priority 1、方法 `PersistAfter` 和 `Route`、空配置，且每个来源只有此一个插件。程序必须为 Linux/amd64，大小 **63324496** 字节，SHA-256 **68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f**（插件源码提交 `10b1795449c4dc7da1e8871863f7458c1e94198e`）。这是 beta.13 之后的适配，不能使用 beta.13 的工具。
+没有启用插件的部署不需要添加插件字段。有插件时，逐个核对原程序、配置、方法和工具支持的兼容 profile；profile 可能绑定精确程序摘要，不能把其他部署的摘要或 profile 填给自己的程序，也不能通过删除注册来绕过检查。
 
-**已知运行时限制：**上述原搜索程序在多节点迁移演练中出现过“新消息可搜索，但整组重启后新 Leader 只返回旧索引”的问题；消息仍保存在 v3 历史中。该 profile 只允许离线程序／设置映射和初始索引种子，不能作为生产业务兼容结论。离线 `verify` 后、业务验收前，须安装包含查询前增量补齐修复且通过验收的搜索插件，并记录替换程序的版本与 SHA-256。必须测试只向一个节点发送消息后切换 Leader，以及整组重启后的历史搜索，不能用轮流向所有节点写消息的测试替代。
+- `plugin_nodes` 指定每个目标节点采用哪个来源节点的设置；扩容或缩容时也须覆盖全部目标。
+- `plugin_configs` 仅用于明确选择某个插件的统一配置来源；未指定的配置遵循节点映射。
+- `plugin_artifacts` 为每个来源登记实际程序路径、大小、SHA-256 和受支持的 profile。程序系统／架构须与目标匹配。
 
-保存各来源的原插件程序，给每个来源填写一条 `plugin_artifacts`，显式选择目标节点设置和统一空配置来源。例如三节点计划添加：
+这些字段是对基础计划的补充，完整结构和各 profile 的适用范围见[插件迁移配置](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。未支持的插件须先完成适配；原文件和设置仍要完整备份。
 
-```json
-{
-  "plugin_nodes": [
-    {"source_node": 1001, "target_node": 101},
-    {"source_node": 1002, "target_node": 102},
-    {"source_node": 1003, "target_node": 103}
-  ],
-  "plugin_configs": [{"plugin_no": "wk.plugin.search", "source_node": 1001}],
-  "plugin_artifacts": [
-    {"source_node": 1001, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1001/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
-    {"source_node": 1002, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1002/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"},
-    {"source_node": 1003, "plugin_no": "wk.plugin.search", "path": "/srv/v2-snapshots/node1003/plugins/wk.plugin.search-linux-amd64.wkp", "bytes": 63324496, "sha256": "68079973350ec42480d84ee83770e5f7910fc06daeba41b746362e28492d939f", "profile": "wk-search-persist-route-linux-amd64-v1"}
-  ]
-}
-```
+离线 `verify` 必须在插件首次启动前完成。搜索类插件可能需要从迁入历史重建索引，预留磁盘、CPU 和时间；不要直接复制与原节点或原序号绑定的索引。验收历史搜索、新消息索引、仅向单个节点写入后的跨节点查询、Leader 切换及整组重启。`readyz` 成功或插件进程存在不能代替这些检查。
 
-路径必须指向已核对的停机备份程序。导入为每个目标安装原程序、设置和全部保留消息频道的序号零检查点；原 Bleve 索引不直接复制。首次启动由原插件通过 v3 的已提交历史接口重新建立索引，适应节点和序号变化。配置必须分别指向该节点 `data_dir` 下的 `plugins`、`plugin-state`、`plugin-sandbox`。
-
-离线 `verify` 要求检查点完整且未被启动推进；因此必须先校验、后启动。启动后的全历史重建在每个目标产生索引，需要额外磁盘、CPU 和验收时间。等待重建完成，验证历史关键词、新消息、每个节点的 `/usersearch` 和重启；`readyz` 成功或插件进程存在都不能代替搜索验收。
+如果调用方使用 `/plugins/:plugin_no/*path`，须核对目标发布版本提供该 HTTP 入口；`v3.0.0-beta.13` 尚无该兼容入口。只有插件程序能启动并不足以完成迁移。
 
 </details>
 
@@ -209,7 +202,7 @@ wukongim version --output json
 
 v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能不同。经业务方确认，可启用 `metadata.derive_unread_from_boundaries: true`：完整原计数留在源归档，报告 `archived_unread` 绑定原会话行数、非零计数行数及摘要；v3 根据保留消息、映射后的已读／删除位置、加入位置、保留边界和用户最后发送位置计算未读。集群恢复屏障等 `SyncOnce` 内部记录占用序号，但不计入未读；不能直接把消息序号差作为消息条数，设置未读和旧客户端拉取也须使用实际业务消息边界。验收应包含故障切换后再次收发消息的未读数检查。显示值可能变化，不能声称旧计数与新计数等价；不会清零或前移原已读／删除边界。
 
-成员仍有效、有保留历史却没有权威会话时，不能由成员关系推断它应该重新显示。`metadata.missing_conversations` 逐组绑定 `capture_digest`、`uid_sha256`、`channel_sha256`（`IdentityKey(channelID, channelType)` 的 SHA256）和转换后的 `retained_tail`。加入 `visibility: "hidden_until_new_message"` 可保留成员及历史访问权限，在最新业务消息序号超过该值前不出现在会话列表（集群内部恢复屏障不算新消息）；明确打开会话也可显示。此标记不改动历史读取权限、已读或删除位置。未读修复使用 Channel RPC codec 10 和可重建的内部记录索引，三节点须使用同一配套版本；已写入新索引标记的数据不能交给旧版本继续写入。没有原已读记录时不虚构已读位置，新消息到来后的未读仍按 v3 规则计算。仅归档的孤立副本会话须同时有其精确 `conversation_replicas` 决定，待恢复意图、未批准原会话或已变化的尾部仍拒绝。报告 `hidden_memberships` 给出实际应用数量。
+成员仍有效、有保留历史却没有权威会话时，不能由成员关系推断它应该重新显示。`metadata.missing_conversations` 逐组绑定 `capture_digest`、`uid_sha256`、`channel_sha256`（`IdentityKey(channelID, channelType)` 的 SHA256）和转换后的 `retained_tail`。加入 `visibility: "hidden_until_new_message"` 可保留成员及历史访问权限，在最新业务消息序号超过该值前不出现在会话列表（集群内部恢复屏障不算新消息）；明确打开会话也可显示。此标记不改动历史读取权限、已读或删除位置。此功能要求所有目标节点使用配套版本，并遵守该版本的数据格式回退限制。没有原已读记录时不虚构已读位置，新消息到来后的未读仍按 v3 规则计算。仅归档的孤立副本会话须同时有其精确 `conversation_replicas` 决定，待恢复意图、未批准原会话或已变化的尾部仍拒绝。报告 `hidden_memberships` 给出实际应用数量。
 
 省略 `visibility` 保留旧工具明确授权的“创建全部历史已读会话”行为，两种选择不同，不能混用。带隐藏标记的成员行及 RPC 使用扩展编码：目标全部节点和 `wkcli` 必须采用配套版本，不能混跑旧程序。回退使用完整的迁移前数据代和旧程序，不能让旧程序打开这些新目标目录。
 
@@ -235,16 +228,16 @@ v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能�
   set -e
   umask 077
   wkcli migrate prepare --plan /srv/wkmigrate/plan.json \
-    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json
+    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json 2> /srv/wkmigrate/reports/prepare.stderr
   wkcli migrate export --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/prepare --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/export.json
+    > /srv/wkmigrate/reports/export.json 2> /srv/wkmigrate/reports/export.stderr
   wkcli migrate import --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/import --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/import.json
+    > /srv/wkmigrate/reports/import.json 2> /srv/wkmigrate/reports/import.stderr
   wkcli migrate verify --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/verify --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/verify.json
+    > /srv/wkmigrate/reports/verify.json 2> /srv/wkmigrate/reports/verify.stderr
   cat /srv/wkmigrate/reports/verify.json
 )
 ```
@@ -355,6 +348,6 @@ wkcli migrate export-map --plan /srv/wkmigrate/plan.json \
 | v3 尚未接收新生产写入 | 关闭新集群入口，按已演练步骤恢复原 v2 冷备及路由；恢复客户端的对应迁移代次 |
 | v3 已接收新生产写入 | 不能直接切回旧 v2，否则会丢失新增数据；保留新库，按已验证的 v3 修复或备份恢复方案处理 |
 
-第一版没有 v3 → v2 反向增量迁移。回退演练应使用备份副本，不能破坏保留的原冷备。固定版本的完整迁移和重启测试记录见[交付包验收报告](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-09-v2-migration-delivered-package-rehearsal.md)；其功能结果不等于你的性能、插件或生产切换验收。
+本工具没有 v3 → v2 反向增量迁移。正式切换前，使用备份副本演练恢复原版本、数据和路由，并记录恢复耗时；保留的原冷备不得用于写入测试。
 
 </details>

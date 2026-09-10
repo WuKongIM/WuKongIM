@@ -1300,3 +1300,5 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
   binaries; rollback requires the complete prior generation, not old writers
   over a marked database. Legacy unread pulls retain effective read boundaries;
   sequence minus unread count is invalid after an interior recovery barrier.
+
+- Public v2 migration documentation must describe reusable WuKongIM procedures with a supported reader baseline and explicit release capability requirements. Deployment-specific business applications, credentials, binary inventories, and per-record recovery decisions belong in private operator records; example plans must not depend on unpublished optional-field behavior.
