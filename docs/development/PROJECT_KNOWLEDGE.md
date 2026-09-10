@@ -1302,3 +1302,5 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
   binaries; rollback requires the complete prior generation, not old writers
   over a marked database. Legacy unread pulls retain effective read boundaries;
   sequence minus unread count is invalid after an interior recovery barrier.
+
+- TangSengDaoDao migration must preserve Redis credentials, typed values, and absolute TTLs with the IM/SQL backup generation. Restore RDB before enabling AOF and verify restart. Archive/invalidate derived `messageExtraVersion:` cursors for extension resync; map robot message sequences without changing event IDs/scores/expiry. Drain `readedCount:` writes before capture.
