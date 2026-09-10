@@ -123,7 +123,7 @@ func (n *conversationNodeFake) ListUserChannelMembershipPage(_ context.Context, 
 	return append([]metadb.UserChannelMembership(nil), n.memberships...), n.cursor, n.done, nil
 }
 
-func (n *conversationNodeFake) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, _ string) ([]clusterchannels.ConversationHeadResult, error) {
+func (n *conversationNodeFake) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, _ string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
 	n.headCalls++
 	n.headIDs = append([]channelruntime.ChannelID(nil), ids...)
 	return append([]clusterchannels.ConversationHeadResult(nil), n.heads...), nil

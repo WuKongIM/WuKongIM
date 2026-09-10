@@ -207,9 +207,9 @@ wukongim version --output json
 <details>
 <summary>可选：独立未读计数与缺失会话的列表显示</summary>
 
-v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能不同。经业务方确认，可启用 `metadata.derive_unread_from_boundaries: true`：完整原计数留在源归档，报告 `archived_unread` 绑定原会话行数、非零计数行数及摘要；v3 根据保留消息、映射后的已读／删除位置、加入位置、保留边界和用户最后发送位置计算未读。显示值可能变化，不能声称旧计数与新计数等价；不会清零或前移原已读／删除边界。
+v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能不同。经业务方确认，可启用 `metadata.derive_unread_from_boundaries: true`：完整原计数留在源归档，报告 `archived_unread` 绑定原会话行数、非零计数行数及摘要；v3 根据保留消息、映射后的已读／删除位置、加入位置、保留边界和用户最后发送位置计算未读。集群恢复屏障等 `SyncOnce` 内部记录占用序号，但不计入未读；不能直接把消息序号差作为消息条数，设置未读和旧客户端拉取也须使用实际业务消息边界。验收应包含故障切换后再次收发消息的未读数检查。显示值可能变化，不能声称旧计数与新计数等价；不会清零或前移原已读／删除边界。
 
-成员仍有效、有保留历史却没有权威会话时，不能由成员关系推断它应该重新显示。`metadata.missing_conversations` 逐组绑定 `capture_digest`、`uid_sha256`、`channel_sha256`（`IdentityKey(channelID, channelType)` 的 SHA256）和转换后的 `retained_tail`。加入 `visibility: "hidden_until_new_message"` 可保留成员及历史访问权限，在最新业务消息序号超过该值前不出现在会话列表（集群内部恢复屏障不算新消息）；明确打开会话也可显示。此标记不改动历史读取权限、已读或删除位置。没有原已读记录时不虚构已读位置，新消息到来后的未读仍按 v3 规则计算。仅归档的孤立副本会话须同时有其精确 `conversation_replicas` 决定，待恢复意图、未批准原会话或已变化的尾部仍拒绝。报告 `hidden_memberships` 给出实际应用数量。
+成员仍有效、有保留历史却没有权威会话时，不能由成员关系推断它应该重新显示。`metadata.missing_conversations` 逐组绑定 `capture_digest`、`uid_sha256`、`channel_sha256`（`IdentityKey(channelID, channelType)` 的 SHA256）和转换后的 `retained_tail`。加入 `visibility: "hidden_until_new_message"` 可保留成员及历史访问权限，在最新业务消息序号超过该值前不出现在会话列表（集群内部恢复屏障不算新消息）；明确打开会话也可显示。此标记不改动历史读取权限、已读或删除位置。未读修复使用 Channel RPC codec 10 和可重建的内部记录索引，三节点须使用同一配套版本；已写入新索引标记的数据不能交给旧版本继续写入。没有原已读记录时不虚构已读位置，新消息到来后的未读仍按 v3 规则计算。仅归档的孤立副本会话须同时有其精确 `conversation_replicas` 决定，待恢复意图、未批准原会话或已变化的尾部仍拒绝。报告 `hidden_memberships` 给出实际应用数量。
 
 省略 `visibility` 保留旧工具明确授权的“创建全部历史已读会话”行为，两种选择不同，不能混用。带隐藏标记的成员行及 RPC 使用扩展编码：目标全部节点和 `wkcli` 必须采用配套版本，不能混跑旧程序。回退使用完整的迁移前数据代和旧程序，不能让旧程序打开这些新目标目录。
 

@@ -37,8 +37,11 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 ## Invariants and Failure Semantics
 
 - `visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)`;
-  unread is clamped from committed head against that floor, badge state, and
-  the current user's latest committed send.
+  unread counts ordinary messages after that floor, badge state, and the current
+  user's latest committed send. SyncOnce/recovery positions are excluded by the
+  Channel leader's rank query. SetUnread uses a leader-selected ordinary-message
+  boundary; legacy pulls retain the actual effective read sequence, never infer
+  it by subtracting an unread count from a sparse log sequence.
 - Empty results do not imply completion; only `done=true` completes a pass.
 - Disbanded channels become deletes. Temporary leader failure becomes
   unresolved and does not block cursor progress.

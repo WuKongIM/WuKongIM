@@ -303,6 +303,9 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 }
 
 func legacyEffectiveReadSeq(item Conversation) uint64 {
+	if item.effectiveReadKnown {
+		return maxMembershipFloor(item.ReadSeq, item.effectiveReadSeq)
+	}
 	readSeq := item.ReadSeq
 	if item.LastMessage == nil || item.LastMessage.MessageSeq < item.Unread {
 		return readSeq

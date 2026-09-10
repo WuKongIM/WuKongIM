@@ -168,7 +168,7 @@ func (*membershipRetryStore) ActivateUserChannelMembership(context.Context, stri
 	return nil
 }
 
-func (s *membershipHeadHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (s *membershipHeadHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	s.memberships = append([]metadb.UserChannelMembership(nil), memberships...)
 	return append([]HydrationResult(nil), s.results...), nil
 }

@@ -1109,7 +1109,10 @@ func (n *Node) ReadChannelConversationHead(ctx context.Context, id channelruntim
 // ReadChannelConversationHeads validates business channel lifecycle state and
 // delegates one aligned batch to the Channel service, which groups remote
 // reads by exact leader.
-func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string) ([]channels.ConversationHeadResult, error) {
+func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error) {
+	if len(badges) != 0 && len(badges) != len(ids) {
+		return nil, channelruntime.ErrInvalidConfig
+	}
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
@@ -1117,13 +1120,14 @@ func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelru
 		return nil, err
 	}
 	reader, ok := n.channels.(interface {
-		ReadConversationHeads(context.Context, []channelruntime.ChannelID, string) ([]channels.ConversationHeadResult, error)
+		ReadConversationHeads(context.Context, []channelruntime.ChannelID, string, ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error)
 	})
 	if !ok {
 		return nil, ErrNotStarted
 	}
 	results := make([]channels.ConversationHeadResult, len(ids))
 	eligibleIDs := make([]channelruntime.ChannelID, 0, len(ids))
+	eligibleBadges := make([]channels.ConversationBadgeQuery, 0, len(ids))
 	eligibleIndexes := make([]int, 0, len(ids))
 	metadataResults := n.readConversationChannelMetadataBatch(ctx, ids)
 	for index, id := range ids {
@@ -1134,6 +1138,9 @@ func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelru
 			results[index].Err = channelruntime.ErrChannelNotFound
 		case err == nil:
 			eligibleIDs = append(eligibleIDs, id)
+			if len(badges) != 0 {
+				eligibleBadges = append(eligibleBadges, badges[index])
+			}
 			eligibleIndexes = append(eligibleIndexes, index)
 		default:
 			results[index].Err = err
@@ -1142,7 +1149,7 @@ func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelru
 	if len(eligibleIDs) == 0 {
 		return results, nil
 	}
-	batch, err := reader.ReadConversationHeads(ctx, eligibleIDs, uid)
+	batch, err := reader.ReadConversationHeads(ctx, eligibleIDs, uid, eligibleBadges...)
 	if err != nil {
 		return nil, err
 	}

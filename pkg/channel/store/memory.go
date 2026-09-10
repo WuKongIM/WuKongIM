@@ -630,6 +630,22 @@ func (s *MemoryChannelStore) LookupMessageByID(ctx context.Context, messageID ui
 	return ch.Message{}, false, nil
 }
 
+// CountOrdinaryMessages implements the same badge contract as durable storage.
+func (s *MemoryChannelStore) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var count uint64
+	for _, record := range s.records {
+		if record.Index > after && record.Index <= through && !record.SyncOnce {
+			count++
+		}
+	}
+	return count, nil
+}
+
 // GetLastSenderMessageSeq returns the latest sender sequence through an
 // explicit committed boundary.
 func (s *MemoryChannelStore) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {

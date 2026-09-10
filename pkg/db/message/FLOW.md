@@ -53,6 +53,14 @@ storage core without transferring shared-engine ownership.
   format-2 writes. Import adds no empty-key exception, uniqueness relaxation,
   or recovery path and rejects values the native runtime cannot represent.
 
+- A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes
+  internal records from badge rank queries. Existing primary rows are rebuilt in
+  bounded batches before the marker is published; channel append ownership
+  serializes writers and rank reads. All append, replacement, truncate and
+  retention paths maintain the index. Portable backups omit the marker and
+  rebuild derived entries during import; raw snapshots preserve both together.
+  Matched runtimes are required after publication; older writers cannot maintain
+  this derived keyspace.
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and
   catalog as one atomic unit where applicable.

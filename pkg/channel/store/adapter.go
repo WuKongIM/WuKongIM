@@ -173,6 +173,12 @@ type IdempotencyLookup interface {
 	LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error)
 }
 
+// OrdinaryMessageCounter counts non-SyncOnce positions in (after, through].
+// Callers supply committed and retention-aware bounds from the current authority.
+type OrdinaryMessageCounter interface {
+	CountOrdinaryMessages(context.Context, uint64, uint64) (uint64, error)
+}
+
 // SenderSequenceLookup finds the latest sequence sent by one user through an
 // explicit committed boundary.
 type SenderSequenceLookup interface {

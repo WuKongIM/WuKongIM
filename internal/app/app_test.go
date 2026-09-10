@@ -6150,7 +6150,7 @@ func (f *fakeManagerCluster) ListUserChannelMembershipPage(_ context.Context, ui
 	return rows, cursor, limit >= len(items), nil
 }
 
-func (f *fakeManagerCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string) ([]clusterchannels.ConversationHeadResult, error) {
+func (f *fakeManagerCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
 	results := make([]clusterchannels.ConversationHeadResult, len(ids))
 	for index, id := range ids {
 		messages := f.conversationMessages[metadb.ChannelKey{ChannelID: id.ID, ChannelType: int64(id.Type)}]
@@ -6865,7 +6865,7 @@ func (f *fakePresenceCluster) CommittedChannelTail(context.Context, string, int6
 	return f.appendSeq, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string) ([]clusterchannels.ConversationHeadResult, error) {
+func (f *fakePresenceCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	results := make([]clusterchannels.ConversationHeadResult, len(ids))

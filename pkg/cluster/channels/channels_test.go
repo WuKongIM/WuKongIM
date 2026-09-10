@@ -3366,6 +3366,10 @@ func (s *lastVisibleTrackingStore) ReadCommitted(ctx context.Context, req channe
 	return result, err
 }
 
+func (s *lastVisibleTrackingStore) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
+	return s.ChannelStore.(channelstore.OrdinaryMessageCounter).CountOrdinaryMessages(ctx, after, through)
+}
+
 func (s *lastVisibleTrackingStore) GetLastSenderMessageSeq(ctx context.Context, uid string, throughSeq uint64) (uint64, bool, error) {
 	lookup, ok := s.ChannelStore.(channelstore.SenderSequenceLookup)
 	if !ok {

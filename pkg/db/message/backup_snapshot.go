@@ -370,7 +370,7 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 			return nil, err
 		}
 		key := iter.Key()
-		if bytes.Equal(key, checkpointKey) {
+		if bytes.Equal(key, checkpointKey) || bytes.Equal(key, nonBusinessVersionKey(channelKey)) {
 			continue
 		}
 		if bytes.HasPrefix(key, historyPrefix) {
@@ -672,7 +672,7 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 	} else if currentCheckpointPresent {
 		return 0, dberrors.ErrConflict
 	}
-	entry := &channelEntry{key: key, id: id, appendKeyCache: newAppendKeyCache(key, id)}
+	entry := &channelEntry{db: db, key: key, id: id, appendKeyCache: newAppendKeyCache(key, id)}
 	batch := db.engine.NewBatch()
 	if err := batch.Set(encodeCatalogKey(key), encodeCatalogValue(id)); err != nil {
 		batch.Close()
@@ -698,6 +698,7 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 	var previousSeq uint64
 	var maxMessageID uint64
 	messageBatch := db.engine.NewBatch()
+	stager := nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
 	defer func() { _ = messageBatch.Close() }()
 	for index := uint64(0); index < messageCount; index++ {
 		if err := ctxErr(ctx); err != nil {
@@ -735,7 +736,7 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 		if row.MessageID > maxMessageID {
 			maxMessageID = row.MessageID
 		}
-		if err := entry.stageMessageRow(messageBatch, row, entry.appendKeyCache); err != nil {
+		if err := stager.stage(row, entry.appendKeyCache); err != nil {
 			return 0, err
 		}
 		flush := (index+1)%backupImportBatchMessages == 0 || index+1 == messageCount
@@ -748,6 +749,7 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 					return 0, err
 				}
 				messageBatch = db.engine.NewBatch()
+				stager = nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
 			}
 		}
 	}

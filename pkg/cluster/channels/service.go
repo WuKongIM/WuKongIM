@@ -114,9 +114,22 @@ type LastVisibleResponse struct {
 	CurrentUserLastSendSeq uint64
 }
 
+// ConversationBadgeQuery supplies the UID-owned read floor for a Channel read.
+// KeepUnread optionally requests the read boundary that leaves at most that many
+// ordinary messages. The leader adds retention and the latest own-send floor.
+type ConversationBadgeQuery struct {
+	AfterSeq   uint64
+	KeepUnread *uint64
+}
+
 // ConversationHead is the bounded leader-owned state needed to construct one
 // membership-backed conversation.
 type ConversationHead struct {
+	// NonBusinessUnread counts SyncOnce positions above the effective badge floor.
+	NonBusinessUnread uint64
+	// UnreadBoundary is computed only when the query supplies KeepUnread.
+	UnreadBoundary   uint64
+	BoundaryComputed bool
 	// LastCommittedSeq is the authoritative badge-count upper boundary.
 	LastCommittedSeq uint64
 	// RetentionThroughSeq is the logical message compaction floor.
@@ -132,6 +145,8 @@ type ConversationHead struct {
 // ConversationHeadRequest carries the origin node's route fence for one
 // channel in a same-leader conversation-head batch.
 type ConversationHeadRequest struct {
+	// Badge carries the original UID-owned boundary without changing route fences.
+	Badge ConversationBadgeQuery
 	// ChannelID identifies the channel-owned message log.
 	ChannelID ch.ChannelID
 	// RetentionThroughSeq is the origin's slot-authoritative compaction floor.
@@ -507,7 +522,7 @@ func (s *Service) ReadConversationHead(ctx context.Context, id ch.ChannelID, uid
 
 // ReadConversationHeads resolves the current route for every channel, groups
 // remote reads by exact leader, and returns one result aligned with every ID.
-func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string) ([]ConversationHeadResult, error) {
+func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
 	started := time.Now()
 	resultLabel := "ok"
 	remoteCalls := 0
@@ -515,7 +530,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 	defer func() {
 		s.observeConversationHydrationBatch(resultLabel, len(ids), remoteCalls, localReads, time.Since(started))
 	}()
-	if uid == "" {
+	if uid == "" || (len(badges) != 0 && len(badges) != len(ids)) {
 		resultLabel = "error"
 		return nil, ch.ErrInvalidConfig
 	}
@@ -539,6 +554,10 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 			resultLabel = "error"
 			return nil, err
 		}
+		badge := ConversationBadgeQuery{}
+		if len(badges) != 0 {
+			badge = badges[index]
+		}
 		metaResult := metaResults[index]
 		meta := metaResult.Meta
 		if metaResult.Err != nil {
@@ -555,6 +574,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 		}
 		if meta.Leader == s.localNode {
 			localItems = append(localItems, remoteItem{index: index, request: ConversationHeadRequest{
+				Badge:                badge,
 				ChannelID:            id,
 				RetentionThroughSeq:  meta.RetentionThroughSeq,
 				ExpectedLeader:       meta.Leader,
@@ -566,6 +586,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 			continue
 		}
 		remoteByLeader[meta.Leader] = append(remoteByLeader[meta.Leader], remoteItem{index: index, request: ConversationHeadRequest{
+			Badge:                badge,
 			ChannelID:            id,
 			RetentionThroughSeq:  meta.RetentionThroughSeq,
 			ExpectedLeader:       meta.Leader,
@@ -1040,7 +1061,7 @@ func (s *Service) readLocalConversationHeads(ctx context.Context, uid string, re
 		committed, hasLiveHW := liveHW[request.ChannelID]
 		var activationRequired bool
 		results[index].Head, activationRequired, results[index].Err = s.readLocalConversationHead(
-			ctx, request.ChannelID, uid, request.RetentionThroughSeq, request.ExpectedMinISR, committed, hasLiveHW,
+			ctx, request.ChannelID, uid, request.RetentionThroughSeq, request.ExpectedMinISR, committed, hasLiveHW, request.Badge,
 		)
 		if !activationRequired {
 			continue
@@ -1087,7 +1108,7 @@ func (s *Service) readLocalConversationHeads(ctx context.Context, uid string, re
 		}
 		var activationRequired bool
 		results[index].Head, activationRequired, results[index].Err = s.readLocalConversationHead(
-			ctx, request.ChannelID, uid, request.RetentionThroughSeq, request.ExpectedMinISR, committed, true,
+			ctx, request.ChannelID, uid, request.RetentionThroughSeq, request.ExpectedMinISR, committed, true, request.Badge,
 		)
 		if activationRequired && results[index].Err == nil {
 			results[index].Err = ch.ErrNotReady
@@ -1219,7 +1240,7 @@ func (s *Service) liveRuntimeHW(ctx context.Context, requests []runtimeHWExpecta
 	return liveHW, itemErrors, nil
 }
 
-func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID, uid string, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted bool) (ConversationHead, bool, error) {
+func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID, uid string, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted bool, badges ...ConversationBadgeQuery) (ConversationHead, bool, error) {
 	if s == nil || s.store == nil || uid == "" {
 		return ConversationHead{}, false, ch.ErrNotReady
 	}
@@ -1258,6 +1279,43 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 		return ConversationHead{}, false, lookupErr
 	} else if found {
 		head.CurrentUserLastSendSeq = seq
+	}
+	badge := ConversationBadgeQuery{}
+	if len(badges) != 0 {
+		badge = badges[0]
+	}
+	floor := maxUint64Value(badge.AfterSeq, maxUint64Value(retentionThroughSeq, head.CurrentUserLastSendSeq))
+	counter, ok := store.(channelstore.OrdinaryMessageCounter)
+	if !ok {
+		return ConversationHead{}, false, ch.ErrInvalidConfig
+	}
+	ordinary, err := counter.CountOrdinaryMessages(ctx, floor, committed)
+	if err != nil {
+		return ConversationHead{}, false, err
+	}
+	if committed > floor {
+		if ordinary > committed-floor {
+			return ConversationHead{}, false, ch.ErrInvalidConfig
+		}
+		head.NonBusinessUnread = committed - floor - ordinary
+	}
+	if badge.KeepUnread != nil {
+		low, high := min(floor, committed), committed
+		// Rank queries make selection logarithmic in sequence range, independent
+		// of the number of ordinary messages in the retained history.
+		for low < high {
+			middle := low + (high-low)/2
+			count, err := counter.CountOrdinaryMessages(ctx, middle, committed)
+			if err != nil {
+				return ConversationHead{}, false, err
+			}
+			if count > *badge.KeepUnread {
+				low = middle + 1
+			} else {
+				high = middle
+			}
+		}
+		head.UnreadBoundary, head.BoundaryComputed = low, true
 	}
 	message, found, err := readLastOrdinaryCommitted(ctx, store, committed, retentionThroughSeq)
 	if err != nil {

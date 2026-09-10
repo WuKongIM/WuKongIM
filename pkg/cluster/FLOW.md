@@ -39,7 +39,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Failover proof renewal re-probes the surviving target under the current fence;
    it never falls back to draining the unavailable source.
 4. Conversation and history reads batch Slot routes and group by exact Leader,
-   preserving alignment and item errors. Cold quorum Leaders (even HW=LEO=0)
+   preserving alignment and item errors. Conversation codec 10 carries UID-owned
+   badge floors, excluded internal-position counts, and optional set-unread
+   boundaries; leader reads add retention and the latest own send. Cold quorum Leaders (even HW=LEO=0)
    recover first; loaded Leaders still installing authority cannot serve HW.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read

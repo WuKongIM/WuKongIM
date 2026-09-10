@@ -840,6 +840,15 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 	return IdempotencyHit{Message: fromDBMessage(msg), PayloadHash: payloadHash}, true, nil
 }
 
+// CountOrdinaryMessages preserves the caller's authoritative committed range.
+func (a *messageDBChannelStoreAdapter) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
+	if err := a.ensureOpen(); err != nil {
+		return 0, err
+	}
+	count, err := a.store.CountOrdinaryMessages(ctx, after, through)
+	return count, a.mapError(err)
+}
+
 func (a *messageDBChannelStoreAdapter) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
 	if err := a.ensureOpen(); err != nil {
 		return 0, false, err

@@ -110,6 +110,9 @@ type LastMessage struct {
 
 // Conversation is one channel row in a user's conversation list.
 type Conversation struct {
+	// effectiveReadSeq retains the actual sparse-log boundary for legacy pulls.
+	effectiveReadSeq   uint64
+	effectiveReadKnown bool
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.

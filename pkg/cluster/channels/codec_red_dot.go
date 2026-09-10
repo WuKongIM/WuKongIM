@@ -86,7 +86,7 @@ func legacyMessageFlagError(payload any, version uint8) error {
 	if version < legacyCodecVersionV8 && payloadHasMessageFlag(payload, syncOnceWireField) {
 		return errSyncOnceCodecRequired
 	}
-	if version < codecVersion && payloadHasMessageFlag(payload, expireWireField) {
+	if version < legacyCodecVersionV9 && payloadHasMessageFlag(payload, expireWireField) {
 		return errExpireCodecRequired
 	}
 	return nil

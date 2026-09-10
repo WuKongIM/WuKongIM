@@ -17,7 +17,7 @@ import (
 // head-read surfaces used to construct transient conversations.
 type MembershipConversationNode interface {
 	ListUserChannelMembershipPage(context.Context, string, metadb.UserChannelMembershipCursor, int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error)
-	ReadChannelConversationHeads(context.Context, []channelruntime.ChannelID, string) ([]clusterchannels.ConversationHeadResult, error)
+	ReadChannelConversationHeads(context.Context, []channelruntime.ChannelID, string, ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error)
 }
 
 // MembershipMutationNode exposes UID-owned personal membership state.
@@ -68,7 +68,7 @@ func (s *ConversationStore) ListUserChannelMembershipPage(ctx context.Context, u
 
 // HydrateConversationHeads performs one cluster-facade batch. The cluster
 // facade groups channel reads by exact Channel Leader and preserves alignment.
-func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership) ([]conversationusecase.HydrationResult, error) {
+func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]conversationusecase.HydrationResult, error) {
 	results := make([]conversationusecase.HydrationResult, len(memberships))
 	if len(memberships) == 0 {
 		return results, nil
@@ -77,14 +77,23 @@ func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid st
 		return nil, metadb.ErrNotFound
 	}
 	ids := make([]channelruntime.ChannelID, len(memberships))
+	badges := make([]clusterchannels.ConversationBadgeQuery, len(memberships))
 	for index, row := range memberships {
 		results[index].Key = conversationusecase.ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
 		if row.ChannelID == "" || row.ChannelType <= 0 || row.ChannelType > 255 {
 			return nil, conversationusecase.ErrInvalidRequest
 		}
+		joinFloor := uint64(0)
+		if row.JoinSeq > 0 {
+			joinFloor = row.JoinSeq - 1
+		}
+		badges[index].AfterSeq = max(joinFloor, row.ReadSeq, row.DeletedToSeq)
+		if len(keepUnread) != 0 {
+			badges[index].KeepUnread = &keepUnread[0]
+		}
 		ids[index] = channelruntime.ChannelID{ID: row.ChannelID, Type: uint8(row.ChannelType)}
 	}
-	heads, err := s.node.ReadChannelConversationHeads(ctx, ids, uid)
+	heads, err := s.node.ReadChannelConversationHeads(ctx, ids, uid, badges...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +113,9 @@ func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid st
 			continue
 		}
 		head := item.Head
+		results[index].NonBusinessUnread = head.NonBusinessUnread
+		results[index].UnreadBoundary = head.UnreadBoundary
+		results[index].BoundaryComputed = head.BoundaryComputed
 		results[index].LastCommittedSeq = head.LastCommittedSeq
 		results[index].RetentionThroughSeq = head.RetentionThroughSeq
 		results[index].CurrentUserLastSendSeq = head.CurrentUserLastSendSeq

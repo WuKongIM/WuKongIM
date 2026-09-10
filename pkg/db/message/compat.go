@@ -1392,6 +1392,16 @@ func (s *ChannelStore) GetMessageByMessageID(messageID uint64) (channel.Message,
 	return channelMessageFromRow(row), true, nil
 }
 
+// CountOrdinaryMessages counts committed positions excluding SyncOnce records.
+func (s *ChannelStore) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
+	if err := s.beginUse(); err != nil {
+		return 0, err
+	}
+	defer s.endUse()
+	count, err := s.log.CountOrdinaryMessages(ctx, after, through)
+	return count, toChannelError(err)
+}
+
 // GetLastSenderMessageSeq returns the latest indexed sender sequence through
 // the caller's committed high-water boundary.
 func (s *ChannelStore) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
@@ -3186,7 +3196,7 @@ func commitRowsPriority(lane string) commit.Priority {
 }
 
 func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) error {
-	if err := e.stageMessageRows(batch, rows); err != nil {
+	if err := e.stageMessageRows(context.Background(), batch, rows); err != nil {
 		return toChannelError(err)
 	}
 	if checkpoint != nil {

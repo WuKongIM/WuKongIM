@@ -268,7 +268,7 @@ func (d *pagedLegacyDirectory) ListUserChannelMembershipPage(_ context.Context, 
 
 type dynamicLegacyHydrator struct{}
 
-func (dynamicLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (dynamicLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	results := make([]HydrationResult, len(memberships))
 	for index, row := range memberships {
 		results[index] = HydrationResult{
@@ -299,7 +299,7 @@ type retryOnceLegacyHydrator struct {
 	calls int
 }
 
-func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	h.calls++
 	result := HydrationResult{Key: ConversationKey{ChannelID: memberships[0].ChannelID, ChannelType: memberships[0].ChannelType}}
 	if h.calls == 1 {
@@ -314,7 +314,7 @@ func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ 
 
 type alwaysUnresolvedLegacyHydrator struct{}
 
-func (*alwaysUnresolvedLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (*alwaysUnresolvedLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	return []HydrationResult{{
 		Key:     ConversationKey{ChannelID: memberships[0].ChannelID, ChannelType: memberships[0].ChannelType},
 		Outcome: HydrationRetryable,

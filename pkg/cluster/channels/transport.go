@@ -330,7 +330,7 @@ func (c *TransportClient) callCompatible(node uint64, requireCurrent bool, encod
 		return response, err
 	}
 	if err == nil {
-		if requireCurrent && (len(response) == 0 || (response[0] != codecVersion && response[0] != legacyCodecVersionV8 && response[0] != legacyCodecVersionV7 && response[0] != legacyCodecVersionV6)) {
+		if requireCurrent && (len(response) == 0 || (response[0] != codecVersion && response[0] != legacyCodecVersionV9 && response[0] != legacyCodecVersionV8 && response[0] != legacyCodecVersionV7 && response[0] != legacyCodecVersionV6)) {
 			// Authority reads require at least a v6 response. A v5 success frame
 			// omits retention and write-fence fields.
 			state.applyLegacy(requestGeneration, time.Now().Add(legacyCodecProbeInterval))
@@ -354,7 +354,7 @@ func (c *TransportClient) callCompatible(node uint64, requireCurrent bool, encod
 		if legacyErr != nil {
 			return legacyResponse, legacyErr
 		}
-		if len(legacyResponse) == 0 || (legacyResponse[0] != legacyCodecVersionV6 && legacyResponse[0] != legacyCodecVersionV8 && legacyResponse[0] != legacyCodecVersionV7 && legacyResponse[0] != codecVersion) {
+		if len(legacyResponse) == 0 || (legacyResponse[0] != legacyCodecVersionV6 && legacyResponse[0] != legacyCodecVersionV9 && legacyResponse[0] != legacyCodecVersionV8 && legacyResponse[0] != legacyCodecVersionV7 && legacyResponse[0] != codecVersion) {
 			return nil, errInvalidCodecFrame
 		}
 		return legacyResponse, nil
@@ -377,7 +377,7 @@ func pullBatchNeedsMeta(req channeltransport.PullBatchRequest) bool {
 }
 
 func validateAuthorityCodec(payload []byte, needMeta bool) error {
-	if needMeta && (len(payload) == 0 || (payload[0] != legacyCodecVersionV6 && payload[0] != legacyCodecVersionV8 && payload[0] != legacyCodecVersionV7 && payload[0] != codecVersion)) {
+	if needMeta && (len(payload) == 0 || (payload[0] != legacyCodecVersionV6 && payload[0] != legacyCodecVersionV9 && payload[0] != legacyCodecVersionV8 && payload[0] != legacyCodecVersionV7 && payload[0] != codecVersion)) {
 		return errInvalidCodecFrame
 	}
 	return nil

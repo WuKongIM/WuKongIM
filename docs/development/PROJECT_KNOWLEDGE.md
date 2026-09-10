@@ -1291,3 +1291,12 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
   `visibility: hidden_until_new_message`. The native list-only marker must not
   become a message visibility or read floor. All target runtimes must match;
   rollback restores the previous complete generation, not old readers on new rows.
+
+- Conversation badge counts exclude SyncOnce recovery positions even though they
+  consume durable message sequences. Message index 7 stores sparse cumulative
+  ordinals; system marker 11 is published only after bounded primary backfill.
+  All append/recovery/import/deletion paths maintain it. Portable snapshots omit
+  the marker and rebuild the derived index. Use matching cluster codec-10
+  binaries; rollback requires the complete prior generation, not old writers
+  over a marked database. Legacy unread pulls retain effective read boundaries;
+  sequence minus unread count is invalid after an interior recovery barrier.
