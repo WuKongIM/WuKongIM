@@ -46,6 +46,8 @@ func validateConversationRecoveryPolicy(p *MetadataPolicy) error {
 	return nil
 }
 
+// recoverIndexedConversation accepts only the approved group's unchanged row
+// evidence. It cannot authorize another group or combine fields from its rows.
 func recoverIndexedConversation(p *MetadataPolicy, group, indexedSHA, rowsSHA string) (bool, error) {
 	for _, r := range p.ConversationRecoveries {
 		if group != fmt.Sprintf("%020d/%s", r.NodeID, r.LogicalKey) {
