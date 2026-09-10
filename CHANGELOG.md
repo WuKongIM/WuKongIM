@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Report bounded channel-repair progress, blocked examples, and worker errors instead of silently discarding failed background ticks. / 以限频日志报告频道修复进度、阻塞示例和后台任务错误，避免静默丢弃失败信息。
+
 - Resolve plugin channel ownership from current Slot metadata after leader changes, preventing requests from repeatedly forwarding to a stopped node. / 频道 Leader 变化后，插件从当前 Slot 元数据解析所属节点，避免请求持续转发到已停止的节点。
 
 - Provide reusable v2 migration steps with an explicit reader baseline, release capability checks, generic plugin guidance and optional search-index rebuilding, host resource budgets, and separately captured stage logs. / v2 迁移教程提供通用步骤，明确来源读取基线与版本能力，补充通用插件指引、可选搜索索引重建和宿主机资源预算，并分别保存阶段日志。
