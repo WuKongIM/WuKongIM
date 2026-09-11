@@ -92,30 +92,39 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 				}
 				return rec
 			}
-			// HTTP-generated client numbers must survive forwarding, storage, and conversation hydration.
-			post(apps[0], "/channel", `{"channel_id":"preview-group","channel_type":2,"subscribers":["preview-user"]}`)
-			preview := post(apps[len(apps)-1], "/message/send", `{"channel_id":"preview-group","channel_type":2,"payload":"aGk="}`)
-			var sentPreview struct {
+			// Multiple preview channels exercise concurrent permission reads through real Slot authority.
+			type previewIdentity struct {
 				MessageID   uint64 `json:"message_id"`
 				ClientMsgNo string `json:"client_msg_no"`
 			}
-			if err := json.Unmarshal(preview.Body.Bytes(), &sentPreview); err != nil || sentPreview.ClientMsgNo == "" {
-				t.Fatalf("HTTP send lost generated identity: %s %v", preview.Body, err)
+			expectedPreviews := make(map[string]previewIdentity)
+			for i := 0; i < 4; i++ {
+				id := fmt.Sprintf("preview-group-%d", i)
+				post(apps[0], "/channel", fmt.Sprintf(`{"channel_id":%q,"channel_type":2,"subscribers":["preview-user"]}`, id))
+				preview := post(apps[len(apps)-1], "/message/send", fmt.Sprintf(`{"channel_id":%q,"channel_type":2,"payload":"aGk="}`, id))
+				var sent previewIdentity
+				if err := json.Unmarshal(preview.Body.Bytes(), &sent); err != nil || sent.ClientMsgNo == "" {
+					t.Fatalf("HTTP send lost generated identity: %s %v", preview.Body, err)
+				}
+				expectedPreviews[id] = sent
 			}
 			for _, a := range apps {
 				response := post(a, "/conversation/sync", `{"uid":"preview-user","version":0,"msg_count":1}`)
 				var rows []struct {
-					LastClientMsgNo string `json:"last_client_msg_no"`
-					Recents         []struct {
-						MessageID   uint64 `json:"message_id"`
-						ClientMsgNo string `json:"client_msg_no"`
-					} `json:"recents"`
+					ChannelID       string            `json:"channel_id"`
+					LastClientMsgNo string            `json:"last_client_msg_no"`
+					Recents         []previewIdentity `json:"recents"`
 				}
-				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || len(rows[0].Recents) != 1 {
-					t.Fatalf("preview missing: %s %v", response.Body, err)
+				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != len(expectedPreviews) {
+					t.Fatalf("preview batch missing: %s %v", response.Body, err)
 				}
-				if rows[0].LastClientMsgNo != sentPreview.ClientMsgNo || rows[0].Recents[0].ClientMsgNo != sentPreview.ClientMsgNo || rows[0].Recents[0].MessageID != sentPreview.MessageID {
-					t.Fatalf("preview identity changed across nodes: %s", response.Body)
+				seen := make(map[string]bool)
+				for _, row := range rows {
+					want, ok := expectedPreviews[row.ChannelID]
+					if !ok || seen[row.ChannelID] || len(row.Recents) != 1 || row.LastClientMsgNo != want.ClientMsgNo || row.Recents[0] != want {
+						t.Fatalf("preview identity changed across nodes: %s", response.Body)
+					}
+					seen[row.ChannelID] = true
 				}
 			}
 			original := `{"header":{"no_persist":1,"red_dot":1,"sync_once":1},"from_uid":"","channel_id":"uu1","channel_type":1,"payload":"eyJ0eXBlIjo5OSwiY21kIjoiY2xlYXJVbnJlYWQiLCJwYXJhbSI6eyJjaGFubmVsSUQiOiJnZmgiLCJjaGFubmVsVHlwZSI6MX19","subscribers":[]}`

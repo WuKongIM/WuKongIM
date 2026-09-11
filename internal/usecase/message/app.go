@@ -128,11 +128,13 @@ type SendBatchObserver interface {
 }
 
 // SyncMembershipStore reads UID-owned ordinary membership state for message pulls.
+// Implementations must support concurrent reads and honor context cancellation.
 type SyncMembershipStore interface {
 	GetUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error)
 }
 
 // SyncChannelStateStore reads terminal channel business state for message pull.
+// Implementations must support concurrent reads and honor context cancellation.
 type SyncChannelStateStore interface {
 	GetChannelForMessagePull(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
 }

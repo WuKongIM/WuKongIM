@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Overlap bounded authoritative permission checks during batch history and conversation synchronization to reduce reconnect latency for accounts with many conversations. / 会话及历史批量同步以有限并发检查权威权限，降低多会话账号的重连等待。
+
 - Restore generated client message numbers for HTTP sends that omit the field, and return the number with the send result so legacy clients can resolve conversation previews. / HTTP 发送省略客户端消息编号时恢复自动生成，并随发送结果返回，避免旧客户端会话摘要为空。
 
 - Keep offline CMD synchronization available after a bound source Channel is disbanded; skip only confirmed terminal sources and retain explicit failures for unavailable reads. / 已绑定源频道解散后，离线 CMD 同步继续读取其他频道；仅跳过已确认的终止源，读取不可用仍明确报错。

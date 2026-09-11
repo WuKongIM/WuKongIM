@@ -38,7 +38,9 @@ depending on their frames, JSON, or concrete cluster runtimes.
    Channel IDs, and pass page intent plus an independent visibility floor to
    `PageReader`. It owns latest-page selection, scan bounds, bounded lookahead,
    filtering, bounded continuation, ascending order, and `HasMore` for sync and plugin reads. The
-   committed-record adapter executes routed scans; sync then clones payloads
+   Batch membership and terminal-state preparation overlaps at most eight
+   authority reads; all workers join and input-order failures are resolved before
+   any message batch starts. The committed-record adapter executes routed scans; sync then clones payloads
    and optionally enriches stream messages with bounded event metadata.
 3. Legacy event sync reads a bounded durable sequence page through Slot authority,
    preserves original cursor/filter order, and does not invent event history.

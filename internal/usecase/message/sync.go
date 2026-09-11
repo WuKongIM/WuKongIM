@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -15,7 +16,9 @@ const (
 	defaultSyncMessagesLimit  = 100
 	maxSyncMessagesLimit      = 10000
 	maxSyncMessagesBatchItems = 200
-	legacySettingStream       = 1 << 1
+	// Bound authority-routed permission reads independently of the requested batch size.
+	maxSyncPermissionWorkers = 8
+	legacySettingStream      = 1 << 1
 )
 
 // PullMode selects the compatible /channel/messagesync direction.
@@ -195,7 +198,8 @@ func (a *App) SyncChannelMessages(ctx context.Context, query SyncChannelMessages
 }
 
 // SyncChannelMessagesBatch validates every UID-owned membership before
-// issuing one cluster-routed, item-aligned message read batch.
+// issuing one cluster-routed, item-aligned message read batch. Permission reads
+// overlap within a fixed bound; failures retain input-order precedence.
 func (a *App) SyncChannelMessagesBatch(ctx context.Context, query SyncChannelMessagesBatchQuery) (SyncChannelMessagesBatchResult, error) {
 	loginUID := strings.TrimSpace(query.LoginUID)
 	if loginUID == "" {
@@ -215,13 +219,22 @@ func (a *App) SyncChannelMessagesBatch(ctx context.Context, query SyncChannelMes
 	reads := make([]ChannelMessageQuery, 0, len(query.Items))
 	readIndexes := make([]int, 0, len(query.Items))
 	result := SyncChannelMessagesBatchResult{Items: make([]SyncChannelMessagesBatchItem, len(query.Items))}
-	for index, item := range query.Items {
+	preparationErrors := make([]error, len(query.Items))
+	runMessageBatchWorkers(goruntimeregistry.TaskMessagePermissionBatch, len(query.Items), maxSyncPermissionWorkers, func(index int) {
+		if err := ctx.Err(); err != nil {
+			preparationErrors[index] = err
+			return
+		}
+		item := query.Items[index]
 		item.LoginUID = loginUID
-		preparedItem, err := a.prepareSyncChannelMessages(ctx, item)
-		if err != nil {
+		prepared[index], preparationErrors[index] = a.prepareSyncChannelMessages(ctx, item)
+	})
+	// All workers have joined before inspecting results or starting a message read.
+	for index, item := range query.Items {
+		if err := preparationErrors[index]; err != nil {
 			return SyncChannelMessagesBatchResult{}, err
 		}
-		prepared[index] = preparedItem
+		preparedItem := prepared[index]
 		result.Items[index] = SyncChannelMessagesBatchItem{
 			ChannelID: item.ChannelID, ChannelType: item.ChannelType,
 			Result: SyncChannelMessagesResult{Messages: []SyncedMessage{}},
