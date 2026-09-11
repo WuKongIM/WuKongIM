@@ -3507,8 +3507,11 @@ func TestNewWiresChannelAppendIdempotencyStoreForWriteFencedRetry(t *testing.T) 
 	cluster.writeFenced = true
 	cluster.idempotencyOK = true
 	cluster.idempotencyHit = channelstore.IdempotencyHit{
-		Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7},
+		Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7, FromUID: "u1", ClientMsgNo: "client-1", Payload: []byte("payload")},
 		PayloadHash: appTestPayloadHash([]byte("payload")),
+	}
+	cluster.messages = map[metadb.ChannelKey][]channelruntime.Message{
+		{ChannelID: "room", ChannelType: 2}: {cluster.idempotencyHit.Message},
 	}
 	app, err := newTestApp(t,
 		Config{

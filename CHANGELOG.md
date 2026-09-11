@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Confirm retried sends against current Leader committed history before returning success; a local durable proposal alone no longer produces a successful send acknowledgment. / 重试发送必须由当前 Leader 的已提交历史确认，避免将仅本地落盘的提议误报为发送成功。
+
 - Preserve committed channel migration task chains across Slot replay batch boundaries, preventing older Leader metadata from reappearing after restart. / 修复 Slot 日志重放批次边界导致后续频道迁移任务被误跳过，避免重启后恢复出旧 Leader 状态。
 
 - Preserve the canonical Controller Raft 100ms tick through the runtime facade, avoiding an unintended 200ms election floor during cold recovery. / Controller 统一使用 100ms 默认 tick，避免上层覆盖后将选举等待下限缩短为 200ms，导致冷恢复期间频繁重新选举。
