@@ -457,9 +457,9 @@ export async function checkStaticOutput() {
       'complete-source-aligned-product-http-runtime' ||
     actualCompleteOperations.sort().join('\n') !==
       expectedCompleteOperations.sort().join('\n') ||
-    expectedCompleteOperations.length !== 42
+    expectedCompleteOperations.length === 0
   ) {
-    throw new Error('complete Product HTTP OpenAPI does not match the 42-operation registry');
+    throw new Error('complete Product HTTP OpenAPI does not match the registered operations');
   }
   for (const operation of productHTTPOpenAPIReferenceOperations) {
     const contracted = completeProductOpenAPI.paths?.[operation.path]?.[operation.method];
@@ -1000,7 +1000,7 @@ export async function checkStaticOutput() {
       'operations-http/read-only': ['/top/v1/snapshot', '/bench/v1/'],
       'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
       'webhooks/payloads': ['message_idstr', 'compress_to_uids'],
-      'specifications/openapi': ['OpenAPI 3.1', '42', 'webhooks'],
+      'specifications/openapi': ['OpenAPI 3.1', String(productHTTPOpenAPIReferenceOperations.length), 'webhooks'],
       'interface-inventory': ['109', '58', 'slot_identity_metadata', 'manager_node_config_document', '/plugin/start'],
     })) {
       const pageId = `/${locale}/api/${page}`;

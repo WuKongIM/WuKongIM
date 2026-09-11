@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Align static documentation publication checks with the source-backed Product HTTP operation registry, including legacy message lookup. / 文档发布产物检查以源码对应的 Product HTTP 接口注册表为准，包含旧版消息查询接口。
+
 - Reuse verified duplicate-chain suffixes within each offline migration pass and count terminals on disk, avoiding quadratic history lookups while retaining original edge proofs. / 离线迁移在每次重建内复用已核实的去重链后缀，以磁盘索引统计终点，避免重复遍历，保留完整原始替代证据。
 
 - Refresh old empty-number conversation previews even when a legacy client cursor has advanced, preserving unread and visibility boundaries. / 旧客户端游标已前移时仍可刷新空编号历史会话摘要，保留未读和可见范围边界。
