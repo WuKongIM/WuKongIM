@@ -29,13 +29,15 @@ case "$format" in
   deb)
     packages=("$package_dir"/wukongim*.deb)
     mount_target="/opt/wukongim-package.deb"
-    install_command='apt-get -o Acquire::Retries=3 update && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install --no-install-recommends -y /opt/wukongim-package.deb'
+    bootstrap_update_command='apt-get -o Acquire::Retries=3 update'
+    install_command='DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install --no-install-recommends -y /opt/wukongim-package.deb'
     reinstall_command='DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install --no-install-recommends --reinstall -y /opt/wukongim-package.deb'
     remove_command='DEBIAN_FRONTEND=noninteractive apt-get remove -y wukongim'
     ;;
   rpm)
     packages=("$package_dir"/wukongim*.rpm)
     mount_target="/opt/wukongim-package.rpm"
+    bootstrap_update_command=':'
     install_command='dnf install -y /opt/wukongim-package.rpm'
     reinstall_command='dnf reinstall -y /opt/wukongim-package.rpm'
     remove_command='dnf remove -y wukongim'
@@ -305,6 +307,8 @@ fi
 if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
   sed -i 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources
 fi
+# Reuse this fresh container metadata during the later reinstall lifecycle.
+$bootstrap_update_command
 $install_command
 if [ -x /lib/systemd/systemd ]; then exec /lib/systemd/systemd; fi
 if [ -x /usr/lib/systemd/systemd ]; then exec /usr/lib/systemd/systemd; fi
